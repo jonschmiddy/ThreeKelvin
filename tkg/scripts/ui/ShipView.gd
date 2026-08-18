@@ -15,7 +15,10 @@ var _tex: ImageTexture
 
 func _init() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# Draw at native size, centred. KEEP_ASPECT_CENTERED rescales the texture to
+	# whatever rect it is handed, so the ship changed size whenever a side rail
+	# opened — and scaled pixel art by arbitrary fractions while doing it.
+	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	custom_minimum_size = Vector2(W, H)
 	_img = Image.create(W, H, false, Image.FORMAT_RGBA8)
 	_tex = ImageTexture.create_from_image(_img)
@@ -59,7 +62,9 @@ func rivets(x: int, y: int, count: int, step: int, c: Color) -> void:
 # ------------------------------------------------------------------- the sprite
 
 func draw_ship() -> void:
-	_img.fill(Color("#070a10"))
+	# Transparent: the encounter draws one starfield behind everything, and an
+	# opaque fill turns the sprite into a box sitting on top of it.
+	_img.fill(Color(0, 0, 0, 0))
 	_starfield(41, 30)
 
 	var ratio := 0.0

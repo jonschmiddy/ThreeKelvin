@@ -10,7 +10,7 @@ var _stock: VBoxContainer
 var _hull_box: VBoxContainer
 
 func setup() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	Sig.resources_changed.connect(_refresh)
 	Sig.ship_changed.connect(_refresh)
@@ -19,7 +19,7 @@ func setup() -> void:
 
 func _build() -> void:
 	var root := HBoxContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_theme_constant_override("separation", 10)
 	add_child(root)
 
@@ -55,7 +55,7 @@ func _build() -> void:
 	right.add_theme_constant_override("separation", 10)
 	root.add_child(right)
 	var depart := Widgets.section("depart")
-	depart.add_child(Widgets.button("RETURN TO MAP", func(): Router.show_map()))
+	depart.add_child(Widgets.button("UNDOCK", func(): Router.show_sector()))
 	right.add_child(Widgets.panel_with(depart))
 	var ship := Widgets.section("ship")
 	ship.add_child(ShipView.new())
@@ -73,7 +73,7 @@ func _stock_up() -> void:
 		elif n.region == MapGen.Region.COSMOPOLITAN:
 			# Cosmopolitan hubs carry multiple makers side by side.
 			force = DB.manufacturers.keys().pick_random()
-		var danger := n.danger + 2 if n.region == MapGen.Region.LAWLESS else maxi(1, n.danger - 1)
+		var danger := n.danger + 3 if n.region == MapGen.Region.LAWLESS else maxi(1, n.danger - 2)
 		var m := LootGen.roll_module(danger, force, n.region == MapGen.Region.LAWLESS)
 		# Legitimate markets do not move Legendary and above.
 		if n.region == MapGen.Region.COSMOPOLITAN and m.rarity > ModuleData.Rarity.EPIC:
@@ -104,8 +104,11 @@ func _refresh() -> void:
 		MapGen.Region.COSMOPOLITAN: note = " · multi-brand stock, strict inspections"
 		MapGen.Region.LAWLESS: note = " · fenced goods, no questions"
 	_header.clear()
-	_header.append_text("[color=#%s]%s station[/color] · danger %d[color=#%s]%s[/color]" % [
-		UITheme.ICE.to_html(false), MapGen.region_name(n.region), n.danger,
+	# Named by what the place is, not by the derived region label — "Frontier
+	# station" says less than "Settlement station, moderate security".
+	_header.append_text("[color=#%s]%s station[/color] · %s security · danger %d[color=#%s]%s[/color]" % [
+		UITheme.ICE.to_html(false), MapGen.development_name(n.development),
+		MapGen.security_name(n.security).to_lower(), n.danger,
 		UITheme.COLD.to_html(false), note])
 
 	for c in _services.get_children():
@@ -121,7 +124,7 @@ func _refresh() -> void:
 	full.disabled = missing <= 0 or Run.scrap < rate * missing
 	_services.add_child(full)
 
-	var refuel := Widgets.button("REFUEL +5 · 12 scrap", _refuel)
+	var refuel := Widgets.button("REFUEL +25 · 12 scrap", _refuel)
 	refuel.disabled = Run.scrap < 12
 	_services.add_child(refuel)
 
@@ -162,7 +165,7 @@ func _refuel() -> void:
 	if Run.scrap < 12:
 		return
 	Run.add_scrap(-12)
-	Run.fuel += 5
+	Run.fuel += 25
 	Run.log_line("Refuelled.", &"good")
 	Sig.resources_changed.emit()
 

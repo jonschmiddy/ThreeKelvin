@@ -5,6 +5,7 @@ extends PanelContainer
 ## footer, effect text generated from CardData so new cards need no UI work.
 
 signal chosen(view: CardView)
+signal hovered(view: CardView, entered: bool)
 
 const CARD_W := 132
 const CARD_H := 150
@@ -71,19 +72,22 @@ func _ready() -> void:
 	mouse_exited.connect(_on_hover_out)
 	gui_input.connect(_on_input)
 
-func _on_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and playable:
-			chosen.emit(self)
+## Deliberately does nothing on click. A card is played by dragging it onto a
+## target — your hull for defence and utility, an enemy for anything that hits.
+## Click-to-play would quietly pick a target for you, which is the decision the
+## drag exists to make.
+func _on_input(_event: InputEvent) -> void:
+	pass
 
 func _on_hover_in() -> void:
+	emitted_hover(true)
 	if not playable:
 		return
 	_panel.border_color = UITheme.FLARE
 	_animate_lift(-8.0)
 
 func _on_hover_out() -> void:
+	emitted_hover(false)
 	_panel.border_color = DB.manufacturer_colour(card.manufacturer)
 	_animate_lift(0.0)
 
@@ -102,3 +106,53 @@ func play_flourish(target: Vector2) -> void:
 	tw.tween_property(self, "modulate:a", 0.0, 0.18)
 	tw.tween_property(self, "scale", Vector2(0.7, 0.7), 0.18)
 	tw.chain().tween_callback(queue_free)
+
+func emitted_hover(entered: bool) -> void:
+	hovered.emit(self, entered)
+
+## Dragging a card onto an enemy targets it. The preview is a shrunken copy so
+## the cursor still shows what is being thrown.
+func _get_drag_data(_pos: Vector2) -> Variant:
+	if not playable:
+		return null
+	# The card itself follows the cursor. A stand-in rectangle makes you track
+	# two things at once: what you grabbed, and what the blob represents.
+	var ghost := CardView.new()
+	ghost.setup(card, true)
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var wrap := Control.new()
+	wrap.add_child(ghost)
+	ghost.position = -Vector2(CARD_W, CARD_H) * 0.5
+	set_drag_preview(wrap)
+	# Hide the original outright rather than ghosting it. A half-faded copy reads
+	# as a rendering fault; an empty slot reads as "you are holding that one".
+	# Alpha rather than visible so the hand does not reflow mid-drag.
+	modulate = Color(1, 1, 1, 0)
+	# And stop it intercepting. The reorder preview parks this card under the
+	# cursor by design, so leaving it clickable means the drop lands on the card
+	# being dragged, gets refused, and snaps back.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return {"card": card, "view": self}
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		modulate = Color.WHITE
+		mouse_filter = Control.MOUSE_FILTER_STOP
+
+## A card sits on top of the hand and would otherwise swallow the drop, so it
+## forwards: releasing over a card means "put it here", which is the whole point
+## of dropping on that card rather than beside it.
+func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
+	if not (data is Dictionary and data.has("card")) or data["card"] == card:
+		return false
+	var hand := get_parent() as HandView
+	if hand != null:
+		# Hand-local x, so the slot is chosen by where the cursor is rather than
+		# by which card is currently sliding underneath it.
+		hand.preview_at(position.x + _pos.x, data["card"])
+	return true
+
+func _drop_data(_pos: Vector2, data: Variant) -> void:
+	var hand := get_parent() as HandView
+	if hand != null:
+		hand.reorder_onto(data["card"], self)

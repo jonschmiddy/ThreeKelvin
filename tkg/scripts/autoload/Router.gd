@@ -18,19 +18,39 @@ func _swap(screen: Control) -> void:
 		current.queue_free()
 	current = screen
 	content.add_child(screen)
+	Sig.screen_changed.emit()
 
+## Opens on the sector rather than the chart: the run starts with your ship in
+## open space, not with a graph of places you have not been yet.
 func new_run() -> void:
 	Run.start_new_run()
-	show_map()
+	show_sector()
 
-func show_map() -> void:
+func show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint
 	# where being out of fuel has to resolve rather than stall.
 	Run.check_stranded()
 	if Run.dead:
 		show_game_over()
 		return
-	var s := MapScreen.new()
+	var s := StarchartScreen.new()
+	_swap(s)
+	s.setup()
+
+## Where you are. Always available, including after the run ends.
+## No combat guard here. after_combat() routes here from inside the fight, so a
+## "are we in combat" check would swallow the very transition that ends it — the
+## HUD disables the SECTOR tab during a fight, which is where that belongs.
+func show_sector() -> void:
+	var s := SectorScreen.new()
+	_swap(s)
+	s.setup()
+
+## Refit screen. Reachable from the HUD any time you are not in a fight.
+func show_ship() -> void:
+	if in_combat():
+		return
+	var s := ShipScreen.new()
 	_swap(s)
 	s.setup()
 
@@ -47,40 +67,51 @@ func _on_jumped(_index: int) -> void:
 
 func resolve_current_node() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	Run.log_line("Jumped to %s%s. Danger %d." % [
-		MapGen.region_name(n.region),
-		"" if n.manufacturer == &"" else " (%s)" % DB.manufacturer_name(n.manufacturer),
-		n.danger], &"you")
+	Run.log_line("Jumped to %s. %s. Danger %d." % [
+		MapGen.star_name(n), MapGen.place_line(n).capitalize(), n.danger], &"you")
 
+	# Every arrival lands on the sector. You should see the place before you are
+	# asked to do anything with it — a station is a lit hab ring turning in the
+	# dark, not a menu that appears. Fights are the exception only in that they
+	# start immediately, and combat happens on the sector screen anyway.
 	match n.type:
 		MapGen.NodeType.GOAL:
-			Run.log_line("The farlight fills the viewport. Something is guarding it.", &"big")
+			Run.log_line("The core fills the viewport. Something is guarding it.", &"big")
 			start_combat(DB.enemies[&"custodian"])
 		MapGen.NodeType.FIGHT:
 			if n.cleared:
-				show_map()
+				show_sector()
 			else:
 				var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
 				start_combat(DB.enemies[pool.pick_random()])
-		MapGen.NodeType.STATION:
-			var s := StationScreen.new()
-			_swap(s)
-			s.setup()
-		MapGen.NodeType.DERELICT:
-			if n.cleared:
-				show_map()
-			else:
-				_resolve_derelict(n)
-		MapGen.NodeType.EVENT:
-			if n.cleared:
-				show_map()
-			else:
-				n.cleared = true
-				var e := EventScreen.new()
-				_swap(e)
-				e.setup(EventTable.pick())
 		_:
-			show_map()
+			show_sector()
+
+## Dock. Reached from the sector, not on arrival.
+func show_station() -> void:
+	var s := StationScreen.new()
+	_swap(s)
+	s.setup()
+
+## Open the hail. The node is marked resolved here rather than on arrival, so
+## looking at an event without engaging it does not consume it.
+func show_event() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n.cleared:
+		return
+	n.cleared = true
+	var e := EventScreen.new()
+	_swap(e)
+	e.setup(EventTable.pick())
+
+## Strip the wreck, then stay where you are: the salvage rail on the sector
+## screen already shows what came aboard, so a separate loot screen was one
+## transition too many.
+func salvage_here() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n.cleared:
+		return
+	_resolve_derelict(n)
 
 func _resolve_derelict(n: MapGen.MapNode) -> void:
 	n.cleared = true
@@ -94,21 +125,37 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("Derelict stripped. %d module%s recovered." % [
 		count, "" if count == 1 else "s"], &"good")
-	show_loot()
+	show_sector()
 
 func start_combat(template: EnemyTemplate) -> void:
 	combat = Combat.new()
-	var s := CombatScreen.new()
+	var s := SectorScreen.new()
 	_swap(s)
-	combat.start(template, Run.node_at().danger)
+	# Connect before starting. Turn one resolves inside start() — charges, opening
+	# log lines, even an instant win — and a screen wired up afterwards misses all
+	# of it.
 	s.setup(combat)
+	# Packs appear deeper in, and more often in lawless space where nobody is
+	# flying alone. They split health rather than doubling it — see Combat.start.
+	var node: MapGen.MapNode = Run.node_at()
+	var extras: Array = []
+	if node.danger >= 2 and not template.boss and not template.fauna:
+		var odds := 0.45 if node.region == MapGen.Region.LAWLESS else 0.22
+		if randf() < odds:
+			var pool := DB.fight_pool(node.danger, false)
+			extras.append(DB.enemies[pool.pick_random()])
+	combat.start(template, node.danger, extras)
 
 ## Events can drop you straight into a fight (distress-beacon bait).
 func start_ambush() -> void:
 	var pool := DB.fight_pool(Run.node_at().danger, false)
 	start_combat(DB.enemies[pool.pick_random()])
 
+func in_combat() -> bool:
+	return combat != null and not combat.finished
+
 func after_combat(_c: Combat) -> void:
+	combat = null
 	if Run.dead or Run.won:
 		show_game_over()
 		return
@@ -120,16 +167,10 @@ func after_event() -> void:
 		return
 	show_loot_or_map()
 
+## Salvage is resolved where it was found, not on a screen of its own. The
+## sector shows what is in the hold and lets you fit or scrap it there.
 func show_loot_or_map() -> void:
-	if Run.cargo.is_empty() and Run.found_hull == null:
-		show_map()
-	else:
-		show_loot()
-
-func show_loot() -> void:
-	var s := LootScreen.new()
-	_swap(s)
-	s.setup()
+	show_sector()
 
 func _on_run_ended(_won: bool, _reason: String) -> void:
 	pass  ## screens call show_game_over() so the player sees the summary first

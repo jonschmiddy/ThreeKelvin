@@ -2,15 +2,15 @@ class_name GameOverScreen
 extends Control
 
 func setup() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var centre := CenterContainer.new()
-	centre.set_anchors_preset(Control.PRESET_FULL_RECT)
+	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(centre)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
 	box.custom_minimum_size = Vector2(560, 0)
 
-	var title := UITheme.body("THE FARLIGHT" if Run.won else "RUN ENDED",
+	var title := UITheme.body("THE CORE" if Run.won else "RUN ENDED",
 		UITheme.ICE, 22)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)

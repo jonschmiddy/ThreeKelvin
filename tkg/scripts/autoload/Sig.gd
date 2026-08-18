@@ -11,6 +11,7 @@ signal log_line(text: String, kind: StringName)
 # Map
 signal jumped(node_index: int)
 signal map_changed()
+signal screen_changed()             ## a screen was swapped in; nav re-evaluates
 
 # Combat
 signal combat_started(enemy_name: String)

@@ -14,13 +14,13 @@ var _then_fight: bool = false
 
 func setup(event: Dictionary) -> void:
 	_event = event
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	_refresh()
 
 func _build() -> void:
 	var centre := CenterContainer.new()
-	centre.set_anchors_preset(Control.PRESET_FULL_RECT)
+	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(centre)
 	var section := VBoxContainer.new()
 	section.custom_minimum_size = Vector2(620, 0)
