@@ -56,6 +56,44 @@ rate, jumps, kills, and death causes. Healthy target: **40–55% win rate**. Thi
 has already paid for itself — in the earlier web prototype it caught three real bugs
 (including an infinite draw loop) and a structural map flaw in minutes.
 
+### The merge gate
+
+```bash
+.github/scripts/validate.sh              # everything CI runs, from the repo root
+SIM_RUNS=200 .github/scripts/validate.sh # a real balance pass
+LOG_DIR=./ci-logs .github/scripts/validate.sh
+```
+
+`.github/workflows/validate.yml` installs Godot and calls that same script, so a
+green pull request and a green laptop mean the same thing. If you want to change
+what gets checked, edit the script, not the workflow.
+
+It runs four things, in the order that fails fastest first: GDScript is
+tab-indented, the class cache builds, the project boots and constructs its UI, and
+the simulator plays `SIM_RUNS` complete runs. Then it syntax-checks the Python
+audio generators — syntax only, because rendering needs numpy, scipy and soundfile
+and writes about 850 MB, which is not what a pull request check is for.
+
+Three things about it are worth knowing before you touch it:
+
+- **Godot exits 0 even when a script fails to compile.** It prints the failure and
+  moves to the next resource. So every check reads Godot's *output* for
+  `SCRIPT ERROR`, `Parse Error` and `ERROR:` rather than trusting its exit status,
+  and `run_godot` is the only place that logic lives.
+- **Every Godot step runs under a wall-clock limit.** A script that will not
+  compile does not always make the simulator fail — it can leave it wedged
+  instead, which is exactly what happened the first time this was tested. Without
+  the limit a pull request sits open for the runner's full six hours rather than
+  failing in three minutes. `timeout` is GNU coreutils and absent on macOS, so
+  `run_limited` does it by hand.
+- **The gate does not check the win rate**, deliberately. The 40–55% band above has
+  not been re-derived against the current economy, and a check that fails on a
+  number nobody trusts teaches people to ignore the check.
+
+The workflow reports but does not block. **Blocking requires a branch protection
+rule on `main`** requiring the `validate` check — that is a repository setting, not
+something in this file, and until it is set a red run is only advice.
+
 ---
 
 ## Design rulings — do not silently reverse these
