@@ -13,6 +13,7 @@ Sig="*res://scripts/autoload/Sig.gd"
 DB="*res://scripts/autoload/Database.gd"
 Run="*res://scripts/autoload/RunState.gd"
 Router="*res://scripts/autoload/Router.gd"
+Audio="*res://scripts/autoload/Audio.gd"
 
 [display]
 window/size/viewport_width=960

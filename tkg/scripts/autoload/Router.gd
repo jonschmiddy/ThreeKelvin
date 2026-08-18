@@ -33,6 +33,7 @@ func show_starchart() -> void:
 	if Run.dead:
 		show_game_over()
 		return
+	Audio.music_state(&"chart")
 	var s := StarchartScreen.new()
 	_swap(s)
 	s.setup()
@@ -42,6 +43,7 @@ func show_starchart() -> void:
 ## "are we in combat" check would swallow the very transition that ends it — the
 ## HUD disables the SECTOR tab during a fight, which is where that belongs.
 func show_sector() -> void:
+	Audio.music_state(&"sector")
 	var s := SectorScreen.new()
 	_swap(s)
 	s.setup()
@@ -50,11 +52,13 @@ func show_sector() -> void:
 func show_ship() -> void:
 	if in_combat():
 		return
+	Audio.music_state(&"ship")
 	var s := ShipScreen.new()
 	_swap(s)
 	s.setup()
 
 func show_game_over() -> void:
+	Audio.music_state(&"gameover")
 	var s := GameOverScreen.new()
 	_swap(s)
 	s.setup()
@@ -89,6 +93,8 @@ func resolve_current_node() -> void:
 
 ## Dock. Reached from the sector, not on arrival.
 func show_station() -> void:
+	Audio.music_state(&"station")
+	play_dock()
 	var s := StationScreen.new()
 	_swap(s)
 	s.setup()
@@ -100,6 +106,7 @@ func show_event() -> void:
 	if n.cleared:
 		return
 	n.cleared = true
+	Audio.music_state(&"event")
 	var e := EventScreen.new()
 	_swap(e)
 	e.setup(EventTable.pick())
@@ -128,6 +135,9 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 	show_sector()
 
 func start_combat(template: EnemyTemplate) -> void:
+	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
+	# the theme at full intensity. DREAD_NOTES §5, "boss reveal".
+	Audio.music_state(&"boss" if template.boss else &"combat")
 	combat = Combat.new()
 	var s := SectorScreen.new()
 	_swap(s)
@@ -174,3 +184,8 @@ func show_loot_or_map() -> void:
 
 func _on_run_ended(_won: bool, _reason: String) -> void:
 	pass  ## screens call show_game_over() so the player sees the summary first
+
+## Docking clamps. Sig has no "you docked" signal and adding one for a single
+## sound would be noise in the bus, so the screen that opens plays it.
+func play_dock() -> void:
+	Audio.play(&"station_dock", 0.03)

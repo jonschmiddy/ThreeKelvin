@@ -104,6 +104,10 @@ static func toggle_fullscreen() -> void:
 
 static func save() -> void:
 	var cfg := ConfigFile.new()
+	# Load before writing. This used to save a fresh ConfigFile, which was
+	# harmless while display was the only section — and would have silently
+	# dropped the audio volumes every time the window was resized.
+	cfg.load(PATH)
 	cfg.set_value("display", "mode", int(mode))
 	cfg.set_value("display", "window_scale", window_scale)
 	cfg.set_value("display", "screen", safe_screen())
