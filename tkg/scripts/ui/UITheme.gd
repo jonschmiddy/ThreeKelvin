@@ -19,28 +19,48 @@ const HULL_GREEN := Color("#4d7a63")
 const THEM := Color("#c98d7a")
 const GOOD := Color("#7fb89a")
 
-const FS_SMALL := 14
-const FS_BODY := 16
-const FS_HEAD := 20
+# Bevel ramp. Raised chrome catches light top-left and falls away bottom-right —
+# the same two-plane rule the sprite contract uses, applied to interface chrome.
+const BEVEL_HI := Color("#3d4d61")
+const BEVEL_LO := Color("#080b11")
+
+# Silkscreen is an 8px face. Use multiples of 8 only: any other size resamples
+# and the point of a pixel font is lost. The viewport is 960x540 drawn at 2x,
+# so 8 here is 16 real pixels on a 1080p screen.
+const FS_SMALL := 8
+const FS_BODY := 8
+const FS_HEAD := 16
+
+## Loaded once and shared. Antialiasing and hinting are forced off in code as
+## well as in project settings — a bitmap face at integer scale must not be
+## smoothed, and a stray .import setting would otherwise undo it silently.
+static func pixel_font() -> FontFile:
+	var f: FontFile = load("res://assets/fonts/Silkscreen-Regular.ttf")
+	f.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	f.hinting = TextServer.HINTING_NONE
+	f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	f.force_autohinter = false
+	return f
 
 static func build() -> Theme:
 	var t := Theme.new()
+	t.default_font = pixel_font()
 	t.default_font_size = FS_BODY
 
 	# Panels
-	t.set_stylebox("panel", "PanelContainer", flat(PANEL, LINE))
-	t.set_stylebox("panel", "Panel", flat(PANEL, LINE))
+	t.set_stylebox("panel", "PanelContainer", bevel(PANEL))
+	t.set_stylebox("panel", "Panel", bevel(PANEL))
 
 	# Buttons
-	var normal := flat(PANEL2, LINE, 4, 6, 10)
-	var hover := flat(PANEL2, EMBER, 4, 6, 10)
-	var pressed := flat(LINE, FLARE, 4, 6, 10)
-	var disabled := flat(PANEL, LINE, 4, 6, 10)
+	var normal := bevel(PANEL2, 3, 5)
+	var hover := bevel(Color("#243244"), 3, 5)
+	var pressed := bevel_in(Color("#4a2a0c"), 3, 5)
+	var disabled := bevel_in(PANEL, 3, 5)
 	t.set_stylebox("normal", "Button", normal)
 	t.set_stylebox("hover", "Button", hover)
 	t.set_stylebox("pressed", "Button", pressed)
 	t.set_stylebox("disabled", "Button", disabled)
-	t.set_stylebox("focus", "Button", flat(PANEL2, CHILL, 4, 6, 10))
+	t.set_stylebox("focus", "Button", bevel(PANEL2, 3, 5))
 	t.set_color("font_color", "Button", ICE)
 	t.set_color("font_hover_color", "Button", FLARE)
 	t.set_color("font_pressed_color", "Button", HOT)
@@ -55,18 +75,51 @@ static func build() -> Theme:
 	t.set_stylebox("normal", "RichTextLabel", empty())
 
 	# Scrolling
-	t.set_stylebox("scroll", "VScrollBar", flat(Color("#0c1219"), Color(0, 0, 0, 0), 2, 0, 0))
-	t.set_stylebox("grabber", "VScrollBar", flat(LINE, Color(0, 0, 0, 0), 2, 0, 0))
-	t.set_stylebox("grabber_highlight", "VScrollBar", flat(COLD, Color(0, 0, 0, 0), 2, 0, 0))
+	t.set_stylebox("scroll", "VScrollBar", flat(Color("#0c1219"), Color(0, 0, 0, 0), 0, 0, 0))
+	t.set_stylebox("grabber", "VScrollBar", flat(LINE, Color(0, 0, 0, 0), 0, 0, 0))
+	t.set_stylebox("grabber_highlight", "VScrollBar", flat(COLD, Color(0, 0, 0, 0), 0, 0, 0))
 
 	# Progress bars (hull, heat, enemy)
-	t.set_stylebox("background", "ProgressBar", flat(Color("#0c1219"), LINE, 0, 0, 0))
+	t.set_stylebox("background", "ProgressBar", bevel_in(Color("#0c1219"), 0, 0))
 	t.set_stylebox("fill", "ProgressBar", flat(HULL_GREEN, Color(0, 0, 0, 0), 0, 0, 0))
 	t.set_font_size("font_size", "ProgressBar", FS_SMALL)
 
-	t.set_stylebox("panel", "TooltipPanel", flat(PANEL2, EMBER))
+	t.set_stylebox("panel", "TooltipPanel", bevel(PANEL2, 4, 6))
 	t.set_color("font_color", "TooltipLabel", ICE)
 	return t
+
+## Raised surface: 1px light top-left, 1px dark bottom-right, drawn as a 9-slice
+## so it never stretches. 1px here is 2 real pixels at the 2x viewport scale.
+static func bevel(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
+	return _bevel_box(bg, BEVEL_HI, BEVEL_LO, pad_v, pad_h)
+
+## Recessed surface — the same bevel inverted. Use it for anything the eye should
+## read as a hole rather than a plate: sockets, wells, gauge tracks.
+static func bevel_in(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
+	return _bevel_box(bg, BEVEL_LO, Color("#2a3644"), pad_v, pad_h)
+
+static func _bevel_box(bg: Color, hi: Color, lo: Color,
+		pad_v: int, pad_h: int) -> StyleBoxTexture:
+	var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	img.fill(bg)
+	for i in 4:
+		img.set_pixel(i, 0, hi)
+		img.set_pixel(0, i, hi)
+		img.set_pixel(i, 3, lo)
+		img.set_pixel(3, i, lo)
+	# Opposite corners belong to neither face; leave them flat so the join
+	# does not read as a notch.
+	img.set_pixel(3, 0, bg)
+	img.set_pixel(0, 3, bg)
+
+	var sb := StyleBoxTexture.new()
+	sb.texture = ImageTexture.create_from_image(img)
+	sb.set_texture_margin_all(1)
+	sb.content_margin_top = pad_v
+	sb.content_margin_bottom = pad_v
+	sb.content_margin_left = pad_h
+	sb.content_margin_right = pad_h
+	return sb
 
 static func flat(bg: Color, border: Color, radius: int = 0,
 		pad_v: int = 8, pad_h: int = 10) -> StyleBoxFlat:
