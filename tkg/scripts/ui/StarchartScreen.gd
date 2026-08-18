@@ -744,6 +744,29 @@ class MapChart extends Control:
 	var _star_dim: PackedByteArray = PackedByteArray()
 	var _star_key: String = ""
 
+	## Nebulae, clusters and remnants live in the same packed arrays as the
+	## stars: built once per galaxy, a rect apiece at repaint, exactly like
+	## everything else out there. Only two things about them have to survive as
+	## objects rather than as pixels — where to write a name, and where a
+	## supernova left a pulsar turning.
+	var _neb_pos: PackedVector2Array = PackedVector2Array()
+	## How far above its centre each cloud actually reached, MEASURED off the
+	## pixels that survived the dither rather than taken from the radius it was
+	## nominally built to. The two are nowhere near each other — lobes sit at
+	## half to nine tenths of the nominal radius and the falloff then kills
+	## everything past about six tenths of each lobe — so spacing the label off
+	## the nominal figure hung it a couple of hundred pixels above the cloud
+	## with clear sky in between, plainly labelling nothing.
+	var _neb_top: PackedFloat32Array = PackedFloat32Array()
+	var _neb_name: PackedStringArray = PackedStringArray()
+	var _pulsar: PackedVector2Array = PackedVector2Array()
+
+	## The same linear congruential generator the star field is built from,
+	## behind two methods instead of three lines repeated at every random number.
+	## The original field passes predate this and keep their own copy; everything
+	## added since uses it.
+	var _rng: int = 0
+
 	func _make_backdrop() -> void:
 		_backdrop = Backdrop.new()
 		(_backdrop as Backdrop).chart = self
@@ -1443,6 +1466,9 @@ class MapChart extends Control:
 			_star_big.append(1 if t3 > 0.94 else 0)
 			_star_dim.append(1 if col.v < 0.19 else 0)
 
+		# --- the clouds. Before the arms, so arm stars draw in front of them.
+		_build_nebulae(r_max)
+
 		# --- the arms themselves
 		seed = (Run.galaxy_seed * 2654435761 + 1337) & 0x7fffffff
 		for i in 30000:
@@ -1506,6 +1532,10 @@ class MapChart extends Control:
 			_star_col.append(col)
 			_star_big.append(1 if (t3 > 0.97 and near > 0.4) else 0)
 			_star_dim.append(1 if col.v < 0.19 else 0)
+
+		# --- and the dark half of the same material, after the arms so that it
+		# takes stars away instead of adding to them.
+		_build_dust(r_max)
 
 		# --- a tidal stream, for galaxies that are losing
 		if g.tail:
@@ -1577,6 +1607,470 @@ class MapChart extends Control:
 		# ring you actually saw was the static copy underneath, and no amount of
 		# animation above it could make it move. The live layer owns the ring
 		# outright now, exactly as it owns the orbiting stars.
+
+		# --- the halo and the wreckage, last, so they sit on top of the disc they
+		# are in front of.
+		_build_clusters(r_max)
+		_build_remnants(r_max)
+
+	func _seed_rng(salt: int) -> void:
+		_rng = (Run.galaxy_seed * 2654435761 + salt) & 0x7fffffff
+
+	func _rnd() -> float:
+		_rng = (_rng * 1103515245 + 12345) & 0x7fffffff
+		return float((_rng >> 13) % 10000) / 10000.0
+
+	## Ordered dither, 4x4, indexed by position in GALAXY space rather than on
+	## screen. The art contract allows this and nothing else, and a nebula is
+	## mostly edge: a random stipple where the gas thins out reads as noise on
+	## the screen, a fixed threshold pattern reads as gas. Keying it to the
+	## galaxy rather than to the viewport is what stops the pattern crawling
+	## across the cloud when you pan.
+	const _DITHER4 := [
+		0.031, 0.531, 0.156, 0.656,
+		0.781, 0.281, 0.906, 0.406,
+		0.219, 0.719, 0.094, 0.594,
+		0.969, 0.469, 0.844, 0.344,
+	]
+
+	func _dither(p: Vector2) -> float:
+		return float(_DITHER4[(int(p.y) & 3) * 4 + (int(p.x) & 3)])
+
+	## Whether a point in drawn galaxy space may hold a static pixel.
+	##
+	## The live layer owns the black hole's neighbourhood outright and fades in
+	## across a band on the way out of it, so everything cached has to fade out
+	## across the same band or the handover shows as a ring. `t` is the pixel's
+	## own random number, which is what makes that fade dithered rather than a
+	## hard edge. The four original field passes each inline this; everything
+	## added since calls it.
+	func _static_ok(p: Vector2, t: float) -> bool:
+		var clear := _core_clear()
+		var blend_in := clear * 0.7
+		var e: float = Vector2(p.x, p.y / maxf(0.05, _squash())).length()
+		if e < blend_in:
+			return false
+		return t <= (e - blend_in) / (clear - blend_in)
+
+	## What colour the gas around here is, taken from the nearest system.
+	##
+	## This is the art direction's rule about the void carrying region
+	## signatures, applied to the only thing on the chart big enough to carry a
+	## wash: a cloud sitting in Korvan space glows rusty amber, one on a
+	## migration route glows teal, and the Core's neighbourhood glows red. So the
+	## sky tells you whose space you are looking at before you point at anything.
+	func _region_tint(at: Vector2) -> Color:
+		var best := INF
+		var col := Color("#3a4a5c")
+		for n in Run.map:
+			var node: MapGen.MapNode = n
+			var d: float = (_polar(node) - at).length_squared()
+			if d < best:
+				best = d
+				col = MapGen.region_colour(node)
+		return col
+
+	## Emission gas is lit from inside by the stars forming in it and runs
+	## H-alpha rose; reflection gas is only catching light from outside and runs
+	## blue. Neither is used neat — each is dragged part of the way toward the
+	## local region colour, so a cloud says where it is as well as what it is.
+	const _NEB_EMIT := Color("#b8506a")
+	const _NEB_REFLECT := Color("#4f74c0")
+
+	## One four-step ramp for one tone of one cloud: fringe, low, body, and a
+	## lit core that only emission gas gets.
+	##
+	## Clouds are built from three of these at once rather than one, because a
+	## single ramp is what makes a nebula read as a splotch — a shape filled in.
+	## Real gas is not one temperature: it is patches of different ionisation
+	## sitting against each other, and that is most of what gives a cloud its
+	## interior. The variants stay NEAR each other on purpose — a few hundredths
+	## of a turn of hue, a few percent of saturation. Push them further apart and
+	## the cloud stops being one object.
+	func _neb_ramp(base: Color, hue: float, sat: float, val: float,
+			emission: bool) -> PackedColorArray:
+		var c := Color.from_hsv(fposmod(base.h + hue, 1.0),
+			clampf(base.s * sat, 0.0, 1.0), clampf(base.v * val, 0.0, 1.0))
+		var out := PackedColorArray()
+		out.append(c.darkened(0.62))
+		out.append(c.darkened(0.36))
+		out.append(c)
+		out.append(c.lightened(0.30 if emission else 0.14))
+		return out
+
+	## Nebulae, as the art direction specifies them: layered translucent masses,
+	## dithered edges, coloured per region.
+	##
+	## Appended BEFORE the arms so arm stars draw in front of them. Gas you can
+	## see stars through is gas; gas that occludes them is a sticker laid over
+	## the galaxy. The dark half of the same material is a separate pass that
+	## runs AFTER the arms, because a dust lane only reads as a lane when it
+	## hides the stars behind it.
+	func _build_nebulae(r_max: float) -> void:
+		_neb_pos = PackedVector2Array()
+		_neb_top = PackedFloat32Array()
+		_neb_name = PackedStringArray()
+		var g := _g()
+		var gas: float = float(g.get("gas", 1.0))
+		# A galaxy that has stopped forming stars gets none at all, rather than a
+		# scattering of faint ones. That absence does real work: it is what makes
+		# a lenticular read as finished beside a starburst, and it is free.
+		var count := clampi(int(round(gas * 4.0)), 0, 9)
+		if count <= 0:
+			return
+
+		var sq := _squash()
+		var arms := _arms()
+		var spiral: bool = int(g.arms) > 0
+		_seed_rng(90210)
+		for k in count:
+			var rn: float = 0.22 + _rnd() * 0.68
+			var ang: float = _rnd() * TAU
+			if spiral:
+				# On an arm. Star formation happens where the density wave
+				# piles the gas up, so a cloud floating between the arms would
+				# be a cloud in the one place nothing is being born.
+				ang = _shape_angle(rn, k % arms, (_rnd() - 0.5) * 0.55)
+			var centre := Vector2(cos(ang), sin(ang) * sq) * rn * r_max
+			# One landmark per galaxy, plainly bigger than the rest. A field of
+			# same-sized clouds reads as texture; one large one with smaller
+			# company reads as a place you could point at.
+			var big: bool = k == 0
+			var rad: float = r_max * (0.16 + _rnd() * 0.08) if big \
+				else r_max * (0.06 + _rnd() * 0.07)
+			# Tilted toward reflection. Emission gas is the warm half, and this
+			# is a game about a cold universe with one warm thing in it — the
+			# core — so the loud clouds have to stay in the minority or the
+			# brightest thing on the chart stops being the thing that burns.
+			var emission: bool = _rnd() > 0.58
+			# Weighted toward the gas rather than the region: region colours are
+			# chrome, chosen to sit quietly behind an icon, and a cloud built out
+			# of one at full strength comes out the colour of the panel border.
+			# The region pulls the hue over; it does not set it.
+			var base: Color = _region_tint(centre).lerp(
+				_NEB_EMIT if emission else _NEB_REFLECT, 0.68)
+			# Pulled back off full saturation, and well down in value. Straight
+			# H-alpha rose came out magenta beside a palette that has no magenta
+			# in it anywhere, and at full brightness the cloud sat at the same
+			# value as the brightest stars in the arms — so the arms disappeared
+			# into it. Gas is lit by the stars in it. It cannot outshine them.
+			base = Color.from_hsv(base.h, base.s * 0.82, base.v * 0.72)
+
+			# Three near-tones. Hue runs anticlockwise from rose into red-orange
+			# and clockwise into violet, and from blue into cyan and into
+			# indigo — so an emission cloud has a hotter and a cooler half and a
+			# reflection cloud has a teal side and a purple one. Which is what
+			# the real objects do, and it costs three arrays per cloud.
+			var ramps: Array[PackedColorArray] = []
+			ramps.append(_neb_ramp(base, 0.0, 1.0, 1.0, emission))
+			if emission:
+				ramps.append(_neb_ramp(base, 0.038, 1.10, 1.07, true))
+				ramps.append(_neb_ramp(base, -0.062, 0.86, 0.91, true))
+			else:
+				ramps.append(_neb_ramp(base, -0.036, 0.92, 1.05, false))
+				ramps.append(_neb_ramp(base, 0.034, 1.10, 0.93, false))
+
+			# Three lobes. One blob is a smudge; overlapping lobes give the thing
+			# a shape, and where two of them meet it comes out brighter for free.
+			var lobes: Array[Vector2] = []
+			var lobe_r: Array[float] = []
+			for l in 3:
+				lobes.append(Vector2((_rnd() - 0.5) * rad * 1.1,
+					(_rnd() - 0.5) * rad * 0.8))
+				lobe_r.append(rad * (0.45 + _rnd() * 0.5))
+
+			var twist_k: float = _rnd() * TAU
+			# The tone field's frequency is scaled to the cloud, so a small
+			# cloud gets the same couple of patches across it as a large one.
+			# Fixed frequencies gave every small cloud a single flat tone and
+			# left only the landmark looking like it had gas in it.
+			var tf: float = 5.0 / maxf(1.0, rad)
+			# The highest pixel this cloud manages to place, for the label.
+			var top := 0.0
+			# Enough samples that the blocks overlap through the middle and only
+			# separate out at the fringe, which is the point at which a scatter
+			# of dots stops reading as dots. The first pass ran at a third of
+			# this and the clouds were invisible underneath their own labels.
+			var px := clampi(int(rad * rad * 0.15), 300, 3000)
+			for i in px:
+				var lobe := i % 3
+				var lr: float = lobe_r[lobe]
+				var rr: float = pow(_rnd(), 0.8) * lr
+				var a2: float = _rnd() * TAU
+				var local: Vector2 = lobes[lobe] \
+					+ Vector2(cos(a2) * rr, sin(a2) * rr * 0.82)
+
+				# Density is the STRONGEST lobe at this point, not the sum, so
+				# overlaps brighten rather than merely doubling the dot count.
+				var d := 0.0
+				for m in 3:
+					d = maxf(d, 1.0 - minf(1.0,
+						(local - lobes[m]).length() / maxf(1.0, lobe_r[m])))
+				d = d * d * (3.0 - 2.0 * d)
+				# Filaments. Gas is ropey, not spherical, and two sines that do
+				# not divide into each other say so well enough at this size.
+				var fil: float = 0.5 + 0.5 * sin(local.x * 0.085 + twist_k) \
+					* sin(local.y * 0.11 - twist_k * 1.7)
+				d *= 0.52 + 0.48 * fil
+
+				var world := centre + local
+				var dith := _dither(world)
+				if d < dith:
+					continue
+				if not _static_ok(world, _rnd()):
+					continue
+				# Four steps, with the dither offsetting the boundaries between
+				# them as well as the outer edge — so the ramp breaks up too and
+				# the cloud never shows a contour line.
+				var lvl := d - dith * 0.18
+				var step := 0
+				if lvl > 0.60 and emission:
+					step = 3
+				elif lvl > 0.42:
+					step = 2
+				elif lvl > 0.24:
+					step = 1
+				# Which tone, from a field at a much lower frequency than the
+				# filaments — so brightness and temperature vary independently
+				# and the cloud does not come out banded.
+				# Three terms, none of them a multiple of another. Two put the
+				# tones in clean diagonal bands across the cloud, which reads as
+				# two clouds overlapping rather than as one with structure.
+				var tone: float = 0.5 + 0.20 * sin(local.x * tf + twist_k * 0.6) \
+					+ 0.19 * sin(local.y * tf * 1.3 - twist_k * 1.9) \
+					+ 0.15 * sin((local.x + local.y) * tf * 2.3 + twist_k)
+				var vi := 0
+				if tone > 0.64:
+					vi = 1
+				elif tone < 0.37:
+					vi = 2
+				var col: Color = ramps[vi][step]
+				top = maxf(top, centre.y - world.y)
+				_star_pos.append(world)
+				_star_col.append(col)
+				# Every tier is a block, the bright ones included. Drawing the
+				# core at full resolution and the wash at a quarter of it was
+				# the obvious economy and it erased the cloud's whole interior:
+				# single pixels of the bright steps disappeared between blocks
+				# of the dim ones, so what was left was a flat even mat with no
+				# middle to it. A nebula has to have a middle.
+				_star_big.append(2)
+				# Never flagged dim. The dim tier is dropped mid-drag, and a
+				# star thinning out while you pan is invisible where a coloured
+				# mass blinking out of existence is not.
+				_star_dim.append(0)
+
+			# The stars that lit it. Only emission clouds get these, and that IS
+			# the difference between the two kinds: one glows because something
+			# inside it is burning, the other only catches light from elsewhere.
+			if emission:
+				var young := 5 + int(_rnd() * 5.0)
+				for y in young:
+					var sp: Vector2 = centre + lobes[y % 3] \
+						+ Vector2(_rnd() - 0.5, _rnd() - 0.5) * rad * 0.5
+					if not _static_ok(sp, _rnd()):
+						continue
+					_star_pos.append(sp)
+					_star_col.append(Color("#e8f2ff") if _rnd() > 0.5
+						else Color("#a9c6e6"))
+					_star_big.append(0)
+					_star_dim.append(0)
+
+			_neb_pos.append(centre)
+			# A floor, for the pathological cloud whose lobes all fell below its
+			# centre and which would otherwise wear its name through its middle.
+			_neb_top.append(maxf(top, rad * 0.3))
+			_neb_name.append(GalaxyGen.nebula_name(
+				(Run.galaxy_seed >> 3) + k * 7919))
+
+	## Dust lanes, and the dark globules inside the clouds. The same material as
+	## a nebula with nothing lighting it, so it is drawn by taking pixels away
+	## from the galaxy rather than adding them — which is the only reason this
+	## pass has to run after the arms rather than with the nebulae.
+	func _build_dust(r_max: float) -> void:
+		var g := _g()
+		var gas: float = float(g.get("gas", 1.0))
+		var sq := _squash()
+		var arms := _arms()
+		_seed_rng(31337)
+		# No arms, no density wave, nothing to pile the dust into a lane — and a
+		# galaxy that has run out of gas has nothing to make one out of either.
+		# The globules below still run: they belong to the clouds, not to the
+		# arms, and a barless ring galaxy has clouds without having lanes.
+		#
+		# A lane runs along the INNER edge of an arm, which is where the wave
+		# piles material up, and it is why a spiral arm has a bright side and a
+		# dark side instead of fading off symmetrically both ways.
+		var n := 0 if (int(g.arms) <= 0 or gas < 0.35) \
+			else int(2800.0 * clampf(gas, 0.0, 1.6))
+		for i in n:
+			var rn: float = 0.18 + pow(_rnd(), 0.8) * 0.78
+			# Narrow. The arms themselves are drawn wide — half a radian of
+			# scatter either side of the ridge — so a lane spread over the same
+			# angle just thins the arm evenly instead of cutting a line in it.
+			var along: float = -0.38 + (_rnd() - 0.5) * 0.12
+			var ang: float = _shape_angle(rn, i % arms, along + (_rnd() - 0.5) * 0.04)
+			var rr: float = rn * r_max * (1.0 + (_rnd() - 0.5) * 0.02)
+			var p := Vector2(cos(ang), sin(ang) * sq) * rr
+			# Thins outward, like everything else in the disc.
+			if _rnd() > 1.05 - rn * 0.55:
+				continue
+			if not _static_ok(p, _rnd()):
+				continue
+			var t := _rnd()
+			var col := Color("#080c14")
+			if t > 0.86:
+				col = Color("#16121c")
+			elif t > 0.6:
+				col = Color("#0b1119")
+			_star_pos.append(p)
+			_star_col.append(col)
+			# The gas size class, like the nebula wash and for both of the same
+			# reasons: a lane is made of the stars it hides, so one dark block
+			# over four of them beats four dark pixels — and a lane that broke
+			# up into dashes on the way in would stop being a lane.
+			_star_big.append(2)
+			# Emphatically not dim. Dropping these during a drag would uncover
+			# the stars underneath, so the lanes would open up every time you
+			# moved the chart — the one change the eye is guaranteed to catch.
+			_star_dim.append(0)
+
+		# Globules: the cold cores inside a cloud, where the next generation is
+		# already collapsing. Without them a nebula is an even wash.
+		for k in _neb_pos.size():
+			var c: Vector2 = _neb_pos[k]
+			# The drawn extent, near enough: `top` is measured on the vertical,
+			# which the sampling foreshortens, and a globule wants to sit well
+			# inside the cloud rather than out on its edge.
+			var nr: float = _neb_top[k] * 1.3
+			for b in 2:
+				var off := Vector2(_rnd() - 0.5, _rnd() - 0.5) * nr
+				var br: float = nr * (0.08 + _rnd() * 0.12)
+				for m in int(br * br * 0.55) + 12:
+					var q := off + Vector2(_rnd() - 0.5, _rnd() - 0.5) * 2.0 * br
+					if q.distance_to(off) > br:
+						continue
+					var w := c + q
+					if _dither(w) > 0.72:
+						continue
+					if not _static_ok(w, _rnd()):
+						continue
+					_star_pos.append(w)
+					_star_col.append(Color("#070b12"))
+					_star_big.append(0)
+					_star_dim.append(0)
+
+	## Globular clusters. Old, dense, and out of the plane — which is the whole
+	## point of drawing them. Everything else on this chart lies in the disc, so
+	## a knot of stars plainly sitting above it is the cheapest thing available
+	## that says the galaxy is a solid object rather than a picture of a spiral.
+	##
+	## Deliberately NOT squashed: the halo is a sphere, and a sphere in
+	## projection is a circle however flattened the disc in front of it is.
+	func _build_clusters(r_max: float) -> void:
+		_seed_rng(60613)
+		var count := 11 + int(_rnd() * 9.0)
+		for k in count:
+			# Concentrated toward the middle but reaching well past the rim. The
+			# outermost of these are barely bound to anything.
+			var rr: float = (0.22 + pow(_rnd(), 1.9) * 1.25) * r_max
+			var a: float = _rnd() * TAU
+			var centre := Vector2(cos(a), sin(a)) * rr
+			var rad: float = r_max * (0.008 + _rnd() * 0.014)
+			var n := 44 + int(_rnd() * 56.0)
+			for m in n:
+				# pow 2.6 is what makes it a cluster and not a smudge: nearly
+				# all of it inside a fifth of the radius, a scattering outside.
+				var d: float = pow(_rnd(), 2.6) * rad
+				var a2: float = _rnd() * TAU
+				var p := centre + Vector2(cos(a2), sin(a2) * 0.92) * d
+				if not _static_ok(p, _rnd()):
+					continue
+				var t := _rnd()
+				# An old population. There is no blue left in one of these.
+				var col := Color("#5d5442")
+				if t > 0.82:
+					col = Color("#e0d0aa")
+				elif t > 0.5:
+					col = Color("#9c8b68")
+				_star_pos.append(p)
+				_star_col.append(col)
+				_star_big.append(0)
+				_star_dim.append(1 if t <= 0.5 else 0)
+
+	## Supernova remnants, and the pulsars they leave behind.
+	##
+	## Lit by shock rather than by starlight, so they come out cold-bright —
+	## the one thing in the disc that is neither a warm core nor a blue arm — and
+	## each is small enough that finding one is a reward for zooming in rather
+	## than another texture at overview scale.
+	func _build_remnants(r_max: float) -> void:
+		_pulsar = PackedVector2Array()
+		var g := _g()
+		var gas: float = float(g.get("gas", 1.0))
+		# Massive stars are the ones that end this way, and they only exist
+		# where stars are still being made. So this scales off gas like the rest.
+		var count := clampi(int(round(gas * 1.6)), 0, 3)
+		if count <= 0:
+			return
+		var sq := _squash()
+		var arms := _arms()
+		var spiral: bool = int(g.arms) > 0
+		_seed_rng(19870223)
+		for k in count:
+			# Small. The first pass drew them at twice this and they came out as
+			# clean bright hoops that read as interface rather than as sky —
+			# the brightest thing on the chart after the core, which is exactly
+			# backwards for the rarest.
+			var shell: float = r_max * (0.008 + _rnd() * 0.012)
+			var centre := Vector2.ZERO
+			# Kept off the systems. A remnant is the one thing out here drawn as
+			# a ring, and a ring that lands around a station glyph stops reading
+			# as a shock front and starts reading as a selection reticle — the
+			# chart already draws one of those, in orange, and it means something
+			# specific. Not every position can work, so this re-rolls a few times
+			# and takes what it gets rather than searching for perfection.
+			for attempt in 8:
+				var rn: float = 0.25 + _rnd() * 0.6
+				var ang: float = _rnd() * TAU
+				if spiral:
+					ang = _shape_angle(rn, k % arms, (_rnd() - 0.5) * 0.4)
+				centre = Vector2(cos(ang), sin(ang) * sq) * rn * r_max
+				var clash := false
+				for nd in Run.map:
+					var node: MapGen.MapNode = nd
+					if _polar(node).distance_to(centre) < shell * 3.0:
+						clash = true
+						break
+				if not clash:
+					break
+			var phase: float = _rnd() * TAU
+			for m in 260:
+				var a2: float = _rnd() * TAU
+				# Filamentary, not a ring. A shock front breaks up as it runs
+				# into whatever is out there, and an even circle of dots reads
+				# as a drawn outline rather than as something that exploded.
+				if _rnd() > 0.28 + 0.72 * absf(sin(a2 * 3.0 + phase)):
+					continue
+				var rr: float = shell * (0.78 + pow(_rnd(), 0.5) * 0.24)
+				var p := centre + Vector2(cos(a2), sin(a2) * 0.94) * rr
+				if not _static_ok(p, _rnd()):
+					continue
+				var t := _rnd()
+				var col := Color("#24534f")
+				if t > 0.94:
+					col = Color("#7fd0c2")
+				elif t > 0.68:
+					col = Color("#3f8f88")
+				elif t > 0.56:
+					col = Color("#70415f")
+				_star_pos.append(p)
+				_star_col.append(col)
+				_star_big.append(0)
+				# The dimmest tier only, matched to the colour test above rather
+				# than to a round number, so a drag never takes a lit filament.
+				_star_dim.append(1 if t <= 0.56 else 0)
+			_pulsar.append(centre)
 
 	## The living part of the sky. Everything here is derived from the clock and
 	## from data the backdrop already built, so it costs a few hundred pixels a
@@ -1786,6 +2280,28 @@ class MapChart extends Control:
 				dcol = Color("#fffdf6")
 			ci.draw_rect(Rect2(q3.round(), one), dcol, true)
 
+		# --- pulsars. What a supernova leaves turning at the middle of its own
+		# wreckage. Everything else on this chart drifts, churns or fades; these
+		# are the only thing on it that keeps time, and each one runs at its own
+		# rate so they never fall into step with each other.
+		for i in _pulsar.size():
+			var period: float = 1.1 + float(i) * 0.43
+			var ph: float = fmod(t, period) / period
+			if ph > 0.16:
+				continue
+			var env: float = 1.0 - ph / 0.16
+			var pq := c + _pulsar[i] * zoom
+			if pq.x < 1.0 or pq.y < 0.0 or pq.x > w - 1.0 or pq.y > h:
+				continue
+			pq = pq.round()
+			ci.draw_rect(Rect2(pq, one),
+				Color("#e6fbff") if env > 0.45 else Color("#6fb2c4"), true)
+			# A pixel either side at the peak. A pulsar is a lighthouse, and the
+			# sweep of the beam is the entire reason it is visible at all.
+			if env > 0.55:
+				ci.draw_rect(Rect2(pq + Vector2(1, 0), one), Color("#8fd2e0"), true)
+				ci.draw_rect(Rect2(pq - Vector2(1, 0), one), Color("#8fd2e0"), true)
+
 		_draw_bursts(ci, t, c, w, h)
 
 	## Gamma-ray bursts: a single pixel arriving brighter than anything else on
@@ -1863,6 +2379,14 @@ class MapChart extends Control:
 		var h := size.y
 		var one := Vector2.ONE
 		var two := Vector2(2, 2)
+		# Gas is the one thing out here that is not made of points, so it is the
+		# one thing whose brush grows with the zoom. The field is a fixed cloud
+		# of samples: magnify it and the samples separate, which is right for
+		# stars — you are resolving them — and wrong for a nebula, which thinned
+		# into pink confetti the moment you leaned in. Scaling the block holds
+		# the cloud together as a mass instead.
+		var gk: float = clampf(round(zoom * 2.6), 2.0, 5.0)
+		var gas_px := Vector2(gk, gk)
 		# Every star, every frame, including while dragging. Halving the density
 		# during a drag was cheaper, but a galaxy that visibly dims the moment
 		# you touch it is worse than one that repaints a little slower — and
@@ -1874,7 +2398,28 @@ class MapChart extends Control:
 			var q := c + _star_pos[i] * zoom
 			if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
 				continue
-			ci.draw_rect(Rect2(q.round(), two if _star_big[i] == 1 else one),
-				_star_col[i], true)
+			var sz := one
+			match _star_big[i]:
+				1: sz = two
+				2: sz = gas_px
+			ci.draw_rect(Rect2(q.round(), sz), _star_col[i], true)
 
 		_draw_halo(ci)
+
+		# --- and the names of the clouds. They are the only landmarks out here
+		# that are not somewhere you can go, and naming them is what turns the
+		# chart from a graph of a route into a chart of a galaxy. Held back until
+		# the view is close enough that they are not stacked on top of each other,
+		# and faded in over the same range so they arrive rather than appear.
+		if zoom >= 0.85 and not _neb_pos.is_empty():
+			var f := UITheme.pixel_font()
+			var la: float = clampf((zoom - 0.85) / 0.45, 0.0, 1.0) * 0.55
+			for i in _neb_pos.size():
+				var q := c + _neb_pos[i] * zoom
+				if q.x < -80.0 or q.y < 0.0 or q.x > w + 80.0 or q.y > h:
+					continue
+				var lbl: String = _neb_name[i]
+				var lw: float = f.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+				var at := (q - Vector2(lw * 0.5, _neb_top[i] * zoom + 6.0)).round()
+				ci.draw_string(f, at, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
+					Color(UITheme.COLD, la))
