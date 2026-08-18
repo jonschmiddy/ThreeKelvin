@@ -1,0 +1,67 @@
+class_name PauseMenu
+extends Control
+## Escape menu. Overlays the game rather than replacing it, so the run behind it
+## stays intact and visible — the ship never disappears, which is the same rule
+## the encounter layout follows.
+##
+## Built in code against UITheme/Widgets like every other screen. Nothing here
+## pauses the tree: the game is turn-based and advances only on input, and the
+## scrim already swallows every click.
+
+signal resume_requested
+signal new_run_requested
+signal quit_requested
+
+func setup() -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Swallow clicks so the chart underneath cannot be interacted with.
+	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var scrim := ColorRect.new()
+	scrim.color = Color(UITheme.VOID, 0.86)
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(scrim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+
+	var pad := MarginContainer.new()
+	for side in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side, 34)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 28)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	col.custom_minimum_size = Vector2(300, 0)
+	pad.add_child(col)
+	center.add_child(Widgets.panel_with(pad))
+
+	var title := UITheme.body("THREE KELVIN", UITheme.ICE, UITheme.FS_HEAD)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(title)
+
+	var sub := UITheme.body("three degrees above absolute zero", UITheme.COLD, UITheme.FS_SMALL)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(sub)
+
+	col.add_child(UITheme.hsep())
+
+	col.add_child(Widgets.button("RESUME", func() -> void: resume_requested.emit()))
+	col.add_child(Widgets.button("ABANDON RUN — START OVER",
+		func() -> void: new_run_requested.emit()))
+	col.add_child(Widgets.button("FULLSCREEN  (F11)", _toggle_fullscreen))
+
+	col.add_child(UITheme.hsep())
+
+	col.add_child(Widgets.button("QUIT TO DESKTOP", func() -> void: quit_requested.emit()))
+
+	var hint := UITheme.body("esc closes this menu", UITheme.COLD, UITheme.FS_SMALL)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(hint)
+
+func _toggle_fullscreen() -> void:
+	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	DisplayServer.window_set_mode(
+		DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)

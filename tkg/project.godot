@@ -1,0 +1,32 @@
+; Three Kelvin — Godot 4.x project
+config_version=5
+
+[application]
+config/name="Three Kelvin"
+config/description="Chart coreward. Your modules are your deck."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+Sig="*res://scripts/autoload/Sig.gd"
+DB="*res://scripts/autoload/Database.gd"
+Run="*res://scripts/autoload/RunState.gd"
+Router="*res://scripts/autoload/Router.gd"
+
+[display]
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/size/window_width_override=1600
+window/size/window_height_override=900
+window/stretch/mode="disabled"
+window/stretch/aspect="keep"
+
+[rendering]
+textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.039, 0.055, 0.082, 1)
+
+[gui]
+theme/default_font_antialiasing=1
+theme/default_font_hinting=1
