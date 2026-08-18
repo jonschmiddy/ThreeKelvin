@@ -1,0 +1,174 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap">
+  <style>
+    body { margin: 0; background: #0a0e15; }
+    a { color: #d97b29; } a:hover { color: #ff9d3d; }
+    .px { font-family: Silkscreen, "Courier New", monospace; }
+    .bevel { box-shadow: inset 2px 2px 0 #3d4d61, inset -2px -2px 0 #080b11; }
+    .bevel-in { box-shadow: inset 2px 2px 0 #080b11, inset -2px -2px 0 #2a3644; }
+    .dither { background-image: repeating-linear-gradient(45deg, rgba(143,163,186,0.035) 0 2px, transparent 2px 4px); }
+    svg { shape-rendering: crispEdges; }
+  </style>
+</helmet>
+
+<div class="px" style="width: 1280px; height: 720px; background: #0a0e15; color: #8fa3ba; font-size: 16px; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; image-rendering: pixelated">
+
+  <div class="bevel dither" style="height: 56px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 16px; background: #1a2430">
+    <div style="display: flex; gap: 6px; align-items: center">
+      <div class="bevel-in" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #4a2a0c">
+        <svg width="16" height="16" viewBox="0 0 8 8"><rect x="1" y="3" width="6" height="2" fill="#ffd28a"></rect><rect x="2" y="2" width="4" height="1" fill="#ffd28a"></rect><rect x="0" y="4" width="1" height="1" fill="#ffd28a"></rect></svg>
+        <span style="font-size: 16px; color: #ffd28a">SHIP</span>
+      </div>
+      <div class="bevel-in" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #10161f">
+        <svg width="16" height="16" viewBox="0 0 8 8"><rect x="0" y="2" width="2" height="2" fill="#8fa3ba"></rect><rect x="3" y="0" width="2" height="2" fill="#8fa3ba"></rect><rect x="6" y="3" width="2" height="2" fill="#8fa3ba"></rect><rect x="2" y="5" width="2" height="2" fill="#8fa3ba"></rect></svg>
+        <span style="font-size: 16px; color: #c3d2e2">MAP</span>
+      </div>
+    </div>
+    <div style="width: 2px; height: 24px; background: #10161f"></div>
+    <span style="font-size: 16px; color: #6b7d94">HULL <span style="color: #c3d2e2">35/35</span></span>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="font-size: 16px; color: #6b7d94">HEAT</span>
+      <div style="display: flex; gap: 2px; align-items: center">
+        <sc-for list="{{heatBoxes}}" as="b" hint-placeholder-count="12">
+          <span style="width: 12px; height: 18px; background: {{b.bg}}; box-shadow: inset 2px 2px 0 {{b.hi}}, inset -2px -2px 0 {{b.lo}}"></span>
+        </sc-for>
+        <span style="width: 2px; height: 22px; background: #8fa3ba; margin: 0 4px"></span>
+      </div>
+      <span style="font-size: 16px; color: #6b7d94">0/12</span>
+    </div>
+    <div style="flex-grow: 1"></div>
+    <span style="font-size: 16px; color: #6b7d94">SCRAP <span style="color: #c3d2e2">40</span></span>
+    <span style="font-size: 16px; color: #6b7d94">FUEL <span style="color: #c3d2e2">30</span></span>
+    <div class="bevel-in" style="padding: 5px 9px; background: #2c2212"><span style="font-size: 16px; color: #bc9a5c">KORVAN 5</span></div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0">
+
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: #0d121b">
+
+      <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative; min-height: 0">
+        <svg style="position: absolute; top: 0; left: 0" width="810" height="330" viewBox="0 0 405 165">
+          <rect x="0" y="0" width="405" height="165" fill="#0d121b"></rect>
+          <g fill="#8fa3ba"><rect x="40" y="26" width="2" height="2"></rect><rect x="150" y="60" width="2" height="2"></rect><rect x="300" y="34" width="2" height="2"></rect><rect x="356" y="120" width="2" height="2"></rect></g>
+          <g fill="#4a5c72"><rect x="86" y="130" width="2" height="2"></rect><rect x="252" y="140" width="2" height="2"></rect></g>
+        </svg>
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px">
+          <svg width="480" height="240" viewBox="0 0 160 80" aria-label="Your hull with mount pads">
+            <rect x="26" y="34" width="112" height="22" fill="#232d3a"></rect>
+            <rect x="30" y="30" width="104" height="4" fill="#3d4d61"></rect>
+            <rect x="34" y="26" width="92" height="4" fill="#344254"></rect>
+            <rect x="42" y="22" width="70" height="4" fill="#3d4d61"></rect>
+            <rect x="26" y="56" width="112" height="4" fill="#10161f"></rect>
+            <rect x="52" y="18" width="26" height="8" fill="#4a3a20"></rect>
+            <rect x="54" y="16" width="22" height="2" fill="#6c542e"></rect>
+            <rect x="88" y="18" width="18" height="8" fill="#2e3b4b"></rect>
+            <rect x="60" y="42" width="40" height="2" fill="#cc641c"></rect>
+            <rect x="14" y="32" width="12" height="4" fill="#3a404c"></rect>
+            <rect x="14" y="46" width="12" height="4" fill="#3a404c"></rect>
+            <rect x="6" y="32" width="8" height="4" fill="#ff9d3d"></rect>
+            <rect x="6" y="46" width="8" height="4" fill="#ff9d3d"></rect>
+            <rect x="126" y="34" width="8" height="4" fill="#8ec8e6"></rect>
+            <g fill="#d97b29">
+              <rect x="108" y="16" width="2" height="2"></rect><rect x="112" y="16" width="2" height="2"></rect><rect x="116" y="16" width="2" height="2"></rect>
+              <rect x="108" y="24" width="2" height="2"></rect><rect x="112" y="24" width="2" height="2"></rect><rect x="116" y="24" width="2" height="2"></rect>
+              <rect x="106" y="18" width="2" height="2"></rect><rect x="106" y="22" width="2" height="2"></rect>
+              <rect x="118" y="18" width="2" height="2"></rect><rect x="118" y="22" width="2" height="2"></rect>
+            </g>
+          </svg>
+          <span style="font-size: 16px; color: #d97b29">1 WEAPON PAD FREE</span>
+        </div>
+      </div>
+
+      <div style="flex: none; display: flex; flex-direction: column; background: #1a2430; box-shadow: inset 0 2px 0 #3d4d61">
+        <sc-for list="{{slots}}" as="s" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 12px 18px; box-shadow: inset 0 -2px 0 #10161f">
+            <span style="font-size: 16px; color: #6b7d94; width: 88px; flex: none">{{s.kind}}</span>
+            <div style="display: flex; gap: 3px; flex: none">
+              <sc-for list="{{s.boxes}}" as="b" hint-placeholder-count="3">
+                <span style="width: 16px; height: 20px; background: {{b.bg}}; box-shadow: inset 2px 2px 0 {{b.hi}}, inset -2px -2px 0 {{b.lo}}"></span>
+              </sc-for>
+            </div>
+            <span style="font-size: 16px; color: #8fa3ba; flex-grow: 1; min-width: 0">{{s.fitted}}</span>
+            <span style="font-size: 16px; color: #4a5c72; flex: none">{{s.count}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="width: 468px; flex: none; background: #0d121b; box-shadow: inset 2px 0 0 #3d4d61; display: flex; flex-direction: column; min-height: 0">
+
+      <div class="dither" style="flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: #1a2430; box-shadow: inset 0 -2px 0 #10161f">
+        <span style="font-size: 16px; color: #c3d2e2">STORAGE</span>
+        <span style="font-size: 16px; color: #6b7d94">4 HELD</span>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column">
+        <sc-for list="{{storage}}" as="m" hint-placeholder-count="4">
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 13px 18px; background: {{m.bg}}; box-shadow: inset 0 -2px 0 #10161f, inset 4px 0 0 {{m.edge}}">
+            <div style="display: flex; align-items: baseline; gap: 8px">
+              <span style="font-size: 16px; color: #c3d2e2">{{m.name}}</span>
+              <div style="flex-grow: 1"></div>
+              <span style="font-size: 16px; color: {{m.rarityColor}}">{{m.rarity}}</span>
+            </div>
+            <span style="font-size: 16px; color: #6b7d94">{{m.effect}}</span>
+            <span style="font-size: 16px; color: {{m.affixColor}}">{{m.affix}}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div class="dither" style="flex: none; background: #1a2430; box-shadow: inset 0 2px 0 #3d4d61; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-size: 16px; color: #8ec8e6">KH-88 JACKHAMMER</span>
+        <span style="font-size: 16px; color: #6b7d94">GOES IN THE FREE PAD. NO SWAP.</span>
+        <div style="display: flex; gap: 10px">
+          <div class="bevel" style="flex-grow: 1; text-align: center; padding: 12px 0; background: #4a2a0c; color: #ffd28a; font-size: 16px">INSTALL</div>
+          <div class="bevel" style="width: 150px; text-align: center; padding: 12px 0; background: #1f2a36; color: #8fa3ba; font-size: 16px">SCRAP 30</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const heatBoxes = [];
+    for (let i = 0; i < 12; i++) heatBoxes.push({ bg: '#10161f', hi: '#080b11', lo: '#2a3644' });
+
+    const mk = (used, total) => {
+      const out = [];
+      for (let i = 0; i < total; i++) {
+        out.push(i < used
+          ? { bg: '#6b7d94', hi: '#8fa3ba', lo: '#3d4d61' }
+          : { bg: '#1f2a36', hi: '#d97b29', lo: '#5c280c' });
+      }
+      return out;
+    };
+
+    return {
+      heatBoxes: heatBoxes,
+      slots: [
+        { kind: 'WEAPON', boxes: mk(2, 3), fitted: 'CHATTERBOX / MASS DRIVER', count: '2/3' },
+        { kind: 'SYSTEM', boxes: mk(2, 3), fitted: 'PLATE WELDER / COOLANT', count: '2/3' },
+        { kind: 'UTILITY', boxes: mk(1, 2), fitted: 'TARGETING SERVO', count: '1/2' }
+      ],
+      storage: [
+        { name: 'KH-88 JACKHAMMER', rarity: 'RARE', rarityColor: '#8ec8e6', effect: '6 DMG x3 / SALVO +3', affix: 'OVERBORED  +2 DMG  +1 HEAT', affixColor: '#bc9a5c', edge: '#d97b29', bg: '#161f2b' },
+        { name: 'REACTIVE PLATING', rarity: 'LEGEND', rarityColor: '#ff9d3d', effect: '8 ARMOR / RIPOSTE 3', affix: 'TEMPERED  NO HEAT UPKEEP', affixColor: '#bc9a5c', edge: '#10161f', bg: '#0d121b' },
+        { name: 'WIDOWMAKER', rarity: 'EPIC', rarityColor: '#b08ad0', effect: 'CHARGE 2 / THEN 34', affix: 'CONTRABAND  INSPECTION RISK', affixColor: '#d64a3a', edge: '#10161f', bg: '#0d121b' },
+        { name: 'DROSS', rarity: 'COMMON', rarityColor: '#6b7d94', effect: 'UNPLAYABLE / TAKES A SLOT', affix: '', affixColor: '#4a5c72', edge: '#10161f', bg: '#0d121b' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

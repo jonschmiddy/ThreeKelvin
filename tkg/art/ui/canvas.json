@@ -1,0 +1,41 @@
+{
+  "pages": [
+    { "id": "interface", "name": "Interface" },
+    { "id": "explorations", "name": "Explorations" }
+  ],
+  "artboards": [
+    { "file": "PixelCombat.dc.html", "x": 0, "y": 0, "w": 1280, "h": 720, "title": "Combat", "page": "interface" },
+    { "file": "PixelShip.dc.html", "x": 1380, "y": 0, "w": 1280, "h": 720, "title": "Ship", "page": "interface" },
+    { "file": "PixelMap.dc.html", "x": 2760, "y": 0, "w": 1280, "h": 720, "title": "Map", "page": "interface" },
+    { "file": "ConceptA.dc.html", "x": 0, "y": 860, "w": 1280, "h": 720, "title": "Combat — vector reference", "page": "interface" },
+    { "file": "ShipViewer.dc.html", "x": 1380, "y": 860, "w": 1280, "h": 720, "title": "Ship — vector reference", "page": "interface" },
+    { "file": "StarMap.dc.html", "x": 2760, "y": 860, "w": 1280, "h": 720, "title": "Map — vector reference", "page": "interface" },
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 560, "h": 720, "title": "Direction", "page": "explorations" },
+    { "file": "ConceptB.dc.html", "x": 660, "y": 0, "w": 1280, "h": 720, "title": "B — Cockpit (not taken)", "page": "explorations" },
+    { "file": "ConceptC.dc.html", "x": 2040, "y": 0, "w": 1280, "h": 720, "title": "C — Chart-Primary (not taken)", "page": "explorations" }
+  ],
+  "annotations": [
+    {
+      "id": "pixel-rules",
+      "x": 0,
+      "y": -190,
+      "w": 470,
+      "text": "Pixel row on top, vector reference underneath.\n\nEverything sits on a 2px grid — a 640x360 canvas drawn at 2x. Silkscreen is an 8px face used at 16px, so type and chrome share one pixel density. Mixing scales is what makes pixel UI look wrong.\n\nIn engine this means integer scaling only: 640x360 at 3x is exactly 1920x1080."
+    },
+    {
+      "id": "copy-cost",
+      "x": 1380,
+      "y": -190,
+      "w": 430,
+      "text": "Pixel density shortens everything.\n\nCards: 'Deal 3 damage twice. Salvo +2.' became '3 DMG x2 / SALVO +2'.\n\nBut the storage panel is wide enough to keep full module names — only the narrow surfaces need terse copy."
+    },
+    {
+      "id": "icons-note",
+      "x": 2760,
+      "y": -190,
+      "w": 440,
+      "text": "Map nodes became ICONS plus region colour, with the name in the detail panel.\n\nThat is a real fix, not a workaround: labels under every node are what forces the current build to truncate STATION to STATIO. Icons never truncate, and a key row teaches them once."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "interface" }
+}

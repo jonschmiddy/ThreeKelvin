@@ -202,6 +202,29 @@ full-screen view.
 **Note:** the current scaffold still has separate screen classes. Consolidating them into
 `EncounterScreen` (ship left, swappable right panel) is a known pending refactor.
 
+### Settled: two-panel, in pixel art
+
+The interface was designed out before implementation. Mockups and the full rule
+set live in `art/ui/` — read `art/ui/README.md` before touching UI code.
+
+Decided, do not silently reverse:
+
+- **Pixel art UI on a 2px grid** — a 640x360 canvas drawn at 2x, with an 8px
+  bitmap face used at 16px so type and chrome share one pixel density.
+- **Integer scaling only.** 640x360 at 3x is exactly 1920x1080. Fractional
+  scaling resamples glyphs and looks blurry.
+- **Font antialiasing off**, texture filtering `Nearest`. This reverses a change
+  made while the UI used a vector font; a bitmap face at integer scale must not
+  be smoothed.
+- **Heat and energy are countable boxes, not bars** — each box past the cap
+  divider is one hull paid at end of turn.
+- **Map nodes are icons plus region colour**, name in the detail panel. Labels
+  under every node are why the build currently truncates `STATION` to `STATIO`.
+- **SHIP and MAP buttons top-left on every screen**; Ship dimmed during combat.
+
+Two other structures — a diegetic cockpit and a chart-primary layout — were
+explored and rejected. Nothing was taken from them.
+
 ## Manufacturers (seven, each a playstyle)
 
 `korvan` ballistics + charged ordnance (starter) · `solari` weaponised heat ·

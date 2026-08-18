@@ -1,0 +1,176 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #0a0e15; }
+    a { color: #d97b29; } a:hover { color: #ff9d3d; }
+    .lbl { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.18em; color: #4a5c72; text-transform: uppercase; }
+    .num { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+    .plate { background: linear-gradient(180deg, #1a2430 0%, #141c26 100%); border: 1px solid #2a3644; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 720px; background: #0d131b; color: #8fa3ba; font-family: Barlow, Helvetica, sans-serif; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden">
+
+  <div style="flex-grow: 1; display: flex; gap: 0; min-height: 0">
+
+    <div class="plate" style="width: 236px; flex: none; border-left: none; border-top: none; display: flex; flex-direction: column; gap: 14px; padding: 18px 16px">
+      <div class="lbl">HULL INTEGRITY</div>
+      <svg width="200" height="176" viewBox="0 0 200 176" aria-label="Hull damage schematic">
+        <ellipse cx="100" cy="88" rx="72" ry="54" fill="none" stroke="#3d4d61" stroke-width="1.5"></ellipse>
+        <path d="M100 34 L100 142" stroke="#22303f" stroke-width="1"></path>
+        <path d="M28 88 L172 88" stroke="#22303f" stroke-width="1"></path>
+        <path d="M100 34 A72 54 0 0 1 172 88 L100 88 Z" fill="#2a3644"></path>
+        <path d="M172 88 A72 54 0 0 1 100 142 L100 88 Z" fill="#3a2418"></path>
+        <path d="M100 142 A72 54 0 0 1 28 88 L100 88 Z" fill="#2a3644"></path>
+        <path d="M28 88 A72 54 0 0 1 100 34 L100 88 Z" fill="#2a3644"></path>
+        <circle cx="132" cy="112" r="4" fill="#d64a3a"></circle>
+        <text x="100" y="94" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="19" fill="#c3d2e2">35</text>
+      </svg>
+      <div style="display: flex; align-items: center; gap: 8px">
+        <span style="width: 7px; height: 7px; background: #d64a3a"></span>
+        <span style="font-size: 11px; color: #c98d7a">Starboard quarter breached</span>
+      </div>
+      <div style="margin-top: auto; display: flex; flex-direction: column; gap: 7px">
+        <div class="lbl">FRAME</div>
+        <div style="font-family: 'Saira Condensed', sans-serif; font-size: 16px; letter-spacing: 0.05em; color: #c3d2e2; text-transform: uppercase">C-Tier Medium</div>
+        <div style="font-size: 11px; color: #6b7d94">Salvage Rack — scrapping pays +50%</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; position: relative; min-width: 0; background: #0a0e15; border-top: 1px solid #2a3644; border-bottom: 1px solid #2a3644">
+      <div style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: radial-gradient(90% 80% at 60% 45%, #16202c 0%, #080b11 70%)"></div>
+      <div style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; opacity: 0.55; background-image: radial-gradient(1px 1px at 16% 28%, #8fa3ba, transparent), radial-gradient(1px 1px at 42% 72%, #6b7d94, transparent), radial-gradient(1px 1px at 66% 22%, #8fa3ba, transparent), radial-gradient(1px 1px at 82% 62%, #4a5c72, transparent)"></div>
+
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 12px">
+        <svg width="260" height="136" viewBox="0 0 230 120" aria-label="Rustjaw Cutter">
+          <path d="M30 60 L96 34 L186 44 L206 60 L186 78 L96 88 Z" fill="#2a2119" stroke="#0b0f16" stroke-width="2"></path>
+          <path d="M96 34 L186 44 L206 60 L100 56 Z" fill="#3b2e20"></path>
+          <rect x="112" y="48" width="44" height="10" fill="#4a3a20"></rect>
+          <rect x="26" y="54" width="26" height="5" fill="#d64a3a"></rect>
+          <circle cx="176" cy="59" r="4" fill="#8ec8e6"></circle>
+        </svg>
+      </div>
+
+      <svg style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%)" width="330" height="210" viewBox="0 0 330 210" aria-label="Targeting reticle">
+        <path d="M24 24 L24 4 L44 4" fill="none" stroke="#c98d7a" stroke-width="1.5"></path>
+        <path d="M306 24 L306 4 L286 4" fill="none" stroke="#c98d7a" stroke-width="1.5"></path>
+        <path d="M24 186 L24 206 L44 206" fill="none" stroke="#c98d7a" stroke-width="1.5"></path>
+        <path d="M306 186 L306 206 L286 206" fill="none" stroke="#c98d7a" stroke-width="1.5"></path>
+        <path d="M165 0 L165 18" stroke="#7a3a30" stroke-width="1"></path>
+        <path d="M165 192 L165 210" stroke="#7a3a30" stroke-width="1"></path>
+      </svg>
+
+      <div style="position: absolute; left: 22px; top: 20px; display: flex; flex-direction: column; gap: 4px">
+        <div style="font-family: 'Saira Condensed', sans-serif; font-size: 24px; font-weight: 600; letter-spacing: 0.07em; color: #c98d7a; text-transform: uppercase">Rustjaw Cutter</div>
+        <div style="display: flex; align-items: center; gap: 9px">
+          <div style="width: 190px; height: 5px; background: #151d28; border: 1px solid #22303f; position: relative"><div style="position: absolute; top: 0; bottom: 0; left: 0; width: 68%; background: #c98d7a"></div></div>
+          <span class="num" style="font-size: 11px; color: #6b7d94">27 / 40</span>
+        </div>
+      </div>
+
+      <div style="position: absolute; right: 22px; bottom: 18px; display: flex; align-items: center; gap: 10px; border: 1px solid #7a3a30; background: rgba(122,58,48,0.2); padding: 8px 14px">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #d64a3a"></span>
+        <span class="lbl" style="color: #c98d7a; letter-spacing: 0.16em">INBOUND</span>
+        <span class="num" style="font-size: 18px; color: #c98d7a">8</span>
+        <span style="font-size: 12px; color: #8a6a62">x 2 — strafing run</span>
+      </div>
+    </div>
+
+    <div class="plate" style="width: 236px; flex: none; border-right: none; border-top: none; display: flex; flex-direction: column; gap: 16px; padding: 18px 16px">
+      <div class="lbl">REACTOR OUTPUT</div>
+      <div style="display: flex; gap: 9px; align-items: flex-end; height: 96px">
+        <div style="flex: 1; height: 100%; background: #ff9d3d"></div>
+        <div style="flex: 1; height: 100%; background: #ff9d3d"></div>
+        <div style="flex: 1; height: 100%; background: #ff9d3d"></div>
+        <div style="flex: 1; height: 100%; background: #151d28; border: 1px solid #22303f; box-sizing: border-box"></div>
+        <div style="flex: 1; height: 100%; background: #151d28; border: 1px solid #22303f; box-sizing: border-box"></div>
+      </div>
+      <div style="display: flex; align-items: baseline; gap: 7px"><span class="num" style="font-size: 25px; color: #ffd28a">3</span><span class="lbl">OF 5 AVAILABLE</span></div>
+      <div style="height: 1px; background: #2a3644"></div>
+      <div style="display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="lbl">SCRAP</span><span class="num" style="font-size: 16px; color: #c3d2e2">40</span></div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="lbl">FUEL</span><span class="num" style="font-size: 16px; color: #c3d2e2">30</span></div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><span class="lbl">DECK</span><span class="num" style="font-size: 16px; color: #c3d2e2">9</span></div>
+      </div>
+      <div style="margin-top: auto; border: 1px solid #6c542e; color: #bc9a5c; font-size: 11px; letter-spacing: 0.08em; padding: 5px 9px; text-align: center">KORVAN 5 — STANDARD ISSUE</div>
+    </div>
+  </div>
+
+  <div style="height: 268px; flex: none; display: flex; gap: 0; background: linear-gradient(180deg, #1a2430 0%, #10161e 100%); border-top: 2px solid #2a3644">
+
+    <div style="width: 268px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-right: 1px solid #2a3644">
+      <svg width="210" height="122" viewBox="0 0 210 122" aria-label="Heat gauge">
+        <path d="M25 105 A80 80 0 0 1 185 105" fill="none" stroke="#22303f" stroke-width="9"></path>
+        <path d="M143 33 A80 80 0 0 1 185 105" fill="none" stroke="#5c280c" stroke-width="9"></path>
+        <g transform="rotate({{needle}} 105 105)">
+          <path d="M105 105 L105 36" stroke="{{needleColor}}" stroke-width="3"></path>
+        </g>
+        <circle cx="105" cy="105" r="7" fill="#2a3644" stroke="#3d4d61"></circle>
+        <text x="105" y="88" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="21" fill="{{needleColor}}">{{heatNow}}</text>
+      </svg>
+      <div class="lbl" style="letter-spacing: 0.22em">CORE TEMPERATURE</div>
+      <div style="font-size: 11px; color: {{statusColor}}">{{statusText}}</div>
+    </div>
+
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; padding: 14px 18px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span class="lbl">ORDERS</span>
+        <div style="flex-grow: 1; height: 1px; background: #2a3644"></div>
+        <span class="lbl">DRAW 5 — DISCARD 2</span>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: stretch; flex-grow: 1">
+        <sc-for list="{{cards}}" as="c" hint-placeholder-count="5">
+          <div style="flex: 1; background: #0f151d; border: 1px solid #2a3644; border-bottom: 3px solid {{c.accent}}; display: flex; flex-direction: column; gap: 6px; padding: 10px 11px; box-sizing: border-box">
+            <div style="display: flex; align-items: center; gap: 7px">
+              <span class="num" style="width: 19px; height: 19px; border: 1px solid #ff9d3d; color: #ff9d3d; font-size: 11px; display: grid; place-items: center">{{c.energy}}</span>
+              <span style="font-family: 'Saira Condensed', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.03em; color: #c3d2e2; text-transform: uppercase">{{c.name}}</span>
+            </div>
+            <div style="font-size: 11px; line-height: 1.4; color: #8fa3ba">{{c.text}}</div>
+            <div style="margin-top: auto; display: flex; align-items: center; gap: 6px">
+              <span class="lbl" style="color: {{c.accent}}">{{c.kind}}</span>
+              <div style="flex-grow: 1"></div>
+              <span class="num" style="font-size: 10px; color: {{c.heatColor}}">{{c.heatLabel}}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"heat":{"editor":"int","default":4,"min":0,"max":16,"section":"State"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cap = 12, max = 16;
+    const h = this.props.heat ?? 4;
+    const over = h > cap;
+    const warm = h > cap * 0.66;
+    const col = over ? '#ff9d3d' : (warm ? '#d97b29' : '#8fa3ba');
+    return {
+      heatNow: String(h),
+      needle: String(-90 + Math.min(180, (h / max) * 180)),
+      needleColor: col,
+      statusColor: over ? '#ff9d3d' : (warm ? '#d97b29' : '#6b7d94'),
+      statusText: over ? 'OVERHEATING — venting into hull' : (warm ? 'Running hot' : 'Within tolerance'),
+      cards: [
+        { name: 'Suppressing Fire', energy: '1', text: 'Deal 3 damage twice. Salvo +2.', kind: 'BALLISTIC', heatLabel: 'cold', heatColor: '#4a5c72', accent: '#6b7d94' },
+        { name: 'Charged Slug', energy: '2', text: 'Charge 1. Then deal 16.', kind: 'ORDNANCE', heatLabel: '+3 heat', heatColor: '#d97b29', accent: '#d97b29' },
+        { name: 'Brace', energy: '1', text: 'Gain 5 armor. 1 heat a turn to hold.', kind: 'ARMOR', heatLabel: 'upkeep', heatColor: '#d97b29', accent: '#4d7a63' },
+        { name: 'Emergency Vent', energy: '0', text: 'Vent 4 heat. Draw a card.', kind: 'UTILITY', heatLabel: '-4 heat', heatColor: '#7fb89a', accent: '#7fb89a' },
+        { name: 'Suppressing Fire', energy: '1', text: 'Deal 3 damage twice. Salvo +2.', kind: 'BALLISTIC', heatLabel: 'cold', heatColor: '#4a5c72', accent: '#6b7d94' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

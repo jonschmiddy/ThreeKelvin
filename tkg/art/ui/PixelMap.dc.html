@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap">
+  <style>
+    body { margin: 0; background: #0a0e15; }
+    a { color: #d97b29; } a:hover { color: #ff9d3d; }
+    .px { font-family: Silkscreen, "Courier New", monospace; }
+    .bevel { box-shadow: inset 2px 2px 0 #3d4d61, inset -2px -2px 0 #080b11; }
+    .bevel-in { box-shadow: inset 2px 2px 0 #080b11, inset -2px -2px 0 #2a3644; }
+    .dither { background-image: repeating-linear-gradient(45deg, rgba(143,163,186,0.035) 0 2px, transparent 2px 4px); }
+    svg { shape-rendering: crispEdges; }
+  </style>
+</helmet>
+
+<div class="px" style="width: 1280px; height: 720px; background: #0a0e15; color: #8fa3ba; font-size: 16px; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; image-rendering: pixelated">
+
+  <div class="bevel dither" style="height: 56px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 16px; background: #1a2430">
+    <div style="display: flex; gap: 6px; align-items: center">
+      <div class="bevel-in" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #10161f">
+        <svg width="16" height="16" viewBox="0 0 8 8"><rect x="1" y="3" width="6" height="2" fill="#8fa3ba"></rect><rect x="2" y="2" width="4" height="1" fill="#8fa3ba"></rect><rect x="0" y="4" width="1" height="1" fill="#8fa3ba"></rect></svg>
+        <span style="font-size: 16px; color: #c3d2e2">SHIP</span>
+      </div>
+      <div class="bevel-in" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #4a2a0c">
+        <svg width="16" height="16" viewBox="0 0 8 8"><rect x="0" y="2" width="2" height="2" fill="#ffd28a"></rect><rect x="3" y="0" width="2" height="2" fill="#ffd28a"></rect><rect x="6" y="3" width="2" height="2" fill="#ffd28a"></rect><rect x="2" y="5" width="2" height="2" fill="#ffd28a"></rect></svg>
+        <span style="font-size: 16px; color: #ffd28a">MAP</span>
+      </div>
+    </div>
+    <div style="width: 2px; height: 24px; background: #10161f"></div>
+    <span style="font-size: 16px; color: #6b7d94">HULL <span style="color: #c3d2e2">35/35</span></span>
+    <div style="display: flex; align-items: center; gap: 8px">
+      <span style="font-size: 16px; color: #6b7d94">HEAT</span>
+      <div style="display: flex; gap: 2px; align-items: center">
+        <sc-for list="{{heatBoxes}}" as="b" hint-placeholder-count="12">
+          <span style="width: 12px; height: 18px; background: {{b.bg}}; box-shadow: inset 2px 2px 0 {{b.hi}}, inset -2px -2px 0 {{b.lo}}"></span>
+        </sc-for>
+        <span style="width: 2px; height: 22px; background: #8fa3ba; margin: 0 4px"></span>
+      </div>
+      <span style="font-size: 16px; color: #6b7d94">2/12</span>
+    </div>
+    <div style="flex-grow: 1"></div>
+    <span style="font-size: 16px; color: #6b7d94">SCRAP <span style="color: #c3d2e2">40</span></span>
+    <span style="font-size: 16px; color: #6b7d94">FUEL <span style="color: #c3d2e2">30</span></span>
+    <div class="bevel-in" style="padding: 5px 9px; background: #2c2212"><span style="font-size: 16px; color: #bc9a5c">KORVAN 5</span></div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0">
+
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: #0d121b">
+
+      <div style="flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: #10161f; box-shadow: inset 0 -2px 0 #1f2a36">
+        <span style="font-size: 16px; color: #6b7d94">LAYER 3/8</span>
+        <div style="display: flex; gap: 3px; align-items: center">
+          <span style="width: 22px; height: 10px; background: #6b7d94"></span>
+          <span style="width: 22px; height: 10px; background: #6b7d94"></span>
+          <span style="width: 22px; height: 10px; background: #ff9d3d"></span>
+          <span style="width: 22px; height: 10px; background: #1f2a36"></span>
+          <span style="width: 22px; height: 10px; background: #1f2a36"></span>
+          <span style="width: 22px; height: 10px; background: #1f2a36"></span>
+          <span style="width: 22px; height: 10px; background: #1f2a36"></span>
+          <span style="width: 22px; height: 10px; background: #1f2a36"></span>
+        </div>
+        <span style="font-size: 16px; color: #c98d7a">FARLIGHT</span>
+      </div>
+
+      <div style="flex-grow: 1; min-height: 0; position: relative">
+        <svg style="position: absolute; top: 0; left: 0" width="812" height="520" viewBox="0 0 406 260" aria-label="Star chart">
+          <g fill="#1e2a38">
+            <rect x="34" y="129" width="52" height="2"></rect><rect x="34" y="75" width="2" height="56"></rect><rect x="34" y="129" width="2" height="56"></rect>
+            <rect x="34" y="75" width="52" height="2"></rect><rect x="34" y="183" width="52" height="2"></rect>
+            <rect x="92" y="75" width="56" height="2"></rect><rect x="92" y="129" width="56" height="2"></rect><rect x="92" y="183" width="56" height="2"></rect>
+            <rect x="148" y="75" width="2" height="56"></rect><rect x="148" y="129" width="2" height="56"></rect>
+            <rect x="150" y="129" width="56" height="2"></rect><rect x="150" y="75" width="56" height="2"></rect><rect x="150" y="183" width="56" height="2"></rect>
+            <rect x="206" y="102" width="2" height="56"></rect>
+            <rect x="208" y="102" width="54" height="2"></rect><rect x="208" y="156" width="54" height="2"></rect>
+            <rect x="262" y="75" width="2" height="29"></rect><rect x="262" y="104" width="2" height="52"></rect><rect x="262" y="156" width="2" height="52"></rect>
+            <rect x="264" y="75" width="54" height="2"></rect><rect x="264" y="129" width="54" height="2"></rect><rect x="264" y="208" width="54" height="2"></rect>
+            <rect x="318" y="75" width="2" height="54"></rect><rect x="318" y="129" width="2" height="79"></rect>
+            <rect x="320" y="102" width="52" height="2"></rect><rect x="320" y="156" width="52" height="2"></rect>
+            <rect x="372" y="102" width="2" height="27"></rect><rect x="372" y="129" width="2" height="27"></rect>
+            <rect x="374" y="129" width="20" height="2"></rect>
+          </g>
+
+          <g>
+            <rect x="28" y="123" width="14" height="14" fill="#151d28"></rect>
+            <rect x="30" y="125" width="10" height="10" fill="#1f2a36"></rect>
+
+            <rect x="79" y="68" width="16" height="16" fill="#080b11"></rect><rect x="81" y="70" width="12" height="12" fill="#2a3644"></rect><rect x="83" y="72" width="3" height="8" fill="#8fa3ba"></rect><rect x="88" y="72" width="3" height="8" fill="#8fa3ba"></rect>
+            <rect x="79" y="122" width="16" height="16" fill="#080b11"></rect><rect x="81" y="124" width="12" height="12" fill="#2a3644"></rect><rect x="85" y="126" width="4" height="4" fill="#8ec8e6"></rect><rect x="85" y="132" width="4" height="2" fill="#8ec8e6"></rect>
+            <rect x="79" y="176" width="16" height="16" fill="#080b11"></rect><rect x="81" y="178" width="12" height="12" fill="#3a2e1a"></rect><rect x="83" y="182" width="8" height="4" fill="#bc9a5c"></rect><rect x="85" y="180" width="4" height="8" fill="#bc9a5c"></rect>
+
+            <rect x="141" y="68" width="16" height="16" fill="#080b11"></rect><rect x="143" y="70" width="12" height="12" fill="#2a3644"></rect><rect x="145" y="72" width="3" height="8" fill="#8fa3ba"></rect><rect x="150" y="72" width="3" height="8" fill="#8fa3ba"></rect>
+            <rect x="141" y="176" width="16" height="16" fill="#080b11"></rect><rect x="143" y="178" width="12" height="12" fill="#2a3644"></rect><rect x="145" y="184" width="8" height="3" fill="#6b7d94"></rect><rect x="149" y="180" width="3" height="4" fill="#6b7d94"></rect>
+
+            <rect x="199" y="68" width="16" height="16" fill="#080b11"></rect><rect x="201" y="70" width="12" height="12" fill="#2a3644"></rect><rect x="203" y="72" width="3" height="8" fill="#8fa3ba"></rect><rect x="208" y="72" width="3" height="8" fill="#8fa3ba"></rect>
+            <rect x="199" y="176" width="16" height="16" fill="#080b11"></rect><rect x="201" y="178" width="12" height="12" fill="#22303f"></rect><rect x="203" y="182" width="8" height="4" fill="#8ec8e6"></rect><rect x="205" y="180" width="4" height="8" fill="#8ec8e6"></rect>
+
+            <rect x="255" y="95" width="16" height="16" fill="#080b11"></rect><rect x="257" y="97" width="12" height="12" fill="#332028"></rect><rect x="259" y="101" width="8" height="4" fill="#c98d7a"></rect>
+            <rect x="255" y="149" width="16" height="16" fill="#080b11"></rect><rect x="257" y="151" width="12" height="12" fill="#1e3330"></rect><rect x="259" y="155" width="8" height="3" fill="#4fbfa8"></rect><rect x="261" y="153" width="4" height="7" fill="#4fbfa8"></rect>
+
+            <rect x="311" y="68" width="16" height="16" fill="#080b11"></rect><rect x="313" y="70" width="12" height="12" fill="#2a3644"></rect><rect x="315" y="72" width="3" height="8" fill="#8fa3ba"></rect><rect x="320" y="72" width="3" height="8" fill="#8fa3ba"></rect>
+            <rect x="311" y="122" width="16" height="16" fill="#080b11"></rect><rect x="313" y="124" width="12" height="12" fill="#3a2e1a"></rect><rect x="315" y="128" width="8" height="4" fill="#bc9a5c"></rect><rect x="317" y="126" width="4" height="8" fill="#bc9a5c"></rect>
+            <rect x="311" y="201" width="16" height="16" fill="#080b11"></rect><rect x="313" y="203" width="12" height="12" fill="#2a2436"></rect><rect x="315" y="205" width="8" height="8" fill="#b08ad0"></rect><rect x="317" y="207" width="4" height="4" fill="#2a2436"></rect>
+
+            <rect x="365" y="95" width="16" height="16" fill="#080b11"></rect><rect x="367" y="97" width="12" height="12" fill="#2a3644"></rect><rect x="369" y="101" width="8" height="4" fill="#8ec8e6"></rect>
+            <rect x="365" y="149" width="16" height="16" fill="#080b11"></rect><rect x="367" y="151" width="12" height="12" fill="#332028"></rect><rect x="369" y="155" width="8" height="4" fill="#c98d7a"></rect>
+
+            <rect x="386" y="121" width="18" height="18" fill="#5c280c"></rect><rect x="388" y="123" width="14" height="14" fill="#cc641c"></rect><rect x="392" y="127" width="6" height="6" fill="#ffd28a"></rect>
+          </g>
+
+          <g fill="#ff9d3d">
+            <rect x="137" y="118" width="24" height="2"></rect><rect x="137" y="140" width="24" height="2"></rect>
+            <rect x="137" y="118" width="2" height="24"></rect><rect x="159" y="118" width="2" height="24"></rect>
+          </g>
+          <rect x="141" y="122" width="16" height="16" fill="#5c280c"></rect><rect x="143" y="124" width="12" height="12" fill="#cc641c"></rect><rect x="147" y="128" width="4" height="4" fill="#ffd28a"></rect>
+
+          <g fill="#c3d2e2">
+            <rect x="195" y="118" width="24" height="2"></rect><rect x="195" y="140" width="24" height="2"></rect>
+            <rect x="195" y="118" width="2" height="24"></rect><rect x="217" y="118" width="2" height="24"></rect>
+          </g>
+          <rect x="199" y="122" width="16" height="16" fill="#080b11"></rect><rect x="201" y="124" width="12" height="12" fill="#2a3644"></rect><rect x="203" y="126" width="3" height="8" fill="#8fa3ba"></rect><rect x="208" y="126" width="3" height="8" fill="#8fa3ba"></rect>
+        </svg>
+      </div>
+
+      <div style="flex: none; display: flex; align-items: center; gap: 18px; padding: 12px 18px; background: #10161f; box-shadow: inset 0 2px 0 #1f2a36">
+        <span style="font-size: 16px; color: #4a5c72">KEY</span>
+        <sc-for list="{{legend}}" as="l" hint-placeholder-count="6">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <span style="width: 14px; height: 14px; background: {{l.color}}; box-shadow: inset 2px 2px 0 #080b11"></span>
+            <span style="font-size: 16px; color: #6b7d94">{{l.name}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="width: 404px; flex: none; background: #0d121b; box-shadow: inset 2px 0 0 #3d4d61; display: flex; flex-direction: column">
+
+      <div class="dither" style="flex: none; padding: 16px 18px; background: #1a2430; box-shadow: inset 0 -2px 0 #10161f; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 16px; color: #6b7d94">DESTINATION</span>
+        <span style="font-size: 24px; color: #c3d2e2">FRONTIER</span>
+        <span style="font-size: 16px; color: #6b7d94; line-height: 1.4">THIN SALVAGE. NOBODY TO HEAR THE REACTOR GO.</span>
+      </div>
+
+      <div style="flex: none; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; box-shadow: inset 0 -2px 0 #10161f">
+          <span style="font-size: 16px; color: #6b7d94">CONTAINS</span><span style="font-size: 16px; color: #c3d2e2">HOSTILE x1</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; box-shadow: inset 0 -2px 0 #10161f">
+          <span style="font-size: 16px; color: #6b7d94">DANGER</span>
+          <div style="display: flex; gap: 3px">
+            <span style="width: 14px; height: 18px; background: #d97b29; box-shadow: inset 2px 2px 0 #ffd28a, inset -2px -2px 0 #964214"></span>
+            <span style="width: 14px; height: 18px; background: #10161f; box-shadow: inset 2px 2px 0 #080b11, inset -2px -2px 0 #2a3644"></span>
+            <span style="width: 14px; height: 18px; background: #10161f; box-shadow: inset 2px 2px 0 #080b11, inset -2px -2px 0 #2a3644"></span>
+            <span style="width: 14px; height: 18px; background: #10161f; box-shadow: inset 2px 2px 0 #080b11, inset -2px -2px 0 #2a3644"></span>
+            <span style="width: 14px; height: 18px; background: #10161f; box-shadow: inset 2px 2px 0 #080b11, inset -2px -2px 0 #2a3644"></span>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; box-shadow: inset 0 -2px 0 #10161f">
+          <span style="font-size: 16px; color: #6b7d94">FUEL</span><span style="font-size: 16px; color: #c3d2e2">-1  (30 &gt; 29)</span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; box-shadow: inset 0 -2px 0 #10161f">
+          <span style="font-size: 16px; color: #6b7d94">HEADING</span><span style="font-size: 16px; color: #ff9d3d">COREWARD  L4</span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1"></div>
+
+      <div class="dither" style="flex: none; padding: 16px 18px; background: #1a2430; box-shadow: inset 0 2px 0 #3d4d61; display: flex; flex-direction: column; gap: 12px">
+        <span style="font-size: 16px; color: #6b7d94; line-height: 1.4">2 LATERAL HOPS LEFT AT THIS DEPTH.</span>
+        <div class="bevel" style="text-align: center; padding: 14px 0; background: #4a2a0c; color: #ffd28a; font-size: 24px">JUMP</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const heatBoxes = [];
+    for (let i = 0; i < 12; i++) {
+      heatBoxes.push(i < 2
+        ? { bg: '#6b7d94', hi: '#8fa3ba', lo: '#3d4d61' }
+        : { bg: '#10161f', hi: '#080b11', lo: '#2a3644' });
+    }
+    return {
+      heatBoxes: heatBoxes,
+      legend: [
+        { name: 'FIGHT', color: '#2a3644' },
+        { name: 'STATION', color: '#8ec8e6' },
+        { name: 'TERRITORY', color: '#bc9a5c' },
+        { name: 'LAWLESS', color: '#c98d7a' },
+        { name: 'FAUNA', color: '#4fbfa8' },
+        { name: 'RUINS', color: '#b08ad0' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

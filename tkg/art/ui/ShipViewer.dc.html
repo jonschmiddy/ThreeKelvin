@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; background: #0a0e15; }
+    a { color: #d97b29; } a:hover { color: #ff9d3d; }
+    .lbl { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.18em; color: #4a5c72; text-transform: uppercase; }
+    .num { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+    .nav { display: flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid #22303f; background: #111823; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 720px; background: #0a0e15; color: #8fa3ba; font-family: Barlow, Helvetica, sans-serif; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden">
+
+  <div style="height: 52px; flex: none; display: flex; align-items: center; gap: 20px; padding: 0 18px; border-bottom: 1px solid #22303f; background: #0c111a">
+    <div style="display: flex; gap: 6px; align-items: center">
+      <div class="nav" style="border-color: #d97b29; background: rgba(217,123,41,0.14)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ff9d3d" stroke-width="1.8"><ellipse cx="12" cy="12" rx="9" ry="5"></ellipse><path d="M3 12h18"></path></svg>
+        <span class="lbl" style="color: #ff9d3d">SHIP</span>
+      </div>
+      <div class="nav">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8fa3ba" stroke-width="1.8"><path d="M4 7 L11 5 L17 9 L21 7"></path><circle cx="4" cy="7" r="1.6" fill="#8fa3ba"></circle><circle cx="11" cy="5" r="1.6" fill="#8fa3ba"></circle><circle cx="17" cy="9" r="1.6" fill="#8fa3ba"></circle><circle cx="21" cy="7" r="1.6" fill="#8fa3ba"></circle><path d="M11 5 L9 17"></path><circle cx="9" cy="17" r="1.6" fill="#8fa3ba"></circle></svg>
+        <span class="lbl" style="color: #8fa3ba">MAP</span>
+      </div>
+    </div>
+    <div style="width: 1px; height: 22px; background: #22303f"></div>
+    <div style="display: flex; align-items: baseline; gap: 7px"><span class="lbl">HULL</span><span class="num" style="font-size: 17px; color: #c3d2e2">35</span><span class="num" style="font-size: 12px; color: #4a5c72">/35</span></div>
+    <div style="display: flex; align-items: center; gap: 9px">
+      <span class="lbl">HEAT</span>
+      <div style="display: flex; gap: 2px; align-items: center">
+        <sc-for list="{{heatBoxes}}" as="b" hint-placeholder-count="12">
+          <span style="width: 10px; height: 15px; background: {{b.bg}}; border: 1px solid {{b.bd}}; box-sizing: border-box"></span>
+        </sc-for>
+        <span style="width: 1px; height: 19px; background: #6b7d94; margin: 0 3px"></span>
+      </div>
+      <span class="num" style="font-size: 12px; color: #6b7d94">0 / 12</span>
+    </div>
+    <div style="flex-grow: 1"></div>
+    <div style="display: flex; align-items: baseline; gap: 7px"><span class="lbl">SCRAP</span><span class="num" style="font-size: 15px; color: #c3d2e2">40</span></div>
+    <div style="display: flex; align-items: baseline; gap: 7px"><span class="lbl">FUEL</span><span class="num" style="font-size: 15px; color: #c3d2e2">30</span></div>
+    <div style="border: 1px solid #6c542e; color: #bc9a5c; font-size: 11px; letter-spacing: 0.08em; padding: 3px 9px">KORVAN 5</div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0">
+
+    <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: radial-gradient(110% 80% at 45% 34%, #16202c 0%, #0a0e15 62%)">
+
+      <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative; min-height: 0">
+        <div style="position: absolute; top: 0; right: 0; bottom: 0; left: 0; opacity: 0.45; background-image: radial-gradient(1px 1px at 18% 26%, #8fa3ba, transparent), radial-gradient(1px 1px at 62% 70%, #6b7d94, transparent), radial-gradient(1px 1px at 80% 30%, #4a5c72, transparent)"></div>
+        <svg width="470" height="235" viewBox="0 0 300 150" aria-label="Your hull with mount pads">
+          <ellipse cx="160" cy="82" rx="112" ry="42" fill="#232d3a" stroke="#0b0f16" stroke-width="2"></ellipse>
+          <ellipse cx="160" cy="72" rx="112" ry="40" fill="#344254"></ellipse>
+          <ellipse cx="160" cy="70" rx="98" ry="31" fill="#3d4d61"></ellipse>
+          <rect x="96" y="52" width="52" height="20" fill="#4a3a20" stroke="#2c2212"></rect>
+          <rect x="168" y="48" width="40" height="22" fill="#2e3b4b" stroke="#22303f"></rect>
+          <rect x="214" y="60" width="30" height="8" fill="#1a1e26"></rect>
+          <rect x="122" y="86" width="76" height="4" fill="#cc641c"></rect>
+          <rect x="48" y="62" width="30" height="9" fill="#3a404c"></rect>
+          <rect x="48" y="80" width="30" height="9" fill="#3a404c"></rect>
+          <rect x="20" y="64" width="28" height="5" fill="#ff9d3d"></rect>
+          <rect x="20" y="82" width="28" height="5" fill="#ff9d3d"></rect>
+          <rect x="236" y="66" width="18" height="9" fill="#8ec8e6"></rect>
+          <rect x="150" y="34" width="26" height="12" fill="none" stroke="#d97b29" stroke-width="1.5" stroke-dasharray="3 2"></rect>
+        </svg>
+        <div style="position: absolute; bottom: 12px; left: 0; right: 0; text-align: center"><span class="lbl" style="color: #d97b29; letter-spacing: 0.2em">ONE WEAPON PAD FREE</span></div>
+      </div>
+
+      <div style="flex: none; display: flex; flex-direction: column; gap: 0; border-top: 1px solid #22303f; background: #0c111a">
+        <sc-for list="{{slots}}" as="s" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 14px; padding: 11px 20px; border-bottom: 1px solid #151d28">
+            <span class="lbl" style="width: 60px; flex: none">{{s.kind}}</span>
+            <div style="display: flex; gap: 3px; flex: none">
+              <sc-for list="{{s.boxes}}" as="b" hint-placeholder-count="3">
+                <span style="width: 13px; height: 17px; background: {{b.bg}}; border: 1px solid {{b.bd}}; box-sizing: border-box"></span>
+              </sc-for>
+            </div>
+            <span style="font-size: 13px; color: #8fa3ba; flex-grow: 1; min-width: 0">{{s.fitted}}</span>
+            <span class="num" style="font-size: 11px; color: #4a5c72; flex: none">{{s.count}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="width: 470px; flex: none; border-left: 1px solid #22303f; background: #0b1017; display: flex; flex-direction: column; min-height: 0">
+
+      <div style="flex: none; display: flex; align-items: center; gap: 10px; padding: 13px 18px; border-bottom: 1px solid #22303f">
+        <span class="lbl">STORAGE</span>
+        <span class="num" style="font-size: 12px; color: #6b7d94">4 held</span>
+        <div style="flex-grow: 1"></div>
+        <span class="lbl" style="color: #4a5c72">SORT — RARITY</span>
+      </div>
+
+      <div style="flex-grow: 1; overflow: hidden; display: flex; flex-direction: column">
+        <sc-for list="{{storage}}" as="m" hint-placeholder-count="4">
+          <div style="display: flex; flex-direction: column; gap: 5px; padding: 12px 18px; border-bottom: 1px solid #151d28; border-left: 3px solid {{m.edge}}; background: {{m.bg}}">
+            <div style="display: flex; align-items: baseline; gap: 9px">
+              <span style="font-family: 'Saira Condensed', sans-serif; font-size: 16px; font-weight: 600; letter-spacing: 0.03em; color: #c3d2e2; text-transform: uppercase">{{m.name}}</span>
+              <div style="flex-grow: 1"></div>
+              <span class="lbl" style="color: {{m.rarityColor}}">{{m.rarity}}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px">
+              <span class="lbl" style="color: #4a5c72">{{m.slot}}</span>
+              <span style="width: 1px; height: 11px; background: #22303f"></span>
+              <span style="font-size: 12px; color: #6b7d94">{{m.effect}}</span>
+            </div>
+            <div style="font-size: 11px; color: {{m.affixColor}}">{{m.affix}}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex: none; border-top: 1px solid #22303f; background: #0c111a; padding: 14px 18px; display: flex; flex-direction: column; gap: 11px">
+        <div style="display: flex; align-items: baseline; gap: 9px">
+          <span style="font-family: 'Saira Condensed', sans-serif; font-size: 19px; font-weight: 600; letter-spacing: 0.04em; color: #c3d2e2; text-transform: uppercase">KH-88 Jackhammer</span>
+          <span class="lbl" style="color: #8ec8e6">RARE</span>
+        </div>
+        <div style="font-size: 12px; color: #6b7d94; line-height: 1.5">Goes into the free weapon pad. No swap needed.</div>
+        <div style="display: flex; gap: 9px">
+          <div style="flex-grow: 1; text-align: center; padding: 9px 0; border: 1px solid #d97b29; background: rgba(217,123,41,0.14); color: #ff9d3d; font-family: 'Saira Condensed', sans-serif; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase">Install</div>
+          <div style="width: 132px; text-align: center; padding: 9px 0; border: 1px solid #22303f; color: #8fa3ba; font-family: 'Saira Condensed', sans-serif; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase">Scrap · 30</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() {
+    const heatBoxes = [];
+    for (let i = 0; i < 12; i++) heatBoxes.push({ bg: 'transparent', bd: '#22303f' });
+
+    const mk = (used, total) => {
+      const out = [];
+      for (let i = 0; i < total; i++) {
+        out.push(i < used
+          ? { bg: '#6b7d94', bd: '#6b7d94' }
+          : { bg: 'transparent', bd: '#d97b29' });
+      }
+      return out;
+    };
+
+    return {
+      heatBoxes: heatBoxes,
+      slots: [
+        { kind: 'WEAPON', boxes: mk(2, 3), fitted: 'KH-20 Chatterbox · KM-4 Mass Driver', count: '2 / 3' },
+        { kind: 'SYSTEM', boxes: mk(2, 3), fitted: 'Ablative Plate Welder · Coolant Flush Assembly', count: '2 / 3' },
+        { kind: 'UTILITY', boxes: mk(1, 2), fitted: 'Targeting Servo', count: '1 / 2' }
+      ],
+      storage: [
+        { name: 'KH-88 Jackhammer', rarity: 'RARE', rarityColor: '#8ec8e6', slot: 'WEAPON', effect: 'Deal 6 three times. Salvo +3.', affix: 'Overbored — +2 damage, +1 heat', affixColor: '#bc9a5c', edge: '#d97b29', bg: 'rgba(217,123,41,0.09)' },
+        { name: 'Reactive Plating Array', rarity: 'LEGENDARY', rarityColor: '#ff9d3d', slot: 'SYSTEM', effect: 'Gain 8 armor. Riposte 3.', affix: 'Tempered — armor costs no heat to hold', affixColor: '#bc9a5c', edge: '#22303f', bg: 'transparent' },
+        { name: 'Widowmaker Siege Driver', rarity: 'EPIC', rarityColor: '#b08ad0', slot: 'WEAPON', effect: 'Charge 2. Then deal 34.', affix: 'Contraband — inspections will find this', affixColor: '#d64a3a', edge: '#22303f', bg: 'transparent' },
+        { name: 'Dross', rarity: 'COMMON', rarityColor: '#6b7d94', slot: 'UTILITY', effect: 'Unplayable. Takes up a slot.', affix: '', affixColor: '#4a5c72', edge: '#22303f', bg: 'transparent' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
