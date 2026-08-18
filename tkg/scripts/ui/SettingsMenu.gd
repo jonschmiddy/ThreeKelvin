@@ -9,6 +9,11 @@ extends Control
 
 signal closed
 
+## Discrete steps rather than a slider: the theme has no slider styling, and a
+## pixel UI reads a marked step better than a grabber it cannot draw crisply.
+const VOLUME_STEPS: Array[float] = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+
+var _volume_rows: VBoxContainer
 var _mode_rows: VBoxContainer
 var _screen_row: HBoxContainer
 var _scale_row: HBoxContainer
@@ -66,7 +71,18 @@ func setup() -> void:
 	col.add_child(_scale_row)
 
 	col.add_child(UITheme.hsep())
-	col.add_child(Widgets.button("BACK", func() -> void: closed.emit()))
+	var audio_title := UITheme.body("AUDIO", UITheme.ICE, UITheme.FS_HEAD)
+	audio_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(audio_title)
+	col.add_child(UITheme.hsep())
+	_volume_rows = VBoxContainer.new()
+	_volume_rows.add_theme_constant_override("separation", 3)
+	col.add_child(_volume_rows)
+
+	col.add_child(UITheme.hsep())
+	col.add_child(Widgets.button("BACK", func() -> void:
+		Audio.back()
+		closed.emit()))
 
 	_refresh()
 
@@ -119,3 +135,23 @@ func _refresh() -> void:
 	if top == 1:
 		_scale_row.add_child(UITheme.body("larger sizes need borderless",
 			UITheme.COLD, UITheme.FS_SMALL))
+
+	for c in _volume_rows.get_children():
+		c.queue_free()
+	for bus: StringName in [&"Master", &"Music", &"SFX"]:
+		_volume_rows.add_child(UITheme.body(String(bus).to_upper(),
+			UITheme.COLD, UITheme.FS_SMALL))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		_volume_rows.add_child(row)
+		var now: float = Audio.volume_of(bus)
+		for step: float in VOLUME_STEPS:
+			var vb := Widgets.button("%d" % roundi(step * 100.0), func() -> void:
+				Audio.set_volume(bus, step)
+				# You should hear what you just picked. Music answers for
+				# itself; the other two need something to answer with.
+				if bus != &"Music" and step > 0.0:
+					Audio.confirm()
+				_refresh())
+			vb.disabled = is_equal_approx(snappedf(now, 0.2), step)
+			row.add_child(vb)

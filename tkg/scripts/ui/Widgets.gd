@@ -105,7 +105,19 @@ static func hull_row(h: HullData, label: String, price: int,
 static func _btn(text: String, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
+	# Sound before action. Every button in the game is built here, so this is
+	# the one place the interface needs wiring — and the action is usually a
+	# screen swap, so the click has to be queued before the tree changes.
+	b.pressed.connect(Audio.click)
+	b.mouse_entered.connect(Audio.hover)
 	b.pressed.connect(action)
+	# A disabled button never emits `pressed`, so clicking one is completely
+	# silent — indistinguishable from the game not registering the click. It
+	# did register it. The answer is no, and the interface should say so.
+	b.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and b.disabled:
+			Audio.denied())
 	return b
 
 static func button(text: String, action: Callable) -> Button:

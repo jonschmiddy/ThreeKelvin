@@ -21,3 +21,9 @@ Thumbs.db
 
 # Keep shared VS Code config, ignore personal overrides
 .vscode/*.local.json
+
+# Audio render intermediates. `audio/` is the generator; everything the game
+# loads is encoded into `assets/audio/` by `audio/build.py`. The raw WAVs in
+# between run to about 850 MB and regenerate in half a minute.
+audio/out/
+audio/__pycache__/
