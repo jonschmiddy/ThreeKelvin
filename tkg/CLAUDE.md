@@ -190,7 +190,8 @@ autocannon art. ~33 illustrations instead of ~50, and it strengthens the fiction
 
 **Do not generate megafauna or nebulae.** Whales and leviathans are organic — commission
 or hand-draw them. Nebulae stay procedural (layered translucent masses, dithered edges,
-coloured per region).
+coloured per region) — the chart's `_build_nebulae` is that rule implemented, and any
+nebula elsewhere in the game should be built the same way rather than drawn as an asset.
 
 `art/pixelart.py` authors sprites programmatically and still works — useful for geometric
 variants and for producing concept inputs. It is the fallback, not the enemy.
@@ -283,6 +284,20 @@ drawn on its own `CanvasItem`. Both matter. Re-deriving 40,000 stars per repaint
 ~150ms, and drawing them on the same canvas as the systems meant hovering a system
 repainted the entire galaxy. Godot retains a CanvasItem's draw list until that item asks
 to redraw — that is the whole optimisation.
+
+**The galaxy holds more than stars.** Nebulae, dust lanes, globular clusters and supernova
+remnants are built into those same packed arrays, so they cost a rect apiece and nothing to
+derive. Three things about them are load-bearing:
+
+- **`gas` in `GalaxyGen` decides how much of it there is.** Nebula count, dust lanes and
+  remnants all scale off that one field, so an elliptical has none of it and a starburst is
+  full of it. That absence is the point — it is what makes fifteen galaxy types read as
+  fifteen different objects rather than fifteen spirals.
+- **Order in `_build_stars` is the compositing order.** Nebulae go in before the arms so arm
+  stars sit in front of the gas; dust lanes go in after, because a lane is made of the stars
+  it hides. Moving either call breaks the depth.
+- **Nebulae and lanes are never flagged `_star_dim`.** That tier is dropped mid-drag, which
+  is invisible on a star and very visible on a coloured mass or a dark lane opening up.
 
 Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis places, jumps
 and distance-priced fuel, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
