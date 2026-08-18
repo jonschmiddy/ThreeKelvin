@@ -45,7 +45,17 @@ class EnemyState extends RefCounted:
 			intent = template.loop[step % template.loop.size()]
 			step += 1
 
-var enemy: EnemyState
+var enemies: Array[EnemyState] = []
+
+## The current target: the first enemy still standing. Most of the game asks
+## about "the enemy" and means exactly this. Explicit targeting passes an index.
+var enemy: EnemyState:
+	get:
+		for e in enemies:
+			if e.hp > 0:
+				return e
+		return null if enemies.is_empty() else enemies[enemies.size() - 1]
+
 var deck: Array[CardData] = []
 var hand: Array[CardData] = []
 var discard: Array[CardData] = []
@@ -61,6 +71,12 @@ var drones: Array[Drone] = []
 var drone_armor: int = 0
 var charging: Array[ChargingCard] = []
 
+## Which enemy the card being played is aimed at. Set by play(); damage_enemy
+## falls back to it so the resolver never has to know about targeting.
+var current_target: EnemyState = null
+## At most one wave of reinforcements per fight.
+var reinforced: bool = false
+
 var turn: int = 1
 var attacks_this_turn: int = 0
 var peaceful_turns: int = 0
@@ -71,16 +87,31 @@ var summary: String = ""
 
 # ------------------------------------------------------------------------- setup
 
-func start(template: EnemyTemplate, danger: int) -> void:
-	enemy = EnemyState.new()
-	enemy.template = template
-	# Bosses are hand-tuned, not scaled. HP scales faster than damage so that
-	# deeper fights are longer rather than one-shot lethal.
-	var hp_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.20
-	var dmg_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.10
-	enemy.max_hp = int(round(template.max_hull * hp_mult))
-	enemy.hp = enemy.max_hp
-	enemy.armor = int(round(template.armor * hp_mult))
+func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
+	enemies.clear()
+	var share := 1.0 if extras.is_empty() else 0.6
+	enemies.append(_spawn(template, danger, share))
+	for t in extras:
+		enemies.append(_spawn(t as EnemyTemplate, danger, share))
+
+	deck = DeckBuilder.build()
+	deck.shuffle()
+	hand.clear()
+	discard.clear()
+	negate_next = Run.has_set(&"redline", 5)
+	Sig.combat_started.emit(enemies[0].template.name)
+	begin_turn()
+
+## Builds one enemy at this danger. Bosses are hand-tuned, never scaled. HP
+## scales faster than damage so deeper fights are longer rather than lethal.
+func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> EnemyState:
+	var e := EnemyState.new()
+	# Halved from 0.20/0.10 when danger went from five tiers to ten, so the
+	# top of the ladder lands in the same place it always did and only the
+	# steps between got finer. HP still climbs twice as fast as damage: deeper
+	# fights should be longer, not one-shot lethal.
+	var hp_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.10
+	var dmg_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.05
 	# Scale a private copy of the intents so the template stays pristine.
 	var scaled: Array[IntentData] = []
 	for i in template.loop:
@@ -97,16 +128,45 @@ func start(template: EnemyTemplate, danger: int) -> void:
 	var t := template.duplicate(true) as EnemyTemplate
 	t.loop = scaled
 	t.pool = scaled_pool
-	enemy.template = t
+	e.template = t
+	e.max_hp = maxi(1, int(round(template.max_hull * hp_mult * hp_share)))
+	e.hp = e.max_hp
+	e.armor = int(round(template.armor * hp_mult))
+	e.pick_intent()
+	return e
 
-	deck = DeckBuilder.build()
-	deck.shuffle()
-	hand.clear()
-	discard.clear()
-	negate_next = Run.has_set(&"redline", 5)
-	enemy.pick_intent()
-	Sig.combat_started.emit(t.name)
-	begin_turn()
+## Something else arrives mid-fight. Spawned at full health rather than a pack
+## share: it did not agree to split anything, it just turned up.
+func reinforce(template: EnemyTemplate, danger: int) -> void:
+	if finished:
+		return
+	var e := _spawn(template, danger, 0.75)
+	enemies.append(e)
+	reinforced = true
+	_log("◂ %s answers the call." % e.template.name, &"them")
+	Sig.enemy_changed.emit()
+
+## Rolled at the top of a turn. Lawless space is where nobody flies alone, and
+## a fight that has already run long is the one worth interrupting.
+func _maybe_reinforce() -> void:
+	if reinforced or finished or Run.node_at().danger < 3:
+		return
+	# One roll, on one turn. Rolling every turn compounds: 12% a turn over a ten
+	# turn fight is a ~72% chance, which is not "sometimes", it is "usually".
+	if enemies.size() > 1 or turn != 3:
+		return
+	var lawless := Run.node_at().region == MapGen.Region.LAWLESS
+	if randf() >= (0.25 if lawless else 0.10):
+		return
+	var pool := DB.fight_pool(Run.node_at().danger, false)
+	reinforce(DB.enemies[pool.pick_random()], Run.node_at().danger)
+
+func alive() -> Array[EnemyState]:
+	var out: Array[EnemyState] = []
+	for e in enemies:
+		if e.hp > 0:
+			out.append(e)
+	return out
 
 # -------------------------------------------------------------------- turn cycle
 
@@ -141,7 +201,11 @@ func begin_turn() -> void:
 		_log("▸ %s detonates." % c.name, &"big")
 		Sig.charge_fired.emit(c.name)
 		CardResolver.resolve(c, self, true)
+		# A charge firing can end the fight. Nothing after this point should run.
+		if finished:
+			return
 
+	_maybe_reinforce()
 	Sig.turn_started.emit(turn)
 	Sig.hand_changed.emit()
 	Sig.player_combat_state_changed.emit()
@@ -191,14 +255,23 @@ func end_turn() -> void:
 	begin_turn()
 
 func _enemy_act() -> void:
-	var I := enemy.intent
+	# Everything still standing acts, in order. A downed enemy is skipped rather
+	# than removed, so indexes stay stable for targeting and for the UI.
+	for e in alive():
+		_act_one(e)
+		if finished:
+			return
+	Sig.enemy_changed.emit()
+
+func _act_one(e: EnemyState) -> void:
+	var I := e.intent
 	if I == null:
 		return
-	_log("◂ %s: %s" % [enemy.template.name, I.name], &"them")
+	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
-		enemy.block += I.block
+		e.block += I.block
 	if I.heal > 0:
-		enemy.hp = mini(enemy.max_hp, enemy.hp + I.heal)
+		e.hp = mini(e.max_hp, e.hp + I.heal)
 		_log("  healed %d." % I.heal, &"them")
 	if I.dross > 0:
 		new_dross += I.dross
@@ -233,9 +306,8 @@ func _enemy_act() -> void:
 			if Run.dead:
 				_finish(&"dead", Run.death_reason)
 				return
-	enemy.block = 0
-	enemy.pick_intent()
-	Sig.enemy_changed.emit()
+	e.block = 0
+	e.pick_intent()
 
 # ------------------------------------------------------------------------- cards
 
@@ -255,7 +327,12 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 func can_play(c: CardData) -> bool:
 	return not finished and energy >= c.energy
 
-func play(index: int) -> void:
+## target_index picks which enemy this card is aimed at; -1 means "whatever is
+## still standing", which is what a click without a drag means.
+func play(index: int, target_index: int = -1) -> void:
+	current_target = null
+	if target_index >= 0 and target_index < enemies.size() and enemies[target_index].hp > 0:
+		current_target = enemies[target_index]
 	if index < 0 or index >= hand.size():
 		return
 	var c := hand[index]
@@ -283,25 +360,86 @@ func play(index: int) -> void:
 	Sig.hand_changed.emit()
 	Sig.player_combat_state_changed.emit()
 
-func damage_enemy(amount: int, hits: int, label: String) -> int:
+## What this card would actually land, right now, after the enemy's block and
+## armor. Mirrors CardResolver's attack maths without mutating anything — if the
+## two ever drift, the number on screen becomes a lie, so keep them together.
+func preview_damage(c: CardData, target_index: int = -1) -> int:
+	if finished:
+		return 0
+	var e := enemy
+	if target_index >= 0 and target_index < enemies.size() and enemies[target_index].hp > 0:
+		e = enemies[target_index]
+	if e == null:
+		return 0
+	var per := 0
+	if c.damage_equals_heat:
+		per = maxi(1, Run.heat + 2)
+	elif c.damage > 0:
+		per = c.damage
+		if c.heat_scale > 0:
+			per += int(Run.heat / c.heat_scale)
+		if c.manufacturer == &"solari" and c.heat_scale > 0 and Run.has_set(&"solari", 3):
+			per += 2
+		if c.adapt > 0:
+			per += adapt_bonus
+		var salvo_ok := attacks_this_turn > 0
+		if c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5):
+			salvo_ok = true
+		if c.salvo > 0 and salvo_ok:
+			per += c.salvo
+		per += lock_on
+	if per <= 0:
+		return 0
+
+	# Spend a copy of the enemy's mitigation so multi-hit cards read correctly.
+	var block_left := e.block
+	var armor_left := e.armor
+	var total := 0
+	for i in maxi(1, c.hits):
+		var d := per
+		var a := mini(block_left, d)
+		block_left -= a
+		d -= a
+		if d > 0:
+			var a2 := mini(armor_left, d)
+			armor_left -= a2
+			d -= a2
+		total += maxi(0, d)
+	return total
+
+func damage_enemy(amount: int, hits: int, label: String,
+		target: EnemyState = null) -> int:
+	if finished:
+		return 0
+	var e := target
+	if e == null or e.hp <= 0:
+		e = current_target if current_target != null and current_target.hp > 0 else enemy
+	if e == null:
+		return 0
+
 	var total := 0
 	for i in maxi(1, hits):
 		var d := amount
-		if enemy.block > 0:
-			var a := mini(enemy.block, d)
-			enemy.block -= a
+		if e.block > 0:
+			var a := mini(e.block, d)
+			e.block -= a
 			d -= a
-		if d > 0 and enemy.armor > 0:
-			var a2 := mini(enemy.armor, d)
-			enemy.armor -= a2
+		if d > 0 and e.armor > 0:
+			var a2 := mini(e.armor, d)
+			e.armor -= a2
 			d -= a2
-		enemy.hp -= d
+		e.hp -= d
 		total += d
-	_log("%s → %d%s" % [label, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
+	var who := "" if enemies.size() < 2 else " → %s" % e.template.name
+	_log("%s%s → %d%s" % [label, who, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
 	Sig.damage_dealt.emit(total, false)
 	Sig.enemy_changed.emit()
-	if enemy.hp <= 0:
-		enemy.hp = 0
+
+	if e.hp <= 0:
+		e.hp = 0
+		if enemies.size() > 1:
+			_log("%s is wreckage." % e.template.name, &"good")
+	if alive().is_empty():
 		_victory()
 	return total
 
@@ -310,7 +448,7 @@ func damage_enemy(amount: int, hits: int, label: String) -> int:
 func flee() -> void:
 	if finished:
 		return
-	Run.fuel = maxi(0, Run.fuel - 2)
+	Run.fuel = maxi(0, Run.fuel - 6)
 	Sig.resources_changed.emit()
 	_finish(&"fled", "You burned 2 fuel breaking contact. No salvage.")
 
@@ -334,7 +472,7 @@ func _victory() -> void:
 
 	if enemy.template.boss:
 		Run.win()
-		_finish(&"won", "The farlight opens.")
+		_finish(&"won", "The core opens.")
 		return
 
 	var drops := 2 if node.region == MapGen.Region.LAWLESS else 1

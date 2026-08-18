@@ -94,6 +94,15 @@ func manufacturer_name(id: StringName) -> String:
 		return "unbranded"
 	return (manufacturers[id] as ManufacturerData).name
 
+## One-word display name for chips and map labels. Taking the first word works
+## for six of the seven makers but turns "The Dredge Combine" into "The", so the
+## article goes first.
+func short_name(full: String) -> String:
+	var n := full
+	if n.begins_with("The "):
+		n = n.substr(4)
+	return n.split(" ")[0]
+
 # ---------------------------------------------------------------------- affixes
 
 func _seed_affixes() -> void:
@@ -373,7 +382,7 @@ func _seed_enemies() -> void:
 		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2, weight = 35},
 	], true)
 	# Boss: unscaled, tuned by hand.
-	_enemy(&"custodian", "Farlight Custodian", "guardian of the light", 120, 8, 120, &"hulk", [
+	_enemy(&"custodian", "The Custodian", "guardian of the light", 120, 8, 120, &"hulk", [
 		{name = "Plated Up", text = "Gain 12 block", block = 12},
 		{name = "Volley", text = "Deal 6 × 3", damage = 6, hits = 3},
 		{name = "Charging…", text = "Something is spooling up", telegraph = true},
@@ -385,10 +394,10 @@ func fight_pool(danger: int, fauna_region: bool) -> Array[StringName]:
 	var out: Array[StringName] = []
 	if fauna_region:
 		out.append(&"whale")
-		if danger > 3:
+		if danger > 6:
 			out.append(&"leviathan")
 		return out
-	match clampi(danger, 1, 5):
+	match MapGen.tier(danger):
 		1:
 			out.assign([&"cutter"])
 		2:

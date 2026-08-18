@@ -34,7 +34,7 @@ static func build_all() -> Array[Dictionary]:
 					Sig.ship_changed.emit()
 					return {text = "You pull a module from a dead bay."}},
 				{label = "Siphon the tanks", effect = func() -> Dictionary:
-					Run.fuel += 4
+					Run.fuel += 12
 					Sig.resources_changed.emit()
 					return {text = "Four jumps of fuel, tasting of rust."}},
 			],
@@ -89,7 +89,7 @@ static func build_all() -> Array[Dictionary]:
 						return {text = "Fined 20 scrap per illegal part."}
 					return {text = "Clean. They wave you through, disappointed."}},
 				{label = "Burn away", effect = func() -> Dictionary:
-					Run.fuel = maxi(0, Run.fuel - 2)
+					Run.fuel = maxi(0, Run.fuel - 6)
 					Run.take_hull_damage(4, "You ran, and something clipped you on the way out.")
 					return {text = "You run. 2 fuel, 4 hull, no record."}},
 			],
@@ -118,7 +118,7 @@ static func build_all() -> Array[Dictionary]:
 					Run.exotic += 1
 					return {text = "They live, briefly, and give you something they were carrying."}},
 				{label = "Take the power cell", effect = func() -> Dictionary:
-					Run.fuel += 3
+					Run.fuel += 9
 					Sig.resources_changed.emit()
 					return {text = "Three jumps. The pod goes dark behind you."}},
 			],
