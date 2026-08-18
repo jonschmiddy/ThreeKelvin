@@ -5,13 +5,34 @@ extends Node
 var hull: HullData
 var installed: Array[ModuleData] = []
 var cargo: Array[ModuleData] = []
+## Which galaxy this run is flown in. Chosen once at the start so the chart
+## is the same shape all the way through — a map that changes shape is not a
+## map. 0 two-arm spiral, 1 barred, 2 four-arm.
+## Every system you have been to, in order. The route you actually took is the
+## story of the run, and it should be on the chart.
+var trail: PackedInt32Array = PackedInt32Array()
+var galaxy_kind: int = 0
+## The rolled parameters for THIS galaxy, and the seed its star field is built
+## from. Both fixed for the life of the run: the chart rebuilds its stars from
+## the seed, and the map derives system positions from the parameters, so either
+## changing mid-run would redraw the sky and move the systems under the player.
+var galaxy: Dictionary = {}
+var galaxy_seed: int = 0
+
+## A galaxy exists before any run does — screens can be built and asked to draw
+## before start_new_run() has rolled one — so it is never an empty dictionary.
+func _ready() -> void:
+	if galaxy.is_empty():
+		galaxy = GalaxyGen.params(0).duplicate()
+var galaxy_name: String = ""
+var galaxy_title: String = ""
 
 var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
 var scrap: int = 40
 var exotic: int = 0
-var fuel: int = 30
+var fuel: int = 150
 var dross: int = 0
 
 var map: Array = []
@@ -41,7 +62,7 @@ func start_new_run() -> void:
 	heat_cap_bonus = 0
 	scrap = 40
 	exotic = 0
-	fuel = 30
+	fuel = 150
 	dross = 0
 	jumps = 0
 	kills = 0
@@ -50,12 +71,19 @@ func start_new_run() -> void:
 	death_reason = ""
 	found_hull = null
 	whale_boon = false
+	galaxy_kind = randi() % GalaxyGen.count()
+	galaxy = GalaxyGen.roll(galaxy_kind)
+	galaxy_seed = randi()
+	galaxy_name = GalaxyGen.roll_name()
+	galaxy_title = GalaxyGen.roll_title()
 	map = MapGen.generate(MAP_CANVAS)
 	at = 0
+	trail = PackedInt32Array([0])
+	_range_cache.clear()
 	Sig.run_started.emit()
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
-	log_line("Reactor cold-started. The farlight is seven jumps coreward, at least.", &"big")
+	log_line("Reactor cold-started. The core is twenty jumps coreward, at least.", &"big")
 
 func log_line(text: String, kind: StringName = &"sys") -> void:
 	Sig.log_line.emit(text, kind)
@@ -215,18 +243,97 @@ func transfer_to_hull(h: HullData) -> void:
 func node_at() -> MapGen.MapNode:
 	return map[at]
 
+## Fuel is distance. Not a flat lateral rate and a flat coreward rate — those
+## made every jump on the chart cost the same 1 fuel no matter how far it
+## plainly was, which is why the numbers beside the systems looked like
+## decoration.
+##
+## An ordinary hop is about 0.11 of a disc radius now that the field is even,
+## so this prices one at 1 fuel and a long reach across the cluster at 2.
+##
+## The attrition of the frontier no longer comes from each hop being dear — it
+## comes from there being 42 systems on the rim ring and 14 at the core. Farming
+## the edge is a long haul rather than an expensive one, which is a cleaner way
+## to say the same thing.
+const FUEL_PER_DISC_RADIUS := 10.0
+const FUEL_MAX_HOP := 6
+
 func fuel_cost_to(n: MapGen.MapNode) -> int:
-	var lateral := n.layer == node_at().layer
-	var factor := 0.6 if lateral else 1.0 + n.danger * 0.15
-	return maxi(1, int(round(hull.fuel_factor * factor)))
+	var d := MapGen.hop_distance(node_at(), n)
+	return clampi(int(round(hull.fuel_factor * d * FUEL_PER_DISC_RADIUS)),
+		1, FUEL_MAX_HOP)
+
+## How many systems the drive can pick from. Range is whatever radius happens
+## to enclose this many of your nearest neighbours, so it scales itself: half a
+## disc out on the rim where systems are strung far apart, almost nothing near
+## the core where they are packed.
+##
+## Deriving it from the FURTHEST charted link, as this first did, meant one long
+## link inflated the radius and dragged a dozen distant systems into range with
+## it — the lines that reached across the galaxy while ignoring the neighbour
+## sitting right there.
+const JUMP_NEIGHBOURS := 6
+## Cleared whenever the map changes. Range is a pure function of a system and
+## the galaxy, and working it out costs a pass over every system.
+var _range_cache: Dictionary = {}
+
+func range_from(here: MapGen.MapNode) -> float:
+	var hit: float = _range_cache.get(here.index, -1.0)
+	if hit >= 0.0:
+		return hit
+	var ds: Array[float] = []
+	for n in map:
+		var t: MapGen.MapNode = n
+		if t.index == here.index:
+			continue
+		# Depth is gated by shells. Ring spacing is tiny next to the width of a
+		# ring, so any radius wide enough to reach along your own ring would
+		# also reach most of the way to the core.
+		if absi(t.layer - here.layer) > 1:
+			continue
+		ds.append(MapGen.hop_distance(here, t))
+	if ds.is_empty():
+		_range_cache[here.index] = 0.0
+		return 0.0
+	ds.sort()
+	var r: float = ds[mini(JUMP_NEIGHBOURS - 1, ds.size() - 1)] * 1.06
+	_range_cache[here.index] = r
+	return r
+
+## Close enough to fly to. Charted links no longer grant passage on their own:
+## a link is how the map guarantees the galaxy hangs together, not a promise
+## that the place is near.
+func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
+	if n.index == here.index:
+		return false
+	if absi(n.layer - here.layer) > 1:
+		return false
+	return MapGen.hop_distance(here, n) <= range_from(here)
+
+func reachable(n: MapGen.MapNode) -> bool:
+	return reachable_from(node_at(), n)
+
+## The local cluster, as the chart draws it.
+func in_range_of(here: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for n in map:
+		if reachable_from(here, n):
+			out.append(n)
+	return out
+
+func in_range() -> Array:
+	return in_range_of(node_at())
+
+func jump_range() -> float:
+	return range_from(node_at())
 
 func can_jump_to(n: MapGen.MapNode) -> bool:
-	return node_at().links.has(n.index) and fuel >= fuel_cost_to(n)
+	return reachable(n) and fuel >= fuel_cost_to(n)
 
 ## True while at least one link out of the current node is affordable.
 func has_legal_jump() -> bool:
-	for idx in node_at().links:
-		if can_jump_to(map[idx]):
+	for n in map:
+		if can_jump_to(n):
 			return true
 	return false
 
@@ -246,6 +353,7 @@ func jump_to(index: int) -> void:
 		return
 	fuel -= fuel_cost_to(n)
 	at = index
+	trail.append(index)
 	n.visited = true
 	jumps += 1
 	Sig.resources_changed.emit()

@@ -36,7 +36,7 @@ warmth, three degrees above absolute zero. A heat-management game named for the 
 godot                      # then F5, or run from the editor
 
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
-godot --headless --path . -- sim runs=200
+godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
 # Rebuild the global class cache — REQUIRED after adding any new class_name,
 # and required once on a fresh clone before anything will compile at all
@@ -74,8 +74,16 @@ say so and ask rather than quietly working around it.
 | **Ballistics run cold; energy weapons run hot** | Gives materials a readable thermal language before you read any numbers |
 | **Ships use fixed intent loops; fauna use weighted random pools** | Machines are predictable, animals are not. Worldbuilding through mechanics |
 | **Bosses are hand-tuned, never danger-scaled** | A boss-grade stat block in a random encounter is a run-killer. This was a real bug once |
-| **Enemy HP scales faster than enemy damage** (0.20 vs 0.10 per danger tier) | Deeper fights should be longer, not one-shot lethal |
+| **Enemy HP scales faster than enemy damage** (0.10 vs 0.05 per danger tier) | Deeper fights should be longer, not one-shot lethal. Halved when danger went 1-5 -> 1-10, so the top of the ladder sits where it always did |
+| **Danger runs 1-10, but balance-sensitive tables read `MapGen.tier()`** | Enemy pools, loot rarity gates, hull tiers and station stock were calibrated against five tiers. Widening the *displayed* scale must not silently reweight every drop table |
 | **Lateral map travel is always available and cheap** | You can farm a danger band before descending, so every death is self-authored. This *is* the greed clock |
+| **A place is three independent axes** — development, security 1-5, and who operates there | One label could not say "rich city, no law". `Region` still exists but is *derived* from the axes in `_derive_region()`, because loot bias, fauna pools and station stock branch on it in five files |
+| **The galaxy is nine shells, spaced so neighbours are near in every direction** | Twenty-four thin rings made a ring step 0.03 of the disc while a rim ring was 0.51 wide — a factor of seventeen, so nothing was near anything. Populations follow ring perimeter, which trades light-following density for a map you can navigate |
+| **Fuel cost is chart distance; travel is anything within range** | A flat lateral/coreward rate made every jump cost 1 no matter how far it plainly was. Range covers your six nearest neighbours, so it self-scales from rim to core |
+| **Depth is gated by shells** (you may only move one shell at a time) | Geometric necessity, not taste: ring spacing is tiny next to ring width, so an unrestricted distance rule lets you cross most of the galaxy in two hops |
+| **The Core is a supermassive black hole, not a settlement** | Nobody develops or polices it. The social axes do not apply to the thing at the centre of a galaxy |
+| **Galaxy *shape* is purely cosmetic** | Systems sit on shells and never consult the arms, which is what makes fifteen galaxy types in `GalaxyGen` cost nothing in balance |
+| **Every arrival lands on the sector screen** | You should see a place before being asked to do anything with it. Station/event/salvage are reached *from* there, which is what finally retired `LootScreen` |
 | **One currency: scrap** — repair, upgrade, and purchase all compete for it | This is where the difficulty actually lives |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
 
@@ -199,8 +207,10 @@ right-hand content**. Less UI, less art, and the ship never disappears between f
 it reads as a companion rather than a stat block. The star chart stays a separate
 full-screen view.
 
-**Note:** the current scaffold still has separate screen classes. Consolidating them into
-`EncounterScreen` (ship left, swappable right panel) is a known pending refactor.
+**Status:** largely done. `SectorScreen` is the one frame — ship left, subject right, a
+context strip that carries either the enemy intent or the location's single action — and
+every arrival routes to it. `LootScreen` is gone; salvage resolves in place. Station and
+event still swap to their own screens *from* the sector, which is the last piece.
 
 ### Settled: two-panel, in pixel art
 
@@ -250,24 +260,44 @@ The predicted first-run failures — typed-array assignment, inner-class type hi
 (`MapGen.MapNode`), `Control` layout properties — did not materialise; the only real
 blocker was the missing class cache described above.
 
-Balance sim over 200 runs: **44% win rate**, 17.1 avg jumps, 6.0 avg kills, 0 errors —
-inside the healthy band, so the economy tuning holds as authored.
+Balance sim: **15% win rate**, 25 avg jumps, 0 errors. This is *below* the 40-55% band
+quoted above, and two things about that band need saying before anyone tunes against it:
 
-**Known open bug:** 8.5% of sim runs (17/200) end neither won nor dead. `_play_one()`
-breaks out when a node has no jumpable options, so those runs are stranded rather than
-resolved — likely a map connectivity or fuel gate issue in `MapGen`. Wins and deaths
-are counted, so the reported win rate is over all runs including the stranded ones.
+1. It was measured against an economy that double-paid scrap on charge kills. That bug is
+   fixed, so the band has never been re-derived and is not currently a trustworthy target.
+2. The most recent drop (39% -> 15%) is one fixed bug, not drift: the danger ramp divided
+   by `LAYERS - 1`, which put the top tier on the Core alone — and the Core is a hand-tuned
+   boss that is never danger-scaled. Regular fights capped one tier below the maximum for
+   the whole game. They no longer do.
 
-Implemented: galaxy generation with six region types, jumps and fuel, full combat
-(charge, salvo, brace, heat, drones, riposte, adapt, pacify), loot with rolled affixes,
-install/scrap/swap, stations with all services and inspections, eight events, set
-bonuses for all seven manufacturers, procedural ship and enemy art, headless simulator.
+Fuel deaths sit around 3-10% depending on the ring layout; they were 83% for one iteration
+when distance-based fuel landed before the economy was rescaled to match.
+
+The map has changed shape substantially. `MapGen` now owns the galaxy's geometry
+(`galaxy_pos`, `ring_radius`, `hop_distance`) because links AND fuel prices are derived
+from position — the chart only scales it to the disc it draws. Two copies would mean
+pricing a jump for a position nobody draws.
+
+**Chart performance:** the star field is precomputed once per galaxy into packed arrays and
+drawn on its own `CanvasItem`. Both matter. Re-deriving 40,000 stars per repaint cost
+~150ms, and drawing them on the same canvas as the systems meant hovering a system
+repainted the entire galaxy. Godot retains a CanvasItem's draw list until that item asks
+to redraw — that is the whole optimisation.
+
+Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis places, jumps
+and distance-priced fuel, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
+pacify), loot with rolled affixes, install/scrap/swap, stations with all services and
+inspections, eight events, set bonuses for all seven manufacturers, procedural ship and
+enemy art, headless simulator.
 
 Not yet: real art, audio, meta-progression, save/load.
 
 ## Priorities
 
-1. Get it compiling and running
-2. Play five runs; note what feels *unsatisfying* (not broken)
-3. Fix the single worst feeling
-4. Resist adding content — 33 modules is plenty until the loop feels good
+1. ~~Get it compiling and running~~ — done
+2. **Play five full runs.** Still not done, and it is still the blocker. Every balance
+   number in this file comes from the simulator's competent-player model, which cannot
+   tell you what is *unsatisfying*
+3. Re-derive the healthy win-rate band against the current economy, then tune to it
+4. Fix the single worst feeling
+5. Resist adding content — 33 modules is plenty until the loop feels good

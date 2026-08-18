@@ -11,6 +11,7 @@ extends Control
 signal resume_requested
 signal new_run_requested
 signal quit_requested
+signal settings_requested
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -51,7 +52,7 @@ func setup() -> void:
 	col.add_child(Widgets.button("RESUME", func() -> void: resume_requested.emit()))
 	col.add_child(Widgets.button("ABANDON RUN — START OVER",
 		func() -> void: new_run_requested.emit()))
-	col.add_child(Widgets.button("FULLSCREEN  (F11)", _toggle_fullscreen))
+	col.add_child(Widgets.button("SETTINGS", func() -> void: settings_requested.emit()))
 
 	col.add_child(UITheme.hsep())
 
@@ -61,7 +62,3 @@ func setup() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(hint)
 
-func _toggle_fullscreen() -> void:
-	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-	DisplayServer.window_set_mode(
-		DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)

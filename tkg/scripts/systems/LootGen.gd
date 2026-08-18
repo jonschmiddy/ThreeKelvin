@@ -5,8 +5,11 @@ extends RefCounted
 ## Exotic is grown/harvested, Artifact is precursor. Region biasing is what
 ## makes set bonuses reachable by route choice rather than luck.
 
-static func roll_module(danger: int, force_manufacturer: StringName = &"",
+static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 		allow_unbranded: bool = false) -> ModuleData:
+	# Every threshold below was tuned against the five-tier ladder. Read the
+	# wider scale through tier() rather than restating all of them.
+	var danger := MapGen.tier(danger_in)
 	# A Territory region can force a maker that the active-maker gate has switched
 	# off. Honouring that would empty the pool and collapse every drop in the
 	# region to the fallback, so treat it as an unbranded roll instead.
@@ -72,7 +75,8 @@ static func _roll_affixes(n: int, danger: int) -> Array[AffixData]:
 static func make_dross() -> ModuleData:
 	return (DB.modules[&"dross"] as ModuleData).duplicate(true) as ModuleData
 
-static func roll_hull(danger: int) -> HullData:
+static func roll_hull(danger_in: int) -> HullData:
+	var danger := MapGen.tier(danger_in)
 	var base: HullData = DB.hull_frames.pick_random()
 	var h := base.duplicate(true) as HullData
 	h.tier = clampi(int(danger / 1.6) + randi() % 2, 0, 3)
