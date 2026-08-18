@@ -190,7 +190,10 @@ func _report() -> void:
 	print("avg jumps %.1f · avg kills %.1f · avg danger reached %.2f" % [
 		float(total_jumps) / runs, float(total_kills) / runs, float(total_danger) / runs])
 	print("death causes: %s" % str(death_causes))
-	print("stranded (neither won nor dead) %d (%.1f%%) · of those, blocked by fuel %d" % [
+	# These ARE counted in deaths: check_stranded() ends the run rather than
+	# leaving the ship alive and immobile. Reported separately because a fuel
+	# death is an economy failure, not a combat one.
+	print("stranded, ended by check_stranded() %d (%.1f%%) · of those, blocked by fuel %d" % [
 		stranded, 100.0 * stranded / maxi(1, runs), stranded_no_fuel])
 	print("---")
 	print("Healthy target: 40-55% win rate for this competent-player model.")
