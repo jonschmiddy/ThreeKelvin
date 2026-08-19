@@ -40,6 +40,20 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Every sector sky on one sheet, and again behind a real ship:
+	#   godot --path . -- sky
+	# Needs a window, not because it shows one but because SpaceBackdrop is
+	# drawn by the renderer — under --headless the viewports it grabs come back
+	# blank. Written to user:// and the path is printed.
+	#
+	# It exists because procedural art is tuned by comparing a dozen rolls at
+	# once. Reaching twelve different systems in a run to see twelve skies is
+	# not a way to find the one that is too bright.
+	if "sky" in OS.get_cmdline_user_args():
+		_sky_test = load("res://scripts/sim/SkyTest.gd").new()
+		_sky_test.run(get_tree())
+		return
+
 	DisplaySettings.load_and_apply()
 	theme = UITheme.build()
 
@@ -148,6 +162,8 @@ func _ready() -> void:
 
 ## Kept alive for the duration of `-- charttest`; see the call site.
 var _chart_test: RefCounted = null
+## And for `-- sky`, for the same reason: it awaits.
+var _sky_test: RefCounted = null
 
 ## Starts a run per manufacturer and prints the resulting attribute row, plus
 ## the raw gauges each one is derived from so a surprising attribute can be

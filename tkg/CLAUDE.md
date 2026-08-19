@@ -49,6 +49,11 @@ godot --headless --path . -- savetest          # ~3 s
 # Star chart sky cache — RUN THIS AFTER ADDING TO _build_stars OR ITS BUILDERS
 godot --path . -- charttest                    # ~10 s, needs a window
 
+# Every sector sky on one contact sheet, and again behind a real ship —
+# RUN THIS AFTER TOUCHING SpaceBackdrop. Writes two PNGs to user:// and prints
+# the path. Needs a window: the sheets are grabbed from the renderer.
+godot --path . -- sky                          # ~20 s, needs a window
+
 # Every chassis's six attributes as one table — RUN THIS AFTER TOUCHING attr_*()
 # or the hull tables. The numbers only mean anything against each other.
 godot --headless --path . -- attrs             # ~5 s

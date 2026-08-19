@@ -18,6 +18,9 @@ var _area: AreaView
 var _slots: HBoxContainer
 var _made: Array[EnemySlot] = []
 var _tint: Color = Color("#16202c")
+## What is actually out there: the world, the rocks or the fleet this system
+## has in it. Behind everything, including the gas.
+var backdrop: SpaceBackdrop
 ## Tracers, sparks and debris. Added last so it draws over the ship and the
 ## enemies, and ignores the mouse so it can never eat a card drop.
 var fx: CombatFx
@@ -55,24 +58,42 @@ func _ready() -> void:
 	_slots.visible = false
 	_row.add_child(_slots)
 
-	# Between the starfield and the ship. NOT show_behind_parent: this view
-	# paints its own starfield in _draw, and a child behind the parent is behind
-	# THAT — so the gas was being drawn and then covered by the sky every frame.
-	# A Control draws itself first and its children after, in order, so the
-	# weather has to be child zero: after the stars, before the ship.
+	# Depth order, and the reason it is expressed as child order. NOT
+	# show_behind_parent: this view paints the wash in _draw, and a child behind
+	# the parent is behind THAT — so the gas was being drawn and then covered by
+	# the sky every frame. A Control draws itself first and its children after,
+	# in order, so the two background layers have to be the first two children:
+	# wash, then what is out there, then the gas blowing through it, then the
+	# ship.
+	backdrop = SpaceBackdrop.new()
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(backdrop)
+	move_child(backdrop, 0)
+
 	weather = NebulaWeather.new()
 	weather.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	weather.visible = false
 	add_child(weather)
-	move_child(weather, 0)
+	move_child(weather, 1)
 
 	fx = CombatFx.new()
 	fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fx)
 
-## Sector: the right side is the place itself.
-## Called for every sector, fighting or not — the gas does not care whether
-## something is shooting at you.
+## Where you are, told once. Sky and wash both, and both for every sector —
+## fighting or not.
+##
+## show_area() is not enough to carry this and never was: it runs only when the
+## sector is quiet, so arriving straight into a fight left the wash on its
+## default tint and would now leave the sky on the last system's. What is out
+## there does not care whether something is shooting at you.
+func set_place(n: MapGen.MapNode) -> void:
+	_tint = MapGen.region_colour(n).darkened(0.72)
+	if backdrop != null:
+		backdrop.setup(n)
+	set_weather(n)
+	queue_redraw()
+
 func set_weather(n: MapGen.MapNode) -> void:
 	if weather == null:
 		return
@@ -82,7 +103,6 @@ func set_weather(n: MapGen.MapNode) -> void:
 			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
 
 func show_area(n: MapGen.MapNode) -> void:
-	_tint = MapGen.region_colour(n).darkened(0.72)
 	_area.setup(n)
 	_area.visible = true
 	_slots.visible = false
@@ -188,16 +208,9 @@ func _draw() -> void:
 			Vector2(size.x, size.y))
 		draw_rect(band, Color(_tint.r, _tint.g, _tint.b, 0.10), true)
 
-	var s := 11
-	for i in 150:
-		s = (s * 9301 + 49297) % 233280
-		var x := float(s) / 233280.0 * size.x
-		s = (s * 9301 + 49297) % 233280
-		var y := float(s) / 233280.0 * size.y
-		s = (s * 9301 + 49297) % 233280
-		var bright := (s % 5) == 0
-		draw_rect(Rect2(Vector2(floor(x), floor(y)), Vector2.ONE),
-			Color("#8fa3ba") if bright else Color("#28323f"), true)
+	# The stars used to be drawn here, from one fixed seed, which is why every
+	# sector in the game had the same sky. They belong to SpaceBackdrop now,
+	# where they are seeded per system along with everything else in it.
 
 
 ## The place, drawn. Every node type has a picture before any real art exists,
