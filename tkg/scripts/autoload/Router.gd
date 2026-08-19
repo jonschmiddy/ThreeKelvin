@@ -323,6 +323,13 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 		Run.cargo.append(LootGen.roll_module(n.danger, force,
 			n.region == MapGen.Region.CORE or n.region == MapGen.Region.FAUNA))
+	# Precursor fragments come off deep wrecks and nowhere else in normal space.
+	# They are the one material with no manufactured source, which is what makes
+	# RELIC ANALYSIS a reason to have flown coreward rather than a recipe you
+	# grind toward at the rim.
+	if MapGen.tier(n.danger) >= 4 and randf() < 0.30:
+		Run.add_material(&"relic", 1)
+		Run.log_line("Something in the wreck predates the wreck. Precursor fragment recovered.", &"good")
 	if randf() < 0.35:
 		Run.found_hull = LootGen.roll_hull(n.danger)
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")

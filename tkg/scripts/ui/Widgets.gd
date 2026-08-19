@@ -4,7 +4,12 @@ extends RefCounted
 ## Shared UI building blocks. Everything is built in code so there is one
 ## source of truth for how a module row or a stat readout looks.
 
-enum ModuleContext { CARGO, INSTALLED, SHOP }
+## CARGO is the hold anywhere; HOLD is the hold WITH A BUYER STANDING THERE.
+## They are separate because the verbs differ by exactly one — a station can be
+## sold to and deep space cannot — and folding them together would mean the
+## SCRAP button either quoting a sale price nobody is offering or hiding one
+## that is.
+enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD }
 
 ## A module entry: name, rarity, manufacturer, rolled affixes, and its cards.
 static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
@@ -59,7 +64,11 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	# deck three fights later and never know which pickup did it.
 	var here := DeckBuilder.build().size()
 	var delta := 0
-	if ctx == ModuleContext.CARGO or ctx == ModuleContext.SHOP:
+	if ctx == ModuleContext.INSTALLED:
+		delta = -m.grant_count()
+	else:
+		# Every other context ends with the part fitted: cargo, shop stock and
+		# the hold at a station all read the deck AFTER installing it.
 		delta = m.grant_count()
 		# A swap into a full rack takes the displaced module's cards with it.
 		if Run.slots_used(m.slot) >= Run.slots_for(m.slot):
@@ -68,8 +77,6 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 				if im.slot == m.slot:
 					delta -= im.grant_count()
 					break
-	elif ctx == ModuleContext.INSTALLED:
-		delta = -m.grant_count()
 	if delta != 0:
 		var arrow := "deck %d → %d" % [here, here + delta]
 		box.add_child(UITheme.body(arrow,
@@ -83,8 +90,25 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			var full := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
 			buttons.add_child(_btn("SWAP IN" if full else "INSTALL",
 				on_action.bind("install", m)))
-			buttons.add_child(_btn("SCRAP +%d" % Run.scrap_value_of(m),
-				on_action.bind("scrap", m)))
+			buttons.add_child(_btn(_scrap_label(m), on_action.bind("scrap", m)))
+		ModuleContext.HOLD:
+			var full2 := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
+			buttons.add_child(_btn("SWAP IN" if full2 else "INSTALL",
+				on_action.bind("install", m)))
+			# `price` is the local bid. Zero means this station will not touch
+			# it, which is only ever contraband in policed space — so the button
+			# says why rather than vanishing and leaving the player to wonder
+			# whether the part is broken.
+			if price > 0:
+				var sell := _btn("SELL +%d" % price, on_action.bind("sell", m))
+				sell.tooltip_text = "What this market pays. A house's own yard is thick with its own parts; a rival's yard is short of them."
+				buttons.add_child(sell)
+			else:
+				var refused := _btn("WILL NOT BUY", on_action.bind("noop", m))
+				refused.disabled = true
+				refused.tooltip_text = "Illegal here. Fences in lawless space pay over the odds for it."
+				buttons.add_child(refused)
+			buttons.add_child(_btn(_scrap_label(m), on_action.bind("scrap", m)))
 		ModuleContext.INSTALLED:
 			buttons.add_child(_btn("REMOVE", on_action.bind("uninstall", m)))
 		ModuleContext.SHOP:
@@ -92,6 +116,15 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			b.disabled = Run.scrap < price
 			buttons.add_child(b)
 	return panel
+
+## "SCRAP +14 · 2 ALLOY". The materials are on the button rather than in the log
+## line afterwards, because deciding to melt a part is the moment the yield is
+## worth knowing — a recipe you cannot afford is a reason to scrap this one.
+static func _scrap_label(m: ModuleData) -> String:
+	var out := "SCRAP +%d" % Run.scrap_value_of(m)
+	for pair in Run.materials_from(m):
+		out += " · %d %s" % [int(pair.count), DB.material_name(pair.id).to_upper()]
+	return out
 
 static func hull_row(h: HullData, label: String, price: int,
 		on_action: Callable) -> PanelContainer:

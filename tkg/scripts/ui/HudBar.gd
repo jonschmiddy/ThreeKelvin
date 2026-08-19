@@ -70,7 +70,7 @@ func refresh() -> void:
 	# because the useful question is what FRACTION is left — the exact figure is
 	# on the tooltip, and the two ships either side of this bar disagree about
 	# what a big number even is.
-	var hull_note := "Hull %d of %d — %s.\nTen cells whatever the frame, so each is a tenth of your own maximum. Repairs cost %d scrap a point." % [
+	var hull_note := "Hull %d of %d — %s.\nTen cells whatever the frame, so each is a tenth of your own maximum. Repairs cost %.1f scrap a point where you are standing." % [
 		Run.hp, Run.max_hp(), Run.hull.name, Run.repair_cost_per_hull()]
 	_row.add_child(_hinted(
 		UITheme.body("HULL", UITheme.COLD, UITheme.FS_SMALL), hull_note))
@@ -105,9 +105,16 @@ func refresh() -> void:
 	# is a second health bar you are allowed to spend.
 	_row.add_child(_hinted(Widgets.stat("scrap", str(Run.scrap)),
 		"Scrap: %d.\nThe only currency. Repairs, upgrades and purchases all come out of it — which is where this game's difficulty actually lives." % Run.scrap))
-	if Run.exotic > 0:
-		_row.add_child(_hinted(Widgets.stat("exotic", str(Run.exotic)),
-			"Exotic: %d.\nHarvested from megafauna, not manufactured. Buys things scrap cannot." % Run.exotic))
+	# One readout per material held, and none for a material you have none of.
+	# The bar is narrow and three empty counters would cost the space the two
+	# that matter are read in.
+	for stock in Run.material_stock():
+		var d := DB.material(stock.id)
+		_row.add_child(_hinted(
+			Widgets.stat(str(stock.name).to_lower(), str(stock.count),
+				DB.material_colour(stock.id)),
+			"%s: %d.\n%s\nMaterials are not a second currency — they are what the fabricator needs before scrap will buy anything." % [
+				str(stock.name), int(stock.count), str(d.get("text", ""))]))
 	_row.add_child(_hinted(Widgets.stat("fuel", str(Run.fuel)),
 		"Fuel: %d.\nEvery jump costs by how far it plainly is on the chart. Run dry between stations and the run ends adrift." % Run.fuel))
 
