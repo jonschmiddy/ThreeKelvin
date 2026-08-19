@@ -161,18 +161,88 @@ func _score(c: CardData, cb: Combat) -> float:
 		return 40.0 + float(c.damage * maxi(1, c.hits)) / 4.0
 	return 5.0
 
+## Dock. Sell first, then spend — which is what a player does, and which is the
+## only order that lets a hold full of salvage pay for the repair.
+##
+## The model deliberately does NOT buy stock to resell. Trade routes are a
+## strategy the player can find; assuming a competent player already runs one
+## would report a win rate for a game nobody has played yet. What this measures
+## is the FLOOR of the new economy: sell what you were going to melt anyway,
+## fabricate when it is cheaper than buying the same effect.
 func _shop() -> void:
-	var rate := Run.repair_cost_per_hull()
+	var n: MapGen.MapNode = Run.node_at()
+	_sell_hold(n)
+	_bench(n)
+
 	var missing := Run.max_hp() - Run.hp
-	if missing > 0 and Run.scrap > rate * missing + 25:
-		Run.add_scrap(-rate * missing)
+	var repair := Market.repair_price(n, missing)
+	if missing > 0 and Run.scrap > repair + 25:
+		Run.add_scrap(-repair)
 		Run.heal(missing)
-	if Run.fuel < 8 and Run.scrap >= 12:
-		Run.add_scrap(-12)
-		Run.fuel += 5
+	var refuel := Market.refuel_price(n)
+	if Run.fuel < 8 and Run.scrap >= refuel:
+		Run.add_scrap(-refuel)
+		Run.fuel += Market.REFUEL_UNITS
+
+## Anything left in the hold at a station was already destined for the melter —
+## _manage_cargo() ran on arrival and kept what was worth installing. So take
+## whichever of the two prices is higher, which is the one decision selling
+## actually adds.
+func _sell_hold(n: MapGen.MapNode) -> void:
+	var guard := 0
+	while not Run.cargo.is_empty() and guard < 24:
+		guard += 1
+		var m: ModuleData = Run.cargo[0]
+		var paid := Market.bid(n, m)
+		if paid > Market.melt(m):
+			Run.cargo.erase(m)
+			Run.add_scrap(paid)
+			n.trades += 1
+		else:
+			Run.scrap_module(m)
+
+## Fabricate whatever is both affordable and better value than buying the same
+## thing off the service desk. Hull patches and fuel synthesis are the two that
+## compete directly with a price on the same screen, so they are the two the
+## model can judge; the other recipes are build decisions it has no opinion on.
+func _bench(n: MapGen.MapNode) -> void:
+	for r in Fabricator.available(n):
+		var guard := 0
+		while Fabricator.can_make(n, r) and guard < 6:
+			guard += 1
+			match StringName(r.id):
+				&"patch":
+					if Run.max_hp() - Run.hp < int(r.amount):
+						break
+					if Fabricator.price(n, r) >= Market.repair_price(n, int(r.amount)):
+						break
+				&"cracker":
+					if Run.fuel > 40:
+						break
+					if Fabricator.price(n, r) >= Market.refuel_price(n):
+						break
+				_:
+					break
+			if Fabricator.make(n, r).is_empty():
+				break
+
+## Install what improves the ship; carry a few of the rest to the next market.
+##
+## The model used to melt everything it did not install, the instant it picked it
+## up. That was correct when melting was the only thing you could do with a part
+## and it is not any more — a hold that is always empty means the simulator can
+## never once exercise the thing this economy is built around, and would report a
+## win rate for a game with no market in it.
+##
+## HOLD_LIMIT is the honest half. A competent player does not haul twenty parts
+## around hoping for a buyer; they keep the few worth a detour and melt the rest
+## where they stand. Melting the cheapest first is what makes it a hold rather
+## than a queue.
+const HOLD_LIMIT := 4
 
 func _manage_cargo() -> void:
 	var guard := 0
+	var passed: Array[ModuleData] = []
 	while not Run.cargo.is_empty() and guard < 24:
 		guard += 1
 		var m: ModuleData = Run.cargo[0]
@@ -184,7 +254,17 @@ func _manage_cargo() -> void:
 		if free or (worst != null and m.scrap_value > worst.scrap_value * 1.15):
 			Run.install_module(m)
 		else:
-			Run.scrap_module(m)
+			# Out of the queue and into the hold, so the loop terminates.
+			Run.cargo.erase(m)
+			passed.append(m)
+	for m in passed:
+		Run.cargo.append(m)
+	while Run.cargo.size() > HOLD_LIMIT:
+		var cheapest: ModuleData = Run.cargo[0]
+		for m in Run.cargo:
+			if Market.base_value(m) < Market.base_value(cheapest):
+				cheapest = m
+		Run.scrap_module(cheapest)
 	if Run.found_hull != null:
 		if Run.found_hull.max_hull > Run.max_hp() or Run.found_hull.tier > Run.hull.tier:
 			Run.transfer_to_hull(Run.found_hull)

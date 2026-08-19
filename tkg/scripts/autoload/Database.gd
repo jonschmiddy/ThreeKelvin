@@ -476,6 +476,81 @@ func perk_text(id: StringName) -> String:
 		return "%s: %s" % [p.name, p.text]
 	return ""
 
+# -------------------------------------------------------------------- materials
+#
+# The second half of the economy: things you take OFF a wreck rather than out of
+# it. Scrap is the currency and stays the only one — the ruling has not moved —
+# but a currency cannot be a prerequisite. A recipe that costs "40 scrap" is a
+# purchase; a recipe that costs "one precursor fragment" is a reason to have gone
+# somewhere. Materials are what crafting is made of, and scrap is what it costs.
+#
+# `exotic` is not new. It has existed since megafauna did, as a bare int on
+# RunState, and it is now simply the first row of this table — same number, same
+# sources, one ledger. Everything that said `Run.exotic` still does.
+
+const MATERIALS: Array[Dictionary] = [
+	{id = &"alloy", name = "Alloy", short = "ALY", colour = "#9aa8b8", value = 6,
+		text = "Reclaimed structural plate. Comes off everything you melt down."},
+	{id = &"exotic", name = "Exotic", short = "EXO", colour = "#4fbfa8", value = 45,
+		text = "Grown, not manufactured. Megafauna organs and whatever a pulsar leaves behind."},
+	{id = &"relic", name = "Relic", short = "RLC", colour = "#d4614f", value = 90,
+		text = "Precursor fragment. Nobody presses more of these and nobody knows how."},
+]
+
+## How much alloy a part gives up when it is melted down, by rarity. Flat at the
+## top on purpose: rarity buys better verbs, not more metal — a Legendary is not
+## a bigger lump of a Common, it is a cleverer one.
+const ALLOY_BY_RARITY: Array[int] = [1, 1, 2, 2, 3, 0, 0]
+
+func material(id: StringName) -> Dictionary:
+	for m in MATERIALS:
+		if m.id == id:
+			return m
+	return {}
+
+func material_name(id: StringName) -> String:
+	var m := material(id)
+	return str(m.get("name", id))
+
+func material_value(id: StringName) -> int:
+	return int(material(id).get("value", 1))
+
+func material_colour(id: StringName) -> Color:
+	return Color(str(material(id).get("colour", "#8fa3ba")))
+
+# -------------------------------------------------------------------- recipes
+#
+# The fabricator, as data. Every recipe is {what it costs} -> {one effect the
+# game already knows how to apply}, so adding one is a dictionary entry and
+# never a new branch — the same law modules and cards are held to.
+#
+# `dev` is the minimum Development the place needs. Anywhere with a docking ring
+# has a welder and a still; anything involving a laboratory needs a city. That is
+# what makes the fabricator a REASON to visit a developed system rather than a
+# button that follows you around the galaxy — and it is why the two basic recipes
+# are dev 0. A station on unclaimed ground is still a station, and gating cheap
+# fuel behind a flag on the wall is what strands people.
+#
+# Deliberately four. This is the stage crafting is built on, not crafting: the
+# ledger, the recipe shape, the resolver and the place it happens. Recipes that
+# reach into a specific module in the hold need a picker and a target, which is
+# the next piece of work and not this one.
+
+const RECIPES: Array[Dictionary] = [
+	{id = &"patch", name = "HULL PATCH", kind = &"repair", amount = 12, dev = 0,
+		scrap = 10, mats = {&"alloy": 2},
+		text = "Plate over the worst of it. Repairs 12 hull."},
+	{id = &"cracker", name = "FUEL SYNTHESIS", kind = &"fuel", amount = 20, dev = 0,
+		scrap = 8, mats = {&"alloy": 2},
+		text = "Crack alloy for volatiles. +20 fuel."},
+	{id = &"braid", name = "COOLANT BRAID", kind = &"heat_cap", amount = 3, dev = 3,
+		scrap = 25, mats = {&"alloy": 3, &"exotic": 1},
+		text = "Organic capillary loop. +3 heat cap, permanently."},
+	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 3,
+		scrap = 40, mats = {&"relic": 1},
+		text = "Have the fragment read. Fabricates a precursor module into the hold."},
+]
+
 # ---------------------------------------------------------------------- enemies
 
 func _intent(d: Dictionary) -> IntentData:
