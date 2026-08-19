@@ -74,6 +74,16 @@ func refresh() -> void:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_row.add_child(sp)
 
+	# Card gallery, top right beside the frame rate — the two development
+	# readouts together, away from the three tabs that are part of the game.
+	# It never greys out during combat: looking at the catalog changes nothing,
+	# and mid-fight is exactly when you want to check what a card was supposed
+	# to say.
+	_row.add_child(_tab("CARDS", Router.current is CardGalleryScreen, false,
+		func() -> void: Router.show_cards(),
+		"Every card in the game."))
+	_row.add_child(_divider())
+
 	# Frame rate, far right. Lives on the HUD rather than on the chart because
 	# the chart is only where the cost is currently obvious — knowing what the
 	# rest of the game runs at is the comparison that makes the number mean

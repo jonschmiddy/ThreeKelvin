@@ -39,6 +39,7 @@ func _ready() -> void:
 	_ship_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_row.add_child(_ship_slot)
 	_ship_slot.claim = _claim_hot
+	_ship_slot.preview = preview
 	_ship = _ship_slot.art
 
 	_area = AreaView.new()
@@ -109,6 +110,7 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable) -> void:
 			slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			slot.claim = _claim_hot
+			slot.preview = preview
 			slot.card_dropped.connect(on_drop)
 			slot.hovered.connect(on_hover)
 			_slots.add_child(slot)
@@ -132,14 +134,23 @@ func _claim_hot(who) -> void:
 func slot(i: int) -> EnemySlot:
 	return _made[i] if i >= 0 and i < _made.size() else null
 
-func estimate(i: int, text: String) -> void:
-	var sl := slot(i)
-	if sl != null:
-		sl.show_estimate(text)
+## The chip row belonging to one enemy, or null if there is no such slot.
+func chips_for(i: int) -> HBoxContainer:
+	if i < 0 or i >= _made.size():
+		return null
+	return (_made[i] as EnemySlot).chips
 
-func clear_estimates() -> void:
-	for sl in _made:
-		sl.show_estimate("")
+## Forwarded to every slot: what a held card would do to that target.
+var preview: Callable:
+	set(v):
+		preview = v
+		if _ship_slot != null:
+			_ship_slot.preview = v
+		# _made, not _slots. _slots is the HBoxContainer they sit in; _made is
+		# the list of EnemySlots themselves, which is what the rest of this
+		# class iterates.
+		for sl in _made:
+			(sl as EnemySlot).preview = v
 
 ## Where a shot leaves your hull, and where one lands on a given enemy — both
 ## in the effects layer's own coordinates, since that is what has to draw the
@@ -287,11 +298,17 @@ class ShipSlot extends Control:
 	var art: ShipView
 	var _hot: bool = false
 	var claim: Callable
+	var preview: Callable
+	var _drag_text: String = ""
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		art = ShipView.new()
 		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		# Behind the slot's own _draw. A Control paints itself first and its
+		# children after, so the brace number was being drawn and then covered
+		# by the ship it was meant to sit on.
+		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(art)
 
@@ -307,8 +324,13 @@ class ShipSlot extends Control:
 		var c: CardData = data["card"]
 		var ok: bool = c.damage <= 0 and not c.damage_equals_heat and c.evoke <= 0
 		set_hot(ok)
-		if ok and claim.is_valid():
-			claim.call(self)
+		if ok:
+			var t: String = "" if not preview.is_valid() else String(preview.call(c, -1))
+			if t != _drag_text:
+				_drag_text = t
+				queue_redraw()
+			if claim.is_valid():
+				claim.call(self)
 		return ok
 
 	func _drop_data(_pos: Vector2, data: Variant) -> void:
@@ -335,3 +357,15 @@ class ShipSlot extends Control:
 			var d: Vector2 = corner[1]
 			draw_rect(Rect2(o + Vector2(0, -1 if d.y < 0 else 0), Vector2(n * d.x, 1)), c, true)
 			draw_rect(Rect2(o + Vector2(-1 if d.x < 0 else 0, 0), Vector2(1, n * d.y)), c, true)
+
+		# What this card would give you, over your own hull. Same idea as the
+		# enemy's number and the opposite colour: one is what you take off them,
+		# the other is what you put on yourself.
+		if _drag_text != "":
+			var f := UITheme.pixel_font()
+			var fs := UITheme.FS_HEAD
+			var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			var at := Vector2((size.x - tw) * 0.5, size.y * 0.5 + fs * 0.4)
+			draw_string(f, at + Vector2(1, 1), _drag_text,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
+			draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.GOOD)

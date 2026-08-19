@@ -49,6 +49,12 @@ func show_sector() -> void:
 	s.setup()
 
 ## Refit screen. Reachable from the HUD any time you are not in a fight.
+## Development only: every card in the game on one page. See CardGalleryScreen.
+func show_cards() -> void:
+	var s := CardGalleryScreen.new()
+	_swap(s)
+	s.setup()
+
 func show_ship() -> void:
 	if in_combat():
 		return
@@ -163,6 +169,19 @@ func start_combat(template: EnemyTemplate) -> void:
 	# flying alone. They split health rather than doubling it — see Combat.start.
 	var node: MapGen.MapNode = Run.node_at()
 	var extras: Array = []
+	# Development: `-- fight foes=3` forces a pack. Multi-enemy layout only
+	# exists at danger 2+ behind a 22% roll, so seeing two on screen was a
+	# matter of waiting rather than looking.
+	var forced := 0
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("foes="):
+			forced = clampi(int(a.split("=")[1]), 1, 4)
+	if forced > 1:
+		var pool0 := DB.fight_pool(maxi(node.danger, 1), false)
+		for i in forced - 1:
+			extras.append(DB.enemies[pool0.pick_random()])
+		combat.start(template, node.danger, extras)
+		return
 	if node.danger >= 2 and not template.boss and not template.fauna:
 		var odds := 0.45 if node.region == MapGen.Region.LAWLESS else 0.22
 		if randf() < odds:

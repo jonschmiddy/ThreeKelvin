@@ -52,7 +52,16 @@ func sync(cards: Array, playable: Callable) -> void:
 			found.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 			# Dealt from the deck side, so a draw reads as coming from somewhere.
 			found.position = Vector2(-CardView.CARD_W, 12)
-			found.hovered.connect(func(v, e): card_hovered.emit(v, e))
+			found.hovered.connect(func(v: CardView, e: bool) -> void:
+				# Out of the stack while you are pointing at it. In an
+				# overlapping fan the card under the cursor is half-buried by
+				# its right-hand neighbour, and the lift alone does not fix
+				# that — it moves the card up, not forward.
+				if e:
+					v.move_to_front()
+				else:
+					_restack(_views)
+				card_hovered.emit(v, e))
 		else:
 			found.set_playable(playable.call(c))
 		keep.append(found)
@@ -63,16 +72,36 @@ func sync(cards: Array, playable: Callable) -> void:
 	_views = keep
 	_layout()
 
+## How far apart cards sit, and the only place that decides it.
+##
+## A full card plus a gap while the hand fits. Once it does not, the step
+## shrinks until the fan ends exactly at the right edge, so the cards overlap
+## rather than running off screen — which is the moment a hand stops being a row
+## and becomes a hand.
+##
+## Cards are 96 wide on a 640 screen, so five is the last size that fits laid
+## flat. Six was already 20 pixels over before the card grew taller, and a
+## deck-thickening affix or a Korvan draw bonus puts you at eight without
+## trying.
+func _step(n: int) -> float:
+	var full := float(CardView.CARD_W + GAP)
+	if n <= 1:
+		return full
+	if n * CardView.CARD_W + (n - 1) * GAP <= size.x:
+		return full
+	return maxf(12.0, (size.x - CardView.CARD_W) / float(n - 1))
+
 func _layout() -> void:
 	var order := _order_for_layout()
 	var n := order.size()
 	if n == 0:
 		return
-	var span := n * CardView.CARD_W + (n - 1) * GAP
+	var step := _step(n)
+	var span := (n - 1) * step + CardView.CARD_W
 	var x := (size.x - span) * 0.5
 	for i in n:
 		var v: CardView = order[i]
-		var target := Vector2(x + i * (CardView.CARD_W + GAP), 0)
+		var target := Vector2(x + i * step, 0)
 		v.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 		if v.position.distance_to(target) < 0.5:
 			continue
@@ -82,6 +111,21 @@ func _layout() -> void:
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(v, "position", target, SLIDE)
 		_tweens[v] = tw
+	_restack(order)
+
+## Left card under, right card over — so an overlapping fan reads as a fan and
+## not as a pile. Only matters once the step is smaller than a card, but it
+## costs nothing when it is not.
+func _restack(order: Array) -> void:
+	# Pushed to the BACK in sequence rather than assigned indices 0..n.
+	#
+	# A discarding card is still a child for as long as its fade runs, and this
+	# function only knows about the cards still in hand. Assigning them indices
+	# 0..n left every leaver at whatever index it already held — which, after a
+	# few plays, is on top of the live hand. Moving each keeper to the end in
+	# order puts them all above anything not in the list, whatever that is.
+	for v in order:
+		move_child(v as CardView, get_child_count() - 1)
 
 ## Lay out as though the dragged card already sat where the cursor is, so the
 ## gap opens under it and you can see the result before committing.
@@ -126,6 +170,10 @@ func clear_preview() -> void:
 ## Played cards leave rather than vanish, so the eye can follow where they went.
 func _discard(v: CardView) -> void:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Out of the stack on the way out, so it cannot come back over the top of
+	# the cards that are still being played.
+	v.z_index = -1
+	move_child(v, 0)
 	var tw := create_tween()
 	tw.set_parallel(true)
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
@@ -155,9 +203,12 @@ func _slot_at(x: float) -> int:
 	var n := _views.size()
 	if n <= 1:
 		return 0
-	var span := n * CardView.CARD_W + (n - 1) * GAP
+	# Same step the layout used, or the slot you drop into stops matching the
+	# gap you saw open.
+	var step := _step(n)
+	var span := (n - 1) * step + CardView.CARD_W
 	var start := (size.x - span) * 0.5
-	var slot := int(round((x - start) / float(CardView.CARD_W + GAP)))
+	var slot := int(round((x - start) / step))
 	return clampi(slot, 0, n - 1)
 
 ## Dropped straight onto a card: take that card's slot.
