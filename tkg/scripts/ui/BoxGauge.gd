@@ -10,7 +10,19 @@ extends Control
 ## Fill colour also states the situation without being read: steel while there is
 ## room, ember approaching the cap, red past it.
 
-enum Mode { HEAT, ENERGY }
+## HULL is a PROPORTION, not a count. Heat and energy cells map one-to-one onto
+## a point of the thing they measure, because you spend those in single points
+## and the exact number is the decision. Hull does not work that way: it runs
+## from 22 on a Hairpin to 55 on an Ore Barge, so one cell per point would draw
+## a gauge that changes length when you change ships and needs fifty-five cells
+## at the top end.
+##
+## Ten cells always, each one a tenth of whatever your maximum happens to be.
+## The exact figure lives in the tooltip, because "how close am I to dying" is
+## the question you ask every turn and "37 of 40" is the one you ask rarely.
+enum Mode { HEAT, ENERGY, HULL }
+
+const HULL_CELLS := 10
 
 const CELL := Vector2(6, 9)
 const GAP := 1
@@ -62,12 +74,39 @@ func _draw() -> void:
 		_cell(Vector2(x, y), 3)
 		x += CELL.x + GAP
 
-## 0 empty · 1 cool · 2 hot · 3 over cap
+## Set from hp and max_hp.
+##
+## Rounds DOWN, with a floor of one cell while any hull remains. Both halves of
+## that matter and they pull opposite ways. Rounding down means ten cells is
+## reachable only at FULL hull, so "have I taken a scratch" is answerable at a
+## glance — rounding up hid the first 10% of damage behind a full-looking bar.
+## The floor of one means a ship on 1 of 40 still draws a cell, because an empty
+## gauge has to mean destroyed and nothing else.
+func set_hull(hp: int, max_hp: int) -> void:
+	mode = Mode.HULL
+	cap = HULL_CELLS
+	_ratio = 0.0 if max_hp <= 0 else clampf(float(hp) / float(max_hp), 0.0, 1.0)
+	value = 0 if hp <= 0 else maxi(1, int(floor(_ratio * HULL_CELLS)))
+	custom_minimum_size = Vector2(_width(), CELL.y)
+	size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	queue_redraw()
+
+var _ratio: float = 1.0
+
+## 0 empty · 1 cool · 2 hot · 3 critical · 4 sound
 func _fill_for(i: int) -> int:
 	if i >= value:
 		return 0
 	if mode == Mode.ENERGY:
 		return 2
+	if mode == Mode.HULL:
+		# Whole-bar colour, not per-cell. Hull is one condition, and a gauge that
+		# shades cell by cell reads as a gradient you have to interpret rather
+		# than a state you can see. 0.35 is the same threshold the hull figure
+		# has always turned amber at.
+		if _ratio < 0.35:
+			return 3
+		return 2 if _ratio < 0.6 else 4
 	return 2 if i >= int(cap * 0.66) else 1
 
 func _cell(pos: Vector2, kind: int) -> void:
@@ -87,6 +126,10 @@ func _cell(pos: Vector2, kind: int) -> void:
 			bg = Color("#d64a3a")
 			hi = UITheme.FLARE
 			lo = Color("#5c280c")
+		4:
+			bg = UITheme.HULL_GREEN
+			hi = UITheme.GOOD
+			lo = Color("#25402f")
 
 	draw_rect(Rect2(pos, CELL), bg, true)
 	draw_rect(Rect2(pos, Vector2(CELL.x, 1)), hi, true)

@@ -32,7 +32,7 @@ const VERSION := 1
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
 const HULL_FIELDS: Array[String] = ["weight", "tier", "reactor", "hand_size",
 	"max_hull", "heat_cap", "dissipation", "dodge", "initiative", "fuel_factor",
-	"weapon_slots", "system_slots", "utility_slots"]
+	"weapon_slots", "system_slots", "utility_slots", "sensors", "stealth"]
 
 # --------------------------------------------------------------------- queries
 
@@ -328,8 +328,18 @@ static func _module_from(e: Variant) -> ModuleData:
 
 # ---------------------------------------------------------------------- hulls
 
+## `manufacturer` is written alongside perk_id rather than added to HULL_FIELDS,
+## and that is not a style choice: the restore loop below coerces every listed
+## field to int or float, so a StringName in that list would come back as 0.
+##
+## It is written at all — rather than inherited from the frame matched by name —
+## because who built your hull decides a set bonus. The name lookup happens to
+## resolve it today, but its fallback is hull_frames[1], an UNBRANDED frame, so
+## any save whose hull name stopped matching would silently cost you a set piece
+## and nothing would report it.
 static func _hull_to(h: HullData) -> Dictionary:
-	var d := {name = h.name, perk_id = String(h.perk_id)}
+	var d := {name = h.name, perk_id = String(h.perk_id),
+		manufacturer = String(h.manufacturer)}
 	for f in HULL_FIELDS:
 		d[f] = h.get(f)
 	return d
@@ -343,6 +353,10 @@ static func _hull_from(e: Variant) -> HullData:
 			break
 	var h := base.duplicate(true) as HullData
 	h.perk_id = StringName(str(d.get("perk_id", "salvage_rack")))
+	# Absent in a save written before hulls had makers, in which case the frame
+	# matched by name above already carries the right one.
+	if d.has("manufacturer"):
+		h.manufacturer = StringName(str(d["manufacturer"]))
 	for f in HULL_FIELDS:
 		if not d.has(f):
 			continue

@@ -1,7 +1,16 @@
 class_name ShipScreen
 extends Control
 
-## Refit. Your hull on the left with its hardpoints, storage on the right.
+## Refit, rebuilt around the six attributes.
+##
+## The old version was a hull and two lists of modules, which was the whole game
+## when hulls were anonymous frames and attributes did not exist. Both of those
+## changed: a chassis is now somebody's chassis, and every event check in the
+## game reads one of six numbers that this screen is the only place to see.
+##
+## So it reads top to bottom as an answer to "what am I flying": the maker's
+## mark and how close you are to its set, then the ship and its hardpoints, then
+## what the ship IS on the six axes, then what is bolted to it.
 ##
 ## Hardpoints read as cells like heat and energy do: filled means occupied, an
 ## ember outline means a pad is free. Slot pressure is the whole install-or-scrap
@@ -12,36 +21,36 @@ var _slots: VBoxContainer
 var _cargo: VBoxContainer
 var _installed: VBoxContainer
 var _frame: Label
+var _maker: Label
 var _sets: HBoxContainer
+var _badge: ChassisSelect.Badge
+var _attrs: AttrBlock
+var _condition: Label
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 	Sig.ship_changed.connect(_refresh)
+	Sig.resources_changed.connect(_refresh)
 	_refresh()
 
 func _build() -> void:
-	var root := HBoxContainer.new()
+	var root := VBoxContainer.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_theme_constant_override("separation", 5)
 	add_child(root)
 
-	# --- left: the hull and what it can carry
+	root.add_child(_build_header())
+
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 5)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(body)
+
+	# --- left: the ship itself, and what it can carry
 	var left := VBoxContainer.new()
 	left.add_theme_constant_override("separation", 5)
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 6)
-	_frame = UITheme.body("", UITheme.ICE, UITheme.FS_SMALL)
-	head.add_child(_frame)
-	var hgap := Control.new()
-	hgap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(hgap)
-	_sets = HBoxContainer.new()
-	_sets.add_theme_constant_override("separation", 3)
-	head.add_child(_sets)
-	left.add_child(head)
 
 	var view := ShipView.new()
 	view.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -50,7 +59,28 @@ func _build() -> void:
 	_slots = VBoxContainer.new()
 	_slots.add_theme_constant_override("separation", 3)
 	left.add_child(_slots)
-	root.add_child(Widgets.panel_with(left))
+	var lw := Widgets.panel_with(left)
+	lw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(lw)
+
+	# --- middle: what the ship IS. The reason this screen was rebuilt.
+	var mid := VBoxContainer.new()
+	mid.add_theme_constant_override("separation", 5)
+	mid.custom_minimum_size = Vector2(210, 0)
+	mid.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
+	_attrs = AttrBlock.new()
+	mid.add_child(_attrs)
+	mid.add_child(UITheme.hsep())
+	# Hull is the one attribute that moves without a refit, so the screen says
+	# out loud what it is reading. Otherwise a HUL that dropped from 4 to 2 over
+	# three fights looks like a bug in the table rather than damage.
+	_condition = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_condition.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mid.add_child(_condition)
+	var mgap := Control.new()
+	mgap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	mid.add_child(mgap)
+	body.add_child(Widgets.panel_with(mid))
 
 	# --- right: fitted above, storage below. Fitted always has content, so the
 	# column is never the empty rectangle it was when storage led.
@@ -76,10 +106,55 @@ func _build() -> void:
 	store.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(store)
 
-	root.add_child(Widgets.panel_with(right))
+	body.add_child(Widgets.panel_with(right))
+
+## The maker's mark, the hull's name, and how far along its set you are — one
+## line, because they are one fact. The hull counts toward the set shown beside
+## it, which only reads as sensible if the two sit together.
+func _build_header() -> PanelContainer:
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+
+	_badge = ChassisSelect.Badge.new()
+	head.add_child(_badge)
+
+	var names := VBoxContainer.new()
+	names.add_theme_constant_override("separation", 1)
+	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_frame = UITheme.body("", UITheme.ICE, UITheme.FS_SMALL)
+	names.add_child(_frame)
+	_maker = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	names.add_child(_maker)
+	head.add_child(names)
+
+	var hgap := Control.new()
+	hgap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(hgap)
+
+	_sets = HBoxContainer.new()
+	_sets.add_theme_constant_override("separation", 3)
+	_sets.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(_sets)
+	return Widgets.panel_with(head)
 
 func _refresh() -> void:
-	_frame.text = "%s - %s" % [Run.hull.display_name().to_upper(), DB.perk_text(Run.hull.perk_id)]
+	var man := Run.hull.manufacturer
+	var maker: ManufacturerData = DB.manufacturers.get(man)
+	var accent := maker.colour if maker != null else UITheme.CHILL
+
+	_badge.man = man
+	_badge.mark = accent
+	_badge.field = maker.field if maker != null else UITheme.PANEL
+	_badge.queue_redraw()
+
+	_frame.text = Run.hull.display_name().to_upper()
+	_maker.text = "%s · %s" % [
+		DB.manufacturer_name(man).to_upper(), DB.perk_text(Run.hull.perk_id)]
+	_maker.add_theme_color_override("font_color", accent)
+
+	_attrs.setup(Run.attributes(), accent)
+	_condition.text = "Hull reads your CURRENT plating, not your maximum: %d of %d. Damage is a failed check waiting to happen." % [Run.hp, Run.max_hp()]
+
 	for c in _sets.get_children():
 		c.queue_free()
 	# Set bonuses are the class system, so they belong beside the fittings that
@@ -91,10 +166,12 @@ func _refresh() -> void:
 		var m: ManufacturerData = DB.manufacturers[id]
 		var stars := " **" if n >= 5 else (" *" if n >= 3 else "")
 		var chip := Widgets.chip("%s %d%s" % [DB.short_name(m.name), n, stars], m.colour)
+		var hull_note := "
+Includes the hull (+1)." if Run.hull.manufacturer == id else ""
 		chip.tooltip_text = "%s
 3+: %s — %s
-5+: %s — %s" % [
-			m.name, m.set3_name, m.set3_text, m.set5_name, m.set5_text]
+5+: %s — %s%s" % [
+			m.name, m.set3_name, m.set3_text, m.set5_name, m.set5_text, hull_note]
 		_sets.add_child(chip)
 
 	for c in _slots.get_children():

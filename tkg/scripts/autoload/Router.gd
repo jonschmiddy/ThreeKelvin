@@ -35,14 +35,22 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 ## remember to extend. Combat is excluded by in_combat() — `combat` is assigned
 ## before start_combat() swaps its screen, so the fight's own swap saves nothing
 ## and the state on disk stays the one from just before the shooting started.
+## Choosing a chassis is excluded for the same reason combat is: the state is
+## not one you should be able to come back to. start_new_run() has already
+## rolled a world and a random hull by the time the select screen opens, so
+## without this, quitting at the select and pressing CONTINUE would resume into
+## the sector flying a ship you never picked — the one choice the screen exists
+## to ask, answered silently by a dice roll.
 ##
-## The empty map is not a paranoid check. `_snapshot()` reads `Run.node_at()`,
-## which is `map[at]` with nothing in front of it, so a run that has a hull but
-## no map takes this chokepoint down with an index error — and that is exactly
-## the state a save file with a valid version and a truncated map used to leave
-## behind on its way to the launcher.
+## The empty map is not a paranoid check either. `_snapshot()` reads
+## `Run.node_at()`, which is `map[at]` with nothing in front of it, so a run that
+## has a hull but no map takes this chokepoint down with an index error — and
+## that is exactly the state a save file with a valid version and a truncated map
+## used to leave behind on its way to the launcher.
 func _autosave() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won or in_combat():
+		return
+	if current is ChassisSelect:
 		return
 	SaveGame.save()
 
@@ -69,8 +77,12 @@ func show_launcher() -> void:
 func _on_run_started() -> void:
 	combat = null
 
-## Opens on the sector rather than the chart: the run starts with your ship in
-## open space, not with a graph of places you have not been yet.
+## A run starts by choosing a chassis, then opens on the sector rather than the
+## chart: your ship in open space, not a graph of places you have not been yet.
+##
+## start_new_run() still runs FIRST and rolls the world plus a random chassis,
+## so every screen has a valid hull to draw before anything is chosen. The
+## select screen then refits that ship as you browse and hands control on.
 ##
 ## A run that was live when this is called was abandoned, not finished, and goes
 ## into the record as such — restarting a bad opening is a real outcome and
@@ -80,7 +92,14 @@ func new_run() -> void:
 		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 	SaveGame.clear()
 	Run.start_new_run()
-	show_sector()
+	show_chassis_select()
+
+func show_chassis_select() -> void:
+	Audio.music_state(&"ship")
+	var s := ChassisSelect.new()
+	_swap(s)
+	s.setup()
+	s.launched.connect(show_sector)
 
 ## Resume the suspend save. Falls back to the launcher rather than to a new run:
 ## a player who pressed CONTINUE did not ask to start over, and silently rolling

@@ -404,55 +404,67 @@ func _cut(b: Rect2, mark: Color) -> void:
 ## its width to the left, and half of 13 is 6.5. Writing whole numbers there put
 ## every emblem half a pixel off, in the same direction, on all seven houses.
 func _emblem(c: Vector2, mark: Color, field: Color) -> void:
-	var s := float(_s)
-	match card.manufacturer:
+	draw_emblem(self, card.manufacturer, c, float(_s), mark, field)
+
+## The seven marks, drawn onto any canvas at any scale.
+##
+## Static and free of the card because the ship tab flies these too: a hull is
+## built by a manufacturer now, and its header wears the same emblem as the
+## cards that manufacturer grants. Two copies of these offsets would be two
+## copies to fix the next time one is half a pixel out — which has already
+## happened once, to all seven at the same time.
+static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
+		mark: Color, field: Color) -> void:
+	var r := func(off: Vector2, sz: Vector2, col: Color) -> void:
+		ci.draw_rect(Rect2(c + off * s, sz * s), col, true)
+	match man:
 		&"korvan":
 			# Three descending armour slabs. Armour as heraldry.
 			# Pitch 4: two of bar, two of gap, three times over. The bars were
 			# at -4.5, -1 and 2.5, which put 1.5 pixels between them — and half
 			# a pixel of gap does not exist, so one rendered as 1 and the other
 			# as 2. Whole numbers or the spacing is decided by the rasteriser.
-			_r(c + Vector2(-4.5, -5) * s, Vector2(9, 2) * s, mark)
-			_r(c + Vector2(-3.5, -1) * s, Vector2(7, 2) * s, mark)
-			_r(c + Vector2(-2.5, 3) * s, Vector2(5, 2) * s, mark)
+			r.call(Vector2(-4.5, -5), Vector2(9, 2), mark)
+			r.call(Vector2(-3.5, -1), Vector2(7, 2), mark)
+			r.call(Vector2(-2.5, 3), Vector2(5, 2), mark)
 		&"solari":
 			# Sun disc, four cardinal rays.
-			_r(c + Vector2(-1.5, -1.5) * s, Vector2(3, 3) * s, mark)
-			_r(c + Vector2(-0.5, -4.5) * s, Vector2(1, 3) * s, mark)
-			_r(c + Vector2(-0.5, 1.5) * s, Vector2(1, 3) * s, mark)
-			_r(c + Vector2(-4.5, -0.5) * s, Vector2(3, 1) * s, mark)
-			_r(c + Vector2(1.5, -0.5) * s, Vector2(3, 1) * s, mark)
+			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), mark)
+			r.call(Vector2(-0.5, -4.5), Vector2(1, 3), mark)
+			r.call(Vector2(-0.5, 1.5), Vector2(1, 3), mark)
+			r.call(Vector2(-4.5, -0.5), Vector2(3, 1), mark)
+			r.call(Vector2(1.5, -0.5), Vector2(3, 1), mark)
 		&"dredge":
 			# A bucket narrowing to its teeth. The bite is the brand.
-			_r(c + Vector2(-4.5, -4.5) * s, Vector2(9, 2) * s, mark)
-			_r(c + Vector2(-3.5, -2.5) * s, Vector2(7, 2) * s, mark)
-			_r(c + Vector2(-2.5, -0.5) * s, Vector2(5, 2) * s, mark)
+			r.call(Vector2(-4.5, -4.5), Vector2(9, 2), mark)
+			r.call(Vector2(-3.5, -2.5), Vector2(7, 2), mark)
+			r.call(Vector2(-2.5, -0.5), Vector2(5, 2), mark)
 			for i in 3:
-				_r(c + Vector2(-2.5 + i * 2, 2.5) * s, Vector2(1, 2) * s, mark)
+				r.call(Vector2(-2.5 + i * 2, 2.5), Vector2(1, 2), mark)
 		&"redline":
 			# The namesake line, severed, still flying.
-			_r(c + Vector2(-4.5, -1.5) * s, Vector2(4, 3) * s, mark)
-			_r(c + Vector2(0.5, -1.5) * s, Vector2(4, 3) * s, mark)
+			r.call(Vector2(-4.5, -1.5), Vector2(4, 3), mark)
+			r.call(Vector2(0.5, -1.5), Vector2(4, 3), mark)
 		&"halcyon":
 			# Two rules and the hairline between them. Luxury is what you leave
 			# off.
-			_r(c + Vector2(-4.5, -2.5) * s, Vector2(9, 2) * s, mark)
-			_r(c + Vector2(-4.5, 0.5) * s, Vector2(9, 2) * s, mark)
+			r.call(Vector2(-4.5, -2.5), Vector2(9, 2), mark)
+			r.call(Vector2(-4.5, 0.5), Vector2(9, 2), mark)
 		&"cygnet":
 			# Drone diamond under two signal arcs, one antenna drop.
-			_r(c + Vector2(-1.5, -0.5) * s, Vector2(3, 3) * s, mark)
-			_r(c + Vector2(-4.5, -2.5) * s, Vector2(9, 1) * s, mark)
-			_r(c + Vector2(-3.5, -4.5) * s, Vector2(7, 1) * s, mark)
-			_r(c + Vector2(-0.5, 2.5) * s, Vector2(1, 2) * s, mark)
+			r.call(Vector2(-1.5, -0.5), Vector2(3, 3), mark)
+			r.call(Vector2(-4.5, -2.5), Vector2(9, 1), mark)
+			r.call(Vector2(-3.5, -4.5), Vector2(7, 1), mark)
+			r.call(Vector2(-0.5, 2.5), Vector2(1, 2), mark)
 		&"calyx":
 			# A clinical cross, symmetric on both axes. Nothing that actually
 			# grew is this tidy; the wrongness is the point.
-			_r(c + Vector2(-1.5, -4.5) * s, Vector2(3, 9) * s, mark)
-			_r(c + Vector2(-4.5, -1.5) * s, Vector2(9, 3) * s, mark)
+			r.call(Vector2(-1.5, -4.5), Vector2(3, 9), mark)
+			r.call(Vector2(-4.5, -1.5), Vector2(9, 3), mark)
 		_:
 			# Unbranded: precursor or grown. A bare punched square.
-			_r(c + Vector2(-3.5, -3.5) * s, Vector2(7, 7) * s, mark)
-			_r(c + Vector2(-1.5, -1.5) * s, Vector2(3, 3) * s, field)
+			r.call(Vector2(-3.5, -3.5), Vector2(7, 7), mark)
+			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), field)
 
 ## What the module looks like, until there is a module sprite to show.
 ##
