@@ -9,12 +9,17 @@ Needs numpy, scipy and soundfile (libsndfile supplies the Vorbis encoder).
 
 What lands where
 ----------------
-    assets/audio/music/<cue>/<stem>.ogg   the layers the game actually plays
-    assets/audio/music/<cue>/mix.ogg      all layers summed, for anywhere that
-                                          wants one file instead of nine
+    assets/audio/music/<cue>/<stem>.ogg   the layers the game actually plays --
+                                          only the stems some rung of Audio.gd's
+                                          CUES table can reach.  See UNSHIPPED.
     assets/audio/sfx/*.wav                short, uncompressed, zero decode cost
     audio/out/*.wav                       full-length concert masters, kept as
                                           the reference render.  Not shipped.
+    audio/out/<cue>_mix.ogg               all layers summed, for anywhere that
+                                          wants one file instead of nine.  Also
+                                          not shipped -- nothing in the game
+                                          loads it, and it was 20 MB of the
+                                          export when it lived under assets/.
 
 Two things differ between the concert master and what ships:
 
@@ -41,6 +46,30 @@ ASSETS = os.path.abspath(os.path.join(HERE, '..', 'assets', 'audio'))
 SR = 44100
 GAME_HP = 32           # bus high-pass for shipped renders, Hz
 BLOCK = SR             # encode a second at a time -- see ogg()
+
+## Stems the arrangement renders but no rung of the ladder can reach, so they
+## are encoded to nothing and cost the download nothing.
+##
+## Audio.gd's CUES table is the authority on what the game can play; this is the
+## complement of it, written out by hand because the authority is GDScript and
+## parsing it from here would be worse than keeping two short lists honest.
+## Getting it wrong is loud rather than silent: _ensure_loaded() push_warning()s
+## on a stem the table asks for and the disk does not have.
+##
+##   theme/lead, theme/perc -- rungs 3 and 4, labelled "contact" and "combat".
+##     Vestigial.  Combat moved to the `burn` cue and bosses to `boss`, so the
+##     theme ladder now stops at rung 2 and these two are unreachable.  They are
+##     still rendered: they are the melody and the kit of the concert master,
+##     and the reference render is the composition, not the shipped subset.
+##
+## Not listed, and deliberately: dread/bowed, dread/metal and dread/cluster are
+## also unreachable today (DEEP only ever enters `dread` at rung 2), but that is
+## an unspent state rather than a superseded one -- DREAD_NOTES section 4 names
+## all three.  They keep shipping until that call is made.
+UNSHIPPED = {
+    ('theme', 'lead'),
+    ('theme', 'perc'),
+}
 
 CUES = [
     # (script, cue name, wav mix, wav stem dir)
@@ -100,14 +129,23 @@ def build_music(only=()):
         render(script)                                        # concert master
         render(script, '--loop', '--hp', str(GAME_HP))        # shipped
         d = os.path.join(ASSETS, 'music', cue)
-        total += ogg(os.path.join(d, 'mix.ogg'), os.path.join(OUT, mix_wav))
-        names = []
+        # Beside the concert master, not under assets/.  Nothing in the game
+        # loads the summed mix, so shipping one per cue was 20 MB of export for
+        # a convenience only the render pipeline ever wants.
+        ogg(os.path.join(OUT, cue + '_mix.ogg'), os.path.join(OUT, mix_wav))
+        names, skipped = [], []
         for f in sorted(os.listdir(os.path.join(OUT, stem_dir))):
-            if f.endswith('.wav'):
-                names.append(f[:-4])
-                total += ogg(os.path.join(d, f[:-4] + '.ogg'),
-                             os.path.join(OUT, stem_dir, f))
-        print('  %-6s %d stems: %s' % (cue, len(names), ' '.join(names)))
+            if not f.endswith('.wav'):
+                continue
+            stem = f[:-4]
+            if (cue, stem) in UNSHIPPED:
+                skipped.append(stem)
+                continue
+            names.append(stem)
+            total += ogg(os.path.join(d, stem + '.ogg'),
+                         os.path.join(OUT, stem_dir, f))
+        print('  %-6s %d stems: %s%s' % (cue, len(names), ' '.join(names),
+              '   (unshipped: %s)' % ' '.join(skipped) if skipped else ''))
     print('music -> %.1f MB' % (total/1e6))
 
 def build_sfx():

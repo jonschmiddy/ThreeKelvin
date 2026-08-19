@@ -158,6 +158,18 @@ class MapNode extends RefCounted:
 	var shop: Array = []
 	var shop_hull: HullData = null
 	var inspected: bool = false
+	## What is waiting here, rolled on arrival and then fixed for the life of the
+	## run. [0] opens the fight and the rest are the pack.
+	##
+	## On the node rather than in Router for the same reason `shop` is: it has to
+	## survive a save. Rolled at the moment the fight started, a force-quit and a
+	## resume re-rolled the enemy, so a bad draw cost nothing to reject — which is
+	## the one thing SaveGame's header says a suspend save must never buy.
+	var foes: Array[StringName] = []
+	## Which hail this system is offering, by title. Same reason as `foes`, and
+	## the title rather than an index so that inserting an event into the table
+	## does not silently repoint every save in flight at a different one.
+	var event_key: String = ""
 
 const _BAYER := ["ALPHA", "BETA", "GAMMA", "DELTA", "EPSILON", "ZETA", "ETA",
 	"THETA", "IOTA", "KAPPA", "LAMBDA", "SIGMA", "TAU", "OMEGA"]

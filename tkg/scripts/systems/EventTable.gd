@@ -8,6 +8,23 @@ static func pick() -> Dictionary:
 	var all := build_all()
 	return all[randi() % all.size()]
 
+## The same roll, as something that can be written to a save. A hail has to be
+## decided once and stay decided — see MapNode.event_key.
+static func pick_key() -> String:
+	var all := build_all()
+	return str(all[randi() % all.size()].title)
+
+## Resolve a saved key back to its event. An unknown key re-rolls rather than
+## failing: an event retired or renamed between the save and the load is a
+## development accident, and losing the hail is a smaller cost than refusing to
+## open the run.
+static func by_key(key: String) -> Dictionary:
+	for e in build_all():
+		if str(e.title) == key:
+			return e
+	push_warning("EventTable: no event titled '%s'; re-rolling" % key)
+	return pick()
+
 static func build_all() -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
 	events.assign([

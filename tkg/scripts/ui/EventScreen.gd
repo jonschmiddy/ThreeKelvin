@@ -58,6 +58,10 @@ func _refresh() -> void:
 func _choose(index: int) -> void:
 	var opt: Dictionary = _event.options[index]
 	var outcome: Dictionary = (opt.effect as Callable).call()
+	# The node is consumed here rather than when the hail opened, so that
+	# quitting at the options costs nothing and cannot be quit into a cleared
+	# node that gives nothing. Router holds the pick until this call.
+	Router.event_resolved()
 	_resolved = true
 	_then_fight = bool(outcome.get("fight", false))
 	_refresh()

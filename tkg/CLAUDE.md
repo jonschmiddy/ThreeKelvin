@@ -11,6 +11,11 @@ warmth, three degrees above absolute zero. A heat-management game named for the 
 
 ## How to work in this repo
 
+- **Respond in Simplified Technical English (ASD-STE100).** Use short sentences. Put one
+  instruction in one sentence. Use the active voice. Use approved, common words. Do not use
+  metaphor, idiom, or figurative language. This rule applies to your replies in chat, not to
+  the source comments — the comment voice in this codebase is deliberate and is described in
+  "The most important tuning rule" and throughout the sections below.
 - **Development happens in VS Code.** Godot's editor is used only to run the game (F5),
   read the Output panel, and host the language server. Do not create or edit `.tscn`
   files unless there is no reasonable alternative.

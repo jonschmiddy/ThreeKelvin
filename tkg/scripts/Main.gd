@@ -180,11 +180,19 @@ func toggle_menu() -> void:
 		toggle_menu()
 		Router.new_run())
 	_menu.settings_requested.connect(_open_settings)
-	# The autosave has already written this state — every safe point does. The
-	# explicit write is for the one case it has not: a menu opened mid-combat,
-	# where the last save is from just before the fight.
+	# The autosave has already written a screen swap, but state moves after one
+	# — a station's purchases and repairs all land on a screen that was saved
+	# when it opened — so the explicit write is what makes SAVE & QUIT mean it.
+	#
+	# Not mid-combat, though. Combat is outside the save by design and the format
+	# stores none of it, so writing there banked the hull and heat the fight had
+	# already spent against an enemy that comes back at full HP on a node still
+	# marked unfought: strictly worse than force-quitting, from the button that
+	# promises to be the safe way out. Mid-fight this now does what force-quitting
+	# does — the last save, from before the shooting started, stands.
 	_menu.save_and_quit_requested.connect(func() -> void:
-		SaveGame.save()
+		if not Router.in_combat():
+			SaveGame.save()
 		get_tree().quit())
 
 func _open_settings() -> void:
