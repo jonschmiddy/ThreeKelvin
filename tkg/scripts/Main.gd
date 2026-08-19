@@ -19,6 +19,16 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# The whole price table, and the proof that it cannot be gamed:
+	#   godot --headless --path . -- market
+	# Same shape as savetest above it, and for the same reason: the thing it
+	# checks fails silently. A market whose melt price creeps above its ask price
+	# does not crash, it just quietly pays for the rest of the run.
+	if "market" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/MarketTest.gd").new().run()
+		get_tree().quit()
+		return
+
 	# Every starting chassis and what it reads on the six attributes:
 	#   godot --headless --path . -- attrs
 	# Attribute constants are tuned by staring at this table, and the numbers are
@@ -68,7 +78,7 @@ func _ready() -> void:
 	# launcher and then swapping the ship screen over it crashes on arrival.
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
-		or "charttest" in argv or "ship" in argv
+		or "charttest" in argv or "ship" in argv or "station" in argv
 	if "resume" in argv and SaveGame.has_save():
 		Router.continue_run()
 	elif skip_launcher:
@@ -100,6 +110,32 @@ func _ready() -> void:
 		# and it is where the attribute block lives — so the screen that most
 		# needs looking at was the most tedious to reach.
 		Router.show_ship()
+	elif "station" in OS.get_cmdline_user_args():
+		# The dock, immediately. Added when the station became four panels rather
+		# than two — a shelf, a service desk, a buyer for the hold and a
+		# fabricator — and reaching it normally costs a chassis choice, a jump
+		# and a sector screen every time one of those four moves a pixel.
+		#
+		# It also gives the merge gate something that CONSTRUCTS the screen. The
+		# boot check only ever built the launcher, so the busiest screen in the
+		# game was the one nothing automated had ever drawn.
+		var here: MapGen.MapNode = Run.node_at()
+		here.type = MapGen.NodeType.STATION
+		here.development = MapGen.Development.CITY
+		here.security = 4
+		here.makers = [&"solari", &"cygnet"]
+		here.manufacturer = &"solari"
+		here.danger = 5
+		# Something in the hold to sell, something to melt, and enough of every
+		# material to light up the fabricator and the material rows.
+		for i in 3:
+			Run.cargo.append(LootGen.roll_module(4 + i, &"", true))
+		Run.add_material(&"alloy", 6)
+		Run.add_material(&"exotic", 2)
+		Run.add_material(&"relic", 1)
+		Run.hp = maxi(1, Run.max_hp() - 12)
+		Run.dross = 1
+		Router.show_station()
 	elif "fight" in OS.get_cmdline_user_args():
 		# `-- fight 10` deals ten. The hand is the one layout that only
 		# misbehaves at sizes a normal run rarely reaches, so seeing it full
@@ -191,11 +227,22 @@ func toggle_menu() -> void:
 		toggle_menu()
 		Router.new_run())
 	_menu.settings_requested.connect(_open_settings)
-	# The autosave has already written this state — every safe point does. The
-	# explicit write is for the one case it has not: a menu opened mid-combat,
-	# where the last save is from just before the fight.
+	# The autosave has already written a screen swap, but state moves after one
+	# — a station's purchases and repairs all land on a screen that was saved
+	# when it opened — so the explicit write is what makes SAVE & QUIT mean it.
+	#
+	# Not mid-combat, though. Combat is outside the save by design and the format
+	# stores none of it, so writing there banked the hull and heat the fight had
+	# already spent against an enemy that comes back at full HP on a node still
+	# marked unfought: strictly worse than force-quitting, from the button that
+	# promises to be the safe way out. Mid-fight this now does what force-quitting
+	# does — the last save, from before the shooting started, stands.
 	_menu.save_and_quit_requested.connect(func() -> void:
-		SaveGame.save()
+		# Combat is outside the save, so mid-fight the bookmark from arrival at
+		# this system is what stands — writing here would write a state the
+		# loader cannot reconstruct.
+		if not Router.in_combat():
+			SaveGame.save()
 		toggle_menu()
 		# The run is on disk now, so the copy in memory is finished with. Letting
 		# it stay live would be actively dangerous: the title screen rolls its
@@ -203,6 +250,7 @@ func toggle_menu() -> void:
 		# write this run's MAP against that galaxy — the systems are positioned
 		# from the galaxy, so every one of them would move.
 		Run.hull = null
+		Router.combat = null
 		Router.show_launcher())
 
 func _open_settings() -> void:

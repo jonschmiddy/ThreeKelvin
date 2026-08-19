@@ -157,7 +157,31 @@ class MapNode extends RefCounted:
 	## Populated lazily by StationScreen
 	var shop: Array = []
 	var shop_hull: HullData = null
+	## Stocked ONCE, and never again.
+	##
+	## Not the same test as `shop.is_empty()`, which is what this used to be, and
+	## the difference was an exploit: buying a shelf out emptied the array, so the
+	## next visit re-rolled a full one. A station was an infinite supply of parts
+	## and — before Market closed the other half of it — an infinite supply of
+	## money. A station is a place, not a vending machine. What is on the shelf is
+	## what somebody brought here, and when it is gone it is gone.
+	var stocked: bool = false
+	## How many parts you have sold into this market. Every sale moves the price
+	## down a little; see Market._saturation().
+	var trades: int = 0
 	var inspected: bool = false
+	## What is waiting here, rolled on arrival and then fixed for the life of the
+	## run. [0] opens the fight and the rest are the pack.
+	##
+	## On the node rather than in Router for the same reason `shop` is: it has to
+	## survive a save. Rolled at the moment the fight started, a force-quit and a
+	## resume re-rolled the enemy, so a bad draw cost nothing to reject — which is
+	## the one thing SaveGame's header says a suspend save must never buy.
+	var foes: Array[StringName] = []
+	## Which hail this system is offering, by title. Same reason as `foes`, and
+	## the title rather than an index so that inserting an event into the table
+	## does not silently repoint every save in flight at a different one.
+	var event_key: String = ""
 
 const _BAYER := ["ALPHA", "BETA", "GAMMA", "DELTA", "EPSILON", "ZETA", "ETA",
 	"THETA", "IOTA", "KAPPA", "LAMBDA", "SIGMA", "TAU", "OMEGA"]

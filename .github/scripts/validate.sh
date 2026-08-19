@@ -106,6 +106,32 @@ step "Project boots and builds its UI"
 # so it compiles the UI classes the simulator never touches.
 run_godot boot 240 --headless --path "$PROJECT" --quit-after 240
 
+step "Market invariant holds and prices round-trip"
+# Two checks the gate had no equivalent of, added with the economy they guard.
+# Both fail SILENTLY in the running game, which is the only reason a check is
+# worth its seconds: a market whose melt price creeps above its ask price does
+# not crash, it pays for the rest of the run, and a save that drops a field
+# does not crash either, it comes back as a default.
+run_godot market 120 --headless --path "$PROJECT" -- market
+if run_godot savetest 120 --headless --path "$PROJECT" -- savetest; then
+	if grep -qE '^=== (PASS|FAIL)' "$LOG_DIR/savetest.log"; then
+		if grep -qE '^=== FAIL' "$LOG_DIR/savetest.log"; then
+			bad "save round-trip reported mismatches"
+			grep -E 'MISMATCH|before:|after:|FAIL' "$LOG_DIR/savetest.log" \
+				| head -n 40 | sed 's/^/        /'
+		fi
+	else
+		bad "save round-trip never reached its verdict"
+		tail -n 20 "$LOG_DIR/savetest.log" | sed 's/^/        /'
+	fi
+fi
+# The market test prints its verdict the same way and reports no error line of
+# its own, so the violations have to be read out of the log as well.
+if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
+	bad "market invariant violated — a part can be bought and melted for profit"
+	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
+fi
+
 step "Simulator plays $SIM_RUNS complete runs"
 # The repo's actual regression test. It has already caught an infinite draw
 # loop and a structural map flaw; a balance change that crashes a run shows up

@@ -40,8 +40,11 @@ var _heat_label: Label
 var _heat: BoxGauge
 var _heat_text: Label
 var _scrap: HBoxContainer
-var _exotic: HBoxContainer
 var _fuel: HBoxContainer
+var _materials: HBoxContainer
+## Which materials the row currently holds a readout for. Rebuilt only when this
+## changes; a count moving is a text update.
+var _mat_ids: Array = []
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UITheme.bevel(UITheme.PANEL, 5, 6))
@@ -92,10 +95,18 @@ func _build() -> void:
 	# is a second health bar you are allowed to spend.
 	_scrap = Widgets.stat("scrap", "")
 	_row.add_child(_hintable(_scrap))
-	# Built always and hidden until you hold some, rather than added and removed.
-	# A child that comes and goes is a child that relays out the whole bar.
-	_exotic = Widgets.stat("exotic", "")
-	_row.add_child(_hintable(_exotic))
+	# Materials are the one part of this bar whose CHILD COUNT is not fixed —
+	# one readout per material held, none for a material you have none of,
+	# because the bar is narrow and empty counters cost the space the ones that
+	# matter are read in.
+	#
+	# So they get their own container and their own rebuild, and it fires only
+	# when the SET of materials changes rather than when a count does. That keeps
+	# the thing this class exists to guarantee: the tabs and the frame counter
+	# are never rebuilt, whatever the economy is doing.
+	_materials = HBoxContainer.new()
+	_materials.add_theme_constant_override("separation", 10)
+	_row.add_child(_materials)
 	_fuel = Widgets.stat("fuel", "")
 	_row.add_child(_hintable(_fuel))
 
@@ -149,7 +160,7 @@ func refresh() -> void:
 	_state(_tab_history, Router.current is HistoryScreen, choose_lock,
 		"Every run you have finished.")
 
-	var hull_note := "Hull %d of %d — %s.\nTen cells whatever the frame, so each is a tenth of your own maximum. Repairs cost %d scrap a point." % [
+	var hull_note := "Hull %d of %d — %s.\nTen cells whatever the frame, so each is a tenth of your own maximum. Repairs cost %.1f scrap a point where you are standing." % [
 		Run.hp, Run.max_hp(), Run.hull.name, Run.repair_cost_per_hull()]
 	_hull.set_hull(Run.hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
@@ -172,9 +183,7 @@ func refresh() -> void:
 
 	_value(_scrap, str(Run.scrap))
 	_hint(_scrap, "Scrap: %d.\nThe only currency. Repairs, upgrades and purchases all come out of it — which is where this game's difficulty actually lives." % Run.scrap)
-	_exotic.visible = Run.exotic > 0
-	_value(_exotic, str(Run.exotic))
-	_hint(_exotic, "Exotic: %d.\nHarvested from megafauna, not manufactured. Buys things scrap cannot." % Run.exotic)
+	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Fuel: %d.\nEvery jump costs by how far it plainly is on the chart. Run dry between stations and the run ends adrift." % Run.fuel)
 
@@ -219,6 +228,33 @@ func _hint(c: Control, text: String) -> void:
 		var cc := child as Control
 		if cc != null:
 			cc.tooltip_text = text
+
+## One readout per material held. Rebuilt only when the SET changes — picking up
+## a material you had none of, or spending the last of one. A count going from 3
+## to 2 is a text write, which is the common case by a wide margin.
+func _refresh_materials() -> void:
+	var stock := Run.material_stock()
+	var ids: Array = []
+	for s in stock:
+		ids.append(s.id)
+	if ids != _mat_ids:
+		_mat_ids = ids
+		for c in _materials.get_children():
+			_materials.remove_child(c)
+			c.queue_free()
+		for s in stock:
+			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
+				DB.material_colour(s.id))
+			row.name = "mat_" + String(s.id)
+			_materials.add_child(_hintable(row))
+	for s in stock:
+		var row2 := _materials.get_node_or_null("mat_" + String(s.id)) as HBoxContainer
+		if row2 == null:
+			continue
+		_value(row2, str(s.count))
+		var d := DB.material(s.id)
+		_hint(row2, "%s: %d.\n%s\nMaterials are not a second currency — they are what the fabricator needs before scrap will buy anything." % [
+			str(s.name), int(s.count), str(d.get("text", ""))])
 
 func _value(row: HBoxContainer, text: String) -> void:
 	var v := row.get_node_or_null("Value") as Label

@@ -22,7 +22,13 @@ func setup() -> void:
 		lines.append(Run.death_reason)
 	lines.append("%d jumps · %d kills · danger %d when it ended" % [
 		Run.jumps, Run.kills, Run.node_at().danger])
-	lines.append("%d scrap unspent · %d exotic materials" % [Run.scrap, Run.exotic])
+	# The whole ledger, not just the row that used to be a field — alloy you
+	# never got to a bench is as much a thing you were carrying when it ended as
+	# scrap you never spent.
+	var held: PackedStringArray = ["%d scrap unspent" % Run.scrap]
+	for stock in Run.material_stock():
+		held.append("%d %s" % [int(stock.count), str(stock.name).to_lower()])
+	lines.append(" · ".join(held))
 	var body := UITheme.body("\n".join(lines), UITheme.COLD, UITheme.FS_BODY)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

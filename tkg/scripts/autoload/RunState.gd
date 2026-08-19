@@ -37,8 +37,26 @@ var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
 var scrap: int = 40
-var exotic: int = 0
 var fuel: int = 150
+
+## Raw materials, by id. See DB.MATERIALS.
+##
+## Scrap is still the only CURRENCY — the ruling has not moved. These are not a
+## second wallet; nothing on a price tag is denominated in them. They are
+## prerequisites: a recipe that costs forty scrap is a purchase, and a recipe
+## that costs one precursor fragment is a reason to have flown somewhere.
+var materials: Dictionary = {}
+
+## Exotic was a bare int here from the day megafauna existed, and about fifteen
+## call sites still read and write it that way. It is now the `exotic` row of
+## the ledger above, reached through a property so that every one of those sites
+## keeps working against the single store rather than against a copy that would
+## drift out of step with it the first time something forgot to update both.
+var exotic: int:
+	get:
+		return int(materials.get(&"exotic", 0))
+	set(v):
+		materials[&"exotic"] = maxi(0, v)
 var dross: int = 0
 
 var map: Array = []
@@ -79,7 +97,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	heat = 0
 	heat_cap_bonus = 0
 	scrap = 40
-	exotic = 0
+	materials.clear()
 	fuel = 150
 	dross = 0
 	jumps = 0
@@ -330,14 +348,48 @@ func contraband_count() -> int:
 			n += 1
 	return n
 
-func repair_cost_per_hull() -> int:
-	return 1 if hull.perk_id == &"cheap_parts" else 2
+## What one hull point costs to fix HERE. A float, and local: work is dear on the
+## frontier and cheap in a capital, which is most of what makes a developed
+## system worth the detour. Market owns the number; this is the reading of it
+## that the HUD and the sim want.
+func repair_cost_per_hull() -> float:
+	return Market.repair_rate(here())
 
+## What a part melts down to. The floor price under every module in the game —
+## available anywhere, with no station and no route — and, by construction, below
+## what any station in the galaxy would charge for the same part. See the
+## invariant at the top of Market.gd.
 func scrap_value_of(m: ModuleData) -> int:
-	var v := m.scrap_value
-	if hull.perk_id == &"salvage_rack":
-		v = int(round(v * 1.5))
-	return v
+	return Market.melt(m)
+
+# --------------------------------------------------------------------- materials
+
+func material(id: StringName) -> int:
+	return int(materials.get(id, 0))
+
+func add_material(id: StringName, n: int) -> void:
+	if n == 0:
+		return
+	materials[id] = maxi(0, material(id) + n)
+	Sig.resources_changed.emit()
+
+func spend_material(id: StringName, n: int) -> bool:
+	if material(id) < n:
+		return false
+	materials[id] = material(id) - n
+	Sig.resources_changed.emit()
+	return true
+
+## Everything you are carrying, in table order, as {id, name, count}. One list so
+## the HUD, the station and the fabricator cannot disagree about what a material
+## is called or what order they come in.
+func material_stock() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for d in DB.MATERIALS:
+		var n := material(d.id)
+		if n > 0:
+			out.append({id = d.id, name = str(d.name), count = n})
+	return out
 
 # --------------------------------------------------------------------- mutations
 
@@ -417,12 +469,34 @@ func uninstall_module(m: ModuleData) -> void:
 	cargo.append(m)
 	Sig.ship_changed.emit()
 
+## Melt a part down. Scrap plus whatever the part was MADE of, which is the
+## quiet half: every module you decline is now crafting stock, so a drop you do
+## not want is still a reason to have opened the wreck. Grown and precursor parts
+## do not yield alloy at all — they were never pressed out of plate.
 func scrap_module(m: ModuleData) -> void:
 	var v := scrap_value_of(m)
 	cargo.erase(m)
 	add_scrap(v)
-	log_line("Scrapped %s for %d scrap." % [m.name, v], &"good")
+	var bits := "%d scrap" % v
+	for pair in materials_from(m):
+		add_material(pair.id, int(pair.count))
+		bits += ", %d %s" % [int(pair.count), DB.material_name(pair.id).to_lower()]
+	log_line("Scrapped %s for %s." % [m.name, bits], &"good")
 	Sig.ship_changed.emit()
+
+## What melting this part down yields, besides scrap. Here rather than in
+## scrap_module so the station can print it on the button before you commit.
+func materials_from(m: ModuleData) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if m.rarity == ModuleData.Rarity.ARTIFACT:
+		out.append({id = &"relic", count = 1})
+	elif m.rarity == ModuleData.Rarity.EXOTIC:
+		out.append({id = &"exotic", count = 1})
+	else:
+		var n: int = DB.ALLOY_BY_RARITY[clampi(int(m.rarity), 0, 6)]
+		if n > 0:
+			out.append({id = &"alloy", count = n})
+	return out
 
 func transfer_to_hull(h: HullData) -> void:
 	# Shed anything that no longer fits, cheapest first.
@@ -451,6 +525,17 @@ func transfer_to_hull(h: HullData) -> void:
 
 func node_at() -> MapGen.MapNode:
 	return map[at]
+
+## Where you are, or null when there is nowhere yet.
+##
+## `node_at()` indexes the map and is right to: every caller inside a run is
+## standing somewhere, and a null return would only push the crash one frame
+## later. But the chassis select runs with a hull and no galaxy — you pick a ship
+## before there is anywhere to fly it — and it draws the HUD, which asks the
+## market what repairs cost here. This is the accessor for the handful of callers
+## that can legitimately run outside a run.
+func here() -> MapGen.MapNode:
+	return null if map.is_empty() else map[at]
 
 ## Fuel is distance. Not a flat lateral rate and a flat coreward rate — those
 ## made every jump on the chart cost the same 1 fuel no matter how far it

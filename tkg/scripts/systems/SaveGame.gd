@@ -26,7 +26,10 @@ const PATH := "user://run.save"
 ## Bumped whenever the shape below changes. An old file is discarded rather than
 ## guessed at — a half-understood save produces a run that is subtly wrong,
 ## which is worse than no save at all.
-const VERSION := 1
+## 2: the economy. `exotic` became the first row of a materials ledger, station
+## stock stopped storing a price and started deriving one, and a node learned
+## whether it has ever been stocked and how much has been sold into it.
+const VERSION := 2
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -59,8 +62,13 @@ static func summary() -> Dictionary:
 ## Called from Router at every safe point. Cheap enough to be unconditional:
 ## the map is the bulk of it and a hundred and fifty nodes stringify in a
 ## millisecond or two, which is nothing beside the screen swap that triggered it.
+##
+## The map guard is doubled here and in Router._autosave() on purpose. This is
+## the one function that writes, and _snapshot() indexes `Run.map[Run.at]` with
+## nothing in front of it — a half-populated run reaching this call takes the
+## process down rather than declining to write.
 static func save() -> void:
-	if Run.hull == null or Run.dead or Run.won:
+	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won:
 		return
 	var f := FileAccess.open(PATH, FileAccess.WRITE)
 	if f == null:
@@ -123,7 +131,10 @@ static func _snapshot() -> Dictionary:
 		heat = Run.heat,
 		heat_cap_bonus = Run.heat_cap_bonus,
 		scrap = Run.scrap,
-		exotic = Run.exotic,
+		# The whole ledger, not the one row that used to be a field. A material
+		# added to DB.MATERIALS is saved by construction rather than by somebody
+		# remembering to add a line here.
+		materials = Run.materials.duplicate(),
 		fuel = Run.fuel,
 		dross = Run.dross,
 		whale_boon = Run.whale_boon,
@@ -165,6 +176,16 @@ static func load_into_run() -> bool:
 		clear()
 		return false
 
+	# Checked before the first write to Run, not after the last one. Everything
+	# below overwrites the live run field by field, and this check used to sit
+	# at the bottom — so a file with a good version and a truncated map returned
+	# false having already left a hull, an economy and an empty map behind, and
+	# the launcher this failure routes to autosaved that and indexed map[at].
+	var saved_map: Variant = d.get("map", [])
+	if typeof(saved_map) != TYPE_ARRAY or (saved_map as Array).is_empty():
+		clear()
+		return false
+
 	Run.started_at = float(d.get("started_at", 0.0))
 	Run.galaxy_kind = int(d.get("galaxy_kind", 0))
 	Run.galaxy = _galaxy_from(Run.galaxy_kind, d.get("galaxy", {}))
@@ -195,13 +216,23 @@ static func load_into_run() -> bool:
 	Run.heat = int(d.get("heat", 0))
 	Run.heat_cap_bonus = int(d.get("heat_cap_bonus", 0))
 	Run.scrap = int(d.get("scrap", 0))
-	Run.exotic = int(d.get("exotic", 0))
+	# JSON hands back String keys and float values; the ledger is StringName to
+	# int. Rebuilt entry by entry rather than assigned wholesale, because a
+	# dictionary that compares equal but hashes its keys as Strings prints
+	# differently from the one it replaced — and that difference is the sort of
+	# thing that gets chased for an hour later.
+	var mats: Dictionary = {}
+	var saved_mats: Variant = d.get("materials", {})
+	if typeof(saved_mats) == TYPE_DICTIONARY:
+		for k in (saved_mats as Dictionary).keys():
+			mats[StringName(str(k))] = int((saved_mats as Dictionary)[k])
+	Run.materials = mats
 	Run.fuel = int(d.get("fuel", 0))
 	Run.dross = int(d.get("dross", 0))
 	Run.whale_boon = bool(d.get("whale_boon", false))
 
 	var map: Array = []
-	for e in d.get("map", []):
+	for e in saved_map:
 		map.append(_node_from(e))
 	Run.map = map
 	Run.at = clampi(int(d.get("at", 0)), 0, maxi(0, map.size() - 1))
@@ -218,10 +249,6 @@ static func load_into_run() -> bool:
 	# Jump range is a pure function of a system and the galaxy, and both just
 	# changed underneath it.
 	Run._range_cache.clear()
-
-	if Run.map.is_empty():
-		clear()
-		return false
 
 	clear()
 	Sig.run_started.emit()
@@ -265,6 +292,13 @@ static func _galaxy_from(kind: int, saved: Variant) -> Dictionary:
 ## A module is a template id plus what LootGen rolled onto it. Affixes are
 ## stored by name and resolved back to the shared DB instances, which is how
 ## they are held during a run too — LootGen picks out of a shallow duplicate.
+##
+## There used to be a "price" meta in here as well, because a station stamped one
+## on its stock and a shelf that came back without it silently held a sale.
+## Market removed the whole class of problem: a price is a function of the place
+## and the part, computed when it is asked for, so there is no longer a price
+## anywhere to lose. A derived number that is saved is a second copy of the
+## truth, and it only ever goes one way.
 static func _module_to(m: ModuleData) -> Dictionary:
 	var affixes: Array = []
 	for a in m.affixes:
@@ -357,7 +391,8 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
 		visited = n.visited, cleared = n.cleared, inspected = n.inspected,
-		fled = n.fled,
+		fled = n.fled, stocked = n.stocked, trades = n.trades,
+		foes = _names(n.foes), event_key = n.event_key,
 		in_nebula = n.in_nebula, nebula_emission = n.nebula_emission,
 		pos = [n.pos.x, n.pos.y], gal = [n.gal.x, n.gal.y],
 		links = Array(n.links),
@@ -386,7 +421,20 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.visited = bool(d.get("visited", false))
 	n.cleared = bool(d.get("cleared", false))
 	n.fled = bool(d.get("fled", false))
+	# Absent on a save written before the node carried its own roll. Left empty,
+	# which makes the node roll once on the next arrival and keep it from then
+	# on — the old behaviour for exactly one more visit, rather than a crash.
+	var foes: Array[StringName] = []
+	for f in d.get("foes", []):
+		foes.append(StringName(str(f)))
+	n.foes = foes
+	n.event_key = str(d.get("event_key", ""))
 	n.inspected = bool(d.get("inspected", false))
+	# Whether the shelf has ever been rolled, and how much has been sold into
+	# this market. Both are run marks like `visited` — losing either would let a
+	# save-and-resume re-roll a bought-out station or reset a saturated one.
+	n.stocked = bool(d.get("stocked", false))
+	n.trades = int(d.get("trades", 0))
 	n.in_nebula = bool(d.get("in_nebula", false))
 	n.nebula_emission = bool(d.get("nebula_emission", false))
 	n.pos = _vec(d.get("pos", []))
@@ -402,6 +450,12 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
 	return n
+
+static func _names(a: Array[StringName]) -> Array:
+	var out: Array = []
+	for s in a:
+		out.append(String(s))
+	return out
 
 static func _vec(v: Variant) -> Vector2:
 	if typeof(v) != TYPE_ARRAY or (v as Array).size() < 2:

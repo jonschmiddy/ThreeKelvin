@@ -11,6 +11,11 @@ warmth, three degrees above absolute zero. A heat-management game named for the 
 
 ## How to work in this repo
 
+- **Respond in Simplified Technical English (ASD-STE100).** Use short sentences. Put one
+  instruction in one sentence. Use the active voice. Use approved, common words. Do not use
+  metaphor, idiom, or figurative language. This rule applies to your replies in chat, not to
+  the source comments — the comment voice in this codebase is deliberate and is described in
+  "The most important tuning rule" and throughout the sections below.
 - **Development happens in VS Code.** Godot's editor is used only to run the game (F5),
   read the Output panel, and host the language server. Do not create or edit `.tscn`
   files unless there is no reasonable alternative.
@@ -48,6 +53,10 @@ godot --path . -- charttest                    # ~10 s, needs a window
 # or the hull tables. The numbers only mean anything against each other.
 godot --headless --path . -- attrs             # ~5 s
 
+# The price table, and 12,600 checks that the market cannot be gamed —
+# RUN THIS AFTER TOUCHING Market.gd
+godot --headless --path . -- market            # ~4 s
+
 # Boot destinations. The launcher is the default; every dev flag skips it.
 godot --path . -- nolauncher                   # straight into a new run
 godot --path . -- resume                       # straight into the suspend save
@@ -55,6 +64,7 @@ godot --path . -- resume                       # straight into the suspend save
 # Dev shortcuts. Flags, not menu items, because each one skips part of the run
 # the balance depends on.
 godot --path . -- ship                         # straight to the refit screen
+godot --path . -- station                      # straight to the dock, hold full
 godot --path . -- cards                        # every card in the game on one page
 godot --path . -- fight 10                     # into a fight, dealing 10 cards
 godot --path . -- fight foes=3                 # ...against a pack
@@ -95,13 +105,13 @@ LOG_DIR=./ci-logs .github/scripts/validate.sh
 green pull request and a green laptop mean the same thing. If you want to change
 what gets checked, edit the script, not the workflow.
 
-It runs four things, in the order that fails fastest first: GDScript is
-tab-indented, the class cache builds, the project boots and constructs its UI, and
-the simulator plays `SIM_RUNS` complete runs. Then it syntax-checks the Python
-audio generators — syntax only, because rendering needs numpy, scipy and soundfile
+It runs six things, in the order that fails fastest first: GDScript is
+tab-indented, the class cache builds, the project boots and constructs its UI, the
+market invariant holds, the save round-trips, and the simulator plays `SIM_RUNS`
+complete runs. Then it syntax-checks the Python audio generators — syntax only, because rendering needs numpy, scipy and soundfile
 and writes about 850 MB, which is not what a pull request check is for.
 
-Three things about it are worth knowing before you touch it:
+Four things about it are worth knowing before you touch it:
 
 - **Godot exits 0 even when a script fails to compile.** It prints the failure and
   moves to the next resource. So every check reads Godot's *output* for
@@ -113,6 +123,13 @@ Three things about it are worth knowing before you touch it:
   the limit a pull request sits open for the runner's full six hours rather than
   failing in three minutes. `timeout` is GNU coreutils and absent on macOS, so
   `run_limited` does it by hand.
+- **The market and save checks are in the gate because they fail silently.** A
+  market whose melt price creeps above its ask price does not crash — it pays for
+  the rest of the run. A save that drops a field does not crash either; the field
+  comes back as a default and the run continues around it. Both print a verdict
+  line rather than raising, so the script greps their logs for it. That is also
+  why the market check exists at all rather than a comment saying "keep melt
+  below ask": the invariant is three constants apart from being false.
 - **The gate does not check the win rate**, deliberately. The 40–55% band above has
   not been re-derived against the current economy, and a check that fails on a
   number nobody trusts teaches people to ignore the check.
@@ -150,6 +167,11 @@ say so and ask rather than quietly working around it.
 | **Galaxy *shape* is purely cosmetic** | Systems sit on shells and never consult the arms, which is what makes fifteen galaxy types in `GalaxyGen` cost nothing in balance |
 | **Every arrival lands on the sector screen** | You should see a place before being asked to do anything with it. Station/event/salvage are reached *from* there, which is what finally retired `LootScreen` |
 | **One currency: scrap** — repair, upgrade, and purchase all compete for it | This is where the difficulty actually lives |
+| **A station never pays more for a part than it charges for one** | It used to, and that was an exploit rather than a tuning error — the buy price lived in `StationScreen` and the melt price lived in `RunState`, and neither file had heard of the other. Every price is now a fraction of one base value in `Market.gd`, so `melt < ask` is true by construction. `-- market` proves it over 12,600 combinations, because the invariant is three constants away from being false |
+| **The profit is in the distance between two places, not in one transaction** | Round-tripping a part where you stand is a guaranteed loss, and that is correct: a scrapyard is not a market. A house's own yard is thick with its own parts and pays a glut price; a rival's yard needs what it cannot press. Buy Korvan in Korvan space, sell it to Solari. The route IS the trade |
+| **A station's shelf is rolled once per run** | The guard used to be `shop.is_empty()`, so buying a shelf out re-rolled it on the next visit. A station is a place, not a vending machine: what somebody brought here is what there is, and it is also the brake that stops any trade route from being farmed |
+| **Prices are derived, never stored** | A price is a pure function of a place and a part. The old "price" meta was saved on every shop module, and a shelf that came back without it quietly held a 47% sale. A derived number that is also saved is a second copy of the truth, and it only ever goes one way |
+| **Materials are prerequisites, not a second currency** | Nothing on a price tag is denominated in alloy. A recipe costing forty scrap is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. This is how crafting gets a cost that scrap cannot pay without breaking the one-currency ruling |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
 | **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
 | **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
@@ -163,6 +185,59 @@ cumulative attrition against expensive repairs.
 
 **So: raise station repair prices before touching enemy damage.** If repairs are cheap,
 heat becomes decorative and the entire risk structure collapses.
+
+That lever now lives in `Market.repair_rate()` and is local: `REPAIR_BASE` times a
+development index that runs 1.28 on unclaimed ground to 0.84 in a capital. Moving
+`REPAIR_BASE` moves the whole game.
+
+## The economy — one file, three prices
+
+`Market.gd` owns every number anybody pays. Read its header before changing a
+constant; the short version is that all three prices are fractions of one base
+value, which is what makes the ordering true by construction rather than by review:
+
+| | multiple of base value | who sets it |
+|---|---|---|
+| **melt** — what a part breaks down to, anywhere, with no station | `MELT` 0.80, ×1.4 with `salvage_rack` | nobody. It is the floor |
+| **bid** — what a station pays you | `ask × SPREAD` 0.62 × market saturation | the place, through `ask` |
+| **ask** — what a station charges | `MARKUP` 1.5 × `ask_index` × `demand`, floored at `ASK_FLOOR` 1.20 | the place |
+
+`ask_index` is how dear goods are HERE (development, then depth). `demand` is how
+badly this place wants THAT brand, and it is the whole cross-system economy in four
+lines: 0.78 in the maker's own space, 1.26 in a rival's, 1.25 for unbranded relic and
+organic tech that nobody presses more of anywhere. It is derived from `makers`, which
+the chart already prints on every system — so the trade map is a map you are already
+reading, and `Market.trade_line()` says it in words on the chart and at the dock.
+
+Four things about it are load-bearing:
+
+- **`MELT × MELT_PERK` must stay below `ASK_FLOOR`.** 1.12 against 1.20 today, a 7%
+  margin. This is the whole invariant. `-- market` fails loudly if it is crossed.
+- **Melting is a discount, and the discount is the design.** An average market pays
+  about what melting used to pay outright; a market that wants your cargo pays half
+  again more; melting is what you take when there is no market in reach. The floor
+  moved down so that a ceiling could exist. Raising `MELT` back toward 1.0 does not
+  make the game more generous, it makes the market pointless.
+- **Selling into a market saturates it** (`_saturation`, 0.93 per sale, floored at
+  0.6). Without it one good system absorbs an unlimited hold at one rate, and the
+  question stops being *how far do I haul this* and becomes *carry everything to the
+  best place I have seen*.
+- **Buying to resell is deliberately thin** — a few percent between the cheapest ask
+  and the richest bid. The real trade is loot you did not pay for: melt it in the
+  yard that built it, haul it to the yard that cannot. A pure trading loop that
+  out-earns playing the game is the failure mode here.
+
+**Materials** (`DB.MATERIALS`) are the second half. Alloy comes off everything you
+melt, exotic off megafauna and pulsars, relic off deep wrecks and precursor parts.
+They are spent at the **fabricator** (`Fabricator.gd`, recipes in `DB.RECIPES`), which
+exists at a station and gates its better half behind Development ≥ CITY — that is what
+makes a developed system a destination rather than a scenery variant. A recipe is
+`{cost} -> {one effect the game already applies}`, so adding one is a dictionary
+entry. If you find yourself branching in `_apply` for one recipe, add a `kind`.
+
+Four recipes ship. That is the stage crafting stands on, not crafting: the ledger, the
+recipe shape, the resolver and the place it happens. Recipes that reach into a
+specific module in the hold need a target and a picker, and that is the next piece.
 
 ---
 
@@ -450,7 +525,7 @@ The predicted first-run failures — typed-array assignment, inner-class type hi
 (`MapGen.MapNode`), `Control` layout properties — did not materialise; the only real
 blocker was the missing class cache described above.
 
-Balance sim: **13% win rate**, 56.0 avg jumps, 6.0 avg kills, 0 errors, at 200 runs.
+Balance sim: **17% win rate**, 82.3 avg jumps, 7.4 avg kills, 0 errors, at 600 runs.
 
 That is a sixfold improvement and it was measured, not estimated. The same 200-run sim
 against the commit *before* manufacturer hulls (`4f7f6ec`) scores **2%**, 32.2 jumps,
@@ -461,6 +536,22 @@ against the commit *before* manufacturer hulls (`4f7f6ec`) scores **2%**, 32.2 j
 | `4f7f6ec` — one Korvan frame, six makers gated off | 2% | 32.2 | 3.6 | 76% |
 | seven manufacturer hulls, `ACTIVE_MAKERS` reopened | 10% | 52.8 | 6.3 | 50% |
 | all three weight classes per manufacturer | **13%** | 56.0 | 6.0 | 49% |
+| the market, materials and the fabricator | **17%** | 82.3 | 7.4 | 41% |
+
+The last row is measured at **600 runs a side**, not 200, and that is worth saying
+because the 200-run comparison it started from was misleading. `origin/main` scored
+18% on one 200-run sample and 14% over 600; four 200-run samples of the new economy
+landed 13-16%. Every one of those numbers is inside the others' noise — a 200-run win
+rate has a standard error of about 2.6 points, which is most of the difference anyone
+would be tempted to read into it. **Two hundred runs is enough to catch a crash and
+not enough to judge a three-point change.** The 600-run pair is the honest comparison,
+and it says the restructuring is difficulty-neutral to slightly kinder.
+
+Where it is NOT within noise is how far a run gets: **82.3 jumps against 56.8**, a 45%
+increase, with kills up and the stranded rate down four points (25.8% from 29.7%). The
+sim only sells what it was going to melt anyway — it never buys to resell, because
+assuming a competent player already runs a trade route would report a win rate for a
+game nobody has played yet. So that is the FLOOR of the new economy, not its ceiling.
 
 Runs last longer and get further. Fuel deaths rose with them (12% to 16%), which is
 simply what more jumps cost.
@@ -517,7 +608,8 @@ derive. Three things about them are load-bearing:
   is invisible on a star and very visible on a coloured mass or a dark lane opening up.
 
 Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis places, jumps
-and distance-priced fuel, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
+and distance-priced fuel, a market that prices goods and services off the place you are
+standing in, raw materials and a station fabricator, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
 pacify), loot with rolled affixes, install/scrap/swap, stations with all services and
 inspections, eight events, set bonuses for all seven manufacturers, twenty-four hulls with
 a chassis-select at run start, the six attributes, procedural ship and enemy art, headless

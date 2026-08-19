@@ -238,6 +238,14 @@ func _refresh() -> void:
 				names.append(DB.short_name(DB.manufacturer_name(m)).to_upper())
 			who = " / ".join(names)
 		_rows.add_child(_row("OPERATORS", who))
+		# The trade half of the same fact. Who operates a place decides what its
+		# market is short of, so this belongs directly under OPERATORS — it is a
+		# reading of that row, not a new fact about the system. Reading it before
+		# committing the fuel is the whole point: a haul you plan is a trade and
+		# a haul you discover on arrival is luck.
+		var trade := Market.trade_line(t)
+		if not trade.is_empty():
+			_rows.add_child(_row("MARKET", trade, Color("#d99b29")))
 	_rows.add_child(_danger_row(t.danger))
 
 	# Out of range is a different answer from "cannot afford it", and quoting a
