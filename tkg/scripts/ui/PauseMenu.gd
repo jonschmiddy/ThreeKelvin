@@ -58,12 +58,17 @@ func setup() -> void:
 	col.add_child(UITheme.hsep())
 
 	# Two ways out, and the difference between them is the whole save model.
-	# SAVE & QUIT writes a bookmark you resume from once; QUIT TO DESKTOP throws
-	# the run away. The autosave means the first is what happens anyway if the
+	# SAVE & EXIT writes a bookmark you resume from once; the other throws the
+	# run away. The autosave means the first is what happens anyway if the
 	# process dies — this button exists so the player knows that.
-	col.add_child(Widgets.button("SAVE & QUIT",
+	#
+	# Both land on the TITLE SCREEN rather than closing the game. Leaving a run
+	# and leaving the program are different intentions, and the title screen is
+	# where the answer to "what now" lives — including CONTINUE, which is the
+	# thing SAVE & EXIT just created.
+	col.add_child(Widgets.button("SAVE & EXIT TO TITLE",
 		func() -> void: save_and_quit_requested.emit()))
-	col.add_child(Widgets.button("QUIT — DISCARD RUN",
+	col.add_child(Widgets.button("ABANDON — EXIT TO TITLE",
 		func() -> void: quit_requested.emit()))
 
 	var hint := UITheme.body("esc closes this menu", UITheme.COLD, UITheme.FS_SMALL)

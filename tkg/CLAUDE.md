@@ -538,6 +538,37 @@ run to `user://history.json`; `HistoryScreen` reads it from the HUD's HISTORY ta
 the launcher. `LauncherScreen` runs with **no run loaded**, so nothing on it may read ship
 state — `Router` hides the HUD while it is up for the same reason.
 
+**The title screen's backdrop is the real galaxy, turning.** It is `MapChart` with
+`show_icons = false` — the mode the chart already had for "the galaxy alone" — not a
+simplified copy, because the sky is forty-eight thousand precomputed points and nine kinds
+of structure, and a second renderer would be a second answer nobody would maintain. Three
+things make it work:
+
+- **The sky needs the GALAXY, not the map.** `draw_backdrop()` and `draw_anim()` contain no
+  `Run.` references at all; `_build_stars()` reads only `galaxy`, `galaxy_kind` and
+  `galaxy_seed`, all of which `RunState._ready()` guarantees exist before any run. The
+  `Run.map.is_empty()` guards on `Backdrop`/`SkyAnim` were borrowed from the layers that
+  draw systems and are gone.
+- **The sky Control is a square as wide as the screen's diagonal.** A rotating rectangle
+  sweeps its corners through the frame; a square whose inscribed circle reaches every screen
+  corner cannot. Star counts are fixed constants, so the extra area costs nothing but a few
+  more cull tests, and rotating a Control moves its retained draw list rather than
+  repainting it — the turn is free.
+- **Only OUR galaxy turns.** The backdrop is four canvases, in paint order: `DeepField`
+  (flat black + distant galaxies), `Backdrop` (the star field), `SkyAnim` (orbiting core and
+  accretion disc), `Halo` (22 parallax star layers). `MapChart.set_sky_rotation()` turns the
+  middle two only — the far galaxies are millions of light years past this one and the halo
+  is the sky it is being seen *through*, so neither shares its rotation. `_repaint_galaxy()`
+  must queue all of them: the deep field and halo derive from `size` and `sky_pan`, so
+  leaving either out means dragging the chart slides the galaxy across a fixed background.
+- **Framing therefore cannot use `_radius()`,** which is derived from that oversized square.
+  `MapChart.frame_to(screen, fill)` takes the view as an argument instead.
+
+One visible consequence: `_region_tint()` picks a cloud's wash from the nearest system, so
+with no map the nebulae lose their regional colour and fall back to one neutral blue-grey.
+Emission-versus-reflection and the per-cloud ramp jitter still vary. Generating a map for
+the launcher would restore it, at the cost of writing more run state for a title screen.
+
 One consequence worth knowing: a resumed run can land on the sector of an *unfought*
 combat node, which never happens otherwise because arrival starts the fight immediately.
 `SectorScreen`'s action button has always said ENGAGE there; it now does that rather than

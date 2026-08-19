@@ -31,8 +31,21 @@ func _init() -> void:
 ## suppressed rather than reading whatever the current ship happens to be.
 var preview: HullData = null
 
-func setup_preview(h: HullData, view_height: int = 0) -> void:
+## Whole-number magnification for the preview. The sprite is drawn once at 240
+## by 120 and then resized with INTERPOLATE_NEAREST, which is what keeps a
+## doubled pixel exactly four pixels rather than a blurred one — the same reason
+## the project only ever scales its window by integers.
+##
+## Done to the IMAGE rather than by stretching the TextureRect because the two
+## stretch modes that could do it are both wrong here: KEEP_CENTERED never
+## scales at all, and KEEP_ASPECT_CENTERED fits the whole texture into the
+## control, so cropping the empty rows above and below the hull would shrink the
+## ship instead of magnifying it.
+var _k: int = 1
+
+func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 	preview = h
+	_k = maxi(1, k)
 	# A showroom sprite is never the thing you click — the card around it is.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if view_height > 0:
@@ -46,7 +59,7 @@ func setup_preview(h: HullData, view_height: int = 0) -> void:
 		# said. The card's own labels were pushed out of the button and drew on
 		# top of the attribute block underneath it.
 		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		custom_minimum_size = Vector2(W, view_height)
+		custom_minimum_size = Vector2(W * _k, view_height)
 		clip_contents = true
 	refresh()
 
@@ -64,7 +77,14 @@ func refresh() -> void:
 	if _hull() == null:
 		return
 	draw_ship()
-	_tex.update(_img)
+	if _k <= 1:
+		_tex.update(_img)
+		return
+	# set_image, not update: update() requires the same dimensions, and the
+	# magnified copy is a different size from the canvas it came from.
+	var up := _img.duplicate() as Image
+	up.resize(W * _k, H * _k, Image.INTERPOLATE_NEAREST)
+	_tex.set_image(up)
 
 # --------------------------------------------------------------- pixel helpers
 

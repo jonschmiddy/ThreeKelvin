@@ -173,9 +173,20 @@ func toggle_menu() -> void:
 	add_child(_menu)
 	_menu.setup()
 	_menu.resume_requested.connect(toggle_menu)
+	# Abandoning is an ENDING, so it goes into the record — the same one
+	# Router.new_run() writes when you start over on top of a live run. Recorded
+	# here rather than left for later because the run is over the moment this is
+	# pressed, and a player who abandons and then closes the game would otherwise
+	# have it vanish from the flight record entirely.
 	_menu.quit_requested.connect(func() -> void:
+		toggle_menu()
+		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 		SaveGame.clear()
-		get_tree().quit())
+		# No ship any more, which is the state the game boots in and the state
+		# the title screen expects. It also stops new_run() recording this same
+		# abandonment a second time, since its guard is a live hull.
+		Run.hull = null
+		Router.show_launcher())
 	_menu.new_run_requested.connect(func() -> void:
 		toggle_menu()
 		Router.new_run())
@@ -185,7 +196,14 @@ func toggle_menu() -> void:
 	# where the last save is from just before the fight.
 	_menu.save_and_quit_requested.connect(func() -> void:
 		SaveGame.save()
-		get_tree().quit())
+		toggle_menu()
+		# The run is on disk now, so the copy in memory is finished with. Letting
+		# it stay live would be actively dangerous: the title screen rolls its
+		# own Run.galaxy for the backdrop, and any later autosave would then
+		# write this run's MAP against that galaxy — the systems are positioned
+		# from the galaxy, so every one of them would move.
+		Run.hull = null
+		Router.show_launcher())
 
 func _open_settings() -> void:
 	if _settings != null:

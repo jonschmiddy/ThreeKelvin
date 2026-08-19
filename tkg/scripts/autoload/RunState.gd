@@ -309,7 +309,7 @@ func attributes() -> Array[Dictionary]:
 			text = "Ramming, boarding, holding together under structural stress."},
 		{key = &"thrust", label = "THRUST", short = "THR", value = attr_thrust(),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well."},
-		{key = &"maneuver", label = "MANEUVER", short = "MNV", value = attr_maneuver(),
+		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV", value = attr_maneuver(),
 			text = "Threading debris, evading a lock, choosing how a fight opens."},
 		{key = &"thermal", label = "THERMAL", short = "THM", value = attr_thermal(),
 			text = "Sitting in heat: coronas, reactors, anything that cooks you."},

@@ -13,6 +13,11 @@ extends Resource
 ## fields on purpose — they read against the void natively, which is what makes
 ## luxury and clinical look like themselves next to five dark houses.
 @export var field: Color = Color("#16202e")
+## Who they are. Two or three sentences of company, not of mechanics —
+## `identity` already says what flying them DOES, and a player choosing a house
+## at run start is choosing an allegiance before they can possibly evaluate a
+## set bonus. This is the half that makes that choice mean anything.
+@export_multiline var backstory: String = ""
 @export_multiline var identity: String = ""
 @export var set3_name: String = ""
 @export var set3_text: String = ""

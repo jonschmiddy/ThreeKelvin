@@ -45,6 +45,10 @@ func _autosave() -> void:
 		return
 	if current is ChassisSelect:
 		return
+	# And never from the title screen, which is not part of any run and which
+	# overwrites Run.galaxy with the one it draws behind itself.
+	if current is LauncherScreen or current is HistoryScreen:
+		return
 	SaveGame.save()
 
 ## Title screen. Boots here unless a development flag says otherwise.

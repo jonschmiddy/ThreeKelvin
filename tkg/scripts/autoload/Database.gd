@@ -114,7 +114,29 @@ func _seed_manufacturers() -> void:
 		m.set3_text = r[7]
 		m.set5_name = r[8]
 		m.set5_text = r[9]
+		m.backstory = BACKSTORY.get(m.id, "")
 		manufacturers[m.id] = m
+
+## Who each house is, as opposed to what flying it does.
+##
+## Kept out of the table above because that table is already ten columns wide
+## and these are paragraphs; a wall of prose wedged into positional array
+## indices is unreadable and unmergeable. Keyed by id so a missing one is blank
+## rather than a shifted column.
+##
+## The rule for writing these: company, not mechanics. `identity` already says
+## what the set bonuses do. A player picking a chassis at run start is choosing
+## an allegiance before they can evaluate a single number, and this is what they
+## are actually choosing between.
+const BACKSTORY := {
+	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon — they inherited the jigs, kept the tolerances, and went on stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
+	&"solari": "A guild of thermal engineers who lost an argument about safety margins and left to prove they were right. Solari hulls are rated for temperatures their crews are not. The company line is that heat is only waste if you fail to aim it.",
+	&"dredge": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock — it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
+	&"redline": "Chop shops with a trademark. Redline registers no serials, honours no warranty, and has never once been found at the address on its invoices. What they sell is speed and the absence of a record, and both are exactly as legal as your inspector is thorough.",
+	&"halcyon": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Halcyon does not scale, does not discount, and does not replace what it sold you — it repairs it, at a price, forever. Owning one is less a purchase than an arrangement.",
+	&"cygnet": "Drone architects who solved autonomy and then spent forty years not answering questions about it. A Cygnet ship is a hangar with an engine: the hull is somewhere for the swarm to come back to. Pilots report the drones anticipate them. The literature does not address this.",
+	&"calyx": "Clinical, corporate and entirely organic — Calyx hulls are cultured to a specification and then trimmed. They heal. They adapt. Every contract carries a clause about what happens if the vessel is fed something it was not rated for, and no customer has been shown the results.",
+}
 
 func manufacturer_colour(id: StringName) -> Color:
 	if id == &"" or not manufacturers.has(id):

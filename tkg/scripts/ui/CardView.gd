@@ -324,24 +324,35 @@ func _banner() -> void:
 ## Carve the bottom edge into the house's shape by painting the card back over
 ## it. Cheaper than authoring seven polygons and it stays on the pixel grid.
 func _cut(b: Rect2, mark: Color) -> void:
-	var s := float(_s)
-	var back := UITheme.PANEL2
+	draw_cut(self, card.manufacturer, b, mark, UITheme.PANEL2, float(_s))
+
+## The seven hems, drawn onto any canvas at any scale.
+##
+## Static and free of the card for the same reason draw_emblem is: the chassis
+## select flies these banners too, at four times the size. The offsets are
+## hand-authored — a hem is the one part of this card designed by eye rather
+## than derived — so a second copy would be a second set of numbers to get
+## wrong.
+##
+## `back` is whatever the banner is sitting ON. Most of these shapes are CUT,
+## by painting the background back over the flag, so passing the wrong colour
+## does not misdraw the hem — it makes the hem invisible.
+static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
+		back: Color, s: float) -> void:
 	var base := b.end.y
 
 	# Everything below draws through this, and it will not paint outside the
-	# flag. The offsets are hand-authored — a hem is the one part of this card
-	# designed by eye rather than derived — and a shape that escapes its own
-	# banner reads as a rendering fault rather than as a design. Clipping makes
-	# "inside the banner" a property of the function instead of arithmetic
-	# somebody checked once.
+	# flag. A shape that escapes its own banner reads as a rendering fault
+	# rather than as a design. Clipping makes "inside the banner" a property of
+	# the function instead of arithmetic somebody checked once.
 	var hem := func(r: Rect2, col: Color) -> void:
 		var x0 := maxf(r.position.x, b.position.x)
 		var y0 := maxf(r.position.y, b.position.y)
 		var x1 := minf(r.end.x, b.end.x)
 		var y1 := minf(r.end.y, b.end.y)
 		if x1 > x0 and y1 > y0:
-			draw_rect(Rect2(x0, y0, x1 - x0, y1 - y0), col, true)
-	match card.manufacturer:
+			ci.draw_rect(Rect2(x0, y0, x1 - x0, y1 - y0), col, true)
+	match man:
 		&"solari":
 			# Vent slots. A forge hem: the flag ends where the heat gets out.
 			hem.call(Rect2(b.position.x, base - 4 * s, b.size.x, 3.0 * s),

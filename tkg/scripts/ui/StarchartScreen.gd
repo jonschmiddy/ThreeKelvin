@@ -723,15 +723,38 @@ class Glyph extends Control:
 class SkyAnim extends Control:
 	var chart: MapChart
 
-	## Every frame. It was capped to thirty while the backdrop moved at sixty,
-	## which is invisible when the view is still and obvious the moment you drag
-	## — the core stepped along half a beat behind the galaxy around it. Costing
-	## four milliseconds instead of fifty, it can simply keep up.
-	func _process(_delta: float) -> void:
+	## Seconds between redraws; zero is every frame.
+	##
+	## Zero is right for the CHART. It was capped to thirty while the backdrop
+	## moved at sixty, which is invisible when the view is still and obvious the
+	## moment you drag — the core stepped along half a beat behind the galaxy
+	## around it. Costing four milliseconds instead of fifty, it can simply keep
+	## up.
+	##
+	## The launcher sets it, because none of that applies there: nothing drags,
+	## and the galaxy turns at two thousandths of a radian a second. What the
+	## launcher has instead is a fixed budget it keeps overrunning, and this is
+	## twelve thousand particles a frame it does not need to spend.
+	var interval: float = 0.0
+	var _t: float = 0.0
+
+	func _process(delta: float) -> void:
+		if interval <= 0.0:
+			queue_redraw()
+			return
+		_t += delta
+		if _t < interval:
+			return
+		_t = 0.0
 		queue_redraw()
 
+	## Guarded on the chart alone. draw_anim() reads nothing but the precomputed
+	## arrays, and those are built from the GALAXY — which exists before any run
+	## does. The map guard that used to be here was borrowed from the layers that
+	## draw systems, and it kept the sky blank on the one screen that wants the
+	## sky and nothing else: the launcher.
 	func _draw() -> void:
-		if chart != null and not Run.map.is_empty():
+		if chart != null:
 			chart.draw_anim(self)
 
 
@@ -740,9 +763,37 @@ class SkyAnim extends Control:
 class Backdrop extends Control:
 	var chart: MapChart
 
+	## See SkyAnim above: the galaxy is not the map, and this layer needs only
+	## the galaxy.
 	func _draw() -> void:
-		if chart != null and not Run.map.is_empty():
+		if chart != null:
 			chart.draw_backdrop(self)
+
+
+## Everything behind our galaxy: the flat black, and the distant galaxies.
+##
+## Split onto its own canvas so it can be held STILL while the galaxy turns.
+## Those are other galaxies, millions of light years past this one — they have
+## no reason to share its rotation, and a title screen that swings them around
+## with the arms reads as a picture being spun rather than a galaxy turning.
+class DeepField extends Control:
+	var chart: MapChart
+
+	func _draw() -> void:
+		if chart != null:
+			chart.draw_deep(self)
+
+
+## The parallax star layers, over the galaxy and also fixed.
+##
+## Twenty-two depths of foreground stars: the sky our galaxy is being seen
+## THROUGH, not part of its disc. Same argument as DeepField — they stay put.
+class Halo extends Control:
+	var chart: MapChart
+
+	func _draw() -> void:
+		if chart != null:
+			chart.draw_halo_layer(self)
 
 
 class MapChart extends Control:
@@ -809,6 +860,10 @@ class MapChart extends Control:
 	## whole galaxy.
 	var _backdrop: Control
 	var _anim: Control
+	## Static sky, either side of the galaxy: distant galaxies underneath,
+	## parallax star layers on top. Neither turns. See set_sky_rotation.
+	var _deep: Control
+	var _halo: Control
 	## Screen positions are pure functions of the node and the transform, and
 	## they are wanted for every system on every redraw AND on every mouse
 	## motion, so they are worth remembering.
@@ -945,13 +1000,30 @@ class MapChart extends Control:
 	## added since uses it.
 	var _rng: int = 0
 
+	## Four canvases, in paint order: the deep field, the galaxy, the live core,
+	## the halo. All four sit behind the parent's own _draw, which is where the
+	## systems go.
+	##
+	## The split is partly the old performance argument — Godot keeps a
+	## CanvasItem's draw list until that item asks to redraw, so highlighting a
+	## system repaints two hundred glyphs rather than forty-eight thousand stars
+	## — and partly a rotation argument. Only the middle two are OUR galaxy. The
+	## launcher turns those and leaves the other two alone, which it can only do
+	## if they are separate canvases.
 	func _make_backdrop() -> void:
+		_deep = DeepField.new()
+		(_deep as DeepField).chart = self
+		_deep.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# A Control draws itself BEFORE its children, so without this the sky is
+		# painted over the systems it is supposed to sit behind.
+		_deep.show_behind_parent = true
+		add_child(_deep)
+
 		_backdrop = Backdrop.new()
 		(_backdrop as Backdrop).chart = self
 		_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# A Control draws itself BEFORE its children, so without this the galaxy
-		# is painted over the systems it is supposed to sit behind.
 		_backdrop.show_behind_parent = true
 		add_child(_backdrop)
 
@@ -965,12 +1037,99 @@ class MapChart extends Control:
 		_anim.show_behind_parent = true
 		add_child(_anim)
 
+		_halo = Halo.new()
+		(_halo as Halo).chart = self
+		_halo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_halo.show_behind_parent = true
+		add_child(_halo)
+
+	## Build the star field NOW, rather than on demand inside the first draw.
+	##
+	## _build_stars() is the expensive half of this class — 350 to 420ms for a
+	## galaxy it has not seen — and draw_backdrop() calls it lazily, so the cost
+	## lands on whichever frame first paints the sky. That frame is then a
+	## quarter-second long, and a quarter-second frame is one the display gets to
+	## show partway through.
+	##
+	## Calling it here moves the work to a frame of the caller's choosing, before
+	## anything is visible or moving. The draw that follows finds the key
+	## unchanged and returns immediately.
+	func warm_sky() -> void:
+		_build_stars()
+
+	## How often the live core repaints. See SkyAnim.interval.
+	func set_anim_interval(seconds: float) -> void:
+		if _anim != null:
+			(_anim as SkyAnim).interval = seconds
+
+	## Turn OUR galaxy, and nothing else. The deep field and the halo keep still.
+	##
+	## The pivot comes from THIS control's size, not from each layer's. The
+	## layers are anchored full-rect, so their size is resolved by the layout
+	## pass — which means that in the frame after someone assigns a new size
+	## here, `layer.size` is still the old one. Pivoting on a stale size turns
+	## the galaxy about a point that is not its centre, which walks its edges
+	## across the view instead of spinning it in place.
+	## THE STAR FIELD TURNS IN DATA, NOT BY TRANSFORM.
+	##
+	## This is the whole reason the launcher looked like it was tearing. Rotating
+	## a CanvasItem full of 1x1 rects makes the rasteriser resample them onto the
+	## pixel grid — and draw_backdrop rounds each star to an integer pixel BEFORE
+	## the transform, so what gets rotated is a grid. A grid resampled onto a
+	## grid at a shallow angle is moiré: long strips of vertical and horizontal
+	## lines that crawl as the angle changes.
+	##
+	## Rotating the positions first and rounding afterwards inverts that. The
+	## source positions are scattered floats, so where each star lands is
+	## decorrelated from its neighbours, and every star still ends up on an exact
+	## pixel — crisp, which the transform could never be.
+	##
+	## The animated layer keeps the transform. It is a few hundred sparse points
+	## and the core, far too thin to form a pattern, and it repaints every frame
+	## anyway — so it gets the free version and lands on the same angle.
+	func set_sky_rotation(r: float) -> void:
+		sky_angle = r
+		if _anim != null:
+			_anim.pivot_offset = size * 0.5
+			_anim.rotation = r
+		if _backdrop == null:
+			return
+		_backdrop.rotation = 0.0
+		# EVERY frame the angle moves, and batching this is a trap I already fell
+		# into. Waiting for half a pixel of rim movement repainted about once a
+		# second — and because a repaint moves every star that crossed a boundary
+		# SINCE THE LAST ONE, they all stepped together. One synchronised jump a
+		# second is chop; the same total movement spread over sixty frames is a
+		# few hundred stars shifting a pixel each, which reads as drift.
+		#
+		# A star cannot move less than a pixel, so this is as smooth as pixel art
+		# gets. What it buys is that the steps are UNCORRELATED in time as well
+		# as in space.
+		# Exact, not is_equal_approx. Its tolerance scales with magnitude — near a
+		# full turn it is about 6e-5 — while one frame of this rotation is 3.5e-5,
+		# so an approximate test would silently drop frames and reintroduce the
+		# stepping in a form much harder to see in the code.
+		if sky_angle == _drawn_angle:
+			return
+		_drawn_angle = sky_angle
+		_backdrop.queue_redraw()
+
+	## The galaxy's rotation, in radians, applied to star positions at draw time.
+	var sky_angle: float = 0.0
+	var _drawn_angle: float = 0.0
+
 	## Anything that moves the galaxy on screen, as opposed to merely changing
 	## what is highlighted.
+	## All four sky canvases, not just the galaxy: the deep field and the halo are
+	## both derived from `size` and `sky_pan`, so a resize or a drag makes them
+	## as stale as the arms. Leaving either out means dragging the chart slides
+	## the galaxy across a deep field that stayed where it was.
 	func _repaint_galaxy() -> void:
 		_polar_cache.clear()
-		if _backdrop != null:
-			_backdrop.queue_redraw()
+		for layer in [_deep, _backdrop, _halo]:
+			if layer != null:
+				layer.queue_redraw()
 		queue_redraw()
 
 	func _process(delta: float) -> void:
@@ -989,6 +1148,25 @@ class MapChart extends Control:
 	func set_state(sel: int) -> void:
 		selected = sel
 		queue_redraw()
+
+	## Zoom so the galaxy's outer edge lands at `fill` times half the short side
+	## of `screen`.
+	##
+	## For anything that draws the sky on a control BIGGER than the view. The
+	## launcher does: its sky is a square as wide as the screen's diagonal, so
+	## that rotating it can never sweep a corner into frame. _radius() is derived
+	## from the control, so on that square it is nearly twice what it would be on
+	## the screen, and a zoom picked by eye against the chart put the galaxy at
+	## about 1.6 screen-widths across — a title screen showing only the core.
+	##
+	## Framing is a question about what the player can see, so it takes the view
+	## as an argument rather than reading a size that is deliberately too big.
+	func frame_to(screen: Vector2, fill: float) -> void:
+		var r_max := _radius() * DISC
+		if r_max <= 0.0 or screen.x <= 0.0:
+			return
+		zoom = fill * minf(screen.x, screen.y) * 0.5 / r_max
+		_repaint_galaxy()
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_RESIZED:
@@ -2839,12 +3017,29 @@ class MapChart extends Control:
 	## fronts on the chart for one explosion.
 	##
 	## So all that is left is the star itself, which the live layer flashes.
-	func _build_remnants(_r_max: float) -> void:
+	func _build_remnants(r_max: float) -> void:
 		_pulsar = PackedVector2Array()
-		for nd in Run.map:
-			var node: MapGen.MapNode = nd
-			if node.type == MapGen.NodeType.PULSAR:
-				_pulsar.append(_polar(node))
+		if not Run.map.is_empty():
+			for nd in Run.map:
+				var node: MapGen.MapNode = nd
+				if node.type == MapGen.NodeType.PULSAR:
+					_pulsar.append(_polar(node))
+			return
+
+		# No map — the launcher. Pulsars are placed by MapGen, which marks a
+		# SYSTEM inside a remnant as one, so with no systems there were no
+		# pulsars and the title screen's remnants sat there with nothing at the
+		# centre. A supernova remnant without its neutron star is the one thing
+		# in this sky that is actually wrong rather than merely absent.
+		#
+		# Straight from the cloud instead: one per REMNANT, at its centre, which
+		# is where the star that threw the shell has to be. Planetary nebulae get
+		# nothing, same as in a real run — they are low-mass envelopes and leave
+		# a white dwarf.
+		for raw in NebulaField.clouds():
+			var cloud: NebulaField.Cloud = raw
+			if cloud.kind == NebulaField.Kind.REMNANT:
+				_pulsar.append(cloud.pos * r_max)
 
 	## Lay out the orbiting core. Runs with the rest of the build, because it
 	## depends on how many stars the cleared region swallowed and that number is
@@ -3288,10 +3483,18 @@ class MapChart extends Control:
 	## The repaint. Deep field first, then the galaxy from the cache: a
 	## multiply, an add, a bounds check and a rect per star, and no galaxy maths
 	## at all.
-	func draw_backdrop(ci: CanvasItem) -> void:
+	## The flat black and the distant galaxies. Everything on this canvas is
+	## outside our galaxy and holds still while it turns.
+	func draw_deep(ci: CanvasItem) -> void:
 		ci.draw_rect(Rect2(Vector2.ZERO, size), Color("#070a10"), true)
-		_build_stars()
 		_draw_far_galaxies(ci)
+
+	## The parallax star layers, over the galaxy and equally fixed.
+	func draw_halo_layer(ci: CanvasItem) -> void:
+		_draw_halo(ci)
+
+	func draw_backdrop(ci: CanvasItem) -> void:
+		_build_stars()
 
 		var c := size * 0.5 + pan
 		var w := size.x
@@ -3319,17 +3522,34 @@ class MapChart extends Control:
 		# not the framerate, it is the galaxy visibly losing stars the moment you
 		# touch it. If this needs to get faster it has to get faster without
 		# drawing less.
-		for i in _star_pos.size():
-			var q := c + _star_pos[i] * zoom
-			if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
-				continue
-			var sz := one
-			match _star_big[i]:
-				1: sz = two
-				2: sz = gas_px
-			ci.draw_rect(Rect2(q.round(), sz), _star_col[i], true)
-
-		_draw_halo(ci)
+		# Two loops rather than one with a branch in it: this runs 48,000 times a
+		# repaint, and the chart — which never turns — should not pay for a test
+		# whose answer is always no.
+		if is_zero_approx(sky_angle):
+			for i in _star_pos.size():
+				var q := c + _star_pos[i] * zoom
+				if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
+					continue
+				var sz := one
+				match _star_big[i]:
+					1: sz = two
+					2: sz = gas_px
+				ci.draw_rect(Rect2(q.round(), sz), _star_col[i], true)
+		else:
+			# Rotate, THEN round. See set_sky_rotation for why that order is the
+			# entire difference between a galaxy and a moiré pattern.
+			var ca := cos(sky_angle)
+			var sa := sin(sky_angle)
+			for i in _star_pos.size():
+				var p := _star_pos[i]
+				var q := c + Vector2(p.x * ca - p.y * sa, p.x * sa + p.y * ca) * zoom
+				if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
+					continue
+				var sz := one
+				match _star_big[i]:
+					1: sz = two
+					2: sz = gas_px
+				ci.draw_rect(Rect2(q.round(), sz), _star_col[i], true)
 
 		# --- and the names of the clouds. They are the only landmarks out here
 		# that are not somewhere you can go, and naming them is what turns the
