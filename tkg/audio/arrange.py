@@ -2,10 +2,9 @@ import numpy as np, os
 np.random.seed(1729)          # renders are deterministic
 import synth; synth.set_tempo(142)
 from synth import *
+from motif import MOTIF, INVERT, bar as bb, octave as at_oct, augment
 
 BARS = 72
-def bb(bar):                      # bar number (1-based) -> absolute beat
-    return (bar-1)*4
 
 # ---------------- harmony ----------------
 # A / A' cycle : i - bVI - iv - bVII   (F minor, Aeolian)
@@ -23,14 +22,6 @@ B_CYCLE = [
     (['Eb3','G3','Bb3','F4'],  'Eb2'),
 ]
 C_CHORDS = [(['Db3','F3','Ab3','C4'], 'Db2'), (['C3','Eb3','G3','C4'], 'C2')]
-
-# ---------------- motif ----------------
-MOTIF   = [('F',0,1),('G',1,1),('F',2,1),('G',3,1),('Ab',4,2)]   # (deg, beat, dur)
-INVERT  = [('F',0,1),('Eb',1,1),('F',2,1),('Eb',3,1),('D',4,2)]  # mirror, Dorian D
-def at_oct(seq, octv):
-    return [(n+str(octv), b, d) for n, b, d in seq]
-def augment(seq, k=2):
-    return [(n, b*k, d*k) for n, b, d in seq]
 
 tracks = {k: Track(BARS) for k in
           ['whistle','lead','pad','bass','arp','perc','bell','fx']}

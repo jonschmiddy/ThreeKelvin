@@ -2,6 +2,8 @@ import numpy as np, os
 np.random.seed(1729)          # renders are deterministic
 import synth; synth.set_tempo(71)
 from synth import *
+from motif import (PHRYGIAN as PHRY, TRITONE as TRI, SINK,
+                   bar as bb, octave as oc, augment as aug)
 
 # =====================================================================
 #  "DEAD SECTOR"  -  71 BPM (exactly half the main theme), F Phrygian
@@ -10,14 +12,6 @@ from synth import *
 # =====================================================================
 
 BARS = 40
-def bb(bar): return (bar-1)*4
-
-# --- motif forms -----------------------------------------------------
-PHRY  = [('F',0,1),('Gb',1,1),('F',2,1),('Gb',3,1),('Ab',4,2)]      # ♭2 : dread
-TRI   = [('F',0,1),('Gb',1,1),('F',2,1),('Gb',3,1),('B',4,2)]       # ♭5 : tritone
-SINK  = [('F',0,2),('Gb',2,2),('F',4,2),('E',6,2),('Eb',8,4)]       # sinks BELOW the tonic
-def oc(seq, o): return [(n+str(o), b, d) for n, b, d in seq]
-def aug(seq, k): return [(n, b*k, d*k) for n, b, d in seq]
 
 # --- harmony ---------------------------------------------------------
 # F Phrygian. bII (Gbmaj7) over an F pedal = a minor 9th clash that never resolves.

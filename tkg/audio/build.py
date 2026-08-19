@@ -1,7 +1,8 @@
 """Render every audio asset and encode it into the Godot project.
 
-    python3 build.py           # music + sfx
+    python3 build.py               # music + sfx
     python3 build.py music
+    python3 build.py music burn    # one cue only
     python3 build.py sfx
 
 Needs numpy, scipy and soundfile (libsndfile supplies the Vorbis encoder).
@@ -45,6 +46,12 @@ CUES = [
     # (script, cue name, wav mix, wav stem dir)
     ('arrange.py', 'theme', 'theme_loop.wav', 'stems_loop'),
     ('dread.py',   'dread', 'dread_loop.wav', 'dread_stems_loop'),
+    ('burn.py',    'burn',  'burn_loop.wav',  'burn_stems_loop'),
+    ('warm.py',    'warm',  'warm_loop.wav',  'warm_stems_loop'),
+    ('boss.py',    'boss',  'boss_loop.wav',  'boss_stems_loop'),
+    ('shells.py',  'shells','shells_loop.wav','shells_stems_loop'),
+    ('business.py','business','business_loop.wav','business_stems_loop'),
+    ('home.py',    'home',  'home_loop.wav',  'home_stems_loop'),
 ]
 
 def ogg(path, wav_path, compression=0.3):
@@ -74,9 +81,22 @@ def render(script, *args):
     subprocess.run([sys.executable, script, '--out', OUT] + list(args),
                    cwd=HERE, check=True)
 
-def build_music():
+def build_music(only=()):
+    """Render and encode every cue, or just the named ones.
+
+    Renders are deterministic per machine but not across them, so a partial
+    rebuild is only safe on the box that produced the masters -- otherwise
+    the rebuilt cue and the untouched ones come from different noise
+    realisations.  `python3 build.py music <cue>` exists for iterating on a
+    new score without re-encoding 36 MB of finished ones.
+    """
     total = 0
-    for script, cue, mix_wav, stem_dir in CUES:
+    todo = [c for c in CUES if not only or c[1] in only]
+    missing = set(only) - {c[1] for c in CUES}
+    if missing:
+        raise SystemExit('unknown cue(s): %s (have: %s)' % (
+            ' '.join(sorted(missing)), ' '.join(c[1] for c in CUES)))
+    for script, cue, mix_wav, stem_dir in todo:
         render(script)                                        # concert master
         render(script, '--loop', '--hp', str(GAME_HP))        # shipped
         d = os.path.join(ASSETS, 'music', cue)
@@ -109,7 +129,8 @@ def build_sfx():
 
 if __name__ == '__main__':
     what = sys.argv[1] if len(sys.argv) > 1 else 'all'
+    only = tuple(sys.argv[2:])
     os.makedirs(ASSETS, exist_ok=True)
-    if what in ('all', 'music'): build_music()
+    if what in ('all', 'music'): build_music(only)
     if what in ('all', 'sfx'):   build_sfx()
     print('assets at %s' % ASSETS)

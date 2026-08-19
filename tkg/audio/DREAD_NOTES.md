@@ -41,7 +41,7 @@ Why it works so hard:
 | **Heartbeat pulse** | 13–36 | Two-thump sub figure, no cymbals. Felt in the chest, never identified as a drum. |
 | **Reverse swells** | 23, 31 | Pre-echo before each event — dread is anticipation, not the hit. |
 
-No drum kit anywhere. Rhythm is a pulse, not a groove. The moment you add a backbeat, dread turns into action.
+No drum kit anywhere. Rhythm is a pulse, not a groove. The moment you add a backbeat, dread turns into action. "Poisoned Ground" keeps this rule; "Hard Burn" is what happens when you break it deliberately.
 
 ---
 
@@ -81,4 +81,4 @@ Nine WAVs, all 138.2 s, bar-1 aligned.
 
 - **Death sting:** just the semitone, F→G♭, on a single low bowed note. 2 seconds.
 - **Sector transition:** hold the pedal, swap the mode. F Aeolian → F Phrygian is one note of difference, so you can crossfade the two soundtracks over a common F drone and the change lands as a mood shift, not a music change. That is the strongest cue in the whole set and it costs nothing.
-- **Boss reveal:** state the *original* motif (whole tone) over the tritone pedal. Familiar melody, poisoned ground.
+- ~~**Boss reveal:** state the *original* motif (whole tone) over the tritone pedal. Familiar melody, poisoned ground.~~ Built — **"Poisoned Ground"** (`boss.py`). Bars 1–4 are the opening of "Slow Drift" note for note, same F6 register and same whistle patch; the B♮ arrives underneath at bar 5 and the melody never changes. Bars 17–24 then run the whole tone and the semitone simultaneously, one beat apart — this cue and that one arguing over the single note they have ever disagreed about. See `CUE_NOTES.md`.

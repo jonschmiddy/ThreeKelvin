@@ -7,14 +7,28 @@ extends Node
 ## arrangement opens up. That is why the transition costs nothing, never loses
 ## the beat, and cannot land you in the wrong bar.
 ##
-## The two cues are tempo-locked on purpose. "Slow Drift" is 142 BPM and
-## "Dead Sector" is exactly half at 71, so one dread bar is two theme bars and
-## a crossfade between them never needs a tempo match. Both are rendered as
-## seamless loops — no fade, reverb tail wrapped back over the head — so they
-## can run indefinitely.
+## All eight cues are tempo-locked on purpose. Every one is 142 BPM or exactly
+## half at 71, so any bar line in any cue lands on a bar line in any other and
+## a crossfade never needs a tempo match. All eight are rendered as seamless
+## loops — no fade, reverb tail wrapped back over the head — so they can run
+## indefinitely.
+##
+## They are also one piece of music. Every cue is the same whistled five-note
+## motif, and each does exactly one thing to it. Five recolour it in place:
+## "Dead Sector" flattens the 2nd, "Hard Burn" halves its note values and
+## builds the engine out of it, "Warm Ship" finally gives it the fifth it
+## never reaches, "Poisoned Ground" gives it that fifth a semitone flat.
+##
+## The last three develop it instead of recolouring it, because five cues of
+## one tonic is a lot of F. "Nine Shells" transposes it around the minor-third
+## cycle; "Ship's Business" runs it through a circle of fifths and is the
+## first music here with a cadence in it; "Five Ways Home" varies it five ways
+## and turns it major. Between them they are the first cues in the game to
+## change key at all.
 ##
 ## Composition lives in `audio/THEME_NOTES.md` and `audio/DREAD_NOTES.md`;
-## the render and encode pipeline in `audio/README.md`.
+## the forms themselves in `audio/motif.py`; the render and encode pipeline in
+## `audio/README.md`.
 
 const MUSIC_DIR := "res://assets/audio/music/%s/%s.ogg"
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
@@ -36,22 +50,80 @@ const CUES := {
 		[&"bowed", &"metal"],       ## 3  it has found you
 		[&"cluster"],               ## 4  tritone: the kill state
 	],
+	&"burn": [
+		[&"pad", &"fx"],            ## 0  something is out there
+		[&"sub", &"motif"],         ## 1  it has seen you
+		[&"riff", &"arp"],          ## 2  weapons free
+		[&"perc", &"bell"],         ## 3  the fight proper
+		[&"stab"],                  ## 4  all of it
+	],
+	&"warm": [
+		[&"pad", &"fx"],            ## 0  docked, lights low
+		[&"glass", &"sub"],         ## 1  inside the ship: refit, deck
+		[&"motif", &"arp"],         ## 2  station, services open
+		[&"bell"],                  ## 3  spare rung, for events at a station
+		[&"lead"],                  ## 4  the motif, answered
+	],
+	&"boss": [
+		[&"sub", &"fx"],            ## 0  the ground is wrong
+		[&"drone", &"pad"],         ## 1  tritone pedal
+		[&"motif", &"pulse"],       ## 2  the theme, untouched, over it
+		[&"bowed", &"metal"],       ## 3  as far as a deep-space fight gets
+		[&"shadow"],                ## 4  bosses only: both mutations at once
+	],
+	## The last three cues are single-state screens — there is no fight to
+	## escalate — so they get three fat rungs instead of five thin ones. The
+	## ladder is for combat; spending stems on a ladder nothing climbs just
+	## costs download size. play_cue() clamps to the table, so a short cue is
+	## a supported cue and not a special case.
+	&"shells": [
+		[&"pad", &"fx"],            ## 0  the void, planing
+		[&"motif", &"harp"],        ## 1  chart: the tune and its figuration
+		[&"reed", &"bell"],         ## 2  full
+	],
+	&"business": [
+		[&"strings", &"fx"],        ## 0  a quartet, waiting
+		[&"bass", &"motif"],        ## 1  the period
+		[&"hammer", &"reed"],       ## 2  full: keyboard and wind
+	],
+	&"home": [
+		[&"strings", &"fx"],        ## 0  the theme, bare
+		[&"whistle", &"hammer"],    ## 1  the variations proper
+		[&"reed", &"glass"],        ## 2  full
+	],
 }
 
 ## Where a screen sits on the ladder. Router names the state; this is the only
 ## table that decides what it sounds like, so retuning the whole game's music
 ## pacing is a one-file edit.
 const STATES := {
-	&"menu":     [&"theme", 0],
-	&"chart":    [&"theme", 1],
-	&"ship":     [&"theme", 1],
-	&"station":  [&"theme", 1],
+	&"menu":     [&"home", 2],
+	&"chart":    [&"shells", 2],
+	&"ship":     [&"warm", 1],
+	&"station":  [&"warm", 2],
 	&"sector":   [&"theme", 2],
-	&"event":    [&"theme", 2],
-	&"combat":   [&"theme", 4],
-	&"boss":     [&"dread", 4],
+	&"event":    [&"business", 2],
+	&"combat":   [&"burn", 4],
+	&"boss":     [&"boss", 4],
 	&"gameover": [&"theme", 0],
 }
+
+## Deep space swaps a cue for its darker counterpart at the same rung. Both
+## pairs share a common F pedal and an exact tempo lock and differ by one note
+## of the motif, so this reads as the *place* turning rather than as the music
+## changing. DREAD_NOTES §5, "sector transition".
+const DEEP := {
+	&"theme": &"dread",
+	&"burn": &"boss",
+	&"business": &"dread",
+}
+## States the swap applies to. A station or the star chart sounds the same
+## wherever you are; a place you are standing in does not.
+const DEEP_STATES: Array[StringName] = [&"sector", &"combat", &"event"]
+## Deep space never unlocks a cue's top rung. On "Poisoned Ground" that rung is
+## the theme and the dread cue stated simultaneously, which is the boss reveal
+## — so a danger-10 skirmish must not spend it first.
+const DEEP_MAX := 3
 
 ## Danger at which a sector stops using the main theme and switches to the
 ## dread cue. The galaxy runs 1-10 and gets worse coreward, so this is the
@@ -133,12 +205,9 @@ func music_state(state: StringName) -> void:
 	var entry: Array = STATES[state]
 	var cue: StringName = entry[0]
 	var level: int = entry[1]
-	# Deep space gets the dread cue instead of the theme, at the same rung of
-	# the ladder. The mutation is one flat — F Aeolian to F Phrygian over a
-	# common F pedal — so this reads as the place turning, not as the music
-	# changing. DREAD_NOTES §5, "sector transition".
-	if cue == &"theme" and state in [&"sector", &"combat", &"event"] and _danger() >= DREAD_DANGER:
-		cue = &"dread"
+	if DEEP.has(cue) and state in DEEP_STATES and _danger() >= DREAD_DANGER:
+		cue = DEEP[cue]
+		level = mini(level, DEEP_MAX)
 	play_cue(cue, level)
 
 func _danger() -> int:
