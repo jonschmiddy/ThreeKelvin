@@ -484,7 +484,7 @@ func _refresh() -> void:
 		return
 	var n: MapGen.MapNode = Run.node_at()
 	var at_war := fighting()
-	_view.set_weather(n)
+	_view.set_place(n)
 
 	_hand_wrap.visible = at_war
 	_quiet_wrap.visible = not at_war
