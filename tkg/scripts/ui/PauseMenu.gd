@@ -12,6 +12,7 @@ signal resume_requested
 signal new_run_requested
 signal quit_requested
 signal settings_requested
+signal save_and_quit_requested
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -56,7 +57,14 @@ func setup() -> void:
 
 	col.add_child(UITheme.hsep())
 
-	col.add_child(Widgets.button("QUIT TO DESKTOP", func() -> void: quit_requested.emit()))
+	# Two ways out, and the difference between them is the whole save model.
+	# SAVE & QUIT writes a bookmark you resume from once; QUIT TO DESKTOP throws
+	# the run away. The autosave means the first is what happens anyway if the
+	# process dies — this button exists so the player knows that.
+	col.add_child(Widgets.button("SAVE & QUIT",
+		func() -> void: save_and_quit_requested.emit()))
+	col.add_child(Widgets.button("QUIT — DISCARD RUN",
+		func() -> void: quit_requested.emit()))
 
 	var hint := UITheme.body("esc closes this menu", UITheme.COLD, UITheme.FS_SMALL)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

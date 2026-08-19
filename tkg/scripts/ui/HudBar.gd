@@ -26,7 +26,18 @@ func _ready() -> void:
 func refresh() -> void:
 	if Run.hull == null:
 		return
+	# Detach BEFORE freeing. queue_free() only takes effect at the end of the
+	# frame, so the old tabs stayed in the box while the new ones were added —
+	# for one frame the bar held both sets and reported roughly twice its real
+	# minimum width. Every Control above it grew to match, which pushed the
+	# whole screen wider than the 960 viewport and then snapped it back.
+	#
+	# Mostly that was an invisible one-frame wobble. On the star chart it was
+	# not: the sky is cached against the panel width, so the phantom width threw
+	# the cache away and rebuilt forty thousand stars — about 180 ms of work, on
+	# every single screen change, for a layout nobody ever saw.
 	for c in _row.get_children():
+		_row.remove_child(c)
 		c.queue_free()
 
 	var fighting := Router.in_combat()
@@ -82,6 +93,12 @@ func refresh() -> void:
 	_row.add_child(_tab("CARDS", Router.current is CardGalleryScreen, false,
 		func() -> void: Router.show_cards(),
 		"Every card in the game."))
+	# The record sits beside the catalog: both are things you read rather than
+	# places you go, and neither changes the run. Available during combat for the
+	# same reason CARDS is — looking at past runs cannot affect this one.
+	_row.add_child(_tab("HISTORY", Router.current is HistoryScreen, false,
+		func() -> void: Router.show_history(),
+		"Every run you have finished."))
 	_row.add_child(_divider())
 
 	# Frame rate, far right. Lives on the HUD rather than on the chart because

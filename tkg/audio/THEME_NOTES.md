@@ -92,9 +92,15 @@ Because the harmony is a fixed 8-bar loop, you can also cut A (bars 9–24) or A
 
 ---
 
-## 6. Ideas not yet used
+## 6. Ideas from here
 
-- **Stinger:** the motif's last two notes (G→A♭, a semitone) as a 0.5 s rise for level-up or item pickup.
-- **Death cue:** the motif with the ♭3 flattened again to G (F G F G **G**) — collapses to a flat oscillation, no lift.
-- **Boss:** transpose the whole cycle down to E♭ minor and put the motif in the bass; keep the whistle on top so it clashes at the ♯11.
+- ~~**Stinger:** the motif's last two notes (G→A♭, a semitone) as a 0.5 s rise for level-up or item pickup.~~ Built as `ui_confirm` in `sfx.py`.
+- **Death cue:** the motif with the ♭3 flattened again to G (F G F G **G**) — collapses to a flat oscillation, no lift. (`death_sting` uses the dread cue's F→G♭ instead; this variant is still unbuilt.)
+- ~~**Boss:** transpose the whole cycle down to E♭ minor and put the motif in the bass; keep the whistle on top so it clashes at the ♯11.~~ Built — **"Poisoned Ground"** (`boss.py`), bars 9–16. `transpose(MOTIF, -2)` on bowed strings while the whistle holds the original pitches, so its G♮ grinds against the bass's G♭ for eight bars. See `CUE_NOTES.md`.
 - **Procedural variation:** the reharmonisation table in §3 is a lookup. Pick a chord per sector at run time and the same melodic asset re-colours itself. Four chords is four sector moods from one 6-beat sample.
+
+Two things §1 and §3 turned out to be load-bearing for later cues:
+
+- **The motif never touches the fifth**, which §1 calls a question with no answer. That leaves the soundtrack one unused card, and it is spent exactly twice: **"Warm Ship"** answers with the C (`ANSWER`), **"Poisoned Ground"** answers with the B♮ (`FALSE_ANSWER`). Nowhere else does the phrase finish.
+- **§2's transformation table is the whole method, and it was under-used for five cues.** Everything up to "Poisoned Ground" reharmonised a static F; nothing transposed, sequenced or modulated. Measuring the result: the first five cues between them use eleven pitch classes and never once sound A♮, so the major mode was mechanically unavailable to them. `DEVELOPMENT_NOTES.md` is the three cues that fix that.
+- **The ♭VI colour** in §3 — where the G becomes a ♯11 and the phrase reads as wonder — is the whole harmonic premise of "Warm Ship", which starts on D♭maj7 and walks home rather than starting at home.

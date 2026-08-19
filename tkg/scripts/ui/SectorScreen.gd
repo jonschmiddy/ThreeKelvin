@@ -227,6 +227,15 @@ func _on_action() -> void:
 				Router.show_starchart()
 			else:
 				Router.harvest_pulsar()
+		# A contact you have not fought yet. Only reachable on a resumed run —
+		# arriving at one normally starts the fight before this screen draws —
+		# but the button has said ENGAGE all along, and it now does that rather
+		# than quietly plotting a jump.
+		MapGen.NodeType.FIGHT, MapGen.NodeType.GOAL:
+			if n.cleared or n.fled:
+				Router.show_starchart()
+			else:
+				Router.engage_here()
 		_:
 			Router.show_starchart()
 
@@ -249,6 +258,9 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 		MapGen.NodeType.FIGHT:
 			if n.cleared:
 				return ["Wreckage, cooling. Nothing else is moving.", "PLOT NEXT JUMP"]
+			if n.fled:
+				return ["You broke contact. They are still out there, and they still have everything they were carrying.",
+					"PLOT NEXT JUMP"]
 			return ["Contact.", "ENGAGE"]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
@@ -258,6 +270,15 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
 			return ["Open space, and the reactor holding. The core is a long way in from here.", "PLOT NEXT JUMP"]
+		# Only drawn on a resumed run — arrival at the Core starts the fight
+		# before this screen exists — but the button underneath now engages, so
+		# the line above it has to say what pressing it does.
+		MapGen.NodeType.GOAL:
+			if n.cleared:
+				return ["The light is behind you.", "PLOT NEXT JUMP"]
+			if n.fled:
+				return ["You broke off. It is still between you and the light.", "PLOT NEXT JUMP"]
+			return ["The core fills the viewport. Something is still guarding it.", "ENGAGE"]
 		_:
 			return ["", "PLOT NEXT JUMP"]
 

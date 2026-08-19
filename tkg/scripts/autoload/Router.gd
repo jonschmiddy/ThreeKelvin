@@ -13,18 +13,82 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 	Sig.jumped.connect(_on_jumped)
 	Sig.run_ended.connect(_on_run_ended)
 
-func _swap(screen: Control) -> void:
+## `chrome` is whether the HUD belongs above this screen. The launcher and the
+## record reached from it run before any run exists, and the HUD reads ship
+## state — it bails on a null hull, but an empty bar above a title screen is a
+## bug that looks like a decision.
+func _swap(screen: Control, chrome: bool = true) -> void:
 	if current != null:
 		current.queue_free()
 	current = screen
 	content.add_child(screen)
+	if hud != null:
+		hud.visible = chrome
 	Sig.screen_changed.emit()
+	_autosave()
+
+## The one place the run is written to disk.
+##
+## Every safe point is a screen swap and every screen swap comes through here,
+## so this is a chokepoint rather than a list of call sites that someone has to
+## remember to extend. Combat is excluded by in_combat() — `combat` is assigned
+## before start_combat() swaps its screen, so the fight's own swap saves nothing
+## and the state on disk stays the one from just before the shooting started.
+func _autosave() -> void:
+	if Run.hull == null or Run.dead or Run.won or in_combat():
+		return
+	SaveGame.save()
+
+## Title screen. Boots here unless a development flag says otherwise.
+func show_launcher() -> void:
+	# &"menu", not &"sector" — the launcher runs with no run loaded, so the
+	# sector arrangement was both the wrong music and the only state in the
+	# table nothing ever asked for.
+	Audio.music_state(&"menu")
+	_swap(LauncherScreen.new(), false)
+	(current as LauncherScreen).setup()
 
 ## Opens on the sector rather than the chart: the run starts with your ship in
 ## open space, not with a graph of places you have not been yet.
+##
+## A run that was live when this is called was abandoned, not finished, and goes
+## into the record as such — restarting a bad opening is a real outcome and
+## pretending otherwise would quietly inflate the win rate.
 func new_run() -> void:
+	if Run.hull != null and not Run.dead and not Run.won:
+		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
+	SaveGame.clear()
 	Run.start_new_run()
 	show_sector()
+
+## Resume the suspend save. Falls back to the launcher rather than to a new run:
+## a player who pressed CONTINUE did not ask to start over, and silently rolling
+## a fresh galaxy would be the worst possible answer to a save that failed to
+## read.
+func continue_run() -> void:
+	if not SaveGame.load_into_run():
+		Run.log_line("The save could not be read.", &"them")
+		show_launcher()
+		return
+	resume_here()
+
+## Where a restored run picks up. Always the sector — every arrival lands there
+## anyway, and it is the one screen that reads correctly for every node type.
+##
+## The fight at an uncleared combat node is NOT restarted here. It is offered:
+## the sector's action button says ENGAGE and starts it when pressed. Restarting
+## it automatically would drop a returning player straight into a turn they did
+## not ask for, and the node stays uncleared either way, so nothing is skipped
+## for free — flying on forfeits the loot.
+func resume_here() -> void:
+	show_sector()
+
+## The record. Reachable from the HUD during a run and from the launcher before
+## one, which is why the way back is decided by the caller.
+func show_history(from_launcher: bool = false) -> void:
+	var s := HistoryScreen.new()
+	_swap(s, not from_launcher)
+	s.setup(show_launcher if from_launcher else show_sector)
 
 func show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint
@@ -46,7 +110,12 @@ func show_sector() -> void:
 	Audio.music_state(&"sector")
 	var s := SectorScreen.new()
 	_swap(s)
-	s.setup()
+	# Hand the live fight back if there is one. A SectorScreen built with no
+	# Combat shows no fight, and the tabs that stay lit during one — CARDS, and
+	# now HISTORY — swap this screen out and back. Without this, looking at the
+	# card catalog mid-fight and pressing SECTOR returned you to an empty sector
+	# with `combat` still running behind it, which is unwinnable and unloseable.
+	s.setup(combat if in_combat() else null)
 
 ## Refit screen. Reachable from the HUD any time you are not in a fight.
 ## Development only: every card in the game on one page. See CardGalleryScreen.
@@ -158,6 +227,7 @@ func start_combat(template: EnemyTemplate) -> void:
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal".
 	Audio.music_state(&"boss" if template.boss else &"combat")
+	Run.node_at().fled = false
 	combat = Combat.new()
 	var s := SectorScreen.new()
 	_swap(s)
@@ -189,6 +259,22 @@ func start_combat(template: EnemyTemplate) -> void:
 			extras.append(DB.enemies[pool.pick_random()])
 	combat.start(template, node.danger, extras)
 
+## Start the fight waiting at this system.
+##
+## Only reachable after a resume: arriving at a combat node normally begins the
+## fight inside resolve_current_node(), so the sector never draws with an
+## unfought contact in it. A restored run does exactly that, and the action
+## button that says ENGAGE has to mean it.
+func engage_here() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n.cleared or in_combat():
+		return
+	if n.type == MapGen.NodeType.GOAL:
+		start_combat(DB.enemies[&"custodian"])
+		return
+	var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
+	start_combat(DB.enemies[pool.pick_random()])
+
 ## Events can drop you straight into a fight (distress-beacon bait).
 func start_ambush() -> void:
 	var pool := DB.fight_pool(Run.node_at().danger, false)
@@ -215,8 +301,14 @@ func after_event() -> void:
 func show_loot_or_map() -> void:
 	show_sector()
 
-func _on_run_ended(_won: bool, _reason: String) -> void:
-	pass  ## screens call show_game_over() so the player sees the summary first
+## Recorded and the save dropped the moment the run ends, not when the summary
+## screen appears — a player who alt-F4s on the death screen has still died, and
+## a suspend save that outlived the run would resurrect them.
+func _on_run_ended(won: bool, reason: String) -> void:
+	SaveGame.clear()
+	RunHistory.record(
+		RunHistory.Outcome.WON if won else RunHistory.Outcome.DIED, reason)
+	## screens call show_game_over() so the player sees the summary first
 
 ## Docking clamps. Sig has no "you docked" signal and adding one for a single
 ## sound would be noise in the bus, so the screen that opens plays it.

@@ -1,0 +1,395 @@
+class_name SaveGame
+extends RefCounted
+
+## The run in progress, on disk. One slot, rewritten at every safe point.
+##
+## This is a SUSPEND SAVE, not a checkpoint. Loading deletes the file, and the
+## file is rewritten from live state at the very next safe point — so there is
+## never an older state on disk to go back to. Quitting is a bookmark. It is not
+## a way to retry a fight you are losing or a jump you regret.
+##
+## That restraint is not fussiness. "Lateral map travel is always available and
+## cheap, so every death is self-authored" is a design ruling, and it only means
+## anything while a death is final. A reloadable save repeals the greed clock
+## without appearing to change a single number.
+##
+## COMBAT IS DELIBERATELY OUTSIDE THE SAVE. A safe point is a moment when the
+## only live state is RunState's, so restoring one cannot strand a half-resolved
+## fight. The autosave lands immediately BEFORE a fight begins rather than after
+## the jump that led to it, so force-quitting mid-fight costs you the fight, not
+## the jump — you resume on the sector with the contact still there and ENGAGE
+## still offered. It does refund the hull the fight had already taken, which is
+## the one hole in this; closing it would mean serialising deck order, enemy
+## intent loops, drones and charge timers for a case reached only by force-quit.
+
+const PATH := "user://run.save"
+## Bumped whenever the shape below changes. An old file is discarded rather than
+## guessed at — a half-understood save produces a run that is subtly wrong,
+## which is worse than no save at all.
+const VERSION := 1
+
+## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
+## saved hull is a frame plus the numbers LootGen rolled onto it.
+const HULL_FIELDS: Array[String] = ["weight", "tier", "reactor", "hand_size",
+	"max_hull", "heat_cap", "dissipation", "dodge", "initiative", "fuel_factor",
+	"weapon_slots", "system_slots", "utility_slots"]
+
+# --------------------------------------------------------------------- queries
+
+static func has_save() -> bool:
+	return FileAccess.file_exists(PATH)
+
+## What the launcher prints on the CONTINUE button. Reads the file WITHOUT
+## consuming it — only load_into_run() is allowed to do that.
+static func summary() -> Dictionary:
+	var d := _read()
+	if d.is_empty():
+		return {}
+	return {
+		galaxy = str(d.get("galaxy_title", "")),
+		jumps = int(d.get("jumps", 0)),
+		hp = int(d.get("hp", 0)),
+		max_hp = int(d.get("max_hp", 0)),
+		danger = int(d.get("danger", 1)),
+		system = str(d.get("system", "")),
+	}
+
+# ---------------------------------------------------------------------- write
+
+## Called from Router at every safe point. Cheap enough to be unconditional:
+## the map is the bulk of it and a hundred and fifty nodes stringify in a
+## millisecond or two, which is nothing beside the screen swap that triggered it.
+static func save() -> void:
+	if Run.hull == null or Run.dead or Run.won:
+		return
+	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	if f == null:
+		push_warning("SaveGame: could not open %s for writing (%d)" % [
+			PATH, FileAccess.get_open_error()])
+		return
+	# full_precision, not the default. Without it JSON rounds floats hard enough
+	# to move systems on the chart by a visible fraction of a pixel.
+	#
+	# It is still not bit-exact, and it is worth writing down what was measured
+	# rather than leaving the next person to wonder: over 20,000 random floats,
+	# 63% round-trip exactly and the worst relative error is 9.3e-14. That is
+	# three orders of magnitude below single precision and it cannot reach any
+	# observable in this game — fuel is int(round(distance * 10)), so flipping
+	# one would need a distance sitting within 1e-13 of a .5 boundary.
+	#
+	# JSON is kept over FileAccess.store_var, which WOULD be bit-exact, because
+	# a save you can read in a text editor is worth more during development than
+	# fourteen digits nothing consults.
+	f.store_string(JSON.stringify(_snapshot(), "", true, true))
+	f.close()
+
+static func clear() -> void:
+	if FileAccess.file_exists(PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+
+static func _snapshot() -> Dictionary:
+	var installed: Array = []
+	for m in Run.installed:
+		installed.append(_module_to(m))
+	var cargo: Array = []
+	for m in Run.cargo:
+		cargo.append(_module_to(m))
+	var nodes: Array = []
+	for n in Run.map:
+		nodes.append(_node_to(n))
+	var here: MapGen.MapNode = Run.node_at()
+	return {
+		version = VERSION,
+		# Denormalised for summary(). The launcher should not have to rebuild a
+		# hundred and fifty map nodes to print one line of button text.
+		system = MapGen.star_name(here),
+		danger = here.danger,
+		max_hp = Run.max_hp(),
+
+		started_at = Run.started_at,
+		galaxy_kind = Run.galaxy_kind,
+		galaxy = Run.galaxy,
+		galaxy_seed = Run.galaxy_seed,
+		galaxy_spin = Run.galaxy_spin,
+		galaxy_name = Run.galaxy_name,
+		galaxy_title = Run.galaxy_title,
+
+		hull = _hull_to(Run.hull),
+		installed = installed,
+		cargo = cargo,
+		found_hull = _hull_to(Run.found_hull) if Run.found_hull != null else null,
+
+		hp = Run.hp,
+		heat = Run.heat,
+		heat_cap_bonus = Run.heat_cap_bonus,
+		scrap = Run.scrap,
+		exotic = Run.exotic,
+		fuel = Run.fuel,
+		dross = Run.dross,
+		whale_boon = Run.whale_boon,
+
+		map = nodes,
+		at = Run.at,
+		trail = Array(Run.trail),
+		jumps = Run.jumps,
+		kills = Run.kills,
+	}
+
+# ----------------------------------------------------------------------- read
+
+static func _read() -> Dictionary:
+	if not FileAccess.file_exists(PATH):
+		return {}
+	var f := FileAccess.open(PATH, FileAccess.READ)
+	if f == null:
+		return {}
+	var raw := f.get_as_text()
+	f.close()
+	var parsed: Variant = JSON.parse_string(raw)
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	var d: Dictionary = parsed
+	if int(d.get("version", -1)) != VERSION:
+		return {}
+	return d
+
+## Restores the run and consumes the file. True when a run is now live.
+##
+## The delete is the whole point of the model, but it also opens a window: a
+## crash between here and the next safe point would lose the run. Router saves
+## on the very next screen swap, which is the one this call is about to cause,
+## so that window is a few milliseconds wide.
+static func load_into_run() -> bool:
+	var d := _read()
+	if d.is_empty():
+		clear()
+		return false
+
+	Run.started_at = float(d.get("started_at", 0.0))
+	Run.galaxy_kind = int(d.get("galaxy_kind", 0))
+	Run.galaxy = _galaxy_from(Run.galaxy_kind, d.get("galaxy", {}))
+	Run.galaxy_seed = int(d.get("galaxy_seed", 0))
+	Run.galaxy_spin = float(d.get("galaxy_spin", 0.0))
+	Run.galaxy_name = str(d.get("galaxy_name", ""))
+	Run.galaxy_title = str(d.get("galaxy_title", ""))
+
+	# The hull before the map: ring_radius() reads Run.galaxy, and half the
+	# screens read Run.hull the moment a signal reaches them.
+	Run.hull = _hull_from(d.get("hull", {}))
+	var installed: Array[ModuleData] = []
+	for e in d.get("installed", []):
+		var m := _module_from(e)
+		if m != null:
+			installed.append(m)
+	Run.installed = installed
+	var cargo: Array[ModuleData] = []
+	for e in d.get("cargo", []):
+		var m := _module_from(e)
+		if m != null:
+			cargo.append(m)
+	Run.cargo = cargo
+	var fh: Variant = d.get("found_hull", null)
+	Run.found_hull = _hull_from(fh) if typeof(fh) == TYPE_DICTIONARY else null
+
+	Run.hp = int(d.get("hp", 1))
+	Run.heat = int(d.get("heat", 0))
+	Run.heat_cap_bonus = int(d.get("heat_cap_bonus", 0))
+	Run.scrap = int(d.get("scrap", 0))
+	Run.exotic = int(d.get("exotic", 0))
+	Run.fuel = int(d.get("fuel", 0))
+	Run.dross = int(d.get("dross", 0))
+	Run.whale_boon = bool(d.get("whale_boon", false))
+
+	var map: Array = []
+	for e in d.get("map", []):
+		map.append(_node_from(e))
+	Run.map = map
+	Run.at = clampi(int(d.get("at", 0)), 0, maxi(0, map.size() - 1))
+	var trail := PackedInt32Array()
+	for i in d.get("trail", []):
+		trail.append(int(i))
+	Run.trail = trail
+	Run.jumps = int(d.get("jumps", 0))
+	Run.kills = int(d.get("kills", 0))
+
+	Run.won = false
+	Run.dead = false
+	Run.death_reason = ""
+	# Jump range is a pure function of a system and the galaxy, and both just
+	# changed underneath it.
+	Run._range_cache.clear()
+
+	if Run.map.is_empty():
+		clear()
+		return false
+
+	clear()
+	Sig.run_started.emit()
+	Sig.resources_changed.emit()
+	Sig.ship_changed.emit()
+	Run.log_line("Reactor warm. Resuming from %s." % MapGen.star_name(Run.node_at()), &"big")
+	return true
+
+# --------------------------------------------------------------- galaxy params
+
+## JSON has one number type, so a round-trip turns every int in the parameter
+## block into a float — and `arms` is a loop count. Rebuilding from the KIND
+## template and coercing each saved value to the template's type restores the
+## rolled numbers without restoring them as the wrong type.
+static func _galaxy_from(kind: int, saved: Variant) -> Dictionary:
+	var out: Dictionary = GalaxyGen.params(kind).duplicate()
+	if typeof(saved) != TYPE_DICTIONARY:
+		return out
+	for raw_key in (saved as Dictionary).keys():
+		# JSON hands back String keys; the template's are StringName. Godot
+		# hashes the two alike so lookups work either way, but a String key
+		# added beside StringName ones makes the restored dictionary print
+		# differently from the one it copied — and that difference is the sort
+		# of thing that gets chased for an hour later.
+		var k := StringName(str(raw_key))
+		var v: Variant = (saved as Dictionary)[raw_key]
+		if out.has(k):
+			match typeof(out[k]):
+				TYPE_INT: v = int(v)
+				TYPE_FLOAT: v = float(v)
+				TYPE_BOOL: v = bool(v)
+				TYPE_STRING: v = str(v)
+		else:
+			# `hole` is rolled rather than authored, so it has no template entry.
+			v = float(v) if typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT else v
+		out[k] = v
+	return out
+
+# -------------------------------------------------------------------- modules
+
+## A module is a template id plus what LootGen rolled onto it. Affixes are
+## stored by name and resolved back to the shared DB instances, which is how
+## they are held during a run too — LootGen picks out of a shallow duplicate.
+static func _module_to(m: ModuleData) -> Dictionary:
+	var affixes: Array = []
+	for a in m.affixes:
+		affixes.append(a.name)
+	return {
+		id = String(m.id),
+		rarity = int(m.rarity),
+		scrap_value = m.scrap_value,
+		affixes = affixes,
+	}
+
+## Null when the id is gone from the database — content changed under a save.
+## The module is dropped and the rest of the run loads, which beats refusing the
+## whole file over one retired part.
+static func _module_from(e: Variant) -> ModuleData:
+	if typeof(e) != TYPE_DICTIONARY:
+		return null
+	var d: Dictionary = e
+	var id := StringName(str(d.get("id", "")))
+	if not DB.modules.has(id):
+		push_warning("SaveGame: dropped unknown module '%s'" % id)
+		return null
+	var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
+	m.rarity = int(d.get("rarity", int(m.rarity))) as ModuleData.Rarity
+	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
+	var affixes: Array[AffixData] = []
+	for want in d.get("affixes", []):
+		for a in DB.affixes:
+			if a.name == str(want):
+				affixes.append(a)
+				break
+	m.affixes = affixes
+	return m
+
+# ---------------------------------------------------------------------- hulls
+
+static func _hull_to(h: HullData) -> Dictionary:
+	var d := {name = h.name, perk_id = String(h.perk_id)}
+	for f in HULL_FIELDS:
+		d[f] = h.get(f)
+	return d
+
+static func _hull_from(e: Variant) -> HullData:
+	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}
+	var base: HullData = DB.hull_frames[1]
+	for frame in DB.hull_frames:
+		if frame.name == str(d.get("name", "")):
+			base = frame
+			break
+	var h := base.duplicate(true) as HullData
+	h.perk_id = StringName(str(d.get("perk_id", "salvage_rack")))
+	for f in HULL_FIELDS:
+		if not d.has(f):
+			continue
+		h.set(f, float(d[f]) if typeof(h.get(f)) == TYPE_FLOAT else int(d[f]))
+	return h
+
+# ----------------------------------------------------------------- map nodes
+
+## The map is stored whole rather than regenerated from a seed. MapGen draws on
+## the global RNG rather than a seeded stream, so there is no seed that would
+## reproduce it — and even if there were, the run's own marks (visited, cleared,
+## inspected, rolled shop stock) are not in it.
+static func _node_to(n: MapGen.MapNode) -> Dictionary:
+	var makers: Array = []
+	for m in n.makers:
+		makers.append(String(m))
+	var shop: Array = []
+	for m in n.shop:
+		shop.append(_module_to(m))
+	return {
+		index = n.index, layer = n.layer, row = n.row,
+		rows_in_layer = n.rows_in_layer,
+		region = int(n.region), development = int(n.development),
+		security = n.security, makers = makers,
+		manufacturer = String(n.manufacturer), fauna = n.fauna,
+		danger = n.danger, type = int(n.type),
+		visited = n.visited, cleared = n.cleared, inspected = n.inspected,
+		fled = n.fled,
+		in_nebula = n.in_nebula, nebula_emission = n.nebula_emission,
+		pos = [n.pos.x, n.pos.y], gal = [n.gal.x, n.gal.y],
+		links = Array(n.links),
+		shop = shop,
+		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
+	}
+
+static func _node_from(e: Variant) -> MapGen.MapNode:
+	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}
+	var n := MapGen.MapNode.new()
+	n.index = int(d.get("index", 0))
+	n.layer = int(d.get("layer", 0))
+	n.row = int(d.get("row", 0))
+	n.rows_in_layer = int(d.get("rows_in_layer", 1))
+	n.region = int(d.get("region", 0)) as MapGen.Region
+	n.development = int(d.get("development", 0)) as MapGen.Development
+	n.security = int(d.get("security", 1))
+	var makers: Array[StringName] = []
+	for m in d.get("makers", []):
+		makers.append(StringName(str(m)))
+	n.makers = makers
+	n.manufacturer = StringName(str(d.get("manufacturer", "")))
+	n.fauna = bool(d.get("fauna", false))
+	n.danger = int(d.get("danger", 1))
+	n.type = int(d.get("type", 0)) as MapGen.NodeType
+	n.visited = bool(d.get("visited", false))
+	n.cleared = bool(d.get("cleared", false))
+	n.fled = bool(d.get("fled", false))
+	n.inspected = bool(d.get("inspected", false))
+	n.in_nebula = bool(d.get("in_nebula", false))
+	n.nebula_emission = bool(d.get("nebula_emission", false))
+	n.pos = _vec(d.get("pos", []))
+	n.gal = _vec(d.get("gal", []))
+	var links := PackedInt32Array()
+	for i in d.get("links", []):
+		links.append(int(i))
+	n.links = links
+	for m in d.get("shop", []):
+		var mod := _module_from(m)
+		if mod != null:
+			n.shop.append(mod)
+	var sh: Variant = d.get("shop_hull", null)
+	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
+	return n
+
+static func _vec(v: Variant) -> Vector2:
+	if typeof(v) != TYPE_ARRAY or (v as Array).size() < 2:
+		return Vector2.ZERO
+	return Vector2(float((v as Array)[0]), float((v as Array)[1]))
