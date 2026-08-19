@@ -1,1 +1,4 @@
 .DS_Store
+
+# Validation logs, when .github/scripts/validate.sh is run locally.
+ci-logs/
