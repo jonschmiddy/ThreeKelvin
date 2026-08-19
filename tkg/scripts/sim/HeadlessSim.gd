@@ -52,6 +52,14 @@ func _play_one() -> void:
 			break
 		elif node.type == MapGen.NodeType.STATION:
 			_shop()
+		elif node.type == MapGen.NodeType.PULSAR and not node.cleared:
+			# Always taken. A competent player does not walk past the best fuel
+			# in the galaxy — the question the model cannot answer is whether
+			# the hull cost is worth it, which is exactly what the win rate is
+			# for.
+			Run.harvest_pulsar()
+			if Run.dead:
+				break
 		elif node.type == MapGen.NodeType.DERELICT and not node.cleared:
 			node.cleared = true
 			Run.cargo.append(LootGen.roll_module(node.danger))

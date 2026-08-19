@@ -12,6 +12,9 @@ extends Control
 ## than being built conditionally, so there is one layout to reason about.
 
 var combat: Combat
+## The last card played, kept only so an attack can be drawn as the weapon it
+## came from. Presentation, never consulted by anything that resolves.
+var _last_played: CardData = null
 
 # --- shared
 var _view: EncounterView
@@ -68,6 +71,10 @@ func setup(c: Combat = null) -> void:
 	Sig.turn_started.connect(func(_t): _refresh())
 	Sig.combat_ended.connect(_on_combat_ended)
 	Sig.damage_dealt.connect(_on_damage)
+	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
+	# Damage says how much and to whom, never with what — so the card is caught
+	# on its way past and read for its material.
+	Sig.card_played.connect(func(c: CardData) -> void: _last_played = c)
 
 	_refresh()
 
@@ -96,6 +103,7 @@ func _build() -> void:
 	_view = EncounterView.new()
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_view)
+	_view.fx.landed.connect(_on_shot_landed)
 
 	var pad := MarginContainer.new()
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -215,6 +223,11 @@ func _on_action() -> void:
 				Router.show_starchart()
 			else:
 				Router.show_event()
+		MapGen.NodeType.PULSAR:
+			if n.cleared:
+				Router.show_starchart()
+			else:
+				Router.harvest_pulsar()
 		_:
 			Router.show_starchart()
 
@@ -238,6 +251,12 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 			if n.cleared:
 				return ["Wreckage, cooling. Nothing else is moving.", "PLOT NEXT JUMP"]
 			return ["Contact.", "ENGAGE"]
+		MapGen.NodeType.PULSAR:
+			if n.cleared:
+				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",
+					"PLOT NEXT JUMP"]
+			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy and its beam will cook you through the hull. Close enough to scoop is close enough to die.",
+				"FLY THE BEAM"]
 		MapGen.NodeType.START:
 			return ["Open space, and the reactor holding. The core is a long way in from here.", "PLOT NEXT JUMP"]
 		_:
@@ -310,6 +329,7 @@ func _refresh() -> void:
 		return
 	var n: MapGen.MapNode = Run.node_at()
 	var at_war := fighting()
+	_view.set_weather(n)
 
 	_side_wrap.visible = at_war
 	_strip_wrap.visible = at_war
@@ -327,6 +347,13 @@ func _refresh() -> void:
 		Run.hp, Run.max_hp(), Run.heat, Run.heat_cap()]
 	_facts.text = "%s - DANGER %d - LAYER %d OF %d" % [
 		MapGen.type_label(n.type), n.danger, n.layer + 1, MapGen.LAYERS]
+	if n.in_nebula:
+		# Named, not just described. "Inside a nebula" is a fact about the sky;
+		# "inside The Drowned Veil" is a fact about where you are, and it is the
+		# same name written across the cloud on the chart.
+		var cloud := NebulaField.at(n.gal)
+		if cloud != null:
+			_facts.text += "  -  INSIDE %s" % cloud.name.to_upper()
 	_blurb.text = MapGen.place_blurb(n)
 
 	if at_war:
@@ -547,11 +574,45 @@ func _on_flee() -> void:
 	if fighting():
 		combat.flee()
 
-func _on_damage(amount: int, to_player: bool) -> void:
-	if amount <= 0 or not fighting():
+## An attack landed. Draw the shot rather than the result: something crosses the
+## gap, and the hull it reaches flinches when it arrives.
+##
+## The flinch is deliberately NOT here — it waits for the effects layer to
+## report the hit. Combat resolves instantly, so shaking at this moment would
+## put the recoil before the round had gone anywhere.
+func _on_damage(amount: int, to_player: bool, who: int) -> void:
+	if amount <= 0 or not fighting() or _view.fx == null:
 		return
-	# Small shake sells the hit without needing animation assets.
-	var target: Control = _view.ship_view() if to_player else _view.enemy_view(0)
+	var here := _view.enemy_anchor(who)
+	var mine := _view.ship_muzzle()
+	if to_player:
+		# Theirs is always warm and always comes from the enemy that threw it,
+		# so several attackers read as several attackers.
+		_view.fx.fire(here, mine, CombatFx.Kind.HOSTILE, 1, who, true)
+	else:
+		# Ballistics run cold and energy weapons run hot — the game says so
+		# everywhere else, so the shot should look like the weapon that fired
+		# it. A card that generates heat is an energy weapon.
+		var kind := CombatFx.Kind.BALLISTIC
+		var hits := 1
+		if _last_played != null:
+			if _last_played.heat > 0:
+				kind = CombatFx.Kind.ENERGY
+			hits = clampi(_last_played.hits, 1, 6)
+		_view.fx.fire(mine, here, kind, hits, who, false)
+
+## A hull coming apart. Spawned before the refresh dims the slot, so the debris
+## leaves from where the ship actually was rather than from a grey placeholder.
+func _on_enemy_destroyed(who: int) -> void:
+	if not fighting() or _view.fx == null:
+		return
+	var art := _view.enemy_view(who)
+	var tint: Color = UITheme.COLD if art == null else Color("#6f8093")
+	_view.fx.wreck(_view.enemy_anchor(who), tint)
+
+## The shot arrived. Now the target moves.
+func _on_shot_landed(who: int, to_player: bool, _kind: int) -> void:
+	var target: Control = _view.ship_view() if to_player else _view.enemy_view(who)
 	if target == null:
 		return
 	var origin := target.position

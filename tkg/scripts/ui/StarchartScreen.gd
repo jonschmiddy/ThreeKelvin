@@ -15,6 +15,7 @@ var _chart: MapChart
 var _layer_cells: HBoxContainer
 var _layer_text: Label
 var _icons_btn: Button
+var _all_btn: Button
 
 var _dest_name: Label
 var _dest_class: Label
@@ -56,6 +57,13 @@ func _build() -> void:
 	_icons_btn = Widgets.button("HIDE SYSTEMS", _on_toggle_icons)
 	_icons_btn.custom_minimum_size = Vector2(112, 14)
 	strip.add_child(_icons_btn)
+	# Debug: drop the "visited or reachable" filter and draw the whole map.
+	# Useful for looking at generation — whether the shells are spaced sensibly,
+	# whether a galaxy rolled something odd — which the play view deliberately
+	# hides.
+	_all_btn = Widgets.button("SHOW ALL SYSTEMS", _on_toggle_all)
+	_all_btn.custom_minimum_size = Vector2(136, 14)
+	strip.add_child(_all_btn)
 	root.add_child(strip)
 
 	# --- chart | destination
@@ -130,6 +138,7 @@ func _build() -> void:
 			[MapGen.NodeType.STATION, "STATION", Color("#8ec8e6")],
 			[MapGen.NodeType.EVENT, "EVENT", Color("#b08ad0")],
 			[MapGen.NodeType.DERELICT, "DERELICT", Color("#8a6a3a")],
+			[MapGen.NodeType.PULSAR, "PULSAR", Color("#8fd2e0")],
 			[MapGen.NodeType.GOAL, "CORE", Color("#d4614f")]]:
 		var item := HBoxContainer.new()
 		item.add_theme_constant_override("separation", 3)
@@ -154,8 +163,7 @@ func _refresh() -> void:
 	var here: MapGen.MapNode = Run.node_at()
 
 	_layer_text.text = "LAYER %d/%d" % [here.layer + 1, MapGen.LAYERS]
-	for c in _layer_cells.get_children():
-		c.queue_free()
+	_clear(_layer_cells)
 	for i in MapGen.LAYERS:
 		var cell := Panel.new()
 		cell.custom_minimum_size = Vector2(11, 5)
@@ -172,8 +180,7 @@ func _refresh() -> void:
 		_selected = -1
 	_chart.set_state(_selected)
 
-	for c in _rows.get_children():
-		c.queue_free()
+	_clear(_rows)
 
 	if _selected < 0:
 		_fill_neighbours(here)
@@ -198,8 +205,16 @@ func _refresh() -> void:
 	# The name is the place; the classification is what kind of place it is -
 	# how built up, how policed, and whose it is, in that order.
 	_dest_name.text = MapGen.star_name(t)
-	_dest_class.text = "%s - %s" % [
-		Run.galaxy_name, MapGen.development_name(t.development).to_upper()]
+	# Galaxy, then the cloud if it is in one, then what kind of place it is —
+	# outermost thing first, narrowing to the system. The nebula belongs in this
+	# line rather than in the rows below: the rows are facts ABOUT the place,
+	# and the cloud is part of its address.
+	var addr := "%s - " % Run.galaxy_name
+	if t.in_nebula:
+		var cl := NebulaField.at(t.gal)
+		if cl != null:
+			addr += "%s - " % cl.name.to_upper()
+	_dest_class.text = addr + MapGen.development_name(t.development).to_upper()
 	_dest_blurb.text = MapGen.place_blurb(t)
 
 	_rows.add_child(_row("CONTAINS", _contains(t)))
@@ -240,6 +255,13 @@ func _refresh() -> void:
 		var heading := "LATERAL" if t.layer == here.layer else "COREWARD  L%d" % (t.layer + 1)
 		_rows.add_child(_row("HEADING", heading, UITheme.FLARE if t.layer > here.layer else UITheme.CHILL))
 
+	# Hazards last, so the thing that might kill you is the thing your eye
+	# stops on. The key is only written on the first line: three rows each
+	# saying WARNING reads as three separate alarms rather than one list.
+	var hz := MapGen.hazards(t)
+	for i in hz.size():
+		_rows.add_child(_row("WARNING" if i == 0 else "", hz[i], _WARN))
+
 	# What is actually in reach, by name. "3 lateral hops left at this depth"
 	# was a true sentence about a fact nobody can act on — it named a count
 	# without naming the places, so you still had to go hunting on the chart for
@@ -262,8 +284,7 @@ func _refresh() -> void:
 ## systems stay on it — knowing the nearby ground is already stripped is the
 ## information that decides whether you farm on or dive.
 func _fill_neighbours(here: MapGen.MapNode) -> void:
-	for c in _neigh.get_children():
-		c.queue_free()
+	_clear(_neigh)
 	var near := Run.in_range()
 	near.sort_custom(func(x, y):
 		return MapGen.hop_distance(here, x) < MapGen.hop_distance(here, y))
@@ -344,6 +365,24 @@ func _contains(t: MapGen.MapNode) -> String:
 		MapGen.NodeType.GOAL: return "THE CUSTODIAN"
 		_: return "-"
 
+## Empty a container NOW, not at the end of the frame.
+##
+## queue_free() defers to the end of the frame while add_child() is immediate,
+## so a rebuild left the old children and the new ones in the container together
+## for one frame before the old set vanished. In a VBoxContainer that reads as
+## the list doubling in length and then collapsing — which is why every click
+## made things appear and disappear. Removing from the tree first makes the
+## rebuild atomic; the nodes are still freed, just not while they are visible.
+func _clear(host: Node) -> void:
+	for c in host.get_children():
+		host.remove_child(c)
+		c.queue_free()
+
+## Hazard red. Warmer and louder than THEM, which is an enemy's colour and
+## already spoken for — a warning has to win against a panel that is otherwise
+## entirely cold blues.
+const _WARN := Color("#d4614f")
+
 func _row(key: String, value: String, colour: Color = UITheme.CHILL) -> Control:
 	var row := HBoxContainer.new()
 	row.add_child(UITheme.body(key, UITheme.COLD, UITheme.FS_SMALL))
@@ -381,6 +420,11 @@ func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 func _on_toggle_icons() -> void:
 	_chart.show_icons = not _chart.show_icons
 	_icons_btn.text = "HIDE SYSTEMS" if _chart.show_icons else "SHOW SYSTEMS"
+	_chart.queue_redraw()
+
+func _on_toggle_all() -> void:
+	_chart.show_all = not _chart.show_all
+	_all_btn.text = "SHOW ALL SYSTEMS" if not _chart.show_all else "SHOW KNOWN ONLY"
 	_chart.queue_redraw()
 
 func _on_chart_cleared() -> void:
@@ -547,23 +591,56 @@ class Glyph extends Control:
 		".............",
 		"............."]
 
-	## The thing at the centre: a bright accretion ring around nothing at all.
-	## The hole has to be drawn as absence — pixels that are not there — because
-	## any colour dark enough to read as a black hole would just read as a dark
-	## sprite against a dark chart.
+	## The hole itself: an accretion disc seen nearly edge-on, with the far side
+	## of it lensed up over the top and down under the bottom.
+	##
+	## Read it as three things. The wide bright band through the middle is the
+	## disc; it breaks either side of the centre because the far side of it
+	## passes BEHIND the shadow, and the unbroken band just below is the near
+	## side passing in front. The arcs over and under are that same disc again,
+	## bent right around the hole — which is the one piece of a black hole that
+	## no other object in the sky does, and so the piece worth spending pixels
+	## on at this size.
+	##
+	## The middle is left EMPTY rather than drawn dark, and that is deliberate:
+	## the glyph sits exactly on the galaxy centre, where the live layer is
+	## turning a real accretion disc around a real shadow. Leaving the shadow
+	## transparent means the marker frames the animation instead of covering it.
 	const _GOAL := [
 		".............",
-		"....*****....",
-		"..**ooooo**..",
-		".*oo.....oo*.",
-		".*o.......o*.",
-		"**o.......o**",
-		"**o.......o**",
-		"**o.......o**",
-		".*o.......o*.",
-		".*oo.....oo*.",
-		"..**ooooo**..",
-		"....*****....",
+		".............",
+		"....#####....",
+		"..###...###..",
+		"..#.......#..",
+		"###.......###",
+		"****.....****",
+		"*************",
+		"..#.......#..",
+		"..###...###..",
+		"....#####....",
+		".............",
+		"............."]
+
+	## An open ring with a beam tick either side.
+	##
+	## The middle is deliberately EMPTY. The live layer flashes the actual
+	## neutron star at this exact point, and the first version of this glyph was
+	## a solid cross that sat on top of it — so the one node type with its own
+	## animation was the one node type whose animation you could not see. The
+	## ring says "something is here" and then gets out of the way.
+	const _PULSAR := [
+		".............",
+		".....###.....",
+		"...##...##...",
+		"..#.......#..",
+		".#.........#.",
+		".#.........#.",
+		"*#.........#*",
+		".#.........#.",
+		".#.........#.",
+		"..#.......#..",
+		"...##...##...",
+		".....###.....",
 		"............."]
 
 	## Where the run began: your own hull, nosing right.
@@ -588,6 +665,7 @@ class Glyph extends Control:
 			MapGen.NodeType.EVENT: return _EVENT
 			MapGen.NodeType.DERELICT: return _DERELICT
 			MapGen.NodeType.GOAL: return _GOAL
+			MapGen.NodeType.PULSAR: return _PULSAR
 			MapGen.NodeType.START: return _START
 			_: return _FIGHT
 
@@ -645,6 +723,10 @@ class Glyph extends Control:
 class SkyAnim extends Control:
 	var chart: MapChart
 
+	## Every frame. It was capped to thirty while the backdrop moved at sixty,
+	## which is invisible when the view is still and obvious the moment you drag
+	## — the core stepped along half a beat behind the galaxy around it. Costing
+	## four milliseconds instead of fifty, it can simply keep up.
 	func _process(_delta: float) -> void:
 		queue_redraw()
 
@@ -699,6 +781,8 @@ class MapChart extends Control:
 	## When false the chart draws the galaxy and nothing else — no systems, no
 	## routes, no trail, no tooltip.
 	var show_icons: bool = true
+	## Debug: ignore the visited/reachable filter and draw every system.
+	var show_all: bool = false
 	var selected: int = -1
 	var hovered: int = -1
 	var zoom: float = ZOOM_MIN
@@ -729,6 +813,13 @@ class MapChart extends Control:
 	## they are wanted for every system on every redraw AND on every mouse
 	## motion, so they are worth remembering.
 	var _polar_cache: Dictionary = {}
+	## Scratch for _lens, so a per-pixel call does not allocate.
+	var _lens_out: Array = [Vector2.ZERO]
+	## The cloud under the cursor, if any.
+	var _neb_hot: String = ""
+	var _neb_hot_emit: bool = false
+	var _neb_hot_kind: String = ""
+	var _neb_hot_at: Vector2 = Vector2.ZERO
 
 	## The galaxy as plain data, built once per galaxy rather than re-derived
 	## per repaint. Re-deriving cost about 150ms a frame.
@@ -742,7 +833,58 @@ class MapChart extends Control:
 	## was the earlier attempt and it visibly dimmed the galaxy — this leaves
 	## every bright star, the arms, the core and the lanes exactly as they are.
 	var _star_dim: PackedByteArray = PackedByteArray()
+	## How many static stars the cleared core swallowed. The live layer draws
+	## exactly this many back, which is the only way to guarantee the orbiting
+	## stars match the density of the field they sit inside — guessing a count
+	## meant the core was visibly thinner or denser than its surroundings, and
+	## the gap moved every time a galaxy rolled a different concentration.
+	var _core_skipped: int = 0
+	## The stars the cleared core swallowed: their radius and their colour, kept
+	## so the live layer can put THOSE STARS back in orbit rather than a separate
+	## population standing in for them.
+	##
+	## A stand-in can match a count and still be obviously wrong. On an edge-on
+	## galaxy the disc is a bright blue-white lane straight through the middle,
+	## and replacing its stars with a warm gold field left the lane running up to
+	## the core, stopping, and a different-coloured thing turning where it should
+	## have continued. Inheriting radius and colour makes the core the same
+	## galaxy as the rest of it — just the part that is moving.
+	var _core_rad: PackedFloat32Array = PackedFloat32Array()
+	var _core_col: PackedColorArray = PackedColorArray()
+	## Size class travels with them, so a swallowed gas block comes back as a
+	## gas block rather than as a one-pixel star.
+	var _core_size: PackedByteArray = PackedByteArray()
+	## The angle each one was already at. Orbits used to take a hashed angle,
+	## which threw away where the star actually WAS — so the arms stopped dead at
+	## the core and a scrambled cloud turned inside it. Worse, the hash was fed a
+	## strided index once the core overflowed, and a multiplicative hash on an
+	## arithmetic progression lands on a lattice: the whole cluster bunched into
+	## one arc. Keeping the angle fixes both. The arms now run continuously into
+	## the core and wind as it turns, which is what a galaxy does.
+	var _core_ang: PackedFloat32Array = PackedFloat32Array()
+	## The orbiting core, precomputed. Radius, starting angle, angular speed and
+	## colour are all fixed for the life of a galaxy — only the angle advances —
+	## so deriving them per particle per frame was paying for the same three
+	## hashes, a square root and a colour decision seven thousand times, sixty
+	## times a second. All that is left in the frame is an add, a sin, a cos and
+	## a rect.
+	var _orb_r: PackedFloat32Array = PackedFloat32Array()
+	var _orb_a: PackedFloat32Array = PackedFloat32Array()
+	var _orb_w: PackedFloat32Array = PackedFloat32Array()
+	var _orb_col: PackedColorArray = PackedColorArray()
+	var _orb_size: PackedByteArray = PackedByteArray()
+	## Whether this particle's orbit can ever cross a dark lobe. Decided once
+	## from its radius, because its radius never changes. See the orbit draw.
+	var _orb_dark: PackedByteArray = PackedByteArray()
 	var _star_key: String = ""
+	## Dark clouds in drawn galaxy space, as flat lobes. See _extinct.
+	var _dark_c: PackedVector2Array = PackedVector2Array()
+	var _dark_r: PackedFloat32Array = PackedFloat32Array()
+	## Just the lobes that reach into the region the live layer orbits material
+	## through. Almost always empty, and when it is, the per-frame test in the
+	## orbit loop costs one is_empty() for the whole galaxy. See _extinct_orbit.
+	var _dark_orb_c: PackedVector2Array = PackedVector2Array()
+	var _dark_orb_r: PackedFloat32Array = PackedFloat32Array()
 
 	## Nebulae, clusters and remnants live in the same packed arrays as the
 	## stars: built once per galaxy, a rect apiece at repaint, exactly like
@@ -842,20 +984,67 @@ class MapChart extends Control:
 	## disc churns, the stars beyond it turn slowly, and somewhere out there the
 	## motion reaches zero and the live layer becomes the static galaxy without
 	## a seam to find.
-	func _orbital_omega(r: float) -> float:
-		var sh := _shadow_r()
-		var clear := _core_clear()
-		var kep: float = 0.25 * pow(sh / maxf(r, sh * 0.6), 1.5)
+	## Takes sh and clear rather than fetching them, and that is not tidiness —
+	## it is the difference between 19fps and playable. This runs once per
+	## particle, ten thousand times a frame, and each fetch was a _radius()
+	## computation plus a dictionary lookup into the rolled galaxy. Hoisting two
+	## values out of the inner loop cost about 40ms a frame.
+	## How much of the local star population is in motion at radius `r`: 1 right
+	## against the hole, easing to 0 by the edge of the core.
+	##
+	## This is the single rule the core now follows. The cached field keeps a
+	## star with probability (1 - motion) and the live layer keeps one with
+	## probability motion, so the two always sum to the same density AND a star
+	## is only ever static where the motion has genuinely stopped. Before this
+	## the handover was a fixed band, which left stationary stars sitting behind
+	## orbiting ones close in — the thing that gave it away.
+	func _motion_at(r: float, clear: float) -> float:
 		var fade: float = clampf(1.0 - r / maxf(1.0, clear), 0.0, 1.0)
-		# Smoothstep, so it eases out of motion rather than ramping linearly
-		# into stillness.
-		fade = fade * fade * (3.0 - 2.0 * fade)
-		return kep * fade
+		return fade * fade * (3.0 - 2.0 * fade)
+
+	## Which layer OWNS the stars at this radius — a different question from how
+	## fast they are going, and it needs a different curve.
+	##
+	## Splitting them by speed alone put half the stars in each layer wherever
+	## the speed happened to be halfway, and at those radii the motion is still
+	## plainly visible — so you got stationary stars sitting among obviously
+	## moving ones. Weighting ownership hard toward the live layer keeps the
+	## cached field out until the motion is genuinely almost nothing, which is
+	## the only place a static star can hide next to a moving one.
+	func _own_at(r: float, clear: float) -> float:
+		# Total inside three quarters of the core, then a smooth handover.
+		#
+		# This was pow(motion, 0.30), which is a curve rather than a rule, and a
+		# curve leaves a tail: measured, it left thirteen static stars in the
+		# innermost fifth of the core but two hundred in the next and nearly a
+		# thousand in the outermost — about twenty-two hundred motionless stars
+		# sitting inside a region where everything is supposed to be turning.
+		# A few percent of a very dense place is still a crowd.
+		#
+		# The live layer takes ALL of it out to 0.72 and hands back over the last
+		# quarter. A sharp edge is safe here because the two layers share one
+		# rule: whatever this gives up, the other picks up, so the total density
+		# is flat across the seam however abrupt the split.
+		var x: float = clampf(r / maxf(1.0, clear), 0.0, 1.0)
+		if x < 0.72:
+			return 1.0
+		var f: float = (1.0 - x) / 0.28
+		return f * f * (3.0 - 2.0 * f)
+
+	func _orbital_omega(r: float, sh: float, clear: float) -> float:
+		var q: float = sh / maxf(r, sh * 0.6)
+		var kep: float = 0.19 * q * sqrt(q)
+		return kep * _motion_at(r, clear)
 
 	func _core_clear() -> float:
 		# Never smaller than the disc needs: a galaxy that rolled a large hole
 		# would otherwise have its accretion disc pushed through the boundary.
-		return maxf(_radius() * 0.22, _shadow_r() * 4.6)
+		# Every star in here is redrawn sixty times a second, and the count is
+		# derived from the area, so this radius IS the frame budget. At 0.22 it
+		# was nine thousand moving particles and 23ms a frame. The speed
+		# gradient still reads across a smaller region; nine thousand stars
+		# turning did not read any better than three thousand.
+		return maxf(_radius() * 0.21, _shadow_r() * 5.0)
 
 	func _radius() -> float:
 		# Twice the frame. Twenty-four rings inside one screen puts them about
@@ -870,6 +1059,39 @@ class MapChart extends Control:
 	## The chart only scales it to the disc it is drawing.
 	func _polar(n: MapGen.MapNode) -> Vector2:
 		return n.gal * (_radius() * DISC)
+
+	## Everything currently on screen, as a set of indices.
+	##
+	## Built once per frame and shared with hit-testing, because "what is drawn"
+	## and "what can be clicked" answering differently is how you end up with a
+	## tooltip hovering over empty space.
+	##
+	## Pointing at a reachable system adds ITS neighbourhood too — that is the
+	## question you are asking by pointing at it. Without that the onward routes
+	## were drawn to systems the filter had hidden, so hovering a candidate gave
+	## you dotted lines running off to nothing.
+	func _visible_set(here: MapGen.MapNode, reach: Array) -> Dictionary:
+		var out: Dictionary = {}
+		for n in Run.map:
+			var t: MapGen.MapNode = n
+			if show_all or t.visited:
+				out[t.index] = true
+		out[here.index] = true
+		for r in reach:
+			out[(r as MapGen.MapNode).index] = true
+		if selected >= 0:
+			out[selected] = true
+		if hovered >= 0 and hovered < Run.map.size():
+			out[hovered] = true
+		return out
+
+	## Screen point to galaxy space — the coordinates NebulaField and MapGen.gal
+	## both speak, where 1.0 is the disc radius.
+	func _to_galaxy(p: Vector2) -> Vector2:
+		var r := _radius() * DISC
+		if r <= 0.0 or zoom <= 0.0:
+			return Vector2.ZERO
+		return (p - size * 0.5 - pan) / zoom / r
 
 	func _screen_pos(n: MapGen.MapNode) -> Vector2:
 		var p: Vector2 = _polar_cache.get(n.index, Vector2.INF)
@@ -928,9 +1150,29 @@ class MapChart extends Control:
 					_drag_moved = true
 				_repaint_galaxy()
 			else:
-				var h := _node_at(mm.position)
-				if h != hovered:
+				# Hidden means hidden. The rule used to be that pointing at a
+				# system brought it back — hiding as a way to look PAST the
+				# interface rather than to turn it off — but a toggle that
+				# still answers the cursor is not a toggle, and every hover
+				# still drew a glyph and a tooltip over the galaxy you had just
+				# asked to see on its own. The nebulae still answer, because
+				# they are the galaxy.
+				var h := _node_at(mm.position) if show_icons else -1
+				# A system wins over the gas it is sitting in: you can act on
+				# one and only look at the other.
+				var cloud: NebulaField.Cloud = null
+				if h < 0:
+					# The same extent the boundary is drawn at, so pointing
+					# inside the ring always answers and pointing outside it
+					# never does.
+					cloud = NebulaField.at(_to_galaxy(mm.position))
+				var cname := "" if cloud == null else cloud.name
+				if h != hovered or cname != _neb_hot:
 					hovered = h
+					_neb_hot = cname
+					_neb_hot_emit = cloud != null and cloud.emission
+					_neb_hot_kind = "" if cloud == null else cloud.label()
+					_neb_hot_at = mm.position
 					queue_redraw()
 
 	## Zooming keeps whatever is under the cursor under the cursor, which is the
@@ -985,7 +1227,11 @@ class MapChart extends Control:
 		# about when the edge had been reached.
 
 	func _node_at(p: Vector2) -> int:
+		var visible := _visible_set(Run.node_at(), Run.in_range())
 		for n in Run.map:
+			# Only what is on screen can be pointed at.
+			if not visible.has((n as MapGen.MapNode).index):
+				continue
 			var node: MapGen.MapNode = n
 			if _screen_pos(node).distance_to(p) < maxf(5.0, 12.0 * zoom):
 				return node.index
@@ -999,38 +1245,34 @@ class MapChart extends Control:
 		var hp := _screen_pos(here)
 		var reach: Array = []
 
-		# With the systems hidden, the chart is the galaxy alone — but they are
-		# still THERE, and pointing at one brings it back. Hiding them is a way
-		# to look past the interface, not a way to turn the map off.
+		# With the systems hidden, the chart is the galaxy alone: no routes, no
+		# trail, no glyphs, no tooltip, and nothing that answers the cursor.
 		if show_icons:
-			# The route you have taken. Drawn under everything else and kept dim
-			# — it is history, not a decision, but a run should leave a mark.
-			if Run.trail.size() > 1:
-				for i in range(1, Run.trail.size()):
-					var a := _screen_pos(Run.map[Run.trail[i - 1]])
-					var b := _screen_pos(Run.map[Run.trail[i]])
-					draw_line(a, b, Color(0.42, 0.31, 0.18, 0.55), 1.0)
-
-			# The local cluster: everything the drive can reach from here. Where
-			# you can go is not an inspection tool, it is the question the screen
-			# exists to answer.
+			# Two kinds of line, and they should not look alike. Where you HAVE
+			# been is settled fact: solid, white, unbroken. Where you COULD go is
+			# a proposal: dotted, dim, obviously provisional. Drawing both as
+			# plain lines in different colours made the chart look like one
+			# network when it is really a record and a set of options.
 			reach = Run.in_range()
 			for r in reach:
 				var rn2: MapGen.MapNode = r
 				var afford: bool = Run.can_jump_to(rn2)
-				draw_line(hp, _screen_pos(rn2),
-					Color(0.30, 0.44, 0.58, 0.55) if afford else Color(0.30, 0.34, 0.40, 0.28),
-					1.0)
+				_dotted(hp, _screen_pos(rn2),
+					Color(0.42, 0.56, 0.70, 0.75) if afford else Color(0.34, 0.38, 0.44, 0.35))
 
-		# Whatever you are pointing at, in full: where you could go from there.
-		# Charted links would be the wrong thing to show — they are a generation
-		# detail now, not what travel is measured by.
-		if hovered >= 0 and hovered < Run.map.size() and hovered != here.index:
-			var f: MapGen.MapNode = Run.map[hovered]
-			var fp := _screen_pos(f)
-			for r2 in Run.in_range_of(f):
-				draw_line(fp, _screen_pos(r2), Color(0.26, 0.34, 0.43, 0.40), 1.0)
+			if Run.trail.size() > 1:
+				for i in range(1, Run.trail.size()):
+					var a := _screen_pos(Run.map[Run.trail[i - 1]])
+					var b := _screen_pos(Run.map[Run.trail[i]])
+					draw_line(a, b, Color(0.86, 0.91, 0.97, 0.85), 1.0)
 
+		# Pointing at a candidate deliberately shows NOTHING beyond it. Its own
+		# onward routes are a decision you have not made yet and cannot act on,
+		# and drawing them put a second web on the chart that competed with the
+		# one set of options that is actually live. Hover gives you the tooltip
+		# and the reticle; that is the whole of it.
+
+		var visible := _visible_set(here, reach)
 		# Glyphs are a fixed pixel size, so at low zoom 173 of them tile into a
 		# wall of identical icons — which is most of why the chart read as
 		# regular. Zoomed out, a system is a point of light; the glyph is detail
@@ -1038,8 +1280,14 @@ class MapChart extends Control:
 		var tiny := zoom < 0.78
 		for n in Run.map:
 			var node2: MapGen.MapNode = n
-			# Hidden: only the one under the cursor is drawn.
-			if not show_icons and node2.index != hovered:
+			if not show_icons:
+				continue
+			# The chart is a record and a choice, not an atlas. A system you have
+			# never been to and cannot currently reach is not information you can
+			# act on — it was 190 icons of noise over the galaxy, and hiding it
+			# leaves exactly the two things that matter: where you have been, and
+			# where you can go next.
+			if not visible.has(node2.index):
 				continue
 			var p := (_screen_pos(node2) - Vector2(6, 6)).round()
 			var tint := MapGen.region_colour(node2)
@@ -1068,8 +1316,108 @@ class MapChart extends Control:
 					UITheme.ICE if node2.index == hovered else UITheme.COLD)
 
 
+		_draw_neb_edges()
+
 		if hovered >= 0 and hovered < Run.map.size() and _hover_t > 0.01:
 			_draw_tip(Run.map[hovered], here)
+		elif _neb_hot != "":
+			_draw_neb_tip()
+
+	## The boundary of the cloud under the cursor, and only that one.
+	##
+	## Every cloud outlined at once was a set of rings competing with the systems
+	## for attention — and an outline is an answer to "what am I pointing at",
+	## which is a question you are only asking about one of them.
+	##
+	## Drawn as the union boundary of its lobes: every point on a lobe that is
+	## not inside another one. That is the actual silhouette, so the line agrees
+	## with the gas rather than circling it approximately, and it is exactly the
+	## region the tooltip answers for.
+	func _draw_neb_edges() -> void:
+		if _neb_hot == "":
+			return
+		var r_max := _radius() * DISC
+		var c := size * 0.5 + pan
+		for raw in NebulaField.clouds():
+			var cl: NebulaField.Cloud = raw
+			if cl.name != _neb_hot:
+				continue
+			# Darker than the gas it encloses. A boundary that is brighter than
+			# the thing it is drawn around competes with it; this one should sit
+			# under the cloud and only be found when you are looking for it.
+			var col := cl.edge_colour()
+			col.a = 0.85
+			for i in cl.lobes.size():
+				var centre: Vector2 = cl.pos + cl.lobes[i]
+				var rad: float = cl.lobe_r[i] * NebulaField.EXTENT
+				# Step in screen pixels, so a small cloud does not come out as a
+				# polygon and a huge one does not cost a thousand rects.
+				var px_r: float = rad * r_max * zoom
+				# Dense enough that consecutive samples land on touching pixels,
+				# so the boundary comes out as an unbroken line rather than a
+				# dotted one. A circumference is 2*PI*r pixels, so one sample per
+				# pixel of it and a little over.
+				var steps := clampi(int(px_r * 7.0), 64, 2600)
+				for k in steps:
+					var a: float = float(k) / float(steps) * TAU
+					var pn := centre + Vector2(cos(a), sin(a)) * rad
+					# Union, not three circles: skip anything another lobe holds.
+					var buried := false
+					for j in cl.lobes.size():
+						if j == i:
+							continue
+						if (pn - cl.pos - cl.lobes[j]).length() < cl.lobe_r[j] * NebulaField.EXTENT:
+							buried = true
+							break
+					if buried:
+						continue
+					var q := c + pn * r_max * zoom
+					if q.x < 0.0 or q.y < 0.0 or q.x > size.x or q.y > size.y:
+						continue
+					draw_rect(Rect2(q.round(), Vector2.ONE), col, true)
+
+	## What cloud you are pointing at. Smaller than a system's tooltip and with
+	## no numbers on it: a nebula is somewhere you can be, not something you can
+	## jump to, so it answers what it is called and nothing else.
+	func _draw_neb_tip() -> void:
+		var f := UITheme.pixel_font()
+		var l2 := _neb_hot_kind
+		var w1 := f.get_string_size(_neb_hot, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var w2 := f.get_string_size(l2, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var box := Vector2(ceil(maxf(w1, w2)) + 11.0, 27.0)
+		var o := _neb_hot_at + Vector2(14, -box.y * 0.5)
+		if o.x + box.x > size.x - 2.0:
+			o.x = _neb_hot_at.x - box.x - 14.0
+		o.x = clampf(o.x, 2.0, maxf(2.0, size.x - box.x - 2.0))
+		o.y = clampf(o.y, 2.0, maxf(2.0, size.y - box.y - 2.0))
+		o = o.round()
+
+		var edge := Color("#a98ab8") if _neb_hot_emit else Color("#6fa5b0")
+		draw_rect(Rect2(o, box), Color(0.043, 0.067, 0.106, 0.94), true)
+		draw_rect(Rect2(o, Vector2(box.x, 1)), edge, true)
+		draw_rect(Rect2(o + Vector2(0, box.y - 1), Vector2(box.x, 1)), edge, true)
+		draw_rect(Rect2(o, Vector2(1, box.y)), edge, true)
+		draw_rect(Rect2(o + Vector2(box.x - 1, 0), Vector2(1, box.y)), edge, true)
+		draw_string(f, o + Vector2(6, 11), _neb_hot,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UITheme.ICE)
+		draw_string(f, o + Vector2(6, 22), l2,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, edge)
+
+	## A dashed run between two points, in whole pixels. draw_dashed_line exists
+	## but works in continuous space, so its gaps land on fractions of a pixel
+	## and the dashes shimmer as you pan — the one thing a pixel chart cannot
+	## have.
+	func _dotted(a: Vector2, b: Vector2, col: Color) -> void:
+		var span := a.distance_to(b)
+		if span < 1.0:
+			return
+		var step := (b - a) / span
+		var i := 2.0
+		while i < span - 2.0:
+			# Two on, three off.
+			if int(i) % 5 < 2:
+				draw_rect(Rect2((a + step * i).round(), Vector2.ONE), col, true)
+			i += 1.0
 
 	## What this system is, at the cursor. Zoomed out every system is a two-pixel
 	## dot, so without this the chart is unreadable — you can see the shape of the
@@ -1132,6 +1480,32 @@ class MapChart extends Control:
 		draw_string(f, tx + Vector2(0, 36), l4, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
 			Color(0.541, 0.416, 0.227, a))
 
+	## Where a background pixel appears once the black hole has bent the light
+	## from it, and whether it is visible at all.
+	##
+	## Two things were wrong before this. The deep field is drawn BEFORE the
+	## galaxy, and nothing masked it, so distant stars and galaxies showed
+	## straight through the hole — the one object in the game that light does not
+	## come out of was the most transparent thing on screen.
+	##
+	## And a black hole does not merely block what is behind it, it wraps it: an
+	## approximate Einstein deflection pushes background points radially outward
+	## by r_s^2 / d, which piles them into a bright arc just outside the shadow
+	## and clears a true void inside. Anything that lands within the shadow is
+	## behind the hole and is not drawn at all.
+	##
+	## Returns false when the point is swallowed.
+	func _lens(p: Vector2, centre: Vector2, r_s: float, out: Array) -> bool:
+		var d := p - centre
+		var far := d.length()
+		if far < 0.001:
+			return false
+		if far <= r_s:
+			return false
+		var shifted := far + (r_s * r_s) / far
+		out[0] = centre + d * (shifted / far)
+		return true
+
 	## A stable hash for a tile of the deep field. The far field has to be built
 	## from position, not from a running sequence: a sequence re-rolls every star
 	## the moment anything about the field changes, which is what made the sky
@@ -1173,12 +1547,14 @@ class MapChart extends Control:
 		# while the near shell holds a handful of big, close galaxies that swing
 		# properly when you drag. Without that near shell the deep field has no
 		# top end: everything sits at one apparent distance and reads flat.
-		# Same idea for the deep shell: the tile grid coarsens during a drag, so
-		# the far galaxies thin rather than vanish. They are the dimmest thing
-		# on screen and the least missed while the view is sweeping.
-		_far_layer(ci, 86.0 if not _dragging else 150.0, 0.12, 1.5, 3.5, 0.5, 0.92, 3)
-		_far_layer(ci, 260.0, 0.28, 4.0, 9.0, 1.0, 0.84, 11)
-		_far_layer(ci, 780.0, 0.58, 9.0, 20.0, 1.0, 0.52, 41)
+		# Seven shells of distant galaxies, on their own spread of depths, for the
+		# same reason as the stars: three shells put every galaxy at one of three
+		# speeds and they moved in obvious groups.
+		for k in 7:
+			var f := float(k) / 6.0
+			_far_layer(ci, lerpf(150.0, 700.0, f), lerpf(0.09, 0.58, f),
+				lerpf(1.5, 9.0, f), lerpf(3.5, 20.0, f),
+				lerpf(0.5, 1.0, f), lerpf(0.92, 0.6, f), 3 + k * 53)
 
 	## Six palettes for the deep field. Everything out there used to be the same
 	## cold blue-grey, which is most of why a sky full of objects read as one
@@ -1218,6 +1594,7 @@ class MapChart extends Control:
 		var j0 := int(floor(-c.y / step)) - 1
 		var j1 := int(floor((size.y - c.y) / step)) + 1
 		var guard := _radius() * DISC * 0.95 * zoom
+		var r_s := _shadow_r() * zoom * 1.05
 
 		for i in range(i0, i1 + 1):
 			for j in range(j0, j1 + 1):
@@ -1306,7 +1683,10 @@ class MapChart extends Control:
 							local = Vector2(cos(ea) * rr, sin(ea) * rr * flat)
 					local = local.rotated(tilt)
 
-					var pt := (q + local).round()
+					var pt := q + local
+					if not _lens(pt, here, r_s, _lens_out):
+						continue
+					pt = (_lens_out[0] as Vector2).round()
 					if pt.x < 0 or pt.y < 0 or pt.x > size.x or pt.y > size.y:
 						continue
 					# Thins as it nears our own disc. t3 is deterministic per
@@ -1339,9 +1719,28 @@ class MapChart extends Control:
 	## black, which reads as the edge of a texture rather than the edge of a
 	## galaxy. Tiled by position so a star stays put, and unbounded by
 	## construction so there is no edge to pan off.
+	## Twenty-two depths of field stars rather than two.
+	##
+	## Two layers meant every star moved at one of two speeds, and the eye finds
+	## that instantly — you do not see depth, you see two sheets of glass sliding
+	## over each other. With twenty-two, no two neighbouring stars are quite
+	## agreeing about how fast they should move, which is what parallax actually
+	## looks like.
+	##
+	## Each layer is correspondingly sparser (cell size scales with the square
+	## root of the count) so the total star density and the total tile work are
+	## about what they were with two.
+	const DEPTHS := 22
+
 	func _draw_halo(ci: CanvasItem) -> void:
-		_star_layer(ci, 12.0, 0.20, 0.52, 0.55, 29)
-		_star_layer(ci, 17.0, 0.48, 0.40, 1.0, 5)
+		for k in DEPTHS:
+			var f := float(k) / float(DEPTHS - 1)
+			# Nearer layers are brighter and slightly denser: distance is carried
+			# by speed, brightness and count together, not by speed alone.
+			var parallax: float = lerpf(0.05, 0.62, f)
+			var cell: float = lerpf(62.0, 44.0, f)
+			var bright: float = lerpf(0.42, 1.0, f)
+			_star_layer(ci, cell, parallax, 0.34, bright, 5 + k * 37)
 
 	func _star_layer(ci: CanvasItem, cell: float, parallax: float,
 			empty: float, bright: float, salt: int) -> void:
@@ -1356,6 +1755,8 @@ class MapChart extends Control:
 		var j0 := int(floor(-c.y / step)) - 1
 		var j1 := int(floor((size.y - c.y) / step)) + 1
 		var disc := _radius() * zoom * 1.1
+		var r_s := _shadow_r() * zoom * 1.05
+		var core_px := _core_clear() * zoom
 
 		for i in range(i0, i1 + 1):
 			for j in range(j0, j1 + 1):
@@ -1366,11 +1767,38 @@ class MapChart extends Control:
 					continue
 				var u := float((h / 1000) % 1000) / 1000.0
 				var v := float((h / 1000000) % 1000) / 1000.0
-				var q := (c + Vector2((float(i) + u) * cell, (float(j) + v) * cell) * zf).round()
+				var q := (c + Vector2((float(i) + u) * cell, (float(j) + v) * cell) * zf)
+				if not _lens(q, here, r_s, _lens_out):
+					continue
+				q = (_lens_out[0] as Vector2).round()
 				if q.x < 0 or q.y < 0 or q.x > size.x or q.y > size.y:
 					continue
 				# Thin out over the disc so the halo never competes with the arms.
-				if w < 0.88 and (q - here).length() < disc:
+				var over_disc: bool = (q - here).length() < disc
+				if w < 0.88 and over_disc:
+					continue
+				# And a dark cloud blocks whatever is behind it — including
+				# this. These are the far sky, drawn straight through the galaxy
+				# and never asked whether anything was in the way, so the twelve
+				# percent that survive the thinning above were shining out of
+				# the middle of every dark nebula on the chart. They are also
+				# the BRIGHTEST twelve percent, which is why a cloud defined by
+				# blocking light was the one place the sky looked busiest.
+				#
+				# The roll comes out of the tile hash rather than a live RNG:
+				# these layers repaint on every pan, and anything not derived
+				# from the tile itself would make the whole field crawl.
+				if over_disc and not _dark_r.is_empty():
+					var ex: float = _extinct((q - here) / maxf(0.001, zoom))
+					if ex > 0.02 and float((h / 7) % 1000) / 1000.0 < ex:
+						continue
+				# And nothing at all over the turning core. These are field
+				# stars — sky, not galaxy — so no core rule had ever applied to
+				# them, and the twelve percent that survive the thinning above
+				# were sitting stock still among the orbiting material. A static
+				# star anywhere near a moving one is the thing that gives the
+				# whole effect away, whichever layer it belongs to.
+				if (q - here).length() < core_px:
 					continue
 				var col := Color("#121a26")
 				if w > 0.985:
@@ -1409,13 +1837,45 @@ class MapChart extends Control:
 		if key == _star_key:
 			return
 		_star_key = key
+		# Orbits are rebuilt with the field; _build_orbits is called at the end,
+		# once _core_skipped has been counted.
 		_star_pos = PackedVector2Array()
 		_star_col = PackedColorArray()
 		_star_big = PackedByteArray()
 		_star_dim = PackedByteArray()
+		_core_skipped = 0
+		_core_rad = PackedFloat32Array()
+		_core_col = PackedColorArray()
+		_core_size = PackedByteArray()
+		_core_ang = PackedFloat32Array()
 
 		var sq := _squash()
 		var arms := _arms()
+
+		# The dark clouds, flattened to lobes in drawn galaxy space so the
+		# passes below can take stars out from behind them. Built before
+		# anything is placed, because everything placed has to ask.
+		_dark_c = PackedVector2Array()
+		_dark_r = PackedFloat32Array()
+		_dark_orb_c = PackedVector2Array()
+		_dark_orb_r = PackedFloat32Array()
+		for raw_dark in NebulaField.clouds():
+			var dc: NebulaField.Cloud = raw_dark
+			if dc.kind != NebulaField.Kind.DARK:
+				continue
+			for l in dc.lobes.size():
+				var dcen: Vector2 = (dc.pos + dc.lobes[l]) * r_max
+				var drad: float = dc.lobe_r[l] * r_max
+				_dark_c.append(dcen)
+				_dark_r.append(drad)
+				# Does this lobe reach into the turning region? Usually not —
+				# clouds sit out in the disc and the live layer only owns the
+				# middle. But NebulaField deliberately places one cloud at 0.05
+				# to 0.21 of the disc so the black hole has gas within reach,
+				# and when THAT one rolls dark it lands squarely in the orbits.
+				if dcen.length() - drad < _core_clear():
+					_dark_orb_c.append(dcen)
+					_dark_orb_r.append(drad)
 		# Nothing static is drawn inside the cleared core — not the arms, not the
 		# dust, not the tidal tail, not the bulge. The hole itself is empty, and
 		# the annulus around it belongs to the live layer, which orbits stars
@@ -1430,13 +1890,21 @@ class MapChart extends Control:
 		## galaxy's ellipse, but this test was a circle, so a band was cleared of
 		## static stars that the orbiting ones never reached. The hole itself
 		## stays round — that is the accretion disc's inner radius, not this.
-		var inv_sq := 1.0 / maxf(0.05, sq)
-		## Where the cached field starts fading in. Below this it is absent
-		## entirely; above `clear` it is at full strength. The live layer fades
-		## out across the same band, so the two sum to a constant — an abrupt
-		## handover at a single radius shows as a ring however well the speeds
-		## match, because the populations either side are never quite identical.
-		var blend_in := clear * 0.7
+		## Everything about the core is measured in DRAWN space, and is round.
+		##
+		## Ownership used the unsquashed radius so it would line up with the
+		## ellipse the orbits were laid out on, and that was the root of a whole
+		## family of bugs. On a flattened galaxy a star sitting a few pixels
+		## above the hole has a large unsquashed radius: it reads as far out,
+		## keeps its place in the static field, and sits there motionless right
+		## beside the thing everything else is orbiting. Same arithmetic put
+		## stars inside the hole earlier.
+		##
+		## A black hole is round on screen whatever the inclination of its
+		## galaxy, and so is the cluster around it. Measuring the distance you
+		## can actually see makes the rule mean what it says: near the hole is
+		## near the hole.
+
 
 		# --- the wash between the arms. The gaps are not empty space, they are
 		# unlit space, and painting them flat black makes the arms look like
@@ -1458,8 +1926,15 @@ class MapChart extends Control:
 			elif near > 0.6 and t3 > 0.6:
 				col = Color("#241c22")
 			var pd := Vector2(cos(a), sin(a) * sq) * rr
-			var e_pd: float = Vector2(pd.x, pd.y * inv_sq).length()
-			if e_pd < blend_in or t3 > (e_pd - blend_in) / (clear - blend_in):
+			var e_pd: float = pd.length()
+			if pd.length() < shadow:
+				continue
+			if t3 < _own_at(e_pd, clear):
+				_core_skipped += 1
+				_core_rad.append(e_pd)
+				_core_col.append(col)
+				_core_size.append(0)
+				_core_ang.append(atan2(pd.y, pd.x))
 				continue
 			_star_pos.append(pd)
 			_star_col.append(col)
@@ -1478,6 +1953,12 @@ class MapChart extends Control:
 			var t2 := float((seed >> 13) % 10000) / 10000.0
 			seed = (seed * 1103515245 + 12345) & 0x7fffffff
 			var t3 := float((seed >> 13) % 10000) / 10000.0
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff
+			# Its own roll, spent only on extinction. Reusing t2 or t3 would
+			# tie which stars a dark cloud eats to their arm spread or their
+			# brightness — so the cloud would swallow one side of an arm, or
+			# every bright star and no faint one, instead of what is behind it.
+			var t4 := float((seed >> 13) % 10000) / 10000.0
 
 			# Two populations rather than one falloff. A single exponent cannot
 			# be both dense at the core and present at the rim.
@@ -1525,8 +2006,27 @@ class MapChart extends Control:
 			elif near > 0.72:
 				col = Color("#4a3a2c")
 			var pa := Vector2(cos(a), sin(a) * sq) * rr
-			var e_pa: float = Vector2(pa.x, pa.y * inv_sq).length()
-			if e_pa < blend_in or t3 > (e_pa - blend_in) / (clear - blend_in):
+			# Behind a dark cloud. Most of what it covers is simply gone; what
+			# survives is dimmed, so the cloud has a depth to it rather than a
+			# clean bite taken out of the field.
+			# Tempered to three quarters. The diffuse field is what gives the
+			# cloud its body; take all of it and there is no cloud, just a hole.
+			var ext := _extinct(pa) * 0.74
+			if ext > 0.02:
+				if t4 < ext:
+					continue
+				# What survives is dimmed as well as thinned, so the cloud
+				# reddens the field it covers rather than merely perforating it.
+				col = col.darkened(ext * 0.5)
+			var e_pa: float = pa.length()
+			if pa.length() < shadow:
+				continue
+			if t3 < _own_at(e_pa, clear):
+				_core_skipped += 1
+				_core_rad.append(e_pa)
+				_core_col.append(col)
+				_core_size.append(0)
+				_core_ang.append(atan2(pa.y, pa.x))
 				continue
 			_star_pos.append(pa)
 			_star_col.append(col)
@@ -1558,8 +2058,15 @@ class MapChart extends Control:
 				elif t3 > 0.82:
 					col = Color("#2b384a")
 				var pt2 := Vector2(cos(a), sin(a) * sq) * rr
-				var e_pt2: float = Vector2(pt2.x, pt2.y * inv_sq).length()
-				if e_pt2 < blend_in or t3 > (e_pt2 - blend_in) / (clear - blend_in):
+				var e_pt2: float = pt2.length()
+				if pt2.length() < shadow:
+					continue
+				if t3 < _own_at(e_pt2, clear):
+					_core_skipped += 1
+					_core_rad.append(e_pt2)
+					_core_col.append(col)
+					_core_size.append(0)
+					_core_ang.append(atan2(pt2.y, pt2.x))
 					continue
 				_star_pos.append(pt2)
 				_star_col.append(col)
@@ -1576,16 +2083,11 @@ class MapChart extends Control:
 			var u := float((seed >> 13) % 10000) / 10000.0
 			seed = (seed * 1103515245 + 12345) & 0x7fffffff
 			var v := float((seed >> 13) % 10000) / 10000.0
-			# pow 2.4 crowded almost every bulge star against the inner edge,
-			# and since that edge is now a hard boundary — everything inside is
-			# cleared for the live layer — the crowd became a bright static rim
-			# around the hole. A gentler exponent spreads them out.
+			# The bulge spans the whole core outward. It no longer needs to start
+			# beyond a boundary: the motion rule decides which of its stars
+			# survive, and near the hole none of them do.
 			var frac: float = pow(u, 1.5)
-			var rr2: float = blend_in + frac * (bulge + clear - blend_in)
-			# No fade-in any more. It existed to soften a hard edge against an
-			# empty core, and the core is not empty — it is full of orbiting
-			# stars at matching density, so fading in here only reopened the gap
-			# it was meant to hide.
+			var rr2: float = shadow * 1.2 + frac * (bulge + clear)
 			var aa: float = v * TAU
 			var heat := 1.0 - clampf(rr2 / maxf(1.0, bulge), 0.0, 1.0)
 			var col2 := Color("#7a3f16")
@@ -1594,14 +2096,23 @@ class MapChart extends Control:
 			elif heat > 0.5:
 				col2 = Color("#cc641c")
 			var pb := Vector2(cos(aa), sin(aa) * sq) * rr2
-			var e_pb: float = Vector2(pb.x, pb.y * inv_sq).length()
-			if e_pb < blend_in or v > (e_pb - blend_in) / (clear - blend_in):
+			var e_pb: float = pb.length()
+			if pb.length() < shadow:
+				continue
+			if v < _own_at(e_pb, clear):
+				_core_skipped += 1
+				_core_rad.append(e_pb)
+				_core_col.append(col2)
+				_core_size.append(0)
+				_core_ang.append(atan2(pb.y, pb.x))
 				continue
 			_star_pos.append(pb)
 			_star_col.append(col2)
 			_star_big.append(0)
 			_star_dim.append(0)
 
+		_build_orbits()
+		_build_disc()
 		# The accretion ring is NOT built here. It used to be, and the live layer
 		# drew a churning one at the same radius on top of it — so the bright
 		# ring you actually saw was the static copy underneath, and no amount of
@@ -1612,6 +2123,9 @@ class MapChart extends Control:
 		# are in front of.
 		_build_clusters(r_max)
 		_build_remnants(r_max)
+		# Last: the wave samples the finished field, and clusters and
+		# remnants both append to it.
+		_build_wave()
 
 	func _seed_rng(salt: int) -> void:
 		_rng = (Run.galaxy_seed * 2654435761 + salt) & 0x7fffffff
@@ -1633,6 +2147,50 @@ class MapChart extends Control:
 		0.969, 0.469, 0.844, 0.344,
 	]
 
+	## How much a dark nebula blocks whatever is behind it, 0 to 1.
+	##
+	## A dark nebula is the one kind defined by what it HIDES, and the clouds
+	## are drawn BEFORE the arms so that arm stars sit in front of the gas —
+	## which is right for gas that glows and exactly wrong for gas that does
+	## not. The result was a dust cloud with the full star field shining
+	## through it, which is the one thing a dark nebula must never look like.
+	##
+	## Smoothstepped so the cloud has an edge you can see into rather than a
+	## rim, and cheap enough to ask per star: a few lobes, no trig, and an
+	## instant zero in a galaxy that rolled no dark clouds at all.
+	func _extinct(p: Vector2) -> float:
+		var e := 0.0
+		for i in _dark_r.size():
+			var d: float = (p - _dark_c[i]).length() / maxf(1.0, _dark_r[i])
+			if d >= 1.0:
+				continue
+			var f: float = 1.0 - d
+			e = maxf(e, f * f * (3.0 - 2.0 * f))
+		# Returned RAW. The diffuse arm field tempers this down at its own call
+		# site, because taking every one of those left a smooth black disc with
+		# a hard rim — a hole cut in the galaxy rather than dust in front of it.
+		# Bright point sources are the opposite case and want the full value:
+		# a globular or a foreground-bright field star showing through at even
+		# a quarter strength is precisely what stops a dark cloud reading dark.
+		return e
+
+	## Extinction from the dark lobes that reach the orbiting region only.
+	##
+	## Separate from _extinct because this one is asked per particle per FRAME,
+	## where that one is asked once per pixel at build time. The static field
+	## can be tested where it is placed and never again; orbiting material
+	## moves, so whether a cloud is in front of it is a question with a new
+	## answer every frame.
+	func _extinct_orbit(p: Vector2) -> float:
+		var e := 0.0
+		for i in _dark_orb_r.size():
+			var d: float = (p - _dark_orb_c[i]).length() / maxf(1.0, _dark_orb_r[i])
+			if d >= 1.0:
+				continue
+			var f: float = 1.0 - d
+			e = maxf(e, f * f * (3.0 - 2.0 * f))
+		return e
+
 	func _dither(p: Vector2) -> float:
 		return float(_DITHER4[(int(p.y) & 3) * 4 + (int(p.x) & 3)])
 
@@ -1644,13 +2202,30 @@ class MapChart extends Control:
 	## own random number, which is what makes that fade dithered rather than a
 	## hard edge. The four original field passes each inline this; everything
 	## added since calls it.
+	## Whether a piece of static material — nebula, dust lane, remnant — may sit
+	## here. The nebulae, lanes and remnants go through this; the stars, arms and
+	## bulge go through the same two rules inline.
+	##
+	## It was still using a fixed blend band from before the core was rewritten,
+	## and it had no test against the hole at all. That is why the disc lane ran
+	## straight across the middle of an edge-on galaxy: it is dust rather than
+	## stars, so it never met either of the rules the stars were following, and
+	## sat frozen among the orbiting field with a slice of it inside the hole.
 	func _static_ok(p: Vector2, t: float) -> bool:
-		var clear := _core_clear()
-		var blend_in := clear * 0.7
-		var e: float = Vector2(p.x, p.y / maxf(0.05, _squash())).length()
-		if e < blend_in:
+		# Round, in drawn space: nothing is behind the hole.
+		if p.length() < _shadow_r():
 			return false
-		return t <= (e - blend_in) / (clear - blend_in)
+		# And round, in drawn space: the cached field only keeps what the live
+		# layer is not already carrying, and "near the hole" means near it on
+		# screen rather than near it in the galaxy's own flattened coordinates.
+		return t >= _own_at(p.length(), _core_clear())
+
+	## Hand a piece of material to the live layer instead of dropping it.
+	func _to_core(p: Vector2, col: Color, size: int) -> void:
+		_core_rad.append(p.length())
+		_core_ang.append(atan2(p.y, p.x))
+		_core_col.append(col)
+		_core_size.append(size)
 
 	## What colour the gas around here is, taken from the nearest system.
 	##
@@ -1706,49 +2281,73 @@ class MapChart extends Control:
 	## the galaxy. The dark half of the same material is a separate pass that
 	## runs AFTER the arms, because a dust lane only reads as a lane when it
 	## hides the stars behind it.
+	## How far out a planetary's gas reaches at this angle, as a multiple of its
+	## nominal radius. Build-time only, so it can afford to be readable.
+	func _pn_reach(kind: int, a: float) -> float:
+		match kind:
+			NebulaField.Shape.BIPOLAR:
+				# Pinched at the waist and drawn far out along the axis. A dense
+				# torus round the star's equator blocks the wind, so it escapes
+				# through the poles instead and the shell comes out an hourglass
+				# rather than a ball.
+				return 0.30 + 0.98 * pow(absf(sin(a)), 0.72)
+			NebulaField.Shape.ANSAE:
+				# A ring with a knot on either side, where a jet ran into the
+				# gas it was ploughing through and stalled. The power keeps the
+				# knots tight — anything gentler smears them into an oval.
+				return 1.0 + 0.42 * pow(absf(cos(a)), 16.0)
+			_:
+				return 1.0
+
+	## How much a planetary is squashed on screen — its inclination, mostly.
+	func _pn_squash(kind: int) -> float:
+		match kind:
+			NebulaField.Shape.ELLIPTICAL:
+				return 0.32
+			NebulaField.Shape.BIPOLAR:
+				# Nearly round, because the shape is carried by the reach above
+				# and squashing it as well would flatten the lobes away.
+				return 0.94
+			_:
+				return 0.58
+
 	func _build_nebulae(r_max: float) -> void:
 		_neb_pos = PackedVector2Array()
 		_neb_top = PackedFloat32Array()
 		_neb_name = PackedStringArray()
 		var g := _g()
-		var gas: float = float(g.get("gas", 1.0))
-		# A galaxy that has stopped forming stars gets none at all, rather than a
-		# scattering of faint ones. That absence does real work: it is what makes
-		# a lenticular read as finished beside a starburst, and it is free.
-		var count := clampi(int(round(gas * 4.0)), 0, 9)
-		if count <= 0:
+		# WHERE the clouds are is NebulaField's answer, not this function's. The
+		# sector screen has to know whether the system you are in sits inside
+		# one, and two copies of the placement would agree only until somebody
+		# adjusted one of them. How a cloud is drawn stays here.
+		var field := NebulaField.clouds()
+		if field.is_empty():
 			return
-
-		var sq := _squash()
-		var arms := _arms()
-		var spiral: bool = int(g.arms) > 0
-		_seed_rng(90210)
-		for k in count:
-			var rn: float = 0.22 + _rnd() * 0.68
-			var ang: float = _rnd() * TAU
-			if spiral:
-				# On an arm. Star formation happens where the density wave
-				# piles the gas up, so a cloud floating between the arms would
-				# be a cloud in the one place nothing is being born.
-				ang = _shape_angle(rn, k % arms, (_rnd() - 0.5) * 0.55)
-			var centre := Vector2(cos(ang), sin(ang) * sq) * rn * r_max
-			# One landmark per galaxy, plainly bigger than the rest. A field of
-			# same-sized clouds reads as texture; one large one with smaller
-			# company reads as a place you could point at.
-			var big: bool = k == 0
-			var rad: float = r_max * (0.16 + _rnd() * 0.08) if big \
-				else r_max * (0.06 + _rnd() * 0.07)
-			# Tilted toward reflection. Emission gas is the warm half, and this
-			# is a game about a cold universe with one warm thing in it — the
-			# core — so the loud clouds have to stay in the minority or the
-			# brightest thing on the chart stops being the thing that burns.
-			var emission: bool = _rnd() > 0.58
+		for k in field.size():
+			var cloud: NebulaField.Cloud = field[k]
+			var centre := cloud.pos * r_max
+			var rad := cloud.radius * r_max
+			var emission: bool = cloud.emission
+			# A stream per cloud, so the detail below cannot shift the placement
+			# of the next one — which is what made the positions impossible to
+			# reproduce anywhere else.
+			_seed_rng(90210 + k * 7919)
 			# Weighted toward the gas rather than the region: region colours are
 			# chrome, chosen to sit quietly behind an icon, and a cloud built out
 			# of one at full strength comes out the colour of the panel border.
 			# The region pulls the hue over; it does not set it.
-			var base: Color = _region_tint(centre).lerp(
-				_NEB_EMIT if emission else _NEB_REFLECT, 0.68)
+			# The kind decides the hue and the region pulls it over — a
+			# planetary is oxygen green wherever it is, but a green one sitting
+			# in Korvan space leans amber.
+			# A shell keeps far more of its own colour than a diffuse cloud
+			# does. The region tint is chrome — it exists so gas sits quietly
+			# behind an icon — and at 0.68 it was pulling the planetary's
+			# oxygen green and the remnant's filament teal to within a few
+			# points of each other, which is most of why the two were hard to
+			# tell apart. A shell is a bright, compact, high-contrast object;
+			# it can afford to be its own colour.
+			var pull: float = 0.88 if cloud.hollow > 0.0 else 0.68
+			var base: Color = _region_tint(centre).lerp(cloud.base_colour(), pull)
 			# Pulled back off full saturation, and well down in value. Straight
 			# H-alpha rose came out magenta beside a palette that has no magenta
 			# in it anywhere, and at full brightness the cloud sat at the same
@@ -1774,10 +2373,11 @@ class MapChart extends Control:
 			# a shape, and where two of them meet it comes out brighter for free.
 			var lobes: Array[Vector2] = []
 			var lobe_r: Array[float] = []
-			for l in 3:
-				lobes.append(Vector2((_rnd() - 0.5) * rad * 1.1,
-					(_rnd() - 0.5) * rad * 0.8))
-				lobe_r.append(rad * (0.45 + _rnd() * 0.5))
+			# Shape comes from NebulaField, like the position: the outline and
+			# the tooltip have to agree with what is drawn here.
+			for l in cloud.lobes.size():
+				lobes.append(cloud.lobes[l] * r_max)
+				lobe_r.append(cloud.lobe_r[l] * r_max)
 
 			var twist_k: float = _rnd() * TAU
 			# The tone field's frequency is scaled to the cloud, so a small
@@ -1791,34 +2391,174 @@ class MapChart extends Control:
 			# separate out at the fringe, which is the point at which a scatter
 			# of dots stops reading as dots. The first pass ran at a third of
 			# this and the clouds were invisible underneath their own labels.
-			var px := clampi(int(rad * rad * 0.15), 300, 3000)
+			# Raised with the block size halved: a quarter of the area per pixel
+			# needs more pixels to read as the same body of gas, and the wash
+			# lives in the static arrays so it costs a rect apiece and nothing
+			# to derive.
+			var px := clampi(int(rad * rad * 0.62), 1200, 12000)
+			if cloud.kind == NebulaField.Kind.DARK:
+				# Denser, because a dark cloud has to actually obscure. It is
+				# drawn from the same wash as the rest and simply dark, which is
+				# how the dust lanes already work.
+				px = int(float(px) * 1.5)
+			elif cloud.hollow > 0.0:
+				# A shell puts every pixel it has into a thin annulus rather
+				# than spreading them through a volume, so it needs fewer than
+				# a solid cloud of the same radius — but a planetary is also
+				# the smallest object here by a distance, and the budget goes
+				# with the SQUARE of the radius. Without a bump it was getting
+				# about a tenth of the pixels of its neighbours and came out as
+				# a faint smudge.
+				# The remnant spends its budget over a much wider, fainter band
+				# than the planetary and throws most of it away again at the
+				# arc gaps, so it needs the larger share despite being the
+				# larger object. The planetary now fills its interior as well
+				# as its rim and wants enough left for both.
+				px = int(float(px) * (4.0 if cloud.kind == NebulaField.Kind.PLANETARY else 3.4))
+			# lobes.size(), NOT a literal 3. A planetary and a remnant are gas
+			# thrown outward from a single point, so NebulaField gives them ONE
+			# centred lobe — and this loop was indexing three of them. Two
+			# thirds of every shell's pixels were read out of bounds: radius
+			# zero, offset zero, the whole budget piled onto the exact centre,
+			# where the hollow test then threw it away. That is why a supernova
+			# remnant drew as an empty circle with a few strays in it.
+			var nl := lobes.size()
 			for i in px:
-				var lobe := i % 3
+				var lobe := i % nl
 				var lr: float = lobe_r[lobe]
-				var rr: float = pow(_rnd(), 0.8) * lr
-				var a2: float = _rnd() * TAU
-				var local: Vector2 = lobes[lobe] \
-					+ Vector2(cos(a2) * rr, sin(a2) * rr * 0.82)
-
-				# Density is the STRONGEST lobe at this point, not the sum, so
-				# overlaps brighten rather than merely doubling the dot count.
+				var local: Vector2
 				var d := 0.0
-				for m in 3:
-					d = maxf(d, 1.0 - minf(1.0,
-						(local - lobes[m]).length() / maxf(1.0, lobe_r[m])))
-				d = d * d * (3.0 - 2.0 * d)
+				if cloud.hollow > 0.0:
+					var remnant: bool = cloud.kind == NebulaField.Kind.REMNANT
+					# A shell, sampled AS a shell. The wall used to be carved
+					# out of a solid cloud by remapping the density falloff,
+					# which had two problems: almost every sample fell outside
+					# the band and was discarded, and because the falloff is
+					# smoothstepped, the surviving wall landed at about a third
+					# of the radius — a small faint ring adrift inside a large
+					# boundary circle, with nothing between the two.
+					#
+					# Placing samples in the wall directly costs nothing, wastes
+					# nothing, and puts the gas where the hover outline is.
+					var wall: float = NebulaField.EXTENT * 0.80
+					var th: float = wall * (1.0 - cloud.hollow) * 0.7
+					if remnant:
+						# Pulled in and spread wide. A remnant is thousands of
+						# years past the explosion: the front has broken up,
+						# slowed unevenly and begun mixing back into the medium
+						# it swept. It is not a shell so much as a REGION, and
+						# smearing it over half its own radius is what stops it
+						# reading as a drawn ring. The centre comes in to match,
+						# so the gas still mostly sits inside the outline.
+						wall = NebulaField.EXTENT * 0.64
+						th = wall * 0.46
+					# Two rolls summed: dense along the wall, thinning to either
+					# side of it. One roll would give a band with hard edges.
+					var off: float = (_rnd() + _rnd() - 1.0) * th
+					var a2: float = _rnd() * TAU
+					var u: float = (wall + off) * lr
+					# Whether this sample is interior fill rather than wall, in
+					# which case its brightness is already decided below and
+					# must not be recomputed from the wall falloff.
+					var filled := false
+					if remnant:
+						# Ragged, and incomplete. A shock front does not expand
+						# into a vacuum — it ploughs into gas that is lumpy, so
+						# it runs ahead where the medium is thin and stalls
+						# where it is thick. Three harmonics wobble the wall,
+						# and a slower one takes whole arcs of it away, which is
+						# what makes a remnant read as something torn rather
+						# than something drawn.
+						var wob: float = sin(a2 * 3.0 + twist_k) * 0.36 \
+							+ sin(a2 * 7.0 - twist_k * 2.1) * 0.21 \
+							+ sin(a2 * 13.0 + twist_k * 0.7) * 0.13
+						u += wob * th * 1.5 * lr
+						# Most of it is simply gone. What survives of an old
+						# remnant is a few bright ropes and a haze where the
+						# rest used to be, so the thin arcs are dropped outright
+						# rather than merely dimmed.
+						var arc: float = 0.16 + 0.66 * maxf(0.0,
+							sin(a2 * 2.0 + twist_k * 1.3))
+						if _rnd() > arc:
+							continue
+						local = lobes[lobe] \
+							+ Vector2(cos(a2) * u, sin(a2) * u * 0.82)
+					elif _rnd() < 0.44:
+						# The inside of a planetary GLOWS. The star that shed
+						# the envelope is still sitting in the middle of it and
+						# still ionising it, so the interior is not empty — it
+						# holds the same oxygen light as the rim, only fainter
+						# for having less gas along the line of sight.
+						#
+						# Drawing it as a bare ring was the single thing that
+						# made these read as remnants: a hollow outline is what
+						# is left when something has gone, and this one has not
+						# gone anywhere.
+						filled = true
+						var ai: float = _rnd() * TAU
+						var ui: float = pow(_rnd(), 0.55) * wall * lr 							* _pn_reach(cloud.shape, ai)
+						local = lobes[lobe] + Vector2(cos(ai) * ui,
+							sin(ai) * ui * _pn_squash(cloud.shape)) 							.rotated(twist_k * 0.5)
+						# Brightest just inside the rim, fading to the middle —
+						# that is line-of-sight depth through a shell, where you
+						# look through the most gas at the edge.
+						var fi: float = ui / maxf(0.001, wall * lr * _pn_reach(cloud.shape, ai))
+						d = 0.17 + 0.38 * fi * fi
+					else:
+						# A planetary is one star's envelope, thrown off in one
+						# go and seen at whatever angle it happens to present:
+						# smooth, unbroken, and elliptical because it is tilted
+						# rather than because it is deformed. Where the remnant
+						# is torn, this is intact — that contrast is the whole
+						# distinction between the two.
+						var pu: float = u * _pn_reach(cloud.shape, a2)
+						local = lobes[lobe] + Vector2(cos(a2) * pu,
+							sin(a2) * pu * _pn_squash(cloud.shape)) 							.rotated(twist_k * 0.5)
+					if not filled:
+						d = clampf(1.0 - absf(off) / maxf(0.001, th), 0.0, 1.0)
+						d = d * d * (3.0 - 2.0 * d)
+						if remnant:
+							# And faint. Held below the top brightness step on
+							# purpose: nothing about a dispersing remnant should
+							# compete with a planetary, which is a live shell
+							# around a star that is still lighting it.
+							d *= 0.58
+						else:
+							# Squared again: a planetary has a sharp inner rim.
+							# It is a single shell with an edge, not a front
+							# that has been smearing outward for ten thousand
+							# years.
+							d = d * d * (3.0 - 2.0 * d)
+				else:
+					var rr: float = pow(_rnd(), 0.8) * lr
+					var a2: float = _rnd() * TAU
+					local = lobes[lobe] \
+						+ Vector2(cos(a2) * rr, sin(a2) * rr * 0.82)
+
+					# Density is the STRONGEST lobe at this point, not the sum,
+					# so overlaps brighten rather than merely doubling the dot
+					# count.
+					for m in nl:
+						d = maxf(d, 1.0 - minf(1.0,
+							(local - lobes[m]).length() / maxf(1.0, lobe_r[m])))
+					d = d * d * (3.0 - 2.0 * d)
 				# Filaments. Gas is ropey, not spherical, and two sines that do
 				# not divide into each other say so well enough at this size.
 				var fil: float = 0.5 + 0.5 * sin(local.x * 0.085 + twist_k) \
 					* sin(local.y * 0.11 - twist_k * 1.7)
-				d *= 0.52 + 0.48 * fil
+				# A remnant is filaments almost to the exclusion of anything
+				# else — the Veil is a bundle of ropes, not a wall — so it takes
+				# far more of its brightness from this than a smooth cloud does.
+				if cloud.kind == NebulaField.Kind.REMNANT:
+					d *= 0.18 + 0.82 * fil
+				else:
+					d *= 0.52 + 0.48 * fil
 
 				var world := centre + local
 				var dith := _dither(world)
 				if d < dith:
 					continue
-				if not _static_ok(world, _rnd()):
-					continue
+				var wash_moves := not _static_ok(world, _rnd())
 				# Four steps, with the dither offsetting the boundaries between
 				# them as well as the outer edge — so the ramp breaks up too and
 				# the cloud never shows a contour line.
@@ -1845,6 +2585,10 @@ class MapChart extends Control:
 				elif tone < 0.37:
 					vi = 2
 				var col: Color = ramps[vi][step]
+				if wash_moves:
+					# Close enough to the hole that it should be going round it.
+					_to_core(world, col, 2)
+					continue
 				top = maxf(top, centre.y - world.y)
 				_star_pos.append(world)
 				_star_col.append(col)
@@ -1860,19 +2604,34 @@ class MapChart extends Control:
 				# mass blinking out of existence is not.
 				_star_dim.append(0)
 
-			# The stars that lit it. Only emission clouds get these, and that IS
-			# the difference between the two kinds: one glows because something
-			# inside it is burning, the other only catches light from elsewhere.
-			if emission:
+			# The stars that lit it. Only a cloud that is actively forming them
+			# gets them: a planetary is one dying star's envelope, a remnant is
+			# what is left after the star went, and a dark cloud has nothing
+			# lighting it at all.
+			# The star that shed it, still sitting in the middle. A planetary is
+			# the one nebula with an obvious source, and it is what makes the
+			# ring read as a ring around something.
+			if cloud.kind == NebulaField.Kind.PLANETARY:
+				for w in 5:
+					var wob := Vector2(_rnd() - 0.5, _rnd() - 0.5) * rad * 0.05
+					_star_pos.append(centre + wob)
+					_star_col.append(Color("#ffffff") if w < 2 else Color("#bff0ff"))
+					_star_big.append(0)
+					_star_dim.append(0)
+
+			if cloud.kind == NebulaField.Kind.EMISSION:
 				var young := 5 + int(_rnd() * 5.0)
 				for y in young:
-					var sp: Vector2 = centre + lobes[y % 3] \
+					var sp: Vector2 = centre + lobes[y % lobes.size()] \
 						+ Vector2(_rnd() - 0.5, _rnd() - 0.5) * rad * 0.5
-					if not _static_ok(sp, _rnd()):
+					var young_moves := not _static_ok(sp, _rnd())
+					var ycol := Color("#e8f2ff") if _rnd() > 0.5 \
+						else Color("#a9c6e6")
+					if young_moves:
+						_to_core(sp, ycol, 1)
 						continue
 					_star_pos.append(sp)
-					_star_col.append(Color("#e8f2ff") if _rnd() > 0.5
-						else Color("#a9c6e6"))
+					_star_col.append(ycol)
 					_star_big.append(0)
 					_star_dim.append(0)
 
@@ -1880,8 +2639,7 @@ class MapChart extends Control:
 			# A floor, for the pathological cloud whose lobes all fell below its
 			# centre and which would otherwise wear its name through its middle.
 			_neb_top.append(maxf(top, rad * 0.3))
-			_neb_name.append(GalaxyGen.nebula_name(
-				(Run.galaxy_seed >> 3) + k * 7919))
+			_neb_name.append(cloud.name)
 
 	## Dust lanes, and the dark globules inside the clouds. The same material as
 	## a nebula with nothing lighting it, so it is drawn by taking pixels away
@@ -1915,14 +2673,16 @@ class MapChart extends Control:
 			# Thins outward, like everything else in the disc.
 			if _rnd() > 1.05 - rn * 0.55:
 				continue
-			if not _static_ok(p, _rnd()):
-				continue
+			var _moves_lane := not _static_ok(p, _rnd())
 			var t := _rnd()
 			var col := Color("#080c14")
 			if t > 0.86:
 				col = Color("#16121c")
 			elif t > 0.6:
 				col = Color("#0b1119")
+			if _moves_lane:
+				_to_core(p, col, 2)
+				continue
 			_star_pos.append(p)
 			_star_col.append(col)
 			# The gas size class, like the nebula wash and for both of the same
@@ -1953,7 +2713,9 @@ class MapChart extends Control:
 					var w := c + q
 					if _dither(w) > 0.72:
 						continue
-					if not _static_ok(w, _rnd()):
+					var _moves_globule := not _static_ok(w, _rnd())
+					if _moves_globule:
+						_to_core(w, Color("#070b12"), 0)
 						continue
 					_star_pos.append(w)
 					_star_col.append(Color("#070b12"))
@@ -1984,93 +2746,197 @@ class MapChart extends Control:
 				var d: float = pow(_rnd(), 2.6) * rad
 				var a2: float = _rnd() * TAU
 				var p := centre + Vector2(cos(a2), sin(a2) * 0.92) * d
-				if not _static_ok(p, _rnd()):
-					continue
+				var _moves_cluster := not _static_ok(p, _rnd())
 				var t := _rnd()
+				# Globulars are the brightest small thing in the disc, so one
+				# sitting behind a dark cloud is the most obvious way for the
+				# cloud to fail to look dark.
+				var cext := _extinct(p)
+				if cext > 0.02 and _rnd() < cext:
+					continue
 				# An old population. There is no blue left in one of these.
 				var col := Color("#5d5442")
 				if t > 0.82:
 					col = Color("#e0d0aa")
 				elif t > 0.5:
 					col = Color("#9c8b68")
+				if _moves_cluster:
+					_to_core(p, col, 0)
+					continue
 				_star_pos.append(p)
 				_star_col.append(col)
 				_star_big.append(0)
 				_star_dim.append(1 if t <= 0.5 else 0)
 
-	## Supernova remnants, and the pulsars they leave behind.
+	## The flashing star at each pulsar.
 	##
-	## Lit by shock rather than by starlight, so they come out cold-bright —
-	## the one thing in the disc that is neither a warm core nor a blue arm — and
-	## each is small enough that finding one is a reward for zooming in rather
-	## than another texture at overview scale.
-	func _build_remnants(r_max: float) -> void:
+	## This used to draw a small shock shell around every pulsar as well. That
+	## shell is now redundant and was actively misleading: a pulsar only exists
+	## inside a supernova remnant or a planetary nebula, and both of those are
+	## already drawn — as hollow clouds, at their real size, by the nebula pass.
+	## Ringing the system with a second, smaller shell of its own put two shock
+	## fronts on the chart for one explosion.
+	##
+	## So all that is left is the star itself, which the live layer flashes.
+	func _build_remnants(_r_max: float) -> void:
 		_pulsar = PackedVector2Array()
-		var g := _g()
-		var gas: float = float(g.get("gas", 1.0))
-		# Massive stars are the ones that end this way, and they only exist
-		# where stars are still being made. So this scales off gas like the rest.
-		var count := clampi(int(round(gas * 1.6)), 0, 3)
-		if count <= 0:
+		for nd in Run.map:
+			var node: MapGen.MapNode = nd
+			if node.type == MapGen.NodeType.PULSAR:
+				_pulsar.append(_polar(node))
+
+	## Lay out the orbiting core. Runs with the rest of the build, because it
+	## depends on how many stars the cleared region swallowed and that number is
+	## only known once the field has been built.
+	## The accretion disc, laid out once.
+	##
+	## Every one of these was recomputed sixty times a second for five thousand
+	## two hundred particles, and none of it changes: the hashes are fixed per
+	## index, the radius is a pow of a hash, the angular velocity is a function
+	## of that radius, and the radial light profile is an exp of it. That is
+	## three GDScript calls plus a pow and an exp per particle per frame —
+	## around thirty thousand function calls a frame — to arrive at exactly the
+	## numbers of the frame before.
+	##
+	## What actually varies with time is the ANGLE, and what follows from it. So
+	## the disc is laid out here and the draw does trigonometry and nothing else.
+	var _disc_r: PackedFloat32Array = PackedFloat32Array()
+	var _disc_a: PackedFloat32Array = PackedFloat32Array()
+	var _disc_om: PackedFloat32Array = PackedFloat32Array()
+	var _disc_rad: PackedFloat32Array = PackedFloat32Array()
+	var _disc_b: PackedFloat32Array = PackedFloat32Array()
+	## Phase offsets, so each particle breathes and churns out of step.
+	var _disc_bp: PackedFloat32Array = PackedFloat32Array()
+	var _disc_c1: PackedFloat32Array = PackedFloat32Array()
+	var _disc_c2: PackedFloat32Array = PackedFloat32Array()
+
+	## The density wave's sample set, laid out once.
+	##
+	## The wave walks a fixed stride through the star field, so it visits the
+	## same indices every frame and asked the same questions about each of them
+	## every frame: an atan2 for the angle, a length for the radius, a colour
+	## chosen from that radius, and an extinction lookup. None of it moves. Only
+	## the phase advances.
+	##
+	## So the samples are resolved here down to a position, a phase offset and a
+	## finished colour, and the draw is one sine and a rect.
+	var _wv_pos: PackedVector2Array = PackedVector2Array()
+	var _wv_ph: PackedFloat32Array = PackedFloat32Array()
+	var _wv_col: PackedColorArray = PackedColorArray()
+
+	func _build_wave() -> void:
+		_wv_pos = PackedVector2Array()
+		_wv_ph = PackedFloat32Array()
+		_wv_col = PackedColorArray()
+		var r_max: float = maxf(1.0, _radius() * DISC)
+		var lit_step := maxi(1, _star_pos.size() / 2600)
+		for i in range(0, _star_pos.size(), lit_step):
+			# STARS only. _star_pos holds the nebula wash as well — gas and
+			# stars share the array because they share the cache — and this
+			# sampling took whatever it landed on. So the wave swept through the
+			# clouds lighting the gas a few blocks at a time, which on a DARK
+			# nebula is a contradiction in terms: the one kind of cloud whose
+			# entire definition is that it does not emit was the one visibly
+			# shimmering. Size 2 is the gas block, the same convention the
+			# orbiting material uses.
+			if _star_big[i] == 2:
+				continue
+			var sp := _star_pos[i]
+			var ang := atan2(sp.y, sp.x)
+			var rn: float = sp.length() / r_max
+			var col := Color("#43566d")
+			if rn < 0.32:
+				col = Color("#8a6134")
+			elif rn < 0.62:
+				col = Color("#5f7590")
+			# A star behind dust does not brighten to full when the wave reaches
+			# it. The static field dims these where it places them, but the wave
+			# OVERWRITES the colour rather than scaling it, so without this every
+			# pass threw that dimming away and lit the survivors inside a dark
+			# cloud as though nothing were in front of them.
+			if not _dark_r.is_empty():
+				var wex := _extinct(sp)
+				if wex > 0.02:
+					col = col.darkened(wex * 0.85)
+			_wv_pos.append(sp)
+			# Two-armed, and wound: the wave lags with radius exactly as the arms
+			# do, so it travels along them rather than sweeping across them.
+			_wv_ph.append(ang * 2.0 - rn * 5.0)
+			_wv_col.append(col)
+
+	func _build_disc() -> void:
+		_disc_r = PackedFloat32Array()
+		_disc_a = PackedFloat32Array()
+		_disc_om = PackedFloat32Array()
+		_disc_rad = PackedFloat32Array()
+		_disc_b = PackedFloat32Array()
+		_disc_bp = PackedFloat32Array()
+		_disc_c1 = PackedFloat32Array()
+		_disc_c2 = PackedFloat32Array()
+		var sh := _shadow_r()
+		var clear := _core_clear()
+		var d_in := sh * 1.02
+		var d_out := sh * 3.6
+		var span := d_out - d_in
+		for i in 5200:
+			var dv := _frac(_hash2(i, 3, 8675))
+			var da := _frac(_hash2(i, 5, 8675))
+			var db := _frac(_hash2(i, 11, 8675))
+			var x: float = pow(dv, 0.72)
+			var dr: float = d_in + x * span
+			var off: float = (x - 0.16) / 0.34
+			_disc_r.append(dr)
+			_disc_a.append(da * TAU)
+			_disc_om.append(_orbital_omega(dr, sh, clear))
+			_disc_rad.append(exp(-off * off))
+			_disc_b.append(db)
+			_disc_bp.append(da * 19.0)
+			_disc_c1.append(dv * 11.0)
+			_disc_c2.append(dv * 23.0)
+
+	func _build_orbits() -> void:
+		_orb_r = PackedFloat32Array()
+		_orb_a = PackedFloat32Array()
+		_orb_w = PackedFloat32Array()
+		_orb_col = PackedColorArray()
+		_orb_size = PackedByteArray()
+		_orb_dark = PackedByteArray()
+
+		var sh := _shadow_r()
+		var clear := _core_clear()
+		var sq_o := _squash()
+		# One in N when the core swallowed more than the frame can carry. Taking
+		# a slice keeps the radial spread and the colour mix of the whole set;
+		# taking the first N would have kept whichever layer happened to be built
+		# first and lost the others entirely.
+		var total := _core_rad.size()
+		if total == 0:
 			return
-		var sq := _squash()
-		var arms := _arms()
-		var spiral: bool = int(g.arms) > 0
-		_seed_rng(19870223)
-		for k in count:
-			# Small. The first pass drew them at twice this and they came out as
-			# clean bright hoops that read as interface rather than as sky —
-			# the brightest thing on the chart after the core, which is exactly
-			# backwards for the rarest.
-			var shell: float = r_max * (0.008 + _rnd() * 0.012)
-			var centre := Vector2.ZERO
-			# Kept off the systems. A remnant is the one thing out here drawn as
-			# a ring, and a ring that lands around a station glyph stops reading
-			# as a shock front and starts reading as a selection reticle — the
-			# chart already draws one of those, in orange, and it means something
-			# specific. Not every position can work, so this re-rolls a few times
-			# and takes what it gets rather than searching for perfection.
-			for attempt in 8:
-				var rn: float = 0.25 + _rnd() * 0.6
-				var ang: float = _rnd() * TAU
-				if spiral:
-					ang = _shape_angle(rn, k % arms, (_rnd() - 0.5) * 0.4)
-				centre = Vector2(cos(ang), sin(ang) * sq) * rn * r_max
-				var clash := false
-				for nd in Run.map:
-					var node: MapGen.MapNode = nd
-					if _polar(node).distance_to(centre) < shell * 3.0:
-						clash = true
+		var stride := maxi(1, int(ceil(float(total) / 7000.0)))
+		var i := 0
+		while i < total:
+			# (the walk below is by index; the angle now comes from the star
+			# itself, so a strided walk can no longer bias the angular spread)
+			var orad: float = _core_rad[i]
+			# Nothing may start inside the hole; where it goes from there is
+			# checked per frame, since that depends on its orbit.
+			if orad > sh * 0.5:
+				_orb_r.append(orad)
+				_orb_a.append(_core_ang[i])
+				_orb_w.append(_orbital_omega(orad, sh, clear))
+				_orb_col.append(_core_col[i])
+				_orb_size.append(_core_size[i])
+				# The path this traces is an ellipse between orad*sq and orad,
+				# so a dark lobe can only ever be in the way if its own radial
+				# band overlaps that. Almost none do.
+				var can_dark := 0
+				for k in _dark_orb_r.size():
+					var dl: float = _dark_orb_c[k].length()
+					if orad >= dl - _dark_orb_r[k] and orad * sq_o <= dl + _dark_orb_r[k]:
+						can_dark = 1
 						break
-				if not clash:
-					break
-			var phase: float = _rnd() * TAU
-			for m in 260:
-				var a2: float = _rnd() * TAU
-				# Filamentary, not a ring. A shock front breaks up as it runs
-				# into whatever is out there, and an even circle of dots reads
-				# as a drawn outline rather than as something that exploded.
-				if _rnd() > 0.28 + 0.72 * absf(sin(a2 * 3.0 + phase)):
-					continue
-				var rr: float = shell * (0.78 + pow(_rnd(), 0.5) * 0.24)
-				var p := centre + Vector2(cos(a2), sin(a2) * 0.94) * rr
-				if not _static_ok(p, _rnd()):
-					continue
-				var t := _rnd()
-				var col := Color("#24534f")
-				if t > 0.94:
-					col = Color("#7fd0c2")
-				elif t > 0.68:
-					col = Color("#3f8f88")
-				elif t > 0.56:
-					col = Color("#70415f")
-				_star_pos.append(p)
-				_star_col.append(col)
-				_star_big.append(0)
-				# The dimmest tier only, matched to the colour test above rather
-				# than to a round number, so a drag never takes a lit filament.
-				_star_dim.append(1 if t <= 0.56 else 0)
-			_pulsar.append(centre)
+				_orb_dark.append(can_dark)
+			i += stride
 
 	## The living part of the sky. Everything here is derived from the clock and
 	## from data the backdrop already built, so it costs a few hundred pixels a
@@ -2122,168 +2988,155 @@ class MapChart extends Control:
 		# spiral arm actually is — a density wave that stars pass through and
 		# brighten in, not a solid thing that rotates — and because it only ever
 		# recolours pixels that are already there, it cannot contradict them.
-		var lit_step := maxi(1, _star_pos.size() / 2600)
-		for i in range(0, _star_pos.size(), lit_step):
-			var sp := _star_pos[i]
-			var q := c + sp * zoom
+		for i in _wv_ph.size():
+			var q := c + _wv_pos[i] * zoom
 			if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
 				continue
-			var ang := atan2(sp.y, sp.x)
-			var rn: float = sp.length() / maxf(1.0, _radius() * DISC)
-			# Two-armed, and wound: the wave lags with radius exactly as the arms
-			# do, so it travels along them rather than sweeping across them.
-			var phase := ang * 2.0 - rn * 5.0 - t * 0.085
-
-			var glow := sin(phase)
-			if glow < 0.93:
+			if sin(_wv_ph[i] + t * 0.085) < 0.93:
 				continue
-			var col := Color("#43566d")
-			if rn < 0.32:
-				col = Color("#8a6134")
-			elif rn < 0.62:
-				col = Color("#5f7590")
-			ci.draw_rect(Rect2(q.round(), one), col, true)
+			ci.draw_rect(Rect2(q.round(), one), _wv_col[i], true)
 
 		# --- the inner stars, in orbit.
 		#
 		# This is the one place fast motion is honest. A galaxy takes a couple of
 		# hundred million years to turn, which is why the disc is static — but
-		# stars this close to a supermassive black hole go round in years, and
-		# the ones we have watched do it in decades. The backdrop leaves this
-		# annulus empty precisely so these can move without a static twin
-		# sitting at the same radius.
+		# stars this close to a supermassive black hole go round in years. The
+		# backdrop leaves this region empty precisely so these can move without a
+		# static twin sitting at the same radius.
 		var sh := _shadow_r()
 		var clear := _core_clear()
-		var sq := _squash()
-		# Hashed per star rather than walked along an LCG. Taking `% 10000` off
-		# the LOW bits of a linear congruential generator is the classic way to
-		# get points that lie on a lattice — invisible in a field of forty
-		# thousand, and immediately obvious as arcs and spokes in a few hundred.
-		# The accretion disc is a CIRCLE and the orbiting field is an ELLIPSE, so
-		# no single starting radius can meet it: pick one that closes the gap at
-		# the sides and the top and bottom overlap, pick one that works top and
-		# bottom and a dark ring opens at the sides. That ring is what has been
-		# left over each time.
-		#
-		# So the field starts from the middle and is cut against the disc's
-		# actual drawn edge instead. The boundary is then the disc's own shape by
-		# construction, whatever the squash happens to be.
-		var d_out := sh * 2.7
-		# Fewer orbiting stars mid-drag. Motion is unreadable while the whole
-		# view is sweeping anyway, so this is invisible in practice.
-		var orbit_n := 4000 if not _dragging else 1500
-		for i in orbit_n:
-			var ou := _frac(_hash2(i, 1, 4711))
-			var ov := _frac(_hash2(i, 2, 4711))
-			var ob := _frac(_hash2(i, 3, 4711))
-
-			# Spread by AREA, so the density is flat right out to the boundary.
-			# Spacing them evenly in RADIUS thinned them steadily outward, and
-			# the static bulge fades IN at that same radius — two fades meeting,
-			# each sparse where the other was, which drew a dark ring exactly at
-			# the join. Neither was wrong on its own.
-			var blend_in := clear * 0.7
-			var orad: float = sqrt(lerpf(sh * sh, clear * clear * 1.16, ou))
-			# Complementary fade: thins out exactly as fast as the cached field
-			# thickens, so the total stays flat across the handover.
-			if orad > blend_in:
-				var oc := _frac(_hash2(i, 13, 4711))
-				if oc < (orad - blend_in) / (clear - blend_in):
-					continue
-			# Keplerian. The gradient is the point: brisk just outside the
-			# accretion disc, slowing steadily out to the edge of the hole's
-			# neighbourhood, where it is slow enough to hand over to the static
-			# field without the join being visible.
-			var rel: float = orad / maxf(1.0, clear)
-			var omega: float = _orbital_omega(orad)
-			var oa: float = ov * TAU + t * omega
-			var off := Vector2(cos(oa), sin(oa) * sq) * orad
-			# Cut against the disc's drawn edge: anything the disc already
-			# covers is dropped, and the rest packs right up against it.
-			if off.length() < d_out:
+		# Nearly round, whatever the galaxy is. On an edge-on disc these orbits
+		# were squashed to a horizontal sliver, so every star slid ALONG the
+		# band and the band itself never changed shape — the core read as frozen
+		# while every particle in it was moving. Real nuclear clusters are
+		# spheroidal anyway: the disc is flat, the knot around the hole is not,
+		# and drawing that difference is what makes the motion visible.
+		# Round, to match how ownership is measured. The cluster around a black
+		# hole is spheroidal in any case: the disc is flat, the knot at its
+		# centre is not.
+		var sq := 1.0
+		# The shadow, in drawn pixels. A star is behind the hole when it is
+		# inside this, and that depends on where it has orbited to — which is why
+		# it cannot be decided when the orbits are laid out.
+		var hole_px := sh * zoom
+		# Same block size the static wash uses, so orbiting gas and still gas
+		# are the same material.
+		var gk_o: float = clampf(round(zoom * 0.75), 1.0, 2.0)
+		var hole_sq := hole_px * hole_px
+		for i in _orb_r.size():
+			var oa: float = _orb_a[i] - t * _orb_w[i]
+			var orad: float = _orb_r[i]
+			var oc := cos(oa)
+			var osn := sin(oa) * sq
+			var off := Vector2(oc, osn) * orad * zoom
+			# Squared. This is asked of every orbiting particle every frame and
+			# a square root is the wrong price for a comparison.
+			if off.length_squared() < hole_sq:
 				continue
-			var q2 := c + off * zoom
+			var q2 := c + off
 			if q2.x < 0.0 or q2.y < 0.0 or q2.x > w or q2.y > h:
 				continue
-			# Warm near the hole, cooling outward into the colours the static
-			# bulge uses, so the boundary between live and cached is invisible.
-			var ocol := Color("#c8a06a")
-			if rel < 0.45:
-				ocol = Color("#ffe6bd") if ob > 0.8 else Color("#d99b52")
-			elif rel < 0.75:
-				ocol = Color("#e0b077") if ob > 0.7 else Color("#9c7a4a")
-			else:
-				ocol = Color("#8a6a44") if ob > 0.5 else Color("#5f5238")
-			ci.draw_rect(Rect2(q2.round(), one), ocol, true)
+			# Gas that came from the cloud goes back as a block, at the same
+			# zoom-scaled size the static wash uses, or an orbiting nebula
+			# dissolves into single pixels the moment it starts moving.
+			var osz := one
+			match _orb_size[i]:
+				1: osz = Vector2(2, 2)
+				2: osz = Vector2(gk_o, gk_o)
+			var ocol: Color = _orb_col[i]
+			# A dark cloud in front of this. Everything static was tested for
+			# occultation where it was placed, but orbiting material moves, so
+			# whether a cloud is in front of it is a question with a new answer
+			# every frame — and left untested, the one population that moves
+			# swept through the cloud several times a second and lit it up on
+			# the way past. A cloud that brightens when something passes behind
+			# it is the exact opposite of dust.
+			#
+			# Asked only of particles whose orbit can actually reach a dark
+			# lobe, which is decided once from their radius. Almost none can, so
+			# almost none pay for the call.
+			#
+			# Dimmed rather than dropped: a particle winking out as it crossed
+			# the boundary and back in on the far side would be a worse artifact
+			# than the one being fixed.
+			if _orb_dark[i] == 1:
+				var oex := _extinct_orbit(Vector2(oc, osn) * orad)
+				if oex > 0.02:
+					ocol = ocol.darkened(oex * 0.88)
+			ci.draw_rect(Rect2(q2.round(), osz), ocol, true)
 
-		# --- the accretion disc.
+		# --- the accretion disc, after M87*.
 		#
-		# A ring of scattered dots at one radius was never going to read as a
-		# disc: what makes an accretion disc legible is that it has WIDTH, and
-		# that the matter in it shears — the inner edge laps the outer edge. So
-		# this is a proper annulus with a radial density falloff, orbiting
-		# Keplerian, and slowly. The shear does the work; nothing here spins as
-		# a rigid body.
+		# The reference photograph is a THICK, CONTINUOUS annulus that fades
+		# smoothly inward to the shadow and outward to nothing, with one limb
+		# several times brighter than the other. Ours was a thin scatter spread
+		# over a wide radius, which reads as a sprinkle of embers rather than as
+		# a body of glowing matter — the difference is not the colours, it is
+		# that the real one has no gaps.
 		#
-		# Two touches of real physics because both are cheap and both are what
-		# the eye recognises. Temperature: the inner edge is white-hot and it
-		# cools outward through gold to a dull ember. Doppler beaming: the side
-		# rotating toward you is brighter, which is the asymmetry that stops a
-		# disc looking like a decal.
-		var d_in := sh * 1.06
-		var disc_n := 1500 if not _dragging else 600
-		for i in disc_n:
-			var dv := _frac(_hash2(i, 3, 8675))
-			var da := _frac(_hash2(i, 5, 8675))
-			var db := _frac(_hash2(i, 11, 8675))
-
-			# Crowded toward the hot inner edge, thinning outward.
-			var rn2: float = pow(dv, 1.9)
-			var dr: float = d_in + rn2 * (d_out - d_in)
-			# Keplerian, and slow: about forty seconds for the inner edge to go
-			# round, and the outer edge takes several times that.
-			var ang2: float = da * TAU + t * _orbital_omega(dr)
-			# Churn, not rotation. Matter in an accretion disc does not travel
-			# in tidy circles — it is turbulent, and orbits that shear past each
-			# other at different speeds do not stay smooth. A slow radial
-			# breathing keyed to each particle's own phase is enough to suggest
-			# that: the band roils instead of turning.
-			dr *= 1.0 + 0.07 * sin(t * 0.42 + da * 19.0)
-			# Circular. Flattening it was meant to read as inclination and did
-			# not — it read as a squashed hoop, and because the cleared core is
-			# round it left a dark void above and below the disc where nothing
-			# was drawn at all.
-			var q3 := c + Vector2(cos(ang2), sin(ang2)) * dr * zoom
+		# So: a narrow band, packed hard enough to be solid, with a smooth radial
+		# falloff either side of a peak just outside the photon ring. Brightness
+		# is the product of that profile and the Doppler beam, and the ramp runs
+		# the length of the reference colour bar — black through deep red and
+		# orange to white.
+		for i in _disc_r.size():
+			var ang2: float = _disc_a[i] - t * _disc_om[i]
+			# The beam first, then cull. Churn can only push heat up by 14%, so
+			# an upper bound built from it is enough to throw a particle away
+			# before paying for the two sines that compute it exactly — and a
+			# good half of the disc is thrown away every frame.
+			var co := cos(ang2)
+			var beam: float = clampf(0.20 + 0.80 * co, 0.0, 1.0)
+			var radial: float = _disc_rad[i]
+			var db: float = _disc_b[i]
+			var hi: float = radial * beam * 1.14
+			if hi < 0.055 or db > 0.55 + hi * 0.45:
+				continue
+			var churn: float = 0.88 + 0.14 * sin(ang2 * 4.0 - t * 0.55 + _disc_c1[i]) + 0.12 * sin(ang2 * 7.0 + t * 0.31 + _disc_c2[i])
+			var heat: float = radial * beam * churn
+			if heat < 0.055 or db > 0.55 + heat * 0.45:
+				continue
+			var dr: float = _disc_r[i] * (1.0 + 0.06 * sin(t * 0.42 + _disc_bp[i]))
+			# sin from the cos already in hand. One sqrt and a quadrant test
+			# against one more transcendental, for every particle that survives,
+			# every frame.
+			var si := sqrt(maxf(0.0, 1.0 - co * co))
+			if fposmod(ang2, TAU) > PI:
+				si = -si
+			var q3 := c + Vector2(co, si) * dr * zoom
 			if q3.x < 0.0 or q3.y < 0.0 or q3.x > w or q3.y > h:
 				continue
 
-			# Doppler: brightest where the matter is coming toward the viewer.
-			var beam: float = 0.6 + 0.4 * cos(ang2)
-			# Hot and cool patches drift around the band independently of the
-			# rotation, which is most of what makes it look like it is boiling.
-			# Two frequencies that do not divide into each other, or the pattern
-			# closes on itself and draws four tidy arcs instead of turbulence.
-			var churn: float = 0.86 + 0.16 * sin(ang2 * 4.0 - t * 0.55 + dv * 11.0) \
-				+ 0.13 * sin(ang2 * 7.0 + t * 0.31 + dv * 23.0)
-			var heat: float = (1.0 - rn2) * beam * churn
-			var dcol := Color("#7a4418")
-			if heat > 0.82:
-				dcol = Color("#fffaf0")
-			elif heat > 0.62:
-				dcol = Color("#ffe2ae")
-			elif heat > 0.42:
-				dcol = Color("#f0a942")
-			elif heat > 0.24:
-				dcol = Color("#c46f24")
-			# A few percent of it flickers, so the disc is never quite steady.
-			if db > 0.97:
-				dcol = Color("#fffdf6")
+			var dcol := Color("#3a1206")
+			if heat > 0.80:
+				dcol = Color("#ffffff")
+			elif heat > 0.66:
+				dcol = Color("#fff2cd")
+			elif heat > 0.52:
+				dcol = Color("#ffd070")
+			elif heat > 0.39:
+				dcol = Color("#f89b2c")
+			elif heat > 0.27:
+				dcol = Color("#d2661c")
+			elif heat > 0.16:
+				dcol = Color("#9c3a12")
+			elif heat > 0.09:
+				dcol = Color("#66200b")
 			ci.draw_rect(Rect2(q3.round(), one), dcol, true)
 
 		# --- pulsars. What a supernova leaves turning at the middle of its own
 		# wreckage. Everything else on this chart drifts, churns or fades; these
 		# are the only thing on it that keeps time, and each one runs at its own
 		# rate so they never fall into step with each other.
+		# Never hidden, and never filtered. A neutron star turning eleven times
+		# a second is an OBJECT — it is out there whether or not you have
+		# charted the system around it, and it would go on sweeping if the
+		# chart were switched off entirely. Hiding the systems hides the
+		# interface drawn over the galaxy; it does not empty the galaxy.
+		#
+		# So the icon obeys the toggles and the pulse does not. That split is
+		# the whole rule: the glyph is a claim about somewhere you can go, and
+		# the flash is a thing that is simply happening.
 		for i in _pulsar.size():
 			var period: float = 1.1 + float(i) * 0.43
 			var ph: float = fmod(t, period) / period
@@ -2291,6 +3144,11 @@ class MapChart extends Control:
 				continue
 			var env: float = 1.0 - ph / 0.16
 			var pq := c + _pulsar[i] * zoom
+			# Behind the hole is behind the hole. Pulsars are the one thing on
+			# the live layer that was not tested against it, so a remnant that
+			# happened to sit near the middle blinked straight through.
+			if (_pulsar[i] * zoom).length() < sh * zoom:
+				continue
 			if pq.x < 1.0 or pq.y < 0.0 or pq.x > w - 1.0 or pq.y > h:
 				continue
 			pq = pq.round()
@@ -2385,16 +3243,22 @@ class MapChart extends Control:
 		# stars — you are resolving them — and wrong for a nebula, which thinned
 		# into pink confetti the moment you leaned in. Scaling the block holds
 		# the cloud together as a mass instead.
-		var gk: float = clampf(round(zoom * 2.6), 2.0, 5.0)
+		# Halved. The block still grows with the zoom — a fixed cloud of samples
+		# separates into confetti when you magnify it, which is right for stars
+		# and wrong for gas — but at 2.6 the blocks were the largest objects on
+		# screen by a wide margin and read as tiles rather than as cloud.
+		var gk: float = clampf(round(zoom * 0.75), 1.0, 2.0)
 		var gas_px := Vector2(gk, gk)
 		# Every star, every frame, including while dragging. Halving the density
 		# during a drag was cheaper, but a galaxy that visibly dims the moment
 		# you touch it is worse than one that repaints a little slower — and
 		# since the field became precomputed data the repaint is affordable.
-		var cheap := _dragging
+		# Every star, every frame, dragging or not. Thinning the field while the
+		# view swept was cheaper and it was the wrong trade: what you notice is
+		# not the framerate, it is the galaxy visibly losing stars the moment you
+		# touch it. If this needs to get faster it has to get faster without
+		# drawing less.
 		for i in _star_pos.size():
-			if cheap and _star_dim[i] == 1:
-				continue
 			var q := c + _star_pos[i] * zoom
 			if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
 				continue
@@ -2418,8 +3282,10 @@ class MapChart extends Control:
 				var q := c + _neb_pos[i] * zoom
 				if q.x < -80.0 or q.y < 0.0 or q.x > w + 80.0 or q.y > h:
 					continue
-				var lbl: String = _neb_name[i]
-				var lw: float = f.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-				var at := (q - Vector2(lw * 0.5, _neb_top[i] * zoom + 6.0)).round()
-				ci.draw_string(f, at, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
-					Color(UITheme.COLD, la))
+				# Nothing is written across the cloud any more. A name printed on
+				# every nebula is a label on scenery: it competes with the system
+				# names, which are the ones you actually act on, and it is on
+				# screen permanently to tell you something you want once. It is
+				# a hover tooltip now, like everything else that answers "what
+				# is that".
+				pass

@@ -324,7 +324,7 @@ func _poll_resources() -> void:
 	_last_scrap = scrap
 	_last_cargo = cargo
 
-func _on_damage(_amount: int, to_player: bool) -> void:
+func _on_damage(_amount: int, to_player: bool, _who: int) -> void:
 	if to_player:
 		play(&"impact_hull", 0.05)
 

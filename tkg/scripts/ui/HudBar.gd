@@ -17,6 +17,7 @@ func _ready() -> void:
 	_row = HBoxContainer.new()
 	_row.add_theme_constant_override("separation", 10)
 	add_child(_row)
+	set_process(true)
 	Sig.resources_changed.connect(refresh)
 	Sig.ship_changed.connect(refresh)
 	Sig.screen_changed.connect(refresh)
@@ -72,6 +73,35 @@ func refresh() -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_row.add_child(sp)
+
+	# Frame rate, far right. Lives on the HUD rather than on the chart because
+	# the chart is only where the cost is currently obvious — knowing what the
+	# rest of the game runs at is the comparison that makes the number mean
+	# anything.
+	_fps = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_row.add_child(_fps)
+
+## Sampled a few times a second rather than every frame: a counter that updates
+## sixty times a second is unreadable, and averaging over a short window is what
+## makes a stutter visible as a dip instead of a blur.
+var _fps: Label
+var _fps_t: float = 0.0
+
+func _process(delta: float) -> void:
+	if _fps == null:
+		return
+	_fps_t += delta
+	if _fps_t < 0.25:
+		return
+	_fps_t = 0.0
+	var f := Engine.get_frames_per_second()
+	var col := UITheme.COLD
+	if f < 30:
+		col = Color("#c8503c")
+	elif f < 50:
+		col = Color("#b8923f")
+	_fps.text = "%d FPS" % f
+	_fps.add_theme_color_override("font_color", col)
 
 func _divider() -> Control:
 	var d := Panel.new()

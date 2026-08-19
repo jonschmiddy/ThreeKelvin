@@ -18,6 +18,11 @@ var _area: AreaView
 var _slots: HBoxContainer
 var _made: Array[EnemySlot] = []
 var _tint: Color = Color("#16202c")
+## Tracers, sparks and debris. Added last so it draws over the ship and the
+## enemies, and ignores the mouse so it can never eat a card drop.
+var fx: CombatFx
+## Drifting gas, shown only in systems that sit inside a nebula.
+var weather: NebulaWeather
 
 func _ready() -> void:
 	clip_contents = true
@@ -49,7 +54,32 @@ func _ready() -> void:
 	_slots.visible = false
 	_row.add_child(_slots)
 
+	# Between the starfield and the ship. NOT show_behind_parent: this view
+	# paints its own starfield in _draw, and a child behind the parent is behind
+	# THAT — so the gas was being drawn and then covered by the sky every frame.
+	# A Control draws itself first and its children after, in order, so the
+	# weather has to be child zero: after the stars, before the ship.
+	weather = NebulaWeather.new()
+	weather.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	weather.visible = false
+	add_child(weather)
+	move_child(weather, 0)
+
+	fx = CombatFx.new()
+	fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(fx)
+
 ## Sector: the right side is the place itself.
+## Called for every sector, fighting or not — the gas does not care whether
+## something is shooting at you.
+func set_weather(n: MapGen.MapNode) -> void:
+	if weather == null:
+		return
+	weather.visible = n.in_nebula
+	if n.in_nebula:
+		weather.setup(n.nebula_emission,
+			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
+
 func show_area(n: MapGen.MapNode) -> void:
 	_tint = MapGen.region_colour(n).darkened(0.72)
 	_area.setup(n)
@@ -110,6 +140,24 @@ func estimate(i: int, text: String) -> void:
 func clear_estimates() -> void:
 	for sl in _made:
 		sl.show_estimate("")
+
+## Where a shot leaves your hull, and where one lands on a given enemy — both
+## in the effects layer's own coordinates, since that is what has to draw the
+## line between them.
+func ship_muzzle() -> Vector2:
+	if _ship == null or fx == null:
+		return size * 0.5
+	var r := _ship.get_global_rect()
+	return fx.get_global_transform().affine_inverse() \
+		* Vector2(r.position.x + r.size.x * 0.86, r.position.y + r.size.y * 0.5)
+
+func enemy_anchor(i: int) -> Vector2:
+	if fx == null:
+		return size * 0.5
+	var art := enemy_view(i)
+	if art == null:
+		return size * 0.5
+	return fx.get_global_transform().affine_inverse() * art.get_global_rect().get_center()
 
 func ship_view() -> ShipView:
 	return _ship
@@ -195,6 +243,29 @@ class AreaView extends Control:
 					_plate(c + Vector2(-46, -12), Vector2(92, 24), Color("#2a2119"))
 					_plate(c + Vector2(-46, 12), Vector2(92, 5), Color("#0b0f16"))
 					draw_rect(Rect2(c + Vector2(-56, -5), Vector2(10, 5)), Color("#d64a3a"), true)
+			MapGen.NodeType.PULSAR:
+				# The star itself is barely a pixel — a neutron star is a city
+				# across — so what you see is the beam. Two cones sweeping out
+				# of one bright point, and the wreck of the star that made it
+				# still expanding around them.
+				for i in 26:
+					var a := float(i) * 0.242
+					var r := 26.0 + float(i) * 3.4
+					draw_rect(Rect2(c + Vector2(cos(a) * r, sin(a) * r * 0.5),
+						Vector2(2, 2)), Color("#2f4a58"), true)
+				for side in [-1.0, 1.0]:
+					for i in 22:
+						var t := float(i) / 22.0
+						var spread := 2.0 + t * 16.0
+						for j in int(spread * 0.6):
+							var off := (float(j) / maxf(1.0, spread * 0.6) - 0.5) * spread
+							var col := Color("#bff0ff") if t < 0.35 else Color("#5f9ab0")
+							if t > 0.7:
+								col = Color("#2c4a5c")
+							draw_rect(Rect2(c + Vector2(side * (10.0 + t * 74.0),
+								off - 12.0 * side * t), Vector2.ONE), col, true)
+				draw_rect(Rect2(c - Vector2(2, 2), Vector2(4, 4)), Color("#ffffff"), true)
+				draw_rect(Rect2(c - Vector2(4, 1), Vector2(8, 2)), Color("#dff6ff"), true)
 			MapGen.NodeType.START:
 				# Where you start is empty space. Drawing a marker here would put
 				# an object in the one sector that is meant to have nothing in it.

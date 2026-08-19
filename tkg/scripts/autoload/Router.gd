@@ -111,6 +111,20 @@ func show_event() -> void:
 	_swap(e)
 	e.setup(EventTable.pick())
 
+## Fly the beam.
+##
+## The one node type that is a deliberate trade rather than a fight or a shop:
+## a neutron star's wind is the densest fuel source in the galaxy and its
+## radiation is the most reliable way to lose a hull. You come away with a full
+## tank and exotic matter worth studying, and you pay for it in the only
+## currency the ship cannot buy back cheaply.
+func harvest_pulsar() -> void:
+	Run.harvest_pulsar()
+	if Run.dead:
+		show_game_over()
+		return
+	show_sector()
+
 ## Strip the wreck, then stay where you are: the salvage rail on the sector
 ## screen already shows what came aboard, so a separate loot screen was one
 ## transition too many.

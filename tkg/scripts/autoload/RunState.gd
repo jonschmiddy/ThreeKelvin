@@ -18,6 +18,12 @@ var galaxy_kind: int = 0
 ## changing mid-run would redraw the sky and move the systems under the player.
 var galaxy: Dictionary = {}
 var galaxy_seed: int = 0
+## How far the whole galaxy is turned. The run starts on the rim at the first
+## row of the outermost shell, and that row sat at angle zero — so every run
+## began on the right-hand edge of the disc. Turning the entire thing by a
+## rolled angle, arms and systems together, moves the start anywhere around the
+## rim without disturbing a single relative position.
+var galaxy_spin: float = 0.0
 
 ## A galaxy exists before any run does — screens can be built and asked to draw
 ## before start_new_run() has rolled one — so it is never an empty dictionary.
@@ -74,6 +80,7 @@ func start_new_run() -> void:
 	galaxy_kind = randi() % GalaxyGen.count()
 	galaxy = GalaxyGen.roll(galaxy_kind)
 	galaxy_seed = randi()
+	galaxy_spin = randf() * TAU
 	galaxy_name = GalaxyGen.roll_name()
 	galaxy_title = GalaxyGen.roll_title()
 	map = MapGen.generate(MAP_CANVAS)
@@ -160,6 +167,35 @@ func scrap_value_of(m: ModuleData) -> int:
 	return v
 
 # --------------------------------------------------------------------- mutations
+
+## Fly a pulsar's beam: the densest fuel in the galaxy, paid for in hull.
+##
+## The arithmetic lives here rather than in Router because the simulator has to
+## be able to run it. Anything that only exists on a screen is invisible to the
+## balance model, and a node type that hands out fuel and takes hull is exactly
+## the kind of thing the model needs to see.
+func harvest_pulsar() -> void:
+	var n := node_at()
+	if n.cleared:
+		return
+	n.cleared = true
+	# Scales with danger, so a deep pulsar is both a better haul and a worse
+	# idea — which is the shape of this whole map.
+	var gain_fuel := 14 + n.danger * 2
+	var gain_exotic := 1 + int(n.danger / 4)
+	var burn := 6 + int(n.danger * 1.6)
+	var gain_heat := 3 + int(n.danger / 3)
+
+	fuel += gain_fuel
+	exotic += gain_exotic
+	heat += gain_heat
+	log_line("Beam sweep. The tank fills in eleven seconds.", &"good")
+	log_line("+%d fuel, +%d exotic." % [gain_fuel, gain_exotic], &"good")
+	log_line("Hard radiation through the hull. +%d heat." % gain_heat, &"them")
+	Sig.resources_changed.emit()
+	# Last: it can end the run, and everything above has to have happened first.
+	# Dying with the fuel aboard is the point of the trade.
+	take_hull_damage(burn, "Cooked by a neutron star. The hull held; nothing inside it did.")
 
 func take_hull_damage(amount: int, reason: String) -> void:
 	hp -= amount
@@ -286,27 +322,46 @@ func range_from(here: MapGen.MapNode) -> float:
 		var t: MapGen.MapNode = n
 		if t.index == here.index:
 			continue
-		# Depth is gated by shells. Ring spacing is tiny next to the width of a
-		# ring, so any radius wide enough to reach along your own ring would
-		# also reach most of the way to the core.
-		if absi(t.layer - here.layer) > 1:
-			continue
 		ds.append(MapGen.hop_distance(here, t))
 	if ds.is_empty():
 		_range_cache[here.index] = 0.0
 		return 0.0
 	ds.sort()
-	var r: float = ds[mini(JUMP_NEIGHBOURS - 1, ds.size() - 1)] * 1.06
+	# Relative to your CLOSEST neighbour, not a fixed count.
+	#
+	# Taking the sixth-nearest meant the drive always reached exactly six
+	# systems — so out on the thin frontier it stretched across enormous gaps to
+	# find them, and in the crowded deep galaxy it stopped short of things
+	# sitting right next to you. Every neighbourhood looked identical however
+	# dense the region actually was, which quietly threw away the whole point of
+	# populating the rings unevenly.
+	#
+	# Anything within about two and a half times your nearest neighbour is close
+	# enough to be a real option; past that it is a trek. Floored at the third
+	# nearest so a sparse ring still offers a choice rather than a corridor, and
+	# capped at the sixth so a dense one does not offer twenty.
+	var nearest: float = ds[0]
+	var lo: float = ds[mini(2, ds.size() - 1)]
+	var hi: float = ds[mini(JUMP_NEIGHBOURS - 1, ds.size() - 1)]
+	var r: float = clampf(nearest * 2.5, lo, hi) * 1.06
 	_range_cache[here.index] = r
 	return r
 
-## Close enough to fly to. Charted links no longer grant passage on their own:
-## a link is how the map guarantees the galaxy hangs together, not a promise
-## that the place is near.
+## Close enough to fly to. Pure distance, nothing else.
+##
+## There used to be a hard cap of one shell as well. It was a genuine necessity
+## when range was a fixed radius wide enough to reach along a rim ring — that
+## same radius reached most of the way to the core — but it stopped being one
+## the moment range became relative to your nearest neighbour, which is local by
+## construction. What it did keep doing was refusing a system you could plainly
+## see was nearer than one it offered, because the nearer one happened to lie
+## two rings in. A map that contradicts the picture is worse than a map that
+## lets you cut a corner.
+##
+## Charted links do not grant passage either: a link is how generation
+## guarantees the galaxy hangs together, not a promise that the place is near.
 func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if n.index == here.index:
-		return false
-	if absi(n.layer - here.layer) > 1:
 		return false
 	return MapGen.hop_distance(here, n) <= range_from(here)
 

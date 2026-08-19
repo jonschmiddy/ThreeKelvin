@@ -19,8 +19,15 @@ signal combat_ended(result: StringName, summary: String)
 signal turn_started(turn: int)
 signal hand_changed()
 signal enemy_changed()
+## A hull came apart. Separate from enemy_changed because that fires for every
+## scratch, and the moment something dies deserves its own beat.
+signal enemy_destroyed(who: int)
 signal player_combat_state_changed()
 signal card_played(card: CardData)
-signal damage_dealt(amount: int, to_player: bool)
+## `who` is the enemy involved: the victim when it is your shot, the attacker
+## when it is theirs, -1 when nothing sensible applies. Fights hold several
+## enemies now, so an event that only says "someone took damage" cannot be
+## drawn — the effects layer would have to guess which hull to hit.
+signal damage_dealt(amount: int, to_player: bool, who: int)
 signal charge_fired(card_name: String)
 signal overheated(burn: int)

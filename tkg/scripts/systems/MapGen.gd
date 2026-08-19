@@ -18,7 +18,9 @@ enum Development { UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL }
 ## it across five files, and collapsing three axes onto one label in exactly one
 ## place beats teaching every one of those sites the new vocabulary.
 enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
-enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, GOAL }
+## PULSAR is last on purpose: type_label indexes this by value, and inserting
+## in the middle would silently relabel every node type after it.
+enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, GOAL, PULSAR }
 
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
@@ -89,8 +91,26 @@ static func ring_count(layer: int) -> int:
 	# The radial gap the ring spacing is aiming at, on average.
 	var target := (RIM - CORE) / float(maxi(1, LAYERS - 2))
 	# Perimeter of the squashed ring, near enough for counting purposes.
-	var perim := PI * ring_radius(layer) * (1.0 + sq)
-	return clampi(int(round(perim / maxf(0.001, target))), RING_MIN, RING_MAX)
+	var r := ring_radius(layer)
+	var perim := PI * r * (1.0 + sq)
+	# Weighted toward the middle. Populations straight off the perimeter give
+	# even spacing everywhere, which reads as a uniform grid of places — and it
+	# puts most of the galaxy out on the rim, where the danger is lowest and
+	# there is least reason to be. Tilting it inward means the frontier is
+	# genuinely thin and the deep galaxy is genuinely crowded, which is the
+	# shape of the run: sparse and safe at the edge, dense and lethal in.
+	# The curve matters more than the endpoints. A linear tilt from 0.44 to 1.5
+	# still put roughly the same number of systems on every ring — the perimeter
+	# shrinks inward at almost the rate the weight grows, so they cancel and the
+	# field comes out flat however the endpoints are set. Raising f to a power
+	# breaks that cancellation: the weight stays low across the outer half and
+	# then climbs steeply, which is what actually empties the frontier and packs
+	# the deep galaxy. Areal density now runs about fifty to one from rim to
+	# core, against six to one before.
+	var f: float = clampf(1.0 - (r - CORE) / maxf(0.001, RIM - CORE), 0.0, 1.0)
+	var weight: float = lerpf(0.14, 3.3, pow(f, 1.6))
+	return clampi(int(round(perim / maxf(0.001, target) * weight)),
+		RING_MIN, RING_MAX)
 
 class MapNode extends RefCounted:
 	var index: int = 0
@@ -120,6 +140,12 @@ class MapNode extends RefCounted:
 	## chart draws. Links and fuel costs are both derived from it, which is what
 	## makes a long jump look long and cost more.
 	var gal: Vector2 = Vector2.ZERO
+	## Sitting inside one of the galaxy's gas clouds. Set at generation from the
+	## same placement the chart draws, so a system that plainly looks like it is
+	## in a nebula is one.
+	var in_nebula: bool = false
+	## And whether that cloud is lit from within.
+	var nebula_emission: bool = false
 	var links: PackedInt32Array = []
 	## Populated lazily by StationScreen
 	var shop: Array = []
@@ -152,21 +178,39 @@ static func region_name(r: Region) -> String:
 
 ## Colour follows the axes: one house flies its colours, several read as neutral
 ## trade, and unclaimed space is dim.
+## What colour a system is drawn.
+##
+## Five states you can name, and deliberately NOT one colour per manufacturer.
+##
+## The maker colours are accents: small highlights on a module sprite, where
+## being a few points apart is exactly right. Reused as the identity of a whole
+## system they stopped working — redline and calyx are both muted greens within
+## a hair of each other, dredge and korvan are both browns, and cygnet sits on
+## top of the unclaimed grey-blue. On a chart of a hundred and fifty icons that
+## is not a code, it is noise that looks like a code.
+##
+## Which house holds a place is a detail you read when you point at one, and the
+## tooltip and the panel both say it in words. What the chart has to carry at a
+## glance is whether anyone holds it at all.
 static func region_colour(n: MapNode) -> Color:
 	if n.type == NodeType.GOAL:
 		return Color("#d4614f")
+	if n.type == NodeType.PULSAR:
+		return Color("#8fd2e0")
 	if n.fauna:
 		return Color("#4a7a8a")
 	if n.security <= 2 and not n.makers.is_empty():
-		return Color("#7a5a3a")
+		# Lawless but held: the one distinction worth a colour of its own,
+		# because it changes what the place sells and what it does to you.
+		return Color("#a9713d")
 	if n.makers.size() >= 2:
-		return Color("#8fa3ba")
+		return Color("#93a8c2")
 	if n.makers.size() == 1:
-		return DB.manufacturer_colour(n.makers[0])
-	return Color("#3a4a5c")
+		return Color("#6f8296")
+	return Color("#41505f")
 
 static func type_label(t: NodeType) -> String:
-	return ["START", "FIGHT", "STATION", "EVENT", "DERELICT", "CORE"][t]
+	return ["START", "FIGHT", "STATION", "EVENT", "DERELICT", "CORE", "PULSAR"][t]
 
 static func development_name(d: Development) -> String:
 	return ["Unclaimed", "Outpost", "Settlement", "City", "Capital"][d]
@@ -195,6 +239,11 @@ static func place_blurb(n: MapNode) -> String:
 		return "Four million suns in a point, and the ruins of whatever came first still orbiting it. Nothing here was manufactured."
 	if n.fauna:
 		return "Megafauna. Exotic materials, no module salvage."
+	if n.in_nebula:
+		# Said in the sector blurb as well as drawn, because a player who has not
+		# opened the chart lately should still know why the sky is moving.
+		var gas := "Lit gas. Something inside this cloud is still burning." 			if n.nebula_emission else "Cold gas, thick enough to hide in."
+		return gas + " Nothing else out here to see by."
 	var who := ""
 	match n.makers.size():
 		0: who = "Nobody's space. Thin, random salvage."
@@ -244,6 +293,14 @@ static func generate(canvas: Rect2) -> Array:
 	_layout(nodes, canvas)
 	for n in nodes:
 		(n as MapNode).gal = galaxy_pos(n)
+	for n in nodes:
+		var nn: MapNode = n
+		var cloud := NebulaField.at(nn.gal)
+		nn.in_nebula = cloud != null
+		if cloud != null:
+			nn.nebula_emission = cloud.emission
+	_seed_pulsars(nodes)
+
 	_link(nodes)
 	nodes[0].visited = true
 	nodes[0].cleared = true
@@ -259,6 +316,21 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 		# do not apply to the thing at the centre of a galaxy.
 		n.development = Development.UNCLAIMED
 		n.security = 1
+		return
+	if n.type == NodeType.PULSAR:
+		# Nothing is established beside a neutron star. The beam sterilises
+		# whatever it sweeps and the wind strips the rest, so there is no
+		# outpost to police, no house with a claim on it, and nothing living
+		# that migrates through — a pulsar is weather, not territory.
+		#
+		# Re-run rather than rolled in place: _seed_pulsars sets the type long
+		# after the axes have been rolled, so it calls back into here to undo
+		# them. The depth argument is ignored on this path.
+		n.development = Development.UNCLAIMED
+		n.security = 1
+		n.makers.clear()
+		n.manufacturer = &""
+		n.fauna = false
 		return
 	if n.type == NodeType.START:
 		n.development = Development.OUTPOST
@@ -292,6 +364,27 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 
 ## Collapse the three axes back onto the old label, once, here. Order matters:
 ## the most specific claim about a place wins.
+## What is wrong with a place, as short shouted words.
+##
+## Kept here rather than in the panel that happens to draw it, because a hazard
+## is a fact about the sector and more than one screen wants to say it — the
+## chart warns you before you commit the fuel, the sector screen reminds you
+## once you are standing in it.
+##
+## Deliberately a LIST. Somewhere can be both inside a nebula and on top of a
+## neutron star, and the honest answer then is both lines, not whichever one
+## the code happened to test first. New hazards get added here and appear
+## everywhere that asks, with no screen needing to learn about them.
+static func hazards(n: MapNode) -> PackedStringArray:
+	var out := PackedStringArray()
+	if n.type == NodeType.PULSAR:
+		out.append("PULSAR")
+	if n.in_nebula:
+		out.append("NEBULA")
+	if n.type == NodeType.GOAL:
+		out.append("EVENT HORIZON")
+	return out
+
 static func _derive_region(n: MapNode) -> Region:
 	if n.type == NodeType.GOAL:
 		return Region.CORE
@@ -310,7 +403,9 @@ static func _derive_region(n: MapNode) -> Region:
 static func shape_angle(r_norm: float, arm: int, along: float) -> float:
 	var g := Run.galaxy
 	var n := maxi(1, int(g.arms))
-	var base := float(arm) * TAU / float(n)
+	# Includes the run's spin, so the arms turn with the systems rather than
+	# the systems sliding around a fixed galaxy.
+	var base := float(arm) * TAU / float(n) + Run.galaxy_spin
 	var bar: float = g.bar
 	if bar > 0.0 and r_norm < bar:
 		# Inside the bar the arms have not started: it is a straight spine
@@ -359,7 +454,7 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 	var ja := _frac(_hash2(n.index, n.layer, 211 + salt)) - 0.5
 	var rot := (_frac(_hash2(n.layer, 7, 307 + salt)) - 0.5) * astep * 0.55
 	var r := rn + jr * 0.026
-	var a := (float(n.row) + half) * astep + rot + ja * astep * 0.42
+	var a := (float(n.row) + half) * astep + rot + ja * astep * 0.42 + Run.galaxy_spin
 
 	# Drawn toward the nearest arm so systems sit in the bright lanes. Capped to
 	# a fraction of a ring step: an uncapped pull sends adjacent rows to opposite
@@ -381,12 +476,101 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 static func hop_distance(a: MapNode, b: MapNode) -> float:
 	return a.gal.distance_to(b.gal)
 
+## Put a neutron star at the heart of every shell that has a system in it.
+##
+## Pulsars used to be rolled like any other node type, which put them wherever
+## the dice fell — including out in clean space, where nothing had ever
+## exploded. The object and its cause were unrelated.
+##
+## Now the cloud comes first and the pulsar is derived from it: a supernova
+## remnant or a planetary nebula is a star's corpse, so if a system sits inside
+## one, THAT is the system with the corpse in it. The consequence is that
+## pulsars are properly scarce and unevenly spread — a galaxy can roll none,
+## and one that rolls three has three shells to show for them — and that the
+## ring you can see on the chart is the REASON the place is dangerous rather
+## than decoration sitting next to it.
+##
+## Membership is NebulaField's own test at its own reach: the same one the
+## sector screen asks to decide whether you are standing in gas. Two answers to
+## "is this system inside that cloud" would agree exactly until one was edited.
+static func _seed_pulsars(nodes: Array) -> void:
+	for raw in NebulaField.clouds():
+		var cl: NebulaField.Cloud = raw
+		# REMNANTS ONLY. A planetary nebula is the envelope of a low-mass star
+		# gently shrugging off its outer layers, and what it leaves behind is a
+		# white dwarf — no collapse, no neutron star, no beam. Only a
+		# core-collapse supernova leaves the thing this node is about.
+		if cl.kind != NebulaField.Kind.REMNANT:
+			continue
+		# How far a system may be dragged to become this shell's pulsar.
+		#
+		# The test used to be "inside the cloud", which was the right question
+		# when the pulsar stayed where it was. Now that it MOVES to the centre,
+		# the only thing that matters is whether hauling it there wrecks the
+		# layout — and a shell with no system quite inside it is a ring drawn
+		# around nothing, which is worse than a system nudged half a cloud.
+		#
+		# Floored, because a planetary is small enough that a radius-relative
+		# reach alone would almost never catch anything.
+		var reach: float = clampf(cl.radius * 2.2, 0.14, 0.20)
+		# Nearest to the middle, because the middle is where the star was.
+		var best: MapNode = null
+		var closest := INF
+		for n in nodes:
+			var nn: MapNode = n
+			if nn.type == NodeType.START or nn.type == NodeType.GOAL:
+				continue
+			if nn.type == NodeType.PULSAR:
+				continue
+			if nn.gal.distance_to(cl.pos) > reach:
+				continue
+			var d: float = nn.gal.distance_to(cl.pos)
+			if d < closest:
+				closest = d
+				best = nn
+		if best == null:
+			continue
+		best.type = NodeType.PULSAR
+		# And it MOVES to the middle of the shell. Picking the nearest system
+		# and leaving it where the layout happened to put it meant the neutron
+		# star sat somewhere on the ring it had supposedly thrown off — usually
+		# right in the wall of it. The shell is gas expanding away from a point,
+		# and the point is the pulsar; anywhere else and the picture argues with
+		# itself.
+		#
+		# Safe to do here because gal is what everything downstream reads: _link
+		# has not run yet, so the jump distances are measured from the new
+		# position, and the chart draws from it too. The node keeps its layer,
+		# so its depth and danger are untouched.
+		best.gal = cl.pos
+		# Strip whatever civilisation the axes gave it when it was still an
+		# ordinary system. Depth is ignored for a pulsar, so the value passed
+		# here does not matter.
+		_roll_axes(best, 0.0)
+		best.region = _derive_region(best)
+		# Whatever else was true of the place, standing next to a neutron star
+		# is the dangerous part.
+		best.danger = maxi(best.danger, DANGER_MAX - 1)
+
 static func _pick_type() -> NodeType:
+	# No PULSAR here. A neutron star is not scattered at random across the
+	# galaxy: it is what a big star leaves when it goes, and the only places
+	# that happened are the shells still hanging where it stood. They are placed
+	# by _seed_pulsars, against the clouds, once positions exist.
+	#
+	# The other weights are left exactly as they were, so removing pulsars from
+	# the draw did not quietly change the mix of fights, stations, events and
+	# wrecks along with it.
 	var weights := [
 		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
-		NodeType.STATION, NodeType.STATION,
-		NodeType.EVENT, NodeType.EVENT,
-		NodeType.DERELICT,
+		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
+		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
+		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
+		NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
+		NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
+		NodeType.EVENT, NodeType.EVENT, NodeType.EVENT, NodeType.EVENT,
+		NodeType.EVENT, NodeType.EVENT, NodeType.EVENT, NodeType.EVENT,
+		NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT,
 	]
 	return weights.pick_random()
 

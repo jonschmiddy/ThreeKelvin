@@ -173,7 +173,7 @@ static func roll(kind: int) -> Dictionary:
 	# — a galaxy with a big central bulge has a big central mass — and then
 	# rolled wide, so one galaxy has a pinprick at its heart and the next has a
 	# throat you can see from the rim.
-	g.hole = clampf(float(g.bulge) * randf_range(0.07, 0.19), 0.016, 0.072)
+	g.hole = clampf(float(g.bulge) * randf_range(0.05, 0.13), 0.012, 0.046)
 	g.chaos = maxf(0.0, float(g.chaos) * randf_range(0.7, 1.4))
 	if float(g.ring) > 0.0:
 		g.ring = clampf(float(g.ring) + randf_range(-0.05, 0.05), 0.2, 0.7)

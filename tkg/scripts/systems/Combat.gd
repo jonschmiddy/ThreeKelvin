@@ -299,7 +299,7 @@ func _act_one(e: EnemyState) -> void:
 				total += d
 			if total > 0:
 				_log("  %d hull damage." % total, &"them")
-				Sig.damage_dealt.emit(total, true)
+				Sig.damage_dealt.emit(total, true, enemies.find(e))
 				Run.take_hull_damage(total, "Hull integrity lost. The cold gets in fast.")
 			if riposte > 0:
 				damage_enemy(riposte, 1, "Riposte")
@@ -432,11 +432,12 @@ func damage_enemy(amount: int, hits: int, label: String,
 		total += d
 	var who := "" if enemies.size() < 2 else " → %s" % e.template.name
 	_log("%s%s → %d%s" % [label, who, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
-	Sig.damage_dealt.emit(total, false)
+	Sig.damage_dealt.emit(total, false, enemies.find(e))
 	Sig.enemy_changed.emit()
 
 	if e.hp <= 0:
 		e.hp = 0
+		Sig.enemy_destroyed.emit(enemies.find(e))
 		if enemies.size() > 1:
 			_log("%s is wreckage." % e.template.name, &"good")
 	if alive().is_empty():
