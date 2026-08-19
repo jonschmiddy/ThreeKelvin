@@ -42,6 +42,19 @@ static func pixel_font() -> FontFile:
 	f.force_autohinter = false
 	return f
 
+## Flavour grey: dark enough to sink toward the panel, light enough to read.
+##
+## Two jobs at once. Desaturated out of the palette's cold blues, because
+## everything the player can act on is blue-grey and a neutral says "not this
+## one" before a word is read. And held down near the panel itself, so the
+## block recedes rather than competing — flavour should be findable, not
+## announced.
+##
+## Roughly 3:1 against PANEL. That is deliberately under the threshold you
+## would demand of anything a player has to act on, and it is the right side of
+## the line for something they never have to read at all.
+const QUOTE := Color("#5a6470")
+
 static func build() -> Theme:
 	var t := Theme.new()
 	t.default_font = pixel_font()

@@ -247,10 +247,20 @@ func end_turn() -> void:
 		_pacify()
 		return
 
-	block = 0
 	_enemy_act()
 	if finished:
 		return
+	# AFTER the enemy swings, not before.
+	#
+	# This line used to sit above _enemy_act(), which zeroed the player's block
+	# on the way into the one function that spends it — so every Block card in
+	# the game bought exactly nothing, silently, for as long as the field has
+	# existed. CardData has said "decays at end of enemy turn" the whole time;
+	# the code was clearing it at the start of one.
+	#
+	# Armor was unaffected, which is what hid it: the defensive cards that
+	# obviously worked were the ones that used the other field.
+	block = 0
 	turn += 1
 	begin_turn()
 
@@ -446,12 +456,18 @@ func damage_enemy(amount: int, hits: int, label: String,
 
 # ------------------------------------------------------------------------ endings
 
+## What breaking contact costs. Read by the confirmation prompt too, so the
+## warning cannot drift from the charge.
+const FLEE_FUEL := 6
+
 func flee() -> void:
 	if finished:
 		return
-	Run.fuel = maxi(0, Run.fuel - 6)
+	# One number, named once. The line said 2 while the code took 6 — a
+	# discrepancy the player pays and the log denies.
+	Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
 	Sig.resources_changed.emit()
-	_finish(&"fled", "You burned 2 fuel breaking contact. No salvage.")
+	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % FLEE_FUEL)
 
 func _victory() -> void:
 	Run.kills += 1

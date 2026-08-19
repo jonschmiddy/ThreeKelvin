@@ -113,11 +113,19 @@ func reactor() -> int:
 	var e := hull.reactor
 	if hull.perk_id == &"overspec_reactor":
 		e += 1
-	if has_set(&"veyra", 5):
+	if has_set(&"halcyon", 5):
 		e += 1
 	return e
 
+## Development override, set by `-- fight N`. Zero means "use the real value".
+## Lives here rather than in Main so Combat's redraw each turn honours it too —
+## a hand that is ten on turn one and five on turn two would test the layout
+## exactly once.
+var hand_size_override: int = 0
+
 func hand_size() -> int:
+	if hand_size_override > 0:
+		return hand_size_override
 	var h := hull.hand_size
 	if has_set(&"redline", 3):
 		h += 1

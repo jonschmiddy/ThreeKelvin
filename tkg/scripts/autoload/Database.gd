@@ -42,31 +42,31 @@ func _ready() -> void:
 
 func _seed_manufacturers() -> void:
 	var raw := [
-		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#8a6a3a",
+		[&"korvan", "Korvan Heavy Works", "It fires. Every time.", "#d97b2e", "#8a4517",
 			"Ex-military surplus parts. Ballistics run cold; ordnance and armor run hot.",
 			"Standard Issue", "Charge cards charge 1 turn faster.",
 			"Full Broadside", "Salvo applies to your first attack too."],
-		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#b1531f",
+		[&"solari", "Solari Foundry", "The line between reactor and weapon is philosophy.", "#ef9f27", "#3a2408",
 			"Weaponised heat. Damage scales with your own fever.",
 			"Sunward", "Plasma weapons gain +2 damage.",
 			"Ignition", "Overheat damage halved."],
-		[&"dredge", "The Dredge Combine", "Everything is salvage. Even you.", "#6b6250",
+		[&"dredge", "The Dredge Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
 			"Scrap economy and armor sustain. Wins slowly, wins rich.",
 			"Company Rates", "+50% scrap from wrecks.",
 			"Foundry Line", "Brace cards give +2 armor."],
-		[&"redline", "Redline Shipyards", "Still flying? Then we did our job.", "#5a7a6a",
+		[&"redline", "Redline Shipyards", "Still flying? Then we did our job.", "#e24b4a", "#1c2127",
 			"Salvage tech, stealth and refits. Innate contraband affinity.",
 			"Chop Shop", "Draw 1 extra card each turn.",
 			"Ghost Protocol", "First enemy attack each combat is negated."],
-		[&"veyra", "Veyra Ateliers", "Made once, made properly.", "#8a7a9a",
+		[&"halcyon", "Halcyon Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
 			"The thin, perfect deck. Few slots, superb cards, expensive everything.",
-			"Bespoke", "Veyra cards cost 1 less energy.",
+			"Bespoke", "Halcyon cards cost 1 less energy.",
 			"Provenance", "Start each combat with 1 extra energy."],
-		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#5a7a94",
+		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#58c8d8", "#16202e",
 			"Autonomous drones that fight and intercept for you.",
 			"Swarm Logic", "Drones act twice on the turn they launch.",
 			"Hive Mind", "Drones persist between encounters."],
-		[&"calyx", "Calyx Systems", "Grown, not built.", "#6a8a6a",
+		[&"calyx", "Calyx Biosystems", "Grown, not built.", "#3f8f6b", "#e2ece6",
 			"Clean corporate biotech. Regeneration and cards that mutate through use.",
 			"Cultivar", "Heal 3 after each combat.",
 			"Symbiosis", "Gain 1 exotic material after each fauna encounter."],
@@ -77,11 +77,12 @@ func _seed_manufacturers() -> void:
 		m.name = r[1]
 		m.tagline = r[2]
 		m.colour = Color(r[3])
-		m.identity = r[4]
-		m.set3_name = r[5]
-		m.set3_text = r[6]
-		m.set5_name = r[7]
-		m.set5_text = r[8]
+		m.field = Color(r[4])
+		m.identity = r[5]
+		m.set3_name = r[6]
+		m.set3_text = r[7]
+		m.set5_name = r[8]
+		m.set5_text = r[9]
 		manufacturers[m.id] = m
 
 func manufacturer_colour(id: StringName) -> Color:
@@ -239,14 +240,14 @@ func _seed_modules() -> void:
 		"Spends the swarm all at once.",
 		[{name = "Evoke", energy = 1, evoke = 7, copies = 1}])
 
-	# --- Veyra: precision
-	_module(&"rail", "Aurelian Rail", &"veyra", W, C2,
+	# --- Halcyon: precision
+	_module(&"rail", "Aurelian Rail", &"halcyon", W, C2,
 		"Nothing wasted. Nothing missed.",
 		[{name = "Precise Shot", energy = 1, heat = 1, damage = 9, draw = 1, copies = 2}])
-	_module(&"auspex", "Auspex Array", &"veyra", U, C1,
+	_module(&"auspex", "Auspex Array", &"halcyon", U, C1,
 		"You always have the card you need.",
 		[{name = "Foresight", energy = 0, draw = 2, copies = 2}])
-	_module(&"halcyon", "Halcyon Deflector", &"veyra", S, C3,
+	_module(&"halcyon", "Halcyon Deflector", &"halcyon", S, C3,
 		"Elegance, quantified.",
 		[{name = "Deflect", energy = 1, block = 12, copies = 2}])
 

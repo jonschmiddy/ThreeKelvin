@@ -5,6 +5,14 @@ extends TextureRect
 ## dithered organic segments. The Hulk's "winding up" telegraph lights its ram
 ## prow — art and mechanics doing the same job.
 
+## The box the ship occupies inside this canvas, in local pixels. See set_enemy.
+var _used: Rect2i = Rect2i(0, 0, 240, 120)
+var _bounds: Rect2i = Rect2i()
+var _track: bool = false
+
+func used_rect() -> Rect2i:
+	return _used
+
 const W := 240
 const H := 120
 
@@ -17,12 +25,26 @@ func _init() -> void:
 	# whatever rect it is handed, so the enemy changed size whenever a side rail
 	# opened — and scaled pixel art by arbitrary fractions while doing it.
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	# A TextureRect takes its minimum size FROM ITS TEXTURE unless told not to,
+	# so custom_minimum_size could never shrink this below the 240x120 canvas —
+	# which is why cropping the empty margin appeared to do nothing at all and
+	# the health bar stayed a canvas-height away from the hull. IGNORE_SIZE
+	# hands the decision back to us; clip_contents keeps the overflow off screen.
+	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	clip_contents = true
 	custom_minimum_size = Vector2(W, H)
 	_img = Image.create(W, H, false, Image.FORMAT_RGBA8)
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
 
 func px(x: int, y: int, w: int, h: int, c: Color) -> void:
+	# While _track is on, every stroke widens the hull's bounding box. It has to
+	# be measured this way rather than from the finished image: the canvas gets
+	# a starfield painted across it first, so get_used_rect() on the image
+	# correctly answers "all of it" and tells you nothing about the ship.
+	if _track:
+		var r := Rect2i(x, y, maxi(w, 1), maxi(h, 1))
+		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
 	for j in h:
 		for i in w:
 			var xx := x + i
@@ -48,10 +70,35 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
 	_img.fill(Color(0, 0, 0, 0))
 	_starfield(77, 26)
 	var wounded := float(e.hp) / float(maxi(1, e.max_hp))
+	# Bounds tracking starts AFTER the starfield and stops before the wound
+	# tint, so what it measures is the ship and nothing else. A 240x120 canvas
+	# carries a hull about 150 wide; anything aiming at the canvas is aiming at
+	# a lot of empty pixels, which costs real estate as soon as two enemies
+	# share the arena.
+	_bounds = Rect2i()
+	_track = true
 	match e.template.art:
 		&"cutter": _draw_cutter(wounded)
 		&"hulk": _draw_hulk(wounded, telegraphing)
 		_: _draw_fauna(wounded, e.max_hp > 60)
+	_track = false
+	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
+
+	# And the Control shrinks to fit it. The canvas is a fixed 240x120 while a
+	# hull is about 150 wide and 40 tall, so the Control was carrying eighty
+	# pixels of empty image below the ship — which is what held the health bar
+	# and the intent so far away from it. Nothing that reads as "near the ship"
+	# can be, while the ship's own box is mostly not ship.
+	#
+	# Sized symmetrically about the canvas centre because the texture is drawn
+	# KEEP_CENTERED: taking the larger half-extent on each axis crops the margin
+	# without ever moving the hull inside the frame.
+	var cx := W * 0.5
+	var cy := H * 0.5
+	var half_w: float = maxf(absf(float(_used.position.x) - cx), absf(float(_used.end.x) - cx))
+	var half_h: float = maxf(absf(float(_used.position.y) - cy), absf(float(_used.end.y) - cy))
+	clip_contents = true
+	custom_minimum_size = Vector2(half_w, half_h) * 2.0 + Vector2(6, 6)
 	if wounded < 0.3:
 		_blend_rect(0, 0, W, H, Color(0.031, 0.043, 0.067, 0.35))
 	_tex.update(_img)

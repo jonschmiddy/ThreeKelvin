@@ -4,6 +4,11 @@ extends Resource
 ## Rolled modifiers applied to every card a module contributes.
 
 @export var name: String = ""
+## Grant Count Law, affix arm. "+1x Called Shot" thickens the deck
+## deliberately; "Dense: grants one fewer card, remaining cards gain +2" is
+## compression sold as loot. Either way it is priced as the tradeoff it is,
+## rather than smuggled in with rarity.
+@export var grant_delta: int = 0
 @export var text: String = ""
 @export var contraband: bool = false
 
