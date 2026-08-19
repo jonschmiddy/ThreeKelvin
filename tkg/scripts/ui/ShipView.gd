@@ -24,14 +24,44 @@ func _init() -> void:
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
 
+## Showroom mode: draw THIS hull rather than the player's, cold, undamaged and
+## bare. The chassis select shows three of these side by side, and they have to
+## be drawable before the ship they depict is the ship you own — so everything
+## that reads live run state (heat glow, battle damage, fitted modules) is
+## suppressed rather than reading whatever the current ship happens to be.
+var preview: HullData = null
+
+func setup_preview(h: HullData, view_height: int = 0) -> void:
+	preview = h
+	# A showroom sprite is never the thing you click — the card around it is.
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if view_height > 0:
+		# A hull occupies about a third of the canvas vertically and is centred
+		# in it, so cropping symmetrically trims empty space without moving the
+		# ship. Horizontally it is NOT centred, so the width stays full.
+		#
+		# EXPAND_IGNORE_SIZE is load-bearing and its absence is silent: a
+		# TextureRect derives its minimum size from its TEXTURE, so without this
+		# the control kept claiming the full 120 rows whatever custom_minimum_size
+		# said. The card's own labels were pushed out of the button and drew on
+		# top of the attribute block underneath it.
+		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		custom_minimum_size = Vector2(W, view_height)
+		clip_contents = true
+	refresh()
+
+func _hull() -> HullData:
+	return preview if preview != null else Run.hull
+
 func _ready() -> void:
-	Sig.ship_changed.connect(refresh)
-	Sig.resources_changed.connect(refresh)
-	Sig.player_combat_state_changed.connect(refresh)
+	if preview == null:
+		Sig.ship_changed.connect(refresh)
+		Sig.resources_changed.connect(refresh)
+		Sig.player_combat_state_changed.connect(refresh)
 	refresh()
 
 func refresh() -> void:
-	if Run.hull == null:
+	if _hull() == null:
 		return
 	draw_ship()
 	_tex.update(_img)
@@ -67,8 +97,9 @@ func draw_ship() -> void:
 	_img.fill(Color(0, 0, 0, 0))
 	_starfield(41, 30)
 
+	var hull := _hull()
 	var ratio := 0.0
-	if Run.heat_cap() > 0:
+	if preview == null and Run.heat_cap() > 0:
 		ratio = minf(1.7, float(Run.heat) / float(Run.heat_cap()))
 	var t := minf(1.0, ratio * 0.6)
 
@@ -80,6 +111,23 @@ func draw_ship() -> void:
 	var hi := lerp(Color("#4d5e75"), Color("#6f5033"), t) as Color
 	var metal := lerp(Color("#42505f"), Color("#5e4632"), t) as Color
 	var outline := Color("#0a0e13")
+
+	# Manufacturer livery: a pigment shift on the plating, not a light.
+	#
+	# Hulls are built by somebody now, and two chassis in the same weight class
+	# draw the same silhouette here — so colour is currently the only channel
+	# saying whose ship this is. Kept deliberately weak (0.16) and kept OFF the
+	# glow and core tones, because those are the heat channel and the art
+	# direction allows exactly one source of warmth in frame: the reactor.
+	# Paint is a property of the object; light is not.
+	var maker: ManufacturerData = DB.manufacturers.get(hull.manufacturer)
+	var livery: Color = maker.colour if maker != null else Color("#5a6a7a")
+	if maker != null:
+		a = a.lerp(livery, 0.10)
+		b = b.lerp(livery, 0.16)
+		c = c.lerp(livery, 0.16)
+		hi = hi.lerp(livery, 0.16)
+		metal = metal.lerp(livery, 0.12)
 
 	var glow: Color
 	var core: Color
@@ -103,7 +151,7 @@ func draw_ship() -> void:
 	# Chassis dimensions read weight class.
 	var hw := 82
 	var hh := 30
-	match Run.hull.weight:
+	match hull.weight:
 		HullData.Weight.LIGHT:
 			hw = 62
 			hh = 22
@@ -125,15 +173,19 @@ func draw_ship() -> void:
 	px(hx, hy, hw, hh, b)
 	px(hx, hy, hw, 4, c)
 	px(hx, hy, hw, 1, hi)
-	dither(hx, hy + 4, hw, 5, c, 0.5)
+	# A painted stripe where the top face turns down. One pixel of the maker's
+	# actual colour, so the livery is legible even at the tint strength above.
+	if maker != null:
+		px(hx, hy + 4, hw, 1, livery.darkened(0.25))
+	dither(hx, hy + 5, hw, 4, c, 0.5)
 	px(hx, hy + hh - 6, hw, 6, a)
 	dither(hx, hy + hh - 10, hw, 4, a, 0.45)
 
 	# Panel seams: dark line plus a light catch-edge is what makes plating read.
 	var panels := 3
-	if Run.hull.weight == HullData.Weight.HEAVY:
+	if hull.weight == HullData.Weight.HEAVY:
 		panels = 4
-	elif Run.hull.weight == HullData.Weight.LIGHT:
+	elif hull.weight == HullData.Weight.LIGHT:
 		panels = 2
 	for i in range(1, panels):
 		var pxx := hx + int(hw * float(i) / panels)
@@ -152,9 +204,9 @@ func draw_ship() -> void:
 
 	# Vent strips: the primary heat instrument, four escalating stages.
 	var vents := 3
-	if Run.hull.weight == HullData.Weight.HEAVY:
+	if hull.weight == HullData.Weight.HEAVY:
 		vents = 4
-	elif Run.hull.weight == HullData.Weight.LIGHT:
+	elif hull.weight == HullData.Weight.LIGHT:
 		vents = 2
 	for i in vents:
 		var vx := hx + 8 + int(i * (hw - 20) / float(vents))
@@ -176,7 +228,9 @@ func draw_ship() -> void:
 		dither(hx, hy, hw, hh, core, (ratio - 1.0) * 0.5)
 
 	# Battle damage
-	var dmg := 1.0 - float(Run.hp) / float(maxi(1, Run.max_hp()))
+	# A showroom hull is undamaged by definition: these are ships you have not
+	# bought yet, not the one you are flying.
+	var dmg := 0.0 if preview != null else 1.0 - float(Run.hp) / float(maxi(1, Run.max_hp()))
 	if dmg > 0.3:
 		px(hx + int(hw * 0.4), hy + 6, 7, 6, Color("#1a1010"))
 	if dmg > 0.6:
@@ -188,7 +242,7 @@ func _draw_modules(hx: int, hy: int, hw: int, hh: int, metal: Color, outline: Co
 	var weapons: Array[ModuleData] = []
 	var systems: Array[ModuleData] = []
 	var utils: Array[ModuleData] = []
-	for m in Run.installed:
+	for m in ([] as Array[ModuleData] if preview != null else Run.installed):
 		match m.slot:
 			ModuleData.Slot.WEAPON: weapons.append(m)
 			ModuleData.Slot.SYSTEM: systems.append(m)

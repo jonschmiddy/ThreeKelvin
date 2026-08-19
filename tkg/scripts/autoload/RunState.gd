@@ -55,15 +55,23 @@ var whale_boon: bool = false
 
 const MAP_CANVAS := Rect2(60, 50, 900, 430)
 
-func start_new_run() -> void:
-	hull = (DB.hull_frames[1] as HullData).duplicate(true) as HullData
-	hull.tier = 0
-	hull.perk_id = &"salvage_rack"
-	installed.clear()
+## Begin a run in a given manufacturer's chassis.
+##
+## The argument is optional and empty means "roll one", which is not a
+## convenience: HeadlessSim calls this directly, and a default of Korvan would
+## have every one of two hundred simulated runs fly the same ship and report a
+## win rate for one seventh of the game. Random here means the sim exercises all
+## seven starts for free.
+func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
+	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
+	# HeadlessSim calls this directly, and a fixed default would report a win
+	# rate for one twenty-first of the possible starts.
+	var weight: HullData.Weight = w as HullData.Weight
+	if w < 0:
+		weight = [HullData.Weight.LIGHT, HullData.Weight.MEDIUM,
+			HullData.Weight.HEAVY].pick_random()
+	fit_chassis(manufacturer, weight)
 	cargo.clear()
-	for id in DB.STARTER_KIT:
-		installed.append((DB.modules[id] as ModuleData).duplicate(true) as ModuleData)
-	hp = max_hp()
 	heat = 0
 	heat_cap_bonus = 0
 	scrap = 40
@@ -91,6 +99,37 @@ func start_new_run() -> void:
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	log_line("Reactor cold-started. The core is twenty jumps coreward, at least.", &"big")
+
+## Put a manufacturer's chassis and starting kit under the player, at full hull.
+##
+## Separate from start_new_run because the chassis select calls it once per
+## click while you browse the seven. Folded together, changing your mind about a
+## ship would roll a new galaxy, a new name and a new map each time — so the
+## world you were about to fly into would quietly change while you compared
+## Thermal numbers. Rolling the world is a run-start concern; fitting a ship is
+## not.
+func fit_chassis(manufacturer: StringName = &"",
+		w: HullData.Weight = HullData.Weight.MEDIUM) -> void:
+	var man := manufacturer
+	if man == &"" or not DB.STARTER_KITS.has(man):
+		man = DB.STARTABLE.pick_random()
+	hull = (DB.hull_for(man, w) as HullData).duplicate(true) as HullData
+	hull.tier = 0
+	installed.clear()
+	# Only what fits. The kit is written per manufacturer but the hardpoints
+	# belong to the weight class, so a light frame launches with fewer modules
+	# than a heavy one carrying the same kit — you traded guns for speed and the
+	# loadout says so. Installing past the slot count would let the select screen
+	# hand you a ship the refit screen considers illegal.
+	for id in DB.starter_kit(man):
+		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
+		if slots_used(m.slot) >= slots_for(m.slot):
+			continue
+		installed.append(m)
+	hp = max_hp()
+	heat = 0
+	Sig.ship_changed.emit()
+	Sig.resources_changed.emit()
 
 func log_line(text: String, kind: StringName = &"sys") -> void:
 	Sig.log_line.emit(text, kind)
@@ -144,8 +183,17 @@ func slots_used(s: ModuleData.Slot) -> int:
 			n += 1
 	return n
 
+## Modules from this maker, PLUS the hull if it built one.
+##
+## The hull counting is what makes choosing a chassis a build decision instead
+## of a stat decision: a Korvan hull puts you one module from Standard Issue,
+## and swapping to a found Redline frame costs you that piece. It is also the
+## price of the reversal — hull swaps are no longer identity-neutral, which the
+## old "hulls have no manufacturer" ruling existed to guarantee.
 func manufacturer_count(id: StringName) -> int:
 	var n := 0
+	if hull != null and hull.manufacturer == id and id != &"":
+		n += 1
 	for m in installed:
 		if m.manufacturer == id:
 			n += 1
@@ -154,6 +202,118 @@ func manufacturer_count(id: StringName) -> int:
 ## Set bonuses are the class system: identity is assembled, not chosen.
 func has_set(id: StringName, threshold: int) -> bool:
 	return manufacturer_count(id) >= threshold
+
+# ------------------------------------------------------------------- attributes
+#
+# The six numbers events check against, per attributes-and-checks.md.
+#
+# THE RULE, from §0: every attribute is a number the game ALREADY TRACKS. These
+# are functions, never fields. Nothing writes an attribute; there is no second
+# copy of your ship's condition to drift out of sync with the first, and no
+# "recalculate attributes" call anyone can forget after a refit.
+#
+# The consequence worth stating out loud is that checks read the CURRENT value.
+# A holed ship really does fail Hull checks it would have passed at full — the
+# attribute is the damage, not a rating the damage is compared against.
+#
+# All six are 0-6. The constants below are FIRST VALUES, tuned against the three
+# unbranded frames and not yet against the seven manufacturer hulls or against
+# any real event table. Expect to move them.
+
+const ATTR_MAX := 6
+
+## Hull is measured against a fixed reference, not against your own maximum.
+##
+## Dividing by max_hp was the obvious version and it is wrong: it reads 6 for a
+## full Skiff and 6 for a full Ore Barge, so the attribute would say the two
+## ships are equally sturdy while one has less than half the other's plating.
+## A fixed reference makes frame size and damage both count, which is the whole
+## point of a Hull check.
+##
+## 70 rather than 60 because 60 put the Ore Barge at 6 on the first turn of the
+## run, and an attribute already at its ceiling cannot be improved by the tier
+## upgrades and found hulls that are supposed to improve it.
+const HULL_REF := 70.0
+
+func attr_hull() -> int:
+	return clampi(int(round(ATTR_MAX * float(hp) / HULL_REF)), 0, ATTR_MAX)
+
+## Thrust reads off fuel burn: a bigger engine moves more ship and drinks more
+## doing it, so the factor that prices your jumps is already the number.
+func attr_thrust() -> int:
+	return clampi(int(round(hull.fuel_factor * 2.8)), 0, ATTR_MAX)
+
+## Dodge is the bulk of it; initiative tilts it. The +1 floor is there because
+## without it every chassis with dodge under 0.05 and negative initiative read
+## exactly 0 — the Ironside Cutter, a medium warship, scored the same
+## Maneuver as an ore barge, which is not a distinction worth erasing. A barge
+## can still reach 0 by being an actual barge.
+func attr_maneuver() -> int:
+	return clampi(int(round(hull.dodge * 16.0 + hull.initiative * 0.6 + 1.0)), 0, ATTR_MAX)
+
+## Thermal is capacity AND shedding, per §1.4, because an event that asks "can
+## you sit in this heat" is asking about both and would otherwise need two
+## attributes to answer.
+##
+## Capacity carries most of the weight, and this took a measurement to get
+## right. The first version was `cap/6 + diss/2.5`, which read 3 or 4 for every
+## chassis in the game — the Emberwright caps at 20 and vents 2, the Brood
+## Tender caps at 12 and vents 4, and the two terms cancelled so cleanly that
+## the heat manufacturer and the drone manufacturer scored identically. Weighting
+## capacity harder and subtracting a floor spreads it 2-6, with Solari at the
+## top where the whole maker says it should be.
+##
+## They are not interchangeable in fiction and must not be in the formula:
+## capacity is how much you can take, dissipation is how fast you get rid of it,
+## and only the first decides whether you survive sitting in a corona.
+##
+## Divisors widened once already. At 2.4/2.0 the attribute saturated: five of
+## the seven heavy frames pinned at 6, so a Dredge ore barge and a Solari
+## Furnace Baron read identically on the axis Solari exists to own. A ceiling
+## that everything large reaches is not a measurement. Now exactly one chassis
+## in the game reads 6, and it is the one built by the heat manufacturer.
+const THERMAL_FLOOR := 8.0
+
+func attr_thermal() -> int:
+	var v := (heat_cap() - THERMAL_FLOOR) / 3.5 + dissipation() / 2.5
+	return clampi(int(round(v)), 0, ATTR_MAX)
+
+## Sensors and Stealth are the two with no other gauge in the game, so unlike
+## the four above they are summed rather than derived. Hull baseline plus fitted
+## modules — the same shape as the others, where the chassis sets the platform
+## and what you bolt on adjusts it.
+func attr_sensors() -> int:
+	var n := hull.sensors
+	for m in installed:
+		n += m.sensors
+	return clampi(n, 0, ATTR_MAX)
+
+func attr_stealth() -> int:
+	var n := hull.stealth
+	for m in installed:
+		n += m.stealth
+	return clampi(n, 0, ATTR_MAX)
+
+## Every attribute, in display order, as {key, label, short, value}.
+## One list so the ship tab, the chassis select and any future check UI cannot
+## disagree about the order or the names.
+func attributes() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	out.assign([
+		{key = &"hull", label = "HULL", short = "HUL", value = attr_hull(),
+			text = "Ramming, boarding, holding together under structural stress."},
+		{key = &"thrust", label = "THRUST", short = "THR", value = attr_thrust(),
+			text = "Outrunning, breaking orbit, pulling free of a gravity well."},
+		{key = &"maneuver", label = "MANEUVER", short = "MNV", value = attr_maneuver(),
+			text = "Threading debris, evading a lock, choosing how a fight opens."},
+		{key = &"thermal", label = "THERMAL", short = "THM", value = attr_thermal(),
+			text = "Sitting in heat: coronas, reactors, anything that cooks you."},
+		{key = &"sensors", label = "SENSORS", short = "SEN", value = attr_sensors(),
+			text = "Reading a wreck, finding the lane, seeing it before it sees you."},
+		{key = &"stealth", label = "STEALTH", short = "STL", value = attr_stealth(),
+			text = "Going dark, slipping a patrol, arriving unannounced."},
+	])
+	return out
 
 func contraband_count() -> int:
 	var n := 0

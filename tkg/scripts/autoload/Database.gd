@@ -15,11 +15,12 @@ extends Node
 ## Brand-agnostic modules are never gated: Exotic is harvested and Artifact is
 ## precursor tech, so they have no manufacturer to gate on.
 ##
-## NOTE: with a single active maker, set bonuses stop being a choice — you will
-## always hold 5+ from one maker. That contradicts the "set bonuses are the
-## class system" ruling in CLAUDE.md and is a deliberate scope cut, not a
-## balance change. Restore the full list before judging build variety.
-const ACTIVE_MAKERS: Array[StringName] = [&"korvan"]
+## REOPENED. This was [&"korvan"] while the card face and combat screen were
+## being built, and the note here said to restore the full list before judging
+## build variety. Manufacturer hulls are exactly that moment: you now pick a
+## maker at run start, so a loot pool that can only drop Korvan would make six
+## of the seven choices unplayable.
+const ACTIVE_MAKERS: Array[StringName] = []
 
 var manufacturers: Dictionary = {}      ## StringName -> ManufacturerData
 var modules: Dictionary = {}            ## StringName -> ModuleData (templates)
@@ -28,7 +29,37 @@ var enemies: Dictionary = {}            ## StringName -> EnemyTemplate
 var affixes: Array[AffixData] = []
 var hull_perks: Dictionary = {}         ## StringName -> {name, text}
 
-const STARTER_KIT: Array[StringName] = [&"kh20", &"km4", &"plate", &"coolant", &"servo"]
+## What each manufacturer hands you with the keys.
+##
+## Korvan keeps the five-module kit this game shipped with; the other six get
+## their whole catalog, which is three or four modules. That asymmetry is real
+## and is not a bug to pad out: with the hull counting as one toward its own
+## set, three modules already clears the 3-piece bonus on turn one, and the
+## empty hardpoints are what the run is FOR.
+##
+## Not all-Common, either. Korvan's five are C0 but Cygnet's cheapest is C1 and
+## Halcyon's kit runs to C3, so some makers start meaningfully stronger. Left
+## uncorrected on purpose — authoring starter-only variants to flatten it would
+## be inventing content to solve a problem the sim has not confirmed exists.
+const STARTER_KITS: Dictionary = {
+	&"korvan": [&"kh20", &"km4", &"plate", &"coolant", &"servo"],
+	&"solari": [&"plasma", &"overdrive", &"flare"],
+	&"dredge": [&"ripper", &"slag", &"claw", &"refinery"],
+	&"redline": [&"needle", &"juryrig", &"chaff", &"ghost"],
+	&"cygnet": [&"dronebay", &"wasp", &"evoke"],
+	&"halcyon": [&"rail", &"halcyon", &"auspex"],
+	&"calyx": [&"nodule", &"weave", &"sporevent"],
+}
+
+## The makers you can start as, in the order the chassis select shows them.
+## Korvan first because it is the tutorial ship: no gimmick, all three slots
+## filled, nothing that needs explaining before the first fight.
+const STARTABLE: Array[StringName] = [
+	&"korvan", &"solari", &"dredge", &"redline", &"cygnet", &"halcyon", &"calyx",
+]
+
+func starter_kit(man: StringName) -> Array:
+	return STARTER_KITS.get(man, STARTER_KITS[&"korvan"])
 
 func _ready() -> void:
 	_seed_manufacturers()
@@ -200,6 +231,12 @@ func _seed_modules() -> void:
 	_module(&"shroud", "Solari Heat Shroud", &"solari", S, C2,
 		"Converts fever into shielding.",
 		[{name = "Shroud", energy = 1, armor_from_heat = true, copies = 2}])
+	## Solari was the one maker with no utility at all, which made a Solari
+	## starting kit impossible. Deliberately Korvan's Targeting Servo read hot:
+	## a better mark, paid for in heat — the whole maker in one card.
+	_module(&"flare", "Solari Flare Rack", &"solari", U, C1,
+		"Burns bright enough that everyone can see what you meant.",
+		[{name = "Flare", energy = 1, heat = 2, lock_on = 6, copies = 2}])
 
 	# --- Dredge: scrap and sustain
 	_module(&"claw", "Salvage Claw", &"dredge", U, C0,
@@ -278,25 +315,151 @@ func _seed_modules() -> void:
 		"Spore residue fused into your systems.",
 		[{name = "Dross", energy = 1, unplayable = true, copies = 1}])
 
+	_seed_module_attributes()
+
+## Sensors and Stealth, laid on modules that already exist.
+##
+## Adding six attribute-bearing modules would have been the obvious move and the
+## wrong one — CLAUDE.md's fifth priority is to resist adding content until the
+## loop feels good. Every one of these already reads as the thing it now does:
+## an Auspex Array is a sensor, a Ghost Drive hides you, a flare rack does the
+## exact opposite. The attribute was latent in the catalog; this names it.
+##
+## Kept in one table rather than as two more arguments on _module() because it
+## is a property of six modules out of thirty-four, and thirty-four call sites
+## carrying `0, 0` would bury the six that matter.
+func _seed_module_attributes() -> void:
+	var sensors := {&"auspex": 2, &"servo": 1, &"evoke": 1}
+	var stealth := {&"ghost": 2, &"chaff": 1, &"sporevent": 1, &"flare": -1}
+	for id in sensors:
+		(modules[id] as ModuleData).sensors = sensors[id]
+	for id in stealth:
+		(modules[id] as ModuleData).stealth = stealth[id]
+
 # ------------------------------------------------------------------------ hulls
 
+## Twenty-four hulls: each of seven manufacturers in all three weight classes,
+## plus the three unbranded salvage frames.
+##
+## AUTHORED AS BASELINE + SIGNATURE, not as twenty-four stat blocks. Weight class
+## decides the shape of a ship — a light frame is fast and thin whoever welded
+## it — and the manufacturer decides how that shape is bent. Writing all
+## twenty-four out by hand would scatter each maker's identity across three
+## rows, so "what IS Solari" would only be answerable by diffing three tables,
+## and a signature could drift between weights without anyone noticing.
+##
+## Here it is one line per maker. Solari is +8 heat capacity, -1 dissipation and
+## -2 stealth, on every frame it builds. That is the whole manufacturer.
+const WEIGHT_BASE := {
+	HullData.Weight.LIGHT: {
+		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 5,
+		dodge = 0.18, initiative = 2, fuel_factor = 0.8,
+		weapon_slots = 2, system_slots = 1, utility_slots = 2},
+	HullData.Weight.MEDIUM: {
+		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 3,
+		dodge = 0.05, initiative = 0, fuel_factor = 1.2,
+		weapon_slots = 3, system_slots = 2, utility_slots = 1},
+	HullData.Weight.HEAVY: {
+		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 2,
+		dodge = 0.0, initiative = -2, fuel_factor = 1.8,
+		weapon_slots = 4, system_slots = 2, utility_slots = 1},
+}
+
+## Per-maker deltas applied on top, and the three names. `names` runs
+## light, medium, heavy.
+const MAKER_HULLS := {
+	&"korvan": {
+		names = ["Picket Cutter", "Ironside Cutter", "Bastion Monitor"],
+		perk_id = &"baffled_vents",
+		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
+	&"solari": {
+		names = ["Cinder Skiff", "Emberwright", "Furnace Baron"],
+		perk_id = &"overspec_reactor",
+		d = {heat_cap = 8, dissipation = -1, stealth = -2, fuel_factor = 0.1}},
+	&"dredge": {
+		names = ["Tin Picker", "Scrap Hauler", "Ore Barge"],
+		perk_id = &"salvage_rack",
+		d = {max_hull = 8, heat_cap = 2, dissipation = -1, initiative = -1,
+			fuel_factor = 0.2, stealth = -1, utility_slots = 1, weapon_slots = -1}},
+	&"redline": {
+		names = ["Hairpin", "Switchback", "Blindside"],
+		perk_id = &"cheap_parts",
+		d = {max_hull = -6, dodge = 0.03, initiative = 1, fuel_factor = -0.1,
+			sensors = 1, stealth = 2}},
+	&"cygnet": {
+		names = ["Fledgling", "Brood Tender", "Rookery"],
+		perk_id = &"spare_bay",
+		d = {max_hull = -3, dissipation = 1, dodge = 0.03, initiative = 1,
+			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
+	&"halcyon": {
+		names = ["Atelier Yacht", "Commission", "Magnum Opus"],
+		perk_id = &"overspec_reactor",
+		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
+			fuel_factor = -0.1, sensors = 2, stealth = 1, weapon_slots = -1}},
+	&"calyx": {
+		names = ["Spore Cutter", "Vivarium", "Greatvine"],
+		perk_id = &"baffled_vents",
+		d = {max_hull = 2, dissipation = 2, dodge = 0.02, fuel_factor = -0.1,
+			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
+}
+
 func _seed_hulls() -> void:
-	var raw := [
-		{name = "Skiff Frame", weight = HullData.Weight.LIGHT, reactor = 3, hand_size = 6,
-			max_hull = 24, heat_cap = 8, dissipation = 5, dodge = 0.18, initiative = 2,
-			fuel_factor = 0.8, weapon_slots = 2, system_slots = 1, utility_slots = 2},
-		{name = "Medium Frame", weight = HullData.Weight.MEDIUM, reactor = 3, hand_size = 5,
-			max_hull = 35, heat_cap = 12, dissipation = 3, dodge = 0.05, initiative = 0,
-			fuel_factor = 1.2, weapon_slots = 3, system_slots = 2, utility_slots = 1},
-		{name = "Bulk Frame", weight = HullData.Weight.HEAVY, reactor = 4, hand_size = 4,
-			max_hull = 52, heat_cap = 18, dissipation = 2, dodge = 0.0, initiative = -2,
-			fuel_factor = 1.8, weapon_slots = 4, system_slots = 2, utility_slots = 1},
+	# The unbranded three, kept exactly as this game shipped them. A derelict has
+	# to be able to offer a chassis that carries no allegiance — it is what keeps
+	# "identity is assembled mid-run" true after choosing a maker at the start,
+	# because taking a salvage frame COSTS you a set piece.
+	var salvage := [
+		{name = "Skiff Frame", weight = HullData.Weight.LIGHT},
+		{name = "Medium Frame", weight = HullData.Weight.MEDIUM},
+		{name = "Bulk Frame", weight = HullData.Weight.HEAVY},
 	]
-	for d in raw:
+	for d in salvage:
 		var h := HullData.new()
-		for k in d.keys():
-			h.set(k, d[k])
+		for k in (WEIGHT_BASE[d.weight] as Dictionary).keys():
+			h.set(k, WEIGHT_BASE[d.weight][k])
+		h.name = d.name
+		h.weight = d.weight
 		hull_frames.append(h)
+
+	for man in MAKER_HULLS:
+		var spec: Dictionary = MAKER_HULLS[man]
+		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
+			hull_frames.append(_maker_hull(man, w, spec))
+
+func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullData:
+	var h := HullData.new()
+	var base: Dictionary = WEIGHT_BASE[w]
+	for k in base.keys():
+		h.set(k, base[k])
+	var d: Dictionary = spec.d
+	for k in d.keys():
+		h.set(k, h.get(k) + d[k])
+	# Floors, because a delta table cannot see what it collides with: Halcyon's
+	# -1 weapon slot on a light frame would otherwise build a warship with one
+	# gun and Calyx's would build one with none.
+	h.weapon_slots = maxi(1, h.weapon_slots)
+	h.system_slots = maxi(1, h.system_slots)
+	h.utility_slots = maxi(1, h.utility_slots)
+	h.dissipation = maxi(1, h.dissipation)
+	h.dodge = maxf(0.0, h.dodge)
+	h.fuel_factor = maxf(0.5, h.fuel_factor)
+	# WEIGHT_BASE holds stats, not identity, so the weight itself is not among
+	# the keys copied above. Without this every maker hull stayed at HullData's
+	# default MEDIUM and hull_for(man, LIGHT) matched nothing.
+	h.weight = w
+	h.manufacturer = man
+	h.name = spec.names[int(w)]
+	h.perk_id = spec.perk_id
+	return h
+
+## The hull a manufacturer builds in a given weight class. Lookup by value
+## rather than by index: an index would work today and break the moment anyone
+## reorders the tables above, which is exactly the edit those tables invite.
+func hull_for(man: StringName, w: HullData.Weight = HullData.Weight.MEDIUM) -> HullData:
+	for h in hull_frames:
+		if h.manufacturer == man and h.weight == w:
+			return h
+	return null
 
 func _seed_perks() -> void:
 	hull_perks = {

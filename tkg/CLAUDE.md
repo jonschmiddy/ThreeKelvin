@@ -38,6 +38,14 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# Dev shortcuts. Flags, not menu items, because each one skips part of the run
+# the balance depends on.
+godot --headless --path . -- attrs   # every chassis's six attributes, as a table
+godot --path . -- ship               # straight to the refit screen
+godot --path . -- cards              # every card in the game on one page
+godot --path . -- fight 10           # straight into a fight, dealing 10 cards
+godot --path . -- fight foes=3       # ...against a pack
+
 # Rebuild the global class cache — REQUIRED after adding any new class_name,
 # and required once on a fresh clone before anything will compile at all
 godot --headless --path . --import
@@ -65,8 +73,8 @@ say so and ask rather than quietly working around it.
 
 | Ruling | Reason |
 |---|---|
-| **Hulls have no manufacturer** — weight class × tier only, with rolled stats and a rolled perk | Build identity comes entirely from parts you find; hull swapping stays a pure power decision with no identity whiplash |
-| **Set bonuses are the class system** (3+ / 5+ modules from one maker) | Identity is assembled mid-run, not picked at the start. Every drop becomes a commitment-vs-flexibility question |
+| **Hulls ARE built by a manufacturer** — seven branded chassis, plus three unbranded salvage frames | REVERSED, deliberately. The old ruling was "hulls have no manufacturer", to keep hull swaps a pure power decision. It made `attributes-and-checks.md` §1.5 unimplementable: that section gives each maker an attribute signature, and every one of those (thermal capacity, dodge, hull mass) is a property of a chassis, not of a bolt-on module. The cost is real and accepted — swapping hulls now moves your set count |
+| **Set bonuses are the class system** (3+ / 5+ modules from one maker), **and the hull counts as one** | Identity is now *leaned* at the start and still assembled mid-run. You pick a chassis, which starts you at 3+ with its own kit; the run is whether you push that to 5+ or diversify. Unbranded salvage frames count for nobody, so taking one is a real cost |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
@@ -292,10 +300,28 @@ explored and rejected. Nothing was taken from them.
 
 `korvan` ballistics + charged ordnance (starter) · `solari` weaponised heat ·
 `dredge` scrap economy and sustain · `redline` evasion, refits, contraband ·
-`veyra` thin perfect deck · `cygnet` drones · `calyx` regeneration and adaptation.
+`halcyon` thin perfect deck · `cygnet` drones · `calyx` regeneration and adaptation.
 
 Korvan/Solari mirror each other (manage heat vs. surf it); Dredge/Redline mirror each
 other (melt it down vs. repurpose it).
+
+**Each one builds a chassis in all three weight classes**, and you pick both at run
+start — manufacturer *and* light/medium/heavy. Two genuinely different questions: the
+maker is who you are (which cards, which set bonus, which attribute signature), the
+weight is how much ship (hull, hardpoints, hand size, evasion). Picking Redline does
+not force a paper hull; it means a Redline heavy is the fastest heavy in the game.
+
+The hull sets four of the six attributes and counts as one toward its own set bonus.
+Three unbranded salvage frames still exist for hulls you find; they belong to nobody
+and count for nobody, which is what keeps taking one a real cost.
+
+**Hulls are authored as baseline + signature**, not as 21 stat blocks — `WEIGHT_BASE`
+holds what a weight class is, `MAKER_HULLS` holds one row of deltas per maker. Writing
+all 21 by hand would scatter each identity across three rows, so "what IS Solari" would
+only be answerable by diffing tables, and a signature could drift between weights
+unnoticed. Solari is `+8 heat cap, -1 dissipation, -2 stealth` on every frame it welds.
+Starting kits install only what fits, so a light frame launches with fewer modules than
+a heavy one carrying the same kit.
 
 ## Rarity ladder — top tiers are *sources*, not bigger numbers
 
@@ -313,8 +339,23 @@ The predicted first-run failures — typed-array assignment, inner-class type hi
 (`MapGen.MapNode`), `Control` layout properties — did not materialise; the only real
 blocker was the missing class cache described above.
 
-Balance sim: **15% win rate**, 25 avg jumps, 0 errors. This is *below* the 40-55% band
-quoted above, and two things about that band need saying before anyone tunes against it:
+Balance sim: **13% win rate**, 56.0 avg jumps, 6.0 avg kills, 0 errors, at 200 runs.
+
+That is a sixfold improvement and it was measured, not estimated. The same 200-run sim
+against the commit *before* manufacturer hulls (`4f7f6ec`) scores **2%**, 32.2 jumps,
+3.6 kills, 76% of deaths from hull loss. Two steps got it here, each measured:
+
+| | wins | jumps | kills | hull deaths |
+|---|---|---|---|---|
+| `4f7f6ec` — one Korvan frame, six makers gated off | 2% | 32.2 | 3.6 | 76% |
+| seven manufacturer hulls, `ACTIVE_MAKERS` reopened | 10% | 52.8 | 6.3 | 50% |
+| all three weight classes per manufacturer | **13%** | 56.0 | 6.0 | 49% |
+
+Runs last longer and get further. Fuel deaths rose with them (12% to 16%), which is
+simply what more jumps cost.
+
+Still well *below* the 40-55% band quoted above, and two things about that band need
+saying before anyone tunes against it:
 
 1. It was measured against an economy that double-paid scrap on charge kills. That bug is
    fixed, so the band has never been re-derived and is not currently a trustworthy target.
@@ -354,8 +395,15 @@ derive. Three things about them are load-bearing:
 Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis places, jumps
 and distance-priced fuel, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
 pacify), loot with rolled affixes, install/scrap/swap, stations with all services and
-inspections, eight events, set bonuses for all seven manufacturers, procedural ship and
-enemy art, headless simulator.
+inspections, eight events, set bonuses for all seven manufacturers, ten hulls with a
+chassis-select at run start, the six attributes, procedural ship and enemy art, headless
+simulator.
+
+**The six attributes exist but do not yet bite.** `RunState.attr_*()` derive Hull,
+Thrust, Maneuver, Thermal, Sensors and Stealth from live gauges, and the ship tab and
+chassis select display them — but nothing *checks* them yet. Wiring them into events,
+combat entry and the starchart reveal ladder is the next piece, and is what
+`attributes-and-checks.md` was written for.
 
 Not yet: real art, audio, meta-progression, save/load.
 
@@ -367,4 +415,9 @@ Not yet: real art, audio, meta-progression, save/load.
    tell you what is *unsatisfying*
 3. Re-derive the healthy win-rate band against the current economy, then tune to it
 4. Fix the single worst feeling
-5. Resist adding content — 33 modules is plenty until the loop feels good
+5. Resist adding content — 34 modules is plenty until the loop feels good.
+   Manufacturer hulls added exactly one (a Solari utility, the only genuine slot gap)
+   and put Sensors/Stealth on six modules that already existed rather than authoring
+   bearers for them. Thin per-maker pools are the known cost: Cygnet, Halcyon and
+   Calyx have three modules each, so their loot streams repeat. Fix that when the
+   loop feels good, not before

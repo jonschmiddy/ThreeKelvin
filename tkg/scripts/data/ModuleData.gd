@@ -12,6 +12,13 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
 @export_multiline var flavour: String = ""
 @export var cards: Array[CardData] = []
 
+## Contribution to the ship's Sensors and Stealth attributes, added to the
+## hull's baseline. Most modules are 0 — these exist so that an Auspex Array
+## makes you see and a Ghost Drive makes you unseen, rather than requiring a
+## parallel catalog of modules that do nothing in combat.
+@export var sensors: int = 0
+@export var stealth: int = 0
+
 ## Rolled at generation time
 @export var affixes: Array[AffixData] = []
 @export var scrap_value: int = 8

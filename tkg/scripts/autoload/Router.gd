@@ -20,11 +20,22 @@ func _swap(screen: Control) -> void:
 	content.add_child(screen)
 	Sig.screen_changed.emit()
 
-## Opens on the sector rather than the chart: the run starts with your ship in
-## open space, not with a graph of places you have not been yet.
+## A run starts by choosing a chassis, then opens on the sector rather than the
+## chart: your ship in open space, not a graph of places you have not been yet.
+##
+## start_new_run() still runs FIRST and rolls the world plus a random chassis,
+## so every screen has a valid hull to draw before anything is chosen. The
+## select screen then refits that ship as you browse and hands control on.
 func new_run() -> void:
 	Run.start_new_run()
-	show_sector()
+	show_chassis_select()
+
+func show_chassis_select() -> void:
+	Audio.music_state(&"ship")
+	var s := ChassisSelect.new()
+	_swap(s)
+	s.setup()
+	s.launched.connect(show_sector)
 
 func show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint

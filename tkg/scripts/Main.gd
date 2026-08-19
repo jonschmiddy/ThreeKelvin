@@ -10,6 +10,17 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Every starting chassis and what it reads on the six attributes:
+	#   godot --headless --path . -- attrs
+	# Attribute constants are tuned by staring at this table, and the numbers are
+	# only meaningful against each other — a column at a time, not a ship at a
+	# time. Reading them off a UI one manufacturer per screen is how you convince
+	# yourself a spread exists that does not.
+	if "attrs" in OS.get_cmdline_user_args():
+		_print_attribute_table()
+		get_tree().quit()
+		return
+
 	DisplaySettings.load_and_apply()
 	theme = UITheme.build()
 
@@ -43,6 +54,11 @@ func _ready() -> void:
 	# on, so it stays a flag you have to type.
 	if "cards" in OS.get_cmdline_user_args():
 		Router.show_cards()
+	elif "ship" in OS.get_cmdline_user_args():
+		# The refit screen normally sits two clicks and a chassis choice away,
+		# and it is where the attribute block lives — so the screen that most
+		# needs looking at was the most tedious to reach.
+		Router.show_ship()
 	elif "fight" in OS.get_cmdline_user_args():
 		# `-- fight 10` deals ten. The hand is the one layout that only
 		# misbehaves at sizes a normal run rarely reaches, so seeing it full
@@ -52,6 +68,36 @@ func _ready() -> void:
 				Run.hand_size_override = clampi(int(a), 1, 12)
 		var pool := DB.fight_pool(3, false)
 		Router.start_combat(DB.enemies[pool.pick_random()])
+
+## Starts a run per manufacturer and prints the resulting attribute row, plus
+## the raw gauges each one is derived from so a surprising attribute can be
+## traced to the stat that caused it without opening Database.gd.
+func _print_attribute_table() -> void:
+	print("chassis            HUL THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit set")
+	for man in DB.STARTABLE:
+		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
+			Run.start_new_run(man, int(w))
+			var row := ""
+			for a in Run.attributes():
+				row += "%3d " % int(a.value)
+			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d  %s %d" % [
+				Run.hull.name, row, Run.hp, Run.heat_cap(), Run.dissipation(),
+				Run.hull.dodge, Run.hull.initiative, Run.hull.fuel_factor,
+				Run.hull.weapon_slots, Run.hull.system_slots, Run.hull.utility_slots,
+				Run.installed.size(),
+				DB.short_name(DB.manufacturer_name(man)), Run.manufacturer_count(man)])
+		print("")
+	print("\nunbranded salvage frames, at full hull:")
+	for h in DB.hull_frames:
+		if h.manufacturer != &"":
+			continue
+		Run.hull = h.duplicate(true) as HullData
+		Run.installed.clear()
+		Run.hp = Run.max_hp()
+		var row2 := ""
+		for a in Run.attributes():
+			row2 += "%3d " % int(a.value)
+		print("%-18s %s" % [h.name, row2])
 
 var _menu: PauseMenu = null
 var _settings: SettingsMenu = null

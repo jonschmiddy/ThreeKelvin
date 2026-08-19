@@ -75,6 +75,14 @@ static func _roll_affixes(n: int, danger: int) -> Array[AffixData]:
 static func make_dross() -> ModuleData:
 	return (DB.modules[&"dross"] as ModuleData).duplicate(true) as ModuleData
 
+## A hull off a wreck. Draws from all ten frames, so a derelict can offer either
+## an unbranded salvage frame or somebody's chassis — and a found chassis moves
+## your set count, which is what makes "should I take it" a question with more
+## than one number in it.
+##
+## The perk is REROLLED even on a manufacturer hull, unlike the one you start
+## with, which keeps the perk its maker authored. A ship you were handed at the
+## yard is to spec; a ship you cut out of a wreck is whatever it ended up as.
 static func roll_hull(danger_in: int) -> HullData:
 	var danger := MapGen.tier(danger_in)
 	var base: HullData = DB.hull_frames.pick_random()
