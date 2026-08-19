@@ -10,6 +10,15 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Save/load round-trip test, same shape as the balance sim above it:
+	#   godot --headless --path . -- savetest
+	if "savetest" in OS.get_cmdline_user_args():
+		var t: RefCounted = load("res://scripts/sim/SaveTest.gd").new()
+		t.run()
+		t.run_history_test()
+		get_tree().quit()
+		return
+
 	# Every starting chassis and what it reads on the six attributes:
 	#   godot --headless --path . -- attrs
 	# Attribute constants are tuned by staring at this table, and the numbers are
@@ -45,13 +54,45 @@ func _ready() -> void:
 	root.add_child(content)
 
 	Router.register(content, hud)
-	Router.new_run()
+
+	# Boot destination. The launcher is the default, and every development flag
+	# below skips it — an automated run must never stop at a screen waiting to
+	# be clicked, and a flag that drops you into a fight plainly means "not the
+	# title screen" without having to say so.
+	#
+	#   -- nolauncher   straight into a new run
+	#   -- resume       straight into the suspend save, if there is one
+	#
+	# `ship` belongs in this list and its absence is not cosmetic: the refit
+	# screen reads Run.hull, which is null until a run starts, so booting to the
+	# launcher and then swapping the ship screen over it crashes on arrival.
+	var argv := OS.get_cmdline_user_args()
+	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
+		or "charttest" in argv or "ship" in argv
+	if "resume" in argv and SaveGame.has_save():
+		Router.continue_run()
+	elif skip_launcher:
+		Router.new_run()
+	else:
+		Router.show_launcher()
+
 	# Dev shortcut: drop straight into a fight with a hand of cards.
 	#   godot --path . -- fight
 	# Card work is 90% of what gets iterated on and reaching a fight normally
 	# costs a jump, a sector screen and a loading pass every time you change a
 	# pixel. Deliberately not a menu item — it skips the run the balance depends
 	# on, so it stays a flag you have to type.
+	# Star chart cache test. Needs the real shell and a window, so unlike the
+	# sim and savetest it runs after boot rather than instead of it:
+	#   godot --path . -- charttest
+	if "charttest" in OS.get_cmdline_user_args():
+		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
+		# and a RefCounted nothing holds a reference to is freed the moment the
+		# calling statement ends — the suspended coroutine goes with it and the
+		# test dies silently after its first print. SaveTest gets away with
+		# `load(...).new().run()` only because it never awaits.
+		_chart_test = load("res://scripts/sim/ChartTest.gd").new()
+		_chart_test.run(get_tree())
 	if "cards" in OS.get_cmdline_user_args():
 		Router.show_cards()
 	elif "ship" in OS.get_cmdline_user_args():
@@ -68,6 +109,9 @@ func _ready() -> void:
 				Run.hand_size_override = clampi(int(a), 1, 12)
 		var pool := DB.fight_pool(3, false)
 		Router.start_combat(DB.enemies[pool.pick_random()])
+
+## Kept alive for the duration of `-- charttest`; see the call site.
+var _chart_test: RefCounted = null
 
 ## Starts a run per manufacturer and prints the resulting attribute row, plus
 ## the raw gauges each one is derived from so a surprising attribute can be
@@ -112,6 +156,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if k.keycode == KEY_ESCAPE:
 		if _settings != null:
 			_close_settings()
+		elif Router.current is LauncherScreen:
+			pass   ## nothing to pause: the launcher IS the menu
 		else:
 			toggle_menu()
 	elif k.keycode == KEY_F11:
@@ -127,11 +173,19 @@ func toggle_menu() -> void:
 	add_child(_menu)
 	_menu.setup()
 	_menu.resume_requested.connect(toggle_menu)
-	_menu.quit_requested.connect(get_tree().quit)
+	_menu.quit_requested.connect(func() -> void:
+		SaveGame.clear()
+		get_tree().quit())
 	_menu.new_run_requested.connect(func() -> void:
 		toggle_menu()
 		Router.new_run())
 	_menu.settings_requested.connect(_open_settings)
+	# The autosave has already written this state — every safe point does. The
+	# explicit write is for the one case it has not: a menu opened mid-combat,
+	# where the last save is from just before the fight.
+	_menu.save_and_quit_requested.connect(func() -> void:
+		SaveGame.save()
+		get_tree().quit())
 
 func _open_settings() -> void:
 	if _settings != null:

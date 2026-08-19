@@ -38,13 +38,26 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# Save/load round-trip — RUN THIS AFTER TOUCHING SaveGame OR RunHistory
+godot --headless --path . -- savetest          # ~3 s
+
+# Star chart sky cache — RUN THIS AFTER ADDING TO _build_stars OR ITS BUILDERS
+godot --path . -- charttest                    # ~10 s, needs a window
+
+# Every chassis's six attributes as one table — RUN THIS AFTER TOUCHING attr_*()
+# or the hull tables. The numbers only mean anything against each other.
+godot --headless --path . -- attrs             # ~5 s
+
+# Boot destinations. The launcher is the default; every dev flag skips it.
+godot --path . -- nolauncher                   # straight into a new run
+godot --path . -- resume                       # straight into the suspend save
+
 # Dev shortcuts. Flags, not menu items, because each one skips part of the run
 # the balance depends on.
-godot --headless --path . -- attrs   # every chassis's six attributes, as a table
-godot --path . -- ship               # straight to the refit screen
-godot --path . -- cards              # every card in the game on one page
-godot --path . -- fight 10           # straight into a fight, dealing 10 cards
-godot --path . -- fight foes=3       # ...against a pack
+godot --path . -- ship                         # straight to the refit screen
+godot --path . -- cards                        # every card in the game on one page
+godot --path . -- fight 10                     # into a fight, dealing 10 cards
+godot --path . -- fight foes=3                 # ...against a pack
 
 # Rebuild the global class cache — REQUIRED after adding any new class_name,
 # and required once on a fresh clone before anything will compile at all
@@ -53,7 +66,13 @@ godot --headless --path . --import
 
 The sim boots the project normally and quits before building UI. It cannot run via
 `--script`: that flag replaces the main loop and never creates the autoloads, so
-`Run` and `DB` fail to resolve at compile time.
+`Run` and `DB` fail to resolve at compile time. `savetest` boots the same way.
+
+`savetest` plays a run into a messy state, fingerprints it, saves, **scrambles the
+live state**, loads, and compares. The scramble is the point: without it a field the
+save forgot to serialise still matches, because the value was already sitting there.
+A save system fails silently by nature — nothing crashes, the field just comes back
+as a default and the run continues around it looking almost right.
 
 Global `class_name` registration lives in `.godot/global_script_class_cache.cfg`,
 which only `--import` writes. Without it every `class_name` reports "Could not find
@@ -63,6 +82,44 @@ type X in the current scope" — a wall of errors from one cause, not many.
 rate, jumps, kills, and death causes. Healthy target: **40–55% win rate**. This tool
 has already paid for itself — in the earlier web prototype it caught three real bugs
 (including an infinite draw loop) and a structural map flaw in minutes.
+
+### The merge gate
+
+```bash
+.github/scripts/validate.sh              # everything CI runs, from the repo root
+SIM_RUNS=200 .github/scripts/validate.sh # a real balance pass
+LOG_DIR=./ci-logs .github/scripts/validate.sh
+```
+
+`.github/workflows/validate.yml` installs Godot and calls that same script, so a
+green pull request and a green laptop mean the same thing. If you want to change
+what gets checked, edit the script, not the workflow.
+
+It runs four things, in the order that fails fastest first: GDScript is
+tab-indented, the class cache builds, the project boots and constructs its UI, and
+the simulator plays `SIM_RUNS` complete runs. Then it syntax-checks the Python
+audio generators — syntax only, because rendering needs numpy, scipy and soundfile
+and writes about 850 MB, which is not what a pull request check is for.
+
+Three things about it are worth knowing before you touch it:
+
+- **Godot exits 0 even when a script fails to compile.** It prints the failure and
+  moves to the next resource. So every check reads Godot's *output* for
+  `SCRIPT ERROR`, `Parse Error` and `ERROR:` rather than trusting its exit status,
+  and `run_godot` is the only place that logic lives.
+- **Every Godot step runs under a wall-clock limit.** A script that will not
+  compile does not always make the simulator fail — it can leave it wedged
+  instead, which is exactly what happened the first time this was tested. Without
+  the limit a pull request sits open for the runner's full six hours rather than
+  failing in three minutes. `timeout` is GNU coreutils and absent on macOS, so
+  `run_limited` does it by hand.
+- **The gate does not check the win rate**, deliberately. The 40–55% band above has
+  not been re-derived against the current economy, and a check that fails on a
+  number nobody trusts teaches people to ignore the check.
+
+The workflow reports but does not block. **Blocking requires a branch protection
+rule on `main`** requiring the `validate` check — that is a repository setting, not
+something in this file, and until it is set a red run is only advice.
 
 ---
 
@@ -94,6 +151,9 @@ say so and ask rather than quietly working around it.
 | **Every arrival lands on the sector screen** | You should see a place before being asked to do anything with it. Station/event/salvage are reached *from* there, which is what finally retired `LootScreen` |
 | **One currency: scrap** — repair, upgrade, and purchase all compete for it | This is where the difficulty actually lives |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
+| **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
+| **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
+| **The flight record is a record, not meta-progression** | Nothing in `RunHistory` feeds back into a run. Identity is assembled mid-run from what you find, and a history that granted a starting bonus would be the first crack in that |
 
 ## The most important tuning rule
 
@@ -207,10 +267,11 @@ variants and for producing concept inputs. It is the fallback, not the enemy.
 ## Audio — read `audio/README.md` before touching sound
 
 All audio is **generated by Python in `audio/`** (numpy + scipy + soundfile),
-never recorded or licensed. `python3 build.py` renders two music cues and
-twenty-four sound effects and encodes them into `assets/audio/`. `audio/out/`
-holds WAV intermediates and is gitignored; `audio/.gdignore` keeps Godot out of
-the generator directory.
+never recorded or licensed. `python3 build.py` renders eight music cues and
+twenty-four sound effects and encodes them into `assets/audio/`; add a cue name
+(`build.py music burn`) to rebuild just one. `audio/out/` holds WAV
+intermediates and is gitignored; `audio/.gdignore` keeps Godot out of the
+generator directory.
 
 **Music is vertical, not horizontal.** A cue is not one file: it is eight or
 nine stems that all start on the same sample, and *intensity* decides how many
@@ -219,14 +280,55 @@ you can hear. Nothing restarts when a fight begins — the arrangement opens up.
 table that decides what a screen sounds like, so retuning the game's music
 pacing is a one-file edit.
 
-- **"Slow Drift"** — F minor, 142 BPM, the run. Chart, refit, station, sector,
-  combat, all on one intensity ladder.
-- **"Dead Sector"** — F Phrygian, 71 BPM, danger. Bosses, and any sector at
-  danger ≥ 8.
-- The two are an **exact 2:1 tempo lock** (one dread bar = two theme bars), so
-  they crossfade without a tempo match. The mutation between them is a single
-  flat, 2 → ♭2, over a common F pedal — which is why a sector turning dread
-  reads as the *place* changing, not the music changing.
+**Eight cues, one tune.** All of them are the same whistled five-note motif —
+scale degrees 1-2-1-2-♭3 — and each does exactly one thing to it. The forms
+live in `audio/motif.py`.
+
+| Cue | BPM | Where | What it does to the motif |
+|---|---|---|---|
+| **"Slow Drift"** | 142 | sector, game over | states it, recoloured under i–♭VI–iv–♭VII |
+| **"Dead Sector"** | 71 | any sector/event at danger ≥ 8 | flattens the 2nd — Aeolian to Phrygian |
+| **"Hard Burn"** | 142 | combat | halves its note values and makes the engine out of it |
+| **"Warm Ship"** | 71 | station, refit, deck | gives it the fifth it never reaches |
+| **"Poisoned Ground"** | 71 | bosses, and deep-space combat at rung 3 | gives it that fifth a semitone flat |
+| **"Nine Shells"** | 71 | star chart | transposes it around the minor-third cycle |
+| **"Ship's Business"** | 142 | events | runs it through a circle of fifths, and cadences |
+| **"Five Ways Home"** | 142 | title, menu | varies it five ways, and turns it major |
+
+The first five **recolour** the motif over a static F. The last three
+**develop** it, and are the only cues that change key — see
+`audio/DEVELOPMENT_NOTES.md`. Measuring the first five: they use 11 of the 12
+pitch classes and never sound A♮, so the major mode was mechanically
+unavailable to them, and their one E♮ is a passing note, so nothing could
+cadence. That was the cost of never rewriting the melody, and it is worth
+knowing before adding a sixth way to recolour it.
+
+- **Every cue is 142 BPM or exactly half at 71**, so all 28 pairings are a 1:1
+  or 2:1 bar lock and any two crossfade without a tempo match. Key is
+  unconstrained; the lock is about bar lengths only.
+- **The motif never touches the fifth** — no cadence, a question with no
+  answer, which is what you want under a run that can end at any moment. Two
+  cues answer it, once each: the station with the C, the boss with the ♭5.
+  Do not spend that anywhere else.
+- **`Audio.STATES` is still the only table that decides what a screen sounds
+  like.** Eight cues did not change that, and a ninth should not either.
+- **Use `motif.pitches()`, not `motif.octave()`, for a transposed form.**
+  `octave()` names pitch classes in a fixed octave and the octave boundary
+  moves under a transposition, which silently destroys the contour.
+- **Ornamenting a melody has six separate ways to go wrong and none of them
+  raise.** All six shipped in one line; `audio/DEVELOPMENT_NOTES.md` has them
+  in full. In short: indexing into an already-expanded form, notes shorter than
+  the voice's fixed envelope, a fixed interval where the key wants a scale
+  degree, `pitches()` anchored on the grace note so the melody comes out a step
+  flat, a `frac` that is not a notated subdivision so the line sits off the
+  grid, and putting a sixteenth-note figure on a voice with a 45 ms attack.
+  **The render pipeline reports success on a wrong note, a flat key, an
+  off-grid rhythm and a click alike** — only a listener covers all of it.
+- **Deep space swaps a cue for its darker counterpart** (`Audio.DEEP`), at the
+  same rung, capped at `DEEP_MAX`. Each pair shares a common F pedal and
+  differs by one note, so it reads as the *place* changing rather than the
+  music changing. `DEEP_MAX` is what keeps the boss reveal — both mutations
+  stated simultaneously — exclusive to an actual boss.
 
 **Rules that are easy to break by accident:**
 
@@ -244,7 +346,16 @@ pacing is a one-file edit.
   sounds are dry, thin and quiet; only things that actually radiate (reactor,
   weapons, heat, hull) get a warm low body. Two design rulings are audible:
   ballistics crack dry and cold, energy weapons zap bright and hot; venting
-  falls and resolves, overheating rises and bites.
+  falls and resolves, overheating rises and bites. "Warm Ship" is the same
+  rule at cue scale — the only music in the game with no noise, no drums and
+  no distortion anywhere in it, because it is the only music set *inside* the
+  hull.
+- **Do not normalise the cues to each other.** The level ladder is composed.
+  Measured RMS: combat −10.7 dBFS, main theme −12.8, station −13.5, title
+  −14.2, events −14.9, boss −15.5, chart −16.5, dread −17.6. The headroom is
+  the effect (`DREAD_NOTES` §3). The two classical cues are also the brightest
+  in the set by a wide margin, which is the style working — transparency is
+  the point of the texture.
 
 **Wiring.** `Widgets._btn` is the one chokepoint every button in the game passes
 through, so clicks, hovers and the refusal sound on a disabled button live
@@ -378,6 +489,19 @@ drawn on its own `CanvasItem`. Both matter. Re-deriving 40,000 stars per repaint
 repainted the entire galaxy. Godot retains a CanvasItem's draw list until that item asks
 to redraw — that is the whole optimisation.
 
+Those packed arrays live in a **static cache shared by every `MapChart`**, keyed by galaxy
+and panel size. `Router` builds a fresh `StarchartScreen` on every visit, so an
+instance-level cache was thrown away each time the player looked at the chart and rebuilt
+from scratch on the next look. Opening the chart went from ~290 ms to ~65 ms; a new run
+clears the cache wholesale, since a run is one galaxy for its whole life.
+
+`MapChart.SKY_FIELDS` names the 34 derived fields the cache saves and restores, and there is
+exactly one way for this to break: **a builder gains a new output and nobody adds it to that
+list.** Nothing errors — the field keeps whatever the previous galaxy left in it, on the
+second visit only. `-- charttest` catches it by comparing a restored sky against a freshly
+built one field for field. Screenshots cannot: `SkyAnim` redraws every frame, so two
+captures of an identical sky differ anyway.
+
 **The galaxy holds more than stars.** Nebulae, dust lanes, globular clusters and supernova
 remnants are built into those same packed arrays, so they cost a rect apiece and nothing to
 derive. Three things about them are load-bearing:
@@ -395,9 +519,9 @@ derive. Three things about them are load-bearing:
 Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis places, jumps
 and distance-priced fuel, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
 pacify), loot with rolled affixes, install/scrap/swap, stations with all services and
-inspections, eight events, set bonuses for all seven manufacturers, ten hulls with a
-chassis-select at run start, the six attributes, procedural ship and enemy art, headless
-simulator.
+inspections, eight events, set bonuses for all seven manufacturers, twenty-four hulls with
+a chassis-select at run start, the six attributes, procedural ship and enemy art, headless
+simulator, suspend save/resume, flight record, launcher screen.
 
 **The six attributes exist but do not yet bite.** `RunState.attr_*()` derive Hull,
 Thrust, Maneuver, Thermal, Sensors and Stealth from live gauges, and the ship tab and
@@ -405,7 +529,19 @@ chassis select display them — but nothing *checks* them yet. Wiring them into 
 combat entry and the starchart reveal ladder is the next piece, and is what
 `attributes-and-checks.md` was written for.
 
-Not yet: real art, audio, meta-progression, save/load.
+Not yet: real art, meta-progression.
+
+**Save, history and launcher.** `SaveGame` writes the run to `user://run.save` at every
+safe point — `Router._swap()` is the single chokepoint, so a new screen is saved by
+construction rather than by remembering to add a call. `RunHistory` appends every ended
+run to `user://history.json`; `HistoryScreen` reads it from the HUD's HISTORY tab and from
+the launcher. `LauncherScreen` runs with **no run loaded**, so nothing on it may read ship
+state — `Router` hides the HUD while it is up for the same reason.
+
+One consequence worth knowing: a resumed run can land on the sector of an *unfought*
+combat node, which never happens otherwise because arrival starts the fight immediately.
+`SectorScreen`'s action button has always said ENGAGE there; it now does that rather than
+quietly plotting a jump.
 
 ## Priorities
 

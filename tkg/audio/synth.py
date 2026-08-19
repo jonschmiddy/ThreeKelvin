@@ -56,14 +56,34 @@ def bp(x, lo, hi, order=2):
 
 # ---------------- instruments (mono float arrays) ----------------
 
+SHORT_NOTE = 0.30      # below this, whistle() scales its envelope -- see below
+
 def whistle(f, dur, amp=1.0, vib=0.011, vrate=5.0):
-    """Near-sine, matches the measured recording: ~5 Hz vibrato, tiny 2nd harmonic."""
+    """Near-sine, matches the measured recording: ~5 Hz vibrato, tiny 2nd harmonic.
+
+    The 45 ms attack, 80 ms decay and 180 ms vibrato ramp are absolute times.
+    That is right for a sung note and wrong below about 300 ms, in two ways at
+    once: `env_adsr` finds a+d+r no longer fits inside the note and drops to
+    its degenerate branch, and the vibrato is still ramping when the note ends,
+    so the pitch slides the whole way through.  A 130 ms note comes out as an
+    unstable blip rather than a pitch.
+
+    Nothing errors, and it stayed invisible while every whistle note in the
+    game was a quarter note or longer.  The first ornamented variation put
+    eight 130 ms notes in two bars and it was audible immediately.
+
+    Below SHORT_NOTE everything scales with the note, including the vibrato
+    *depth* -- a grace note should be nearly straight anyway.  At or above it
+    every number is exactly as before, and no cue without ornaments in it has
+    a whistle note shorter than 380 ms, so this changes no existing render.
+    """
     N = int(dur*SR); t = np.arange(N)/SR
-    vdepth = vib * np.minimum(1.0, t/0.18)          # vibrato fades in
+    k = min(1.0, dur/SHORT_NOTE)
+    vdepth = vib*k * np.minimum(1.0, t/(0.18*k))    # vibrato fades in
     ph = 2*np.pi*f*np.cumsum(1 + vdepth*np.sin(2*np.pi*vrate*t))/SR
     y = np.sin(ph) + 0.045*np.sin(2*ph) + 0.012*np.sin(3*ph)
     breath = hp(np.random.randn(N), 2500) * 0.010 * np.exp(-t/0.12)
-    return amp * (y * env_adsr(N, 0.045, 0.08, 0.85, min(0.28, dur*0.5)) + breath)
+    return amp * (y * env_adsr(N, 0.045*k, 0.08*k, 0.85, min(0.28, dur*0.5)) + breath)
 
 def saw(f, N, detune=0.0):
     t = np.arange(N)/SR
@@ -123,6 +143,102 @@ def snare(amp=1.0):
 def hat(dur=0.055, amp=1.0):
     N = int(dur*SR); t = np.arange(N)/SR
     return amp*hp(np.random.randn(N), 8200)*np.exp(-t/(dur*0.32))*0.5
+
+def blade(f, dur, amp=1.0, bite=2.4, drive=2.2):
+    """Mid-range voice with teeth, for the combat riff.
+
+    Detuned saws over a square sub-octave, one resonant band, soft clipped.
+    This is the only *driven* instrument in the set -- everything else stays
+    clean and lets the master bus do the shaping.  Combat is the one place the
+    ship itself is loud, so it is the one place distortion belongs.
+    """
+    N = int(dur*SR); t = np.arange(N)/SR
+    y = (saw(f, N, -0.006) + saw(f, N, 0.007))/2
+    y += 0.45*signal.square(2*np.pi*f*0.5*t)
+    y = bp(y, f*0.7, min(SR*0.45, f*bite*3), 2) + 0.35*lp(y, f*1.6, 2)
+    return amp*np.tanh(drive*y*env_adsr(N, 0.006, dur*0.25, 0.62, dur*0.35))*0.45
+
+def glass(f, dur, amp=1.0, trem=3.1):
+    """Glass harmonica: pure partials, slow swell, no attack transient.
+
+    bell() strikes and decays; this one breathes.  It is the warm-ship voice --
+    the only sustained instrument in the set with no noise component at all,
+    which is what makes it read as interior rather than as void.
+    """
+    N = int(dur*SR); t = np.arange(N)/SR
+    y = np.zeros(N)
+    for r, a in [(1, 1.0), (2, 0.22), (3, 0.09), (4.02, 0.05), (6, 0.02)]:
+        y += a*np.sin(2*np.pi*f*r*t + np.random.rand()*6)
+    m = 1 + 0.05*np.sin(2*np.pi*trem*t + 0.7)
+    return amp*y*env_adsr(N, dur*0.35, dur*0.15, 0.90, dur*0.45)*m*0.5
+
+def reed(f, dur, amp=1.0, vib=0.008, bright=1.0):
+    """Double reed — oboe / cor anglais.
+
+    The formant is what makes it a reed rather than a filtered saw.  A wind
+    instrument is a fixed-length pipe with a fixed resonance, so partials
+    landing near ~1.1 kHz are reinforced *whatever note is fingered* — the
+    timbre changes across the range instead of transposing with it.  Low
+    notes come out dark and reedy and high ones thin, which is the whole
+    character, and it is why every note here is synthesised rather than one
+    note being pitch-shifted.
+    """
+    N = int(dur*SR); t = np.arange(N)/SR
+    vd = vib*np.minimum(1.0, t/0.22)
+    ph = 2*np.pi*f*np.cumsum(1 + vd*np.sin(2*np.pi*5.4*t))/SR
+    y = np.zeros(N)
+    for k in range(1, 20):
+        if f*k > SR/2.2: break
+        g = (1.0/k) * (1 + 1.6*np.exp(-((f*k - 1100.0)/620.0)**2))
+        y += g*np.sin(k*ph)
+    y = y*0.30*bright
+    y += bp(np.random.randn(N), 1500, 5000)*0.012*np.exp(-t/0.09)   # reed chiff
+    return amp*y*env_adsr(N, 0.030, 0.09, 0.86, min(0.20, dur*0.4))
+
+def strings(freqs, dur, amp=1.0, cutoff=2600, atk=0.18):
+    """Bowed ensemble — three desks a note.
+
+    What makes a section sound like a section rather than one loud violin is
+    that no two players agree on the pitch centre or on where they are in
+    their vibrato cycle.  Both are detuned *and* given different vibrato
+    rates and phases here; detune alone gives a chorus effect, which is a
+    different and much more synthetic sound.
+
+    Distinct from `bowed()` — that is one player, close, noisy and sour, built
+    for the dread cue — and from `pad()`, which is unashamedly a synthesiser.
+    """
+    N = int(dur*SR); t = np.arange(N)/SR
+    y = np.zeros(N)
+    for i, f in enumerate(freqs):
+        for j, dt in enumerate((-0.0035, 0.0, 0.004)):
+            vd = 0.004*np.minimum(1.0, t/0.40)
+            ph = 2*np.pi*f*(1+dt)*np.cumsum(
+                1 + vd*np.sin(2*np.pi*(5.1+0.4*j)*t + i*1.7 + j))/SR
+            y += signal.sawtooth(ph)/(len(freqs)*3)
+    y = lp(y, cutoff, 2)
+    y += bp(np.random.randn(N), 2000, 7000)*0.010          # ensemble bow noise
+    return amp*y*env_adsr(N, atk, dur*0.2, 0.82, min(0.5, dur*0.35))*0.55
+
+def hammer(f, dur, amp=1.0, bright=1.0):
+    """Struck string — fortepiano.
+
+    Two things separate this from `bell()`, whose partial ratios are fixed:
+    string stiffness puts each partial slightly *sharp* of the harmonic
+    series, and the upper partials die first.  A struck string therefore
+    darkens as it decays, and that decay is most of what the ear uses to
+    tell a piano from a bell.
+    """
+    N = int(dur*SR); t = np.arange(N)/SR
+    y = np.zeros(N)
+    B = 0.0004                                   # inharmonicity coefficient
+    for k in range(1, 15):
+        fk = f*k*np.sqrt(1 + B*k*k)
+        if fk > SR/2.2: break
+        y += (bright/k**1.3)*np.sin(2*np.pi*fk*t)*np.exp(-t/(dur*0.5/k**0.55))
+    thump = lp(np.random.randn(N), 2600)*np.exp(-t/0.006)*0.18
+    e = np.ones(N); a = int(0.0015*SR)
+    e[:a] = np.linspace(0, 1, a)
+    return amp*(y*0.42 + thump)*e
 
 def noise_swell(dur, amp=1.0):
     N = int(dur*SR); t = np.arange(N)/SR

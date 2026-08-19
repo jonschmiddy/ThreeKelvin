@@ -46,6 +46,10 @@ var at: int = 0
 
 var jumps: int = 0
 var kills: int = 0
+## Wall clock, seconds since the epoch, set when the run begins and carried
+## through the save. A run spans sessions now, so a frame counter or a tree
+## timer would only ever measure the last sitting.
+var started_at: float = 0.0
 var won: bool = false
 var dead: bool = false
 var death_reason: String = ""
@@ -80,6 +84,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	dross = 0
 	jumps = 0
 	kills = 0
+	started_at = Time.get_unix_time_from_system()
 	won = false
 	dead = false
 	death_reason = ""
