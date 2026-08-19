@@ -52,7 +52,8 @@ func _ready() -> void:
 	#   -- nolauncher   straight into a new run
 	#   -- resume       straight into the suspend save, if there is one
 	var argv := OS.get_cmdline_user_args()
-	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv
+	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
+		or "charttest" in argv
 	if "resume" in argv and SaveGame.has_save():
 		Router.continue_run()
 	elif skip_launcher:
@@ -66,6 +67,17 @@ func _ready() -> void:
 	# costs a jump, a sector screen and a loading pass every time you change a
 	# pixel. Deliberately not a menu item — it skips the run the balance depends
 	# on, so it stays a flag you have to type.
+	# Star chart cache test. Needs the real shell and a window, so unlike the
+	# sim and savetest it runs after boot rather than instead of it:
+	#   godot --path . -- charttest
+	if "charttest" in OS.get_cmdline_user_args():
+		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
+		# and a RefCounted nothing holds a reference to is freed the moment the
+		# calling statement ends — the suspended coroutine goes with it and the
+		# test dies silently after its first print. SaveTest gets away with
+		# `load(...).new().run()` only because it never awaits.
+		_chart_test = load("res://scripts/sim/ChartTest.gd").new()
+		_chart_test.run(get_tree())
 	if "cards" in OS.get_cmdline_user_args():
 		Router.show_cards()
 	elif "fight" in OS.get_cmdline_user_args():
@@ -77,6 +89,9 @@ func _ready() -> void:
 				Run.hand_size_override = clampi(int(a), 1, 12)
 		var pool := DB.fight_pool(3, false)
 		Router.start_combat(DB.enemies[pool.pick_random()])
+
+## Kept alive for the duration of `-- charttest`; see the call site.
+var _chart_test: RefCounted = null
 
 var _menu: PauseMenu = null
 var _settings: SettingsMenu = null

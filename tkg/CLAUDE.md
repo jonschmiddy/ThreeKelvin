@@ -41,6 +41,9 @@ godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 # Save/load round-trip — RUN THIS AFTER TOUCHING SaveGame OR RunHistory
 godot --headless --path . -- savetest          # ~3 s
 
+# Star chart sky cache — RUN THIS AFTER ADDING TO _build_stars OR ITS BUILDERS
+godot --path . -- charttest                    # ~10 s, needs a window
+
 # Boot destinations. The launcher is the default; every dev flag skips it.
 godot --path . -- nolauncher                   # straight into a new run
 godot --path . -- resume                       # straight into the suspend save
@@ -403,6 +406,19 @@ drawn on its own `CanvasItem`. Both matter. Re-deriving 40,000 stars per repaint
 ~150ms, and drawing them on the same canvas as the systems meant hovering a system
 repainted the entire galaxy. Godot retains a CanvasItem's draw list until that item asks
 to redraw — that is the whole optimisation.
+
+Those packed arrays live in a **static cache shared by every `MapChart`**, keyed by galaxy
+and panel size. `Router` builds a fresh `StarchartScreen` on every visit, so an
+instance-level cache was thrown away each time the player looked at the chart and rebuilt
+from scratch on the next look. Opening the chart went from ~290 ms to ~65 ms; a new run
+clears the cache wholesale, since a run is one galaxy for its whole life.
+
+`MapChart.SKY_FIELDS` names the 34 derived fields the cache saves and restores, and there is
+exactly one way for this to break: **a builder gains a new output and nobody adds it to that
+list.** Nothing errors — the field keeps whatever the previous galaxy left in it, on the
+second visit only. `-- charttest` catches it by comparing a restored sky against a freshly
+built one field for field. Screenshots cannot: `SkyAnim` redraws every frame, so two
+captures of an identical sky differ anyway.
 
 **The galaxy holds more than stars.** Nebulae, dust lanes, globular clusters and supernova
 remnants are built into those same packed arrays, so they cost a rect apiece and nothing to

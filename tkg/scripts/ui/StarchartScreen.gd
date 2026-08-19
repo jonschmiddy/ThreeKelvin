@@ -877,6 +877,42 @@ class MapChart extends Control:
 	## from its radius, because its radius never changes. See the orbit draw.
 	var _orb_dark: PackedByteArray = PackedByteArray()
 	var _star_key: String = ""
+
+	## Everything above that _build_stars derives, by name.
+	##
+	## Kept as a list rather than as thirty-four static vars because the cache
+	## has to be saved and restored as a SET — one field left out is a chart
+	## that draws with last galaxy's dust lanes over this galaxy's stars, and a
+	## list you can read against the declarations above catches that by eye.
+	##
+	## Everything in it is a Packed*Array or an int. Those are copy-on-write
+	## value types, so storing one is a snapshot rather than an alias; a plain
+	## Array or Dictionary in here would be shared by reference and the cache
+	## would mutate under itself.
+	const SKY_FIELDS: Array[String] = [
+		"_star_pos", "_star_col", "_star_big", "_star_dim",
+		"_core_skipped", "_core_rad", "_core_col", "_core_size", "_core_ang",
+		"_orb_r", "_orb_a", "_orb_w", "_orb_col", "_orb_size", "_orb_dark",
+		"_dark_c", "_dark_r", "_dark_orb_c", "_dark_orb_r",
+		"_neb_pos", "_neb_top", "_neb_name", "_pulsar",
+		"_disc_r", "_disc_a", "_disc_om", "_disc_rad", "_disc_b", "_disc_bp",
+		"_disc_c1", "_disc_c2",
+		"_wv_pos", "_wv_ph", "_wv_col",
+	]
+
+	## The built sky, shared by every MapChart this process makes.
+	##
+	## Router builds a NEW StarchartScreen on every visit, so an instance-level
+	## cache was thrown away every time the player looked at the chart and
+	## rebuilt from scratch on the next look — a quarter of a second of galaxy
+	## maths to redraw a sky that had not changed. It is keyed by panel width as
+	## well as by galaxy, so a resize still rebuilds; what it stops is paying for
+	## the same sky twice.
+	static var _sky_cache: Dictionary = {}
+	## Which galaxy the entries belong to. A run is one galaxy for its whole
+	## life, so anything cached for a different one is dead weight and is
+	## dropped wholesale rather than accumulating a sky per run for the session.
+	static var _sky_galaxy: String = ""
 	## Dark clouds in drawn galaxy space, as flat lobes. See _extinct.
 	var _dark_c: PackedVector2Array = PackedVector2Array()
 	var _dark_r: PackedFloat32Array = PackedFloat32Array()
@@ -1833,8 +1869,17 @@ class MapChart extends Control:
 		var r_max := _radius() * DISC
 		# The seed is part of the key: a new run means a new sky, and the cache
 		# has to know that.
-		var key := "%d|%d|%.1f|%.2f" % [Run.galaxy_kind, Run.galaxy_seed, r_max, _squash()]
+		var galaxy := "%d|%d" % [Run.galaxy_kind, Run.galaxy_seed]
+		var key := "%s|%.1f|%.2f" % [galaxy, r_max, _squash()]
 		if key == _star_key:
+			return
+		# A new run means a new sky, and every entry for the old one is unreachable.
+		if galaxy != _sky_galaxy:
+			_sky_cache.clear()
+			_sky_galaxy = galaxy
+		if _sky_cache.has(key):
+			_restore_sky(_sky_cache[key])
+			_star_key = key
 			return
 		_star_key = key
 		# Orbits are rebuilt with the field; _build_orbits is called at the end,
@@ -2126,6 +2171,22 @@ class MapChart extends Control:
 		# Last: the wave samples the finished field, and clusters and
 		# remnants both append to it.
 		_build_wave()
+
+		_sky_cache[_star_key] = _snapshot_sky()
+
+	## The built sky, by field name. Taken after the last builder has run, so a
+	## builder added later is included the moment its output is listed in
+	## SKY_FIELDS — and omitted silently if it is not, which is the one way this
+	## can go wrong. Anything _build_stars derives belongs in that list.
+	func _snapshot_sky() -> Dictionary:
+		var out: Dictionary = {}
+		for f in SKY_FIELDS:
+			out[f] = get(f)
+		return out
+
+	func _restore_sky(snap: Dictionary) -> void:
+		for f in SKY_FIELDS:
+			set(f, snap[f])
 
 	func _seed_rng(salt: int) -> void:
 		_rng = (Run.galaxy_seed * 2654435761 + salt) & 0x7fffffff
