@@ -10,6 +10,15 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Save/load round-trip test, same shape as the balance sim above it:
+	#   godot --headless --path . -- savetest
+	if "savetest" in OS.get_cmdline_user_args():
+		var t: RefCounted = load("res://scripts/sim/SaveTest.gd").new()
+		t.run()
+		t.run_history_test()
+		get_tree().quit()
+		return
+
 	DisplaySettings.load_and_apply()
 	theme = UITheme.build()
 
@@ -34,7 +43,23 @@ func _ready() -> void:
 	root.add_child(content)
 
 	Router.register(content, hud)
-	Router.new_run()
+
+	# Boot destination. The launcher is the default, and every development flag
+	# below skips it — an automated run must never stop at a screen waiting to
+	# be clicked, and a flag that drops you into a fight plainly means "not the
+	# title screen" without having to say so.
+	#
+	#   -- nolauncher   straight into a new run
+	#   -- resume       straight into the suspend save, if there is one
+	var argv := OS.get_cmdline_user_args()
+	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv
+	if "resume" in argv and SaveGame.has_save():
+		Router.continue_run()
+	elif skip_launcher:
+		Router.new_run()
+	else:
+		Router.show_launcher()
+
 	# Dev shortcut: drop straight into a fight with a hand of cards.
 	#   godot --path . -- fight
 	# Card work is 90% of what gets iterated on and reaching a fight normally
@@ -66,6 +91,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if k.keycode == KEY_ESCAPE:
 		if _settings != null:
 			_close_settings()
+		elif Router.current is LauncherScreen:
+			pass   ## nothing to pause: the launcher IS the menu
 		else:
 			toggle_menu()
 	elif k.keycode == KEY_F11:
@@ -81,11 +108,19 @@ func toggle_menu() -> void:
 	add_child(_menu)
 	_menu.setup()
 	_menu.resume_requested.connect(toggle_menu)
-	_menu.quit_requested.connect(get_tree().quit)
+	_menu.quit_requested.connect(func() -> void:
+		SaveGame.clear()
+		get_tree().quit())
 	_menu.new_run_requested.connect(func() -> void:
 		toggle_menu()
 		Router.new_run())
 	_menu.settings_requested.connect(_open_settings)
+	# The autosave has already written this state — every safe point does. The
+	# explicit write is for the one case it has not: a menu opened mid-combat,
+	# where the last save is from just before the fight.
+	_menu.save_and_quit_requested.connect(func() -> void:
+		SaveGame.save()
+		get_tree().quit())
 
 func _open_settings() -> void:
 	if _settings != null:

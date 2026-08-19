@@ -38,6 +38,13 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# Save/load round-trip — RUN THIS AFTER TOUCHING SaveGame OR RunHistory
+godot --headless --path . -- savetest          # ~3 s
+
+# Boot destinations. The launcher is the default; every dev flag skips it.
+godot --path . -- nolauncher                   # straight into a new run
+godot --path . -- resume                       # straight into the suspend save
+
 # Rebuild the global class cache — REQUIRED after adding any new class_name,
 # and required once on a fresh clone before anything will compile at all
 godot --headless --path . --import
@@ -45,7 +52,13 @@ godot --headless --path . --import
 
 The sim boots the project normally and quits before building UI. It cannot run via
 `--script`: that flag replaces the main loop and never creates the autoloads, so
-`Run` and `DB` fail to resolve at compile time.
+`Run` and `DB` fail to resolve at compile time. `savetest` boots the same way.
+
+`savetest` plays a run into a messy state, fingerprints it, saves, **scrambles the
+live state**, loads, and compares. The scramble is the point: without it a field the
+save forgot to serialise still matches, because the value was already sitting there.
+A save system fails silently by nature — nothing crashes, the field just comes back
+as a default and the run continues around it looking almost right.
 
 Global `class_name` registration lives in `.godot/global_script_class_cache.cfg`,
 which only `--import` writes. Without it every `class_name` reports "Could not find
@@ -86,6 +99,9 @@ say so and ask rather than quietly working around it.
 | **Every arrival lands on the sector screen** | You should see a place before being asked to do anything with it. Station/event/salvage are reached *from* there, which is what finally retired `LootScreen` |
 | **One currency: scrap** — repair, upgrade, and purchase all compete for it | This is where the difficulty actually lives |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
+| **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
+| **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
+| **The flight record is a record, not meta-progression** | Nothing in `RunHistory` feeds back into a run. Identity is assembled mid-run from what you find, and a history that granted a starting bonus would be the first crack in that |
 
 ## The most important tuning rule
 
@@ -355,9 +371,21 @@ Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis pl
 and distance-priced fuel, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
 pacify), loot with rolled affixes, install/scrap/swap, stations with all services and
 inspections, eight events, set bonuses for all seven manufacturers, procedural ship and
-enemy art, headless simulator.
+enemy art, headless simulator, suspend save/resume, flight record, launcher screen.
 
-Not yet: real art, audio, meta-progression, save/load.
+Not yet: real art, meta-progression.
+
+**Save, history and launcher.** `SaveGame` writes the run to `user://run.save` at every
+safe point — `Router._swap()` is the single chokepoint, so a new screen is saved by
+construction rather than by remembering to add a call. `RunHistory` appends every ended
+run to `user://history.json`; `HistoryScreen` reads it from the HUD's HISTORY tab and from
+the launcher. `LauncherScreen` runs with **no run loaded**, so nothing on it may read ship
+state — `Router` hides the HUD while it is up for the same reason.
+
+One consequence worth knowing: a resumed run can land on the sector of an *unfought*
+combat node, which never happens otherwise because arrival starts the fight immediately.
+`SectorScreen`'s action button has always said ENGAGE there; it now does that rather than
+quietly plotting a jump.
 
 ## Priorities
 

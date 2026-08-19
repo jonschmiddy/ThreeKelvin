@@ -82,6 +82,12 @@ func refresh() -> void:
 	_row.add_child(_tab("CARDS", Router.current is CardGalleryScreen, false,
 		func() -> void: Router.show_cards(),
 		"Every card in the game."))
+	# The record sits beside the catalog: both are things you read rather than
+	# places you go, and neither changes the run. Available during combat for the
+	# same reason CARDS is — looking at past runs cannot affect this one.
+	_row.add_child(_tab("HISTORY", Router.current is HistoryScreen, false,
+		func() -> void: Router.show_history(),
+		"Every run you have finished."))
 	_row.add_child(_divider())
 
 	# Frame rate, far right. Lives on the HUD rather than on the chart because
