@@ -36,12 +36,17 @@ const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## Layer tables, straight from THEME_NOTES §5 and DREAD_NOTES §4. A stem joins
 ## at its intensity and never leaves, so raising intensity only ever adds.
 const CUES := {
+	## Three rungs, not five. It used to climb to "contact" and "combat" on
+	## `lead` and `perc`, but combat moved to `burn` and bosses to `boss` — the
+	## crossfade between two cues over the shared F pedal reads as the place
+	## turning, which is worth more than the same cue getting louder. STATES has
+	## asked for this one at rung 2 and rung 0 ever since, so the top two rungs
+	## were stems nothing could reach. `arrange.py` still renders them for the
+	## concert master; `build.py`'s UNSHIPPED keeps them out of the download.
 	&"theme": [
 		[&"whistle", &"pad"],       ## 0  menu, title, the run is over
 		[&"bass", &"fx"],           ## 1  idle: chart, refit, station
 		[&"arp", &"bell"],          ## 2  out in a sector
-		[&"lead"],                  ## 3  contact
-		[&"perc"],                  ## 4  combat
 	],
 	&"dread": [
 		[&"sub", &"fx"],            ## 0  something is wrong here
