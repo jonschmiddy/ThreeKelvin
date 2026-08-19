@@ -343,6 +343,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
 		visited = n.visited, cleared = n.cleared, inspected = n.inspected,
+		fled = n.fled,
 		in_nebula = n.in_nebula, nebula_emission = n.nebula_emission,
 		pos = [n.pos.x, n.pos.y], gal = [n.gal.x, n.gal.y],
 		links = Array(n.links),
@@ -370,6 +371,7 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
 	n.cleared = bool(d.get("cleared", false))
+	n.fled = bool(d.get("fled", false))
 	n.inspected = bool(d.get("inspected", false))
 	n.in_nebula = bool(d.get("in_nebula", false))
 	n.nebula_emission = bool(d.get("nebula_emission", false))

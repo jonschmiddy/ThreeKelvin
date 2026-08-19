@@ -466,6 +466,9 @@ func flee() -> void:
 	# One number, named once. The line said 2 while the code took 6 — a
 	# discrepancy the player pays and the log denies.
 	Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
+	# So the sector you are dropped back onto offers a jump rather than the
+	# fight you just paid six fuel to leave.
+	Run.node_at().fled = true
 	Sig.resources_changed.emit()
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % FLEE_FUEL)
 

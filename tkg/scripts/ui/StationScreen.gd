@@ -45,7 +45,16 @@ func _build() -> void:
 	stock_section.add_child(_hull_box)
 	_stock = VBoxContainer.new()
 	_stock.add_theme_constant_override("separation", 6)
-	stock_section.add_child(Widgets.scroller(_stock, 300))
+	# Expands into whatever the panel has left rather than demanding 300px.
+	#
+	# A fixed 300 minimum put the column's minimum height above the 540 the
+	# viewport actually has — head panel, plus the stock header, plus the hull
+	# on the pad, plus 300 — so the bottom of the list was clipped by the
+	# window instead of scrolled to. The scrollbar could not reach the last
+	# item because the ScrollContainer itself was hanging off the screen.
+	var stock_scroll := Widgets.scroller(_stock, 90)
+	stock_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stock_section.add_child(stock_scroll)
 	var sp := Widgets.panel_with(stock_section)
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	left.add_child(sp)

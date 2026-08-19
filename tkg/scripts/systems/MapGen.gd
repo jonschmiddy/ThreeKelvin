@@ -134,6 +134,13 @@ class MapNode extends RefCounted:
 	var type: NodeType = NodeType.FIGHT
 	var visited: bool = false
 	var cleared: bool = false
+	## Contact was broken here and you have not left since. NOT the same as
+	## cleared: the hostile is still out there, so returning re-engages, and
+	## nothing was salvaged. It exists because the sector has to be able to tell
+	## "you have not fought this yet" from "you just ran from it" — the first
+	## offers ENGAGE, the second must not, or the button that got you out of a
+	## fight is the same button that puts you back in one.
+	var fled: bool = false
 	var pos: Vector2 = Vector2.ZERO
 	## Where this system sits in the galaxy, as a fraction of the disc radius
 	## with the disc's foreshortening already applied - so it is exactly what the

@@ -41,7 +41,10 @@ func _autosave() -> void:
 
 ## Title screen. Boots here unless a development flag says otherwise.
 func show_launcher() -> void:
-	Audio.music_state(&"sector")
+	# &"menu", not &"sector" — the launcher runs with no run loaded, so the
+	# sector arrangement was both the wrong music and the only state in the
+	# table nothing ever asked for.
+	Audio.music_state(&"menu")
 	_swap(LauncherScreen.new(), false)
 	(current as LauncherScreen).setup()
 
@@ -224,6 +227,7 @@ func start_combat(template: EnemyTemplate) -> void:
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal".
 	Audio.music_state(&"boss" if template.boss else &"combat")
+	Run.node_at().fled = false
 	combat = Combat.new()
 	var s := SectorScreen.new()
 	_swap(s)

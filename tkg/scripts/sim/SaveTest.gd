@@ -45,11 +45,11 @@ func fingerprint() -> Dictionary:
 		var shop: Array = []
 		for m in n.shop:
 			shop.append(str(m.id) + ":" + str(m.scrap_value))
-		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s" % [
+		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
-			n.visited, n.cleared, n.inspected,
+			n.visited, n.cleared, n.inspected, n.fled,
 			Array(n.links), n.makers, shop])
 	return {
 		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s" % [
@@ -99,6 +99,7 @@ func run() -> void:
 		Run.jump_to(pick.index)
 		Run.node_at().cleared = (i % 2 == 0)
 		Run.node_at().inspected = (i % 3 == 0)
+		Run.node_at().fled = (i % 4 == 0)
 	Run.hp = maxi(1, Run.hp - 9)
 	Run.heat = 5
 	Run.heat_cap_bonus = 2

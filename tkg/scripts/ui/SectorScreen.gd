@@ -232,7 +232,7 @@ func _on_action() -> void:
 		# but the button has said ENGAGE all along, and it now does that rather
 		# than quietly plotting a jump.
 		MapGen.NodeType.FIGHT, MapGen.NodeType.GOAL:
-			if n.cleared:
+			if n.cleared or n.fled:
 				Router.show_starchart()
 			else:
 				Router.engage_here()
@@ -258,6 +258,9 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 		MapGen.NodeType.FIGHT:
 			if n.cleared:
 				return ["Wreckage, cooling. Nothing else is moving.", "PLOT NEXT JUMP"]
+			if n.fled:
+				return ["You broke contact. They are still out there, and they still have everything they were carrying.",
+					"PLOT NEXT JUMP"]
 			return ["Contact.", "ENGAGE"]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
@@ -273,6 +276,8 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 		MapGen.NodeType.GOAL:
 			if n.cleared:
 				return ["The light is behind you.", "PLOT NEXT JUMP"]
+			if n.fled:
+				return ["You broke off. It is still between you and the light.", "PLOT NEXT JUMP"]
 			return ["The core fills the viewport. Something is still guarding it.", "ENGAGE"]
 		_:
 			return ["", "PLOT NEXT JUMP"]
