@@ -11,6 +11,7 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 	content = content_holder
 	hud = hud_bar
 	Sig.jumped.connect(_on_jumped)
+	Sig.run_started.connect(_on_run_started)
 	Sig.run_ended.connect(_on_run_ended)
 
 ## `chrome` is whether the HUD belongs above this screen. The launcher and the
@@ -34,8 +35,14 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 ## remember to extend. Combat is excluded by in_combat() — `combat` is assigned
 ## before start_combat() swaps its screen, so the fight's own swap saves nothing
 ## and the state on disk stays the one from just before the shooting started.
+##
+## The empty map is not a paranoid check. `_snapshot()` reads `Run.node_at()`,
+## which is `map[at]` with nothing in front of it, so a run that has a hull but
+## no map takes this chokepoint down with an index error — and that is exactly
+## the state a save file with a valid version and a truncated map used to leave
+## behind on its way to the launcher.
 func _autosave() -> void:
-	if Run.hull == null or Run.dead or Run.won or in_combat():
+	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won or in_combat():
 		return
 	SaveGame.save()
 
@@ -47,6 +54,20 @@ func show_launcher() -> void:
 	Audio.music_state(&"menu")
 	_swap(LauncherScreen.new(), false)
 	(current as LauncherScreen).setup()
+
+## A run beginning — started fresh or restored from the suspend save — cannot
+## inherit the last one's fight. Nothing in RunState touches `combat`, so
+## ABANDON RUN from the pause menu mid-fight used to leave in_combat() true
+## forever: the new run's sector wired itself to the dead run's enemy, the
+## autosave bailed on every screen swap so the run was never written, and the
+## HUD kept SHIP and STARCHART greyed for the rest of it.
+##
+## Hung on the signal rather than written into new_run(), because the other
+## boundary — load_into_run() — needs exactly the same reset and emits exactly
+## the same signal. Two call sites, one chokepoint, same reason _swap() is the
+## only place that saves.
+func _on_run_started() -> void:
+	combat = null
 
 ## Opens on the sector rather than the chart: the run starts with your ship in
 ## open space, not with a graph of places you have not been yet.
@@ -149,6 +170,19 @@ func resolve_current_node() -> void:
 	Run.log_line("Jumped to %s. %s. Danger %d." % [
 		MapGen.star_name(n), MapGen.place_line(n).capitalize(), n.danger], &"you")
 
+	# Roll what this system is offering before the save below, not at the moment
+	# it is shown. Arriving is the safe point; everything past it is a thing you
+	# chose to do here, and a suspend save is a bookmark rather than a way to
+	# reject a draw. See _roll_here().
+	_roll_here(n)
+	# The save the SaveGame header promises: on the sector, at the node you flew
+	# to, with the contact still there. Until this line the last write predated
+	# the JUMP — start_combat() assigns `combat` before it swaps, so the fight's
+	# own swap saved nothing and the star chart's was the newest state on disk.
+	# Force-quitting a fight therefore refunded the fuel, put you back at the
+	# system you left, and let you pick a different route entirely.
+	_autosave()
+
 	# Every arrival lands on the sector. You should see the place before you are
 	# asked to do anything with it — a station is a lit hab ring turning in the
 	# dark, not a menu that appears. Fights are the exception only in that they
@@ -161,10 +195,46 @@ func resolve_current_node() -> void:
 			if n.cleared:
 				show_sector()
 			else:
-				var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
-				start_combat(DB.enemies[pool.pick_random()])
+				engage_here()
 		_:
 			show_sector()
+
+## Decide what is waiting at a system, once, and leave it on the node so the
+## save carries it. Cleared nodes are left alone — whatever was here is resolved
+## and re-rolling it would put it back.
+##
+## Both of these used to be rolled at the moment the screen opened, which meant
+## quitting and resuming rolled them again: a bad enemy draw or a hail with two
+## bad options cost nothing to refuse. That is save-scumming through the front
+## door, and it defeats "every death is self-authored" without touching a
+## number. Idempotent by design — it is also the lazy path for saves written
+## before the node carried these.
+func _roll_here(n: MapGen.MapNode) -> void:
+	if n.cleared:
+		return
+	match n.type:
+		MapGen.NodeType.FIGHT:
+			if n.foes.is_empty():
+				n.foes = _roll_foes(n)
+		MapGen.NodeType.EVENT:
+			if n.event_key.is_empty():
+				n.event_key = EventTable.pick_key()
+		_:
+			pass
+
+## The contact and its pack. Packs appear deeper in, and more often in lawless
+## space where nobody is flying alone. They split health rather than doubling it
+## — see Combat.start.
+func _roll_foes(n: MapGen.MapNode) -> Array[StringName]:
+	var out: Array[StringName] = []
+	var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
+	out.append(pool.pick_random())
+	var lead: EnemyTemplate = DB.enemies[out[0]]
+	if n.danger >= 2 and not lead.boss and not lead.fauna:
+		var odds := 0.45 if n.region == MapGen.Region.LAWLESS else 0.22
+		if randf() < odds:
+			out.append(DB.fight_pool(n.danger, false).pick_random())
+	return out
 
 ## Dock. Reached from the sector, not on arrival.
 func show_station() -> void:
@@ -174,17 +244,35 @@ func show_station() -> void:
 	_swap(s)
 	s.setup()
 
-## Open the hail. The node is marked resolved here rather than on arrival, so
-## looking at an event without engaging it does not consume it.
+## Open the hail. The node is NOT consumed here — event_resolved() does that
+## when the outcome actually lands. Marking it on open meant the swap below
+## autosaved a cleared node while the picked event existed only inside
+## EventScreen, so a force-quit at the hail resumed onto a system whose signal
+## had stopped and which gave nothing.
+##
+## The pick lives on the node, decided on arrival by _roll_here(). Two reasons,
+## and only the first is about quitting. HudBar.refresh() only greys tabs while
+## in_combat(), which an event is not, so all five stay lit and the screen can be
+## swapped out from under a live hail; rolling a fresh event on the way back
+## would make leaving and returning a re-roll until the options pay. Holding it
+## in Router covered that but not a force-quit, because Router is not saved and
+## the node is.
 func show_event() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.cleared:
 		return
-	n.cleared = true
+	_roll_here(n)
 	Audio.music_state(&"event")
 	var e := EventScreen.new()
 	_swap(e)
-	e.setup(EventTable.pick())
+	e.setup(EventTable.by_key(n.event_key))
+
+## The hail has been answered: the outcome is already on RunState, so the node
+## is consumed at that instant and not a moment later. Waiting for CONTINUE
+## would let you take the outcome, leave through a HUD tab, and answer the same
+## hail again — and the autosave that runs on the way out would bank both.
+func event_resolved() -> void:
+	Run.node_at().cleared = true
 
 ## Fly the beam.
 ##
@@ -223,7 +311,10 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		count, "" if count == 1 else "s"], &"good")
 	show_sector()
 
-func start_combat(template: EnemyTemplate) -> void:
+## `extras` is what the node already rolled. It is a parameter rather than
+## something rolled in here so that the fight a node offers is decided once, at
+## arrival, and survives a save — see _roll_here().
+func start_combat(template: EnemyTemplate, extras: Array = []) -> void:
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal".
 	Audio.music_state(&"boss" if template.boss else &"combat")
@@ -235,28 +326,20 @@ func start_combat(template: EnemyTemplate) -> void:
 	# log lines, even an instant win — and a screen wired up afterwards misses all
 	# of it.
 	s.setup(combat)
-	# Packs appear deeper in, and more often in lawless space where nobody is
-	# flying alone. They split health rather than doubling it — see Combat.start.
 	var node: MapGen.MapNode = Run.node_at()
-	var extras: Array = []
 	# Development: `-- fight foes=3` forces a pack. Multi-enemy layout only
 	# exists at danger 2+ behind a 22% roll, so seeing two on screen was a
-	# matter of waiting rather than looking.
+	# matter of waiting rather than looking. It overrides the node's own roll,
+	# which is the point of the flag.
 	var forced := 0
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("foes="):
 			forced = clampi(int(a.split("=")[1]), 1, 4)
 	if forced > 1:
 		var pool0 := DB.fight_pool(maxi(node.danger, 1), false)
+		extras = []
 		for i in forced - 1:
 			extras.append(DB.enemies[pool0.pick_random()])
-		combat.start(template, node.danger, extras)
-		return
-	if node.danger >= 2 and not template.boss and not template.fauna:
-		var odds := 0.45 if node.region == MapGen.Region.LAWLESS else 0.22
-		if randf() < odds:
-			var pool := DB.fight_pool(node.danger, false)
-			extras.append(DB.enemies[pool.pick_random()])
 	combat.start(template, node.danger, extras)
 
 ## Start the fight waiting at this system.
@@ -272,8 +355,14 @@ func engage_here() -> void:
 	if n.type == MapGen.NodeType.GOAL:
 		start_combat(DB.enemies[&"custodian"])
 		return
-	var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
-	start_combat(DB.enemies[pool.pick_random()])
+	# Whatever this system rolled when you arrived, including on a run restored
+	# from disk. _roll_here() is idempotent, so this also covers a save written
+	# before the node carried its foes.
+	_roll_here(n)
+	var extras: Array = []
+	for i in range(1, n.foes.size()):
+		extras.append(DB.enemies[n.foes[i]])
+	start_combat(DB.enemies[n.foes[0]], extras)
 
 ## Events can drop you straight into a fight (distress-beacon bait).
 func start_ambush() -> void:

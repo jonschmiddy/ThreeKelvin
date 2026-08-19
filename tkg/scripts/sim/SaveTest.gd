@@ -44,13 +44,20 @@ func fingerprint() -> Dictionary:
 		var n: MapGen.MapNode = e
 		var shop: Array = []
 		for m in n.shop:
-			shop.append(str(m.id) + ":" + str(m.scrap_value))
-		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s" % [
+			# The price is what a station stamped on the item, not what the item
+			# is worth. Comparing id:scrap_value alone could not tell a shelf
+			# that kept its markup from one that silently reverted to base.
+			shop.append("%s:%d:%d" % [
+				m.id, m.scrap_value, int(m.get_meta("price", -1))])
+		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
 			n.visited, n.cleared, n.inspected, n.fled,
-			Array(n.links), n.makers, shop])
+			Array(n.links), n.makers, shop,
+			# What the system is offering. Rolled on arrival and fixed from then
+			# on, so losing it across a save is a re-roll the player can force.
+			n.foes, n.event_key])
 	return {
 		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s" % [
 			Run.hull.name, Run.hull.tier, Run.hull.reactor, Run.hull.hand_size,
@@ -117,6 +124,20 @@ func run() -> void:
 	var st: MapGen.MapNode = Run.map[Run.at]
 	st.shop = [LootGen.roll_module(2), LootGen.roll_module(4, &"", true)]
 	st.shop_hull = LootGen.roll_hull(3)
+	# Stamped the way StationScreen._stock_up() stamps it. Without a price on the
+	# stock, the fingerprint compares "absent" against "absent" and a dropped
+	# markup still passes.
+	for m in st.shop:
+		m.set_meta("price", int(round(m.scrap_value * 1.9)))
+	# A fight and a hail with their rolls already made. These are the fields that
+	# decide what is waiting at a system, so a save that forgets them hands the
+	# player a fresh draw every time they quit and resume.
+	for e in Run.map:
+		var n: MapGen.MapNode = e
+		if n.type == MapGen.NodeType.FIGHT and not n.cleared and n.foes.is_empty():
+			n.foes = [&"cutter", &"lancer"]
+		elif n.type == MapGen.NodeType.EVENT and not n.cleared and n.event_key.is_empty():
+			n.event_key = "Dead station"
 
 	var before := fingerprint()
 	var jumps_before := Run.jumps

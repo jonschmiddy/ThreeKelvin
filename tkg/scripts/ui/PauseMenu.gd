@@ -61,10 +61,28 @@ func setup() -> void:
 	# SAVE & QUIT writes a bookmark you resume from once; QUIT TO DESKTOP throws
 	# the run away. The autosave means the first is what happens anyway if the
 	# process dies — this button exists so the player knows that.
-	col.add_child(Widgets.button("SAVE & QUIT",
+	#
+	# Mid-fight it does something narrower, so mid-fight it says something
+	# narrower. Combat is outside the save, so the write is skipped and the
+	# bookmark from your arrival at this system is what stands. The button is NOT
+	# disabled here: it is still the only exit that keeps the run, and leaving the
+	# player a lit QUIT — DISCARD RUN beside a dead SAVE & QUIT would make the
+	# destructive one the only thing that responds.
+	var fighting := Router.in_combat()
+	col.add_child(Widgets.button(
+		"QUIT — THE FIGHT IS LOST" if fighting else "SAVE & QUIT",
 		func() -> void: save_and_quit_requested.emit()))
 	col.add_child(Widgets.button("QUIT — DISCARD RUN",
 		func() -> void: quit_requested.emit()))
+
+	if fighting:
+		var warn := UITheme.body(
+			"A fight is never saved. You resume at this system, before it — "
+			+ "with the hull you arrived with, and this contact still waiting.",
+			UITheme.COLD, UITheme.FS_SMALL)
+		warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(warn)
 
 	var hint := UITheme.body("esc closes this menu", UITheme.COLD, UITheme.FS_SMALL)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
