@@ -203,6 +203,14 @@ func _type_line() -> String:
 func _make_custom_tooltip(_for_text: String) -> Object:
 	if card == null:
 		return null
+	# Never in a hand, whatever anybody set on the card. The hand builds this
+	# same panel itself, on its own delay and above the fan where it cannot
+	# cover the board, and a native tooltip would be a second copy of it
+	# floating at the cursor. The rule above says the hand opts out by leaving
+	# tooltip_text empty; this is the rule enforced where it can be broken by
+	# accident rather than only stated where it can be read.
+	if get_parent() is HandView:
+		return null
 	return Widgets.card_readout(card)
 
 func _draw() -> void:

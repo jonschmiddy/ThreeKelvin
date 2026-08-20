@@ -46,10 +46,31 @@ var _intent_label: Label
 var _hand: HandView
 ## The keyword panel while a card is hovered. See _show_readout.
 var _readout: PanelContainer = null
+## Every keyword panel is parented HERE and nowhere else, and opening one empties
+## it first.
+##
+## "At most one readout on screen" used to be an invariant three suspended
+## coroutines had to maintain between them — the rest timer, the layout frame and
+## whichever hover event arrived while those were waiting — each holding the same
+## `_readout` member and each able to run while the others slept. One interleaving
+## that lost track of the reference left a panel on screen that nothing owned and
+## nothing would ever close, so a second one opened on top of it. A single parent
+## that is swept before every open makes it a fact about the node tree instead,
+## which no interleaving can break.
+var _readout_host: Control = null
 ## Which card the panel belongs to. See _show_readout.
 var _readout_for: CardView = null
 ## The card whose panel is counting down but has not opened yet.
 var _readout_pending: CardView = null
+## Bumped every time the panel is torn down. A coroutine that wakes holding a
+## stale generation has been overtaken while it slept and must not touch the
+## screen — not to position a panel, not to fade one in, not to leave one behind.
+##
+## Deliberately bumped in _clear_readout() rather than on every hover event: an
+## exit for a card that does not own the panel is not an interruption, and
+## cancelling on those would mean the panel never opens while the cursor is
+## sliding along a fan.
+var _readout_gen: int = 0
 ## How long you have to rest on a card before it explains itself.
 const READOUT_DELAY := 1.0
 var _deck_label: Label
@@ -643,6 +664,14 @@ func _refresh_hand() -> void:
 	# The hand reconciles rather than rebuilds, so cards slide into the gap a
 	# played card leaves instead of the whole row snapping to new positions.
 	_hand.sync(combat.hand, func(c): return combat.can_play(c))
+	# A card that left the hand takes its panel with it. The panel is closed by
+	# the card's own exit event, and a card that was played or discarded never
+	# sends one — its view flies off and fades on a tween, so it is not even
+	# freed yet. Keyed on the HAND rather than on whether the view still exists,
+	# because the question the panel answers is "what am I holding".
+	if _readout_for != null and (not is_instance_valid(_readout_for)
+			or not combat.hand.has(_readout_for.card)):
+		_clear_readout()
 	_draw_pile.set_count(combat.deck.size(), "DRAW")
 	_discard_pile.set_count(combat.discard.size(), "DISCARD")
 	_deck_label.text = "TURN %d" % combat.turn
@@ -746,6 +775,17 @@ func _on_card_dropped(index: int, view: CardView) -> void:
 ## Floated in a layer above everything rather than placed in the hand row: the
 ## hand is a fixed-height panel at the bottom of the screen, so a panel parented
 ## into it would either resize the row or be clipped by it.
+## Created on first use rather than in _build(), so the layer does not exist at
+## all in a run that never rests on a card. Full-rect and click-through: it is a
+## place to put panels, not a thing on the screen.
+func _readout_layer() -> Control:
+	if _readout_host == null or not is_instance_valid(_readout_host):
+		_readout_host = Control.new()
+		_readout_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_readout_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_readout_host)
+	return _readout_host
+
 func _show_readout(view: CardView, entered: bool) -> void:
 	if not entered:
 		# Only the card that owns the panel — or the one waiting to — may close
@@ -771,16 +811,27 @@ func _show_readout(view: CardView, entered: bool) -> void:
 	# to you. The gallery keeps its instant panel: browsing is the whole point
 	# there, and nothing is behind it to look at.
 	_readout_pending = view
+	# Captured AFTER the clear above, so this coroutine owns the current
+	# generation until something else tears the panel down. Checked rather than
+	# `_readout_pending == view` at every wake-up below, because the card is not
+	# a unique enough claim: rest on a card, leave, and rest on it again and
+	# there are two coroutines that both think the pending card is theirs.
+	var gen := _readout_gen
 	await get_tree().create_timer(READOUT_DELAY).timeout
-	if _readout_pending != view or not is_instance_valid(view):
+	if gen != _readout_gen or not is_instance_valid(view):
 		return
 	if get_viewport().gui_is_dragging():
 		return
 
 	_readout_pending = null
 	_readout_for = view
-	_readout = Widgets.card_readout(view.card)
-	_readout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Held locally as well as on the member. Everything after this point runs
+	# across an await, and the member may belong to a newer panel by then — a
+	# coroutine that positions `_readout` blind can move somebody else's panel
+	# to its own card.
+	var panel := Widgets.card_readout(view.card)
+	_readout = panel
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Invisible until it knows where it goes.
 	#
 	# The panel's height depends on how much of its text wrapped, which is not
@@ -789,38 +840,48 @@ func _show_readout(view: CardView, entered: bool) -> void:
 	# for that one frame and then moved, which is exactly the flash: a panel
 	# appearing in the wrong place and jumping. Held at zero alpha, that frame
 	# is simply not seen.
-	_readout.modulate.a = 0.0
-	add_child(_readout)
+	panel.modulate.a = 0.0
+	_readout_layer().add_child(panel)
 
 	# Above the card, nudged to stay on screen. Above rather than beside because
 	# a hand fans across the full width — there is no reliable "beside" — and
 	# because the space above the hand is the one part of a combat screen that
 	# is never holding anything you need while choosing a card.
-	var w: float = _readout.custom_minimum_size.x
+	var w: float = panel.custom_minimum_size.x
 	var top := view.global_position - global_position
 	var px := clampf(top.x + CardView.CARD_W * 0.5 - w * 0.5, 2.0,
 		maxf(2.0, size.x - w - 2.0))
-	_readout.position = Vector2(px, 2.0)
+	panel.position = Vector2(px, 2.0)
 
 	await get_tree().process_frame
-	if not is_instance_valid(_readout):
+	if gen != _readout_gen or not is_instance_valid(panel):
 		return
-	var py := maxf(2.0, top.y - _readout.size.y - 6.0)
+	var py := maxf(2.0, top.y - panel.size.y - 6.0)
 	# Rises the last few pixels as it fades in. The card lifts when you point at
 	# it; the panel arriving on the same vector reads as one gesture rather than
 	# two things happening near each other.
-	_readout.position = Vector2(px, py + 5.0)
-	var tw := _readout.create_tween().set_parallel(true)
+	panel.position = Vector2(px, py + 5.0)
+	var tw := panel.create_tween().set_parallel(true)
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(_readout, "modulate:a", 1.0, 0.14)
-	tw.tween_property(_readout, "position:y", py, 0.14)
+	tw.tween_property(panel, "modulate:a", 1.0, 0.14)
+	tw.tween_property(panel, "position:y", py, 0.14)
 
 func _clear_readout() -> void:
+	_readout_gen += 1
 	_readout_pending = null
 	_readout_for = null
-	if _readout != null:
-		_readout.queue_free()
-		_readout = null
+	_readout = null
+	if _readout_host == null or not is_instance_valid(_readout_host):
+		return
+	for c in _readout_host.get_children():
+		# Removed as well as freed. queue_free() takes effect at the END of the
+		# frame, so a panel that is only queued is still on screen for the frame
+		# in which its replacement is built — one frame of exactly the doubled
+		# panel this is here to prevent. The sweep is over every child rather
+		# than over the one the member points at, which is the whole point: a
+		# panel nothing is tracking any more is still a panel on the screen.
+		_readout_host.remove_child(c)
+		c.queue_free()
 
 func _on_hand_reorder(cards: Array) -> void:
 	if not fighting() or cards.size() != combat.hand.size():
