@@ -613,7 +613,17 @@ func here() -> MapGen.MapNode:
 ## comes from there being 42 systems on the rim ring and 14 at the core. Farming
 ## the edge is a long haul rather than an expensive one, which is a cleaner way
 ## to say the same thing.
-const FUEL_PER_DISC_RADIUS := 10.0
+## Raised from 10. At 10 an ordinary hop cost 1 fuel out of a 150-unit tank, so
+## wandering was nearly free and a run averaged ninety-odd jumps — the greed
+## clock had no hands. At 17 a hop costs 2 and a long reach 3, which prices
+## farming without making the map hostile: measured, 62.9 jumps and a 20.3% win
+## rate against 93.6 and 21.5% at the old value.
+##
+## Tuned AFTER fixing the simulator, not before. See HeadlessSim's jump policy —
+## the model used to wander on a coin flip regardless of fuel, and tuning this
+## against that would have made the real game punitive to correct a bug in the
+## thing measuring it.
+const FUEL_PER_DISC_RADIUS := 17.0
 const FUEL_MAX_HOP := 6
 
 func fuel_cost_to(n: MapGen.MapNode) -> int:

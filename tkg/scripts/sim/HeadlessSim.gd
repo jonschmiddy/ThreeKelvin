@@ -31,13 +31,68 @@ func run_sim() -> void:
 		if arg.begins_with("runs="):
 			runs = int(arg.split("=")[1])
 
+	if "bychassis" in OS.get_cmdline_user_args():
+		_run_by_chassis()
+		return
+
 	print("Three Kelvin — simulating %d runs" % runs)
 	for i in runs:
 		_play_one()
 	_report()
 
-func _play_one() -> void:
-	Run.start_new_run()
+## Every chassis in the game, `runs` each, reported as a table.
+##
+##   godot --headless --path . -- sim bychassis runs=500
+##
+## The ordinary sim rolls a random manufacturer and weight per run, which is
+## right for "is the GAME winnable" and useless for "is this SHIP winnable" —
+## twenty-one starts averaged into one number can hide a chassis that never wins
+## behind six that do. This pins one and repeats it.
+##
+## Slow on purpose: at 500 each that is 10,500 complete runs. It is a thing you
+## leave running, not a thing you put in the merge gate.
+func _run_by_chassis() -> void:
+	var weights := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
+	print("Three Kelvin — %d runs per chassis, %d chassis, %d runs total" % [
+		runs, DB.STARTABLE.size() * weights.size(),
+		runs * DB.STARTABLE.size() * weights.size()])
+	print("%-18s %-8s %6s %6s %6s %6s   deaths" % [
+		"chassis", "maker", "wins", "win%", "jumps", "kills"])
+	var rows: Array = []
+	for man in DB.STARTABLE:
+		for w in weights:
+			_reset()
+			for i in runs:
+				_play_one(man, int(w))
+			var hull := DB.hull_for(man, w)
+			var rate := 100.0 * wins / maxi(1, runs)
+			rows.append({name = hull.name, rate = rate})
+			print("%-18s %-8s %6d %5.1f%% %6.1f %6.1f   %s" % [
+				hull.name, DB.short_name(DB.manufacturer_name(man)), wins, rate,
+				float(total_jumps) / runs, float(total_kills) / runs,
+				str(death_causes)])
+	# Sorted afterwards, because the table above is grouped by maker for reading
+	# and this is the ranking you actually act on.
+	rows.sort_custom(func(a, b): return a.rate > b.rate)
+	print("\n--- ranked ---")
+	for r in rows:
+		print("%-18s %5.1f%%" % [r.name, r.rate])
+
+## Zero the counters between chassis. Without this every row would report the
+## running total of every chassis before it, which looks like a table and is not.
+func _reset() -> void:
+	wins = 0
+	deaths = 0
+	errors = 0
+	total_jumps = 0
+	total_kills = 0
+	total_danger = 0
+	death_causes = {}
+	stranded = 0
+	stranded_no_fuel = 0
+
+func _play_one(man: StringName = &"", w: int = -1) -> void:
+	Run.start_new_run(man, w)
 	var guard := 0
 	while not Run.won and not Run.dead and guard < 600:
 		guard += 1
@@ -87,10 +142,24 @@ func _play_one() -> void:
 			elif t.layer > node.layer:
 				forward.append(idx)
 		var healthy := Run.hp > Run.max_hp() * 0.6
+		# A COMPETENT PLAYER WATCHES THE TANK.
+		#
+		# This used to farm laterally on a 65% coin whatever the fuel gauge said,
+		# and always when hurt — so the model wandered until it ran dry, and the
+		# average run came out at 117 jumps. That is not a fact about the game;
+		# it is a fact about this loop. Tuning the fuel economy to bring the
+		# number down would have been tuning the game against a model artifact,
+		# and it would have made the real game punitive to fix a bug in here.
+		#
+		# Farming is what you do when you can afford it. With the tank low, the
+		# only move that ends well is onward — and a player who has decided to
+		# descend descends whether or not they are healthy, because sitting still
+		# does not heal you.
+		var can_wander := Run.fuel > 45
 		var pick := -1
-		if not lateral.is_empty() and (not healthy or randf() < 0.65):
+		if not lateral.is_empty() and can_wander and (not healthy or randf() < 0.65):
 			pick = lateral.pick_random()
-		elif not forward.is_empty() and healthy:
+		elif not forward.is_empty():
 			pick = forward.pick_random()
 		else:
 			pick = options.pick_random()

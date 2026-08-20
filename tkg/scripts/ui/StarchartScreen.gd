@@ -16,6 +16,7 @@ var _layer_cells: HBoxContainer
 var _layer_text: Label
 var _icons_btn: Button
 var _all_btn: Button
+var _links_btn: Button
 
 var _dest_name: Label
 var _dest_class: Label
@@ -64,6 +65,14 @@ func _build() -> void:
 	_all_btn = Widgets.button("SHOW ALL SYSTEMS", _on_toggle_all)
 	_all_btn.custom_minimum_size = Vector2(136, 14)
 	strip.add_child(_all_btn)
+
+	# Debug: the lattice MapGen actually built, rather than the slice of it you
+	# are allowed to use. Pairs with the button beside it — that one shows every
+	# system, this one shows how they are wired, and a generation problem is
+	# usually only visible with both on.
+	_links_btn = Widgets.button("SHOW ALL LINKS", _on_toggle_links)
+	_links_btn.custom_minimum_size = Vector2(128, 14)
+	strip.add_child(_links_btn)
 	root.add_child(strip)
 
 	# --- chart | destination
@@ -433,6 +442,11 @@ func _on_toggle_icons() -> void:
 func _on_toggle_all() -> void:
 	_chart.show_all = not _chart.show_all
 	_all_btn.text = "SHOW ALL SYSTEMS" if not _chart.show_all else "SHOW KNOWN ONLY"
+	_chart.queue_redraw()
+
+func _on_toggle_links() -> void:
+	_chart.show_links = not _chart.show_links
+	_links_btn.text = "SHOW ALL LINKS" if not _chart.show_links else "HIDE LINKS"
 	_chart.queue_redraw()
 
 func _on_chart_cleared() -> void:
@@ -910,6 +924,9 @@ class MapChart extends Control:
 	var show_icons: bool = true
 	## Debug: ignore the visited/reachable filter and draw every system.
 	var show_all: bool = false
+	## Debug: draw every link in the map, not only the ones you could take.
+	## Off by default — it is a diagnostic, not a view.
+	var show_links: bool = false
 	var selected: int = -1
 	var hovered: int = -1
 	var zoom: float = ZOOM_MIN
@@ -1538,6 +1555,25 @@ class MapChart extends Control:
 		# With the systems hidden, the chart is the galaxy alone: no routes, no
 		# trail, no glyphs, no tooltip, and nothing that answers the cursor.
 		if show_icons:
+			# DEVELOPMENT: the whole lattice at once.
+			#
+			# Under it first and very dim, so it reads as the graph the map is
+			# built on rather than as another set of options — the two live line
+			# kinds below have to stay legible on top of it. Every link is drawn
+			# from both ends, so each one is painted twice; at this alpha that is
+			# invisible and not worth a set to deduplicate.
+			#
+			# It answers the question no in-game view can: whether MapGen wired
+			# the galaxy up sensibly. An unreachable pocket or a shell that only
+			# connects at one point is obvious here and invisible everywhere else.
+			if show_links:
+				for n3 in Run.map:
+					var from: MapGen.MapNode = n3
+					var a3 := _screen_pos(from)
+					for idx in from.links:
+						draw_line(a3, _screen_pos(Run.map[idx]),
+							Color(0.35, 0.45, 0.60, 0.22), 1.0)
+
 			# Two kinds of line, and they should not look alike. Where you HAVE
 			# been is settled fact: solid, white, unbroken. Where you COULD go is
 			# a proposal: dotted, dim, obviously provisional. Drawing both as

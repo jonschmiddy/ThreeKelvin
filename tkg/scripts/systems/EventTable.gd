@@ -141,4 +141,186 @@ static func build_all() -> Array[Dictionary]:
 			],
 		},
 	])
+	events.append_array(_checked())
 	return events
+
+## The events that read your ship rather than a die.
+##
+## One per attribute, so every axis on the refit screen has somewhere it gets
+## spent. An attribute nothing checks is just a number, and the reason they are
+## derived from live gauges was so they could be asked for.
+##
+## Three rules hold across all six, all from the events contract:
+##
+## FAILURE STAYS IN ITS DOMAIN. A ram costs hull, a burn costs heat, a sneak
+## costs being seen. A botch surprises you in DEGREE, never in kind — if
+## threading a minefield could cost fuel, the option was lying about what it was.
+##
+## EVERY EVENT HAS A FREE EXIT. Exactly one option that costs nothing and is
+## genuinely unpunished, so declining a 20% gamble is a real choice rather than
+## a trap with no door.
+##
+## `check` IS WRITTEN LAST in every option, which is a syntax defence rather
+## than a style. A lambda's final `return {…}` and the option dictionary's own
+## closing brace collide on the same line, so ending on a plain value means
+## every outcome line closes the same way and none of them is special.
+static func _checked() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	out.assign([
+		{
+			title = "Collapsed lane",
+			body = "The short way on runs through a shipbreaker's yard — a lane of dead hulls packed too close to thread. Going around costs a day and a tank.",
+			options = [
+				{label = "Push through the wrecks",
+					met = func() -> Dictionary:
+						Run.fuel += 10
+						Sig.resources_changed.emit()
+						return {text = "Plating screams the length of the lane and holds. You come out the far side with the fuel you did not spend going round."},
+					clean = func() -> Dictionary:
+						Run.take_hull_damage(4, "The shipbreaker's lane took its cut.")
+						Run.fuel += 10
+						Sig.resources_changed.emit()
+						return {text = "Something gives near the bow. You keep going, and you keep the fuel — four hull for ten is a trade you would take again."},
+					partial = func() -> Dictionary:
+						Run.take_hull_damage(9, "The shipbreaker's lane took its cut.")
+						return {text = "Halfway in, a spar goes through the forward plating. You reverse out of the lane the way you came."},
+					botched = func() -> Dictionary:
+						Run.take_hull_damage(16, "A dead hull folded the bow in the breaker's lane.")
+						return {text = "The lane closes on you. What comes out the other side is your ship, mostly."},
+					check = {attr = &"hull", need = 5}},
+				{label = "Go around", effect = func() -> Dictionary:
+					return {text = "The long way. Nothing happens on it, which is the point."}},
+			],
+		},
+		{
+			title = "Slipping orbit",
+			body = "A gas giant has you. Not badly — yet. The gauges give you perhaps four minutes to decide whether your engines are the answer.",
+			options = [
+				{label = "Burn out of the well",
+					met = func() -> Dictionary:
+						Run.add_scrap(30)
+						return {text = "You climb out of it like it was nothing, and clip a derelict's tumbling wing on the way past. Thirty scrap of somebody else's bad afternoon."},
+					clean = func() -> Dictionary:
+						Run.fuel = maxi(0, Run.fuel - 14)
+						Sig.resources_changed.emit()
+						return {text = "The engines find it, eventually, and drink fourteen units doing it."},
+					partial = func() -> Dictionary:
+						Run.fuel = maxi(0, Run.fuel - 26)
+						Sig.resources_changed.emit()
+						return {text = "You get out. The tank shows what it cost and you decide not to look at it again."},
+					botched = func() -> Dictionary:
+						Run.fuel = maxi(0, Run.fuel - 40)
+						Sig.resources_changed.emit()
+						return {text = "You skim the upper atmosphere on the way up. Forty units, and most of your paint."},
+					check = {attr = &"thrust", need = 6}},
+				{label = "Ride it round", effect = func() -> Dictionary:
+					return {text = "One slow orbit, no burn. It costs you nothing but the hour."}},
+			],
+		},
+		{
+			title = "Mine drift",
+			body = "Someone seeded this approach and never came back to sweep it. The mines are old, patient, and still keeping perfect station.",
+			options = [
+				{label = "Thread it",
+					met = func() -> Dictionary:
+						Run.cargo.append(LootGen.roll_module(Run.node_at().danger))
+						Sig.ship_changed.emit()
+						return {text = "You go through the field like water through a grate, and lift a module off the wreck of somebody who did not."},
+					clean = func() -> Dictionary:
+						Run.take_hull_damage(5, "A mine clipped the flank on the way through.")
+						return {text = "One of them finds your flank on the way out. Only one."},
+					partial = func() -> Dictionary:
+						Run.take_hull_damage(11, "The minefield closed on the way through.")
+						return {text = "Two, then a third. You reverse the last hundred metres with the hull ringing."},
+					botched = func() -> Dictionary:
+						Run.take_hull_damage(18, "A pre-war mine found the ship amidships.")
+						return {text = "The old ones are the worst. This one waits until you are past before it decides."},
+					check = {attr = &"maneuver", need = 6}},
+				{label = "Sweep wide", effect = func() -> Dictionary:
+					return {text = "You give the whole drift a berth and lose nothing but time."}},
+			],
+		},
+		{
+			title = "The corona",
+			body = "A flare star mid-cycle, and a wreck sitting inside its corona with the holds intact. Everyone else has looked at this and left.",
+			options = [
+				{label = "Go in hot",
+					met = func() -> Dictionary:
+						Run.add_scrap(70)
+						Run.add_material(&"alloy", 2)
+						return {text = "Your vents hold the whole way in and the whole way out. Seventy scrap and two blocks of good alloy."},
+					clean = func() -> Dictionary:
+						Run.heat += 8
+						Run.add_scrap(45)
+						Sig.resources_changed.emit()
+						return {text = "You come out carrying forty-five scrap and a reactor that will need a minute."},
+					partial = func() -> Dictionary:
+						Run.heat += 16
+						Run.add_scrap(20)
+						Sig.resources_changed.emit()
+						return {text = "You get one hold open and take what is nearest before the temperature makes the decision for you."},
+					botched = func() -> Dictionary:
+						Run.heat += 26
+						Sig.resources_changed.emit()
+						return {text = "The flare comes early. You leave with nothing and a ship that is still ticking as it cools."},
+					check = {attr = &"thermal", need = 6}},
+				{label = "Watch it burn", effect = func() -> Dictionary:
+					return {text = "You hold station outside the corona and log the wreck for somebody with better vents."}},
+			],
+		},
+		{
+			title = "Ghost signal",
+			body = "There is a carrier under the background hiss on this bearing. Too regular to be a star, too weak to be a station.",
+			options = [
+				{label = "Resolve it",
+					met = func() -> Dictionary:
+						var found := 0
+						for r in Run.in_range():
+							var node: MapGen.MapNode = r
+							if not node.visited:
+								node.visited = true
+								found += 1
+						Run.add_scrap(25)
+						return {text = "A precursor beacon, still counting. You cannot read it, but you can triangulate off it — %d systems resolve out of the dark, and the housing is worth twenty-five." % found},
+					clean = func() -> Dictionary:
+						for r in Run.in_range():
+							var node: MapGen.MapNode = r
+							if not node.visited:
+								node.visited = true
+								break
+						return {text = "You pull one clean bearing out of the noise before it drifts. One system, named."},
+					partial = func() -> Dictionary:
+						return {text = "You chase it for an hour and it resolves into your own reactor harmonics, reflected off something you never find."},
+					botched = func() -> Dictionary:
+						Run.fuel = maxi(0, Run.fuel - 12)
+						Sig.resources_changed.emit()
+						return {text = "You follow it a long way before admitting it was never there. Twelve units of fuel, spent on a bearing."},
+					check = {attr = &"sensors", need = 4}},
+				{label = "Log it and go", effect = func() -> Dictionary:
+					return {text = "You write the bearing down. Someone with better ears can have it."}},
+			],
+		},
+		{
+			title = "Customs cordon",
+			body = "A revenue cutter is running a cordon across the only lane out, and they are stopping everyone.",
+			options = [
+				{label = "Run the cordon dark",
+					met = func() -> Dictionary:
+						return {text = "You go through cold and silent, close enough to read their hull number. They never look up."},
+					clean = func() -> Dictionary:
+						Run.heat += 6
+						Sig.resources_changed.emit()
+						return {text = "You hold everything off but the reactor, and the reactor is what you pay with. Six heat, no questions."},
+					partial = func() -> Dictionary:
+						Run.add_scrap(-40)
+						return {text = "They get a partial return and hail you in. The fine is forty scrap and a lecture."},
+					botched = func() -> Dictionary:
+						Run.add_scrap(-40)
+						return {text = "They light you up from two sides, and something in the cutter's escort decides you are worth the trouble.", fight = true},
+					check = {attr = &"stealth", need = 4}},
+				{label = "Submit to inspection", effect = func() -> Dictionary:
+					return {text = "You stop, open the holds, and answer everything twice. It costs an afternoon and nothing else."}},
+			],
+		},
+	])
+	return out

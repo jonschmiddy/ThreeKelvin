@@ -110,8 +110,8 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	# top of the ladder lands in the same place it always did and only the
 	# steps between got finer. HP still climbs twice as fast as damage: deeper
 	# fights should be longer, not one-shot lethal.
-	var hp_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.10
-	var dmg_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.05
+	var hp_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.05
+	var dmg_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.025
 	# Scale a private copy of the intents so the template stays pristine.
 	var scaled: Array[IntentData] = []
 	for i in template.loop:

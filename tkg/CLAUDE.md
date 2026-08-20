@@ -193,8 +193,21 @@ cumulative attrition against expensive repairs.
 heat becomes decorative and the entire risk structure collapses.
 
 That lever now lives in `Market.repair_rate()` and is local: `REPAIR_BASE` times a
-development index that runs 1.28 on unclaimed ground to 0.84 in a capital. Moving
-`REPAIR_BASE` moves the whole game.
+development index that runs 1.28 on unclaimed ground to 0.84 in a capital.
+
+**MEASURED, AND IT NO LONGER HOLDS IN THAT DIRECTION.** Cutting `REPAIR_BASE` by
+40% — 2.0 to 1.2 — moved the win rate 9.2% to 10.3% over 1,000 runs each, inside
+the noise band, and hull deaths did not move at all (502 to 510 of 1,000). The
+rule was derived against an economy that has since changed twice, and the note
+below already warned its band was never re-derived. Repairs are still the lever
+for making the game HARDER; they are not the lever for making it easier, because
+the player is not repair-limited — they are dying between stations.
+
+What actually moved it was the enemy scaling in `Combat._spawn()`. Halving both
+multipliers (0.10/0.05 to 0.05/0.025, keeping the 2:1 ratio the ruling requires)
+took 9% to a measured 20.5 / 19.7 / 18.9 across three 1,000-run passes. Runs got
+longer rather than easier: 65 average jumps to 92, and hull deaths fell from 50%
+to 35% while fuel deaths rose from 15% to 17%.
 
 ## The economy — one file, three prices
 

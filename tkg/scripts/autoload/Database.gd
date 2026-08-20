@@ -371,9 +371,15 @@ func _seed_modules() -> void:
 		"The hull knits itself. Slowly.",
 		[{name = "Knit", energy = 1, heal = 5, copies = 2}])
 	## Issued weapon. Bites and knits at once, which is the house in miniature.
+	##
+	## Trimmed from 5/heal 2. Calyx measured strongest of the seven at every
+	## weight, and sustain is why: hull loss causes half the deaths in this
+	## game, so a weapon that repairs while it fires is worth more than one
+	## that hits harder. Two points of healing on two copies of a card in a
+	## nine-card deck was quietly the best starter in the game.
 	_module(&"barb", "Calyx Barb", &"calyx", W, C0,
 		"Grown to a point. Feeds on what it opens.",
-		[{name = "Barb", energy = 1, damage = 5, heal = 2, copies = 2}])
+		[{name = "Barb", energy = 1, damage = 4, heal = 1, copies = 2}])
 	_module(&"nodule", "Adaptive Nodule", &"calyx", W, C2,
 		"Learns the shape of this fight.",
 		[{name = "Adapt", energy = 1, damage = 4, adapt = 2, copies = 2}])
@@ -498,10 +504,19 @@ const WEIGHT_BASE := {
 		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
 		dodge = 0.18, initiative = 2, fuel_factor = 0.8,
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
+	# A second utility mount, because the middle had nothing of its own.
+	#
+	# Measured across 250 runs on each of twenty-one chassis, mediums averaged
+	# 15.2% against 20.2% for lights and 21.7% for heavies — and Switchback, the
+	# worst ship in the game, was the worst case of that rather than its own
+	# problem. A medium had six mounts like a light and a hand of five like
+	# nothing else: strictly between the two, with no compensating advantage.
+	# Seven mounts is the compensation, and versatility is a coherent thing for
+	# the middle of a range to be.
 	HullData.Weight.MEDIUM: {
 		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
 		dodge = 0.05, initiative = 0, fuel_factor = 1.2,
-		weapon_slots = 3, system_slots = 2, utility_slots = 1},
+		weapon_slots = 3, system_slots = 2, utility_slots = 2},
 	HullData.Weight.HEAVY: {
 		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
 		dodge = 0.0, initiative = -2, fuel_factor = 1.8,
@@ -524,10 +539,20 @@ const MAKER_HULLS := {
 		perk_id = &"salvage_rack",
 		d = {max_hull = 8, heat_cap = 2, dissipation = -1, initiative = -1,
 			fuel_factor = 0.2, stealth = -1, utility_slots = 1, weapon_slots = -1}},
+	# Measured worst in the game by a wide margin — a Switchback won 8.6% where a
+	# Greatvine won 31.8% — and the trade is why: -6 hull off a 35-point medium
+	# is seventeen per cent of the ship, bought with three per cent of dodge.
+	# That was never going to pay.
+	#
+	# It also had the one perk we PROVED does nothing. cheap_parts halves repair
+	# prices, and cutting repair prices by 40% across the whole game moved the
+	# win rate inside its own noise band — so Redline was effectively flying
+	# without a perk. spare_bay gives it a mount instead, which suits a house
+	# whose whole business is refits.
 	&"redline": {
 		names = ["Hairpin", "Switchback", "Blindside"],
-		perk_id = &"cheap_parts",
-		d = {max_hull = -6, dodge = 0.03, initiative = 1, fuel_factor = -0.1,
+		perk_id = &"spare_bay",
+		d = {max_hull = -3, dodge = 0.06, initiative = 1, fuel_factor = -0.1,
 			sensors = 1, stealth = 2}},
 	&"cygnet": {
 		names = ["Fledgling", "Brood Tender", "Rookery"],
@@ -539,10 +564,15 @@ const MAKER_HULLS := {
 		perk_id = &"overspec_reactor",
 		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, stealth = 1, weapon_slots = -1}},
+	# Strongest maker at every weight, measured twice. The hull bonus is the part
+	# that had no business being there: Calyx is regeneration and adaptation, not
+	# armour, and +2 max hull on top of the extra system mount and the best
+	# dissipation in the game made its heavy the best chassis by six points.
+	# It keeps everything that is actually its identity.
 	&"calyx": {
 		names = ["Spore Cutter", "Vivarium", "Greatvine"],
 		perk_id = &"baffled_vents",
-		d = {max_hull = 2, dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
+		d = {dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
 }
 

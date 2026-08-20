@@ -40,6 +40,17 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Every event option, its badge, and 10,000 rolls of its ladder:
+	#   godot --headless --path . -- checks
+	# A skill check fails silently in both directions — an option nobody can
+	# ever pass and an option nobody can ever fail both look like working code
+	# and read like working prose. This prints what each one actually costs
+	# against a real ship, and proves the odds table matches the rolls.
+	if "checks" in OS.get_cmdline_user_args():
+		_print_check_table()
+		get_tree().quit()
+		return
+
 	# Every sector sky on one sheet, and again behind a real ship:
 	#   godot --path . -- sky
 	# Needs a window, not because it shows one but because SpaceBackdrop is
@@ -164,6 +175,32 @@ func _ready() -> void:
 var _chart_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null
+
+## Every checked option in the table, measured against three real ships.
+##
+## Prints the badge the player would see and then rolls the ladder ten thousand
+## times, so the four bands can be compared against what ODDS promises. A drift
+## between them means pick_outcome or the split is wrong, and neither would
+## crash.
+func _print_check_table() -> void:
+	for probe in [[&"redline", HullData.Weight.LIGHT], [&"korvan", HullData.Weight.MEDIUM],
+			[&"dredge", HullData.Weight.HEAVY]]:
+		Run.start_new_run(probe[0], int(probe[1]))
+		print("\n=== %s ===" % Run.hull.name)
+		print("%-22s %-34s %6s %6s %6s %6s" % [
+			"event", "badge", "met", "clean", "part", "botch"])
+		for e in EventTable.build_all():
+			for o in e.options:
+				var opt: Dictionary = o
+				if not opt.has("check"):
+					continue
+				var counts := {0: 0, 1: 0, 2: 0, 3: 0}
+				for i in 10000:
+					counts[int(SkillCheck.roll(opt.check))] += 1
+				print("%-22s %-34s %5.1f%% %5.1f%% %5.1f%% %5.1f%%" % [
+					str(e.title), SkillCheck.badge(opt.check),
+					counts[0] / 100.0, counts[1] / 100.0,
+					counts[2] / 100.0, counts[3] / 100.0])
 
 ## Starts a run per manufacturer and prints the resulting attribute row, plus
 ## the raw gauges each one is derived from so a surprising attribute can be

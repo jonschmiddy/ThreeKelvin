@@ -54,10 +54,32 @@ func _refresh() -> void:
 		b.custom_minimum_size = Vector2(0, 36)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		_options.add_child(b)
+		# The badge goes UNDER its option, not inside the label. It is a
+		# different kind of statement — the label is what you would be doing, the
+		# badge is what it would take — and running them together made options
+		# read as sentences with numbers stuck on the end.
+		if opt.has("check"):
+			var chk: Dictionary = opt.check
+			var badge := UITheme.body(SkillCheck.badge(chk),
+				SkillCheck.badge_colour(chk), UITheme.FS_SMALL)
+			var pad := MarginContainer.new()
+			pad.add_theme_constant_override("margin_left", 8)
+			pad.add_theme_constant_override("margin_bottom", 4)
+			pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			pad.add_child(badge)
+			_options.add_child(pad)
 
 func _choose(index: int) -> void:
 	var opt: Dictionary = _event.options[index]
-	var outcome: Dictionary = (opt.effect as Callable).call()
+	# Checked options carry four callables and no `effect`; plain ones are
+	# unchanged. Both shapes are legal so the existing events did not have to be
+	# rewritten to add checks to new ones.
+	var band := SkillCheck.Band.MET
+	var call: Callable = opt.get("effect", Callable())
+	if opt.has("check"):
+		band = SkillCheck.roll(opt.check)
+		call = SkillCheck.pick_outcome(opt, band)
+	var outcome: Dictionary = call.call() if call.is_valid() else {}
 	# The node is consumed here rather than when the hail opened, so that
 	# quitting at the options costs nothing and cannot be quit into a cleared
 	# node that gives nothing. Router holds the pick until this call.
@@ -66,12 +88,22 @@ func _choose(index: int) -> void:
 	_then_fight = bool(outcome.get("fight", false))
 	_refresh()
 	var panel := PanelContainer.new()
-	var sb := UITheme.flat(UITheme.PANEL2, UITheme.EMBER, 0, 9, 11)
+	var edge := SkillCheck.band_colour(band) if opt.has("check") else UITheme.EMBER
+	var sb := UITheme.flat(UITheme.PANEL2, edge, 0, 9, 11)
 	sb.border_width_left = 2
 	panel.add_theme_stylebox_override("panel", sb)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	# Name the band above the prose. The outcome text is written in fiction and
+	# deliberately does not say "you failed" — so without this, a Partial and a
+	# Botched are two paragraphs you cannot tell apart, and the ladder the player
+	# just gambled against never resolves visibly.
+	if opt.has("check"):
+		col.add_child(UITheme.body(SkillCheck.band_name(band), edge, UITheme.FS_SMALL))
 	var text := UITheme.body(String(outcome.get("text", "")), UITheme.HOT, UITheme.FS_BODY)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	panel.add_child(text)
+	col.add_child(text)
+	panel.add_child(col)
 	_result.add_child(panel)
 	if Run.dead:
 		_result.add_child(Widgets.button("…", func(): Router.show_game_over()))
