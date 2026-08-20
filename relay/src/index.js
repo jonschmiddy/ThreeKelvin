@@ -2,7 +2,7 @@
 //
 // A dumb pipe with a door policy. It assigns peer ids, routes frames between
 // the four ships in a party, and knows nothing else: no game state, no rules,
-// no authority. The host is still a player's machine. See netcode.md §2.
+// no authority. The host is still a player's machine. See docs/netcode.md §2.
 //
 // Three properties hold this up, and all three are about cost or correctness
 // rather than features:
@@ -179,7 +179,7 @@ export class Party {
 	}
 
 	// When the host goes, the party goes. Migration is a real design question
-	// and `netcode.md` ruling N3 has not answered it — so the honest behaviour
+	// and `docs/netcode.md` ruling N3 has not answered it — so the honest behaviour
 	// for now is to end the dive loudly rather than to leave three ships
 	// connected to a room with no authority in it, silently doing nothing.
 	departed(ws) {

@@ -182,7 +182,7 @@ func hurt(which: int, amount: int, hits: int, by: int) -> int:
 ## cannot happen concurrently is the enemy swinging, because that is the one
 ## moment a shared object acts on several private ones at once. So the fight is
 ## free-running everywhere except the seam where it cannot be, which is
-## `coop-design.md` §5's "do not gate the tick" applied one level down.
+## `docs/coop-design.md` §5's "do not gate the tick" applied one level down.
 func end_turn(peer: int) -> bool:
 	if over or not crew.has(peer):
 		return false

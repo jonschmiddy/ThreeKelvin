@@ -8,7 +8,7 @@ and is not an authority — the host is still a player's machine.
 the host connects, hibernates while nobody is talking, and is gone when the last
 ship leaves. Nothing runs between dives and nothing is billed for it.
 
-Design and costs: `../netcode.md` §2.
+Design and costs: `../docs/netcode.md` §2.
 
 ---
 

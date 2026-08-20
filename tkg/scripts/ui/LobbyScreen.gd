@@ -16,7 +16,7 @@ extends Control
 ## behind a router cannot learn its own public address by looking inward. So the
 ## host gets a LAN address by default and a field to type a real one over. That
 ## is honest rather than good, and it is the whole argument for the relay
-## transport in `netcode.md` §2.
+## transport in `docs/netcode.md` §2.
 
 const READY_COLOUR := UITheme.GOOD
 
@@ -220,7 +220,7 @@ func _build_offline() -> void:
 
 
 ## Two ways to open a party, and the difference between them is the whole of
-## `netcode.md` §1 compressed into two buttons.
+## `docs/netcode.md` §1 compressed into two buttons.
 ##
 ## The relay is offered first and reads as the ordinary choice, because it is:
 ## nobody opens a port and nobody types an address. Direct stays because it is

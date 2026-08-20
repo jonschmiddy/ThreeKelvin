@@ -405,3 +405,122 @@ The session layer is the part that is hard to change later, which is why it is b
 | N4 | Does a dropped player rejoin the same dive, and how? | Interacts with the wreck rules in `coop-design.md` §10 |
 | N5 | Is the content fingerprint strict enough to block mods, or should it warn and continue? | Mod support, later |
 | N6 | Reconnect after a Durable Object restart — does the client rejoin silently, or does the dive end? | §2. A 30–60 minute session is long enough that this will happen to somebody |
+
+---
+
+## 7. The ninth seat: a ship nobody is sitting in front of
+
+`godot --headless --path . -- bot join ABC-123`, or `tools/bot.sh`.
+
+A bot joins by lobby code exactly like a person: it reaches the relay, gets a
+peer id, readies, waits for the dive and then rolls its own chassis on the
+party's galaxy. From that moment it holds its own `Run` — its own hull, hold,
+heat, credits and `Rng` seat. Nothing anywhere in the session layer knows or
+cares that the pilot is a program, and that is not a flourish, it is the only
+design available: `Run` is a singleton, so one process holds exactly one ship.
+
+### Why not just read the relay
+
+This is the obvious cheaper idea and it deserves a straight answer, because it
+fails twice.
+
+`relay/src/index.js` never opens a payload. The whole of its handling of a
+gameplay frame is: check byte 0 is `T_DATA`, overwrite `from` with the real
+sender id, forward. What is on that socket is Godot's binary multiplayer
+serialisation and nothing else, so "read Cloudflare" means reimplementing the
+engine's serialiser against a format that is an engine implementation detail.
+
+And the relay holds no game state **on purpose** — see §2. The Durable Object
+must hibernate or it bills for wall-clock time, so anything that keeps it awake
+or accumulates state turns a free relay into a metered one. Adding a readable
+mirror of the fight there is not a small change to a dumb pipe; it is a
+different service with a different bill.
+
+Even granting both, the relay cannot invent a peer. The result would be a
+spectator with no ship, no hold and no cards — able to narrate a fight and not
+to be in one. **The seat is the feature.**
+
+### The price
+
+`NetTransport.MAX_PLAYERS` is four and the relay's door policy enforces it, so a
+bot in the party means three humans rather than four. There is no spectator slot
+to hide in, and adding one would mean the relay counting something it
+deliberately does not count.
+
+### Where the decisions come from
+
+The brain is behind a mailbox: two files in a directory. Before every decision
+the ship writes `board.json` — the fight, the hand, the enemy's telegraphed
+intent, the systems in range and what each costs, the shelf and who has already
+bought from it — and waits for `move.json` holding `{"seq": N, "do": "play 2"}`.
+Every board lists the moves that are actually legal, so a brain never has to
+infer legality and never has to spell an illegal move.
+
+Files rather than a socket: Godot has no HTTP server, so a socket means
+hand-rolling one and a protocol to talk to a process on the same machine. Two
+files need neither, and **anything that can write a file can play** — a shell
+one-liner, `tools/crew-mcp.mjs` (an MCP server, so a Claude session can play
+without a shell), or a person with a text editor. The whole conversation is on
+disk afterwards to read back.
+
+`seq` is what makes an answer belong to a board. Every push carries a number and
+every move must quote it; a move written about a hand that has since been played
+is dropped rather than clamped, because it is not a wrong move, it is a move
+about a different game.
+
+### The shot clock
+
+**`SharedFight.end_turn()` is a barrier.** The enemy does not swing until every
+ship in the fight has ended its turn, so a bot that is still thinking is three
+other people watching a static screen — and a brain with a language model behind
+it answers in seconds and occasionally in minutes.
+
+So: the board is offered, an answer is waited for, and when the clock runs out
+`Policy` — the simulator's competent-player model, the one the merge gate
+measures — plays the turn and the fight moves on. The bot is allowed to be slow.
+It is not allowed to be slow at everybody else.
+
+### Following, and holding
+
+A bot with `follow` flies toward the party instead of off on its own dive. Both
+halves of that rule were arrived at by flying it wrong first.
+
+A headless ship plays a complete run in about forty seconds; a person takes an
+hour. A bot that only ever moves *toward* the party therefore arrives at their
+system, wins the fight, and is four jumps deeper before anybody lands — two
+ships visiting exactly the same systems and never once meeting. So **holding is
+a move**: a following ship does not leave a system somebody is in, and does not
+jump anywhere that does not close the distance.
+
+And two ships that both follow *the nearest partner* mirror each other exactly:
+A leaves, B follows, A sees B gone and follows back, and the pair bounce between
+two stars until the tank runs dry. Flown, at system 7, until both stranded. Seat
+order breaks it — **a wingman follows the seats that arrived before it**, so
+seat 0 leads and never follows, which is also the human who opened the party.
+
+Holding expires, but on `patience` seconds of *nothing happening* rather than on
+the wait itself: the clock resets on anybody moving, arriving, leaving, or
+opening a fight. A person picking over a station shelf looks exactly like a
+person who has closed the lid, and of the two mistakes, abandoning somebody
+mid-shop is the worse one.
+
+### What is proved, and what is not
+
+Flown, not argued — two processes on a real lobby code:
+
+- A bot joins a party, rolls a chassis on the shared galaxy at its own `Rng`
+  seat, flies the map, fights, shops and dies of its own decisions.
+- The mailbox round-trips: a board is offered, a move comes back, the ship obeys
+  it, and the resulting board is the one that move produced.
+- The shot clock fires and `Policy` takes the turn — seventeen boards, seventeen
+  timeouts, one complete run.
+- Two ships end up in **one** fight: the enemy grew from 18 hull to 29 when the
+  second arrived, both ships named the other in the crew, and the same kill paid
+  both.
+- `tools/crew-mcp.mjs` drives all of it over MCP.
+
+Not proved: any of it through a NAT, and none of it is in the merge gate — for
+the same reason `tools/cofight.sh` is not. It needs two live processes and a
+party, and the gate runs neither.
+
+---

@@ -5,7 +5,7 @@ Windows `convert` is the filesystem tool, not ImageMagick — running it does
 nothing useful and reports success. So this module carries its own PNG codec.
 
 Everything here exists because a PixelLab result is not a finished game asset.
-See art/PIXELLAB_WORKFLOW.md for the process these functions implement.
+See docs/art/PIXELLAB_WORKFLOW.md for the process these functions implement.
 
     python pixeltools.py info      sprite.png
     python pixeltools.py strip     in.png out.png        # opaque bg -> alpha

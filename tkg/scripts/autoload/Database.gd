@@ -696,7 +696,7 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 ##
 ## MEDIUM only, today. There is exactly one generated hull and it is a medium, so
 ## light and heavy keep drawing procedurally — which is the partial-migration
-## state `art/ASSET_PIPELINE.md` expects, not an oversight.
+## state `docs/art/ASSET_PIPELINE.md` expects, not an oversight.
 ##
 ## It is also given to every manufacturer's medium, not just Korvan's. That is
 ## knowingly wrong: the sprite has Korvan brass on it and a Solari medium should

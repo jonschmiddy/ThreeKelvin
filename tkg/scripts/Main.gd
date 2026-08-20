@@ -109,6 +109,18 @@ func _ready() -> void:
 		_co_fight.run(get_tree())
 		return
 
+	# A ship in the party that nobody is sitting in front of:
+	#   godot --headless --path . -- bot join ABC-123
+	#   tools/bot.sh ABC-123
+	# It joins by lobby code like a person, rolls its own chassis and holds its
+	# own Run. Returns before the UI for the same reason cofight does — there is
+	# nobody to show it to — and registers Router a holder of its own, because a
+	# bot flies through the same Router the humans do. See scripts/net/BotPilot.
+	if "bot" in OS.get_cmdline_user_args():
+		_bot = load("res://scripts/net/BotPilot.gd").new()
+		_bot.run(get_tree())
+		return
+
 	# One PNG per ship, straight out of ShipView's own canvas:
 	#   godot --headless --path . -- shipsheet
 	# Each hull twice, bare and loaded, because the question is not whether a
@@ -255,6 +267,9 @@ var _sky_test: RefCounted = null
 var _net_test: RefCounted = null
 ## And `-- cofight`, which awaits a whole second Godot process.
 var _co_fight: RefCounted = null
+## The party's ninth seat. Held for the same reason the tests above are: it
+## runs across frames, and a RefCounted only a local holds is freed on return.
+var _bot: RefCounted = null
 var _convoy_test: RefCounted = null
 
 ## Every checked option in the table, measured against three real ships.

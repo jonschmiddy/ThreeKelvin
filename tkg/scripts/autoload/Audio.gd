@@ -26,7 +26,7 @@ extends Node
 ## and turns it major. Between them they are the first cues in the game to
 ## change key at all.
 ##
-## Composition lives in `audio/THEME_NOTES.md` and `audio/DREAD_NOTES.md`;
+## Composition lives in `docs/audio/THEME_NOTES.md` and `docs/audio/DREAD_NOTES.md`;
 ## the forms themselves in `audio/motif.py`; the render and encode pipeline in
 ## `audio/README.md`.
 

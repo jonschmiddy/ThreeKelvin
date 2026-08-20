@@ -2159,10 +2159,10 @@ class MapChart extends Control:
 	## hides a system you have never been to and cannot reach, which is right for
 	## a place and wrong for a person: a partner four shells coreward is the one
 	## piece of information you most want and the one you can least reach. It is
-	## also what makes `coop-design.md` §7 legible — danger tracking the deepest
+	## also what makes `docs/coop-design.md` §7 legible — danger tracking the deepest
 	## ship is only a leash if you can see how deep they are.
 	##
-	## `coop-design.md` §9 rules that this should be gated on sensor range, with
+	## `docs/coop-design.md` §9 rules that this should be gated on sensor range, with
 	## a last-known position and an age stamp outside it. There is no fog in the
 	## game yet, so this shows everybody. When fog arrives it gates the position
 	## going ONTO the wire rather than coming off it, and nothing here changes.
@@ -2178,7 +2178,7 @@ class MapChart extends Control:
 			# Backed in ink, and the name shadowed with it.
 			#
 			# Not a polish pass. The deepest ship is the one this marker exists
-			# to show — `coop-design.md` §7 makes everybody's danger track it —
+			# to show — `docs/coop-design.md` §7 makes everybody's danger track it —
 			# and deep means over the core, which is the brightest thing on the
 			# chart. Unbacked, the one marker that matters most was the only one
 			# you could not see.

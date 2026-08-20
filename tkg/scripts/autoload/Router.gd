@@ -108,7 +108,7 @@ func _on_run_started() -> void:
 ## ordinary run that happens to have been handed its seed — which is why it
 ## comes through here and lands on the chassis select like any other. Each
 ## player picks their own ship on the same galaxy, and that IS the party
-## composition rule in `coop-design.md` §6.
+## composition rule in `docs/coop-design.md` §6.
 ##
 ## The previous forced seed is put back rather than cleared, so `-- seed N` on
 ## the command line survives a run started from the lobby.

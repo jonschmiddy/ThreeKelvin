@@ -16,7 +16,7 @@ extends Control
 ## The others are a column beside it, each in a box just tall enough for a hull,
 ## with the name and the two gauges painted over it.
 ##
-## `coop-design.md` §15 calls the party screen the hardest design problem
+## `docs/coop-design.md` §15 calls the party screen the hardest design problem
 ## outside the netcode, and this does not solve it — four hands and four intent
 ## strips still have nowhere to live. What it solves is the half that had to
 ## come first: a partner is drawn from a description of THEIR ship. See
@@ -810,7 +810,7 @@ class ShipSlot extends Control:
 ##
 ## It is not a drop target and it never will be. Cards are played from your deck
 ## onto your ship and onto what is shooting at you; a partner is a thing you can
-## see, not a thing you can aim at. See `coop-design.md` §5.
+## see, not a thing you can aim at. See `docs/coop-design.md` §5.
 ## The light a ship arrives and leaves in.
 ##
 ## ONE ANIMATION FOR BOTH DIRECTIONS, and that is not a shortcut. A jump is a

@@ -471,7 +471,7 @@ func _solo_take_test() -> void:
 ## This is the message that stops four players each stripping the same derelict.
 ## The wreck holds the same two modules on all four machines already — that is
 ## what the shared seed and `Rng.derive()` buy — so without this the hold
-## economy in `coop-design.md` §3 pays out four times for one wreck.
+## economy in `docs/coop-design.md` §3 pays out four times for one wreck.
 func _map_test() -> void:
 	var host := _make_peer("host")
 	var t := DirectTransport.new()
@@ -762,7 +762,7 @@ func _fight_net_test() -> void:
 ##
 ## The rule is `0.5 + heat_ratio`, and both halves matter. The ratio is what
 ## makes running hot dangerous INSIDE a fight rather than only on the map, which
-## is `coop-design.md` §6 one level down. The floor is what stops a party from
+## is `docs/coop-design.md` §6 one level down. The floor is what stops a party from
 ## solving the fight by electing a victim: a cold ship is safer, never safe.
 func _targeting_test(host: NetSession) -> void:
 	var f := SharedFight.open(9, PackedStringArray(["x"]),

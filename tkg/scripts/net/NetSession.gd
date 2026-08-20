@@ -6,7 +6,7 @@ extends Node
 ##
 ## This is the session layer and nothing else. It does not move a ship, resolve
 ## a card or own a run. That separation is on purpose and it is what makes the
-## thing testable before any of the co-op design in `coop-design.md` exists:
+## thing testable before any of the co-op design in `docs/coop-design.md` exists:
 ## the questions "can four machines find each other, agree, and start together"
 ## and "what happens once they have" are independent, and the first one is the
 ## one that is hard to change later.
@@ -142,7 +142,7 @@ var _presence_dirty: bool = false
 ## node holds is drawn from `Rng.derive(tag, node.index)` and therefore depends
 ## on WHERE it is rather than on who asked. What a seed cannot say is whether
 ## somebody has already been there. Without this list four players strip the
-## same derelict and each keep the Legendary, and `coop-design.md` §3's closed
+## same derelict and each keep the Legendary, and `docs/coop-design.md` §3's closed
 ## per-dive economy is paid out four times.
 ##
 ## Whole rather than incremental. A dive consumes tens of systems, not
@@ -743,7 +743,7 @@ func claim(index: int, option: int = MapGen.OPTION_WHOLE) -> void:
 ## one has to get right. Two ships reach the same wreck in the same second; both
 ## mark it locally, both roll the loot, and the flag agreeing a moment later
 ## does not take the module back out of the loser's hold. One wreck, two
-## Legendaries, and `coop-design.md` §3's closed economy paying out twice.
+## Legendaries, and `docs/coop-design.md` §3's closed economy paying out twice.
 ##
 ## The host already resolves the race correctly by doing nothing clever:
 ## `_apply_claim` ignores an option somebody already owns, so the first message
@@ -1001,7 +1001,7 @@ func _swing(f: SharedFight) -> void:
 
 ## Who it swings at. Weighted by heat, and heat is already on the wire.
 ##
-## THE FIELD REACHES INSIDE THE FIGHT. `coop-design.md` §6 makes signature the
+## THE FIELD REACHES INSIDE THE FIGHT. `docs/coop-design.md` §6 makes signature the
 ## dial for flying together, but every consequence it lists happens on the map —
 ## ambushes on arrival, a Stealth penalty, the overheat burn. This is the same
 ## rule one level down: the loudest ship in the room is the one being shot at.

@@ -19,6 +19,9 @@ var runs := 200
 ## seeds, which is what a balance measurement wants.
 var seed_base := 0
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
+## Every decision this file used to make itself. Extracted so the party bot can
+## fly the same model the gate measures — see scripts/sim/Policy.gd.
+var policy: Policy = Policy.new()
 ## `-- sim hot` flips the fight policy from "never overheat" to "spend heat for
 ## tempo". The default model vents on sight and leaves every fight cold, which
 ## is a competent player and is also the one player the map heat layer can
@@ -57,6 +60,7 @@ func run_sim() -> void:
 			seed_base = int(arg.split("=")[1])
 
 	hot = "hot" in OS.get_cmdline_user_args()
+	policy.hot = hot
 	if hot:
 		print("HOT policy: the model spends heat for tempo and vents late.")
 
@@ -149,6 +153,7 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 	# jumps a run against a real figure of 66 — a policy bug produced entirely
 	# by seeding a decision on something that was not a place.
 	pilot = Rng.derive(&"pilot", 0)
+	policy.pilot = pilot
 	var guard := 0
 	var jumped_hot := false
 	while not Run.won and not Run.dead and guard < 600:
@@ -185,7 +190,7 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 			_fight(DB.enemies[&"custodian"])
 			break
 		elif node.type == MapGen.NodeType.STATION:
-			_shop()
+			policy.shop(Run.node_at())
 		elif node.type == MapGen.NodeType.PULSAR and not node.cleared:
 			# Always taken. A competent player does not walk past the best fuel
 			# in the galaxy — the question the model cannot answer is whether
@@ -197,14 +202,13 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 		elif node.type == MapGen.NodeType.DERELICT and not node.cleared:
 			Run.consume_node(node)
 			Run.cargo.append(LootGen.roll_module(node.danger))
-		_manage_cargo()
+		policy.manage_cargo()
 
-		# Farm laterally while healthy enough, then descend.
-		var options: Array[int] = []
-		for idx in node.links:
-			if Run.can_jump_to(Run.map[idx]):
-				options.append(idx)
-		if options.is_empty():
+		# Farm laterally while healthy enough, then descend. The choice itself
+		# lives in Policy; what stays here is the ACCOUNTING for the case where
+		# there is no choice, which is a measurement rather than a decision.
+		var pick := policy.choose_jump(node)
+		if pick < 0:
 			Run.check_stranded()
 			stranded += 1
 			for idx in node.links:
@@ -212,36 +216,6 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 					stranded_no_fuel += 1
 					break
 			break
-		var lateral: Array[int] = []
-		var forward: Array[int] = []
-		for idx in options:
-			var t: MapGen.MapNode = Run.map[idx]
-			if t.layer == node.layer and not t.cleared:
-				lateral.append(idx)
-			elif t.layer > node.layer:
-				forward.append(idx)
-		var healthy := Run.hp > Run.max_hp() * 0.6
-		# A COMPETENT PLAYER WATCHES THE TANK.
-		#
-		# This used to farm laterally on a 65% coin whatever the fuel gauge said,
-		# and always when hurt — so the model wandered until it ran dry, and the
-		# average run came out at 117 jumps. That is not a fact about the game;
-		# it is a fact about this loop. Tuning the fuel economy to bring the
-		# number down would have been tuning the game against a model artifact,
-		# and it would have made the real game punitive to fix a bug in here.
-		#
-		# Farming is what you do when you can afford it. With the tank low, the
-		# only move that ends well is onward — and a player who has decided to
-		# descend descends whether or not they are healthy, because sitting still
-		# does not heal you.
-		var can_wander := Run.fuel > 45
-		var pick := -1
-		if not lateral.is_empty() and can_wander and (not healthy or pilot.randf() < 0.65):
-			pick = Rng.pick(pilot, lateral)
-		elif not forward.is_empty():
-			pick = Rng.pick(pilot, forward)
-		else:
-			pick = Rng.pick(pilot, options)
 		Run.jump_to(pick)
 
 	if jumped_hot:
@@ -267,24 +241,7 @@ func _fight(template: EnemyTemplate) -> bool:
 		var acted := true
 		while acted and not cb.finished:
 			acted = false
-			var best := -1
-			var best_score := 0.0
-			for i in cb.hand.size():
-				var c := cb.hand[i]
-				if not cb.can_play(c):
-					continue
-				var projected := Run.heat + c.heat - Run.dissipation()
-				# The hot model tolerates sitting over capacity; the cold one
-				# only crosses it to close out a kill. Same ceiling either way,
-				# so neither is suicidal — the difference is how long it is
-				# willing to stay up there.
-				var ceiling := Run.heat_cap() + (12 if hot else 3)
-				if projected > ceiling and c.heat > 0 and cb.enemy.hp > 30:
-					continue
-				var s := _score(c, cb)
-				if s > best_score:
-					best_score = s
-					best = i
+			var best := policy.best_card(cb)
 			if best >= 0:
 				cb.play(best)
 				acted = true
@@ -296,144 +253,6 @@ func _fight(template: EnemyTemplate) -> bool:
 		postfight_hot += 1
 	return not Run.dead
 
-func _score(c: CardData, cb: Combat) -> float:
-	if c.unplayable:
-		return -1.0
-	var incoming := 0
-	if cb.enemy.intent != null:
-		incoming = cb.enemy.intent.damage * maxi(1, cb.enemy.intent.hits)
-	if c.energy_gain > 0:
-		return 95.0
-	if c.lock_on > 0:
-		return 90.0
-	# Venting is the first thing the cold model reaches for and nearly the last
-	# thing the hot one does. This single threshold is most of the difference
-	# between the two policies.
-	if c.vent > 0 and Run.heat > Run.heat_cap() * (1.15 if hot else 0.7):
-		return 85.0
-	if (c.armor > 0 or c.block > 0) and incoming > cb.armor + cb.block:
-		return 80.0
-	if c.heal > 0 and Run.hp < Run.max_hp() * 0.5:
-		return 75.0
-	if c.draw > 0 and c.damage == 0:
-		return 70.0
-	if c.charge_turns > 0:
-		return 65.0
-	if c.damage > 0:
-		return 40.0 + float(c.damage * maxi(1, c.hits)) / 4.0
-	return 5.0
-
-## Dock. Sell first, then spend — which is what a player does, and which is the
-## only order that lets a hold full of salvage pay for the repair.
-##
-## The model deliberately does NOT buy stock to resell. Trade routes are a
-## strategy the player can find; assuming a competent player already runs one
-## would report a win rate for a game nobody has played yet. What this measures
-## is the FLOOR of the new economy: sell what you were going to melt anyway,
-## fabricate when it is cheaper than buying the same effect.
-func _shop() -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	_sell_hold(n)
-	_bench(n)
-
-	var missing := Run.max_hp() - Run.hp
-	var repair := Market.repair_price(n, missing)
-	if missing > 0 and Run.credits > repair + 25:
-		Run.add_credits(-repair)
-		Run.heal(missing)
-	var refuel := Market.refuel_price(n)
-	if Run.fuel < 8 and Run.credits >= refuel:
-		Run.add_credits(-refuel)
-		Run.fuel += Market.REFUEL_UNITS
-
-## Anything left in the hold at a station was already destined for scrapping —
-## _manage_cargo() ran on arrival and kept what was worth installing. So take
-## whichever of the two prices is higher, which is the one decision selling
-## actually adds.
-func _sell_hold(n: MapGen.MapNode) -> void:
-	var guard := 0
-	while not Run.cargo.is_empty() and guard < 24:
-		guard += 1
-		var m: ModuleData = Run.cargo[0]
-		var paid := Market.bid(n, m)
-		if paid > Run.scrap_value_of(m):
-			Run.cargo.erase(m)
-			Run.add_credits(paid)
-			n.trades += 1
-		else:
-			Run.scrap_module(m)
-
-## Fabricate whatever is both affordable and better value than buying the same
-## thing off the service desk. Hull patches and fuel synthesis are the two that
-## compete directly with a price on the same screen, so they are the two the
-## model can judge; the other recipes are build decisions it has no opinion on.
-func _bench(n: MapGen.MapNode) -> void:
-	for r in Fabricator.available(n):
-		var guard := 0
-		while Fabricator.can_make(n, r) and guard < 6:
-			guard += 1
-			match StringName(r.id):
-				&"patch":
-					if Run.max_hp() - Run.hp < int(r.amount):
-						break
-					if Fabricator.price(n, r) >= Market.repair_price(n, int(r.amount)):
-						break
-				&"cracker":
-					if Run.fuel > 40:
-						break
-					if Fabricator.price(n, r) >= Market.refuel_price(n):
-						break
-				_:
-					break
-			if Fabricator.make(n, r).is_empty():
-				break
-
-## Install what improves the ship; carry a few of the rest to the next market.
-##
-## The model used to melt everything it did not install, the instant it picked it
-## up. That was correct when melting was the only thing you could do with a part
-## and it is not any more — a hold that is always empty means the simulator can
-## never once exercise the thing this economy is built around, and would report a
-## win rate for a game with no market in it.
-##
-## HOLD_LIMIT is the honest half, and it is a BEHAVIOUR rather than a capacity —
-## hulls hold 8 / 12 / 16. A competent player does not haul twenty parts around
-## hoping for a buyer; they keep the few worth a detour and scrap the rest where
-## they stand. Scrapping the cheapest first is what makes it a hold rather than a
-## queue. It must stay at or under the smallest hull's capacity, or the model
-## would be measuring a hold no ship in the game has.
-const HOLD_LIMIT := 4
-
-func _manage_cargo() -> void:
-	var guard := 0
-	var passed: Array[ModuleData] = []
-	while not Run.cargo.is_empty() and guard < 24:
-		guard += 1
-		var m: ModuleData = Run.cargo[0]
-		var free := Run.slots_used(m.slot) < Run.slots_for(m.slot)
-		var worst: ModuleData = null
-		for x in Run.installed:
-			if x.slot == m.slot and (worst == null or x.scrap_value < worst.scrap_value):
-				worst = x
-		if free or (worst != null and m.scrap_value > worst.scrap_value * 1.15):
-			Run.install_module(m)
-		else:
-			# Out of the queue and into the hold, so the loop terminates.
-			Run.cargo.erase(m)
-			passed.append(m)
-	for m in passed:
-		Run.cargo.append(m)
-	while Run.cargo.size() > HOLD_LIMIT:
-		var cheapest: ModuleData = Run.cargo[0]
-		for m in Run.cargo:
-			if Market.base_value(m) < Market.base_value(cheapest):
-				cheapest = m
-		Run.scrap_module(cheapest)
-	if Run.found_hull != null:
-		if Run.found_hull.max_hull > Run.max_hp() or Run.found_hull.tier > Run.hull.tier:
-			Run.transfer_to_hull(Run.found_hull)
-		else:
-			Run.found_hull = null
 
 func _report() -> void:
 	print("---")
