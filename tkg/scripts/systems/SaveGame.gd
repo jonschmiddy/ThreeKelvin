@@ -32,7 +32,7 @@ const PATH := "user://run.save"
 ## 3: heat reached the map. A node now carries whether it rolled for an ambush
 ## and what that roll produced, so a hostile attracted by your own heat cannot
 ## be refused by quitting and coming back cold.
-const VERSION := 4
+const VERSION := 5
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -410,7 +410,8 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		security = n.security, makers = makers,
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
-		visited = n.visited, cleared = n.cleared, inspected = n.inspected,
+		visited = n.visited, cleared = n.cleared, taken = Array(n.taken),
+		inspected = n.inspected,
 		fled = n.fled, stocked = n.stocked, trades = n.trades,
 		foes = _names(n.foes), event_key = n.event_key,
 		ambush = _names(n.ambush), ambush_rolled = n.ambush_rolled,
@@ -441,6 +442,15 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
 	n.cleared = bool(d.get("cleared", false))
+	# Absent on a save written before a system could offer more than one thing
+	# to do. A cleared node with no list is a node whose single option was the
+	# system itself, which is what it always was.
+	var taken := PackedInt32Array()
+	for o in d.get("taken", []):
+		taken.append(int(o))
+	if taken.is_empty() and n.cleared:
+		taken.append(MapGen.OPTION_WHOLE)
+	n.taken = taken
 	n.fled = bool(d.get("fled", false))
 	# Absent on a save written before the node carried its own roll. Left empty,
 	# which makes the node roll once on the next arrival and keep it from then

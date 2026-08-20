@@ -49,7 +49,7 @@ func fingerprint() -> Dictionary:
 			# quoted price is checked separately, below, against the market that
 			# quotes it.
 			shop.append("%s:%d" % [m.id, m.scrap_value])
-		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
+		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
@@ -61,7 +61,13 @@ func fingerprint() -> Dictionary:
 			Array(n.links), n.makers, shop,
 			# What the system is offering. Rolled on arrival and fixed from then
 			# on, so losing it across a save is a re-roll the player can force.
-			n.foes, n.event_key])
+			n.foes, n.event_key,
+			# WHICH options are used up, which is not the same question as
+			# whether the system is finished. A system with three things to do
+			# and one of them taken comes back with all three on offer if this
+			# is lost, and `cleared` is false either way — so nothing else in
+			# this fingerprint would notice.
+			Array(n.taken)])
 	return {
 		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s" % [
 			Run.hull.name, Run.hull.tier, Run.hull.reactor, Run.hull.hand_size,
@@ -140,6 +146,11 @@ func run() -> void:
 			break
 		Run.jump_to(pick.index)
 		Run.node_at().cleared = (i % 2 == 0)
+		# One option consumed at a system that is NOT finished. The case a
+		# single boolean cannot hold, and therefore the case a save written
+		# against the boolean silently drops.
+		if i % 3 == 1:
+			Run.node_at().taken = PackedInt32Array([2])
 		Run.node_at().inspected = (i % 3 == 0)
 		Run.node_at().fled = (i % 4 == 0)
 	Run.hp = maxi(1, Run.hp - 9)

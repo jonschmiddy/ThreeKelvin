@@ -373,10 +373,23 @@ func salvage_here() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.cleared:
 		return
-	_resolve_derelict(n)
+	await _resolve_derelict(n)
 
+## A wreck is the one thing in the game today that two ships can genuinely race
+## for, so this is the one place that ASKS the party rather than assuming.
+##
+## Everything else that finishes a system — the fight you won, the hail you were
+## inside — cannot be taken out from under you, and `Run.take_whole()` tells the
+## party without waiting. Here the answer decides whether any loot is rolled at
+## all, and rolling it first and apologising afterwards does not take the module
+## back out of the loser's hold.
 func _resolve_derelict(n: MapGen.MapNode) -> void:
-	Run.consume_node(n)
+	if not await Run.take_option(n, MapGen.OPTION_WHOLE):
+		var who := Net.taker_name(n.index, MapGen.OPTION_WHOLE)
+		Run.log_line("The bays are already stripped.%s" % (
+			" %s got here first." % who.to_upper() if who != "" else ""), &"them")
+		show_sector()
+		return
 	# Positional: what is in the wreck is in the wreck, whoever opens it and in
 	# whatever order. See Rng.derive().
 	var r := Rng.derive(&"salvage", n.index)

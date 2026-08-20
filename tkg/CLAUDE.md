@@ -243,7 +243,7 @@ say so and ask rather than quietly working around it.
 | **Prices are derived, never stored** | A price is a pure function of a place and a part. The old "price" meta was saved on every shop module, and a shelf that came back without it quietly held a 47% sale. A derived number that is also saved is a second copy of the truth, and it only ever goes one way |
 | **Materials are prerequisites, not a second currency** | Nothing on a price tag is denominated in alloy. A recipe costing forty scrap is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. This is how crafting gets a cost that scrap cannot pay without breaking the one-currency ruling |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
-| **A system is consumed through `RunState.consume_node()` and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch |
+| **A system is consumed through `RunState.take_whole()` or `take_option()`, and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch. **The two doors are not interchangeable.** `take_whole()` fires and forgets, which is right for what nobody can take from you — the fight you won, the hail you were inside. `take_option()` ASKS and returns whether you got it, which is required for anything two ships can race for: assume you won and both players roll the loot, and the flag agreeing afterwards does not take the module back out of the loser's hold |
 | **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
 | **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
 | **The flight record is a record, not meta-progression** | Nothing in `RunHistory` feeds back into a run. Identity is assembled mid-run from what you find, and a history that granted a starting bonus would be the first crack in that |
@@ -626,10 +626,17 @@ every machine — that is what `Rng.derive(tag, node.index)` buys — so without
 notion of what has been used up, four players each strip the same derelict and the closed
 per-dive economy pays out four times.
 
-So `NetSession` holds `claims`: the systems the party has consumed, host-authoritative and
-pushed whole. A claim is a node index and nothing else, because the contents already
-agree. `RunState.consume_node()` is the one door; `adopt_party_claims()` applies an
-incoming list, including one that predates this machine's map.
+So `NetSession` holds `claims` — `{node index: {option id: peer id}}`, host-authoritative
+and pushed whole. A claim names an **option**, not a system, because a system offering
+three things to do is not one resource: one ship strips the wreck and another still wants
+the fight. `MapGen.OPTION_WHOLE` is the id for an encounter that eats the whole system,
+which is every encounter today, so nothing reading `cleared` had to change. It records
+**who** took it as well, because "Mercer stripped this" is the difference between a system
+that is empty and one somebody emptied.
+
+`RunState.take_whole()` and `take_option()` are the two doors; `adopt_party_claims()`
+applies an incoming list, including one that predates this machine's map. Save version 5
+carries `MapNode.taken`, which `cleared` alone cannot express.
 
 Everybody's position rides the same presence message as their ship, and the star chart
 draws the party from it — **outside** the visibility filter that hides unvisited systems.

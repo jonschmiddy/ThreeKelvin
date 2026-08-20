@@ -240,10 +240,52 @@ func hold_full() -> bool:
 ## `Net.claim()` does nothing in the solo game, which is why every call site
 ## could be changed without a branch.
 func consume_node(n: MapGen.MapNode) -> void:
+	take_whole(n)
+
+
+## The system itself, used up. Marked locally and told to the party without
+## waiting for an answer.
+##
+## Fire and forget is correct HERE and wrong in take_option(). These are the
+## outcomes nobody can take out from under you — the fight you just won, the
+## hail you were already inside — so a round trip would buy nothing and would
+## show the wreck you just stripped as still full while it ran.
+func take_whole(n: MapGen.MapNode) -> void:
 	if n == null or n.cleared:
 		return
 	n.cleared = true
-	Net.claim(n.index)
+	_mark_taken(n, MapGen.OPTION_WHOLE)
+	Net.claim(n.index, MapGen.OPTION_WHOLE)
+
+
+## One option at this system, when only one ship can have it. Returns whether
+## you got it, and awaits the party's answer if there is a party.
+##
+## THE ONE THAT HAS TO ASK. Two ships reach the same wreck in the same second;
+## if both assume they won, both roll the loot, and the flag agreeing a moment
+## later does not take the module back out of the loser's hold. So the caller
+## does not get to act until it is told, and every caller has to actually read
+## the answer — which is why this returns a bool instead of quietly doing
+## nothing.
+##
+## Solo returns true immediately: `Net.take()` answers with your own id when
+## there is nobody to ask.
+func take_option(n: MapGen.MapNode, option: int) -> bool:
+	if n == null or n.taken.has(option):
+		return false
+	var owner := await Net.take(n.index, option)
+	# Gone either way, so it is recorded either way. A wreck somebody else
+	# stripped is not a wreck you can try again.
+	_mark_taken(n, option)
+	if option == MapGen.OPTION_WHOLE:
+		n.cleared = true
+	Sig.map_changed.emit()
+	return owner == Net.local_id()
+
+
+func _mark_taken(n: MapGen.MapNode, option: int) -> void:
+	if not n.taken.has(option):
+		n.taken.append(option)
 
 
 ## What the party has already used up, applied to this machine's map.
@@ -255,10 +297,22 @@ func adopt_party_claims() -> void:
 	if map.is_empty():
 		return
 	var moved := false
-	for i in Net.claims:
-		if i >= 0 and i < map.size() and not map[i].cleared:
-			map[i].cleared = true
+	for key in Net.claims:
+		var i := int(key)
+		# Out of range cannot happen behind the content fingerprint and a shared
+		# seed. It is checked because the alternative is an index error taking
+		# the chart down on whoever receives it.
+		if i < 0 or i >= map.size():
+			continue
+		var n: MapGen.MapNode = map[i]
+		for option in Net.claims[key]:
+			var o := int(option)
+			if n.taken.has(o):
+				continue
+			n.taken.append(o)
 			moved = true
+			if o == MapGen.OPTION_WHOLE:
+				n.cleared = true
 	if moved:
 		Sig.map_changed.emit()
 
@@ -741,7 +795,7 @@ func harvest_pulsar() -> void:
 	var n := node_at()
 	if n.cleared:
 		return
-	consume_node(n)
+	take_whole(n)
 	# Scales with danger, so a deep pulsar is both a better haul and a worse
 	# idea — which is the shape of this whole map.
 	var gain_fuel := 14 + n.danger * 2

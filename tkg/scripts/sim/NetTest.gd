@@ -72,6 +72,7 @@ func run(tree: SceneTree) -> void:
 	await _build_test()
 	print("\n=== one map, not four ===")
 	_consume_tests()
+	await _solo_take_test()
 	await _map_test()
 	print("\n=== the host leaves ===")
 	await _host_loss_test()
@@ -418,27 +419,47 @@ func _consume_tests() -> void:
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n: MapGen.MapNode = Run.map[12]
 	n.cleared = false
-	Run.consume_node(n)
+	n.taken = PackedInt32Array()
+	Run.take_whole(n)
 	ok("a system is consumed with no party", n.cleared)
+	ok("and the option is recorded beside the flag", n.taken.has(MapGen.OPTION_WHOLE))
 	check("and nothing was claimed offline", Net.claims.size(), 0)
 	# Idempotent, because the sector can offer the same wreck twice on the way
 	# through a resume and the second answer must not be a second haul.
-	Run.consume_node(n)
-	ok("consuming it twice is not two events", n.cleared)
+	Run.take_whole(n)
+	check("consuming it twice records it once", n.taken.size(), 1)
 
 	# And the other direction: a list that arrived from the party, applied to a
 	# map this machine generated itself.
-	Run.map[40].cleared = false
-	Run.map[41].cleared = false
-	Net.claims = PackedInt32Array([40, 41, 99999, -3])
+	for i in [40, 41]:
+		Run.map[i].cleared = false
+		Run.map[i].taken = PackedInt32Array()
+	Net.claims = {40: {MapGen.OPTION_WHOLE: 2}, 41: {3: 2}, 99999: {0: 2}, -3: {0: 2}}
 	Run.adopt_party_claims()
 	ok("a claim from the party clears this machine's copy", Run.map[40].cleared)
-	ok("and the one beside it", Run.map[41].cleared)
+	# One OPTION taken is not the whole system taken. That distinction is the
+	# entire point of the option id: a ship that stripped the wreck has not also
+	# taken the fight that was waiting beside it.
+	ok("but one option taken leaves the system open", not Run.map[41].cleared)
+	ok("and the option itself is recorded", Run.map[41].taken.has(3))
 	# Out-of-range indices cannot happen behind the content fingerprint and a
 	# shared seed. They are checked because the alternative is an index error
 	# taking the chart down on whoever receives it.
 	ok("an index off the end of the map is ignored, not fatal", true)
-	Net.claims = PackedInt32Array()
+	Net.claims = {}
+
+
+## An option taken with nobody to ask. Solo has to answer YES immediately, or
+## every contested encounter in the single-player game stalls for the timeout.
+func _solo_take_test() -> void:
+	var n: MapGen.MapNode = Run.map[55]
+	n.cleared = false
+	n.taken = PackedInt32Array()
+	var got: bool = await Run.take_option(n, MapGen.OPTION_WHOLE)
+	ok("a solo ship always wins the thing it reached", got)
+	ok("and the system is finished", n.cleared)
+	var again: bool = await Run.take_option(n, MapGen.OPTION_WHOLE)
+	ok("and cannot take the same thing twice", not again)
 
 
 ## The networked half: one machine uses a system up, and every other machine
@@ -475,33 +496,60 @@ func _map_test() -> void:
 	# is the half a host-only check would miss.
 	others[0].claim(214)
 	var spread := await _wait_until(func() -> bool:
-		if not host.claims.has(214):
+		if host.who_took(214) == 0:
 			return false
 		for c in others:
-			if not c.claims.has(214):
+			if c.who_took(214) == 0:
 				return false
 		return true, 4.0)
 	ok("a system consumed by one ship is consumed for the party", spread)
+	check("and the party knows who took it", host.who_took(214), others[0].local_id())
 
 	# And the host's own, which takes a different path — no round trip.
 	host.claim(7)
 	var from_host := await _wait_until(func() -> bool:
 		for c in others:
-			if not c.claims.has(7):
+			if c.who_took(7) == 0:
 				return false
 		return true, 4.0)
 	ok("and one consumed by the host reaches everybody too", from_host)
+	check("recorded against the host", host.who_took(7), 1)
 
 	# Twice is once. The list is pushed whole, so a duplicate would grow it
 	# forever across a dive.
 	others[1].claim(214)
 	await _wait_frames(12)
-	var once := 0
-	for i in host.claims:
-		if i == 214:
-			once += 1
-	check("claiming the same system twice records it once", once, 1)
-	check("and the party has used two systems", host.claims.size(), 2)
+	check("claiming the same system twice records it once", host.taken_at(214).size(), 1)
+	check("and it still belongs to whoever was first", host.who_took(214),
+		others[0].local_id())
+	check("the party has used two systems", host.claims.size(), 2)
+
+	# One option is not the whole system. A ship that stripped the wreck has not
+	# taken the fight that was waiting beside it.
+	others[0].claim(214, 2)
+	await _wait_until(func() -> bool: return host.who_took(214, 2) != 0, 3.0)
+	check("a second option at the same system is its own claim",
+		host.taken_at(214).size(), 2)
+	check("and the party has still used two systems", host.claims.size(), 2)
+
+	# THE RACE. Both clients ask for the same thing in the same frame, without
+	# either waiting first. Exactly one may come away with it, and the loser has
+	# to be told who did — before it rolls any loot.
+	var got: Array = [0, 0]
+	_take_into(others[0], 300, got, 0)
+	_take_into(others[1], 300, got, 1)
+	var settled := await _wait_until(func() -> bool:
+		return got[0] != 0 and got[1] != 0, 5.0)
+	ok("both ships got an answer", settled)
+	ok("and they agree who owns it", got[0] == got[1])
+	ok("and the owner is one of the two who asked", got[0] == others[0].local_id()
+		or got[0] == others[1].local_id())
+	var winners := 0
+	for i in 2:
+		if got[i] == others[i].local_id():
+			winners += 1
+	check("exactly one of them won", winners, 1)
+	print("  two ships asked for option 300 at once; %s got it" % host.taker_name(300))
 
 	# Where everybody is. One process holds one `Run`, so all three report the
 	# same system — what is being checked is that the number travels at all and
@@ -510,9 +558,15 @@ func _map_test() -> void:
 		return host.where_is(1) == Run.at and others[0].where_is(1) == Run.at, 4.0)
 	ok("everybody's position reaches everybody", placed)
 	check("and an unknown position is -1, not system zero", host.where_is(99), -1)
-	print("  party used %d systems: %s · everybody at %d" % [
-		host.claims.size(), host.claims, host.where_is(1)])
+	print("  party used %d systems · everybody at %d" % [
+		host.claims.size(), host.where_is(1)])
 	await _teardown()
+
+
+## Start a take without waiting for it, so two of them are in flight together.
+## Awaiting each in turn would test the queue rather than the race.
+func _take_into(session: NetSession, index: int, out: Array, slot: int) -> void:
+	out[slot] = await session.take(index)
 
 
 # --- losing the host ------------------------------------------------------

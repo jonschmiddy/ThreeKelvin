@@ -22,6 +22,18 @@ enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
 ## in the middle would silently relabel every node type after it.
 enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, GOAL, PULSAR }
 
+## The option id meaning "the system itself, all of it".
+##
+## Every encounter in the game today consumes the whole node: you strip the
+## wreck, you win the fight, you answer the hail, and there is nothing else
+## here. A system that offers three or four things to do consumes them one at a
+## time, and this is the id reserved for the case where there is only one.
+##
+## Zero on purpose. It is what an absent field reads as, so a save or a message
+## written before options existed says "the system" rather than "option zero of
+## a list nobody wrote".
+const OPTION_WHOLE := 0
+
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
 ## Twenty-four rings put the systems in a shape where nothing was near anything:
@@ -141,6 +153,20 @@ class MapNode extends RefCounted:
 	## offers ENGAGE, the second must not, or the button that got you out of a
 	## fight is the same button that puts you back in one.
 	var fled: bool = false
+	## Which of this system's options have been used up, by option id.
+	##
+	## `cleared` says the system as a whole is finished; this says WHICH parts of
+	## it are gone. They are not the same question the moment a system offers
+	## more than one thing to do — one ship strips the wreck and another still
+	## wants the fight, and a single boolean cannot hold that.
+	##
+	## Option `MapGen.OPTION_WHOLE` is the system itself, which is what every
+	## encounter that exists today consumes. So a node with one thing to do
+	## carries exactly one entry and the two fields agree, which is why nothing
+	## reading `cleared` had to change.
+	##
+	## In a party this is a copy of what the host holds. See NetSession.claims.
+	var taken: PackedInt32Array = PackedInt32Array()
 	## What followed your heat trail in, rolled once on arrival. Stored on the
 	## node for the same reason `foes` is: an ambush that re-rolled on resume
 	## would be a hostile you could refuse by quitting and coming back cold,
@@ -344,6 +370,13 @@ static func generate(canvas: Rect2) -> Array:
 	_link(nodes)
 	nodes[0].visited = true
 	nodes[0].cleared = true
+	# And say so in the same vocabulary as everything else that finishes a
+	# system. The start is consumed at generation rather than through
+	# RunState.take_whole(), so without this it is the one node in the galaxy
+	# whose `cleared` and `taken` disagree — and SaveGame infers the missing
+	# entry when it reads an old save, which makes it disagree only AFTER a
+	# round trip. That is exactly the shape of bug savetest exists to catch.
+	nodes[0].taken.append(OPTION_WHOLE)
 	return nodes
 
 ## The rim is unclaimed and the core is built up - that is the whole shape of

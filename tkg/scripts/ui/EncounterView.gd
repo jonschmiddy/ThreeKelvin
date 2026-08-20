@@ -141,6 +141,11 @@ const CONVOY_H := 118
 ## painted over this same corner by the screen above. Without it the first
 ## partner's name is written across the name of the system.
 const CONVOY_TOP := 62
+## How long after your own ship the convoy starts, and how far apart they are.
+## Short: the approach itself runs four and a half seconds, so the stagger only
+## has to break the lockstep, not queue them up.
+const ARRIVE_LEAD := 0.25
+const ARRIVE_GAP := 0.35
 
 ## Who is flying with you, redrawn when that changes.
 ##
@@ -159,10 +164,15 @@ func refresh_convoy() -> void:
 	var ids: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
 	if ids != _made_convoy.map(func(c: ConvoySlot) -> int: return c.peer):
 		_clear_convoy()
-		for slot in them:
-			var made := ConvoySlot.new(int(slot.id), CONVOY_H)
+		for i in them.size():
+			var made := ConvoySlot.new(int(them[i].id), CONVOY_H)
 			_convoy.add_child(made)
 			_made_convoy.append(made)
+			# Staggered, and behind you. Four hulls starting the same approach on
+			# the same frame arrive as one object with four parts; a fraction of a
+			# second apart they read as ships flying in formation. Yours goes
+			# first because it is the one the screen is about.
+			made.art.arrive(1, ARRIVE_LEAD + ARRIVE_GAP * float(i + 1))
 	for i in _made_convoy.size():
 		_made_convoy[i].bind(them[i])
 
@@ -652,10 +662,28 @@ class ShipSlot extends Control:
 	var preview: Callable
 	var _drag_text: String = ""
 
+	## How much of the slot the hull is centred in. The rest is empty space on
+	## its right.
+	##
+	## The frame is "your ship left, what you face right", and a Control that
+	## fills its half and centres its texture puts the ship in the middle of the
+	## screen — which reads as neither. Centring it in the left two thirds of the
+	## same box moves it back onto the left without changing the layout, and it
+	## leaves the ship pointing INTO the space the subject occupies rather than
+	## across it.
+	##
+	## Done with an anchor and not with `position`, because `ShipView.arrive()`
+	## animates position and puts it back to zero when the ship parks.
+	const HULL_BIAS := 0.68
+
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		art = ShipView.new()
 		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		# set_anchor(), not `anchor_right =`. The property setter defaults to
+		# keep_offset TRUE, so it holds the control's current size by moving the
+		# offset the other way — which is an elaborate no-op.
+		art.set_anchor(SIDE_RIGHT, HULL_BIAS, false)
 		# Behind the slot's own _draw. A Control paints itself first and its
 		# children after, so the brace number was being drawn and then covered
 		# by the ship it was meant to sit on.

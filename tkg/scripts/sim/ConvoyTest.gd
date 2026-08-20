@@ -108,7 +108,10 @@ func _convoy_shot(tree: SceneTree) -> void:
 	# Long enough for the fly-in to land. The ship enters from off screen and
 	# coasts for ARRIVE_MS, so a shot taken on the next frame is a shot of an
 	# empty arena — which looks exactly like a convoy strip that failed to build.
-	for i in 320:
+	# Long enough for the LAST ship to land. The approach runs four and a half
+	# seconds and the convoy is staggered behind it, so a shot timed for one
+	# ship catches the others still coasting in.
+	for i in 460:
 		await RenderingServer.frame_post_draw
 	var path := "user://convoy_solo.png" if "solo" in OS.get_cmdline_user_args() \
 		else "user://convoy.png"
@@ -134,7 +137,10 @@ func _chart_shot(tree: SceneTree) -> void:
 		Net.roster[2 + i].at = spots[i]
 	# And a few systems used up, which the chart already greys out — so the
 	# shared-map half shows without a single new pixel of chrome.
-	Net.claims = PackedInt32Array(spots)
+	var used: Dictionary = {}
+	for i in spots:
+		used[int(i)] = {MapGen.OPTION_WHOLE: 2}
+	Net.claims = used
 	Run.adopt_party_claims()
 	Sig.party_changed.emit()
 	Sig.party_map_changed.emit()

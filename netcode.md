@@ -206,7 +206,7 @@ DFW0-000C-5M8M     a host at 127.0.0.1:34210
 **The handshake refuses before it connects.** A party whose builds disagree does not fail at connect time. It fails forty minutes in, at the one node where one player's tables rolled a module the others do not have. So the first message carries a protocol number and a fingerprint of the content tables, and a mismatch is refused in words:
 
 ```
-Different game version. Host is protocol 3, you are 99.
+Different game version. Host is protocol 4, you are 99.
 Your content does not match the host's. Compare builds or mods.
 The party is full.
 The host did not answer. Check the code, and whether the port is open.
@@ -262,7 +262,29 @@ The star chart draws the party from that — a diamond and a name per partner, *
 
 `coop-design.md` §9 rules that this should be gated on sensor range, with a last-known position and an age stamp outside it. There is no fog in the game yet. When there is, it gates the position going **onto** the wire rather than coming off it, and nothing on the drawing side changes.
 
-**Protocol 3** is this change, and it answers `coop-design.md` ruling 13: the party shares one galaxy instance.
+**Protocol 3** was this change, and it answers `coop-design.md` ruling 13: the party shares one galaxy instance.
+
+### An option, not a system — and asking instead of assuming
+
+A system that offers three or four things to do is not one resource. One ship strips the wreck and another still wants the fight, so the unit a claim names has to be the **option**, not the node. `MapGen.OPTION_WHOLE` is the id for an encounter that consumes the system entirely, which is every encounter that exists today — so a node with one thing to do carries exactly one entry and nothing reading `cleared` had to change.
+
+A claim also records **who**. That is not bookkeeping: arriving at a wreck that says *Mercer stripped this* is the difference between a system that is empty and a system somebody emptied, and it is most of the social texture of flying together.
+
+The important half is the timing.
+
+**Fire and forget is right for some things and wrong for others.** `RunState.take_whole()` marks the node locally and tells the party without waiting, which is correct for the outcomes nobody can take out from under you — the fight you just won, the hail you were already inside. It is wrong for a wreck. Two ships reach it in the same second, both mark it, both roll the loot, and the flag agreeing a moment later does not take the module back out of the loser's hold. One wreck, two Legendaries, and §3's closed economy paying out twice.
+
+So `RunState.take_option()` **asks and waits**, and returns whether you got it. Every caller has to read the answer, which is why it returns a bool rather than quietly doing nothing.
+
+Three things make that cheap:
+
+- **The host resolves the race by doing nothing clever.** `_apply_claim` ignores an option somebody already owns. First message to arrive wins; there is no clock to trust and nothing to compare.
+- **There is no reply message.** The host broadcasts the whole claim list on every change anyway, so the answer is already on its way. The client waits for the option to appear in `claims` and reads the owner off it.
+- **A click can afford a round trip.** Well under 200 ms on the relay, and it only runs when a player has pressed something. A timeout refuses rather than assumes: refusing costs one wreck, assuming costs the party's economy.
+
+Today exactly one encounter takes the contested path — salvaging a derelict, the only thing two ships can genuinely race for. Everything else uses `take_whole()`. When a system starts offering a menu, each option picks its path by what it consumes.
+
+**Protocol 4** is this change. Save version 5 carries `MapNode.taken`, so a resumed run remembers which options are gone — which `cleared` alone cannot say.
 
 ### Two processes, one galaxy
 
@@ -310,7 +332,7 @@ The session layer is the part that is hard to change later, which is why it is b
 |---|---|---|
 | ~~**RNG determinism**~~ | ✅ **Done.** The seed `_begin_dive` sends is now honoured: `Rng` puts one galaxy, one map and one set of shelves on every machine that shares it. | Was the top item. See `Rng.gd` and `-- rngtest` |
 | **`Run` is a singleton** | 655 references across 33 files. A host holding four ships needs four of it. | Largest single item; gates most of the rest |
-| **Gameplay messages** | Two exist. A roster slot carries the ship each player is flying and the system they are in; the host holds which systems the party has consumed, so a wreck is stripped once. Still missing: jump commits, card lock-in, the shared heat field, the shared fuel tank. | Real work, but `Combat` is already UI-free and already headless. Danger tracking the deepest ship (§7) is now cheap — every position is already on the wire |
+| **Gameplay messages** | Two exist. A roster slot carries the ship each player is flying and the system they are in; the host holds which OPTIONS the party has consumed and who took each one, so a wreck is stripped once and the loser is told before any loot is rolled. Still missing: jump commits, card lock-in, the shared heat field, the shared fuel tank. | Real work, but `Combat` is already UI-free and already headless. Danger tracking the deepest ship (§7) is now cheap — every position is already on the wire |
 | ~~**Lobby UI**~~ | ✅ **Done.** `LobbyScreen` — host, code, COPY/PASTE, join, roster, ready, launch. Reached from the title screen under **FLY TOGETHER**; the `-- lobby host` / `-- lobby join CODE` / `auto` flags exist to test it, not to use it. | Two processes have now formed a party and landed in the same galaxy. See below |
 | **§0's gate** | `coop-design.md` rules that heat must gate reward before a commons is built on it, and the measurement says it does not yet. | A design gate, not a code one |
 

@@ -46,7 +46,20 @@ extends Node
 ## 3: a roster slot also carries `at` — which system that player is in — and
 ##    the host holds `claims`, the systems the party has consumed. A version 2
 ##    host answers neither, so every wreck would be strippable four times.
-const PROTOCOL: int = 3
+## 4: a claim names an OPTION within a system rather than the whole system, and
+##    records WHO took it. A version 3 host would answer a request for one
+##    option by consuming the entire node.
+const PROTOCOL: int = 4
+
+## How long a contested option waits for the host to say who got it.
+##
+## Generous. A relay round trip is well under 200 ms and this only runs when a
+## player has clicked something, so the cost of being patient is nothing and the
+## cost of giving up early is a wreck the player watched themselves reach first.
+## If the host really is gone the session fails on its own and this refuses,
+## which is the right way round: refusing costs one wreck, assuming costs the
+## party's whole economy.
+const TAKE_TIMEOUT: float = 3.0
 
 const MAX_PLAYERS: int = NetTransport.MAX_PLAYERS
 
@@ -115,8 +128,8 @@ var _builds: Dictionary = {}
 var _presence_sent: int = 0
 var _presence_dirty: bool = false
 
-## Every system the party has consumed, by node index. Host-authoritative and
-## pushed whole.
+## What the party has used up: `{node index: {option id: peer id}}`.
+## Host-authoritative and pushed whole.
 ##
 ## THE MAP IS ONE INSTANCE, NOT FOUR COPIES. This is the line that decides it,
 ## and it is worth being explicit because the seed alone implies the opposite. A
@@ -132,7 +145,18 @@ var _presence_dirty: bool = false
 ## thousands, and a list that is rebuilt from scratch on every push cannot drift
 ## — which an append-only stream of deltas can, the first time one is dropped
 ## or arrives twice.
-var claims: PackedInt32Array = PackedInt32Array()
+##
+## AN OPTION, NOT A SYSTEM. A system that offers three or four things to do is
+## not one resource: one ship strips the wreck and another still wants the
+## fight, so the unit has to be the option. `MapGen.OPTION_WHOLE` is the id for
+## an encounter that consumes the system entirely, which is every encounter that
+## exists today — so a node with one thing to do carries exactly one entry.
+##
+## AND WHO TOOK IT. The peer id is not bookkeeping: arriving at a wreck that
+## says "Mercer stripped this" is the whole social texture of flying together,
+## and it is the difference between a system that is empty and a system that
+## somebody emptied.
+var claims: Dictionary = {}
 
 
 func _ready() -> void:
@@ -475,21 +499,22 @@ func _report_presence_at_host(wire: Dictionary, at: int) -> void:
 		_apply_presence(multiplayer.get_remote_sender_id(), wire, at)
 
 
-## "I have consumed this system." Only the host keeps the list.
+## "I have used this up." Only the host keeps the list.
 ##
-## The claim is a NODE INDEX and nothing else. What was in the system does not
-## travel, because it never had to: `Rng.derive(tag, node.index)` already puts
-## the same modules in the same wreck on every machine. This message says the
-## wreck is empty now, which is the one fact a seed cannot carry.
+## The message is a NODE INDEX and an OPTION ID and nothing else. What was in
+## the system does not travel, because it never had to: `Rng.derive(tag,
+## node.index)` already puts the same modules in the same wreck on every
+## machine. This says the wreck is empty now, which is the one fact a seed
+## cannot carry.
 @rpc("any_peer", "call_remote", "reliable")
-func _claim_at_host(index: int) -> void:
+func _claim_at_host(index: int, option: int) -> void:
 	if is_host():
-		_apply_claim(index)
+		_apply_claim(index, option, multiplayer.get_remote_sender_id())
 
 
 @rpc("authority", "call_remote", "reliable")
-func _push_claims_to(list: PackedInt32Array) -> void:
-	claims = list
+func _push_claims_to(all: Dictionary) -> void:
+	claims = all
 	Sig.party_map_changed.emit()
 
 
@@ -608,29 +633,93 @@ func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
 	Sig.party_changed.emit()
 
 
-## Consume a system, for everybody. Safe to call in the solo game, where it
-## does nothing at all.
+## Use something up, without waiting to hear whether you got it.
 ##
-## Called from `RunState.consume_node()` and nowhere else — one door, so a new
-## way to finish a system is shared by construction rather than by somebody
-## remembering to add a line.
-func claim(index: int) -> void:
+## For the outcomes you cannot lose a race for: the fight you just won, the hail
+## you were already inside. Nobody else can arrive and take those out from under
+## you, so the round trip would buy nothing.
+##
+## Safe to call in the solo game, where it does nothing at all — which is why
+## every call site could be changed without gaining a branch.
+func claim(index: int, option: int = MapGen.OPTION_WHOLE) -> void:
 	if not _can_talk() or index < 0:
 		return
 	if is_host():
-		_apply_claim(index)
+		_apply_claim(index, option, 1)
 	else:
 		# The caller has already marked its own copy of the node — see
 		# RunState.consume_node(). A client that waited for the round trip would
 		# show the wreck it just stripped as still full until the host answered,
 		# which on a relay is a visible flicker on the chart.
-		_claim_at_host.rpc_id(1, index)
+		_claim_at_host.rpc_id(1, index, option)
 
 
-func _apply_claim(index: int) -> void:
-	if claims.has(index):
+## Ask for something only one ship can have, and wait for the answer. Returns
+## the peer id that owns it — yours if you won.
+##
+## ASK, DO NOT ASSUME. This is the half `claim()` gets wrong on purpose and this
+## one has to get right. Two ships reach the same wreck in the same second; both
+## mark it locally, both roll the loot, and the flag agreeing a moment later
+## does not take the module back out of the loser's hold. One wreck, two
+## Legendaries, and `coop-design.md` §3's closed economy paying out twice.
+##
+## The host already resolves the race correctly by doing nothing clever:
+## `_apply_claim` ignores an option somebody already owns, so the first message
+## to arrive wins and every later one is told who did. All the client has to do
+## is wait to be told, and a click is exactly the kind of moment that can afford
+## a round trip.
+##
+## A timeout refuses rather than assuming. See TAKE_TIMEOUT.
+func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
+	var me := local_id()
+	if not _can_talk() or index < 0:
+		return me
+	var owner := who_took(index, option)
+	if owner != 0:
+		return owner
+	if is_host():
+		_apply_claim(index, option, 1)
+		return who_took(index, option)
+	_claim_at_host.rpc_id(1, index, option)
+	# Waiting on the roster push rather than on a reply of its own. The host
+	# broadcasts the whole list on every change anyway, so an answer is already
+	# on its way and a second message would be a second thing to keep in step.
+	var deadline := _now() + TAKE_TIMEOUT
+	while _now() < deadline:
+		await get_tree().process_frame
+		owner = who_took(index, option)
+		if owner != 0:
+			return owner
+	return 0
+
+
+## Who owns one option here, or 0 if nobody does.
+func who_took(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
+	var here: Dictionary = claims.get(index, {})
+	return int(here.get(option, 0))
+
+
+## Everything used up at one system, as `{option id: peer id}`.
+func taken_at(index: int) -> Dictionary:
+	return claims.get(index, {})
+
+
+## The name of whoever took it, for a screen to print. Empty when nobody has.
+func taker_name(index: int, option: int = MapGen.OPTION_WHOLE) -> String:
+	var who := who_took(index, option)
+	if who == 0 or who == local_id() or not roster.has(who):
+		return ""
+	return String(roster[who].get("name", ""))
+
+
+func _apply_claim(index: int, option: int, by: int) -> void:
+	var here: Dictionary = claims.get(index, {})
+	# First message wins. Every later one is a no-op, which is the whole of the
+	# race resolution — there is nothing to compare and no clock to trust.
+	if here.has(option):
 		return
-	claims.append(index)
+	here[option] = by
+	claims[index] = here
 	_push_claims()
 	Sig.party_map_changed.emit()
 

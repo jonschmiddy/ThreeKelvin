@@ -96,9 +96,14 @@ var _arrive_bob: int = 2
 var _arrive_span: int = 0
 
 ## Fly in, then idle. Safe on a view that is already parked.
-func arrive(bob_amp: int = 2) -> void:
+##
+## `delay` holds the ship off screen before it starts. A convoy is the reason it
+## exists: four hulls beginning the same eased approach on the same frame arrive
+## as one object with four parts, and a fraction of a second between them is the
+## whole difference between a formation and a sprite sheet.
+func arrive(bob_amp: int = 2, delay: float = 0.0) -> void:
 	_arrive_bob = maxi(0, bob_amp)
-	_arrive_at = Time.get_ticks_msec()
+	_arrive_at = Time.get_ticks_msec() + int(maxf(0.0, delay) * 1000.0)
 	_arrive_dx = 0
 	_arrive_span = 0
 	_bob_amp = 0
@@ -351,6 +356,12 @@ func _tick_arrival() -> bool:
 			return false
 		_arrive_span = int(ceil(global_position.x + size.x)) + 16
 		position.x = -float(_arrive_span)
+
+	# Still waiting its turn. Held off screen rather than parked at rest, so a
+	# staggered convoy does not show three ships standing still while the first
+	# one flies in.
+	if Time.get_ticks_msec() < _arrive_at:
+		return false
 
 	var e := float(Time.get_ticks_msec() - _arrive_at) / ARRIVE_MS
 	if e >= 1.0:
