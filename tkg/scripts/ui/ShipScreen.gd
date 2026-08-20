@@ -247,5 +247,15 @@ class SlotPads extends Control:
 				draw_rect(Rect2(pos, Vector2(CELL.x, 1)), UITheme.CHILL, true)
 				draw_rect(Rect2(pos, Vector2(1, CELL.y)), UITheme.CHILL, true)
 			else:
+				# Four filled rects, not draw_rect's outline mode. An unfilled
+				# draw_rect strokes the BOUNDARY, so a 1px line straddles it —
+				# half a pixel outside the cell and half in. Rounding sends the
+				# outside half to a whole pixel on some edges and not others, and
+				# an empty pad came out visibly larger than the filled one beside
+				# it. Drawn as fills, both are exactly CELL.
 				draw_rect(Rect2(pos, CELL), Color("#10161f"), true)
-				draw_rect(Rect2(pos, CELL), UITheme.EMBER, false, 1.0)
+				var e := UITheme.EMBER
+				draw_rect(Rect2(pos, Vector2(CELL.x, 1)), e, true)
+				draw_rect(Rect2(pos + Vector2(0, CELL.y - 1), Vector2(CELL.x, 1)), e, true)
+				draw_rect(Rect2(pos, Vector2(1, CELL.y)), e, true)
+				draw_rect(Rect2(pos + Vector2(CELL.x - 1, 0), Vector2(1, CELL.y)), e, true)

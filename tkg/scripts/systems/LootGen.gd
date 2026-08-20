@@ -21,6 +21,12 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 		var m: ModuleData = DB.modules[id]
 		if id == &"dross":
 			continue
+		# Yard stock is issued, not found. A wreck full of the same Hull Plating
+		# you launched with would crowd out the branded parts that a run is
+		# spent collecting, and the whole point of the generic kit is that it is
+		# the thing you are trying to replace.
+		if m.starter_only:
+			continue
 		if m.rarity >= ModuleData.Rarity.EXOTIC and not allow_unbranded:
 			continue
 		if not _maker_active(m.manufacturer):

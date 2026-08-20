@@ -190,6 +190,21 @@ func _type_line() -> String:
 		return card.type_name().to_upper()
 	return "%s · %s" % [card.type_name().to_upper(), lane.to_upper()]
 
+## The full readout, as a native tooltip.
+##
+## OPT-IN: Godot only asks for a tooltip when tooltip_text is non-empty, and
+## nothing sets that by default. The hand and the gallery build their own
+## readouts with their own timing and placement — a second one appearing under
+## the cursor would be two panels saying the same thing — so they leave it
+## alone and get no tooltip. Anywhere a card is just sitting there being looked
+## at, setting tooltip_text is enough.
+##
+## Same Widgets.card_readout() the other two use, so the three cannot drift.
+func _make_custom_tooltip(_for_text: String) -> Object:
+	if card == null:
+		return null
+	return Widgets.card_readout(card)
+
 func _draw() -> void:
 	var s := float(_s)
 	var w := CARD_W * s

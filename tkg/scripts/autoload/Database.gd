@@ -29,26 +29,66 @@ var enemies: Dictionary = {}            ## StringName -> EnemyTemplate
 var affixes: Array[AffixData] = []
 var hull_perks: Dictionary = {}         ## StringName -> {name, text}
 
-## What each manufacturer hands you with the keys.
+## ONE branded weapon, and yard stock for the rest.
 ##
-## Korvan keeps the five-module kit this game shipped with; the other six get
-## their whole catalog, which is three or four modules. That asymmetry is real
-## and is not a bug to pad out: with the hull counting as one toward its own
-## set, three modules already clears the 3-piece bonus on turn one, and the
-## empty hardpoints are what the run is FOR.
+## This used to hand you a manufacturer's whole catalogue — five Korvan modules,
+## four Redline — which meant the run opened with its set bonus already earned
+## and its identity already finished. Nothing you found afterwards could change
+## what you were; the best it could do was be a slightly better version of it.
 ##
-## Not all-Common, either. Korvan's five are C0 but Cygnet's cheapest is C1 and
-## Halcyon's kit runs to C3, so some makers start meaningfully stronger. Left
-## uncorrected on purpose — authoring starter-only variants to flatten it would
-## be inventing content to solve a problem the sim has not confirmed exists.
-const STARTER_KITS: Dictionary = {
-	&"korvan": [&"kh20", &"km4", &"plate", &"coolant", &"servo"],
-	&"solari": [&"plasma", &"overdrive", &"flare"],
-	&"dredge": [&"ripper", &"slag", &"claw", &"refinery"],
-	&"redline": [&"needle", &"juryrig", &"chaff", &"ghost"],
-	&"cygnet": [&"dronebay", &"wasp", &"evoke"],
-	&"halcyon": [&"rail", &"halcyon", &"auspex"],
-	&"calyx": [&"nodule", &"weave", &"sporevent"],
+## Now the maker gives you a gun and a hull, which is two of the three a set
+## needs. Everything else is generic. The third piece is out there in a wreck or
+## behind a station's counter, and until you go and get it you are flying a
+## chassis with a good weapon bolted to it — which is a much better description
+## of the start of a run than "a finished Korvan build".
+##
+## It also puts CLAUDE.md's ruling back the right way up. Identity is assembled
+## mid-run again; choosing a manufacturer picks the direction, not the
+## destination.
+## What every ship is issued, in the order it goes on. Seven cards between them
+## — two attacks, two armor, two draws, one vent — against the two the branded
+## weapon grants. Nine to open with, which is the shape a starting deck wants:
+## enough that a hand of five is a draw rather than your whole hand, and thin
+## enough that one good find changes it.
+const GENERIC_KIT: Array[StringName] = [&"beam", &"plating", &"board", &"coolline"]
+
+## Everything in the yard, three per slot. RunState._top_up_deck walks this to
+## fill spare mounts on frames the kit above cannot fill on its own, and walking
+## a list of DISTINCT parts is why a Cygnet light no longer launches carrying two
+## of the same plate. Order matters: it is the order they get bolted on.
+const GENERIC_STOCK: Array[StringName] = [
+	&"beam", &"slug", &"torch",
+	&"plating", &"board", &"bracing",
+	&"coolline", &"scope", &"patchkit",
+]
+
+## The one module each yard sends you off with. Common or Uncommon — never Rare,
+## which it used to be for three of them.
+##
+## The rule was "each maker's cheapest weapon", which sounded even and was not:
+## Dredge, Halcyon and Calyx had no common weapon at all, so their floor was C2.
+## That leaked somewhere invisible. Market.melt() reads scrap_value, which is a
+## table indexed by RARITY, so a Dredge player could scrap their free gun for
+## roughly four times what a Korvan player got before anything had happened —
+## with salvage_rack multiplying exactly that. An economic head start nothing on
+## screen accounted for, in a game whose difficulty lives in the economy.
+##
+## Breaker Cannon, Halcyon Mark I and Calyx Barb were written to close it, and
+## they also even out a common tier of the drop pool that was six-sevenths
+## Korvan.
+##
+## STILL UNEVEN, deliberately for now: Solari, Redline and Cygnet start on
+## Uncommons, which melt for 16 against Korvan's 8. Half the gap that was there
+## and a quarter of what Dredge had, but not zero — closing it means three more
+## modules, and that is a content decision rather than a bug fix.
+const STARTER_WEAPON: Dictionary = {
+	&"korvan": &"kh20",
+	&"solari": &"plasma",
+	&"dredge": &"breaker",
+	&"redline": &"needle",
+	&"cygnet": &"dronebay",
+	&"halcyon": &"markone",
+	&"calyx": &"barb",
 }
 
 ## The makers you can start as, in the order the chassis select shows them.
@@ -58,8 +98,13 @@ const STARTABLE: Array[StringName] = [
 	&"korvan", &"solari", &"dredge", &"redline", &"cygnet", &"halcyon", &"calyx",
 ]
 
+## Branded weapon first, so that when a light frame runs out of hardpoints it is
+## the generic parts that fall off the end rather than the one module that says
+## who you fly for.
 func starter_kit(man: StringName) -> Array:
-	return STARTER_KITS.get(man, STARTER_KITS[&"korvan"])
+	var out: Array = [STARTER_WEAPON.get(man, &"kh20")]
+	out.append_array(GENERIC_KIT)
+	return out
 
 func _ready() -> void:
 	_seed_manufacturers()
@@ -273,6 +318,10 @@ func _seed_modules() -> void:
 	_module(&"ripper", "Dredge Tear-Down Rig", &"dredge", W, C2,
 		"Disassembles hulls that object.",
 		[{name = "Tear Down", energy = 2, heat = 1, damage = 7, hits = 2, scrap_gain = 4, copies = 2}])
+	## Issued weapon. See STARTER_WEAPON for why these three exist.
+	_module(&"breaker", "Breaker Cannon", &"dredge", W, C0,
+		"Point it at something and it becomes stock.",
+		[{name = "Break Down", energy = 1, damage = 5, scrap_gain = 2, copies = 2}])
 
 	# --- Redline: evasion, refit, contraband
 	_module(&"chaff", "Chaff Launcher", &"redline", U, C0,
@@ -300,6 +349,13 @@ func _seed_modules() -> void:
 		[{name = "Evoke", energy = 1, evoke = 7, copies = 1}])
 
 	# --- Halcyon: precision
+	## Issued weapon. Hits harder per card than the other two starters on
+	## purpose: Halcyon grants one fewer card than anybody, so this is the only
+	## copy of it in the deck and a merely-average Common would have left the
+	## house opening a fight with a single mediocre attack.
+	_module(&"markone", "Halcyon Mark I", &"halcyon", W, C0,
+		"Numbered, signed, and the cheapest thing they will sell you.",
+		[{name = "Sidearm", energy = 1, damage = 7, copies = 2}])
 	_module(&"rail", "Aurelian Rail", &"halcyon", W, C2,
 		"Nothing wasted. Nothing missed.",
 		[{name = "Precise Shot", energy = 1, heat = 1, damage = 9, draw = 1, copies = 2}])
@@ -314,6 +370,10 @@ func _seed_modules() -> void:
 	_module(&"weave", "Vital Weave", &"calyx", S, C1,
 		"The hull knits itself. Slowly.",
 		[{name = "Knit", energy = 1, heal = 5, copies = 2}])
+	## Issued weapon. Bites and knits at once, which is the house in miniature.
+	_module(&"barb", "Calyx Barb", &"calyx", W, C0,
+		"Grown to a point. Feeds on what it opens.",
+		[{name = "Barb", energy = 1, damage = 5, heal = 2, copies = 2}])
 	_module(&"nodule", "Adaptive Nodule", &"calyx", W, C2,
 		"Learns the shape of this fight.",
 		[{name = "Adapt", energy = 1, damage = 4, adapt = 2, copies = 2}])
@@ -336,6 +396,54 @@ func _seed_modules() -> void:
 	_module(&"dross", "Dross", &"", U, C0,
 		"Spore residue fused into your systems.",
 		[{name = "Dross", energy = 1, unplayable = true, copies = 1}])
+
+	# --- yard stock: what every ship leaves the dock with, whoever built it.
+	#
+	# Deliberately dull. These are the colourless commons of the game: a beam, a
+	# plate, a coolant line. They do one obvious thing at a fair price and none
+	# of them is a reason to do anything — which is the point, because the
+	# branded module you find in the next wreck has to be visibly better than
+	# something.
+	#
+	# Unbranded, so they count toward no set. A ship launches with its hull and
+	# ONE weapon from its maker, which is two of the three you need — the third
+	# is out there.
+	# Three of each slot, so a frame of any shape can fill itself from stock.
+	# The kit is one shape and the frames are not — four makers drop a weapon
+	# mount, three add a utility — so without a spread here the top-up ran out
+	# of things that fit and fell back on bolting on a second identical plate.
+	_module(&"beam", "Mining Laser", &"", W, C0,
+		"Cuts rock. Cuts other things.",
+		[{name = "Cutting Beam", energy = 1, heat = 1, damage = 6, copies = 2}])
+	_module(&"slug", "Slug Thrower", &"", W, C0,
+		"Chemical propellant and a tube. Older than spaceflight.",
+		[{name = "Slug", energy = 1, damage = 4, hits = 2, copies = 2}])
+	_module(&"torch", "Cutting Torch", &"", W, C0,
+		"Meant for hulls that are already dead.",
+		[{name = "Torch", energy = 0, heat = 3, damage = 5, copies = 2}])
+
+	_module(&"plating", "Hull Plating", &"", S, C0,
+		"Steel, bolted on. It does not have to be clever.",
+		[{name = "Reinforce", energy = 1, armor = 5, copies = 2}])
+	_module(&"board", "Signal Board", &"", S, C0,
+		"Sorts what the sensors are shouting about into an order.",
+		[{name = "Reroute", energy = 0, draw = 1, copies = 2}])
+	_module(&"bracing", "Impact Bracing", &"", S, C0,
+		"Struts that take one hit and are then scrap.",
+		[{name = "Hold Fast", energy = 1, block = 7, copies = 2}])
+
+	_module(&"coolline", "Coolant Line", &"", U, C0,
+		"A hose and a pump. Standard on everything that burns.",
+		[{name = "Bleed Heat", energy = 0, vent = 3, copies = 1}])
+	_module(&"scope", "Ranging Scope", &"", U, C0,
+		"Tells the guns where the thing is. That is all it does.",
+		[{name = "Range", energy = 0, lock_on = 3, copies = 1}])
+	_module(&"patchkit", "Patch Kit", &"", U, C0,
+		"Foam, tape, and a prayer to whoever welded the frame.",
+		[{name = "Patch", energy = 1, heal = 4, copies = 1}])
+
+	for id in GENERIC_STOCK:
+		(modules[id] as ModuleData).starter_only = true
 
 	_seed_module_attributes()
 
@@ -372,17 +480,30 @@ func _seed_module_attributes() -> void:
 ##
 ## Here it is one line per maker. Solari is +8 heat capacity, -1 dissipation and
 ## -2 stealth, on every frame it builds. That is the whole manufacturer.
+##
+## DISSIPATION IS SMALL ON PURPOSE — one or two a turn, four at the very top.
+## It used to run to eight, which vented a full combat's worth of heat for free
+## and made the cooling cards decorative: you could fire the hot weapon every
+## turn and the hull paid it off behind you. Passive venting is now a trickle,
+## so getting heat off is something you spend a card on, and capacity is what
+## decides how long you can put that off.
 const WEIGHT_BASE := {
+	# Two system mounts, not one. A light frame has the BIGGEST hand and the
+	# FEWEST mounts, and those compound the wrong way: fewer mounts is fewer
+	# modules is fewer cards, so the ship that draws six was the ship with a
+	# five-card deck. Measured, an Atelier Yacht opened with four cards against
+	# a hand of five — every turn identical, nothing to sequence, no deck at all.
+	# The extra system slot is where the floor comes from.
 	HullData.Weight.LIGHT: {
-		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 5,
+		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
 		dodge = 0.18, initiative = 2, fuel_factor = 0.8,
-		weapon_slots = 2, system_slots = 1, utility_slots = 2},
+		weapon_slots = 2, system_slots = 2, utility_slots = 2},
 	HullData.Weight.MEDIUM: {
-		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 3,
+		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
 		dodge = 0.05, initiative = 0, fuel_factor = 1.2,
 		weapon_slots = 3, system_slots = 2, utility_slots = 1},
 	HullData.Weight.HEAVY: {
-		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 2,
+		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
 		dodge = 0.0, initiative = -2, fuel_factor = 1.8,
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
@@ -421,7 +542,7 @@ const MAKER_HULLS := {
 	&"calyx": {
 		names = ["Spore Cutter", "Vivarium", "Greatvine"],
 		perk_id = &"baffled_vents",
-		d = {max_hull = 2, dissipation = 2, dodge = 0.02, fuel_factor = -0.1,
+		d = {max_hull = 2, dissipation = 1, dodge = 0.02, fuel_factor = -0.1,
 			sensors = 1, stealth = 1, system_slots = 1, weapon_slots = -1}},
 }
 

@@ -821,6 +821,19 @@ class MapChart extends Control:
 
 	const DISC := 2.05
 
+	## How hard the fixed sky slides against the galaxy when you drag.
+	##
+	## Halved. Both fields keep their own SPREAD of rates — seven shells of
+	## distant galaxies, twenty-two of halo stars — and that spread is what
+	## actually carries depth, since layers disagreeing about how fast they move
+	## is the whole effect. Amplitude only sets how far they travel, and at full
+	## strength the background covered enough ground to read as the sky being
+	## dragged past rather than as distance behind the galaxy.
+	##
+	## One constant on purpose: the two fields have to move as one sky, so their
+	## rates are not independently tunable numbers.
+	const PARALLAX := 0.5
+
 	## Every shape parameter comes from GalaxyGen, so a new galaxy type is a
 	## dictionary entry rather than another branch in here.
 	func _g() -> Dictionary:
@@ -1774,7 +1787,7 @@ class MapChart extends Control:
 		# speeds and they moved in obvious groups.
 		for k in 7:
 			var f := float(k) / 6.0
-			_far_layer(ci, lerpf(150.0, 700.0, f), lerpf(0.09, 0.58, f),
+			_far_layer(ci, lerpf(150.0, 700.0, f), lerpf(0.09, 0.58, f) * PARALLAX,
 				lerpf(1.5, 9.0, f), lerpf(3.5, 20.0, f),
 				lerpf(0.5, 1.0, f), lerpf(0.92, 0.6, f), 3 + k * 53)
 
@@ -1959,7 +1972,7 @@ class MapChart extends Control:
 			var f := float(k) / float(DEPTHS - 1)
 			# Nearer layers are brighter and slightly denser: distance is carried
 			# by speed, brightness and count together, not by speed alone.
-			var parallax: float = lerpf(0.05, 0.62, f)
+			var parallax: float = lerpf(0.05, 0.62, f) * PARALLAX
 			var cell: float = lerpf(62.0, 44.0, f)
 			var bright: float = lerpf(0.42, 1.0, f)
 			_star_layer(ci, cell, parallax, 0.34, bright, 5 + k * 37)

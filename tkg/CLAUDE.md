@@ -148,7 +148,8 @@ say so and ask rather than quietly working around it.
 | Ruling | Reason |
 |---|---|
 | **Hulls ARE built by a manufacturer** — seven branded chassis, plus three unbranded salvage frames | REVERSED, deliberately. The old ruling was "hulls have no manufacturer", to keep hull swaps a pure power decision. It made `attributes-and-checks.md` §1.5 unimplementable: that section gives each maker an attribute signature, and every one of those (thermal capacity, dodge, hull mass) is a property of a chassis, not of a bolt-on module. The cost is real and accepted — swapping hulls now moves your set count |
-| **Set bonuses are the class system** (3+ / 5+ modules from one maker), **and the hull counts as one** | Identity is now *leaned* at the start and still assembled mid-run. You pick a chassis, which starts you at 3+ with its own kit; the run is whether you push that to 5+ or diversify. Unbranded salvage frames count for nobody, so taking one is a real cost |
+| **Set bonuses are the class system** (3+ / 5+ modules from one maker), **and the hull counts as one** | Identity is assembled mid-run — the original ruling, restored. A chassis launches with its hull and ONE branded weapon, which is 2 of the 3 a set needs, so you start pointed at a manufacturer and arrive at it later. Unbranded salvage frames count for nobody, so taking one is a real cost |
+| **You launch with one branded weapon and generic yard stock** | A run used to open holding a maker's whole catalogue, so its set bonus was already earned and nothing found afterwards could change what you were. The generic kit (`DB.GENERIC_KIT`) is deliberately dull — a beam, a plate, a coolant line — because the branded part in the next wreck has to be visibly better than *something*. Marked `starter_only`, so it is issued and never dropped: yard stock in the loot pool would crowd out the parts a run is spent collecting |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
@@ -674,7 +675,8 @@ quietly plotting a jump.
    tell you what is *unsatisfying*
 3. Re-derive the healthy win-rate band against the current economy, then tune to it
 4. Fix the single worst feeling
-5. Resist adding content — 34 modules is plenty until the loop feels good.
+5. Resist adding content — 37 modules is plenty until the loop feels good. Three of
+   those are `starter_only` yard stock and never drop, so the loot pool is 33.
    Manufacturer hulls added exactly one (a Solari utility, the only genuine slot gap)
    and put Sensors/Stealth on six modules that already existed rather than authoring
    bearers for them. Thin per-maker pools are the known cost: Cygnet, Halcyon and

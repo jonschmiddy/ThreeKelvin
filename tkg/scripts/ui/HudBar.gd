@@ -36,6 +36,7 @@ var _tab_history: Button
 
 var _hull_label: Label
 var _hull: BoxGauge
+var _hull_text: Label
 var _heat_label: Label
 var _heat: BoxGauge
 var _heat_text: Label
@@ -78,6 +79,17 @@ func _build() -> void:
 	_row.add_child(_hintable(_hull_label))
 	_hull = BoxGauge.new()
 	_row.add_child(_hull)
+	# The figure beside the cells, as heat has. The cells answer "how close am I
+	# to dying"; this answers "how much does the repair cost", and the tooltip
+	# should not be the only place the second one exists.
+	_hull_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_row.add_child(_hintable(_hull_text))
+
+	# A rule between each readout. Hull and heat are both rows of cells and sat
+	# directly beside each other, so at a glance the bar read as one long gauge
+	# with a label in the middle of it — which is exactly the wrong impression,
+	# since one is what you have left and the other is what you are spending.
+	_row.add_child(_divider())
 
 	# Heat reads as countable cells; the number beside it names the cost when
 	# you are over cap, because that is the only time the number matters.
@@ -107,6 +119,9 @@ func _build() -> void:
 	_materials = HBoxContainer.new()
 	_materials.add_theme_constant_override("separation", 10)
 	_row.add_child(_materials)
+	# Materials stay on the scrap side of this rule: both are things you are
+	# carrying. Fuel is not — it is the clock — so it gets its own compartment.
+	_row.add_child(_divider())
 	_fuel = Widgets.stat("fuel", "")
 	_row.add_child(_hintable(_fuel))
 
@@ -160,18 +175,38 @@ func refresh() -> void:
 	_state(_tab_history, Router.current is HistoryScreen, choose_lock,
 		"Every run you have finished.")
 
-	var hull_note := "Hull %d of %d — %s.\nTen cells whatever the frame, so each is a tenth of your own maximum. Repairs cost %.1f scrap a point where you are standing." % [
-		Run.hp, Run.max_hp(), Run.hull.name, Run.repair_cost_per_hull()]
+	# These say what the gauge IS before they say anything about its numbers.
+	# Someone hovering a bar they do not recognise is asking "what is this",
+	# not "what is the arithmetic" — the figures are already beside the cells,
+	# and a tooltip that opens with them answers a question nobody hovered to
+	# ask. Description first, then the one consequence that matters, then the
+	# live rate.
+	# No repair rate here. It is priced per station now, so a number quoted on a
+	# bar that follows you everywhere is only true where you happen to be
+	# standing — and a figure that silently changes meaning is worse than no
+	# figure. The station screen quotes it where it applies.
+	var hull_note := "Your hull is the ship itself — this is your health.\nAt zero the run ends. Stations weld it back on, for scrap."
 	_hull.set_hull(Run.hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = hull_note
+	# Colour carries it, without the word. The cells already go green to ember to
+	# red and the figure turns with them at the same third, so the label was a
+	# third copy of a signal that was reading fine twice.
+	_hull_text.text = "%d/%d" % [Run.hp, Run.max_hp()]
+	_hull_text.add_theme_color_override("font_color",
+		Color("#d4614f") if Run.hp < Run.max_hp() * 0.35 else UITheme.COLD)
+	_hint(_hull_text, hull_note)
 
 	var over := Run.heat - Run.heat_cap()
-	var heat_note := "Heat %d of %d, shedding %d per turn.\nNo cap and no shutdown — go over and you pay 1 hull per point at end of turn. Heat is a second health bar you are allowed to spend." % [
-		Run.heat, Run.heat_cap(), Run.dissipation()]
+	# Same shape as hull: what heat IS, then what going past the cap costs you.
+	# The second line changes when you are over because at that point the rule
+	# has stopped being hypothetical and become a bill.
+	var shed: int = maxi(1, Run.dissipation())
+	var heat_note := "Weapons and systems run hot — heat is what they leave behind.\nPast %d it burns 1 hull a point at end of turn. Vents %d a turn on its own." % [
+		Run.heat_cap(), shed]
 	if over > 0:
-		heat_note = "Heat %d, %d over cap.\nThat is %d hull at end of turn unless you vent. Shedding %d per turn." % [
-			Run.heat, over, over, Run.dissipation()]
+		heat_note = "Weapons and systems run hot — heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Vents %d a turn on its own." % [
+			over, over, shed]
 	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
 	_heat.tooltip_text = heat_note
 	_hint(_heat_label, heat_note)
@@ -182,10 +217,10 @@ func refresh() -> void:
 	_hint(_heat_text, heat_note)
 
 	_value(_scrap, str(Run.scrap))
-	_hint(_scrap, "Scrap: %d.\nThe only currency. Repairs, upgrades and purchases all come out of it — which is where this game's difficulty actually lives." % Run.scrap)
+	_hint(_scrap, "Scrap is the only currency.\nRepairs, upgrades and purchases all come out of the same pile.")
 	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
-	_hint(_fuel, "Fuel: %d.\nEvery jump costs by how far it plainly is on the chart. Run dry between stations and the run ends adrift." % Run.fuel)
+	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")
 
 ## Sampled a few times a second rather than every frame: a counter that updates
 ## sixty times a second is unreadable, and averaging over a short window is what
@@ -253,8 +288,7 @@ func _refresh_materials() -> void:
 			continue
 		_value(row2, str(s.count))
 		var d := DB.material(s.id)
-		_hint(row2, "%s: %d.\n%s\nMaterials are not a second currency — they are what the fabricator needs before scrap will buy anything." % [
-			str(s.name), int(s.count), str(d.get("text", ""))])
+		_hint(row2, "%s\n%s" % [str(s.name), str(d.get("text", ""))])
 
 func _value(row: HBoxContainer, text: String) -> void:
 	var v := row.get_node_or_null("Value") as Label

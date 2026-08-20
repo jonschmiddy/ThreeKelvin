@@ -153,18 +153,31 @@ var _chart_test: RefCounted = null
 ## the raw gauges each one is derived from so a surprising attribute can be
 ## traced to the stat that caused it without opening Database.gd.
 func _print_attribute_table() -> void:
-	print("chassis            HUL THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit set")
+	print("chassis            HUL THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit deck hand set")
 	for man in DB.STARTABLE:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			Run.start_new_run(man, int(w))
 			var row := ""
 			for a in Run.attributes():
 				row += "%3d " % int(a.value)
-			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d  %s %d" % [
+			# Deck size is the number that decides whether a starting hand is a
+			# DRAW or just your whole deck, and it is not obvious from the kit:
+			# modules grant 2 cards, utilities 1, and Halcyon one fewer than
+			# whatever it would have been.
+			var deck := 0
+			for mod in Run.installed:
+				deck += mod.grant_count()
+			# slots_for(), not the raw hull numbers: perks add mounts, and a table
+			# that prints 1/2/3 for a ship carrying four utilities is a table that
+			# makes you go looking for a bug in the fitting code. Cygnet's
+			# spare_bay is exactly that case.
+			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d %4d %4d  %s %d" % [
 				Run.hull.name, row, Run.hp, Run.heat_cap(), Run.dissipation(),
 				Run.hull.dodge, Run.hull.initiative, Run.hull.fuel_factor,
-				Run.hull.weapon_slots, Run.hull.system_slots, Run.hull.utility_slots,
-				Run.installed.size(),
+				Run.slots_for(ModuleData.Slot.WEAPON),
+				Run.slots_for(ModuleData.Slot.SYSTEM),
+				Run.slots_for(ModuleData.Slot.UTILITY),
+				Run.installed.size(), deck, Run.hand_size(),
 				DB.short_name(DB.manufacturer_name(man)), Run.manufacturer_count(man)])
 		print("")
 	print("\nunbranded salvage frames, at full hull:")

@@ -19,6 +19,14 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
 @export var sensors: int = 0
 @export var stealth: int = 0
 
+## Issued with a ship, never found on one.
+##
+## The generic kit every chassis launches with. Kept out of the loot pool
+## deliberately: they exist so the deck has a floor, and a floor that keeps
+## turning up in wrecks would crowd out the branded parts you are flying around
+## to collect. You start with them and you replace them.
+@export var starter_only: bool = false
+
 ## Rolled at generation time
 @export var affixes: Array[AffixData] = []
 @export var scrap_value: int = 8

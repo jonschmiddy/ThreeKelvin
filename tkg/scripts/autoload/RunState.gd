@@ -134,7 +134,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 func fit_chassis(manufacturer: StringName = &"",
 		w: HullData.Weight = HullData.Weight.MEDIUM) -> void:
 	var man := manufacturer
-	if man == &"" or not DB.STARTER_KITS.has(man):
+	if man == &"" or not DB.STARTER_WEAPON.has(man):
 		man = DB.STARTABLE.pick_random()
 	hull = (DB.hull_for(man, w) as HullData).duplicate(true) as HullData
 	hull.tier = 0
@@ -149,10 +149,62 @@ func fit_chassis(manufacturer: StringName = &"",
 		if slots_used(m.slot) >= slots_for(m.slot):
 			continue
 		installed.append(m)
+	_top_up_deck()
 	hp = max_hp()
 	heat = 0
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
+
+## How many cards the fitted modules put in the deck.
+func deck_size() -> int:
+	var n := 0
+	for m in installed:
+		n += m.grant_count()
+	return n
+
+## Fill spare mounts with more yard stock until the deck can actually be drawn
+## from.
+##
+## The starting kit is one shape — a weapon, two systems, a utility — and the
+## frames are not. Four makers drop a weapon mount, so on a LIGHT frame their
+## generic weapon had nowhere to go and two cards vanished, while the same ship
+## sat on spare system and utility mounts the kit could not reach. Dredge,
+## Cygnet, Halcyon and Calyx lights opened two cards down on Korvan's for no
+## reason anyone chose.
+##
+## The floor is a function of HAND SIZE, because that is what makes it matter:
+## a deck no bigger than the hand is not a deck, you simply hold all of it, and
+## light frames draw the most. So the ships that need the biggest decks are
+## exactly the ones this used to shortchange.
+##
+## Distinct parts first, in two passes. Yard stock has three of each slot, so a
+## frame with spare mounts gets a Slug Thrower and a Ranging Scope rather than a
+## second and third Hull Plating — and a starting deck of nine identical cards
+## is not a deck either. The second pass allows duplicates only because a frame
+## can have more mounts than the yard has distinct parts for that slot.
+func _top_up_deck() -> void:
+	var target := hand_size() + 4
+	for allow_dupes in [false, true]:
+		while deck_size() < target:
+			var fitted := false
+			for id in DB.GENERIC_STOCK:
+				var m := DB.modules[id] as ModuleData
+				if slots_used(m.slot) >= slots_for(m.slot):
+					continue
+				if not allow_dupes and _has_module(id):
+					continue
+				installed.append(m.duplicate(true) as ModuleData)
+				fitted = true
+				break
+			# Out of mounts, or out of distinct parts on this pass.
+			if not fitted:
+				break
+
+func _has_module(id: StringName) -> bool:
+	for m in installed:
+		if m.id == id:
+			return true
+	return false
 
 func log_line(text: String, kind: StringName = &"sys") -> void:
 	Sig.log_line.emit(text, kind)
@@ -243,7 +295,12 @@ func has_set(id: StringName, threshold: int) -> bool:
 # unbranded frames and not yet against the seven manufacturer hulls or against
 # any real event table. Expect to move them.
 
-const ATTR_MAX := 6
+## Ten, not six. Six cells could not separate twenty-one chassis: half the
+## Thermal column landed on the same number and the difference between a Korvan
+## medium and a Solari medium — which is most of what those two makers ARE —
+## rounded away. Every constant below was rescaled with it, not multiplied
+## through: the point of the wider scale is that the ships spread out in it.
+const ATTR_MAX := 10
 
 ## Hull is measured against a fixed reference, not against your own maximum.
 ##
@@ -264,7 +321,7 @@ func attr_hull() -> int:
 ## Thrust reads off fuel burn: a bigger engine moves more ship and drinks more
 ## doing it, so the factor that prices your jumps is already the number.
 func attr_thrust() -> int:
-	return clampi(int(round(hull.fuel_factor * 2.8)), 0, ATTR_MAX)
+	return clampi(int(round(hull.fuel_factor * 4.7)), 0, ATTR_MAX)
 
 ## Dodge is the bulk of it; initiative tilts it. The +1 floor is there because
 ## without it every chassis with dodge under 0.05 and negative initiative read
@@ -272,7 +329,7 @@ func attr_thrust() -> int:
 ## Maneuver as an ore barge, which is not a distinction worth erasing. A barge
 ## can still reach 0 by being an actual barge.
 func attr_maneuver() -> int:
-	return clampi(int(round(hull.dodge * 16.0 + hull.initiative * 0.6 + 1.0)), 0, ATTR_MAX)
+	return clampi(int(round(hull.dodge * 23.0 + hull.initiative * 0.9 + 1.5)), 0, ATTR_MAX)
 
 ## Thermal is capacity AND shedding, per §1.4, because an event that asks "can
 ## you sit in this heat" is asking about both and would otherwise need two
@@ -298,24 +355,31 @@ func attr_maneuver() -> int:
 const THERMAL_FLOOR := 8.0
 
 func attr_thermal() -> int:
-	var v := (heat_cap() - THERMAL_FLOOR) / 3.5 + dissipation() / 2.5
+	var v := (heat_cap() - THERMAL_FLOOR) / 2.1 + dissipation() / 1.5
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 ## Sensors and Stealth are the two with no other gauge in the game, so unlike
 ## the four above they are summed rather than derived. Hull baseline plus fitted
 ## modules — the same shape as the others, where the chassis sets the platform
 ## and what you bolt on adjusts it.
+## Sensors and Stealth are authored in small whole numbers — a hull carries 0 to
+## 2, a module 1 or 2 — because that is a legible thing to write in a data table.
+## The scale they are DISPLAYED on is a different question, so the conversion
+## lives here rather than in the catalog. At 1.7 the best sensor ship in the game
+## reads 7 and the stealthiest reads 9, which leaves both room to improve.
+const SENSE_SCALE := 1.7
+
 func attr_sensors() -> int:
 	var n := hull.sensors
 	for m in installed:
 		n += m.sensors
-	return clampi(n, 0, ATTR_MAX)
+	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
 
 func attr_stealth() -> int:
 	var n := hull.stealth
 	for m in installed:
 		n += m.stealth
-	return clampi(n, 0, ATTR_MAX)
+	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
 
 ## Every attribute, in display order, as {key, label, short, value}.
 ## One list so the ship tab, the chassis select and any future check UI cannot
