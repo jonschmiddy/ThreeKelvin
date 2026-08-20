@@ -39,7 +39,14 @@ extends Node
 ## Bumped on any change to the messages below, or to the meaning of the fields
 ## in them. Two builds with different numbers refuse each other immediately.
 ## This is cheap to raise and very expensive to have forgotten.
-const PROTOCOL: int = 1
+##
+## 2: a roster slot carries `build` — the ship that player is flying, as
+##    `ShipBuild.to_wire()`. A version 1 host would send slots without it and
+##    every partner would be drawn as an empty hull.
+## 3: a roster slot also carries `at` — which system that player is in — and
+##    the host holds `claims`, the systems the party has consumed. A version 2
+##    host answers neither, so every wreck would be strippable four times.
+const PROTOCOL: int = 3
 
 const MAX_PLAYERS: int = NetTransport.MAX_PLAYERS
 
@@ -88,6 +95,45 @@ var forced_fingerprint: int = 0
 var _join_serial: int = 0
 var _said_hello: bool = false
 
+## Everyone's ship, resolved from the wire and kept until the wire changes.
+## Keyed by peer id, holding `[fingerprint, ShipBuild]`.
+##
+## The fingerprint is what makes this a cache rather than a delay. A roster
+## arrives as a whole and REPLACES every slot, so four ships are new objects
+## every time one player vents a point of heat — and a partner's build being a
+## new object is what a view uses to decide it has to repaint. Repainting a hull
+## is fifteen thousand pixels of GDScript, three times over, several times a
+## turn. So the wire is fingerprinted and an unchanged ship comes back as the
+## same object it was.
+var _builds: Dictionary = {}
+
+## The local presence, as last described to the party.
+##
+## A fingerprint rather than the dictionary: the comparison is what stops a
+## fight from broadcasting a roster on every point of heat, and comparing two
+## nested dictionaries every frame to save sending one is the wrong trade.
+var _presence_sent: int = 0
+var _presence_dirty: bool = false
+
+## Every system the party has consumed, by node index. Host-authoritative and
+## pushed whole.
+##
+## THE MAP IS ONE INSTANCE, NOT FOUR COPIES. This is the line that decides it,
+## and it is worth being explicit because the seed alone implies the opposite. A
+## shared seed gives four machines an identical galaxy: the same systems, the
+## same fights, the same wrecks holding the same modules, because everything a
+## node holds is drawn from `Rng.derive(tag, node.index)` and therefore depends
+## on WHERE it is rather than on who asked. What a seed cannot say is whether
+## somebody has already been there. Without this list four players strip the
+## same derelict and each keep the Legendary, and `coop-design.md` §3's closed
+## per-dive economy is paid out four times.
+##
+## Whole rather than incremental. A dive consumes tens of systems, not
+## thousands, and a list that is rebuilt from scratch on every push cannot drift
+## — which an append-only stream of deltas can, the first time one is dropped
+## or arrives twice.
+var claims: PackedInt32Array = PackedInt32Array()
+
 
 func _ready() -> void:
 	# Only the autoload copy should be reachable by name. The headless test
@@ -98,6 +144,20 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.connection_failed.connect(_on_connect_failed)
 	multiplayer.server_disconnected.connect(_on_host_lost)
+
+	# Your ship, whenever it changes, so the party can draw it.
+	#
+	# This is the one place the session layer reads run state, and it is worth
+	# being explicit about why it is not a breach of the rule at the top of this
+	# file. It does not move a ship or resolve anything: it forwards a picture.
+	# The roster has carried `hull` since the first version for exactly the same
+	# reason — what somebody is flying is a fact about the PARTY.
+	Sig.ship_changed.connect(_mark_presence)
+	Sig.resources_changed.connect(_mark_presence)
+	Sig.player_combat_state_changed.connect(_mark_presence)
+	# And where you are. A jump is the one thing in this game that moves a ship
+	# between systems, so it is the only event that can change the answer.
+	Sig.jumped.connect(func(_index: int) -> void: _mark_presence())
 
 
 # --- what a screen calls -------------------------------------------------
@@ -117,8 +177,12 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	_content_hash = forced_fingerprint if forced_fingerprint != 0 else content_fingerprint()
 	multiplayer.multiplayer_peer = peer
 	roster.clear()
+	_builds.clear()
+	claims.clear()
 	_said_hello = false
 	_join_serial = 0
+	_presence_sent = 0
+	_presence_dirty = true
 	roster[1] = _slot(1, player_name, hull_id, 0)
 	_set_state(State.HOSTING)
 	Sig.party_changed.emit()
@@ -141,7 +205,11 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	_content_hash = forced_fingerprint if forced_fingerprint != 0 else content_fingerprint()
 	multiplayer.multiplayer_peer = peer
 	roster.clear()
+	_builds.clear()
+	claims.clear()
 	_said_hello = false
+	_presence_sent = 0
+	_presence_dirty = true
 	_handshake_deadline = _now() + handshake_timeout
 	_set_state(State.JOINING)
 	return true
@@ -157,6 +225,8 @@ func leave_party() -> void:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
 	roster.clear()
+	_builds.clear()
+	claims.clear()
 	transport = null
 	dive_seed = 0
 	_set_state(State.OFFLINE)
@@ -231,6 +301,43 @@ func last_error() -> String:
 	return _error
 
 
+## What one player's ship looks like, or null if they have not said yet.
+##
+## Null is a real answer and callers have to mean it: a slot exists from the
+## moment somebody joins, and their ship exists from the moment they leave the
+## chassis select. Between those two the party knows a name and nothing else.
+func build_of(id: int) -> ShipBuild:
+	if not roster.has(id):
+		return null
+	var wire: Dictionary = roster[id].get("build", {})
+	if wire.is_empty():
+		return null
+	var stamp := hash(wire)
+	var held: Array = _builds.get(id, [])
+	if held.size() == 2 and int(held[0]) == stamp:
+		return held[1]
+	var made := ShipBuild.from_wire(wire)
+	_builds[id] = [stamp, made]
+	return made
+
+
+## Which system somebody is in, or -1 if they have not said.
+##
+## -1 is a real answer: a player still on the chassis select has a galaxy and no
+## position in it yet, and the chart draws nothing for them rather than putting
+## them on system zero.
+func where_is(id: int) -> int:
+	if not roster.has(id):
+		return -1
+	return int(roster[id].get("at", -1))
+
+
+## Everyone except you, in arrival order. What the convoy strip draws.
+func partners() -> Array:
+	var me := local_id()
+	return slots().filter(func(s: Dictionary) -> bool: return int(s.id) != me)
+
+
 ## Ordered for display: the host first, then by the order people arrived.
 func slots() -> Array:
 	var out: Array = roster.values().duplicate()
@@ -264,6 +371,13 @@ func content_fingerprint() -> int:
 
 
 func _process(_delta: float) -> void:
+	# Coalesced to one send per frame. Playing a card fires `resources_changed`
+	# and `player_combat_state_changed` together, and venting fires the first of
+	# them once per point — so the signals say "something moved" several times
+	# for one thing a partner would see move once.
+	if _presence_dirty and _can_talk():
+		_presence_dirty = false
+		_send_presence()
 	if state != State.JOINING:
 		return
 	# A peer that has gone away while we were still joining is a failed join,
@@ -321,6 +435,10 @@ func _refuse(reason: String) -> void:
 @rpc("authority", "call_remote", "reliable")
 func _push_roster_to(rows: Array) -> void:
 	roster.clear()
+	# NOT `_builds.clear()`. Every slot here is a new dictionary and most of them
+	# describe a ship that has not changed; build_of() compares fingerprints and
+	# hands the old object back, which is what stops three hulls being redrawn
+	# every time one of them takes a point of damage.
 	for row in rows:
 		roster[int(row.id)] = row
 	if state == State.JOINING:
@@ -338,6 +456,41 @@ func _set_ready_at_host(value: bool) -> void:
 func _choose_hull_at_host(hull_id: StringName) -> void:
 	if is_host():
 		_apply_hull(multiplayer.get_remote_sender_id(), hull_id)
+
+
+## "This is my ship, and this is where it is." Through the host like everything
+## else, rather than peer to peer.
+##
+## Client-to-client would be one hop shorter and it is not worth having: the
+## host is the authority, `_push_roster()` is already the tested path for
+## telling four machines one fact, and the relay transport routes through the
+## host anyway. One message shape, one direction, one place it can go wrong.
+##
+## The ship and the position travel together because they change for the same
+## reasons and neither is worth a message of its own. A jump moves you and
+## cools you; a fight damages you and heats you.
+@rpc("any_peer", "call_remote", "reliable")
+func _report_presence_at_host(wire: Dictionary, at: int) -> void:
+	if is_host():
+		_apply_presence(multiplayer.get_remote_sender_id(), wire, at)
+
+
+## "I have consumed this system." Only the host keeps the list.
+##
+## The claim is a NODE INDEX and nothing else. What was in the system does not
+## travel, because it never had to: `Rng.derive(tag, node.index)` already puts
+## the same modules in the same wreck on every machine. This message says the
+## wreck is empty now, which is the one fact a seed cannot carry.
+@rpc("any_peer", "call_remote", "reliable")
+func _claim_at_host(index: int) -> void:
+	if is_host():
+		_apply_claim(index)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _push_claims_to(list: PackedInt32Array) -> void:
+	claims = list
+	Sig.party_map_changed.emit()
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -398,6 +551,7 @@ func _on_peer_disconnected(id: int) -> void:
 	if not is_host():
 		return
 	if roster.erase(id):
+		_builds.erase(id)
 		_push_roster()
 		Sig.party_changed.emit()
 
@@ -408,6 +562,83 @@ func _apply_ready(id: int, value: bool) -> void:
 	roster[id].ready = value
 	_push_roster()
 	Sig.party_changed.emit()
+
+
+## Something about your ship moved. The send itself waits for the frame — see
+## _process.
+func _mark_presence() -> void:
+	if is_networked():
+		_presence_dirty = true
+
+
+## Whether there is anybody to tell. HOSTING covers a host alone in a lobby,
+## whose own slot still has to carry a build so that the next arrival is handed
+## one; JOINING does NOT, and that is the point of this being separate from
+## is_networked() — an RPC through a peer that is still connecting is reported
+## as an error for a message that was never going to arrive.
+func _can_talk() -> bool:
+	return state == State.HOSTING or state == State.IN_PARTY or state == State.DIVING
+
+
+func _send_presence() -> void:
+	var b := ShipBuild.local()
+	# No ship yet. The lobby runs before any run exists, and a party formed
+	# there has four names and no hulls until everybody has picked one.
+	if b.hull == null:
+		return
+	b.pilot = _local_name
+	var wire := b.to_wire()
+	var at := Run.at if not Run.map.is_empty() else -1
+	var stamp := hash([wire, at])
+	if stamp == _presence_sent:
+		return
+	_presence_sent = stamp
+	if is_host():
+		_apply_presence(1, wire, at)
+	else:
+		_report_presence_at_host.rpc_id(1, wire, at)
+
+
+func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
+	if not roster.has(id):
+		return
+	roster[id].build = wire
+	roster[id].at = at
+	_push_roster()
+	Sig.party_changed.emit()
+
+
+## Consume a system, for everybody. Safe to call in the solo game, where it
+## does nothing at all.
+##
+## Called from `RunState.consume_node()` and nowhere else — one door, so a new
+## way to finish a system is shared by construction rather than by somebody
+## remembering to add a line.
+func claim(index: int) -> void:
+	if not _can_talk() or index < 0:
+		return
+	if is_host():
+		_apply_claim(index)
+	else:
+		# The caller has already marked its own copy of the node — see
+		# RunState.consume_node(). A client that waited for the round trip would
+		# show the wreck it just stripped as still full until the host answered,
+		# which on a relay is a visible flicker on the chart.
+		_claim_at_host.rpc_id(1, index)
+
+
+func _apply_claim(index: int) -> void:
+	if claims.has(index):
+		return
+	claims.append(index)
+	_push_claims()
+	Sig.party_map_changed.emit()
+
+
+func _push_claims() -> void:
+	if not is_host() or multiplayer.get_peers().is_empty():
+		return
+	_push_claims_to.rpc(claims)
 
 
 func _apply_hull(id: int, hull_id: StringName) -> void:
@@ -449,7 +680,10 @@ func _push_roster() -> void:
 
 
 func _slot(id: int, player_name: String, hull_id: StringName, order: int) -> Dictionary:
-	return {"id": id, "name": player_name, "hull": hull_id, "ready": false, "order": order}
+	# `build` is empty and `at` is -1 until that player has a ship and a place to
+	# be in. See build_of() and where_is().
+	return {"id": id, "name": player_name, "hull": hull_id, "ready": false,
+		"order": order, "build": {}, "at": -1}
 
 
 func _set_state(next: State) -> void:
@@ -473,6 +707,8 @@ func _drop(message: String) -> void:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
 	roster.clear()
+	_builds.clear()
+	claims.clear()
 	_set_state(State.FAILED)
 	Sig.party_failed.emit(message)
 

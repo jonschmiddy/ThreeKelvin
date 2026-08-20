@@ -96,6 +96,17 @@ func _ready() -> void:
 		_net_test.run(get_tree())
 		return
 
+	# One PNG per ship, straight out of ShipView's own canvas:
+	#   godot --headless --path . -- shipsheet
+	# Each hull twice, bare and loaded, because the question is not whether a
+	# ship draws — it is whether the ship that draws is the one described. It
+	# needs no renderer at all: the view composites into an Image, and the
+	# Image is the file. See ConvoyTest.
+	if "shipsheet" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	DisplaySettings.load_and_apply()
 	theme = UITheme.build()
 
@@ -158,6 +169,15 @@ func _ready() -> void:
 	# Star chart cache test. Needs the real shell and a window, so unlike the
 	# sim and savetest it runs after boot rather than instead of it:
 	#   godot --path . -- charttest
+	# The sector with a party in it:  godot --path . -- convoy
+	# Needs a window, and runs after boot rather than instead of it, because it
+	# photographs the real screen — the arena, the salvage rail and the hand all
+	# competing for the same width, which is the whole question. The party is a
+	# fabricated ROSTER and no port is opened.
+	if "convoy" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
+		_convoy_test.run(get_tree())
+		return
 	if "charttest" in OS.get_cmdline_user_args():
 		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
 		# and a RefCounted nothing holds a reference to is freed the moment the
@@ -220,6 +240,7 @@ var _chart_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null
 var _net_test: RefCounted = null
+var _convoy_test: RefCounted = null
 
 ## Every checked option in the table, measured against three real ships.
 ##

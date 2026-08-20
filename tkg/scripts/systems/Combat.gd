@@ -497,7 +497,7 @@ func _victory() -> void:
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
 	if clears_node:
-		node.cleared = true
+		Run.consume_node(node)
 
 	if enemy.template.boss:
 		Run.win()
@@ -520,7 +520,7 @@ func _victory() -> void:
 func _pacify() -> void:
 	var node: MapGen.MapNode = Run.node_at()
 	if clears_node:
-		node.cleared = true
+		Run.consume_node(node)
 	Run.exotic += 1
 	Run.dross += new_dross
 	Run.whale_boon = true

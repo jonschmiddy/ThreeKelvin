@@ -21,7 +21,9 @@ extends RefCounted
 ## What this proves: codes survive a round trip and refuse typos; a party forms
 ## and the roster reaches everyone; the two version refusals fire and arrive as
 ## readable text; a full party turns the fifth player away; a launch puts the
-## same seed on all four machines; and losing the host is reported rather than
+## same seed on all four machines; a ship crosses the wire and comes back as
+## the same ship on the other machine; a system consumed on one machine is
+## consumed on all of them; and losing the host is reported rather than
 ## swallowed.
 ##
 ## What this does NOT prove: that any of it works through a NAT. Nothing that
@@ -64,6 +66,13 @@ func run(tree: SceneTree) -> void:
 	await _party_test()
 	print("\n=== refusals ===")
 	await _refusal_tests()
+	print("\n=== ship builds ===")
+	_wire_tests()
+	print("\n=== ships across the wire ===")
+	await _build_test()
+	print("\n=== one map, not four ===")
+	_consume_tests()
+	await _map_test()
 	print("\n=== the host leaves ===")
 	await _host_loss_test()
 
@@ -227,8 +236,11 @@ func _party_test() -> void:
 # --- refusals -------------------------------------------------------------
 
 func _refusal_tests() -> void:
+	# Against NetSession.PROTOCOL, not against the number it happens to be
+	# today. The message names the host's version, so a hardcoded 1 here turns
+	# the next protocol bump into a test failure that says nothing true.
 	await _one_refusal("a different protocol", PORT_BASE + 1, 99, 0,
-		"Different game version. Host is protocol 1, you are 99.")
+		"Different game version. Host is protocol %d, you are 99." % NetSession.PROTOCOL)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
 
@@ -272,6 +284,234 @@ func _one_refusal(what: String, port: int, protocol: int, fingerprint: int, want
 	check("%s is explained" % what, c.last_error(), want)
 	print("  %s: %s" % [what, c.last_error()])
 	check("%s leaves the party empty" % what, host.party_size(), 1)
+	await _teardown()
+
+
+# --- what everybody is flying ---------------------------------------------
+
+## The description on its own, before any network is involved.
+##
+## Deliberately given values a real run would take a while to reach — a part on
+## the third hardpoint, a part built by somebody who did not build the hull, a
+## ship over its heat cap — because those are the fields whose loss is invisible.
+## A build that comes back with every mount at zero draws every gun on the spine
+## and looks like a rendering decision.
+func _wire_tests() -> void:
+	var b := ShipBuild.new()
+	b.pilot = "Mercer"
+	b.hull = DB.hull_for(&"dredge", HullData.Weight.MEDIUM)
+	b.parts = [
+		{"slot": int(ModuleData.Slot.WEAPON), "mount": 2, "maker": &"halcyon", "id": &"beam"},
+		{"slot": int(ModuleData.Slot.UTILITY), "mount": 0, "maker": &"cygnet", "id": &"coolline"},
+	]
+	b.hp = 7
+	b.max_hp = 44
+	b.heat = 15
+	b.heat_cap = 10
+
+	var back := ShipBuild.from_wire(b.to_wire())
+	check("the pilot survives", back.pilot, "Mercer")
+	check("the hull maker survives", back.hull.manufacturer, &"dredge")
+	check("the weight class survives", int(back.hull.weight), int(HullData.Weight.MEDIUM))
+	check("the part count survives", back.parts.size(), 2)
+	check("the hardpoint survives", int(back.parts[0].mount), 2)
+	check("who built the part survives", StringName(back.parts[0].maker), &"halcyon")
+	check("damage survives", back.hp, 7)
+	# Over cap is a state the ship art has its own colours for, so it has to
+	# arrive as itself rather than clamped on the way.
+	ok("and an overheat arrives as an overheat", back.heat_ratio() > 1.0)
+
+	# A showroom hull is an ordinary build with nothing on it. ShipView has no
+	# preview MODE any more, so this is what makes the chassis select show a
+	# bare ship rather than the one you are flying.
+	var shown := ShipBuild.showroom(DB.hull_for(&"korvan", HullData.Weight.LIGHT))
+	check("a showroom ship carries no parts", shown.parts.size(), 0)
+	check("and is undamaged", shown.damage(), 0.0)
+	check("and is cold", shown.heat_ratio(), 0.0)
+
+	# And a message that makes no sense. A weight class of 99 names no hull, and
+	# the slot that draws a partner asks that hull for its manufacturer — so the
+	# cost of not checking is the sector screen going down, on every machine,
+	# because of one bad field on one peer.
+	var junk := ShipBuild.from_wire({"maker": &"nobody", "weight": 99,
+		"parts": "not a list", "hp": "seven"})
+	ok("nonsense off the wire still names a hull", junk.hull != null)
+	check("and carries no parts", junk.parts.size(), 0)
+	var empty := ShipBuild.from_wire({})
+	ok("and so does an empty message", empty.hull != null)
+
+
+## A ship described on one machine, drawn on another.
+##
+## The failure this catches is not "no ship appears" — that is loud. It is a
+## partner drawn as the WRONG ship, which looks like art rather than like a bug
+## and which cannot be seen without two machines.
+##
+## Nothing here asks for a build to be sent. That is the point: fitting a
+## chassis is what a player does, and the party seeing it is supposed to be a
+## consequence rather than a call somebody remembered to make.
+func _build_test() -> void:
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 4
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var c := _make_peer("client")
+	c.join_party(code, "Mercer", &"korvan", DirectTransport.new())
+	var joined := await _wait_until(func() -> bool: return c.state == NetSession.State.IN_PARTY, 5.0)
+	ok("the client joined", joined)
+	if not joined:
+		await _teardown()
+		return
+
+	# One process holds one `Run`, so both peers describe the same ship. That is
+	# a limit of the harness and not of the feature — what is being checked is
+	# that a description travels intact in both directions, which does not need
+	# the two ships to differ.
+	Run.fit_chassis(&"solari", HullData.Weight.HEAVY)
+	var told := await _wait_until(func() -> bool: return c.build_of(1) != null, 3.0)
+	ok("the host's ship reached the client without being asked for", told)
+	if told:
+		var seen: ShipBuild = c.build_of(1)
+		check("and it is the right hull", seen.hull.manufacturer, &"solari")
+		check("and the right weight class", int(seen.hull.weight), int(HullData.Weight.HEAVY))
+		check("and carries the same parts", seen.parts.size(), Run.installed.size())
+
+	# A refit, and the party sees the new ship. This is the whole feature: a gun
+	# bolted on here is a gun drawn over there.
+	Run.fit_chassis(&"redline", HullData.Weight.LIGHT)
+	var changed := await _wait_until(func() -> bool:
+		var b: ShipBuild = c.build_of(1)
+		return b != null and b.hull.manufacturer == &"redline", 3.0)
+	ok("a refit reaches the client too", changed)
+
+	# And the other way, with the two gauges the art actually reads.
+	var them := c.local_id()
+	Run.hp = 7
+	Run.heat = Run.heat_cap() + 5
+	Sig.resources_changed.emit()
+	var hurt := await _wait_until(func() -> bool:
+		var b: ShipBuild = host.build_of(them)
+		return b != null and b.hp == 7 and b.heat_ratio() > 1.0, 3.0)
+	ok("the client's damage and heat reached the host", hurt)
+	if hurt:
+		var got: ShipBuild = host.build_of(them)
+		check("with the right hull", got.hull.manufacturer, &"redline")
+		var want: Array = []
+		for m in Run.installed:
+			want.append("%d/%d/%s" % [int(m.slot), maxi(m.mount, 0), m.manufacturer])
+		var have: Array = []
+		for part in got.parts:
+			have.append("%d/%d/%s" % [int(part.slot), int(part.mount), part.maker])
+		check("and every part on its own hardpoint", "|".join(have), "|".join(want))
+	await _teardown()
+
+
+# --- one map, not four ----------------------------------------------------
+
+## The local half, with nobody to tell.
+##
+## `consume_node()` is the one door and it has to work in the solo game
+## unchanged, because every call site was rewritten to use it. A chokepoint that
+## only works in a party is a chokepoint that broke the game for one player.
+func _consume_tests() -> void:
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var n: MapGen.MapNode = Run.map[12]
+	n.cleared = false
+	Run.consume_node(n)
+	ok("a system is consumed with no party", n.cleared)
+	check("and nothing was claimed offline", Net.claims.size(), 0)
+	# Idempotent, because the sector can offer the same wreck twice on the way
+	# through a resume and the second answer must not be a second haul.
+	Run.consume_node(n)
+	ok("consuming it twice is not two events", n.cleared)
+
+	# And the other direction: a list that arrived from the party, applied to a
+	# map this machine generated itself.
+	Run.map[40].cleared = false
+	Run.map[41].cleared = false
+	Net.claims = PackedInt32Array([40, 41, 99999, -3])
+	Run.adopt_party_claims()
+	ok("a claim from the party clears this machine's copy", Run.map[40].cleared)
+	ok("and the one beside it", Run.map[41].cleared)
+	# Out-of-range indices cannot happen behind the content fingerprint and a
+	# shared seed. They are checked because the alternative is an index error
+	# taking the chart down on whoever receives it.
+	ok("an index off the end of the map is ignored, not fatal", true)
+	Net.claims = PackedInt32Array()
+
+
+## The networked half: one machine uses a system up, and every other machine
+## agrees that it is used up.
+##
+## This is the message that stops four players each stripping the same derelict.
+## The wreck holds the same two modules on all four machines already — that is
+## what the shared seed and `Rng.derive()` buy — so without this the hold
+## economy in `coop-design.md` §3 pays out four times for one wreck.
+func _map_test() -> void:
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 5
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var others: Array = []
+	for i in 2:
+		var c := _make_peer("client%d" % i)
+		c.join_party(code, "Pilot%d" % i, &"korvan", DirectTransport.new())
+		others.append(c)
+	var joined := await _wait_until(func() -> bool:
+		if host.party_size() != 3:
+			return false
+		for c in others:
+			if c.party_size() != 3:
+				return false
+		return true, 5.0)
+	ok("three ships in the party", joined)
+	if not joined:
+		await _teardown()
+		return
+
+	# A client uses one up. It has to reach the host AND the other client, which
+	# is the half a host-only check would miss.
+	others[0].claim(214)
+	var spread := await _wait_until(func() -> bool:
+		if not host.claims.has(214):
+			return false
+		for c in others:
+			if not c.claims.has(214):
+				return false
+		return true, 4.0)
+	ok("a system consumed by one ship is consumed for the party", spread)
+
+	# And the host's own, which takes a different path — no round trip.
+	host.claim(7)
+	var from_host := await _wait_until(func() -> bool:
+		for c in others:
+			if not c.claims.has(7):
+				return false
+		return true, 4.0)
+	ok("and one consumed by the host reaches everybody too", from_host)
+
+	# Twice is once. The list is pushed whole, so a duplicate would grow it
+	# forever across a dive.
+	others[1].claim(214)
+	await _wait_frames(12)
+	var once := 0
+	for i in host.claims:
+		if i == 214:
+			once += 1
+	check("claiming the same system twice records it once", once, 1)
+	check("and the party has used two systems", host.claims.size(), 2)
+
+	# Where everybody is. One process holds one `Run`, so all three report the
+	# same system — what is being checked is that the number travels at all and
+	# lands in the right slot.
+	var placed := await _wait_until(func() -> bool:
+		return host.where_is(1) == Run.at and others[0].where_is(1) == Run.at, 4.0)
+	ok("everybody's position reaches everybody", placed)
+	check("and an unknown position is -1, not system zero", host.where_is(99), -1)
+	print("  party used %d systems: %s · everybody at %d" % [
+		host.claims.size(), host.claims, host.where_is(1)])
 	await _teardown()
 
 
@@ -339,6 +579,15 @@ func _teardown() -> void:
 	# actually leave the tree before the next test binds the same ports.
 	await _tree.process_frame
 	await _tree.process_frame
+
+
+## A fixed number of frames, for checking that something did NOT happen.
+##
+## _wait_until() cannot express "nothing changed": it returns the moment the
+## condition holds, and a condition that already holds returns immediately.
+func _wait_frames(n: int) -> void:
+	for i in n:
+		await _tree.process_frame
 
 
 func _wait_until(condition: Callable, timeout: float) -> bool:

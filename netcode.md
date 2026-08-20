@@ -178,7 +178,11 @@ scripts/net/LobbyCode.gd        the string a player reads out
 scripts/net/NetTransport.gd     the seam: how machines find each other
 scripts/net/DirectTransport.gd  ENet at an address in the code
 scripts/net/NetSession.gd       autoload `Net` — the party
+scripts/net/RelayPeer.gd        a MultiplayerPeer over one WebSocket
+scripts/net/RelayTransport.gd   a room number at the Cloudflare relay
+scripts/data/ShipBuild.gd       one ship, small enough to send
 scripts/sim/NetTest.gd          four peers in one process
+scripts/sim/ConvoyTest.gd       the party display, without a party
 ```
 
 ### The lobby code
@@ -202,7 +206,7 @@ DFW0-000C-5M8M     a host at 127.0.0.1:34210
 **The handshake refuses before it connects.** A party whose builds disagree does not fail at connect time. It fails forty minutes in, at the one node where one player's tables rolled a module the others do not have. So the first message carries a protocol number and a fingerprint of the content tables, and a mismatch is refused in words:
 
 ```
-Different game version. Host is protocol 1, you are 99.
+Different game version. Host is protocol 3, you are 99.
 Your content does not match the host's. Compare builds or mods.
 The party is full.
 The host did not answer. Check the code, and whether the port is open.
@@ -212,6 +216,53 @@ That code has a typo in it.
 Every one of those strings is asserted by the test. A refusal that arrives as a bare disconnect is the same failure as no refusal at all.
 
 **Nothing in it knows the transport.** `host_party()` takes a `NetTransport` and gets back a code. That is the entire coupling.
+
+### The first thing above the seed: everybody's ship
+
+A roster slot carries a `build` — `ShipBuild.to_wire()`, which is a hull's manufacturer and weight class, the `{slot, mount, maker, id}` of every fitted part, and hull points and heat. That is enough to draw somebody else's ship exactly as they assembled it, and it is deliberately not enough to do anything else with: no cards, no affixes, no rolled numbers. It is a picture, not a game state.
+
+Four decisions are worth recording, because each of them is the cheap version of something expensive.
+
+**It rides the roster rather than a channel of its own.** `_push_roster()` was already the tested path for telling four machines one fact, and the roster already carried `hull` — what somebody is flying has always been a fact about the party. So a new gameplay channel was not needed, and the message that arrives is the message that was already arriving.
+
+**It goes through the host.** Peer to peer would be one hop shorter and would mean a second direction for a message to go wrong in. The host is the authority, and the relay routes through it anyway.
+
+**Nothing calls it.** `NetSession` listens to `ship_changed`, `resources_changed` and `player_combat_state_changed`, coalesces to one send a frame, and drops the send when the description fingerprints the same as the last one. A player fitting a gun is what happens; the party seeing it is a consequence, not a call somebody remembered to add.
+
+**Identity travels as ids.** Both machines already agreed on the content tables at the handshake or there is no party, so sending a `HullData` would be sending a copy of something already agreed. A looted hull is a `duplicate()` of a catalogue frame with its numbers rolled up, so manufacturer plus weight class names its appearance exactly — which is why tier is not on the wire.
+
+`-- nettest` sends a ship in both directions and checks what arrives: the maker, the weight class, the hardpoint each part sits on, who built each part, the damage, and an overheat that has to arrive as an overheat rather than clamped on the way. Those are the fields whose loss is invisible — a build that comes back with every mount at zero draws every gun on the spine and looks like a rendering decision.
+
+**Protocol 2** was this change. A version 1 host sends slots with no build in them, and every partner would be drawn as a bare hull.
+
+### One map, not four copies
+
+A shared seed gives four machines an **identical** galaxy. It does not give them a **shared** one, and the difference is the whole of this section.
+
+Everything a system holds is already drawn from `Rng.derive(tag, node.index)` — what is waiting at a fight, what an event offers, what is in a wreck — so it depends on WHERE it is rather than on who asked or when. Four players therefore find the same two modules in the derelict at index 214, which is exactly right and exactly the problem: each of them can strip it, and `coop-design.md` §3's closed per-dive economy pays out four times for one wreck.
+
+So the host holds one more thing: **`claims`, the list of systems the party has consumed.**
+
+```
+claim   client -> host   one node index
+claims  host -> everyone the whole list
+```
+
+Four decisions, and the first is the one that made the rest small.
+
+**A claim is a node index and nothing else.** What was in the system does not travel because it never had to — both machines already agree about that. The message says the wreck is empty now, which is the one fact a seed cannot carry. Determinism paid for this: without `Rng.derive()` the same message would have had to carry the contents.
+
+**The list is pushed whole, not as deltas.** A dive consumes tens of systems. A list rebuilt from scratch on every push cannot drift; an append-only stream of deltas drifts the first time one arrives twice or not at all, and it drifts silently — a wreck that quietly refills is not a crash.
+
+**There is one door in the game code.** `RunState.consume_node()` sets `cleared` and tells the session. Every place that used to write `n.cleared = true` — the derelict, the fight, the hail, the pulsar, and the simulator — goes through it. A new way to finish a system is shared by construction rather than by somebody remembering to add a line. `Net.claim()` returns immediately when there is no party, which is why every call site changed without gaining a branch.
+
+**Positions ride the presence message.** A roster slot carries `at`, the system that player is in, beside their ship. The two change for the same reasons and neither is worth a message of its own: a jump moves you and cools you, a fight damages you and heats you.
+
+The star chart draws the party from that — a diamond and a name per partner, **outside** the visibility filter that hides systems you have not been to. That is deliberate. The filter is right for a place and wrong for a person: a partner four shells coreward is the piece of information you most want and can least reach, and `coop-design.md` §7's leash — everybody's danger tracking the deepest ship — is only a leash if you can see how deep they are.
+
+`coop-design.md` §9 rules that this should be gated on sensor range, with a last-known position and an age stamp outside it. There is no fog in the game yet. When there is, it gates the position going **onto** the wire rather than coming off it, and nothing on the drawing side changes.
+
+**Protocol 3** is this change, and it answers `coop-design.md` ruling 13: the party shares one galaxy instance.
 
 ### Two processes, one galaxy
 
@@ -259,7 +310,7 @@ The session layer is the part that is hard to change later, which is why it is b
 |---|---|---|
 | ~~**RNG determinism**~~ | ✅ **Done.** The seed `_begin_dive` sends is now honoured: `Rng` puts one galaxy, one map and one set of shelves on every machine that shares it. | Was the top item. See `Rng.gd` and `-- rngtest` |
 | **`Run` is a singleton** | 655 references across 33 files. A host holding four ships needs four of it. | Largest single item; gates most of the rest |
-| **Gameplay messages** | Nothing is sent after the seed. Jump commits, card lock-in, the shared heat field, the shared fuel tank. | Real work, but `Combat` is already UI-free and already headless |
+| **Gameplay messages** | Two exist. A roster slot carries the ship each player is flying and the system they are in; the host holds which systems the party has consumed, so a wreck is stripped once. Still missing: jump commits, card lock-in, the shared heat field, the shared fuel tank. | Real work, but `Combat` is already UI-free and already headless. Danger tracking the deepest ship (§7) is now cheap — every position is already on the wire |
 | ~~**Lobby UI**~~ | ✅ **Done.** `LobbyScreen` — host, code, COPY/PASTE, join, roster, ready, launch. Reached from the title screen under **FLY TOGETHER**; the `-- lobby host` / `-- lobby join CODE` / `auto` flags exist to test it, not to use it. | Two processes have now formed a party and landed in the same galaxy. See below |
 | **§0's gate** | `coop-design.md` rules that heat must gate reward before a commons is built on it, and the measurement says it does not yet. | A design gate, not a code one |
 

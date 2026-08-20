@@ -56,21 +56,31 @@ Four readings, in order of how much they change the design:
 
 **An ambush pays scrap and a module.** It is a fight, and fights in this game are net positive for a competent player. Attaching *more fights* to heat therefore adds texture, not pressure.
 
-So the conclusion is structural, and it is the reason §6 changed in this draft:
+That measurement produced a proposal, which this draft recorded and which has since been **overruled by the designer**. It is left here because the measurement is still true and the reasoning is still worth having:
 
-> **Heat will not become a difficulty driver by having consequences bolted to it. It has to gate reward.**
+> ~~**Heat will not become a difficulty driver by having consequences bolted to it. It has to gate reward.**~~ — proposed, rejected. See the ruling below.
 
-A player must want heat and have to pay for wanting it. That is the two-doors rule in §6, and it is the real fix.
+### RULING: heat does not gate loot
+
+**Winning a fight pays the loot. Fleeing pays nothing. Heat has nothing to do with what a fight drops.**
+
+Heat's only job on the map is the **residual you carry into the next jump**, and that mechanism already exists and already fires — `cool_in_transit()`, `signature()`, `ambush_chance()`, and the ambush stored on the node. Greed at one contact bills you at the next one. That is the whole of it.
+
+This closes three things at once:
+
+- **§6's two doors is off the table.** Skirmish-versus-commit does not exist, and disengaging is not a second way to get paid. `Combat.flee()` costs fuel and yields nothing, which is the intended shape rather than a gap.
+- **§16 ruling 14** — *does skirmishing pay scrap, and how much* — is answered: **no**.
+- **§0's own conclusion is reversed.** Heat is not required to be a difficulty driver. It is a resource you spend for tempo and a signature you carry between systems, and the ambush layer is the consequence.
+
+The cost is accepted and should not be rediscovered later: the 1,000-run measurement above says heat does not move the win rate, and under this ruling it is not going to. **Difficulty lives in the economy** — which is what `tkg/CLAUDE.md`'s tuning rule has said all along, and what the enemy-scaling measurement actually moved.
 
 ### The gate
-
-Before any netcode:
 
 1. ✅ Map-layer cooling — built.
 2. ✅ Map heat signature — built and instrumented.
 3. ✅ Heat wired to Stealth — built.
-4. ✅ Re-measured — **heat still does not drive difficulty. Reported above rather than quietly passed.**
-5. ⬜ **Two doors on every contact (§6). Then measure again.** Until a heat change moves the win rate for one ship, it cannot carry a commons for four.
+4. ✅ Re-measured — heat does not drive difficulty. Reported rather than quietly passed.
+5. ✅ **Closed by ruling, not by building.** The gate said "two doors, then measure again". There are no two doors. The gate is discharged.
 
 ---
 
@@ -170,7 +180,9 @@ At four ships the summed signature is the point. A full party flying nose to tai
 
 **Chassis choice is the party role, and no new stats are needed.** `HullData` already carries signed `sensors` and `stealth`, and its own header notes Solari runs negative on stealth because a ship that hot cannot hide. Redline light hulls see far, run cold and scout. Korvan heavy hulls are loud and half blind and hold the line. Weight class becomes party composition for free.
 
-### Two doors on every contact
+### ~~Two doors on every contact~~ — REJECTED
+
+> **This subsection is dead. See the ruling in §0.** Winning a fight pays the loot, fleeing pays nothing, and heat does not touch loot generation at all. Skirmish-versus-commit is not being built. The text is kept because the reasoning that produced it is worth being able to re-read, and because a section deleted without a record is a section somebody proposes again in six months.
 
 The field above is **passive** — you are hot because of where you are. That is not enough, and §0 is the measurement that proves it. This is the active half, and it is the load-bearing rule of the whole design.
 
@@ -395,11 +407,11 @@ Measured against `main`, not assumed.
 | **`Run` is a singleton** | Autoload holding one run. **697 references, 68 distinct members, 33 files.** | Becomes an instance. Largest single item; gates most of the rest. |
 | **The hangar layer** | Does not exist. No persistent player state of any kind. | New save file, new screen family: collection, loadout curation, crafting. `RunHistory`'s split from `SaveGame` is the pattern to copy — one file appends, one file is the present tense. |
 | **Extraction** | No concept. A run ends at the GOAL node or in death. | Win condition becomes "reach the rim alive". Cheap: the shells already exist. |
-| **Networking** | **The session layer is built and tested — see `netcode.md`.** Host, lobby code, join, roster, version refusal, one seed on four machines. `godot --headless --path . -- nettest`. | The transport under it is still direct-address only, so the host needs an open port. A rendezvous or Steam replaces one class. No gameplay message exists above the seed. |
+| **Networking** | **The session layer is built and tested — see `netcode.md`.** Host, lobby code, join, roster, version refusal, one seed on four machines, each player's ship and position on everybody's screen, and **one map rather than four copies** — a system consumed by one ship is consumed for the party. Direct and relay transports both. `godot --headless --path . -- nettest`. | Two gameplay messages exist above the seed. Still to come: jump commits, card lock-in, the shared heat field of §6, the shared fuel tank, and danger tracking the deepest ship (§7) — which is now cheap, because everybody's position is already on the wire. |
 | **RNG determinism** | ✅ **Built.** `Rng` autoload: five named streams off one master seed, plus `Rng.derive()` for anything a player can reach out of order. `Run.galaxy_seed` is now the master seed and is what a host sends. `-- seed N` replays a run; `-- rngtest` proves it. Balance re-measured at n=1000 either side — within noise. | Combat and event RESOLUTION are still host-only. A client cannot yet replay a fight from the same seed, because nothing sends the inputs. |
 | **Serialization** | `SaveGame` writes a complete run to JSON at VERSION 2, full float precision. | Reuse as the wire format. Add a separate hangar file. |
 | **Combat** | `Combat` is a plain `RefCounted` with no UI dependency. `HeadlessSim` plays complete runs headless. | A server authority is unusually feasible. Add simultaneous lock-in and up to four ships. |
-| **Screen grammar** | Your ship left, the thing you face right. `SectorScreen`, `EncounterView`, `HudBar` read `Run.*` directly. | Three partners need somewhere to live on screen. Real UI work, and the hardest design problem outside the netcode. |
+| **Screen grammar** | Your ship left, the thing you face right. **`ShipView` no longer reads `Run` — it takes a `ShipBuild`, and `EncounterView` puts a convoy column left of your hull: one slot per partner, drawn from their build, with their name, hull class, hull and heat.** `SectorScreen` and `HudBar` still read `Run.*` directly. | The hardest half is still open: four ships is four hands, four intent strips and four sets of chips, and only the ships themselves have somewhere to live. What is settled is that a partner's ship is drawn from a description of THEIR ship, which had to come first — see `netcode.md` §4. |
 | **Map heat signature** | Does not exist. `DEVELOPMENT_PLAN.md` already lists Thermal as "derive; add map signature". | Build once; solo and party both use it. |
 | **`sensors` / `stealth`** | Fields exist on `HullData`, signed, unused. | Wire to fog and partner visibility. |
 | **`NodeType.WRECK`** | Seven generated entries. | New type, placed at runtime. |
@@ -428,9 +440,9 @@ Measured against `main`, not assumed.
 | 10 | Does the ember's carrier get any compensation, or is the risk its own argument | §13 balance |
 | 11 | Do hulls extract, or is the hull always consumed by a dive | Collection shape; §12's purge depends on it |
 | 12 | Rework "starter hulls are bad on purpose" for a party game | §14, onboarding |
-| 13 | Do all four players share one galaxy instance, or one map with private fog | Netcode shape |
-| 14 | **Does skirmishing pay scrap, and how much?** §6's two doors is the fix §0 points at, and this number is the whole balance of it | §6, and whether heat ever drives difficulty |
-| 15 | Should an ambush drop loot at all? §0 measured that it pays enough to be EV-neutral | Whether the passive layer has any teeth of its own |
+| ~~13~~ | ~~Do all four players share one galaxy instance, or one map with private fog~~ — **ANSWERED: one instance.** The seed already gives four machines an identical galaxy; the host now also holds which systems the party has consumed, so a wreck is stripped once. Private fog is compatible and not built — when it arrives it gates what goes ONTO the wire, not what comes off it | Was: netcode shape. Now built — `netcode.md` §4 |
+| ~~14~~ | ~~**Does skirmishing pay scrap, and how much?**~~ — **ANSWERED: no.** Fleeing pays nothing. See the ruling in §0 | Closed. §6's two doors is rejected with it |
+| ~~15~~ | ~~Should an ambush drop loot at all?~~ — **FOLLOWS from the §0 ruling: yes.** Winning a fight pays the loot, and an ambush is a fight. That it is roughly EV-neutral is the measured consequence, not a problem to fix. *(Read from the ruling rather than stated in it — say so if that is wrong.)* | Closed |
 | 16 | Transit cooling rate — currently half a turn's worth per jump, floor 1. At ~8 jumps per fight almost any value clears the residue | §0, and how long a commit is felt |
 
 ---

@@ -195,7 +195,7 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 			if Run.dead:
 				break
 		elif node.type == MapGen.NodeType.DERELICT and not node.cleared:
-			node.cleared = true
+			Run.consume_node(node)
 			Run.cargo.append(LootGen.roll_module(node.danger))
 		_manage_cargo()
 

@@ -35,6 +35,12 @@ func setup() -> void:
 	_build()
 	Sig.map_changed.connect(_refresh)
 	Sig.resources_changed.connect(_refresh)
+	# Where the others are, and what they have used up. Both arrive as roster
+	# pushes rather than as anything this screen asked for, so the chart has to
+	# be told — a partner who jumps while you are staring at the map is exactly
+	# the case a redraw-on-input would miss.
+	Sig.party_changed.connect(_refresh)
+	Sig.party_map_changed.connect(_refresh)
 	_refresh()
 
 func _build() -> void:
@@ -1642,6 +1648,7 @@ class MapChart extends Control:
 					UITheme.ICE if node2.index == hovered else UITheme.COLD)
 
 
+		_draw_party()
 		_draw_neb_edges()
 
 		if hovered >= 0 and hovered < Run.map.size() and _hover_t > 0.01:
@@ -2134,6 +2141,53 @@ class MapChart extends Control:
 				if bright < 1.0:
 					col = col.darkened(1.0 - bright)
 				ci.draw_rect(Rect2(q, Vector2.ONE), col, true)
+
+	## Where the rest of the party is.
+	##
+	## Drawn OUTSIDE the visibility filter, deliberately. The chart otherwise
+	## hides a system you have never been to and cannot reach, which is right for
+	## a place and wrong for a person: a partner four shells coreward is the one
+	## piece of information you most want and the one you can least reach. It is
+	## also what makes `coop-design.md` §7 legible — danger tracking the deepest
+	## ship is only a leash if you can see how deep they are.
+	##
+	## `coop-design.md` §9 rules that this should be gated on sensor range, with
+	## a last-known position and an age stamp outside it. There is no fog in the
+	## game yet, so this shows everybody. When fog arrives it gates the position
+	## going ONTO the wire rather than coming off it, and nothing here changes.
+	func _draw_party() -> void:
+		if not show_icons or Net.party_size() < 2:
+			return
+		var seen: Dictionary = {}
+		for slot in Net.partners():
+			var at := int(slot.get("at", -1))
+			if at < 0 or at >= Run.map.size():
+				continue
+			var c := _screen_pos(Run.map[at])
+			# Backed in ink, and the name shadowed with it.
+			#
+			# Not a polish pass. The deepest ship is the one this marker exists
+			# to show — `coop-design.md` §7 makes everybody's danger track it —
+			# and deep means over the core, which is the brightest thing on the
+			# chart. Unbacked, the one marker that matters most was the only one
+			# you could not see.
+			_diamond(c, 6.0, UITheme.VOID)
+			_diamond(c, 5.0, UITheme.GOOD)
+			# Stacked when two ships are in the same system, which is the whole
+			# point of flying together and would otherwise print one name on top
+			# of another.
+			var row := int(seen.get(at, 0))
+			seen[at] = row + 1
+			var label := String(slot.get("name", "")).to_upper()
+			var at_text := c + Vector2(-46, -12 - row * 10)
+			draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), label,
+				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
+			draw_string(UITheme.pixel_font(), at_text, label,
+				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.GOOD)
+
+	func _diamond(c: Vector2, d: float, col: Color) -> void:
+		draw_polyline([c + Vector2(0, -d), c + Vector2(d, 0),
+			c + Vector2(0, d), c + Vector2(-d, 0), c + Vector2(0, -d)], col, 1.0)
 
 	func _draw_you(p: Vector2) -> void:
 		var b := 5.0

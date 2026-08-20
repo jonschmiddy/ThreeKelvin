@@ -350,7 +350,7 @@ func show_event() -> void:
 ## would let you take the outcome, leave through a HUD tab, and answer the same
 ## hail again — and the autosave that runs on the way out would bank both.
 func event_resolved() -> void:
-	Run.node_at().cleared = true
+	Run.consume_node(Run.node_at())
 
 ## Fly the beam.
 ##
@@ -376,7 +376,7 @@ func salvage_here() -> void:
 	_resolve_derelict(n)
 
 func _resolve_derelict(n: MapGen.MapNode) -> void:
-	n.cleared = true
+	Run.consume_node(n)
 	# Positional: what is in the wreck is in the wreck, whoever opens it and in
 	# whatever order. See Rng.derive().
 	var r := Rng.derive(&"salvage", n.index)

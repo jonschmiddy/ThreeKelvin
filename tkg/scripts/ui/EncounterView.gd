@@ -8,10 +8,31 @@ extends Control
 ## block facing another stat block; with one field behind them the ship reads as
 ## a thing in a place. This is the frame the sector view and combat share, so the
 ## ship never disappears between them.
+##
+## THE CONVOY sits to the left of your hull, and only when there is one. Every
+## ship in it is drawn at 1:1 — the art direction has no other size — so what
+## gives your own hull the foreground is position and not scale: it is centre of
+## frame, facing what you are facing, and it is the one you can drop a card on.
+## The others are a column beside it, each in a box just tall enough for a hull,
+## with the name and the two gauges painted over it.
+##
+## `coop-design.md` §15 calls the party screen the hardest design problem
+## outside the netcode, and this does not solve it — four hands and four intent
+## strips still have nowhere to live. What it solves is the half that had to
+## come first: a partner is drawn from a description of THEIR ship. See
+## ShipBuild.
 
 enum Subject { AREA, ENEMY }
 
 var _row: HBoxContainer
+## The other ships in the party. Empty in the solo game.
+var _convoy: VBoxContainer
+## The box the column sits in. Hidden rather than the column itself: an
+## HBoxContainer puts its separation either side of every VISIBLE child, so a
+## hidden column inside a visible margin still cost the solo game twenty-four
+## pixels of empty left edge.
+var _convoy_pad: MarginContainer
+var _made_convoy: Array[ConvoySlot] = []
 var _ship_slot: ShipSlot
 var _ship: ShipView
 var _area: AreaView
@@ -34,6 +55,24 @@ func _ready() -> void:
 	_row.add_theme_constant_override("separation", 24)
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_row)
+
+	# Ahead of your hull in the row, so the party reads left to right in the
+	# order the lobby lists it and your own ship keeps the position it has
+	# always had — nearest the middle, facing what you are facing.
+	_convoy_pad = MarginContainer.new()
+	_convoy_pad.add_theme_constant_override("margin_top", CONVOY_TOP)
+	_convoy_pad.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_convoy_pad.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_convoy_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_convoy_pad.visible = false
+	_row.add_child(_convoy_pad)
+	_convoy = VBoxContainer.new()
+	_convoy.add_theme_constant_override("separation", 4)
+	_convoy.alignment = BoxContainer.ALIGNMENT_CENTER
+	_convoy.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_convoy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_convoy_pad.add_child(_convoy)
+	Sig.party_changed.connect(refresh_convoy)
 
 	# Your hull is itself a target: defensive and utility cards are played by
 	# dropping them here, so every card is aimed at something.
@@ -79,6 +118,60 @@ func _ready() -> void:
 	fx = CombatFx.new()
 	fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fx)
+
+	refresh_convoy()
+
+
+## How wide one partner gets. Wide enough for the biggest canvas any hull
+## draws into — a heavy is 240 across procedurally and the medium sprite is 188
+## — so nothing is ever cropped nose-first, which reads as a mistake rather than
+## as distance.
+const CONVOY_W := 208
+## And how tall. Tall enough for the tallest canvas any hull draws into, so no
+## partner is ever cropped along the hull line — a ship with its keel cut off
+## reads as a bug, and it is the one crop a viewer cannot explain to themselves
+## as distance.
+##
+## Three of these plus the separations is 362 rows against the 378 the arena
+## leaves under the sector header, so a full party fits without the column
+## having to shrink. That is the whole arithmetic and it is why the number is
+## not tuned per party size.
+const CONVOY_H := 118
+## Cleared for the sector's name and its two lines of description, which are
+## painted over this same corner by the screen above. Without it the first
+## partner's name is written across the name of the system.
+const CONVOY_TOP := 62
+
+## Who is flying with you, redrawn when that changes.
+##
+## Rebuilt only when the PARTY changes, not when a ship does. A partner's own
+## view is wired to `Sig.party_changed` itself and repaints in place, so a new
+## gun on somebody else's hull costs a repaint rather than a rebuild of the
+## column it sits in.
+func refresh_convoy() -> void:
+	if _convoy == null:
+		return
+	var them := Net.partners()
+	_convoy_pad.visible = not them.is_empty()
+	if not _convoy_pad.visible:
+		_clear_convoy()
+		return
+	var ids: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
+	if ids != _made_convoy.map(func(c: ConvoySlot) -> int: return c.peer):
+		_clear_convoy()
+		for slot in them:
+			var made := ConvoySlot.new(int(slot.id), CONVOY_H)
+			_convoy.add_child(made)
+			_made_convoy.append(made)
+	for i in _made_convoy.size():
+		_made_convoy[i].bind(them[i])
+
+
+func _clear_convoy() -> void:
+	for c in _made_convoy:
+		_convoy.remove_child(c)
+		c.queue_free()
+	_made_convoy.clear()
 
 ## Where you are, told once. Sky and wash both, and both for every sector —
 ## fighting or not.
@@ -627,3 +720,97 @@ class ShipSlot extends Control:
 			draw_string(f, at + Vector2(1, 1), _drag_text,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
 			draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.GOOD)
+
+
+## One ship flying with you: their hull, their name, and how they are doing.
+##
+## The readouts are PAINTED OVER the ship rather than stacked under it, which is
+## the same choice `ShipSlot` makes below and for the same reason — a column of
+## four ships each with a label and two bars under it is sixteen rows of chrome
+## in an arena that has none to spare, and a name written across a hull is
+## plainly that hull's name.
+##
+## It is not a drop target and it never will be. Cards are played from your deck
+## onto your ship and onto what is shooting at you; a partner is a thing you can
+## see, not a thing you can aim at. See `coop-design.md` §5.
+class ConvoySlot extends Control:
+	var peer: int = 0
+	var art: ShipView
+	var _label: String = ""
+	var _hull_at: float = 1.0
+	var _heat_at: float = 0.0
+	var _lost: bool = false
+
+	## Bars are drawn to a fixed width, not to the slot's, for the reason
+	## EnemySlot.BAR_W records: a readout's LENGTH should say how much is left,
+	## and one that stretches to fill the layout says how much room there was.
+	const BAR_W := 92.0
+	const BAR_H := 3.0
+
+	func _init(id: int, view_height: int) -> void:
+		peer = id
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# The ship is drawn at its own size and this box shows the middle of it.
+		# Cropping rather than scaling: integer magnification is the only
+		# resizing the art direction allows, and half of 1 is not a pixel.
+		clip_contents = true
+		custom_minimum_size = Vector2(EncounterView.CONVOY_W, view_height)
+		art = ShipView.new()
+		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		# Behind this slot's own _draw, so the name and the bars sit on the hull
+		# instead of under it.
+		art.show_behind_parent = true
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		art.follow_peer(id)
+		# Slower and shallower than your own ship's. They are further away, and
+		# four hulls bobbing in step read as one object.
+		art.bob(1, 0.19)
+		add_child(art)
+
+	func bind(slot: Dictionary) -> void:
+		var b: ShipBuild = Net.build_of(peer)
+		var who := String(slot.get("name", "")).to_upper()
+		if b == null:
+			# In the party, not yet in a ship. A name with no readouts under it
+			# says that better than a full hull bar on a ship nobody is flying.
+			_label = "%s · NO SHIP YET" % who
+			_hull_at = 0.0
+			_heat_at = 0.0
+			_lost = false
+		else:
+			_label = "%s · %s" % [who,
+				DB.hull_class(b.hull.manufacturer, b.hull.weight).to_upper()]
+			_hull_at = clampf(float(b.hp) / float(maxi(1, b.max_hp)), 0.0, 1.0)
+			_heat_at = clampf(b.heat_ratio(), 0.0, 1.0)
+			_lost = b.dead
+		art.modulate = Color(0.45, 0.45, 0.52) if _lost else Color.WHITE
+		queue_redraw()
+
+	func _draw() -> void:
+		var f := UITheme.pixel_font()
+		var fs := UITheme.FS_SMALL
+		var text := "LOST · " + _label if _lost else _label
+		# Shadowed, because the label sits on a hull rather than on a panel and
+		# the hull is the same value range as the type.
+		draw_string(f, Vector2(1, fs + 1), text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.8))
+		draw_string(f, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
+			UITheme.COLD if _lost else UITheme.CHILL)
+		if _lost or _hull_at <= 0.0:
+			return
+		# Directly under the name rather than at the floor of the slot. The ship
+		# is centred in the box and the box is taller than the ship, so bars on
+		# the floor float in space below it and read as belonging to whoever is
+		# next in the column.
+		#
+		# Hull above heat, which is the order they are stacked on the HUD and
+		# under every enemy.
+		_gauge(float(fs) + 3.0, _hull_at, UITheme.HULL_GREEN)
+		_gauge(float(fs) + 3.0 + BAR_H + 1.0, _heat_at,
+			UITheme.FLARE if _heat_at >= 1.0 else UITheme.EMBER)
+
+	func _gauge(y: float, at: float, col: Color) -> void:
+		draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W, BAR_H)), Color("#0d131b"), true)
+		if at > 0.0:
+			draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W * at, BAR_H)), col, true)

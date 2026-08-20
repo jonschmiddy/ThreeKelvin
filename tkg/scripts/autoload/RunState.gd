@@ -88,6 +88,9 @@ const MAP_CANVAS := Rect2(60, 50, 900, 430)
 ## A galaxy exists before any run does — screens can be built and asked to draw
 ## before start_new_run() has rolled one — so it is never an empty dictionary.
 func _ready() -> void:
+	# A dive that is already under way when this machine generates its map — and
+	# every claim made while it was generating it.
+	Sig.party_map_changed.connect(adopt_party_claims)
 	if galaxy.is_empty():
 		galaxy = GalaxyGen.params(0).duplicate()
 	# Max hull is no longer a constant of the chassis, so taking plating off has
@@ -155,6 +158,9 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	galaxy_name = GalaxyGen.roll_name()
 	galaxy_title = GalaxyGen.roll_title()
 	map = MapGen.generate(MAP_CANVAS)
+	# Whatever the party has already used up. A run rolled from the host's seed
+	# is generated after the party exists, so the list can predate the map.
+	adopt_party_claims()
 	at = 0
 	trail = PackedInt32Array([0])
 	_range_cache.clear()
@@ -219,6 +225,43 @@ func cargo_slots() -> int:
 
 func hold_full() -> bool:
 	return cargo.size() >= cargo_slots()
+
+## This system is finished: the wreck is stripped, the fight is won, the hail is
+## answered. THE ONE DOOR, and the reason it exists is co-op.
+##
+## A shared seed gives four machines an identical galaxy rather than a shared
+## one — every wreck holds the same modules on every machine, because what a
+## node holds is drawn from `Rng.derive(tag, node.index)` and depends on where
+## it is rather than on who asked. The one thing a seed cannot say is whether
+## somebody has already been there. So consuming a node has to be told, and
+## telling it from one place means a new way to finish a system is shared by
+## construction instead of by somebody remembering to add a line.
+##
+## `Net.claim()` does nothing in the solo game, which is why every call site
+## could be changed without a branch.
+func consume_node(n: MapGen.MapNode) -> void:
+	if n == null or n.cleared:
+		return
+	n.cleared = true
+	Net.claim(n.index)
+
+
+## What the party has already used up, applied to this machine's map.
+##
+## The whole list every time rather than the new entries. It is tens of systems
+## in a dive, it is idempotent, and a list rebuilt from scratch cannot drift the
+## way a stream of deltas can the first time one arrives twice.
+func adopt_party_claims() -> void:
+	if map.is_empty():
+		return
+	var moved := false
+	for i in Net.claims:
+		if i >= 0 and i < map.size() and not map[i].cleared:
+			map[i].cleared = true
+			moved = true
+	if moved:
+		Sig.map_changed.emit()
+
 
 ## Put a part in the hold, or refuse.
 ##
@@ -698,7 +741,7 @@ func harvest_pulsar() -> void:
 	var n := node_at()
 	if n.cleared:
 		return
-	n.cleared = true
+	consume_node(n)
 	# Scales with danger, so a deep pulsar is both a better haul and a worse
 	# idea — which is the shape of this whole map.
 	var gain_fuel := 14 + n.danger * 2

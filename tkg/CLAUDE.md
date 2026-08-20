@@ -11,11 +11,16 @@ warmth, three degrees above absolute zero. A heat-management game named for the 
 
 ## How to work in this repo
 
-- **Respond in Simplified Technical English (ASD-STE100).** Use short sentences. Put one
-  instruction in one sentence. Use the active voice. Use approved, common words. Do not use
-  metaphor, idiom, or figurative language. This rule applies to your replies in chat, not to
-  the source comments — the comment voice in this codebase is deliberate and is described in
-  "The most important tuning rule" and throughout the sections below.
+- **Talk like a person in chat.** Plain sentences. No headers, no tables, no bullet
+  scaffolding, no bold every third word. Say the thing and stop. Condense — if it fits in
+  four sentences, use four. Lead with the answer, then the reasoning only if it is actually
+  needed, and do not restate the question first. Be direct about problems, tradeoffs and
+  things that are broken; brevity is about format, not about hedging or leaving things out.
+  Use structure only when the content really is structured — a measured comparison, a list
+  of files, a table of numbers — and that should be rare.
+  This applies to replies in chat and NOT to the source comments, or to the design documents
+  in this repository. The comment voice here is deliberate and is described in "The most
+  important tuning rule" and throughout the sections below.
 - **Development happens in VS Code.** Godot's editor is used only to run the game (F5),
   read the Output panel, and host the language server. Do not create or edit `.tscn`
   files unless there is no reasonable alternative.
@@ -64,6 +69,20 @@ godot --headless --path . -- nettest           # ~3 s
 # The same seed twice, and streams that do not move each other —
 # RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR
 godot --headless --path . -- rngtest           # ~5 s
+
+# One PNG per ship, drawn straight out of ShipView's own canvas —
+# RUN THIS AFTER TOUCHING ShipView, ShipBuild OR THE MODULE MOUNT VOCABULARY.
+# Each hull twice, bare and loaded, because "a ship drew" is not the question;
+# "the ship that drew is the one described" is. Needs no renderer: the view
+# composites into an Image and the Image is the file.
+godot --headless --path . -- shipsheet         # ~3 s, writes to user://shipsheet
+
+# The sector with a party in it — RUN THIS AFTER TOUCHING THE CONVOY STRIP.
+# Fakes a roster, opens no port, screenshots the real screen. `solo` is the
+# control shot: the convoy cell must cost the solo game nothing.
+godot --path . -- convoy                       # ~8 s, needs a window
+godot --path . -- convoy solo                  # the control: no party, no cost
+godot --path . -- convoy chart                 # the star chart with a party on it
 
 # Star chart sky cache — RUN THIS AFTER ADDING TO _build_stars OR ITS BUILDERS
 godot --path . -- charttest                    # ~10 s, needs a window
@@ -201,6 +220,7 @@ say so and ask rather than quietly working around it.
 | **`fuel_factor` cuts both ways, so no module carries it** | It raises Thrust and the price of every jump together. The sim already strands 30-40% of runs, so any value invented for it moves the most fragile number in the game to change an attribute nobody asked about. The gauge sums it; the catalog waits for an actual engine module |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
+| **Heat does NOT gate loot.** Winning a fight pays the loot. Fleeing pays nothing. Heat's only job on the map is the residual you carry into the next jump — the ambush mechanic | REVERSES `coop-design.md` §0's own conclusion, which proposed that heat must gate reward, and kills §6's "two doors" with it. The measurement behind that proposal still stands: 1,000 runs a cell say heat does not move the win rate, and under this ruling it is not going to. That is accepted. **Difficulty lives in the economy**, which is what the tuning rule below has said all along and what the enemy-scaling change actually moved. `coop-design.md` §0 has the full record |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
 | **Player attacks never miss. Only enemies miss** (light hulls dodge incoming fire) | Player-side miss RNG feels terrible in a game built on perfect information |
 | **Ballistics run cold; energy weapons run hot** | Gives materials a readable thermal language before you read any numbers |
@@ -223,6 +243,7 @@ say so and ask rather than quietly working around it.
 | **Prices are derived, never stored** | A price is a pure function of a place and a part. The old "price" meta was saved on every shop module, and a shelf that came back without it quietly held a 47% sale. A derived number that is also saved is a second copy of the truth, and it only ever goes one way |
 | **Materials are prerequisites, not a second currency** | Nothing on a price tag is denominated in alloy. A recipe costing forty scrap is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. This is how crafting gets a cost that scrap cannot pay without breaking the one-currency ruling |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
+| **A system is consumed through `RunState.consume_node()` and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch |
 | **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
 | **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
 | **The flight record is a record, not meta-progression** | Nothing in `RunHistory` feeds back into a run. Identity is assembled mid-run from what you find, and a history that granted a starting bonus would be the first crack in that |
@@ -568,6 +589,61 @@ full-screen view.
 context strip that carries either the enemy intent or the location's single action — and
 every arrival routes to it. `LootScreen` is gone; salvage resolves in place. Station and
 event still swap to their own screens *from* the sector, which is the last piece.
+
+### Four ships in a frame built for one
+
+`EncounterView` now carries a **convoy column** to the left of your hull: one slot per
+party member, each drawn from *their* build, with their name, their hull class and their
+hull and heat gauges. It is hidden — the whole cell, not just its contents — when nobody
+is flying with you, so the solo game is the screen it always was.
+
+The thing that made this possible is that **`ShipView` takes a subject rather than
+reading `Run`**. `ShipBuild` is that subject: a hull's maker and weight class, the
+`{slot, mount, maker, id}` of every fitted part, and the two gauges the art reacts to.
+Three rules hold it up:
+
+- **It carries what is drawn, not what is played.** No cards, no affixes, no rolled
+  stats. None of those move a pixel and every one of them would be on the wire.
+- **Identity travels as ids.** A manufacturer and a weight class, not a `HullData`. Both
+  machines hold the same catalogue or the handshake refused the join. A looted hull is a
+  `duplicate()` of a catalogue frame, so maker plus weight names its appearance exactly —
+  which is also why tier is not sent.
+- **Parts are dictionaries, not `ModuleData`.** The catalogue entry is shared. Writing a
+  remote player's `mount` onto `DB.modules[id]` would move that hardpoint on every ship
+  in the game.
+
+`NetSession` carries a build in each roster slot and pushes it whenever `ship_changed` or
+either gauge moves, coalesced to one send a frame and skipped when the description is
+unchanged. Resolved builds are cached against a fingerprint of the wire, because a roster
+replaces every slot and repainting a procedural hull is fifteen thousand pixels of
+GDScript.
+
+### One map, not four copies
+
+A shared seed puts four ships in the same galaxy. It does **not** put them in the same
+*instance*, and the difference is a real bug: every wreck holds the same two modules on
+every machine — that is what `Rng.derive(tag, node.index)` buys — so without a shared
+notion of what has been used up, four players each strip the same derelict and the closed
+per-dive economy pays out four times.
+
+So `NetSession` holds `claims`: the systems the party has consumed, host-authoritative and
+pushed whole. A claim is a node index and nothing else, because the contents already
+agree. `RunState.consume_node()` is the one door; `adopt_party_claims()` applies an
+incoming list, including one that predates this machine's map.
+
+Everybody's position rides the same presence message as their ship, and the star chart
+draws the party from it — **outside** the visibility filter that hides unvisited systems.
+That filter is right for a place and wrong for a person: `coop-design.md` §7's leash only
+works if you can see how deep somebody is. §9's sensor-range fog is not built; when it is,
+it gates the position going *onto* the wire, not coming off it.
+
+**Known gap, and it predates this.** A hull with real art is blitted whole and modules
+are not drawn on it — `hull_sprite()` returns art for MEDIUM only, so a light or heavy
+frame shows its fitted weapons and a medium shows none, for your own ship as much as for
+a partner's. Closing it needs module sprites and populated `HullData.weapon_anchors`,
+which is what `ShipSprite.gd` was written for and what `art/ART_CONTRACT.md` schedules
+after hulls. `-- shipsheet` shows the gap directly: `medium_bare` and `medium_armed` come
+out identical.
 
 ### Settled: two-panel, in pixel art
 
