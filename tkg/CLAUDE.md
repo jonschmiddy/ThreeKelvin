@@ -71,6 +71,17 @@ godot --headless --path . -- nettest           # ~5 s
 # RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR
 godot --headless --path . -- rngtest           # ~5 s
 
+# Two PROCESSES, one enemy — the only way Combat's shared path ever runs.
+# RUN THIS AFTER TOUCHING Combat's shared path, SharedFight, OR Router.start_combat.
+# nettest cannot reach any of it: `Run` is a singleton, so one process holds one
+# ship. This starts a host, greps its lobby code, joins from a second process,
+# flies both to one system and plays the fight out.
+tools/cofight.sh                               # ~25 s
+
+# ...and the same pairing with windows, to actually play it.
+tools/coplay.sh                                # two clients, side by side
+tools/coplay.sh 3                              # three
+
 # One PNG per ship, drawn straight out of ShipView's own canvas —
 # RUN THIS AFTER TOUCHING ShipView, ShipBuild OR THE MODULE MOUNT VOCABULARY.
 # Each hull twice, bare and loaded, because "a ship drew" is not the question;

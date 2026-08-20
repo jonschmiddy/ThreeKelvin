@@ -96,6 +96,19 @@ func _ready() -> void:
 		_net_test.run(get_tree())
 		return
 
+	# Two processes, one enemy:
+	#   godot --headless --path . -- cofight host
+	#   godot --headless --path . -- cofight join CODE
+	#   tools/cofight.sh                    (both, paired by the printed code)
+	# RUN THIS AFTER TOUCHING Combat's shared path. nettest cannot reach it:
+	# `Run` is a singleton, so one process holds one ship, and every line in
+	# Combat that talks to the party needs a second one. Held in a member for
+	# the same reason nettest is.
+	if "cofight" in OS.get_cmdline_user_args():
+		_co_fight = load("res://scripts/sim/CoFightTest.gd").new()
+		_co_fight.run(get_tree())
+		return
+
 	# One PNG per ship, straight out of ShipView's own canvas:
 	#   godot --headless --path . -- shipsheet
 	# Each hull twice, bare and loaded, because the question is not whether a
@@ -240,6 +253,8 @@ var _chart_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null
 var _net_test: RefCounted = null
+## And `-- cofight`, which awaits a whole second Godot process.
+var _co_fight: RefCounted = null
 var _convoy_test: RefCounted = null
 
 ## Every checked option in the table, measured against three real ships.
