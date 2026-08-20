@@ -144,6 +144,6 @@ static func from_wire(d: Dictionary) -> ShipBuild:
 
 ## What the sprite would be. The catalogue entry, NOT a copy — nothing here
 ## writes to it. Null while a module has no art, which is most of them: see
-## `art/ART_CONTRACT.md` for the order the assets arrive in.
+## `docs/art/ART_CONTRACT.md` for the order the assets arrive in.
 static func art_for(part: Dictionary) -> ModuleData:
 	return DB.modules.get(StringName(part.get("id", &"")))

@@ -20,7 +20,7 @@ extends Node2D
 ## not drawn on it, which today means a medium chassis shows no fitted weapons
 ## for anybody. The fix is module sprites plus populated
 ## `HullData.weapon_anchors`, which is exactly what the loop below already
-## expects — see `art/ART_CONTRACT.md` for the order the assets arrive in.
+## expects — see `docs/art/ART_CONTRACT.md` for the order the assets arrive in.
 
 const HEAT_SHADER := "res://shaders/heat.gdshader"
 

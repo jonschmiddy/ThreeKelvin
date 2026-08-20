@@ -22,6 +22,18 @@ Plays complete runs with a competent-player model and reports win rate, average 
 
 ---
 
+## Documentation
+
+Everything that is prose lives in [`../docs/`](../docs/) — the design doc, the
+co-op rulings, the netcode, and the art and audio notes. Start at
+[`../docs/README.md`](../docs/README.md).
+
+`CLAUDE.md` in this directory is the working memory for the codebase itself: the
+rulings, the traps, and the dev flags. It stays here because it is loaded from
+here.
+
+---
+
 ## Architecture
 
 ```

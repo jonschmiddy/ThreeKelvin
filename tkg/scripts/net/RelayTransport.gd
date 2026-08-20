@@ -11,7 +11,7 @@ extends NetTransport
 ## no allocation service and nothing to clean up. A party exists for exactly as
 ## long as somebody is connected to it.
 ##
-## See `netcode.md` §2 for the cost, which is roughly nothing, and for the two
+## See `docs/netcode.md` §2 for the cost, which is roughly nothing, and for the two
 ## constraints that shaped it: Cloudflare cannot carry UDP, and a Durable Object
 ## must hibernate or it bills for wall-clock time.
 

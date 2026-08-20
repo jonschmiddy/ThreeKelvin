@@ -562,7 +562,7 @@ func damage_enemy(amount: int, hits: int, label: String,
 		Net.hurt_foe(shared_at, which, amount, hits)
 		# And death is NOT decided here. A client that called _victory() off its
 		# own optimistic view would pay itself for a kill the host has not seen,
-		# which is `coop-design.md` §3's closed economy paid out four times over
+		# which is `docs/coop-design.md` §3's closed economy paid out four times over
 		# in the one place it is easiest to do by accident.
 		return total
 

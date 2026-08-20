@@ -88,6 +88,13 @@ tools/cofight.sh                               # ~25 s
 tools/coplay.sh                                # two clients, side by side
 tools/coplay.sh 3                              # three
 
+# A ship in the party that nobody is sitting in front of. Joins by lobby code
+# like a person, rolls its own chassis, holds its own Run.
+tools/bot.sh                                   # a window for you, a bot alongside
+tools/bot.sh ABC-123                           # send one to a party already up
+tools/bot.sh ABC-123 /tmp/crew                 # ...taking orders from a mailbox
+godot --headless --path . -- bot join ABC-123 follow name=Claude think=30
+
 # One PNG per ship, drawn straight out of ShipView's own canvas —
 # RUN THIS AFTER TOUCHING ShipView, ShipBuild OR THE MODULE MOUNT VOCABULARY.
 # Each hull twice, bare and loaded, because "a ship drew" is not the question;
@@ -238,7 +245,7 @@ say so and ask rather than quietly working around it.
 | **`fuel_factor` cuts both ways, so no module carries it** | It raises Thrust and the price of every jump together. The sim already strands 30-40% of runs, so any value invented for it moves the most fragile number in the game to change an attribute nobody asked about. The gauge sums it; the catalog waits for an actual engine module |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
-| **Heat does NOT gate loot.** Winning a fight pays the loot. Fleeing pays nothing. Heat's only job on the map is the residual you carry into the next jump — the ambush mechanic | REVERSES `coop-design.md` §0's own conclusion, which proposed that heat must gate reward, and kills §6's "two doors" with it. The measurement behind that proposal still stands: 1,000 runs a cell say heat does not move the win rate, and under this ruling it is not going to. That is accepted. **Difficulty lives in the economy**, which is what the tuning rule below has said all along and what the enemy-scaling change actually moved. `coop-design.md` §0 has the full record |
+| **Heat does NOT gate loot.** Winning a fight pays the loot. Fleeing pays nothing. Heat's only job on the map is the residual you carry into the next jump — the ambush mechanic | REVERSES `docs/coop-design.md` §0's own conclusion, which proposed that heat must gate reward, and kills §6's "two doors" with it. The measurement behind that proposal still stands: 1,000 runs a cell say heat does not move the win rate, and under this ruling it is not going to. That is accepted. **Difficulty lives in the economy**, which is what the tuning rule below has said all along and what the enemy-scaling change actually moved. `docs/coop-design.md` §0 has the full record |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
 | **Player attacks never miss. Only enemies miss** (light hulls dodge incoming fire) | Player-side miss RNG feels terrible in a game built on perfect information |
 | **Ballistics run cold; energy weapons run hot** | Gives materials a readable thermal language before you read any numbers |
@@ -259,13 +266,17 @@ say so and ask rather than quietly working around it.
 | **The profit is in the distance between two places, not in one transaction** | Round-tripping a part where you stand is a guaranteed loss, and that is correct: a scrapyard is not a market. A house's own yard is thick with its own parts and pays a glut price; a rival's yard needs what it cannot press. Buy Korvan in Korvan space, sell it to Solari. The route IS the trade |
 | **A station's shelf is rolled once per run** | The guard used to be `shop.is_empty()`, so buying a shelf out re-rolled it on the next visit. A station is a place, not a vending machine: what somebody brought here is what there is, and it is also the brake that stops any trade route from being farmed |
 | **Prices are derived, never stored** | A price is a pure function of a place and a part. The old "price" meta was saved on every shop module, and a shelf that came back without it quietly held a 47% sale. A derived number that is also saved is a second copy of the truth, and it only ever goes one way |
-| **In a shared fight the host owns the ENEMY and nothing else** | The general rule is *the host owns the contested object*, and in a fight the contested object is the thing being shot at. Everything on your side of it is private by construction — nobody else targets your block — so it stays local and costs nothing. This is the answer to `netcode.md` N2 ("does the host simulate all four ships"): neither, and it needed no `Run` refactor. It generalises — the shared fuel tank and §6's summed heat field are the same shape |
-| **Free-running turns with one barrier, NOT simultaneous lock-in** | `coop-design.md` §5 asked for face-down lock-in and it is rejected. Lock-in makes every card a deferred effect, and draw, energy-gain and block-then-attack do not survive resolving out of order — it is a rework of `CardResolver` and a chunk of the card set. The barrier gets the same property (nobody waits on a phase, nobody sees another hand) for zero card changes. Do not re-propose lock-in without pricing the card rework |
+| **In a shared fight the host owns the ENEMY and nothing else** | The general rule is *the host owns the contested object*, and in a fight the contested object is the thing being shot at. Everything on your side of it is private by construction — nobody else targets your block — so it stays local and costs nothing. This is the answer to `docs/netcode.md` N2 ("does the host simulate all four ships"): neither, and it needed no `Run` refactor. It generalises — the shared fuel tank and §6's summed heat field are the same shape |
+| **Free-running turns with one barrier, NOT simultaneous lock-in** | `docs/coop-design.md` §5 asked for face-down lock-in and it is rejected. Lock-in makes every card a deferred effect, and draw, energy-gain and block-then-attack do not survive resolving out of order — it is a rework of `CardResolver` and a chunk of the card set. The barrier gets the same property (nobody waits on a phase, nobody sees another hand) for zero card changes. Do not re-propose lock-in without pricing the card rework |
 | **The world agrees; anything paid to a PLAYER does not** | `Rng.world` is not salted, because four players who disagree about the galaxy are not in the same game. `loot`, `event`, `foe` and `fight` ARE salted, by `Rng.seat` — the ship's slot in the party, 0 when alone. These are cursors, not derivations: four machines that have made the same number of draws sit at the same place in them, so without this two ships that kill the same frigate are handed **the same two modules**. It is worse than it looks, because the duplication stops the moment the cursors drift apart, for no reason a player can see. Seat 0 is a deliberate NO-OP so a solo run still replays bit-for-bit from `-- seed N`. Positional content (`Rng.derive`) is the opposite case and must keep agreeing — a wreck holds what a wreck holds |
 | **A contested LIST is claimed by slot, and the list must not shrink** | The station shelf is the second contested thing in the game and the first that is a list: a wreck is taken whole, a shelf is taken a part at a time. `MapGen.OPTION_SHOP + i` is the i-th slot. **`n.shop` no longer has the bought part erased out of it** — erasing renumbered everything after it, so one purchase and every machine's idea of "slot 2" disagreed. A sold part stays on the shelf and is hidden by `n.taken`, which is what that field was for. The shelf ITSELF is meant to be identical on every machine: it is drawn positionally because it is one shop, and four ships docking in four different orders must see one set of shelves |
 | **The sector strip draws who is HERE; the star chart draws everybody** | A sector is a place. A ship two hundred light years away is in your convoy and is not in this room, and drawing it beside your hull says the opposite — during a fight it says it is helping. `EncounterView._here()` filters by `where_is(id) == Run.at`; `StarchartScreen` is where the whole party lives, because that screen's subject is where everyone is |
 | **Materials are prerequisites, not a second currency** | Nothing on a price tag is denominated in alloy. A recipe costing forty scrap is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. This is how crafting gets a cost that scrap cannot pay without breaking the one-currency ruling |
-| **No crew management.** Ever | The whole premise: ship systems, not little people running around |
+| **An AI crewmate is a PLAYER, not a service** — it joins by lobby code, takes a seat out of four, and holds its own `Run` | `Run` is a singleton, so one process holds exactly one ship; a bot that flew "alongside" you inside your process would be your ship wearing a second name. The seat is the cost and there is no spectator slot to hide in — the relay's door policy counts peers, and `NetTransport.MAX_PLAYERS` is four. **Reading the Cloudflare relay instead does not work**, and it is the obvious cheaper idea: `relay/src/index.js` never opens a payload (it checks byte 0, rewrites the sender id and forwards), so what is on that socket is Godot's binary RPC and reading it means reimplementing the engine's serialiser — and the relay cannot invent a peer, so the result would be a spectator with no ship. See `docs/netcode.md` §7 |
+| **The bot's brain is behind a file mailbox, and the shot clock is not optional** | `SharedFight.end_turn()` is a barrier: the enemy does not swing until every ship has ended its turn, so a bot that is still thinking is three other people watching a static screen. A language model answers in seconds and occasionally in minutes. So the board is offered, an answer is waited for, and when the clock runs out `Policy` plays the turn — the bot is allowed to be slow, not slow at everybody else. Files rather than a socket because Godot has no HTTP server and anything that can write a file can then play: a shell, `tools/crew-mcp.mjs`, a person with a text editor |
+| **One pilot model, two callers** — `Policy` is the simulator's competent player, and the bot flies it | Extracted from `HeadlessSim` unchanged and proved neutral over 60 seeded runs. A bot with its own brain would be a second model nothing measures: the gate reports a win rate for `Policy` before every merge, and a private copy would drift from that number quietly. The split lands where it does because the two LOOPS cannot be shared — the sim's must not yield and the bot's must — but every decision inside them can |
+| **A wingman follows the seats that arrived before it, and holding is a move** | Both halves were flown before they were written. Two ships that each "follow whoever is nearest" mirror each other exactly and bounce between two stars until the tank runs dry; seat order breaks it, so seat 0 leads and never follows. And a bot that only ever moves TOWARD the party arrives, wins the fight and is four jumps deeper before anybody lands — a headless ship plays a whole run in forty seconds against a person's hour. So a following ship does not leave a system somebody is in. Holding expires on `patience` seconds of NOTHING HAPPENING (not on the wait itself), because a person picking over a shelf looks exactly like a person who has closed the lid, and abandoning them mid-shop is the worse mistake |
+| **No crew management.** Ever | The whole premise: ship systems, not little people running around. An AI crewmate is not a counter-example: it is another PILOT, in another ship, with its own hull and hold |
 | **A system is consumed through `RunState.take_whole()` or `take_option()`, and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch. **The two doors are not interchangeable.** `take_whole()` fires and forgets, which is right for what nobody can take from you — the fight you won, the hail you were inside. `take_option()` ASKS and returns whether you got it, which is required for anything two ships can race for: assume you won and both players roll the loot, and the flag agreeing afterwards does not take the module back out of the loser's hold |
 | **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
 | **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
@@ -329,7 +340,7 @@ layer on or off. What the instrumentation did establish:
 So: **attaching consequences to heat adds texture, not pressure. To drive
 difficulty, heat has to gate REWARD.** That is the next thing to try — two ways
 to take every contact, where skirmishing pays scrap at low heat and committing
-pays modules at high heat. See `coop-design.md` §0 and §6.
+pays modules at high heat. See `docs/coop-design.md` §0 and §6.
 
 ## The economy — one file, three prices
 
@@ -391,7 +402,7 @@ everything in it is rendered with obsessive care.
 - **Perspective: edge on.** Flat side elevation, camera level, no top surface. Lit from
   above: bright top edge, mid flank, shadowed underside. Hardpoints sit along the dorsal
   and ventral lines. Nose points right, toward whatever you are facing. **REVERSED** from
-  3/4 + two-plane lighting; `art/ART_CONTRACT.md` §2a records why and what it cost.
+  3/4 + two-plane lighting; `docs/art/ART_CONTRACT.md` §2a records why and what it cost.
 - **The void is never flat black.** Deep indigo-to-black dithered gradients with nebula
   wash coloured per region. Cheapest richness available, and it gives regions colour
   signatures (Korvan rusty amber, fauna teal bioluminescence, precursor violet).
@@ -413,11 +424,11 @@ Sprites are currently generated procedurally in `scripts/ui/ShipView.gd` and
 camera moved to meet it). When real art lands, drive `shaders/heat.gdshader` with a `heat`
 uniform.
 
-## Art generation — read `art/ART_CONTRACT.md` first
+## Art generation — read `docs/art/ART_CONTRACT.md` first
 
 Pixel art is generated via the **PixelLab MCP server** (tool names may be bare or prefixed
 `mcp__pixellab__*`). If those tools are not available, say so — do not fall back to curl or
-the REST API. Full mechanics in `art/PIXELLAB_WORKFLOW.md`.
+the REST API. Full mechanics in `docs/art/PIXELLAB_WORKFLOW.md`.
 
 **Do NOT use `create_character` / `animate_character`** — that is a skeleton-rigged
 humanoid/quadruped pipeline. Ships are not characters. Use instead:
@@ -444,7 +455,7 @@ stronger than describing colours in text. Prefer image **URLs** over inline base
 clients truncate large base64 and corrupt the image. `init_image_strength` is inverted —
 higher preserves more of the input (500 barely changes it, 150 is a real edit).
 
-**Read `art/PIXELLAB_WORKFLOW.md`'s "Worked pipelines" before generating anything.**
+**Read `docs/art/PIXELLAB_WORKFLOW.md`'s "Worked pipelines" before generating anything.**
 It has three end-to-end recipes — hull sprite, isolating an emitter into its own
 layer, animating that layer — each followed by what went wrong. The two that cost
 most: `no_background=true` is silently ignored by `create_image_pixflux` when an
@@ -460,7 +471,7 @@ style/concept reference. Never generate a sprite from a bare text prompt — the
 look fine alone and wrong beside everything else. There is exactly one canonical style
 reference at a time; a newly approved hull replaces that file.
 
-Hard rules, in short (full detail and the palette hexes are in `art/ART_CONTRACT.md`):
+Hard rules, in short (full detail and the palette hexes are in `docs/art/ART_CONTRACT.md`):
 
 - **Edge on**: flat side elevation, camera exactly level, no top surface, no
   foreshortening. Player ships nose **right**; enemies nose **left**.
@@ -526,7 +537,7 @@ live in `audio/motif.py`.
 
 The first five **recolour** the motif over a static F. The last three
 **develop** it, and are the only cues that change key — see
-`audio/DEVELOPMENT_NOTES.md`. Measuring the first five: they use 11 of the 12
+`docs/audio/DEVELOPMENT_NOTES.md`. Measuring the first five: they use 11 of the 12
 pitch classes and never sound A♮, so the major mode was mechanically
 unavailable to them, and their one E♮ is a passing note, so nothing could
 cadence. That was the cost of never rewriting the melody, and it is worth
@@ -545,7 +556,7 @@ knowing before adding a sixth way to recolour it.
   `octave()` names pitch classes in a fixed octave and the octave boundary
   moves under a transposition, which silently destroys the contour.
 - **Ornamenting a melody has six separate ways to go wrong and none of them
-  raise.** All six shipped in one line; `audio/DEVELOPMENT_NOTES.md` has them
+  raise.** All six shipped in one line; `docs/audio/DEVELOPMENT_NOTES.md` has them
   in full. In short: indexing into an already-expanded form, notes shorter than
   the voice's fixed envelope, a fixed interval where the key wants a scale
   degree, `pitches()` anchored on the grace note so the melody comes out a step
@@ -663,7 +674,7 @@ carries `MapNode.taken`, which `cleared` alone cannot express.
 
 Everybody's position rides the same presence message as their ship, and the star chart
 draws the party from it — **outside** the visibility filter that hides unvisited systems.
-That filter is right for a place and wrong for a person: `coop-design.md` §7's leash only
+That filter is right for a place and wrong for a person: `docs/coop-design.md` §7's leash only
 works if you can see how deep somebody is. §9's sensor-range fog is not built; when it is,
 it gates the position going *onto* the wire, not coming off it.
 
@@ -728,7 +739,7 @@ gauge.
 
 **One barrier, in one place.** Everyone plays their own turn immediately, at their own
 pace. Only the enemy's turn waits, because it is one object acting on several private
-ones. `coop-design.md` §5 asked for face-down simultaneous lock-in and that was
+ones. `docs/coop-design.md` §5 asked for face-down simultaneous lock-in and that was
 **rejected** — it turns cards into deferred effects, and draw, energy-gain and
 block-then-attack do not survive resolving out of order. Free-running plus one barrier buys
 the same "nobody waits on a phase" for zero card changes.
@@ -748,7 +759,7 @@ does not count yet.
 are not drawn on it — `hull_sprite()` returns art for MEDIUM only, so a light or heavy
 frame shows its fitted weapons and a medium shows none, for your own ship as much as for
 a partner's. Closing it needs module sprites and populated `HullData.weapon_anchors`,
-which is what `ShipSprite.gd` was written for and what `art/ART_CONTRACT.md` schedules
+which is what `ShipSprite.gd` was written for and what `docs/art/ART_CONTRACT.md` schedules
 after hulls. `-- shipsheet` shows the gap directly: `medium_bare` and `medium_armed` come
 out identical.
 
