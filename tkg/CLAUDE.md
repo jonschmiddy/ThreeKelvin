@@ -71,6 +71,12 @@ godot --headless --path . -- nettest           # ~5 s
 # RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR
 godot --headless --path . -- rngtest           # ~5 s
 
+# Six frames of a ship jumping in, side by side, in one PNG —
+# RUN THIS AFTER TOUCHING JumpFlare. The effect is 24 frames long, so what has
+# to be checked is the SHAPE over time: the column opens, flares, and closes,
+# and the hull changes hands BEHIND the widest frame rather than beside it.
+godot --path . -- convoy flare
+
 # Two PROCESSES, one enemy — the only way Combat's shared path ever runs.
 # RUN THIS AFTER TOUCHING Combat's shared path, SharedFight, OR Router.start_combat.
 # nettest cannot reach any of it: `Run` is a singleton, so one process holds one
@@ -660,6 +666,36 @@ draws the party from it — **outside** the visibility filter that hides unvisit
 That filter is right for a place and wrong for a person: `coop-design.md` §7's leash only
 works if you can see how deep somebody is. §9's sensor-range fog is not built; when it is,
 it gates the position going *onto* the wire, not coming off it.
+
+### Arriving and leaving
+
+A ship enters and leaves the sector strip in a column of cold light —
+`EncounterView.JumpFlare`.
+
+**One animation for both directions.** A jump is a column of light with a hull
+either side of it: what differs between arriving and leaving is only whether the
+ship is there before the flash or after it. Two effects would be two things to
+keep in step and would read as two events, which they are not. The hull changes
+hands at `PEAK`, and the width curve is built as two segments meeting exactly
+there — a single sine across the whole life put the widest frame at 0.62 while
+the swap happened at 0.42, and the swap was visible beside the flash instead of
+inside it.
+
+**Cold, not ember.** Every other light in this game is heat — weapons, the hull
+shader, the overheat warning — so a jump has to be the one bright thing on
+screen that is not warm, or it reads as another gun going off.
+
+**The column is diffed, not rebuilt.** `refresh_convoy()` used to clear the
+strip and build it again whenever the id set changed, which gave every remaining
+ship a fresh arrival for somebody else's jump and gave the ship that left no
+frame to leave in — it was simply absent from the next list. A departing slot
+stays a child until its light goes out, frees itself, and `tree_exited` brings
+`refresh_convoy` back to close the column up.
+
+**The label lives on the slot, not on the hull.** `ConvoySlot._draw` paints the
+name and gauges OVER the ship, so it bails out while there is no hull under
+them — and the `peaked` callback has to `queue_redraw()`, or the ship returns
+and its label does not. Nothing else repaints a settled convoy.
 
 ### A shared fight
 

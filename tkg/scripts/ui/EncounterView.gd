@@ -176,34 +176,62 @@ func _here() -> Array:
 ## gun on somebody else's hull costs a repaint rather than a rebuild of the
 ## column it sits in.
 func refresh_convoy() -> void:
-	if _convoy == null:
+	# `tree_exited` brings us back here when a departing slot finishes, and that
+	# can be the frame the whole screen is being torn down on — a sector swap
+	# frees the column and the slots inside it together.
+	if not is_instance_valid(_convoy):
 		return
 	var them := _here()
-	_convoy_pad.visible = not them.is_empty()
-	if not _convoy_pad.visible:
-		_clear_convoy()
-		return
-	var ids: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
-	if ids != _made_convoy.map(func(c: ConvoySlot) -> int: return c.peer):
-		_clear_convoy()
-		for i in them.size():
-			var made := ConvoySlot.new(int(them[i].id), CONVOY_H)
-			_convoy.add_child(made)
-			_made_convoy.append(made)
-			# Staggered, and behind you. Four hulls starting the same approach on
-			# the same frame arrive as one object with four parts; a fraction of a
-			# second apart they read as ships flying in formation. Yours goes
-			# first because it is the one the screen is about.
-			made.art.arrive(1, ARRIVE_LEAD + ARRIVE_GAP * float(i + 1))
-	for i in _made_convoy.size():
-		_made_convoy[i].bind(them[i])
+	var want: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
+
+	# A DIFF, NOT A REBUILD, and that is what makes a departure drawable at all.
+	# Clearing the column and building it again gave every remaining ship a
+	# fresh arrival for somebody else's jump, and gave the ship that left no
+	# frame to leave in — it was simply not in the next list.
+	for c in _made_convoy.duplicate():
+		if want.has(c.peer):
+			continue
+		_made_convoy.erase(c)
+		# Still a child, so the column keeps its height and the flash has
+		# somewhere to happen. It frees itself when the light goes out, and
+		# `tree_exited` brings us back here to close the column up.
+		c.jump_out()
+		c.tree_exited.connect(refresh_convoy, CONNECT_ONE_SHOT)
+
+	for i in them.size():
+		var id := int(them[i].id)
+		var slot := _slot_for(id)
+		if slot == null:
+			slot = ConvoySlot.new(id, CONVOY_H)
+			_convoy.add_child(slot)
+			_made_convoy.append(slot)
+			# Staggered, and behind you. Four hulls starting the same approach
+			# on the same frame arrive as one object with four parts; a fraction
+			# of a second apart they read as ships flying in formation. Yours
+			# goes first because it is the one the screen is about.
+			#
+			# The stagger applies to the OPENING convoy only. A ship arriving on
+			# its own, into a system you are already sitting in, has nobody to be
+			# staggered against and a delay on it is just latency.
+			var lone := _made_convoy.size() == 1 and _convoy.get_child_count() == 1
+			slot.jump_in(0.0 if not lone else ARRIVE_LEAD)
+		# Keep the column in the party's order even after somebody has left a
+		# hole in the middle of it.
+		_convoy.move_child(slot, i)
+		slot.bind(them[i])
+
+	# Visible while ANYTHING is in the column, including a ship on its way out.
+	# `them.is_empty()` would take the last partner off screen on the frame they
+	# pressed JUMP, which is the one frame the effect exists to fill.
+	_convoy_pad.visible = _convoy.get_child_count() > 0
 
 
-func _clear_convoy() -> void:
+func _slot_for(id: int) -> ConvoySlot:
 	for c in _made_convoy:
-		_convoy.remove_child(c)
-		c.queue_free()
-	_made_convoy.clear()
+		if c.peer == id:
+			return c
+	return null
+
 
 ## Where you are, told once. Sky and wash both, and both for every sector —
 ## fighting or not.
@@ -783,9 +811,142 @@ class ShipSlot extends Control:
 ## It is not a drop target and it never will be. Cards are played from your deck
 ## onto your ship and onto what is shooting at you; a partner is a thing you can
 ## see, not a thing you can aim at. See `coop-design.md` §5.
+## The light a ship arrives and leaves in.
+##
+## ONE ANIMATION FOR BOTH DIRECTIONS, and that is not a shortcut. A jump is a
+## column of light with a hull either side of it: what differs between arriving
+## and leaving is only whether the ship is there before the flash or after it.
+## Two separate effects would be two things to keep in step and would read as
+## two different events, which they are not.
+##
+## Cold, not ember. Every other light in this game is heat — weapons, the hull
+## shader, the overheat warning — so a jump has to be the one thing on screen
+## that is bright and not warm, or it reads as another gun going off.
+##
+## Drawn rather than animated. Everything here is on the pixel grid at integer
+## widths and the brightness is stepped, for the reason CombatFx records: a
+## pixel is lit or it is not, and fading one through alpha is how pixel art
+## starts looking like a screensaver.
+class JumpFlare extends Control:
+	## Long enough to be an event, short enough that four of them staggered do
+	## not turn arriving into a cutscene.
+	const LIFE := 0.40
+	## The moment the hull changes hands. The flash is at its widest here, so
+	## the swap happens behind the brightest frame and is never seen.
+	const PEAK := 0.42
+	const CORE := Color("#e4f2ff")
+	## Wide enough to be a column rather than a rule. The slot is 208px and the
+	## hull about half of it, so a beam this wide is plainly a thing the ship
+	## came out of and not a line somebody drew beside it.
+	const MAX_W := 20.0
+	## The three beats, as fractions of LIFE. OPEN is the column arriving, PEAK
+	## is the flash, SHUT is it gone — and the width curve is built to reach its
+	## maximum exactly AT PEAK rather than somewhere near it, because PEAK is
+	## also the frame the hull changes hands on. A swap that happens beside the
+	## brightest frame instead of behind it is a ship seen to appear.
+	const OPEN := 0.22
+	const SHUT := 0.80
+
+	signal peaked()
+	signal finished()
+
+	## Where the column stands, as a fraction of the slot's width. Your own hull
+	## is biased left of centre — see ShipSlot.HULL_BIAS — and a beam that
+	## arrives somewhere the ship is not is a beam that missed.
+	var centre: float = 0.5
+
+	var _t: float = -1.0
+	var _delay: float = 0.0
+	var _fired: bool = false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		visible = false
+		set_process(false)
+
+	func play(delay: float = 0.0) -> void:
+		_t = 0.0
+		_delay = maxf(0.0, delay)
+		_fired = false
+		visible = true
+		set_process(true)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if _delay > 0.0:
+			_delay -= delta
+			return
+		_t += delta / LIFE
+		if not _fired and _t >= PEAK:
+			_fired = true
+			peaked.emit()
+		if _t >= 1.0:
+			_t = -1.0
+			visible = false
+			set_process(false)
+			finished.emit()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		if _t < 0.0 or _delay > 0.0:
+			return
+		var t := clampf(_t, 0.0, 1.0)
+		var cx := roundf(size.x * centre)
+
+		# Height: opens from the middle, holds, then snaps shut. The hold is
+		# what makes it a place rather than a flash.
+		var tall := 1.0
+		if t < OPEN:
+			tall = t / OPEN
+		elif t > SHUT:
+			tall = 1.0 - (t - SHUT) / (1.0 - SHUT)
+		var h := roundf(size.y * clampf(tall, 0.0, 1.0))
+		if h < 1.0:
+			return
+		var y0 := roundf((size.y - h) * 0.5)
+
+		# Width: two segments, meeting at PEAK. Not one sine across the whole
+		# life — that put the widest frame at 0.62 while the hull swapped at
+		# 0.42, and the swap was visible next to the flash instead of inside it.
+		var flare := 0.0
+		if t <= PEAK:
+			flare = smoothstep(OPEN, PEAK, t)
+		else:
+			flare = 1.0 - smoothstep(PEAK, SHUT, t)
+		var w := 1.0 + roundf(flare * MAX_W)
+
+		# Two planes, stepped. A pixel is lit or it is not — see CombatFx.
+		if w > 3.0:
+			draw_rect(Rect2(Vector2(cx - roundf(w * 0.5), y0), Vector2(w, h)),
+				UITheme.ICE if flare > 0.35 else UITheme.CHILL, true)
+		var core_w := maxf(1.0, roundf(w * 0.3))
+		draw_rect(Rect2(Vector2(cx - roundf(core_w * 0.5), y0), Vector2(core_w, h)),
+			CORE if flare > 0.25 else UITheme.ICE, true)
+
+		# The spill. Two dashed streaks at the waist, thinning outward, which is
+		# what stops the column reading as a rectangle somebody drew.
+		if flare <= 0.4:
+			return
+		var reach := roundf(flare * 34.0)
+		var my := roundf(size.y * 0.5)
+		for i in int(reach):
+			if i % 3 == 2 or i > reach - 5:
+				continue
+			var col := CORE if float(i) < reach * 0.3 else UITheme.CHILL
+			draw_rect(Rect2(Vector2(cx + w * 0.5 + i, my), Vector2.ONE), col, true)
+			draw_rect(Rect2(Vector2(cx - w * 0.5 - i - 1, my), Vector2.ONE), col, true)
+
+
 class ConvoySlot extends Control:
 	var peer: int = 0
 	var art: ShipView
+	var flare: JumpFlare
+	## On its way out and already freed as far as the column is concerned. Kept
+	## as a child until the flash finishes, because a ship that vanishes on the
+	## frame its owner pressed JUMP has not left, it has been deleted.
+	var _leaving: bool = false
 	var _label: String = ""
 	var _hull_at: float = 1.0
 	var _heat_at: float = 0.0
@@ -824,6 +985,43 @@ class ConvoySlot extends Control:
 		# four hulls bobbing in step read as one object.
 		art.bob(1, 0.19)
 		add_child(art)
+		flare = JumpFlare.new()
+		add_child(flare)
+
+	## Somebody dropped into the system. The hull is hidden until the flash is
+	## at its widest, so it is never seen to appear.
+	func jump_in(delay: float = 0.0) -> void:
+		art.visible = false
+		flare.peaked.connect(func() -> void:
+			art.visible = true
+			# And ask for the name and the gauges back. They are painted by this
+			# slot rather than by the hull, and _draw() bailed out while there
+			# was no hull under them — without this the ship returns and its
+			# label does not, because nothing else redraws a settled convoy.
+			queue_redraw()
+			# Into the same approach every ship in this game makes. The flare is
+			# punctuation on the arrival, not a replacement for it — four hulls
+			# materialising in place and holding still would read as a menu.
+			art.arrive(1, 0.0), CONNECT_ONE_SHOT)
+		flare.play(delay)
+		# Throttled. A convoy arriving is three or four of these a fraction of a
+		# second apart, and the same sample four times over reads as a stutter
+		# rather than as four ships.
+		Audio.play(&"jump", 0.10, 140)
+
+	## And left. Same flash, opposite side of it.
+	func jump_out() -> void:
+		_leaving = true
+		flare.peaked.connect(func() -> void:
+			art.visible = false
+			queue_redraw(), CONNECT_ONE_SHOT)
+		flare.finished.connect(queue_free, CONNECT_ONE_SHOT)
+		flare.play(0.0)
+		Audio.play(&"jump", 0.10, 140)
+		queue_redraw()
+
+	func leaving() -> bool:
+		return _leaving
 
 	func bind(slot: Dictionary) -> void:
 		var b: ShipBuild = Net.build_of(peer)
@@ -847,6 +1045,12 @@ class ConvoySlot extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
+		# Nothing without a hull under it. The label and the gauges are painted
+		# OVER the ship rather than under it, so a slot that kept drawing them
+		# while the hull was away would leave a name and two bars hanging in
+		# empty space — before an arrival as much as after a departure.
+		if not art.visible:
+			return
 		var f := UITheme.pixel_font()
 		var fs := UITheme.FS_SMALL
 		var text := "LOST · " + _label if _lost else _label

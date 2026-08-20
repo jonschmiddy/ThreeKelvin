@@ -35,6 +35,10 @@ func run(tree: SceneTree) -> void:
 		_ship_sheet()
 		tree.quit()
 		return
+	if "flare" in OS.get_cmdline_user_args():
+		await _flare_shot(tree)
+		tree.quit()
+		return
 	if "chart" in OS.get_cmdline_user_args():
 		await _chart_shot(tree)
 		tree.quit()
@@ -117,6 +121,79 @@ func _convoy_shot(tree: SceneTree) -> void:
 		else "user://convoy.png"
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
+
+
+## A jump, frozen. Six frames of the flash side by side.
+##
+##   godot --path . -- convoy flare
+##
+## Its own mode because the effect is 24 frames long and a screenshot of a
+## screenshot's worth of it says nothing: what has to be checked is the SHAPE
+## over time — that the column opens, flares, and closes, and that the hull
+## changes hands behind the widest frame rather than beside it.
+##
+## Driven by hand rather than by the clock. `_process` on the flare advances
+## with delta, so a capture loop racing it lands on six arbitrary moments; this
+## sets `_t` directly and photographs a known one.
+func _flare_shot(tree: SceneTree) -> void:
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	fake_party(1)
+	Router.show_sector()
+	# 460, for the reason _convoy_shot records: the approach runs four and a
+	# half seconds. Photographing a jump while the ship is still flying its
+	# arrival puts the hull somewhere it will not be, and the beam then looks
+	# misaligned when it is the ship that has not landed.
+	for i in 460:
+		await RenderingServer.frame_post_draw
+
+	var slot := _find_slot(tree.root)
+	if slot == null:
+		print("no convoy slot on screen — the strip did not build")
+		return
+	print("slot rect %s | art rect %s | art tex %s" % [
+		slot.get_global_rect(), slot.art.get_global_rect(),
+		slot.art.texture.get_size() if slot.art.texture != null else Vector2.ZERO])
+	var strip: Array[Image] = []
+	# Across the whole life, including 0.0 (nothing) and past the peak, so a
+	# flare that never closes is visible in the sheet rather than only in play.
+	for at in [0.08, 0.22, 0.42, 0.62, 0.80, 0.96]:
+		slot.art.visible = at >= EncounterView.JumpFlare.PEAK
+		slot.flare.visible = true
+		slot.flare.set("_t", at)
+		slot.flare.set("_delay", 0.0)
+		slot.flare.queue_redraw()
+		slot.queue_redraw()
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var whole := tree.root.get_texture().get_image()
+		# Just the column. The rest of the sector is the same in all six and
+		# would make the sheet six copies of a screen with a detail in it.
+		var r := slot.get_global_rect()
+		strip.append(whole.get_region(Rect2i(
+			maxi(0, int(r.position.x) - 8), maxi(0, int(r.position.y)),
+			mini(whole.get_width(), int(r.size.x) + 16), int(r.size.y))))
+
+	# A gap between frames, so the sheet reads as six pictures rather than as one
+	# wide one — the effect is a vertical bar and so is a cell boundary.
+	var w := strip[0].get_width() + 4
+	var sheet := Image.create_empty(w * strip.size(), strip[0].get_height(),
+		false, strip[0].get_format())
+	sheet.fill(Color("#c0392b"))
+	for i in strip.size():
+		sheet.blit_rect(strip[i], Rect2i(Vector2i.ZERO, strip[i].get_size()),
+			Vector2i(w * i + 2, 0))
+	sheet.save_png("user://jump_flare.png")
+	print("wrote ", ProjectSettings.globalize_path("user://jump_flare.png"))
+
+
+func _find_slot(n: Node) -> EncounterView.ConvoySlot:
+	if n is EncounterView.ConvoySlot:
+		return n
+	for c in n.get_children():
+		var found := _find_slot(c)
+		if found != null:
+			return found
+	return null
 
 
 ## The chart with the party on it: three partners at three depths, and a handful
