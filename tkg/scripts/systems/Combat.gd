@@ -295,7 +295,9 @@ func _act_one(e: EnemyState) -> void:
 			for i in maxi(1, I.hits):
 				var d := I.damage
 				# Light hulls dodge; the player never misses, only the enemy does.
-				if randf() < Run.hull.dodge:
+				# Run.dodge(), not Run.hull.dodge: a Ghost Drive is worth evasion
+				# in the fight, not only on the ship tab's Maneuverability row.
+				if randf() < Run.dodge():
 					_log("  missed.", &"good")
 					continue
 				if block > 0:
@@ -475,12 +477,12 @@ func flee() -> void:
 func _victory() -> void:
 	Run.kills += 1
 	var node: MapGen.MapNode = Run.node_at()
-	var gained := int(round(enemy.template.scrap_reward * (1.0 + (node.danger - 1) * 0.2)))
+	var gained := int(round(enemy.template.credit_reward * (1.0 + (node.danger - 1) * 0.2)))
 	if Run.has_set(&"dredge", 3):
 		gained = int(round(gained * 1.5))
-	Run.add_scrap(gained)
+	Run.add_credits(gained)
 	Run.dross += new_dross
-	var bits: PackedStringArray = ["%d scrap" % gained]
+	var bits: PackedStringArray = ["%d credits" % gained]
 	if enemy.template.fauna:
 		Run.exotic += 2
 		bits.append("2 exotic")
@@ -500,7 +502,7 @@ func _victory() -> void:
 		drops = 0
 	for i in drops:
 		var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
-		Run.cargo.append(LootGen.roll_module(node.danger, force,
+		Run.stow(LootGen.roll_module(node.danger, force,
 			node.region == MapGen.Region.CORE))
 	if drops > 0:
 		bits.append("%d module%s" % [drops, "" if drops == 1 else "s"])

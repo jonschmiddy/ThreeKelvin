@@ -245,15 +245,15 @@ func _shop() -> void:
 
 	var missing := Run.max_hp() - Run.hp
 	var repair := Market.repair_price(n, missing)
-	if missing > 0 and Run.scrap > repair + 25:
-		Run.add_scrap(-repair)
+	if missing > 0 and Run.credits > repair + 25:
+		Run.add_credits(-repair)
 		Run.heal(missing)
 	var refuel := Market.refuel_price(n)
-	if Run.fuel < 8 and Run.scrap >= refuel:
-		Run.add_scrap(-refuel)
+	if Run.fuel < 8 and Run.credits >= refuel:
+		Run.add_credits(-refuel)
 		Run.fuel += Market.REFUEL_UNITS
 
-## Anything left in the hold at a station was already destined for the melter —
+## Anything left in the hold at a station was already destined for scrapping —
 ## _manage_cargo() ran on arrival and kept what was worth installing. So take
 ## whichever of the two prices is higher, which is the one decision selling
 ## actually adds.
@@ -263,9 +263,9 @@ func _sell_hold(n: MapGen.MapNode) -> void:
 		guard += 1
 		var m: ModuleData = Run.cargo[0]
 		var paid := Market.bid(n, m)
-		if paid > Market.melt(m):
+		if paid > Run.scrap_value_of(m):
 			Run.cargo.erase(m)
-			Run.add_scrap(paid)
+			Run.add_credits(paid)
 			n.trades += 1
 		else:
 			Run.scrap_module(m)
@@ -303,10 +303,12 @@ func _bench(n: MapGen.MapNode) -> void:
 ## never once exercise the thing this economy is built around, and would report a
 ## win rate for a game with no market in it.
 ##
-## HOLD_LIMIT is the honest half. A competent player does not haul twenty parts
-## around hoping for a buyer; they keep the few worth a detour and melt the rest
-## where they stand. Melting the cheapest first is what makes it a hold rather
-## than a queue.
+## HOLD_LIMIT is the honest half, and it is a BEHAVIOUR rather than a capacity —
+## hulls hold 8 / 12 / 16. A competent player does not haul twenty parts around
+## hoping for a buyer; they keep the few worth a detour and scrap the rest where
+## they stand. Scrapping the cheapest first is what makes it a hold rather than a
+## queue. It must stay at or under the smallest hull's capacity, or the model
+## would be measuring a hold no ship in the game has.
 const HOLD_LIMIT := 4
 
 func _manage_cargo() -> void:

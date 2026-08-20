@@ -325,7 +325,7 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 	var count := 2 if n.region == MapGen.Region.LAWLESS else 1
 	for i in count:
 		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
-		Run.cargo.append(LootGen.roll_module(n.danger, force,
+		Run.stow(LootGen.roll_module(n.danger, force,
 			n.region == MapGen.Region.CORE or n.region == MapGen.Region.FAUNA))
 	# Precursor fragments come off deep wrecks and nowhere else in normal space.
 	# They are the one material with no manufactured source, which is what makes

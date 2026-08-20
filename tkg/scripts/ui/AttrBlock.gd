@@ -15,6 +15,33 @@ extends VBoxContainer
 const CELL := Vector2(7, 9)
 const GAP := 1
 
+## What a fitted module ADDED. Bright white, and the white is the point.
+##
+## The base cells stay the MANUFACTURER's colour — that is the ship, and it is
+## what makes a Solari row read as Solari before you have read a word. So the
+## bonus has to wear a colour no house flies, or it just reads as more chassis.
+##
+## White is the one that is left. The seven accents are #d97b2e, #ef9f27,
+## #b3924e, #e24b4a, #8a7340, #58c8d8 and #3f8f6b — between them they cover
+## orange, gold, red, cyan and green, and none is within reach of white. It is
+## also the brightest thing on the panel, which is correct: a bonus should be
+## where the eye lands.
+##
+## The version before this was teal with a bright ring around it, because teal
+## collides with Cygnet and Calyx and needed structure to survive them. White
+## needs no ring.
+const GAIN := Color("#ffffff")
+
+## What a fitted module TOOK AWAY — a Solari flare rack costs stealth, and the
+## row has to be able to say so.
+##
+## Drawn as an UNLIT cell with a red slash through it, never as a red fill:
+## Redline's accent is #e24b4a, so a filled red cell is indistinguishable from a
+## Redline ship's ordinary ones. An unlit cell struck through reads as absence
+## against every accent in the game, because it is not competing on colour at
+## all — the cell is dark like an empty one, and the slash says something took it.
+const LOSS := Color("#d4614f")
+
 var _rows: Array[Cells] = []
 var _values: Array[Label] = []
 var _accent: Color = UITheme.CHILL
@@ -43,8 +70,7 @@ func _measure_labels(rows: Array[Dictionary]) -> float:
 func setup(rows: Array[Dictionary], accent: Color = UITheme.CHILL) -> void:
 	_accent = accent
 	add_theme_constant_override("separation", 2)
-	for c in get_children():
-		c.queue_free()
+	Widgets.clear(self)
 	_rows.clear()
 	_values.clear()
 	_label_w = _measure_labels(rows)
@@ -53,8 +79,18 @@ func setup(rows: Array[Dictionary], accent: Color = UITheme.CHILL) -> void:
 	set_values(rows)
 
 func _build_row(a: Dictionary) -> Control:
+	# TWO boxes, and the outer one is why. A row in a VBox stretches to the full
+	# panel width, so a single HBox carrying the tooltip made the hover target
+	# ~550px wide for ~140px of content — the attribute tooltip fired from empty
+	# space halfway across the screen, and from directly over the abilities block
+	# below it. The inner box shrinks to its content and owns the hover; the
+	# outer one is inert and just holds the slack.
+	var outer := HBoxContainer.new()
+	outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 5)
+	row.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	# Or the tooltip below never fires: the labels in this row are Labels, which
 	# default to MOUSE_FILTER_IGNORE, so the row itself has to catch the hover.
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -66,6 +102,7 @@ func _build_row(a: Dictionary) -> Control:
 	var cells := Cells.new()
 	cells.accent = _accent
 	cells.value = int(a.value)
+	cells.base = int(a.get("base", a.value))
 	row.add_child(cells)
 	_rows.append(cells)
 
@@ -76,8 +113,25 @@ func _build_row(a: Dictionary) -> Control:
 
 	# What the attribute actually gets checked for, on hover. Six labelled rows
 	# say what the axes ARE; only the tooltip can say why you would want one.
-	row.tooltip_text = "%s — %s" % [String(a.label), String(a.text)]
-	return row
+	row.tooltip_text = _hint(a)
+	outer.add_child(row)
+	var slack := Control.new()
+	slack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	outer.add_child(slack)
+	return outer
+
+## What the attribute is FOR, in the same shape as the weight-class tooltips:
+## the name, then one sentence.
+##
+## It used to also print the value and a "Chassis 40, fitted modules +3" split.
+## Both were repeating the row they were attached to — the cells and the number
+## are an inch away, and the split is visible in the cells themselves, which
+## already paint the chassis in the house colour and anything fitted in white.
+## A tooltip that restates what you are pointing at is a tooltip you stop reading.
+static func _hint(a: Dictionary) -> String:
+	return "%s
+%s" % [String(a.label).capitalize(), String(a.text)]
 
 ## Repaint in place. Hull falls as you take damage and Sensors moves every time
 ## you fit something, so this is called far more often than setup().
@@ -85,12 +139,17 @@ func set_values(rows: Array[Dictionary]) -> void:
 	for i in mini(rows.size(), _rows.size()):
 		var v := int(rows[i].value)
 		_rows[i].value = v
+		_rows[i].base = int(rows[i].get("base", v))
 		_rows[i].queue_redraw()
 		_values[i].text = str(v)
 
 
 class Cells extends Control:
 	var value: int = 0
+	## What the bare chassis reads. Cells below this are the ship; cells between
+	## this and `value` are what you fitted; cells between `value` and this — when
+	## a module made the attribute WORSE — are what you gave up.
+	var base: int = 0
 	var accent: Color = UITheme.CHILL
 
 	func _init() -> void:
@@ -103,18 +162,41 @@ class Cells extends Control:
 		# Same optical +1 as BoxGauge: Silkscreen's caps sit high in the line box,
 		# so a mathematically centred cell reads above the label beside it.
 		var y: float = floor((size.y - AttrBlock.CELL.y) * 0.5) + 1.0
+		var kept := mini(base, value)
 		for i in Run.ATTR_MAX:
 			var pos := Vector2(i * (AttrBlock.CELL.x + AttrBlock.GAP), y)
-			if i < value:
-				draw_rect(Rect2(pos, AttrBlock.CELL), accent, true)
-				draw_rect(Rect2(pos, Vector2(AttrBlock.CELL.x, 1)),
-					accent.lightened(0.35), true)
-				draw_rect(Rect2(pos, Vector2(1, AttrBlock.CELL.y)),
-					accent.lightened(0.35), true)
-				draw_rect(Rect2(pos + Vector2(0, AttrBlock.CELL.y - 1),
-					Vector2(AttrBlock.CELL.x, 1)), accent.darkened(0.45), true)
-				draw_rect(Rect2(pos + Vector2(AttrBlock.CELL.x - 1, 0),
-					Vector2(1, AttrBlock.CELL.y)), accent.darkened(0.45), true)
+			if i < kept:
+				_solid(pos, accent)
+			elif i < value:
+				_solid(pos, AttrBlock.GAIN)
+			elif i < base:
+				_lost(pos)
 			else:
 				draw_rect(Rect2(pos, AttrBlock.CELL), Color("#10161f"), true)
 				draw_rect(Rect2(pos, AttrBlock.CELL), Color("#1e2836"), false, 1.0)
+
+	## A filled cell with the bevel every countable box in this game wears.
+	func _solid(pos: Vector2, c: Color) -> void:
+		draw_rect(Rect2(pos, AttrBlock.CELL), c, true)
+		draw_rect(Rect2(pos, Vector2(AttrBlock.CELL.x, 1)), c.lightened(0.35), true)
+		draw_rect(Rect2(pos, Vector2(1, AttrBlock.CELL.y)), c.lightened(0.35), true)
+		draw_rect(Rect2(pos + Vector2(0, AttrBlock.CELL.y - 1),
+			Vector2(AttrBlock.CELL.x, 1)), c.darkened(0.45), true)
+		draw_rect(Rect2(pos + Vector2(AttrBlock.CELL.x - 1, 0),
+			Vector2(1, AttrBlock.CELL.y)), c.darkened(0.45), true)
+
+	## A cell the chassis had and a fitted module took away: an unlit cell with a
+	## red slash across it. Never a red FILL — see AttrBlock.LOSS.
+	##
+	## The cell body is drawn exactly like an empty one, because that is what it
+	## now is. Only the slash is added, and it is the sole diagonal anywhere in
+	## this interface — which is what makes it read as a strike-through rather
+	## than as another piece of chrome.
+	##
+	## draw_line rather than stepped rects: Godot leaves it unantialiased by
+	## default, so it stays crisp on the pixel grid at this size.
+	func _lost(pos: Vector2) -> void:
+		draw_rect(Rect2(pos, AttrBlock.CELL), Color("#10161f"), true)
+		draw_rect(Rect2(pos, AttrBlock.CELL), Color("#2a1a1e"), false, 1.0)
+		draw_line(pos + Vector2(1, AttrBlock.CELL.y - 1),
+			pos + Vector2(AttrBlock.CELL.x - 1, 1), AttrBlock.LOSS, 1.0)

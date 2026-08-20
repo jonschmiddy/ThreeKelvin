@@ -156,7 +156,7 @@ var _sfx_next: int = 0
 var _cache: Dictionary = {}
 var _last: Dictionary = {}          ## sfx name -> msec, for rate limiting
 var _enabled: bool = true
-var _last_scrap: int = -1
+var _last_credits: int = -1
 var _last_cargo: int = -1
 var _hot: bool = false
 var _running: Dictionary = {}       ## cue -> bool, are its players rolling
@@ -196,7 +196,7 @@ func _connect_signals() -> void:
 	Sig.resources_changed.connect(_poll_resources)
 	Sig.screen_changed.connect(_poll_resources)
 	Sig.run_started.connect(func() -> void:
-		_last_scrap = -1
+		_last_credits = -1
 		_last_cargo = -1
 		_hot = false)
 
@@ -389,13 +389,13 @@ func _on_combat_state() -> void:
 ## sound is right by construction. One of these two signals always fires
 ## after anything has changed.
 func _poll_resources() -> void:
-	var scrap := Run.scrap
+	var credits := Run.credits
 	var cargo := Run.cargo.size()
-	if _last_scrap >= 0 and scrap > _last_scrap:
+	if _last_credits >= 0 and credits > _last_credits:
 		play(&"scrap_gain", 0.08, 110)
 	if _last_cargo >= 0 and cargo > _last_cargo:
 		play(&"loot_drop", 0.03, 200)
-	_last_scrap = scrap
+	_last_credits = credits
 	_last_cargo = cargo
 
 func _on_damage(_amount: int, to_player: bool, _who: int) -> void:

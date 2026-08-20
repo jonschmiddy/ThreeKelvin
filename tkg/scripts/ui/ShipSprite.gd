@@ -44,15 +44,15 @@ func rebuild() -> void:
 	# Far row first, near row second — child order gives correct occlusion.
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		var anchors := Run.hull.anchors_for(slot)
-		var installed: Array[ModuleData] = []
-		for m in Run.installed:
-			if m.slot == slot:
-				installed.append(m)
-		for i in installed.size():
+		# An anchor is picked by the module's OWN mount, not by its place in the
+		# list. Which anchor a part hangs on is a decision the refit screen
+		# records; reading it off the array order made the ship rearrange itself
+		# whenever something was taken off ahead of it.
+		for i in Run.slots_for(slot):
 			if i >= anchors.size():
-				break  # more modules than the hull has visible mounts
-			var m: ModuleData = installed[i]
-			if m.sprite == null:
+				break  # more hardpoints than the hull has visible mounts
+			var m := Run.module_at(slot, i)
+			if m == null or m.sprite == null:
 				continue
 			var s := Sprite2D.new()
 			s.texture = m.sprite

@@ -16,7 +16,7 @@ extends RefCounted
 
 ## Every recipe this place can build, whether or not you can currently pay.
 ## Showing what you cannot afford is the point: a recipe you can see is a reason
-## to go and find three more alloy.
+## to go and find one more exotic.
 static func available(n: MapGen.MapNode) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if n.type == MapGen.NodeType.GOAL:
@@ -34,19 +34,26 @@ static func has_bench(n: MapGen.MapNode) -> bool:
 ## stand, and a place that charges two of them for the same job would read as
 ## the recipe changing rather than the price.
 static func price(n: MapGen.MapNode, r: Dictionary) -> int:
-	return maxi(1, int(round(float(r.scrap) * Market.service_index(n))))
+	return maxi(1, int(round(float(r.credits) * Market.service_index(n))))
 
 static func can_make(n: MapGen.MapNode, r: Dictionary) -> bool:
-	if Run.scrap < price(n, r):
+	if Run.credits < price(n, r):
 		return false
 	for id in (r.mats as Dictionary).keys():
 		if Run.material(id) < int(r.mats[id]):
 			return false
 	return _useful(r)
 
-## Refuses a job that would do nothing. A HULL PATCH on a full hull is not a
-## purchase the player meant to make, and letting it through spends two alloy on
-## a no-op that nothing in the interface would explain afterwards.
+## Refuses a job that would do nothing. A COOLANT BRAID is always useful, but the
+## repair and fuel kinds are not — a patch on a full hull is not a purchase the
+## player meant to make, and letting it through would spend a material on a no-op
+## that nothing in the interface would explain afterwards.
+##
+## The repair and fuel kinds have no recipe behind them today: both were dev-0
+## recipes whose real cost was alloy, and a station sells REPAIR and REFUEL at
+## every development level, so retiring alloy retired them. The handlers stay
+## because a recipe is meant to be a dictionary entry against an effect the game
+## already applies — deleting the effect is what would make the next one code.
 static func _useful(r: Dictionary) -> bool:
 	match StringName(r.kind):
 		&"repair":
@@ -60,7 +67,7 @@ static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:
 	var bits: PackedStringArray = []
 	for id in (r.mats as Dictionary).keys():
 		bits.append("%d %s" % [int(r.mats[id]), DB.material_name(id).to_lower()])
-	bits.append("%d scrap" % price(n, r))
+	bits.append("%d credits" % price(n, r))
 	return " · ".join(bits)
 
 ## Build it. Returns the log line, or an empty string when it did not happen —
@@ -70,7 +77,7 @@ static func make(n: MapGen.MapNode, r: Dictionary) -> String:
 	if not can_make(n, r):
 		return ""
 	var cost := price(n, r)
-	Run.add_scrap(-cost)
+	Run.add_credits(-cost)
 	for id in (r.mats as Dictionary).keys():
 		Run.spend_material(id, int(r.mats[id]))
 	return _apply(n, r)
@@ -83,7 +90,7 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 		&"fuel":
 			Run.fuel += int(r.amount)
 			Sig.resources_changed.emit()
-			return "Cracked alloy for volatiles. +%d fuel." % int(r.amount)
+			return "Cracked feedstock for volatiles. +%d fuel." % int(r.amount)
 		&"heat_cap":
 			Run.heat_cap_bonus += int(r.amount)
 			Sig.resources_changed.emit()
@@ -95,7 +102,7 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			# catalog. Danger biases it, which makes reading a fragment deep in
 			# the galaxy worth more than reading one on the rim.
 			var m := LootGen.roll_module(n.danger, &"", true)
-			Run.cargo.append(m)
+			Run.stow(m)
 			Sig.ship_changed.emit()
 			return "The fragment reads out as %s. It is in the hold." % m.name
 	return ""

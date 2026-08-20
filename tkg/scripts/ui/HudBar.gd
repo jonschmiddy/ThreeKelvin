@@ -105,7 +105,7 @@ func _build() -> void:
 	# whole economy is stated and none of it is self-evident: scrap is one
 	# currency competing with itself, fuel is priced by chart distance, and heat
 	# is a second health bar you are allowed to spend.
-	_scrap = Widgets.stat("scrap", "")
+	_scrap = Widgets.stat("credits", "")
 	_row.add_child(_hintable(_scrap))
 	# Materials are the one part of this bar whose CHILD COUNT is not fixed —
 	# one readout per material held, none for a material you have none of,
@@ -185,7 +185,7 @@ func refresh() -> void:
 	# bar that follows you everywhere is only true where you happen to be
 	# standing — and a figure that silently changes meaning is worse than no
 	# figure. The station screen quotes it where it applies.
-	var hull_note := "Your hull is the ship itself — this is your health.\nAt zero the run ends. Stations weld it back on, for scrap."
+	var hull_note := "Your hull is the ship itself — this is your health.\nAt zero the run ends. Stations weld it back on, for credits."
 	_hull.set_hull(Run.hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = hull_note
@@ -216,8 +216,8 @@ func refresh() -> void:
 		UITheme.FLARE if over > 0 else UITheme.COLD)
 	_hint(_heat_text, heat_note)
 
-	_value(_scrap, str(Run.scrap))
-	_hint(_scrap, "Scrap is the only currency.\nRepairs, upgrades and purchases all come out of the same pile.")
+	_value(_scrap, str(Run.credits))
+	_hint(_scrap, "Credits are the only currency.\nRepairs, upgrades and purchases all come out of the same balance.")
 	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")

@@ -3,9 +3,11 @@
 **Read this before generating any sprite.** The single biggest risk to this project's
 look is 150 assets drifting in style. This document is the thing that prevents it.
 
-Generation happens through the PixelLab MCP server in Claude Code (`create_character`,
-`animate_character`, `create_tileset`, plus style-reference and concept-image inputs).
-Tool names may be bare or prefixed `mcp__pixellab__*` depending on client.
+Generation happens through the PixelLab MCP server in Claude Code. **Never**
+`create_character` or `animate_character` — those are a skeleton-rigged humanoid pipeline
+and ships are not characters. Use `create_image_pixflux` to iterate (1 generation),
+`create_image_pro` to finalise (20–40), `inpaint_image` to fix one region. Full mechanics
+in `PIXELLAB_WORKFLOW.md`. Tool names may be bare or prefixed `mcp__pixellab__*`.
 
 ---
 
@@ -26,16 +28,45 @@ reference. There is only ever one canonical reference at a time.
 
 | Rule | Detail |
 |---|---|
-| **Perspective** | **3/4 view** (Stardew Valley register): camera tilted roughly 45°, so you see the top deck *and* the near-side hull wall. Vertical foreshortening ~0.6. Not top-down, not side-on. |
-| **Two-plane lighting** | Every raised object has a **bright top face** and a **darker front wall**, with a bright lip where they meet. This value break is what makes objects read as solid rather than as schematics — it is the single most important rule in this document. |
+| **Perspective** | **Edge on.** Flat side elevation, camera exactly level with the ship, no top surface visible, no foreshortening. Not 3/4, not top-down. **REVERSED** — see §2a. |
+| **Banded lighting** | Lit from directly above: a **bright top edge**, a mid-tone flank, and a **shadowed underside**, with weathering running straight down. Every raised object still needs a light-to-dark break across it or it reads as a schematic. This is the successor to the two-plane rule and it does the same job with less surface. |
 | **Facing** | Nose points **right** (+X). The player faces the encounter, which is always to the right. Enemies nose left. |
-| **Symmetry** | 3/4 view **breaks bilateral symmetry** — the far side foreshortens and partially occludes, so mirroring does not work. Instead: **hardpoints live on the visible top deck**, arranged in a far row (higher on screen) and a near row (lower on screen). Both stay visible, and each module is authored once. Draw far-row modules first so near-row mounts occlude correctly. |
-| **Lighting** | Lit from the **top of the frame**, cold and directional. Top faces catch light; front walls fall into shadow; weathering streaks run *down* the wall. |
+| **Symmetry** | Edge on is a true elevation, so the silhouette is what carries the ship. **Hardpoints live along the dorsal line (top edge) and the ventral line (bottom edge)**, plus an aft mount and an upper spine — the vocabulary `ShipView._draw_weapon` already uses. There is no far row and no near row, and nothing occludes anything else. |
+| **Lighting** | Lit from the **top of the frame**, cold and directional. The top edge catches light, the flank sits mid-tone, the underside falls into shadow; weathering streaks run *down* the flank. |
 | **Warm light** | Warm colour appears **only** where something emits it: reactor glow, thruster wash, weapon muzzle, vent cores, lit windows. Never as ambient warmth. This is the whole visual thesis of the game. |
 | **Outlines** | Silhouette gets a 1px dark outline (`#0b0f16`). Interior detail is defined by value contrast, **not** by black outlines around every shape. |
 | **Background** | Fully transparent. No baked shadows, no background gradient, no ground plane. |
 | **Dithering** | Ordered/checkerboard dithering for gradients. No anti-aliasing, no soft blur, no gaussian edges. |
 | **Detail density** | Lush: panel seams, rivet rows, weathering streaks, stencilled numbers, decals, lit viewports. Density is what makes it read as Stardew-adjacent craft — not warmth or saturation. |
+
+## 2a. The camera was reversed, deliberately — and what it cost
+
+This document used to open with **3/4 view** and **two-plane lighting**, and
+called the second one "the single most important rule in this document." Both
+are gone. That is a real reversal and it is recorded here rather than quietly
+worked around.
+
+**What decided it**, from thirteen generated candidates across three cameras:
+
+- **Legibility at 1×.** The edge-on candidates read at native size. The 3/4 ones
+  went muddy and only resolved when blown up to 3×. The game renders at 640×360.
+  Judging sprites zoomed in is how you ship art that is mush in play.
+- **Module compositing, which `ASSET_PIPELINE.md` already names as the hard
+  part**: a module generated in isolation must share the hull's camera and
+  lighting or it looks pasted on. In 3/4 that meant ~30 modules each matching a
+  45° tilt and occluding correctly across two rows. Edge on makes each one a
+  silhouette bolted onto a line. This is the whole argument.
+- **The code already assumed edge on.** `ShipView._draw_weapon` mounts at
+  *dorsal ordnance*, *ventral twin barrels*, *aft mount* and *upper spine* —
+  side positions, not deck positions. `EnemyArt.gd` draws side-view. Combat is a
+  two-panel split with ships facing each other. Only this document said 3/4.
+
+**What was given up, honestly.** Two-plane lighting was load-bearing: a bright
+deck face against a dark wall is a wider value break than a top edge against a
+flank, and "lush objects in a cold void" had more surface to live on. Detail
+density now has to come from the flank alone — panel seams, rivet rows, patches,
+stencils, viewports — and it will be harder to make a ship read as *solid*
+rather than as a decal. Accept the cost; do not pretend it was free.
 
 ## 3. Palette
 
@@ -79,12 +110,12 @@ rejected live, 260×156 works. Do not "round up for detail"; you will waste a ge
 
 | Asset | Size | Notes |
 |---|---|---|
-| Light hull | 220 × 128 | Narrow deck, shallow wall (~13px), 2 vents |
-| Medium hull | 260 × 156 | Wall ~17px, 3 vents — **the canonical style reference** |
-| Heavy hull | 300 × 188 | Broad deck, deep wall (~22px), 4 vents |
-| Weapon module | 88 × 32 | Two-plane box + barrel overhang; sits on the deck |
-| System module | 32 × 20 | Low blister, still needs a top face and front wall |
-| Utility module | 20 × 28 | Mast, dish, or pod rising off the deck |
+| Light hull | 220 × 128 | Short, shallow flank, 2 vents |
+| Medium hull | 260 × 156 | 3 vents — **the canonical style reference** |
+| Heavy hull | 300 × 188 | Long, deep flank, 4 vents |
+| Weapon module | 88 × 32 | Housing plus barrel, in profile; sits on the dorsal or ventral line |
+| System module | 32 × 20 | Low blister in profile, still needs a light-to-dark break |
+| Utility module | 20 × 28 | Mast, dish or pod rising off the spine |
 | Enemy ship | 152–260 wide | Match its danger tier's menace |
 | Megafauna | 240–340 wide | Organic; **commission or hand-draw these** |
 | Station | 200 × 240 | Vertical, lit windows with interior silhouettes |
@@ -164,10 +195,10 @@ Before committing any sprite:
 
 - [ ] Transparent background, no baked shadow
 - [ ] Nose right (player) or left (enemy)
-- [ ] 3/4 view: deck plane, wall plane, and a bright lip between them
-- [ ] Every raised object has a lit top face and a shadowed front wall
-- [ ] Deck modules sit inside the deck outline — nothing hangs off the hull edge
-- [ ] Far-row modules occluded correctly by near-row ones
+- [ ] Edge on: flat elevation, no top surface, no foreshortening
+- [ ] Bright top edge, mid flank, shadowed underside
+- [ ] Dorsal and ventral mounts sit on the hull line, not floating off it
+- [ ] Nothing occludes anything else — an elevation has one plane
 - [ ] At least one asymmetric detail (decal, patch, warning light)
 - [ ] Top-lit; every warm pixel is an emitter
 - [ ] Palette stays inside the defined ramps

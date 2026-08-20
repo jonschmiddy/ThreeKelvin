@@ -70,7 +70,7 @@ func fingerprint() -> Dictionary:
 			Run.hull.system_slots, Run.hull.utility_slots, Run.hull.perk_id],
 		installed = mods.call(Run.installed),
 		cargo = mods.call(Run.cargo),
-		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.scrap,
+		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
 			Run.fuel, Run.dross, Run.whale_boon],
 		# Every material, not just the one that used to be a field. Written as a
 		# sorted list so a ledger that came back with the same counts under
@@ -145,12 +145,12 @@ func run() -> void:
 	Run.hp = maxi(1, Run.hp - 9)
 	Run.heat = 5
 	Run.heat_cap_bonus = 2
-	Run.scrap += 37
+	Run.credits += 37
 	# All three materials, not just the one that used to be a bare field. A
 	# ledger keyed by StringName and reloaded from JSON's String keys is exactly
 	# the kind of thing that comes back looking right and compares wrong.
 	Run.exotic = 3
-	Run.add_material(&"alloy", 7)
+	Run.add_material(&"exotic", 7)
 	Run.add_material(&"relic", 2)
 	Run.dross = 2
 	Run.whale_boon = true
@@ -205,7 +205,7 @@ func run() -> void:
 	Run.hp = 1
 	Run.heat = 99
 	Run.heat_cap_bonus = 0
-	Run.scrap = 0
+	Run.credits = 0
 	Run.materials = {}
 	Run.fuel = 0
 	Run.dross = 0

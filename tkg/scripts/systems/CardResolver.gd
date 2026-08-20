@@ -9,12 +9,12 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.energy += c.energy_gain
 		cb._log("+%d energy." % c.energy_gain, &"good")
 
-	if c.scrap_cost > 0:
-		if Run.scrap < c.scrap_cost:
-			cb._log("Not enough scrap.", &"sys")
+	if c.credit_cost > 0:
+		if Run.credits < c.credit_cost:
+			cb._log("Not enough credits.", &"sys")
 			return
-		Run.add_scrap(-c.scrap_cost)
-		cb._log("Spent %d scrap." % c.scrap_cost, &"sys")
+		Run.add_credits(-c.credit_cost)
+		cb._log("Spent %d credits." % c.credit_cost, &"sys")
 
 	if c.vent_all:
 		var purged := Run.heat
@@ -106,9 +106,9 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.lock_on = c.lock_on
 		cb._log("Lock-on engaged.", &"you")
 
-	if c.scrap_gain > 0:
-		Run.add_scrap(c.scrap_gain)
-		cb._log("+%d scrap." % c.scrap_gain, &"good")
+	if c.credit_gain > 0:
+		Run.add_credits(c.credit_gain)
+		cb._log("+%d credits." % c.credit_gain, &"good")
 
 	if c.draw > 0:
 		# Never reshuffle mid-turn: that is what makes 0-cost draw loop forever.

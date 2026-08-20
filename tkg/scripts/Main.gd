@@ -134,6 +134,13 @@ func _ready() -> void:
 		# The refit screen normally sits two clicks and a chassis choice away,
 		# and it is where the attribute block lives — so the screen that most
 		# needs looking at was the most tedious to reach.
+		#
+		# Seeded with a hold, because the screen is a workbench now and an empty
+		# hold tests half of it. Eight parts across the rarity range: enough to
+		# fill the storage grid past one row, and enough that a swap has
+		# something worth swapping to.
+		for i in 8:
+			Run.stow(LootGen.roll_module(2 + i, &"", true))
 		Router.show_ship()
 	elif "station" in OS.get_cmdline_user_args():
 		# The dock, immediately. Added when the station became four panels rather
@@ -151,11 +158,10 @@ func _ready() -> void:
 		here.makers = [&"solari", &"cygnet"]
 		here.manufacturer = &"solari"
 		here.danger = 5
-		# Something in the hold to sell, something to melt, and enough of every
+		# Something in the hold to sell, something to scrap, and enough of every
 		# material to light up the fabricator and the material rows.
 		for i in 3:
-			Run.cargo.append(LootGen.roll_module(4 + i, &"", true))
-		Run.add_material(&"alloy", 6)
+			Run.stow(LootGen.roll_module(4 + i, &"", true))
 		Run.add_material(&"exotic", 2)
 		Run.add_material(&"relic", 1)
 		Run.hp = maxi(1, Run.max_hp() - 12)
@@ -226,7 +232,7 @@ func _print_attribute_table() -> void:
 			# spare_bay is exactly that case.
 			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d %4d %4d  %s %d" % [
 				Run.hull.name, row, Run.hp, Run.heat_cap(), Run.dissipation(),
-				Run.hull.dodge, Run.hull.initiative, Run.hull.fuel_factor,
+				Run.dodge(), Run.initiative(), Run.fuel_factor(),
 				Run.slots_for(ModuleData.Slot.WEAPON),
 				Run.slots_for(ModuleData.Slot.SYSTEM),
 				Run.slots_for(ModuleData.Slot.UTILITY),

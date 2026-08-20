@@ -3,15 +3,147 @@ extends TextureRect
 
 ## The ship sprite is a UI element: it shows your build, your heat, and your
 ## damage at a glance. Hull shape reads weight class; bolted-on modules read
-## manufacturer via shape and palette. Everything is generated procedurally so
-## the project runs with zero art assets — replace draw_ship() with real
-## sprites + hardpoint Marker2D anchors when you have art.
+## manufacturer via shape and palette.
+##
+## TWO RENDERERS, one control. When the hull carries a `sprite` it is blitted
+## whole; when it does not, draw_ship() draws it procedurally exactly as it
+## always has. That fallback is the point — real art arrives one asset at a time
+## and the game has to stay playable through a migration that will take a while.
+##
+## Every screen goes through this class rather than through ShipSprite, which was
+## written for real art and never instantiated. Five call sites already use this
+## one, and it already owns magnification, showroom preview, heat and damage.
 
+## The PROCEDURAL canvas. Real hull sprites are authored at 220x128, 260x156 and
+## 300x188, none of which is this size, so the canvas cannot be a constant any
+## more — see _w/_h below.
 const W := 240
 const H := 120
 
+## The canvas actually in use. Equal to W/H while drawing procedurally, and equal
+## to the hull sprite's own dimensions when there is one.
+##
+## Variables rather than constants because the alternative is scaling the sprite
+## to fit 240x120, and scaling pixel art by a non-integer factor is the one thing
+## the art direction forbids outright.
+var _w: int = W
+var _h: int = H
+
 var _img: Image
 var _tex: ImageTexture
+
+## Idle bob: the ship drifts a couple of pixels up and down so it reads as
+## floating rather than pinned to the panel.
+##
+## Moved in WHOLE PIXELS, inside the image, and only redrawn on the frames the
+## offset actually changes — which at these settings is about eight times a
+## second, not sixty. Both halves matter. A sub-pixel offset would resample the
+## sprite and undo the nearest-neighbour crispness the whole art direction rests
+## on; and animating the Control's `position` instead would fight the containers
+## every screen puts this inside.
+var _bob_amp: int = 0
+var _bob_hz: float = 0.3
+var _bob_off: int = 0
+
+## Exhaust playback. The plume is a strip of authored frames that change SHAPE
+## as they burn, so nothing here has to fake motion — it just picks a frame.
+##
+## This replaced a palette cycle that stepped every pixel up and down the
+## flame's own brightness ramp. That animated all of it, but only ever in
+## brightness; a flame gutters and swells, and shape is most of what sells it.
+const FLAME_HZ := 10.0
+var _flame_step: int = 0
+
+## OFF unless a screen asks for it.
+##
+## The engines only burn on the chassis select, where the ship is a showroom
+## piece being sold to you. Everywhere else it is parked — the refit screen is a
+## workbench, the sector is a place you have arrived at, the dock is a dock — and
+## a permanently firing engine on a stationary ship reads as a loop nobody
+## switched off rather than as motion.
+var _burning: bool = false
+
+## ARRIVAL. The ship flies in from the left, cuts its engines, and drifts to a
+## halt at its resting position, then settles into the idle bob.
+##
+## Eased out rather than linear, because the DRIFT is the whole point: constant
+## speed reads as a slide. The engines cut at ARRIVE_CUT, before the stop, so the
+## last third is visibly unpowered coasting.
+## Slow, and slower than feels right when you read the number. The approach is
+## the only unhurried thing in the game and it is doing scene-setting work: four
+## and a half seconds of coasting says "you have got somewhere" in a way that a
+## second and a half does not. Most of it is the unpowered drift, which is the
+## part worth having.
+const ARRIVE_MS := 4500.0
+## The engines do not snap off. They burn clean to FLAME_FADE, then STUTTER —
+## blinking with a duty cycle that falls to nothing by FLAME_OUT — and the ship
+## coasts the rest dark. A hard cut read as a switch being thrown.
+const FLAME_FADE := 0.42
+const FLAME_OUT := 0.66
+const FLAME_STUTTER_HZ := 26.0
+var _arrive_at: int = -1
+var _arrive_dx: int = 0
+var _arrive_bob: int = 2
+## How far left of its resting place the ship starts, in screen pixels. Measured
+## on the first tick, once layout has actually happened.
+var _arrive_span: int = 0
+
+## Fly in, then idle. Safe on a view that is already parked.
+func arrive(bob_amp: int = 2) -> void:
+	_arrive_bob = maxi(0, bob_amp)
+	_arrive_at = Time.get_ticks_msec()
+	_arrive_dx = 0
+	_arrive_span = 0
+	_bob_amp = 0
+	_bob_off = 0
+	_burning = true
+	set_process(true)
+	refresh()
+
+## Light the engines. Chassis select only; see _burning.
+func burn(on: bool = true) -> void:
+	_burning = on
+	if on:
+		set_process(true)
+	refresh()
+
+## Sliced frames, keyed by source texture and shared by every ShipView on
+## screen. Slicing is done once per texture, not once per view.
+static var _flame_cache: Dictionary = {}
+
+## Opt in. `amp` is in source pixels, so it is multiplied by the magnification
+## like everything else.
+func bob(amp: int, hz: float = 0.3) -> void:
+	_bob_amp = maxi(0, amp)
+	_bob_hz = hz
+	set_process(true)
+
+func _ready_anim() -> void:
+	if _burning and _hull() != null and _hull().exhaust != null:
+		set_process(true)
+
+func _process(_delta: float) -> void:
+	if _hull() == null:
+		return
+	var t := float(Time.get_ticks_msec()) / 1000.0
+	var dirty := false
+	if _arrive_at >= 0 and _tick_arrival():
+		dirty = true
+	if _bob_amp > 0:
+		var off := int(round(sin(t * TAU * _bob_hz) * float(_bob_amp)))
+		if off != _bob_off:
+			_bob_off = off
+			dirty = true
+	if _burning and _hull().exhaust != null:
+		var step := int(t * FLAME_HZ) % maxi(1, _hull().exhaust_frames)
+		if step != _flame_step:
+			_flame_step = step
+			dirty = true
+	# One repaint per CHANGE, not per frame. Between them the texture is simply
+	# left alone, which is why an animated ship costs about twenty redraws a
+	# second rather than sixty.
+	if dirty:
+		refresh()
 
 func _init() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -19,8 +151,8 @@ func _init() -> void:
 	# whatever rect it is handed, so the ship changed size whenever a side rail
 	# opened — and scaled pixel art by arbitrary fractions while doing it.
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
-	custom_minimum_size = Vector2(W, H)
-	_img = Image.create(W, H, false, Image.FORMAT_RGBA8)
+	custom_minimum_size = Vector2(_w, _h)
+	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
 
@@ -43,6 +175,19 @@ var preview: HullData = null
 ## ship instead of magnifying it.
 var _k: int = 1
 
+## Magnify and crop WITHOUT going into showroom mode.
+##
+## The refit screen wants the live ship — its heat glow, its battle damage, the
+## modules actually bolted to it — just bigger. setup_preview() would give it
+## the size and take all three away, because preview means "a hull you do not
+## own yet". Same geometry, different question.
+func magnify(k: int, view_height: int) -> void:
+	_k = maxi(1, k)
+	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	custom_minimum_size = Vector2(_w * _k, view_height)
+	clip_contents = true
+	refresh()
+
 func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 	preview = h
 	_k = maxi(1, k)
@@ -59,7 +204,7 @@ func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 		# said. The card's own labels were pushed out of the button and drew on
 		# top of the attribute block underneath it.
 		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		custom_minimum_size = Vector2(W * _k, view_height)
+		custom_minimum_size = Vector2(_w * _k, view_height)
 		clip_contents = true
 	refresh()
 
@@ -67,6 +212,7 @@ func _hull() -> HullData:
 	return preview if preview != null else Run.hull
 
 func _ready() -> void:
+	_ready_anim()
 	if preview == null:
 		Sig.ship_changed.connect(refresh)
 		Sig.resources_changed.connect(refresh)
@@ -76,15 +222,140 @@ func _ready() -> void:
 func refresh() -> void:
 	if _hull() == null:
 		return
-	draw_ship()
+	if _hull().sprite != null:
+		_blit_sprite()
+	else:
+		_resize_canvas(W, H)
+		draw_ship()
+	# set_image, not update: update() requires the same dimensions, and neither a
+	# resized canvas nor a magnified copy matches what the texture last held.
 	if _k <= 1:
-		_tex.update(_img)
+		_tex.set_image(_img)
 		return
-	# set_image, not update: update() requires the same dimensions, and the
-	# magnified copy is a different size from the canvas it came from.
 	var up := _img.duplicate() as Image
-	up.resize(W * _k, H * _k, Image.INTERPOLATE_NEAREST)
+	up.resize(_w * _k, _h * _k, Image.INTERPOLATE_NEAREST)
 	_tex.set_image(up)
+
+## Real art. The hull sprite goes down whole; everything the procedural path
+## layers on top of it — heat glow, battle damage, module shapes — is not drawn
+## here, because that is the shader's job now and the modules are their own
+## sprites. See shaders/heat.gdshader.
+## One step of the fly-in. Returns whether the canvas needs repainting.
+func _tick_arrival() -> bool:
+	# The span is taken once, on the first tick that has a real layout: far
+	# enough left that the ship's trailing edge starts off the SCREEN, not off
+	# its own texture. Sliding inside the canvas was the bug — the canvas is only
+	# as wide as the ship, so it popped into being at the panel edge.
+	if _arrive_span <= 0:
+		if size.x <= 0.0:
+			return false
+		_arrive_span = int(ceil(global_position.x + size.x)) + 16
+		position.x = -float(_arrive_span)
+
+	var e := float(Time.get_ticks_msec() - _arrive_at) / ARRIVE_MS
+	if e >= 1.0:
+		_arrive_at = -1
+		_arrive_dx = 0
+		_arrive_span = 0
+		position.x = 0.0
+		_burning = false
+		_bob_amp = _arrive_bob
+		return true
+
+	var dirty := false
+	# Ease-out cubic: it arrives with speed and gives it all up to the drift.
+	var p := 1.0 - pow(1.0 - e, 3.0)
+	var dx := int(round(lerpf(float(-_arrive_span), 0.0, p)))
+	if dx != _arrive_dx:
+		_arrive_dx = dx
+		position.x = float(dx)
+	var lit := _flame_lit(e)
+	if lit != _burning:
+		_burning = lit
+		dirty = true
+	return dirty
+
+## Engines guttering out rather than switching off. Full burn, then a blink whose
+## on-time falls to zero, then dark.
+static func _flame_lit(e: float) -> bool:
+	if e < FLAME_FADE:
+		return true
+	if e >= FLAME_OUT:
+		return false
+	var duty := (FLAME_OUT - e) / (FLAME_OUT - FLAME_FADE)
+	return fmod(e * FLAME_STUTTER_HZ, 1.0) < duty
+
+## Copy `img` at (dx, dy), clipping whatever falls off the left edge.
+##
+## The canvas is only as wide as the ship, so a fly-in has nowhere to start
+## from — the ship enters from behind its own panel edge. A negative destination
+## is not allowed, so the offset comes out of the SOURCE rect instead. Nose
+## first, which is correct: the nose points right.
+func _paste(img: Image, dx: int, dy: int, blend: bool) -> void:
+	var sx := maxi(0, -dx)
+	var iw := img.get_width() - sx
+	if iw <= 0:
+		return
+	var src := Rect2i(sx, 0, iw, img.get_height())
+	var at := Vector2i(maxi(0, dx), dy)
+	if blend:
+		_img.blend_rect(img, src, at)
+	else:
+		_img.blit_rect(img, src, at)
+
+func _blit_sprite() -> void:
+	var img := _hull().sprite.get_image()
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img = img.duplicate() as Image
+		img.convert(Image.FORMAT_RGBA8)
+	# Headroom above and below so the bob has somewhere to travel without the
+	# sprite being clipped at the extremes of its own canvas.
+	_resize_canvas(img.get_width(), img.get_height() + _bob_amp * 2)
+	_paste(img, 0, _bob_amp + _bob_off, false)
+	_blit_exhaust(_bob_amp + _bob_off)
+
+## The canvas follows whatever is being drawn into it. Cheap to call every
+## refresh: it only allocates when the size actually changed.
+func _resize_canvas(w: int, h: int) -> void:
+	if w == _w and h == _h and _img != null:
+		_img.fill(Color(0, 0, 0, 0))
+		return
+	_w = w
+	_h = h
+	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
+	if _k <= 1:
+		custom_minimum_size = Vector2(_w, _h)
+
+## The plume, over the hull, at this step of the cycle.
+##
+## blend_rect and not blit_rect: blit COPIES alpha, so it would punch the flame
+## frame's empty pixels straight through the hull underneath it.
+func _blit_exhaust(dy: int) -> void:
+	var hull := _hull()
+	if not _burning or hull.exhaust == null:
+		return
+	var frames: Array = _flame_frames(hull.exhaust, hull.exhaust_frames)
+	if frames.is_empty():
+		return
+	var f := frames[_flame_step % frames.size()] as Image
+	_paste(f, hull.exhaust_offset.x, hull.exhaust_offset.y + dy, true)
+
+## Cut a horizontal strip into equal frames, once per texture.
+static func _flame_frames(ex: Texture2D, count: int) -> Array:
+	if _flame_cache.has(ex):
+		return _flame_cache[ex]
+	var src := ex.get_image()
+	if src.get_format() != Image.FORMAT_RGBA8:
+		src = src.duplicate() as Image
+		src.convert(Image.FORMAT_RGBA8)
+	var n := maxi(1, count)
+	var fw := src.get_width() / n
+	var out: Array = []
+	if fw > 0:
+		for i in n:
+			out.append(src.get_region(Rect2i(i * fw, 0, fw, src.get_height())))
+	_flame_cache[ex] = out
+	return out
 
 # --------------------------------------------------------------- pixel helpers
 
@@ -93,7 +364,7 @@ func px(x: int, y: int, w: int, h: int, c: Color) -> void:
 		for i in w:
 			var xx := x + i
 			var yy := y + j
-			if xx >= 0 and xx < W and yy >= 0 and yy < H:
+			if xx >= 0 and xx < _w and yy >= 0 and yy < _h:
 				_img.set_pixel(xx, yy, c)
 
 ## Ordered 2x2 dither — how pixel art does gradients without banding.
@@ -258,65 +529,71 @@ func draw_ship() -> void:
 		px(hx + int(hw * 0.2), hy + 2, 6, 4, Color("#3a1a10"))
 
 ## Installed modules are bolted onto hardpoints in their maker's colours.
+##
+## Position comes from `m.mount`, never from the order of `installed`. These
+## have always been fixed places on the hull — weapon 0 is the dorsal ordnance,
+## 1 the ventral barrels — but the index used to be read off the array, so
+## taking the dorsal gun off slid the ventral one up onto the spine and the ship
+## rebuilt itself under a change the player had not made. The mount is now a
+## choice the refit screen records and this view reports.
 func _draw_modules(hx: int, hy: int, hw: int, hh: int, metal: Color, outline: Color) -> void:
-	var weapons: Array[ModuleData] = []
-	var systems: Array[ModuleData] = []
-	var utils: Array[ModuleData] = []
 	for m in ([] as Array[ModuleData] if preview != null else Run.installed):
+		var at := maxi(m.mount, 0)
 		match m.slot:
-			ModuleData.Slot.WEAPON: weapons.append(m)
-			ModuleData.Slot.SYSTEM: systems.append(m)
-			_: utils.append(m)
+			ModuleData.Slot.WEAPON: _draw_weapon(m, at, hx, hy, hw, hh, metal, outline)
+			ModuleData.Slot.SYSTEM: _draw_system(m, at, hx, hy, hh)
+			_: _draw_util(m, at, hx, hy)
 
-	for i in weapons.size():
-		var col := DB.manufacturer_colour(weapons[i].manufacturer)
-		var dark := lerp(col, Color("#0a0e13"), 0.55) as Color
-		var lite := lerp(col, Color.WHITE, 0.25) as Color
-		match i:
-			0:  # dorsal ordnance
-				px(hx + 14, hy - 10, 30, 10, dark)
-				px(hx + 14, hy - 10, 30, 3, col)
-				px(hx + 14, hy - 10, 30, 1, lite)
-				px(hx + 44, hy - 8, 44, 6, metal)
-				px(hx + 44, hy - 8, 44, 1, lite)
-				px(hx + 88, hy - 7, 3, 4, outline)
-			1:  # ventral twin barrels
-				px(hx + hw - 24, hy + hh, 26, 8, dark)
-				px(hx + hw - 24, hy + hh, 26, 2, col)
-				px(hx + hw + 2, hy + hh + 1, 30, 3, metal)
-				px(hx + hw + 2, hy + hh + 5, 30, 3, metal)
-				px(hx + hw + 2, hy + hh + 1, 30, 1, lite)
-			2:  # aft mount
-				px(hx + 6, hy + hh, 20, 10, dark)
-				px(hx + 6, hy + hh, 20, 2, col)
-				px(hx + 26, hy + hh + 3, 22, 4, metal)
-				px(hx + 48, hy + hh + 4, 3, 2, outline)
-			_:  # upper spine
-				px(hx + 30, hy - 19, 16, 9, dark)
-				px(hx + 30, hy - 19, 16, 2, col)
-				px(hx + 46, hy - 17, 26, 4, metal)
+func _draw_weapon(m: ModuleData, at: int, hx: int, hy: int, hw: int, hh: int,
+		metal: Color, outline: Color) -> void:
+	var col := DB.manufacturer_colour(m.manufacturer)
+	var dark := lerp(col, Color("#0a0e13"), 0.55) as Color
+	var lite := lerp(col, Color.WHITE, 0.25) as Color
+	match at:
+		0:  # dorsal ordnance
+			px(hx + 14, hy - 10, 30, 10, dark)
+			px(hx + 14, hy - 10, 30, 3, col)
+			px(hx + 14, hy - 10, 30, 1, lite)
+			px(hx + 44, hy - 8, 44, 6, metal)
+			px(hx + 44, hy - 8, 44, 1, lite)
+			px(hx + 88, hy - 7, 3, 4, outline)
+		1:  # ventral twin barrels
+			px(hx + hw - 24, hy + hh, 26, 8, dark)
+			px(hx + hw - 24, hy + hh, 26, 2, col)
+			px(hx + hw + 2, hy + hh + 1, 30, 3, metal)
+			px(hx + hw + 2, hy + hh + 5, 30, 3, metal)
+			px(hx + hw + 2, hy + hh + 1, 30, 1, lite)
+		2:  # aft mount
+			px(hx + 6, hy + hh, 20, 10, dark)
+			px(hx + 6, hy + hh, 20, 2, col)
+			px(hx + 26, hy + hh + 3, 22, 4, metal)
+			px(hx + 48, hy + hh + 4, 3, 2, outline)
+		_:  # upper spine
+			px(hx + 30, hy - 19, 16, 9, dark)
+			px(hx + 30, hy - 19, 16, 2, col)
+			px(hx + 46, hy - 17, 26, 4, metal)
 
-	for i in systems.size():
-		var col2 := DB.manufacturer_colour(systems[i].manufacturer)
-		var bx := hx + 10 + i * 22
-		px(bx, hy + hh - 4, 16, 7, lerp(col2, Color("#0a0e13"), 0.5) as Color)
-		px(bx, hy + hh - 4, 16, 2, col2)
-		px(bx + 2, hy + hh - 1, 3, 2, lerp(col2, Color.WHITE, 0.3) as Color)
+func _draw_system(m: ModuleData, at: int, hx: int, hy: int, hh: int) -> void:
+	var col := DB.manufacturer_colour(m.manufacturer)
+	var bx := hx + 10 + at * 22
+	px(bx, hy + hh - 4, 16, 7, lerp(col, Color("#0a0e13"), 0.5) as Color)
+	px(bx, hy + hh - 4, 16, 2, col)
+	px(bx + 2, hy + hh - 1, 3, 2, lerp(col, Color.WHITE, 0.3) as Color)
 
-	for i in utils.size():
-		var col3 := DB.manufacturer_colour(utils[i].manufacturer)
-		var ux := hx + 18 + i * 20
-		px(ux, hy - 7, 5, 7, lerp(col3, Color("#0a0e13"), 0.4) as Color)
-		px(ux + 1, hy - 11, 3, 5, col3)
-		px(ux + 1, hy - 13, 3, 2, lerp(col3, Color.WHITE, 0.4) as Color)
+func _draw_util(m: ModuleData, at: int, hx: int, hy: int) -> void:
+	var col := DB.manufacturer_colour(m.manufacturer)
+	var ux := hx + 18 + at * 20
+	px(ux, hy - 7, 5, 7, lerp(col, Color("#0a0e13"), 0.4) as Color)
+	px(ux + 1, hy - 11, 3, 5, col)
+	px(ux + 1, hy - 13, 3, 2, lerp(col, Color.WHITE, 0.4) as Color)
 
 func _starfield(seed_value: int, count: int) -> void:
 	var s := seed_value
 	for i in count:
 		s = (s * 9301 + 49297) % 233280
-		var x := int(float(s) / 233280.0 * W)
+		var x := int(float(s) / 233280.0 * _w)
 		s = (s * 9301 + 49297) % 233280
-		var y := int(float(s) / 233280.0 * H)
+		var y := int(float(s) / 233280.0 * _h)
 		px(x, y, 1, 1, Color("#141c26"))
 
 func _blend_rect(x: int, y: int, w: int, h: int, c: Color) -> void:
@@ -324,6 +601,6 @@ func _blend_rect(x: int, y: int, w: int, h: int, c: Color) -> void:
 		for i in w:
 			var xx := x + i
 			var yy := y + j
-			if xx >= 0 and xx < W and yy >= 0 and yy < H:
+			if xx >= 0 and xx < _w and yy >= 0 and yy < _h:
 				var base := _img.get_pixel(xx, yy)
 				_img.set_pixel(xx, yy, base.lerp(c, c.a))

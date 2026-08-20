@@ -22,20 +22,61 @@ extends Control
 signal launched
 
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
+## What each weight class IS, in one line, for the L/M/H tooltips. The buttons
+## are single letters, so this is where the word and the trade-off live.
+const WEIGHT_BLURB: Array[String] = [
+	"Thin plate and the smallest hold, but it draws the biggest hand and can actually dodge.",
+	"The middle of every axis, with no standout strength and no glaring weakness.",
+	"The most plate and the biggest hold, and it cannot dodge or turn to save itself.",
+]
 ## The one ship on the screen, and the only one drawn at all.
 ##
-## Doubled, and cropped to roughly the band the hull occupies. The sprite canvas
-## is 240x120 with the ship about forty rows tall in the middle of it, so at 2x
-## a 132-row window holds the whole hull and throws away the empty space above
-## and below rather than the ship.
+## Cropped to roughly the band the hull occupies, so the window throws away the
+## empty rows above and below rather than the ship.
+##
+## 1x, not 2x. Integer scaling is the pixel-art rule, so a hull is either its own
+## size or exactly double it and there is nothing in between — and double filled
+## most of the panel once real art replaced the procedural drawing. ShipScreen
+## carries the same note for the same reason.
 const HERO_SCALE := 2
-const HERO_H := 132
+## Tall enough to hold the whole hull at HERO_SCALE. The canvas is cropped to 88
+## rows, so 2x needs 176 plus room for the idle bob. The rows come from the
+## weight picker moving up onto the hull's name line.
+const HERO_H := 184
 ## The gap between the banner and the identity column, reused as the indent for
 ## everything below that has to line up with it.
+## The air between ATTRIBUTES, HARDPOINTS and STARTING MODULES. One constant so
+## the three read as evenly spaced blocks rather than as a list that happens to
+## have gaps in it.
+##
+## Four, and it is measured against the WORST chassis rather than a typical one.
+## Cygnet's light frame has four utility mounts, so it launches with seven
+## modules where most launch with five — two extra rows in the list below. At a
+## 12px gap that build came to 470px against a 448px viewport, and the 22px the
+## ScrollContainer quietly absorbed read as the module list being cut off.
+const BLOCK_GAP := 4
+## What each row of the hardpoints block IS. Same shape as every other tooltip
+## on this screen: the name, then one sentence. None of them restates the number
+## sitting an inch to the left.
+const MOUNT_TIP := {
+	"weapon": "Weapon mounts
+Where guns, launchers and charged ordnance bolt on. Each one grants two cards to your deck.",
+	"system": "System mounts
+Armour, coolant and shielding — the defensive half of a build. Each one grants two cards.",
+	"utility": "Utility mounts
+Masts, dishes, drone racks and sensors. The situational parts, and they grant one card rather than two.",
+	"hand": "Hand
+How many cards you are dealt at the start of each combat turn.",
+	"hold": "Hold
+Loose parts you can carry between fights. A full hold means leaving the next wreck where it lies.",
+}
 const HEAD_GAP := 12
 ## The identity header's height, held equal across all seven. Measured, not
-## chosen: 169 is what the tallest of them needs today. See _build_detail.
-const HEAD_H := 169
+## chosen. Was 169, then 155, now 145 — each drop bought vertical room the panel
+## below needed. The cost is real: this is a MINIMUM, so makers whose backstory
+## wraps past it grow their own header and the page shifts by that much when you
+## click between them. See _build_detail.
+const HEAD_H := 145
 ## The right-hand column, shared by the attribute block above and the loadout
 ## below so the two line up.
 const SIDE_W := 300
@@ -114,7 +155,7 @@ func _build() -> void:
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_detail = VBoxContainer.new()
-	_detail.add_theme_constant_override("separation", 5)
+	_detail.add_theme_constant_override("separation", 3)
 	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_detail)
 	col2.add_child(scroll)
@@ -250,13 +291,8 @@ func _build_detail() -> void:
 	# It is a HULL property, not a maker property, and the two come apart later:
 	# LootGen rerolls the perk on a wreck, so a salvaged Korvan frame can carry
 	# anything. That is why the tag reads HULL rather than 1+.
-	var have := Run.manufacturer_count(man)
-	var perk: Dictionary = DB.hull_perks.get(Run.hull.perk_id, {})
-	var short := DB.short_name(m.name).to_upper()
-	if not perk.is_empty():
-		idc.add_child(_bonus("BUILT IN", str(perk.name), str(perk.text), m.colour, true))
-	idc.add_child(_bonus("3+ %s" % short, m.set3_name, m.set3_text, m.colour, have >= 3))
-	idc.add_child(_bonus("5+ %s" % short, m.set5_name, m.set5_text, m.colour, have >= 5))
+	for row in Widgets.ability_rows(man, Run.hull.perk_id, Run.manufacturer_count(man)):
+		idc.add_child(row)
 	# What the two rows above are actually counting, and where this ship starts
 	# on that count. The old wording explained the arithmetic — "modules from
 	# this yard, plus the hull" — which is the rule, not the situation. You want
@@ -295,13 +331,30 @@ func _build_detail() -> void:
 	var shipcol := VBoxContainer.new()
 	shipcol.add_theme_constant_override("separation", 1)
 	shipcol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	shipcol.add_child(UITheme.body(Run.hull.name.to_upper(), UITheme.ICE, UITheme.FS_HEAD))
+	shipcol.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# The name and the weight picker share one line: the picker CHANGES the name
+	# beside it, so putting them on the same baseline makes the cause and the
+	# effect one glance apart. It also buys the hull below them three whole rows,
+	# which is what lets the sprite run at 2x.
+	var namerow := HBoxContainer.new()
+	namerow.add_theme_constant_override("separation", 10)
+	namerow.add_child(UITheme.body(Run.hull.name.to_upper(), UITheme.ICE, UITheme.FS_HEAD))
+	var ngap := Control.new()
+	ngap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ngap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	namerow.add_child(ngap)
+	for w in WEIGHTS:
+		namerow.add_child(_weight_button(man, w, m))
+	shipcol.add_child(namerow)
 	shipcol.add_child(UITheme.body(
 		"%s CHASSIS · %s TIER" % [
 			HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()],
 		UITheme.COLD, UITheme.FS_SMALL))
 	var chosen := ShipView.new()
 	chosen.setup_preview(Run.hull, HERO_H, HERO_SCALE)
+	chosen.bob(2)
+	# The only screen that lights the engines. See ShipView._burning.
+	chosen.burn()
 	# The ship asks for NO width and takes what is left.
 	#
 	# At 2x the sprite is 480 wide, and 480 plus the 300 column plus the banner
@@ -316,6 +369,14 @@ func _build_detail() -> void:
 	# clipped by its own clip_contents, which is already how the height works.
 	chosen.custom_minimum_size.x = 0
 	chosen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Vertically too. The right-hand column is the taller of the two now, so the
+	# ship was sitting at the top of a row with sixty-odd pixels of nothing under
+	# it. Expanding hands that slack to the view, and STRETCH_KEEP_CENTERED then
+	# centres the sprite in it on both axes.
+	chosen.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Dropped clear of the name and class above it. The hull is the subject of
+	# this half of the screen and it was riding up against its own caption.
+	shipcol.add_child(_gap(14))
 	shipcol.add_child(chosen)
 	mid.add_child(shipcol)
 
@@ -324,7 +385,11 @@ func _build_detail() -> void:
 	# HARDPOINTS and YOU LAUNCH WITH on one column — they were three headings at
 	# three different left edges before.
 	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 3)
+	# 2, not 3. This column carries about eleven rows, so a pixel of separation
+	# is ten pixels of height — which is exactly what the tallest chassis was
+	# over by. Cheaper to take it from the spacing between rows than from the
+	# header, which is shared by all seven and shifts the page when it moves.
+	right.add_theme_constant_override("separation", 2)
 	right.custom_minimum_size = Vector2(SIDE_W, 0)
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
@@ -335,7 +400,7 @@ func _build_detail() -> void:
 	# Hardpoints, in the same cells the refit screen uses. Slot pressure is the
 	# whole install-or-scrap decision later, so it should be countable here —
 	# before you commit — rather than discovered on the first drop.
-	right.add_child(_gap(3))
+	right.add_child(_gap(BLOCK_GAP))
 	right.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		right.add_child(_mount_row(s))
@@ -349,37 +414,30 @@ func _build_detail() -> void:
 	hand.add_child(hl)
 	hand.add_child(UITheme.body("%d cards a turn" % Run.hand_size(),
 		UITheme.CHILL, UITheme.FS_SMALL))
-	right.add_child(hand)
+	right.add_child(_tipped(hand, str(MOUNT_TIP["hand"])))
+	# Under the hand, because it is the same kind of fact: how much ship you get
+	# to use at once, and how much you get to carry between fights.
+	var hold := HBoxContainer.new()
+	hold.add_theme_constant_override("separation", 6)
+	var hol := UITheme.body("HOLD", UITheme.COLD, UITheme.FS_SMALL)
+	hol.custom_minimum_size = Vector2(46, 0)
+	hold.add_child(hol)
+	# Slots, not modules. A slot is a place in the hold and a module is one of the
+	# things that can sit in it — valuables are coming and will sit in the same
+	# ones, so counting the hold in modules would name it after only half of what
+	# it carries.
+	hold.add_child(UITheme.body("%d slots" % Run.hull.cargo_slots,
+		UITheme.CHILL, UITheme.FS_SMALL))
+	right.add_child(_tipped(hold, str(MOUNT_TIP["hold"])))
 
-	mid.add_child(right)
-	_detail.add_child(_align(mid))
-
-	# --- the three it builds, and what this one launches carrying. Side by side
-	# because both are short lists and the panel is wide — stacked, they were
-	# what pushed LAUNCH off the bottom of the screen.
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 14)
-
-	var yard := VBoxContainer.new()
-	yard.add_theme_constant_override("separation", 1)
-	yard.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	# Indented to match the rows under it. Those sit inside buttons that inset
-	# their contents by ROW_INSET so the selected row's fill does not run right
-	# up against its text — which left the heading alone at the true left edge,
-	# five pixels adrift of the list it names.
-	var yard_head := MarginContainer.new()
-	yard_head.add_theme_constant_override("margin_left", ROW_INSET)
-	yard_head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	yard_head.add_child(UITheme.body("AVAILABLE CHASSIS", UITheme.COLD, UITheme.FS_SMALL))
-	yard.add_child(yard_head)
-	for w in WEIGHTS:
-		yard.add_child(_weight_row(man, w, m))
-	foot.add_child(yard)
-
+	# The starting kit joins the other two blocks in this column rather than
+	# sitting in a row of its own below. It was already landing at the same left
+	# edge, so it read as the third block already — it just had the hero sprite's
+	# full height of dead space above it. One column, one rhythm: BLOCK_GAP
+	# between each heading and the block before it.
+	right.add_child(_gap(BLOCK_GAP))
 	var kit := VBoxContainer.new()
 	kit.add_theme_constant_override("separation", 1)
-	kit.custom_minimum_size = Vector2(SIDE_W, 0)
-	kit.size_flags_horizontal = Control.SIZE_SHRINK_END
 	var kit_head := HBoxContainer.new()
 	kit_head.add_theme_constant_override("separation", 8)
 	kit_head.add_child(UITheme.body("STARTING MODULES", UITheme.COLD, UITheme.FS_SMALL))
@@ -404,8 +462,21 @@ func _build_detail() -> void:
 		line.add_child(UITheme.body(mod.name,
 			ModuleData.rarity_colour(mod.rarity), UITheme.FS_SMALL))
 		kit.add_child(line)
-	foot.add_child(kit)
-	_detail.add_child(_align(foot))
+	right.add_child(kit)
+
+	# Indented off the ship. The column is right-aligned, so the margin pushes its
+	# contents rightward inside their own 300px and opens a gap between the hull
+	# and the numbers describing it.
+	var rwrap := MarginContainer.new()
+	rwrap.add_theme_constant_override("margin_left", 14)
+	rwrap.size_flags_horizontal = Control.SIZE_SHRINK_END
+	rwrap.add_child(right)
+	mid.add_child(rwrap)
+	_detail.add_child(_align(mid))
+
+	# --- the three it builds, and what this one launches carrying. Side by side
+	# because both are short lists and the panel is wide — stacked, they were
+	# what pushed LAUNCH off the bottom of the screen.
 
 
 ## Indent to the manufacturer-name column: past the banner and the gap after it.
@@ -418,6 +489,25 @@ func _align(c: Control) -> MarginContainer:
 	m.add_child(c)
 	return m
 
+## Give a row a tooltip whose HOVER TARGET is the row, not the column.
+##
+## A row in a VBox stretches to the full column width, so a bare tooltip on it
+## fires from empty space well to the right of anything readable. The inner box
+## shrinks to its content and owns the hover; the outer one is inert and holds
+## the slack. Same two-box shape AttrBlock uses, and for the same reason.
+static func _tipped(inner: Control, tip: String) -> Control:
+	inner.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	inner.mouse_filter = Control.MOUSE_FILTER_STOP
+	inner.tooltip_text = tip
+	var outer := HBoxContainer.new()
+	outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	outer.add_child(inner)
+	var slack := Control.new()
+	slack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	outer.add_child(slack)
+	return outer
+
 ## One hardpoint row: what it is, how many are filled, how many exist.
 func _mount_row(slot: ModuleData.Slot) -> Control:
 	var row := HBoxContainer.new()
@@ -428,11 +518,11 @@ func _mount_row(slot: ModuleData.Slot) -> Control:
 	row.add_child(label)
 	var used := Run.slots_used(slot)
 	var total := Run.slots_for(slot)
-	var pads := ShipScreen.SlotPads.new()
+	var pads := SlotPads.new()
 	pads.setup(used, total)
 	row.add_child(pads)
 	row.add_child(UITheme.body("%d/%d" % [used, total], UITheme.CHILL, UITheme.FS_SMALL))
-	return row
+	return _tipped(row, str(MOUNT_TIP[ModuleData.slot_name(slot)]))
 
 ## Every card this chassis would deal you, laid out over the screen.
 ##
@@ -521,84 +611,34 @@ func _gap(h: int) -> Control:
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return c
 
-## One ability: what it costs, what it is called, what it does.
-##
-## The condition goes in the first column and says it in full — "3+ KORVAN" —
-## rather than a bare "3+" that leaves you to work out three of what. The hull
-## perk shares that column with "BUILT IN" — the other two name what you must
-## collect, so this one names where it already is.
-##
-## Locked rows are dimmed rather than hidden. What a manufacturer is FOR is
-## mostly what it does at 3 and 5 parts, so hiding those until you get there
-## would hide the reason to pick it; greying them says "later" instead of
-## "never", which is the actual state.
-func _bonus(at: String, title: String, text: String, accent: Color,
-		unlocked: bool) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	var tag := UITheme.body(at, accent if unlocked else UITheme.COLD, UITheme.FS_SMALL)
-	tag.custom_minimum_size = Vector2(84, 0)
-	row.add_child(tag)
-	var name_col := UITheme.ICE if unlocked else UITheme.COLD
-	var name_label := UITheme.body(title.to_upper(), name_col, UITheme.FS_SMALL)
-	name_label.custom_minimum_size = Vector2(112, 0)
-	row.add_child(name_label)
-	var what := UITheme.body(text, UITheme.COLD if unlocked else UITheme.QUOTE,
-		UITheme.FS_SMALL)
-	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(what)
-	return row
-
-## One weight class, as a line of text.
-##
-## These used to be three cards with the ship drawn on each, which put the same
-## hull on screen twice — once large beside its attributes and once small down
-## here. A picker does not have to show you the thing; it has to let you choose
-## it, and the choice is between three sets of numbers that a list states more
-## plainly than three pictures of very similar ships ever did.
-func _weight_row(man: StringName, w: HullData.Weight, m: ManufacturerData) -> Button:
+func _weight_button(man: StringName, w: HullData.Weight, m: ManufacturerData) -> Button:
 	var h := DB.hull_for(man, w)
 	var chosen := w == _weight
 
-	# Widgets.button for the sounds, as above.
-	var btn := Widgets.button("", _pick_weight.bind(w))
-	btn.flat = true
-	btn.custom_minimum_size = Vector2(0, 15)
-	var face := m.colour if chosen else Color(0, 0, 0, 0)
-	var bg := m.field if chosen else Color(0, 0, 0, 0)
-	btn.add_theme_stylebox_override("normal", UITheme.flat(bg, face, 0, 0, 4))
-	btn.add_theme_stylebox_override("hover", UITheme.flat(m.field, m.colour, 0, 0, 4))
-	btn.add_theme_stylebox_override("pressed", UITheme.flat(bg, m.colour, 0, 0, 4))
+	# Widgets.button for the sounds, as everywhere else.
+	# One letter. Three of these sit beside the hull's name, where a full word
+	# each would crowd the only line on the screen that has to stay readable —
+	# and the word is one hover away on the tooltip, together with what the class
+	# actually costs you.
+	var btn := Widgets.button(HullData.weight_name(w).to_upper().substr(0, 1),
+		_pick_weight.bind(w))
+	btn.custom_minimum_size = Vector2(22, 20)
+	var face := m.colour if chosen else UITheme.LINE
+	var bg := m.field if chosen else UITheme.PANEL
+	btn.add_theme_stylebox_override("normal", UITheme.flat(bg, face, 0, 3, 6))
+	btn.add_theme_stylebox_override("hover", UITheme.flat(m.field, m.colour, 0, 3, 6))
+	btn.add_theme_stylebox_override("pressed", UITheme.flat(m.field, m.colour, 0, 3, 6))
 	btn.add_theme_stylebox_override("focus", UITheme.empty())
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = ROW_INSET
-	row.offset_right = -ROW_INSET
-
-	var cls := UITheme.body(HullData.weight_name(w).to_upper(),
-		m.colour if chosen else UITheme.COLD, UITheme.FS_SMALL)
-	cls.custom_minimum_size = Vector2(52, 0)
-	cls.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(cls)
-
-	# Class and name only. The stats that used to trail each row — hull, mounts,
-	# cards — are all on screen for the SELECTED ship already, in the attribute
-	# block, the hardpoints and the hand line. Printing them again for three
-	# ships turned a picker into a comparison table nobody asked for, and the
-	# comparison it offered was the one the attributes make better.
-	var nm := UITheme.body(h.name.to_upper(),
-		UITheme.ICE if chosen else UITheme.CHILL, UITheme.FS_SMALL)
-	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(nm)
-
-	btn.add_child(row)
-	btn.tooltip_text = "%s\n%d hull · %d heat cap · %d dissipation\n%d weapon, %d system, %d utility mounts\n%d cards in hand" % [
-		h.name, h.max_hull, h.heat_cap, h.dissipation,
-		h.weapon_slots, h.system_slots, h.utility_slots, h.hand_size]
+	btn.add_theme_color_override("font_color", m.colour if chosen else UITheme.COLD)
+	btn.add_theme_color_override("font_hover_color", UITheme.ICE)
+	btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	# The word the button had to give up, and one sentence on what it costs you.
+	# Nothing else: every stat that used to be here is already on screen for the
+	# selected chassis, in the attribute block and the hardpoint rows, and
+	# clicking is how you compare them.
+	btn.tooltip_text = "%s
+%s" % [
+		HullData.weight_name(w), WEIGHT_BLURB[int(w)]]
 	return btn
 
 
@@ -653,6 +693,48 @@ class Banner extends Control:
 		draw_rect(Rect2(Vector2(b.position.x, b.end.y - w), Vector2(b.size.x, w)), e, true)
 		draw_rect(Rect2(b.position, Vector2(w, b.size.y)), e, true)
 		draw_rect(Rect2(Vector2(b.end.x - w, b.position.y), Vector2(w, b.size.y)), e, true)
+
+
+## Hardpoint cells: filled steel is occupied, an ember outline is a free pad.
+##
+## Lives here now rather than on ShipScreen. The refit screen used to draw its
+## mounts this way and became a drag-and-drop grid, so this is the only place
+## left that wants a countable summary of the slots rather than the slots
+## themselves — which is right, because this screen is choosing a chassis and
+## that one is filling it.
+class SlotPads extends Control:
+	const CELL := Vector2(9, 11)
+	const GAP := 2
+	var used := 0
+	var total := 0
+
+	func setup(u: int, t: int) -> void:
+		used = u
+		total = t
+		custom_minimum_size = Vector2(total * (CELL.x + GAP), CELL.y)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		queue_redraw()
+
+	func _draw() -> void:
+		var y: float = floor((size.y - CELL.y) * 0.5)
+		for i in total:
+			var pos := Vector2(i * (CELL.x + GAP), y)
+			if i < used:
+				draw_rect(Rect2(pos, CELL), UITheme.COLD, true)
+				draw_rect(Rect2(pos, Vector2(CELL.x, 1)), UITheme.CHILL, true)
+				draw_rect(Rect2(pos, Vector2(1, CELL.y)), UITheme.CHILL, true)
+			else:
+				# Four filled rects, not draw_rect's outline mode. An unfilled
+				# draw_rect strokes the BOUNDARY, so a 1px line straddles it and
+				# rounds outward on some edges only — empty pads came out
+				# visibly larger than the filled ones beside them.
+				draw_rect(Rect2(pos, CELL), Color("#10161f"), true)
+				var e := UITheme.EMBER
+				draw_rect(Rect2(pos, Vector2(CELL.x, 1)), e, true)
+				draw_rect(Rect2(pos + Vector2(0, CELL.y - 1), Vector2(CELL.x, 1)), e, true)
+				draw_rect(Rect2(pos, Vector2(1, CELL.y)), e, true)
+				draw_rect(Rect2(pos + Vector2(CELL.x - 1, 0), Vector2(1, CELL.y)), e, true)
 
 
 ## A manufacturer's mark on a small dark plate. Nine by nine at 1x, which is the

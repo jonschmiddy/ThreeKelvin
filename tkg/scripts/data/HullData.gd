@@ -38,12 +38,41 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 @export var sensors: int = 0
 @export var stealth: int = 0
 
+## How many SLOTS the hold has.
+##
+## Counted in slots rather than in modules because a slot is a PLACE — a module
+## is only one of the things that can sit in one.
+##
+## The heavy's compensation for being slow and clumsy: it cannot dodge and it
+## cannot turn, but it out-carries a skiff two to one, which turns every wreck it
+## passes into a choice rather than a shrug. A light frame full of loot has to
+## leave something behind.
+##
+## 8 / 12 / 16, widened from 4 / 8 / 12. Every frame gained four slots and the
+## spread narrowed from 3x to 2x, which is a real cost to heavies and was taken
+## deliberately: valuables are coming, they occupy the same hold, and a skiff
+## with four slots could not carry a trade good and a spare weapon at once.
+@export var cargo_slots: int = 8
+
 @export var weapon_slots: int = 3
 @export var system_slots: int = 2
 @export var utility_slots: int = 1
 @export var perk_id: StringName = &"salvage_rack"
 
 @export_group("Art")
+## The engine plume: a horizontal STRIP of equal frames, kept off the hull plate
+## because a static flame reads as a decal.
+##
+## A strip rather than one image per frame, and rather than the palette cycle
+## this replaced. PixelLab animated the plume itself, so the frames change SHAPE
+## — the flame swells and gutters — which brightness cycling cannot do at all.
+## Every frame was snapped back onto the source flame's own twelve colours
+## afterwards, because the generator drifted 90 pixels off-palette.
+@export var exhaust: Texture2D
+@export var exhaust_frames: int = 1
+## Where the strip's top-left corner sits on the hull canvas. The frames are
+## cropped tight to the flame, so unlike `sprite` they do not composite at 0,0.
+@export var exhaust_offset: Vector2i = Vector2i.ZERO
 @export var sprite: Texture2D
 ## Deck hardpoint positions, in sprite pixel coordinates relative to the sprite centre.
 ## Order matters: FAR ROW FIRST, near row second. Children are added in this order, so

@@ -13,7 +13,7 @@ Instead:
 
 1. **Bare hulls** — generated with visible *empty mount pads* (flat plates with bolt holes
    where modules attach). The hull must look deliberate when flying with nothing installed.
-2. **Modules as isolated transparent sprites** — same 3/4 camera angle, same top-of-frame
+2. **Modules as isolated transparent sprites** — same edge-on camera, same top-of-frame
    light direction, same pixel scale as the hull.
 3. **Composited in Godot** at hardpoint anchors.
 
@@ -85,13 +85,16 @@ This removes the size ceiling and is the single unblocking step for full-size ge
 
 # HullData
 @export var sprite: Texture2D
-@export var weapon_anchors: Array[Vector2]   # deck positions, far row first
+@export var weapon_anchors: Array[Vector2]   # dorsal / ventral / aft / spine
 @export var system_anchors: Array[Vector2]
 @export var utility_anchors: Array[Vector2]
 ```
 
-Anchors are ordered **far row first, near row second** so painter order works: iterate the
-array and add children in order, and near-row modules naturally draw over far-row ones.
+Anchors run along the **dorsal line (top edge) and ventral line (bottom edge)**, plus an
+aft mount and an upper spine — the vocabulary `ShipView._draw_weapon` already uses. The
+camera is a flat elevation, so nothing occludes anything else and draw order does not
+matter. This replaces the old far-row/near-row painter ordering; see `ART_CONTRACT.md` §2a
+for why the camera changed.
 
 ### Composition
 

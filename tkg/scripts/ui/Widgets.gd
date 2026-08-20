@@ -90,7 +90,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			var full := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
 			buttons.add_child(_btn("SWAP IN" if full else "INSTALL",
 				on_action.bind("install", m)))
-			buttons.add_child(_btn(_scrap_label(m), on_action.bind("scrap", m)))
+			buttons.add_child(_scrap_button(m, on_action))
 		ModuleContext.HOLD:
 			var full2 := Run.slots_used(m.slot) >= Run.slots_for(m.slot)
 			buttons.add_child(_btn("SWAP IN" if full2 else "INSTALL",
@@ -108,23 +108,22 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 				refused.disabled = true
 				refused.tooltip_text = "Illegal here. Fences in lawless space pay over the odds for it."
 				buttons.add_child(refused)
-			buttons.add_child(_btn(_scrap_label(m), on_action.bind("scrap", m)))
+			buttons.add_child(_scrap_button(m, on_action))
 		ModuleContext.INSTALLED:
 			buttons.add_child(_btn("REMOVE", on_action.bind("uninstall", m)))
 		ModuleContext.SHOP:
 			var b := _btn("BUY %d" % price, on_action.bind("buy", m))
-			b.disabled = Run.scrap < price
+			b.disabled = Run.credits < price
 			buttons.add_child(b)
 	return panel
 
-## "SCRAP +14 · 2 ALLOY". The materials are on the button rather than in the log
-## line afterwards, because deciding to melt a part is the moment the yield is
-## worth knowing — a recipe you cannot afford is a reason to scrap this one.
-static func _scrap_label(m: ModuleData) -> String:
-	var out := "SCRAP +%d" % Run.scrap_value_of(m)
-	for pair in Run.materials_from(m):
-		out += " · %d %s" % [int(pair.count), DB.material_name(pair.id).to_upper()]
-	return out
+## "SCRAP +14". No materials on it any more, because scrapping no longer yields
+## any: it used to read "SCRAP +14 · 2 ALLOY", and the alloy was the half that
+## made a part into a second currency.
+static func _scrap_button(m: ModuleData, on_action: Callable) -> Button:
+	var b := _btn("SCRAP +%d" % Run.scrap_value_of(m), on_action.bind("scrap", m))
+	b.tooltip_text = "Break it down where you stand. The floor under every part — no station and no route needed."
+	return b
 
 static func hull_row(h: HullData, label: String, price: int,
 		on_action: Callable) -> PanelContainer:
@@ -144,7 +143,7 @@ static func hull_row(h: HullData, label: String, price: int,
 		var sp := Control.new()
 		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top.add_child(sp)
-		top.add_child(UITheme.body("%d scrap" % price, Color("#d99b29"), UITheme.FS_SMALL))
+		top.add_child(UITheme.body("%d credits" % price, Color("#d99b29"), UITheme.FS_SMALL))
 
 	box.add_child(UITheme.body(
 		"%s · %d nrg · hand %d · %d hull · heat %d/%d · slots %d/%d/%d" % [
@@ -158,7 +157,7 @@ static func hull_row(h: HullData, label: String, price: int,
 	box.add_child(buttons)
 	var take := _btn(label, on_action.bind("take_hull", h))
 	if price > 0:
-		take.disabled = Run.scrap < price
+		take.disabled = Run.credits < price
 	buttons.add_child(take)
 	if price == 0:
 		buttons.add_child(_btn("LEAVE IT", on_action.bind("leave_hull", h)))
@@ -208,6 +207,26 @@ static func section(title: String) -> VBoxContainer:
 	box.add_child(UITheme.header(title))
 	box.add_child(UITheme.hsep())
 	return box
+
+## Empty a container NOW, not at the end of the frame.
+##
+## queue_free() is DEFERRED. So the common `for c in box.get_children():
+## c.queue_free()` followed immediately by add_child() leaves the container
+## holding the old children AND the new ones until the frame ends, and it is
+## laid out at that doubled size in between.
+##
+## Usually invisible — a column of text rows is briefly too tall inside a panel
+## that clips it. It was very visible on the refit screen: that grid is 44px
+## module icons, it is rebuilt synchronously from the drop handler, and nothing
+## in the layout clips, so putting a part in the hold splashed a surplus row of
+## icons across the screen underneath for a frame.
+##
+## Ten other screens still free deferred this way. They are not known to misdraw;
+## this is here so the next one written has the right thing to call.
+static func clear(node: Node) -> void:
+	for c in node.get_children():
+		node.remove_child(c)
+		c.queue_free()
 
 static func panel_with(child: Control) -> PanelContainer:
 	var p := PanelContainer.new()
@@ -309,3 +328,89 @@ static func card_readout(c: CardData) -> PanelContainer:
 		fl.custom_minimum_size = Vector2(168, 0)
 		box.add_child(fl)
 	return panel
+
+## One manufacturer ability: what it costs, what it is called, what it does.
+##
+## Shared by the chassis select and the refit screen, because they are asking
+## the same question at two different moments — "what would flying this house
+## give me" and "how close am I now" — and two copies of the row would drift the
+## first time either one was reworded.
+##
+## The condition column says it in full ("3+ KORVAN") rather than a bare "3+",
+## which leaves you to work out three of what. The hull perk shares that column
+## with "BUILT IN": the other two name what you must collect, so this one names
+## where it already is.
+##
+## Locked rows are dimmed rather than hidden. What a manufacturer is FOR is
+## mostly what it does at 3 and 5 parts, so hiding those until you get there
+## would hide the reason to chase them — greying says "later", which is the
+## actual state.
+## `count` is the progress column — "2 / 3" — and it is why the set chips are
+## gone from the hardpoints header. A chip reading "KORVAN 2" told you what you
+## have and left you to remember what you need; the number belongs on the row
+## that states the thing it unlocks.
+static func ability_row(at: String, title: String, text: String, accent: Color,
+		unlocked: bool, count: String = "") -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var tag := UITheme.body(at, accent if unlocked else UITheme.COLD, UITheme.FS_SMALL)
+	tag.custom_minimum_size = Vector2(84, 0)
+	row.add_child(tag)
+	var have := UITheme.body(count, accent if unlocked else UITheme.CHILL,
+		UITheme.FS_SMALL)
+	have.custom_minimum_size = Vector2(40, 0)
+	row.add_child(have)
+	var name_label := UITheme.body(title.to_upper(),
+		UITheme.ICE if unlocked else UITheme.COLD, UITheme.FS_SMALL)
+	name_label.custom_minimum_size = Vector2(112, 0)
+	row.add_child(name_label)
+	var what := UITheme.body(text, UITheme.COLD if unlocked else UITheme.QUOTE,
+		UITheme.FS_SMALL)
+	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(what)
+	return row
+
+## The three ability rows for a manufacturer, given a live set count and the
+## hull's own perk. Built as a list so a caller can drop them into whatever
+## container it has.
+static func ability_rows(man: StringName, perk_id: StringName, have: int) -> Array:
+	var out: Array = []
+	var m: ManufacturerData = DB.manufacturers.get(man)
+	if m == null:
+		return out
+	var perk: Dictionary = DB.hull_perks.get(perk_id, {})
+	var short := DB.short_name(m.name).to_upper()
+	if not perk.is_empty():
+		out.append(ability_row("BUILT IN", str(perk.name), str(perk.text),
+			m.colour, true, "HULL"))
+	out.append(ability_row("3+ %s" % short, m.set3_name, m.set3_text,
+		m.colour, have >= 3, "%d / 3" % have))
+	out.append(ability_row("5+ %s" % short, m.set5_name, m.set5_text,
+		m.colour, have >= 5, "%d / 5" % have))
+	return out
+
+## The manufacturers you are carrying parts from OTHER than your hull's.
+##
+## The hardpoints header used to chip every maker with a count, which was the
+## only place a second allegiance showed at all. Moving the hull's own progress
+## into the ability rows would have thrown that away — you can be two Solari
+## parts from a set on a Korvan ship, and nothing else on the screen says so.
+static func other_maker_rows(hull_man: StringName) -> Array:
+	var out: Array = []
+	for id in DB.manufacturers.keys():
+		if id == hull_man:
+			continue
+		var n := Run.manufacturer_count(id)
+		if n == 0:
+			continue
+		var m: ManufacturerData = DB.manufacturers[id]
+		var short := DB.short_name(m.name).to_upper()
+		var next_at := 3 if n < 3 else 5
+		var what := m.set3_name if n < 3 else m.set5_name
+		if n >= 5:
+			out.append(ability_row(short, m.set5_name, m.set5_text, m.colour,
+				true, "%d / 5" % n))
+		else:
+			out.append(ability_row(short, what, m.set3_text if n < 3 else m.set5_text,
+				m.colour, n >= 3, "%d / %d" % [n, next_at]))
+	return out

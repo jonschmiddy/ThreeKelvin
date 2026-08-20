@@ -30,7 +30,7 @@ var _salvage: VBoxContainer
 var _salvage_wrap: PanelContainer
 ## Dismissed for now, not thrown away. Reset when fresh salvage arrives.
 var _stowed: bool = false
-var _last_cargo: int = -1
+var _last_haul: int = -1
 
 # --- combat only
 var _hand_wrap: PanelContainer
@@ -86,6 +86,18 @@ func setup(c: Combat = null) -> void:
 	Sig.card_played.connect(func(c: CardData) -> void: _last_played = c)
 
 	_refresh()
+
+	# Fly in. Arriving somewhere should look like arriving somewhere — the ship
+	# comes in under power from the left, cuts its engines short of station and
+	# coasts to a halt, then sits there breathing.
+	#
+	# Not during a fight. A combat sector is one you are already in the middle
+	# of, and Router rebuilds this screen when the fight starts, so playing the
+	# approach there would fly the ship back in mid-battle.
+	if not fighting():
+		var art := _view.ship_view()
+		if art != null:
+			art.arrive()
 
 func fighting() -> bool:
 	return combat != null and combat.enemy != null
@@ -535,13 +547,15 @@ func _refresh_salvage() -> void:
 		if c.name != "Head":
 			c.queue_free()
 
-	var held := Run.cargo.size()
-	# Anything new in the hold re-opens the prompt; stowing is per-haul.
-	if held > _last_cargo and _last_cargo >= 0:
+	# A fresh HAUL re-opens the prompt; stowing is per-haul. Watching
+	# `cargo.size()` instead was right until the refit screen learned to drag a
+	# part off a hardpoint into the hold — that grows the hold too, so unbolting
+	# your own coolant line made this panel offer it back as salvage.
+	if Run.hauls > _last_haul and _last_haul >= 0:
 		_stowed = false
-	_last_cargo = held
+	_last_haul = Run.hauls
 
-	var has := (held > 0 or Run.found_hull != null) and not fighting()
+	var has := (Run.cargo.size() > 0 or Run.found_hull != null) and not fighting()
 	_salvage_wrap.visible = has and not _stowed
 	if not _salvage_wrap.visible:
 		return
@@ -653,8 +667,8 @@ func _refresh_hand() -> void:
 func _on_salvage(action: String, thing: Variant) -> void:
 	match action:
 		"install": Run.install_module(thing as ModuleData)
-		"uninstall": Run.uninstall_module(thing as ModuleData)
 		"scrap": Run.scrap_module(thing as ModuleData)
+		"uninstall": Run.uninstall_module(thing as ModuleData)
 		"take_hull": Run.transfer_to_hull(thing as HullData)
 		"leave_hull":
 			Run.found_hull = null

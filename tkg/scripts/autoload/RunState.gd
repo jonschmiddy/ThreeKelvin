@@ -25,18 +25,13 @@ var galaxy_seed: int = 0
 ## rim without disturbing a single relative position.
 var galaxy_spin: float = 0.0
 
-## A galaxy exists before any run does — screens can be built and asked to draw
-## before start_new_run() has rolled one — so it is never an empty dictionary.
-func _ready() -> void:
-	if galaxy.is_empty():
-		galaxy = GalaxyGen.params(0).duplicate()
 var galaxy_name: String = ""
 var galaxy_title: String = ""
 
 var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
-var scrap: int = 40
+var credits: int = 40
 var fuel: int = 150
 
 ## Raw materials, by id. See DB.MATERIALS.
@@ -72,10 +67,43 @@ var won: bool = false
 var dead: bool = false
 var death_reason: String = ""
 
+## How many times something has ARRIVED in the hold from outside the ship.
+##
+## Bumped by stow() and by nothing else, which is the whole point: salvage, a
+## purchase and a fabrication are hauls, and a part moved off a hardpoint is
+## not. The sector screen re-opens its salvage prompt on this rather than on
+## `cargo.size()` — the size went up when you unbolted something on the refit
+## screen too, so putting your own coolant line in the hold made the sector
+## offer it back to you as fresh salvage.
+##
+## Deliberately outside the save. It is a UI edge, not run state, and a resumed
+## run showing its hold once is the behaviour it already had.
+var hauls: int = 0
+
 var found_hull: HullData = null      ## offered for transfer
 var whale_boon: bool = false
 
 const MAP_CANVAS := Rect2(60, 50, 900, 430)
+
+## A galaxy exists before any run does — screens can be built and asked to draw
+## before start_new_run() has rolled one — so it is never an empty dictionary.
+func _ready() -> void:
+	if galaxy.is_empty():
+		galaxy = GalaxyGen.params(0).duplicate()
+	# Max hull is no longer a constant of the chassis, so taking plating off has
+	# to take the hull it was holding with it. Hung on the signal rather than
+	# called from the four places that move `installed`, because one of those is
+	# ShipScreen's drag handler editing the array directly — a rule enforced at
+	# every call site is a rule that is one new call site away from being false.
+	Sig.ship_changed.connect(_clamp_hp)
+
+func _clamp_hp() -> void:
+	if hull == null:
+		return
+	var cap := max_hp()
+	if hp > cap:
+		hp = cap
+		Sig.resources_changed.emit()
 
 ## Begin a run in a given manufacturer's chassis.
 ##
@@ -96,12 +124,13 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	cargo.clear()
 	heat = 0
 	heat_cap_bonus = 0
-	scrap = 40
+	credits = 40
 	materials.clear()
 	fuel = 150
 	dross = 0
 	jumps = 0
 	kills = 0
+	hauls = 0
 	started_at = Time.get_unix_time_from_system()
 	won = false
 	dead = false
@@ -148,12 +177,57 @@ func fit_chassis(manufacturer: StringName = &"",
 		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
 		if slots_used(m.slot) >= slots_for(m.slot):
 			continue
+		m.mount = free_mount(m.slot)
 		installed.append(m)
 	_top_up_deck()
 	hp = max_hp()
 	heat = 0
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
+
+## The lowest hardpoint of this type nothing is bolted to, or -1 if full.
+func free_mount(s: ModuleData.Slot) -> int:
+	for i in slots_for(s):
+		if module_at(s, i) == null:
+			return i
+	return -1
+
+## What is bolted to one specific hardpoint.
+func module_at(s: ModuleData.Slot, index: int) -> ModuleData:
+	for m in installed:
+		if m.slot == s and m.mount == index:
+			return m
+	return null
+
+## How many SLOTS the hold has. See HullData.cargo_slots.
+##
+## Slots, not modules: a slot is a place and a module is one of the things that
+## can occupy one.
+func cargo_slots() -> int:
+	return hull.cargo_slots if hull != null else 8
+
+func hold_full() -> bool:
+	return cargo.size() >= cargo_slots()
+
+## Put a part in the hold, or refuse.
+##
+## The one door into `cargo`, so the hold has a size that means something. It
+## returns whether it took the part, and callers are expected to care — a wreck
+## that hands you a module you cannot carry has to say so rather than silently
+## dropping it or silently exceeding the limit.
+##
+## Forced moves do NOT come through here. install_module evicts the worst part
+## to make room for something you asked to fit, and uninstalling to a full hold
+## is refused at the point of asking; neither can be allowed to destroy a module
+## because the arithmetic did not work out.
+func stow(m: ModuleData) -> bool:
+	if hold_full():
+		log_line("The hold is full. %s left behind." % m.name, &"them")
+		return false
+	cargo.append(m)
+	hauls += 1
+	Sig.ship_changed.emit()
+	return true
 
 ## How many cards the fitted modules put in the deck.
 func deck_size() -> int:
@@ -193,7 +267,9 @@ func _top_up_deck() -> void:
 					continue
 				if not allow_dupes and _has_module(id):
 					continue
-				installed.append(m.duplicate(true) as ModuleData)
+				var copy := m.duplicate(true) as ModuleData
+				copy.mount = free_mount(copy.slot)
+				installed.append(copy)
 				fitted = true
 				break
 			# Out of mounts, or out of distinct parts on this pass.
@@ -211,17 +287,70 @@ func log_line(text: String, kind: StringName = &"sys") -> void:
 
 # ------------------------------------------------------------------ derived stats
 
-func max_hp() -> int:
-	return hull.max_hull
+## THE GAUGES. Chassis, then everything bolted to it.
+##
+## Each of these used to return the hull's field and stop. That made four of the
+## six attributes pure chassis properties by accident rather than by ruling —
+## Sensors and Stealth summed `installed` because they had no gauge to derive
+## from, and the other four silently did not. Armour plating added no armour.
+##
+## Summing here rather than in attr_hull() and attr_thermal() is the point: an
+## attribute is a READING of a gauge, so a plate that only moved the attribute
+## would be a plate that shows up on the ship tab and not in the fight. Combat
+## calls max_hp() and heat_cap(); it never calls attr_*().
+##
+## `bare` reports the CHASSIS ALONE — no fitted modules. Only the attribute
+## block asks for it, and it asks so the display can separate what the ship is
+## from what you bolted to it. It is a parameter rather than six more functions
+## because the two readings must never be able to disagree about the formula.
+func max_hp(bare: bool = false) -> int:
+	var n := hull.max_hull
+	if not bare:
+		for m in installed:
+			n += m.max_hull
+	return maxi(1, n)
 
-func heat_cap() -> int:
-	return hull.heat_cap + heat_cap_bonus
+func heat_cap(bare: bool = false) -> int:
+	var n := hull.heat_cap + heat_cap_bonus
+	if not bare:
+		for m in installed:
+			n += m.heat_cap
+	return maxi(1, n)
 
-func dissipation() -> int:
+func dissipation(bare: bool = false) -> int:
 	var d := hull.dissipation
 	if hull.perk_id == &"baffled_vents":
 		d += 1
-	return d
+	if not bare:
+		for m in installed:
+			d += m.dissipation
+	return maxi(0, d)
+
+## Capped at 0.6. Dodge is the enemy's miss chance, so an uncapped sum is a ship
+## nothing can hit — and the ruling that only enemies miss means the player never
+## sees the roll that would tell them the fight had stopped being a fight.
+func dodge(bare: bool = false) -> float:
+	var v := hull.dodge
+	if not bare:
+		for m in installed:
+			v += m.dodge
+	return clampf(v, 0.0, 0.6)
+
+func initiative(bare: bool = false) -> int:
+	var v := hull.initiative
+	if not bare:
+		for m in installed:
+			v += m.initiative
+	return v
+
+## Floored well above zero: this multiplies the price of every jump, and a ship
+## that had driven it to 0 would cross the galaxy free.
+func fuel_factor(bare: bool = false) -> float:
+	var v := hull.fuel_factor
+	if not bare:
+		for m in installed:
+			v += m.fuel_factor
+	return maxf(0.3, v)
 
 func reactor() -> int:
 	var e := hull.reactor
@@ -315,21 +444,27 @@ const ATTR_MAX := 10
 ## upgrades and found hulls that are supposed to improve it.
 const HULL_REF := 70.0
 
-func attr_hull() -> int:
-	return clampi(int(round(ATTR_MAX * float(hp) / HULL_REF)), 0, ATTR_MAX)
+## `bare` everywhere below means "read the chassis with nothing fitted". Hull is
+## the awkward one: it reads CURRENT hp, so the bare reading caps at what the
+## bare frame could have held — hull you are carrying above that is the plating's
+## doing, and it should show as the plating's.
+func attr_hull(bare: bool = false) -> int:
+	var v := mini(hp, max_hp(true)) if bare else hp
+	return clampi(int(round(ATTR_MAX * float(v) / HULL_REF)), 0, ATTR_MAX)
 
 ## Thrust reads off fuel burn: a bigger engine moves more ship and drinks more
 ## doing it, so the factor that prices your jumps is already the number.
-func attr_thrust() -> int:
-	return clampi(int(round(hull.fuel_factor * 4.7)), 0, ATTR_MAX)
+func attr_thrust(bare: bool = false) -> int:
+	return clampi(int(round(fuel_factor(bare) * 4.7)), 0, ATTR_MAX)
 
 ## Dodge is the bulk of it; initiative tilts it. The +1 floor is there because
 ## without it every chassis with dodge under 0.05 and negative initiative read
 ## exactly 0 — the Ironside Cutter, a medium warship, scored the same
 ## Maneuver as an ore barge, which is not a distinction worth erasing. A barge
 ## can still reach 0 by being an actual barge.
-func attr_maneuver() -> int:
-	return clampi(int(round(hull.dodge * 23.0 + hull.initiative * 0.9 + 1.5)), 0, ATTR_MAX)
+func attr_maneuver(bare: bool = false) -> int:
+	return clampi(int(round(dodge(bare) * 23.0 + initiative(bare) * 0.9 + 1.5)),
+		0, ATTR_MAX)
 
 ## Thermal is capacity AND shedding, per §1.4, because an event that asks "can
 ## you sit in this heat" is asking about both and would otherwise need two
@@ -354,8 +489,8 @@ func attr_maneuver() -> int:
 ## in the game reads 6, and it is the one built by the heat manufacturer.
 const THERMAL_FLOOR := 8.0
 
-func attr_thermal() -> int:
-	var v := (heat_cap() - THERMAL_FLOOR) / 2.1 + dissipation() / 1.5
+func attr_thermal(bare: bool = false) -> int:
+	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.1 + dissipation(bare) / 1.5
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 ## Sensors and Stealth are the two with no other gauge in the game, so unlike
@@ -369,35 +504,50 @@ func attr_thermal() -> int:
 ## reads 7 and the stealthiest reads 9, which leaves both room to improve.
 const SENSE_SCALE := 1.7
 
-func attr_sensors() -> int:
+func attr_sensors(bare: bool = false) -> int:
 	var n := hull.sensors
-	for m in installed:
-		n += m.sensors
+	if not bare:
+		for m in installed:
+			n += m.sensors
 	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
 
-func attr_stealth() -> int:
+func attr_stealth(bare: bool = false) -> int:
 	var n := hull.stealth
-	for m in installed:
-		n += m.stealth
+	if not bare:
+		for m in installed:
+			n += m.stealth
 	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
 
-## Every attribute, in display order, as {key, label, short, value}.
+## Every attribute, in display order, as {key, label, short, value, base, text}.
+##
+## `base` is the same attribute read off the bare chassis, so the display can
+## paint what the ship IS separately from what you bolted to it. Both are
+## computed here rather than differenced by the caller, because the difference
+## has to be taken AFTER the rounding and the clamp — a module worth 0.4 of a
+## cell moves neither number, and a caller subtracting raw values would paint a
+## bonus cell that the attribute does not actually have.
 ## One list so the ship tab, the chassis select and any future check UI cannot
 ## disagree about the order or the names.
 func attributes() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([
-		{key = &"hull", label = "HULL", short = "HUL", value = attr_hull(),
+		{key = &"hull", label = "HULL", short = "HUL",
+			value = attr_hull(), base = attr_hull(true),
 			text = "Ramming, boarding, holding together under structural stress."},
-		{key = &"thrust", label = "THRUST", short = "THR", value = attr_thrust(),
+		{key = &"thrust", label = "THRUST", short = "THR",
+			value = attr_thrust(), base = attr_thrust(true),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well."},
-		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV", value = attr_maneuver(),
+		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV",
+			value = attr_maneuver(), base = attr_maneuver(true),
 			text = "Threading debris, evading a lock, choosing how a fight opens."},
-		{key = &"thermal", label = "THERMAL", short = "THM", value = attr_thermal(),
+		{key = &"thermal", label = "THERMAL", short = "THM",
+			value = attr_thermal(), base = attr_thermal(true),
 			text = "Sitting in heat: coronas, reactors, anything that cooks you."},
-		{key = &"sensors", label = "SENSORS", short = "SEN", value = attr_sensors(),
+		{key = &"sensors", label = "SENSORS", short = "SEN",
+			value = attr_sensors(), base = attr_sensors(true),
 			text = "Reading a wreck, finding the lane, seeing it before it sees you."},
-		{key = &"stealth", label = "STEALTH", short = "STL", value = attr_stealth(),
+		{key = &"stealth", label = "STEALTH", short = "STL",
+			value = attr_stealth(), base = attr_stealth(true),
 			text = "Going dark, slipping a patrol, arriving unannounced."},
 	])
 	return out
@@ -500,8 +650,8 @@ func heal(amount: int) -> int:
 		Sig.resources_changed.emit()
 	return gained
 
-func add_scrap(n: int) -> void:
-	scrap = maxi(0, scrap + n)
+func add_credits(n: int) -> void:
+	credits = maxi(0, credits + n)
 	Sig.resources_changed.emit()
 
 func die(reason: String) -> void:
@@ -521,46 +671,45 @@ func install_module(m: ModuleData) -> void:
 				worst = x
 		if worst != null:
 			installed.erase(worst)
+			worst.mount = -1
 			cargo.append(worst)
 			log_line("Removed %s to make room." % worst.name, &"sys")
 	cargo.erase(m)
+	m.mount = free_mount(m.slot)
 	installed.append(m)
 	log_line("Installed %s." % m.name, &"good")
 	Sig.ship_changed.emit()
 
-func uninstall_module(m: ModuleData) -> void:
+## Take a part off. Refused when the hold is full, because the alternative is
+## destroying it — and a refit screen that silently melts what you unbolt is
+## worse than one that says no.
+func uninstall_module(m: ModuleData) -> bool:
+	if hold_full():
+		log_line("No room in the hold for %s." % m.name, &"them")
+		return false
 	installed.erase(m)
+	m.mount = -1
 	cargo.append(m)
 	Sig.ship_changed.emit()
+	return true
 
-## Melt a part down. Scrap plus whatever the part was MADE of, which is the
-## quiet half: every module you decline is now crafting stock, so a drop you do
-## not want is still a reason to have opened the wreck. Grown and precursor parts
-## do not yield alloy at all — they were never pressed out of plate.
+## Break a part down for scrap. Scrap ONLY.
+##
+## It used to also yield alloy, and that is the half that is gone: a part turning
+## into a second resource made alloy behave like a second currency, which is the
+## thing the one-currency ruling exists to prevent. Scrap is what a part is
+## worth; the fabricator's prerequisites come from places you flew to, not from
+## the hold you were going to empty anyway.
+##
+## SCRAP and MELT were one operation under two names — this function priced by
+## Market.melt() and wore a SCRAP label in every screen. The refit screen's melt
+## cell is gone; this is the survivor, and it is called scrapping.
 func scrap_module(m: ModuleData) -> void:
 	var v := scrap_value_of(m)
 	cargo.erase(m)
-	add_scrap(v)
-	var bits := "%d scrap" % v
-	for pair in materials_from(m):
-		add_material(pair.id, int(pair.count))
-		bits += ", %d %s" % [int(pair.count), DB.material_name(pair.id).to_lower()]
-	log_line("Scrapped %s for %s." % [m.name, bits], &"good")
+	add_credits(v)
+	log_line("Scrapped %s for %d scrap." % [m.name, v], &"good")
 	Sig.ship_changed.emit()
-
-## What melting this part down yields, besides scrap. Here rather than in
-## scrap_module so the station can print it on the button before you commit.
-func materials_from(m: ModuleData) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	if m.rarity == ModuleData.Rarity.ARTIFACT:
-		out.append({id = &"relic", count = 1})
-	elif m.rarity == ModuleData.Rarity.EXOTIC:
-		out.append({id = &"exotic", count = 1})
-	else:
-		var n: int = DB.ALLOY_BY_RARITY[clampi(int(m.rarity), 0, 6)]
-		if n > 0:
-			out.append({id = &"alloy", count = n})
-	return out
 
 func transfer_to_hull(h: HullData) -> void:
 	# Shed anything that no longer fits, cheapest first.
@@ -576,10 +725,22 @@ func transfer_to_hull(h: HullData) -> void:
 			if worst == null:
 				break
 			installed.erase(worst)
+			worst.mount = -1
 			cargo.append(worst)
 	var ratio := float(hp) / float(max_hp())
 	hull = h
 	hp = maxi(6, int(round(h.max_hull * ratio)))
+	# The new hull has its own hardpoint count, so a part mounted on weapon 3 of a
+	# heavy can be pointing at a mount a light does not have. Re-seated in the
+	# order they were carried, which loses the arrangement you chose — that is
+	# honest: it is a different ship, and the mounts are places on it.
+	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		for m in installed:
+			if m.slot == s:
+				m.mount = -1
+		for m in installed:
+			if m.slot == s:
+				m.mount = free_mount(s)
 	found_hull = null
 	log_line("Transferred to %s. %s" % [h.display_name(), DB.perk_text(h.perk_id)], &"big")
 	Sig.ship_changed.emit()
@@ -628,7 +789,7 @@ const FUEL_MAX_HOP := 6
 
 func fuel_cost_to(n: MapGen.MapNode) -> int:
 	var d := MapGen.hop_distance(node_at(), n)
-	return clampi(int(round(hull.fuel_factor * d * FUEL_PER_DISC_RADIUS)),
+	return clampi(int(round(fuel_factor() * d * FUEL_PER_DISC_RADIUS)),
 		1, FUEL_MAX_HOP)
 
 ## How many systems the drive can pick from. Range is whatever radius happens

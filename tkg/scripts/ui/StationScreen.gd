@@ -1,7 +1,7 @@
 class_name StationScreen
 extends Control
 
-## Stations are paid campfires. Every service costs scrap, and scrap is the same
+## Stations are paid campfires. Every service costs credits, and credits are the same
 ## currency you would rather spend on modules — that tension IS the difficulty.
 ##
 ## A station is now four things rather than two: a shelf, a service desk, a
@@ -153,8 +153,8 @@ func _inspect() -> void:
 		n.inspected = true
 		var c := Run.contraband_count()
 		var fine := 20 * c
-		Run.add_scrap(-fine)
-		Run.log_line("Inspection: %d illegal part%s found. Fined %d scrap." % [
+		Run.add_credits(-fine)
+		Run.log_line("Inspection: %d illegal part%s found. Fined %d credits." % [
 			c, "" if c == 1 else "s", fine], &"heat")
 
 func _refresh() -> void:
@@ -179,31 +179,31 @@ func _refresh() -> void:
 
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
-	var repair := Widgets.button("REPAIR %d HULL · %d scrap" % [eight, eight_cost],
+	var repair := Widgets.button("REPAIR %d HULL · %d credits" % [eight, eight_cost],
 		_repair.bind(eight))
-	repair.disabled = missing <= 0 or Run.scrap < eight_cost
-	repair.tooltip_text = "%.1f scrap a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n)
+	repair.disabled = missing <= 0 or Run.credits < eight_cost
+	repair.tooltip_text = "%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n)
 	_services.add_child(repair)
 
 	var full_cost := Market.repair_price(n, missing)
-	var full := Widgets.button("FULL REPAIR · %d scrap" % full_cost, _repair.bind(missing))
-	full.disabled = missing <= 0 or Run.scrap < full_cost
+	var full := Widgets.button("FULL REPAIR · %d credits" % full_cost, _repair.bind(missing))
+	full.disabled = missing <= 0 or Run.credits < full_cost
 	_services.add_child(full)
 
 	var refuel_cost := Market.refuel_price(n)
-	var refuel := Widgets.button("REFUEL +%d · %d scrap" % [
+	var refuel := Widgets.button("REFUEL +%d · %d credits" % [
 		Market.REFUEL_UNITS, refuel_cost], _refuel)
-	refuel.disabled = Run.scrap < refuel_cost
+	refuel.disabled = Run.credits < refuel_cost
 	_services.add_child(refuel)
 
 	var purge_cost := Market.purge_price(n)
-	var purge := Widgets.button("PURGE 1 DROSS · %d scrap" % purge_cost, _purge)
-	purge.disabled = Run.dross <= 0 or Run.scrap < purge_cost
+	var purge := Widgets.button("PURGE 1 DROSS · %d credits" % purge_cost, _purge)
+	purge.disabled = Run.dross <= 0 or Run.credits < purge_cost
 	_services.add_child(purge)
 
 	var coolant_cost := Market.coolant_price(n)
-	var coolant := Widgets.button("+2 HEAT CAP · %d scrap" % coolant_cost, _coolant)
-	coolant.disabled = Run.scrap < coolant_cost
+	var coolant := Widgets.button("+2 HEAT CAP · %d credits" % coolant_cost, _coolant)
+	coolant.disabled = Run.credits < coolant_cost
 	_services.add_child(coolant)
 
 	# One row per material you are carrying, rather than the single hardcoded
@@ -255,35 +255,35 @@ func _refresh() -> void:
 func _repair(amount: int) -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	var cost := Market.repair_price(n, amount)
-	if Run.scrap < cost:
+	if Run.credits < cost:
 		return
-	Run.add_scrap(-cost)
+	Run.add_credits(-cost)
 	var healed := Run.heal(amount)
-	Run.log_line("Repaired %d hull for %d scrap." % [healed, cost], &"good")
+	Run.log_line("Repaired %d hull for %d credits." % [healed, cost], &"good")
 
 func _refuel() -> void:
 	var cost := Market.refuel_price(Run.node_at())
-	if Run.scrap < cost:
+	if Run.credits < cost:
 		return
-	Run.add_scrap(-cost)
+	Run.add_credits(-cost)
 	Run.fuel += Market.REFUEL_UNITS
 	Run.log_line("Refuelled.", &"good")
 	Sig.resources_changed.emit()
 
 func _purge() -> void:
 	var cost := Market.purge_price(Run.node_at())
-	if Run.scrap < cost or Run.dross <= 0:
+	if Run.credits < cost or Run.dross <= 0:
 		return
-	Run.add_scrap(-cost)
+	Run.add_credits(-cost)
 	Run.dross -= 1
 	Run.log_line("Purged Dross.", &"good")
 	Sig.ship_changed.emit()
 
 func _coolant() -> void:
 	var cost := Market.coolant_price(Run.node_at())
-	if Run.scrap < cost:
+	if Run.credits < cost:
 		return
-	Run.add_scrap(-cost)
+	Run.add_credits(-cost)
 	Run.heat_cap_bonus += 2
 	Run.log_line("Coolant upgraded. Heat cap +2.", &"good")
 
@@ -292,8 +292,8 @@ func _sell_material(id: StringName) -> void:
 	if not Run.spend_material(id, 1):
 		return
 	var paid := Market.material_price(n, id)
-	Run.add_scrap(paid)
-	Run.log_line("Sold 1 %s for %d scrap." % [DB.material_name(id).to_lower(), paid], &"good")
+	Run.add_credits(paid)
+	Run.log_line("Sold 1 %s for %d credits." % [DB.material_name(id).to_lower(), paid], &"good")
 
 func _fabricate(r: Dictionary) -> void:
 	var line := Fabricator.make(Run.node_at(), r)
@@ -307,12 +307,12 @@ func _on_action(action: String, thing: Variant) -> void:
 		"buy":
 			var m := thing as ModuleData
 			var price := Market.ask(n, m)
-			if Run.scrap < price:
+			if Run.credits < price:
 				return
-			Run.add_scrap(-price)
+			Run.add_credits(-price)
 			n.shop.erase(m)
-			Run.cargo.append(m)
-			Run.log_line("Bought %s for %d scrap." % [m.name, price], &"good")
+			Run.stow(m)
+			Run.log_line("Bought %s for %d credits." % [m.name, price], &"good")
 			Sig.ship_changed.emit()
 		"sell":
 			# Every sale here moves this market's price down a notch. One good
@@ -324,16 +324,16 @@ func _on_action(action: String, thing: Variant) -> void:
 			if paid <= 0:
 				return
 			Run.cargo.erase(sm)
-			Run.add_scrap(paid)
+			Run.add_credits(paid)
 			n.trades += 1
-			Run.log_line("Sold %s for %d scrap." % [sm.name, paid], &"good")
+			Run.log_line("Sold %s for %d credits." % [sm.name, paid], &"good")
 			Sig.ship_changed.emit()
 		"take_hull":
 			var h := thing as HullData
 			var price2 := Market.hull_price(n, h)
-			if Run.scrap < price2:
+			if Run.credits < price2:
 				return
-			Run.add_scrap(-price2)
+			Run.add_credits(-price2)
 			n.shop_hull = null
 			Run.transfer_to_hull(h)
 		"install": Run.install_module(thing as ModuleData)

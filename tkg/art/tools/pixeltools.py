@@ -1,0 +1,246 @@
+"""Sprite post-processing for the PixelLab pipeline. Pure standard library.
+
+No Pillow, no ImageMagick. Neither is installed on the dev machine, and on
+Windows `convert` is the filesystem tool, not ImageMagick — running it does
+nothing useful and reports success. So this module carries its own PNG codec.
+
+Everything here exists because a PixelLab result is not a finished game asset.
+See art/PIXELLAB_WORKFLOW.md for the process these functions implement.
+
+    python pixeltools.py info      sprite.png
+    python pixeltools.py strip     in.png out.png        # opaque bg -> alpha
+    python pixeltools.py crop      in.png out.png X Y W H
+    python pixeltools.py snap      in.png palette.png out.png
+    python pixeltools.py strip-anim out.png f0.png f1.png ...
+"""
+
+import struct
+import sys
+import zlib
+from collections import Counter, deque
+
+
+# --------------------------------------------------------------------- codec
+
+def decode(path):
+    """-> (width, height, [bytearray rows of RGBA8]). Non-interlaced only."""
+    d = open(path, "rb").read()
+    w, h = struct.unpack(">II", d[16:24])
+    if d[24] != 8 or d[25] != 6:
+        raise ValueError("%s: need 8-bit RGBA (type 6), got depth %d type %d"
+                         % (path, d[24], d[25]))
+    idat, i = b"", 8
+    while i < len(d):
+        ln = struct.unpack(">I", d[i:i + 4])[0]
+        if d[i + 4:i + 8] == b"IDAT":
+            idat += d[i + 8:i + 8 + ln]
+        i += 12 + ln
+    raw = zlib.decompress(idat)
+    bpp, stride = 4, w * 4
+    rows, prev, pos = [], bytearray(stride), 0
+    for _y in range(h):
+        f = raw[pos]; pos += 1
+        line = bytearray(raw[pos:pos + stride]); pos += stride
+        # PNG filters are per scanline and must be undone in order.
+        for x in range(stride):
+            a = line[x - bpp] if x >= bpp else 0
+            b = prev[x]
+            c = prev[x - bpp] if x >= bpp else 0
+            if f == 1: line[x] = (line[x] + a) & 255
+            elif f == 2: line[x] = (line[x] + b) & 255
+            elif f == 3: line[x] = (line[x] + ((a + b) >> 1)) & 255
+            elif f == 4:
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                line[x] = (line[x] + pr) & 255
+        rows.append(line); prev = line
+    return w, h, rows
+
+
+def encode(path, w, h, rows):
+    """Write RGBA8, filter 0 on every scanline. Small sprites; size is moot."""
+    raw = b"".join(b"\x00" + bytes(r) for r in rows)
+
+    def chunk(t, data):
+        return (struct.pack(">I", len(data)) + t + data
+                + struct.pack(">I", zlib.crc32(t + data) & 0xffffffff))
+
+    png = b"\x89PNG\r\n\x1a\n"
+    png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+    png += chunk(b"IDAT", zlib.compress(raw, 9))
+    png += chunk(b"IEND", b"")
+    open(path, "wb").write(png)
+
+
+# ------------------------------------------------------------------ measuring
+
+def alpha_pct(w, h, rows):
+    z = sum(1 for r in rows for x in range(w) if r[x * 4 + 3] == 0)
+    return 100.0 * z / (w * h)
+
+
+def bbox(w, h, rows):
+    """Opaque bounding box, or None. Use it before deciding a crop."""
+    x0, y0, x1, y1 = w, h, -1, -1
+    for y in range(h):
+        for x in range(w):
+            if rows[y][x * 4 + 3]:
+                if x < x0: x0 = x
+                if x > x1: x1 = x
+                if y < y0: y0 = y
+                if y > y1: y1 = y
+    return None if x1 < 0 else (x0, y0, x1, y1)
+
+
+def palette(w, h, rows):
+    """Every distinct opaque colour, most common first."""
+    c = Counter()
+    for y in range(h):
+        for x in range(w):
+            o = x * 4
+            if rows[y][o + 3]:
+                c[(rows[y][o], rows[y][o + 1], rows[y][o + 2])] += 1
+    return c
+
+
+# ------------------------------------------------------------------ operations
+
+def strip_bg(w, h, rows, tol=14):
+    """Opaque background -> alpha, flood-filled INWARD FROM THE BORDER.
+
+    Never a global colour key. PixelLab returns a background sampled from the
+    forced palette, so the same value occurs inside the hull too, and keying it
+    globally punches holes through the ship. Flooding from the edge can only
+    reach pixels that are actually outside it.
+    """
+    def px(x, y):
+        o = x * 4
+        return rows[y][o], rows[y][o + 1], rows[y][o + 2]
+
+    edge = Counter()
+    for x in range(w):
+        edge[px(x, 0)] += 1; edge[px(x, h - 1)] += 1
+    for y in range(h):
+        edge[px(0, y)] += 1; edge[px(w - 1, y)] += 1
+    if not edge:
+        return 0
+    bg = edge.most_common(1)[0][0]
+
+    def near(c):
+        return abs(c[0] - bg[0]) + abs(c[1] - bg[1]) + abs(c[2] - bg[2]) <= tol
+
+    seen, q = bytearray(w * h), deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if near(px(x, y)) and not seen[y * w + x]:
+                seen[y * w + x] = 1; q.append((x, y))
+    for y in range(h):
+        for x in (0, w - 1):
+            if near(px(x, y)) and not seen[y * w + x]:
+                seen[y * w + x] = 1; q.append((x, y))
+    while q:
+        x, y = q.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx] and near(px(nx, ny)):
+                seen[ny * w + nx] = 1; q.append((nx, ny))
+    n = 0
+    for y in range(h):
+        for x in range(w):
+            if seen[y * w + x] and rows[y][x * 4 + 3]:
+                rows[y][x * 4 + 3] = 0; n += 1
+    return n
+
+
+def crop(w, h, rows, x0, y0, cw, ch):
+    out = []
+    for y in range(y0, y0 + ch):
+        line = bytearray()
+        for x in range(x0, x0 + cw):
+            line += bytes(rows[y][x * 4:x * 4 + 4])
+        out.append(line)
+    return cw, ch, out
+
+
+def snap(w, h, rows, pal):
+    """Force every pixel onto `pal` (list of RGB tuples). Returns drift count.
+
+    animate_image and create_image_pro both invent colours. Snapping to the
+    SOURCE sprite's own palette keeps an approved look approved, where snapping
+    to the project ramp would silently recolour it.
+    """
+    cache, n = {}, 0
+    for y in range(h):
+        for x in range(w):
+            o = x * 4
+            if not rows[y][o + 3]:
+                continue
+            c = (rows[y][o], rows[y][o + 1], rows[y][o + 2])
+            if c in pal:
+                continue
+            n += 1
+            if c not in cache:
+                cache[c] = min(pal, key=lambda p: (c[0] - p[0]) ** 2
+                               + (c[1] - p[1]) ** 2 + (c[2] - p[2]) ** 2)
+            s = cache[c]
+            rows[y][o], rows[y][o + 1], rows[y][o + 2] = s
+    return n
+
+
+def hstrip(frames):
+    """[(w,h,rows), ...] of equal size -> one horizontal strip."""
+    fw, fh = frames[0][0], frames[0][1]
+    out = [bytearray(fw * len(frames) * 4) for _ in range(fh)]
+    for i, (w, h, rows) in enumerate(frames):
+        if (w, h) != (fw, fh):
+            raise ValueError("frame %d is %dx%d, expected %dx%d" % (i, w, h, fw, fh))
+        for y in range(fh):
+            out[y][i * fw * 4:(i + 1) * fw * 4] = rows[y]
+    return fw * len(frames), fh, out
+
+
+# ------------------------------------------------------------------------ cli
+
+def _main(argv):
+    if len(argv) < 2:
+        print(__doc__); return 1
+    cmd = argv[1]
+    if cmd == "info":
+        w, h, rows = decode(argv[2])
+        print("%s  %dx%d  %.1f%% transparent" % (argv[2], w, h, alpha_pct(w, h, rows)))
+        b = bbox(w, h, rows)
+        if b:
+            print("  content x %d..%d  y %d..%d  (margins L%d R%d T%d B%d)"
+                  % (b[0], b[2], b[1], b[3], b[0], w - 1 - b[2], b[1], h - 1 - b[3]))
+        for c, n in palette(w, h, rows).most_common(16):
+            print("  #%02x%02x%02x  x%d" % (c[0], c[1], c[2], n))
+    elif cmd == "strip":
+        w, h, rows = decode(argv[2])
+        n = strip_bg(w, h, rows)
+        encode(argv[3], w, h, rows)
+        print("cleared %d background px -> %.1f%% transparent" % (n, alpha_pct(w, h, rows)))
+    elif cmd == "crop":
+        w, h, rows = decode(argv[2])
+        x, y, cw, ch = (int(v) for v in argv[4:8])
+        encode(argv[3], *crop(w, h, rows, x, y, cw, ch))
+        print("cropped to %dx%d at (%d,%d)" % (cw, ch, x, y))
+    elif cmd == "snap":
+        w, h, rows = decode(argv[2])
+        pw, ph, prows = decode(argv[3])
+        pal = list(palette(pw, ph, prows).keys())
+        n = snap(w, h, rows, pal)
+        encode(argv[4], w, h, rows)
+        print("snapped %d px onto %d source colours" % (n, len(pal)))
+    elif cmd == "strip-anim":
+        frames = [decode(f) for f in argv[3:]]
+        w, h, rows = hstrip(frames)
+        encode(argv[2], w, h, rows)
+        print("%d frames -> %dx%d strip" % (len(frames), w, h))
+    else:
+        print(__doc__); return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main(sys.argv))

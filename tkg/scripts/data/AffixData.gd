@@ -18,7 +18,7 @@ extends Resource
 @export var add_draw: int = 0
 @export var add_vent: int = 0
 @export var add_heal: int = 0
-@export var add_scrap: int = 0
+@export var add_credits: int = 0
 @export var add_heat: int = 0
 @export var reduce_heat: int = 0
 @export var reduce_energy: int = 0
@@ -36,8 +36,8 @@ func apply_to(c: CardData) -> void:
 		c.vent += add_vent
 	if add_heal != 0:
 		c.heal += add_heal
-	if add_scrap != 0:
-		c.scrap_gain += add_scrap
+	if add_credits != 0:
+		c.credit_gain += add_credits
 	if add_heat != 0:
 		c.heat += add_heat
 	if reduce_heat != 0:

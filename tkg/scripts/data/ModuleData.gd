@@ -19,6 +19,32 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
 @export var sensors: int = 0
 @export var stealth: int = 0
 
+## What this part adds to the SHIP'S GAUGES — not to a display number.
+##
+## These were missing, and the gap was invisible because the two above are not.
+## Sensors and Stealth had no gauge anywhere in the game, so they were summed
+## across `installed` from the day they existed. The other four attributes are
+## derived from hp, heat and dodge — gauges that predate modules having any
+## passive stat at all — so `RunState.max_hp()` returned `hull.max_hull` and
+## stopped there. A ship with three armour plates bolted on had exactly the hull
+## of a ship with none, on the ship tab AND in every fight.
+##
+## Deliberately the same field names as HullData, because the sum is literally
+## `hull.x + Σ module.x` and two vocabularies for one quantity is how the two
+## halves drift apart.
+##
+## `fuel_factor` is signed and does DOUBLE DUTY: it drives Thrust upward and the
+## price of a jump upward with it, which is the trade a bigger engine is. No
+## module in the catalog carries a value for it today — see _seed_module_passives.
+@export_group("Passive")
+@export var max_hull: int = 0
+@export var heat_cap: int = 0
+@export var dissipation: int = 0
+@export var dodge: float = 0.0
+@export var initiative: int = 0
+@export var fuel_factor: float = 0.0
+@export_group("")
+
 ## Issued with a ship, never found on one.
 ##
 ## The generic kit every chassis launches with. Kept out of the loot pool
@@ -26,6 +52,20 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
 ## turning up in wrecks would crowd out the branded parts you are flying around
 ## to collect. You start with them and you replace them.
 @export var starter_only: bool = false
+
+## WHICH hardpoint this is bolted to, within its slot type. -1 when in the hold.
+##
+## ShipView has always drawn the fitted modules at fixed places on the hull —
+## weapon 0 is the dorsal ordnance, 1 the ventral barrels, 2 the aft mount — but
+## it read that index from the ORDER of the installed array, so the positions
+## were an accident of how you happened to fit things and shuffled when you
+## removed something. Storing it makes a mount a place you choose: leave the
+## dorsal empty and hang everything off the spine if that is the ship you want.
+##
+## Runtime state, not content. Every template in DB carries -1; the value only
+## means anything on the duplicate actually bolted to a hull, and SaveGame
+## carries it so a reloaded ship looks like the one you built.
+@export var mount: int = -1
 
 ## Rolled at generation time
 @export var affixes: Array[AffixData] = []

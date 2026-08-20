@@ -47,7 +47,7 @@ static func record(outcome: Outcome, reason: String) -> void:
 		kills = Run.kills,
 		hp = Run.hp,
 		max_hp = Run.max_hp(),
-		scrap = Run.scrap,
+		credits = Run.credits,
 		exotic = Run.exotic,
 		danger = Run.node_at().danger,
 		# How far in you actually got. Shells run rim (0) to core, so the

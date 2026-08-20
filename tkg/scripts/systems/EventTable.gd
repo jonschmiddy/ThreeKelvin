@@ -34,8 +34,8 @@ static func build_all() -> Array[Dictionary]:
 			options = [
 				{label = "Crack it open", effect = func() -> Dictionary:
 					if randf() < 0.6:
-						Run.add_scrap(25)
-						return {text = "Cargo, no occupant. 25 scrap."}
+						Run.add_credits(25)
+						return {text = "Cargo, no occupant. 25 credits."}
 					Run.take_hull_damage(6, "A scavenger trap finished what the cold started.")
 					return {text = "A scavenger trap. 6 hull."}},
 				{label = "Leave it", effect = func() -> Dictionary:
@@ -47,7 +47,7 @@ static func build_all() -> Array[Dictionary]:
 			body = "A station hangs dark and unpowered. The docking clamps still work.",
 			options = [
 				{label = "Salvage the racks", effect = func() -> Dictionary:
-					Run.cargo.append(LootGen.roll_module(Run.node_at().danger))
+					Run.stow(LootGen.roll_module(Run.node_at().danger))
 					Sig.ship_changed.emit()
 					return {text = "You pull a module from a dead bay."}},
 				{label = "Siphon the tanks", effect = func() -> Dictionary:
@@ -60,14 +60,14 @@ static func build_all() -> Array[Dictionary]:
 			title = "Coolant seller",
 			body = "A trader offers surplus coolant. Cheap, and probably stolen.",
 			options = [
-				{label = "Buy (20 scrap)", effect = func() -> Dictionary:
-					if Run.scrap < 20:
+				{label = "Buy (20 credits)", effect = func() -> Dictionary:
+					if Run.credits < 20:
 						return {text = "You cannot afford it."}
-					Run.add_scrap(-20)
+					Run.add_credits(-20)
 					Run.heat_cap_bonus += 3
 					return {text = "Heat capacity +3, permanently."}},
 				{label = "Decline", effect = func() -> Dictionary:
-					return {text = "You keep your scrap. The cold keeps its edge."}},
+					return {text = "You keep your credits. The cold keeps its edge."}},
 			],
 		},
 		{
@@ -102,8 +102,8 @@ static func build_all() -> Array[Dictionary]:
 				{label = "Submit to inspection", effect = func() -> Dictionary:
 					var c := Run.contraband_count()
 					if c > 0:
-						Run.add_scrap(-20 * c)
-						return {text = "Fined 20 scrap per illegal part."}
+						Run.add_credits(-20 * c)
+						return {text = "Fined 20 credits per illegal part."}
 					return {text = "Clean. They wave you through, disappointed."}},
 				{label = "Burn away", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 6)
@@ -120,18 +120,18 @@ static func build_all() -> Array[Dictionary]:
 					Sig.ship_changed.emit()
 					return {text = "The frame is flyable: %s" % Run.found_hull.display_name()}},
 				{label = "Strip it for scrap", effect = func() -> Dictionary:
-					Run.add_scrap(35)
-					return {text = "35 scrap of plating and wire."}},
+					Run.add_credits(35)
+					return {text = "35 credits of plating and wire."}},
 			],
 		},
 		{
 			title = "Cold sleeper",
 			body = "A single cryopod, still drawing power from a dying cell. The occupant's chart reads three degrees.",
 			options = [
-				{label = "Restore power (10 scrap)", effect = func() -> Dictionary:
-					if Run.scrap < 10:
+				{label = "Restore power (10 credits)", effect = func() -> Dictionary:
+					if Run.credits < 10:
 						return {text = "Not enough power to spare. The pod goes dark."}
-					Run.add_scrap(-10)
+					Run.add_credits(-10)
 					Run.exotic += 1
 					return {text = "They live, briefly, and give you something they were carrying."}},
 				{label = "Take the power cell", effect = func() -> Dictionary:
@@ -198,8 +198,8 @@ static func _checked() -> Array[Dictionary]:
 			options = [
 				{label = "Burn out of the well",
 					met = func() -> Dictionary:
-						Run.add_scrap(30)
-						return {text = "You climb out of it like it was nothing, and clip a derelict's tumbling wing on the way past. Thirty scrap of somebody else's bad afternoon."},
+						Run.add_credits(30)
+						return {text = "You climb out of it like it was nothing, and clip a derelict's tumbling wing on the way past. Thirty credits of somebody else's bad afternoon."},
 					clean = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 14)
 						Sig.resources_changed.emit()
@@ -223,7 +223,7 @@ static func _checked() -> Array[Dictionary]:
 			options = [
 				{label = "Thread it",
 					met = func() -> Dictionary:
-						Run.cargo.append(LootGen.roll_module(Run.node_at().danger))
+						Run.stow(LootGen.roll_module(Run.node_at().danger))
 						Sig.ship_changed.emit()
 						return {text = "You go through the field like water through a grate, and lift a module off the wreck of somebody who did not."},
 					clean = func() -> Dictionary:
@@ -246,17 +246,16 @@ static func _checked() -> Array[Dictionary]:
 			options = [
 				{label = "Go in hot",
 					met = func() -> Dictionary:
-						Run.add_scrap(70)
-						Run.add_material(&"alloy", 2)
-						return {text = "Your vents hold the whole way in and the whole way out. Seventy scrap and two blocks of good alloy."},
+						Run.add_credits(85)
+						return {text = "Your vents hold the whole way in and the whole way out. Eighty-five credits out of a hold nobody else would reach."},
 					clean = func() -> Dictionary:
 						Run.heat += 8
-						Run.add_scrap(45)
+						Run.add_credits(45)
 						Sig.resources_changed.emit()
-						return {text = "You come out carrying forty-five scrap and a reactor that will need a minute."},
+						return {text = "You come out carrying forty-five credits and a reactor that will need a minute."},
 					partial = func() -> Dictionary:
 						Run.heat += 16
-						Run.add_scrap(20)
+						Run.add_credits(20)
 						Sig.resources_changed.emit()
 						return {text = "You get one hold open and take what is nearest before the temperature makes the decision for you."},
 					botched = func() -> Dictionary:
@@ -280,7 +279,7 @@ static func _checked() -> Array[Dictionary]:
 							if not node.visited:
 								node.visited = true
 								found += 1
-						Run.add_scrap(25)
+						Run.add_credits(25)
 						return {text = "A precursor beacon, still counting. You cannot read it, but you can triangulate off it — %d systems resolve out of the dark, and the housing is worth twenty-five." % found},
 					clean = func() -> Dictionary:
 						for r in Run.in_range():
@@ -312,10 +311,10 @@ static func _checked() -> Array[Dictionary]:
 						Sig.resources_changed.emit()
 						return {text = "You hold everything off but the reactor, and the reactor is what you pay with. Six heat, no questions."},
 					partial = func() -> Dictionary:
-						Run.add_scrap(-40)
-						return {text = "They get a partial return and hail you in. The fine is forty scrap and a lecture."},
+						Run.add_credits(-40)
+						return {text = "They get a partial return and hail you in. The fine is forty credits and a lecture."},
 					botched = func() -> Dictionary:
-						Run.add_scrap(-40)
+						Run.add_credits(-40)
 						return {text = "They light you up from two sides, and something in the cutter's escort decides you are worth the trouble.", fight = true},
 					check = {attr = &"stealth", need = 4}},
 				{label = "Submit to inspection", effect = func() -> Dictionary:

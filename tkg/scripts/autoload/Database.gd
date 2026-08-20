@@ -128,7 +128,7 @@ func _seed_manufacturers() -> void:
 			"Ignition", "Overheat damage halved."],
 		[&"dredge", "The Dredge Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
 			"Scrap economy and armor sustain. Wins slowly, wins rich.",
-			"Company Rates", "+50% scrap from wrecks.",
+			"Company Rates", "+50% credits from wrecks.",
 			"Foundry Line", "Brace cards give +2 armor."],
 		[&"redline", "Redline Shipyards", "Still flying? Then we did our job.", "#e24b4a", "#1c2127",
 			"Salvage tech, stealth and refits. Innate contraband affinity.",
@@ -174,13 +174,13 @@ func _seed_manufacturers() -> void:
 ## an allegiance before they can evaluate a single number, and this is what they
 ## are actually choosing between.
 const BACKSTORY := {
-	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon — they inherited the jigs, kept the tolerances, and went on stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
+	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon — they inherited the jigs and kept stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
 	&"solari": "A guild of thermal engineers who lost an argument about safety margins and left to prove they were right. Solari hulls are rated for temperatures their crews are not. The company line is that heat is only waste if you fail to aim it.",
 	&"dredge": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock — it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
 	&"redline": "Chop shops with a trademark. Redline registers no serials, honours no warranty, and has never once been found at the address on its invoices. What they sell is speed and the absence of a record, and both are exactly as legal as your inspector is thorough.",
 	&"halcyon": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Halcyon does not scale, does not discount, and does not replace what it sold you — it repairs it, at a price, forever. Owning one is less a purchase than an arrangement.",
-	&"cygnet": "Drone architects who solved autonomy and then spent forty years not answering questions about it. A Cygnet ship is a hangar with an engine: the hull is somewhere for the swarm to come back to. Pilots report the drones anticipate them. The literature does not address this.",
-	&"calyx": "Clinical, corporate and entirely organic — Calyx hulls are cultured to a specification and then trimmed. They heal. They adapt. Every contract carries a clause about what happens if the vessel is fed something it was not rated for, and no customer has been shown the results.",
+	&"cygnet": "Drone architects who solved autonomy and then spent forty years not discussing it. A Cygnet ship is a hangar with an engine, somewhere for the swarm to return to. Pilots report the drones anticipate them. The literature does not address this.",
+	&"calyx": "Clinical, corporate and entirely organic — Calyx hulls are cultured to a specification and then trimmed. They heal. They adapt. Every contract has a clause about feeding one something it was not rated for, and no customer has seen the results.",
 }
 
 func manufacturer_colour(id: StringName) -> Color:
@@ -211,7 +211,7 @@ func _seed_affixes() -> void:
 		{name = "Reinforced", text = "+3 armor", add_armor = 3},
 		{name = "Autoloader", text = "draw 1 on play", add_draw = 1},
 		{name = "Deregulated", text = "+4 damage, +2 heat", add_damage = 4, add_heat = 2, contraband = true},
-		{name = "Salvaged", text = "+2 scrap on play", add_scrap = 2},
+		{name = "Salvaged", text = "+2 credits on play", add_credits = 2},
 		{name = "Cryo-Lined", text = "vent 2 on play", add_vent = 2},
 		{name = "Mass-Fed", text = "+1 hit", add_hits = 1},
 		{name = "Efficient", text = "-1 energy", reduce_energy = 1},
@@ -308,20 +308,20 @@ func _seed_modules() -> void:
 	# --- Dredge: scrap and sustain
 	_module(&"claw", "Salvage Claw", &"dredge", U, C0,
 		"Strips value off things still moving.",
-		[{name = "Strip Mine", energy = 1, damage = 5, scrap_gain = 3, copies = 2}])
+		[{name = "Strip Mine", energy = 1, damage = 5, credit_gain = 3, copies = 2}])
 	_module(&"slag", "Slag Armor Kit", &"dredge", S, C1,
 		"Ugly, heavy, pays for itself.",
-		[{name = "Slag Plate", energy = 1, armor = 4, scrap_gain = 2, copies = 2}])
+		[{name = "Slag Plate", energy = 1, armor = 4, credit_gain = 2, copies = 2}])
 	_module(&"refinery", "Field Refinery", &"dredge", U, C2,
-		"Feeds scrap into the armor press.",
-		[{name = "Smelt", energy = 1, scrap_cost = 5, armor = 10, copies = 1}])
+		"Feeds salvage into the armor press.",
+		[{name = "Smelt", energy = 1, credit_cost = 5, armor = 10, copies = 1}])
 	_module(&"ripper", "Dredge Tear-Down Rig", &"dredge", W, C2,
 		"Disassembles hulls that object.",
-		[{name = "Tear Down", energy = 2, heat = 1, damage = 7, hits = 2, scrap_gain = 4, copies = 2}])
+		[{name = "Tear Down", energy = 2, heat = 1, damage = 7, hits = 2, credit_gain = 4, copies = 2}])
 	## Issued weapon. See STARTER_WEAPON for why these three exist.
 	_module(&"breaker", "Breaker Cannon", &"dredge", W, C0,
 		"Point it at something and it becomes stock.",
-		[{name = "Break Down", energy = 1, damage = 5, scrap_gain = 2, copies = 2}])
+		[{name = "Break Down", energy = 1, damage = 5, credit_gain = 2, copies = 2}])
 
 	# --- Redline: evasion, refit, contraband
 	_module(&"chaff", "Chaff Launcher", &"redline", U, C0,
@@ -452,6 +452,7 @@ func _seed_modules() -> void:
 		(modules[id] as ModuleData).starter_only = true
 
 	_seed_module_attributes()
+	_seed_module_passives()
 
 ## Sensors and Stealth, laid on modules that already exist.
 ##
@@ -465,12 +466,69 @@ func _seed_modules() -> void:
 ## is a property of six modules out of thirty-four, and thirty-four call sites
 ## carrying `0, 0` would bury the six that matter.
 func _seed_module_attributes() -> void:
-	var sensors := {&"auspex": 2, &"servo": 1, &"evoke": 1}
+	# `board` and `scope` are yard stock and were carrying their names as pure
+	# flavour: a Signal Board that reads no signals and a Ranging Scope that
+	# ranges nothing. They are the floor of the sensor axis now, which is also
+	# what makes an Auspex Array at 2 legible as an upgrade from something.
+	var sensors := {&"auspex": 2, &"servo": 1, &"evoke": 1, &"board": 1, &"scope": 1}
 	var stealth := {&"ghost": 2, &"chaff": 1, &"sporevent": 1, &"flare": -1}
 	for id in sensors:
 		(modules[id] as ModuleData).sensors = sensors[id]
 	for id in stealth:
 		(modules[id] as ModuleData).stealth = stealth[id]
+
+
+## The four gauges a module can move, laid on modules that already exist.
+##
+## Same discipline as _seed_module_attributes above, and the same reason: every
+## one of these already reads as the thing it now does. An Ablative Plate Welder
+## welds plate. A Coolant Flush Assembly flushes coolant. The stat was latent in
+## the name and the catalog was carrying it as flavour.
+##
+## Until now a module's ONLY passive effects were sensors and stealth, so armour
+## modules armoured nothing — they granted a block card and left max_hp exactly
+## where the bare chassis had it. These numbers are small on purpose: a medium
+## frame is 35 hull, 12 heat cap and 3 dissipation, so +3 plate is a tenth of a
+## hull rather than a second one, and the cards a module grants are still the
+## bulk of what it is worth.
+##
+## NOTHING carries fuel_factor. It is the one signed field that cuts both ways —
+## it raises Thrust and the price of every jump together — and the simulator
+## already ends 30-40% of runs stranded. A number invented for it here would move
+## the most fragile figure in the game for the sake of an attribute nobody has
+## asked to change. The gauge sums it; the catalog waits for an engine.
+func _seed_module_passives() -> void:
+	# Plate, bracing, armour. Rarity buys magnitude, per the ladder.
+	var hull_plus := {
+		&"plating": 3, &"bracing": 2,          # generic yard stock
+		&"plate": 2, &"reactive": 6,           # korvan
+		&"slag": 4,                            # dredge
+		&"weave": 3,                           # calyx
+		&"lattice": 8,                         # precursor artifact
+	}
+	# Capacity: how much heat you can hold. Solari's whole axis.
+	var heat_plus := {&"shroud": 5, &"overdrive": 3, &"ventcan": 2}
+	# Shedding: how fast you get rid of it. Deliberately scarcer than capacity —
+	# three bearers at +1 — because dissipation compounds every single turn and a
+	# medium frame only starts with 3.
+	var vent_plus := {&"coolant": 1, &"coolline": 1, &"sporevent": 1}
+	# Evasion, and only from Redline, whose set is named for it.
+	var dodge_plus := {&"ghost": 0.04, &"chaff": 0.02}
+	# Acting sooner. The same three modules that already grant Sensors, because
+	# seeing first and moving first are the same sentence.
+	var init_plus := {&"servo": 1, &"evoke": 1, &"singing": 1}
+
+	for id in hull_plus:
+		(modules[id] as ModuleData).max_hull = hull_plus[id]
+	for id in heat_plus:
+		(modules[id] as ModuleData).heat_cap = heat_plus[id]
+	for id in vent_plus:
+		(modules[id] as ModuleData).dissipation = vent_plus[id]
+	for id in dodge_plus:
+		(modules[id] as ModuleData).dodge = dodge_plus[id]
+	for id in init_plus:
+		(modules[id] as ModuleData).initiative = init_plus[id]
+
 
 # ------------------------------------------------------------------------ hulls
 
@@ -502,7 +560,7 @@ const WEIGHT_BASE := {
 	# The extra system slot is where the floor comes from.
 	HullData.Weight.LIGHT: {
 		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
-		dodge = 0.18, initiative = 2, fuel_factor = 0.8,
+		dodge = 0.18, initiative = 2, fuel_factor = 0.8, cargo_slots = 8,
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
 	# A second utility mount, because the middle had nothing of its own.
 	#
@@ -515,11 +573,11 @@ const WEIGHT_BASE := {
 	# the middle of a range to be.
 	HullData.Weight.MEDIUM: {
 		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
-		dodge = 0.05, initiative = 0, fuel_factor = 1.2,
+		dodge = 0.05, initiative = 0, fuel_factor = 1.2, cargo_slots = 12,
 		weapon_slots = 3, system_slots = 2, utility_slots = 2},
 	HullData.Weight.HEAVY: {
 		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
-		dodge = 0.0, initiative = -2, fuel_factor = 1.8,
+		dodge = 0.0, initiative = -2, fuel_factor = 1.8, cargo_slots = 16,
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
 
@@ -592,6 +650,10 @@ func _seed_hulls() -> void:
 			h.set(k, WEIGHT_BASE[d.weight][k])
 		h.name = d.name
 		h.weight = d.weight
+		h.sprite = hull_sprite(d.weight)
+		h.exhaust = hull_exhaust(d.weight)
+		h.exhaust_frames = EXHAUST_FRAMES
+		h.exhaust_offset = EXHAUST_AT
 		hull_frames.append(h)
 
 	for man in MAKER_HULLS:
@@ -623,7 +685,88 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	h.manufacturer = man
 	h.name = spec.names[int(w)]
 	h.perk_id = spec.perk_id
+	h.sprite = hull_sprite(w)
+	h.exhaust = hull_exhaust(w)
+	h.exhaust_frames = EXHAUST_FRAMES
+	h.exhaust_offset = EXHAUST_AT
 	return h
+
+## The real art for a weight class, or null to fall back to ShipView's
+## procedural drawing.
+##
+## MEDIUM only, today. There is exactly one generated hull and it is a medium, so
+## light and heavy keep drawing procedurally — which is the partial-migration
+## state `art/ASSET_PIPELINE.md` expects, not an oversight.
+##
+## It is also given to every manufacturer's medium, not just Korvan's. That is
+## knowingly wrong: the sprite has Korvan brass on it and a Solari medium should
+## not. It stands because the point of this step is to judge ONE real hull in the
+## running game, and hiding it behind a single chassis would mean almost never
+## seeing it. Per-manufacturer hulls, or a livery tint over a neutral one, is the
+## next art decision — see ART_CONTRACT.md §5.
+func hull_sprite(w: HullData.Weight) -> Texture2D:
+	if w != HullData.Weight.MEDIUM:
+		return null
+	return load("res://art/sprites/hull_medium_cold.png") as Texture2D
+
+## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
+## why it carries an offset. See HullData.exhaust.
+const EXHAUST_FRAMES := 9
+## The hull canvas is cropped tight around the ship so STRETCH_KEEP_CENTERED
+## actually centres it. With 70px of dead space on the right the content sat
+## left of centre, and at 2x the view clipped the flames off first.
+const EXHAUST_AT := Vector2i(0, 27)
+
+func hull_exhaust(w: HullData.Weight) -> Texture2D:
+	if w != HullData.Weight.MEDIUM:
+		return null
+	return load("res://art/sprites/hull_medium_exhaust.png") as Texture2D
+
+## What each manufacturer CALLS its three weight classes.
+##
+## AUTHORED BUT NOT DISPLAYED. The screens print plain LIGHT / MEDIUM / HEAVY,
+## because that is what reads for a player: weight class is the fact you compare
+## ACROSS makers, and this turns one shared word into twenty-one to learn. Kept
+## because the names are content rather than code, and the moment there is
+## somewhere flavour costs nothing — a tooltip, a shipyard, a flight record —
+## hull_class() is already here.
+##
+## Real vessel types, one coherent family per maker, escalating in size. This is
+## free identity: a Dredge heavy called a Barge and a Halcyon heavy called a
+## Barque tell you who built them before you have read the maker name, and the
+## hull names were already doing this work while the line underneath them said a
+## flat "HEAVY CHASSIS".
+##
+## Korvan and Solari are the two warship lines because they are the two houses
+## that mirror each other mechanically. Dredge gets working boats: nobody names a
+## barge to impress you. Redline gets fast rigs and a smuggling term. Cygnet gets
+## the three real vessel types that exist to carry OTHER vessels, which is the
+## house motto stated as a hull class. Halcyon gets sailing rigs, where the rig
+## itself is the craftsmanship. Calyx gets the three real hulls with no cut
+## timber and no metal in them at all: a coracle is woven willow under a stretched
+## hide, a pirogue is one hollowed tree, and an umiak is driftwood ribs under
+## sewn skin, big enough to carry a whole crew. Grown, not built, literally.
+##
+## The MECHANICAL word is not replaced by these, only fronted. Weight class is
+## what a player compares across makers, and this turns one shared word into
+## twenty-one — so `HullData.weight_name()` stays, and the screens print both.
+const CLASS_NAMES := {
+	&"korvan":  ["Cutter", "Frigate", "Monitor"],
+	&"solari":  ["Skiff", "Corvette", "Dreadnought"],
+	&"dredge":  ["Trawler", "Dredger", "Barge"],
+	&"redline": ["Sloop", "Runner", "Clipper"],
+	&"cygnet":  ["Pinnace", "Tender", "Carrier"],
+	&"halcyon": ["Yawl", "Schooner", "Barque"],
+	&"calyx":   ["Coracle", "Pirogue", "Umiak"],
+}
+
+## The maker's name for a weight class, or the plain word for an unbranded frame.
+##
+## Not called class_name() — that is a GDScript keyword.
+func hull_class(man: StringName, w: HullData.Weight) -> String:
+	if CLASS_NAMES.has(man):
+		return CLASS_NAMES[man][int(w)]
+	return HullData.weight_name(w)
 
 ## The hull a manufacturer builds in a given weight class. Lookup by value
 ## rather than by index: an index would work today and break the moment anyone
@@ -662,18 +805,16 @@ func perk_text(id: StringName) -> String:
 # sources, one ledger. Everything that said `Run.exotic` still does.
 
 const MATERIALS: Array[Dictionary] = [
-	{id = &"alloy", name = "Alloy", short = "ALY", colour = "#9aa8b8", value = 6,
-		text = "Reclaimed structural plate. Comes off everything you melt down."},
 	{id = &"exotic", name = "Exotic", short = "EXO", colour = "#4fbfa8", value = 45,
 		text = "Grown, not manufactured. Megafauna organs and whatever a pulsar leaves behind."},
 	{id = &"relic", name = "Relic", short = "RLC", colour = "#d4614f", value = 90,
 		text = "Precursor fragment. Nobody presses more of these and nobody knows how."},
 ]
 
-## How much alloy a part gives up when it is melted down, by rarity. Flat at the
-## top on purpose: rarity buys better verbs, not more metal — a Legendary is not
+## RETIRED with alloy. Kept as a comment rather than a constant so the shape is
+## on record if parts ever break down into materials again: it was flat at the
+## top on purpose, because rarity buys better verbs, not more metal — a Legendary is not
 ## a bigger lump of a Common, it is a cleverer one.
-const ALLOY_BY_RARITY: Array[int] = [1, 1, 2, 2, 3, 0, 0]
 
 func material(id: StringName) -> Dictionary:
 	for m in MATERIALS:
@@ -710,17 +851,11 @@ func material_colour(id: StringName) -> Color:
 # the next piece of work and not this one.
 
 const RECIPES: Array[Dictionary] = [
-	{id = &"patch", name = "HULL PATCH", kind = &"repair", amount = 12, dev = 0,
-		scrap = 10, mats = {&"alloy": 2},
-		text = "Plate over the worst of it. Repairs 12 hull."},
-	{id = &"cracker", name = "FUEL SYNTHESIS", kind = &"fuel", amount = 20, dev = 0,
-		scrap = 8, mats = {&"alloy": 2},
-		text = "Crack alloy for volatiles. +20 fuel."},
 	{id = &"braid", name = "COOLANT BRAID", kind = &"heat_cap", amount = 3, dev = 3,
-		scrap = 25, mats = {&"alloy": 3, &"exotic": 1},
+		credits = 25, mats = {&"exotic": 1},
 		text = "Organic capillary loop. +3 heat cap, permanently."},
 	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 3,
-		scrap = 40, mats = {&"relic": 1},
+		credits = 40, mats = {&"relic": 1},
 		text = "Have the fragment read. Fabricates a precursor module into the hold."},
 ]
 
@@ -733,7 +868,7 @@ func _intent(d: Dictionary) -> IntentData:
 	return i
 
 func _enemy(id: StringName, name: String, tag: String, hp: int, armor: int,
-		scrap: int, art: StringName, loop: Array, pool: Array,
+		credits: int, art: StringName, loop: Array, pool: Array,
 		fauna: bool = false, boss: bool = false) -> void:
 	var e := EnemyTemplate.new()
 	e.id = id
@@ -741,7 +876,7 @@ func _enemy(id: StringName, name: String, tag: String, hp: int, armor: int,
 	e.tag = tag
 	e.max_hull = hp
 	e.armor = armor
-	e.scrap_reward = scrap
+	e.credit_reward = credits
 	e.art = art
 	e.fauna = fauna
 	e.boss = boss

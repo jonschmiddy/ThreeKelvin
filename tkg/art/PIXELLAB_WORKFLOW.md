@@ -30,7 +30,12 @@ Poll with the matching `get_*` tool (`get_image`, `get_object`, `get_ui_asset`).
 
 ---
 
-## Verified findings (tested live, 3 generations spent)
+## Verified findings (tested live)
+
+The list below is from the first 3 generations. **See "Worked pipelines" at the
+end of this file** for the full recipes and for roughly 60 more generations of
+findings — including the two that cost the most: `no_background` being ignored,
+and a 25-generation `create_image_pro` failure caused by prompt ordering.
 
 These were confirmed by actually running the tools, not read from docs.
 
@@ -222,3 +227,123 @@ The MCP server exposes docs resources worth reading when you wire assets in:
   out of git.
 - `art/pixelart.py` still works. Use it to produce concept inputs and quick geometric
   variants — it is the fallback, not the enemy.
+
+---
+
+# Worked pipelines
+
+Three end-to-end recipes, written after doing them. Each one is followed by the
+things that went wrong, because those cost generations and none of them are
+obvious from the tool docs.
+
+`art/tools/pixeltools.py` does the post-processing (pure stdlib — there is no
+Pillow on the dev machine, and on Windows `convert` is the filesystem tool, not
+ImageMagick, so it "succeeds" and does nothing).
+
+## A. A hull sprite
+
+1. **`get_balance`.** Subscription generations, not dollars. Iteration is
+   effectively free; only `create_image_pro` (20–40) is worth thinking about.
+2. **Iterate on `create_image_pixflux`, 1 generation a roll.** Always with
+   `init_image_url` and `color_image_url`. Sweep `init_image_strength` roughly
+   140–240 across three rolls rather than guessing one.
+3. **Judge at 1x.** Build a contact sheet showing each candidate at native size
+   *first*, 3x second. The camera decision on this project was settled by that
+   ordering: the 3/4 candidates only resolved when enlarged, and the game
+   renders at 640x360.
+4. **Chain from the winner.** PixelLab download URLs need no auth and are valid
+   `init_image_url` inputs, so the next round seeds from the last result. No
+   GitHub round-trip.
+5. **Strip the background** — `pixeltools.py strip in.png out.png`.
+6. **Centre the content in its canvas**, then crop tight
+   (`pixeltools.py info` gives you the margins). Godot's
+   `STRETCH_KEEP_CENTERED` centres the TEXTURE, so content sitting off-centre
+   gets clipped on that side first at 2x.
+7. **Check `info` again** before committing: transparency, margins, palette.
+
+### What this cost to learn
+
+- **`no_background=true` is silently ignored by pixflux when an init image is
+  supplied.** Measured 12 for 12: every pixflux result came back **0.0%
+  transparent**, with the background sampled from the forced palette
+  (`#6C8098`). `create_image_pro` honours it. This is why step 5 is not
+  optional, and why the flood fill goes inward from the border — a global colour
+  key punches holes through the hull, which shares that colour.
+- **Base64 truncates around 2–3 KB.** A 4,982-byte hull was rejected. Use URLs.
+- **Describe the OBJECT before the SURFACE.** A `create_image_pro` merge burned
+  **25 generations** and returned a rectangle with no nose and no engines. The
+  prompt led with "long low slab spanning the frame / evenly spaced rectangular
+  panels / horizontal bands" and pro built exactly that. Leading with "a
+  spaceship with a wedge nose and an engine block at the left" fixed it for 3
+  generations on pixflux. Labelled `reference_images` did **not** override the
+  text.
+- **Never put `shading` in `style_copy`** when the style reference is
+  deliberately flat. It strips the form out of the result.
+- **Nothing comes back bare.** 13 for 13, every roll welded a gun, an antenna or
+  a superstructure onto the hull regardless of prompt or strength. Treat "bare
+  hull" as a post-processing step, not a prompt.
+
+## B. Isolating an emitter into its own layer
+
+The hull comes back with its engine plume welded on. A baked flame is a decal:
+it cannot animate, and it fires while the ship is parked at a dock. So the plume
+becomes a second sprite composited over the first.
+
+1. **Find the seam by looking, not by colour.** Dump the sprite as characters —
+   `.` empty, `#` dark, `-` mid, `O` bright — over the region in question. On
+   the Ironside the hull turned out to have a clean vertical stern wall at
+   `x = 46` running its full height, which made the cut unambiguous.
+2. **Erase the plume from the hull** and save that as `<hull>_cold.png`.
+3. **Keep the difference** as `<hull>_exhaust.png`: the pixels present in the
+   original and absent in the cleaned hull.
+4. **Crop the flame layer** to a small window with room to grow in the direction
+   it burns, and record the offset. `HullData.exhaust_offset` carries it.
+
+### What this cost to learn
+
+- **Colour tests are the wrong instrument.** Three separate attempts failed:
+  `r > g+40` missed the cream core (`#fff6e2` has a red-green gap of 29), the
+  bright core also appears as pale blue (`#cfe8f5`, which is the *viewport glass*
+  colour elsewhere on the hull), and scanning inward from the edge stopped
+  instantly because the plume carries its own 1px dark outline. Geometry
+  succeeded where three colour heuristics failed.
+- **Connected components do not separate it either** — the plume touches the
+  hull, so the whole sprite is one component.
+- **Keep the enclosed glows.** Bright pixels *inside* the hull outline are vent
+  and nozzle lights. They are emitters, which the art direction wants; only the
+  plume sticking out into space is the animated part.
+
+## C. Animating the emitter
+
+1. **`animate_image` on the flame layer alone**, never the whole ship. Limits:
+   256px per side, and `width x height x frame_count <= 524288`.
+2. **Say what must NOT move.** This is the single highest-leverage sentence in
+   the prompt — see below.
+3. **Snap every frame back to the source palette** —
+   `pixeltools.py snap frames/ exhaust.png out/`. The generator drifts.
+4. **Pack into a horizontal strip** — `pixeltools.py strip-anim`. `ShipView`
+   slices it once per texture and caches the frames statically.
+5. **Make it opt-in.** `ShipView.burn()` — see the ruling below.
+
+### What this cost to learn
+
+- **Naming the unwanted motion is what changed the result.** First attempt asked
+  for "flickering, guttering, tongues lengthening and shortening" and produced a
+  smooth breathing cycle — pixel counts per frame
+  `199 → 275 → 344 → 367 → 366 → 328 → 274 → 182 → 106`, a clean rise and fall.
+  Second attempt added *"must NOT grow longer, shrink shorter, or pulse in and
+  out"* plus "like a blowtorch held steady, constant reach with a restless
+  surface" and returned `200 → 264 → 302 → 207 → 115 → 213 → 241 → 157 → 135`
+  — non-monotonic, which is what flicker is. **Counting opaque pixels per frame
+  is how you check this without watching it.**
+- **`animate_image` drifts off-palette**: 90 pixels on the first run, 71 on the
+  second, including shifting the dominant tone to a colour the source never had.
+  Snap to the SOURCE sprite's own palette, not to the project heat ramp —
+  snapping to the ramp would recolour art that was already approved.
+- **Palette cycling is not a substitute.** An earlier hand-written version
+  stepped every pixel up and down the flame's own brightness ramp. It animated
+  all of the plume, but only in brightness; shape is most of what sells fire.
+- **Engines burn on the chassis select and nowhere else.** The refit screen is a
+  workbench, the sector is somewhere you have arrived, the dock is a dock — all
+  three show a parked ship, and a permanently firing engine on a stationary hull
+  reads as a loop nobody switched off. `ShipView._burning` defaults false.

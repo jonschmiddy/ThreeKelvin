@@ -130,7 +130,7 @@ static func _snapshot() -> Dictionary:
 		hp = Run.hp,
 		heat = Run.heat,
 		heat_cap_bonus = Run.heat_cap_bonus,
-		scrap = Run.scrap,
+		credits = Run.credits,
 		# The whole ledger, not the one row that used to be a field. A material
 		# added to DB.MATERIALS is saved by construction rather than by somebody
 		# remembering to add a line here.
@@ -203,6 +203,13 @@ static func load_into_run() -> bool:
 		if m != null:
 			installed.append(m)
 	Run.installed = installed
+	# A save written before mounts existed carries -1 on every fitted part, which
+	# reads as "in the hold" and would draw a fully-armed ship with an empty rack.
+	# Anything unplaced gets the first free hardpoint, so an old file loads as the
+	# same loadout in a tidy arrangement rather than as a ship with no guns on it.
+	for m in Run.installed:
+		if m.mount < 0:
+			m.mount = Run.free_mount(m.slot)
 	var cargo: Array[ModuleData] = []
 	for e in d.get("cargo", []):
 		var m := _module_from(e)
@@ -215,7 +222,7 @@ static func load_into_run() -> bool:
 	Run.hp = int(d.get("hp", 1))
 	Run.heat = int(d.get("heat", 0))
 	Run.heat_cap_bonus = int(d.get("heat_cap_bonus", 0))
-	Run.scrap = int(d.get("scrap", 0))
+	Run.credits = int(d.get("credits", 0))
 	# JSON hands back String keys and float values; the ledger is StringName to
 	# int. Rebuilt entry by entry rather than assigned wholesale, because a
 	# dictionary that compares equal but hashes its keys as Strings prints
@@ -308,6 +315,10 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		rarity = int(m.rarity),
 		scrap_value = m.scrap_value,
 		affixes = affixes,
+		# Which hardpoint it is bolted to. Without this a resumed ship keeps every
+		# part it had and rearranges them, because -1 is "in the hold" and the
+		# refit screen would draw a full rack of empty mounts over a full loadout.
+		mount = m.mount,
 	}
 
 ## Null when the id is gone from the database — content changed under a save.
@@ -324,6 +335,7 @@ static func _module_from(e: Variant) -> ModuleData:
 	var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
 	m.rarity = int(d.get("rarity", int(m.rarity))) as ModuleData.Rarity
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
+	m.mount = int(d.get("mount", -1))
 	var affixes: Array[AffixData] = []
 	for want in d.get("affixes", []):
 		for a in DB.affixes:

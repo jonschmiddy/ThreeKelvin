@@ -22,10 +22,10 @@ func setup() -> void:
 		lines.append(Run.death_reason)
 	lines.append("%d jumps · %d kills · danger %d when it ended" % [
 		Run.jumps, Run.kills, Run.node_at().danger])
-	# The whole ledger, not just the row that used to be a field — alloy you
+	# The whole ledger, not just the row that used to be a field — exotics you
 	# never got to a bench is as much a thing you were carrying when it ended as
 	# scrap you never spent.
-	var held: PackedStringArray = ["%d scrap unspent" % Run.scrap]
+	var held: PackedStringArray = ["%d credits unspent" % Run.credits]
 	for stock in Run.material_stock():
 		held.append("%d %s" % [int(stock.count), str(stock.name).to_lower()])
 	lines.append(" · ".join(held))

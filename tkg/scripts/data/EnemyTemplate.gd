@@ -8,7 +8,7 @@ extends Resource
 @export var armor: int = 0
 @export var fauna: bool = false
 @export var boss: bool = false
-@export var scrap_reward: int = 15
+@export var credit_reward: int = 15
 @export var art: StringName = &"cutter"
 ## Ships use a fixed loop (machines are predictable).
 @export var loop: Array[IntentData] = []

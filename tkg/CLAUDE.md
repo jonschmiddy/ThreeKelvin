@@ -155,6 +155,8 @@ say so and ask rather than quietly working around it.
 | **Hulls ARE built by a manufacturer** — seven branded chassis, plus three unbranded salvage frames | REVERSED, deliberately. The old ruling was "hulls have no manufacturer", to keep hull swaps a pure power decision. It made `attributes-and-checks.md` §1.5 unimplementable: that section gives each maker an attribute signature, and every one of those (thermal capacity, dodge, hull mass) is a property of a chassis, not of a bolt-on module. The cost is real and accepted — swapping hulls now moves your set count |
 | **Set bonuses are the class system** (3+ / 5+ modules from one maker), **and the hull counts as one** | Identity is assembled mid-run — the original ruling, restored. A chassis launches with its hull and ONE branded weapon, which is 2 of the 3 a set needs, so you start pointed at a manufacturer and arrive at it later. Unbranded salvage frames count for nobody, so taking one is a real cost |
 | **You launch with one branded weapon and generic yard stock** | A run used to open holding a maker's whole catalogue, so its set bonus was already earned and nothing found afterwards could change what you were. The generic kit (`DB.GENERIC_KIT`) is deliberately dull — a beam, a plate, a coolant line — because the branded part in the next wreck has to be visibly better than *something*. Marked `starter_only`, so it is issued and never dropped: yard stock in the loot pool would crowd out the parts a run is spent collecting |
+| **A gauge is the chassis PLUS everything bolted to it** — `Run.max_hp()`, `heat_cap()`, `dissipation()`, `dodge()`, `initiative()`, `fuel_factor()` all sum `installed` | They used to return the hull's field and stop, so armour plating added no armour. It was invisible because the two attributes that had no gauge — Sensors and Stealth — always summed modules, and nobody noticed the other four did not. Sum in the GAUGE, never in `attr_*()`: an attribute is a reading, and a plate that only moved the reading would show on the ship tab and not in the fight, because combat calls `max_hp()` and never calls `attr_hull()`. `RunState._clamp_hp` rides `Sig.ship_changed` so unbolting plate takes its hull back |
+| **`fuel_factor` cuts both ways, so no module carries it** | It raises Thrust and the price of every jump together. The sim already strands 30-40% of runs, so any value invented for it moves the most fragile number in the game to change an attribute nobody asked about. The gauge sums it; the catalog waits for an actual engine module |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
@@ -266,9 +268,10 @@ specific module in the hold need a target and a picker, and that is the next pie
 lushness is *detail density, not warmth*. The emptiness stays cold and lonely;
 everything in it is rendered with obsessive care.
 
-- **Perspective: 3/4 view** (Stardew Valley register). Deck plane plus near-side wall,
-  two-plane lighting. Hardpoints sit on the visible deck in a far row and a near row.
-  Nose points right, toward whatever you are facing.
+- **Perspective: edge on.** Flat side elevation, camera level, no top surface. Lit from
+  above: bright top edge, mid flank, shadowed underside. Hardpoints sit along the dorsal
+  and ventral lines. Nose points right, toward whatever you are facing. **REVERSED** from
+  3/4 + two-plane lighting; `art/ART_CONTRACT.md` §2a records why and what it cost.
 - **The void is never flat black.** Deep indigo-to-black dithered gradients with nebula
   wash coloured per region. Cheapest richness available, and it gives regions colour
   signatures (Korvan rusty amber, fauna teal bioluminescence, precursor violet).
@@ -286,9 +289,9 @@ everything in it is rendered with obsessive care.
 - Palette constants live in `UITheme`. Use them; never hardcode colours.
 
 Sprites are currently generated procedurally in `scripts/ui/ShipView.gd` and
-`EnemyArt.gd` (side-view — **this predates the top-down decision and needs replacing**).
-When real art lands, use `Sprite2D` + mirrored `Marker2D` hardpoint anchors and drive
-`shaders/heat.gdshader` with a `heat` uniform.
+`EnemyArt.gd` (side-view — which is now **correct by ruling** rather than a leftover; the
+camera moved to meet it). When real art lands, drive `shaders/heat.gdshader` with a `heat`
+uniform.
 
 ## Art generation — read `art/ART_CONTRACT.md` first
 
@@ -321,6 +324,17 @@ stronger than describing colours in text. Prefer image **URLs** over inline base
 clients truncate large base64 and corrupt the image. `init_image_strength` is inverted —
 higher preserves more of the input (500 barely changes it, 150 is a real edit).
 
+**Read `art/PIXELLAB_WORKFLOW.md`'s "Worked pipelines" before generating anything.**
+It has three end-to-end recipes — hull sprite, isolating an emitter into its own
+layer, animating that layer — each followed by what went wrong. The two that cost
+most: `no_background=true` is silently ignored by `create_image_pixflux` when an
+init image is passed (12 of 12 results came back fully opaque), and a
+`create_image_pro` call burned 25 generations because the prompt described the
+surface before the object. `art/tools/pixeltools.py` does the post-processing that
+every generated sprite needs — background stripping, cropping, palette snapping,
+frame strips — in pure stdlib, because there is no Pillow here and Windows'
+`convert` is not ImageMagick.
+
 **Non-negotiable:** every generation passes `art/sprites/hull_medium_cold.png` as the
 style/concept reference. Never generate a sprite from a bare text prompt — the result will
 look fine alone and wrong beside everything else. There is exactly one canonical style
@@ -328,15 +342,16 @@ reference at a time; a newly approved hull replaces that file.
 
 Hard rules, in short (full detail and the palette hexes are in `art/ART_CONTRACT.md`):
 
-- **3/4 view** (Stardew register): camera tilted ~45°, deck plane plus near-side hull wall,
-  vertical foreshortening ~0.6. Player ships nose **right**; enemies nose **left**.
-- **Two-plane lighting is the most important rule**: every raised object gets a bright top
-  face, a darker front wall, and a bright lip between them. This is what makes objects read
-  as solid instead of as schematics.
-- 3/4 breaks bilateral symmetry, so **hardpoints sit on the visible top deck** in a far row
-  and a near row. Draw the far row first so near mounts occlude correctly. Plus one
-  asymmetric detail — a perfectly regular ship reads dead.
-- Lit from the top of the frame, cold and directional; weathering runs down the wall.
+- **Edge on**: flat side elevation, camera exactly level, no top surface, no
+  foreshortening. Player ships nose **right**; enemies nose **left**.
+- **Banded lighting**: bright top edge, mid-tone flank, shadowed underside. Every raised
+  object still needs a light-to-dark break across it or it reads as a schematic. This
+  replaces two-plane lighting and does the same job with less surface to do it on.
+- An elevation has one plane, so **hardpoints sit along the dorsal and ventral lines**
+  plus an aft mount and an upper spine — the vocabulary `ShipView._draw_weapon` already
+  uses. Nothing occludes anything else. Plus one asymmetric detail — a perfectly regular
+  ship reads dead.
+- Lit from the top of the frame, cold and directional; weathering runs down the flank.
 - **Warm colour only where something emits it** — reactor, thrusters, muzzle, vents, lit
   windows. Never ambient warmth. This is the game's whole visual thesis.
 - Transparent background, no baked shadow, no anti-aliasing, ordered dithering only.

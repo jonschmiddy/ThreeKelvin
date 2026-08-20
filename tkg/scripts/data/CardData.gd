@@ -38,8 +38,8 @@ extends Resource
 @export var draw: int = 0
 @export var lock_on: int = 0
 @export var energy_gain: int = 0
-@export var scrap_gain: int = 0
-@export var scrap_cost: int = 0
+@export var credit_gain: int = 0
+@export var credit_cost: int = 0
 @export var drone_damage: int = 0
 @export var drone_armor: int = 0
 @export var evoke: int = 0
@@ -149,8 +149,8 @@ func keywords() -> Array:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
 	if evoke > 0:
 		out.append(["Evoke", "Adds this much for each drone you have out."])
-	if scrap_cost > 0:
-		out.append(["Scrap cost", "Paid from the same scrap you repair and refit with."])
+	if credit_cost > 0:
+		out.append(["Credit cost", "Paid from the same balance you repair and refit with."])
 	if unplayable:
 		# One word, one entry. "Unplayable" was never true anyway — you can play
 		# this, it simply does nothing except leave — and with the card printing
@@ -216,10 +216,10 @@ func describe() -> String:
 		bits.append("Lock on +%d" % lock_on)
 	if energy_gain > 0:
 		bits.append("+%d energy" % energy_gain)
-	if scrap_gain > 0:
-		bits.append("+%d scrap" % scrap_gain)
-	if scrap_cost > 0:
-		bits.append("Spend %d scrap" % scrap_cost)
+	if credit_gain > 0:
+		bits.append("+%d credits" % credit_gain)
+	if credit_cost > 0:
+		bits.append("Spend %d credits" % credit_cost)
 	if drone_damage > 0:
 		bits.append("Launch drone %d" % drone_damage)
 	if drone_armor > 0:

@@ -4,7 +4,7 @@ extends Node
 # Run / meta
 signal run_started()
 signal run_ended(won: bool, reason: String)
-signal resources_changed()          ## scrap, fuel, exotic, hull, heat
+signal resources_changed()          ## credits, fuel, exotic, hull, heat
 signal ship_changed()               ## modules installed/removed, hull swapped
 signal log_line(text: String, kind: StringName)
 
