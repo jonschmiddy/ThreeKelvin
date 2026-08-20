@@ -318,7 +318,7 @@ static func generate(canvas: Rect2) -> Array:
 			# Jittered per system, not flat per ring. Eight rings cannot land on
 			# ten tiers evenly, and more to the point a ring where every system
 			# is equally bad is a ring with no decision in it.
-			n.danger = clampi(ring_danger + randi_range(-1, 1), 1, DANGER_MAX)
+			n.danger = clampi(ring_danger + Rng.world.randi_range(-1, 1), 1, DANGER_MAX)
 			var depth := float(layer) / float(maxi(1, LAYERS - 1))
 			if layer == 0 and row == 0:
 				n.type = NodeType.START
@@ -377,30 +377,30 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 		n.security = 3
 		return
 
-	n.development = clampi(int(round(depth * 4.0 + randf_range(-1.1, 1.1))),
+	n.development = clampi(int(round(depth * 4.0 + Rng.world.randf_range(-1.1, 1.1))),
 		0, 4) as Development
 	# Security follows development loosely, skewed low so lawless space stays
 	# common enough to matter - it is where the contraband economy lives.
-	n.security = clampi(1 + int(n.development) + randi_range(-2, 1), 1, 5)
+	n.security = clampi(1 + int(n.development) + Rng.world.randi_range(-2, 1), 1, 5)
 
 	# Nobody claims empty space; the deeper and richer it gets the more houses
 	# want a piece, and two or more competing is what a crossroads actually is.
 	var want := 0
 	match n.development:
-		Development.UNCLAIMED: want = 1 if randf() < 0.2 else 0
-		Development.OUTPOST: want = 1 if randf() < 0.7 else 0
-		Development.SETTLEMENT: want = 2 if randf() < 0.4 else 1
-		Development.CITY: want = 3 if randf() < 0.35 else 2
-		Development.CAPITAL: want = 3 if randf() < 0.6 else 2
+		Development.UNCLAIMED: want = 1 if Rng.world.randf() < 0.2 else 0
+		Development.OUTPOST: want = 1 if Rng.world.randf() < 0.7 else 0
+		Development.SETTLEMENT: want = 2 if Rng.world.randf() < 0.4 else 1
+		Development.CITY: want = 3 if Rng.world.randf() < 0.35 else 2
+		Development.CAPITAL: want = 3 if Rng.world.randf() < 0.6 else 2
 	var pool: Array = DB.manufacturers.keys()
-	pool.shuffle()
+	Rng.shuffle(Rng.world, pool)
 	for i in mini(want, pool.size()):
 		n.makers.append(pool[i])
 	if not n.makers.is_empty():
 		n.manufacturer = n.makers[0]
 
 	# Megafauna keep to the thin places.
-	n.fauna = n.makers.is_empty() and int(n.development) <= 1 and randf() < 0.3
+	n.fauna = n.makers.is_empty() and int(n.development) <= 1 and Rng.world.randf() < 0.3
 
 ## Collapse the three axes back onto the old label, once, here. Order matters:
 ## the most specific claim about a place wins.
@@ -612,7 +612,7 @@ static func _pick_type() -> NodeType:
 		NodeType.EVENT, NodeType.EVENT, NodeType.EVENT, NodeType.EVENT,
 		NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT,
 	]
-	return weights.pick_random()
+	return Rng.pick(Rng.world, weights)
 
 static func _layout(nodes: Array, canvas: Rect2) -> void:
 	for n in nodes:
@@ -639,7 +639,7 @@ static func _link(nodes: Array) -> void:
 			_connect(n, ranked[0])
 			# A second route, but only if it is not much further than the first:
 			# the point is a choice between comparable options, not a detour.
-			if ranked.size() > 1 and randf() < 0.62:
+			if ranked.size() > 1 and Rng.world.randf() < 0.62:
 				var d0 := hop_distance(n, ranked[0])
 				var d1 := hop_distance(n, ranked[1])
 				if d1 < d0 * 1.8:

@@ -123,6 +123,11 @@ func _stock_up() -> void:
 	if n.stocked:
 		return
 	n.stocked = true
+	# Positional. What is on a station's shelf belongs to the station, and
+	# `n.stocked` already says the shelf is rolled once and kept — this is the
+	# same rule, now expressed so that four ships docking in four different
+	# orders see one shelf instead of four. See Rng.derive().
+	var r := Rng.derive(&"shop", n.index)
 	var count := 5 if n.region == MapGen.Region.COSMOPOLITAN else 3
 	for i in count:
 		var force := &""
@@ -130,15 +135,15 @@ func _stock_up() -> void:
 			force = n.manufacturer
 		elif n.region == MapGen.Region.COSMOPOLITAN:
 			# Cosmopolitan hubs carry multiple makers side by side.
-			force = DB.manufacturers.keys().pick_random()
+			force = Rng.pick(r, DB.manufacturers.keys())
 		var danger := n.danger + 3 if n.region == MapGen.Region.LAWLESS else maxi(1, n.danger - 2)
-		var m := LootGen.roll_module(danger, force, n.region == MapGen.Region.LAWLESS)
+		var m := LootGen.roll_module(danger, force, n.region == MapGen.Region.LAWLESS, r)
 		# Legitimate markets do not move Legendary and above.
 		if n.region == MapGen.Region.COSMOPOLITAN and m.rarity > ModuleData.Rarity.EPIC:
 			m.rarity = ModuleData.Rarity.EPIC
 		n.shop.append(m)
-	if n.region != MapGen.Region.LAWLESS and randf() < 0.4:
-		n.shop_hull = LootGen.roll_hull(n.danger)
+	if n.region != MapGen.Region.LAWLESS and r.randf() < 0.4:
+		n.shop_hull = LootGen.roll_hull(n.danger, r)
 
 ## High-law space inspects; lawless space does not.
 ##

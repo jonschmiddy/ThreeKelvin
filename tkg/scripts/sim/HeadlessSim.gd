@@ -14,6 +14,11 @@ extends RefCounted
 ## here would fail to compile.
 
 var runs := 200
+## `-- sim seed=N` gives run i the seed N+i, so a whole sweep is reproducible
+## and any single run in it can be flown again by hand. Zero means roll fresh
+## seeds, which is what a balance measurement wants.
+var seed_base := 0
+var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 ## `-- sim hot` flips the fight policy from "never overheat" to "spend heat for
 ## tempo". The default model vents on sight and leaves every fight cold, which
 ## is a competent player and is also the one player the map heat layer can
@@ -48,6 +53,8 @@ func run_sim() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("runs="):
 			runs = int(arg.split("=")[1])
+		elif arg.begins_with("seed="):
+			seed_base = int(arg.split("=")[1])
 
 	hot = "hot" in OS.get_cmdline_user_args()
 	if hot:
@@ -57,9 +64,11 @@ func run_sim() -> void:
 		_run_by_chassis()
 		return
 
+	if seed_base != 0:
+		print("Seeded sweep from %d. Run i uses seed %d + i." % [seed_base, seed_base])
 	print("Three Kelvin — simulating %d runs" % runs)
 	for i in runs:
-		_play_one()
+		_play_one(&"", -1, i)
 	_report()
 
 ## Every chassis in the game, `runs` each, reported as a table.
@@ -121,8 +130,25 @@ func _reset() -> void:
 	postfight_total = 0.0
 	postfight_hot = 0
 
-func _play_one(man: StringName = &"", w: int = -1) -> void:
+## `index` exists so that `-- sim seed=N` gives every run its own reproducible
+## seed rather than playing one run a thousand times. A sim that reports "40% of
+## runs strand" is only actionable if one of those runs can be handed back:
+## `-- seed <the number printed with the death>` flies it again exactly.
+func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
+	Rng.forced = (seed_base + index) if seed_base != 0 else 0
 	Run.start_new_run(man, w)
+	# The simulated pilot's own generator: one per run, seeded from the run's
+	# master seed. The model is a player, not a place — so its choices replay
+	# with the run, and drawing them does not move what the world rolls next.
+	#
+	# NOT derived per jump, which is what this was first. Rng.derive() keys on
+	# a position, and `Run.jumps` is not one: jump_to() returns without
+	# incrementing when a jump turns out to be unaffordable, so two loop passes
+	# could share an index, hand back the same generator and make the same
+	# choice twice. The model wandered laterally in circles and reported 94
+	# jumps a run against a real figure of 66 — a policy bug produced entirely
+	# by seeding a decision on something that was not a place.
+	pilot = Rng.derive(&"pilot", 0)
 	var guard := 0
 	var jumped_hot := false
 	while not Run.won and not Run.dead and guard < 600:
@@ -143,17 +169,17 @@ func _play_one(man: StringName = &"", w: int = -1) -> void:
 		if not node.ambush_rolled and node.type != MapGen.NodeType.FIGHT \
 				and node.type != MapGen.NodeType.GOAL:
 			node.ambush_rolled = true
-			if randf() < Run.ambush_chance(node):
+			if Rng.foe.randf() < Run.ambush_chance(node):
 				ambushes += 1
 				jumped_hot = true
 				var apool := DB.fight_pool(node.danger, false)
-				if not _fight(DB.enemies[apool.pick_random()]):
+				if not _fight(DB.enemies[Rng.pick(Rng.foe, apool)]):
 					break
 
 		# Resolve whatever is here.
 		if node.type == MapGen.NodeType.FIGHT and not node.cleared:
 			var pool := DB.fight_pool(node.danger, node.region == MapGen.Region.FAUNA)
-			if not _fight(DB.enemies[pool.pick_random()]):
+			if not _fight(DB.enemies[Rng.pick(Rng.foe, pool)]):
 				break
 		elif node.type == MapGen.NodeType.GOAL:
 			_fight(DB.enemies[&"custodian"])
@@ -210,12 +236,12 @@ func _play_one(man: StringName = &"", w: int = -1) -> void:
 		# does not heal you.
 		var can_wander := Run.fuel > 45
 		var pick := -1
-		if not lateral.is_empty() and can_wander and (not healthy or randf() < 0.65):
-			pick = lateral.pick_random()
+		if not lateral.is_empty() and can_wander and (not healthy or pilot.randf() < 0.65):
+			pick = Rng.pick(pilot, lateral)
 		elif not forward.is_empty():
-			pick = forward.pick_random()
+			pick = Rng.pick(pilot, forward)
 		else:
-			pick = options.pick_random()
+			pick = Rng.pick(pilot, options)
 		Run.jump_to(pick)
 
 	if jumped_hot:

@@ -2,3 +2,7 @@
 
 # Validation logs, when .github/scripts/validate.sh is run locally.
 ci-logs/
+
+# Local wrangler state — Durable Object storage, logs, build cache.
+relay/.wrangler/
+relay/node_modules/

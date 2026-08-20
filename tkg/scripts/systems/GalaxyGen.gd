@@ -154,32 +154,35 @@ const _NOUN := [
 ## the same object. Rolled ONCE per run and stored on RunState, because the node
 ## layout is derived from squash and twist — re-rolling per call would move the
 ## systems out from under the player.
-static func roll(kind: int) -> Dictionary:
+## `r` defaults to the world stream. It is a parameter at all so that the
+## determinism test can roll a galaxy twice from two generators and compare,
+## without reseeding the run out from under everything else.
+static func roll(kind: int, r: RandomNumberGenerator = Rng.world) -> Dictionary:
 	var g: Dictionary = params(kind).duplicate()
-	g.twist = float(g.twist) * randf_range(0.86, 1.16)
-	g.squash = clampf(float(g.squash) + randf_range(-0.07, 0.07), 0.28, 0.95)
-	g.core_share = clampf(float(g.core_share) + randf_range(-0.07, 0.07), 0.2, 0.85)
-	g.core_pow = maxf(1.1, float(g.core_pow) + randf_range(-0.3, 0.3))
-	g.halo_pow = maxf(0.6, float(g.halo_pow) + randf_range(-0.1, 0.1))
-	g.spread = maxf(0.0, float(g.spread) * randf_range(0.8, 1.25))
-	g.bulge = clampf(float(g.bulge) * randf_range(0.8, 1.25), 0.08, 0.5)
-	g.dust = maxf(0.8, float(g.dust) + randf_range(-0.25, 0.25))
+	g.twist = float(g.twist) * r.randf_range(0.86, 1.16)
+	g.squash = clampf(float(g.squash) + r.randf_range(-0.07, 0.07), 0.28, 0.95)
+	g.core_share = clampf(float(g.core_share) + r.randf_range(-0.07, 0.07), 0.2, 0.85)
+	g.core_pow = maxf(1.1, float(g.core_pow) + r.randf_range(-0.3, 0.3))
+	g.halo_pow = maxf(0.6, float(g.halo_pow) + r.randf_range(-0.1, 0.1))
+	g.spread = maxf(0.0, float(g.spread) * r.randf_range(0.8, 1.25))
+	g.bulge = clampf(float(g.bulge) * r.randf_range(0.8, 1.25), 0.08, 0.5)
+	g.dust = maxf(0.8, float(g.dust) + r.randf_range(-0.25, 0.25))
 	# Gas is the one parameter with a visible floor of zero: a galaxy that has
 	# genuinely stopped forming stars should have no nebulae at all, not a
 	# scattering of faint ones. That absence is what makes a lenticular read as
 	# dead beside a starburst.
-	g.gas = maxf(0.0, float(g.gas) * randf_range(0.75, 1.3))
+	g.gas = maxf(0.0, float(g.gas) * r.randf_range(0.75, 1.3))
 	# The black hole. Scaled off the bulge, because the two really do correlate
 	# — a galaxy with a big central bulge has a big central mass — and then
 	# rolled wide, so one galaxy has a pinprick at its heart and the next has a
 	# throat you can see from the rim.
-	g.hole = clampf(float(g.bulge) * randf_range(0.05, 0.13), 0.012, 0.046)
-	g.chaos = maxf(0.0, float(g.chaos) * randf_range(0.7, 1.4))
+	g.hole = clampf(float(g.bulge) * r.randf_range(0.05, 0.13), 0.012, 0.046)
+	g.chaos = maxf(0.0, float(g.chaos) * r.randf_range(0.7, 1.4))
 	if float(g.ring) > 0.0:
-		g.ring = clampf(float(g.ring) + randf_range(-0.05, 0.05), 0.2, 0.7)
+		g.ring = clampf(float(g.ring) + r.randf_range(-0.05, 0.05), 0.2, 0.7)
 	# Arm count varies where the type does not depend on an exact number.
 	if int(g.arms) >= 4:
-		g.arms = int(g.arms) + randi_range(-1, 2)
+		g.arms = int(g.arms) + r.randi_range(-1, 2)
 	return g
 
 static func count() -> int:
@@ -197,11 +200,11 @@ static func blurb(kind: int) -> String:
 ## A catalogue designation and the name people actually use for it. Both are
 ## rolled once per run and then fixed: a galaxy that renames itself between
 ## visits to the chart is not a place.
-static func roll_name() -> String:
-	return "%s %d" % [_CATALOGUE.pick_random(), randi_range(102, 9899)]
+static func roll_name(r: RandomNumberGenerator = Rng.world) -> String:
+	return "%s %d" % [Rng.pick(r, _CATALOGUE), r.randi_range(102, 9899)]
 
-static func roll_title() -> String:
-	return "The %s %s" % [_ADJ.pick_random(), _NOUN.pick_random()]
+static func roll_title(r: RandomNumberGenerator = Rng.world) -> String:
+	return "The %s %s" % [Rng.pick(r, _ADJ), Rng.pick(r, _NOUN)]
 
 const _NEB_ADJ := [
 	"Weeping", "Drowned", "Hanged", "Sundered", "Cold", "Burning", "Pale",

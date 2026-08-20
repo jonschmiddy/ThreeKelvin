@@ -6,7 +6,8 @@ extends RefCounted
 ## makes set bonuses reachable by route choice rather than luck.
 
 static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
-		allow_unbranded: bool = false) -> ModuleData:
+		allow_unbranded: bool = false,
+		r: RandomNumberGenerator = Rng.loot) -> ModuleData:
 	# Every threshold below was tuned against the five-tier ladder. Read the
 	# wider scale through tier() rather than restating all of them.
 	var danger := MapGen.tier(danger_in)
@@ -42,15 +43,15 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	if pool.is_empty():
 		pool = [&"kh20"]
 
-	var template: ModuleData = DB.modules[pool.pick_random()]
+	var template: ModuleData = DB.modules[Rng.pick(r, pool)]
 	var m := template.duplicate(true) as ModuleData
 
 	# Small chance to upgrade rarity with depth.
-	if m.rarity < ModuleData.Rarity.LEGENDARY and randf() < 0.06 * danger:
+	if m.rarity < ModuleData.Rarity.LEGENDARY and r.randf() < 0.06 * danger:
 		m.rarity = int(m.rarity) + 1
 
-	m.affixes = _roll_affixes(_affix_count(m.rarity), danger)
-	m.scrap_value = int(round([8, 16, 30, 55, 95, 120, 160][m.rarity] * randf_range(0.8, 1.3)))
+	m.affixes = _roll_affixes(_affix_count(m.rarity), danger, r)
+	m.scrap_value = int(round([8, 16, 30, 55, 95, 120, 160][m.rarity] * r.randf_range(0.8, 1.3)))
 	return m
 
 ## True when a maker may drop. Brand-agnostic modules (manufacturer &"") always
@@ -61,7 +62,7 @@ static func _maker_active(man: StringName) -> bool:
 static func _affix_count(r: ModuleData.Rarity) -> int:
 	return [0, 1, 2, 3, 3, 3, 2][r]
 
-static func _roll_affixes(n: int, danger: int) -> Array[AffixData]:
+static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Array[AffixData]:
 	var out: Array[AffixData] = []
 	if n <= 0:
 		return out
@@ -69,9 +70,9 @@ static func _roll_affixes(n: int, danger: int) -> Array[AffixData]:
 	for i in n:
 		if avail.is_empty():
 			break
-		var pick: AffixData = avail[randi() % avail.size()]
+		var pick: AffixData = avail[r.randi() % avail.size()]
 		# Contraband is rarer in policed space; the caller decides where it lands.
-		if pick.contraband and randf() > 0.35 + 0.05 * danger:
+		if pick.contraband and r.randf() > 0.35 + 0.05 * danger:
 			avail.erase(pick)
 			continue
 		avail.erase(pick)
@@ -89,19 +90,19 @@ static func make_dross() -> ModuleData:
 ## The perk is REROLLED even on a manufacturer hull, unlike the one you start
 ## with, which keeps the perk its maker authored. A ship you were handed at the
 ## yard is to spec; a ship you cut out of a wreck is whatever it ended up as.
-static func roll_hull(danger_in: int) -> HullData:
+static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> HullData:
 	var danger := MapGen.tier(danger_in)
-	var base: HullData = DB.hull_frames.pick_random()
+	var base: HullData = Rng.pick(r, DB.hull_frames)
 	var h := base.duplicate(true) as HullData
-	h.tier = clampi(int(danger / 1.6) + randi() % 2, 0, 3)
+	h.tier = clampi(int(danger / 1.6) + r.randi() % 2, 0, 3)
 	# Stats roll within tier ranges: a god-rolled B can rival a bad A.
-	h.max_hull += h.tier * (randi() % 5 + 3)
-	h.heat_cap += h.tier * (randi() % 3 + 1)
+	h.max_hull += h.tier * (r.randi() % 5 + 3)
+	h.heat_cap += h.tier * (r.randi() % 3 + 1)
 	if h.tier >= 2:
 		h.reactor += 1
-	if h.tier >= 1 and randf() < 0.5:
+	if h.tier >= 1 and r.randf() < 0.5:
 		h.weapon_slots += 1
 	if h.tier >= 2:
 		h.system_slots += 1
-	h.perk_id = DB.hull_perks.keys().pick_random()
+	h.perk_id = Rng.pick(r, DB.hull_perks.keys())
 	return h

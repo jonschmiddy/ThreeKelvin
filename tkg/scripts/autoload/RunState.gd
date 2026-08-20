@@ -113,13 +113,25 @@ func _clamp_hp() -> void:
 ## win rate for one seventh of the game. Random here means the sim exercises all
 ## seven starts for free.
 func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
+	# The seed FIRST, before anything is rolled, because everything below is
+	# drawn from it. This is the one number a run IS: `-- seed 12345` replays it
+	# exactly, and a co-op host sends this and nothing else to put four ships in
+	# one galaxy. See Rng.
+	galaxy_seed = Rng.roll_master()
+	Rng.reseed(galaxy_seed)
+
 	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
 	# HeadlessSim calls this directly, and a fixed default would report a win
 	# rate for one twenty-first of the possible starts.
+	#
+	# Off a DERIVED generator rather than the world stream. The starting ship is
+	# not part of the world — in a party, four players fly four different hulls
+	# through one galaxy — so choosing one must not move the map.
+	var start_rng := Rng.derive(&"start", 0)
 	var weight: HullData.Weight = w as HullData.Weight
 	if w < 0:
-		weight = [HullData.Weight.LIGHT, HullData.Weight.MEDIUM,
-			HullData.Weight.HEAVY].pick_random()
+		weight = Rng.pick(start_rng, [HullData.Weight.LIGHT,
+			HullData.Weight.MEDIUM, HullData.Weight.HEAVY])
 	fit_chassis(manufacturer, weight)
 	cargo.clear()
 	heat = 0
@@ -137,10 +149,9 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	death_reason = ""
 	found_hull = null
 	whale_boon = false
-	galaxy_kind = randi() % GalaxyGen.count()
+	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
 	galaxy = GalaxyGen.roll(galaxy_kind)
-	galaxy_seed = randi()
-	galaxy_spin = randf() * TAU
+	galaxy_spin = Rng.world.randf() * TAU
 	galaxy_name = GalaxyGen.roll_name()
 	galaxy_title = GalaxyGen.roll_title()
 	map = MapGen.generate(MAP_CANVAS)
@@ -164,7 +175,7 @@ func fit_chassis(manufacturer: StringName = &"",
 		w: HullData.Weight = HullData.Weight.MEDIUM) -> void:
 	var man := manufacturer
 	if man == &"" or not DB.STARTER_WEAPON.has(man):
-		man = DB.STARTABLE.pick_random()
+		man = Rng.pick(Rng.derive(&"start", 1), DB.STARTABLE)
 	hull = (DB.hull_for(man, w) as HullData).duplicate(true) as HullData
 	hull.tier = 0
 	installed.clear()

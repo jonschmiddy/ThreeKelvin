@@ -32,7 +32,7 @@ const PATH := "user://run.save"
 ## 3: heat reached the map. A node now carries whether it rolled for an ambush
 ## and what that roll produced, so a hostile attracted by your own heat cannot
 ## be refused by quitting and coming back cold.
-const VERSION := 3
+const VERSION := 4
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -121,6 +121,10 @@ static func _snapshot() -> Dictionary:
 		galaxy_kind = Run.galaxy_kind,
 		galaxy = Run.galaxy,
 		galaxy_seed = Run.galaxy_seed,
+		# Where every roll stream had got to. Without this, loading a run
+		# rewinds them all to the start of the run, and the next module you
+		# find is the first module you found. See Rng.state().
+		rng = Rng.state(),
 		galaxy_spin = Run.galaxy_spin,
 		galaxy_name = Run.galaxy_name,
 		galaxy_title = Run.galaxy_title,
@@ -193,6 +197,7 @@ static func load_into_run() -> bool:
 	Run.galaxy_kind = int(d.get("galaxy_kind", 0))
 	Run.galaxy = _galaxy_from(Run.galaxy_kind, d.get("galaxy", {}))
 	Run.galaxy_seed = int(d.get("galaxy_seed", 0))
+	Rng.restore(d.get("rng", {"master": Run.galaxy_seed}))
 	Run.galaxy_spin = float(d.get("galaxy_spin", 0.0))
 	Run.galaxy_name = str(d.get("galaxy_name", ""))
 	Run.galaxy_title = str(d.get("galaxy_title", ""))

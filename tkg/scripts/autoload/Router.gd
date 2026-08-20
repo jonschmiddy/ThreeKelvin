@@ -58,6 +58,13 @@ func _autosave() -> void:
 		return
 	SaveGame.save()
 
+## The party, before a dive. Runs with no run loaded, like the launcher, so it
+## takes no HUD — the bar reads ship state and there is no ship yet.
+func show_lobby() -> void:
+	Audio.music_state(&"menu")
+	_swap(LobbyScreen.new(), false)
+	(current as LobbyScreen).setup()
+
 ## Title screen. Boots here unless a development flag says otherwise.
 func show_launcher() -> void:
 	# &"menu", not &"sector" — the launcher runs with no run loaded, so the
@@ -91,11 +98,23 @@ func _on_run_started() -> void:
 ## A run that was live when this is called was abandoned, not finished, and goes
 ## into the record as such — restarting a bad opening is a real outcome and
 ## pretending otherwise would quietly inflate the win rate.
-func new_run() -> void:
+## `seed_value` is the host's, and zero means roll one. A party dive is an
+## ordinary run that happens to have been handed its seed — which is why it
+## comes through here and lands on the chassis select like any other. Each
+## player picks their own ship on the same galaxy, and that IS the party
+## composition rule in `coop-design.md` §6.
+##
+## The previous forced seed is put back rather than cleared, so `-- seed N` on
+## the command line survives a run started from the lobby.
+func new_run(seed_value: int = 0) -> void:
 	if Run.hull != null and not Run.dead and not Run.won:
 		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 	SaveGame.clear()
+	var was := Rng.forced
+	if seed_value != 0:
+		Rng.forced = seed_value
 	Run.start_new_run()
+	Rng.forced = was
 	show_chassis_select()
 
 func show_chassis_select() -> void:
@@ -252,7 +271,7 @@ func _roll_here(n: MapGen.MapNode) -> void:
 				n.foes = _roll_foes(n)
 		MapGen.NodeType.EVENT:
 			if n.event_key.is_empty():
-				n.event_key = EventTable.pick_key()
+				n.event_key = EventTable.pick_key(Rng.derive(&"event", n.index))
 		_:
 			pass
 	_roll_ambush(n)
@@ -269,21 +288,30 @@ func _roll_ambush(n: MapGen.MapNode) -> void:
 			or n.type == MapGen.NodeType.GOAL:
 		return
 	n.ambush_rolled = true
-	if randf() < Run.ambush_chance(n):
+	# The ambush roll itself is a stream draw, not a positional one, and that is
+	# deliberate: whether something notices you depends on YOUR signature, so
+	# four ships arriving at one system do not all get jumped or all slip past.
+	# What is waiting IF you are jumped is positional, like everything else that
+	# lives at a node.
+	if Rng.foe.randf() < Run.ambush_chance(n):
 		n.ambush = _roll_foes(n)
 
 ## The contact and its pack. Packs appear deeper in, and more often in lawless
 ## space where nobody is flying alone. They split health rather than doubling it
 ## — see Combat.start.
+## Positional. What is flying at a system is a property of the system, and
+## `n.foes` is already saved per node — so this was ALREADY meant to be decided
+## once and stay decided. It just had no way to say so across two machines.
 func _roll_foes(n: MapGen.MapNode) -> Array[StringName]:
+	var r := Rng.derive(&"foes", n.index)
 	var out: Array[StringName] = []
 	var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
-	out.append(pool.pick_random())
+	out.append(Rng.pick(r, pool))
 	var lead: EnemyTemplate = DB.enemies[out[0]]
 	if n.danger >= 2 and not lead.boss and not lead.fauna:
 		var odds := 0.45 if n.region == MapGen.Region.LAWLESS else 0.22
-		if randf() < odds:
-			out.append(DB.fight_pool(n.danger, false).pick_random())
+		if r.randf() < odds:
+			out.append(Rng.pick(r, DB.fight_pool(n.danger, false)))
 	return out
 
 ## Dock. Reached from the sector, not on arrival.
@@ -349,20 +377,23 @@ func salvage_here() -> void:
 
 func _resolve_derelict(n: MapGen.MapNode) -> void:
 	n.cleared = true
+	# Positional: what is in the wreck is in the wreck, whoever opens it and in
+	# whatever order. See Rng.derive().
+	var r := Rng.derive(&"salvage", n.index)
 	var count := 2 if n.region == MapGen.Region.LAWLESS else 1
 	for i in count:
 		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 		Run.stow(LootGen.roll_module(n.danger, force,
-			n.region == MapGen.Region.CORE or n.region == MapGen.Region.FAUNA))
+			n.region == MapGen.Region.CORE or n.region == MapGen.Region.FAUNA, r))
 	# Precursor fragments come off deep wrecks and nowhere else in normal space.
 	# They are the one material with no manufactured source, which is what makes
 	# RELIC ANALYSIS a reason to have flown coreward rather than a recipe you
 	# grind toward at the rim.
-	if MapGen.tier(n.danger) >= 4 and randf() < 0.30:
+	if MapGen.tier(n.danger) >= 4 and r.randf() < 0.30:
 		Run.add_material(&"relic", 1)
 		Run.log_line("Something in the wreck predates the wreck. Precursor fragment recovered.", &"good")
-	if randf() < 0.35:
-		Run.found_hull = LootGen.roll_hull(n.danger)
+	if r.randf() < 0.35:
+		Run.found_hull = LootGen.roll_hull(n.danger, r)
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("Derelict stripped. %d module%s recovered." % [
 		count, "" if count == 1 else "s"], &"good")
@@ -398,7 +429,7 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 		var pool0 := DB.fight_pool(maxi(node.danger, 1), false)
 		extras = []
 		for i in forced - 1:
-			extras.append(DB.enemies[pool0.pick_random()])
+			extras.append(DB.enemies[Rng.pick(Rng.foe, pool0)])
 	combat.start(template, node.danger, extras)
 
 ## Start the fight waiting at this system.
@@ -426,7 +457,7 @@ func engage_here() -> void:
 ## Events can drop you straight into a fight (distress-beacon bait).
 func start_ambush() -> void:
 	var pool := DB.fight_pool(Run.node_at().danger, false)
-	start_combat(DB.enemies[pool.pick_random()])
+	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
 
 func in_combat() -> bool:
 	return combat != null and not combat.finished

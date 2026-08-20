@@ -33,7 +33,7 @@ class EnemyState extends RefCounted:
 			var total := 0
 			for i in template.pool:
 				total += i.weight
-			var roll := randi() % maxi(1, total)
+			var roll := Rng.fight.randi() % maxi(1, total)
 			var acc := 0
 			for i in template.pool:
 				acc += i.weight
@@ -101,7 +101,7 @@ func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 		enemies.append(_spawn(t as EnemyTemplate, danger, share))
 
 	deck = DeckBuilder.build()
-	deck.shuffle()
+	Rng.shuffle(Rng.fight, deck)
 	hand.clear()
 	discard.clear()
 	negate_next = Run.has_set(&"redline", 5)
@@ -162,10 +162,10 @@ func _maybe_reinforce() -> void:
 	if enemies.size() > 1 or turn != 3:
 		return
 	var lawless := Run.node_at().region == MapGen.Region.LAWLESS
-	if randf() >= (0.25 if lawless else 0.10):
+	if Rng.fight.randf() >= (0.25 if lawless else 0.10):
 		return
 	var pool := DB.fight_pool(Run.node_at().danger, false)
-	reinforce(DB.enemies[pool.pick_random()], Run.node_at().danger)
+	reinforce(DB.enemies[Rng.pick(Rng.fight, pool)], Run.node_at().danger)
 
 func alive() -> Array[EnemyState]:
 	var out: Array[EnemyState] = []
@@ -303,7 +303,7 @@ func _act_one(e: EnemyState) -> void:
 				# Light hulls dodge; the player never misses, only the enemy does.
 				# Run.dodge(), not Run.hull.dodge: a Ghost Drive is worth evasion
 				# in the fight, not only on the ship tab's Maneuverability row.
-				if randf() < Run.dodge():
+				if Rng.fight.randf() < Run.dodge():
 					_log("  missed.", &"good")
 					continue
 				if block > 0:
@@ -336,7 +336,7 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 			if not allow_reshuffle or discard.is_empty():
 				return
 			deck = discard.duplicate()
-			deck.shuffle()
+			Rng.shuffle(Rng.fight, deck)
 			discard.clear()
 			_log("Reshuffled.", &"sys")
 		hand.append(deck.pop_back())

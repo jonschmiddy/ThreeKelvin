@@ -28,7 +28,18 @@ warmth, three degrees above absolute zero. A heat-management game named for the 
   every effect field on `CardData`, so a new card should require zero new logic. If you
   find yourself adding a `match` on card name, stop — add a field to `CardData` instead.
 - **Systems never reach across scenes.** They emit on `Sig` (the signal bus autoload);
-  UI listens. Autoloads are `Sig`, `DB` (Database), `Run` (RunState), `Router`.
+  UI listens. Autoloads are `Sig`, `DB` (Database), `Rng`, `Run` (RunState),
+  `Router` and `Net` (NetSession). `Net` is inert in the solo game — it holds no
+  peer and costs nothing until somebody hosts or joins.
+- **Never call the global `randi()`/`randf()`/`pick_random()`/`shuffle()` for
+  anything that decides something.** Draw from a named stream — `Rng.world`,
+  `Rng.loot`, `Rng.event`, `Rng.foe`, `Rng.fight` — so that a run replays from
+  its seed and one system's rolls cannot move another's. Anything a player can
+  reach out of ORDER (a station's shelf, a wreck's contents, what is waiting at
+  a node) uses `Rng.derive(tag, node.index)` instead, so it depends on WHERE it
+  is rather than on when it was asked for. Cosmetic rolls — audio pitch, damage
+  jitter, the title screen's galaxy — keep the global generator on purpose.
+  `Rng.gd`'s header has the reasoning; `-- rngtest` is what enforces it.
 - **Indentation is tabs.** Godot requires it.
 - **Static typing where practical** (`var x: int = 0`, typed arrays, `-> void`).
   Typed array assignment from literals often needs `arr.assign([...])` rather than
@@ -45,6 +56,14 @@ godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
 # Save/load round-trip — RUN THIS AFTER TOUCHING SaveGame OR RunHistory
 godot --headless --path . -- savetest          # ~3 s
+
+# Lobby codes, and four peers forming a party in one process —
+# RUN THIS AFTER TOUCHING ANYTHING IN scripts/net/
+godot --headless --path . -- nettest           # ~3 s
+
+# The same seed twice, and streams that do not move each other —
+# RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR
+godot --headless --path . -- rngtest           # ~5 s
 
 # Star chart sky cache — RUN THIS AFTER ADDING TO _build_stars OR ITS BUILDERS
 godot --path . -- charttest                    # ~10 s, needs a window
@@ -65,6 +84,29 @@ godot --headless --path . -- market            # ~4 s
 # Boot destinations. The launcher is the default; every dev flag skips it.
 godot --path . -- nolauncher                   # straight into a new run
 godot --path . -- resume                       # straight into the suspend save
+
+# The party screen. Reachable from the title screen — FLY TOGETHER — so these
+# flags are for testing it, not for using it. Two instances on one machine is
+# the way: host in one, COPY the code, PASTE it in the other. `auto` presses
+# READY and LAUNCH for you, which is how the two-machines-one-galaxy claim is
+# checked without two people clicking at once.
+godot --path . -- lobby
+godot --path . -- lobby host
+godot --path . -- lobby join DR2M-08BB-TD49
+godot --path . -- lobby host auto
+
+# ...and against a relay, local or deployed. See relay/README.md.
+cd relay && wrangler dev --port 8787 --local
+godot --path . -- lobby host relay ws://localhost:8787 auto wait 4
+godot --path . -- lobby join <CODE> relay ws://localhost:8787 auto
+
+# A run is one number. This flag replays it exactly — the same galaxy, the same
+# map, the same loot, the same fights. Use it in bug reports.
+godot --path . -- seed 12345
+
+# ...and the sim version, which gives run i the seed N+i, so a whole sweep is
+# reproducible and any single run in it can be flown again by hand.
+godot --headless --path . -- sim runs=200 seed=12345
 
 # Dev shortcuts. Flags, not menu items, because each one skips part of the run
 # the balance depends on.

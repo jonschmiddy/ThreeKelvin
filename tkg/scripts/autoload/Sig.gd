@@ -31,3 +31,11 @@ signal card_played(card: CardData)
 signal damage_dealt(amount: int, to_player: bool, who: int)
 signal charge_fired(card_name: String)
 signal overheated(burn: int)
+
+# Party. Emitted by NetSession only. The session layer is a system like any
+# other here — it never touches a screen, it says what happened and the lobby
+# listens. See scripts/net/NetSession.gd.
+signal party_state_changed(state: int)   ## NetSession.State as an int
+signal party_changed()                   ## somebody joined, left, or readied
+signal party_launched(seed_value: int)   ## the host started the dive
+signal party_failed(reason: String)      ## refused, dropped, or never reached
