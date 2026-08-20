@@ -517,7 +517,22 @@ class Glyph extends Control:
 	## Authored as pixel maps because that is how pixel art is authored. Working
 	## them out as draw_rect arithmetic is how you end up with two bars and a
 	## crossbar and call it a station.
-	##   .  empty   o  outline   #  ink (region tint)   +  shaded   *  emissive
+	##
+	## Eleven inks, not four. The first set had outline, ink, one shade and one
+	## emissive, which draws a SHAPE and cannot draw an OBJECT — every
+	## glyph came out as a flat silhouette with a light in it. The extra stops
+	## are what the hull sprites already use and what ART_CONTRACT calls the
+	## single most important rule: a bright top face, a darker front wall, and a
+	## bright lip where the two meet. Thirteen pixels is plenty of room for that
+	## break; it was the palette that was short.
+	##
+	##   .  empty          o  outline          %  lit face / rim
+	##   #  ink (tint)     +  shaded wall      -  recess / underside
+	##   *  emissive hot   @  emissive core    :  emissive falloff
+	##   =  glass          ~  glass, shaded    !  cold light (beam)
+	##
+	## Everything except the emissives is derived from the region tint, so a
+	## glyph still tells you whose space you are looking at.
 
 	var type: MapGen.NodeType = MapGen.NodeType.FIGHT
 	var tint: Color = Color.WHITE
@@ -533,69 +548,86 @@ class Glyph extends Control:
 
 	## Hostile: a dart nosing left, because enemies face left everywhere else in
 	## the game and the chart should not be the exception.
+	##
+	## Lit along the leading edge and dark under the belly, so the wedge reads as
+	## a hull banked toward you rather than a triangle. Two pixels of glass sit
+	## behind the nose and the thruster burns at the tail — the only warmth on
+	## it, and pointing the way it is running.
 	const _FIGHT := [
 		".............",
-		".............",
-		".........oo..",
-		".......oo##o.",
-		".....oo####o.",
-		"...oo######o.",
-		".oo########o.",
-		"o##++++++##o.",
-		".oo########o.",
-		"...oo######o.",
-		".....oo####o.",
-		".......oo##o.",
-		".........oo.."]
+		".........oooo",
+		"........o%%%o",
+		".....o%%%###o",
+		"...o%%######o",
+		".o%%##==####o",
+		"o%####=~##*@o",
+		".o--++++++::o",
+		"...o--++++++o",
+		".....o---+++o",
+		"........o---o",
+		".........oooo",
+		"............."]
 
 	## A hab ring with its lights on. Warm pixels are the tell: a station is the
 	## only friendly thing out here, and warmth is only ever emitted, never ambient.
+	##
+	## The ring is a torus seen at the same three-quarter tilt as everything
+	## else: the top arc catches the light, the bottom arc falls away, and the
+	## hub burns in the middle. Drawn flat it was a letter O with a spark in it.
 	const _STATION := [
 		".............",
 		"....ooooo....",
-		"...o#####o...",
-		"..o##ooo##o..",
-		".o##o...o##o.",
-		".o#o..*..o#o.",
-		".o#o.*.*.o#o.",
-		".o#o..*..o#o.",
-		".o##o...o##o.",
-		"..o##ooo##o..",
-		"...o#####o...",
+		"..oo%%%%%oo..",
+		".o%%#*#*#%%o.",
+		"o%%#ooooo#%%o",
+		"o%#o..#..o#%o",
+		"o##o.*@*.o##o",
+		"o+#o..#..o#+o",
+		"o++#ooooo#++o",
+		".o++#*#*#++o.",
+		"..oo+++++oo..",
 		"....ooooo....",
 		"............."]
 
 	## An unknown signal: a burst, radiating. Reads at a glance as "something is
 	## transmitting here" without resorting to a question mark.
+	##
+	## Every ray falls off along its length — hot core, then the region tint, then
+	## almost nothing at the frame edge. That gradient is the whole of the depth
+	## here; there is no object to light. The uniform version read as a snowflake.
 	const _EVENT := [
-		".............",
-		"......#......",
-		"..#...#...#..",
+		"......-......",
+		"......+......",
+		"..+...#...+..",
 		"...#..#..#...",
-		"....#.#.#....",
-		".....###.....",
-		".##.##*##.##.",
-		".....###.....",
-		"....#.#.#....",
+		"....#.%.#....",
+		".....%%%.....",
+		"-+#%%*@*%%#+-",
+		".....%%%.....",
+		"....#.%.#....",
 		"...#..#..#...",
-		"..#...#...#..",
-		"......#......",
-		"............."]
+		"..+...#...+..",
+		"......+......",
+		"......-......"]
 
 	## A hulk with a bite out of it and its pieces drifting off. Asymmetric on
 	## purpose — a regular wreck reads as a building.
+	##
+	## The torn edge is the darkest ink in the glyph and the intact plating above
+	## it is the lightest, which is what makes the bite read as a hole through
+	## the hull instead of a shape painted on it.
 	const _DERELICT := [
 		".............",
-		".............",
-		"...ooo.......",
-		"..o###oo.....",
-		".o##++##o....",
-		".o#++++#o.oo.",
-		".o##++#o..o#o",
-		"..oo##oo...o.",
-		"....o#o......",
-		".....o...o...",
-		".......o.....",
+		"..ooooo......",
+		".o%%%%%oo....",
+		".o%####%%oo..",
+		"o%#+++##%%%o.",
+		"o#++--++##%o.",
+		"o+--..--++#o.",
+		".o+-...-++#o.",
+		"..o+--++##o.o",
+		"...oo++##o.o.",
+		".....oooo....",
 		".............",
 		"............."]
 
@@ -614,20 +646,25 @@ class Glyph extends Control:
 	## the glyph sits exactly on the galaxy centre, where the live layer is
 	## turning a real accretion disc around a real shadow. Leaving the shadow
 	## transparent means the marker frames the animation instead of covering it.
+	##
+	## The disc runs hot and the lensed arcs run cold, and that split is doing
+	## the work: warm is the light source, the tint is the matter it is falling
+	## through, and the arc under the hole is drawn a stop darker than the arc
+	## over it. Flat, the whole thing was one red ring.
 	const _GOAL := [
 		".............",
-		".............",
-		"....#####....",
-		"..###...###..",
-		"..#.......#..",
-		"###.......###",
-		"****.....****",
-		"*************",
-		"..#.......#..",
-		"..###...###..",
-		"....#####....",
-		".............",
-		"............."]
+		".....%%%.....",
+		"...%%###%%...",
+		"..%#.....#%..",
+		".%#.......#%.",
+		"%#.........#%",
+		"*@@.......@@*",
+		":*@@@@@@@@@*:",
+		"+-.........-+",
+		".+-.......-+.",
+		"..+--...--+..",
+		"...++---++...",
+		".....---....."]
 
 	## An open ring with a beam tick either side.
 	##
@@ -636,36 +673,42 @@ class Glyph extends Control:
 	## a solid cross that sat on top of it — so the one node type with its own
 	## animation was the one node type whose animation you could not see. The
 	## ring says "something is here" and then gets out of the way.
+	##
+	## The ring is lit from the top and falls to a recess at the bottom, so it
+	## reads as a shell of ejecta seen at an angle. The beam ticks are the only
+	## COLD light in the set — a neutron star is not a furnace, and drawing its
+	## beam in the same warm ink as a station window said the wrong thing.
 	const _PULSAR := [
 		".............",
-		".....###.....",
-		"...##...##...",
-		"..#.......#..",
+		".....%%%.....",
+		"...%%...%%...",
+		"..%.......%..",
+		".%.........%.",
 		".#.........#.",
+		"!=~%.....%~=!",
 		".#.........#.",
-		"*#.........#*",
-		".#.........#.",
-		".#.........#.",
-		"..#.......#..",
-		"...##...##...",
-		".....###.....",
+		".+.........+.",
+		"..+.......+..",
+		"...++...++...",
+		".....---.....",
 		"............."]
 
-	## Where the run began: your own hull, nosing right.
+	## Where the run began: your own hull, nosing right — the FIGHT dart mirrored
+	## and lit the same way, because it is the same shipyard.
 	const _START := [
 		".............",
-		".............",
-		"..oo.........",
-		".o##oo.......",
-		".o####oo.....",
-		".o######oo...",
-		".o########oo.",
-		".o##++++++##o",
-		".o########oo.",
-		".o######oo...",
-		".o####oo.....",
-		".o##oo.......",
-		"..oo........."]
+		"oooo.........",
+		"o%%%o........",
+		"o###%%%o.....",
+		"o######%%o...",
+		"o####==##%%o.",
+		"o@*##~=####%o",
+		"o::++++++--o.",
+		"o++++++--o...",
+		"o+++---o.....",
+		"o---o........",
+		"oooo.........",
+		"............."]
 
 	static func art_for(t: MapGen.NodeType) -> Array:
 		match t:
@@ -680,10 +723,28 @@ class Glyph extends Control:
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
 			tint_in: Color, here: bool, selected: bool) -> void:
 		# Region colours sit quietly behind sprites; as a glyph on a dark chart
-		# they need lifting or the icon reads as a smudge.
-		var ink := tint_in.lightened(0.34)
-		var shade := tint_in.darkened(0.22)
-		var line := Color("#070b11")
+		# they need lifting or the icon reads as a smudge. The ramp is built
+		# from the tint every call rather than stored, because the tint is the
+		# argument — a cleared system is drawn in dead grey and a Core system in
+		# red from the same seven pixel maps.
+		#
+		# Spacing is the point. lightened(0.62) against darkened(0.52) is a big
+		# enough value break to survive being 13 pixels wide on a starfield;
+		# closer stops than that and the shading turns back into one flat mass,
+		# which is what the four-colour version was.
+		var ramp := {
+			"o": Color("#070b11"),
+			"%": tint_in.lightened(0.62),
+			"#": tint_in.lightened(0.34),
+			"+": tint_in.darkened(0.22),
+			"-": tint_in.darkened(0.52),
+			"*": UITheme.HOT,
+			"@": Color("#fff6e2"),
+			":": UITheme.EMBER,
+			"=": Color("#8ec8e6"),
+			"~": Color("#3a6b8c"),
+			"!": Color("#dff6ff"),
+		}
 		var art := art_for(t)
 		for y in art.size():
 			var row: String = art[y]
@@ -691,14 +752,8 @@ class Glyph extends Control:
 				var ch := row[x]
 				if ch == ".":
 					continue
-				var col := line
-				if ch == "#":
-					col = ink
-				elif ch == "+":
-					col = shade
-				elif ch == "*":
-					col = UITheme.HOT
-				ci.draw_rect(Rect2(o + Vector2(x, y), Vector2.ONE), col, true)
+				ci.draw_rect(Rect2(o + Vector2(x, y), Vector2.ONE),
+					ramp.get(ch, ramp["#"]) as Color, true)
 
 		# Corner brackets, not a box. A box is a tile by another name, and the
 		# tile is what we just removed.
