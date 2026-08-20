@@ -25,6 +25,11 @@ func setup() -> void:
 	_build()
 	Sig.resources_changed.connect(_refresh)
 	Sig.ship_changed.connect(_refresh)
+	# Somebody else bought something off this shelf. The stock is one list the
+	# whole party is standing in front of, so it has to empty while you watch
+	# rather than the next time you happen to reopen the screen.
+	Sig.party_map_changed.connect(_refresh)
+	Sig.map_changed.connect(_refresh)
 	_stock_up()
 	_inspect()
 	_refresh()
@@ -225,18 +230,26 @@ func _refresh() -> void:
 
 	for c in _hull_box.get_children():
 		c.queue_free()
-	if n.shop_hull != null:
+	if n.shop_hull != null and not n.taken.has(MapGen.OPTION_SHOP_HULL):
 		_hull_box.add_child(Widgets.hull_row(n.shop_hull, "PURCHASE",
 			Market.hull_price(n, n.shop_hull), _on_action))
 
 	for c in _stock.get_children():
 		c.queue_free()
-	if n.shop.is_empty():
-		_stock.add_child(UITheme.body("Shelves bare. Nothing restocks — what was brought here is gone.",
-			UITheme.COLD, UITheme.FS_SMALL))
-	for m in n.shop:
+	# What is LEFT, which is not the same as what is on the shelf. A sold part
+	# stays in `n.shop` so that everybody's slot numbers keep meaning the same
+	# thing — see MapGen.OPTION_SHOP — and is hidden here instead.
+	var left := 0
+	for i in n.shop.size():
+		if n.taken.has(MapGen.OPTION_SHOP + i):
+			continue
+		left += 1
+		var m: ModuleData = n.shop[i]
 		_stock.add_child(Widgets.module_row(m, Widgets.ModuleContext.SHOP,
 			Market.ask(n, m), _on_action))
+	if left == 0:
+		_stock.add_child(UITheme.body("Shelves bare. Nothing restocks — what was brought here is gone.",
+			UITheme.COLD, UITheme.FS_SMALL))
 
 	for c in _hold.get_children():
 		c.queue_free()
@@ -311,11 +324,26 @@ func _on_action(action: String, thing: Variant) -> void:
 	match action:
 		"buy":
 			var m := thing as ModuleData
+			var slot := n.shop.find(m)
 			var price := Market.ask(n, m)
-			if Run.credits < price:
+			if slot < 0 or Run.credits < price:
+				return
+			# Before the money, not after. Buying into a full hold used to take
+			# the credits, erase the part off the shelf and then log "left
+			# behind" — the module was gone from both places and paid for.
+			if Run.hold_full():
+				Run.log_line("The hold is full. Nowhere to put it.", &"them")
+				return
+			# One shelf, four buyers. ASK, and pay only if you won — a purchase
+			# that charged first and lost the race would take credits for a part
+			# somebody else is carrying. See RunState.take_option().
+			if not await Run.take_option(n, MapGen.OPTION_SHOP + slot):
+				var who := Net.taker_name(n.index, MapGen.OPTION_SHOP + slot)
+				Run.log_line("Sold.%s" % (" %s got there first." % who.to_upper()
+					if who != "" else ""), &"them")
+				_refresh()
 				return
 			Run.add_credits(-price)
-			n.shop.erase(m)
 			Run.stow(m)
 			Run.log_line("Bought %s for %d credits." % [m.name, price], &"good")
 			Sig.ship_changed.emit()
@@ -338,8 +366,15 @@ func _on_action(action: String, thing: Variant) -> void:
 			var price2 := Market.hull_price(n, h)
 			if Run.credits < price2:
 				return
+			# One rack, one hull. Same race as the shelf above, and the same
+			# order: ask, then pay.
+			if not await Run.take_option(n, MapGen.OPTION_SHOP_HULL):
+				var who2 := Net.taker_name(n.index, MapGen.OPTION_SHOP_HULL)
+				Run.log_line("Gone.%s" % (" %s is flying it." % who2.to_upper()
+					if who2 != "" else ""), &"them")
+				_refresh()
+				return
 			Run.add_credits(-price2)
-			n.shop_hull = null
 			Run.transfer_to_hull(h)
 		"install": Run.install_module(thing as ModuleData)
 		"scrap": Run.scrap_module(thing as ModuleData)

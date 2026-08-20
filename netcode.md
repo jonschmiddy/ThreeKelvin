@@ -325,6 +325,20 @@ Seat 0 is a deliberate no-op rather than a salt of zero, so every solo run still
 
 Neither process can check this about itself, so `tools/cofight.sh` checks it from outside: it compares the two logs and fails if the seats match, if the loot seeds match, or if one kill paid two ships the same part.
 
+### One shelf, four buyers
+
+The same playtest found the shop, and it is a different bug wearing the loot bug's clothes.
+
+**The stock being identical on both machines is correct.** A station's shelf belongs to the station: it is rolled from `Rng.derive(&"shop", n.index)` precisely so four ships docking in four different orders see one shop rather than four. That part was right.
+
+**Buying it was not.** `n.shop.erase(m)` emptied the local copy and told nobody, so two players standing in the same shop both bought the same Legendary. One shelf, two copies, and §3's closed economy paid twice — the wreck bug, at a different address.
+
+It is the first contested thing that is a **list**, which is what `MapGen.OPTION_SHOP + i` is for: a wreck is taken whole, a shelf is taken a part at a time. That forced one change to how the shelf is stored. **The array must not shrink**, because erasing renumbers every slot after the one sold and two machines stop agreeing about what "slot 2" means. So a sold part stays on the shelf and is hidden by `n.taken` — which is the field's whole purpose.
+
+Ordering matters here more than at the wreck, because money is involved: **ask, then pay.** A purchase that charged first and lost the race would take credits for a part somebody else is carrying home. Fixing that also closed a solo bug of the same shape — buying into a full hold used to take the credits, erase the part off the shelf, and then log "left behind", so the module was gone from both places and paid for.
+
+`tools/cofight.sh` checks the pair from outside: the two shelves must MATCH, and exactly one ship may walk away with the part.
+
 ### Two processes, one galaxy
 
 The end of the chain, run for real rather than argued:

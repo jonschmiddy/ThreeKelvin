@@ -34,6 +34,25 @@ enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, GOAL, PULSAR }
 ## a list nobody wrote".
 const OPTION_WHOLE := 0
 
+## A station's shelf: `OPTION_SHOP + i` is the i-th part standing on it.
+##
+## The shelf is the second contested thing in the game, and the first that is a
+## LIST. One station, four buyers, and one Legendary — the same shape as the
+## wreck, except that a wreck is taken whole and a shelf is taken a part at a
+## time. That is what the option id was for.
+##
+## INDEXED, WHICH MEANS THE ARRAY MUST NOT SHRINK. `n.shop` used to have the
+## bought part erased out of it, which silently renumbered everything after it:
+## one purchase and every machine's idea of "slot 2" disagreed. So a sold part
+## stays on the shelf and is marked gone in `taken` instead, which is what that
+## field has always been for.
+##
+## Based at 100 so the ids read as a namespace rather than as a count, and so a
+## fourth kind of option added later has somewhere obvious to live.
+const OPTION_SHOP := 100
+## And the hull on the rack, which is one object rather than a list.
+const OPTION_SHOP_HULL := 110
+
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
 ## Twenty-four rings put the systems in a shape where nothing was near anything:

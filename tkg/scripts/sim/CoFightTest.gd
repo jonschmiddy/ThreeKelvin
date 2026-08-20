@@ -33,6 +33,11 @@ const PARTNER_TIMEOUT := 45.0
 ## real ceiling is much lower — HeadlessSim uses 60 for a solo fight — but a
 ## shared one takes a round trip per turn and the enemy is scaled for two.
 const TURN_CEILING := 80
+## Not `DirectTransport.DEFAULT_PORT`. This harness has to be runnable WHILE a
+## playtest is open, and two hosts on one port is the test failing for a reason
+## that has nothing to do with the code under it. The port travels inside the
+## lobby code, so the joiner needs to be told nothing.
+const PORT := DirectTransport.DEFAULT_PORT + 11
 
 var _tree: SceneTree
 var _me: String = ""
@@ -72,6 +77,7 @@ func run(tree: SceneTree) -> void:
 func _host() -> void:
 	var t := DirectTransport.new()
 	t.advertise = "127.0.0.1"
+	t.port = PORT
 	var code := Net.host_party("Vela", &"", t)
 	if code.is_empty():
 		_fail("could not host: %s" % Net.last_error())
@@ -172,6 +178,7 @@ func _fly() -> void:
 		cb.enemies[0].max_hp == scaled)
 
 	await _play(cb)
+	await _shop()
 
 
 ## The fight itself. Deliberately not HeadlessSim's loop: that one runs inside a
@@ -258,6 +265,69 @@ func _count_hit(_at2: int) -> void:
 
 func _count_swing(_a: int, _w: int, _k: int, _p: int) -> void:
 	_swings_at_me += 1
+
+
+## And then both ships dock at the same station and reach for the same part.
+##
+## The shelf is the second contested thing in the game and the first that is a
+## LIST: a wreck is taken whole, a shelf is taken a part at a time. It is also
+## the one that looked correct in a playtest — the stock IS meant to be
+## identical on both machines, because it is one shop — so the bug was not in
+## the roll, it was that buying only emptied the local copy.
+func _shop() -> void:
+	var here := _find_station()
+	if not _ok("the shared galaxy holds a station to share", here >= 0):
+		return
+	Run.at = here
+	Run.map[here].visited = true
+	Run.add_credits(100000)
+	Router.show_station()
+	await _tree.process_frame
+
+	var n: MapGen.MapNode = Run.map[here]
+	if not _ok("the shelf has something on it", n.shop.size() > 0):
+		return
+	# What the shop rolled, printed for the cross-process comparison. This one is
+	# meant to MATCH: a station's shelf belongs to the station, so it is drawn
+	# positionally and four ships docking in four different orders see one shelf.
+	var shelf := PackedStringArray()
+	for m in n.shop:
+		shelf.append(String(m.id))
+	print("[cofight] shelf %s" % "-".join(shelf))
+
+	# Both ships in the doorway before either reaches, or this measures one
+	# player shopping alone and calls it a race.
+	var both := await _until(func() -> bool:
+		for p in Net.partners():
+			if int(p.get("at", -1)) == here:
+				return true
+		return false, PARTNER_TIMEOUT)
+	if not _ok("both ships are at the same station", both):
+		return
+
+	# Through the real screen, not through the primitive under it. The handler
+	# is where the ordering lives — ask the party, and pay only if you won.
+	var screen := Router.current as StationScreen
+	if not _ok("the station screen is up", screen != null):
+		return
+	var before := Run.credits
+	var wanted: ModuleData = n.shop[0]
+	await screen._on_action("buy", wanted)
+	await _until(func() -> bool: return false, 1.5)
+
+	var got := Run.cargo.has(wanted)
+	print("[cofight] bought %s" % (String(wanted.id) if got else "none"))
+	_ok("a refused purchase costs nothing", got or Run.credits == before)
+	_ok("and a slot somebody took is marked taken for everybody",
+		n.taken.has(MapGen.OPTION_SHOP))
+
+
+func _find_station() -> int:
+	for i in Run.map.size():
+		var n: MapGen.MapNode = Run.map[i]
+		if i > 0 and n.type == MapGen.NodeType.STATION:
+			return i
+	return -1
 
 
 func _find_fight() -> int:

@@ -66,11 +66,48 @@ pair() {
 	fi
 }
 
+# The other half: some things MUST agree. A station's shelf belongs to the
+# station, so both machines drawing the same stock is correct and its opposite
+# would be the bug.
+same() {
+	local what="$1" tag="$2"
+	local a b
+	a="$(grep -m1 "^\[cofight\] $tag " "$OUT/host.log"  | sed "s/^\[cofight\] $tag //")"
+	b="$(grep -m1 "^\[cofight\] $tag " "$OUT/guest.log" | sed "s/^\[cofight\] $tag //")"
+	if [ -z "$a" ] || [ -z "$b" ]; then
+		echo "  FAIL $what — one ship never reported ($tag)"; RC=1; return
+	fi
+	if [ "$a" = "$b" ]; then
+		echo "  ok   $what"; echo "         both: $a"
+	else
+		echo "  FAIL $what"; echo "         host:  $a"; echo "         guest: $b"; RC=1
+	fi
+}
+
+# And one thing that must be true of the pair rather than of either: exactly one
+# ship walks away with the part.
+one_of() {
+	local what="$1" tag="$2"
+	local a b
+	a="$(grep -m1 "^\[cofight\] $tag " "$OUT/host.log"  | sed "s/^\[cofight\] $tag //")"
+	b="$(grep -m1 "^\[cofight\] $tag " "$OUT/guest.log" | sed "s/^\[cofight\] $tag //")"
+	if [ -z "$a" ] || [ -z "$b" ]; then
+		echo "  FAIL $what — one ship never reported ($tag)"; RC=1; return
+	fi
+	if { [ "$a" = "none" ] && [ "$b" != "none" ]; } || { [ "$a" != "none" ] && [ "$b" = "none" ]; }; then
+		echo "  ok   $what"; echo "         host:  $a"; echo "         guest: $b"
+	else
+		echo "  FAIL $what"; echo "         host:  $a"; echo "         guest: $b"; RC=1
+	fi
+}
+
 echo
 echo "--- across both ---"
 pair "the two ships are different seats" "seat"
 pair "and therefore draw loot from different streams" "lootseed"
 pair "so one kill pays two ships two different parts" "loot"
+same "and one station shows both ships one shelf" "shelf"
+one_of "but only one of them can buy the part off it" "bought"
 
 echo
 echo "full logs in $OUT"
