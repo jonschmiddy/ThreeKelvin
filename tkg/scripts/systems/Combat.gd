@@ -76,6 +76,12 @@ var charging: Array[ChargingCard] = []
 var current_target: EnemyState = null
 ## At most one wave of reinforcements per fight.
 var reinforced: bool = false
+## Whether winning consumes the system. True for the contact a node was
+## generated holding; FALSE for an ambush, which is something that followed you
+## to a station rather than the reason the station is there. Without it, killing
+## whatever jumped you on the approach would mark the dock resolved and you
+## would fly away from a shop you never opened.
+var clears_node: bool = true
 
 var turn: int = 1
 var attacks_this_turn: int = 0
@@ -488,7 +494,8 @@ func _victory() -> void:
 			Run.exotic += 1
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
-	node.cleared = true
+	if clears_node:
+		node.cleared = true
 
 	if enemy.template.boss:
 		Run.win()
@@ -510,7 +517,8 @@ func _victory() -> void:
 
 func _pacify() -> void:
 	var node: MapGen.MapNode = Run.node_at()
-	node.cleared = true
+	if clears_node:
+		node.cleared = true
 	Run.exotic += 1
 	Run.dross += new_dross
 	Run.whale_boon = true

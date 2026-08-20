@@ -209,6 +209,40 @@ took 9% to a measured 20.5 / 19.7 / 18.9 across three 1,000-run passes. Runs got
 longer rather than easier: 65 average jumps to 92, and hull deaths fell from 50%
 to 35% while fuel deaths rose from 15% to 17%.
 
+### Heat has a map layer now, and it still does not drive difficulty
+
+`dissipation()` used to be read in exactly one gameplay site, `Combat.end_turn()`.
+Outside a fight, heat was a fossil: the three things reading `Run.heat` on the map
+were the hull shader, the HUD label and an audio cue, all cosmetic. The design
+doc's "hot ships attract encounters, cold ships slip past" did not exist in code.
+
+Built: `cool_in_transit()` on every jump, `signature()`, `ambush_chance()`, heat
+costing up to 4 of 10 Stealth, ambushes rolled once on arrival and stored on the
+node (`MapNode.ambush`, save version 3), and `Combat.clears_node` so winning an
+ambush does not consume the station you were flying to. `HeadlessSim` gained
+ambush modelling, signature sampling, and a `-- sim hot` policy that spends heat
+for tempo instead of venting on sight.
+
+**MEASURED, 1,000 RUNS PER CELL, AND IT DOES NOT BITE.** Win rate stays in the
+16–21% band against a 20.5% baseline whichever way it is cut — cold model or hot,
+layer on or off. What the instrumentation did establish:
+
+- **Fights end hot.** Post-fight signature 0.34; 37% of fights end above the
+  ambush floor. The heat is genuinely there when the shooting stops.
+- **A run makes ~65 jumps for ~8 fights.** Eight jumps per fight, so any per-jump
+  cooling clears the residue long before the next one. Arrival signature is 0.06
+  at a full turn's cooling and 0.06 at half — the rate barely matters, the jump
+  count does. Halved anyway, because a jump you were making already should not be
+  a free vent.
+- **The layer fires:** 0.42 ambushes per run, 22–24% of runs jumped at least once.
+- **And pays.** An ambush drops scrap and a module, so it is roughly EV-neutral
+  for a competent player.
+
+So: **attaching consequences to heat adds texture, not pressure. To drive
+difficulty, heat has to gate REWARD.** That is the next thing to try — two ways
+to take every contact, where skirmishing pays scrap at low heat and committing
+pays modules at high heat. See `coop-design.md` §0 and §6.
+
 ## The economy — one file, three prices
 
 `Market.gd` owns every number anybody pays. Read its header before changing a

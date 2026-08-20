@@ -14,6 +14,11 @@ extends RefCounted
 ## here would fail to compile.
 
 var runs := 200
+## `-- sim hot` flips the fight policy from "never overheat" to "spend heat for
+## tempo". The default model vents on sight and leaves every fight cold, which
+## is a competent player and is also the one player the map heat layer can
+## never touch. Measuring that layer needs somebody who actually runs hot.
+var hot := false
 var wins := 0
 var deaths := 0
 var errors := 0
@@ -23,6 +28,19 @@ var total_danger := 0
 var death_causes := {}
 var stranded := 0
 var stranded_no_fuel := 0
+## The heat layer. Without these the sim can report that a heat change did
+## nothing when what actually happened is that it never fired.
+var ambushes := 0
+var runs_ambushed := 0
+var heat_samples := 0
+var heat_total := 0.0
+var hot_arrivals := 0
+## Signature at the moment a fight ENDS, which is the only heat a run ever has
+## a chance to carry onto the map. If this is near zero the map heat layer
+## cannot matter no matter what is attached to it.
+var postfight_samples := 0
+var postfight_total := 0.0
+var postfight_hot := 0
 
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.
@@ -30,6 +48,10 @@ func run_sim() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("runs="):
 			runs = int(arg.split("=")[1])
+
+	hot = "hot" in OS.get_cmdline_user_args()
+	if hot:
+		print("HOT policy: the model spends heat for tempo and vents late.")
 
 	if "bychassis" in OS.get_cmdline_user_args():
 		_run_by_chassis()
@@ -90,13 +112,44 @@ func _reset() -> void:
 	death_causes = {}
 	stranded = 0
 	stranded_no_fuel = 0
+	ambushes = 0
+	runs_ambushed = 0
+	heat_samples = 0
+	heat_total = 0.0
+	hot_arrivals = 0
+	postfight_samples = 0
+	postfight_total = 0.0
+	postfight_hot = 0
 
 func _play_one(man: StringName = &"", w: int = -1) -> void:
 	Run.start_new_run(man, w)
 	var guard := 0
+	var jumped_hot := false
 	while not Run.won and not Run.dead and guard < 600:
 		guard += 1
 		var node: MapGen.MapNode = Run.node_at()
+
+		# How hot the model actually arrives, sampled before anything here is
+		# resolved. This is the number every other heat rule keys off, so a
+		# report that omits it cannot explain its own win rate.
+		heat_samples += 1
+		heat_total += Run.signature()
+		if Run.signature() > Run.SIGNATURE_FLOOR:
+			hot_arrivals += 1
+
+		# Something followed the heat in. Rolled exactly as Router does it on
+		# arrival — a model that never gets jumped cannot measure whether
+		# getting jumped matters.
+		if not node.ambush_rolled and node.type != MapGen.NodeType.FIGHT \
+				and node.type != MapGen.NodeType.GOAL:
+			node.ambush_rolled = true
+			if randf() < Run.ambush_chance(node):
+				ambushes += 1
+				jumped_hot = true
+				var apool := DB.fight_pool(node.danger, false)
+				if not _fight(DB.enemies[apool.pick_random()]):
+					break
+
 		# Resolve whatever is here.
 		if node.type == MapGen.NodeType.FIGHT and not node.cleared:
 			var pool := DB.fight_pool(node.danger, node.region == MapGen.Region.FAUNA)
@@ -165,6 +218,8 @@ func _play_one(man: StringName = &"", w: int = -1) -> void:
 			pick = options.pick_random()
 		Run.jump_to(pick)
 
+	if jumped_hot:
+		runs_ambushed += 1
 	total_jumps += Run.jumps
 	total_kills += Run.kills
 	total_danger += Run.node_at().danger
@@ -193,7 +248,12 @@ func _fight(template: EnemyTemplate) -> bool:
 				if not cb.can_play(c):
 					continue
 				var projected := Run.heat + c.heat - Run.dissipation()
-				if projected > Run.heat_cap() + 3 and c.heat > 0 and cb.enemy.hp > 30:
+				# The hot model tolerates sitting over capacity; the cold one
+				# only crosses it to close out a kill. Same ceiling either way,
+				# so neither is suicidal — the difference is how long it is
+				# willing to stay up there.
+				var ceiling := Run.heat_cap() + (12 if hot else 3)
+				if projected > ceiling and c.heat > 0 and cb.enemy.hp > 30:
 					continue
 				var s := _score(c, cb)
 				if s > best_score:
@@ -204,6 +264,10 @@ func _fight(template: EnemyTemplate) -> bool:
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
+	postfight_samples += 1
+	postfight_total += Run.signature()
+	if Run.signature() > Run.SIGNATURE_FLOOR:
+		postfight_hot += 1
 	return not Run.dead
 
 func _score(c: CardData, cb: Combat) -> float:
@@ -216,7 +280,10 @@ func _score(c: CardData, cb: Combat) -> float:
 		return 95.0
 	if c.lock_on > 0:
 		return 90.0
-	if c.vent > 0 and Run.heat > Run.heat_cap() * 0.7:
+	# Venting is the first thing the cold model reaches for and nearly the last
+	# thing the hot one does. This single threshold is most of the difference
+	# between the two policies.
+	if c.vent > 0 and Run.heat > Run.heat_cap() * (1.15 if hot else 0.7):
 		return 85.0
 	if (c.armor > 0 or c.block > 0) and incoming > cb.armor + cb.block:
 		return 80.0
@@ -352,6 +419,18 @@ func _report() -> void:
 	# death is an economy failure, not a combat one.
 	print("stranded, ended by check_stranded() %d (%.1f%%) · of those, blocked by fuel %d" % [
 		stranded, 100.0 * stranded / maxi(1, runs), stranded_no_fuel])
+	# The heat layer, reported separately because it is the newest thing in the
+	# economy and the first question about any tuning pass on it is whether it
+	# fired at all.
+	print("heat: avg signature on arrival %.2f · arrived hot %d of %d (%.1f%%)" % [
+		heat_total / maxf(1.0, float(heat_samples)), hot_arrivals, heat_samples,
+		100.0 * hot_arrivals / maxi(1, heat_samples)])
+	print("post-fight signature %.2f · left a fight hot %d of %d (%.1f%%)" % [
+		postfight_total / maxf(1.0, float(postfight_samples)), postfight_hot,
+		postfight_samples, 100.0 * postfight_hot / maxi(1, postfight_samples)])
+	print("ambushes %d (%.2f per run) · runs jumped at least once %d (%.1f%%)" % [
+		ambushes, float(ambushes) / maxi(1, runs), runs_ambushed,
+		100.0 * runs_ambushed / maxi(1, runs)])
 	print("---")
 	print("Healthy target: 40-55% win rate for this competent-player model.")
 	print("Too easy? Raise station repair prices before touching enemy damage —")

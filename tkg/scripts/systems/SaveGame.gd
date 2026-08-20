@@ -29,7 +29,10 @@ const PATH := "user://run.save"
 ## 2: the economy. `exotic` became the first row of a materials ledger, station
 ## stock stopped storing a price and started deriving one, and a node learned
 ## whether it has ever been stocked and how much has been sold into it.
-const VERSION := 2
+## 3: heat reached the map. A node now carries whether it rolled for an ambush
+## and what that roll produced, so a hostile attracted by your own heat cannot
+## be refused by quitting and coming back cold.
+const VERSION := 3
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -393,6 +396,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		visited = n.visited, cleared = n.cleared, inspected = n.inspected,
 		fled = n.fled, stocked = n.stocked, trades = n.trades,
 		foes = _names(n.foes), event_key = n.event_key,
+		ambush = _names(n.ambush), ambush_rolled = n.ambush_rolled,
 		in_nebula = n.in_nebula, nebula_emission = n.nebula_emission,
 		pos = [n.pos.x, n.pos.y], gal = [n.gal.x, n.gal.y],
 		links = Array(n.links),
@@ -429,6 +433,14 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 		foes.append(StringName(str(f)))
 	n.foes = foes
 	n.event_key = str(d.get("event_key", ""))
+	# Absent on a save written before heat had a map layer. An unrolled node
+	# rolls once on the next arrival, which is the old behaviour for exactly one
+	# more visit rather than a crash — same contract as `foes` above.
+	var amb: Array[StringName] = []
+	for a in d.get("ambush", []):
+		amb.append(StringName(str(a)))
+	n.ambush = amb
+	n.ambush_rolled = bool(d.get("ambush_rolled", false))
 	n.inspected = bool(d.get("inspected", false))
 	# Whether the shelf has ever been rolled, and how much has been sold into
 	# this market. Both are run marks like `visited` — losing either would let a

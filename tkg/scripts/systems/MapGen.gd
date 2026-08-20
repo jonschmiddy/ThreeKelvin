@@ -141,6 +141,15 @@ class MapNode extends RefCounted:
 	## offers ENGAGE, the second must not, or the button that got you out of a
 	## fight is the same button that puts you back in one.
 	var fled: bool = false
+	## What followed your heat trail in, rolled once on arrival. Stored on the
+	## node for the same reason `foes` is: an ambush that re-rolled on resume
+	## would be a hostile you could refuse by quitting and coming back cold,
+	## which is save-scumming through the front door.
+	var ambush: Array[StringName] = []
+	## Whether the roll has HAPPENED, which is not the same as whether it hit.
+	## Without this an empty `ambush` cannot be told from "not rolled yet", so a
+	## quiet arrival would roll again on every redraw until something bit.
+	var ambush_rolled: bool = false
 	var pos: Vector2 = Vector2.ZERO
 	## Where this system sits in the galaxy, as a fraction of the disc radius
 	## with the disc's foreshortening already applied - so it is exactly what the

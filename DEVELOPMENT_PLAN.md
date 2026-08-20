@@ -359,6 +359,7 @@ Each needs a human decision.
 | 8 | Hard gate ratio — how many walls before walls stop mattering | §4.2 | Phase 4 |
 | 9 | Do unique cards earn unique art | card §14 | Phase 8 |
 | 10 | Do Criticals exist at MVP | card §14 | Phase 6 |
+| 11 | **Does the game become an extraction deckbuilder?** `coop-design.md` v0.2 overturns the no-meta-progression ruling stated in `RunHistory.gd` and `design-doc.md`. Persistent collection, per-dive scrap, win = reach the rim alive. | coop §16.1 | Every phase below. Decide before Phase 3 (economy) |
 
 ---
 
@@ -369,6 +370,7 @@ The design kit is **not in the repo yet**. Per `README.md`:
 ```
 ThreeKelvin/
 ├── design-doc.md                 ✅ present
+├── coop-design.md                ✅ present — co-op + extraction layer, v0.2 draft
 ├── attributes-and-checks.md      ❌ missing
 ├── card-design.md                ❌ missing
 ├── manufacturer-identity.md      ❌ missing
