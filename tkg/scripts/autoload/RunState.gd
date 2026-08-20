@@ -352,6 +352,60 @@ func fuel_factor(bare: bool = false) -> float:
 			v += m.fuel_factor
 	return maxf(0.3, v)
 
+## HEAT SHEDS BETWEEN SYSTEMS, NOT ONLY BETWEEN TURNS.
+##
+## `dissipation()` was read in exactly one gameplay site — Combat.end_turn() —
+## so heat carried out of a fight stayed on the hull forever. Ten jumps later
+## the gauge still read what it read when the shooting stopped, and the only
+## ways down were a purge card, one event, or the next fight. That made the
+## number a fossil between fights, and it made "cool off before you go in" a
+## thing a player could want and had no way to do.
+##
+## HALF A TURN'S WORTH PER JUMP, FLOOR OF ONE. Measured, not chosen: at a full
+## turn's worth the average signature on arrival fell from 0.32 to 0.05 over a
+## thousand runs, which did not make heat manageable between systems, it deleted
+## it. A jump you were making anyway must not be a free vent.
+##
+## At half rate a medium frame carries a hard fight about six systems, a light
+## frame three, and a Solari heavy most of the way to the next station — the
+## same trade those hulls already make in combat, now visible on the map. The
+## floor of one exists so that the worst dissipation in the game still cools
+## eventually rather than fossilising at capacity for the rest of the run.
+func cool_in_transit() -> void:
+	heat = maxi(0, heat - maxi(1, int(dissipation() / 2.0)))
+
+## How loud you are: 0.0 stone cold, 1.0 at capacity, higher while overheating.
+##
+## Everything on the map layer that cares about heat asks this rather than the
+## raw number, because raw heat is not comparable across hulls — 11 heat is
+## nearly cooked on a light frame and idling on a heavy one.
+func signature() -> float:
+	return float(heat) / float(maxi(1, heat_cap()))
+
+## Below this fraction of capacity nothing finds you. The main doc's ruling is
+## that cold light ships slip past, and a ceiling of "almost never" is not the
+## same promise as "not at all" — a player who has decided to run cold has
+## bought silence and should get it, not a low roll that occasionally ignores
+## the decision.
+const SIGNATURE_FLOOR := 0.25
+## Odds at capacity, on unclaimed ground, in a ship with no stealth at all.
+const AMBUSH_AT_CAP := 0.30
+
+## Whether something followed the heat in, and how likely that was.
+##
+## Three terms, and the order matters. Signature is the gate: run cold and the
+## rest never applies. Danger scales it, because deep systems have more in them
+## to notice you. Stealth divides it last, so the hull and the modules you fitted
+## are the answer to a problem your own throttle created.
+func ambush_chance(n: MapGen.MapNode) -> float:
+	var sig := signature()
+	if sig <= SIGNATURE_FLOOR:
+		return 0.0
+	var p := AMBUSH_AT_CAP * (sig - SIGNATURE_FLOOR) / (1.0 - SIGNATURE_FLOOR)
+	p *= 1.0 + float(n.danger - 1) * 0.08
+	p *= 1.0 - float(attr_stealth()) / float(ATTR_MAX) * 0.6
+	return clampf(p, 0.0, 0.6)
+
 func reactor() -> int:
 	var e := hull.reactor
 	if hull.perk_id == &"overspec_reactor":
@@ -511,12 +565,28 @@ func attr_sensors(bare: bool = false) -> int:
 			n += m.sensors
 	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
 
+## Heat comes off the top of Stealth rather than out of the modules that grant
+## it, because it is the one thing on the ship you cannot bolt a cover over. A
+## cold Redline is the quietest thing in the galaxy; the same hull at capacity is
+## a lit match, and no amount of baffling changes that. Four of ten at capacity —
+## enough to lose a check you would pass cold, not enough to erase a build.
+##
+## This is also what makes ambush_chance() a decision rather than a tax: the
+## stealth term there reads this, so running hot is punished twice through one
+## number, and fitting for stealth answers both.
+const HEAT_STEALTH_COST := 4.0
+
 func attr_stealth(bare: bool = false) -> int:
 	var n := hull.stealth
 	if not bare:
 		for m in installed:
 			n += m.stealth
-	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
+	# The heat penalty applies to BOTH readings. `bare` means "the chassis with
+	# nothing fitted", and heat is not something you fitted — so subtracting it
+	# only from the full reading would paint the loss as a module's fault in the
+	# attribute block, which draws chassis and modules in different colours.
+	var v := float(n) * SENSE_SCALE - signature() * HEAT_STEALTH_COST
+	return clampi(int(round(v)), 0, ATTR_MAX)
 
 ## Every attribute, in display order, as {key, label, short, value, base, text}.
 ##
@@ -904,5 +974,6 @@ func jump_to(index: int) -> void:
 	trail.append(index)
 	n.visited = true
 	jumps += 1
+	cool_in_transit()
 	Sig.resources_changed.emit()
 	Sig.jumped.emit(index)

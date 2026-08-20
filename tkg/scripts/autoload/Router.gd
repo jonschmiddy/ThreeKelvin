@@ -210,6 +210,17 @@ func resolve_current_node() -> void:
 	# asked to do anything with it — a station is a lit hab ring turning in the
 	# dark, not a menu that appears. Fights are the exception only in that they
 	# start immediately, and combat happens on the sector screen anyway.
+	# Something followed you in. This is a fight on the way to the door rather
+	# than instead of it: the system still holds whatever it held, so the node
+	# is NOT consumed by winning here — see start_combat's `clears_node`.
+	if not n.ambush.is_empty():
+		Run.log_line("Contact. Your heat bloom lit you up on the approach.", &"heat")
+		var extras: Array = []
+		for i in range(1, n.ambush.size()):
+			extras.append(DB.enemies[n.ambush[i]])
+		start_combat(DB.enemies[n.ambush[0]], extras, false)
+		return
+
 	match n.type:
 		MapGen.NodeType.GOAL:
 			Run.log_line("The core fills the viewport. Something is guarding it.", &"big")
@@ -244,6 +255,22 @@ func _roll_here(n: MapGen.MapNode) -> void:
 				n.event_key = EventTable.pick_key()
 		_:
 			pass
+	_roll_ambush(n)
+
+## Whether anything followed your heat trail in.
+##
+## Rolled here with the rest of what a system holds, and for the same reason:
+## arriving is the safe point, so a hostile your own throttle attracted cannot
+## be refused by quitting and coming back cold. Combat nodes are excluded
+## because they already hold a fight — being ambushed on the way to a fight is
+## the fight.
+func _roll_ambush(n: MapGen.MapNode) -> void:
+	if n.ambush_rolled or n.type == MapGen.NodeType.FIGHT \
+			or n.type == MapGen.NodeType.GOAL:
+		return
+	n.ambush_rolled = true
+	if randf() < Run.ambush_chance(n):
+		n.ambush = _roll_foes(n)
 
 ## The contact and its pack. Packs appear deeper in, and more often in lawless
 ## space where nobody is flying alone. They split health rather than doubling it
@@ -344,12 +371,14 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 ## `extras` is what the node already rolled. It is a parameter rather than
 ## something rolled in here so that the fight a node offers is decided once, at
 ## arrival, and survives a save — see _roll_here().
-func start_combat(template: EnemyTemplate, extras: Array = []) -> void:
+func start_combat(template: EnemyTemplate, extras: Array = [],
+		clears_node: bool = true) -> void:
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal".
 	Audio.music_state(&"boss" if template.boss else &"combat")
 	Run.node_at().fled = false
 	combat = Combat.new()
+	combat.clears_node = clears_node
 	var s := SectorScreen.new()
 	_swap(s)
 	# Connect before starting. Turn one resolves inside start() — charges, opening
@@ -404,6 +433,10 @@ func in_combat() -> bool:
 
 func after_combat(_c: Combat) -> void:
 	combat = null
+	# An ambush is spent whatever happened to it — killed, pacified or shaken
+	# off. Left on the node it would fire again the next time you flew in here,
+	# and the heat that attracted it is not the heat you are carrying now.
+	Run.node_at().ambush = []
 	if Run.dead or Run.won:
 		show_game_over()
 		return
