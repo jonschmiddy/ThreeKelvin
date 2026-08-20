@@ -121,7 +121,10 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	# exactly, and a co-op host sends this and nothing else to put four ships in
 	# one galaxy. See Rng.
 	galaxy_seed = Rng.roll_master()
-	Rng.reseed(galaxy_seed)
+	# ...and which ship in the party is drawing from it. One seed gives four
+	# machines one galaxy, which is the point; it must not also give them one
+	# hold. See Rng.seat.
+	Rng.reseed(galaxy_seed, Net.seat())
 
 	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
 	# HeadlessSim calls this directly, and a fixed default would report a win

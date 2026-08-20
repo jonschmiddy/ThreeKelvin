@@ -150,6 +150,25 @@ const CONVOY_TOP := 62
 const ARRIVE_LEAD := 0.25
 const ARRIVE_GAP := 0.35
 
+## Who is actually HERE, in arrival order.
+##
+## The sector is a place, not a party list. A ship two hundred light years away
+## is in your convoy and is not in this room, and drawing it beside your hull
+## says the opposite — during a fight it says it is helping. So the strip is
+## filtered by position and the STAR CHART is where the whole party lives,
+## because that is the screen whose subject is where everybody is.
+##
+## `where_is` returns -1 for somebody who has not reported a position yet, which
+## is a real answer and correctly matches nothing: a player still on the chassis
+## select has a galaxy and no place in it.
+func _here() -> Array:
+	if Run.map.is_empty():
+		return []
+	var at := Run.at
+	return Net.partners().filter(func(s: Dictionary) -> bool:
+		return int(s.get("at", -1)) == at)
+
+
 ## Who is flying with you, redrawn when that changes.
 ##
 ## Rebuilt only when the PARTY changes, not when a ship does. A partner's own
@@ -159,7 +178,7 @@ const ARRIVE_GAP := 0.35
 func refresh_convoy() -> void:
 	if _convoy == null:
 		return
-	var them := Net.partners()
+	var them := _here()
 	_convoy_pad.visible = not them.is_empty()
 	if not _convoy_pad.visible:
 		_clear_convoy()

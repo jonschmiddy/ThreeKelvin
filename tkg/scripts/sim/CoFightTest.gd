@@ -120,6 +120,12 @@ func _fly() -> void:
 	await _tree.process_frame
 	print("  %s flying a %s, galaxy seed %d" % [
 		_me, Run.hull.display_name(), Run.galaxy_seed])
+	# The seed is shared and the LOOT STREAM MUST NOT BE. Printed rather than
+	# asserted here because a single process cannot see the other one's — the
+	# shell script compares the two lines, which is the only place the claim can
+	# actually be checked.
+	print("[cofight] seat %d" % Rng.seat)
+	print("[cofight] lootseed %d" % Rng.loot.seed)
 
 	_at = _find_fight()
 	if not _ok("the shared galaxy holds a fight to share", _at >= 0):
@@ -231,6 +237,14 @@ func _play(cb: Combat) -> void:
 	if cb.result == &"victory":
 		_ok("and the win paid THIS ship", Run.kills == kills_before + 1)
 		_ok("and consumed the system for the party", Run.map[_at].cleared)
+		# What actually landed in the hold, for the same cross-process check.
+		# One kill pays every ship still in the fight — that is the ruling — but
+		# it must pay them DIFFERENT parts, or a party's loot is one player's
+		# loot printed twice.
+		var got := PackedStringArray()
+		for m in Run.cargo:
+			got.append(String(m.id))
+		print("[cofight] loot %s" % ("-".join(got) if got.size() > 0 else "none"))
 
 
 func _count_hit(_at2: int) -> void:

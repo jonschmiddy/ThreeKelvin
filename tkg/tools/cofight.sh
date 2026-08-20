@@ -46,6 +46,33 @@ echo
 echo "--- host ---";  grep -E '^  (ok|FAIL)|^  (HOST|GUEST)|^cofight' "$OUT/host.log"
 echo
 echo "--- guest ---"; grep -E '^  (ok|FAIL)|^  (HOST|GUEST)|^cofight' "$OUT/guest.log"
+# The claims neither process can check alone. A shared seed gives both machines
+# an identical galaxy, which is the point, and must NOT give them an identical
+# hold — the streams that decide what happens to a PLAYER are salted by seat.
+# Only a third observer can compare the two.
+RC=0
+pair() {
+	local what="$1" tag="$2"
+	local a b
+	a="$(grep -m1 "^\[cofight\] $tag " "$OUT/host.log"  | sed "s/^\[cofight\] $tag //")"
+	b="$(grep -m1 "^\[cofight\] $tag " "$OUT/guest.log" | sed "s/^\[cofight\] $tag //")"
+	if [ -z "$a" ] || [ -z "$b" ]; then
+		echo "  FAIL $what — one ship never reported ($tag)"; RC=1; return
+	fi
+	if [ "$a" = "$b" ]; then
+		echo "  FAIL $what"; echo "         both: $a"; RC=1
+	else
+		echo "  ok   $what"; echo "         host:  $a"; echo "         guest: $b"
+	fi
+}
+
+echo
+echo "--- across both ---"
+pair "the two ships are different seats" "seat"
+pair "and therefore draw loot from different streams" "lootseed"
+pair "so one kill pays two ships two different parts" "loot"
+
 echo
 echo "full logs in $OUT"
-[ "$GUEST_RC" -eq 0 ] && [ "$HOST_RC" -eq 0 ] && echo "cofight: PASS" || { echo "cofight: FAIL"; exit 1; }
+[ "$GUEST_RC" -eq 0 ] && [ "$HOST_RC" -eq 0 ] && [ "$RC" -eq 0 ] \
+	&& echo "cofight: PASS" || { echo "cofight: FAIL"; exit 1; }

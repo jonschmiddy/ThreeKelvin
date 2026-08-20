@@ -822,6 +822,17 @@ func fight_open_at(index: int) -> bool:
 	return f != null and not f.over
 
 
+## Which ship in the party this machine is: 0 for the host, then arrival order.
+##
+## ZERO WHEN FLYING ALONE, and that is what makes it safe to salt a solo run's
+## streams with — see `Rng.seat`. The order is assigned once by the host and
+## travels with the slot, so it does not shuffle when somebody reconnects the
+## way a peer id would.
+func seat() -> int:
+	var me := local_id()
+	return int(roster[me].get("order", 0)) if roster.has(me) else 0
+
+
 ## One player's name, or "" if the party has never heard of them.
 func name_of(id: int) -> String:
 	return String(roster[id].get("name", "")) if roster.has(id) else ""

@@ -313,6 +313,18 @@ The two directions are deliberately asymmetric.
 
 **Protocol 5** is this change.
 
+### One seed, four holds
+
+The first two-client playtest found something the protocol had nothing to do with: **both players were paid the same modules.**
+
+A shared seed gives four machines an identical galaxy, which is the whole point — and `Rng.loot`, `Rng.event`, `Rng.foe` and `Rng.fight` are **cursors, not derivations**. Four machines that have made the same number of draws are sitting at the same place in the same sequence, so two ships that kill the same frigate on the same turn get handed the same two parts. It is worse than plain duplication, because the moment the cursors drift apart it silently stops, which makes a seeding bug look like a network one.
+
+The split is the same one `Rng.derive()` already draws, one level up. **A thing that has a PLACE must agree** — the wreck's contents, the shop's shelves, what is flying at node 46 — and those were already positional. **A thing paid to a PLAYER must not**, and those are the streams. So `reseed()` takes the ship's seat in the party and salts everything except `world`, which builds the galaxy and has to be identical.
+
+Seat 0 is a deliberate no-op rather than a salt of zero, so every solo run still replays bit-for-bit from `-- seed N` and no seed in an old bug report changed meaning.
+
+Neither process can check this about itself, so `tools/cofight.sh` checks it from outside: it compares the two logs and fails if the seats match, if the loot seeds match, or if one kill paid two ships the same part.
+
 ### Two processes, one galaxy
 
 The end of the chain, run for real rather than argued:

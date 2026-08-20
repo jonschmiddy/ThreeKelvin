@@ -178,8 +178,11 @@ const CREW: Array = [
 ## wants to look at the party display can borrow it.
 static func fake_party(count: int) -> void:
 	Net.roster.clear()
+	# `at` matters now: EncounterView draws only the ships in the room with you,
+	# so a fabricated party with no position in it photographs an empty column.
+	var here := Run.at if not Run.map.is_empty() else 0
 	Net.roster[1] = {"id": 1, "name": "YOU", "hull": &"", "ready": true,
-		"order": 0, "build": {}}
+		"order": 0, "build": {}, "at": here}
 	for i in mini(count, CREW.size()):
 		var who: Array = CREW[i]
 		var b := _build(who[1], who[2], [
@@ -193,7 +196,7 @@ static func fake_party(count: int) -> void:
 		b.hp = int(b.max_hp * (1.0 - 0.3 * float(i)))
 		b.heat = int(b.heat_cap * (0.2 + 0.45 * float(i)))
 		Net.roster[2 + i] = {"id": 2 + i, "name": who[0], "hull": who[1],
-			"ready": true, "order": 1 + i, "build": b.to_wire()}
+			"ready": true, "order": 1 + i, "build": b.to_wire(), "at": here}
 	Sig.party_changed.emit()
 
 

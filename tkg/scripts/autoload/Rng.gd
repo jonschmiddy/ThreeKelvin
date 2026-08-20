@@ -55,6 +55,25 @@ var master: int = 0
 ## Set by `-- seed N` before the run starts. Zero means roll one.
 var forced: int = 0
 
+## WHICH SHIP IN THE PARTY THIS MACHINE IS. Zero when flying alone.
+##
+## A shared seed gives four machines an identical galaxy, which is exactly what
+## is wanted for the WORLD and exactly wrong for anything paid to a PLAYER. The
+## streams below are cursors, not derivations: four machines that have made the
+## same number of draws are at the same place in them, so two ships that kill
+## the same frigate on the same turn are handed the same two modules — and a
+## party's loot is duplicated rather than distributed. Worse, the moment the
+## cursors drift apart the duplication stops for no reason anybody can see,
+## which makes it look like a network bug instead of a seeding one.
+##
+## So the streams that decide what happens TO you are salted by your seat, and
+## `world` is not, because the galaxy has to agree. See reseed().
+##
+## Zero is a real value and it is deliberately a NO-OP rather than a salt of
+## zero: a solo run must replay bit-for-bit from `-- seed N`, and every seed
+## anybody has ever written in a bug report was rolled without this.
+var seat: int = 0
+
 ## Generated once at run start, in a fixed order, before play begins.
 var world: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Modules, hulls, affixes.
@@ -80,13 +99,25 @@ const _ODD: int = 1442695040888963407
 
 
 ## Start a run's rolls. Call once, before anything is generated.
-func reseed(seed_value: int) -> void:
+##
+## `seat_index` is which ship in the party this machine is flying — see `seat`.
+## The galaxy is NOT salted with it: `world` builds the map, the regions and the
+## names, and four players who disagree about those are not in the same game.
+## Everything else here decides something that happens to one player, so it is
+## salted, and the whole party is not handed the same drop off the same kill.
+func reseed(seed_value: int, seat_index: int = 0) -> void:
 	master = seed_value
+	seat = maxi(0, seat_index)
 	world.seed = _mix(master, S_WORLD)
-	loot.seed = _mix(master, S_LOOT)
-	event.seed = _mix(master, S_EVENT)
-	foe.seed = _mix(master, S_FOE)
-	fight.seed = _mix(master, S_FIGHT)
+	loot.seed = _seat(_mix(master, S_LOOT))
+	event.seed = _seat(_mix(master, S_EVENT))
+	foe.seed = _seat(_mix(master, S_FOE))
+	fight.seed = _seat(_mix(master, S_FIGHT))
+
+
+## Salt one stream by the seat, or leave it exactly as it was when flying alone.
+func _seat(base: int) -> int:
+	return base if seat == 0 else _mix(base, seat)
 
 
 ## The master seed for a new run: the one from `-- seed N` if there is one, and
@@ -122,14 +153,17 @@ func derive(tag: StringName, index: int) -> RandomNumberGenerator:
 ## That is both a save-scum and a bug that only shows up on the second session.
 func state() -> Dictionary:
 	return {
-		"master": master,
+		"master": master, "seat": seat,
 		"world": world.state, "loot": loot.state, "event": event.state,
 		"foe": foe.state, "fight": fight.state,
 	}
 
 
 func restore(d: Dictionary) -> void:
-	reseed(int(d.get("master", 0)))
+	# Seat first, so a save that predates it lands on 0 and a resumed co-op run
+	# does not quietly change which ship it is. The cursors below overwrite the
+	# seeds anyway; this only matters for a field the save is missing.
+	reseed(int(d.get("master", 0)), int(d.get("seat", 0)))
 	world.state = int(d.get("world", world.state))
 	loot.state = int(d.get("loot", loot.state))
 	event.state = int(d.get("event", event.state))
