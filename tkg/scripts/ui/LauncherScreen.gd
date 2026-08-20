@@ -72,6 +72,23 @@ const MENU_SIZE := UITheme.FS_HEAD
 const BEARING_FIX := (TITLE_SIZE - MENU_SIZE) / 8
 
 var _settings: SettingsMenu = null
+## The dim + panel that FLY TOGETHER, FLIGHT RECORD and CONTINUE open into.
+## One at a time, and never at the same time as the settings menu.
+var _popup: Control = null
+## How far the popup frame sits inside the screen. TWO numbers, one shared by all
+## three popups — the lobby, the flight record and the continue prompt are the
+## same kind of object and should not be three different rectangles.
+##
+## Wider inset than tall on purpose. On a 960x540 viewport this leaves about
+## 620x348, which is portrait-ish rather than a letterbox. Every one of these
+## panels is a COLUMN of things — a list of runs, a stack of party fields, a
+## question and two buttons — and a column reads badly stretched across a wide
+## frame: the eye has to travel the full width to find the next short line.
+## Vertical space is the cheap axis here, because the content scrolls.
+const POPUP_INSET_H := 170
+const POPUP_INSET_V := 96
+## The corner checkbox, kept so it can repaint itself when flipped.
+var _dev_box: Button = null
 var _sky: StarchartScreen.MapChart = null
 var _spin: float = 0.0
 ## Whether the sky has been given its real size yet.
@@ -104,6 +121,7 @@ func setup() -> void:
 	holder.add_theme_constant_override("margin_bottom", 24)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(holder)
+	_add_dev_toggle()
 
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -143,18 +161,22 @@ func setup() -> void:
 		# than under the word. Two lines of grey explaining one menu item is the
 		# kind of thing a title screen accumulates — you read it once, ever, and
 		# then it sits there being the busiest part of the corner.
-		var go := _option("CONTINUE", func() -> void: Router.continue_run(), true)
-		go.tooltip_text = "%s\nContinuing consumes the save. There is no going back to it." % [
-			_save_line(save)]
-		menu.add_child(go)
+		menu.add_child(_option("CONTINUE", _confirm_continue, true))
 
 	# White marks the option you most likely came here for, and there is exactly
 	# one: the run you were already flying, or — with nothing to return to — a
 	# new one. Everything else is grey. Hard-coding CONTINUE as the white one
 	# would leave a first-time player looking at five identical grey lines.
 	menu.add_child(_option("NEW RUN", func() -> void: Router.new_run(), save.is_empty()))
-	menu.add_child(_option("FLY TOGETHER", func() -> void: Router.show_lobby()))
-	menu.add_child(_option("FLIGHT RECORD", func() -> void: Router.show_history(true)))
+	menu.add_child(_option("FLY TOGETHER", func() -> void:
+		var lob := LobbyScreen.new()
+		lob.on_leave = _close_popup
+		_open_popup(lob)
+		lob.setup()))
+	menu.add_child(_option("FLIGHT RECORD", func() -> void:
+		var hist := HistoryScreen.new()
+		_open_popup(hist)
+		hist.setup(_close_popup)))
 	menu.add_child(_option("SETTINGS", _open_settings))
 
 	# Red on hover, alone among the five. Everything else on this screen leads
@@ -163,6 +185,150 @@ func setup() -> void:
 	quit.add_theme_color_override("font_hover_color", Color("#d4614f"))
 	quit.add_theme_color_override("font_pressed_color", Color("#f08872"))
 	menu.add_child(quit)
+
+## The developer switch, small, in the corner where a build stamp goes.
+##
+## Not in the menu column: that column is the five things a player came here to
+## do, and this is not one of them. A corner checkbox reads as a property OF the
+## build rather than as a destination, which is what it is.
+##
+## Anchored to the bottom-right of the screen rather than laid out in a
+## container, so it stays pinned to the corner at every window size and cannot
+## push the title or the menu around.
+##
+## Repaints ITSELF and nothing else.
+##
+## It used to rebuild the whole launcher, on the reasoning that everything this
+## flag gates is built-or-not-built rather than hidden. That was true and still
+## is — but the only thing ON THIS SCREEN the flag changes is this checkbox, and
+## rebuilding took the galaxy backdrop with it, restarting its rotation from zero
+## every time the switch was touched.
+##
+## Every other screen rebuilds off Sig.dev_mode_changed instead, which is where
+## that responsibility belongs: the HUD outlives screen swaps and had to listen
+## anyway, and a screen built AFTER the toggle reads the flag correctly for free.
+func _add_dev_toggle() -> void:
+	# Built through Widgets.button so it gets the click and hover sounds, which
+	# means the action has to be supplied at construction — it connects `pressed`
+	# immediately and a null Callable is an error. The lambda reaches the button
+	# through the member rather than through itself, since it cannot capture a
+	# local that does not exist yet.
+	_dev_box = Widgets.button("", func() -> void:
+		DevMode.toggle()
+		_paint_dev_toggle(_dev_box))
+	var box := _dev_box
+	box.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	box.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	box.add_theme_color_override("font_hover_color", UITheme.ICE)
+	box.add_theme_color_override("font_pressed_color", UITheme.HOT)
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		box.add_theme_stylebox_override(st, UITheme.empty())
+	_paint_dev_toggle(box)
+	box.tooltip_text = Widgets.tip("Card gallery, the whole star chart, and any hull grade at launch.\nNot the game — do not judge pacing or difficulty with this on.")
+	box.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	box.offset_right = -14
+	box.offset_bottom = -10
+	add_child(box)
+
+## CONTINUE, with the thing it consumes shown first.
+##
+## The only one of the three that is not a screen — it loads and flies. It gets
+## a panel anyway because it is the single irreversible button on this screen:
+## loading DELETES the save, by design, so that quitting stays a bookmark
+## rather than a checkpoint. A menu item that quietly eats your only save on
+## one click was relying on a tooltip nobody has to read.
+func _confirm_continue() -> void:
+	var save := SaveGame.summary()
+	if save.is_empty():
+		return
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	col.add_child(UITheme.body("RESUME THIS RUN", UITheme.ICE, UITheme.FS_HEAD))
+	col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
+	col.add_child(UITheme.body(
+		"Continuing consumes the save. There is no going back to it.",
+		UITheme.COLD, UITheme.FS_SMALL))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(Widgets.button("CONTINUE", func() -> void:
+		_close_popup()
+		Router.continue_run()))
+	row.add_child(Widgets.button("NOT YET", _close_popup))
+	col.add_child(row)
+
+	# Centred in the same frame the other two get. It has far less in it, and
+	# that is fine — three popups at three sizes read as three different kinds of
+	# thing, when they are all just "a panel on the title screen".
+	var centre := CenterContainer.new()
+	centre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	centre.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	centre.add_child(col)
+	_open_popup(centre)
+
+## Open a screen OVER the title rather than instead of it.
+##
+## The lobby, the flight record and the continue prompt are all things you do
+## BEFORE a run, from the title screen, and swapping the whole view for them
+## threw away the galaxy behind it and made coming back a rebuild. As overlays
+## they read as what they are: a panel you opened and will close again.
+##
+## The shade eats input, so the menu underneath cannot be clicked through, and
+## a click on the dim margin closes — the same dismissal the deck popup uses.
+func _open_popup(inner: Control) -> void:
+	if _popup != null or _settings != null:
+		return
+	var shade := ColorRect.new()
+	shade.color = Color(0.02, 0.03, 0.05, 0.80)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	shade.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_close_popup())
+	add_child(shade)
+	_popup = shade
+
+	var pad := MarginContainer.new()
+	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side, POPUP_INSET_H)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, POPUP_INSET_V)
+	shade.add_child(pad)
+
+	# Scrolled, and horizontal scrolling DISABLED on purpose. That is what forces
+	# the content to the panel's width, which is what makes wrapping labels
+	# actually wrap — these screens were written to fill a viewport, and given a
+	# free horizontal axis a long line simply widens the column and runs off the
+	# frame instead of folding.
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	inner.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.add_child(inner)
+
+	# The panel stops the press, so only the dim margin dismisses.
+	var frame := Widgets.panel_with(scroll)
+	frame.mouse_filter = Control.MOUSE_FILTER_STOP
+	pad.add_child(frame)
+
+## The box and its colour, for whichever state the flag is in now.
+static func _paint_dev_toggle(box: Button) -> void:
+	box.text = "%s  DEVELOPER MODE" % ("[X]" if DevMode.enabled else "[ ]")
+	var tint := UITheme.EMBER if DevMode.enabled else UITheme.QUOTE
+	box.add_theme_color_override("font_color", tint)
+	box.add_theme_color_override("font_focus_color", tint)
+
+func _close_popup() -> void:
+	if _popup == null:
+		return
+	_popup.queue_free()
+	_popup = null
 
 ## Nudge a control right by the side-bearing difference. See BEARING_FIX.
 func _indent(c: Control) -> MarginContainer:

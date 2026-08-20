@@ -101,12 +101,12 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			# whether the part is broken.
 			if price > 0:
 				var sell := _btn("SELL +%d" % price, on_action.bind("sell", m))
-				sell.tooltip_text = "What this market pays. A house's own yard is thick with its own parts; a rival's yard is short of them."
+				sell.tooltip_text = tip("What this market pays. A house's own yard is thick with its own parts; a rival's yard is short of them.")
 				buttons.add_child(sell)
 			else:
 				var refused := _btn("WILL NOT BUY", on_action.bind("noop", m))
 				refused.disabled = true
-				refused.tooltip_text = "Illegal here. Fences in lawless space pay over the odds for it."
+				refused.tooltip_text = tip("Illegal here. Fences in lawless space pay over the odds for it.")
 				buttons.add_child(refused)
 			buttons.add_child(_scrap_button(m, on_action))
 		ModuleContext.INSTALLED:
@@ -122,7 +122,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 ## made a part into a second currency.
 static func _scrap_button(m: ModuleData, on_action: Callable) -> Button:
 	var b := _btn("SCRAP +%d" % Run.scrap_value_of(m), on_action.bind("scrap", m))
-	b.tooltip_text = "Break it down where you stand. The floor under every part — no station and no route needed."
+	b.tooltip_text = tip("Break it down where you stand. The floor under every part — no station and no route needed.")
 	return b
 
 static func hull_row(h: HullData, label: String, price: int,
@@ -227,6 +227,31 @@ static func clear(node: Node) -> void:
 	for c in node.get_children():
 		node.remove_child(c)
 		c.queue_free()
+
+## Tooltip text, hard-wrapped so every tooltip in the game is the same shape.
+##
+## The theme gives TooltipPanel its padding and its plate, but Godot still
+## sizes the panel to whatever the text asks for — so a long line makes a
+## tooltip most of the viewport wide and a short one makes a sliver. A Label
+## inside a themed TooltipPanel cannot be handed an autowrap mode from the
+## theme, so the wrap has to happen in the STRING, before it is assigned.
+##
+## Breaks on spaces and preserves newlines already in the text, so a tooltip
+## written as "NAME\nbody" keeps its heading and only the body folds.
+static func tip(text: String) -> String:
+	var out: PackedStringArray = []
+	for para in text.split("\n"):
+		var line := ""
+		for word in (para as String).split(" "):
+			if line == "":
+				line = word
+			elif line.length() + 1 + (word as String).length() <= UITheme.TOOLTIP_WRAP:
+				line += " " + word
+			else:
+				out.append(line)
+				line = word
+		out.append(line)
+	return "\n".join(out)
 
 static func panel_with(child: Control) -> PanelContainer:
 	var p := PanelContainer.new()

@@ -51,6 +51,10 @@ var _auto: bool = false
 var _wait_for: int = 2
 
 
+## How to leave. Empty means "this is a whole screen, go back to the title";
+## the launcher sets it so the same class can be a panel ON the title instead.
+var on_leave: Callable = Callable()
+
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -259,7 +263,12 @@ func _host_box() -> Control:
 		+ " this machine on the local network — friends in the house can use it"
 		+ " as it stands. Anyone outside needs your public address typed over"
 		+ " it, and the port forwarded here.") % DirectTransport.DEFAULT_PORT
-	box.add_child(UITheme.body(note, UITheme.QUOTE, UITheme.FS_SMALL))
+	var note_label := UITheme.body(note, UITheme.QUOTE, UITheme.FS_SMALL)
+	# The only long note on this screen that was not wrapping. Harmless while the
+	# lobby was a full screen; as a panel it pushed the whole column wider than
+	# its frame and the text ran off the right-hand edge.
+	note_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(note_label)
 	return box
 
 
@@ -421,6 +430,9 @@ func _join() -> void:
 
 func _leave() -> void:
 	Net.leave_party()
+	if on_leave.is_valid():
+		on_leave.call()
+		return
 	Router.show_launcher()
 
 

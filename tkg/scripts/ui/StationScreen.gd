@@ -192,7 +192,7 @@ func _refresh() -> void:
 	var repair := Widgets.button("REPAIR %d HULL · %d credits" % [eight, eight_cost],
 		_repair.bind(eight))
 	repair.disabled = missing <= 0 or Run.credits < eight_cost
-	repair.tooltip_text = "%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n)
+	repair.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
 	_services.add_child(repair)
 
 	var full_cost := Market.repair_price(n, missing)
@@ -225,7 +225,7 @@ func _refresh() -> void:
 		var paid := Market.material_price(n, mid)
 		var b := Widgets.button("SELL 1 %s → %d SCRAP" % [
 			str(stock.name).to_upper(), paid], _sell_material.bind(mid))
-		b.tooltip_text = "You have %d. Laboratories pay for these; mining outposts use them as ballast." % int(stock.count)
+		b.tooltip_text = Widgets.tip("You have %d. Laboratories pay for these; mining outposts use them as ballast." % int(stock.count))
 		_services.add_child(b)
 
 	for c in _hull_box.get_children():
@@ -267,7 +267,7 @@ func _refresh() -> void:
 		var b := Widgets.button("%s · %s" % [str(r.name), Fabricator.cost_line(n, r)],
 			_fabricate.bind(r))
 		b.disabled = not Fabricator.can_make(n, r)
-		b.tooltip_text = str(r.text)
+		b.tooltip_text = Widgets.tip(str(r.text))
 		_bench.add_child(b)
 
 func _repair(amount: int) -> void:

@@ -174,10 +174,17 @@ func _maker_row(i: int) -> Button:
 	# Widgets.button, not Button.new(). That is where every click and hover sound
 	# in the game is wired, so building the Button directly made the chassis
 	# select the one screen in the interface that answered silently.
+	var open := Unlocks.unlocked(man)
 	var btn := Widgets.button("", _select.bind(i))
 	btn.flat = true
 	btn.custom_minimum_size = Vector2(0, 34)
-	btn.tooltip_text = "%s\n%s" % [m.name, m.identity]
+	# A locked house still says WHAT IT IS. The identity line is the pitch, and it
+	# is what makes a locked row a thing you want rather than a row you cannot
+	# press. Only the NAME is withheld, and the line under it says what it costs.
+	btn.tooltip_text = Widgets.tip("%s\n%s" % [m.name if open else "????", m.identity])
+	if not open:
+		btn.tooltip_text += Widgets.tip("\n\n%s" % Unlocks.lock_line(man))
+		btn.disabled = true
 	# Hover fills with the maker's SECONDARY colour — the field the emblem is
 	# stamped on, not the accent. Seven rows that highlight identically make you
 	# read the label to know what you are pointing at; seven that light up in
@@ -201,13 +208,18 @@ func _maker_row(i: int) -> Button:
 	row.offset_right = -5
 
 	var badge := Badge.new()
-	badge.man = man
-	badge.mark = m.colour
-	badge.field = m.field
+	# Locked rows keep their SHAPE so the list still reads as seven houses rather
+	# than one house and six gaps. Only the identifying marks are withheld.
+	badge.man = man if open else &""
+	badge.mark = m.colour if open else UITheme.QUOTE
+	badge.field = m.field if open else UITheme.PANEL
 	badge.scale_px = 2.0
+	badge.locked = not open
 	row.add_child(badge)
 
-	var label := UITheme.body(DB.short_name(m.name).to_upper(), m.colour, UITheme.FS_HEAD)
+	var label := UITheme.body(
+		DB.short_name(m.name).to_upper() if open else "????",
+		m.colour if open else UITheme.QUOTE, UITheme.FS_HEAD)
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(label)
 
@@ -225,6 +237,10 @@ const DIM := Color(0.62, 0.66, 0.74, 0.42)
 const LIT := Color(1, 1, 1, 1)
 
 func _select(i: int) -> void:
+	# A locked house is not flyable. The button is disabled too; this is the belt
+	# to that braces, because _select is also called from setup() with a literal 0.
+	if not Unlocks.unlocked(DB.STARTABLE[i]):
+		return
 	# Or it hangs over the new ship showing the last one's cards. The popup is a
 	# child of this screen, not of the detail panel, so rebuilding the detail
 	# does not take it with it.
@@ -498,7 +514,7 @@ func _align(c: Control) -> MarginContainer:
 static func _tipped(inner: Control, tip: String) -> Control:
 	inner.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	inner.mouse_filter = Control.MOUSE_FILTER_STOP
-	inner.tooltip_text = tip
+	inner.tooltip_text = Widgets.tip(tip)
 	var outer := HBoxContainer.new()
 	outer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	outer.add_child(inner)
@@ -583,7 +599,7 @@ func _show_deck() -> void:
 			# and the gallery show. Nine cards you cannot read the small print of
 			# are nine pictures.
 			v.mouse_filter = Control.MOUSE_FILTER_STOP
-			v.tooltip_text = c.name
+			v.tooltip_text = Widgets.tip(c.name)
 			flow.add_child(v)
 	# Capped at two rows of cards. A deck that outgrows it scrolls rather than
 	# pushing the panel off the top and bottom of the screen.
@@ -636,9 +652,8 @@ func _weight_button(man: StringName, w: HullData.Weight, m: ManufacturerData) ->
 	# Nothing else: every stat that used to be here is already on screen for the
 	# selected chassis, in the attribute block and the hardpoint rows, and
 	# clicking is how you compare them.
-	btn.tooltip_text = "%s
-%s" % [
-		HullData.weight_name(w), WEIGHT_BLURB[int(w)]]
+	btn.tooltip_text = Widgets.tip("%s\n%s" % [
+		HullData.weight_name(w), WEIGHT_BLURB[int(w)]])
 	return btn
 
 
@@ -744,6 +759,10 @@ class Badge extends Control:
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
 	var scale_px: float = 1.0
+	## Draw a question mark instead of the house's emblem. An emblem IS the
+	## identity, so showing one on a house you have not earned would give the
+	## answer away in the one place the name is being withheld.
+	var locked: bool = false
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -757,4 +776,24 @@ class Badge extends Control:
 		var s := 13.0 * scale_px
 		draw_rect(Rect2(Vector2.ZERO, Vector2(s, s)), field, true)
 		draw_rect(Rect2(Vector2.ZERO, Vector2(s, s)), mark.darkened(0.3), false, 1.0)
+		if locked:
+			_question(s)
+			return
 		CardView.draw_emblem(self, man, Vector2(s, s) * 0.5, scale_px, mark, field)
+
+	## A question mark in rects, at the emblem's own scale. Drawn rather than
+	## typed because every mark beside it is drawn, and a font glyph at this size
+	## sits on a different baseline and reads as a different KIND of thing than
+	## the emblems it is standing in for.
+	func _question(s: float) -> void:
+		var u := scale_px
+		var x := s * 0.5 - u * 1.5
+		var y := s * 0.5 - u * 3.5
+		for r in [
+			Rect2(x, y, u * 3.0, u),                    # top bar
+			Rect2(x + u * 2.0, y + u, u, u * 2.0),      # right shoulder
+			Rect2(x + u, y + u * 3.0, u * 2.0, u),      # the turn inward
+			Rect2(x + u, y + u * 4.0, u, u),            # stem
+			Rect2(x + u, y + u * 6.0, u, u),            # the dot
+		]:
+			draw_rect(r, mark, true)

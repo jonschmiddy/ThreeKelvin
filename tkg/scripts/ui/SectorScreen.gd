@@ -601,7 +601,7 @@ func _refresh_salvage() -> void:
 			_stowed = true
 			_refresh())
 	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stow.tooltip_text = "Keeps it all in the hold. Fit or scrap it from the SHIP page."
+	stow.tooltip_text = Widgets.tip("Keeps it all in the hold. Fit or scrap it from the SHIP page.")
 	actions.add_child(stow)
 	var dump := Widgets.button("JETTISON",
 		func() -> void:
@@ -609,7 +609,7 @@ func _refresh_salvage() -> void:
 			Run.found_hull = null
 			Sig.ship_changed.emit()
 			_refresh())
-	dump.tooltip_text = "Destroys everything in the hold. There is no reason to do this."
+	dump.tooltip_text = Widgets.tip("Destroys everything in the hold. There is no reason to do this.")
 	actions.add_child(dump)
 	_salvage.add_child(actions)
 

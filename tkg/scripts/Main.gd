@@ -133,6 +133,7 @@ func _ready() -> void:
 		return
 
 	DisplaySettings.load_and_apply()
+	DevMode.load_settings()
 	theme = UITheme.build()
 
 	var margin := MarginContainer.new()

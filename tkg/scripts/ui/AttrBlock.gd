@@ -113,7 +113,7 @@ func _build_row(a: Dictionary) -> Control:
 
 	# What the attribute actually gets checked for, on hover. Six labelled rows
 	# say what the axes ARE; only the tooltip can say why you would want one.
-	row.tooltip_text = _hint(a)
+	row.tooltip_text = Widgets.tip(_hint(a))
 	outer.add_child(row)
 	var slack := Control.new()
 	slack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -130,8 +130,7 @@ func _build_row(a: Dictionary) -> Control:
 ## already paint the chassis in the house colour and anything fitted in white.
 ## A tooltip that restates what you are pointing at is a tooltip you stop reading.
 static func _hint(a: Dictionary) -> String:
-	return "%s
-%s" % [String(a.label).capitalize(), String(a.text)]
+	return "%s\n%s" % [String(a.label).capitalize(), String(a.text)]
 
 ## Repaint in place. Hull falls as you take damage and Sensors moves every time
 ## you fit something, so this is called far more often than setup().

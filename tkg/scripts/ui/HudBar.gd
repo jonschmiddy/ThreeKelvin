@@ -57,6 +57,18 @@ func _ready() -> void:
 	Sig.resources_changed.connect(refresh)
 	Sig.ship_changed.connect(refresh)
 	Sig.screen_changed.connect(refresh)
+	Sig.dev_mode_changed.connect(_rebuild)
+	refresh()
+
+## Throw the bar away and build it again.
+##
+## The dev switch decides which tabs EXIST, not which are visible, so repainting
+## is not enough — the row has to be constructed a second time. Widgets.clear()
+## rather than a bare queue_free(): the old tabs must be gone before the new ones
+## are added, or the row lays out both for a frame.
+func _rebuild() -> void:
+	Widgets.clear(_row)
+	_build()
 	refresh()
 
 func _build() -> void:
@@ -135,8 +147,12 @@ func _build() -> void:
 	# and mid-fight is exactly when you want to check what a card was supposed
 	# to say. It DOES grey while choosing a chassis, which is the one moment
 	# there is no run to come back to.
-	_tab_cards = _tab("CARDS", func() -> void: Router.show_cards())
-	_row.add_child(_tab_cards)
+	# Dev only. Every card in the game on one page is an authoring view, and a
+	# player who reads it has been handed the answer to a game about finding out
+	# what things do. Not built at all rather than hidden — see DevMode.
+	if DevMode.enabled:
+		_tab_cards = _tab("CARDS", func() -> void: Router.show_cards())
+		_row.add_child(_tab_cards)
 	# The record sits beside the catalog: both are things you read rather than
 	# places you go, and neither changes the run.
 	_tab_history = _tab("HISTORY", func() -> void: Router.show_history())
@@ -188,7 +204,7 @@ func refresh() -> void:
 	var hull_note := "Your hull is the ship itself — this is your health.\nAt zero the run ends. Stations weld it back on, for credits."
 	_hull.set_hull(Run.hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
-	_hull.tooltip_text = hull_note
+	_hull.tooltip_text = Widgets.tip(hull_note)
 	# Colour carries it, without the word. The cells already go green to ember to
 	# red and the figure turns with them at the same third, so the label was a
 	# third copy of a signal that was reading fine twice.
@@ -208,7 +224,7 @@ func refresh() -> void:
 		heat_note = "Weapons and systems run hot — heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Vents %d a turn on its own." % [
 			over, over, shed]
 	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
-	_heat.tooltip_text = heat_note
+	_heat.tooltip_text = Widgets.tip(heat_note)
 	_hint(_heat_label, heat_note)
 	_heat_text.text = ("%d — %d HULL" % [Run.heat, over]) if over > 0 \
 		else "%d/%d" % [Run.heat, Run.heat_cap()]
@@ -258,11 +274,11 @@ func _hintable(c: Control) -> Control:
 	return c
 
 func _hint(c: Control, text: String) -> void:
-	c.tooltip_text = text
+	c.tooltip_text = Widgets.tip(text)
 	for child in c.get_children():
 		var cc := child as Control
 		if cc != null:
-			cc.tooltip_text = text
+			cc.tooltip_text = Widgets.tip(text)
 
 ## One readout per material held. Rebuilt only when the SET changes — picking up
 ## a material you had none of, or spending the last of one. A count going from 3
@@ -312,9 +328,14 @@ func _tab(label: String, action: Callable) -> Button:
 ## on and hoping the next state overwrites them is how a tab stays amber after
 ## you have left the page it belongs to.
 func _state(b: Button, active: bool, lock: String, hint: String) -> void:
+	# A tab that dev mode did not build is null, not hidden. Guarded here rather
+	# than at each call site, because this is the one place they all pass through
+	# and the next optional tab should not have to remember.
+	if b == null:
+		return
 	var locked := lock != ""
 	b.disabled = locked or active
-	b.tooltip_text = lock if locked else hint
+	b.tooltip_text = Widgets.tip(lock if locked else hint)
 	if active and not locked:
 		# Lit, not greyed: an active tab is a statement, not an unavailable option.
 		b.add_theme_stylebox_override("normal", UITheme.bevel(Color("#4a2a0c"), 3, 5))

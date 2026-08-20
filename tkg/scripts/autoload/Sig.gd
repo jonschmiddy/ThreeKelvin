@@ -12,6 +12,10 @@ signal log_line(text: String, kind: StringName)
 signal jumped(node_index: int)
 signal map_changed()
 signal screen_changed()             ## a screen was swapped in; nav re-evaluates
+## The developer switch was flipped. Anything that BUILDS controls behind
+## DevMode.enabled has to rebuild here: the HUD is constructed once at boot and
+## would otherwise keep whichever tabs it was born with until the game restarts.
+signal dev_mode_changed()
 
 # Combat
 signal combat_started(enemy_name: String)

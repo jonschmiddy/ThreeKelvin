@@ -15,7 +15,6 @@ var _chart: MapChart
 var _layer_cells: HBoxContainer
 var _layer_text: Label
 var _icons_btn: Button
-var _all_btn: Button
 var _links_btn: Button
 
 var _dest_name: Label
@@ -61,24 +60,22 @@ func _build() -> void:
 	var strip_gap := Control.new()
 	strip_gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	strip.add_child(strip_gap)
-	_icons_btn = Widgets.button("HIDE SYSTEMS", _on_toggle_icons)
-	_icons_btn.custom_minimum_size = Vector2(112, 14)
-	strip.add_child(_icons_btn)
-	# Debug: drop the "visited or reachable" filter and draw the whole map.
-	# Useful for looking at generation — whether the shells are spaced sensibly,
-	# whether a galaxy rolled something odd — which the play view deliberately
-	# hides.
-	_all_btn = Widgets.button("SHOW ALL SYSTEMS", _on_toggle_all)
-	_all_btn.custom_minimum_size = Vector2(136, 14)
-	strip.add_child(_all_btn)
+	# All three of these are dev only. They exist to look at GENERATION — whether
+	# the shells are spaced sensibly, how the lattice is wired, whether a galaxy
+	# rolled something odd — and every one of them shows the player the map they
+	# are supposed to be earning. See DevMode.
+	if DevMode.enabled:
+		_icons_btn = Widgets.button("HIDE SYSTEMS", _on_toggle_icons)
+		_icons_btn.custom_minimum_size = Vector2(112, 14)
+		strip.add_child(_icons_btn)
 
 	# Debug: the lattice MapGen actually built, rather than the slice of it you
 	# are allowed to use. Pairs with the button beside it — that one shows every
 	# system, this one shows how they are wired, and a generation problem is
 	# usually only visible with both on.
-	_links_btn = Widgets.button("SHOW ALL LINKS", _on_toggle_links)
-	_links_btn.custom_minimum_size = Vector2(128, 14)
-	strip.add_child(_links_btn)
+		_links_btn = Widgets.button("SHOW ALL LINKS", _on_toggle_links)
+		_links_btn.custom_minimum_size = Vector2(128, 14)
+		strip.add_child(_links_btn)
 	root.add_child(strip)
 
 	# --- chart | destination
@@ -442,17 +439,15 @@ func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 ## systems are, unavoidably, 190 icons sitting on top of it.
 func _on_toggle_icons() -> void:
 	_chart.show_icons = not _chart.show_icons
-	_icons_btn.text = "HIDE SYSTEMS" if _chart.show_icons else "SHOW SYSTEMS"
+	if _icons_btn != null:
+		_icons_btn.text = "HIDE SYSTEMS" if _chart.show_icons else "SHOW SYSTEMS"
 	_chart.queue_redraw()
 
-func _on_toggle_all() -> void:
-	_chart.show_all = not _chart.show_all
-	_all_btn.text = "SHOW ALL SYSTEMS" if not _chart.show_all else "SHOW KNOWN ONLY"
-	_chart.queue_redraw()
 
 func _on_toggle_links() -> void:
 	_chart.show_links = not _chart.show_links
-	_links_btn.text = "SHOW ALL LINKS" if not _chart.show_links else "HIDE LINKS"
+	if _links_btn != null:
+		_links_btn.text = "SHOW ALL LINKS" if not _chart.show_links else "HIDE LINKS"
 	_chart.queue_redraw()
 
 func _on_chart_cleared() -> void:
@@ -929,7 +924,14 @@ class MapChart extends Control:
 	## routes, no trail, no tooltip.
 	var show_icons: bool = true
 	## Debug: ignore the visited/reachable filter and draw every system.
-	var show_all: bool = false
+	## REMOVED. There used to be a `show_all` here, and a dev button that turned
+	## it on, drawing every system in the galaxy whether or not you had any way
+	## to reach it. It came out because it defeats the one thing the chart is
+	## for: the map you have EARNED. Dev mode still opens the card gallery and
+	## the manufacturer list, but it no longer shows you the board.
+	##
+	## Nothing was ever reachable through it — jumping has always been gated on
+	## Run.can_jump_to() — so this only ever revealed, never travelled.
 	## Debug: draw every link in the map, not only the ones you could take.
 	## Off by default — it is a diagnostic, not a view.
 	var show_links: bool = false
@@ -1387,7 +1389,7 @@ class MapChart extends Control:
 		var out: Dictionary = {}
 		for n in Run.map:
 			var t: MapGen.MapNode = n
-			if show_all or t.visited:
+			if t.visited:
 				out[t.index] = true
 			# Stations are always on the chart, visited or not.
 			#

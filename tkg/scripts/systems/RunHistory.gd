@@ -56,6 +56,11 @@ static func record(outcome: Outcome, reason: String) -> void:
 		depth = _deepest_shell(),
 		shells = MapGen.LAYERS,
 		hull = Run.hull.display_name(),
+		# WHO YOU LAUNCHED AS, by id. `hull` is a display string and `makers` is a
+		# tally of the parts you ended up carrying; neither answers "which house
+		# did this player fly", which is the question the unlock chain asks. See
+		# Unlocks.
+		chassis_maker = String(Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),
 		galaxy = Run.galaxy_name,
 		galaxy_title = Run.galaxy_title,

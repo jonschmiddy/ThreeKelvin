@@ -28,6 +28,20 @@ const BEVEL_LO := Color("#080b11")
 # and the point of a pixel font is lost. The viewport is 960x540 drawn at 2x,
 # so 8 here is 16 real pixels on a 1080p screen.
 const FS_SMALL := 8
+
+## Tooltips are held to one rectangle rather than sized to their text. See the
+## TooltipPanel block in build(). TOOLTIP_WRAP is in CHARACTERS, applied by
+## Widgets.tip() when the text is set, because a Label inside a themed
+## TooltipPanel cannot be given an autowrap mode from the theme itself.
+##
+## 32 is narrow on purpose. A tooltip is read in one glance beside the thing it
+## describes, not scanned like a paragraph, and a narrow column keeps it out of
+## the way of whatever you are pointing at. Prose measures usually want 45-75
+## characters; this is deliberately under that, because the text here is one or
+## two sentences and never a body of copy.
+const TOOLTIP_PAD_V := 6
+const TOOLTIP_PAD_H := 9
+const TOOLTIP_WRAP := 32
 const FS_BODY := 8
 const FS_HEAD := 16
 
@@ -97,8 +111,25 @@ static func build() -> Theme:
 	t.set_stylebox("fill", "ProgressBar", flat(HULL_GREEN, Color(0, 0, 0, 0), 0, 0, 0))
 	t.set_font_size("font_size", "ProgressBar", FS_SMALL)
 
-	t.set_stylebox("panel", "TooltipPanel", bevel(PANEL2, 4, 6))
+	# Tooltips, held to one shape.
+	#
+	# Godot sizes a tooltip to its text, so a screen full of them is a screen
+	# full of different rectangles — a four-word one is a sliver and a
+	# three-sentence one runs most of the way across the viewport. Padding it
+	# generously and giving the panel a minimum width puts a floor under the
+	# small ones; TOOLTIP_WRAP puts a ceiling over the large ones by breaking
+	# their lines before the viewport does.
+	#
+	# Both halves are needed. Only a minimum and the long ones still sprawl;
+	# only a wrap and the short ones are still slivers.
+	var tip := bevel(PANEL2, TOOLTIP_PAD_V, TOOLTIP_PAD_H)
+	tip.set_content_margin(SIDE_LEFT, TOOLTIP_PAD_H)
+	tip.set_content_margin(SIDE_RIGHT, TOOLTIP_PAD_H)
+	tip.set_content_margin(SIDE_TOP, TOOLTIP_PAD_V)
+	tip.set_content_margin(SIDE_BOTTOM, TOOLTIP_PAD_V)
+	t.set_stylebox("panel", "TooltipPanel", tip)
 	t.set_color("font_color", "TooltipLabel", ICE)
+	t.set_font_size("font_size", "TooltipLabel", FS_SMALL)
 	return t
 
 ## Raised surface: 1px light top-left, 1px dark bottom-right, drawn as a 9-slice

@@ -15,12 +15,20 @@ extends Node
 ## Brand-agnostic modules are never gated: Exotic is harvested and Artifact is
 ## precursor tech, so they have no manufacturer to gate on.
 ##
-## REOPENED. This was [&"korvan"] while the card face and combat screen were
-## being built, and the note here said to restore the full list before judging
-## build variety. Manufacturer hulls are exactly that moment: you now pick a
-## maker at run start, so a loot pool that can only drop Korvan would make six
-## of the seven choices unplayable.
-const ACTIVE_MAKERS: Array[StringName] = []
+## NARROWED TO KORVAN, deliberately, and this is the second time. It was opened
+## to all seven when manufacturer hulls landed, because a chassis select offering
+## seven makers over a Korvan-only loot pool would have made six choices
+## unplayable. STARTABLE has now been cut to match, so that objection is answered
+## rather than ignored: there is one house, and it is the only one you can fly.
+##
+## The reason is depth over breadth. Seven houses at three modules each is seven
+## shallow loot streams; one house with a full ladder is a run where the next
+## wreck can plausibly hold something you want. Korvan is the one to do first —
+## ballistics and charged ordnance, no gimmick, the tutorial house.
+##
+## Restoring the others means putting this back to [] and STARTABLE back to all
+## seven. Nothing else is gated on it.
+const ACTIVE_MAKERS: Array[StringName] = [&"korvan"]
 
 var manufacturers: Dictionary = {}      ## StringName -> ManufacturerData
 var modules: Dictionary = {}            ## StringName -> ModuleData (templates)
@@ -94,6 +102,16 @@ const STARTER_WEAPON: Dictionary = {
 ## The makers you can start as, in the order the chassis select shows them.
 ## Korvan first because it is the tutorial ship: no gimmick, all three slots
 ## filled, nothing that needs explaining before the first fight.
+##
+## ALL SEVEN, even though only Korvan parts drop — see ACTIVE_MAKERS. The focus
+## is on what gets BUILT, not on what you may fly, and the run-start choice is
+## the one place the other six houses still pay for themselves: seven attribute
+## signatures, seven hulls, seven palettes, all authored and all reachable.
+##
+## THE COST, on the record. A loot pool gated to Korvan means a Solari ship
+## finds no second Solari part, so the 3+ and 5+ set bonuses of the other six
+## are unreachable for as long as ACTIVE_MAKERS is narrowed. You can fly them;
+## you cannot complete them.
 const STARTABLE: Array[StringName] = [
 	&"korvan", &"solari", &"dredge", &"redline", &"cygnet", &"halcyon", &"calyx",
 ]
@@ -135,7 +153,7 @@ func _seed_manufacturers() -> void:
 			"Chop Shop", "Draw 1 extra card each turn.",
 			"Ghost Protocol", "First enemy attack each combat is negated."],
 		[&"halcyon", "Halcyon Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
-			"The thin, perfect deck. Few slots, superb cards, expensive everything.",
+			"Few hulls, each one signed. Sparse, exact, and priced accordingly.",
 			"Bespoke", "Halcyon cards cost 1 less energy.",
 			"Provenance", "Start each combat with 1 extra energy."],
 		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#58c8d8", "#16202e",

@@ -96,7 +96,7 @@ func _refresh() -> void:
 			func() -> void:
 				DisplaySettings.set_mode(m)
 				_refresh())
-		b.tooltip_text = DisplaySettings.mode_blurb(m)
+		b.tooltip_text = Widgets.tip(DisplaySettings.mode_blurb(m))
 		b.disabled = picked
 		_mode_rows.add_child(b)
 	_blurb.text = DisplaySettings.mode_blurb(DisplaySettings.mode)
@@ -115,7 +115,7 @@ func _refresh() -> void:
 					DisplaySettings.set_screen(i)
 					_refresh())
 			sb.disabled = picked_screen
-			sb.tooltip_text = "Move the game to this monitor. * marks your primary."
+			sb.tooltip_text = Widgets.tip("Move the game to this monitor. * marks your primary.")
 			_screen_row.add_child(sb)
 
 	for c in _scale_row.get_children():
