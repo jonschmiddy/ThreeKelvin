@@ -8,10 +8,31 @@ extends Control
 ## block facing another stat block; with one field behind them the ship reads as
 ## a thing in a place. This is the frame the sector view and combat share, so the
 ## ship never disappears between them.
+##
+## THE CONVOY sits to the left of your hull, and only when there is one. Every
+## ship in it is drawn at 1:1 — the art direction has no other size — so what
+## gives your own hull the foreground is position and not scale: it is centre of
+## frame, facing what you are facing, and it is the one you can drop a card on.
+## The others are a column beside it, each in a box just tall enough for a hull,
+## with the name and the two gauges painted over it.
+##
+## `coop-design.md` §15 calls the party screen the hardest design problem
+## outside the netcode, and this does not solve it — four hands and four intent
+## strips still have nowhere to live. What it solves is the half that had to
+## come first: a partner is drawn from a description of THEIR ship. See
+## ShipBuild.
 
 enum Subject { AREA, ENEMY }
 
 var _row: HBoxContainer
+## The other ships in the party. Empty in the solo game.
+var _convoy: VBoxContainer
+## The box the column sits in. Hidden rather than the column itself: an
+## HBoxContainer puts its separation either side of every VISIBLE child, so a
+## hidden column inside a visible margin still cost the solo game twenty-four
+## pixels of empty left edge.
+var _convoy_pad: MarginContainer
+var _made_convoy: Array[ConvoySlot] = []
 var _ship_slot: ShipSlot
 var _ship: ShipView
 var _area: AreaView
@@ -34,6 +55,27 @@ func _ready() -> void:
 	_row.add_theme_constant_override("separation", 24)
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_row)
+
+	# Ahead of your hull in the row, so the party reads left to right in the
+	# order the lobby lists it and your own ship keeps the position it has
+	# always had — nearest the middle, facing what you are facing.
+	_convoy_pad = MarginContainer.new()
+	_convoy_pad.add_theme_constant_override("margin_top", CONVOY_TOP)
+	_convoy_pad.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_convoy_pad.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_convoy_pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_convoy_pad.visible = false
+	_row.add_child(_convoy_pad)
+	_convoy = VBoxContainer.new()
+	_convoy.add_theme_constant_override("separation", 4)
+	_convoy.alignment = BoxContainer.ALIGNMENT_CENTER
+	_convoy.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_convoy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_convoy_pad.add_child(_convoy)
+	Sig.party_changed.connect(refresh_convoy)
+	# And when a fight does. Which of your partners is in the room with you is a
+	# fact about the fight, not about the party — see ConvoySlot._engaged.
+	Sig.party_fight_changed.connect(func(_at: int) -> void: refresh_convoy())
 
 	# Your hull is itself a target: defensive and utility cards are played by
 	# dropping them here, so every card is aimed at something.
@@ -79,6 +121,117 @@ func _ready() -> void:
 	fx = CombatFx.new()
 	fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fx)
+
+	refresh_convoy()
+
+
+## How wide one partner gets. Wide enough for the biggest canvas any hull
+## draws into — a heavy is 240 across procedurally and the medium sprite is 188
+## — so nothing is ever cropped nose-first, which reads as a mistake rather than
+## as distance.
+const CONVOY_W := 208
+## And how tall. Tall enough for the tallest canvas any hull draws into, so no
+## partner is ever cropped along the hull line — a ship with its keel cut off
+## reads as a bug, and it is the one crop a viewer cannot explain to themselves
+## as distance.
+##
+## Three of these plus the separations is 362 rows against the 378 the arena
+## leaves under the sector header, so a full party fits without the column
+## having to shrink. That is the whole arithmetic and it is why the number is
+## not tuned per party size.
+const CONVOY_H := 118
+## Cleared for the sector's name and its two lines of description, which are
+## painted over this same corner by the screen above. Without it the first
+## partner's name is written across the name of the system.
+const CONVOY_TOP := 62
+## How long after your own ship the convoy starts, and how far apart they are.
+## Short: the approach itself runs four and a half seconds, so the stagger only
+## has to break the lockstep, not queue them up.
+const ARRIVE_LEAD := 0.25
+const ARRIVE_GAP := 0.35
+
+## Who is actually HERE, in arrival order.
+##
+## The sector is a place, not a party list. A ship two hundred light years away
+## is in your convoy and is not in this room, and drawing it beside your hull
+## says the opposite — during a fight it says it is helping. So the strip is
+## filtered by position and the STAR CHART is where the whole party lives,
+## because that is the screen whose subject is where everybody is.
+##
+## `where_is` returns -1 for somebody who has not reported a position yet, which
+## is a real answer and correctly matches nothing: a player still on the chassis
+## select has a galaxy and no place in it.
+func _here() -> Array:
+	if Run.map.is_empty():
+		return []
+	var at := Run.at
+	return Net.partners().filter(func(s: Dictionary) -> bool:
+		return int(s.get("at", -1)) == at)
+
+
+## Who is flying with you, redrawn when that changes.
+##
+## Rebuilt only when the PARTY changes, not when a ship does. A partner's own
+## view is wired to `Sig.party_changed` itself and repaints in place, so a new
+## gun on somebody else's hull costs a repaint rather than a rebuild of the
+## column it sits in.
+func refresh_convoy() -> void:
+	# `tree_exited` brings us back here when a departing slot finishes, and that
+	# can be the frame the whole screen is being torn down on — a sector swap
+	# frees the column and the slots inside it together.
+	if not is_instance_valid(_convoy):
+		return
+	var them := _here()
+	var want: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
+
+	# A DIFF, NOT A REBUILD, and that is what makes a departure drawable at all.
+	# Clearing the column and building it again gave every remaining ship a
+	# fresh arrival for somebody else's jump, and gave the ship that left no
+	# frame to leave in — it was simply not in the next list.
+	for c in _made_convoy.duplicate():
+		if want.has(c.peer):
+			continue
+		_made_convoy.erase(c)
+		# Still a child, so the column keeps its height and the flash has
+		# somewhere to happen. It frees itself when the light goes out, and
+		# `tree_exited` brings us back here to close the column up.
+		c.jump_out()
+		c.tree_exited.connect(refresh_convoy, CONNECT_ONE_SHOT)
+
+	for i in them.size():
+		var id := int(them[i].id)
+		var slot := _slot_for(id)
+		if slot == null:
+			slot = ConvoySlot.new(id, CONVOY_H)
+			_convoy.add_child(slot)
+			_made_convoy.append(slot)
+			# Staggered, and behind you. Four hulls starting the same approach
+			# on the same frame arrive as one object with four parts; a fraction
+			# of a second apart they read as ships flying in formation. Yours
+			# goes first because it is the one the screen is about.
+			#
+			# The stagger applies to the OPENING convoy only. A ship arriving on
+			# its own, into a system you are already sitting in, has nobody to be
+			# staggered against and a delay on it is just latency.
+			var lone := _made_convoy.size() == 1 and _convoy.get_child_count() == 1
+			slot.jump_in(0.0 if not lone else ARRIVE_LEAD)
+		# Keep the column in the party's order even after somebody has left a
+		# hole in the middle of it.
+		_convoy.move_child(slot, i)
+		slot.bind(them[i])
+
+	# Visible while ANYTHING is in the column, including a ship on its way out.
+	# `them.is_empty()` would take the last partner off screen on the frame they
+	# pressed JUMP, which is the one frame the effect exists to fill.
+	_convoy_pad.visible = _convoy.get_child_count() > 0
+
+
+func _slot_for(id: int) -> ConvoySlot:
+	for c in _made_convoy:
+		if c.peer == id:
+			return c
+	return null
+
 
 ## Where you are, told once. Sky and wash both, and both for every sector —
 ## fighting or not.
@@ -559,10 +712,28 @@ class ShipSlot extends Control:
 	var preview: Callable
 	var _drag_text: String = ""
 
+	## How much of the slot the hull is centred in. The rest is empty space on
+	## its right.
+	##
+	## The frame is "your ship left, what you face right", and a Control that
+	## fills its half and centres its texture puts the ship in the middle of the
+	## screen — which reads as neither. Centring it in the left two thirds of the
+	## same box moves it back onto the left without changing the layout, and it
+	## leaves the ship pointing INTO the space the subject occupies rather than
+	## across it.
+	##
+	## Done with an anchor and not with `position`, because `ShipView.arrive()`
+	## animates position and puts it back to zero when the ship parks.
+	const HULL_BIAS := 0.68
+
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		art = ShipView.new()
 		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		# set_anchor(), not `anchor_right =`. The property setter defaults to
+		# keep_offset TRUE, so it holds the control's current size by moving the
+		# offset the other way — which is an elaborate no-op.
+		art.set_anchor(SIDE_RIGHT, HULL_BIAS, false)
 		# Behind the slot's own _draw. A Control paints itself first and its
 		# children after, so the brace number was being drawn and then covered
 		# by the ship it was meant to sit on.
@@ -627,3 +798,291 @@ class ShipSlot extends Control:
 			draw_string(f, at + Vector2(1, 1), _drag_text,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
 			draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.GOOD)
+
+
+## One ship flying with you: their hull, their name, and how they are doing.
+##
+## The readouts are PAINTED OVER the ship rather than stacked under it, which is
+## the same choice `ShipSlot` makes below and for the same reason — a column of
+## four ships each with a label and two bars under it is sixteen rows of chrome
+## in an arena that has none to spare, and a name written across a hull is
+## plainly that hull's name.
+##
+## It is not a drop target and it never will be. Cards are played from your deck
+## onto your ship and onto what is shooting at you; a partner is a thing you can
+## see, not a thing you can aim at. See `coop-design.md` §5.
+## The light a ship arrives and leaves in.
+##
+## ONE ANIMATION FOR BOTH DIRECTIONS, and that is not a shortcut. A jump is a
+## column of light with a hull either side of it: what differs between arriving
+## and leaving is only whether the ship is there before the flash or after it.
+## Two separate effects would be two things to keep in step and would read as
+## two different events, which they are not.
+##
+## Cold, not ember. Every other light in this game is heat — weapons, the hull
+## shader, the overheat warning — so a jump has to be the one thing on screen
+## that is bright and not warm, or it reads as another gun going off.
+##
+## Drawn rather than animated. Everything here is on the pixel grid at integer
+## widths and the brightness is stepped, for the reason CombatFx records: a
+## pixel is lit or it is not, and fading one through alpha is how pixel art
+## starts looking like a screensaver.
+class JumpFlare extends Control:
+	## Long enough to be an event, short enough that four of them staggered do
+	## not turn arriving into a cutscene.
+	const LIFE := 0.40
+	## The moment the hull changes hands. The flash is at its widest here, so
+	## the swap happens behind the brightest frame and is never seen.
+	const PEAK := 0.42
+	const CORE := Color("#e4f2ff")
+	## Wide enough to be a column rather than a rule. The slot is 208px and the
+	## hull about half of it, so a beam this wide is plainly a thing the ship
+	## came out of and not a line somebody drew beside it.
+	const MAX_W := 20.0
+	## The three beats, as fractions of LIFE. OPEN is the column arriving, PEAK
+	## is the flash, SHUT is it gone — and the width curve is built to reach its
+	## maximum exactly AT PEAK rather than somewhere near it, because PEAK is
+	## also the frame the hull changes hands on. A swap that happens beside the
+	## brightest frame instead of behind it is a ship seen to appear.
+	const OPEN := 0.22
+	const SHUT := 0.80
+
+	signal peaked()
+	signal finished()
+
+	## Where the column stands, as a fraction of the slot's width. Your own hull
+	## is biased left of centre — see ShipSlot.HULL_BIAS — and a beam that
+	## arrives somewhere the ship is not is a beam that missed.
+	var centre: float = 0.5
+
+	var _t: float = -1.0
+	var _delay: float = 0.0
+	var _fired: bool = false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		visible = false
+		set_process(false)
+
+	func play(delay: float = 0.0) -> void:
+		_t = 0.0
+		_delay = maxf(0.0, delay)
+		_fired = false
+		visible = true
+		set_process(true)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if _delay > 0.0:
+			_delay -= delta
+			return
+		_t += delta / LIFE
+		if not _fired and _t >= PEAK:
+			_fired = true
+			peaked.emit()
+		if _t >= 1.0:
+			_t = -1.0
+			visible = false
+			set_process(false)
+			finished.emit()
+			return
+		queue_redraw()
+
+	func _draw() -> void:
+		if _t < 0.0 or _delay > 0.0:
+			return
+		var t := clampf(_t, 0.0, 1.0)
+		var cx := roundf(size.x * centre)
+
+		# Height: opens from the middle, holds, then snaps shut. The hold is
+		# what makes it a place rather than a flash.
+		var tall := 1.0
+		if t < OPEN:
+			tall = t / OPEN
+		elif t > SHUT:
+			tall = 1.0 - (t - SHUT) / (1.0 - SHUT)
+		var h := roundf(size.y * clampf(tall, 0.0, 1.0))
+		if h < 1.0:
+			return
+		var y0 := roundf((size.y - h) * 0.5)
+
+		# Width: two segments, meeting at PEAK. Not one sine across the whole
+		# life — that put the widest frame at 0.62 while the hull swapped at
+		# 0.42, and the swap was visible next to the flash instead of inside it.
+		var flare := 0.0
+		if t <= PEAK:
+			flare = smoothstep(OPEN, PEAK, t)
+		else:
+			flare = 1.0 - smoothstep(PEAK, SHUT, t)
+		var w := 1.0 + roundf(flare * MAX_W)
+
+		# Two planes, stepped. A pixel is lit or it is not — see CombatFx.
+		if w > 3.0:
+			draw_rect(Rect2(Vector2(cx - roundf(w * 0.5), y0), Vector2(w, h)),
+				UITheme.ICE if flare > 0.35 else UITheme.CHILL, true)
+		var core_w := maxf(1.0, roundf(w * 0.3))
+		draw_rect(Rect2(Vector2(cx - roundf(core_w * 0.5), y0), Vector2(core_w, h)),
+			CORE if flare > 0.25 else UITheme.ICE, true)
+
+		# The spill. Two dashed streaks at the waist, thinning outward, which is
+		# what stops the column reading as a rectangle somebody drew.
+		if flare <= 0.4:
+			return
+		var reach := roundf(flare * 34.0)
+		var my := roundf(size.y * 0.5)
+		for i in int(reach):
+			if i % 3 == 2 or i > reach - 5:
+				continue
+			var col := CORE if float(i) < reach * 0.3 else UITheme.CHILL
+			draw_rect(Rect2(Vector2(cx + w * 0.5 + i, my), Vector2.ONE), col, true)
+			draw_rect(Rect2(Vector2(cx - w * 0.5 - i - 1, my), Vector2.ONE), col, true)
+
+
+class ConvoySlot extends Control:
+	var peer: int = 0
+	var art: ShipView
+	var flare: JumpFlare
+	## On its way out and already freed as far as the column is concerned. Kept
+	## as a child until the flash finishes, because a ship that vanishes on the
+	## frame its owner pressed JUMP has not left, it has been deleted.
+	var _leaving: bool = false
+	var _label: String = ""
+	var _hull_at: float = 1.0
+	var _heat_at: float = 0.0
+	var _lost: bool = false
+	## In the same fight as you, right now.
+	##
+	## Worth its own mark because the column shows the whole party and a fight
+	## involves some of it. Three ships in the sector and two in the fight is the
+	## normal case, not the exception — people arrive at different times — so
+	## "who is shooting at the thing shooting at me" cannot be read off presence.
+	var _engaged: bool = false
+
+	## Bars are drawn to a fixed width, not to the slot's, for the reason
+	## EnemySlot.BAR_W records: a readout's LENGTH should say how much is left,
+	## and one that stretches to fill the layout says how much room there was.
+	const BAR_W := 92.0
+	const BAR_H := 3.0
+
+	func _init(id: int, view_height: int) -> void:
+		peer = id
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# The ship is drawn at its own size and this box shows the middle of it.
+		# Cropping rather than scaling: integer magnification is the only
+		# resizing the art direction allows, and half of 1 is not a pixel.
+		clip_contents = true
+		custom_minimum_size = Vector2(EncounterView.CONVOY_W, view_height)
+		art = ShipView.new()
+		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		# Behind this slot's own _draw, so the name and the bars sit on the hull
+		# instead of under it.
+		art.show_behind_parent = true
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		art.follow_peer(id)
+		# Slower and shallower than your own ship's. They are further away, and
+		# four hulls bobbing in step read as one object.
+		art.bob(1, 0.19)
+		add_child(art)
+		flare = JumpFlare.new()
+		add_child(flare)
+
+	## Somebody dropped into the system. The hull is hidden until the flash is
+	## at its widest, so it is never seen to appear.
+	func jump_in(delay: float = 0.0) -> void:
+		art.visible = false
+		flare.peaked.connect(func() -> void:
+			art.visible = true
+			# And ask for the name and the gauges back. They are painted by this
+			# slot rather than by the hull, and _draw() bailed out while there
+			# was no hull under them — without this the ship returns and its
+			# label does not, because nothing else redraws a settled convoy.
+			queue_redraw()
+			# Into the same approach every ship in this game makes. The flare is
+			# punctuation on the arrival, not a replacement for it — four hulls
+			# materialising in place and holding still would read as a menu.
+			art.arrive(1, 0.0), CONNECT_ONE_SHOT)
+		flare.play(delay)
+		# Throttled. A convoy arriving is three or four of these a fraction of a
+		# second apart, and the same sample four times over reads as a stutter
+		# rather than as four ships.
+		Audio.play(&"jump", 0.10, 140)
+
+	## And left. Same flash, opposite side of it.
+	func jump_out() -> void:
+		_leaving = true
+		flare.peaked.connect(func() -> void:
+			art.visible = false
+			queue_redraw(), CONNECT_ONE_SHOT)
+		flare.finished.connect(queue_free, CONNECT_ONE_SHOT)
+		flare.play(0.0)
+		Audio.play(&"jump", 0.10, 140)
+		queue_redraw()
+
+	func leaving() -> bool:
+		return _leaving
+
+	func bind(slot: Dictionary) -> void:
+		var b: ShipBuild = Net.build_of(peer)
+		var who := String(slot.get("name", "")).to_upper()
+		if b == null:
+			# In the party, not yet in a ship. A name with no readouts under it
+			# says that better than a full hull bar on a ship nobody is flying.
+			_label = "%s · NO SHIP YET" % who
+			_hull_at = 0.0
+			_heat_at = 0.0
+			_lost = false
+		else:
+			_label = "%s · %s" % [who,
+				DB.hull_class(b.hull.manufacturer, b.hull.weight).to_upper()]
+			_hull_at = clampf(float(b.hp) / float(maxi(1, b.max_hp)), 0.0, 1.0)
+			_heat_at = clampf(b.heat_ratio(), 0.0, 1.0)
+			_lost = b.dead
+		var f := Net.fight_at(Run.at) if not Run.map.is_empty() else null
+		_engaged = f != null and not f.over and f.crew.has(peer)
+		art.modulate = Color(0.45, 0.45, 0.52) if _lost else Color.WHITE
+		queue_redraw()
+
+	func _draw() -> void:
+		# Nothing without a hull under it. The label and the gauges are painted
+		# OVER the ship rather than under it, so a slot that kept drawing them
+		# while the hull was away would leave a name and two bars hanging in
+		# empty space — before an arrival as much as after a departure.
+		if not art.visible:
+			return
+		var f := UITheme.pixel_font()
+		var fs := UITheme.FS_SMALL
+		var text := "LOST · " + _label if _lost else _label
+		if _engaged and not _lost:
+			# The same arrow the combat log puts on a shot of yours. Somebody
+			# firing on your side is the one thing in this column that is about
+			# the fight rather than about the convoy.
+			text = "▸ " + text
+		# Shadowed, because the label sits on a hull rather than on a panel and
+		# the hull is the same value range as the type.
+		draw_string(f, Vector2(1, fs + 1), text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.8))
+		var ink := UITheme.CHILL
+		if _lost:
+			ink = UITheme.COLD
+		elif _engaged:
+			ink = UITheme.GOOD
+		draw_string(f, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
+		if _lost or _hull_at <= 0.0:
+			return
+		# Directly under the name rather than at the floor of the slot. The ship
+		# is centred in the box and the box is taller than the ship, so bars on
+		# the floor float in space below it and read as belonging to whoever is
+		# next in the column.
+		#
+		# Hull above heat, which is the order they are stacked on the HUD and
+		# under every enemy.
+		_gauge(float(fs) + 3.0, _hull_at, UITheme.HULL_GREEN)
+		_gauge(float(fs) + 3.0 + BAR_H + 1.0, _heat_at,
+			UITheme.FLARE if _heat_at >= 1.0 else UITheme.EMBER)
+
+	func _gauge(y: float, at: float, col: Color) -> void:
+		draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W, BAR_H)), Color("#0d131b"), true)
+		if at > 0.0:
+			draw_rect(Rect2(Vector2(0, y), Vector2(BAR_W * at, BAR_H)), col, true)

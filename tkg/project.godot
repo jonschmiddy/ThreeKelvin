@@ -11,8 +11,10 @@ config/icon="res://icon.svg"
 [autoload]
 Sig="*res://scripts/autoload/Sig.gd"
 DB="*res://scripts/autoload/Database.gd"
+Rng="*res://scripts/autoload/Rng.gd"
 Run="*res://scripts/autoload/RunState.gd"
 Router="*res://scripts/autoload/Router.gd"
+Net="*res://scripts/net/NetSession.gd"
 Audio="*res://scripts/autoload/Audio.gd"
 
 [display]

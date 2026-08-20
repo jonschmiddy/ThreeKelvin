@@ -153,6 +153,7 @@ func setup() -> void:
 	# new one. Everything else is grey. Hard-coding CONTINUE as the white one
 	# would leave a first-time player looking at five identical grey lines.
 	menu.add_child(_option("NEW RUN", func() -> void: Router.new_run(), save.is_empty()))
+	menu.add_child(_option("FLY TOGETHER", func() -> void: Router.show_lobby()))
 	menu.add_child(_option("FLIGHT RECORD", func() -> void: Router.show_history(true)))
 	menu.add_child(_option("SETTINGS", _open_settings))
 
@@ -331,8 +332,15 @@ static var _sky_params: Dictionary = {}
 func _roll_sky_galaxy() -> void:
 	if _sky_kind < 0:
 		_sky_kind = randi() % GalaxyGen.count()
-		_sky_params = GalaxyGen.roll(_sky_kind)
 		_sky_seed = randi()
+		# Its own generator, off the global one. The title screen is decoration:
+		# it must not draw from a run's streams — a galaxy drawn behind a menu
+		# would otherwise move the galaxy the player is about to fly into.
+		# Run.galaxy_seed is written below for the same reason it always was,
+		# and start_new_run() overwrites it before anything reads it as a seed.
+		var r := RandomNumberGenerator.new()
+		r.seed = _sky_seed
+		_sky_params = GalaxyGen.roll(_sky_kind, r)
 	Run.galaxy_kind = _sky_kind
 	# Duplicated on the way out: the chart reads Run.galaxy freely and a shared
 	# reference would let it edit the copy every later launcher visit rebuilds

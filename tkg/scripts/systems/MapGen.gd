@@ -22,6 +22,37 @@ enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
 ## in the middle would silently relabel every node type after it.
 enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, GOAL, PULSAR }
 
+## The option id meaning "the system itself, all of it".
+##
+## Every encounter in the game today consumes the whole node: you strip the
+## wreck, you win the fight, you answer the hail, and there is nothing else
+## here. A system that offers three or four things to do consumes them one at a
+## time, and this is the id reserved for the case where there is only one.
+##
+## Zero on purpose. It is what an absent field reads as, so a save or a message
+## written before options existed says "the system" rather than "option zero of
+## a list nobody wrote".
+const OPTION_WHOLE := 0
+
+## A station's shelf: `OPTION_SHOP + i` is the i-th part standing on it.
+##
+## The shelf is the second contested thing in the game, and the first that is a
+## LIST. One station, four buyers, and one Legendary — the same shape as the
+## wreck, except that a wreck is taken whole and a shelf is taken a part at a
+## time. That is what the option id was for.
+##
+## INDEXED, WHICH MEANS THE ARRAY MUST NOT SHRINK. `n.shop` used to have the
+## bought part erased out of it, which silently renumbered everything after it:
+## one purchase and every machine's idea of "slot 2" disagreed. So a sold part
+## stays on the shelf and is marked gone in `taken` instead, which is what that
+## field has always been for.
+##
+## Based at 100 so the ids read as a namespace rather than as a count, and so a
+## fourth kind of option added later has somewhere obvious to live.
+const OPTION_SHOP := 100
+## And the hull on the rack, which is one object rather than a list.
+const OPTION_SHOP_HULL := 110
+
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
 ## Twenty-four rings put the systems in a shape where nothing was near anything:
@@ -141,6 +172,20 @@ class MapNode extends RefCounted:
 	## offers ENGAGE, the second must not, or the button that got you out of a
 	## fight is the same button that puts you back in one.
 	var fled: bool = false
+	## Which of this system's options have been used up, by option id.
+	##
+	## `cleared` says the system as a whole is finished; this says WHICH parts of
+	## it are gone. They are not the same question the moment a system offers
+	## more than one thing to do — one ship strips the wreck and another still
+	## wants the fight, and a single boolean cannot hold that.
+	##
+	## Option `MapGen.OPTION_WHOLE` is the system itself, which is what every
+	## encounter that exists today consumes. So a node with one thing to do
+	## carries exactly one entry and the two fields agree, which is why nothing
+	## reading `cleared` had to change.
+	##
+	## In a party this is a copy of what the host holds. See NetSession.claims.
+	var taken: PackedInt32Array = PackedInt32Array()
 	## What followed your heat trail in, rolled once on arrival. Stored on the
 	## node for the same reason `foes` is: an ambush that re-rolled on resume
 	## would be a hostile you could refuse by quitting and coming back cold,
@@ -318,7 +363,7 @@ static func generate(canvas: Rect2) -> Array:
 			# Jittered per system, not flat per ring. Eight rings cannot land on
 			# ten tiers evenly, and more to the point a ring where every system
 			# is equally bad is a ring with no decision in it.
-			n.danger = clampi(ring_danger + randi_range(-1, 1), 1, DANGER_MAX)
+			n.danger = clampi(ring_danger + Rng.world.randi_range(-1, 1), 1, DANGER_MAX)
 			var depth := float(layer) / float(maxi(1, LAYERS - 1))
 			if layer == 0 and row == 0:
 				n.type = NodeType.START
@@ -344,6 +389,13 @@ static func generate(canvas: Rect2) -> Array:
 	_link(nodes)
 	nodes[0].visited = true
 	nodes[0].cleared = true
+	# And say so in the same vocabulary as everything else that finishes a
+	# system. The start is consumed at generation rather than through
+	# RunState.take_whole(), so without this it is the one node in the galaxy
+	# whose `cleared` and `taken` disagree — and SaveGame infers the missing
+	# entry when it reads an old save, which makes it disagree only AFTER a
+	# round trip. That is exactly the shape of bug savetest exists to catch.
+	nodes[0].taken.append(OPTION_WHOLE)
 	return nodes
 
 ## The rim is unclaimed and the core is built up - that is the whole shape of
@@ -377,30 +429,30 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 		n.security = 3
 		return
 
-	n.development = clampi(int(round(depth * 4.0 + randf_range(-1.1, 1.1))),
+	n.development = clampi(int(round(depth * 4.0 + Rng.world.randf_range(-1.1, 1.1))),
 		0, 4) as Development
 	# Security follows development loosely, skewed low so lawless space stays
 	# common enough to matter - it is where the contraband economy lives.
-	n.security = clampi(1 + int(n.development) + randi_range(-2, 1), 1, 5)
+	n.security = clampi(1 + int(n.development) + Rng.world.randi_range(-2, 1), 1, 5)
 
 	# Nobody claims empty space; the deeper and richer it gets the more houses
 	# want a piece, and two or more competing is what a crossroads actually is.
 	var want := 0
 	match n.development:
-		Development.UNCLAIMED: want = 1 if randf() < 0.2 else 0
-		Development.OUTPOST: want = 1 if randf() < 0.7 else 0
-		Development.SETTLEMENT: want = 2 if randf() < 0.4 else 1
-		Development.CITY: want = 3 if randf() < 0.35 else 2
-		Development.CAPITAL: want = 3 if randf() < 0.6 else 2
+		Development.UNCLAIMED: want = 1 if Rng.world.randf() < 0.2 else 0
+		Development.OUTPOST: want = 1 if Rng.world.randf() < 0.7 else 0
+		Development.SETTLEMENT: want = 2 if Rng.world.randf() < 0.4 else 1
+		Development.CITY: want = 3 if Rng.world.randf() < 0.35 else 2
+		Development.CAPITAL: want = 3 if Rng.world.randf() < 0.6 else 2
 	var pool: Array = DB.manufacturers.keys()
-	pool.shuffle()
+	Rng.shuffle(Rng.world, pool)
 	for i in mini(want, pool.size()):
 		n.makers.append(pool[i])
 	if not n.makers.is_empty():
 		n.manufacturer = n.makers[0]
 
 	# Megafauna keep to the thin places.
-	n.fauna = n.makers.is_empty() and int(n.development) <= 1 and randf() < 0.3
+	n.fauna = n.makers.is_empty() and int(n.development) <= 1 and Rng.world.randf() < 0.3
 
 ## Collapse the three axes back onto the old label, once, here. Order matters:
 ## the most specific claim about a place wins.
@@ -612,7 +664,7 @@ static func _pick_type() -> NodeType:
 		NodeType.EVENT, NodeType.EVENT, NodeType.EVENT, NodeType.EVENT,
 		NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT,
 	]
-	return weights.pick_random()
+	return Rng.pick(Rng.world, weights)
 
 static func _layout(nodes: Array, canvas: Rect2) -> void:
 	for n in nodes:
@@ -639,7 +691,7 @@ static func _link(nodes: Array) -> void:
 			_connect(n, ranked[0])
 			# A second route, but only if it is not much further than the first:
 			# the point is a choice between comparable options, not a detour.
-			if ranked.size() > 1 and randf() < 0.62:
+			if ranked.size() > 1 and Rng.world.randf() < 0.62:
 				var d0 := hop_distance(n, ranked[0])
 				var d1 := hop_distance(n, ranked[1])
 				if d1 < d0 * 1.8:

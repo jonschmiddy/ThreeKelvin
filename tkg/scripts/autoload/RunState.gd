@@ -88,6 +88,9 @@ const MAP_CANVAS := Rect2(60, 50, 900, 430)
 ## A galaxy exists before any run does — screens can be built and asked to draw
 ## before start_new_run() has rolled one — so it is never an empty dictionary.
 func _ready() -> void:
+	# A dive that is already under way when this machine generates its map — and
+	# every claim made while it was generating it.
+	Sig.party_map_changed.connect(adopt_party_claims)
 	if galaxy.is_empty():
 		galaxy = GalaxyGen.params(0).duplicate()
 	# Max hull is no longer a constant of the chassis, so taking plating off has
@@ -113,13 +116,28 @@ func _clamp_hp() -> void:
 ## win rate for one seventh of the game. Random here means the sim exercises all
 ## seven starts for free.
 func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
+	# The seed FIRST, before anything is rolled, because everything below is
+	# drawn from it. This is the one number a run IS: `-- seed 12345` replays it
+	# exactly, and a co-op host sends this and nothing else to put four ships in
+	# one galaxy. See Rng.
+	galaxy_seed = Rng.roll_master()
+	# ...and which ship in the party is drawing from it. One seed gives four
+	# machines one galaxy, which is the point; it must not also give them one
+	# hold. See Rng.seat.
+	Rng.reseed(galaxy_seed, Net.seat())
+
 	# A weight of -1 rolls one, for the same reason an empty manufacturer does:
 	# HeadlessSim calls this directly, and a fixed default would report a win
 	# rate for one twenty-first of the possible starts.
+	#
+	# Off a DERIVED generator rather than the world stream. The starting ship is
+	# not part of the world — in a party, four players fly four different hulls
+	# through one galaxy — so choosing one must not move the map.
+	var start_rng := Rng.derive(&"start", 0)
 	var weight: HullData.Weight = w as HullData.Weight
 	if w < 0:
-		weight = [HullData.Weight.LIGHT, HullData.Weight.MEDIUM,
-			HullData.Weight.HEAVY].pick_random()
+		weight = Rng.pick(start_rng, [HullData.Weight.LIGHT,
+			HullData.Weight.MEDIUM, HullData.Weight.HEAVY])
 	fit_chassis(manufacturer, weight)
 	cargo.clear()
 	heat = 0
@@ -137,13 +155,15 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	death_reason = ""
 	found_hull = null
 	whale_boon = false
-	galaxy_kind = randi() % GalaxyGen.count()
+	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
 	galaxy = GalaxyGen.roll(galaxy_kind)
-	galaxy_seed = randi()
-	galaxy_spin = randf() * TAU
+	galaxy_spin = Rng.world.randf() * TAU
 	galaxy_name = GalaxyGen.roll_name()
 	galaxy_title = GalaxyGen.roll_title()
 	map = MapGen.generate(MAP_CANVAS)
+	# Whatever the party has already used up. A run rolled from the host's seed
+	# is generated after the party exists, so the list can predate the map.
+	adopt_party_claims()
 	at = 0
 	trail = PackedInt32Array([0])
 	_range_cache.clear()
@@ -164,7 +184,7 @@ func fit_chassis(manufacturer: StringName = &"",
 		w: HullData.Weight = HullData.Weight.MEDIUM) -> void:
 	var man := manufacturer
 	if man == &"" or not DB.STARTER_WEAPON.has(man):
-		man = DB.STARTABLE.pick_random()
+		man = Rng.pick(Rng.derive(&"start", 1), DB.STARTABLE)
 	hull = (DB.hull_for(man, w) as HullData).duplicate(true) as HullData
 	hull.tier = 0
 	installed.clear()
@@ -208,6 +228,97 @@ func cargo_slots() -> int:
 
 func hold_full() -> bool:
 	return cargo.size() >= cargo_slots()
+
+## This system is finished: the wreck is stripped, the fight is won, the hail is
+## answered. THE ONE DOOR, and the reason it exists is co-op.
+##
+## A shared seed gives four machines an identical galaxy rather than a shared
+## one — every wreck holds the same modules on every machine, because what a
+## node holds is drawn from `Rng.derive(tag, node.index)` and depends on where
+## it is rather than on who asked. The one thing a seed cannot say is whether
+## somebody has already been there. So consuming a node has to be told, and
+## telling it from one place means a new way to finish a system is shared by
+## construction instead of by somebody remembering to add a line.
+##
+## `Net.claim()` does nothing in the solo game, which is why every call site
+## could be changed without a branch.
+func consume_node(n: MapGen.MapNode) -> void:
+	take_whole(n)
+
+
+## The system itself, used up. Marked locally and told to the party without
+## waiting for an answer.
+##
+## Fire and forget is correct HERE and wrong in take_option(). These are the
+## outcomes nobody can take out from under you — the fight you just won, the
+## hail you were already inside — so a round trip would buy nothing and would
+## show the wreck you just stripped as still full while it ran.
+func take_whole(n: MapGen.MapNode) -> void:
+	if n == null or n.cleared:
+		return
+	n.cleared = true
+	_mark_taken(n, MapGen.OPTION_WHOLE)
+	Net.claim(n.index, MapGen.OPTION_WHOLE)
+
+
+## One option at this system, when only one ship can have it. Returns whether
+## you got it, and awaits the party's answer if there is a party.
+##
+## THE ONE THAT HAS TO ASK. Two ships reach the same wreck in the same second;
+## if both assume they won, both roll the loot, and the flag agreeing a moment
+## later does not take the module back out of the loser's hold. So the caller
+## does not get to act until it is told, and every caller has to actually read
+## the answer — which is why this returns a bool instead of quietly doing
+## nothing.
+##
+## Solo returns true immediately: `Net.take()` answers with your own id when
+## there is nobody to ask.
+func take_option(n: MapGen.MapNode, option: int) -> bool:
+	if n == null or n.taken.has(option):
+		return false
+	var owner := await Net.take(n.index, option)
+	# Gone either way, so it is recorded either way. A wreck somebody else
+	# stripped is not a wreck you can try again.
+	_mark_taken(n, option)
+	if option == MapGen.OPTION_WHOLE:
+		n.cleared = true
+	Sig.map_changed.emit()
+	return owner == Net.local_id()
+
+
+func _mark_taken(n: MapGen.MapNode, option: int) -> void:
+	if not n.taken.has(option):
+		n.taken.append(option)
+
+
+## What the party has already used up, applied to this machine's map.
+##
+## The whole list every time rather than the new entries. It is tens of systems
+## in a dive, it is idempotent, and a list rebuilt from scratch cannot drift the
+## way a stream of deltas can the first time one arrives twice.
+func adopt_party_claims() -> void:
+	if map.is_empty():
+		return
+	var moved := false
+	for key in Net.claims:
+		var i := int(key)
+		# Out of range cannot happen behind the content fingerprint and a shared
+		# seed. It is checked because the alternative is an index error taking
+		# the chart down on whoever receives it.
+		if i < 0 or i >= map.size():
+			continue
+		var n: MapGen.MapNode = map[i]
+		for option in Net.claims[key]:
+			var o := int(option)
+			if n.taken.has(o):
+				continue
+			n.taken.append(o)
+			moved = true
+			if o == MapGen.OPTION_WHOLE:
+				n.cleared = true
+	if moved:
+		Sig.map_changed.emit()
+
 
 ## Put a part in the hold, or refuse.
 ##
@@ -687,7 +798,7 @@ func harvest_pulsar() -> void:
 	var n := node_at()
 	if n.cleared:
 		return
-	n.cleared = true
+	take_whole(n)
 	# Scales with danger, so a deep pulsar is both a better haul and a worse
 	# idea — which is the shape of this whole map.
 	var gain_fuel := 14 + n.danger * 2

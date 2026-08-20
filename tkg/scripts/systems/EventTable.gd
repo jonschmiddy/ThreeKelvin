@@ -4,15 +4,19 @@ extends RefCounted
 ## Narrative nodes. Each option returns {text, fight?} so the screen stays dumb.
 ## Choices lean on the economy and the build rather than pure coin flips.
 
-static func pick() -> Dictionary:
+static func pick(r: RandomNumberGenerator = Rng.event) -> Dictionary:
 	var all := build_all()
-	return all[randi() % all.size()]
+	return all[r.randi() % all.size()]
 
 ## The same roll, as something that can be written to a save. A hail has to be
 ## decided once and stay decided — see MapNode.event_key.
-static func pick_key() -> String:
+## `r` is a parameter and the caller is expected to pass a POSITIONAL one —
+## Rng.derive(&"event", node.index). Which hail is waiting at a system is a
+## property of the system, not of the order four ships happened to arrive in,
+## and a shared cursor would hand each of them a different one.
+static func pick_key(r: RandomNumberGenerator = Rng.event) -> String:
 	var all := build_all()
-	return str(all[randi() % all.size()].title)
+	return str(all[r.randi() % all.size()].title)
 
 ## Resolve a saved key back to its event. An unknown key re-rolls rather than
 ## failing: an event retired or renamed between the save and the load is a
@@ -33,7 +37,7 @@ static func build_all() -> Array[Dictionary]:
 			body = "A pod tumbles past, transponder weak. Someone is still inside, or was.",
 			options = [
 				{label = "Crack it open", effect = func() -> Dictionary:
-					if randf() < 0.6:
+					if Rng.event.randf() < 0.6:
 						Run.add_credits(25)
 						return {text = "Cargo, no occupant. 25 credits."}
 					Run.take_hull_damage(6, "A scavenger trap finished what the cold started.")

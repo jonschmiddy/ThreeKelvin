@@ -31,3 +31,29 @@ signal card_played(card: CardData)
 signal damage_dealt(amount: int, to_player: bool, who: int)
 signal charge_fired(card_name: String)
 signal overheated(burn: int)
+
+# Party. Emitted by NetSession only. The session layer is a system like any
+# other here — it never touches a screen, it says what happened and the lobby
+# listens. See scripts/net/NetSession.gd.
+signal party_state_changed(state: int)   ## NetSession.State as an int
+signal party_changed()                   ## somebody joined, left, or readied
+signal party_launched(seed_value: int)   ## the host started the dive
+signal party_failed(reason: String)      ## refused, dropped, or never reached
+## The party consumed a system — somebody stripped a wreck, won a fight or
+## answered a hail. RunState listens and marks its own copy of the map.
+##
+## It exists because a seed gives four machines an IDENTICAL galaxy rather than
+## a SHARED one. Everything a node holds is positional and therefore already
+## agrees; what does not agree is whether it is still there. Without this every
+## player strips every wreck and the hold economy is paid four times over.
+signal party_map_changed()
+## A shared fight moved: somebody shot, somebody joined, the enemy took its
+## turn, or it ended. `at` is the system it is happening in — a party can be in
+## more than one fight at once, in different places, so an event that only says
+## "a fight changed" cannot be acted on.
+signal party_fight_changed(at: int)
+## Something in a shared fight is swinging at YOU. `kind`/`pick` name the intent
+## by index into the enemy's own scaled lists; see NetSession._swing(). Sent to
+## one machine only, because everything it resolves against — dodge, block,
+## armor, hull — exists only there.
+signal party_fight_swing(at: int, which: int, kind: int, pick: int)

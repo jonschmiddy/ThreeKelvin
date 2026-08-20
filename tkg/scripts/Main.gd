@@ -3,6 +3,16 @@ extends Control
 ## area to Router. Everything else is created in code by the screens.
 
 func _ready() -> void:
+	# The run seed, before anything can roll:  godot --path . -- seed 12345
+	# A run is one number. This is the flag that makes a bug report replayable,
+	# and it is read before every other branch below because HeadlessSim and the
+	# tests all start runs of their own.
+	var argv0 := OS.get_cmdline_user_args()
+	for i in argv0.size():
+		if argv0[i] == "seed" and i + 1 < argv0.size():
+			Rng.forced = int(argv0[i + 1])
+			print("Seeded run: %d" % Rng.forced)
+
 	# Balance sim runs through the normal boot so the autoloads exist, then quits
 	# before any UI is built:  godot --headless --path . -- sim runs=200
 	if "sim" in OS.get_cmdline_user_args():
@@ -65,6 +75,51 @@ func _ready() -> void:
 		_sky_test.run(get_tree())
 		return
 
+	# Seeded generation: the same seed twice, and streams that do not move each
+	# other:  godot --headless --path . -- rngtest
+	# RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR. Determinism fails silently
+	# by nature — a run that is 99% reproducible looks exactly like one that is
+	# reproducible, right up to the moment four players are in four galaxies.
+	if "rngtest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/RngTest.gd").new().run()
+		get_tree().quit()
+		return
+
+	# Four peers, one process, and the whole join handshake:
+	#   godot --headless --path . -- nettest
+	# RUN THIS AFTER TOUCHING ANYTHING IN scripts/net/. Held in a member for the
+	# same reason the sky test is: it runs across frames rather than inside one,
+	# and a RefCounted that only a local variable holds is freed the moment this
+	# function returns. It quits the tree itself when it is done.
+	if "nettest" in OS.get_cmdline_user_args():
+		_net_test = load("res://scripts/sim/NetTest.gd").new()
+		_net_test.run(get_tree())
+		return
+
+	# Two processes, one enemy:
+	#   godot --headless --path . -- cofight host
+	#   godot --headless --path . -- cofight join CODE
+	#   tools/cofight.sh                    (both, paired by the printed code)
+	# RUN THIS AFTER TOUCHING Combat's shared path. nettest cannot reach it:
+	# `Run` is a singleton, so one process holds one ship, and every line in
+	# Combat that talks to the party needs a second one. Held in a member for
+	# the same reason nettest is.
+	if "cofight" in OS.get_cmdline_user_args():
+		_co_fight = load("res://scripts/sim/CoFightTest.gd").new()
+		_co_fight.run(get_tree())
+		return
+
+	# One PNG per ship, straight out of ShipView's own canvas:
+	#   godot --headless --path . -- shipsheet
+	# Each hull twice, bare and loaded, because the question is not whether a
+	# ship draws — it is whether the ship that draws is the one described. It
+	# needs no renderer at all: the view composites into an Image, and the
+	# Image is the file. See ConvoyTest.
+	if "shipsheet" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	DisplaySettings.load_and_apply()
 	theme = UITheme.build()
 
@@ -97,6 +152,7 @@ func _ready() -> void:
 	#
 	#   -- nolauncher   straight into a new run
 	#   -- resume       straight into the suspend save, if there is one
+	#   -- lobby        straight into the party screen, with no run rolled
 	#
 	# `ship` belongs in this list and its absence is not cosmetic: the refit
 	# screen reads Run.hull, which is null until a run starts, so booting to the
@@ -104,7 +160,13 @@ func _ready() -> void:
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv
-	if "resume" in argv and SaveGame.has_save():
+	# The party screen, before a dive:  godot --path . -- lobby
+	# Its own branch rather than a member of skip_launcher, because it must NOT
+	# start a run. A lobby's whole job is to agree on the seed the run is going
+	# to be made from, and new_run() would have rolled one already.
+	if "lobby" in argv:
+		Router.show_lobby()
+	elif "resume" in argv and SaveGame.has_save():
 		Router.continue_run()
 	elif skip_launcher:
 		Router.new_run()
@@ -120,6 +182,15 @@ func _ready() -> void:
 	# Star chart cache test. Needs the real shell and a window, so unlike the
 	# sim and savetest it runs after boot rather than instead of it:
 	#   godot --path . -- charttest
+	# The sector with a party in it:  godot --path . -- convoy
+	# Needs a window, and runs after boot rather than instead of it, because it
+	# photographs the real screen — the arena, the salvage rail and the hand all
+	# competing for the same width, which is the whole question. The party is a
+	# fabricated ROSTER and no port is opened.
+	if "convoy" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
+		_convoy_test.run(get_tree())
+		return
 	if "charttest" in OS.get_cmdline_user_args():
 		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
 		# and a RefCounted nothing holds a reference to is freed the moment the
@@ -175,12 +246,16 @@ func _ready() -> void:
 			if a.is_valid_int():
 				Run.hand_size_override = clampi(int(a), 1, 12)
 		var pool := DB.fight_pool(3, false)
-		Router.start_combat(DB.enemies[pool.pick_random()])
+		Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
 
 ## Kept alive for the duration of `-- charttest`; see the call site.
 var _chart_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null
+var _net_test: RefCounted = null
+## And `-- cofight`, which awaits a whole second Godot process.
+var _co_fight: RefCounted = null
+var _convoy_test: RefCounted = null
 
 ## Every checked option in the table, measured against three real ships.
 ##

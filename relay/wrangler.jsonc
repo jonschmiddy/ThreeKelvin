@@ -1,0 +1,20 @@
+{
+	// Three Kelvin's party relay. One Durable Object per party, addressed by the
+	// lobby code, created when the host connects and gone when the last ship
+	// leaves. There is no server to keep alive and nothing runs between dives.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "threekelvin-relay",
+	"main": "src/index.js",
+	"compatibility_date": "2026-08-01",
+
+	"durable_objects": {
+		"bindings": [{ "name": "PARTY", "class_name": "Party" }]
+	},
+
+	// SQLite-backed, not key-value. Two reasons and both matter: it is the only
+	// backend available on the Workers Free plan, and it is the one Cloudflare
+	// recommends for all new classes.
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["Party"] }],
+
+	"observability": { "enabled": true }
+}

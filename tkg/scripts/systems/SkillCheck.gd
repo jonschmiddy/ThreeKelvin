@@ -56,7 +56,7 @@ static func roll(check: Dictionary) -> Band:
 	if shortfall(check) <= 0:
 		return Band.MET
 	var p := odds(check)
-	var r := randf()
+	var r := Rng.event.randf()
 	if r < p:
 		return Band.CLEAN
 	return Band.PARTIAL if r < p + (1.0 - p) * 0.5 else Band.BOTCHED

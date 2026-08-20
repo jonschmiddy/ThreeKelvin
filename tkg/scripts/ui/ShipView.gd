@@ -13,6 +13,13 @@ extends TextureRect
 ## Every screen goes through this class rather than through ShipSprite, which was
 ## written for real art and never instantiated. Five call sites already use this
 ## one, and it already owns magnification, showroom preview, heat and damage.
+##
+## ONE SUBJECT, NOT ONE SHIP. Every read used to go straight to `Run` — the
+## hull, the fitted modules, the hull points, the heat — which is exactly right
+## for the only ship a solo game has. A party has four, and three of them are
+## being flown on other machines, so the drawing code now takes a `ShipBuild`
+## and the question "whose ship is this" is answered once, in `_b()`, rather
+## than at every point of use. See ShipBuild.
 
 ## The PROCEDURAL canvas. Real hull sprites are authored at 220x128, 260x156 and
 ## 300x188, none of which is this size, so the canvas cannot be a constant any
@@ -89,9 +96,14 @@ var _arrive_bob: int = 2
 var _arrive_span: int = 0
 
 ## Fly in, then idle. Safe on a view that is already parked.
-func arrive(bob_amp: int = 2) -> void:
+##
+## `delay` holds the ship off screen before it starts. A convoy is the reason it
+## exists: four hulls beginning the same eased approach on the same frame arrive
+## as one object with four parts, and a fraction of a second between them is the
+## whole difference between a formation and a sprite sheet.
+func arrive(bob_amp: int = 2, delay: float = 0.0) -> void:
 	_arrive_bob = maxi(0, bob_amp)
-	_arrive_at = Time.get_ticks_msec()
+	_arrive_at = Time.get_ticks_msec() + int(maxf(0.0, delay) * 1000.0)
 	_arrive_dx = 0
 	_arrive_span = 0
 	_bob_amp = 0
@@ -156,12 +168,86 @@ func _init() -> void:
 	_tex = ImageTexture.create_from_image(_img)
 	texture = _tex
 
-## Showroom mode: draw THIS hull rather than the player's, cold, undamaged and
-## bare. The chassis select shows three of these side by side, and they have to
-## be drawable before the ship they depict is the ship you own — so everything
-## that reads live run state (heat glow, battle damage, fitted modules) is
-## suppressed rather than reading whatever the current ship happens to be.
-var preview: HullData = null
+## WHOSE SHIP. Set by setup_preview() or follow_peer(); both left alone means
+## the ship you are flying, which is what every existing call site wants and
+## why none of them changed.
+##
+## Two fields rather than one because the two cases refresh differently. A fixed
+## build is a snapshot and never moves on its own; a partner's build is replaced
+## wholesale every time the host pushes a roster, so it has to be looked up
+## again rather than held.
+var _fixed: ShipBuild = null
+var _peer: int = 0
+
+## Your own build, rebuilt on demand and dropped whenever the ship or its gauges
+## change. Not held for speed — `ShipBuild.local()` walks six modules — but so
+## that the ~20 repaints a second the bob and the exhaust cost do not each
+## rebuild it.
+var _mine: ShipBuild = null
+
+## The partner's build as it was at the last repaint. See _repaint_partner().
+var _seen: ShipBuild = null
+
+## A ship nobody is flying: no hull, nothing on it. Shared, and nothing writes
+## to it. It exists so that `_b()` is never null and the drawing code below can
+## read it without asking — a hull of null already stops refresh(), so one guard
+## covers what would otherwise be a check at every point of use.
+static var _NOBODY := ShipBuild.new()
+
+## The ship this view draws. The one place that asks whose it is.
+func _b() -> ShipBuild:
+	if _fixed != null:
+		return _fixed
+	if _peer != 0:
+		# Null until that player has left their chassis select. They are in the
+		# party and they have no ship, which is a state the convoy slot says out
+		# loud rather than one this has to invent a hull for.
+		var theirs := Net.build_of(_peer)
+		return theirs if theirs != null else _NOBODY
+	if _mine == null:
+		_mine = ShipBuild.local()
+	return _mine
+
+## The composed pixels, for anything that wants them without a renderer.
+##
+## `texture.get_image()` reads back through the RenderingServer, which under
+## --headless is a dummy that hands back nothing — so the contact sheet came out
+## eight transparent rectangles. This is the image the view actually painted.
+func canvas() -> Image:
+	return _img
+
+## Draw a build handed in from outside — a hull nobody owns, a partner's ship
+## captured for a contact sheet, anything that is not the live local ship.
+##
+## A snapshot: nothing repaints it but a caller. setup_preview() and the
+## `-- shipsheet` harness are both this with different framing.
+func show_build(b: ShipBuild) -> void:
+	_fixed = b
+	refresh()
+
+## Draw a party member's ship instead of your own.
+##
+## The build is looked up rather than stored: `_push_roster_to` replaces every
+## slot on arrival, so a held reference would be last second's ship — and the
+## whole point of this view is that a partner's new gun appears on it.
+func follow_peer(id: int) -> void:
+	_peer = id
+	if not Sig.party_changed.is_connected(_repaint_partner):
+		Sig.party_changed.connect(_repaint_partner)
+	_repaint_partner()
+
+## Repaint only when THAT partner's ship changed.
+##
+## `party_changed` fires for anything the roster says, including somebody else
+## venting a point of heat, and a procedural hull is fifteen thousand pixels of
+## GDScript to redraw. `NetSession.build_of()` hands back the same object while
+## the wire is unchanged, so object identity is the test.
+func _repaint_partner() -> void:
+	var b := Net.build_of(_peer)
+	if b == _seen:
+		return
+	_seen = b
+	refresh()
 
 ## Whole-number magnification for the preview. The sprite is drawn once at 240
 ## by 120 and then resized with INTERPOLATE_NEAREST, which is what keeps a
@@ -183,13 +269,24 @@ var _k: int = 1
 ## own yet". Same geometry, different question.
 func magnify(k: int, view_height: int) -> void:
 	_k = maxi(1, k)
+	crop(_w * _k, view_height)
+
+## Show only the middle of the canvas, at whatever magnification is set.
+##
+## The convoy strip is the reason this is separate from magnify(): three
+## partners have to fit beside your ship in an arena that is already full, and
+## a hull sits in the middle of a canvas with empty rows above and below it. So
+## the way to make a partner small is to show less of the canvas, never to scale
+## the ship — the art direction allows integer magnification and nothing else,
+## and half a pixel is not a pixel.
+func crop(view_width: int, view_height: int) -> void:
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	custom_minimum_size = Vector2(_w * _k, view_height)
+	custom_minimum_size = Vector2(view_width, view_height)
 	clip_contents = true
 	refresh()
 
 func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
-	preview = h
+	_fixed = ShipBuild.showroom(h)
 	_k = maxi(1, k)
 	# A showroom sprite is never the thing you click — the card around it is.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -209,14 +306,22 @@ func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 	refresh()
 
 func _hull() -> HullData:
-	return preview if preview != null else Run.hull
+	return _b().hull
 
 func _ready() -> void:
 	_ready_anim()
-	if preview == null:
-		Sig.ship_changed.connect(refresh)
-		Sig.resources_changed.connect(refresh)
-		Sig.player_combat_state_changed.connect(refresh)
+	# Only a view of YOUR ship listens to your ship's signals. A showroom hull
+	# never changes, and a partner's changes when the roster says so — see
+	# follow_peer().
+	if _fixed == null and _peer == 0:
+		Sig.ship_changed.connect(_restate)
+		Sig.resources_changed.connect(_restate)
+		Sig.player_combat_state_changed.connect(_restate)
+	refresh()
+
+## Your ship moved. Drop the cached build and repaint from the new one.
+func _restate() -> void:
+	_mine = null
 	refresh()
 
 func refresh() -> void:
@@ -251,6 +356,12 @@ func _tick_arrival() -> bool:
 			return false
 		_arrive_span = int(ceil(global_position.x + size.x)) + 16
 		position.x = -float(_arrive_span)
+
+	# Still waiting its turn. Held off screen rather than parked at rest, so a
+	# staggered convoy does not show three ships standing still while the first
+	# one flies in.
+	if Time.get_ticks_msec() < _arrive_at:
+		return false
 
 	var e := float(Time.get_ticks_msec() - _arrive_at) / ARRIVE_MS
 	if e >= 1.0:
@@ -388,10 +499,9 @@ func draw_ship() -> void:
 	_img.fill(Color(0, 0, 0, 0))
 	_starfield(41, 30)
 
-	var hull := _hull()
-	var ratio := 0.0
-	if preview == null and Run.heat_cap() > 0:
-		ratio = minf(1.7, float(Run.heat) / float(Run.heat_cap()))
+	var ship := _b()
+	var hull := ship.hull
+	var ratio := ship.heat_ratio()
 	var t := minf(1.0, ratio * 0.6)
 
 	# Cold palette shifts warm as heat climbs — the whole visual thesis.
@@ -518,10 +628,10 @@ func draw_ship() -> void:
 	if ratio > 1.0:
 		dither(hx, hy, hw, hh, core, (ratio - 1.0) * 0.5)
 
-	# Battle damage
-	# A showroom hull is undamaged by definition: these are ships you have not
-	# bought yet, not the one you are flying.
-	var dmg := 0.0 if preview != null else 1.0 - float(Run.hp) / float(maxi(1, Run.max_hp()))
+	# Battle damage. A showroom hull is undamaged because ShipBuild.showroom()
+	# hands it full hull points, not because this branch knows what a showroom
+	# is — which is the whole reason the flag went.
+	var dmg := ship.damage()
 	if dmg > 0.3:
 		px(hx + int(hw * 0.4), hy + 6, 7, 6, Color("#1a1010"))
 	if dmg > 0.6:
@@ -537,16 +647,17 @@ func draw_ship() -> void:
 ## rebuilt itself under a change the player had not made. The mount is now a
 ## choice the refit screen records and this view reports.
 func _draw_modules(hx: int, hy: int, hw: int, hh: int, metal: Color, outline: Color) -> void:
-	for m in ([] as Array[ModuleData] if preview != null else Run.installed):
-		var at := maxi(m.mount, 0)
-		match m.slot:
-			ModuleData.Slot.WEAPON: _draw_weapon(m, at, hx, hy, hw, hh, metal, outline)
-			ModuleData.Slot.SYSTEM: _draw_system(m, at, hx, hy, hh)
-			_: _draw_util(m, at, hx, hy)
+	for part in _b().parts:
+		var at := maxi(int(part.get("mount", 0)), 0)
+		var maker := StringName(part.get("maker", &""))
+		match int(part.get("slot", ModuleData.Slot.WEAPON)):
+			ModuleData.Slot.WEAPON: _draw_weapon(maker, at, hx, hy, hw, hh, metal, outline)
+			ModuleData.Slot.SYSTEM: _draw_system(maker, at, hx, hy, hh)
+			_: _draw_util(maker, at, hx, hy)
 
-func _draw_weapon(m: ModuleData, at: int, hx: int, hy: int, hw: int, hh: int,
+func _draw_weapon(maker: StringName, at: int, hx: int, hy: int, hw: int, hh: int,
 		metal: Color, outline: Color) -> void:
-	var col := DB.manufacturer_colour(m.manufacturer)
+	var col := DB.manufacturer_colour(maker)
 	var dark := lerp(col, Color("#0a0e13"), 0.55) as Color
 	var lite := lerp(col, Color.WHITE, 0.25) as Color
 	match at:
@@ -573,15 +684,15 @@ func _draw_weapon(m: ModuleData, at: int, hx: int, hy: int, hw: int, hh: int,
 			px(hx + 30, hy - 19, 16, 2, col)
 			px(hx + 46, hy - 17, 26, 4, metal)
 
-func _draw_system(m: ModuleData, at: int, hx: int, hy: int, hh: int) -> void:
-	var col := DB.manufacturer_colour(m.manufacturer)
+func _draw_system(maker: StringName, at: int, hx: int, hy: int, hh: int) -> void:
+	var col := DB.manufacturer_colour(maker)
 	var bx := hx + 10 + at * 22
 	px(bx, hy + hh - 4, 16, 7, lerp(col, Color("#0a0e13"), 0.5) as Color)
 	px(bx, hy + hh - 4, 16, 2, col)
 	px(bx + 2, hy + hh - 1, 3, 2, lerp(col, Color.WHITE, 0.3) as Color)
 
-func _draw_util(m: ModuleData, at: int, hx: int, hy: int) -> void:
-	var col := DB.manufacturer_colour(m.manufacturer)
+func _draw_util(maker: StringName, at: int, hx: int, hy: int) -> void:
+	var col := DB.manufacturer_colour(maker)
 	var ux := hx + 18 + at * 20
 	px(ux, hy - 7, 5, 7, lerp(col, Color("#0a0e13"), 0.4) as Color)
 	px(ux + 1, hy - 11, 3, 5, col)
