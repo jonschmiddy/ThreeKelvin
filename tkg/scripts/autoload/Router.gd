@@ -86,6 +86,12 @@ func show_launcher() -> void:
 ## the same signal. Two call sites, one chokepoint, same reason _swap() is the
 ## only place that saves.
 func _on_run_started() -> void:
+	# Let go of the signal bus first. A shared fight listens for the host on
+	# `Sig`, and a connection outlives the reference that made it — an abandoned
+	# fight dropped on the floor here would keep reacting to the party's next
+	# one for the rest of the session.
+	if combat != null:
+		combat.release()
 	combat = null
 
 ## A run starts by choosing a chassis, then opens on the sector rather than the
@@ -237,7 +243,7 @@ func resolve_current_node() -> void:
 		var extras: Array = []
 		for i in range(1, n.ambush.size()):
 			extras.append(DB.enemies[n.ambush[i]])
-		start_combat(DB.enemies[n.ambush[0]], extras, false)
+		start_combat(DB.enemies[n.ambush[0]], extras, false, false)
 		return
 
 	match n.type:
@@ -415,8 +421,19 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 ## `extras` is what the node already rolled. It is a parameter rather than
 ## something rolled in here so that the fight a node offers is decided once, at
 ## arrival, and survives a save — see _roll_here().
+## `share` is whether the party can be in this one.
+##
+## True for the fight a SYSTEM holds — that is a fact about a place, so every
+## machine derived the same enemies from the same node index and a second ship
+## arriving is arriving at the same frigate.
+##
+## FALSE for an ambush, and the reason is in `_roll_ambush`: whether something
+## noticed you is rolled off `Rng.foe`, a stream, precisely so that four ships
+## at one system do not all get jumped. Two players' ambushes at the same node
+## are two different events that happen to share an address, and joining one to
+## the other would be joining a fight that is not there.
 func start_combat(template: EnemyTemplate, extras: Array = [],
-		clears_node: bool = true) -> void:
+		clears_node: bool = true, share: bool = true) -> void:
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal".
 	Audio.music_state(&"boss" if template.boss else &"combat")
@@ -443,7 +460,22 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 		extras = []
 		for i in forced - 1:
 			extras.append(DB.enemies[Rng.pick(Rng.foe, pool0)])
-	combat.start(template, node.danger, extras)
+	# Built, then offered to the party, then opened. `plan()` produces the hull
+	# numbers the host is told, so danger scaling and the pack split stay in
+	# `Combat._spawn` rather than being worked out a second time in the session
+	# layer — see Combat.plan().
+	combat.plan(template, node.danger, extras)
+	var f: SharedFight = null
+	if share:
+		# One round trip on a client, none on the host, and null in the solo
+		# game. Null means "fight it alone", which is what every one of those
+		# three wants when there is nobody else here.
+		f = await Net.open_fight(node.index, combat.foe_ids(),
+			combat.foe_hp(), combat.foe_armor())
+		if f != null and f.crew.size() > 1:
+			var names := Net.fight_crew_names(node.index)
+			Run.log_line("Fighting alongside %s." % ", ".join(names).to_upper(), &"good")
+	combat.begin(f)
 
 ## Start the fight waiting at this system.
 ##
@@ -468,9 +500,14 @@ func engage_here() -> void:
 	start_combat(DB.enemies[n.foes[0]], extras)
 
 ## Events can drop you straight into a fight (distress-beacon bait).
+##
+## Not shared, and not because of the enemy: the fight is drawn from `Rng.foe`
+## rather than from the node, so two players who took the same bait are not
+## looking at the same ship. The event that produced it was a private
+## conversation and so is what came out of it.
 func start_ambush() -> void:
 	var pool := DB.fight_pool(Run.node_at().danger, false)
-	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
+	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)], [], true, false)
 
 func in_combat() -> bool:
 	return combat != null and not combat.finished

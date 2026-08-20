@@ -11,6 +11,42 @@ A pixel-art, turn-based roguelite where **your ship is your character and your m
 
 ---
 
+## The Setting
+
+*Added 2026-08-20. The premise the title has been carrying since v0.1, written down.*
+
+### The opening
+
+> The last stars are going out on a schedule nobody can argue with. What's left of the warmth is scattered — banked in dead reactors, cooling in the bones of things that swim between systems, buried in wrecks older than anyone who could have built them — and there are still ships out here collecting it. They say that if you gather enough of it in one place, in the right place, you can start it all over again. Nobody knows if that's true. Nobody has come back to say. So you fly in cold and quiet, because heat is the only thing left worth taking and everything still alive out there can feel you carrying it. And then you take more anyway. That's the job, and it's how you'll die: not because the dark found you, but because you went one jump deeper for one more ember, and the long way home got longer.
+
+Short, for a title card: *The universe is going out. Somewhere at the bottom of it there's still one warm thing. Bring it home, or die a little closer to it than you were.*
+
+The last sentence of the long version is load-bearing. It is Pillar 3 — *greed is the clock, deaths are self-authored* — stated as fiction rather than as a rule, so a player who reads the intro already knows how the game is going to kill them and has agreed to it.
+
+### What it is
+
+**The universe is running down, and the last people in it are going around collecting warmth.**
+
+That is the whole of it. Stars are going out on a schedule nobody can move. What is left is scattered — in old hulls, in the cores of dying things, in wrecks that predate anyone who could have built them — and there are ships out here gathering it, because somewhere ahead of them is the idea that if you collect enough of it in one place you can start something again.
+
+**Nobody knows whether that is true.** The game never says. It is entirely possible that this is a rescue, and entirely possible that it is a very long, very cold delusion held by people who cannot accept the alternative — and the run ending with the ember in the hold does not settle it. The doubt is the tone. A crew flying nine shells into the dark on a theory is more interesting than a crew flying nine shells into the dark on a certainty, and it is the only framing under which *greed is the clock* reads as tragic rather than merely mechanical.
+
+### What this explains that was already built
+
+The fiction was reverse-engineered from the mechanics rather than the other way round, which is why it fits without any of them changing:
+
+- **Heat is the resource you cannot hold.** Every hull leaks it, capacity is small, and carrying more than yours burns you. That is the game's argument about warmth stated as a rule, and it was in the first prototype.
+- **Warmth is what everything comes toward.** A hot ship attracts an ambush on the map and draws the enemy's fire inside a fight — see `coop-design.md` §6 and §15. In a universe going out, heat is the only thing left worth taking, so this is not a difficulty knob. It is what the setting does to you.
+- **The ember cannot be carried out alone.** §13's carrier runs permanently hot, cannot vent, cannot hide, and lights up the entire convoy. If the ember is a seed rather than a trophy, that rule stops being a balance decision and becomes the point: the thing worth saving is the thing that makes you visible to everything that wants it.
+- **The core is not a boss arena.** Something is guarding the last warm place. Whether it is guarding it *from* you or *for* you is not answered either.
+- **Three Kelvin is a measurement, not a metaphor.** The leftover heat of everything that has already happened, three degrees above nothing. The title was always the premise.
+
+### What it does not license
+
+No prophecy, no chosen crew, no faction explaining the cosmology in a text box. The people out here are salvagers with a theory and a fuel budget. Keep the fiction in the ship names, the log lines, the wrecks and the silence — the same places it already lives.
+
+---
+
 ## Design Pillars
 
 1. **The ship IS the character.** No crew micromanagement. A neutral hull plus the modules you find define your build. All progression, customization, and expression flows through the parts.

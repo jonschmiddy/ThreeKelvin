@@ -49,7 +49,11 @@ extends Node
 ## 4: a claim names an OPTION within a system rather than the whole system, and
 ##    records WHO took it. A version 3 host would answer a request for one
 ##    option by consuming the entire node.
-const PROTOCOL: int = 4
+## 5: fights are shared. The host owns the enemy — hull, block, armor and
+##    intent — and decides who it swings at. A version 4 host answers none of
+##    the fight messages, so two ships in one system would fight two private
+##    copies of the same frigate and both be paid for killing it.
+const PROTOCOL: int = 5
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -158,6 +162,24 @@ var _presence_dirty: bool = false
 ## somebody emptied.
 var claims: Dictionary = {}
 
+## The fights the party is in, as `{node index: SharedFight}`.
+##
+## THE ENEMY IS THE SHARED OBJECT. Nothing about your own ship is in here, and
+## that is not an omission — see SharedFight's header. A fight has exactly one
+## thing in it that several players touch at once, and it is the hull they are
+## all shooting at.
+##
+## Host-authoritative like `claims`, and pushed one fight at a time rather than
+## whole: a fight changes several times a turn while claims change a few times
+## an hour, and four people in three different systems have no use for each
+## other's enemy bars.
+##
+## Kept after `over` rather than deleted. A fight ends by the host saying so,
+## and the message that says so is the same push everything else arrives on —
+## dropping the entry would leave the last one with nowhere to land. They are
+## cleared with the rest of the session.
+var fights: Dictionary = {}
+
 
 func _ready() -> void:
 	# Only the autoload copy should be reachable by name. The headless test
@@ -203,6 +225,7 @@ func host_party(player_name: String, hull_id: StringName, t: NetTransport = null
 	roster.clear()
 	_builds.clear()
 	claims.clear()
+	fights.clear()
 	_said_hello = false
 	_join_serial = 0
 	_presence_sent = 0
@@ -231,6 +254,7 @@ func join_party(code: String, player_name: String, hull_id: StringName, t: NetTr
 	roster.clear()
 	_builds.clear()
 	claims.clear()
+	fights.clear()
 	_said_hello = false
 	_presence_sent = 0
 	_presence_dirty = true
@@ -251,6 +275,7 @@ func leave_party() -> void:
 	roster.clear()
 	_builds.clear()
 	claims.clear()
+	fights.clear()
 	transport = null
 	dive_seed = 0
 	_set_state(State.OFFLINE)
@@ -518,6 +543,55 @@ func _push_claims_to(all: Dictionary) -> void:
 	Sig.party_map_changed.emit()
 
 
+## Engage here. Open-or-join in one message, because the client asking cannot
+## know which one it is: two ships jumping into the same system in the same
+## second both believe they are first, and only the host can say otherwise.
+@rpc("any_peer", "call_remote", "reliable")
+func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
+		armor: PackedInt32Array) -> void:
+	if is_host():
+		_open_or_join(index, ids, hp, armor, multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _hurt_at_host(index: int, which: int, amount: int, hits: int) -> void:
+	if is_host():
+		_apply_hurt(index, which, amount, hits, multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _end_turn_at_host(index: int) -> void:
+	if is_host():
+		_apply_end_turn(index, multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _leave_fight_at_host(index: int) -> void:
+	if is_host():
+		_apply_leave(index, multiplayer.get_remote_sender_id())
+
+
+## One fight, not all of them. Claims are pushed whole because they change a few
+## times an hour; a fight changes several times a turn, and three people in
+## three different systems have no use for each other's enemy bars.
+@rpc("authority", "call_remote", "reliable")
+func _push_fight_to(wire: Dictionary) -> void:
+	var f := SharedFight.from_wire(wire)
+	if f.at < 0:
+		return
+	fights[f.at] = f
+	Sig.party_fight_changed.emit(f.at)
+
+
+## Something is shooting at YOU. Sent to one peer, never broadcast — see
+## _swing(). The intent is named by index into the enemy's own scaled lists,
+## which every machine built identically, so nothing about the attack itself has
+## to travel by value.
+@rpc("authority", "call_remote", "reliable")
+func _enemy_swings(at: int, which: int, kind: int, pick: int) -> void:
+	Sig.party_fight_swing.emit(at, which, kind, pick)
+
+
 @rpc("authority", "call_remote", "reliable")
 func _begin_dive(seed_value: int) -> void:
 	_apply_dive(seed_value)
@@ -575,6 +649,14 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	if not is_host():
 		return
+	# Out of every fight first. A dropped connection is indistinguishable from a
+	# player who walked away mid-turn, and a crew list still holding them is a
+	# barrier that never closes — the other three would sit on a WAITING button
+	# for the rest of the run. See SharedFight.leave().
+	for index in fights.keys():
+		var f: SharedFight = fights[index]
+		if f.crew.has(id):
+			_apply_leave(int(index), id)
 	if roster.erase(id):
 		_builds.erase(id)
 		_push_roster()
@@ -693,6 +775,104 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 	return 0
 
 
+# --- fights ---------------------------------------------------------------
+
+## Engage at a system, alone or beside whoever is already shooting.
+##
+## `hp` and `armor` are what the caller's own `Combat._spawn` produced. They are
+## passed in rather than worked out here so that danger scaling, boss exemption
+## and the pack split stay in the one function that has always owned them — the
+## session layer is not going to grow a second opinion about how tough a frigate
+## is.
+##
+## Returns the shared fight, or null. NULL IS A NORMAL ANSWER AND MEANS "FIGHT
+## IT ALONE": it is what the solo game gets, what a party of one gets, and what
+## a client gets if the host never answers. All three want the same behaviour,
+## which is the fight the game has always had.
+func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
+		armor: PackedInt32Array) -> SharedFight:
+	if not _can_talk() or index < 0 or party_size() < 2:
+		return null
+	if is_host():
+		_open_or_join(index, ids, hp, armor, 1)
+		return fights.get(index, null)
+	# Ask and wait, for the same reason `take()` does: two ships arriving at one
+	# system in the same second must end up in ONE fight. A client that opened
+	# optimistically would spawn a private frigate, and the host's would arrive
+	# a moment later holding different numbers.
+	_open_fight_at_host.rpc_id(1, index, ids, hp, armor)
+	var me := local_id()
+	var deadline := _now() + TAKE_TIMEOUT
+	while _now() < deadline:
+		await get_tree().process_frame
+		var f: SharedFight = fights.get(index, null)
+		if f != null and f.crew.has(me):
+			return f
+	return null
+
+
+## The fight at a system, shared or not, over or not. Callers check `over`.
+func fight_at(index: int) -> SharedFight:
+	return fights.get(index, null)
+
+
+## Whether arriving here means joining something rather than starting it.
+func fight_open_at(index: int) -> bool:
+	var f: SharedFight = fights.get(index, null)
+	return f != null and not f.over
+
+
+## One player's name, or "" if the party has never heard of them.
+func name_of(id: int) -> String:
+	return String(roster[id].get("name", "")) if roster.has(id) else ""
+
+
+## Everyone else in the fight, by name, for a line the player can read.
+func fight_crew_names(index: int) -> PackedStringArray:
+	var out := PackedStringArray()
+	var f: SharedFight = fights.get(index, null)
+	if f == null:
+		return out
+	var me := local_id()
+	for p in f.crew:
+		if p != me and roster.has(p):
+			out.append(String(roster[p].get("name", "")))
+	return out
+
+
+## Your shot. Fire and forget — you have already drawn the number locally, and
+## the host's push is what corrects it. See SharedFight.hurt().
+func hurt_foe(index: int, which: int, amount: int, hits: int) -> void:
+	if not _can_talk():
+		return
+	if is_host():
+		_apply_hurt(index, which, amount, hits, 1)
+	else:
+		_hurt_at_host.rpc_id(1, index, which, amount, hits)
+
+
+## You pressed END TURN. The enemy acts when the last ship does.
+func report_end_turn(index: int) -> void:
+	if not _can_talk():
+		return
+	if is_host():
+		_apply_end_turn(index, 1)
+	else:
+		_end_turn_at_host.rpc_id(1, index)
+
+
+## You are out of it — dead, fled, or done. Not optional: a crew list holding
+## somebody who will never press END TURN again is a fight that never takes
+## another turn.
+func leave_fight(index: int) -> void:
+	if not _can_talk():
+		return
+	if is_host():
+		_apply_leave(index, 1)
+	else:
+		_leave_fight_at_host.rpc_id(1, index)
+
+
 ## Who owns one option here, or 0 if nobody does.
 func who_took(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 	var here: Dictionary = claims.get(index, {})
@@ -728,6 +908,159 @@ func _push_claims() -> void:
 	if not is_host() or multiplayer.get_peers().is_empty():
 		return
 	_push_claims_to.rpc(claims)
+
+
+# --- fights, on the host --------------------------------------------------
+
+func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
+		armor: PackedInt32Array, by: int) -> void:
+	var f: SharedFight = fights.get(index, null)
+	if f != null and not f.over:
+		# Already somebody's fight. The second ship in is help, not a second
+		# frigate — see SharedFight.join().
+		if not f.join(by):
+			return
+	else:
+		f = SharedFight.open(index, ids, hp, armor, by)
+		fights[index] = f
+		for i in f.foes.size():
+			_pick_intent(f, i)
+	_push_fight(f)
+
+
+func _apply_hurt(index: int, which: int, amount: int, hits: int, by: int) -> void:
+	var f: SharedFight = fights.get(index, null)
+	if f == null or f.over or not f.crew.has(by):
+		return
+	f.hurt(which, amount, hits, by)
+	_push_fight(f)
+
+
+func _apply_end_turn(index: int, by: int) -> void:
+	var f: SharedFight = fights.get(index, null)
+	if f == null or f.over:
+		return
+	if not f.end_turn(by):
+		# Not everybody yet. Pushed anyway so the others can see who is still
+		# out — a button that says WAITING with no name on it is a hang.
+		_push_fight(f)
+		return
+	_swing(f)
+
+
+func _apply_leave(index: int, by: int) -> void:
+	var f: SharedFight = fights.get(index, null)
+	if f == null:
+		return
+	f.leave(by)
+	# Somebody leaving can be the thing that closes the barrier — three ships
+	# waiting on a fourth who just died is a fight that would otherwise stop.
+	if not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
+		_swing(f)
+		return
+	_push_fight(f)
+
+
+## The enemy turn. The one moment in a shared fight that is not free-running,
+## because it is the one moment a shared object acts on several private ones.
+##
+## Each hull swings at ONE ship and the message goes to that ship alone. What
+## happens next — dodge, block, armor, hull, riposte — is resolved on the
+## victim's machine against its own `Run`, because those numbers live nowhere
+## else and no other player has any use for them. Mirroring three partners'
+## block values across the party would be a lot of wire for something nobody
+## reads.
+func _swing(f: SharedFight) -> void:
+	for i in f.alive():
+		var target := _who_gets_hit(f)
+		if target == 0:
+			break
+		var e := f.foes[i]
+		if target == 1:
+			Sig.party_fight_swing.emit(f.at, i, e.kind, e.pick)
+		else:
+			_enemy_swings.rpc_id(target, f.at, i, e.kind, e.pick)
+	f.advance()
+	for i in f.foes.size():
+		_pick_intent(f, i)
+	# The turn number IS the "everybody go again" message. A separate one would
+	# be a second thing to keep in step with the first.
+	_push_fight(f)
+
+
+## Who it swings at. Weighted by heat, and heat is already on the wire.
+##
+## THE FIELD REACHES INSIDE THE FIGHT. `coop-design.md` §6 makes signature the
+## dial for flying together, but every consequence it lists happens on the map —
+## ambushes on arrival, a Stealth penalty, the overheat burn. This is the same
+## rule one level down: the loudest ship in the room is the one being shot at.
+## It gives the Korvan line a job it can do for the party (soak, run hot, hold
+## the attention) and it makes venting a thing you do FOR somebody rather than
+## only to survive your own reactor.
+##
+## The floor is the point. 0.5 base against a ceiling of 0.5 + 1.7 means a
+## redlining ship draws roughly four times the fire of a cold one and a cold one
+## is still never safe — a target rule with a zero in it is a party that solves
+## the fight by electing a victim.
+func _who_gets_hit(f: SharedFight) -> int:
+	var pool: PackedInt32Array = PackedInt32Array()
+	var weights: PackedFloat32Array = PackedFloat32Array()
+	var total := 0.0
+	for p in f.crew:
+		var b := build_of(p)
+		if b != null and b.dead:
+			continue
+		var w := 0.5 + (b.heat_ratio() if b != null else 0.0)
+		pool.append(p)
+		weights.append(w)
+		total += w
+	if pool.is_empty():
+		return 0
+	var roll := Rng.fight.randf() * total
+	var acc := 0.0
+	for i in pool.size():
+		acc += weights[i]
+		if roll < acc:
+			return pool[i]
+	return pool[pool.size() - 1]
+
+
+## The next thing one hull intends to do. Host only, and that is the whole
+## reason intents cross the wire at all: `pick_intent` draws from `Rng.fight`,
+## which is an ordered stream rather than a positional derivation, so four
+## machines rolling it independently would agree about nothing.
+func _pick_intent(f: SharedFight, i: int) -> void:
+	if i >= f.foe_ids.size() or i >= f.foes.size():
+		return
+	var t: EnemyTemplate = DB.enemies.get(StringName(f.foe_ids[i]))
+	if t == null:
+		return
+	var e := f.foes[i]
+	if not t.pool.is_empty():
+		var total := 0
+		for it in t.pool:
+			total += it.weight
+		var roll := Rng.fight.randi() % maxi(1, total)
+		var acc := 0
+		e.kind = SharedFight.Pick.POOL
+		e.pick = 0
+		for k in t.pool.size():
+			acc += t.pool[k].weight
+			if roll < acc:
+				e.pick = k
+				return
+	elif not t.loop.is_empty():
+		e.kind = SharedFight.Pick.LOOP
+		e.pick = e.step % t.loop.size()
+		e.step += 1
+
+
+func _push_fight(f: SharedFight) -> void:
+	if not is_host():
+		return
+	if not multiplayer.get_peers().is_empty():
+		_push_fight_to.rpc(f.to_wire())
+	Sig.party_fight_changed.emit(f.at)
 
 
 func _apply_hull(id: int, hull_id: StringName) -> void:
@@ -798,6 +1131,7 @@ func _drop(message: String) -> void:
 	roster.clear()
 	_builds.clear()
 	claims.clear()
+	fights.clear()
 	_set_state(State.FAILED)
 	Sig.party_failed.emit(message)
 

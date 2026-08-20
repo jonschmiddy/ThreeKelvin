@@ -286,6 +286,33 @@ Today exactly one encounter takes the contested path — salvaging a derelict, t
 
 **Protocol 4** is this change. Save version 5 carries `MapNode.taken`, so a resumed run remembers which options are gone — which `cleared` alone cannot say.
 
+### One enemy, several ships
+
+Joint combat is smaller than it looks, and the reason is an accident of how `Combat` was already written.
+
+**Your side of a fight is already private.** Deck, hand, energy, block, armor, heat and hull live in `Run` and in `Combat`, on your own machine, and no other player targets them, spends them or reads them. **The contested object in a fight is the thing being shot at.** So the host owns the enemy and nothing else — `SharedFight` carries hull, block, armor and which intent, and that is the entire shared surface. No `Run` refactor was needed to build this.
+
+**Every attack in the game funnels through one function.** `Combat.damage_enemy()` has five call sites, three of them in `CardResolver`. That is the seam, and it is why the change is a field on `Combat` rather than a rewrite of it.
+
+The two directions are deliberately asymmetric.
+
+- **You → enemy.** Your card resolves locally and instantly, so the number appears the moment you play it, exactly as it does alone. The **raw** amount is then sent, and the host redoes the mitigation against the block it actually has — the copy your machine just spent may already have been spent by somebody else. Its push is authoritative. **Death is host-only:** a client that called `_victory()` off its own optimistic view would pay itself for a kill the host has not seen, which is §3's closed economy paid out four times in the easiest place to do it by accident.
+- **Enemy → you.** The host picks the target and sends the intent **to that machine alone**. Dodge, block, armor, hull and riposte all resolve there, against numbers that exist nowhere else. Mirroring three partners' block values across the party would be a lot of wire for something nobody reads.
+
+**A partner's shot has to be drawable.** Their card was played on a different computer, so without help their hits land silently and the hull bar drops for no visible reason. The push carries `[who, foe, total, serial]`; you skip your own and draw everyone else's. The serial is what makes "once" mean once — every push carries the last hit, including the ones that are about something else entirely.
+
+**The enemy aims at heat.** Weight is `0.5 + heat_ratio`, so a redlining ship draws about four times the fire of a cold one and a cold one is still never safe — a target rule with a zero in it is a party that solves the fight by electing a victim. It costs nothing on the wire: `ShipBuild` has carried heat since the convoy strip needed it to draw a gauge. This is `coop-design.md` §6's field one level down, and it is the first place heat is a threat inside a fight rather than only on the map.
+
+**One barrier, in one place.** Everybody draws and plays at their own pace, immediately. What cannot happen concurrently is the enemy swinging, because that is one object acting on several private ones — so `SharedFight.end_turn()` collects END TURN from each ship and the enemy acts when the last one is in. That is §5's *do not gate the tick* applied to the turn. `coop-design.md` §5 asked for simultaneous face-down lock-in instead; that needs cards to become deferred effects, and the ones that draw, gain energy or block-then-attack do not survive resolving out of order. The barrier gets the same "nobody waits on a phase" property for no card changes at all.
+
+**Leaving is not optional.** A crew list still holding somebody who will never press END TURN again is a fight that never takes another turn. Dying, fleeing, winning and disconnecting all call `leave()`, and a disconnect that closes the barrier takes the turn immediately. Losing the host mid-fight drops the fight back to local resolution rather than hanging on a button that will never light up.
+
+**The enemy scales, and everyone gets paid.** Each extra ship adds `CREW_SHARE` (0.6) of the enemy's solo value, the same number `Combat.start()` already uses to split a pack — three hands of cards against one intent is an advantage, so a linearly scaled enemy would make the party fight *easier*. Joining at 10% health still grows it, which is the price of arriving late. Everyone still in it when the last hull came apart is paid, and fleeing already paid nothing.
+
+**What is not shared:** an ambush, because `_roll_ambush` draws from `Rng.foe` — a stream, precisely so four ships at one system do not all get jumped, which means two players' ambushes at the same node are different events sharing an address. Nor an event that drops you into a fight, for the same reason. Reinforcements and pacification are off in a shared fight rather than wrong in one; both need the host counting something it does not count yet.
+
+**Protocol 5** is this change.
+
 ### Two processes, one galaxy
 
 The end of the chain, run for real rather than argued:
@@ -332,7 +359,7 @@ The session layer is the part that is hard to change later, which is why it is b
 |---|---|---|
 | ~~**RNG determinism**~~ | ✅ **Done.** The seed `_begin_dive` sends is now honoured: `Rng` puts one galaxy, one map and one set of shelves on every machine that shares it. | Was the top item. See `Rng.gd` and `-- rngtest` |
 | **`Run` is a singleton** | 655 references across 33 files. A host holding four ships needs four of it. | Largest single item; gates most of the rest |
-| **Gameplay messages** | Two exist. A roster slot carries the ship each player is flying and the system they are in; the host holds which OPTIONS the party has consumed and who took each one, so a wreck is stripped once and the loser is told before any loot is rolled. Still missing: jump commits, card lock-in, the shared heat field, the shared fuel tank. | Real work, but `Combat` is already UI-free and already headless. Danger tracking the deepest ship (§7) is now cheap — every position is already on the wire |
+| **Gameplay messages** | Three exist. A roster slot carries the ship each player is flying and the system they are in; the host holds which OPTIONS the party has consumed and who took each one; and the host owns the enemy in any fight more than one ship is in. Still missing: the shared heat field on the map, the shared fuel tank, danger tracking the deepest ship. | Real work, but `Combat` is already UI-free and already headless. §7 is now cheap — every position is already on the wire |
 | ~~**Lobby UI**~~ | ✅ **Done.** `LobbyScreen` — host, code, COPY/PASTE, join, roster, ready, launch. Reached from the title screen under **FLY TOGETHER**; the `-- lobby host` / `-- lobby join CODE` / `auto` flags exist to test it, not to use it. | Two processes have now formed a party and landed in the same galaxy. See below |
 | **§0's gate** | `coop-design.md` rules that heat must gate reward before a commons is built on it, and the measurement says it does not yet. | A design gate, not a code one |
 
@@ -347,7 +374,7 @@ The session layer is the part that is hard to change later, which is why it is b
 | # | Ruling | Blocks |
 |---|---|---|
 | N1 | Rendezvous, Steam, or EOS as the second transport | Nothing yet — that is the point of `NetTransport`. It becomes urgent at the first outside playtest |
-| N2 | Does the host simulate all four ships, or does each client simulate its own and report? | How much of the `Run` refactor is needed, and how cheatable the game is |
+| ~~N2~~ | ~~Does the host simulate all four ships, or does each client simulate its own and report?~~ — **ANSWERED, for combat: neither.** The host owns the CONTESTED object and each client owns its own ship. In a fight the contested object is the enemy, so that is all the host holds. It is the answer that needed no `Run` refactor, and it generalises: the shared fuel tank and the summed heat field are the same shape. | Closed for combat. Still open for anything a client could lie about — the game is trusted-peer today |
 | N3 | Can a party survive the host dropping? | Migration is expensive; "the dive ends" may be the honest answer for a 30–60 minute session |
 | N4 | Does a dropped player rejoin the same dive, and how? | Interacts with the wreck rules in `coop-design.md` §10 |
 | N5 | Is the content fingerprint strict enough to block mods, or should it warn and continue? | Mod support, later |

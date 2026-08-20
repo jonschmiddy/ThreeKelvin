@@ -46,6 +46,8 @@ class EnemyState extends RefCounted:
 			step += 1
 
 var enemies: Array[EnemyState] = []
+## The database ids behind `enemies`, in the same order. See foe_ids().
+var _ids: PackedStringArray = PackedStringArray()
 
 ## The current target: the first enemy still standing. Most of the game asks
 ## about "the enemy" and means exactly this. Explicit targeting passes an index.
@@ -83,6 +85,27 @@ var reinforced: bool = false
 ## would fly away from a shop you never opened.
 var clears_node: bool = true
 
+## The party's copy of the enemy, when more than one ship is in this fight.
+## Null in the solo game, in every headless sim, and in a party of one — and
+## everything below falls back to the fight the game has always had.
+##
+## THE ENEMY IS THE ONLY SHARED THING. Your deck, hand, energy, block, armor,
+## heat and hull stay exactly where they are, in `Run` and in this object, on
+## your own machine. No other player targets them, spends them or reads them, so
+## nothing about them has to cross. That asymmetry is why joint combat fits in
+## one field here instead of a rewrite of this file.
+var shared: SharedFight = null
+## Which system the shared fight is at. Kept separately because `shared` is
+## replaced wholesale by every push and the signal that carries it names a
+## place, not an object.
+var shared_at: int = -1
+## The serial of the last partner shot this machine has already drawn. See
+## SharedFight.last_hit.
+var _seen_hit: int = 0
+## Ended your turn and waiting on the rest of the party. The only moment in a
+## shared fight that blocks — see SharedFight.end_turn().
+var waiting: bool = false
+
 var turn: int = 1
 var attacks_this_turn: int = 0
 var peaceful_turns: int = 0
@@ -94,19 +117,60 @@ var summary: String = ""
 # ------------------------------------------------------------------------- setup
 
 func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
+	plan(template, danger, extras)
+	begin(null)
+
+## Build the fight without starting it.
+##
+## Split out of start() because a shared fight has to be opened with numbers
+## this function produces — the host is told what a frigate is worth rather than
+## working it out again, so danger scaling, the boss exemption and the pack
+## split stay in `_spawn` where they have always been. Router calls plan(), asks
+## the party, then calls begin().
+func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 	enemies.clear()
 	var share := 1.0 if extras.is_empty() else 0.6
 	enemies.append(_spawn(template, danger, share))
 	for t in extras:
 		enemies.append(_spawn(t as EnemyTemplate, danger, share))
+	_ids = PackedStringArray([String(template.id)])
+	for t in extras:
+		_ids.append(String((t as EnemyTemplate).id))
 
 	deck = DeckBuilder.build()
 	Rng.shuffle(Rng.fight, deck)
 	hand.clear()
 	discard.clear()
 	negate_next = Run.has_set(&"redline", 5)
+
+## Open the first turn. `f` is the party's copy of the enemy, or null for the
+## fight the game has always had.
+func begin(f: SharedFight) -> void:
+	if f != null:
+		_attach(f)
 	Sig.combat_started.emit(enemies[0].template.name)
 	begin_turn()
+
+## What this fight is made of, by database id, in enemy order. What the host is
+## told so a ship arriving mid-fight can build the same hulls.
+func foe_ids() -> PackedStringArray:
+	return _ids
+
+func foe_hp() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for e in enemies:
+		out.append(e.max_hp)
+	return out
+
+func foe_armor() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for e in enemies:
+		out.append(e.armor)
+	return out
+
+## Whether this fight is the party's rather than yours.
+func is_shared() -> bool:
+	return shared != null and shared_at >= 0
 
 ## Builds one enemy at this danger. Bosses are hand-tuned, never scaled. HP
 ## scales faster than damage so deeper fights are longer rather than lethal.
@@ -155,7 +219,12 @@ func reinforce(template: EnemyTemplate, danger: int) -> void:
 ## Rolled at the top of a turn. Lawless space is where nobody flies alone, and
 ## a fight that has already run long is the one worth interrupting.
 func _maybe_reinforce() -> void:
-	if reinforced or finished or Run.node_at().danger < 3:
+	# Solo only, for now. A shared fight's enemy list is the host's, and adding
+	# a hull to it mid-fight means every machine spawning the same reinforcement
+	# at the same index and agreeing what it is worth. That is a real feature
+	# and a short one — the wire already carries foe ids — but it is not this
+	# one, and half of it silently would be four different rooms.
+	if reinforced or finished or is_shared() or Run.node_at().danger < 3:
 		return
 	# One roll, on one turn. Rolling every turn compounds: 12% a turn over a ten
 	# turn fight is a ~72% chance, which is not "sometimes", it is "usually".
@@ -249,8 +318,27 @@ func end_turn() -> void:
 		peaceful_turns = 0
 
 	# Not every fight wants fighting.
-	if enemy.template.fauna and peaceful_turns >= 2:
+	#
+	# Solo only. Pacifying is a claim about how the WHOLE room behaved for two
+	# turns, and this object only knows what one ship did — three players
+	# shooting while a fourth sits still is not a pod being left alone. Making
+	# it work in a party means the host counting quiet turns per ship, which is
+	# a real feature rather than a guard, so it is off rather than wrong.
+	if enemy.template.fauna and peaceful_turns >= 2 and not is_shared():
 		_pacify()
+		return
+
+	if is_shared():
+		# The one blocking moment. Everything up to here ran at your own pace;
+		# the enemy cannot swing until the last ship is done, because it is one
+		# object acting on several. See SharedFight.end_turn().
+		waiting = true
+		# The hand really is empty — it was discarded at the top of this
+		# function — and the panel that draws it is the one holding the button
+		# that now says WAITING.
+		Sig.hand_changed.emit()
+		Sig.player_combat_state_changed.emit()
+		Net.report_end_turn(shared_at)
 		return
 
 	_enemy_act()
@@ -324,6 +412,12 @@ func _act_one(e: EnemyState) -> void:
 			if Run.dead:
 				_finish(&"dead", Run.death_reason)
 				return
+	if is_shared():
+		# Both of these are the host's. Its block is one number several ships
+		# are spending, and its next intent comes off `Rng.fight` — an ordered
+		# stream, not a positional derivation, so four machines rolling it
+		# independently would agree about nothing. See NetSession._pick_intent().
+		return
 	e.block = 0
 	e.pick_intent()
 
@@ -448,14 +542,33 @@ func damage_enemy(amount: int, hits: int, label: String,
 			d -= a2
 		e.hp -= d
 		total += d
+	var which := enemies.find(e)
 	var who := "" if enemies.size() < 2 else " → %s" % e.template.name
 	_log("%s%s → %d%s" % [label, who, total, "" if hits <= 1 else " (%d hits)" % hits], &"you")
-	Sig.damage_dealt.emit(total, false, enemies.find(e))
+	Sig.damage_dealt.emit(total, false, which)
 	Sig.enemy_changed.emit()
+
+	if is_shared():
+		# Applied locally AND sent. Locally so that your own card reads exactly
+		# as it does alone — you played it, you see the number, there is no
+		# round trip between the click and the hit. Sent because the host owns
+		# the hull: its push arrives a moment later and overwrites hp, block and
+		# armor with the answer that counts, which is how two ships firing in
+		# the same instant end up agreeing about what is left.
+		#
+		# The RAW amount goes, not `total`. The host redoes the mitigation
+		# itself against the block it actually has, because the copy this
+		# machine just spent may already have been spent by somebody else.
+		Net.hurt_foe(shared_at, which, amount, hits)
+		# And death is NOT decided here. A client that called _victory() off its
+		# own optimistic view would pay itself for a kill the host has not seen,
+		# which is `coop-design.md` §3's closed economy paid out four times over
+		# in the one place it is easiest to do by accident.
+		return total
 
 	if e.hp <= 0:
 		e.hp = 0
-		Sig.enemy_destroyed.emit(enemies.find(e))
+		Sig.enemy_destroyed.emit(which)
 		if enemies.size() > 1:
 			_log("%s is wreckage." % e.template.name, &"good")
 	if alive().is_empty():
@@ -531,9 +644,166 @@ func _pacify() -> void:
 
 func _finish(res: StringName, text: String) -> void:
 	finished = true
+	waiting = false
+	# Out of the crew whatever happened — won, died, fled or pacified. NOT
+	# optional: a crew list still holding somebody who will never press END TURN
+	# again is a barrier that never closes, and the rest of the party would sit
+	# on a WAITING button for the remainder of the run.
+	if is_shared():
+		Net.leave_fight(shared_at)
+		release()
 	result = res
 	summary = text
 	Sig.combat_ended.emit(res, text)
+
+# ------------------------------------------------------------------- the party
+
+## Take the party's copy of the enemy as this fight's enemy.
+func _attach(f: SharedFight) -> void:
+	shared = f
+	shared_at = f.at
+	# Whatever has already happened in this fight is history to a ship that just
+	# arrived. Adopting the serial rather than zero stops a joiner from drawing
+	# the shot that landed before it got here.
+	_seen_hit = f.hit_serial
+	# And so is the turn number. A ship joining a fight on turn seven is on turn
+	# seven — starting at one and catching up would run begin_turn() six times
+	# in a row on the next push, which is six hands of cards.
+	turn = f.turn
+	Sig.party_fight_changed.connect(_on_fight_changed)
+	Sig.party_fight_swing.connect(_on_swing)
+	# Losing the host mid-fight must not be a softlock. See _on_party_lost().
+	Sig.party_failed.connect(_on_party_lost)
+	_adopt(f)
+
+
+## Let go. Public because a fight can end without finishing — ABANDON RUN from
+## the pause menu drops `Router.combat` on the floor mid-turn, and a Combat left
+## connected to the signal bus is a dead fight still reacting to a live one.
+func release() -> void:
+	if Sig.party_fight_changed.is_connected(_on_fight_changed):
+		Sig.party_fight_changed.disconnect(_on_fight_changed)
+	if Sig.party_fight_swing.is_connected(_on_swing):
+		Sig.party_fight_swing.disconnect(_on_swing)
+	if Sig.party_failed.is_connected(_on_party_lost):
+		Sig.party_failed.disconnect(_on_party_lost)
+	shared = null
+	shared_at = -1
+	waiting = false
+
+
+## Copy the host's answer over the local enemy.
+##
+## Only the numbers move. The templates, the art and the scaled intent lists
+## were built identically on every machine from the same ids and the same
+## danger, so what crosses is hull, block, armor and WHICH intent — never the
+## intent itself.
+func _adopt(f: SharedFight) -> void:
+	var n := mini(f.foes.size(), enemies.size())
+	for i in n:
+		var src := f.foes[i]
+		var dst := enemies[i]
+		var was := dst.hp
+		dst.hp = src.hp
+		dst.max_hp = src.max_hp
+		dst.armor = src.armor
+		dst.block = src.block
+		var list: Array[IntentData] = dst.template.pool \
+			if src.kind == SharedFight.Pick.POOL else dst.template.loop
+		if src.pick >= 0 and src.pick < list.size():
+			dst.intent = list[src.pick]
+		if was > 0 and dst.hp <= 0:
+			Sig.enemy_destroyed.emit(i)
+			if enemies.size() > 1:
+				_log("%s is wreckage." % dst.template.name, &"good")
+	# Somebody else's gun. Drawn here because it is the only place this machine
+	# can learn about it — a partner's card was played on a different computer,
+	# and without this their hits land silently and the hull bar drops for no
+	# visible reason.
+	if f.last_hit.size() == 4 and f.hit_serial > _seen_hit:
+		_seen_hit = f.hit_serial
+		var by := f.last_hit[0]
+		if by != Net.local_id():
+			var who := Net.name_of(by)
+			_log("%s → %d" % [who.to_upper() if who != "" else "PARTNER",
+				f.last_hit[2]], &"good")
+			Sig.damage_dealt.emit(f.last_hit[2], false, f.last_hit[1])
+	Sig.enemy_changed.emit()
+
+
+## The host said something moved.
+func _on_fight_changed(at: int) -> void:
+	if at != shared_at or finished:
+		return
+	var f := Net.fight_at(at)
+	if f == null:
+		return
+	shared = f
+	_adopt(f)
+	if f.over:
+		# The host decides the fight is won, not this machine. Everyone still in
+		# it when the last hull came apart is paid, which is the ruling: winning
+		# a fight gets you the loot.
+		if alive().is_empty():
+			_victory()
+		return
+	# The turn number IS the "everybody go again" message.
+	if f.turn > turn:
+		# After the swing, never before. Same ordering the solo path has kept
+		# since the bug that zeroed Block on the way INTO the enemy's turn.
+		block = 0
+		turn = f.turn
+		waiting = false
+		begin_turn()
+
+
+## The party is gone — the host dropped, or the connection did.
+##
+## The fight does not stop. It becomes the fight the game has always had: the
+## enemy on this machine is whatever the last push said it was, and from here
+## this object decides its own hulls again. Anything else is a softlock, because
+## the one thing a shared fight waits for is a host that is no longer there.
+##
+## The enemy is left at party scale. Finishing a frigate sized for four on your
+## own is bad; being unable to finish it at all is worse, and FLEE is still on
+## the panel.
+func _on_party_lost(_reason: String) -> void:
+	if finished or not is_shared():
+		return
+	_log("The convoy channel is gone. You are on your own.", &"them")
+	var was_waiting := waiting
+	release()
+	if was_waiting:
+		# Mid-barrier when it dropped. Take the enemy turn this machine was
+		# waiting to be told about, so the fight carries on rather than sitting
+		# on a button that will never light up again.
+		_enemy_act()
+		if finished:
+			return
+		block = 0
+		turn += 1
+		begin_turn()
+	Sig.player_combat_state_changed.emit()
+	Sig.hand_changed.emit()
+
+
+## Something is shooting at you.
+##
+## Resolved here, on your machine, against your own dodge, block, armor and
+## hull, because those numbers exist nowhere else. The host chose the target and
+## named the intent; everything after that is local.
+func _on_swing(at: int, which: int, kind: int, pick: int) -> void:
+	if at != shared_at or finished or which < 0 or which >= enemies.size():
+		return
+	var e := enemies[which]
+	var list: Array[IntentData] = e.template.pool \
+		if kind == SharedFight.Pick.POOL else e.template.loop
+	if pick < 0 or pick >= list.size():
+		return
+	e.intent = list[pick]
+	_act_one(e)
+	Sig.enemy_changed.emit()
+
 
 func _log(text: String, kind: StringName) -> void:
 	Run.log_line(text, kind)

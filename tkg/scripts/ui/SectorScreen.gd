@@ -98,6 +98,12 @@ func setup(c: Combat = null) -> void:
 	Sig.hand_changed.connect(_refresh_hand)
 	Sig.enemy_changed.connect(_refresh_enemy)
 	Sig.player_combat_state_changed.connect(_refresh_player)
+	# The party moved: a partner ended their turn, or shot something. The hand
+	# panel carries the WAITING button and the enemy panel carries their hits.
+	Sig.party_fight_changed.connect(func(_at: int) -> void:
+		if fighting():
+			_refresh_hand()
+			_refresh_enemy())
 	Sig.turn_started.connect(func(_t): _refresh())
 	Sig.combat_ended.connect(_on_combat_ended)
 	Sig.damage_dealt.connect(_on_damage)
@@ -689,7 +695,27 @@ func _refresh_hand() -> void:
 	_draw_pile.set_count(combat.deck.size(), "DRAW")
 	_discard_pile.set_count(combat.discard.size(), "DISCARD")
 	_deck_label.text = "TURN %d" % combat.turn
-	_end_button.disabled = combat.finished
+	# WAITING, with a name on it. A button that greys out and says nothing is
+	# indistinguishable from a hang, and in a shared fight the reason it is grey
+	# is always another person — so say who.
+	if combat.waiting:
+		var f := Net.fight_at(combat.shared_at)
+		var names := PackedStringArray()
+		if f != null:
+			for p2 in f.waiting_on():
+				# Never yourself. You pressed the button; the local copy of the
+				# fight has not heard back yet, so for one frame it still lists
+				# you among the ships it is waiting for.
+				if p2 == Net.local_id():
+					continue
+				var who := Net.name_of(p2)
+				if who != "":
+					names.append(who.to_upper())
+		_end_button.text = "WAIT\n%s" % (names[0] if names.size() == 1
+			else ("%d SHIPS" % names.size() if names.size() > 1 else "..."))
+	else:
+		_end_button.text = "END\nTURN"
+	_end_button.disabled = combat.finished or combat.waiting
 
 # --------------------------------------------------------------------- input
 
@@ -909,7 +935,7 @@ func _on_hand_reorder(cards: Array) -> void:
 	_refresh_hand()
 
 func _on_end_turn() -> void:
-	if fighting():
+	if fighting() and not combat.waiting:
 		combat.end_turn()
 
 ## Fleeing asks first.

@@ -62,9 +62,10 @@ godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 # Save/load round-trip — RUN THIS AFTER TOUCHING SaveGame OR RunHistory
 godot --headless --path . -- savetest          # ~3 s
 
-# Lobby codes, and four peers forming a party in one process —
-# RUN THIS AFTER TOUCHING ANYTHING IN scripts/net/
-godot --headless --path . -- nettest           # ~3 s
+# Lobby codes, four peers forming a party in one process, one map rather than
+# four copies, and one enemy rather than four —
+# RUN THIS AFTER TOUCHING ANYTHING IN scripts/net/ OR Combat's shared path
+godot --headless --path . -- nettest           # ~5 s
 
 # The same seed twice, and streams that do not move each other —
 # RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR
@@ -241,6 +242,8 @@ say so and ask rather than quietly working around it.
 | **The profit is in the distance between two places, not in one transaction** | Round-tripping a part where you stand is a guaranteed loss, and that is correct: a scrapyard is not a market. A house's own yard is thick with its own parts and pays a glut price; a rival's yard needs what it cannot press. Buy Korvan in Korvan space, sell it to Solari. The route IS the trade |
 | **A station's shelf is rolled once per run** | The guard used to be `shop.is_empty()`, so buying a shelf out re-rolled it on the next visit. A station is a place, not a vending machine: what somebody brought here is what there is, and it is also the brake that stops any trade route from being farmed |
 | **Prices are derived, never stored** | A price is a pure function of a place and a part. The old "price" meta was saved on every shop module, and a shelf that came back without it quietly held a 47% sale. A derived number that is also saved is a second copy of the truth, and it only ever goes one way |
+| **In a shared fight the host owns the ENEMY and nothing else** | The general rule is *the host owns the contested object*, and in a fight the contested object is the thing being shot at. Everything on your side of it is private by construction — nobody else targets your block — so it stays local and costs nothing. This is the answer to `netcode.md` N2 ("does the host simulate all four ships"): neither, and it needed no `Run` refactor. It generalises — the shared fuel tank and §6's summed heat field are the same shape |
+| **Free-running turns with one barrier, NOT simultaneous lock-in** | `coop-design.md` §5 asked for face-down lock-in and it is rejected. Lock-in makes every card a deferred effect, and draw, energy-gain and block-then-attack do not survive resolving out of order — it is a rework of `CardResolver` and a chunk of the card set. The barrier gets the same property (nobody waits on a phase, nobody sees another hand) for zero card changes. Do not re-propose lock-in without pricing the card rework |
 | **Materials are prerequisites, not a second currency** | Nothing on a price tag is denominated in alloy. A recipe costing forty scrap is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. This is how crafting gets a cost that scrap cannot pay without breaking the one-currency ruling |
 | **No crew management.** Ever | The whole premise: ship systems, not little people running around |
 | **A system is consumed through `RunState.take_whole()` or `take_option()`, and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch. **The two doors are not interchangeable.** `take_whole()` fires and forgets, which is right for what nobody can take from you — the fight you won, the hail you were inside. `take_option()` ASKS and returns whether you got it, which is required for anything two ships can race for: assume you won and both players roll the loot, and the flag agreeing afterwards does not take the module back out of the loser's hold |
@@ -643,6 +646,53 @@ draws the party from it — **outside** the visibility filter that hides unvisit
 That filter is right for a place and wrong for a person: `coop-design.md` §7's leash only
 works if you can see how deep somebody is. §9's sensor-range fog is not built; when it is,
 it gates the position going *onto* the wire, not coming off it.
+
+### A shared fight
+
+`SharedFight` is the party's copy of **the enemy, and only the enemy**. Your deck, hand,
+energy, block, armor, heat and hull stay in `Run` and `Combat` on your own machine and
+never cross, because no other player targets them, spends them or reads them. That
+asymmetry is why joint combat is one field on `Combat` rather than a rewrite of it — and
+why it needed no part of the `Run` instance refactor.
+
+Every attack funnels through `Combat.damage_enemy()`. Five call sites, three in
+`CardResolver`. That is the seam.
+
+**The two directions are asymmetric on purpose.** Your card resolves locally and instantly
+— you played it, you see the number, no round trip — and the **raw** amount is then sent
+for the host to re-mitigate against the block it actually has, because the copy you just
+spent may already have been spent by somebody else. Its push is authoritative. Death is
+host-only: a client calling `_victory()` off its own optimistic view pays itself for a kill
+the host has not seen. The other direction goes to **one machine**: the host names the
+target and the intent, and dodge, block, armor and hull resolve where those numbers live.
+
+`SharedFight.last_hit` carries `[who, foe, total, serial]` so a partner's shot can be
+drawn. You skip your own. The serial is not decoration — every push carries the last hit,
+including pushes about something else entirely, so a reader comparing the value would
+redraw an old shot forever and swallow two identical ones.
+
+**The enemy aims at heat**: `0.5 + heat_ratio`. About 4× the fire on a redlining ship, and
+a cold one is never safe — a target rule with a zero in it is a party that elects a victim.
+It cost nothing on the wire; `ShipBuild` has carried heat since the convoy strip needed a
+gauge.
+
+**One barrier, in one place.** Everyone plays their own turn immediately, at their own
+pace. Only the enemy's turn waits, because it is one object acting on several private
+ones. `coop-design.md` §5 asked for face-down simultaneous lock-in and that was
+**rejected** — it turns cards into deferred effects, and draw, energy-gain and
+block-then-attack do not survive resolving out of order. Free-running plus one barrier buys
+the same "nobody waits on a phase" for zero card changes.
+
+**Leaving is not optional.** Dying, fleeing, winning and disconnecting all call
+`leave_fight()`; a crew list holding someone who will never press END TURN again is a fight
+that never takes another turn. Losing the host mid-fight drops back to local resolution
+rather than hanging.
+
+Not shared: an ambush (rolled from `Rng.foe`, a stream, precisely so four ships at one
+system do not all get jumped — so two ambushes at one node are different events sharing an
+address), and an event that drops you into a fight. Off rather than wrong in a shared
+fight: reinforcements and pacification, both of which need the host counting something it
+does not count yet.
 
 **Known gap, and it predates this.** A hull with real art is blitted whole and modules
 are not drawn on it — `hull_sprite()` returns art for MEDIUM only, so a light or heavy

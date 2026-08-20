@@ -74,6 +74,9 @@ func run(tree: SceneTree) -> void:
 	_consume_tests()
 	await _solo_take_test()
 	await _map_test()
+	print("\n=== one enemy, several ships ===")
+	_fight_rules_test()
+	await _fight_net_test()
 	print("\n=== the host leaves ===")
 	await _host_loss_test()
 
@@ -589,6 +592,209 @@ func _host_loss_test() -> void:
 	check("and the roster is emptied", c.party_size(), 0)
 	print("  the client was told: %s" % c.last_error())
 	await _teardown()
+
+
+# --- shared fights --------------------------------------------------------
+
+## The rules, with no wire under them. Everything here is what the host decides
+## when a second ship walks into a fight, and none of it needs a peer to be
+## true — which is the point of SharedFight being a plain RefCounted.
+func _fight_rules_test() -> void:
+	var f := SharedFight.open(42, PackedStringArray(["cutter"]),
+		PackedInt32Array([100]), PackedInt32Array([3]), 11)
+	check("one ship, one ship's frigate", f.foes[0].max_hp, 100)
+
+	# 0.6 each, not 1.0. Three hands of cards against one intent is already an
+	# advantage; a linearly scaled enemy would make the party fight EASIER.
+	f.join(22)
+	f.join(33)
+	check("three ships, a frigate scaled for three", f.foes[0].max_hp, 220)
+	check("and it is at full health, not two thirds of it", f.foes[0].hp, 220)
+	check("three in the crew", f.crew.size(), 3)
+	ok("joining twice is joining once", not f.join(22))
+
+	# Block first, then armor, per hit — the same order Combat.damage_enemy
+	# spends them in. If these two ever disagree the hull bar contradicts the
+	# combat log.
+	f.foes[0].block = 5
+	var landed := f.hurt(0, 10, 2, 22)
+	# Two hits of 10 into 5 block and 3 armor: the first hit spends both and
+	# lands 2, the second lands all 10. Mitigation is per-fight, not per-hit,
+	# which is what makes multi-hit cards good into armor.
+	check("block and armor come off the first hit only", landed, 12)
+	check("hull took exactly that", f.foes[0].hp, 208)
+	check("the shot is stamped with who fired it", f.last_hit[0], 22)
+	check("and with a serial, so it is drawn once", f.hit_serial, 1)
+
+	# The barrier. Nothing about a turn is gated except the enemy swinging.
+	ok("one ship ending is not the turn ending", not f.end_turn(11))
+	ok("nor two", not f.end_turn(22))
+	check("and the fight says who it is waiting for", f.waiting_on()[0], 33)
+	ok("the last one closes it", f.end_turn(33))
+	f.advance()
+	check("then everybody goes again", f.turn, 2)
+	check("and the enemy's block is spent", f.foes[0].block, 0)
+
+	# Leaving has to release the barrier, or three people wait forever on
+	# somebody who is dead.
+	f.end_turn(11)
+	f.end_turn(22)
+	f.leave(33)
+	ok("a ship that leaves is not waited for", f.waiting_on().is_empty())
+	check("and the enemy does not shrink back", f.foes[0].max_hp, 220)
+
+	# Killing it ends it, once, for everyone.
+	f.hurt(0, 999, 1, 11)
+	ok("a dead enemy ends the fight", f.over)
+	ok("and cannot be shot again", f.hurt(0, 10, 1, 11) == 0)
+
+	# The wire is the whole of it. A field that does not round-trip is a field
+	# three machines disagree about.
+	var back := SharedFight.from_wire(f.to_wire())
+	check("the fight round-trips: hull", back.foes[0].hp, f.foes[0].hp)
+	check("  scale", back.foes[0].max_hp, f.foes[0].max_hp)
+	check("  what it is", String(back.foe_ids[0]), "cutter")
+	check("  who is in it", back.crew.size(), f.crew.size())
+	check("  whose turn", back.turn, f.turn)
+	check("  the last shot", back.hit_serial, f.hit_serial)
+	ok("  and that it is over", back.over)
+
+	# Junk off a socket must not reach a renderer that dereferences it.
+	var junk := SharedFight.from_wire({"at": 3, "foes": [42, [], "x"]})
+	check("a malformed fight arrives empty rather than wrong", junk.foes.size(), 0)
+
+
+## And the same rules across three machines.
+func _fight_net_test() -> void:
+	var host := _make_peer("host")
+	var t := DirectTransport.new()
+	t.port = PORT_BASE + 7
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	var others: Array = []
+	for i in 2:
+		var c := _make_peer("fc%d" % i)
+		c.join_party(code, "Pilot%d" % i, &"korvan", DirectTransport.new())
+		others.append(c)
+	var joined := await _wait_until(func() -> bool:
+		if host.party_size() != 3:
+			return false
+		for c in others:
+			if c.party_size() != 3:
+				return false
+		return true, 5.0)
+	ok("three ships in the party", joined)
+	if not joined:
+		await _teardown()
+		return
+
+	var foe: StringName = DB.enemies.keys()[0]
+	var ids := PackedStringArray([String(foe)])
+
+	# A client engages first. It does NOT get to decide it is first — the host
+	# does — so this is the ask-and-wait path, not the fire-and-forget one.
+	var mine: SharedFight = await others[0].open_fight(
+		214, ids, PackedInt32Array([100]), PackedInt32Array([0]))
+	ok("a client can open a fight", mine != null and mine.crew.size() == 1)
+	var spread := await _wait_until(func() -> bool:
+		return host.fight_open_at(214) and others[1].fight_open_at(214), 4.0)
+	ok("and the whole party can see it", spread)
+
+	# The second and third ships walk into a fight that already exists. One
+	# frigate, not three.
+	await host.open_fight(214, ids, PackedInt32Array([100]), PackedInt32Array([0]))
+	await others[1].open_fight(214, ids, PackedInt32Array([100]), PackedInt32Array([0]))
+	var all_in := await _wait_until(func() -> bool:
+		var f: SharedFight = others[0].fight_at(214)
+		return f != null and f.crew.size() == 3, 4.0)
+	ok("everybody who arrives joins the one fight", all_in)
+	check("and it is one frigate, scaled", host.fight_at(214).foes[0].max_hp, 220)
+	print("  three ships walked into one fight; the frigate went 100 -> %d"
+		% host.fight_at(214).foes[0].max_hp)
+
+	# A client's gun reaches the host AND the other client, which is the half a
+	# host-only check would miss.
+	others[1].hurt_foe(214, 0, 20, 1)
+	var hit := await _wait_until(func() -> bool:
+		return others[0].fight_at(214).foes[0].hp == 200, 4.0)
+	ok("one ship's shot lands on everybody's copy of the enemy", hit)
+	check("stamped with who fired it",
+		others[0].fight_at(214).last_hit[0], others[1].local_id())
+
+	# The barrier, across the wire.
+	others[0].report_end_turn(214)
+	others[1].report_end_turn(214)
+	await _wait_frames(12)
+	check("two of three ending does not move the turn",
+		others[0].fight_at(214).turn, 1)
+	check("and the fight is still waiting on the host",
+		host.fight_at(214).waiting_on()[0], 1)
+	host.report_end_turn(214)
+	var advanced := await _wait_until(func() -> bool:
+		return others[0].fight_at(214).turn == 2 \
+			and others[1].fight_at(214).turn == 2, 4.0)
+	ok("the last one moves the turn for the whole party", advanced)
+
+	# And a ship that drops out mid-turn must not stall the rest of them.
+	others[0].report_end_turn(214)
+	host.report_end_turn(214)
+	await _wait_frames(8)
+	check("still turn 2 with one ship out", host.fight_at(214).turn, 2)
+	others[1].leave_fight(214)
+	var released := await _wait_until(func() -> bool:
+		return host.fight_at(214).turn == 3, 4.0)
+	ok("a ship leaving releases the barrier rather than hanging it", released)
+
+	# Killing it ends it for everyone at once, which is what pays everyone.
+	others[0].hurt_foe(214, 0, 999, 1)
+	var over := await _wait_until(func() -> bool:
+		var a: SharedFight = others[0].fight_at(214)
+		var b: SharedFight = host.fight_at(214)
+		return a != null and b != null and a.over and b.over, 4.0)
+	ok("the host declares the kill and the party hears it", over)
+
+	# Targeting. Read straight off the roster's heat, so this needs no fight.
+	_targeting_test(host)
+	await _teardown()
+
+
+## Who the enemy swings at.
+##
+## The rule is `0.5 + heat_ratio`, and both halves matter. The ratio is what
+## makes running hot dangerous INSIDE a fight rather than only on the map, which
+## is `coop-design.md` §6 one level down. The floor is what stops a party from
+## solving the fight by electing a victim: a cold ship is safer, never safe.
+func _targeting_test(host: NetSession) -> void:
+	var f := SharedFight.open(9, PackedStringArray(["x"]),
+		PackedInt32Array([10]), PackedInt32Array([0]), 1)
+	var cold := 0
+	var hot := 0
+	for id in host.roster.keys():
+		if int(id) == 1:
+			continue
+		if cold == 0:
+			cold = int(id)
+		elif hot == 0:
+			hot = int(id)
+	if cold == 0 or hot == 0:
+		ok("two partners to aim at", false)
+		return
+	f.crew = PackedInt32Array([cold, hot])
+	host.roster[cold].build = {"maker": &"redline", "weight": 1, "parts": [],
+		"hp": 30, "max_hp": 30, "heat": 0, "heat_cap": 10, "dead": false}
+	host.roster[hot].build = {"maker": &"solari", "weight": 1, "parts": [],
+		"hp": 30, "max_hp": 30, "heat": 17, "heat_cap": 10, "dead": false}
+	var tally := {cold: 0, hot: 0}
+	for i in 4000:
+		var who: int = host._who_gets_hit(f)
+		tally[who] = int(tally.get(who, 0)) + 1
+	var ratio := float(tally[hot]) / maxf(1.0, float(tally[cold]))
+	# 2.2 against 0.5 is 4.4. Wide bounds: this is checking that heat is the
+	# dial, not pinning the constant.
+	print("  the redlining ship drew %.1fx the fire (%d hot / %d cold of 4000)"
+		% [ratio, tally[hot], tally[cold]])
+	ok("a redlining ship draws about four times the fire", ratio > 3.2 and ratio < 5.8)
+	ok("and a cold ship is never safe", tally[cold] > 400)
 
 
 # --- one process, four multiplayer roots ----------------------------------

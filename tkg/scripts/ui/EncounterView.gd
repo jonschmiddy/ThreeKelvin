@@ -73,6 +73,9 @@ func _ready() -> void:
 	_convoy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_convoy_pad.add_child(_convoy)
 	Sig.party_changed.connect(refresh_convoy)
+	# And when a fight does. Which of your partners is in the room with you is a
+	# fact about the fight, not about the party — see ConvoySlot._engaged.
+	Sig.party_fight_changed.connect(func(_at: int) -> void: refresh_convoy())
 
 	# Your hull is itself a target: defensive and utility cards are played by
 	# dropping them here, so every card is aimed at something.
@@ -768,6 +771,13 @@ class ConvoySlot extends Control:
 	var _hull_at: float = 1.0
 	var _heat_at: float = 0.0
 	var _lost: bool = false
+	## In the same fight as you, right now.
+	##
+	## Worth its own mark because the column shows the whole party and a fight
+	## involves some of it. Three ships in the sector and two in the fight is the
+	## normal case, not the exception — people arrive at different times — so
+	## "who is shooting at the thing shooting at me" cannot be read off presence.
+	var _engaged: bool = false
 
 	## Bars are drawn to a fixed width, not to the slot's, for the reason
 	## EnemySlot.BAR_W records: a readout's LENGTH should say how much is left,
@@ -812,6 +822,8 @@ class ConvoySlot extends Control:
 			_hull_at = clampf(float(b.hp) / float(maxi(1, b.max_hp)), 0.0, 1.0)
 			_heat_at = clampf(b.heat_ratio(), 0.0, 1.0)
 			_lost = b.dead
+		var f := Net.fight_at(Run.at) if not Run.map.is_empty() else null
+		_engaged = f != null and not f.over and f.crew.has(peer)
 		art.modulate = Color(0.45, 0.45, 0.52) if _lost else Color.WHITE
 		queue_redraw()
 
@@ -819,12 +831,21 @@ class ConvoySlot extends Control:
 		var f := UITheme.pixel_font()
 		var fs := UITheme.FS_SMALL
 		var text := "LOST · " + _label if _lost else _label
+		if _engaged and not _lost:
+			# The same arrow the combat log puts on a shot of yours. Somebody
+			# firing on your side is the one thing in this column that is about
+			# the fight rather than about the convoy.
+			text = "▸ " + text
 		# Shadowed, because the label sits on a hull rather than on a panel and
 		# the hull is the same value range as the type.
 		draw_string(f, Vector2(1, fs + 1), text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.8))
-		draw_string(f, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
-			UITheme.COLD if _lost else UITheme.CHILL)
+		var ink := UITheme.CHILL
+		if _lost:
+			ink = UITheme.COLD
+		elif _engaged:
+			ink = UITheme.GOOD
+		draw_string(f, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ink)
 		if _lost or _hull_at <= 0.0:
 			return
 		# Directly under the name rather than at the floor of the slot. The ship
