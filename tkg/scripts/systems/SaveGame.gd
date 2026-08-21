@@ -32,7 +32,11 @@ const PATH := "user://run.save"
 ## 3: heat reached the map. A node now carries whether it rolled for an ambush
 ## and what that roll produced, so a hostile attracted by your own heat cannot
 ## be refused by quitting and coming back cold.
-const VERSION := 5
+## 6: a node carries the BAG a shared kill left in it, and whether one has been
+## rolled. Stored by value like the shelf rather than re-derived: the roll is
+## deterministic from the node, but its SIZE came from how many ships were in the
+## fight, and nothing on a resumed map remembers that.
+const VERSION := 6
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -403,6 +407,13 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	var shop: Array = []
 	for m in n.shop:
 		shop.append(_module_to(m))
+	# Everything the bag was rolled with, including the parts already claimed.
+	# `taken` is what says which are gone, and dropping the claimed ones here
+	# would renumber the rest — the array must not shrink, on disk any more than
+	# in memory. See MapGen.OPTION_BAG.
+	var bag: Array = []
+	for m in n.bag:
+		bag.append(_module_to(m))
 	return {
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
@@ -420,6 +431,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		links = Array(n.links),
 		shop = shop,
 		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
+		bag = bag, bagged = n.bagged,
 	}
 
 static func _node_from(e: Variant) -> MapGen.MapNode:
@@ -488,6 +500,11 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 			n.shop.append(mod)
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
+	for m in d.get("bag", []):
+		var part := _module_from(m)
+		if part != null:
+			n.bag.append(part)
+	n.bagged = bool(d.get("bagged", false))
 	return n
 
 static func _names(a: Array[StringName]) -> Array:

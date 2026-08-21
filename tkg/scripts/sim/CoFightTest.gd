@@ -41,6 +41,20 @@ const PORT := DirectTransport.DEFAULT_PORT + 11
 
 var _tree: SceneTree
 var _me: String = ""
+## `-- cofight host boss` / `-- cofight join CODE boss`. The core is the one
+## fight in the game that is not rolled from a node's own table, so it reaches
+## `Router.start_combat` down its own branch — which is exactly the kind of
+## second path that goes unshared without anybody deciding it should be.
+var _boss: bool = false
+## `-- cofight join CODE late`. The guest holds off until the host is already
+## shooting, which is what actually happens between two people: nobody arrives
+## at a system on the same second as anybody else. Joining an OPEN fight is a
+## different path through `_open_or_join` than opening one, and it is the one a
+## playtest exercises.
+var _late: bool = false
+## How long the late arrival waits. Long enough that the host is unambiguously
+## in the fight first, short enough that the harness is not mostly sleeping.
+const LATE_ARRIVAL := 6.0
 var _fails: int = 0
 var _at: int = -1
 ## Counters, and members rather than locals ON PURPOSE. A GDScript lambda
@@ -58,6 +72,8 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	var argv := OS.get_cmdline_user_args()
 	var hosting := "host" in argv
+	_boss = "boss" in argv
+	_late = "late" in argv
 	_me = "HOST" if hosting else "GUEST"
 
 	if hosting:
@@ -133,9 +149,17 @@ func _fly() -> void:
 	print("[cofight] seat %d" % Rng.seat)
 	print("[cofight] lootseed %d" % Rng.loot.seed)
 
-	_at = _find_fight()
-	if not _ok("the shared galaxy holds a fight to share", _at >= 0):
+	_at = _find_goal() if _boss else _find_fight()
+	if not _ok("the shared galaxy holds a %s to share" % (
+			"core" if _boss else "fight"), _at >= 0):
 		return
+
+	# The late arrival hangs back so the host is already shooting. `_until` with
+	# a condition that never holds is the sleep — this harness has no other.
+	if _late and _me == "GUEST":
+		print("  GUEST holding off %.0fs so the host opens the fight first"
+			% LATE_ARRIVAL)
+		await _until(func() -> bool: return false, LATE_ARRIVAL)
 
 	# Placed rather than flown. Adjacency and fuel are not what is under test,
 	# and making both ships legally reach one system means routing two of them
@@ -143,6 +167,13 @@ func _fly() -> void:
 	Run.at = _at
 	Run.map[_at].visited = true
 	Router.resolve_current_node()
+	# The core does not open on arrival any more — it is a place you land at and
+	# then commit to, which is the whole point of the change and the reason a
+	# party can be at the boss together at all. So this presses ENGAGE, which is
+	# what `SectorScreen._on_action` does with the button the player sees.
+	if _boss:
+		await _tree.process_frame
+		Router.engage_here()
 
 	var started := await _until(func() -> bool:
 		return Router.combat != null, 10.0)
@@ -165,7 +196,8 @@ func _fly() -> void:
 	var together := await _until(func() -> bool:
 		var f := Net.fight_at(_at)
 		return f != null and f.crew.size() >= 2, PARTNER_TIMEOUT)
-	if not _ok("both ships are in the same fight", together):
+	if not _ok("both ships are in the same fight%s" % (
+			" the host had already opened" if _late else ""), together):
 		return
 
 	var f0 := Net.fight_at(_at)
@@ -178,7 +210,10 @@ func _fly() -> void:
 		cb.enemies[0].max_hp == scaled)
 
 	await _play(cb)
-	await _shop()
+	# Winning at the core ends the run, so there is no dive left to go shopping
+	# in. The station leg is about the shelf, not about the boss.
+	if not _boss:
+		await _shop()
 
 
 ## The fight itself. Deliberately not HeadlessSim's loop: that one runs inside a
@@ -244,14 +279,55 @@ func _play(cb: Combat) -> void:
 	if cb.result == &"victory":
 		_ok("and the win paid THIS ship", Run.kills == kills_before + 1)
 		_ok("and consumed the system for the party", Run.map[_at].cleared)
-		# What actually landed in the hold, for the same cross-process check.
-		# One kill pays every ship still in the fight — that is the ruling — but
-		# it must pay them DIFFERENT parts, or a party's loot is one player's
-		# loot printed twice.
-		var got := PackedStringArray()
-		for m in Run.cargo:
-			got.append(String(m.id))
-		print("[cofight] loot %s" % ("-".join(got) if got.size() > 0 else "none"))
+		await _bag()
+
+
+## One kill, one bag, and one hand in it.
+##
+## The third contested thing in the game, and the one the last playtest asked
+## for by name. Before this a shared kill paid each ship its own private roll —
+## which is duplication solved and distribution never attempted: one frigate paid
+## the party twice. It is checked from outside for the same reason the shelf is,
+## because neither process can see the other's hold.
+##
+## Three claims, and they are not the same claim:
+##   the bag MATCHES on both machines — it belongs to the node, so it is rolled
+##     positionally and every ship is looking at one pile;
+##   nothing was paid privately — a hold with something already in it means the
+##     old per-ship roll is still running somewhere;
+##   and exactly ONE ship walks away with part zero.
+func _bag() -> void:
+	var n: MapGen.MapNode = Run.map[_at]
+	var ids := PackedStringArray()
+	for m in n.bag:
+		ids.append(String(m.id))
+	print("[cofight] bag %s" % ("-".join(ids) if ids.size() > 0 else "none"))
+	if not _ok("the kill left a bag at the node", n.bag.size() > 0):
+		return
+	_ok("and paid nothing straight into either hold", Run.cargo.is_empty())
+	# One entry per ship per drop. Both machines have to agree on that number or
+	# they are not looking at the same pile — see SharedFight.paid.
+	_ok("sized for the crew, not for one ship", n.bag.size() >= 2)
+
+	# Both hands over the same part before either reaches, or this measures one
+	# ship looting alone and calls it a race.
+	var both := await _until(func() -> bool:
+		for p in Net.partners():
+			if int(p.get("at", -1)) == _at:
+				return true
+		return false, PARTNER_TIMEOUT)
+	if not _ok("both ships are standing over the bag", both):
+		return
+
+	var wanted: ModuleData = n.bag[0]
+	var got := await Run.take_from_bag(n, 0)
+	# The loser's refusal has to arrive too, and it arrives as a push.
+	await _until(func() -> bool: return false, 1.5)
+	print("[cofight] took %s" % (String(wanted.id) if got else "none"))
+	_ok("a refused reach leaves the hold empty",
+		got == Run.cargo.has(wanted))
+	_ok("and a part somebody took is marked taken for everybody",
+		n.taken.has(MapGen.OPTION_BAG))
 
 
 func _count_hit(_at2: int) -> void:
@@ -326,6 +402,15 @@ func _find_station() -> int:
 	for i in Run.map.size():
 		var n: MapGen.MapNode = Run.map[i]
 		if i > 0 and n.type == MapGen.NodeType.STATION:
+			return i
+	return -1
+
+
+## The core. One per galaxy, and every ship in the party is flying at it.
+func _find_goal() -> int:
+	for i in Run.map.size():
+		var n: MapGen.MapNode = Run.map[i]
+		if n.type == MapGen.NodeType.GOAL:
 			return i
 	return -1
 

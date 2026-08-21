@@ -60,6 +60,35 @@ That measurement produced a proposal, which this draft recorded and which has si
 
 > ~~**Heat will not become a difficulty driver by having consequences bolted to it. It has to gate reward.**~~ — proposed, rejected. See the ruling below.
 
+### RULING: a shared kill pays one bag, not one payout each
+
+**A fight two ships were in drops ONE pool at the node. Anybody in the party can
+take a part out of it; a part somebody took is gone.**
+
+This is the ruling the second playtest asked for by name, and it is a correction
+rather than a new idea — §3's dive economy has always been a closed loop, and a
+kill that paid every ship privately was not one. The netcode had already fixed
+the *visible* half of that (two players being handed the identical module) by
+salting the loot stream per seat, which made the duplication stop looking like
+duplication without making it stop.
+
+Three things follow, and the third is the one that makes it a design rule rather
+than a bug fix:
+
+- **The bag scales with the crew.** Two ships, twice the parts. Bringing a friend
+  must not halve what a fight is worth to you — the enemy already grew by
+  `CREW_SHARE` to meet you, and this is the other side of that bargain.
+- **It does not touch the wallets.** Pillar 1 stands exactly as written: what you
+  are CARRYING is private, and the bag is not carried by anybody until somebody
+  reaches into it. Credits, dross and exotic are still paid per ship.
+- **It is the first thing in the game two friends have to talk to each other
+  about.** Not a betrayal mechanic and not a menu — a pile of parts, a rare one
+  in it, and two people who can both see it. Pillar 2 says the dilemma should be
+  physical; a bag on the floor of a system you both just fought in is as physical
+  as this game gets.
+
+Built. See `netcode.md`, "One kill, one bag", and `tools/cofight.sh`.
+
 ### RULING: heat does not gate loot
 
 **Winning a fight pays the loot. Fleeing pays nothing. Heat has nothing to do with what a fight drops.**

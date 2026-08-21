@@ -247,9 +247,31 @@ func resolve_current_node() -> void:
 		return
 
 	match n.type:
+		# THE CORE DOES NOT OPEN ON ARRIVAL, and it used to.
+		#
+		# Dropping straight into the custodian is right for one ship and wrong
+		# for a party, because two people never arrive at a system on the same
+		# second. Whoever landed first was in the boss fight before the other had
+		# finished their jump — so the run's one set piece was fought alone by
+		# design, and the party had no way to be at it together. A latecomer
+		# joining mid-fight works and always did; there was simply nothing to
+		# join by the time they got there.
+		#
+		# It also fixes a second core: winning consumed the node, and this branch
+		# never checked `cleared`, so the next ship to arrive rolled a fresh
+		# custodian and killed the galaxy's boss again. FIGHT has checked that
+		# since it was written; GOAL never did.
+		#
+		# So the core is a place you arrive at now. The sector says what is out
+		# there and the button says ENGAGE, which is the wiring a resumed run has
+		# always used — `_on_action` and `_quiet_lines` both already had the
+		# case, and this makes it the ordinary path instead of the restored one.
 		MapGen.NodeType.GOAL:
-			Run.log_line("The core fills the viewport. Something is guarding it.", &"big")
-			start_combat(DB.enemies[&"custodian"])
+			if n.cleared:
+				Run.log_line("The core is open. The light is behind you.", &"good")
+			else:
+				Run.log_line("The core fills the viewport. Something is guarding it. Engage when you are ready.", &"big")
+			show_sector()
 		MapGen.NodeType.FIGHT:
 			if n.cleared:
 				show_sector()

@@ -206,7 +206,7 @@ DFW0-000C-5M8M     a host at 127.0.0.1:34210
 **The handshake refuses before it connects.** A party whose builds disagree does not fail at connect time. It fails forty minutes in, at the one node where one player's tables rolled a module the others do not have. So the first message carries a protocol number and a fingerprint of the content tables, and a mismatch is refused in words:
 
 ```
-Different game version. Host is protocol 4, you are 99.
+Different game version. Host is protocol 6, you are 99.
 Your content does not match the host's. Compare builds or mods.
 The party is full.
 The host did not answer. Check the code, and whether the port is open.
@@ -338,6 +338,105 @@ It is the first contested thing that is a **list**, which is what `MapGen.OPTION
 Ordering matters here more than at the wreck, because money is involved: **ask, then pay.** A purchase that charged first and lost the race would take credits for a part somebody else is carrying home. Fixing that also closed a solo bug of the same shape — buying into a full hold used to take the credits, erase the part off the shelf, and then log "left behind", so the module was gone from both places and paid for.
 
 `tools/cofight.sh` checks the pair from outside: the two shelves must MATCH, and exactly one ship may walk away with the part.
+
+### One kill, one bag
+
+The second two-client playtest found the thing the first one's fix had hidden.
+
+**Seat salting stopped two players being handed the identical module. It never
+addressed the actual problem, which is that one frigate paid the party twice.**
+`Combat._victory()` ran on every machine in the fight and each one rolled its own
+drop off its own stream — different parts, yes, but two ships walked away from a
+single kill with two full payouts. `coop-design.md` §3 runs the dive economy as a
+closed loop, and a kill that pays per head is not closed. It is the wreck bug and
+the shelf bug for the third time, at the one address nobody checked because the
+fix for the *previous* bug was sitting on it.
+
+So a shared kill leaves a **bag at the node**, and the bag is the third contested
+thing in the game.
+
+```
+bag       rolled locally    Rng.derive(&"bag", index) — never sent
+OPTION_BAG + i              the i-th part, claimed like a shelf slot
+```
+
+Four decisions, and three of them are the shelf's, reused without change.
+
+**It is a list, so it is the shelf's shape rather than the wreck's.** A wreck is
+taken whole; a bag is taken a part at a time, which is exactly what
+`MapGen.OPTION_SHOP + i` was built for. `MapNode.bag` therefore must not shrink
+either — a taken part stays in the array and `taken` says it is gone, or two
+machines stop agreeing what "part 2" is.
+
+**Nothing about the bag crosses the wire.** It is rolled from
+`Rng.derive(&"bag", node.index)` on every machine independently, so four ships
+look at one pile for the price of one integer. Deliberately not `Rng.loot`: that
+stream is salted by seat *precisely so* that what is paid to a player differs per
+player, and a bag is paid to the party.
+
+**Its SIZE is the one thing a seed cannot say**, because it came from how many
+ships were in the fight. `SharedFight.paid` is that number, frozen by the host in
+`hurt()` at the moment the last hull came apart — not read from `crew.size()` at
+payment time, because winning makes every ship call `leave()` and each machine
+would sample the crew list at a different point in its unwinding. Two ships
+disagreeing about how many parts are floating is worse than either answer.
+
+**Reaching in asks and waits**, like the wreck and unlike the fight. And the hold
+is checked *before* the claim, not after: claiming a part you have nowhere to put
+would burn it for the whole party — gone from the bag, in nobody's hold — which
+is "ask, then pay" seen from the other end.
+
+Solo is untouched and that is deliberate. One hand reaching into a bag is a menu
+between a player and their own loot, so a fight nobody else was in still stows
+straight to the hold.
+
+`tools/cofight.sh` checks the pair from outside, because neither process can see
+the other's: the two bags must MATCH, neither hold may have been paid directly,
+and exactly one ship may walk away with part zero.
+
+### The core is a place you arrive at
+
+The same playtest reported the core boss as solo, and the sharing was never the
+problem. `tools/cofight.sh boss` puts two ships on the custodian, and
+`tools/cofight.sh boss late` has the second one arrive at a fight the first has
+already opened — the enemy grows from 120 hull to 192, both ships' cards land on
+one copy of it, and the barrier holds. All of that worked before anything was
+changed.
+
+**What was wrong is that arriving at the core opened the fight, on the frame you
+landed.** Two people never arrive at a system in the same second, so whoever
+jumped first was already in the boss fight while the other was still three jumps
+out. There was nothing to join by the time they got there. The run's one set
+piece was solo by construction, and no amount of correct netcode underneath it
+was going to show.
+
+So `Router.resolve_current_node()` shows the sector instead, and the button says
+ENGAGE. That wiring already existed for resumed runs — `_on_action` and
+`_quiet_lines` both had the GOAL case — so this makes the restored path the
+ordinary one rather than adding a path.
+
+It also closed a second hole in the same branch: winning consumed the node, and
+GOAL never checked `cleared`, so the next ship to arrive rolled a fresh custodian
+and killed the galaxy's boss a second time. FIGHT has checked that since it was
+written.
+
+### A partner drawn as the ship they picked
+
+`ShipBuild` carried a manufacturer and a weight class and, on purpose, not a
+grade — the note in its header said an A-tier Korvan Frigate and a C-tier one
+were the same picture. That was true when it was written and stopped being true
+the day `DB.hull_sprite()` was keyed on the class letter as well as the weight.
+
+From that commit every partner in the party was drawn as a C-class hull whatever
+they were flying, and it is the worst kind of silent: the ship on the other
+screen is a perfectly ordinary ship, just not the one that player picked.
+
+The fix is one field on the wire and `DB.at_tier()` on the way off it. The lesson
+is smaller than the bug and worth writing down: `ShipBuild` describes what is
+DRAWN, so any field the renderer starts reading has to arrive there on the same
+day.
+
+**Protocol 6** is these three changes. Save version 6 carries `MapNode.bag`.
 
 ### Two processes, one galaxy
 

@@ -81,6 +81,18 @@ var over: bool = false
 ## draw as one. A counter has neither problem.
 var last_hit: PackedInt32Array = PackedInt32Array()
 var hit_serial: int = 0
+## How many ships were still in it when the last hull came apart.
+##
+## The size of the bag, and it is a FROZEN NUMBER rather than `crew.size()` read
+## at the moment of payment. Winning makes every ship call `Combat._finish()`,
+## which calls `leave()`, so the crew list starts emptying on the same frame the
+## fight ends — and each machine would read it at whatever point its own copy had
+## reached. Two ships would then disagree about how many parts are floating out
+## there, which is worse than either answer: the bag is a shared object, so its
+## SIZE has to be a fact the host states once.
+##
+## Zero until something dies, so a fight that ends any other way pays no bag.
+var paid: int = 0
 
 
 ## The first ship engages. `hp` and `armor` are what its own `Combat._spawn`
@@ -171,6 +183,9 @@ func hurt(which: int, amount: int, hits: int, by: int) -> int:
 	last_hit = PackedInt32Array([by, which, total, hit_serial])
 	if alive().is_empty():
 		over = true
+		# Stamped HERE and nowhere else. `leave()` also sets `over` — that is a
+		# fight everybody walked out of, and nobody is owed a bag for it.
+		paid = crew.size()
 	return total
 
 
@@ -225,7 +240,7 @@ func to_wire() -> Dictionary:
 	return {
 		"at": at, "turn": turn, "over": over, "ids": foe_ids,
 		"crew": crew, "ended": ended, "foes": rows,
-		"hit": last_hit, "serial": hit_serial,
+		"hit": last_hit, "serial": hit_serial, "paid": paid,
 	}
 
 
@@ -241,6 +256,10 @@ static func from_wire(d: Dictionary) -> SharedFight:
 	f.ended = PackedInt32Array(d.get("ended", PackedInt32Array()))
 	f.last_hit = PackedInt32Array(d.get("hit", PackedInt32Array()))
 	f.hit_serial = maxi(0, int(d.get("serial", 0)))
+	# Clamped to the party ceiling rather than trusted. It multiplies a loot
+	# roll, so a bad number here is not a wrong drawing, it is an arbitrary pile
+	# of modules — the one field on this wire that can print money.
+	f.paid = clampi(int(d.get("paid", 0)), 0, NetTransport.MAX_PLAYERS)
 	f.foe_ids = PackedStringArray(d.get("ids", PackedStringArray()))
 	var rows: Array = d.get("foes", [])
 	for row in rows:

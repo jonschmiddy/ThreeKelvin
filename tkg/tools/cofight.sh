@@ -6,15 +6,18 @@
 # port, because the code is what a player actually types and testing the thing
 # players use is the point.
 #
-#   tools/cofight.sh
+#   tools/cofight.sh          an ordinary contact at an ordinary system
+#   tools/cofight.sh boss     the core, which reaches Combat down its own branch
+#   tools/cofight.sh late     the guest arrives at a fight already in progress
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GODOT="${GODOT:-godot}"
 command -v "$GODOT" >/dev/null 2>&1 || GODOT="/Applications/Godot.app/Contents/MacOS/Godot"
+MODE="${*:-}"
 OUT="$(mktemp -d)"
 
-"$GODOT" --headless --path "$HERE" -- cofight host >"$OUT/host.log" 2>&1 &
+"$GODOT" --headless --path "$HERE" -- cofight host $MODE >"$OUT/host.log" 2>&1 &
 HOST_PID=$!
 
 # The host prints its code once, on its own line. Waiting for that line rather
@@ -36,7 +39,7 @@ if [ -z "$CODE" ]; then
 fi
 echo "code $CODE"
 
-"$GODOT" --headless --path "$HERE" -- cofight join "$CODE" >"$OUT/guest.log" 2>&1 &
+"$GODOT" --headless --path "$HERE" -- cofight join "$CODE" $MODE >"$OUT/guest.log" 2>&1 &
 GUEST_PID=$!
 
 wait "$GUEST_PID"; GUEST_RC=$?
@@ -105,9 +108,14 @@ echo
 echo "--- across both ---"
 pair "the two ships are different seats" "seat"
 pair "and therefore draw loot from different streams" "lootseed"
-pair "so one kill pays two ships two different parts" "loot"
-same "and one station shows both ships one shelf" "shelf"
-one_of "but only one of them can buy the part off it" "bought"
+# The core pays no modules and ends the run, so there is no hold to compare and
+# no station left to dock at. Those three claims are about an ordinary contact.
+case " $MODE " in *" boss "*) ;; *)
+	same "so one kill leaves both ships ONE bag" "bag"
+	one_of "and only one of them can take a part out of it" "took"
+	same "and one station shows both ships one shelf" "shelf"
+	one_of "but only one of them can buy the part off it" "bought"
+;; esac
 
 echo
 echo "full logs in $OUT"

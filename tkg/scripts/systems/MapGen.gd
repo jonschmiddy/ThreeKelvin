@@ -53,6 +53,16 @@ const OPTION_SHOP := 100
 ## And the hull on the rack, which is one object rather than a list.
 const OPTION_SHOP_HULL := 110
 
+## What a shared kill left floating: `OPTION_BAG + i` is the i-th part in it.
+##
+## The third contested thing, and the second that is a LIST — so it is the
+## shelf's shape rather than the wreck's, and for the same reason: a bag is taken
+## a part at a time. `MapNode.bag` therefore never shrinks either. See `taken`.
+##
+## Based at 200 rather than 120 so the shelf keeps room to grow. A station that
+## one day stocks more than ten parts must not start renumbering into the bag.
+const OPTION_BAG := 200
+
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
 ## Twenty-four rings put the systems in a shape where nothing was near anything:
@@ -208,6 +218,24 @@ class MapNode extends RefCounted:
 	## And whether that cloud is lit from within.
 	var nebula_emission: bool = false
 	var links: PackedInt32Array = []
+	## What the party's kill left floating, as `ModuleData`. See
+	## `MapGen.OPTION_BAG` and `RunState.open_bag()`.
+	##
+	## ONE POOL, NOT ONE PER SHIP. Two ships used to each roll their own drop off
+	## their own seat-salted stream, which is duplication solved and distribution
+	## never attempted: the party was paid twice for one frigate. The bag is what
+	## the kill was worth to the party, and who ends up carrying each part is a
+	## decision somebody makes rather than a thing the game decides for them.
+	##
+	## Like `shop`, THIS ARRAY MUST NOT SHRINK — a taken part stays in it and is
+	## marked gone in `taken`, or two machines stop agreeing what "part 2" is.
+	var bag: Array = []
+	## Rolled once, and never again. The same distinction `stocked` draws for the
+	## shelf, and it exists here for a sharper reason: every machine in the party
+	## rolls this bag independently off `Rng.derive(&"bag", index)`, so a second
+	## roll is not a re-stock, it is one machine disagreeing with the others about
+	## what is in the room.
+	var bagged: bool = false
 	## Populated lazily by StationScreen
 	var shop: Array = []
 	var shop_hull: HullData = null
