@@ -158,11 +158,6 @@ static func _snapshot() -> Dictionary:
 		contracts = _contracts_to(),
 		next_contract_id = Run.next_contract_id,
 		standing = _standing_to(),
-		# The dismissed salvage rail. Small, and it has to be here: a resumed run
-		# whose player had stowed would be asked about the same cargo again on
-		# the first screen it drew.
-		salvage_hushed_hauls = Run.salvage_hushed_hauls,
-		salvage_hushed_bag = Run.salvage_hushed_bag,
 
 		map = nodes,
 		at = Run.at,
@@ -265,8 +260,6 @@ static func load_into_run() -> bool:
 	Run.whale_boon = bool(d.get("whale_boon", false))
 	Run.contracts = _contracts_from(d.get("contracts", []))
 	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))
-	Run.salvage_hushed_hauls = int(d.get("salvage_hushed_hauls", -1))
-	Run.salvage_hushed_bag = int(d.get("salvage_hushed_bag", -1))
 	var stand: Dictionary = {}
 	var saved_stand: Variant = d.get("standing", {})
 	if typeof(saved_stand) == TYPE_DICTIONARY:

@@ -195,8 +195,16 @@ func _salvage_hush() -> void:
 	Run.salvage_hushed_hauls = Run.hauls
 	Run.salvage_hushed_bag = -1
 	_ok("dismissing shuts it", Run.salvage_hushed(-1))
-	_ok("and it stays shut after a jump", Run.salvage_hushed(-1))
 	_ok("and a bag somewhere new opens it", not Run.salvage_hushed(12))
+
+	# THE CASE THE SAVE USED TO BREAK. `hauls` is deliberately not persisted, so
+	# it comes back as 0; if the dismissal were persisted beside it the rail
+	# would stay shut for the next twelve hauls over loot already in the hold.
+	# The dismissal is not saved either, and this is the assertion that says so.
+	Run.hauls = 0
+	_ok("a haul count reset below the dismissal opens it",
+		not Run.salvage_hushed(-1))
+	Run.hauls = 5
 
 	Run.hauls = 6
 	_ok("and a fresh haul opens it", not Run.salvage_hushed(-1))
@@ -209,6 +217,16 @@ func _salvage_hush() -> void:
 	_ok("and walking away from that bag leaves it shut",
 		Run.salvage_hushed(-1))
 	_ok("and a DIFFERENT bag still opens it", not Run.salvage_hushed(13))
+
+	# A hull is the third thing the rail shows and the only one that never goes
+	# through `stow()`, so it cannot rely on `hauls` moving.
+	Run.hauls = 6
+	Run.salvage_hushed_hauls = 6
+	Run.salvage_hushed_bag = -1
+	_ok("dismissed with nothing new", Run.salvage_hushed(-1))
+	Run.find_hull(LootGen.roll_hull(3))
+	_ok("and claiming a hull opens it", not Run.salvage_hushed(-1))
+	Run.found_hull = null
 
 
 # --- helpers ---------------------------------------------------------------

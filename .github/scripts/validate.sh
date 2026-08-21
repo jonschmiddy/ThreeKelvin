@@ -133,10 +133,12 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 fi
 
 step "Contracts, standing, and the salvage rail's dismissal rule"
-# The second half is the one that matters. `-- market` proves the price
-# invariant at standing zero, which is the only standing it can reach; every
-# price in the game is fine until a player delivers four contracts to one house
-# and their berths start paying over the odds for parts.
+# Three claims, and the middle one is the one no other step can make. `-- market`
+# proves the price invariant at standing zero, which is the only standing it can
+# reach; every price in the game is fine until a player delivers four contracts
+# to one house and their berths start paying over the odds for parts. The last
+# one is the salvage rail's dismissal rule, which is pure logic on `Run` and has
+# been got wrong twice.
 if run_godot contracttest 120 --headless --path "$PROJECT" -- contracttest; then
 	if grep -qE '^contracttest: PASS' "$LOG_DIR/contracttest.log"; then
 		ok "contracts"

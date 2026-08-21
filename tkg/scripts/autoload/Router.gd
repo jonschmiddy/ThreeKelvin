@@ -461,7 +461,7 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		Run.add_material(&"relic", 1)
 		Run.log_line("Something in the wreck predates the wreck. Precursor fragment recovered.", &"good")
 	if r.randf() < 0.35:
-		Run.found_hull = LootGen.roll_hull(n.danger, r)
+		Run.find_hull(LootGen.roll_hull(n.danger, r))
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("Derelict stripped. %d module%s recovered." % [
 		count, "" if count == 1 else "s"], &"good")

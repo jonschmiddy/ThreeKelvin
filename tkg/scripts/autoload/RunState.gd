@@ -99,6 +99,18 @@ var hauls: int = 0
 ## events and only those: a fresh HAUL is new cargo and should re-open it, and a
 ## BAG at a system you have not seen is new loot and should too. Arriving
 ## somewhere new carrying the same parts you already decided about is neither.
+##
+## DELIBERATELY OUTSIDE THE SAVE, and that is not symmetry for its own sake — it
+## is the only way this can be correct. `hauls` above is not saved either, so it
+## comes back as 0; save the dismissal beside it and a run resumed after stowing
+## at haul 12 has `hauls` 0 against a hush of 12, and `hauls > hushed` is false
+## for the next twelve hauls. The rail would stay shut over loot the player had
+## just recovered.
+##
+## Worth naming because the previous version of the rule got away with it: an
+## equality test fail-OPENED on that mismatch (0 != 12, so the rail showed), and
+## changing it to "is anything new" inverted the failure into a silent one. A
+## fix that is correct in isolation can break the thing next to it.
 var salvage_hushed_hauls: int = -1
 var salvage_hushed_bag: int = -1
 
@@ -118,7 +130,14 @@ var salvage_hushed_bag: int = -1
 func salvage_hushed(bag_here: int) -> bool:
 	if salvage_hushed_hauls < 0:
 		return false
-	if hauls > salvage_hushed_hauls:
+	# DIFFERENT, not greater. Within a run `hauls` only climbs, so the two read
+	# the same — but `>` quietly assumes that, and the assumption is exactly what
+	# broke when the dismissal was persisted and `hauls` (which is not) came back
+	# as zero: `0 > 12` is false, so the rail stayed shut over loot already in the
+	# hold. The dismissal is no longer saved and this no longer relies on that
+	# being true. Any haul count that is not the one dismissed at means the hold
+	# is not the hold that was dismissed.
+	if hauls != salvage_hushed_hauls:
 		return false
 	if bag_here >= 0 and bag_here != salvage_hushed_bag:
 		return false
@@ -998,6 +1017,23 @@ func add_credits(n: int) -> void:
 ## `ship_changed` rather than `resources_changed`: a heat cap is a property of
 ## the ship, and `RunState._clamp_hp` and the gauges are already listening to it
 ## for exactly this class of change.
+## A flyable hull, cut out of a wreck or claimed off an event.
+##
+## THE THIRD THING THE RAIL SHOWS, and the only one that never went through
+## `stow()` — so it never bumped `hauls`, so a dismissed rail stayed dismissed
+## over it. Claim a hull after stowing and the transfer was never offered until
+## some unrelated haul happened to arrive.
+##
+## Clears the dismissal outright rather than incrementing `hauls`: a hull is not
+## a haul, and the honest statement is "there is something new here", which is
+## what an undismissed rail means.
+func find_hull(h: HullData) -> void:
+	found_hull = h
+	salvage_hushed_hauls = -1
+	salvage_hushed_bag = -1
+	Sig.ship_changed.emit()
+
+
 func add_heat_cap(n: int) -> void:
 	heat_cap_bonus += n
 	Sig.ship_changed.emit()
