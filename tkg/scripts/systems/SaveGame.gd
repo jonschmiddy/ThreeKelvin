@@ -281,6 +281,15 @@ static func load_into_run() -> bool:
 	Run.whale_boon = bool(d.get("whale_boon", false))
 	Run.contracts = _contracts_from(d.get("contracts", []))
 	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))
+	# ZEROED, not restored — these two are deliberately outside the save, so a
+	# load has to clear them the way `start_new_run()` does. Without it, SAVE &
+	# QUIT to the launcher and CONTINUE inside the same process carries the
+	# previous run's haul count and its dismissed salvage rail into the loaded
+	# one: the rail stays shut in-session and opens after a cold start, which is
+	# the same save behaving two different ways.
+	Run.hauls = 0
+	Run.salvage_hushed_hauls = -1
+	Run.salvage_hushed_bag = -1
 	var stand: Dictionary = {}
 	var saved_stand: Variant = d.get("standing", {})
 	if typeof(saved_stand) == TYPE_DICTIONARY:

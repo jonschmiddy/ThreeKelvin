@@ -121,7 +121,6 @@ static func build_all() -> Array[Dictionary]:
 			options = [
 				{label = "Claim the hull", effect = func() -> Dictionary:
 					Run.find_hull(LootGen.roll_hull(Run.node_at().danger))
-					Sig.ship_changed.emit()
 					return {text = "The frame is flyable: %s" % Run.found_hull.display_name()}},
 				{label = "Strip it for scrap", effect = func() -> Dictionary:
 					Run.add_credits(35)

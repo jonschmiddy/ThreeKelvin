@@ -36,14 +36,15 @@ bad()   { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 # simulator. If a benign one ever shows up, add it to ALLOW rather than
 # loosening this.
 ERROR_PATTERNS='SCRIPT ERROR|Parse Error|Compile Error|^ERROR:|^USER ERROR:'
-# Two exit-time reports, allowed narrowly and for one reason: `stowtest` is the
-# only step that builds REAL SCREENS headlessly, and a headless run that has had
-# a Control tree in it ends holding the theme's font. Godot reports that at
-# shutdown as a leaked resource. It is a statement about teardown after the test
-# has already printed its verdict, not about anything the test did — and the
-# alternative is either not testing the UI in the gate at all, or loosening
-# ERROR_PATTERNS, which is what this list exists to avoid.
-ALLOW='^$|resources still in use at exit|RID allocations of type .* were leaked at exit'
+ALLOW='^$'
+# PER-STEP, NOT GLOBAL. Set `ALLOW_EXTRA` on the run_godot line that needs it:
+#
+#   ALLOW_EXTRA='...' run_godot stowtest 120 ...
+#
+# The first version of this put the exit-time leak messages straight into ALLOW,
+# which is global — so a genuine leak introduced in `boot`, `savetest` or the
+# simulator would have stopped failing the gate too. An allowance made for one
+# step has to end at that step, or it is not an allowance, it is a hole.
 
 # Run a command under a wall-clock limit. `timeout` is GNU coreutils and is not
 # on a stock macOS, so this is done by hand: background it, poll, kill it if it
@@ -83,7 +84,8 @@ run_godot() {
 		return 1
 	fi
 	local hits
-	hits="$(grep -nE "$ERROR_PATTERNS" "$log" | grep -vE "$ALLOW" || true)"
+	hits="$(grep -nE "$ERROR_PATTERNS" "$log" \
+		| grep -vE "${ALLOW}${ALLOW_EXTRA:+|$ALLOW_EXTRA}" || true)"
 	if [ -n "$hits" ]; then
 		bad "$name: godot reported script errors"
 		printf '%s\n' "$hits" | head -n 40 | sed 's/^/        /'
@@ -162,7 +164,12 @@ step "The salvage rail survives a jump"
 # `SectorScreen`, which Router rebuilds on every jump. No assertion on the
 # predicate can see that. This one presses the button, jumps, and checks the
 # rail on the screen Router built afterwards.
-if run_godot stowtest 120 --headless --path "$PROJECT" -- stowtest; then
+# The two exit-time reports Godot emits when a headless run has had a Control
+# tree in it: the process ends holding the theme's font. A statement about
+# teardown, printed after the test's own verdict — and scoped to this line, so
+# no other step stops failing on a real leak.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot stowtest 120 --headless --path "$PROJECT" -- stowtest; then
 	if grep -qE '^stowtest: PASS' "$LOG_DIR/stowtest.log"; then
 		ok "stow"
 	else

@@ -92,9 +92,12 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			Sig.resources_changed.emit()
 			return "Cracked feedstock for volatiles. +%d fuel." % int(r.amount)
 		&"heat_cap":
+			# No emit here. `add_heat_cap()` announces itself — see its header,
+			# "THE MUTATION OWNS THE SIGNAL". These two lines were left behind
+			# when the direct field write became a mutator call, so every
+			# fabrication fired both signals twice and every listener rebuilt
+			# twice for one recipe.
 			Run.add_heat_cap(int(r.amount))
-			Sig.resources_changed.emit()
-			Sig.ship_changed.emit()
 			return "Coolant braid laid in. Heat cap +%d." % int(r.amount)
 		&"artifact":
 			# Precursor tech is unbranded by definition, so it is rolled the way
@@ -102,7 +105,7 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			# catalog. Danger biases it, which makes reading a fragment deep in
 			# the galaxy worth more than reading one on the rim.
 			var m := LootGen.roll_module(n.danger, &"", true)
+			# Same again: `stow()` emits `ship_changed` itself.
 			Run.stow(m)
-			Sig.ship_changed.emit()
 			return "The fragment reads out as %s. It is in the hold." % m.name
 	return ""
