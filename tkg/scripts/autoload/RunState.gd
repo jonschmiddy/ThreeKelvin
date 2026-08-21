@@ -86,6 +86,22 @@ var death_reason: String = ""
 ## run showing its hold once is the behaviour it already had.
 var hauls: int = 0
 
+## The salvage rail was dismissed, and the state it was dismissed in.
+##
+## ON THE RUN, NOT ON THE SCREEN, and that is the whole of a bug rather than a
+## preference. `SectorScreen` is rebuilt from scratch on every jump — `Router`
+## makes a new one — so a `_stowed` flag living on it was forgotten the instant
+## you left the system. Stow a part, jump, and the rail opened again and asked
+## the same question about the same cargo, at every system, for the rest of the
+## run.
+##
+## Two numbers rather than a bool, because "dismissed" has to expire on the right
+## events and only those: a fresh HAUL is new cargo and should re-open it, and a
+## BAG at a system you have not seen is new loot and should too. Arriving
+## somewhere new carrying the same parts you already decided about is neither.
+var salvage_hushed_hauls: int = -1
+var salvage_hushed_bag: int = -1
+
 ## Work you have taken, in the order you took it. See ContractData.
 ##
 ## Nothing in here expires and nothing in here is contested — two ships can hold
@@ -178,6 +194,8 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	hauls = 0
 	contracts.clear()
 	next_contract_id = 1
+	salvage_hushed_hauls = -1
+	salvage_hushed_bag = -1
 	# Standing is a RUN thing, not a career. It buys prices and stock inside one
 	# dive, and starting a fresh dive means walking into the same berths as a
 	# stranger again — which is the only shape that does not turn into the

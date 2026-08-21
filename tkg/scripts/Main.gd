@@ -458,6 +458,21 @@ func _wants_shot() -> bool:
 ## grab on frame zero photographs a page whose panels are all still at their
 ## minimum size, which is precisely the property under test.
 func _shoot() -> void:
+	# THE WINDOW IS RESIZED TO THE BASE VIEWPORT FIRST, and this is not tidiness.
+	#
+	# The window is resizable and the controls lay out to it in real pixels, while
+	# this grab returns the viewport's own render target at the project's base
+	# size. Those two are routinely different — a 999-wide window photographed as
+	# a 960-wide PNG — so the picture silently CROPS the interface, and a button
+	# perfectly placed in the game appears sliced by the right edge of the file.
+	#
+	# An afternoon went into chasing a margin bug that did not exist because of
+	# it. A screenshot that does not show what the game shows is worse than no
+	# screenshot: it is a confident wrong answer.
+	var base := Vector2i(
+		int(ProjectSettings.get_setting("display/window/size/viewport_width", 960)),
+		int(ProjectSettings.get_setting("display/window/size/viewport_height", 540)))
+	get_window().size = base
 	for i in 8:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
@@ -467,7 +482,15 @@ func _shoot() -> void:
 		if a.begins_with("shot="):
 			out = a.split("=")[1]
 	img.save_png(out)
-	print("[shot] %s" % ProjectSettings.globalize_path(out))
+	# THE TEXTURE AND THE LAYOUT ARE NOT ALWAYS THE SAME WIDTH, and reading the
+	# picture as if they were costs an afternoon. The window is resizable, the
+	# controls lay out to it, and this grab is the viewport's own render target —
+	# so a screenshot can be NARROWER than the interface in it, and a button
+	# sliced by the right edge of the PNG can be perfectly placed in the game.
+	# Both numbers are printed so the next reader can tell those two apart.
+	print("[shot] %s  texture %dx%d  layout %dx%d" % [
+		ProjectSettings.globalize_path(out), img.get_width(), img.get_height(),
+		int(size.x), int(size.y)])
 	get_tree().quit()
 
 ## Kept alive for the duration of `-- charttest`; see the call site.

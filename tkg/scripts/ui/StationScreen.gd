@@ -13,6 +13,9 @@ extends Control
 
 var _header: RichTextLabel
 var _trade: Label
+## What kind of place this is, in its own words. Fills the column under the
+## services with something worth reading rather than with nothing.
+var _blurb: Label
 var _services: VBoxContainer
 ## The house board: what is posted here, and what you can close here.
 ##
@@ -41,90 +44,308 @@ func setup() -> void:
 	_inspect()
 	_refresh()
 
+## FIVE PAGES, NOT FIVE PANELS STACKED.
+##
+## A station does five things — repair you, post work, sell you parts, buy what
+## you are carrying, and build things where there is a laboratory — and all five
+## were on screen at once in one scrolling column. At a developed station that is
+## a service desk, two contracts, four shelf parts, twelve hold slots and a
+## recipe list, and the player has to scroll past the thing they came in for.
+##
+## Tabs, because these are five separate ERRANDS rather than five parts of one.
+## Nobody buys a gun and sells a plate in the same gesture; they do one, then
+## decide. A column implies a reading order that does not exist.
+##
+## Every page is built once and hidden, not built on demand: the shelf has to be
+## able to empty while you are looking at the hold — `Sig.party_map_changed`
+## fires when a partner buys something — and a page that only exists while it is
+## visible cannot be refreshed when it is not.
+const TABS := [
+	[&"services", "SERVICES"],
+	[&"work", "WORK"],
+	[&"stock", "STOCK"],
+	[&"hold", "HOLD"],
+	[&"bench", "FABRICATOR"],
+]
+
+var _pages: Dictionary = {}
+var _tabs: Dictionary = {}
+var _tab: StringName = &"services"
+## Which tabs this station actually has. An unbranded desk posts no work and a
+## station with no laboratory builds nothing.
+var _tabs_on: Dictionary = {}
+## How wide the service column is. A price belongs beside the thing it prices.
+const SERVICE_W := 420
+## How tall the hull portrait is. Enough for a heavy at 2x without the panel
+## growing past the service column beside it.
+const HULL_H := 180
+## And how wide the window onto it is. A cap, not a measurement — the widest hull
+## at 2x is 474 and the row does not have room for that beside the services.
+const HULL_W := 380
+## How wide the station's name line is allowed to be before it wraps. Bounded on
+## purpose — see the note in _build().
+const HEADER_W := 560
+
 func _build() -> void:
-	var root := HBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 10)
-	add_child(root)
+	# Margin on the outside, once. Without it the header panel runs to x=0 and
+	# x=960 and UNDOCK is sliced in half by the window — every panel on this
+	# screen sits inside this one box.
+	var frame := MarginContainer.new()
+	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "right"]:
+		frame.add_theme_constant_override("margin_" + side, 10)
+	for side in ["top", "bottom"]:
+		frame.add_theme_constant_override("margin_" + side, 6)
+	add_child(frame)
 
-	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 10)
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(left)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	frame.add_child(root)
 
-	var head_section := Widgets.section("station")
+	# --- the header, and the way out.
+	#
+	# UNDOCK is a button on this line rather than a panel of its own on a column
+	# of its own. It was three hundred pixels wide inside a three-hundred-pixel
+	# rail, for a control that is pressed once and is never the reason anybody
+	# opened this screen. Leaving is not an errand.
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 2)
 	_header = RichTextLabel.new()
 	_header.bbcode_enabled = true
 	_header.fit_content = true
+	# NEVER WRAPS. Sized to its content and left to be as wide as it is — inside a
+	# shrinking panel an autowrapping label collapsed to its narrowest legal width
+	# and stacked "CITY STATION · HIGH / SECURITY · DANGER / 5" into a column.
+	# One line is the only shape this sentence has.
+	# WRAPS, AT A WIDTH THIS SCREEN CHOOSES.
+	#
+	# Both obvious settings are wrong here and they are wrong in opposite
+	# directions. Autowrap ON inside a shrinking panel collapses to the narrowest
+	# legal width and stacks the line into a column. Autowrap OFF reports the
+	# WHOLE UNWRAPPED LINE as a minimum width — and a Control is never laid out
+	# smaller than its minimum, even when anchored — so the header grew the entire
+	# screen to 983 inside a 960 window and every panel on it hung off the right
+	# edge. The symptom looked exactly like a missing margin.
+	#
+	# A fixed width and wrapping is the only combination that is neither: the
+	# header is as wide as this screen says and no wider, and it is the screen
+	# that decides rather than the sentence.
+	_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_header.custom_minimum_size = Vector2(HEADER_W, 0)
+	_header.scroll_active = false
 	_header.add_theme_stylebox_override("normal", UITheme.empty())
-	head_section.add_child(_header)
+	head.add_child(_header)
 	# Who this market is short of, said in words. The rule behind the prices is
 	# simple enough to state, so state it — a trade economy the player has to
 	# reverse-engineer from receipts is a puzzle, not an economy.
 	_trade = UITheme.body("", Color("#d99b29"), UITheme.FS_SMALL)
-	head_section.add_child(_trade)
+	head.add_child(_trade)
+	# SHRINK, NOT FILL. A RichTextLabel with `fit_content` derives its minimum
+	# width from its own unwrapped text, and inside an expanding panel that
+	# minimum won the argument — the header ran past the frame and sliced UNDOCK
+	# in half against the window. Sized to its content, it cannot push anything.
+	var head_wrap := Widgets.panel_with(_pad(head))
+	head_wrap.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	head_wrap.custom_minimum_size = Vector2(HEADER_W + 20, 0)
+	root.add_child(head_wrap)
+
+	# --- the tab bar
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 4)
+	for entry in TABS:
+		var id: StringName = entry[0]
+		var b := Widgets.button(String(entry[1]), func() -> void: _show_tab(id))
+		b.custom_minimum_size = Vector2(104, 20)
+		_tabs[id] = b
+		bar.add_child(b)
+	# UNDOCK sits WITH the tabs rather than pushed to the far right of the row.
+	#
+	# Pinned to the right it was the one control on the screen whose position
+	# depended on the window being exactly as wide as expected, and the window is
+	# resizable — so on a wider window it sat correctly and in a 960 screenshot it
+	# was sliced in half, which cost most of an afternoon to not-diagnose. A
+	# control at the end of an expanding row is a control at the mercy of the
+	# row's width. Grouped left, it is at the mercy of nothing.
+	#
+	# It reads fine there anyway: the row is the things you can do at a station
+	# and leaving is one of them.
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(20, 0)
+	bar.add_child(spacer)
+	var out := Widgets.button("UNDOCK", func(): Router.show_sector())
+	out.custom_minimum_size = Vector2(104, 20)
+	bar.add_child(out)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(gap)
+	root.add_child(bar)
+
+	# --- the pages, all built, one visible
+	var body := Control.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(body)
+
+	_pages[&"services"] = _page_services()
+	_pages[&"work"] = _page_work()
+	_pages[&"stock"] = _page_stock()
+	_pages[&"hold"] = _page_hold()
+	_pages[&"bench"] = _page_bench()
+	for id in _pages:
+		var page: Control = _pages[id]
+		page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		body.add_child(page)
+	# `-- station tab=stock` opens on a named page. Four of the five are only
+	# reachable by clicking, and a screenshot cannot click.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("tab="):
+			_tab = StringName(a.split("=")[1])
+	_show_tab(_tab)
+
+## Repair, refuel, and the ship they are being done to.
+##
+## THE HULL EARNS ITS PLACE HERE AND NOWHERE ELSE. It used to sit in a permanent
+## rail on the right of every page, which is decoration: you can see your ship on
+## the sector screen and the refit page, and at a station it was answering no
+## question you had walked in with. Beside the repair prices it answers one — a
+## hull with its plating opened up, next to the number it costs to close it. That
+## is the only place on this screen where looking at the ship is the point.
+func _page_services() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var box := Widgets.section("services")
 	_services = VBoxContainer.new()
 	_services.add_theme_constant_override("separation", 5)
-	head_section.add_child(_services)
-	left.add_child(Widgets.panel_with(head_section))
+	box.add_child(_services)
+	# A COLUMN, NOT THE WHOLE WIDTH. A service is a line of text and a price, and
+	# stretched across 700px the price ends up half a screen from the thing it is
+	# the price of. This is the width that keeps them together.
+	# THE PANEL IS AS TALL AS THE LIST, not as tall as the page. Five services in
+	# a page-height box is four hundred pixels of empty panel, which reads as a
+	# screen that failed to load rather than as a short menu.
+	_blurb = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
+	_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_blurb.custom_minimum_size = Vector2(SERVICE_W - 24, 0)
+	box.add_child(UITheme.hsep())
+	box.add_child(_blurb)
+	var wrap := Widgets.panel_with(_pad(box))
+	wrap.custom_minimum_size = Vector2(SERVICE_W, 0)
+	wrap.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	row.add_child(wrap)
 
-	var work_section := Widgets.section("work")
+	var ship := Widgets.section("your hull")
+	var art := ShipView.new()
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Doubled, and cropped to the band the hull occupies. At 1x it was a thumbnail
+	# in the corner of a large panel; at 2x it is a portrait of the thing the
+	# prices beside it are for, which is the only reason it is on this screen.
+	# Doubled AND cropped to a fixed window, in that order. `magnify` alone sizes
+	# the control to the whole doubled canvas — 237 pixels of heavy hull becomes a
+	# 474-wide minimum, and 420 of services plus that overflowed the row and shoved
+	# the whole screen seven pixels past the right edge of the window. The bug
+	# looked like a missing margin and was a minimum nobody had bounded.
+	art.magnify(2, HULL_H)
+	art.crop(HULL_W, HULL_H)
+	ship.add_child(art)
+	var sw := Widgets.panel_with(_pad(ship))
+	sw.custom_minimum_size = Vector2(HULL_W, 0)
+	sw.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	sw.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	row.add_child(sw)
+	# The rest of the row is deliberately empty. A station is not obliged to fill
+	# the screen, and two panels that stop where they stop read as two things
+	# rather than as one wall.
+	var rest := Control.new()
+	rest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(rest)
+	return row
+
+
+func _page_work() -> Control:
+	var box := Widgets.section("work")
 	_work = VBoxContainer.new()
 	_work.add_theme_constant_override("separation", 5)
-	work_section.add_child(_work)
-	_work_wrap = Widgets.panel_with(work_section)
-	left.add_child(_work_wrap)
+	var sc := Widgets.scroller(_work, 90)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sc)
+	_work_wrap = Widgets.panel_with(_pad(box))
+	return _work_wrap
 
-	var stock_section := Widgets.section("stock")
+
+func _page_stock() -> Control:
+	var box := Widgets.section("stock")
 	_hull_box = VBoxContainer.new()
 	_hull_box.add_theme_constant_override("separation", 6)
-	stock_section.add_child(_hull_box)
+	box.add_child(_hull_box)
 	_stock = VBoxContainer.new()
 	_stock.add_theme_constant_override("separation", 6)
-	# Expands into whatever the panel has left rather than demanding 300px.
-	#
-	# A fixed 300 minimum put the column's minimum height above the 540 the
-	# viewport actually has — head panel, plus the stock header, plus the hull
-	# on the pad, plus 300 — so the bottom of the list was clipped by the
-	# window instead of scrolled to. The scrollbar could not reach the last
-	# item because the ScrollContainer itself was hanging off the screen.
-	var stock_scroll := Widgets.scroller(_stock, 90)
-	stock_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stock_section.add_child(stock_scroll)
-	var sp := Widgets.panel_with(stock_section)
-	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left.add_child(sp)
+	var sc := Widgets.scroller(_stock, 90)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sc)
+	return Widgets.panel_with(_pad(box))
 
-	# The hold, with a buyer standing in front of it. This is the other half of
-	# the shelf and it belongs on the same screen: what you sell and what you buy
-	# are one decision made out of one pocket.
-	var hold_section := Widgets.section("your hold")
+
+## The hold, with a buyer standing in front of it.
+func _page_hold() -> Control:
+	var box := Widgets.section("your hold")
 	_hold = VBoxContainer.new()
 	_hold.add_theme_constant_override("separation", 6)
-	var hold_scroll := Widgets.scroller(_hold, 90)
-	hold_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hold_section.add_child(hold_scroll)
-	var hp2 := Widgets.panel_with(hold_section)
-	hp2.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left.add_child(hp2)
+	var sc := Widgets.scroller(_hold, 90)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sc)
+	return Widgets.panel_with(_pad(box))
 
-	var bench_section := Widgets.section("fabricator")
+
+func _page_bench() -> Control:
+	var box := Widgets.section("fabricator")
 	_bench = VBoxContainer.new()
 	_bench.add_theme_constant_override("separation", 5)
-	bench_section.add_child(_bench)
-	_bench_panel = Widgets.panel_with(bench_section)
-	left.add_child(_bench_panel)
+	box.add_child(_bench)
+	_bench_panel = Widgets.panel_with(_pad(box))
+	return _bench_panel
 
-	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(300, 0)
-	right.add_theme_constant_override("separation", 10)
-	root.add_child(right)
-	var depart := Widgets.section("depart")
-	depart.add_child(Widgets.button("UNDOCK", func(): Router.show_sector()))
-	right.add_child(Widgets.panel_with(depart))
-	var ship := Widgets.section("ship")
-	ship.add_child(ShipView.new())
-	right.add_child(Widgets.panel_with(ship))
+
+## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
+## wherever the player meets one.
+func _show_tab(id: StringName) -> void:
+	if not _pages.has(id) or not _tabs_on.get(id, true):
+		return
+	_tab = id
+	for key in _pages:
+		(_pages[key] as Control).visible = key == id
+	for key in _tabs:
+		var b: Button = _tabs[key]
+		var on: bool = key == id
+		b.disabled = on
+		if on:
+			b.add_theme_stylebox_override("normal", UITheme.bevel(Color("#4a2a0c"), 3, 5))
+			b.add_theme_stylebox_override("disabled", UITheme.bevel(Color("#4a2a0c"), 3, 5))
+			b.add_theme_color_override("font_disabled_color", UITheme.HOT)
+		else:
+			b.remove_theme_stylebox_override("normal")
+			b.remove_theme_stylebox_override("disabled")
+			b.remove_theme_color_override("font_disabled_color")
+
+
+## Turn a tab on or off for this station, and get off it if you are standing on
+## one that just went away.
+func _enable_tab(id: StringName, on: bool) -> void:
+	_tabs_on[id] = on
+	if _tabs.has(id):
+		(_tabs[id] as Button).visible = on
+	if not on and _tab == id:
+		_show_tab(&"services")
+
+
+func _pad(child: Control) -> MarginContainer:
+	var pad := MarginContainer.new()
+	for side in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side, 8)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 6)
+	pad.add_child(child)
+	return pad
 
 ## Roll what is on the shelf, ONCE per system per run.
 ##
@@ -196,6 +417,7 @@ func _refresh() -> void:
 		UITheme.COLD.to_html(false), note])
 
 	_trade.text = Market.trade_line(n)
+	_blurb.text = MapGen.place_blurb(n)
 	_refresh_work(n)
 
 	for c in _services.get_children():
@@ -277,7 +499,9 @@ func _refresh() -> void:
 	for c in _bench.get_children():
 		c.queue_free()
 	var recipes := Fabricator.available(n)
-	_bench_panel.visible = not recipes.is_empty()
+	# The TAB goes, not the page. A page that hides itself leaves a lit tab
+	# pointing at nothing, and `_show_tab` would happily select it.
+	_enable_tab(&"bench", not recipes.is_empty())
 	for r in recipes:
 		var b := Widgets.button("%s · %s" % [str(r.name), Fabricator.cost_line(n, r)],
 			_fabricate.bind(r))
@@ -409,11 +633,12 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	var hot := Run.heat_deliverable_at(n)
 	var mine := _open_elsewhere(n)
 
-	# Hidden entirely at a station with no house behind it. An empty board with a
-	# heading is a page telling you about a thing that is not there.
-	_work_wrap.visible = not (offers.is_empty() and ready.is_empty()
-		and hot.is_empty() and mine.is_empty())
-	if not _work_wrap.visible:
+	# The TAB goes at a station with no house behind it — see the fabricator's
+	# note. An empty board with a heading is a page telling you about a thing
+	# that is not there.
+	_enable_tab(&"work", not (offers.is_empty() and ready.is_empty()
+		and hot.is_empty() and mine.is_empty()))
+	if not _tabs_on.get(&"work", true):
 		return
 
 	for job in ready:
