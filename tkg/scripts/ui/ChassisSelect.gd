@@ -65,6 +65,19 @@ const HERO_H := 184
 ## 12px gap that build came to 470px against a 448px viewport, and the 22px the
 ## ScrollContainer quietly absorbed read as the module list being cut off.
 const BLOCK_GAP := 4
+
+## Between the buttons in the weight row and the grade row, and it has to be the
+## SAME number for both or the two rows stop lining up. See _tier_row.
+const PICKER_GAP := 6
+
+## Between those two rows. shipcol runs at separation 1 because the hull below it
+## needs every pixel it can get, and two rows of buttons one pixel apart read as
+## one crowded block rather than as two questions.
+##
+## PAID FOR, not added: the gap under the pair drops by the same amount, so the
+## column is exactly as tall as it was. This screen was measured to 448 against a
+## 448 viewport and has no slack to spend.
+const PICKER_ROWS_GAP := 4
 ## What each row of the hardpoints block IS. Same shape as every other tooltip
 ## on this screen: the name, then one sentence. None of them restates the number
 ## sitting an inch to the left.
@@ -371,7 +384,12 @@ func _build_detail() -> void:
 	# effect one glance apart. It also buys the hull below them three whole rows,
 	# which is what lets the sprite run at 2x.
 	var namerow := HBoxContainer.new()
-	namerow.add_theme_constant_override("separation", 10)
+	# PICKER_GAP, not 10. The weight row and the grade row below it are both
+	# right-aligned rows of 22px buttons, so an IDENTICAL separation is what makes
+	# them a grid: L lands over B, M over A, H over S, and the ragged left edge is
+	# just the row that has one fewer choice. At two different separations they
+	# were two rows of buttons that happened to be near each other.
+	namerow.add_theme_constant_override("separation", PICKER_GAP)
 	namerow.add_child(UITheme.body(Run.hull.name.to_upper(), UITheme.ICE, UITheme.FS_HEAD))
 	var ngap := Control.new()
 	ngap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -380,6 +398,7 @@ func _build_detail() -> void:
 	for w in WEIGHTS:
 		namerow.add_child(_weight_button(man, w, m))
 	shipcol.add_child(namerow)
+	shipcol.add_child(_gap(PICKER_ROWS_GAP))
 	shipcol.add_child(_tier_row(man, m))
 	var chosen := ShipView.new()
 	chosen.setup_preview(Run.hull, HERO_H, HERO_SCALE)
@@ -407,7 +426,7 @@ func _build_detail() -> void:
 	chosen.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	# Dropped clear of the name and class above it. The hull is the subject of
 	# this half of the screen and it was riding up against its own caption.
-	shipcol.add_child(_gap(14))
+	shipcol.add_child(_gap(14 - PICKER_ROWS_GAP))
 	shipcol.add_child(chosen)
 	mid.add_child(shipcol)
 
@@ -657,7 +676,7 @@ func _gap(h: int) -> Control:
 ## starts at C and every better frame is something you found.
 func _tier_row(man: StringName, m: ManufacturerData) -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
+	row.add_theme_constant_override("separation", PICKER_GAP)
 	row.add_child(UITheme.body(
 		"%s CHASSIS · %s TIER" % [
 			HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()],
