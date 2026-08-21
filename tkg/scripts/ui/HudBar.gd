@@ -38,6 +38,10 @@ var _tab_history: Button
 ## state to keep in step, and rebuilding the bar when somebody joins is a whole
 ## screen redrawn for one tab.
 var _tab_party: Button
+## The archive. Always built and always available: what you have read survives
+## the ship, so unlike SHIP and PARTY there is no run state that makes reading a
+## page wrong. It greys during a fight anyway — see refresh().
+var _tab_archive: Button
 
 var _hull_label: Label
 var _hull: BoxGauge
@@ -170,6 +174,11 @@ func _build() -> void:
 	_tab_party = _tab("PARTY", func() -> void: Router.show_party())
 	_row.add_child(_tab_party)
 
+	# The archive sits with the record and the catalog: three things you READ
+	# rather than three places you go, and none of them changes the run.
+	_tab_archive = _tab("ARCHIVE", func() -> void: Router.show_archive())
+	_row.add_child(_tab_archive)
+
 	# The record sits beside the catalog: both are things you read rather than
 	# places you go, and neither changes the run.
 	_tab_history = _tab("HISTORY", func() -> void: Router.show_history())
@@ -210,6 +219,12 @@ func refresh() -> void:
 	# Locked during a fight for the same reason SHIP is: it is a page you read
 	# while deciding where to go, and the decision it feeds does not exist while
 	# something is shooting at you. The convoy strip covers the fight.
+	# Greys while choosing a chassis for the same reason CARDS does — there is no
+	# run to come back to — but NOT during a fight. Mid-fight is exactly when a
+	# player looks something up, and reading a fifty-year-old manifest changes
+	# nothing about the frigate in front of them.
+	_state(_tab_archive, Router.current is ArchiveScreen, choose_lock,
+		"What you have recovered and read.")
 	_tab_party.visible = Net.is_networked()
 	_state(_tab_party, Router.current is PartyScreen, lock,
 		"Everyone you are flying with.")

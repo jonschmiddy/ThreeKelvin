@@ -59,6 +59,10 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# The archive: machinery, and a STYLE GATE over every entry's prose —
+# RUN THIS AFTER ADDING A DOCUMENT. See docs/lore.md §5.
+godot --headless --path . -- archivetest
+# Read the archive without flying for it:  -- archive all, or -- archive 5
 # Save/load round-trip — RUN THIS AFTER TOUCHING SaveGame OR RunHistory
 godot --headless --path . -- savetest          # ~3 s
 
@@ -293,6 +297,7 @@ say so and ask rather than quietly working around it.
 | **`fuel_factor` cuts both ways, so no module carries it** | It raises Thrust and the price of every jump together. The sim already strands 30-40% of runs, so any value invented for it moves the most fragile number in the game to change an attribute nobody asked about. The gauge sums it; the catalog waits for an actual engine module |
 | **Charge fires automatically** when ready | Tension belongs in *when you start* charging, not in a release button |
 | **Overheat = predictable self-damage.** 1 hull per point over cap, at end of turn. No cliff, no shutdowns, no cap on heat | Heat becomes a second health bar you can choose to spend. Repairs cost scrap, so overheating burns money |
+| **The archive is PRIMARY SOURCES, never exposition** — manifests, riders, receipts, transponder loops, and never a narrator | `docs/design-doc.md` rules that no faction explains the cosmology in a text box, and the obvious way to add lore breaks that. `docs/lore.md`'s frame is what makes lore possible under it: *corporations are eternal and buying heat, people are temporary and want scrap and credits, and the eternal things will not say what the heat is for.* Nobody explains the world because the people who could are not talking. **There is no answer written down anywhere**, including in the design docs — that is a commitment, not a gap, because the moment one exists somebody will put it in an entry. `-- archivetest` is a style gate as well as a machinery one and runs in the merge gate |
 | **Heat does NOT gate loot.** Winning a fight pays the loot. Fleeing pays nothing. Heat's only job on the map is the residual you carry into the next jump — the ambush mechanic | REVERSES `docs/coop-design.md` §0's own conclusion, which proposed that heat must gate reward, and kills §6's "two doors" with it. The measurement behind that proposal still stands: 1,000 runs a cell say heat does not move the win rate, and under this ruling it is not going to. That is accepted. **Difficulty lives in the economy**, which is what the tuning rule below has said all along and what the enemy-scaling change actually moved. `docs/coop-design.md` §0 has the full record |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful |
 | **Player attacks never miss. Only enemies miss** (light hulls dodge incoming fire) | Player-side miss RNG feels terrible in a game built on perfect information |

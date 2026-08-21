@@ -80,6 +80,13 @@ func _ready() -> void:
 	# RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR. Determinism fails silently
 	# by nature — a run that is 99% reproducible looks exactly like one that is
 	# reproducible, right up to the moment four players are in four galaxies.
+	# The archive, machinery and prose both:
+	#   godot --headless --path . -- archivetest
+	if "archivetest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ArchiveTest.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "rngtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/RngTest.gd").new().run()
 		get_tree().quit()
@@ -217,7 +224,7 @@ func _ready() -> void:
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv \
-		or "salvage" in argv or "party" in argv
+		or "salvage" in argv or "party" in argv or "archive" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -251,6 +258,30 @@ func _ready() -> void:
 	# without this the only way to look at it is to start six Godot processes and
 	# fly them to the same place. The roster is faked, not the screen — what is
 	# drawn is the real PartyScreen reading the real Net.roster.
+	# `-- archive` opens the reading room, and `-- archive all` recovers every
+	# entry first. The archive fills up over many runs by design, so without this
+	# the only way to look at a deep page is to fly to layer eight.
+	if "archive" in OS.get_cmdline_user_args():
+		# `all`, or a count — the PARTIAL archive is the state a real player is in
+		# for most of the game, and the redacted rows are most of what the screen
+		# has to say, so it needs to be as easy to look at as the full one.
+		var want := -1
+		if "all" in OS.get_cmdline_user_args():
+			want = DB.documents.size()
+		for a in OS.get_cmdline_user_args():
+			if a.is_valid_int():
+				want = int(a)
+		if want >= 0:
+			Archive.wipe()
+			var got := 0
+			for d in DB.documents_by_depth(MapGen.LAYERS):
+				if got >= want:
+					break
+				Archive.recover((d as DocumentData).id,
+					"recovered by a development flag")
+				got += 1
+		Router.show_archive()
+
 	if "party" in OS.get_cmdline_user_args():
 		var crew := 5
 		for a in OS.get_cmdline_user_args():

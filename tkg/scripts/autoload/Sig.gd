@@ -16,6 +16,10 @@ signal screen_changed()             ## a screen was swapped in; nav re-evaluates
 ## DevMode.enabled has to rebuild here: the HUD is constructed once at boot and
 ## would otherwise keep whichever tabs it was born with until the game restarts.
 signal dev_mode_changed()
+## A page was recovered out of a system. The archive tab counts, and the HUD
+## shows the count, so both have to hear it — and it fires from the one door in
+## Archive rather than from the three encounters that go through that door.
+signal archive_changed()
 
 # Combat
 signal combat_started(enemy_name: String)

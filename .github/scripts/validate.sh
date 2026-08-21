@@ -132,6 +132,21 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
 fi
 
+step "The archive round-trips, and none of it has become an essay"
+# Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
+# primary source that fits on one screen, and that is prose — it rots, and its
+# failure mode is not a crash but an archive that has quietly turned into a
+# wiki. This is the only thing that reads every entry on every commit.
+if run_godot archivetest 120 --headless --path "$PROJECT" -- archivetest; then
+	if grep -qE '^archivetest: PASS' "$LOG_DIR/archivetest.log"; then
+		ok "archive"
+	else
+		bad "archive test failed"
+		grep -E '^  FAIL|^archivetest' "$LOG_DIR/archivetest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
 step "Simulator plays $SIM_RUNS complete runs"
 # The repo's actual regression test. It has already caught an infinite draw
 # loop and a structural map flaw; a balance change that crashes a run shows up

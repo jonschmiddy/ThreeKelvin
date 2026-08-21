@@ -171,6 +171,14 @@ func show_party() -> void:
 	s.setup(show_ship if here is ShipScreen else (
 		show_starchart if here is StarchartScreen else show_sector))
 
+## Somebody else's paperwork. `from_launcher` sends LEAVE back to the title
+## screen, because the archive is readable out of a run as well as in one — what
+## you have read survives the ship. See Archive.
+func show_archive(from_launcher: bool = false) -> void:
+	var s := ArchiveScreen.new()
+	_swap(s, not from_launcher)
+	s.setup(show_launcher if from_launcher else show_sector)
+
 func show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint
 	# where being out of fuel has to resolve rather than stall.
@@ -400,10 +408,14 @@ func event_resolved() -> void:
 ## tank and exotic matter worth studying, and you pay for it in the only
 ## currency the ship cannot buy back cheaply.
 func harvest_pulsar() -> void:
+	var n: MapGen.MapNode = Run.node_at()
 	Run.harvest_pulsar()
 	if Run.dead:
 		show_game_over()
 		return
+	# A beam that has been sweeping this long has swept other people. Read before
+	# the screen swaps, so the line lands in the log the sector is about to draw.
+	Archive.recover_at(n, "pulled out of a pulsar's sweep")
 	show_sector()
 
 ## Strip the wreck, then stay where you are: the salvage rail on the sector
@@ -450,6 +462,7 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("Derelict stripped. %d module%s recovered." % [
 		count, "" if count == 1 else "s"], &"good")
+	Archive.recover_at(n, "stripped out of a derelict")
 	show_sector()
 
 ## `extras` is what the node already rolled. It is a parameter rather than
