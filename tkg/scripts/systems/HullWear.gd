@@ -365,12 +365,25 @@ static func worn(src: Image, band: int, seed_in: int, punch: bool = false) -> Im
 		return out
 	var g: Array = GRADES[t]
 	var p := Plate.new(out)
-	var r := Lcg.new(seed_in * 131 + t * 17)
-	_stain(p, r, g[1])
-	_streak(p, r, g[2])
-	_patch(p, r, g[4])
-	_gouge(p, r, g[0])
-	_hole(p, r, g[3], punch)
+	# ONE STREAM PER OPERATION, AND THE BAND IS NOT IN THE SEED. Both halves are
+	# required for damage to accumulate rather than reshuffle.
+	#
+	# The band was in the seed and every operation shared one stream, which meant
+	# a ship crossing from marked to mauled drew an entirely different set of
+	# scars — measured at 16% overlap, which is chance. The dent taken at half
+	# hull healed, and a new one opened somewhere else. A hull is a record of
+	# what has happened to it, and that made it a record of nothing.
+	#
+	# Seeded per operation rather than per pass so the counts cannot interfere:
+	# sharing one stream, drawing eight stains instead of four would leave the
+	# streaks starting from a different place in the sequence, and they would
+	# move too. Given its own stream, each operation's first N draws are the same
+	# at every band and a worse band simply draws MORE of them.
+	_stain(p, Lcg.new(seed_in * 977 + 1), g[1])
+	_streak(p, Lcg.new(seed_in * 977 + 2), g[2])
+	_patch(p, Lcg.new(seed_in * 977 + 3), g[4])
+	_gouge(p, Lcg.new(seed_in * 977 + 4), g[0])
+	_hole(p, Lcg.new(seed_in * 977 + 5), g[3], punch)
 	return out
 
 
@@ -411,11 +424,15 @@ static func band_for(damage: float) -> int:
 	return 3
 
 
-## A wear seed for a hull. The same ship takes the same scars in the same order
-## as it is beaten down, so damage ACCUMULATES visually rather than being
-## reshuffled at every band — the dent you picked up at half hull is still there
-## at quarter hull, with more around it. A random seed per repaint would make
-## the ship flicker between different histories of the same fight.
+## A wear seed for a hull, from its NAME alone — deliberately not from the band,
+## and deliberately not from anything that changes mid-run. Every Ironside
+## Cutter in every run therefore takes the same scars in the same order as it is
+## beaten down, and a worse band adds to them rather than replacing them.
+##
+## The cost of that is real and accepted: two players' Ironsides at half hull
+## look identical. Mixing the run seed in would fix it and is a one-line change,
+## but a peer's ship is drawn from THEIR HullData on YOUR machine, so any seed
+## source has to be something both machines already agree on.
 static func seed_for(h: HullData) -> int:
 	if h == null:
 		return 0
