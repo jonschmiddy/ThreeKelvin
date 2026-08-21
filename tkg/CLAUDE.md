@@ -160,6 +160,20 @@ godot --path . -- cards                        # every card in the game on one p
 godot --path . -- fight 10                     # into a fight, dealing 10 cards
 godot --path . -- fight foes=3                 # ...against a pack
 
+# Every damage band of every hull with real art, and the colour count that is
+# the whole claim — RUN THIS AFTER TOUCHING HullWear. Anything but 0 is a bug.
+godot --headless --path . -- wear                # ~4 s
+godot --headless --path . -- wear seed=12345 pilot=Jon
+
+# Every specification class, and the same again composed with damage.
+# RUN THIS AFTER TOUCHING HullFit.
+godot --headless --path . -- fit
+godot --headless --path . -- fit damage=3
+
+# Every enemy body at every damage band — RUN THIS AFTER TOUCHING the organic
+# operations. EnemyArt is a TextureRect but composites CPU-side, so no renderer.
+godot --headless --path . -- bestiary
+
 # Rebuild the global class cache — REQUIRED after adding any new class_name,
 # and required once on a fresh clone before anything will compile at all
 godot --headless --path . --import
@@ -314,6 +328,9 @@ say so and ask rather than quietly working around it.
 | **A system is consumed through `RunState.take_whole()` or `take_option()`, and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch. **The two doors are not interchangeable.** `take_whole()` fires and forgets, which is right for what nobody can take from you — the fight you won, the hail you were inside. `take_option()` ASKS and returns whether you got it, which is required for anything two ships can race for: assume you won and both players roll the loot, and the flag agreeing afterwards does not take the module back out of the loser's hold |
 | **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
 | **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
+| **Condition is DRAWN, not authored. A class is a SPECIFICATION, not a condition** | Two ideas wore one letter for a while. `DB.TIER_DELTA` grows an A-class frame a weapon hardpoint and an S-class one a system mount plus a reactor — no amount of maintenance sprouts a hardpoint, so the letters are a spec and nothing else. How beaten up a hull is lives on `hp` and is drawn by `HullWear` from the sprite's own palette. The arithmetic is what makes it affordable: 7 makers × 3 weights × 4 grades is 84 sprites, and generating the 63 damaged ones costs ~13,860 PixelLab generations against a 5,000 monthly allowance — near three months, for hulls alone. Drawn it costs nothing, on the twenty hulls that do not exist yet as readily as on the one that does |
+| **Generated art may not drift the palette, so damage is not generated** | Every operation in `HullWear` ends by snapping to a colour the sprite ALREADY CONTAINS, measured at 0 new colours on every band of every hull. The generated attempts drifted 17-41 new colours per masked tile, and one pass over a whole hull invented a fresh palette and threw away every amber panel Korvan flies. Arithmetic cannot drift; there is nowhere for a new colour to come from. `-- wear` prints the count so the guarantee stays checkable rather than remembered |
+| **A whale does not weld, and a hull does not scar** | `HullWear.Substance` splits the operations. Organics get bruising, gashes, weeping, necrosis, BARNACLES (the art direction asks for them by name) and SCARS — and scarring is the one a machine can never have. A hull that is cut stays cut until somebody welds it; a body closes its own wounds and keeps the record. An animal covered in scars has WON several times, which reads nothing like a ship covered in patches |
 | **The flight record unlocks MANUFACTURERS, and nothing else** | REVERSED, deliberately. The old ruling was "the flight record is a record, not meta-progression", on the grounds that a history granting a starting bonus would be the first crack in identity-assembled-mid-run. It still would — so an unlock grants no POWER. Winning with one house unlocks the next (`Unlocks.CHAIN`), and because the seven are balanced against each other, finishing the chain widens the CHOICE at run start and changes nothing about difficulty. What it buys is a first run that is one ship rather than a menu of seven you have no way to choose between. Derived by folding over `RunHistory` rather than stored, so there is no unlock file to desync or cheat — at the cost that runs recorded before `chassis_maker` existed unlock nothing. `DevMode.enabled` unlocks everything |
 
 ## The most important tuning rule
@@ -984,6 +1001,29 @@ Thrust, Maneuver, Thermal, Sensors and Stealth from live gauges, and the ship ta
 chassis select display them — but nothing *checks* them yet. Wiring them into events,
 combat entry and the starchart reveal ladder is the next piece, and is what
 `attributes-and-checks.md` was written for.
+
+## Two engines draw what generation cannot afford
+
+`HullWear` beats a hull up; `HullFit` kits it out. Same `Plate` and `Lcg`, same
+palette guarantee, opposite directions, and they compose in that order because a
+bolt-on should be able to get shot. Read `HullWear.gd`'s header before changing
+either.
+
+- **`worn_cached`, never `worn`.** `ShipView.refresh()` runs every time the idle
+  bob changes offset, several times a second, and wear is a pass over every pixel.
+- **Damage is BANDED into four**, not continuous. A ship rebuilds at most three
+  times in a run. Measured on the medium: 0, 8, 19, 31 ms; a leviathan is 51 ms,
+  because 240×120 against a hull's 188×88.
+- **The band is NOT in the seed.** It was, and damage reshuffled instead of
+  accumulating × 16% of marks survived a band change, which is chance. Each
+  operation gets its own stream seeded independently, so a worse band draws
+  further along the same sequence. Now 100%.
+- **The seed is hull + pilot + run**, mixed rather than added. Every part is
+  agreed between machines, so a peer's ship wears the same scars on both screens.
+- **`HullFit` is written and BLOCKED**, and the block is art rather than code:
+  a fitting needs bare plating, and the one hull with real art is 23% plain steel
+  in pockets that fit a 3×3 in 1,226 places and a 10×6 in three. An S differs
+  from a C by 116 pixels. It needs a PLAINER BASE HULL, not tuning.
 
 **One hull has real art** — `hull_medium_cold.png`, edge-on, with a nine-frame
 exhaust strip on its own layer. Light and heavy are still procedural, so the two paths
