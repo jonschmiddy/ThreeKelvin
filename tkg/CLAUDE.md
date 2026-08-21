@@ -231,6 +231,40 @@ something in this file, and until it is set a red run is only advice.
 
 ---
 
+## Developer Mode, and the Korvan focus
+
+Two switches decide how much of the game is visible. Both are deliberate and both
+will mislead you about the state of the project if you do not know they are there.
+
+**`DevMode.enabled` — a `[ ] DEVELOPER MODE` checkbox in the corner of the title
+screen**, persisted to `user://settings.cfg` under `[dev]`, **defaulting ON**. It is
+the god-mode switch: it unlocks every manufacturer, shows the HUD's CARDS tab, and
+shows the star chart's view-mode buttons. Turn it off to see the game a player sees.
+
+- Controls behind it are **not built** rather than hidden. A hidden node still takes
+  layout, still takes focus order, and still has to be reasoned about by whoever edits
+  that screen next.
+- Which means anything long-lived has to be told. **The HUD is constructed once in
+  `Main._ready()` and outlives every screen swap**, so it keeps whichever tabs it was
+  born with — hence `Sig.dev_mode_changed`, which `HudBar` rebuilds on. A screen
+  built per visit (the chart, the chassis select) just reads the flag.
+- **Flipping it must not restart anything.** It used to call `Router.show_launcher()`,
+  which rerolled the title screen's galaxy; the checkbox now repaints in place.
+- **It is ON by default, which is right for exactly one audience** and it is the two
+  people currently playing this. `DevMode.gd` has a note to flip it before anyone else
+  does.
+
+**`DB.ACTIVE_MAKERS = [&"korvan"]` — only Korvan parts DROP.** `STARTABLE` is
+still all seven, so run start still offers seven houses and their attribute signatures
+still differ. The combination is intentional and has a cost worth stating plainly: a
+Solari ship never finds a second Solari part, so the 3+/5+ set bonuses of the other six
+are **unreachable while the loot is narrowed**, and the win rate is six points lower
+(measured; see Current state). Reopening it is one line.
+
+**The whole-map reveal was deleted rather than gated.** Dev mode should not include not
+playing the game, and the chart's whole subject is the map you have earned. Nothing was
+ever reachable through it — jumping has always been gated on `Run.can_jump_to()`.
+
 ## Design rulings — do not silently reverse these
 
 These were settled deliberately. Each has a reason. If a change would contradict one,
@@ -261,7 +295,7 @@ say so and ask rather than quietly working around it.
 | **The Core is a supermassive black hole, not a settlement** | Nobody develops or polices it. The social axes do not apply to the thing at the centre of a galaxy |
 | **Galaxy *shape* is purely cosmetic** | Systems sit on shells and never consult the arms, which is what makes fifteen galaxy types in `GalaxyGen` cost nothing in balance |
 | **Every arrival lands on the sector screen** | You should see a place before being asked to do anything with it. Station/event/salvage are reached *from* there, which is what finally retired `LootScreen` |
-| **One currency: scrap** — repair, upgrade, and purchase all compete for it | This is where the difficulty actually lives |
+| **One currency: credits** — repair, upgrade, and purchase all compete for it | This is where the difficulty actually lives. RENAMED from scrap, not re-ruled: one wallet, and everything competes for it. The rename is what made a HOLD make sense — scrap is a substance and sits in cargo, credits are a number and do not, so the hold became slots for things worth hauling (8 light / 12 medium / 16 heavy). `scrap_value` and `scrap_module()` keep their names on purpose: scrapping is still the VERB for breaking a part down, and only the unit it pays changed |
 | **A station never pays more for a part than it charges for one** | It used to, and that was an exploit rather than a tuning error — the buy price lived in `StationScreen` and the melt price lived in `RunState`, and neither file had heard of the other. Every price is now a fraction of one base value in `Market.gd`, so `melt < ask` is true by construction. `-- market` proves it over 12,600 combinations, because the invariant is three constants away from being false |
 | **The profit is in the distance between two places, not in one transaction** | Round-tripping a part where you stand is a guaranteed loss, and that is correct: a scrapyard is not a market. A house's own yard is thick with its own parts and pays a glut price; a rival's yard needs what it cannot press. Buy Korvan in Korvan space, sell it to Solari. The route IS the trade |
 | **A station's shelf is rolled once per run** | The guard used to be `shop.is_empty()`, so buying a shelf out re-rolled it on the next visit. A station is a place, not a vending machine: what somebody brought here is what there is, and it is also the brake that stops any trade route from being farmed |
@@ -271,7 +305,7 @@ say so and ask rather than quietly working around it.
 | **The world agrees; anything paid to a PLAYER does not** | `Rng.world` is not salted, because four players who disagree about the galaxy are not in the same game. `loot`, `event`, `foe` and `fight` ARE salted, by `Rng.seat` — the ship's slot in the party, 0 when alone. These are cursors, not derivations: four machines that have made the same number of draws sit at the same place in them, so without this two ships that kill the same frigate are handed **the same two modules**. It is worse than it looks, because the duplication stops the moment the cursors drift apart, for no reason a player can see. Seat 0 is a deliberate NO-OP so a solo run still replays bit-for-bit from `-- seed N`. Positional content (`Rng.derive`) is the opposite case and must keep agreeing — a wreck holds what a wreck holds |
 | **A contested LIST is claimed by slot, and the list must not shrink** | The station shelf is the second contested thing in the game and the first that is a list: a wreck is taken whole, a shelf is taken a part at a time. `MapGen.OPTION_SHOP + i` is the i-th slot. **`n.shop` no longer has the bought part erased out of it** — erasing renumbered everything after it, so one purchase and every machine's idea of "slot 2" disagreed. A sold part stays on the shelf and is hidden by `n.taken`, which is what that field was for. The shelf ITSELF is meant to be identical on every machine: it is drawn positionally because it is one shop, and four ships docking in four different orders must see one set of shelves |
 | **The sector strip draws who is HERE; the star chart draws everybody** | A sector is a place. A ship two hundred light years away is in your convoy and is not in this room, and drawing it beside your hull says the opposite — during a fight it says it is helping. `EncounterView._here()` filters by `where_is(id) == Run.at`; `StarchartScreen` is where the whole party lives, because that screen's subject is where everyone is |
-| **Materials are prerequisites, not a second currency** | Nothing on a price tag is denominated in alloy. A recipe costing forty scrap is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. This is how crafting gets a cost that scrap cannot pay without breaking the one-currency ruling |
+| **Materials are prerequisites, not a second currency** — and ALLOY failed that test and is gone | A recipe costing forty credits is a purchase; a recipe costing one precursor fragment is a reason to have flown somewhere. That is how crafting gets a cost credits cannot pay without breaking the one-currency ruling. Alloy broke it: it came off every part you broke down, so it accrued from the hold you were emptying anyway rather than from anywhere you WENT — a faucet that large is a second currency whatever the ruling calls it. Exotic and relic survive because their sources are places (megafauna, pulsars, deep wrecks). `HULL PATCH` and `FUEL SYNTHESIS` went with it, being the two recipes alloy paid for; `COOLANT BRAID` now costs credits and an exotic |
 | **An AI crewmate is a PLAYER, not a service** — it joins by lobby code, takes a seat out of four, and holds its own `Run` | `Run` is a singleton, so one process holds exactly one ship; a bot that flew "alongside" you inside your process would be your ship wearing a second name. The seat is the cost and there is no spectator slot to hide in — the relay's door policy counts peers, and `NetTransport.MAX_PLAYERS` is four. **Reading the Cloudflare relay instead does not work**, and it is the obvious cheaper idea: `relay/src/index.js` never opens a payload (it checks byte 0, rewrites the sender id and forwards), so what is on that socket is Godot's binary RPC and reading it means reimplementing the engine's serialiser — and the relay cannot invent a peer, so the result would be a spectator with no ship. See `docs/netcode.md` §7 |
 | **The bot's brain is behind a file mailbox, and the shot clock is not optional** | `SharedFight.end_turn()` is a barrier: the enemy does not swing until every ship has ended its turn, so a bot that is still thinking is three other people watching a static screen. A language model answers in seconds and occasionally in minutes. So the board is offered, an answer is waited for, and when the clock runs out `Policy` plays the turn — the bot is allowed to be slow, not slow at everybody else. Files rather than a socket because Godot has no HTTP server and anything that can write a file can then play: a shell, `tools/crew-mcp.mjs`, a person with a text editor |
 | **One pilot model, two callers** — `Policy` is the simulator's competent player, and the bot flies it | Extracted from `HeadlessSim` unchanged and proved neutral over 60 seeded runs. A bot with its own brain would be a second model nothing measures: the gate reports a win rate for `Policy` before every merge, and a private copy would drift from that number quietly. The split lands where it does because the two LOOPS cannot be shared — the sim's must not yield and the bot's must — but every decision inside them can |
@@ -280,7 +314,7 @@ say so and ask rather than quietly working around it.
 | **A system is consumed through `RunState.take_whole()` or `take_option()`, and nowhere else** | It is the seam co-op needs. A shared seed gives four machines an IDENTICAL galaxy, not a shared one: every wreck holds the same modules everywhere, because what a node holds comes from `Rng.derive(tag, node.index)`. The one thing a seed cannot say is whether somebody has already been there — so the host keeps that list, and one door means a new way to finish a system is shared by construction. `Net.claim()` does nothing in the solo game, which is why every call site changed without gaining a branch. **The two doors are not interchangeable.** `take_whole()` fires and forgets, which is right for what nobody can take from you — the fight you won, the hail you were inside. `take_option()` ASKS and returns whether you got it, which is required for anything two ships can race for: assume you won and both players roll the loot, and the flag agreeing afterwards does not take the module back out of the loser's hold |
 | **One suspend save, deleted the moment it is read** | Quitting is a bookmark, not a checkpoint. Autosave rewrites it at every safe point, so there is never an older state to reload — which is the only thing keeping "every death is self-authored" true. A reloadable save repeals the greed clock without changing a single number |
 | **Combat is outside the save.** Safe points are screen swaps outside a fight | A safe point is a moment when the only live state is `RunState`'s, so restoring one cannot strand a half-resolved fight. The autosave lands *before* a fight starts, so a force-quit mid-fight costs the fight, not the jump. It does refund the hull the fight had taken — the price of not serialising deck order, enemy intent loops, drones and charge timers |
-| **The flight record is a record, not meta-progression** | Nothing in `RunHistory` feeds back into a run. Identity is assembled mid-run from what you find, and a history that granted a starting bonus would be the first crack in that |
+| **The flight record unlocks MANUFACTURERS, and nothing else** | REVERSED, deliberately. The old ruling was "the flight record is a record, not meta-progression", on the grounds that a history granting a starting bonus would be the first crack in identity-assembled-mid-run. It still would — so an unlock grants no POWER. Winning with one house unlocks the next (`Unlocks.CHAIN`), and because the seven are balanced against each other, finishing the chain widens the CHOICE at run start and changes nothing about difficulty. What it buys is a first run that is one ship rather than a menu of seven you have no way to choose between. Derived by folding over `RunHistory` rather than stored, so there is no unlock file to desync or cheat — at the cost that runs recorded before `chassis_maker` existed unlock nothing. `DevMode.enabled` unlocks everything |
 
 ## The most important tuning rule
 
@@ -350,9 +384,16 @@ value, which is what makes the ordering true by construction rather than by revi
 
 | | multiple of base value | who sets it |
 |---|---|---|
-| **melt** — what a part breaks down to, anywhere, with no station | `MELT` 0.80, ×1.4 with `salvage_rack` | nobody. It is the floor |
+| **melt** — what a part breaks down to, anywhere, with no station. **The player calls this SCRAPPING** | `MELT` 0.80, ×1.4 with `salvage_rack` | nobody. It is the floor |
 | **bid** — what a station pays you | `ask × SPREAD` 0.62 × market saturation | the place, through `ask` |
 | **ask** — what a station charges | `MARKUP` 1.5 × `ask_index` × `demand`, floored at `ASK_FLOOR` 1.20 | the place |
+
+**One operation, two names, and that was the confusion.** SCRAP and MELT were never
+two things: `RunState.scrap_module()` has always priced by `Market.melt()` and has
+always worn a SCRAP label on screen. The refit screen briefly showed both, which made
+it look like a choice; the melt cell is gone and scrapping is the survivor. `Market.gd`
+keeps the name `melt()` because it is the FLOOR in the price ordering above and that
+ordering is what `-- market` proves — renaming it would rename the invariant.
 
 `ask_index` is how dear goods are HERE (development, then depth). `demand` is how
 badly this place wants THAT brand, and it is the whole cross-system economy in four
@@ -379,16 +420,18 @@ Four things about it are load-bearing:
   yard that built it, haul it to the yard that cannot. A pure trading loop that
   out-earns playing the game is the failure mode here.
 
-**Materials** (`DB.MATERIALS`) are the second half. Alloy comes off everything you
-melt, exotic off megafauna and pulsars, relic off deep wrecks and precursor parts.
+**Materials** (`DB.MATERIALS`) are the second half. Exotic comes off megafauna and
+pulsars, relic off deep wrecks and precursor parts. Both come from PLACES, which is
+the whole test — see the alloy row in the rulings table for the one that failed it.
 They are spent at the **fabricator** (`Fabricator.gd`, recipes in `DB.RECIPES`), which
 exists at a station and gates its better half behind Development ≥ CITY — that is what
 makes a developed system a destination rather than a scenery variant. A recipe is
 `{cost} -> {one effect the game already applies}`, so adding one is a dictionary
 entry. If you find yourself branching in `_apply` for one recipe, add a `kind`.
 
-Four recipes ship. That is the stage crafting stands on, not crafting: the ledger, the
-recipe shape, the resolver and the place it happens. Recipes that reach into a
+Two recipes ship, down from four when alloy was retired. That is the stage crafting
+stands on, not crafting: the ledger, the recipe shape, the resolver and the place it
+happens. Recipes that reach into a
 specific module in the hold need a target and a picker, and that is the next piece.
 
 ---
@@ -829,7 +872,24 @@ The predicted first-run failures — typed-array assignment, inner-class type hi
 (`MapGen.MapNode`), `Control` layout properties — did not materialise; the only real
 blocker was the missing class cache described above.
 
-Balance sim: **17% win rate**, 82.3 avg jumps, 7.4 avg kills, 0 errors, at 600 runs.
+Balance sim: **16% win rate**, 58.0 avg jumps, 7.7 avg kills, 0 errors, at 500 runs
+— with the loot pool narrowed to Korvan. Off that narrowing it is **22%**, and
+that six-point gap is the most useful number in this file right now, because it is
+the price of the scope cut and it is paid in difficulty rather than in content:
+
+| loot pool | wins / 500 | win rate | hull deaths |
+|---|---|---|---|
+| all seven makers dropping | 111 | **22%** | 160 |
+| `ACTIVE_MAKERS = [korvan]` | 78 | **16%** | 218 |
+
+Same build, one constant apart, 500 runs a side — about 2.6 standard errors, so it
+is outside noise. **Earlier 250- and 300-run samples of the Korvan-only config read
+22% and were believed.** They were under-powered, and the standard-error warning
+three paragraphs down was already in this file when they were trusted. The pool lost
+roughly three quarters of its modules, so a build improves more slowly and dies to
+attrition — which is what the hull-death column says out loud.
+
+Filling Korvan's ladder is what buys it back; 22% is the number to get back to.
 
 That is a sixfold improvement and it was measured, not estimated. The same 200-run sim
 against the commit *before* manufacturer hulls (`4f7f6ec`) scores **2%**, 32.2 jumps,
@@ -925,7 +985,13 @@ chassis select display them — but nothing *checks* them yet. Wiring them into 
 combat entry and the starchart reveal ladder is the next piece, and is what
 `attributes-and-checks.md` was written for.
 
-Not yet: real art, meta-progression.
+**One hull has real art** — `hull_medium_cold.png`, edge-on, with a nine-frame
+exhaust strip on its own layer. Light and heavy are still procedural, so the two paths
+run side by side and `ShipView` picks per hull. Meta-progression is now exactly one
+thing: manufacturer unlocks, which grant no power. See both rulings above.
+
+Not yet: art for light/heavy or any module, and a per-tier hull table (C/B/A/S is
+currently a rolled stat bump in `LootGen.roll_hull`, not a set of authored frames).
 
 **Save, history and launcher.** `SaveGame` writes the run to `user://run.save` at every
 safe point — `Router._swap()` is the single chokepoint, so a new screen is saved by
@@ -978,10 +1044,15 @@ quietly plotting a jump.
    tell you what is *unsatisfying*
 3. Re-derive the healthy win-rate band against the current economy, then tune to it
 4. Fix the single worst feeling
-5. Resist adding content — 37 modules is plenty until the loop feels good. Three of
-   those are `starter_only` yard stock and never drop, so the loot pool is 33.
-   Manufacturer hulls added exactly one (a Solari utility, the only genuine slot gap)
-   and put Sensors/Stealth on six modules that already existed rather than authoring
-   bearers for them. Thin per-maker pools are the known cost: Cygnet, Halcyon and
-   Calyx have three modules each, so their loot streams repeat. Fix that when the
-   loop feels good, not before
+5. **Fill Korvan's ladder** ' + E + ' this is the one place "resist adding content" no longer
+   applies, and the measurement above is why. 46 modules exist and only **8 are
+   Korvan**, occupying **6 of the 15 rungs** a maker has (3 slots × 5 rarities). The
+   nine holes: no Uncommon anywhere, system stops at Common and jumps to Legendary,
+   and utility stops dead at Common. Note the arithmetic — `15 - 8 = 7` is WRONG and
+   was written into a commit message before it was checked, because two of the eight
+   double up on rungs already filled.
+
+   The old form of this priority — "37 modules is plenty, thin per-maker pools are
+   the known cost" — was right that thin pools were the cost and wrong that it could
+   be deferred indefinitely. Narrowing to one maker turned a slow loot stream into a
+   six-point difficulty change

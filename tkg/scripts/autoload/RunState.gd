@@ -36,10 +36,16 @@ var fuel: int = 150
 
 ## Raw materials, by id. See DB.MATERIALS.
 ##
-## Scrap is still the only CURRENCY — the ruling has not moved. These are not a
-## second wallet; nothing on a price tag is denominated in them. They are
-## prerequisites: a recipe that costs forty scrap is a purchase, and a recipe
-## that costs one precursor fragment is a reason to have flown somewhere.
+## CREDITS are still the only CURRENCY — the ruling has not moved, only the name
+## has. These are not a second wallet; nothing on a price tag is denominated in
+## them. They are prerequisites: a recipe that costs forty credits is a purchase,
+## and a recipe that costs one precursor fragment is a reason to have flown
+## somewhere.
+##
+## ALLOY was the counter-example and it is gone. It came off every part you broke
+## down, so it accumulated from the hold you were emptying anyway rather than from
+## anywhere you went — a resource with a faucet that large is a second currency
+## whatever the ruling calls it.
 var materials: Dictionary = {}
 
 ## Exotic was a bare int here from the day megafauna existed, and about fifteen
@@ -889,7 +895,7 @@ func scrap_module(m: ModuleData) -> void:
 	var v := scrap_value_of(m)
 	cargo.erase(m)
 	add_credits(v)
-	log_line("Scrapped %s for %d scrap." % [m.name, v], &"good")
+	log_line("Scrapped %s for %d credits." % [m.name, v], &"good")
 	Sig.ship_changed.emit()
 
 func transfer_to_hull(h: HullData) -> void:

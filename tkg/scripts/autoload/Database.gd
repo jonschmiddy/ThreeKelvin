@@ -813,10 +813,11 @@ func perk_text(id: StringName) -> String:
 # -------------------------------------------------------------------- materials
 #
 # The second half of the economy: things you take OFF a wreck rather than out of
-# it. Scrap is the currency and stays the only one — the ruling has not moved —
-# but a currency cannot be a prerequisite. A recipe that costs "40 scrap" is a
-# purchase; a recipe that costs "one precursor fragment" is a reason to have gone
-# somewhere. Materials are what crafting is made of, and scrap is what it costs.
+# it. Credits are the currency and stay the only one — the ruling has not moved,
+# only the name has — but a currency cannot be a prerequisite. A recipe that costs
+# "40 credits" is a purchase; a recipe that costs "one precursor fragment" is a
+# reason to have gone somewhere. Materials are what crafting is made of, and
+# credits are what it costs.
 #
 # `exotic` is not new. It has existed since megafauna did, as a bare int on
 # RunState, and it is now simply the first row of this table — same number, same
