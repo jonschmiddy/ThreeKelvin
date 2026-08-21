@@ -58,10 +58,40 @@ var _mat_ids: Array = []
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UITheme.bevel(UITheme.PANEL, 5, 6))
+	# THE BAR MUST NOT BE ABLE TO WIDEN THE GAME.
+	#
+	# A PanelContainer takes its minimum from its child, and this row's minimum is
+	# the sum of every tab, gauge and readout on it — 983px with dev mode on. The
+	# HUD is the first child of `Main`'s column, so that minimum became the
+	# column's, and the column's became the MarginContainer's, and every SCREEN
+	# below inherited it: at a 960 window each page was laid out 983 wide and hung
+	# 23px off the right edge. One row nobody could fit made every panel in the
+	# game overflow, and it looked like each screen had a margin bug of its own.
+	#
+	# The row now lives in a clipping wrapper whose own minimum is zero, so the
+	# window sizes the HUD rather than the HUD sizing the window. If the bar ever
+	# genuinely does not fit, it loses its right-hand end instead of shoving the
+	# rest of the interface off screen — a readout you cannot see is a smaller
+	# problem than a layout nobody can trust.
+	#
+	# This is the third tab added to this bar in a day. The next one costs
+	# nothing.
+	var clip := Control.new()
+	clip.clip_contents = true
+	clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	clip.custom_minimum_size = Vector2(0, ROW_H)
+	add_child(clip)
+
 	_row = HBoxContainer.new()
-	_row.add_theme_constant_override("separation", 10)
-	add_child(_row)
-	set_process(true)
+	# Six, not ten. The bar carries about twenty children, so the separation
+	# alone was two hundred pixels — more than any single readout on it — and
+	# four of those pixels per gap is the difference between the whole bar
+	# fitting a 960 window and losing its last readout off the end. Nothing is
+	# removed and nothing is renamed; the air between things is just slightly
+	# less generous.
+	_row.add_theme_constant_override("separation", 6)
+	_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	clip.add_child(_row)
 	_build()
 	Sig.resources_changed.connect(refresh)
 	Sig.ship_changed.connect(refresh)
@@ -75,6 +105,9 @@ func _ready() -> void:
 ## is not enough — the row has to be constructed a second time. Widgets.clear()
 ## rather than a bare queue_free(): the old tabs must be gone before the new ones
 ## are added, or the row lays out both for a frame.
+## How tall the bar is, now that its wrapper cannot take a height from the row.
+const ROW_H := 20
+
 func _rebuild() -> void:
 	Widgets.clear(_row)
 	_build()
@@ -183,14 +216,19 @@ func _build() -> void:
 	# places you go, and neither changes the run.
 	_tab_history = _tab("HISTORY", func() -> void: Router.show_history())
 	_row.add_child(_tab_history)
-	_row.add_child(_divider())
 
-	# Frame rate, far right. Lives on the HUD rather than on the chart because
-	# the chart is only where the cost is currently obvious — knowing what the
-	# rest of the game runs at is the comparison that makes the number mean
-	# anything.
-	_fps = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_row.add_child(_fps)
+	# THE FRAME COUNTER IS GONE, and the bar is the better for the room.
+	#
+	# It was the last thing on the row, so when the row ran out of width it was
+	# the thing that got cut — and it was cut at a standard window size, which is
+	# how the whole overflow was found. Reserving its width made the row 948
+	# against 944 available and it was still clipped; putting it behind the dev
+	# switch fixed it for players and left it broken for the only people who
+	# wanted it.
+	#
+	# So: removed. It measured the renderer rather than the game, nothing on this
+	# bar was ever decided by it, and it was costing the row about fifty pixels
+	# that the readouts people actually use now have.
 	_built = true
 
 func refresh() -> void:
@@ -275,28 +313,6 @@ func refresh() -> void:
 	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")
-
-## Sampled a few times a second rather than every frame: a counter that updates
-## sixty times a second is unreadable, and averaging over a short window is what
-## makes a stutter visible as a dip instead of a blur.
-var _fps: Label
-var _fps_t: float = 0.0
-
-func _process(delta: float) -> void:
-	if _fps == null:
-		return
-	_fps_t += delta
-	if _fps_t < 0.25:
-		return
-	_fps_t = 0.0
-	var f := Engine.get_frames_per_second()
-	var col := UITheme.COLD
-	if f < 30:
-		col = Color("#c8503c")
-	elif f < 50:
-		col = Color("#b8923f")
-	_fps.text = "%d FPS" % f
-	_fps.add_theme_color_override("font_color", col)
 
 ## Make a readout able to receive the hover that shows a tooltip. Label defaults
 ## to MOUSE_FILTER_IGNORE, so setting tooltip_text alone is silently a no-op —
