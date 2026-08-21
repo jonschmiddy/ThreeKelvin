@@ -1348,3 +1348,60 @@ func _contract_short(c: ContractData) -> String:
 			return "%s from %s" % [c.item, MapGen.star_name(map[c.at])] if c.at >= 0 \
 				and c.at < map.size() else c.item
 	return ""
+
+
+## The open contract pointing at this system, or null. First match wins; two
+## houses wanting something from one place is legal and the chart only has room
+## to say so once.
+func contract_at(index: int) -> ContractData:
+	for c in contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.TAKEN and job.at == index:
+			return job
+	return null
+
+
+## Houses with something waiting to be handed over: a heat contract you are
+## carrying the heat for, or any job you have already finished out there.
+##
+## THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place
+## before you go; this points at a place afterwards, and a heat contract points
+## at one and never had a target at all. Without it the chart answers "where is
+## the work" and goes silent on "where do I take it", which is the half of the
+## trip that actually costs fuel.
+func delivery_houses() -> Array:
+	var out: Array = []
+	for c in contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.READY \
+				or (job.state == ContractData.State.TAKEN
+					and job.kind == ContractData.Kind.HEAT):
+			if not out.has(job.house):
+				out.append(job.house)
+	return out
+
+
+## True when the ONLY reason this system is on the chart is that you signed for
+## it — not visited, not a station, not reachable from where you stand.
+##
+## Signing reveals WHERE, and nothing else. You are told a place exists and given
+## its name, because a job that names a system you cannot find is a memory test;
+## you are not told what is in it, how policed it is or who operates there,
+## because none of that was in the offer. The house said go here. It did not say
+## what here is.
+##
+## That asymmetry is the whole point and it is worth not smoothing away later: a
+## contract is a REASON to fly somewhere unexplored, and it stops being one the
+## moment accepting it also explores the place.
+func known_only_by_contract(index: int) -> bool:
+	if index < 0 or index >= map.size():
+		return false
+	if contract_at(index) == null:
+		return false
+	var n: MapGen.MapNode = map[index]
+	if n.visited or n.type == MapGen.NodeType.STATION or index == at:
+		return false
+	for r in in_range():
+		if (r as MapGen.MapNode).index == index:
+			return false
+	return true

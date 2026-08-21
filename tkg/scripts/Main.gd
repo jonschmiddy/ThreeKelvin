@@ -314,7 +314,8 @@ func _ready() -> void:
 	# away from the thing being changed. Same argument as `-- party` and
 	# `-- salvage`: the contracts are faked, the chart is not.
 	if "quest" in OS.get_cmdline_user_args():
-		for kind in [ContractData.Kind.FETCH, ContractData.Kind.HUNT]:
+		for kind in [ContractData.Kind.FETCH, ContractData.Kind.HUNT,
+				ContractData.Kind.HEAT]:
 			var got := false
 			for n in Run.map:
 				for c in Contracts.board(n as MapGen.MapNode):
@@ -326,6 +327,13 @@ func _ready() -> void:
 				if got:
 					break
 		Router.show_starchart()
+		# ...and select the fetch target, which is the state worth looking at:
+		# a system you know about only because you signed for it.
+		for c in Run.contracts:
+			var job: ContractData = c
+			if job.at >= 0 and Run.known_only_by_contract(job.at):
+				(Router.current as StarchartScreen)._on_node_picked(job.at)
+				break
 
 	if "party" in OS.get_cmdline_user_args():
 		var crew := 5

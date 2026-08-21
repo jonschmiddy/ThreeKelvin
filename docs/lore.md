@@ -149,6 +149,24 @@ The design constraints, before anything is built:
 
 **Built.** `ContractData`, `Contracts` (the board, positional per station and uncontested — two ships can hold one job and both be paid, because the thing bought is the flying and both of them flew), the station's WORK panel, the chart's rings, and `RunState.standing`. Three kinds ship: FETCH, HUNT and the HEAT delivery this section originally specified, which is the only one that touches the corporate economy rather than the human one.
 
+**Signing reveals the place and nothing else.** A contract puts its target on the
+chart through the fog — you are told a system exists and given its name, because a
+job that names somewhere you cannot find is a memory test. You are not told what is
+in it, how policed it is or who operates there: none of that was in the offer. The
+house said go here; it did not say what here is. The destination panel answers only
+"why is this circled", the tooltip refuses the same survey it would otherwise leak,
+and both read `RunState.known_only_by_contract()`.
+
+That asymmetry is the point and should not be smoothed away later. A contract is a
+REASON to fly somewhere unexplored, and it stops being one the moment accepting it
+also explores the place.
+
+**Three things get marked, not two.** A fetch and a hunt ring a place before you go.
+A finished job and a heat contract have to mark a place you come BACK to — and a heat
+contract never had a target at all — so the nearest few berths of the paying house
+carry a square. Marking every berth drew twelve of them across the disc, which reads
+as a rash rather than as directions.
+
 The heat contract is the one worth watching in play. `cool_in_transit()` sheds heat every jump, so docking with nine on the hull means having chosen not to cool down — which is the ambush layer offered to the player as an opportunity instead of used against them as a tax. It is also the only contract that costs something at the counter: the heat is spent, not merely shown.
 
 ---

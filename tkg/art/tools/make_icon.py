@@ -78,6 +78,60 @@ def dim(c, k):
     return tuple(int(round(c[i] * k + VOID[i] * (1.0 - k))) for i in range(3))
 
 
+# A 3x5 face, hand-set, for the nine letters the title needs.
+#
+# NOT A FONT FILE. Silkscreen is an 8px face and the icon is authored at 64, so
+# the title would be an eighth of the canvas tall and there is nowhere near that
+# much room above a galaxy. Three by five is the smallest a Latin capital can be
+# and stay a capital, and at this size every letter is a decision rather than a
+# rendering — so they are set by hand, here, where they can be looked at.
+GLYPHS = {
+    "T": ("111", "010", "010", "010", "010"),
+    "H": ("101", "101", "111", "101", "101"),
+    "R": ("110", "101", "110", "101", "101"),
+    "E": ("111", "100", "110", "100", "111"),
+    "K": ("101", "101", "110", "101", "101"),
+    "L": ("100", "100", "100", "100", "111"),
+    "V": ("101", "101", "101", "101", "010"),
+    "I": ("111", "010", "010", "010", "111"),
+    # FOUR WIDE, ALONE AMONG THE NINE, and it has to be.
+    #
+    # A three-pixel N has one column for the diagonal and that column is also
+    # both uprights, so the middle fills and it renders as an M — the first pass
+    # spelled the game KELVIM and did it in the icon. Three by five is the floor
+    # for a Latin capital, but N is the letter that proves the floor has an
+    # exception in it.
+    "N": ("1001", "1101", "1011", "1001", "1001"),
+    " ": ("000", "000", "000", "000", "000"),
+}
+
+
+def text_width(word):
+    """Per-glyph, because N is wider than the rest. See GLYPHS."""
+    w = 0
+    for ch in word:
+        g = GLYPHS.get(ch)
+        if g is not None:
+            w += len(g[0]) + 1
+    return max(0, w - 1)
+
+
+def stamp(px, word, x0, y0, colour):
+    """One word, left to right, one pixel of tracking between letters."""
+    x = x0
+    for ch in word:
+        g = GLYPHS.get(ch)
+        if g is None:
+            continue
+        for row in range(5):
+            for col in range(len(g[row])):
+                if g[row][col] == "1":
+                    xx, yy = x + col, y0 + row
+                    if 0 <= xx < N and 0 <= yy < N:
+                        px[xx, yy] = colour
+        x += len(g[0]) + 1
+
+
 def build():
     img = Image.new("RGB", (N, N), VOID)
     px = img.load()
@@ -153,6 +207,22 @@ def build():
         if px[xi, yi] != VOID:
             continue
         px[xi, yi] = dim(ICE, 0.20 + next(rnd) * 0.30)
+
+    # THE TITLE, COLD, ABOVE AND BELOW.
+    #
+    # Cold on purpose: the core is the only warm thing in this image and the
+    # words must not compete with it. ICE at three quarters sits clearly above
+    # the void and clearly below the core, which is the reading order the
+    # picture wants — galaxy first, name second.
+    #
+    # Centred on the odd pixel. A 3x5 face tracks at 4 per letter, so a word is
+    # always an odd width and the centre lands on a whole pixel rather than
+    # between two — which at this size is the difference between a straight
+    # title and a smeared one.
+    ink = dim(ICE, 0.78)
+    top, bottom = "THREE", "KELVIN"
+    stamp(px, top, (N - text_width(top)) // 2, 4, ink)
+    stamp(px, bottom, (N - text_width(bottom)) // 2, N - 10, ink)
 
     return img
 
