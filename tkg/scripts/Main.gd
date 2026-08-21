@@ -351,6 +351,14 @@ func _ready() -> void:
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
 		return
+	# The salvage rail, driven through the real screen and a real jump — the one
+	# thing unit assertions on the rule cannot see:
+	#   godot --headless --path . -- stowtest
+	if "stowtest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/StowTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	if "charttest" in OS.get_cmdline_user_args():
 		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
 		# and a RefCounted nothing holds a reference to is freed the moment the
@@ -495,6 +503,9 @@ func _shoot() -> void:
 
 ## Kept alive for the duration of `-- charttest`; see the call site.
 var _chart_test: RefCounted = null
+## Held for the same reason the others are: it awaits, and a RefCounted only a
+## local holds is freed the moment the calling statement ends.
+var _stow_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null
 var _net_test: RefCounted = null

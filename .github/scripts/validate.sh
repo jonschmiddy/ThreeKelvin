@@ -36,7 +36,14 @@ bad()   { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 # simulator. If a benign one ever shows up, add it to ALLOW rather than
 # loosening this.
 ERROR_PATTERNS='SCRIPT ERROR|Parse Error|Compile Error|^ERROR:|^USER ERROR:'
-ALLOW='^$'
+# Two exit-time reports, allowed narrowly and for one reason: `stowtest` is the
+# only step that builds REAL SCREENS headlessly, and a headless run that has had
+# a Control tree in it ends holding the theme's font. Godot reports that at
+# shutdown as a leaked resource. It is a statement about teardown after the test
+# has already printed its verdict, not about anything the test did — and the
+# alternative is either not testing the UI in the gate at all, or loosening
+# ERROR_PATTERNS, which is what this list exists to avoid.
+ALLOW='^$|resources still in use at exit|RID allocations of type .* were leaked at exit'
 
 # Run a command under a wall-clock limit. `timeout` is GNU coreutils and is not
 # on a stock macOS, so this is done by hand: background it, poll, kill it if it
@@ -145,6 +152,22 @@ if run_godot contracttest 120 --headless --path "$PROJECT" -- contracttest; then
 	else
 		bad "contract test failed"
 		grep -E '^  FAIL|^contracttest' "$LOG_DIR/contracttest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
+step "The salvage rail survives a jump"
+# Driven through the REAL screen, because the rule has been wrong three times
+# and the first of those was not about the rule at all — the flag lived on
+# `SectorScreen`, which Router rebuilds on every jump. No assertion on the
+# predicate can see that. This one presses the button, jumps, and checks the
+# rail on the screen Router built afterwards.
+if run_godot stowtest 120 --headless --path "$PROJECT" -- stowtest; then
+	if grep -qE '^stowtest: PASS' "$LOG_DIR/stowtest.log"; then
+		ok "stow"
+	else
+		bad "salvage rail test failed"
+		grep -E '^  FAIL|^stowtest' "$LOG_DIR/stowtest.log" | head -n 20 \
 			| sed 's/^/        /'
 	fi
 fi
