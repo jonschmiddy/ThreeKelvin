@@ -20,11 +20,14 @@ func run(tree: SceneTree) -> void:
 			_band = clampi(int(a.substr(7)), 0, 3)
 	DirAccess.make_dir_recursive_absolute(OUT)
 	print("seed %d, damage band %d" % [_seed, _band])
+	# The LIGHT frames now, not the first frame with art. Light is the only
+	# weight with a real class ladder, and rendering a medium four times to show
+	# the same sprite four times proves nothing.
 	for h in DB.hull_frames:
-		if h.sprite == null:
+		if h.sprite == null or h.weight != HullData.Weight.LIGHT:
 			continue
 		_sheet(h)
-		break                      # one frame is enough; they share the art
+		break
 	print("\nwrote to %s" % ProjectSettings.globalize_path(OUT))
 	tree.quit()
 
@@ -35,7 +38,10 @@ func _sheet(h: HullData) -> void:
 	print("  %-6s %-8s %-13s %s" % ["class", "opaque", "new colours", "build"])
 	for c in 4:
 		var t0 := Time.get_ticks_usec()
-		var img := HullFit.fitted(src, c, _seed)
+		# The class's OWN sprite, not the C-class one with fittings composited on.
+		var frame := DB.at_tier(h, c)
+		var img := (frame.sprite.get_image() if frame.sprite != null
+			else src) as Image
 		# Fittings go on BEFORE damage, so a bolt-on can be shot off.
 		if _band > 0:
 			img = HullWear.worn(img, _band, _seed)

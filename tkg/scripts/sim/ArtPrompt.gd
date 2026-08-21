@@ -71,6 +71,15 @@ const FINISH := {
 const FINISH_DEFAULT := "rivets and panel seam lines"
 
 
+## The camera, spelled out.
+##
+## "side view" is not enough on its own — a run came back as cylinders seen
+## slightly off-axis, circular end caps facing the viewer, which satisfies "side"
+## and violates the contract. A part drawn round cannot sit on a hull drawn flat,
+## so this says FLAT four different ways and names the specific failure.
+const CAMERA := "FLAT SIDE ELEVATION, drawn perfectly side-on. No perspective, "  	+ "no foreshortening, no three-quarter angle. No circular end caps or round "  	+ "openings facing the viewer — every opening is seen edge-on as a straight "  	+ "line. Each part is a flat profile seen from directly beside it, as in a "  	+ "technical elevation drawing."
+
+
 ## The part lists worth asking for, and roughly how big each one is.
 ##
 ## STRUCTURES are the tier ladder: a C-class is the bare frame and every grade
@@ -78,23 +87,45 @@ const FINISH_DEFAULT := "rivets and panel seam lines"
 ## change its outline. FITTINGS are the small stuff that fills a bay.
 const BATCH := {
 	&"structures": {
-		noun = "large hull structures",
+		noun = "large spaceship components lying separately",
 		size = Vector2i(280, 72),
-		parts = ["a long dorsal cargo block with a hatch",
-			"a wide ventral hold with landing skids beneath it",
-			"a pair of engine nacelles on a mounting pylon"],
-		scale = "Each one a LARGE bolt-on section, roughly half the length of the "
-			+ "ship it attaches to.",
+		# TWO OR THREE CLAUSES EACH, and deliberately different shapes.
+		#
+		# One clause apiece produced four variations on a cylinder: given room to
+		# settle, the generator finds one comfortable form and repeats it. Naming
+		# a proportion and a distinguishing feature per part is what stops that.
+		# COLOUR NAMED PER PART, not once at the end.
+		#
+		# Measured: a forced palette constrains which colours are LEGAL and says
+		# nothing about proportion — a reference that was half amber produced 0.1%
+		# amber. And a single colour sentence trailing after five sentences of
+		# camera instruction got ignored: the run that finally got shape and camera
+		# right came back with 7 colours and zero amber.
+		#
+		# So the accent is attached to the objects instead. "%s" is the house
+		# colour, filled in by _prompt() from the manufacturer record.
+		parts = ["a long flat-topped rectangular cargo block, twice as wide as it "
+				+ "is tall, its flank faced with %s ribbed panels set in steel "
+				+ "framing, and a square hatch at one end",
+			"a wide shallow ventral hold, a flat-bottomed steel box with a bold "
+				+ "%s stripe running along its side and two landing skids hanging "
+				+ "below it on short vertical struts",
+			"a pair of stacked engine nacelles on an upright mounting pylon, each "
+				+ "a blunt slab-sided tube with %s heat shielding around a flared "
+				+ "exhaust at the left end"],
+		scale = "These are DETACHED PARTS, not ships. Each is one section that "
+			+ "bolts onto a spaceship, drawn alone with nothing else attached to "
+			+ "it. No complete ships, no masts, no superstructure, no water.",
 	},
 	&"fittings": {
-		noun = "small bolt-on hull modules",
+		noun = "small spaceship components lying separately",
 		size = Vector2i(160, 48),
 		parts = ["a louvred vent grille", "a ribbed cargo panel",
 			"a lit sensor strip with indicator lights", "a short blunt gun mount"],
 		scale = "Each one a small rectangular bolt-on module about twenty pixels wide.",
 	},
 	&"weapons": {
-		noun = "hull-mounted weapons",
+		noun = "spaceship weapon components lying separately",
 		size = Vector2i(200, 56),
 		parts = ["a short autocannon with a stubby barrel",
 			"a long mass driver with a heavy breech",
@@ -150,23 +181,39 @@ func _emit(id: StringName, batch: StringName) -> void:
 ## how it is lit. A prompt that opens by describing a surface produces a
 ## surface — a create_image_pro run burned 25 generations proving that.
 func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
-	var parts: Array = spec.parts
+	# Fill the accent into any part that asked for it.
+	var accent := _accent_word(m.colour)
+	var parts: Array = []
+	for raw in spec.parts:
+		var t := String(raw)
+		parts.append(t % accent if t.contains("%s") else t)
 	var listed := ", ".join(PackedStringArray(parts.slice(0, parts.size() - 1))) \
 		+ " and " + String(parts[-1])
-	var out := "%d %s for a %s vessel, side view, on a " % [
-		parts.size(), String(spec.noun), m.name.to_upper()]
+	# "vessel" is out too, along with "hull" as a noun for the whole thing. Both
+	# read as SHIP, and a ship is what came back. What is wanted is a PART.
+	var out := "%d detached %s, side view, on a " % [
+		parts.size(), String(spec.noun)]
 	out += "transparent background, evenly spaced in a row with clear empty gaps "
 	out += "between them: %s. " % listed
-	out += String(spec.scale) + " "
-	# Who they are, in their own words. The tagline and the backstory are what a
-	# player reads when choosing this house; the parts should agree with it.
-	out += "%s is \"%s\" — %s " % [m.name, m.tagline, m.backstory]
+	out += String(spec.scale) + " " + CAMERA + " "
+	# SHAPE ONLY. The backstory does NOT go in.
+	#
+	# It used to, on the reasoning that the parts should agree with the fiction a
+	# player reads. What came back was three naval surface ships — masts,
+	# superstructures, waterlines. Korvan's backstory contains "navy
+	# specification", "vessel" and "hull", which are words chosen to make a
+	# person feel something and which a generator reads as an instruction to
+	# draw a warship. The lore paragraph overrode every other line in the prompt.
+	#
+	# So the backstory's job is to tell whoever writes SHAPE what this house is.
+	# SHAPE is the translation, and only the translation is sent. Prose written
+	# for players is not a prompt and pasting it in is not free.
 	out += String(SHAPE.get(m.id, ""))
 	# Not capitalize(): GDScript's title-cases EVERY word, and "Steel Blue Armour
 	# Plating" mid-sentence reads like a product listing.
 	var base := String(BASE.get(m.id, BASE_DEFAULT))
-	out += " %s%s with %s accents. " % [
-		base.substr(0, 1).to_upper(), base.substr(1), _accent_word(m.colour)]
+	out += " %s%s throughout, with %s used generously on panels, stripes and "  		% [base.substr(0, 1).to_upper(), base.substr(1), accent]
+	out += "shielding rather than as a thin trim. "
 	out += "Lit along the top edge and shadowed underneath, cold directional light, "
 	out += String(FINISH.get(m.id, FINISH_DEFAULT)) + ". No background."
 	return out

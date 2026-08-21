@@ -854,10 +854,33 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 ## running game, and hiding it behind a single chassis would mean almost never
 ## seeing it. Per-manufacturer hulls, or a livery tint over a neutral one, is the
 ## next art decision — see ART_CONTRACT.md §5.
-func hull_sprite(w: HullData.Weight) -> Texture2D:
-	if w != HullData.Weight.MEDIUM:
-		return null
-	return load("res://art/sprites/hull_medium_cold.png") as Texture2D
+## The art for a weight class at a specification class, or null to fall back to
+## ShipView's procedural drawing.
+##
+## KEYED ON CLASS AS WELL AS WEIGHT, which is what finally makes C through S
+## something a player can SEE. TIER_DELTA has granted an A-class frame an extra
+## weapon hardpoint and an S-class one a system mount since it was written, and
+## none of it was visible — a C and an S were the same picture with different
+## numbers behind them.
+##
+## Four sprites per weight rather than a base plus composited fittings. That was
+## the other plan and it lost: bays measured off the medium, a fitting engine to
+## bolt things into them, a template pipeline to force the profile. Every part
+## worked and the sum was worse than picking four hulls out of thirty. The
+## fitting engine survives in HullFit for whenever a hull has room for it.
+##
+## LIGHT ONLY for now, and MEDIUM keeps its single sprite at every class. Two
+## incomplete ladders rather than one, which is honest about what exists.
+func hull_sprite(w: HullData.Weight, cls: int = 0) -> Texture2D:
+	if w == HullData.Weight.LIGHT:
+		# TIER_NAMES is an untyped Array, so an element comes back as Variant and
+		# `:=` has nothing to infer from. Declared rather than inferred.
+		var letter: String = HullData.TIER_NAMES[clampi(cls, 0, 3)]
+		return load("res://art/sprites/hull_light_%s.png"
+			% letter.to_lower()) as Texture2D
+	if w == HullData.Weight.MEDIUM:
+		return load("res://art/sprites/hull_medium_cold.png") as Texture2D
+	return null
 
 ## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
 ## why it carries an offset. See HullData.exhaust.
@@ -943,6 +966,12 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.system_slots += int(d.system)
 	h.reactor += int(d.reactor)
 	h.dissipation += int(d.dissipation)
+	# AND THE ART. A class grants hardpoints and a reactor, and now it grants a
+	# different hull — which is the whole point of the letter and was invisible
+	# until there were four sprites to choose between. Weight classes with only
+	# one sprite return the same one at every class, so this is safe to call on
+	# any frame.
+	h.sprite = hull_sprite(h.weight, t)
 	return h
 
 func _seed_perks() -> void:
