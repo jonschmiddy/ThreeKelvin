@@ -339,11 +339,25 @@ func _code_box() -> Control:
 		row.add_child(copy)
 	box.add_child(row)
 
-	box.add_child(UITheme.body(
+	# WRAPPED, and its absence was not cosmetic.
+	#
+	# A Label with no autowrap reports a minimum width of its whole line, and
+	# this line is about two hundred characters — so the lobby's column claimed
+	# roughly 1200px inside a 960px viewport. A Control does not clip its
+	# children, so nothing looked broken; the page simply extended past the right
+	# edge of the window and everything anchored to that edge went with it. BACK
+	# was cut to "B", and every roster row's READY / STANDING BY chip was off
+	# screen entirely.
+	#
+	# Which is how a wrapping bug gets reported as "the host cannot see who is
+	# ready". The chips were being built and bound correctly the whole time.
+	var note := UITheme.body(
 		"Send this to your friends. They paste it into FLY TOGETHER > JOIN."
 		+ " Dashes and capitals do not matter, and there is no letter O or I"
 		+ " in it — anything that looks like one is a zero or a one.",
-		UITheme.QUOTE, UITheme.FS_SMALL))
+		UITheme.QUOTE, UITheme.FS_SMALL)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(note)
 	return box
 
 
