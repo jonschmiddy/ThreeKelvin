@@ -40,6 +40,11 @@ extends Control
 ## is the banner plus the ship at 2x, and the ship is the subject. Four columns
 ## is 201px against six columns' 303px, so the grid now costs a third of what it
 ## did when it did not fit.
+## The ship panel's height: the tallest hull (235x114) plus the idle bob's four
+## rows plus a little air. Named because ChassisSelect and StationScreen size
+## the same thing and all three have to move together when a hull gets deeper.
+const HULL_VIEW_H := 120
+
 const STORAGE_COLS := 4
 
 var _storage: HoldGrid
@@ -111,7 +116,16 @@ func _build() -> void:
 	# 2x. Integer scaling is the whole pixel-art rule, so the ship is either its
 	# own size or exactly double and there is nothing in between. 184 rows: the
 	# canvas is cropped to 88, doubling needs 176, plus bob headroom.
-	view.magnify(2, 184)
+	# 1x, not 2x, and the height sized off the TALLEST hull rather than the one
+	# that used to be the only one.
+	#
+	# 2x was set when every hull was procedural at 240x120 and the one real
+	# sprite was 188x88. The generated hulls run to 235x114, so 2x put a 470px
+	# ship on a 960px canvas — half the screen — and 184 rows clipped the top and
+	# bottom off the deepest ones. Integer magnification is the art rule and 1x
+	# is the only step below 2x, so this is half rather than a nudge; at the
+	# viewport's own 2x it is still two real pixels per art pixel and crisp.
+	view.magnify(1, HULL_VIEW_H)
 	view.bob(2)
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	# The mounts are a CHILD of the view, so they inherit its rect and every

@@ -44,14 +44,24 @@ func refresh() -> void:
 			continue
 		var icon := ModuleIcon.new()
 		icon.setup(m, &"cargo")
-		icon.position = _origin(m.hold_at)
-		icon.custom_minimum_size = _footprint(m)
-		icon.size = _footprint(m)
 		# PASS, not STOP: the icon is what you pick UP, and the grid under it is
 		# what you drop ONTO. A child that swallowed the hover would leave the
 		# grid unable to say which cell the cursor is over.
 		icon.mouse_filter = Control.MOUSE_FILTER_PASS
 		add_child(icon)
+		# SIZED AFTER add_child, AND the minimum cleared first. Both halves are
+		# load-bearing and neither is obvious.
+		#
+		# ModuleIcon.setup puts a 44x44 floor under itself, which is right for a
+		# rack cell and is two hold cells wide. Assigning `size` before the node
+		# entered the tree let the minimum-size pass on entry overwrite it, so a
+		# 1x1 fitting drew at 44 and hung a whole cell past the right edge of the
+		# grid — visible only as plates overlapping, since the DATA underneath
+		# was correctly in bounds the whole time. `-- holdtest` passes either way
+		# and always would: this was never a packing bug.
+		icon.custom_minimum_size = Vector2.ZERO
+		icon.position = _origin(m.hold_at)
+		icon.size = _footprint(m)
 	queue_redraw()
 
 func _origin(cell: Vector2i) -> Vector2:

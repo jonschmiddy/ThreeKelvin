@@ -201,6 +201,14 @@ func _ready() -> void:
 	# Every hull's mounts against its own opaque pixels. The lines are measured
 	# per sprite, so the failure worth catching is a hull carrying ANOTHER
 	# hull's lines — which draws guns in mid-air and throws nothing.
+	# The hold's packing rule, against every hull's grid. The failure is invisible
+	# in the data — two parts sharing a cell still add up to a sensible "17 of
+	# 28" and still save and load — so it is only ever seen on screen.
+	if "holdtest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/HoldTest.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "mounts" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/MountCheck.gd").new().run()
 		get_tree().quit()

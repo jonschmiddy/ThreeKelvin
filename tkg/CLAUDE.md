@@ -124,6 +124,7 @@ godot --headless --path . --import             # REQUIRED after any new class_na
 | `-- attrs` | touching `attr_*()` or the hull tables |
 | `-- wear` / `-- fit` / `-- bestiary` | touching `HullWear` / `HullFit` / the organic operations |
 | `-- shipsheet` | touching `ShipView`, `ShipBuild` or the mount vocabulary |
+| `-- holdtest` | touching the hold grid, module sizes or `place_in_hold`. In the gate. The failure is invisible in the data — two parts sharing a cell still total a sensible "17 of 28" and still save and load, so the only symptom is one plate drawn over another |
 | `-- mounts` | **replacing a hull sprite.** In the gate, so this is a backstop rather than a thing to remember. The dorsal/ventral/flank lines are measured per sprite by `art/tools/anchors.py`, so a swapped hull aims its guns at empty space with nothing thrown and nothing logged. Checks all 89 mounts against the sprite's own opaque pixels |
 | `-- convoy [N\|solo\|chart\|flare]` | touching the convoy strip. `solo` is the control: the party cell must cost the solo game nothing |
 | `-- charttest` / `-- sky` | touching the chart's star cache / `SpaceBackdrop`. Both need a window |

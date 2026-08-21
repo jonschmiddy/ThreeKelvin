@@ -14,10 +14,13 @@ extends Control
 ## Sits over a ShipView and asks it to place things, so the sprite's bob, its
 ## magnification and its centring stay in one place. See ShipView.canvas_to_local.
 
-## Radius of the ring drawn at a mount, in CONTROL pixels — the ship is
-## magnified and these are not, because a mount is interface rather than art
-## and doubling it would put a 12px donut on a 22px-deep hull.
-const R := 5.0
+## Radius of the ring drawn at a mount, in CONTROL pixels.
+##
+## The hull is no longer magnified, so a ring is now the same size relative to
+## the ship as it is on screen. 4 rather than 5: the deepest hull is 114 rows and
+## the shallowest 43, and a 5px ring on the 43 was a quarter of the hull's depth
+## — a mount should mark a place on the ship, not be a feature of it.
+const R := 4.0
 
 signal dropped(payload: Dictionary, slot: ModuleData.Slot, index: int)
 

@@ -179,6 +179,20 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "The hold never overlaps itself"
+# Invisible in the data, which is the whole reason it is here. Two parts sharing
+# a cell still add up to a sensible "17 of 28", still save and load, still sell
+# for the right price — the only symptom is one plate drawn over another. Run
+# against all three hulls because the grid is a property of the hull.
+if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
+	if grep -qE '^holdtest: PASS' "$LOG_DIR/holdtest.log"; then
+		ok "hold"
+	else
+		bad "the hold packing rule is broken"
+		grep -E '^  FAIL|^holdtest' "$LOG_DIR/holdtest.log" | head -n 20 			| sed 's/^/        /'
+	fi
+fi
+
 step "Every hull's mounts land on the hull"
 # Cheap, and it guards a failure with no other symptom. The dorsal, ventral and
 # flank lines are measured off ONE image each by art/tools/anchors.py, so
