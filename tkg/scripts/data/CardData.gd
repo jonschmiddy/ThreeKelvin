@@ -242,7 +242,7 @@ func keywords() -> Array:
 		out.append(["Heat scaling", "One more damage for every %d heat you are carrying." % heat_scale])
 	if heal_scale > 0:
 		out.append(["Emergency repair",
-			"One more hull for every %d you are MISSING. Nearly nothing at full health, and the biggest card in your deck when you are nearly gone." % heal_scale])
+			"One more hull for every %d you are missing." % heal_scale])
 	if damage_equals_heat:
 		out.append(["Damage from heat", "Hits for exactly however much heat you are carrying."])
 	if lock_on > 0:
