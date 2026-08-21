@@ -691,6 +691,41 @@ const WEIGHT_BASE := {
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
 
+## The four condition grades a frame comes in, worst to best. A hull is a SHAPE
+## and a GRADE: an S-class Ironside is the same ship as a C-class Ironside, kept
+## by someone who could afford to keep it.
+##
+## Tier has existed on HullData since the beginning and was never authored — it
+## was a bag of random bumps inside LootGen.roll_hull, applied to whatever frame
+## came out of the pick. That had two problems worth naming. It was NOT
+## REPRODUCIBLE as a description: "an A-class Bastion" named a distribution
+## rather than a ship, and two of them could differ by a hardpoint, because a
+## weapon mount was granted on a coin flip at B. And it was invisible — nothing
+## in the interface has ever shown the player a letter.
+##
+## SCALE rather than flat bonuses, so a grade is the same PROPORTIONAL upgrade on
+## every frame it is applied to. A flat +21 hull is 87% of a light and 40% of a
+## heavy; +52% is +52% of both. The numbers below compound to roughly half again
+## the hull from C to S, which is about what the random bumps averaged out to —
+## the one thing here chosen to match the old behaviour rather than improve on it.
+##
+## MOUNTS ARE THE REWARD, and only at the top two grades. A is where a frame
+## grows a weapon hardpoint; S adds a system one and the reactor to run it. That
+## is deliberately a bigger jump than more hull, because a mount is a card, and a
+## card is the thing this game is actually made of.
+##
+## Applied ONLY to a tier-0 frame. `at_tier` SCALES, so handing it a hull that
+## already carries a grade compounds it silently. Everything in `hull_frames` is
+## tier 0 by construction; nothing else should be passed.
+## Named in HullData, which owns what a grade IS. This table owns what it DOES,
+## and the two are indexed the same — keep them the same length.
+const TIER_DELTA := [
+	{scale = 1.00, weapon = 0, system = 0, reactor = 0, dissipation = 0},
+	{scale = 1.15, weapon = 0, system = 0, reactor = 0, dissipation = 0},
+	{scale = 1.32, weapon = 1, system = 0, reactor = 0, dissipation = 1},
+	{scale = 1.52, weapon = 1, system = 1, reactor = 1, dissipation = 1},
+]
+
 ## Per-maker deltas applied on top, and the three names. `names` runs
 ## light, medium, heavy.
 const MAKER_HULLS := {
@@ -886,6 +921,24 @@ func hull_for(man: StringName, w: HullData.Weight = HullData.Weight.MEDIUM) -> H
 		if h.manufacturer == man and h.weight == w:
 			return h
 	return null
+
+static func tier_name(t: int) -> String:
+	return HullData.TIER_NAMES[clampi(t, 0, HullData.TIER_NAMES.size() - 1)]
+
+## A frame at a condition grade. Returns a DUPLICATE, always — the caller owns
+## the result, and `hull_frames` must never be written through.
+func at_tier(frame: HullData, tier: int) -> HullData:
+	var t := clampi(tier, 0, HullData.TIER_NAMES.size() - 1)
+	var h := frame.duplicate(true) as HullData
+	h.tier = t
+	var d: Dictionary = TIER_DELTA[t]
+	h.max_hull = maxi(1, int(round(float(h.max_hull) * float(d.scale))))
+	h.heat_cap = maxi(1, int(round(float(h.heat_cap) * float(d.scale))))
+	h.weapon_slots += int(d.weapon)
+	h.system_slots += int(d.system)
+	h.reactor += int(d.reactor)
+	h.dissipation += int(d.dissipation)
+	return h
 
 func _seed_perks() -> void:
 	hull_perks = {

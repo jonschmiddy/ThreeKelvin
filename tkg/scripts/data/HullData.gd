@@ -90,8 +90,15 @@ func anchors_for(s: ModuleData.Slot) -> Array[Vector2]:
 static func weight_name(w: Weight) -> String:
 	return ["Light", "Medium", "Heavy"][w]
 
+## The four condition grades, worst to best. Lives HERE rather than in Database
+## because a grade is part of what a hull IS, and because HullData carries a
+## class_name and the Database autoload does not — so this is the copy every
+## other script can reach without going through a singleton. DB.TIER_DELTA holds
+## what each grade DOES; this holds what they are called.
+const TIER_NAMES := ["C", "B", "A", "S"]
+
 func tier_letter() -> String:
-	return ["C", "B", "A", "S"][clampi(tier, 0, 3)]
+	return TIER_NAMES[clampi(tier, 0, TIER_NAMES.size() - 1)]
 
 func display_name() -> String:
 	return "%s-tier %s" % [tier_letter(), name]

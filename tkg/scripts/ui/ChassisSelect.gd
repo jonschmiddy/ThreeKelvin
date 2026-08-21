@@ -24,6 +24,16 @@ signal launched
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
 ## What each weight class IS, in one line, for the L/M/H tooltips. The buttons
 ## are single letters, so this is where the word and the trade-off live.
+## One line each, in the same register as WEIGHT_BLURB: what the grade costs you
+## or buys you, not its numbers. The numbers are already on screen in the
+## attribute block and the hardpoint rows, and clicking is how you compare them.
+const TIER_BLURB: Array[String] = [
+	"Yard stock. What every run actually starts on.",
+	"Kept up. More hull, more heat, same hardpoints.",
+	"Well kept. Grows a weapon hardpoint.",
+	"Somebody loved this ship. A weapon and a system mount, and the reactor to run them.",
+]
+
 const WEIGHT_BLURB: Array[String] = [
 	"Thin plate and the smallest hold, but it draws the biggest hand and can actually dodge.",
 	"The middle of every axis, with no standout strength and no glaring weakness.",
@@ -87,6 +97,9 @@ const ROW_INSET := 5
 
 var _sel: int = 0
 var _weight: HullData.Weight = HullData.Weight.MEDIUM
+## The condition grade to launch on. DEV ONLY — a real run always starts at C,
+## because a graded frame is something you cut out of a wreck. See _tier_row().
+var _tier: int = 0
 var _list: VBoxContainer
 var _detail: VBoxContainer
 var _rows: Array[Button] = []
@@ -261,8 +274,13 @@ func _pick_weight(w: HullData.Weight) -> void:
 	_refit()
 	_build_detail()
 
+func _pick_tier(t: int) -> void:
+	_tier = t
+	_refit()
+	_build_detail()
+
 func _refit() -> void:
-	Run.fit_chassis(DB.STARTABLE[_sel], _weight)
+	Run.fit_chassis(DB.STARTABLE[_sel], _weight, _tier)
 
 func _build_detail() -> void:
 	for c in _detail.get_children():
@@ -362,10 +380,7 @@ func _build_detail() -> void:
 	for w in WEIGHTS:
 		namerow.add_child(_weight_button(man, w, m))
 	shipcol.add_child(namerow)
-	shipcol.add_child(UITheme.body(
-		"%s CHASSIS · %s TIER" % [
-			HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()],
-		UITheme.COLD, UITheme.FS_SMALL))
+	shipcol.add_child(_tier_row(man, m))
 	var chosen := ShipView.new()
 	chosen.setup_preview(Run.hull, HERO_H, HERO_SCALE)
 	chosen.bob(2)
@@ -626,6 +641,57 @@ func _gap(h: int) -> Control:
 	c.custom_minimum_size = Vector2(0, h)
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return c
+
+## The chassis line, and in Developer Mode the four grade buttons on the end of
+## it. Same shape as the weight picker one line above: the buttons CHANGE the
+## text beside them, so cause and effect stay one glance apart.
+##
+## They sit here rather than in the name row because that row already carries
+## three buttons and the ship name at head size, and this screen has 448 pixels
+## of height to spend and no slack — a fourth control there pushed the sprite
+## below the fold. This line was a bare label with the whole width spare.
+##
+## NOT BUILT when Developer Mode is off, rather than hidden: a hidden Control
+## still takes layout and focus order. The line then reads exactly as it always
+## has, which is the point — a player has no grade to choose, because a run
+## starts at C and every better frame is something you found.
+func _tier_row(man: StringName, m: ManufacturerData) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(UITheme.body(
+		"%s CHASSIS · %s TIER" % [
+			HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()],
+		UITheme.COLD, UITheme.FS_SMALL))
+	if not DevMode.enabled:
+		return row
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(gap)
+	for t in HullData.TIER_NAMES.size():
+		row.add_child(_tier_button(man, t, m))
+	return row
+
+## One grade button. Deliberately the same 22x20 face as a weight button — they
+## are the same KIND of control (pick one of a short list, the ship changes
+## under you), and two sizes would say they were not.
+func _tier_button(man: StringName, t: int, m: ManufacturerData) -> Button:
+	var chosen := t == _tier
+	var btn := Widgets.button(String(HullData.TIER_NAMES[t]), _pick_tier.bind(t))
+	btn.custom_minimum_size = Vector2(22, 20)
+	var face := m.colour if chosen else UITheme.LINE
+	var bg := m.field if chosen else UITheme.PANEL
+	btn.add_theme_stylebox_override("normal", UITheme.flat(bg, face, 0, 3, 6))
+	btn.add_theme_stylebox_override("hover", UITheme.flat(m.field, m.colour, 0, 3, 6))
+	btn.add_theme_stylebox_override("pressed", UITheme.flat(m.field, m.colour, 0, 3, 6))
+	btn.add_theme_stylebox_override("focus", UITheme.empty())
+	btn.add_theme_color_override("font_color", m.colour if chosen else UITheme.COLD)
+	btn.add_theme_color_override("font_hover_color", UITheme.ICE)
+	btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	btn.tooltip_text = Widgets.tip("%s tier\n%s" % [
+		HullData.TIER_NAMES[t], TIER_BLURB[t]])
+	return btn
+
 
 func _weight_button(man: StringName, w: HullData.Weight, m: ManufacturerData) -> Button:
 	var h := DB.hull_for(man, w)

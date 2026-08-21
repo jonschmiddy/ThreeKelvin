@@ -186,13 +186,16 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 ## world you were about to fly into would quietly change while you compared
 ## Thermal numbers. Rolling the world is a run-start concern; fitting a ship is
 ## not.
+## `tier` is a DEV affordance and defaults to C, which is what every real run
+## starts on. Nothing in the game grants a graded frame at the yard — you find
+## those in wrecks. The chassis select exposes it behind Developer Mode so a
+## build can be flown at the grade it was designed around without playing to it.
 func fit_chassis(manufacturer: StringName = &"",
-		w: HullData.Weight = HullData.Weight.MEDIUM) -> void:
+		w: HullData.Weight = HullData.Weight.MEDIUM, tier: int = 0) -> void:
 	var man := manufacturer
 	if man == &"" or not DB.STARTER_WEAPON.has(man):
 		man = Rng.pick(Rng.derive(&"start", 1), DB.STARTABLE)
-	hull = (DB.hull_for(man, w) as HullData).duplicate(true) as HullData
-	hull.tier = 0
+	hull = DB.at_tier(DB.hull_for(man, w) as HullData, tier)
 	installed.clear()
 	# Only what fits. The kit is written per manufacturer but the hardpoints
 	# belong to the weight class, so a light frame launches with fewer modules

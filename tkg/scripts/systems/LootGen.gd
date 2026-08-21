@@ -93,16 +93,19 @@ static func make_dross() -> ModuleData:
 static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> HullData:
 	var danger := MapGen.tier(danger_in)
 	var base: HullData = Rng.pick(r, DB.hull_frames)
-	var h := base.duplicate(true) as HullData
-	h.tier = clampi(int(danger / 1.6) + r.randi() % 2, 0, 3)
-	# Stats roll within tier ranges: a god-rolled B can rival a bad A.
-	h.max_hull += h.tier * (r.randi() % 5 + 3)
-	h.heat_cap += h.tier * (r.randi() % 3 + 1)
-	if h.tier >= 2:
-		h.reactor += 1
-	if h.tier >= 1 and r.randf() < 0.5:
-		h.weapon_slots += 1
-	if h.tier >= 2:
-		h.system_slots += 1
+	var t := clampi(int(danger / 1.6) + r.randi() % 2, 0, 3)
+	# The grade itself is AUTHORED now — see DB.TIER_DELTA. What used to happen
+	# here was the whole tier system: a bag of bumps with a hardpoint on a coin
+	# flip, so two A-class Bastions could differ by a mount and neither was the
+	# ship the letter named.
+	var h := DB.at_tier(base, t)
+	# Jitter stays, because "a god-rolled B can rival a bad A" is a good property
+	# and the authored table alone would make every B identical. It is CENTRED ON
+	# ZERO now rather than added on top: the grade supplies the increase, this
+	# only says how well this particular hull wore it. It widens with the grade
+	# because there is more ship to vary.
+	var spread := 1 + t
+	h.max_hull = maxi(1, h.max_hull + r.randi_range(-spread, spread))
+	h.heat_cap = maxi(1, h.heat_cap + r.randi_range(-1, 1))
 	h.perk_id = Rng.pick(r, DB.hull_perks.keys())
 	return h
