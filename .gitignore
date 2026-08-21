@@ -6,3 +6,8 @@ ci-logs/
 # Local wrangler state — Durable Object storage, logs, build cache.
 relay/.wrangler/
 relay/node_modules/
+
+# Python bytecode from art/tools. pixeltools is a module now, so importing it
+# writes a cache next to it; nothing here should be versioned.
+__pycache__/
+*.pyc
