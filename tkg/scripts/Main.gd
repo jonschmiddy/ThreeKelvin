@@ -127,6 +127,16 @@ func _ready() -> void:
 	# ship draws — it is whether the ship that draws is the one described. It
 	# needs no renderer at all: the view composites into an Image, and the
 	# Image is the file. See ConvoyTest.
+	# Every enemy body at every damage band:
+	#   godot --headless --path . -- bestiary
+	# RUN THIS AFTER TOUCHING HullWear's organic operations. It is where the
+	# substance split gets looked at: a whale does not weld, a gunship does not
+	# scar, and the two op lists are how that is enforced.
+	if "bestiary" in OS.get_cmdline_user_args():
+		_wear_sheet = load("res://scripts/sim/BestiarySheet.gd").new()
+		_wear_sheet.run(get_tree())
+		return
+
 	# Every condition grade of every hull with real art:
 	#   godot --headless --path . -- wear
 	# RUN THIS AFTER TOUCHING HullWear. It prints new-colour counts per grade,

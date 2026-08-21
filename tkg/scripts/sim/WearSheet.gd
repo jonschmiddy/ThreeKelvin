@@ -44,7 +44,7 @@ func _sheet(h: HullData) -> int:
 	print("\n%s (%s)" % [h.name.to_upper(), HullData.weight_name(h.weight)])
 	print("  %-8s %-8s %-13s %-10s %-9s %s"
 		% ["band", "opaque", "new colours", "hull lost", "livery", "build"])
-	for t in HullWear.GRADES.size():
+	for t in 4:
 		var t0 := Time.get_ticks_usec()
 		var img := HullWear.worn(src, t, HullWear.seed_for(h, _pilot, _run))
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0

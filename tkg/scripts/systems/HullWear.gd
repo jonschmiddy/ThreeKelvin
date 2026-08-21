@@ -44,19 +44,100 @@ extends RefCounted
 ## and undo the whole guarantee above.
 const BAYER := [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
-## How much of each operation per band: gouges, stains, streaks, holes, patches.
+## Twelve kinds of damage, and how many of each a band earns.
 ##
-## Now that this reads damage rather than upkeep, the balance shifts: a ship
-## being shot at earns GOUGES, where a ship merely left in a yard earns grime.
-## The counts still climb slower on scoring than on staining, because sixteen
-## gouges looked scribbled on and six look hit — but staining no longer has to
-## carry the whole story on its own.
-const GRADES := [
-	[0, 0, 0, 0, 0],
-	[1, 4, 3, 0, 0],
-	[3, 8, 5, 1, 1],
-	[6, 14, 8, 3, 2],
+## The first version of this had five, and all five DARKENED — stain, streak,
+## gouge, hole, patch. That is one register, and a hull can only get so
+## interesting while every mark on it is a shadow. `bare`, `buckle` and `weld`
+## work the other way, lightening toward the metal under the paint, and they are
+## what stop a wrecked ship reading as a dirty one.
+##
+## Ordered roughly from atmosphere to event: the grime at the top happens to a
+## ship that is merely OLD, the wounds at the bottom happen to a ship that was
+## HIT. A band earns more of everything, but the shape of the list is why a
+## marked hull looks neglected and a wrecked one looks shot.
+## WHAT THE THING IS MADE OF. Not called Material — Godot already owns that name
+## and shadowing it in a class_name script is a debugging afternoon nobody needs.
+##
+## A weld bead on a whale is nonsense, and so is a riveted patch, and so is
+## buckled plating. The reverse holds too: a hull does not bruise and it does not
+## SCAR, because scarring is a thing a body does afterwards and a machine has no
+## afterwards — somebody has to come and weld it. That asymmetry is the most
+## useful thing in this enum. It is the difference between damage that happened
+## TO a thing and damage the thing then lived through.
+enum Substance { METAL, ORGANIC }
+
+const OPS_METAL := [
+	{id = &"stain",  n = [0, 4, 8, 14]},
+	{id = &"streak", n = [0, 3, 5, 8]},
+	{id = &"pit",    n = [0, 2, 4, 6]},
+	{id = &"bare",   n = [0, 1, 3, 5]},
+	{id = &"crack",  n = [0, 1, 2, 4]},
+	{id = &"weld",   n = [0, 1, 2, 3]},
+	{id = &"gouge",  n = [0, 1, 3, 6]},
+	{id = &"burn",   n = [0, 1, 2, 4]},
+	{id = &"buckle", n = [0, 0, 2, 3]},
+	{id = &"patch",  n = [0, 0, 1, 2]},
+	{id = &"hole",   n = [0, 0, 1, 3]},
+	{id = &"impact", n = [0, 0, 1, 2]},
 ]
+
+## Living things, and megafauna in particular. Shares the ops that are about
+## SPACE rather than about metal — pitting, scorching, cracking, impact — and
+## replaces everything that assumes a fabricated surface.
+##
+## `barnacle` is not damage at all and belongs here anyway: the art direction
+## asks for "barnacles and scars on megafauna" by name, and a leviathan that has
+## been alive long enough to be shot at has been alive long enough to be lived
+## ON. `scar` is the other one that is not damage — it is damage SURVIVED, and
+## it is why an old whale reads differently from a beaten ship.
+const OPS_ORGANIC := [
+	{id = &"bruise",   n = [0, 5, 9, 15]},
+	{id = &"weep",     n = [0, 2, 5, 9]},
+	{id = &"pit",      n = [0, 1, 3, 5]},
+	{id = &"scar",     n = [0, 2, 3, 5]},
+	{id = &"barnacle", n = [0, 2, 3, 4]},
+	{id = &"crack",    n = [0, 1, 2, 4]},
+	{id = &"gash",     n = [0, 1, 3, 6]},
+	{id = &"burn",     n = [0, 0, 1, 3]},
+	{id = &"necrosis", n = [0, 0, 2, 4]},
+	{id = &"torn",     n = [0, 0, 1, 3]},
+	{id = &"hole",     n = [0, 0, 1, 2]},
+	{id = &"impact",   n = [0, 0, 1, 2]},
+]
+
+static func ops_for(sub_: int) -> Array:
+	return OPS_ORGANIC if sub_ == Substance.ORGANIC else OPS_METAL
+
+## What KIND of damage this hull takes, decided once per ship from its seed.
+##
+## Without this, every ship in the game suffers the same twelve things in the
+## same proportions and runs differ only in where the marks land — which is
+## variety of PLACEMENT, and reads as one ship photographed from twelve angles.
+## Weighting the mix gives a hull a character: this one is pitted and cracked
+## from a long time in the cold, that one is gouged and scorched because
+## something shot at it.
+##
+## Weights are coarse on purpose. A zero means that kind of damage is simply
+## absent from this ship, which is a stronger statement than "less of it" and is
+## most of where the variety comes from.
+const MIX := [0.0, 0.0, 0.5, 1.0, 1.0, 1.5, 2.0]
+
+static func _profile(seed_in: int, sub_: int) -> Dictionary:
+	var r := Lcg.new(_mix(seed_in, 0x5EED))
+	var out := {}
+	# Staining and streaking are never absent. Every hull that has been anywhere
+	# is dirty, and a ship with no grime at all but a hole in it looks assembled
+	# rather than damaged.
+	for op in ops_for(sub_):
+		var w: float = MIX[r.upto(MIX.size())]
+		# The ambient layer is never absent. Every hull that has been anywhere is
+		# dirty and every animal that has been alive is marked; a subject with a
+		# hole in it and nothing else looks assembled rather than damaged.
+		if op.id == &"stain" or op.id == &"streak" or op.id == &"bruise":
+			w = maxf(w, 1.0)
+		out[op.id] = w
+	return out
 
 ## Worn images, keyed by sprite path, grade and seed. `ShipView.refresh()` runs
 ## every time the idle bob changes offset — several times a second — and this is
@@ -314,6 +395,354 @@ static func _hole(p: Plate, r: Lcg, n: int, punch: bool) -> void:
 					p.cut(c.x, c.y)
 
 
+## Micrometeorite pitting. The one kind of damage nobody did to you — it is what
+## the cold does to a hull that has simply been out there a long time. Scattered
+## single pixels, occasionally with a lit rim, never in a pattern.
+static func _pit(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		# TIGHTER AND FEWER than the first cut, which put 16 specks over a wide
+		# radius and covered the ship in what read as static rather than as
+		# pitting. A cluster says a swarm went past on one side; an even scatter
+		# says the renderer is noisy.
+		var spread := r.between(3, 8)
+		var count := r.between(4, 9)
+		for _k in count:
+			var x := at.x + r.between(-spread, spread)
+			var y := at.y + r.between(-spread / 2, spread / 2)
+			if not p.inside(x, y, 1):
+				continue
+			p.darken(x, y, 0.34)
+			if r.upto(4) == 0 and p.live(x, y - 1):
+				p.put(x, y - 1, p.scaled(p.img.get_pixel(x, y - 1), 1.35))
+
+
+## Paint scraped back to the metal underneath. LIGHTENS, which is the whole
+## point of it: everything else here is a shadow, and a hull covered only in
+## shadows reads as dirty rather than damaged. This is the one that takes the
+## livery off in patches instead of dimming it.
+static func _bare(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var rx := r.between(3, 8)
+		var ry := r.between(2, 5)
+		for y in range(at.y - ry, at.y + ry + 1):
+			for x in range(at.x - rx, at.x + rx + 1):
+				if not p.inside(x, y, 1):
+					continue
+				var dx := float(x - at.x) / float(rx)
+				var dy := float(y - at.y) / float(ry)
+				var d := dx * dx + dy * dy
+				if d > 1.0:
+					continue
+				if (1.0 - d) * 15.0 > float(BAYER[y & 3][x & 3]):
+					p.put(x, y, p.scaled(p.img.get_pixel(x, y), 1.34))
+		# A scrape has an edge where the paint is still lifting.
+		for x in range(at.x - rx, at.x + rx + 1):
+			if p.inside(x, at.y + ry, 1) and r.upto(2) == 0:
+				p.darken(x, at.y + ry, 0.7)
+
+
+## A fracture, walking and branching. Thin, dark, no highlight — a crack is a
+## gap rather than a groove, so it catches no light on either lip.
+static func _crack(p: Plate, r: Lcg, n: int, depth: int = 2) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		_crawl(p, r, at.x, at.y, r.between(6, 16), r.between(-2, 2), depth)
+
+
+static func _crawl(p: Plate, r: Lcg, x: int, y: int, ln: int, bias: int,
+		depth: int) -> void:
+	var cx := x
+	var cy := y
+	for i in ln:
+		if not p.inside(cx, cy, 1):
+			return
+		p.darken(cx, cy, 0.36)
+		cx += 1 if bias >= 0 else -1
+		if r.upto(3) == 0:
+			cy += 1 if r.upto(2) == 0 else -1
+		# Fractures fork. One level of branching reads as a crack; unlimited
+		# recursion reads as a spider and eats the hull.
+		if depth > 0 and r.upto(7) == 0:
+			_crawl(p, r, cx, cy, ln / 2, -bias, depth - 1)
+
+
+## Plating pushed out of true. A ridge: lit along the top where it rises, dark
+## underneath where it falls away — the same two-plane rule as everything else,
+## which is what stops it reading as another scratch.
+static func _buckle(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var ln := r.between(9, 22)
+		var amp := r.between(1, 2)
+		for i in ln:
+			var cx := at.x + i
+			var cy := at.y + int(round(sin(float(i) * 0.45) * float(amp)))
+			if not p.inside(cx, cy, 2):
+				break
+			p.put(cx, cy, p.scaled(p.img.get_pixel(cx, cy), 1.4))
+			if p.live(cx, cy + 1):
+				p.darken(cx, cy + 1, 0.5)
+
+
+## A weld bead. Repair, not damage — a raised seam of remelted metal, brighter
+## than the plate, with the heat-stain of the weld either side of it. Pairs with
+## `patch`: one is a plate bolted over a hole, this is the hole simply closed.
+static func _weld(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var ln := r.between(7, 18)
+		var vert := r.upto(4) == 0
+		for i in ln:
+			var cx := at.x + (0 if vert else i)
+			var cy := at.y + (i if vert else 0)
+			if not p.inside(cx, cy, 1):
+				break
+			var wob := 1 if r.upto(3) == 0 else 0
+			p.put(cx, cy + wob, p.scaled(p.img.get_pixel(cx, cy + wob), 1.45))
+			if p.live(cx, cy + wob + 1):
+				p.darken(cx, cy + wob + 1, 0.72)
+
+
+## Scorching, fanning DOWNSTREAM from a point. Directional on purpose: a burn
+## has a source, and a cone says something arrived from somewhere where a blob
+## says the hull spontaneously got dirty.
+static func _burn(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var dir := 1 if r.upto(2) == 0 else -1
+		var ln := r.between(10, 26)
+		for i in ln:
+			var cx := at.x + dir * i
+			var spread := 1 + (i * 4) / maxi(1, ln)
+			for k in range(-spread, spread + 1):
+				var cy := at.y + k
+				if not p.inside(cx, cy, 1):
+					continue
+				var falloff := 15.0 * (1.0 - float(i) / float(ln)) 					* (1.0 - absf(float(k)) / float(spread + 1))
+				if falloff > float(BAYER[cy & 3][cx & 3]):
+					p.darken(cx, cy, 0.5)
+
+
+## Subdermal. Spreads soft and wide with NO edge and NO highlight, which is what
+## separates it from a stain: dirt sits on a surface and has a boundary, a bruise
+## is under one and does not. Two overlapping bruises deepen where they meet,
+## because darken() reads what is already there.
+static func _bruise(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var rx := r.between(6, 14)
+		var ry := r.between(4, 9)
+		for y in range(at.y - ry, at.y + ry + 1):
+			for x in range(at.x - rx, at.x + rx + 1):
+				if not p.inside(x, y, 1):
+					continue
+				var dx := float(x - at.x) / float(rx)
+				var dy := float(y - at.y) / float(ry)
+				var d := dx * dx + dy * dy
+				if d > 1.0:
+					continue
+				# Softer falloff than a stain, and no hard cut at the rim.
+				if (1.0 - d) * 13.0 > float(BAYER[y & 3][x & 3]):
+					p.darken(x, y, 0.78)
+
+
+## An opened cut. Wider and more irregular than a gouge, and crucially NOT
+## straight — a gouge is something dragged across a surface, a gash is something
+## that went in. Dark trough, torn pale edge on both lips rather than one,
+## because flesh parts on both sides where plate only lifts on the lit one.
+static func _gash(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var ln := r.between(8, 20)
+		var cx := at.x
+		var cy := at.y
+		for i in ln:
+			if not p.inside(cx, cy, 2):
+				break
+			var wide := 1 + (1 if (i > ln / 4 and i < (ln * 3) / 4) else 0)
+			for k in range(-wide, wide + 1):
+				p.darken(cx, cy + k, 0.34)
+			if p.live(cx, cy - wide - 1):
+				p.put(cx, cy - wide - 1, p.scaled(p.img.get_pixel(cx, cy - wide - 1), 1.4))
+			if p.live(cx, cy + wide + 1):
+				p.put(cx, cy + wide + 1, p.scaled(p.img.get_pixel(cx, cy + wide + 1), 1.4))
+			cx += 1
+			if r.upto(2) == 0:
+				cy += 1 if r.upto(2) == 0 else -1
+
+
+## Tissue gone, and the lighter stuff underneath showing. Ragged by
+## construction: the radius wobbles per column, so no part of the boundary is a
+## curve anybody drew.
+static func _torn(p: Plate, r: Lcg, n: int) -> void:
+	var ranked := _by_luma(p.cols)
+	var inner: Color = ranked[mini(ranked.size() - 2, ranked.size() * 3 / 4)]
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var rx := r.between(4, 9)
+		for x in range(at.x - rx, at.x + rx + 1):
+			var t := 1.0 - absf(float(x - at.x)) / float(rx)
+			var half := int(round(t * float(r.between(3, 6)))) + r.upto(2) - 1
+			for y in range(at.y - half, at.y + half + 1):
+				if not p.inside(x, y, 2):
+					continue
+				if absi(y - at.y) >= half - 1:
+					p.put(x, y, inner)
+				else:
+					p.darken(x, y, 0.4)
+
+
+## Fluid, running down and drying out. Same gravity rule as grime streaking, but
+## it starts DARK and thins rather than fading evenly, because it came out of
+## something rather than settling on it.
+static func _weep(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var ln := r.between(8, 22)
+		var w := r.between(1, 2)
+		for i in ln:
+			var yy := at.y + i
+			var narrow := w if i < ln / 2 else 0
+			for k in range(-narrow, narrow + 1):
+				var xx := at.x + k
+				if not p.inside(xx, yy, 1):
+					continue
+				if (15 - (i * 11) / maxi(1, ln)) > BAYER[yy & 3][xx & 3]:
+					p.darken(xx, yy, 0.56 if i < ln / 3 else 0.72)
+
+
+## Dead tissue. The only operation that DESATURATES rather than darkening or
+## lightening: it pulls a colour toward its own grey instead of toward black,
+## which is what makes a patch read as dying rather than as shadowed.
+static func _necrosis(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var rx := r.between(4, 10)
+		var ry := r.between(3, 7)
+		for y in range(at.y - ry, at.y + ry + 1):
+			for x in range(at.x - rx, at.x + rx + 1):
+				if not p.inside(x, y, 1):
+					continue
+				var dx := float(x - at.x) / float(rx)
+				var dy := float(y - at.y) / float(ry)
+				if dx * dx + dy * dy > 1.0:
+					continue
+				if (1.0 - dx * dx - dy * dy) * 14.0 <= float(BAYER[y & 3][x & 3]):
+					continue
+				var c := p.img.get_pixel(x, y)
+				var g := 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+				p.put(x, y, p.snap(Color(lerpf(c.r, g, 0.75), lerpf(c.g, g, 0.75),
+					lerpf(c.b, g, 0.75), 1.0)))
+
+
+## NOT DAMAGE. Damage survived — a raised line of new tissue, paler than what is
+## around it. This is the operation a machine can never have: a hull that is cut
+## stays cut until somebody welds it, where a body closes its own wounds and
+## keeps the record. An animal covered in scars has WON several times, and that
+## reads completely differently from a ship covered in patches.
+static func _scar(p: Plate, r: Lcg, n: int) -> void:
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var ln := r.between(6, 16)
+		var cx := at.x
+		var cy := at.y
+		for i in ln:
+			if not p.inside(cx, cy, 2):
+				break
+			p.put(cx, cy, p.scaled(p.img.get_pixel(cx, cy), 1.38))
+			if r.upto(3) == 0 and p.live(cx, cy + 1):
+				p.darken(cx, cy + 1, 0.82)
+			cx += 1
+			if r.upto(3) == 0:
+				cy += 1 if r.upto(2) == 0 else -1
+
+
+## Also not damage. Things that live on a thing that has been alive a long time,
+## which the art direction asks for by name. Clusters rather than a scatter,
+## because barnacles colonise: dark shells with one lit pixel each.
+static func _barnacle(p: Plate, r: Lcg, n: int) -> void:
+	var ranked := _by_luma(p.cols)
+	var shell: Color = ranked[mini(1, ranked.size() - 1)]
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var spread := r.between(4, 10)
+		for _k in r.between(3, 7):
+			var x := at.x + r.between(-spread, spread)
+			var y := at.y + r.between(-spread / 2, spread / 2)
+			var w := r.between(1, 2)
+			for dy in range(w):
+				for dx in range(w + 1):
+					if p.inside(x + dx, y + dy, 2):
+						p.put(x + dx, y + dy, shell)
+			if p.live(x, y - 1):
+				p.put(x, y - 1, p.scaled(p.img.get_pixel(x, y - 1), 1.45))
+
+
+## Where something hit. The only COMPOSITE operation: a crater, short gouges
+## thrown radially out of it, and a burn trailing off downstream.
+##
+## It exists because the rest of this file draws damage that merely EXISTS, and
+## a hull wants at least one mark on it that clearly HAPPENED — with a direction
+## and an order of events. One impact does more for a ship reading as attacked
+## than a dozen more gouges would.
+static func _impact(p: Plate, r: Lcg, n: int) -> void:
+	var ranked := _by_luma(p.cols)
+	var dark: Color = ranked[0]
+	for _i in n:
+		var at := _spot(p, r)
+		if at.x < 0:
+			continue
+		var rad := r.between(2, 4)
+		for y in range(at.y - rad, at.y + rad + 1):
+			for x in range(at.x - rad, at.x + rad + 1):
+				if not p.inside(x, y, 2):
+					continue
+				var d := Vector2(x - at.x, y - at.y).length()
+				if d <= float(rad) * 0.6:
+					p.put(x, y, dark)
+				elif d <= float(rad):
+					p.put(x, y, p.scaled(p.img.get_pixel(x, y), 1.5))
+		# Thrown outward, short and straight.
+		for _k in r.between(3, 6):
+			var ang := r.unit() * TAU
+			var ln := r.between(3, 9)
+			for i in range(rad, rad + ln):
+				var x := at.x + int(round(cos(ang) * float(i)))
+				var y := at.y + int(round(sin(ang) * float(i) * 0.6))
+				if not p.inside(x, y, 1):
+					break
+				p.darken(x, y, 0.44)
+		_burn(p, r, 1)
+
+
 ## A plate welded over something worse. The one operation that reads as REPAIR
 ## rather than damage, which is what makes a hull look kept-going instead of
 ## merely broken — a derelict has holes, a working ship has patches.
@@ -356,15 +785,17 @@ static func _by_luma(cols: PackedColorArray) -> Array:
 ## THROUGH the grime rather than being buried under it, and patches land before
 ## the gouges so a plate can itself be scarred — a repair that is still pristine
 ## reads as newer than the ship around it, which is exactly wrong on a C.
-static func worn(src: Image, band: int, seed_in: int, punch: bool = false) -> Image:
+static func worn(src: Image, band: int, seed_in: int, punch: bool = false,
+		sub_: int = Substance.METAL) -> Image:
 	var out := src.duplicate() as Image
 	if out.get_format() != Image.FORMAT_RGBA8:
 		out.convert(Image.FORMAT_RGBA8)
-	var t := clampi(band, 0, GRADES.size() - 1)
+	var t := clampi(band, 0, 3)
 	if t == 0:
 		return out
-	var g: Array = GRADES[t]
 	var p := Plate.new(out)
+	var mixw := _profile(seed_in, sub_)
+	var ops := ops_for(sub_)
 	# ONE STREAM PER OPERATION, AND THE BAND IS NOT IN THE SEED. Both halves are
 	# required for damage to accumulate rather than reshuffle.
 	#
@@ -379,11 +810,45 @@ static func worn(src: Image, band: int, seed_in: int, punch: bool = false) -> Im
 	# streaks starting from a different place in the sequence, and they would
 	# move too. Given its own stream, each operation's first N draws are the same
 	# at every band and a worse band simply draws MORE of them.
-	_stain(p, Lcg.new(seed_in * 977 + 1), g[1])
-	_streak(p, Lcg.new(seed_in * 977 + 2), g[2])
-	_patch(p, Lcg.new(seed_in * 977 + 3), g[4])
-	_gouge(p, Lcg.new(seed_in * 977 + 4), g[0])
-	_hole(p, Lcg.new(seed_in * 977 + 5), g[3], punch)
+	# IN OPS ORDER, which is grime first and wounds last, so a gouge cuts THROUGH
+	# the staining rather than being buried under it and an impact lands on top
+	# of everything. Reordering this list reorders the ship's history.
+	for i in ops.size():
+		var op: Dictionary = ops[i]
+		var base: int = op.n[t]
+		if base == 0:
+			continue
+		var n := int(round(float(base) * float(mixw.get(op.id, 1.0))))
+		if n <= 0:
+			continue
+		# One stream per operation, seeded independently of the band and of the
+		# other operations. Both matter: without the first a worse band redraws
+		# the ship from scratch, and without the second changing one operation's
+		# count shifts every operation after it.
+		var r := Lcg.new(seed_in * 977 + i + 1)
+		match op.id:
+			# fabricated
+			&"stain": _stain(p, r, n)
+			&"streak": _streak(p, r, n)
+			&"bare": _bare(p, r, n)
+			&"weld": _weld(p, r, n)
+			&"gouge": _gouge(p, r, n)
+			&"buckle": _buckle(p, r, n)
+			&"patch": _patch(p, r, n)
+			# living
+			&"bruise": _bruise(p, r, n)
+			&"gash": _gash(p, r, n)
+			&"torn": _torn(p, r, n)
+			&"weep": _weep(p, r, n)
+			&"necrosis": _necrosis(p, r, n)
+			&"scar": _scar(p, r, n)
+			&"barnacle": _barnacle(p, r, n)
+			# either
+			&"pit": _pit(p, r, n)
+			&"crack": _crack(p, r, n)
+			&"burn": _burn(p, r, n)
+			&"hole": _hole(p, r, n, punch)
+			&"impact": _impact(p, r, n)
 	return out
 
 
@@ -395,13 +860,14 @@ static func worn(src: Image, band: int, seed_in: int, punch: bool = false) -> Im
 ## duplicate() of a catalogue frame: same art, different stats, and two of them
 ## at the same grade should wear identically.
 static func worn_cached(tex: Texture2D, band: int, seed_in: int,
-		punch: bool = false) -> Image:
+		punch: bool = false, sub_: int = Substance.METAL) -> Image:
 	if tex == null:
 		return null
-	var key := "%s|%d|%d|%d" % [tex.resource_path, band, seed_in, 1 if punch else 0]
+	var key := "%s|%d|%d|%d|%d" % [tex.resource_path, band, seed_in,
+		1 if punch else 0, sub_]
 	if _cache.has(key):
 		return _cache[key]
-	var img := worn(tex.get_image(), band, seed_in, punch)
+	var img := worn(tex.get_image(), band, seed_in, punch, sub_)
 	_cache[key] = img
 	return img
 
