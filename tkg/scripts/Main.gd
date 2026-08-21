@@ -87,6 +87,13 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# What every repair card is worth at full, half and three hull —
+	# RUN THIS AFTER TOUCHING heal OR heal_scale ON ANYTHING
+	if "repairs" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/RepairSheet.gd").new().run()
+		get_tree().quit()
+		return
+
 	# Which picture every card draws, and whether one of them has become a
 	# catch-all:  godot --headless --path . -- glyphs
 	if "glyphs" in OS.get_cmdline_user_args():

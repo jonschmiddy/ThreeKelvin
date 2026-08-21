@@ -59,6 +59,9 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# What every repair card is worth at full, half and three hull. heal_scale is a
+# dial you cannot read off the data — RUN THIS AFTER TOUCHING heal OR heal_scale
+godot --headless --path . -- repairs
 # Which picture every card draws, and whether one glyph has become a catch-all —
 # RUN THIS AFTER ADDING A CARD OR CHANGING CardData.glyph_kind()
 godot --headless --path . -- glyphs

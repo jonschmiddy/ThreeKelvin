@@ -97,8 +97,15 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		if v > 0:
 			cb._log("Vented %d heat." % v, &"heat")
 
-	if c.heal > 0:
-		var healed := Run.heal(c.heal)
+	if c.heal > 0 or c.heal_scale > 0:
+		var amount := c.heal
+		if c.heal_scale > 0:
+			# What is MISSING, read at the moment of play. See CardData.heal_scale
+			# — the whole point is that this number is small when you are fine and
+			# large when you are not.
+			var missing := maxi(0, Run.max_hp() - Run.hp)
+			amount += int(missing / c.heal_scale)
+		var healed := Run.heal(amount)
 		if healed > 0:
 			cb._log("Hull +%d." % healed, &"good")
 

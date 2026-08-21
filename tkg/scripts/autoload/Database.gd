@@ -509,6 +509,25 @@ func _seed_modules() -> void:
 	# tempo, Solari in heat, Dredge in credits, Redline in nothing much and not
 	# much back, Halcyon in energy, Cygnet in time.
 	#
+	# THEY ARE ALL LIFELINES, AND THAT IS THE SECOND REWRITE OF THIS BLOCK.
+	#
+	# The first pass priced them as economy cards — flat heals, two and three
+	# energy — and priced them for a HEALTHY turn, which is the one turn that does
+	# not need them. At three hull and one energy left, a card that costs two is
+	# not a card. Every one of these now costs at most one energy (Halcyon's costs
+	# two, and one under Bespoke, which is that house answering the question its
+	# own way) and every one of them scales on hull MISSING rather than paying a
+	# flat number. See CardData.heal_scale.
+	#
+	# The shape that buys: nearly dead weight at full hull, the biggest card in
+	# the deck at three. Worth exactly as much as the trouble you are in.
+	#
+	# CALYX IS FLAT AND STAYS FLAT, which is now a real distinction rather than an
+	# omission: Calyx heals you all fight and the other six save you at the end of
+	# one. Knit for 5 twice over is better than any of these on a turn you are
+	# winning and worse than all of them on a turn you are not. That is the house
+	# that grows hulls versus the houses that patch them.
+	#
 	# CALYX GETS NOTHING HERE, deliberately. It already has three, it is the
 	# sustain house, and `barb` above records what happened last time sustain was
 	# handed out freely: Calyx measured strongest of the seven at every weight.
@@ -516,40 +535,40 @@ func _seed_modules() -> void:
 	# Every rate below is deliberately worse than Knit's 10 hull for 2 energy.
 	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
 		"Surplus. One kit, one weld, and it holds.",
-		[{name = "Field Weld", energy = 2, heal = 9, copies = 1}])
+		[{name = "Field Weld", energy = 1, heal = 2, heal_scale = 4, copies = 1}])
 	## Heat as the welding torch, which is the house's whole argument. Costs four
 	## heat to buy seven hull, so it is a good trade on a cold turn and a way to
 	## kill yourself on a hot one — and Ignition (5-set, overheat halved) is what
 	## turns the second case back into the first.
 	_module(&"cautery", "Cauterising Torch", &"solari", S, C2,
 		"Aim it at the hole. Heat is only waste if you fail to aim it.",
-		[{name = "Cauterise", energy = 1, heat = 4, heal = 7, copies = 1}])
+		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3, copies = 1}])
 	## Repairs out of the hold, at Combine rates. The credit cost is the point:
 	## it is the only card in the game that spends the run's currency to buy hull
 	## back mid-fight, and Company Rates (3-set, +50% from wrecks) is what pays
 	## for it. A fight you cannot afford is a fight you have to win cheaply.
 	_module(&"reclaim", "Hull Reclamation Rig", &"dredge", S, C1,
 		"Feeds the frame on whatever the frame used to be.",
-		[{name = "Reclaim", energy = 1, heal = 8, credit_cost = 12, copies = 1}])
+		[{name = "Reclaim", energy = 1, heal = 2, heal_scale = 3, credit_cost = 8, copies = 1}])
 	## Cheap, fast, and not very good — which is Redline. Free to play and it
 	## replaces itself, so it costs a card slot rather than a turn, and Chop Shop
 	## (3-set, draw 1 extra) is a house that can afford to run thin cards.
 	_module(&"bodge", "Bodge Kit", &"redline", U, C0,
 		"Foam, tape, and no paperwork. Still flying? Then we did our job.",
-		[{name = "Bodge", energy = 0, heal = 3, draw = 1, copies = 2}])
+		[{name = "Bodge", energy = 0, heal = 1, heal_scale = 5, draw = 1, copies = 2}])
 	## The warranty, as a card. Twenty hull in one go for three energy — two
 	## under Bespoke (3-set, Halcyon cards cost 1 less), which is the difference
 	## between unplayable and a turn you plan a fight around. See `docs/lore.md`
 	## §3: the word in the rider is perpetuity, and the Company does not define it.
 	_module(&"perpetuity", "Perpetuity Clause", &"halcyon", S, C3,
 		"The Company will maintain this hull. The Company does not say for how long.",
-		[{name = "Perpetuity", energy = 3, heal = 20, copies = 1}])
+		[{name = "Perpetuity", energy = 2, heal = 4, heal_scale = 3, copies = 1}])
 	## Two small welds rather than one big one, which is how a swarm does
 	## anything. Worse per card than Knit and worse per energy, and it arrives
 	## twice — Cygnet repairs the way Cygnet fights.
 	_module(&"menders", "Mender Swarm", &"cygnet", S, C2,
 		"They find the hole before you do. Nobody has asked how.",
-		[{name = "Mend", energy = 1, heal = 4, copies = 2}])
+		[{name = "Mend", energy = 1, heal = 1, heal_scale = 5, copies = 2}])
 
 	# --- Unbranded: exotic (grown) and artifact (precursor)
 	_module(&"organ", "Voidwhale Ganglion", &"", U, C5,
@@ -608,9 +627,14 @@ func _seed_modules() -> void:
 	_module(&"scope", "Ranging Scope", &"", U, C0,
 		"Tells the guns where the thing is. That is all it does.",
 		[{name = "Range", energy = 0, lock_on = 3, copies = 1}])
+	## YARD STOCK, AND THE FIRST LIFELINE ANYBODY HOLDS. Scaled like the branded
+	## repairs below it rather than left flat, because the turn this card exists
+	## for is the same turn theirs do — and a run whose only repair is a flat 4 is
+	## a run that learns repair does not save you before it ever finds one that
+	## does.
 	_module(&"patchkit", "Patch Kit", &"", U, C0,
 		"Foam, tape, and a prayer to whoever welded the frame.",
-		[{name = "Patch", energy = 1, heal = 4, copies = 1}])
+		[{name = "Patch", energy = 1, heal = 1, heal_scale = 5, copies = 1}])
 
 	for id in GENERIC_STOCK:
 		(modules[id] as ModuleData).starter_only = true

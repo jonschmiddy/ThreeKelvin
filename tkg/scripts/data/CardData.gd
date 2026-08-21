@@ -35,6 +35,28 @@ extends Resource
 @export var vent: int = 0
 @export var vent_all: bool = false
 @export var heal: int = 0
+## +1 hull healed for every N hull you are MISSING. Zero for a flat repair.
+##
+## THE LIFELINE DIAL, and the reason it exists rather than a bigger flat number.
+##
+## A flat heal is priced for the turn you play it on, which means it is priced
+## for a healthy turn — and the turn that actually needs it is three hull and one
+## energy, where a card that costs two is not a card at all. Raising the flat
+## number instead fixes that turn by also handing free value to every turn that
+## did not need it, which is how a repair card becomes a power creep card.
+##
+## Scaling on what is MISSING solves both ends at once. At full hull these cards
+## are nearly dead weight, so nothing is inflated. At three hull they are the
+## biggest thing in the deck. The card is worth exactly as much as the trouble
+## you are in, which is what a lifeline is.
+##
+## It also sharpens the greed clock rather than blunting it, and that ordering
+## matters: `design-doc.md`'s third pillar says deaths are self-authored — you
+## went one jump too far. An out does not remove that. It means you go one jump
+## FURTHER because you have one, and then die there. A player who never had the
+## option was stopped by arithmetic; a player who spent it and pushed anyway
+## authored the death, which is the pillar working rather than bending.
+@export var heal_scale: int = 0
 @export var draw: int = 0
 @export var lock_on: int = 0
 @export var energy_gain: int = 0
@@ -134,7 +156,7 @@ func glyph_kind() -> StringName:
 	# Utility, in the order a player would name the card by.
 	if vent > 0 or vent_all:
 		return &"vent"
-	if heal > 0:
+	if heal > 0 or heal_scale > 0:
 		return &"repair"
 	if lock_on > 0:
 		return &"lock"
@@ -218,6 +240,9 @@ func keywords() -> Array:
 		out.append(["Grows", "Gains this permanently every time you play it, for the rest of the fight."])
 	if heat_scale > 0:
 		out.append(["Heat scaling", "One more damage for every %d heat you are carrying." % heat_scale])
+	if heal_scale > 0:
+		out.append(["Emergency repair",
+			"One more hull for every %d you are MISSING. Nearly nothing at full health, and the biggest card in your deck when you are nearly gone." % heal_scale])
 	if damage_equals_heat:
 		out.append(["Damage from heat", "Hits for exactly however much heat you are carrying."])
 	if lock_on > 0:
@@ -287,8 +312,25 @@ func describe() -> String:
 		bits.append("Vent %d" % vent)
 	if vent_all:
 		bits.append("Vent all")
-	if heal > 0:
-		bits.append("Heal %d" % heal)
+	if heal > 0 or heal_scale > 0:
+		# A WORD PLUS ITS FLOOR, which is the pattern Brace and Salvo already use:
+		# the number on the face is what the card is guaranteed to do and the RULE
+		# lives in the keyword, where there is room to say it properly.
+		#
+		# It also has to be spelled this way to work at all. describe_rich() marks
+		# up only the terms this card's own keywords() can explain, by literal
+		# string match — so a face reading "Heal 2 +1 per 4 missing" contains no
+		# keyword, gets no underline, and the rule explaining the whole card is
+		# unreachable from the card. The phrase on the face and the key in
+		# keywords() are one string or the feature does not exist.
+		#
+		# Never the number it happens to be worth right now. A printed value that
+		# changes as you take damage is a card you cannot plan around before you
+		# take it.
+		if heal_scale > 0:
+			bits.append("Emergency repair %d" % heal)
+		else:
+			bits.append("Heal %d" % heal)
 	if draw > 0:
 		bits.append("Draw %d" % draw)
 	if lock_on > 0:
