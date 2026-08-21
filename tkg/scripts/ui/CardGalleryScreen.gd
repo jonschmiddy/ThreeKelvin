@@ -138,7 +138,7 @@ func _on_hover(v: CardView, entered: bool) -> void:
 	if _hot != null and _hot != v:
 		_hot.modulate.a = 1.0
 	_hot = v
-	_clear_children()
+	Widgets.clear(_overlay)
 	# The card in the grid goes invisible while its lifted copy is out, or the
 	# two overlap and the bottom of the original shows below the copy as a
 	# duplicate banner. Alpha rather than `visible`, because a flow container
@@ -228,9 +228,5 @@ func _clear() -> void:
 	if _hot != null:
 		_hot.modulate.a = 1.0
 	_hot = null
-	_clear_children()
+	Widgets.clear(_overlay)
 
-func _clear_children() -> void:
-	for ch in _overlay.get_children():
-		_overlay.remove_child(ch)
-		ch.queue_free()

@@ -561,6 +561,8 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 
 func _refresh_stock(n: MapGen.MapNode) -> void:
 	Widgets.clear(_hull_box)
+	# One deck build for the whole list, handed to every row — see Widgets.module_row.
+	var deck := DeckBuilder.build().size()
 	if n.shop_hull != null and not n.taken.has(MapGen.OPTION_SHOP_HULL):
 		_hull_box.add_child(Widgets.hull_row(n.shop_hull, "PURCHASE",
 			Market.hull_price(n, n.shop_hull), _on_action))
@@ -576,7 +578,7 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 		left += 1
 		var m: ModuleData = n.shop[i]
 		_stock.add_child(Widgets.module_row(m, Widgets.ModuleContext.SHOP,
-			Market.ask(n, m), _on_action))
+			Market.ask(n, m), _on_action, "", deck))
 	if left == 0:
 		_stock.add_child(UITheme.body("Shelves bare. Nothing restocks — what was brought here is gone.",
 			UITheme.COLD, UITheme.FS_SMALL))
@@ -587,11 +589,13 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 
 func _refresh_hold(n: MapGen.MapNode) -> void:
 	Widgets.clear(_hold)
+	# One deck build for the whole list, handed to every row — see Widgets.module_row.
+	var deck := DeckBuilder.build().size()
 	if Run.cargo.is_empty():
 		_hold.add_child(UITheme.body("Hold empty.", UITheme.COLD, UITheme.FS_SMALL))
 	for m in Run.cargo:
 		_hold.add_child(Widgets.module_row(m, Widgets.ModuleContext.HOLD,
-			Market.bid(n, m), _on_action))
+			Market.bid(n, m), _on_action, "", deck))
 
 
 ## The recipes this place can support, and the tab that hides when it cannot.

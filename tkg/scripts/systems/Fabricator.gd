@@ -89,7 +89,6 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			return "Fabricated plate. Repaired %d hull." % healed
 		&"fuel":
 			Run.fuel += int(r.amount)
-			Sig.resources_changed.emit()
 			return "Cracked feedstock for volatiles. +%d fuel." % int(r.amount)
 		&"heat_cap":
 			# No emit here. `add_heat_cap()` announces itself — see its header,

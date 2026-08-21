@@ -28,11 +28,7 @@ func setup() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 34)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 28)
+	var pad := Widgets.pad(null, 34, 28)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)

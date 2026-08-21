@@ -56,7 +56,6 @@ static func build_all() -> Array[Dictionary]:
 					return {text = "You pull a module from a dead bay."}},
 				{label = "Siphon the tanks", effect = func() -> Dictionary:
 					Run.fuel += 12
-					Sig.resources_changed.emit()
 					return {text = "Four jumps of fuel, tasting of rust."}},
 			],
 		},
@@ -92,7 +91,6 @@ static func build_all() -> Array[Dictionary]:
 			options = [
 				{label = "Harvest it", effect = func() -> Dictionary:
 					Run.exotic += 2
-					Sig.resources_changed.emit()
 					return {text = "2 exotic materials, and a smell you will not forget."}},
 				{label = "Let it rest", effect = func() -> Dictionary:
 					var h := Run.heal(8)
@@ -139,7 +137,6 @@ static func build_all() -> Array[Dictionary]:
 					return {text = "They live, briefly, and give you something they were carrying."}},
 				{label = "Take the power cell", effect = func() -> Dictionary:
 					Run.fuel += 9
-					Sig.resources_changed.emit()
 					return {text = "Three jumps. The pod goes dark behind you."}},
 			],
 		},
@@ -177,12 +174,10 @@ static func _checked() -> Array[Dictionary]:
 				{label = "Push through the wrecks",
 					met = func() -> Dictionary:
 						Run.fuel += 10
-						Sig.resources_changed.emit()
 						return {text = "Plating screams the length of the lane and holds. You come out the far side with the fuel you did not spend going round."},
 					clean = func() -> Dictionary:
 						Run.take_hull_damage(4, "The shipbreaker's lane took its cut.")
 						Run.fuel += 10
-						Sig.resources_changed.emit()
 						return {text = "Something gives near the bow. You keep going, and you keep the fuel — four hull for ten is a trade you would take again."},
 					partial = func() -> Dictionary:
 						Run.take_hull_damage(9, "The shipbreaker's lane took its cut.")
@@ -205,15 +200,12 @@ static func _checked() -> Array[Dictionary]:
 						return {text = "You climb out of it like it was nothing, and clip a derelict's tumbling wing on the way past. Thirty credits of somebody else's bad afternoon."},
 					clean = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 14)
-						Sig.resources_changed.emit()
 						return {text = "The engines find it, eventually, and drink fourteen units doing it."},
 					partial = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 26)
-						Sig.resources_changed.emit()
 						return {text = "You get out. The tank shows what it cost and you decide not to look at it again."},
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 40)
-						Sig.resources_changed.emit()
 						return {text = "You skim the upper atmosphere on the way up. Forty units, and most of your paint."},
 					check = {attr = &"thrust", need = 6}},
 				{label = "Ride it round", effect = func() -> Dictionary:
@@ -295,7 +287,6 @@ static func _checked() -> Array[Dictionary]:
 						return {text = "You chase it for an hour and it resolves into your own reactor harmonics, reflected off something you never find."},
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 12)
-						Sig.resources_changed.emit()
 						return {text = "You follow it a long way before admitting it was never there. Twelve units of fuel, spent on a bearing."},
 					check = {attr = &"sensors", need = 4}},
 				{label = "Log it and go", effect = func() -> Dictionary:

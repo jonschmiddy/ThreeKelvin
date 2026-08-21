@@ -317,12 +317,8 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 		mid.add_child(card)
 		return
 
-	var pad := MarginContainer.new()
+	var pad := Widgets.pad(null, POPUP_INSET_H, POPUP_INSET_V)
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, POPUP_INSET_H)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, POPUP_INSET_V)
 	shade.add_child(pad)
 
 	# Scrolled, and horizontal scrolling DISABLED on purpose. That is what forces

@@ -51,7 +51,7 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 		m.rarity = int(m.rarity) + 1
 
 	m.affixes = _roll_affixes(_affix_count(m.rarity), danger, r)
-	m.scrap_value = int(round([8, 16, 30, 55, 95, 120, 160][m.rarity] * r.randf_range(0.8, 1.3)))
+	m.scrap_value = int(round(ModuleData.SCRAP_VALUE[m.rarity] * r.randf_range(0.8, 1.3)))
 	return m
 
 ## True when a maker may drop. Brand-agnostic modules (manufacturer &"") always

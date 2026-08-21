@@ -19,7 +19,7 @@ enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD, BAG }
 ## "MERCER TOOK THIS" is the single most interesting thing the bag has to say.
 ## Empty for every other context, which is all of them but BAG.
 static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
-		on_action: Callable, note: String = "") -> PanelContainer:
+		on_action: Callable, note: String = "", deck_size: int = -1) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var sb := UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10)
 	sb.border_width_left = 3
@@ -68,7 +68,12 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	# philosophy as printing the odds on an event option before they commit.
 	# Without it the Grant Count Law is invisible: you would feel a thickening
 	# deck three fights later and never know which pickup did it.
-	var here := DeckBuilder.build().size()
+	# Passed in, not rebuilt. DeckBuilder.build() deep-duplicates every card on
+	# every installed module and allocates two Snap Shots plus one per Dross —
+	# and this ran ONCE PER ROW, so a station with twenty rows on screen did
+	# twenty full deck builds to answer the same question twenty times. The
+	# callers below already loop, so they compute it once and hand it down.
+	var here := deck_size if deck_size >= 0 else DeckBuilder.build().size()
 	var delta := 0
 	if ctx == ModuleContext.INSTALLED:
 		delta = -m.grant_count()
@@ -281,13 +286,20 @@ static func tip(text: String) -> String:
 ##
 ## Horizontal first, because it is the one that varies: every caller so far wants
 ## more air at the sides than at the top.
-static func pad(child: Control, h: int = 8, v: int = 6) -> MarginContainer:
+## `child` is OPTIONAL, because half the call sites build the margin before they
+## build what goes in it — they anchor it, set a mouse filter, park it in the
+## tree, and only then assemble the column. Passing null gives them the same
+## configured container to fill in later, which is what let the remaining nine
+## hand-rolled copies come here instead of being restructured around a signature
+## that only suited the other half.
+static func pad(child: Control = null, h: int = 8, v: int = 6) -> MarginContainer:
 	var m := MarginContainer.new()
 	for side in ["left", "right"]:
 		m.add_theme_constant_override("margin_" + side, h)
 	for side in ["top", "bottom"]:
 		m.add_theme_constant_override("margin_" + side, v)
-	m.add_child(child)
+	if child != null:
+		m.add_child(child)
 	return m
 
 static func panel_with(child: Control) -> PanelContainer:

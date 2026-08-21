@@ -264,7 +264,7 @@ func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slo
 	for cd in cards:
 		arr.append(_card(cd))
 	m.cards = arr
-	m.scrap_value = [8, 16, 30, 55, 95, 120, 160][rarity]
+	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
 	modules[id] = m
 
 func _seed_modules() -> void:

@@ -40,7 +40,7 @@ func run(tree: SceneTree) -> void:
 
 func _sheet(h: HullData) -> int:
 	var src := h.sprite.get_image()
-	var base := _palette(src)
+	var base := HullWear.palette(src)
 	print("\n%s (%s)" % [h.name.to_upper(), HullData.weight_name(h.weight)])
 	print("  %-8s %-8s %-13s %-10s %-9s %s"
 		% ["band", "opaque", "new colours", "hull lost", "livery", "build"])
@@ -48,7 +48,7 @@ func _sheet(h: HullData) -> int:
 		var t0 := Time.get_ticks_usec()
 		var img := HullWear.worn(src, t, HullWear.seed_for(h, _pilot, _run))
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
-		var pal := _palette(img)
+		var pal := HullWear.palette(img)
 		var opaque := 0
 		var lost := 0
 		var livery := 0
@@ -81,11 +81,3 @@ func _sheet(h: HullData) -> int:
 func _grade_name(t: int) -> String:
 	return ["intact", "marked", "mauled", "wrecked"][clampi(t, 0, 3)]
 
-func _palette(img: Image) -> Dictionary:
-	var d := {}
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			if c.a > 0.0:
-				d[(int(c.r * 255.0) << 16) | (int(c.g * 255.0) << 8) | int(c.b * 255.0)] = 1
-	return d
