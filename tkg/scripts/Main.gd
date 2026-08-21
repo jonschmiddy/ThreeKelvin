@@ -127,6 +127,17 @@ func _ready() -> void:
 	# ship draws — it is whether the ship that draws is the one described. It
 	# needs no renderer at all: the view composites into an Image, and the
 	# Image is the file. See ConvoyTest.
+	# A PixelLab prompt, built from a manufacturer rather than from memory:
+	#   godot --headless --path . -- artprompt korvan structures
+	# RUN THIS BEFORE GENERATING ANY MAKER'S PARTS. It reads the fiction live from
+	# DB.manufacturers so a prompt cannot drift from the tooltip a player reads,
+	# and it carries the two settings that were learned expensively: force the
+	# palette, and send no init image or transparency is silently dropped.
+	if "artprompt" in OS.get_cmdline_user_args():
+		_wear_sheet = load("res://scripts/sim/ArtPrompt.gd").new()
+		_wear_sheet.run(get_tree())
+		return
+
 	# Every specification class of a hull with real art:
 	#   godot --headless --path . -- fit
 	#   godot --headless --path . -- fit damage=3
