@@ -1,7 +1,7 @@
 class_name HudBar
 extends PanelContainer
 
-## Persistent top bar: navigation, hull, heat, economy, frame, and live set-bonus
+## Persistent top bar: navigation, hull, heat, economy, and live set-bonus
 ## progress.
 ##
 ## SHIP and MAP live here rather than inside each screen, so they are in the same
@@ -11,8 +11,6 @@ extends PanelContainer
 ## BUILT ONCE, UPDATED IN PLACE. It used to free every child and remake them on
 ## each of three signals, which cost more than it looks:
 ##
-## - The frame counter was recreated blank and stayed blank until its next
-##   quarter-second sample, so any refit made the FPS readout blink out.
 ## - The tabs were destroyed and remade under the cursor, losing hover state and
 ##   flickering — very visible when clicking through chassis on the select
 ##   screen, which emits ship_changed on every click.
@@ -187,8 +185,7 @@ func _build() -> void:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_row.add_child(sp)
 
-	# Card gallery, top right beside the frame rate — the two development
-	# readouts together, away from the three tabs that are part of the game.
+	# Card gallery, top right, away from the three tabs that are part of the game.
 	# It never greys out during combat: looking at the catalog changes nothing,
 	# and mid-fight is exactly when you want to check what a card was supposed
 	# to say. It DOES grey while choosing a chassis, which is the one moment

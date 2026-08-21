@@ -39,27 +39,27 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	var rail := _rail()
 	if not _ok("the rail opens with salvage aboard", rail != null and rail.visible):
-		return
+		return _finish()
 
 	# Press the real button rather than setting the flag by hand. The handler is
 	# what a player touches and the handler is what was wrong the first time.
 	var stow := _button("STOW")
 	if not _ok("and it has a STOW button", stow != null):
-		return
+		return _finish()
 	stow.pressed.emit()
 	await tree.process_frame
-	_ok("pressing STOW shuts it", not _rail().visible)
+	_ok("pressing STOW shuts it", not _rail_visible())
 
 	# THE JUMP. Router builds a whole new SectorScreen here, which is the step
 	# that defeated the first fix.
 	var to := _somewhere_else()
 	if not _ok("there is somewhere to jump to", to >= 0):
-		return
+		return _finish()
 	var hauls_before := Run.hauls
 	Run.at = to
 	Router.show_sector()
 	await tree.process_frame
-	_ok("and it is STILL shut on the next screen", not _rail().visible)
+	_ok("and it is STILL shut on the next screen", not _rail_visible())
 	_ok("without anything having been added to the hold",
 		Run.hauls == hauls_before)
 	_ok("and the hold still holds it", Run.cargo.size() == 2)
@@ -68,7 +68,7 @@ func run(tree: SceneTree) -> void:
 	Run.stow(LootGen.roll_module(4))
 	Router.show_sector()
 	await tree.process_frame
-	_ok("a fresh haul opens it again", _rail().visible)
+	_ok("a fresh haul opens it again", _rail_visible())
 
 	# And JETTISON has to actually empty the hold and close the rail.
 	var dump := _button("JETTISON")
@@ -76,8 +76,20 @@ func run(tree: SceneTree) -> void:
 		dump.pressed.emit()
 		await tree.process_frame
 		_ok("jettison empties the hold", Run.cargo.is_empty())
-		_ok("and closes the rail behind it", not _rail().visible)
+		_ok("and closes the rail behind it", not _rail_visible())
 
+	_finish()
+
+
+## Print the verdict and end the process. EVERY EXIT GOES THROUGH HERE.
+##
+## The guarded assertions above used to `return` on failure, and nothing else
+## ends the tree — `Main._ready()` has already returned by then. So renaming the
+## STOW button would not have failed this test, it would have HUNG it: no
+## verdict line, no failing assertion, just the gate's 120-second watchdog
+## reporting "still running, killed". A test whose failure mode is a timeout
+## tells you less than no test at all.
+func _finish() -> void:
 	# TORN DOWN BEFORE QUITTING, and the merge gate is why. This is the only
 	# headless test that builds real screens, so it is the only one that can quit
 	# holding a live Control tree — and Godot reports the leftovers as
@@ -90,7 +102,6 @@ func run(tree: SceneTree) -> void:
 		last.get_parent().remove_child(last)
 		last.free()
 	await _tree.process_frame
-
 	print("")
 	print("stowtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
 	_tree.quit(1 if _fails > 0 else 0)
@@ -104,6 +115,15 @@ func _rail() -> Control:
 	if s == null:
 		return null
 	return s._salvage_wrap
+
+
+## Whether the rail is up. FALSE when there is no rail at all, rather than a
+## crash: a screen that is not a SectorScreen turns `_rail()` null, and
+## dereferencing that would report a script error where the test has a perfectly
+## good verdict to give.
+func _rail_visible() -> bool:
+	var r := _rail()
+	return r != null and r.visible
 
 
 func _button(starts_with: String) -> Button:

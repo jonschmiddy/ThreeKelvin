@@ -204,7 +204,6 @@ func _salvage_hush() -> void:
 	Run.hauls = 0
 	_ok("a haul count reset below the dismissal opens it",
 		not Run.salvage_hushed(-1))
-	Run.hauls = 5
 
 	Run.hauls = 6
 	_ok("and a fresh haul opens it", not Run.salvage_hushed(-1))
