@@ -87,8 +87,19 @@ func score(c: CardData, cb: Combat) -> float:
 		return 85.0
 	if (c.armor > 0 or c.block > 0) and incoming > cb.armor + cb.block:
 		return 80.0
-	if c.heal > 0 and Run.hp < Run.max_hp() * 0.5:
-		return 75.0
+	# Repair, and it RISES AS THE HULL FALLS rather than sitting at one number.
+	#
+	# The flat 75 modelled a player who repairs when convenient. It ranked below
+	# armor and venting at every level of damage, so at three hull the model
+	# braced against a hit it could not survive instead of buying the turn that
+	# would let it. That is not a competent player, and the repair cards are now
+	# scaled on hull missing — see CardData.heal_scale — so the card the model was
+	# declining is the biggest one in the deck exactly when it declined it.
+	#
+	# Below a fifth of your hull it outranks everything except a lock that is
+	# already paid for. Between a fifth and a half it sits where it used to.
+	if (c.heal > 0 or c.heal_scale > 0) and Run.hp < Run.max_hp() * 0.5:
+		return 92.0 if Run.hp < Run.max_hp() * 0.2 else 75.0
 	if c.draw > 0 and c.damage == 0:
 		return 70.0
 	if c.charge_turns > 0:

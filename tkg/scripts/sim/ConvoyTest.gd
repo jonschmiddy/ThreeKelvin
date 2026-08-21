@@ -107,7 +107,14 @@ func _convoy_shot(tree: SceneTree) -> void:
 	# for pixel the screen it always was — an HBoxContainer still spends its
 	# separation on an empty child, and a solo game that gained a left margin
 	# would be a regression nothing in the party display would ever reveal.
-	fake_party(0 if "solo" in OS.get_cmdline_user_args() else 3)
+	# `-- convoy 7` overrides the party size. The default is three partners,
+	# which is the party the strip was measured for; any larger number is the
+	# experiment.
+	var partners := 3
+	for a in OS.get_cmdline_user_args():
+		if a.is_valid_int():
+			partners = clampi(int(a), 1, CREW.size())
+	fake_party(0 if "solo" in OS.get_cmdline_user_args() else partners)
 	Router.show_sector()
 	# Long enough for the fly-in to land. The ship enters from off screen and
 	# coasts for ARRIVE_MS, so a shot taken on the next frame is a shot of an
@@ -245,10 +252,18 @@ static func _spots_by_depth(count: int) -> Array:
 
 # --- the fake party --------------------------------------------------------
 
+## Seven, so the column can be photographed past the four it was measured for.
+## `fake_party(n)` takes as many as it is asked for, so `-- convoy 7` is the
+## question "does the convoy strip survive a bigger party" asked in the one way
+## that answers it — a picture.
 const CREW: Array = [
 	["MERCER", &"solari", HullData.Weight.HEAVY],
 	["VELA", &"redline", HullData.Weight.LIGHT],
 	["OKONKWO", &"calyx", HullData.Weight.MEDIUM],
+	["ASWORTH", &"korvan", HullData.Weight.HEAVY],
+	["DIALLO", &"dredge", HullData.Weight.MEDIUM],
+	["NAKATA", &"halcyon", HullData.Weight.LIGHT],
+	["BRENNAN", &"cygnet", HullData.Weight.MEDIUM],
 ]
 
 ## Three friends who are not there. Public so `-- convoy` and anything else that

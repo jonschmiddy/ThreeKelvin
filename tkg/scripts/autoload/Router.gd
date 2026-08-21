@@ -159,6 +159,26 @@ func show_history(from_launcher: bool = false) -> void:
 	_swap(s, not from_launcher)
 	s.setup(show_launcher if from_launcher else show_sector)
 
+## Everybody you are flying with, with the numbers the convoy strip has no room
+## for. `back` is where LEAVE returns to, so the HUD can be reached from three
+## screens without all three landing on the sector. See PartyScreen.
+func show_party() -> void:
+	if in_combat():
+		return
+	var here := current
+	var s := PartyScreen.new()
+	_swap(s)
+	s.setup(show_ship if here is ShipScreen else (
+		show_starchart if here is StarchartScreen else show_sector))
+
+## Somebody else's paperwork. `from_launcher` sends LEAVE back to the title
+## screen, because the archive is readable out of a run as well as in one — what
+## you have read survives the ship. See Archive.
+func show_archive(from_launcher: bool = false) -> void:
+	var s := ArchiveScreen.new()
+	_swap(s, not from_launcher)
+	s.setup(show_launcher if from_launcher else show_sector)
+
 func show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint
 	# where being out of fuel has to resolve rather than stall.
@@ -223,6 +243,9 @@ func resolve_current_node() -> void:
 	# chose to do here, and a suspend save is a bookmark rather than a way to
 	# reject a draw. See _roll_here().
 	_roll_here(n)
+	# Anything you were paid to come and get is got. Before the autosave, so a
+	# force-quit on arrival does not lose the trip you just made.
+	Run.reach_contract_target(n.index)
 	# The save the SaveGame header promises: on the sector, at the node you flew
 	# to, with the contact still there. Until this line the last write predated
 	# the JUMP — start_combat() assigns `combat` before it swaps, so the fight's
@@ -388,10 +411,14 @@ func event_resolved() -> void:
 ## tank and exotic matter worth studying, and you pay for it in the only
 ## currency the ship cannot buy back cheaply.
 func harvest_pulsar() -> void:
+	var n: MapGen.MapNode = Run.node_at()
 	Run.harvest_pulsar()
 	if Run.dead:
 		show_game_over()
 		return
+	# A beam that has been sweeping this long has swept other people. Read before
+	# the screen swaps, so the line lands in the log the sector is about to draw.
+	Archive.recover_at(n, "pulled out of a pulsar's sweep")
 	show_sector()
 
 ## Strip the wreck, then stay where you are: the salvage rail on the sector
@@ -434,10 +461,11 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 		Run.add_material(&"relic", 1)
 		Run.log_line("Something in the wreck predates the wreck. Precursor fragment recovered.", &"good")
 	if r.randf() < 0.35:
-		Run.found_hull = LootGen.roll_hull(n.danger, r)
+		Run.find_hull(LootGen.roll_hull(n.danger, r))
 		Run.log_line("A flyable hull is still attached: %s" % Run.found_hull.display_name(), &"good")
 	Run.log_line("Derelict stripped. %d module%s recovered." % [
 		count, "" if count == 1 else "s"], &"good")
+	Archive.recover_at(n, "stripped out of a derelict")
 	show_sector()
 
 ## `extras` is what the node already rolled. It is a parameter rather than

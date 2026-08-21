@@ -32,11 +32,14 @@ const PATH := "user://run.save"
 ## 3: heat reached the map. A node now carries whether it rolled for an ambush
 ## and what that roll produced, so a hostile attracted by your own heat cannot
 ## be refused by quitting and coming back cold.
+## 7: the contract ledger and house standing. A version 6 save has neither, so
+## it resumes with an empty board and no accounts — which is survivable but
+## silently loses work the player had already flown for.
 ## 6: a node carries the BAG a shared kill left in it, and whether one has been
 ## rolled. Stored by value like the shelf rather than re-derived: the roll is
 ## deterministic from the node, but its SIZE came from how many ships were in the
 ## fight, and nothing on a resumed map remembers that.
-const VERSION := 6
+const VERSION := 7
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -149,6 +152,12 @@ static func _snapshot() -> Dictionary:
 		fuel = Run.fuel,
 		dross = Run.dross,
 		whale_boon = Run.whale_boon,
+		# The ledger and the accounts. Both are RUN state — a contract points at a
+		# node index in this galaxy and standing is spent inside this dive — so
+		# both belong here and neither survives the dive ending.
+		contracts = _contracts_to(),
+		next_contract_id = Run.next_contract_id,
+		standing = _standing_to(),
 
 		map = nodes,
 		at = Run.at,
@@ -249,6 +258,18 @@ static func load_into_run() -> bool:
 	Run.fuel = int(d.get("fuel", 0))
 	Run.dross = int(d.get("dross", 0))
 	Run.whale_boon = bool(d.get("whale_boon", false))
+	Run.contracts = _contracts_from(d.get("contracts", []))
+	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))
+	var stand: Dictionary = {}
+	var saved_stand: Variant = d.get("standing", {})
+	if typeof(saved_stand) == TYPE_DICTIONARY:
+		for k in (saved_stand as Dictionary).keys():
+			# Filtered against the catalogue: a house that no longer exists is
+			# standing the player can never spend and a row they can never clear.
+			var house := StringName(str(k))
+			if DB.manufacturers.has(house):
+				stand[house] = int((saved_stand as Dictionary)[k])
+	Run.standing = stand
 
 	var map: Array = []
 	for e in saved_map:
@@ -400,6 +421,30 @@ static func _hull_from(e: Variant) -> HullData:
 ## the global RNG rather than a seeded stream, so there is no seed that would
 ## reproduce it — and even if there were, the run's own marks (visited, cleared,
 ## inspected, rolled shop stock) are not in it.
+static func _contracts_to() -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		out.append((c as ContractData).to_wire())
+	return out
+
+
+static func _contracts_from(raw: Variant) -> Array:
+	var out: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for e in (raw as Array):
+		if typeof(e) == TYPE_DICTIONARY:
+			out.append(ContractData.from_wire(e))
+	return out
+
+
+static func _standing_to() -> Dictionary:
+	var out: Dictionary = {}
+	for k in Run.standing:
+		out[String(k)] = int(Run.standing[k])
+	return out
+
+
 static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	var makers: Array = []
 	for m in n.makers:

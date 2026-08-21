@@ -30,6 +30,8 @@ Still in place, deliberately:
 | [design-doc.md](design-doc.md) | The game: what it is, the setting, what the run is shaped like. Start here. |
 | [coop-design.md](coop-design.md) | Four ships in one galaxy — the design questions and the rulings that answered them. |
 | [netcode.md](netcode.md) | How the party actually talks. Transports, the relay, and what crosses the wire. |
+| [lore.md](lore.md) | Who is paying for all this, and why nobody will say what the heat is for. The archive's writing rules live here. |
+| [handbook.md](handbook.md) | The long half of `tkg/CLAUDE.md`: screen layout, art direction and generation, audio, the economy's internals, the two procedural engines. Reference, not context — you open it on the day you need it. |
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | The build order, and how much of it is done. |
 
 Code comments cite these by section — `docs/coop-design.md` §5, `docs/netcode.md`

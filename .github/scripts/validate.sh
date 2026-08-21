@@ -36,7 +36,14 @@ bad()   { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAIL=1; }
 # simulator. If a benign one ever shows up, add it to ALLOW rather than
 # loosening this.
 ERROR_PATTERNS='SCRIPT ERROR|Parse Error|Compile Error|^ERROR:|^USER ERROR:'
-ALLOW='^$'
+# Two exit-time reports, allowed narrowly and for one reason: `stowtest` is the
+# only step that builds REAL SCREENS headlessly, and a headless run that has had
+# a Control tree in it ends holding the theme's font. Godot reports that at
+# shutdown as a leaked resource. It is a statement about teardown after the test
+# has already printed its verdict, not about anything the test did — and the
+# alternative is either not testing the UI in the gate at all, or loosening
+# ERROR_PATTERNS, which is what this list exists to avoid.
+ALLOW='^$|resources still in use at exit|RID allocations of type .* were leaked at exit'
 
 # Run a command under a wall-clock limit. `timeout` is GNU coreutils and is not
 # on a stock macOS, so this is done by hand: background it, poll, kill it if it
@@ -130,6 +137,54 @@ fi
 if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 	bad "market invariant violated — a part can be bought and melted for profit"
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
+fi
+
+step "Contracts, standing, and the salvage rail's dismissal rule"
+# Three claims, and the middle one is the one no other step can make. `-- market`
+# proves the price invariant at standing zero, which is the only standing it can
+# reach; every price in the game is fine until a player delivers four contracts
+# to one house and their berths start paying over the odds for parts. The last
+# one is the salvage rail's dismissal rule, which is pure logic on `Run` and has
+# been got wrong twice.
+if run_godot contracttest 120 --headless --path "$PROJECT" -- contracttest; then
+	if grep -qE '^contracttest: PASS' "$LOG_DIR/contracttest.log"; then
+		ok "contracts"
+	else
+		bad "contract test failed"
+		grep -E '^  FAIL|^contracttest' "$LOG_DIR/contracttest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
+step "The salvage rail survives a jump"
+# Driven through the REAL screen, because the rule has been wrong three times
+# and the first of those was not about the rule at all — the flag lived on
+# `SectorScreen`, which Router rebuilds on every jump. No assertion on the
+# predicate can see that. This one presses the button, jumps, and checks the
+# rail on the screen Router built afterwards.
+if run_godot stowtest 120 --headless --path "$PROJECT" -- stowtest; then
+	if grep -qE '^stowtest: PASS' "$LOG_DIR/stowtest.log"; then
+		ok "stow"
+	else
+		bad "salvage rail test failed"
+		grep -E '^  FAIL|^stowtest' "$LOG_DIR/stowtest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
+step "The archive round-trips, and none of it has become an essay"
+# Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
+# primary source that fits on one screen, and that is prose — it rots, and its
+# failure mode is not a crash but an archive that has quietly turned into a
+# wiki. This is the only thing that reads every entry on every commit.
+if run_godot archivetest 120 --headless --path "$PROJECT" -- archivetest; then
+	if grep -qE '^archivetest: PASS' "$LOG_DIR/archivetest.log"; then
+		ok "archive"
+	else
+		bad "archive test failed"
+		grep -E '^  FAIL|^archivetest' "$LOG_DIR/archivetest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
 fi
 
 step "Simulator plays $SIM_RUNS complete runs"

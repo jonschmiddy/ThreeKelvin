@@ -86,6 +86,84 @@ var death_reason: String = ""
 ## run showing its hold once is the behaviour it already had.
 var hauls: int = 0
 
+## The salvage rail was dismissed, and the state it was dismissed in.
+##
+## ON THE RUN, NOT ON THE SCREEN, and that is the whole of a bug rather than a
+## preference. `SectorScreen` is rebuilt from scratch on every jump — `Router`
+## makes a new one — so a `_stowed` flag living on it was forgotten the instant
+## you left the system. Stow a part, jump, and the rail opened again and asked
+## the same question about the same cargo, at every system, for the rest of the
+## run.
+##
+## Two numbers rather than a bool, because "dismissed" has to expire on the right
+## events and only those: a fresh HAUL is new cargo and should re-open it, and a
+## BAG at a system you have not seen is new loot and should too. Arriving
+## somewhere new carrying the same parts you already decided about is neither.
+##
+## DELIBERATELY OUTSIDE THE SAVE, and that is not symmetry for its own sake — it
+## is the only way this can be correct. `hauls` above is not saved either, so it
+## comes back as 0; save the dismissal beside it and a run resumed after stowing
+## at haul 12 has `hauls` 0 against a hush of 12, and `hauls > hushed` is false
+## for the next twelve hauls. The rail would stay shut over loot the player had
+## just recovered.
+##
+## Worth naming because the previous version of the rule got away with it: an
+## equality test fail-OPENED on that mismatch (0 != 12, so the rail showed), and
+## changing it to "is anything new" inverted the failure into a silent one. A
+## fix that is correct in isolation can break the thing next to it.
+var salvage_hushed_hauls: int = -1
+var salvage_hushed_bag: int = -1
+
+
+## Whether the salvage rail should stay shut. `bag_here` is the index of the
+## system you are standing in if it has loose salvage, or -1.
+##
+## THE TEST IS "IS ANYTHING NEW", NOT "IS THE STATE THE SAME", and the first
+## version got that backwards. It asked whether the haul count and the bag
+## matched what they were at dismissal — so stowing while standing over a bag
+## recorded that bag, and the next system, having no bag, compared -1 against it,
+## failed the equality and opened the rail again. A bag you walked away from is
+## not new salvage. Nothing happened; something merely stopped.
+##
+## Two things are new and nothing else is: the hold GREW since you dismissed it,
+## or there is a bag at a system that is not the one you dismissed at.
+func salvage_hushed(bag_here: int) -> bool:
+	if salvage_hushed_hauls < 0:
+		return false
+	# DIFFERENT, not greater. Within a run `hauls` only climbs, so the two read
+	# the same — but `>` quietly assumes that, and the assumption is exactly what
+	# broke when the dismissal was persisted and `hauls` (which is not) came back
+	# as zero: `0 > 12` is false, so the rail stayed shut over loot already in the
+	# hold. The dismissal is no longer saved and this no longer relies on that
+	# being true. Any haul count that is not the one dismissed at means the hold
+	# is not the hold that was dismissed.
+	if hauls != salvage_hushed_hauls:
+		return false
+	if bag_here >= 0 and bag_here != salvage_hushed_bag:
+		return false
+	return true
+
+## Work you have taken, in the order you took it. See ContractData.
+##
+## Nothing in here expires and nothing in here is contested — two ships can hold
+## the same job and both be paid for flying it. See Contracts.
+var contracts: Array = []
+## Handed out on acceptance so a contract can be referred to after it is closed.
+var next_contract_id: int = 1
+
+## What each house thinks of you, by id. Higher is better and it only goes up.
+##
+## GOODS, NEVER SECRETS. `docs/lore.md` §2 rules that there is no promotion — no
+## rank, no inner circle, no point at which a house starts telling you things —
+## and that ruling stands unchanged. This is not a relationship, it is an
+## account: deliver their work and their berths pay you better for your parts and
+## carry more of their stock. They still never explain anything.
+##
+## Deliberately not a reputation you can lose. A house that can be offended is a
+## house you can lock yourself out of by playing badly, which is a punishment for
+## the player who most needs the money.
+var standing: Dictionary = {}
+
 var found_hull: HullData = null      ## offered for transfer
 var whale_boon: bool = false
 
@@ -155,6 +233,15 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	jumps = 0
 	kills = 0
 	hauls = 0
+	contracts.clear()
+	next_contract_id = 1
+	salvage_hushed_hauls = -1
+	salvage_hushed_bag = -1
+	# Standing is a RUN thing, not a career. It buys prices and stock inside one
+	# dive, and starting a fresh dive means walking into the same berths as a
+	# stranger again — which is the only shape that does not turn into the
+	# meta-progression `Unlocks` was careful to keep power out of.
+	standing.clear()
 	started_at = Time.get_unix_time_from_system()
 	won = false
 	dead = false
@@ -919,6 +1006,39 @@ func add_credits(n: int) -> void:
 	credits = maxi(0, credits + n)
 	Sig.resources_changed.emit()
 
+## Permanent coolant, bought at a station. Emits, and that is the point.
+##
+## THE MUTATION OWNS THE SIGNAL. The station used to raise `heat_cap_bonus` by
+## hand and rely on the `add_credits()` call above it to redraw — which fires
+## BEFORE the cap changes, so every listener repainted the old number and the
+## gauge sat at 0/14 while the run was carrying 16. The upgrade worked; nothing
+## ever said so, which is indistinguishable from it not working.
+##
+## `ship_changed` rather than `resources_changed`: a heat cap is a property of
+## the ship, and `RunState._clamp_hp` and the gauges are already listening to it
+## for exactly this class of change.
+## A flyable hull, cut out of a wreck or claimed off an event.
+##
+## THE THIRD THING THE RAIL SHOWS, and the only one that never went through
+## `stow()` — so it never bumped `hauls`, so a dismissed rail stayed dismissed
+## over it. Claim a hull after stowing and the transfer was never offered until
+## some unrelated haul happened to arrive.
+##
+## Clears the dismissal outright rather than incrementing `hauls`: a hull is not
+## a haul, and the honest statement is "there is something new here", which is
+## what an undismissed rail means.
+func find_hull(h: HullData) -> void:
+	found_hull = h
+	salvage_hushed_hauls = -1
+	salvage_hushed_bag = -1
+	Sig.ship_changed.emit()
+
+
+func add_heat_cap(n: int) -> void:
+	heat_cap_bonus += n
+	Sig.ship_changed.emit()
+	Sig.resources_changed.emit()
+
 func die(reason: String) -> void:
 	dead = true
 	death_reason = reason
@@ -1172,3 +1292,208 @@ func jump_to(index: int) -> void:
 	cool_in_transit()
 	Sig.resources_changed.emit()
 	Sig.jumped.emit(index)
+
+
+# ------------------------------------------------------------------ contracts
+
+## Take a job. Returns the accepted copy, which is the one that goes in the
+## ledger — the board's object stays on the board, so a co-op partner docking a
+## moment later is offered the same work rather than an empty page.
+func take_contract(c: ContractData) -> ContractData:
+	var mine := ContractData.from_wire(c.to_wire())
+	mine.id = next_contract_id
+	next_contract_id += 1
+	mine.state = ContractData.State.TAKEN
+	contracts.append(mine)
+	log_line("Signed: %s. %d credits on delivery." % [
+		_contract_short(mine), mine.pay], &"sys")
+	Sig.contracts_changed.emit()
+	return mine
+
+## Whether this exact piece of work is already in your ledger.
+##
+## Compared on WHAT IT IS rather than on an id, because the board regenerates its
+## objects every time it is drawn — `Contracts.board()` is derived, not stored —
+## so the offer you are looking at is never the same object you accepted.
+func holds_contract(c: ContractData) -> bool:
+	for other in contracts:
+		var o: ContractData = other
+		if o.state == ContractData.State.CLOSED:
+			continue
+		if o.house == c.house and o.kind == c.kind and o.at == c.at \
+				and o.amount == c.amount and o.posted_at == c.posted_at:
+			return true
+	return false
+
+## Work that is done and waiting to be paid at one of this station's berths.
+func deliverable_at(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.READY:
+			continue
+		if ContractData.berth_of(n, job.house):
+			out.append(job)
+	return out
+
+## Heat contracts you could close RIGHT NOW, standing where you are.
+##
+## Separate from deliverable_at() because a heat contract is never READY out in
+## the dark — it becomes closable at the moment you dock still carrying the heat,
+## and it stops being closable the moment you vent. It is the one job whose
+## completion is a fact about this second.
+func heat_deliverable_at(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN \
+				or job.kind != ContractData.Kind.HEAT:
+			continue
+		if ContractData.berth_of(n, job.house) and heat >= job.amount:
+			out.append(job)
+	return out
+
+## Paid. Heat contracts spend the heat; the other two spend the flying you
+## already did.
+func deliver_contract(job: ContractData) -> void:
+	if job == null or job.state == ContractData.State.CLOSED:
+		return
+	if job.kind == ContractData.Kind.HEAT:
+		if heat < job.amount:
+			return
+		heat -= job.amount
+		log_line("Offloaded %d heat. Weighed, receipted, gone." % job.amount, &"heat")
+	job.state = ContractData.State.CLOSED
+	add_credits(job.pay)
+	standing[job.house] = int(standing.get(job.house, 0)) + job.standing
+	log_line("Delivered. %d credits. %s account in good order." % [
+		job.pay, DB.short_name(DB.manufacturer_name(job.house))], &"good")
+	Sig.contracts_changed.emit()
+	Sig.resources_changed.emit()
+
+## Arriving somewhere finishes any FETCH pointed at it.
+##
+## Called from the one door every arrival goes through. A recovered item is
+## NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
+## accident and cannot be lost to a full hold. A contract that soft-locks on
+## inventory is a bug wearing a decision's clothes, and there is no version of
+## "you sold the thing you were paid to fetch" that is worth what it costs.
+func reach_contract_target(index: int) -> void:
+	var moved := false
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN or job.at != index:
+			continue
+		if job.kind != ContractData.Kind.FETCH:
+			continue
+		job.state = ContractData.State.READY
+		moved = true
+		log_line("Recovered: %s. Lashed to the frame and not yours yet." % job.item,
+			&"good")
+	if moved:
+		Sig.contracts_changed.emit()
+
+## Winning a fight here finishes any HUNT pointed at it.
+func clear_contract_target(index: int) -> void:
+	var moved := false
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN or job.at != index:
+			continue
+		if job.kind != ContractData.Kind.HUNT:
+			continue
+		job.state = ContractData.State.READY
+		moved = true
+		log_line("Contact removed. %s will want to hear about it." %
+			DB.short_name(DB.manufacturer_name(job.house)).to_upper(), &"good")
+	if moved:
+		Sig.contracts_changed.emit()
+
+## How well a house thinks of you. Zero for six of them, most of the time.
+func standing_with(house: StringName) -> int:
+	return int(standing.get(house, 0))
+
+## What their berths pay OVER the going rate for your parts, as a fraction.
+##
+## The benefit is on the BID and never on the ask, and that is a hard constraint
+## rather than a preference: `Market`'s invariant leaves only about seven percent
+## between what a part melts for and the floor under what a station charges, so
+## a discount on the ask is a buy-and-melt exploit at four points of standing.
+## Paying you more for what you carry in has no such edge and reads the same at
+## the counter.
+##
+## Capped, because bid is a fraction of ask and must stay one.
+const STANDING_BID := 0.05
+const STANDING_BID_MAX := 0.20
+func standing_bid_bonus(house: StringName) -> float:
+	return minf(float(standing_with(house)) * STANDING_BID, STANDING_BID_MAX)
+
+func _contract_short(c: ContractData) -> String:
+	match c.kind:
+		ContractData.Kind.HEAT:
+			return "%d heat to %s" % [c.amount,
+				DB.short_name(DB.manufacturer_name(c.house))]
+		ContractData.Kind.HUNT:
+			return "a contact at %s" % MapGen.star_name(map[c.at]) if c.at >= 0 \
+				and c.at < map.size() else "a contact"
+		_:
+			return "%s from %s" % [c.item, MapGen.star_name(map[c.at])] if c.at >= 0 \
+				and c.at < map.size() else c.item
+	return ""
+
+
+## The open contract pointing at this system, or null. First match wins; two
+## houses wanting something from one place is legal and the chart only has room
+## to say so once.
+func contract_at(index: int) -> ContractData:
+	for c in contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.TAKEN and job.at == index:
+			return job
+	return null
+
+
+## Houses with something waiting to be handed over: a heat contract you are
+## carrying the heat for, or any job you have already finished out there.
+##
+## THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place
+## before you go; this points at a place afterwards, and a heat contract points
+## at one and never had a target at all. Without it the chart answers "where is
+## the work" and goes silent on "where do I take it", which is the half of the
+## trip that actually costs fuel.
+func delivery_houses() -> Array:
+	var out: Array = []
+	for c in contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.READY \
+				or (job.state == ContractData.State.TAKEN
+					and job.kind == ContractData.Kind.HEAT):
+			if not out.has(job.house):
+				out.append(job.house)
+	return out
+
+
+## True when the ONLY reason this system is on the chart is that you signed for
+## it — not visited, not a station, not reachable from where you stand.
+##
+## Signing reveals WHERE, and nothing else. You are told a place exists and given
+## its name, because a job that names a system you cannot find is a memory test;
+## you are not told what is in it, how policed it is or who operates there,
+## because none of that was in the offer. The house said go here. It did not say
+## what here is.
+##
+## That asymmetry is the whole point and it is worth not smoothing away later: a
+## contract is a REASON to fly somewhere unexplored, and it stops being one the
+## moment accepting it also explores the place.
+func known_only_by_contract(index: int) -> bool:
+	if index < 0 or index >= map.size():
+		return false
+	if contract_at(index) == null:
+		return false
+	var n: MapGen.MapNode = map[index]
+	if n.visited or n.type == MapGen.NodeType.STATION or index == at:
+		return false
+	for r in in_range():
+		if (r as MapGen.MapNode).index == index:
+			return false
+	return true

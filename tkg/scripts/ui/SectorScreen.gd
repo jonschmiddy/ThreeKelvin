@@ -56,18 +56,10 @@ var _salvage_head: Label
 ## one slot left in it — the answer to the first is what decides whether the
 ## second is even legal.
 var _taking: bool = false
-## Dismissed for now, not thrown away. Reset when fresh salvage arrives.
-var _stowed: bool = false
-var _last_haul: int = -1
-## The system whose bag this panel has already opened for.
-##
-## STOWING MUST NOT HIDE A BAG. `_stowed` is cleared by the hold growing, and a
-## bag growing is precisely the case where it does not — the parts are at the
-## node and nothing has entered your hold yet. So a player who stowed at the last
-## system would win the next fight and never be shown what it dropped, which
-## reads as the fight paying nothing. Watching the node the bag belongs to
-## catches it without a second flag to keep in step.
-var _last_bag_at: int = -1
+## Dismissed for now, not thrown away. See RunState.salvage_hushed_hauls — the
+## flag lives there because THIS SCREEN IS REBUILT ON EVERY JUMP and a dismissal
+## kept here was forgotten the moment you left.
+
 
 # --- combat only
 var _hand_wrap: PanelContainer
@@ -290,7 +282,8 @@ func _build_salvage_rail() -> PanelContainer:
 	# destroy salvage by default.
 	var stow := Widgets.button("STOW - DECIDE LATER",
 		func() -> void:
-			_stowed = true
+			Run.salvage_hushed_hauls = Run.hauls
+			Run.salvage_hushed_bag = _bag_here()
 			_refresh())
 	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	stow.tooltip_text = Widgets.tip("Keeps it all in the hold. Fit or scrap it from the SHIP page.")
@@ -654,26 +647,33 @@ func _refresh() -> void:
 
 	_refresh_salvage()
 
+## The system index if there is loose salvage here, or -1. The second half of
+## what a dismissal is keyed on.
+func _bag_here() -> int:
+	var n: MapGen.MapNode = Run.node_at()
+	return n.index if Run.bag_left(n) > 0 else -1
+
+
 func _refresh_salvage() -> void:
 	for c in _salvage.get_children():
 		c.queue_free()
 
-	# A fresh HAUL re-opens the prompt; stowing is per-haul. Watching
-	# `cargo.size()` instead was right until the refit screen learned to drag a
-	# part off a hardpoint into the hold — that grows the hold too, so unbolting
-	# your own coolant line made this panel offer it back as salvage.
-	if Run.hauls > _last_haul and _last_haul >= 0:
-		_stowed = false
-	_last_haul = Run.hauls
-
 	var n: MapGen.MapNode = Run.node_at()
 	var loose := Run.bag_left(n)
-	if loose > 0 and n.index != _last_bag_at:
-		_last_bag_at = n.index
-		_stowed = false
 	var mine := Run.cargo.size() > 0 or Run.found_hull != null
+	var bag_here := n.index if loose > 0 else -1
+
+	# STAYS DISMISSED ACROSS A JUMP. The state lives on `Run` because this screen
+	# does not survive one — see RunState.salvage_hushed_hauls.
+	#
+	# It stops being dismissed when there is something NEW to decide about: a
+	# fresh haul, or a bag at a system you have not stood over yet. Watching
+	# `cargo.size()` instead of `hauls` was right until the refit screen learned
+	# to drag a part off a hardpoint into the hold — that grows the hold too, so
+	# unbolting your own coolant line made this panel offer it back as salvage.
+	var hushed := Run.salvage_hushed(bag_here)
 	var has := (loose > 0 or mine) and not fighting()
-	_salvage_wrap.visible = has and not _stowed
+	_salvage_wrap.visible = has and not hushed
 	if not _salvage_wrap.visible:
 		return
 

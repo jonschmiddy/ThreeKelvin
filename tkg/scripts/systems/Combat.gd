@@ -611,6 +611,8 @@ func _victory() -> void:
 		Run.heal(3)
 	if clears_node:
 		Run.consume_node(node)
+	# And anybody who paid to have this stop moving.
+	Run.clear_contract_target(node.index)
 
 	if enemy.template.boss:
 		Run.win()
@@ -651,6 +653,10 @@ func _victory() -> void:
 			bits.append("%d module%s" % [drops, "" if drops == 1 else "s"])
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
+	# What was aboard the thing you just killed. Not part of the bag and not
+	# claimed: knowledge is the one thing here nobody has to race for, so in a
+	# party every ship in the fight reads the same page. See Archive.
+	Archive.recover_at(node, "cut out of a wreck you made")
 	_finish(&"victory", " · ".join(bits))
 
 func _pacify() -> void:

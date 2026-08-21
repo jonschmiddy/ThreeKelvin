@@ -178,6 +178,14 @@ func setup() -> void:
 		var hist := HistoryScreen.new()
 		_open_popup(hist)
 		hist.setup(_close_popup)))
+	# On the title screen as well as on the HUD, because what you have read
+	# survives the ship. The archive is the one thing here that is not about a
+	# run — it is about the runs, plural, and the place to read it is the place
+	# you are between them.
+	menu.add_child(_option("THE ARCHIVE", func() -> void:
+		var arc := ArchiveScreen.new()
+		_open_popup(arc)
+		arc.setup(_close_popup)))
 	menu.add_child(_option("SETTINGS", _open_settings))
 
 	# Red on hover, alone among the five. Everything else on this screen leads
