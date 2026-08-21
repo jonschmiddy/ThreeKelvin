@@ -19,6 +19,22 @@ const HULL_GREEN := Color("#4d7a63")
 const THEM := Color("#c98d7a")
 const GOOD := Color("#7fb89a")
 
+## The way OUT. Quit, flee, break contact, not yet — every control whose job is
+## to leave the thing you are looking at.
+##
+## Not a danger colour, which is why it is not called one. The red button on the
+## sector screen breaks off a fight you were losing and the red item on the
+## title screen closes the game; neither is the dangerous choice, both are the
+## exit. Marking exits keeps them from reading as one more equal option in a row
+## of buttons.
+##
+## This hex was already in the game twelve times across seven files before it had
+## a name here — the sector screen alone spends it four times. Those sites are
+## left alone rather than swept: several are semantically DAMAGE (a hull below a
+## third, a negative stat) rather than an exit, and folding two meanings into one
+## constant because they share a hex is how a palette stops meaning anything.
+const LEAVE := Color("#d4614f")
+
 # Bevel ramp. Raised chrome catches light top-left and falls away bottom-right —
 # the same two-plane rule the sprite contract uses, applied to interface chrome.
 const BEVEL_HI := Color("#3d4d61")

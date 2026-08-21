@@ -183,7 +183,7 @@ func setup() -> void:
 	# Red on hover, alone among the five. Everything else on this screen leads
 	# somewhere you can come back from.
 	var quit := _option("QUIT", func() -> void: get_tree().quit())
-	quit.add_theme_color_override("font_hover_color", Color("#d4614f"))
+	quit.add_theme_color_override("font_hover_color", UITheme.LEAVE)
 	quit.add_theme_color_override("font_pressed_color", Color("#f08872"))
 	menu.add_child(quit)
 
@@ -257,17 +257,10 @@ func _confirm_continue() -> void:
 	row.add_child(Widgets.button("CONTINUE", func() -> void:
 		_close_popup()
 		Router.continue_run()))
-	row.add_child(Widgets.button("NOT YET", _close_popup))
+	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
 
-	# Centred in the same frame the other two get. It has far less in it, and
-	# that is fine — three popups at three sizes read as three different kinds of
-	# thing, when they are all just "a panel on the title screen".
-	var centre := CenterContainer.new()
-	centre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	centre.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	centre.add_child(col)
-	_open_popup(centre)
+	_open_popup(col, true)
 
 ## Open a screen OVER the title rather than instead of it.
 ##
@@ -278,7 +271,17 @@ func _confirm_continue() -> void:
 ##
 ## The shade eats input, so the menu underneath cannot be clicked through, and
 ## a click on the dim margin closes — the same dismissal the deck popup uses.
-func _open_popup(inner: Control) -> void:
+## How wide a PROMPT is. The lobby and the flight record are lists and want the
+## full frame; a question and two buttons wants a card.
+##
+## Width is fixed and height is not, which is the whole trick. The complaint that
+## started the popups was that they were three different rectangles — and what
+## read as ragged was the WIDTH, because that is the edge your eye lines up
+## against. Height following content is not raggedness, it is a panel that is as
+## tall as what is in it.
+const POPUP_PROMPT_W := 356
+
+func _open_popup(inner: Control, compact: bool = false) -> void:
 	if _popup != null or _settings != null:
 		return
 	var shade := ColorRect.new()
@@ -291,6 +294,20 @@ func _open_popup(inner: Control) -> void:
 			_close_popup())
 	add_child(shade)
 	_popup = shade
+
+	# A prompt is centred at its own size, with no scroll around it. The scroll
+	# below exists to force long content to the frame's width; a prompt has no
+	# long content, and wrapping a short column in a ScrollContainer is what was
+	# stretching these to the full 620x348 whatever they held.
+	if compact:
+		var mid := CenterContainer.new()
+		mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		shade.add_child(mid)
+		var card := Widgets.panel_with(inner)
+		card.custom_minimum_size = Vector2(POPUP_PROMPT_W, 0)
+		card.mouse_filter = Control.MOUSE_FILTER_STOP
+		mid.add_child(card)
+		return
 
 	var pad := MarginContainer.new()
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -401,14 +418,10 @@ func _confirm_new_run() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	row.add_child(Widgets.button("LAUNCH", _launch))
-	row.add_child(Widgets.button("NOT YET", _close_popup))
+	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
 
-	var centre := CenterContainer.new()
-	centre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	centre.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	centre.add_child(col)
-	_open_popup(centre)
+	_open_popup(col, true)
 	# Typing is the whole reason this panel exists, so the caret starts in the
 	# field. Everything else here is one keystroke away either way.
 	if _seed_field != null:
@@ -464,6 +477,20 @@ func _typed_seed() -> int:
 	if _seed_field == null:
 		return 0
 	return int(_seed_field.text.strip_edges())
+
+
+## A button that LEAVES. Both prompts have one and the menu has QUIT, and they
+## are the same idea: the control that puts you back where you were.
+##
+## Coloured rather than styled, so it still reads as one of a pair with the
+## button beside it. A red BOX next to a normal one says the two do opposite
+## things; red text on the same box says one of them is the way out.
+func _leave_button(text: String, action: Callable) -> Button:
+	var b := Widgets.button(text, action)
+	b.add_theme_color_override("font_color", UITheme.LEAVE)
+	b.add_theme_color_override("font_hover_color", UITheme.LEAVE.lightened(0.3))
+	b.add_theme_color_override("font_focus_color", UITheme.LEAVE)
+	return b
 
 
 func _gap(h: int) -> Control:
