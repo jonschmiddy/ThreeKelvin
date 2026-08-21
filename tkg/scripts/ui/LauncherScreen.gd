@@ -168,8 +168,7 @@ func setup() -> void:
 	# one: the run you were already flying, or — with nothing to return to — a
 	# new one. Everything else is grey. Hard-coding CONTINUE as the white one
 	# would leave a first-time player looking at five identical grey lines.
-	menu.add_child(_option("NEW RUN", func() -> void:
-		Router.new_run(_typed_seed()), save.is_empty()))
+	menu.add_child(_option("NEW RUN", _confirm_new_run, save.is_empty()))
 	menu.add_child(_option("FLY TOGETHER", func() -> void:
 		var lob := LobbyScreen.new()
 		lob.on_leave = _close_popup
@@ -180,7 +179,6 @@ func setup() -> void:
 		_open_popup(hist)
 		hist.setup(_close_popup)))
 	menu.add_child(_option("SETTINGS", _open_settings))
-	menu.add_child(_seed_row())
 
 	# Red on hover, alone among the five. Everything else on this screen leads
 	# somewhere you can come back from.
@@ -332,6 +330,11 @@ func _close_popup() -> void:
 		return
 	_popup.queue_free()
 	_popup = null
+	# The seed field lived inside that popup and is now on its way out. A freed
+	# Node is NOT null in GDScript — it is an invalid instance, which sails
+	# straight past `== null` and fails on the next property read. Dropping the
+	# reference here is what makes _typed_seed()'s guard mean anything.
+	_seed_field = null
 
 ## Nudge a control right by the side-bearing difference. See BEARING_FIX.
 func _indent(c: Control) -> MarginContainer:
@@ -364,21 +367,68 @@ func _line(text: String, colour: Color, size: int) -> Label:
 ## SHRINK_BEGIN matters: without it a VBox child fills the column, and since the
 ## column is as wide as THREE KELVIN at 32px, the clickable area of QUIT would
 ## reach a third of the way across the screen with nothing drawn in it.
-## A seed to fly, or nothing and get a fresh one.
+## What NEW RUN opens now, rather than a field parked on the title screen.
 ##
-## The machinery for this has been complete since Rng was written — a run IS one
-## number, `Router.new_run()` already takes it, and the lobby already passes one
-## so a party shares a galaxy. `Rng.roll_master()` even carries the comment
-## "positive, because it is shown to the player and typed back in". It was never
-## shown to the player and there was never anywhere to type it back in.
+## MOVED, and for two reasons rather than one. The seed belongs to the moment
+## you start a run, not to the screen you start it from — a title screen with a
+## number field on it reads like a debug build. And NEW RUN was already the one
+## destructive item in this menu with no confirmation on it: Router.new_run()
+## records an ABANDONED run and clears the save when one is live, which is
+## exactly the thing CONTINUE gets a panel for.
 ##
-## Under the menu rather than beside NEW RUN, because it is the rare case. A
-## title screen that opens by asking for a number reads like a debug build; this
-## reads like a field you can ignore, which is what it is.
+## So this panel does both jobs. With a save it warns; without one it is simply
+## where you decide whether this run is a fresh galaxy or a named one.
+func _confirm_new_run() -> void:
+	var save := SaveGame.summary()
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	col.add_child(UITheme.body("LAUNCH A RUN", UITheme.ICE, UITheme.FS_HEAD))
+	if save.is_empty():
+		col.add_child(UITheme.body(
+			"Leave the seed empty for a galaxy nobody has flown.",
+			UITheme.COLD, UITheme.FS_SMALL))
+	else:
+		# The abandoned run still goes on the flight record, so this is a cost
+		# rather than a deletion — worth saying which.
+		col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
+		col.add_child(UITheme.body(
+			"Launching abandons that run. It keeps its place on the flight record.",
+			UITheme.COLD, UITheme.FS_SMALL))
+	col.add_child(_gap(4))
+	col.add_child(_seed_row())
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(Widgets.button("LAUNCH", _launch))
+	row.add_child(Widgets.button("NOT YET", _close_popup))
+	col.add_child(row)
+
+	var centre := CenterContainer.new()
+	centre.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	centre.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	centre.add_child(col)
+	_open_popup(centre)
+	# Typing is the whole reason this panel exists, so the caret starts in the
+	# field. Everything else here is one keystroke away either way.
+	if _seed_field != null:
+		_seed_field.grab_focus()
+
+func _launch() -> void:
+	var n := _typed_seed()
+	_close_popup()
+	Router.new_run(n)
+
+## SEED, and a box to put one in.
 func _seed_row() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	row.add_child(UITheme.body("SEED", UITheme.LINE, UITheme.FS_SMALL))
+	# On the label, not on a "?" beside it. The panel already states the common
+	# case in a full sentence; this only has to cover what it leaves out.
+	var lab := UITheme.body("SEED", UITheme.COLD, UITheme.FS_SMALL)
+	lab.mouse_filter = Control.MOUSE_FILTER_STOP
+	lab.tooltip_text = Widgets.tip("Seeded run\nFly the same number again for the same galaxy, map and loot. Old ones are on the flight record.")
+	row.add_child(lab)
 
 	_seed_field = LineEdit.new()
 	_seed_field.custom_minimum_size = Vector2(96, 0)
@@ -402,14 +452,10 @@ func _seed_row() -> Control:
 		if clean != t:
 			_seed_field.text = clean
 			_seed_field.caret_column = clean.length())
+	# Enter is LAUNCH. Somebody typing a seed has both hands on the keyboard and
+	# reaching for the mouse to press the button beside the field is silly.
+	_seed_field.text_submitted.connect(func(_t: String) -> void: _launch())
 	row.add_child(_seed_field)
-
-	var tip := HBoxContainer.new()
-	tip.mouse_filter = Control.MOUSE_FILTER_STOP
-	tip.tooltip_text = Widgets.tip("Seeded run
-Every run is one number. Fly the same one again and you get the same galaxy, the same map and the same loot. Leave it empty for a fresh one; find old ones on the flight record.")
-	tip.add_child(UITheme.body("?", UITheme.LINE, UITheme.FS_SMALL))
-	row.add_child(tip)
 	return row
 
 ## What is in the field, or 0 for "roll one". Router.new_run() reads 0 as random,
@@ -418,6 +464,13 @@ func _typed_seed() -> int:
 	if _seed_field == null:
 		return 0
 	return int(_seed_field.text.strip_edges())
+
+
+func _gap(h: int) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, h)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
 
 
 func _option(text: String, action: Callable, primary: bool = false) -> Button:
