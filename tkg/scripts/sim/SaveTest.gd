@@ -37,7 +37,13 @@ func fingerprint() -> Dictionary:
 			var af: Array = []
 			for a in m.affixes:
 				af.append(a.name)
-			out.append("%s|%d|%d|%s" % [m.id, int(m.rarity), m.scrap_value, ",".join(af)])
+			# WHERE it is, as well as what it is. Neither `mount` nor `hold_at`
+			# was fingerprinted before, so this test passed on a save that
+			# dropped every position — the loadout you built came back as the
+			# same parts in a different arrangement and nothing here noticed.
+			# That is the exact failure mode the scramble exists to catch.
+			out.append("%s|%d|%d|%s|m%d|h%d,%d" % [m.id, int(m.rarity),
+				m.scrap_value, ",".join(af), m.mount, m.hold_at.x, m.hold_at.y])
 		return out
 	var nodes: Array = []
 	for e in Run.map:
@@ -167,10 +173,32 @@ func run() -> void:
 	Run.whale_boon = true
 	Run.kills = 4
 	for i in 4:
-		Run.cargo.append(LootGen.roll_module(3 + i, &"", true))
+		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
 	Run.install_module(Run.cargo[0])
 	Run.found_hull = LootGen.roll_hull(4)
 	Run.transfer_to_hull(LootGen.roll_hull(5))
+	# ARRANGE the hold, do not just fill it.
+	#
+	# Everything above lands by first fit, and the loader re-packs anything that
+	# comes back without a position by running that same first fit — so a save
+	# that dropped every cell still reproduced the identical layout and this test
+	# passed. Verified by deliberately breaking the writer: it did not fail.
+	#
+	# Moving one part somewhere first fit would never have put it is what makes
+	# the saved value load-bearing, which is what a player rearranging their hold
+	# does every time they touch it.
+	if not Run.cargo.is_empty():
+		var last: ModuleData = Run.cargo[Run.cargo.size() - 1]
+		var home := last.hold_at
+		var g := Run.hold_grid()
+		for y in range(g.y - 1, -1, -1):
+			for x in range(g.x - 1, -1, -1):
+				var at := Vector2i(x, y)
+				if at != home and Run.can_place(last, at):
+					last.hold_at = at
+					break
+			if last.hold_at != home:
+				break
 	# A station with stock already rolled, and a hull on the pad.
 	var st: MapGen.MapNode = Run.map[Run.at]
 	st.shop = [LootGen.roll_module(2), LootGen.roll_module(4, &"", true)]

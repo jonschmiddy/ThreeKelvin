@@ -32,7 +32,7 @@ const PATH := "user://run.save"
 ## 3: heat reached the map. A node now carries whether it rolled for an ambush
 ## and what that roll produced, so a hostile attracted by your own heat cannot
 ## be refused by quitting and coming back cold.
-const VERSION := 5
+const VERSION := 6
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -224,6 +224,17 @@ static func load_into_run() -> bool:
 		if m != null:
 			cargo.append(m)
 	Run.cargo = cargo
+	# Anything that came back without a cell — a pre-grid save, or a part whose
+	# position no longer fits the hull it was loaded onto — gets one now. Done
+	# AFTER the assignment because repack_hold reads Run.cargo, and after the
+	# hull is set for the same reason: the grid's shape is the hull's.
+	var unplaced := false
+	for m in Run.cargo:
+		if m.hold_at.x < 0 or not Run.can_place(m, m.hold_at):
+			unplaced = true
+			break
+	if unplaced:
+		Run.repack_hold()
 	var fh: Variant = d.get("found_hull", null)
 	Run.found_hull = _hull_from(fh) if typeof(fh) == TYPE_DICTIONARY else null
 
@@ -327,6 +338,7 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		# part it had and rearranges them, because -1 is "in the hold" and the
 		# refit screen would draw a full rack of empty mounts over a full loadout.
 		mount = m.mount,
+		hold_at = [m.hold_at.x, m.hold_at.y],
 	}
 
 ## Null when the id is gone from the database — content changed under a save.
@@ -344,6 +356,11 @@ static func _module_from(e: Variant) -> ModuleData:
 	m.rarity = int(d.get("rarity", int(m.rarity))) as ModuleData.Rarity
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
 	m.mount = int(d.get("mount", -1))
+	# Version 6. A save from before the hold was a grid carries no position, and
+	# -1,-1 is exactly what a part not yet placed looks like — so the loader
+	# below re-packs those rather than leaving them claiming no cells.
+	var at: Array = d.get("hold_at", [-1, -1])
+	m.hold_at = Vector2i(int(at[0]), int(at[1])) if at.size() == 2 else -Vector2i.ONE
 	var affixes: Array[AffixData] = []
 	for want in d.get("affixes", []):
 		for a in DB.affixes:

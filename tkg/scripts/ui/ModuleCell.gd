@@ -26,6 +26,12 @@ var slot: ModuleData.Slot = ModuleData.Slot.WEAPON
 ## the module that lands on it. Storage squares are interchangeable and leave it
 ## at -1.
 var index: int = -1
+## WHICH CELL of the hold grid this is, for STORAGE. (-1,-1) on a hardpoint.
+##
+## Storage squares stopped being interchangeable when the hold became a grid: a
+## part is put down SOMEWHERE, and dropping it on the cell under the cursor is
+## the difference between arranging a hold and merely filling one.
+var cell: Vector2i = -Vector2i.ONE
 ## What is sitting here, if anything.
 var held: ModuleData = null
 

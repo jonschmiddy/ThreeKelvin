@@ -120,10 +120,14 @@ func manage_cargo() -> void:
 			Run.install_module(m)
 		else:
 			# Out of the queue and into the hold, so the loop terminates.
-			Run.cargo.erase(m)
+			Run.take_from_hold(m)
 			passed.append(m)
 	for m in passed:
-		Run.cargo.append(m)
+		# Back through the door so it is given a cell again. A bare append
+		# leaves it at (-1,-1) claiming none, and the model would then be
+		# measuring a hold that overlaps itself.
+		if not Run.place_in_hold(m):
+			Run.scrap_module(m)
 	while Run.cargo.size() > HOLD_LIMIT:
 		var cheapest: ModuleData = Run.cargo[0]
 		for m in Run.cargo:
@@ -169,7 +173,7 @@ func sell_hold(n: MapGen.MapNode) -> void:
 		var m: ModuleData = Run.cargo[0]
 		var paid := Market.bid(n, m)
 		if paid > Run.scrap_value_of(m):
-			Run.cargo.erase(m)
+			Run.take_from_hold(m)
 			Run.add_credits(paid)
 			n.trades += 1
 		else:

@@ -507,7 +507,7 @@ func _station() -> void:
 			var si := int(move.substr(5))
 			if si >= 0 and si < Run.cargo.size():
 				var m: ModuleData = Run.cargo[si]
-				Run.cargo.erase(m)
+				Run.take_from_hold(m)
 				Run.add_credits(Market.bid(n, m))
 				n.trades += 1
 			continue

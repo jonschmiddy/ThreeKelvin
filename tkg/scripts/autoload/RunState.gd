@@ -228,15 +228,127 @@ func module_at(s: ModuleData.Slot, index: int) -> ModuleData:
 			return m
 	return null
 
-## How many SLOTS the hold has. See HullData.cargo_slots.
-##
-## Slots, not modules: a slot is a place and a module is one of the things that
-## can occupy one.
-func cargo_slots() -> int:
-	return hull.cargo_slots if hull != null else 8
+## The hold's shape, in cells. See HullData.hold_grid.
+func hold_grid() -> Vector2i:
+	return hull.hold_grid if hull != null else Vector2i(4, 5)
 
+## How many CELLS the hold has. Was a module count; a module now has a size.
+##
+## Kept under its old name because everything that reads it — the dock, the
+## chassis select, the sector audio cue — is asking "how big is this ship's
+## hold", and that question did not change.
+func cargo_slots() -> int:
+	return hold_grid().x * hold_grid().y
+
+## Cells currently occupied.
+func cargo_used() -> int:
+	var n := 0
+	for m in cargo:
+		n += m.cells()
+	return n
+
+## Whether a SPECIFIC part fits, which is the only form of the question a grid
+## can answer.
+##
+## `hold_full()` used to be a property of the hold alone. It cannot be any more:
+## a hold with four free cells has room for four fittings, one bulky array, or a
+## long gun only if three of those cells happen to lie in a row. Callers that
+## want a yes/no now have to say what they are trying to put down.
+func has_room_for(m: ModuleData) -> bool:
+	return find_hold_slot(m) != -Vector2i.ONE
+
+## True when nothing at all will fit — the honest replacement for `hold_full`,
+## used where there is no particular module in hand.
 func hold_full() -> bool:
-	return cargo.size() >= cargo_slots()
+	var one := ModuleData.new()
+	one.size = Vector2i.ONE
+	return not has_room_for(one)
+
+## Every cell a part covers at a given origin.
+func _cells_of(m: ModuleData, at: Vector2i) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for dy in maxi(1, m.size.y):
+		for dx in maxi(1, m.size.x):
+			out.append(at + Vector2i(dx, dy))
+	return out
+
+## Can `m` sit at `at`, ignoring itself if it is already down?
+func can_place(m: ModuleData, at: Vector2i) -> bool:
+	var g := hold_grid()
+	if at.x < 0 or at.y < 0:
+		return false
+	if at.x + maxi(1, m.size.x) > g.x or at.y + maxi(1, m.size.y) > g.y:
+		return false
+	var taken := {}
+	for other in cargo:
+		if other == m or other.hold_at.x < 0:
+			continue
+		for c in _cells_of(other, other.hold_at):
+			taken[c] = true
+	for c in _cells_of(m, at):
+		if taken.has(c):
+			return false
+	return true
+
+## Put a part in the hold, finding it a cell. False when nothing fits.
+##
+## THE ONLY DOOR INTO `cargo`, with take_from_hold as the only way out. A bare
+## append leaves a module at (-1,-1) — in the array, drawn nowhere, overlapping
+## everything because it claims no cells — and that is a bug you find later, in
+## the UI, looking like a part that vanished.
+func place_in_hold(m: ModuleData, at: Vector2i = -Vector2i.ONE) -> bool:
+	var cell := at if at != -Vector2i.ONE else find_hold_slot(m)
+	if cell == -Vector2i.ONE or not can_place(m, cell):
+		return false
+	m.hold_at = cell
+	if not cargo.has(m):
+		cargo.append(m)
+	Sig.ship_changed.emit()
+	return true
+
+## Take a part out, releasing its cells.
+func take_from_hold(m: ModuleData) -> void:
+	cargo.erase(m)
+	m.hold_at = -Vector2i.ONE
+
+## Re-seat everything, largest first, after the grid changes shape.
+##
+## Called when the hull is swapped: a heavy's 4x10 hold becomes a light's 4x5 and
+## every part below the fifth row is now outside the grid. Largest first because
+## first-fit on a fresh grid strands big parts behind small ones — the one place
+## a rule other than "leave it where it was" is worth having, since the player
+## did not arrange this and cannot be surprised by it.
+func repack_hold() -> void:
+	var all := cargo.duplicate()
+	all.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
+		return a.cells() > b.cells())
+	cargo.clear()
+	var lost: Array[ModuleData] = []
+	for m in all:
+		m.hold_at = -Vector2i.ONE
+	for m in all:
+		var cell := find_hold_slot(m)
+		if cell == -Vector2i.ONE:
+			lost.append(m)
+			continue
+		m.hold_at = cell
+		cargo.append(m)
+	for m in lost:
+		log_line("No room for %s in the new hold. Left behind." % m.name, &"them")
+
+## First cell the part fits in, scanning rows then columns, or (-1,-1).
+##
+## Row-major FIRST FIT rather than best fit. Best fit packs tighter and moves
+## things around behind your back to do it; the hold is a place you arranged, so
+## a predictable rule you can learn beats a clever one you cannot.
+func find_hold_slot(m: ModuleData) -> Vector2i:
+	var g := hold_grid()
+	for y in g.y:
+		for x in g.x:
+			var at := Vector2i(x, y)
+			if can_place(m, at):
+				return at
+	return -Vector2i.ONE
 
 ## This system is finished: the wreck is stripped, the fight is won, the hail is
 ## answered. THE ONE DOOR, and the reason it exists is co-op.
@@ -341,10 +453,9 @@ func adopt_party_claims() -> void:
 ## is refused at the point of asking; neither can be allowed to destroy a module
 ## because the arithmetic did not work out.
 func stow(m: ModuleData) -> bool:
-	if hold_full():
-		log_line("The hold is full. %s left behind." % m.name, &"them")
+	if not place_in_hold(m):
+		log_line("No room in the hold for %s." % m.name, &"them")
 		return false
-	cargo.append(m)
 	hauls += 1
 	Sig.ship_changed.emit()
 	return true
@@ -862,9 +973,13 @@ func install_module(m: ModuleData) -> void:
 		if worst != null:
 			installed.erase(worst)
 			worst.mount = -1
-			cargo.append(worst)
+			# It came OFF the ship, so the hold has just gained the cells `m`
+			# is about to vacate. place_in_hold cannot fail here in practice,
+			# but a part that finds no cell is dropped rather than duplicated.
+			if not place_in_hold(worst):
+				log_line("No room for %s. It was left behind." % worst.name, &"them")
 			log_line("Removed %s to make room." % worst.name, &"sys")
-	cargo.erase(m)
+	take_from_hold(m)
 	m.mount = free_mount(m.slot)
 	installed.append(m)
 	log_line("Installed %s." % m.name, &"good")
@@ -874,12 +989,14 @@ func install_module(m: ModuleData) -> void:
 ## destroying it — and a refit screen that silently melts what you unbolt is
 ## worse than one that says no.
 func uninstall_module(m: ModuleData) -> bool:
-	if hold_full():
+	# Against THIS part, not against the hold in general: a bulky array can be
+	# refused by a hold that would still take the sight beside it.
+	if not has_room_for(m):
 		log_line("No room in the hold for %s." % m.name, &"them")
 		return false
 	installed.erase(m)
 	m.mount = -1
-	cargo.append(m)
+	place_in_hold(m)
 	Sig.ship_changed.emit()
 	return true
 
@@ -896,7 +1013,7 @@ func uninstall_module(m: ModuleData) -> bool:
 ## cell is gone; this is the survivor, and it is called scrapping.
 func scrap_module(m: ModuleData) -> void:
 	var v := scrap_value_of(m)
-	cargo.erase(m)
+	take_from_hold(m)
 	add_credits(v)
 	log_line("Scrapped %s for %d credits." % [m.name, v], &"good")
 	Sig.ship_changed.emit()
@@ -916,10 +1033,18 @@ func transfer_to_hull(h: HullData) -> void:
 				break
 			installed.erase(worst)
 			worst.mount = -1
-			cargo.append(worst)
+			# The new hull's hold may be a different shape, and this runs BEFORE
+			# the swap, so a part placed now is placed against the old grid.
+			# Re-packed below once `hull` is the new one.
+			if not place_in_hold(worst):
+				log_line("No room for %s. It was left behind." % worst.name, &"them")
 	var ratio := float(hp) / float(max_hp())
 	hull = h
 	hp = maxi(6, int(round(h.max_hull * ratio)))
+	# ...and its own HOLD SHAPE. A heavy's 4x10 becoming a light's 4x5 leaves
+	# every part below the fifth row outside the grid entirely, so the hold is
+	# re-seated for the same reason the mounts below are.
+	repack_hold()
 	# The new hull has its own hardpoint count, so a part mounted on weapon 3 of a
 	# heavy can be pointing at a mount a light does not have. Re-seated in the
 	# order they were carried, which loses the arrangement you chose — that is

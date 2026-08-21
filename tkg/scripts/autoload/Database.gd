@@ -548,6 +548,7 @@ func _seed_modules() -> void:
 
 	_seed_module_attributes()
 	_seed_module_passives()
+	_seed_module_sizes()
 
 ## Sensors and Stealth, laid on modules that already exist.
 ##
@@ -560,6 +561,52 @@ func _seed_modules() -> void:
 ## Kept in one table rather than as two more arguments on _module() because it
 ## is a property of six modules out of thirty-four, and thirty-four call sites
 ## carrying `0, 0` would bury the six that matter.
+## How much hold each part takes. See ModuleData.size for what a shape MEANS.
+##
+## A default per slot and a list of exceptions, rather than 55 sizes written out
+## one at a time. The default is the honest claim — a system is a compact unit, a
+## utility is a fitting — and every entry below is a part whose NAME already says
+## it is not: a Lance is long, a Bay is bulky, a Scope is neither.
+##
+## The test applied to each was "would you be surprised to see this shape in the
+## hold". A Precursor Lattice at 2x2 is not surprising; a Coolant Line at
+## anything but 1x1 would be.
+func _seed_module_sizes() -> void:
+	const LONG := Vector2i(3, 1)
+	const BULK := Vector2i(2, 2)
+	const UNIT := Vector2i(2, 1)
+	const FIT := Vector2i(1, 1)
+
+	# Barrels, lances and rails. The shape IS the barrel.
+	var long_ones: Array[StringName] = [
+		&"km4", &"widow", &"kh500", &"plasma", &"ventcan", &"breaker",
+		&"needle", &"rail", &"beam", &"slug",
+	]
+	# Bays, arrays, cradles and heavy plate — things with a volume rather than a
+	# barrel. `singing` and `lattice` are precursor artifacts and read as blocks.
+	var bulky: Array[StringName] = [
+		&"dronebay", &"ripper", &"singing",
+		&"reactive", &"bulkhead", &"halcyon", &"lattice", &"braceframe", &"slag",
+		&"refinery", &"organ",
+	]
+	# Utility that is a piece of EQUIPMENT rather than an instrument.
+	var util_units: Array[StringName] = [
+		&"flare", &"chaff", &"claw", &"ghost", &"standfast", &"director",
+	]
+
+	for id in modules:
+		var m: ModuleData = modules[id]
+		if id in long_ones:
+			m.size = LONG
+		elif id in bulky:
+			m.size = BULK
+		elif id in util_units:
+			m.size = UNIT
+		elif m.slot == ModuleData.Slot.UTILITY:
+			m.size = FIT
+		else:
+			m.size = UNIT
+
 func _seed_module_attributes() -> void:
 	# `board` and `scope` are yard stock and were carrying their names as pure
 	# flavour: a Signal Board that reads no signals and a Ranging Scope that
@@ -671,6 +718,7 @@ const WEIGHT_BASE := {
 	HullData.Weight.LIGHT: {
 		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
 		dodge = 0.18, initiative = 2, fuel_factor = 0.8, cargo_slots = 8,
+		hold_grid = Vector2i(4, 5),
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
 	# A second utility mount, because the middle had nothing of its own.
 	#
@@ -684,10 +732,12 @@ const WEIGHT_BASE := {
 	HullData.Weight.MEDIUM: {
 		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
 		dodge = 0.05, initiative = 0, fuel_factor = 1.2, cargo_slots = 12,
+		hold_grid = Vector2i(4, 7),
 		weapon_slots = 3, system_slots = 2, utility_slots = 2},
 	HullData.Weight.HEAVY: {
 		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
 		dodge = 0.0, initiative = -2, fuel_factor = 1.8, cargo_slots = 16,
+		hold_grid = Vector2i(4, 10),
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
 

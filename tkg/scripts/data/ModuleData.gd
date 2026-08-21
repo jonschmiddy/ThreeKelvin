@@ -67,6 +67,39 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
 ## carries it so a reloaded ship looks like the one you built.
 @export var mount: int = -1
 
+## How much room the part takes UP IN THE HOLD, in grid cells. Never on the ship.
+##
+## The hold is a grid you pack; a hardpoint still takes exactly one module
+## however big it is. Those are two different questions — "will this fit in the
+## truck" and "does this ship have a mount for it" — and tying them together
+## would put cell counts into `slots_used()`, set-bonus counting, `Policy` and
+## `HeadlessSim`, none of which are asking about volume.
+##
+## Four shapes, and the shape is a description rather than a rating:
+##
+##   1x1  a fitting        sights, a patch kit, a coolant line
+##   1x2  a compact unit   most systems, a short weapon
+##   1x3  something LONG   a barrel, a lance, a rail
+##   2x2  something BULKY  a bay, an array, heavy plating, a reactor
+##
+## So a hold full of long things is visibly a hold full of guns, before any word
+## is read. Deliberately NOT keyed to rarity: a Legendary sight is still a sight,
+## and making the good ones big would turn packing into a second power budget
+## rather than a physical one.
+@export var size: Vector2i = Vector2i.ONE
+
+## Cells consumed. Convenience, and the one place the multiply is written.
+func cells() -> int:
+	return maxi(1, size.x) * maxi(1, size.y)
+
+## WHERE in the hold grid, top-left cell. (-1, -1) while not in the hold.
+##
+## Runtime state exactly as `mount` is, and stored for the same reason: the hold
+## is a place you arrange, so a part has to come back where you left it. Deriving
+## it from array order would re-pack the hold every time something was removed,
+## which is the behaviour `mount` was changed away from.
+@export var hold_at: Vector2i = -Vector2i.ONE
+
 ## Rolled at generation time
 @export var affixes: Array[AffixData] = []
 @export var scrap_value: int = 8

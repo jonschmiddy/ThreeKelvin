@@ -356,7 +356,7 @@ func _on_action(action: String, thing: Variant) -> void:
 			var paid := Market.bid(n, sm)
 			if paid <= 0:
 				return
-			Run.cargo.erase(sm)
+			Run.take_from_hold(sm)
 			Run.add_credits(paid)
 			n.trades += 1
 			Run.log_line("Sold %s for %d credits." % [sm.name, paid], &"good")

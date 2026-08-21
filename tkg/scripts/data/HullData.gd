@@ -54,6 +54,20 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 ## with four slots could not carry a trade good and a spare weapon at once.
 @export var cargo_slots: int = 8
 
+## The hold as a GRID, which is what it now is. Cells, not modules.
+##
+## Four columns on every hull — the refit screen measured that at 201px against
+## six columns' 303px in a 944px viewport, and the ship beside it cannot give any
+## width back. So capacity is rows, and the row count is the weight class.
+##
+## Sized to hold the SAME NUMBER OF PARTS the slot counts above used to promise.
+## The catalogue averages 2.40 cells a module across 55 of them, so 20 / 28 / 40
+## cells carry 8.3 / 11.7 / 16.7 — against the 8 / 12 / 16 that `cargo_slots`
+## meant when a module was a module whatever its shape. The grid is meant to make
+## packing a decision, not to quietly halve what a ship can haul; those are
+## different changes and only one of them was asked for.
+@export var hold_grid: Vector2i = Vector2i(4, 5)
+
 @export var weapon_slots: int = 3
 @export var system_slots: int = 2
 @export var utility_slots: int = 1

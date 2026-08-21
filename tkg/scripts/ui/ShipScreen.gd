@@ -272,6 +272,24 @@ func _slot_row(slot: ModuleData.Slot) -> Control:
 ## displaced first. Special-casing storage-to-hardpoint and hardpoint-to-storage
 ## separately is how you end up with a fourth path nobody thought about that
 ## duplicates a module.
+## Would every one of these fit at once?
+##
+## Asked by placing them for real and rolling back, because "do N parts fit"
+## is not a sum: two 1x3 guns need two separate runs of three, and free-cell
+## arithmetic says yes to a hold that cannot hold either of them.
+func _hold_would_take(parts: Array[ModuleData]) -> bool:
+	var placed: Array[ModuleData] = []
+	var ok := true
+	for p in parts:
+		if Run.place_in_hold(p):
+			placed.append(p)
+		else:
+			ok = false
+			break
+	for p in placed:
+		Run.take_from_hold(p)
+	return ok
+
 func _on_dropped(payload: Dictionary, onto: ModuleCell) -> void:
 	var m: ModuleData = payload.get("module")
 	if m == null:
@@ -305,12 +323,30 @@ func _on_dropped(payload: Dictionary, onto: ModuleCell) -> void:
 		to_hold += 1
 	if onto.kind == ModuleCell.Kind.HARDPOINT and onto.held != null:
 		to_hold += 1
-	if to_hold > 0 and Run.cargo.size() + to_hold > Run.cargo_slots():
-		Run.log_line("The hold is full.", &"them")
+	# Room is asked about the SPECIFIC parts, not about a count. A hold with
+	# three free cells takes three sights, or one compact unit, or a long gun
+	# only if the free cells happen to lie in a row — `cargo.size() + n` cannot
+	# express any of that.
+	#
+	# Checked BEFORE anything moves, and checked against the hold as it will be:
+	# `m` is lifted first so a part swapping into the mount it already sits
+	# beside is not refused by its own cells.
+	var was_at := m.hold_at
+	var lifted := Run.cargo.has(m)
+	if lifted:
+		Run.take_from_hold(m)
+	var homeless: Array[ModuleData] = []
+	if onto.kind != ModuleCell.Kind.HARDPOINT and Run.installed.has(m):
+		homeless.append(m)
+	if onto.kind == ModuleCell.Kind.HARDPOINT and onto.held != null:
+		homeless.append(onto.held)
+	if not _hold_would_take(homeless):
+		if lifted:
+			Run.place_in_hold(m, was_at)
+		Run.log_line("No room in the hold.", &"them")
 		return
 
 	Run.installed.erase(m)
-	Run.cargo.erase(m)
 
 	match onto.kind:
 		ModuleCell.Kind.HARDPOINT:
@@ -319,12 +355,15 @@ func _on_dropped(payload: Dictionary, onto: ModuleCell) -> void:
 			if onto.held != null:
 				Run.installed.erase(onto.held)
 				onto.held.mount = -1
-				Run.cargo.append(onto.held)
+				Run.place_in_hold(onto.held)
 			m.mount = onto.index
 			Run.installed.append(m)
 		_:
 			m.mount = -1
-			Run.cargo.append(m)
+			# Onto the cell the cursor is over when there is one, so the hold is
+			# arranged rather than merely filled; otherwise first fit.
+			if not Run.place_in_hold(m, onto.cell if onto.cell != -Vector2i.ONE else -Vector2i.ONE):
+				Run.place_in_hold(m)
 
 	Sig.ship_changed.emit()
 	Run.log_line("Refitted %s." % m.name, &"sys")

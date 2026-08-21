@@ -201,7 +201,7 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 				break
 		elif node.type == MapGen.NodeType.DERELICT and not node.cleared:
 			Run.consume_node(node)
-			Run.cargo.append(LootGen.roll_module(node.danger))
+			Run.place_in_hold(LootGen.roll_module(node.danger))
 		policy.manage_cargo()
 
 		# Farm laterally while healthy enough, then descend. The choice itself
