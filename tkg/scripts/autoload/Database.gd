@@ -803,7 +803,7 @@ func _seed_hulls() -> void:
 		h.sprite = hull_sprite(d.weight)
 		h.exhaust = hull_exhaust(d.weight)
 		h.exhaust_frames = EXHAUST_FRAMES
-		h.exhaust_offset = EXHAUST_AT
+		h.exhaust_offset = hull_exhaust_at(d.weight)
 		hull_frames.append(h)
 
 	for man in MAKER_HULLS:
@@ -838,24 +838,18 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	h.sprite = hull_sprite(w)
 	h.exhaust = hull_exhaust(w)
 	h.exhaust_frames = EXHAUST_FRAMES
-	h.exhaust_offset = EXHAUST_AT
+	h.exhaust_offset = hull_exhaust_at(w)
 	return h
 
-## The real art for a weight class, or null to fall back to ShipView's
-## procedural drawing.
-##
-## MEDIUM only, today. There is exactly one generated hull and it is a medium, so
-## light and heavy keep drawing procedurally — which is the partial-migration
-## state `docs/art/ASSET_PIPELINE.md` expects, not an oversight.
-##
-## It is also given to every manufacturer's medium, not just Korvan's. That is
-## knowingly wrong: the sprite has Korvan brass on it and a Solari medium should
-## not. It stands because the point of this step is to judge ONE real hull in the
-## running game, and hiding it behind a single chassis would mean almost never
-## seeing it. Per-manufacturer hulls, or a livery tint over a neutral one, is the
-## next art decision — see ART_CONTRACT.md §5.
 ## The art for a weight class at a specification class, or null to fall back to
 ## ShipView's procedural drawing.
+##
+## Every sprite is given to every manufacturer, not just Korvan's. That is
+## knowingly wrong: these hulls wear Korvan amber and a Solari one should not. It
+## stands because the point of the step is to judge real hulls in the running
+## game, and hiding them behind a single chassis would mean almost never seeing
+## them. Per-manufacturer hulls, or a livery tint over a neutral one, is the next
+## art decision — see ART_CONTRACT.md §5.
 ##
 ## KEYED ON CLASS AS WELL AS WEIGHT, which is what finally makes C through S
 ## something a player can SEE. TIER_DELTA has granted an A-class frame an extra
@@ -869,31 +863,54 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 ## worked and the sum was worse than picking four hulls out of thirty. The
 ## fitting engine survives in HullFit for whenever a hull has room for it.
 ##
-## LIGHT ONLY for now, and MEDIUM keeps its single sprite at every class. Two
-## incomplete ladders rather than one, which is honest about what exists.
+## ALL THREE WEIGHTS, twelve sprites, so the procedural path no longer draws any
+## player hull. `hull_medium_cold.png` stays on disk and stays the canonical
+## style reference every generation is seeded from — it is simply no longer the
+## thing rendered.
 func hull_sprite(w: HullData.Weight, cls: int = 0) -> Texture2D:
-	if w == HullData.Weight.LIGHT:
-		# TIER_NAMES is an untyped Array, so an element comes back as Variant and
-		# `:=` has nothing to infer from. Declared rather than inferred.
-		var letter: String = HullData.TIER_NAMES[clampi(cls, 0, 3)]
-		return load("res://art/sprites/hull_light_%s.png"
-			% letter.to_lower()) as Texture2D
-	if w == HullData.Weight.MEDIUM:
-		return load("res://art/sprites/hull_medium_cold.png") as Texture2D
-	return null
+	var stem := ""
+	match w:
+		HullData.Weight.LIGHT: stem = "light"
+		HullData.Weight.MEDIUM: stem = "medium"
+		HullData.Weight.HEAVY: stem = "heavy"
+		_: return null
+	# TIER_NAMES is an untyped Array, so an element comes back as Variant and
+	# `:=` has nothing to infer from. Declared rather than inferred.
+	var letter: String = HullData.TIER_NAMES[clampi(cls, 0, 3)]
+	return load("res://art/sprites/hull_%s_%s.png"
+		% [stem, letter.to_lower()]) as Texture2D
 
 ## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
 ## why it carries an offset. See HullData.exhaust.
 const EXHAUST_FRAMES := 9
+## One frame of that strip is 32px tall.
+const EXHAUST_H := 32
 ## The hull canvas is cropped tight around the ship so STRETCH_KEEP_CENTERED
 ## actually centres it. With 70px of dead space on the right the content sat
 ## left of centre, and at 2x the view clipped the flames off first.
+##
+## Kept as the fallback for a hull with no sprite to measure.
 const EXHAUST_AT := Vector2i(0, 27)
 
 func hull_exhaust(w: HullData.Weight) -> Texture2D:
 	if w != HullData.Weight.MEDIUM:
 		return null
 	return load("res://art/sprites/hull_medium_exhaust.png") as Texture2D
+
+## Where the plume attaches, DERIVED from the hull it attaches to.
+##
+## It used to be one constant, which was correct while there was one medium
+## sprite and silently wrong the moment there were four: each is cropped tight to
+## its own ship, so they are 54 to 81 pixels tall and a fixed offset would hang
+## the flame off the bottom of the shortest. Every medium is composed with 38px
+## of clearance to the left of its engines — the geometry the one hull already
+## had — so the plume centres on the hull's own canvas and nothing needs a table
+## that a new sprite could fall out of step with.
+func hull_exhaust_at(w: HullData.Weight, cls: int = 0) -> Vector2i:
+	var tex := hull_sprite(w, cls)
+	if tex == null:
+		return EXHAUST_AT
+	return Vector2i(0, tex.get_height() / 2 - EXHAUST_H / 2)
 
 ## What each manufacturer CALLS its three weight classes.
 ##
@@ -968,10 +985,14 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.dissipation += int(d.dissipation)
 	# AND THE ART. A class grants hardpoints and a reactor, and now it grants a
 	# different hull — which is the whole point of the letter and was invisible
-	# until there were four sprites to choose between. Weight classes with only
-	# one sprite return the same one at every class, so this is safe to call on
-	# any frame.
+	# until there were four sprites to choose between.
+	#
+	# The plume has to move with it. Each sprite is cropped tight to its own
+	# ship, so the four mediums are 54 to 81 pixels tall; swapping the texture
+	# and keeping the frame's offset would hang the flame off the bottom of the
+	# short ones.
 	h.sprite = hull_sprite(h.weight, t)
+	h.exhaust_offset = hull_exhaust_at(h.weight, t)
 	return h
 
 func _seed_perks() -> void:
