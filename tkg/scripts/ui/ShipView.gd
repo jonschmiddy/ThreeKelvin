@@ -415,7 +415,18 @@ func _paste(img: Image, dx: int, dy: int, blend: bool) -> void:
 		_img.blit_rect(img, src, at)
 
 func _blit_sprite() -> void:
-	var img := _hull().sprite.get_image()
+	# The hull at its CONDITION GRADE. HullWear draws the difference between a
+	# kept ship and a neglected one rather than shipping four sprites per hull —
+	# see its header for why that is code and not art.
+	#
+	# worn_cached, never worn: this function runs every time the idle bob changes
+	# offset, several times a second, and wear is a whole-image pass over sixteen
+	# thousand pixels. Grade 0 returns the sprite untouched, so a C-class frame
+	# costs exactly what it always did.
+	var h := _hull()
+	var img: Image = HullWear.worn_cached(h.sprite, h.tier, HullWear.seed_for(h))
+	if img == null:
+		img = h.sprite.get_image()
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img = img.duplicate() as Image
 		img.convert(Image.FORMAT_RGBA8)

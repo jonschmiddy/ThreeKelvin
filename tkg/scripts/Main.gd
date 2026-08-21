@@ -127,6 +127,16 @@ func _ready() -> void:
 	# ship draws — it is whether the ship that draws is the one described. It
 	# needs no renderer at all: the view composites into an Image, and the
 	# Image is the file. See ConvoyTest.
+	# Every condition grade of every hull with real art:
+	#   godot --headless --path . -- wear
+	# RUN THIS AFTER TOUCHING HullWear. It prints new-colour counts per grade,
+	# which is the claim the whole approach rests on: wear draws with the
+	# sprite's own palette and cannot introduce a colour. Anything but 0 is a bug.
+	if "wear" in OS.get_cmdline_user_args():
+		_wear_sheet = load("res://scripts/sim/WearSheet.gd").new()
+		_wear_sheet.run(get_tree())
+		return
+
 	if "shipsheet" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
@@ -271,6 +281,7 @@ var _co_fight: RefCounted = null
 ## The party's ninth seat. Held for the same reason the tests above are: it
 ## runs across frames, and a RefCounted only a local holds is freed on return.
 var _bot: RefCounted = null
+var _wear_sheet: RefCounted = null
 var _convoy_test: RefCounted = null
 
 ## Every checked option in the table, measured against three real ships.
