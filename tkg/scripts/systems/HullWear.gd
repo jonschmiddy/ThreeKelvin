@@ -42,6 +42,24 @@ extends RefCounted
 ## 4x4 ordered dither. Staining has to FADE, and a fade in pixel art is a
 ## pattern, not an alpha ramp — alpha would blend toward colours off the palette
 ## and undo the whole guarantee above.
+## Every distinct RGB in an image, as a set. Alpha-zero pixels do not count.
+##
+## This is the measurement behind the ruling that generated art may not drift the
+## palette: the wear operations are checked by counting the colours before and
+## after and requiring the difference to be zero. Three contact sheets — FitSheet,
+## BestiarySheet and WearSheet — each carried a byte-identical private copy, which
+## is a strange thing for the number that proves the invariant to be.
+static func palette(img: Image) -> Dictionary:
+	var d := {}
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.0:
+				d[(int(c.r * 255.0) << 16) | (int(c.g * 255.0) << 8) | int(c.b * 255.0)] = 1
+	return d
+
+
+
 const BAYER := [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
 ## Twelve kinds of damage, and how many of each a band earns.

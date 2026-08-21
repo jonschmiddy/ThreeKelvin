@@ -186,12 +186,8 @@ func _build() -> void:
 	stack.add_child(_view)
 	_view.fx.landed.connect(_on_shot_landed)
 
-	var pad := MarginContainer.new()
+	var pad := Widgets.pad(null, 8, 6)
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 8)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 6)
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(pad)
 
@@ -292,7 +288,6 @@ func _build_salvage_rail() -> PanelContainer:
 		func() -> void:
 			Run.cargo.clear()
 			Run.found_hull = null
-			Sig.ship_changed.emit()
 			_refresh())
 	dump.tooltip_text = Widgets.tip("Destroys everything in the hold. There is no reason to do this.")
 	_salvage_actions.add_child(dump)
@@ -655,8 +650,9 @@ func _bag_here() -> int:
 
 
 func _refresh_salvage() -> void:
-	for c in _salvage.get_children():
-		c.queue_free()
+	Widgets.clear(_salvage)
+	# One deck build for the whole list, handed to every row — see Widgets.module_row.
+	var deck := DeckBuilder.build().size()
 
 	var n: MapGen.MapNode = Run.node_at()
 	var loose := Run.bag_left(n)
@@ -694,16 +690,16 @@ func _refresh_salvage() -> void:
 			var who := Net.taker_name(n.index, MapGen.OPTION_BAG + i)
 			_salvage.add_child(Widgets.module_row(n.bag[i],
 				Widgets.ModuleContext.BAG, 0, _on_salvage,
-				"%s TOOK THIS" % who.to_upper() if who != "" else "TAKEN"))
+				"%s TOOK THIS" % who.to_upper() if who != "" else "TAKEN", deck))
 			continue
 		# No price on a bag. You already paid for it by being in the fight.
 		_salvage.add_child(Widgets.module_row(n.bag[i],
-			Widgets.ModuleContext.BAG, 0, _on_bag))
+			Widgets.ModuleContext.BAG, 0, _on_bag, "", deck))
 
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
 	for m in Run.cargo:
-		_salvage.add_child(Widgets.module_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage))
+		_salvage.add_child(Widgets.module_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage, "", deck))
 
 
 func _refresh_player() -> void:
@@ -712,8 +708,7 @@ func _refresh_player() -> void:
 	_energy.setup(BoxGauge.Mode.ENERGY, Run.reactor(), combat.energy)
 	_energy_text.text = "%d/%d" % [combat.energy, Run.reactor()]
 
-	for c in _player_chips.get_children():
-		c.queue_free()
+	Widgets.clear(_player_chips)
 	if combat.armor > 0:
 		_player_chips.add_child(Widgets.chip("armor %d" % combat.armor, Color("#3a5a6e")))
 	if combat.block > 0:
@@ -762,8 +757,7 @@ func _refresh_enemy() -> void:
 		var row := _view.chips_for(i)
 		if row == null:
 			continue
-		for c in row.get_children():
-			c.queue_free()
+		Widgets.clear(row)
 		var e = combat.enemies[i]
 		if e.hp > 0 and e.block > 0:
 			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
@@ -843,7 +837,6 @@ func _on_salvage(action: String, thing: Variant) -> void:
 		"take_hull": Run.transfer_to_hull(thing as HullData)
 		"leave_hull":
 			Run.found_hull = null
-			Sig.ship_changed.emit()
 	_refresh()
 
 ## Played by dropping on your own hull: defence, venting, drawing — anything

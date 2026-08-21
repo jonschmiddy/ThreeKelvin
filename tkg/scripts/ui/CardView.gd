@@ -107,9 +107,7 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	size = custom_minimum_size
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	for ch in get_children():
-		remove_child(ch)
-		ch.queue_free()
+	Widgets.clear(self)
 
 	# Name is on the card at BOTH scales. Effect text is not: it is unreadable
 	# at 96px and pretending otherwise costs the room the art needs. Cards have

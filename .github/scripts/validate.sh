@@ -194,6 +194,39 @@ if run_godot archivetest 120 --headless --path "$PROJECT" -- archivetest; then
 	fi
 fi
 
+step "Seeded RNG replays, and four machines agree"
+# Neither of these was in the gate, and both guard a rule the codebase leans on
+# hard. `-- rngtest` is what enforces the named-stream rule: draw from the
+# global generator for anything that decides something and a run stops replaying
+# from its seed, which in co-op means four machines quietly disagreeing about
+# the galaxy. `-- nettest` stands four — now eight — peers up in one process.
+#
+# The cost of their absence was not hypothetical. MAX_PLAYERS went from four to
+# eight and NetTest went on asserting four in nine places; it had been failing
+# ever since and nothing said so, because nothing ran it. That is the whole
+# argument for these two steps being here.
+if run_godot rngtest 120 --headless --path "$PROJECT" -- rngtest; then
+	if grep -qE '^rngtest: PASS' "$LOG_DIR/rngtest.log"; then
+		ok "rng replays from its seed"
+	else
+		bad "seeded RNG test failed"
+		grep -E '^  FAIL|^rngtest' "$LOG_DIR/rngtest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+# Same exit-time teardown reports as stowtest, and scoped the same way: eight
+# peers in one process end holding the theme's font.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot nettest 180 --headless --path "$PROJECT" -- nettest; then
+	if grep -qE '^nettest: PASS' "$LOG_DIR/nettest.log"; then
+		ok "the party agrees"
+	else
+		bad "netcode test failed"
+		grep -E '^  FAIL|^nettest' "$LOG_DIR/nettest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
 step "Simulator plays $SIM_RUNS complete runs"
 # The repo's actual regression test. It has already caught an infinite draw
 # loop and a structural map flaw; a balance change that crashes a run shows up

@@ -58,7 +58,7 @@ func _part(rarity: int, man: StringName, contraband: bool) -> ModuleData:
 	var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
 	m.manufacturer = man
 	m.rarity = rarity as ModuleData.Rarity
-	m.scrap_value = [8, 16, 30, 55, 95, 120, 160][rarity]
+	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
 	var af: Array[AffixData] = []
 	if contraband:
 		for a in DB.affixes:
