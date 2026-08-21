@@ -424,16 +424,41 @@ static func band_for(damage: float) -> int:
 	return 3
 
 
-## A wear seed for a hull, from its NAME alone — deliberately not from the band,
-## and deliberately not from anything that changes mid-run. Every Ironside
-## Cutter in every run therefore takes the same scars in the same order as it is
-## beaten down, and a worse band adds to them rather than replacing them.
+## A wear seed: THE SHIP, THE PILOT, AND THE RUN.
 ##
-## The cost of that is real and accepted: two players' Ironsides at half hull
-## look identical. Mixing the run seed in would fix it and is a one-line change,
-## but a peer's ship is drawn from THEIR HullData on YOUR machine, so any seed
-## source has to be something both machines already agree on.
-static func seed_for(h: HullData) -> int:
+## Deliberately not the band — a worse band must draw further along the same
+## sequence, not a different one, or damage reshuffles instead of accumulating.
+## Everything else varies, and each part earns its place:
+##
+##   the HULL, so a Bastion does not wear a Cutter's scars.
+##   the PILOT, so two Ironsides in one party are two ships and not one drawn
+##     twice. `ShipBuild.pilot` is already on the wire for the convoy strip.
+##   the RUN, so the same chassis flown again is scarred differently. This is
+##     what makes damage feel like something that happened rather than something
+##     the hull was shipped with.
+##
+## PASSED IN RATHER THAN READ. `Rng.master` is the obvious source for the run
+## and this could reach for it directly, but then a headless sheet would render
+## a different ship on every invocation and there would be no way to ask for a
+## specific one. The caller knows which run it means.
+##
+## Co-op holds because every part is agreed: a peer's ship is drawn from THEIR
+## HullData and THEIR pilot name on YOUR machine, and the master seed is shared
+## — that is what puts four players in one galaxy. Both machines compute the
+## same scars for the same ship.
+static func seed_for(h: HullData, pilot: String = "", run_seed: int = 0) -> int:
 	if h == null:
 		return 0
-	return absi(hash(h.name)) % 100003
+	var v := absi(hash(h.name))
+	v = _mix(v, absi(hash(pilot)))
+	v = _mix(v, absi(run_seed))
+	return v % 100003
+
+
+## Avalanche two integers together. Same shape as Rng._mix and for the same
+## reason: three seed sources added rather than mixed would collide constantly,
+## because hull names and pilot names are short and their hashes are not spread.
+static func _mix(a: int, b: int) -> int:
+	var v := (a ^ (b + 0x9E3779B9 + (a << 6) + (a >> 2))) & 0x7FFFFFFF
+	v = (v ^ (v >> 15)) * 0x2545F491
+	return absi(v) & 0x7FFFFFFF

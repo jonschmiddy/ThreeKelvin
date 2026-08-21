@@ -432,7 +432,11 @@ func _blit_sprite() -> void:
 	var h := _hull()
 	var b := _b()
 	var band := HullWear.band_for(b.damage() if b != null else 0.0)
-	var img: Image = HullWear.worn_cached(h.sprite, band, HullWear.seed_for(h))
+	# Scarred by ship, pilot and run. A peer's hull is drawn from their build on
+	# this machine, and every one of those three is agreed between us, so their
+	# ship wears the same damage on both screens.
+	var wseed := HullWear.seed_for(h, b.pilot if b != null else "", Rng.master)
+	var img: Image = HullWear.worn_cached(h.sprite, band, wseed)
 	if img == null:
 		img = h.sprite.get_image()
 	if img.get_format() != Image.FORMAT_RGBA8:

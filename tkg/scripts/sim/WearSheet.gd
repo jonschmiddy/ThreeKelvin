@@ -15,8 +15,19 @@ const OUT := "user://wear"
 ## owns the real thresholds; these are the middle of each range.
 const AT := [0.0, 0.35, 0.60, 0.90]
 
+## Which run to render. `-- wear seed=N` renders that run's scars; without it,
+## run 1, so the sheet is reproducible and two invocations can be compared.
+var _run: int = 1
+var _pilot: String = ""
+
 func run(tree: SceneTree) -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("seed="):
+			_run = int(a.substr(5))
+		elif a.begins_with("pilot="):
+			_pilot = a.substr(6)
 	DirAccess.make_dir_recursive_absolute(OUT)
+	print("run seed %d, pilot %s" % [_run, "\"%s\"" % _pilot if _pilot else "(none)"])
 	var made := 0
 	for h in DB.hull_frames:
 		if h.sprite == null:
@@ -35,7 +46,7 @@ func _sheet(h: HullData) -> int:
 		% ["band", "opaque", "new colours", "hull lost", "livery", "build"])
 	for t in HullWear.GRADES.size():
 		var t0 := Time.get_ticks_usec()
-		var img := HullWear.worn(src, t, HullWear.seed_for(h))
+		var img := HullWear.worn(src, t, HullWear.seed_for(h, _pilot, _run))
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
 		var pal := _palette(img)
 		var opaque := 0
