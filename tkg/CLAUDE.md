@@ -529,7 +529,32 @@ frame strips — in pure stdlib, because there is no Pillow here and Windows'
 **Non-negotiable:** every generation passes `art/sprites/hull_medium_cold.png` as the
 style/concept reference. Never generate a sprite from a bare text prompt — the result will
 look fine alone and wrong beside everything else. There is exactly one canonical style
-reference at a time; a newly approved hull replaces that file.
+reference at a time.
+
+**It is replaced when a new hull goes OUTSIDE it, not merely when one is approved.**
+AMENDED — the old rule said an approved hull replaces the file, and following it now
+would make the art worse. Twelve hulls have since been approved and measured against it:
+
+| | colours | outside the reference |
+|---|---|---|
+| `hull_medium_cold` | **39** | — |
+| the four mediums | 33-35 | 1 each |
+| the four heavies | 29-36 | 0-1 each |
+| the four lights | 23-29 | 0-1 each |
+
+The reference is the richest palette in the repo and a near-superset of everything
+shipped: the four mediums use 36 colours between them, 35 of which it already holds,
+while it holds 4 that none of them use. Promoting any single hull would NARROW the seed
+by three to six colours — and since `color_image_url` is how the palette is forced, a
+narrower seed is a worse one. That the new hulls sit inside it is not luck; they were
+generated from it, which is the rule working rather than the rule needing a change.
+
+The one colour outside it, in seven of the twelve, is **pure `#000000`** where
+`ART_CONTRACT.md` specifies a `#0b0f16` outline. Worth knowing before it spreads: the
+reference itself carries only 18px of `#0b0f16` and no black at all, `hull_light_c` and
+`hull_light_b` have neither, and `hull_heavy_b` has 1,605px of black against 1,219px of
+the contract colour. Outline discipline is inconsistent across all thirteen files and
+snapping the black would make the reference a strict superset.
 
 Hard rules, in short (full detail and the palette hexes are in `docs/art/ART_CONTRACT.md`):
 

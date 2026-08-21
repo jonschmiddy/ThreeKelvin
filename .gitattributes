@@ -1,0 +1,38 @@
+# Line endings, so Godot's own files stop showing as modified on Windows.
+#
+# Godot writes .import, .tres, .tscn and project.godot with LF. A Windows
+# checkout without this rewrites them to CRLF the first time the editor touches
+# them, and fifty audio .import files sit in `git status` forever with ZERO
+# content changes — measured: `git diff --numstat` reports no changed lines on
+# any of them. That noise is not harmless. It buries the files somebody
+# actually edited, which is exactly how a real change gets committed by
+# accident or missed entirely.
+#
+# eol=lf rather than text=auto: half these files are written by the engine and
+# half by hand, and `auto` decides per file from its current contents, which is
+# how a repository ends up with both conventions and no way to tell which was
+# intended.
+*.import    text eol=lf
+*.gd        text eol=lf
+*.gdshader  text eol=lf
+*.tres      text eol=lf
+*.tscn      text eol=lf
+*.cfg       text eol=lf
+*.godot     text eol=lf
+*.uid       text eol=lf
+
+*.md        text eol=lf
+*.py        text eol=lf
+*.sh        text eol=lf
+*.json      text eol=lf
+*.yml       text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+
+# Marked so a checkout never tries to translate them. A single byte changed in
+# a PNG is a corrupt sprite, not a whitespace nit.
+*.png       binary
+*.ogg       binary
+*.wav       binary
+*.ttf       binary
+*.otf       binary
