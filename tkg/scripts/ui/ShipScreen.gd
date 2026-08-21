@@ -23,6 +23,10 @@ extends Control
 ## from and where it landed; nothing else in here touches `installed` or
 ## `cargo`, so there is one place to read when a swap does the wrong thing.
 
+## SUPERSEDED by HoldGrid, which takes its shape from HullData.hold_grid. Kept
+## as the record of why four: the measurement below is what set it and it is
+## still what the hold is drawn at.
+##
 ## Four across, so the hold reads as rows of four whatever hull you are flying.
 ##
 ## Capacities are 8 / 12 / 16, so four columns is exactly 2, 3 and 4 full rows —
@@ -38,8 +42,9 @@ extends Control
 const STORAGE_COLS := 4
 
 var _hardpoints: VBoxContainer
-var _storage: GridContainer
+var _storage: HoldGrid
 var _attrs: AttrBlock
+var _mounts: VBoxContainer
 var _banner: ChassisSelect.Banner
 var _name: Label
 var _maker: Label
@@ -117,6 +122,16 @@ func _build() -> void:
 	_attrs = AttrBlock.new()
 	left.add_child(_attrs)
 
+	# The same block the chassis select shows, on the screen where it is
+	# ACTIONABLE. There it answers "what would flying this cost me" before you
+	# commit; here it answers "what have I got left", which is the question you
+	# are asking on every drop — and it was the one screen in the game where
+	# slot pressure was invisible while you were spending it.
+	left.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
+	_mounts = VBoxContainer.new()
+	_mounts.add_theme_constant_override("separation", 2)
+	left.add_child(_mounts)
+
 	_hand = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	left.add_child(_hand)
 
@@ -166,10 +181,8 @@ func _build() -> void:
 	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	right.add_child(_hold)
 
-	_storage = GridContainer.new()
-	_storage.columns = STORAGE_COLS
-	_storage.add_theme_constant_override("h_separation", 3)
-	_storage.add_theme_constant_override("v_separation", 3)
+	_storage = HoldGrid.new()
+	_storage.dropped.connect(_on_hold_drop)
 	right.add_child(_storage)
 
 	var rgap := Control.new()
@@ -201,6 +214,7 @@ func _refresh() -> void:
 	_class.text = "%s CHASSIS · %s TIER" % [
 		HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()]
 	_attrs.setup(Run.attributes(), accent)
+	_refresh_mounts()
 	_hand.text = "%d cards a turn · %d in the deck" % [Run.hand_size(), Run.deck_size()]
 
 	# Rebuilt every refresh, because the unlock state is the point: fitting a
@@ -223,28 +237,32 @@ func _refresh() -> void:
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		_hardpoints.add_child(_slot_row(s))
 
-	Widgets.clear(_storage)
-	for m in Run.cargo:
-		var cell := ModuleCell.new()
-		cell.setup(ModuleCell.Kind.STORAGE, m.slot, m)
-		cell.dropped.connect(_on_dropped)
-		_storage.add_child(cell)
-	# Padded out to a full grid. The hold has no cap in the rules, so this is
-	# not capacity — it is somewhere to aim. A ragged row of two squares gives
-	# you nothing to drop onto and reads as a list that happens to be short;
-	# rows of empties read as an inventory with room in it, which is the true
-	# thing and the more useful one.
-	# Padded to the hold's real capacity, so the empty squares are not decoration
-	# — they are how many more parts this hull will take. A heavy shows twelve
-	# and a skiff four, which is the compensation the heavy is owed for being
-	# unable to dodge or turn.
-	var pad := maxi(Run.cargo_slots() - Run.cargo.size(), 0)
-	for i in pad:
-		var spare := ModuleCell.new()
-		spare.setup(ModuleCell.Kind.STORAGE, ModuleData.Slot.WEAPON, null)
-		spare.dropped.connect(_on_dropped)
-		_storage.add_child(spare)
-	_hold.text = "STORAGE — %d of %d" % [Run.cargo.size(), Run.cargo_slots()]
+	_storage.refresh()
+	# Cells, not parts. "6 of 12" counted parts against a capacity in parts, and
+	# neither half of that survives a grid: the hold holds as many things as
+	# their shapes allow, so the honest number is how much ROOM is gone.
+	_hold.text = "STORAGE — %d of %d cells" % [Run.cargo_used(), Run.cargo_slots()]
+
+## The hardpoint tally, mirroring the chassis select's.
+##
+## Pads reserve to the same ceiling that screen uses, so the two read as one
+## block seen twice rather than as two designs — and the figures line up in a
+## column instead of tracking the pad count.
+func _refresh_mounts() -> void:
+	Widgets.clear(_mounts)
+	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var label := UITheme.body(ModuleData.slot_name(s).to_upper(),
+			UITheme.COLD, UITheme.FS_SMALL)
+		label.custom_minimum_size = Vector2(46, 0)
+		row.add_child(label)
+		var pads := ChassisSelect.SlotPads.new()
+		pads.setup(Run.slots_used(s), Run.slots_for(s), ChassisSelect._mount_ceiling())
+		row.add_child(pads)
+		row.add_child(UITheme.body("%d/%d" % [Run.slots_used(s), Run.slots_for(s)],
+			UITheme.CHILL, UITheme.FS_SMALL))
+		_mounts.add_child(row)
 
 func _slot_row(slot: ModuleData.Slot) -> Control:
 	var row := HBoxContainer.new()
@@ -277,6 +295,34 @@ func _slot_row(slot: ModuleData.Slot) -> Control:
 ## Asked by placing them for real and rolling back, because "do N parts fit"
 ## is not a sum: two 1x3 guns need two separate runs of three, and free-cell
 ## arithmetic says yes to a hold that cannot hold either of them.
+## A part dropped onto a CELL of the hold.
+##
+## Separate from _on_dropped because the two answer different questions. A
+## hardpoint asks "does this slot type match"; the hold asks "does this shape
+## fit here", and the cell it fits at is information the hardpoint path has no
+## field for.
+func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
+	var m: ModuleData = payload.get("module")
+	if m == null:
+		return
+	var was_at := m.hold_at
+	var from_ship := Run.installed.has(m)
+	if Run.cargo.has(m):
+		Run.take_from_hold(m)
+	if not Run.place_in_hold(m, at):
+		# Put it back exactly where it was. A refused move must cost nothing —
+		# the alternative is a part that vanishes because the arithmetic said no
+		# after it had already been lifted.
+		if not from_ship and was_at.x >= 0:
+			Run.place_in_hold(m, was_at)
+		return
+	if from_ship:
+		Run.installed.erase(m)
+		m.mount = -1
+		Run.log_line("Stowed %s." % m.name, &"sys")
+	Sig.ship_changed.emit()
+	_refresh()
+
 func _hold_would_take(parts: Array[ModuleData]) -> bool:
 	var placed: Array[ModuleData] = []
 	var ok := true

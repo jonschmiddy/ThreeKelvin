@@ -959,7 +959,7 @@ func apply_hull_lines(h: HullData) -> void:
 ##
 ## GENERATED. Re-run the tool after replacing a hull sprite; a line measured
 ## against art that has since changed puts mounts in mid-air, and nothing about
-## that fails loudly.
+## that fails loudly. `-- mounts` is what makes it fail loudly.
 ##
 ## Lines rather than points, because a hull carries one to five mounts of a kind
 ## depending on weight, class and maker — a fixed list of five used two at a time
@@ -974,9 +974,9 @@ const HULL_LINES := {
 		flank = [Vector2(15, 56), Vector2(38, 56), Vector2(61, 56), Vector2(84, 56), Vector2(108, 56), Vector2(131, 56), Vector2(154, 56), Vector2(177, 56), Vector2(200, 55)],
 	},
 	"hull_heavy_b": {
-		dorsal = [Vector2(6, 52), Vector2(31, 31), Vector2(56, 31), Vector2(82, 31), Vector2(107, 31), Vector2(132, 31), Vector2(158, 31), Vector2(183, 31), Vector2(208, 39)],
-		ventral = [Vector2(6, 98), Vector2(31, 93), Vector2(56, 97), Vector2(82, 98), Vector2(107, 98), Vector2(132, 98), Vector2(158, 98), Vector2(183, 96), Vector2(208, 82)],
-		flank = [Vector2(6, 75), Vector2(31, 62), Vector2(56, 64), Vector2(82, 64), Vector2(107, 64), Vector2(132, 64), Vector2(158, 64), Vector2(183, 63), Vector2(208, 60)],
+		dorsal = [Vector2(14, 33), Vector2(36, 25), Vector2(58, 25), Vector2(81, 25), Vector2(103, 25), Vector2(125, 25), Vector2(148, 26), Vector2(170, 28), Vector2(192, 34)],
+		ventral = [Vector2(14, 79), Vector2(36, 88), Vector2(58, 88), Vector2(81, 88), Vector2(103, 88), Vector2(125, 88), Vector2(148, 87), Vector2(170, 85), Vector2(192, 79)],
+		flank = [Vector2(14, 56), Vector2(36, 56), Vector2(58, 56), Vector2(81, 56), Vector2(103, 56), Vector2(125, 56), Vector2(148, 56), Vector2(170, 56), Vector2(192, 56)],
 	},
 	"hull_heavy_c": {
 		dorsal = [Vector2(16, 46), Vector2(36, 42), Vector2(57, 42), Vector2(78, 42), Vector2(98, 42), Vector2(118, 42), Vector2(139, 42), Vector2(160, 42), Vector2(180, 46)],

@@ -62,8 +62,14 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	picked_up.emit(self)
 	return {module = module, origin = origin}
 
+## Drawn to the control's OWN size, not to SIZE.
+##
+## A 1x1 fitting and a 1x3 gun are the same icon at different footprints once
+## the hold is a grid, so the plate, the house stripe and the rarity border all
+## measure themselves off `size`. Every existing use is a 44x44 cell and is
+## unchanged by this; the glyph was already centre-relative.
 func _draw() -> void:
-	var r := Rect2(Vector2.ZERO, Vector2(SIZE, SIZE))
+	var r := Rect2(Vector2.ZERO, size)
 	if module == null:
 		return
 	var maker: ManufacturerData = DB.manufacturers.get(module.manufacturer)
@@ -75,15 +81,15 @@ func _draw() -> void:
 	# banner on. At this size an emblem would be four unreadable pixels; a bar
 	# of the right colour in the right place says the same thing.
 	if maker != null:
-		draw_rect(Rect2(0, 0, 3, SIZE), mark, true)
+		draw_rect(Rect2(0, 0, 3, size.y), mark, true)
 
 	_glyph(mark)
 
 	# Rarity on the border, because the border is the part that survives being
 	# packed shoulder to shoulder in a grid.
 	var edge := ModuleData.rarity_colour(module.rarity)
-	for side in [Rect2(0, 0, SIZE, 1), Rect2(0, SIZE - 1, SIZE, 1),
-			Rect2(0, 0, 1, SIZE), Rect2(SIZE - 1, 0, 1, SIZE)]:
+	for side in [Rect2(0, 0, size.x, 1), Rect2(0, size.y - 1, size.x, 1),
+			Rect2(0, 0, 1, size.y), Rect2(size.x - 1, 0, 1, size.y)]:
 		draw_rect(side, edge, true)
 
 ## What the part does, in rectangles.
@@ -95,7 +101,7 @@ func _glyph(mark: Color) -> void:
 	var kind := &"utility"
 	if not module.cards.is_empty():
 		kind = (module.cards[0] as CardData).glyph_kind()
-	var c := Vector2(SIZE * 0.5 + 1.0, SIZE * 0.5)
+	var c := Vector2(size.x * 0.5 + 1.0, size.y * 0.5)
 	var ink := mark.lightened(0.25)
 	var dim := mark.darkened(0.35)
 	match kind:

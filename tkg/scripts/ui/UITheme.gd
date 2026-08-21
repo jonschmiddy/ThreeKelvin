@@ -19,6 +19,18 @@ const HULL_GREEN := Color("#4d7a63")
 const THEM := Color("#c98d7a")
 const GOOD := Color("#7fb89a")
 
+## A mount reaching for the thing you are holding. See ModuleCell.Tractor.
+##
+## The one colour in the game that is neither the cold of the void nor the warm
+## of something burning, which is exactly what makes it read as MACHINERY doing
+## something rather than as heat or as chrome. The art direction's warm/cold
+## rule governs objects and lighting; this is neither, it is a field.
+##
+## Deliberately off Cygnet's #58c8d8. Manufacturer accents sit on module plates,
+## and a drop target that borrowed one would say "Cygnet" on every hardpoint of
+## every ship in the game.
+const TRACTOR := Color("#4fe0cc")
+
 ## The way OUT. Quit, flee, break contact, not yet — every control whose job is
 ## to leave the thing you are looking at.
 ##
