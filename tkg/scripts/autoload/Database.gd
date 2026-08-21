@@ -303,6 +303,83 @@ func _seed_modules() -> void:
 		"Armor that answers back.",
 		[{name = "Bulwark", energy = 2, heat = 1, armor = 8, riposte = 4, copies = 1}])
 
+	## The nine rungs Korvan was missing, and the shape they were authored to.
+	##
+	## RARITY BUYS A VERB, NOT A NUMBER. A Legendary is not a bigger lump of a
+	## Common, it is a cleverer one. Where a rung below already says the thing, the
+	## rung above says a different thing rather than the same thing louder.
+	##
+	## The spine of the weapon line is SALVO, and that is not a preference. Korvan's
+	## five-piece set makes salvo fire on the FIRST attack of the turn
+	## (CardResolver, `has_set(&"korvan", 5)`), so every point of it is worth double
+	## to a committed Korvan build and nothing at all to a tourist. It is the one
+	## number in this catalog that measures how far in you are.
+	##
+	## Utility is built on LOCK-ON for the mirror reason: lock-on adds per HIT, so
+	## it multiplies by the thing Korvan's guns already do. Servo into Jackhammer
+	## was the house's best combo and its only one; there are now four rungs of it.
+	##
+	## What Korvan does NOT get, however well it would fit: heat_scale and
+	## damage_equals_heat (Solari IS weaponised heat), credit_gain (Dredge),
+	## drones and evoke (Cygnet), negate_next (Redline), adapt and heal (Calyx).
+	## A house that borrows another's verb at a higher rarity does not read as
+	## stronger, it reads as the other house.
+
+	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
+	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
+	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
+		"Three barrels, one trigger, no subtlety.",
+		[{name = "Ripple Fire", energy = 1, heat = 1, damage = 2, hits = 3, salvo = 2, copies = 2}])
+	# The top of the KH line, and the payoff for the whole salvo spine: 20 cold,
+	# 40 once anything has already fired. Three energy and one copy, so it is a
+	# HEAVY's card by construction — a reactor of four plays a Ripsaw into this and
+	# a reactor of three does not. That is the Korvan hull signature (slow, tough,
+	# patient) written as a weapon, and at five set pieces the enabler is free.
+	_module(&"kh500", "KH-500 Drumfire", &"korvan", W, C4,
+		"The last argument of a slow ship.",
+		[{name = "Drumfire", energy = 3, heat = 5, damage = 4, hits = 5, salvo = 4, copies = 1}])
+
+	# Systems climb ARMOUR, and the verb arrives at the top rather than along the
+	# way: C1 marries the two Commons, C2 buys a different defence entirely, C3
+	# buys scale, and the Legendary above is where armour starts hitting back.
+	_module(&"sinkplate", "Heat Sink Plating", &"korvan", S, C1,
+		"Plate that drinks the heat it stops.",
+		[{name = "Sink Plate", energy = 1, armor = 4, vent = 2, copies = 2}])
+	# BLOCK, which Korvan has never had. Armour persists and costs heat to hold;
+	# block decays and costs nothing. So this is the card for the turn a Mass
+	# Driver is charging and there is nothing to do but be hit — the one turn in
+	# the house's whole design where a decaying shield is exactly right.
+	_module(&"braceframe", "Brace Frame", &"korvan", S, C2,
+		"For the turn you have nothing to shoot with.",
+		[{name = "Dig In", energy = 1, block = 8, armor = 2, copies = 2}])
+	_module(&"bulkhead", "Bulkhead Array", &"korvan", S, C3,
+		"Korvan's answer to most questions.",
+		[{name = "Bulkhead", energy = 1, heat = 1, armor = 7, copies = 2}])
+
+	# Four rungs of lock-on, which is the column Korvan had one card in.
+	# Deliberately CHEAP rather than large: Solari's Flare Rack is lock-on 6 for a
+	# Common-adjacent price and pays 2 heat for it, and Korvan undercutting that on
+	# heat instead of beating it on size is the difference between the two houses.
+	_module(&"optics", "Ranging Optics", &"korvan", U, C1,
+		"Cheap glass. Correct answers.",
+		[{name = "Range Finding", energy = 0, lock_on = 3, copies = 2}])
+	_module(&"coldsights", "Cold Sights", &"korvan", U, C2,
+		"Cools the barrel and the arithmetic.",
+		[{name = "Cold Sights", energy = 1, vent = 3, lock_on = 4, copies = 2}])
+	# The other half of the charged-weapon problem: a free card for the turn you
+	# cannot attack, which vents the ordnance heat you are still carrying from the
+	# last one. Pairs with Brace Frame by design — one blocks, one cools.
+	_module(&"standfast", "Standfast Rig", &"korvan", U, C3,
+		"Sit still. Take it. Wait for the tone.",
+		[{name = "Hold Fast", energy = 0, armor = 6, vent = 4, copies = 2}])
+	# The capstone, and it is an ENGINE rather than a hammer — the hammer is the
+	# Drumfire. Free to play, returns the energy, marks the target: the card that
+	# turns a hand of Korvan guns into one enormous turn. Three heat a play is the
+	# brake, and the only reason it is not degenerate.
+	_module(&"director", "KX-9 Fire Director", &"korvan", U, C4,
+		"It decides. You pull.",
+		[{name = "Fire Director", energy = 0, heat = 3, lock_on = 5, energy_gain = 1, copies = 2}])
+
 	# --- Solari: heat as ammunition
 	_module(&"plasma", "Solari Plasma Lance", &"solari", W, C1,
 		"Hotter you run, harder it bites.",
@@ -488,7 +565,15 @@ func _seed_module_attributes() -> void:
 	# flavour: a Signal Board that reads no signals and a Ranging Scope that
 	# ranges nothing. They are the floor of the sensor axis now, which is also
 	# what makes an Auspex Array at 2 legible as an upgrade from something.
-	var sensors := {&"auspex": 2, &"servo": 1, &"evoke": 1, &"board": 1, &"scope": 1}
+	#
+	# Korvan's four new utility rungs carry the sensor axis up with them, which is
+	# the same "latent in the name" test: optics range, sights see, a fire director
+	# is the thing that decides. It also matters more than it looks while
+	# ACTIVE_MAKERS is narrowed — with only Korvan dropping, these are the ONLY
+	# modules a run can find that raise Sensors at all, and Sensors is what the
+	# skill checks read.
+	var sensors := {&"auspex": 2, &"servo": 1, &"evoke": 1, &"board": 1, &"scope": 1,
+		&"optics": 1, &"coldsights": 2, &"director": 3}
 	var stealth := {&"ghost": 2, &"chaff": 1, &"sporevent": 1, &"flare": -1}
 	for id in sensors:
 		(modules[id] as ModuleData).sensors = sensors[id]
@@ -520,6 +605,7 @@ func _seed_module_passives() -> void:
 	var hull_plus := {
 		&"plating": 3, &"bracing": 2,          # generic yard stock
 		&"plate": 2, &"reactive": 6,           # korvan
+		&"sinkplate": 3, &"braceframe": 2, &"bulkhead": 5,
 		&"slag": 4,                            # dredge
 		&"weave": 3,                           # calyx
 		&"lattice": 8,                         # precursor artifact
@@ -527,14 +613,20 @@ func _seed_module_passives() -> void:
 	# Capacity: how much heat you can hold. Solari's whole axis.
 	var heat_plus := {&"shroud": 5, &"overdrive": 3, &"ventcan": 2}
 	# Shedding: how fast you get rid of it. Deliberately scarcer than capacity —
-	# three bearers at +1 — because dissipation compounds every single turn and a
+	# FOUR bearers at +1 — because dissipation compounds every single turn and a
 	# medium frame only starts with 3.
-	var vent_plus := {&"coolant": 1, &"coolline": 1, &"sporevent": 1}
+	#
+	# Cold Sights is the fourth and it went in with its eyes open. Of the other
+	# three, one is generic yard stock that never drops and one is Calyx, so a
+	# Korvan-only loot pool could previously find exactly ONE module in the game
+	# that sheds heat faster. A house whose entire identity is running cold could
+	# not buy the stat. Reopen ACTIVE_MAKERS and this is the rung to re-measure.
+	var vent_plus := {&"coolant": 1, &"coolline": 1, &"sporevent": 1, &"coldsights": 1}
 	# Evasion, and only from Redline, whose set is named for it.
 	var dodge_plus := {&"ghost": 0.04, &"chaff": 0.02}
 	# Acting sooner. The same three modules that already grant Sensors, because
 	# seeing first and moving first are the same sentence.
-	var init_plus := {&"servo": 1, &"evoke": 1, &"singing": 1}
+	var init_plus := {&"servo": 1, &"evoke": 1, &"singing": 1, &"director": 1}
 
 	for id in hull_plus:
 		(modules[id] as ModuleData).max_hull = hull_plus[id]
