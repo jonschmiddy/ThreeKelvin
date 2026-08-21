@@ -86,6 +86,27 @@ var death_reason: String = ""
 ## run showing its hold once is the behaviour it already had.
 var hauls: int = 0
 
+## Work you have taken, in the order you took it. See ContractData.
+##
+## Nothing in here expires and nothing in here is contested — two ships can hold
+## the same job and both be paid for flying it. See Contracts.
+var contracts: Array = []
+## Handed out on acceptance so a contract can be referred to after it is closed.
+var next_contract_id: int = 1
+
+## What each house thinks of you, by id. Higher is better and it only goes up.
+##
+## GOODS, NEVER SECRETS. `docs/lore.md` §2 rules that there is no promotion — no
+## rank, no inner circle, no point at which a house starts telling you things —
+## and that ruling stands unchanged. This is not a relationship, it is an
+## account: deliver their work and their berths pay you better for your parts and
+## carry more of their stock. They still never explain anything.
+##
+## Deliberately not a reputation you can lose. A house that can be offended is a
+## house you can lock yourself out of by playing badly, which is a punishment for
+## the player who most needs the money.
+var standing: Dictionary = {}
+
 var found_hull: HullData = null      ## offered for transfer
 var whale_boon: bool = false
 
@@ -155,6 +176,13 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	jumps = 0
 	kills = 0
 	hauls = 0
+	contracts.clear()
+	next_contract_id = 1
+	# Standing is a RUN thing, not a career. It buys prices and stock inside one
+	# dive, and starting a fresh dive means walking into the same berths as a
+	# stranger again — which is the only shape that does not turn into the
+	# meta-progression `Unlocks` was careful to keep power out of.
+	standing.clear()
 	started_at = Time.get_unix_time_from_system()
 	won = false
 	dead = false
@@ -1172,3 +1200,151 @@ func jump_to(index: int) -> void:
 	cool_in_transit()
 	Sig.resources_changed.emit()
 	Sig.jumped.emit(index)
+
+
+# ------------------------------------------------------------------ contracts
+
+## Take a job. Returns the accepted copy, which is the one that goes in the
+## ledger — the board's object stays on the board, so a co-op partner docking a
+## moment later is offered the same work rather than an empty page.
+func take_contract(c: ContractData) -> ContractData:
+	var mine := ContractData.from_wire(c.to_wire())
+	mine.id = next_contract_id
+	next_contract_id += 1
+	mine.state = ContractData.State.TAKEN
+	contracts.append(mine)
+	log_line("Signed: %s. %d credits on delivery." % [
+		_contract_short(mine), mine.pay], &"sys")
+	Sig.contracts_changed.emit()
+	return mine
+
+## Whether this exact piece of work is already in your ledger.
+##
+## Compared on WHAT IT IS rather than on an id, because the board regenerates its
+## objects every time it is drawn — `Contracts.board()` is derived, not stored —
+## so the offer you are looking at is never the same object you accepted.
+func holds_contract(c: ContractData) -> bool:
+	for other in contracts:
+		var o: ContractData = other
+		if o.state == ContractData.State.CLOSED:
+			continue
+		if o.house == c.house and o.kind == c.kind and o.at == c.at \
+				and o.amount == c.amount and o.posted_at == c.posted_at:
+			return true
+	return false
+
+## Work that is done and waiting to be paid at one of this station's berths.
+func deliverable_at(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.READY:
+			continue
+		if ContractData.berth_of(n, job.house):
+			out.append(job)
+	return out
+
+## Heat contracts you could close RIGHT NOW, standing where you are.
+##
+## Separate from deliverable_at() because a heat contract is never READY out in
+## the dark — it becomes closable at the moment you dock still carrying the heat,
+## and it stops being closable the moment you vent. It is the one job whose
+## completion is a fact about this second.
+func heat_deliverable_at(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN \
+				or job.kind != ContractData.Kind.HEAT:
+			continue
+		if ContractData.berth_of(n, job.house) and heat >= job.amount:
+			out.append(job)
+	return out
+
+## Paid. Heat contracts spend the heat; the other two spend the flying you
+## already did.
+func deliver_contract(job: ContractData) -> void:
+	if job == null or job.state == ContractData.State.CLOSED:
+		return
+	if job.kind == ContractData.Kind.HEAT:
+		if heat < job.amount:
+			return
+		heat -= job.amount
+		log_line("Offloaded %d heat. Weighed, receipted, gone." % job.amount, &"heat")
+	job.state = ContractData.State.CLOSED
+	add_credits(job.pay)
+	standing[job.house] = int(standing.get(job.house, 0)) + job.standing
+	log_line("Delivered. %d credits. %s account in good order." % [
+		job.pay, DB.short_name(DB.manufacturer_name(job.house))], &"good")
+	Sig.contracts_changed.emit()
+	Sig.resources_changed.emit()
+
+## Arriving somewhere finishes any FETCH pointed at it.
+##
+## Called from the one door every arrival goes through. A recovered item is
+## NAMED AND NOT CARRIED: it does not take a hold slot, cannot be scrapped by
+## accident and cannot be lost to a full hold. A contract that soft-locks on
+## inventory is a bug wearing a decision's clothes, and there is no version of
+## "you sold the thing you were paid to fetch" that is worth what it costs.
+func reach_contract_target(index: int) -> void:
+	var moved := false
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN or job.at != index:
+			continue
+		if job.kind != ContractData.Kind.FETCH:
+			continue
+		job.state = ContractData.State.READY
+		moved = true
+		log_line("Recovered: %s. Lashed to the frame and not yours yet." % job.item,
+			&"good")
+	if moved:
+		Sig.contracts_changed.emit()
+
+## Winning a fight here finishes any HUNT pointed at it.
+func clear_contract_target(index: int) -> void:
+	var moved := false
+	for c in contracts:
+		var job: ContractData = c
+		if job.state != ContractData.State.TAKEN or job.at != index:
+			continue
+		if job.kind != ContractData.Kind.HUNT:
+			continue
+		job.state = ContractData.State.READY
+		moved = true
+		log_line("Contact removed. %s will want to hear about it." %
+			DB.short_name(DB.manufacturer_name(job.house)).to_upper(), &"good")
+	if moved:
+		Sig.contracts_changed.emit()
+
+## How well a house thinks of you. Zero for six of them, most of the time.
+func standing_with(house: StringName) -> int:
+	return int(standing.get(house, 0))
+
+## What their berths pay OVER the going rate for your parts, as a fraction.
+##
+## The benefit is on the BID and never on the ask, and that is a hard constraint
+## rather than a preference: `Market`'s invariant leaves only about seven percent
+## between what a part melts for and the floor under what a station charges, so
+## a discount on the ask is a buy-and-melt exploit at four points of standing.
+## Paying you more for what you carry in has no such edge and reads the same at
+## the counter.
+##
+## Capped, because bid is a fraction of ask and must stay one.
+const STANDING_BID := 0.05
+const STANDING_BID_MAX := 0.20
+func standing_bid_bonus(house: StringName) -> float:
+	return minf(float(standing_with(house)) * STANDING_BID, STANDING_BID_MAX)
+
+func _contract_short(c: ContractData) -> String:
+	match c.kind:
+		ContractData.Kind.HEAT:
+			return "%d heat to %s" % [c.amount,
+				DB.short_name(DB.manufacturer_name(c.house))]
+		ContractData.Kind.HUNT:
+			return "a contact at %s" % MapGen.star_name(map[c.at]) if c.at >= 0 \
+				and c.at < map.size() else "a contact"
+		_:
+			return "%s from %s" % [c.item, MapGen.star_name(map[c.at])] if c.at >= 0 \
+				and c.at < map.size() else c.item
+	return ""

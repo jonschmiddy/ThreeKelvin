@@ -14,6 +14,13 @@ extends Control
 var _header: RichTextLabel
 var _trade: Label
 var _services: VBoxContainer
+## The house board: what is posted here, and what you can close here.
+##
+## Under the services and above the shelf, because it is the part of a station
+## that is about WHERE YOU GO NEXT — and the shelf is the part that is about
+## what you fly. Reading order follows the decision order.
+var _work: VBoxContainer
+var _work_wrap: PanelContainer
 var _stock: VBoxContainer
 var _hull_box: VBoxContainer
 var _hold: VBoxContainer
@@ -60,6 +67,13 @@ func _build() -> void:
 	_services.add_theme_constant_override("separation", 5)
 	head_section.add_child(_services)
 	left.add_child(Widgets.panel_with(head_section))
+
+	var work_section := Widgets.section("work")
+	_work = VBoxContainer.new()
+	_work.add_theme_constant_override("separation", 5)
+	work_section.add_child(_work)
+	_work_wrap = Widgets.panel_with(work_section)
+	left.add_child(_work_wrap)
 
 	var stock_section := Widgets.section("stock")
 	_hull_box = VBoxContainer.new()
@@ -182,6 +196,7 @@ func _refresh() -> void:
 		UITheme.COLD.to_html(false), note])
 
 	_trade.text = Market.trade_line(n)
+	_refresh_work(n)
 
 	for c in _services.get_children():
 		c.queue_free()
@@ -379,3 +394,124 @@ func _on_action(action: String, thing: Variant) -> void:
 		"install": Run.install_module(thing as ModuleData)
 		"scrap": Run.scrap_module(thing as ModuleData)
 	_refresh()
+
+
+## What this house wants doing, and what you can close standing here.
+##
+## Three groups, in the order a player acts on them: things you can be PAID for
+## right now, then things you have already agreed to that this desk cannot close,
+## then the board. Money first — a player walking into a berth holding finished
+## work should see that before anything else on the page.
+func _refresh_work(n: MapGen.MapNode) -> void:
+	Widgets.clear(_work)
+	var offers := Contracts.board(n)
+	var ready := Run.deliverable_at(n)
+	var hot := Run.heat_deliverable_at(n)
+	var mine := _open_elsewhere(n)
+
+	# Hidden entirely at a station with no house behind it. An empty board with a
+	# heading is a page telling you about a thing that is not there.
+	_work_wrap.visible = not (offers.is_empty() and ready.is_empty()
+		and hot.is_empty() and mine.is_empty())
+	if not _work_wrap.visible:
+		return
+
+	for job in ready:
+		_work.add_child(_deliver_row(job as ContractData, "DELIVER"))
+	for job in hot:
+		# Said with the number, because the heat on your hull is falling every
+		# time you jump and the player is being asked to notice it.
+		_work.add_child(_deliver_row(job as ContractData,
+			"OFFLOAD %d HEAT" % (job as ContractData).amount))
+
+	if not mine.is_empty():
+		_work.add_child(UITheme.body("SIGNED, ELSEWHERE", UITheme.COLD, UITheme.FS_SMALL))
+		for job in mine:
+			var c: ContractData = job
+			var row := UITheme.body("· %s" % c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL)
+			row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_work.add_child(row)
+
+	for job in offers:
+		var c2: ContractData = job
+		if Run.holds_contract(c2):
+			continue
+		_work.add_child(_offer_row(c2))
+
+
+## Everything open that this desk cannot pay for. Named rather than listed in
+## full: the ledger is the SHIP page's job, and a station is where you act.
+func _open_elsewhere(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.CLOSED:
+			continue
+		if ContractData.berth_of(n, job.house) and job.state == ContractData.State.READY:
+			continue
+		if job.kind == ContractData.Kind.HEAT and ContractData.berth_of(n, job.house) \
+				and Run.heat >= job.amount:
+			continue
+		out.append(job)
+	return out
+
+
+func _offer_row(c: ContractData) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	top.add_child(UITheme.body(DB.manufacturer_name(c.house).to_upper(),
+		DB.manufacturer_colour(c.house), UITheme.FS_SMALL))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(sp)
+	top.add_child(UITheme.body("%d cr" % c.pay, UITheme.ICE, UITheme.FS_SMALL))
+	box.add_child(top)
+
+	# The ask, in the house's own voice. The largest thing in the row, because it
+	# is the only part a player reads twice.
+	var ask := UITheme.body(c.text, UITheme.CHILL, UITheme.FS_SMALL)
+	ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(ask)
+
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 6)
+	foot.add_child(UITheme.body(c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL))
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(sp2)
+	var take := Widgets.button("SIGN", func() -> void:
+		Run.take_contract(c)
+		_refresh())
+	take.tooltip_text = Widgets.tip("Nothing here expires. Sign it and forget it, or never sign it at all.")
+	foot.add_child(take)
+	box.add_child(foot)
+	return Widgets.panel_with(_pad_work(box))
+
+
+func _deliver_row(c: ContractData, label: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var what := UITheme.body("%s · %d cr" % [
+		DB.manufacturer_name(c.house).to_upper(), c.pay],
+		DB.manufacturer_colour(c.house), UITheme.FS_SMALL)
+	row.add_child(what)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sp)
+	row.add_child(Widgets.button(label, func() -> void:
+		Run.deliver_contract(c)
+		_refresh()))
+	return Widgets.panel_with(_pad_work(row))
+
+
+func _pad_work(child: Control) -> MarginContainer:
+	var pad := MarginContainer.new()
+	for side in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side, 6)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 4)
+	pad.add_child(child)
+	return pad

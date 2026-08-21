@@ -1662,6 +1662,7 @@ class MapChart extends Control:
 
 
 		_draw_party()
+		_draw_work()
 		_draw_neb_edges()
 
 		if hovered >= 0 and hovered < Run.map.size() and _hover_t > 0.01:
@@ -2197,6 +2198,41 @@ class MapChart extends Control:
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
 			draw_string(UITheme.pixel_font(), at_text, label,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.GOOD)
+
+	## Where the work is. A ring in the issuing house's colour, on every system an
+	## open contract points at.
+	##
+	## THE CHART IS WHERE A CONTRACT BECOMES PLAYABLE. A fetch that names "Kappa
+	## Thorn Reach" and then leaves you to find it is a memory test, and the
+	## station board is four screens away from the only page that plots a jump.
+	##
+	## Drawn OUTSIDE the visibility filter, like the party markers above and for
+	## the same reason: the filter is right about places and wrong about
+	## intentions. A job you signed for is a fact about YOU, and hiding it until
+	## you happen to fly within sensor range of it would hide it exactly while it
+	## is still a decision.
+	##
+	## Not a route and not an arrow. It says where, and leaves the whether alone —
+	## see ContractData's header on why nothing here pushes you anywhere.
+	func _draw_work() -> void:
+		if not show_icons or Run.map.is_empty():
+			return
+		for raw in Run.contracts:
+			var job: ContractData = raw
+			if job.state != ContractData.State.TAKEN:
+				continue
+			if job.at < 0 or job.at >= Run.map.size():
+				continue
+			var c := _screen_pos(Run.map[job.at])
+			var col := DB.manufacturer_colour(job.house)
+			# Backed in ink for the reason the party diamond is: the deep systems
+			# sit over the core, which is the brightest thing on the chart.
+			draw_arc(c, 9.0, 0.0, TAU, 20, UITheme.VOID, 3.0)
+			draw_arc(c, 9.0, 0.0, TAU, 20, col, 1.0)
+			# A second, tighter ring for a hunt, so the two kinds are told apart
+			# without a label. Fetch is an open circle; hunt has something in it.
+			if job.kind == ContractData.Kind.HUNT:
+				draw_arc(c, 4.0, 0.0, TAU, 12, col, 1.0)
 
 	func _diamond(c: Vector2, d: float, col: Color) -> void:
 		draw_polyline([c + Vector2(0, -d), c + Vector2(d, 0),

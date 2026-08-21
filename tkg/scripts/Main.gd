@@ -87,6 +87,14 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Signing, reaching, killing, docking hot, being paid — and the market
+	# invariant under standing, which `-- market` cannot reach:
+	#   godot --headless --path . -- contracttest
+	if "contracttest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ContractTest.gd").new().run()
+		get_tree().quit()
+		return
+
 	# What every repair card is worth at full, half and three hull —
 	# RUN THIS AFTER TOUCHING heal OR heal_scale ON ANYTHING
 	if "repairs" in OS.get_cmdline_user_args():

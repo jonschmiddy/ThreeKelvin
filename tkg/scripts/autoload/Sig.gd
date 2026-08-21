@@ -20,6 +20,10 @@ signal dev_mode_changed()
 ## shows the count, so both have to hear it — and it fires from the one door in
 ## Archive rather than from the three encounters that go through that door.
 signal archive_changed()
+## A contract was taken, finished or paid. The station board and the ledger both
+## read it, and it fires from RunState rather than from the four places that can
+## move a contract.
+signal contracts_changed()
 
 # Combat
 signal combat_started(enemy_name: String)

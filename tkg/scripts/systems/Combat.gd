@@ -611,6 +611,8 @@ func _victory() -> void:
 		Run.heal(3)
 	if clears_node:
 		Run.consume_node(node)
+	# And anybody who paid to have this stop moving.
+	Run.clear_contract_target(node.index)
 
 	if enemy.template.boss:
 		Run.win()

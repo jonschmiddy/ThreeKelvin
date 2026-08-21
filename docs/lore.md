@@ -55,6 +55,8 @@ Three consequences worth holding on to:
 - **Your death is a line item.** It is recorded, it is priced, and the next contract is written the same afternoon. `RunHistory` is not a memorial; it is somebody's ledger.
 - **There is no promotion.** You do not rise within a house. There is no rank to reach, no inner circle, no point at which they start telling you things. The relationship is exactly as deep on your two hundredth dive as on your first, and a player who expects otherwise is having the correct experience.
 
+  **Standing exists and does not change this.** Deliver a house's work and its berths pay you better for what you carry in and stock one more part on the shelf. That is an ACCOUNT, not a relationship: your invoice improves and your clearance does not. Nobody thanks you, nobody remembers you between dives — standing resets with the run — and at no point does anybody explain anything. "Account in good order" is the most a house will ever say to you and it is not addressed to you, it is a status on a ledger line.
+
 ---
 
 ## 3. The seven, on the end of everything
@@ -137,13 +139,17 @@ A station with a house berth carries that house's standing offer. Taking one is 
 
 The design constraints, before anything is built:
 
-- **A contract is an offer to take delivery, not a quest.** No objectives, no waypoints, no completion narration. A schedule and a rate.
+- ~~**A contract is an offer to take delivery, not a quest.** No objectives, no waypoints, no completion narration.~~ **AMENDED, and built the other way.** Contracts name places: fetch a thing left at a beacon, kill a contact at a system, or dock somewhere still carrying heat. The chart rings the target in the issuing house's colour, because a job that names "Kappa Thorn Reach" and then leaves you to find it is a memory test rather than a decision.
+
+  What the original was protecting is the pillar below it, and that survives intact and is now enforced by the code rather than by a sentence: **nothing expires**, so no contract ever puts a clock on you; **refusing is free** and most offers should be declined; and **the pay is set against the trip**, so work pointing somewhere you were not going is priced like it. A waypoint you can ignore forever is an offer. Only a deadline is a schedule.
 - **It must not gate loot.** `coop-design.md` §0's ruling stands: winning a fight pays the loot, and heat has nothing to do with what a fight drops. A contract pays for heat DELIVERED; it does not touch the drop table.
 - **It must not become a to-do list.** The greed clock is the only clock. A contract that expires, or that pushes the player deeper on somebody else's schedule, replaces a self-authored death with an imposed one and repeals the third pillar.
 - **Refusing must be free and common.** Most contracts should be declined. An offer you always take is a tax with extra steps.
 - **The rate is good and never explained.** See §1.
 
-Not built yet. This section is the specification, and the archive is the part that ships first — the fiction has to exist before the economy that sits on top of it.
+**Built.** `ContractData`, `Contracts` (the board, positional per station and uncontested — two ships can hold one job and both be paid, because the thing bought is the flying and both of them flew), the station's WORK panel, the chart's rings, and `RunState.standing`. Three kinds ship: FETCH, HUNT and the HEAT delivery this section originally specified, which is the only one that touches the corporate economy rather than the human one.
+
+The heat contract is the one worth watching in play. `cool_in_transit()` sheds heat every jump, so docking with nine on the hull means having chosen not to cool down — which is the ambush layer offered to the player as an opportunity instead of used against them as a tax. It is also the only contract that costs something at the counter: the heat is spent, not merely shown.
 
 ---
 

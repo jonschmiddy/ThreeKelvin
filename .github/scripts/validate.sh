@@ -132,6 +132,21 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
 fi
 
+step "Contracts sign, close and pay — and standing does not break the market"
+# The second half is the one that matters. `-- market` proves the price
+# invariant at standing zero, which is the only standing it can reach; every
+# price in the game is fine until a player delivers four contracts to one house
+# and their berths start paying over the odds for parts.
+if run_godot contracttest 120 --headless --path "$PROJECT" -- contracttest; then
+	if grep -qE '^contracttest: PASS' "$LOG_DIR/contracttest.log"; then
+		ok "contracts"
+	else
+		bad "contract test failed"
+		grep -E '^  FAIL|^contracttest' "$LOG_DIR/contracttest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
 step "The archive round-trips, and none of it has become an essay"
 # Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
 # primary source that fits on one screen, and that is prose — it rots, and its

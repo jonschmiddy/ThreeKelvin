@@ -59,6 +59,9 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# The contract loop end to end, and the market invariant UNDER STANDING, which
+# -- market cannot reach — RUN THIS AFTER TOUCHING Contracts, standing OR Market
+godot --headless --path . -- contracttest
 # What every repair card is worth at full, half and three hull. heal_scale is a
 # dial you cannot read off the data — RUN THIS AFTER TOUCHING heal OR heal_scale
 godot --headless --path . -- repairs

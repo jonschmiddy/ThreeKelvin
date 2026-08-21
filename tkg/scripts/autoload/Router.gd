@@ -243,6 +243,9 @@ func resolve_current_node() -> void:
 	# chose to do here, and a suspend save is a bookmark rather than a way to
 	# reject a draw. See _roll_here().
 	_roll_here(n)
+	# Anything you were paid to come and get is got. Before the autosave, so a
+	# force-quit on arrival does not lose the trip you just made.
+	Run.reach_contract_target(n.index)
 	# The save the SaveGame header promises: on the sector, at the node you flew
 	# to, with the contact still there. Until this line the last write predated
 	# the JUMP — start_combat() assigns `combat` before it swaps, so the fight's
