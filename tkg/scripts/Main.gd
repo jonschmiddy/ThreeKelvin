@@ -127,6 +127,17 @@ func _ready() -> void:
 	# ship draws — it is whether the ship that draws is the one described. It
 	# needs no renderer at all: the view composites into an Image, and the
 	# Image is the file. See ConvoyTest.
+	# Every specification class of a hull with real art:
+	#   godot --headless --path . -- fit
+	#   godot --headless --path . -- fit damage=3
+	# RUN THIS AFTER TOUCHING HullFit. The second form composes it with wear,
+	# which is the pairing that matters: fittings go on before damage, so a
+	# bolt-on can be shot off.
+	if "fit" in OS.get_cmdline_user_args():
+		_wear_sheet = load("res://scripts/sim/FitSheet.gd").new()
+		_wear_sheet.run(get_tree())
+		return
+
 	# Every enemy body at every damage band:
 	#   godot --headless --path . -- bestiary
 	# RUN THIS AFTER TOUCHING HullWear's organic operations. It is where the
