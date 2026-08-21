@@ -271,6 +271,25 @@ static func tip(text: String) -> String:
 		out.append(line)
 	return "\n".join(out)
 
+## A child in a margin. The fourth copy of this was written before it became
+## obvious it wanted to live here.
+##
+## Four screens had grown a private `_pad()` — LobbyScreen, PartyScreen, and
+## StationScreen twice, since it needed two margin sizes in one file and had no
+## way to say so. They differed only in the two numbers, which is the definition
+## of an argument rather than a fork.
+##
+## Horizontal first, because it is the one that varies: every caller so far wants
+## more air at the sides than at the top.
+static func pad(child: Control, h: int = 8, v: int = 6) -> MarginContainer:
+	var m := MarginContainer.new()
+	for side in ["left", "right"]:
+		m.add_theme_constant_override("margin_" + side, h)
+	for side in ["top", "bottom"]:
+		m.add_theme_constant_override("margin_" + side, v)
+	m.add_child(child)
+	return m
+
 static func panel_with(child: Control) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 12, 12))

@@ -1,4 +1,4 @@
-extends RefCounted
+extends Harness
 
 ## The salvage rail, driven through the real screen:
 ##   godot --headless --path . -- stowtest
@@ -22,7 +22,6 @@ extends RefCounted
 ## jump, the real rebuild.
 
 var _tree: SceneTree
-var _fails: int = 0
 
 
 func run(tree: SceneTree) -> void:
@@ -103,8 +102,8 @@ func _finish() -> void:
 		last.free()
 	await _tree.process_frame
 	print("")
-	print("stowtest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
-	_tree.quit(1 if _fails > 0 else 0)
+	verdict("stowtest")
+	_tree.quit(code())
 
 
 ## The salvage panel on whatever sector screen is currently up. Found by walking
@@ -134,14 +133,8 @@ func _button(starts_with: String) -> Button:
 
 
 func _find_button(n: Node, starts_with: String) -> Button:
-	var b := n as Button
-	if b != null and b.text.begins_with(starts_with):
-		return b
-	for child in n.get_children():
-		var found := _find_button(child, starts_with)
-		if found != null:
-			return found
-	return null
+	return first(n, func(x: Node) -> bool:
+		return x is Button and (x as Button).text.begins_with(starts_with)) as Button
 
 
 ## Any system that is not the one we are standing in.
@@ -150,12 +143,3 @@ func _somewhere_else() -> int:
 		if i != Run.at:
 			return i
 	return -1
-
-
-func _ok(what: String, condition: bool) -> bool:
-	if condition:
-		print("  ok   %s" % what)
-	else:
-		print("  FAIL %s" % what)
-		_fails += 1
-	return condition

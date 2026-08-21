@@ -158,7 +158,7 @@ func _row(slot: Dictionary) -> Control:
 		# exist. Same answer the convoy slot gives.
 		col.add_child(UITheme.body("Still choosing a chassis.",
 			UITheme.QUOTE, UITheme.FS_SMALL))
-		return Widgets.panel_with(_pad(row))
+		return Widgets.panel_with(Widgets.pad(row))
 
 	col.add_child(UITheme.body("%s · %s" % [
 		DB.manufacturer_name(b.hull.manufacturer).to_upper(),
@@ -176,7 +176,7 @@ func _row(slot: Dictionary) -> Control:
 		"%d/%d" % [b.heat, b.heat_cap]))
 	col.add_child(UITheme.body(_where(id), UITheme.COLD, UITheme.FS_SMALL))
 
-	return Widgets.panel_with(_pad(row))
+	return Widgets.panel_with(Widgets.pad(row))
 
 
 ## The hull itself, at its own size, in a cell wide enough for the widest.
@@ -250,12 +250,3 @@ func _gauge(label: String, mode: BoxGauge.Mode, cap: int, value: int,
 	row.add_child(UITheme.body(text, UITheme.CHILL, UITheme.FS_SMALL))
 	return row
 
-
-func _pad(child: Control) -> MarginContainer:
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 8)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 6)
-	pad.add_child(child)
-	return pad

@@ -32,7 +32,11 @@ var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
 var credits: int = 40
-var fuel: int = 150
+## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
+var fuel: int = 150:
+	set(v):
+		fuel = v
+		Sig.resources_changed.emit()
 
 ## Raw materials, by id. See DB.MATERIALS.
 ##
@@ -58,7 +62,36 @@ var exotic: int:
 		return int(materials.get(&"exotic", 0))
 	set(v):
 		materials[&"exotic"] = maxi(0, v)
-var dross: int = 0
+var dross: int = 0:
+	set(v):
+		dross = v
+		Sig.ship_changed.emit()
+
+## WHY THESE TWO HAVE SETTERS AND `heat` DOES NOT.
+##
+## Three bugs in one day had one shape: a field on this object written directly
+## from somewhere else, with the signal that redraws it left to the call site to
+## remember. `heat_cap_bonus` forgot it entirely and the gauge sat at the old
+## number. `found_hull` never moved `hauls`, so a claimed hull could not be seen.
+## Both were fixed with a bespoke mutator, one at a time — which cures two call
+## sites and leaves the CLASS of bug intact: `fuel` and `dross` are written from
+## about twenty places across six files, each one pairing a write with a
+## hand-rolled emit.
+##
+## A setter is the general fix and it costs the call sites nothing: every
+## existing `Run.fuel -= n` now redraws by construction, and the manual emits
+## beside them become redundant rather than load-bearing. `Sig` is registered
+## before `Run` in project.godot, so the initialiser above is safe.
+##
+## `heat` is deliberately left alone. It is written inside the combat loop —
+## every card that costs or vents heat, plus the end-of-turn burn — so a signal
+## per write is a screen rebuild per write, several times a turn. That is the
+## efficiency problem this pass is also trying to remove. Rare, chunky writes get
+## the guardrail; the one field on the hot path keeps manual control, and this
+## paragraph is the reason rather than an oversight.
+##
+## `kills` has no setter for a different reason: nothing on screen reads it, so
+## announcing it would be work with no listener.
 
 var map: Array = []
 var at: int = 0
@@ -1034,10 +1067,14 @@ func find_hull(h: HullData) -> void:
 ## `ship_changed` rather than `resources_changed`: a heat cap is a property of
 ## the ship, and `RunState._clamp_hp` and the gauges are already listening to it
 ## for exactly this class of change.
+##
+## ONE SIGNAL, NOT TWO. Every listener that cares about a heat cap is already on
+## `ship_changed` — the HUD and the station screen are both on both — so emitting
+## the pair meant two full rebuilds per change. Buying coolant fired three: one
+## from `add_credits` and two from here.
 func add_heat_cap(n: int) -> void:
 	heat_cap_bonus += n
 	Sig.ship_changed.emit()
-	Sig.resources_changed.emit()
 
 func die(reason: String) -> void:
 	dead = true
@@ -1439,7 +1476,6 @@ func _contract_short(c: ContractData) -> String:
 		_:
 			return "%s from %s" % [c.item, MapGen.star_name(map[c.at])] if c.at >= 0 \
 				and c.at < map.size() else c.item
-	return ""
 
 
 ## The open contract pointing at this system, or null. First match wins; two

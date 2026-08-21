@@ -1,4 +1,4 @@
-extends RefCounted
+extends Harness
 
 ## The archive, checked from outside:  godot --headless --path . -- archivetest
 ##
@@ -19,15 +19,13 @@ extends RefCounted
 ## at 180 is a long entry and an entry at 400 is a different kind of thing.
 const WORD_CAP := 200
 
-var _fails: int = 0
-
 
 func run() -> void:
 	Archive.wipe()
 	_machinery()
 	_content()
 	print("")
-	print("archivetest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
+	verdict("archivetest")
 	Archive.wipe()
 
 
@@ -117,11 +115,3 @@ func _content() -> void:
 		if (DB.documents[key] as DocumentData).depth >= 5:
 			deep += 1
 	_ok("and some of it is only readable deep", deep >= 3)
-
-
-func _ok(what: String, condition: bool) -> void:
-	if condition:
-		print("  ok   %s" % what)
-	else:
-		print("  FAIL %s" % what)
-		_fails += 1

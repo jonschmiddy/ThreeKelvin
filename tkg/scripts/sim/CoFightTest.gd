@@ -1,5 +1,5 @@
 class_name CoFightTest
-extends RefCounted
+extends Harness
 
 ## Two processes, one enemy. The end of the chain, flown rather than argued.
 ##
@@ -55,7 +55,6 @@ var _late: bool = false
 ## How long the late arrival waits. Long enough that the host is unambiguously
 ## in the fight first, short enough that the harness is not mostly sleeping.
 const LATE_ARRIVAL := 6.0
-var _fails: int = 0
 var _at: int = -1
 ## Counters, and members rather than locals ON PURPOSE. A GDScript lambda
 ## captures a local BY VALUE, so `count += 1` inside one increments the
@@ -84,8 +83,8 @@ func run(tree: SceneTree) -> void:
 		await _fly()
 
 	print("")
-	print("cofight[%s]: %s" % [_me, "PASS" if _fails == 0 else "%d FAILURES" % _fails])
-	tree.quit(1 if _fails > 0 else 0)
+	verdict("cofight[%s]" % _me)
+	tree.quit(code())
 
 
 # --- getting two processes into one galaxy --------------------------------
@@ -149,7 +148,7 @@ func _fly() -> void:
 	print("[cofight] seat %d" % Rng.seat)
 	print("[cofight] lootseed %d" % Rng.loot.seed)
 
-	_at = _find_goal() if _boss else _find_fight()
+	_at = _find(MapGen.NodeType.GOAL) if _boss else _find(MapGen.NodeType.FIGHT)
 	if not _ok("the shared galaxy holds a %s to share" % (
 			"core" if _boss else "fight"), _at >= 0):
 		return
@@ -351,7 +350,7 @@ func _count_swing(_a: int, _w: int, _k: int, _p: int) -> void:
 ## identical on both machines, because it is one shop — so the bug was not in
 ## the roll, it was that buying only emptied the local copy.
 func _shop() -> void:
-	var here := _find_station()
+	var here := _find(MapGen.NodeType.STATION)
 	if not _ok("the shared galaxy holds a station to share", here >= 0):
 		return
 	Run.at = here
@@ -398,28 +397,23 @@ func _shop() -> void:
 		n.taken.has(MapGen.OPTION_SHOP))
 
 
-func _find_station() -> int:
+## The first system of a kind, skipping the one you start on.
+##
+## One function rather than three. `_find_station`, `_find_fight` and
+## `_find_goal` were the same six lines with the type constant swapped, and
+## `ContractTest` — written the same day — had already generalised it. A third
+## copy was one type constant's worth of value.
+##
+## `cleared` is honoured for a FIGHT because a spent contact is not a fight to
+## share; a station and the core do not go away.
+func _find(t: MapGen.NodeType) -> int:
 	for i in Run.map.size():
 		var n: MapGen.MapNode = Run.map[i]
-		if i > 0 and n.type == MapGen.NodeType.STATION:
-			return i
-	return -1
-
-
-## The core. One per galaxy, and every ship in the party is flying at it.
-func _find_goal() -> int:
-	for i in Run.map.size():
-		var n: MapGen.MapNode = Run.map[i]
-		if n.type == MapGen.NodeType.GOAL:
-			return i
-	return -1
-
-
-func _find_fight() -> int:
-	for i in Run.map.size():
-		var n: MapGen.MapNode = Run.map[i]
-		if i > 0 and n.type == MapGen.NodeType.FIGHT and not n.cleared:
-			return i
+		if i == 0 or n.type != t:
+			continue
+		if t == MapGen.NodeType.FIGHT and n.cleared:
+			continue
+		return i
 	return -1
 
 
@@ -450,17 +444,3 @@ func _until(condition: Callable, timeout: float) -> bool:
 			return true
 		await _tree.process_frame
 	return false
-
-
-func _ok(what: String, condition: bool) -> bool:
-	if condition:
-		print("  ok   %s" % what)
-	else:
-		print("  FAIL %s" % what)
-		_fails += 1
-	return condition
-
-
-func _fail(why: String) -> void:
-	print("  FAIL %s" % why)
-	_fails += 1

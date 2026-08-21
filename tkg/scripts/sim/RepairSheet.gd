@@ -71,7 +71,15 @@ func run() -> void:
 			var cap_m := int(hulls[1][1])
 			var got := _at(card, cap_m, DESPERATE)
 			if card.energy <= 1 and float(got) / float(cap_m) < LIFELINE:
-				fails.append("%s buys %d of %d at three hull" % [card.name, got, cap_m])
+				# The scaled-ness is recorded HERE, where it is known, rather
+				# than formatted into a sentence and parsed back out of it
+				# later. The first version appended a string, then split the
+				# card's name off the front of it and rescanned the whole module
+				# catalogue to recover this one boolean.
+				fails.append({
+					"line": "%s buys %d of %d at three hull" % [card.name, got, cap_m],
+					"scaled": card.heal_scale > 0,
+				})
 
 	print("")
 	# Flat healers are supposed to fail this and are not reported as failures —
@@ -79,9 +87,8 @@ func run() -> void:
 	# bar above is a bar for lifelines. See Database._seed_modules.
 	var real: Array = []
 	for f in fails:
-		var name := String(f).split(" ")[0]
-		if _scaled(name):
-			real.append(f)
+		if bool((f as Dictionary)["scaled"]):
+			real.append(String((f as Dictionary)["line"]))
 	if real.is_empty():
 		print("every scaled repair at one energy or less buys at least %d%% of a medium hull back." % int(LIFELINE * 100.0))
 		print("repairs: PASS")
@@ -98,11 +105,3 @@ func _at(c: CardData, cap: int, hp: int) -> int:
 	# Never more than the hole it is filling.
 	return mini(out, cap - hp) if cap > hp else out
 
-
-func _scaled(card_name: String) -> bool:
-	for id in DB.modules:
-		for c in (DB.modules[id] as ModuleData).cards:
-			var card: CardData = c
-			if card.name.begins_with(card_name) and card.heal_scale > 0:
-				return true
-	return false
