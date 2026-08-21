@@ -136,10 +136,24 @@ static func ask(n: MapGen.MapNode, m: ModuleData) -> int:
 
 ## What the station pays for it. Always below `ask` at the same station, by
 ## construction, whatever the part and whoever built it.
+## STANDING PAYS HERE AND NOWHERE ELSE, and that is a constraint from the
+## invariant at the top of this file rather than a design preference.
+##
+## Between `melt` at 1.12 and `ASK_FLOOR` at 1.20 there is about seven percent of
+## room. Any discount on the ask large enough for a player to notice puts melt
+## above ask, and buying a part to melt it becomes free money — which is the one
+## thing this file exists to make impossible.
+##
+## Paying more for what you carry IN has no such edge. bid is a fraction of ask
+## and stays one: 0.62 x 1.20 is 0.744, still comfortably under what the same
+## station charges for the same part, so the sell-back loop stays closed.
 static func bid(n: MapGen.MapNode, m: ModuleData) -> int:
 	if m.contraband and not trades_contraband(n):
 		return 0
-	return maxi(1, int(round(float(ask(n, m)) * SPREAD * _saturation(n))))
+	var over := 1.0
+	if n != null and n.manufacturer != &"":
+		over += Run.standing_bid_bonus(n.manufacturer)
+	return maxi(1, int(round(float(ask(n, m)) * SPREAD * _saturation(n) * over)))
 
 ## A market you have already emptied your hold into stops paying full price.
 ##

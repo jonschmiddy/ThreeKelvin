@@ -9,11 +9,17 @@ extends RefCounted
 ## sold to and deep space cannot — and folding them together would mean the
 ## SCRAP button either quoting a sale price nobody is offering or hiding one
 ## that is.
-enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD }
+enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD, BAG }
 
 ## A module entry: name, rarity, manufacturer, rolled affixes, and its cards.
+##
+## `note` is for a row whose action has already been taken by somebody else. It
+## replaces the button rather than removing it, because a row that loses its
+## button changes height and the list reflows under the cursor — and because
+## "MERCER TOOK THIS" is the single most interesting thing the bag has to say.
+## Empty for every other context, which is all of them but BAG.
 static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
-		on_action: Callable) -> PanelContainer:
+		on_action: Callable, note: String = "") -> PanelContainer:
 	var panel := PanelContainer.new()
 	var sb := UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10)
 	sb.border_width_left = 3
@@ -115,6 +121,18 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			var b := _btn("BUY %d" % price, on_action.bind("buy", m))
 			b.disabled = Run.credits < price
 			buttons.add_child(b)
+		ModuleContext.BAG:
+			if note != "":
+				var gone := _btn(note, on_action.bind("noop", m))
+				gone.disabled = true
+				gone.tooltip_text = tip("One bag, and somebody else got here first.")
+				buttons.add_child(gone)
+			else:
+				var take := _btn("TAKE", on_action.bind("take", m))
+				# Said out loud, because the cost of pressing it is that nobody
+				# else can. A race is only fair if both players know it is one.
+				take.tooltip_text = tip("Into your hold, and out of everybody else's reach. One bag, first hand in.")
+				buttons.add_child(take)
 	return panel
 
 ## "SCRAP +14". No materials on it any more, because scrapping no longer yields

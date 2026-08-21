@@ -32,7 +32,24 @@ const PATH := "user://run.save"
 ## 3: heat reached the map. A node now carries whether it rolled for an ambush
 ## and what that roll produced, so a hostile attracted by your own heat cannot
 ## be refused by quitting and coming back cold.
-const VERSION := 6
+## 6: a node carries the BAG a shared kill left in it, and whether one has been
+## rolled. Stored by value like the shelf rather than re-derived: the roll is
+## deterministic from the node, but its SIZE came from how many ships were in the
+## fight, and nothing on a resumed map remembers that.
+## 7: the contract ledger and house standing. A version 6 save has neither, so
+## it resumes with an empty board and no accounts — which is survivable but
+## silently loses work the player had already flown for.
+## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
+## arranged comes back arranged rather than re-packed from scratch.
+##
+## 8 rather than either side's number, and the reason is worth writing down: two
+## branches both shipped a "6" — the shared-kill bag on one and the hold grid on
+## the other — so a file stamped 6 could be either shape and there is no way to
+## tell which from the number. This format has BOTH, so it is readable by
+## neither, and taking a fresh number is the only answer that keeps the rule
+## above true. Anything stamped 6 or 7 is now discarded, which is the correct
+## outcome and the whole reason the field exists.
+const VERSION := 8
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -145,6 +162,12 @@ static func _snapshot() -> Dictionary:
 		fuel = Run.fuel,
 		dross = Run.dross,
 		whale_boon = Run.whale_boon,
+		# The ledger and the accounts. Both are RUN state — a contract points at a
+		# node index in this galaxy and standing is spent inside this dive — so
+		# both belong here and neither survives the dive ending.
+		contracts = _contracts_to(),
+		next_contract_id = Run.next_contract_id,
+		standing = _standing_to(),
 
 		map = nodes,
 		at = Run.at,
@@ -256,6 +279,18 @@ static func load_into_run() -> bool:
 	Run.fuel = int(d.get("fuel", 0))
 	Run.dross = int(d.get("dross", 0))
 	Run.whale_boon = bool(d.get("whale_boon", false))
+	Run.contracts = _contracts_from(d.get("contracts", []))
+	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))
+	var stand: Dictionary = {}
+	var saved_stand: Variant = d.get("standing", {})
+	if typeof(saved_stand) == TYPE_DICTIONARY:
+		for k in (saved_stand as Dictionary).keys():
+			# Filtered against the catalogue: a house that no longer exists is
+			# standing the player can never spend and a row they can never clear.
+			var house := StringName(str(k))
+			if DB.manufacturers.has(house):
+				stand[house] = int((saved_stand as Dictionary)[k])
+	Run.standing = stand
 
 	var map: Array = []
 	for e in saved_map:
@@ -413,6 +448,30 @@ static func _hull_from(e: Variant) -> HullData:
 ## the global RNG rather than a seeded stream, so there is no seed that would
 ## reproduce it — and even if there were, the run's own marks (visited, cleared,
 ## inspected, rolled shop stock) are not in it.
+static func _contracts_to() -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		out.append((c as ContractData).to_wire())
+	return out
+
+
+static func _contracts_from(raw: Variant) -> Array:
+	var out: Array = []
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for e in (raw as Array):
+		if typeof(e) == TYPE_DICTIONARY:
+			out.append(ContractData.from_wire(e))
+	return out
+
+
+static func _standing_to() -> Dictionary:
+	var out: Dictionary = {}
+	for k in Run.standing:
+		out[String(k)] = int(Run.standing[k])
+	return out
+
+
 static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	var makers: Array = []
 	for m in n.makers:
@@ -420,6 +479,13 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	var shop: Array = []
 	for m in n.shop:
 		shop.append(_module_to(m))
+	# Everything the bag was rolled with, including the parts already claimed.
+	# `taken` is what says which are gone, and dropping the claimed ones here
+	# would renumber the rest — the array must not shrink, on disk any more than
+	# in memory. See MapGen.OPTION_BAG.
+	var bag: Array = []
+	for m in n.bag:
+		bag.append(_module_to(m))
 	return {
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
@@ -437,6 +503,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		links = Array(n.links),
 		shop = shop,
 		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
+		bag = bag, bagged = n.bagged,
 	}
 
 static func _node_from(e: Variant) -> MapGen.MapNode:
@@ -505,6 +572,11 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 			n.shop.append(mod)
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
+	for m in d.get("bag", []):
+		var part := _module_from(m)
+		if part != null:
+			n.bag.append(part)
+	n.bagged = bool(d.get("bagged", false))
 	return n
 
 static func _names(a: Array[StringName]) -> Array:

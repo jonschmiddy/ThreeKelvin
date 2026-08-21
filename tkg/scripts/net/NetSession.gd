@@ -53,7 +53,12 @@ extends Node
 ##    intent — and decides who it swings at. A version 4 host answers none of
 ##    the fight messages, so two ships in one system would fight two private
 ##    copies of the same frigate and both be paid for killing it.
-const PROTOCOL: int = 5
+## 6: a kill pays ONE bag rather than paying every ship privately, and the
+##    fight carries how many hands were in it when the last hull came apart.
+##    A version 5 partner would roll a bag of the wrong size and reach for
+##    parts nobody else believes are there. The roster's `build` also carries
+##    the hull's GRADE now, without which every partner is drawn as a C-class.
+const PROTOCOL: int = 6
 
 ## How long a contested option waits for the host to say who got it.
 ##

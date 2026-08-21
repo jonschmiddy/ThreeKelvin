@@ -80,6 +80,35 @@ func _ready() -> void:
 	# RUN THIS AFTER TOUCHING Rng OR ANY GENERATOR. Determinism fails silently
 	# by nature — a run that is 99% reproducible looks exactly like one that is
 	# reproducible, right up to the moment four players are in four galaxies.
+	# The archive, machinery and prose both:
+	#   godot --headless --path . -- archivetest
+	if "archivetest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ArchiveTest.gd").new().run()
+		get_tree().quit()
+		return
+
+	# Signing, reaching, killing, docking hot, being paid — and the market
+	# invariant under standing, which `-- market` cannot reach:
+	#   godot --headless --path . -- contracttest
+	if "contracttest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ContractTest.gd").new().run()
+		get_tree().quit()
+		return
+
+	# What every repair card is worth at full, half and three hull —
+	# RUN THIS AFTER TOUCHING heal OR heal_scale ON ANYTHING
+	if "repairs" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/RepairSheet.gd").new().run()
+		get_tree().quit()
+		return
+
+	# Which picture every card draws, and whether one of them has become a
+	# catch-all:  godot --headless --path . -- glyphs
+	if "glyphs" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/GlyphSheet.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "rngtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/RngTest.gd").new().run()
 		get_tree().quit()
@@ -220,9 +249,13 @@ func _ready() -> void:
 	# `ship` belongs in this list and its absence is not cosmetic: the refit
 	# screen reads Run.hull, which is null until a run starts, so booting to the
 	# launcher and then swapping the ship screen over it crashes on arrival.
+	# `salvage` is the same: it stows into a hold that a run has to exist for,
+	# and the sector it opens draws the ship's own reactor.
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
-		or "charttest" in argv or "ship" in argv or "station" in argv
+		or "charttest" in argv or "ship" in argv or "station" in argv \
+		or "salvage" in argv or "party" in argv or "archive" in argv \
+		or "quest" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -250,10 +283,90 @@ func _ready() -> void:
 	# photographs the real screen — the arena, the salvage rail and the hand all
 	# competing for the same width, which is the whole question. The party is a
 	# fabricated ROSTER and no port is opened.
+	# `-- party 6` opens the party page against a fabricated roster.
+	#
+	# Same argument as `-- convoy`: the page's whole subject is other people, so
+	# without this the only way to look at it is to start six Godot processes and
+	# fly them to the same place. The roster is faked, not the screen — what is
+	# drawn is the real PartyScreen reading the real Net.roster.
+	# `-- archive` opens the reading room, and `-- archive all` recovers every
+	# entry first. The archive fills up over many runs by design, so without this
+	# the only way to look at a deep page is to fly to layer eight.
+	if "archive" in OS.get_cmdline_user_args():
+		# `all`, or a count — the PARTIAL archive is the state a real player is in
+		# for most of the game, and the redacted rows are most of what the screen
+		# has to say, so it needs to be as easy to look at as the full one.
+		var want := -1
+		if "all" in OS.get_cmdline_user_args():
+			want = DB.documents.size()
+		for a in OS.get_cmdline_user_args():
+			if a.is_valid_int():
+				want = int(a)
+		if want >= 0:
+			Archive.wipe()
+			var got := 0
+			for d in DB.documents_by_depth(MapGen.LAYERS):
+				if got >= want:
+					break
+				Archive.recover((d as DocumentData).id,
+					"recovered by a development flag")
+				got += 1
+		Router.show_archive()
+
+	# `-- quest` signs the first fetch and the first hunt it can find and opens
+	# the chart on them.
+	#
+	# The rings are the only part of the contract system living on a screen you
+	# cannot reach from a station, so without this the only way to look at them is
+	# to fly to a station, sign something and fly to the chart — three screens
+	# away from the thing being changed. Same argument as `-- party` and
+	# `-- salvage`: the contracts are faked, the chart is not.
+	if "quest" in OS.get_cmdline_user_args():
+		for kind in [ContractData.Kind.FETCH, ContractData.Kind.HUNT,
+				ContractData.Kind.HEAT]:
+			var got := false
+			for n in Run.map:
+				for c in Contracts.board(n as MapGen.MapNode):
+					var job: ContractData = c
+					if job.kind == kind and not Run.holds_contract(job):
+						Run.take_contract(job)
+						got = true
+						break
+				if got:
+					break
+		Router.show_starchart()
+		# ...and select the fetch target, which is the state worth looking at:
+		# a system you know about only because you signed for it.
+		for c in Run.contracts:
+			var job: ContractData = c
+			if job.at >= 0 and Run.known_only_by_contract(job.at):
+				(Router.current as StarchartScreen)._on_node_picked(job.at)
+				break
+
+	if "party" in OS.get_cmdline_user_args():
+		var crew := 5
+		for a in OS.get_cmdline_user_args():
+			if a.is_valid_int():
+				crew = clampi(int(a), 1, 7)
+		# Loaded rather than named: ConvoyTest carries no class_name, which is why
+		# every other use of it in this file goes through load() too.
+		var ct: GDScript = load("res://scripts/sim/ConvoyTest.gd")
+		ct.fake_party(crew)
+		Net.state = NetSession.State.IN_PARTY
+		Router.show_party()
+
 	if "convoy" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
 		return
+	# The salvage rail, driven through the real screen and a real jump — the one
+	# thing unit assertions on the rule cannot see:
+	#   godot --headless --path . -- stowtest
+	if "stowtest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/StowTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	if "charttest" in OS.get_cmdline_user_args():
 		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
 		# and a RefCounted nothing holds a reference to is freed the moment the
@@ -301,6 +414,33 @@ func _ready() -> void:
 		Run.hp = maxi(1, Run.max_hp() - 12)
 		Run.dross = 1
 		Router.show_station()
+	elif "salvage" in OS.get_cmdline_user_args():
+		# `-- salvage 8` opens the sector with eight parts in the hold.
+		#
+		# The salvage rail is the one panel in the game whose layout only
+		# misbehaves at sizes a normal run reaches late — a lawless run pays two
+		# modules a fight — and it misbehaved by growing the PAGE rather than
+		# itself, which pushed the hand strip off the bottom of the screen. The
+		# only way to see that was to play until the hold was full, which is the
+		# same argument `-- fight 10` makes about the hand.
+		#
+		# `-- salvage 8 bag=4` also drops a four-part BAG at the node, which is
+		# what a shared kill leaves. That one cannot be reached at all without a
+		# second machine — `Combat._victory` only opens a bag when the fight was
+		# the party's — so without this the newest panel in the game is the one
+		# nothing can draw on its own.
+		var many := 8
+		for a in OS.get_cmdline_user_args():
+			if a.is_valid_int():
+				many = clampi(int(a), 1, 24)
+		for i in many:
+			Run.stow(LootGen.roll_module(2 + (i % 5), &"", true))
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("bag="):
+				var here2: MapGen.MapNode = Run.node_at()
+				here2.danger = 5
+				Run.open_bag(here2, 1, clampi(int(a.split("=")[1]), 1, 8))
+		Router.show_sector()
 	elif "fight" in OS.get_cmdline_user_args():
 		# `-- fight 10` deals ten. The hand is the one layout that only
 		# misbehaves at sizes a normal run rarely reaches, so seeing it full
@@ -311,8 +451,69 @@ func _ready() -> void:
 		var pool := DB.fight_pool(3, false)
 		Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
 
+	# `-- shot` writes what is on screen and quits. For looking at a layout from
+	# a place that cannot look at a window — a headless CI leg, an agent, a bug
+	# report from somebody who cannot run the project. Deliberately generic: it
+	# photographs whatever the flags above put up, so it never needs a case
+	# adding for a new screen.
+	if _wants_shot():
+		_shoot()
+
+## `-- shot` or `-- shot=path`. Both spellings, because a flag that silently
+## does nothing when you name a file is worse than no flag.
+func _wants_shot() -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a == "shot" or a.begins_with("shot="):
+			return true
+	return false
+
+## Wait for the layout to settle, then save the frame.
+##
+## Several frames, not one. Containers size their children on the frame AFTER
+## they are added, and every screen here is built in code during _ready — a
+## grab on frame zero photographs a page whose panels are all still at their
+## minimum size, which is precisely the property under test.
+func _shoot() -> void:
+	# THE WINDOW IS RESIZED TO THE BASE VIEWPORT FIRST, and this is not tidiness.
+	#
+	# The window is resizable and the controls lay out to it in real pixels, while
+	# this grab returns the viewport's own render target at the project's base
+	# size. Those two are routinely different — a 999-wide window photographed as
+	# a 960-wide PNG — so the picture silently CROPS the interface, and a button
+	# perfectly placed in the game appears sliced by the right edge of the file.
+	#
+	# An afternoon went into chasing a margin bug that did not exist because of
+	# it. A screenshot that does not show what the game shows is worse than no
+	# screenshot: it is a confident wrong answer.
+	var base := Vector2i(
+		int(ProjectSettings.get_setting("display/window/size/viewport_width", 960)),
+		int(ProjectSettings.get_setting("display/window/size/viewport_height", 540)))
+	get_window().size = base
+	for i in 8:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var out := "user://shot.png"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("shot="):
+			out = a.split("=")[1]
+	img.save_png(out)
+	# THE TEXTURE AND THE LAYOUT ARE NOT ALWAYS THE SAME WIDTH, and reading the
+	# picture as if they were costs an afternoon. The window is resizable, the
+	# controls lay out to it, and this grab is the viewport's own render target —
+	# so a screenshot can be NARROWER than the interface in it, and a button
+	# sliced by the right edge of the PNG can be perfectly placed in the game.
+	# Both numbers are printed so the next reader can tell those two apart.
+	print("[shot] %s  texture %dx%d  layout %dx%d" % [
+		ProjectSettings.globalize_path(out), img.get_width(), img.get_height(),
+		int(size.x), int(size.y)])
+	get_tree().quit()
+
 ## Kept alive for the duration of `-- charttest`; see the call site.
 var _chart_test: RefCounted = null
+## Held for the same reason the others are: it awaits, and a RefCounted only a
+## local holds is freed the moment the calling statement ends.
+var _stow_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null
 var _net_test: RefCounted = null

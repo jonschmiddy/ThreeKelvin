@@ -6,7 +6,7 @@ config/name="Three Kelvin"
 config/description="Chart coreward. Your modules are your deck."
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 
 [autoload]
 Sig="*res://scripts/autoload/Sig.gd"

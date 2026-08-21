@@ -28,9 +28,38 @@ var _hull: Label
 # --- salvage (quiet only)
 var _salvage: VBoxContainer
 var _salvage_wrap: PanelContainer
-## Dismissed for now, not thrown away. Reset when fresh salvage arrives.
-var _stowed: bool = false
-var _last_haul: int = -1
+## The window onto the list. THE RAIL HAS A CEILING NOW, and the bug it fixes is
+## not a scrolling bug — it is a layout one.
+##
+## A `PanelContainer` takes its minimum size from its child, and the child was a
+## `VBoxContainer` holding one panel per part in the hold. Six parts out of a
+## lawless run came to well over a screen, the rail's minimum grew past the
+## viewport, and because it sits in the arena — which is the expanding row of the
+## root column — the whole page grew with it. The hand strip and the quiet strip
+## were pushed off the bottom, and the sector was unplayable until the hold was
+## emptied from another screen.
+##
+## A ScrollContainer's minimum height does NOT track its content, so the rail now
+## asks for a fixed, small amount of room and gives the overflow a scrollbar.
+var _salvage_scroll: ScrollContainer
+## STOW and JETTISON, built once and kept out of the scrolling region. They are
+## the way to close this panel, so they must never be the thing you have to
+## scroll to reach.
+var _salvage_actions: HBoxContainer
+## The rail's heading. Two things share this panel and they are not the same
+## question: a BAG is loot nobody owns yet and a HOLD is loot you are carrying.
+var _salvage_head: Label
+## True while a TAKE is out at the host and has not been answered.
+##
+## One click at a time. `take_from_bag()` awaits a round trip, and a second click
+## landing inside that window would put two requests in the air for a hold with
+## one slot left in it — the answer to the first is what decides whether the
+## second is even legal.
+var _taking: bool = false
+## Dismissed for now, not thrown away. See RunState.salvage_hushed_hauls — the
+## flag lives there because THIS SCREEN IS REBUILT ON EVERY JUMP and a dismissal
+## kept here was forgotten the moment you left.
+
 
 # --- combat only
 var _hand_wrap: PanelContainer
@@ -73,6 +102,10 @@ var _readout_pending: CardView = null
 var _readout_gen: int = 0
 ## How long you have to rest on a card before it explains itself.
 const READOUT_DELAY := 1.0
+## The shortest the salvage list is allowed to be. Roughly one module row, so a
+## single part does not open a tall empty box — everything past that comes out of
+## the arena's spare height, and everything past THAT scrolls.
+const SALVAGE_MIN_H := 96
 var _deck_label: Label
 var _draw_pile: PileView
 ## The confirmation panel while it is open. See _on_flee.
@@ -215,13 +248,57 @@ func _build_orphans() -> void:
 	_preview = UITheme.body("", UITheme.FLARE, UITheme.FS_SMALL)
 	_log = LogPanel.new()
 
+## Three bands: a heading, a scrolling list, and the two buttons that dismiss it.
+##
+## Only the middle one scrolls, and only the middle one is rebuilt. The heading
+## used to be a child of the list with a `name` on it so the refresh could tell
+## it apart from a module row — that check is gone with the structure that needed
+## it, which is the small win hidden inside the layout fix.
 func _build_salvage_rail() -> PanelContainer:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	_salvage_head = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	col.add_child(_salvage_head)
+
 	_salvage = VBoxContainer.new()
 	_salvage.add_theme_constant_override("separation", 3)
-	var head := UITheme.body("SALVAGE - STOW IT OR FIT IT", UITheme.COLD, UITheme.FS_SMALL)
-	head.name = "Head"
-	_salvage.add_child(head)
-	_salvage_wrap = Widgets.panel_with(_salvage)
+	_salvage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	_salvage_scroll = ScrollContainer.new()
+	# Sideways scrolling would mean the rail is too NARROW, which is a different
+	# bug and one this screen does not have — the rows wrap to the 268 the panel
+	# asks for. Disabled so a wide row cannot quietly buy itself a second bar.
+	_salvage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Takes the arena's leftover height rather than demanding its content's. This
+	# line and SALVAGE_MIN_H below are the whole of the fix.
+	_salvage_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_salvage_scroll.custom_minimum_size = Vector2(0, SALVAGE_MIN_H)
+	_salvage_scroll.add_child(_salvage)
+	col.add_child(_salvage_scroll)
+
+	_salvage_actions = HBoxContainer.new()
+	_salvage_actions.add_theme_constant_override("separation", 4)
+	# Stowing keeps everything. The hold is unlimited, so nothing here should
+	# destroy salvage by default.
+	var stow := Widgets.button("STOW - DECIDE LATER",
+		func() -> void:
+			Run.salvage_hushed_hauls = Run.hauls
+			Run.salvage_hushed_bag = _bag_here()
+			_refresh())
+	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stow.tooltip_text = Widgets.tip("Keeps it all in the hold. Fit or scrap it from the SHIP page.")
+	_salvage_actions.add_child(stow)
+	var dump := Widgets.button("JETTISON",
+		func() -> void:
+			Run.cargo.clear()
+			Run.found_hull = null
+			Sig.ship_changed.emit()
+			_refresh())
+	dump.tooltip_text = Widgets.tip("Destroys everything in the hold. There is no reason to do this.")
+	_salvage_actions.add_child(dump)
+	col.add_child(_salvage_actions)
+
+	_salvage_wrap = Widgets.panel_with(col)
 	_salvage_wrap.custom_minimum_size = Vector2(268, 0)
 	return _salvage_wrap
 
@@ -266,10 +343,11 @@ func _on_action() -> void:
 				Router.show_starchart()
 			else:
 				Router.harvest_pulsar()
-		# A contact you have not fought yet. Only reachable on a resumed run —
-		# arriving at one normally starts the fight before this screen draws —
-		# but the button has said ENGAGE all along, and it now does that rather
-		# than quietly plotting a jump.
+		# A contact you have not fought yet. For FIGHT that is a resumed run —
+		# arriving at one normally starts the fight before this screen draws. For
+		# GOAL it is the ORDINARY path: the core is a place you arrive at and
+		# then commit to, so a party can be at it together. See
+		# Router.resolve_current_node().
 		MapGen.NodeType.FIGHT, MapGen.NodeType.GOAL:
 			if n.cleared or n.fled:
 				Router.show_starchart()
@@ -309,9 +387,9 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
 			return ["Open space, and the reactor holding. The core is a long way in from here.", "PLOT NEXT JUMP"]
-		# Only drawn on a resumed run — arrival at the Core starts the fight
-		# before this screen exists — but the button underneath now engages, so
-		# the line above it has to say what pressing it does.
+		# The core, waiting. Arriving here no longer opens the fight, so this is
+		# what the screen says while the party gathers and somebody decides to
+		# commit — the line above the button has to name what pressing it does.
 		MapGen.NodeType.GOAL:
 			if n.cleared:
 				return ["The light is behind you.", "PLOT NEXT JUMP"]
@@ -569,49 +647,64 @@ func _refresh() -> void:
 
 	_refresh_salvage()
 
+## The system index if there is loose salvage here, or -1. The second half of
+## what a dismissal is keyed on.
+func _bag_here() -> int:
+	var n: MapGen.MapNode = Run.node_at()
+	return n.index if Run.bag_left(n) > 0 else -1
+
+
 func _refresh_salvage() -> void:
 	for c in _salvage.get_children():
-		if c.name != "Head":
-			c.queue_free()
+		c.queue_free()
 
-	# A fresh HAUL re-opens the prompt; stowing is per-haul. Watching
-	# `cargo.size()` instead was right until the refit screen learned to drag a
-	# part off a hardpoint into the hold — that grows the hold too, so unbolting
-	# your own coolant line made this panel offer it back as salvage.
-	if Run.hauls > _last_haul and _last_haul >= 0:
-		_stowed = false
-	_last_haul = Run.hauls
+	var n: MapGen.MapNode = Run.node_at()
+	var loose := Run.bag_left(n)
+	var mine := Run.cargo.size() > 0 or Run.found_hull != null
+	var bag_here := n.index if loose > 0 else -1
 
-	var has := (Run.cargo.size() > 0 or Run.found_hull != null) and not fighting()
-	_salvage_wrap.visible = has and not _stowed
+	# STAYS DISMISSED ACROSS A JUMP. The state lives on `Run` because this screen
+	# does not survive one — see RunState.salvage_hushed_hauls.
+	#
+	# It stops being dismissed when there is something NEW to decide about: a
+	# fresh haul, or a bag at a system you have not stood over yet. Watching
+	# `cargo.size()` instead of `hauls` was right until the refit screen learned
+	# to drag a part off a hardpoint into the hold — that grows the hold too, so
+	# unbolting your own coolant line made this panel offer it back as salvage.
+	var hushed := Run.salvage_hushed(bag_here)
+	var has := (loose > 0 or mine) and not fighting()
+	_salvage_wrap.visible = has and not hushed
 	if not _salvage_wrap.visible:
 		return
+
+	# The bag names itself, because the rule is not obvious from looking at it
+	# and it is the rule that matters: the parts are not yours yet, and they stop
+	# being available the moment somebody reaches for one.
+	_salvage_head.text = "SALVAGE - ONE BAG, FIRST HAND IN" if loose > 0 \
+		else "SALVAGE - STOW IT OR FIT IT"
+
+	# What the kill left, before what you are already carrying. Loose parts are
+	# the only thing on this panel with a clock on them.
+	for i in n.bag.size():
+		if n.taken.has(MapGen.OPTION_BAG + i):
+			# Kept on screen rather than dropped out of the list. A part that
+			# vanishes reads as a part that was never there; a part with somebody
+			# else's name on it is the whole texture of flying together, and it
+			# is the same argument `MapGen.OPTION_SHOP` makes about a sold shelf.
+			var who := Net.taker_name(n.index, MapGen.OPTION_BAG + i)
+			_salvage.add_child(Widgets.module_row(n.bag[i],
+				Widgets.ModuleContext.BAG, 0, _on_salvage,
+				"%s TOOK THIS" % who.to_upper() if who != "" else "TAKEN"))
+			continue
+		# No price on a bag. You already paid for it by being in the fight.
+		_salvage.add_child(Widgets.module_row(n.bag[i],
+			Widgets.ModuleContext.BAG, 0, _on_bag))
 
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
 	for m in Run.cargo:
 		_salvage.add_child(Widgets.module_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage))
 
-	var actions := HBoxContainer.new()
-	actions.add_theme_constant_override("separation", 4)
-	# Stowing keeps everything. The hold is unlimited, so nothing here should
-	# destroy salvage by default.
-	var stow := Widgets.button("STOW - DECIDE LATER",
-		func() -> void:
-			_stowed = true
-			_refresh())
-	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stow.tooltip_text = Widgets.tip("Keeps it all in the hold. Fit or scrap it from the SHIP page.")
-	actions.add_child(stow)
-	var dump := Widgets.button("JETTISON",
-		func() -> void:
-			Run.cargo.clear()
-			Run.found_hull = null
-			Sig.ship_changed.emit()
-			_refresh())
-	dump.tooltip_text = Widgets.tip("Destroys everything in the hold. There is no reason to do this.")
-	actions.add_child(dump)
-	_salvage.add_child(actions)
 
 func _refresh_player() -> void:
 	if not fighting():
@@ -718,6 +811,29 @@ func _refresh_hand() -> void:
 	_end_button.disabled = combat.finished or combat.waiting
 
 # --------------------------------------------------------------------- input
+
+## Reaching into the bag, which is the one control on this screen that has to
+## ask somebody else's machine before it can answer.
+##
+## `Widgets` binds the module rather than the index, so the index is recovered by
+## identity — `n.bag` holds the very objects the rows were built from, and the
+## array never shrinks, so `find()` is exact rather than a lookup by name.
+func _on_bag(action: String, thing: Variant) -> void:
+	if action != "take" or _taking:
+		return
+	var n: MapGen.MapNode = Run.node_at()
+	var i := n.bag.find(thing)
+	if i < 0:
+		return
+	_taking = true
+	# Redrawn twice on purpose: once now so the row cannot be pressed again while
+	# the answer is in the air, and once when it lands.
+	_refresh()
+	var got := await Run.take_from_bag(n, i)
+	_taking = false
+	if got:
+		Audio.play(&"loot_drop")
+	_refresh()
 
 func _on_salvage(action: String, thing: Variant) -> void:
 	match action:

@@ -35,6 +35,7 @@ var modules: Dictionary = {}            ## StringName -> ModuleData (templates)
 var hull_frames: Array[HullData] = []
 var enemies: Dictionary = {}            ## StringName -> EnemyTemplate
 var affixes: Array[AffixData] = []
+var documents: Dictionary = {}           ## StringName -> DocumentData
 var hull_perks: Dictionary = {}         ## StringName -> {name, text}
 
 ## ONE branded weapon, and yard stock for the rest.
@@ -131,6 +132,7 @@ func _ready() -> void:
 	_seed_hulls()
 	_seed_enemies()
 	_seed_perks()
+	_seed_documents()
 
 # ---------------------------------------------------------------- manufacturers
 
@@ -468,10 +470,20 @@ func _seed_modules() -> void:
 	## Issued weapon. Bites and knits at once, which is the house in miniature.
 	##
 	## Trimmed from 5/heal 2. Calyx measured strongest of the seven at every
-	## weight, and sustain is why: hull loss causes half the deaths in this
-	## game, so a weapon that repairs while it fires is worth more than one
-	## that hits harder. Two points of healing on two copies of a card in a
-	## nine-card deck was quietly the best starter in the game.
+	## weight, and sustain is why: a weapon that repairs while it fires is worth
+	## more than one that hits harder, and two points of healing on two copies of
+	## a card in a nine-card deck was quietly the best starter in the game.
+	##
+	## THE FIGURE THAT USED TO BE HERE IS OUT OF DATE, and it is left corrected
+	## rather than deleted because the decision it justified still stands. It said
+	## hull loss causes half the deaths. Measured again over 600 runs while the
+	## repair modules below were being added: 105 of 338 deaths, so 31%, against
+	## 56% for running the tank dry. Hull loss is the second killer in this game
+	## and has been for a while.
+	##
+	## The trim was still right — Calyx was strongest and this is why — but
+	## anybody reaching for "sustain decides the game" as a reason to refuse
+	## something should reach for the current number instead.
 	_module(&"barb", "Calyx Barb", &"calyx", W, C0,
 		"Grown to a point. Feeds on what it opens.",
 		[{name = "Barb", energy = 1, damage = 4, heal = 1, copies = 2}])
@@ -481,6 +493,82 @@ func _seed_modules() -> void:
 	_module(&"sporevent", "Calyx Spore Vent", &"calyx", U, C2,
 		"Grown coolant. Unsettlingly warm.",
 		[{name = "Bloom", energy = 0, vent = 6, heal = 3, copies = 1}])
+
+	# --- Repair, one way per house
+	#
+	# Healing used to be Calyx's and nobody else's — Knit, Barb and Bloom, plus
+	# the yard's Patch Kit and the Voidwhale Ganglion. Every other house had to
+	# buy its hull back at a station, which is correct as an economy and wrong as
+	# a deck: a build with no answer to being hurt has one answer to being hurt,
+	# and it is "leave".
+	#
+	# So all seven can repair now, and NOT ONE OF THEM DOES IT THE SAME WAY. A
+	# heal card handed identically to seven houses is seven houses minus their
+	# differences, and the differences are the class system. Each of these pays
+	# for its hull points in the currency its house already trades in: Korvan in
+	# tempo, Solari in heat, Dredge in credits, Redline in nothing much and not
+	# much back, Halcyon in energy, Cygnet in time.
+	#
+	# THEY ARE ALL LIFELINES, AND THAT IS THE SECOND REWRITE OF THIS BLOCK.
+	#
+	# The first pass priced them as economy cards — flat heals, two and three
+	# energy — and priced them for a HEALTHY turn, which is the one turn that does
+	# not need them. At three hull and one energy left, a card that costs two is
+	# not a card. Every one of these now costs at most one energy (Halcyon's costs
+	# two, and one under Bespoke, which is that house answering the question its
+	# own way) and every one of them scales on hull MISSING rather than paying a
+	# flat number. See CardData.heal_scale.
+	#
+	# The shape that buys: nearly dead weight at full hull, the biggest card in
+	# the deck at three. Worth exactly as much as the trouble you are in.
+	#
+	# CALYX IS FLAT AND STAYS FLAT, which is now a real distinction rather than an
+	# omission: Calyx heals you all fight and the other six save you at the end of
+	# one. Knit for 5 twice over is better than any of these on a turn you are
+	# winning and worse than all of them on a turn you are not. That is the house
+	# that grows hulls versus the houses that patch them.
+	#
+	# CALYX GETS NOTHING HERE, deliberately. It already has three, it is the
+	# sustain house, and `barb` above records what happened last time sustain was
+	# handed out freely: Calyx measured strongest of the seven at every weight.
+	# Widening the thing that made it strongest is not how the other six catch up.
+	# Every rate below is deliberately worse than Knit's 10 hull for 2 energy.
+	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
+		"Surplus. One kit, one weld, and it holds.",
+		[{name = "Field Weld", energy = 1, heal = 2, heal_scale = 4, copies = 1}])
+	## Heat as the welding torch, which is the house's whole argument. Costs four
+	## heat to buy seven hull, so it is a good trade on a cold turn and a way to
+	## kill yourself on a hot one — and Ignition (5-set, overheat halved) is what
+	## turns the second case back into the first.
+	_module(&"cautery", "Cauterising Torch", &"solari", S, C2,
+		"Aim it at the hole. Heat is only waste if you fail to aim it.",
+		[{name = "Cauterise", energy = 1, heat = 4, heal = 2, heal_scale = 3, copies = 1}])
+	## Repairs out of the hold, at Combine rates. The credit cost is the point:
+	## it is the only card in the game that spends the run's currency to buy hull
+	## back mid-fight, and Company Rates (3-set, +50% from wrecks) is what pays
+	## for it. A fight you cannot afford is a fight you have to win cheaply.
+	_module(&"reclaim", "Hull Reclamation Rig", &"dredge", S, C1,
+		"Feeds the frame on whatever the frame used to be.",
+		[{name = "Reclaim", energy = 1, heal = 2, heal_scale = 3, credit_cost = 8, copies = 1}])
+	## Cheap, fast, and not very good — which is Redline. Free to play and it
+	## replaces itself, so it costs a card slot rather than a turn, and Chop Shop
+	## (3-set, draw 1 extra) is a house that can afford to run thin cards.
+	_module(&"bodge", "Bodge Kit", &"redline", U, C0,
+		"Foam, tape, and no paperwork. Still flying? Then we did our job.",
+		[{name = "Bodge", energy = 0, heal = 1, heal_scale = 5, draw = 1, copies = 2}])
+	## The warranty, as a card. Twenty hull in one go for three energy — two
+	## under Bespoke (3-set, Halcyon cards cost 1 less), which is the difference
+	## between unplayable and a turn you plan a fight around. See `docs/lore.md`
+	## §3: the word in the rider is perpetuity, and the Company does not define it.
+	_module(&"perpetuity", "Perpetuity Clause", &"halcyon", S, C3,
+		"The Company will maintain this hull. The Company does not say for how long.",
+		[{name = "Perpetuity", energy = 2, heal = 4, heal_scale = 3, copies = 1}])
+	## Two small welds rather than one big one, which is how a swarm does
+	## anything. Worse per card than Knit and worse per energy, and it arrives
+	## twice — Cygnet repairs the way Cygnet fights.
+	_module(&"menders", "Mender Swarm", &"cygnet", S, C2,
+		"They find the hole before you do. Nobody has asked how.",
+		[{name = "Mend", energy = 1, heal = 1, heal_scale = 5, copies = 2}])
 
 	# --- Unbranded: exotic (grown) and artifact (precursor)
 	_module(&"organ", "Voidwhale Ganglion", &"", U, C5,
@@ -539,9 +627,14 @@ func _seed_modules() -> void:
 	_module(&"scope", "Ranging Scope", &"", U, C0,
 		"Tells the guns where the thing is. That is all it does.",
 		[{name = "Range", energy = 0, lock_on = 3, copies = 1}])
+	## YARD STOCK, AND THE FIRST LIFELINE ANYBODY HOLDS. Scaled like the branded
+	## repairs below it rather than left flat, because the turn this card exists
+	## for is the same turn theirs do — and a run whose only repair is a flat 4 is
+	## a run that learns repair does not save you before it ever finds one that
+	## does.
 	_module(&"patchkit", "Patch Kit", &"", U, C0,
 		"Foam, tape, and a prayer to whoever welded the frame.",
-		[{name = "Patch", energy = 1, heal = 4, copies = 1}])
+		[{name = "Patch", energy = 1, heal = 1, heal_scale = 5, copies = 1}])
 
 	for id in GENERIC_STOCK:
 		(modules[id] as ModuleData).starter_only = true
@@ -1030,6 +1123,33 @@ const HULL_LINES := {
 	},
 }
 
+## The widest canvas any player hull draws into, measured rather than typed.
+##
+## Anything that CROPS a hull has to know this, and the one place that does —
+## the convoy strip — had it as a literal. That literal was correct against the
+## procedural drawing it was written for and quietly wrong the moment real art
+## landed: the sprites are cropped tight to their ships and run from 152 to 237
+## across, so a constant sized for the old canvas took the nose off every heavy
+## in the party. The strip's own comment said "nothing is ever cropped
+## nose-first, which reads as a mistake rather than as distance", which is
+## exactly what it then did.
+##
+## So it is asked rather than remembered. Twelve `load()` calls behind Godot's
+## resource cache, once, on the first ask — the same twelve textures the hulls
+## are already built from.
+static var _widest: int = 0
+func widest_hull() -> int:
+	if _widest > 0:
+		return _widest
+	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
+		for cls in HullData.TIER_NAMES.size():
+			var tex := hull_sprite(w, cls)
+			if tex != null:
+				_widest = maxi(_widest, tex.get_width())
+	# A build with no hull art at all falls back to the procedural canvas rather
+	# than to zero, which would crop every ship to nothing.
+	return maxi(_widest, ShipView.W)
+
 ## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
 ## why it carries an offset. See HullData.exhaust.
 const EXHAUST_FRAMES := 9
@@ -1325,4 +1445,264 @@ func fight_pool(danger: int, fauna_region: bool) -> Array[StringName]:
 			out.assign([&"lancer", &"hulk", &"marauder"])
 		_:
 			out.assign([&"hulk", &"marauder", &"sentinel"])
+	return out
+
+# -------------------------------------------------------------------- archive
+
+## Somebody else's paperwork, recovered out of the dark.
+##
+## See `docs/lore.md` §5 for the rules these are written to. The short version,
+## because it is the part that is easy to break: PRIMARY SOURCES, NEVER
+## EXPOSITION. Every one of these was written by a person with a job, for a
+## reader who already knew the context, and none of them is trying to tell you
+## anything. The world arrives sideways or it does not arrive.
+##
+## Two invariants worth stating because they are invisible in the data:
+##
+## **The epochs do not reconcile.** Korvan counts surveys, Dredge counts filings,
+## Halcyon counts commissions and the transponders count nothing at all. A
+## careful reader should come away certain that a very long time has passed and
+## unable to say how long. Duration is the horror; a timeline is a wiki.
+##
+## **Nothing here answers what the heat is for.** There is no answer written down
+## anywhere, including in the design documents, and that is a commitment rather
+## than an omission — the moment one exists somebody will eventually put it in an
+## entry, and the game is worse the day they do.
+func _seed_documents() -> void:
+	# depth is the shallowest shell it can be recovered from, 0 at the rim. The
+	# entries that unsettle most sit deepest, so that going one jump too far has
+	# something down there that is not a better gun.
+	_doc(&"korvan_invoice", "INVOICE 44,120-K", "a billing clerk, Korvan Heavy Works",
+		"eleventh survey, month four", &"korvan", 0,
+		"Shipped this quarter to Ordnance Receiving, Station Var: forty-one recoil assemblies, twelve mount collars, three crates of shim stock to the drawing revision current at time of order.
+
+Receiving has not acknowledged a delivery since the eighth survey. Payment continues to clear on schedule and in full.
+
+Query raised previously and closed as answered. Closing again. The account is current, the drawings have not changed, and the jigs are set. It is not this office's business to ask who is signing.
+
+Next shipment as scheduled.")
+
+	_doc(&"broker_ledger", "DAY BOOK, THIRD QUARTER", "a yard broker, name torn off",
+		"no year given", &"", 0,
+		"Hull plate, sixteen sheets — took the lot, paid over. Reactor coil, one, tested — turned it away, it is scrap with a certificate.
+
+The Cygnet berth came round again about banked thermal. Four times the yard rate, and they still will not say where it goes.
+
+I told them what I tell them. I have a ring to keep turning and eleven hundred people on it who want the lights on this winter. They can have the whole sky in twenty years. I will not be here to hand it over.
+
+They wrote that down. They write everything down.")
+
+	_doc(&"dredge_filing", "FILING 8812-C, SALVAGE PRIORITY", "a claims officer, The Dredge Combine",
+		"filing year 8812", &"dredge", 1,
+		"Priority claim, all wrecks arising, Kestrel Reach and its approaches. Combine to have first survey, first cut and first refusal on any hull, part or cargo recovered.
+
+Filed in anticipation. Standard.
+
+Note appended by the same hand, undated: claim opened four hundred and six days before the loss. Reviewed. No irregularity. The Combine files ahead of the schedule, not ahead of the event.
+
+Claim remains open. Nothing has arisen yet.")
+
+	_doc(&"inspection_note", "INSPECTION NOTE, BERTH 9", "a customs officer, station unnamed",
+		"shift log, second watch", &"", 1,
+		"Vessel presented for inspection. Manifest declared no thermal cargo and no thermal cargo was found.
+
+Vessel was warm.
+
+Not warm in the reactor. Warm in the hold, in the plate, in the deck under my boots, eleven degrees over the berth and holding while I stood in it. Pilot said the heaters were on. Pilot was wearing a coat.
+
+Released. Nothing to seize and nothing on the schedule that covers being warm.
+
+Third one this month.")
+
+	_doc(&"halcyon_rider", "RIDER TO A COMMISSION, CLAUSE 4", "counsel, Halcyon",
+		"commission three hundred and eleven", &"halcyon", 2,
+		"The Company shall maintain this hull in perpetuity.
+
+The Company does not define perpetuity, and the Owner acknowledges that no definition is offered, requested or implied.
+
+Where the Owner is deceased, the obligation passes to the Owner's descendants without limit of generation.
+
+Where no descendant survives, the obligation does not lapse. The Company will continue to maintain the hull.
+
+Signed, and countersigned by a hand that has signed every commission since the first.")
+
+	_doc(&"redline_scratch", "SCRATCHED INSIDE AN ACCESS PANEL", "unknown, a hand and a blade",
+		"undated", &"redline", 2,
+		"IF YOU ARE READING THIS THE PANEL CAME OFF EASY.
+THAT IS THE ONLY WARRANTY YOU GET.
+
+DO NOT SELL THEM THE WARM STUFF AT THE POSTED RATE. THEY WILL GO HIGHER. THEY WILL ALWAYS GO HIGHER.
+
+ASK YOURSELF WHY THEY WILL ALWAYS GO HIGHER.
+
+THEN TAKE THE MONEY. I DID.")
+
+	_doc(&"transponder_loop", "TRANSPONDER TRANSCRIPT, PARTIAL", "recovered off a repeating carrier",
+		"cycle length forty-one years", &"", 3,
+		"...BERTH FOUR HELD FOR THE ASPHODEL, ARRIVING. BERTH SEVEN HELD FOR THE LONG MERIDIAN, ARRIVING. BERTH NINE CLEAR. FUEL AVAILABLE. REPAIR AVAILABLE. HOT MEALS SECOND WATCH.
+
+BERTH FOUR HELD FOR THE ASPHODEL, ARRIVING. BERTH SEVEN HELD FOR THE LONG MERIDIAN, ARRIVING...
+
+Surveyor's note: the loop is intact and has not degraded. There is no station at this position and no wreckage at this position. The carrier is coming from the position.
+
+The Asphodel is not on any register. Neither is the Long Meridian.
+
+Hot meals, second watch.")
+
+	_doc(&"cygnet_receipt", "DELIVERY RECEIPT, THERMAL", "generated, Cygnet berth",
+		"receipt 6,004,192", &"cygnet", 3,
+		"RECEIVED: banked thermal, one unit, sealed.
+WEIGHED: yes.
+ASSAYED: yes.
+CONDITION: as declared.
+PAID: at rate, on presentation.
+
+RECEIVED BY: —
+
+DELIVERED TO: routing follows.
+
+This receipt was generated. No party was present at the berth at the time of delivery. No party is required to be present at the berth at the time of delivery.
+
+Retain for your records. Cygnet does not retain a copy.")
+
+	_doc(&"pilot_log", "PRIVATE LOG, LAST FOUR ENTRIES", "a pilot, hull not named",
+		"dive one hundred and nine", &"", 4,
+		"106. Down to seven. Cold the whole way. Good haul, nothing to say about it.
+
+107. Same. Sold at the Dredge berth, they did not haggle, they never haggle.
+
+108. Went to eight. It is not colder down there. I have said this to four people now and all four told me I had it backwards.
+
+109. It is not colder down there. The instruments say colder. I am telling you what the ship felt like with my hand flat on the inside of the hull at eight and my hand flat on the inside of the hull at two, and the instruments are wrong, or the instruments are measuring something that is not what I was touching.
+
+I am not going back down. I will go back down.")
+
+	_doc(&"rate_schedule", "POSTED RATE, THERMAL — REVISION 209", "a posting clerk, house not stated",
+		"revision two hundred and nine", &"", 4,
+		"Rate per banked unit, all houses, all berths, effective immediately and until revised.
+
+[figure struck out and rewritten in the same figure]
+
+Revision history appended for audit: revisions one through two hundred and nine.
+
+The rate is unchanged at revision two hundred and nine. The rate is unchanged at every revision.
+
+Auditor's note, filed and closed: a posted rate that does not move across two hundred and nine revisions is not a market rate. Recommend the schedule be discontinued as it conveys no information.
+
+Recommendation declined. The schedule is to be posted.")
+
+	_doc(&"calyx_incident", "INCIDENT FORM 12, COMPLETED", "an attending technician, Calyx Biosystems",
+		"culture year 1,904", &"calyx", 5,
+		"SPECIMEN: hull, cultured, commissioned, in service eleven years.
+EVENT: specimen was fed a quantity of banked thermal substantially in excess of its rating.
+FED BY: owner.
+OWNER'S STATED REASON: [field left blank]
+
+OBSERVED, HOUR ONE: uptake. No distress.
+OBSERVED, HOUR SIX: uptake continuing. No distress. Rating exceeded by a factor of nine.
+OBSERVED, HOUR FORTY: uptake continuing.
+
+SPECIMEN DISPOSITION: retained.
+OWNER DISPOSITION: [field left blank]
+
+Every contract carries the clause. This is the first time the clause has been operated. The clause does not say what to do afterwards.")
+
+	_doc(&"precursor_survey", "STRUCTURAL SURVEY, HULK 4", "a surveyor, contract work",
+		"eleventh survey, month nine", &"", 5,
+		"Frame is sound. Frame is older than the yards that would have laid it and older than the alloys we would have laid it in, and it is sound, which is annoying.
+
+Mass is wrong. Not distributed for thrust, not distributed for spin, not distributed for anything I would put a crew inside. Distributed for something.
+
+Nine bays. Seven open onto compartments. Two open onto the frame — sealed on both faces, no hatch, no service run, no reason. Machined to the same tolerance as the rest.
+
+I am paid by the hulk and not by the hour so I will say this once: whoever built this was not bad at it.
+
+Recommend strip and cut. Nothing here is worth preserving except the question.")
+
+	_doc(&"solari_memo", "INTERNAL, THERMAL APPLICATIONS", "a section head, Solari Foundry",
+		"foundry year 812", &"solari", 6,
+		"To the floor, all shifts.
+
+I am tired of the mood. The sky is going out. It has been going out the entire time any of us have been alive and it will continue going out on a schedule we cannot move, and in the meantime there is more unspent warmth lying loose in this galaxy than the Foundry has processed in its history.
+
+Grief is a failure of nerve and I will not have it on my floor.
+
+Aim it. That is the whole discipline. Heat is only waste if you fail to aim it, and I have never once been shown a problem that was not improved by aiming it at something.
+
+The terminal application is on the schedule like everything else. Work the schedule.")
+
+	_doc(&"crew_roster", "ROSTER, BERTHS 1-14", "a purser, vessel unnamed",
+		"no year given", &"", 6,
+		"Berth 1 — MAUREL, T. — master
+Berth 2 — OKONKWO, A. — engines
+Berth 3 — SAAR — engines
+Berth 4 — VELA, I. — hold
+[...]
+Berth 14 — vacant
+
+A second column has been added in a different hand, in pencil, against every name including the vacancy. The column is unlabelled. The entries are temperatures.
+
+They descend down the page in the order the berths are numbered.
+
+The vacancy has a temperature.")
+
+	_doc(&"custodian_note", "STATEMENT, TAKEN AT A STATION", "taken down by a station clerk",
+		"undated, marked NOT FOR FILING", &"", 7,
+		"He would not give a name and he would not sit down. Taking it as given.
+
+He says he reached the core. He says there is something at it and that it did not attack him.
+
+He says it made room.
+
+He said that four times and I asked him four times what he meant and he could not say it another way. It made room. It moved so that he could be where it had been and it waited while he decided.
+
+He says he did not go in.
+
+He says he does not know why he did not go in and that this is the part he wants written down.
+
+Not for filing. He would not take a drink and he would not take the money.")
+
+	_doc(&"vault_routing", "ROUTING MANIFEST, BANKED THERMAL", "a logistics clerk, house not stated",
+		"undated, appended to a formatting query", &"", 8,
+		"Raising this as a formatting fault rather than an operational one.
+
+The destination field on every thermal manifest crossing this desk resolves to a code in three segments. Segment one is the house. Segment two is the berth of origin. Segment three is the destination and is supposed to be a location.
+
+It is not a location. It is not in the location tables, it does not parse as a bearing, and it is identical on all seven houses' manifests, which it should not be.
+
+It parses as a temperature.
+
+I have checked it against the background and it sits below it. There is nowhere that is below it.
+
+Requesting the field be corrected or the tables be updated. Low priority.
+
+[query closed: no fault found]")
+
+
+func _doc(id: StringName, title: String, by: String, dated: String,
+		house: StringName, depth: int, body: String) -> void:
+	var d := DocumentData.new()
+	d.id = id
+	d.title = title
+	d.by = by
+	d.dated = dated
+	d.house = house
+	d.depth = depth
+	d.body = body
+	documents[id] = d
+
+
+## Every entry a system this deep could hold, shallowest first.
+##
+## `depth` is a FLOOR, not a band: a rim document is still findable at the core,
+## because the paperwork of ordinary commerce does not stop existing because you
+## flew inward. The reverse is not true, and that asymmetry is the whole gate.
+func documents_by_depth(layer: int) -> Array:
+	var out: Array = []
+	for id in documents:
+		var d: DocumentData = documents[id]
+		if d.depth <= layer:
+			out.append(d)
+	out.sort_custom(func(a: DocumentData, b: DocumentData) -> bool:
+		return a.depth < b.depth if a.depth != b.depth else String(a.id) < String(b.id))
 	return out

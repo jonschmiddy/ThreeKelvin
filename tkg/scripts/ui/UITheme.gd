@@ -129,10 +129,28 @@ static func build() -> Theme:
 	t.set_font_size("normal_font_size", "RichTextLabel", FS_SMALL)
 	t.set_stylebox("normal", "RichTextLabel", empty())
 
-	# Scrolling
-	t.set_stylebox("scroll", "VScrollBar", flat(Color("#0c1219"), Color(0, 0, 0, 0), 0, 0, 0))
-	t.set_stylebox("grabber", "VScrollBar", flat(LINE, Color(0, 0, 0, 0), 0, 0, 0))
-	t.set_stylebox("grabber_highlight", "VScrollBar", flat(COLD, Color(0, 0, 0, 0), 0, 0, 0))
+	# Scrolling.
+	#
+	# THE PADDING IS THE WIDTH, and these three were authored at zero.
+	#
+	# A `VScrollBar` derives its minimum width from its styleboxes, so a track
+	# with no horizontal content margin is a bar that is nought pixels across.
+	# Every ScrollContainer in the game was therefore scrollable and said so to
+	# nobody: the shelf, the hold, the run history and — once it had one — the
+	# salvage rail all scrolled on the wheel and drew no bar at any point. The
+	# bug that got this looked at was reported as "it doesn't have a scroll",
+	# which was the correct reading of what was on screen.
+	#
+	# Six pixels. Wide enough to see and to grab, narrow enough that it reads as
+	# an edge treatment rather than as a control — the panels it lives in are
+	# 268 across and a chunky bar would be a tenth of one.
+	const BAR_PAD := 3
+	t.set_stylebox("scroll", "VScrollBar",
+		flat(Color("#0c1219"), Color(0, 0, 0, 0), 0, 0, BAR_PAD))
+	t.set_stylebox("grabber", "VScrollBar",
+		flat(LINE, Color(0, 0, 0, 0), 0, 0, BAR_PAD))
+	t.set_stylebox("grabber_highlight", "VScrollBar",
+		flat(COLD, Color(0, 0, 0, 0), 0, 0, BAR_PAD))
 
 	# Progress bars (hull, heat, enemy)
 	t.set_stylebox("background", "ProgressBar", bevel_in(Color("#0c1219"), 0, 0))

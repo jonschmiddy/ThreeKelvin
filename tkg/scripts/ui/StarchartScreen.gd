@@ -214,6 +214,34 @@ func _refresh() -> void:
 		return
 
 	var t: MapGen.MapNode = Run.map[_selected]
+
+	# A SYSTEM YOU ONLY KNOW ABOUT BECAUSE SOMEBODY IS PAYING YOU TO GO THERE.
+	#
+	# It answers exactly one question — why is this circled — and refuses the
+	# rest. No CONTAINS, no development, no security, no operators, because none
+	# of that was in the offer: the house said go here, it did not say what here
+	# is. Reading the panel and reading the contract give the same information,
+	# which is correct, because the contract is the only source there is.
+	#
+	# The jump button is left alone. Whether you can reach it is a question about
+	# fuel and adjacency rather than about knowledge, and the answer does not
+	# change because the place is unexplored.
+	if Run.known_only_by_contract(_selected):
+		var job := Run.contract_at(_selected)
+		_dest_name.text = MapGen.star_name(t)
+		_dest_class.text = "%s - POSITION ONLY" % Run.galaxy_name
+		_dest_blurb.text = job.text
+		_rows.add_child(_row("CIRCLED BY",
+			DB.manufacturer_name(job.house).to_upper(),
+			DB.manufacturer_colour(job.house)))
+		_rows.add_child(_row("PAYS", "%d CREDITS" % job.pay))
+		# Said plainly rather than left as four blank rows. An absence the player
+		# can read is information; an absence they have to notice is a bug.
+		_rows.add_child(_row("SURVEY", "NONE"))
+		_hint.text = "They gave you a position and nothing else."
+		_jump.disabled = not Run.can_jump_to(t)
+		return
+
 	# The name is the place; the classification is what kind of place it is -
 	# how built up, how policed, and whose it is, in that order.
 	_dest_name.text = MapGen.star_name(t)
@@ -1402,6 +1430,16 @@ class MapChart extends Control:
 			# Same exception, same reason, as the party markers below.
 			elif t.type == MapGen.NodeType.STATION:
 				out[t.index] = true
+			# And anywhere you have signed for. Same exception, third reason:
+			# the filter is right about places you might stumble into and wrong
+			# about a place somebody has PAID you to find. A contract that names
+			# a system the chart will not draw is a memory test.
+			#
+			# It reveals the dot and nothing else — see
+			# `RunState.known_only_by_contract()`, and the panel and the tooltip
+			# that read it.
+			elif Run.contract_at(t.index) != null:
+				out[t.index] = true
 		out[here.index] = true
 		for r in reach:
 			out[(r as MapGen.MapNode).index] = true
@@ -1662,6 +1700,7 @@ class MapChart extends Control:
 
 
 		_draw_party()
+		_draw_work()
 		_draw_neb_edges()
 
 		if hovered >= 0 and hovered < Run.map.size() and _hover_t > 0.01:
@@ -1792,6 +1831,22 @@ class MapChart extends Control:
 		var l4 := "DANGER %d/10" % n.danger
 		if here.links.has(n.index):
 			l4 += "   %d FUEL" % Run.fuel_cost_to(n)
+
+		# THE SAME REFUSAL THE PANEL MAKES, and it has to be made twice or it is
+		# not made at all: the tooltip prints type, place and danger, which is
+		# precisely the survey the destination panel just declined to give. One
+		# hover and the withholding is undone.
+		#
+		# Fuel survives, because reachability is a fact about your tank and the
+		# link you are standing next to rather than about the place.
+		if Run.known_only_by_contract(n.index):
+			var job := Run.contract_at(n.index)
+			l2 = "%s WANTS SOMETHING HERE" % DB.short_name(
+				DB.manufacturer_name(job.house)).to_upper()
+			l3 = "POSITION ONLY · NO SURVEY"
+			l4 = "%d CREDITS" % job.pay
+			if here.links.has(n.index):
+				l4 += "   %d FUEL" % Run.fuel_cost_to(n)
 
 		var w := 0.0
 		for line in [l1, l2, l3, l4]:
@@ -2197,6 +2252,82 @@ class MapChart extends Control:
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
 			draw_string(UITheme.pixel_font(), at_text, label,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.GOOD)
+
+	## Where the work is. A ring in the issuing house's colour, on every system an
+	## open contract points at.
+	##
+	## THE CHART IS WHERE A CONTRACT BECOMES PLAYABLE. A fetch that names "Kappa
+	## Thorn Reach" and then leaves you to find it is a memory test, and the
+	## station board is four screens away from the only page that plots a jump.
+	##
+	## Drawn OUTSIDE the visibility filter, like the party markers above and for
+	## the same reason: the filter is right about places and wrong about
+	## intentions. A job you signed for is a fact about YOU, and hiding it until
+	## you happen to fly within sensor range of it would hide it exactly while it
+	## is still a decision.
+	##
+	## Not a route and not an arrow. It says where, and leaves the whether alone —
+	## see ContractData's header on why nothing here pushes you anywhere.
+	func _draw_work() -> void:
+		if not show_icons or Run.map.is_empty():
+			return
+		for raw in Run.contracts:
+			var job: ContractData = raw
+			if job.state != ContractData.State.TAKEN:
+				continue
+			if job.at < 0 or job.at >= Run.map.size():
+				continue
+			var c := _screen_pos(Run.map[job.at])
+			var col := DB.manufacturer_colour(job.house)
+			# Backed in ink for the reason the party diamond is: the deep systems
+			# sit over the core, which is the brightest thing on the chart.
+			draw_arc(c, 9.0, 0.0, TAU, 20, UITheme.VOID, 3.0)
+			draw_arc(c, 9.0, 0.0, TAU, 20, col, 1.0)
+			# A second, tighter ring for a hunt, so the two kinds are told apart
+			# without a label. Fetch is an open circle; hunt has something in it.
+			if job.kind == ContractData.Kind.HUNT:
+				draw_arc(c, 4.0, 0.0, TAU, 12, col, 1.0)
+
+		# AND WHERE IT GETS HANDED OVER, which is the third thing to mark and the
+		# one that was missing. A fetch and a hunt ring a place before you go; a
+		# finished job and a heat contract have to ring a place you come BACK to,
+		# and a heat contract never had a target at all. Every berth of that
+		# house, because delivery is to the house rather than to the desk that
+		# posted it.
+		#
+		# A square rather than a ring, and filled: this is not somewhere to look,
+		# it is somewhere to land.
+		# THE NEAREST FEW, NOT ALL OF THEM. A house holds berths all over the
+		# galaxy and marking every one drew twelve squares across the disc, which
+		# reads as a rash rather than as directions — and the question a player is
+		# actually asking is not "where could I hand this over" but "where is the
+		# closest place I can". Three is enough to offer a choice of routes and
+		# few enough to be a marking.
+		for house in Run.delivery_houses():
+			var hcol := DB.manufacturer_colour(house)
+			for st in _nearest_berths(house, 3):
+				var p := _screen_pos(st)
+				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), UITheme.VOID, false, 3.0)
+				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), hcol, false, 1.0)
+				draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), hcol, true)
+
+	## The closest berths of one house, by galaxy distance from where you stand.
+	##
+	## Distance rather than jumps, deliberately. A route is a fuel question that
+	## the neighbour list answers properly and a straight line cannot, and a chart
+	## marking that pretended to know the route would be wrong the first time a
+	## link did not exist. This says WHICH WAY, and leaves the how to the list.
+	func _nearest_berths(house: StringName, want: int) -> Array:
+		var here := Run.node_at()
+		var found: Array = []
+		for raw in Run.map:
+			var st: MapGen.MapNode = raw
+			if ContractData.berth_of(st, house):
+				found.append(st)
+		found.sort_custom(func(a: MapGen.MapNode, b: MapGen.MapNode) -> bool:
+			return a.gal.distance_squared_to(here.gal) \
+				< b.gal.distance_squared_to(here.gal))
+		return found.slice(0, want) if found.size() > want else found
 
 	func _diamond(c: Vector2, d: float, col: Color) -> void:
 		draw_polyline([c + Vector2(0, -d), c + Vector2(d, 0),

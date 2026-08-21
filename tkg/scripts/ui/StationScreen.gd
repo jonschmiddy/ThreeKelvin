@@ -13,7 +13,19 @@ extends Control
 
 var _header: RichTextLabel
 var _trade: Label
+## What kind of place this is, in its own words. Fills the column under the
+## services with something worth reading rather than with nothing.
+var _blurb: Label
+var _hull_gauge: HBoxContainer
+var _heat_gauge: HBoxContainer
 var _services: VBoxContainer
+## The house board: what is posted here, and what you can close here.
+##
+## Under the services and above the shelf, because it is the part of a station
+## that is about WHERE YOU GO NEXT — and the shelf is the part that is about
+## what you fly. Reading order follows the decision order.
+var _work: VBoxContainer
+var _work_wrap: PanelContainer
 var _stock: VBoxContainer
 var _hull_box: VBoxContainer
 var _hold: VBoxContainer
@@ -34,83 +46,385 @@ func setup() -> void:
 	_inspect()
 	_refresh()
 
+## FIVE PAGES, NOT FIVE PANELS STACKED.
+##
+## A station does five things — repair you, post work, sell you parts, buy what
+## you are carrying, and build things where there is a laboratory — and all five
+## were on screen at once in one scrolling column. At a developed station that is
+## a service desk, two contracts, four shelf parts, twelve hold slots and a
+## recipe list, and the player has to scroll past the thing they came in for.
+##
+## Tabs, because these are five separate ERRANDS rather than five parts of one.
+## Nobody buys a gun and sells a plate in the same gesture; they do one, then
+## decide. A column implies a reading order that does not exist.
+##
+## Every page is built once and hidden, not built on demand: the shelf has to be
+## able to empty while you are looking at the hold — `Sig.party_map_changed`
+## fires when a partner buys something — and a page that only exists while it is
+## visible cannot be refreshed when it is not.
+const TABS := [
+	[&"services", "SERVICES"],
+	[&"work", "WORK"],
+	[&"stock", "STOCK"],
+	[&"hold", "HOLD"],
+	[&"bench", "FABRICATOR"],
+]
+
+var _pages: Dictionary = {}
+var _tabs: Dictionary = {}
+var _tab: StringName = &"services"
+## Which tabs this station actually has. An unbranded desk posts no work and a
+## station with no laboratory builds nothing.
+var _tabs_on: Dictionary = {}
+## How wide the service column is. A price belongs beside the thing it prices.
+const SERVICE_W := 420
+## How tall the hull portrait is. Enough for a heavy at 2x without the panel
+## growing past the service column beside it.
+const HULL_H := 180
+## And how wide the window onto it is. A cap, not a measurement — the widest hull
+## at 2x is 474 and the row does not have room for that beside the services.
+const HULL_W := 380
+## How wide the station's name line is allowed to be before it wraps. Bounded on
+## purpose — see the note in _build().
+const HEADER_W := 560
+## Every row on this screen is this tall. One number, so a service, a contract
+## and a shelf entry sit on the same rhythm instead of three.
+const ROW_H := 22
+
 func _build() -> void:
-	var root := HBoxContainer.new()
-	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 10)
-	add_child(root)
+	# Margin on the outside, once. Without it the header panel runs to x=0 and
+	# x=960 and UNDOCK is sliced in half by the window — every panel on this
+	# screen sits inside this one box.
+	var frame := MarginContainer.new()
+	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# NO SIDE MARGIN OF ITS OWN. `Main` already insets every screen by 8, and a
+	# second inset here put the station on a different left edge from the HUD
+	# above it and from every other screen in the game. Uniform means agreeing
+	# with the rest of the interface, not being individually tidy.
+	for side in ["top", "bottom"]:
+		frame.add_theme_constant_override("margin_" + side, 4)
+	add_child(frame)
 
-	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 10)
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(left)
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 8)
+	frame.add_child(root)
 
-	var head_section := Widgets.section("station")
+	# --- the header, and the way out.
+	#
+	# UNDOCK is a button on this line rather than a panel of its own on a column
+	# of its own. It was three hundred pixels wide inside a three-hundred-pixel
+	# rail, for a control that is pressed once and is never the reason anybody
+	# opened this screen. Leaving is not an errand.
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 2)
 	_header = RichTextLabel.new()
 	_header.bbcode_enabled = true
 	_header.fit_content = true
+	# NEVER WRAPS. Sized to its content and left to be as wide as it is — inside a
+	# shrinking panel an autowrapping label collapsed to its narrowest legal width
+	# and stacked "CITY STATION · HIGH / SECURITY · DANGER / 5" into a column.
+	# One line is the only shape this sentence has.
+	# WRAPS, AT A WIDTH THIS SCREEN CHOOSES.
+	#
+	# Both obvious settings are wrong here and they are wrong in opposite
+	# directions. Autowrap ON inside a shrinking panel collapses to the narrowest
+	# legal width and stacks the line into a column. Autowrap OFF reports the
+	# WHOLE UNWRAPPED LINE as a minimum width — and a Control is never laid out
+	# smaller than its minimum, even when anchored — so the header grew the entire
+	# screen to 983 inside a 960 window and every panel on it hung off the right
+	# edge. The symptom looked exactly like a missing margin.
+	#
+	# A fixed width and wrapping is the only combination that is neither: the
+	# header is as wide as this screen says and no wider, and it is the screen
+	# that decides rather than the sentence.
+	_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_header.custom_minimum_size = Vector2(HEADER_W, 0)
+	_header.scroll_active = false
 	_header.add_theme_stylebox_override("normal", UITheme.empty())
-	head_section.add_child(_header)
+	head.add_child(_header)
 	# Who this market is short of, said in words. The rule behind the prices is
 	# simple enough to state, so state it — a trade economy the player has to
 	# reverse-engineer from receipts is a puzzle, not an economy.
 	_trade = UITheme.body("", Color("#d99b29"), UITheme.FS_SMALL)
-	head_section.add_child(_trade)
+	head.add_child(_trade)
+	# SHRINK, NOT FILL. A RichTextLabel with `fit_content` derives its minimum
+	# width from its own unwrapped text, and inside an expanding panel that
+	# minimum won the argument — the header ran past the frame and sliced UNDOCK
+	# in half against the window. Sized to its content, it cannot push anything.
+	# FULL WIDTH, like the tab row and the page under it. A header that stops
+	# two thirds of the way across is the first thing that makes a screen look
+	# unaligned, and every block below it starts and ends at the same two x's.
+	var head_wrap := Widgets.panel_with(_pad(head))
+	head_wrap.size_flags_horizontal = Control.SIZE_FILL
+	root.add_child(head_wrap)
+
+	# --- the tab bar
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 4)
+	for entry in TABS:
+		var id: StringName = entry[0]
+		var b := Widgets.button(String(entry[1]), func() -> void: _show_tab(id))
+		b.custom_minimum_size = Vector2(104, 20)
+		_tabs[id] = b
+		bar.add_child(b)
+	# UNDOCK sits WITH the tabs rather than pushed to the far right of the row.
+	#
+	# Pinned to the right it was the one control on the screen whose position
+	# depended on the window being exactly as wide as expected, and the window is
+	# resizable — so on a wider window it sat correctly and in a 960 screenshot it
+	# was sliced in half, which cost most of an afternoon to not-diagnose. A
+	# control at the end of an expanding row is a control at the mercy of the
+	# row's width. Grouped left, it is at the mercy of nothing.
+	#
+	# It reads fine there anyway: the row is the things you can do at a station
+	# and leaving is one of them.
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(20, 0)
+	bar.add_child(spacer)
+	var out := Widgets.button("UNDOCK", func(): Router.show_sector())
+	out.custom_minimum_size = Vector2(104, 20)
+	bar.add_child(out)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(gap)
+	root.add_child(bar)
+
+	# --- the pages, all built, one visible
+	var body := Control.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	root.add_child(body)
+
+	_pages[&"services"] = _page_services()
+	_pages[&"work"] = _page_work()
+	_pages[&"stock"] = _page_stock()
+	_pages[&"hold"] = _page_hold()
+	_pages[&"bench"] = _page_bench()
+	for id in _pages:
+		var page: Control = _pages[id]
+		page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		body.add_child(page)
+	# `-- station tab=stock` opens on a named page. Four of the five are only
+	# reachable by clicking, and a screenshot cannot click.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("tab="):
+			_tab = StringName(a.split("=")[1])
+	_show_tab(_tab)
+
+## Repair, refuel, and the ship they are being done to.
+##
+## THE HULL EARNS ITS PLACE HERE AND NOWHERE ELSE. It used to sit in a permanent
+## rail on the right of every page, which is decoration: you can see your ship on
+## the sector screen and the refit page, and at a station it was answering no
+## question you had walked in with. Beside the repair prices it answers one — a
+## hull with its plating opened up, next to the number it costs to close it. That
+## is the only place on this screen where looking at the ship is the point.
+func _page_services() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var box := Widgets.section("services")
 	_services = VBoxContainer.new()
 	_services.add_theme_constant_override("separation", 5)
-	head_section.add_child(_services)
-	left.add_child(Widgets.panel_with(head_section))
+	box.add_child(_services)
+	# A COLUMN, NOT THE WHOLE WIDTH. A service is a line of text and a price, and
+	# stretched across 700px the price ends up half a screen from the thing it is
+	# the price of. This is the width that keeps them together.
+	# THE PANEL IS AS TALL AS THE LIST, not as tall as the page. Five services in
+	# a page-height box is four hundred pixels of empty panel, which reads as a
+	# screen that failed to load rather than as a short menu.
+	_blurb = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
+	_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_blurb.custom_minimum_size = Vector2(SERVICE_W - 24, 0)
+	box.add_child(UITheme.hsep())
+	box.add_child(_blurb)
+	# HALF THE PAGE, AND ALL OF ITS HEIGHT. Both columns take an equal share and
+	# both fill down to the bottom edge, so the two panels are the same size as
+	# each other and the page has no ragged corner. A stretch ratio rather than a
+	# pixel width, because the window is resizable and a fixed 420 is only ever
+	# correct at one size.
+	var wrap := Widgets.panel_with(_pad(box))
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.size_flags_stretch_ratio = 1.0
+	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(wrap)
 
-	var stock_section := Widgets.section("stock")
+	var ship := Widgets.section("your hull")
+	var art := ShipView.new()
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Doubled, and cropped to the band the hull occupies. At 1x it was a thumbnail
+	# in the corner of a large panel; at 2x it is a portrait of the thing the
+	# prices beside it are for, which is the only reason it is on this screen.
+	# Doubled AND cropped to a fixed window, in that order. `magnify` alone sizes
+	# the control to the whole doubled canvas — 237 pixels of heavy hull becomes a
+	# 474-wide minimum, and 420 of services plus that overflowed the row and shoved
+	# the whole screen seven pixels past the right edge of the window. The bug
+	# looked like a missing margin and was a minimum nobody had bounded.
+	art.magnify(2, HULL_H)
+	art.crop(HULL_W, HULL_H)
+	# Centred in its column rather than left-aligned in it. The column is wider
+	# than the portrait and a picture pinned to one side of a panel is the other
+	# half of "nothing lines up".
+	art.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ship.add_child(art)
+	# The two gauges the column to the left is selling. Hull is what REPAIR buys
+	# and heat cap is what the coolant buys, so the numbers those services move
+	# are on the same page as their prices — and the +2 that used to look like it
+	# did nothing is now visible from the button that does it.
+	ship.add_child(UITheme.hsep())
+	_hull_gauge = _gauge_row("HULL")
+	ship.add_child(_hull_gauge)
+	_heat_gauge = _gauge_row("HEAT")
+	ship.add_child(_heat_gauge)
+
+	var sw := Widgets.panel_with(_pad(ship))
+	sw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sw.size_flags_stretch_ratio = 1.0
+	sw.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(sw)
+	return row
+
+
+## A label, a gauge and a figure, on the row height everything else uses.
+func _gauge_row(key: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.custom_minimum_size = Vector2(0, ROW_H)
+	var k := UITheme.body(key, UITheme.COLD, UITheme.FS_SMALL)
+	k.custom_minimum_size = Vector2(38, 0)
+	k.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(k)
+	var g := BoxGauge.new()
+	g.name = "Gauge"
+	row.add_child(g)
+	var v := UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	v.name = "Value"
+	v.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(v)
+	return row
+
+
+func _page_work() -> Control:
+	var box := Widgets.section("work")
+	_work = VBoxContainer.new()
+	_work.add_theme_constant_override("separation", 5)
+	var sc := Widgets.scroller(_work, 90)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sc)
+	_work_wrap = Widgets.panel_with(_pad(box))
+	return _work_wrap
+
+
+func _page_stock() -> Control:
+	var box := Widgets.section("stock")
 	_hull_box = VBoxContainer.new()
 	_hull_box.add_theme_constant_override("separation", 6)
-	stock_section.add_child(_hull_box)
+	box.add_child(_hull_box)
 	_stock = VBoxContainer.new()
 	_stock.add_theme_constant_override("separation", 6)
-	# Expands into whatever the panel has left rather than demanding 300px.
-	#
-	# A fixed 300 minimum put the column's minimum height above the 540 the
-	# viewport actually has — head panel, plus the stock header, plus the hull
-	# on the pad, plus 300 — so the bottom of the list was clipped by the
-	# window instead of scrolled to. The scrollbar could not reach the last
-	# item because the ScrollContainer itself was hanging off the screen.
-	var stock_scroll := Widgets.scroller(_stock, 90)
-	stock_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	stock_section.add_child(stock_scroll)
-	var sp := Widgets.panel_with(stock_section)
-	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left.add_child(sp)
+	var sc := Widgets.scroller(_stock, 90)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sc)
+	return Widgets.panel_with(_pad(box))
 
-	# The hold, with a buyer standing in front of it. This is the other half of
-	# the shelf and it belongs on the same screen: what you sell and what you buy
-	# are one decision made out of one pocket.
-	var hold_section := Widgets.section("your hold")
+
+## The hold, with a buyer standing in front of it.
+func _page_hold() -> Control:
+	var box := Widgets.section("your hold")
 	_hold = VBoxContainer.new()
 	_hold.add_theme_constant_override("separation", 6)
-	var hold_scroll := Widgets.scroller(_hold, 90)
-	hold_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hold_section.add_child(hold_scroll)
-	var hp2 := Widgets.panel_with(hold_section)
-	hp2.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left.add_child(hp2)
+	var sc := Widgets.scroller(_hold, 90)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sc)
+	return Widgets.panel_with(_pad(box))
 
-	var bench_section := Widgets.section("fabricator")
+
+func _page_bench() -> Control:
+	var box := Widgets.section("fabricator")
 	_bench = VBoxContainer.new()
 	_bench.add_theme_constant_override("separation", 5)
-	bench_section.add_child(_bench)
-	_bench_panel = Widgets.panel_with(bench_section)
-	left.add_child(_bench_panel)
+	box.add_child(_bench)
+	_bench_panel = Widgets.panel_with(_pad(box))
+	return _bench_panel
 
-	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(300, 0)
-	right.add_theme_constant_override("separation", 10)
-	root.add_child(right)
-	var depart := Widgets.section("depart")
-	depart.add_child(Widgets.button("UNDOCK", func(): Router.show_sector()))
-	right.add_child(Widgets.panel_with(depart))
-	var ship := Widgets.section("ship")
-	ship.add_child(ShipView.new())
-	right.add_child(Widgets.panel_with(ship))
+
+## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
+## wherever the player meets one.
+func _show_tab(id: StringName) -> void:
+	if not _pages.has(id) or not _tabs_on.get(id, true):
+		return
+	_tab = id
+	for key in _pages:
+		(_pages[key] as Control).visible = key == id
+	for key in _tabs:
+		var b: Button = _tabs[key]
+		var on: bool = key == id
+		b.disabled = on
+		if on:
+			b.add_theme_stylebox_override("normal", UITheme.bevel(Color("#4a2a0c"), 3, 5))
+			b.add_theme_stylebox_override("disabled", UITheme.bevel(Color("#4a2a0c"), 3, 5))
+			b.add_theme_color_override("font_disabled_color", UITheme.HOT)
+		else:
+			b.remove_theme_stylebox_override("normal")
+			b.remove_theme_stylebox_override("disabled")
+			b.remove_theme_color_override("font_disabled_color")
+
+
+## Turn a tab on or off for this station, and get off it if you are standing on
+## one that just went away.
+func _enable_tab(id: StringName, on: bool) -> void:
+	_tabs_on[id] = on
+	if _tabs.has(id):
+		(_tabs[id] as Button).visible = on
+	if not on and _tab == id:
+		_show_tab(&"services")
+
+
+## One service, as a ROW rather than as a wide button with centred text.
+##
+## A price belongs at the right edge of the row it prices, in a column with the
+## other prices, so the eye reads a list of costs down one line. Centring the
+## whole string put every price at a different x and turned five services into
+## five unrelated sentences.
+##
+## The price is a child of the Button, anchored right and passing its mouse
+## through — so the whole row is still one click target and the text is still
+## two columns. Godot has no two-column Button; this is the cheapest thing that
+## behaves like one.
+func _service(label: String, price_text: String, action: Callable) -> Button:
+	var b := Widgets.button("  " + label, action)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(0, ROW_H)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var p := UITheme.body(price_text, UITheme.ICE, UITheme.FS_SMALL)
+	p.name = "Price"
+	p.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
+	p.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	p.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	p.offset_left = -120
+	p.offset_right = -10
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(p)
+	return b
+
+
+## Grey the price with the row. A disabled Button dims its own text through the
+## theme; a child Label is not its text and stays bright, which reads as a price
+## you can pay on a row you cannot press.
+func _set_service_enabled(b: Button, on: bool) -> void:
+	b.disabled = not on
+	var p := b.get_node_or_null("Price") as Label
+	if p != null:
+		p.modulate = Color(1, 1, 1, 1.0 if on else 0.30)
+
+
+func _pad(child: Control) -> MarginContainer:
+	var pad := MarginContainer.new()
+	for side in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side, 8)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 6)
+	pad.add_child(child)
+	return pad
 
 ## Roll what is on the shelf, ONCE per system per run.
 ##
@@ -182,6 +496,14 @@ func _refresh() -> void:
 		UITheme.COLD.to_html(false), note])
 
 	_trade.text = Market.trade_line(n)
+	_blurb.text = MapGen.place_blurb(n)
+	(_hull_gauge.get_node("Gauge") as BoxGauge).setup(
+		BoxGauge.Mode.HULL, Run.max_hp(), Run.hp)
+	(_hull_gauge.get_node("Value") as Label).text = "%d/%d" % [Run.hp, Run.max_hp()]
+	(_heat_gauge.get_node("Gauge") as BoxGauge).setup(
+		BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
+	(_heat_gauge.get_node("Value") as Label).text = "%d/%d" % [Run.heat, Run.heat_cap()]
+	_refresh_work(n)
 
 	for c in _services.get_children():
 		c.queue_free()
@@ -189,31 +511,31 @@ func _refresh() -> void:
 
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
-	var repair := Widgets.button("REPAIR %d HULL · %d credits" % [eight, eight_cost],
+	var repair := _service("REPAIR %d HULL" % eight, "%d cr" % eight_cost,
 		_repair.bind(eight))
-	repair.disabled = missing <= 0 or Run.credits < eight_cost
+	_set_service_enabled(repair, missing > 0 and Run.credits >= eight_cost)
 	repair.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
 	_services.add_child(repair)
 
 	var full_cost := Market.repair_price(n, missing)
-	var full := Widgets.button("FULL REPAIR · %d credits" % full_cost, _repair.bind(missing))
-	full.disabled = missing <= 0 or Run.credits < full_cost
+	var full := _service("FULL REPAIR", "%d cr" % full_cost, _repair.bind(missing))
+	_set_service_enabled(full, missing > 0 and Run.credits >= full_cost)
 	_services.add_child(full)
 
 	var refuel_cost := Market.refuel_price(n)
-	var refuel := Widgets.button("REFUEL +%d · %d credits" % [
-		Market.REFUEL_UNITS, refuel_cost], _refuel)
-	refuel.disabled = Run.credits < refuel_cost
+	var refuel := _service("REFUEL +%d" % Market.REFUEL_UNITS,
+		"%d cr" % refuel_cost, _refuel)
+	_set_service_enabled(refuel, Run.credits >= refuel_cost)
 	_services.add_child(refuel)
 
 	var purge_cost := Market.purge_price(n)
-	var purge := Widgets.button("PURGE 1 DROSS · %d credits" % purge_cost, _purge)
-	purge.disabled = Run.dross <= 0 or Run.credits < purge_cost
+	var purge := _service("PURGE 1 DROSS", "%d cr" % purge_cost, _purge)
+	_set_service_enabled(purge, Run.dross > 0 and Run.credits >= purge_cost)
 	_services.add_child(purge)
 
 	var coolant_cost := Market.coolant_price(n)
-	var coolant := Widgets.button("+2 HEAT CAP · %d credits" % coolant_cost, _coolant)
-	coolant.disabled = Run.credits < coolant_cost
+	var coolant := _service("+2 HEAT CAP", "%d cr" % coolant_cost, _coolant)
+	_set_service_enabled(coolant, Run.credits >= coolant_cost)
 	_services.add_child(coolant)
 
 	# One row per material you are carrying, rather than the single hardcoded
@@ -223,8 +545,8 @@ func _refresh() -> void:
 	for stock in Run.material_stock():
 		var mid: StringName = stock.id
 		var paid := Market.material_price(n, mid)
-		var b := Widgets.button("SELL 1 %s → %d SCRAP" % [
-			str(stock.name).to_upper(), paid], _sell_material.bind(mid))
+		var b := _service("SELL 1 %s" % str(stock.name).to_upper(),
+			"+%d cr" % paid, _sell_material.bind(mid))
 		b.tooltip_text = Widgets.tip("You have %d. Laboratories pay for these; mining outposts use them as ballast." % int(stock.count))
 		_services.add_child(b)
 
@@ -262,7 +584,9 @@ func _refresh() -> void:
 	for c in _bench.get_children():
 		c.queue_free()
 	var recipes := Fabricator.available(n)
-	_bench_panel.visible = not recipes.is_empty()
+	# The TAB goes, not the page. A page that hides itself leaves a lit tab
+	# pointing at nothing, and `_show_tab` would happily select it.
+	_enable_tab(&"bench", not recipes.is_empty())
 	for r in recipes:
 		var b := Widgets.button("%s · %s" % [str(r.name), Fabricator.cost_line(n, r)],
 			_fabricate.bind(r))
@@ -302,8 +626,10 @@ func _coolant() -> void:
 	if Run.credits < cost:
 		return
 	Run.add_credits(-cost)
-	Run.heat_cap_bonus += 2
-	Run.log_line("Coolant upgraded. Heat cap +2.", &"good")
+	# Through the mutator, so the gauge is told. Writing the field directly left
+	# the only signal in this function firing before the change it was announcing.
+	Run.add_heat_cap(2)
+	Run.log_line("Coolant upgraded. Heat cap +2 to %d." % Run.heat_cap(), &"good")
 
 func _sell_material(id: StringName) -> void:
 	var n: MapGen.MapNode = Run.node_at()
@@ -379,3 +705,125 @@ func _on_action(action: String, thing: Variant) -> void:
 		"install": Run.install_module(thing as ModuleData)
 		"scrap": Run.scrap_module(thing as ModuleData)
 	_refresh()
+
+
+## What this house wants doing, and what you can close standing here.
+##
+## Three groups, in the order a player acts on them: things you can be PAID for
+## right now, then things you have already agreed to that this desk cannot close,
+## then the board. Money first — a player walking into a berth holding finished
+## work should see that before anything else on the page.
+func _refresh_work(n: MapGen.MapNode) -> void:
+	Widgets.clear(_work)
+	var offers := Contracts.board(n)
+	var ready := Run.deliverable_at(n)
+	var hot := Run.heat_deliverable_at(n)
+	var mine := _open_elsewhere(n)
+
+	# The TAB goes at a station with no house behind it — see the fabricator's
+	# note. An empty board with a heading is a page telling you about a thing
+	# that is not there.
+	_enable_tab(&"work", not (offers.is_empty() and ready.is_empty()
+		and hot.is_empty() and mine.is_empty()))
+	if not _tabs_on.get(&"work", true):
+		return
+
+	for job in ready:
+		_work.add_child(_deliver_row(job as ContractData, "DELIVER"))
+	for job in hot:
+		# Said with the number, because the heat on your hull is falling every
+		# time you jump and the player is being asked to notice it.
+		_work.add_child(_deliver_row(job as ContractData,
+			"OFFLOAD %d HEAT" % (job as ContractData).amount))
+
+	if not mine.is_empty():
+		_work.add_child(UITheme.body("SIGNED, ELSEWHERE", UITheme.COLD, UITheme.FS_SMALL))
+		for job in mine:
+			var c: ContractData = job
+			var row := UITheme.body("· %s" % c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL)
+			row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_work.add_child(row)
+
+	for job in offers:
+		var c2: ContractData = job
+		if Run.holds_contract(c2):
+			continue
+		_work.add_child(_offer_row(c2))
+
+
+## Everything open that this desk cannot pay for. Named rather than listed in
+## full: the ledger is the SHIP page's job, and a station is where you act.
+func _open_elsewhere(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for c in Run.contracts:
+		var job: ContractData = c
+		if job.state == ContractData.State.CLOSED:
+			continue
+		if ContractData.berth_of(n, job.house) and job.state == ContractData.State.READY:
+			continue
+		if job.kind == ContractData.Kind.HEAT and ContractData.berth_of(n, job.house) \
+				and Run.heat >= job.amount:
+			continue
+		out.append(job)
+	return out
+
+
+func _offer_row(c: ContractData) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	top.add_child(UITheme.body(DB.manufacturer_name(c.house).to_upper(),
+		DB.manufacturer_colour(c.house), UITheme.FS_SMALL))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(sp)
+	top.add_child(UITheme.body("%d cr" % c.pay, UITheme.ICE, UITheme.FS_SMALL))
+	box.add_child(top)
+
+	# The ask, in the house's own voice. The largest thing in the row, because it
+	# is the only part a player reads twice.
+	var ask := UITheme.body(c.text, UITheme.CHILL, UITheme.FS_SMALL)
+	ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(ask)
+
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 6)
+	foot.add_child(UITheme.body(c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL))
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(sp2)
+	var take := Widgets.button("SIGN", func() -> void:
+		Run.take_contract(c)
+		_refresh())
+	take.tooltip_text = Widgets.tip("Nothing here expires. Sign it and forget it, or never sign it at all.")
+	foot.add_child(take)
+	box.add_child(foot)
+	return Widgets.panel_with(_pad_work(box))
+
+
+func _deliver_row(c: ContractData, label: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var what := UITheme.body("%s · %d cr" % [
+		DB.manufacturer_name(c.house).to_upper(), c.pay],
+		DB.manufacturer_colour(c.house), UITheme.FS_SMALL)
+	row.add_child(what)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sp)
+	row.add_child(Widgets.button(label, func() -> void:
+		Run.deliver_contract(c)
+		_refresh()))
+	return Widgets.panel_with(_pad_work(row))
+
+
+func _pad_work(child: Control) -> MarginContainer:
+	var pad := MarginContainer.new()
+	for side in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side, 6)
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 4)
+	pad.add_child(child)
+	return pad

@@ -28,7 +28,9 @@
 //    A field on `this` would be null after the first ten idle seconds, which
 //    is a bug that cannot happen in a test that never idles.
 
-const MAX_PLAYERS = 4;
+// Must match NetTransport.MAX_PLAYERS — see the note there. Both ends police
+// the door, so a mismatch is a player this lets in that the host turns away.
+const MAX_PLAYERS = 8;
 const HOST_ID = 1;
 
 // Frame types. Byte 0 of every message.
