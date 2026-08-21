@@ -24,14 +24,20 @@ signal launched
 const WEIGHTS := [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]
 ## What each weight class IS, in one line, for the L/M/H tooltips. The buttons
 ## are single letters, so this is where the word and the trade-off live.
-## One line each, in the same register as WEIGHT_BLURB: what the grade costs you
-## or buys you, not its numbers. The numbers are already on screen in the
-## attribute block and the hardpoint rows, and clicking is how you compare them.
+## One line each, in the same register as WEIGHT_BLURB: what the class buys you,
+## not its numbers. The numbers are already on screen in the attribute block and
+## the hardpoint rows, and clicking is how you compare them.
+##
+## SPECIFICATION, NOT CONDITION. These used to read "kept up", "well kept",
+## "somebody loved this ship" — and that was wrong, because a class grows
+## HARDPOINTS. A well-maintained ship does not sprout a weapon mount. How beaten
+## up a hull is now lives on its hull points and is drawn by HullWear, which
+## leaves these letters free to mean the thing they actually change.
 const TIER_BLURB: Array[String] = [
-	"Yard stock. What every run actually starts on.",
-	"Kept up. More hull, more heat, same hardpoints.",
-	"Well kept. Grows a weapon hardpoint.",
-	"Somebody loved this ship. A weapon and a system mount, and the reactor to run them.",
+	"Base specification. What every run starts on.",
+	"Uprated frame. More hull and more heat capacity, same hardpoints.",
+	"Line specification. Carries an extra weapon hardpoint.",
+	"Top of the line. An extra weapon and system mount, and the reactor to run them.",
 ]
 
 const WEIGHT_BLURB: Array[String] = [

@@ -691,9 +691,14 @@ const WEIGHT_BASE := {
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
 
-## The four condition grades a frame comes in, worst to best. A hull is a SHAPE
-## and a GRADE: an S-class Ironside is the same ship as a C-class Ironside, kept
-## by someone who could afford to keep it.
+## The four specification classes a frame comes in, worst to best. A hull is a
+## SHAPE and a CLASS: an S-class Ironside is the same yard's answer to the same
+## job, built to a better standard — not a C-class that somebody looked after.
+##
+## That distinction is load-bearing and was got wrong once. This table grows
+## HARDPOINTS at A and S, which no amount of maintenance does; condition is a
+## separate axis entirely, lives on hull points, and is drawn by HullWear onto
+## the sprite. One letter cannot mean both.
 ##
 ## Tier has existed on HullData since the beginning and was never authored — it
 ## was a bag of random bumps inside LootGen.roll_hull, applied to whatever frame

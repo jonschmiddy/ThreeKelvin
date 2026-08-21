@@ -1,6 +1,7 @@
 extends RefCounted
 
-## Every condition grade of every hull with real art, as PNGs.
+## Every damage band of every hull with real art, as PNGs — plus the cost of
+## building one, which is the number that decides whether this can run in a fight.
 ##
 ##     godot --headless --path . -- wear
 ##
@@ -10,7 +11,9 @@ extends RefCounted
 ## it is that arithmetic cannot introduce a colour, and this counts them.
 
 const OUT := "user://wear"
-const NAMES := ["S", "B", "A", "C"]
+## What fraction of the hull is gone at each band, for the labels. band_for()
+## owns the real thresholds; these are the middle of each range.
+const AT := [0.0, 0.35, 0.60, 0.90]
 
 func run(tree: SceneTree) -> void:
 	DirAccess.make_dir_recursive_absolute(OUT)
@@ -28,10 +31,12 @@ func _sheet(h: HullData) -> int:
 	var src := h.sprite.get_image()
 	var base := _palette(src)
 	print("\n%s (%s)" % [h.name.to_upper(), HullData.weight_name(h.weight)])
-	print("  %-6s %-8s %-13s %-10s %s"
-		% ["grade", "opaque", "new colours", "hull lost", "livery"])
+	print("  %-8s %-8s %-13s %-10s %-9s %s"
+		% ["band", "opaque", "new colours", "hull lost", "livery", "build"])
 	for t in HullWear.GRADES.size():
+		var t0 := Time.get_ticks_usec()
 		var img := HullWear.worn(src, t, HullWear.seed_for(h))
+		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
 		var pal := _palette(img)
 		var opaque := 0
 		var lost := 0
@@ -53,16 +58,17 @@ func _sheet(h: HullData) -> int:
 		for k in pal:
 			if not base.has(k):
 				fresh += 1
-		print("  %-6s %-8d %-13d %-10d %.1f%%"
-			% [_grade_name(t), opaque, fresh, lost, 100.0 * livery / maxi(1, opaque)])
+		print("  %-8s %-8d %-13d %-10d %-9s %.1f ms"
+			% [_grade_name(t), opaque, fresh, lost,
+			"%.1f%%" % (100.0 * livery / maxi(1, opaque)), ms])
 		img.save_png("%s/%s_%s.png" % [OUT, h.name.to_lower().replace(" ", "_"),
 			_grade_name(t)])
 	return 1
 
-## HullData.TIER_NAMES runs worst-first (C is 0), which is right for a loot
-## ladder and wrong for reading a wear table, where 0 is the pristine end.
+## Bands are named for the damage that earns them, NOT for a tier letter. The
+## letters belong to the specification ladder and mean something else entirely.
 func _grade_name(t: int) -> String:
-	return ["S", "A", "B", "C"][clampi(t, 0, 3)]
+	return ["intact", "marked", "mauled", "wrecked"][clampi(t, 0, 3)]
 
 func _palette(img: Image) -> Dictionary:
 	var d := {}

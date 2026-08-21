@@ -415,16 +415,24 @@ func _paste(img: Image, dx: int, dy: int, blend: bool) -> void:
 		_img.blit_rect(img, src, at)
 
 func _blit_sprite() -> void:
-	# The hull at its CONDITION GRADE. HullWear draws the difference between a
-	# kept ship and a neglected one rather than shipping four sprites per hull —
-	# see its header for why that is code and not art.
+	# The hull BEATEN UP IN PROPORTION TO ITS HULL POINTS. This is the line that
+	# closes an old gap: everything the procedural path layers on — heat glow,
+	# battle damage, module shapes — was skipped for real art on the grounds that
+	# the shader would take it over, and the shader never did. A hull with a
+	# sprite looked showroom fresh at one hull point.
 	#
-	# worn_cached, never worn: this function runs every time the idle bob changes
-	# offset, several times a second, and wear is a whole-image pass over sixteen
-	# thousand pixels. Grade 0 returns the sprite untouched, so a C-class frame
-	# costs exactly what it always did.
+	# A showroom hull is undamaged because ShipBuild.showroom() hands it full
+	# hull points, not because this branch knows what a showroom is — the same
+	# reason the flag went from the procedural path.
+	#
+	# worn_cached and band_for, never worn(): this runs every time the idle bob
+	# changes offset, several times a second, and wear is a pass over every pixel
+	# in the sprite. Band 0 returns it untouched, so an intact ship costs what it
+	# always did.
 	var h := _hull()
-	var img: Image = HullWear.worn_cached(h.sprite, h.tier, HullWear.seed_for(h))
+	var b := _b()
+	var band := HullWear.band_for(b.damage() if b != null else 0.0)
+	var img: Image = HullWear.worn_cached(h.sprite, band, HullWear.seed_for(h))
 	if img == null:
 		img = h.sprite.get_image()
 	if img.get_format() != Image.FORMAT_RGBA8:

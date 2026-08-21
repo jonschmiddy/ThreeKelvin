@@ -1,11 +1,21 @@
 class_name HullWear
 extends RefCounted
 
-## Condition damage, drawn rather than drawn ON.
+## Battle damage, drawn rather than drawn ON.
 ##
-## A hull sprite is authored once, pristine. This wears it down to a grade — the
-## same ship, kept badly — by scoring, staining, streaking, holing and patching
-## the pixels it already has.
+## A hull sprite is authored once, intact. This beats it up in proportion to how
+## close the ship is to dying, by scoring, staining, streaking, holing and
+## patching the pixels it already has.
+##
+## IT USED TO BE KEYED ON TIER, and that was two ideas wearing one letter. Tier
+## grows a ship HARDPOINTS at A and a reactor at S — that is a specification, and
+## a well-kept ship does not sprout a weapon mount. Condition and specification
+## are different axes and only one of them belongs on a surface. So the letters
+## keep the spec and this takes the damage, which is the half that was always
+## missing: `ShipBuild.damage()` has returned hp-over-max since the convoy strip
+## needed it, the procedural path spent it on two flat dark rectangles, and the
+## real-art path ignored it completely — a hull with a sprite looked showroom
+## fresh at one hull point.
 ##
 ## WHY THIS IS CODE AND NOT ART. Seven manufacturers times three weight classes
 ## is 21 hulls, and four condition grades makes 84 sprites. Generating the 63
@@ -34,11 +44,13 @@ extends RefCounted
 ## and undo the whole guarantee above.
 const BAYER := [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
-## How much of each operation per grade: gouges, stains, streaks, holes, patches.
+## How much of each operation per band: gouges, stains, streaks, holes, patches.
 ##
-## Deliberately LOW on gouges and high on staining. Gouges say ATTACKED; grime
-## says NEGLECTED, and a condition grade is mostly the second thing. The first
-## cut of this table ran sixteen gouges at C and the ship looked scribbled on.
+## Now that this reads damage rather than upkeep, the balance shifts: a ship
+## being shot at earns GOUGES, where a ship merely left in a yard earns grime.
+## The counts still climb slower on scoring than on staining, because sixteen
+## gouges looked scribbled on and six look hit — but staining no longer has to
+## carry the whole story on its own.
 const GRADES := [
 	[0, 0, 0, 0, 0],
 	[1, 4, 3, 0, 0],
@@ -344,11 +356,11 @@ static func _by_luma(cols: PackedColorArray) -> Array:
 ## THROUGH the grime rather than being buried under it, and patches land before
 ## the gouges so a plate can itself be scarred — a repair that is still pristine
 ## reads as newer than the ship around it, which is exactly wrong on a C.
-static func worn(src: Image, tier: int, seed_in: int, punch: bool = false) -> Image:
+static func worn(src: Image, band: int, seed_in: int, punch: bool = false) -> Image:
 	var out := src.duplicate() as Image
 	if out.get_format() != Image.FORMAT_RGBA8:
 		out.convert(Image.FORMAT_RGBA8)
-	var t := clampi(tier, 0, GRADES.size() - 1)
+	var t := clampi(band, 0, GRADES.size() - 1)
 	if t == 0:
 		return out
 	var g: Array = GRADES[t]
@@ -369,21 +381,41 @@ static func worn(src: Image, tier: int, seed_in: int, punch: bool = false) -> Im
 ## Keyed on the SPRITE's path rather than the hull's, because a looted hull is a
 ## duplicate() of a catalogue frame: same art, different stats, and two of them
 ## at the same grade should wear identically.
-static func worn_cached(tex: Texture2D, tier: int, seed_in: int,
+static func worn_cached(tex: Texture2D, band: int, seed_in: int,
 		punch: bool = false) -> Image:
 	if tex == null:
 		return null
-	var key := "%s|%d|%d|%d" % [tex.resource_path, tier, seed_in, 1 if punch else 0]
+	var key := "%s|%d|%d|%d" % [tex.resource_path, band, seed_in, 1 if punch else 0]
 	if _cache.has(key):
 		return _cache[key]
-	var img := worn(tex.get_image(), tier, seed_in, punch)
+	var img := worn(tex.get_image(), band, seed_in, punch)
 	_cache[key] = img
 	return img
 
 
-## A wear seed for a hull. Same ship at the same grade wears the same scars,
-## which is the point: the grade is a description of the ship, not a die roll on
-## top of one. Two A-class Ironsides look alike because they ARE alike.
+## How beaten up, as one of four bands. QUANTISED on purpose: `worn()` is a pass
+## over every pixel in the sprite, and hull points change constantly in a fight.
+## Four bands means a ship rebuilds its damage at most three times in a run
+## rather than on every point it loses, and the cache holds all four after that.
+##
+## The first band is deliberately wide. Losing a few points should not visibly
+## scar a ship — a hull is not a progress bar, and the first mark ought to mean
+## something went wrong rather than that the fight started.
+static func band_for(damage: float) -> int:
+	if damage < 0.22:
+		return 0
+	if damage < 0.48:
+		return 1
+	if damage < 0.74:
+		return 2
+	return 3
+
+
+## A wear seed for a hull. The same ship takes the same scars in the same order
+## as it is beaten down, so damage ACCUMULATES visually rather than being
+## reshuffled at every band — the dent you picked up at half hull is still there
+## at quarter hull, with more around it. A random seed per repaint would make
+## the ship flicker between different histories of the same fight.
 static func seed_for(h: HullData) -> int:
 	if h == null:
 		return 0
