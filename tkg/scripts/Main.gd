@@ -202,7 +202,7 @@ func _ready() -> void:
 	# per sprite, so the failure worth catching is a hull carrying ANOTHER
 	# hull's lines — which draws guns in mid-air and throws nothing.
 	if "mounts" in OS.get_cmdline_user_args():
-		load("res://scripts/sim/MountCheck.gd").run()
+		load("res://scripts/sim/MountCheck.gd").new().run()
 		get_tree().quit()
 		return
 

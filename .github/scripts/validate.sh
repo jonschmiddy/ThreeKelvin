@@ -179,6 +179,22 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "Every hull's mounts land on the hull"
+# Cheap, and it guards a failure with no other symptom. The dorsal, ventral and
+# flank lines are measured off ONE image each by art/tools/anchors.py, so
+# replacing a hull sprite without re-running the tool leaves the old line
+# describing art that no longer exists — the ship draws its guns in clear space
+# beside itself, nothing throws, and the only way to see it is to open that hull
+# at that class. It caught exactly that on the swap of Korvan's heavy B.
+if run_godot mounts 120 --headless --path "$PROJECT" -- mounts; then
+	if grep -qE '^mounts: PASS' "$LOG_DIR/mounts.log"; then
+		ok "mounts"
+	else
+		bad "a hardpoint is not on its hull"
+		grep -E '^  FAIL|^mounts' "$LOG_DIR/mounts.log" | head -n 20 			| sed 's/^/        /'
+	fi
+fi
+
 step "The archive round-trips, and none of it has become an essay"
 # Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
 # primary source that fits on one screen, and that is prose — it rots, and its
