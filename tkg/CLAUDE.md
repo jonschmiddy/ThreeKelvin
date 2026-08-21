@@ -837,8 +837,16 @@ Decided, do not silently reverse:
 - **Font antialiasing off**, texture filtering `Nearest`. This reverses a change
   made while the UI used a vector font; a bitmap face at integer scale must not
   be smoothed.
-- **Heat and energy are countable boxes, not bars** — each box past the cap
-  divider is one hull paid at end of turn.
+- **Energy is countable boxes. Heat and hull are ten cells** — and heat keeps
+  one box per point ABOVE its cap, each of which is one hull paid at end of turn.
+  PARTIALLY REVERSED: the old ruling was "heat and energy are countable boxes,
+  not bars", on the grounds that a bar hides the number that matters. That reason
+  survives exactly where it is true, which is above the cap, where a cell is a
+  bill to count. Below the cap it was buying nothing and costing something: a cap
+  is 8 on a Hairpin and 26 on a Furnace Baron and every vent module moves it, so
+  the gauge changed length as you refitted, for a number the label beside it has
+  always printed in full. Ten cells hold still. The divider is now where the
+  gauge changes what a cell MEANS, which is why it stays a break and not a tick.
 - **Map nodes are icons plus region colour**, name in the detail panel. Labels
   under every node are why the build currently truncates `STATION` to `STATIO`.
 - **SHIP and MAP buttons top-left on every screen**; Ship dimmed during combat.

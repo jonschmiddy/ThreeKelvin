@@ -10,19 +10,29 @@ extends Control
 ## Fill colour also states the situation without being read: steel while there is
 ## room, ember approaching the cap, red past it.
 
-## HULL is a PROPORTION, not a count. Heat and energy cells map one-to-one onto
-## a point of the thing they measure, because you spend those in single points
-## and the exact number is the decision. Hull does not work that way: it runs
-## from 22 on a Hairpin to 55 on an Ore Barge, so one cell per point would draw
-## a gauge that changes length when you change ships and needs fifty-five cells
-## at the top end.
+## HULL and HEAT are PROPORTIONS below their maximum; ENERGY is a count.
 ##
-## Ten cells always, each one a tenth of whatever your maximum happens to be.
-## The exact figure lives in the tooltip, because "how close am I to dying" is
-## the question you ask every turn and "37 of 40" is the one you ask rarely.
+## Energy cells map one-to-one onto a point, because you spend energy in single
+## points and the exact number is the decision every time you play a card.
+##
+## Hull does not work that way: it runs from 22 on a Hairpin to 55 on an Ore
+## Barge, so one cell per point would draw a gauge that changes length when you
+## change ships and needs fifty-five cells at the top end. Ten cells always, each
+## one a tenth of whatever your maximum happens to be.
+##
+## HEAT NOW READS THE SAME WAY BELOW THE CAP, and it is the same argument: a cap
+## is 12 on one chassis and 30 on another, and every vent module moves it, so a
+## one-cell-per-point gauge changed length as you refitted. Ten cells hold still.
+##
+## Above the cap it stays one cell per point, and that half is not negotiable —
+## each of those cells is one hull at end of turn, so "how many am I over" is a
+## bill to count, not a proportion to eyeball. The divider is where the gauge
+## changes what a cell MEANS, which is why it is drawn as a break rather than a
+## tick.
 enum Mode { HEAT, ENERGY, HULL }
 
-const HULL_CELLS := 10
+## Slots below the maximum, for the two modes that scale.
+const CELLS := 10
 
 const CELL := Vector2(6, 9)
 const GAP := 1
@@ -34,20 +44,37 @@ var value: int = 0
 func setup(m: Mode, c: int, v: int) -> void:
 	mode = m
 	cap = maxi(1, c)
-	value = maxi(0, v)
-	custom_minimum_size = Vector2(_width(), CELL.y)
-	size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	queue_redraw()
+	set_value(v)
 
 func set_value(v: int) -> void:
 	value = maxi(0, v)
+	_ratio = clampf(float(value) / float(maxi(1, cap)), 0.0, 1.0)
+	_cells = _cells_for(value)
 	custom_minimum_size = Vector2(_width(), CELL.y)
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	queue_redraw()
 
+## How many of the below-cap slots are lit.
+##
+## Heat rounds UP where hull rounds down, and the asymmetry is deliberate: they
+## are asking opposite questions. Hull rounds down so that ten cells means FULL
+## and the first scratch shows. Heat rounds up so that the first point of it
+## shows, and a full gauge means you have reached the cap — the moment the next
+## point starts costing hull. Both make the gauge honest at the end that matters.
+func _cells_for(v: int) -> int:
+	if mode == Mode.ENERGY:
+		return v
+	if mode == Mode.HULL:
+		return 0 if v <= 0 else maxi(1, int(floor(_ratio * CELLS)))
+	return 0 if v <= 0 else mini(CELLS, int(ceil(_ratio * CELLS)))
+
+## Slots drawn below the divider.
+func _slots() -> int:
+	return cap if mode == Mode.ENERGY else CELLS
+
 func _width() -> float:
 	var over := maxi(0, value - cap)
-	var w := cap * (CELL.x + GAP)
+	var w := _slots() * (CELL.x + GAP)
 	if over > 0:
 		w += 4 + over * (CELL.x + GAP)
 	return w
@@ -60,7 +87,7 @@ func _draw() -> void:
 	# middle, so a mathematically centred cell still reads high beside them.
 	var y: float = floor((size.y - CELL.y) * 0.5) + 1.0
 	var x := 0.0
-	for i in cap:
+	for i in _slots():
 		_cell(Vector2(x, y), _fill_for(i))
 		x += CELL.x + GAP
 
@@ -84,18 +111,22 @@ func _draw() -> void:
 ## gauge has to mean destroyed and nothing else.
 func set_hull(hp: int, max_hp: int) -> void:
 	mode = Mode.HULL
-	cap = HULL_CELLS
+	cap = CELLS
 	_ratio = 0.0 if max_hp <= 0 else clampf(float(hp) / float(max_hp), 0.0, 1.0)
-	value = 0 if hp <= 0 else maxi(1, int(floor(_ratio * HULL_CELLS)))
+	# Deliberately NOT set_value(): hull's ratio is hp against max_hp, not
+	# against `cap`, which here is the slot count rather than a hull figure.
+	value = _cells_for(hp)
+	_cells = value
 	custom_minimum_size = Vector2(_width(), CELL.y)
 	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	queue_redraw()
 
 var _ratio: float = 1.0
+var _cells: int = 0
 
 ## 0 empty · 1 cool · 2 hot · 3 critical · 4 sound
 func _fill_for(i: int) -> int:
-	if i >= value:
+	if i >= _cells:
 		return 0
 	if mode == Mode.ENERGY:
 		return 2
@@ -107,7 +138,11 @@ func _fill_for(i: int) -> int:
 		if _ratio < 0.35:
 			return 3
 		return 2 if _ratio < 0.6 else 4
-	return 2 if i >= int(cap * 0.66) else 1
+	# Against the SLOT count, not the cap. They were the same number while heat
+	# drew one cell per point and are not any more — reading it off `cap` would
+	# put the ember threshold at cell 8 on a 12-cap ship and off the end of the
+	# gauge entirely on anything with a cap above 15.
+	return 2 if i >= int(_slots() * 0.66) else 1
 
 func _cell(pos: Vector2, kind: int) -> void:
 	var bg := Color("#10161f")
