@@ -90,15 +90,56 @@ func _draw() -> void:
 			_ring(at, R + 1.0, Color(c.r, c.g, c.b, 0.95 * pulse))
 			continue
 		if taken:
-			# Occupied mounts stay quiet: a filled ring, in the house colour, so
-			# the hull reads as equipped without competing with the beam.
-			var m: ModuleData = spot.held
-			var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
-			var col: Color = maker.colour if maker != null else UITheme.CHILL
-			draw_circle(at, R - 1.0, Color(col.r, col.g, col.b, 0.85))
-			_ring(at, R, UITheme.ICE)
+			_fitted(spot.held as ModuleData, spot.slot as ModuleData.Slot, at)
 		else:
 			_ring(at, R, UITheme.EMBER.darkened(0.15))
+
+## A part, drawn ON the hull.
+##
+## A ring said a mount was occupied and nothing about BY WHAT, which made a
+## fully fitted ship look bare — five identical dots where five modules were.
+##
+## The shapes are the vocabulary `ShipView._draw_weapon` already used on the
+## procedural hulls, scaled down: those were authored against a 240x120 canvas
+## with 30px housings and 44px barrels, which is most of the depth of a hull at
+## 1x. Same silhouettes, a third the size, so a ship with real art reads the way
+## a procedural one always did.
+##
+## Slot decides the FORM, not just the position. A weapon is a housing with a
+## barrel out of it, a system is a plate slung under the belly, a utility is a
+## mast — so the hull says what kind of ship you have built from across the
+## screen, before any colour is read.
+func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2) -> void:
+	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
+	var col: Color = maker.colour if maker != null else UITheme.CHILL
+	var dark := col.lerp(Color("#0a0e13"), 0.55)
+	var lite := col.lerp(Color.WHITE, 0.3)
+	var x := roundf(at.x)
+	var y := roundf(at.y)
+	match slot:
+		ModuleData.Slot.WEAPON:
+			# Sits ON the dorsal line and fires forward, which is right: the nose
+			# points right on every player hull.
+			draw_rect(Rect2(x - 4.0, y - 5.0, 9.0, 5.0), dark, true)
+			draw_rect(Rect2(x - 4.0, y - 5.0, 9.0, 1.0), lite, true)
+			draw_rect(Rect2(x + 5.0, y - 4.0, 7.0, 2.0), col, true)
+			draw_rect(Rect2(x + 12.0, y - 4.0, 2.0, 2.0), UITheme.VOID, true)
+		ModuleData.Slot.SYSTEM:
+			# Slung under the belly. Lit along the edge facing the hull, because
+			# the light in this game comes from above and this is its underside.
+			draw_rect(Rect2(x - 5.0, y, 11.0, 4.0), dark, true)
+			draw_rect(Rect2(x - 5.0, y, 11.0, 1.0), col, true)
+			draw_rect(Rect2(x - 3.0, y + 2.0, 3.0, 1.0), lite, true)
+		_:
+			# A mast off the flank. The one vertical thing on the hull, which is
+			# what makes a sensor read as a sensor at this size.
+			draw_rect(Rect2(x - 1.0, y - 7.0, 3.0, 7.0), dark, true)
+			draw_rect(Rect2(x, y - 10.0, 1.0, 4.0), col, true)
+			draw_rect(Rect2(x, y - 11.0, 1.0, 1.0), lite, true)
+	# The rarity of the thing bolted there, as a pip. Same ladder the cards and
+	# the hold icons use, so an Epic gun is the same colour everywhere.
+	draw_rect(Rect2(x - 1.0, y - 1.0, 2.0, 2.0),
+		ModuleData.rarity_colour(m.rarity), true)
 
 func _ring(at: Vector2, r: float, col: Color) -> void:
 	draw_arc(at, r, 0.0, TAU, 18, col, 1.0)
