@@ -62,6 +62,15 @@ static func record(outcome: Outcome, reason: String) -> void:
 		# Unlocks.
 		chassis_maker = String(Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),
+		# THE RUN, AS ONE NUMBER. Everything a run is — the galaxy, the map, the
+		# loot, who was waiting at every node — derives from this, so recording
+		# it turns the flight record from a list of things that happened into a
+		# list of things that can happen AGAIN. It is what makes "that was a
+		# great run" actionable rather than nostalgic.
+		#
+		# Run.galaxy_seed rather than Rng.master: the master is reseeded per
+		# seat in co-op, and what identifies a run is the galaxy everyone shares.
+		seed = Run.galaxy_seed,
 		galaxy = Run.galaxy_name,
 		galaxy_title = Run.galaxy_title,
 		galaxy_type = GalaxyGen.type_name(Run.galaxy_kind),

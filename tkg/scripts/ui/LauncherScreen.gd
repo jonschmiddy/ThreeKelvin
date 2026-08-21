@@ -89,6 +89,7 @@ const POPUP_INSET_H := 170
 const POPUP_INSET_V := 96
 ## The corner checkbox, kept so it can repaint itself when flipped.
 var _dev_box: Button = null
+var _seed_field: LineEdit = null
 var _sky: StarchartScreen.MapChart = null
 var _spin: float = 0.0
 ## Whether the sky has been given its real size yet.
@@ -167,7 +168,8 @@ func setup() -> void:
 	# one: the run you were already flying, or — with nothing to return to — a
 	# new one. Everything else is grey. Hard-coding CONTINUE as the white one
 	# would leave a first-time player looking at five identical grey lines.
-	menu.add_child(_option("NEW RUN", func() -> void: Router.new_run(), save.is_empty()))
+	menu.add_child(_option("NEW RUN", func() -> void:
+		Router.new_run(_typed_seed()), save.is_empty()))
 	menu.add_child(_option("FLY TOGETHER", func() -> void:
 		var lob := LobbyScreen.new()
 		lob.on_leave = _close_popup
@@ -178,6 +180,7 @@ func setup() -> void:
 		_open_popup(hist)
 		hist.setup(_close_popup)))
 	menu.add_child(_option("SETTINGS", _open_settings))
+	menu.add_child(_seed_row())
 
 	# Red on hover, alone among the five. Everything else on this screen leads
 	# somewhere you can come back from.
@@ -361,6 +364,62 @@ func _line(text: String, colour: Color, size: int) -> Label:
 ## SHRINK_BEGIN matters: without it a VBox child fills the column, and since the
 ## column is as wide as THREE KELVIN at 32px, the clickable area of QUIT would
 ## reach a third of the way across the screen with nothing drawn in it.
+## A seed to fly, or nothing and get a fresh one.
+##
+## The machinery for this has been complete since Rng was written — a run IS one
+## number, `Router.new_run()` already takes it, and the lobby already passes one
+## so a party shares a galaxy. `Rng.roll_master()` even carries the comment
+## "positive, because it is shown to the player and typed back in". It was never
+## shown to the player and there was never anywhere to type it back in.
+##
+## Under the menu rather than beside NEW RUN, because it is the rare case. A
+## title screen that opens by asking for a number reads like a debug build; this
+## reads like a field you can ignore, which is what it is.
+func _seed_row() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(UITheme.body("SEED", UITheme.LINE, UITheme.FS_SMALL))
+
+	_seed_field = LineEdit.new()
+	_seed_field.custom_minimum_size = Vector2(96, 0)
+	_seed_field.placeholder_text = "random"
+	_seed_field.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_seed_field.max_length = 10
+	_seed_field.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	_seed_field.add_theme_color_override("font_color", UITheme.CHILL)
+	_seed_field.add_theme_color_override("font_placeholder_color", UITheme.LINE)
+	_seed_field.add_theme_stylebox_override("normal",
+		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 6))
+	_seed_field.add_theme_stylebox_override("focus",
+		UITheme.flat(UITheme.PANEL2, UITheme.COLD, 0, 3, 6))
+	# Digits only, and filtered on the way in rather than validated on the way
+	# out: a field that accepts letters and then silently ignores them has lied.
+	_seed_field.text_changed.connect(func(t: String) -> void:
+		var clean := ""
+		for c in t:
+			if c >= "0" and c <= "9":
+				clean += c
+		if clean != t:
+			_seed_field.text = clean
+			_seed_field.caret_column = clean.length())
+	row.add_child(_seed_field)
+
+	var tip := HBoxContainer.new()
+	tip.mouse_filter = Control.MOUSE_FILTER_STOP
+	tip.tooltip_text = Widgets.tip("Seeded run
+Every run is one number. Fly the same one again and you get the same galaxy, the same map and the same loot. Leave it empty for a fresh one; find old ones on the flight record.")
+	tip.add_child(UITheme.body("?", UITheme.LINE, UITheme.FS_SMALL))
+	row.add_child(tip)
+	return row
+
+## What is in the field, or 0 for "roll one". Router.new_run() reads 0 as random,
+## so an empty field needs no special case anywhere else.
+func _typed_seed() -> int:
+	if _seed_field == null:
+		return 0
+	return int(_seed_field.text.strip_edges())
+
+
 func _option(text: String, action: Callable, primary: bool = false) -> Button:
 	var b := Widgets.button(text, action)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT

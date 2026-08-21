@@ -123,6 +123,16 @@ func _row(e: Dictionary) -> Control:
 		where += " · " + makers
 	col.add_child(UITheme.body(where, UITheme.CHILL, UITheme.FS_SMALL))
 
+	# The seed, on its own line and in the dimmest colour on the screen. It is
+	# not a stat — nobody is comparing seeds — it is a thing you copy down when a
+	# run was worth flying twice, so it wants to be findable and not loud.
+	#
+	# Runs recorded before this existed have no seed and get no line, rather than
+	# a zero pretending to be one.
+	var run_seed := int(e.get("seed", 0))
+	if run_seed != 0:
+		col.add_child(UITheme.body("seed %d" % run_seed, UITheme.QUOTE, UITheme.FS_SMALL))
+
 	var reason := str(e.get("reason", ""))
 	if reason != "":
 		var r := UITheme.body(reason, UITheme.QUOTE, UITheme.FS_SMALL)
