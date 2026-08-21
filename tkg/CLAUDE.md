@@ -170,6 +170,12 @@ godot --headless --path . -- wear seed=12345 pilot=Jon
 godot --headless --path . -- fit
 godot --headless --path . -- fit damage=3
 
+# Every hull's mounts checked against its own opaque pixels — RUN THIS AFTER
+# REPLACING A HULL SPRITE. The dorsal/ventral/flank lines are measured per
+# sprite by art/tools/anchors.py, so the failure worth catching is a hull
+# carrying ANOTHER hull's lines: it draws guns in mid-air and throws nothing.
+godot --headless --path . -- mounts             # ~3 s
+
 # Every enemy body at every damage band — RUN THIS AFTER TOUCHING the organic
 # operations. EnemyArt is a TextureRect but composites CPU-side, so no renderer.
 godot --headless --path . -- bestiary

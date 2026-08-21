@@ -91,6 +91,12 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 ## Deck hardpoint positions, in sprite pixel coordinates relative to the sprite centre.
 ## Order matters: FAR ROW FIRST, near row second. Children are added in this order, so
 ## near-row modules occlude far-row ones for free.
+##
+## EMPTY ON EVERY HULL, and superseded by the three LINES below. They were
+## authored for the 3/4 camera — a far row and a near row is a statement about a
+## visible deck, and an edge-on elevation has one plane. Kept because
+## `ShipSprite.gd` still reads them and that file is the module-compositing path
+## nobody has retired yet; anything new should ask `mounts_along()`.
 @export var weapon_anchors: Array[Vector2] = []
 @export var system_anchors: Array[Vector2] = []
 @export var utility_anchors: Array[Vector2] = []
@@ -100,6 +106,48 @@ func anchors_for(s: ModuleData.Slot) -> Array[Vector2]:
 		ModuleData.Slot.WEAPON: return weapon_anchors
 		ModuleData.Slot.SYSTEM: return system_anchors
 		_: return utility_anchors
+
+## The three lines things bolt to, in sprite pixel coordinates.
+##
+## Measured off the hull's own silhouette by `art/tools/anchors.py` and assigned
+## from `DB.HULL_LINES`. A LINE rather than a list of mount points, because how
+## many mounts a hull has is not a property of the hull art: weight sets a base,
+## `TIER_DELTA` grants more at A and S, and six of the seven makers move it
+## again. Five authored points used two at a time put both mounts at one end of
+## the ship; a line spreads however many there are.
+@export var dorsal: PackedVector2Array = PackedVector2Array()
+@export var ventral: PackedVector2Array = PackedVector2Array()
+@export var flank: PackedVector2Array = PackedVector2Array()
+
+func line_for(s: ModuleData.Slot) -> PackedVector2Array:
+	match s:
+		ModuleData.Slot.WEAPON: return dorsal
+		ModuleData.Slot.SYSTEM: return ventral
+		_: return flank
+
+## `n` mount positions spread along a slot's line.
+##
+## Inset from both ends — a mount sits at the CENTRE of its share of the line
+## rather than on the endpoints, which is what keeps the first one off the nose
+## and the last one out of the exhaust. One mount therefore sits mid-hull rather
+## than at the front, which is also what you want: a ship with a single gun
+## carries it amidships.
+func mounts_along(s: ModuleData.Slot, n: int) -> PackedVector2Array:
+	var line := line_for(s)
+	var out := PackedVector2Array()
+	if n <= 0 or line.is_empty():
+		return out
+	if line.size() == 1:
+		for i in n:
+			out.append(line[0])
+		return out
+	for i in n:
+		var t := (float(i) + 0.5) / float(n)
+		var f := t * float(line.size() - 1)
+		var a := int(f)
+		var b := mini(a + 1, line.size() - 1)
+		out.append(line[a].lerp(line[b], f - float(a)))
+	return out
 
 static func weight_name(w: Weight) -> String:
 	return ["Light", "Medium", "Heavy"][w]

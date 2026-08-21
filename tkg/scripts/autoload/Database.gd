@@ -851,6 +851,7 @@ func _seed_hulls() -> void:
 		h.name = d.name
 		h.weight = d.weight
 		h.sprite = hull_sprite(d.weight)
+		apply_hull_lines(h)
 		h.exhaust = hull_exhaust(d.weight)
 		h.exhaust_frames = EXHAUST_FRAMES
 		h.exhaust_offset = hull_exhaust_at(d.weight)
@@ -886,6 +887,7 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	h.name = spec.names[int(w)]
 	h.perk_id = spec.perk_id
 	h.sprite = hull_sprite(w)
+	apply_hull_lines(h)
 	h.exhaust = hull_exhaust(w)
 	h.exhaust_frames = EXHAUST_FRAMES
 	h.exhaust_offset = hull_exhaust_at(w)
@@ -918,17 +920,115 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 ## style reference every generation is seeded from — it is simply no longer the
 ## thing rendered.
 func hull_sprite(w: HullData.Weight, cls: int = 0) -> Texture2D:
+	var n := hull_art_name(w, cls)
+	if n == "":
+		return null
+	return load("res://art/sprites/%s.png" % n) as Texture2D
+
+## The art file for a weight and class, without the extension. One place the
+## naming convention is written, so the sprite and its measured lines cannot
+## disagree about which hull they describe.
+func hull_art_name(w: HullData.Weight, cls: int = 0) -> String:
 	var stem := ""
 	match w:
 		HullData.Weight.LIGHT: stem = "light"
 		HullData.Weight.MEDIUM: stem = "medium"
 		HullData.Weight.HEAVY: stem = "heavy"
-		_: return null
+		_: return ""
 	# TIER_NAMES is an untyped Array, so an element comes back as Variant and
 	# `:=` has nothing to infer from. Declared rather than inferred.
 	var letter: String = HullData.TIER_NAMES[clampi(cls, 0, 3)]
-	return load("res://art/sprites/hull_%s_%s.png"
-		% [stem, letter.to_lower()]) as Texture2D
+	return "hull_%s_%s" % [stem, letter.to_lower()]
+
+## Copy the measured dorsal, ventral and flank lines onto a hull.
+##
+## Called wherever the SPRITE is set, and for the same reason `exhaust_offset`
+## is: the lines are measured against one specific image, so a hull carrying
+## another hull's lines mounts its guns in mid-air. Keeping the two assignments
+## adjacent is what stops them drifting apart.
+func apply_hull_lines(h: HullData) -> void:
+	var key := hull_art_name(h.weight, h.tier)
+	if not HULL_LINES.has(key):
+		return
+	var d: Dictionary = HULL_LINES[key]
+	h.dorsal = PackedVector2Array(d.dorsal)
+	h.ventral = PackedVector2Array(d.ventral)
+	h.flank = PackedVector2Array(d.flank)
+
+## Measured off each hull's own silhouette by `art/tools/anchors.py`.
+##
+## GENERATED. Re-run the tool after replacing a hull sprite; a line measured
+## against art that has since changed puts mounts in mid-air, and nothing about
+## that fails loudly.
+##
+## Lines rather than points, because a hull carries one to five mounts of a kind
+## depending on weight, class and maker — a fixed list of five used two at a time
+## clusters both at one end of the ship. See HullData.mounts_along().
+##
+## Plain Vector2 arrays, not PackedVector2Array: the packed constructor is a CALL
+## and a `const` needs an expression the compiler can fold. Converted on assignment.
+const HULL_LINES := {
+	"hull_heavy_a": {
+		dorsal = [Vector2(15, 37), Vector2(38, 37), Vector2(61, 37), Vector2(84, 37), Vector2(108, 37), Vector2(131, 37), Vector2(154, 37), Vector2(177, 37), Vector2(200, 40)],
+		ventral = [Vector2(15, 75), Vector2(38, 75), Vector2(61, 75), Vector2(84, 75), Vector2(108, 75), Vector2(131, 75), Vector2(154, 75), Vector2(177, 75), Vector2(200, 71)],
+		flank = [Vector2(15, 56), Vector2(38, 56), Vector2(61, 56), Vector2(84, 56), Vector2(108, 56), Vector2(131, 56), Vector2(154, 56), Vector2(177, 56), Vector2(200, 55)],
+	},
+	"hull_heavy_b": {
+		dorsal = [Vector2(6, 52), Vector2(31, 31), Vector2(56, 31), Vector2(82, 31), Vector2(107, 31), Vector2(132, 31), Vector2(158, 31), Vector2(183, 31), Vector2(208, 39)],
+		ventral = [Vector2(6, 98), Vector2(31, 93), Vector2(56, 97), Vector2(82, 98), Vector2(107, 98), Vector2(132, 98), Vector2(158, 98), Vector2(183, 96), Vector2(208, 82)],
+		flank = [Vector2(6, 75), Vector2(31, 62), Vector2(56, 64), Vector2(82, 64), Vector2(107, 64), Vector2(132, 64), Vector2(158, 64), Vector2(183, 63), Vector2(208, 60)],
+	},
+	"hull_heavy_c": {
+		dorsal = [Vector2(16, 46), Vector2(36, 42), Vector2(57, 42), Vector2(78, 42), Vector2(98, 42), Vector2(118, 42), Vector2(139, 42), Vector2(160, 42), Vector2(180, 46)],
+		ventral = [Vector2(16, 82), Vector2(36, 86), Vector2(57, 86), Vector2(78, 86), Vector2(98, 86), Vector2(118, 86), Vector2(139, 86), Vector2(160, 86), Vector2(180, 82)],
+		flank = [Vector2(16, 64), Vector2(36, 64), Vector2(57, 64), Vector2(78, 64), Vector2(98, 64), Vector2(118, 64), Vector2(139, 64), Vector2(160, 64), Vector2(180, 64)],
+	},
+	"hull_heavy_s": {
+		dorsal = [Vector2(22, 34), Vector2(44, 24), Vector2(65, 24), Vector2(86, 24), Vector2(108, 24), Vector2(130, 24), Vector2(151, 24), Vector2(172, 27), Vector2(194, 34)],
+		ventral = [Vector2(22, 73), Vector2(44, 83), Vector2(65, 83), Vector2(86, 83), Vector2(108, 83), Vector2(130, 83), Vector2(151, 83), Vector2(172, 79), Vector2(194, 73)],
+		flank = [Vector2(22, 53), Vector2(44, 53), Vector2(65, 53), Vector2(86, 53), Vector2(108, 53), Vector2(130, 53), Vector2(151, 53), Vector2(172, 53), Vector2(194, 53)],
+	},
+	"hull_light_a": {
+		dorsal = [Vector2(18, 30), Vector2(31, 29), Vector2(44, 29), Vector2(58, 29), Vector2(71, 29), Vector2(84, 29), Vector2(98, 29), Vector2(111, 29), Vector2(124, 31)],
+		ventral = [Vector2(18, 47), Vector2(31, 48), Vector2(44, 48), Vector2(58, 48), Vector2(71, 48), Vector2(84, 48), Vector2(98, 48), Vector2(111, 48), Vector2(124, 47)],
+		flank = [Vector2(18, 38), Vector2(31, 38), Vector2(44, 38), Vector2(58, 38), Vector2(71, 38), Vector2(84, 38), Vector2(98, 38), Vector2(111, 38), Vector2(124, 39)],
+	},
+	"hull_light_b": {
+		dorsal = [Vector2(22, 26), Vector2(34, 26), Vector2(46, 26), Vector2(58, 26), Vector2(70, 26), Vector2(83, 26), Vector2(95, 26), Vector2(107, 26), Vector2(119, 27)],
+		ventral = [Vector2(22, 51), Vector2(34, 51), Vector2(46, 51), Vector2(58, 51), Vector2(70, 51), Vector2(83, 51), Vector2(95, 51), Vector2(107, 51), Vector2(119, 50)],
+		flank = [Vector2(22, 38), Vector2(34, 38), Vector2(46, 38), Vector2(58, 38), Vector2(70, 38), Vector2(83, 38), Vector2(95, 38), Vector2(107, 38), Vector2(119, 38)],
+	},
+	"hull_light_c": {
+		dorsal = [Vector2(21, 26), Vector2(34, 26), Vector2(47, 26), Vector2(60, 26), Vector2(74, 26), Vector2(87, 26), Vector2(100, 26), Vector2(113, 27), Vector2(126, 31)],
+		ventral = [Vector2(21, 44), Vector2(34, 49), Vector2(47, 52), Vector2(60, 52), Vector2(74, 52), Vector2(87, 52), Vector2(100, 52), Vector2(113, 51), Vector2(126, 46)],
+		flank = [Vector2(21, 35), Vector2(34, 37), Vector2(47, 39), Vector2(60, 39), Vector2(74, 39), Vector2(87, 39), Vector2(100, 39), Vector2(113, 39), Vector2(126, 38)],
+	},
+	"hull_light_s": {
+		dorsal = [Vector2(22, 28), Vector2(35, 28), Vector2(48, 28), Vector2(61, 28), Vector2(74, 28), Vector2(86, 28), Vector2(99, 30), Vector2(112, 30), Vector2(125, 32)],
+		ventral = [Vector2(22, 47), Vector2(35, 51), Vector2(48, 51), Vector2(61, 51), Vector2(74, 51), Vector2(86, 51), Vector2(99, 51), Vector2(112, 51), Vector2(125, 49)],
+		flank = [Vector2(22, 37), Vector2(35, 39), Vector2(48, 39), Vector2(61, 39), Vector2(74, 39), Vector2(86, 39), Vector2(99, 40), Vector2(112, 40), Vector2(125, 40)],
+	},
+	"hull_medium_a": {
+		dorsal = [Vector2(56, 23), Vector2(70, 23), Vector2(84, 23), Vector2(97, 23), Vector2(111, 23), Vector2(125, 24), Vector2(138, 23), Vector2(152, 23), Vector2(166, 24)],
+		ventral = [Vector2(56, 57), Vector2(70, 57), Vector2(84, 57), Vector2(97, 57), Vector2(111, 57), Vector2(125, 56), Vector2(138, 57), Vector2(152, 57), Vector2(166, 55)],
+		flank = [Vector2(56, 40), Vector2(70, 40), Vector2(84, 40), Vector2(97, 40), Vector2(111, 40), Vector2(125, 40), Vector2(138, 40), Vector2(152, 40), Vector2(166, 39)],
+	},
+	"hull_medium_b": {
+		dorsal = [Vector2(44, 23), Vector2(60, 18), Vector2(76, 18), Vector2(92, 18), Vector2(108, 18), Vector2(123, 18), Vector2(139, 18), Vector2(155, 18), Vector2(171, 23)],
+		ventral = [Vector2(44, 50), Vector2(60, 50), Vector2(76, 50), Vector2(92, 50), Vector2(108, 50), Vector2(123, 50), Vector2(139, 50), Vector2(155, 50), Vector2(171, 46)],
+		flank = [Vector2(44, 36), Vector2(60, 34), Vector2(76, 34), Vector2(92, 34), Vector2(108, 34), Vector2(123, 34), Vector2(139, 34), Vector2(155, 34), Vector2(171, 34)],
+	},
+	"hull_medium_c": {
+		dorsal = [Vector2(38, 11), Vector2(53, 6), Vector2(69, 5), Vector2(84, 5), Vector2(100, 5), Vector2(115, 5), Vector2(130, 5), Vector2(146, 7), Vector2(161, 16)],
+		ventral = [Vector2(38, 42), Vector2(53, 46), Vector2(69, 47), Vector2(84, 47), Vector2(100, 47), Vector2(115, 47), Vector2(130, 47), Vector2(146, 45), Vector2(161, 35)],
+		flank = [Vector2(38, 26), Vector2(53, 26), Vector2(69, 26), Vector2(84, 26), Vector2(100, 26), Vector2(115, 26), Vector2(130, 26), Vector2(146, 26), Vector2(161, 25)],
+	},
+	"hull_medium_s": {
+		dorsal = [Vector2(46, 16), Vector2(61, 16), Vector2(76, 16), Vector2(91, 16), Vector2(106, 16), Vector2(122, 16), Vector2(137, 16), Vector2(152, 17), Vector2(167, 19)],
+		ventral = [Vector2(46, 48), Vector2(61, 48), Vector2(76, 48), Vector2(91, 48), Vector2(106, 48), Vector2(122, 48), Vector2(137, 48), Vector2(152, 47), Vector2(167, 45)],
+		flank = [Vector2(46, 32), Vector2(61, 32), Vector2(76, 32), Vector2(91, 32), Vector2(106, 32), Vector2(122, 32), Vector2(137, 32), Vector2(152, 32), Vector2(167, 32)],
+	},
+}
 
 ## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
 ## why it carries an offset. See HullData.exhaust.
@@ -1042,6 +1142,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# and keeping the frame's offset would hang the flame off the bottom of the
 	# short ones.
 	h.sprite = hull_sprite(h.weight, t)
+	apply_hull_lines(h)
 	h.exhaust_offset = hull_exhaust_at(h.weight, t)
 	return h
 

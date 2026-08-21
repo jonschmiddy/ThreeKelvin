@@ -169,6 +169,14 @@ func _ready() -> void:
 		_wear_sheet.run(get_tree())
 		return
 
+	# Every hull's mounts against its own opaque pixels. The lines are measured
+	# per sprite, so the failure worth catching is a hull carrying ANOTHER
+	# hull's lines — which draws guns in mid-air and throws nothing.
+	if "mounts" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/MountCheck.gd").run()
+		get_tree().quit()
+		return
+
 	if "shipsheet" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
