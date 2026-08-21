@@ -965,6 +965,22 @@ func add_credits(n: int) -> void:
 	credits = maxi(0, credits + n)
 	Sig.resources_changed.emit()
 
+## Permanent coolant, bought at a station. Emits, and that is the point.
+##
+## THE MUTATION OWNS THE SIGNAL. The station used to raise `heat_cap_bonus` by
+## hand and rely on the `add_credits()` call above it to redraw — which fires
+## BEFORE the cap changes, so every listener repainted the old number and the
+## gauge sat at 0/14 while the run was carrying 16. The upgrade worked; nothing
+## ever said so, which is indistinguishable from it not working.
+##
+## `ship_changed` rather than `resources_changed`: a heat cap is a property of
+## the ship, and `RunState._clamp_hp` and the gauges are already listening to it
+## for exactly this class of change.
+func add_heat_cap(n: int) -> void:
+	heat_cap_bonus += n
+	Sig.ship_changed.emit()
+	Sig.resources_changed.emit()
+
 func die(reason: String) -> void:
 	dead = true
 	death_reason = reason

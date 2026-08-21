@@ -16,6 +16,8 @@ var _trade: Label
 ## What kind of place this is, in its own words. Fills the column under the
 ## services with something worth reading rather than with nothing.
 var _blurb: Label
+var _hull_gauge: HBoxContainer
+var _heat_gauge: HBoxContainer
 var _services: VBoxContainer
 ## The house board: what is posted here, and what you can close here.
 ##
@@ -85,6 +87,9 @@ const HULL_W := 380
 ## How wide the station's name line is allowed to be before it wraps. Bounded on
 ## purpose — see the note in _build().
 const HEADER_W := 560
+## Every row on this screen is this tall. One number, so a service, a contract
+## and a shelf entry sit on the same rhythm instead of three.
+const ROW_H := 22
 
 func _build() -> void:
 	# Margin on the outside, once. Without it the header panel runs to x=0 and
@@ -92,10 +97,12 @@ func _build() -> void:
 	# screen sits inside this one box.
 	var frame := MarginContainer.new()
 	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		frame.add_theme_constant_override("margin_" + side, 10)
+	# NO SIDE MARGIN OF ITS OWN. `Main` already insets every screen by 8, and a
+	# second inset here put the station on a different left edge from the HUD
+	# above it and from every other screen in the game. Uniform means agreeing
+	# with the rest of the interface, not being individually tidy.
 	for side in ["top", "bottom"]:
-		frame.add_theme_constant_override("margin_" + side, 6)
+		frame.add_theme_constant_override("margin_" + side, 4)
 	add_child(frame)
 
 	var root := VBoxContainer.new()
@@ -144,9 +151,11 @@ func _build() -> void:
 	# width from its own unwrapped text, and inside an expanding panel that
 	# minimum won the argument — the header ran past the frame and sliced UNDOCK
 	# in half against the window. Sized to its content, it cannot push anything.
+	# FULL WIDTH, like the tab row and the page under it. A header that stops
+	# two thirds of the way across is the first thing that makes a screen look
+	# unaligned, and every block below it starts and ends at the same two x's.
 	var head_wrap := Widgets.panel_with(_pad(head))
-	head_wrap.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	head_wrap.custom_minimum_size = Vector2(HEADER_W + 20, 0)
+	head_wrap.size_flags_horizontal = Control.SIZE_FILL
 	root.add_child(head_wrap)
 
 	# --- the tab bar
@@ -228,10 +237,15 @@ func _page_services() -> Control:
 	_blurb.custom_minimum_size = Vector2(SERVICE_W - 24, 0)
 	box.add_child(UITheme.hsep())
 	box.add_child(_blurb)
+	# HALF THE PAGE, AND ALL OF ITS HEIGHT. Both columns take an equal share and
+	# both fill down to the bottom edge, so the two panels are the same size as
+	# each other and the page has no ragged corner. A stretch ratio rather than a
+	# pixel width, because the window is resizable and a fixed 420 is only ever
+	# correct at one size.
 	var wrap := Widgets.panel_with(_pad(box))
-	wrap.custom_minimum_size = Vector2(SERVICE_W, 0)
-	wrap.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.size_flags_stretch_ratio = 1.0
+	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(wrap)
 
 	var ship := Widgets.section("your hull")
@@ -247,18 +261,45 @@ func _page_services() -> Control:
 	# looked like a missing margin and was a minimum nobody had bounded.
 	art.magnify(2, HULL_H)
 	art.crop(HULL_W, HULL_H)
+	# Centred in its column rather than left-aligned in it. The column is wider
+	# than the portrait and a picture pinned to one side of a panel is the other
+	# half of "nothing lines up".
+	art.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ship.add_child(art)
+	# The two gauges the column to the left is selling. Hull is what REPAIR buys
+	# and heat cap is what the coolant buys, so the numbers those services move
+	# are on the same page as their prices — and the +2 that used to look like it
+	# did nothing is now visible from the button that does it.
+	ship.add_child(UITheme.hsep())
+	_hull_gauge = _gauge_row("HULL")
+	ship.add_child(_hull_gauge)
+	_heat_gauge = _gauge_row("HEAT")
+	ship.add_child(_heat_gauge)
+
 	var sw := Widgets.panel_with(_pad(ship))
-	sw.custom_minimum_size = Vector2(HULL_W, 0)
-	sw.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	sw.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	sw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sw.size_flags_stretch_ratio = 1.0
+	sw.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(sw)
-	# The rest of the row is deliberately empty. A station is not obliged to fill
-	# the screen, and two panels that stop where they stop read as two things
-	# rather than as one wall.
-	var rest := Control.new()
-	rest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(rest)
+	return row
+
+
+## A label, a gauge and a figure, on the row height everything else uses.
+func _gauge_row(key: String) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.custom_minimum_size = Vector2(0, ROW_H)
+	var k := UITheme.body(key, UITheme.COLD, UITheme.FS_SMALL)
+	k.custom_minimum_size = Vector2(38, 0)
+	k.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(k)
+	var g := BoxGauge.new()
+	g.name = "Gauge"
+	row.add_child(g)
+	var v := UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	v.name = "Value"
+	v.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(v)
 	return row
 
 
@@ -336,6 +377,44 @@ func _enable_tab(id: StringName, on: bool) -> void:
 		(_tabs[id] as Button).visible = on
 	if not on and _tab == id:
 		_show_tab(&"services")
+
+
+## One service, as a ROW rather than as a wide button with centred text.
+##
+## A price belongs at the right edge of the row it prices, in a column with the
+## other prices, so the eye reads a list of costs down one line. Centring the
+## whole string put every price at a different x and turned five services into
+## five unrelated sentences.
+##
+## The price is a child of the Button, anchored right and passing its mouse
+## through — so the whole row is still one click target and the text is still
+## two columns. Godot has no two-column Button; this is the cheapest thing that
+## behaves like one.
+func _service(label: String, price_text: String, action: Callable) -> Button:
+	var b := Widgets.button("  " + label, action)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(0, ROW_H)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var p := UITheme.body(price_text, UITheme.ICE, UITheme.FS_SMALL)
+	p.name = "Price"
+	p.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
+	p.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	p.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	p.offset_left = -120
+	p.offset_right = -10
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(p)
+	return b
+
+
+## Grey the price with the row. A disabled Button dims its own text through the
+## theme; a child Label is not its text and stays bright, which reads as a price
+## you can pay on a row you cannot press.
+func _set_service_enabled(b: Button, on: bool) -> void:
+	b.disabled = not on
+	var p := b.get_node_or_null("Price") as Label
+	if p != null:
+		p.modulate = Color(1, 1, 1, 1.0 if on else 0.30)
 
 
 func _pad(child: Control) -> MarginContainer:
@@ -418,6 +497,12 @@ func _refresh() -> void:
 
 	_trade.text = Market.trade_line(n)
 	_blurb.text = MapGen.place_blurb(n)
+	(_hull_gauge.get_node("Gauge") as BoxGauge).setup(
+		BoxGauge.Mode.HULL, Run.max_hp(), Run.hp)
+	(_hull_gauge.get_node("Value") as Label).text = "%d/%d" % [Run.hp, Run.max_hp()]
+	(_heat_gauge.get_node("Gauge") as BoxGauge).setup(
+		BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
+	(_heat_gauge.get_node("Value") as Label).text = "%d/%d" % [Run.heat, Run.heat_cap()]
 	_refresh_work(n)
 
 	for c in _services.get_children():
@@ -426,31 +511,31 @@ func _refresh() -> void:
 
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
-	var repair := Widgets.button("REPAIR %d HULL · %d credits" % [eight, eight_cost],
+	var repair := _service("REPAIR %d HULL" % eight, "%d cr" % eight_cost,
 		_repair.bind(eight))
-	repair.disabled = missing <= 0 or Run.credits < eight_cost
+	_set_service_enabled(repair, missing > 0 and Run.credits >= eight_cost)
 	repair.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
 	_services.add_child(repair)
 
 	var full_cost := Market.repair_price(n, missing)
-	var full := Widgets.button("FULL REPAIR · %d credits" % full_cost, _repair.bind(missing))
-	full.disabled = missing <= 0 or Run.credits < full_cost
+	var full := _service("FULL REPAIR", "%d cr" % full_cost, _repair.bind(missing))
+	_set_service_enabled(full, missing > 0 and Run.credits >= full_cost)
 	_services.add_child(full)
 
 	var refuel_cost := Market.refuel_price(n)
-	var refuel := Widgets.button("REFUEL +%d · %d credits" % [
-		Market.REFUEL_UNITS, refuel_cost], _refuel)
-	refuel.disabled = Run.credits < refuel_cost
+	var refuel := _service("REFUEL +%d" % Market.REFUEL_UNITS,
+		"%d cr" % refuel_cost, _refuel)
+	_set_service_enabled(refuel, Run.credits >= refuel_cost)
 	_services.add_child(refuel)
 
 	var purge_cost := Market.purge_price(n)
-	var purge := Widgets.button("PURGE 1 DROSS · %d credits" % purge_cost, _purge)
-	purge.disabled = Run.dross <= 0 or Run.credits < purge_cost
+	var purge := _service("PURGE 1 DROSS", "%d cr" % purge_cost, _purge)
+	_set_service_enabled(purge, Run.dross > 0 and Run.credits >= purge_cost)
 	_services.add_child(purge)
 
 	var coolant_cost := Market.coolant_price(n)
-	var coolant := Widgets.button("+2 HEAT CAP · %d credits" % coolant_cost, _coolant)
-	coolant.disabled = Run.credits < coolant_cost
+	var coolant := _service("+2 HEAT CAP", "%d cr" % coolant_cost, _coolant)
+	_set_service_enabled(coolant, Run.credits >= coolant_cost)
 	_services.add_child(coolant)
 
 	# One row per material you are carrying, rather than the single hardcoded
@@ -460,8 +545,8 @@ func _refresh() -> void:
 	for stock in Run.material_stock():
 		var mid: StringName = stock.id
 		var paid := Market.material_price(n, mid)
-		var b := Widgets.button("SELL 1 %s → %d SCRAP" % [
-			str(stock.name).to_upper(), paid], _sell_material.bind(mid))
+		var b := _service("SELL 1 %s" % str(stock.name).to_upper(),
+			"+%d cr" % paid, _sell_material.bind(mid))
 		b.tooltip_text = Widgets.tip("You have %d. Laboratories pay for these; mining outposts use them as ballast." % int(stock.count))
 		_services.add_child(b)
 
@@ -541,8 +626,10 @@ func _coolant() -> void:
 	if Run.credits < cost:
 		return
 	Run.add_credits(-cost)
-	Run.heat_cap_bonus += 2
-	Run.log_line("Coolant upgraded. Heat cap +2.", &"good")
+	# Through the mutator, so the gauge is told. Writing the field directly left
+	# the only signal in this function firing before the change it was announcing.
+	Run.add_heat_cap(2)
+	Run.log_line("Coolant upgraded. Heat cap +2 to %d." % Run.heat_cap(), &"good")
 
 func _sell_material(id: StringName) -> void:
 	var n: MapGen.MapNode = Run.node_at()

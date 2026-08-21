@@ -68,7 +68,7 @@ static func build_all() -> Array[Dictionary]:
 					if Run.credits < 20:
 						return {text = "You cannot afford it."}
 					Run.add_credits(-20)
-					Run.heat_cap_bonus += 3
+					Run.add_heat_cap(3)
 					return {text = "Heat capacity +3, permanently."}},
 				{label = "Decline", effect = func() -> Dictionary:
 					return {text = "You keep your credits. The cold keeps its edge."}},

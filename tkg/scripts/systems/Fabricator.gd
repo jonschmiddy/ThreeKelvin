@@ -92,7 +92,7 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			Sig.resources_changed.emit()
 			return "Cracked feedstock for volatiles. +%d fuel." % int(r.amount)
 		&"heat_cap":
-			Run.heat_cap_bonus += int(r.amount)
+			Run.add_heat_cap(int(r.amount))
 			Sig.resources_changed.emit()
 			Sig.ship_changed.emit()
 			return "Coolant braid laid in. Heat cap +%d." % int(r.amount)
