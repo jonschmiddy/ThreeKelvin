@@ -211,7 +211,7 @@ func _build_offline() -> void:
 	_name_field = _field(_name_text, 14)
 	_name_field.text_changed.connect(func(t: String) -> void: _name_text = t)
 	mine.add_child(_name_field)
-	_body.add_child(Widgets.panel_with(_pad(mine)))
+	_body.add_child(Widgets.panel_with(Widgets.pad(mine, 8, 5)))
 
 	_body.add_child(_host_box())
 
@@ -459,7 +459,7 @@ func _slot_row(slot: Dictionary) -> Control:
 	row.add_child(gap)
 	row.add_child(Widgets.chip("READY" if slot.ready else "STANDING BY",
 		READY_COLOUR if slot.ready else UITheme.LINE))
-	return Widgets.panel_with(_pad(row))
+	return Widgets.panel_with(Widgets.pad(row, 8, 5))
 
 
 # --- what the buttons do --------------------------------------------------
@@ -556,11 +556,3 @@ func _field(initial: String, chars: int) -> LineEdit:
 	return e
 
 
-func _pad(child: Control) -> MarginContainer:
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 8)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 5)
-	pad.add_child(child)
-	return pad

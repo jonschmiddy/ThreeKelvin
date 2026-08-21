@@ -2253,6 +2253,13 @@ class MapChart extends Control:
 			draw_string(UITheme.pixel_font(), at_text, label,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.GOOD)
 
+	## The delivery berths `_draw_work` last worked out, and what they were
+	## worked out for. Invalidated by the only two things that can change the
+	## answer — the ledger moving and you moving — so a stale cache is impossible
+	## rather than unlikely.
+	var _work_key: String = ""
+	var _work_berths: Dictionary = {}
+
 	## Where the work is. A ring in the issuing house's colour, on every system an
 	## open contract points at.
 	##
@@ -2271,6 +2278,17 @@ class MapChart extends Control:
 	func _draw_work() -> void:
 		if not show_icons or Run.map.is_empty():
 			return
+		# CACHED, because this runs inside _draw(). `_nearest_berths` scans all
+		# ~190 systems and sorts them, once per paying house — and _draw() is
+		# queued on every mouse-motion frame while panning and on every frame of
+		# the hover ease. None of its inputs change during either, so the same
+		# scan-and-sort was repeated for identical output several times a second.
+		var key := "%d|%d" % [Run.at, Run.contracts.size()]
+		if key != _work_key:
+			_work_key = key
+			_work_berths = {}
+			for house in Run.delivery_houses():
+				_work_berths[house] = _nearest_berths(house, 3)
 		for raw in Run.contracts:
 			var job: ContractData = raw
 			if job.state != ContractData.State.TAKEN:
@@ -2303,9 +2321,9 @@ class MapChart extends Control:
 		# actually asking is not "where could I hand this over" but "where is the
 		# closest place I can". Three is enough to offer a choice of routes and
 		# few enough to be a marking.
-		for house in Run.delivery_houses():
+		for house in _work_berths:
 			var hcol := DB.manufacturer_colour(house)
-			for st in _nearest_berths(house, 3):
+			for st in _work_berths[house]:
 				var p := _screen_pos(st)
 				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), UITheme.VOID, false, 3.0)
 				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), hcol, false, 1.0)

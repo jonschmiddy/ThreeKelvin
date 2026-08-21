@@ -87,10 +87,6 @@ static func berth_of(n: MapGen.MapNode, house: StringName) -> bool:
 	return n.manufacturer == house or n.makers.has(house)
 
 
-func done() -> bool:
-	return state == State.READY or state == State.CLOSED
-
-
 ## One line for the ledger. Deliberately says the STATE first: a player checking
 ## their contracts is asking "what can I close", not "what did I agree to".
 func status_line() -> String:

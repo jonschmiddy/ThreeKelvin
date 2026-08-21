@@ -19,18 +19,13 @@ var _blurb: Label
 var _hull_gauge: HBoxContainer
 var _heat_gauge: HBoxContainer
 var _services: VBoxContainer
-## The house board: what is posted here, and what you can close here.
-##
-## Under the services and above the shelf, because it is the part of a station
-## that is about WHERE YOU GO NEXT — and the shelf is the part that is about
-## what you fly. Reading order follows the decision order.
-var _work: VBoxContainer
-var _work_wrap: PanelContainer
 var _stock: VBoxContainer
 var _hull_box: VBoxContainer
+## What is posted at this station and what you can close here. Above the shelf,
+## because it is the part of a station that is about WHERE YOU GO NEXT.
+var _work: VBoxContainer
 var _hold: VBoxContainer
 var _bench: VBoxContainer
-var _bench_panel: PanelContainer
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -154,7 +149,7 @@ func _build() -> void:
 	# FULL WIDTH, like the tab row and the page under it. A header that stops
 	# two thirds of the way across is the first thing that makes a screen look
 	# unaligned, and every block below it starts and ends at the same two x's.
-	var head_wrap := Widgets.panel_with(_pad(head))
+	var head_wrap := Widgets.panel_with(Widgets.pad(head))
 	head_wrap.size_flags_horizontal = Control.SIZE_FILL
 	root.add_child(head_wrap)
 
@@ -242,7 +237,7 @@ func _page_services() -> Control:
 	# each other and the page has no ragged corner. A stretch ratio rather than a
 	# pixel width, because the window is resizable and a fixed 420 is only ever
 	# correct at one size.
-	var wrap := Widgets.panel_with(_pad(box))
+	var wrap := Widgets.panel_with(Widgets.pad(box))
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	wrap.size_flags_stretch_ratio = 1.0
 	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -276,7 +271,7 @@ func _page_services() -> Control:
 	_heat_gauge = _gauge_row("HEAT")
 	ship.add_child(_heat_gauge)
 
-	var sw := Widgets.panel_with(_pad(ship))
+	var sw := Widgets.panel_with(Widgets.pad(ship))
 	sw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sw.size_flags_stretch_ratio = 1.0
 	sw.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -310,8 +305,7 @@ func _page_work() -> Control:
 	var sc := Widgets.scroller(_work, 90)
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(sc)
-	_work_wrap = Widgets.panel_with(_pad(box))
-	return _work_wrap
+	return Widgets.panel_with(Widgets.pad(box))
 
 
 func _page_stock() -> Control:
@@ -324,7 +318,7 @@ func _page_stock() -> Control:
 	var sc := Widgets.scroller(_stock, 90)
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(sc)
-	return Widgets.panel_with(_pad(box))
+	return Widgets.panel_with(Widgets.pad(box))
 
 
 ## The hold, with a buyer standing in front of it.
@@ -335,7 +329,7 @@ func _page_hold() -> Control:
 	var sc := Widgets.scroller(_hold, 90)
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(sc)
-	return Widgets.panel_with(_pad(box))
+	return Widgets.panel_with(Widgets.pad(box))
 
 
 func _page_bench() -> Control:
@@ -343,8 +337,7 @@ func _page_bench() -> Control:
 	_bench = VBoxContainer.new()
 	_bench.add_theme_constant_override("separation", 5)
 	box.add_child(_bench)
-	_bench_panel = Widgets.panel_with(_pad(box))
-	return _bench_panel
+	return Widgets.panel_with(Widgets.pad(box))
 
 
 ## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
@@ -417,15 +410,6 @@ func _set_service_enabled(b: Button, on: bool) -> void:
 		p.modulate = Color(1, 1, 1, 1.0 if on else 0.30)
 
 
-func _pad(child: Control) -> MarginContainer:
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 8)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 6)
-	pad.add_child(child)
-	return pad
-
 ## Roll what is on the shelf, ONCE per system per run.
 ##
 ## The guard used to be `shop.is_empty()`, and that was an exploit rather than a
@@ -481,8 +465,26 @@ func _inspect() -> void:
 		Run.log_line("Inspection: %d illegal part%s found. Fined %d credits." % [
 			c, "" if c == 1 else "s", fine], &"heat")
 
+## Everything on screen. One function per tab body, mirroring `_refresh_work`,
+## which was already broken out on its own.
+##
+## This was one 110-line run that rebuilt the header, both gauges and all five
+## tab bodies in sequence, so a reader looking for where the shelf is drawn had
+## to read the repair prices to get there.
 func _refresh() -> void:
 	var n: MapGen.MapNode = Run.node_at()
+	_refresh_header(n)
+	_refresh_work(n)
+	_refresh_services(n)
+	_refresh_stock(n)
+	_refresh_hold(n)
+	_refresh_bench(n)
+
+
+## The banner, the trade line, and the two gauges on the hull panel.
+
+
+func _refresh_header(n: MapGen.MapNode) -> void:
 	var note := ""
 	match n.region:
 		MapGen.Region.COSMOPOLITAN: note = " · multi-brand stock, strict inspections"
@@ -503,10 +505,13 @@ func _refresh() -> void:
 	(_heat_gauge.get_node("Gauge") as BoxGauge).setup(
 		BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
 	(_heat_gauge.get_node("Value") as Label).text = "%d/%d" % [Run.heat, Run.heat_cap()]
-	_refresh_work(n)
 
-	for c in _services.get_children():
-		c.queue_free()
+
+## Repair, fuel, coolant, and one row per material you are carrying.
+
+
+func _refresh_services(n: MapGen.MapNode) -> void:
+	Widgets.clear(_services)
 	var missing := Run.max_hp() - Run.hp
 
 	var eight := mini(8, maxi(1, missing))
@@ -550,14 +555,17 @@ func _refresh() -> void:
 		b.tooltip_text = Widgets.tip("You have %d. Laboratories pay for these; mining outposts use them as ballast." % int(stock.count))
 		_services.add_child(b)
 
-	for c in _hull_box.get_children():
-		c.queue_free()
+
+## The shelf: a chassis if one is for sale, then whatever parts are left on it.
+
+
+func _refresh_stock(n: MapGen.MapNode) -> void:
+	Widgets.clear(_hull_box)
 	if n.shop_hull != null and not n.taken.has(MapGen.OPTION_SHOP_HULL):
 		_hull_box.add_child(Widgets.hull_row(n.shop_hull, "PURCHASE",
 			Market.hull_price(n, n.shop_hull), _on_action))
 
-	for c in _stock.get_children():
-		c.queue_free()
+	Widgets.clear(_stock)
 	# What is LEFT, which is not the same as what is on the shelf. A sold part
 	# stays in `n.shop` so that everybody's slot numbers keep meaning the same
 	# thing — see MapGen.OPTION_SHOP — and is hidden here instead.
@@ -573,16 +581,24 @@ func _refresh() -> void:
 		_stock.add_child(UITheme.body("Shelves bare. Nothing restocks — what was brought here is gone.",
 			UITheme.COLD, UITheme.FS_SMALL))
 
-	for c in _hold.get_children():
-		c.queue_free()
+
+## What you brought, priced at what this place will pay for it.
+
+
+func _refresh_hold(n: MapGen.MapNode) -> void:
+	Widgets.clear(_hold)
 	if Run.cargo.is_empty():
 		_hold.add_child(UITheme.body("Hold empty.", UITheme.COLD, UITheme.FS_SMALL))
 	for m in Run.cargo:
 		_hold.add_child(Widgets.module_row(m, Widgets.ModuleContext.HOLD,
 			Market.bid(n, m), _on_action))
 
-	for c in _bench.get_children():
-		c.queue_free()
+
+## The recipes this place can support, and the tab that hides when it cannot.
+
+
+func _refresh_bench(n: MapGen.MapNode) -> void:
+	Widgets.clear(_bench)
 	var recipes := Fabricator.available(n)
 	# The TAB goes, not the page. A page that hides itself leaves a lit tab
 	# pointing at nothing, and `_show_tab` would happily select it.
@@ -608,9 +624,11 @@ func _refuel() -> void:
 	if Run.credits < cost:
 		return
 	Run.add_credits(-cost)
+	# No emit. `fuel` has a setter now — see RunState. This line was the third
+	# copy of the write-then-remember-to-emit shape that three of today's bugs
+	# came out of.
 	Run.fuel += Market.REFUEL_UNITS
 	Run.log_line("Refuelled.", &"good")
-	Sig.resources_changed.emit()
 
 func _purge() -> void:
 	var cost := Market.purge_price(Run.node_at())
@@ -619,7 +637,6 @@ func _purge() -> void:
 	Run.add_credits(-cost)
 	Run.dross -= 1
 	Run.log_line("Purged Dross.", &"good")
-	Sig.ship_changed.emit()
 
 func _coolant() -> void:
 	var cost := Market.coolant_price(Run.node_at())
@@ -713,6 +730,8 @@ func _on_action(action: String, thing: Variant) -> void:
 ## right now, then things you have already agreed to that this desk cannot close,
 ## then the board. Money first — a player walking into a berth holding finished
 ## work should see that before anything else on the page.
+
+
 func _refresh_work(n: MapGen.MapNode) -> void:
 	Widgets.clear(_work)
 	var offers := Contracts.board(n)
@@ -800,7 +819,7 @@ func _offer_row(c: ContractData) -> Control:
 	take.tooltip_text = Widgets.tip("Nothing here expires. Sign it and forget it, or never sign it at all.")
 	foot.add_child(take)
 	box.add_child(foot)
-	return Widgets.panel_with(_pad_work(box))
+	return Widgets.panel_with(Widgets.pad(box, 6, 4))
 
 
 func _deliver_row(c: ContractData, label: String) -> Control:
@@ -816,14 +835,5 @@ func _deliver_row(c: ContractData, label: String) -> Control:
 	row.add_child(Widgets.button(label, func() -> void:
 		Run.deliver_contract(c)
 		_refresh()))
-	return Widgets.panel_with(_pad_work(row))
+	return Widgets.panel_with(Widgets.pad(row, 6, 4))
 
-
-func _pad_work(child: Control) -> MarginContainer:
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 6)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 4)
-	pad.add_child(child)
-	return pad

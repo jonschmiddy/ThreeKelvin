@@ -1,4 +1,4 @@
-extends RefCounted
+extends Harness
 
 ## The whole contract loop, flown headless:
 ##   godot --headless --path . -- contracttest
@@ -11,8 +11,6 @@ extends RefCounted
 ## the invariant at standing zero, which is the only standing it has ever been
 ## able to reach; every price in the game is fine until a player delivers four
 ## contracts to one house.
-
-var _fails: int = 0
 
 
 func run() -> void:
@@ -27,7 +25,7 @@ func run() -> void:
 	_salvage_hush()
 
 	print("")
-	print("contracttest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
+	verdict("contracttest")
 
 
 ## A board belongs to the place, not to the visit.
@@ -204,7 +202,6 @@ func _salvage_hush() -> void:
 	Run.hauls = 0
 	_ok("a haul count reset below the dismissal opens it",
 		not Run.salvage_hushed(-1))
-	Run.hauls = 5
 
 	Run.hauls = 6
 	_ok("and a fresh haul opens it", not Run.salvage_hushed(-1))
@@ -272,12 +269,3 @@ func _same(a: Array, b: Array) -> bool:
 				or x.pay != y.pay or x.text != y.text:
 			return false
 	return true
-
-
-func _ok(what: String, condition: bool) -> bool:
-	if condition:
-		print("  ok   %s" % what)
-	else:
-		print("  FAIL %s" % what)
-		_fails += 1
-	return condition

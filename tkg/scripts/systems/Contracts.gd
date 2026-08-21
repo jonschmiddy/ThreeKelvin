@@ -56,8 +56,12 @@ static func board(n: MapGen.MapNode) -> Array:
 	if houses.is_empty():
 		return out
 	var r := Rng.derive(&"work", n.index)
+	# Both offers are rolled against the same map, so the two candidate pools are
+	# built once here and handed down rather than rebuilt inside each `_target`.
+	# `board()` is called on every station refresh and the scan is the whole map.
+	var pools: Dictionary = {}
 	for i in OFFERS:
-		var c := _roll(n, houses[i % houses.size()], r)
+		var c := _roll(n, houses[i % houses.size()], r, pools)
 		if c != null:
 			out.append(c)
 	return out
@@ -78,7 +82,7 @@ static func _houses(n: MapGen.MapNode) -> Array:
 
 
 static func _roll(n: MapGen.MapNode, house: StringName,
-		r: RandomNumberGenerator) -> ContractData:
+		r: RandomNumberGenerator, pools: Dictionary) -> ContractData:
 	var c := ContractData.new()
 	c.house = house
 	c.posted_at = n.index
@@ -97,7 +101,7 @@ static func _roll(n: MapGen.MapNode, house: StringName,
 			c.standing = 1
 			c.text = _voice(house, c.kind, "", c.amount, r)
 		ContractData.Kind.HUNT:
-			var target := _target(n, r, true)
+			var target := _target(n, r, true, pools)
 			if target < 0:
 				return null
 			c.at = target
@@ -105,7 +109,7 @@ static func _roll(n: MapGen.MapNode, house: StringName,
 			c.standing = 1
 			c.text = _voice(house, c.kind, MapGen.star_name(Run.map[target]), 0, r)
 		_:
-			var target2 := _target(n, r, false)
+			var target2 := _target(n, r, false, pools)
 			if target2 < 0:
 				return null
 			c.at = target2
@@ -128,9 +132,14 @@ static func _roll(n: MapGen.MapNode, house: StringName,
 ## which is the "somebody else's schedule" §6 was worried about. About a third of
 ## the work sits shallower than the station posting it.
 static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
-		want_fight: bool) -> int:
+		want_fight: bool, pools: Dictionary) -> int:
 	if Run.map.is_empty():
 		return -1
+	if pools.has(want_fight):
+		var cached: Array = pools[want_fight]
+		if cached.is_empty():
+			return -1
+		return int(cached[r.randi() % cached.size()])
 	var pool: Array = []
 	for other in Run.map:
 		var o: MapGen.MapNode = other
@@ -144,6 +153,7 @@ static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
 		if reach > 3:
 			continue
 		pool.append(o.index)
+	pools[want_fight] = pool
 	if pool.is_empty():
 		return -1
 	return int(pool[r.randi() % pool.size()])
