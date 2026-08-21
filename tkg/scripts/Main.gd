@@ -87,6 +87,13 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Which picture every card draws, and whether one of them has become a
+	# catch-all:  godot --headless --path . -- glyphs
+	if "glyphs" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/GlyphSheet.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "rngtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/RngTest.gd").new().run()
 		get_tree().quit()

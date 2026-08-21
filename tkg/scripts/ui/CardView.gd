@@ -513,41 +513,169 @@ static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
 ## into inspect.
 func _type_glyph() -> void:
 	var s := float(_s)
-	var c := Vector2(62, 72) * s          ## centre of the art window
+	var c := Vector2(62, 72) * s          ## centre of the art window, 93 x 60
 	var ink := _tint.lightened(0.18)
 	var dark := _tint.darkened(0.4)
 	match card.glyph_kind():
-		&"attack":
-			# A round in flight, tracer trailing.
-			_r(c + Vector2(-9, -6) * s, Vector2(24, 12) * s, ink)
-			_r(c + Vector2(15, -5) * s, Vector2(6, 9) * s, ink)
-			_r(c + Vector2(21, -2) * s, Vector2(5, 3) * s, UITheme.HOT)
-			_r(c + Vector2(-14, -11) * s, Vector2(6, 21) * s, dark)
-			_r(c + Vector2(-30, -3) * s, Vector2(14, 2) * s, dark)
-			_r(c + Vector2(-25, 5) * s, Vector2(9, 2) * s, dark)
-		&"defend":
-			# A plate, bevelled, taking the hit.
-			_r(c + Vector2(-16, -18) * s, Vector2(33, 36) * s, dark)
-			_r(c + Vector2(-12, -14) * s, Vector2(25, 28) * s, ink)
-			_r(c + Vector2(-6, -8) * s, Vector2(13, 16) * s, dark)
+		&"slug":
+			# ONE heavy round, nose right, tracer behind. The silhouette a
+			# player should read as "this hits once and it hits hard".
+			_round(c + Vector2(-4, 0) * s, 1.0, ink, dark)
+			_tracer(c + Vector2(-30, 0) * s, 3, dark)
+		&"burst":
+			# THE SAME ROUND, SEVERAL TIMES, and this is the split that does the
+			# most work in the whole set: "Deal 2 x 5" is a stream and "Deal 40"
+			# is a hammer, and until now they were one picture.
+			#
+			# Drawn to the ACTUAL hit count up to four, then smaller, so a player
+			# can count them off a 96px thumbnail. Past four it stops counting and
+			# starts meaning "a lot", which is the honest reading of Deal 2 x 5
+			# anyway — nobody counts five rounds, they see a stream.
+			var n := clampi(card.hits, 2, 4)
+			var k := 1.0 - 0.16 * float(n - 2)
+			for i in n:
+				var x := -30.0 + float(i) * (26.0 - float(n) * 2.0)
+				_round(c + Vector2(x, 0) * s, k * 0.72, ink, dark)
+		&"pyre":
+			# An attack whose number IS your heat. A round with the reactor
+			# showing through it — the only attack glyph that is lit from inside,
+			# because it is the only one whose damage comes out of the ship.
+			_round(c + Vector2(-2, 0) * s, 1.0, ink, dark)
+			_r(c + Vector2(-6, -3) * s, Vector2(14, 6) * s, UITheme.FLARE)
+			_r(c + Vector2(-2, -2) * s, Vector2(7, 4) * s, UITheme.HOT)
+			for i in 3:
+				_r(c + Vector2(-28 + i * 8, -2 - i) * s, Vector2(5, 2) * s, UITheme.EMBER)
 		&"charge":
-			# A coil banking energy, stacked and rising.
+			# A coil banking energy, stacked and rising to a pip that has not
+			# gone yet. The one glyph that is about a FUTURE turn.
 			for i in 3:
 				var w := 30 - i * 6
-				_r(c + Vector2(-w * 0.5, -15 + i * 11) * s, Vector2(w, 6) * s,
+				_r(c + Vector2(-w * 0.5, -12 + i * 10) * s, Vector2(w, 6) * s,
 					ink if i == 0 else dark)
-			_r(c + Vector2(-3, -22) * s, Vector2(6, 8) * s, UITheme.FLARE)
+			_r(c + Vector2(-3, -22) * s, Vector2(6, 7) * s, UITheme.FLARE)
+			_r(c + Vector2(-1, -27) * s, Vector2(2, 4) * s, UITheme.HOT)
 		&"drone":
-			# A hull and its escort.
+			# A hull and its escort. Something that fires without you.
 			_r(c + Vector2(-5, -5) * s, Vector2(11, 11) * s, ink)
 			_r(c + Vector2(-20, -14) * s, Vector2(6, 6) * s, dark)
 			_r(c + Vector2(15, 8) * s, Vector2(6, 6) * s, dark)
 			_r(c + Vector2(17, -12) * s, Vector2(5, 5) * s, dark)
-		_:
-			# Utility: a vent, throwing heat off in slats.
-			_r(c + Vector2(-15, 3) * s, Vector2(31, 9) * s, ink)
+		&"armor":
+			# BRACE: a wall you keep. Thick, bevelled, whole — and unbroken,
+			# which is the whole difference from block below.
+			_r(c + Vector2(-15, -20) * s, Vector2(30, 40) * s, dark)
+			_r(c + Vector2(-11, -16) * s, Vector2(22, 32) * s, ink)
+			_r(c + Vector2(-6, -10) * s, Vector2(12, 20) * s, dark)
+		&"block":
+			# A screen that falls down at the end of the turn. Same footprint as
+			# Brace and deliberately SEGMENTED — gaps say temporary before a word
+			# is read, and the two are the most important pair on the card to be
+			# able to tell apart at a glance.
 			for i in 3:
-				_r(c + Vector2(-12 + i * 10, -15) * s, Vector2(6, 14) * s, dark)
+				_r(c + Vector2(-13, -20 + i * 14) * s, Vector2(26, 10) * s,
+					ink if i == 1 else dark)
+		&"riposte":
+			# A wall that shoots back, drawn as a wall and THE ATTACK GLYPH'S OWN
+			# ROUND leaving it. Reusing the round rather than inventing a spark is
+			# the whole point: riposte is defence that deals damage, and the
+			# picture should be made of the two things it is made of.
+			#
+			# Leaving to the RIGHT, with the rest of the attack family, because
+			# right is where this card's damage goes.
+			_r(c + Vector2(-20, -19) * s, Vector2(13, 38) * s, ink)
+			_r(c + Vector2(-16, -13) * s, Vector2(5, 26) * s, dark)
+			_round(c + Vector2(8, 0) * s, 0.62, ink, dark)
+		&"slip":
+			# The hit that does not land: a round passing THROUGH the gap where
+			# the ship was. Absence, drawn.
+			_r(c + Vector2(-14, -20) * s, Vector2(9, 15) * s, dark)
+			_r(c + Vector2(-14, 6) * s, Vector2(9, 15) * s, dark)
+			_round(c + Vector2(2, 0) * s, 0.8, ink, dark)
+			_tracer(c + Vector2(-30, 0) * s, 2, dark)
+		&"vent":
+			# Heat leaving, through slats. Rising, because that is the direction
+			# the player wants it going.
+			_r(c + Vector2(-16, 6) * s, Vector2(33, 10) * s, ink)
+			for i in 3:
+				_r(c + Vector2(-12 + i * 11, -4) * s, Vector2(6, 9) * s, dark)
+				_r(c + Vector2(-11 + i * 11, -17 - (i % 2) * 4) * s,
+					Vector2(4, 9) * s, UITheme.EMBER)
+		&"repair":
+			# A seam being closed. Plate, and the weld across it.
+			_r(c + Vector2(-16, -14) * s, Vector2(33, 28) * s, dark)
+			_r(c + Vector2(-4, -18) * s, Vector2(9, 36) * s, ink)
+			_r(c + Vector2(-16, -4) * s, Vector2(33, 9) * s, ink)
+		&"lock":
+			# A reticle closing on something. The only glyph that is about the
+			# NEXT card rather than this one.
+			# Written out, not looped. An L has a handedness and there are four
+			# of them — see ModuleIcon._glyph, where the derived version read as
+			# four unrelated ticks.
+			var arm := Vector2(11, 3)
+			var leg := Vector2(3, 11)
+			_r(c + Vector2(-20, -20) * s, arm * s, ink)   ## top left
+			_r(c + Vector2(-20, -20) * s, leg * s, ink)
+			_r(c + Vector2(9, -20) * s, arm * s, ink)     ## top right
+			_r(c + Vector2(17, -20) * s, leg * s, ink)
+			_r(c + Vector2(-20, 17) * s, arm * s, ink)    ## bottom left
+			_r(c + Vector2(-20, 9) * s, leg * s, ink)
+			_r(c + Vector2(9, 17) * s, arm * s, ink)      ## bottom right
+			_r(c + Vector2(17, 9) * s, leg * s, ink)
+			_r(c + Vector2(-3, -3) * s, Vector2(6, 6) * s, UITheme.HOT)
+		&"draw":
+			# Cards, one lifted off the pile. Reads as "more hand".
+			_r(c + Vector2(-18, -4) * s, Vector2(20, 24) * s, dark)
+			_r(c + Vector2(-12, -10) * s, Vector2(20, 24) * s, dark)
+			_r(c + Vector2(-4, -20) * s, Vector2(20, 26) * s, ink)
+		&"power":
+			# A cell with a charge in it.
+			_r(c + Vector2(-13, -18) * s, Vector2(26, 36) * s, dark)
+			_r(c + Vector2(-9, -14) * s, Vector2(18, 28) * s, ink)
+			_r(c + Vector2(-3, -12) * s, Vector2(7, 12) * s, UITheme.FLARE)
+			_r(c + Vector2(-3, 1) * s, Vector2(7, 11) * s, UITheme.HOT)
+		&"scrip":
+			# Stacked notes. The human economy, which is the only kind a card
+			# ever pays out in. See docs/lore.md §1.
+			for i in 3:
+				_r(c + Vector2(-16 + i * 3, -12 + i * 9) * s, Vector2(30, 7) * s,
+					ink if i == 2 else dark)
+		&"malfunction":
+			# BROKEN, and it used to draw a vent — a Dross card was showing the
+			# picture for "throw heat off", which is the single most misleading
+			# thing the old set did. Scattered, off-grid, going nowhere.
+			_r(c + Vector2(-16, -4) * s, Vector2(13, 5) * s, dark)
+			_r(c + Vector2(1, -12) * s, Vector2(9, 5) * s, dark)
+			_r(c + Vector2(-7, 8) * s, Vector2(11, 4) * s, dark)
+			_r(c + Vector2(8, 4) * s, Vector2(7, 6) * s, dark)
+			_r(c + Vector2(-19, 10) * s, Vector2(6, 4) * s, dark)
+		_:
+			# Utility with no verb this list knows about. A module housing: a
+			# box with a fitting on it, which is what an unclassified part is.
+			_r(c + Vector2(-15, -12) * s, Vector2(30, 24) * s, dark)
+			_r(c + Vector2(-10, -7) * s, Vector2(20, 14) * s, ink)
+			_r(c + Vector2(15, -4) * s, Vector2(7, 8) * s, dark)
+
+## One round: a body and a nose, pointed right, at a fraction of full size.
+##
+## Shared by every attack glyph so that a burst is visibly the SAME projectile
+## repeated rather than a different drawing that happens to mean attack.
+func _round(at: Vector2, k: float, ink: Color, dark: Color) -> void:
+	var s := float(_s)
+	var bw := 20.0 * k
+	var bh := 11.0 * k
+	_r(at + Vector2(-bw * 0.5, -bh * 0.5) * s, Vector2(bw, bh) * s, ink)
+	_r(at + Vector2(bw * 0.5, -bh * 0.35) * s, Vector2(5.0 * k, bh * 0.7) * s, ink)
+	_r(at + Vector2(bw * 0.5 + 5.0 * k, -1.5 * k) * s, Vector2(4.0 * k, 3.0 * k) * s,
+		UITheme.HOT)
+	_r(at + Vector2(-bw * 0.5 - 3.0 * k, -bh * 0.5) * s, Vector2(3.0 * k, bh) * s, dark)
+
+## Motion behind a round. Every attack travels left to right, which is the one
+## piece of grammar that makes the attack family read as a family.
+func _tracer(at: Vector2, lines: int, dark: Color) -> void:
+	var s := float(_s)
+	for i in lines:
+		_r(at + Vector2(-float(i) * 3.0, -4.0 + float(i) * 4.0) * s,
+			Vector2(14.0 - float(i) * 3.0, 2) * s, dark)
 
 func _r(p: Vector2, sz: Vector2, col: Color) -> void:
 	draw_rect(Rect2(p, sz), col, true)

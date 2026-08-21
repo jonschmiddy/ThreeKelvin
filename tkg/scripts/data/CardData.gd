@@ -74,17 +74,76 @@ func type_name() -> String:
 ## What the art window draws. Finer than the type, on purpose: the type line
 ## answers "how do the rules treat this", the silhouette answers "what does it
 ## do", and those are different questions with different right answers.
+## What the art window draws.
+##
+## THE VERB, NOT THE TYPE, and it used to be the type. There were five kinds —
+## attack, defend, charge, drone, utility — and the type line prints the same
+## answer one row below the picture, so the largest element on the card was also
+## the most redundant thing on it. Suppressing Fire, Full Auto, Ripple Fire,
+## Drumfire and Siege Round drew one identical round; Brace, Bulwark, Sink Plate,
+## Dig In and Bulkhead drew one identical plate. A hand of eight was two pictures.
+##
+## So this answers "what does playing it DO" instead, which is the question a
+## player is actually asking when they look at a card they cannot yet read.
+##
+## PRIORITY IS THE HEADLINE, and it is why this is a ladder rather than a set of
+## flags. Dig In braces, blocks AND vents; the picture has to pick one, and the
+## one it picks is the thing you played the card for. Defence outranks the vent
+## that came with it, an attack outranks the draw stapled to it, and the two
+## kinds that change how a card is USED rather than what it does — a charge that
+## fires later, a drone that fires without you — outrank everything, because
+## getting those wrong costs you a turn.
+##
+## Shape, never colour. Colour is the manufacturer channel and the two must never
+## share an encoding, so every one of these reads for a colourblind player.
 func glyph_kind() -> StringName:
+	# THE PART, NOT THE ROLL. See base_glyph.
+	if base_glyph != &"":
+		return base_glyph
+	# Sequencing first: these two change WHEN the card acts, and a player who
+	# misreads them loses a turn rather than a few points.
 	if unplayable:
 		return &"malfunction"
 	if charge_turns > 0:
 		return &"charge"
 	if drone_damage > 0 or drone_armor > 0:
 		return &"drone"
-	if damage > 0 or damage_equals_heat or heat_scale > 0:
-		return &"attack"
-	if armor > 0 or block > 0 or negate_next or riposte > 0 or armor_from_heat:
-		return &"defend"
+	# An attack whose number is your heat is a different animal from one with a
+	# number printed on it — it is the build asking you to run hot on purpose.
+	if damage_equals_heat or heat_scale > 0:
+		return &"pyre"
+	# THE SPLIT THAT DOES THE MOST WORK. "Deal 2 x 5" and "Deal 40" are the same
+	# picture under the old scheme and are not remotely the same card.
+	if damage > 0:
+		return &"burst" if hits > 1 else &"slug"
+	# Defence, finest first. Brace is a wall you keep, Block is one that falls
+	# down at the end of the turn, and Riposte is one that bites back — three
+	# different plans, and the old glyph called them one plate.
+	if riposte > 0:
+		return &"riposte"
+	if negate_next:
+		return &"slip"
+	# THE BIGGER NUMBER WINS when a card does both. Dig In braces 2 and blocks
+	# 8, and calling that a Brace card because Brace is checked first would draw
+	# a picture of the smaller half. A ladder is right for kinds that cannot be
+	# compared; these two are the same kind of thing in different amounts.
+	if armor_from_heat:
+		return &"armor"
+	if armor > 0 or block > 0:
+		return &"armor" if armor >= block else &"block"
+	# Utility, in the order a player would name the card by.
+	if vent > 0 or vent_all:
+		return &"vent"
+	if heal > 0:
+		return &"repair"
+	if lock_on > 0:
+		return &"lock"
+	if draw > 0:
+		return &"draw"
+	if energy_gain > 0:
+		return &"power"
+	if credit_gain > 0:
+		return &"scrip"
 	return &"utility"
 
 ## What the heat pip prints: what playing this leaves behind, net of what it
@@ -92,6 +151,26 @@ func glyph_kind() -> StringName:
 ## running backwards, which is how the card teaches that heat is bidirectional.
 func net_heat() -> int:
 	return heat - vent
+
+## What this card's picture was before any affix touched it.
+##
+## Affixes MUTATE THESE FIELDS — `ModuleData.resolved_cards()` calls
+## `AffixData.apply_to()` on a duplicate — so a rolled part can hand a card
+## properties its designer never gave it. Grafted adds `heal`, Salvaged adds
+## `credit_gain`, Autoloader adds `draw`, Overbored adds `damage`.
+##
+## Read straight, the ladder in glyph_kind() then draws the AFFIX rather than the
+## card: a Lock On that happens to roll Grafted stops being a reticle and becomes
+## a weld, and a Brace Frame that rolls Overbored draws a round. The picture is
+## supposed to say what the card is for, and +2 damage on a plate is not what the
+## plate is for.
+##
+## So the answer is decided once, on the base card, before any affix is applied,
+## and the affixes are left to do their talking in the rules text where the
+## numbers actually are. Empty on a card nothing has resolved — the gallery and
+## the tests build cards directly — and glyph_kind() falls through to computing
+## it, which is the same answer for an unaffixed card.
+var base_glyph: StringName = &""
 
 ## Runtime-only, set by DeckBuilder
 var source_module: String = ""

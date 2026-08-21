@@ -59,6 +59,9 @@ godot                      # then F5, or run from the editor
 # Balance simulation — RUN THIS AFTER ANY BALANCE CHANGE
 godot --headless --path . -- sim runs=200      # ~4 min at 200 runs
 
+# Which picture every card draws, and whether one glyph has become a catch-all —
+# RUN THIS AFTER ADDING A CARD OR CHANGING CardData.glyph_kind()
+godot --headless --path . -- glyphs
 # The archive: machinery, and a STYLE GATE over every entry's prose —
 # RUN THIS AFTER ADDING A DOCUMENT. See docs/lore.md §5.
 godot --headless --path . -- archivetest

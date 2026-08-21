@@ -51,6 +51,15 @@ func setup(back: Callable = Callable()) -> void:
 	# Opened on the newest thing you have not read, or on the first entry. A
 	# screen that opens on an empty right-hand panel makes the player click
 	# before it has said anything.
+	# `-- archive all open=vault_routing` lands on a named entry. The screen opens
+	# on the shallowest thing you have read, which is correct for a player and
+	# useless for looking at one particular page.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("open="):
+			var want := StringName(a.split("=")[1])
+			if Archive.has(want):
+				_show(want)
+				return
 	_open_first()
 
 
