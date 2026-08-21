@@ -108,7 +108,18 @@ const HEAD_GAP := 12
 const HEAD_H := 145
 ## The right-hand column, shared by the attribute block above and the loadout
 ## below so the two line up.
-const SIDE_W := 300
+##
+## The column is pinned to the right edge and its rows are left-aligned inside
+## it, so this width is also what sets how far LEFT the block starts: narrowing
+## it moves ATTRIBUTES, HARDPOINTS and STARTING MODULES rightward together,
+## which is the only lever that moves all three without breaking the shared left
+## edge they were given in the first place. The margin on `rwrap` cannot do it —
+## that sits outside the column and pushes the column left, not its contents
+## right.
+##
+## The widest row is MANEUVERABILITY's: its label, ten cells and a value, about
+## 217px. 264 keeps roughly 45px of headroom over that.
+const SIDE_W := 264
 ## How far the rows in the chassis list are inset inside their buttons, so a
 ## selected row's fill has a margin before its text. The list's heading uses it
 ## too, or the two do not share a left edge.
@@ -564,6 +575,29 @@ static func _tipped(inner: Control, tip: String) -> Control:
 	outer.add_child(slack)
 	return outer
 
+## The most mounts of one kind any chassis in the game can reach.
+##
+## DERIVED, not typed. A heavy carries four weapon mounts and `DB.TIER_DELTA`
+## grants an A-class frame a fifth and an S-class one a system mount on top —
+## two tables that have both moved this month, and a literal here would go stale
+## the first time either moves again and quietly re-ragged the column.
+##
+## Cached because it is asked once per hardpoint row per chassis and the answer
+## cannot change inside a session.
+static var _ceiling: int = 0
+
+static func _mount_ceiling() -> int:
+	if _ceiling > 0:
+		return _ceiling
+	var m := 1
+	for frame: HullData in DB.hull_frames:
+		for d: Dictionary in DB.TIER_DELTA:
+			m = maxi(m, frame.weapon_slots + int(d.weapon))
+			m = maxi(m, frame.system_slots + int(d.system))
+			m = maxi(m, frame.utility_slots)
+	_ceiling = m
+	return m
+
 ## One hardpoint row: what it is, how many are filled, how many exist.
 func _mount_row(slot: ModuleData.Slot) -> Control:
 	var row := HBoxContainer.new()
@@ -575,7 +609,7 @@ func _mount_row(slot: ModuleData.Slot) -> Control:
 	var used := Run.slots_used(slot)
 	var total := Run.slots_for(slot)
 	var pads := SlotPads.new()
-	pads.setup(used, total)
+	pads.setup(used, total, _mount_ceiling())
 	row.add_child(pads)
 	row.add_child(UITheme.body("%d/%d" % [used, total], UITheme.CHILL, UITheme.FS_SMALL))
 	return _tipped(row, str(MOUNT_TIP[ModuleData.slot_name(slot)]))
@@ -814,10 +848,16 @@ class SlotPads extends Control:
 	var used := 0
 	var total := 0
 
-	func setup(u: int, t: int) -> void:
+	## `reserve` is width held for pads this row does not have.
+	##
+	## Without it the control is exactly as wide as the mounts it draws, so the
+	## "2/4" beside it sat at a different left edge on every row — weapon four
+	## pads out, utility one. The three figures are meant to be read down the
+	## column against each other, which they cannot be while the column is ragged.
+	func setup(u: int, t: int, reserve: int = 0) -> void:
 		used = u
 		total = t
-		custom_minimum_size = Vector2(total * (CELL.x + GAP), CELL.y)
+		custom_minimum_size = Vector2(maxi(total, reserve) * (CELL.x + GAP), CELL.y)
 		size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		queue_redraw()

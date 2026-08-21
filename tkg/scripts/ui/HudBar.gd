@@ -95,6 +95,7 @@ func _build() -> void:
 	# to dying"; this answers "how much does the repair cost", and the tooltip
 	# should not be the only place the second one exists.
 	_hull_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_reserve(_hull_text, "000/000")
 	_row.add_child(_hintable(_hull_text))
 
 	# A rule between each readout. Hull and heat are both rows of cells and sat
@@ -110,6 +111,9 @@ func _build() -> void:
 	_heat = BoxGauge.new()
 	_row.add_child(_heat)
 	_heat_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	# The over-cap form is the long one and it is the one that appears mid-fight,
+	# which is the worst possible moment for the whole bar to jump sideways.
+	_reserve(_heat_text, "00 — 00 HULL")
 	_row.add_child(_hintable(_heat_text))
 
 	_row.add_child(_divider())
@@ -310,6 +314,23 @@ func _value(row: HBoxContainer, text: String) -> void:
 	var v := row.get_node_or_null("Value") as Label
 	if v != null:
 		v.text = text
+
+## Hold a label at the width of the longest thing it will ever say.
+##
+## The two gauge figures are the only readouts on this bar whose text LENGTH
+## changes with play: hull runs "8/24" to "120/120", and heat turns from "0/23"
+## into "25 — 2 HULL" the moment you cross the cap. Both sit left of CREDITS and
+## FUEL, so every one of those changes shoved the rest of the bar sideways — and
+## the heat one does it exactly when a fight is going badly, which is the worst
+## moment to move the numbers somebody is watching.
+##
+## Measured off the font rather than guessed, for the same reason AttrBlock
+## measures its label column: a guess is a minimum, so guessing low leaves the
+## label at its natural width and buys nothing.
+func _reserve(l: Label, widest: String) -> void:
+	var f := UITheme.pixel_font()
+	l.custom_minimum_size = Vector2(f.get_string_size(
+		widest, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x, 0)
 
 func _divider() -> Control:
 	var d := Panel.new()
