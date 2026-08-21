@@ -132,7 +132,7 @@ if grep -qE '^=== FAIL' "$LOG_DIR/market.log" 2>/dev/null; then
 	grep -E 'BUY-AND-MELT|SELL-BACK' "$LOG_DIR/market.log" | head -n 20 | sed 's/^/        /'
 fi
 
-step "Contracts sign, close and pay — and standing does not break the market"
+step "Contracts, standing, and the salvage rail's dismissal rule"
 # The second half is the one that matters. `-- market` proves the price
 # invariant at standing zero, which is the only standing it can reach; every
 # price in the game is fine until a player delivers four contracts to one house

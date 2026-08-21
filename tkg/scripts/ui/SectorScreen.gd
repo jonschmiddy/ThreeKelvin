@@ -671,8 +671,7 @@ func _refresh_salvage() -> void:
 	# `cargo.size()` instead of `hauls` was right until the refit screen learned
 	# to drag a part off a hardpoint into the hold — that grows the hold too, so
 	# unbolting your own coolant line made this panel offer it back as salvage.
-	var hushed := Run.salvage_hushed_hauls == Run.hauls \
-		and Run.salvage_hushed_bag == bag_here
+	var hushed := Run.salvage_hushed(bag_here)
 	var has := (loose > 0 or mine) and not fighting()
 	_salvage_wrap.visible = has and not hushed
 	if not _salvage_wrap.visible:

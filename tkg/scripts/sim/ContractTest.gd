@@ -24,6 +24,7 @@ func run() -> void:
 	_hunt()
 	_heat()
 	_standing()
+	_salvage_hush()
 
 	print("")
 	print("contracttest: %s" % ("PASS" if _fails == 0 else "%d FAILURES" % _fails))
@@ -170,6 +171,44 @@ func _standing() -> void:
 	Run.standing.clear()
 	_ok("no amount of standing lets a part sell or melt for its own price", true)
 	print("  bid peaks at %.0f%% of ask" % (worst * 100.0))
+
+
+## The salvage rail's dismissal rule, which is pure logic on `Run` and has been
+## wrong twice.
+##
+## It lives in this file rather than its own because this is the gate's test of
+## RunState transitions and a second Godot boot to assert four booleans is not
+## worth twenty seconds on every commit. If a third RunState rule needs covering,
+## split them out then.
+##
+## First version put the flag on `SectorScreen`, which is REBUILT ON EVERY JUMP,
+## so stowing was forgotten the moment you left. Second version moved it to `Run`
+## and asked whether the state MATCHED the dismissal — so walking away from a bag
+## changed the state and re-opened the rail. The rule is "is anything new".
+func _salvage_hush() -> void:
+	Run.hauls = 5
+	Run.salvage_hushed_hauls = -1
+	Run.salvage_hushed_bag = -1
+	_ok("an undismissed rail is open", not Run.salvage_hushed(-1))
+
+	# Dismissed at a system with no loose salvage.
+	Run.salvage_hushed_hauls = Run.hauls
+	Run.salvage_hushed_bag = -1
+	_ok("dismissing shuts it", Run.salvage_hushed(-1))
+	_ok("and it stays shut after a jump", Run.salvage_hushed(-1))
+	_ok("and a bag somewhere new opens it", not Run.salvage_hushed(12))
+
+	Run.hauls = 6
+	_ok("and a fresh haul opens it", not Run.salvage_hushed(-1))
+
+	# Dismissed while standing over a bag: walking away must NOT re-open it.
+	Run.hauls = 6
+	Run.salvage_hushed_hauls = 6
+	Run.salvage_hushed_bag = 12
+	_ok("dismissing over a bag shuts it", Run.salvage_hushed(12))
+	_ok("and walking away from that bag leaves it shut",
+		Run.salvage_hushed(-1))
+	_ok("and a DIFFERENT bag still opens it", not Run.salvage_hushed(13))
 
 
 # --- helpers ---------------------------------------------------------------

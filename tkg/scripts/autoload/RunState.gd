@@ -102,6 +102,28 @@ var hauls: int = 0
 var salvage_hushed_hauls: int = -1
 var salvage_hushed_bag: int = -1
 
+
+## Whether the salvage rail should stay shut. `bag_here` is the index of the
+## system you are standing in if it has loose salvage, or -1.
+##
+## THE TEST IS "IS ANYTHING NEW", NOT "IS THE STATE THE SAME", and the first
+## version got that backwards. It asked whether the haul count and the bag
+## matched what they were at dismissal — so stowing while standing over a bag
+## recorded that bag, and the next system, having no bag, compared -1 against it,
+## failed the equality and opened the rail again. A bag you walked away from is
+## not new salvage. Nothing happened; something merely stopped.
+##
+## Two things are new and nothing else is: the hold GREW since you dismissed it,
+## or there is a bag at a system that is not the one you dismissed at.
+func salvage_hushed(bag_here: int) -> bool:
+	if salvage_hushed_hauls < 0:
+		return false
+	if hauls > salvage_hushed_hauls:
+		return false
+	if bag_here >= 0 and bag_here != salvage_hushed_bag:
+		return false
+	return true
+
 ## Work you have taken, in the order you took it. See ContractData.
 ##
 ## Nothing in here expires and nothing in here is contested — two ships can hold
