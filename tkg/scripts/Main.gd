@@ -217,7 +217,7 @@ func _ready() -> void:
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv \
-		or "salvage" in argv
+		or "salvage" in argv or "party" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -245,6 +245,24 @@ func _ready() -> void:
 	# photographs the real screen — the arena, the salvage rail and the hand all
 	# competing for the same width, which is the whole question. The party is a
 	# fabricated ROSTER and no port is opened.
+	# `-- party 6` opens the party page against a fabricated roster.
+	#
+	# Same argument as `-- convoy`: the page's whole subject is other people, so
+	# without this the only way to look at it is to start six Godot processes and
+	# fly them to the same place. The roster is faked, not the screen — what is
+	# drawn is the real PartyScreen reading the real Net.roster.
+	if "party" in OS.get_cmdline_user_args():
+		var crew := 5
+		for a in OS.get_cmdline_user_args():
+			if a.is_valid_int():
+				crew = clampi(int(a), 1, 7)
+		# Loaded rather than named: ConvoyTest carries no class_name, which is why
+		# every other use of it in this file goes through load() too.
+		var ct: GDScript = load("res://scripts/sim/ConvoyTest.gd")
+		ct.fake_party(crew)
+		Net.state = NetSession.State.IN_PARTY
+		Router.show_party()
+
 	if "convoy" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())

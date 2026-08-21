@@ -27,10 +27,34 @@ extends RefCounted
 
 enum Kind { DIRECT, ROOM, PLATFORM }
 
-## Four ships is the tuned party size. The number lives here rather than in
+## How many ships one galaxy holds. The number lives here rather than in
 ## NetSession because a platform transport gets it from the lobby it created,
 ## and would otherwise have two of them to keep in step.
-const MAX_PLAYERS: int = 4
+##
+## IT IS ALSO IN `relay/src/index.js`, and the two must agree. Both ends police
+## the door independently — the relay denies with "The party is full." and
+## `NetSession._hello` refuses at `roster.size() >= MAX_PLAYERS` — so a mismatch
+## is a player the relay lets in that the host then turns away, which reads to
+## them as a random disconnect. Raise both or neither.
+##
+## EIGHT, RAISED FROM FOUR AND FLOWN BEFORE IT WAS RAISED. `tools/coplay.sh 6`
+## put six windows in one party on one code: six ships readied, one seed, the
+## same 161-system galaxy on every machine, and no errors in any of the six
+## logs. Nothing in the session layer had an opinion — the seed is one integer
+## however many receive it, seat salting is `_mix(base, seat)` for any seat, and
+## claims, the bag and `SharedFight.crew` are lists that simply got longer.
+##
+## What did have an opinion was the interface, twice, and both are fixed rather
+## than tolerated: the lobby roster had no scroll and pushed READY and LAUNCH
+## DIVE off a 540px viewport at about six ships, and the convoy strip is a
+## fixed-height column measured for three partners. See LobbyScreen._build_party
+## and EncounterView.CONVOY_MAX.
+##
+## What is still only argued: `SharedFight.CREW_SHARE` is linear with no ceiling
+## and has been flown at two. An eight-ship custodian is 120 + 7x72 hull against
+## eight hands of cards, and nobody has played that. The cap allows it; the
+## tuning has not been done.
+const MAX_PLAYERS: int = 8
 
 
 ## The transport a code belongs to, from the code itself.

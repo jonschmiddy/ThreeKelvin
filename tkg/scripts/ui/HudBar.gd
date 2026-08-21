@@ -33,6 +33,11 @@ var _tab_sector: Button
 var _tab_chart: Button
 var _tab_cards: Button
 var _tab_history: Button
+## Only ever visible in a party. Built unconditionally, because a party can form
+## before the HUD exists and can also outlive it — hiding a built button is one
+## state to keep in step, and rebuilding the bar when somebody joins is a whole
+## screen redrawn for one tab.
+var _tab_party: Button
 
 var _hull_label: Label
 var _hull: BoxGauge
@@ -157,6 +162,14 @@ func _build() -> void:
 	if DevMode.enabled:
 		_tab_cards = _tab("CARDS", func() -> void: Router.show_cards())
 		_row.add_child(_tab_cards)
+	# Beside the three tabs that are part of the game rather than beside the two
+	# readouts, because who you are flying with is a thing you act on: it is
+	# where you learn that somebody is four shells deeper than you and running
+	# hot. Hidden entirely when there is no party — a tab that is permanently
+	# greyed out in the solo game is a tab that teaches the player to ignore it.
+	_tab_party = _tab("PARTY", func() -> void: Router.show_party())
+	_row.add_child(_tab_party)
+
 	# The record sits beside the catalog: both are things you read rather than
 	# places you go, and neither changes the run.
 	_tab_history = _tab("HISTORY", func() -> void: Router.show_history())
@@ -194,6 +207,12 @@ func refresh() -> void:
 		"Every card in the game.")
 	_state(_tab_history, Router.current is HistoryScreen, choose_lock,
 		"Every run you have finished.")
+	# Locked during a fight for the same reason SHIP is: it is a page you read
+	# while deciding where to go, and the decision it feeds does not exist while
+	# something is shooting at you. The convoy strip covers the fight.
+	_tab_party.visible = Net.is_networked()
+	_state(_tab_party, Router.current is PartyScreen, lock,
+		"Everyone you are flying with.")
 
 	# These say what the gauge IS before they say anything about its numbers.
 	# Someone hovering a bar they do not recognise is asking "what is this",

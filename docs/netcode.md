@@ -438,6 +438,68 @@ day.
 
 **Protocol 6** is these three changes. Save version 6 carries `MapNode.bag`.
 
+### Eight seats, flown before the number was raised
+
+`NetTransport.MAX_PLAYERS` is eight. It was four, and the way it was raised is
+the point: `tools/coplay.sh 6` put six windows in one party on one code before
+the constant was called shippable. Six ships readied, one seed, the same 161
+systems on every machine, no errors in any of the six logs.
+
+**Nothing in the session layer had an opinion.** The seed is one integer however
+many machines receive it. Seat salting is `_mix(base, seat)` for any seat.
+Claims, the bag and `SharedFight.crew` are lists that got longer. That is what
+the layer was built for and it is the least surprising result here.
+
+**The interface had two, and both were the same bug.** The lobby roster had no
+scroll, so at about six ships READY and LAUNCH DIVE walked off the bottom of a
+540px viewport — the six-ship party above could only be launched because `auto`
+pressed the button programmatically. And the convoy strip is a fixed-height
+column: three rows of 118 against the 378 the arena leaves. Photographed at
+seven, the fourth ship was cut in half by the quiet strip and the last three
+were not drawn at all, silently.
+
+The strip is now **three places rather than three ships** — when more ships are
+here than there are places, the last place holds a `+N MORE` chip instead of a
+hull. A counter beside three hulls does not fit; the block goes ten rows over
+and, because the column is centred, spends half of that writing the first
+partner's name across the name of the system.
+
+**Two constants, and they must agree.** `NetTransport.MAX_PLAYERS` and
+`MAX_PLAYERS` in `relay/src/index.js`. Both ends police the door independently,
+so a mismatch is a player the relay admits and the host then turns away, which
+reads to them as a random disconnect.
+
+**What is allowed and not tuned:** `SharedFight.CREW_SHARE` is linear with no
+ceiling and has been flown at two. An eight-ship custodian is 120 + 7×72 hull
+against eight hands of cards. The cap permits that fight; nobody has played it.
+
+And one cost worth naming before it is discovered on a bill: `_push_roster_to`
+sends the **whole** roster to **everyone** on any change, and every slot carries
+a full `ShipBuild`. That is O(n²) per presence change, and presence changes
+whenever anybody's hull or heat moves. At four it is invisible. At eight it is
+four times the traffic for twice the party, on a relay where Cloudflare bills 20
+incoming messages as one request.
+
+### The party page
+
+`PartyScreen`, on the HUD beside SECTOR and STARCHART, hidden when there is no
+party. Every ship in the party with its hull drawn, its hull points, its heat
+against **its own cap**, the system it is in, and whether it is in a fight.
+
+**Not one new message was added to build it.** A roster slot has carried the
+ship, the gauges and the position since the convoy strip needed them, and that
+is the test of whether a screen deserves to exist: one that needs a new channel
+is a feature, one assembled out of facts the party already agrees on is a view.
+
+It scrolls, so it has no opinion about party size — which is what lets the
+convoy strip keep the job it is good at (who is in this room, at a glance,
+without leaving the sector) and hand off the one it cannot do.
+
+What it deliberately does not show is anything `ShipBuild` does not already
+carry. No cards, no affixes, no fuel, no credits. `coop-design.md`'s first
+pillar is that the wallets stay separate; what the party shares is exposure, and
+exposure is hull, heat, position and contact.
+
 ### Two processes, one galaxy
 
 The end of the chain, run for real rather than argued:

@@ -159,6 +159,18 @@ func show_history(from_launcher: bool = false) -> void:
 	_swap(s, not from_launcher)
 	s.setup(show_launcher if from_launcher else show_sector)
 
+## Everybody you are flying with, with the numbers the convoy strip has no room
+## for. `back` is where LEAVE returns to, so the HUD can be reached from three
+## screens without all three landing on the sector. See PartyScreen.
+func show_party() -> void:
+	if in_combat():
+		return
+	var here := current
+	var s := PartyScreen.new()
+	_swap(s)
+	s.setup(show_ship if here is ShipScreen else (
+		show_starchart if here is StarchartScreen else show_sector))
+
 func show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint
 	# where being out of fuel has to resolve rather than stall.

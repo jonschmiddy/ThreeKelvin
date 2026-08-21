@@ -48,6 +48,8 @@ var _auto: bool = false
 ## it the scripted host dives the moment the first joiner is ready, which is the
 ## right default for a two-instance smoke test and useless for proving that four
 ## machines agree.
+## Dev only: how many fabricated ships to put in the roster. See _run_flags().
+var _crowd: int = 0
 var _wait_for: int = 2
 
 
@@ -124,6 +126,15 @@ func _run_flags() -> void:
 			_wait_for = maxi(2, int(argv[i + 1]))
 	if "host" in argv:
 		_scripted = true
+		# `-- lobby host crowd 6` fills the roster with ships nobody is flying.
+		#
+		# The only other way to see this page at six is to start six Godot
+		# processes, and the thing worth looking at — whether READY and LAUNCH
+		# DIVE are still on the screen — is a layout question that does not need
+		# six real peers to answer. The roster is faked; the page is not.
+		for i in argv.size():
+			if argv[i] == "crowd" and i + 1 < argv.size():
+				_crowd = clampi(int(argv[i + 1]), 1, 7)
 		# `-- lobby host relay ws://localhost:8787` for a local wrangler dev.
 		if "relay" in argv:
 			_host(RelayTransport.new())
@@ -294,9 +305,38 @@ func _build_party() -> void:
 
 	var roster := Widgets.section("SHIPS (%d/%d)" % [
 		Net.party_size(), NetSession.MAX_PLAYERS])
+	# THE LIST SCROLLS, and it is READY and LAUNCH DIVE that this protects.
+	#
+	# A row is 51px of panel plus 8 of separation and the first one starts at
+	# 154, so the buttons underneath walk off the bottom of a 540 viewport at
+	# about six ships. Measured, not guessed: `-- lobby host` and a ruler. At the
+	# tuned party of four there is room and this changes nothing; the moment
+	# MAX_PLAYERS is raised it is the difference between a host who can press
+	# LAUNCH and one who cannot.
+	#
+	# That is not hypothetical — a six-ship party formed correctly on the wire in
+	# testing and could only be launched because the `auto` flag pressed the
+	# button programmatically. Nobody could have done it by hand.
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 8)
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for slot in Net.slots():
-		roster.add_child(_slot_row(slot))
+		rows.add_child(_slot_row(slot))
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Four rows' worth. Past that it scrolls rather than growing, which is the
+	# whole point; under it the container shrinks to fit and a party of two does
+	# not sit in a tall empty box.
+	scroll.custom_minimum_size = Vector2(0, 0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.add_child(rows)
+	roster.add_child(scroll)
 	_body.add_child(roster)
+	# The roster is the only part of this page that grows, so it is the only part
+	# that gets the leftover height. Without this the section keeps its minimum
+	# and the scroll never has room to be a scroll.
+	_body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	roster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var actions := HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8)
@@ -429,7 +469,19 @@ func _host(t: NetTransport) -> void:
 	if code.is_empty():
 		_status.text = Net.last_error()
 		return
+	if _crowd > 0:
+		_fill_crowd()
 	_rebuild()
+
+
+## Dev only. See the `crowd` flag in _run_flags().
+func _fill_crowd() -> void:
+	for i in _crowd:
+		var id := 2 + i
+		Net.roster[id] = {"id": id, "name": "PILOT-%d" % (200 + i * 37),
+			"hull": &"", "ready": i % 2 == 0, "order": 1 + i,
+			"build": {}, "at": -1}
+	Sig.party_changed.emit()
 
 
 ## No transport choice on this side, ever. The code says which kind of party it

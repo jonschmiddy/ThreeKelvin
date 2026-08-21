@@ -33,6 +33,8 @@ var _convoy: VBoxContainer
 ## pixels of empty left edge.
 var _convoy_pad: MarginContainer
 var _made_convoy: Array[ConvoySlot] = []
+## The "+N MORE" chip, or null when everybody here is drawn. See CONVOY_MAX.
+var _overflow: Button = null
 var _ship_slot: ShipSlot
 var _ship: ShipView
 var _area: AreaView
@@ -144,10 +146,28 @@ static func convoy_w() -> int:
 ## as distance.
 ##
 ## Three of these plus the separations is 362 rows against the 378 the arena
-## leaves under the sector header, so a full party fits without the column
-## having to shrink. That is the whole arithmetic and it is why the number is
-## not tuned per party size.
+## leaves under the sector header. That is the whole arithmetic, and it is also
+## a CEILING rather than a coincidence — see CONVOY_MAX.
 const CONVOY_H := 118
+
+## How many partners the strip will draw, however many are in the room.
+##
+## Three, because three is what fits: the arithmetic above is not a description
+## of the tuned party size, it is the number of 118px rows the arena has room
+## for. That distinction did not matter while MAX_PLAYERS was four and does the
+## moment it is not — photographed at seven, the fourth ship was cut in half by
+## the quiet strip and the last three were not drawn at all. Silently.
+##
+## So the overflow is SAID rather than dropped. A chip under the column carries
+## the count and opens the party page, which scrolls and therefore has no
+## opinion about how many ships there are. The strip keeps the job it is good at
+## — who is in this room, at a glance, without leaving the sector — and hands
+## off the one it cannot do.
+##
+## Not tuned per party size on purpose. A strip that shrinks its rows to fit six
+## ships is a strip where no ship is legible, and the point of drawing a hull
+## rather than a name is that you can tell a Dreadnought from a Sloop.
+const CONVOY_MAX := 3
 ## Cleared for the sector's name and its two lines of description, which are
 ## painted over this same corner by the screen above. Without it the first
 ## partner's name is written across the name of the system.
@@ -189,7 +209,19 @@ func refresh_convoy() -> void:
 	# frees the column and the slots inside it together.
 	if not is_instance_valid(_convoy):
 		return
-	var them := _here()
+	var here := _here()
+	# THE COUNTER OCCUPIES A PLACE. The column has room for CONVOY_MAX rows and
+	# not one pixel more — 362 against 378 — so a chip added BESIDE three hulls
+	# pushes the block ten rows over, and because the column is centred it spends
+	# half of that going upward, writing the first partner's name across the name
+	# of the system. Measured, by adding it and looking.
+	#
+	# So the strip has three places rather than three ships: when more ships are
+	# here than there are places, the last place holds the count instead of a
+	# hull. Nobody is dropped, the arithmetic above stays true, and the rule is
+	# one sentence.
+	var shown := CONVOY_MAX if here.size() <= CONVOY_MAX else CONVOY_MAX - 1
+	var them: Array = here.slice(0, shown) if here.size() > shown else here
 	var want: Array = them.map(func(s: Dictionary) -> int: return int(s.id))
 
 	# A DIFF, NOT A REBUILD, and that is what makes a departure drawable at all.
@@ -228,10 +260,42 @@ func refresh_convoy() -> void:
 		_convoy.move_child(slot, i)
 		slot.bind(them[i])
 
-	# Visible while ANYTHING is in the column, including a ship on its way out.
+	_refresh_overflow(here.size() - them.size())
+
+	# Visible while any SHIP is in the column, including one on its way out.
 	# `them.is_empty()` would take the last partner off screen on the frame they
 	# pressed JUMP, which is the one frame the effect exists to fill.
-	_convoy_pad.visible = _convoy.get_child_count() > 0
+	#
+	# Counted off the slots rather than off the children, because the overflow
+	# chip is a child too and a column holding nothing but a chip is a column
+	# that should not be on screen.
+	_convoy_pad.visible = not _made_convoy.is_empty()
+
+
+## Everybody in this room the column had no room for.
+##
+## A count and a way to see them, which is the whole of it. The alternative was
+## drawing them smaller, and a hull nobody can identify is not a hull — see
+## CONVOY_MAX.
+func _refresh_overflow(extra: int) -> void:
+	if extra <= 0:
+		if _overflow != null:
+			_overflow.queue_free()
+			_overflow = null
+		return
+	if _overflow == null:
+		_overflow = Widgets.button("", func() -> void: Router.show_party())
+		# The one thing in this overlay that takes a click. Its parents are
+		# MOUSE_FILTER_IGNORE so that cards can be dropped through the column,
+		# and a child sets its own filter — so this stays pressable without
+		# making the rest of the strip swallow the arena's input.
+		_overflow.mouse_filter = Control.MOUSE_FILTER_STOP
+		_convoy.add_child(_overflow)
+	_overflow.text = "+%d MORE" % extra
+	_overflow.tooltip_text = Widgets.tip(
+		"More ships are here than the strip can draw. Opens the party page.")
+	# Always last, under the hulls, even after a slot has been inserted above it.
+	_convoy.move_child(_overflow, _convoy.get_child_count() - 1)
 
 
 func _slot_for(id: int) -> ConvoySlot:
