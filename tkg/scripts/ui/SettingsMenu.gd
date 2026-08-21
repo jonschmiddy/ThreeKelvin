@@ -32,11 +32,7 @@ func setup() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 20)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 16)
+	var pad := Widgets.pad(null, 20, 16)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 5)
@@ -87,8 +83,7 @@ func setup() -> void:
 	_refresh()
 
 func _refresh() -> void:
-	for c in _mode_rows.get_children():
-		c.queue_free()
+	Widgets.clear(_mode_rows)
 	for m in [DisplaySettings.Mode.WINDOWED, DisplaySettings.Mode.BORDERLESS,
 			DisplaySettings.Mode.FULLSCREEN]:
 		var picked: bool = DisplaySettings.mode == m
@@ -101,8 +96,7 @@ func _refresh() -> void:
 		_mode_rows.add_child(b)
 	_blurb.text = DisplaySettings.mode_blurb(DisplaySettings.mode)
 
-	for c in _screen_row.get_children():
-		c.queue_free()
+	Widgets.clear(_screen_row)
 	var count := DisplayServer.get_screen_count()
 	if count <= 1:
 		_screen_row.add_child(UITheme.body("only one monitor detected",
@@ -118,8 +112,7 @@ func _refresh() -> void:
 			sb.tooltip_text = Widgets.tip("Move the game to this monitor. * marks your primary.")
 			_screen_row.add_child(sb)
 
-	for c in _scale_row.get_children():
-		c.queue_free()
+	Widgets.clear(_scale_row)
 	var top := DisplaySettings.max_window_scale()
 	for s in range(1, top + 1):
 		var size := DisplaySettings.BASE * s
@@ -136,8 +129,7 @@ func _refresh() -> void:
 		_scale_row.add_child(UITheme.body("larger sizes need borderless",
 			UITheme.COLD, UITheme.FS_SMALL))
 
-	for c in _volume_rows.get_children():
-		c.queue_free()
+	Widgets.clear(_volume_rows)
 	for bus: StringName in [&"Master", &"Music", &"SFX"]:
 		_volume_rows.add_child(UITheme.body(String(bus).to_upper(),
 			UITheme.COLD, UITheme.FS_SMALL))

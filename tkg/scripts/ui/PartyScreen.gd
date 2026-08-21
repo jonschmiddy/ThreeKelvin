@@ -57,12 +57,8 @@ func setup(back: Callable = Callable()) -> void:
 
 
 func _build() -> void:
-	var pad := MarginContainer.new()
+	var pad := Widgets.pad(null, 12, 8)
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 12)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 8)
 	add_child(pad)
 
 	var col := VBoxContainer.new()

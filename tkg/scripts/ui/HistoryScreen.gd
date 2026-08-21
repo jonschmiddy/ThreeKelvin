@@ -66,11 +66,7 @@ func _totals() -> Control:
 		int(s.best_depth) + 1, MapGen.LAYERS] if int(s.runs) > 0 else "—"))
 	row.add_child(Widgets.stat("kills", str(s.kills)))
 	row.add_child(Widgets.stat("jumps", str(s.jumps)))
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 10)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 7)
+	var pad := Widgets.pad(null, 10, 7)
 	pad.add_child(row)
 	return Widgets.panel_with(pad)
 
@@ -139,11 +135,7 @@ func _row(e: Dictionary) -> Control:
 		r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		col.add_child(r)
 
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 9)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 6)
+	var pad := Widgets.pad(null, 9, 6)
 	pad.add_child(col)
 
 	var panel := PanelContainer.new()

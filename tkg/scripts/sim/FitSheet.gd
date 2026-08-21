@@ -33,7 +33,7 @@ func run(tree: SceneTree) -> void:
 
 func _sheet(h: HullData) -> void:
 	var src := h.sprite.get_image()
-	var base := _palette(src)
+	var base := HullWear.palette(src)
 	print("\n%s" % h.name.to_upper())
 	print("  %-6s %-8s %-13s %s" % ["class", "opaque", "new colours", "build"])
 	for c in 4:
@@ -46,7 +46,7 @@ func _sheet(h: HullData) -> void:
 		if _band > 0:
 			img = HullWear.worn(img, _band, _seed)
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
-		var pal := _palette(img)
+		var pal := HullWear.palette(img)
 		var fresh := 0
 		for k in pal:
 			if not base.has(k):
@@ -61,11 +61,3 @@ func _sheet(h: HullData) -> void:
 		img.save_png("%s/%s_%s.png" % [OUT, h.name.to_lower().replace(" ", "_"),
 			HullData.TIER_NAMES[c]])
 
-func _palette(img: Image) -> Dictionary:
-	var d := {}
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			if c.a > 0.0:
-				d[(int(c.r * 255.0) << 16) | (int(c.g * 255.0) << 8) | int(c.b * 255.0)] = 1
-	return d

@@ -64,13 +64,26 @@ const FS_HEAD := 16
 ## Loaded once and shared. Antialiasing and hinting are forced off in code as
 ## well as in project settings — a bitmap face at integer scale must not be
 ## smoothed, and a stray .import setting would otherwise undo it silently.
+##
+## NOW ACTUALLY ONCE. The comment above said "loaded once and shared" and the
+## function did neither: every call re-ran load() and rewrote all four
+## properties on the shared resource. That is cheap but not free, and eighteen
+## call sites read this — several from inside _draw(), which this codebase
+## queues on mouse motion, so the writes were landing on every hover frame of
+## every card, gauge and enemy slot. The resource cache always returned the same
+## FontFile, so the only thing the repetition bought was the property writes.
+static var _face: FontFile = null
+
 static func pixel_font() -> FontFile:
+	if _face != null:
+		return _face
 	var f: FontFile = load("res://assets/fonts/Silkscreen-Regular.ttf")
 	f.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 	f.hinting = TextServer.HINTING_NONE
 	f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	f.force_autohinter = false
-	return f
+	_face = f
+	return _face
 
 ## Flavour grey: dark enough to sink toward the panel, light enough to read.
 ##

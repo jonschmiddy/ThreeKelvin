@@ -341,9 +341,7 @@ func _refresh_materials() -> void:
 		ids.append(s.id)
 	if ids != _mat_ids:
 		_mat_ids = ids
-		for c in _materials.get_children():
-			_materials.remove_child(c)
-			c.queue_free()
+		Widgets.clear(_materials)
 		for s in stock:
 			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
 				DB.material_colour(s.id))
