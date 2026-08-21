@@ -261,6 +261,26 @@ func _repaint_partner() -> void:
 ## ship instead of magnifying it.
 var _k: int = 1
 
+## Where a pixel of the HULL SPRITE lands inside this control.
+##
+## Three transforms, and every one of them is a thing that has moved at least
+## once: the sprite is pasted into a canvas with `_bob_amp` rows of headroom and
+## then shifted by `_bob_off` as it idles, the canvas is magnified by `_k`, and
+## STRETCH_KEEP_CENTERED centres the result in whatever rect the layout gave us.
+##
+## Exists so that anything drawn ON the ship — a hardpoint, a mount marker — can
+## be positioned from the hull's own measured coordinates rather than from a
+## second set of numbers that would have to be kept in step with them.
+func canvas_to_local(p: Vector2) -> Vector2:
+	var tex := Vector2(float(_w), float(_h)) * float(_k)
+	var origin := ((size - tex) * 0.5).floor()
+	return origin + Vector2(p.x, p.y + float(_bob_amp + _bob_off)) * float(_k)
+
+## How far the idle bob is currently displaced, in sprite pixels. Anything
+## following the ship has to repaint when this changes.
+func bob_offset() -> int:
+	return _bob_off
+
 ## Magnify and crop WITHOUT going into showroom mode.
 ##
 ## The refit screen wants the live ship — its heat glow, its battle damage, the

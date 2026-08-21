@@ -19,9 +19,10 @@ extends Control
 ## moving one to the other. The rows it replaced could not show you a full
 ## weapon rack and a full hold at the same time.
 ##
-## Every state change goes through _on_dropped. Cells report where a part came
-## from and where it landed; nothing else in here touches `installed` or
-## `cargo`, so there is one place to read when a swap does the wrong thing.
+## Two drop handlers, because there are two destinations asking different
+## questions. `_on_mount_drop` asks whether a slot type matches and which PLACE
+## on the hull was aimed at; `_on_hold_drop` asks whether a shape fits and at
+## which cell. Nothing else in here touches `installed` or `cargo`.
 
 ## SUPERSEDED by HoldGrid, which takes its shape from HullData.hold_grid. Kept
 ## as the record of why four: the measurement below is what set it and it is
@@ -41,10 +42,11 @@ extends Control
 ## did when it did not fit.
 const STORAGE_COLS := 4
 
-var _hardpoints: VBoxContainer
 var _storage: HoldGrid
 var _attrs: AttrBlock
 var _mounts: VBoxContainer
+var _mountpts: MountPoints
+var _view: ShipView
 var _banner: ChassisSelect.Banner
 var _name: Label
 var _maker: Label
@@ -112,6 +114,15 @@ func _build() -> void:
 	view.magnify(2, 184)
 	view.bob(2)
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	# The mounts are a CHILD of the view, so they inherit its rect and every
+	# position they draw is in the view's own coordinates — which is what makes
+	# ShipView.canvas_to_local the only place the sprite's bob, magnification
+	# and centring are reasoned about.
+	_mountpts = MountPoints.new()
+	_mountpts.attach(view)
+	_mountpts.dropped.connect(_on_mount_drop)
+	view.add_child(_mountpts)
+	_view = view
 	var vwrap := HBoxContainer.new()
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vwrap.add_child(view)
@@ -170,14 +181,9 @@ func _build() -> void:
 	right.add_theme_constant_override("separation", 4)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	right.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
-
-	_hardpoints = VBoxContainer.new()
-	_hardpoints.add_theme_constant_override("separation", 3)
-	right.add_child(_hardpoints)
-
-	right.add_child(UITheme.hsep())
-
+	# No HARDPOINTS heading here any more: the mounts moved onto the hull and the
+	# rule under them moved with the rack, or the panel opened on a rule with
+	# nothing above it.
 	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	right.add_child(_hold)
 
@@ -232,10 +238,11 @@ func _refresh() -> void:
 		for row2 in others:
 			_abilities.add_child(row2)
 
-	# --- hardpoints, one row per slot type, occupied first then the empties
-	Widgets.clear(_hardpoints)
-	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
-		_hardpoints.add_child(_slot_row(s))
+	# --- the hardpoints are ON THE SHIP now, drawn over the view on the left.
+	# What used to be a rack of squares here is the HARDPOINTS tally under the
+	# attributes; what a rack could never say is where a mount actually is.
+	if _mountpts != null:
+		_mountpts.refresh()
 
 	_storage.refresh()
 	# Cells, not parts. "6 of 12" counted parts against a capacity in parts, and
@@ -264,24 +271,58 @@ func _refresh_mounts() -> void:
 			UITheme.CHILL, UITheme.FS_SMALL))
 		_mounts.add_child(row)
 
-func _slot_row(slot: ModuleData.Slot) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 3)
-	var label := UITheme.body(ModuleData.slot_name(slot).to_upper(),
-		UITheme.COLD, UITheme.FS_SMALL)
-	label.custom_minimum_size = Vector2(52, 0)
-	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(label)
-	# One cell per PHYSICAL mount, asking what is bolted to that one. Packing the
-	# fitted parts in from the left instead made the rack a queue: taking the
-	# middle gun off slid the last one into its place, both here and on the hull
-	# art, so a loadout you had arranged rearranged itself.
-	for i in Run.slots_for(slot):
-		var cell := ModuleCell.new()
-		cell.setup(ModuleCell.Kind.HARDPOINT, slot, Run.module_at(slot, i), i)
-		cell.dropped.connect(_on_dropped)
-		row.add_child(cell)
-	return row
+## A part dropped onto a mount ON THE HULL.
+##
+## The mount is a PLACE, so `index` is carried through to the module rather than
+## derived from the order of `installed` — that was the bug the stored `mount`
+## fixed and it would come straight back if this appended instead.
+func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> void:
+	var m: ModuleData = payload.get("module")
+	if m == null or m.slot != slot:
+		return
+	var resident := Run.module_at(slot, index)
+	if resident == m:
+		return
+
+	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
+	# the hold — the same rule the rack had, and it matters more here, where the
+	# mounts are visibly different positions on the ship.
+	if resident != null and Run.installed.has(m):
+		var there := m.mount
+		m.mount = index
+		resident.mount = there
+		Sig.ship_changed.emit()
+		Run.log_line("Moved %s." % m.name, &"sys")
+		_refresh()
+		return
+
+	# The resident has nowhere to go but the hold, and if it will not fit there
+	# the move is refused BEFORE anything has been taken off the ship.
+	if resident != null and not Run.has_room_for(resident):
+		Run.log_line("No room in the hold for %s." % resident.name, &"them")
+		return
+
+	var was_at := m.hold_at
+	if Run.cargo.has(m):
+		Run.take_from_hold(m)
+	if resident != null:
+		Run.installed.erase(resident)
+		resident.mount = -1
+		if not Run.place_in_hold(resident):
+			# Cannot happen — has_room_for said yes a moment ago and nothing has
+			# taken cells since. Put everything back rather than trust that.
+			resident.mount = index
+			Run.installed.append(resident)
+			if was_at.x >= 0:
+				Run.place_in_hold(m, was_at)
+			Run.log_line("No room in the hold for %s." % resident.name, &"them")
+			return
+	Run.installed.erase(m)
+	m.mount = index
+	Run.installed.append(m)
+	Sig.ship_changed.emit()
+	Run.log_line("Fitted %s." % m.name, &"good")
+	_refresh()
 
 ## The only place `installed` and `cargo` move.
 ##
@@ -297,10 +338,9 @@ func _slot_row(slot: ModuleData.Slot) -> Control:
 ## arithmetic says yes to a hold that cannot hold either of them.
 ## A part dropped onto a CELL of the hold.
 ##
-## Separate from _on_dropped because the two answer different questions. A
+## Separate from _on_mount_drop because the two answer different questions. A
 ## hardpoint asks "does this slot type match"; the hold asks "does this shape
-## fit here", and the cell it fits at is information the hardpoint path has no
-## field for.
+## fit here", and the cell it fits at is information a mount has no use for.
 func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	var m: ModuleData = payload.get("module")
 	if m == null:
@@ -321,96 +361,4 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		m.mount = -1
 		Run.log_line("Stowed %s." % m.name, &"sys")
 	Sig.ship_changed.emit()
-	_refresh()
-
-func _hold_would_take(parts: Array[ModuleData]) -> bool:
-	var placed: Array[ModuleData] = []
-	var ok := true
-	for p in parts:
-		if Run.place_in_hold(p):
-			placed.append(p)
-		else:
-			ok = false
-			break
-	for p in placed:
-		Run.take_from_hold(p)
-	return ok
-
-func _on_dropped(payload: Dictionary, onto: ModuleCell) -> void:
-	var m: ModuleData = payload.get("module")
-	if m == null:
-		return
-
-	# Dropping something on the mount it already occupies is a no-op, not a
-	# swap with itself.
-	if onto.held == m:
-		return
-
-	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
-	# the hold. Now that a mount is a position you chose, dragging one gun onto
-	# another is you arranging the ship, and arranging it must not cost you the
-	# part you dragged onto — nor need hold space you may not have.
-	if onto.kind == ModuleCell.Kind.HARDPOINT and onto.held != null \
-			and Run.installed.has(m) and Run.installed.has(onto.held):
-		var there := onto.held.mount
-		onto.held.mount = m.mount
-		m.mount = there
-		Sig.ship_changed.emit()
-		_refresh()
-		return
-
-	# Anything that ENDS with a part in the hold has to be checked first: taking
-	# a module off, and swapping one out for another. Refused before the move
-	# rather than after, because half a swap leaves a module belonging to
-	# nowhere — and the count is measured against `m` already being counted
-	# where it is, which is why the installed case allows one more than free.
-	var to_hold := 0
-	if onto.kind != ModuleCell.Kind.HARDPOINT and Run.installed.has(m):
-		to_hold += 1
-	if onto.kind == ModuleCell.Kind.HARDPOINT and onto.held != null:
-		to_hold += 1
-	# Room is asked about the SPECIFIC parts, not about a count. A hold with
-	# three free cells takes three sights, or one compact unit, or a long gun
-	# only if the free cells happen to lie in a row — `cargo.size() + n` cannot
-	# express any of that.
-	#
-	# Checked BEFORE anything moves, and checked against the hold as it will be:
-	# `m` is lifted first so a part swapping into the mount it already sits
-	# beside is not refused by its own cells.
-	var was_at := m.hold_at
-	var lifted := Run.cargo.has(m)
-	if lifted:
-		Run.take_from_hold(m)
-	var homeless: Array[ModuleData] = []
-	if onto.kind != ModuleCell.Kind.HARDPOINT and Run.installed.has(m):
-		homeless.append(m)
-	if onto.kind == ModuleCell.Kind.HARDPOINT and onto.held != null:
-		homeless.append(onto.held)
-	if not _hold_would_take(homeless):
-		if lifted:
-			Run.place_in_hold(m, was_at)
-		Run.log_line("No room in the hold.", &"them")
-		return
-
-	Run.installed.erase(m)
-
-	match onto.kind:
-		ModuleCell.Kind.HARDPOINT:
-			# The resident goes to the hold. It cannot stay: the mount is the
-			# thing being taken, and there is nowhere else for it to be.
-			if onto.held != null:
-				Run.installed.erase(onto.held)
-				onto.held.mount = -1
-				Run.place_in_hold(onto.held)
-			m.mount = onto.index
-			Run.installed.append(m)
-		_:
-			m.mount = -1
-			# Onto the cell the cursor is over when there is one, so the hold is
-			# arranged rather than merely filled; otherwise first fit.
-			if not Run.place_in_hold(m, onto.cell if onto.cell != -Vector2i.ONE else -Vector2i.ONE):
-				Run.place_in_hold(m)
-
-	Sig.ship_changed.emit()
-	Run.log_line("Refitted %s." % m.name, &"sys")
 	_refresh()
