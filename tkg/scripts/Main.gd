@@ -246,7 +246,8 @@ func _ready() -> void:
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv \
-		or "salvage" in argv or "party" in argv or "archive" in argv
+		or "salvage" in argv or "party" in argv or "archive" in argv \
+		or "quest" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -303,6 +304,28 @@ func _ready() -> void:
 					"recovered by a development flag")
 				got += 1
 		Router.show_archive()
+
+	# `-- quest` signs the first fetch and the first hunt it can find and opens
+	# the chart on them.
+	#
+	# The rings are the only part of the contract system living on a screen you
+	# cannot reach from a station, so without this the only way to look at them is
+	# to fly to a station, sign something and fly to the chart — three screens
+	# away from the thing being changed. Same argument as `-- party` and
+	# `-- salvage`: the contracts are faked, the chart is not.
+	if "quest" in OS.get_cmdline_user_args():
+		for kind in [ContractData.Kind.FETCH, ContractData.Kind.HUNT]:
+			var got := false
+			for n in Run.map:
+				for c in Contracts.board(n as MapGen.MapNode):
+					var job: ContractData = c
+					if job.kind == kind and not Run.holds_contract(job):
+						Run.take_contract(job)
+						got = true
+						break
+				if got:
+					break
+		Router.show_starchart()
 
 	if "party" in OS.get_cmdline_user_args():
 		var crew := 5
