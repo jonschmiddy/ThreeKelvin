@@ -620,12 +620,35 @@ func _victory() -> void:
 	var drops := 2 if node.region == MapGen.Region.LAWLESS else 1
 	if node.region == MapGen.Region.FAUNA:
 		drops = 0
-	for i in drops:
-		var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
-		Run.stow(LootGen.roll_module(node.danger, force,
-			node.region == MapGen.Region.CORE))
-	if drops > 0:
-		bits.append("%d module%s" % [drops, "" if drops == 1 else "s"])
+
+	# TWO WAYS TO BE PAID, and which one runs is decided by whether anybody else
+	# was shooting at it.
+	#
+	# Alone, the parts go straight into the hold, exactly as they always have.
+	# There is nobody to divide them with and a bag with one hand reaching into
+	# it is a menu between you and your own loot.
+	#
+	# In a party they go into a BAG at the node instead. Both ships used to roll
+	# their own drop off their own seat-salted stream, which stops two players
+	# being handed the identical part and does nothing about the real problem:
+	# one frigate paid the party twice over. `docs/coop-design.md` §3 runs the
+	# dive economy as a closed loop, and a kill that pays per-head is not closed.
+	#
+	# The bag is that loop restored, and it is also the better toy: the parts sit
+	# where the fight happened until somebody reaches for one, and the reach is
+	# first come, first served. See RunState.open_bag().
+	if is_shared() and shared != null and shared.paid > 1:
+		Run.open_bag(node, drops, shared.paid)
+		var pool := drops * shared.paid
+		if pool > 0:
+			bits.append("%d in the bag" % pool)
+	else:
+		for i in drops:
+			var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
+			Run.stow(LootGen.roll_module(node.danger, force,
+				node.region == MapGen.Region.CORE))
+		if drops > 0:
+			bits.append("%d module%s" % [drops, "" if drops == 1 else "s"])
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
 	_finish(&"victory", " · ".join(bits))

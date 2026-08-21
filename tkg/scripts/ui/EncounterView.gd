@@ -125,11 +125,19 @@ func _ready() -> void:
 	refresh_convoy()
 
 
-## How wide one partner gets. Wide enough for the biggest canvas any hull
-## draws into — a heavy is 240 across procedurally and the medium sprite is 188
-## — so nothing is ever cropped nose-first, which reads as a mistake rather than
-## as distance.
-const CONVOY_W := 208
+## How wide one partner gets: the biggest canvas any hull draws into, so nothing
+## is ever cropped nose-first — which reads as a mistake rather than as distance.
+##
+## ASKED, NOT TYPED, and it used to be typed. 208 was measured against the
+## procedural drawing and was already stale when the twelve real hulls landed at
+## 152 to 237 across: every heavy in the party lost about fifteen pixels off each
+## end, and losing them off the FRONT is the half you notice. A hull sprite is
+## cropped tight to its ship, so horizontal crop is never empty space.
+##
+## Vertical is a different question and stays a constant — see CONVOY_H. A canvas
+## is taller than its ship by the bob headroom, so trimming rows costs nothing.
+static func convoy_w() -> int:
+	return DB.widest_hull()
 ## And how tall. Tall enough for the tallest canvas any hull draws into, so no
 ## partner is ever cropped along the hull line — a ship with its keel cut off
 ## reads as a bug, and it is the one crop a viewer cannot explain to themselves
@@ -972,7 +980,7 @@ class ConvoySlot extends Control:
 		# Cropping rather than scaling: integer magnification is the only
 		# resizing the art direction allows, and half of 1 is not a pixel.
 		clip_contents = true
-		custom_minimum_size = Vector2(EncounterView.CONVOY_W, view_height)
+		custom_minimum_size = Vector2(EncounterView.convoy_w(), view_height)
 		art = ShipView.new()
 		art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE

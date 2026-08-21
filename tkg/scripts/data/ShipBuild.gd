@@ -25,8 +25,19 @@ extends RefCounted
 ## sending the tables again would be sending a copy of something already agreed.
 ##
 ## A looted hull is a `duplicate()` of a catalogue frame with its numbers rolled
-## up, so maker plus weight names its APPEARANCE exactly. Tier is not sent for
-## that reason: an A-tier Korvan Frigate and a C-tier one are the same picture.
+## up, so maker plus weight plus GRADE names its appearance exactly.
+##
+## The grade is on the wire and it did not used to be. The note that stood here
+## said an A-tier Korvan Frigate and a C-tier one were the same picture, and
+## that was true right up until `DB.hull_sprite()` was keyed on the class letter
+## as well as the weight — four sprites per weight, which is what finally made C
+## through S something a player can see. From that commit every partner in the
+## party was drawn as a C-class hull whatever they were actually flying, and the
+## failure is silent in the worst way: the ship on the other screen is a
+## perfectly ordinary ship, just not the one that player picked.
+##
+## The lesson is smaller than the bug: this file describes what is DRAWN, so any
+## field the renderer starts reading has to arrive here on the same day.
 
 ## Who is flying it. Empty for your own ship, which needs no label.
 var pilot: String = ""
@@ -36,6 +47,10 @@ var hull: HullData = null
 ## catalogue, and the catalogue entry is SHARED — writing the sender's `mount`
 ## onto `DB.modules[id]` would move that hardpoint on every ship in the game.
 var parts: Array = []
+
+## The specification class, 0..3 — C, B, A, S. Sent because the SPRITE is keyed
+## on it. See the header.
+var tier: int = 0
 
 var hp: int = 1
 var max_hp: int = 1
@@ -52,6 +67,7 @@ static func local() -> ShipBuild:
 	# hull, so asking one of them here is an error rather than a zero.
 	if b.hull == null:
 		return b
+	b.tier = b.hull.tier
 	for m in Run.installed:
 		b.parts.append({
 			"slot": int(m.slot),
@@ -78,6 +94,7 @@ static func showroom(h: HullData) -> ShipBuild:
 	var b := ShipBuild.new()
 	b.hull = h
 	if h != null:
+		b.tier = h.tier
 		b.hp = maxi(1, h.max_hull)
 		b.max_hp = maxi(1, h.max_hull)
 		b.heat_cap = maxi(1, h.heat_cap)
@@ -103,6 +120,7 @@ func to_wire() -> Dictionary:
 		"pilot": pilot,
 		"maker": hull.manufacturer if hull != null else &"",
 		"weight": int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM),
+		"tier": tier,
 		"parts": parts,
 		"hp": hp,
 		"max_hp": max_hp,
@@ -132,6 +150,18 @@ static func from_wire(d: Dictionary) -> ShipBuild:
 	# drawn at all, and the first one is far easier to notice and report.
 	if b.hull == null:
 		b.hull = DB.hull_for(&"", w)
+	# And at the grade they are flying it at, because that is what picks the
+	# sprite. `at_tier()` hands back a DUPLICATE, which is the only reason this
+	# is safe: it re-rolls hull points and hardpoints off the catalogue frame,
+	# and writing those onto the shared frame would regrade every ship in the
+	# game that happens to be the same make.
+	#
+	# The numbers it computes are thrown away — hp, max_hp and heat_cap are all
+	# read off the wire a few lines down, because a partner's hull has been shot
+	# at since it left the yard. What survives is the picture.
+	b.tier = clampi(int(d.get("tier", 0)), 0, HullData.TIER_NAMES.size() - 1)
+	if b.hull != null:
+		b.hull = DB.at_tier(b.hull, b.tier)
 	var sent: Variant = d.get("parts", [])
 	b.parts = sent if sent is Array else []
 	b.hp = int(d.get("hp", 1))

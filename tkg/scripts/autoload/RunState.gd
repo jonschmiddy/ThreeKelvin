@@ -295,6 +295,81 @@ func take_option(n: MapGen.MapNode, option: int) -> bool:
 	return owner == Net.local_id()
 
 
+## What a shared kill left floating, rolled once and agreed by everybody.
+##
+## `drops` is what the fight would have paid one ship. `hands` is how many ships
+## were still in it when the last hull came apart — `SharedFight.paid`, frozen by
+## the host so that four machines cannot each read a crew list at a different
+## point in its unwinding.
+##
+## POSITIONAL, LIKE EVERYTHING ELSE THAT BELONGS TO A PLACE. `Rng.derive()` seeds
+## from the node index, so every machine rolls the identical bag without a byte
+## of it crossing the wire — the same trick that lets one seed put one wreck and
+## one shelf on four machines. What travels is only which parts are GONE, which
+## is the one fact a seed cannot carry.
+##
+## Deliberately NOT off `Rng.loot`. That stream is salted by seat precisely so
+## that what is paid to a PLAYER differs per player; a bag is paid to the party,
+## so it must not.
+func open_bag(n: MapGen.MapNode, drops: int, hands: int) -> void:
+	if n == null or n.bagged or drops <= 0:
+		return
+	n.bagged = true
+	var r := Rng.derive(&"bag", n.index)
+	var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
+	# Scaled by the crew, so bringing a friend does not halve what the fight is
+	# worth to you. The enemy already grew by CREW_SHARE to meet them; this is
+	# the other side of that bargain.
+	for i in drops * maxi(1, hands):
+		n.bag.append(LootGen.roll_module(n.danger, force,
+			n.region == MapGen.Region.CORE, r))
+	Sig.map_changed.emit()
+
+
+## Reach into the bag. Returns whether the part is now in your hold.
+##
+## ASKS AND WAITS, for exactly the reason the wreck does: two ships reach for the
+## same part in the same second, and a flag that agrees a moment later does not
+## take it back out of the loser's hold.
+##
+## The hold is checked BEFORE the claim, not after. Claiming a part you have
+## nowhere to put would burn it for the whole party — gone from the bag, in
+## nobody's hold — which is the shop's "ask, then pay" ordering seen from the
+## other end. It is also the solo bug that ordering already fixed once.
+func take_from_bag(n: MapGen.MapNode, i: int) -> bool:
+	if n == null or i < 0 or i >= n.bag.size():
+		return false
+	var option := MapGen.OPTION_BAG + i
+	if n.taken.has(option):
+		return false
+	var m: ModuleData = n.bag[i]
+	if hold_full():
+		log_line("The hold is full. %s stays where it is." % m.name, &"them")
+		return false
+	if not await take_option(n, option):
+		var who := Net.taker_name(n.index, option)
+		log_line("%s is already gone.%s" % [m.name,
+			" %s took it." % who.to_upper() if who != "" else ""], &"them")
+		return false
+	stow(m)
+	return true
+
+
+## Whether this system still has something floating in it for you.
+##
+## Counts what is LEFT, not what was rolled — a bag everybody has emptied is not
+## a bag, and the sector rail has to be able to tell the difference without
+## walking the taken list itself.
+func bag_left(n: MapGen.MapNode) -> int:
+	if n == null:
+		return 0
+	var left := 0
+	for i in n.bag.size():
+		if not n.taken.has(MapGen.OPTION_BAG + i):
+			left += 1
+	return left
+
+
 func _mark_taken(n: MapGen.MapNode, option: int) -> void:
 	if not n.taken.has(option):
 		n.taken.append(option)

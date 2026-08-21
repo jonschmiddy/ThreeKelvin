@@ -880,6 +880,33 @@ func hull_sprite(w: HullData.Weight, cls: int = 0) -> Texture2D:
 	return load("res://art/sprites/hull_%s_%s.png"
 		% [stem, letter.to_lower()]) as Texture2D
 
+## The widest canvas any player hull draws into, measured rather than typed.
+##
+## Anything that CROPS a hull has to know this, and the one place that does —
+## the convoy strip — had it as a literal. That literal was correct against the
+## procedural drawing it was written for and quietly wrong the moment real art
+## landed: the sprites are cropped tight to their ships and run from 152 to 237
+## across, so a constant sized for the old canvas took the nose off every heavy
+## in the party. The strip's own comment said "nothing is ever cropped
+## nose-first, which reads as a mistake rather than as distance", which is
+## exactly what it then did.
+##
+## So it is asked rather than remembered. Twelve `load()` calls behind Godot's
+## resource cache, once, on the first ask — the same twelve textures the hulls
+## are already built from.
+static var _widest: int = 0
+func widest_hull() -> int:
+	if _widest > 0:
+		return _widest
+	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
+		for cls in HullData.TIER_NAMES.size():
+			var tex := hull_sprite(w, cls)
+			if tex != null:
+				_widest = maxi(_widest, tex.get_width())
+	# A build with no hull art at all falls back to the procedural canvas rather
+	# than to zero, which would crop every ship to nothing.
+	return maxi(_widest, ShipView.W)
+
 ## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
 ## why it carries an offset. See HullData.exhaust.
 const EXHAUST_FRAMES := 9

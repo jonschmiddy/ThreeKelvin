@@ -212,9 +212,12 @@ func _ready() -> void:
 	# `ship` belongs in this list and its absence is not cosmetic: the refit
 	# screen reads Run.hull, which is null until a run starts, so booting to the
 	# launcher and then swapping the ship screen over it crashes on arrival.
+	# `salvage` is the same: it stows into a hold that a run has to exist for,
+	# and the sector it opens draws the ship's own reactor.
 	var argv := OS.get_cmdline_user_args()
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
-		or "charttest" in argv or "ship" in argv or "station" in argv
+		or "charttest" in argv or "ship" in argv or "station" in argv \
+		or "salvage" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -293,6 +296,33 @@ func _ready() -> void:
 		Run.hp = maxi(1, Run.max_hp() - 12)
 		Run.dross = 1
 		Router.show_station()
+	elif "salvage" in OS.get_cmdline_user_args():
+		# `-- salvage 8` opens the sector with eight parts in the hold.
+		#
+		# The salvage rail is the one panel in the game whose layout only
+		# misbehaves at sizes a normal run reaches late — a lawless run pays two
+		# modules a fight — and it misbehaved by growing the PAGE rather than
+		# itself, which pushed the hand strip off the bottom of the screen. The
+		# only way to see that was to play until the hold was full, which is the
+		# same argument `-- fight 10` makes about the hand.
+		#
+		# `-- salvage 8 bag=4` also drops a four-part BAG at the node, which is
+		# what a shared kill leaves. That one cannot be reached at all without a
+		# second machine — `Combat._victory` only opens a bag when the fight was
+		# the party's — so without this the newest panel in the game is the one
+		# nothing can draw on its own.
+		var many := 8
+		for a in OS.get_cmdline_user_args():
+			if a.is_valid_int():
+				many = clampi(int(a), 1, 24)
+		for i in many:
+			Run.stow(LootGen.roll_module(2 + (i % 5), &"", true))
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("bag="):
+				var here2: MapGen.MapNode = Run.node_at()
+				here2.danger = 5
+				Run.open_bag(here2, 1, clampi(int(a.split("=")[1]), 1, 8))
+		Router.show_sector()
 	elif "fight" in OS.get_cmdline_user_args():
 		# `-- fight 10` deals ten. The hand is the one layout that only
 		# misbehaves at sizes a normal run rarely reaches, so seeing it full
@@ -302,6 +332,41 @@ func _ready() -> void:
 				Run.hand_size_override = clampi(int(a), 1, 12)
 		var pool := DB.fight_pool(3, false)
 		Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
+
+	# `-- shot` writes what is on screen and quits. For looking at a layout from
+	# a place that cannot look at a window — a headless CI leg, an agent, a bug
+	# report from somebody who cannot run the project. Deliberately generic: it
+	# photographs whatever the flags above put up, so it never needs a case
+	# adding for a new screen.
+	if _wants_shot():
+		_shoot()
+
+## `-- shot` or `-- shot=path`. Both spellings, because a flag that silently
+## does nothing when you name a file is worse than no flag.
+func _wants_shot() -> bool:
+	for a in OS.get_cmdline_user_args():
+		if a == "shot" or a.begins_with("shot="):
+			return true
+	return false
+
+## Wait for the layout to settle, then save the frame.
+##
+## Several frames, not one. Containers size their children on the frame AFTER
+## they are added, and every screen here is built in code during _ready — a
+## grab on frame zero photographs a page whose panels are all still at their
+## minimum size, which is precisely the property under test.
+func _shoot() -> void:
+	for i in 8:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var out := "user://shot.png"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("shot="):
+			out = a.split("=")[1]
+	img.save_png(out)
+	print("[shot] %s" % ProjectSettings.globalize_path(out))
+	get_tree().quit()
 
 ## Kept alive for the duration of `-- charttest`; see the call site.
 var _chart_test: RefCounted = null

@@ -11,3 +11,7 @@ relay/node_modules/
 # writes a cache next to it; nothing here should be versioned.
 __pycache__/
 *.pyc
+
+# The knowledge graph. Rebuilt from the repo by `/graphify`, and the cache under
+# it is keyed on file hashes — nothing here is a source of truth.
+graphify-out/
