@@ -63,7 +63,9 @@ func spin() -> void:
 	pivot_offset = size * 0.5
 	rotation = -PI * 0.5
 	var t := create_tween()
-	t.tween_property(self, "rotation", 0.0, 0.14) 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var step := t.tween_property(self, "rotation", 0.0, 0.14)
+	step.set_trans(Tween.TRANS_CUBIC)
+	step.set_ease(Tween.EASE_OUT)
 
 func setup(m: ModuleData, from: StringName) -> void:
 	module = m
@@ -143,8 +145,8 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	# it. It was `min(w, h) / 26` here, which made a part in the hold about a
 	# third of the size of the same part bolted on.
 	var f := m.footprint()
-	draw_part(ci, m.slot, r.get_center(), mark,
-		part_scale(m.slot, f, r.size), part_turn(m.slot, f))
+	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
+		part_turn(m.slot, f))
 
 	# Rarity on the border, because the border is the part that survives being
 	# packed shoulder to shoulder in a grid.
@@ -211,6 +213,62 @@ static func part_extent(slot: ModuleData.Slot) -> Vector2:
 		ModuleData.Slot.WEAPON: return Vector2(18.0, 5.0)
 		ModuleData.Slot.SYSTEM: return Vector2(11.0, 4.0)
 		_: return Vector2(3.0, 11.0)
+
+
+## Where a slot's silhouette actually sits relative to the point it is drawn
+## from, in the same units as `part_extent`.
+##
+## NOT ZERO, and assuming it was is what put barrels through the side of their
+## own plates: a weapon is drawn from its BREECH, spanning -4 to +14, so its
+## bounding box is centred five units in front of the origin. Centring the
+## origin in a box therefore hangs a fifth of the gun outside it.
+static func part_offset(slot: ModuleData.Slot) -> Vector2:
+	match slot:
+		ModuleData.Slot.WEAPON: return Vector2(5.0, 0.0)
+		ModuleData.Slot.SYSTEM: return Vector2.ZERO
+		_: return Vector2(0.0, -2.0)
+
+
+## Draw a silhouette CENTRED IN A BOX, at the given scale and orientation.
+##
+## The one way to put a part inside a rectangle. Both callers had been passing
+## the box's centre straight to `draw_part` as the draw origin, which is only
+## the same thing for a shape that happens to be symmetric — and one of the
+## three is not.
+static func fill_part(ci: CanvasItem, slot: ModuleData.Slot, box: Rect2,
+		col: Color, s: float, upright: bool) -> void:
+	draw_part(ci, slot, part_origin(slot, box, s, upright), col, s, upright)
+
+
+## THE POINT `draw_part` IS CALLED FROM to centre a silhouette in `box`.
+##
+## Not the box's centre, and that was the bug: a weapon is drawn from its BREECH
+## and its bounding box sits five units in front of that, so handing over the
+## box centre hung a fifth of the barrel outside the plate. Nothing in the data
+## was wrong — every size, scale and total was right and the only symptom was on
+## screen. Separate from `fill_part` so a test can ask where the ink will go
+## instead of looking at it.
+static func part_origin(slot: ModuleData.Slot, box: Rect2, s: float,
+		upright: bool) -> Vector2:
+	var off := part_offset(slot) * s
+	# `draw_part` turns anticlockwise about its origin, so the offset turns too.
+	if upright:
+		off = Vector2(off.y, -off.x)
+	return (part_rect(slot, box, s, upright).get_center() - off).round()
+
+
+## WHERE THE INK ACTUALLY LANDS when a silhouette is centred in `box`.
+##
+## Separate from `fill_part` so it can be asserted rather than looked at. The
+## bug this exists for was a barrel hanging out of the right-hand side of its own
+## plate, and nothing in the data was wrong — every size, scale and total was
+## correct and the only symptom was on screen.
+static func part_rect(slot: ModuleData.Slot, box: Rect2, s: float,
+		upright: bool) -> Rect2:
+	var ext := part_extent(slot) * s
+	if upright:
+		ext = Vector2(ext.y, ext.x)
+	return Rect2((box.get_center() - ext * 0.5).round(), ext)
 
 
 ## Does this part's silhouette need standing on end to match its footprint?

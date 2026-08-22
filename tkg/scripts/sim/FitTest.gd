@@ -47,6 +47,7 @@ func run(tree: SceneTree) -> void:
 	await _to_hold(grid, mounts)
 	await _wrong_slot(grid, mounts)
 	await _turning(grid)
+	_geometry()
 	verdict("fittest")
 
 
@@ -168,13 +169,41 @@ func _turning(grid: HoldGrid) -> void:
 			packed.footprint() == shape and packed.hold_at == where)
 
 
-## A part is drawn at ONE size, in the hold and on the hull.
+## A part is drawn at ONE size, in the hold and on the hull, and its ink stays
+## inside its own plate.
 ##
-## Both scale their silhouette against `footprint_box`, so this is really a test
-## that neither has grown its own copy of that arithmetic. It is worth having
-## because the failure is not a crash or a wrong total — it is the same gun
-## looking like two different guns on one screen, which reads as a content bug
-## rather than a drawing one.
+## EVERY SLOT AND EVERY SHAPE, not whichever part the loot roll happened to hand
+## over. Only a weapon has a silhouette that is off-centre from the point it is
+## drawn at — it is drawn from its breech — so a version of this that checked one
+## random module passed with the offset set to a deliberately wrong number three
+## times out of four. The shapes are cheap and there are six of them.
+func _geometry() -> void:
+	var shapes: Array[Vector2i] = [Vector2i(1, 1), Vector2i(1, 2), Vector2i(2, 1),
+		Vector2i(1, 3), Vector2i(3, 1), Vector2i(2, 2)]
+	var slots: Array[ModuleData.Slot] = [ModuleData.Slot.WEAPON,
+		ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]
+	var out := ""
+	for slot in slots:
+		for f in shapes:
+			var step := float(HoldGrid.CELL + HoldGrid.GAP)
+			var box := Rect2(Vector2.ZERO,
+				Vector2(f) * step - Vector2(HoldGrid.GAP, HoldGrid.GAP))
+			var up := ModuleIcon.part_turn(slot, f)
+			var sc := ModuleIcon.part_scale(slot, f, box.size)
+			var o := ModuleIcon.part_origin(slot, box, sc, up)
+			var off := ModuleIcon.part_offset(slot) * sc
+			if up:
+				off = Vector2(off.y, -off.x)
+			var ext := ModuleIcon.part_rect(slot, box, sc, up).size
+			var ink := Rect2(o + off - ext * 0.5, ext)
+			if not box.grow(1.0).encloses(ink):
+				out += " %s %dx%d" % [ModuleData.slot_name(slot), f.x, f.y]
+	_ok("every silhouette stays inside its own plate" if out == ""
+		else "ink outside the plate:%s" % out, out == "")
+
+
+## The plate the hold draws is the part's own footprint, and the hull scales
+## against the same box.
 func _same_size(m: ModuleData) -> void:
 	var box := ModuleIcon.footprint_box(m)
 	var plate := _icon_for(_grid(), m)

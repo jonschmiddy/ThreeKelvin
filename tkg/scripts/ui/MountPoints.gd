@@ -148,9 +148,7 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	# and leaves the rest. Aligning to the box instead of to this floated every
 	# part a few pixels clear of the hull, which reads as a rendering fault
 	# rather than as a gun.
-	var nat := ModuleIcon.part_extent(slot) * k2
-	if up:
-		nat = Vector2(nat.y, nat.x)
+	var nat := ModuleIcon.part_rect(slot, Rect2(Vector2.ZERO, box), k2, up).size
 
 	# ON the surface. A mount sits on the hull's own outline, so a part centred
 	# on one is half buried in the ship and reads as damage. Dorsal parts stand
@@ -160,7 +158,10 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	match slot:
 		ModuleData.Slot.WEAPON: c.y -= nat.y * 0.5
 		ModuleData.Slot.SYSTEM: c.y += nat.y * 0.5
-	ModuleIcon.draw_part(self, slot, c.round(), col, k2, up)
+	# The box IS the shape here, so centring in it is what puts the silhouette
+	# exactly on the line rather than five units in front of wherever its own
+	# origin happens to be.
+	ModuleIcon.fill_part(self, slot, Rect2(c - nat * 0.5, nat), col, k2, up)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something
