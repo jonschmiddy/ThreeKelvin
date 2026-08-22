@@ -174,14 +174,26 @@ static func rarity_colour(r: Rarity) -> Color:
 ## Manufacturer is allowed to vary it, because that is build identity with a
 ## number behind it: Verity grants fewer, better cards — the thin perfect deck
 ## the house is named for, made mechanical instead of flavourful.
-## The class table. card-design names two classes — "primary weapons: 2,
-## utilities: 1" — and this game has three slots, so SYSTEM is a reading rather
-## than a quotation. It grants 2, because a system is the primary DEFENSIVE
-## module the way a weapon is the primary offensive one; utilities are the
-## situational third. Measured: at 1 it halved every ship's defensive card
-## volume and average kills per run fell from 5.2 to 3.3.
+## TWO, FROM EVERY MODULE. It was 2 for weapons and systems and 1 for utilities,
+## on the reading that a utility is the situational third slot — and the reading
+## was sound but the result was not: a utility was a part you found, packed and
+## bolted on for a single card, which made half the catalogue feel like a
+## rounding error next to a gun.
+##
+## Two lets a module be a COMBINATION rather than a verb with a name on it. A
+## part can carry its headline card and a plain one beside it, and two parts can
+## share a card while each keeping something of their own — which is what makes
+## a catalogue of sixty read as more than sixty things.
+##
+## Measured before and after at seed 4242 over 200 runs; the numbers are in the
+## commit that made the change.
+##
+## VERITY IS THE EXCEPTION AND STILL GRANTS ONE. That is a ruling, not an
+## oversight — the house is named for the thin perfect deck and this is the only
+## place that claim is mechanical rather than flavour. It does now mean "every
+## module grants two" is true of six houses out of seven.
 func grant_count() -> int:
-	var base := 1 if slot == Slot.UTILITY else 2
+	var base := 2
 	if manufacturer == &"verity":
 		base = maxi(1, base - 1)
 	for a in affixes:
