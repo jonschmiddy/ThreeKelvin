@@ -28,7 +28,25 @@ const R := 4.0
 ## repeating pulse; one reads as a thing that blinks.
 const RINGS := 3
 
+## How far from an empty hardpoint a drop still counts, in art pixels.
+##
+## THE SAME NUMBER THE PING IS DRAWN AT, which is the whole point of it being a
+## constant: the outermost ring reached 3.4R and the drop was accepted within
+## 2.75R, so there was a visible ring of "looks like a target, is not one" all
+## the way round every mount. A target you can see and cannot hit is worse than
+## a smaller target.
+const REACH := R * 3.4
+
 signal dropped(payload: Dictionary, slot: ModuleData.Slot, index: int)
+
+## A part has been picked UP off the hull, and a drag has ended.
+##
+## Two signals rather than one because they are two different facts and the
+## screen does different things with them: lifting takes a part off the ship
+## immediately, and the end of a drag is the only moment anyone can tell that a
+## lifted part never landed anywhere and has to go back.
+signal lifted(m: ModuleData)
+signal released()
 
 var _view: ShipView = null
 var _spots: Array[Dictionary] = []
@@ -155,7 +173,7 @@ func _draw() -> void:
 		var c := UITheme.TRACTOR
 		for i in RINGS:
 			var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
-			_ring(at, lerpf(R * 0.7, R * 3.4, t) * k,
+			_ring(at, lerpf(R * 0.7, REACH, t) * k,
 				Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
 		_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
 
@@ -229,7 +247,7 @@ func spot_at(p: Vector2) -> int:
 		if m != null and part_rect(m, _spots[i].slot, _spots[i].at, k).has_point(p):
 			return i
 	var best := -1
-	var best_d := ((R + 7.0) * k) * ((R + 7.0) * k)
+	var best_d := (REACH * k) * (REACH * k)
 	for i in _spots.size():
 		if _spots[i].held != null:
 			continue
@@ -262,6 +280,11 @@ func _get_drag_data(at: Vector2) -> Variant:
 	set_drag_preview(ModuleIcon.ghost_for(m, &"hull",
 		get_global_rect().position
 		+ part_rect(m, _spots[i].slot, _spots[i].at, _mag()).position))
+	# OFF THE SHIP THE MOMENT IT IS IN YOUR HAND. Carrying a part while the
+	# ship still wore it meant the mount you were dragging OUT of stayed full,
+	# so it did not ping, and moving a gun one hardpoint along was a fight with
+	# a slot that already looked occupied — by the thing you were holding.
+	lifted.emit(m)
 	return {module = m, origin = &"hull"}
 
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
@@ -299,6 +322,10 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_EXIT or what == NOTIFICATION_DRAG_END:
 		_hover = Vector2.INF
 		_unlight()
+	if what == NOTIFICATION_DRAG_END:
+		# After any drop has been processed, which is what makes this the place
+		# to notice that a lifted part is now in neither the hull nor the hold.
+		released.emit()
 	elif what == NOTIFICATION_DRAG_BEGIN:
 		var data: Variant = get_viewport().gui_get_drag_data()
 		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).has("module"):

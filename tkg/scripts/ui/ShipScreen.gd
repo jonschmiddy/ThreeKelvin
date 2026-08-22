@@ -109,6 +109,17 @@ const LABEL_AIR := 3
 
 const STORAGE_COLS := 4
 
+## THE PART CURRENTLY IN THE AIR, and where it came off.
+##
+## A part dragged off the hull leaves the ship at the moment it is picked up,
+## which means that between the grab and the drop it belongs to NOTHING — not
+## `installed`, not `cargo`. That is the state this remembers, and `_on_release`
+## is what guarantees it cannot outlive the drag: a drag abandoned over the star
+## chart would otherwise delete the module.
+var _lifted: ModuleData = null
+var _lifted_mount: int = -1
+
+
 ## The pad that places the ship, and the panel it is placed against.
 var _padl: Control
 var _panel: Control
@@ -235,6 +246,8 @@ func _build() -> void:
 	_mountpts = MountPoints.new()
 	_mountpts.attach(view)
 	_mountpts.dropped.connect(_on_mount_drop)
+	_mountpts.lifted.connect(_on_lift)
+	_mountpts.released.connect(_on_release)
 	view.add_child(_mountpts)
 	_view = view
 	# CENTRED ON THE PANEL, not on the column and not on the canvas.
@@ -563,6 +576,32 @@ func _refresh_mounts() -> void:
 ## The mount is a PLACE, so `index` is carried through to the module rather than
 ## derived from the order of `installed` — that was the bug the stored `mount`
 ## fixed and it would come straight back if this appended instead.
+## Off the ship, into the hand.
+func _on_lift(m: ModuleData) -> void:
+	if m == null or not Run.installed.has(m):
+		return
+	_lifted = m
+	_lifted_mount = m.mount
+	Run.installed.erase(m)
+	m.mount = -1
+	Sig.ship_changed.emit()
+	_refresh()
+
+
+## The drag ended. If what was lifted never landed, put it back exactly where it
+## was — the same rule a refused move in the hold follows, for the same reason:
+## picking a thing up is not a decision to get rid of it.
+func _on_release() -> void:
+	var m := _lifted
+	_lifted = null
+	if m == null or Run.installed.has(m) or Run.cargo.has(m):
+		return
+	m.mount = _lifted_mount
+	Run.installed.append(m)
+	Sig.ship_changed.emit()
+	_refresh()
+
+
 func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> void:
 	var m: ModuleData = payload.get("module")
 	if m == null or m.slot != slot:
@@ -574,10 +613,19 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
 	# the hold — the same rule the rack had, and it matters more here, where the
 	# mounts are visibly different positions on the ship.
-	if resident != null and Run.installed.has(m):
-		var there := m.mount
+	#
+	# `m == _lifted` is the same case: a part dragged off the hull is off the
+	# ship while you carry it, so `installed.has(m)` is false for exactly the
+	# move this branch exists for. Without it, sliding a gun from one hardpoint
+	# to an occupied one sent the resident to the hold instead of trading.
+	var was_fitted := Run.installed.has(m) or m == _lifted
+	if resident != null and was_fitted:
+		var there := _lifted_mount if m == _lifted else m.mount
 		m.mount = index
 		resident.mount = there
+		if m == _lifted:
+			Run.installed.append(m)
+			_lifted = null
 		Sig.ship_changed.emit()
 		Run.log_line("Moved %s." % m.name, &"sys")
 		_refresh()
@@ -607,6 +655,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 	Run.installed.erase(m)
 	m.mount = index
 	Run.installed.append(m)
+	_lifted = null
 	Sig.ship_changed.emit()
 	Run.log_line("Fitted %s." % m.name, &"good")
 	_refresh()
@@ -633,7 +682,9 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	if m == null:
 		return
 	var was_at := m.hold_at
-	var from_ship := Run.installed.has(m)
+	# `_lifted` counts as from the ship: it left `installed` when you picked it
+	# up, and this is the branch that decides whether to say so in the log.
+	var from_ship := Run.installed.has(m) or m == _lifted
 	if Run.cargo.has(m):
 		Run.take_from_hold(m)
 	if not Run.place_in_hold(m, at):
@@ -646,6 +697,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	if from_ship:
 		Run.installed.erase(m)
 		m.mount = -1
+		_lifted = null
 		Run.log_line("Stowed %s." % m.name, &"sys")
 	Sig.ship_changed.emit()
 	_refresh()

@@ -51,6 +51,7 @@ func run(tree: SceneTree) -> void:
 	await _to_hold(grid, mounts)
 	await _wrong_slot(grid, mounts)
 	await _stripping(grid, mounts)
+	await _lifting(grid, mounts)
 	await _turning(grid)
 	_geometry()
 	_nothing_cut(screen)
@@ -283,6 +284,56 @@ func _held(mounts: MountPoints) -> Array[ModuleData]:
 		if sp.held != null:
 			out.append(sp.held)
 	return out
+
+
+## GRABBING A PART TAKES IT OFF THE SHIP, and letting go of it nowhere puts it
+## back.
+##
+## The second half is the one worth writing: between the grab and the drop the
+## part is in neither `installed` nor `cargo`, so a drag abandoned over empty
+## space is a module deleted. Picking a thing up is not a decision to get rid
+## of it.
+func _lifting(grid: HoldGrid, mounts: MountPoints) -> void:
+	var screen := Router.current as ShipScreen
+	var m: ModuleData = null
+	for sp in mounts.spots():
+		if sp.held != null:
+			m = sp.held
+			break
+	if not _ok("something is on the hull to pick up", m != null):
+		return
+	var was := m.mount
+
+	screen._on_lift(m)
+	_ok("a part in hand is off the ship", not Run.installed.has(m))
+	_ok("...and is in neither the ship nor the hold",
+		not Run.installed.has(m) and not Run.cargo.has(m))
+	_ok("...and its hardpoint is free again",
+		Run.module_at(m.slot, was) == null)
+
+	screen._on_release()
+	_ok("let go over nothing, it goes back on the ship", Run.installed.has(m))
+	_ok("...onto the same hardpoint it came off", m.mount == was)
+
+	# And a lifted part still TRADES with an occupied mount rather than pushing
+	# the resident into the hold. `installed.has(m)` is false for exactly this
+	# move, which is what made it the easy one to get wrong.
+	var other: ModuleData = null
+	for sp in mounts.spots():
+		if sp.held != null and sp.held != m and sp.held.slot == m.slot:
+			other = sp.held
+			break
+	if other == null:
+		return
+	var theirs := other.mount
+	screen._on_lift(m)
+	screen._on_mount_drop({module = m, origin = &"hull"}, m.slot, theirs)
+	_ok("two fitted parts trade hardpoints: %s to %d, %s to %d"
+		% [m.name, m.mount, other.name, other.mount],
+		m.mount == theirs and other.mount == was)
+	_ok("...and neither of them ended up in the hold",
+		Run.installed.has(m) and Run.installed.has(other)
+		and not Run.cargo.has(m) and not Run.cargo.has(other))
 
 
 ## R turns a part in the hold, and a turn that will not fit costs nothing.
