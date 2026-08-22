@@ -30,7 +30,7 @@ Six techniques, named so they can be asked for by name in review. All of them ar
 
 **Constellation structure.** Entries are stars; the player draws the lines. A *thread* is two to four entries, scattered across depths and houses, that share a proper noun, a number, or a phrase — and that are written so that **any subset reads as complete.** A thread is never a puzzle with a solution, because a puzzle implies a designer and the archive must read as accreted, not authored. Test for every thread: delete all but one entry — does the survivor still stand alone? If not, the thread is a quest in disguise.
 
-**Echo, never confirmation.** When entry B touches entry A, it must deepen the question A raised, not verify A's account. The attendance record below never names the hull it services; the reader who believes commission 311 is the *Asphodel* is never told they are right. Belief the game refuses to confirm is the strongest bond a player can form with a fiction, and confirmation would spend it for nothing.
+**Hard keys, soft echoes.** ~~Echo, never confirmation.~~ **AMENDED after the first read-through:** pure echo made the storylines shuffleable — every beat could sit in any docket and read much the same, and a mystery the reader cannot prove they are assembling is not rewarding, it is wallpaper. The rule now has two levels. **Membership is provable.** Every storyline carries at least one hard key — a name, a number, a count that two documents share exactly: dive one hundred and seventeen; MAUREL; fourteen berths; berth 9, second watch, eleven degrees; receipt numbers in seven figures. A reader who lines two pages up can KNOW they hold one story. **Meaning stays open.** What the assembled story amounts to is never confirmed by anyone — the attendance record still never says the name it repaints, it only concedes that the name is eight letters long; the reader who believes commission 311 is the *Asphodel* can now prove the roster, the stores order and the loop belong together, and is still never told what became of her. Confirmation of membership is owed to the player. Confirmation of meaning is still forbidden.
 
 **Register decay by depth.** Depth is already the only gate; make it a dial on the *voice*. Layers 0–2: commerce intact — invoices, ledgers, estimates, the prose of people doing fine. Layers 3–5: the instruments disagree — the documents are still professional but something in each one has stopped reconciling. Layers 6–8: the voice cracks — forms with blank fields, notes marked not for filing, hands other than the author's. The player descending should feel the *paperwork itself* getting colder, one register at a time, without any entry being about the descent.
 
@@ -50,14 +50,16 @@ Seven threads. Each lists its anchors (existing entries), its new entries drafte
 
 **Anchors:** `transponder_loop` (berth four held for the ASPHODEL, forty-one year cycle), `crew_roster` (fourteen berths, vessel unnamed, the vacancy has a temperature), `halcyon_rider` (commission 311, maintained in perpetuity), `dredge_filing` (the Combine files ahead of the schedule, not ahead of the event).
 
+**Keys:** the name itself — Dredge files against it, the loop holds a berth for it, Halcyon repaints *eight letters* · fourteen berths, victualled and rostered · Master MAUREL, berth 1, whose standing order is *hot meals, second watch* — the phrase still on the loop.
+
 The archive's spine. A ship no register carries, that a dead station is still holding a berth for, that somebody is still feeding, that somebody is still maintaining, that somebody has a claim on. Four institutions touch it; none of them names it twice; the player assembles a vessel out of paperwork and is never told they are right.
 
 > **`asphodel_stores`** — "VICTUALLING ORDER, OUTBOUND" — *a victualler, station not named* — "no year given" — no house — **depth 1**
-> Loaded aboard for the ASPHODEL, outbound: dry provisions for fourteen berths, water to a full tank, galley fuel per the captain's figure.
+> Loaded aboard for the ASPHODEL, outbound: dry provisions for fourteen berths, water to a full tank, galley fuel per the master's figure.
 >
 > A single crossing. No return leg on the order.
 >
-> Instructions to the galley: hot meals, second watch, for the whole outbound run. Standing order from the captain, and he's the one paying, so it's not for this office to ask why nobody feeds a crew that well when it's headed THAT way.
+> Instructions to the galley: hot meals, second watch, for the whole outbound run. Master Maurel's standing order, and he's the one paying, so it's not for this office to ask why nobody feeds a crew that well when it's headed THAT way.
 >
 > Filed. No return leg on the order.
 
@@ -79,7 +81,7 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 > **`halcyon_attendance`** — "ATTENDANCE RECORD, COMMISSION 311" — *a service supervisor, Halcyon* — "commission three hundred and eleven, ninety-first attendance" — halcyon — **depth 5**
 > Off-site maintenance performed as scheduled. The hull was located at the position indicated by the maintenance schedule. This shipyard does not hold a registered location for this hull. The schedule does. This standing discrepancy has been filed as a standing discrepancy.
 >
-> Work performed: replacement of the forward hatch seal, fairing of one hull plate, repainting of the ship's name where worn.
+> Work performed: replacement of the forward hatch seal, fairing of one hull plate, repainting of the ship's name where worn. Eight letters.
 >
 > Owner absent. There is no record of the owner attending since the fourth maintenance. This obligation does not rest with the owner.
 >
@@ -126,7 +128,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `design-doc.md` §The Setting (megafauna are warm, hunted for it), `Combat.pacify`, `lore.md` §4 (the player and the whale are the same kind of animal). The cruellest joke in the setting currently has no paperwork. It should have exactly this much: a rendering account, a non-claim, and a tally — the animal met three ways, as yield, as company, and as a bearing.
 
 > **`rendering_account`** — "RENDERING ACCOUNT, ONE CARCASS" — *a rendering foreman* — "season's books" — no house — **depth 2**
-> Intake: one, adult, taken inside the yard. Yield: oil to eleven barrels, plate-bone after sorting, organ stock sold forward at the posted price.
+> Intake: one, adult, taken inside the yard. Yield: oil to eleven barrels, plate-bone after sorting, organ stock sold forward at the posted price. A spotter's tag, cut free at intake, logged and returned to its post.
 >
 > Deduction: cooling. The cooling ran eleven days over the norm. The carcass held intake temperature until the eleventh day, and then went cold between one watch and the next — all at once, and all the way through.
 >
@@ -135,7 +137,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 > Accounts settled.
 
 > **`no_claim`** — "STATEMENT OF NO CLAIM" — *a surveyor for underwriters* — "policy year fifty-one" — no house — **depth 5**
-> The vessel reported contact with fauna, fully grown, during deep transit. The vessel took no action. The fauna matched speed and lay to alongside for six hours, and thereafter went inward.
+> The vessel reported contact with fauna, fully grown, during deep transit. The vessel took no action. The fauna matched speed and lay to alongside for six hours, and thereafter went inward. Heading at departure passed to the spotters' post, as required: inward.
 >
 > No damage, no discharge, no loss. No claim for compensation is pending, and this document exists only because the pilot asked to have it in writing that nothing had happened. This office is seldom asked to certify such things.
 >
@@ -152,7 +154,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 >
 > The bearings are on file. The bearings agree. This post has stopped plotting them, because the plot is a single arrow.
 >
-> Count certified. Next season's book is open.
+> Count certified. Tags returned this season: one. Next season's book is open.
 
 *Everything warm is going the same way the player goes. The tally does not wonder why, and the number is forty-one because numbers recur without meaning.*
 
@@ -176,7 +178,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `cygnet_receipt` (Cygnet does not retain a copy), `rate_schedule` (unchanged at every revision), `vault_routing` (the destination parses as a temperature), `solari_memo` (the terminal application is on the schedule), `redline_scratch` (they will always go higher). The deep end of the archive, where the professions whose whole job is reconciliation meet the account that has one side. Register decay applies hardest here: these are the entries where the voice is allowed to crack.
 
 > **`audit_minute`** — "AUDIT MINUTE, THERMAL ACCOUNTS" — *an auditor, engagement not stated* — "audit year not entered" — no house — **depth 7**
-> Trial: deliveries of stored heat, seven berths, seven houses. Each delivery weighed, receipted, paid at the posted rate.
+> Trial: deliveries of stored heat, seven berths, seven houses. Each delivery weighed, receipted, paid at the posted rate. The receipt numbers sampled run to seven figures.
 >
 > Every receipt is kept by the seller. No house retains a copy. The head offices were examined directly: no house keeps any record of what it received, in any year, and no house considers this worthy of note.
 >
@@ -258,6 +260,8 @@ Three arcs, drafted in full. Each one uses at least one entry that already exist
 
 **Beats:** `pilot_log` (exists, depth 4) → `pilot_log_2` (new, depth 6) → `custodian_note` (exists, depth 7, one line added) → `hull_sale` (new, depth 2).
 
+**Keys:** the dive count — 106–109, then 113–116, then *one hundred and seventeen* at the counter, then a log of 117 entries in the chart drawer · a hand laid flat to feel for warmth · a thermal suite that reads cold.
+
 The pilot of dive 109 — *I am not going back down. I will go back down* — is the archive's best character and currently has no second act. The arc: compulsion, divestment, the threshold, and the only ending this setting hands out as a mercy — stopping. The statement taken at a station (`custodian_note`) never names its subject, and never will; the link is a gesture, planted in dive 109 and echoed in the clerk's marginalia. Echo, never confirmation: the player who believes the man at the counter is the pilot is never told they are right.
 
 > **`pilot_log_2`** — "PRIVATE LOG, CONTINUED, WATER-DAMAGED" — *a pilot, hull not named* — "dives one hundred thirteen to one hundred sixteen" — no house — **depth 6**
@@ -269,16 +273,16 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 >
 > 116. The gauges and I have agreed to disagree. Let them log the cold. I'll log the other thing. Tomorrow to the ninth, or whatever tomorrow is down here.
 
-**The one amendment to an existing entry this document proposes.** Into `custodian_note`, after *"Taking it as given."*, add a single line in the clerk's voice:
+**The one amendment to an existing entry this document proposes.** Into `custodian_note`, after *"Taking it as given."*, add two sentences in the clerk's voice — the gesture, and the count:
 
-> While he talked he kept laying his hand flat on the counter, palm down, and just leaving it there — the way a person feels at a bulkhead.
+> While he talked he kept laying his hand flat on the counter, palm down, and just leaving it there — the way a person feels at a bulkhead. He said he had been down one hundred and seventeen times. He gave the number the way other men give a name.
 
-*That line is the whole arc's hinge, and it is load-bearing precisely because the clerk does not know what they are recording. Rule five: the unsettling thing is never the subject.*
+*The gesture and the count are the arc's hinge, load-bearing precisely because the clerk does not know what they are recording — and the count is the hard key: one hundred and seventeen is the dive after 116, the one the second log promised. Rule five: the unsettling thing is never the subject.*
 
 > **`hull_sale`** — "BILL OF SALE, ONE HULL, AS LYING" — *a yard broker, rim yard* — "no year given" — no house — **depth 2**
 > Sold as seen: one hull, deep-rated, many hours, held up better than the price says. Reduction in price agreed for instrument fault — the thermal suite reads cold at all ranges. Seller disputes the fault. Seller disputed it at the inspection, at the signing, and from the gate, on his way out, without turning around.
 >
-> Buyer is asked to note that the reduction covers recalibration only.
+> Buyer is asked to note that the reduction covers recalibration only. Included with the vessel, at the seller's own insistence: the log, complete, entries one to one hundred and seventeen.
 >
 > No forwarding address. Seller said there was nowhere he was going that mail could reach, and then took the shuttle to the ring like everyone else.
 >
@@ -290,12 +294,14 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 
 **Beats:** `broker_ledger` (exists, depth 0) → `ring_minutes` (new, depth 1) → `successor_ledger` (new, depth 3).
 
+**Keys:** eleven hundred people, counted in all three · the Cygnet offer, refused, defeated eleven to ten, signed · *took the lot, paid over* · *they write everything down*.
+
 `broker_ledger` ends: *They can have the whole sky in twenty years. I will not be here to hand it over.* This arc is those twenty years. It is the one idea — corporations are eternal, people are temporary — run as an actual plot with an actual ending, and the ending is not a twist: the institution simply waits, and waiting costs it nothing. The horror of the houses has been ambient until now; this arc makes it *biographical*.
 
 > **`ring_minutes`** — "MINUTES, RING COUNCIL, HEATING ALLOCATION" — *a recording secretary* — "winter session, year not entered" — no house — **depth 1**
-> Allocation approved as amended: main lines at full power through the dark quarter, schools and the infirmary given priority, dock lighting at navigational minimum.
+> Allocation approved as amended: main lines at full power through the dark quarter — eleven hundred on the ring's roll this winter — schools and the infirmary given priority, dock lighting at navigational minimum.
 >
-> Raised from the floor: the standing offer for the ring's stored heat, renewed once again at this session, terms improved once again. Motion made to accept. The chair spoke against it, at length, and on his own instruction off the record — the recording clerk notes only that the chair spoke standing and struck the table once.
+> Raised from the floor: the standing Cygnet offer for the ring's stored heat, renewed once again at this session, terms improved once again. Motion made to accept. The chair spoke against it, at length, and on his own instruction off the record — the recording clerk notes only that the chair spoke standing and struck the table once.
 >
 > Motion not carried, eleven to ten.
 >
@@ -318,12 +324,14 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 
 **Beats:** `inspection_note` (exists, depth 1) → `warm_consolidated` (new, depth 4) → `warm_reply` (new, depth 5).
 
+**Keys:** berth 9, second watch, eleven degrees — the inspection note is the first row of the consolidated table · the count that climbs: three a month, nineteen a year, *it was eleven the year before* · the schedule.
+
 *Third one this month* was a person noticing something. This arc is what institutions do to people who notice: not conspiracy, not menace — process. The officer does everything right, the machine works exactly as designed, and the design is the tragedy. It also quietly promotes a motif into an institution: **the schedule** — the schedule of seizable conditions here, the schedule of hazards in `expense_claim`, Solari's application schedule — the setting's true god, the list that decides what officially exists.
 
 > **`warm_consolidated`** — "IRREGULARITY REPORT, CONSOLIDATED" — *a customs officer, station unnamed* — "shift logs, four quarters attached" — no house — **depth 4**
 > Submitted for review by the higher authority; the year's shift-logs appended.
 >
-> Vessels that arrived warm, with no declared thermal cargo, nothing found on inspection, released for want of grounds for seizure: nineteen this year. Table appended — berth, date, degrees above ambient. The degrees do not fall.
+> Vessels that arrived warm, with no declared thermal cargo, nothing found on inspection, released for want of grounds for seizure: nineteen this year. Table appended — berth, date, degrees above ambient. The first row is last year's: berth 9, second watch, eleven degrees. The degrees do not fall.
 >
 > Petition: to add to the list of grounds for seizure the following item: a vessel's thermal state not matching its declared cargo.
 >
@@ -370,7 +378,7 @@ The archive's delivery is already right: positional, idempotent, depth-floored, 
 `lore.md` §5's rules and §7's licences stand. The threads add exposure, so they add rails:
 
 - **A thread must survive incompleteness.** Every entry stands alone; any subset feels whole; the full set resolves nothing. Test by deletion before shipping.
-- **Echoes, never confirmations.** No entry verifies another's account. Shared nouns, shared numbers, shared phrases — never shared conclusions.
+- **Hard keys for membership, echoes for meaning.** *(Amended from "echoes, never confirmations.")* Two documents in one storyline must share at least one exact, checkable token that proves they belong together; no document ever verifies another's account of what the story *means*. The shuffle test: if moving an entry into a different docket changes nothing, the entry is not yet written.
 - **No thread converges on the heat.** The threads orbit the question at fixed distance. The auditor declines to minute it; that is as close as anything ever gets, forever.
 - **One seam of alignment.** "The eleventh survey" is the only epoch that may recur across authors. Everything else stays unreconciled.
 - **Ration the devices.** The blank field: twice more, ever. The pencil second hand: once more, ever. A device reused until noticed is a signature, and the archive has no author.
