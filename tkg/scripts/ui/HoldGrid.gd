@@ -86,8 +86,7 @@ func _origin(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * (CELL + GAP), cell.y * (CELL + GAP))
 
 func _footprint(m: ModuleData) -> Vector2:
-	var f := m.footprint()
-	return Vector2(f.x * (CELL + GAP) - GAP, f.y * (CELL + GAP) - GAP)
+	return ModuleIcon.footprint_box(m)
 
 ## The plate under a point in SCREEN coordinates, or null. What R turns when
 ## nothing is being carried.

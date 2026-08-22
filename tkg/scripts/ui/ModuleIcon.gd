@@ -47,7 +47,7 @@ static func ghost_for(m: ModuleData, from: StringName) -> ModuleIcon:
 func fit_footprint() -> void:
 	if module == null:
 		return
-	var f := Vector2(module.footprint()) * float(HoldGrid.CELL + HoldGrid.GAP) 		- Vector2(HoldGrid.GAP, HoldGrid.GAP)
+	var f := footprint_box(module)
 	custom_minimum_size = f
 	size = f
 	pivot_offset = f * 0.5
@@ -136,10 +136,15 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	if maker != null:
 		ci.draw_rect(Rect2(r.position, Vector2(3, r.size.y)), mark, true)
 
-	# The silhouette, standing whichever way the part is currently packed.
+	# The silhouette, at THE SAME SIZE THE HULL DRAWS IT and standing whichever
+	# way the part is currently packed. Both call part_scale against the same
+	# box — a footprint in the hold's own cells — so the gun you are looking at
+	# in the grid is the gun that appears on the ship, not a smaller drawing of
+	# it. It was `min(w, h) / 26` here, which made a part in the hold about a
+	# third of the size of the same part bolted on.
 	var f := m.footprint()
 	draw_part(ci, m.slot, r.get_center(), mark,
-		minf(r.size.x, r.size.y) / 26.0, part_turn(m.slot, f))
+		part_scale(m.slot, f, r.size), part_turn(m.slot, f))
 
 	# Rarity on the border, because the border is the part that survives being
 	# packed shoulder to shoulder in a grid.
@@ -184,6 +189,18 @@ static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
 			ci.draw_rect(Rect2(-0.5 * s, -6.5 * s, 1.0 * s, 4.0 * s), col, true)
 			ci.draw_rect(Rect2(-0.5 * s, -7.5 * s, 1.0 * s, 1.0 * s), lite, true)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## THE BOX A PART OCCUPIES, in screen pixels, wherever it is drawn.
+##
+## One function because three places wanted the same arithmetic and the whole
+## point of the last two commits is that they agree: the hold sizes its plate to
+## this, the hull scales the silhouette to it, and the drag ghost is cut to it.
+## Written out separately in each, they would only have to disagree once.
+static func footprint_box(m: ModuleData) -> Vector2:
+	var f := m.footprint()
+	var step := float(HoldGrid.CELL + HoldGrid.GAP)
+	return Vector2(f) * step - Vector2(HoldGrid.GAP, HoldGrid.GAP)
 
 
 ## How big a slot's silhouette is when nothing has scaled it, in the same units

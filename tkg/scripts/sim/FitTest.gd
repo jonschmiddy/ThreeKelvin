@@ -148,6 +148,7 @@ func _turning(grid: HoldGrid) -> void:
 	# across its own short axis.
 	_ok("the silhouette stands the other way up once turned",
 		ModuleIcon.part_turn(m.slot, m.footprint()) != faced)
+	_same_size(m)
 	_no_overlap()
 
 	await _settle(grid)
@@ -165,6 +166,31 @@ func _turning(grid: HoldGrid) -> void:
 		_turn(_plate_centre(grid, packed))
 		_ok("a turn with no room for it changes nothing",
 			packed.footprint() == shape and packed.hold_at == where)
+
+
+## A part is drawn at ONE size, in the hold and on the hull.
+##
+## Both scale their silhouette against `footprint_box`, so this is really a test
+## that neither has grown its own copy of that arithmetic. It is worth having
+## because the failure is not a crash or a wrong total — it is the same gun
+## looking like two different guns on one screen, which reads as a content bug
+## rather than a drawing one.
+func _same_size(m: ModuleData) -> void:
+	var box := ModuleIcon.footprint_box(m)
+	var plate := _icon_for(_grid(), m)
+	_ok("the plate in the hold is the part's own footprint",
+		plate == null or plate.size == box)
+	# Scaled off the plate's OWN rect against the box the hull uses. Comparing
+	# part_scale with itself would have been the shape of a test and none of the
+	# substance — it cannot fail, whatever the hold does.
+	_ok("the hold and the hull scale the part identically",
+		plate == null or is_equal_approx(
+			ModuleIcon.part_scale(m.slot, m.footprint(), plate.size),
+			ModuleIcon.part_scale(m.slot, m.footprint(), box)))
+
+
+func _grid() -> HoldGrid:
+	return first(Router.current, func(n: Node) -> bool: return n is HoldGrid) as HoldGrid
 
 
 ## Nothing shares a cell after a turn. The failure this is looking for does not

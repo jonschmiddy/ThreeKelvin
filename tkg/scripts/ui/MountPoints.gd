@@ -140,7 +140,7 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	# lance is three cells long on the ship because it is three cells long, and
 	# turning it in the hold turns it here.
 	var f := m.footprint()
-	var box := Vector2(f) * float(HoldGrid.CELL + HoldGrid.GAP) 		- Vector2(HoldGrid.GAP, HoldGrid.GAP)
+	var box := ModuleIcon.footprint_box(m)
 	var up := ModuleIcon.part_turn(slot, f)
 	var k2 := ModuleIcon.part_scale(slot, f, box)
 	# How big the shape ACTUALLY comes out, which is not the box: a silhouette
