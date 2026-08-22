@@ -1443,6 +1443,10 @@ func reach_contract_target(index: int) -> void:
 		log_line("Recovered: %s. Lashed to the frame and not yours yet." % job.item,
 			&"good")
 	if moved:
+		# The paperwork rides with the thing the house wanted back, and the
+		# house never asks what you read on the way. Fourth door, same hinge —
+		# see Archive.recover_at.
+		Archive.recover_at(map[index], "folded in with the contract cargo")
 		Sig.contracts_changed.emit()
 
 ## Winning a fight here finishes any HUNT pointed at it.
