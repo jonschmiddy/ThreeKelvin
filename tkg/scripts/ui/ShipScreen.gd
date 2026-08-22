@@ -49,10 +49,14 @@ extends Control
 ## place on the panel. Was 240, sized against art that is being replaced.
 const HULL_VIEW_H := 106
 
-## Clearance between the header and the ship. The mount markers draw ABOVE the
-## hull's own top edge — they are what a part bolts to, so they have to sit
+## Clearance between the name block and the ship. The mount markers draw ABOVE
+## the hull's own top edge — they are what a part bolts to, so they have to sit
 ## proud of it — and without this the dorsal row lands in the class line.
-const HEAD_GAP := 10
+##
+## 26 rather than the 10 that was merely enough to stop the collision: this is
+## also the gap that sets how far down the panel the ship sits, and the flag
+## beside it grows to match.
+const HEAD_GAP := 48
 
 ## How wide the numbers get before the hold starts. Fixes the hold's top-left
 ## corner, which is the whole point: a hold grows by gaining CELLS, and it
@@ -61,23 +65,30 @@ const HEAD_GAP := 10
 ## attributes, so the same five parts moved every time the ship changed.
 ##
 ## The panel gives 479px between its paddings and the attribute rows measure
-## 183 of it, so this is mostly gutter — 306 puts the hold's left edge at x=340,
-## right of centre and clear of the numbers.
+## 183 of it, so this is mostly gutter. 220 puts the hold's left edge at x=254 —
+## a 50px gutter off the numbers, which is enough to read as a separate block
+## without being a hole.
 ##
-## THAT LEAVES ONE COLUMN OF HORIZONTAL GROWTH, and the honest note is that the
-## panel cannot give both "far right" and "room to widen" at once: the two only
-## trade against each other. Downward growth is unbounded and is the one the
-## design actually plans for — `HullData.hold_grid` records the restored ladder
-## as rows of 4/6/8, not columns — so the scarce direction is the one nothing is
-## waiting on. A hold wider than six wants the panel to scroll, which that same
-## note already names as the prerequisite.
-const STATS_W := 306
+## Sitting this far left is also what makes "grows down and to the right" true
+## rather than aspirational: 245px of clear panel to the right of a five-wide
+## hold is nine more columns. It was at 340 for one pass, and there the same
+## sentence bought exactly one.
+const STATS_W := 220
 
-## Air between the hold's heading and its first row of cells, matched by eye to
-## the gap ATTRIBUTES has over HULL. That one is free — a label carries its own
-## leading and the gauge row is mostly whitespace — and the hold's first row is
-## a hard-edged plate, so it needs the same distance put there on purpose.
-const LABEL_AIR := 6
+## Air between the hold's heading and its first row of cells, matched to the gap
+## ATTRIBUTES has over HULL. That one is free — a label carries its own leading
+## and the gauge row is mostly whitespace — and the hold's first row is a
+## hard-edged plate, so the same distance has to be put there on purpose.
+##
+## MEASURED, not guessed: ATTRIBUTES clears HULL by 8px of background, and at
+## LABEL_AIR 6 the hold cleared its grid by 11. Hence 3.
+const LABEL_AIR := 3
+
+## How many shares of the column's leftover the gap under the ship takes, against
+## one each for the three gaps below it. The slack is about 84px in total, so
+## equal shares put 21 everywhere — which is the right answer between two blocks
+## of text and too little above the subject of the screen.
+const SHIP_SHARE := 2.0
 
 const STORAGE_COLS := 4
 
@@ -119,25 +130,27 @@ func _build() -> void:
 	# abilities being on the panel and being under it.
 	left.add_theme_constant_override("separation", 2)
 
-	# BANNER AND NAME ON ONE LINE, the chassis select's arrangement. There the
-	# flag sits at the left of the header with the maker's name beside it, and
-	# this screen had the two stacked instead — a name, then a flag hanging the
-	# full depth of the ship under it. Same two facts, two different shapes, on
-	# two screens showing the same hull.
+	# THE FLAG HANGS THE WHOLE DEPTH OF THE SHIP, name and hull both.
+	#
+	# This went the other way for a while — a short banner sized to the three
+	# lines of text — because "fixed across, free down" meant it grew to the
+	# ship's height and took vertical the blocks below needed. That was the
+	# right diagnosis of the wrong problem: the vertical was won back by moving
+	# the hold out of the column, and the flag can have its depth now.
+	#
+	# It is the one thing on this panel that says whose yard built what you are
+	# looking at, and a 66px badge beside a 106px ship reads as a bullet point
+	# next to the subject rather than as a masthead over it.
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 10)
 	_banner = ChassisSelect.Banner.new()
-	# SHORT. The banner is "fixed across, free down", so in a row with the ship
-	# it grew to the ship's full height and took the vertical the blocks below
-	# needed — attributes, hardpoints and abilities were off the bottom of the
-	# panel. Sized to the three lines of text beside it instead, which is what
-	# it is a flag FOR.
+	# The minimum is the flag's AUTHORED depth (Banner.UNITS_H); FILL is what
+	# takes it the rest of the way down. The two together mean the hem is never
+	# cut off no matter how short the row gets, and the flag still reaches the
+	# bottom of the ship when there is room.
 	_banner.custom_minimum_size = ChassisSelect.Banner.S * Vector2(
 		ChassisSelect.Banner.UNITS_W, ChassisSelect.Banner.UNITS_H)
-	# CENTRED on the row, not pinned to its top. Pinned, the flag started above
-	# the ship's name and finished above the class line — the two things it is a
-	# flag FOR — and read as floating rather than as a masthead.
-	_banner.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_banner.size_flags_vertical = Control.SIZE_FILL
 	header.add_child(_banner)
 
 	var names := VBoxContainer.new()
@@ -150,9 +163,8 @@ func _build() -> void:
 	_class = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	names.add_child(_class)
 	header.add_child(names)
-	left.add_child(header)
 
-	# AIR UNDER THE HEADER. The ship's mount markers draw above the hull's own
+	# AIR UNDER THE NAME. The ship's mount markers draw above the hull's own
 	# top edge, so a ship butted straight against the header put hardpoints
 	# through the "HEAVY CHASSIS - S TIER" line. Fixed rather than a spacer that
 	# shares in the column's slack: this gap is clearance, and clearance that
@@ -160,7 +172,7 @@ func _build() -> void:
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, HEAD_GAP)
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_child(gap)
+	names.add_child(gap)
 
 	# The banner hangs the full depth of the ship rather than a badge sitting
 	# beside a name. It is the same flag the chassis cards fly and it is the one
@@ -204,7 +216,8 @@ func _build() -> void:
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vwrap.add_child(view)
 	shiprow.add_child(vwrap)
-	left.add_child(shiprow)
+	names.add_child(shiprow)
+	left.add_child(header)
 
 	# THE ATTRIBUTES AND THE HOLD, ON ONE ROW.
 	#
@@ -218,7 +231,12 @@ func _build() -> void:
 	# start on the same line: they are children of one row, so the alignment is
 	# a property of the tree instead of two spacer heights somebody matched by
 	# eye and has to keep matching.
-	left.add_child(_spread())
+	# A BIGGER SHARE than the three below it. The gap under the ship is the one
+	# the eye reads as "the top of this panel has room to breathe", and equal
+	# shares gave it the same 21px as the gap between two dense text blocks.
+	# The slack it takes comes off those three, which can afford it: they
+	# separate blocks that are already visually distinct by their own headings.
+	left.add_child(_spread(SHIP_SHARE))
 	var attrrow := HBoxContainer.new()
 	attrrow.add_theme_constant_override("separation", 14)
 
@@ -359,9 +377,10 @@ func _refresh() -> void:
 ## into N equal parts. That is the whole mechanism behind "evenly distributed":
 ## the column does the arithmetic, and adding a block later does not mean
 ## re-tuning a set of hand-picked gaps.
-func _spread() -> Control:
+func _spread(share: float = 1.0) -> Control:
 	var c := Control.new()
 	c.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	c.size_flags_stretch_ratio = share
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return c
 
