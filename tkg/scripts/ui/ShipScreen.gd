@@ -49,10 +49,35 @@ extends Control
 ## place on the panel. Was 240, sized against art that is being replaced.
 const HULL_VIEW_H := 106
 
-## The header's height — the flag beside the three lines of name, maker and
-## class. The banner is "fixed across, free down", so without this it grows to
-## whatever the row is and the blocks below lose the space.
-const HEADER_H := 40
+## Clearance between the header and the ship. The mount markers draw ABOVE the
+## hull's own top edge — they are what a part bolts to, so they have to sit
+## proud of it — and without this the dorsal row lands in the class line.
+const HEAD_GAP := 10
+
+## How wide the numbers get before the hold starts. Fixes the hold's top-left
+## corner, which is the whole point: a hold grows by gaining CELLS, and it
+## should gain them down and to the right, the way a hold fills. Right-aligned
+## instead — which is where it sat first — a wider hold grew LEFTWARDS into the
+## attributes, so the same five parts moved every time the ship changed.
+##
+## The panel gives 479px between its paddings and the attribute rows measure
+## 183 of it, so this is mostly gutter — 306 puts the hold's left edge at x=340,
+## right of centre and clear of the numbers.
+##
+## THAT LEAVES ONE COLUMN OF HORIZONTAL GROWTH, and the honest note is that the
+## panel cannot give both "far right" and "room to widen" at once: the two only
+## trade against each other. Downward growth is unbounded and is the one the
+## design actually plans for — `HullData.hold_grid` records the restored ladder
+## as rows of 4/6/8, not columns — so the scarce direction is the one nothing is
+## waiting on. A hold wider than six wants the panel to scroll, which that same
+## note already names as the prerequisite.
+const STATS_W := 306
+
+## Air between the hold's heading and its first row of cells, matched by eye to
+## the gap ATTRIBUTES has over HULL. That one is free — a label carries its own
+## leading and the gauge row is mostly whitespace — and the hold's first row is
+## a hard-edged plate, so it needs the same distance put there on purpose.
+const LABEL_AIR := 6
 
 const STORAGE_COLS := 4
 
@@ -107,8 +132,8 @@ func _build() -> void:
 	# needed — attributes, hardpoints and abilities were off the bottom of the
 	# panel. Sized to the three lines of text beside it instead, which is what
 	# it is a flag FOR.
-	_banner.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W
-		* ChassisSelect.Banner.S, HEADER_H)
+	_banner.custom_minimum_size = ChassisSelect.Banner.S * Vector2(
+		ChassisSelect.Banner.UNITS_W, ChassisSelect.Banner.UNITS_H)
 	# CENTRED on the row, not pinned to its top. Pinned, the flag started above
 	# the ship's name and finished above the class line — the two things it is a
 	# flag FOR — and read as floating rather than as a masthead.
@@ -126,6 +151,16 @@ func _build() -> void:
 	names.add_child(_class)
 	header.add_child(names)
 	left.add_child(header)
+
+	# AIR UNDER THE HEADER. The ship's mount markers draw above the hull's own
+	# top edge, so a ship butted straight against the header put hardpoints
+	# through the "HEAVY CHASSIS - S TIER" line. Fixed rather than a spacer that
+	# shares in the column's slack: this gap is clearance, and clearance that
+	# gives way under pressure is not clearance.
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, HEAD_GAP)
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(gap)
 
 	# The banner hangs the full depth of the ship rather than a badge sitting
 	# beside a name. It is the same flag the chassis cards fly and it is the one
@@ -171,54 +206,65 @@ func _build() -> void:
 	shiprow.add_child(vwrap)
 	left.add_child(shiprow)
 
-	# THE NUMBERS AND THE HOLD, SIDE BY SIDE, under the ship.
+	# THE ATTRIBUTES AND THE HOLD, ON ONE ROW.
 	#
-	# Stacked, the hold's four rows sat between the ship and its own attributes
-	# and pushed the manufacturer abilities off the bottom of the panel — the
-	# whole column came to 486 against about 491, which is not a margin. Beside
-	# them it costs no height at all, and the two halves are the right pairing
-	# anyway: what the ship IS on the left, what there is to change it with on
-	# the right.
-	var lower := HBoxContainer.new()
-	lower.add_theme_constant_override("separation", 14)
-	lower.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Under the ship the hold cost the column 112px it did not have — the whole
+	# thing came to 486 against about 491, and the manufacturer abilities were a
+	# line of text from falling off the bottom. Beside the numbers it costs no
+	# height at all.
+	#
+	# Paired with the ATTRIBUTES block specifically, rather than dropped in the
+	# column beside all four blocks, because that is what makes the two headings
+	# start on the same line: they are children of one row, so the alignment is
+	# a property of the tree instead of two spacer heights somebody matched by
+	# eye and has to keep matching.
+	left.add_child(_spread())
+	var attrrow := HBoxContainer.new()
+	attrrow.add_theme_constant_override("separation", 14)
 
-	var stats := VBoxContainer.new()
-	stats.add_theme_constant_override("separation", 2)
-	stats.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var attrcol := VBoxContainer.new()
+	attrcol.add_theme_constant_override("separation", 2)
+	# FIXED, not expanding. See STATS_W — this is what pins the hold's top-left
+	# corner so it grows down and right.
+	attrcol.custom_minimum_size = Vector2(STATS_W, 0)
+	attrcol.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
+	_attrs = AttrBlock.new()
+	attrcol.add_child(_attrs)
+	attrrow.add_child(attrcol)
 
 	var holdcol := VBoxContainer.new()
 	holdcol.add_theme_constant_override("separation", 2)
-	holdcol.size_flags_horizontal = Control.SIZE_SHRINK_END
 	holdcol.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	holdcol.add_child(_hold)
+	# A heading wants air under it. Every other block on this panel gets it from
+	# the gap between a label and the first ROW of what it labels; the hold's
+	# first row is a hard-edged plate that butts straight up under the text
+	# without one.
+	var hgap := Control.new()
+	hgap.custom_minimum_size = Vector2(0, LABEL_AIR)
+	hgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holdcol.add_child(hgap)
 	_storage = HoldGrid.new()
 	_storage.dropped.connect(_on_hold_drop)
 	holdcol.add_child(_storage)
+	attrrow.add_child(holdcol)
 
-	lower.add_child(stats)
-	lower.add_child(holdcol)
-	left.add_child(lower)
-
-	stats.add_child(_spread())
-	stats.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
-	_attrs = AttrBlock.new()
-	stats.add_child(_attrs)
+	left.add_child(attrrow)
 
 	# The same block the chassis select shows, on the screen where it is
 	# ACTIONABLE. There it answers "what would flying this cost me" before you
 	# commit; here it answers "what have I got left", which is the question you
 	# are asking on every drop — and it was the one screen in the game where
 	# slot pressure was invisible while you were spending it.
-	stats.add_child(_spread())
-	stats.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
+	left.add_child(_spread())
+	left.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	_mounts = VBoxContainer.new()
 	_mounts.add_theme_constant_override("separation", 2)
-	stats.add_child(_mounts)
+	left.add_child(_mounts)
 
 	_hand = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
-	stats.add_child(_hand)
+	left.add_child(_hand)
 
 	# The abilities go here, not on the chassis select's terms. There they
 	# answer "what would flying this house give me"; here they answer "how close
@@ -226,13 +272,13 @@ func _build() -> void:
 	# on the other half of this screen. Under the attributes because it is the
 	# same column of facts about the ship — what it is, then what it unlocks.
 	#
-	stats.add_child(_spread())
-	stats.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
+	left.add_child(_spread())
+	left.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
 	_abilities = VBoxContainer.new()
 	_abilities.add_theme_constant_override("separation", 1)
-	stats.add_child(_abilities)
+	left.add_child(_abilities)
 
-	stats.add_child(_spread())
+	left.add_child(_spread())
 
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL

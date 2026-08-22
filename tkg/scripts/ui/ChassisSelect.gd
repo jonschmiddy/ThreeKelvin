@@ -795,6 +795,17 @@ func _weight_button(man: StringName, w: HullData.Weight, m: ManufacturerData) ->
 ## the top, and the plain field between them can be any length.
 class Banner extends Control:
 	const UNITS_W := 13
+
+	## How deep the flag is AUTHORED, in the same units as the width. Measured
+	## off what the two draw calls actually put on it rather than picked: the
+	## emblem occupies units 6.5 to 14.5 (it is centred at 11), and the deepest
+	## hem in `CardView.draw_cut` is cut 6 units up from the bottom edge. 22 is
+	## those two plus a unit of air, and anything shorter cuts the hem off — a
+	## flag stopping mid-emblem is what 40px was doing on the refit screen.
+	##
+	## Only a MINIMUM. On the chassis cards the flag still hangs the full depth
+	## of the header, which is what `SIZE_FILL` in `_init` is for.
+	const UNITS_H := 22
 	const S := 3.0
 
 	var man: StringName = &""
