@@ -38,6 +38,18 @@ Six techniques, named so they can be asked for by name in review. All of them ar
 
 **The dramatic irony of recognition.** The player is a contractor delivering heat for posted rates. Documents about *a* contractor — generic, unnamed, procedural — will be read in the first person whether we like it or not. So like it: write entries where the unremarkable subject is somebody doing exactly what the player did last run. The expense claim below is the model. No entry ever addresses the player; the mirror does the work.
 
+**The shape of a human document.** **AMENDED after the second read-through:** the voice pass moved the accents and not the architecture. Every entry still ran the same machine shape — setup, detail, ironic negation, curtain line — and a reader feels that shape long before they could name it. Five rules replace it:
+
+- **The unsettling thing is said once, mid-document, subordinate**, and the writer moves on to the flour order. A clerk who lands their strange fact as a closer is a designer wearing a clerk's coat.
+- **End on business.** A price, a chore, a complaint, the school stove, postage. Real paperwork does not know which of its sentences was the interesting one.
+- **The counter-negative is retired.** "X is not a figure this office collects" was the archive's signature tic, and a signature is an author. Negation survives only where it is legally the document's job — denials, rulings, memoranda.
+- **Every entry carries at least one detail that serves nothing.** Wren and the stove, Ansel's soup, the grey flour, a photograph of three people on a dock somewhere green. A document with no waste in it was written by nobody.
+- **Aphorisms are budgeted, crooked, and never terminal.** A foreman may reach for an image mid-complaint — a wall with a fire on the far side — but the polished line that closes a page is the tell, and it is gone.
+
+**The cast of the docks.** Below the constants sits a cast: Herron who shorts the wire spools, Wren and the stove, Master Quill, Ansel, Piet, Marn, the colleague B. Tradespeople and colleagues, named because people down a reach know each other, capped at two appearances each and never load-bearing — a cast member who becomes a key has been promoted by accident and gets renamed.
+
+**Soft motifs.** Coats, candles, stoves — warmth carried or tended by people, recurring unremarked. They are not constants and prove nothing; they are the human economy's answer to the thermal one, and they should keep arriving the way weather does.
+
 **The constants — the brother-books move.** Stephen King's novels are siblings: Castle Rock, Derry, the number 19, a man in black who crosses from book to book without ever being any book's business. Each story stands alone; the constant reader assembles the country between them, and the assembling is its own reward. The archive keeps the same machinery — a roster of **constants**: proper nouns and numbers licensed to recur *across* storyline boundaries. A constant is the opposite instrument to a hard key. A key proves two pages share one story; a constant proves nothing — what it builds, appearance by appearance, is the certainty that all of this paperwork comes out of one world, written by people who live down the reach from each other. Three rules govern them. **Never the subject:** a constant appears in the corner of a document — a line item, a bearing, a vote count — and no document is ever *about* one. **Rationed:** the roster below is the whole roster; adding a constant means retiring one. **One walker:** exactly one constant is licensed to appear anywhere at all and be explained nowhere, ever.
 
 | Constant | What it is | Where it already stands |
@@ -69,39 +81,33 @@ Seven threads. Each lists its anchors (existing entries), its new entries drafte
 The archive's spine. A ship no register carries, that a dead station is still holding a berth for, that somebody is still feeding, that somebody is still maintaining, that somebody has a claim on. Four institutions touch it; none of them names it twice; the player assembles a vessel out of paperwork and is never told they are right.
 
 > **`asphodel_stores`** — "VICTUALLING ORDER, OUTBOUND" — *a victualler, station not named* — "no year given" — no house — **depth 1**
-> Loaded aboard for the ASPHODEL, outbound: dry provisions for fourteen berths, water to a full tank, galley fuel per the master's figure.
+> Laid in against the ASPHODEL, outbound: dry stores to fourteen berths, the good flour not the grey, water topped to tankage, galley fuel to what the master set down. Master Maurel pays on collection and always has, which is more than I can say for half this dock.
 >
-> A single crossing. No return leg on the order.
+> Kitchen to note: hot meals, second watch, the whole way out, his standing order. No return leg on this one so cost it single. He asked after candles too, wax ones, a full case, and did not say for what, and I did not ask, a case of candles is a case of candles and it is paid for.
 >
-> Instructions to the galley: hot meals, second watch, for the whole outbound run. Master Maurel's standing order, and he's the one paying, so it's not for this office to ask why nobody feeds a crew that well when it's headed THAT way.
->
-> Filed. No return leg on the order.
+> The grey flour goes back to Herron. Third time now.
 
 *Fourteen berths hands the reader `crew_roster` without touching it. "Hot meals, second watch" is the loop's phrase, sitting in a stores order at the rim — the first thread-line most players will draw, which is why it goes at depth 1.*
 
 > **`asphodel_claim`** — "FILING 214-C, THE ASPHODEL" — *a claims officer, The Dredge Combine* — "filing year 9,904" — dredge — **depth 3**
-> Priority claim, the ASPHODEL, hull and all cargo as it accrues. Filed as a precaution. Standard.
+> Reviewed annual per standing order, claim 214-C, the ASPHODEL, hull and cargo arising. Open. Nothing arisen.
 >
-> Annual review: nothing has accrued. The claim remains open.
+> Same note as last year and I will keep making it while I hold this desk: oldest claim on the register, carried in from the register before this one, unsigned, which they allowed then. If the Combine wants my opinion, the officer who filed it is longer dead than some of what we salvage. Recommend closure.
 >
-> Note at review: this is the oldest open claim in the register. It is older than the register in which it is carried, was transferred over from the previous register, and the official who filed it did not sign off on it, which was permissible at the time. Closure on grounds of age recommended.
+> Declined above my signature, same hand as last year, same words: we do not close before the loss.
 >
-> Recommendation rejected. The Combine closes no claim before the loss.
->
-> To date, nothing has accrued.
+> Down the reach they say the berth is still lit for her. Not Combine business. Reviewed, open, next year.
 
 *The Combine's own logic (`dredge_filing`: filed 406 days early, no irregularity) turned up to full volume: they file ahead of events, and this event has not happened yet. "Yet" is doing everything.*
 
 > **`halcyon_attendance`** — "ATTENDANCE, COMMISSION 311" — *a service supervisor, Halcyon* — "commission three hundred and eleven, ninety-first attendance" — halcyon — **depth 5**
-> Off-site maintenance performed as scheduled. The hull was located at the position indicated by the maintenance schedule. This shipyard does not hold a registered location for this hull. The schedule does. This standing discrepancy has been filed as a standing discrepancy.
+> Attendance ninety-one, commission 311. Out and back eleven days, crew of two, allowance claimed for both.
 >
-> Work performed: replacement of the forward hatch seal, fairing of one hull plate, repainting of the ship's name where worn. Eight letters.
+> Work: forward hatch reseated, one plate faired where something had leaned on it, name repainted. Eight letters, and the paint we carry is matched to her first coat, the tin says so in a hand nobody at the yard writes anymore.
 >
-> Owner absent. There is no record of the owner attending since the fourth maintenance. This obligation does not rest with the owner.
+> She sat where the schedule had her. She always sits where the schedule has her. Piet asked how does the schedule know, and I said the schedule is old, which is not an answer, but Piet is new.
 >
-> The next maintenance has already been entered into the schedule.
->
-> The ship's name is not on record at this yard. The schedule uses the build number.
+> Owner absent, as since the fourth attendance. Obligation unaffected. Next attendance is in the schedule.
 
 *Echo, never confirmation, in its purest form: Halcyon repaints the name and withholds it in the same breath. The rider said the obligation survives everyone; here it is, surviving, ninety-one visits deep, to a hull located only by a schedule.*
 
@@ -112,13 +118,11 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 One new entry only. This thread must stay thin — it is the closest the archive comes to a person-shaped mystery, and person-shaped mysteries are the ones players expect to resolve. Starve it and it stays a cold fact about an institution; feed it and it becomes a character.
 
 > **`halcyon_exemplar`** — "EXAMINATION, NOTARY'S SEAL" — *an examiner, Halcyon* — "exemplar volume forty" — halcyon — **depth 5**
-> The candidate reproduced the countersign in accordance with the standard, from the exemplar currently in force. Passed at the third sheet, which is the custom.
+> Six candidates today, passed four. Room too cold again, told Wren about the stove, Wren says talk to the yard, the yard says talk to Wren.
 >
-> The candidate then asked, as they all ask, why the volumes of exemplars are not filed by author, given that the countersign of volume forty is that of volume one.
+> Countersign exercise from the current exemplar, third sheet passes for all four, usual. One asked the usual question too, why the exemplar volumes are not sorted by author when the countersign in volume forty and the countersign in volume one are the same hand. Gave the syllabus answer, they are sorted by author. He looked at me the way they all look at me and I gave him his seal.
 >
-> The examiner's answer is fixed by the syllabus, and the examiner gives it: the volumes are filed by author.
->
-> Passed. Sealed. Next candidate.
+> Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this house, everything is in perpetuity except the heat.
 
 *The syllabus answers the question by refusing to hear it. Nobody in the document finds this remarkable, which is rule five doing its work.*
 
@@ -127,13 +131,13 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** none in the archive yet; the anchor is the *mechanic* — `coop-design.md` §12's card source nobody owns. This is the model for tying story to systems: the document describes, in an adjuster's register, a thing the player has personally had happen to their deck, and neither the document nor the game ever connects them out loud.
 
 > **`denial_notice`** — "NOTICE OF DENIAL" — *a claims adjuster, underwriters not named* — "policy year forty-four" — no house — **depth 4**
-> Claim: loss of the vessel, attributed by the claimant to an installed module.
+> Denial under policy 7,7112, hull and fittings, total loss.
 >
-> Denied. The module in question appears in no catalogue, bears no maker's mark, no serial number, no house stamp, and no point of sale, and the claimant, who installed it personally, cannot state where it was obtained — only that it was on board when it was needed, and that it worked.
+> Grounds, clause two: cover extends to fitted equipment purchased or salvaged, receipts or salvage docket to show. The module the claimant names has no catalogue entry, no maker's mark, no serial, no stamp, no docket, and the claimant, who fitted it with his own hands, when asked where he got it, wrote on the form: it was aboard when I needed it.
 >
-> The policy terms cover what was purchased and what was salvaged. They do not cover what arrived.
+> My colleague B. denied one like it in the spring and I have used her wording where it serves, the schedule covers what is bought and what is salvaged and not what arrives, the underwriters liked that.
 >
-> This denial has been written in these words before. The words are in the file.
+> Appeal lies within the term. He signed the form like a man paying a toll and thanked me on the way out, for what I could not tell you. Copy to file.
 
 *"It does not cover what arrived" is `coop-design.md`'s own sentence — "Nobody owns those. They arrive." — surfacing in the fiction. The underwriters have met the cold cards. They have a form for them. The form is a denial.*
 
@@ -142,33 +146,33 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `design-doc.md` §The Setting (megafauna are warm, hunted for it), `Combat.pacify`, `lore.md` §4 (the player and the whale are the same kind of animal). The cruellest joke in the setting currently has no paperwork. It should have exactly this much: a rendering account, a non-claim, and a tally — the animal met three ways, as yield, as company, and as a bearing.
 
 > **`rendering_account`** — "RENDERING ACCOUNT, ONE CARCASS" — *a rendering foreman* — "season's books" — no house — **depth 2**
-> Intake: one, adult, taken at the mouth of Kestrel Reach. Yield: oil to eleven barrels, plate-bone after sorting, organ stock sold forward at the posted price. A spotter's tag, cut free at intake, logged and returned to its post.
+> One adult, taken at the mouth of Kestrel Reach. The Dredge man was at the gate before we had her half in, waved his claim, settled at the standard cut.
 >
-> Deduction: cooling. The cooling ran eleven days over the norm. The carcass held intake temperature until the eleventh day, and then went cold between one watch and the next — all at once, and all the way through.
+> Oil, eleven barrels. Plate-bone graded and sold. Organs forward at posted. A spotter's tag out of the left flank, logged, sent back up to the post like they ask.
 >
-> Foreman's note for the book: they do not cool the way a body cools. They cool like a decision.
+> Cooling is the loss on this account and I want it minuted for the next one: eleven days at intake heat. The men will not work the first week of that and I do not blame them, you put your hand to the flank and it is like a wall with a fire on the far side, and then between one watch and the next, cold through, all of it at once, and we lost half a shift standing around feeling it.
 >
-> Accounts settled.
+> Settled less cooling. Quote higher next season.
 
 > **`no_claim`** — "STATEMENT OF NO CLAIM" — *a surveyor for underwriters* — "policy year fifty-one" — no house — **depth 5**
-> The vessel, the LONG MERIDIAN, reported contact with fauna, fully grown, during deep transit. The vessel took no action. The fauna matched speed and lay to alongside for six hours, and thereafter went inward. Heading at departure passed to the spotters' post, as required: inward.
+> Attended the LONG MERIDIAN at the pilot's request, which is a sentence I had not written before, a vessel asking a surveyor to certify that nothing happened.
 >
-> No damage, no discharge, no loss. No claim for compensation is pending, and this document exists only because the pilot asked to have it in writing that nothing had happened. This office is seldom asked to certify such things.
+> His account: fauna, adult, came up on the warm side in deep transit and held there six hours, matched to his speed. He did not fire. No damage, no discharge, nothing for the underwriters, I said as much, he said write it anyway and paid the attendance, so it is written.
 >
-> The surveyor's question, not called for by the form: it lay to on the warm side. The pilot confirmed. The pilot asked whether that goes in the report.
+> Heading at its leaving was inward, passed to the spotters' post as required. There is no register entry for the vessel, the office can chase that if the office cares, my fee does not cover it.
 >
-> It does not go in the report.
+> He kept the cabin hot as a laundry the whole interview. Copy to him. None retained.
 
 *A player who has pacified reads this in the first person. A player who has not reads a curiosity. Both are correct, and the entry does not know which one it is talking to — see §5 for the recovery door this suggests.*
 
 > **`sightings_tally`** — "TALLY, SEASON'S SIGHTINGS" — *a spotter, post not named* — "no year given" — no house — **depth 6**
-> Sighted this season: forty-one, of all sizes, heading recorded for each on the standard chart.
+> Season closed. Forty-one sighted, the big ones early, then the yearlings, headings taken on every one.
 >
-> All headings this season resolve inward. Last season, the same. The one before was mixed, and the one before that is the last mixed season in the book.
+> Inward, all of them, same as last season, and the one before that is the last mixed page in this book. I still take the bearings because taking the bearings is the post, but I have given up drawing them, the chart is one arrow and I am not paid for decoration.
 >
-> The bearings are on file. The bearings agree. This post has stopped plotting them, because the plot is a single arrow.
+> Tags returned this season, one, off a rendering yard down the reach with a polite note. One in forty-one. The rest are somewhere warm, or somewhere warmer anyway.
 >
-> Count certified. Tags returned this season: one. Next season's book is open.
+> Requisition renewed for lamp oil and a second stove, third year of asking. Book closed, new book opened.
 
 *Everything warm is going the same way the player goes. The tally does not wonder why, and the number is forty-one because numbers recur without meaning.*
 
@@ -177,13 +181,11 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `korvan_invoice` and `precursor_survey`, the epoch that already touches itself. One new entry, and the ruling that **"the eleventh survey" is the only epoch ever allowed to recur across authors** — one seam of alignment in a corpus of loose dates is a gift to careful readers; two would be a calendar under construction.
 
 > **`chart_errata`** — "CHART ERRATA, ELEVENTH SURVEY" — *a cartographer's assistant* — "eleventh survey, month two" — no house — **depth 3**
-> List of corrections to the tenth survey, compiled for the eleventh: systems newly lit — none. Systems newly gone dark — ninety-two. Stations removed from the index — forty, of which eleven still answer. Var is among the eleven.
+> Errata to the tenth, compiled for the eleventh, month two. My eyes are ruined and Master Quill owes me for two candles.
 >
-> A practical query, submitted at every survey and at every survey resolved: whether a station that still answers should be removed. The ruling, in force since the ninth survey: remove it. The chart records what is. An answer is not a station.
+> Newly lit, none, which saves ink. Newly dark, ninety-two, all confirmed twice per the rule. Struck from the station index, forty. Eleven of the forty still answer when hailed, Var being one, and the practice on those is the practice since the ninth survey: strike them, the chart is what is there, an answer is not a station. I copy that ruling out every survey, and every survey some new hand queries it and is told.
 >
-> The list of corrections is closed.
->
-> The twelfth survey has not yet been commissioned.
+> Bundle to binding on the fourth. No word on when the twelfth is commissioned, or whether. Quill says in his day there was a survey every twenty years, like a heartbeat. Quill says a lot of things.
 
 *"An answer is not a station" hands the transponder loops their institutional context — the chartmakers already know, and have a ruling. The last line is the thread's chain-that-never-fires: in any later entry that touches the surveys, the twelfth has still not been commissioned.*
 
@@ -192,37 +194,33 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `cygnet_receipt` (Cygnet does not retain a copy), `rate_schedule` (unchanged at every revision), `vault_routing` (the destination parses as a temperature), `solari_memo` (the terminal application is on the schedule), `redline_scratch` (they will always go higher). The deep end of the archive, where the professions whose whole job is reconciliation meet the account that has one side. Register decay applies hardest here: these are the entries where the voice is allowed to crack.
 
 > **`audit_minute`** — "AUDIT MINUTE, THERMAL ACCOUNTS" — *an auditor, engagement not stated* — "audit year not entered" — no house — **depth 7**
-> Trial: deliveries of stored heat, seven berths, seven houses. Each delivery weighed, receipted, paid at the posted rate. The receipt numbers sampled run to seven figures.
+> Thermal deliveries sampled across seven berths, one to a house, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
 >
-> Every receipt is kept by the seller. No house retains a copy. The head offices were examined directly: no house keeps any record of what it received, in any year, and no house considers this worthy of note.
+> The seller keeps the receipt. The house keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
 >
-> For the record: an institution that pays on receipt and keeps no record of receipt keeps no account. I was asked what I believe it does keep, and I declined to enter that in the record.
+> I was twenty years at grain accounts. A granary that pays on the scale and keeps no tally of what came over it, I would have had shut by winter. I put the question to the engagement partner in those words, and the minute records that the question was put.
 >
-> Filed. No irregularities found.
+> No irregularities found within the scope set for me, and the scope was set for me. Engagement closed. Fee rendered.
 
 *The auditor gets to the edge of the only question that matters and — declines to minute it. This is `lore.md` §1's commitment enforced from inside the fiction: the answer is not withheld from the player; it is withheld from everyone.*
 
 > **`solari_schedule`** — "SCHEDULE EXTRACT, THERMAL" — *a scheduling clerk, Solari Foundry* — "foundry year 890" — solari — **depth 8**
-> Extract as requested, status of the reserve queue: furnace charge, four allocations. Residential main line, two. Foundry restart, one, priority.
+> Queue as held, foundry year 890, extract for the floor meeting.
 >
-> Last row of the reserve schedule: TERMINAL APPLICATION. No date. No place. No allocation.
+> Smelt charge, four allocations, two urgent. Habitat mains, two, the north ring again, their pipes are older than my grandmother. Foundry restart, one, priority, dated.
 >
-> Clerk's note: this row appears in every revision of the schedule. It neither advances in the queue nor is struck from it. New applications are inserted above it. When the Scheduling Section was asked what is entered in the date field, the reply was that the field is not entered. It is awaited.
+> TERMINAL APPLICATION, last line, no date, no site, no allocation, carried at the last line since before my ledger and before the ledger I inherited. I asked what feeds its date field, being new, and Ansel said the field is not fed, it is awaited, and went back to his soup. I have written it here the way he said it because I was told extracts are verbatim.
 >
-> Extract certified complete.
+> Copies to the floor. The north ring numbers are the ones they will shout about.
 
 *Seventy-eight foundry years after the section head's memo, the terminal application is still on the schedule, still last, still undated. The thread never fires; the line only gets older.*
 
 > **`redline_jacket`** — "FOUND FOLDED IN A FLIGHT JACKET" — *unknown* — "undated" — redline — **depth 6**
-> I sold R. the whole bank at the meeting point, outside the station, like always. Above the posted rate, like always. No receipt, like always.
+> Sold R. the whole bank at the meet, off station, over posted, no receipt, same as ever. Weighed on his scale, which reads fair, I check it against mine, he knows I check and likes me for it I think.
 >
-> This time I asked R. straight out: what do you do with this.
+> Asked him straight this time, what do you do with it. He laughed. He said same as you, hold it while I can, sell it while I still can. Sell to WHO, I said, and he counted out the extra and told me to buy my girl something warm, and we talked about the Perse fight like every time, and that was that.
 >
-> R. said — and I'm writing it down because I won't remember it right — the same as you. I hold onto it while I can. I sell it while I still can.
->
-> Sell it TO WHOM, I said.
->
-> R. laughed and paid the extra, as if the extra answered the question.
+> Next meet is fixed for after the dark quarter. Bring the small cells too, he says, he will take those now as well.
 
 *The riskiest entry in this batch and worth the risk: it implies Redline is also somebody's contractor, which widens the gap without naming what is on the other side of it. If in review this reads as the start of a conspiracy, cut this entry, not the thread.*
 
@@ -231,13 +229,13 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchor:** `custodian_note` (it made room), and `lore.md` §4's ruling: the Custodian gets no entry of its own, only other people's paperwork. The second document about the core should be in the most anaesthetic register available. Nothing is colder than expense adjudication.
 
 > **`expense_claim`** — "EXPENSE CLAIM, DISALLOWED" — *a finance clerk, house not stated* — "claim period as stamped" — no house — **depth 7**
-> Claim: hazard pay, four-person crew, deep crossing to the core approach and back.
+> Hazard claim, four crew, deep transit to the core approach and return, standard rate sought for the days out.
 >
-> Denied. Hazard pay is owed for hazards listed in the schedule of hazards. The crew's report mentions no shot fired, no pursuit, no damage, no loss. The claim, as written, is for four days of being observed, and being observed is not on the schedule.
+> Denied on the schedule of hazards, first pass. Their account gives no shot fired, no pursuit, no damage, no loss, and the words they put in the box were four days of being watched, and I have no line for that. Told them to resubmit. They resubmitted with the box empty, which is four days of nothing, and I have no line for that either.
 >
-> Resubmitted with the word struck out. Denied; the amended claim is for four days of nothing, and nothing is likewise not on the schedule.
+> Passed it up rather than deny twice, which is allowed at my discretion, and my discretion was the four of them in the corridor, big men, quiet, holding their caps like boys outside an office. Paid under goodwill.
 >
-> Paid in the end on equitable grounds, which have no schedule. Recorded for completeness: all four have since begged off deep work.
+> Ledger note: none of the four has taken deep work since. The postings sit a week now.
 
 ### Thread VIII — The Non-Return *(the one idea, stated plainly)*
 
@@ -248,78 +246,68 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 **Keys:** forty-one, posted and filled · revision eleven · *the specimen is retained*, quoted from the incident form · *survives the owner*, quoted from Clause 4 · the schedule.
 
 > **`seven_clauses`** — "NON-RETURN, ALL HOUSES" — *a contracts clerk, compiled for training* — "undated, marked CURRENT" — no house — **depth 0**
+> For the training intake, who asked what happens when a contractor does not come back, and were not satisfied with the short answer. Compiled from the standard terms as filed, one line in each house's own words. Check them against the registry, that is what it is for.
 >
-> Requested by the training division: what happens, according to each house, when a contractor does not return. The material was compiled from the standard terms as filed in the registry.
+> Korvan, clause nine: the line of credit closes and accounts settle against the hull.
+> Solari: unspent advances revert to the schedule.
+> Dredge: the Combine's claim to the wreckage precedes the wreckage.
+> Redline: no clause on file.
+> Halcyon: the company's obligation to the hull survives the owner.
+> Cygnet: recovery, where undertaken, is recovery of equipment.
+> Calyx: the specimen is retained.
 >
-> Korvan: Clause Nine. The line of credit is closed. Accounts are settled against the hull.
-> Solari: Unspent advances revert to the schedule.
-> Dredge: The Combine's claim to the wreckage precedes the wreckage.
-> Redline: [No clause on file.]
-> Halcyon: The company's obligation to the hull survives the owner.
-> Cygnet: Recovery, where undertaken, is recovery of equipment.
-> Calyx: The specimen is retained.
+> The short answer they were not satisfied with was nothing, and the long answer above says the same at greater length, in better ink.
 >
-> Compiled as requested. What happens is set out above.
->
-> And nothing else happens.
+> File under training. The intake is eleven this year, big for the season.
 
 *Seven registers on one page — a tour of the houses and the whole employment relationship, and the closest the archive ever comes to saying the one idea aloud. It is still a primary source: a clerk answered the question they were asked, exactly, and nothing else.*
 
 > **`replacement_posting`** — "WORK POSTED, BOARD COPY" — *a posting clerk* — "board cycle as stamped" — no house — **depth 0**
+> FETCH, standard terms, rate scaled to the run, sign at the berth office. Bring your own lashings, the office is out of lashings.
 >
-> FETCH, standard terms, standard rate scaled to the run. Sign at the berth office.
+> Posted forty-one times, filled forty-one times. The new clerk asked should we not print a fresh notice instead of correcting the date, and was told the board is full and the notice serves. He then asked how many of the forty-one came back, and was sent to count the lashings.
 >
-> TIMES POSTED: forty-one.
-> TIMES FILLED: forty-one.
->
-> Note to the board, from the office: the notice is reused. The date is corrected each cycle and nothing else is corrected, because nothing else changes. The office knows that the two figures above read as a comfort — every posting, filled — and the office does not correct that reading either.
->
-> Completion is not a figure this office tallies.
+> Date corrected. Board note: somebody keeps taking the chalk from the gate for the wall, which is allowed, but bring it back.
 
 > **`effects_manifest`** — "PERSONAL EFFECTS, DISPOSITION" — *a berth office clerk* — "file year not entered" — no house — **depth 1**
+> Box, standard, sealed at the berth office. Contents as found: coat, worn at the cuffs. Photograph, three people on a dock somewhere green, no names on the back, nobody here knows them. Instruments, personal, one set, good ones, older than the man by the look of the case. Sundries to weight.
 >
-> One box, standard size, sealed at the berth office: a coat, worn. A photograph, three people, names unknown to this office. Personal measuring instruments, one set. Small items at standard weight.
+> Held the year as prescribed. No claimant come. The freight on the box went to his account, the account is in the negative, the negative is written off, and I signed the write-off by hand because the stamp was drying, and I am glad it was, one paper in the file ought to have a person on it.
 >
-> No claimant found. Held for the prescribed year. Disposed of per schedule.
->
-> The box's transport was charged to the account. The account is in the negative. The negative is written off.
->
-> The write-off is the only paper in this file that bears a handwritten signature.
+> Box to disposal on the fifth. I kept the photograph out. That is not procedure and I have written it down anyway, file a complaint.
 
 > **`chalk_wall`** — "NOTICE AT THE DOCK GATE" — *the dockmaster's office* — "undated, weathered" — no house — **depth 1**
+> The chalk wall is not to be cleaned. This replaces the notice ordering it cleaned. The officer who posted that one has been spoken to, and has himself written a name on the wall since, so the matter is considered understood.
 >
-> The chalk wall is not to be cleaned.
+> Chalk is at the gatehouse. The gatehouse does not write down who takes it, and the dockmaster has said that if the chalk budget is queried again, the querier can come stand at the gate through the dark quarter and read the wall, and then raise it with her personally.
 >
-> This notice replaces the notice ordering the wall cleaned, which is withdrawn. The officer who posted it has been spoken to.
+> Names go at the base where there is room. There is room.
 >
-> Names are to be written in chalk at the base, where there is room, and there is. There is chalk in the gatehouse. The gatehouse does not record who takes it.
->
-> The wall is not the property of any house. The wall belongs to the dock. This office has been asked to say whose names go on the wall, and it says so here: anyone's who will not be coming back to write it himself.
+> Gate hours unchanged. Mind the hoist chains, they have been greased.
 
 *The counterweight, inside the thread rather than beside it: the houses keep no record of the dead, so the dock does — in chalk, by hand, property of no house. Both halves of the one idea on one wall.*
 
 > **`actuarial_note`** — "AMORTIZATION SCHEDULE, EXTRACT" — *an actuarial clerk, house not stated* — "revision eleven" — no house — **depth 2**
+> Extract, revision eleven current, requested by the western office and sent with the usual reminder that extracts are not the schedule.
 >
-> Extract as requested. A hull under contract is written off by deliveries, not by years; the schedule assumes loss, not wear, and that assumption has held within tolerance since the schedule was first drawn up.
+> A contracted hull amortizes by deliveries, not years. The assumption under that is loss, not wear, and it has held inside tolerance since the first drawing of the schedule, which is longer than the western office has existed, they may put that in their pipe.
 >
-> Query, standing: whether the schedule should carry a column for the contractor as it carries a column for the hull.
+> Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure did not move enough between grades, regions or houses to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
 >
-> Ruling, standing: it did carry such a column. The column was struck in revision eleven. The figure did not change enough to keep it.
->
-> Extract confirmed.
+> Postage to their account.
 
 *"The figure did not change enough to keep it" is the disposable human in one actuarial sentence, and it is the deepest this thread goes. Below layer two the archive returns to whispering.*
 
 ### Counterpoint — the human shelf
 
 > **`repair_declined`** — "REPAIR ESTIMATE, DECLINED" — *a yard estimator* — "no year given" — no house — **depth 0**
-> Estimate: sand and patch the bow plating, clean out the scoring behind the collar, paint to the line. Fair price, with the off-season discount, and it was refused.
+> Forward plate, fair and patch, scoring aft of the collar dressed, repaint to the line. Priced kind, slow season, told him so.
 >
-> The owner asked instead that the edges be sealed and the plating left as it is. He stated, signing the affidavit, that the dents are how the vessel knows it went somewhere.
+> He went along the hull while I talked, hand over the dents the way you would check a horse, and said seal the edges and leave the rest. I said the plate is sound but ugly, and he said ugly how, and I did not have an answer that was worth money.
 >
-> The estimate has been filed as refused. The declaration is attached.
+> Wrote the waiver, he signed it, said the dents are how the ship knows it went somewhere. Took the sealing work, half a day, paid cash, and stood us the tea after, and told a long story about a customs man and a coat that I will not spoil by writing down badly.
 >
-> The opinion free of charge.
+> Quote for the paint stands till spring.
 
 *Depth zero, pure warmth, no shadow in it anywhere. It earns the archive the right to be cold everywhere else — and it is the entry most likely to be somebody's favourite.*
 
@@ -350,28 +338,28 @@ Three arcs, drafted in full. Each one uses at least one entry that already exist
 The pilot of dive 109 — *I am not going back down. I will go back down* — is the archive's best character and currently has no second act. The arc: compulsion, divestment, the threshold, and the only ending this setting hands out as a mercy — stopping. The statement taken at a station (`custodian_note`) never names its subject, and never will; the link is a gesture, planted in dive 109 and echoed in the clerk's marginalia. Echo, never confirmation: the player who believes the man at the counter is the pilot is never told they are right.
 
 > **`pilot_log_2`** — "PRIVATE LOG, CONTINUED" — *a pilot, hull not named* — "dives one hundred thirteen to one hundred sixteen" — no house — **depth 6**
-> 113. Down to the eighth again. Kept my palm flat against the hull the whole crossing. I was right. [several lines lost]
+> 113. Eight again. Palm flat on the hull the whole transit like an idiot, arm dead to the shoulder after. Right, though. Warmer. [several lines lost]
 >
-> 114. Sold the spare coil, the second suit, the plate I was saving for a rainy day. A ship is mostly things you carry in case you get to keep the life you had. Lighter now.
+> 114. Sold the spare coil to Herron, the second suit, the plate I kept for a bad day. Bad day came and it turns out you do not want a plate for it. Ship rides light. Sleep bad.
 >
 > 115. [lost]
 >
-> 116. The gauges and I have agreed to disagree. Let them log the cold. I'll log the other thing. Tomorrow to the ninth, or whatever tomorrow is down here.
+> 116. Gauges say colder. Wrote WARM on a slip and stuck it over the readout so we are both saying our piece. Nine tomorrow. Fuel for nine and about half of eight, which is a number I have decided not to look at twice. If Herron reads this, the coil was tested, the rest of it I am sorry about.
 
 **The one amendment to an existing entry this document proposes.** Into `custodian_note`, after *"Taking it as given."*, add two sentences in the clerk's voice — the gesture, and the count:
 
-> While he talked he kept laying his hand flat on the counter, palm down, and just leaving it there — the way a person feels at a bulkhead. He said he had been down one hundred and seventeen times. He gave the number the way other men give a name.
+> While he talked he kept putting his hand flat on the counter, palm down, and leaving it, and taking it away, and putting it back. He said he had been down one hundred and seventeen times, and when I asked was he sure, he said it again, one hundred and seventeen, like I had asked him his name.
 
 *The gesture and the count are the arc's hinge, load-bearing precisely because the clerk does not know what they are recording — and the count is the hard key: one hundred and seventeen is the dive after 116, the one the second log promised. Rule five: the unsettling thing is never the subject.*
 
 > **`hull_sale`** — "BILL OF SALE, ONE HULL, AS LYING" — *a yard broker, rim yard* — "no year given" — no house — **depth 2**
-> Sold as seen: one hull, deep-rated, many hours, held up better than the price says. Reduction in price agreed for instrument fault — the thermal suite reads cold at all ranges. Seller disputes the fault. Seller disputed it at the inspection, at the signing, and from the gate, on his way out, without turning around.
+> One hull sold as lying, deep-rated, high hours, better kept than the price, and I said so, the price was his idea.
 >
-> Buyer is asked to note that the reduction covers recalibration only. Included with the vessel, at the seller's own insistence: the log, complete, entries one to one hundred and seventeen.
+> Allowance against the thermal suite, reads cold at every range. He would not hear that it was broken, so we wrote the allowance as recalibration and he signed with his mouth shut. Bench tested it after: within tolerance. Buyer keeps the allowance anyway, my error, my ledger.
 >
-> No forwarding address. Seller said there was nowhere he was going that mail could reach, and then took the shuttle to the ring like everyone else.
+> He left the log in the chart drawer on purpose, entries one to one hundred and seventeen, said the ship should keep her own account. Buyer to be told it is there.
 >
-> Filed. The suite tested, for the record, within tolerance.
+> No forwarding address, said mail could not reach where he was going, and then got on the ring shuttle with everybody's groceries, which I suppose is a kind of address. Sale closed, fees taken.
 
 *Depth 2, deliberately shallow: most players meet the ending first and the man later. The last line is the yard quietly siding with the instruments, which the reader — who has read dive 109 — knows better than to do. The arc resolves: a person went to the edge of the biggest question in the setting, declined it, and lived. That is a complete story, and it answers nothing.*
 
@@ -384,24 +372,26 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 `broker_ledger` ends: *They can have the whole sky in twenty years. I will not be here to hand it over.* This arc is those twenty years. It is the one idea — corporations are eternal, people are temporary — run as an actual plot with an actual ending, and the ending is not a twist: the institution simply waits, and waiting costs it nothing. The horror of the houses has been ambient until now; this arc makes it *biographical*.
 
 > **`ring_minutes`** — "MINUTES, RING COUNCIL" — *a recording secretary* — "winter session, year not entered" — no house — **depth 1**
-> Allocation approved as amended: main lines at full power through the dark quarter — eleven hundred on the ring's roll this winter — schools and the infirmary given priority, dock lighting at navigational minimum.
+> Winter session, quorum met, twenty-one seated, the hall cold enough that nobody took their coat off, which I minute because the allocation item will read strange without it.
 >
-> Raised from the floor: the standing Cygnet offer for the ring's stored heat, renewed once again at this session, terms improved once again. Motion made to accept. The chair spoke against it, at length, and on his own instruction off the record — the recording clerk notes only that the chair spoke standing and struck the table once.
+> Allocation carried as amended, mains full through the dark quarter, schools and infirmary first, dock lights to navigation minimum. Eleven hundred on the roll this winter, four more than last, two births and some arrivals.
 >
-> Motion not carried, eleven to ten.
+> From the floor, the standing Cygnet offer on the ring's banked heat, renewed, improved again. Moved to accept. The chair spoke against, standing, and ordered his remarks off the minute, and struck the table once, and I have been taking these minutes eleven years and had never heard him strike anything.
 >
-> Next session as scheduled.
+> Not carried, eleven to ten.
+>
+> Also carried: the school stove. Session closed.
 
 > **`successor_ledger`** — "DAY BOOK, NEW HAND" — *a yard broker, name not yet worn in* — "no year given" — no house — **depth 3**
-> The same ledger. A new ledger he would have hated.
+> Same book. He would have hated a new book, so.
 >
-> Hull plates, nine sheets — I took the lot, paid over the price, at his rates. Reactor coil, one, tested sound this time — I took it, at my rates.
+> Plate, nine sheets, took the lot, paid over, his rates, the sellers watch me do the sums the way they watched him and I let them. Coil, one, tested sound this time, took it at my rate. Herron still shorting the wire spools and still sorry about it.
 >
-> On Tuesday they came again from the Cygnet berth about the stored heat. The terms he refused them for twenty years, the rate a quarter higher, an arrears clause I don't entirely follow, and eleven hundred souls up above who want light this winter, like every winter.
+> Cygnet came Tuesday about the banked heat. The terms he turned away for twenty years, a quarter over posted now, an arrears clause I read three times and will have Marn read too. Eleven hundred upstairs, the dark quarter six weeks off, the mains drink what they drink.
 >
-> I signed.
+> Signed it. They did not gloat, I do not think it is in them. Wrote it in their book before they were off the ramp. He used to say they write everything down, like a curse.
 >
-> They didn't gloat. I don't think they know how. They wrote it down. They write everything down.
+> Thursday: settle Herron, chase the school stove flue, plate wants reordering already.
 
 *The same day book, a new hand, and the first ledger's closing line handed down like the shop keys. Motion fails eleven to ten; the vote the reader never sees is the one after the funeral. Everything important in this arc happens between the documents, which is where everything important in an archive happens.*
 
@@ -414,22 +404,22 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 *Third one this month* was a person noticing something. This arc is what institutions do to people who notice: not conspiracy, not menace — process. The officer does everything right, the machine works exactly as designed, and the design is the tragedy. It also quietly promotes a motif into an institution: **the schedule** — the schedule of seizable conditions here, the schedule of hazards in `expense_claim`, Solari's application schedule — the setting's true god, the list that decides what officially exists.
 
 > **`warm_consolidated`** — "IRREGULARITIES, CONSOLIDATED" — *a customs officer, station unnamed* — "shift logs, four quarters attached" — no house — **depth 4**
-> Submitted for review by the higher authority; the year's shift-logs appended.
+> To the superintendent, consolidated as instructed when I raised the third one verbally and was told to come back with a year.
 >
-> Vessels that arrived warm, with no declared thermal cargo, nothing found on inspection, released for want of grounds for seizure: nineteen this year. Table appended — berth, date, degrees above ambient. The first row is last year's: berth 9, second watch, eleven degrees. The degrees do not fall.
+> A year: nineteen vessels presented warm, no thermal cargo declared, none found, all released, no seizable condition. Table attached, berth, date, watch, degrees over ambient. The first row is the one I logged myself, berth 9, second watch, eleven degrees, pilot in a coat with the heaters allegedly on. The degrees in the table do not fall across the year, they climb a little. The table says it better than I can.
 >
-> Petition: to add to the list of grounds for seizure the following item: a vessel's thermal state not matching its declared cargo.
+> Petition: add thermal state inconsistent with declared cargo to the schedule of seizable conditions.
 >
-> I am aware of how this petition reads. The logs have been appended so that it stops reading that way.
+> I know how it reads, sir. The logs are attached so it stops reading that way. Also attached, my leave request, unrelated.
 
 > **`warm_reply`** — "MEMORANDUM IN REPLY" — *a superintendent of customs* — "reference year as marked" — no house — **depth 5**
-> Your summary report has been received; your diligence has been entered in the record according to your grade.
+> Your consolidated report is received. Your diligence is noted at grade, and I have initialled the table myself.
 >
-> The request is denied. Those items enumerated in the schedule of seizable matters are property. Warmth is not property; a vessel's temperature is a condition of the vessel; a condition is not among the things subject to seizure. Legal counsel's opinion is enclosed, and is final.
+> The petition is declined. The schedule of seizable conditions enumerates property. Warmth is not property, a vessel's temperature is a circumstance of the vessel, and circumstances are not seized. Counsel's opinion is attached and is final, and I will not pretend to you I read past its second page.
 >
-> Your application for transfer to the rim outpost is approved, with deep regret, effective the first of this month.
+> Your transfer to the rim posting is approved with regret, effective the first. The leave is also approved. Take the leave first.
 >
-> Postscript in the superintendent's own hand: Nineteen ships is correct. The year before it was eleven; next year it will not be nineteen. No one doubts your tables. Go and take up your post at the rim.
+> In hand at the foot: your nineteen is right. It was eleven the year I sat your desk, and it will not be nineteen next year. Nobody disputes your table. Go to the rim, the fishing is better than they say.
 
 *The superintendent believes every word of the report and signs the denial anyway, and the kindest sentence in the whole archive is* go and take up your post at the rim. *The arc ends with the officer safe, the schedule unamended, and the number still climbing — a complete human story whose completion changes nothing, which is the only kind of victory the houses ever concede.*
 
@@ -466,6 +456,7 @@ The archive's delivery is already right: positional, idempotent, depth-floored, 
 - **Hard keys for membership, echoes for meaning.** *(Amended from "echoes, never confirmations.")* Two documents in one storyline must share at least one exact, checkable token that proves they belong together; no document ever verifies another's account of what the story *means*. The shuffle test: if moving an entry into a different docket changes nothing, the entry is not yet written.
 - **No thread converges on the heat.** The threads orbit the question at fixed distance. The auditor declines to minute it; that is as close as anything ever gets, forever.
 - **One seam of alignment.** "The eleventh survey" is the only epoch that may recur across authors. Everything else stays unreconciled.
+- **No curtain lines.** The final sentence of an entry is always the least interesting one. Check every new entry's last line; if it lands, move it up or cut it.
 - **Obviousness is rationed.** The Non-Return is the only thread licensed to state the one idea in the open, and it holds that license alone. A second obvious thread would not double the clarity; it would halve the archive.
 - **Constants are rationed and never the subject.** The roster in §2 is the whole roster; adding one means retiring one. A constant that grows a docket of its own stops being a constant — the walker above all: the day the LONG MERIDIAN gets a storyline, the trick is spent.
 - **Ration the devices.** The blank field: twice more, ever. The pencil second hand: once more, ever. A device reused until noticed is a signature, and the archive has no author.
@@ -498,7 +489,7 @@ Editorial policy on the results: adopted verbatim, except for normalizing settin
 | `effects_manifest` | Estonian | `actuarial_note` | Icelandic |
 | `chalk_wall` | Catalan | | |
 
-For future entries: pick the language for the author, not the author for the language — legal registers survive German and French; grief survives Finnish; commerce survives Hebrew and Italian; officialdom at its most self-sealing survives Japanese and Mandarin. And never let the back-translator see the original. The moment they can, the voices converge again.
+**RETIRED after the second read-through.** The pass changed vocabulary and cadence but not rhetoric — the entries came back foreign-accented and still machine-shaped, because the shape was authored upstream of the translation. Superseded by character-first authoring under "The shape of a human document" (§2); the table stands as history. The original advice, kept for the record: pick the language for the author, not the author for the language — legal registers survive German and French; grief survives Finnish; commerce survives Hebrew and Italian; officialdom at its most self-sealing survives Japanese and Mandarin. And never let the back-translator see the original. The moment they can, the voices converge again.
 
 ---
 
