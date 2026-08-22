@@ -109,7 +109,10 @@ func _build() -> void:
 	# it is a flag FOR.
 	_banner.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W
 		* ChassisSelect.Banner.S, HEADER_H)
-	_banner.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	# CENTRED on the row, not pinned to its top. Pinned, the flag started above
+	# the ship's name and finished above the class line — the two things it is a
+	# flag FOR — and read as floating rather than as a masthead.
+	_banner.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(_banner)
 
 	var names := VBoxContainer.new()
@@ -168,41 +171,54 @@ func _build() -> void:
 	shiprow.add_child(vwrap)
 	left.add_child(shiprow)
 
-	# THE HOLD SITS UNDER THE SHIP, in the same column, because the two are one
-	# question: what is bolted on, and what is there to bolt. It was in the
-	# right-hand panel, which put the parts and the hardpoints they go into on
-	# opposite sides of the screen — a drag across the whole viewport for the
-	# commonest action here.
+	# THE NUMBERS AND THE HOLD, SIDE BY SIDE, under the ship.
+	#
+	# Stacked, the hold's four rows sat between the ship and its own attributes
+	# and pushed the manufacturer abilities off the bottom of the panel — the
+	# whole column came to 486 against about 491, which is not a margin. Beside
+	# them it costs no height at all, and the two halves are the right pairing
+	# anyway: what the ship IS on the left, what there is to change it with on
+	# the right.
+	var lower := HBoxContainer.new()
+	lower.add_theme_constant_override("separation", 14)
+	lower.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var stats := VBoxContainer.new()
+	stats.add_theme_constant_override("separation", 2)
+	stats.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var holdcol := VBoxContainer.new()
+	holdcol.add_theme_constant_override("separation", 2)
+	holdcol.size_flags_horizontal = Control.SIZE_SHRINK_END
+	holdcol.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	left.add_child(_hold)
+	holdcol.add_child(_hold)
 	_storage = HoldGrid.new()
 	_storage.dropped.connect(_on_hold_drop)
-	_storage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	left.add_child(_storage)
+	holdcol.add_child(_storage)
 
-	# EVENLY SPREAD from here down. The three blocks below are the same kind of
-	# thing — a heading and its rows — so equal air between them reads as three
-	# blocks, and the slack pooled at the bottom read as three blocks and then a
-	# hole. One expanding spacer before each, all the same weight, so the column
-	# divides whatever is left over rather than any of them owning it.
-	left.add_child(_spread())
-	left.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
+	lower.add_child(stats)
+	lower.add_child(holdcol)
+	left.add_child(lower)
+
+	stats.add_child(_spread())
+	stats.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
 	_attrs = AttrBlock.new()
-	left.add_child(_attrs)
+	stats.add_child(_attrs)
 
 	# The same block the chassis select shows, on the screen where it is
 	# ACTIONABLE. There it answers "what would flying this cost me" before you
 	# commit; here it answers "what have I got left", which is the question you
 	# are asking on every drop — and it was the one screen in the game where
 	# slot pressure was invisible while you were spending it.
-	left.add_child(_spread())
-	left.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
+	stats.add_child(_spread())
+	stats.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	_mounts = VBoxContainer.new()
 	_mounts.add_theme_constant_override("separation", 2)
-	left.add_child(_mounts)
+	stats.add_child(_mounts)
 
 	_hand = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
-	left.add_child(_hand)
+	stats.add_child(_hand)
 
 	# The abilities go here, not on the chassis select's terms. There they
 	# answer "what would flying this house give me"; here they answer "how close
@@ -210,13 +226,13 @@ func _build() -> void:
 	# on the other half of this screen. Under the attributes because it is the
 	# same column of facts about the ship — what it is, then what it unlocks.
 	#
-	left.add_child(_spread())
-	left.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
+	stats.add_child(_spread())
+	stats.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
 	_abilities = VBoxContainer.new()
 	_abilities.add_theme_constant_override("separation", 1)
-	left.add_child(_abilities)
+	stats.add_child(_abilities)
 
-	left.add_child(_spread())
+	stats.add_child(_spread())
 
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
