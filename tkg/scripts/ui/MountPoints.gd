@@ -143,34 +143,23 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	var box := ModuleIcon.footprint_box(m)
 	var up := ModuleIcon.part_turn(slot, f)
 	var k2 := ModuleIcon.part_scale(slot, f, box)
-	# How big the shape ACTUALLY comes out, which is not the box: a silhouette
-	# keeps its own proportions, so a wide gun in a tall cell fills the width
-	# and leaves the rest. Aligning to the box instead of to this floated every
-	# part a few pixels clear of the hull, which reads as a rendering fault
-	# rather than as a gun.
-	var nat := ModuleIcon.part_rect(slot, Rect2(Vector2.ZERO, box), k2, up).size
 
-	# ON the surface. A mount sits on the hull's own outline, so a part centred
-	# on one is half buried in the ship and reads as damage. Dorsal parts stand
-	# on the line, ventral ones hang from it, and only the flank is centred —
-	# because the flank IS the middle of the hull rather than an edge of it.
-	var c := Vector2(roundf(at.x), roundf(at.y))
-	match slot:
-		ModuleData.Slot.WEAPON: c.y -= nat.y * 0.5
-		ModuleData.Slot.SYSTEM: c.y += nat.y * 0.5
-	# The box IS the shape here, so centring in it is what puts the silhouette
-	# exactly on the line rather than five units in front of wherever its own
-	# origin happens to be.
-	ModuleIcon.fill_part(self, slot, Rect2(c - nat * 0.5, nat),
-		ModuleData.rarity_colour(m.rarity), k2, up)
+	# THE HARDPOINT IS A POINT INSIDE THE PART, and which point depends on what
+	# the part is — see ModuleIcon.mount_anchor. So the footprint is hung off
+	# the mount by that offset rather than centred on it or stood on top of it,
+	# both of which this has been: centred, a three-cell rail put half of itself
+	# behind its own mounting; stood on top, every part floated clear of the
+	# hull whenever its silhouette did not fill the box.
+	var anchor := ModuleIcon.mount_anchor(slot, box, up)
+	var r := Rect2((Vector2(roundf(at.x), roundf(at.y)) - anchor).round(), box)
+	ModuleIcon.fill_part(self, slot, r, ModuleData.rarity_colour(m.rarity), k2, up)
 
 	# THE HOUSE, as a bar where the part meets the hull. There is no plate out
 	# here to carry a border and the silhouette now says rarity, so without this
 	# the ship is the one place in the game that cannot tell you whose parts are
 	# bolted to it — which is the fact set bonuses are counted from.
-	var w := minf(nat.x, 10.0 * k)
-	var bar := Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k)
-	draw_rect(bar, col, true)
+	var w := minf(box.x, 10.0 * k)
+	draw_rect(Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k), col, true)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something

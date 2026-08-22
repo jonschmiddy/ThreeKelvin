@@ -209,6 +209,55 @@ func _geometry() -> void:
 				out += " %s %dx%d" % [ModuleData.slot_name(slot), f.x, f.y]
 	_ok("every silhouette clears its plate by %dpx" % int(WANT_PAD)
 		if out == "" else "art crowding the border:%s" % out, out == "")
+	_anchors()
+
+
+## THE HARDPOINT SITS AT THE RIGHT POINT INSIDE THE PART.
+##
+## Written as the rule rather than as a copy of the arithmetic: a gun hangs off
+## its breech and everything else hangs off its middle. Restating the formula
+## here would pass against any formula, including the centred one this replaced.
+func _anchors() -> void:
+	var cell := float(HoldGrid.CELL)
+	var wide := Vector2i(3, 1)
+	var tall := Vector2i(1, 3)
+	var box_w := ModuleIcon.footprint_box(_shaped(ModuleData.Slot.WEAPON, wide))
+	var box_t := ModuleIcon.footprint_box(_shaped(ModuleData.Slot.WEAPON, tall))
+
+	# A three-cell gun lying along the hull: mounted in its FIRST cell, well
+	# short of its own middle, so the barrel runs forward of the hardpoint.
+	var a := ModuleIcon.mount_anchor(ModuleData.Slot.WEAPON, box_w, false)
+	_ok("a 3x1 gun mounts inside its leftmost cell",
+		a.x > 0.0 and a.x < cell and a.x < box_w.x * 0.5)
+	_ok("a 3x1 gun mounts halfway up itself",
+		is_equal_approx(a.y, box_w.y * 0.5))
+
+	# Stood on end the breech is at the BOTTOM, because the drawing turns
+	# anticlockwise. Mounted anywhere else, turning a rail in the hold would
+	# fire it through its own hardpoint.
+	var b := ModuleIcon.mount_anchor(ModuleData.Slot.WEAPON, box_t, true)
+	_ok("a 1x3 gun stood on end mounts inside its bottom cell",
+		b.y > box_t.y - cell and b.y < box_t.y and b.y > box_t.y * 0.5)
+
+	# Everything else hangs off its middle, whatever shape it is.
+	var off := ""
+	for slot in [ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		for f in [Vector2i(1, 1), Vector2i(2, 1), Vector2i(1, 3), Vector2i(2, 2)]:
+			var box := ModuleIcon.footprint_box(_shaped(slot, f))
+			for up in [false, true]:
+				if not ModuleIcon.mount_anchor(slot, box, up).is_equal_approx(box * 0.5):
+					off += " %s %dx%d" % [ModuleData.slot_name(slot), f.x, f.y]
+	_ok("systems and utilities mount at their own centre" if off == ""
+		else "mounted off-centre:%s" % off, off == "")
+
+
+## A bare part of a given slot and shape, for asking geometry questions of.
+func _shaped(slot: ModuleData.Slot, f: Vector2i) -> ModuleData:
+	var m := ModuleData.new()
+	m.slot = slot
+	m.size = f
+	m.turned = false
+	return m
 
 
 ## The plate the hold draws is the part's own footprint, and the hull scales

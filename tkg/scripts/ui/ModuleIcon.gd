@@ -283,6 +283,26 @@ static func part_rect(slot: ModuleData.Slot, box: Rect2, s: float,
 	return Rect2((box.get_center() - ext * 0.5).round(), ext)
 
 
+## WHERE THE HARDPOINT IS, inside the part's own footprint. Measured from the
+## box's top-left, in screen pixels.
+##
+## Not the middle for everything. A gun bolts on at its BREECH — the centre of
+## its leftmost cell — so a three-cell rail lies along the hull ahead of the
+## mount instead of straddling it with a cell and a half hanging off the back.
+## Systems and utilities bolt on at their middle, which is what a plate slung
+## under a belly and a mast standing on a flank both actually do.
+##
+## Follows the drawing round. `draw_part` turns anticlockwise, so a gun stood on
+## end has its breech at the BOTTOM and the anchor goes with it — otherwise
+## turning a rail in the hold would fire it through its own mount.
+static func mount_anchor(slot: ModuleData.Slot, box: Vector2,
+		upright: bool) -> Vector2:
+	if slot != ModuleData.Slot.WEAPON:
+		return box * 0.5
+	var half := float(HoldGrid.CELL) * 0.5
+	return Vector2(box.x * 0.5, box.y - half) if upright 		else Vector2(half, box.y * 0.5)
+
+
 ## Does this part's silhouette need standing on end to match its footprint?
 ##
 ## MATCHES LONG AXIS TO LONG AXIS rather than reading `turned` directly, because
