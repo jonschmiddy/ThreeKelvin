@@ -38,6 +38,20 @@ Six techniques, named so they can be asked for by name in review. All of them ar
 
 **The dramatic irony of recognition.** The player is a contractor delivering heat for posted rates. Documents about *a* contractor — generic, unnamed, procedural — will be read in the first person whether we like it or not. So like it: write entries where the unremarkable subject is somebody doing exactly what the player did last run. The expense claim below is the model. No entry ever addresses the player; the mirror does the work.
 
+**The constants — the brother-books move.** Stephen King's novels are siblings: Castle Rock, Derry, the number 19, a man in black who crosses from book to book without ever being any book's business. Each story stands alone; the constant reader assembles the country between them, and the assembling is its own reward. The archive keeps the same machinery — a roster of **constants**: proper nouns and numbers licensed to recur *across* storyline boundaries. A constant is the opposite instrument to a hard key. A key proves two pages share one story; a constant proves nothing — what it builds, appearance by appearance, is the certainty that all of this paperwork comes out of one world, written by people who live down the reach from each other. Three rules govern them. **Never the subject:** a constant appears in the corner of a document — a line item, a bearing, a vote count — and no document is ever *about* one. **Rationed:** the roster below is the whole roster; adding a constant means retiring one. **One walker:** exactly one constant is licensed to appear anywhere at all and be explained nowhere, ever.
+
+| Constant | What it is | Where it already stands |
+|---|---|---|
+| **ELEVEN** | The archive's number, never remarked | The eleventh survey; eleven degrees at berth 9; eleven hundred on the ring; eleven to ten in council; eleven barrels of oil; the eleventh day; eleven stations still answering; *it was eleven the year before* |
+| **FORTY-ONE** | Its loud sibling | Forty-one recoil assemblies; a forty-one-year cycle; forty-one sighted this season |
+| **THE LONG MERIDIAN** | The walker. Berth seven is held for it; it is on no register; it goes where it likes | The transponder loop; a statement of no claim, filed from the deep |
+| **KESTREL REACH** | Where things are lost | The Combine's anticipatory claim on all wrecks arising; a whale taken at its mouth |
+| **STATION VAR** | Struck from the chart, still answering | Korvan's unacknowledged shipments; among the eleven in the errata |
+| **THE SCHEDULE** | The setting's true god — every office serves one | Of hazards; of seizable matters; of thermal applications; of maintenance; the posted rate |
+| **QUERY CLOSED** | The stamp family | *Closed as answered; no fault found; no irregularities found; filed and closed* |
+
+Three placements were made in this pass to set the pattern: the LONG MERIDIAN is the vessel in the statement of no claim — the ship a dead station is still holding berth seven for is out in the deep, declining to shoot a whale, on no register at all; the rendered carcass was taken at the mouth of Kestrel Reach, inside the Combine's standing claim; and Var, which Korvan has shipped to unacknowledged since the eighth survey, sits quietly among the errata's eleven still answering.
+
 **Chains that never fire.** Chekhov's gun is a promise; this setting keeps its promises by never making any. The *Asphodel* is always arriving. The terminal application is always on the schedule. The twelfth survey is never commissioned. A thread may grow for the rest of the game's life and it must never resolve, because resolution converts dread into plot, and `lore.md` §7 already ruled there is no version of that trade the game wins.
 
 ---
@@ -128,7 +142,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `design-doc.md` §The Setting (megafauna are warm, hunted for it), `Combat.pacify`, `lore.md` §4 (the player and the whale are the same kind of animal). The cruellest joke in the setting currently has no paperwork. It should have exactly this much: a rendering account, a non-claim, and a tally — the animal met three ways, as yield, as company, and as a bearing.
 
 > **`rendering_account`** — "RENDERING ACCOUNT, ONE CARCASS" — *a rendering foreman* — "season's books" — no house — **depth 2**
-> Intake: one, adult, taken inside the yard. Yield: oil to eleven barrels, plate-bone after sorting, organ stock sold forward at the posted price. A spotter's tag, cut free at intake, logged and returned to its post.
+> Intake: one, adult, taken at the mouth of Kestrel Reach. Yield: oil to eleven barrels, plate-bone after sorting, organ stock sold forward at the posted price. A spotter's tag, cut free at intake, logged and returned to its post.
 >
 > Deduction: cooling. The cooling ran eleven days over the norm. The carcass held intake temperature until the eleventh day, and then went cold between one watch and the next — all at once, and all the way through.
 >
@@ -137,7 +151,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 > Accounts settled.
 
 > **`no_claim`** — "STATEMENT OF NO CLAIM" — *a surveyor for underwriters* — "policy year fifty-one" — no house — **depth 5**
-> The vessel reported contact with fauna, fully grown, during deep transit. The vessel took no action. The fauna matched speed and lay to alongside for six hours, and thereafter went inward. Heading at departure passed to the spotters' post, as required: inward.
+> The vessel, the LONG MERIDIAN, reported contact with fauna, fully grown, during deep transit. The vessel took no action. The fauna matched speed and lay to alongside for six hours, and thereafter went inward. Heading at departure passed to the spotters' post, as required: inward.
 >
 > No damage, no discharge, no loss. No claim for compensation is pending, and this document exists only because the pilot asked to have it in writing that nothing had happened. This office is seldom asked to certify such things.
 >
@@ -163,7 +177,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `korvan_invoice` and `precursor_survey`, the epoch that already touches itself. One new entry, and the ruling that **"the eleventh survey" is the only epoch ever allowed to recur across authors** — one seam of alignment in a corpus of loose dates is a gift to careful readers; two would be a calendar under construction.
 
 > **`chart_errata`** — "CHART ERRATA, ELEVENTH SURVEY" — *a cartographer's assistant* — "eleventh survey, month two" — no house — **depth 3**
-> List of corrections to the tenth survey, compiled for the eleventh: systems newly lit — none. Systems newly gone dark — ninety-two. Stations removed from the index — forty, of which eleven still answer.
+> List of corrections to the tenth survey, compiled for the eleventh: systems newly lit — none. Systems newly gone dark — ninety-two. Stations removed from the index — forty, of which eleven still answer. Var is among the eleven.
 >
 > A practical query, submitted at every survey and at every survey resolved: whether a station that still answers should be removed. The ruling, in force since the ninth survey: remove it. The chart records what is. An answer is not a station.
 >
@@ -381,6 +395,7 @@ The archive's delivery is already right: positional, idempotent, depth-floored, 
 - **Hard keys for membership, echoes for meaning.** *(Amended from "echoes, never confirmations.")* Two documents in one storyline must share at least one exact, checkable token that proves they belong together; no document ever verifies another's account of what the story *means*. The shuffle test: if moving an entry into a different docket changes nothing, the entry is not yet written.
 - **No thread converges on the heat.** The threads orbit the question at fixed distance. The auditor declines to minute it; that is as close as anything ever gets, forever.
 - **One seam of alignment.** "The eleventh survey" is the only epoch that may recur across authors. Everything else stays unreconciled.
+- **Constants are rationed and never the subject.** The roster in §2 is the whole roster; adding one means retiring one. A constant that grows a docket of its own stops being a constant — the walker above all: the day the LONG MERIDIAN gets a storyline, the trick is spent.
 - **Ration the devices.** The blank field: twice more, ever. The pencil second hand: once more, ever. A device reused until noticed is a signature, and the archive has no author.
 - **Arcs end at human scale only.** An arc's ending is a fact about a person, never a fact about the world. The day an arc's final document explains anything an institution does, it has become a reveal, and `lore.md` §7 already priced that trade.
 - **One arc per person.** Nobody's story is told twice, and no two arcs share a protagonist. The archive is a shelf of strangers; a recurring cast makes it a novel.
