@@ -47,7 +47,12 @@ extends Control
 ## of exhaust clearance and the 11 of padding are doubled. Those rows are empty
 ## by construction, and cropping them is what buys the manufacturer abilities a
 ## place on the panel. Was 240, sized against art that is being replaced.
-const HULL_VIEW_H := 166
+## 150, down from 166. The view has to cover the tallest hull canvas — 122px at
+## 2x — and everything above that is air. The heavy's hold went to 30 cells and
+## six rows nearly reached the manufacturer abilities: 2px of clearance, which is
+## not clearance, it is a collision that has not happened yet. Sixteen of those
+## spare rows are worth more to the workbench than to the masthead.
+const HULL_VIEW_H := 150
 
 ## Clearance between the name block and the ship. The mount markers draw ABOVE
 ## the hull's own top edge — they are what a part bolts to, so they have to sit

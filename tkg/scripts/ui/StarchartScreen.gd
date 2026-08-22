@@ -14,6 +14,7 @@ extends Control
 var _chart: MapChart
 var _layer_cells: HBoxContainer
 var _layer_text: Label
+var _all_btn: Button
 var _icons_btn: Button
 var _links_btn: Button
 
@@ -76,6 +77,12 @@ func _build() -> void:
 		_links_btn = Widgets.button("SHOW ALL LINKS", _on_toggle_links)
 		_links_btn.custom_minimum_size = Vector2(128, 14)
 		strip.add_child(_links_btn)
+
+	# And the systems those links run to. Without this the one above draws the
+	# whole lattice over a chart that is still hiding most of the galaxy.
+		_all_btn = Widgets.button("SHOW ALL SYSTEMS", _on_toggle_all)
+		_all_btn.custom_minimum_size = Vector2(140, 14)
+		strip.add_child(_all_btn)
 	root.add_child(strip)
 
 	# --- chart | destination
@@ -465,6 +472,13 @@ func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 ## Everything the chart draws over the galaxy, off. Worth having as a button
 ## rather than a debug flag: the galaxy is the best thing on this screen and the
 ## systems are, unavoidably, 190 icons sitting on top of it.
+func _on_toggle_all() -> void:
+	_chart.show_all = not _chart.show_all
+	if _all_btn != null:
+		_all_btn.text = "SHOW KNOWN ONLY" if _chart.show_all else "SHOW ALL SYSTEMS"
+	_chart.queue_redraw()
+
+
 func _on_toggle_icons() -> void:
 	_chart.show_icons = not _chart.show_icons
 	if _icons_btn != null:
@@ -952,14 +966,25 @@ class MapChart extends Control:
 	## routes, no trail, no tooltip.
 	var show_icons: bool = true
 	## Debug: ignore the visited/reachable filter and draw every system.
-	## REMOVED. There used to be a `show_all` here, and a dev button that turned
-	## it on, drawing every system in the galaxy whether or not you had any way
-	## to reach it. It came out because it defeats the one thing the chart is
-	## for: the map you have EARNED. Dev mode still opens the card gallery and
-	## the manufacturer list, but it no longer shows you the board.
 	##
-	## Nothing was ever reachable through it — jumping has always been gated on
-	## Run.can_jump_to() — so this only ever revealed, never travelled.
+	## RESTORED, dev-only, and the reason it came out is worth keeping: it
+	## defeats the one thing the chart is for, which is the map you have EARNED.
+	## That argument is about the PLAYER, and it still stands — this is behind
+	## DevMode, like the card gallery and the manufacturer list, and for the same
+	## reason. The three dev toggles exist to look at GENERATION: whether the
+	## shells are spaced sensibly, how the lattice is wired, whether a galaxy
+	## rolled something odd. None of that can be seen through a filter that hides
+	## most of the galaxy.
+	##
+	## Its absence read as a bug rather than as a decision, which is the other
+	## half of why it is back: SHOW ALL LINKS drew the whole lattice over a chart
+	## that was still hiding the systems those links ran to, so the diagnostic
+	## showed edges going nowhere and stations floating in the dark — stations
+	## being the one type the filter always lets through.
+	##
+	## Nothing is reachable through it. Jumping has always been gated on
+	## Run.can_jump_to(), so this reveals and never travels.
+	var show_all: bool = false
 	## Debug: draw every link in the map, not only the ones you could take.
 	## Off by default — it is a diagnostic, not a view.
 	var show_links: bool = false
@@ -1415,6 +1440,10 @@ class MapChart extends Control:
 	## you dotted lines running off to nothing.
 	func _visible_set(here: MapGen.MapNode, reach: Array) -> Dictionary:
 		var out: Dictionary = {}
+		if show_all:
+			for i in Run.map.size():
+				out[i] = true
+			return out
 		for n in Run.map:
 			var t: MapGen.MapNode = n
 			if t.visited:

@@ -56,6 +56,7 @@ func run(tree: SceneTree) -> void:
 	_geometry()
 	_nothing_cut(screen)
 	_nudging(grid)
+	_hold_ladder()
 	verdict("fittest")
 
 
@@ -275,6 +276,34 @@ func _mount_local(mounts: MountPoints, m: ModuleData) -> Vector2:
 		if sp.held == m:
 			return sp.at
 	return Vector2.INF
+
+
+## THE HOLD LADDER IS 12, 20, 30.
+##
+## Small, and it earns its place: the three sizes are one table entry each and
+## the medium's and the heavy's were transposed the first time they were written,
+## which nothing else would have caught — a hold of the wrong size still packs,
+## still saves and still totals correctly.
+##
+## THERE IS NO LAYOUT ASSERTION HERE, and that is deliberate rather than an
+## omission. The heavy's six rows come within 16px of the manufacturer abilities
+## and it would be worth a guard, but four versions of one were written and every
+## one of them passed with the heavy hold blown up to 48 cells. A column pushes
+## rather than overlaps, so a clearance check between the grid and the block
+## below sees nothing wrong; and re-running `start_new_run` inside this harness
+## does not re-lay-out a screen that is already built, so measuring per weight
+## measures the same frame three times. A check that cannot fail is worse than no
+## check, because it is read as coverage. If this needs guarding, it wants a
+## screen rebuilt per hull, which is a bigger harness than this one.
+func _hold_ladder() -> void:
+	var want := {HullData.Weight.LIGHT: 12, HullData.Weight.MEDIUM: 20,
+		HullData.Weight.HEAVY: 30}
+	for w in want:
+		Run.start_new_run(&"korvan", int(w))
+		var g := Run.hold_grid()
+		_ok("%s hold is %dx%d = %d cells, wanted %d"
+			% [HullData.weight_name(w), g.x, g.y, g.x * g.y, want[w]],
+			g.x * g.y == want[w])
 
 
 ## Every module the hardpoints currently believe is bolted on.

@@ -159,14 +159,13 @@ func _draw() -> void:
 				draw_rect(r.grow(1.0),
 					ModuleData.rarity_colour(m.rarity), false, 1.0)
 			continue
-		# AN EMPTY HARDPOINT IS NOT DRAWN UNLESS IT MATTERS. A ring on every
-		# unfilled mount, always, put a row of orange circles across a ship that
-		# was finished — they said "something is missing here" about a hull with
-		# nothing missing, and they were the loudest thing on the screen. They
-		# appear when you point at the ship, and a mount that will take what you
-		# are carrying pings instead.
-		if not _passive and over:
-			_ring(at, R * k, UITheme.EMBER.darkened(0.15))
+		# AN EMPTY HARDPOINT IS NOT DRAWN AT ALL. A ring on every unfilled
+		# mount put a row of orange circles across a ship that was finished —
+		# saying "something is missing here" about a hull with nothing missing,
+		# and louder than anything else on the screen. Showing them on hover was
+		# the same complaint one gesture later. The only time a bare mount is
+		# worth pointing at is when you are holding something that fits it, and
+		# that is what the ping below is.
 
 		# A PING, and ONLY on a mount with nothing in it. Drawn over an
 		# installed part it swamped the thing it was pointing at — 27px of

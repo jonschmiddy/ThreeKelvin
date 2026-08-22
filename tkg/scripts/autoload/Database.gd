@@ -810,8 +810,8 @@ const WEIGHT_BASE := {
 	# The extra system slot is where the floor comes from.
 	HullData.Weight.LIGHT: {
 		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
-		dodge = 0.18, initiative = 2, fuel_factor = 0.8, cargo_slots = 8,
-		hold_grid = Vector2i(5, 4),
+		dodge = 0.18, initiative = 2, fuel_factor = 0.8, cargo_slots = 12,
+		hold_grid = Vector2i(4, 3),
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
 	# A second utility mount, because the middle had nothing of its own.
 	#
@@ -824,13 +824,13 @@ const WEIGHT_BASE := {
 	# the middle of a range to be.
 	HullData.Weight.MEDIUM: {
 		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
-		dodge = 0.05, initiative = 0, fuel_factor = 1.2, cargo_slots = 12,
+		dodge = 0.05, initiative = 0, fuel_factor = 1.2, cargo_slots = 20,
 		hold_grid = Vector2i(5, 4),
 		weapon_slots = 3, system_slots = 2, utility_slots = 2},
 	HullData.Weight.HEAVY: {
 		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
-		dodge = 0.0, initiative = -2, fuel_factor = 1.8, cargo_slots = 16,
-		hold_grid = Vector2i(5, 4),
+		dodge = 0.0, initiative = -2, fuel_factor = 1.8, cargo_slots = 30,
+		hold_grid = Vector2i(6, 5),
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }
 

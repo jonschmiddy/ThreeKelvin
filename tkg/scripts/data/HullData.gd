@@ -56,21 +56,21 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 
 ## The hold as a GRID, which is what it now is. Cells, not modules.
 ##
-## FIVE WIDE BY FOUR TALL ON EVERY HULL, and that is a capacity change worth
-## seeing rather than inheriting.
+## 4x3, 5x4 and 6x5 — TWELVE, TWENTY and THIRTY cells. The heavy hauls two and a
+## half times what a skiff does, which is the compensation for being slow,
+## clumsy and unable to dodge: every wreck it passes is a choice rather than a
+## shrug, and a light frame full of loot has to leave something behind.
 ##
-## It was 4x5 / 4x7 / 4x10 — 20 / 28 / 40 cells, which at the catalogue's average
-## of 2.40 cells a module carried 8.3 / 11.7 / 16.7 parts and matched the 8 / 12 /
-## 16 the old slot counts promised. One box for every class is 20 cells and about
-## 8 parts, so A HEAVY NOW HAULS WHAT A LIGHT DOES: half what it used to.
+## It was 5x4 on every hull for a while — one box for everybody, twenty cells
+## each — and that was taken deliberately to get the hold onto the screen at a
+## legible cell size. The ladder is back now that the panel is split and the
+## storage sits beside the numbers instead of under the ship.
 ##
-## Taken deliberately, for the screen. The hold moved under the ship, and a
-## heavy's ten rows at a legible cell size put the attributes, the hardpoints and
-## the manufacturer abilities off the bottom of the panel. A hold you cannot see
-## the consequences of is worse than a smaller one.
-##
-## The ladder is one line to restore — rows of 4 / 6 / 8 gives back 20 / 30 / 40
-## — and it wants the panel to scroll, or the cells to shrink again, first.
+## THE SHAPE CHANGES AS WELL AS THE COUNT, and that is the point of picking
+## these three rather than 4/5/6 rows of five: a hold you can see the shape of
+## tells you which class you are flying before you read a number. The heavy
+## grows WIDER rather than taller because width is what the panel has spare —
+## six rows would put the manufacturer abilities off the bottom of it.
 @export var hold_grid: Vector2i = Vector2i(5, 4)
 
 @export var weapon_slots: int = 3
