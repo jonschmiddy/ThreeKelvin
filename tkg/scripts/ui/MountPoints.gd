@@ -152,14 +152,15 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	# hull whenever its silhouette did not fill the box.
 	var anchor := ModuleIcon.mount_anchor(slot, box, up)
 	var r := Rect2((Vector2(roundf(at.x), roundf(at.y)) - anchor).round(), box)
-	ModuleIcon.fill_part(self, slot, r, ModuleData.rarity_colour(m.rarity), k2, up)
+	ModuleIcon.fill_part(self, slot, r, col, k2, up)
 
-	# THE HOUSE, as a bar where the part meets the hull. There is no plate out
-	# here to carry a border and the silhouette now says rarity, so without this
-	# the ship is the one place in the game that cannot tell you whose parts are
-	# bolted to it — which is the fact set bonuses are counted from.
+	# RARITY, as a bar where the part meets the hull. The same split the plate
+	# uses, kept the same way round out here: the ART says whose it is, and what
+	# is behind or under it says how good. There is no plate on a hull to carry
+	# a ground, so it is a line at the mount instead.
 	var w := minf(box.x, 10.0 * k)
-	draw_rect(Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k), col, true)
+	draw_rect(Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k),
+		ModuleData.rarity_colour(m.rarity), true)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something
@@ -203,8 +204,14 @@ func _get_drag_data(at: Vector2) -> Variant:
 	if m == null:
 		return null
 	# The same ghost the hold hands over, at the same size, because what you are
-	# carrying does not change shape depending on where you picked it up.
-	set_drag_preview(ModuleIcon.ghost_for(m, &"hull"))
+	# carrying does not change shape depending on where you picked it up. It is
+	# handed the part's CURRENT place on the hull so the plate starts over the
+	# gun you just grabbed rather than appearing centred on the pointer.
+	var box := ModuleIcon.footprint_box(m)
+	var anchor := ModuleIcon.mount_anchor(_spots[i].slot, box,
+		ModuleIcon.part_turn(_spots[i].slot, m.footprint()))
+	set_drag_preview(ModuleIcon.ghost_for(m, &"hull",
+		get_global_rect().position + (_spots[i].at as Vector2) - anchor))
 	return {module = m, origin = &"hull"}
 
 func _can_drop_data(at: Vector2, data: Variant) -> bool:

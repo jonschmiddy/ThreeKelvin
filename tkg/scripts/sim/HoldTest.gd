@@ -20,7 +20,50 @@ func run() -> void:
 		_fill(w)
 	_shapes()
 	_swaps()
+	_legible()
 	verdict("holdtest")
+
+
+## EVERY HOUSE'S ART STAYS READABLE ON EVERY RARITY'S GROUND.
+##
+## A plate says two things at once: rarity is the ground it is painted on and
+## the manufacturer is the art standing on it. That only works while the two
+## palettes stay apart, and nothing keeps them apart except this — 7 makers by 7
+## rarities is 49 pairings and a new house is one line of a table.
+##
+## Here rather than in `-- fittest`, which is where the rest of the plate is
+## tested, because this is arithmetic on two colour tables and needs no window.
+## It belongs in the gate; that one cannot be.
+func _legible() -> void:
+	var worst := 99.0
+	var who := ""
+	for id in DB.manufacturers:
+		var man: ManufacturerData = DB.manufacturers[id]
+		for r in ModuleData.Rarity.size():
+			var ground: Color = ModuleData.rarity_colour(r).lerp(
+				UITheme.VOID, ModuleIcon.GROUND)
+			var c := _contrast(man.colour, ground)
+			if c < worst:
+				worst = c
+				who = "%s on %s" % [man.name, ModuleData.rarity_name(r)]
+	_ok("art on ground: worst pairing is %s at %.2f:1, floor 3.0" % [who, worst],
+		worst >= 3.0)
+
+
+## WCAG relative luminance contrast. Not Color.get_luminance(), which is a
+## straight weighted average of the sRGB values and answers a different question
+## — it reads two colours as further apart than an eye does.
+func _contrast(a: Color, b: Color) -> float:
+	var la := _lum(a)
+	var lb := _lum(b)
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+func _lum(c: Color) -> float:
+	var v := [c.r, c.g, c.b]
+	for i in 3:
+		v[i] = v[i] / 12.92 if v[i] <= 0.03928 else pow((v[i] + 0.055) / 1.055, 2.4)
+	return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]
 
 
 ## Stuff a hull's hold until nothing more fits, then check what landed.

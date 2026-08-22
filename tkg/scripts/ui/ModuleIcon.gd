@@ -23,6 +23,16 @@ const SIZE := 44
 ## one size in both places and padding only one of them would break that.
 const PAD := 4.0
 
+## How far a rarity colour is dragged toward the void to make a plate's ground.
+##
+## MEASURED, not picked. The art on that ground is the house's own colour now, so
+## every manufacturer has to stay legible on every rarity — 49 pairings, and the
+## worst of them is Verity's sand on the two green rarities. At 0.80 that pair
+## comes out at 2.94:1, under the 3.0 that WCAG asks of a graphical object; 0.88
+## puts the floor at 3.48 while the ground is still plainly tinted. `-- holdtest`
+## holds the line, because a new manufacturer colour is the thing that breaks it.
+const GROUND := 0.88
+
 var module: ModuleData
 ## Where a drag from here would be taking it FROM. The drop target needs to know
 ## whether this is a refit or an install.
@@ -38,16 +48,76 @@ signal picked_up(icon: ModuleIcon)
 static var carried: ModuleIcon = null
 
 
+## WHAT YOU ARE CARRYING, and how it behaves while you carry it.
+##
+## Godot pins whatever `set_drag_preview` is given to the pointer, exactly, on
+## every frame. That is correct and it feels dead: grab a three-cell rail by its
+## far end and it stays gripped at that corner for the whole drag, and a fast
+## flick moves it as though it were welded to the mouse.
+##
+## So the thing the engine pins is a WRAPPER, and the plate inside it is eased
+## toward the cursor in SCREEN space. One easing buys both halves of what people
+## mean when they say a drag feels good: whatever corner you grabbed drifts to
+## the middle over a few frames, and a fast flick leaves the plate trailing
+## until the mouse stops, at which point it catches up and centres.
+class Ghost extends Control:
+	## How fast the plate closes on the cursor, in e-folds per second. Higher is
+	## tighter. At 16 a flick leaves a plainly visible trail and a stop settles
+	## in about a fifth of a second, which is long enough to see and short
+	## enough not to fight.
+	const FOLLOW := 16.0
+
+	## How see-through. Enough that a cell under the plate still reads while you
+	## are deciding where to put it down, not so much that the thing you are
+	## carrying stops looking like an object.
+	const ALPHA := 0.78
+
+	var plate: ModuleIcon
+	var _spawn: Vector2
+	var _at: Vector2
+	var _live: bool = false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		modulate.a = ALPHA
+		set_process(true)
+
+	## `from` is where the part is on screen at the moment it is picked up, so
+	## the plate starts exactly over the thing it came out of rather than
+	## appearing already centred somewhere else.
+	func start(p: ModuleIcon, from: Vector2) -> void:
+		plate = p
+		_spawn = from
+		add_child(p)
+
+	func _process(delta: float) -> void:
+		if plate == null:
+			return
+		if not _live:
+			# First frame in the tree, which is the first time a global
+			# position means anything.
+			_live = true
+			_at = _spawn
+		var want := get_global_mouse_position() - plate.size * 0.5
+		# Frame-rate independent. What is fixed is the fraction closed per
+		# SECOND; lerping by a constant per frame makes the whole feel depend on
+		# how busy the machine is, which is the one thing it must not do.
+		_at = _at.lerp(want, 1.0 - exp(-FOLLOW * delta))
+		plate.global_position = _at
+
+
 ## The preview for a part being picked up, wherever it was picked up FROM.
 ## Both drag sources call this, so a lance leaving the hold and the same lance
 ## coming off the hull are carried as the same object at the same size.
-static func ghost_for(m: ModuleData, from: StringName) -> ModuleIcon:
+static func ghost_for(m: ModuleData, from: StringName, at: Vector2) -> Control:
 	var g := ModuleIcon.new()
 	g.setup(m, from)
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	g.fit_footprint()
 	carried = g
-	return g
+	var wrap := Ghost.new()
+	wrap.start(g, at)
+	return wrap
 
 
 ## Size to the part's CURRENT shape, in the hold's own cells.
@@ -108,7 +178,7 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	# has to look like what will land: the hold is a grid you pack, and a 1x3
 	# gun previewed as a 1x1 tile tells you nothing about whether it will fit
 	# in the row you are aiming at.
-	set_drag_preview(ghost_for(module, origin))
+	set_drag_preview(ghost_for(module, origin, global_position))
 	picked_up.emit(self)
 	return {module = module, origin = origin}
 
@@ -135,28 +205,23 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	if m == null:
 		return
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
-	var field: Color = maker.field if maker != null else Color("#141c26")
 	var mark: Color = maker.colour if maker != null else UITheme.COLD
-	ci.draw_rect(r, field, true)
+	var rar := ModuleData.rarity_colour(m.rarity)
+	# RARITY IS THE GROUND the part sits on — the whole plate, darkened until it
+	# is a tint rather than a colour, so five plates side by side sort by
+	# quality before anything is read.
+	ci.draw_rect(r, rar.lerp(UITheme.VOID, GROUND), true)
 
-	# TWO FACTS, TWO CHANNELS, and position is what keeps them apart.
+	# AND THE HOUSE IS THE ART. Which is a bet on what the art is going to be:
+	# a generated Korvan gun and a generated Solari gun will not need a stripe
+	# to tell them apart, any more than the hulls do. Until those exist the
+	# silhouette is drawn in the house's own colour, which is the same claim
+	# made with the one channel a rectangle has.
 	#
-	# The HOUSE owns the background: the field the plate is painted in, and a
-	# stripe down the left edge — the same side the cards fly their banner on.
-	# Both are things you read without looking at them.
-	#
-	# RARITY owns the foreground: the art in the middle and the border round the
-	# outside, which is deliberately the same answer twice. A plate is legible
-	# at very different sizes in this game — a 1x1 fitting shoulder to shoulder
-	# with five others, a 2x2 bay filling a quarter of the hold — and the art
-	# carries it when the plate is big while the border carries it when the
-	# plate is small or half behind something you are dragging.
-	#
-	# What this replaced put the house on the border and left rarity to the art
-	# alone, which doubled the house (field AND border) and gave the thing you
-	# most want to compare across a full hold exactly one channel.
-	if maker != null:
-		ci.draw_rect(Rect2(r.position, Vector2(3, r.size.y)), mark, true)
+	# It cost a stripe, and that is the point of writing it down: the stripe was
+	# a reliable answer that does not depend on art that has not been made yet.
+	# If the generated parts turn out not to read as their house, this is the
+	# commit to come back to.
 
 	# The silhouette, at THE SAME SIZE THE HULL DRAWS IT and standing whichever
 	# way the part is currently packed. Both call part_scale against the same
@@ -169,10 +234,10 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	# one thing you look at — the shape in the middle of the plate — answered
 	# the question you can already answer from the field it is sitting on, and
 	# left how good the part is to a one-pixel line.
-	fill_part(ci, m.slot, r, ModuleData.rarity_colour(m.rarity),
-		part_scale(m.slot, f, r.size), part_turn(m.slot, f))
+	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
+		part_turn(m.slot, f))
 
-	var e := ModuleData.rarity_colour(m.rarity)
+	var e := rar
 	var p := r.position
 	var z := r.size
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),

@@ -174,6 +174,32 @@ func _turning(grid: HoldGrid) -> void:
 			packed.footprint() == shape and packed.hold_at == where)
 
 
+## WHAT YOU CARRY IS A PLATE INSIDE A WRAPPER, and it is see-through.
+##
+## Checked once, on the first drag of the run. The wrapper is the thing Godot
+## pins to the pointer; the plate inside it is what eases toward the cursor, and
+## a plate handed straight to `set_drag_preview` would be gripped rigidly at
+## whatever corner it was picked up by. So "the carried plate has a parent that
+## is not the drag layer" is the whole mechanism, stated.
+##
+## The EASING itself is not asserted here and cannot be: it is driven by the
+## real cursor, which pushed input events do not move. See `_carry`.
+var _ghost_checked: bool = false
+
+func _ghost_once() -> void:
+	if _ghost_checked:
+		return
+	_ghost_checked = true
+	var plate := ModuleIcon.carried
+	if not _ok("something is being carried", plate != null):
+		return
+	var wrap := plate.get_parent() as Control
+	_ok("the carried plate sits inside a wrapper of its own", wrap != null
+		and wrap.get_class() == "Control" and wrap != plate)
+	_ok("what you are carrying is see-through",
+		wrap != null and wrap.modulate.a < 1.0)
+
+
 ## A part is drawn at ONE size, in the hold and on the hull, and its ink stays
 ## inside its own plate.
 ##
@@ -391,6 +417,8 @@ func _carry(from: Vector2, onto: Control, local: Vector2) -> bool:
 	await _move(from + Vector2(0, -24), MOUSE_BUTTON_MASK_LEFT)
 	var data: Variant = vp.gui_get_drag_data()
 	var live := vp.gui_is_dragging() and typeof(data) == TYPE_DICTIONARY
+	if live:
+		_ghost_once()
 	if live:
 		if onto._can_drop_data(local, data):
 			onto._drop_data(local, data)
