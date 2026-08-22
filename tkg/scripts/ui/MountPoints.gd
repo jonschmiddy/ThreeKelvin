@@ -159,7 +159,13 @@ func _draw() -> void:
 				draw_rect(r.grow(1.0),
 					ModuleData.rarity_colour(m.rarity), false, 1.0)
 			continue
-		if not _passive:
+		# AN EMPTY HARDPOINT IS NOT DRAWN UNLESS IT MATTERS. A ring on every
+		# unfilled mount, always, put a row of orange circles across a ship that
+		# was finished — they said "something is missing here" about a hull with
+		# nothing missing, and they were the loudest thing on the screen. They
+		# appear when you point at the ship, and a mount that will take what you
+		# are carrying pings instead.
+		if not _passive and over:
 			_ring(at, R * k, UITheme.EMBER.darkened(0.15))
 
 		# A PING, and ONLY on a mount with nothing in it. Drawn over an

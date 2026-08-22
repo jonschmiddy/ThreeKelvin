@@ -155,6 +155,12 @@ func _build() -> void:
 	root.add_child(body)
 
 	# --- left: what you are flying
+	# TWO PANELS, ONE ABOVE THE OTHER. What the ship IS — its flag, its name and
+	# the hull itself — is a masthead, and the numbers under it are a workbench.
+	# One box around both made the ship look like the first row of a table.
+	var top := VBoxContainer.new()
+	top.add_theme_constant_override("separation", 2)
+
 	var left := VBoxContainer.new()
 	# 2, not 4. This column carries ten blocks and every pixel of separation is
 	# ten pixels of height — which was the difference between the manufacturer
@@ -277,7 +283,7 @@ func _build() -> void:
 	vwrap.add_child(padr)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
-	left.add_child(header)
+	top.add_child(header)
 
 	# THE HOLD SITS BESIDE THE WHOLE TEXT COLUMN, not beside one block of it.
 	#
@@ -371,15 +377,27 @@ func _build() -> void:
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	left.add_child(foot)
 
-	var lwrap := Widgets.panel_with(left)
+	var lcol := VBoxContainer.new()
+	lcol.add_theme_constant_override("separation", 5)
 	# FIXED, and not expanding. Everything about where the ship sits is measured
-	# off this panel's middle, so a panel whose width depends on what is in it
+	# off its panel's middle, so a panel whose width depends on what is in it
 	# means the target moves whenever the contents do — which is how centring
 	# the ship turned into a settling loop you could watch happen.
-	lwrap.size_flags_horizontal = Control.SIZE_FILL
-	lwrap.custom_minimum_size = Vector2(PANEL_W, 0)
-	_panel = lwrap
-	body.add_child(lwrap)
+	lcol.size_flags_horizontal = Control.SIZE_FILL
+	lcol.custom_minimum_size = Vector2(PANEL_W, 0)
+
+	var twrap := Widgets.panel_with(top)
+	# SHRINK_BEGIN: the masthead is as deep as the ship in it and no deeper. The
+	# leftover belongs to the workbench, which has four blocks to space out.
+	twrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	# The ship is centred against THIS panel now, not against the whole column.
+	_panel = twrap
+	lcol.add_child(twrap)
+
+	var lwrap := Widgets.panel_with(left)
+	lwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lcol.add_child(lwrap)
+	body.add_child(lcol)
 
 	# --- right: the parts, and where they go
 	var right := VBoxContainer.new()
