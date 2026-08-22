@@ -56,17 +56,22 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 
 ## The hold as a GRID, which is what it now is. Cells, not modules.
 ##
-## Four columns on every hull — the refit screen measured that at 201px against
-## six columns' 303px in a 944px viewport, and the ship beside it cannot give any
-## width back. So capacity is rows, and the row count is the weight class.
+## FIVE WIDE BY FOUR TALL ON EVERY HULL, and that is a capacity change worth
+## seeing rather than inheriting.
 ##
-## Sized to hold the SAME NUMBER OF PARTS the slot counts above used to promise.
-## The catalogue averages 2.40 cells a module across 55 of them, so 20 / 28 / 40
-## cells carry 8.3 / 11.7 / 16.7 — against the 8 / 12 / 16 that `cargo_slots`
-## meant when a module was a module whatever its shape. The grid is meant to make
-## packing a decision, not to quietly halve what a ship can haul; those are
-## different changes and only one of them was asked for.
-@export var hold_grid: Vector2i = Vector2i(4, 5)
+## It was 4x5 / 4x7 / 4x10 — 20 / 28 / 40 cells, which at the catalogue's average
+## of 2.40 cells a module carried 8.3 / 11.7 / 16.7 parts and matched the 8 / 12 /
+## 16 the old slot counts promised. One box for every class is 20 cells and about
+## 8 parts, so A HEAVY NOW HAULS WHAT A LIGHT DOES: half what it used to.
+##
+## Taken deliberately, for the screen. The hold moved under the ship, and a
+## heavy's ten rows at a legible cell size put the attributes, the hardpoints and
+## the manufacturer abilities off the bottom of the panel. A hold you cannot see
+## the consequences of is worse than a smaller one.
+##
+## The ladder is one line to restore — rows of 4 / 6 / 8 gives back 20 / 30 / 40
+## — and it wants the panel to scroll, or the cells to shrink again, first.
+@export var hold_grid: Vector2i = Vector2i(5, 4)
 
 @export var weapon_slots: int = 3
 @export var system_slots: int = 2

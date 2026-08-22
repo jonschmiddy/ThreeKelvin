@@ -88,7 +88,12 @@ func _draw() -> void:
 	if maker != null:
 		draw_rect(Rect2(0, 0, 3, size.y), mark, true)
 
-	_glyph(mark)
+	# The SAME silhouette the hull draws at this part's mount, scaled to the
+	# plate. It replaced a glyph derived from the card — richer, but it meant a
+	# gun in your hold and the same gun on your ship were two different pictures,
+	# and the hold is where you decide which one to bolt on.
+	draw_part(self, module.slot, size * 0.5,
+		mark, minf(size.x, size.y) / 26.0)
 
 	# Rarity on the border, because the border is the part that survives being
 	# packed shoulder to shoulder in a grid.
@@ -96,6 +101,36 @@ func _draw() -> void:
 	for side in [Rect2(0, 0, size.x, 1), Rect2(0, size.y - 1, size.x, 1),
 			Rect2(0, 0, 1, size.y), Rect2(size.x - 1, 0, 1, size.y)]:
 		draw_rect(side, edge, true)
+
+## THE SILHOUETTE A PART READS AS, drawn the same way wherever it appears.
+##
+## One function, called by the hold and by the hull, because the alternative is
+## two drawings of a gun that drift apart — and the whole value of a part having
+## a shape is that you recognise the thing you just dragged when it lands.
+##
+## SLOT decides the form: a weapon is a housing with a barrel out of the front, a
+## system is a plate, a utility is a mast. `s` scales it — the hull draws these
+## at 1 against a hull 30 to 50 rows deep, the hold at rather more in a cell it
+## has to fill.
+static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
+		col: Color, s: float = 1.0) -> void:
+	var dark := col.lerp(Color("#0a0e13"), 0.55)
+	var lite := col.lerp(Color.WHITE, 0.3)
+	match slot:
+		ModuleData.Slot.WEAPON:
+			ci.draw_rect(Rect2(at.x - 4.0 * s, at.y - 2.5 * s, 9.0 * s, 5.0 * s), dark, true)
+			ci.draw_rect(Rect2(at.x - 4.0 * s, at.y - 2.5 * s, 9.0 * s, 1.0 * s), lite, true)
+			ci.draw_rect(Rect2(at.x + 5.0 * s, at.y - 1.0 * s, 7.0 * s, 2.0 * s), col, true)
+			ci.draw_rect(Rect2(at.x + 12.0 * s, at.y - 1.0 * s, 2.0 * s, 2.0 * s),
+				UITheme.VOID, true)
+		ModuleData.Slot.SYSTEM:
+			ci.draw_rect(Rect2(at.x - 5.5 * s, at.y - 2.0 * s, 11.0 * s, 4.0 * s), dark, true)
+			ci.draw_rect(Rect2(at.x - 5.5 * s, at.y - 2.0 * s, 11.0 * s, 1.0 * s), col, true)
+			ci.draw_rect(Rect2(at.x - 3.5 * s, at.y, 3.0 * s, 1.0 * s), lite, true)
+		_:
+			ci.draw_rect(Rect2(at.x - 1.5 * s, at.y - 3.5 * s, 3.0 * s, 7.0 * s), dark, true)
+			ci.draw_rect(Rect2(at.x - 0.5 * s, at.y - 6.5 * s, 1.0 * s, 4.0 * s), col, true)
+			ci.draw_rect(Rect2(at.x - 0.5 * s, at.y - 7.5 * s, 1.0 * s, 1.0 * s), lite, true)
 
 ## What the part does, in rectangles.
 ##

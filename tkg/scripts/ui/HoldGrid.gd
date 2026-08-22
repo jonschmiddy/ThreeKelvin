@@ -12,11 +12,13 @@ extends Control
 ## the screen owns the state change, which is the same split ModuleCell already
 ## uses — one place to read when a part ends up somewhere it should not.
 
-## One cell. Small, because a heavy's hold is four wide by ten deep and the
-## panel beside the ship has about 200px to spend: at ModuleIcon's own 44 that
-## grid would be 176 wide and 440 tall and the bottom four rows would be off the
-## screen. 22 makes it 88 by 220, which fits under the hardpoints with room.
-const CELL := 22
+## One cell.
+##
+## 24, up from 22. The hold moved under the ship into a panel with real width,
+## and at 22 a 1x1 fitting was a plate you could not read the glyph on. This is
+## the size at which a part in the hold and the same part on the hull are
+## recognisably the same object, which is the point of them sharing a shape.
+const CELL := 24
 const GAP := 1
 
 signal dropped(payload: Dictionary, at: Vector2i)

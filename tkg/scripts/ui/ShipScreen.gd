@@ -40,10 +40,19 @@ extends Control
 ## is the banner plus the ship at 2x, and the ship is the subject. Four columns
 ## is 201px against six columns' 303px, so the grid now costs a third of what it
 ## did when it did not fit.
-## The ship panel's height: the tallest hull (235x114) plus the idle bob's four
-## rows plus a little air. Named because ChassisSelect and StationScreen size
-## the same thing and all three have to move together when a hull gets deeper.
-const HULL_VIEW_H := 240
+## The ship panel's height, at 2x, off the SPEC rather than off whatever hull
+## happens to exist: the largest class is 125x50, so 100 rows plus the bob.
+##
+## Deliberately SHORTER than the canvas, which is 122 rows at 2x once the 38px
+## of exhaust clearance and the 11 of padding are doubled. Those rows are empty
+## by construction, and cropping them is what buys the manufacturer abilities a
+## place on the panel. Was 240, sized against art that is being replaced.
+const HULL_VIEW_H := 106
+
+## The header's height — the flag beside the three lines of name, maker and
+## class. The banner is "fixed across, free down", so without this it grows to
+## whatever the row is and the blocks below lose the space.
+const HEADER_H := 40
 
 const STORAGE_COLS := 4
 
@@ -80,22 +89,40 @@ func _build() -> void:
 
 	# --- left: what you are flying
 	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 4)
+	# 2, not 4. This column carries ten blocks and every pixel of separation is
+	# ten pixels of height — which was the difference between the manufacturer
+	# abilities being on the panel and being under it.
+	left.add_theme_constant_override("separation", 2)
+
+	# BANNER AND NAME ON ONE LINE, the chassis select's arrangement. There the
+	# flag sits at the left of the header with the maker's name beside it, and
+	# this screen had the two stacked instead — a name, then a flag hanging the
+	# full depth of the ship under it. Same two facts, two different shapes, on
+	# two screens showing the same hull.
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 10)
+	_banner = ChassisSelect.Banner.new()
+	# SHORT. The banner is "fixed across, free down", so in a row with the ship
+	# it grew to the ship's full height and took the vertical the blocks below
+	# needed — attributes, hardpoints and abilities were off the bottom of the
+	# panel. Sized to the three lines of text beside it instead, which is what
+	# it is a flag FOR.
+	_banner.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W
+		* ChassisSelect.Banner.S, HEADER_H)
+	_banner.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	header.add_child(_banner)
 
 	var names := VBoxContainer.new()
 	names.add_theme_constant_override("separation", 1)
+	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
 	names.add_child(_name)
-	# Who built it, in their own colour, directly under the ship's name — the two
-	# halves of what this thing IS. The frame and tier are a separate, greyer
-	# fact underneath, and the hull perk is not here at all: the abilities block
-	# below already states it as BUILT IN, and saying it twice made the subtitle
-	# a duplicate of a row six lines down.
 	_maker = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	names.add_child(_maker)
 	_class = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	names.add_child(_class)
-	left.add_child(names)
+	header.add_child(names)
+	left.add_child(header)
 
 	# The banner hangs the full depth of the ship rather than a badge sitting
 	# beside a name. It is the same flag the chassis cards fly and it is the one
@@ -104,8 +131,6 @@ func _build() -> void:
 	# of text read as a bullet point.
 	var shiprow := HBoxContainer.new()
 	shiprow.add_theme_constant_override("separation", 8)
-	_banner = ChassisSelect.Banner.new()
-	shiprow.add_child(_banner)
 
 	# Doubled and cropped to the hull, the same treatment the chassis select
 	# gives it. At 1x in a panel this size the ship was a small object adrift in
@@ -143,6 +168,24 @@ func _build() -> void:
 	shiprow.add_child(vwrap)
 	left.add_child(shiprow)
 
+	# THE HOLD SITS UNDER THE SHIP, in the same column, because the two are one
+	# question: what is bolted on, and what is there to bolt. It was in the
+	# right-hand panel, which put the parts and the hardpoints they go into on
+	# opposite sides of the screen — a drag across the whole viewport for the
+	# commonest action here.
+	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	left.add_child(_hold)
+	_storage = HoldGrid.new()
+	_storage.dropped.connect(_on_hold_drop)
+	_storage.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	left.add_child(_storage)
+
+	# EVENLY SPREAD from here down. The three blocks below are the same kind of
+	# thing — a heading and its rows — so equal air between them reads as three
+	# blocks, and the slack pooled at the bottom read as three blocks and then a
+	# hole. One expanding spacer before each, all the same weight, so the column
+	# divides whatever is left over rather than any of them owning it.
+	left.add_child(_spread())
 	left.add_child(UITheme.body("ATTRIBUTES", UITheme.COLD, UITheme.FS_SMALL))
 	_attrs = AttrBlock.new()
 	left.add_child(_attrs)
@@ -152,6 +195,7 @@ func _build() -> void:
 	# commit; here it answers "what have I got left", which is the question you
 	# are asking on every drop — and it was the one screen in the game where
 	# slot pressure was invisible while you were spending it.
+	left.add_child(_spread())
 	left.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	_mounts = VBoxContainer.new()
 	_mounts.add_theme_constant_override("separation", 2)
@@ -166,25 +210,13 @@ func _build() -> void:
 	# on the other half of this screen. Under the attributes because it is the
 	# same column of facts about the ship — what it is, then what it unlocks.
 	#
-	# Given real air above it. They are two different KINDS of fact — six gauges
-	# you read at a glance, then three conditional rules you read as sentences —
-	# and at the column's 4px separation they ran together as one list.
-	var abgap := Control.new()
-	abgap.custom_minimum_size = Vector2(0, 10)
-	abgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_child(abgap)
+	left.add_child(_spread())
 	left.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
 	_abilities = VBoxContainer.new()
 	_abilities.add_theme_constant_override("separation", 1)
 	left.add_child(_abilities)
 
-	# The slack goes at the BOTTOM, in one place. Spread through the column — as
-	# it was when the ship view expanded — it opened a gap between the ship and
-	# its own numbers, which are the two things this half is comparing.
-	var lgap := Control.new()
-	lgap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	lgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_child(lgap)
+	left.add_child(_spread())
 
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -194,16 +226,6 @@ func _build() -> void:
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	# No HARDPOINTS heading here any more: the mounts moved onto the hull and the
-	# rule under them moved with the rack, or the panel opened on a rule with
-	# nothing above it.
-	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	right.add_child(_hold)
-
-	_storage = HoldGrid.new()
-	_storage.dropped.connect(_on_hold_drop)
-	right.add_child(_storage)
 
 	var rgap := Control.new()
 	rgap.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -269,6 +291,18 @@ func _refresh() -> void:
 ## Pads reserve to the same ceiling that screen uses, so the two read as one
 ## block seen twice rather than as two designs — and the figures line up in a
 ## column instead of tracking the pad count.
+## One share of whatever vertical is left over.
+##
+## Every one of these has the same expand weight, so N of them divide the slack
+## into N equal parts. That is the whole mechanism behind "evenly distributed":
+## the column does the arithmetic, and adding a block later does not mean
+## re-tuning a set of hand-picked gaps.
+func _spread() -> Control:
+	var c := Control.new()
+	c.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
 func _refresh_mounts() -> void:
 	Widgets.clear(_mounts)
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:

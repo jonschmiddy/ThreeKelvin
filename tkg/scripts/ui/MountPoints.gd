@@ -112,33 +112,12 @@ func _draw() -> void:
 func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2) -> void:
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 	var col: Color = maker.colour if maker != null else UITheme.CHILL
-	var dark := col.lerp(Color("#0a0e13"), 0.55)
-	var lite := col.lerp(Color.WHITE, 0.3)
-	var x := roundf(at.x)
-	var y := roundf(at.y)
-	match slot:
-		ModuleData.Slot.WEAPON:
-			# Sits ON the dorsal line and fires forward, which is right: the nose
-			# points right on every player hull.
-			draw_rect(Rect2(x - 4.0, y - 5.0, 9.0, 5.0), dark, true)
-			draw_rect(Rect2(x - 4.0, y - 5.0, 9.0, 1.0), lite, true)
-			draw_rect(Rect2(x + 5.0, y - 4.0, 7.0, 2.0), col, true)
-			draw_rect(Rect2(x + 12.0, y - 4.0, 2.0, 2.0), UITheme.VOID, true)
-		ModuleData.Slot.SYSTEM:
-			# Slung under the belly. Lit along the edge facing the hull, because
-			# the light in this game comes from above and this is its underside.
-			draw_rect(Rect2(x - 5.0, y, 11.0, 4.0), dark, true)
-			draw_rect(Rect2(x - 5.0, y, 11.0, 1.0), col, true)
-			draw_rect(Rect2(x - 3.0, y + 2.0, 3.0, 1.0), lite, true)
-		_:
-			# A mast off the flank. The one vertical thing on the hull, which is
-			# what makes a sensor read as a sensor at this size.
-			draw_rect(Rect2(x - 1.0, y - 7.0, 3.0, 7.0), dark, true)
-			draw_rect(Rect2(x, y - 10.0, 1.0, 4.0), col, true)
-			draw_rect(Rect2(x, y - 11.0, 1.0, 1.0), lite, true)
+	# Drawn by ModuleIcon.draw_part, which the HOLD also calls. One function, so
+	# the gun you dragged off the grid is the gun that appears on the spine.
+	ModuleIcon.draw_part(self, slot, Vector2(roundf(at.x), roundf(at.y)), col)
 	# The rarity of the thing bolted there, as a pip. Same ladder the cards and
 	# the hold icons use, so an Epic gun is the same colour everywhere.
-	draw_rect(Rect2(x - 1.0, y - 1.0, 2.0, 2.0),
+	draw_rect(Rect2(roundf(at.x) - 1.0, roundf(at.y) - 1.0, 2.0, 2.0),
 		ModuleData.rarity_colour(m.rarity), true)
 
 func _ring(at: Vector2, r: float, col: Color) -> void:
