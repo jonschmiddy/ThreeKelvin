@@ -1506,12 +1506,14 @@ func _seed_enemies() -> void:
 	_enemy(&"whale", "Voidwhale Calf", "megafauna · pacifiable", 40, 0, 0, &"whale", [], [
 		{name = "Drift Song", text = "Heals 4", heal = 4, weight = 30},
 		{name = "Tail Sweep", text = "Deal 7", damage = 7, weight = 40},
-		{name = "Spore Breath", text = "Deal 3, +1 Dross", damage = 3, dross = 1, weight = 30},
+		{name = "Spore Breath", text = "Deal 3, +1 Dross", damage = 3, dross = 1,
+			dross_id = &"slowburn", weight = 30},
 	], true)
 	_enemy(&"leviathan", "Void Leviathan", "megafauna · adult", 88, 4, 0, &"whale", [], [
 		{name = "Sounding", text = "Heals 8", heal = 8, weight = 20},
 		{name = "Breach", text = "Deal 15", damage = 15, weight = 45},
-		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2, weight = 35},
+		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2,
+			dross_id = &"slag", weight = 35},
 	], true)
 	# Boss: unscaled, tuned by hand.
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 120, 8, 120, &"hulk", [

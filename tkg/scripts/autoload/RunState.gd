@@ -85,11 +85,25 @@ var dross: Array[StringName] = []:
 func dross_count() -> int:
 	return dross.size()
 
-## Lodge one in the ship. `danger` decides how nasty it is allowed to be.
-func add_dross(danger: int) -> void:
+## Lodge one in the ship.
+##
+## `which` names it; empty rolls one against `danger`. Named beats rolled so an
+## enemy or an event can say what it does to you — a spore fusing something into
+## the rack is characterisation, and "some junk" is not.
+func add_dross(danger: int, which: StringName = &"") -> void:
 	var next := dross.duplicate()
-	next.append(DB.roll_malfunction(danger))
+	next.append(which if which != &"" else DB.roll_malfunction(danger))
 	dross = next
+
+## Take one named malfunction out, and only one. Returns whether it was there.
+func clear_dross(which: StringName) -> bool:
+	var at := dross.find(which)
+	if at < 0:
+		return false
+	var left := dross.duplicate()
+	left.remove_at(at)
+	dross = left
+	return true
 
 ## WHY THESE TWO HAVE SETTERS AND `heat` DOES NOT.
 ##

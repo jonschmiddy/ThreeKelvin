@@ -518,14 +518,14 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
-	var repair := _service("REPAIR %d HULL" % eight, "%d cr" % eight_cost,
+	var repair := _service("HULL REPAIR +%d" % eight, "%d cr" % eight_cost,
 		_repair.bind(eight))
 	_set_service_enabled(repair, missing > 0 and Run.credits >= eight_cost)
 	repair.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
 	_services.add_child(repair)
 
 	var full_cost := Market.repair_price(n, missing)
-	var full := _service("FULL REPAIR", "%d cr" % full_cost, _repair.bind(missing))
+	var full := _service("FULL HULL REPAIR", "%d cr" % full_cost, _repair.bind(missing))
 	_set_service_enabled(full, missing > 0 and Run.credits >= full_cost)
 	_services.add_child(full)
 
@@ -535,10 +535,30 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	_set_service_enabled(refuel, Run.credits >= refuel_cost)
 	_services.add_child(refuel)
 
+	# SYSTEM REPAIR: one row per malfunction you are actually carrying, and each
+	# one takes out that one and nothing else.
+	#
+	# It was a single PURGE button that removed the mildest, which made the
+	# service worse the more it mattered — the thing you wanted gone was the
+	# Slag welded into the rack, and what you paid for was a Hairline Crack. A
+	# choice is the whole value here, and the rows already exist as a pattern,
+	# so it needs no picker and no modal.
 	var purge_cost := Market.purge_price(n)
-	var purge := _service("PURGE 1 DROSS", "%d cr" % purge_cost, _purge)
-	_set_service_enabled(purge, Run.dross_count() > 0 and Run.credits >= purge_cost)
-	_services.add_child(purge)
+	var seen: Dictionary = {}
+	for id in Run.dross:
+		if seen.has(id):
+			continue
+		seen[id] = true
+		var card := DB.malfunction(id)
+		var many := Run.dross.count(id)
+		var b := _service("SYSTEM REPAIR — %s%s" % [card.name.to_upper(),
+			"" if many < 2 else " (%d)" % many], "%d cr" % purge_cost,
+			_purge.bind(id))
+		b.tooltip_text = Widgets.tip("%s
+Removes one. %s"
+			% [card.describe(), "You are carrying %d." % many if many > 1 else "The only one aboard."])
+		_set_service_enabled(b, Run.credits >= purge_cost)
+		_services.add_child(b)
 
 	var coolant_cost := Market.coolant_price(n)
 	var coolant := _service("+2 HEAT CAP", "%d cr" % coolant_cost, _coolant)
@@ -636,17 +656,18 @@ func _refuel() -> void:
 	Run.fuel += Market.REFUEL_UNITS
 	Run.log_line("Refuelled.", &"good")
 
-func _purge() -> void:
+## One malfunction, named, and only one. `clear_dross` removes a single entry,
+## so paying once to clear three copies of the same thing is not a thing that
+## can happen by accident.
+func _purge(which: StringName) -> void:
 	var cost := Market.purge_price(Run.node_at())
 	if Run.credits < cost or Run.dross_count() <= 0:
 		return
+	var card := DB.malfunction(which)
+	if not Run.clear_dross(which):
+		return
 	Run.add_credits(-cost)
-	# The mildest one first — a purge that took the worst card would make the
-	# service better the more junk you were carrying, which is backwards.
-	var left := Run.dross.duplicate()
-	left.remove_at(0)
-	Run.dross = left
-	Run.log_line("Purged Dross.", &"good")
+	Run.log_line("%s cleared." % card.name, &"good")
 
 func _coolant() -> void:
 	var cost := Market.coolant_price(Run.node_at())

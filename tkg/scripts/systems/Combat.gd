@@ -126,6 +126,11 @@ var new_dross: int = 0
 ## against it — a spore at layer nine should be able to fuse something into the
 ## rack that one at layer one cannot.
 var danger: int = 1
+
+## The malfunctions this fight has actually lodged, in order, one per point of
+## `new_dross`. An empty entry means "roll one" — an intent that names its own
+## is the whole reason this is a list rather than a count.
+var named_dross: Array[StringName] = []
 var finished: bool = false
 var result: StringName = &""
 var summary: String = ""
@@ -431,6 +436,8 @@ func _act_one(e: EnemyState) -> void:
 		_log("  healed %d." % I.heal, &"them")
 	if I.dross > 0:
 		new_dross += I.dross
+		for i in I.dross:
+			named_dross.append(I.dross_id)
 		_log("  %d Dross lodges in your systems." % I.dross, &"them")
 	if I.damage > 0:
 		if negate_next:
@@ -705,7 +712,8 @@ func _victory() -> void:
 		gained = int(round(gained * 1.5))
 	Run.add_credits(gained)
 	for i in new_dross:
-		Run.add_dross(danger)
+		var which: StringName = named_dross[i] if i < named_dross.size() else &""
+		Run.add_dross(danger, which)
 	var bits: PackedStringArray = ["%d credits" % gained]
 	if enemy.template.fauna:
 		Run.exotic += 2
@@ -770,7 +778,8 @@ func _pacify() -> void:
 		Run.consume_node(node)
 	Run.exotic += 1
 	for i in new_dross:
-		Run.add_dross(danger)
+		var which: StringName = named_dross[i] if i < named_dross.size() else &""
+		Run.add_dross(danger, which)
 	Run.whale_boon = true
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
