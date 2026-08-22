@@ -46,6 +46,7 @@ func run(tree: SceneTree) -> void:
 	await _to_hull(grid, mounts)
 	await _to_hold(grid, mounts)
 	await _wrong_slot(grid, mounts)
+	await _turning(grid)
 	verdict("fittest")
 
 
@@ -120,6 +121,116 @@ func _wrong_slot(grid: HoldGrid, mounts: MountPoints) -> void:
 	_ok("a weapon refused by a system mount does not move", m.hold_at == was)
 	_ok("a weapon refused by a system mount is not installed",
 		not Run.installed.has(m))
+
+
+## R turns a part in the hold, and a turn that will not fit costs nothing.
+func _turning(grid: HoldGrid) -> void:
+	var m := _long()
+	if m == null:
+		_fail("nothing long enough in the catalogue to turn")
+		return
+	await _settle(grid)
+	var icon := _icon_for(grid, m)
+	if not _ok("the long part has a plate", icon != null):
+		return
+	var before := m.footprint()
+	var cells := m.cells()
+
+	_turn(_centre(icon))
+	_ok("R turns a %dx%d into a %dx%d" % [before.x, before.y, before.y, before.x],
+		m.footprint() == Vector2i(before.y, before.x))
+	_ok("turning does not change how much room it takes", m.cells() == cells)
+	_ok("a turned part is still somewhere legal",
+		m.hold_at.x >= 0 and Run.can_place(m, m.hold_at))
+	_no_overlap()
+
+	await _settle(grid)
+	var again := _icon_for(grid, m)
+	if again != null:
+		_turn(_centre(again))
+		_ok("R again turns it back", m.footprint() == before)
+
+	# And a turn with nowhere to go leaves the part exactly as it was.
+	var packed := _pack_solid()
+	await _settle(grid)
+	if _ok("a hold packed solid around a long part", packed != null):
+		var shape := packed.footprint()
+		var where := packed.hold_at
+		_turn(_plate_centre(grid, packed))
+		_ok("a turn with no room for it changes nothing",
+			packed.footprint() == shape and packed.hold_at == where)
+
+
+## Nothing shares a cell after a turn. The failure this is looking for does not
+## throw and does not show up in a total: two parts overlapping still add up.
+func _no_overlap() -> void:
+	var seen := {}
+	var clash := ""
+	for x in Run.cargo:
+		var f: Vector2i = x.footprint()
+		for dy in f.y:
+			for dx in f.x:
+				var c: Vector2i = x.hold_at + Vector2i(dx, dy)
+				if seen.has(c):
+					clash = "%s over %s at %s" % [x.name, seen[c], c]
+				seen[c] = x.name
+	_ok("no two parts share a cell after turning" if clash == "" else clash,
+		clash == "")
+
+
+## A part that is not square, so turning it is visible.
+func _long() -> ModuleData:
+	for i in 60:
+		var m := LootGen.roll_module(3 + (i % 5), &"", true)
+		if m.size.x != m.size.y and Run.place_in_hold(m):
+			Sig.ship_changed.emit()
+			return m
+	return null
+
+
+## What R does, at a point of our choosing. See ShipScreen._turn_in_hold for
+## why the point is passed rather than read off the cursor.
+func _turn(at: Vector2) -> void:
+	(Router.current as ShipScreen)._turn_in_hold(at)
+
+
+## A hold with EXACTLY no room to turn in, built rather than hoped for.
+##
+## A 1x3 down the first column and every other cell filled with fittings. Turned
+## it wants three cells in a ROW and the only three free are the ones it just
+## vacated, in a column — so the move has to be refused, and refused is the
+## branch worth testing: the part is out of the hold at that moment and has to
+## get back exactly where it was.
+##
+## Built by hand because the first version of this filled the hold with whatever
+## the loot table rolled and then asserted a refusal. There was room, the turn
+## succeeded, and the test failed while the code was right.
+func _pack_solid() -> ModuleData:
+	for m in Run.cargo.duplicate():
+		Run.take_from_hold(m)
+	var long := LootGen.roll_module(3, &"", true)
+	long.size = Vector2i(1, 3)
+	long.turned = false
+	if not Run.place_in_hold(long, Vector2i.ZERO):
+		return null
+	var g := Run.hold_grid()
+	var guard := 0
+	while Run.cargo_used() < g.x * g.y and guard < 200:
+		guard += 1
+		var fill := LootGen.roll_module(3, &"", true)
+		fill.size = Vector2i.ONE
+		fill.turned = false
+		if not Run.place_in_hold(fill):
+			break
+	Sig.ship_changed.emit()
+	return long
+
+
+func _plate_centre(grid: HoldGrid, m: ModuleData) -> Vector2:
+	var o := grid.get_global_rect().position
+	var f := m.footprint()
+	var step := float(HoldGrid.CELL + HoldGrid.GAP)
+	return o + Vector2(m.hold_at) * step + Vector2(f) * step * 0.5
 
 
 # ------------------------------------------------------------------- the mouse

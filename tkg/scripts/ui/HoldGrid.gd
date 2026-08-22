@@ -86,8 +86,16 @@ func _origin(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * (CELL + GAP), cell.y * (CELL + GAP))
 
 func _footprint(m: ModuleData) -> Vector2:
-	return Vector2(maxi(1, m.size.x) * (CELL + GAP) - GAP,
-		maxi(1, m.size.y) * (CELL + GAP) - GAP)
+	var f := m.footprint()
+	return Vector2(f.x * (CELL + GAP) - GAP, f.y * (CELL + GAP) - GAP)
+
+## The plate under a point in SCREEN coordinates, or null. What R turns when
+## nothing is being carried.
+func icon_at(p: Vector2) -> ModuleIcon:
+	for c in get_children():
+		if c is ModuleIcon and (c as Control).get_global_rect().has_point(p):
+			return c
+	return null
 
 ## Which cell a point falls in. Outside the grid returns (-1,-1).
 func cell_at(p: Vector2) -> Vector2i:
@@ -148,8 +156,9 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 func _light(m: ModuleData, target: Vector2i) -> void:
 	_beam.clear()
 	if target != -Vector2i.ONE:
-		for dy in maxi(1, m.size.y):
-			for dx in maxi(1, m.size.x):
+		var f := m.footprint()
+		for dy in f.y:
+			for dx in f.x:
 				_beam[target + Vector2i(dx, dy)] = true
 	set_process(not _beam.is_empty())
 	queue_redraw()

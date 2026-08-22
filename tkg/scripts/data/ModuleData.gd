@@ -88,7 +88,23 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
 ## rather than a physical one.
 @export var size: Vector2i = Vector2i.ONE
 
+## Turned on its side in the hold. A 1x3 lance laid flat is a 3x1.
+##
+## Kept as a FLAG rather than by rewriting `size`, so the part's authored shape
+## survives being turned and turned back — and so a hull swap, which repacks the
+## whole hold, does not slowly grind every long thing into whatever orientation
+## it last happened to fit in.
+@export var turned: bool = false
+
+## The shape it actually occupies right now. Everything that asks where a part
+## fits asks THIS; `size` is what it was authored as.
+func footprint() -> Vector2i:
+	var w := maxi(1, size.x)
+	var h := maxi(1, size.y)
+	return Vector2i(h, w) if turned else Vector2i(w, h)
+
 ## Cells consumed. Convenience, and the one place the multiply is written.
+## Turning cannot change it, which is why the hold's totals need no rotation.
 func cells() -> int:
 	return maxi(1, size.x) * maxi(1, size.y)
 

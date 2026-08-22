@@ -23,6 +23,48 @@ var origin: StringName = &"cargo"
 
 signal picked_up(icon: ModuleIcon)
 
+## The preview currently under the cursor, or null.
+##
+## STATIC because Godot takes ownership of whatever `set_drag_preview` is handed
+## and offers no way to ask for it back — and turning a part while you are
+## carrying it has to resize the thing you are looking at, not just the record.
+static var carried: ModuleIcon = null
+
+
+## The preview for a part being picked up, wherever it was picked up FROM.
+## Both drag sources call this, so a lance leaving the hold and the same lance
+## coming off the hull are carried as the same object at the same size.
+static func ghost_for(m: ModuleData, from: StringName) -> ModuleIcon:
+	var g := ModuleIcon.new()
+	g.setup(m, from)
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.fit_footprint()
+	carried = g
+	return g
+
+
+## Size to the part's CURRENT shape, in the hold's own cells.
+func fit_footprint() -> void:
+	if module == null:
+		return
+	var f := Vector2(module.footprint()) * float(HoldGrid.CELL + HoldGrid.GAP) 		- Vector2(HoldGrid.GAP, HoldGrid.GAP)
+	custom_minimum_size = f
+	size = f
+	pivot_offset = f * 0.5
+	queue_redraw()
+
+
+## A quarter turn, played backwards from where it just was.
+##
+## Short on purpose — 0.14s. This is feedback, not a flourish: the whole job is
+## to say WHICH WAY it turned, because a 1x3 becoming a 3x1 in one frame reads
+## as the part having been swapped for a different one.
+func spin() -> void:
+	pivot_offset = size * 0.5
+	rotation = -PI * 0.5
+	var t := create_tween()
+	t.tween_property(self, "rotation", 0.0, 0.14) 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
 func setup(m: ModuleData, from: StringName) -> void:
 	module = m
 	origin = from
@@ -53,17 +95,11 @@ func _hint() -> String:
 func _get_drag_data(_at: Vector2) -> Variant:
 	if module == null:
 		return null
-	var ghost := ModuleIcon.new()
-	ghost.setup(module, origin)
-	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# The ghost carries the part's SHAPE, not a square. What you are dragging
 	# has to look like what will land: the hold is a grid you pack, and a 1x3
 	# gun previewed as a 1x1 tile tells you nothing about whether it will fit
 	# in the row you are aiming at.
-	var g := Vector2(maxi(1, module.size.x), maxi(1, module.size.y))
-	ghost.custom_minimum_size = g * float(HoldGrid.CELL)
-	ghost.size = g * float(HoldGrid.CELL)
-	set_drag_preview(ghost)
+	set_drag_preview(ghost_for(module, origin))
 	picked_up.emit(self)
 	return {module = module, origin = origin}
 
@@ -74,33 +110,43 @@ func _get_drag_data(_at: Vector2) -> Variant:
 ## measure themselves off `size`. Every existing use is a 44x44 cell and is
 ## unchanged by this; the glyph was already centre-relative.
 func _draw() -> void:
-	var r := Rect2(Vector2.ZERO, size)
-	if module == null:
+	draw_plate(self, module, Rect2(Vector2.ZERO, size))
+
+## A PART, WHOLE, IN A RECTANGLE — plate, house stripe, silhouette and rarity
+## edge. Static and rect-taking so the HULL can draw the identical thing at the
+## identical size, which is the entire point: a 1x3 lance in the hold and the
+## same lance bolted to the ship should be one object that moved, not two
+## drawings that happen to share a colour.
+##
+## It used to be only the silhouette that was shared, and a hardpoint drew that
+## at a fixed size whatever the part was — so a 1x1 sight and a 1x3 rail were
+## the same mark on the hull, and the shape you packed the hold around vanished
+## the moment you fitted it.
+static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
+	if m == null:
 		return
-	var maker: ManufacturerData = DB.manufacturers.get(module.manufacturer)
+	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 	var field: Color = maker.field if maker != null else Color("#141c26")
 	var mark: Color = maker.colour if maker != null else UITheme.COLD
-	draw_rect(r, field, true)
+	ci.draw_rect(r, field, true)
 
 	# A house stripe down the left edge, the same side the cards fly their
 	# banner on. At this size an emblem would be four unreadable pixels; a bar
 	# of the right colour in the right place says the same thing.
 	if maker != null:
-		draw_rect(Rect2(0, 0, 3, size.y), mark, true)
+		ci.draw_rect(Rect2(r.position, Vector2(3, r.size.y)), mark, true)
 
-	# The SAME silhouette the hull draws at this part's mount, scaled to the
-	# plate. It replaced a glyph derived from the card — richer, but it meant a
-	# gun in your hold and the same gun on your ship were two different pictures,
-	# and the hold is where you decide which one to bolt on.
-	draw_part(self, module.slot, size * 0.5,
-		mark, minf(size.x, size.y) / 26.0)
+	# The silhouette, scaled to whatever rectangle it has been given.
+	draw_part(ci, m.slot, r.get_center(), mark, minf(r.size.x, r.size.y) / 26.0)
 
 	# Rarity on the border, because the border is the part that survives being
 	# packed shoulder to shoulder in a grid.
-	var edge := ModuleData.rarity_colour(module.rarity)
-	for side in [Rect2(0, 0, size.x, 1), Rect2(0, size.y - 1, size.x, 1),
-			Rect2(0, 0, 1, size.y), Rect2(size.x - 1, 0, 1, size.y)]:
-		draw_rect(side, edge, true)
+	var e := ModuleData.rarity_colour(m.rarity)
+	var p := r.position
+	var z := r.size
+	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
+			Rect2(p, Vector2(1, z.y)), Rect2(p + Vector2(z.x - 1, 0), Vector2(1, z.y))]:
+		ci.draw_rect(side, e, true)
 
 ## THE SILHOUETTE A PART READS AS, drawn the same way wherever it appears.
 ##

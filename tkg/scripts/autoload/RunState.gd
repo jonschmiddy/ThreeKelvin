@@ -402,8 +402,9 @@ func hold_full() -> bool:
 ## Every cell a part covers at a given origin.
 func _cells_of(m: ModuleData, at: Vector2i) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
-	for dy in maxi(1, m.size.y):
-		for dx in maxi(1, m.size.x):
+	var f := m.footprint()
+	for dy in f.y:
+		for dx in f.x:
 			out.append(at + Vector2i(dx, dy))
 	return out
 
@@ -412,7 +413,8 @@ func can_place(m: ModuleData, at: Vector2i) -> bool:
 	var g := hold_grid()
 	if at.x < 0 or at.y < 0:
 		return false
-	if at.x + maxi(1, m.size.x) > g.x or at.y + maxi(1, m.size.y) > g.y:
+	var f := m.footprint()
+	if at.x + f.x > g.x or at.y + f.y > g.y:
 		return false
 	var taken := {}
 	for other in cargo:

@@ -408,6 +408,73 @@ func _centre_ship() -> void:
 		- _view.canvas_width() * 0.5
 		- _view.ship_offset_x()), 0)
 
+## R TURNS A PART. Whichever one you are holding, or the one under the cursor.
+##
+## Unhandled rather than a shortcut on a focused control, because neither of the
+## two things it acts on can hold focus: a drag preview is owned by the viewport
+## and a plate in the hold is something you are pointing at, not something you
+## have clicked. The key belongs to the screen, which is the only thing that can
+## see both.
+func _unhandled_key_input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k == null or not k.pressed or k.echo or k.keycode != KEY_R:
+		return
+	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
+		get_viewport().set_input_as_handled()
+
+
+## Turn what is being dragged. The record and the thing under the cursor both.
+func _turn_carried() -> bool:
+	var d: Variant = get_viewport().gui_get_drag_data()
+	if typeof(d) != TYPE_DICTIONARY or not (d as Dictionary).has("module"):
+		return false
+	var m: ModuleData = (d as Dictionary).module
+	if m == null:
+		return false
+	m.turned = not m.turned
+	if ModuleIcon.carried != null and is_instance_valid(ModuleIcon.carried):
+		ModuleIcon.carried.fit_footprint()
+		ModuleIcon.carried.spin()
+	return true
+
+
+## Turn a part already sitting in the hold, in place if it will still fit.
+##
+## The whole move is a take-out-and-put-back, so it has to be able to FAIL
+## cleanly: a 1x3 lance in a hold with no three-wide gap has nowhere to go
+## turned, and the part must end up exactly where it started rather than in the
+## first hole the repacker could find for it.
+## `at` is in screen coordinates and defaults to the cursor at the call site.
+## Taking it as an argument rather than reading the mouse in here is what makes
+## it reachable from `-- fittest`: pushed input events start a drag but never
+## move the OS cursor, so a hover this function looked up itself could only ever
+## be whatever the physical mouse happened to be sitting on.
+func _turn_in_hold(at: Vector2) -> bool:
+	if _storage == null:
+		return false
+	var icon := _storage.icon_at(at)
+	if icon == null or icon.module == null:
+		return false
+	var m := icon.module
+	if m.footprint().x == m.footprint().y:
+		# Square. Turning it is a no-op, and playing the animation for one would
+		# say something happened that did not.
+		return true
+	var was := m.hold_at
+	Run.take_from_hold(m)
+	m.turned = not m.turned
+	if not Run.place_in_hold(m, was) and not Run.place_in_hold(m):
+		m.turned = not m.turned
+		Run.place_in_hold(m, was)
+		Run.log_line("No room to turn %s." % m.name, &"them")
+		return true
+	_storage.refresh()
+	var now := _storage.icon_at(at)
+	if now != null:
+		now.spin()
+	return true
+
+
 func _refresh() -> void:
 	if Run.hull == null:
 		return

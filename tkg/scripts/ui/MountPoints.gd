@@ -24,6 +24,10 @@ extends Control
 ## everywhere it is used, same as everything else drawn on the hull.
 const R := 4.0
 
+## How many rings the tractor ping keeps in the air at once. Three reads as a
+## repeating pulse; one reads as a thing that blinks.
+const RINGS := 3
+
 signal dropped(payload: Dictionary, slot: ModuleData.Slot, index: int)
 
 var _view: ShipView = null
@@ -90,13 +94,16 @@ func _draw() -> void:
 			# A beam reaching off the hull toward whatever you are carrying.
 			# Drawn UP from the mount because that is where the cursor is coming
 			# from, and it is the only diagonal-free way to say "into here".
+			# A PING, not a beam. It was a stack of rectangles reaching up from
+			# the mount toward the cursor, which said "from above" — and the
+			# cursor is not always above, so half the time the beam pointed
+			# away from the thing it was reaching for. Rings have no direction
+			# to get wrong, and a mount is a point.
 			var c := UITheme.TRACTOR
-			for i in 7:
-				var t := float(i) / 6.0
-				var half := lerpf(R * 2.2 * k, 1.0, t)
-				draw_rect(Rect2(at.x - half, at.y - 16.0 * k + t * 16.0 * k,
-					half * 2.0, 2.0), Color(c.r, c.g, c.b,
-					lerpf(0.06, 0.34, t) * pulse), true)
+			for i in RINGS:
+				var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
+				_ring(at, lerpf(R * 0.7, R * 3.4, t) * k,
+					Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
 			draw_circle(at, (R + 2.0) * k, Color(c.r, c.g, c.b, 0.22 * pulse))
 			_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
 			continue
@@ -123,13 +130,24 @@ func _draw() -> void:
 func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> void:
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 	var col: Color = maker.colour if maker != null else UITheme.CHILL
-	# Drawn by ModuleIcon.draw_part, which the HOLD also calls. One function, so
-	# the gun you dragged off the grid is the gun that appears on the spine.
-	ModuleIcon.draw_part(self, slot, Vector2(roundf(at.x), roundf(at.y)), col, k)
-	# The rarity of the thing bolted there, as a pip. Same ladder the cards and
-	# the hold icons use, so an Epic gun is the same colour everywhere.
-	draw_rect(Rect2(roundf(at.x) - k, roundf(at.y) - k, 2.0 * k, 2.0 * k),
-		ModuleData.rarity_colour(m.rarity), true)
+	# THE WHOLE PLATE, at the size it occupies in the hold. Not a silhouette
+	# scaled to the mount: a part has a SHAPE, the hold is a grid you pack that
+	# shape into, and drawing every part as the same mark on the hull threw away
+	# the one fact you spent the whole screen reasoning about. A 1x3 lance is
+	# three cells long on the ship because it is three cells long.
+	var f := m.footprint()
+	var z := Vector2(f) * float(HoldGrid.CELL + HoldGrid.GAP) 		- Vector2(HoldGrid.GAP, HoldGrid.GAP)
+	# ON the surface, not through it. A mount sits ON the hull's own outline, so
+	# a plate centred on one is half buried in the ship — which reads as damage
+	# rather than as equipment. Dorsal parts stand above the line, ventral ones
+	# hang below it, and only the flank is centred, because the flank IS the
+	# middle of the hull rather than an edge of it.
+	var o := Vector2(-z.x * 0.5, -z.y * 0.5)
+	match slot:
+		ModuleData.Slot.WEAPON: o.y = -z.y
+		ModuleData.Slot.SYSTEM: o.y = 0.0
+	var r := Rect2((Vector2(roundf(at.x), roundf(at.y)) + o).round(), z)
+	ModuleIcon.draw_plate(self, m, r)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something
@@ -174,13 +192,7 @@ func _get_drag_data(at: Vector2) -> Variant:
 		return null
 	# The same ghost the hold hands over, at the same size, because what you are
 	# carrying does not change shape depending on where you picked it up.
-	var ghost := ModuleIcon.new()
-	ghost.setup(m, &"hull")
-	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var g := Vector2(maxi(1, m.size.x), maxi(1, m.size.y))
-	ghost.custom_minimum_size = g * float(HoldGrid.CELL)
-	ghost.size = g * float(HoldGrid.CELL)
-	set_drag_preview(ghost)
+	set_drag_preview(ModuleIcon.ghost_for(m, &"hull"))
 	return {module = m, origin = &"hull"}
 
 func _can_drop_data(at: Vector2, data: Variant) -> bool:

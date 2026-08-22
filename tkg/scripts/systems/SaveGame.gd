@@ -382,6 +382,7 @@ static func _module_to(m: ModuleData) -> Dictionary:
 		# part it had and rearranges them, because -1 is "in the hold" and the
 		# refit screen would draw a full rack of empty mounts over a full loadout.
 		mount = m.mount,
+		turned = m.turned,
 		hold_at = [m.hold_at.x, m.hold_at.y],
 	}
 
@@ -400,6 +401,7 @@ static func _module_from(e: Variant) -> ModuleData:
 	m.rarity = int(d.get("rarity", int(m.rarity))) as ModuleData.Rarity
 	m.scrap_value = int(d.get("scrap_value", m.scrap_value))
 	m.mount = int(d.get("mount", -1))
+	m.turned = bool(d.get("turned", false))
 	# Version 6. A save from before the hold was a grid carries no position, and
 	# -1,-1 is exactly what a part not yet placed looks like — so the loader
 	# below re-packs those rather than leaving them claiming no cells.
