@@ -82,6 +82,10 @@ const STATS_W := 220
 ##
 ## MEASURED, not guessed: ATTRIBUTES clears HULL by 8px of background, and at
 ## LABEL_AIR 6 the hold cleared its grid by 11. Hence 3.
+## Between the flag and the text beside it. Named because the ship's own
+## centring has to mirror it — see `mirror` in _build.
+const HEADER_SEP := 10
+
 const LABEL_AIR := 3
 
 ## NO EXPLICIT GAP under the ship, and that is measured rather than an omission.
@@ -95,6 +99,10 @@ const LABEL_AIR := 3
 
 const STORAGE_COLS := 4
 
+## The pad that carries the ship's centring correction, and the panel it is
+## measured against. See `_centre_ship`.
+var _padr: Control
+var _panel: Control
 var _storage: HoldGrid
 var _attrs: AttrBlock
 var _mounts: VBoxContainer
@@ -145,7 +153,7 @@ func _build() -> void:
 	# looking at, and a 66px badge beside a 106px ship reads as a bullet point
 	# next to the subject rather than as a masthead over it.
 	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 10)
+	header.add_theme_constant_override("separation", HEADER_SEP)
 	_banner = ChassisSelect.Banner.new()
 	# The minimum is the flag's AUTHORED depth (Banner.UNITS_H); FILL is what
 	# takes it the rest of the way down. The two together mean the hem is never
@@ -158,6 +166,11 @@ func _build() -> void:
 
 	var names := VBoxContainer.new()
 	names.add_theme_constant_override("separation", 1)
+	# EXPANDING, or the ship's centring pads have nothing to divide. Without
+	# this the column is only as wide as its widest child, so the row holding
+	# the ship shrink-wrapped it and both pads came out zero — the ship sat
+	# hard against the flag and every correction below did nothing.
+	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
 	names.add_child(_name)
@@ -215,9 +228,31 @@ func _build() -> void:
 	_mountpts.dropped.connect(_on_mount_drop)
 	view.add_child(_mountpts)
 	_view = view
+	# CENTRED ON THE PANEL, not on the column and not on the canvas.
+	#
+	# Two separate reasons the ship was not in the middle, and neither was the
+	# one it looked like. It lives in the column the flag leaves, so it starts
+	# half a flag right of the panel's centre; and a hull sits right of the
+	# middle of its OWN canvas, because the canvas carries the exhaust plume's
+	# clearance on one side only.
+	#
+	# Two expanding pads either side, and the right one carries the correction:
+	# with equal weights, giving it a minimum of M moves the ship left by
+	# exactly M/2. So M is the flag's width plus twice the hull's own offset,
+	# and `_refresh` sets the second half because it changes with the hull.
 	var vwrap := HBoxContainer.new()
+	vwrap.add_theme_constant_override("separation", 0)
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var padl := Control.new()
+	padl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vwrap.add_child(padl)
 	vwrap.add_child(view)
+	_padr = Control.new()
+	_padr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_padr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vwrap.add_child(_padr)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
 	left.add_child(header)
@@ -316,6 +351,8 @@ func _build() -> void:
 
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panel = lwrap
+	lwrap.resized.connect(func() -> void: set_process(true))
 	body.add_child(lwrap)
 
 	# --- right: the parts, and where they go
@@ -336,9 +373,52 @@ func _build() -> void:
 	rwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(rwrap)
 
+## Slide the ship until its middle is the panel's middle.
+##
+## MEASURED AND CORRECTED rather than computed, because the arithmetic is
+## circular: the pad that shifts the ship is also part of what the column asks
+## to be wide, so a panel whose width the header drives gets WIDER when the ship
+## moves left, and the target moves with it. Every closed form for this was
+## wrong for at least one weight class — the last one centred a heavy exactly
+## and left a light 30px out, which looked like a working formula.
+##
+## It converges: correcting by the whole error moves the ship by the error and
+## the target by at most half of it, so what is left over halves each pass. The
+## 1px deadband is what stops it, and the clamp keeps a ship whose panel simply
+## cannot fit it centred from pushing the pad negative.
+##
+## Two facts it is correcting for, neither of them the layout's fault. The ship
+## lives in the column the flag leaves, so it starts half a flag right; and a
+## hull sits right of the middle of its own canvas, because the canvas carries
+## the exhaust plume's clearance on one side only.
+func _centre_ship() -> void:
+	if _padr == null or _view == null or _panel == null:
+		return
+	var vr := _view.get_global_rect()
+	var pr := _panel.get_global_rect()
+	if vr.size.x <= 0.0 or pr.size.x <= 0.0:
+		return
+	var ship := vr.position.x + vr.size.x * 0.5 + _view.ship_offset_x()
+	var err := ship - (pr.position.x + pr.size.x * 0.5)
+	if absf(err) < 1.0:
+		# Settled. Nothing to do until something moves again.
+		set_process(false)
+		return
+	_padr.custom_minimum_size = Vector2(
+		maxf(0.0, _padr.custom_minimum_size.x + err), 0)
+
+## Driven from here rather than from `resized`, which fires while the view still
+## has no rect of its own — the correction read zeroes, did nothing, and the
+## ship sat 57px right on all three weights looking exactly like a formula that
+## had simply got the sign wrong.
+func _process(_delta: float) -> void:
+	_centre_ship()
+
 func _refresh() -> void:
 	if Run.hull == null:
 		return
+	# The hull changed, so the ship's offset inside its own canvas may have too.
+	set_process(true)
 	var man := Run.hull.manufacturer
 	var maker: ManufacturerData = DB.manufacturers.get(man)
 	var accent := maker.colour if maker != null else UITheme.CHILL

@@ -14,12 +14,28 @@ extends Control
 
 ## One cell.
 ##
-## 24, up from 22. The hold moved under the ship into a panel with real width,
-## and at 22 a 1x1 fitting was a plate you could not read the glyph on. This is
-## the size at which a part in the hold and the same part on the hull are
-## recognisably the same object, which is the point of them sharing a shape.
-const CELL := 24
+## 30, up from 24 and 22 before that. The parts on the HULL now draw at the
+## hull's own magnification, which doubled them, and a hold plate has to hold
+## its own beside that — the two are meant to read as the same object and the
+## whole reason they share a silhouette is so you can recognise the gun you are
+## about to bolt on. ModuleIcon divides by 26 for its scale, so a 1x1 plate
+## went from 0.92 to 1.15 of the authored size for free.
+##
+## Bounded by the panel, not by taste: 5 columns at 30 is 154px against the
+## 245 of clear panel to the right of x=254.
+const CELL := 30
+
+## The skinny line between two cells. It is the BACKGROUND showing through
+## rather than a stroke, which is what makes it subtle without picking a colour
+## that has to be kept in step with the panel behind it.
 const GAP := 1
+
+## The outer edge, which is a stroke and is meant to be seen. The hold is one
+## object with an inside; before this every cell drew its own full border, so
+## the boundary between two cells was two strokes and a gap while the boundary
+## of the whole grid was one — reading, wrongly, as the least important line on
+## the block.
+const EDGE := 2.0
 
 signal dropped(payload: Dictionary, at: Vector2i)
 
@@ -90,7 +106,10 @@ func _draw() -> void:
 		for x in _cols:
 			var r := Rect2(_origin(Vector2i(x, y)), Vector2(CELL, CELL))
 			draw_rect(r, Color("#0b1017"), true)
-			draw_rect(r, UITheme.LINE, false, 1.0)
+			# Cell fills ONLY. The GAP between them is the inner line, so it is
+			# one pixel of background wherever two cells meet and nothing at all
+			# at the outside edge.
+	draw_rect(Rect2(Vector2.ZERO, size), UITheme.LINE, false, EDGE)
 	if _beam.is_empty():
 		return
 	# The same pulse the hardpoints use, for the same reason: the hold and the

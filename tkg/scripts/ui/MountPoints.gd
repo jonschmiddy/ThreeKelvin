@@ -20,6 +20,8 @@ extends Control
 ## the ship as it is on screen. 4 rather than 5: the deepest hull is 114 rows and
 ## the shallowest 43, and a 5px ring on the 43 was a quarter of the hull's depth
 ## — a mount should mark a place on the ship, not be a feature of it.
+## The empty-mount ring, in ART pixels. Multiplied by the view's magnification
+## everywhere it is used, same as everything else drawn on the hull.
 const R := 4.0
 
 signal dropped(payload: Dictionary, slot: ModuleData.Slot, index: int)
@@ -70,8 +72,16 @@ func _process(delta: float) -> void:
 		_phase = fmod(_phase + delta * 2.4, TAU)
 		queue_redraw()
 
+## One art pixel, in screen pixels. See ShipView.zoom_level.
+func _mag() -> float:
+	return float(_view.zoom_level()) if _view != null else 1.0
+
 func _draw() -> void:
 	var pulse := 0.62 + 0.38 * sin(_phase)
+	# EVERY size below is in art pixels times this. The hull is magnified and
+	# the things bolted to it were not, so a gun came out a sixth of the length
+	# it is drawn at in the hold — the same asset, two scales, on one screen.
+	var k := _mag()
 	for spot in _spots:
 		var at: Vector2 = spot.at
 		var taken: bool = spot.held != null
@@ -83,16 +93,17 @@ func _draw() -> void:
 			var c := UITheme.TRACTOR
 			for i in 7:
 				var t := float(i) / 6.0
-				var half := lerpf(R * 2.2, 1.0, t)
-				draw_rect(Rect2(at.x - half, at.y - 16.0 + t * 16.0, half * 2.0, 2.0),
-					Color(c.r, c.g, c.b, lerpf(0.06, 0.34, t) * pulse), true)
-			draw_circle(at, R + 2.0, Color(c.r, c.g, c.b, 0.22 * pulse))
-			_ring(at, R + 1.0, Color(c.r, c.g, c.b, 0.95 * pulse))
+				var half := lerpf(R * 2.2 * k, 1.0, t)
+				draw_rect(Rect2(at.x - half, at.y - 16.0 * k + t * 16.0 * k,
+					half * 2.0, 2.0), Color(c.r, c.g, c.b,
+					lerpf(0.06, 0.34, t) * pulse), true)
+			draw_circle(at, (R + 2.0) * k, Color(c.r, c.g, c.b, 0.22 * pulse))
+			_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
 			continue
 		if taken:
-			_fitted(spot.held as ModuleData, spot.slot as ModuleData.Slot, at)
+			_fitted(spot.held as ModuleData, spot.slot as ModuleData.Slot, at, k)
 		else:
-			_ring(at, R, UITheme.EMBER.darkened(0.15))
+			_ring(at, R * k, UITheme.EMBER.darkened(0.15))
 
 ## A part, drawn ON the hull.
 ##
@@ -109,24 +120,26 @@ func _draw() -> void:
 ## barrel out of it, a system is a plate slung under the belly, a utility is a
 ## mast — so the hull says what kind of ship you have built from across the
 ## screen, before any colour is read.
-func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2) -> void:
+func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> void:
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 	var col: Color = maker.colour if maker != null else UITheme.CHILL
 	# Drawn by ModuleIcon.draw_part, which the HOLD also calls. One function, so
 	# the gun you dragged off the grid is the gun that appears on the spine.
-	ModuleIcon.draw_part(self, slot, Vector2(roundf(at.x), roundf(at.y)), col)
+	ModuleIcon.draw_part(self, slot, Vector2(roundf(at.x), roundf(at.y)), col, k)
 	# The rarity of the thing bolted there, as a pip. Same ladder the cards and
 	# the hold icons use, so an Epic gun is the same colour everywhere.
-	draw_rect(Rect2(roundf(at.x) - 1.0, roundf(at.y) - 1.0, 2.0, 2.0),
+	draw_rect(Rect2(roundf(at.x) - k, roundf(at.y) - k, 2.0 * k, 2.0 * k),
 		ModuleData.rarity_colour(m.rarity), true)
 
 func _ring(at: Vector2, r: float, col: Color) -> void:
-	draw_arc(at, r, 0.0, TAU, 18, col, 1.0)
+	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
 
 ## Which mount is under a point, or -1.
 func _spot_at(p: Vector2) -> int:
 	var best := -1
-	var best_d := (R + 7.0) * (R + 7.0)
+	# The grab radius scales too, or a mount drawn twice the size still has to
+	# be clicked as though it were small.
+	var best_d := ((R + 7.0) * _mag()) * ((R + 7.0) * _mag())
 	for i in _spots.size():
 		var d: float = (_spots[i].at as Vector2).distance_squared_to(p)
 		if d < best_d:

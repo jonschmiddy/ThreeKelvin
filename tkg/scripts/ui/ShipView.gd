@@ -37,6 +37,8 @@ var _w: int = W
 var _h: int = H
 
 var _img: Image
+## The height magnify() was asked for, or 0 when the box is not ours to set.
+var _fit_h: int = 0
 var _tex: ImageTexture
 
 ## Idle bob: the ship drifts a couple of pixels up and down so it reads as
@@ -281,6 +283,32 @@ func canvas_to_local(p: Vector2) -> Vector2:
 func bob_offset() -> int:
 	return _bob_off
 
+## How many screen pixels one art pixel of this ship currently occupies.
+##
+## Anything drawn ON the hull has to multiply by this or it is authored in a
+## different unit from the thing it is bolted to — which is exactly what made
+## the mounted modules look like specks on a doubled ship.
+func zoom_level() -> int:
+	return _k
+
+## How far the SHIP's centre sits from the middle of its own canvas, in screen
+## pixels. Positive means right of centre.
+##
+## Not zero, and not a constant. A hull canvas carries the clearance its exhaust
+## plume needs, which is on one side only — 38 art pixels against 5 at the nose
+## on the box spec — so a canvas centred in a panel draws a ship that is plainly
+## right of the middle. Measured off the opaque pixels rather than off the spec,
+## because the spec is a fact about the placeholders and this has to keep being
+## true of whatever art replaces them.
+func ship_offset_x() -> float:
+	if _img == null:
+		return 0.0
+	var r := _img.get_used_rect()
+	if r.size.x <= 0:
+		return 0.0
+	return (float(r.position.x) + float(r.size.x) * 0.5
+		- float(_w) * 0.5) * float(_k)
+
 ## Magnify and crop WITHOUT going into showroom mode.
 ##
 ## The refit screen wants the live ship — its heat glow, its battle damage, the
@@ -289,7 +317,17 @@ func bob_offset() -> int:
 ## own yet". Same geometry, different question.
 func magnify(k: int, view_height: int) -> void:
 	_k = maxi(1, k)
+	# REMEMBERED, so the width can be re-fitted when the canvas turns out to be
+	# a different size than it was at this call. It usually is: _w is still the
+	# procedural 240 until a sprite is composited, so a 168-wide hull was
+	# reserving 480px of panel for 336px of ship and drawing it centred in the
+	# difference. Only magnify() sets this — crop()'s other caller, the convoy
+	# strip, passes a width it means and must keep it.
 	crop(_w * _k, view_height)
+	# AFTER crop, which clears it. StationScreen calls magnify and then crop
+	# with a width it means, and setting this first let the canvas re-fit undo
+	# that deliberate crop the next time the sprite changed size.
+	_fit_h = view_height
 
 ## Magnify WITHOUT taking a position on how big the control should be.
 ##
@@ -315,6 +353,8 @@ func zoom(k: int) -> void:
 ## the ship — the art direction allows integer magnification and nothing else,
 ## and half a pixel is not a pixel.
 func crop(view_width: int, view_height: int) -> void:
+	# An explicit crop is a width the caller means. Only magnify() re-fits.
+	_fit_h = 0
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	custom_minimum_size = Vector2(view_width, view_height)
 	clip_contents = true
@@ -494,6 +534,8 @@ func _resize_canvas(w: int, h: int) -> void:
 	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
 	if _k <= 1:
 		custom_minimum_size = Vector2(_w, _h)
+	elif _fit_h > 0:
+		custom_minimum_size = Vector2(_w * _k, _fit_h)
 
 ## The plume, over the hull, at this step of the cycle.
 ##
