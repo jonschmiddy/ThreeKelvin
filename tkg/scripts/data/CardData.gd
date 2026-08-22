@@ -65,7 +65,34 @@ extends Resource
 @export var drone_damage: int = 0
 @export var drone_armor: int = 0
 @export var evoke: int = 0
-@export var unplayable: bool = false    ## Dross and other junk
+@export var unplayable: bool = false
+
+## Junk you are still holding when the turn ends.
+##
+## AT THE END OF THE TURN, not when it is drawn. A card that hurt you on the
+## draw is a tax you cannot see coming and cannot answer — it has happened by
+## the time you know about it. Charged at the end, the same card is a QUESTION:
+## you are holding something that will cost you, you have a turn to find a way
+## to throw it away, and the discard verbs below are the answer. Same numbers,
+## and the difference between a punishment and a decision.
+##
+## Every unplayed card is discarded at end of turn anyway, so "still in hand"
+## means every malfunction you drew and could not get rid of.
+@export var hand_damage: int = 0
+@export var hand_heat: int = 0
+
+## Getting rid of things.
+##
+## `purge` takes UNPLAYABLE cards out of your hand, which is the specific answer
+## to junk. `dump_hand` throws the whole hand away and pairs with `draw` — the
+## general answer, and a real cost, because it discards what you wanted too.
+##
+## Neither asks the player to choose. A "discard N of your choice" wants the
+## hand to become selectable, which is a UI mode this game does not have and a
+## bigger thing than a card field; these two are what the engine can express
+## today and they cover the case malfunctions create.
+@export var purge: int = 0
+@export var dump_hand: bool = false    ## Dross and other junk
 
 ## What KIND of card this is, derived rather than authored.
 ##
@@ -331,6 +358,14 @@ func describe() -> String:
 			bits.append("Emergency repair %d" % heal)
 		else:
 			bits.append("Heal %d" % heal)
+	if purge > 0:
+		bits.append("Purge %d" % purge)
+	if dump_hand:
+		bits.append("Dump your hand")
+	if hand_damage > 0:
+		bits.append("%d damage at end of turn if still held" % hand_damage)
+	if hand_heat > 0:
+		bits.append("+%d heat at end of turn if still held" % hand_heat)
 	if draw > 0:
 		bits.append("Draw %d" % draw)
 	if lock_on > 0:

@@ -288,8 +288,27 @@ func begin_turn() -> void:
 func end_turn() -> void:
 	if finished:
 		return
+	# WHAT YOU ARE STILL HOLDING COSTS YOU, before the hand is thrown away.
+	# Malfunctions are unplayable, so "still in hand" is every one you drew —
+	# and charging here rather than on the draw is what gives you a turn to find
+	# a way to get rid of them. See CardData.hand_damage.
+	var stuck := 0
+	var stuck_heat := 0
+	for c in hand:
+		stuck += (c as CardData).hand_damage
+		stuck_heat += (c as CardData).hand_heat
+	if stuck_heat > 0:
+		Run.heat += stuck_heat
+		_log("+%d heat from what you could not shift." % stuck_heat, &"heat")
+	if stuck > 0:
+		_log("%d hull from junk left in hand." % stuck, &"them")
+		Run.take_hull_damage(stuck, "Malfunctioning systems, left too long.")
+
 	discard.append_array(hand)
 	hand.clear()
+	if stuck > 0 and Run.dead:
+		_finish(&"dead", Run.death_reason)
+		return
 
 	if armor > 0:
 		Run.heat += 1

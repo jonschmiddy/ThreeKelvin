@@ -16,6 +16,29 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		Run.add_credits(-c.credit_cost)
 		cb._log("Spent %d credits." % c.credit_cost, &"sys")
 
+	# THROWING THINGS AWAY, before anything else this card does. A card that
+	# purges and then draws must not be able to draw the junk back and purge it
+	# in the same breath, and doing this first is what makes the order obvious
+	# rather than something to remember.
+	if c.purge > 0:
+		var gone := 0
+		for i in range(cb.hand.size() - 1, -1, -1):
+			if gone >= c.purge:
+				break
+			if (cb.hand[i] as CardData).unplayable:
+				cb.discard.append(cb.hand[i])
+				cb.hand.remove_at(i)
+				gone += 1
+		cb._log("Purged %d." % gone if gone > 0 else "Nothing to purge.", &"sys")
+		Sig.hand_changed.emit()
+
+	if c.dump_hand:
+		var n := cb.hand.size()
+		cb.discard.append_array(cb.hand)
+		cb.hand.clear()
+		cb._log("Dumped %d card%s." % [n, "" if n == 1 else "s"], &"sys")
+		Sig.hand_changed.emit()
+
 	if c.vent_all:
 		var purged := Run.heat
 		Run.heat = 0

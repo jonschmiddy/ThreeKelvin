@@ -595,6 +595,23 @@ func _seed_modules() -> void:
 	# which is what junk arriving unasked should be. Two mechanisms for one idea
 	# is one too many, and this was the dead one.
 
+	# --- Clearing the deck.
+	#
+	# There has to be an ANSWER to junk or it is only arithmetic. A malfunction
+	# now charges you at the end of the turn if you are still holding it, which
+	# makes it a question — and these are what you answer it with. Spread across
+	# houses rather than sold by one, because every ship gets junk and a mechanic
+	# only one manufacturer can address is a mechanic six of them play around.
+	_module(&"scuttle", "Scuttle Chute", &"", U, C1,
+		"A hatch that only opens outward. Whatever went down it is not coming back.",
+		[{name = "Scuttle", energy = 0, purge = 2, copies = 2}])
+	_module(&"sortrig", "Sorting Rig", &"redline", U, C2,
+		"Sorts the useful from the fused. Quickly, and without asking.",
+		[{name = "Sort", energy = 1, purge = 1, draw = 1, copies = 2}])
+	_module(&"blowout", "Blowout Panel", &"korvan", S, C2,
+		"Surplus. Blows the whole rack clear and lets you start the hand again.",
+		[{name = "Blow Out", energy = 1, dump_hand = true, draw = 3, copies = 2}])
+
 	# --- yard stock: what every ship leaves the dock with, whoever built it.
 	#
 	# Deliberately dull. These are the colourless commons of the game: a beam, a
