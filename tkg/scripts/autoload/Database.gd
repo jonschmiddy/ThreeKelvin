@@ -311,6 +311,37 @@ func _seed_affixes() -> void:
 
 # ---------------------------------------------------------------------- modules
 
+## THE SHARED VOCABULARY. Cards more than one module is allowed to grant.
+##
+## Every card used to be a literal written inside the one module that granted
+## it, which meant nothing could be shared even when it plainly should be: a
+## Korvan plate and an unbranded plate both Brace, and writing that twice makes
+## two cards that have to be kept in step by somebody remembering to.
+##
+## So a module's card list takes either a Dictionary — a card only it has — or a
+## StringName naming one of these. That is what lets the catalogue have three
+## shapes rather than one:
+##
+##   two shared      yard stock. Honest, dull, and the thing better parts beat
+##   one and one     the common case: a headline card and a plain one beside it
+##   two special     a part that is entirely itself, and rare because of it
+##
+## Deliberately NOT a card for every verb. These are the ones a dozen parts
+## could plausibly grant; anything with a house's fingerprints on it stays
+## written where it is granted, because that is what makes it that part's card.
+const SHARED := {
+	&"brace":    {name = "Brace", energy = 1, armor = 5},
+	&"block":    {name = "Hold Fast", energy = 1, block = 7},
+	&"vent":     {name = "Bleed Heat", energy = 1, vent = 3},
+	&"reroute":  {name = "Reroute", energy = 1, draw = 1},
+	&"range":    {name = "Range", energy = 0, lock_on = 3},
+	&"slug":     {name = "Slug", energy = 1, damage = 4, hits = 2},
+	&"cut":      {name = "Cutting Beam", energy = 1, damage = 6},
+	&"patch":    {name = "Patch", energy = 1, heal = 1, heal_scale = 5},
+	&"scuttle":  {name = "Scuttle", energy = 0, decommission = 1},
+	&"sort":     {name = "Sort", energy = 1, discard = 1, draw = 1},
+}
+
 func _card(d: Dictionary) -> CardData:
 	var c := CardData.new()
 	for k in d.keys():
@@ -326,9 +357,16 @@ func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slo
 	m.slot = slot
 	m.rarity = rarity
 	m.flavour = flavour
+	# A StringName is a reference into SHARED; a Dictionary is a card this module
+	# alone has. Resolved here so the two read the same at every call site.
 	var arr: Array[CardData] = []
 	for cd in cards:
-		arr.append(_card(cd))
+		if cd is StringName or cd is String:
+			var key := StringName(cd)
+			assert(SHARED.has(key), "no shared card named %s" % key)
+			arr.append(_card(SHARED[key]))
+		else:
+			arr.append(_card(cd))
 	m.cards = arr
 	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
 	modules[id] = m
@@ -346,9 +384,13 @@ func _seed_modules() -> void:
 	const C6 := ModuleData.Rarity.ARTIFACT
 
 	# --- Korvan: ballistics (cold, cheap, multi-hit) and ordnance (hot, charged)
+	# ONE AND ONE, which is the common shape: a card that is this part's own,
+	# and a plain one beside it out of the shared vocabulary. It is what stops a
+	# starter weapon being two copies of the same verb.
 	_module(&"kh20", "KH-20 Chatterbox", &"korvan", W, C0,
 		"Autocannon. Cheap, kinetic, relentless.",
-		[{name = "Suppressing Fire", energy = 1, heat = 0, damage = 3, hits = 2, salvo = 2, copies = 2}])
+		[{name = "Suppressing Fire", energy = 1, heat = 0, damage = 3, hits = 2, salvo = 2},
+			&"slug"])
 	_module(&"km4", "KM-4 Mass Driver", &"korvan", W, C0,
 		"Slow ordnance. Bank the shot, land the hammer.",
 		[{name = "Charged Slug", energy = 2, heat = 3, damage = 16, charge_turns = 1, copies = 1}])
@@ -673,10 +715,10 @@ func _seed_modules() -> void:
 	# only one manufacturer can address is a mechanic six of them play around.
 	_module(&"scuttle", "Scuttle Chute", &"", U, C1,
 		"A hatch that only opens outward. Whatever went down it is not coming back.",
-		[{name = "Scuttle", energy = 0, decommission = 1, copies = 2}])
+		[&"scuttle", &"sort"])
 	_module(&"sortrig", "Sorting Rig", &"redline", U, C2,
 		"Sorts the useful from the fused. Quickly, and without asking.",
-		[{name = "Sort", energy = 1, discard = 1, draw = 1, copies = 2}])
+		[&"sort", {name = "Cull", energy = 1, discard = 2, draw = 2}])
 	_module(&"blowout", "Blowout Panel", &"korvan", S, C2,
 		"Surplus. Blows the whole rack clear and lets you start the hand again.",
 		[{name = "Blow Out", energy = 1, discard_hand = true, draw = 3, copies = 2}])
@@ -698,7 +740,7 @@ func _seed_modules() -> void:
 	# of things that fit and fell back on bolting on a second identical plate.
 	_module(&"beam", "Mining Laser", &"", W, C0,
 		"Cuts rock. Cuts other things.",
-		[{name = "Cutting Beam", energy = 1, heat = 1, damage = 6, copies = 2}])
+		[&"cut", &"slug"])
 	_module(&"slug", "Slug Thrower", &"", W, C0,
 		"Chemical propellant and a tube. Older than spaceflight.",
 		[{name = "Slug", energy = 1, damage = 4, hits = 2, copies = 2}])
@@ -706,19 +748,22 @@ func _seed_modules() -> void:
 		"Meant for hulls that are already dead.",
 		[{name = "Torch", energy = 0, heat = 3, damage = 5, copies = 2}])
 
+	# TWO SHARED CARDS. Yard stock grants the common vocabulary and nothing of
+	# its own, which is the point of it: the branded plate in the next wreck has
+	# to be visibly better than something.
 	_module(&"plating", "Hull Plating", &"", S, C0,
 		"Steel, bolted on. It does not have to be clever.",
-		[{name = "Reinforce", energy = 1, armor = 5, copies = 2}])
+		[&"brace", &"block"])
 	_module(&"board", "Signal Board", &"", S, C0,
 		"Sorts what the sensors are shouting about into an order.",
-		[{name = "Reroute", energy = 0, draw = 1, copies = 2}])
+		[&"reroute", &"range"])
 	_module(&"bracing", "Impact Bracing", &"", S, C0,
 		"Struts that take one hit and are then scrap.",
 		[{name = "Hold Fast", energy = 1, block = 7, copies = 2}])
 
 	_module(&"coolline", "Coolant Line", &"", U, C0,
 		"A hose and a pump. Standard on everything that burns.",
-		[{name = "Bleed Heat", energy = 0, vent = 3, copies = 1}])
+		[&"vent", &"patch"])
 	_module(&"scope", "Ranging Scope", &"", U, C0,
 		"Tells the guns where the thing is. That is all it does.",
 		[{name = "Range", energy = 0, lock_on = 3, copies = 1}])
