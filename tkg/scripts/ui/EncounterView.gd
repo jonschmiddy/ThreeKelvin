@@ -840,6 +840,16 @@ class ShipSlot extends Control:
 		art.clip_contents = true
 		add_child(art)
 
+		# WHAT IS BOLTED TO IT, on the screen the game is mostly played on. The
+		# refit screen was the only place a fitted ship could be seen, which
+		# made every part you chose a thing you looked at once and then flew
+		# around without. Passive: this is a picture of your ship, not a place
+		# to change it.
+		var mounts := MountPoints.new()
+		mounts.attach(art)
+		mounts.passive()
+		art.add_child(mounts)
+
 	func set_hot(v: bool) -> void:
 		if _hot == v:
 			return

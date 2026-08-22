@@ -35,12 +35,27 @@ var _spots: Array[Dictionary] = []
 var _phase: float = 0.0
 var _lit: ModuleData = null
 var _last_bob: int = -999
+var _passive: bool = false
 
 func attach(v: ShipView) -> void:
 	_view = v
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	set_process(true)
+	# Its own subscription, so a host only has to add it. The refit screen calls
+	# refresh() itself as well, which costs a redraw and is worth not having a
+	# second rule about who is responsible for this.
+	Sig.ship_changed.connect(refresh)
+
+## Display only. No drops, no empty hardpoints, no beams.
+##
+## What the sector wants is the PICTURE: a ship with its guns on it. A ring
+## marking a mount you have not filled is an invitation to do something that
+## screen cannot do, and a tractor beam has nothing to reach for.
+func passive() -> void:
+	_passive = true
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	queue_redraw()
 
 ## Recompute where every mount is. Cheap, and called whenever the ship changes.
 func refresh() -> void:
@@ -90,7 +105,7 @@ func _draw() -> void:
 		var at: Vector2 = spot.at
 		var taken: bool = spot.held != null
 		var wants: bool = _lit != null and _lit.slot == spot.slot
-		if wants:
+		if wants and not _passive:
 			# A beam reaching off the hull toward whatever you are carrying.
 			# Drawn UP from the mount because that is where the cursor is coming
 			# from, and it is the only diagonal-free way to say "into here".
@@ -109,7 +124,7 @@ func _draw() -> void:
 			continue
 		if taken:
 			_fitted(spot.held as ModuleData, spot.slot as ModuleData.Slot, at, k)
-		else:
+		elif not _passive:
 			_ring(at, R * k, UITheme.EMBER.darkened(0.15))
 
 ## A part, drawn ON the hull.
@@ -140,7 +155,14 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	# lance is three cells long on the ship because it is three cells long, and
 	# turning it in the hold turns it here.
 	var f := m.footprint()
-	var box := ModuleIcon.footprint_box(m)
+	# THE CELLS COME WITH THE SHIP. The hold is authored at 2x and so is the
+	# refit screen's hull, which is what makes a part the same size in both. The
+	# sector drops to 1x with a party on screen, and a box that stayed 30px
+	# would put a full-size gun on a half-size ship.
+	var q := k / ModuleIcon.HOLD_K
+	var cell := float(HoldGrid.CELL) * q
+	var gap := float(HoldGrid.GAP) * q
+	var box := Vector2(f) * (cell + gap) - Vector2(gap, gap)
 	var up := ModuleIcon.part_turn(slot, f)
 	var k2 := ModuleIcon.part_scale(slot, f, box)
 
@@ -150,7 +172,7 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	# both of which this has been: centred, a three-cell rail put half of itself
 	# behind its own mounting; stood on top, every part floated clear of the
 	# hull whenever its silhouette did not fill the box.
-	var anchor := ModuleIcon.mount_anchor(slot, box, up)
+	var anchor := ModuleIcon.mount_anchor(slot, box, up, cell)
 	var r := Rect2((Vector2(roundf(at.x), roundf(at.y)) - anchor).round(), box)
 	ModuleIcon.fill_part(self, slot, r, col, k2, up)
 

@@ -33,6 +33,15 @@ const PAD := 4.0
 ## holds the line, because a new manufacturer colour is the thing that breaks it.
 const GROUND := 0.88
 
+## The magnification the hold's cells are authored at.
+##
+## The refit screen draws the ship at 2x and a cell is 30px, which is what makes
+## a part the same size in the grid as it is bolted on. Anywhere the ship is
+## drawn at a different magnification — the sector strip drops to 1x while a
+## party is on screen — the cells have to come with it, or a part on a small
+## ship is drawn twice the size it should be relative to the hull carrying it.
+const HOLD_K := 2.0
+
 var module: ModuleData
 ## Where a drag from here would be taking it FROM. The drop target needs to know
 ## whether this is a refit or an install.
@@ -370,11 +379,11 @@ static func part_rect(slot: ModuleData.Slot, box: Rect2, s: float,
 ## Follows the drawing round. `draw_part` turns anticlockwise, so a gun stood on
 ## end has its breech at the BOTTOM and the anchor goes with it — otherwise
 ## turning a rail in the hold would fire it through its own mount.
-static func mount_anchor(slot: ModuleData.Slot, box: Vector2,
-		upright: bool) -> Vector2:
+static func mount_anchor(slot: ModuleData.Slot, box: Vector2, upright: bool,
+		cell: float = float(HoldGrid.CELL)) -> Vector2:
 	if slot != ModuleData.Slot.WEAPON:
 		return box * 0.5
-	var half := float(HoldGrid.CELL) * 0.5
+	var half := cell * 0.5
 	return Vector2(box.x * 0.5, box.y - half) if upright 		else Vector2(half, box.y * 0.5)
 
 
