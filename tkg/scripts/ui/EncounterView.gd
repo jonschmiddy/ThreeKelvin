@@ -269,7 +269,21 @@ func refresh_convoy() -> void:
 	# Counted off the slots rather than off the children, because the overflow
 	# chip is a child too and a column holding nothing but a chip is a column
 	# that should not be on screen.
-	_convoy_pad.visible = not _made_convoy.is_empty()
+	# YOUR HULL COMES DOWN TO 1x WHILE ANYBODY IS FLYING WITH YOU.
+	#
+	# 2x is right for the game one person is looking at: the sector is where a
+	# run is mostly spent and the ship should carry it. It is wrong the moment
+	# the convoy column appears, because then the left of the screen has to hold
+	# your hull AND up to three partners, and a hull at 2x takes the room the
+	# column needs.
+	#
+	# Hung off the same fact the column's own visibility is — one test, so the
+	# two cannot disagree about whether there is a party — and re-applied here
+	# rather than set once, because somebody joining or leaving mid-run is
+	# exactly the case a value set at build time would miss.
+	var crowded := not _made_convoy.is_empty()
+	_convoy_pad.visible = crowded
+	_ship.zoom(1 if crowded else 2)
 
 
 ## Everybody in this room the column had no room for.
@@ -811,6 +825,20 @@ class ShipSlot extends Control:
 		# by the ship it was meant to sit on.
 		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# 2x, matching the refit screen and the chassis select. The hulls are
+		# authored small enough that 1x here left the ship a detail in the
+		# middle of its own encounter — and this is the screen the game is
+		# mostly played on, so it is the one that should agree with the others.
+		#
+		# The SOLO default. EncounterView.refresh_convoy drops it to 1x while a
+		# party is on screen, because the convoy column needs that room.
+		#
+		# zoom(), not magnify(): the slot's width is anchored to a fraction of
+		# the encounter and a minimum size would fight that.
+		art.zoom(2)
+		# The hull is now bigger than its slot on the deepest frames, and the
+		# enemy panel is immediately to the right of it.
+		art.clip_contents = true
 		add_child(art)
 
 	func set_hot(v: bool) -> void:

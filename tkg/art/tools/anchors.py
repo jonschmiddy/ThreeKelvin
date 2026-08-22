@@ -119,3 +119,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def splice(gd_path, table_path):
+    """Replace the HULL_LINES block in Database.gd, and nothing either side.
+
+    Bounded by the table's OWN closing brace. A splice that ran to the next
+    top-level comment instead deleted whatever sat between them — which for one
+    afternoon was a 27-line block about hull canvas widths, caught by `git diff`
+    before it reached a commit. The end of a thing is where the thing ends.
+    """
+    nl = chr(10)
+    src = io.open(gd_path, encoding="utf-8").read()
+    start = src.index("## Measured off each hull's own silhouette")
+    open_at = src.index("const HULL_LINES := {", start)
+    close = nl + "}" + nl
+    end = src.index(close, open_at) + len(close)
+    table = io.open(table_path, encoding="utf-8").read().rstrip(nl) + nl
+    io.open(gd_path, "w", encoding="utf-8", newline=nl).write(
+        src[:start] + table + src[end:])
+    return end - start

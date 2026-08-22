@@ -54,7 +54,7 @@ const WEIGHT_BLURB: Array[String] = [
 ## size or exactly double it and there is nothing in between — and double filled
 ## most of the panel once real art replaced the procedural drawing. ShipScreen
 ## carries the same note for the same reason.
-const HERO_SCALE := 1
+const HERO_SCALE := 2
 ## Tall enough to hold the whole hull at HERO_SCALE, measured off the DEEPEST
 ## one rather than the only one.
 ##
@@ -62,7 +62,7 @@ const HERO_SCALE := 1
 ## stale — the generated hulls are up to 114 rows, and at 2x a heavy was 470px
 ## across a 960px screen with its top and bottom clipped off. 120 is the tallest
 ## hull, the bob's four rows, and a little air.
-const HERO_H := 120
+const HERO_H := 240
 ## The gap between the banner and the identity column, reused as the indent for
 ## everything below that has to line up with it.
 ## The air between ATTRIBUTES, HARDPOINTS and STARTING MODULES. One constant so

@@ -291,6 +291,21 @@ func magnify(k: int, view_height: int) -> void:
 	_k = maxi(1, k)
 	crop(_w * _k, view_height)
 
+## Magnify WITHOUT taking a position on how big the control should be.
+##
+## magnify() also sets custom_minimum_size, which is right where the view owns
+## its own box — the refit screen, the chassis select, the dock — and wrong
+## where a layout has already decided the box. The sector strip anchors its hull
+## to a fraction of the encounter slot, so a minimum size fights the anchors and
+## the ship shoves the enemy panel sideways.
+##
+## Whatever rect it is given, this changes only how big the ship is drawn inside
+## it. STRETCH_KEEP_CENTERED does the centring; the caller does the clipping.
+func zoom(k: int) -> void:
+	_k = maxi(1, k)
+	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	refresh()
+
 ## Show only the middle of the canvas, at whatever magnification is set.
 ##
 ## The convoy strip is the reason this is separate from magnify(): three

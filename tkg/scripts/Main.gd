@@ -386,6 +386,16 @@ func _ready() -> void:
 	if "cards" in OS.get_cmdline_user_args():
 		Router.show_cards()
 	elif "ship" in OS.get_cmdline_user_args():
+		# WHICH weight, for comparing the three hull sizes: `-- ship heavy`.
+		# Inside this branch rather than in front of the chain — put in front,
+		# the `elif` below binds to IT instead of to the flag above, and every
+		# other dev flag silently stops working.
+		var flags := OS.get_cmdline_user_args()
+		if "light" in flags or "heavy" in flags:
+			var w: HullData.Weight = HullData.Weight.HEAVY
+			if "light" in flags:
+				w = HullData.Weight.LIGHT
+			Run.fit_chassis(&"korvan", w, 0)
 		# The refit screen normally sits two clicks and a chassis choice away,
 		# and it is where the attribute block lives — so the screen that most
 		# needs looking at was the most tedious to reach.

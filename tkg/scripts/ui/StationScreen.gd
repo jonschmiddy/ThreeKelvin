@@ -77,7 +77,7 @@ const SERVICE_W := 420
 ## growing past the service column beside it.
 ## Sized off the deepest hull plus the bob, at 1x. See ShipScreen for why the
 ## magnification came down.
-const HULL_H := 120
+const HULL_H := 240
 ## And how wide the window onto it is. A cap, not a measurement — the widest hull
 ## at 2x is 474 and the row does not have room for that beside the services.
 const HULL_W := 380
@@ -256,7 +256,7 @@ func _page_services() -> Control:
 	# 474-wide minimum, and 420 of services plus that overflowed the row and shoved
 	# the whole screen seven pixels past the right edge of the window. The bug
 	# looked like a missing margin and was a minimum nobody had bounded.
-	art.magnify(1, HULL_H)
+	art.magnify(2, HULL_H)
 	art.crop(HULL_W, HULL_H)
 	# Centred in its column rather than left-aligned in it. The column is wider
 	# than the portrait and a picture pinned to one side of a panel is the other

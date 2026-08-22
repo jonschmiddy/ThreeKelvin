@@ -43,7 +43,7 @@ extends Control
 ## The ship panel's height: the tallest hull (235x114) plus the idle bob's four
 ## rows plus a little air. Named because ChassisSelect and StationScreen size
 ## the same thing and all three have to move together when a hull gets deeper.
-const HULL_VIEW_H := 120
+const HULL_VIEW_H := 240
 
 const STORAGE_COLS := 4
 
@@ -125,7 +125,7 @@ func _build() -> void:
 	# bottom off the deepest ones. Integer magnification is the art rule and 1x
 	# is the only step below 2x, so this is half rather than a nudge; at the
 	# viewport's own 2x it is still two real pixels per art pixel and crisp.
-	view.magnify(1, HULL_VIEW_H)
+	view.magnify(2, HULL_VIEW_H)
 	view.bob(2)
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	# The mounts are a CHILD of the view, so they inherit its rect and every

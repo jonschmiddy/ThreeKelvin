@@ -420,6 +420,16 @@ func _dead_strip_note() -> void:
 ## The back borrows the card's own vocabulary — a banner down the left, a
 ## punched square where an emblem would go — so a face-down card is obviously
 ## one of these cards rather than a generic rectangle.
+## The height the player's status chip row holds whether or not it has chips in
+## it. See where it is built for what happens without it.
+##
+## 18, MEASURED. A chip is a PanelContainer around 10px text with 2px of padding
+## and a border, and it renders 18 rows tall — not the 16 the arithmetic
+## suggested. Reserving 16 changed nothing at all, because the chip was still
+## the taller of the two and the row sized to it: the hand sat at y=690 with no
+## chips and y=654 with one, either way.
+const CHIP_ROW_H := 18
+
 class PileView extends Control:
 	# Big enough to read as a card rather than as an icon of one. The hand row
 	# is 160 tall to fit a card, so there was height going spare either side.
@@ -520,6 +530,16 @@ func _build_hand() -> PanelContainer:
 	_player_chips = HBoxContainer.new()
 	_player_chips.add_theme_constant_override("separation", 3)
 	_player_chips.alignment = BoxContainer.ALIGNMENT_CENTER
+	# HOLDS ITS HEIGHT WHILE EMPTY. An HBox with no children is zero rows tall,
+	# so the first chip of the fight grew this column, grew the hand row with
+	# it, and shoved every card in your hand upward — mid-turn, while you were
+	# reading them. It reads as the hand jumping for no reason, and the reason
+	# it seems to happen "around three discards" is that armour comes from
+	# Brace and Reinforce, which are also what put those cards in the pile.
+	#
+	# A chip is 10px of text plus 2px of padding either side; 16 is that with a
+	# pixel to spare, measured rather than guessed.
+	_player_chips.custom_minimum_size = Vector2(0, CHIP_ROW_H)
 	left.add_child(_player_chips)
 
 	_draw_pile = PileView.new()
