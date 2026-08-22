@@ -297,7 +297,7 @@ Joint combat is smaller than it looks, and the reason is an accident of how `Com
 The two directions are deliberately asymmetric.
 
 - **You → enemy.** Your card resolves locally and instantly, so the number appears the moment you play it, exactly as it does alone. The **raw** amount is then sent, and the host redoes the mitigation against the block it actually has — the copy your machine just spent may already have been spent by somebody else. Its push is authoritative. **Death is host-only:** a client that called `_victory()` off its own optimistic view would pay itself for a kill the host has not seen, which is §3's closed economy paid out four times in the easiest place to do it by accident.
-- **Enemy → you.** The host picks the target and sends the intent **to that machine alone**. Dodge, block, armor, hull and riposte all resolve there, against numbers that exist nowhere else. Mirroring three partners' block values across the party would be a lot of wire for something nobody reads.
+- **Enemy → you.** The host picks the target and sends the intent **to that machine alone**. Dodge, block, armor, hull and feedback all resolve there, against numbers that exist nowhere else. Mirroring three partners' block values across the party would be a lot of wire for something nobody reads.
 
 **A partner's shot has to be drawable.** Their card was played on a different computer, so without help their hits land silently and the hull bar drops for no visible reason. The push carries `[who, foe, total, serial]`; you skip your own and draw everyone else's. The serial is what makes "once" mean once — every push carries the last hit, including the ones that are about something else entirely.
 

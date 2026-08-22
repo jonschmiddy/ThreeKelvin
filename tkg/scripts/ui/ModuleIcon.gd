@@ -142,7 +142,7 @@ func fit_footprint() -> void:
 
 ## A quarter turn, played backwards from where it just was.
 ##
-## Short on purpose — 0.14s. This is feedback, not a flourish: the whole job is
+## Short on purpose — 0.14s. This is an answer, not a flourish: the whole job is
 ## to say WHICH WAY it turned, because a 1x3 becoming a 3x1 in one frame reads
 ## as the part having been swapped for a different one.
 func spin() -> void:
@@ -246,7 +246,10 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
 		part_turn(m.slot, f))
 
-	var e := rar
+	# THE EDGE IS THE INK, not the ground. Identical for seven grades and the
+	# whole plate for the eighth: a contraband ground is darker than the screen,
+	# so the bone edge is the only thing that says a part is there at all.
+	var e := ModuleData.rarity_ink(m.rarity)
 	var p := r.position
 	var z := r.size
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
@@ -466,7 +469,7 @@ func _glyph(mark: Color) -> void:
 			for i in 3:
 				draw_rect(Rect2(c + Vector2(-8, -9 + i * 6), Vector2(16, 4)),
 					ink if i == 1 else dim, true)
-		&"riposte":
+		&"feedback":
 			# A wall, and a round leaving it.
 			draw_rect(Rect2(c + Vector2(-10, -9), Vector2(6, 17)), ink, true)
 			draw_rect(Rect2(c + Vector2(0, -2), Vector2(7, 4)), dim, true)

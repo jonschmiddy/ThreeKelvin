@@ -22,6 +22,7 @@ func run() -> void:
 	_swaps()
 	_legible()
 	_card_law()
+	_no_twins()
 	verdict("holdtest")
 
 
@@ -99,6 +100,22 @@ func _legible() -> void:
 				who = "%s on %s" % [man.name, ModuleData.rarity_name(r)]
 	_ok("art on ground: worst pairing is %s at %.2f:1, floor 3.0" % [who, worst],
 		worst >= 3.0)
+
+	# AND EVERY GRADE'S NAME STAYS READABLE ON THE VOID. A separate claim from
+	# the one above and it needed a separate check: the loop above asks whether
+	# the ART can be seen on the PLATE, and a rarity whose ink vanished into the
+	# page behind it would sail through it — the plate would be fine and the
+	# card's name would be gone. Contraband is black on purpose, so this is the
+	# only thing standing between that ruling and an invisible card name.
+	var dimmest := 99.0
+	var grade := ""
+	for r in ModuleData.Rarity.size():
+		var c := _contrast(ModuleData.rarity_ink(r), UITheme.VOID)
+		if c < dimmest:
+			dimmest = c
+			grade = ModuleData.rarity_name(r)
+	_ok("ink on void: faintest grade is %s at %.2f:1, floor 3.0" % [grade, dimmest],
+		dimmest >= 3.0)
 
 
 ## WCAG relative luminance contrast. Not Color.get_luminance(), which is a
@@ -204,3 +221,132 @@ func _swaps() -> void:
 	var other: ModuleData = Run.cargo[1] if Run.cargo[1] != m else Run.cargo[0]
 	_ok("a cell already claimed is refused",
 		other == m or not Run.can_place(m, other.hold_at))
+
+
+## NO TWO CARDS ARE THE SAME CARD.
+##
+## Written because four duplicates were found BY EYE, one at a time, by reading
+## a list — Bolt On was Brace, Sight In was Load was Lay the Guns, Range Finding
+## was Range, and a card called Hold Fast sat next to a different card called
+## Hold Fast. Every one of them shipped, and every one of them was found by a
+## person noticing. That is not a process; it is luck with a good reader.
+##
+## They hide because nothing in the game ever puts them next to each other. A
+## card is authored on one module, drawn from a deck of fifteen, and rendered by
+## its own name — so two cards with one effect look like a varied catalogue from
+## every angle except the one nobody has: all of them, side by side.
+##
+## TWO FAILURES, opposite directions, both real:
+##
+##   one effect, two names — the catalogue claims 73 cards and has 69. The
+##   player is offered a choice that is not one.
+##   one name, two effects — worse. Two different things print the same word,
+##   and the deck list is a lie.
+##
+## THE FINGERPRINT IS EVERY FIELD BUT FIVE, by reflection rather than by a hand
+## written list, because a hand written list stops covering the catalogue the
+## day somebody adds a field and does not think of this file. The five left out
+## are the ones that are not the card's behaviour: `name` (the thing under
+## test), `copies` and `rarity` (how much of it you get and what it is worth —
+## the same card at two grades is still one card, and Range Finding was exactly
+## that), `lane` (a label for set bonuses), and `source_rarity`, which is not a
+## property of the card at all — it is stamped on at grant time with the grade of
+## the part that handed it over, so one shared card carries seven of them.
+func _no_twins() -> void:
+	var all: Array[CardData] = []
+	for id in DB.modules:
+		for c in (DB.modules[id] as ModuleData).resolved_cards():
+			all.append(c)
+	for row in DB.MALFUNCTIONS:
+		all.append(DB.malfunction(row[0]))
+
+	var skip := {&"name": true, &"copies": true, &"rarity": true, &"lane": true,
+		&"source_rarity": true}
+	var by_effect := {}
+	var by_name := {}
+	for c in all:
+		var bits: Array[String] = []
+		for prop in c.get_property_list():
+			if not (int(prop.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE):
+				continue
+			var key: StringName = prop.name
+			if skip.has(key):
+				continue
+			if key == &"hits" and c.damage == 0:
+				continue
+			var v: Variant = c.get(key)
+			if typeof(v) == TYPE_BOOL:
+				if v:
+					bits.append(String(key))
+			elif typeof(v) == TYPE_INT:
+				if v != 0:
+					bits.append("%s=%d" % [key, v])
+		bits.sort()
+		var sig := ",".join(bits)
+		if not by_effect.has(sig):
+			by_effect[sig] = {}
+		by_effect[sig][c.name] = true
+		if not by_name.has(c.name):
+			by_name[c.name] = {}
+		by_name[c.name][sig] = true
+
+	var twins: Array[String] = []
+	for sig in by_effect:
+		var names: Array = (by_effect[sig] as Dictionary).keys()
+		if names.size() > 1:
+			names.sort()
+			twins.append("%s all do %s" % [" = ".join(names), sig])
+	var forks: Array[String] = []
+	for n in by_name:
+		if (by_name[n] as Dictionary).size() > 1:
+			forks.append("%s is %d different cards" % [n, (by_name[n] as Dictionary).size()])
+	twins.sort()
+	forks.sort()
+
+	_ok("no two names share one effect", twins.is_empty())
+	for t in twins:
+		_fail(t)
+	_ok("no two effects share one name", forks.is_empty())
+	for f in forks:
+		_fail(f)
+
+	# THE NEAR MISSES, printed and not failed. A card that does exactly one
+	# thing has nothing else to tell it apart from the next card that does that
+	# one thing, so single-verb cards are the family duplicates keep coming out
+	# of — Range, Range Finding, Lock On and Lay In were four of them under one
+	# verb. Differing numbers make them legitimately different cards, which is
+	# why this cannot be a failure; having four is still worth seeing.
+	var solo := {}
+	for c in all:
+		var verbs: Array[String] = []
+		for prop in c.get_property_list():
+			if not (int(prop.usage) & PROPERTY_USAGE_SCRIPT_VARIABLE):
+				continue
+			var key: StringName = prop.name
+			if skip.has(key) or key == &"energy" or key == &"heat":
+				continue
+			# `hits` DEFAULTS TO 1, so counting it made every card in the game a
+			# two-verb card and this whole report unable to print a line. Caught by
+			# writing it, seeing nothing, and not assuming that meant nothing was
+			# there. Hits is a property of an attack; without damage there is no
+			# attack for it to be a property of.
+			if key == &"hits" and c.damage == 0:
+				continue
+			var v: Variant = c.get(key)
+			if (typeof(v) == TYPE_INT and v != 0) or (typeof(v) == TYPE_BOOL and v):
+				verbs.append(String(key))
+		if verbs.size() != 1:
+			continue
+		if not solo.has(verbs[0]):
+			solo[verbs[0]] = {}
+		solo[verbs[0]][c.name] = true
+	var crowd: Array[String] = []
+	for verb in solo:
+		var names: Array = (solo[verb] as Dictionary).keys()
+		if names.size() < 3:
+			continue
+		names.sort()
+		crowd.append("%s: %s" % [verb, ", ".join(names)])
+	crowd.sort()
+	for line in crowd:
+		print("  one verb, %s" % line)

@@ -28,7 +28,7 @@ extends Resource
 @export var armor: int = 0              ## persists between turns, costs heat to hold
 @export var block: int = 0              ## decays at end of enemy turn
 @export var armor_from_heat: bool = false
-@export var riposte: int = 0
+@export var feedback: int = 0
 @export var negate_next: bool = false
 
 @export_group("Utility")
@@ -183,10 +183,10 @@ func glyph_kind() -> StringName:
 	if damage > 0:
 		return &"burst" if hits > 1 else &"slug"
 	# Defence, finest first. Brace is a wall you keep, Block is one that falls
-	# down at the end of the turn, and Riposte is one that bites back — three
+	# down at the end of the turn, and Feedback is one that bites back — three
 	# different plans, and the old glyph called them one plate.
-	if riposte > 0:
-		return &"riposte"
+	if feedback > 0:
+		return &"feedback"
 	if negate_next:
 		return &"slip"
 	# THE BIGGER NUMBER WINS when a card does both. Dig In braces 2 and blocks
@@ -264,7 +264,7 @@ var source_rarity: int = 0
 ## together or not at all: a keyword whose definition sits in a UI file drifts
 ## from the mechanic the first time somebody tunes the mechanic. Every entry
 ## below was written against Combat.gd rather than from memory — armor really
-## is charged a heat per turn, riposte really does fire once per attacking
+## is charged a heat per turn, feedback really does fire once per attacking
 ## enemy — and if that changes, this is the file already open.
 ##
 ## Only the words that need explaining. "Deal 6" explains itself; Salvo does
@@ -281,8 +281,8 @@ func keywords() -> Array:
 		out.append(["Brace", "Armor. Stays up between turns, and costs 1 heat a turn to hold."])
 	if armor_from_heat:
 		out.append(["Brace from heat", "The armor equals your current heat."])
-	if riposte > 0:
-		out.append(["Riposte", "Deals this straight back to any enemy that attacks you."])
+	if feedback > 0:
+		out.append(["Feedback", "Deals this straight back to any enemy that attacks you."])
 	if negate_next:
 		out.append(["Negate", "Cancels the next attack against you outright, whatever its size."])
 	if salvo > 0:
@@ -367,8 +367,8 @@ func describe() -> String:
 		bits.append("Brace from heat")
 	if block > 0:
 		bits.append("Block %d" % block)
-	if riposte > 0:
-		bits.append("Riposte %d" % riposte)
+	if feedback > 0:
+		bits.append("Feedback %d" % feedback)
 	if negate_next:
 		bits.append("Negate next attack")
 	if vent > 0:

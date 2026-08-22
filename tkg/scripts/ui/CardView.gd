@@ -118,7 +118,7 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	# It is the one string on the card at both scales, so colouring it costs
 	# nothing and reaches everywhere — and it puts "how good is this" on the
 	# same glance as "what is it", which is the pair you sort a hand by.
-	var nm := UITheme.body(c.name, ModuleData.rarity_colour(c.source_rarity),
+	var nm := UITheme.body(c.name, ModuleData.rarity_ink(c.source_rarity),
 		UITheme.FS_SMALL * _s)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	nm.clip_text = true
@@ -572,10 +572,10 @@ func _type_glyph() -> void:
 			for i in 3:
 				_r(c + Vector2(-13, -20 + i * 14) * s, Vector2(26, 10) * s,
 					ink if i == 1 else dark)
-		&"riposte":
+		&"feedback":
 			# A wall that shoots back, drawn as a wall and THE ATTACK GLYPH'S OWN
 			# ROUND leaving it. Reusing the round rather than inventing a spark is
-			# the whole point: riposte is defence that deals damage, and the
+			# the whole point: feedback is defence that deals damage, and the
 			# picture should be made of the two things it is made of.
 			#
 			# Leaving to the RIGHT, with the rest of the attack family, because

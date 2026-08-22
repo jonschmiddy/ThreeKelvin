@@ -77,7 +77,7 @@ var energy: int = 0
 var armor: int = 0
 var block: int = 0
 var lock_on: int = 0
-var riposte: int = 0
+var feedback: int = 0
 var adapt_bonus: int = 0
 var negate_next: bool = false
 var drones: Array[Drone] = []
@@ -466,8 +466,8 @@ func _act_one(e: EnemyState) -> void:
 				_log("  %d hull damage." % total, &"them")
 				Sig.damage_dealt.emit(total, true, enemies.find(e))
 				Run.take_hull_damage(total, "Hull integrity lost. The cold gets in fast.")
-			if riposte > 0:
-				damage_enemy(riposte, 1, "Riposte")
+			if feedback > 0:
+				damage_enemy(feedback, 1, "Feedback")
 			if Run.dead:
 				_finish(&"dead", Run.death_reason)
 				return

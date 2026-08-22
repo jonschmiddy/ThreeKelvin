@@ -519,7 +519,7 @@ func _build_hand() -> PanelContainer:
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
 
-	# Your own status, under your own numbers. Armor, block, lock-on, riposte,
+	# Your own status, under your own numbers. Armor, block, lock-on, feedback,
 	# adapt and drones are things you are carrying, so they belong beside the
 	# energy you spend rather than in a strip about the enemy.
 	_player_chips = HBoxContainer.new()
@@ -738,8 +738,8 @@ func _refresh_player() -> void:
 		_player_chips.add_child(Widgets.chip("lock +%d" % combat.lock_on, Color("#6e5a3a")))
 	if combat.negate_next:
 		_player_chips.add_child(Widgets.chip("slip ready", UITheme.GOOD))
-	if combat.riposte > 0:
-		_player_chips.add_child(Widgets.chip("riposte %d" % combat.riposte))
+	if combat.feedback > 0:
+		_player_chips.add_child(Widgets.chip("feedback %d" % combat.feedback))
 	if combat.adapt_bonus > 0:
 		_player_chips.add_child(Widgets.chip("adapt +%d" % combat.adapt_bonus))
 	for d in combat.drones:
@@ -950,7 +950,7 @@ func _on_card_dropped(index: int, view: CardView) -> void:
 ##
 ## Same builder the gallery uses. The glossary was only reachable from a
 ## development screen, which meant every rules word on a card was something the
-## player had to already know — and Brace, Salvo and Riposte are precisely the
+## player had to already know — and Brace, Salvo and Feedback are precisely the
 ## words a new player does not.
 ##
 ## Floated in a layer above everything rather than placed in the hand row: the

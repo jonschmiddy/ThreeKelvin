@@ -39,7 +39,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(sp)
 	top.add_child(UITheme.body(ModuleData.rarity_name(m.rarity),
-		ModuleData.rarity_colour(m.rarity), UITheme.FS_SMALL))
+		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
 
 	# Grants is a STAT, printed like one. The Grant Count Law only does its job
 	# if the count is visible at the point of choice — a law nobody can see is
@@ -324,7 +324,7 @@ static func scroller(child: Control, min_height: int = 200) -> ScrollContainer:
 ##
 ## Deliberately NOT a field dump. An earlier version printed every non-default
 ## property on the card, which was self-maintaining and useless: it told you
-## `riposte: 4` when what you needed was what riposte does. The numbers are
+## `feedback: 4` when what you needed was what feedback does. The numbers are
 ## already on the card face — this panel exists for the things the card has no
 ## room to say.
 static func card_readout(c: CardData) -> PanelContainer:
@@ -348,7 +348,7 @@ static func card_readout(c: CardData) -> PanelContainer:
 	# FROM — the house and the module. Each pair is a name over its
 	# classification, and the two questions never interleave.
 	var mod: ModuleData = DB.modules.get(c.source_id)
-	var rare := ModuleData.rarity_colour(c.source_rarity)
+	var rare := ModuleData.rarity_ink(c.source_rarity)
 	box.add_child(UITheme.body(c.name.to_upper(), rare, UITheme.FS_SMALL))
 	box.add_child(UITheme.body("%s · %s" % [c.type_name().to_upper(),
 		ModuleData.rarity_name(c.source_rarity).to_upper()],

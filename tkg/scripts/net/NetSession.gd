@@ -981,7 +981,7 @@ func _apply_leave(index: int, by: int) -> void:
 ## because it is the one moment a shared object acts on several private ones.
 ##
 ## Each hull swings at ONE ship and the message goes to that ship alone. What
-## happens next — dodge, block, armor, hull, riposte — is resolved on the
+## happens next — dodge, block, armor, hull, feedback — is resolved on the
 ## victim's machine against its own `Run`, because those numbers live nowhere
 ## else and no other player has any use for them. Mirroring three partners'
 ## block values across the party would be a lot of wire for something nobody

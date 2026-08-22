@@ -103,8 +103,8 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.block += c.block
 		cb._log("Block +%d (decays)." % c.block, &"you")
 
-	if c.riposte > 0:
-		cb.riposte += c.riposte
+	if c.feedback > 0:
+		cb.feedback += c.feedback
 
 	if c.negate_next:
 		cb.negate_next = true

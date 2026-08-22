@@ -149,7 +149,7 @@ func _show(m: ModuleData) -> void:
 	_readout.add_child(UITheme.body("%s · %s · %dx%d · %d cells"
 		% [ModuleData.rarity_name(m.rarity).to_upper(),
 			ModuleData.slot_name(m.slot).to_upper(), f.x, f.y, m.cells()],
-		ModuleData.rarity_colour(m.rarity), UITheme.FS_SMALL))
+		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
 	if m.flavour != "":
 		_readout.add_child(_wrapped(m.flavour, UITheme.CHILL))
 

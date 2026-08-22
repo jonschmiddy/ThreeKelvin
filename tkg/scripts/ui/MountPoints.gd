@@ -157,7 +157,7 @@ func _draw() -> void:
 				# The others get an outline, so hovering the ship answers
 				# "what have I got on here" for all of them at once.
 				draw_rect(r.grow(1.0),
-					ModuleData.rarity_colour(m.rarity), false, 1.0)
+					ModuleData.rarity_ink(m.rarity), false, 1.0)
 			continue
 		# AN EMPTY HARDPOINT IS NOT DRAWN AT ALL. A ring on every unfilled
 		# mount put a row of orange circles across a ship that was finished —
@@ -227,7 +227,7 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	if not full:
 		var w := minf(r.size.x, 10.0 * k)
 		draw_rect(Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k),
-			ModuleData.rarity_colour(m.rarity), true)
+			ModuleData.rarity_ink(m.rarity), true)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something

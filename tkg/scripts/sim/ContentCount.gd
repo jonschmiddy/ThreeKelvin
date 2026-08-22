@@ -90,8 +90,14 @@ func _dump() -> void:
 		var cards: Array = []
 		for c in m.resolved_cards():
 			var cd: CardData = c
+			# RARITY PER CARD, not just per part. The card rarity law is a claim
+			# about the pair a module grants — one at its own grade and one at or
+			# below — and a dump that only carried the PART's grade could not be
+			# used to check it. `resolved_cards` has already applied the law, so
+			# this is the answer rather than the input.
 			cards.append({name = cd.name, text = cd.describe(),
-				energy = cd.energy, heat = cd.heat})
+				energy = cd.energy, heat = cd.heat,
+				rarity = ModuleData.rarity_name(cd.rarity) if cd.rarity >= 0 else ""})
 		var f := m.footprint()
 		out.append({
 			id = String(id),
@@ -104,8 +110,17 @@ func _dump() -> void:
 			flavour = m.flavour,
 			cards = cards,
 		})
+	# The malfunctions travel with them. They are not modules and never will be
+	# — that was a bug once — but anything reviewing the catalogue is reviewing
+	# what can end up in a deck, and sixteen of these can.
+	var junk: Array = []
+	for row in DB.MALFUNCTIONS:
+		var c := DB.malfunction(row[0])
+		junk.append({id = String(row[0]), name = c.name, text = c.describe(),
+			corrode = int(row[2]), smoulder = int(row[3]), fused = bool(row[4])})
+
 	var path := "user://modules.json"
 	var fh := FileAccess.open(path, FileAccess.WRITE)
-	fh.store_string(JSON.stringify(out, "  "))
+	fh.store_string(JSON.stringify({modules = out, malfunctions = junk}, "  "))
 	fh.close()
 	print("  wrote %s (%d modules)" % [ProjectSettings.globalize_path(path), out.size()])

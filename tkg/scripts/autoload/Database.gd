@@ -423,8 +423,8 @@ func _seed_modules() -> void:
 		[{name = "Siege Round", energy = 3, heat = 6, damage = 40, charge_turns = 2, copies = 1}])
 	_module(&"reactive", "Reactive Plating Array", &"korvan", S, C4,
 		"Armor that answers back.",
-		[{name = "Bulwark", energy = 2, heat = 1, armor = 8, riposte = 4},
-			{name = "Overwatch", energy = 2, armor = 4, riposte = 6, draw = 1}])
+		[{name = "Bulwark", energy = 2, heat = 1, armor = 8, feedback = 4},
+			{name = "Overwatch", energy = 2, armor = 4, feedback = 6, draw = 1}])
 
 	## The nine rungs Korvan was missing, and the shape they were authored to.
 	##
@@ -476,7 +476,7 @@ func _seed_modules() -> void:
 	_module(&"braceframe", "Brace Frame", &"korvan", S, C2,
 		"For the turn you have nothing to shoot with.",
 		[{name = "Dig In", energy = 1, block = 8, armor = 2},
-			{name = "Set Feet", energy = 1, block = 12, riposte = 3}])
+			{name = "Set Feet", energy = 1, block = 12, feedback = 3}])
 	_module(&"bulkhead", "Bulkhead Array", &"korvan", S, C3,
 		"Korvan's answer to most questions.",
 		[{name = "Bulkhead", energy = 1, heat = 1, armor = 7},
@@ -582,7 +582,12 @@ func _seed_modules() -> void:
 		[{name = "Precise Shot", energy = 1, heat = 1, damage = 9, draw = 1, copies = 2}])
 	_module(&"auspex", "Auspex Array", &"verity", U, C1,
 		"You always have the card you need.",
-		[{name = "Foresight", energy = 0, draw = 2, copies = 2}])
+		## DRAW THREE AND THROW ONE, not draw two — which is what this said until
+		## the twin check put it next to Redline's Jury-Rig and they were the same
+		## card. Both houses want cards; only one of them wants THE RIGHT card,
+		## and that is a filter, not a bigger number. Verity grants one card where
+		## everyone else grants two, so the one is allowed to be the better one.
+		[{name = "Foresight", energy = 0, draw = 3, discard = 1, copies = 2}])
 	_module(&"verity", "Verity Deflector", &"verity", S, C3,
 		"Elegance, quantified.",
 		[{name = "Deflect", energy = 1, block = 12, copies = 2}])
@@ -692,7 +697,12 @@ func _seed_modules() -> void:
 	## twice — Cygnet repairs the way Cygnet fights.
 	_module(&"menders", "Mender Swarm", &"cygnet", S, C2,
 		"They find the hole before you do. Nobody has asked how.",
-		[{name = "Mend", energy = 1, heal = 1, heal_scale = 5, copies = 2}])
+		## A SWARM THAT STAYS. This was the yard's Patch to the decimal — same
+		## energy, same 1, same scale of 5 — on a rare part of a house that does
+		## not repair by hand. Cygnet sends things, so the repair leaves the things
+		## behind: it patches the hole and screens what it patched.
+		[{name = "Mend", energy = 1, heal = 2, heal_scale = 6, drone_armor = 2,
+			copies = 2}])
 
 	# --- Unbranded: exotic (grown) and artifact (precursor)
 	_module(&"organ", "Voidwhale Ganglion", &"", U, C5,

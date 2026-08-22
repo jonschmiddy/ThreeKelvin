@@ -56,7 +56,7 @@ func run() -> void:
 	# written for a card that does not exist yet, and both are worth knowing.
 	print("")
 	for k in ["slug", "burst", "pyre", "charge", "drone", "armor", "block",
-			"riposte", "slip", "vent", "repair", "lock", "draw", "power",
+			"feedback", "slip", "vent", "repair", "lock", "draw", "power",
 			"scrip", "malfunction", "utility"]:
 		if not by.has(StringName(k)):
 			print("  unused  %s — nothing in the catalogue draws it" % k)

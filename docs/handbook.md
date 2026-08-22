@@ -667,7 +667,7 @@ derive. Three things about them are load-bearing:
 
 Implemented: nine-shell galaxy with fifteen cosmetic galaxy types, three-axis places, jumps
 and distance-priced fuel, a market that prices goods and services off the place you are
-standing in, raw materials and a station fabricator, full combat (charge, salvo, brace, heat, drones, riposte, adapt,
+standing in, raw materials and a station fabricator, full combat (charge, salvo, brace, heat, drones, feedback, adapt,
 pacify), loot with rolled affixes, install/scrap/swap, stations with all services and
 inspections, eight events, set bonuses for all seven manufacturers, twenty-four hulls with
 a chassis-select at run start, the six attributes, procedural ship and enemy art, headless

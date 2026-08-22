@@ -530,7 +530,7 @@ func _build_detail() -> void:
 		# everything you launch with is Common steel; the one branded weapon is
 		# the odd colour in the list, which is exactly what it is.
 		line.add_child(UITheme.body(mod.name,
-			ModuleData.rarity_colour(mod.rarity), UITheme.FS_SMALL))
+			ModuleData.rarity_ink(mod.rarity), UITheme.FS_SMALL))
 		kit.add_child(line)
 	right.add_child(kit)
 

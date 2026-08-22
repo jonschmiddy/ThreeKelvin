@@ -2,7 +2,23 @@ class_name ModuleData
 extends Resource
 
 enum Slot { WEAPON, SYSTEM, UTILITY }
-enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT }
+## THE GRADE LADDER, and it is a ladder of PROVENANCE as much as of power.
+##
+## Common through Legendary is one house doing its job better. Exotic and
+## Artifact leave the houses entirely — grown and precursor, which is why
+## LootGen gates both behind `allow_unbranded`.
+##
+## CONTRABAND is the eighth and the only one that is a fact about WHO, not
+## about what: a part nobody will admit to selling. RULING, NOT YET BUILT —
+## contraband comes only from the Probate Combine, Redline and Cygnet, the
+## scrappers, the hackers and the technologists, because those are the three
+## houses with a reason to move something off the manifest. Recorded here
+## rather than in a note because the enum is what a future module will pick
+## from; the sourcing belongs in LootGen's pool filter beside the
+## `allow_unbranded` gate, which currently swallows CONTRABAND along with
+## EXOTIC and ARTIFACT and will need saying differently when the parts exist.
+enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
+	CONTRABAND }
 
 @export var id: StringName = &""
 @export var name: String = ""
@@ -152,13 +168,45 @@ const SCRAP_VALUE := [8, 16, 30, 55, 95, 120, 160]
 
 
 static func rarity_name(r: Rarity) -> String:
-	return ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Exotic", "Artifact"][r]
+	return ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Exotic", "Artifact",
+		"Contraband"][r]
 
+## WHAT A GRADE IS. The ground its plate is painted on, and — for seven of
+## the eight — the colour its name is written in as well.
+##
+## Exotic is PINK and Artifact is RED. Exotic was a teal that sat two steps
+## from Rare's blue, so the two rarest branded grades read as cool neighbours
+## of the middle of the ladder instead of as the end of it. Pink and red are
+## the two hues nothing else on the ladder uses, and they are warm where
+## Common through Epic are cold, so the top of the ladder now separates from
+## the body of it before any name is read.
+##
+## CONTRABAND IS BLACK, and black is darker than the screen it is drawn on.
+## That is deliberate and it is the reason `rarity_ink` exists below: a
+## contraband plate has no ground you can see, only an edge — the shape of a
+## part with nothing filled in, which is what a thing that is not on the
+## manifest should look like.
 static func rarity_colour(r: Rarity) -> Color:
 	return [
 		Color("#8fa3ba"), Color("#7fb89a"), Color("#6a9ad4"), Color("#a97fd4"),
-		Color("#d99b29"), Color("#4fbfa8"), Color("#d4614f"),
+		Color("#d99b29"), Color("#e05fa8"), Color("#e0402e"), Color("#05070a"),
 	][r]
+
+## WHAT A GRADE IS WRITTEN IN. The same colour, except where the colour
+## cannot be written.
+##
+## Black text on a black background is not a style, it is a card whose name
+## you cannot read — and rarity_colour is used as an ink in five places (the
+## card's name, three readouts, and the plate's edge) as well as a ground in
+## one. Those are two different jobs and they only looked like one job while
+## every grade happened to be a mid-tone.
+##
+## Contraband's ink is BONE, not white: white is the theme's emphasis colour
+## and would make the rarest thing in the game read as merely selected.
+## Enforced by `-- holdtest`, which will not let an ink onto the void the eye
+## cannot separate from it.
+static func rarity_ink(r: Rarity) -> Color:
+	return Color("#b9b3a6") if r == Rarity.CONTRABAND else rarity_colour(r)
 
 ## THE GRANT COUNT LAW.
 ##
