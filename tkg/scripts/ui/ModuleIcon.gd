@@ -136,8 +136,10 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	if maker != null:
 		ci.draw_rect(Rect2(r.position, Vector2(3, r.size.y)), mark, true)
 
-	# The silhouette, scaled to whatever rectangle it has been given.
-	draw_part(ci, m.slot, r.get_center(), mark, minf(r.size.x, r.size.y) / 26.0)
+	# The silhouette, standing whichever way the part is currently packed.
+	var f := m.footprint()
+	draw_part(ci, m.slot, r.get_center(), mark,
+		minf(r.size.x, r.size.y) / 26.0, part_turn(m.slot, f))
 
 	# Rarity on the border, because the border is the part that survives being
 	# packed shoulder to shoulder in a grid.
@@ -159,24 +161,66 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 ## at 1 against a hull 30 to 50 rows deep, the hold at rather more in a cell it
 ## has to fill.
 static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
-		col: Color, s: float = 1.0) -> void:
+		col: Color, s: float = 1.0, upright: bool = false) -> void:
 	var dark := col.lerp(Color("#0a0e13"), 0.55)
 	var lite := col.lerp(Color.WHITE, 0.3)
+	# Drawn about the ORIGIN and moved by a transform, so the same rectangles
+	# serve both orientations. A quarter turn anticlockwise, so a barrel that
+	# points forward on a ship that faces right points UP when it is stood on
+	# end — which is where a lance or a mast belongs.
+	ci.draw_set_transform(at, -PI * 0.5 if upright else 0.0, Vector2.ONE)
 	match slot:
 		ModuleData.Slot.WEAPON:
-			ci.draw_rect(Rect2(at.x - 4.0 * s, at.y - 2.5 * s, 9.0 * s, 5.0 * s), dark, true)
-			ci.draw_rect(Rect2(at.x - 4.0 * s, at.y - 2.5 * s, 9.0 * s, 1.0 * s), lite, true)
-			ci.draw_rect(Rect2(at.x + 5.0 * s, at.y - 1.0 * s, 7.0 * s, 2.0 * s), col, true)
-			ci.draw_rect(Rect2(at.x + 12.0 * s, at.y - 1.0 * s, 2.0 * s, 2.0 * s),
-				UITheme.VOID, true)
+			ci.draw_rect(Rect2(-4.0 * s, -2.5 * s, 9.0 * s, 5.0 * s), dark, true)
+			ci.draw_rect(Rect2(-4.0 * s, -2.5 * s, 9.0 * s, 1.0 * s), lite, true)
+			ci.draw_rect(Rect2(5.0 * s, -1.0 * s, 7.0 * s, 2.0 * s), col, true)
+			ci.draw_rect(Rect2(12.0 * s, -1.0 * s, 2.0 * s, 2.0 * s), UITheme.VOID, true)
 		ModuleData.Slot.SYSTEM:
-			ci.draw_rect(Rect2(at.x - 5.5 * s, at.y - 2.0 * s, 11.0 * s, 4.0 * s), dark, true)
-			ci.draw_rect(Rect2(at.x - 5.5 * s, at.y - 2.0 * s, 11.0 * s, 1.0 * s), col, true)
-			ci.draw_rect(Rect2(at.x - 3.5 * s, at.y, 3.0 * s, 1.0 * s), lite, true)
+			ci.draw_rect(Rect2(-5.5 * s, -2.0 * s, 11.0 * s, 4.0 * s), dark, true)
+			ci.draw_rect(Rect2(-5.5 * s, -2.0 * s, 11.0 * s, 1.0 * s), col, true)
+			ci.draw_rect(Rect2(-3.5 * s, 0.0, 3.0 * s, 1.0 * s), lite, true)
 		_:
-			ci.draw_rect(Rect2(at.x - 1.5 * s, at.y - 3.5 * s, 3.0 * s, 7.0 * s), dark, true)
-			ci.draw_rect(Rect2(at.x - 0.5 * s, at.y - 6.5 * s, 1.0 * s, 4.0 * s), col, true)
-			ci.draw_rect(Rect2(at.x - 0.5 * s, at.y - 7.5 * s, 1.0 * s, 1.0 * s), lite, true)
+			ci.draw_rect(Rect2(-1.5 * s, -3.5 * s, 3.0 * s, 7.0 * s), dark, true)
+			ci.draw_rect(Rect2(-0.5 * s, -6.5 * s, 1.0 * s, 4.0 * s), col, true)
+			ci.draw_rect(Rect2(-0.5 * s, -7.5 * s, 1.0 * s, 1.0 * s), lite, true)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## How big a slot's silhouette is when nothing has scaled it, in the same units
+## the rectangles above are written in. Read off those rectangles, so a shape
+## that changes has to change this too — and the two are eight lines apart.
+static func part_extent(slot: ModuleData.Slot) -> Vector2:
+	match slot:
+		ModuleData.Slot.WEAPON: return Vector2(18.0, 5.0)
+		ModuleData.Slot.SYSTEM: return Vector2(11.0, 4.0)
+		_: return Vector2(3.0, 11.0)
+
+
+## Does this part's silhouette need standing on end to match its footprint?
+##
+## MATCHES LONG AXIS TO LONG AXIS rather than reading `turned` directly, because
+## the shapes do not all start out lying down: a weapon is authored long across and
+## a utility mast is authored long down, so the same flag would stand one of
+## them up and knock the other over. A square footprint asks for nothing.
+static func part_turn(slot: ModuleData.Slot, f: Vector2i) -> bool:
+	if f.x == f.y:
+		return false
+	var nat := part_extent(slot)
+	return (f.y > f.x) != (nat.y > nat.x)
+
+
+## The scale that makes a slot's silhouette fill `box`, at `f` cells.
+##
+## FRACTIONAL on purpose, which the art direction's integer-magnification rule
+## does not cover: that rule is about magnifying a BITMAP, and these are
+## rectangles computed at draw time. There is no source grid to land on, so
+## rounding the scale would only make the shape smaller than the space it has.
+## Real generated sprites, when they arrive, will want the rule back.
+static func part_scale(slot: ModuleData.Slot, f: Vector2i, box: Vector2) -> float:
+	var nat := part_extent(slot)
+	if part_turn(slot, f):
+		nat = Vector2(nat.y, nat.x)
+	return maxf(0.35, minf(box.x / nat.x, box.y / nat.y))
 
 ## What the part does, in rectangles.
 ##

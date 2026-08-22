@@ -130,24 +130,37 @@ func _draw() -> void:
 func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> void:
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 	var col: Color = maker.colour if maker != null else UITheme.CHILL
-	# THE WHOLE PLATE, at the size it occupies in the hold. Not a silhouette
-	# scaled to the mount: a part has a SHAPE, the hold is a grid you pack that
-	# shape into, and drawing every part as the same mark on the hull threw away
-	# the one fact you spent the whole screen reasoning about. A 1x3 lance is
-	# three cells long on the ship because it is three cells long.
+	# THE PART ITSELF, and nothing around it. The hold draws a plate — a field,
+	# a house stripe, a rarity edge — because the hold is an inventory and those
+	# are inventory facts. A ship is not an inventory: what is bolted to it is
+	# the object, so the box goes and the silhouette is scaled up to fill the
+	# room the box used to take.
+	#
+	# It still takes its SIZE from the footprint, which is the point: a 1x3
+	# lance is three cells long on the ship because it is three cells long, and
+	# turning it in the hold turns it here.
 	var f := m.footprint()
-	var z := Vector2(f) * float(HoldGrid.CELL + HoldGrid.GAP) 		- Vector2(HoldGrid.GAP, HoldGrid.GAP)
-	# ON the surface, not through it. A mount sits ON the hull's own outline, so
-	# a plate centred on one is half buried in the ship — which reads as damage
-	# rather than as equipment. Dorsal parts stand above the line, ventral ones
-	# hang below it, and only the flank is centred, because the flank IS the
-	# middle of the hull rather than an edge of it.
-	var o := Vector2(-z.x * 0.5, -z.y * 0.5)
+	var box := Vector2(f) * float(HoldGrid.CELL + HoldGrid.GAP) 		- Vector2(HoldGrid.GAP, HoldGrid.GAP)
+	var up := ModuleIcon.part_turn(slot, f)
+	var k2 := ModuleIcon.part_scale(slot, f, box)
+	# How big the shape ACTUALLY comes out, which is not the box: a silhouette
+	# keeps its own proportions, so a wide gun in a tall cell fills the width
+	# and leaves the rest. Aligning to the box instead of to this floated every
+	# part a few pixels clear of the hull, which reads as a rendering fault
+	# rather than as a gun.
+	var nat := ModuleIcon.part_extent(slot) * k2
+	if up:
+		nat = Vector2(nat.y, nat.x)
+
+	# ON the surface. A mount sits on the hull's own outline, so a part centred
+	# on one is half buried in the ship and reads as damage. Dorsal parts stand
+	# on the line, ventral ones hang from it, and only the flank is centred —
+	# because the flank IS the middle of the hull rather than an edge of it.
+	var c := Vector2(roundf(at.x), roundf(at.y))
 	match slot:
-		ModuleData.Slot.WEAPON: o.y = -z.y
-		ModuleData.Slot.SYSTEM: o.y = 0.0
-	var r := Rect2((Vector2(roundf(at.x), roundf(at.y)) + o).round(), z)
-	ModuleIcon.draw_plate(self, m, r)
+		ModuleData.Slot.WEAPON: c.y -= nat.y * 0.5
+		ModuleData.Slot.SYSTEM: c.y += nat.y * 0.5
+	ModuleIcon.draw_part(self, slot, c.round(), col, k2, up)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something

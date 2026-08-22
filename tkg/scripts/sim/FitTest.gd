@@ -135,6 +135,7 @@ func _turning(grid: HoldGrid) -> void:
 		return
 	var before := m.footprint()
 	var cells := m.cells()
+	var faced := ModuleIcon.part_turn(m.slot, before)
 
 	_turn(_centre(icon))
 	_ok("R turns a %dx%d into a %dx%d" % [before.x, before.y, before.y, before.x],
@@ -142,6 +143,11 @@ func _turning(grid: HoldGrid) -> void:
 	_ok("turning does not change how much room it takes", m.cells() == cells)
 	_ok("a turned part is still somewhere legal",
 		m.hold_at.x >= 0 and Run.can_place(m, m.hold_at))
+	# The part on the HULL faces the way the part in the hold is packed. Without
+	# this a turned lance was three cells long lying down and still drawn firing
+	# across its own short axis.
+	_ok("the silhouette stands the other way up once turned",
+		ModuleIcon.part_turn(m.slot, m.footprint()) != faced)
 	_no_overlap()
 
 	await _settle(grid)
