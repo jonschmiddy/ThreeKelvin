@@ -68,4 +68,41 @@ func run() -> void:
 	print("  %d unique cards across %d modules; %d still to write"
 		% [seen.size(), DB.modules.size(), short])
 	_ok("the catalogue was counted", not seen.is_empty())
+	if "json" in OS.get_cmdline_user_args():
+		_dump()
 	verdict("content")
+
+
+## Every module as JSON, for building a review page out of.
+##   godot --headless --path . -- content json
+##
+## Exists because the alternative is retyping the catalogue by hand into
+## whatever is reviewing it, and a hand-copied catalogue is wrong the day after
+## it is copied. The picking page for one house is going to be made seven times;
+## this is the half that must not be done seven times by eye.
+func _dump() -> void:
+	var out: Array = []
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		var cards: Array = []
+		for c in m.resolved_cards():
+			var cd: CardData = c
+			cards.append({name = cd.name, text = cd.describe(),
+				energy = cd.energy, heat = cd.heat})
+		var f := m.footprint()
+		out.append({
+			id = String(id),
+			name = m.name,
+			house = String(m.manufacturer),
+			house_name = DB.manufacturer_name(m.manufacturer) if m.manufacturer != &"" else "Unbranded",
+			slot = ModuleData.slot_name(m.slot),
+			rarity = ModuleData.rarity_name(m.rarity),
+			w = f.x, h = f.y, cells = m.cells(),
+			flavour = m.flavour,
+			cards = cards,
+		})
+	var path := "user://modules.json"
+	var fh := FileAccess.open(path, FileAccess.WRITE)
+	fh.store_string(JSON.stringify(out, "  "))
+	fh.close()
+	print("  wrote %s (%d modules)" % [ProjectSettings.globalize_path(path), out.size()])
