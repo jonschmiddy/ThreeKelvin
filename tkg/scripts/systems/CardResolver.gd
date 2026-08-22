@@ -17,23 +17,23 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb._log("Spent %d credits." % c.credit_cost, &"sys")
 
 	# THROWING THINGS AWAY, before anything else this card does. A card that
-	# jettisons and then draws must not be able to pull the junk back and throw
+	# discards and then draws must not be able to pull the junk back and throw
 	# it away in the same breath, and doing this first makes the order obvious
 	# rather than something to remember.
-	if c.jettison_all:
+	if c.discard_hand:
 		var n := cb.hand.size()
 		cb.discard.append_array(cb.hand)
 		cb.hand.clear()
-		cb._log("Jettisoned %d card%s." % [n, "" if n == 1 else "s"], &"sys")
+		cb._log("Discarded %d card%s." % [n, "" if n == 1 else "s"], &"sys")
 		Sig.hand_changed.emit()
 
 	# A pick is a PAUSE, not an effect. The rest of this card resolves now and
-	# the choosing happens after, which is why a card can jettison and draw:
+	# the choosing happens after, which is why a card can discard and draw:
 	# what you throw away is chosen from the hand you had, not the one the draw
 	# gives you.
-	if c.jettison > 0 or c.write_off > 0:
-		cb.choose_kind = &"write_off" if c.write_off > 0 else &"jettison"
-		cb.choosing = mini(maxi(c.jettison, c.write_off), cb.hand.size())
+	if c.discard > 0 or c.decommission > 0:
+		cb.choose_kind = &"decommission" if c.decommission > 0 else &"discard"
+		cb.choosing = mini(maxi(c.discard, c.decommission), cb.hand.size())
 
 	if c.vent_all:
 		var purged := Run.heat

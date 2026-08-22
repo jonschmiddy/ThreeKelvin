@@ -81,25 +81,26 @@ extends Resource
 @export var hand_damage: int = 0
 @export var hand_heat: int = 0
 
-## GETTING RID OF THINGS. Three mechanisms, because they are three different
-## sizes of decision.
+## GETTING RID OF THINGS. Two verbs, because they are two different sizes of
+## decision.
 ##
-## JETTISON is the ordinary one: you pick, and what you pick goes to the discard
-## pile and comes back when the deck reshuffles. `jettison_all` is the same verb
-## at the scale of a whole hand and pairs with `draw` — a real cost, because it
-## throws away what you wanted too.
+## DISCARD is the ordinary one: you pick, it goes to the discard pile, and it is
+## back in the deck the moment that pile reshuffles. `discard_hand` is the same
+## verb at the scale of a whole hand and pairs with `draw` — a real cost,
+## because it throws away what you wanted too.
 ##
-## WRITE OFF is the expensive one: what you pick is gone for the rest of the
-## fight. Against junk that is the difference between postponing it and dealing
-## with it, because a discarded malfunction is back in the deck the moment it
-## reshuffles and a written-off one is not.
+## DECOMMISSION is the expensive one: the card is off the books for the rest of
+## the fight. Against junk that is the whole difference, because a discarded
+## malfunction comes back and a decommissioned one does not. The word is the
+## setting's own register — this is a universe of filings, riders and invoices,
+## and a part struck off the register is exactly what has happened.
 ##
-## `exhausts` is a card that writes ITSELF off when played — a one-shot, which is
-## how a card is allowed to be much stronger than its cost.
-@export var jettison: int = 0
-@export var jettison_all: bool = false
-@export var write_off: int = 0
-@export var exhausts: bool = false
+## `self_decommission` is a card that takes ITSELF off the books when played,
+## which is how a card earns the right to be much stronger than its cost.
+@export var discard: int = 0
+@export var discard_hand: bool = false
+@export var decommission: int = 0
+@export var self_decommission: bool = false
 
 ## What KIND of card this is, derived rather than authored.
 ##
@@ -285,10 +286,10 @@ func keywords() -> Array:
 		out.append(["Vent", "Sheds heat. The one corner on a card that runs backwards."])
 	if drone_damage > 0 or drone_armor > 0:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
-	if exhausts:
-		out.append(["Write off", "Gone for the rest of this fight. It does not come back when the deck reshuffles."])
-	if jettison > 0 or jettison_all:
-		out.append(["Jettison", "Straight to the discard pile — and back in the deck when it reshuffles."])
+	if decommission > 0 or self_decommission:
+		out.append(["Decommission", "Off the books for the rest of this fight. It does not come back when the deck reshuffles."])
+	if discard > 0 or discard_hand:
+		out.append(["Discard", "Straight to the discard pile — and back in the deck when that pile reshuffles."])
 	if evoke > 0:
 		out.append(["Evoke", "Adds this much for each drone you have out."])
 	if credit_cost > 0:
@@ -369,14 +370,14 @@ func describe() -> String:
 			bits.append("Emergency repair %d" % heal)
 		else:
 			bits.append("Heal %d" % heal)
-	if jettison > 0:
-		bits.append("Jettison %d" % jettison)
-	if jettison_all:
-		bits.append("Jettison your hand")
-	if write_off > 0:
-		bits.append("Write off %d" % write_off)
-	if exhausts:
-		bits.append("Writes itself off")
+	if discard > 0:
+		bits.append("Discard %d" % discard)
+	if discard_hand:
+		bits.append("Discard your hand")
+	if decommission > 0:
+		bits.append("Decommission %d" % decommission)
+	if self_decommission:
+		bits.append("Decommissions itself")
 	if hand_damage > 0:
 		bits.append("%d damage at end of turn if still held" % hand_damage)
 	if hand_heat > 0:

@@ -63,8 +63,8 @@ var hand: Array[CardData] = []
 var discard: Array[CardData] = []
 
 ## Cards out of this fight entirely. Never reshuffled — that is the whole
-## difference between writing something off and discarding it.
-var written_off: Array[CardData] = []
+## difference between decommissioning something and discarding it.
+var decommissioned: Array[CardData] = []
 
 ## A card has asked you to pick some of your hand. `choosing` is how many are
 ## still to pick and `choose_kind` is what happens to them. Held on Combat and
@@ -152,7 +152,7 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 	Rng.shuffle(Rng.fight, deck)
 	hand.clear()
 	discard.clear()
-	written_off.clear()
+	decommissioned.clear()
 	choosing = 0
 	negate_next = Run.has_set(&"redline", 5)
 
@@ -480,7 +480,7 @@ func can_play(c: CardData) -> bool:
 	# them stated.
 	return not finished and choosing <= 0 and energy >= c.energy
 
-## Pick one of the cards a jettison or a write-off is waiting on.
+## Pick one of the cards a discard or a decommission is waiting on.
 ##
 ## Deliberately NOT "the player clicked" — it takes an index into the hand, so
 ## the simulator and the bot reach it the same way the screen does. A choice
@@ -510,12 +510,12 @@ func choose(index: int) -> void:
 		return
 	var c := hand[index]
 	hand.remove_at(index)
-	if choose_kind == &"write_off":
-		written_off.append(c)
-		_log("Wrote off %s." % c.name, &"sys")
+	if choose_kind == &"decommission":
+		decommissioned.append(c)
+		_log("Decommissioned %s." % c.name, &"sys")
 	else:
 		discard.append(c)
-		_log("Jettisoned %s." % c.name, &"sys")
+		_log("Discarded %s." % c.name, &"sys")
 	choosing -= 1
 	if choosing <= 0 or hand.is_empty():
 		choosing = 0
@@ -541,11 +541,11 @@ func play(index: int, target_index: int = -1) -> void:
 		Sig.hand_changed.emit()
 		Sig.player_combat_state_changed.emit()
 		return
-	# A card that writes itself off never reaches the discard, so it cannot come
+	# A card that decommissions itself never reaches the discard, so it cannot come
 	# back when the deck reshuffles. That is what buys it the right to be strong.
-	if c.exhausts:
-		written_off.append(c)
-		_log("%s written off." % c.name, &"sys")
+	if c.self_decommission:
+		decommissioned.append(c)
+		_log("%s decommissioned." % c.name, &"sys")
 	else:
 		discard.append(c)
 	if c.charge_turns > 0:

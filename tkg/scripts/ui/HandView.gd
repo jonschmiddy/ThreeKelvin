@@ -16,7 +16,7 @@ signal card_hovered(view: CardView, entered: bool)
 ## land one slot off and look like it snapped back.
 signal reordered(cards: Array)
 
-## A card in the hand was picked to satisfy a jettison or a write-off. Separate
+## A card in the hand was picked to satisfy a discard or a decommission. Separate
 ## from playing one, because it is a different question with a different answer.
 signal picked(card: CardData)
 

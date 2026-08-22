@@ -910,7 +910,7 @@ func _drag_preview(c: CardData, index: int) -> String:
 		bits.append("+%d NEXT" % c.lock_on)
 	return " ".join(bits)
 
-## A card was pointed at to satisfy a jettison or a write-off.
+## A card was pointed at to satisfy a discard or a decommission.
 ##
 ## Resolved by INDEX rather than by passing the card object down, because
 ## Combat.choose takes an index — the same door the simulator and the bot use,
