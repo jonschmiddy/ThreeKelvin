@@ -191,12 +191,32 @@ func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
 	mounts.queue_redraw()
 	await _tree.process_frame
 	var lit := mounts.drawn
+	var pings := mounts.pinged
 
 	mounts.light(null)
 	await _tree.process_frame
 	_ok("the hull draws its parts with nothing in hand: %d" % quiet, quiet > 0)
 	_ok("a part in hand does not blank the hull: %d drawn against %d"
 		% [lit, quiet], lit == quiet)
+
+	# AND ONLY THE EMPTY MOUNTS PING. Drawn over an installed part the rings
+	# swamped the thing they were pointing at — 27px of them over a gun 30px
+	# tall — which is most of why a whole slot looked like it had emptied.
+	var free := 0
+	for sp in mounts.spots():
+		if sp.held == null and sp.slot == m.slot:
+			free += 1
+	_ok("only empty hardpoints ping: %d pings for %d free mounts of that kind"
+		% [pings, free], pings == free)
+
+	# AND A PART IS GRABBED ANYWHERE ON ITSELF, not just at the dot it hangs
+	# from. A three-cell rail used to be pickable only by its breech.
+	var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), 2.0)
+	var far := r.position + r.size - Vector2(2, 2)
+	_ok("a fitted part can be grabbed at its far corner", mounts.spot_at(far) >= 0)
+	_ok("...and the far corner finds THAT part",
+		mounts.spot_at(far) >= 0
+		and mounts.spots()[mounts.spot_at(far)].held == m)
 
 
 ## A REFUSED DROP LANDS NEXT DOOR, OR NOWHERE. Never across the hold.
@@ -246,6 +266,14 @@ func _fitting() -> ModuleData:
 	m.size = Vector2i.ONE
 	m.turned = false
 	return m
+
+
+## Where a fitted part's mount is, in the hardpoint layer's own coordinates.
+func _mount_local(mounts: MountPoints, m: ModuleData) -> Vector2:
+	for sp in mounts.spots():
+		if sp.held == m:
+			return sp.at
+	return Vector2.INF
 
 
 ## Every module the hardpoints currently believe is bolted on.
@@ -547,7 +575,11 @@ func _carry(from: Vector2, onto: Control, local: Vector2) -> bool:
 	var vp := _tree.root
 	await _move(from, 0)
 	await _press(from, true)
-	await _move(from + Vector2(0, -24), MOUSE_BUTTON_MASK_LEFT)
+	# Small, and along the part rather than off it. An installed module is
+	# grabbed anywhere on its own rectangle now, so a nudge that used only to
+	# have to stay inside a 22px radius has to stay inside the PART — and -24
+	# put the pointer off the top of a one-cell gun before the drag began.
+	await _move(from + Vector2(10.0, -10.0), MOUSE_BUTTON_MASK_LEFT)
 	var data: Variant = vp.gui_get_drag_data()
 	var live := vp.gui_is_dragging() and typeof(data) == TYPE_DICTIONARY
 	if live:
