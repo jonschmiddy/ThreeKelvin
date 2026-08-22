@@ -204,6 +204,12 @@ func _ready() -> void:
 	# The hold's packing rule, against every hull's grid. The failure is invisible
 	# in the data — two parts sharing a cell still add up to a sensible "17 of
 	# 28" and still save and load — so it is only ever seen on screen.
+	# How much of the catalogue exists, against how much is meant to:
+	#   godot --headless --path . -- content
+	if "content" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ContentCount.gd").new().run()
+		get_tree().quit()
+		return
 	if "holdtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/HoldTest.gd").new().run()
 		get_tree().quit()
@@ -259,7 +265,7 @@ func _ready() -> void:
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv \
 		or "salvage" in argv or "party" in argv or "archive" in argv \
-		or "quest" in argv
+		or "quest" in argv or "parts" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -391,6 +397,17 @@ func _ready() -> void:
 		_chart_test.run(get_tree())
 	if "cards" in OS.get_cmdline_user_args():
 		Router.show_cards()
+	# Every module in the game, on one page:  godot --path . -- parts
+	#
+	# Same argument as `-- cards` one line up, one level out: a part is what you
+	# find and pack, and the only way to see one used to be to be handed it.
+	#
+	# An ELIF, in the chain, and not an `if` of its own beside it. Written as a
+	# separate `if` it silently re-parents the `elif` under it — `-- ship` would
+	# then be testing whether `parts` was absent rather than whether `cards`
+	# was. That has happened here before and cost an afternoon.
+	elif "parts" in OS.get_cmdline_user_args():
+		Router.show_modules()
 	elif "ship" in OS.get_cmdline_user_args():
 		# WHICH weight, for comparing the three hull sizes: `-- ship heavy`.
 		# Inside this branch rather than in front of the chain — put in front,

@@ -114,6 +114,8 @@ godot --headless --path . --import             # REQUIRED after any new class_na
 | `-- market` | touching `Market.gd`. 12,600 checks that the market cannot be gamed |
 | `-- contracttest` | touching `Contracts`, standing or `Market` — it drives standing to 40 and proves a part still cannot sell or melt for its own price, which `-- market` cannot reach |
 | `-- repairs` | touching `heal` or `heal_scale`. What a repair is worth at full, half and three hull — a dial you cannot read off the data |
+| `-- content` | adding cards or modules. A MEASUREMENT, not a gate: prints unique cards per house against the target — Korvan 40, unbranded 20, malfunctions 15 — and passes either way. Counts unique NAMES, so two modules granting the same verb are one card |
+| `-- parts` | touching modules, `ModuleIcon` or the hold's cell size. Every module in the game at its own footprint, grouped by house. The sibling of `-- cards`, and dev-only for the same reason |
 | `-- glyphs` | adding a card or changing `CardData.glyph_kind()`. Distribution over all 89, so no picture becomes a catch-all |
 | `-- stowtest` | touching the salvage rail or `SectorScreen`'s lifetime. Drives the real screen through a real jump — the rail's dismissal has been wrong three times and the first was invisible to any assertion on the rule itself |
 | `-- archivetest` | adding an archive document. Machinery AND a style gate over the prose — see `docs/lore.md` §5 |

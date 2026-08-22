@@ -30,6 +30,7 @@ var _tab_ship: Button
 var _tab_sector: Button
 var _tab_chart: Button
 var _tab_cards: Button
+var _tab_parts: Button
 var _tab_history: Button
 ## Only ever visible in a party. Built unconditionally, because a party can form
 ## before the HUD exists and can also outlive it — hiding a built button is one
@@ -196,6 +197,12 @@ func _build() -> void:
 	if DevMode.enabled:
 		_tab_cards = _tab("CARDS", func() -> void: Router.show_cards())
 		_row.add_child(_tab_cards)
+		# Its sibling. A card is what a module DOES and the module is the thing
+		# you actually find, pack and bolt on — two catalogues, because they
+		# answer two different questions and one page showing both would be a
+		# list of cards with a picture beside each.
+		_tab_parts = _tab("MODULES", func() -> void: Router.show_modules())
+		_row.add_child(_tab_parts)
 	# Beside the three tabs that are part of the game rather than beside the two
 	# readouts, because who you are flying with is a thing you act on: it is
 	# where you learn that somebody is four shells deeper than you and running
@@ -247,6 +254,8 @@ func refresh() -> void:
 	_state(_tab_sector, Router.current is SectorScreen or fighting, choose_lock,
 		"What is around you.")
 	_state(_tab_chart, Router.current is StarchartScreen, lock, "Where to go next.")
+	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
+		"Every part in the game. Dev only.")
 	_state(_tab_cards, Router.current is CardGalleryScreen, choose_lock,
 		"Every card in the game.")
 	_state(_tab_history, Router.current is HistoryScreen, choose_lock,

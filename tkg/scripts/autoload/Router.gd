@@ -213,6 +213,14 @@ func show_cards() -> void:
 	_swap(s)
 	s.setup()
 
+## Development only: every module in the game on one page. See
+## ModuleGalleryScreen — the sibling of show_cards, and dev-only for the same
+## reason: a catalogue is the answer to a game about finding out what things do.
+func show_modules() -> void:
+	var s := ModuleGalleryScreen.new()
+	_swap(s)
+	s.setup()
+
 func show_ship() -> void:
 	if in_combat():
 		return
