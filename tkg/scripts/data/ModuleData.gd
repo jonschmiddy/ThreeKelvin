@@ -181,6 +181,14 @@ static func rarity_name(r: Rarity) -> String:
 ## Common through Epic are cold, so the top of the ladder now separates from
 ## the body of it before any name is read.
 ##
+## EPIC IS A DEEPER VIOLET for the same reason one rung lower, and the fix is
+## SATURATION rather than hue. It was #a97fd4, and measuring it says why that
+## did not work: 270 degrees against Rare's 213, which is a real 57 degrees of
+## separation — but at 40% saturation and the same blue channel, so two
+## adjacent rungs arrived as one pale cool family and the word underneath was
+## doing all the work. #8b4fd4 is the same hue at 63%. The plate is 30 pixels
+## across and the name is not on it.
+##
 ## CONTRABAND IS BLACK, and black is darker than the screen it is drawn on.
 ## That is deliberate and it is the reason `rarity_ink` exists below: a
 ## contraband plate has no ground you can see, only an edge — the shape of a
@@ -188,7 +196,7 @@ static func rarity_name(r: Rarity) -> String:
 ## manifest should look like.
 static func rarity_colour(r: Rarity) -> Color:
 	return [
-		Color("#8fa3ba"), Color("#7fb89a"), Color("#6a9ad4"), Color("#a97fd4"),
+		Color("#8fa3ba"), Color("#7fb89a"), Color("#6a9ad4"), Color("#8b4fd4"),
 		Color("#d99b29"), Color("#e05fa8"), Color("#e0402e"), Color("#05070a"),
 	][r]
 

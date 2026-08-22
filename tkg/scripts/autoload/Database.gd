@@ -342,7 +342,13 @@ const SHARED := {
 	&"block":    {name = "Hold Fast", energy = 1, rarity = 0, block = 7},
 	&"vent":     {name = "Bleed Heat", energy = 1, rarity = 0, vent = 3},
 	&"reroute":  {name = "Reroute", energy = 1, rarity = 0, draw = 1},
-	&"range":    {name = "Range", energy = 0, rarity = 0, lock_on = 3},
+	# +2 AND NOT +3, so that Korvan's own Lock On has a reason to cost energy.
+	# At +3 the shared card was 0 energy for one point less than a 1-energy
+	# house card, which is a full energy for one point of mark — nobody would
+	# ever pay it, and the Targeting Servo was a worse Ranging Optics. Surfaced
+	# by holdtest's single-verb report, which exists to put exactly this kind of
+	# near-twin next to itself.
+	&"range":    {name = "Range", energy = 0, rarity = 0, lock_on = 2},
 	&"slug":     {name = "Slug", energy = 1, rarity = 0, damage = 4, hits = 2},
 	&"cut":      {name = "Cutting Beam", energy = 1, rarity = 0, damage = 6},
 	&"patch":    {name = "Patch", energy = 1, rarity = 0, heal = 1, heal_scale = 5},
