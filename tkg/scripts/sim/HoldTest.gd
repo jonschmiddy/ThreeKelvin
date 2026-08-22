@@ -23,6 +23,7 @@ func run() -> void:
 	_legible()
 	_card_law()
 	_no_twins()
+	_no_echoes()
 	verdict("holdtest")
 
 
@@ -350,3 +351,63 @@ func _no_twins() -> void:
 	crowd.sort()
 	for line in crowd:
 		print("  one verb, %s" % line)
+
+
+## NO CARD IS NAMED AFTER THE RULE IT PRINTS.
+##
+## A keyword is the rule; a card is a thing that uses it. When the two share a
+## name the card says one thing twice and the glossary loses its referent —
+## "Lock On — Lock on +4" tells a player nothing they could not read off the
+## corner, and the word "lock on" now means both a mechanic and a particular
+## piece of Korvan hardware.
+##
+## The catalogue already knew this and had written it down once: the shared
+## brace card is called Bolt On "and not Brace — Brace is the KEYWORD". That
+## comment held for one card and nothing enforced it for the rest, so four more
+## walked in: Lock On, Evoke, Launch Drone and Wasp Screen. The last two are the
+## sharpest version of it — their names were the effect line with the number
+## taken off.
+##
+## THE GLOSSARY IS COLLECTED FROM THE CARDS, not typed here. `keywords()` is the
+## only place a keyword is defined, and asking every card in the game what it
+## explains is the only way this check keeps up with a keyword added next month.
+## The one thing it cannot see is a keyword no card uses yet — which cannot
+## collide with anything either, until a card uses it, at which point it can.
+func _no_echoes() -> void:
+	var all: Array[CardData] = []
+	for id in DB.modules:
+		for c in (DB.modules[id] as ModuleData).resolved_cards():
+			all.append(c)
+	for row in DB.MALFUNCTIONS:
+		all.append(DB.malfunction(row[0]))
+
+	var glossary := {}
+	for c in all:
+		for pair in c.keywords():
+			glossary[String(pair[0]).to_lower()] = true
+
+	var named: Array[String] = []
+	var echoed: Array[String] = []
+	var seen := {}
+	for c in all:
+		if seen.has(c.name):
+			continue
+		seen[c.name] = true
+		var low := c.name.to_lower()
+		if glossary.has(low):
+			named.append(c.name)
+		# AND THE WEAKER FORM: the name inside its own effect line, which is how
+		# "Launch Drone — Launch drone 3." got in without ever equalling a
+		# glossary entry.
+		if c.describe().to_lower().contains(low):
+			echoed.append("%s — %s" % [c.name, c.describe()])
+	named.sort()
+	echoed.sort()
+
+	_ok("no card is named after a keyword", named.is_empty())
+	for n in named:
+		_fail("%s is a keyword" % n)
+	_ok("no card repeats its own name in its effect", echoed.is_empty())
+	for e in echoed:
+		_fail(e)
+	print("  glossary: %d keywords across %d cards" % [glossary.size(), seen.size()])

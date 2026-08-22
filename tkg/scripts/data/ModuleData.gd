@@ -181,6 +181,18 @@ static func rarity_name(r: Rarity) -> String:
 ## Common through Epic are cold, so the top of the ladder now separates from
 ## the body of it before any name is read.
 ##
+## COMMON IS NEUTRAL GREY AND UNCOMMON IS A REAL GREEN, and measuring the old
+## pair says the same thing the Epic one did. Common was #8fa3ba at 23%
+## saturation and Uncommon #7fb89a at 31%: 60 degrees of hue between them and
+## it did not matter, because at that saturation and that lightness they were
+## two tints of the same pale nothing.
+##
+## The bigger find was that Common was BLUE — 208 degrees, five degrees off
+## Rare's 213 — so the bottom of the ladder was in Rare's own hue family and
+## told apart only by being washed out. Making Common a near-neutral grey
+## fixes both collisions with one value, and it is what Common should have
+## been anyway: the grade that has no colour, because it has no claim.
+##
 ## EPIC IS A DEEPER VIOLET for the same reason one rung lower, and the fix is
 ## SATURATION rather than hue. It was #a97fd4, and measuring it says why that
 ## did not work: 270 degrees against Rare's 213, which is a real 57 degrees of
@@ -196,7 +208,7 @@ static func rarity_name(r: Rarity) -> String:
 ## manifest should look like.
 static func rarity_colour(r: Rarity) -> Color:
 	return [
-		Color("#8fa3ba"), Color("#7fb89a"), Color("#6a9ad4"), Color("#8b4fd4"),
+		Color("#98a0a8"), Color("#4fbf82"), Color("#6a9ad4"), Color("#8b4fd4"),
 		Color("#d99b29"), Color("#e05fa8"), Color("#e0402e"), Color("#05070a"),
 	][r]
 

@@ -77,7 +77,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 
 	if c.drone_armor > 0:
 		cb.drone_armor += c.drone_armor
-		cb._log("Wasp screen online (+%d armor/turn)." % c.drone_armor, &"good")
+		cb._log("Screen drone launched (+%d armor/turn)." % c.drone_armor, &"good")
 
 	if c.evoke > 0:
 		var n := cb.drones.size()

@@ -418,10 +418,15 @@ func describe() -> String:
 		bits.append("+%d credits" % credit_gain)
 	if credit_cost > 0:
 		bits.append("Spend %d credits" % credit_cost)
+	# "Attack drone" and "Screen drone", not "Launch drone" and "Wasp screen".
+	# A keyword is a RULE and has to be house-neutral: "Wasp screen" is Cygnet's
+	# own flavour standing in for a mechanic any house could have, and it made
+	# the Shield Wasp Cradle's card read "Wasp Screen — Wasp screen 3." Both now
+	# point at the one glossary entry that explains them, which is Drone.
 	if drone_damage > 0:
-		bits.append("Launch drone %d" % drone_damage)
+		bits.append("Attack drone %d" % drone_damage)
 	if drone_armor > 0:
-		bits.append("Wasp screen %d" % drone_armor)
+		bits.append("Screen drone %d" % drone_armor)
 	if evoke > 0:
 		bits.append("Evoke %d per drone" % evoke)
 	if unplayable:

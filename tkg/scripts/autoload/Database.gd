@@ -420,7 +420,11 @@ func _seed_modules() -> void:
 		[{name = "Emergency Vent", energy = 0, vent = 4, draw = 1}, &"vent"])
 	_module(&"servo", "Targeting Servo", &"korvan", U, C0,
 		"Paints the target for whatever fires next.",
-		[{name = "Lock On", energy = 1, lock_on = 4, copies = 1}])
+		## BORE SIGHT and not "Lock On". Lock on is the KEYWORD — the card face
+		## already reads "Lock on +4" — so a card called Lock On is the rule
+		## wearing its own name, exactly as Brace was before it became Bolt On.
+		## Bore sighting is what you do to a gun this size before you fire it.
+		[{name = "Bore Sight", energy = 1, lock_on = 4, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
 		"Rotary cannon. Volume as a philosophy.",
 		[{name = "Full Auto", energy = 2, heat = 1, damage = 2, hits = 5, salvo = 1}, &"feed"])
@@ -567,13 +571,13 @@ func _seed_modules() -> void:
 	# --- Cygnet: drones
 	_module(&"dronebay", "Cygnet Drone Bay", &"cygnet", W, C1,
 		"Launches something that fights for you.",
-		[{name = "Launch Drone", energy = 1, drone_damage = 3, copies = 2}])
+		[{name = "Sortie", energy = 1, drone_damage = 3, copies = 2}])
 	_module(&"wasp", "Shield Wasp Cradle", &"cygnet", S, C1,
 		"A drone that flies between you and it.",
 		[{name = "Wasp Screen", energy = 1, drone_armor = 3, copies = 2}])
 	_module(&"evoke", "Evoke Node", &"cygnet", U, C2,
 		"Spends the swarm all at once.",
-		[{name = "Evoke", energy = 1, evoke = 7, copies = 1}])
+		[{name = "Rouse", energy = 1, evoke = 7, copies = 1}])
 
 	# --- Verity: precision
 	## Issued weapon. Hits harder per card than the other two starters on
