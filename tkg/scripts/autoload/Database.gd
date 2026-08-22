@@ -330,7 +330,10 @@ func _seed_affixes() -> void:
 ## could plausibly grant; anything with a house's fingerprints on it stays
 ## written where it is granted, because that is what makes it that part's card.
 const SHARED := {
-	&"brace":    {name = "Brace", energy = 1, armor = 5},
+	# "Bolt On" and not "Brace". Brace is the KEYWORD — the card face already
+	# reads "Brace 5" — so a card called Brace is the rule wearing its own name,
+	# and every other card in the game is a thing rather than a rule.
+	&"brace":    {name = "Bolt On", energy = 1, armor = 5},
 	&"block":    {name = "Hold Fast", energy = 1, block = 7},
 	&"vent":     {name = "Bleed Heat", energy = 1, vent = 3},
 	&"reroute":  {name = "Reroute", energy = 1, draw = 1},
@@ -340,6 +343,7 @@ const SHARED := {
 	&"patch":    {name = "Patch", energy = 1, heal = 1, heal_scale = 5},
 	&"scuttle":  {name = "Scuttle", energy = 0, decommission = 1},
 	&"sort":     {name = "Sort", energy = 1, discard = 1, draw = 1},
+	&"feed":     {name = "Feed", energy = 1, salvo = 2},
 }
 
 func _card(d: Dictionary) -> CardData:
@@ -394,9 +398,12 @@ func _seed_modules() -> void:
 	_module(&"km4", "KM-4 Mass Driver", &"korvan", W, C0,
 		"Slow ordnance. Bank the shot, land the hammer.",
 		[{name = "Charged Slug", energy = 2, heat = 3, damage = 16, charge_turns = 1, copies = 1}])
+	# ONE AND ONE. It granted two copies of a card called "Brace", which is the
+	# keyword wearing its own name twice — it is the shared Bolt On plus a card
+	# that is actually this welder's.
 	_module(&"plate", "Ablative Plate Welder", &"korvan", S, C0,
 		"Armor that persists, heat that lingers.",
-		[{name = "Brace", energy = 1, armor = 5, copies = 2}])
+		[&"brace", {name = "Weld On", energy = 1, armor = 3, vent = 2}])
 	_module(&"coolant", "Coolant Flush Assembly", &"korvan", S, C0,
 		"Dumps heat into the dark.",
 		[{name = "Emergency Vent", energy = 0, vent = 4, draw = 1, copies = 1}])
