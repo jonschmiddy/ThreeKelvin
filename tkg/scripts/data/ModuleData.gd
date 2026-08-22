@@ -156,7 +156,7 @@ static func rarity_colour(r: Rarity) -> Color:
 ## sibling" is true BY CONSTRUCTION. There is no review step to forget.
 ##
 ## Manufacturer is allowed to vary it, because that is build identity with a
-## number behind it: Halcyon grants fewer, better cards — the thin perfect deck
+## number behind it: Verity grants fewer, better cards — the thin perfect deck
 ## the house is named for, made mechanical instead of flavourful.
 ## The class table. card-design names two classes — "primary weapons: 2,
 ## utilities: 1" — and this game has three slots, so SYSTEM is a reading rather
@@ -166,7 +166,7 @@ static func rarity_colour(r: Rarity) -> Color:
 ## volume and average kills per run fell from 5.2 to 3.3.
 func grant_count() -> int:
 	var base := 1 if slot == Slot.UTILITY else 2
-	if manufacturer == &"halcyon":
+	if manufacturer == &"verity":
 		base = maxi(1, base - 1)
 	for a in affixes:
 		base += a.grant_delta

@@ -597,7 +597,7 @@ func _victory() -> void:
 	Run.kills += 1
 	var node: MapGen.MapNode = Run.node_at()
 	var gained := int(round(enemy.template.credit_reward * (1.0 + (node.danger - 1) * 0.2)))
-	if Run.has_set(&"dredge", 3):
+	if Run.has_set(&"probate", 3):
 		gained = int(round(gained * 1.5))
 	Run.add_credits(gained)
 	Run.dross += new_dross

@@ -298,7 +298,7 @@ static func region_name(r: Region) -> String:
 ## The maker colours are accents: small highlights on a module sprite, where
 ## being a few points apart is exactly right. Reused as the identity of a whole
 ## system they stopped working — redline and calyx are both muted greens within
-## a hair of each other, dredge and korvan are both browns, and cygnet sits on
+## a hair of each other, probate and korvan are both browns, and cygnet sits on
 ## top of the unclaimed grey-blue. On a chart of a hundred and fifty icons that
 ## is not a code, it is noise that looks like a code.
 ##

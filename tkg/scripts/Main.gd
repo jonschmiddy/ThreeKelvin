@@ -547,7 +547,7 @@ var _convoy_test: RefCounted = null
 ## crash.
 func _print_check_table() -> void:
 	for probe in [[&"redline", HullData.Weight.LIGHT], [&"korvan", HullData.Weight.MEDIUM],
-			[&"dredge", HullData.Weight.HEAVY]]:
+			[&"probate", HullData.Weight.HEAVY]]:
 		Run.start_new_run(probe[0], int(probe[1]))
 		print("\n=== %s ===" % Run.hull.name)
 		print("%-22s %-34s %6s %6s %6s %6s" % [
@@ -578,7 +578,7 @@ func _print_attribute_table() -> void:
 				row += "%3d " % int(a.value)
 			# Deck size is the number that decides whether a starting hand is a
 			# DRAW or just your whole deck, and it is not obvious from the kit:
-			# modules grant 2 cards, utilities 1, and Halcyon one fewer than
+			# modules grant 2 cards, utilities 1, and Verity one fewer than
 			# whatever it would have been.
 			var deck := 0
 			for mod in Run.installed:

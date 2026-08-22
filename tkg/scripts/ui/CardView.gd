@@ -290,7 +290,7 @@ func _draw() -> void:
 ## The cut is doing real work, not decoration. It is the one brand channel that
 ## survives with no colour at all — Korvan ends square because decoration is for
 ## people whose guns jam; Redline ends torn because salvage does not finish
-## edges; Halcyon ends in a swallowtail because it can afford to.
+## edges; Verity ends in a swallowtail because it can afford to.
 func _banner() -> void:
 	var s := float(_s)
 	var man: ManufacturerData = DB.manufacturers.get(card.manufacturer)
@@ -318,7 +318,7 @@ func _banner() -> void:
 		(Z_ENERGY.position.y + Z_ENERGY.size.y * 0.5) * s), mark, field)
 	# EVERY banner is outlined, and the outline goes on LAST.
 	#
-	# It started as a light-field rule — Halcyon and Calyx bleed into the card
+	# It started as a light-field rule — Verity and Calyx bleed into the card
 	# without one. But two houses fly fields that are the card's own colour:
 	# Redline's charcoal is #1c2127 against a #161f2c panel, and Cygnet's
 	# #16202e is nearer still. Those banners had no edge at all, so their hems
@@ -381,7 +381,7 @@ static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
 			for i in 3:
 				hem.call(Rect2(b.position.x + (2 + i * 4) * s, base - 3 * s,
 					s, s), mark)
-		&"dredge":
+		&"probate":
 			# A bolted lip. Thick plate, big fasteners, done by someone paid by
 			# the hour.
 			hem.call(Rect2(b.position.x, base - 5 * s, b.size.x, 4.0 * s),
@@ -389,7 +389,7 @@ static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
 			for i in 2:
 				hem.call(Rect2(b.position.x + (2 + i * 6) * s, base - 4 * s,
 					3.0 * s, 2.0 * s), mark)
-		&"halcyon":
+		&"verity":
 			# A hairline seam. Two bands with one dark line between them: a join
 			# you are not supposed to notice, executed so well it becomes the
 			# decoration.
@@ -466,7 +466,7 @@ static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
 			r.call(Vector2(-0.5, 1.5), Vector2(1, 3), mark)
 			r.call(Vector2(-4.5, -0.5), Vector2(3, 1), mark)
 			r.call(Vector2(1.5, -0.5), Vector2(3, 1), mark)
-		&"dredge":
+		&"probate":
 			# A bucket narrowing to its teeth. The bite is the brand.
 			r.call(Vector2(-4.5, -4.5), Vector2(9, 2), mark)
 			r.call(Vector2(-3.5, -2.5), Vector2(7, 2), mark)
@@ -477,7 +477,7 @@ static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
 			# The namesake line, severed, still flying.
 			r.call(Vector2(-4.5, -1.5), Vector2(4, 3), mark)
 			r.call(Vector2(0.5, -1.5), Vector2(4, 3), mark)
-		&"halcyon":
+		&"verity":
 			# Two rules and the hairline between them. Luxury is what you leave
 			# off.
 			r.call(Vector2(-4.5, -2.5), Vector2(9, 2), mark)

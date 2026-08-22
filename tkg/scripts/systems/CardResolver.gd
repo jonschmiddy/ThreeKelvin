@@ -70,7 +70,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 
 	if c.armor > 0:
 		var a := c.armor
-		if Run.has_set(&"dredge", 5):
+		if Run.has_set(&"probate", 5):
 			a += 2
 		cb.armor += a
 		cb._log("Brace +%d armor." % a, &"you")

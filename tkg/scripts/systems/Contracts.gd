@@ -218,7 +218,7 @@ const _LINES := {
 			"Come in hot. {N} on the hull, any Foundry berth, and do not vent on the approach like a coward.",
 		],
 	},
-	&"dredge": {
+	&"probate": {
 		ContractData.Kind.FETCH: [
 			"Filing says the contents of {PLACE} are ours. The contents disagree by being at {PLACE}. Retrieve.",
 			"Item at {PLACE}. Combine holds the claim. Recovery is billable at the rate below.",
@@ -244,7 +244,7 @@ const _LINES := {
 			"{N} on the hull, any of our doors, cash, no receipt. We pay over the posted rate. Don't tell anyone we do.",
 		],
 	},
-	&"halcyon": {
+	&"verity": {
 		ContractData.Kind.FETCH: [
 			"A commission of ours is at {PLACE}, unattended. The Company maintains what it sold. Recover it and we will resume doing so.",
 			"An owner failed to return from {PLACE}. The obligation did not lapse. The hardware is still there.",

@@ -17,7 +17,7 @@ static func build() -> Array[CardData]:
 
 	for m in Run.installed:
 		for c in m.resolved_cards():
-			if c.manufacturer == &"halcyon" and Run.has_set(&"halcyon", 3):
+			if c.manufacturer == &"verity" and Run.has_set(&"verity", 3):
 				c.energy = maxi(0, c.energy - 1)
 			out.append(c)
 

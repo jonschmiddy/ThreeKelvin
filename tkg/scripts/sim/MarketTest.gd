@@ -122,7 +122,7 @@ func _print_goods() -> void:
 		["Korvan outpost (its own yard)", 1, 3, [&"korvan"] as Array[StringName], 3],
 		["Solari settlement (a rival)", 2, 3, [&"solari"] as Array[StringName], 5],
 		["contested city, no Korvan", 3, 4, [&"solari", &"cygnet"] as Array[StringName], 7],
-		["Korvan capital (deep glut)", 4, 5, [&"korvan", &"halcyon"] as Array[StringName], 9],
+		["Korvan capital (deep glut)", 4, 5, [&"korvan", &"verity"] as Array[StringName], 9],
 		["lawless deep fence", 1, 1, [&"redline"] as Array[StringName], 10],
 	]
 	for r in rows:

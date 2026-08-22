@@ -683,8 +683,8 @@ func deck_size() -> int:
 ## The starting kit is one shape — a weapon, two systems, a utility — and the
 ## frames are not. Four makers drop a weapon mount, so on a LIGHT frame their
 ## generic weapon had nowhere to go and two cards vanished, while the same ship
-## sat on spare system and utility mounts the kit could not reach. Dredge,
-## Cygnet, Halcyon and Calyx lights opened two cards down on Korvan's for no
+## sat on spare system and utility mounts the kit could not reach. Probate,
+## Cygnet, Verity and Calyx lights opened two cards down on Korvan's for no
 ## reason anyone chose.
 ##
 ## The floor is a function of HAND SIZE, because that is what makes it matter:
@@ -851,7 +851,7 @@ func reactor() -> int:
 	var e := hull.reactor
 	if hull.perk_id == &"overspec_reactor":
 		e += 1
-	if has_set(&"halcyon", 5):
+	if has_set(&"verity", 5):
 		e += 1
 	return e
 
@@ -978,7 +978,7 @@ func attr_maneuver(bare: bool = false) -> int:
 ## and only the first decides whether you survive sitting in a corona.
 ##
 ## Divisors widened once already. At 2.4/2.0 the attribute saturated: five of
-## the seven heavy frames pinned at 6, so a Dredge ore barge and a Solari
+## the seven heavy frames pinned at 6, so a Probate ore barge and a Solari
 ## Furnace Baron read identically on the axis Solari exists to own. A ceiling
 ## that everything large reaches is not a measurement. Now exactly one chassis
 ## in the game reads 6, and it is the one built by the heat manufacturer.

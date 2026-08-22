@@ -25,7 +25,7 @@ extends RefCounted
 ## and the first is free. Order follows DB.STARTABLE so the chassis select reads
 ## top to bottom as the order you earn them in.
 const CHAIN: Array[StringName] = [
-	&"korvan", &"solari", &"dredge", &"redline", &"cygnet", &"halcyon", &"calyx",
+	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
 ]
 
 ## The house you must win with to earn this one, or empty for the first.

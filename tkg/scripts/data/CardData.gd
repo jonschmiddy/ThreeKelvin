@@ -222,7 +222,7 @@ func keywords() -> Array:
 		out.append(["Block", "Soaks damage before armor. Gone at the end of the enemy's turn."])
 	if armor > 0 or armor_from_heat:
 		# BRACE, not "armor". Armor is the resource; Brace is the word the game
-		# actually says — it is what the card text prints and what Dredge's set
+		# actually says — it is what the card text prints and what Probate's set
 		# bonus calls this whole class of card. A glossary that explains a term
 		# appearing nowhere on the card is a glossary for a different game.
 		out.append(["Brace", "Armor. Stays up between turns, and costs 1 heat a turn to hold."])

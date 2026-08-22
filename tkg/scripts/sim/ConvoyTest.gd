@@ -59,20 +59,20 @@ func _ship_sheet() -> void:
 		["light_bare", _build(&"redline", HullData.Weight.LIGHT, [])],
 		["light_armed", _build(&"redline", HullData.Weight.LIGHT, [
 			[ModuleData.Slot.WEAPON, 0, &"redline"],
-			[ModuleData.Slot.SYSTEM, 0, &"halcyon"]])],
+			[ModuleData.Slot.SYSTEM, 0, &"verity"]])],
 		["medium_bare", _build(&"korvan", HullData.Weight.MEDIUM, [])],
 		["medium_armed", _build(&"korvan", HullData.Weight.MEDIUM, [
 			[ModuleData.Slot.WEAPON, 0, &"korvan"],
 			[ModuleData.Slot.WEAPON, 1, &"solari"],
 			[ModuleData.Slot.UTILITY, 0, &"cygnet"]])],
-		["heavy_bare", _build(&"dredge", HullData.Weight.HEAVY, [])],
-		["heavy_armed", _build(&"dredge", HullData.Weight.HEAVY, [
-			[ModuleData.Slot.WEAPON, 0, &"dredge"],
-			[ModuleData.Slot.WEAPON, 1, &"dredge"],
+		["heavy_bare", _build(&"probate", HullData.Weight.HEAVY, [])],
+		["heavy_armed", _build(&"probate", HullData.Weight.HEAVY, [
+			[ModuleData.Slot.WEAPON, 0, &"probate"],
+			[ModuleData.Slot.WEAPON, 1, &"probate"],
 			[ModuleData.Slot.WEAPON, 2, &"calyx"],
-			[ModuleData.Slot.SYSTEM, 0, &"dredge"],
+			[ModuleData.Slot.SYSTEM, 0, &"probate"],
 			[ModuleData.Slot.SYSTEM, 1, &"korvan"],
-			[ModuleData.Slot.UTILITY, 0, &"dredge"]])],
+			[ModuleData.Slot.UTILITY, 0, &"probate"]])],
 	]
 	# And the two gauges the art reads, on a ship that is otherwise unchanged.
 	var hot := _build(&"solari", HullData.Weight.MEDIUM, [
@@ -261,8 +261,8 @@ const CREW: Array = [
 	["VELA", &"redline", HullData.Weight.LIGHT],
 	["OKONKWO", &"calyx", HullData.Weight.MEDIUM],
 	["ASWORTH", &"korvan", HullData.Weight.HEAVY],
-	["DIALLO", &"dredge", HullData.Weight.MEDIUM],
-	["NAKATA", &"halcyon", HullData.Weight.LIGHT],
+	["DIALLO", &"probate", HullData.Weight.MEDIUM],
+	["NAKATA", &"verity", HullData.Weight.LIGHT],
 	["BRENNAN", &"cygnet", HullData.Weight.MEDIUM],
 ]
 
@@ -279,7 +279,7 @@ static func fake_party(count: int) -> void:
 		var who: Array = CREW[i]
 		var b := _build(who[1], who[2], [
 			[ModuleData.Slot.WEAPON, 0, who[1]],
-			[ModuleData.Slot.WEAPON, 1, &"halcyon"],
+			[ModuleData.Slot.WEAPON, 1, &"verity"],
 			[ModuleData.Slot.SYSTEM, 0, who[1]],
 			[ModuleData.Slot.UTILITY, 0, &"cygnet"]])
 		b.pilot = who[0]

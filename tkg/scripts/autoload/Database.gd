@@ -75,28 +75,28 @@ const GENERIC_STOCK: Array[StringName] = [
 ## which it used to be for three of them.
 ##
 ## The rule was "each maker's cheapest weapon", which sounded even and was not:
-## Dredge, Halcyon and Calyx had no common weapon at all, so their floor was C2.
+## Probate, Verity and Calyx had no common weapon at all, so their floor was C2.
 ## That leaked somewhere invisible. Market.melt() reads scrap_value, which is a
-## table indexed by RARITY, so a Dredge player could scrap their free gun for
+## table indexed by RARITY, so a Probate player could scrap their free gun for
 ## roughly four times what a Korvan player got before anything had happened —
 ## with salvage_rack multiplying exactly that. An economic head start nothing on
 ## screen accounted for, in a game whose difficulty lives in the economy.
 ##
-## Breaker Cannon, Halcyon Mark I and Calyx Barb were written to close it, and
+## Breaker Cannon, Verity Mark I and Calyx Barb were written to close it, and
 ## they also even out a common tier of the drop pool that was six-sevenths
 ## Korvan.
 ##
 ## STILL UNEVEN, deliberately for now: Solari, Redline and Cygnet start on
 ## Uncommons, which melt for 16 against Korvan's 8. Half the gap that was there
-## and a quarter of what Dredge had, but not zero — closing it means three more
+## and a quarter of what Probate had, but not zero — closing it means three more
 ## modules, and that is a content decision rather than a bug fix.
 const STARTER_WEAPON: Dictionary = {
 	&"korvan": &"kh20",
 	&"solari": &"plasma",
-	&"dredge": &"breaker",
+	&"probate": &"breaker",
 	&"redline": &"needle",
 	&"cygnet": &"dronebay",
-	&"halcyon": &"markone",
+	&"verity": &"markone",
 	&"calyx": &"barb",
 }
 
@@ -114,7 +114,7 @@ const STARTER_WEAPON: Dictionary = {
 ## are unreachable for as long as ACTIVE_MAKERS is narrowed. You can fly them;
 ## you cannot complete them.
 const STARTABLE: Array[StringName] = [
-	&"korvan", &"solari", &"dredge", &"redline", &"cygnet", &"halcyon", &"calyx",
+	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
 ]
 
 ## Branded weapon first, so that when a light frame runs out of hardpoints it is
@@ -146,7 +146,7 @@ func _seed_manufacturers() -> void:
 			"Weaponised heat. Damage scales with your own fever.",
 			"Sunward", "Plasma weapons gain +2 damage.",
 			"Ignition", "Overheat damage halved."],
-		[&"dredge", "The Dredge Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
+		[&"probate", "The Probate Combine", "Everything is salvage. Even you.", "#b3924e", "#6e5a2e",
 			"Scrap economy and armor sustain. Wins slowly, wins rich.",
 			"Company Rates", "+50% credits from wrecks.",
 			"Foundry Line", "Brace cards give +2 armor."],
@@ -154,9 +154,9 @@ func _seed_manufacturers() -> void:
 			"Salvage tech, stealth and refits. Innate contraband affinity.",
 			"Chop Shop", "Draw 1 extra card each turn.",
 			"Ghost Protocol", "First enemy attack each combat is negated."],
-		[&"halcyon", "Halcyon Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
+		[&"verity", "Verity Ateliers", "Made once, made properly.", "#8a7340", "#e8e0cc",
 			"Few hulls, each one signed. Sparse, exact, and priced accordingly.",
-			"Bespoke", "Halcyon cards cost 1 less energy.",
+			"Bespoke", "Verity cards cost 1 less energy.",
 			"Provenance", "Start each combat with 1 extra energy."],
 		[&"cygnet", "Cygnet Dynamics", "You are never alone.", "#58c8d8", "#16202e",
 			"Autonomous drones that fight and intercept for you.",
@@ -196,9 +196,9 @@ func _seed_manufacturers() -> void:
 const BACKSTORY := {
 	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon — they inherited the jigs and kept stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
 	&"solari": "A guild of thermal engineers who lost an argument about safety margins and left to prove they were right. Solari hulls are rated for temperatures their crews are not. The company line is that heat is only waste if you fail to aim it.",
-	&"dredge": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock — it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
+	&"probate": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock — it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
 	&"redline": "Chop shops with a trademark. Redline registers no serials, honours no warranty, and has never once been found at the address on its invoices. What they sell is speed and the absence of a record, and both are exactly as legal as your inspector is thorough.",
-	&"halcyon": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Halcyon does not scale, does not discount, and does not replace what it sold you — it repairs it, at a price, forever. Owning one is less a purchase than an arrangement.",
+	&"verity": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Verity does not scale, does not discount, and does not replace what it sold you — it repairs it, at a price, forever. Owning one is less a purchase than an arrangement.",
 	&"cygnet": "Drone architects who solved autonomy and then spent forty years not discussing it. A Cygnet ship is a hangar with an engine, somewhere for the swarm to return to. Pilots report the drones anticipate them. The literature does not address this.",
 	&"calyx": "Clinical, corporate and entirely organic — Calyx hulls are cultured to a specification and then trimmed. They heal. They adapt. Every contract has a clause about feeding one something it was not rated for, and no customer has seen the results.",
 }
@@ -214,7 +214,7 @@ func manufacturer_name(id: StringName) -> String:
 	return (manufacturers[id] as ManufacturerData).name
 
 ## One-word display name for chips and map labels. Taking the first word works
-## for six of the seven makers but turns "The Dredge Combine" into "The", so the
+## for six of the seven makers but turns "The Probate Combine" into "The", so the
 ## article goes first.
 func short_name(full: String) -> String:
 	var n := full
@@ -322,7 +322,7 @@ func _seed_modules() -> void:
 	## was the house's best combo and its only one; there are now four rungs of it.
 	##
 	## What Korvan does NOT get, however well it would fit: heat_scale and
-	## damage_equals_heat (Solari IS weaponised heat), credit_gain (Dredge),
+	## damage_equals_heat (Solari IS weaponised heat), credit_gain (Probate),
 	## drones and evoke (Cygnet), negate_next (Redline), adapt and heal (Calyx).
 	## A house that borrows another's verb at a higher rarity does not read as
 	## stronger, it reads as the other house.
@@ -402,21 +402,21 @@ func _seed_modules() -> void:
 		"Burns bright enough that everyone can see what you meant.",
 		[{name = "Flare", energy = 1, heat = 2, lock_on = 6, copies = 2}])
 
-	# --- Dredge: scrap and sustain
-	_module(&"claw", "Salvage Claw", &"dredge", U, C0,
+	# --- Probate: scrap and sustain
+	_module(&"claw", "Salvage Claw", &"probate", U, C0,
 		"Strips value off things still moving.",
 		[{name = "Strip Mine", energy = 1, damage = 5, credit_gain = 3, copies = 2}])
-	_module(&"slag", "Slag Armor Kit", &"dredge", S, C1,
+	_module(&"slag", "Slag Armor Kit", &"probate", S, C1,
 		"Ugly, heavy, pays for itself.",
 		[{name = "Slag Plate", energy = 1, armor = 4, credit_gain = 2, copies = 2}])
-	_module(&"refinery", "Field Refinery", &"dredge", U, C2,
+	_module(&"refinery", "Field Refinery", &"probate", U, C2,
 		"Feeds salvage into the armor press.",
 		[{name = "Smelt", energy = 1, credit_cost = 5, armor = 10, copies = 1}])
-	_module(&"ripper", "Dredge Tear-Down Rig", &"dredge", W, C2,
+	_module(&"ripper", "Probate Tear-Down Rig", &"probate", W, C2,
 		"Disassembles hulls that object.",
 		[{name = "Tear Down", energy = 2, heat = 1, damage = 7, hits = 2, credit_gain = 4, copies = 2}])
 	## Issued weapon. See STARTER_WEAPON for why these three exist.
-	_module(&"breaker", "Breaker Cannon", &"dredge", W, C0,
+	_module(&"breaker", "Breaker Cannon", &"probate", W, C0,
 		"Point it at something and it becomes stock.",
 		[{name = "Break Down", energy = 1, damage = 5, credit_gain = 2, copies = 2}])
 
@@ -445,21 +445,21 @@ func _seed_modules() -> void:
 		"Spends the swarm all at once.",
 		[{name = "Evoke", energy = 1, evoke = 7, copies = 1}])
 
-	# --- Halcyon: precision
+	# --- Verity: precision
 	## Issued weapon. Hits harder per card than the other two starters on
-	## purpose: Halcyon grants one fewer card than anybody, so this is the only
+	## purpose: Verity grants one fewer card than anybody, so this is the only
 	## copy of it in the deck and a merely-average Common would have left the
 	## house opening a fight with a single mediocre attack.
-	_module(&"markone", "Halcyon Mark I", &"halcyon", W, C0,
+	_module(&"markone", "Verity Mark I", &"verity", W, C0,
 		"Numbered, signed, and the cheapest thing they will sell you.",
 		[{name = "Sidearm", energy = 1, damage = 7, copies = 2}])
-	_module(&"rail", "Aurelian Rail", &"halcyon", W, C2,
+	_module(&"rail", "Aurelian Rail", &"verity", W, C2,
 		"Nothing wasted. Nothing missed.",
 		[{name = "Precise Shot", energy = 1, heat = 1, damage = 9, draw = 1, copies = 2}])
-	_module(&"auspex", "Auspex Array", &"halcyon", U, C1,
+	_module(&"auspex", "Auspex Array", &"verity", U, C1,
 		"You always have the card you need.",
 		[{name = "Foresight", energy = 0, draw = 2, copies = 2}])
-	_module(&"halcyon", "Halcyon Deflector", &"halcyon", S, C3,
+	_module(&"verity", "Verity Deflector", &"verity", S, C3,
 		"Elegance, quantified.",
 		[{name = "Deflect", energy = 1, block = 12, copies = 2}])
 
@@ -506,15 +506,15 @@ func _seed_modules() -> void:
 	# heal card handed identically to seven houses is seven houses minus their
 	# differences, and the differences are the class system. Each of these pays
 	# for its hull points in the currency its house already trades in: Korvan in
-	# tempo, Solari in heat, Dredge in credits, Redline in nothing much and not
-	# much back, Halcyon in energy, Cygnet in time.
+	# tempo, Solari in heat, Probate in credits, Redline in nothing much and not
+	# much back, Verity in energy, Cygnet in time.
 	#
 	# THEY ARE ALL LIFELINES, AND THAT IS THE SECOND REWRITE OF THIS BLOCK.
 	#
 	# The first pass priced them as economy cards — flat heals, two and three
 	# energy — and priced them for a HEALTHY turn, which is the one turn that does
 	# not need them. At three hull and one energy left, a card that costs two is
-	# not a card. Every one of these now costs at most one energy (Halcyon's costs
+	# not a card. Every one of these now costs at most one energy (Verity's costs
 	# two, and one under Bespoke, which is that house answering the question its
 	# own way) and every one of them scales on hull MISSING rather than paying a
 	# flat number. See CardData.heal_scale.
@@ -547,7 +547,7 @@ func _seed_modules() -> void:
 	## it is the only card in the game that spends the run's currency to buy hull
 	## back mid-fight, and Company Rates (3-set, +50% from wrecks) is what pays
 	## for it. A fight you cannot afford is a fight you have to win cheaply.
-	_module(&"reclaim", "Hull Reclamation Rig", &"dredge", S, C1,
+	_module(&"reclaim", "Hull Reclamation Rig", &"probate", S, C1,
 		"Feeds the frame on whatever the frame used to be.",
 		[{name = "Reclaim", energy = 1, heal = 2, heal_scale = 3, credit_cost = 8, copies = 1}])
 	## Cheap, fast, and not very good — which is Redline. Free to play and it
@@ -557,10 +557,10 @@ func _seed_modules() -> void:
 		"Foam, tape, and no paperwork. Still flying? Then we did our job.",
 		[{name = "Bodge", energy = 0, heal = 1, heal_scale = 5, draw = 1, copies = 2}])
 	## The warranty, as a card. Twenty hull in one go for three energy — two
-	## under Bespoke (3-set, Halcyon cards cost 1 less), which is the difference
+	## under Bespoke (3-set, Verity cards cost 1 less), which is the difference
 	## between unplayable and a turn you plan a fight around. See `docs/lore.md`
 	## §3: the word in the rider is perpetuity, and the Company does not define it.
-	_module(&"perpetuity", "Perpetuity Clause", &"halcyon", S, C3,
+	_module(&"perpetuity", "Perpetuity Clause", &"verity", S, C3,
 		"The Company will maintain this hull. The Company does not say for how long.",
 		[{name = "Perpetuity", energy = 2, heal = 4, heal_scale = 3, copies = 1}])
 	## Two small welds rather than one big one, which is how a swarm does
@@ -679,7 +679,7 @@ func _seed_module_sizes() -> void:
 	# barrel. `singing` and `lattice` are precursor artifacts and read as blocks.
 	var bulky: Array[StringName] = [
 		&"dronebay", &"ripper", &"singing",
-		&"reactive", &"bulkhead", &"halcyon", &"lattice", &"braceframe", &"slag",
+		&"reactive", &"bulkhead", &"verity", &"lattice", &"braceframe", &"slag",
 		&"refinery", &"organ",
 	]
 	# Utility that is a piece of EQUIPMENT rather than an instrument.
@@ -746,7 +746,7 @@ func _seed_module_passives() -> void:
 		&"plating": 3, &"bracing": 2,          # generic yard stock
 		&"plate": 2, &"reactive": 6,           # korvan
 		&"sinkplate": 3, &"braceframe": 2, &"bulkhead": 5,
-		&"slag": 4,                            # dredge
+		&"slag": 4,                            # probate
 		&"weave": 3,                           # calyx
 		&"lattice": 8,                         # precursor artifact
 	}
@@ -885,7 +885,7 @@ const MAKER_HULLS := {
 		names = ["Cinder Skiff", "Emberwright", "Furnace Baron"],
 		perk_id = &"overspec_reactor",
 		d = {heat_cap = 8, dissipation = -1, stealth = -2, fuel_factor = 0.1}},
-	&"dredge": {
+	&"probate": {
 		names = ["Tin Picker", "Scrap Hauler", "Ore Barge"],
 		perk_id = &"salvage_rack",
 		d = {max_hull = 8, heat_cap = 2, dissipation = -1, initiative = -1,
@@ -910,7 +910,7 @@ const MAKER_HULLS := {
 		perk_id = &"spare_bay",
 		d = {max_hull = -3, dissipation = 1, dodge = 0.03, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
-	&"halcyon": {
+	&"verity": {
 		names = ["Atelier Yacht", "Commission", "Magnum Opus"],
 		perk_id = &"overspec_reactor",
 		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
@@ -963,7 +963,7 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	var d: Dictionary = spec.d
 	for k in d.keys():
 		h.set(k, h.get(k) + d[k])
-	# Floors, because a delta table cannot see what it collides with: Halcyon's
+	# Floors, because a delta table cannot see what it collides with: Verity's
 	# -1 weapon slot on a light frame would otherwise build a warship with one
 	# gun and Calyx's would build one with none.
 	h.weapon_slots = maxi(1, h.weapon_slots)
@@ -1192,16 +1192,16 @@ func hull_exhaust_at(w: HullData.Weight, cls: int = 0) -> Vector2i:
 ## hull_class() is already here.
 ##
 ## Real vessel types, one coherent family per maker, escalating in size. This is
-## free identity: a Dredge heavy called a Barge and a Halcyon heavy called a
+## free identity: a Probate heavy called a Barge and a Verity heavy called a
 ## Barque tell you who built them before you have read the maker name, and the
 ## hull names were already doing this work while the line underneath them said a
 ## flat "HEAVY CHASSIS".
 ##
 ## Korvan and Solari are the two warship lines because they are the two houses
-## that mirror each other mechanically. Dredge gets working boats: nobody names a
+## that mirror each other mechanically. Probate gets working boats: nobody names a
 ## barge to impress you. Redline gets fast rigs and a smuggling term. Cygnet gets
 ## the three real vessel types that exist to carry OTHER vessels, which is the
-## house motto stated as a hull class. Halcyon gets sailing rigs, where the rig
+## house motto stated as a hull class. Verity gets sailing rigs, where the rig
 ## itself is the craftsmanship. Calyx gets the three real hulls with no cut
 ## timber and no metal in them at all: a coracle is woven willow under a stretched
 ## hide, a pirogue is one hollowed tree, and an umiak is driftwood ribs under
@@ -1213,10 +1213,10 @@ func hull_exhaust_at(w: HullData.Weight, cls: int = 0) -> Vector2i:
 const CLASS_NAMES := {
 	&"korvan":  ["Cutter", "Frigate", "Monitor"],
 	&"solari":  ["Skiff", "Corvette", "Dreadnought"],
-	&"dredge":  ["Trawler", "Dredger", "Barge"],
+	&"probate": ["Trawler", "Scow", "Barge"],
 	&"redline": ["Sloop", "Runner", "Clipper"],
 	&"cygnet":  ["Pinnace", "Tender", "Carrier"],
-	&"halcyon": ["Yawl", "Schooner", "Barque"],
+	&"verity":  ["Yawl", "Schooner", "Barque"],
 	&"calyx":   ["Coracle", "Pirogue", "Umiak"],
 }
 
@@ -1459,8 +1459,8 @@ func fight_pool(danger: int, fauna_region: bool) -> Array[StringName]:
 ##
 ## Two invariants worth stating because they are invisible in the data:
 ##
-## **The epochs do not reconcile.** Korvan counts surveys, Dredge counts filings,
-## Halcyon counts commissions and the transponders count nothing at all. A
+## **The epochs do not reconcile.** Korvan counts surveys, Probate counts filings,
+## Verity counts commissions and the transponders count nothing at all. A
 ## careful reader should come away certain that a very long time has passed and
 ## unable to say how long. Duration is the horror; a timeline is a wiki.
 ##
@@ -1492,8 +1492,8 @@ I told them what I tell them. I have a ring to keep turning and eleven hundred p
 
 They wrote that down. They write everything down.")
 
-	_doc(&"dredge_filing", "FILING 8812-C, SALVAGE PRIORITY", "a claims officer, The Dredge Combine",
-		"filing year 8812", &"dredge", 1,
+	_doc(&"probate_filing", "FILING 8812-C, SALVAGE PRIORITY", "a claims officer, The Probate Combine",
+		"filing year 8812", &"probate", 1,
 		"Priority claim, all wrecks arising, Kestrel Reach and its approaches. Combine to have first survey, first cut and first refusal on any hull, part or cargo recovered.
 
 Filed in anticipation. Standard.
@@ -1514,8 +1514,8 @@ Released. Nothing to seize and nothing on the schedule that covers being warm.
 
 Third one this month.")
 
-	_doc(&"halcyon_rider", "RIDER TO A COMMISSION, CLAUSE 4", "counsel, Halcyon",
-		"commission three hundred and eleven", &"halcyon", 2,
+	_doc(&"verity_rider", "RIDER TO A COMMISSION, CLAUSE 4", "counsel, Verity",
+		"commission three hundred and eleven", &"verity", 2,
 		"The Company shall maintain this hull in perpetuity.
 
 The Company does not define perpetuity, and the Owner acknowledges that no definition is offered, requested or implied.
@@ -1569,7 +1569,7 @@ Retain for your records. Cygnet does not retain a copy.")
 		"dive one hundred and nine", &"", 4,
 		"106. Down to seven. Cold the whole way. Good haul, nothing to say about it.
 
-107. Same. Sold at the Dredge berth, they did not haggle, they never haggle.
+107. Same. Sold at the Probate berth, they did not haggle, they never haggle.
 
 108. Went to eight. It is not colder down there. I have said this to four people now and all four told me I had it backwards.
 

@@ -3,7 +3,7 @@ extends RefCounted
 ## Build a PixelLab prompt from a manufacturer, rather than from memory.
 ##
 ##     godot --headless --path . -- artprompt korvan structures
-##     godot --headless --path . -- artprompt halcyon fittings
+##     godot --headless --path . -- artprompt verity fittings
 ##     godot --headless --path . -- artprompt              (every house, every batch)
 ##
 ## WHY THIS EXISTS. Every prompt sent this session said "spaceship hull
@@ -21,10 +21,10 @@ extends RefCounted
 ## already in the game, because the game had no reason to know it.
 ##
 ## Written to be CONTRASTIVE. The point is not that Korvan looks industrial —
-## it is that Korvan looks nothing like Halcyon, so a part is placeable by
+## it is that Korvan looks nothing like Verity, so a part is placeable by
 ## silhouette before the palette is read. Each line was derived from that
 ## house's own backstory rather than invented: Korvan "inherited the jigs",
-## Dredge is "everything is salvage", Halcyon signs each hull.
+## Probate is "everything is salvage", Verity signs each hull.
 const SHAPE := {
 	&"korvan": "Heavy stamped plate, blunt right angles, exposed bolt heads and "
 		+ "stencilled navy part numbers. Overbuilt and interchangeable, tooled to a "
@@ -33,13 +33,13 @@ const SHAPE := {
 	&"solari": "Finned radiators, ribbed heat sinks, exposed coolant runs and "
 		+ "heat-stained discoloured metal. Vents everywhere. Every part looks like it "
 		+ "is working hard not to melt.",
-	&"dredge": "Assembled from salvage: mismatched plate in three different metals, "
+	&"probate": "Assembled from salvage: mismatched plate in three different metals, "
 		+ "visible weld beads, cut-and-shut joins, fasteners that do not match each "
 		+ "other. Parts bolted where they fit rather than where they belong.",
 	&"redline": "Thin swept panels, raked angles, quick-release catches and hidden "
 		+ "compartments. Filed-off serial numbers and fresh paint over older paint. "
 		+ "Light, fast and faintly illegal.",
-	&"halcyon": "Thin precise panels with flush fasteners and almost no visible "
+	&"verity": "Thin precise panels with flush fasteners and almost no visible "
 		+ "seams. Clean unbroken curves, one small maker's mark, nothing surplus. "
 		+ "Expensive restraint.",
 	&"cygnet": "Honeycomb launch cells and hexagonal apertures, small repeated "
@@ -64,8 +64,8 @@ const BASE_DEFAULT := "steel blue armour plating"
 
 const FINISH := {
 	&"calyx": "growth rings and sutured seams",
-	&"halcyon": "flush fasteners and almost invisible seams",
-	&"dredge": "mismatched rivets and visible weld beads",
+	&"verity": "flush fasteners and almost invisible seams",
+	&"probate": "mismatched rivets and visible weld beads",
 	&"cygnet": "hex apertures and fine panel joins",
 }
 const FINISH_DEFAULT := "rivets and panel seam lines"

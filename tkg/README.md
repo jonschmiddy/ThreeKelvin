@@ -93,8 +93,8 @@ Seven, each a playstyle, a worldbuilding hook, and an affix pool. Mirrored pairs
 |---|---|---|
 | **Korvan Heavy Works** — *"It fires. Every time."* | Ballistics (cold, multi-hit, Salvo) + ordnance (Charge) + heat-costing persistent armor | Solari |
 | **Solari Foundry** | Weaponised heat: damage scales with your own fever, deliberate overheating | Korvan |
-| **The Dredge Combine** | Scrap economy, armor sustain, wins slowly and richly | Redline |
-| **Redline Shipyards** | Salvage tech, evasion, refits, innate contraband affinity | Dredge |
+| **The Probate Combine** | Scrap economy, armor sustain, wins slowly and richly | Redline |
+| **Redline Shipyards** | Salvage tech, evasion, refits, innate contraband affinity | Probate |
 | **Veyra Ateliers** | The thin perfect deck: few slots, pre-upgraded cards, expensive everything | — |
 | **Cygnet Dynamics** | Autonomous drones that fight and intercept | — |
 | **Calyx Systems** | Regeneration and cards that mutate through use | — |

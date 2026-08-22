@@ -9,7 +9,7 @@ extends Resource
 ## dark UI.
 @export var colour: Color = Color.WHITE
 ## The banner ground. Two colours per house rather than one, because a banner is
-## a mark ON a field and one hex cannot be both. Halcyon and Calyx run light
+## a mark ON a field and one hex cannot be both. Verity and Calyx run light
 ## fields on purpose — they read against the void natively, which is what makes
 ## luxury and clinical look like themselves next to five dark houses.
 @export var field: Color = Color("#16202e")

@@ -316,9 +316,9 @@ func _one_refusal(what: String, port: int, protocol: int, fingerprint: int, want
 func _wire_tests() -> void:
 	var b := ShipBuild.new()
 	b.pilot = "Mercer"
-	b.hull = DB.hull_for(&"dredge", HullData.Weight.MEDIUM)
+	b.hull = DB.hull_for(&"probate", HullData.Weight.MEDIUM)
 	b.parts = [
-		{"slot": int(ModuleData.Slot.WEAPON), "mount": 2, "maker": &"halcyon", "id": &"beam"},
+		{"slot": int(ModuleData.Slot.WEAPON), "mount": 2, "maker": &"verity", "id": &"beam"},
 		{"slot": int(ModuleData.Slot.UTILITY), "mount": 0, "maker": &"cygnet", "id": &"coolline"},
 	]
 	b.hp = 7
@@ -328,11 +328,11 @@ func _wire_tests() -> void:
 
 	var back := ShipBuild.from_wire(b.to_wire())
 	check("the pilot survives", back.pilot, "Mercer")
-	check("the hull maker survives", back.hull.manufacturer, &"dredge")
+	check("the hull maker survives", back.hull.manufacturer, &"probate")
 	check("the weight class survives", int(back.hull.weight), int(HullData.Weight.MEDIUM))
 	check("the part count survives", back.parts.size(), 2)
 	check("the hardpoint survives", int(back.parts[0].mount), 2)
-	check("who built the part survives", StringName(back.parts[0].maker), &"halcyon")
+	check("who built the part survives", StringName(back.parts[0].maker), &"verity")
 	check("damage survives", back.hp, 7)
 	# Over cap is a state the ship art has its own colours for, so it has to
 	# arrive as itself rather than clamped on the way.

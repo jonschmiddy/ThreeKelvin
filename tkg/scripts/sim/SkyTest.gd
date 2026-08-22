@@ -106,7 +106,7 @@ func _cases() -> Array:
 	out.append(["station / capital", _node(3, MapGen.NodeType.STATION,
 		MapGen.Development.CAPITAL, [&"solari", &"cygnet"])])
 	out.append(["station / outpost", _node(11, MapGen.NodeType.STATION,
-		MapGen.Development.OUTPOST, [&"dredge"])])
+		MapGen.Development.OUTPOST, [&"probate"])])
 	out.append(["station / settlement", _node(24, MapGen.NodeType.STATION,
 		MapGen.Development.SETTLEMENT, [&"korvan"])])
 	out.append(["event beacon", _node(7, MapGen.NodeType.EVENT,
@@ -124,7 +124,7 @@ func _cases() -> Array:
 	out.append(["fight / contested b", _node(28, MapGen.NodeType.FIGHT,
 		MapGen.Development.SETTLEMENT, [&"cygnet", &"redline"])])
 	out.append(["fight / city", _node(21, MapGen.NodeType.FIGHT,
-		MapGen.Development.CITY, [&"halcyon"])])
+		MapGen.Development.CITY, [&"verity"])])
 	out.append(["the core", _node(40, MapGen.NodeType.GOAL,
 		MapGen.Development.UNCLAIMED, [])])
 	return out
