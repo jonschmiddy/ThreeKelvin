@@ -716,12 +716,34 @@ func _ready() -> void:
 	mouse_exited.connect(_on_hover_out)
 	gui_input.connect(_on_input)
 
-## Deliberately does nothing on click. A card is played by dragging it onto a
-## target — your hull for defence and utility, an enemy for anything that hits.
-## Click-to-play would quietly pick a target for you, which is the decision the
+## PICKING, not playing. A card is played by dragging it onto a target — your
+## hull for defence and utility, an enemy for anything that hits — and
+## click-to-play would quietly choose a target for you, which is the decision the
 ## drag exists to make.
-func _on_input(_event: InputEvent) -> void:
-	pass
+##
+## A click means something only while a card has asked you to pick some of your
+## hand. There is no target to guess at then: the question is which card, and
+## pointing at it is the whole answer.
+var picking: bool = false
+
+func set_picking(on: bool) -> void:
+	if picking == on:
+		return
+	picking = on
+	# Full brightness while picking, whatever `playable` said. Nothing in the
+	# hand is playable mid-choice, and a hand greyed out end to end reads as
+	# "you cannot do anything" at the exact moment you must.
+	modulate.a = 1.0 if (on or playable) else 0.34
+	queue_redraw()
+
+func _on_input(event: InputEvent) -> void:
+	if not picking:
+		return
+	var mb := event as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	accept_event()
+	chosen.emit(self)
 
 func _on_hover_in() -> void:
 	emitted_hover(true)
@@ -772,7 +794,11 @@ func emitted_hover(entered: bool) -> void:
 ## Dragging a card onto an enemy targets it. The preview is a copy so the cursor
 ## still shows what is being thrown.
 func _get_drag_data(_pos: Vector2) -> Variant:
-	# Same rule: you can drag a card out of a hand and nowhere else.
+	# Same rule: you can drag a card out of a hand and nowhere else. And not at
+	# all while a choice is open — dragging one card onto an enemy while another
+	# is waiting to be picked resolves two cards in an order neither stated.
+	if picking:
+		return null
 	if not playable or not (get_parent() is HandView):
 		return null
 	# Picking it up ends the hover. Godot does not send mouse_exited when a drag

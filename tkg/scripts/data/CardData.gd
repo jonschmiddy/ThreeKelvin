@@ -81,18 +81,25 @@ extends Resource
 @export var hand_damage: int = 0
 @export var hand_heat: int = 0
 
-## Getting rid of things.
+## GETTING RID OF THINGS. Three mechanisms, because they are three different
+## sizes of decision.
 ##
-## `purge` takes UNPLAYABLE cards out of your hand, which is the specific answer
-## to junk. `dump_hand` throws the whole hand away and pairs with `draw` — the
-## general answer, and a real cost, because it discards what you wanted too.
+## JETTISON is the ordinary one: you pick, and what you pick goes to the discard
+## pile and comes back when the deck reshuffles. `jettison_all` is the same verb
+## at the scale of a whole hand and pairs with `draw` — a real cost, because it
+## throws away what you wanted too.
 ##
-## Neither asks the player to choose. A "discard N of your choice" wants the
-## hand to become selectable, which is a UI mode this game does not have and a
-## bigger thing than a card field; these two are what the engine can express
-## today and they cover the case malfunctions create.
-@export var purge: int = 0
-@export var dump_hand: bool = false    ## Dross and other junk
+## WRITE OFF is the expensive one: what you pick is gone for the rest of the
+## fight. Against junk that is the difference between postponing it and dealing
+## with it, because a discarded malfunction is back in the deck the moment it
+## reshuffles and a written-off one is not.
+##
+## `exhausts` is a card that writes ITSELF off when played — a one-shot, which is
+## how a card is allowed to be much stronger than its cost.
+@export var jettison: int = 0
+@export var jettison_all: bool = false
+@export var write_off: int = 0
+@export var exhausts: bool = false
 
 ## What KIND of card this is, derived rather than authored.
 ##
@@ -278,6 +285,10 @@ func keywords() -> Array:
 		out.append(["Vent", "Sheds heat. The one corner on a card that runs backwards."])
 	if drone_damage > 0 or drone_armor > 0:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
+	if exhausts:
+		out.append(["Write off", "Gone for the rest of this fight. It does not come back when the deck reshuffles."])
+	if jettison > 0 or jettison_all:
+		out.append(["Jettison", "Straight to the discard pile — and back in the deck when it reshuffles."])
 	if evoke > 0:
 		out.append(["Evoke", "Adds this much for each drone you have out."])
 	if credit_cost > 0:
@@ -358,10 +369,14 @@ func describe() -> String:
 			bits.append("Emergency repair %d" % heal)
 		else:
 			bits.append("Heal %d" % heal)
-	if purge > 0:
-		bits.append("Purge %d" % purge)
-	if dump_hand:
-		bits.append("Dump your hand")
+	if jettison > 0:
+		bits.append("Jettison %d" % jettison)
+	if jettison_all:
+		bits.append("Jettison your hand")
+	if write_off > 0:
+		bits.append("Write off %d" % write_off)
+	if exhausts:
+		bits.append("Writes itself off")
 	if hand_damage > 0:
 		bits.append("%d damage at end of turn if still held" % hand_damage)
 	if hand_heat > 0:

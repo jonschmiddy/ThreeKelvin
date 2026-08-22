@@ -544,6 +544,7 @@ func _build_hand() -> PanelContainer:
 	_hand = HandView.new()
 	_hand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hand.card_hovered.connect(_on_card_hovered)
+	_hand.picked.connect(_on_card_picked)
 	_view.preview = _drag_preview
 	_hand.reordered.connect(_on_hand_reorder)
 	hand_row.add_child(_hand)
@@ -790,7 +791,7 @@ func _refresh_hand() -> void:
 		return
 	# The hand reconciles rather than rebuilds, so cards slide into the gap a
 	# played card leaves instead of the whole row snapping to new positions.
-	_hand.sync(combat.hand, func(c): return combat.can_play(c))
+	_hand.sync(combat.hand, func(c): return combat.can_play(c), combat.choosing > 0)
 	# A card that left the hand takes its panel with it. The panel is closed by
 	# the card's own exit event, and a card that was played or discarded never
 	# sends one — its view flies off and fades on a tween, so it is not even
@@ -908,6 +909,17 @@ func _drag_preview(c: CardData, index: int) -> String:
 	if c.lock_on > 0:
 		bits.append("+%d NEXT" % c.lock_on)
 	return " ".join(bits)
+
+## A card was pointed at to satisfy a jettison or a write-off.
+##
+## Resolved by INDEX rather than by passing the card object down, because
+## Combat.choose takes an index — the same door the simulator and the bot use,
+## so a choice is never something only a mouse can make.
+func _on_card_picked(card: CardData) -> void:
+	if combat == null or combat.choosing <= 0:
+		return
+	combat.choose(combat.hand.find(card))
+
 
 func _on_card_hovered(view: CardView, entered: bool) -> void:
 	_show_readout(view, entered)

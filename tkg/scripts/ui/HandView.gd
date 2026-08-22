@@ -16,6 +16,10 @@ signal card_hovered(view: CardView, entered: bool)
 ## land one slot off and look like it snapped back.
 signal reordered(cards: Array)
 
+## A card in the hand was picked to satisfy a jettison or a write-off. Separate
+## from playing one, because it is a different question with a different answer.
+signal picked(card: CardData)
+
 const GAP := 5
 const SLIDE := 0.14
 
@@ -37,7 +41,9 @@ func _init() -> void:
 
 ## Reconcile against the current hand: keep what is still held, drop what is not,
 ## deal what is new, then slide everything to where it now belongs.
-func sync(cards: Array, playable: Callable) -> void:
+## `choosing` puts the hand into picking mode: nothing is playable, every card
+## is clickable, and a click reports which one rather than playing it.
+func sync(cards: Array, playable: Callable, choosing: bool = false) -> void:
 	var keep: Array[CardView] = []
 	for c in cards:
 		var found: CardView = null
@@ -49,6 +55,7 @@ func sync(cards: Array, playable: Callable) -> void:
 			found = CardView.new()
 			add_child(found)
 			found.setup(c, playable.call(c))
+			found.chosen.connect(func(v: CardView) -> void: picked.emit(v.card))
 			found.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 			# Dealt from the deck side, so a draw reads as coming from somewhere.
 			found.position = Vector2(-CardView.CARD_W, 12)
@@ -64,6 +71,7 @@ func sync(cards: Array, playable: Callable) -> void:
 				card_hovered.emit(v, e))
 		else:
 			found.set_playable(playable.call(c))
+		found.set_picking(choosing)
 		keep.append(found)
 
 	for v in _views:

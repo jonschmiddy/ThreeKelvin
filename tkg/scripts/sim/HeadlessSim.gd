@@ -241,6 +241,12 @@ func _fight(template: EnemyTemplate) -> bool:
 		var acted := true
 		while acted and not cb.finished:
 			acted = false
+			# Answer any pending pick first. Nothing is playable while one is
+			# open, so a loop that only ever asked for a card would decide the
+			# turn was over and end it with the choice unmade.
+			while cb.choosing > 0:
+				cb.choose(cb.best_choice())
+				acted = true
 			var best := policy.best_card(cb)
 			if best >= 0:
 				cb.play(best)

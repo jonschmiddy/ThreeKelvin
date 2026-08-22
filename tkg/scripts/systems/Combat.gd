@@ -62,6 +62,17 @@ var deck: Array[CardData] = []
 var hand: Array[CardData] = []
 var discard: Array[CardData] = []
 
+## Cards out of this fight entirely. Never reshuffled — that is the whole
+## difference between writing something off and discarding it.
+var written_off: Array[CardData] = []
+
+## A card has asked you to pick some of your hand. `choosing` is how many are
+## still to pick and `choose_kind` is what happens to them. Held on Combat and
+## not on the screen because the RULE is combat's: a save, a bot and the
+## simulator all have to be able to see that the turn is waiting on something.
+var choosing: int = 0
+var choose_kind: StringName = &""
+
 var energy: int = 0
 var armor: int = 0
 var block: int = 0
@@ -141,6 +152,8 @@ func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 	Rng.shuffle(Rng.fight, deck)
 	hand.clear()
 	discard.clear()
+	written_off.clear()
+	choosing = 0
 	negate_next = Run.has_set(&"redline", 5)
 
 ## Open the first turn. `f` is the party's copy of the enemy, or null for the
@@ -288,6 +301,12 @@ func begin_turn() -> void:
 func end_turn() -> void:
 	if finished:
 		return
+	# A CHOICE CANNOT OUTLIVE THE TURN THAT ASKED IT. Ending the turn with one
+	# open would carry "pick 2" into a hand that no longer contains what it was
+	# asked about — and `can_play` refuses everything while a choice is pending,
+	# so a leaked one locks the next turn solid with no way to clear it.
+	choosing = 0
+	choose_kind = &""
 	# WHAT YOU ARE STILL HOLDING COSTS YOU, before the hand is thrown away.
 	# Malfunctions are unplayable, so "still in hand" is every one you drew —
 	# and charging here rather than on the draw is what gives you a turn to find
@@ -456,7 +475,53 @@ func draw_cards(n: int, allow_reshuffle: bool) -> void:
 	Sig.hand_changed.emit()
 
 func can_play(c: CardData) -> bool:
-	return not finished and energy >= c.energy
+	# Nothing is playable while a card is waiting for you to pick. A hand that
+	# accepted a play mid-choice would resolve two cards in an order neither of
+	# them stated.
+	return not finished and choosing <= 0 and energy >= c.energy
+
+## Pick one of the cards a jettison or a write-off is waiting on.
+##
+## Deliberately NOT "the player clicked" — it takes an index into the hand, so
+## the simulator and the bot reach it the same way the screen does. A choice
+## only a mouse can make is a choice `Policy` cannot play around.
+## What to pick when nobody is looking — the simulator, the bot, or a turn that
+## ended with a choice still open.
+##
+## JUNK FIRST, then whatever costs the most energy. It is the answer a person
+## would give: unplayable cards are the reason these verbs exist, and past that
+## the card you are least likely to be able to afford is the one you can most
+## afford to lose. Deliberately not random — `Policy` is the number the gate
+## reports before every merge, and a coin flip inside it makes that number noisy
+## for a reason that has nothing to do with balance.
+func best_choice() -> int:
+	var best := -1
+	var score := -1
+	for i in hand.size():
+		var c := hand[i]
+		var s2: int = (100 if c.unplayable else 0) + c.energy
+		if s2 > score:
+			score = s2
+			best = i
+	return best
+
+func choose(index: int) -> void:
+	if choosing <= 0 or index < 0 or index >= hand.size():
+		return
+	var c := hand[index]
+	hand.remove_at(index)
+	if choose_kind == &"write_off":
+		written_off.append(c)
+		_log("Wrote off %s." % c.name, &"sys")
+	else:
+		discard.append(c)
+		_log("Jettisoned %s." % c.name, &"sys")
+	choosing -= 1
+	if choosing <= 0 or hand.is_empty():
+		choosing = 0
+		choose_kind = &""
+	Sig.hand_changed.emit()
+	Sig.player_combat_state_changed.emit()
 
 ## target_index picks which enemy this card is aimed at; -1 means "whatever is
 ## still standing", which is what a click without a drag means.
@@ -476,7 +541,13 @@ func play(index: int, target_index: int = -1) -> void:
 		Sig.hand_changed.emit()
 		Sig.player_combat_state_changed.emit()
 		return
-	discard.append(c)
+	# A card that writes itself off never reaches the discard, so it cannot come
+	# back when the deck reshuffles. That is what buys it the right to be strong.
+	if c.exhausts:
+		written_off.append(c)
+		_log("%s written off." % c.name, &"sys")
+	else:
+		discard.append(c)
 	if c.charge_turns > 0:
 		var cc := ChargingCard.new()
 		cc.card = c
