@@ -18,6 +18,10 @@ extends Harness
 ## hull, and a refusal — a part dropped on a mount of the wrong kind must not
 ## move, and must not vanish on the way.
 
+## How much clear space a part's art must leave inside its own cell. Stated
+## here rather than read off `ModuleIcon.PAD`, which is the thing being checked.
+const WANT_PAD := 4.0
+
 var _tree: SceneTree
 var _at: Vector2 = Vector2.ZERO
 
@@ -196,10 +200,15 @@ func _geometry() -> void:
 				off = Vector2(off.y, -off.x)
 			var ext := ModuleIcon.part_rect(slot, box, sc, up).size
 			var ink := Rect2(o + off - ext * 0.5, ext)
-			if not box.grow(1.0).encloses(ink):
+			# WANT_PAD, not ModuleIcon.PAD. Reading the constant under test is
+			# how the first version of this passed with the padding set to
+			# zero: the assertion relaxed by exactly as much as the code did.
+			# A test states the requirement; it does not ask the code what the
+			# requirement is.
+			if not box.grow(-WANT_PAD + 1.0).encloses(ink):
 				out += " %s %dx%d" % [ModuleData.slot_name(slot), f.x, f.y]
-	_ok("every silhouette stays inside its own plate" if out == ""
-		else "ink outside the plate:%s" % out, out == "")
+	_ok("every silhouette clears its plate by %dpx" % int(WANT_PAD)
+		if out == "" else "art crowding the border:%s" % out, out == "")
 
 
 ## The plate the hold draws is the part's own footprint, and the hull scales

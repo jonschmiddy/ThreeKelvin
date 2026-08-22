@@ -161,7 +161,16 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	# The box IS the shape here, so centring in it is what puts the silhouette
 	# exactly on the line rather than five units in front of wherever its own
 	# origin happens to be.
-	ModuleIcon.fill_part(self, slot, Rect2(c - nat * 0.5, nat), col, k2, up)
+	ModuleIcon.fill_part(self, slot, Rect2(c - nat * 0.5, nat),
+		ModuleData.rarity_colour(m.rarity), k2, up)
+
+	# THE HOUSE, as a bar where the part meets the hull. There is no plate out
+	# here to carry a border and the silhouette now says rarity, so without this
+	# the ship is the one place in the game that cannot tell you whose parts are
+	# bolted to it — which is the fact set bonuses are counted from.
+	var w := minf(nat.x, 10.0 * k)
+	var bar := Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k)
+	draw_rect(bar, col, true)
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something

@@ -16,6 +16,13 @@ extends Control
 
 const SIZE := 44
 
+## Clear space between a part's art and the edge of the cell it occupies, on
+## every side. The silhouette used to be scaled to fill the plate exactly, so it
+## pressed against the rarity border on at least one axis and the two read as
+## one shape. Applied inside `part_scale`, so the HULL inherits it — a part is
+## one size in both places and padding only one of them would break that.
+const PAD := 4.0
+
 var module: ModuleData
 ## Where a drag from here would be taking it FROM. The drop target needs to know
 ## whether this is a refit or an install.
@@ -145,12 +152,17 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	# it. It was `min(w, h) / 26` here, which made a part in the hold about a
 	# third of the size of the same part bolted on.
 	var f := m.footprint()
-	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
-		part_turn(m.slot, f))
+	# THE ART IS THE RARITY. It was the manufacturer's colour, which meant the
+	# one thing you look at — the shape in the middle of the plate — answered
+	# the question you can already answer from the field it is sitting on, and
+	# left how good the part is to a one-pixel line.
+	fill_part(ci, m.slot, r, ModuleData.rarity_colour(m.rarity),
+		part_scale(m.slot, f, r.size), part_turn(m.slot, f))
 
-	# Rarity on the border, because the border is the part that survives being
-	# packed shoulder to shoulder in a grid.
-	var e := ModuleData.rarity_colour(m.rarity)
+	# THE BORDER IS THE HOUSE, which is where rarity used to be. A border is the
+	# part of a plate that survives being packed shoulder to shoulder, so it is
+	# the right place for the fact that a whole SET of parts has to agree on.
+	var e: Color = mark
 	var p := r.position
 	var z := r.size
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
@@ -295,7 +307,8 @@ static func part_scale(slot: ModuleData.Slot, f: Vector2i, box: Vector2) -> floa
 	var nat := part_extent(slot)
 	if part_turn(slot, f):
 		nat = Vector2(nat.y, nat.x)
-	return maxf(0.35, minf(box.x / nat.x, box.y / nat.y))
+	var room := Vector2(maxf(4.0, box.x - PAD * 2.0), maxf(4.0, box.y - PAD * 2.0))
+	return maxf(0.35, minf(room.x / nat.x, room.y / nat.y))
 
 ## What the part does, in rectangles.
 ##
