@@ -433,3 +433,22 @@ For future entries: pick the language for the author, not the author for the lan
 2. **Open the two doors.** One line in the FETCH pickup path, one in the pacify resolution. Both are `recover_at` call sites of the shape the comment in `Archive.gd` promises.
 3. **Retro-check place names** against `MapGen.star_name`'s parts, and fix `dredge_filing` if "Kestrel Reach" is outside the vocabulary.
 4. **Then stop.** Play it. The threads are load-bearing only if players draw the lines unprompted; the next batch should be written after watching whether they do.
+
+---
+
+## 9. Name clearance (checked 2026-08-21)
+
+Web-checked every invented name and load-bearing concept against fiction, games, and trademarks. Full picture:
+
+**Clear (LOW risk):** *Asphodel* (no prominent fictional spacecraft carries it; the underworld-meadow myth is public domain and reads as allusion — nearest neighbour is the Hades games' Asphodel *biome*), *the Long Meridian* (exact phrase unclaimed), *Kestrel Reach* (unclaimed; pleasant FTL ship-name echo only), *Station Var*, *Kappa Thorn Reach*, *Maurel*, *Vela*, *Saar*, and the houses **Korvan**, **Redline**, **Cygnet**. *Okonkwo* is safe as roster filler — it reads as a lift only if a character mirrors Achebe's protagonist, and ours is one line on a roster. The title **Three Kelvin** is clear (mild search-adjacency to Star Trek's "Kelvin timeline" branding, nothing more).
+
+**Concepts:** heat-buying corporations in a cooling universe is unclaimed as a combination; the structural nearest-neighbour is **Sunless Skies** (Hours as a mined-and-shipped commodity under dying suns) — keep our invoice-and-contractor texture distinct from Failbetter's gothic-imperial register and the association stays homage-distance. Warm megafauna, the silent Custodian, and paperwork-only lore all checked distinctively ours.
+
+**Flags, both pre-dating this document:**
+
+- **Halcyon — HIGH, rename recommended.** The Outer Worlds (2019, sequel 2025) is corporate-satire sci-fi whose megacorp and colony are both named Halcyon; Star Wars' famous Halcyon is a *starcruiser*, rubbing against our shipwright framing. Exactly our audience will read it as a reference. Candidate that keeps the register and the meaning: **Alcyone** — the kingfisher myth "halcyon" derives from, same serenity, distinct string (would need its own quick check before adoption).
+- **The Dredge Combine — MEDIUM-HIGH, optics not law.** DREDGE (2023) is a live, defended game brand with a film in development; Banner Saga's antagonists are the Dredge; "The X Combine" carries Half-Life flavour. A faction inside a game rarely draws claims, and the full phrase is distinctive — but it stacks two loud genre associations. Decide with eyes open; if renaming, change either half, not both.
+- **Solari — MEDIUM, keep with care.** League of Legends' sun-worship faction is the Solari; legally clear (Dune's *solari* currency dilutes it further). Always use the full "Solari Foundry" in surfaces the player reads.
+- **Calyx — LOW-MEDIUM.** Real clinical-research company of the same name, distant goods class; fine as-is.
+
+House renames touch `Database.BACKSTORY`, manufacturer ids, and the design docs — a decision for the design owner, not a lore-pass side effect. Nothing in this document depends on the outcome; the constants roster contains no flagged name.
