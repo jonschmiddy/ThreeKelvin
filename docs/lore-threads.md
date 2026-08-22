@@ -44,6 +44,7 @@ Six techniques, named so they can be asked for by name in review. All of them ar
 - **End on business.** A price, a chore, a complaint, the school stove, postage. Real paperwork does not know which of its sentences was the interesting one.
 - **The counter-negative is retired.** "X is not a figure this office collects" was the archive's signature tic, and a signature is an author. Negation survives only where it is legally the document's job — denials, rulings, memoranda.
 - **Every entry carries at least one detail that serves nothing.** Wren and the stove, Ansel's soup, the grey flour, a photograph of three people on a dock somewhere green. A document with no waste in it was written by nobody.
+- **Every *not* pays rent.** Negation earns its keep in law, refusal and fact — a denial denies, a motion is not carried, a pilot holds fire, the Combine closes nothing before the loss. Everywhere else, say what happened instead of what did not: the degrees climb, the fee stops at the hull, the gatehouse keeps no book.
 - **Aphorisms are budgeted, crooked, and never terminal.** A foreman may reach for an image mid-complaint — a wall with a fire on the far side — but the polished line that closes a page is the tell, and it is gone.
 
 **The cast of the docks.** Below the constants sits a cast: Herron who shorts the wire spools, Wren and the stove, Master Quill, Ansel, Piet, Marn, the colleague B. Tradespeople and colleagues, named because people down a reach know each other, capped at two appearances each and never load-bearing — a cast member who becomes a key has been promoted by accident and gets renamed.
@@ -83,7 +84,7 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 > **`asphodel_stores`** — "VICTUALLING ORDER, OUTBOUND" — *a victualler, station not named* — "no year given" — no house — **depth 1**
 > Laid in against the ASPHODEL, outbound: dry stores to fourteen berths, the good flour not the grey, water topped to tankage, galley fuel to what the master set down. Master Maurel pays on collection and always has, which is more than I can say for half this dock.
 >
-> Kitchen to note: hot meals, second watch, the whole way out, his standing order. No return leg on this one so cost it single. He asked after candles too, wax ones, a full case, and did not say for what, and I did not ask, a case of candles is a case of candles and it is paid for.
+> Kitchen to note: hot meals, second watch, the whole way out, his standing order. No return leg on this one so cost it single. He asked after candles too, wax ones, a full case. A case of candles is a case of candles and it is paid for.
 >
 > The grey flour goes back to Herron. Third time now.
 
@@ -96,7 +97,7 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 >
 > Declined above my signature, same hand as last year, same words: we do not close before the loss.
 >
-> Down the reach they say the berth is still lit for her. Not Combine business. Reviewed, open, next year.
+> Down the reach they say the berth is still lit for her. Dock talk. Reviewed, open, next year.
 
 *The Combine's own logic (`dredge_filing`: filed 406 days early, no irregularity) turned up to full volume: they file ahead of events, and this event has not happened yet. "Yet" is doing everything.*
 
@@ -150,16 +151,16 @@ One new entry only. This thread must stay thin — it is the closest the archive
 >
 > Oil, eleven barrels. Plate-bone graded and sold. Organs forward at posted. A spotter's tag out of the left flank, logged, sent back up to the post like they ask.
 >
-> Cooling is the loss on this account and I want it minuted for the next one: eleven days at intake heat. The men will not work the first week of that and I do not blame them, you put your hand to the flank and it is like a wall with a fire on the far side, and then between one watch and the next, cold through, all of it at once, and we lost half a shift standing around feeling it.
+> Cooling is the loss on this account and I want it minuted for the next one: eleven days at intake heat. The men will not work the first week of that, and small blame to them, you put your hand to the flank and it is like a wall with a fire on the far side, and then between one watch and the next, cold through, all of it at once, and we lost half a shift standing around feeling it.
 >
 > Settled less cooling. Quote higher next season.
 
 > **`no_claim`** — "STATEMENT OF NO CLAIM" — *a surveyor for underwriters* — "policy year fifty-one" — no house — **depth 5**
-> Attended the LONG MERIDIAN at the pilot's request, which is a sentence I had not written before, a vessel asking a surveyor to certify that nothing happened.
+> Attended the LONG MERIDIAN at the pilot's request, a first for me in thirty years of forms: a vessel asking a surveyor to certify that nothing happened.
 >
 > His account: fauna, adult, came up on the warm side in deep transit and held there six hours, matched to his speed. He did not fire. No damage, no discharge, nothing for the underwriters, I said as much, he said write it anyway and paid the attendance, so it is written.
 >
-> Heading at its leaving was inward, passed to the spotters' post as required. There is no register entry for the vessel, the office can chase that if the office cares, my fee does not cover it.
+> Heading at its leaving was inward, passed to the spotters' post as required. There is no register entry for the vessel, the office can chase that if the office cares, my fee stops at the hull.
 >
 > He kept the cabin hot as a laundry the whole interview. Copy to him. None retained.
 
@@ -168,7 +169,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 > **`sightings_tally`** — "TALLY, SEASON'S SIGHTINGS" — *a spotter, post not named* — "no year given" — no house — **depth 6**
 > Season closed. Forty-one sighted, the big ones early, then the yearlings, headings taken on every one.
 >
-> Inward, all of them, same as last season, and the one before that is the last mixed page in this book. I still take the bearings because taking the bearings is the post, but I have given up drawing them, the chart is one arrow and I am not paid for decoration.
+> Inward, all of them, same as last season, and the one before that is the last mixed page in this book. I still take the bearings because taking the bearings is the post, but I have given up drawing them, the chart is one arrow and decoration is somebody else's trade.
 >
 > Tags returned this season, one, off a rendering yard down the reach with a polite note. One in forty-one. The rest are somewhere warm, or somewhere warmer anyway.
 >
@@ -246,7 +247,7 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 **Keys:** forty-one, posted and filled · revision eleven · *the specimen is retained*, quoted from the incident form · *survives the owner*, quoted from Clause 4 · the schedule.
 
 > **`seven_clauses`** — "NON-RETURN, ALL HOUSES" — *a contracts clerk, compiled for training* — "undated, marked CURRENT" — no house — **depth 0**
-> For the training intake, who asked what happens when a contractor does not come back, and were not satisfied with the short answer. Compiled from the standard terms as filed, one line in each house's own words. Check them against the registry, that is what it is for.
+> For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each house's own words. Check them against the registry, that is what it is for.
 >
 > Korvan, clause nine: the line of credit closes and accounts settle against the hull.
 > Solari: unspent advances revert to the schedule.
@@ -256,7 +257,7 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 > Cygnet: recovery, where undertaken, is recovery of equipment.
 > Calyx: the specimen is retained.
 >
-> The short answer they were not satisfied with was nothing, and the long answer above says the same at greater length, in better ink.
+> The short answer was nothing, and the long answer above says the same at greater length, in better ink.
 >
 > File under training. The intake is eleven this year, big for the season.
 
@@ -265,7 +266,7 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 > **`replacement_posting`** — "WORK POSTED, BOARD COPY" — *a posting clerk* — "board cycle as stamped" — no house — **depth 0**
 > FETCH, standard terms, rate scaled to the run, sign at the berth office. Bring your own lashings, the office is out of lashings.
 >
-> Posted forty-one times, filled forty-one times. The new clerk asked should we not print a fresh notice instead of correcting the date, and was told the board is full and the notice serves. He then asked how many of the forty-one came back, and was sent to count the lashings.
+> Posted forty-one times, filled forty-one times. The new clerk asked could we print a fresh notice instead of correcting the date, and was told the board is full and the notice serves. He then asked how many of the forty-one came back, and was sent to count the lashings.
 >
 > Date corrected. Board note: somebody keeps taking the chalk from the gate for the wall, which is allowed, but bring it back.
 
@@ -274,12 +275,12 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 >
 > Held the year as prescribed. No claimant come. The freight on the box went to his account, the account is in the negative, the negative is written off, and I signed the write-off by hand because the stamp was drying, and I am glad it was, one paper in the file ought to have a person on it.
 >
-> Box to disposal on the fifth. I kept the photograph out. That is not procedure and I have written it down anyway, file a complaint.
+> Box to disposal on the fifth. I kept the photograph out. Procedure can want it back, file a complaint.
 
 > **`chalk_wall`** — "NOTICE AT THE DOCK GATE" — *the dockmaster's office* — "undated, weathered" — no house — **depth 1**
 > The chalk wall is not to be cleaned. This replaces the notice ordering it cleaned. The officer who posted that one has been spoken to, and has himself written a name on the wall since, so the matter is considered understood.
 >
-> Chalk is at the gatehouse. The gatehouse does not write down who takes it, and the dockmaster has said that if the chalk budget is queried again, the querier can come stand at the gate through the dark quarter and read the wall, and then raise it with her personally.
+> Chalk is at the gatehouse, and the gatehouse keeps no book on who takes it, and the dockmaster has said that if the chalk budget is queried again, the querier can come stand at the gate through the dark quarter and read the wall, and then raise it with her personally.
 >
 > Names go at the base where there is room. There is room.
 >
@@ -292,7 +293,7 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 >
 > A contracted hull amortizes by deliveries, not years. The assumption under that is loss, not wear, and it has held inside tolerance since the first drawing of the schedule, which is longer than the western office has existed, they may put that in their pipe.
 >
-> Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure did not move enough between grades, regions or houses to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
+> Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and houses, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
 >
 > Postage to their account.
 
@@ -303,9 +304,9 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 > **`repair_declined`** — "REPAIR ESTIMATE, DECLINED" — *a yard estimator* — "no year given" — no house — **depth 0**
 > Forward plate, fair and patch, scoring aft of the collar dressed, repaint to the line. Priced kind, slow season, told him so.
 >
-> He went along the hull while I talked, hand over the dents the way you would check a horse, and said seal the edges and leave the rest. I said the plate is sound but ugly, and he said ugly how, and I did not have an answer that was worth money.
+> He went along the hull while I talked, hand over the dents the way you would check a horse, and said seal the edges and leave the rest. I said the plate is sound but ugly, and he said ugly how, and every answer I had was worth less than the paint.
 >
-> Wrote the waiver, he signed it, said the dents are how the ship knows it went somewhere. Took the sealing work, half a day, paid cash, and stood us the tea after, and told a long story about a customs man and a coat that I will not spoil by writing down badly.
+> Wrote the waiver, he signed it, said the dents are how the ship knows it went somewhere. Took the sealing work, half a day, paid cash, and stood us the tea after, and told a long story about a customs man and a coat that deserves better telling than mine.
 >
 > Quote for the paint stands till spring.
 
@@ -340,11 +341,11 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 > **`pilot_log_2`** — "PRIVATE LOG, CONTINUED" — *a pilot, hull not named* — "dives one hundred thirteen to one hundred sixteen" — no house — **depth 6**
 > 113. Eight again. Palm flat on the hull the whole transit like an idiot, arm dead to the shoulder after. Right, though. Warmer. [several lines lost]
 >
-> 114. Sold the spare coil to Herron, the second suit, the plate I kept for a bad day. Bad day came and it turns out you do not want a plate for it. Ship rides light. Sleep bad.
+> 114. Sold the spare coil to Herron, the second suit, the plate I kept for a bad day. Bad day came and a plate was no help. Ship rides light. Sleep bad.
 >
 > 115. [lost]
 >
-> 116. Gauges say colder. Wrote WARM on a slip and stuck it over the readout so we are both saying our piece. Nine tomorrow. Fuel for nine and about half of eight, which is a number I have decided not to look at twice. If Herron reads this, the coil was tested, the rest of it I am sorry about.
+> 116. Gauges say colder. Wrote WARM on a slip and stuck it over the readout so we are both saying our piece. Nine tomorrow. Fuel for nine and about half of eight, which is a number I have decided to look at exactly once. If Herron reads this, the coil was tested, the rest of it I am sorry about.
 
 **The one amendment to an existing entry this document proposes.** Into `custodian_note`, after *"Taking it as given."*, add two sentences in the clerk's voice — the gesture, and the count:
 
@@ -389,7 +390,7 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 >
 > Cygnet came Tuesday about the banked heat. The terms he turned away for twenty years, a quarter over posted now, an arrears clause I read three times and will have Marn read too. Eleven hundred upstairs, the dark quarter six weeks off, the mains drink what they drink.
 >
-> Signed it. They did not gloat, I do not think it is in them. Wrote it in their book before they were off the ramp. He used to say they write everything down, like a curse.
+> Signed it. They did not gloat, I doubt it is in them. Wrote it in their book before they were off the ramp. He used to say they write everything down, like a curse.
 >
 > Thursday: settle Herron, chase the school stove flue, plate wants reordering already.
 
@@ -406,7 +407,7 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 > **`warm_consolidated`** — "IRREGULARITIES, CONSOLIDATED" — *a customs officer, station unnamed* — "shift logs, four quarters attached" — no house — **depth 4**
 > To the superintendent, consolidated as instructed when I raised the third one verbally and was told to come back with a year.
 >
-> A year: nineteen vessels presented warm, no thermal cargo declared, none found, all released, no seizable condition. Table attached, berth, date, watch, degrees over ambient. The first row is the one I logged myself, berth 9, second watch, eleven degrees, pilot in a coat with the heaters allegedly on. The degrees in the table do not fall across the year, they climb a little. The table says it better than I can.
+> A year: nineteen vessels presented warm, no thermal cargo declared, none found, all released, no seizable condition. Table attached, berth, date, watch, degrees over ambient. The first row is the one I logged myself, berth 9, second watch, eleven degrees, pilot in a coat with the heaters allegedly on. The degrees in the table climb a little across the year. The table says it better than I can.
 >
 > Petition: add thermal state inconsistent with declared cargo to the schedule of seizable conditions.
 >
@@ -415,7 +416,7 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 > **`warm_reply`** — "MEMORANDUM IN REPLY" — *a superintendent of customs* — "reference year as marked" — no house — **depth 5**
 > Your consolidated report is received. Your diligence is noted at grade, and I have initialled the table myself.
 >
-> The petition is declined. The schedule of seizable conditions enumerates property. Warmth is not property, a vessel's temperature is a circumstance of the vessel, and circumstances are not seized. Counsel's opinion is attached and is final, and I will not pretend to you I read past its second page.
+> The petition is declined. The schedule of seizable conditions enumerates property. Warmth is not property, a vessel's temperature is a circumstance of the vessel, and circumstances are not seized. Counsel's opinion is attached and is final, and I gave up at its second page, which stays between us.
 >
 > Your transfer to the rim posting is approved with regret, effective the first. The leave is also approved. Take the leave first.
 >
