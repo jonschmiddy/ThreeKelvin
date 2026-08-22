@@ -25,13 +25,34 @@ const PAD := 4.0
 
 ## How far a rarity colour is dragged toward the void to make a plate's ground.
 ##
-## MEASURED, not picked. The art on that ground is the house's own colour now, so
-## every manufacturer has to stay legible on every rarity — 49 pairings, and the
-## worst of them is Verity's sand on the two green rarities. At 0.80 that pair
-## comes out at 2.94:1, under the 3.0 that WCAG asks of a graphical object; 0.88
-## puts the floor at 3.48 while the ground is still plainly tinted. `-- holdtest`
-## holds the line, because a new manufacturer colour is the thing that breaks it.
-const GROUND := 0.88
+## MEASURED, not picked, and PULLED BACK FROM 0.88 because the measurement was
+## answering only half the question. The half it had was legibility: the art on
+## the ground is the house's own colour, so all 56 manufacturer-by-rarity
+## pairings have to clear 3.0:1, and Verity's dark gold on a green ground is the
+## one that binds. `-- holdtest` still holds that line and it is still the line a
+## new house colour breaks first.
+##
+## THE HALF IT DID NOT HAVE is whether the grades can be told apart AT ALL. A
+## grade is read off a 30-pixel plate, and 0.88 leaves about a tenth of the
+## colour — which crushed eight grades into a band 22 CIELAB units wide, where
+## the closest pair sat at 2.5 against a just-noticeable difference of 2.3. Two
+## grades were, to an eye, one grade. Nobody reported the pair that was actually
+## worst (Uncommon and Exotic), because the NAMES are written in the colour at
+## full strength and the names were fine.
+##
+## Both numbers, swept:
+##
+##     0.88   closest plates 4.6   Verity on Uncommon 3.56
+##     0.82   closest plates 6.3   Verity on Uncommon 3.16
+##     0.80   closest plates 7.4   Verity on Uncommon 3.03
+##     0.76   closest plates 8.7   Verity on Uncommon 2.77  refused
+##
+## 0.82 AND NOT 0.80 on purpose. 0.80 is the most the current house colours
+## allow and it clears the floor by three hundredths, which means the next
+## colour change starts failing the gate — correct behaviour, but a bill paid
+## later for a difference of one unit now. The ceiling is Verity's #8a7340 and
+## nothing else: brightening that one colour is what would buy real room here.
+const GROUND := 0.82
 
 ## The magnification the hold's cells are authored at.
 ##

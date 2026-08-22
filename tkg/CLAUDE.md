@@ -20,6 +20,7 @@ split.
 | `docs/lore.md` | Who pays for all this, the archive's writing rules, contracts |
 | `docs/coop-design.md` | What four players do to each other |
 | `docs/netcode.md` | How four machines are joined, and what each protocol bump bought |
+| `docs/catalogue.md` | **Before writing a module or a card.** The Grant Count Law, the Card Rarity Law, the shared library, and the four gates that stop a duplicate or a card named after a keyword |
 | `docs/art/ART_CONTRACT.md` | Before generating any art |
 | `audio/README.md` | Before touching sound |
 
