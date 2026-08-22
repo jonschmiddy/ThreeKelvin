@@ -131,6 +131,13 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float) -> voi
 	draw_rect(Rect2(roundf(at.x) - k, roundf(at.y) - k, 2.0 * k, 2.0 * k),
 		ModuleData.rarity_colour(m.rarity), true)
 
+## Where every mount is and what is in it, in this control's own coordinates.
+## Read-only, and it exists for `-- fittest`: a test that has to drop something
+## on a hardpoint needs to know where one IS, and guessing that off the sprite
+## is the thing anchors.py was written to stop anybody doing.
+func spots() -> Array[Dictionary]:
+	return _spots
+
 func _ring(at: Vector2, r: float, col: Color) -> void:
 	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
 
@@ -146,6 +153,35 @@ func _spot_at(p: Vector2) -> int:
 			best_d = d
 			best = i
 	return best
+
+## Taking a part back OFF the ship.
+##
+## This did not exist, and its absence was invisible because everything it needs
+## already did: `_on_hold_drop` has always had a branch for a part arriving off
+## the hull, `ModuleData.mount` has always been clearable, and the hold has
+## always accepted a drop. There was simply nothing anywhere that could start
+## the drag, so the whole return journey was unreachable code that read as
+## finished.
+##
+## `origin` is what tells the far end which journey this is. The hold uses it to
+## decide between moving a part between two cells and taking one off the ship.
+func _get_drag_data(at: Vector2) -> Variant:
+	var i := _spot_at(at)
+	if i < 0:
+		return null
+	var m: ModuleData = _spots[i].held
+	if m == null:
+		return null
+	# The same ghost the hold hands over, at the same size, because what you are
+	# carrying does not change shape depending on where you picked it up.
+	var ghost := ModuleIcon.new()
+	ghost.setup(m, &"hull")
+	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var g := Vector2(maxi(1, m.size.x), maxi(1, m.size.y))
+	ghost.custom_minimum_size = g * float(HoldGrid.CELL)
+	ghost.size = g * float(HoldGrid.CELL)
+	set_drag_preview(ghost)
+	return {module = m, origin = &"hull"}
 
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):

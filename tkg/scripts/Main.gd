@@ -371,6 +371,16 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# Parts crossing between the hold and the hull, dragged with real events:
+	#   godot --path . -- fittest
+	# NOT headless — it drives Viewport's own drag machine, and headless has no
+	# gui input to drive it with. Held in a member for the same reason ChartTest
+	# is: run() awaits, and a RefCounted nobody holds dies mid-coroutine.
+	if "fittest" in OS.get_cmdline_user_args():
+		_fit_test = load("res://scripts/sim/FitTest.gd").new()
+		_fit_test.run(get_tree())
+		return
+
 	if "charttest" in OS.get_cmdline_user_args():
 		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
 		# and a RefCounted nothing holds a reference to is freed the moment the
@@ -527,6 +537,7 @@ func _shoot() -> void:
 var _chart_test: RefCounted = null
 ## Held for the same reason the others are: it awaits, and a RefCounted only a
 ## local holds is freed the moment the calling statement ends.
+var _fit_test
 var _stow_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted = null

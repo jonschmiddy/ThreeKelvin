@@ -300,6 +300,13 @@ func zoom_level() -> int:
 ## right of the middle. Measured off the opaque pixels rather than off the spec,
 ## because the spec is a fact about the placeholders and this has to keep being
 ## true of whatever art replaces them.
+## How wide this view's canvas draws, in screen pixels. The control's own width
+## is the same number once a layout pass has run; this is available before one
+## has, which is what lets a screen place the ship on the FIRST frame instead of
+## converging onto it over several visible ones.
+func canvas_width() -> float:
+	return float(_w * _k)
+
 func ship_offset_x() -> float:
 	if _img == null:
 		return 0.0

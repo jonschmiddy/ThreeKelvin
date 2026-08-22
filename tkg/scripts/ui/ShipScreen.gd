@@ -83,7 +83,17 @@ const STATS_W := 220
 ## MEASURED, not guessed: ATTRIBUTES clears HULL by 8px of background, and at
 ## LABEL_AIR 6 the hold cleared its grid by 11. Hence 3.
 ## Between the flag and the text beside it. Named because the ship's own
-## centring has to mirror it — see `mirror` in _build.
+## placement has to subtract it — see `_centre_ship`.
+## The left panel's width, fixed. See `_centre_ship` for why it cannot float.
+##
+## 524 is the smallest that fits everything: the manufacturer abilities want 470
+## across, and a centred heavy needs the flag's 49 plus half a 336px view plus
+## the 33 the hull sits off its own centre, which is 500 inside the padding.
+const PANEL_W := 524
+
+## What Widgets.panel_with insets its child by, on each side.
+const PANEL_PAD := 12
+
 const HEADER_SEP := 10
 
 const LABEL_AIR := 3
@@ -99,9 +109,8 @@ const LABEL_AIR := 3
 
 const STORAGE_COLS := 4
 
-## The pad that carries the ship's centring correction, and the panel it is
-## measured against. See `_centre_ship`.
-var _padr: Control
+## The pad that places the ship, and the panel it is placed against.
+var _padl: Control
 var _panel: Control
 var _storage: HoldGrid
 var _attrs: AttrBlock
@@ -236,23 +245,23 @@ func _build() -> void:
 	# middle of its OWN canvas, because the canvas carries the exhaust plume's
 	# clearance on one side only.
 	#
-	# Two expanding pads either side, and the right one carries the correction:
-	# with equal weights, giving it a minimum of M moves the ship left by
-	# exactly M/2. So M is the flag's width plus twice the hull's own offset,
-	# and `_refresh` sets the second half because it changes with the hull.
+	# A pad either side, and `_centre_ship` puts the number on the left one.
 	var vwrap := HBoxContainer.new()
 	vwrap.add_theme_constant_override("separation", 0)
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var padl := Control.new()
-	padl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vwrap.add_child(padl)
+	# The LEFT pad is the one that carries the number, and the right one only
+	# soaks up whatever is over. A minimum on the left is a position; a minimum
+	# on the right is a position too, but only while it is the larger of the
+	# two, and which of them that is changes with the hull.
+	_padl = Control.new()
+	_padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vwrap.add_child(_padl)
 	vwrap.add_child(view)
-	_padr = Control.new()
-	_padr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_padr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vwrap.add_child(_padr)
+	var padr := Control.new()
+	padr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	padr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vwrap.add_child(padr)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
 	left.add_child(header)
@@ -350,9 +359,13 @@ func _build() -> void:
 	left.add_child(foot)
 
 	var lwrap := Widgets.panel_with(left)
-	lwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# FIXED, and not expanding. Everything about where the ship sits is measured
+	# off this panel's middle, so a panel whose width depends on what is in it
+	# means the target moves whenever the contents do — which is how centring
+	# the ship turned into a settling loop you could watch happen.
+	lwrap.size_flags_horizontal = Control.SIZE_FILL
+	lwrap.custom_minimum_size = Vector2(PANEL_W, 0)
 	_panel = lwrap
-	lwrap.resized.connect(func() -> void: set_process(true))
 	body.add_child(lwrap)
 
 	# --- right: the parts, and where they go
@@ -373,52 +386,34 @@ func _build() -> void:
 	rwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(rwrap)
 
-## Slide the ship until its middle is the panel's middle.
+## Where the ship's own pad has to be for its middle to be the panel's middle.
 ##
-## MEASURED AND CORRECTED rather than computed, because the arithmetic is
-## circular: the pad that shifts the ship is also part of what the column asks
-## to be wide, so a panel whose width the header drives gets WIDER when the ship
-## moves left, and the target moves with it. Every closed form for this was
-## wrong for at least one weight class — the last one centred a heavy exactly
-## and left a light 30px out, which looked like a working formula.
+## ARITHMETIC, on the first frame, because the alternative was watching it
+## happen. This measured and corrected itself over several frames instead, and
+## converged — but the frames it spent converging are frames that get drawn, so
+## opening the screen jumped the ship sideways every time. A closed form is only
+## possible because PANEL_W is fixed; while the panel could grow to fit the ship
+## the two chased each other and nothing closed.
 ##
-## It converges: correcting by the whole error moves the ship by the error and
-## the target by at most half of it, so what is left over halves each pass. The
-## 1px deadband is what stops it, and the clamp keeps a ship whose panel simply
-## cannot fit it centred from pushing the pad negative.
-##
-## Two facts it is correcting for, neither of them the layout's fault. The ship
-## lives in the column the flag leaves, so it starts half a flag right; and a
-## hull sits right of the middle of its own canvas, because the canvas carries
-## the exhaust plume's clearance on one side only.
+## Three terms, all of them things pushing the ship RIGHT of the middle:
+## the flag it sits beside, half the width of the view, and how far the hull
+## sits from the middle of its own canvas — which is not zero, because the
+## canvas carries the exhaust plume's clearance on one side only.
 func _centre_ship() -> void:
-	if _padr == null or _view == null or _panel == null:
+	if _padl == null or _view == null:
 		return
-	var vr := _view.get_global_rect()
-	var pr := _panel.get_global_rect()
-	if vr.size.x <= 0.0 or pr.size.x <= 0.0:
-		return
-	var ship := vr.position.x + vr.size.x * 0.5 + _view.ship_offset_x()
-	var err := ship - (pr.position.x + pr.size.x * 0.5)
-	if absf(err) < 1.0:
-		# Settled. Nothing to do until something moves again.
-		set_process(false)
-		return
-	_padr.custom_minimum_size = Vector2(
-		maxf(0.0, _padr.custom_minimum_size.x + err), 0)
-
-## Driven from here rather than from `resized`, which fires while the view still
-## has no rect of its own — the correction read zeroes, did nothing, and the
-## ship sat 57px right on all three weights looking exactly like a formula that
-## had simply got the sign wrong.
-func _process(_delta: float) -> void:
-	_centre_ship()
+	_padl.custom_minimum_size = Vector2(maxf(0.0,
+		(PANEL_W - PANEL_PAD * 2.0) * 0.5
+		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP)
+		- _view.canvas_width() * 0.5
+		- _view.ship_offset_x()), 0)
 
 func _refresh() -> void:
 	if Run.hull == null:
 		return
-	# The hull changed, so the ship's offset inside its own canvas may have too.
-	set_process(true)
+	# The hull changed, so its canvas width and its offset inside that canvas
+	# may have too.
+	_centre_ship()
 	var man := Run.hull.manufacturer
 	var maker: ManufacturerData = DB.manufacturers.get(man)
 	var accent := maker.colour if maker != null else UITheme.CHILL
