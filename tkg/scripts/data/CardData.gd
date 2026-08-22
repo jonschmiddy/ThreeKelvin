@@ -249,6 +249,15 @@ var manufacturer: StringName = &""
 ## Rarity of the module that granted this, for the footer's rarity tick.
 var source_rarity: int = 0
 
+## THIS CARD'S OWN rarity, as a ModuleData.Rarity. -1 means "the module decides",
+## which is what almost every card wants — see ModuleData.card_rarities for the
+## law that fills it in.
+##
+## Separate from `source_rarity`, which is the rarity of the PART it came off. A
+## legendary bay grants a legendary card and a common one; both have the same
+## source and only one of them is legendary.
+@export var rarity: int = -1
+
 ## The rules words on this card, each with what it actually does.
 ##
 ## Lives here, beside the fields it explains, because these two go stale

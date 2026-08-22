@@ -326,6 +326,11 @@ func _seed_affixes() -> void:
 ##   one and one     the common case: a headline card and a plain one beside it
 ##   two special     a part that is entirely itself, and rare because of it
 ##
+## EVERY ONE OF THESE IS COMMON, and that is what makes them shareable: a card a
+## legendary bay and a starter plate both grant cannot be worth more on one than
+## the other. It is also why they slot into the second half of the rarity law
+## without ever breaking it.
+##
 ## Deliberately NOT a card for every verb. These are the ones a dozen parts
 ## could plausibly grant; anything with a house's fingerprints on it stays
 ## written where it is granted, because that is what makes it that part's card.
@@ -333,17 +338,17 @@ const SHARED := {
 	# "Bolt On" and not "Brace". Brace is the KEYWORD — the card face already
 	# reads "Brace 5" — so a card called Brace is the rule wearing its own name,
 	# and every other card in the game is a thing rather than a rule.
-	&"brace":    {name = "Bolt On", energy = 1, armor = 5},
-	&"block":    {name = "Hold Fast", energy = 1, block = 7},
-	&"vent":     {name = "Bleed Heat", energy = 1, vent = 3},
-	&"reroute":  {name = "Reroute", energy = 1, draw = 1},
-	&"range":    {name = "Range", energy = 0, lock_on = 3},
-	&"slug":     {name = "Slug", energy = 1, damage = 4, hits = 2},
-	&"cut":      {name = "Cutting Beam", energy = 1, damage = 6},
-	&"patch":    {name = "Patch", energy = 1, heal = 1, heal_scale = 5},
-	&"scuttle":  {name = "Scuttle", energy = 0, decommission = 1},
-	&"sort":     {name = "Sort", energy = 1, discard = 1, draw = 1},
-	&"feed":     {name = "Feed", energy = 1, salvo = 2},
+	&"brace":    {name = "Bolt On", energy = 1, rarity = 0, armor = 5},
+	&"block":    {name = "Hold Fast", energy = 1, rarity = 0, block = 7},
+	&"vent":     {name = "Bleed Heat", energy = 1, rarity = 0, vent = 3},
+	&"reroute":  {name = "Reroute", energy = 1, rarity = 0, draw = 1},
+	&"range":    {name = "Range", energy = 0, rarity = 0, lock_on = 3},
+	&"slug":     {name = "Slug", energy = 1, rarity = 0, damage = 4, hits = 2},
+	&"cut":      {name = "Cutting Beam", energy = 1, rarity = 0, damage = 6},
+	&"patch":    {name = "Patch", energy = 1, rarity = 0, heal = 1, heal_scale = 5},
+	&"scuttle":  {name = "Scuttle", energy = 0, rarity = 0, decommission = 1},
+	&"sort":     {name = "Sort", energy = 1, rarity = 0, discard = 1, draw = 1},
+	&"feed":     {name = "Feed", energy = 1, rarity = 0, salvo = 2},
 }
 
 func _card(d: Dictionary) -> CardData:
@@ -720,12 +725,15 @@ func _seed_modules() -> void:
 	# makes it a question — and these are what you answer it with. Spread across
 	# houses rather than sold by one, because every ship gets junk and a mechanic
 	# only one manufacturer can address is a mechanic six of them play around.
-	_module(&"scuttle", "Scuttle Chute", &"", U, C1,
+	# COMMON, not uncommon. It grants two shared cards and nothing of its own,
+	# which is the definition of yard stock — and the rarity law is what caught
+	# it: an uncommon part has to bring one uncommon card and this brings none.
+	_module(&"scuttle", "Scuttle Chute", &"", U, C0,
 		"A hatch that only opens outward. Whatever went down it is not coming back.",
 		[&"scuttle", &"sort"])
 	_module(&"sortrig", "Sorting Rig", &"redline", U, C2,
 		"Sorts the useful from the fused. Quickly, and without asking.",
-		[&"sort", {name = "Cull", energy = 1, discard = 2, draw = 2}])
+		[{name = "Cull", energy = 1, rarity = 2, discard = 2, draw = 2}, &"sort"])
 	_module(&"blowout", "Blowout Panel", &"korvan", S, C2,
 		"Surplus. Blows the whole rack clear and lets you start the hand again.",
 		[{name = "Blow Out", energy = 1, discard_hand = true, draw = 3, copies = 2}])

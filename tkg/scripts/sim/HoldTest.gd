@@ -21,7 +21,58 @@ func run() -> void:
 	_shapes()
 	_swaps()
 	_legible()
+	_card_law()
 	verdict("holdtest")
+
+
+## EVERY MODULE OBEYS THE CARD RARITY LAW, and the shape of the catalogue is
+## reported rather than asserted.
+##
+## The law is a function of the part — see ModuleData.card_rarities — so a
+## violation can only come from a card that DECLARED its own rarity and got it
+## wrong. That is exactly the case worth checking: the derived path cannot fail
+## and the authored one is the one a person types.
+##
+## In the gate because it is arithmetic on two tables and needs no window, and
+## because a legendary 1x1 granting two legendary cards is the kind of mistake
+## that reads as generosity rather than as a bug.
+func _card_law() -> void:
+	var bad := ""
+	var pairs := 0
+	var shared := 0
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		var law := m.card_rarities()
+		var got := m.resolved_cards()
+		# ORDER-INSENSITIVE. Which card a module lists first is arbitrary, so the
+		# law is about the SET: one card at the part's own grade, and the rest at
+		# or below whatever the second slot allows. Read as an ordered pair it
+		# failed two modules for listing their shared card first, which is a
+		# fact about typing rather than about the card.
+		var names := {}
+		var top_seen := false
+		for c in got:
+			names[c.name] = true
+		for c in got:
+			if not top_seen and c.rarity == law[0]:
+				top_seen = true
+				continue
+			if c.rarity > law[1]:
+				bad += " %s/%s(%d>%d)" % [m.name, c.name, c.rarity, law[1]]
+		if not top_seen and not got.is_empty():
+			bad += " %s(nothing at grade %d)" % [m.name, law[0]]
+		if got.size() > 1 and names.size() == 1:
+			pairs += 1
+		for c in m.cards:
+			if DB.SHARED.values().any(func(d: Dictionary) -> bool:
+					return d.get("name", "") == (c as CardData).name):
+				shared += 1
+				break
+	_ok("every module obeys the card rarity law" if bad == ""
+		else "off the ladder:%s" % bad, bad == "")
+	var n := DB.modules.size()
+	print("  shape: %d of %d modules grant a pair (%d%%), %d draw on shared cards (%d%%)"
+		% [pairs, n, roundi(100.0 * pairs / n), shared, roundi(100.0 * shared / n)])
 
 
 ## EVERY HOUSE'S ART STAYS READABLE ON EVERY RARITY'S GROUND.

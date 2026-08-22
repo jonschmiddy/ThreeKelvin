@@ -206,6 +206,33 @@ func grant_count() -> int:
 ## the module authors fewer distinct verbs than it grants. `copies` on a card is
 ## now a WEIGHT within that draw rather than a count of its own — the number of
 ## cards is the class's business, not the card's.
+## THE CARD RARITY LAW. What the two cards a module grants are allowed to be.
+##
+## Decided by how many CELLS the part occupies, because that is what it costs
+## you. A part you can slip into any gap gives one card at its own grade and one
+## plainer; a part you gave three or four cells of hold to gives two at grade.
+##
+##   1-2 cells   one at the module's rarity, one BELOW it
+##   3-4 cells   two at the module's rarity
+##
+## "Below it" and not "one step below": the second card may be anything lower,
+## which is what lets the shared commons sit on a legendary 1x1 without a
+## special case. A common module has nothing below it, so both of its cards are
+## common and the rule collapses to the obvious thing.
+##
+## Which means a legendary 4x1 does grant two legendary cards — and that is
+## fine, because it costs a whole row of a light hull's twelve. The power is
+## bought with space rather than handed over. A legendary 1x1 could not be
+## allowed the same thing and this is the line that says so.
+##
+## Like `grant_count`, a function of the part rather than a number typed per
+## module, so "a small part never grants two top-grade cards" is true BY
+## CONSTRUCTION and there is no review step to forget.
+func card_rarities() -> Array[int]:
+	var top := int(rarity)
+	var second := top if cells() >= 3 else maxi(0, top - 1)
+	return [top, second]
+
 func resolved_cards() -> Array[CardData]:
 	var out: Array[CardData] = []
 	if cards.is_empty():
@@ -227,5 +254,10 @@ func resolved_cards() -> Array[CardData]:
 		c.source_id = id
 		c.manufacturer = manufacturer
 		c.source_rarity = int(rarity)
+		# The law fills in whatever the card did not declare. Authoring a rarity
+		# is for the exceptions; the shape of the part decides the rest.
+		if c.rarity < 0:
+			var law := card_rarities()
+			c.rarity = law[mini(i, law.size() - 1)]
 		out.append(c)
 	return out
