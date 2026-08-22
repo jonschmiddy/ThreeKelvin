@@ -121,6 +121,11 @@ var turn: int = 1
 var attacks_this_turn: int = 0
 var peaceful_turns: int = 0
 var new_dross: int = 0
+
+## How deep this fight is. Kept because what an enemy LODGES in you is rolled
+## against it — a spore at layer nine should be able to fuse something into the
+## rack that one at layer one cannot.
+var danger: int = 1
 var finished: bool = false
 var result: StringName = &""
 var summary: String = ""
@@ -139,6 +144,7 @@ func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
 ## split stay in `_spawn` where they have always been. Router calls plan(), asks
 ## the party, then calls begin().
 func plan(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
+	self.danger = danger
 	enemies.clear()
 	var share := 1.0 if extras.is_empty() else 0.6
 	enemies.append(_spawn(template, danger, share))
@@ -323,8 +329,16 @@ func end_turn() -> void:
 		_log("%d hull from junk left in hand." % stuck, &"them")
 		Run.take_hull_damage(stuck, "Malfunctioning systems, left too long.")
 
-	discard.append_array(hand)
-	hand.clear()
+	# FUSED CARDS DO NOT GO. Everything else in the hand is swept into the
+	# discard; a fused card stays, which is what makes it charge you again next
+	# turn and the turn after until you spend something on it.
+	var kept: Array[CardData] = []
+	for c in hand:
+		if (c as CardData).fused:
+			kept.append(c)
+		else:
+			discard.append(c)
+	hand.assign(kept)
 	if stuck > 0 and Run.dead:
 		_finish(&"dead", Run.death_reason)
 		return
@@ -690,7 +704,8 @@ func _victory() -> void:
 	if Run.has_set(&"probate", 3):
 		gained = int(round(gained * 1.5))
 	Run.add_credits(gained)
-	Run.dross += new_dross
+	for i in new_dross:
+		Run.add_dross(danger)
 	var bits: PackedStringArray = ["%d credits" % gained]
 	if enemy.template.fauna:
 		Run.exotic += 2
@@ -754,7 +769,8 @@ func _pacify() -> void:
 	if clears_node:
 		Run.consume_node(node)
 	Run.exotic += 1
-	Run.dross += new_dross
+	for i in new_dross:
+		Run.add_dross(danger)
 	Run.whale_boon = true
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)

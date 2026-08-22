@@ -70,10 +70,26 @@ var exotic: int:
 	set(v):
 		materials[&"exotic"] = maxi(0, v)
 		Sig.resources_changed.emit()
-var dross: int = 0:
+## WHICH malfunctions are lodged in you, not how many.
+##
+## It was a count, and a count could only ever produce one card sixteen times.
+## The ids are stored so the deck can be rebuilt identically on every load and
+## every deck-build — rolling which malfunction at build time would have given
+## you a different set of junk every time the screen refreshed.
+var dross: Array[StringName] = []:
 	set(v):
 		dross = v
 		Sig.ship_changed.emit()
+
+## How much junk, for everything that only wants the number.
+func dross_count() -> int:
+	return dross.size()
+
+## Lodge one in the ship. `danger` decides how nasty it is allowed to be.
+func add_dross(danger: int) -> void:
+	var next := dross.duplicate()
+	next.append(DB.roll_malfunction(danger))
+	dross = next
 
 ## WHY THESE TWO HAVE SETTERS AND `heat` DOES NOT.
 ##
@@ -277,7 +293,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	credits = 40
 	materials.clear()
 	fuel = 150
-	dross = 0
+	dross = []
 	jumps = 0
 	kills = 0
 	hauls = 0

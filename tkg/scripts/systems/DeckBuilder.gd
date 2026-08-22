@@ -21,13 +21,11 @@ static func build() -> Array[CardData]:
 				c.energy = maxi(0, c.energy - 1)
 			out.append(c)
 
-	for i in Run.dross:
-		var d := CardData.new()
-		d.name = "Dross"
-		d.energy = 1
-		d.unplayable = true
-		d.source_module = "spore residue"
-		out.append(d)
+	# One card per malfunction actually lodged, built from the table. This used
+	# to synthesise a Dross inline, which is why there was exactly one kind of
+	# junk in the game no matter what put it there.
+	for id in Run.dross:
+		out.append(DB.malfunction(id))
 
 	return out
 

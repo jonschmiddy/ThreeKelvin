@@ -160,7 +160,7 @@ static func _snapshot() -> Dictionary:
 		# remembering to add a line here.
 		materials = Run.materials.duplicate(),
 		fuel = Run.fuel,
-		dross = Run.dross,
+		dross = Run.dross.map(func(x: StringName) -> String: return String(x)),
 		whale_boon = Run.whale_boon,
 		# The ledger and the accounts. Both are RUN state — a contract points at a
 		# node index in this galaxy and standing is spent inside this dive — so
@@ -277,7 +277,17 @@ static func load_into_run() -> bool:
 			mats[StringName(str(k))] = int((saved_mats as Dictionary)[k])
 	Run.materials = mats
 	Run.fuel = int(d.get("fuel", 0))
-	Run.dross = int(d.get("dross", 0))
+	# A save written when dross was a COUNT restores as that many Dross, which is
+	# exactly what it meant at the time. Nothing is lost and nothing is invented.
+	var raw: Variant = d.get("dross", [])
+	var ids: Array[StringName] = []
+	if typeof(raw) == TYPE_FLOAT or typeof(raw) == TYPE_INT:
+		for i in int(raw):
+			ids.append(&"dross")
+	else:
+		for x in (raw as Array):
+			ids.append(StringName(x))
+	Run.dross = ids
 	Run.whale_boon = bool(d.get("whale_boon", false))
 	Run.contracts = _contracts_from(d.get("contracts", []))
 	Run.next_contract_id = maxi(1, int(d.get("next_contract_id", 1)))

@@ -453,7 +453,7 @@ func _ready() -> void:
 		Run.add_material(&"exotic", 2)
 		Run.add_material(&"relic", 1)
 		Run.hp = maxi(1, Run.max_hp() - 12)
-		Run.dross = 1
+		Run.add_dross(3)
 		Router.show_station()
 	elif "salvage" in OS.get_cmdline_user_args():
 		# `-- salvage 8` opens the sector with eight parts in the hold.

@@ -537,7 +537,7 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 
 	var purge_cost := Market.purge_price(n)
 	var purge := _service("PURGE 1 DROSS", "%d cr" % purge_cost, _purge)
-	_set_service_enabled(purge, Run.dross > 0 and Run.credits >= purge_cost)
+	_set_service_enabled(purge, Run.dross_count() > 0 and Run.credits >= purge_cost)
 	_services.add_child(purge)
 
 	var coolant_cost := Market.coolant_price(n)
@@ -638,10 +638,14 @@ func _refuel() -> void:
 
 func _purge() -> void:
 	var cost := Market.purge_price(Run.node_at())
-	if Run.credits < cost or Run.dross <= 0:
+	if Run.credits < cost or Run.dross_count() <= 0:
 		return
 	Run.add_credits(-cost)
-	Run.dross -= 1
+	# The mildest one first — a purge that took the worst card would make the
+	# service better the more junk you were carrying, which is backwards.
+	var left := Run.dross.duplicate()
+	left.remove_at(0)
+	Run.dross = left
 	Run.log_line("Purged Dross.", &"good")
 
 func _coolant() -> void:

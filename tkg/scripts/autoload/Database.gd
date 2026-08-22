@@ -203,6 +203,72 @@ const BACKSTORY := {
 	&"calyx": "Clinical, corporate and entirely organic — Calyx hulls are cultured to a specification and then trimmed. They heal. They adapt. Every contract has a clause about feeding one something it was not rated for, and no customer has seen the results.",
 }
 
+## SIXTEEN MALFUNCTIONS, out of three keywords.
+##
+## Written as combinations rather than as sixteen sentences. Sixteen sentences is
+## what this was first drafted as and it came out as three behaviours with
+## different numbers on them; three keywords and a number each is sixteen cards a
+## player can read at a glance, which is how Brace, Salvo and Charge already work.
+##
+##   CORRODE n   damage at the end of your turn while it is in your hand
+##   SMOULDER n  heat, the same way
+##   FUSED       not discarded at end of turn — it stays until you deal with it
+##
+## FUSED IS THE ONLY ONE THAT COMPOUNDS. The others charge you once and go with
+## the hand. A fused card charges you again every turn and holds a hand slot the
+## whole time, which is what makes it worth spending a Discard on — and a
+## Decommission if you would rather it did not come back at all.
+##
+## Eight of these are severities of the same two verbs, and that is deliberate:
+## Corrode 1/2/3 and Smoulder 2/3/4 are a ladder you learn to read, not eight
+## separate rules to remember.
+const MALFUNCTIONS: Array = [
+	# id, name, corrode, smoulder, fused
+	[&"dross",     "Dross",           0, 0, false],
+	[&"hairline",  "Hairline Crack",  1, 0, false],
+	[&"coolloss",  "Coolant Loss",    0, 2, false],
+	[&"scored",    "Scored Barrel",   2, 0, false],
+	[&"coupling",  "Blown Coupling",  0, 3, false],
+	[&"deadcell",  "Dead Cell",       1, 1, false],
+	[&"ordnance",  "Loose Ordnance",  3, 0, false],
+	[&"arcfault",  "Arc Fault",       0, 4, false],
+	[&"tornliner", "Torn Liner",      2, 1, false],
+	[&"fouled",    "Fouled Optics",   2, 2, false],
+	[&"ballast",   "Ballast",         0, 0, true],
+	[&"jammed",    "Jammed Feed",     1, 0, true],
+	[&"slowburn",  "Slow Burn",       0, 1, true],
+	[&"ghost",     "Ghost Signal",    2, 0, true],
+	[&"slag",      "Slag",            0, 3, true],
+	[&"seized",    "Seized Actuator", 1, 1, true],
+]
+
+## One malfunction card, built fresh. A copy per call, because these go into a
+## deck and a shared resource would have every copy of Slag be the same object.
+func malfunction(id: StringName) -> CardData:
+	for row in MALFUNCTIONS:
+		if row[0] != id:
+			continue
+		var c := CardData.new()
+		c.name = row[1]
+		c.energy = 1
+		c.unplayable = true
+		c.hand_damage = row[2]
+		c.hand_heat = row[3]
+		c.fused = row[4]
+		c.source_module = "spore residue"
+		return c
+	return malfunction(&"dross")
+
+## Which malfunction lodges in you, weighted so the mild ones are common.
+##
+## Rolled from `Rng.foe` rather than the global generator, because what an enemy
+## does to you is part of the fight and has to replay from the seed. The weights
+## are the row's own position: the table is written mildest-first, so the front
+## of it is common and the compounding ones at the back are rare.
+func roll_malfunction(danger: int, r: RandomNumberGenerator = Rng.foe) -> StringName:
+	var reach := clampi(4 + danger, 4, MALFUNCTIONS.size())
+	return MALFUNCTIONS[r.randi() % reach][0]
+
 func manufacturer_colour(id: StringName) -> Color:
 	if id == &"" or not manufacturers.has(id):
 		return Color("#5a6a7a")
@@ -582,6 +648,9 @@ func _seed_modules() -> void:
 		[{name = "Resonance", energy = 2, heat = 2, damage = 11, hits = 2, copies = 1}])
 
 	# --- Junk
+	#
+	# THE MALFUNCTION TABLE lives in `_seed_malfunctions` below, because a
+	# malfunction is not a module and never was. See the ruling.
 	#
 	# THERE IS NO DROSS MODULE. There was one, and it was unreachable: the loot
 	# pool skipped it by id, and the only thing that could hand it over was

@@ -83,7 +83,7 @@ func fingerprint() -> Dictionary:
 		installed = mods.call(Run.installed),
 		cargo = mods.call(Run.cargo),
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
-			Run.fuel, Run.dross, Run.whale_boon],
+			Run.fuel, Run.dross_count(), Run.whale_boon],
 		# Every material, not just the one that used to be a field. Written as a
 		# sorted list so a ledger that came back with the same counts under
 		# String keys instead of StringName ones still compares equal — the
@@ -169,7 +169,7 @@ func run() -> void:
 	Run.exotic = 3
 	Run.add_material(&"exotic", 7)
 	Run.add_material(&"relic", 2)
-	Run.dross = 2
+	Run.dross = [&"slag", &"arcfault"] as Array[StringName]
 	Run.whale_boon = true
 	Run.kills = 4
 	for i in 4:
@@ -247,7 +247,7 @@ func run() -> void:
 	Run.credits = 0
 	Run.materials = {}
 	Run.fuel = 0
-	Run.dross = 0
+	Run.dross = [] as Array[StringName]
 	Run.whale_boon = false
 	Run.jumps = 0
 	Run.kills = 0

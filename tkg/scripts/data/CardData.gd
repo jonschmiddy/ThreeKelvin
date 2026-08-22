@@ -78,8 +78,17 @@ extends Resource
 ##
 ## Every unplayed card is discarded at end of turn anyway, so "still in hand"
 ## means every malfunction you drew and could not get rid of.
+## CORRODE and SMOULDER, as they read on a card.
 @export var hand_damage: int = 0
 @export var hand_heat: int = 0
+
+## FUSED. Not discarded at the end of your turn — it stays in your hand until
+## you get rid of it, and discarding works, it just costs you a card.
+##
+## The only malfunction keyword that COMPOUNDS. Everything else charges you once
+## and goes with the hand; a fused card charges you again every turn you leave
+## it there, and it is holding a hand slot the whole time.
+@export var fused: bool = false
 
 ## GETTING RID OF THINGS. Two verbs, because they are two different sizes of
 ## decision.
@@ -286,6 +295,12 @@ func keywords() -> Array:
 		out.append(["Vent", "Sheds heat. The one corner on a card that runs backwards."])
 	if drone_damage > 0 or drone_armor > 0:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
+	if fused:
+		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it works — it just costs you a card."])
+	if hand_damage > 0:
+		out.append(["Corrode", "Damage at the end of your turn, for as long as it is still in your hand."])
+	if hand_heat > 0:
+		out.append(["Smoulder", "Heat at the end of your turn, for as long as it is still in your hand."])
 	if decommission > 0 or self_decommission:
 		out.append(["Decommission", "Off the books for the rest of this fight. It does not come back when the deck reshuffles."])
 	if discard > 0 or discard_hand:
@@ -378,10 +393,12 @@ func describe() -> String:
 		bits.append("Decommission %d" % decommission)
 	if self_decommission:
 		bits.append("Decommissions itself")
+	if fused:
+		bits.append("Fused")
 	if hand_damage > 0:
-		bits.append("%d damage at end of turn if still held" % hand_damage)
+		bits.append("Corrode %d" % hand_damage)
 	if hand_heat > 0:
-		bits.append("+%d heat at end of turn if still held" % hand_heat)
+		bits.append("Smoulder %d" % hand_heat)
 	if draw > 0:
 		bits.append("Draw %d" % draw)
 	if lock_on > 0:
