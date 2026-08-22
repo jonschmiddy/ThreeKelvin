@@ -42,8 +42,8 @@ Six techniques, named so they can be asked for by name in review. All of them ar
 
 | Constant | What it is | Where it already stands |
 |---|---|---|
-| **ELEVEN** | The archive's number, never remarked | The eleventh survey; eleven degrees at berth 9; eleven hundred on the ring; eleven to ten in council; eleven barrels of oil; the eleventh day; eleven stations still answering; *it was eleven the year before* |
-| **FORTY-ONE** | Its loud sibling | Forty-one recoil assemblies; a forty-one-year cycle; forty-one sighted this season |
+| **ELEVEN** | The archive's number, never remarked | The eleventh survey; eleven degrees at berth 9; eleven hundred on the ring; eleven to ten in council; eleven barrels of oil; the eleventh day; eleven stations still answering; *it was eleven the year before*; the contractor's column, struck at revision eleven |
+| **FORTY-ONE** | Its loud sibling | Forty-one recoil assemblies; a forty-one-year cycle; forty-one sighted this season; a posting filled forty-one times |
 | **THE LONG MERIDIAN** | The walker. Berth seven is held for it; it is on no register; it goes where it likes | The transponder loop; a statement of no claim, filed from the deep |
 | **KESTREL REACH** | Where things are lost | The Combine's anticipatory claim on all wrecks arising; a whale taken at its mouth |
 | **STATION VAR** | Struck from the chart, still answering | Korvan's unacknowledged shipments; among the eleven in the errata |
@@ -79,7 +79,7 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 
 *Fourteen berths hands the reader `crew_roster` without touching it. "Hot meals, second watch" is the loop's phrase, sitting in a stores order at the rim — the first thread-line most players will draw, which is why it goes at depth 1.*
 
-> **`asphodel_claim`** — "FILING 214-C, PRIORITY, THE ASPHODEL" — *a claims officer, The Dredge Combine* — "filing year 9,904" — dredge — **depth 3**
+> **`asphodel_claim`** — "FILING 214-C, THE ASPHODEL" — *a claims officer, The Dredge Combine* — "filing year 9,904" — dredge — **depth 3**
 > Priority claim, the ASPHODEL, hull and all cargo as it accrues. Filed as a precaution. Standard.
 >
 > Annual review: nothing has accrued. The claim remains open.
@@ -92,7 +92,7 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 
 *The Combine's own logic (`dredge_filing`: filed 406 days early, no irregularity) turned up to full volume: they file ahead of events, and this event has not happened yet. "Yet" is doing everything.*
 
-> **`halcyon_attendance`** — "ATTENDANCE RECORD, COMMISSION 311" — *a service supervisor, Halcyon* — "commission three hundred and eleven, ninety-first attendance" — halcyon — **depth 5**
+> **`halcyon_attendance`** — "ATTENDANCE, COMMISSION 311" — *a service supervisor, Halcyon* — "commission three hundred and eleven, ninety-first attendance" — halcyon — **depth 5**
 > Off-site maintenance performed as scheduled. The hull was located at the position indicated by the maintenance schedule. This shipyard does not hold a registered location for this hull. The schedule does. This standing discrepancy has been filed as a standing discrepancy.
 >
 > Work performed: replacement of the forward hatch seal, fairing of one hull plate, repainting of the ship's name where worn. Eight letters.
@@ -111,7 +111,7 @@ The archive's spine. A ship no register carries, that a dead station is still ho
 
 One new entry only. This thread must stay thin — it is the closest the archive comes to a person-shaped mystery, and person-shaped mysteries are the ones players expect to resolve. Starve it and it stays a cold fact about an institution; feed it and it becomes a character.
 
-> **`halcyon_exemplar`** — "EXAMINATION FOR THE NOTARY'S SEAL" — *an examiner, Halcyon* — "exemplar volume forty" — halcyon — **depth 5**
+> **`halcyon_exemplar`** — "EXAMINATION, NOTARY'S SEAL" — *an examiner, Halcyon* — "exemplar volume forty" — halcyon — **depth 5**
 > The candidate reproduced the countersign in accordance with the standard, from the exemplar currently in force. Passed at the third sheet, which is the custom.
 >
 > The candidate then asked, as they all ask, why the volumes of exemplars are not filed by author, given that the countersign of volume forty is that of volume one.
@@ -126,7 +126,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 
 **Anchors:** none in the archive yet; the anchor is the *mechanic* — `coop-design.md` §12's card source nobody owns. This is the model for tying story to systems: the document describes, in an adjuster's register, a thing the player has personally had happen to their deck, and neither the document nor the game ever connects them out loud.
 
-> **`denial_notice`** — "NOTICE OF DENIAL, HULL AND FITTINGS" — *a claims adjuster, underwriters not named* — "policy year forty-four" — no house — **depth 4**
+> **`denial_notice`** — "NOTICE OF DENIAL" — *a claims adjuster, underwriters not named* — "policy year forty-four" — no house — **depth 4**
 > Claim: loss of the vessel, attributed by the claimant to an installed module.
 >
 > Denied. The module in question appears in no catalogue, bears no maker's mark, no serial number, no house stamp, and no point of sale, and the claimant, who installed it personally, cannot state where it was obtained — only that it was on board when it was needed, and that it worked.
@@ -202,7 +202,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 
 *The auditor gets to the edge of the only question that matters and — declines to minute it. This is `lore.md` §1's commitment enforced from inside the fiction: the answer is not withheld from the player; it is withheld from everyone.*
 
-> **`solari_schedule`** — "SCHEDULE EXTRACT, THERMAL APPLICATIONS" — *a scheduling clerk, Solari Foundry* — "foundry year 890" — solari — **depth 8**
+> **`solari_schedule`** — "SCHEDULE EXTRACT, THERMAL" — *a scheduling clerk, Solari Foundry* — "foundry year 890" — solari — **depth 8**
 > Extract as requested, status of the reserve queue: furnace charge, four allocations. Residential main line, two. Foundry restart, one, priority.
 >
 > Last row of the reserve schedule: TERMINAL APPLICATION. No date. No place. No allocation.
@@ -238,6 +238,77 @@ One new entry only. This thread must stay thin — it is the closest the archive
 > Resubmitted with the word struck out. Denied; the amended claim is for four days of nothing, and nothing is likewise not on the schedule.
 >
 > Paid in the end on equitable grounds, which have no schedule. Recorded for completeness: all four have since begged off deep work.
+
+### Thread VIII — The Non-Return *(the one idea, stated plainly)*
+
+A craft ruling opens this thread, because it spends a device the rest of the archive is forbidden: **obviousness is rationed, and this is where the ration goes.** With no playtesters to tell us whether anyone draws the subtle lines, the archive has to teach its own reading — so exactly one thread states the one idea in the open: at the rim, depths 0–2, where it is the first thing most players assemble, and always in clerks' voices, never the game's. It is also a key ring. The comparative page below quotes lines the player can verify in the wild — Halcyon's clause is the rider's Clause 4, Dredge's is the filing logic, Calyx's is the incident form's disposition field word for word — so the obvious thread trains the stitch-reading the deep threads demand.
+
+**Anchor:** `calyx_incident` (in the build — the clause, operated; OWNER DISPOSITION: [field left blank]).
+
+**Keys:** forty-one, posted and filled · revision eleven · *the specimen is retained*, quoted from the incident form · *survives the owner*, quoted from Clause 4 · the schedule.
+
+> **`seven_clauses`** — "NON-RETURN, ALL HOUSES" — *a contracts clerk, compiled for training* — "undated, marked CURRENT" — no house — **depth 0**
+>
+> Requested by the training division: what happens, according to each house, when a contractor does not return. The material was compiled from the standard terms as filed in the registry.
+>
+> Korvan: Clause Nine. The line of credit is closed. Accounts are settled against the hull.
+> Solari: Unspent advances revert to the schedule.
+> Dredge: The Combine's claim to the wreckage precedes the wreckage.
+> Redline: [No clause on file.]
+> Halcyon: The company's obligation to the hull survives the owner.
+> Cygnet: Recovery, where undertaken, is recovery of equipment.
+> Calyx: The specimen is retained.
+>
+> Compiled as requested. What happens is set out above.
+>
+> And nothing else happens.
+
+*Seven registers on one page — a tour of the houses and the whole employment relationship, and the closest the archive ever comes to saying the one idea aloud. It is still a primary source: a clerk answered the question they were asked, exactly, and nothing else.*
+
+> **`replacement_posting`** — "WORK POSTED, BOARD COPY" — *a posting clerk* — "board cycle as stamped" — no house — **depth 0**
+>
+> FETCH, standard terms, standard rate scaled to the run. Sign at the berth office.
+>
+> TIMES POSTED: forty-one.
+> TIMES FILLED: forty-one.
+>
+> Note to the board, from the office: the notice is reused. The date is corrected each cycle and nothing else is corrected, because nothing else changes. The office knows that the two figures above read as a comfort — every posting, filled — and the office does not correct that reading either.
+>
+> Completion is not a figure this office tallies.
+
+> **`effects_manifest`** — "PERSONAL EFFECTS, DISPOSITION" — *a berth office clerk* — "file year not entered" — no house — **depth 1**
+>
+> One box, standard size, sealed at the berth office: a coat, worn. A photograph, three people, names unknown to this office. Personal measuring instruments, one set. Small items at standard weight.
+>
+> No claimant found. Held for the prescribed year. Disposed of per schedule.
+>
+> The box's transport was charged to the account. The account is in the negative. The negative is written off.
+>
+> The write-off is the only paper in this file that bears a handwritten signature.
+
+> **`chalk_wall`** — "NOTICE AT THE DOCK GATE" — *the dockmaster's office* — "undated, weathered" — no house — **depth 1**
+>
+> The chalk wall is not to be cleaned.
+>
+> This notice replaces the notice ordering the wall cleaned, which is withdrawn. The officer who posted it has been spoken to.
+>
+> Names are to be written in chalk at the base, where there is room, and there is. There is chalk in the gatehouse. The gatehouse does not record who takes it.
+>
+> The wall is not the property of any house. The wall belongs to the dock. This office has been asked to say whose names go on the wall, and it says so here: anyone's who will not be coming back to write it himself.
+
+*The counterweight, inside the thread rather than beside it: the houses keep no record of the dead, so the dock does — in chalk, by hand, property of no house. Both halves of the one idea on one wall.*
+
+> **`actuarial_note`** — "AMORTIZATION SCHEDULE, EXTRACT" — *an actuarial clerk, house not stated* — "revision eleven" — no house — **depth 2**
+>
+> Extract as requested. A hull under contract is written off by deliveries, not by years; the schedule assumes loss, not wear, and that assumption has held within tolerance since the schedule was first drawn up.
+>
+> Query, standing: whether the schedule should carry a column for the contractor as it carries a column for the hull.
+>
+> Ruling, standing: it did carry such a column. The column was struck in revision eleven. The figure did not change enough to keep it.
+>
+> Extract confirmed.
+
+*"The figure did not change enough to keep it" is the disposable human in one actuarial sentence, and it is the deepest this thread goes. Below layer two the archive returns to whispering.*
 
 ### Counterpoint — the human shelf
 
@@ -278,7 +349,7 @@ Three arcs, drafted in full. Each one uses at least one entry that already exist
 
 The pilot of dive 109 — *I am not going back down. I will go back down* — is the archive's best character and currently has no second act. The arc: compulsion, divestment, the threshold, and the only ending this setting hands out as a mercy — stopping. The statement taken at a station (`custodian_note`) never names its subject, and never will; the link is a gesture, planted in dive 109 and echoed in the clerk's marginalia. Echo, never confirmation: the player who believes the man at the counter is the pilot is never told they are right.
 
-> **`pilot_log_2`** — "PRIVATE LOG, CONTINUED, WATER-DAMAGED" — *a pilot, hull not named* — "dives one hundred thirteen to one hundred sixteen" — no house — **depth 6**
+> **`pilot_log_2`** — "PRIVATE LOG, CONTINUED" — *a pilot, hull not named* — "dives one hundred thirteen to one hundred sixteen" — no house — **depth 6**
 > 113. Down to the eighth again. Kept my palm flat against the hull the whole crossing. I was right. [several lines lost]
 >
 > 114. Sold the spare coil, the second suit, the plate I was saving for a rainy day. A ship is mostly things you carry in case you get to keep the life you had. Lighter now.
@@ -312,7 +383,7 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 
 `broker_ledger` ends: *They can have the whole sky in twenty years. I will not be here to hand it over.* This arc is those twenty years. It is the one idea — corporations are eternal, people are temporary — run as an actual plot with an actual ending, and the ending is not a twist: the institution simply waits, and waiting costs it nothing. The horror of the houses has been ambient until now; this arc makes it *biographical*.
 
-> **`ring_minutes`** — "MINUTES, RING COUNCIL, HEATING ALLOCATION" — *a recording secretary* — "winter session, year not entered" — no house — **depth 1**
+> **`ring_minutes`** — "MINUTES, RING COUNCIL" — *a recording secretary* — "winter session, year not entered" — no house — **depth 1**
 > Allocation approved as amended: main lines at full power through the dark quarter — eleven hundred on the ring's roll this winter — schools and the infirmary given priority, dock lighting at navigational minimum.
 >
 > Raised from the floor: the standing Cygnet offer for the ring's stored heat, renewed once again at this session, terms improved once again. Motion made to accept. The chair spoke against it, at length, and on his own instruction off the record — the recording clerk notes only that the chair spoke standing and struck the table once.
@@ -321,7 +392,7 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 >
 > Next session as scheduled.
 
-> **`successor_ledger`** — "DAY BOOK, THIRD QUARTER, NEW HAND" — *a yard broker, name not yet worn in* — "no year given" — no house — **depth 3**
+> **`successor_ledger`** — "DAY BOOK, NEW HAND" — *a yard broker, name not yet worn in* — "no year given" — no house — **depth 3**
 > The same ledger. A new ledger he would have hated.
 >
 > Hull plates, nine sheets — I took the lot, paid over the price, at his rates. Reactor coil, one, tested sound this time — I took it, at my rates.
@@ -338,11 +409,11 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 
 **Beats:** `inspection_note` (exists, depth 1) → `warm_consolidated` (new, depth 4) → `warm_reply` (new, depth 5).
 
-**Keys:** berth 9, second watch, eleven degrees — the inspection note is the first row of the consolidated table · the count that climbs: three a month, nineteen a year, *it was eleven the year before* · the schedule.
+**Keys:** berth 9, second watch, eleven degrees — the inspection note is the first row of the consolidated table · the count that climbs: three a month, nineteen a year, *it was eleven the year before*; the contractor's column, struck at revision eleven · the schedule.
 
 *Third one this month* was a person noticing something. This arc is what institutions do to people who notice: not conspiracy, not menace — process. The officer does everything right, the machine works exactly as designed, and the design is the tragedy. It also quietly promotes a motif into an institution: **the schedule** — the schedule of seizable conditions here, the schedule of hazards in `expense_claim`, Solari's application schedule — the setting's true god, the list that decides what officially exists.
 
-> **`warm_consolidated`** — "IRREGULARITY REPORT, CONSOLIDATED" — *a customs officer, station unnamed* — "shift logs, four quarters attached" — no house — **depth 4**
+> **`warm_consolidated`** — "IRREGULARITIES, CONSOLIDATED" — *a customs officer, station unnamed* — "shift logs, four quarters attached" — no house — **depth 4**
 > Submitted for review by the higher authority; the year's shift-logs appended.
 >
 > Vessels that arrived warm, with no declared thermal cargo, nothing found on inspection, released for want of grounds for seizure: nineteen this year. Table appended — berth, date, degrees above ambient. The first row is last year's: berth 9, second watch, eleven degrees. The degrees do not fall.
@@ -351,7 +422,7 @@ The pilot of dive 109 — *I am not going back down. I will go back down* — is
 >
 > I am aware of how this petition reads. The logs have been appended so that it stops reading that way.
 
-> **`warm_reply`** — "MEMORANDUM IN REPLY, PERSONNEL COPY" — *a superintendent of customs* — "reference year as marked" — no house — **depth 5**
+> **`warm_reply`** — "MEMORANDUM IN REPLY" — *a superintendent of customs* — "reference year as marked" — no house — **depth 5**
 > Your summary report has been received; your diligence has been entered in the record according to your grade.
 >
 > The request is denied. Those items enumerated in the schedule of seizable matters are property. Warmth is not property; a vessel's temperature is a condition of the vessel; a condition is not among the things subject to seizure. Legal counsel's opinion is enclosed, and is final.
@@ -395,6 +466,7 @@ The archive's delivery is already right: positional, idempotent, depth-floored, 
 - **Hard keys for membership, echoes for meaning.** *(Amended from "echoes, never confirmations.")* Two documents in one storyline must share at least one exact, checkable token that proves they belong together; no document ever verifies another's account of what the story *means*. The shuffle test: if moving an entry into a different docket changes nothing, the entry is not yet written.
 - **No thread converges on the heat.** The threads orbit the question at fixed distance. The auditor declines to minute it; that is as close as anything ever gets, forever.
 - **One seam of alignment.** "The eleventh survey" is the only epoch that may recur across authors. Everything else stays unreconciled.
+- **Obviousness is rationed.** The Non-Return is the only thread licensed to state the one idea in the open, and it holds that license alone. A second obvious thread would not double the clarity; it would halve the archive.
 - **Constants are rationed and never the subject.** The roster in §2 is the whole roster; adding one means retiring one. A constant that grows a docket of its own stops being a constant — the walker above all: the day the LONG MERIDIAN gets a storyline, the trick is spent.
 - **Ration the devices.** The blank field: twice more, ever. The pencil second hand: once more, ever. A device reused until noticed is a signature, and the archive has no author.
 - **Arcs end at human scale only.** An arc's ending is a fact about a person, never a fact about the world. The day an arc's final document explains anything an institution does, it has become a reveal, and `lore.md` §7 already priced that trade.
@@ -422,6 +494,9 @@ Editorial policy on the results: adopted verbatim, except for normalizing settin
 | `chart_errata` | Russian | `successor_ledger` | Hebrew |
 | `audit_minute` | Polish | `warm_consolidated` | Ukrainian |
 | | | `warm_reply` | Mandarin |
+| `seven_clauses` | Arabic | `replacement_posting` | Romanian |
+| `effects_manifest` | Estonian | `actuarial_note` | Icelandic |
+| `chalk_wall` | Catalan | | |
 
 For future entries: pick the language for the author, not the author for the language — legal registers survive German and French; grief survives Finnish; commerce survives Hebrew and Italian; officialdom at its most self-sealing survives Japanese and Mandarin. And never let the back-translator see the original. The moment they can, the voices converge again.
 
@@ -429,8 +504,8 @@ For future entries: pick the language for the author, not the author for the lan
 
 ## 8. Order of work
 
-1. **Seed the batch.** The twenty entries above (fourteen from the threads, six from the arcs) go into `Database._seed_documents` as written — they are drafted to the six rules and the depth table, and `_doc` takes them as-is. Apply the one-line amendment to `custodian_note` in the same pass. That brings the archive to thirty-six of the forty-five-entry ceiling.
-2. **Open the two doors.** One line in the FETCH pickup path, one in the pacify resolution. Both are `recover_at` call sites of the shape the comment in `Archive.gd` promises.
+1. **Seed the batch. BUILT.** The twenty-five entries above (fourteen from the threads, six from the arcs, five from The Non-Return) are seeded into `Database._seed_documents`, generated from this document so the two cannot drift, with the custodian amendment applied in the same pass. Forty-one of the forty-five-entry ceiling — which is itself a constant, so the next batch retires something.
+2. **Open the two doors. BUILT.** `RunState.reach_contract_target` recovers what rode in with the contract cargo; `Combat._pacify` recovers what was left alongside. Both are one-line `recover_at` call sites of the shape the comment in `Archive.gd` promises.
 3. **Retro-check place names** against `MapGen.star_name`'s parts, and fix `dredge_filing` if "Kestrel Reach" is outside the vocabulary.
 4. **Then stop.** Play it. The threads are load-bearing only if players draw the lines unprompted; the next batch should be written after watching whether they do.
 

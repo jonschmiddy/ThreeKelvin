@@ -668,6 +668,9 @@ func _pacify() -> void:
 	Run.whale_boon = true
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
+	# The quiet route reads. Nothing is taken from the animal — found_at only
+	# says where you were. Fifth door, same hinge; see Archive.recover_at.
+	Archive.recover_at(node, "left alongside")
 	_finish(&"pacified",
 		"It stops circling and drifts off singing. 1 exotic material. The pod remembers.")
 

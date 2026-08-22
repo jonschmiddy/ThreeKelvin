@@ -1499,6 +1499,8 @@ The vacancy has a temperature.")
 		"undated, marked NOT FOR FILING", &"", 7,
 		"He would not give a name and he would not sit down. Taking it as given.
 
+While he talked he kept laying his hand flat on the counter, palm down, and just leaving it there — the way a person feels at a bulkhead. He said he had been down one hundred and seventeen times. He gave the number the way other men give a name.
+
 He says he reached the core. He says there is something at it and that it did not attack him.
 
 He says it made room.
@@ -1527,6 +1529,291 @@ Requesting the field be corrected or the tables be updated. Low priority.
 
 [query closed: no fault found]")
 
+
+
+	# --- The second shelf: threads, arcs, constants and The Non-Return. -------
+	#
+	# Written to `docs/lore-threads.md`, which extends `docs/lore.md` §5 with
+	# three additions worth restating at the point of use:
+	#
+	# **Hard keys.** Two entries in one storyline share an exact, checkable
+	# token — a name, a count, a number — so membership is provable while
+	# meaning stays open. Do not "fix" an odd number or phrase here without
+	# checking §3/§4 of that document; it is probably load-bearing.
+	#
+	# **Constants.** ELEVEN, FORTY-ONE, the LONG MERIDIAN, Kestrel Reach,
+	# Station Var, the schedule, and the QUERY CLOSED stamp family recur across
+	# storylines on purpose, per the rationed roster in §2. The walker (the
+	# LONG MERIDIAN) is never the subject of any entry, ever.
+	#
+	# **Voices.** Every entry below was authored through a different language
+	# and blind back-translated (§7), which is why no two clerks share a prose
+	# style. The wording is the voice; edit meaning, not music.
+
+	_doc(&"asphodel_stores", "VICTUALLING ORDER, OUTBOUND", "a victualler, station not named",
+		"no year given", &"", 1,
+		"Loaded aboard for the ASPHODEL, outbound: dry provisions for fourteen berths, water to a full tank, galley fuel per the master's figure.
+
+A single crossing. No return leg on the order.
+
+Instructions to the galley: hot meals, second watch, for the whole outbound run. Master Maurel's standing order, and he's the one paying, so it's not for this office to ask why nobody feeds a crew that well when it's headed THAT way.
+
+Filed. No return leg on the order.")
+
+	_doc(&"asphodel_claim", "FILING 214-C, THE ASPHODEL", "a claims officer, The Dredge Combine",
+		"filing year 9,904", &"dredge", 3,
+		"Priority claim, the ASPHODEL, hull and all cargo as it accrues. Filed as a precaution. Standard.
+
+Annual review: nothing has accrued. The claim remains open.
+
+Note at review: this is the oldest open claim in the register. It is older than the register in which it is carried, was transferred over from the previous register, and the official who filed it did not sign off on it, which was permissible at the time. Closure on grounds of age recommended.
+
+Recommendation rejected. The Combine closes no claim before the loss.
+
+To date, nothing has accrued.")
+
+	_doc(&"halcyon_attendance", "ATTENDANCE, COMMISSION 311", "a service supervisor, Halcyon",
+		"commission three hundred and eleven, ninety-first attendance", &"halcyon", 5,
+		"Off-site maintenance performed as scheduled. The hull was located at the position indicated by the maintenance schedule. This shipyard does not hold a registered location for this hull. The schedule does. This standing discrepancy has been filed as a standing discrepancy.
+
+Work performed: replacement of the forward hatch seal, fairing of one hull plate, repainting of the ship's name where worn. Eight letters.
+
+Owner absent. There is no record of the owner attending since the fourth maintenance. This obligation does not rest with the owner.
+
+The next maintenance has already been entered into the schedule.
+
+The ship's name is not on record at this yard. The schedule uses the build number.")
+
+	_doc(&"halcyon_exemplar", "EXAMINATION, NOTARY'S SEAL", "an examiner, Halcyon",
+		"exemplar volume forty", &"halcyon", 5,
+		"The candidate reproduced the countersign in accordance with the standard, from the exemplar currently in force. Passed at the third sheet, which is the custom.
+
+The candidate then asked, as they all ask, why the volumes of exemplars are not filed by author, given that the countersign of volume forty is that of volume one.
+
+The examiner's answer is fixed by the syllabus, and the examiner gives it: the volumes are filed by author.
+
+Passed. Sealed. Next candidate.")
+
+	_doc(&"denial_notice", "NOTICE OF DENIAL", "a claims adjuster, underwriters not named",
+		"policy year forty-four", &"", 4,
+		"Claim: loss of the vessel, attributed by the claimant to an installed module.
+
+Denied. The module in question appears in no catalogue, bears no maker's mark, no serial number, no house stamp, and no point of sale, and the claimant, who installed it personally, cannot state where it was obtained — only that it was on board when it was needed, and that it worked.
+
+The policy terms cover what was purchased and what was salvaged. They do not cover what arrived.
+
+This denial has been written in these words before. The words are in the file.")
+
+	_doc(&"rendering_account", "RENDERING ACCOUNT, ONE CARCASS", "a rendering foreman",
+		"season's books", &"", 2,
+		"Intake: one, adult, taken at the mouth of Kestrel Reach. Yield: oil to eleven barrels, plate-bone after sorting, organ stock sold forward at the posted price. A spotter's tag, cut free at intake, logged and returned to its post.
+
+Deduction: cooling. The cooling ran eleven days over the norm. The carcass held intake temperature until the eleventh day, and then went cold between one watch and the next — all at once, and all the way through.
+
+Foreman's note for the book: they do not cool the way a body cools. They cool like a decision.
+
+Accounts settled.")
+
+	_doc(&"no_claim", "STATEMENT OF NO CLAIM", "a surveyor for underwriters",
+		"policy year fifty-one", &"", 5,
+		"The vessel, the LONG MERIDIAN, reported contact with fauna, fully grown, during deep transit. The vessel took no action. The fauna matched speed and lay to alongside for six hours, and thereafter went inward. Heading at departure passed to the spotters' post, as required: inward.
+
+No damage, no discharge, no loss. No claim for compensation is pending, and this document exists only because the pilot asked to have it in writing that nothing had happened. This office is seldom asked to certify such things.
+
+The surveyor's question, not called for by the form: it lay to on the warm side. The pilot confirmed. The pilot asked whether that goes in the report.
+
+It does not go in the report.")
+
+	_doc(&"sightings_tally", "TALLY, SEASON'S SIGHTINGS", "a spotter, post not named",
+		"no year given", &"", 6,
+		"Sighted this season: forty-one, of all sizes, heading recorded for each on the standard chart.
+
+All headings this season resolve inward. Last season, the same. The one before was mixed, and the one before that is the last mixed season in the book.
+
+The bearings are on file. The bearings agree. This post has stopped plotting them, because the plot is a single arrow.
+
+Count certified. Tags returned this season: one. Next season's book is open.")
+
+	_doc(&"chart_errata", "CHART ERRATA, ELEVENTH SURVEY", "a cartographer's assistant",
+		"eleventh survey, month two", &"", 3,
+		"List of corrections to the tenth survey, compiled for the eleventh: systems newly lit — none. Systems newly gone dark — ninety-two. Stations removed from the index — forty, of which eleven still answer. Var is among the eleven.
+
+A practical query, submitted at every survey and at every survey resolved: whether a station that still answers should be removed. The ruling, in force since the ninth survey: remove it. The chart records what is. An answer is not a station.
+
+The list of corrections is closed.
+
+The twelfth survey has not yet been commissioned.")
+
+	_doc(&"audit_minute", "AUDIT MINUTE, THERMAL ACCOUNTS", "an auditor, engagement not stated",
+		"audit year not entered", &"", 7,
+		"Trial: deliveries of stored heat, seven berths, seven houses. Each delivery weighed, receipted, paid at the posted rate. The receipt numbers sampled run to seven figures.
+
+Every receipt is kept by the seller. No house retains a copy. The head offices were examined directly: no house keeps any record of what it received, in any year, and no house considers this worthy of note.
+
+For the record: an institution that pays on receipt and keeps no record of receipt keeps no account. I was asked what I believe it does keep, and I declined to enter that in the record.
+
+Filed. No irregularities found.")
+
+	_doc(&"solari_schedule", "SCHEDULE EXTRACT, THERMAL", "a scheduling clerk, Solari Foundry",
+		"foundry year 890", &"solari", 8,
+		"Extract as requested, status of the reserve queue: furnace charge, four allocations. Residential main line, two. Foundry restart, one, priority.
+
+Last row of the reserve schedule: TERMINAL APPLICATION. No date. No place. No allocation.
+
+Clerk's note: this row appears in every revision of the schedule. It neither advances in the queue nor is struck from it. New applications are inserted above it. When the Scheduling Section was asked what is entered in the date field, the reply was that the field is not entered. It is awaited.
+
+Extract certified complete.")
+
+	_doc(&"redline_jacket", "FOUND FOLDED IN A FLIGHT JACKET", "unknown",
+		"undated", &"redline", 6,
+		"I sold R. the whole bank at the meeting point, outside the station, like always. Above the posted rate, like always. No receipt, like always.
+
+This time I asked R. straight out: what do you do with this.
+
+R. said — and I'm writing it down because I won't remember it right — the same as you. I hold onto it while I can. I sell it while I still can.
+
+Sell it TO WHOM, I said.
+
+R. laughed and paid the extra, as if the extra answered the question.")
+
+	_doc(&"expense_claim", "EXPENSE CLAIM, DISALLOWED", "a finance clerk, house not stated",
+		"claim period as stamped", &"", 7,
+		"Claim: hazard pay, four-person crew, deep crossing to the core approach and back.
+
+Denied. Hazard pay is owed for hazards listed in the schedule of hazards. The crew's report mentions no shot fired, no pursuit, no damage, no loss. The claim, as written, is for four days of being observed, and being observed is not on the schedule.
+
+Resubmitted with the word struck out. Denied; the amended claim is for four days of nothing, and nothing is likewise not on the schedule.
+
+Paid in the end on equitable grounds, which have no schedule. Recorded for completeness: all four have since begged off deep work.")
+
+	_doc(&"seven_clauses", "NON-RETURN, ALL HOUSES", "a contracts clerk, compiled for training",
+		"undated, marked CURRENT", &"", 0,
+		"Requested by the training division: what happens, according to each house, when a contractor does not return. The material was compiled from the standard terms as filed in the registry.
+
+Korvan: Clause Nine. The line of credit is closed. Accounts are settled against the hull.
+Solari: Unspent advances revert to the schedule.
+Dredge: The Combine's claim to the wreckage precedes the wreckage.
+Redline: [No clause on file.]
+Halcyon: The company's obligation to the hull survives the owner.
+Cygnet: Recovery, where undertaken, is recovery of equipment.
+Calyx: The specimen is retained.
+
+Compiled as requested. What happens is set out above.
+
+And nothing else happens.")
+
+	_doc(&"replacement_posting", "WORK POSTED, BOARD COPY", "a posting clerk",
+		"board cycle as stamped", &"", 0,
+		"FETCH, standard terms, standard rate scaled to the run. Sign at the berth office.
+
+TIMES POSTED: forty-one.
+TIMES FILLED: forty-one.
+
+Note to the board, from the office: the notice is reused. The date is corrected each cycle and nothing else is corrected, because nothing else changes. The office knows that the two figures above read as a comfort — every posting, filled — and the office does not correct that reading either.
+
+Completion is not a figure this office tallies.")
+
+	_doc(&"effects_manifest", "PERSONAL EFFECTS, DISPOSITION", "a berth office clerk",
+		"file year not entered", &"", 1,
+		"One box, standard size, sealed at the berth office: a coat, worn. A photograph, three people, names unknown to this office. Personal measuring instruments, one set. Small items at standard weight.
+
+No claimant found. Held for the prescribed year. Disposed of per schedule.
+
+The box's transport was charged to the account. The account is in the negative. The negative is written off.
+
+The write-off is the only paper in this file that bears a handwritten signature.")
+
+	_doc(&"chalk_wall", "NOTICE AT THE DOCK GATE", "the dockmaster's office",
+		"undated, weathered", &"", 1,
+		"The chalk wall is not to be cleaned.
+
+This notice replaces the notice ordering the wall cleaned, which is withdrawn. The officer who posted it has been spoken to.
+
+Names are to be written in chalk at the base, where there is room, and there is. There is chalk in the gatehouse. The gatehouse does not record who takes it.
+
+The wall is not the property of any house. The wall belongs to the dock. This office has been asked to say whose names go on the wall, and it says so here: anyone's who will not be coming back to write it himself.")
+
+	_doc(&"actuarial_note", "AMORTIZATION SCHEDULE, EXTRACT", "an actuarial clerk, house not stated",
+		"revision eleven", &"", 2,
+		"Extract as requested. A hull under contract is written off by deliveries, not by years; the schedule assumes loss, not wear, and that assumption has held within tolerance since the schedule was first drawn up.
+
+Query, standing: whether the schedule should carry a column for the contractor as it carries a column for the hull.
+
+Ruling, standing: it did carry such a column. The column was struck in revision eleven. The figure did not change enough to keep it.
+
+Extract confirmed.")
+
+	_doc(&"repair_declined", "REPAIR ESTIMATE, DECLINED", "a yard estimator",
+		"no year given", &"", 0,
+		"Estimate: sand and patch the bow plating, clean out the scoring behind the collar, paint to the line. Fair price, with the off-season discount, and it was refused.
+
+The owner asked instead that the edges be sealed and the plating left as it is. He stated, signing the affidavit, that the dents are how the vessel knows it went somewhere.
+
+The estimate has been filed as refused. The declaration is attached.
+
+The opinion free of charge.")
+
+	_doc(&"pilot_log_2", "PRIVATE LOG, CONTINUED", "a pilot, hull not named",
+		"dives one hundred thirteen to one hundred sixteen", &"", 6,
+		"113. Down to the eighth again. Kept my palm flat against the hull the whole crossing. I was right. [several lines lost]
+
+114. Sold the spare coil, the second suit, the plate I was saving for a rainy day. A ship is mostly things you carry in case you get to keep the life you had. Lighter now.
+
+115. [lost]
+
+116. The gauges and I have agreed to disagree. Let them log the cold. I'll log the other thing. Tomorrow to the ninth, or whatever tomorrow is down here.")
+
+	_doc(&"hull_sale", "BILL OF SALE, ONE HULL, AS LYING", "a yard broker, rim yard",
+		"no year given", &"", 2,
+		"Sold as seen: one hull, deep-rated, many hours, held up better than the price says. Reduction in price agreed for instrument fault — the thermal suite reads cold at all ranges. Seller disputes the fault. Seller disputed it at the inspection, at the signing, and from the gate, on his way out, without turning around.
+
+Buyer is asked to note that the reduction covers recalibration only. Included with the vessel, at the seller's own insistence: the log, complete, entries one to one hundred and seventeen.
+
+No forwarding address. Seller said there was nowhere he was going that mail could reach, and then took the shuttle to the ring like everyone else.
+
+Filed. The suite tested, for the record, within tolerance.")
+
+	_doc(&"ring_minutes", "MINUTES, RING COUNCIL", "a recording secretary",
+		"winter session, year not entered", &"", 1,
+		"Allocation approved as amended: main lines at full power through the dark quarter — eleven hundred on the ring's roll this winter — schools and the infirmary given priority, dock lighting at navigational minimum.
+
+Raised from the floor: the standing Cygnet offer for the ring's stored heat, renewed once again at this session, terms improved once again. Motion made to accept. The chair spoke against it, at length, and on his own instruction off the record — the recording clerk notes only that the chair spoke standing and struck the table once.
+
+Motion not carried, eleven to ten.
+
+Next session as scheduled.")
+
+	_doc(&"successor_ledger", "DAY BOOK, NEW HAND", "a yard broker, name not yet worn in",
+		"no year given", &"", 3,
+		"The same ledger. A new ledger he would have hated.
+
+Hull plates, nine sheets — I took the lot, paid over the price, at his rates. Reactor coil, one, tested sound this time — I took it, at my rates.
+
+On Tuesday they came again from the Cygnet berth about the stored heat. The terms he refused them for twenty years, the rate a quarter higher, an arrears clause I don't entirely follow, and eleven hundred souls up above who want light this winter, like every winter.
+
+I signed.
+
+They didn't gloat. I don't think they know how. They wrote it down. They write everything down.")
+
+	_doc(&"warm_consolidated", "IRREGULARITIES, CONSOLIDATED", "a customs officer, station unnamed",
+		"shift logs, four quarters attached", &"", 4,
+		"Submitted for review by the higher authority; the year's shift-logs appended.
+
+Vessels that arrived warm, with no declared thermal cargo, nothing found on inspection, released for want of grounds for seizure: nineteen this year. Table appended — berth, date, degrees above ambient. The first row is last year's: berth 9, second watch, eleven degrees. The degrees do not fall.
+
+Petition: to add to the list of grounds for seizure the following item: a vessel's thermal state not matching its declared cargo.
+
+I am aware of how this petition reads. The logs have been appended so that it stops reading that way.")
+
+	_doc(&"warm_reply", "MEMORANDUM IN REPLY", "a superintendent of customs",
+		"reference year as marked", &"", 5,
+		"Your summary report has been received; your diligence has been entered in the record according to your grade.
+
+The request is denied. Those items enumerated in the schedule of seizable matters are property. Warmth is not property; a vessel's temperature is a condition of the vessel; a condition is not among the things subject to seizure. Legal counsel's opinion is enclosed, and is final.
+
+Your application for transfer to the rim outpost is approved, with deep regret, effective the first of this month.
+
+Postscript in the superintendent's own hand: Nineteen ships is correct. The year before it was eleven; next year it will not be nineteen. No one doubts your tables. Go and take up your post at the rim.")
 
 func _doc(id: StringName, title: String, by: String, dated: String,
 		house: StringName, depth: int, body: String) -> void:
