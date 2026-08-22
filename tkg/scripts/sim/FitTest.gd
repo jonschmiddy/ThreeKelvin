@@ -52,6 +52,7 @@ func run(tree: SceneTree) -> void:
 	await _wrong_slot(grid, mounts)
 	await _turning(grid)
 	_geometry()
+	_nothing_cut(screen)
 	verdict("fittest")
 
 
@@ -210,6 +211,22 @@ func _geometry() -> void:
 	_ok("every silhouette clears its plate by %dpx" % int(WANT_PAD)
 		if out == "" else "art crowding the border:%s" % out, out == "")
 	_anchors()
+
+
+## NOTHING BOLTED TO THE HULL IS CUT OFF BY THE VIEW IT IS DRAWN IN.
+##
+## The hardpoint layer is a CHILD of the ship view, so the view's clip applies
+## to it — and a gun mounted on the last hardpoint on the spine reaches past the
+## hull it is mounted on, which is the whole point of a barrel. It was losing
+## its muzzle to a rectangle that had nothing else to cut: the view is sized to
+## show the entire canvas here, so the clip could only ever remove a child.
+func _nothing_cut(screen: Node) -> void:
+	var view := first(screen, func(n: Node) -> bool: return n is ShipView) as ShipView
+	if not _ok("the refit screen has a ship view", view != null):
+		return
+	_ok("the view does not clip what is bolted to the hull", not view.clip_contents)
+	_ok("the view is showing the whole canvas, so it has nothing to clip",
+		view.size.y >= view.canvas_height())
 
 
 ## THE HARDPOINT SITS AT THE RIGHT POINT INSIDE THE PART.

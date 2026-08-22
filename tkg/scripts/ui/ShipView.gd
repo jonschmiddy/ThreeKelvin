@@ -307,6 +307,11 @@ func zoom_level() -> int:
 func canvas_width() -> float:
 	return float(_w * _k)
 
+## And its height, for the same reason: a caller that wants to know whether it
+## is cropping anything has to be able to ask how tall the thing being shown is.
+func canvas_height() -> float:
+	return float(_h * _k)
+
 func ship_offset_x() -> float:
 	if _img == null:
 		return 0.0
@@ -331,6 +336,13 @@ func magnify(k: int, view_height: int) -> void:
 	# difference. Only magnify() sets this — crop()'s other caller, the convoy
 	# strip, passes a width it means and must keep it.
 	crop(_w * _k, view_height)
+	# NOT CLIPPED, when the box already covers the canvas. `crop` turns clipping
+	# on because cropping IS clipping — but magnify shows the whole canvas, so
+	# the only thing the clip can remove is a CHILD, and the child here is the
+	# hardpoint layer. A gun bolted to the last mount on the spine reaches past
+	# the hull it is mounted on, and it was losing its muzzle to a rectangle
+	# with nothing else to cut.
+	clip_contents = view_height < _h * _k
 	# AFTER crop, which clears it. StationScreen calls magnify and then crop
 	# with a width it means, and setting this first let the canvas re-fit undo
 	# that deliberate crop the next time the sprite changed size.
@@ -543,6 +555,7 @@ func _resize_canvas(w: int, h: int) -> void:
 		custom_minimum_size = Vector2(_w, _h)
 	elif _fit_h > 0:
 		custom_minimum_size = Vector2(_w * _k, _fit_h)
+		clip_contents = _fit_h < _h * _k
 
 ## The plume, over the hull, at this step of the cycle.
 ##

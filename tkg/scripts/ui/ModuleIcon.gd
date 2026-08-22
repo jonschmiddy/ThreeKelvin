@@ -139,9 +139,22 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	var mark: Color = maker.colour if maker != null else UITheme.COLD
 	ci.draw_rect(r, field, true)
 
-	# A house stripe down the left edge, the same side the cards fly their
-	# banner on. At this size an emblem would be four unreadable pixels; a bar
-	# of the right colour in the right place says the same thing.
+	# TWO FACTS, TWO CHANNELS, and position is what keeps them apart.
+	#
+	# The HOUSE owns the background: the field the plate is painted in, and a
+	# stripe down the left edge — the same side the cards fly their banner on.
+	# Both are things you read without looking at them.
+	#
+	# RARITY owns the foreground: the art in the middle and the border round the
+	# outside, which is deliberately the same answer twice. A plate is legible
+	# at very different sizes in this game — a 1x1 fitting shoulder to shoulder
+	# with five others, a 2x2 bay filling a quarter of the hold — and the art
+	# carries it when the plate is big while the border carries it when the
+	# plate is small or half behind something you are dragging.
+	#
+	# What this replaced put the house on the border and left rarity to the art
+	# alone, which doubled the house (field AND border) and gave the thing you
+	# most want to compare across a full hold exactly one channel.
 	if maker != null:
 		ci.draw_rect(Rect2(r.position, Vector2(3, r.size.y)), mark, true)
 
@@ -159,10 +172,7 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	fill_part(ci, m.slot, r, ModuleData.rarity_colour(m.rarity),
 		part_scale(m.slot, f, r.size), part_turn(m.slot, f))
 
-	# THE BORDER IS THE HOUSE, which is where rarity used to be. A border is the
-	# part of a plate that survives being packed shoulder to shoulder, so it is
-	# the right place for the fact that a whole SET of parts has to agree on.
-	var e: Color = mark
+	var e := ModuleData.rarity_colour(m.rarity)
 	var p := r.position
 	var z := r.size
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
