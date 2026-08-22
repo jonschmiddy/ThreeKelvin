@@ -37,6 +37,13 @@ const GAP := 1
 ## the block.
 const EDGE := 2.0
 
+## How far from the cursor a refused drop will look for room, in cells.
+##
+## Two. Far enough that a near miss lands where the hand was going, close enough
+## that a part never appears somewhere you were not looking — which is the whole
+## complaint about first-fit, and the reason this is a radius and not a search.
+const NUDGE := 2
+
 signal dropped(payload: Dictionary, at: Vector2i)
 
 var _cols: int = 4
@@ -130,17 +137,38 @@ func _draw() -> void:
 		draw_rect(r, Color(c.r, c.g, c.b, 0.16 * pulse), true)
 		draw_rect(r, Color(c.r, c.g, c.b, 0.75 * pulse), false, 1.0)
 
-## Where would `m` land if dropped at `p`, and does it fit there?
+## Where would `m` land if dropped at `p`, and does it fit anywhere near?
+##
+## NEAREST FREE CELL, within a couple of cells of the cursor, and NOTHING if
+## there is none. This used to fall back to `Run.find_hold_slot` — first fit,
+## scanning from the top-left — so nudging a part one cell to the left and
+## catching a corner of its neighbour teleported it to the other end of the
+## hold. Packing a grid is a game of small adjustments and that made every
+## imprecise one destructive.
 ##
 ## Grabbed by the CELL UNDER THE CURSOR rather than by the part's top-left, so a
-## wide part dropped with the cursor over its middle does not jump a cell to the
-## left. Falls back to first fit when the cursor's cell will not take it, which
-## is what makes a careless drop still put the thing somewhere sensible.
-func _target_for(m: ModuleData, p: Vector2) -> Vector2i:
-	var c := cell_at(p)
-	if c != -Vector2i.ONE and Run.can_place(m, c):
+## wide part dropped with the cursor over its middle does not jump a cell left.
+func target_for(m: ModuleData, p: Vector2) -> Vector2i:
+	var g := Run.hold_grid()
+	# Clamped, not rejected: a drop a few pixels outside the grid is aimed at
+	# the edge cell, which is what the hand meant.
+	var c := Vector2i(
+		clampi(int(floor(p.x / float(CELL + GAP))), 0, maxi(0, g.x - 1)),
+		clampi(int(floor(p.y / float(CELL + GAP))), 0, maxi(0, g.y - 1)))
+	if Run.can_place(m, c):
 		return c
-	return Run.find_hold_slot(m)
+	var best := -Vector2i.ONE
+	var best_d := 1e9
+	for dy in range(-NUDGE, NUDGE + 1):
+		for dx in range(-NUDGE, NUDGE + 1):
+			var t := c + Vector2i(dx, dy)
+			if t.x < 0 or t.y < 0 or not Run.can_place(m, t):
+				continue
+			var d := Vector2(dx, dy).length_squared()
+			if d < best_d:
+				best_d = d
+				best = t
+	return best
 
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
@@ -148,7 +176,7 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	var m: ModuleData = data.module
 	if m == null:
 		return false
-	var target := _target_for(m, at)
+	var target := target_for(m, at)
 	_light(m, target)
 	return target != -Vector2i.ONE
 
@@ -164,7 +192,7 @@ func _light(m: ModuleData, target: Vector2i) -> void:
 
 func _drop_data(at: Vector2, data: Variant) -> void:
 	var m: ModuleData = (data as Dictionary).module
-	var target := _target_for(m, at)
+	var target := target_for(m, at)
 	_clear_beam()
 	if target != -Vector2i.ONE:
 		dropped.emit(data as Dictionary, target)

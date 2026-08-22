@@ -37,6 +37,15 @@ var _lit: ModuleData = null
 var _last_bob: int = -999
 var _passive: bool = false
 
+## How many fitted parts the last redraw actually put on the hull.
+##
+## Written by `_draw` and read by `-- fittest`. The bug it exists for was the
+## draw loop skipping past a fitted part to paint a highlight in its place, and
+## no assertion on the DATA can see that: `spots()` reported every part
+## correctly the whole time the hull was coming back bare. A count of what was
+## DRAWN is the smallest thing that can tell the difference.
+var drawn: int = 0
+
 func attach(v: ShipView) -> void:
 	_view = v
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -96,6 +105,7 @@ func _mag() -> float:
 	return float(_view.zoom_level()) if _view != null else 1.0
 
 func _draw() -> void:
+	drawn = 0
 	var pulse := 0.62 + 0.38 * sin(_phase)
 	# EVERY size below is in art pixels times this. The hull is magnified and
 	# the things bolted to it were not, so a gun came out a sixth of the length
@@ -103,29 +113,31 @@ func _draw() -> void:
 	var k := _mag()
 	for spot in _spots:
 		var at: Vector2 = spot.at
-		var taken: bool = spot.held != null
-		var wants: bool = _lit != null and _lit.slot == spot.slot
-		if wants and not _passive:
-			# A beam reaching off the hull toward whatever you are carrying.
-			# Drawn UP from the mount because that is where the cursor is coming
-			# from, and it is the only diagonal-free way to say "into here".
-			# A PING, not a beam. It was a stack of rectangles reaching up from
-			# the mount toward the cursor, which said "from above" — and the
-			# cursor is not always above, so half the time the beam pointed
-			# away from the thing it was reaching for. Rings have no direction
-			# to get wrong, and a mount is a point.
-			var c := UITheme.TRACTOR
-			for i in RINGS:
-				var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
-				_ring(at, lerpf(R * 0.7, R * 3.4, t) * k,
-					Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
-			draw_circle(at, (R + 2.0) * k, Color(c.r, c.g, c.b, 0.22 * pulse))
-			_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
-			continue
-		if taken:
+		# WHAT IS THERE, FIRST AND ALWAYS. This used to draw the ping INSTEAD of
+		# the part and skip to the next mount, so picking up any weapon blanked
+		# every other weapon on the ship for as long as you carried it — which
+		# is exactly the moment you are looking at the hull to decide where the
+		# thing goes. A highlight says "this mount will take it"; it has no
+		# business saying "and nothing is bolted here".
+		if spot.held != null:
 			_fitted(spot.held as ModuleData, spot.slot as ModuleData.Slot, at, k)
+			drawn += 1
 		elif not _passive:
 			_ring(at, R * k, UITheme.EMBER.darkened(0.15))
+
+		if _passive or _lit == null or _lit.slot != spot.slot:
+			continue
+		# A PING, over the top. It was a stack of rectangles reaching up from
+		# the mount toward the cursor, which said "from above" — and the cursor
+		# is not always above, so half the time it pointed away from the thing
+		# it was reaching for. Rings have no direction to get wrong, and a mount
+		# is a point.
+		var c := UITheme.TRACTOR
+		for i in RINGS:
+			var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
+			_ring(at, lerpf(R * 0.7, R * 3.4, t) * k,
+				Color(c.r, c.g, c.b, (1.0 - t) * 0.8 * pulse))
+		_ring(at, (R + 1.0) * k, Color(c.r, c.g, c.b, 0.95 * pulse))
 
 ## A part, drawn ON the hull.
 ##
@@ -273,5 +285,11 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_DRAG_BEGIN:
 		var data: Variant = get_viewport().gui_get_drag_data()
 		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).has("module"):
-			_lit = (data as Dictionary).module
-			queue_redraw()
+			light((data as Dictionary).module)
+
+## Show which mounts would take `m`. Public so `-- fittest` can put the hull in
+## the state a live drag puts it in — a drag is driven by the OS cursor and
+## pushed events do not move that.
+func light(m: ModuleData) -> void:
+	_lit = m
+	queue_redraw()

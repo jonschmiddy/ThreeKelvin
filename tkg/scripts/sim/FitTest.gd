@@ -50,9 +50,11 @@ func run(tree: SceneTree) -> void:
 	await _to_hull(grid, mounts)
 	await _to_hold(grid, mounts)
 	await _wrong_slot(grid, mounts)
+	await _stripping(grid, mounts)
 	await _turning(grid)
 	_geometry()
 	_nothing_cut(screen)
+	_nudging(grid)
 	verdict("fittest")
 
 
@@ -129,8 +131,139 @@ func _wrong_slot(grid: HoldGrid, mounts: MountPoints) -> void:
 		not Run.installed.has(m))
 
 
+## TAKING ONE PART OFF DOES NOT TAKE THE OTHERS WITH IT.
+##
+## Reported from the game: pull a module off the hull and the rest of them
+## vanish. Nothing throws, the hold is right, the tally is right — the hull just
+## comes back bare, which makes it a drawing fault or a lookup one and the two
+## look identical from the outside.
+func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
+	# Two weapons on the hull, fitted through the real drop handler.
+	for i in 2:
+		var w := _stow(ModuleData.Slot.WEAPON)
+		if w == null:
+			break
+		await _settle(grid)
+		var icon := _icon_for(grid, w)
+		var spot := _free_mount(mounts, ModuleData.Slot.WEAPON)
+		if icon == null or spot == Vector2.INF:
+			break
+		await _carry(_centre(icon), mounts, spot - mounts.get_global_rect().position)
+
+	var held := _held(mounts)
+	if not _ok("two parts are on the hull to start with", held.size() >= 2):
+		return
+	var goes: ModuleData = held[0]
+	var stays: ModuleData = held[1]
+
+	var from := _mount_of(mounts, goes)
+	if not _ok("the part being taken off has a place on the hull",
+			from != Vector2.INF):
+		return
+	await _settle(grid)
+	await _carry(from, grid, _empty_cell(grid) - grid.get_global_rect().position)
+
+	_ok("the part that was dragged off is off", not Run.installed.has(goes))
+	_ok("the part that was NOT touched is still installed",
+		Run.installed.has(stays))
+	_ok("...and still has its mount", stays.mount >= 0)
+	var now := _held(mounts)
+	_ok("...and the hull still draws it: %d of %d parts held after taking 1 off"
+		% [now.size(), held.size()], now.has(stays))
+	await _lit_keeps_the_parts(mounts, stays)
+
+
+## PICKING SOMETHING UP DOES NOT BLANK THE SHIP.
+##
+## Counted off what the draw loop DID, not off the data and not off the frame.
+## The data was never wrong — `spots()` reported every fitted part the whole
+## time the hull was coming back bare — and a rendered-pixel version of this
+## check was written first and thrown away: it read the last presented frame and
+## returned identical counts either side of a real visual change, so it passed
+## against the very bug it was written for. Twice.
+func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
+	mounts.light(null)
+	mounts.queue_redraw()
+	await _tree.process_frame
+	var quiet := mounts.drawn
+
+	mounts.light(m)
+	mounts.queue_redraw()
+	await _tree.process_frame
+	var lit := mounts.drawn
+
+	mounts.light(null)
+	await _tree.process_frame
+	_ok("the hull draws its parts with nothing in hand: %d" % quiet, quiet > 0)
+	_ok("a part in hand does not blank the hull: %d drawn against %d"
+		% [lit, quiet], lit == quiet)
+
+
+## A REFUSED DROP LANDS NEXT DOOR, OR NOWHERE. Never across the hold.
+##
+## The old fallback was `Run.find_hold_slot` — first fit from the top-left — so
+## a part nudged one cell left that clipped a neighbour reappeared in the far
+## corner. Packing is a game of small adjustments and that made every imprecise
+## one destructive.
+func _nudging(grid: HoldGrid) -> void:
+	for x in Run.cargo.duplicate():
+		Run.take_from_hold(x)
+	var g := Run.hold_grid()
+	var blocker := _fitting()
+	var mover := _fitting()
+	if not _ok("two 1x1 parts to push around", blocker != null and mover != null):
+		return
+	# A part sitting at (1,1), and the one being dragged aimed straight at it.
+	Run.place_in_hold(blocker, Vector2i(1, 1))
+	Run.place_in_hold(mover, Vector2i(3, 3))
+	Run.take_from_hold(mover)
+	var step := float(HoldGrid.CELL + HoldGrid.GAP)
+	var onto := Vector2(1.5, 1.5) * step
+
+	var t := grid.target_for(mover, onto)
+	_ok("a drop onto an occupied cell lands beside it, not across the hold: %s"
+		% t, t != -Vector2i.ONE and (t - Vector2i(1, 1)).length() <= HoldGrid.NUDGE)
+
+	# And with everything within reach taken, it goes nowhere at all rather
+	# than to the one free cell in the opposite corner.
+	var wall: Array[ModuleData] = []
+	for y in g.y:
+		for x2 in g.x:
+			if Vector2i(x2, y) == Vector2i(g.x - 1, g.y - 1):
+				continue
+			var f := _fitting()
+			if f != null and Run.can_place(f, Vector2i(x2, y)):
+				Run.place_in_hold(f, Vector2i(x2, y))
+				wall.append(f)
+	var far := grid.target_for(mover, onto)
+	_ok("with nothing within reach, the drop is refused rather than teleported: %s"
+		% far, far == -Vector2i.ONE)
+
+
+## A 1x1 part, for filling cells with.
+func _fitting() -> ModuleData:
+	var m := LootGen.roll_module(3, &"", true)
+	m.size = Vector2i.ONE
+	m.turned = false
+	return m
+
+
+## Every module the hardpoints currently believe is bolted on.
+func _held(mounts: MountPoints) -> Array[ModuleData]:
+	var out: Array[ModuleData] = []
+	for sp in mounts.spots():
+		if sp.held != null:
+			out.append(sp.held)
+	return out
+
+
 ## R turns a part in the hold, and a turn that will not fit costs nothing.
 func _turning(grid: HoldGrid) -> void:
+	# Emptied first. `_stripping` runs before this and fills the hold on its way
+	# through, and a turn needs somewhere to turn INTO — inherited, this failed
+	# for lack of room and read as a rotation bug.
+	for x in Run.cargo.duplicate():
+		Run.take_from_hold(x)
 	var m := _long()
 	if m == null:
 		_fail("nothing long enough in the catalogue to turn")

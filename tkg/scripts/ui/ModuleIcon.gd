@@ -76,10 +76,10 @@ class Ghost extends Control:
 	## enough not to fight.
 	const FOLLOW := 16.0
 
-	## How see-through. Enough that a cell under the plate still reads while you
-	## are deciding where to put it down, not so much that the thing you are
-	## carrying stops looking like an object.
-	const ALPHA := 0.78
+	## How see-through. The point is the GRID under the plate: packing is a game
+	## of seeing what a part would displace, and at 0.78 the plate in hand hid
+	## the two cells the decision was about.
+	const ALPHA := 0.55
 
 	var plate: ModuleIcon
 	var _spawn: Vector2
