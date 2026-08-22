@@ -15,9 +15,15 @@ extends Harness
 ## Brace is not a house with eight cards. This asks the other question: how many
 ## DIFFERENT things can this house do.
 ##
-## Malfunctions are counted separately and belong to nobody. They are the cards
-## that arrive without being chosen — the dross a hot reactor coughs into your
-## deck — so they are not part of any house's forty.
+## MALFUNCTIONS ARE NOT ON MODULES and this used to count them as though they
+## were. It reported 1, and that 1 was a dead `dross` module nothing could hand
+## out; the real one is built by `DeckBuilder` from the `Run.dross` counter at
+## deck-build time and never passes through a part at all.
+##
+## So the count below is of AUTHORED malfunctions — a table of them — and the
+## honest answer today is that there is no such table. Fifteen is the target and
+## zero exist; the one the game can actually give you is written inline in
+## DeckBuilder, which is where the fifteenth would not want to live.
 
 ## What the catalogue is aiming at. Korvan, the unbranded stock and the
 ## malfunctions first, because those are the three being written; the other six
@@ -65,6 +71,8 @@ func run() -> void:
 	print("  %-22s %7s %7d %7d %7s"
 		% ["malfunctions", "-", malfunctions.size(), MALFUNCTION_TARGET,
 			"-" if mg == 0 else str(mg)])
+	if malfunctions.is_empty():
+		print("         (none authored; DeckBuilder synthesises Dross from Run.dross)")
 	print("  %d unique cards across %d modules; %d still to write"
 		% [seen.size(), DB.modules.size(), short])
 	_ok("the catalogue was counted", not seen.is_empty())

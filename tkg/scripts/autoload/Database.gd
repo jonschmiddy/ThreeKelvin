@@ -582,9 +582,18 @@ func _seed_modules() -> void:
 		[{name = "Resonance", energy = 2, heat = 2, damage = 11, hits = 2, copies = 1}])
 
 	# --- Junk
-	_module(&"dross", "Dross", &"", U, C0,
-		"Spore residue fused into your systems.",
-		[{name = "Dross", energy = 1, unplayable = true, copies = 1}])
+	#
+	# THERE IS NO DROSS MODULE. There was one, and it was unreachable: the loot
+	# pool skipped it by id, and the only thing that could hand it over was
+	# `LootGen.make_dross()`, which nothing called. It still showed up in the
+	# module gallery and still counted toward the unbranded catalogue, so the
+	# yard looked like it stocked a part nobody could ever be given.
+	#
+	# Dross is a COUNT, not a part. `Run.dross` goes up when a spore enemy
+	# breathes on you and `DeckBuilder` turns it into unplayable cards at
+	# deck-build time — junk in the deck without a hold cell or a hardpoint,
+	# which is what junk arriving unasked should be. Two mechanisms for one idea
+	# is one too many, and this was the dead one.
 
 	# --- yard stock: what every ship leaves the dock with, whoever built it.
 	#

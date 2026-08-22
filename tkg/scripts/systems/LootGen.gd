@@ -20,8 +20,6 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	var pool: Array[StringName] = []
 	for id in DB.modules.keys():
 		var m: ModuleData = DB.modules[id]
-		if id == &"dross":
-			continue
 		# Yard stock is issued, not found. A wreck full of the same Hull Plating
 		# you launched with would crowd out the branded parts that a run is
 		# spent collecting, and the whole point of the generic kit is that it is
@@ -78,9 +76,6 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 		avail.erase(pick)
 		out.append(pick)
 	return out
-
-static func make_dross() -> ModuleData:
-	return (DB.modules[&"dross"] as ModuleData).duplicate(true) as ModuleData
 
 ## A hull off a wreck. Draws from all ten frames, so a derelict can offer either
 ## an unbranded salvage frame or somebody's chassis — and a found chassis moves
