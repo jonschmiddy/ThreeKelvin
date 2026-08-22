@@ -47,7 +47,7 @@ extends Control
 ## of exhaust clearance and the 11 of padding are doubled. Those rows are empty
 ## by construction, and cropping them is what buys the manufacturer abilities a
 ## place on the panel. Was 240, sized against art that is being replaced.
-const HULL_VIEW_H := 116
+const HULL_VIEW_H := 166
 
 ## Clearance between the name block and the ship. The mount markers draw ABOVE
 ## the hull's own top edge — they are what a part bolts to, so they have to sit
@@ -56,7 +56,7 @@ const HULL_VIEW_H := 116
 ## 26 rather than the 10 that was merely enough to stop the collision: this is
 ## also the gap that sets how far down the panel the ship sits, and the flag
 ## beside it grows to match.
-const HEAD_GAP := 32
+const HEAD_GAP := 0
 
 ## How wide the numbers get before the hold starts. Fixes the hold's top-left
 ## corner, which is the whole point: a hold grows by gaining CELLS, and it
@@ -84,13 +84,14 @@ const STATS_W := 220
 ## LABEL_AIR 6 the hold cleared its grid by 11. Hence 3.
 const LABEL_AIR := 3
 
-## The gap under the ship, above the numbers.
+## NO EXPLICIT GAP under the ship, and that is measured rather than an omission.
+## The flag ends 8px above the ATTRIBUTES glyphs on its own: two of the column's
+## separations, plus the leading a label carries above its own capitals. Adding a
+## spacer of the 8 that was wanted produced 16.
 ##
-## FIXED rather than a share of the column's slack, which is what it was for one
-## pass. A share meant this gap and the three between the text blocks were
-## competing for the same pool, so tuning either moved both — and the three
-## below now live inside their own column and cannot see this one at all.
-const SHIP_GAP := 24
+## 8 is also what ATTRIBUTES clears HULL by and what the hold's heading clears
+## its grid by, so all three headings on this panel now sit the same distance
+## under whatever is above them.
 
 const STORAGE_COLS := 4
 
@@ -233,11 +234,6 @@ func _build() -> void:
 	# Out of the flow, the three text blocks space themselves against each
 	# other and the hold hangs alongside. The headings still align, because
 	# both columns still start at the same row.
-	var gapb := Control.new()
-	gapb.custom_minimum_size = Vector2(0, SHIP_GAP)
-	gapb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_child(gapb)
-
 	var midrow := HBoxContainer.new()
 	midrow.add_theme_constant_override("separation", 14)
 	midrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
