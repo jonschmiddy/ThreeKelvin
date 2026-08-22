@@ -57,11 +57,19 @@ var materials: Dictionary = {}
 ## the ledger above, reached through a property so that every one of those sites
 ## keeps working against the single store rather than against a copy that would
 ## drift out of step with it the first time something forgot to update both.
+## EMITS, like `fuel` and `dross` and for the same reason. It is a view onto
+## `materials`, and `add_material()` — the other door onto the same dictionary —
+## has always announced itself. This one did not, so of the five places that
+## write `Run.exotic` directly, four left the reading on screen stale until some
+## unrelated redraw happened to correct it. That is the third instance of the
+## class of bug the header above describes, found by looking for it rather than
+## by anyone noticing a wrong number.
 var exotic: int:
 	get:
 		return int(materials.get(&"exotic", 0))
 	set(v):
 		materials[&"exotic"] = maxi(0, v)
+		Sig.resources_changed.emit()
 var dross: int = 0:
 	set(v):
 		dross = v
@@ -197,7 +205,14 @@ var next_contract_id: int = 1
 ## the player who most needs the money.
 var standing: Dictionary = {}
 
-var found_hull: HullData = null      ## offered for transfer
+## Offered for transfer. HAS A SETTER, for the reason the header above gives —
+## this is the second of the two bugs that paragraph names, and it was left as a
+## bare field when `fuel` and `dross` were fixed. Three places outside this file
+## cleared it; two remembered the emit and `Policy.gd` did not.
+var found_hull: HullData = null:
+	set(v):
+		found_hull = v
+		Sig.ship_changed.emit()
 var whale_boon: bool = false
 
 const MAP_CANVAS := Rect2(60, 50, 900, 430)

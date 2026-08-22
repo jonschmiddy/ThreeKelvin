@@ -14,10 +14,15 @@ extends RefCounted
 ## program. That is not a flourish; it is the only design that works, because
 ## `Run` is a singleton and one process therefore holds exactly one ship.
 ##
-## THE PRICE IS A SEAT. `NetTransport.MAX_PLAYERS` is four and the relay's door
-## policy enforces it, so a bot in the party means three humans rather than
-## four. There is no spectator slot to hide in and adding one would mean the
-## relay counting something it deliberately does not count.
+## THE PRICE IS A SEAT. `NetTransport.MAX_PLAYERS` bounds the party and the
+## relay's door policy enforces it, so a bot in the party means one fewer human.
+## There is no spectator slot to hide in and adding one would mean the relay
+## counting something it deliberately does not count.
+##
+## Stated without the number on purpose. This paragraph said "four" and went on
+## saying it after the cap became eight — the same bump that left NetTest
+## asserting a four-seat party in nine places. A comment that repeats a constant
+## is a second copy of it.
 ##
 ## WHY NOT READ THE RELAY INSTEAD. The obvious cheaper idea is to watch the
 ## Cloudflare Durable Object and narrate. It does not work, twice over.

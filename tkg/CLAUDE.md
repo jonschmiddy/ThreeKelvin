@@ -118,8 +118,8 @@ godot --headless --path . --import             # REQUIRED after any new class_na
 | `-- stowtest` | touching the salvage rail or `SectorScreen`'s lifetime. Drives the real screen through a real jump — the rail's dismissal has been wrong three times and the first was invisible to any assertion on the rule itself |
 | `-- archivetest` | adding an archive document. Machinery AND a style gate over the prose — see `docs/lore.md` §5 |
 | `-- savetest` | touching `SaveGame` or `RunHistory` |
-| `-- rngtest` | touching `Rng` or any generator |
-| `-- nettest` | touching anything in `scripts/net/`. Four peers in one process |
+| `-- rngtest` | touching `Rng` or any generator. **In the merge gate** |
+| `-- nettest` | touching anything in `scripts/net/`. A full party in one process. **In the merge gate** — it was not, and the cap going 4→8 left it asserting four seats in nine places for a whole day before anything said so |
 | `tools/cofight.sh` | touching `Combat`'s shared path, `SharedFight` or `Router.start_combat`. `boss` for the core, `late` for joining a fight already open. **`nettest` cannot reach any of it** — `Run` is a singleton, so one process holds one ship |
 | `-- attrs` | touching `attr_*()` or the hull tables |
 | `-- wear` / `-- fit` / `-- bestiary` | touching `HullWear` / `HullFit` / the organic operations |

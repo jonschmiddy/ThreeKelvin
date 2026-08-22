@@ -51,13 +51,13 @@ func _sheet(art: StringName) -> void:
 	e.hp = 80
 	view.set_enemy(e, false)
 	var src: Image = (view._img as Image).duplicate() as Image
-	var base := _palette(src)
+	var base := HullWear.palette(src)
 
 	for t in 4:
 		var t0 := Time.get_ticks_usec()
 		var img := HullWear.worn(src, t, _seed, false, sub)
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
-		var pal := _palette(img)
+		var pal := HullWear.palette(img)
 		var fresh := 0
 		for k in pal:
 			if not base.has(k):
@@ -71,11 +71,3 @@ func _sheet(art: StringName) -> void:
 		img.save_png("%s/%s_%s.png" % [OUT, art, BANDS[t]])
 	view.queue_free()
 
-func _palette(img: Image) -> Dictionary:
-	var d := {}
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			if c.a > 0.0:
-				d[(int(c.r * 255.0) << 16) | (int(c.g * 255.0) << 8) | int(c.b * 255.0)] = 1
-	return d

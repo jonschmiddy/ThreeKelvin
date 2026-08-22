@@ -20,8 +20,8 @@ extends RefCounted
 ##
 ## What this proves: codes survive a round trip and refuse typos; a party forms
 ## and the roster reaches everyone; the two version refusals fire and arrive as
-## readable text; a full party turns the fifth player away; a launch puts the
-## same seed on all four machines; a ship crosses the wire and comes back as
+## readable text; a full party turns the next one away; a launch puts the
+## same seed on every machine; a ship crosses the wire and comes back as
 ## the same ship on the other machine; a system consumed on one machine is
 ## consumed on all of them; and losing the host is reported rather than
 ## swallowed.
@@ -161,27 +161,33 @@ func _party_test() -> void:
 	print("  code: %s" % LobbyCode.pretty(code))
 	check("the host holds slot 1", host.party_size(), 1)
 
+	# SEATS, not four. This test was written when the cap was four and asserted
+	# the number in nine places; the cap became eight and every one of them went
+	# stale, unnoticed, because `-- nettest` was not in the merge gate. Both
+	# halves of that are fixed: the gate runs it now, and the only place the
+	# number lives is NetTransport.
+	var seats := NetTransport.MAX_PLAYERS
 	var clients: Array = []
-	for i in 3:
+	for i in seats - 1:
 		var c := _make_peer("client%d" % i)
 		var ct := DirectTransport.new()
 		c.join_party(code, "Pilot%d" % i, &"korvan", ct)
 		clients.append(c)
 
-	# The host reaching four is not the party reaching four. The roster is a
-	# broadcast, and a client that has not polled it yet still reads three —
-	# so the wait has to be on the last machine to agree, not the first.
+	# The host reaching a full party is not the party reaching it. The roster is
+	# a broadcast, and a client that has not polled it yet still reads one short
+	# — so the wait has to be on the last machine to agree, not the first.
 	var joined := await _wait_until(func() -> bool:
-		if host.party_size() != 4:
+		if host.party_size() != seats:
 			return false
 		for c in clients:
-			if c.party_size() != 4:
+			if c.party_size() != seats:
 				return false
-		return true, 5.0)
-	ok("all three friends joined, on every machine", joined)
-	check("the host sees four", host.party_size(), 4)
+		return true, 8.0)
+	ok("all %d friends joined, on every machine" % (seats - 1), joined)
+	check("the host sees %d" % seats, host.party_size(), seats)
 	for i in clients.size():
-		check("client %d sees four" % i, clients[i].party_size(), 4)
+		check("client %d sees %d" % [i, seats], clients[i].party_size(), seats)
 		check("client %d is in the party" % i, clients[i].state, NetSession.State.IN_PARTY)
 
 	# Names crossed the wire, not just ids. Compared as a set, and only the host
@@ -193,7 +199,12 @@ func _party_test() -> void:
 		names.append(row.name)
 	check("the host is first on the roster", clients[0].slots()[0].name, "Vela")
 	names.sort()
-	check("the roster carries names", str(names), str(["Pilot0", "Pilot1", "Pilot2", "Vela"]))
+	var want: Array = []
+	for i in seats - 1:
+		want.append("Pilot%d" % i)
+	want.append("Vela")
+	want.sort()
+	check("the roster carries names", str(names), str(want))
 
 	# Ready flags travel from a client, through the host, back to everyone.
 	# Followed by peer id rather than by position, for the same reason.
@@ -203,9 +214,11 @@ func _party_test() -> void:
 	ok("one client's ready reaches a third machine", spread)
 	ok("the party is not ready with one flag", not host.everyone_ready())
 
+	# Everyone else, by loop rather than by index — clients[1] is already ready
+	# from the spread check above, and set_ready(true) twice is a no-op.
 	host.set_ready(true)
-	clients[0].set_ready(true)
-	clients[2].set_ready(true)
+	for c in clients:
+		c.set_ready(true)
 	var all_ready := await _wait_until(func() -> bool: return host.everyone_ready(), 3.0)
 	ok("the host sees everyone ready", all_ready)
 
@@ -225,14 +238,14 @@ func _party_test() -> void:
 		check("client %d dives on the host's seed" % i, clients[i].dive_seed, host.dive_seed)
 	ok("the seed is not zero", host.dive_seed != 0)
 
-	# A fifth ship, after the party is full.
+	# One ship past the last seat.
 	var extra := _make_peer("gatecrash")
 	extra.join_party(code, "Late", &"solari", DirectTransport.new())
 	var turned := await _wait_until(func() -> bool: return extra.state == NetSession.State.FAILED, 5.0)
-	ok("the fifth player is turned away", turned)
+	ok("the seat past the last is turned away", turned)
 	check("and told why", extra.last_error(), "The party is full.")
-	check("the party is still four", host.party_size(), 4)
-	print("  four peers joined, agreed, and launched on seed %d" % host.dive_seed)
+	check("the party is still %d" % seats, host.party_size(), seats)
+	print("  %d peers joined, agreed, and launched on seed %d" % [seats, host.dive_seed])
 
 	await _teardown()
 

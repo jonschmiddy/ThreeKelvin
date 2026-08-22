@@ -125,6 +125,16 @@ static func slot_name(s: Slot) -> String:
 		Slot.SYSTEM: return "system"
 		_: return "utility"
 
+## What a part is worth broken down, by rarity.
+##
+## Lived in three files — Database's seeder, LootGen's roller and MarketTest's
+## fixture — all spelling the same seven numbers. That is the same "one price,
+## defined once" discipline the rest of the economy is held to by Market.gd, and
+## a rarity tuning pass had to be remembered in three places, one of them a test
+## that would have gone on agreeing with an old table.
+const SCRAP_VALUE := [8, 16, 30, 55, 95, 120, 160]
+
+
 static func rarity_name(r: Rarity) -> String:
 	return ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Exotic", "Artifact"][r]
 

@@ -530,9 +530,9 @@ does anything. See the table above.
 
 ### The test
 
-The trick that puts four peers in one process is `SceneMultiplayer.root_path`. Each peer gets its own branch under the tree root and its own `MultiplayerAPI` rooted there, so every peer's `NetSession` answers to the same relative path while living at a different absolute one. Without it this needs four processes and cannot run in CI.
+The trick that puts every peer in one process is `SceneMultiplayer.root_path`. Each peer gets its own branch under the tree root and its own `MultiplayerAPI` rooted there, so every peer's `NetSession` answers to the same relative path while living at a different absolute one. Without it this needs one process per peer and cannot run in CI.
 
-It proves: codes round-trip and refuse typos; a party of four forms and the roster reaches every machine; both version refusals fire with readable text; a fifth player is turned away in words; a launch puts one seed on all four machines; and losing the host is reported rather than swallowed.
+It proves: codes round-trip and refuse typos; a full party forms and the roster reaches every machine; both version refusals fire with readable text; the seat past the last is turned away in words; a launch puts one seed on every machine; and losing the host is reported rather than swallowed. The party size is read from `NetTransport.MAX_PLAYERS` rather than written down here, so raising the cap raises what the test proves.
 
 It does **not** prove that any of it works through a NAT. Nothing that runs on one machine can, and pretending otherwise is how the direct transport gets shipped as if it were finished.
 
@@ -603,10 +603,15 @@ to be in one. **The seat is the feature.**
 
 ### The price
 
-`NetTransport.MAX_PLAYERS` is four and the relay's door policy enforces it, so a
-bot in the party means three humans rather than four. There is no spectator slot
-to hide in, and adding one would mean the relay counting something it
-deliberately does not count.
+`NetTransport.MAX_PLAYERS` bounds the party and the relay's door policy enforces
+it, so a bot in the party means one fewer human. There is no spectator slot to
+hide in, and adding one would mean the relay counting something it deliberately
+does not count.
+
+Deliberately without the number. This said "four" and kept saying it after the
+cap became eight, alongside the same sentence in `BotPilot.gd` and a `NetTest`
+that asserted a four-seat party in nine places. Prose that restates a constant
+is a copy of it that nothing checks.
 
 ### Where the decisions come from
 

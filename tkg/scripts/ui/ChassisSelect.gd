@@ -317,8 +317,7 @@ func _refit() -> void:
 	Run.fit_chassis(DB.STARTABLE[_sel], _weight, _tier)
 
 func _build_detail() -> void:
-	for c in _detail.get_children():
-		c.queue_free()
+	Widgets.clear(_detail)
 	var man: StringName = DB.STARTABLE[_sel]
 	var m: ManufacturerData = DB.manufacturers[man]
 
@@ -683,11 +682,7 @@ func _show_deck() -> void:
 	# pushing the panel off the top and bottom of the screen.
 	col.add_child(Widgets.scroller(flow, CardView.CARD_H * 2 + 5))
 
-	var pad := MarginContainer.new()
-	for side in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side, 12)
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 10)
+	var pad := Widgets.pad(null, 12, 10)
 	pad.add_child(col)
 	centre.add_child(Widgets.panel_with(pad))
 

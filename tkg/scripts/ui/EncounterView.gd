@@ -361,8 +361,7 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable) -> void:
 	_ship.modulate = Color.WHITE
 
 	if _made.size() != list.size():
-		for c in _slots.get_children():
-			c.queue_free()
+		Widgets.clear(_slots)
 		_made.clear()
 		for i in list.size():
 			var slot := EnemySlot.new()

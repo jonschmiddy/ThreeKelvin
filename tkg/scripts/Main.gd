@@ -223,12 +223,8 @@ func _ready() -> void:
 	DevMode.load_settings()
 	theme = UITheme.build()
 
-	var margin := MarginContainer.new()
+	var margin := Widgets.pad(null, 8, 7)
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_top", 7)
-	margin.add_theme_constant_override("margin_bottom", 7)
 	add_child(margin)
 
 	var root := VBoxContainer.new()

@@ -41,10 +41,8 @@ func _build() -> void:
 func _refresh() -> void:
 	_title.text = _event.title
 	_body.text = _event.body
-	for c in _options.get_children():
-		c.queue_free()
-	for c in _result.get_children():
-		c.queue_free()
+	Widgets.clear(_options)
+	Widgets.clear(_result)
 	if _resolved:
 		return
 	var options: Array = _event.options
