@@ -411,19 +411,20 @@ func _seed_modules() -> void:
 		[&"brace", {name = "Weld On", energy = 1, armor = 3, vent = 2}])
 	_module(&"coolant", "Coolant Flush Assembly", &"korvan", S, C0,
 		"Dumps heat into the dark.",
-		[{name = "Emergency Vent", energy = 0, vent = 4, draw = 1, copies = 1}])
+		[{name = "Emergency Vent", energy = 0, vent = 4, draw = 1}, &"vent"])
 	_module(&"servo", "Targeting Servo", &"korvan", U, C0,
 		"Paints the target for whatever fires next.",
 		[{name = "Lock On", energy = 1, lock_on = 4, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
 		"Rotary cannon. Volume as a philosophy.",
-		[{name = "Full Auto", energy = 2, heat = 1, damage = 2, hits = 5, salvo = 1, copies = 2}])
+		[{name = "Full Auto", energy = 2, heat = 1, damage = 2, hits = 5, salvo = 1}, &"feed"])
 	_module(&"widow", "Widowmaker Siege Driver", &"korvan", W, C3,
 		"Two turns of silence, then nothing left.",
 		[{name = "Siege Round", energy = 3, heat = 6, damage = 40, charge_turns = 2, copies = 1}])
 	_module(&"reactive", "Reactive Plating Array", &"korvan", S, C4,
 		"Armor that answers back.",
-		[{name = "Bulwark", energy = 2, heat = 1, armor = 8, riposte = 4, copies = 1}])
+		[{name = "Bulwark", energy = 2, heat = 1, armor = 8, riposte = 4},
+			{name = "Overwatch", energy = 2, armor = 4, riposte = 6, draw = 1}])
 
 	## The nine rungs Korvan was missing, and the shape they were authored to.
 	##
@@ -451,7 +452,7 @@ func _seed_modules() -> void:
 	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
 	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
 		"Three barrels, one trigger, no subtlety.",
-		[{name = "Ripple Fire", energy = 1, heat = 1, damage = 2, hits = 3, salvo = 2, copies = 2}])
+		[{name = "Ripple Fire", energy = 1, heat = 1, damage = 2, hits = 3, salvo = 2}, &"feed"])
 	# The top of the KH line, and the payoff for the whole salvo spine: 20 cold,
 	# 40 once anything has already fired. Three energy and one copy, so it is a
 	# HEAVY's card by construction — a reactor of four plays a Ripsaw into this and
@@ -459,24 +460,27 @@ func _seed_modules() -> void:
 	# patient) written as a weapon, and at five set pieces the enabler is free.
 	_module(&"kh500", "KH-500 Drumfire", &"korvan", W, C4,
 		"The last argument of a slow ship.",
-		[{name = "Drumfire", energy = 3, heat = 5, damage = 4, hits = 5, salvo = 4, copies = 1}])
+		[{name = "Drumfire", energy = 3, heat = 5, damage = 4, hits = 5, salvo = 4},
+			{name = "Walking Fire", energy = 2, heat = 3, damage = 3, hits = 6, salvo = 2}])
 
 	# Systems climb ARMOUR, and the verb arrives at the top rather than along the
 	# way: C1 marries the two Commons, C2 buys a different defence entirely, C3
 	# buys scale, and the Legendary above is where armour starts hitting back.
 	_module(&"sinkplate", "Heat Sink Plating", &"korvan", S, C1,
 		"Plate that drinks the heat it stops.",
-		[{name = "Sink Plate", energy = 1, armor = 4, vent = 2, copies = 2}])
+		[{name = "Sink Plate", energy = 1, armor = 4, vent = 2}, &"brace"])
 	# BLOCK, which Korvan has never had. Armour persists and costs heat to hold;
 	# block decays and costs nothing. So this is the card for the turn a Mass
 	# Driver is charging and there is nothing to do but be hit — the one turn in
 	# the house's whole design where a decaying shield is exactly right.
 	_module(&"braceframe", "Brace Frame", &"korvan", S, C2,
 		"For the turn you have nothing to shoot with.",
-		[{name = "Dig In", energy = 1, block = 8, armor = 2, copies = 2}])
+		[{name = "Dig In", energy = 1, block = 8, armor = 2},
+			{name = "Set Feet", energy = 1, block = 12, riposte = 3}])
 	_module(&"bulkhead", "Bulkhead Array", &"korvan", S, C3,
 		"Korvan's answer to most questions.",
-		[{name = "Bulkhead", energy = 1, heat = 1, armor = 7, copies = 2}])
+		[{name = "Bulkhead", energy = 1, heat = 1, armor = 7},
+			{name = "Compartment", energy = 2, armor = 9, block = 6}])
 
 	# Four rungs of lock-on, which is the column Korvan had one card in.
 	# Deliberately CHEAP rather than large: Solari's Flare Rack is lock-on 6 for a
@@ -484,23 +488,23 @@ func _seed_modules() -> void:
 	# heat instead of beating it on size is the difference between the two houses.
 	_module(&"optics", "Ranging Optics", &"korvan", U, C1,
 		"Cheap glass. Correct answers.",
-		[{name = "Range Finding", energy = 0, lock_on = 3, copies = 2}])
+		[{name = "Cold Read", energy = 0, lock_on = 4, vent = 1}, &"range"])
 	_module(&"coldsights", "Cold Sights", &"korvan", U, C2,
 		"Cools the barrel and the arithmetic.",
-		[{name = "Cold Sights", energy = 1, vent = 3, lock_on = 4, copies = 2}])
+		[{name = "Cold Sights", energy = 1, vent = 3, lock_on = 4}, &"vent"])
 	# The other half of the charged-weapon problem: a free card for the turn you
 	# cannot attack, which vents the ordnance heat you are still carrying from the
 	# last one. Pairs with Brace Frame by design — one blocks, one cools.
 	_module(&"standfast", "Standfast Rig", &"korvan", U, C3,
 		"Sit still. Take it. Wait for the tone.",
-		[{name = "Hold Fast", energy = 0, armor = 6, vent = 4, copies = 2}])
+		[{name = "Standfast", energy = 0, armor = 6, vent = 4}, &"block"])
 	# The capstone, and it is an ENGINE rather than a hammer — the hammer is the
 	# Drumfire. Free to play, returns the energy, marks the target: the card that
 	# turns a hand of Korvan guns into one enormous turn. Three heat a play is the
 	# brake, and the only reason it is not degenerate.
 	_module(&"director", "KX-9 Fire Director", &"korvan", U, C4,
 		"It decides. You pull.",
-		[{name = "Fire Director", energy = 0, heat = 3, lock_on = 5, energy_gain = 1, copies = 2}])
+		[{name = "Fire Director", energy = 0, heat = 3, lock_on = 5, energy_gain = 1}, &"range"])
 
 	# --- Solari: heat as ammunition
 	_module(&"plasma", "Solari Plasma Lance", &"solari", W, C1,
@@ -655,7 +659,7 @@ func _seed_modules() -> void:
 	# Every rate below is deliberately worse than Knit's 10 hull for 2 energy.
 	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
 		"Surplus. One kit, one weld, and it holds.",
-		[{name = "Field Weld", energy = 1, heal = 2, heal_scale = 4, copies = 1}])
+		[{name = "Field Weld", energy = 1, heal = 2, heal_scale = 4}, &"patch"])
 	## Heat as the welding torch, which is the house's whole argument. Costs four
 	## heat to buy seven hull, so it is a good trade on a cold turn and a way to
 	## kill yourself on a hot one — and Ignition (5-set, overheat halved) is what
@@ -693,13 +697,16 @@ func _seed_modules() -> void:
 	# --- Unbranded: exotic (grown) and artifact (precursor)
 	_module(&"organ", "Voidwhale Ganglion", &"", U, C5,
 		"Still faintly warm. Three Kelvin says otherwise.",
-		[{name = "Whale Song", energy = 1, heal = 8, vent = 3, copies = 1}])
+		[{name = "Whale Song", energy = 1, heal = 8, vent = 3},
+			{name = "Deep Song", energy = 1, heal = 6, vent = 6, draw = 1}])
 	_module(&"lattice", "Precursor Lattice", &"", S, C6,
 		"Nobody built this. It simply persists.",
-		[{name = "Lattice", energy = 0, armor = 6, draw = 1, copies = 2}])
+		[{name = "Lattice", energy = 0, armor = 6, draw = 1},
+			{name = "Persist", energy = 1, armor = 8, block = 8}])
 	_module(&"singing", "Singing Core", &"", W, C6,
 		"It hums. Things nearby come apart.",
-		[{name = "Resonance", energy = 2, heat = 2, damage = 11, hits = 2, copies = 1}])
+		[{name = "Resonance", energy = 2, heat = 2, damage = 11, hits = 2},
+			{name = "Sympathetic Burst", energy = 2, heat = 4, damage = 7, hits = 3}])
 
 	# --- Junk
 	#
@@ -736,7 +743,7 @@ func _seed_modules() -> void:
 		[{name = "Cull", energy = 1, rarity = 2, discard = 2, draw = 2}, &"sort"])
 	_module(&"blowout", "Blowout Panel", &"korvan", S, C2,
 		"Surplus. Blows the whole rack clear and lets you start the hand again.",
-		[{name = "Blow Out", energy = 1, discard_hand = true, draw = 3, copies = 2}])
+		[{name = "Blow Out", energy = 1, discard_hand = true, draw = 3}, &"sort"])
 
 	# --- yard stock: what every ship leaves the dock with, whoever built it.
 	#
@@ -758,7 +765,7 @@ func _seed_modules() -> void:
 		[&"cut", &"slug"])
 	_module(&"slug", "Slug Thrower", &"", W, C0,
 		"Chemical propellant and a tube. Older than spaceflight.",
-		[{name = "Slug", energy = 1, damage = 4, hits = 2, copies = 2}])
+		[&"slug"])
 	_module(&"torch", "Cutting Torch", &"", W, C0,
 		"Meant for hulls that are already dead.",
 		[{name = "Torch", energy = 0, heat = 3, damage = 5, copies = 2}])
@@ -768,20 +775,20 @@ func _seed_modules() -> void:
 	# to be visibly better than something.
 	_module(&"plating", "Hull Plating", &"", S, C0,
 		"Steel, bolted on. It does not have to be clever.",
-		[&"brace", &"block"])
+		[&"brace"])
 	_module(&"board", "Signal Board", &"", S, C0,
 		"Sorts what the sensors are shouting about into an order.",
 		[&"reroute", &"range"])
 	_module(&"bracing", "Impact Bracing", &"", S, C0,
 		"Struts that take one hit and are then scrap.",
-		[{name = "Hold Fast", energy = 1, block = 7, copies = 2}])
+		[&"block", {name = "Truss", energy = 1, block = 5, armor = 2}])
 
 	_module(&"coolline", "Coolant Line", &"", U, C0,
 		"A hose and a pump. Standard on everything that burns.",
 		[&"vent", &"patch"])
 	_module(&"scope", "Ranging Scope", &"", U, C0,
 		"Tells the guns where the thing is. That is all it does.",
-		[{name = "Range", energy = 0, lock_on = 3, copies = 1}])
+		[&"range"])
 	## YARD STOCK, AND THE FIRST LIFELINE ANYBODY HOLDS. Scaled like the branded
 	## repairs below it rather than left flat, because the turn this card exists
 	## for is the same turn theirs do — and a run whose only repair is a flat 4 is
