@@ -29,6 +29,16 @@ class EnemyState extends RefCounted:
 	var intent: IntentData
 
 	func pick_intent() -> void:
+		# A miniboss on the ropes stops fighting and starts leaving. One full
+		# player turn of warning — the intent IS the telegraph — and if it acts
+		# on it, the fight ends with the enemy gone rather than dead. The
+		# threshold check lives here, at the moment the next move is chosen,
+		# so burst damage past it mid-turn still kills: the escape can only
+		# happen on the enemy's own clock.
+		if template.miniboss and hp > 0 \
+				and hp <= int(ceil(max_hp * Combat.MINIBOSS_BREAKS_AT)):
+			intent = Combat.escape_intent()
+			return
 		if not template.pool.is_empty():
 			var total := 0
 			for i in template.pool:
@@ -135,6 +145,22 @@ var finished: bool = false
 var result: StringName = &""
 var summary: String = ""
 
+## Below this fraction of hull a miniboss spools its escape burn. 35%: low
+## enough that a fight that goes well ends in a kill, high enough that a
+## fight fought timidly ends watching it leave.
+const MINIBOSS_BREAKS_AT := 0.35
+
+## The one intent that is not in any template. Built fresh per call because
+## intents on templates are duplicated and scaled per fight — a shared
+## constant object would be written to by _spawn's scaling pass.
+static func escape_intent() -> IntentData:
+	var i := IntentData.new()
+	i.name = "ESCAPE BURN"
+	i.text = "Spooling a blind jump — finish it now or lose it"
+	i.telegraph = true
+	i.escape = true
+	return i
+
 # ------------------------------------------------------------------------- setup
 
 func start(template: EnemyTemplate, danger: int, extras: Array = []) -> void:
@@ -186,6 +212,16 @@ func foe_hp() -> PackedInt32Array:
 		out.append(e.max_hp)
 	return out
 
+## Current hull rather than capacity. Differs from foe_hp() only when a fight
+## opens against something already hurt — the stoker carrying last
+## engagement's damage — and the party's copy has to start from the same
+## number this machine's does.
+func foe_hp_now() -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for e in enemies:
+		out.append(e.hp)
+	return out
+
 func foe_brace() -> PackedInt32Array:
 	var out := PackedInt32Array()
 	for e in enemies:
@@ -204,8 +240,9 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	# top of the ladder lands in the same place it always did and only the
 	# steps between got finer. HP still climbs twice as fast as damage: deeper
 	# fights should be longer, not one-shot lethal.
-	var hp_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.05
-	var dmg_mult := 1.0 if template.boss else 1.0 + (danger - 1) * 0.025
+	var hand_tuned := template.boss or template.miniboss
+	var hp_mult := 1.0 if hand_tuned else 1.0 + (danger - 1) * 0.05
+	var dmg_mult := 1.0 if hand_tuned else 1.0 + (danger - 1) * 0.025
 	# Scale a private copy of the intents so the template stays pristine.
 	var scaled: Array[IntentData] = []
 	for i in template.loop:
@@ -427,6 +464,15 @@ func _enemy_act() -> void:
 func _act_one(e: EnemyState) -> void:
 	var I := e.intent
 	if I == null:
+		return
+	# Acting on the escape burn IS the escape. Solo only: in a shared fight the
+	# host converts this intent into the fight ending before any swing message
+	# goes out, so no client ever reaches here with it. See NetSession._swing().
+	if I.escape and not is_shared():
+		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
+		Run.stoker_breaks_off(e.hp)
+		_finish(&"broke_off",
+			"A blind jump, furnace-bright. It is gone — hurt, hot, and mending. No salvage.")
 		return
 	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
@@ -701,6 +747,12 @@ func flee() -> void:
 	# So the sector you are dropped back onto offers a jump rather than the
 	# fight you just paid six fuel to leave.
 	Run.node_at().fled = true
+	# Running from the stoker banks the damage you did — it does not heal
+	# between engagements, it heals per MOVE, which is the chase. Solo only:
+	# in a party the host writes this back when the last ship leaves the
+	# shared fight, in NetSession._apply_leave().
+	if not is_shared() and not enemies.is_empty() and enemies[0].template.miniboss:
+		Run.stoker_scarred(enemies[0].hp)
 	Sig.resources_changed.emit()
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % FLEE_FUEL)
 
@@ -735,6 +787,12 @@ func _victory() -> void:
 	var drops := 2 if node.region == MapGen.Region.LAWLESS else 1
 	if node.region == MapGen.Region.FAUNA:
 		drops = 0
+	# A set piece pays like one. Three parts a hand rather than one, and the
+	# roamer stops roaming — idempotent, because in a party every crew machine
+	# runs this and the host may have run it already in _apply_hurt().
+	if enemy.template.miniboss:
+		drops = 3
+		Run.stoker_defeated()
 
 	# TWO WAYS TO BE PAID, and which one runs is decided by whether anybody else
 	# was shooting at it.
@@ -855,10 +913,15 @@ func _adopt(f: SharedFight) -> void:
 		dst.max_hp = src.max_hp
 		dst.brace = src.brace
 		dst.block = src.block
-		var list: Array[IntentData] = dst.template.pool \
-			if src.kind == SharedFight.Pick.POOL else dst.template.loop
-		if src.pick >= 0 and src.pick < list.size():
-			dst.intent = list[src.pick]
+		if src.kind == SharedFight.Pick.ESCAPE:
+			# Not in any template list — see escape_intent(). The host names
+			# the kind and every machine builds the same card.
+			dst.intent = Combat.escape_intent()
+		else:
+			var list: Array[IntentData] = dst.template.pool \
+				if src.kind == SharedFight.Pick.POOL else dst.template.loop
+			if src.pick >= 0 and src.pick < list.size():
+				dst.intent = list[src.pick]
 		if was > 0 and dst.hp <= 0:
 			Sig.enemy_destroyed.emit(i)
 			if enemies.size() > 1:
@@ -888,6 +951,12 @@ func _on_fight_changed(at: int) -> void:
 	shared = f
 	_adopt(f)
 	if f.over:
+		# The stoker left before anybody killed it. The host has already moved
+		# it and written its hull back; this machine only has to stop fighting.
+		if f.broke:
+			_finish(&"broke_off",
+				"A blind jump, furnace-bright. It is gone — hurt, hot, and mending. No salvage.")
+			return
 		# The host decides the fight is won, not this machine. Everyone still in
 		# it when the last hull came apart is paid, which is the ruling: winning
 		# a fight gets you the loot.

@@ -58,7 +58,14 @@ extends Node
 ##    A version 5 partner would roll a bag of the wrong size and reach for
 ##    parts nobody else believes are there. The roster's `build` also carries
 ##    the hull's GRADE now, without which every partner is drawn as a C-class.
-const PROTOCOL: int = 6
+## 7: the stoker. The host counts the party's jumps and owns the roamer's
+##    position, pushed whole through `_push_stoker_to`. A fight can now open
+##    against an enemy already hurt (`cur` on `_open_fight_at_host`), and a
+##    fight can end because the enemy LEFT (`broke` on the fight wire, kind
+##    ESCAPE on an intent). A version 6 partner has no stoker on its chart,
+##    would fight it at full health, and would sit in a broken-off fight
+##    waiting for a turn that is never coming.
+const PROTOCOL: int = 7
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -553,9 +560,9 @@ func _push_claims_to(all: Dictionary) -> void:
 ## second both believe they are first, and only the host can say otherwise.
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array) -> void:
 	if is_host():
-		_open_or_join(index, ids, hp, brace, multiplayer.get_remote_sender_id())
+		_open_or_join(index, ids, hp, brace, cur, multiplayer.get_remote_sender_id())
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -586,6 +593,16 @@ func _push_fight_to(wire: Dictionary) -> void:
 		return
 	fights[f.at] = f
 	Sig.party_fight_changed.emit(f.at)
+
+
+## Where the galaxy's other harvester is. Authority to everyone, whole every
+## time — position, hull, move counter — for the reason claims travel whole: a
+## dropped push costs one update rather than a drift. `feeding` says which kind
+## of landing this was, because a client applies the same eat-the-derelict
+## rule the host did and a flee hop does not feed. See RunState's stoker block.
+@rpc("authority", "call_remote", "reliable")
+func _push_stoker_to(to: int, hp: int, moves: int, feeding: bool) -> void:
+	Run.stoker_adopt(to, hp, moves, feeding)
 
 
 ## Something is shooting at YOU. Sent to one peer, never broadcast — see
@@ -714,10 +731,30 @@ func _send_presence() -> void:
 func _apply_presence(id: int, wire: Dictionary, at: int) -> void:
 	if not roster.has(id):
 		return
+	# A presence whose `at` moved is a jump, and the party's jumps are the
+	# stoker's clock. Everybody else's only — the host's own jumps tick in
+	# RunState.jump_to() directly, and counting its presence too would tick
+	# twice for one jump.
+	var was := int(roster[id].get("at", -1))
 	roster[id].build = wire
 	roster[id].at = at
+	# `was >= 0` keeps a client's FIRST presence — arrival in the galaxy, not a
+	# jump — off the clock.
+	if is_host() and id != 1 and state == State.DIVING \
+			and was >= 0 and at >= 0 and at != was:
+		Run.stoker_jumped()
 	_push_roster()
 	Sig.party_changed.emit()
+
+
+## Broadcast the stoker, host only. RunState calls this after every authority
+## mutation and never checks who it is — the guard lives here, like claim()'s,
+## so no call site grows a branch.
+func push_stoker(feeding: bool) -> void:
+	if not is_host() or not _can_talk():
+		return
+	if not multiplayer.get_peers().is_empty():
+		_push_stoker_to.rpc(Run.stoker_at, Run.stoker_hp, Run.stoker_moves, feeding)
 
 
 ## Use something up, without waiting to hear whether you got it.
@@ -794,18 +831,21 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 ## IT ALONE": it is what the solo game gets, what a party of one gets, and what
 ## a client gets if the host never answers. All three want the same behaviour,
 ## which is the fight the game has always had.
+## `cur` is the enemy's CURRENT hull, which is `hp` for everything except a
+## fight that opens against something already hurt — the stoker carrying a
+## previous engagement's damage.
 func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array) -> SharedFight:
 	if not _can_talk() or index < 0 or party_size() < 2:
 		return null
 	if is_host():
-		_open_or_join(index, ids, hp, brace, 1)
+		_open_or_join(index, ids, hp, brace, cur, 1)
 		return fights.get(index, null)
 	# Ask and wait, for the same reason `take()` does: two ships arriving at one
 	# system in the same second must end up in ONE fight. A client that opened
 	# optimistically would spawn a private frigate, and the host's would arrive
 	# a moment later holding different numbers.
-	_open_fight_at_host.rpc_id(1, index, ids, hp, brace)
+	_open_fight_at_host.rpc_id(1, index, ids, hp, brace, cur)
 	var me := local_id()
 	var deadline := _now() + TAKE_TIMEOUT
 	while _now() < deadline:
@@ -929,7 +969,7 @@ func _push_claims() -> void:
 # --- fights, on the host --------------------------------------------------
 
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, by: int) -> void:
+		brace: PackedInt32Array, cur: PackedInt32Array, by: int) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
 		# Already somebody's fight. The second ship in is help, not a second
@@ -937,7 +977,7 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		if not f.join(by):
 			return
 	else:
-		f = SharedFight.open(index, ids, hp, brace, by)
+		f = SharedFight.open(index, ids, hp, brace, cur, by)
 		fights[index] = f
 		for i in f.foes.size():
 			_pick_intent(f, i)
@@ -949,6 +989,11 @@ func _apply_hurt(index: int, which: int, amount: int, hits: int, by: int) -> voi
 	if f == null or f.over or not f.crew.has(by):
 		return
 	f.hurt(which, amount, hits, by)
+	# The kill has to land on the host's map even when the host was not in the
+	# fight — every crew machine runs Combat._victory() itself, but a host
+	# three systems away has no Combat to run it in. Idempotent by design.
+	if f.over and f.paid > 0 and _is_stoker_fight(f):
+		Run.stoker_defeated()
 	_push_fight(f)
 
 
@@ -968,7 +1013,15 @@ func _apply_leave(index: int, by: int) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f == null:
 		return
+	var was_over := f.over
 	f.leave(by)
+	# Everyone fled, died or dropped, and the stoker is still flying: the
+	# damage they did stays done. `paid == 0` is what says nobody killed it —
+	# leave() also sets `over`, and a won fight empties its crew on the same
+	# frames this runs.
+	if f.over and not was_over and f.paid == 0 and not f.broke \
+			and _is_stoker_fight(f) and not f.foes.is_empty():
+		Run.stoker_scarred(f.foes[0].hp)
 	# Somebody leaving can be the thing that closes the barrier — three ships
 	# waiting on a fourth who just died is a fight that would otherwise stop.
 	if not f.over and not f.crew.is_empty() and f.waiting_on().is_empty():
@@ -987,6 +1040,18 @@ func _apply_leave(index: int, by: int) -> void:
 ## block values across the party would be a lot of wire for something nobody
 ## reads.
 func _swing(f: SharedFight) -> void:
+	# The escape burn resolves INSTEAD of a turn, before any swing message goes
+	# out. The host is the only machine that may decide this — it owns the
+	# enemy — so it moves the stoker, writes its hull back, and tells the crew
+	# the fight is over because the other side left.
+	for i in f.alive():
+		var e0 := f.foes[i]
+		if e0.kind == SharedFight.Pick.ESCAPE:
+			f.broke = true
+			f.over = true
+			Run.stoker_breaks_off(e0.hp)
+			_push_fight(f)
+			return
 	for i in f.alive():
 		var target := _who_gets_hit(f)
 		if target == 0:
@@ -1041,6 +1106,15 @@ func _who_gets_hit(f: SharedFight) -> int:
 	return pool[pool.size() - 1]
 
 
+## Whether this fight's lead is the roaming set piece — the thing whose map
+## state the host has to keep honest when the fight ends any way at all.
+func _is_stoker_fight(f: SharedFight) -> bool:
+	if f.foe_ids.is_empty():
+		return false
+	var t: EnemyTemplate = DB.enemies.get(StringName(f.foe_ids[0]))
+	return t != null and t.miniboss
+
+
 ## The next thing one hull intends to do. Host only, and that is the whole
 ## reason intents cross the wire at all: `pick_intent` draws from `Rng.fight`,
 ## which is an ordered stream rather than a positional derivation, so four
@@ -1052,6 +1126,15 @@ func _pick_intent(f: SharedFight, i: int) -> void:
 	if t == null:
 		return
 	var e := f.foes[i]
+	# Same rule, same threshold, same moment as the solo game's
+	# EnemyState.pick_intent(): on the ropes, the miniboss spools its escape.
+	# The max here is the CREW-GROWN max, so a party has the same one-turn
+	# window a solo ship does.
+	if t.miniboss and e.hp > 0 \
+			and e.hp <= int(ceil(e.max_hp * Combat.MINIBOSS_BREAKS_AT)):
+		e.kind = SharedFight.Pick.ESCAPE
+		e.pick = 0
+		return
 	if not t.pool.is_empty():
 		var total := 0
 		for it in t.pool:

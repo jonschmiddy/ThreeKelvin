@@ -16,3 +16,7 @@ extends Resource
 @export var dross_id: StringName = &""
 @export var telegraph: bool = false   ## "winding up" turn, no effect
 @export var weight: int = 100         ## for fauna random pools
+## Acting on this intent takes the enemy OUT of the fight — the Stoker's
+## escape burn. Resolved in Combat._act_one (solo) and NetSession._swing
+## (host), never by damage maths. See Combat.escape_intent().
+@export var escape: bool = false

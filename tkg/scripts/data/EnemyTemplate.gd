@@ -8,6 +8,10 @@ extends Resource
 @export var brace: int = 0
 @export var fauna: bool = false
 @export var boss: bool = false
+## A set piece that is NOT the run's end. Hand-tuned like a boss — never
+## danger-scaled — but killing one pays loot rather than opening the core.
+## The Stoker is the first of these; see `RunState`'s stoker block.
+@export var miniboss: bool = false
 @export var credit_reward: int = 15
 @export var art: StringName = &"cutter"
 ## Ships use a fixed loop (machines are predictable).

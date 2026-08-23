@@ -1865,6 +1865,7 @@ class MapChart extends Control:
 
 
 		_draw_party()
+		_draw_stoker()
 		_draw_work()
 		_draw_neb_edges()
 
@@ -2591,6 +2592,26 @@ class MapChart extends Control:
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
 			draw_string(UITheme.pixel_font(), at_text, label,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.GOOD)
+
+	## The galaxy's other harvester, drawn wherever the host last said it was.
+	##
+	## OUTSIDE any visibility filter, like the party and the work, and the
+	## fiction pays for it: the stoker is the hottest thing flying, and heat is
+	## the one signature this game says you cannot hide. That is also its
+	## balance — a threat you can always see is a threat you can always route
+	## around, and routing around it has a price the map charges in salvage.
+	func _draw_stoker() -> void:
+		if not show_icons or not Run.stoker_alive() \
+				or Run.stoker_at >= Run.map.size():
+			return
+		var c := _screen_pos(Run.map[Run.stoker_at])
+		_diamond(c, 7.0, UITheme.VOID)
+		_diamond(c, 6.0, UITheme.EMBER)
+		var at_text := c + Vector2(-46, -14)
+		draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), "THE STOKER",
+			HORIZONTAL_ALIGNMENT_CENTER, 92, 8, Color(0, 0, 0, 0.85))
+		draw_string(UITheme.pixel_font(), at_text, "THE STOKER",
+			HORIZONTAL_ALIGNMENT_CENTER, 92, 8, UITheme.EMBER)
 
 	## The delivery berths `_draw_work` last worked out, and what they were
 	## worked out for. Invalidated by the only two things that can change the

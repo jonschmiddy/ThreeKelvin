@@ -33,7 +33,10 @@ const CREW_SHARE: float = 0.6
 ## Where the intent came from. `Combat._spawn` scales a private copy of both
 ## lists, identically on every machine, so an index into them is a name the
 ## whole party already agrees on and no intent has to be sent by value.
-enum Pick { LOOP, POOL }
+## ESCAPE is the miniboss spooling its way out of the fight — an intent that
+## exists in no template list, so it travels as a kind rather than an index.
+## Every machine builds the same card from it: Combat.escape_intent().
+enum Pick { LOOP, POOL, ESCAPE }
 
 class Foe extends RefCounted:
 	var hp: int = 1
@@ -67,6 +70,11 @@ var crew: PackedInt32Array = PackedInt32Array()
 var ended: PackedInt32Array = PackedInt32Array()
 var turn: int = 1
 var over: bool = false
+## Over because the enemy LEFT, not because anybody won or walked out. The
+## distinction decides what every crew machine does next: a broke fight pays
+## nothing and consumes nothing, and the stoker's hull was written back by the
+## host before this was pushed. See NetSession._swing().
+var broke: bool = false
 ## The last hit anybody landed: `[peer, foe index, total, serial]`, or empty.
 ##
 ## Carried so a partner's shot can be DRAWN. Your own hits you already saw —
@@ -97,15 +105,19 @@ var paid: int = 0
 
 ## The first ship engages. `hp` and `brace` are what its own `Combat._spawn`
 ## produced, so the danger scaling and the pack split stay in one place.
+## `cur` is current hull — below `hp` only when the enemy arrives already hurt,
+## the stoker carrying a previous engagement's damage. `base` stays what one
+## ship's worth of the FULL enemy is, so a joiner's share does not shrink just
+## because somebody softened it up first.
 static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		brace: PackedInt32Array, first: int) -> SharedFight:
+		brace: PackedInt32Array, cur: PackedInt32Array, first: int) -> SharedFight:
 	var f := SharedFight.new()
 	f.at = node_index
 	f.foe_ids = ids
 	for i in hp.size():
 		var e := Foe.new()
 		e.max_hp = maxi(1, hp[i])
-		e.hp = e.max_hp
+		e.hp = clampi(cur[i] if i < cur.size() else e.max_hp, 1, e.max_hp)
 		e.base = e.max_hp
 		e.brace = brace[i] if i < brace.size() else 0
 		f.foes.append(e)
@@ -238,7 +250,7 @@ func to_wire() -> Dictionary:
 	for e in foes:
 		rows.append([e.hp, e.max_hp, e.base, e.brace, e.block, e.kind, e.pick, e.step])
 	return {
-		"at": at, "turn": turn, "over": over, "ids": foe_ids,
+		"at": at, "turn": turn, "over": over, "broke": broke, "ids": foe_ids,
 		"crew": crew, "ended": ended, "foes": rows,
 		"hit": last_hit, "serial": hit_serial, "paid": paid,
 	}
@@ -252,6 +264,7 @@ static func from_wire(d: Dictionary) -> SharedFight:
 	f.at = int(d.get("at", -1))
 	f.turn = maxi(1, int(d.get("turn", 1)))
 	f.over = bool(d.get("over", false))
+	f.broke = bool(d.get("broke", false))
 	f.crew = PackedInt32Array(d.get("crew", PackedInt32Array()))
 	f.ended = PackedInt32Array(d.get("ended", PackedInt32Array()))
 	f.last_hit = PackedInt32Array(d.get("hit", PackedInt32Array()))
@@ -271,7 +284,7 @@ static func from_wire(d: Dictionary) -> SharedFight:
 		e.base = maxi(1, int(row[2]))
 		e.brace = maxi(0, int(row[3]))
 		e.block = maxi(0, int(row[4]))
-		e.kind = clampi(int(row[5]), 0, 1)
+		e.kind = clampi(int(row[5]), 0, 2)
 		e.pick = maxi(0, int(row[6]))
 		e.step = maxi(0, int(row[7]))
 		f.foes.append(e)

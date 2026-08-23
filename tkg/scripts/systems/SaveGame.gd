@@ -41,6 +41,11 @@ const PATH := "user://run.save"
 ## silently loses work the player had already flown for.
 ## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
 ## arranged comes back arranged rather than re-packed from scratch.
+## 9: the stoker — where the galaxy's other harvester is, what hull it has
+## left, and how many moves it has made (the counter is a seed source, so
+## losing it would re-derive a different walk). A node also carries `eaten`:
+## a save that forgot it would resume a derelict the rival stripped as one
+## somebody in the party did.
 ##
 ## 8 rather than either side's number, and the reason is worth writing down: two
 ## branches both shipped a "6" — the shared-kill bag on one and the hold grid on
@@ -49,7 +54,18 @@ const PATH := "user://run.save"
 ## neither, and taking a fresh number is the only answer that keeps the rule
 ## above true. Anything stamped 6 or 7 is now discarded, which is the correct
 ## outcome and the whole reason the field exists.
-const VERSION := 8
+##
+## AND THEN IT HAPPENED AGAIN AT 8. The hold grid and the stoker were written
+## on separate branches and both stamped 8, so an 8 can be either shape by
+## exactly the argument above. 9 has both.
+##
+## Which says something the paragraph before it did not: the number is not the
+## defence. It collides whenever two branches are open at once, and it will
+## collide again. What actually keeps a wrong save from being loaded is the
+## rule at the top -- an unreadable file is DISCARDED rather than guessed at --
+## and the number is only how that rule recognises one. 8 is discarded now for
+## the same reason 6 and 7 were.
+const VERSION := 9
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -174,6 +190,12 @@ static func _snapshot() -> Dictionary:
 		trail = Array(Run.trail),
 		jumps = Run.jumps,
 		kills = Run.kills,
+
+		stoker_at = Run.stoker_at,
+		stoker_hp = Run.stoker_hp,
+		stoker_max = Run.stoker_max,
+		stoker_moves = Run.stoker_moves,
+		stoker_ticks = Run.stoker_ticks,
 	}
 
 # ----------------------------------------------------------------------- read
@@ -322,6 +344,14 @@ static func load_into_run() -> bool:
 	Run.trail = trail
 	Run.jumps = int(d.get("jumps", 0))
 	Run.kills = int(d.get("kills", 0))
+
+	# Clamped like `at`, because a stale index here is not a wrong marker — it
+	# is an index error inside whatever reads the stoker's node next.
+	Run.stoker_at = clampi(int(d.get("stoker_at", -1)), -1, map.size() - 1)
+	Run.stoker_max = maxi(0, int(d.get("stoker_max", 0)))
+	Run.stoker_hp = clampi(int(d.get("stoker_hp", 0)), 0, Run.stoker_max)
+	Run.stoker_moves = maxi(0, int(d.get("stoker_moves", 0)))
+	Run.stoker_ticks = maxi(0, int(d.get("stoker_ticks", 0)))
 
 	Run.won = false
 	Run.dead = false
@@ -538,7 +568,8 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		security = n.security, makers = makers,
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
-		visited = n.visited, cleared = n.cleared, taken = Array(n.taken),
+		visited = n.visited, cleared = n.cleared, eaten = n.eaten,
+		taken = Array(n.taken),
 		inspected = n.inspected,
 		fled = n.fled, stocked = n.stocked, trades = n.trades,
 		foes = _names(n.foes), event_key = n.event_key,
@@ -571,6 +602,7 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
 	n.cleared = bool(d.get("cleared", false))
+	n.eaten = bool(d.get("eaten", false))
 	# Absent on a save written before a system could offer more than one thing
 	# to do. A cleared node with no list is a node whose single option was the
 	# system itself, which is what it always was.
