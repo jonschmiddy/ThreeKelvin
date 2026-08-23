@@ -182,20 +182,86 @@ func setup(m: ModuleData, from: StringName) -> void:
 	tooltip_text = _hint()
 	queue_redraw()
 
+## EVERYTHING THE PART IS, on hover.
+##
+## It used to be four lines — name, grade, slot, and each card's EFFECT with no
+## name and no cost. So a player hovering a gun was told "Deal 3 x 3. Salvo
+## +2." and could not learn what the card was called or what it would cost to
+## play, which are the two things you need before deciding whether to bolt the
+## thing on.
+##
+## THE SAME FACTS THE MANIFEST SHOWS, in the same order, because a player and a
+## designer are asking the same question about a part and there is no reason to
+## answer it twice in two shapes.
+##
+## Plain text, not rich text: Godot tooltips are a label. That is also why the
+## cost is spelled out as words rather than drawn as the corner gems a card
+## face uses — "2 ENERGY | +1 HEAT" reads at a glance and needs no legend.
 func _hint() -> String:
 	if module == null:
 		return ""
-	var lines := "%s\n%s · %s" % [module.name.to_upper(),
+	var f := module.footprint()
+	var out := module.name.to_upper()
+	out += "
+%s · %s · %dx%d · %d %s" % [
 		ModuleData.rarity_name(module.rarity).to_upper(),
-		ModuleData.slot_name(module.slot).to_upper()]
+		ModuleData.slot_name(module.slot).to_upper(), f.x, f.y,
+		module.cells(), "cell" if module.cells() == 1 else "cells"]
 	if module.manufacturer != &"":
-		lines += "\n%s" % DB.manufacturer_name(module.manufacturer)
+		out += "
+%s" % DB.manufacturer_name(module.manufacturer)
+	else:
+		out += "
+Unbranded"
+
+	# What it does to the SHIP, which the old tooltip never mentioned at all — a
+	# part could carry three pips of hull and say nothing about it.
+	var gauges: Array[String] = []
+	for axis in DB.PASSIVE_AXIS.get(module.id, []):
+		var pips: int = DB.ATTR_BUMP[int(module.rarity)]
+		if pips != 0:
+			gauges.append("%s +%d" % [String(axis).to_upper(), pips])
+	if DB.PASSIVE_COST.has(module.id):
+		var row: Array = DB.PASSIVE_COST[module.id]
+		gauges.append("%s −%d" % [String(row[0]).to_upper(), int(row[1])])
+	if module.reactor != 0:
+		gauges.append("REACTOR +%d" % module.reactor)
+	if not gauges.is_empty():
+		out += "
+%s" % " · ".join(gauges)
+
+	if module.flavour != "":
+		out += "
+
+%s" % module.flavour
+
 	for c in module.resolved_cards():
-		lines += "\n· %s" % c.describe()
-	if not module.affixes.is_empty():
-		for a in module.affixes:
-			lines += "\n+ %s (%s)" % [a.name, a.text]
-	return lines
+		var cd: CardData = c
+		# NAME FIRST, then the price. The name is what you are looking for and the
+		# price is what you weigh once you have found it — three lines a card put
+		# the cost above the name and made the list read as a column of numbers.
+		out += "
+
+%s — %s
+%s" % [cd.name, _cost(cd), cd.describe()]
+	for a in module.affixes:
+		out += "
+
+%s — %s" % [a.name, a.text]
+	return out
+
+
+## What a card costs, in words.
+##
+## Energy and heat are two different quantities and writing them as "1+1" reads
+## as arithmetic on one — the manifest made exactly that mistake and somebody
+## asked what the sum meant. Spelled out, there is nothing to misread, and a
+## card with no heat simply does not mention it, which is most of Korvan.
+static func _cost(c: CardData) -> String:
+	if c.heat > 0:
+		return "%d ENERGY | +%d HEAT" % [c.energy, c.heat]
+	return "%d ENERGY" % c.energy
+
 
 ## Picking one up. The preview is a copy of the icon rather than the icon
 ## itself: Godot reparents whatever you return, so handing over the live control
