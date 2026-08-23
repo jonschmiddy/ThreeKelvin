@@ -499,7 +499,7 @@ risk instead of power.
 ### One axis each
 
 `Database.PASSIVE_AXIS` says *which* gauge; the grade says *how far*. Cold
-Sights used to carry shedding **and** sensors, Ghost Drive dodge **and**
+Sights used to carry venting **and** sensors, Ghost Drive dodge **and**
 stealth, the Fire Director initiative **and** sensors — so "a rare part is worth
 one pip" could not be true of any of them, and a part quietly moving two gauges
 was worth double its grade with nothing saying so.
@@ -522,6 +522,34 @@ be +12 cells, which breaks the budget the cells *are* — and the reason is that
 REACTOR is the one attribute that is itself a constraint on installing modules.
 A part that raises it is a feedback loop the other six do not have.
 
+### Zero is the floor
+
+**An attribute stops at zero. It does not go under.** The clamp on each `attr_*`
+return is what enforces it, and Sensors and Stealth are the only two that could
+ever have needed it — they are summed straight off the hull and its modules,
+where every other gauge is derived from a quantity already floored on the way
+here (heat capacity at 1, dissipation and dodge at 0).
+
+Above zero the arithmetic is plain: four stealth and a flare rack is three, and
+that is a real pip the rack costs a stealth build. On a hull with no stealth at
+all the rack costs nothing, because there was nothing to take. **Gate:**
+`-- attrtest` measures the price both ways.
+
+### The word is VENT
+
+The card face says **Vent 3**, the field is called `dissipation`, and the gauge
+is THERMAL. Those are three names for one quantity and that is already one too
+many — do not add a fourth. "Shedding" appeared in these comments for exactly
+one commit and was removed.
+
+THERMAL has two axes and the manifest names which one a part moves, because
+`THERMAL +1 (vent)` and `THERMAL +1 (capacity)` move the gauge the same distance
+and are not the same part: capacity is 2 more heat you can hold, vent is 1 more
+off you every turn, forever. The gauge treats them as equal because an event
+asking *can you sit in this* is answered by either. A fight is not. That is a
+fact about `attr_thermal` weighting vent too lightly, and it is the first thing
+to re-measure if a coolant build starts winning.
+
 ### The round trip is checked
 
 **Gate:** `-- attrtest` bolts every part onto a bare medium C and reads the
@@ -532,7 +560,7 @@ gauge before and after.
     Brace Frame             Rare       hull       1      1
     Hull Plating            Common     hull       0      0
 
-It exists because two things break silently. **Rounding** — a pip of shedding
+It exists because two things break silently. **Rounding** — a pip of venting
 was 1.5, stored as an int 2, and read back as two pips; caught on the first run.
 **A changed formula** — `RunState.PER_PIP` is inverted out of the `attr_*`
 functions by hand, so retuning a divisor and not touching it puts a whole axis

@@ -98,6 +98,17 @@ func _dump() -> void:
 			cards.append({name = cd.name, text = cd.describe(),
 				energy = cd.energy, heat = cd.heat,
 				rarity = ModuleData.rarity_name(cd.rarity) if cd.rarity >= 0 else ""})
+		# THE GAUGE IT MOVES, and by how much. Both halves, because a part can
+		# grant on one axis and be priced on another, and a page that showed only
+		# the grant would say a Voidwhale Ganglion is free.
+		var axis: String = String(DB.PASSIVE_AXIS.get(id, &""))
+		var pips: int = DB.ATTR_BUMP[int(m.rarity)] if axis != "" else 0
+		var cost_axis := ""
+		var cost_pips := 0
+		if DB.PASSIVE_COST.has(id):
+			var row: Array = DB.PASSIVE_COST[id]
+			cost_axis = String(row[0])
+			cost_pips = int(row[1])
 		var f := m.footprint()
 		out.append({
 			id = String(id),
@@ -108,6 +119,9 @@ func _dump() -> void:
 			rarity = ModuleData.rarity_name(m.rarity),
 			w = f.x, h = f.y, cells = m.cells(),
 			flavour = m.flavour,
+			axis = axis, pips = pips,
+			cost_axis = cost_axis, cost_pips = cost_pips,
+			power_cap = m.power_cap,
 			cards = cards,
 		})
 	# The malfunctions travel with them. They are not modules and never will be

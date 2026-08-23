@@ -5,13 +5,13 @@ extends Harness
 ##
 ## The attribute ladder says a rare part is worth one pip, an epic two, a
 ## legendary three. `Database._lay_pips` converts that into whatever raw unit
-## the gauge is kept in — 7 hull, 2 heat capacity, 2 shedding — and then
+## the gauge is kept in — 7 hull, 2 heat capacity, 2 venting — and then
 ## `RunState.attr_*` converts it back. THIS CHECKS THE ROUND TRIP, by bolting
 ## each part onto a bare frame and reading the gauge before and after.
 ##
 ## Two ways it goes wrong and neither one throws:
 ##
-## ROUNDING. A pip of shedding is 1.5 and the field is an int, so it is stored
+## ROUNDING. A pip of venting is 1.5 and the field is an int, so it is stored
 ## as 2 and reads back as 1.3 — which rounds to 1 and is fine, until a formula
 ## is retuned and it rounds to 2. Nothing announces that; the part quietly
 ## becomes worth double its grade.
@@ -66,6 +66,7 @@ func run() -> void:
 		print("  %-22s %-10s %-8s %6d %6d%s"
 			% [m.name, "cost", row[0], want, got, mark])
 
+	_floor()
 	_ok("every part moves its gauge by exactly what its grade promised",
 		bad.is_empty())
 	for b in bad:
@@ -119,3 +120,39 @@ func _supplier(axis: StringName) -> StringName:
 		&"heat", &"vent": return &"shroud"
 		&"dodge", &"init": return &"singing"
 	return &""
+
+
+## AN ATTRIBUTE STOPS AT ZERO. It does not go under, and it is not shown as a
+## negative anywhere.
+##
+## The arithmetic above zero is plain — four stealth and a flare rack is three,
+## and that is a real pip the rack costs a stealth build. What this checks is
+## the bottom: a price on a gauge that is already empty reads 0, not -1, and
+## not a smaller number than nothing.
+##
+## Only sensors and stealth could ever have failed it. They are the two summed
+## straight off the hull and its modules rather than derived from a quantity
+## that was floored on the way — heat capacity floors at 1, dissipation and
+## dodge at 0, and nothing had ever been negative on any of them.
+func _floor() -> void:
+	var bad: Array[String] = []
+	for id in DB.PASSIVE_COST:
+		var row: Array = DB.PASSIVE_COST[id]
+		var key: StringName = ON[row[0]]
+		var m: ModuleData = DB.modules[id]
+		Rng.forced = 4242
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Run.installed.clear()
+		Run.hp = Run.max_hp()
+		var priced := m.duplicate(true) as ModuleData
+		priced.mount = 0
+		Run.installed.append(priced)
+		var sunk := _read(key)
+		print("  %-22s %-10s %-8s %6d %6d%s"
+			% [m.name, "floor", row[0], 0, sunk, "" if sunk == 0 else "   UNDER"])
+		if sunk != 0:
+			bad.append("%s reads %d on a gauge that was already empty"
+				% [m.name, sunk])
+	_ok("a gauge with nothing on it stays at zero", bad.is_empty())
+	for b in bad:
+		_fail(b)

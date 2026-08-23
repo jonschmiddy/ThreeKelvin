@@ -55,6 +55,15 @@ const SHORT = {'Korvan Heavy Works':'Korvan','Solari Foundry':'Solari',
 const TARGET = {'Korvan Heavy Works':40,'Unbranded':20,'Solari Foundry':40,
   'The Probate Combine':40,'Redline Shipyards':40,'Cygnet Dynamics':40,
   'Verity Ateliers':40,'Calyx Biosystems':40};
+// Which gauge each passive axis lands on, and the word the game shows for it.
+// Two axes share THERMAL and two share MANEUVERABILITY, so the axis is named in
+// brackets after it — "THERMAL +1 (vent)" is a different part from
+// "THERMAL +1 (capacity)" even though the gauge moves the same distance.
+const GAUGE = {
+  hull: ['HULL', ''], heat: ['THERMAL', 'capacity'], vent: ['THERMAL', 'vent'],
+  dodge: ['MANEUVER', 'dodge'], init: ['MANEUVER', 'initiative'],
+  sensors: ['SENSORS', ''], stealth: ['STEALTH', ''],
+};
 const RAR = ['Common','Uncommon','Rare','Epic','Legendary','Exotic','Artifact','Contraband'];
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-');
@@ -135,6 +144,30 @@ function cardLine(c) {
   return '<li>' + r + cost + '<span class="cn">' + esc(c.name) + '</span>'
     + '<span class="ct">' + esc(c.text) + '</span></li>';
 }
+// WHAT THE PART DOES TO THE SHIP, as opposed to what it puts in the deck.
+//
+// Printed even when it is zero, on any part that HAS an axis: a common plate
+// reading "HULL +0" is the ladder being legible rather than a bug, and leaving
+// the line off would make the same part look like one that moves nothing at all.
+// Those are different facts about a Hull Plating.
+function passiveLine(m) {
+  const bits = [];
+  if (m.axis) {
+    const g = GAUGE[m.axis];
+    bits.push('<span class="' + (m.pips ? 'gain' : 'nil') + '">' + g[0] + ' '
+      + (m.pips >= 0 ? '+' : '') + m.pips + (g[1] ? ' <em>' + g[1] + '</em>' : '')
+      + '</span>');
+  }
+  if (m.cost_axis) {
+    const g = GAUGE[m.cost_axis];
+    bits.push('<span class="loss">' + g[0] + ' −' + m.cost_pips
+      + (g[1] ? ' <em>' + g[1] + '</em>' : '') + '</span>');
+  }
+  if (m.power_cap) bits.push('<span class="gain">REACTOR +' + m.power_cap
+    + ' <em>cells</em></span>');
+  return bits.length ? '<p class="passive">' + bits.join('') + '</p>' : '';
+}
+
 function partCard(m) {
   const dupe = new Set(m.cards.map(c => c.name)).size === 1 && m.cards.length > 1;
   return '<article class="part" data-house="' + esc(m.house_name) + '" data-rarity="'
@@ -144,7 +177,8 @@ function partCard(m) {
     + '<p class="meta"><span class="r-' + slug(m.rarity) + '">' + esc(m.rarity.toUpperCase())
     + '</span> &middot; ' + esc(m.slot.toUpperCase()) + ' &middot; ' + m.w + '&times;' + m.h
     + ' &middot; ' + m.cells + (m.cells === 1 ? ' cell' : ' cells')
-    + (dupe ? ' &middot; <span class="pair">pair</span>' : '') + '</p></div></header>'
+    + (dupe ? ' &middot; <span class="pair">pair</span>' : '') + '</p>'
+    + passiveLine(m) + '</div></header>'
     + (m.flavour ? '<p class="flav">' + esc(m.flavour) + '</p>' : '')
     + '<ul class="cards">' + m.cards.map(cardLine).join('') + '</ul>'
     + '</article>';
@@ -175,6 +209,22 @@ const sizeSections = [1, 2, 3, 4].map(n => {
     + '<span class="hcount">' + parts.length + ' parts &middot; ' + shapes + '</span></h2>'
     + '<div class="grid">' + parts.map(partCard).join('') + '</div></section>';
 }).join(NL);
+
+const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.power_cap)
+  .sort((a, b) => (b.pips + (b.power_cap ? 1 : 0)) - (a.pips + (a.power_cap ? 1 : 0))
+    || a.name.localeCompare(b.name))
+  .map(m => {
+    const g = m.axis ? GAUGE[m.axis] : null;
+    return '<tr><td class="c-name">' + esc(m.name) + '</td>'
+      + '<td class="c-rar"><span class="r-' + slug(m.rarity) + '">'
+      + esc(m.rarity) + '</span></td>'
+      + '<td class="c-text">' + (g ? g[0] + (g[1] ? ' <em>' + g[1] + '</em>' : '')
+        : (m.power_cap ? 'REACTOR <em>cells</em>' : '—')) + '</td>'
+      + '<td class="c-cnt">' + (m.power_cap ? '+' + m.power_cap
+        : (m.pips ? '+' + m.pips : '0')) + '</td>'
+      + '<td class="c-from">' + (m.cost_axis
+        ? GAUGE[m.cost_axis][0] + ' −' + m.cost_pips : '') + '</td></tr>';
+  }).join(NL);
 
 const cardRows = CARDS.map(c =>
   '<tr>'
@@ -289,6 +339,14 @@ const CSS = [
 '.meta{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.05em;',
 '  color:var(--cold);margin:3px 0 0}',
 '.pair{color:var(--ember)}',
+'.passive{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0}',
+'.passive span{font-family:"IBM Plex Mono",monospace;font-size:9.5px;'
+  + 'letter-spacing:.07em;text-transform:uppercase;border:1px solid currentColor;'
+  + 'padding:0 4px;line-height:1.6}',
+'.passive em{font-style:normal;opacity:.7}',
+'.passive .gain{color:var(--ice)}',
+'.passive .nil{color:var(--cold);border-style:dashed}',
+'.passive .loss{color:var(--artifact)}',
 '.flav{font-size:12.5px;color:var(--chill);font-style:italic;margin:0;line-height:1.45}',
 '.plate{display:grid;gap:1px;flex:0 0 auto;padding:2px;border:1px solid currentColor;',
 '  align-self:flex-start;margin-top:2px}',
@@ -317,6 +375,7 @@ const CSS = [
 '.c-cost b{color:var(--ember);font-weight:500}',
 '.c-text{color:var(--chill)}',
 '.c-from,.c-rar{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--cold)}',
+'td em{font-style:normal;opacity:.65}',
 '.n.gap{color:var(--ember)}',
 '.n.done{color:var(--uncommon)}',
 '.bar{width:120px;min-width:90px}',
@@ -459,6 +518,16 @@ auditVerdict,
 + ' showing &middot; the plate is the part’s real footprint in the hold</p>',
 '<div id="by-house">' + houseSections + '</div>',
 '<div id="by-cells" class="hide">' + sizeSections + '</div>',
+
+'<h2>What each part does to the ship</h2>',
+'<p class="note">A part’s <b>grade</b> decides how far it moves a gauge and its '
++ '<b>name</b> decides which one — common and uncommon move nothing, rare +1, epic '
++ '+2, legendary +3, exotic +3 and a price elsewhere, artifact +4, contraband +2. '
++ 'Reactor capacity is the one exception and keeps its own rule, because it is the '
++ 'gauge that decides how much you can install.</p>',
+'<div class="scroll"><table><thead><tr><th>Part</th><th>Grade</th><th>Gauge</th>'
++ '<th class="n">Pips</th><th>Price</th></tr></thead><tbody>' + passiveRows
++ '</tbody></table></div>',
 
 '<h2>Every card, sorted by what it does</h2>',
 '<p class="note">Sorted by <b>effect</b>, not by name — so two cards that do the same '

@@ -1037,7 +1037,11 @@ func attr_maneuver(bare: bool = false) -> int:
 	return clampi(int(round(dodge(bare) * 23.0 + initiative(bare) * 0.9 + 1.5)),
 		0, ATTR_MAX)
 
-## Thermal is capacity AND shedding, per §1.4, because an event that asks "can
+## VENT, not "shedding". The card face says "Vent 3" and the field is called
+## dissipation; a third word for the same quantity in the comments is how two
+## halves of a game stop being about the same thing.
+##
+## Thermal is capacity AND venting, per §1.4, because an event that asks "can
 ## you sit in this heat" is asking about both and would otherwise need two
 ## attributes to answer.
 ##
@@ -1092,7 +1096,7 @@ func attr_thermal(bare: bool = false) -> int:
 	#
 	# The readings barely move — a medium reads 3 either way — because the change
 	# is a rounding convenience and not a retune. What it buys is that one point
-	# of shedding is exactly one pip and two of capacity is exactly one pip, so
+	# of venting is exactly one pip and two of capacity is exactly one pip, so
 	# the ladder can be exact instead of nearly right.
 	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.0 + dissipation(bare) / 1.0
 	return clampi(int(round(v)), 0, ATTR_MAX)
@@ -1118,6 +1122,16 @@ func attr_thermal(bare: bool = false) -> int:
 ## you, because a legendary dish is now worth more than any hull ever was.
 const SENSE_SCALE := 1.0
 
+## AN ATTRIBUTE STOPS AT ZERO. The clamp on the return is what enforces it, and
+## these two are the only gauges that could ever have needed it — they are
+## summed straight off the hull and its modules, where every other attribute is
+## derived from a quantity that was floored on the way here: heat capacity at 1,
+## dissipation and dodge at 0.
+##
+## A part that PRICES a gauge (see Database.PASSIVE_COST) can therefore take a
+## real pip off a build that has one, and takes nothing off a build that does
+## not. Both halves are checked by `-- attrtest`, which measures the price
+## against a supplier and then against an empty gauge.
 func attr_sensors(bare: bool = false) -> int:
 	var n := hull.sensors
 	if not bare:
@@ -1162,7 +1176,7 @@ func attr_stealth(bare: bool = false) -> int:
 ##
 ## INVERTED OUT OF THE FUNCTIONS ABOVE, not measured against them. attr_hull
 ## is ATTR_MAX * hp / HULL_REF, so a pip is HULL_REF / ATTR_MAX = 7 hull;
-## attr_thermal divides capacity by 2 and shedding by 1, so those are the
+## attr_thermal divides capacity by 2 and venting by 1, so those are the
 ## costs — and those two divisors are whole NUMBERS because of this table,
 ## since an int field cannot deliver a fractional pip. Change a formula and this has to change with it, which is exactly
 ## what `-- attrtest` is for: it installs every part on a reference frame and
@@ -1170,16 +1184,16 @@ func attr_stealth(bare: bool = false) -> int:
 ##
 ## THE COSTS ARE NOT COMPARABLE AND THAT IS THE INTERESTING PART. A pip of
 ## THERMAL bought with capacity is 2.1 heat you can hold; the same pip bought
-## with shedding is 1.5 heat a turn, forever. The gauge says they are equal
+## with venting is 1.5 heat a turn, forever. The gauge says they are equal
 ## because an event asking "can you sit in this" is answered by either. A
 ## FIGHT is not, and a part that vents is worth more than the gauge admits.
-## That is a fact about attr_thermal weighting shedding too lightly, not about
+## That is a fact about attr_thermal weighting venting too lightly, not about
 ## the ladder, and it is the first thing to re-measure if a coolant build
 ## starts winning.
 const PER_PIP := {
 	&"hull": 7.0,          ## HULL_REF / ATTR_MAX
 	&"heat": 2.0,          ## attr_thermal capacity term
-	&"vent": 1.0,          ## attr_thermal shedding term
+	&"vent": 1.0,          ## attr_thermal venting term
 	&"dodge": 1.0 / 23.0,  ## attr_maneuver
 	&"init": 1.0 / 0.9,    ## attr_maneuver
 	&"sensors": 1.0,       ## SENSE_SCALE, which is 1 for this reason

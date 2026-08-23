@@ -985,7 +985,7 @@ const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
 ## WHICH GAUGE A PART MOVES. The size is not here — it comes from the grade,
 ## through ATTR_BUMP and RunState.PER_PIP. This table only answers "which one".
 ##
-## ONE AXIS EACH, which is the change. Cold Sights used to carry shedding AND
+## ONE AXIS EACH, which is the change. Cold Sights used to carry venting AND
 ## sensors, Ghost Drive dodge AND stealth, the Fire Director initiative AND
 ## sensors — so "a rare part is worth one pip" could not be true of any of them,
 ## and a part quietly moving two gauges was worth double its grade with nothing
@@ -1002,7 +1002,7 @@ const PASSIVE_AXIS := {
 	&"bulkhead": &"hull",
 	# Holding heat.
 	&"shroud": &"heat", &"overdrive": &"heat", &"ventcan": &"heat",
-	# Shedding it.
+	# Venting it.
 	&"coolant": &"vent", &"coolline": &"vent", &"sporevent": &"vent",
 	# Not being hit.
 	&"chaff": &"dodge",
@@ -1038,7 +1038,7 @@ const PASSIVE_COST := {
 ## the plating: the grade does.
 ##
 ## Rounded into the field it lands in. `dodge` is a float and keeps its
-## fraction; everything else is an int, so a pip of shedding is 2 rather than
+## fraction; everything else is an int, so a pip of venting is 2 rather than
 ## 1.5. That rounding is exactly why `-- attrtest` measures the gauge instead of
 ## trusting this.
 func _seed_module_passives() -> void:
