@@ -387,6 +387,11 @@ func _ready() -> void:
 		Net.state = NetSession.State.IN_PARTY
 		Router.show_party()
 
+	if "chartshot" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ChartShot.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	# Every exhaust strip loaded and measured:  godot --headless --path . -- exhaust
 	# Headless on purpose: a plume that fails to load is invisible, not loud.
 	if "exhaust" in OS.get_cmdline_user_args():

@@ -52,6 +52,15 @@ var _view: ShipView = null
 var _spots: Array[Dictionary] = []
 var _phase: float = 0.0
 var _lit: ModuleData = null
+
+## THE PART BEING POINTED AT FROM SOMEWHERE ELSE.
+##
+## `_lit` answers "which mounts would take the thing I am carrying"; this
+## answers "where on the ship is the part I am reading about". They are
+## different questions and a drag is not involved in the second one, so the
+## refit screen's installed list can point at the hull without pretending to
+## carry anything.
+var _focus: ModuleData = null
 var _last_bob: int = -999
 var _passive: bool = false
 
@@ -173,6 +182,12 @@ func _draw() -> void:
 				# "what have I got on here" for all of them at once.
 				draw_rect(r.grow(1.0),
 					ModuleData.rarity_ink(m.rarity), false, 1.0)
+			# POINTED AT FROM THE LIST. Two rings rather than one, because a
+			# single hairline on a busy hull is not findable — the whole
+			# point is that your eye lands on it without searching.
+			if m == _focus:
+				draw_rect(r.grow(3.0), UITheme.ICE, false, 1.0)
+				draw_rect(r.grow(1.0), UITheme.ICE, false, 1.0)
 			continue
 		# AN EMPTY HARDPOINT IS NOT DRAWN AT ALL. A ring on every unfilled
 		# mount put a row of orange circles across a ship that was finished —
@@ -373,6 +388,14 @@ func hover(p: Vector2) -> void:
 ## Show which mounts would take `m`. Public so `-- fittest` can put the hull in
 ## the state a live drag puts it in — a drag is driven by the OS cursor and
 ## pushed events do not move that.
+## Point at one INSTALLED part, from a list somewhere else on the screen.
+## Null clears it. Idempotent, because a hover fires on every motion event.
+func focus(m: ModuleData) -> void:
+	if _focus == m:
+		return
+	_focus = m
+	queue_redraw()
+
 func light(m: ModuleData) -> void:
 	_lit = m
 	queue_redraw()

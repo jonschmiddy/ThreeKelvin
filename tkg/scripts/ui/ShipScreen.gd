@@ -109,7 +109,13 @@ const STATS_W := 220
 ## 524 is the smallest that fits everything: the manufacturer abilities want 470
 ## across, and a centred heavy needs the flag's 49 plus half a 336px view plus
 ## the 33 the hull sits off its own centre, which is 500 inside the padding.
-const PANEL_W := 524
+## 504, not 524. The right panel takes whatever the left column leaves, and a
+## readout NUDGES right on hover — so the row it sits in has to have twenty
+## pixels of slack or the far card slides under the screen edge while you are
+## reading about it. Taking them from here rather than adding them there,
+## because the left column is the one with room: its widest block, the
+## manufacturer abilities, wants 470 across.
+const PANEL_W := 504
 
 ## What Widgets.panel_with insets its child by, on each side.
 const PANEL_PAD := 12
@@ -128,6 +134,21 @@ const LABEL_AIR := 3
 ## under whatever is above them.
 
 const STORAGE_COLS := 4
+
+## How wide a module readout is in the installed list.
+##
+## WIDER THAN A CARD, deliberately. At a card's 112 the longest maker line
+## wrapped to two rows on Korvan parts and one on unbranded ones, so the boxes
+## were the same width and different HEIGHTS — which is the same raggedness
+## moved to the other axis. 150 fits "KORVAN HEAVY WORKS" on one line.
+const READOUT_W := 150.0
+
+## How far a readout slides right while it is being pointed at.
+##
+## Animated through a MarginContainer rather than by setting `position`: the
+## readout lives in an HBox, and a container overwrites a child's position on
+## the next layout pass. A margin is a thing the container itself honours.
+const NUDGE := 7.0
 
 ## THE PART CURRENTLY IN THE AIR, and where it came off.
 ##
@@ -156,6 +177,15 @@ var _class: Label
 var _hand: Label
 var _hold: Label
 var _abilities: VBoxContainer
+var _fithead: Label
+var _fitted: VBoxContainer
+
+## The clipping box the ship is drawn inside, and where it sits in it.
+var _clip: Control
+var _zoomed: bool = false
+var _pan: Vector2 = Vector2.ZERO
+var _panning: bool = false
+var _zoombtn: Button
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -223,8 +253,19 @@ func _build() -> void:
 	names.add_child(_name)
 	_maker = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	names.add_child(_maker)
+	var clsrow := HBoxContainer.new()
+	clsrow.add_theme_constant_override("separation", 8)
 	_class = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	names.add_child(_class)
+	clsrow.add_child(_class)
+	# Beside the class line rather than over the ship: anything drawn on the
+	# hull is a hardpoint, and a button there would read as one.
+	_zoombtn = Button.new()
+	_zoombtn.text = "ZOOM"
+	_zoombtn.focus_mode = Control.FOCUS_NONE
+	_zoombtn.tooltip_text = "Z - double the ship, then drag it about"
+	_zoombtn.pressed.connect(func(): _set_zoom(not _zoomed))
+	clsrow.add_child(_zoombtn)
+	names.add_child(clsrow)
 	header.add_child(names)
 
 	# AIR UNDER THE NAME. The ship's mount markers draw above the hull's own
@@ -295,7 +336,16 @@ func _build() -> void:
 	_padl = Control.new()
 	_padl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vwrap.add_child(_padl)
-	vwrap.add_child(view)
+	# THE CLIP BOX. It is what the layout sizes and centres; the view inside
+	# it is free to be bigger and to be dragged about. At 1x the two are the
+	# same size and this is invisible, which is what keeps every measurement
+	# in `_centre_ship` true -- the box does not change size when zoom does.
+	_clip = Control.new()
+	_clip.clip_contents = true
+	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
+	_clip.gui_input.connect(_on_clip_input)
+	_clip.add_child(view)
+	vwrap.add_child(_clip)
 	var padr := Control.new()
 	padr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	padr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -425,15 +475,36 @@ func _build() -> void:
 	lcol.add_child(lwrap)
 	body.add_child(lcol)
 
-	# --- right: the parts, and where they go
+	# --- right: what is bolted on, and what it puts in the deck
+	#
+	# THIS PANEL WAS EMPTY. The hold moved to the left column and nothing took
+	# its place, so a third of the screen was a lit box with a spacer in it.
+	#
+	# It answers the question the left panel cannot. The left says what the ship
+	# IS — its numbers, its budgets, its silhouette. This says what you have
+	# ASSEMBLED: the parts on the hull, and the cards those parts will deal you.
+	# A module's cards were previously visible only in a tooltip, one module at a
+	# time, which is the wrong shape for the question "what does my deck look
+	# like now" — that is a question about all of them at once.
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var rgap := Control.new()
-	rgap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	rgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right.add_child(rgap)
+	_fithead = UITheme.body("INSTALLED", UITheme.COLD, UITheme.FS_SMALL)
+	right.add_child(_fithead)
+
+	# SCROLLED, because this is the one block with no ceiling: a heavy S carries
+	# nine mounts and each module brings its own cards. Horizontal scrolling is
+	# off — a row is three card-widths and the panel is wider than that, so a
+	# sideways bar could only ever mean the window is too small for one row.
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_fitted = VBoxContainer.new()
+	_fitted.add_theme_constant_override("separation", 8)
+	_fitted.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_fitted)
+	right.add_child(scroll)
 
 	# EXPAND_FILL on the PANEL, not on the column inside it. Setting it on the
 	# inner VBox does nothing useful — the wrapper is the child the HBox is
@@ -443,44 +514,141 @@ func _build() -> void:
 	rwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(rwrap)
 
-## Where the ship's own pad has to be for its middle to be the panel's middle.
-##
-## ARITHMETIC, on the first frame, because the alternative was watching it
-## happen. This measured and corrected itself over several frames instead, and
-## converged — but the frames it spent converging are frames that get drawn, so
-## opening the screen jumped the ship sideways every time. A closed form is only
-## possible because PANEL_W is fixed; while the panel could grow to fit the ship
-## the two chased each other and nothing closed.
-##
-## Three terms, all of them things pushing the ship RIGHT of the middle:
-## the flag it sits beside, half the width of the view, and how far the hull
-## sits from the middle of its own canvas — which is not zero, because the
-## canvas carries the exhaust plume's clearance on one side only.
+## SUPERSEDED by `_sync_clip`, which places the view inside the window rather
+## than padding a row to push it. Kept as a name the rest of the screen calls
+## when the hull changes; the arithmetic it used to hold is in `_ship_x`.
 func _centre_ship() -> void:
-	if _padl == null or _view == null:
-		return
-	_padl.custom_minimum_size = Vector2(maxf(0.0,
-		(PANEL_W - PANEL_PAD * 2.0) * 0.5
-		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP)
-		- _view.canvas_width() * 0.5
-		- _view.ship_offset_x()), 0)
+	_sync_clip()
 
-## R TURNS A PART. Whichever one you are holding, or the one under the cursor.
-##
-## Unhandled rather than a shortcut on a focused control, because neither of the
-## two things it acts on can hold focus: a drag preview is owned by the viewport
-## and a plate in the hold is something you are pointing at, not something you
-## have clicked. The key belongs to the screen, which is the only thing that can
-## see both.
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
-	if k == null or not k.pressed or k.echo or k.keycode != KEY_R:
+	if k == null or not k.pressed or k.echo:
+		return
+	if k.keycode == KEY_Z:
+		_set_zoom(not _zoomed)
+		get_viewport().set_input_as_handled()
+		return
+	if k.keycode == KEY_ESCAPE and _zoomed:
+		_set_zoom(false)
+		get_viewport().set_input_as_handled()
+		return
+	if k.keycode != KEY_R:
 		return
 	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
 		get_viewport().set_input_as_handled()
 
+## ZOOM, IN PLACE. The ship doubles and the panel does not.
+##
+## The panel cannot grow: the left column is a fixed 524px because everything
+## about where the ship sits is measured off its middle, and `_centre_ship`
+## closes in one frame only while that width cannot move. So the box stays the
+## size it was at 1x, a doubled ship is simply bigger than its window, and that
+## is why this comes with a drag.
+##
+## MountPoints goes to PASS while zoomed. It is STOP normally and covers the
+## whole hull, so with it stopping events the box underneath never saw a press
+## and nothing could be dragged. PASS still delivers its hover and still leaves
+## it a drop target -- IGNORE is the filter that would break those -- and the
+## event carries on to the box behind it.
+func _set_zoom(on: bool) -> void:
+	if _view == null or _clip == null:
+		return
+	_zoomed = on
+	if not on:
+		_pan = Vector2.ZERO
+	_view.magnify(2 if on else 1, HULL_VIEW_H)
+	if _mountpts != null:
+		_mountpts.mouse_filter = (Control.MOUSE_FILTER_PASS if on
+			else Control.MOUSE_FILTER_STOP)
+	if _zoombtn != null:
+		_zoombtn.text = "RESET" if on else "ZOOM"
+	_sync_clip()
 
-## Turn what is being dragged. The record and the thing under the cursor both.
+## How much width the ship's row actually has, inside the panel and beside the
+## flag. The window onto the ship is this wide at every zoom level.
+func _row_width() -> float:
+	return ((PANEL_W - PANEL_PAD * 2.0)
+		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP))
+
+## How far a MODULE may stick out past the hull canvas.
+##
+## A gun is drawn on a mount and its barrel runs off the end of the sprite it is
+## bolted to, so a window sized to the canvas cuts the front off the longest one.
+## The canvas is the hull's extent, never the ship's.
+const MOUNT_BLEED := 72.0
+
+## Where the ship's left edge goes so its middle is the PANEL's middle.
+##
+## Same arithmetic that used to set the left pad, applied to the view's position
+## inside the box instead. Three terms, all of them things pushing the ship right
+## of the middle: the flag it sits beside, half the width of the view, and how
+## far the hull sits from the middle of its own canvas -- which is not zero,
+## because the canvas carries the exhaust plume's clearance on one side only.
+func _ship_x() -> float:
+	if _view == null:
+		return 0.0
+	return ((PANEL_W - PANEL_PAD * 2.0) * 0.5
+		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP)
+		- _view.canvas_width() * 0.5
+		- _view.ship_offset_x())
+
+## Size the window onto the ship, and place the ship in it.
+##
+## THE WINDOW IS THE WHOLE ROW, at 1x as well as zoomed. It was the canvas width
+## at 1x, which put an invisible edge exactly on the hull's bounding box and cut
+## the muzzle off the longest gun -- the hull ends there, the SHIP does not.
+func _sync_clip() -> void:
+	if _clip == null or _view == null:
+		return
+	var box := Vector2(maxf(_row_width(), 1.0), float(HULL_VIEW_H))
+	_clip.custom_minimum_size = box
+	_clip.size = box
+	# The box fills the row, so there is nothing left for the pad to do.
+	if _padl != null:
+		_padl.custom_minimum_size = Vector2.ZERO
+	_view.size = Vector2(_view.canvas_width(), _view.canvas_height())
+	_view.position = (Vector2(_ship_x(), (box.y - _view.size.y) * 0.5)
+		+ _pan).floor()
+	# THE MOUNTS HAVE TO BE TOLD. Every marker and fitted part is placed through
+	# ShipView.canvas_to_local, which reads the magnification and the view's rect
+	# -- both of which just changed. Without this they keep last frame's positions
+	# and appear to float off the hull until something else repaints them.
+	if _mountpts != null:
+		_mountpts.refresh()
+		# And again once layout has settled: the call above runs before the
+		# container has resized its children, so it places against the OLD rect.
+		_mountpts.refresh.call_deferred()
+
+## Drag to pan, but only while zoomed and only when nothing is being carried.
+##
+## `gui_is_dragging` is the guard that matters: a module lifted off a mount is a
+## live Godot drag and its motion still arrives here. Without it, taking a gun
+## off the hull also slid the ship out from under the cursor.
+func _on_clip_input(event: InputEvent) -> void:
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
+		_panning = mb.pressed and not get_viewport().gui_is_dragging()
+		return
+	var mm := event as InputEventMouseMotion
+	if mm == null or not _panning:
+		return
+	if get_viewport().gui_is_dragging():
+		_panning = false
+		return
+	_pan += mm.relative
+	# Far enough to bring an overhanging gun into the window, and no
+	# further. Measured off the SHIP's extent rather than the box's, so it
+	# still allows movement at 1x where the hull is narrower than the row.
+	var slack := (_view.size - _clip.size) * 0.5
+	slack.x = maxf(slack.x, 0.0) + MOUNT_BLEED
+	slack.y = maxf(slack.y, 0.0) + MOUNT_BLEED * 0.5
+	_pan.x = clampf(_pan.x, -slack.x, slack.x)
+	_pan.y = clampf(_pan.y, -slack.y, slack.y)
+	_view.position = (Vector2(_ship_x(),
+		(_clip.size.y - _view.size.y) * 0.5) + _pan).floor()
+	if _mountpts != null:
+		_mountpts.refresh()
+
 func _turn_carried() -> bool:
 	var d: Variant = get_viewport().gui_get_drag_data()
 	if typeof(d) != TYPE_DICTIONARY or not (d as Dictionary).has("module"):
@@ -536,8 +704,9 @@ func _refresh() -> void:
 	if Run.hull == null:
 		return
 	# The hull changed, so its canvas width and its offset inside that canvas
-	# may have too.
-	_centre_ship()
+	# may have too -- and the clip box is sized off the canvas, so it has to
+	# be re-fitted before anything is centred against it.
+	_sync_clip()
 	var man := Run.hull.manufacturer
 	var maker: ManufacturerData = DB.manufacturers.get(man)
 	var accent := maker.colour if maker != null else UITheme.CHILL
@@ -588,6 +757,104 @@ func _refresh() -> void:
 	# neither half of that survives a grid: the hold holds as many things as
 	# their shapes allow, so the honest number is how much ROOM is gone.
 	_hold.text = "STORAGE — %d of %d cells" % [Run.cargo_used(), Run.cargo_slots()]
+
+	_refresh_loadout()
+
+## What is bolted on, and every card it will deal you.
+##
+## Grouped by slot rather than listed flat, because that is how the ship is
+## budgeted: the tally on the left says two of three weapons are filled, and
+## this is the row that says WHICH two. A flat list makes you count.
+##
+## Cards at hand scale, which is the scale they are played at. Inspect scale
+## exists and is exactly 2x, but a card you are reading in a panel is the same
+## card you will read in a hand, and showing it larger here would teach a size
+## that never appears in combat.
+## Point the hull at a part in the list, so reading about it shows you where
+## it is. The reverse direction already existed — hovering the ship outlines
+## everything on it — and this closes the loop from the other side.
+func _focus_part(m: ModuleData, slot: MarginContainer = null,
+		on: bool = false) -> void:
+	if _mountpts != null:
+		_mountpts.focus(m)
+	if slot == null:
+		return
+	# One tween per row, killed before a new one starts: moving the mouse
+	# along the column fires enter and exit faster than a tween finishes,
+	# and two live tweens on one margin fight over it.
+	var old: Tween = slot.get_meta(&"nudge", null) as Tween
+	if old != null and old.is_valid():
+		old.kill()
+	var tw := create_tween()
+	tw.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_method(func(v: float) -> void:
+		slot.add_theme_constant_override("margin_left", int(round(v))),
+		float(slot.get_theme_constant("margin_left")),
+		NUDGE if on else 0.0, 0.12)
+	slot.set_meta(&"nudge", tw)
+
+func _refresh_loadout() -> void:
+	if _fitted == null:
+		return
+	Widgets.clear(_fitted)
+
+	var fitted := 0
+	var mounts := 0
+	var cards := 0
+	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		mounts += Run.slots_for(s)
+		var mine: Array[ModuleData] = []
+		for m in Run.installed:
+			if m.slot == s:
+				mine.append(m)
+		if mine.is_empty():
+			continue
+		_fitted.add_child(UITheme.body(
+			"%s — %d of %d" % [ModuleData.slot_name(s).to_upper(),
+				mine.size(), Run.slots_for(s)],
+			UITheme.COLD, UITheme.FS_SMALL))
+		for m in mine:
+			fitted += 1
+			# MODULE FIRST, THEN ITS CARDS. The part is the thing you fitted
+			# and the cards are what it gives you, so the row reads in the
+			# order the decision was made — and every row starts with the
+			# maker's colour bar down its left edge, which turns the column
+			# into something you can scan by house.
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 4)
+			# A CARD'S WIDTH exactly, so the rows line up into a column. Left to
+			# itself the box grows to its longest line and no two modules agree.
+			var ro := Widgets.module_readout(m, READOUT_W)
+			# STOP, because module_readout hands back an IGNORE panel — it is
+			# built for a tooltip, where eating the mouse would count as
+			# leaving the thing being pointed at. Here it IS the thing.
+			ro.mouse_filter = Control.MOUSE_FILTER_STOP
+			var slot := MarginContainer.new()
+			slot.add_theme_constant_override("margin_left", 0)
+			slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot.add_child(ro)
+			ro.mouse_entered.connect(_focus_part.bind(m, slot, true))
+			ro.mouse_exited.connect(_focus_part.bind(null, slot, false))
+			row.add_child(slot)
+			for c in m.resolved_cards():
+				cards += 1
+				var cv := CardView.new()
+				# TRUE, and it is not a claim about affordability. `playable`
+				# drives `modulate.a` — false renders at 34% and the whole panel
+				# came out looking disabled. There is no energy pool on a refit
+				# screen for a card to be unaffordable against.
+				cv.setup(c, true, 1)
+				# IGNORE. These are a readout, not a hand: a card that eats the
+				# mouse here would swallow the scroll wheel over half the panel.
+				cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				row.add_child(cv)
+			_fitted.add_child(row)
+
+	if fitted == 0:
+		_fitted.add_child(UITheme.body("Nothing bolted on yet.",
+			UITheme.COLD, UITheme.FS_SMALL))
+	_fithead.text = "INSTALLED — %d of %d mounts · %d card%s" % [
+		fitted, mounts, cards, "" if cards == 1 else "s"]
 
 ## The hardpoint tally, mirroring the chassis select's.
 ##

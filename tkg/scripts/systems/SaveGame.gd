@@ -447,10 +447,26 @@ static func _hull_to(h: HullData) -> Dictionary:
 static func _hull_from(e: Variant) -> HullData:
 	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}
 	var base: HullData = DB.hull_frames[1]
-	for frame in DB.hull_frames:
-		if frame.name == str(d.get("name", "")):
-			base = frame
-			break
+	# MAKER AND WEIGHT FIRST, name only as a fallback.
+	#
+	# The warning above came true: hulls gained a name per CLASS, so a save
+	# holding a Halberd Cutter found nothing in `hull_frames` — those carry
+	# the tier-0 name — and silently restored an unbranded Medium Frame with
+	# somebody else's perk. Maker and weight are both written into the save
+	# and neither is renameable, so they identify the frame outright.
+	var man := StringName(str(d.get("manufacturer", "")))
+	var found := false
+	if man != &"":
+		for frame in DB.hull_frames:
+			if frame.manufacturer == man and int(frame.weight) == int(d.get("weight", -1)):
+				base = frame
+				found = true
+				break
+	if not found:
+		for frame in DB.hull_frames:
+			if frame.name == str(d.get("name", "")):
+				base = frame
+				break
 	var h := base.duplicate(true) as HullData
 	h.perk_id = StringName(str(d.get("perk_id", "salvage_rack")))
 	# Absent in a save written before hulls had makers, in which case the frame

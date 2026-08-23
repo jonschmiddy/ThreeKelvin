@@ -257,7 +257,10 @@ static func trade_line(n: MapGen.MapNode) -> String:
 	if n.type == MapGen.NodeType.GOAL:
 		return ""
 	if n.makers.is_empty():
-		return "NO MARKET - PAYS FLAT FOR EVERYTHING"
+		# The tail said what a flat rate MEANS, which the price beside it already
+		# says every time you read one. Two words is a state; the sentence was a
+		# tutorial repeated on every visit.
+		return "NO MARKET"
 	var short: Array[String] = []
 	for id in DB.STARTABLE:
 		if not n.makers.has(id):

@@ -1274,6 +1274,20 @@ const TIER_DELTA := [
 const MAKER_HULLS := {
 	&"korvan": {
 		names = ["Picket Cutter", "Ironside Cutter", "Bastion Monitor"],
+		# A NAME PER CLASS, C through S. `names` above stays as the fallback for
+		# a house that has not been given twelve yet, and its entry is the C of
+		# each line here, so nothing that shipped changed its name.
+		#
+		# The escalation is inside the family rather than across it: a Korvan
+		# light is always a Cutter and a Korvan heavy is always a Monitor,
+		# because the hull TYPE is what the weight class means and only the
+		# grade should move. Sharpening for the escorts, fortification for the
+		# line ships, and the heavies climb from a bastion to a paladin.
+		class_names = [
+			["Picket Cutter", "Warden Cutter", "Halberd Cutter", "Sabre Cutter"],
+			["Ironside Cutter", "Bulwark Cutter", "Rampart Cutter", "Vanguard Cutter"],
+			["Bastion Monitor", "Citadel Monitor", "Aegis Monitor", "Paladin Monitor"],
+		],
 		perk_id = &"baffled_vents",
 		d = {max_hull = 5, heat_cap = 2, dodge = -0.02, initiative = -1}},
 	&"solari": {
@@ -1349,6 +1363,22 @@ func _seed_hulls() -> void:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			hull_frames.append(_maker_hull(man, w, spec))
 
+## What a maker calls a hull at a given class.
+##
+## Falls back to the one-name-per-weight list, which is what every house had
+## before and what six of the seven still have. A house with `class_names` gets
+## four distinct ships per weight instead of four grades of the same ship —
+## which is the difference between "Picket Cutter, C TIER" and a Sabre Cutter.
+func maker_hull_name(man: StringName, w: HullData.Weight, cls: int = 0) -> String:
+	if not MAKER_HULLS.has(man):
+		return ""
+	var spec: Dictionary = MAKER_HULLS[man]
+	if spec.has("class_names"):
+		var rows: Array = spec.class_names
+		var row: Array = rows[int(w)]
+		return row[clampi(cls, 0, row.size() - 1)]
+	return spec.names[int(w)]
+
 func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullData:
 	var h := HullData.new()
 	var base: Dictionary = WEIGHT_BASE[w]
@@ -1371,7 +1401,7 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	# default MEDIUM and hull_for(man, LIGHT) matched nothing.
 	h.weight = w
 	h.manufacturer = man
-	h.name = spec.names[int(w)]
+	h.name = maker_hull_name(man, w, 0)
 	h.perk_id = spec.perk_id
 	h.sprite = hull_sprite(w)
 	h.sprite_half = hull_sprite(w, 0, true)
@@ -1824,6 +1854,13 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.sprite_half = hull_sprite(h.weight, t, true)
 	apply_hull_lines(h)
 	set_exhaust(h, h.exhaust_id, t)
+	# AND THE NAME. A class already grants a different sprite, different
+	# hardpoints and a different reactor; leaving four of them sharing one name
+	# meant the only thing telling a Sabre from a Picket was a letter in the
+	# subtitle. Salvage frames keep theirs — they have no house to name them.
+	var named := maker_hull_name(h.manufacturer, h.weight, t)
+	if named != "":
+		h.name = named
 	return h
 
 func _seed_perks() -> void:

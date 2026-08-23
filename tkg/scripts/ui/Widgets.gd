@@ -503,7 +503,13 @@ static func other_maker_rows(hull_man: StringName) -> Array:
 ## it is called, then what class of thing it is, then the flavour last. Flavour
 ## next to specifications always loses — the eye is scanning for facts and finds
 ## a sentence in the middle of them.
-static func module_readout(m: ModuleData) -> PanelContainer:
+## `width` FIXES the box rather than merely floors it.
+##
+## custom_minimum_size is a minimum, so a long name pushed the panel wider
+## than a card and every row in a column of these started at a different
+## place — a KH-20 Chatterbox against a Mining Laser was 40px of difference.
+## Passing a width clamps it too and lets the text wrap inside instead.
+static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var sb := UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 7, 8)
 	sb.border_width_left = 3
@@ -512,22 +518,39 @@ static func module_readout(m: ModuleData) -> PanelContainer:
 	# A CARD'S WIDTH, so the three boxes are one object rather than a wide panel
 	# with two cards stuck to it. card_readout is 178 because it stands alone at
 	# the cursor; this one stands in a row of cards and has to belong to it.
-	panel.custom_minimum_size = Vector2(CardView.CARD_W, 0)
+	var w := width if width > 0.0 else float(CardView.CARD_W)
+	panel.custom_minimum_size = Vector2(w, 0)
+	if width > 0.0:
+		# SHRINK_BEGIN so the parent row cannot stretch it past the minimum;
+		# together they make the minimum an exact size.
+		panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	panel.add_child(box)
 
-	box.add_child(UITheme.body(m.name.to_upper(),
-		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
+	var nm := UITheme.body(m.name.to_upper(),
+		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL)
+	if width > 0.0:
+		# The name is the only line long enough to set the width, so it is the
+		# only one that has to be allowed to wrap.
+		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nm.custom_minimum_size = Vector2(0, 0)
+	box.add_child(nm)
 	var f := m.footprint()
 	box.add_child(UITheme.body("%s \u00b7 %s" % [
 		ModuleData.rarity_name(m.rarity).to_upper(),
 		ModuleData.slot_name(m.slot).to_upper()], UITheme.COLD, UITheme.FS_SMALL))
-	box.add_child(UITheme.body("%s" % (DB.manufacturer_name(m.manufacturer)
+	var mk := UITheme.body("%s" % (DB.manufacturer_name(m.manufacturer)
 		if m.manufacturer != &"" else "Unbranded"),
-		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL))
+		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL)
+	if width > 0.0:
+		# THE MAKER LINE IS THE WIDEST, not the name: "KORVAN HEAVY WORKS"
+		# is three characters longer than "KH-20 CHATTERBOX". Wrapping only
+		# the name left this one setting the width and the column ragged.
+		mk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(mk)
 	box.add_child(UITheme.body("%dx%d \u00b7 %d %s" % [f.x, f.y, m.cells(),
 		"cell" if m.cells() == 1 else "cells"], UITheme.CHILL, UITheme.FS_SMALL))
 

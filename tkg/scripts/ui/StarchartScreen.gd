@@ -17,6 +17,7 @@ var _layer_text: Label
 var _all_btn: Button
 var _icons_btn: Button
 var _links_btn: Button
+var _region_btn: Button
 
 var _dest_name: Label
 var _dest_class: Label
@@ -99,6 +100,24 @@ func _build() -> void:
 	var chart_wrap := Widgets.panel_with(_chart)
 	chart_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(chart_wrap)
+
+	# OVER THE CHART, bottom right, sitting on the scale bar it belongs with.
+	# Both answer "where am I and how big is this", so together they read as
+	# one instrument in the corner rather than a toolbar item at one end of
+	# the screen and a decoration at the other.
+	#
+	# A child of the CHART rather than of the panel around it, so it follows
+	# the chart's rect and needs no second set of margins to stay put.
+	_region_btn = Widgets.button("MY REGION", _on_region)
+	_region_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	# Clear of the bar by its own padding, plus the height of the bar and
+	# its label. Measured off the chart's own constants so the two cannot
+	# drift apart when either is retuned.
+	_region_btn.offset_left = -(88.0 + MapChart.BAR_PAD)
+	_region_btn.offset_right = -MapChart.BAR_PAD
+	_region_btn.offset_top = -(14.0 + MapChart.BAR_PAD + 18.0)
+	_region_btn.offset_bottom = -(MapChart.BAR_PAD + 18.0)
+	_chart.add_child(_region_btn)
 
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
@@ -472,6 +491,14 @@ func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 ## Everything the chart draws over the galaxy, off. Worth having as a button
 ## rather than a debug flag: the galaxy is the best thing on this screen and the
 ## systems are, unavoidably, 190 icons sitting on top of it.
+## Frame the neighbourhood the ship is standing in. Reads the CURRENT node
+## rather than the selection: the button is about where you are, and a
+## selected system three rings away is where you are going.
+func _on_region() -> void:
+	var here: MapGen.MapNode = Run.node_at()
+	if here != null and _chart != null:
+		_chart.frame_region(here)
+
 func _on_toggle_all() -> void:
 	_chart.show_all = not _chart.show_all
 	if _all_btn != null:
@@ -932,6 +959,27 @@ class MapChart extends Control:
 	const ZOOM_MAX := 6.0
 
 	const DISC := 2.05
+
+	## How far across the galaxy is, so a bar can say a NUMBER.
+	##
+	## `MapNode.gal` is normalised — a fraction of the disc radius — which is
+	## the right thing for a map that only has to be self-consistent, and no
+	## use at all to a reader asking how far a jump is. One constant turns the
+	## whole chart into real units.
+	##
+	## 50,000 is chosen rather than measured: it is roughly the Milky Way's
+	## radius, so the bar reads as a galaxy instead of a solar system. Nothing
+	## in the sim depends on it — MapGen prices jumps off `gal` directly — so
+	## this is a label, and changing it relabels without rebalancing.
+	const RADIUS_LY := 50000.0
+
+	## Bar lengths worth printing. The bar picks the largest that still fits
+	## in its allowance, so it steps 1-2-5 the way a map scale should rather
+	## than showing whatever 120px happens to be.
+	const BAR_STEPS := [10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0,
+		2000.0, 5000.0, 10000.0, 20000.0, 50000.0]
+	const BAR_MAX_PX := 140.0
+	const BAR_PAD := 12.0
 
 	## How hard the fixed sky slides against the galaxy when you drag.
 	##
@@ -1734,6 +1782,119 @@ class MapChart extends Control:
 			_draw_tip(Run.map[hovered], here)
 		elif _neb_hot != "":
 			_draw_neb_tip()
+
+		_draw_scale()
+
+	## HOW FAR IS THAT, in light years.
+	##
+	## A zoomable map without one asks the reader to hold a scale in their
+	## head across every zoom step. The bar is the standard answer and it is
+	## cheap: pick the longest round number that fits the allowance, draw it,
+	## print it.
+	##
+	## Bottom LEFT. The tooltip follows the cursor and the party markers sit
+	## with the ships, and both of those move; this does not, so it goes in
+	## the one corner nothing else claims.
+	func _draw_scale() -> void:
+		# Pixels per light year at the current zoom. `_polar` scales a `gal`
+		# of 1.0 by radius*DISC, and the view then scales by `zoom`.
+		var per_gal := _radius() * DISC * zoom
+		if per_gal <= 0.0:
+			return
+		var per_ly := per_gal / RADIUS_LY
+		var ly := 0.0
+		for step in BAR_STEPS:
+			if float(step) * per_ly <= BAR_MAX_PX:
+				ly = float(step)
+		if ly <= 0.0:
+			# Zoomed so far in that even the shortest step overflows. Show the
+		# shortest anyway rather than nothing — a bar running off its
+		# allowance still reads as a scale; an empty corner does not.
+			ly = float(BAR_STEPS[0])
+		var w := minf(ly * per_ly, BAR_MAX_PX)
+		var y := size.y - BAR_PAD
+		# BOTTOM RIGHT, under the MY REGION button. They answer the same kind
+		# of question -- where am I, how big is this -- so they read as one
+		# instrument in the corner rather than two ornaments at opposite ends.
+		var x := size.x - BAR_PAD - w
+		var ink := UITheme.COLD
+		# A bar with end ticks, not a bare line: the ticks are what say where
+		# it starts and stops on a field of stars.
+		draw_line(Vector2(x, y), Vector2(x + w, y), ink, 1.0)
+		draw_line(Vector2(x, y - 4.0), Vector2(x, y + 1.0), ink, 1.0)
+		draw_line(Vector2(x + w, y - 4.0), Vector2(x + w, y + 1.0), ink, 1.0)
+		# Thousands read better than five digits on an 8px face.
+		var txt := ("%d ly" % int(ly) if ly < 1000.0
+			else "%dk ly" % int(ly / 1000.0))
+		draw_string(UITheme.pixel_font(), Vector2(x, y - 7.0), txt,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, ink)
+
+	## FRAME WHERE YOU ARE, not the ring you are on.
+	##
+	## The first version framed the whole LAYER, which is right in the abstract
+	## and useless in practice: at the rim a layer is most of the galaxy's
+	## circumference, so the fit came out at ZOOM_MIN and the button appeared to
+	## do nothing on exactly the screen you start the run on.
+	##
+	## A neighbourhood instead: everything within `span` of you in galaxy
+	## coordinates, which is the same measure MapGen prices jumps by. That is
+	## the region you can actually reach, and it frames the same way whether you
+	## are on the rim or in the core.
+	func frame_region(here: MapGen.MapNode, span: float = 0.24) -> void:
+		if Run.map.is_empty() or here == null:
+			return
+		var was := zoom
+		var before := pan
+		var lo := Vector2.INF
+		var hi := -Vector2.INF
+		var n := 0
+		for node in Run.map:
+			var mn: MapGen.MapNode = node
+			if MapGen.hop_distance(here, mn) > span:
+				continue
+			var p := _polar(mn)
+			lo = lo.min(p)
+			hi = hi.max(p)
+			n += 1
+		if n <= 1:
+			# Nothing near you but you. Centre on the ship at a readable zoom
+		# rather than dividing by a span of nothing.
+			zoom = clampf(2.0, ZOOM_MIN, ZOOM_MAX)
+			pan = -_polar(here) * zoom
+			_clamp_pan()
+			_settle_sky(was, before)
+			return
+		var box := (hi - lo).max(Vector2.ONE)
+		# A margin, or the outermost system sits on the frame edge with its name
+		# label hanging off the chart.
+		var want := minf(size.x / (box.x + 180.0), size.y / (box.y + 140.0))
+		zoom = clampf(want, ZOOM_MIN, ZOOM_MAX)
+		pan = -((lo + hi) * 0.5) * zoom
+		_clamp_pan()
+		_settle_sky(was, before)
+
+	## Move the SKY to match a jump the view just made.
+	##
+	## The starfield is not drawn from `pan`. It has its own offset, and only
+	## dragging and `_zoom_at` were maintaining it — so setting `zoom` and
+	## `pan` directly moved the systems and left the galaxy where it was. On
+	## screen that reads as the local region being pasted onto the middle of
+	## an unmoved galaxy, and it corrected itself the moment you dragged,
+	## which is what made it look like a repaint bug rather than a missing
+	## term.
+	##
+	## Two motions, in the order the view made them: pivot about the frame
+	## centre for the zoom, then translate by however far the pan moved.
+	## `_repaint_galaxy` is the other half — the starfield is a cached image,
+	## so a queue_redraw alone repaints everything except the thing that
+	## moved.
+	func _settle_sky(was: float, before: Vector2) -> void:
+		var c0 := size * 0.5
+		var soft: float = pow(zoom / maxf(0.0001, was), SKY_ZOOM_POWER)
+		sky_pan = c0 - (c0 - sky_pan) * soft
+		sky_pan += pan - before
+		_repaint_galaxy()
+		queue_redraw()
 
 	## The boundary of the cloud under the cursor, and only that one.
 	##

@@ -57,6 +57,14 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 	# arrival is over rather than half done.
 	for i in 200:
 		await RenderingServer.frame_post_draw
-	var path := "user://ship_%s.png" % weight_name
+	# `-- shipshot heavy zoom` photographs the doubled view, which is the only
+	# way to see it without a hand on the mouse: the zoom is a click and a
+	# drag, and neither exists in a headless render.
+	var zoomed := "zoom" in OS.get_cmdline_user_args()
+	if zoomed and Router.current is ShipScreen:
+		(Router.current as ShipScreen)._set_zoom(true)
+		for i in 10:
+			await RenderingServer.frame_post_draw
+	var path := "user://ship_%s%s.png" % [weight_name, "_zoom" if zoomed else ""]
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
