@@ -67,33 +67,47 @@ func run() -> void:
 	verdict("reactor")
 
 
-## THE PARTS THAT GRANT CAPACITY, and the one thing that could go wrong with
-## them: a part that grants more than it occupies is free power, and enough of
-## them in one catalogue is a ship with no budget at all.
+## THE PARTS THAT GRANT CAPACITY, measured on the gauge rather than counted in
+## the table that authored them.
 ##
-## The rule is NET POSITIVE BUT NOT FREE — a coupling may pay for itself and a
-## little more, never a lot. Two cells of slack is the ceiling, which is one
-## small part's worth: a build that gives over half its mounts to power couplings
-## has bought about one extra gun, and has no mounts left to put it on.
+## Every coupling raises REACTOR by the same +2, and the cells it grants are
+## derived from that. So the thing worth checking is the PIP, not the cell
+## count: a change to CELLS_PER_PIP moves every grant at once and this is what
+## notices if the two halves stop agreeing.
+##
+## It replaces a check on the NET, which measured a proxy. That rule — nothing
+## nets more than +2 — was a guess at what "not too much" meant, made before the
+## gauge was the unit, and it is superseded: the nets now run from +2 to +5 by
+## design, because a part that grants capacity also occupies it and a 1-cell
+## cable keeps more of its own grant than a 2x2 armature does.
 func _hardware() -> void:
 	var rows: Array[String] = []
-	var greedy: Array[String] = []
+	var bad: Array[String] = []
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
 		if m.power_cap == 0:
 			continue
-		var net := m.power_cap - m.cells()
-		rows.append("  %-24s %s  +%d cap, %d cells, net %+d"
-			% [m.name, ModuleData.rarity_name(m.rarity).left(4).to_upper(),
-				m.power_cap, m.cells(), net])
-		if net > 2:
-			greedy.append("%s nets %+d" % [m.name, net])
+		Rng.forced = 4242
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		Run.installed.clear()
+		var before := Run.attr_reactor()
+		var fit := m.duplicate(true) as ModuleData
+		fit.mount = 0
+		Run.installed.append(fit)
+		var moved := Run.attr_reactor() - before
+		rows.append("  %-24s %s  REACTOR %+d  ·  +%d cells, %d to run, net %+d"
+			% [m.name, ModuleData.rarity_name(m.rarity).left(4).to_upper(), moved,
+				m.power_cap, m.cells(), m.power_cap - m.cells()])
+		if moved != DB.REACTOR_BUMP:
+			bad.append("%s moves REACTOR %+d, not %+d"
+				% [m.name, moved, DB.REACTOR_BUMP])
 	if rows.is_empty():
 		print("  no part grants reactor capacity")
 	else:
 		print("\n  parts that grant capacity:")
 		for r in rows:
 			print(r)
-	_ok("no part grants more than 2 cells of free capacity", greedy.is_empty())
-	for g in greedy:
-		_fail(g)
+	_ok("every coupling raises REACTOR by exactly %+d" % DB.REACTOR_BUMP,
+		bad.is_empty())
+	for b in bad:
+		_fail(b)

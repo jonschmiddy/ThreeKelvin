@@ -59,6 +59,10 @@ const TARGET = {'Korvan Heavy Works':40,'Unbranded':20,'Solari Foundry':40,
 // one entry that moves both how much heat you hold and how fast you lose it,
 // MANEUVER is one entry that moves dodge and initiative — so there is nothing
 // left to explain in brackets after the number.
+// Every coupling is worth the same pips of REACTOR; only the room left over
+// after it powers itself differs. Read off the export rather than hardcoded, so
+// the page cannot disagree with the catalogue about it.
+const REACTOR_PIPS = 2;
 const GAUGE = {
   hull: 'HULL', thermal: 'THERMAL', maneuver: 'MANEUVER',
   sensors: 'SENSORS', stealth: 'STEALTH',
@@ -159,15 +163,16 @@ function passiveLine(m) {
     bits.push('<span class="loss">' + GAUGE[m.cost_axis] + ' −' + m.cost_pips
       + '</span>');
   }
-  // NET, NOT GROSS. A part that grants capacity also OCCUPIES it, so a 4-cell
-  // armature granting 6 leaves room for 2 — exactly what a 1-cell cable granting
-  // 3 leaves. Printing the 6 made the armature read as three times the cable
-  // when they are the same part in effect, and it is the number a player would
-  // have to do arithmetic to stop believing.
+  // THE PIP AND THE ROOM, in that order. Every coupling raises REACTOR by the
+  // same +2, so that is what the part IS; the cells left over after it powers
+  // itself are what you get to spend, and they differ because the parts are
+  // different sizes. Printing only the gross grant made a 2x2 armature read as
+  // three times a 1-cell cable when both move the gauge identically.
   if (m.power_cap) {
     const net = m.power_cap - m.cells;
-    bits.push('<span class="' + (net > 0 ? 'gain' : 'nil') + '">REACTOR '
-      + (net >= 0 ? '+' : '') + net + ' <em>cells, net</em></span>');
+    bits.push('<span class="gain">REACTOR +' + REACTOR_PIPS + '</span>');
+    bits.push('<span class="' + (net > 0 ? 'gain' : 'nil') + '">'
+      + (net >= 0 ? '+' : '') + net + ' <em>cells free</em></span>');
   }
   return bits.length ? '<p class="passive">' + bits.join('') + '</p>' : '';
 }
@@ -224,8 +229,7 @@ const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.power_cap)
       + '<td class="c-text">' + (m.axis ? GAUGE[m.axis]
         : (m.power_cap ? 'REACTOR <em>cells</em>' : '—')) + '</td>'
       + '<td class="c-cnt">' + (m.power_cap
-        ? (m.power_cap - m.cells >= 0 ? '+' : '') + (m.power_cap - m.cells)
-          + ' <em>(' + m.power_cap + ' − ' + m.cells + ')</em>'
+        ? '+' + REACTOR_PIPS + ' <em>(' + (m.power_cap - m.cells) + ' cells free)</em>'
         : (m.pips ? '+' + m.pips : '0')) + '</td>'
       + '<td class="c-from">' + (m.cost_axis
         ? GAUGE[m.cost_axis] + ' −' + m.cost_pips : '') + '</td></tr>';

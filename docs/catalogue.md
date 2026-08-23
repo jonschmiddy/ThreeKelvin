@@ -452,29 +452,40 @@ could have held a gun. Two cells is the ceiling — one small part's worth — s
 ship that gives half its mounts to couplings has bought about one extra weapon
 and has nowhere left to put it. **Gate:** nothing may net more than +2.
 
-**The net is nearly flat on purpose, and grade does not decide it.** This is
-the one passive in the game the attribute ladder (§13) does not govern, and the
-exception is a ruling rather than an oversight:
+**Every coupling raises REACTOR by exactly +2.** One pip is **3 cells**
+(`RunState.CELLS_PER_PIP`), so +2 is a grant of 6 — and the 6 is *derived* from
+those two numbers rather than authored. That matters: a grant of 6 means nothing
+on its own, and when somebody asked why the armature gave six the honest answer
+was "because six made its net come out at two", which is not a reason.
 
-| Part | Grade | Grant | Cells | **Net** |
+| Part | Grade | Grant | Cells to run | **Free** |
 | --- | --- | --- | --- | --- |
-| Bus Coupling | Common | +3 | 2 | **+1** |
-| Jumper Cable | Uncommon | +3 | 1 | **+2** |
-| Salvaged Trunk Line | Uncommon | +5 | 3 | **+2** |
-| Foundry Bus | Rare | +4 | 2 | **+2** |
+| Jumper Cable | Uncommon | +6 | 1 | **+5** |
+| Bus Coupling | Common | +6 | 2 | **+4** |
+| Foundry Bus | Rare | +6 | 2 | **+4** |
+| Salvaged Trunk Line | Uncommon | +6 | 3 | **+3** |
 | Main Bus Armature | Rare | +6 | 4 | **+2** |
 
-Capacity is a **budget**, not power. A legendary plate giving three times a
-common one gives you more hull; a legendary coupling giving three times a common
-one changes *how much ship you can hold*, which compounds through every other
-part you then fit. That is a much bigger swing for the same number, and it is
-why the ladder stops at the reactor's door.
+**Flat across all five, and grade does not decide it.** This is the one passive
+the attribute ladder (§13) does not govern, and the exception is a ruling.
+Capacity is a **budget**, not power: a legendary plate giving three times a
+common one gives you more hull, but a legendary coupling giving three times a
+common one changes *how much ship you can hold*, which then compounds through
+every part you fit afterwards. Same number on the page, much larger swing in
+play, so the ladder stops at the reactor's door.
 
-**Always read the net.** A part that grants capacity also occupies it, so the
-grant on its own is meaningless — a 4-cell armature granting 6 leaves room for 2,
-which is exactly what a 1-cell cable granting 3 leaves. The manifest printed the
-grant for one commit and it made the armature read as three times the cable when
-they are the same part in effect. `-- reactor` and the manifest both show net now.
+**What differs between them is size, and it cuts the other way.** A coupling
+occupies capacity as well as granting it, so the 1-cell Jumper Cable keeps five
+of its six and the 2×2 Main Bus Armature keeps two. The small part is the
+efficient one; the big one is paid for in its cards. Worth watching — it means
+the rarer, larger part is the weaker *power* part, which is the same shape as
+the domination that Range and Lock On had.
+
+**Gate:** `-- reactor` bolts each coupling onto a live frame and reads the
+gauge. It checks the pip, not the cells: a change to `CELLS_PER_PIP` moves every
+grant at once, and this is what notices if the two halves stop agreeing. It
+replaced a check on the net (*nothing nets more than +2*), which was a proxy
+invented before the gauge was the unit and is now wrong by design.
 
 **Capacity only, never output.** A module that handed out energy per turn would
 be the strongest card in the game with no card attached. That lever stays with

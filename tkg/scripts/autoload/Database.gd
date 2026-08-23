@@ -947,9 +947,18 @@ func _seed_module_sizes() -> void:
 	# WHAT THE REACTOR CAN CARRY, granted by a part. Here rather than in the
 	# `_module` call because `_module` takes what a part IS and the passives are
 	# seeded in a pass of their own, the same as sensors and stealth.
-	for row in [[&"buscoupling", 3], [&"foundrybus", 4], [&"trunkline", 5],
-			[&"jumper", 3], [&"mainbus", 6]]:
-		(modules[row[0]] as ModuleData).power_cap = int(row[1])
+	# EVERY COUPLING RAISES REACTOR BY THE SAME +2, and the cells are DERIVED
+	# from that rather than authored. A grant of 6 means nothing on its own —
+	# somebody asked why the armature gave six, and the honest answer was that six
+	# was picked to make its net come out at two. Now the number on the part is
+	# the number on the gauge, and the cells follow from RunState.CELLS_PER_PIP.
+	#
+	# FLAT ACROSS ALL FIVE, which keeps the ruling below: capacity is a budget and
+	# does not climb with grade. What differs between them is what each COSTS to
+	# run, so a 1-cell cable keeps more of its own grant than a 2x2 armature does.
+	var coupling_cells := int(round(REACTOR_BUMP * RUNSTATE.CELLS_PER_PIP))
+	for id in [&"buscoupling", &"foundrybus", &"trunkline", &"jumper", &"mainbus"]:
+		(modules[id] as ModuleData).power_cap = coupling_cells
 
 	for id in modules:
 		var m: ModuleData = modules[id]
@@ -996,6 +1005,10 @@ func _seed_module_sizes() -> void:
 const RUNSTATE := preload("res://scripts/autoload/RunState.gd")
 
 const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
+
+## WHAT A COUPLING IS WORTH, in pips of REACTOR. Flat, and deliberately off the
+## ladder above — the ruling is written beside the parts themselves.
+const REACTOR_BUMP := 2
 
 ## WHICH GAUGE A PART MOVES. The size is not here — it comes from the grade,
 ## through ATTR_BUMP and RunState.PER_PIP. This table only answers "which one".

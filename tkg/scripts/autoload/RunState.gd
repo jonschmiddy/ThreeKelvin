@@ -1087,10 +1087,24 @@ const THERMAL_FLOOR := 8.0
 ## itself on power, which is what a full gauge should mean.
 ##
 ##     C 2    B 3    A 5    S 7    S, perked and coupled 10
+## HOW MANY CELLS ONE PIP OF REACTOR IS WORTH.
+##
+## Named rather than buried in the formula, because it is the number a coupling
+## is priced in: a part that raises REACTOR by 2 grants exactly two of these,
+## and Database derives its grant from here rather than authoring a 6 that
+## means nothing on its own.
+##
+## Three, so the gauge and the cells stay legible together. REACTOR is the one
+## attribute whose raw unit a player COUNTS — thirteen cells of hardware is a
+## number on the ship screen, where nobody counts hull points — so a pip has to
+## be a quantity of them small enough to divide the ladder tidily and large
+## enough to be worth crossing.
+const CELLS_PER_PIP := 3.0
+
 func attr_reactor(bare: bool = false) -> int:
 	var out := hull.reactor if bare else reactor()
 	var cap := hull.power_cap if bare else power_cap()
-	var v := float(out - 2) * 1.6 + float(cap - 12) / 4.0
+	var v := float(out - 2) * 1.6 + float(cap - 12) / CELLS_PER_PIP
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 func attr_thermal(bare: bool = false) -> int:
