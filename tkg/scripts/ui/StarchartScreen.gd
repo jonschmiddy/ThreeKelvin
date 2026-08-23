@@ -18,6 +18,11 @@ var _all_btn: Button
 var _icons_btn: Button
 var _links_btn: Button
 var _region_btn: Button
+## Whether the view is held on the local region. A TOGGLE rather than a
+## jump, because the press has an obvious undo and a jump does not: you
+## would otherwise have to find the way back out by hand every time.
+var _region_on: bool = false
+const REGION_LABEL := "LOCAL REGION"
 
 var _dest_name: Label
 var _dest_class: Label
@@ -97,6 +102,7 @@ func _build() -> void:
 	_chart.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_chart.node_picked.connect(_on_node_picked)
 	_chart.cleared.connect(_on_chart_cleared)
+	_chart.view_dragged.connect(_on_view_dragged)
 	var chart_wrap := Widgets.panel_with(_chart)
 	chart_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(chart_wrap)
@@ -108,15 +114,27 @@ func _build() -> void:
 	#
 	# A child of the CHART rather than of the panel around it, so it follows
 	# the chart's rect and needs no second set of margins to stay put.
-	_region_btn = Widgets.button("MY REGION", _on_region)
+	_region_btn = Widgets.button("", _on_region)
+	# NO CHROME, the same treatment the launcher gives DEVELOPER MODE. A button
+	# plate over a starfield reads as a dialog dropped on the galaxy; this is a
+	# label you can press, not a form control.
+	_region_btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	_region_btn.add_theme_color_override("font_hover_color", UITheme.ICE)
+	_region_btn.add_theme_color_override("font_pressed_color", UITheme.HOT)
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		_region_btn.add_theme_stylebox_override(st, UITheme.empty())
+	_paint_region()
 	_region_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	# Clear of the bar by its own padding, plus the height of the bar and
 	# its label. Measured off the chart's own constants so the two cannot
 	# drift apart when either is retuned.
-	_region_btn.offset_left = -(88.0 + MapChart.BAR_PAD)
+	_region_btn.offset_left = -(112.0 + MapChart.BAR_PAD)
 	_region_btn.offset_right = -MapChart.BAR_PAD
-	_region_btn.offset_top = -(14.0 + MapChart.BAR_PAD + 18.0)
-	_region_btn.offset_bottom = -(MapChart.BAR_PAD + 18.0)
+	# 22, measured from the bar's rule. The bar draws its label ABOVE that
+	# rule, so the visible gap is this number minus the text height — 34 put
+	# a hole between the two and stopped them reading as one instrument.
+	_region_btn.offset_top = -(14.0 + MapChart.BAR_PAD + 22.0)
+	_region_btn.offset_bottom = -(MapChart.BAR_PAD + 22.0)
 	_chart.add_child(_region_btn)
 
 	var right := VBoxContainer.new()
@@ -494,9 +512,39 @@ func _gauge_row(key: String, value: int, mode: MicroGauge.Mode) -> Control:
 ## Frame the neighbourhood the ship is standing in. Reads the CURRENT node
 ## rather than the selection: the button is about where you are, and a
 ## selected system three rings away is where you are going.
+## Lit while the view is held on your region, dim while it is not. EMBER and
+## QUOTE are the launcher's own pair, so the two toggles in the game read as
+## one idea rather than as two designs that happen to use brackets.
+## Dragging away UNTICKS the box and leaves the view alone.
+##
+## The box says "the view is held on your region", and once you have dragged
+## it somewhere else that is simply no longer true. Zooming back out on top
+## of that would undo the drag you just made — the box is reporting, not
+## commanding.
+func _on_view_dragged() -> void:
+	if not _region_on:
+		return
+	_region_on = false
+	_paint_region()
+
+func _paint_region() -> void:
+	if _region_btn == null:
+		return
+	_region_btn.text = "%s  %s" % ["[X]" if _region_on else "[ ]", REGION_LABEL]
+	var tint := UITheme.EMBER if _region_on else UITheme.QUOTE
+	_region_btn.add_theme_color_override("font_color", tint)
+	_region_btn.add_theme_color_override("font_focus_color", tint)
+
 func _on_region() -> void:
+	if _chart == null:
+		return
+	_region_on = not _region_on
+	_paint_region()
+	if not _region_on:
+		_chart.frame_galaxy()
+		return
 	var here: MapGen.MapNode = Run.node_at()
-	if here != null and _chart != null:
+	if here != null:
 		_chart.frame_region(here)
 
 func _on_toggle_all() -> void:
@@ -949,6 +997,12 @@ class MapChart extends Control:
 	## lays the run out in layers, so the simulator sees no difference.
 
 	signal node_picked(index: int)
+
+	## The view was moved by hand, so whatever was holding it no longer is.
+	## Emitted on a DRAG, never on a glide: a toggle that switched itself off
+	## while carrying out its own animation would fight the thing that pressed
+	## it.
+	signal view_dragged
 	## A click on empty space — not the end of a drag. Puts the chart back to
 	## just the galaxy.
 	signal cleared()
@@ -993,6 +1047,17 @@ class MapChart extends Control:
 	## One constant on purpose: the two fields have to move as one sky, so their
 	## rates are not independently tunable numbers.
 	const PARALLAX := 0.5
+
+	## And HALF of it again for the distant galaxies.
+	##
+	## This is a deliberate exception to the sentence above, so it is written
+	## down rather than folded into PARALLAX. The two fields still move as one
+	## sky — one rate, one control — but they are not at one distance: the star
+	## shells are foreground haze and the galaxies are supposed to be millions
+	## of light years past everything, and at a shared rate they read as being
+	## just behind the stars. Halving the far field is what puts them behind
+	## it, and it costs nothing else, because nothing is measured against it.
+	const FAR_PARALLAX := PARALLAX * 0.5
 
 	## Every shape parameter comes from GalaxyGen, so a new galaxy type is a
 	## dictionary entry rather than another branch in here.
@@ -1584,6 +1649,8 @@ class MapChart extends Control:
 				pan += mm.position - _drag_from
 				_clamp_pan()
 				sky_pan += pan - before
+				if pan != before:
+					view_dragged.emit()
 				_drag_from = mm.position
 				if mm.position.distance_to(_press_at) > 3.0:
 					_drag_moved = true
@@ -1840,11 +1907,41 @@ class MapChart extends Control:
 	## coordinates, which is the same measure MapGen prices jumps by. That is
 	## the region you can actually reach, and it frames the same way whether you
 	## are on the rim or in the core.
+	## A view change in flight, so a second press can cancel the first.
+	var _glide: Tween = null
+
+	## Move the view to a zoom and a pan over time rather than at once.
+	##
+	## The sky is settled EVERY STEP, against the values from the step before.
+	## `_settle_sky` is written as a delta — pivot by however much the zoom just
+	## changed, translate by however far the pan just moved — so feeding it the
+	## whole journey at the end would pivot the starfield about the wrong point
+	## and slide it past where it belongs.
+	func glide_to(z: float, p: Vector2, secs: float = 0.55) -> void:
+		if _glide != null and _glide.is_valid():
+			_glide.kill()
+		var z0 := zoom
+		var p0 := pan
+		var z1 := clampf(z, ZOOM_MIN, ZOOM_MAX)
+		_glide = create_tween()
+		_glide.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		_glide.tween_method(func(t: float) -> void:
+			var was := zoom
+			var before := pan
+			zoom = lerpf(z0, z1, t)
+			pan = p0.lerp(p, t)
+			_clamp_pan()
+			_settle_sky(was, before), 0.0, 1.0, secs)
+
+	## THE WHOLE GALAXY, back out. The pair to frame_region: one press in, the
+	## same press out, and both take the same route so the second undoes the
+	## first rather than snapping to a different overview.
+	func frame_galaxy() -> void:
+		glide_to(ZOOM_MIN, Vector2.ZERO)
+
 	func frame_region(here: MapGen.MapNode, span: float = 0.24) -> void:
 		if Run.map.is_empty() or here == null:
 			return
-		var was := zoom
-		var before := pan
 		var lo := Vector2.INF
 		var hi := -Vector2.INF
 		var n := 0
@@ -1859,19 +1956,15 @@ class MapChart extends Control:
 		if n <= 1:
 			# Nothing near you but you. Centre on the ship at a readable zoom
 		# rather than dividing by a span of nothing.
-			zoom = clampf(2.0, ZOOM_MIN, ZOOM_MAX)
-			pan = -_polar(here) * zoom
-			_clamp_pan()
-			_settle_sky(was, before)
+			var solo := clampf(2.0, ZOOM_MIN, ZOOM_MAX)
+			glide_to(solo, -_polar(here) * solo)
 			return
 		var box := (hi - lo).max(Vector2.ONE)
 		# A margin, or the outermost system sits on the frame edge with its name
 		# label hanging off the chart.
 		var want := minf(size.x / (box.x + 180.0), size.y / (box.y + 140.0))
-		zoom = clampf(want, ZOOM_MIN, ZOOM_MAX)
-		pan = -((lo + hi) * 0.5) * zoom
-		_clamp_pan()
-		_settle_sky(was, before)
+		var z := clampf(want, ZOOM_MIN, ZOOM_MAX)
+		glide_to(z, -((lo + hi) * 0.5) * z)
 
 	## Move the SKY to match a jump the view just made.
 	##
@@ -2141,7 +2234,7 @@ class MapChart extends Control:
 		# speeds and they moved in obvious groups.
 		for k in 7:
 			var f := float(k) / 6.0
-			_far_layer(ci, lerpf(150.0, 700.0, f), lerpf(0.09, 0.58, f) * PARALLAX,
+			_far_layer(ci, lerpf(150.0, 700.0, f), lerpf(0.09, 0.58, f) * FAR_PARALLAX,
 				lerpf(1.5, 9.0, f), lerpf(3.5, 20.0, f),
 				lerpf(0.5, 1.0, f), lerpf(0.92, 0.6, f), 3 + k * 53)
 

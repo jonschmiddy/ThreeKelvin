@@ -468,6 +468,14 @@ static func _hull_from(e: Variant) -> HullData:
 				base = frame
 				break
 	var h := base.duplicate(true) as HullData
+	# THE NAME IS RESTORED, not inherited. It used to come free because the
+	# frame was FOUND by name; matching on maker and weight instead means the
+	# frame carries the tier-0 name, so a Halberd Cutter came back as a Picket
+	# Cutter — same ship, same stats, wrong badge. Intermittent, because it
+	# only shows on a hull rolled above C.
+	var saved_name := str(d.get("name", ""))
+	if saved_name != "":
+		h.name = saved_name
 	h.perk_id = StringName(str(d.get("perk_id", "salvage_rack")))
 	# Absent in a save written before hulls had makers, in which case the frame
 	# matched by name above already carries the right one.
