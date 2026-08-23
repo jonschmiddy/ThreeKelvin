@@ -118,11 +118,20 @@ A house's cards should be recognisable as that house *without the name*:
 
 Two defensive layers and one counter, and each has exactly one name:
 
-| | soaks | persists | costs |
+| | mitigates | persists | costs |
 | --- | --- | --- | --- |
 | **Block** | first | no, gone at end of enemy turn | nothing |
 | **Brace** | after block | yes | 1 heat a turn to hold |
-| **Feedback** | — | yes | — |
+| **Feedback** | hits back instead | yes | — |
+
+    Brace — Mitigates damage. Stays up between turns, and costs 1 heat a
+            turn to hold.
+    Block — Mitigates damage before your brace does. Gone at the end of the
+            enemy's turn.
+
+Both entries lead with **what they do**. The old Brace entry never said it
+mitigated anything — only how long it lasted and what it cost, which assumes the
+reader already knows why they would want it.
 
 **The word "armor" no longer names a stat anywhere in the game.** It was the
 field name, while every card printed *Brace* and the glossary defined Brace as

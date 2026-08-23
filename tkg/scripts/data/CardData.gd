@@ -272,13 +272,13 @@ var source_rarity: int = 0
 func keywords() -> Array:
 	var out: Array = []
 	if block > 0:
-		out.append(["Block", "Soaks damage before your brace does. Gone at the end of the enemy's turn."])
+		out.append(["Block", "Mitigates damage before your brace does. Gone at the end of the enemy's turn."])
 	if brace > 0 or brace_from_heat:
 		# BRACE, not "brace". Brace is the resource; Brace is the word the game
 		# actually says — it is what the card text prints and what Probate's set
 		# bonus calls this whole class of card. A glossary that explains a term
 		# appearing nowhere on the card is a glossary for a different game.
-		out.append(["Brace", "Stays up between turns, and costs 1 heat a turn to hold."])
+		out.append(["Brace", "Mitigates damage. Stays up between turns, and costs 1 heat a turn to hold."])
 	if brace_from_heat:
 		out.append(["Brace from heat", "You brace for however much heat you are carrying."])
 	if feedback > 0:
