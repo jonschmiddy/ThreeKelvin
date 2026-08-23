@@ -614,7 +614,7 @@ func _host_loss_test() -> void:
 ## true — which is the point of SharedFight being a plain RefCounted.
 func _fight_rules_test() -> void:
 	var f := SharedFight.open(42, PackedStringArray(["cutter"]),
-		PackedInt32Array([100]), PackedInt32Array([3]), 11)
+		PackedInt32Array([100]), PackedInt32Array([3]), PackedInt32Array([100]), 11)
 	check("one ship, one ship's frigate", f.foes[0].max_hp, 100)
 
 	# 0.6 each, not 1.0. Three hands of cards against one intent is already an
@@ -707,7 +707,8 @@ func _fight_net_test() -> void:
 	# A client engages first. It does NOT get to decide it is first — the host
 	# does — so this is the ask-and-wait path, not the fire-and-forget one.
 	var mine: SharedFight = await others[0].open_fight(
-		214, ids, PackedInt32Array([100]), PackedInt32Array([0]))
+		214, ids, PackedInt32Array([100]), PackedInt32Array([0]),
+		PackedInt32Array([100]))
 	ok("a client can open a fight", mine != null and mine.crew.size() == 1)
 	var spread := await _wait_until(func() -> bool:
 		return host.fight_open_at(214) and others[1].fight_open_at(214), 4.0)
@@ -715,8 +716,10 @@ func _fight_net_test() -> void:
 
 	# The second and third ships walk into a fight that already exists. One
 	# frigate, not three.
-	await host.open_fight(214, ids, PackedInt32Array([100]), PackedInt32Array([0]))
-	await others[1].open_fight(214, ids, PackedInt32Array([100]), PackedInt32Array([0]))
+	await host.open_fight(214, ids, PackedInt32Array([100]), PackedInt32Array([0]),
+		PackedInt32Array([100]))
+	await others[1].open_fight(214, ids, PackedInt32Array([100]),
+		PackedInt32Array([0]), PackedInt32Array([100]))
 	var all_in := await _wait_until(func() -> bool:
 		var f: SharedFight = others[0].fight_at(214)
 		return f != null and f.crew.size() == 3, 4.0)
@@ -779,7 +782,7 @@ func _fight_net_test() -> void:
 ## solving the fight by electing a victim: a cold ship is safer, never safe.
 func _targeting_test(host: NetSession) -> void:
 	var f := SharedFight.open(9, PackedStringArray(["x"]),
-		PackedInt32Array([10]), PackedInt32Array([0]), 1)
+		PackedInt32Array([10]), PackedInt32Array([0]), PackedInt32Array([10]), 1)
 	var cold := 0
 	var hot := 0
 	for id in host.roster.keys():

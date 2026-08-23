@@ -305,6 +305,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	# Whatever the party has already used up. A run rolled from the host's seed
 	# is generated after the party exists, so the list can predate the map.
 	adopt_party_claims()
+	_spawn_stoker()
 	at = 0
 	trail = PackedInt32Array([0])
 	_range_cache.clear()
@@ -1342,8 +1343,225 @@ func jump_to(index: int) -> void:
 	n.visited = true
 	jumps += 1
 	cool_in_transit()
+	# The galaxy's other harvester moves on the party's clock, and a jump is
+	# the tick. After `at` is set, so "it is HERE" can be said about the right
+	# system. No-op on a client — the host counts every ship's jumps, including
+	# this one's, when the presence lands. See the stoker block below.
+	stoker_jumped()
 	Sig.resources_changed.emit()
 	Sig.jumped.emit(index)
+
+
+# ----------------------------------------------------------------- the stoker
+## THE GALAXY'S OTHER HARVESTER. One rival crew per dive, flying a furnace of a
+## ship, doing exactly what you are doing — and it is the one enemy with a
+## POSITION instead of an address. It rides the same link lattice the player
+## does, one hop at a time, eating the derelicts it lands on.
+##
+## WHO DECIDES WHERE IT IS. The map's other shared facts are positional — a
+## seed puts the same wreck on four machines — but a thing that MOVES needs a
+## clock, and this game deliberately has no shared one: four ships jump at
+## their own pace. So the stoker is host-authoritative, like a claim. The host
+## counts every ship's jumps (its own directly, a client's when the presence
+## message lands), moves the stoker every STOKER_STRIDE of them, and pushes the
+## whole state — position, hull, move counter — through `Net.push_stoker()`.
+## Solo, this machine IS the host of nothing and runs the same code without a
+## wire. WHERE it goes is `Rng.derive(&"stoker", move counter)` — positional in
+## time rather than in space, so a replayed seed replays the pursuit and a
+## client handed the counter could re-derive the walk.
+##
+## WHY IT EATS. §0 of `docs/coop-design.md` measured that attaching more
+## fights to a mechanic adds texture, not pressure, because fights pay. The
+## stoker is pressure because AVOIDING it costs: every derelict it reaches
+## first is salvage the party does not get. Kill it or route around it, and
+## both of those are decisions with prices.
+##
+## WHY IT HEALS IN TRANSIT. It breaks off at 35% hull (see
+## Combat.escape_intent()) carrying its damage, and mends STOKER_MEND per move
+## after. That is the chase: the hull you took off it is a debt it pays back
+## slowly, so catching it two jumps later finishes a fight you already started,
+## and letting it go quiet for twenty is starting over.
+
+## Jumps between moves. At ~65 jumps a run this is ~20 moves — enough to matter
+## on the chart, slow enough to be caught.
+const STOKER_STRIDE := 3
+## Hops taken all at once when it breaks off a fight. Two, so it is out of the
+## system and out of jump range, but never out of the story.
+const STOKER_FLEE_HOPS := 2
+## Hull mended per ordinary move while damaged — never per flee hop, so it
+## escapes hurt and STAYS hurt until it has had quiet moves. Against a 90
+## hull, a fight that left it at 32 is paid back in ten moves — thirty party
+## jumps — and that window is the chase.
+const STOKER_MEND := 6
+
+## Node index, or -1 once it is dead. There is no `alive` flag; a position is
+## the one fact everything else about it hangs off, so absence of one IS death.
+var stoker_at: int = -1
+var stoker_hp: int = 0
+var stoker_max: int = 0
+## How many moves it has made. Drives the stride and seeds each move's roll.
+var stoker_moves: int = 0
+## Jumps counted toward the next move.
+var stoker_ticks: int = 0
+## Test seam: `-- sim nostoker` measures the control cell. Never set from game
+## code — the same discipline as Net.forced_protocol.
+var stoker_off: bool = false
+
+func stoker_alive() -> bool:
+	return stoker_at >= 0 and stoker_hp > 0
+
+## Whether this machine is the one that moves it: the host, or nobody's client.
+func _stoker_authority() -> bool:
+	return not Net.is_networked() or Net.is_host()
+
+## Placed at generation, off a positional roll rather than the world stream —
+## `Rng.world`'s draw order is finished business, and one extra draw here would
+## quietly move everything rolled after it. Middle shells: deep enough that a
+## fresh chassis is not ambushed by a set piece, shallow enough that every run
+## crosses its ground.
+func _spawn_stoker() -> void:
+	stoker_at = -1
+	stoker_hp = 0
+	stoker_moves = 0
+	stoker_ticks = 0
+	if stoker_off:
+		return
+	var t: EnemyTemplate = DB.enemies.get(&"stoker")
+	if t == null or map.is_empty():
+		return
+	var candidates: Array = []
+	for n in map:
+		var node: MapGen.MapNode = n
+		if node.layer >= 3 and node.layer <= MapGen.LAYERS - 3:
+			candidates.append(node.index)
+	if candidates.is_empty():
+		return
+	stoker_max = t.max_hull
+	stoker_hp = stoker_max
+	stoker_at = Rng.pick(Rng.derive(&"stoker", 0), candidates)
+
+## A jump happened somewhere in the party. Called by jump_to() for this ship
+## and by NetSession._apply_presence() for everybody else's; the authority
+## guard makes both safe to call unconditionally.
+func stoker_jumped() -> void:
+	if not stoker_alive() or not _stoker_authority():
+		return
+	# Pinned while anybody is in its fight. The party's other ships keep
+	# jumping, but a thing being shot at does not leave except through the
+	# escape burn — the clock stopping IS "keeping him on the ropes".
+	if Net.fight_open_at(stoker_at):
+		return
+	stoker_ticks += 1
+	if stoker_ticks < STOKER_STRIDE:
+		return
+	stoker_ticks = 0
+	_stoker_step(true)
+	Net.push_stoker(true)
+
+## One hop. `feeding` is false on a flee hop — a ship running for its life is
+## not stopping to cut salvage, and the client applying the pushed position
+## must agree about which kind of landing it was. See stoker_land().
+func _stoker_step(feeding: bool) -> void:
+	if not stoker_alive():
+		return
+	stoker_moves += 1
+	var r := Rng.derive(&"stoker", stoker_moves)
+	var here_n: MapGen.MapNode = map[stoker_at]
+	var options: Array = []
+	var food: Array = []
+	for i in here_n.links:
+		var n: MapGen.MapNode = map[i]
+		# Not the rim's first system and not the core: one is the front door,
+		# and the other already has a custodian in it.
+		if n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.GOAL:
+			continue
+		options.append(i)
+		if n.type == MapGen.NodeType.DERELICT and not n.cleared:
+			food.append(i)
+	if options.is_empty():
+		return
+	# Mending rides the ordinary stride, never a flee hop — it escapes HURT and
+	# stays hurt until it has had quiet moves, which is the window the chase is.
+	if feeding and stoker_hp < stoker_max:
+		stoker_hp = mini(stoker_max, stoker_hp + STOKER_MEND)
+	# It goes where the salvage is. That is what makes it legible enough to
+	# route around — and what makes racing it to a wreck a real race.
+	var to: int = Rng.pick(r, food if feeding and not food.is_empty() else options)
+	stoker_land(to, feeding)
+
+## Apply a landing — the shared half, run by the authority when it moves the
+## stoker and by a client when the pushed position arrives. Everything here is
+## a pure function of the landing, so the party cannot disagree about it.
+func stoker_land(to: int, feeding: bool) -> void:
+	if to < 0 or to >= map.size():
+		return
+	stoker_at = to
+	var n: MapGen.MapNode = map[to]
+	if feeding and n.type == MapGen.NodeType.DERELICT and not n.cleared:
+		# Consumed locally, not through Net.claim(): the movement push is
+		# already the shared fact, and every machine applies this rule to the
+		# same landing. `eaten` is what lets the sector say WHO stripped it.
+		n.cleared = true
+		n.eaten = true
+		_mark_taken(n, MapGen.OPTION_WHOLE)
+		log_line("The wreck at %s goes dark on the scope. The Stoker is feeding." % MapGen.star_name(n), &"them")
+	if to == at:
+		log_line("A furnace-hot signature fills the sky. THE STOKER IS HERE.", &"big")
+	Sig.map_changed.emit()
+
+## A fight ended without a kill — somebody fled, died, or the whole crew walked
+## out. The hull it lost stays lost; that is the half of "keep him on the
+## ropes" that survives between engagements.
+func stoker_scarred(hp: int) -> void:
+	if not stoker_alive() or not _stoker_authority():
+		return
+	stoker_hp = clampi(hp, 1, stoker_max)
+	Net.push_stoker(false)
+
+## It spooled the escape burn and nobody stopped it. Damage written back, then
+## STOKER_FLEE_HOPS at once — gone from the system and from jump range, hurt,
+## and mending only as fast as STOKER_MEND allows.
+func stoker_breaks_off(hp: int) -> void:
+	if not stoker_alive() or not _stoker_authority():
+		return
+	stoker_hp = clampi(hp, 1, stoker_max)
+	for i in STOKER_FLEE_HOPS:
+		_stoker_step(false)
+	Net.push_stoker(false)
+
+## The kill. Called wherever the last hull point comes off — Combat._victory()
+## solo and on every crew machine, NetSession._apply_hurt() on a host that was
+## not in the fight. Idempotent, because in a party several of those fire.
+func stoker_defeated() -> void:
+	if stoker_at < 0:
+		return
+	stoker_at = -1
+	stoker_hp = 0
+	log_line("The Stoker comes apart, and a run's worth of stolen heat bleeds into the dark.", &"good")
+	Sig.map_changed.emit()
+	Net.push_stoker(false)
+
+## The host said where it is. Position, hull and counter arrive together and
+## whole, like every other host-owned fact, so a dropped push costs one update
+## rather than a drift.
+func stoker_adopt(to: int, hp: int, moves: int, feeding: bool) -> void:
+	stoker_moves = moves
+	stoker_hp = hp
+	if to < 0:
+		# Only a machine that was NOT in the fight gets here still believing it
+		# alive — the crew already ran stoker_defeated() in _victory(), and
+		# their own copy skips this branch. So the line is the convoy channel
+		# telling you what you missed.
+		if stoker_at >= 0:
+			stoker_at = -1
+			stoker_hp = 0
+			log_line("Word on the convoy channel: the Stoker is dead.", &"good")
+			Sig.map_changed.emit()
+		return
+	if to == stoker_at:
+		Sig.map_changed.emit()
+		return
+	stoker_land(to, feeding)
 
 
 # ------------------------------------------------------------------ contracts

@@ -49,11 +49,11 @@ func fingerprint() -> Dictionary:
 			# quoted price is checked separately, below, against the market that
 			# quotes it.
 			shop.append("%s:%d" % [m.id, m.scrap_value])
-		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
+		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
-			n.visited, n.cleared, n.inspected, n.fled,
+			n.visited, n.cleared, n.eaten, n.inspected, n.fled,
 			# A shelf that came back un-stocked re-rolls on the next visit, and a
 			# market that came back un-saturated pays full price again. Both are
 			# run marks and both are silent when lost.
@@ -90,6 +90,11 @@ func fingerprint() -> Dictionary:
 		# is the most sensitive reading of all of them at once.
 		quotes = _quotes(),
 		pos = [Run.at, Array(Run.trail), Run.jumps, Run.kills],
+		# The roamer. The move counter is a SEED SOURCE — Rng.derive keys each
+		# hop on it — so losing it is not a cosmetic reset, it is a different
+		# walk from the same position.
+		stoker = [Run.stoker_at, Run.stoker_hp, Run.stoker_max,
+			Run.stoker_moves, Run.stoker_ticks],
 		galaxy = [Run.galaxy_kind, Run.galaxy_seed, "%.9f" % Run.galaxy_spin,
 			Run.galaxy_name, Run.galaxy_title],
 		gparams = _round_floats(Run.galaxy),
@@ -197,6 +202,21 @@ func run() -> void:
 		elif n.type == MapGen.NodeType.EVENT and not n.cleared and n.event_key.is_empty():
 			n.event_key = "Dead station"
 
+	# The stoker mid-chase: hurt, mid-stride, and having eaten something — the
+	# state a resume has to hand back exactly, or the pursuit resets.
+	if Run.stoker_alive():
+		Run.stoker_hp = maxi(1, Run.stoker_max / 3)
+		Run.stoker_ticks = 2
+	for e in Run.map:
+		var nd: MapGen.MapNode = e
+		if nd.type == MapGen.NodeType.DERELICT and not nd.cleared:
+			# The same three writes stoker_land() makes, because a cleared node
+			# with an empty `taken` is backfilled on load and would mismatch.
+			nd.cleared = true
+			nd.eaten = true
+			nd.taken.append(MapGen.OPTION_WHOLE)
+			break
+
 	var before := fingerprint()
 	var jumps_before := Run.jumps
 
@@ -225,6 +245,11 @@ func run() -> void:
 	Run.kills = 0
 	Run.at = 0
 	Run.trail = PackedInt32Array()
+	Run.stoker_at = -1
+	Run.stoker_hp = 0
+	Run.stoker_max = 0
+	Run.stoker_moves = 0
+	Run.stoker_ticks = 0
 	Run.map = []
 	Run.installed = []
 	Run.cargo = []
