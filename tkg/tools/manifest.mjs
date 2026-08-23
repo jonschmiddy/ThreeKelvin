@@ -59,10 +59,11 @@ const TARGET = {'Korvan Heavy Works':40,'Unbranded':20,'Solari Foundry':40,
 // one entry that moves both how much heat you hold and how fast you lose it,
 // MANEUVER is one entry that moves dodge and initiative — so there is nothing
 // left to explain in brackets after the number.
-// Every coupling is worth the same pips of REACTOR; only the room left over
-// after it powers itself differs. Read off the export rather than hardcoded, so
-// the page cannot disagree with the catalogue about it.
-const REACTOR_PIPS = 2;
+// REACTOR is a LEVEL now, and the level decides the cells and the energy both.
+// A coupling grants two of them, which the game's table turns into six cells and
+// — where the step falls — a point of energy. The part carries the same number
+// the bar shows, so there is nothing for this page to convert.
+const REACTOR_CELLS = 3;
 const GAUGE = {
   hull: 'HULL', thermal: 'THERMAL', maneuver: 'MANEUVER',
   sensors: 'SENSORS', stealth: 'STEALTH',
@@ -172,8 +173,8 @@ function passiveLine(m) {
   // useful, and it is in the table below where the detail belongs — on a plate
   // beside a name, a slot and a footprint it was a fourth number competing with
   // three that are already there.
-  if (m.power_cap) {
-    bits.push('<span class="gain">REACTOR +' + REACTOR_PIPS + '</span>');
+  if (m.reactor) {
+    bits.push('<span class="gain">REACTOR +' + m.reactor + '</span>');
   }
   return bits.length ? '<p class="passive">' + bits.join('') + '</p>' : '';
 }
@@ -220,7 +221,7 @@ const sizeSections = [1, 2, 3, 4].map(n => {
     + '<div class="grid">' + parts.map(partCard).join('') + '</div></section>';
 }).join(NL);
 
-const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.power_cap)
+const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.reactor)
   .sort((a, b) => (b.pips + (b.power_cap ? 1 : 0)) - (a.pips + (a.power_cap ? 1 : 0))
     || a.name.localeCompare(b.name))
   .map(m => {
@@ -228,9 +229,10 @@ const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.power_cap)
       + '<td class="c-rar"><span class="r-' + slug(m.rarity) + '">'
       + esc(m.rarity) + '</span></td>'
       + '<td class="c-text">' + (m.axis ? GAUGE[m.axis]
-        : (m.power_cap ? 'REACTOR <em>cells</em>' : '—')) + '</td>'
-      + '<td class="c-cnt">' + (m.power_cap
-        ? '+' + REACTOR_PIPS + ' <em>(' + (m.power_cap - m.cells) + ' cells free)</em>'
+        : (m.reactor ? 'REACTOR <em>cells</em>' : '—')) + '</td>'
+      + '<td class="c-cnt">' + (m.reactor
+        ? '+' + m.reactor + ' <em>(' + (m.reactor * REACTOR_CELLS - m.cells)
+          + ' cells free)</em>'
         : (m.pips ? '+' + m.pips : '0')) + '</td>'
       + '<td class="c-from">' + (m.cost_axis
         ? GAUGE[m.cost_axis] + ' −' + m.cost_pips : '') + '</td></tr>';
@@ -528,8 +530,9 @@ auditVerdict,
 + 'one card</b> rather than two different ones — how a part says <i>this is the '
 + 'only thing I do, and I do it twice</i>. It is right for the parts whose flavour '
 + 'already says so, and the target is about one in four. <b>REACTOR +2</b> is what '
-+ 'a coupling does to the gauge — the cells it leaves free after powering itself '
-+ 'are in the table further down.</p>',
++ 'a coupling raises the reactor LEVEL by, and the level decides everything — '
++ 'three cells per level, and a point of energy where the step falls. The cells it '
++ 'leaves free after powering itself are in the table further down.</p>',
 '<p class="showing"><b id="shown">' + MODS.length + '</b> of ' + MODS.length
 + ' showing &middot; the plate is the part’s real footprint in the hold</p>',
 '<div id="by-house">' + houseSections + '</div>',

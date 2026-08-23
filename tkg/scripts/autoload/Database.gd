@@ -820,8 +820,8 @@ func _seed_modules() -> void:
 
 	# --- Reactor capacity: the parts that let you run the other parts
 	#
-	# A hull's `power_cap` is the cells of hardware it can carry, and these are
-	# how a build buys more of it without finding a better frame. THEY ARE
+	# A hull's REACTOR LEVEL decides the cells of hardware it can carry, and these
+	# are how a build buys more of it without finding a better frame. THEY ARE
 	# SELF-LIMITING BY CONSTRUCTION — a part that grants capacity also occupies
 	# it, and it occupies a mount that could have held a gun. The most any of
 	# them nets is +2, which `-- reactor` enforces: two cells is one small part's
@@ -947,18 +947,17 @@ func _seed_module_sizes() -> void:
 	# WHAT THE REACTOR CAN CARRY, granted by a part. Here rather than in the
 	# `_module` call because `_module` takes what a part IS and the passives are
 	# seeded in a pass of their own, the same as sensors and stealth.
-	# EVERY COUPLING RAISES REACTOR BY THE SAME +2, and the cells are DERIVED
-	# from that rather than authored. A grant of 6 means nothing on its own —
-	# somebody asked why the armature gave six, and the honest answer was that six
-	# was picked to make its net come out at two. Now the number on the part is
-	# the number on the gauge, and the cells follow from RunState.CELLS_PER_PIP.
+	# EVERY COUPLING RAISES REACTOR BY THE SAME +2 LEVELS, which the table turns
+	# into six cells and, where the step falls, a point of energy. The part's
+	# number and the number on the bar are now the same number — somebody asked
+	# why the armature granted six, and the honest answer used to be that six was
+	# picked to make its net come out at two.
 	#
-	# FLAT ACROSS ALL FIVE, which keeps the ruling below: capacity is a budget and
-	# does not climb with grade. What differs between them is what each COSTS to
-	# run, so a 1-cell cable keeps more of its own grant than a 2x2 armature does.
-	var coupling_cells := int(round(REACTOR_BUMP * RUNSTATE.CELLS_PER_PIP))
+	# FLAT ACROSS ALL FIVE. Capacity is a budget and does not climb with grade;
+	# what differs is what each part COSTS to run, so a 1-cell cable keeps more of
+	# its own six than a 2x2 armature does.
 	for id in [&"buscoupling", &"foundrybus", &"trunkline", &"jumper", &"mainbus"]:
-		(modules[id] as ModuleData).power_cap = coupling_cells
+		(modules[id] as ModuleData).reactor = REACTOR_BUMP
 
 	for id in modules:
 		var m: ModuleData = modules[id]
@@ -1130,7 +1129,7 @@ const WEIGHT_BASE := {
 	# a hand of five — every turn identical, nothing to sequence, no deck at all.
 	# The extra system slot is where the floor comes from.
 	HullData.Weight.LIGHT: {
-		reactor = 3, hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
+		hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
 		dodge = 0.18, initiative = 2, fuel_factor = 0.8, cargo_slots = 12,
 		hold_grid = Vector2i(4, 3),
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
@@ -1144,12 +1143,12 @@ const WEIGHT_BASE := {
 	# Seven mounts is the compensation, and versatility is a coherent thing for
 	# the middle of a range to be.
 	HullData.Weight.MEDIUM: {
-		reactor = 3, hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
+		hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
 		dodge = 0.05, initiative = 0, fuel_factor = 1.2, cargo_slots = 20,
 		hold_grid = Vector2i(5, 4),
 		weapon_slots = 3, system_slots = 2, utility_slots = 2},
 	HullData.Weight.HEAVY: {
-		reactor = 4, hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
+		hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
 		dodge = 0.0, initiative = -2, fuel_factor = 1.8, cargo_slots = 30,
 		hold_grid = Vector2i(6, 5),
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
@@ -1188,29 +1187,31 @@ const WEIGHT_BASE := {
 ## tier 0 by construction; nothing else should be passed.
 ## Named in HullData, which owns what a grade IS. This table owns what it DOES,
 ## and the two are indexed the same — keep them the same length.
-## REACTOR AND POWER ARE SET, NOT ADDED. Every other field here is a delta on
-## the frame; these two are absolute, because the grade letter is the ONLY
-## thing that decides them. It used to be the weight class with a delta on top
-## — heavy carried a reactor of 4 and S added one — which meant C and B were
-## the same ship twice and the letter told a player almost nothing.
+## THE REACTOR LEVEL IS SET, NOT ADDED. Every other field here is a delta on
+## the frame; this one is absolute, because the grade letter is the only thing
+## that decides it. It used to be the weight class with a delta on top — heavy
+## carried a reactor of 4 and S added one — which meant C and B were the same
+## ship twice and the letter told a player almost nothing.
 ##
-## POWER: 10 / 14 / 17 / 20, and the bottom of that is measured rather than
-## round. The yard kit is exactly 8 cells, so 8 would have been a lovely
-## number and a broken one: `_top_up_deck` needs hand_size + 4 cards to launch
-## with, a light wants five modules for that, and five modules of yard stock is
-## ten cells. At 8 a light would launch with a four-card deck against a hand of
-## six — which is the exact failure the medium's extra utility mount was added
-## to fix, written up eight hundred lines above this.
+## 4 / 5 / 7 / 8, which RunState.REACTOR_TABLE turns into:
 ##
-## 20 at the top still bites. A fully mounted S heavy is five weapons, three
+##     C   12 cells, 3 energy       A   21 cells, 4 energy
+##     B   15 cells, 3 energy       S   24 cells, 5 energy
+##
+## A AND S SKIP A RUNG EACH, which is where the energy steps are. The gap from
+## B to A is the largest on the ladder and it is meant to be: it is the one
+## that buys a fourth point of energy, and energy is the axis every card is
+## priced against.
+##
+## 24 AT THE TOP STILL BITES. A fully mounted S heavy is five weapons, three
 ## systems and a utility, and the catalogue averages 2.80 / 2.55 / 1.57 cells
-## for those — 23.2 to fill it. The best hull in the game still cannot run
-## everything it can bolt on, which is the point of having the number.
+## for those — 23.2 to fill it, against 24 with nothing spare for a big gun.
+## The best hull in the game still cannot run everything it can bolt on.
 const TIER_DELTA := [
-	{scale = 1.00, weapon = 0, system = 0, reactor = 3, power = 13, dissipation = 0},
-	{scale = 1.15, weapon = 0, system = 0, reactor = 3, power = 16, dissipation = 0},
-	{scale = 1.32, weapon = 1, system = 0, reactor = 4, power = 19, dissipation = 1},
-	{scale = 1.52, weapon = 1, system = 1, reactor = 5, power = 22, dissipation = 1},
+	{scale = 1.00, weapon = 0, system = 0, reactor = 4, dissipation = 0},
+	{scale = 1.15, weapon = 0, system = 0, reactor = 5, dissipation = 0},
+	{scale = 1.32, weapon = 1, system = 0, reactor = 7, dissipation = 1},
+	{scale = 1.52, weapon = 1, system = 1, reactor = 8, dissipation = 1},
 ]
 
 ## Per-maker deltas applied on top, and the three names. `names` runs
@@ -1590,9 +1591,9 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.heat_cap = maxi(1, int(round(float(h.heat_cap) * float(d.scale))))
 	h.weapon_slots += int(d.weapon)
 	h.system_slots += int(d.system)
-	# SET, not +=. See TIER_DELTA: the grade owns these two outright.
+	# SET, not +=. See TIER_DELTA: the grade owns the reactor outright, and the
+	# reactor owns the cells and the energy.
 	h.reactor = int(d.reactor)
-	h.power_cap = int(d.power)
 	h.dissipation += int(d.dissipation)
 	# AND THE ART. A class grants hardpoints and a reactor, and now it grants a
 	# different hull — which is the whole point of the letter and was invisible

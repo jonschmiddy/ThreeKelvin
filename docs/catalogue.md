@@ -376,152 +376,104 @@ longest guns something a light frame pays dearly to carry.
 
 ## §12 The reactor
 
-A hull's grade — C, B, A, S — decides two numbers and nothing else does.
+**One number. Everything else is read off it.**
 
-| | C | B | A | S |
-| --- | --- | --- | --- | --- |
-| **Output** — energy a turn | 3 | 3 | 4 | 5 |
-| **Capacity** — cells it can run | 13 | 16 | 19 | 22 |
+`HullData.reactor` is a level from 0 to 10. `RunState.REACTOR_TABLE` turns it
+into the two things that matter:
 
-**The hold is what you can haul; the reactor is what you can run.** Before it
-existed, a part's shape decided everything in the hold and nothing on the hull —
-a 1-cell sight took a utility mount exactly like a 4-cell mast did, so the shape
-system stopped mattering the moment a part was installed. Now a big gun costs
-something to *run*, not just to carry, and a legendary you can carry but cannot
-power is a reason to want the next grade.
+| REACTOR | cells | energy | |
+| --- | --- | --- | --- |
+| 4 | 12 | 3 | C class |
+| 5 | 15 | 3 | B class |
+| 6 | 18 | 4 | |
+| 7 | 21 | 4 | A class |
+| 8 | 24 | 5 | S class |
+| 9 | 27 | 5 | |
+| 10 | 30 | 6 | the ceiling |
 
-**Capacity does not replace the slot counts. Both have to be satisfied.** The
-mounts give a hull its shape — a heavy is 4 weapon / 2 system / 1 utility and is
-a gunboat because of it — and the cell budget says how much of that shape it can
-afford. They also fail differently, so they clear differently: no mount takes
-the worst part *in that slot* off, because a weapon cannot free a system mount;
-no capacity takes the worst part *anywhere* off, because every cell draws from
-the one reactor.
+`attr_reactor` returns the level and nothing else — no weighting, no offset, no
+formula. **REACTOR 10 is thirty cells and six energy, on every hull in the
+game**, so a player who reads the bar and multiplies is right.
 
-The constraint that binds changes as you climb, which was not designed and is
-the best thing about it. At C no frame can fill its own mounts (a light needs
-13.8 cells for six, a heavy 17.9 for seven). At S the mounts run out first for
-most frames, and only a fully-mounted S heavy is still power-limited — 23.2
-against 22.
+### Why it points this way
 
-### REACTOR is an attribute
+It started as a **score**: a hull carried an energy number and a cell budget,
+and the attribute weighed them into 0–10. That could not be read backwards —
+REACTOR 10 meant *at least this good*, not any particular ship — and on the one
+gauge whose raw unit is printed directly underneath it, being unreadable
+backwards is the entire complaint. The bar said 2 and the ship screen said
+thirteen cells, and nothing connected them.
 
-Seventh on the block, directly under HULL, on the same 0–10 scale as the other
-six. Output and capacity are ONE attribute because they are one piece of
-hardware — the same argument THERMAL makes for heat capacity and dissipation.
+It is the only attribute that works this way and it earned it. HULL scores your
+plating and THERMAL weighs capacity against vent because nobody counts either of
+those; the ship screen counts cells, under the mounts, on the same panel.
 
-    C 5    B 6    A 7    S 9    S, perked or coupled 10
+**A table and not a formula**, because energy is a step, and a step written as
+arithmetic is a floor division nobody can read. Eleven rows is the whole thing.
 
-Weighted, not averaged: output is scarce and enormous — three points across the
-whole ladder and each one is a card a turn — so it is worth 1.6 a point.
-Capacity runs 13 to 22 and buys room rather than tempo, so it is worth a quarter
-of a point a cell. A bare S frame reads 7, and reaching 10 takes the S grade,
-the overspec perk and two couplings — a build that has actually spent itself on
-power, which is what a full gauge should mean. THERMAL saturated once and
-documents the lesson in place.
+### The grade sets it, and nothing else
 
-A part granting capacity shows as a white gain cell on the row, the same as any
-other passive.
+`TIER_DELTA` sets 4 / 5 / 7 / 8 — absolute, where every other field there is a
+delta. Weight classes used to carry their own reactor (heavy had 4) with S
+adding one on top, which meant C and B were the same ship twice.
 
-The row and the `REACTOR — n of m cells` line under HARDPOINTS answer different
-questions and both stay: the gauge is comparative — *is this a good reactor* —
-and the line is actionable — *how much room is left*. Heat has exactly this
-pair, as an attribute and as a combat gauge.
+**A and S skip a rung each**, and that is where the energy steps fall. B→A is
+the biggest gap on the ladder because it buys a fourth point of energy, and
+energy is the axis every card is priced against.
 
-### Why the output ladder is shallow
+**24 at the top still bites.** A fully mounted S heavy is five weapons, three
+systems and a utility; the catalogue averages 2.80 / 2.55 / 1.57 cells for
+those — 23.2 to fill it, against 24 with nothing spare for a big gun. The best
+hull in the game still cannot run everything it can bolt on.
 
-Card costs are 0, 1 and 2. Three energy plays two or three cards and five plays
-four or five — already more than proportional, because salvo wants a prior
-attack and lock-on wants a follow-up, so the turns you could not afford before
-are the good ones. `Database.gd` had measured this before there was a ladder:
-*"a reactor of four plays a Ripsaw into this and a reactor of three does not."*
-Six would have made S an obligation rather than a choice.
+### The hold is what you can haul; this is what you can run
 
-### Why 13 and not 8
+Before this existed, a part's shape decided everything in the hold and nothing
+on the hull — a 1-cell sight took a utility mount exactly like a 4-cell mast
+did, so the shape system stopped mattering the moment a part was installed.
 
-The yard kit is exactly 10 cells, so 8 was tempting and would have been broken.
-`_top_up_deck` needs `hand_size + 4` cards to launch with, a light wants five
-modules for that, and five modules of yard stock is 10 cells. At 8 a light
-launches with a four-card deck against a hand of six — which is the exact
-failure the medium's second utility mount was added to fix.
+**It does not replace the slot counts. Both have to be satisfied**, and they
+fail differently, so they clear differently: no mount takes the worst part *in
+that slot* off, because a weapon cannot free a system mount; no capacity takes
+the worst part *anywhere* off, because every cell draws on the one reactor.
 
-Swept at seed 4242, 200 runs each:
+### Couplings raise the level
 
-    C/B/A/S = 10 14 17 20    32 wins (16%)
-    C/B/A/S = 13 16 19 22    39 wins (20%)   <- here
-    C/B/A/S = 16 19 22 25    39 wins (20%)
-    C/B/A/S = 20 23 26 29    42 wins (21%)   effectively uncapped
+`ModuleData.reactor`. Five parts carry it and all five grant **+2 levels** —
+six cells, and a point of energy where the step falls.
 
-The plateau from 13 upward is the cap ceasing to bind. The remaining gap to the
-24% the game ran at before is the **output** ladder, not the capacity one — a
-heavy used to carry a reactor of 4 at every grade and now carries 3 until A.
+| Part | Grade | Cells to run | Free |
+| --- | --- | --- | --- |
+| Jumper Cable | Uncommon | 1 | **+5** |
+| Bus Coupling | Common | 2 | **+4** |
+| Foundry Bus | Rare | 2 | **+4** |
+| Salvaged Trunk Line | Uncommon | 3 | **+3** |
+| Main Bus Armature | Rare | 4 | **+2** |
 
-**Gate:** `-- reactor` prints all twelve frames and fails if any launches with a
-deck no bigger than its hand, or drawing more than it can carry.
+**Flat across all five, and grade does not decide it** — the one passive the
+attribute ladder (§13) does not govern. Capacity is a **budget**, not power: a
+legendary plate giving three times a common one gives you more hull, but a
+legendary coupling giving three times a common one changes *how much ship you
+can hold*, which compounds through every part you fit afterwards.
 
-### Modules that grant capacity
+**What differs is size, and it cuts the other way.** A coupling occupies
+capacity as well as granting it, so the 1-cell Jumper Cable keeps five of its
+six and the 2×2 Main Bus Armature keeps two. The small part is the efficient
+one; the big one is paid for in its cards. Worth watching — the rarer, larger
+part is the weaker *power* part, the same shape as the domination Range and
+Lock On had.
 
-`ModuleData.power_cap`. Five parts have it, and the rule is **net positive but
-not free**:
-
-| Part | House | Cells | Grants | Net |
-| --- | --- | --- | --- | --- |
-| Bus Coupling | — | 2 | +3 | +1 |
-| Jumper Cable | Redline | 1 | +3 | +2 |
-| Foundry Bus | Solari | 2 | +4 | +2 |
-| Salvaged Trunk Line | Probate | 3 | +5 | +2 |
-| Main Bus Armature | Korvan | 4 | +6 | +2 |
-
-They are **self-limiting by construction**, which is what makes them safe: a
-part that grants capacity also occupies capacity, and it occupies a mount that
-could have held a gun. Two cells is the ceiling — one small part's worth — so a
-ship that gives half its mounts to couplings has bought about one extra weapon
-and has nowhere left to put it. **Gate:** nothing may net more than +2.
-
-**Every coupling raises REACTOR by exactly +2.** One pip is **3 cells**
-(`RunState.CELLS_PER_PIP`), so +2 is a grant of 6 — and the 6 is *derived* from
-those two numbers rather than authored. That matters: a grant of 6 means nothing
-on its own, and when somebody asked why the armature gave six the honest answer
-was "because six made its net come out at two", which is not a reason.
-
-| Part | Grade | Grant | Cells to run | **Free** |
-| --- | --- | --- | --- | --- |
-| Jumper Cable | Uncommon | +6 | 1 | **+5** |
-| Bus Coupling | Common | +6 | 2 | **+4** |
-| Foundry Bus | Rare | +6 | 2 | **+4** |
-| Salvaged Trunk Line | Uncommon | +6 | 3 | **+3** |
-| Main Bus Armature | Rare | +6 | 4 | **+2** |
-
-**Flat across all five, and grade does not decide it.** This is the one passive
-the attribute ladder (§13) does not govern, and the exception is a ruling.
-Capacity is a **budget**, not power: a legendary plate giving three times a
-common one gives you more hull, but a legendary coupling giving three times a
-common one changes *how much ship you can hold*, which then compounds through
-every part you fit afterwards. Same number on the page, much larger swing in
-play, so the ladder stops at the reactor's door.
-
-**What differs between them is size, and it cuts the other way.** A coupling
-occupies capacity as well as granting it, so the 1-cell Jumper Cable keeps five
-of its six and the 2×2 Main Bus Armature keeps two. The small part is the
-efficient one; the big one is paid for in its cards. Worth watching — it means
-the rarer, larger part is the weaker *power* part, which is the same shape as
-the domination that Range and Lock On had.
+**A ruling this reversed:** couplings used to be forbidden from granting energy,
+on the grounds that energy is the axis every card is priced against. That cannot
+survive a model where the level hands out both — raising the level raises
+everything the level decides. Measured at seed 4242 over 200 runs it took the
+win rate from 15% to 20% and average jumps from 47 to 60, so it is a real buff
+and a deliberate one.
 
 **Gate:** `-- reactor` bolts each coupling onto a live frame and reads the
-gauge. It checks the pip, not the cells: a change to `CELLS_PER_PIP` moves every
-grant at once, and this is what notices if the two halves stop agreeing. It
-replaced a check on the net (*nothing nets more than +2*), which was a proxy
-invented before the gauge was the unit and is now wrong by design.
-
-**Capacity only, never output.** A module that handed out energy per turn would
-be the strongest card in the game with no card attached. That lever stays with
-the hull, the `overspec_reactor` perk and the Verity five-set, where there are
-exactly three of it and it can be reasoned about.
-
-Four houses and the yard, and not the other three, because a power bus is a
-thing a maker has an opinion about: Solari runs the reactor, the Combine pulls
-one out of something else, Redline adds cable, Korvan overbuilds the armature.
-Cygnet, Verity and Calyx have nothing to say about it.
+gauge, checking the **level** rather than the cells. It replaced a check on the
+net (*nothing nets more than +2*), a proxy invented before the gauge was the
+unit and now wrong by design — the nets legitimately run +2 to +5.
 
 ---
 

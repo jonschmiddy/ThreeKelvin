@@ -885,8 +885,55 @@ func ambush_chance(n: MapGen.MapNode) -> float:
 	p *= 1.0 - float(attr_stealth()) / float(ATTR_MAX) * 0.6
 	return clampf(p, 0.0, 0.6)
 
+## WHAT A REACTOR LEVEL IS. Cells of hardware it can run, and energy a turn.
+##
+## THE LEVEL IS THE STAT AND THE OTHER TWO ARE READ OFF IT, which is the
+## opposite of how this started. It was a SCORE: you had energy and cells, and
+## the bar weighed them into a number between 0 and 10. That worked and could
+## not be read backwards — REACTOR 10 meant "at least this good", not any
+## particular ship — and on the one gauge whose raw unit is printed directly
+## under it, being unreadable backwards is the whole complaint.
+##
+## Now REACTOR 10 is thirty cells and six energy, always, and a coupling that
+## raises it by two raises both. That is what "the reactor is bigger" should
+## have meant from the start.
+##
+## A TABLE AND NOT A FORMULA, because energy is a step and a step written as
+## arithmetic is a floor division nobody can read. Eleven rows is the whole
+## thing; anyone can see where the energy changes.
+const REACTOR_TABLE := [
+	{cells = 0, energy = 1},   ## 0 — adrift
+	{cells = 3, energy = 2},
+	{cells = 6, energy = 2},
+	{cells = 9, energy = 3},
+	{cells = 12, energy = 3},  ## 4 — C class
+	{cells = 15, energy = 3},  ## 5 — B class
+	{cells = 18, energy = 4},
+	{cells = 21, energy = 4},  ## 7 — A class
+	{cells = 24, energy = 5},  ## 8 — S class
+	{cells = 27, energy = 5},
+	{cells = 30, energy = 6},  ## 10 — the ceiling
+]
+
+## THE REACTOR LEVEL ITSELF: the hull grade, plus every part that raises it.
+##
+## Clamped to the table, which is also the attribute range. attr_reactor is
+## this number and nothing else — no weighting, no formula, no offset. That is
+## the point of turning it round.
+func reactor_level(bare: bool = false) -> int:
+	var n := hull.reactor
+	if not bare:
+		for m in installed:
+			n += m.reactor
+	return clampi(n, 0, REACTOR_TABLE.size() - 1)
+
+
+## Energy a turn. Read off the level, then the two things that grant energy
+## DIRECTLY rather than by growing the reactor — a perk and a set bonus, which
+## stay as they were because a bonus that sometimes did nothing (a level that
+## lands between steps) is a bonus nobody can price.
 func reactor() -> int:
-	var e := hull.reactor
+	var e: int = REACTOR_TABLE[reactor_level()].energy
 	if hull.perk_id == &"overspec_reactor":
 		e += 1
 	if has_set(&"verity", 5):
@@ -896,12 +943,9 @@ func reactor() -> int:
 ## THE OTHER HALF OF THE REACTOR: how many cells of hardware it can run.
 ##
 ## Hull plus every module that grants capacity. A part that grants it also
-## occupies it, so the sum can never run away — see `ModuleData.power_cap`.
+## occupies it, so the sum can never run away — see `ModuleData.reactor`.
 func power_cap() -> int:
-	var c := hull.power_cap
-	for m in installed:
-		c += m.power_cap
-	return c
+	return REACTOR_TABLE[reactor_level()].cells
 
 ## What is bolted on right now, in cells. The SAME number the hold counts a
 ## part in, deliberately: a player already knows a 2x2 bay is four, and a
@@ -925,10 +969,14 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 	if m == null:
 		return false
 	var draw := power_draw() + m.cells()
-	var cap := power_cap() + m.power_cap
+	# The cap WITH this part on, which matters because a coupling raises the
+	# level it is being measured against. Read off the table rather than added,
+	# since a level is not a number of cells until the table says so.
+	var level := reactor_level() + m.reactor
 	if replacing != null:
 		draw -= replacing.cells()
-		cap -= replacing.power_cap
+		level -= replacing.reactor
+	var cap: int = REACTOR_TABLE[clampi(level, 0, REACTOR_TABLE.size() - 1)].cells
 	return draw <= cap
 
 ## Development override, set by `-- fight N`. Zero means "use the real value".
@@ -1101,31 +1149,18 @@ const THERMAL_FLOOR := 8.0
 ## enough to be worth crossing.
 const CELLS_PER_PIP := 3.0
 
-## CELLS CARRY THE BAR AND ENERGY SUPPORTS IT, which is the other way round
-## from how this started.
+## THE ATTRIBUTE IS THE STAT. No weighting, no offset, no formula — the bar
+## reads the reactor level, and the level is what decides the cells and the
+## energy. REACTOR 10 is thirty cells and six energy, on every hull in the
+## game, and a player who reads the bar and multiplies is right.
 ##
-## It was (energy - 2) * 1.6 + (cells - 12) / 3, and at C that is 1.6 from
-## energy against 0.33 from cells — four fifths of the bar was the energy
-## number. That is indefensible for the one attribute whose raw unit a player
-## can COUNT: the ship screen says thirteen cells, the bar said 2, and anybody
-## told a pip is three cells does the multiplication and gets six. Somebody
-## did, and said six seemed low for a C class. They were right that it was
-## wrong; they were reading the bar exactly as it invited.
-##
-## Now cells are about two thirds of every reading and the bar moves when the
-## number under the mounts moves:
-##
-##     C  13 cells, 3 energy   5        A  19, 4   7
-##     B  16 cells, 3 energy   6        S  22, 5   9
-##
-## The offset is 4 rather than 12 so the ladder spreads across the bar instead
-## of hugging the bottom of it, and the divisor stays CELLS_PER_PIP so that a
-## coupling granting two pips-worth of cells still reads as exactly +2.
+## It is the only attribute that works this way, and it earned it: it is the
+## only one whose raw unit is printed on the same screen. HULL scores your
+## plating and THERMAL weighs capacity against vent because nobody counts
+## either of those; the ship screen counts cells under the mounts.
 func attr_reactor(bare: bool = false) -> int:
-	var out := hull.reactor if bare else reactor()
-	var cap := hull.power_cap if bare else power_cap()
-	var v := float(out) * 0.6 + float(cap - 4) / CELLS_PER_PIP
-	return clampi(int(round(v)), 0, ATTR_MAX)
+	return clampi(reactor_level(bare), 0, ATTR_MAX)
+
 
 func attr_thermal(bare: bool = false) -> int:
 	# 2.0 AND 1.0, NOT 2.1 AND 1.5, since the attribute ladder. Both fields are

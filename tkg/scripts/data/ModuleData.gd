@@ -60,18 +60,18 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 @export var initiative: int = 0
 @export var fuel_factor: float = 0.0
 
-## What this part adds to the hull's REACTOR CAPACITY, in cells.
+## How far this part raises the ship's REACTOR, in levels.
 ##
-## SELF-LIMITING BY CONSTRUCTION, which is the reason it is safe to put on a
-## module at all: a part that grants capacity also OCCUPIES capacity, so a
-## 2-cell coupling granting 4 nets 2. There is no runaway, and the ceiling is
-## how many mounts the frame has.
+## LEVELS AND NOT CELLS, since the reactor turned round. A coupling used to
+## grant six cells and the gauge worked out what that was worth; now it grants
+## two levels and RunState.REACTOR_TABLE says what those are worth — six cells
+## and, at some steps, a point of energy. The part's number and the number on
+## the bar are the same number.
 ##
-## Capacity only, never output. A module that handed out energy would be the
-## strongest card in the game with no card attached — energy is the axis
-## everything else is priced against. That lever exists and stays with the
-## hull, the `overspec_reactor` perk and the Verity five-set.
-@export var power_cap: int = 0
+## SELF-LIMITING BY CONSTRUCTION, which is why it is safe on a module at all: a
+## part that grants capacity also OCCUPIES capacity, so a 2x2 armature granting
+## six cells leaves two. The ceiling is how many mounts the frame has.
+@export var reactor: int = 0
 @export_group("")
 
 ## Issued with a ship, never found on one.

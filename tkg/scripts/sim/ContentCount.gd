@@ -121,7 +121,7 @@ func _dump() -> void:
 			flavour = m.flavour,
 			axis = axis, pips = pips,
 			cost_axis = cost_axis, cost_pips = cost_pips,
-			power_cap = m.power_cap,
+			reactor = m.reactor,
 			cards = cards,
 		})
 	# The malfunctions travel with them. They are not modules and never will be

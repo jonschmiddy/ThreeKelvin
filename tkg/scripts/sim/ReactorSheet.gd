@@ -85,19 +85,21 @@ func _hardware() -> void:
 	var bad: Array[String] = []
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
-		if m.power_cap == 0:
+		if m.reactor == 0:
 			continue
 		Rng.forced = 4242
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		Run.installed.clear()
 		var before := Run.attr_reactor()
+		var was_cells := Run.power_cap()
 		var fit := m.duplicate(true) as ModuleData
 		fit.mount = 0
 		Run.installed.append(fit)
 		var moved := Run.attr_reactor() - before
-		rows.append("  %-24s %s  REACTOR %+d  ·  +%d cells, %d to run, net %+d"
+		var gained := Run.power_cap() - was_cells
+		rows.append("  %-24s %s  REACTOR %+d  ·  %+d cells, %d to run, net %+d"
 			% [m.name, ModuleData.rarity_name(m.rarity).left(4).to_upper(), moved,
-				m.power_cap, m.cells(), m.power_cap - m.cells()])
+				gained, m.cells(), gained - m.cells()])
 		if moved != DB.REACTOR_BUMP:
 			bad.append("%s moves REACTOR %+d, not %+d"
 				% [m.name, moved, DB.REACTOR_BUMP])

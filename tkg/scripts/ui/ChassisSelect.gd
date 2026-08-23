@@ -488,7 +488,7 @@ func _build_detail() -> void:
 	var rl := UITheme.body("REACTOR", UITheme.COLD, UITheme.FS_SMALL)
 	rl.custom_minimum_size = Vector2(46, 0)
 	rct.add_child(rl)
-	rct.add_child(UITheme.body("%d cells" % Run.hull.power_cap,
+	rct.add_child(UITheme.body("%d cells" % Run.power_cap(),
 		UITheme.CHILL, UITheme.FS_SMALL))
 	right.add_child(_tipped(rct, str(MOUNT_TIP["reactor"])))
 	# Hand size sits with the hardpoints because it is the same kind of fact:
