@@ -140,8 +140,75 @@ func _dump() -> void:
 		junk.append({id = String(row[0]), name = c.name, text = c.describe(),
 			corrode = int(row[2]), smoulder = int(row[3]), fused = bool(row[4])})
 
+	_vet(out, junk)
+
 	var path := "user://modules.json"
 	var fh := FileAccess.open(path, FileAccess.WRITE)
 	fh.store_string(JSON.stringify({modules = out, malfunctions = junk}, "  "))
 	fh.close()
 	print("  wrote %s (%d modules)" % [ProjectSettings.globalize_path(path), out.size()])
+
+
+## THE EXPORT IS A CONTRACT AND NOTHING WAS CHECKING IT.
+##
+## `PASSIVE_AXIS` values became arrays and the line above was still doing
+## `String()` on one. GDScript will stringify anything, so a gauge name came
+## out as the four characters `["hull"]`, the JSON stayed valid, the file kept
+## being written, and every page reading it stopped grouping. Nothing errored
+## at either end. It was found by looking at a table that had gone blank.
+##
+## THE VOCABULARY IS BUILT FROM THE GAME, not typed here. A hand-written list
+## of legal gauge names is a second place for the truth to live and it goes
+## stale the first time somebody adds a gauge; asking PER_PIP what the gauges
+## are cannot.
+##
+## Fails the harness rather than warning, because an export nobody can trust is
+## worse than no export: it produces a page that looks right and is not, and
+## the whole argument for generating the manifest was that a hand-copied one
+## goes wrong silently.
+func _vet(rows: Array, junk: Array) -> void:
+	var gauges := {}
+	# `Run`, the singleton, and not `RunState` — that script carries no
+	# class_name, so the identifier does not exist and the whole harness fails to
+	# COMPILE. Which does not look like a compile error from outside: `.new()`
+	# returns nothing, `get_tree().quit()` never runs, and Godot sits there until
+	# the gate’s watchdog kills it at 120 seconds. Database reaches the same
+	# constants through a preload because it runs before the autoload exists; a
+	# harness runs after, so the singleton is right here.
+	for g in Run.PER_PIP:
+		gauges[String(g)] = true
+	var grades := {}
+	for r in ModuleData.Rarity.size():
+		grades[ModuleData.rarity_name(r)] = true
+	var slots := {}
+	for sl in ModuleData.Slot.size():
+		slots[ModuleData.slot_name(sl)] = true
+
+	var bad: Array[String] = []
+	for row in rows:
+		var d: Dictionary = row
+		var who: String = str(d.get("name", "?"))
+		if not grades.has(str(d.get("rarity", ""))):
+			bad.append("%s: rarity %s" % [who, d.get("rarity")])
+		if not slots.has(str(d.get("slot", ""))):
+			bad.append("%s: slot %s" % [who, d.get("slot")])
+		for a in d.get("axes", []):
+			if not gauges.has(str(a)):
+				bad.append("%s: gauge %s" % [who, a])
+		var ca: String = str(d.get("cost_axis", ""))
+		if ca != "" and not gauges.has(ca):
+			bad.append("%s: cost gauge %s" % [who, ca])
+		if int(d.get("cells", 0)) < 1:
+			bad.append("%s: %d cells" % [who, int(d.get("cells", 0))])
+		if (d.get("cards", []) as Array).is_empty():
+			bad.append("%s: no cards" % who)
+		for c in d.get("cards", []):
+			if str((c as Dictionary).get("name", "")) == "":
+				bad.append("%s: a card with no name" % who)
+	for row in junk:
+		if str((row as Dictionary).get("name", "")) == "":
+			bad.append("a malfunction with no name")
+
+	_ok("every row of the export is a shape the page can read", bad.is_empty())
+	for b in bad:
+		_fail(b)

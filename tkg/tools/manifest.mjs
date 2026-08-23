@@ -46,6 +46,33 @@ const OUT = process.argv[2] || 'parts-manifest.html';
 const D = JSON.parse(fs.readFileSync(SRC, 'utf8'));
 const MODS = D.modules, JUNK = D.malfunctions;
 
+// THE PAGE REFUSES DATA IT DOES NOT UNDERSTAND.
+//
+// PASSIVE_AXIS values became arrays upstream while the exporter still called
+// String() on one, so a gauge arrived as the four characters ["hull"]. The JSON
+// stayed valid, this file kept rendering, and every gauge chip silently vanished
+// — a page that looked finished and was wrong, which is the exact failure the
+// manifest is generated to avoid.
+//
+// An unknown gauge is a CRASH now, not a blank cell. Rendering nothing is how a
+// broken contract gets to look like an empty catalogue.
+function vet(mods) {
+  const gauges = new Set(Object.keys(GAUGE));
+  for (const m of mods) {
+    for (const a of (m.axes || [])) {
+      if (!gauges.has(a)) {
+        throw new Error('unknown gauge ' + JSON.stringify(a) + ' on ' + m.name
+          + ' — the export and this page disagree about what a gauge is');
+      }
+    }
+    if (m.cost_axis && !gauges.has(m.cost_axis)) {
+      throw new Error('unknown cost gauge ' + JSON.stringify(m.cost_axis)
+        + ' on ' + m.name);
+    }
+    if (!m.cards || !m.cards.length) throw new Error(m.name + ' has no cards');
+  }
+}
+
 const HOUSE_ORDER = ['Korvan Heavy Works','Solari Foundry','The Probate Combine',
   'Redline Shipyards','Cygnet Dynamics','Verity Ateliers','Calyx Biosystems','Unbranded'];
 const SHORT = {'Korvan Heavy Works':'Korvan','Solari Foundry':'Solari',
@@ -144,7 +171,13 @@ function cardLine(c) {
   const r = c.rarity
     ? '<span class="cr r-' + slug(c.rarity) + '">' + esc(c.rarity.slice(0, 2)) + '</span>'
     : '<span class="cr"></span>';
-  const cost = '<span class="cost">' + c.energy + (c.heat ? '<b>+' + c.heat + '</b>' : '') + '</span>';
+  // ENERGY THEN HEAT, and NOT "1+1", which reads as arithmetic on one quantity
+  // when it is two different ones. The game's own card face never puts them
+  // adjacent — energy is a corner gem and heat is a pip on the other side — so
+  // squashing them into a sum was this page's invention, and somebody read a
+  // Ripple Fire as costing two of something.
+  const cost = '<span class="cost">' + c.energy
+    + (c.heat ? '<b>' + c.heat + '°</b>' : '') + '</span>';
   return '<li>' + r + cost + '<span class="cn">' + esc(c.name) + '</span>'
     + '<span class="ct">' + esc(c.text) + '</span></li>';
 }
@@ -212,6 +245,9 @@ const houseSections = houses.map(h =>
 //
 // Grouped and not merely sorted, because the question a size view answers is
 // "what can I fit in three cells", and that is a bucket rather than a position.
+// After GAUGE is defined, which is what it is checked against.
+vet(MODS);
+
 const sizeSections = [1, 2, 3, 4].map(n => {
   const parts = MODS.filter(m => m.cells === n)
     .sort((a, b) => a.w - b.w || a.name.localeCompare(b.name));
@@ -245,7 +281,8 @@ const cardRows = CARDS.map(c =>
   '<tr>'
   + '<td class="c-name">' + esc(c.name)
   + (c.parts.size > 1 ? '<span class="tag">' + c.parts.size + ' parts</span>' : '') + '</td>'
-  + '<td class="c-cost">' + c.energy + (c.heat ? ' <b>+' + c.heat + '</b>' : '') + '</td>'
+  + '<td class="c-cost">' + c.energy
+    + (c.heat ? ' <b>' + c.heat + '°</b>' : '') + '</td>'
   + '<td class="c-text">' + esc(c.text) + '</td>'
   + '<td class="c-rar">' + [...c.rarities].map(r =>
       '<span class="r-' + slug(r) + '">' + esc(r) + '</span>').join(' / ') + '</td>'

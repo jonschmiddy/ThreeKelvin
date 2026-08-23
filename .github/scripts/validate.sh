@@ -193,6 +193,35 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 	fi
 fi
 
+step "The catalogue export is a shape the manifest can read"
+# NEITHER OF THESE WAS IN THE GATE AT ALL, which is how the export and the page
+# drifted apart in silence. PASSIVE_AXIS values became arrays while the exporter
+# still called String() on one; a gauge came out as the four characters
+# ["hull"], the JSON stayed valid, the page kept rendering, and every gauge chip
+# vanished. Nothing errored at either end â it was found by looking at a table
+# that had gone blank.
+#
+# Both ends check now and both run here. The exporter vets its own rows against
+# the vocabulary the GAME defines, and the page throws on a gauge it does not
+# recognise rather than rendering an empty cell.
+if run_godot content 120 --headless --path "$PROJECT" -- content json; then
+	if grep -qE '^content: PASS' "$LOG_DIR/content.log"; then
+		if command -v node >/dev/null 2>&1; then
+			MANIFEST_OUT="$LOG_DIR/manifest.html"
+			if node "$PROJECT/tools/manifest.mjs" "$MANIFEST_OUT" >"$LOG_DIR/manifest.log" 2>&1; then
+				ok "export and manifest"
+			else
+				bad "the manifest refused the export"
+				tail -n 12 "$LOG_DIR/manifest.log" | sed 's/^/        /'
+			fi
+		else
+			ok "export (node absent, manifest not built)"
+		fi
+	else
+		bad "the export carries rows the manifest cannot read"
+		grep -E '^  FAIL|^content' "$LOG_DIR/content.log" | head -n 20 | sed 's/^/        /'
+	fi
+fi
 step "A part moves the gauge its grade promised"
 # The ladder converts a grade into pips, _lay_pips converts pips into whatever
 # raw unit a gauge is kept in, and attr_* converts that back. Two ways the round

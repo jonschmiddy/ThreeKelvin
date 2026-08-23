@@ -653,6 +653,24 @@ offsets rares and above gaining more.
 5. `node tkg/tools/manifest.mjs out.html` — the Yard Manifest.
 6. Publish `out.html` as an artifact and read the catalogue.
 
+**The export and the page are both gated.** `-- content json` vets every row it
+writes against a vocabulary built from the game itself — `PER_PIP` for gauges,
+the `Rarity` enum for grades, `Slot` for slots — and `manifest.mjs` **throws** on
+a gauge it does not recognise rather than rendering a blank cell. Both run as one
+step in `validate.sh`.
+
+That exists because neither was gated at all, and they drifted apart in silence:
+`PASSIVE_AXIS` values became arrays while the exporter still called `String()` on
+one, so a gauge arrived as the four characters `["hull"]`. The JSON stayed valid,
+the page kept rendering, every gauge chip vanished, and nothing errored at either
+end. It was found by looking at a table that had gone blank.
+
+**Rendering nothing is how a broken contract gets to look like an empty
+catalogue.** That is the general lesson and it is the second time it bit: the
+manifest also printed reactor cells gross while `-- reactor` correctly printed
+net. Both times the check was right and the page a person reads was wrong,
+because the page was not checked. A gate only protects what it is looking at.
+
 **Step 6 is not decoration.** Every duplicate found so far was found by a person
 looking at a list where the cards sat next to each other; the manifest sorts
 every card by *effect* rather than by name for exactly that reason. Two cards
