@@ -716,7 +716,7 @@ func _seed_modules() -> void:
 
 	# --- Unbranded: exotic (grown) and artifact (precursor)
 	_module(&"organ", "Voidwhale Ganglion", &"", U, C5,
-		"Still faintly warm. Three Kelvin says otherwise.",
+		"Still faintly warm. The smell is overpowering.",
 		[{name = "Whale Song", energy = 1, heal = 8, vent = 3},
 			{name = "Deep Song", energy = 1, heal = 6, vent = 6, draw = 1}])
 	_module(&"lattice", "Precursor Lattice", &"", S, C6,
