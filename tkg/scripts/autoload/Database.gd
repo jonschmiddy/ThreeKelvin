@@ -869,7 +869,6 @@ func _seed_modules() -> void:
 	for id in GENERIC_STOCK:
 		(modules[id] as ModuleData).starter_only = true
 
-	_seed_module_attributes()
 	_seed_module_passives()
 	_seed_module_sizes()
 
@@ -895,11 +894,22 @@ func _seed_modules() -> void:
 ## hold". A Precursor Lattice at 2x2 is not surprising; a Coolant Line at
 ## anything but 1x1 would be.
 func _seed_module_sizes() -> void:
+	# FOUR ACROSS, and the only shape a light hull cannot rotate. A light hold is
+	# 4x3, so a spinal gun fills an entire row of the twelve cells a skiff has and
+	# stood on end does not fit at all — the grid refuses it, because 1x4 runs off
+	# the bottom. That is a real decision rather than a side effect: it makes hull
+	# weight bite in the HOLD, where until now it only bit in the mount count.
+	#
+	# Three guns carry it and they are the three whose names already said so: a
+	# siege driver, a drumfire and a rail are things a frame is built around.
+	const SPINE := Vector2i(4, 1)
 	const LONG := Vector2i(3, 1)
 	const BULK := Vector2i(2, 2)
 	const UNIT := Vector2i(2, 1)
 	const FIT := Vector2i(1, 1)
 
+	# The three the hull is built AROUND rather than hung with.
+	var spinal: Array[StringName] = [&"widow", &"kh500", &"rail"]
 	# Barrels, lances and rails. The shape IS the barrel.
 	var long_ones: Array[StringName] = [
 		&"km4", &"widow", &"kh500", &"plasma", &"ventcan", &"breaker",
@@ -928,7 +938,9 @@ func _seed_module_sizes() -> void:
 
 	for id in modules:
 		var m: ModuleData = modules[id]
-		if id in long_ones:
+		if id in spinal:
+			m.size = SPINE
+		elif id in long_ones:
 			m.size = LONG
 		elif id in bulky:
 			m.size = BULK
@@ -939,84 +951,122 @@ func _seed_module_sizes() -> void:
 		else:
 			m.size = UNIT
 
-func _seed_module_attributes() -> void:
-	# `board` and `scope` are yard stock and were carrying their names as pure
-	# flavour: a Signal Board that reads no signals and a Ranging Scope that
-	# ranges nothing. They are the floor of the sensor axis now, which is also
-	# what makes an Auspex Array at 2 legible as an upgrade from something.
-	#
-	# Korvan's four new utility rungs carry the sensor axis up with them, which is
-	# the same "latent in the name" test: optics range, sights see, a fire director
-	# is the thing that decides. It also matters more than it looks while
-	# ACTIVE_MAKERS is narrowed — with only Korvan dropping, these are the ONLY
-	# modules a run can find that raise Sensors at all, and Sensors is what the
-	# skill checks read.
-	var sensors := {&"auspex": 2, &"servo": 1, &"evoke": 1, &"board": 1, &"scope": 1,
-		&"optics": 1, &"coldsights": 2, &"director": 3}
-	var stealth := {&"ghost": 2, &"chaff": 1, &"sporevent": 1, &"flare": -1}
-	for id in sensors:
-		(modules[id] as ModuleData).sensors = sensors[id]
-	for id in stealth:
-		(modules[id] as ModuleData).stealth = stealth[id]
+## THE ATTRIBUTE LADDER. What a grade is worth, in PIPS on the one gauge a part
+## moves. Indexed by ModuleData.Rarity.
+##
+##     COMMON 0   UNCOMMON 0   RARE 1   EPIC 2   LEGENDARY 3
+##     EXOTIC 3   ARTIFACT 4   CONTRABAND 2
+##
+## COMMON AND UNCOMMON GIVE NOTHING, which is a statement and not an oversight:
+## yard stock is CARDS. Hull Plating used to carry +3 hull while a Brace Frame,
+## which is two grades rarer, carried +2 — the table was authored one part at a
+## time and had drifted into saying a common was better than a rare at the thing
+## the rare is named for. A ladder cannot drift.
+##
+## The cost of that is real and worth knowing: a run now opens with no passive
+## stats at all, because the entire starting kit is common. The first rare part
+## you bolt on is the first pip you have ever had.
+##
+## EXOTIC MATCHES LEGENDARY AND PAYS FOR IT somewhere else. Grown things are
+## alive and inconvenient, and the trade is the identity rather than a bigger
+## number — a Voidwhale Ganglion hears everything in the system, and everything
+## in the system hears it. ARTIFACT is the top of the found ladder and there are
+## two of them. CONTRABAND sits at Epic on purpose: it is not a quality grade at
+## all, it is a fact about who sold it to you, so it performs like an epic and
+## carries risk instead of power.
+## The script, not the singleton. RunState carries no class_name and Database
+## is the autoload BEFORE it, so `Run.PER_PIP` is a null dereference at the
+## moment the catalogue is built. A preload reaches the constants without
+## needing the node to exist.
+const RUNSTATE := preload("res://scripts/autoload/RunState.gd")
+
+const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
+
+## WHICH GAUGE A PART MOVES. The size is not here — it comes from the grade,
+## through ATTR_BUMP and RunState.PER_PIP. This table only answers "which one".
+##
+## ONE AXIS EACH, which is the change. Cold Sights used to carry shedding AND
+## sensors, Ghost Drive dodge AND stealth, the Fire Director initiative AND
+## sensors — so "a rare part is worth one pip" could not be true of any of them,
+## and a part quietly moving two gauges was worth double its grade with nothing
+## on the screen saying so. The axis is the one the NAME picks: sights see, a
+## drive is how you are not there, a director decides.
+##
+## A part with no entry moves nothing, and most of the catalogue has none. That
+## is deliberate as well: the axis has to be latent in what the part IS, and a
+## gun is not a claim about any of the six.
+const PASSIVE_AXIS := {
+	# Plate, bracing, armour.
+	&"plating": &"hull", &"bracing": &"hull", &"plate": &"hull",
+	&"reactive": &"hull", &"sinkplate": &"hull", &"braceframe": &"hull",
+	&"bulkhead": &"hull",
+	# Holding heat.
+	&"shroud": &"heat", &"overdrive": &"heat", &"ventcan": &"heat",
+	# Shedding it.
+	&"coolant": &"vent", &"coolline": &"vent", &"sporevent": &"vent",
+	# Not being hit.
+	&"chaff": &"dodge",
+	# Acting sooner.
+	&"singing": &"init", &"servo": &"init",
+	# Seeing.
+	&"auspex": &"sensors", &"board": &"sensors", &"scope": &"sensors",
+	&"optics": &"sensors", &"coldsights": &"sensors", &"director": &"sensors",
+	&"evoke": &"sensors", &"organ": &"sensors",
+	# Not being seen.
+	&"ghost": &"stealth", &"lattice": &"stealth",
+}
+
+## WHAT A PART COSTS YOU, in pips, on a gauge that is not its own.
+##
+## Not a grade bump and not on the ladder — these are prices, authored per part,
+## and they are what lets the ladder stay flat at the top. A Solari flare rack
+## lights you up. A Voidwhale Ganglion is a living antenna and transmits as well
+## as it listens. Both were true in the flavour before they were true in the
+## numbers.
+const PASSIVE_COST := {
+	&"flare": [&"stealth", 1],
+	&"organ": [&"stealth", 1],
+}
 
 
-## The four gauges a module can move, laid on modules that already exist.
+## Every passive in the catalogue, derived rather than authored.
 ##
-## Same discipline as _seed_module_attributes above, and the same reason: every
-## one of these already reads as the thing it now does. An Ablative Plate Welder
-## welds plate. A Coolant Flush Assembly flushes coolant. The stat was latent in
-## the name and the catalog was carrying it as flavour.
+## This replaces two hand-written tables of raw numbers — one for sensors and
+## stealth, one for the four gauges under them — and the point of replacing them
+## is that a hand-written number cannot be checked against a rule. It is now
+## impossible to author a common that out-plates a rare, because nobody authors
+## the plating: the grade does.
 ##
-## Until now a module's ONLY passive effects were sensors and stealth, so armour
-## modules armoured nothing — they granted a block card and left max_hp exactly
-## where the bare chassis had it. These numbers are small on purpose: a medium
-## frame is 35 hull, 12 heat cap and 3 dissipation, so +3 plate is a tenth of a
-## hull rather than a second one, and the cards a module grants are still the
-## bulk of what it is worth.
-##
-## NOTHING carries fuel_factor. It is the one signed field that cuts both ways —
-## it raises Thrust and the price of every jump together — and the simulator
-## already ends 30-40% of runs stranded. A number invented for it here would move
-## the most fragile figure in the game for the sake of an attribute nobody has
-## asked to change. The gauge sums it; the catalog waits for an engine.
+## Rounded into the field it lands in. `dodge` is a float and keeps its
+## fraction; everything else is an int, so a pip of shedding is 2 rather than
+## 1.5. That rounding is exactly why `-- attrtest` measures the gauge instead of
+## trusting this.
 func _seed_module_passives() -> void:
-	# Plate, bracing, armour. Rarity buys magnitude, per the ladder.
-	var hull_plus := {
-		&"plating": 3, &"bracing": 2,          # generic yard stock
-		&"plate": 2, &"reactive": 6,           # korvan
-		&"sinkplate": 3, &"braceframe": 2, &"bulkhead": 5,
-		&"slag": 4,                            # probate
-		&"weave": 3,                           # calyx
-		&"lattice": 8,                         # precursor artifact
-	}
-	# Capacity: how much heat you can hold. Solari's whole axis.
-	var heat_plus := {&"shroud": 5, &"overdrive": 3, &"ventcan": 2}
-	# Shedding: how fast you get rid of it. Deliberately scarcer than capacity —
-	# FOUR bearers at +1 — because dissipation compounds every single turn and a
-	# medium frame only starts with 3.
-	#
-	# Cold Sights is the fourth and it went in with its eyes open. Of the other
-	# three, one is generic yard stock that never drops and one is Calyx, so a
-	# Korvan-only loot pool could previously find exactly ONE module in the game
-	# that sheds heat faster. A house whose entire identity is running cold could
-	# not buy the stat. Reopen ACTIVE_MAKERS and this is the rung to re-measure.
-	var vent_plus := {&"coolant": 1, &"coolline": 1, &"sporevent": 1, &"coldsights": 1}
-	# Evasion, and only from Redline, whose set is named for it.
-	var dodge_plus := {&"ghost": 0.04, &"chaff": 0.02}
-	# Acting sooner. The same three modules that already grant Sensors, because
-	# seeing first and moving first are the same sentence.
-	var init_plus := {&"servo": 1, &"evoke": 1, &"singing": 1, &"director": 1}
+	for id in PASSIVE_AXIS:
+		var m: ModuleData = modules[id]
+		_lay_pips(m, PASSIVE_AXIS[id], ATTR_BUMP[int(m.rarity)])
+	for id in PASSIVE_COST:
+		var row: Array = PASSIVE_COST[id]
+		_lay_pips(modules[id] as ModuleData, row[0], -int(row[1]))
 
-	for id in hull_plus:
-		(modules[id] as ModuleData).max_hull = hull_plus[id]
-	for id in heat_plus:
-		(modules[id] as ModuleData).heat_cap = heat_plus[id]
-	for id in vent_plus:
-		(modules[id] as ModuleData).dissipation = vent_plus[id]
-	for id in dodge_plus:
-		(modules[id] as ModuleData).dodge = dodge_plus[id]
-	for id in init_plus:
-		(modules[id] as ModuleData).initiative = init_plus[id]
+
+## Move one gauge by `pips`, in whatever unit that gauge is kept in.
+##
+## `+=` and not `=`, so a part can take a bump on one axis and a price on
+## another without the second overwriting the first. The Voidwhale Ganglion is
+## the part that needs it, and it would have silently lost its bump.
+func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
+	if pips == 0:
+		return
+	var unit: float = float(RUNSTATE.PER_PIP[axis]) * float(pips)
+	match axis:
+		&"hull": m.max_hull += int(round(unit))
+		&"heat": m.heat_cap += int(round(unit))
+		&"vent": m.dissipation += int(round(unit))
+		&"dodge": m.dodge += unit
+		&"init": m.initiative += int(round(unit))
+		&"sensors": m.sensors += int(round(unit))
+		&"stealth": m.stealth += int(round(unit))
 
 
 # ------------------------------------------------------------------------ hulls

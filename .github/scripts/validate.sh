@@ -193,6 +193,21 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 	fi
 fi
 
+step "A part moves the gauge its grade promised"
+# The ladder converts a grade into pips, _lay_pips converts pips into whatever
+# raw unit a gauge is kept in, and attr_* converts that back. Two ways the round
+# trip breaks and neither throws: an int field rounding a fractional pip into
+# two, and a retuned attr_ formula that PER_PIP was not told about. Either one
+# silently puts a whole axis off the ladder on every hull in the game.
+if run_godot attrtest 120 --headless --path "$PROJECT" -- attrtest; then
+	if grep -qE '^attrtest: PASS' "$LOG_DIR/attrtest.log"; then
+		ok "attribute ladder"
+	else
+		bad "a part does not move its gauge by what its grade promised"
+		grep -E '^  FAIL|OFF' "$LOG_DIR/attrtest.log" \
+			| head -n 20 | sed 's/^/        /'
+	fi
+fi
 step "The chart's filtered view is mostly filtered"
 # An exception that grows until it swallows the rule. Stations are on the
 # chart before you visit them, deliberately, and the range that exception

@@ -14,6 +14,7 @@ is judgement, this says that too, so the difference is never guessed at.
 
     godot --headless --path tkg -- holdtest      # every rule below marked "gate"
     godot --headless --path tkg -- reactor       # what every frame launches with
+    godot --headless --path tkg -- attrtest      # the attribute ladder, round trip
     godot --headless --path tkg -- content       # how much is written, per house
     godot --headless --path tkg -- content json  # the export the manifest is built from
 
@@ -327,6 +328,16 @@ the shape is fixed.
 
 Holds are 4×3 (light, 12), 5×4 (medium, 20) and 6×5 (heavy, 30).
 
+Five shapes: **1×1** (14 parts), **2×1** (31), **3×1** (8), **2×2** (12) and
+**4×1** (3).
+
+**4×1 is the light-hull tax.** It fills an entire row of the twelve cells a
+skiff has, and stood on end it does not fit at all — the grid refuses it,
+because 1×4 runs off the bottom of a 3-deep hold. That makes hull weight bite in
+the *hold*, where until now it only bit in the mount count. Three guns carry it,
+and they are the three whose names already said so: a siege driver, a drumfire
+and a rail are things a frame is built around.
+
 **Gate:** every part fits the smallest hold. A 5-wide part could never be picked
 up by anyone flying a light and would fail by being silently left behind at
 every wreck.
@@ -453,7 +464,95 @@ Cygnet, Verity and Calyx have nothing to say about it.
 
 ---
 
-## §13 The loop
+## §13 The attribute ladder
+
+**A part's grade decides how far it moves a gauge, in whole pips out of ten.**
+`Database.ATTR_BUMP`, enforced by the gate.
+
+| Grade | Pips |
+| --- | --- |
+| Common | 0 |
+| Uncommon | 0 |
+| Rare | +1 |
+| Epic | +2 |
+| Legendary | +3 |
+| Exotic | +3, **and −1 on another gauge** |
+| Artifact | +4 |
+| Contraband | +2 |
+
+**Common and uncommon give nothing, and that is a statement.** Yard stock is
+*cards*. Hull Plating used to carry +3 hull while a Brace Frame, two grades
+rarer, carried +2 — the old table was authored one part at a time and had
+drifted into saying a common beat a rare at the thing the rare is named for. A
+ladder cannot drift. The cost is real: a run now opens with no passive stats at
+all, because the whole starting kit is common, and the first rare part you bolt
+on is the first pip you have ever had.
+
+**Exotic matches Legendary and pays for it somewhere else.** Grown things are
+alive and inconvenient, and the trade is the identity rather than a bigger
+number — a Voidwhale Ganglion hears everything in the system, and everything in
+the system hears it. **Artifact** is the top of the found ladder and there are
+two. **Contraband sits at Epic on purpose**: it is not a quality grade at all,
+it is a fact about who sold it to you, so it performs like an epic and carries
+risk instead of power.
+
+### One axis each
+
+`Database.PASSIVE_AXIS` says *which* gauge; the grade says *how far*. Cold
+Sights used to carry shedding **and** sensors, Ghost Drive dodge **and**
+stealth, the Fire Director initiative **and** sensors — so "a rare part is worth
+one pip" could not be true of any of them, and a part quietly moving two gauges
+was worth double its grade with nothing saying so.
+
+The axis is the one the **name** picks: sights see, a drive is how you are not
+there, a director decides. Most of the catalogue has no axis at all, which is
+also deliberate — a gun is not a claim about any of the six.
+
+### Prices are authored, not laddered
+
+`Database.PASSIVE_COST`. A Solari flare rack lights you up; a Voidwhale Ganglion
+transmits as well as it listens. These are what let the top of the ladder stay
+flat, and they were true in the flavour before they were true in the numbers.
+
+### REACTOR is exempt, and it has to be
+
+Capacity has its own rule (§12: net ≤ +2, self-limiting) and does **not** follow
+the pip ladder. The two genuinely conflict — a legendary part at +3 pips would
+be +12 cells, which breaks the budget the cells *are* — and the reason is that
+REACTOR is the one attribute that is itself a constraint on installing modules.
+A part that raises it is a feedback loop the other six do not have.
+
+### The round trip is checked
+
+**Gate:** `-- attrtest` bolts every part onto a bare medium C and reads the
+gauge before and after.
+
+    Reactive Plating Array  Legendary  hull       3      3
+    Bulkhead Array          Epic       hull       2      2
+    Brace Frame             Rare       hull       1      1
+    Hull Plating            Common     hull       0      0
+
+It exists because two things break silently. **Rounding** — a pip of shedding
+was 1.5, stored as an int 2, and read back as two pips; caught on the first run.
+**A changed formula** — `RunState.PER_PIP` is inverted out of the `attr_*`
+functions by hand, so retuning a divisor and not touching it puts a whole axis
+off the ladder on every hull in the game.
+
+`attr_thermal` divides by 2 and 1 rather than 2.1 and 1.5 **because of this** —
+an int field cannot deliver a fractional pip. The readings barely moved; a
+medium reads 3 either way.
+
+`SENSE_SCALE` is 1.0 for the same reason: at 1.7 a rare and an epic both round
+to a raw 1, and two grades reading identically is the failure THERMAL already
+documents. What it costs is hull headroom; what it buys is that Sensors and
+Stealth are axes you **build** rather than ones the frame hands you.
+
+Measured at seed 4242, 200 runs: 18% → 16%. Commons losing their stats roughly
+offsets rares and above gaining more.
+
+---
+
+## §14 The loop
 
 1. Write parts in `Database.gd`.
 2. `godot --headless --path tkg -- holdtest` — every gate in this document.
@@ -478,7 +577,7 @@ Standing artifact: **Yard Manifest**, republished in place each time.
 
 ---
 
-## §14 Where it stands
+## §15 Where it stands
 
     korvan          19 parts   30 cards   want 40   short 10
     (unbranded)     13         12         want 20   short  8

@@ -138,7 +138,7 @@ function cardLine(c) {
 function partCard(m) {
   const dupe = new Set(m.cards.map(c => c.name)).size === 1 && m.cards.length > 1;
   return '<article class="part" data-house="' + esc(m.house_name) + '" data-rarity="'
-    + esc(m.rarity) + '" data-slot="' + esc(m.slot) + '">'
+    + esc(m.rarity) + '" data-slot="' + esc(m.slot) + '" data-cells="' + m.cells + '">'
     + '<header>' + plate(m)
     + '<div class="ph"><h3>' + esc(m.name) + '</h3>'
     + '<p class="meta"><span class="r-' + slug(m.rarity) + '">' + esc(m.rarity.toUpperCase())
@@ -157,6 +157,24 @@ const houseSections = houses.map(h =>
   + h.cards + ' cards' + (h.cards < h.want ? ' &middot; <em>' + (h.want - h.cards)
   + ' short of ' + h.want + '</em>' : '') + '</span></h2>'
   + '<div class="grid">' + h.parts.map(partCard).join('') + '</div></section>').join(NL);
+
+// THE SAME PARTS, GROUPED BY SIZE. A second rendering rather than a re-sort of
+// the first: the house view is a set of sections and a flat sort would have to
+// dismantle them, and 68 cards of duplicated markup is cheaper than the CSS that
+// would keep one list in two orders.
+//
+// Grouped and not merely sorted, because the question a size view answers is
+// "what can I fit in three cells", and that is a bucket rather than a position.
+const sizeSections = [1, 2, 3, 4].map(n => {
+  const parts = MODS.filter(m => m.cells === n)
+    .sort((a, b) => a.w - b.w || a.name.localeCompare(b.name));
+  if (!parts.length) return '';
+  const shapes = [...new Set(parts.map(m => m.w + '×' + m.h))].join(', ');
+  return '<section class="house size" data-house="">'
+    + '<h2><span class="swatch cells"></span>' + n + (n === 1 ? ' CELL' : ' CELLS')
+    + '<span class="hcount">' + parts.length + ' parts &middot; ' + shapes + '</span></h2>'
+    + '<div class="grid">' + parts.map(partCard).join('') + '</div></section>';
+}).join(NL);
 
 const cardRows = CARDS.map(c =>
   '<tr>'
@@ -322,6 +340,7 @@ const CSS = [
 '.m-probate{background:var(--probate)} .m-redline{background:var(--redline)}',
 '.m-cygnet{background:var(--cygnet)} .m-verity{background:var(--verity)}',
 '.m-calyx{background:var(--calyx)} .m-unbranded{background:var(--unbranded)}',
+'.swatch.cells{background:var(--cold)}',
 '.r-common{color:var(--common)} .r-uncommon{color:var(--uncommon)}',
 '.r-rare{color:var(--rare)} .r-epic{color:var(--epic)}',
 '.r-legendary{color:var(--legendary)} .r-exotic{color:var(--exotic)}',
@@ -336,7 +355,7 @@ const CSS = [
 
 const JS = [
 '(function(){',
-'  var f={house:"all",rarity:"all",slot:"all"};',
+'  var f={house:"all",rarity:"all",slot:"all",sort:"house"};',
 '  var parts=[].slice.call(document.querySelectorAll(".part"));',
 '  var shown=document.getElementById("shown");',
 '  function apply(){',
@@ -352,11 +371,17 @@ const JS = [
 '    });',
 '    shown.textContent=n;',
 '  }',
+'  var byHouse=document.getElementById("by-house");',
+'  var byCells=document.getElementById("by-cells");',
 '  document.querySelectorAll(".filters .set").forEach(function(set){',
 '    set.addEventListener("click",function(e){',
 '      var b=e.target.closest("button"); if(!b)return;',
 '      set.querySelectorAll("button").forEach(function(x){x.removeAttribute("data-on")});',
 '      b.setAttribute("data-on","1");',
+'      if(set.dataset.k==="sort"){',
+'        byHouse.classList.toggle("hide",b.dataset.v!=="house");',
+'        byCells.classList.toggle("hide",b.dataset.v!=="cells");',
+'      }',
 '      f[set.dataset.k]=b.dataset.v; apply();',
 '    });',
 '  });',
@@ -426,10 +451,14 @@ auditVerdict,
 + '<button data-v="all" data-on="1">All</button>'
 + ['weapon','system','utility'].map(function(s){
     return '<button data-v="' + s + '">' + s.charAt(0).toUpperCase() + s.slice(1) + '</button>';
-  }).join('') + '</div></div>',
+  }).join('') + '</div>',
+'<div class="set" data-k="sort"><span class="lbl">Sort</span>'
++ '<button data-v="house" data-on="1">By house</button>'
++ '<button data-v="cells">By cells</button></div></div>',
 '<p class="showing"><b id="shown">' + MODS.length + '</b> of ' + MODS.length
 + ' showing &middot; the plate is the part’s real footprint in the hold</p>',
-houseSections,
+'<div id="by-house">' + houseSections + '</div>',
+'<div id="by-cells" class="hide">' + sizeSections + '</div>',
 
 '<h2>Every card, sorted by what it does</h2>',
 '<p class="note">Sorted by <b>effect</b>, not by name — so two cards that do the same '

@@ -220,6 +220,13 @@ func _ready() -> void:
 	#   godot --headless --path . -- reactor
 	# What the chart's KNOWN ONLY view actually shows:
 	#   godot --headless --path . -- chartfilter
+	# Does a part move the gauge its grade promised:
+	#   godot --headless --path . -- attrtest
+	if "attrtest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/AttrTest.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "chartfilter" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/ChartFilter.gd").new().run()
 		get_tree().quit()

@@ -1085,7 +1085,16 @@ func attr_reactor(bare: bool = false) -> int:
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 func attr_thermal(bare: bool = false) -> int:
-	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.1 + dissipation(bare) / 1.5
+	# 2.0 AND 1.0, NOT 2.1 AND 1.5, since the attribute ladder. Both fields are
+	# ints, so a divisor that is not a whole number cannot carry a whole pip: a
+	# rare vent asked for one pip, got 1.5 rounded to 2, and read back as two.
+	# `-- attrtest` caught it on the first run.
+	#
+	# The readings barely move — a medium reads 3 either way — because the change
+	# is a rounding convenience and not a retune. What it buys is that one point
+	# of shedding is exactly one pip and two of capacity is exactly one pip, so
+	# the ladder can be exact instead of nearly right.
+	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.0 + dissipation(bare) / 1.0
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 ## Sensors and Stealth are the two with no other gauge in the game, so unlike
@@ -1097,7 +1106,17 @@ func attr_thermal(bare: bool = false) -> int:
 ## The scale they are DISPLAYED on is a different question, so the conversion
 ## lives here rather than in the catalog. At 1.7 the best sensor ship in the game
 ## reads 7 and the stealthiest reads 9, which leaves both room to improve.
-const SENSE_SCALE := 1.7
+## ONE, not 1.7, since the attribute ladder. A module now says how many PIPS
+## it is worth and the grade decides the number — so a scale that is not 1 makes
+## the two sensor axes the only ones where a rare part cannot deliver exactly
+## one pip: 1/1.7 is 0.59, the field is an int, and rare and epic both round to
+## a raw 1. Two grades reading identically is the failure THERMAL documents.
+##
+## What it costs is headroom on the hull alone: a chassis carries 0 to 2 of
+## these and used to read up to 3.4 on its own. It buys something better —
+## Sensors and Stealth become axes you BUILD rather than ones the frame hands
+## you, because a legendary dish is now worth more than any hull ever was.
+const SENSE_SCALE := 1.0
 
 func attr_sensors(bare: bool = false) -> int:
 	var n := hull.sensors
@@ -1139,6 +1158,34 @@ func attr_stealth(bare: bool = false) -> int:
 ## bonus cell that the attribute does not actually have.
 ## One list so the ship tab, the chassis select and any future check UI cannot
 ## disagree about the order or the names.
+## WHAT ONE PIP COSTS, in the raw unit each attribute formula reads.
+##
+## INVERTED OUT OF THE FUNCTIONS ABOVE, not measured against them. attr_hull
+## is ATTR_MAX * hp / HULL_REF, so a pip is HULL_REF / ATTR_MAX = 7 hull;
+## attr_thermal divides capacity by 2 and shedding by 1, so those are the
+## costs — and those two divisors are whole NUMBERS because of this table,
+## since an int field cannot deliver a fractional pip. Change a formula and this has to change with it, which is exactly
+## what `-- attrtest` is for: it installs every part on a reference frame and
+## checks the gauge actually moved by the number the grade promised.
+##
+## THE COSTS ARE NOT COMPARABLE AND THAT IS THE INTERESTING PART. A pip of
+## THERMAL bought with capacity is 2.1 heat you can hold; the same pip bought
+## with shedding is 1.5 heat a turn, forever. The gauge says they are equal
+## because an event asking "can you sit in this" is answered by either. A
+## FIGHT is not, and a part that vents is worth more than the gauge admits.
+## That is a fact about attr_thermal weighting shedding too lightly, not about
+## the ladder, and it is the first thing to re-measure if a coolant build
+## starts winning.
+const PER_PIP := {
+	&"hull": 7.0,          ## HULL_REF / ATTR_MAX
+	&"heat": 2.0,          ## attr_thermal capacity term
+	&"vent": 1.0,          ## attr_thermal shedding term
+	&"dodge": 1.0 / 23.0,  ## attr_maneuver
+	&"init": 1.0 / 0.9,    ## attr_maneuver
+	&"sensors": 1.0,       ## SENSE_SCALE, which is 1 for this reason
+	&"stealth": 1.0,
+}
+
 func attributes() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([
