@@ -257,29 +257,29 @@ Free-running time plus solo nodes creates a real failure mode: four single-playe
 - Some nodes need two or more ships — a derelict with a door that must be held, megafauna too large to solo.
 - Danger tracks the deepest ship, so nobody can ignore where the others went.
 - The ember cannot be carried out alone. See §13.
-- The stoker is a set piece one ship engages and four ships finish — and it is the first magnet that moves. **Built**; see §18.
+- The hellbender is a set piece one ship engages and four ships finish — and it is the first magnet that moves. **Built**; see §18.
 
 ---
 
-## 18. The Stoker — the galaxy's other harvester. BUILT, and measured.
+## 18. The Hellbender — the galaxy's other harvester. BUILT, and measured.
 
 *Numbered out of order like ruling 20 in §16: numbers here are stable IDs, not positions, and this section lives beside §8 because it is the newest answer to §8's question.*
 
 ### We are not the only crew drinking it
 
-The pitch says humans steal warmth from dying galaxies. Nothing in it says only you do. **The Stoker is a rival harvester ship — one per galaxy — with a POSITION instead of an address.** It rides the same link lattice the party does, one hop per `STOKER_STRIDE` party jumps, and it eats the derelicts it lands on: the wreck is consumed, marked `eaten`, and the sector at that system says *the Stoker fed here first* instead of *stripped*. It is drawn on everybody's chart at all times, in ember, because it is the hottest thing flying and heat is the one signature this game says cannot be hidden — which is also its balance: a threat you can always see is a threat you can always route around, and routing around it is priced in salvage.
+The pitch says humans steal warmth from dying galaxies. Nothing in it says only you do. **The Hellbender is a rival harvester ship — one per galaxy — with a POSITION instead of an address.** The name is a real giant salamander, and the reference underneath it is the heraldic one: the salamander of legend sits unharmed in flames, and this crew flies that device on the hull — a ship built to drink heat, wearing "we live in the fire" as its emblem. The device goes unexplained in-fiction, like everything else; an archive document can describe it without glossing it. It rides the same link lattice the party does, one hop per `HELLBENDER_STRIDE` party jumps, and it eats the derelicts it lands on: the wreck is consumed, marked `eaten`, and the sector at that system says *the Hellbender fed here first* instead of *stripped*. It is drawn on everybody's chart at all times, in ember, because it is the hottest thing flying and heat is the one signature this game says cannot be hidden — which is also its balance: a threat you can always see is a threat you can always route around, and routing around it is priced in salvage.
 
-Catch it and it is a set piece: hand-tuned like the custodian (90 hull, 6 armor, between the sentinel and the boss), never danger-scaled, fought as a shared fight like any contact at a place. Below 35% hull it stops fighting and spools an **escape burn** — one full player turn of telegraph, and if it acts on it, it is gone: two hops at once, no salvage, the fight over because the other side left. The damage is banked. It mends `STOKER_MEND` per ordinary move and never on a flee hop, so it escapes hurt and stays hurt exactly as long as the chase window is open. Killing it pays three modules a hand — one bag in a party, under the §0 ruling — plus the biggest credit reward short of the core.
+Catch it and it is a set piece: hand-tuned like the custodian (90 hull, 6 armor, between the sentinel and the boss), never danger-scaled, fought as a shared fight like any contact at a place. Below 35% hull it stops fighting and spools an **escape burn** — one full player turn of telegraph, and if it acts on it, it is gone: two hops at once, no salvage, the fight over because the other side left. The damage is banked. It mends `HELLBENDER_MEND` per ordinary move and never on a flee hop, so it escapes hurt and stays hurt exactly as long as the chase window is open. Killing it pays three modules a hand — one bag in a party, under the §0 ruling — plus the biggest credit reward short of the core.
 
 ### The moment this exists to produce
 
-One ship jumps into its system, sees it at anchor, and says the thing into the voice channel this design has been building toward: *everyone get here, now.* Everything that makes that sentence WORK was already built — a fight a latecomer can join at 10% health, an enemy that grows by `CREW_SHARE` to meet each arrival, one bag when it dies — and the stoker is the first thing worth saying it about that can also LEAVE. The escape burn is what makes the party hurry; the banked damage is what makes a failed first attempt a down payment instead of a waste; the mend-per-move is what makes dawdling cost the down payment back.
+One ship jumps into its system, sees it at anchor, and says the thing into the voice channel this design has been building toward: *everyone get here, now.* Everything that makes that sentence WORK was already built — a fight a latecomer can join at 10% health, an enemy that grows by `CREW_SHARE` to meet each arrival, one bag when it dies — and the hellbender is the first thing worth saying it about that can also LEAVE. The escape burn is what makes the party hurry; the banked damage is what makes a failed first attempt a down payment instead of a waste; the mend-per-move is what makes dawdling cost the down payment back.
 
 While it holds a system it is a blockade: nothing there is reachable past it — not the dock, not the node's own contact. Arrival does not auto-engage, for the reason the core stopped auto-engaging: two people never arrive on the same second, and a set piece a party cannot gather at is fought alone by design. The sector says what it is and the button says ENGAGE, and whether to press it before the others land is the player's own greed talking.
 
-### RULING: the stoker is host-authoritative
+### RULING: the hellbender is host-authoritative
 
-**The host owns its position, its hull, and its clock, and pushes all three whole.** This is the contested-object rule from combat applied to the map: everything else out there is either fixed by the seed or a fact about the past, and a thing that MOVES needs a clock this game deliberately does not share — four ships jump at their own pace, and there is no tick. So the party's jumps are the tick, counted by the host (its own in `jump_to()`, everybody else's off the presence message, whose `at` moving already says "jump"). WHERE it goes each move is still `Rng.derive(&"stoker", move counter)` — positional in time — so a solo run replays bit-for-bit from its seed and the wire carries only the one thing a seed cannot: when. Protocol 7, save version 8, `docs/netcode.md` has the wire detail.
+**The host owns its position, its hull, and its clock, and pushes all three whole.** This is the contested-object rule from combat applied to the map: everything else out there is either fixed by the seed or a fact about the past, and a thing that MOVES needs a clock this game deliberately does not share — four ships jump at their own pace, and there is no tick. So the party's jumps are the tick, counted by the host (its own in `jump_to()`, everybody else's off the presence message, whose `at` moving already says "jump"). WHERE it goes each move is still `Rng.derive(&"hellbender", move counter)` — positional in time — so a solo run replays bit-for-bit from its seed and the wire carries only the one thing a seed cannot: when. Protocol 7, save version 8, `docs/netcode.md` has the wire detail.
 
 Two consequences worth naming:
 
@@ -288,12 +288,12 @@ Two consequences worth naming:
 
 ### Why it eats, and what the simulator says
 
-§0's lesson: attaching more fights to a mechanic adds texture, not pressure, because fights pay. The stoker is pressure because AVOIDING it costs — every derelict it reaches first is salvage the party does not get. 1,000 runs per cell, seed 555, same build, `-- sim nostoker` as the control:
+§0's lesson: attaching more fights to a mechanic adds texture, not pressure, because fights pay. The hellbender is pressure because AVOIDING it costs — every derelict it reaches first is salvage the party does not get. 1,000 runs per cell, seed 555, same build, `-- sim nohellbender` as the control:
 
 | Cell | Win rate | Met it | Engaged | Killed | Escaped | Derelicts eaten/run |
 |---|---|---|---|---|---|---|
-| Stoker on | 29.8% | 249 | 215 | 133 | 81 | 3.01 |
-| `nostoker` | 29.6% | — | — | — | — | 0 |
+| Hellbender on | 29.8% | 249 | 215 | 133 | 81 | 3.01 |
+| `nohellbender` | 29.6% | — | — | — | — | 0 |
 
 Four readings:
 
@@ -306,10 +306,10 @@ Four readings:
 
 | # | Question | Blocks |
 |---|---|---|
-| S1 | Should it hunt heat? A stoker that turns toward the party's summed signature makes §6's field predator-shaped — and makes running cold worth something new | §6 tuning; the horror layer's tone |
+| S1 | Should it hunt heat? A hellbender that turns toward the party's summed signature makes §6's field predator-shaped — and makes running cold worth something new | §6 tuning; the horror layer's tone |
 | S2 | One per galaxy, or one per N shells deeper? | How often the §8 magnet fires |
 | S3 | Does killing it drop something only it carries — the run's second-best unique — or is the bag enough? | Whether engaging is a want or a shrug |
-| S4 | Should its kills feed IT? A stoker that grows by what it eats gives the route-around decision a compounding cost | Whether ignoring it stays viable all run |
+| S4 | Should its kills feed IT? A hellbender that grows by what it eats gives the route-around decision a compounding cost | Whether ignoring it stays viable all run |
 
 ---
 

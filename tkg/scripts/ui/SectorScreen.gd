@@ -320,10 +320,10 @@ func _on_action() -> void:
 	if Run.dead:
 		Router.show_game_over()
 		return
-	# While the stoker holds the system it IS the one thing this place offers —
+	# While the hellbender holds the system it IS the one thing this place offers —
 	# same blockade the arrival path enforces in Router.resolve_current_node().
-	if Run.stoker_alive() and Run.stoker_at == n.index:
-		Router.engage_stoker()
+	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		Router.engage_hellbender()
 		return
 	match n.type:
 		MapGen.NodeType.STATION:
@@ -361,15 +361,15 @@ func _on_action() -> void:
 func _quiet_lines(n: MapGen.MapNode) -> Array:
 	if Run.dead:
 		return ["Nothing on this hull answers any more.", "SUMMARY"]
-	if Run.stoker_alive() and Run.stoker_at == n.index:
-		return ["The Stoker rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
-			"ENGAGE THE STOKER"]
+	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		return ["The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
+			"ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
 			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel — all of it out of the same pocket.", "DOCK"]
 		MapGen.NodeType.DERELICT:
 			if n.eaten:
-				return ["Cut open along the spine, and the cuts are fresh. The Stoker fed here first.", "PLOT NEXT JUMP"]
+				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", "PLOT NEXT JUMP"]
 			if n.cleared:
 				return ["Stripped. Whatever is left is welded to the frame.", "PLOT NEXT JUMP"]
 			return ["A dead hull, drifting. No power, no answer to the hail. Something aboard is still worth taking.", "STRIP THE WRECK"]

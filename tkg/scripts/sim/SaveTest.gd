@@ -93,8 +93,8 @@ func fingerprint() -> Dictionary:
 		# The roamer. The move counter is a SEED SOURCE — Rng.derive keys each
 		# hop on it — so losing it is not a cosmetic reset, it is a different
 		# walk from the same position.
-		stoker = [Run.stoker_at, Run.stoker_hp, Run.stoker_max,
-			Run.stoker_moves, Run.stoker_ticks],
+		hellbender = [Run.hellbender_at, Run.hellbender_hp, Run.hellbender_max,
+			Run.hellbender_moves, Run.hellbender_ticks],
 		galaxy = [Run.galaxy_kind, Run.galaxy_seed, "%.9f" % Run.galaxy_spin,
 			Run.galaxy_name, Run.galaxy_title],
 		gparams = _round_floats(Run.galaxy),
@@ -202,15 +202,15 @@ func run() -> void:
 		elif n.type == MapGen.NodeType.EVENT and not n.cleared and n.event_key.is_empty():
 			n.event_key = "Dead station"
 
-	# The stoker mid-chase: hurt, mid-stride, and having eaten something — the
+	# The hellbender mid-chase: hurt, mid-stride, and having eaten something — the
 	# state a resume has to hand back exactly, or the pursuit resets.
-	if Run.stoker_alive():
-		Run.stoker_hp = maxi(1, Run.stoker_max / 3)
-		Run.stoker_ticks = 2
+	if Run.hellbender_alive():
+		Run.hellbender_hp = maxi(1, Run.hellbender_max / 3)
+		Run.hellbender_ticks = 2
 	for e in Run.map:
 		var nd: MapGen.MapNode = e
 		if nd.type == MapGen.NodeType.DERELICT and not nd.cleared:
-			# The same three writes stoker_land() makes, because a cleared node
+			# The same three writes hellbender_land() makes, because a cleared node
 			# with an empty `taken` is backfilled on load and would mismatch.
 			nd.cleared = true
 			nd.eaten = true
@@ -245,11 +245,11 @@ func run() -> void:
 	Run.kills = 0
 	Run.at = 0
 	Run.trail = PackedInt32Array()
-	Run.stoker_at = -1
-	Run.stoker_hp = 0
-	Run.stoker_max = 0
-	Run.stoker_moves = 0
-	Run.stoker_ticks = 0
+	Run.hellbender_at = -1
+	Run.hellbender_hp = 0
+	Run.hellbender_max = 0
+	Run.hellbender_moves = 0
+	Run.hellbender_ticks = 0
 	Run.map = []
 	Run.installed = []
 	Run.cargo = []

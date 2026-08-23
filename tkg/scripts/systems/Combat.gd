@@ -189,7 +189,7 @@ func foe_hp() -> PackedInt32Array:
 	return out
 
 ## Current hull rather than capacity. Differs from foe_hp() only when a fight
-## opens against something already hurt — the stoker carrying last
+## opens against something already hurt — the hellbender carrying last
 ## engagement's damage — and the party's copy has to start from the same
 ## number this machine's does.
 func foe_hp_now() -> PackedInt32Array:
@@ -413,7 +413,7 @@ func _act_one(e: EnemyState) -> void:
 	# goes out, so no client ever reaches here with it. See NetSession._swing().
 	if I.escape and not is_shared():
 		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
-		Run.stoker_breaks_off(e.hp)
+		Run.hellbender_breaks_off(e.hp)
 		_finish(&"broke_off",
 			"A blind jump, furnace-bright. It is gone — hurt, hot, and mending. No salvage.")
 		return
@@ -636,12 +636,12 @@ func flee() -> void:
 	# So the sector you are dropped back onto offers a jump rather than the
 	# fight you just paid six fuel to leave.
 	Run.node_at().fled = true
-	# Running from the stoker banks the damage you did — it does not heal
+	# Running from the hellbender banks the damage you did — it does not heal
 	# between engagements, it heals per MOVE, which is the chase. Solo only:
 	# in a party the host writes this back when the last ship leaves the
 	# shared fight, in NetSession._apply_leave().
 	if not is_shared() and not enemies.is_empty() and enemies[0].template.miniboss:
-		Run.stoker_scarred(enemies[0].hp)
+		Run.hellbender_scarred(enemies[0].hp)
 	Sig.resources_changed.emit()
 	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % FLEE_FUEL)
 
@@ -679,7 +679,7 @@ func _victory() -> void:
 	# runs this and the host may have run it already in _apply_hurt().
 	if enemy.template.miniboss:
 		drops = 3
-		Run.stoker_defeated()
+		Run.hellbender_defeated()
 
 	# TWO WAYS TO BE PAID, and which one runs is decided by whether anybody else
 	# was shooting at it.
@@ -836,7 +836,7 @@ func _on_fight_changed(at: int) -> void:
 	shared = f
 	_adopt(f)
 	if f.over:
-		# The stoker left before anybody killed it. The host has already moved
+		# The hellbender left before anybody killed it. The host has already moved
 		# it and written its hull back; this machine only has to stop fighting.
 		if f.broke:
 			_finish(&"broke_off",
