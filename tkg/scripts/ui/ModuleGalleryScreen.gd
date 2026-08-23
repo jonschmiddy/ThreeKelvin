@@ -164,24 +164,40 @@ func _fill(col: VBoxContainer) -> int:
 		swatch.color = g.colour
 		swatch.custom_minimum_size = Vector2(4, 12)
 		bar.add_child(swatch)
+		# THE HOUSE NAME IN THE HOUSE COLOUR. It was ICE, the same white every
+		# other heading wears, with the only colour on the row in a 4px swatch
+		# beside it. A manufacturer owns a colour everywhere else in the game —
+		# the banner, the emblem, the border down a card readout — and this was
+		# the one place it was reduced to a tick mark.
 		bar.add_child(UITheme.body("%s — %d" % [g.label, (g.parts as Array).size()],
-			UITheme.ICE, UITheme.FS_SMALL))
+			g.colour, UITheme.FS_SMALL))
 		col.add_child(bar)
 
-		var flow := HFlowContainer.new()
-		flow.add_theme_constant_override("h_separation", 4)
-		flow.add_theme_constant_override("v_separation", 4)
-		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col.add_child(flow)
-
+		# ONE ROW PER SHAPE, labelled. The parts are already sorted by shape, so
+		# this walks them and starts a new row wherever the footprint changes —
+		# which means the subsections cannot disagree with the sort, because they
+		# ARE the sort made visible.
+		#
+		# A single flow was the version before: correct order, but a 1x1 and a 2x2
+		# ran together on one line and the eye had to find the size change itself.
+		var flow: HFlowContainer = null
+		var shape := Vector2i(-1, -1)
 		for raw2 in g.parts:
 			var m2: ModuleData = raw2
 			cards += m2.resolved_cards().size()
+			if m2.footprint() != shape:
+				shape = m2.footprint()
+				col.add_child(_shape_head(shape, g.parts))
+				flow = HFlowContainer.new()
+				flow.add_theme_constant_override("h_separation", 4)
+				flow.add_theme_constant_override("v_separation", 4)
+				flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				col.add_child(flow)
 			var icon := ModuleIcon.new()
 			icon.setup(m2, &"gallery")
 			# 2x, THE SIZE THE SHIP TAB DRAWS IT. The hold and the refit hull are
-			# both authored there, which is what makes a part the same size in both;
-			# a catalogue of parts should match the screen you pack them on.
+			# both authored there, which is what makes a part the same size in
+			# both; a catalogue of parts should match the screen you pack them on.
 			#
 			# It was 1x for a version — the rectangle a part occupies on a hull at
 			# native zoom, which is true and unreadable: a 1x1 sight is fifteen
@@ -192,13 +208,9 @@ func _fill(col: VBoxContainer) -> int:
 			# once drew 1x1 plates at 44px.
 			icon.custom_minimum_size = ModuleIcon.footprint_box(m2)
 			# SHRINK, OR THE ROW STRETCHES THEM. An HFlowContainer gives a child
-			# the row height by default, so a 2x1 sitting beside a 2x2 was pulled to
-			# twice its own height and a page of plates showed the wrong shapes — the
-			# one thing this page exists to show.
-			#
-			# The hold never hit this because it is not a container: it clears the
-			# minimum and assigns `size` directly, with a comment about the same
-			# 44px floor that bites here.
+			# the row height by default, so a 2x1 sitting beside a 2x2 was pulled
+			# to twice its own height and a page of plates showed the wrong shapes
+			# — the one thing this page exists to show.
 			icon.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 			icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			icon.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -207,6 +219,26 @@ func _fill(col: VBoxContainer) -> int:
 		col.add_child(UITheme.body("NOTHING MATCHES", UITheme.COLD, UITheme.FS_SMALL))
 	_shown = kept.size()
 	return cards
+
+
+## The label over one shape's row: "2x1 · 11 parts".
+##
+## Dimmer than the house above it and indented, because it is a subdivision
+## rather than a peer — two headings at the same weight would make a house of
+## five shapes read as five houses.
+func _shape_head(shape: Vector2i, parts: Array) -> Control:
+	var n := 0
+	for raw in parts:
+		if (raw as ModuleData).footprint() == shape:
+			n += 1
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(9, 0)
+	row.add_child(pad)
+	row.add_child(UITheme.body("%dx%d · %d" % [shape.x, shape.y, n],
+		UITheme.COLD, UITheme.FS_SMALL))
+	return row
 
 
 ## BY SHAPE: 1x1, 2x1, 3x1, 4x1, then 2x2.
