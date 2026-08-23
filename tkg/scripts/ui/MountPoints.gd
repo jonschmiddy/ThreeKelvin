@@ -250,19 +250,14 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	# THE PART ITSELF, and normally nothing around it. A ship is not an
 	# inventory: what is bolted to it is the object, not a plate with the object
 	# on it. Hovering is the exception — see `_draw`.
-	# FLIPPED, if this one is. Mirrored about the part's own middle rather
-	# than redrawn: the silhouette is the same object seen from the other
-	# side, so a gun on the belly points its muzzle the way the ship is
-	# going instead of hanging upside down off the keel.
-	if m.flipped:
-		draw_set_transform(Vector2(0.0, r.position.y * 2.0 + r.size.y),
-			0.0, Vector2(1.0, -1.0))
+	# FLIPPED, if this one is, and standing the way the HULL decided rather
+	# than the way the hold packed it. Both travel as arguments: a transform
+	# set out here does not survive, because the silhouette sets the canvas
+	# transform absolutely when it draws itself.
 	if full:
-		ModuleIcon.draw_plate(self, m, r)
+		ModuleIcon.draw_plate(self, m, r, f, m.flipped)
 	else:
-		ModuleIcon.fill_part(self, slot, r, col, k2, up)
-	if m.flipped:
-		draw_set_transform_matrix(Transform2D.IDENTITY)
+		ModuleIcon.fill_part(self, slot, r, col, k2, up, m.flipped)
 
 	# RARITY, as a bar where the part meets the hull. The same split the plate
 	# uses, kept the same way round out here: the ART says whose it is, and what

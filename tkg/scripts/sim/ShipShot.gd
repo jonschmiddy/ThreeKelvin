@@ -5,6 +5,11 @@ extends RefCounted
 ##   godot --path . -- shipshot            the heavy, which is the tight one
 ##   godot --path . -- shipshot medium
 ##   godot --path . -- shipshot all        one PNG per weight
+##   godot --path . -- shipshot medium turn
+##
+## NOT `--headless`. The settle waits on `frame_post_draw`, which the dummy
+## display server never emits, so a headless run sits in that loop until it is
+## killed and writes nothing. It looks exactly like a hang because it is one.
 ##
 ## WHY THIS EXISTS. The refit screen's layout is a budget between two panels: the
 ## masthead is as deep as the ship in it and the workbench gets what is left. The
@@ -52,19 +57,46 @@ func run(tree: SceneTree) -> void:
 func _shot(tree: SceneTree, weight_name: String) -> void:
 	Run.start_new_run(&"korvan", int(WEIGHTS[weight_name]))
 	Router.show_ship()
-	# The ship flies in and the mounts settle behind it. Shorter than the
-	# convoy's 460 because nothing is staggered here, long enough that the
-	# arrival is over rather than half done.
-	for i in 200:
+	# The ship flies in and the mounts settle behind it, and this waits for
+	# THE ANIMATION rather than for a number of frames.
+	#
+	# A fixed 200 was five minutes on a machine whose headless frames run at
+	# better than a second each -- the loop's job is `the arrival is over`,
+	# and a frame count only means that where frames are cheap. Tweens run on
+	# the same delta the frames do, so waiting on the clock finishes the
+	# arrival in two slow frames or in eighty fast ones, and either is right.
+	# The frame cap stays as a stop, not as the measure.
+	var t0 := Time.get_ticks_msec()
+	for i in 400:
 		await RenderingServer.frame_post_draw
+		if Time.get_ticks_msec() - t0 > 1200:
+			break
 	# `-- shipshot heavy zoom` photographs the doubled view, which is the only
 	# way to see it without a hand on the mouse: the zoom is a click and a
 	# drag, and neither exists in a headless render.
+	# `-- shipshot medium turn` PACKS EVERY PART SIDEWAYS AND FLIPS HALF OF
+	# THEM, which is the only way to photograph the two states a fitted part
+	# can be in that a fresh run never produces. It is a rendering question
+	# and the answer is a picture, so the tool that takes the picture is the
+	# one that has to be able to set it up.
+	if "turn" in OS.get_cmdline_user_args():
+		for i in Run.installed.size():
+			Run.installed[i].turned = true
+			Run.installed[i].flipped = i % 2 == 1
+		Router.show_ship()
+		var t1 := Time.get_ticks_msec()
+		for i in 400:
+			await RenderingServer.frame_post_draw
+			if Time.get_ticks_msec() - t1 > 1200:
+				break
+
 	var zoomed := "zoom" in OS.get_cmdline_user_args()
 	if zoomed and Router.current is ShipScreen:
 		(Router.current as ShipScreen)._set_zoom(true)
 		for i in 10:
 			await RenderingServer.frame_post_draw
-	var path := "user://ship_%s%s.png" % [weight_name, "_zoom" if zoomed else ""]
+	var turned_shot := "turn" in OS.get_cmdline_user_args()
+	var path := "user://ship_%s%s%s.png" % [weight_name,
+		"_turn" if turned_shot else "", "_zoom" if zoomed else ""]
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))

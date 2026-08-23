@@ -136,8 +136,8 @@ func _build() -> void:
 	# chart's own numbers rather than eyeballed, so retuning either moves
 	# both together.
 	var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
-	_region_btn.offset_top = -(14.0 + scale_top + 8.0)
-	_region_btn.offset_bottom = -(scale_top + 8.0)
+	_region_btn.offset_top = -(14.0 + scale_top)
+	_region_btn.offset_bottom = -scale_top
 	_chart.add_child(_region_btn)
 
 	var right := VBoxContainer.new()
@@ -1948,8 +1948,6 @@ class MapChart extends Control:
 		_clamp_pan()
 		var p1 := pan
 		var c0 := size * 0.5
-		var soft: float = pow(z1 / maxf(0.0001, z0), SKY_ZOOM_POWER)
-		var s1 := (c0 - (c0 - ps) * soft) + (p1 - p0)
 		# Put it back where it was; the tween does the travelling.
 		zoom = pz
 		pan = pp
@@ -1958,9 +1956,17 @@ class MapChart extends Control:
 		_glide.tween_method(func(t: float) -> void:
 			zoom = lerpf(z0, z1, t)
 			pan = p0.lerp(p1, t)
-			sky_pan = ps.lerp(s1, t)
-			_repaint_galaxy()
-			queue_redraw(), 0.0, 1.0, secs)
+			# SOLVED AT THIS ZOOM, never interpolated towards the end.
+			#
+			# The sky's offset is a pow() of the zoom RATIO, and the zoom is
+			# travelling on a cubic ease. Lerping the sky between its start and
+			# end is therefore right at both ends and wrong everywhere between
+			# them, which on screen is the galaxy trailing the systems and
+			# catching up at the last moment. Evaluating the same closed form
+			# against the CURRENT zoom is exact at every step.
+			var sf: float = pow(zoom / maxf(0.0001, z0), SKY_ZOOM_POWER)
+			sky_pan = (c0 - (c0 - ps) * sf) + (pan - p0)
+			_repaint_galaxy(), 0.0, 1.0, secs)
 
 	## THE WHOLE GALAXY, back out. The pair to frame_region: one press in, the
 	## same press out, and both take the same route so the second undoes the

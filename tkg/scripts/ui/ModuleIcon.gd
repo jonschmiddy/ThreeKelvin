@@ -260,7 +260,17 @@ func _draw() -> void:
 ## at a fixed size whatever the part was — so a 1x1 sight and a 1x3 rail were
 ## the same mark on the hull, and the shape you packed the hold around vanished
 ## the moment you fitted it.
-static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
+## `cells` OVERRIDES how the part is standing, and the hull passes it.
+##
+## `footprint()` swaps a part's axes when it is turned, and turning is a fact
+## about how it fits in the HOLD. The hold wants that -- it is drawing the
+## packing. The hull does not: rotating a rail to slot it into a gap should
+## not stand the gun on its end once it is bolted on. The hull already knew
+## this and sized the box from `m.size`, and the plate went on recomputing
+## from `footprint()` behind its back, which is why the box came out level
+## and the gun inside it did not.
+static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
+		cells := Vector2i.ZERO, mirror: bool = false) -> void:
 	if m == null:
 		return
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
@@ -288,13 +298,13 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 	# in the grid is the gun that appears on the ship, not a smaller drawing of
 	# it. It was `min(w, h) / 26` here, which made a part in the hold about a
 	# third of the size of the same part bolted on.
-	var f := m.footprint()
+	var f := m.footprint() if cells == Vector2i.ZERO else cells
 	# THE ART IS THE RARITY. It was the manufacturer's colour, which meant the
 	# one thing you look at — the shape in the middle of the plate — answered
 	# the question you can already answer from the field it is sitting on, and
 	# left how good the part is to a one-pixel line.
 	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
-		part_turn(m.slot, f))
+		part_turn(m.slot, f), mirror)
 
 	# THE EDGE IS THE INK, not the ground. Identical for seven grades and the
 	# whole plate for the eighth: a contraband ground is darker than the screen,
@@ -316,15 +326,28 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2) -> void:
 ## system is a plate, a utility is a mast. `s` scales it — the hull draws these
 ## at 1 against a hull 30 to 50 rows deep, the hold at rather more in a cell it
 ## has to fill.
+## `mirror_y` reflects the whole silhouette about that SCREEN ROW, after the
+## quarter turn rather than before it, which is what makes it read as the same
+## object seen from underneath instead of a differently-shaped part.
+##
+## It is a parameter and not the caller's own transform because this function
+## sets the canvas transform ABSOLUTELY -- `draw_set_transform` replaces, it
+## does not compose -- so a mirror established outside was silently thrown
+## away here on the next line. Nothing errored; the flag simply did nothing.
 static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
-		col: Color, s: float = 1.0, upright: bool = false) -> void:
+		col: Color, s: float = 1.0, upright: bool = false,
+		mirror_y: float = INF) -> void:
 	var dark := col.lerp(Color("#0a0e13"), 0.55)
 	var lite := col.lerp(Color.WHITE, 0.3)
 	# Drawn about the ORIGIN and moved by a transform, so the same rectangles
 	# serve both orientations. A quarter turn anticlockwise, so a barrel that
 	# points forward on a ship that faces right points UP when it is stood on
 	# end — which is where a lance or a mast belongs.
-	ci.draw_set_transform(at, -PI * 0.5 if upright else 0.0, Vector2.ONE)
+	var t := Transform2D(-PI * 0.5 if upright else 0.0, at)
+	if mirror_y != INF:
+		t = Transform2D(Vector2(1.0, 0.0), Vector2(0.0, -1.0),
+			Vector2(0.0, mirror_y * 2.0)) * t
+	ci.draw_set_transform_matrix(t)
 	match slot:
 		ModuleData.Slot.WEAPON:
 			ci.draw_rect(Rect2(-4.0 * s, -2.5 * s, 9.0 * s, 5.0 * s), dark, true)
@@ -339,7 +362,7 @@ static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
 			ci.draw_rect(Rect2(-1.5 * s, -3.5 * s, 3.0 * s, 7.0 * s), dark, true)
 			ci.draw_rect(Rect2(-0.5 * s, -6.5 * s, 1.0 * s, 4.0 * s), col, true)
 			ci.draw_rect(Rect2(-0.5 * s, -7.5 * s, 1.0 * s, 1.0 * s), lite, true)
-	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 ## THE BOX A PART OCCUPIES, in screen pixels, wherever it is drawn.
@@ -394,8 +417,12 @@ static func part_offset(slot: ModuleData.Slot) -> Vector2:
 ## the same thing for a shape that happens to be symmetric — and one of the
 ## three is not.
 static func fill_part(ci: CanvasItem, slot: ModuleData.Slot, box: Rect2,
-		col: Color, s: float, upright: bool) -> void:
-	draw_part(ci, slot, part_origin(slot, box, s, upright), col, s, upright)
+		col: Color, s: float, upright: bool, mirror: bool = false) -> void:
+	# ABOUT THE BOX'S MIDDLE, not the point the part is drawn from: those are
+	# different rows for anything with an offset, and reflecting about the
+	# origin would slide a gun out of its own plate. The box maps onto itself.
+	var my := box.get_center().y if mirror else INF
+	draw_part(ci, slot, part_origin(slot, box, s, upright), col, s, upright, my)
 
 
 ## THE POINT `draw_part` IS CALLED FROM to centre a silhouette in `box`.
