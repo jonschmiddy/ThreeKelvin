@@ -59,6 +59,17 @@ That frame is what lets the game have lore at all under this ruling. Nobody expl
 2. **Loot is the engine.** Frequent drops, rarity tiers, rolled affixes. Every module you install adds cards to your combat deck — loot literally *is* deckbuilding.
 3. **Greed is the clock.** No pursuing fleet. Danger (and loot quality) scales with how deep you chart into hostile space. Deaths are self-authored: you pushed one jump too far.
 4. **Readable builds.** Your ship's sprite visually changes as modules are installed. Anyone can look at a ship and tell what it's building toward.
+5. **The ceiling is meant to break.** A build that comes together should feel absurd — not balanced, not "strong for its tier", genuinely overpowered, and briefly. That is the reward Pillar 2 is paying out and the reason anyone runs the clock in Pillar 3. **Sometimes** is doing the work in that sentence: the average run is punishing, the peak is not, and the gap between them is the fantasy.
+
+---
+
+### Reading the simulator against Pillar 5
+
+The headless sim prints a win rate and a healthy target of 40–55%. The game runs at 15–24% and that is not a bug to be fixed — it is Pillar 3 and Pillar 5 in the same number. Most runs end because you pushed one jump too far; some end with a ship that should not exist.
+
+**So a change that raises the win rate is not automatically a regression, and a change that raises the CEILING is usually the point.** The reactor becoming a single level that grants cells and energy together took the sim from 15% to 20% and jumps from 47 to 60, because a coupling can now cross an energy step. That was flagged as a reversed ruling and it is: modules were forbidden from granting energy. The ruling loses. A part that makes the reactor bigger should make the reactor bigger.
+
+What still matters is that the FLOOR stays honest. A run that never had the option was stopped by arithmetic; a run that spent its option and pushed anyway authored the death. Watch the death causes, not the win rate.
 
 ---
 

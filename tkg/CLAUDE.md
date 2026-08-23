@@ -20,6 +20,7 @@ split.
 | `docs/lore.md` | Who pays for all this, the archive's writing rules, contracts |
 | `docs/coop-design.md` | What four players do to each other |
 | `docs/netcode.md` | How four machines are joined, and what each protocol bump bought |
+| `docs/design-doc.md` §Pillar 5 | **Before calling a win-rate rise a regression.** The ceiling is meant to break; watch the death causes, not the win rate |
 | `docs/catalogue.md` | **Before writing a module or a card.** The Grant Count Law, the Card Rarity Law, the reactor ladder, the shared library, and the six gates that stop a duplicate, a card named after a keyword, or a frame that launches without a deck |
 | `docs/art/ART_CONTRACT.md` | Before generating any art |
 | `audio/README.md` | Before touching sound |
