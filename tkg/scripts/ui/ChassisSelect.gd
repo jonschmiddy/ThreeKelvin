@@ -97,11 +97,13 @@ Where guns, launchers and charged ordnance bolt on. Each one grants two cards to
 	"system": "System mounts
 Armour, coolant and shielding — the defensive half of a build. Each one grants two cards.",
 	"utility": "Utility mounts
-Masts, dishes, drone racks and sensors. The situational parts, and they grant one card rather than two.",
+Masts, dishes, drone racks and sensors. The situational parts, and they grant two cards like everything else.",
 	"hand": "Hand
 How many cards you are dealt at the start of each combat turn.",
 	"hold": "Hold
 Loose parts you can carry between fights. A full hold means leaving the next wreck where it lies.",
+	"reactor": "Reactor
+Total cells of hardware this frame can RUN. The hold is what you can haul; this is what you can power, and a part has to satisfy both.",
 }
 const HEAD_GAP := 12
 ## The identity header's height, held equal across all seven. Measured, not
@@ -474,6 +476,21 @@ func _build_detail() -> void:
 	right.add_child(UITheme.body("HARDPOINTS", UITheme.COLD, UITheme.FS_SMALL))
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		right.add_child(_mount_row(s))
+	# Directly under the mounts because it is the OTHER thing that can refuse a
+	# part, and the one a player has no way to guess: three mount rows read as
+	# the whole install budget until something says otherwise.
+	#
+	# `hull.power_cap` and not `power_cap()`, matching HOLD below — this screen
+	# describes a FRAME, not the loadout currently bolted to it, and a number
+	# that moved when the starter kit changed would be describing the kit.
+	var rct := HBoxContainer.new()
+	rct.add_theme_constant_override("separation", 6)
+	var rl := UITheme.body("REACTOR", UITheme.COLD, UITheme.FS_SMALL)
+	rl.custom_minimum_size = Vector2(46, 0)
+	rct.add_child(rl)
+	rct.add_child(UITheme.body("%d cells" % Run.hull.power_cap,
+		UITheme.CHILL, UITheme.FS_SMALL))
+	right.add_child(_tipped(rct, str(MOUNT_TIP["reactor"])))
 	# Hand size sits with the hardpoints because it is the same kind of fact:
 	# how much ship you get to use at once. It is not an attribute — nothing
 	# checks against it — so it has no business in the block above.
