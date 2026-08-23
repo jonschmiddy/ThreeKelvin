@@ -209,19 +209,28 @@ func _fill(col: VBoxContainer) -> int:
 	return cards
 
 
-## SMALLEST FIRST, WITHIN WHATEVER GROUP. A house block used to come out in
-## database order, which is the order somebody typed the parts in — so a
-## 2x2 bay sat between two 1x1 sights and the row read as noise. Sorted, a
-## house reads as a ladder of sizes and the shapes line up down the page.
+## BY SHAPE: 1x1, 2x1, 3x1, 4x1, then 2x2.
 ##
-## Cells first, then width, then name: a 3x1 and a 2x2 are both three-ish and
-## the eye wants the long one and the blocky one apart, not interleaved.
+## Height first, then width. That puts every one-deep part in a clean
+## progression of lengths and leaves the block on its own at the end, which is
+## how somebody describes the catalogue out loud — the ones, the twos, the
+## threes, the long ones, and the square.
+##
+## Sorting by CELLS first was the version before this, and it interleaved the
+## thing the eye is following: a 4x1 and a 2x2 are both four cells, so a row of
+## lengthening bars had a square dropped into the middle of it.
+##
+## Before either, a house block came out in DATABASE order — the order somebody
+## typed the parts in — so a 2x2 bay sat between two 1x1 sights and the row read
+## as noise.
 func _by_size(parts: Array) -> void:
 	parts.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
-		if a.cells() != b.cells():
-			return a.cells() < b.cells()
-		if a.footprint().x != b.footprint().x:
-			return a.footprint().x < b.footprint().x
+		var fa := a.footprint()
+		var fb := b.footprint()
+		if fa.y != fb.y:
+			return fa.y < fb.y
+		if fa.x != fb.x:
+			return fa.x < fb.x
 		return a.name < b.name)
 
 
