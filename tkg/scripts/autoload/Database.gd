@@ -1339,10 +1339,9 @@ func _seed_hulls() -> void:
 		h.name = d.name
 		h.weight = d.weight
 		h.sprite = hull_sprite(d.weight)
+		h.sprite_half = hull_sprite(d.weight, 0, true)
 		apply_hull_lines(h)
-		h.exhaust = hull_exhaust(d.weight)
-		h.exhaust_frames = EXHAUST_FRAMES
-		h.exhaust_offset = hull_exhaust_at(d.weight)
+		set_exhaust(h, h.exhaust_id)
 		hull_frames.append(h)
 
 	for man in MAKER_HULLS:
@@ -1375,10 +1374,9 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	h.name = spec.names[int(w)]
 	h.perk_id = spec.perk_id
 	h.sprite = hull_sprite(w)
+	h.sprite_half = hull_sprite(w, 0, true)
 	apply_hull_lines(h)
-	h.exhaust = hull_exhaust(w)
-	h.exhaust_frames = EXHAUST_FRAMES
-	h.exhaust_offset = hull_exhaust_at(w)
+	set_exhaust(h, h.exhaust_id)
 	return h
 
 ## The art for a weight class at a specification class, or null to fall back to
@@ -1407,11 +1405,17 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 ## player hull. `hull_medium_cold.png` stays on disk and stays the canonical
 ## style reference every generation is seeded from — it is simply no longer the
 ## thing rendered.
-func hull_sprite(w: HullData.Weight, cls: int = 0) -> Texture2D:
+## `half` asks for the reduced set the convoy column draws from. Same filenames
+## one folder down, so the two can never describe different hulls.
+func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false) -> Texture2D:
 	var n := hull_art_name(w, cls)
 	if n == "":
 		return null
-	return load("res://art/sprites/%s.png" % n) as Texture2D
+	# One folder per manufacturer. Korvan is hardcoded because it is the only
+	# one with art; when Solari and the rest arrive this takes a maker argument
+	# and the filenames stay identical inside each folder.
+	var sub := "half/" if half else ""
+	return load("res://art/sprites/hulls/korvan/%s%s.png" % [sub, n]) as Texture2D
 
 ## The art file for a weight and class, without the extension. One place the
 ## naming convention is written, so the sprite and its measured lines cannot
@@ -1434,6 +1438,7 @@ func hull_art_name(w: HullData.Weight, cls: int = 0) -> String:
 ## is: the lines are measured against one specific image, so a hull carrying
 ## another hull's lines mounts its guns in mid-air. Keeping the two assignments
 ## adjacent is what stops them drifting apart.
+## Copy the placed mounts AND the fallback lines onto a hull.
 func apply_hull_lines(h: HullData) -> void:
 	var key := hull_art_name(h.weight, h.tier)
 	if not HULL_LINES.has(key):
@@ -1442,6 +1447,106 @@ func apply_hull_lines(h: HullData) -> void:
 	h.dorsal = PackedVector2Array(d.dorsal)
 	h.ventral = PackedVector2Array(d.ventral)
 	h.flank = PackedVector2Array(d.flank)
+	if HULL_MOUNTS.has(key):
+		var m: Dictionary = HULL_MOUNTS[key]
+		h.weapon_anchors.assign(m.weapon)
+		h.system_anchors.assign(m.system)
+		h.utility_anchors.assign(m.utility)
+
+## Where things bolt on, PLACED BY HAND in the rigging bench
+## (`art/tools/rig_bench.py korvan`) rather than measured off the
+## silhouette. Sprite pixel coordinates on the padded hulls.
+##
+## GENERATED. Re-run the bench after replacing a hull sprite: a point
+## placed against art that has since changed puts a gun in mid-air,
+## and nothing about that fails loudly. `-- mounts` is what makes it
+## fail loudly.
+##
+## These SUPERSEDE HULL_LINES where they exist; the lines remain the
+## fallback for a maker whose slot count this rigging does not cover.
+## See HullData.mounts_along().
+const HULL_MOUNTS := {
+	"hull_light_c": {
+		weapon = [Vector2(191, 25), Vector2(191, 46)],
+		system = [Vector2(144, 34), Vector2(118, 46)],
+		utility = [Vector2(164, 34), Vector2(100, 35)],
+	},
+	"hull_light_b": {
+		weapon = [Vector2(191, 24), Vector2(191, 44)],
+		system = [Vector2(147, 33), Vector2(166, 44)],
+		utility = [Vector2(101, 33), Vector2(166, 24)],
+	},
+	"hull_light_a": {
+		weapon = [Vector2(198, 25), Vector2(198, 49), Vector2(148, 55)],
+		system = [Vector2(113, 49), Vector2(166, 51)],
+		utility = [Vector2(138, 36), Vector2(103, 36)],
+	},
+	"hull_light_s": {
+		weapon = [Vector2(198, 22), Vector2(205, 44), Vector2(136, 48)],
+		system = [Vector2(153, 26), Vector2(153, 40), Vector2(101, 36)],
+		utility = [Vector2(113, 48), Vector2(172, 34)],
+	},
+	"hull_medium_c": {
+		weapon = [Vector2(238, 40), Vector2(238, 71), Vector2(188, 71)],
+		system = [Vector2(105, 54), Vector2(123, 31)],
+		utility = [Vector2(138, 61), Vector2(169, 46)],
+	},
+	"hull_medium_b": {
+		weapon = [Vector2(239, 29), Vector2(239, 58), Vector2(162, 60)],
+		system = [Vector2(185, 39), Vector2(101, 40)],
+		utility = [Vector2(148, 39), Vector2(220, 39)],
+	},
+	"hull_medium_a": {
+		weapon = [Vector2(240, 30), Vector2(240, 64), Vector2(160, 69), Vector2(183, 29)],
+		system = [Vector2(160, 47), Vector2(206, 58)],
+		utility = [Vector2(108, 47), Vector2(206, 40)],
+	},
+	"hull_medium_s": {
+		weapon = [Vector2(242, 30), Vector2(242, 51), Vector2(180, 71), Vector2(112, 64)],
+		system = [Vector2(138, 42), Vector2(149, 22), Vector2(211, 51)],
+		utility = [Vector2(107, 42), Vector2(167, 42)],
+	},
+	"hull_heavy_c": {
+		weapon = [Vector2(287, 48), Vector2(287, 88), Vector2(206, 88), Vector2(152, 88)],
+		system = [Vector2(115, 62), Vector2(177, 62)],
+		utility = [Vector2(218, 61)],
+	},
+	"hull_heavy_b": {
+		weapon = [Vector2(291, 51), Vector2(291, 82), Vector2(206, 88), Vector2(244, 44)],
+		system = [Vector2(111, 62), Vector2(177, 69)],
+		utility = [Vector2(144, 31)],
+	},
+	"hull_heavy_a": {
+		weapon = [Vector2(296, 50), Vector2(283, 88), Vector2(217, 38), Vector2(180, 88), Vector2(131, 88)],
+		system = [Vector2(108, 56), Vector2(238, 88)],
+		utility = [Vector2(188, 70)],
+	},
+	"hull_heavy_s": {
+		weapon = [Vector2(285, 49), Vector2(285, 86), Vector2(191, 31), Vector2(214, 88), Vector2(162, 88)],
+		system = [Vector2(170, 62), Vector2(224, 62), Vector2(129, 79)],
+		utility = [Vector2(137, 31)],
+	},
+}
+
+## The plume each hull flies, and where it sits, from the same bench.
+##
+## A hull picks its own strip: nothing is derived from weight class, so a
+## light and a heavy can share one engine or carry different ones. The
+## offset is the strip frame's top-left corner on the hull canvas.
+const HULL_EXHAUST := {
+	"hull_light_c": {id = 0, at = Vector2i(55, 28)},
+	"hull_light_b": {id = 9, at = Vector2i(49, 24)},
+	"hull_light_a": {id = 22, at = Vector2i(31, 24)},
+	"hull_light_s": {id = 11, at = Vector2i(42, 22)},
+	"hull_medium_c": {id = 9, at = Vector2i(55, 36)},
+	"hull_medium_b": {id = 22, at = Vector2i(28, 36)},
+	"hull_medium_a": {id = 2, at = Vector2i(32, 37)},
+	"hull_medium_s": {id = 12, at = Vector2i(29, 34)},
+	"hull_heavy_c": {id = 4, at = Vector2i(51, 49)},
+	"hull_heavy_b": {id = 1, at = Vector2i(21, 48)},
+	"hull_heavy_a": {id = 17, at = Vector2i(5, 44)},
+	"hull_heavy_s": {id = 10, at = Vector2i(21, 49)},
+}
 
 ## Measured off each hull's own silhouette by `art/tools/anchors.py`.
 ##
@@ -1457,64 +1562,64 @@ func apply_hull_lines(h: HullData) -> void:
 ## and a `const` needs an expression the compiler can fold. Converted on assignment.
 const HULL_LINES := {
 	"hull_heavy_a": {
-		dorsal = [Vector2(38, 5), Vector2(54, 5), Vector2(69, 5), Vector2(84, 5), Vector2(100, 5), Vector2(116, 5), Vector2(131, 5), Vector2(146, 5), Vector2(162, 5)],
-		ventral = [Vector2(38, 54), Vector2(54, 54), Vector2(69, 54), Vector2(84, 54), Vector2(100, 54), Vector2(116, 54), Vector2(131, 54), Vector2(146, 54), Vector2(162, 54)],
-		flank = [Vector2(38, 29), Vector2(54, 29), Vector2(69, 29), Vector2(84, 29), Vector2(100, 29), Vector2(116, 29), Vector2(131, 29), Vector2(146, 29), Vector2(162, 29)],
+		dorsal = [Vector2(90, 47), Vector2(115, 39), Vector2(139, 39), Vector2(164, 39), Vector2(188, 39), Vector2(213, 39), Vector2(238, 44), Vector2(262, 48), Vector2(287, 47)],
+		ventral = [Vector2(90, 88), Vector2(115, 85), Vector2(139, 88), Vector2(164, 88), Vector2(188, 88), Vector2(213, 88), Vector2(238, 88), Vector2(262, 87), Vector2(287, 85)],
+		flank = [Vector2(90, 67), Vector2(115, 62), Vector2(139, 63), Vector2(164, 63), Vector2(188, 63), Vector2(213, 63), Vector2(238, 66), Vector2(262, 67), Vector2(287, 66)],
 	},
 	"hull_heavy_b": {
-		dorsal = [Vector2(38, 5), Vector2(54, 5), Vector2(69, 5), Vector2(84, 5), Vector2(100, 5), Vector2(116, 5), Vector2(131, 5), Vector2(146, 5), Vector2(162, 5)],
-		ventral = [Vector2(38, 54), Vector2(54, 54), Vector2(69, 54), Vector2(84, 54), Vector2(100, 54), Vector2(116, 54), Vector2(131, 54), Vector2(146, 54), Vector2(162, 54)],
-		flank = [Vector2(38, 29), Vector2(54, 29), Vector2(69, 29), Vector2(84, 29), Vector2(100, 29), Vector2(116, 29), Vector2(131, 29), Vector2(146, 29), Vector2(162, 29)],
+		dorsal = [Vector2(97, 45), Vector2(120, 44), Vector2(144, 44), Vector2(168, 44), Vector2(191, 44), Vector2(214, 45), Vector2(238, 45), Vector2(262, 45), Vector2(285, 49)],
+		ventral = [Vector2(97, 88), Vector2(120, 88), Vector2(144, 86), Vector2(168, 88), Vector2(191, 88), Vector2(214, 88), Vector2(238, 88), Vector2(262, 88), Vector2(285, 87)],
+		flank = [Vector2(97, 66), Vector2(120, 66), Vector2(144, 65), Vector2(168, 66), Vector2(191, 66), Vector2(214, 66), Vector2(238, 66), Vector2(262, 66), Vector2(285, 68)],
 	},
 	"hull_heavy_c": {
-		dorsal = [Vector2(38, 5), Vector2(54, 5), Vector2(69, 5), Vector2(84, 5), Vector2(100, 5), Vector2(116, 5), Vector2(131, 5), Vector2(146, 5), Vector2(162, 5)],
-		ventral = [Vector2(38, 54), Vector2(54, 54), Vector2(69, 54), Vector2(84, 54), Vector2(100, 54), Vector2(116, 54), Vector2(131, 54), Vector2(146, 54), Vector2(162, 54)],
-		flank = [Vector2(38, 29), Vector2(54, 29), Vector2(69, 29), Vector2(84, 29), Vector2(100, 29), Vector2(116, 29), Vector2(131, 29), Vector2(146, 29), Vector2(162, 29)],
+		dorsal = [Vector2(83, 44), Vector2(108, 44), Vector2(134, 42), Vector2(159, 42), Vector2(184, 42), Vector2(210, 42), Vector2(235, 44), Vector2(261, 45), Vector2(286, 46)],
+		ventral = [Vector2(83, 84), Vector2(108, 88), Vector2(134, 88), Vector2(159, 88), Vector2(184, 88), Vector2(210, 88), Vector2(235, 88), Vector2(261, 88), Vector2(286, 85)],
+		flank = [Vector2(83, 64), Vector2(108, 66), Vector2(134, 65), Vector2(159, 65), Vector2(184, 65), Vector2(210, 65), Vector2(235, 66), Vector2(261, 66), Vector2(286, 65)],
 	},
 	"hull_heavy_s": {
-		dorsal = [Vector2(38, 5), Vector2(54, 5), Vector2(69, 5), Vector2(84, 5), Vector2(100, 5), Vector2(116, 5), Vector2(131, 5), Vector2(146, 5), Vector2(162, 5)],
-		ventral = [Vector2(38, 54), Vector2(54, 54), Vector2(69, 54), Vector2(84, 54), Vector2(100, 54), Vector2(116, 54), Vector2(131, 54), Vector2(146, 54), Vector2(162, 54)],
-		flank = [Vector2(38, 29), Vector2(54, 29), Vector2(69, 29), Vector2(84, 29), Vector2(100, 29), Vector2(116, 29), Vector2(131, 29), Vector2(146, 29), Vector2(162, 29)],
+		dorsal = [Vector2(95, 43), Vector2(119, 43), Vector2(143, 43), Vector2(167, 43), Vector2(191, 43), Vector2(215, 45), Vector2(239, 45), Vector2(263, 45), Vector2(287, 47)],
+		ventral = [Vector2(95, 88), Vector2(119, 85), Vector2(143, 88), Vector2(167, 88), Vector2(191, 88), Vector2(215, 88), Vector2(239, 88), Vector2(263, 88), Vector2(287, 85)],
+		flank = [Vector2(95, 65), Vector2(119, 64), Vector2(143, 65), Vector2(167, 65), Vector2(191, 65), Vector2(215, 66), Vector2(239, 66), Vector2(263, 66), Vector2(287, 66)],
 	},
 	"hull_light_a": {
-		dorsal = [Vector2(38, 5), Vector2(47, 5), Vector2(56, 5), Vector2(66, 5), Vector2(75, 5), Vector2(84, 5), Vector2(94, 5), Vector2(103, 5), Vector2(112, 5)],
-		ventral = [Vector2(38, 34), Vector2(47, 34), Vector2(56, 34), Vector2(66, 34), Vector2(75, 34), Vector2(84, 34), Vector2(94, 34), Vector2(103, 34), Vector2(112, 34)],
-		flank = [Vector2(38, 19), Vector2(47, 19), Vector2(56, 19), Vector2(66, 19), Vector2(75, 19), Vector2(84, 19), Vector2(94, 19), Vector2(103, 19), Vector2(112, 19)],
+		dorsal = [Vector2(87, 25), Vector2(100, 22), Vector2(113, 24), Vector2(126, 24), Vector2(140, 22), Vector2(153, 22), Vector2(166, 22), Vector2(179, 23), Vector2(192, 24)],
+		ventral = [Vector2(87, 48), Vector2(100, 48), Vector2(113, 49), Vector2(126, 51), Vector2(140, 51), Vector2(153, 51), Vector2(166, 51), Vector2(179, 50), Vector2(192, 46)],
+		flank = [Vector2(87, 36), Vector2(100, 35), Vector2(113, 36), Vector2(126, 37), Vector2(140, 36), Vector2(153, 36), Vector2(166, 36), Vector2(179, 36), Vector2(192, 35)],
 	},
 	"hull_light_b": {
-		dorsal = [Vector2(38, 5), Vector2(47, 5), Vector2(56, 5), Vector2(66, 5), Vector2(75, 5), Vector2(84, 5), Vector2(94, 5), Vector2(103, 5), Vector2(112, 5)],
-		ventral = [Vector2(38, 34), Vector2(47, 34), Vector2(56, 34), Vector2(66, 34), Vector2(75, 34), Vector2(84, 34), Vector2(94, 34), Vector2(103, 34), Vector2(112, 34)],
-		flank = [Vector2(38, 19), Vector2(47, 19), Vector2(56, 19), Vector2(66, 19), Vector2(75, 19), Vector2(84, 19), Vector2(94, 19), Vector2(103, 19), Vector2(112, 19)],
+		dorsal = [Vector2(94, 24), Vector2(104, 23), Vector2(114, 23), Vector2(124, 23), Vector2(134, 24), Vector2(144, 24), Vector2(154, 24), Vector2(164, 24), Vector2(174, 24)],
+		ventral = [Vector2(94, 45), Vector2(104, 44), Vector2(114, 46), Vector2(124, 47), Vector2(134, 47), Vector2(144, 47), Vector2(154, 47), Vector2(164, 47), Vector2(174, 44)],
+		flank = [Vector2(94, 34), Vector2(104, 33), Vector2(114, 34), Vector2(124, 35), Vector2(134, 35), Vector2(144, 35), Vector2(154, 35), Vector2(164, 35), Vector2(174, 34)],
 	},
 	"hull_light_c": {
-		dorsal = [Vector2(38, 5), Vector2(47, 5), Vector2(56, 5), Vector2(66, 5), Vector2(75, 5), Vector2(84, 5), Vector2(94, 5), Vector2(103, 5), Vector2(112, 5)],
-		ventral = [Vector2(38, 34), Vector2(47, 34), Vector2(56, 34), Vector2(66, 34), Vector2(75, 34), Vector2(84, 34), Vector2(94, 34), Vector2(103, 34), Vector2(112, 34)],
-		flank = [Vector2(38, 19), Vector2(47, 19), Vector2(56, 19), Vector2(66, 19), Vector2(75, 19), Vector2(84, 19), Vector2(94, 19), Vector2(103, 19), Vector2(112, 19)],
+		dorsal = [Vector2(96, 26), Vector2(110, 25), Vector2(123, 25), Vector2(137, 25), Vector2(150, 25), Vector2(164, 25), Vector2(178, 25), Vector2(191, 25), Vector2(205, 26)],
+		ventral = [Vector2(96, 43), Vector2(110, 46), Vector2(123, 46), Vector2(137, 46), Vector2(150, 46), Vector2(164, 46), Vector2(178, 46), Vector2(191, 45), Vector2(205, 43)],
+		flank = [Vector2(96, 34), Vector2(110, 35), Vector2(123, 35), Vector2(137, 35), Vector2(150, 35), Vector2(164, 35), Vector2(178, 35), Vector2(191, 35), Vector2(205, 34)],
 	},
 	"hull_light_s": {
-		dorsal = [Vector2(38, 5), Vector2(47, 5), Vector2(56, 5), Vector2(66, 5), Vector2(75, 5), Vector2(84, 5), Vector2(94, 5), Vector2(103, 5), Vector2(112, 5)],
-		ventral = [Vector2(38, 34), Vector2(47, 34), Vector2(56, 34), Vector2(66, 34), Vector2(75, 34), Vector2(84, 34), Vector2(94, 34), Vector2(103, 34), Vector2(112, 34)],
-		flank = [Vector2(38, 19), Vector2(47, 19), Vector2(56, 19), Vector2(66, 19), Vector2(75, 19), Vector2(84, 19), Vector2(94, 19), Vector2(103, 19), Vector2(112, 19)],
+		dorsal = [Vector2(95, 24), Vector2(108, 21), Vector2(120, 21), Vector2(133, 21), Vector2(146, 21), Vector2(159, 21), Vector2(172, 21), Vector2(184, 22), Vector2(197, 24)],
+		ventral = [Vector2(95, 44), Vector2(108, 44), Vector2(120, 44), Vector2(133, 44), Vector2(146, 44), Vector2(159, 44), Vector2(172, 44), Vector2(184, 43), Vector2(197, 43)],
+		flank = [Vector2(95, 34), Vector2(108, 32), Vector2(120, 32), Vector2(133, 32), Vector2(146, 32), Vector2(159, 32), Vector2(172, 32), Vector2(184, 32), Vector2(197, 33)],
 	},
 	"hull_medium_a": {
-		dorsal = [Vector2(38, 5), Vector2(50, 5), Vector2(63, 5), Vector2(75, 5), Vector2(88, 5), Vector2(100, 5), Vector2(112, 5), Vector2(125, 5), Vector2(137, 5)],
-		ventral = [Vector2(38, 44), Vector2(50, 44), Vector2(63, 44), Vector2(75, 44), Vector2(88, 44), Vector2(100, 44), Vector2(112, 44), Vector2(125, 44), Vector2(137, 44)],
-		flank = [Vector2(38, 24), Vector2(50, 24), Vector2(63, 24), Vector2(75, 24), Vector2(88, 24), Vector2(100, 24), Vector2(112, 24), Vector2(125, 24), Vector2(137, 24)],
+		dorsal = [Vector2(91, 33), Vector2(110, 31), Vector2(129, 30), Vector2(148, 30), Vector2(167, 30), Vector2(186, 30), Vector2(205, 31), Vector2(224, 30), Vector2(243, 31)],
+		ventral = [Vector2(91, 63), Vector2(110, 65), Vector2(129, 65), Vector2(148, 65), Vector2(167, 65), Vector2(186, 65), Vector2(205, 64), Vector2(224, 64), Vector2(243, 61)],
+		flank = [Vector2(91, 48), Vector2(110, 48), Vector2(129, 47), Vector2(148, 47), Vector2(167, 47), Vector2(186, 47), Vector2(205, 47), Vector2(224, 47), Vector2(243, 46)],
 	},
 	"hull_medium_b": {
-		dorsal = [Vector2(38, 5), Vector2(50, 5), Vector2(63, 5), Vector2(75, 5), Vector2(88, 5), Vector2(100, 5), Vector2(112, 5), Vector2(125, 5), Vector2(137, 5)],
-		ventral = [Vector2(38, 44), Vector2(50, 44), Vector2(63, 44), Vector2(75, 44), Vector2(88, 44), Vector2(100, 44), Vector2(112, 44), Vector2(125, 44), Vector2(137, 44)],
-		flank = [Vector2(38, 24), Vector2(50, 24), Vector2(63, 24), Vector2(75, 24), Vector2(88, 24), Vector2(100, 24), Vector2(112, 24), Vector2(125, 24), Vector2(137, 24)],
+		dorsal = [Vector2(85, 28), Vector2(104, 25), Vector2(124, 25), Vector2(144, 25), Vector2(163, 25), Vector2(182, 25), Vector2(202, 25), Vector2(222, 27), Vector2(241, 29)],
+		ventral = [Vector2(85, 59), Vector2(104, 59), Vector2(124, 58), Vector2(144, 59), Vector2(163, 59), Vector2(182, 59), Vector2(202, 59), Vector2(222, 58), Vector2(241, 55)],
+		flank = [Vector2(85, 43), Vector2(104, 42), Vector2(124, 41), Vector2(144, 42), Vector2(163, 42), Vector2(182, 42), Vector2(202, 42), Vector2(222, 42), Vector2(241, 42)],
 	},
 	"hull_medium_c": {
-		dorsal = [Vector2(38, 5), Vector2(50, 5), Vector2(63, 5), Vector2(75, 5), Vector2(88, 5), Vector2(100, 5), Vector2(112, 5), Vector2(125, 5), Vector2(137, 5)],
-		ventral = [Vector2(38, 44), Vector2(50, 44), Vector2(63, 44), Vector2(75, 44), Vector2(88, 44), Vector2(100, 44), Vector2(112, 44), Vector2(125, 44), Vector2(137, 44)],
-		flank = [Vector2(38, 24), Vector2(50, 24), Vector2(63, 24), Vector2(75, 24), Vector2(88, 24), Vector2(100, 24), Vector2(112, 24), Vector2(125, 24), Vector2(137, 24)],
+		dorsal = [Vector2(100, 39), Vector2(115, 24), Vector2(130, 24), Vector2(144, 24), Vector2(159, 24), Vector2(174, 26), Vector2(188, 33), Vector2(203, 40), Vector2(218, 40)],
+		ventral = [Vector2(100, 70), Vector2(115, 71), Vector2(130, 71), Vector2(144, 71), Vector2(159, 71), Vector2(174, 71), Vector2(188, 71), Vector2(203, 71), Vector2(218, 71)],
+		flank = [Vector2(100, 54), Vector2(115, 47), Vector2(130, 47), Vector2(144, 47), Vector2(159, 47), Vector2(174, 48), Vector2(188, 52), Vector2(203, 55), Vector2(218, 55)],
 	},
 	"hull_medium_s": {
-		dorsal = [Vector2(38, 5), Vector2(50, 5), Vector2(63, 5), Vector2(75, 5), Vector2(88, 5), Vector2(100, 5), Vector2(112, 5), Vector2(125, 5), Vector2(137, 5)],
-		ventral = [Vector2(38, 44), Vector2(50, 44), Vector2(63, 44), Vector2(75, 44), Vector2(88, 44), Vector2(100, 44), Vector2(112, 44), Vector2(125, 44), Vector2(137, 44)],
-		flank = [Vector2(38, 24), Vector2(50, 24), Vector2(63, 24), Vector2(75, 24), Vector2(88, 24), Vector2(100, 24), Vector2(112, 24), Vector2(125, 24), Vector2(137, 24)],
+		dorsal = [Vector2(95, 30), Vector2(114, 29), Vector2(133, 29), Vector2(152, 29), Vector2(172, 29), Vector2(191, 29), Vector2(210, 29), Vector2(229, 30), Vector2(248, 31)],
+		ventral = [Vector2(95, 60), Vector2(114, 63), Vector2(133, 63), Vector2(152, 64), Vector2(172, 64), Vector2(191, 64), Vector2(210, 64), Vector2(229, 64), Vector2(248, 58)],
+		flank = [Vector2(95, 45), Vector2(114, 46), Vector2(133, 46), Vector2(152, 46), Vector2(172, 46), Vector2(191, 46), Vector2(210, 46), Vector2(229, 47), Vector2(248, 44)],
 	},
 }
 
@@ -1533,23 +1638,35 @@ const HULL_LINES := {
 ## resource cache, once, on the first ask — the same twelve textures the hulls
 ## are already built from.
 static var _widest: int = 0
-func widest_hull() -> int:
-	if _widest > 0:
+## Cached separately rather than derived as `_widest / 2`. The halves are files,
+## and a file that is not exactly half its source — one odd dimension, one hull
+## regenerated on its own — would make the derived number quietly wrong.
+static var _widest_half: int = 0
+func widest_hull(half: bool = false) -> int:
+	if half and _widest_half > 0:
+		return _widest_half
+	if not half and _widest > 0:
 		return _widest
+	var found := 0
 	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 		for cls in HullData.TIER_NAMES.size():
-			var tex := hull_sprite(w, cls)
+			var tex := hull_sprite(w, cls, half)
 			if tex != null:
-				_widest = maxi(_widest, tex.get_width())
+				found = maxi(found, tex.get_width())
+	if half:
+		_widest_half = found
+		# Half the procedural fallback, so a build with no art at all still
+		# gives the column a narrower ship than the solo view rather than the
+		# same one.
+		return maxi(found, ShipView.W / 2)
+	_widest = found
 	# A build with no hull art at all falls back to the procedural canvas rather
 	# than to zero, which would crop every ship to nothing.
-	return maxi(_widest, ShipView.W)
+	return maxi(found, ShipView.W)
 
-## The engine plume for a weight class: a 9-frame strip, cropped tight, which is
-## why it carries an offset. See HullData.exhaust.
+## The engine plume: a 9-frame strip, cropped tight, which is why it carries an
+## offset. See HullData.exhaust.
 const EXHAUST_FRAMES := 9
-## One frame of that strip is 32px tall.
-const EXHAUST_H := 32
 ## The hull canvas is cropped tight around the ship so STRETCH_KEEP_CENTERED
 ## actually centres it. With 70px of dead space on the right the content sat
 ## left of centre, and at 2x the view clipped the flames off first.
@@ -1557,10 +1674,33 @@ const EXHAUST_H := 32
 ## Kept as the fallback for a hull with no sprite to measure.
 const EXHAUST_AT := Vector2i(0, 27)
 
-func hull_exhaust(w: HullData.Weight) -> Texture2D:
-	if w != HullData.Weight.MEDIUM:
+## How many strips live in art/sprites/exhaust/, named exhaust_0 .. exhaust_N-1.
+##
+## A LIBRARY, not a mapping. Any ship can fly any of them; nothing here consults
+## weight class. 0 is the plume the game shipped with and stays the default so
+## this change is invisible until something picks another.
+##
+## They differ in every dimension a plume can: frame 28x13 to 76x42, four
+## colours to thirty-one, heat through plasma, violet and viridian. That is why
+## the frame height below is READ rather than declared — it used to be a
+## constant 32, which was true of the one strip that existed and would silently
+## mis-centre almost every one now here.
+##
+## 0 IS HALF OF WHAT IT USED TO BE. The shipped plume was a TWIN — two flames
+## stacked in one 48x32 frame, with an empty two-pixel gap between them, which
+## only reads as two once it sits beside a single. It is cut at that gap and the
+## twin is gone: one engine per strip, and a hull that wants two draws two.
+##
+## THE IDS ARE CONTIGUOUS AND MUST STAY THAT WAY. exhaust_art() indexes straight
+## into the filename, so a deleted file in the middle is a null texture and an
+## engine that silently stops burning. Removing one means renumbering the tail
+## down — that is what `-- exhaust` checks on every run.
+const EXHAUST_COUNT := 24
+
+func exhaust_art(id: int) -> Texture2D:
+	if id < 0 or id >= EXHAUST_COUNT:
 		return null
-	return load("res://art/sprites/hull_medium_exhaust.png") as Texture2D
+	return load("res://art/sprites/exhaust/exhaust_%d.png" % id) as Texture2D
 
 ## Where the plume attaches, DERIVED from the hull it attaches to.
 ##
@@ -1571,11 +1711,33 @@ func hull_exhaust(w: HullData.Weight) -> Texture2D:
 ## of clearance to the left of its engines — the geometry the one hull already
 ## had — so the plume centres on the hull's own canvas and nothing needs a table
 ## that a new sprite could fall out of step with.
-func hull_exhaust_at(w: HullData.Weight, cls: int = 0) -> Vector2i:
+func hull_exhaust_at(w: HullData.Weight, cls: int = 0, id: int = 0) -> Vector2i:
 	var tex := hull_sprite(w, cls)
-	if tex == null:
+	var plume := exhaust_art(id)
+	if tex == null or plume == null:
 		return EXHAUST_AT
-	return Vector2i(0, tex.get_height() / 2 - EXHAUST_H / 2)
+	return Vector2i(0, tex.get_height() / 2 - plume.get_height() / 2)
+
+## Set the plume and everything that has to agree with it, in one call.
+##
+## The three fields are not independent — a texture with the wrong offset hangs
+## the flame off the hull, and the offset cannot be computed without the texture.
+## Every place that changes one has to change all three, so there is one place.
+func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
+	# A hull rigged in the bench carries its own strip and its own offset; the
+	# computed centring is only for one that has not been rigged yet.
+	var key := hull_art_name(h.weight, cls)
+	if HULL_EXHAUST.has(key):
+		var e: Dictionary = HULL_EXHAUST[key]
+		h.exhaust_id = int(e.id)
+		h.exhaust = exhaust_art(h.exhaust_id)
+		h.exhaust_frames = EXHAUST_FRAMES
+		h.exhaust_offset = e.at
+		return
+	h.exhaust_id = id
+	h.exhaust = exhaust_art(id)
+	h.exhaust_frames = EXHAUST_FRAMES
+	h.exhaust_offset = hull_exhaust_at(h.weight, cls, id)
 
 ## What each manufacturer CALLS its three weight classes.
 ##
@@ -1659,8 +1821,9 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# and keeping the frame's offset would hang the flame off the bottom of the
 	# short ones.
 	h.sprite = hull_sprite(h.weight, t)
+	h.sprite_half = hull_sprite(h.weight, t, true)
 	apply_hull_lines(h)
-	h.exhaust_offset = hull_exhaust_at(h.weight, t)
+	set_exhaust(h, h.exhaust_id, t)
 	return h
 
 func _seed_perks() -> void:

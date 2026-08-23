@@ -39,6 +39,15 @@ var _h: int = H
 var _img: Image
 ## The height magnify() was asked for, or 0 when the box is not ours to set.
 var _fit_h: int = 0
+## Draw from the hull's HALF sheet rather than its full one. See use_half().
+var _half: bool = false
+## A caller has set `custom_minimum_size` itself and owns it — crop(), or
+## setup_preview() with a view height. `_resize_canvas` leaves those alone.
+##
+## Needed because a crop deliberately clears `_fit_h` ("a width the caller
+## means"), which used to be enough to protect it only because the canvas branch
+## was unreachable at the magnifications every screen used.
+var _sized: bool = false
 var _tex: ImageTexture
 
 ## Idle bob: the ship drifts a couple of pixels up and down so it reads as
@@ -276,7 +285,17 @@ var _k: int = 1
 func canvas_to_local(p: Vector2) -> Vector2:
 	var tex := Vector2(float(_w), float(_h)) * float(_k)
 	var origin := ((size - tex) * 0.5).floor()
-	return origin + Vector2(p.x, p.y + float(_bob_amp + _bob_off)) * float(_k)
+	# FOUR transforms once the half sheet exists. A caller measures against the
+	# full sprite — HullData's lines are one set of numbers per hull, not one per
+	# sheet — so a point has to come down to the canvas actually being drawn
+	# before anything else is done to it. Without this the mounts on a convoy
+	# ship sit at twice their offset and scatter off the hull, which is what it
+	# looks like: markers in space beside the ship rather than on it.
+	#
+	# The bob is NOT halved. It is already in canvas pixels, because it is a
+	# property of the canvas rather than of the sprite that went into it.
+	var q := p * 0.5 if _half else p
+	return origin + Vector2(q.x, q.y + float(_bob_amp + _bob_off)) * float(_k)
 
 ## How far the idle bob is currently displaced, in sprite pixels. Anything
 ## following the ship has to repaint when this changes.
@@ -290,6 +309,48 @@ func bob_offset() -> int:
 ## the mounted modules look like specks on a doubled ship.
 func zoom_level() -> int:
 	return _k
+
+## The same thing as a float, and the one to ask when the answer has to be right
+## on the half sheet.
+##
+## `zoom_level()` returns the magnification and nothing else, so on a half-drawn
+## ship it is out by a factor of two — an art pixel there is half a screen pixel
+## per unit of _k. Anything sizing itself against the HULL wants this; anything
+## that genuinely means "how many times is the canvas magnified" still wants
+## zoom_level().
+func art_scale() -> float:
+	return float(_k) * (0.5 if _half else 1.0)
+
+## A note on the OTHER unit, because it is the one that causes mistakes.
+##
+## A hull sprite is authored at TWICE its box (art/tools/boxes.py, ART_CONTRACT
+## §4), so a sprite pixel is half a box pixel. Anything that has to agree with a
+## number measured off the box rather than off the image has to know that.
+##
+## Nothing in the UI currently does, and the reasoning is worth keeping: a fitted
+## part is sized in SPRITE pixels on purpose, which makes it half the size it is
+## in the hold. Matching the hold instead would put five weapon hardpoints' worth
+## of gun on 125% of a heavy hull. See MountPoints._mag.
+
+## Draw this ship from the half sheet, for the views that hold several at once.
+##
+## A SHEET, not a scale. `zoom()` cannot go below 1 and the art is authored at 2x
+## its box, so the size the convoy column wants only exists as a second file —
+## see HullData.sprite_half. The canvas follows whatever is blitted into it, so
+## nothing else here has to know: `_resize_canvas` picks up the smaller image and
+## `custom_minimum_size` comes down with it.
+##
+## Idempotent, and it refreshes only on a real change, because callers set it
+## from party state that repaints far more often than it changes.
+func use_half(on: bool) -> void:
+	if _half == on:
+		return
+	_half = on
+	refresh()
+
+## Whether this view is drawing from the half sheet.
+func is_half() -> bool:
+	return _half
 
 ## How far the SHIP's centre sits from the middle of its own canvas, in screen
 ## pixels. Positive means right of centre.
@@ -374,6 +435,7 @@ func zoom(k: int) -> void:
 func crop(view_width: int, view_height: int) -> void:
 	# An explicit crop is a width the caller means. Only magnify() re-fits.
 	_fit_h = 0
+	_sized = true
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	custom_minimum_size = Vector2(view_width, view_height)
 	clip_contents = true
@@ -397,6 +459,7 @@ func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		custom_minimum_size = Vector2(_w * _k, view_height)
 		clip_contents = true
+		_sized = true
 	refresh()
 
 func _hull() -> HullData:
@@ -530,9 +593,16 @@ func _blit_sprite() -> void:
 	# this machine, and every one of those three is agreed between us, so their
 	# ship wears the same damage on both screens.
 	var wseed := HullWear.seed_for(h, b.pilot if b != null else "", Rng.master)
-	var img: Image = HullWear.worn_cached(h.sprite, band, wseed)
+	# The half sheet when this view asked for it and the hull has one. Falls
+	# through to full art rather than refusing to draw, so a hull that has not
+	# been reduced yet still appears — at the wrong size, which is visible, and
+	# not at all, which is not.
+	var src: Texture2D = h.sprite
+	if _half and h.sprite_half != null:
+		src = h.sprite_half
+	var img: Image = HullWear.worn_cached(src, band, wseed)
 	if img == null:
-		img = h.sprite.get_image()
+		img = src.get_image()
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img = img.duplicate() as Image
 		img.convert(Image.FORMAT_RGBA8)
@@ -551,11 +621,18 @@ func _resize_canvas(w: int, h: int) -> void:
 	_w = w
 	_h = h
 	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
-	if _k <= 1:
-		custom_minimum_size = Vector2(_w, _h)
-	elif _fit_h > 0:
+	# A HEIGHT THE CALLER ASKED FOR WINS AT ANY MAGNIFICATION, and the order of
+	# these two branches is the whole fix. This read `if _k <= 1` first, which
+	# was harmless while every screen magnified by 2 and became silent breakage
+	# the moment they stopped: at 1x the canvas size overwrote the box three
+	# screens had set for themselves — ShipScreen's HULL_VIEW_H, StationScreen's
+	# crop, ChassisSelect's HERO_H — and the ship went on drawing correctly
+	# inside a panel that had quietly resized itself. Nothing threw.
+	if _fit_h > 0:
 		custom_minimum_size = Vector2(_w * _k, _fit_h)
 		clip_contents = _fit_h < _h * _k
+	elif _k <= 1 and not _sized:
+		custom_minimum_size = Vector2(_w, _h)
 
 ## The plume, over the hull, at this step of the cycle.
 ##

@@ -387,6 +387,21 @@ func _ready() -> void:
 		Net.state = NetSession.State.IN_PARTY
 		Router.show_party()
 
+	# Every exhaust strip loaded and measured:  godot --headless --path . -- exhaust
+	# Headless on purpose: a plume that fails to load is invisible, not loud.
+	if "exhaust" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ExhaustCheck.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
+	# The refit screen at a chosen weight:  godot --path . -- shipshot heavy
+	# Needs a window and runs after boot, same as convoy. The heavy is the
+	# default because its 6x5 hold is what any change to that panel has to clear.
+	if "shipshot" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ShipShot.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "convoy" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())

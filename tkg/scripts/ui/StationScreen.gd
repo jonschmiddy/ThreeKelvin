@@ -77,9 +77,11 @@ const SERVICE_W := 420
 ## growing past the service column beside it.
 ## Sized off the deepest hull plus the bob, at 1x. See ShipScreen for why the
 ## magnification came down.
-const HULL_H := 240
-## And how wide the window onto it is. A cap, not a measurement — the widest hull
-## at 2x is 474 and the row does not have room for that beside the services.
+const HULL_H := 120
+## And how wide the window onto it is. A cap, not a measurement: it bounds the
+## control's minimum so the row cannot overflow the way it did when a doubled
+## 474-wide hull sat beside 420 of services. At 1x the widest hull is 248, so
+## the cap is slack on purpose and the portrait is centred in it.
 const HULL_W := 380
 ## How wide the station's name line is allowed to be before it wraps. Bounded on
 ## purpose — see the note in _build().
@@ -248,15 +250,16 @@ func _page_services() -> Control:
 	var ship := Widgets.section("your hull")
 	var art := ShipView.new()
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Doubled, and cropped to the band the hull occupies. At 1x it was a thumbnail
-	# in the corner of a large panel; at 2x it is a portrait of the thing the
-	# prices beside it are for, which is the only reason it is on this screen.
-	# Doubled AND cropped to a fixed window, in that order. `magnify` alone sizes
-	# the control to the whole doubled canvas — 237 pixels of heavy hull becomes a
-	# 474-wide minimum, and 420 of services plus that overflowed the row and shoved
-	# the whole screen seven pixels past the right edge of the window. The bug
-	# looked like a missing margin and was a minimum nobody had bounded.
-	art.magnify(2, HULL_H)
+	# 1x AND cropped to a fixed window, in that order. The doubling lives in the
+	# art now — hulls are authored at 2x their box — so magnifying here applies
+	# it twice and a heavy becomes 496 wide on a 960px viewport. See boxes.py.
+	#
+	# The crop stays regardless of the scale: `magnify` alone sizes the control
+	# to the whole canvas, and 420 of services plus an unbounded hull overflowed
+	# the row and shoved the whole screen seven pixels past the right edge of the
+	# window. That bug looked like a missing margin and was a minimum nobody had
+	# bounded, which is still true at any magnification.
+	art.magnify(1, HULL_H)
 	art.crop(HULL_W, HULL_H)
 	# Centred in its column rather than left-aligned in it. The column is wider
 	# than the portrait and a picture pinned to one side of a panel is the other

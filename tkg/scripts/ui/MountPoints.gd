@@ -125,9 +125,24 @@ func _process(delta: float) -> void:
 		_phase = fmod(_phase + delta * 2.4, TAU)
 		queue_redraw()
 
-## One art pixel, in screen pixels. See ShipView.zoom_level.
+## One art pixel, in screen pixels. See ShipView.art_scale.
+##
+## PARTS ARE HALF THE SIZE ON THE SHIP THAT THEY ARE IN THE HOLD, deliberately.
+## The two surfaces are doing different jobs: the hold is a thing you grab from,
+## so its cells are 30px and easy to hit, and the ship is a picture, so a part on
+## it has to be in proportion to the hull it is bolted to.
+##
+## The proportion is not a preference — it is forced. A heavy carries FIVE weapon
+## hardpoints. At hold size a two-cell gun is 61px against a 248px hull, so five
+## of them come to 125% of the ship and cannot be drawn at all. At this size the
+## same gun is 31px and five of them take 62% of the dorsal line, which is a ship
+## with guns on it.
+##
+## art_scale, not zoom_level: a mount is drawn ON the hull, so it has to follow
+## the hull onto the half sheet. zoom_level reports magnification alone and would
+## draw full-size parts over a half-size ship.
 func _mag() -> float:
-	return float(_view.zoom_level()) if _view != null else 1.0
+	return _view.art_scale() if _view != null else 1.0
 
 func _draw() -> void:
 	drawn = 0

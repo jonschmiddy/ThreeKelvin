@@ -5,6 +5,8 @@ extends RefCounted
 ##   godot --headless --path . -- shipsheet     one ship per build, no renderer
 ##   godot --path . -- convoy                   the real sector, with a party
 ##   godot --path . -- convoy chart             the star chart, with a party
+##   godot --path . -- convoy hold              the same, left open to play with
+##   godot --path . -- convoy hold 7            and with a party that overflows
 ##
 ## They answer two different questions and only the first one can be automated.
 ##
@@ -44,6 +46,16 @@ func run(tree: SceneTree) -> void:
 		tree.quit()
 		return
 	await _convoy_shot(tree)
+	# `-- convoy hold` leaves it on screen instead of quitting.
+	#
+	# The shot answers "does the convoy fit"; holding answers the questions a
+	# still cannot — what it looks like while the ships bob, what happens when
+	# you open the ship screen and come back, whether a size reads differently
+	# when you can move between the tabs. Same fabricated roster, so it is still
+	# one person on one machine with no port open.
+	if "hold" in OS.get_cmdline_user_args():
+		print("holding — close the window when you are done")
+		return
 	tree.quit()
 
 

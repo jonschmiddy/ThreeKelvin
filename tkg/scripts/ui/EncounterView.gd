@@ -9,10 +9,17 @@ extends Control
 ## a thing in a place. This is the frame the sector view and combat share, so the
 ## ship never disappears between them.
 ##
-## THE CONVOY sits to the left of your hull, and only when there is one. Every
-## ship in it is drawn at 1:1 — the art direction has no other size — so what
-## gives your own hull the foreground is position and not scale: it is centre of
-## frame, facing what you are facing, and it is the one you can drop a card on.
+## THE CONVOY sits to the left of your hull, and only when there is one. Your
+## partners are drawn from the HALF sheet and you are not, so the party reads at
+## two to one — 248 against 124 for a heavy — and the ship you fly is the subject
+## by size as well as by position: centre of frame, facing what you are facing,
+## and the one you can drop a card on.
+##
+## Two sizes and no more. Pixel art scales by whole numbers, so the ladder is
+## 1x, half and quarter, and a quarter-size medium is 50x20 — which fails the
+## test in CONVOY_MAX below, that a hull nobody can identify is not a hull. Half
+## is a second set of FILES rather than a scale, because nothing below 1x exists
+## at the renderer. See HullData.sprite_half.
 ## The others are a column beside it, each in a box just tall enough for a hull,
 ## with the name and the two gauges painted over it.
 ##
@@ -131,15 +138,19 @@ func _ready() -> void:
 ## is ever cropped nose-first — which reads as a mistake rather than as distance.
 ##
 ## ASKED, NOT TYPED, and it used to be typed. 208 was measured against the
-## procedural drawing and was already stale when the twelve real hulls landed at
-## 152 to 237 across: every heavy in the party lost about fifteen pixels off each
-## end, and losing them off the FRONT is the half you notice. A hull sprite is
-## cropped tight to its ship, so horizontal crop is never empty space.
+## procedural drawing and was already stale when the real hulls landed: every
+## heavy in the party lost about fifteen pixels off each end, and losing them off
+## the FRONT is the half you notice. A hull sprite is cropped tight to its ship,
+## so horizontal crop is never empty space.
+##
+## The HALF set, because that is what a convoy slot draws — 75 to 124 across
+## rather than 150 to 248. Asking for the full width here would reserve twice the
+## column the ships need and push your own hull off centre.
 ##
 ## Vertical is a different question and stays a constant — see CONVOY_H. A canvas
 ## is taller than its ship by the bob headroom, so trimming rows costs nothing.
 static func convoy_w() -> int:
-	return DB.widest_hull()
+	return DB.widest_hull(true)
 ## And how tall. Tall enough for the tallest canvas any hull draws into, so no
 ## partner is ever cropped along the hull line — a ship with its keel cut off
 ## reads as a bug, and it is the one crop a viewer cannot explain to themselves
@@ -283,7 +294,19 @@ func refresh_convoy() -> void:
 	# exactly the case a value set at build time would miss.
 	var crowded := not _made_convoy.is_empty()
 	_convoy_pad.visible = crowded
-	_ship.zoom(1 if crowded else 2)
+	# YOUR ship stays on the full sheet. Your partners are on the half one, so
+	# the party reads at two to one and the ship you fly is plainly the subject.
+	#
+	# This is the one place the old code could not go. Everything used to be the
+	# same size in a party — your hull dropped from 2x to 1x to make room and
+	# landed on the convoy's own scale — so the class note above had to say the
+	# foreground came from position alone, because there was no other size to
+	# give it. There is now: 248 against 124 for a heavy, and both fit, because
+	# the column costs 124 and a gap rather than 248 and a gap.
+	#
+	# A one-line flip if it reads wrong. `use_half(crowded)` puts everybody back
+	# on the same footing.
+	_ship.use_half(false)
 
 
 ## Everybody in this room the column had no room for.
@@ -829,12 +852,12 @@ class ShipSlot extends Control:
 		# middle of its own encounter — and this is the screen the game is
 		# mostly played on, so it is the one that should agree with the others.
 		#
-		# The SOLO default. EncounterView.refresh_convoy drops it to 1x while a
-		# party is on screen, because the convoy column needs that room.
+		# 1x, solo or crowded. The hulls are authored at 2x their box, so this
+		# is the full-size ship and there is no step below it.
 		#
 		# zoom(), not magnify(): the slot's width is anchored to a fraction of
 		# the encounter and a minimum size would fight that.
-		art.zoom(2)
+		art.zoom(1)
 		# The hull is now bigger than its slot on the deepest frames, and the
 		# enemy panel is immediately to the right of it.
 		art.clip_contents = true
@@ -1090,6 +1113,9 @@ class ConvoySlot extends Control:
 		art.show_behind_parent = true
 		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		art.follow_peer(id)
+		# Always the half sheet. A convoy slot only exists when there IS a party,
+		# which is exactly the condition the reduced set is for.
+		art.use_half(true)
 		# Slower and shallower than your own ship's. They are further away, and
 		# four hulls bobbing in step read as one object.
 		art.bob(1, 0.19)

@@ -40,18 +40,33 @@ extends Control
 ## is the banner plus the ship at 2x, and the ship is the subject. Four columns
 ## is 201px against six columns' 303px, so the grid now costs a third of what it
 ## did when it did not fit.
-## The ship panel's height, at 2x, off the SPEC rather than off whatever hull
-## happens to exist: the largest class is 125x50, so 100 rows plus the bob.
+## The ship panel's height, off the SPEC rather than off whatever hull happens to
+## exist: the largest class is 125x50 at 2x the box, so 100 rows plus the bob.
 ##
-## Deliberately SHORTER than the canvas, which is 122 rows at 2x once the 38px
-## of exhaust clearance and the 11 of padding are doubled. Those rows are empty
-## by construction, and cropping them is what buys the manufacturer abilities a
-## place on the panel. Was 240, sized against art that is being replaced.
-## 150, down from 166. The view has to cover the tallest hull canvas — 122px at
-## 2x — and everything above that is air. The heavy's hold went to 30 cells and
-## six rows nearly reached the manufacturer abilities: 2px of clearance, which is
-## not clearance, it is a collision that has not happened yet. Sixteen of those
-## spare rows are worth more to the workbench than to the masthead.
+## 150, and it is a BUDGET rather than a size. The masthead is SHRINK_BEGIN and
+## the workbench is EXPAND_FILL, so every row given to the ship is a row taken
+## off the panel below. Measured with `-- shipshot`, on the heavy, which is the
+## tight case — its hold is 6x5 against the light's 4x3:
+##
+##     view    masthead   workbench   the heavy
+##     104        175         311     what it actually was, see below
+##     150        221         265     here. 19 rows clear under the abilities
+##     160        231         262     also fits
+##     165        236         257     still fits, nothing left over
+##     200        271         222     abilities clipped off the panel
+##
+## 104 is in that table because it is where this screen SAT, not where it was
+## set. ShipView._resize_canvas ignored the height it was handed unless the view
+## was magnified, so at 1x the panel silently took the canvas's own depth and
+## this constant did nothing at all. Honouring it is the whole of the extra room:
+## the number here is unchanged and the panel is 46 rows deeper than it was.
+##
+## The panel bottom does not move as this grows. Two equal expanding spacers in
+## `textcol` carry all the slack, so what shrinks is the air between ATTRIBUTES,
+## HARDPOINTS and MANUFACTURER ABILITIES — and it shrinks EQUALLY, which is the
+## property worth keeping. At 150 those two gaps are 20 rows each. At 200 they
+## are nothing and the abilities fall off the panel, which is the failure to
+## watch for: it does not throw, and it only happens on one of the three weights.
 const HULL_VIEW_H := 150
 
 ## Clearance between the name block and the ship. The mount markers draw ABOVE
@@ -236,19 +251,17 @@ func _build() -> void:
 	# subject it is. SHRINK_CENTER inside an expanding wrapper puts it in the
 	# middle of the space the banner leaves rather than hard against the flag.
 	var view := ShipView.new()
-	# 2x. Integer scaling is the whole pixel-art rule, so the ship is either its
-	# own size or exactly double and there is nothing in between. 184 rows: the
-	# canvas is cropped to 88, doubling needs 176, plus bob headroom.
-	# 1x, not 2x, and the height sized off the TALLEST hull rather than the one
-	# that used to be the only one.
+	# 1x, and the height sized off the TALLEST hull rather than off the one that
+	# used to be the only one.
 	#
 	# 2x was set when every hull was procedural at 240x120 and the one real
-	# sprite was 188x88. The generated hulls run to 235x114, so 2x put a 470px
-	# ship on a 960px canvas — half the screen — and 184 rows clipped the top and
-	# bottom off the deepest ones. Integer magnification is the art rule and 1x
-	# is the only step below 2x, so this is half rather than a nudge; at the
-	# viewport's own 2x it is still two real pixels per art pixel and crisp.
-	view.magnify(2, HULL_VIEW_H)
+	# sprite was 188x88. The shipped hulls are 150x60, 200x80 and 248x100, so 2x
+	# drew a 496px ship on a 960px viewport — over half the screen width — and
+	# clipped the deepest ones top and bottom. Integer magnification is the art
+	# rule and 1x is the only step below 2x, so this is half rather than a nudge;
+	# the viewport is itself scaled 2x into a 1920x1080 window, so an art pixel
+	# still lands on four real ones and stays crisp.
+	view.magnify(1, HULL_VIEW_H)
 	view.bob(2)
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	# The mounts are a CHILD of the view, so they inherit its rect and every

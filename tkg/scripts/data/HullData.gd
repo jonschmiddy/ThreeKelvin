@@ -111,15 +111,42 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 ## afterwards, because the generator drifted 90 pixels off-palette.
 @export var exhaust: Texture2D
 @export var exhaust_frames: int = 1
+## WHICH plume, as an index into art/sprites/exhaust/. Held alongside the
+## texture rather than instead of it so a saved ship remembers its engine
+## across an art change, and so a refit screen has something to cycle.
+##
+## Not derived from weight class, deliberately: a plume that changes size with
+## the hull makes one engine read as three different engines, and the weight is
+## already legible from the ship in front of it.
+@export var exhaust_id: int = 0
 ## Where the strip's top-left corner sits on the hull canvas. The frames are
 ## cropped tight to the flame, so unlike `sprite` they do not composite at 0,0.
 @export var exhaust_offset: Vector2i = Vector2i.ZERO
 @export var sprite: Texture2D
+## The same hull at HALF, for the views that put several ships on screen at once.
+##
+## A second FILE rather than a scale, because there is no scale to give it. The
+## art is authored at 2x its box, so the size the convoy column wants is exactly
+## half — and `ShipView.zoom()` clamps to `maxi(1, k)`, with nothing sane below
+## it. Halving 2x-authored art lands on the box: every output pixel is one 2x2
+## input block, so the grid stays square and the no-fractional-scaling rule holds.
+##
+## Reduced offline with nearest, which keeps the top-left of each block. That
+## deletes every second row and column, and it was still the one that read
+## better than an averaged-and-palette-snapped alternative when the two were put
+## side by side.
+@export var sprite_half: Texture2D
 ## Deck hardpoint positions, in sprite pixel coordinates relative to the sprite centre.
 ## Order matters: FAR ROW FIRST, near row second. Children are added in this order, so
 ## near-row modules occlude far-row ones for free.
 ##
-## EMPTY ON EVERY HULL, and superseded by the three LINES below. They were
+## THE PLACED MOUNTS, from `DB.HULL_MOUNTS` via `apply_hull_lines()`, and what
+## `mounts_along()` reads first. Empty means this hull has not been through the
+## rigging bench and falls back to spreading along the lines below.
+##
+## The historical note below is why the names read the way they do.
+##
+## Originally empty on every hull and superseded by the three LINES below. They were
 ## authored for the 3/4 camera — a far row and a near row is a statement about a
 ## visible deck, and an edge-on elevation has one plane. Kept because
 ## `ShipSprite.gd` still reads them and that file is the module-compositing path
@@ -160,9 +187,21 @@ func line_for(s: ModuleData.Slot) -> PackedVector2Array:
 ## than at the front, which is also what you want: a ship with a single gun
 ## carries it amidships.
 func mounts_along(s: ModuleData.Slot, n: int) -> PackedVector2Array:
-	var line := line_for(s)
 	var out := PackedVector2Array()
-	if n <= 0 or line.is_empty():
+	if n <= 0:
+		return out
+	# PLACED POINTS WIN. A hull rigged by hand has its mounts on the turret ring
+	# and the missile rack; the line only ever knew where the hull's edge was.
+	var placed := anchors_for(s)
+	if placed.size() >= n:
+		for i in n:
+			out.append(placed[i])
+		return out
+	# Rigged for fewer than this ship needs — hull art is shared between makers
+	# and makers move slot counts. Spread along what was placed, which is a
+	# better line than the measured one even when it is short.
+	var line := PackedVector2Array(placed) if placed.size() > 1 else line_for(s)
+	if line.is_empty():
 		return out
 	if line.size() == 1:
 		for i in n:
