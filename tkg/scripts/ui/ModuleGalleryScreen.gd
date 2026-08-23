@@ -59,9 +59,6 @@ func _build() -> void:
 	], [
 		{key = &"grade", label = "Grade", options = GalleryFilter.grade_options()},
 		{key = &"slot", label = "Slot", options = GalleryFilter.slot_options()},
-		{key = &"sort", label = "Sort", options = [
-			{value = &"house", text = "By house"},
-			{value = &"cells", text = "By cells"}]},
 	]])
 	_filter.changed.connect(_on_filter)
 	root.add_child(_filter)
@@ -105,7 +102,6 @@ func _fill(col: VBoxContainer) -> int:
 	var house: Variant = f.get(&"house", &"")
 	var grade: int = int(f.get(&"grade", -1))
 	var slot: int = int(f.get(&"slot", -1))
-	var by_size: bool = f.get(&"sort", &"house") == &"cells"
 
 	var kept: Array[ModuleData] = []
 	for k in DB.modules:
@@ -124,36 +120,22 @@ func _fill(col: VBoxContainer) -> int:
 		kept.append(m)
 
 	var groups: Array = []
-	if by_size:
-		# GROUPED AND NOT MERELY SORTED, because the question a size view answers
-		# is "what fits in three cells", and that is a bucket rather than a
-		# position in a list.
-		for n in [1, 2, 3, 4]:
-			var bucket: Array[ModuleData] = []
-			for m in kept:
-				if m.cells() == n:
-					bucket.append(m)
-			if not bucket.is_empty():
-				_by_size(bucket)
-				groups.append({label = "%d %s" % [n, "CELL" if n == 1 else "CELLS"],
-					colour = UITheme.COLD, parts = bucket})
-	else:
-		for id in DB.manufacturers:
-			var bucket2: Array[ModuleData] = []
-			for m in kept:
-				if m.manufacturer == id:
-					bucket2.append(m)
-			if not bucket2.is_empty():
-				_by_size(bucket2)
-				groups.append({label = DB.manufacturer_name(id).to_upper(),
-					colour = DB.manufacturer_colour(id), parts = bucket2})
-		var yard: Array[ModuleData] = []
+	for id in DB.manufacturers:
+		var bucket2: Array[ModuleData] = []
 		for m in kept:
-			if m.manufacturer == &"":
-				yard.append(m)
-		if not yard.is_empty():
-			_by_size(yard)
-			groups.append({label = "UNBRANDED", colour = UITheme.COLD, parts = yard})
+			if m.manufacturer == id:
+				bucket2.append(m)
+		if not bucket2.is_empty():
+			_by_size(bucket2)
+			groups.append({label = DB.manufacturer_name(id).to_upper(),
+				colour = DB.manufacturer_colour(id), parts = bucket2})
+	var yard: Array[ModuleData] = []
+	for m in kept:
+		if m.manufacturer == &"":
+			yard.append(m)
+	if not yard.is_empty():
+		_by_size(yard)
+		groups.append({label = "UNBRANDED", colour = UITheme.COLD, parts = yard})
 
 	var cards := 0
 	for raw in groups:
