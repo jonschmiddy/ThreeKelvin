@@ -28,7 +28,7 @@ const DECK_MARGIN := 1
 
 func run() -> void:
 	print("\n%-8s %-3s %5s %5s %6s %6s %5s %5s  %s"
-		% ["frame", "cls", "power", "cap", "energy", "mounts", "mods", "deck", "hand"])
+		% ["frame", "cls", "power", "cap", "energy", "gauge", "mods", "deck", "hand"])
 	var thin: Array[String] = []
 	var over: Array[String] = []
 	for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
@@ -47,8 +47,8 @@ func run() -> void:
 			var deck := Run.deck_size()
 			var hand := Run.hand_size()
 			print("  %-8s %-3s %5d %5d %6d %6d %5d %5d  %d%s"
-				% [name, HullData.TIER_NAMES[t], draw, cap, Run.reactor(), mounts,
-					Run.installed.size(), deck, hand,
+				% [name, HullData.TIER_NAMES[t], draw, cap, Run.reactor(),
+					Run.attr_reactor(), Run.installed.size(), deck, hand,
 					"   THIN" if deck < hand + DECK_MARGIN else ""])
 			if deck < hand + DECK_MARGIN:
 				thin.append("%s %s: %d cards against a hand of %d"

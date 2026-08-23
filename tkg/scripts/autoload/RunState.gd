@@ -1060,6 +1060,30 @@ func attr_maneuver(bare: bool = false) -> int:
 ## in the game reads 6, and it is the one built by the heat manufacturer.
 const THERMAL_FLOOR := 8.0
 
+## THE GRADE, AS A GAUGE. Output and capacity are one attribute because they
+## are one piece of hardware — the same argument THERMAL makes for heat
+## capacity and dissipation, and it is wrong here for the same reason it would
+## be wrong there to split them: a player asking "is this a good reactor" is
+## asking one question.
+##
+## They are not interchangeable and the weights say so. Output is scarce and
+## enormous — three points of it across the whole ladder, and each one is a
+## card a turn — so it is worth 1.6 a point. Capacity runs 13 to 22 and buys
+## room rather than tempo, so it is worth a quarter of a point a cell.
+##
+## DIVISORS PICKED SO THE TOP DOES NOT PIN, which is the mistake THERMAL made
+## once and documents above: an attribute everything good saturates is not a
+## measurement. A bare S frame reads 7 of 10. Reaching 10 takes the S grade,
+## the overspec perk and two couplings — a build that has actually spent
+## itself on power, which is what a full gauge should mean.
+##
+##     C 2    B 3    A 5    S 7    S, perked and coupled 10
+func attr_reactor(bare: bool = false) -> int:
+	var out := hull.reactor if bare else reactor()
+	var cap := hull.power_cap if bare else power_cap()
+	var v := float(out - 2) * 1.6 + float(cap - 12) / 4.0
+	return clampi(int(round(v)), 0, ATTR_MAX)
+
 func attr_thermal(bare: bool = false) -> int:
 	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.1 + dissipation(bare) / 1.5
 	return clampi(int(round(v)), 0, ATTR_MAX)
@@ -1121,6 +1145,9 @@ func attributes() -> Array[Dictionary]:
 		{key = &"hull", label = "HULL", short = "HUL",
 			value = attr_hull(), base = attr_hull(true),
 			text = "Ramming, boarding, holding together under structural stress."},
+		{key = &"reactor", label = "REACTOR", short = "RCT",
+			value = attr_reactor(), base = attr_reactor(true),
+			text = "Energy to spend in a fight, and hardware the ship can run."},
 		{key = &"thrust", label = "THRUST", short = "THR",
 			value = attr_thrust(), base = attr_thrust(true),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well."},

@@ -367,6 +367,30 @@ the best thing about it. At C no frame can fill its own mounts (a light needs
 most frames, and only a fully-mounted S heavy is still power-limited — 23.2
 against 22.
 
+### REACTOR is an attribute
+
+Seventh on the block, directly under HULL, on the same 0–10 scale as the other
+six. Output and capacity are ONE attribute because they are one piece of
+hardware — the same argument THERMAL makes for heat capacity and dissipation.
+
+    C 2    B 3    A 5    S 7    S, perked and coupled 10
+
+Weighted, not averaged: output is scarce and enormous — three points across the
+whole ladder and each one is a card a turn — so it is worth 1.6 a point.
+Capacity runs 13 to 22 and buys room rather than tempo, so it is worth a quarter
+of a point a cell. A bare S frame reads 7, and reaching 10 takes the S grade,
+the overspec perk and two couplings — a build that has actually spent itself on
+power, which is what a full gauge should mean. THERMAL saturated once and
+documents the lesson in place.
+
+A part granting capacity shows as a white gain cell on the row, the same as any
+other passive.
+
+The row and the `REACTOR — n of m cells` line under HARDPOINTS answer different
+questions and both stay: the gauge is comparative — *is this a good reactor* —
+and the line is actionable — *how much room is left*. Heat has exactly this
+pair, as an attribute and as a combat gauge.
+
 ### Why the output ladder is shallow
 
 Card costs are 0, 1 and 2. Three energy plays two or three cards and five plays

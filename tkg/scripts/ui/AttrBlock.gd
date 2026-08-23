@@ -1,7 +1,7 @@
 class_name AttrBlock
 extends VBoxContainer
 
-## The six attributes, as countable cells.
+## The seven attributes, as countable cells.
 ##
 ## Cells rather than bars, for the same reason heat and energy are cells: a
 ## check is `attribute >= N`, so the player needs the exact number, not roughly
@@ -48,12 +48,12 @@ var _accent: Color = UITheme.CHILL
 var _label_w: float = 0.0
 
 ## Names are spelled out rather than abbreviated — HUL/THR/MNV is a code you
-## have to learn, and six rows leave room to just say what they are.
+## have to learn, and seven rows leave room to just say what they are.
 ##
 ## The column width is MEASURED off the font rather than guessed at, because a
 ## Label's custom_minimum_size is a minimum: guess low and the longest name
 ## takes its natural width instead, shoving that one row's cells out of the
-## column while the other five stay put. Asking the font is the only version
+## column while the other six stay put. Asking the font is the only version
 ## that cannot be wrong at a size nobody re-checked.
 func _measure_labels(rows: Array[Dictionary]) -> float:
 	var f := UITheme.pixel_font()
