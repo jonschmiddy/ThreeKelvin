@@ -264,6 +264,32 @@ mid-tone.
 **Gate:** every ink clears 3.0:1 on the void, and every one of the 56
 house-by-grade pairings clears 3.0:1 for art on ground.
 
+### The bar tracks the cells, not the energy
+
+`attr_reactor` is `energy × 0.6 + (cells − 4) / 3`. **Cells are about two thirds
+of every reading.**
+
+| | cells | energy | REACTOR |
+| --- | --- | --- | --- |
+| C | 13 | 3 | 5 |
+| B | 16 | 3 | 6 |
+| A | 19 | 4 | 7 |
+| S | 22 | 5 | 9 |
+
+It was `(energy − 2) × 1.6 + (cells − 12) / 3`, where a C read **2** — 1.6 of it
+from energy and 0.33 from cells. Four fifths of the bar was the energy number,
+on the one attribute whose raw unit a player can *count*: the ship screen says
+thirteen cells right under the mounts. Told that a pip is three cells, anyone
+does the multiplication and gets six. Somebody did, and said six seemed low for
+a C class. They were reading the bar exactly as it invited.
+
+**The bar is not invertible.** REACTOR 10 is a threshold, not a loadout — 3
+energy and 28 cells reads 10, and so does 6 energy and 22. The least that
+reaches it:
+
+    energy 3 → 28 cells    energy 5 → 24 cells
+    energy 4 → 26 cells    energy 6 → 22 cells
+
 ### Reading a grade off a plate
 
 A grade is read off a 30-pixel rectangle, not off a word. The ground is the
@@ -384,7 +410,7 @@ Seventh on the block, directly under HULL, on the same 0–10 scale as the other
 six. Output and capacity are ONE attribute because they are one piece of
 hardware — the same argument THERMAL makes for heat capacity and dissipation.
 
-    C 2    B 3    A 5    S 7    S, perked and coupled 10
+    C 5    B 6    A 7    S 9    S, perked or coupled 10
 
 Weighted, not averaged: output is scarce and enormous — three points across the
 whole ladder and each one is a card a turn — so it is worth 1.6 a point.

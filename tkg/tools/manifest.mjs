@@ -168,11 +168,12 @@ function passiveLine(m) {
   // itself are what you get to spend, and they differ because the parts are
   // different sizes. Printing only the gross grant made a 2x2 armature read as
   // three times a 1-cell cable when both move the gauge identically.
+  // JUST THE PIP. The cells a part leaves free after powering itself is real and
+  // useful, and it is in the table below where the detail belongs — on a plate
+  // beside a name, a slot and a footprint it was a fourth number competing with
+  // three that are already there.
   if (m.power_cap) {
-    const net = m.power_cap - m.cells;
     bits.push('<span class="gain">REACTOR +' + REACTOR_PIPS + '</span>');
-    bits.push('<span class="' + (net > 0 ? 'gain' : 'nil') + '">'
-      + (net >= 0 ? '+' : '') + net + ' <em>cells free</em></span>');
   }
   return bits.length ? '<p class="passive">' + bits.join('') + '</p>' : '';
 }
@@ -523,6 +524,12 @@ auditVerdict,
 '<div class="set" data-k="sort"><span class="lbl">Sort</span>'
 + '<button data-v="house" data-on="1">By house</button>'
 + '<button data-v="cells">By cells</button></div></div>',
+'<p class="note"><b>Pair</b> on a plate means the part grants <b>two copies of '
++ 'one card</b> rather than two different ones — how a part says <i>this is the '
++ 'only thing I do, and I do it twice</i>. It is right for the parts whose flavour '
++ 'already says so, and the target is about one in four. <b>REACTOR +2</b> is what '
++ 'a coupling does to the gauge — the cells it leaves free after powering itself '
++ 'are in the table further down.</p>',
 '<p class="showing"><b id="shown">' + MODS.length + '</b> of ' + MODS.length
 + ' showing &middot; the plate is the part’s real footprint in the hold</p>',
 '<div id="by-house">' + houseSections + '</div>',

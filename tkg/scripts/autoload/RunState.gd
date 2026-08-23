@@ -1101,10 +1101,30 @@ const THERMAL_FLOOR := 8.0
 ## enough to be worth crossing.
 const CELLS_PER_PIP := 3.0
 
+## CELLS CARRY THE BAR AND ENERGY SUPPORTS IT, which is the other way round
+## from how this started.
+##
+## It was (energy - 2) * 1.6 + (cells - 12) / 3, and at C that is 1.6 from
+## energy against 0.33 from cells — four fifths of the bar was the energy
+## number. That is indefensible for the one attribute whose raw unit a player
+## can COUNT: the ship screen says thirteen cells, the bar said 2, and anybody
+## told a pip is three cells does the multiplication and gets six. Somebody
+## did, and said six seemed low for a C class. They were right that it was
+## wrong; they were reading the bar exactly as it invited.
+##
+## Now cells are about two thirds of every reading and the bar moves when the
+## number under the mounts moves:
+##
+##     C  13 cells, 3 energy   5        A  19, 4   7
+##     B  16 cells, 3 energy   6        S  22, 5   9
+##
+## The offset is 4 rather than 12 so the ladder spreads across the bar instead
+## of hugging the bottom of it, and the divisor stays CELLS_PER_PIP so that a
+## coupling granting two pips-worth of cells still reads as exactly +2.
 func attr_reactor(bare: bool = false) -> int:
 	var out := hull.reactor if bare else reactor()
 	var cap := hull.power_cap if bare else power_cap()
-	var v := float(out - 2) * 1.6 + float(cap - 12) / CELLS_PER_PIP
+	var v := float(out) * 0.6 + float(cap - 4) / CELLS_PER_PIP
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 func attr_thermal(bare: bool = false) -> int:
