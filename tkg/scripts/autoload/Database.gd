@@ -818,6 +818,54 @@ func _seed_modules() -> void:
 		"Foam, tape, and a prayer to whoever welded the frame.",
 		[{name = "Patch", energy = 1, heal = 1, heal_scale = 5, copies = 1}])
 
+	# --- Reactor capacity: the parts that let you run the other parts
+	#
+	# A hull's `power_cap` is the cells of hardware it can carry, and these are
+	# how a build buys more of it without finding a better frame. THEY ARE
+	# SELF-LIMITING BY CONSTRUCTION — a part that grants capacity also occupies
+	# it, and it occupies a mount that could have held a gun. The most any of
+	# them nets is +2, which `-- reactor` enforces: two cells is one small part's
+	# worth, so a ship that gives half its mounts to couplings has bought itself
+	# about one extra weapon and has nowhere left to put it.
+	#
+	# CAPACITY ONLY, NEVER OUTPUT. None of them hands out energy per turn. Energy
+	# is the axis every card is priced against — three of it plays two cards and
+	# five plays four — so it stays with the hull, the `overspec_reactor` perk and
+	# the Verity five-set, where there are exactly three of it and it can be
+	# reasoned about. What these sell is ROOM.
+	#
+	# Four houses and the yard, and not the other three, because a power bus is a
+	# thing a maker has an opinion about: Solari runs the reactor, the Combine
+	# pulls one out of something else, Redline adds cable, and Korvan overbuilds
+	# the armature. Cygnet, Verity and Calyx have nothing to say about it.
+	_module(&"buscoupling", "Bus Coupling", &"", S, C0,
+		"A second line to the same reactor. Not clever, not new, and on every
+"
+		+ "ship that ever came out of a yard.",
+		[{name = "Shunt", energy = 1, vent = 2, draw = 1}, &"reroute"])
+	_module(&"foundrybus", "Foundry Bus", &"solari", S, C2,
+		"Solari runs power the way Solari runs everything: hot, and with the
+"
+		+ "covers off so you can watch it.",
+		[{name = "Cold Start", energy = 0, vent = 4, energy_gain = 1}, &"vent"])
+	_module(&"trunkline", "Salvaged Trunk Line", &"probate", S, C1,
+		"Pulled from something that had stopped needing it. The Combine does not
+"
+		+ "ask what, and the rider says you agreed not to either.",
+		[{name = "Cannibalise", energy = 1, decommission = 1, armor = 6},
+			{name = "Scrap Line", energy = 0, credit_gain = 3, discard = 1}])
+	_module(&"jumper", "Jumper Cable", &"redline", U, C1,
+		"Redline's answer to a power problem is more cable. It has worked every
+"
+		+ "time so far, which is the only figure they publish.",
+		[{name = "Crossfeed", energy = 1, heat = 2, damage = 4, draw = 2}, &"reroute"])
+	_module(&"mainbus", "Main Bus Armature", &"korvan", S, C2,
+		"Korvan builds a power bus the way it builds a gun mount: heavier than it
+"
+		+ "needs to be, and still bolted on when the rest of the ship is gone.",
+		[{name = "Hard Line", energy = 0, armor = 5, block = 4},
+			{name = "Standing Load", energy = 2, armor = 12}])
+
 	for id in GENERIC_STOCK:
 		(modules[id] as ModuleData).starter_only = true
 
@@ -856,18 +904,27 @@ func _seed_module_sizes() -> void:
 	var long_ones: Array[StringName] = [
 		&"km4", &"widow", &"kh500", &"plasma", &"ventcan", &"breaker",
 		&"needle", &"rail", &"beam", &"slug",
+		# A trunk line IS its length.
+		&"trunkline",
 	]
 	# Bays, arrays, cradles and heavy plate — things with a volume rather than a
 	# barrel. `singing` and `lattice` are precursor artifacts and read as blocks.
 	var bulky: Array[StringName] = [
 		&"dronebay", &"ripper", &"singing",
 		&"reactive", &"bulkhead", &"verity", &"lattice", &"braceframe", &"slag",
-		&"refinery", &"organ",
+		&"refinery", &"organ", &"mainbus",
 	]
 	# Utility that is a piece of EQUIPMENT rather than an instrument.
 	var util_units: Array[StringName] = [
 		&"flare", &"chaff", &"claw", &"ghost", &"standfast", &"director",
 	]
+
+	# WHAT THE REACTOR CAN CARRY, granted by a part. Here rather than in the
+	# `_module` call because `_module` takes what a part IS and the passives are
+	# seeded in a pass of their own, the same as sensors and stealth.
+	for row in [[&"buscoupling", 3], [&"foundrybus", 4], [&"trunkline", 5],
+			[&"jumper", 3], [&"mainbus", 6]]:
+		(modules[row[0]] as ModuleData).power_cap = int(row[1])
 
 	for id in modules:
 		var m: ModuleData = modules[id]
@@ -1049,11 +1106,29 @@ const WEIGHT_BASE := {
 ## tier 0 by construction; nothing else should be passed.
 ## Named in HullData, which owns what a grade IS. This table owns what it DOES,
 ## and the two are indexed the same — keep them the same length.
+## REACTOR AND POWER ARE SET, NOT ADDED. Every other field here is a delta on
+## the frame; these two are absolute, because the grade letter is the ONLY
+## thing that decides them. It used to be the weight class with a delta on top
+## — heavy carried a reactor of 4 and S added one — which meant C and B were
+## the same ship twice and the letter told a player almost nothing.
+##
+## POWER: 10 / 14 / 17 / 20, and the bottom of that is measured rather than
+## round. The yard kit is exactly 8 cells, so 8 would have been a lovely
+## number and a broken one: `_top_up_deck` needs hand_size + 4 cards to launch
+## with, a light wants five modules for that, and five modules of yard stock is
+## ten cells. At 8 a light would launch with a four-card deck against a hand of
+## six — which is the exact failure the medium's extra utility mount was added
+## to fix, written up eight hundred lines above this.
+##
+## 20 at the top still bites. A fully mounted S heavy is five weapons, three
+## systems and a utility, and the catalogue averages 2.80 / 2.55 / 1.57 cells
+## for those — 23.2 to fill it. The best hull in the game still cannot run
+## everything it can bolt on, which is the point of having the number.
 const TIER_DELTA := [
-	{scale = 1.00, weapon = 0, system = 0, reactor = 0, dissipation = 0},
-	{scale = 1.15, weapon = 0, system = 0, reactor = 0, dissipation = 0},
-	{scale = 1.32, weapon = 1, system = 0, reactor = 0, dissipation = 1},
-	{scale = 1.52, weapon = 1, system = 1, reactor = 1, dissipation = 1},
+	{scale = 1.00, weapon = 0, system = 0, reactor = 3, power = 13, dissipation = 0},
+	{scale = 1.15, weapon = 0, system = 0, reactor = 3, power = 16, dissipation = 0},
+	{scale = 1.32, weapon = 1, system = 0, reactor = 4, power = 19, dissipation = 1},
+	{scale = 1.52, weapon = 1, system = 1, reactor = 5, power = 22, dissipation = 1},
 ]
 
 ## Per-maker deltas applied on top, and the three names. `names` runs
@@ -1433,7 +1508,9 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.heat_cap = maxi(1, int(round(float(h.heat_cap) * float(d.scale))))
 	h.weapon_slots += int(d.weapon)
 	h.system_slots += int(d.system)
-	h.reactor += int(d.reactor)
+	# SET, not +=. See TIER_DELTA: the grade owns these two outright.
+	h.reactor = int(d.reactor)
+	h.power_cap = int(d.power)
 	h.dissipation += int(d.dissipation)
 	# AND THE ART. A class grants hardpoints and a reactor, and now it grants a
 	# different hull — which is the whole point of the letter and was invisible

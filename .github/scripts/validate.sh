@@ -193,6 +193,23 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 	fi
 fi
 
+step "Every frame launches with a deck it can play"
+# The reactor cap decides how many modules a frame can RUN, and a cap set too
+# low does not produce a small ship â it produces a ship whose every turn is
+# identical, because the deck is no bigger than the hand. That failure is
+# invisible in every other check: the save is valid, the numbers add up, the
+# simulator still finishes its runs. It only shows up as a game with nothing to
+# decide, and the medium's second utility mount exists because it happened once
+# already.
+if run_godot reactor 120 --headless --path "$PROJECT" -- reactor; then
+	if grep -qE '^reactor: PASS' "$LOG_DIR/reactor.log"; then
+		ok "reactor"
+	else
+		bad "a frame cannot launch with a playable deck"
+		grep -E '^  FAIL|THIN|^reactor' "$LOG_DIR/reactor.log" | head -n 20 			| sed 's/^/        /'
+	fi
+fi
+
 step "Every hull's mounts land on the hull"
 # Cheap, and it guards a failure with no other symptom. The dorsal, ventral and
 # flank lines are measured off ONE image each by art/tools/anchors.py, so

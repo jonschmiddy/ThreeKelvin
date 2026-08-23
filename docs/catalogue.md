@@ -13,6 +13,7 @@ checked. Where a rule is enforced, this says which check enforces it. Where it
 is judgement, this says that too, so the difference is never guessed at.
 
     godot --headless --path tkg -- holdtest      # every rule below marked "gate"
+    godot --headless --path tkg -- reactor       # what every frame launches with
     godot --headless --path tkg -- content       # how much is written, per house
     godot --headless --path tkg -- content json  # the export the manifest is built from
 
@@ -336,7 +337,99 @@ longest guns something a light frame pays dearly to carry.
 
 ---
 
-## §12 The loop
+## §12 The reactor
+
+A hull's grade — C, B, A, S — decides two numbers and nothing else does.
+
+| | C | B | A | S |
+| --- | --- | --- | --- | --- |
+| **Output** — energy a turn | 3 | 3 | 4 | 5 |
+| **Capacity** — cells it can run | 13 | 16 | 19 | 22 |
+
+**The hold is what you can haul; the reactor is what you can run.** Before it
+existed, a part's shape decided everything in the hold and nothing on the hull —
+a 1-cell sight took a utility mount exactly like a 4-cell mast did, so the shape
+system stopped mattering the moment a part was installed. Now a big gun costs
+something to *run*, not just to carry, and a legendary you can carry but cannot
+power is a reason to want the next grade.
+
+**Capacity does not replace the slot counts. Both have to be satisfied.** The
+mounts give a hull its shape — a heavy is 4 weapon / 2 system / 1 utility and is
+a gunboat because of it — and the cell budget says how much of that shape it can
+afford. They also fail differently, so they clear differently: no mount takes
+the worst part *in that slot* off, because a weapon cannot free a system mount;
+no capacity takes the worst part *anywhere* off, because every cell draws from
+the one reactor.
+
+The constraint that binds changes as you climb, which was not designed and is
+the best thing about it. At C no frame can fill its own mounts (a light needs
+13.8 cells for six, a heavy 17.9 for seven). At S the mounts run out first for
+most frames, and only a fully-mounted S heavy is still power-limited — 23.2
+against 22.
+
+### Why the output ladder is shallow
+
+Card costs are 0, 1 and 2. Three energy plays two or three cards and five plays
+four or five — already more than proportional, because salvo wants a prior
+attack and lock-on wants a follow-up, so the turns you could not afford before
+are the good ones. `Database.gd` had measured this before there was a ladder:
+*"a reactor of four plays a Ripsaw into this and a reactor of three does not."*
+Six would have made S an obligation rather than a choice.
+
+### Why 13 and not 8
+
+The yard kit is exactly 10 cells, so 8 was tempting and would have been broken.
+`_top_up_deck` needs `hand_size + 4` cards to launch with, a light wants five
+modules for that, and five modules of yard stock is 10 cells. At 8 a light
+launches with a four-card deck against a hand of six — which is the exact
+failure the medium's second utility mount was added to fix.
+
+Swept at seed 4242, 200 runs each:
+
+    C/B/A/S = 10 14 17 20    32 wins (16%)
+    C/B/A/S = 13 16 19 22    39 wins (20%)   <- here
+    C/B/A/S = 16 19 22 25    39 wins (20%)
+    C/B/A/S = 20 23 26 29    42 wins (21%)   effectively uncapped
+
+The plateau from 13 upward is the cap ceasing to bind. The remaining gap to the
+24% the game ran at before is the **output** ladder, not the capacity one — a
+heavy used to carry a reactor of 4 at every grade and now carries 3 until A.
+
+**Gate:** `-- reactor` prints all twelve frames and fails if any launches with a
+deck no bigger than its hand, or drawing more than it can carry.
+
+### Modules that grant capacity
+
+`ModuleData.power_cap`. Five parts have it, and the rule is **net positive but
+not free**:
+
+| Part | House | Cells | Grants | Net |
+| --- | --- | --- | --- | --- |
+| Bus Coupling | — | 2 | +3 | +1 |
+| Jumper Cable | Redline | 1 | +3 | +2 |
+| Foundry Bus | Solari | 2 | +4 | +2 |
+| Salvaged Trunk Line | Probate | 3 | +5 | +2 |
+| Main Bus Armature | Korvan | 4 | +6 | +2 |
+
+They are **self-limiting by construction**, which is what makes them safe: a
+part that grants capacity also occupies capacity, and it occupies a mount that
+could have held a gun. Two cells is the ceiling — one small part's worth — so a
+ship that gives half its mounts to couplings has bought about one extra weapon
+and has nowhere left to put it. **Gate:** nothing may net more than +2.
+
+**Capacity only, never output.** A module that handed out energy per turn would
+be the strongest card in the game with no card attached. That lever stays with
+the hull, the `overspec_reactor` perk and the Verity five-set, where there are
+exactly three of it and it can be reasoned about.
+
+Four houses and the yard, and not the other three, because a power bus is a
+thing a maker has an opinion about: Solari runs the reactor, the Combine pulls
+one out of something else, Redline adds cable, Korvan overbuilds the armature.
+Cygnet, Verity and Calyx have nothing to say about it.
+
+---
+
+## §13 The loop
 
 1. Write parts in `Database.gd`.
 2. `godot --headless --path tkg -- holdtest` — every gate in this document.
@@ -361,7 +454,7 @@ Standing artifact: **Yard Manifest**, republished in place each time.
 
 ---
 
-## §13 Where it stands
+## §14 Where it stands
 
     korvan          19 parts   30 cards   want 40   short 10
     (unbranded)     13         12         want 20   short  8

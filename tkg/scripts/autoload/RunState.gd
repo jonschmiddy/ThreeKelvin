@@ -371,6 +371,10 @@ func fit_chassis(manufacturer: StringName = &"",
 		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
 		if slots_used(m.slot) >= slots_for(m.slot):
 			continue
+		# AND THE REACTOR HAS TO CARRY IT. A C-grade frame is issued less of its
+		# own kit than an S-grade one, which is what the letter means.
+		if not can_power(m):
+			continue
 		m.mount = free_mount(m.slot)
 		installed.append(m)
 	_top_up_deck()
@@ -738,6 +742,8 @@ func _top_up_deck() -> void:
 				var m := DB.modules[id] as ModuleData
 				if slots_used(m.slot) >= slots_for(m.slot):
 					continue
+				if not can_power(m):
+					continue
 				if not allow_dupes and _has_module(id):
 					continue
 				var copy := m.duplicate(true) as ModuleData
@@ -886,6 +892,44 @@ func reactor() -> int:
 	if has_set(&"verity", 5):
 		e += 1
 	return e
+
+## THE OTHER HALF OF THE REACTOR: how many cells of hardware it can run.
+##
+## Hull plus every module that grants capacity. A part that grants it also
+## occupies it, so the sum can never run away — see `ModuleData.power_cap`.
+func power_cap() -> int:
+	var c := hull.power_cap
+	for m in installed:
+		c += m.power_cap
+	return c
+
+## What is bolted on right now, in cells. The SAME number the hold counts a
+## part in, deliberately: a player already knows a 2x2 bay is four, and a
+## second unit for the same quantity is how two halves of a game drift apart.
+func power_draw() -> int:
+	var d := 0
+	for m in installed:
+		d += m.cells()
+	return d
+
+## Can this part be RUN, ignoring whether there is a mount for it.
+##
+## Two questions, never one. `slots_used < slots_for` asks whether the frame
+## has somewhere to bolt it; this asks whether the reactor can carry it. A
+## heavy has four weapon mounts and cannot power four four-cell cannons, and
+## the whole interest of the system is in the gap between those two answers.
+##
+## `replacing` is the part coming off to make room, whose draw is freed first
+## — without it a straight swap of like for like would be refused at cap.
+func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
+	if m == null:
+		return false
+	var draw := power_draw() + m.cells()
+	var cap := power_cap() + m.power_cap
+	if replacing != null:
+		draw -= replacing.cells()
+		cap -= replacing.power_cap
+	return draw <= cap
 
 ## Development override, set by `-- fight N`. Zero means "use the real value".
 ## Lives here rather than in Main so Combat's redraw each turn honours it too —
@@ -1243,6 +1287,17 @@ func win() -> void:
 	won = true
 	Sig.run_ended.emit(true, "You cross into the light.")
 
+## TWO BUDGETS, AND A PART HAS TO SATISFY BOTH.
+##
+## A mount of the right kind, and reactor capacity to run it. They fail
+## differently and so they clear differently: no mount means the worst part in
+## THAT SLOT comes off, because a weapon cannot free a system mount; no
+## capacity means the worst part ANYWHERE comes off, because every cell on the
+## ship draws from the one reactor.
+##
+## Worst by scrap value in both cases, which is the only ordering the game has
+## that means roughly "how good is this" — and it is the ordering the mount
+## rule already used, so a player who has learned one has learned the other.
 func install_module(m: ModuleData) -> void:
 	if slots_used(m.slot) >= slots_for(m.slot):
 		var worst: ModuleData = null
@@ -1258,6 +1313,24 @@ func install_module(m: ModuleData) -> void:
 			if not place_in_hold(worst):
 				log_line("No room for %s. It was left behind." % worst.name, &"them")
 			log_line("Removed %s to make room." % worst.name, &"sys")
+	# AND THEN THE REACTOR. Cheapest first and only as many as it takes — a
+	# 4-cell lance should cost you one 4-cell part, not clear the ship.
+	# Guarded rather than `while`: a part bigger than the whole reactor would
+	# otherwise strip every mount and still not fit.
+	var guard := 0
+	while not can_power(m) and guard < 16:
+		guard += 1
+		var dim: ModuleData = null
+		for x in installed:
+			if dim == null or x.scrap_value < dim.scrap_value:
+				dim = x
+		if dim == null:
+			break
+		installed.erase(dim)
+		dim.mount = -1
+		if not place_in_hold(dim):
+			log_line("No room for %s. It was left behind." % dim.name, &"them")
+		log_line("Shut down %s — the reactor cannot carry both." % dim.name, &"sys")
 	take_from_hold(m)
 	m.mount = free_mount(m.slot)
 	installed.append(m)

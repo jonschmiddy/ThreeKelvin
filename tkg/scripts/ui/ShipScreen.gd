@@ -131,6 +131,7 @@ var _panel: Control
 var _storage: HoldGrid
 var _attrs: AttrBlock
 var _mounts: VBoxContainer
+var _reactor: Label
 var _mountpts: MountPoints
 var _view: ShipView
 var _banner: ChassisSelect.Banner
@@ -338,6 +339,13 @@ func _build() -> void:
 	_mounts.add_theme_constant_override("separation", 2)
 	textcol.add_child(_mounts)
 
+	# THE SECOND BUDGET, under the first one. Hardpoints answer "is there
+	# anywhere to bolt this"; the reactor answers "can I run it" — and a player
+	# refused a part needs to be told WHICH of the two said no. Directly beneath
+	# the mount rows because it is the same question asked about the same drop.
+	_reactor = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	textcol.add_child(_reactor)
+
 	_hand = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	textcol.add_child(_hand)
 
@@ -531,6 +539,14 @@ func _refresh() -> void:
 		HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()]
 	_attrs.setup(Run.attributes(), accent)
 	_refresh_mounts()
+	var draw := Run.power_draw()
+	var cap := Run.power_cap()
+	_reactor.text = "REACTOR — %d of %d cells · %d energy" % [draw, cap, Run.reactor()]
+	# EMBER AT THE CEILING, and only there. A bar that changes colour on the way
+	# up teaches a player to read the colour instead of the number; this one
+	# only ever means "the next part costs you a part".
+	_reactor.add_theme_color_override("font_color",
+		UITheme.EMBER if draw >= cap else UITheme.CHILL)
 	_hand.text = "%d cards a turn · %d in the deck" % [Run.hand_size(), Run.deck_size()]
 
 	# Rebuilt every refresh, because the unlock state is the point: fitting a

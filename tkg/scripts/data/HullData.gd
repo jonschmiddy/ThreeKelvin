@@ -18,7 +18,37 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 @export var name: String = ""
 @export var weight: Weight = Weight.MEDIUM
 @export var tier: int = 0                    ## 0=C 1=B 2=A 3=S
+## REACTOR, HALF ONE: what it puts out. Energy to spend each turn.
+##
+## Set by TIER and nothing else — 3 / 3 / 4 / 5 for C / B / A / S. It used to
+## come off the weight class (heavy carried 4) with S adding one on top, which
+## made the grade letter almost invisible: two of the four grades changed
+## nothing a player could feel.
+##
+## THE LADDER IS DELIBERATELY SHALLOW. Card costs are 0, 1 and 2, so three
+## energy plays two or three cards and five plays four or five — and that is
+## already more than a proportional jump, because salvo wants a prior attack
+## and lock-on wants a follow-up, so the turns you could not afford before are
+## the good ones. `Database.gd` had measured this long before there was a
+## ladder: "a reactor of four plays a Ripsaw into this and a reactor of three
+## does not."
 @export var reactor: int = 3
+
+## REACTOR, HALF TWO: what it can carry. The total CELLS of everything bolted
+## on, which is the same number the hold counts a part in.
+##
+## THE HOLD IS WHAT YOU CAN HAUL; THIS IS WHAT YOU CAN RUN. Before it existed,
+## a part's shape decided everything in the hold and nothing on the hull — a
+## 1-cell sight took a utility mount exactly like a 4-cell mast did, so the
+## whole shape system stopped mattering the moment a part was installed. Now a
+## big gun costs something to RUN, not just to carry.
+##
+## IT DOES NOT REPLACE THE SLOT COUNTS. Both have to be satisfied. The mounts
+## give a hull its shape — a heavy is 4 weapon / 2 system / 1 utility and is a
+## gunboat because of it — and the cell budget says how much of that shape it
+## can afford. A heavy with four weapon mounts and seventeen cells cannot run
+## four four-cell cannons, and choosing which three is the decision.
+@export var power_cap: int = 14
 @export var hand_size: int = 5
 @export var max_hull: int = 35
 @export var heat_cap: int = 12

@@ -215,6 +215,14 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# What every frame launches with, and whether the reactor ladder leaves it
+	# a deck:
+	#   godot --headless --path . -- reactor
+	if "reactor" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ReactorSheet.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "mounts" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/MountCheck.gd").new().run()
 		get_tree().quit()
