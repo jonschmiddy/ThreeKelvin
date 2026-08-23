@@ -167,6 +167,10 @@ func _fill(col: VBoxContainer) -> int:
 	var total := 0
 	for raw in groups:
 		var g: Dictionary = raw
+		# A rule between groups, and not before the first. Same reason as the
+		# module gallery: a heading in a colour is a comparison, a line is a wall.
+		if col.get_child_count() > 0:
+			col.add_child(UITheme.hsep())
 		var bar := HBoxContainer.new()
 		bar.add_theme_constant_override("separation", 5)
 		var swatch := ColorRect.new()

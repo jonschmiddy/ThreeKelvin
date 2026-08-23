@@ -25,6 +25,10 @@ extends Control
 ## of labels and a column of labels that resizes with its contents makes the
 ## whole page reflow every time the cursor moves.
 
+## How big a plate is drawn HERE, against the 2x the hold and the refit hull
+## are authored at. A catalogue is read, not packed.
+const GALLERY_K := 3.0
+
 var _filter: GalleryFilter
 var _col: VBoxContainer
 var _shown: int = 0
@@ -140,6 +144,13 @@ func _fill(col: VBoxContainer) -> int:
 	var cards := 0
 	for raw in groups:
 		var g: Dictionary = raw
+		# A RULE BETWEEN HOUSES, and not before the first one. The shape
+		# subheadings inside a house are already quieter than its name, but
+		# quieter is a comparison the eye has to make; a line is a wall it does
+		# not. Without it eight houses down a scroller read as one long list with
+		# occasional coloured text in it.
+		if col.get_child_count() > 0:
+			col.add_child(UITheme.hsep())
 		var bar := HBoxContainer.new()
 		bar.add_theme_constant_override("separation", 5)
 		var swatch := ColorRect.new()
@@ -177,18 +188,22 @@ func _fill(col: VBoxContainer) -> int:
 				col.add_child(flow)
 			var icon := ModuleIcon.new()
 			icon.setup(m2, &"gallery")
-			# 2x, THE SIZE THE SHIP TAB DRAWS IT. The hold and the refit hull are
-			# both authored there, which is what makes a part the same size in
-			# both; a catalogue of parts should match the screen you pack them on.
+			# 3x, WHICH IS A SIZE NO OTHER SCREEN DRAWS, and that is the point.
 			#
-			# It was 1x for a version — the rectangle a part occupies on a hull at
-			# native zoom, which is true and unreadable: a 1x1 sight is fifteen
-			# pixels and a page of them tells you nothing.
+			# The hold and the refit hull are both authored at 2x and the sector
+			# drops to 1x. footprint_box and MountPoints.part_rect share their
+			# arithmetic so a part is the SAME size wherever you actually handle
+			# it — that property is what made an earlier 1x version wrong here.
+			#
+			# This page is not a screen you handle parts on. It is a catalogue, and
+			# the justification changes with the job: not "the size it is on your
+			# ship" but "large enough to read a silhouette at a glance". A 1x1 at
+			# 30px is a smudge in a grid of eighty.
 			#
 			# custom_minimum_size and NOT size: a flow container decides where its
 			# children go, and asking for a size it did not choose is how the hold
 			# once drew 1x1 plates at 44px.
-			icon.custom_minimum_size = ModuleIcon.footprint_box(m2)
+			icon.custom_minimum_size = ModuleIcon.footprint_box(m2, GALLERY_K)
 			# SHRINK, OR THE ROW STRETCHES THEM. An HFlowContainer gives a child
 			# the row height by default, so a 2x1 sitting beside a 2x2 was pulled
 			# to twice its own height and a page of plates showed the wrong shapes
@@ -245,6 +260,15 @@ func _by_size(parts: Array) -> void:
 			return fa.y < fb.y
 		if fa.x != fb.x:
 			return fa.x < fb.x
+		# THEN BY GRADE, left to right, common through contraband. Inside one
+		# shape row every plate is the same rectangle, so the only thing left to
+		# read is the ground it is painted on — and a row that climbs makes the
+		# grade ladder a thing you can see rather than a thing you look up.
+		#
+		# It was alphabetical, which orders eleven identical 2x1 plates by a word
+		# that is not written anywhere on them.
+		if a.rarity != b.rarity:
+			return int(a.rarity) < int(b.rarity)
 		return a.name < b.name)
 
 
