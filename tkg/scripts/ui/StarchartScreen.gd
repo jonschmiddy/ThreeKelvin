@@ -130,6 +130,11 @@ func _build() -> void:
 	# drift apart when either is retuned.
 	_region_btn.offset_left = -(112.0 + MapChart.BAR_PAD)
 	_region_btn.offset_right = -MapChart.BAR_PAD
+	# AND THE TEXT SITS AT THAT EDGE. The box was already flush with the
+	# bar; a Button centres its label inside it, so the words stopped some
+	# thirteen pixels short and the three lines of one instrument each
+	# ended somewhere different.
+	_region_btn.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	# 8px of clear air over the SCALE BLOCK, not over the bar's rule. The
 	# label is drawn above the rule, so the block's real top is the rule
 	# minus the baseline offset and the cap height — measured off the
@@ -1899,8 +1904,14 @@ class MapChart extends Control:
 		# Thousands read better than five digits on an 8px face.
 		var txt := ("%d ly" % int(ly) if ly < 1000.0
 			else "%dk ly" % int(ly / 1000.0))
-		draw_string(UITheme.pixel_font(), Vector2(x, y - 7.0), txt,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, ink)
+		# HUNG OFF THE FAR TICK, which is the one edge every part of this
+		# instrument can share. The near tick cannot: it moves whenever the
+		# step changes, so a label left-aligned on it slides sideways as you
+		# zoom while the toggle above it stays put. The right edge is the
+		# only one that holds still.
+		draw_string(UITheme.pixel_font(),
+			Vector2(x + w - BAR_MAX_PX, y - 7.0), txt,
+			HORIZONTAL_ALIGNMENT_RIGHT, BAR_MAX_PX, 8, ink)
 
 	## FRAME WHERE YOU ARE, not the ring you are on.
 	##
