@@ -44,7 +44,7 @@ if (!fs.existsSync(SRC)) {
 }
 const OUT = process.argv[2] || 'parts-manifest.html';
 const D = JSON.parse(fs.readFileSync(SRC, 'utf8'));
-const MODS = D.modules, JUNK = D.malfunctions;
+const MODS = D.modules, JUNK = D.malfunctions, WORDS = D.keywords || [];
 
 // THE PAGE REFUSES DATA IT DOES NOT UNDERSTAND.
 //
@@ -388,6 +388,14 @@ const cardRows = CARDS.map(c =>
       '<span class="r-' + slug(r) + '">' + esc(r) + '</span>').join(' / ') + '</td>'
   + '<td class="c-from">' + esc([...c.parts].join(', ')) + '</td></tr>').join(NL);
 
+// EVERY WORD A CARD CAN PRINT, with the game's own explanation of it. Read out
+// of the export rather than written here, because CardData.keywords() is the only
+// place a keyword is defined and a second copy goes stale the first time somebody
+// adds one.
+const wordRows = WORDS.map(k =>
+  '<tr><td class="c-name kw-word">' + esc(k.word) + '</td>'
+  + '<td class="c-text">' + esc(k.text) + '</td></tr>').join(NL);
+
 const junkRows = JUNK.map(j =>
   '<tr><td class="c-name">' + esc(j.name) + '</td>'
   + '<td class="c-text">' + esc(j.text) + '</td>'
@@ -548,6 +556,8 @@ const CSS = [
 '.kw.smoulder{color:var(--legendary)}',
 '.kw.fused{color:var(--epic)}',
 '.kw.dead{color:var(--cold)}',
+'td.kw-word{font-family:Oxanium,sans-serif;font-weight:700;font-size:12px;'
+  + 'letter-spacing:.06em;color:var(--ice);white-space:nowrap}',
 '.note{background:var(--panel-2);border-left:2px solid var(--line);padding:10px 14px;',
 '  margin:0 0 10px;font-size:13.5px;color:var(--chill);max-width:78ch}',
 '.note b{color:var(--ice)}',
@@ -646,6 +656,15 @@ auditVerdict,
 + 'technologists, the three houses with a reason to move something off the manifest. Black is '
 + 'darker than the screen it is drawn on, so a contraband plate has no visible ground at all: '
 + 'only a bone edge, the shape of a part with nothing filled in.</p>',
+
+'<h2>Keywords</h2>',
+'<p class="note">Every word a card can print, and what the game says it means. '
++ 'Collected from the cards themselves — <code>CardData.keywords()</code> is the '
++ 'only place a keyword is defined, so this cannot drift from what a player is '
++ 'told. A keyword no card uses yet does not appear here, because nothing has '
++ 'asked for its explanation.</p>',
+'<div class="scroll"><table><thead><tr><th>Keyword</th><th>What it does</th>'
++ '</tr></thead><tbody>' + wordRows + '</tbody></table></div>',
 
 '<h2>What each house owes</h2>',
 '<div class="scroll"><table><thead><tr><th>House</th><th class="n">Parts</th>'

@@ -142,9 +142,32 @@ func _dump() -> void:
 
 	_vet(out, junk)
 
+	# EVERY KEYWORD THE CATALOGUE PRINTS, with the explanation the game gives.
+	#
+	# COLLECTED FROM THE CARDS rather than typed, because CardData.keywords() is
+	# the only place a keyword is defined and a second list would go stale the
+	# first time somebody added one. It is the same walk `-- holdtest` does to
+	# check that no card is NAMED after a keyword.
+	#
+	# The one blind spot: a keyword no card uses yet does not appear, because
+	# nothing has asked for its explanation. That is also true of the gate.
+	var glossary := {}
+	for id in DB.modules:
+		for c in (DB.modules[id] as ModuleData).resolved_cards():
+			for pair in (c as CardData).keywords():
+				glossary[String(pair[0])] = String(pair[1])
+	for row in DB.MALFUNCTIONS:
+		for pair in DB.malfunction(row[0]).keywords():
+			glossary[String(pair[0])] = String(pair[1])
+	var words: Array = []
+	for w in glossary:
+		words.append({word = w, text = glossary[w]})
+	words.sort_custom(func(x, y): return String(x.word) < String(y.word))
+
 	var path := "user://modules.json"
 	var fh := FileAccess.open(path, FileAccess.WRITE)
-	fh.store_string(JSON.stringify({modules = out, malfunctions = junk}, "  "))
+	fh.store_string(JSON.stringify({modules = out, malfunctions = junk,
+		keywords = words}, "  "))
 	fh.close()
 	print("  wrote %s (%d modules)" % [ProjectSettings.globalize_path(path), out.size()])
 

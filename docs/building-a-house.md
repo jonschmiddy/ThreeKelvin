@@ -117,6 +117,11 @@ cell count, draws the power-by-grade chart, and runs the duplicate check itself
 rather than quoting the gate's verdict, because two implementations disagreeing
 is information.
 
+It carries a **keyword section** too — every word a card can print with the
+game's own explanation, read out of `CardData.keywords()` rather than written
+into the page, so it cannot drift from what a player is told. A keyword no card
+uses yet does not appear, because nothing has asked for its explanation.
+
 Both ends are gated (`validate.sh` step *"The catalogue export is a shape the
 manifest can read"*), so a field that changes type cannot silently empty the
 page.
