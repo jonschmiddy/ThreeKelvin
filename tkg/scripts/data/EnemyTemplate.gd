@@ -10,7 +10,7 @@ extends Resource
 @export var boss: bool = false
 ## A set piece that is NOT the run's end. Hand-tuned like a boss — never
 ## danger-scaled — but killing one pays loot rather than opening the core.
-## The Stoker is the first of these; see `RunState`'s stoker block.
+## The Hellbender is the first of these; see `RunState`'s hellbender block.
 @export var miniboss: bool = false
 @export var credit_reward: int = 15
 @export var art: StringName = &"cutter"

@@ -175,9 +175,9 @@ class MapNode extends RefCounted:
 	var type: NodeType = NodeType.FIGHT
 	var visited: bool = false
 	var cleared: bool = false
-	## Cleared by the Stoker rather than by anybody in the party. The sector
+	## Cleared by the Hellbender rather than by anybody in the party. The sector
 	## reads it to say "something fed here" instead of "stripped", which is
-	## most of what makes the rival feel like a rival. See RunState.stoker_land.
+	## most of what makes the rival feel like a rival. See RunState.hellbender_land.
 	var eaten: bool = false
 	## Contact was broken here and you have not left since. NOT the same as
 	## cleared: the hostile is still out there, so returning re-engages, and

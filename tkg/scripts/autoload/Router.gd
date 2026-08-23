@@ -277,14 +277,14 @@ func resolve_current_node() -> void:
 		start_combat(DB.enemies[n.ambush[0]], extras, false, false)
 		return
 
-	# The stoker holds this system. Nothing here is reachable past it — not the
+	# The hellbender holds this system. Nothing here is reachable past it — not the
 	# dock, not the contact a FIGHT node rolled — so arrival lands on the sector
 	# and the one button says what there is to do. NOT auto-engaged, for the
 	# same reason the core stopped being: two people never arrive at a system on
 	# the same second, and a set piece a party cannot gather at is fought alone
 	# by design. See the GOAL note below.
-	if Run.stoker_alive() and Run.stoker_at == n.index:
-		Run.log_line("The Stoker rides at anchor here, holds glowing with everything it has taken. It is between you and the rest of the system.", &"big")
+	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		Run.log_line("The Hellbender rides at anchor here, holds glowing with everything it has taken. It is between you and the rest of the system.", &"big")
 		show_sector()
 		return
 
@@ -504,7 +504,7 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 func start_combat(template: EnemyTemplate, extras: Array = [],
 		clears_node: bool = true, share: bool = true) -> void:
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
-	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The stoker is
+	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The hellbender is
 	# one of those in everything but what winning pays, so it gets the cue too.
 	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
 	Run.node_at().fled = false
@@ -535,13 +535,13 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# `Combat._spawn` rather than being worked out a second time in the session
 	# layer — see Combat.plan().
 	combat.plan(template, node.danger, extras)
-	# The stoker opens at the hull it actually has. Damage from a previous
-	# engagement is the whole point of the chase — see RunState.stoker_scarred
+	# The hellbender opens at the hull it actually has. Damage from a previous
+	# engagement is the whole point of the chase — see RunState.hellbender_scarred
 	# — and both the local fight and the party's copy have to start from it.
 	if template.miniboss:
-		combat.enemies[0].hp = clampi(Run.stoker_hp, 1, combat.enemies[0].max_hp)
+		combat.enemies[0].hp = clampi(Run.hellbender_hp, 1, combat.enemies[0].max_hp)
 		# And its intent re-read at that hull. _spawn picked one at full health,
-		# so a stoker caught already on the ropes would otherwise open with an
+		# so a hellbender caught already on the ropes would otherwise open with an
 		# attack it is past making — the escape has to be on the table from
 		# turn one, exactly as the host's _pick_intent would put it there.
 		combat.enemies[0].pick_intent()
@@ -565,11 +565,11 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 ## button that says ENGAGE has to mean it.
 func engage_here() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	# The stoker before anything the node itself holds — while it is here it IS
+	# The hellbender before anything the node itself holds — while it is here it IS
 	# the engagement, and this reroute is what keeps every caller (the sector's
 	# button, a bot joining an open fight) pointed at one fight per system.
-	if Run.stoker_alive() and Run.stoker_at == n.index:
-		engage_stoker()
+	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		engage_hellbender()
 		return
 	if n.cleared or in_combat():
 		return
@@ -586,15 +586,15 @@ func engage_here() -> void:
 	start_combat(DB.enemies[n.foes[0]], extras)
 
 ## Commit to the galaxy's other harvester, wherever it was caught. The node is
-## NOT consumed by winning — the stoker is a visitor here, and whatever the
+## NOT consumed by winning — the hellbender is a visitor here, and whatever the
 ## system itself holds is still in it after the wreckage cools. Shared, like
 ## any fight at a place: its position is a host-owned fact every machine
 ## agrees on, so two ships engaging it are engaging one ship.
-func engage_stoker() -> void:
+func engage_hellbender() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	if in_combat() or not Run.stoker_alive() or Run.stoker_at != n.index:
+	if in_combat() or not Run.hellbender_alive() or Run.hellbender_at != n.index:
 		return
-	start_combat(DB.enemies[&"stoker"], [], false, true)
+	start_combat(DB.enemies[&"hellbender"], [], false, true)
 
 
 ## Events can drop you straight into a fight (distress-beacon bait).

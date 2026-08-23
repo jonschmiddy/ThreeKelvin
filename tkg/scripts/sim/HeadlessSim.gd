@@ -49,13 +49,13 @@ var hot_arrivals := 0
 var postfight_samples := 0
 var postfight_total := 0.0
 var postfight_hot := 0
-## The stoker. `met` is landings on its system, because the first question
+## The hellbender. `met` is landings on its system, because the first question
 ## about a roamer is whether a run even crosses its path; the rest is what the
 ## model did about it and what avoiding it cost in salvage.
-var stoker_met := 0
-var stoker_fights := 0
-var stoker_kills := 0
-var stoker_escapes := 0
+var hellbender_met := 0
+var hellbender_fights := 0
+var hellbender_kills := 0
+var hellbender_escapes := 0
 var derelicts_eaten := 0
 
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
@@ -68,9 +68,9 @@ func run_sim() -> void:
 			seed_base = int(arg.split("=")[1])
 
 	hot = "hot" in OS.get_cmdline_user_args()
-	# The control cell. Comparing `nostoker` against the default on one build
+	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
-	Run.stoker_off = "nostoker" in OS.get_cmdline_user_args()
+	Run.hellbender_off = "nohellbender" in OS.get_cmdline_user_args()
 	policy.hot = hot
 	if hot:
 		print("HOT policy: the model spends heat for tempo and vents late.")
@@ -144,10 +144,10 @@ func _reset() -> void:
 	postfight_samples = 0
 	postfight_total = 0.0
 	postfight_hot = 0
-	stoker_met = 0
-	stoker_fights = 0
-	stoker_kills = 0
-	stoker_escapes = 0
+	hellbender_met = 0
+	hellbender_fights = 0
+	hellbender_kills = 0
+	hellbender_escapes = 0
 	derelicts_eaten = 0
 
 ## `index` exists so that `-- sim seed=N` gives every run its own reproducible
@@ -197,19 +197,19 @@ func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
 				if not _fight(DB.enemies[Rng.pick(Rng.foe, apool)]):
 					break
 
-		# The stoker holds this system. Same blockade the game enforces in
+		# The hellbender holds this system. Same blockade the game enforces in
 		# Router.resolve_current_node(): nothing here is reachable past it, so
 		# the model fights it or flies on with the node unresolved. A break-off
 		# lifts the blockade in place — it jumps two hops out — which is why
 		# the flag is re-read after the fight.
-		var blockaded := Run.stoker_alive() and Run.stoker_at == Run.at
+		var blockaded := Run.hellbender_alive() and Run.hellbender_at == Run.at
 		if blockaded:
-			stoker_met += 1
-			if policy.engage_stoker():
-				stoker_fights += 1
-				if not _fight_stoker():
+			hellbender_met += 1
+			if policy.engage_hellbender():
+				hellbender_fights += 1
+				if not _fight_hellbender():
 					break
-				blockaded = Run.stoker_alive() and Run.stoker_at == Run.at
+				blockaded = Run.hellbender_alive() and Run.hellbender_at == Run.at
 
 		# Resolve whatever is here.
 		if blockaded:
@@ -299,11 +299,11 @@ func _fight(template: EnemyTemplate) -> bool:
 ## ways the game does: the enemy opens at the hull the map says it has, winning
 ## does not consume the system, and there are three endings — it dies, it
 ## leaves, or you do.
-func _fight_stoker() -> bool:
+func _fight_hellbender() -> bool:
 	var cb := Combat.new()
 	cb.clears_node = false
-	cb.plan(DB.enemies[&"stoker"], Run.node_at().danger)
-	cb.enemies[0].hp = clampi(Run.stoker_hp, 1, cb.enemies[0].max_hp)
+	cb.plan(DB.enemies[&"hellbender"], Run.node_at().danger)
+	cb.enemies[0].hp = clampi(Run.hellbender_hp, 1, cb.enemies[0].max_hp)
 	cb.enemies[0].pick_intent()
 	cb.begin(null)
 	var turns := 0
@@ -319,9 +319,9 @@ func _fight_stoker() -> bool:
 		if not cb.finished:
 			cb.end_turn()
 	if cb.result == &"victory":
-		stoker_kills += 1
+		hellbender_kills += 1
 	elif cb.result == &"broke_off":
-		stoker_escapes += 1
+		hellbender_escapes += 1
 	postfight_samples += 1
 	postfight_total += Run.signature()
 	if Run.signature() > Run.SIGNATURE_FLOOR:
@@ -350,8 +350,8 @@ func _report() -> void:
 	print("post-fight signature %.2f · left a fight hot %d of %d (%.1f%%)" % [
 		postfight_total / maxf(1.0, float(postfight_samples)), postfight_hot,
 		postfight_samples, 100.0 * postfight_hot / maxi(1, postfight_samples)])
-	print("stoker: met %d · engaged %d · killed %d · watched it escape %d · derelicts eaten %.2f/run" % [
-		stoker_met, stoker_fights, stoker_kills, stoker_escapes,
+	print("hellbender: met %d · engaged %d · killed %d · watched it escape %d · derelicts eaten %.2f/run" % [
+		hellbender_met, hellbender_fights, hellbender_kills, hellbender_escapes,
 		float(derelicts_eaten) / maxi(1, runs)])
 	print("ambushes %d (%.2f per run) · runs jumped at least once %d (%.1f%%)" % [
 		ambushes, float(ambushes) / maxi(1, runs), runs_ambushed,

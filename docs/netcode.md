@@ -441,7 +441,7 @@ day.
 ### The first thing on the wire with a position that MOVES
 
 Everything shared before this was either fixed by the seed (the galaxy, what a
-wreck holds) or a fact about the past (a claim, a bag). The stoker —
+wreck holds) or a fact about the past (a claim, a bag). The hellbender —
 `docs/coop-design.md` §18 — is neither: it is a rival ship with a node index
 that changes, and this game deliberately has no shared clock for it to change
 on. Four players jump at their own pace; there is no tick.
@@ -449,17 +449,17 @@ on. Four players jump at their own pace; there is no tick.
 So the party's jumps ARE the tick, and the host counts them. Its own jumps
 count in `RunState.jump_to()`; everybody else's are read off the presence
 message, which already carries `at` — a presence whose `at` moved is a jump,
-and no new client-to-host message was needed. Every `STOKER_STRIDE` of them the
-host moves the stoker one link and broadcasts the whole state — position, hull,
-move counter — through `_push_stoker_to`. Whole, like claims, so a dropped push
+and no new client-to-host message was needed. Every `HELLBENDER_STRIDE` of them the
+host moves the hellbender one link and broadcasts the whole state — position, hull,
+move counter — through `_push_hellbender_to`. Whole, like claims, so a dropped push
 costs one update rather than a drift. WHERE it goes is still derived
-(`Rng.derive(&"stoker", move counter)`), so solo runs replay bit-for-bit from a
+(`Rng.derive(&"hellbender", move counter)`), so solo runs replay bit-for-bit from a
 seed and the wire only exists to carry the one thing a seed cannot: when.
 
 Three smaller things ride the same bump:
 
 - **A fight can open against an enemy already hurt.** `_open_fight_at_host`
-  gained `cur`, the current hull beside the capacity, because the stoker
+  gained `cur`, the current hull beside the capacity, because the hellbender
   carries its damage between engagements and both machines have to start the
   fight from the same number.
 - **A fight can end because the enemy LEFT.** `SharedFight.broke` says the
@@ -469,10 +469,10 @@ Three smaller things ride the same bump:
   card from it (`Combat.escape_intent()`).
 - **The host keeps the map honest from outside the fight.** A host three
   systems away has no `Combat` to run `_victory()` in, so `_apply_hurt` and
-  `_apply_leave` write the stoker's death or its surviving hull back to
+  `_apply_leave` write the hellbender's death or its surviving hull back to
   `RunState` when its fight ends by kill or by everybody walking out.
 
-**Protocol 7** is these changes. Save version 8 carries the stoker and
+**Protocol 7** is these changes. Save version 8 carries the hellbender and
 `MapNode.eaten`.
 
 ### Eight seats, flown before the number was raised

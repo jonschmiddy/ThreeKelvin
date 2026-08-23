@@ -41,7 +41,7 @@ const PATH := "user://run.save"
 ## silently loses work the player had already flown for.
 ## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
 ## arranged comes back arranged rather than re-packed from scratch.
-## 9: the stoker — where the galaxy's other harvester is, what hull it has
+## 9: the hellbender — where the galaxy's other harvester is, what hull it has
 ## left, and how many moves it has made (the counter is a seed source, so
 ## losing it would re-derive a different walk). A node also carries `eaten`:
 ## a save that forgot it would resume a derelict the rival stripped as one
@@ -55,7 +55,7 @@ const PATH := "user://run.save"
 ## above true. Anything stamped 6 or 7 is now discarded, which is the correct
 ## outcome and the whole reason the field exists.
 ##
-## AND THEN IT HAPPENED AGAIN AT 8. The hold grid and the stoker were written
+## AND THEN IT HAPPENED AGAIN AT 8. The hold grid and the hellbender were written
 ## on separate branches and both stamped 8, so an 8 can be either shape by
 ## exactly the argument above. 9 has both.
 ##
@@ -191,11 +191,11 @@ static func _snapshot() -> Dictionary:
 		jumps = Run.jumps,
 		kills = Run.kills,
 
-		stoker_at = Run.stoker_at,
-		stoker_hp = Run.stoker_hp,
-		stoker_max = Run.stoker_max,
-		stoker_moves = Run.stoker_moves,
-		stoker_ticks = Run.stoker_ticks,
+		hellbender_at = Run.hellbender_at,
+		hellbender_hp = Run.hellbender_hp,
+		hellbender_max = Run.hellbender_max,
+		hellbender_moves = Run.hellbender_moves,
+		hellbender_ticks = Run.hellbender_ticks,
 	}
 
 # ----------------------------------------------------------------------- read
@@ -346,12 +346,12 @@ static func load_into_run() -> bool:
 	Run.kills = int(d.get("kills", 0))
 
 	# Clamped like `at`, because a stale index here is not a wrong marker — it
-	# is an index error inside whatever reads the stoker's node next.
-	Run.stoker_at = clampi(int(d.get("stoker_at", -1)), -1, map.size() - 1)
-	Run.stoker_max = maxi(0, int(d.get("stoker_max", 0)))
-	Run.stoker_hp = clampi(int(d.get("stoker_hp", 0)), 0, Run.stoker_max)
-	Run.stoker_moves = maxi(0, int(d.get("stoker_moves", 0)))
-	Run.stoker_ticks = maxi(0, int(d.get("stoker_ticks", 0)))
+	# is an index error inside whatever reads the hellbender's node next.
+	Run.hellbender_at = clampi(int(d.get("hellbender_at", -1)), -1, map.size() - 1)
+	Run.hellbender_max = maxi(0, int(d.get("hellbender_max", 0)))
+	Run.hellbender_hp = clampi(int(d.get("hellbender_hp", 0)), 0, Run.hellbender_max)
+	Run.hellbender_moves = maxi(0, int(d.get("hellbender_moves", 0)))
+	Run.hellbender_ticks = maxi(0, int(d.get("hellbender_ticks", 0)))
 
 	Run.won = false
 	Run.dead = false

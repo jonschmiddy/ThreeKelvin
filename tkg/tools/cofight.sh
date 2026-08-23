@@ -9,7 +9,7 @@
 #   tools/cofight.sh          an ordinary contact at an ordinary system
 #   tools/cofight.sh boss     the core, which reaches Combat down its own branch
 #   tools/cofight.sh late     the guest arrives at a fight already in progress
-#   tools/cofight.sh stoker   the roamer: host-authoritative movement, the
+#   tools/cofight.sh hellbender   the roamer: host-authoritative movement, the
 #                             blockade, a staggered two-ship engagement, and
 #                             whichever ending the dive seed deals
 set -uo pipefail
@@ -113,19 +113,19 @@ pair "the two ships are different seats" "seat"
 pair "and therefore draw loot from different streams" "lootseed"
 # The core pays no modules and ends the run, so there is no hold to compare and
 # no station left to dock at. Those claims are about an ordinary contact. The
-# stoker leg has its own pair claims, and which apply depends on how the fight
+# hellbender leg has its own pair claims, and which apply depends on how the fight
 # ended — the fate line is read first for exactly that reason.
 case " $MODE " in
 *" boss "*) ;;
-*" stoker "*)
-	same "the host's pushes put the rival on one chart" "stokerat"
-	same "and both machines agree how its fight ended" "stokerfate"
-	FATE="$(grep -m1 '^\[cofight\] stokerfate ' "$OUT/host.log" | sed 's/^\[cofight\] stokerfate //')"
+*" hellbender "*)
+	same "the host's pushes put the rival on one chart" "hellbenderat"
+	same "and both machines agree how its fight ended" "hellbenderfate"
+	FATE="$(grep -m1 '^\[cofight\] hellbenderfate ' "$OUT/host.log" | sed 's/^\[cofight\] hellbenderfate //')"
 	if [ "$FATE" = "dead" ]; then
 		same "the kill left both ships ONE bag" "bag"
 		one_of "and only one of them took the first part" "took"
 	else
-		same "and the escape left the same hurt ship in the same place" "stokerafter"
+		same "and the escape left the same hurt ship in the same place" "hellbenderafter"
 	fi
 ;;
 *)

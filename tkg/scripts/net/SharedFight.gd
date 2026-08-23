@@ -72,7 +72,7 @@ var turn: int = 1
 var over: bool = false
 ## Over because the enemy LEFT, not because anybody won or walked out. The
 ## distinction decides what every crew machine does next: a broke fight pays
-## nothing and consumes nothing, and the stoker's hull was written back by the
+## nothing and consumes nothing, and the hellbender's hull was written back by the
 ## host before this was pushed. See NetSession._swing().
 var broke: bool = false
 ## The last hit anybody landed: `[peer, foe index, total, serial]`, or empty.
@@ -106,7 +106,7 @@ var paid: int = 0
 ## The first ship engages. `hp` and `brace` are what its own `Combat._spawn`
 ## produced, so the danger scaling and the pack split stay in one place.
 ## `cur` is current hull — below `hp` only when the enemy arrives already hurt,
-## the stoker carrying a previous engagement's damage. `base` stays what one
+## the hellbender carrying a previous engagement's damage. `base` stays what one
 ## ship's worth of the FULL enemy is, so a joiner's share does not shrink just
 ## because somebody softened it up first.
 static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
