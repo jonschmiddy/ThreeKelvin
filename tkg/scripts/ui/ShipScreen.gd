@@ -532,6 +532,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_set_zoom(false)
 		get_viewport().set_input_as_handled()
 		return
+	# F FLIPS WHAT YOU ARE POINTING AT, on the hull only. R turns a part in
+	# the hold and F mirrors one on the ship: two verbs, two places, and
+	# neither reaches into the other's.
+	if k.keycode == KEY_F:
+		if _flip_pointed():
+			get_viewport().set_input_as_handled()
+		return
 	if k.keycode != KEY_R:
 		return
 	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
@@ -648,6 +655,21 @@ func _on_clip_input(event: InputEvent) -> void:
 		(_clip.size.y - _view.size.y) * 0.5) + _pan).floor()
 	if _mountpts != null:
 		_mountpts.refresh()
+
+## Mirror the fitted part under the cursor, top to bottom.
+##
+## Drawing only, so nothing is revalidated: a flipped gun holds the same
+## mount, costs the same energy and deals the same damage. It is which way
+## up the object READS, and a ventral rack needs the other way up.
+func _flip_pointed() -> bool:
+	if _mountpts == null:
+		return false
+	var m := _mountpts.part_under(_mountpts.get_local_mouse_position())
+	if m == null:
+		return false
+	m.flipped = not m.flipped
+	_mountpts.refresh()
+	return true
 
 func _turn_carried() -> bool:
 	var d: Variant = get_viewport().gui_get_drag_data()

@@ -130,11 +130,14 @@ func _build() -> void:
 	# drift apart when either is retuned.
 	_region_btn.offset_left = -(112.0 + MapChart.BAR_PAD)
 	_region_btn.offset_right = -MapChart.BAR_PAD
-	# 22, measured from the bar's rule. The bar draws its label ABOVE that
-	# rule, so the visible gap is this number minus the text height — 34 put
-	# a hole between the two and stopped them reading as one instrument.
-	_region_btn.offset_top = -(14.0 + MapChart.BAR_PAD + 22.0)
-	_region_btn.offset_bottom = -(MapChart.BAR_PAD + 22.0)
+	# 8px of clear air over the SCALE BLOCK, not over the bar's rule. The
+	# label is drawn above the rule, so the block's real top is the rule
+	# minus the baseline offset and the cap height — measured off the
+	# chart's own numbers rather than eyeballed, so retuning either moves
+	# both together.
+	var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
+	_region_btn.offset_top = -(14.0 + scale_top + 8.0)
+	_region_btn.offset_bottom = -(scale_top + 8.0)
 	_chart.add_child(_region_btn)
 
 	var right := VBoxContainer.new()
@@ -1034,6 +1037,9 @@ class MapChart extends Control:
 		2000.0, 5000.0, 10000.0, 20000.0, 50000.0]
 	const BAR_MAX_PX := 140.0
 	const BAR_PAD := 12.0
+	## How far the scale's label reaches above the rule: the 7px baseline
+	## offset draw_string is given, plus the 8px face it is drawn at.
+	const BAR_LABEL_H := 15.0
 
 	## How hard the fixed sky slides against the galaxy when you drag.
 	##
@@ -1923,15 +1929,38 @@ class MapChart extends Control:
 		var z0 := zoom
 		var p0 := pan
 		var z1 := clampf(z, ZOOM_MIN, ZOOM_MAX)
+		# WORK OUT WHERE THE SKY ENDS UP FIRST, then travel to it.
+		#
+		# Settling per step against the step before accumulates: each frame
+		# pivots by a pow() of a fraction of the zoom change, and a chain of
+		# those does not add up to the single pivot the whole move deserves.
+		# On screen the galaxy trailed the systems and caught up at the end,
+		# which is exactly what an accumulating error looks like.
+		#
+		# The end state is computable in closed form, so the sky is simply
+		# LERPED to it alongside the zoom and the pan. All three then move as
+		# one and arrive together.
+		var pz := zoom
+		var pp := pan
+		var ps := sky_pan
+		zoom = z1
+		pan = p
+		_clamp_pan()
+		var p1 := pan
+		var c0 := size * 0.5
+		var soft: float = pow(z1 / maxf(0.0001, z0), SKY_ZOOM_POWER)
+		var s1 := (c0 - (c0 - ps) * soft) + (p1 - p0)
+		# Put it back where it was; the tween does the travelling.
+		zoom = pz
+		pan = pp
 		_glide = create_tween()
 		_glide.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 		_glide.tween_method(func(t: float) -> void:
-			var was := zoom
-			var before := pan
 			zoom = lerpf(z0, z1, t)
-			pan = p0.lerp(p, t)
-			_clamp_pan()
-			_settle_sky(was, before), 0.0, 1.0, secs)
+			pan = p0.lerp(p1, t)
+			sky_pan = ps.lerp(s1, t)
+			_repaint_galaxy()
+			queue_redraw(), 0.0, 1.0, secs)
 
 	## THE WHOLE GALAXY, back out. The pair to frame_region: one press in, the
 	## same press out, and both take the same route so the second undoes the

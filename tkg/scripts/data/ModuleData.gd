@@ -125,6 +125,14 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 ## it last happened to fit in.
 @export var turned: bool = false
 
+## MIRRORED ON THE HULL, top to bottom. Per fitted part, and nothing to do
+## with `turned`: that one is about packing a shape into the hold, this is
+## about which way up the object reads once it is bolted on. A gun on the
+## ventral line is the same gun as one on the spine, hanging the other way.
+##
+## Drawing only. It moves no number, so nothing in the sim reads it.
+@export var flipped: bool = false
+
 ## The shape it actually occupies right now. Everything that asks where a part
 ## fits asks THIS; `size` is what it was authored as.
 func footprint() -> Vector2i:

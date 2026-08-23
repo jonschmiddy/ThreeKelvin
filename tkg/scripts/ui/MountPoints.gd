@@ -217,7 +217,11 @@ func _draw() -> void:
 ## grab by the dot it is bolted through is a gun you have to aim at.
 func part_rect(m: ModuleData, slot: ModuleData.Slot, at: Vector2,
 		k: float) -> Rect2:
-	var f := m.footprint()
+	# THE AUTHORED SIZE, not the packed one. `footprint()` swaps the axes
+	# when a part is turned, and turning is a fact about how it fits in the
+	# HOLD -- rotating a rail to slot it into a gap should not stand the gun
+	# on its end once it is bolted to the hull.
+	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	# THE CELLS COME WITH THE SHIP. The hold is authored at 2x and so is the
 	# refit screen's hull, which is what makes a part the same size in both. The
 	# sector drops to 1x with a party on screen, and a box that stayed 30px
@@ -238,7 +242,7 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 		full: bool) -> void:
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 	var col: Color = maker.colour if maker != null else UITheme.CHILL
-	var f := m.footprint()
+	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	var r := part_rect(m, slot, at, k)
 	var up := ModuleIcon.part_turn(slot, f)
 	var k2 := ModuleIcon.part_scale(slot, f, r.size)
@@ -246,10 +250,19 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	# THE PART ITSELF, and normally nothing around it. A ship is not an
 	# inventory: what is bolted to it is the object, not a plate with the object
 	# on it. Hovering is the exception — see `_draw`.
+	# FLIPPED, if this one is. Mirrored about the part's own middle rather
+	# than redrawn: the silhouette is the same object seen from the other
+	# side, so a gun on the belly points its muzzle the way the ship is
+	# going instead of hanging upside down off the keel.
+	if m.flipped:
+		draw_set_transform(Vector2(0.0, r.position.y * 2.0 + r.size.y),
+			0.0, Vector2(1.0, -1.0))
 	if full:
 		ModuleIcon.draw_plate(self, m, r)
 	else:
 		ModuleIcon.fill_part(self, slot, r, col, k2, up)
+	if m.flipped:
+		draw_set_transform_matrix(Transform2D.IDENTITY)
 
 	# RARITY, as a bar where the part meets the hull. The same split the plate
 	# uses, kept the same way round out here: the ART says whose it is, and what
@@ -268,6 +281,19 @@ func spots() -> Array[Dictionary]:
 
 func _ring(at: Vector2, r: float, col: Color) -> void:
 	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
+
+## The INSTALLED PART under a point, or null. Same hit test the mount lookup
+## uses, answering with the thing rather than the place -- a caller that wants
+## to flip what it is pointing at does not care which hardpoint holds it.
+func part_under(p: Vector2) -> ModuleData:
+	var k := _mag()
+	for i in _spots.size():
+		var m: ModuleData = _spots[i].held
+		if m == null:
+			continue
+		if part_rect(m, _spots[i].slot, _spots[i].at, k).grow(2.0).has_point(p):
+			return m
+	return null
 
 ## Which mount is under a point, or -1.
 ##
