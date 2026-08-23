@@ -19,7 +19,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pixeltools as pt
 
-SPRITES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "sprites")
+# One folder per manufacturer, since the hulls moved out of the flat sprites
+# directory. Korvan is the only maker with art; when there are others this takes
+# the maker as an argument and the filenames inside each folder stay identical.
+SPRITES = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "..", "sprites", "hulls", "korvan")
 
 # A column counts as hull rather than nose-taper or nozzle when it is at least
 # this fraction of the deepest column. 0.45 keeps the flat middle and drops the
@@ -95,6 +99,39 @@ def lines(path):
             "dorsal": dorsal, "ventral": ventral, "flank": flank}
 
 
+# The doc comment the generated table carries into Database.gd. Held here rather
+# than read back off the last output, so regenerating from an empty tree gives
+# the same file as regenerating from a full one.
+HEADER = """## Measured off each hull's own silhouette by `art/tools/anchors.py`.
+##
+## GENERATED. Re-run the tool after replacing a hull sprite; a line measured
+## against art that has since changed puts mounts in mid-air, and nothing about
+## that fails loudly. `-- mounts` is what makes it fail loudly.
+##
+## Lines rather than points, because a hull carries one to five mounts of a kind
+## depending on weight, class and maker \u2014 a fixed list of five used two at a time
+## clusters both at one end of the ship. See HullData.mounts_along().
+##
+## Plain Vector2 arrays, not PackedVector2Array: the packed constructor is a CALL
+## and a `const` needs an expression the compiler can fold. Converted on assignment.
+const HULL_LINES := {"""
+
+
+def render(out):
+    """anchors.json -> the GDScript table, as text."""
+    nl = chr(10)
+    lines = [HEADER]
+    for name in sorted(out):
+        r = out[name]
+        lines.append('\t"%s": {' % name)
+        for key in ("dorsal", "ventral", "flank"):
+            pts = ", ".join("Vector2(%d, %d)" % (p[0], p[1]) for p in r[key])
+            lines.append("\t\t%s = [%s]," % (key, pts))
+        lines.append("\t},")
+    lines.append("}")
+    return nl.join(lines) + nl
+
+
 def main():
     out = {}
     names = []
@@ -114,11 +151,17 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     io.open(os.path.join(here, "anchors.json"), "w", encoding="utf-8").write(
         json.dumps(out, indent=1))
-    print("\nwrote anchors.json (%d hulls)" % len(out))
+    table = os.path.join(here, "anchors.gd.txt")
+    io.open(table, "w", encoding="utf-8", newline=chr(10)).write(render(out))
+    print("\nwrote anchors.json and anchors.gd.txt (%d hulls)" % len(out))
+    # `--splice` puts it straight into Database.gd. Off by default: the table is
+    # worth looking at before it is worth installing.
+    if "--splice" in sys.argv:
+        gd = os.path.join(here, "..", "..", "scripts", "autoload", "Database.gd")
+        n = splice(os.path.abspath(gd), table)
+        print("spliced %d characters of HULL_LINES into Database.gd" % n)
 
 
-if __name__ == "__main__":
-    main()
 
 
 def splice(gd_path, table_path):
@@ -139,3 +182,6 @@ def splice(gd_path, table_path):
     io.open(gd_path, "w", encoding="utf-8", newline=nl).write(
         src[:start] + table + src[end:])
     return end - start
+
+if __name__ == "__main__":
+    main()

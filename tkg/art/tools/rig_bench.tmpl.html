@@ -1,0 +1,737 @@
+<title>The Rigging Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --cold:#7286a0; --dim:#4a5a6d;
+  --ice:#c9d7e6; --hot:#ff9a2e; --go:#5fe0a8; --bad:#ff7a68; --line:#1d2734;
+  --weapon:#ff9a2e; --system:#5cb8ff; --utility:#c77dff;
+  --display:"Barlow Condensed",Oswald,"Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--void);color:var(--ice);font-family:var(--body);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:none;margin:0;padding:0 18px 60px}
+.mast{padding:32px 0 10px}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--cold);margin:0 0 9px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(32px,5.5vw,54px);
+  line-height:.92;margin:0;letter-spacing:-.01em}
+.lede{max-width:76ch;color:var(--cold);margin:11px 0 0;font-size:14.5px}
+.lede b{color:var(--ice);font-weight:500}
+code{font-family:var(--mono);font-size:.88em;color:var(--hot)}
+kbd{font-family:var(--mono);font-size:11px;background:var(--panel);color:var(--ice);
+  border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:1px 5px}
+
+.bar{position:sticky;top:0;z-index:30;background:var(--void);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:9px 0;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.bar .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);margin:0 2px 0 8px}
+.bar .lbl:first-child{margin-left:0}
+button{font-family:var(--mono);font-size:12px;color:var(--cold);background:var(--panel);
+  border:1px solid var(--line);border-radius:2px;padding:4px 10px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#2c3c50}
+button:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+button[aria-pressed="true"]{color:#12070a;background:var(--hot);border-color:var(--hot)}
+.spacer{flex:1}
+.read{font-family:var(--mono);font-size:11px;color:var(--cold);
+  font-variant-numeric:tabular-nums}
+
+.cols{display:grid;grid-template-columns:1fr 420px;gap:16px;margin-top:14px}
+@media (max-width:1320px){.cols{grid-template-columns:1fr}}
+
+.stagewrap{border:1px solid var(--line);background:var(--sunk);padding:20px;
+  overflow:auto;display:flex;height:78vh;resize:vertical}
+.stage{position:relative;touch-action:none;flex:none;margin:auto;
+  cursor:grab}
+.hull{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;
+  z-index:2;pointer-events:none}
+.bounds{position:absolute;outline:1px dashed #24344a;pointer-events:none;z-index:1}
+.plume{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;
+  background-repeat:no-repeat;cursor:grab;z-index:3}
+.plume.sel{outline:1px solid var(--hot);outline-offset:1px}
+.mount{position:absolute;width:15px;height:15px;margin:-8px 0 0 -8px;cursor:grab;
+  border-radius:50%;z-index:6;border:2px solid #05080d;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:8px;color:#05080d;font-weight:500}
+.mount.weapon{background:var(--weapon)} .mount.system{background:var(--system)}
+.mount.utility{background:var(--utility)}
+.mount.sel{box-shadow:0 0 0 2px var(--ice)}
+.mount.dim{opacity:.35}
+.guide{position:absolute;background:var(--go);pointer-events:none;z-index:5;
+  opacity:.8}
+.guide.v{top:0;width:1px}
+.guide.h{left:0;height:1px}
+
+.rail{display:flex;flex-direction:column;gap:13px}
+.card{border:1px solid var(--line);background:var(--panel);padding:13px}
+.card h3{font-family:var(--display);font-weight:600;font-size:17px;margin:0 0 9px;
+  color:var(--ice)}
+.pal{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  max-height:none;overflow:visible}
+.pi{border:1px solid var(--line);background:var(--sunk);padding:3px;cursor:grab;
+  display:flex;flex-direction:column;align-items:center;gap:2px}
+.pi:hover{border-color:var(--hot)}
+.pi.on{border-color:var(--go);background:#0f1d1a}
+.pi i{display:block;image-rendering:pixelated;image-rendering:crisp-edges;
+  background-repeat:no-repeat;margin:auto}
+.pi{min-height:62px;justify-content:center}
+.pi span{font-family:var(--mono);font-size:8.5px;color:var(--dim)}
+.slotrow{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.dot{width:11px;height:11px;border-radius:50%;flex:none;border:1px solid #05080d}
+.dot.weapon{background:var(--weapon)} .dot.system{background:var(--system)}
+.dot.utility{background:var(--utility)}
+.slotrow .nm{font-family:var(--mono);font-size:12px;color:var(--ice);flex:1}
+.slotrow .ct{font-family:var(--mono);font-size:11px;color:var(--cold);
+  font-variant-numeric:tabular-nums}
+.slotrow .ct.short{color:var(--bad)}
+.slotrow button{padding:2px 8px}
+.trow{display:flex;align-items:center;gap:7px;padding:3px 0}
+.trow.sel{outline:1px solid var(--hot);outline-offset:2px}
+.trow .tn{font-family:var(--mono);font-size:11.5px;color:var(--ice);flex:1}
+.trow .tp{font-family:var(--mono);font-size:10.5px;color:var(--dim);
+  font-variant-numeric:tabular-nums}
+.trow button{padding:2px 8px}
+.btnrow{display:flex;gap:6px;margin-top:9px}
+.btnrow button{flex:1}
+.rows{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-size:11.5px}
+.row{display:flex;justify-content:space-between;gap:8px;color:var(--cold)}
+.row b{color:var(--ice);font-weight:500;font-variant-numeric:tabular-nums}
+.warn{font-family:var(--mono);font-size:10px;color:var(--bad);background:#ff7a681a;
+  border:1px solid #ff7a683d;border-radius:2px;padding:5px 8px;margin-top:7px;
+  line-height:1.6}
+.hint{font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.8;margin:0}
+.hint b{color:var(--cold)}
+
+.out{margin-top:20px;border:1px solid var(--line);background:var(--panel);padding:14px}
+.out h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0 0 4px}
+.out p{color:var(--cold);font-size:13px;margin:0 0 10px;max-width:76ch}
+textarea{width:100%;height:190px;background:var(--sunk);color:var(--ice);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11px;padding:10px;
+  resize:vertical;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+.outbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center}
+body.focus .mast, body.focus .note, body.focus .out,
+body.focus .rail{display:none}
+body.focus .cols{grid-template-columns:1fr}
+body.focus .stagewrap{height:calc(100vh - 108px)}
+body.focus .wrap{padding:0 10px 10px}
+.note{border-left:2px solid var(--hot);padding:2px 0 2px 14px;margin:22px 0 0;
+  max-width:76ch}
+.note p{margin:0 0 9px;color:var(--cold);font-size:14px}
+.note p:last-child{margin:0}
+.note b{color:var(--ice);font-weight:500}
+</style>
+<div class="wrap">
+<header class="mast">
+<p class="eyebrow">Three Kelvin &middot; __MAKER__ &middot; rigging</p>
+<h1>The Rigging Bench</h1>
+<p class="lede">Every mount is a puck you drag. <b>Weapons, systems and utilities go
+wherever you put them</b> &mdash; top, belly, nose, anywhere. Drag a thruster from the
+palette onto the ship &mdash; <b>as many as it has engines</b> &mdash; then drag them
+about like anything else. Drag empty space to pan the view. Saved in this browser; the
+panel at the bottom is what to send back.</p>
+</header>
+
+<div class="bar">
+<span class="lbl">Hull</span><span id="hullchips" style="display:contents"></span>
+<span class="spacer"></span><span class="read" id="saytop"></span>
+<span class="read" id="read"></span>
+</div>
+<div class="bar" style="top:44px">
+<span class="lbl">Zoom</span>
+<button data-z="2">2&times;</button><button data-z="3" aria-pressed="true">3&times;</button>
+<button data-z="4">4&times;</button><button data-z="6">6&times;</button>
+<span class="lbl">Room</span>
+<button data-p="60">tight</button><button data-p="140" aria-pressed="true">roomy</button><button data-p="260">wide</button><button data-p="400">huge</button>
+<span class="lbl">Show</span>
+<button id="tanim" aria-pressed="true">animate</button>
+<button id="tnum" aria-pressed="true">numbers</button>
+<button id="tsnap" aria-pressed="true">snap</button>
+<span class="lbl">View</span>
+<button id="tfocus">focus &middot; hide everything else</button>
+<span class="spacer"></span>
+<button id="savetop">save all 12 &middot; rigging.json</button>
+<button id="revert">revert hull</button><button id="revertall">revert all</button>
+</div>
+
+<div class="cols">
+  <div class="stagewrap"><div class="stage" id="stage"></div></div>
+  <div class="rail">
+    <div class="card"><h3>Mounts</h3><div id="slots"></div>
+      <p class="hint" style="margin-top:8px"><b>+</b> drops a new one on the hull.
+      Select and press <kbd>Del</kbd> to remove.</p>
+    </div>
+    <div class="card"><h3>Thruster</h3>
+      <div class="pal" id="pal"></div>
+      <div class="rows" style="margin-top:10px" id="exinfo"></div>
+      <div id="exwarn"></div>
+      <div class="btnrow">
+        <button id="excentre">centre selected</button>
+        <button id="exdel">remove all</button>
+      </div>
+    </div>
+    <div class="card"><h3>Keys</h3><p class="hint">
+      drag &mdash; move anything<br>
+      <kbd>Del</kbd> &mdash; remove selected<br>
+      <kbd>&larr;&uarr;&rarr;&darr;</kbd> &mdash; nudge 1px, <kbd>Shift</kbd> 8px<br>
+      <kbd>Esc</kbd> &mdash; deselect<br>
+      <kbd>[</kbd> <kbd>]</kbd> &mdash; previous / next hull<br>
+      drag empty space &mdash; pan the view<br>
+      hold <kbd>Alt</kbd> while dragging &mdash; ignore snapping<br>
+      middle-drag &mdash; pan from anywhere<br>
+      <kbd>F</kbd> &mdash; focus mode, stage fills the window<br>
+      drag the panel's bottom edge to resize it
+    </p></div>
+  </div>
+</div>
+
+<div class="out">
+  <h3>Send this back</h3>
+  <p><b style="color:var(--ice)">One file, all twelve hulls</b> &mdash; the ones you
+  edited and the ones you left alone, so it is a complete picture rather than a diff.
+  It writes to your downloads; tell me and I will read it from disk, no pasting. The
+  same button is in the toolbar, which stays reachable in focus mode. The text below is
+  a paste-able fallback.</p>
+  <div class="outbar">
+    <button id="savefile">save all 12 &middot; rigging.json</button>
+    <button id="copy">copy instead</button>
+    <button id="refresh">refresh</button>
+    <span class="read" id="dirty"></span>
+    <span class="read" id="saymsg"></span>
+  </div>
+  <textarea id="out" readonly spellcheck="false"></textarea>
+</div>
+
+<div class="note">
+<p><b>These start where the game currently puts them.</b> Each hull opens with its mounts
+seeded by running the real <code>mounts_along()</code> over the lines in
+<code>Database.gd</code>, so nothing is lost by switching to placing them directly &mdash;
+the first thing you see is the status quo.</p>
+<p><b>The counts are this maker's own.</b> A slot count is WEIGHT_BASE, plus what
+TIER_DELTA adds at A and S, plus whatever the house itself changes &mdash; Probate trades a
+weapon for a utility, Redline's perk grants one. All three are read out of
+<code>Database.gd</code> when this page is built, so they are right for whoever it was built
+for. The panel marks a slot red when it is short.</p>
+<p><b>A thruster placed left of the hull will be clipped.</b> The hulls are authored bare,
+with no canvas around them, and <code>ShipView._paste()</code> drops anything at a negative
+offset. The bench shows the overhang and measures it, because that clearance is a real
+thing &sect;4 specifies and the sprites do not yet carry.</p>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var D = __DATA__;
+var KEY = "tk.rig.v3";   // padded hulls; v2 coordinates are 76px out
+var SLOTS = ["weapon","system","utility"];
+
+var st = {hull:0, zoom:3, pad:140, sel:null, anim:true, nums:true, frame:0,
+          snap:true};
+// Sprite pixels. Small on purpose: this is a nudge onto an existing line,
+// not a grid, so it must not fight a deliberate one-pixel offset.
+var SNAP = 3;
+var edit = {};
+var stage = document.getElementById("stage");
+var timer = null, drag = null;
+
+function H(){ return D.hulls[st.hull]; }
+function E(){
+  var h = H();
+  if(!edit[h.name]){
+    edit[h.name] = {
+      weapon: h.seed.weapon.map(function(p){return p.slice();}),
+      system: h.seed.system.map(function(p){return p.slice();}),
+      utility:h.seed.utility.map(function(p){return p.slice();}),
+      exs: []};
+  }
+  // v2 held a single `ex`; carry one forward rather than dropping it.
+  var e = edit[h.name];
+  if(!e.exs){ e.exs = e.ex ? [e.ex] : []; delete e.ex; }
+  return e;
+}
+function load(){ try{var s=localStorage.getItem(KEY); if(s) edit=JSON.parse(s)||{};}
+  catch(e){ edit={}; } }
+function save(){ try{localStorage.setItem(KEY, JSON.stringify(edit));}catch(e){} }
+
+function el(tag, cls){
+  var e = document.createElement(tag);
+  if(cls) e.className = cls;
+  stage.appendChild(e);
+  return e;
+}
+function px(ev){
+  var r = stage.getBoundingClientRect();
+  return [Math.round((ev.clientX - r.left)/st.zoom - st.pad),
+          Math.round((ev.clientY - r.top)/st.zoom - st.pad)];
+}
+
+function render(){
+  var h = H(), e = E(), z = st.zoom, P = st.pad;
+  stage.innerHTML = "";
+  stage.style.width  = ((h.w + P*2) * z) + "px";
+  stage.style.height = ((h.h + P*2) * z) + "px";
+
+  var b = el("div","bounds");
+  b.style.left = (P*z)+"px"; b.style.top = (P*z)+"px";
+  b.style.width = (h.w*z)+"px"; b.style.height = (h.h*z)+"px";
+
+  var img = el("img","hull");
+  img.src = "data:image/png;base64," + h.img;
+  img.width = h.w*z; img.height = h.h*z;
+  img.style.left = (P*z)+"px"; img.style.top = (P*z)+"px";
+  img.draggable = false;
+
+  e.exs.forEach(function(t, ti){
+    var ex = D.exhausts[t.id];
+    var p = el("div","plume" +
+      (st.sel && st.sel.k==="ex" && st.sel.i===ti ? " sel":""));
+    p.style.width = (ex.fw*z)+"px"; p.style.height = (ex.h*z)+"px";
+    p.style.left = ((P+t.x)*z)+"px"; p.style.top = ((P+t.y)*z)+"px";
+    p.style.backgroundImage = "url(data:image/png;base64,"+ex.img+")";
+    p.style.backgroundSize = (ex.sw*z)+"px "+(ex.h*z)+"px";
+    p.style.backgroundPosition = (-(st.anim?st.frame:0)*ex.fw*z)+"px 0";
+    // The ticker needs to know which strip this element is showing.
+    p.setAttribute("data-t", ti);
+    p.addEventListener("pointerdown", function(ev){
+      ev.stopPropagation(); startDrag(ev, {k:"ex", i:ti}); });
+  });
+
+  if(drag && drag.gx !== null && drag.gx !== undefined){
+    var gv = el("div","guide v");
+    gv.style.left = ((P+drag.gx)*z + z/2)+"px";
+    gv.style.height = stage.style.height;
+  }
+  if(drag && drag.gy !== null && drag.gy !== undefined){
+    var gh = el("div","guide h");
+    gh.style.top = ((P+drag.gy)*z + z/2)+"px";
+    gh.style.width = stage.style.width;
+  }
+
+  SLOTS.forEach(function(S){
+    e[S].forEach(function(q,i){
+      var d = el("div","mount "+S+
+        (st.sel && st.sel.k===S && st.sel.i===i ? " sel":""));
+      d.style.left = ((P+q[0])*z)+"px";
+      d.style.top  = ((P+q[1])*z)+"px";
+      d.textContent = st.nums ? (i+1) : "";
+      d.title = S+" "+(i+1)+"  ("+q[0]+", "+q[1]+")";
+      d.addEventListener("pointerdown", function(ev){
+        ev.stopPropagation(); startDrag(ev, {k:S, i:i}); });
+    });
+  });
+  panel();
+}
+
+function panel(){
+  var h = H(), e = E();
+  document.getElementById("slots").innerHTML = SLOTS.map(function(S){
+    var have = e[S].length, want = h.need[S];
+    return '<div class="slotrow"><span class="dot '+S+'"></span>'+
+      '<span class="nm">'+S+'</span>'+
+      '<span class="ct'+(have<want?' short':'')+'">'+have+' / '+want+'</span>'+
+      '<button data-add="'+S+'">+</button></div>';
+  }).join("");
+  Array.prototype.forEach.call(
+    document.querySelectorAll("[data-add]"), function(b){
+      b.addEventListener("click", function(){
+        var S = b.getAttribute("data-add"), hh = H(), ee = E();
+        ee[S].push([Math.round(hh.w/2), Math.round(hh.h/2)]);
+        st.sel = {k:S, i:ee[S].length-1};
+        save(); render(); out();
+      });
+    });
+
+  var ei = document.getElementById("exinfo"), ew = document.getElementById("exwarn");
+  var warn = [];
+  ei.innerHTML = e.exs.length ? e.exs.map(function(t, ti){
+    var ex = D.exhausts[t.id];
+    if(t.x < 0) warn.push("#"+(ti+1)+": "+(-t.x)+"px past the stern is clipped");
+    if(t.y < 0) warn.push("#"+(ti+1)+": "+(-t.y)+"px above the canvas is clipped");
+    if(t.y + ex.h > h.h)
+      warn.push("#"+(ti+1)+": "+(t.y+ex.h-h.h)+"px below the canvas is clipped");
+    return '<div class="trow'+
+      (st.sel && st.sel.k==="ex" && st.sel.i===ti ? ' sel':'')+'">'+
+      '<span class="tn">exhaust_'+t.id+'</span>'+
+      '<span class="tp">'+t.x+', '+t.y+'</span>'+
+      '<button data-pick="'+ti+'">pick</button>'+
+      '<button data-drop="'+ti+'">&times;</button></div>';
+  }).join("") : '<div class="row"><span>none mounted</span><b>drag one on</b></div>';
+  ew.innerHTML = warn.length ? '<div class="warn">'+warn.join("<br>")+'</div>' : "";
+  Array.prototype.forEach.call(ei.querySelectorAll("[data-pick]"), function(b){
+    b.addEventListener("click", function(){
+      st.sel = {k:"ex", i:+b.getAttribute("data-pick")}; render(); }); });
+  Array.prototype.forEach.call(ei.querySelectorAll("[data-drop]"), function(b){
+    b.addEventListener("click", function(){
+      E().exs.splice(+b.getAttribute("data-drop"), 1);
+      st.sel = null; save(); render(); out(); }); });
+  var on = {};
+  e.exs.forEach(function(t){ on[t.id] = 1; });
+  Array.prototype.forEach.call(document.querySelectorAll(".pi"), function(pi){
+    pi.classList.toggle("on", !!on[+pi.getAttribute("data-i")]);
+  });
+  document.getElementById("dirty").textContent =
+    Object.keys(edit).length + " of " + D.hulls.length + " hulls edited";
+}
+
+// Every x and y worth lining up with, excluding the thing being dragged.
+function targets(skip){
+  var e = E(), h = H(), xs = [], ys = [];
+  SLOTS.forEach(function(S){
+    e[S].forEach(function(q, i){
+      if(skip && skip.k === S && skip.i === i) return;
+      xs.push(q[0]); ys.push(q[1]);
+    });
+  });
+  e.exs.forEach(function(t, ti){
+    if(skip && skip.k === "ex" && skip.i === ti) return;
+    var ex = D.exhausts[t.id];
+    xs.push(t.x + Math.round(ex.fw/2));
+    ys.push(t.y + Math.round(ex.h/2));
+  });
+  xs.push(Math.round(h.w/2));
+  ys.push(Math.round(h.h/2));
+  return {xs:xs, ys:ys};
+}
+function nearest(v, list){
+  var best = null, bd = SNAP + 1;
+  for(var i = 0; i < list.length; i++){
+    var dd = Math.abs(list[i] - v);
+    if(dd <= SNAP && dd < bd){ bd = dd; best = list[i]; }
+  }
+  return best;
+}
+
+function startDrag(ev, what){
+  st.sel = what;
+  var p = px(ev), e = E();
+  var cur = what.k === "ex" ? [e.exs[what.i].x, e.exs[what.i].y]
+                           : e[what.k][what.i];
+  drag = {what:what, dx:cur[0]-p[0], dy:cur[1]-p[1], raf:0};
+  try{ stage.setPointerCapture(ev.pointerId); }catch(err){}
+  render();
+}
+stage.addEventListener("pointermove", function(ev){
+  var p = px(ev);
+  document.getElementById("read").textContent =
+    "x " + p[0] + "   y " + p[1] + "      " + H().name;
+  if(!drag) return;
+  var e = E(), nx = p[0]+drag.dx, ny = p[1]+drag.dy;
+  drag.gx = drag.gy = null;
+  // A thruster lines up by its CENTRE -- that is the axis the eye reads --
+  // while a mount lines up by the point itself.
+  var ex = drag.what.k === "ex" ? D.exhausts[e.exs[drag.what.i].id] : null;
+  var ox = ex ? Math.round(ex.fw/2) : 0;
+  var oy = ex ? Math.round(ex.h/2) : 0;
+  if(st.snap && !ev.altKey){
+    var t = targets(drag.what);
+    var sx = nearest(nx + ox, t.xs), sy = nearest(ny + oy, t.ys);
+    if(sx !== null){ nx = sx - ox; drag.gx = sx; }
+    if(sy !== null){ ny = sy - oy; drag.gy = sy; }
+  }
+  if(drag.what.k === "ex"){ e.exs[drag.what.i].x = nx;
+                            e.exs[drag.what.i].y = ny; }
+  else { e[drag.what.k][drag.what.i] = [nx, ny]; }
+  if(!drag.raf) drag.raf = requestAnimationFrame(function(){
+    if(drag) drag.raf = 0;
+    render();
+  });
+});
+function endDrag(){
+  if(!drag) return;
+  if(drag.raf) cancelAnimationFrame(drag.raf);
+  drag = null; save(); render(); out();
+}
+stage.addEventListener("pointerup", endDrag);
+stage.addEventListener("pointercancel", endDrag);
+// Bare canvas PANS the view, and deselects if you did not actually drag.
+// Nothing is ever created by clicking, so a stray click can never land a mount
+// under the thruster you were trying to grab.
+var wrap = document.querySelector(".stagewrap");
+var pan = null;
+function startPan(ev){
+  pan = {x:ev.clientX, y:ev.clientY,
+         sl:wrap.scrollLeft, sty:wrap.scrollTop, moved:0};
+  wrap.style.cursor = "grabbing";
+  try{ wrap.setPointerCapture(ev.pointerId); }catch(err){}
+}
+stage.addEventListener("pointerdown", function(ev){ startPan(ev); });
+// Middle button pans from anywhere, including over a mount.
+wrap.addEventListener("pointerdown", function(ev){
+  if(ev.button === 1){ ev.preventDefault(); startPan(ev); }
+});
+wrap.addEventListener("pointermove", function(ev){
+  if(!pan) return;
+  var dx = ev.clientX - pan.x, dy = ev.clientY - pan.y;
+  pan.moved = Math.max(pan.moved, Math.abs(dx) + Math.abs(dy));
+  wrap.scrollLeft = pan.sl - dx;
+  wrap.scrollTop  = pan.sty - dy;
+});
+function endPan(){
+  if(!pan) return;
+  var moved = pan.moved;
+  pan = null;
+  wrap.style.cursor = "";
+  // A press that did not travel was a click, and a click on nothing deselects.
+  if(moved < 4 && st.sel){ st.sel = null; render(); }
+}
+wrap.addEventListener("pointerup", endPan);
+wrap.addEventListener("pointercancel", endPan);
+wrap.addEventListener("pointerleave", endPan);
+
+document.addEventListener("keydown", function(ev){
+  if(ev.target.tagName === "TEXTAREA") return;
+  var k = ev.key, e = E();
+  if(k === "Escape"){ st.sel = null; render(); return; }
+  if(k === "Delete" || k === "Backspace"){
+    if(!st.sel) return;
+    if(st.sel.k === "ex") e.exs.splice(st.sel.i, 1);
+    else e[st.sel.k].splice(st.sel.i, 1);
+    st.sel = null; ev.preventDefault(); save(); render(); out(); return;
+  }
+  if(k === "[" || k === "]"){
+    st.hull = (st.hull + (k==="]"?1:D.hulls.length-1)) % D.hulls.length;
+    st.sel = null; ev.preventDefault(); chips(); render(); return;
+  }
+  var d = {ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[k];
+  if(!d || !st.sel) return;
+  ev.preventDefault();
+  var m = ev.shiftKey ? 8 : 1;
+  if(st.sel.k === "ex"){ var t = e.exs[st.sel.i];
+    if(!t) return; t.x += d[0]*m; t.y += d[1]*m; }
+  else { var q = e[st.sel.k][st.sel.i]; q[0] += d[0]*m; q[1] += d[1]*m; }
+  save(); render(); out();
+});
+
+function chips(){
+  var c = document.getElementById("hullchips");
+  c.innerHTML = D.hulls.map(function(h,i){
+    return '<button data-h="'+i+'"'+(i===st.hull?' aria-pressed="true"':'')+'>'+
+      h.weight[0].toUpperCase()+h.cls+'</button>';
+  }).join("");
+  Array.prototype.forEach.call(c.querySelectorAll("button"), function(b){
+    b.addEventListener("click", function(){
+      st.hull = +b.getAttribute("data-h"); st.sel=null; chips(); render();
+      requestAnimationFrame(recentre); });
+  });
+}
+function palette(){
+  var p = document.getElementById("pal");
+  p.innerHTML = D.exhausts.map(function(x,i){
+    return '<div class="pi" draggable="true" data-i="'+i+'" title="exhaust_'+x.id+
+      '  '+x.fw+'x'+x.h+'"><i style="width:'+x.tw+'px;height:'+x.th+'px;'+
+      'background-image:url(data:image/png;base64,'+x.img+');'+
+      'background-size:'+x.tsw+'px '+x.th+'px"></i><span>'+x.id+'</span></div>';
+  }).join("");
+  Array.prototype.forEach.call(p.querySelectorAll(".pi"), function(pi){
+    pi.addEventListener("dragstart", function(ev){
+      ev.dataTransfer.setData("text/plain", pi.getAttribute("data-i"));
+      ev.dataTransfer.effectAllowed = "copy";
+    });
+    pi.addEventListener("click", function(){
+      var i = +pi.getAttribute("data-i"), h = H(), e = E(), x = D.exhausts[i];
+      e.exs.push({id:i, x:0, y:Math.round((h.h - x.h)/2)});
+      st.sel = {k:"ex", i:e.exs.length-1}; save(); render(); out();
+    });
+  });
+}
+stage.addEventListener("dragover", function(ev){
+  ev.preventDefault(); ev.dataTransfer.dropEffect = "copy"; });
+stage.addEventListener("drop", function(ev){
+  ev.preventDefault();
+  var i = +ev.dataTransfer.getData("text/plain");
+  if(isNaN(i) || !D.exhausts[i]) return;
+  var p = px(ev), x = D.exhausts[i], e = E();
+  e.exs.push({id:i, x:p[0]-Math.round(x.fw/2), y:p[1]-Math.round(x.h/2)});
+  st.sel = {k:"ex", i:e.exs.length-1}; save(); render(); out();
+});
+
+// One object holding everything, for the file. Coordinates are sprite pixels
+// on the PADDED hulls, so `clearance` records how much left margin they carry --
+// subtract it to get back to the bare art.
+function state(){
+  var o = {version:3, clearance:76, hulls:{}};
+  D.hulls.forEach(function(h){
+    var e = edit[h.name];
+    var used = !!e;
+    e = e || {weapon:h.seed.weapon, system:h.seed.system,
+              utility:h.seed.utility, exs:[]};
+    o.hulls[h.name] = {
+      canvas: [h.w, h.h],
+      edited: used,
+      weapon:  e.weapon.map(function(q){ return [Math.round(q[0]), Math.round(q[1])]; }),
+      system:  e.system.map(function(q){ return [Math.round(q[0]), Math.round(q[1])]; }),
+      utility: e.utility.map(function(q){ return [Math.round(q[0]), Math.round(q[1])]; }),
+      thrusters: (e.exs||[]).map(function(t){
+        return {id: D.exhausts[t.id].id, x: t.x, y: t.y}; })
+    };
+  });
+  return o;
+}
+
+// `downloads` may not be served in this view. Resolve once, and if it is
+// absent hide the button rather than offering something that cannot work.
+var dl = null, dlReady = false;
+(function(){
+  function off(){
+    dlReady = true;
+    ["savefile","savetop"].forEach(function(id){
+      var b = document.getElementById(id);
+      if(b) b.style.display = "none";
+    });
+    say("file saving unavailable here \u2014 use copy instead");
+  }
+  if(!window.claude || typeof window.claude.use !== "function"){ off(); return; }
+  window.claude.use("downloads").then(function(ns){
+    dlReady = true;
+    if(ns) dl = ns; else off();
+  }, off);
+})();
+
+function say(m){
+  ["saymsg","saytop"].forEach(function(id){
+    var s = document.getElementById(id);
+    if(!s) return;
+    s.textContent = m;
+    if(m) setTimeout(function(){ if(s.textContent === m) s.textContent = ""; }, 4000);
+  });
+}
+
+function out(){
+  var L = [];
+  L.push("# mount positions, sprite coordinates, per hull");
+  D.hulls.forEach(function(h){
+    var e = edit[h.name] || {weapon:h.seed.weapon, system:h.seed.system,
+                             utility:h.seed.utility};
+    L.push('"' + h.name + '": {');
+    SLOTS.forEach(function(S){
+      L.push("\t" + S + " = [" + e[S].map(function(p){
+        return "Vector2(" + Math.round(p[0]) + ", " + Math.round(p[1]) + ")";
+      }).join(", ") + "],");
+    });
+    L.push("},");
+  });
+  L.push("");
+  L.push("# thruster mapping - hull, exhaust id, offset x, offset y");
+  D.hulls.forEach(function(h){
+    var e = edit[h.name];
+    if(!e || !e.exs) return;
+    e.exs.forEach(function(t){
+      L.push(h.name + "\t" + t.id + "\t" + t.x + "\t" + t.y); });
+  });
+  document.getElementById("out").value = L.join("\n");
+}
+
+function group(sel, fn){
+  var bs = Array.prototype.slice.call(document.querySelectorAll(sel));
+  bs.forEach(function(b){ b.addEventListener("click", function(){
+    bs.forEach(function(o){ o.setAttribute("aria-pressed", o===b?"true":"false"); });
+    fn(b); render(); }); });
+}
+function recentre(){
+  wrap.scrollLeft = (wrap.scrollWidth - wrap.clientWidth) / 2;
+  wrap.scrollTop  = (wrap.scrollHeight - wrap.clientHeight) / 2;
+}
+group("[data-z]", function(b){ st.zoom = +b.getAttribute("data-z");
+  requestAnimationFrame(recentre); });
+group("[data-p]", function(b){ st.pad = +b.getAttribute("data-p");
+  requestAnimationFrame(recentre); });
+function toggle(id, key){
+  var b = document.getElementById(id);
+  b.addEventListener("click", function(){
+    st[key] = !st[key];
+    b.setAttribute("aria-pressed", st[key] ? "true":"false");
+    if(key === "anim") anim();
+    render();
+  });
+}
+toggle("tanim","anim"); toggle("tnum","nums"); toggle("tsnap","snap");
+// Focus mode is a body class rather than the Fullscreen API: a published page
+// runs inside a sandboxed frame and requestFullscreen is not reliably granted
+// there, whereas hiding the furniture always works.
+(function(){
+  var b = document.getElementById("tfocus");
+  b.addEventListener("click", function(){
+    var on = document.body.classList.toggle("focus");
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "focus · exit" : "focus · hide everything else";
+    requestAnimationFrame(recentre);
+  });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "f" && ev.target.tagName !== "TEXTAREA"){ b.click(); }
+  });
+})();
+document.getElementById("exdel").addEventListener("click", function(){
+  var e = E(); if(!e.exs.length) return;
+  e.exs = []; if(st.sel && st.sel.k==="ex") st.sel = null;
+  save(); render(); out(); });
+document.getElementById("excentre").addEventListener("click", function(){
+  var e = E(), h = H();
+  if(!(st.sel && st.sel.k==="ex" && e.exs[st.sel.i])) return;
+  var t = e.exs[st.sel.i], x = D.exhausts[t.id];
+  t.x = 0; t.y = Math.round((h.h - x.h)/2);
+  save(); render(); out(); });
+document.getElementById("revert").addEventListener("click", function(){
+  delete edit[H().name]; st.sel=null; save(); render(); out(); });
+document.getElementById("revertall").addEventListener("click", function(){
+  edit = {}; st.sel=null; save(); render(); out(); });
+document.getElementById("refresh").addEventListener("click", out);
+function saveFile(){
+  if(!dl){ say(dlReady ? "not available here" : "still starting up"); return; }
+  var btns = ["savefile","savetop"].map(function(id){
+    return document.getElementById(id); }).filter(Boolean);
+  btns.forEach(function(b){ b.disabled = true; });
+  function done(){ btns.forEach(function(b){ b.disabled = false; }); }
+  say("waiting for you to accept");
+  dl.save({filename:"rigging.json",
+           data: JSON.stringify(state(), null, 1)}).then(function(){
+    done();
+    var n = Object.keys(edit).length;
+    say("saved all 12 (" + n + " edited) \u2014 tell me and I will read it");
+  }, function(err){
+    done();
+    var c = err && err.code;
+    say(c === "declined" ? "cancelled"
+      : c === "rate_limited" ? "a prompt is already open"
+      : c === "too_large" ? "too large to save"
+      : "could not save (" + (c || "unknown") + ") \u2014 use copy");
+  });
+}
+document.getElementById("savefile").addEventListener("click", saveFile);
+document.getElementById("savetop").addEventListener("click", saveFile);
+document.getElementById("copy").addEventListener("click", function(){
+  var t = document.getElementById("out"), btn = this;
+  t.select();
+  function done(){ btn.textContent="copied"; setTimeout(function(){
+    btn.textContent="copy"; },1400); }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t.value).then(done, function(){
+      try{document.execCommand("copy");done();}catch(e){} });
+  } else { try{document.execCommand("copy");done();}catch(e){} }
+});
+
+function anim(){
+  if(timer){ clearInterval(timer); timer=null; }
+  if(!st.anim) return;
+  timer = setInterval(function(){
+    st.frame = (st.frame+1) % D.n;
+    var e = E();
+    // Every mounted plume, each stepping its own strip. This read e.ex and
+    // querySelector(".plume") when a ship could only carry one; both were wrong
+    // the moment it could carry several, and the first killed it outright.
+    Array.prototype.forEach.call(stage.querySelectorAll(".plume"), function(p){
+      var t = e.exs[+p.getAttribute("data-t")];
+      if(!t) return;
+      p.style.backgroundPosition =
+        (-st.frame * D.exhausts[t.id].fw * st.zoom)+"px 0";
+    });
+  }, 80);
+}
+
+load(); chips(); palette(); render(); out(); anim();
+requestAnimationFrame(recentre);
+})();
+</script>
