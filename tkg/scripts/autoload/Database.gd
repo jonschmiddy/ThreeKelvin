@@ -828,6 +828,21 @@ func _seed_modules() -> void:
 	# worth, so a ship that gives half its mounts to couplings has bought itself
 	# about one extra weapon and has nowhere left to put it.
 	#
+	# THE ATTRIBUTE LADDER DOES NOT GOVERN THESE, and that is a ruling. Every
+	# other passive in the game takes its size from the part grade; capacity does
+	# not, and the nets are nearly flat across all five — +1, +2, +2, +2, +2.
+	#
+	# Capacity is a BUDGET rather than power. A legendary plate giving three times
+	# a common one gives you more hull; a legendary coupling giving three times a
+	# common one changes how much SHIP you can hold, which compounds through every
+	# part you fit afterwards. Same number, much bigger swing, so the ladder stops
+	# at the reactor door.
+	#
+	# ALWAYS READ THE NET. The grant alone means nothing: a 4-cell armature
+	# granting 6 leaves room for 2, which is exactly what a 1-cell cable granting
+	# 3 leaves. Printing the grant made the armature look like three times the
+	# cable, and somebody asked why, which is how the display got fixed.
+	#
 	# CAPACITY ONLY, NEVER OUTPUT. None of them hands out energy per turn. Energy
 	# is the axis every card is priced against — three of it plays two cards and
 	# five plays four — so it stays with the hull, the `overspec_reactor` perk and

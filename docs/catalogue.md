@@ -452,6 +452,30 @@ could have held a gun. Two cells is the ceiling — one small part's worth — s
 ship that gives half its mounts to couplings has bought about one extra weapon
 and has nowhere left to put it. **Gate:** nothing may net more than +2.
 
+**The net is nearly flat on purpose, and grade does not decide it.** This is
+the one passive in the game the attribute ladder (§13) does not govern, and the
+exception is a ruling rather than an oversight:
+
+| Part | Grade | Grant | Cells | **Net** |
+| --- | --- | --- | --- | --- |
+| Bus Coupling | Common | +3 | 2 | **+1** |
+| Jumper Cable | Uncommon | +3 | 1 | **+2** |
+| Salvaged Trunk Line | Uncommon | +5 | 3 | **+2** |
+| Foundry Bus | Rare | +4 | 2 | **+2** |
+| Main Bus Armature | Rare | +6 | 4 | **+2** |
+
+Capacity is a **budget**, not power. A legendary plate giving three times a
+common one gives you more hull; a legendary coupling giving three times a common
+one changes *how much ship you can hold*, which compounds through every other
+part you then fit. That is a much bigger swing for the same number, and it is
+why the ladder stops at the reactor's door.
+
+**Always read the net.** A part that grants capacity also occupies it, so the
+grant on its own is meaningless — a 4-cell armature granting 6 leaves room for 2,
+which is exactly what a 1-cell cable granting 3 leaves. The manifest printed the
+grant for one commit and it made the armature read as three times the cable when
+they are the same part in effect. `-- reactor` and the manifest both show net now.
+
 **Capacity only, never output.** A module that handed out energy per turn would
 be the strongest card in the game with no card attached. That lever stays with
 the hull, the `overspec_reactor` perk and the Verity five-set, where there are

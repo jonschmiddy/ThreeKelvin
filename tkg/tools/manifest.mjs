@@ -159,8 +159,16 @@ function passiveLine(m) {
     bits.push('<span class="loss">' + GAUGE[m.cost_axis] + ' −' + m.cost_pips
       + '</span>');
   }
-  if (m.power_cap) bits.push('<span class="gain">REACTOR +' + m.power_cap
-    + ' <em>cells</em></span>');
+  // NET, NOT GROSS. A part that grants capacity also OCCUPIES it, so a 4-cell
+  // armature granting 6 leaves room for 2 — exactly what a 1-cell cable granting
+  // 3 leaves. Printing the 6 made the armature read as three times the cable
+  // when they are the same part in effect, and it is the number a player would
+  // have to do arithmetic to stop believing.
+  if (m.power_cap) {
+    const net = m.power_cap - m.cells;
+    bits.push('<span class="' + (net > 0 ? 'gain' : 'nil') + '">REACTOR '
+      + (net >= 0 ? '+' : '') + net + ' <em>cells, net</em></span>');
+  }
   return bits.length ? '<p class="passive">' + bits.join('') + '</p>' : '';
 }
 
@@ -215,7 +223,9 @@ const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.power_cap)
       + esc(m.rarity) + '</span></td>'
       + '<td class="c-text">' + (m.axis ? GAUGE[m.axis]
         : (m.power_cap ? 'REACTOR <em>cells</em>' : '—')) + '</td>'
-      + '<td class="c-cnt">' + (m.power_cap ? '+' + m.power_cap
+      + '<td class="c-cnt">' + (m.power_cap
+        ? (m.power_cap - m.cells >= 0 ? '+' : '') + (m.power_cap - m.cells)
+          + ' <em>(' + m.power_cap + ' − ' + m.cells + ')</em>'
         : (m.pips ? '+' + m.pips : '0')) + '</td>'
       + '<td class="c-from">' + (m.cost_axis
         ? GAUGE[m.cost_axis] + ' −' + m.cost_pips : '') + '</td></tr>';
