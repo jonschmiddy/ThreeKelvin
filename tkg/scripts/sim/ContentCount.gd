@@ -101,8 +101,15 @@ func _dump() -> void:
 		# THE GAUGE IT MOVES, and by how much. Both halves, because a part can
 		# grant on one axis and be priced on another, and a page that showed only
 		# the grant would say a Voidwhale Ganglion is free.
-		var axis: String = String(DB.PASSIVE_AXIS.get(id, &""))
-		var pips: int = DB.ATTR_BUMP[int(m.rarity)] if axis != "" else 0
+		# A LIST, since a part may name two gauges. It was String() on the raw
+		# value, which quietly stringified the array into "[\"hull\"]" the moment
+		# parts stopped having exactly one — the export kept working and every page
+		# reading it stopped grouping.
+		var axes: Array = []
+		for raw in DB.PASSIVE_AXIS.get(id, []):
+			axes.append(String(raw))
+		var axis: String = String(axes[0]) if not axes.is_empty() else ""
+		var pips: int = DB.ATTR_BUMP[int(m.rarity)] if not axes.is_empty() else 0
 		var cost_axis := ""
 		var cost_pips := 0
 		if DB.PASSIVE_COST.has(id):
@@ -119,7 +126,7 @@ func _dump() -> void:
 			rarity = ModuleData.rarity_name(m.rarity),
 			w = f.x, h = f.y, cells = m.cells(),
 			flavour = m.flavour,
-			axis = axis, pips = pips,
+			axis = axis, axes = axes, pips = pips,
 			cost_axis = cost_axis, cost_pips = cost_pips,
 			reactor = m.reactor,
 			cards = cards,

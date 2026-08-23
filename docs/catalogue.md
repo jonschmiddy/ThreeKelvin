@@ -671,21 +671,46 @@ Standing artifact: **Yard Manifest**, republished in place each time.
 
 ## §16 Where it stands
 
-    korvan          19 parts   30 cards   want 40   short 10
-    (unbranded)     13         12         want 20   short  8
-    solari           6          6         want 40   short 34
-    probate          6          6         want 40   short 34
-    redline          6          6         want 40   short 34
+    korvan          25 parts   40 cards   want 40   done
+    (unbranded)     18         20         want 20   done
+    solari           7          7         want 40   short 33
+    probate          7          8         want 40   short 32
+    redline          7          7         want 40   short 33
     cygnet           4          4         want 40   short 36
     verity           5          5         want 40   short 35
     calyx            4          4         want 40   short 36
     malfunctions     -         16         want 15   done
 
-    73 unique cards across 63 modules; 227 still to write
+    95 unique cards across 77 modules; 205 still to write
 
-A card counts toward the first house that uses it, so the eight shared cards are
+A card counts toward the first house that uses it, so the ten shared cards are
 counted once. Both `-- content` and the manifest do it that way; two answers to
 one question is how a number stops being believed.
 
-The six untouched houses are the work: 209 cards, and 97% of their parts are
-still pairs.
+**Korvan and the unbranded stock are finished.** The five houses left are the
+work: 205 cards, and their parts are still 97% pairs against a one-in-four
+target.
+
+### The gauge ladder, and what is still missing
+
+Every gauge should be reachable at +1, +2, +3 and +4. A rung nobody can buy is a
+rung that does not exist, and a player building for an attribute finds that out
+by not finding the part.
+
+| gauge | +1 | +2 | +3 | +4 |
+| --- | --- | --- | --- | --- |
+| HULL | Brace Frame | Bulkhead Array, Standfast Rig | Reactive Plating | Precursor Keel |
+| THERMAL | Thermal Purge, Blowout Panel | Standfast Rig | Cryogenic Battery | Cold Sepulchre |
+| MANEUVER | — | — | — | Singing Core |
+| SENSORS | Cold Sights, Evoke Node | Gunnery Table | Fire Director | Oracle Shard |
+| STEALTH | Ghost Drive | — | — | Precursor Lattice |
+
+**Maneuver +1/+2/+3 and stealth +2/+3 are open on purpose.** Korvan is heavy,
+slow and loud; unbranded yard stock is common and gives nothing, and its relics
+already hold the +4s. Those rungs belong to **Redline** (dodge, stealth) and
+**Cygnet**. Writing a nimble Korvan part to fill a table would be the Spinal
+Mount mistake again — a card that contradicts its house is a bug even when the
+numbers are fine (§4).
+
+Exotic and Artifact are unbranded by definition, so **the top of every ladder is
+the yard's problem and nobody else's**. Three of the five had no +4 at all.

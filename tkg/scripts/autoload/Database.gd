@@ -818,6 +818,62 @@ func _seed_modules() -> void:
 		"Foam, tape, and a prayer to whoever welded the frame.",
 		[{name = "Patch", energy = 1, heal = 1, heal_scale = 5, copies = 1}])
 
+
+	# --- Korvan: the top of the thermal and sensor ladders, and brass on the deck
+	#
+	# THE LADDER HAD HOLES IN IT. Every gauge is supposed to be reachable at +1,
+	# +2, +3 and +4, and thermal stopped at +2 while sensors skipped +2 entirely.
+	# A rung nobody can buy is a rung that does not exist, and a player building
+	# for an attribute finds that out by not finding the part.
+	_module(&"cryobat", "Cryogenic Battery", &"korvan", S, C4,
+		"A tank of cold. Korvan does not cool the gun down, it starts the gun\n"
+		+ "colder, which is the same trick done earlier and cheaper.",
+		[{name = "Cold Store", energy = 1, vent = 6, armor = 8},
+			{name = "Dead Cold", energy = 2, vent_all = true, armor = 12}])
+	_module(&"gunnery", "Gunnery Table", &"korvan", U, C3,
+		"Somebody worked the problem before the shooting started. That is the\n"
+		+ "whole advantage and it is enormous.",
+		[{name = "Fire Solution", energy = 0, lock_on = 8, draw = 1},
+			{name = "Range Card", energy = 1, damage = 7, lock_on = 3}])
+	# DISCARD, and three parts of it, because the verb had four cards in the whole
+	# catalogue and two of those were Redline's. A deck that cannot throw anything
+	# away is a deck that draws its malfunctions forever.
+	_module(&"brass", "Brass Catcher", &"korvan", U, C1,
+		"Spent casings go somewhere. On a Korvan boat they go into a bin, and the\n"
+		+ "bin is on the manifest.",
+		[{name = "Clear the Breech", energy = 0, discard = 2, damage = 6}, &"sort"])
+	_module(&"hoist", "Ammunition Hoist", &"korvan", S, C2,
+		"Feeds the guns from below. What it feeds them is whatever is nearest.",
+		[{name = "Rack and Load", energy = 1, discard = 1, damage = 4, hits = 2,
+			salvo = 2},
+			{name = "Spent Brass", energy = 0, discard = 1, energy_gain = 1}])
+	_module(&"gantry", "Loading Gantry", &"korvan", S, C1,
+		"Nothing about it is clever. It is a chain and a rail and it never stops.",
+		[{name = "Chain Feed", energy = 1, salvo = 3, draw = 1}, &"feed"])
+
+	# --- Unbranded: the artifact rungs, which are the only place a +4 can live
+	#
+	# Exotic and Artifact are unbranded by definition, so the top of every ladder
+	# is the yard's problem and nobody else's. Three of the five gauges had no +4
+	# at all.
+	_module(&"keel", "Precursor Keel", &"", S, C6,
+		"It is not attached to the hull. The hull is attached to it.",
+		[{name = "Keelbound", energy = 1, armor = 14},
+			{name = "Unmade", energy = 2, armor = 10, block = 10, draw = 1}])
+	_module(&"sepulchre", "Cold Sepulchre", &"", S, C6,
+		"Whatever it was built to keep cold is still in there, and still cold.",
+		[{name = "Absolute", energy = 1, vent = 12, draw = 2},
+			{name = "Long Cold", energy = 0, vent = 6, armor = 8}])
+	_module(&"oracle", "Oracle Shard", &"", U, C6,
+		"It tells you where the shot goes. It does not tell you how it knows, and\n"
+		+ "the archive has three riders about not asking.",
+		[{name = "Foreknowledge", energy = 0, lock_on = 10, draw = 2},
+			{name = "Auspice", energy = 1, damage = 8, lock_on = 6}])
+	_module(&"ejector", "Ejector Rail", &"", U, C0,
+		"A rail, a hatch, and the dark. Yard stock, and the most honest thing in\n"
+		+ "the catalogue.",
+		[{name = "Overside", energy = 0, discard = 2, heal = 2}, &"scuttle"])
+
 	# --- Reactor capacity: the parts that let you run the other parts
 	#
 	# A hull's REACTOR LEVEL decides the cells of hardware it can carry, and these
@@ -937,7 +993,7 @@ func _seed_module_sizes() -> void:
 	var bulky: Array[StringName] = [
 		&"dronebay", &"ripper", &"singing",
 		&"reactive", &"bulkhead", &"verity", &"lattice", &"braceframe", &"slag",
-		&"refinery", &"organ", &"mainbus",
+		&"refinery", &"organ", &"mainbus", &"cryobat", &"keel", &"sepulchre",
 	]
 	# Utility that is a piece of EQUIPMENT rather than an instrument.
 	var util_units: Array[StringName] = [
@@ -1012,7 +1068,7 @@ const REACTOR_BUMP := 2
 ## WHICH GAUGE A PART MOVES. The size is not here — it comes from the grade,
 ## through ATTR_BUMP and RunState.PER_PIP. This table only answers "which one".
 ##
-## ONE GAUGE EACH, which is the change. Cold Sights used to carry vent AND
+## ONE GAUGE FOR MOST PARTS, AND TWO FOR A FEW. Cold Sights used to carry vent AND
 ## sensors, Ghost Drive dodge AND stealth, the Fire Director initiative AND
 ## sensors — so "a rare part is worth one pip" could not be true of any of them,
 ## and a part quietly moving two gauges was worth double its grade with nothing
@@ -1024,21 +1080,34 @@ const REACTOR_BUMP := 2
 ## gun is not a claim about any of the six.
 const PASSIVE_AXIS := {
 	# Plate, bracing, armour.
-	&"plating": &"hull", &"bracing": &"hull", &"plate": &"hull",
-	&"reactive": &"hull", &"sinkplate": &"hull", &"braceframe": &"hull",
-	&"bulkhead": &"hull",
+	&"plating": [&"hull"], &"bracing": [&"hull"], &"plate": [&"hull"],
+	&"reactive": [&"hull"], &"sinkplate": [&"hull"], &"braceframe": [&"hull"],
+	&"bulkhead": [&"hull"],
 	# Heat: how much you hold and how fast you lose it, which is ONE gauge.
-	&"shroud": &"thermal", &"overdrive": &"thermal", &"ventcan": &"thermal",
-	&"coolant": &"thermal", &"coolline": &"thermal", &"sporevent": &"thermal",
+	&"shroud": [&"thermal"], &"overdrive": [&"thermal"], &"ventcan": [&"thermal"],
+	&"coolant": [&"thermal"], &"coolline": [&"thermal"], &"sporevent": [&"thermal"],
+	# A blowout panel is a door that lets the pressure out. It was carrying no
+	# gauge at all, which for a part whose entire job is relief was an omission.
+	&"blowout": [&"thermal"],
 	# Not being hit and going first, which is also one gauge.
-	&"chaff": &"maneuver", &"singing": &"maneuver", &"servo": &"maneuver",
+	&"chaff": [&"maneuver"], &"singing": [&"maneuver"], &"servo": [&"maneuver"],
 	# Seeing.
-	&"auspex": &"sensors", &"board": &"sensors", &"scope": &"sensors",
-	&"optics": &"sensors", &"coldsights": &"sensors", &"director": &"sensors",
-	&"evoke": &"sensors", &"organ": &"sensors",
+	&"auspex": [&"sensors"], &"board": [&"sensors"], &"scope": [&"sensors"],
+	&"optics": [&"sensors"], &"coldsights": [&"sensors"], &"director": [&"sensors"],
+	&"evoke": [&"sensors"], &"organ": [&"sensors"],
 	# Not being seen.
-	&"ghost": &"stealth", &"lattice": &"stealth",
+	&"ghost": [&"stealth"], &"lattice": [&"stealth"],
+	# TWO GAUGES, AND THE FULL BUMP ON BOTH. A part that does two things gets
+	# paid for two things — Pillar 5, and the reason a build that comes together
+	# should feel absurd. The Standfast Rig grants Standfast (armour AND vent) and
+	# Hold Fast; it plants you and it sheds what planting costs, and it was
+	# reading as neither.
+	&"standfast": [&"hull", &"thermal"],
+	# The rungs that had nobody on them.
+	&"cryobat": [&"thermal"], &"gunnery": [&"sensors"],
+	&"keel": [&"hull"], &"sepulchre": [&"thermal"], &"oracle": [&"sensors"],
 }
+
 
 ## WHAT A PART COSTS YOU, in pips, on a gauge that is not its own.
 ##
@@ -1068,7 +1137,8 @@ const PASSIVE_COST := {
 func _seed_module_passives() -> void:
 	for id in PASSIVE_AXIS:
 		var m: ModuleData = modules[id]
-		_lay_pips(m, PASSIVE_AXIS[id], ATTR_BUMP[int(m.rarity)])
+		for axis in PASSIVE_AXIS[id]:
+			_lay_pips(m, axis, ATTR_BUMP[int(m.rarity)])
 	for id in PASSIVE_COST:
 		var row: Array = PASSIVE_COST[id]
 		_lay_pips(modules[id] as ModuleData, row[0], -int(row[1]))

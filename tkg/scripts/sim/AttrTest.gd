@@ -41,17 +41,18 @@ func run() -> void:
 	print("\n  %-22s %-10s %-8s %6s %6s" % ["part", "grade", "axis", "want", "got"])
 	var bad: Array[String] = []
 	for id in DB.PASSIVE_AXIS:
-		var axis: StringName = DB.PASSIVE_AXIS[id]
-		var m: ModuleData = DB.modules[id]
-		var want: int = DB.ATTR_BUMP[int(m.rarity)]
-		var got := _measure(id, ON[axis])
-		var mark := ""
-		if got != want:
-			mark = "   OFF"
-			bad.append("%s (%s, %s): promised %+d, moved %+d"
-				% [m.name, ModuleData.rarity_name(m.rarity), axis, want, got])
-		print("  %-22s %-10s %-8s %6d %6d%s"
-			% [m.name, ModuleData.rarity_name(m.rarity), axis, want, got, mark])
+		for raw in DB.PASSIVE_AXIS[id]:
+			var axis: StringName = raw
+			var m: ModuleData = DB.modules[id]
+			var want: int = DB.ATTR_BUMP[int(m.rarity)]
+			var got := _measure(id, ON[axis])
+			var mark := ""
+			if got != want:
+				mark = "   OFF"
+				bad.append("%s (%s, %s): promised %+d, moved %+d"
+					% [m.name, ModuleData.rarity_name(m.rarity), axis, want, got])
+			print("  %-22s %-10s %-8s %6d %6d%s"
+				% [m.name, ModuleData.rarity_name(m.rarity), axis, want, got, mark])
 
 	# The prices, which are on the ladder's other side and are authored per part.
 	print("")

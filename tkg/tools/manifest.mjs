@@ -156,8 +156,10 @@ function cardLine(c) {
 // Those are different facts about a Hull Plating.
 function passiveLine(m) {
   const bits = [];
-  if (m.axis) {
-    bits.push('<span class="' + (m.pips ? 'gain' : 'nil') + '">' + GAUGE[m.axis]
+  // ONE CHIP PER GAUGE. A part may name two and is worth the full bump on both,
+  // so printing only the first would understate exactly the parts worth finding.
+  for (const a of (m.axes || (m.axis ? [m.axis] : []))) {
+    bits.push('<span class="' + (m.pips ? 'gain' : 'nil') + '">' + GAUGE[a]
       + ' ' + (m.pips >= 0 ? '+' : '') + m.pips + '</span>');
   }
   if (m.cost_axis) {
@@ -221,14 +223,15 @@ const sizeSections = [1, 2, 3, 4].map(n => {
     + '<div class="grid">' + parts.map(partCard).join('') + '</div></section>';
 }).join(NL);
 
-const passiveRows = MODS.filter(m => m.axis || m.cost_axis || m.reactor)
+const passiveRows = MODS.filter(m => (m.axes && m.axes.length) || m.cost_axis || m.reactor)
   .sort((a, b) => (b.pips + (b.power_cap ? 1 : 0)) - (a.pips + (a.power_cap ? 1 : 0))
     || a.name.localeCompare(b.name))
   .map(m => {
     return '<tr><td class="c-name">' + esc(m.name) + '</td>'
       + '<td class="c-rar"><span class="r-' + slug(m.rarity) + '">'
       + esc(m.rarity) + '</span></td>'
-      + '<td class="c-text">' + (m.axis ? GAUGE[m.axis]
+      + '<td class="c-text">' + ((m.axes && m.axes.length)
+        ? m.axes.map(a => GAUGE[a]).join(' <em>+</em> ')
         : (m.reactor ? 'REACTOR <em>cells</em>' : '—')) + '</td>'
       + '<td class="c-cnt">' + (m.reactor
         ? '+' + m.reactor + ' <em>(' + (m.reactor * REACTOR_CELLS - m.cells)
