@@ -7,7 +7,8 @@ Generation happens through the PixelLab MCP server in Claude Code. **Never**
 `create_character` or `animate_character` — those are a skeleton-rigged humanoid pipeline
 and ships are not characters. Use `create_image_pixflux` to iterate (1 generation),
 `create_image_pro` to finalise (20–40), `inpaint_image` to fix one region. Full mechanics
-in `PIXELLAB_WORKFLOW.md`. Tool names may be bare or prefixed `mcp__pixellab__*`.
+in `PIXELLAB_WORKFLOW.md`, and the worked recipe for engine plumes is in
+`EXHAUST_PIPELINE.md`. Tool names may be bare or prefixed `mcp__pixellab__*`.
 
 ---
 
@@ -49,7 +50,7 @@ worked around.
 **What decided it**, from thirteen generated candidates across three cameras:
 
 - **Legibility at 1×.** The edge-on candidates read at native size. The 3/4 ones
-  went muddy and only resolved when blown up to 3×. The game renders at 640×360.
+  went muddy and only resolved when blown up to 3×. The game renders at 960×540.
   Judging sprites zoomed in is how you ship art that is mush in play.
 - **Module compositing, which `ASSET_PIPELINE.md` already names as the hard
   part**: a module generated in isolation must share the hull's camera and
@@ -105,14 +106,24 @@ generating that faction's modules.
 
 ## 4. Sprite sizes
 
-**Every dimension below is divisible by 4.** PixelLab rejects anything else — 262×156 was
-rejected live, 260×156 works. Do not "round up for detail"; you will waste a generation.
+**The divisible-by-4 rule is real but size-dependent, and it is not in any schema.**
+`create_image_pixen` documents it: each side a multiple of 4. `create_image_pixflux`
+(16–400 per side, area ≥ 1024) does not document it and does not always enforce it —
+150×60 is accepted, 200×80 is accepted, but **250×100 is rejected** with
+`Use 248x100 instead`. `create_image_pro` accepted 250×100. All three facts are measured
+live, not read off a schema.
+
+Because the rule cannot be predicted, **do not derive a size and generate blind.** The
+heavy hull is authored at **248×100** — two pixels short of 2× the box — for this reason
+and no other. This document has been wrong on this point in both directions: first stating
+the rule as universal (hulls generated at 152 and 252, trimmed for nothing), then stating
+it as pixen-only (heavy rejected outright).
 
 | Asset | Size | Notes |
 |---|---|---|
-| Light hull | 220 × 128 | Short, shallow flank, 2 vents |
-| Medium hull | 260 × 156 | 3 vents — **the canonical style reference** |
-| Heavy hull | 300 × 188 | Long, deep flank, 4 vents |
+| Light hull | **150 × 60** | short, shallow flank, **2 vents**; on a 236 × 82 canvas |
+| Medium hull | **200 × 80** | **3 vents** — **the canonical style reference**; on a 286 × 102 canvas |
+| Heavy hull | **248 × 100** | long, deep flank, **4 vents**; on a 336 × 122 canvas. 248, not 250 — pixflux rejects 250 |
 | Weapon module | 88 × 32 | Housing plus barrel, in profile; sits on the dorsal or ventral line |
 | System module | 32 × 20 | Low blister in profile, still needs a light-to-dark break |
 | Utility module | 20 × 28 | Mast, dish or pod rising off the spine |
@@ -121,15 +132,40 @@ rejected live, 260×156 works. Do not "round up for detail"; you will waste a ge
 | Station | 200 × 240 | Vertical, lit windows with interior silhouettes |
 | Card illustration | 104 × 44 | **Per module, not per card** — see below |
 
-Native game resolution is ~640×360, integer-scaled. Sprites are authored at 1x.
+Native game resolution is **960×540**, presented in a 1920×1080 window — so the
+whole frame is integer-scaled by 2 and one art pixel is a 2×2 block on a 1080p
+display. Read that number off `project.godot`, never off this file: the docs said
+640×360 in six places while the project said otherwise, and the difference matters
+because it changes what fraction of the screen a sprite occupies. A 200px hull is
+21% of 960, and would have been 31% of 640.
 
-These are the dimensions of the files actually in `art/sprites/`, verified by measurement.
-Two further constraints make them non-negotiable rather than approximate:
+Sprites are authored at **2× their box** and drawn at 1×. See below.
 
+**The hull sizes come from `art/tools/boxes.py`, doubled.** That file is the spec — the
+box a hull occupies on screen was settled by putting boxes on screen and measuring them
+against the panel. Its `SPEC` is `75×30 / 100×40 / 125×50`, drawn at 2x, on a canvas of
+`LEFT + box + RIGHT` by `box + VPAD` with `LEFT, RIGHT, VPAD = 38, 5, 11`. Every number
+in the table above is that arithmetic times two.
+
+**A box size is a LAYOUT measurement, not an authoring resolution.** This is the trap the
+table used to set. Authoring at the box size (100×40) and drawing at 2x gives the same
+footprint with a quarter of the pixels — 4,000 against the old reference's 16,544 — and
+the detail density this contract calls its whole thesis physically does not fit in a hull
+28 pixels tall. So hulls are authored at **2x the box and drawn at 1x**: identical screen
+area, four times the detail. The old 220×128 / 260×156 / 300×188 figures in this table
+predate the box spec entirely and were simply wrong.
+
+- **Generate at 2× the box, except where the tool refuses.** 150×60, 200×80, **248×100**.
+  No rounding beyond that, and no trimming afterwards. If a new size is ever needed, request
+  it once and read the error — the tool names the size it wants.
 - **`init_image` must exactly match the output size.** Generating the medium hull from
-  `hull_medium_cold.png` therefore *must* request 260×156 — no other value is valid.
-- **Hulls stay ≤300px wide** so `animate_image` (256px cap) remains usable after a small
-  crop. See `ASSET_PIPELINE.md`.
+  `hull_medium_cold.png` therefore *must* request 200×80 — no other value is valid. It also
+  means a light or heavy hull **cannot** take the 200×80 reference as an `init_image` at
+  all. For those use `create_image_pro`'s `reference_images`, which reads sizes from the
+  images and crosses the gap; pixflux's `color_image_url` accepts any size too but carries
+  palette only, not structure.
+- **Hulls stay ≤336px wide** so `animate_image` (256px cap) remains usable after a crop.
+  See `ASSET_PIPELINE.md`.
 
 ---
 

@@ -198,7 +198,7 @@ The roster of seven:
 - **Objects are genuinely lush.** Weathered plating, stencilled hull numbers, decals, lit viewports with tiny interior detail, station windows with warm interior light and silhouettes moving inside, barnacles and scars on megafauna. Spend the pixel budget here.
 - **Warm/cold survives as lighting logic, not a saturation cap.** Objects are richly coloured but *coldly lit*, with warm rim light from your own reactor and engines. Your heat glow reads because it's the only *self-emitted* warmth in frame.
 - **Heat still drives the hull.** Cold and dark at 0; ember vents along the spine as it climbs; past capacity the ship is the brightest object on screen while taking damage. Warmth = life = danger.
-- **Resolution:** mid-res pixel art, native ~640×360 (integer-scales cleanly). Ship sprites ~180–220px so there's room for real detail. Modules snap to standardised mirrored hardpoint anchors.
+- **Resolution:** mid-res pixel art, native 960×540, shown at 1920×1080 (×2, integer). Ship sprites 150–248px wide so there's room for real detail. Modules snap to standardised mirrored hardpoint anchors.
 - **Silhouette reads chassis; modules read faction.** Hull outline communicates weight class (light frames narrow and open, heavy frames broad and slab-sided). Manufacturer identity lives in module shape language and palette accents: Korvan slabs/rivets/oversized barrels; Cygnet thin frames and antennae; Veyra continuous curves; Calyx too-organic symmetry.
 - **Melancholy comes from composition:** small ship, vast frame, generous negative space, sparse animation with strong impact effects.
 - **Cards: hybrid UI.** Pixel art inside card frames, clean vector type on top — readability and localisation-proofing over purism.

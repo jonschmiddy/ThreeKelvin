@@ -250,7 +250,7 @@ ImageMagick, so it "succeeds" and does nothing).
 3. **Judge at 1x.** Build a contact sheet showing each candidate at native size
    *first*, 3x second. The camera decision on this project was settled by that
    ordering: the 3/4 candidates only resolved when enlarged, and the game
-   renders at 640x360.
+   renders at 960x540.
 4. **Chain from the winner.** PixelLab download URLs need no auth and are valid
    `init_image_url` inputs, so the next round seeds from the last result. No
    GitHub round-trip.

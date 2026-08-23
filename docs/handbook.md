@@ -129,7 +129,8 @@ everything in it is rendered with obsessive care.
 - **Warm/cold is lighting logic, not a saturation cap.** Objects are richly coloured but
   coldly lit, with warm rim light from your own reactor. Heat glow reads because it is the
   only *self-emitted* warmth in frame.
-- Native ~640×360, integer scaling. Ship sprites ~180–220px so detail has room.
+- Native 960×540 in a 1920×1080 window — integer scaling, ×2. Ship sprites are
+  150×60, 200×80 and 248×100, authored at twice their on-screen box.
 - **Silhouette reads chassis; modules read faction.** Hull outline = weight class.
   Manufacturer identity = module shape language and palette accents.
 - Melancholy comes from composition: small ship, vast frame, negative space, sparse
@@ -147,7 +148,11 @@ uniform.
 
 Pixel art is generated via the **PixelLab MCP server** (tool names may be bare or prefixed
 `mcp__pixellab__*`). If those tools are not available, say so — do not fall back to curl or
-the REST API. Full mechanics in `docs/art/PIXELLAB_WORKFLOW.md`.
+the REST API. Full mechanics in `docs/art/PIXELLAB_WORKFLOW.md`. For engine plumes specifically —
+generate, strip, erode, animate, install — `docs/art/EXHAUST_PIPELINE.md` is the worked
+end-to-end recipe, and `art/tools/plume_pipe.py` is the code. To place mounts and
+thrusters on a maker's hulls, `art/tools/rig_bench.py <maker>` builds an interactive
+page for it and `art/tools/read_rig.py` reads the result back.
 
 **Do NOT use `create_character` / `animate_character`** — that is a skeleton-rigged
 humanoid/quadruped pipeline. Ships are not characters. Use instead:
@@ -170,7 +175,13 @@ be divisible by 4, and `init_image` must exactly match the output size.
 for anything full-size.
 
 Pass `art/sprites/palette_three_kelvin.png` as `color_image_url` to force the game palette —
-stronger than describing colours in text. Prefer image **URLs** over inline base64: MCP
+stronger than describing colours in text. **But not when the result has to be stripped
+afterwards.** Every roll welds hardware onto a sprite, and the filters that remove it work
+by colour; forcing a palette repaints the intruder to match and makes it unremovable. That
+cost twelve generations on the exhaust plumes before anyone noticed the "flame" had a
+rocket in it. Generate unforced, strip, then snap — `docs/art/EXHAUST_PIPELINE.md`.
+
+Prefer image **URLs** over inline base64: MCP
 clients truncate large base64 and corrupt the image. `init_image_strength` is inverted —
 higher preserves more of the input (500 barely changes it, 150 is a real edit).
 
@@ -493,10 +504,11 @@ set live in `art/ui/` — read `art/ui/README.md` before touching UI code.
 
 Decided, do not silently reverse:
 
-- **Pixel art UI on a 2px grid** — a 640x360 canvas drawn at 2x, with an 8px
+- **Pixel art UI on a 2px grid** — a 960x540 canvas drawn at 2x, with an 8px
   bitmap face used at 16px so type and chrome share one pixel density.
-- **Integer scaling only.** 640x360 at 3x is exactly 1920x1080. Fractional
-  scaling resamples glyphs and looks blurry.
+- **Integer scaling only.** 960x540 at 2x is exactly 1920x1080. Fractional
+  scaling resamples glyphs and looks blurry. It is also why a ship has exactly
+  two sizes and not a range — see HullData.sprite_half.
 - **Font antialiasing off**, texture filtering `Nearest`. This reverses a change
   made while the UI used a vector font; a bitmap face at integer scale must not
   be smoothed.

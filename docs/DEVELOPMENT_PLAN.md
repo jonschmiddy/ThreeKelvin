@@ -104,11 +104,26 @@ content that does not exist.
 `card-design.md` §4 freezes hand scale at **96×130** and inspect at
 **192×260**. `CardView.gd` is at **132×150**.
 
-This is not a preference. At 640×360 native, five cards at 96px wide is
-480px and fits; five at 132px is **660px and does not fit on the
-screen**. The doc's number is right and the code is wrong. Every card
-sprite, the fan layout, and the inspect view inherit this, so it should
-be settled before any card art is commissioned.
+**This paragraph's arithmetic was wrong and its conclusion needs redeciding.**
+It read: *"At 640×360 native, five cards at 96px wide is 480px and fits; five at
+132px is 660px and does not fit on the screen. The doc's number is right and the
+code is wrong."*
+
+The game is not 640×360. `project.godot` says **960×540**, and has for as long as
+anyone has looked. At the real width:
+
+| five cards at | total | of 960 |
+|---|---|---|
+| 96px (`card-design.md`) | 480px | 50% |
+| 132px (`CardView.gd`) | 660px | 69% |
+
+Both fit. The reason given for calling the code wrong does not exist, so the
+conflict between 96 and 132 is now an open design question about how much of the
+screen a hand should occupy — not a bug with a known answer. Settle it by putting
+both on screen, the same way the hull box sizes were settled.
+
+Every card sprite, the fan layout and the inspect view still inherit whichever
+number wins, so it should be settled before any card art is commissioned.
 
 ### B3 — Two incompatible manufacturer palettes ■ major
 `Database.gd` and `manufacturer-identity.md` disagree on all seven
