@@ -908,20 +908,14 @@ func _seed_modules() -> void:
 		"A second line to the same reactor. On every ship that ever left a yard.",
 		[{name = "Shunt", energy = 1, vent = 2, draw = 1}, &"reroute"])
 	_module(&"foundrybus", "Foundry Bus", &"solari", S, C2,
-		"Solari runs power the way Solari runs everything: hot, and with the
-"
-		+ "covers off so you can watch it.",
+		"Hot, and with the covers off so you can watch.",
 		[{name = "Cold Start", energy = 0, vent = 4, energy_gain = 1}, &"vent"])
 	_module(&"trunkline", "Salvaged Trunk Line", &"probate", S, C1,
-		"Pulled from something that had stopped needing it. The Combine does not
-"
-		+ "ask what, and the rider says you agreed not to either.",
+		"Pulled from something that stopped needing it.",
 		[{name = "Cannibalise", energy = 1, decommission = 1, brace = 6},
 			{name = "Scrap Line", energy = 0, credit_gain = 3, discard = 1}])
 	_module(&"jumper", "Jumper Cable", &"redline", U, C1,
-		"Redline's answer to a power problem is more cable. It has worked every
-"
-		+ "time so far, which is the only figure they publish.",
+		"More cable. It has worked every time so far.",
 		[{name = "Crossfeed", energy = 1, heat = 2, damage = 4, draw = 2}, &"reroute"])
 	_module(&"mainbus", "Main Bus Armature", &"korvan", S, C2,
 		"Heavier than it needs to be. Still bolted on when the ship is gone.",

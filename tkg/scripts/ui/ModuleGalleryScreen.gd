@@ -173,14 +173,28 @@ func _fill(col: VBoxContainer) -> int:
 			cards += m2.resolved_cards().size()
 			var icon := ModuleIcon.new()
 			icon.setup(m2, &"gallery")
-			# 1x, WHICH IS THE SIZE IT IS ON THE SHIP. The hold and the refit screen
-			# are authored at 2x; this page is a catalogue of what a part IS, and
-			# what it is is the rectangle it takes up on a hull.
+			# 2x, THE SIZE THE SHIP TAB DRAWS IT. The hold and the refit hull are
+			# both authored there, which is what makes a part the same size in both;
+			# a catalogue of parts should match the screen you pack them on.
+			#
+			# It was 1x for a version — the rectangle a part occupies on a hull at
+			# native zoom, which is true and unreadable: a 1x1 sight is fifteen
+			# pixels and a page of them tells you nothing.
 			#
 			# custom_minimum_size and NOT size: a flow container decides where its
 			# children go, and asking for a size it did not choose is how the hold
 			# once drew 1x1 plates at 44px.
-			icon.custom_minimum_size = ModuleIcon.footprint_box(m2, 1.0)
+			icon.custom_minimum_size = ModuleIcon.footprint_box(m2)
+			# SHRINK, OR THE ROW STRETCHES THEM. An HFlowContainer gives a child
+			# the row height by default, so a 2x1 sitting beside a 2x2 was pulled to
+			# twice its own height and a page of plates showed the wrong shapes — the
+			# one thing this page exists to show.
+			#
+			# The hold never hit this because it is not a container: it clears the
+			# minimum and assigns `size` directly, with a comment about the same
+			# 44px floor that bites here.
+			icon.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			icon.mouse_filter = Control.MOUSE_FILTER_PASS
 			flow.add_child(icon)
 	if groups.is_empty():

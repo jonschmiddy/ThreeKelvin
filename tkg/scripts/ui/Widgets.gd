@@ -509,7 +509,10 @@ static func module_readout(m: ModuleData) -> PanelContainer:
 	sb.border_width_left = 3
 	sb.border_color = DB.manufacturer_colour(m.manufacturer)
 	panel.add_theme_stylebox_override("panel", sb)
-	panel.custom_minimum_size = Vector2(178, 0)
+	# A CARD'S WIDTH, so the three boxes are one object rather than a wide panel
+	# with two cards stuck to it. card_readout is 178 because it stands alone at
+	# the cursor; this one stands in a row of cards and has to belong to it.
+	panel.custom_minimum_size = Vector2(CardView.CARD_W, 0)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := VBoxContainer.new()
@@ -531,20 +534,30 @@ static func module_readout(m: ModuleData) -> PanelContainer:
 	# WHAT IT DOES TO THE SHIP, which is the half of a part that is not cards and
 	# which nothing showed until the tooltip was rewritten. A legendary carrying
 	# three pips of hull said nothing about them anywhere.
-	var gauges: Array[String] = []
+	# ZERO IS PRINTED, and that is the point of printing it. A common plate
+	# carries the hull axis and adds nothing AT THAT GRADE, which is the ladder
+	# being legible rather than a part that moves no gauge at all. Skipping it
+	# made those two read identically — and somebody hovered a Ripsaw, which has
+	# no axis, and concluded the tooltip did not show attributes.
+	#
+	# The manifest prints its +0 for the same reason and draws it dashed; here
+	# the dimmer ink does that job.
+	var gauges: Array = []
 	for axis in DB.PASSIVE_AXIS.get(m.id, []):
 		var pips: int = DB.ATTR_BUMP[int(m.rarity)]
-		if pips != 0:
-			gauges.append("%s +%d" % [String(axis).to_upper(), pips])
+		gauges.append(["%s +%d" % [String(axis).to_upper(), pips],
+			UITheme.ICE if pips > 0 else UITheme.COLD])
 	if DB.PASSIVE_COST.has(m.id):
 		var row: Array = DB.PASSIVE_COST[m.id]
-		gauges.append("%s \u2212%d" % [String(row[0]).to_upper(), int(row[1])])
+		gauges.append(["%s \u2212%d" % [String(row[0]).to_upper(),
+			int(row[1])], UITheme.LEAVE])
 	if m.reactor != 0:
-		gauges.append("REACTOR +%d" % m.reactor)
+		gauges.append(["REACTOR +%d" % m.reactor, UITheme.ICE])
 	if not gauges.is_empty():
 		box.add_child(UITheme.hsep())
-		for g in gauges:
-			box.add_child(UITheme.body(g, UITheme.ICE, UITheme.FS_SMALL))
+		for raw in gauges:
+			var g: Array = raw
+			box.add_child(UITheme.body(String(g[0]), g[1], UITheme.FS_SMALL))
 
 	for a in m.affixes:
 		box.add_child(UITheme.body("%s \u2014 %s" % [a.name, a.text],
@@ -554,6 +567,6 @@ static func module_readout(m: ModuleData) -> PanelContainer:
 		box.add_child(UITheme.hsep())
 		var q := UITheme.body(m.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
 		q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		q.custom_minimum_size = Vector2(168, 0)
+		q.custom_minimum_size = Vector2(CardView.CARD_W - 14, 0)
 		box.add_child(q)
 	return panel
