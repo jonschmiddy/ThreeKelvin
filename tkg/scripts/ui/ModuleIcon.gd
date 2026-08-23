@@ -182,85 +182,48 @@ func setup(m: ModuleData, from: StringName) -> void:
 	tooltip_text = _hint()
 	queue_redraw()
 
-## EVERYTHING THE PART IS, on hover.
+## THE PART AND BOTH ITS CARDS, side by side.
 ##
-## It used to be four lines — name, grade, slot, and each card's EFFECT with no
-## name and no cost. So a player hovering a gun was told "Deal 3 x 3. Salvo
-## +2." and could not learn what the card was called or what it would cost to
-## play, which are the two things you need before deciding whether to bolt the
-## thing on.
+## Three panels: what the module IS, then the two cards it actually grants,
+## drawn as cards rather than described as text. A module is a way of putting
+## particular verbs into a deck (docs/catalogue.md §1), so the honest picture of
+## one is the verbs themselves.
 ##
-## THE SAME FACTS THE MANIFEST SHOWS, in the same order, because a player and a
-## designer are asking the same question about a part and there is no reason to
-## answer it twice in two shapes.
+## IT USED TO BE A STRING. Plain text could not show a card, so it printed the
+## effect line and the cost as words — which works and is a translation of the
+## thing rather than the thing. Godot will take a Control here, and a CardView
+## already knows how to draw itself.
 ##
-## Plain text, not rich text: Godot tooltips are a label. That is also why the
-## cost is spelled out as words rather than drawn as the corner gems a card
-## face uses — "2 ENERGY | +1 HEAT" reads at a glance and needs no legend.
+## resolved_cards(), not `cards`: the Grant Count Law decides how many a module
+## actually puts in a deck, so a part authored with two verbs that grants one
+## must show one. What is drawn is what the deck gets.
+func _make_custom_tooltip(_for_text: String) -> Object:
+	if module == null:
+		return null
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(Widgets.module_readout(module))
+	for c in module.resolved_cards():
+		var v := CardView.new()
+		v.setup(c, false, 1)
+		# IGNORE, not STOP. A tooltip that eats the mouse is a tooltip that counts
+		# as leaving the thing you are pointing at, and the two then fight over
+		# which is hovered — the card gallery's own pop carries the same comment
+		# for the same reason.
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(v)
+	return row
+
+
+## Godot only ASKS for a tooltip when tooltip_text is non-empty, so this is the
+## trigger rather than the content — _make_custom_tooltip above replaces it
+## wholesale. The name is enough to arm it, and it is what shows if the custom
+## one ever fails to build.
 func _hint() -> String:
 	if module == null:
 		return ""
-	var f := module.footprint()
-	var out := module.name.to_upper()
-	out += "
-%s · %s · %dx%d · %d %s" % [
-		ModuleData.rarity_name(module.rarity).to_upper(),
-		ModuleData.slot_name(module.slot).to_upper(), f.x, f.y,
-		module.cells(), "cell" if module.cells() == 1 else "cells"]
-	if module.manufacturer != &"":
-		out += "
-%s" % DB.manufacturer_name(module.manufacturer)
-	else:
-		out += "
-Unbranded"
-
-	# What it does to the SHIP, which the old tooltip never mentioned at all — a
-	# part could carry three pips of hull and say nothing about it.
-	var gauges: Array[String] = []
-	for axis in DB.PASSIVE_AXIS.get(module.id, []):
-		var pips: int = DB.ATTR_BUMP[int(module.rarity)]
-		if pips != 0:
-			gauges.append("%s +%d" % [String(axis).to_upper(), pips])
-	if DB.PASSIVE_COST.has(module.id):
-		var row: Array = DB.PASSIVE_COST[module.id]
-		gauges.append("%s −%d" % [String(row[0]).to_upper(), int(row[1])])
-	if module.reactor != 0:
-		gauges.append("REACTOR +%d" % module.reactor)
-	if not gauges.is_empty():
-		out += "
-%s" % " · ".join(gauges)
-
-	if module.flavour != "":
-		out += "
-
-%s" % module.flavour
-
-	for c in module.resolved_cards():
-		var cd: CardData = c
-		# NAME FIRST, then the price. The name is what you are looking for and the
-		# price is what you weigh once you have found it — three lines a card put
-		# the cost above the name and made the list read as a column of numbers.
-		out += "
-
-%s — %s
-%s" % [cd.name, _cost(cd), cd.describe()]
-	for a in module.affixes:
-		out += "
-
-%s — %s" % [a.name, a.text]
-	return out
-
-
-## What a card costs, in words.
-##
-## Energy and heat are two different quantities and writing them as "1+1" reads
-## as arithmetic on one — the manifest made exactly that mistake and somebody
-## asked what the sum meant. Spelled out, there is nothing to misread, and a
-## card with no heat simply does not mention it, which is most of Korvan.
-static func _cost(c: CardData) -> String:
-	if c.heat > 0:
-		return "%d ENERGY | +%d HEAT" % [c.energy, c.heat]
-	return "%d ENERGY" % c.energy
+	return module.name
 
 
 ## Picking one up. The preview is a copy of the icon rather than the icon

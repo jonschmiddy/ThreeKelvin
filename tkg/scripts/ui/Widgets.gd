@@ -488,3 +488,72 @@ static func other_maker_rows(hull_man: StringName) -> Array:
 			out.append(ability_row(short, what, m.set3_text if n < 3 else m.set5_text,
 				m.colour, n >= 3, "%d / %d" % [n, next_at]))
 	return out
+
+
+## THE MODULE'S OWN PANEL, built like card_readout so a part and a card look
+## like two things from the same game.
+##
+## It carries what a part IS and nothing about what its cards DO, because the
+## cards are drawn beside it — see ModuleIcon._make_custom_tooltip. A panel that
+## also spelled out the effects would be describing the two objects sitting
+## right next to it, which is how the module gallery ended up with three copies
+## of the same facts before the readout panel was deleted.
+##
+## Same left border in the house colour, same width, same order of facts: what
+## it is called, then what class of thing it is, then the flavour last. Flavour
+## next to specifications always loses — the eye is scanning for facts and finds
+## a sentence in the middle of them.
+static func module_readout(m: ModuleData) -> PanelContainer:
+	var panel := PanelContainer.new()
+	var sb := UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 7, 8)
+	sb.border_width_left = 3
+	sb.border_color = DB.manufacturer_colour(m.manufacturer)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.custom_minimum_size = Vector2(178, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	panel.add_child(box)
+
+	box.add_child(UITheme.body(m.name.to_upper(),
+		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
+	var f := m.footprint()
+	box.add_child(UITheme.body("%s \u00b7 %s" % [
+		ModuleData.rarity_name(m.rarity).to_upper(),
+		ModuleData.slot_name(m.slot).to_upper()], UITheme.COLD, UITheme.FS_SMALL))
+	box.add_child(UITheme.body("%s" % (DB.manufacturer_name(m.manufacturer)
+		if m.manufacturer != &"" else "Unbranded"),
+		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL))
+	box.add_child(UITheme.body("%dx%d \u00b7 %d %s" % [f.x, f.y, m.cells(),
+		"cell" if m.cells() == 1 else "cells"], UITheme.CHILL, UITheme.FS_SMALL))
+
+	# WHAT IT DOES TO THE SHIP, which is the half of a part that is not cards and
+	# which nothing showed until the tooltip was rewritten. A legendary carrying
+	# three pips of hull said nothing about them anywhere.
+	var gauges: Array[String] = []
+	for axis in DB.PASSIVE_AXIS.get(m.id, []):
+		var pips: int = DB.ATTR_BUMP[int(m.rarity)]
+		if pips != 0:
+			gauges.append("%s +%d" % [String(axis).to_upper(), pips])
+	if DB.PASSIVE_COST.has(m.id):
+		var row: Array = DB.PASSIVE_COST[m.id]
+		gauges.append("%s \u2212%d" % [String(row[0]).to_upper(), int(row[1])])
+	if m.reactor != 0:
+		gauges.append("REACTOR +%d" % m.reactor)
+	if not gauges.is_empty():
+		box.add_child(UITheme.hsep())
+		for g in gauges:
+			box.add_child(UITheme.body(g, UITheme.ICE, UITheme.FS_SMALL))
+
+	for a in m.affixes:
+		box.add_child(UITheme.body("%s \u2014 %s" % [a.name, a.text],
+			UITheme.EMBER, UITheme.FS_SMALL))
+
+	if m.flavour != "":
+		box.add_child(UITheme.hsep())
+		var q := UITheme.body(m.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
+		q.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		q.custom_minimum_size = Vector2(168, 0)
+		box.add_child(q)
+	return panel
