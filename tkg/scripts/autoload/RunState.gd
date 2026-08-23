@@ -1793,13 +1793,56 @@ func delivery_houses() -> Array:
 ## That asymmetry is the whole point and it is worth not smoothing away later: a
 ## contract is a REASON to fly somewhere unexplored, and it stops being one the
 ## moment accepting it also explores the place.
+## A STATION YOU HAVE HEARD. Stations are on the chart before you visit them,
+## and this is how far "before" reaches.
+##
+## The exception itself is right and stays: the filter is correct about a place
+## you might GO and wrong about a place you navigate BY. A station means "you can
+## stop here" — repairs, fuel, a market, no danger — and it is most valuable to a
+## ship that has not found one yet, so hiding it until you have already been
+## there is backwards.
+##
+## WHAT WAS WRONG WAS THE RANGE, WHICH WAS INFINITE. Every station in the galaxy
+## sat on the chart from the first frame of a run, so KNOWN ONLY drew the four or
+## five systems you had actually been to and then every station out to the rim —
+## a view of what you have earned, dominated by the one thing you had not earned
+## any of. It read as a bug because it was one: a filter whose exception is
+## larger than its rule.
+##
+## ONE HOP, and the fiction is the mechanism: a station broadcasts, and you pick
+## it up from next door. Having stood in a system means having listened there, so
+## a station adjacent to anywhere you have been is a station you know about, and
+## one four layers away through systems you have never seen is not.
+##
+## Deliberately NOT scaled by SENSORS, though it is the obvious next move and the
+## attribute would carry it well. A beacon range that changes when you swap a
+## dish means the chart forgets systems when you refit, and a map that loses
+## places you were told about is worse than one that never said.
+func station_heard(index: int) -> bool:
+	if index < 0 or index >= map.size():
+		return false
+	var n: MapGen.MapNode = map[index]
+	if n.type != MapGen.NodeType.STATION:
+		return false
+	if n.visited or index == at:
+		return true
+	for other in map:
+		var t: MapGen.MapNode = other
+		if t.visited and t.links.has(index):
+			return true
+	return false
+
+
 func known_only_by_contract(index: int) -> bool:
 	if index < 0 or index >= map.size():
 		return false
 	if contract_at(index) == null:
 		return false
 	var n: MapGen.MapNode = map[index]
-	if n.visited or n.type == MapGen.NodeType.STATION or index == at:
+	# `station_heard` and not "is a station". A station out of beacon range is
+	# NOT already on the chart, so a contract naming one is doing the same work
+	# it does for any other unexplored system, and the panel has to say so.
+	if n.visited or station_heard(index) or index == at:
 		return false
 	for r in in_range():
 		if (r as MapGen.MapNode).index == index:

@@ -218,6 +218,13 @@ func _ready() -> void:
 	# What every frame launches with, and whether the reactor ladder leaves it
 	# a deck:
 	#   godot --headless --path . -- reactor
+	# What the chart's KNOWN ONLY view actually shows:
+	#   godot --headless --path . -- chartfilter
+	if "chartfilter" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ChartFilter.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "reactor" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/ReactorSheet.gd").new().run()
 		get_tree().quit()

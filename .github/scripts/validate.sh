@@ -193,6 +193,23 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 	fi
 fi
 
+step "The chart's filtered view is mostly filtered"
+# An exception that grows until it swallows the rule. Stations are on the
+# chart before you visit them, deliberately, and the range that exception
+# reached was the ENTIRE GALAXY — so KNOWN ONLY drew your one visited system
+# and every station out to the rim, a quarter of the map, before a player had
+# flown anywhere. Nothing errored; the view simply stopped answering the
+# question it exists for, and the only symptom was a screen that looked wrong
+# to somebody who opened it.
+if run_godot chartfilter 120 --headless --path "$PROJECT" -- chartfilter; then
+	if grep -qE '^chartfilter: PASS' "$LOG_DIR/chartfilter.log"; then
+		ok "chart filter"
+	else
+		bad "the chart's KNOWN ONLY view reveals too much of the galaxy"
+		grep -E '^  FAIL|^chartfilter' "$LOG_DIR/chartfilter.log" \
+			| head -n 20 | sed 's/^/        /'
+	fi
+fi
 step "Every frame launches with a deck it can play"
 # The reactor cap decides how many modules a frame can RUN, and a cap set too
 # low does not produce a small ship â it produces a ship whose every turn is

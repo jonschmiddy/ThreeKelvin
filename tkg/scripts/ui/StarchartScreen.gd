@@ -1448,16 +1448,14 @@ class MapChart extends Control:
 			var t: MapGen.MapNode = n
 			if t.visited:
 				out[t.index] = true
-			# Stations are always on the chart, visited or not.
-			#
-			# The filter is right for a place you might GO and wrong for a place
-			# you navigate BY. A station is the one system in the galaxy that
-			# means "you can stop here" — repairs, fuel, a market, no danger —
-			# and hiding it until you have already been there is backwards: the
-			# information is most valuable to a ship that has not found one yet.
+			# A station you have HEARD — one you have been to, or one next door to
+			# somewhere you have. Stations are on the chart before you visit them,
+			# because the filter is right about a place you might GO and wrong
+			# about a place you navigate BY; the range that exception reaches is
+			# `RunState.station_heard`, and it used to be the whole galaxy.
 			#
 			# Same exception, same reason, as the party markers below.
-			elif t.type == MapGen.NodeType.STATION:
+			elif Run.station_heard(t.index):
 				out[t.index] = true
 			# And anywhere you have signed for. Same exception, third reason:
 			# the filter is right about places you might stumble into and wrong
