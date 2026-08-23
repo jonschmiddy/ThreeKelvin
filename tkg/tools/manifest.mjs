@@ -95,6 +95,75 @@ const GAUGE = {
   hull: 'HULL', thermal: 'THERMAL', maneuver: 'MANEUVER',
   sensors: 'SENSORS', stealth: 'STEALTH',
 };
+// WHAT A CARD IS WORTH, roughly, so grades can be compared at all.
+//
+// A CRUDE NUMBER AND IT HAS TO SAY SO. The first version of this scored six real
+// cards at zero — Brace from heat, Negate, both drone verbs, Evoke, and discard
+// for credits — because it only knew the effects it had been taught. That is not
+// "those cards are weak", it is "this cannot read them", and the difference
+// matters because the first reading nearly drove a retune of cards that were
+// fine.
+//
+// So every verb the catalogue prints has a line here, and anything it does not
+// recognise is COUNTED, not ignored: `unread` is on the chart, and a bar with
+// unread cards under it is a bar you should not trust.
+//
+// The weights are judgement. Draw is worth 4 because a card is worth about a
+// card; salvo is 3 because it pays out over a turn; a persistent drone is 3 a
+// point because it keeps paying. Nobody should tune to two decimal places off
+// this — it exists to answer "does a grade buy more than the one below it",
+// which is a question about shape, not about numbers.
+const SCORE = [
+  [/Deal (\d+)(?: × (\d+))?/, (m) => (+m[1]) * (+(m[2] || 1))],
+  [/Damage from heat/, () => 8],
+  [/Heat scaling per (\d+)/, () => 4],
+  [/Charge (\d+)/, () => 0],
+  [/Grows \+(\d+)/, (m) => (+m[1]) * 3],
+  [/Salvo \+(\d+)/, (m) => (+m[1]) * 3],
+  [/Brace (\d+)/, (m) => +m[1]],
+  [/Brace from heat/, () => 6],
+  [/Block (\d+)/, (m) => (+m[1]) * 0.8],
+  [/Feedback (\d+)/, (m) => (+m[1]) * 1.5],
+  [/Negate next attack/, () => 8],
+  [/Emergency repair (\d+)/, (m) => (+m[1]) * 1.2 + 4],
+  [/Heal (\d+)/, (m) => (+m[1]) * 1.2],
+  [/Vent (\d+)/, (m) => (+m[1]) * 0.8],
+  [/Vent all/, () => 6],
+  [/Lock on \+(\d+)/, (m) => +m[1]],
+  [/Draw (\d+)/, (m) => (+m[1]) * 4],
+  [/\+(\d+) energy/, (m) => (+m[1]) * 6],
+  [/\+(\d+) credits/, (m) => (+m[1]) * 0.5],
+  [/Spend (\d+) credits/, (m) => -(+m[1]) * 0.5],
+  [/Attack drone (\d+)/, (m) => (+m[1]) * 3],
+  [/Screen drone (\d+)/, (m) => (+m[1]) * 3],
+  [/Evoke (\d+) per drone/, (m) => (+m[1]) * 2],
+  [/Discard your hand/, () => 3],
+  [/Discard (\d+)/, (m) => (+m[1]) * 2],
+  [/Decommission (\d+)/, (m) => (+m[1]) * 2],
+  [/Decommissions itself/, () => 0],
+  [/Purge/, () => 0],
+];
+
+// Every sentence a card prints, so the ones nothing scored can be counted.
+function sentences(text) {
+  return text.split('.').map(x => x.trim()).filter(Boolean);
+}
+
+function score(card) {
+  let p = 0;
+  let unread = 0;
+  for (const part of sentences(card.text)) {
+    let hit = false;
+    for (const [re, f] of SCORE) {
+      const m = part.match(re);
+      if (m) { p += f(m); hit = true; }
+    }
+    if (!hit) unread++;
+  }
+  // Heat is a real price and cheaper than energy, because you choose when to pay
+  // it and a vent card buys it back.
+  return {power: p, cost: card.energy + card.heat * 0.7, unread};
+}
 const RAR = ['Common','Uncommon','Rare','Epic','Legendary','Exotic','Artifact','Contraband'];
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-');
@@ -277,6 +346,37 @@ const passiveRows = MODS.filter(m => (m.axes && m.axes.length) || m.cost_axis ||
         ? GAUGE[m.cost_axis] + ' −' + m.cost_pips : '') + '</td></tr>';
   }).join(NL);
 
+// POWER BY GRADE. The question is whether a grade buys more than the one below
+// it, so the chart is bars and not a table of decimals — a ladder either climbs
+// when you look at it or it does not.
+const GRADE_STATS = RAR.map(r => {
+  const cards = CARDS.filter(c => c.rarities.has(r));
+  if (!cards.length) return null;
+  const s = cards.map(c => score(c));
+  const sum = (f) => s.reduce((a, x) => a + f(x), 0);
+  return {
+    grade: r, n: cards.length,
+    power: sum(x => x.power) / s.length,
+    cost: sum(x => x.cost) / s.length,
+    unread: sum(x => x.unread),
+  };
+}).filter(Boolean);
+const PEAK = Math.max(...GRADE_STATS.map(g => g.power));
+
+const gradeChart = GRADE_STATS.map(g => {
+  const eff = g.power / Math.max(0.5, g.cost);
+  return '<tr>'
+    + '<th class="g-name"><span class="r-' + slug(g.grade) + '">' + g.grade + '</span></th>'
+    + '<td class="g-bar"><span class="r-' + slug(g.grade) + '" style="width:'
+      + (100 * g.power / PEAK).toFixed(1) + '%"></span></td>'
+    + '<td class="n">' + g.power.toFixed(1) + '</td>'
+    + '<td class="n">' + g.cost.toFixed(2) + '</td>'
+    + '<td class="n">' + eff.toFixed(1) + '</td>'
+    + '<td class="n">' + g.n + '</td>'
+    + '<td class="n' + (g.unread ? ' gap' : '') + '">' + (g.unread || '—') + '</td>'
+    + '</tr>';
+}).join(NL);
+
 const cardRows = CARDS.map(c =>
   '<tr>'
   + '<td class="c-name">' + esc(c.name)
@@ -433,6 +533,11 @@ const CSS = [
 '.n.done{color:var(--uncommon)}',
 '.bar{width:120px;min-width:90px}',
 '.bar span{display:block;height:5px;background:var(--cold)}',
+'table.chart td.g-bar{width:46%;min-width:150px;padding-right:14px}',
+'table.chart .g-bar span{display:block;height:11px;background:currentColor;'
+  + 'min-width:2px;opacity:.85}',
+'table.chart th.g-name{text-align:left;font-family:Oxanium,sans-serif;'
+  + 'font-size:11px;letter-spacing:.1em;padding-right:12px}',
 '.tag{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.08em;',
 '  text-transform:uppercase;border:1px solid var(--line);padding:0 4px;margin-left:7px;',
 '  color:var(--cold)}',
@@ -583,6 +688,22 @@ auditVerdict,
 '<div id="by-house">' + houseSections + '</div>',
 '<div id="by-cells" class="hide">' + sizeSections + '</div>',
 
+'<h2>Power by grade</h2>',
+'<p class="note">Does a grade buy more than the one below it? Bars are average '
++ 'power, scored off what each card PRINTS. <b>Efficiency</b> is power per point '
++ 'of cost (energy, plus heat at seven tenths) — a flat column there means a '
++ 'grade buys more <i>and</i> costs more, which is the healthy shape.</p>',
+'<div class="scroll"><table class="chart"><thead><tr><th>Grade</th><th></th>'
++ '<th class="n">Power</th><th class="n">Cost</th><th class="n">Per cost</th>'
++ '<th class="n">Cards</th><th class="n">Unread</th></tr></thead><tbody>'
++ gradeChart + '</tbody></table></div>',
+'<p class="note"><b>Unread is the honesty column.</b> It counts sentences the '
++ 'scorer did not recognise. An earlier version had no such column and scored six '
++ 'real cards at zero — Brace from heat, Negate, both drone verbs, Evoke, and '
++ 'discard for credits — which reads as <i>those cards are weak</i> when it means '
++ '<i>this cannot read them</i>. A bar with unread cards under it is a bar not to '
++ 'trust. The weights are judgement and this is a shape check, not a tuning '
++ 'instrument.</p>',
 '<h2>What each part does to the ship</h2>',
 '<p class="note">A part’s <b>grade</b> decides how far it moves a gauge and its '
 + '<b>name</b> decides which one — common and uncommon move nothing, rare +1, epic '

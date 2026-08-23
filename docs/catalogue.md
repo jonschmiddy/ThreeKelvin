@@ -114,6 +114,26 @@ A house's cards should be recognisable as that house *without the name*:
 | Calyx Biosystems | Growth, healing, cards that change through use. |
 | Unbranded | Exotic (grown) and artifact (precursor). No house voice. |
 
+### Flavour is the house's voice, not the writer's
+
+Korvan is clipped ex-military surplus: *"It decides. You pull."* — *"Cheap
+glass. Correct answers."* — *"Armor that answers back."* Korvan and the yard
+average **8.2 words**.
+
+Five parts went in at 11 to 30 words and read as essays rather than as Korvan.
+They were rewritten. The tells that a line has drifted:
+
+- **It explains the mechanic.** Blowout Panel said *"Blows the whole rack clear
+  and lets you start the hand again"*, which the card already says. It is
+  *"Better the rack than the ship"* now.
+- **It repeats an opener.** `Surplus.` began two different lines.
+- **It argues.** *"That is the whole advantage and it is enormous"* is the
+  writer telling you the part is good. The part is good or it is not.
+
+Unbranded runs drier and more anonymous, which is correct — nobody is selling
+it. *"It does not have to be clever."* *"Older than spaceflight."* *"Nobody
+built this. It simply persists."*
+
 ### Korvan ballistics run cold — and the mechanics already say which is which
 
 The manufacturer line is *"Ex-military surplus parts. Ballistics run cold;
@@ -714,26 +734,52 @@ Numbers to check a pass against, not rules. All from `-- content json`.
 
 ### Strength against grade
 
-    grade        n   avg power   avg cost   power per cost
-    Common      26        5.4       0.97           5.5
-    Uncommon    21        6.0       1.07           5.6
-    Rare        22        7.7       1.22           6.3
-    Epic         7       13.8       1.99           6.9
-    Legendary    7       17.5       2.91           6.0
-    Exotic       3       14.0       1.00          14.0
-    Artifact     9       16.9       1.47          11.5
+The manifest draws this as bars, generated from the export. Read it for shape,
+not for decimals.
 
-Power climbs cleanly and **efficiency stays flat from common to legendary** —
-higher grades give more *and* cost more, which is the healthy shape. Two things
-are worth knowing:
+    grade        n   power   cost   per cost   unread
+    Common      32     6.3   1.04       6.0        —
+    Uncommon    28     8.9   1.09       8.1        —
+    Rare        22    11.0   1.19       9.2        —
+    Epic         7    14.3   1.99       7.2        —
+    Legendary    7    18.4   2.11       8.7        —
+    Exotic       3    14.0   1.00      14.0        —
+    Artifact     9    16.9   1.47      11.5        —
+
+**UNREAD IS THE HONESTY COLUMN**, and it is the reason to believe the rest. It
+counts sentences the scorer did not recognise. The first version of this table
+had no such column and scored six real cards at **zero** — Brace from heat,
+Negate, both drone verbs, Evoke, and discard for credits — which reads as *those
+cards are weak* when it means *this cannot read them*. It nearly drove a retune
+of cards that were fine. **A bar with unread cards under it is a bar not to
+trust.**
+
+The weights are judgement. This answers *does a grade buy more than the one
+below it* — a question about shape. It is not a tuning instrument and nobody
+should chase its second decimal.
 
 **Exotic and artifact are about twice as efficient as legendary.** Cheap and
-strong. Under Pillar 5 that is arguably right — that is the tier meant to feel
-broken — but it is a cliff rather than a gradient, and it is deliberate rather
-than drift.
+strong. Under Pillar 5 that is the tier meant to feel broken, so it is a
+deliberate cliff rather than drift.
 
-**Common to uncommon is a weak step**, 5.4 to 6.0. An uncommon barely reads as
-an upgrade. If one thing gets tuned next, it is that.
+**Epic is the least efficient of the top grades** (7.2) because epics cost
+almost two energy on average. Worth a look if epic ever feels like a bad find.
+
+### An uncommon has to beat the common doing the same job
+
+That is the test, not the average. Five cards failed it and one was **outright
+worse than its common**:
+
+| | common | uncommon |
+| --- | --- | --- |
+| Ripple Fire | Slug: Deal 4×2 = **8** | was Deal 2×3 = **6**, now 3×3 = **9** |
+| Sink Plate | Bolt On: Brace **5** | was Brace **4**, now **6** |
+| Field Weld | Patch: repair 1 | was repair 2, now **3** |
+| Slag Plate | Bolt On: Brace **5** | was Brace **4**, now **6** |
+| Adapt | Cutting Beam: Deal 6 | was Deal 4, now **5** and it grows |
+
+Common to uncommon went from +0.6 to **+2.6**, the largest step in the bottom
+half. Measured at seed 4242 over 200 runs: 41 wins to 48.
 
 ### House neutrality
 
