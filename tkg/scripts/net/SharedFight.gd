@@ -4,7 +4,7 @@ extends RefCounted
 ## One fight that more than one ship is in.
 ##
 ## This is the enemy, and only the enemy. Everything on YOUR side of a shared
-## fight — deck, hand, energy, block, armor, heat, hull — stays in `Run` and
+## fight — deck, hand, energy, block, brace, heat, hull — stays in `Run` and
 ## `Combat` on your own machine and never crosses the wire, because it never
 ## has to: no other player targets it, spends it or reads it. That asymmetry is
 ## the whole reason joint combat is a small feature rather than a rewrite. The
@@ -40,7 +40,7 @@ class Foe extends RefCounted:
 	var max_hp: int = 1
 	## What one ship's worth of this enemy is. A joiner adds CREW_SHARE of it.
 	var base: int = 1
-	var armor: int = 0
+	var brace: int = 0
 	var block: int = 0
 	var kind: int = Pick.LOOP
 	var pick: int = 0
@@ -95,10 +95,10 @@ var hit_serial: int = 0
 var paid: int = 0
 
 
-## The first ship engages. `hp` and `armor` are what its own `Combat._spawn`
+## The first ship engages. `hp` and `brace` are what its own `Combat._spawn`
 ## produced, so the danger scaling and the pack split stay in one place.
 static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		armor: PackedInt32Array, first: int) -> SharedFight:
+		brace: PackedInt32Array, first: int) -> SharedFight:
 	var f := SharedFight.new()
 	f.at = node_index
 	f.foe_ids = ids
@@ -107,7 +107,7 @@ static func open(node_index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		e.max_hp = maxi(1, hp[i])
 		e.hp = e.max_hp
 		e.base = e.max_hp
-		e.armor = armor[i] if i < armor.size() else 0
+		e.brace = brace[i] if i < brace.size() else 0
 		f.foes.append(e)
 	f.crew.append(first)
 	return f
@@ -155,7 +155,7 @@ func leave(peer: int) -> void:
 
 
 ## Apply one attack. Mirrors `Combat.damage_enemy`'s mitigation exactly — block
-## first, then armor, per hit — because the client ran that maths a moment ago
+## first, then brace, per hit — because the client ran that maths a moment ago
 ## to draw the number, and two answers to "how much did that do" is a hull bar
 ## that disagrees with the combat log.
 func hurt(which: int, amount: int, hits: int, by: int) -> int:
@@ -171,9 +171,9 @@ func hurt(which: int, amount: int, hits: int, by: int) -> int:
 			var a := mini(e.block, d)
 			e.block -= a
 			d -= a
-		if d > 0 and e.armor > 0:
-			var a2 := mini(e.armor, d)
-			e.armor -= a2
+		if d > 0 and e.brace > 0:
+			var a2 := mini(e.brace, d)
+			e.brace -= a2
 			d -= a2
 		e.hp -= d
 		total += d
@@ -236,7 +236,7 @@ func alive() -> Array[int]:
 func to_wire() -> Dictionary:
 	var rows: Array = []
 	for e in foes:
-		rows.append([e.hp, e.max_hp, e.base, e.armor, e.block, e.kind, e.pick, e.step])
+		rows.append([e.hp, e.max_hp, e.base, e.brace, e.block, e.kind, e.pick, e.step])
 	return {
 		"at": at, "turn": turn, "over": over, "ids": foe_ids,
 		"crew": crew, "ended": ended, "foes": rows,
@@ -269,7 +269,7 @@ static func from_wire(d: Dictionary) -> SharedFight:
 		e.hp = maxi(0, int(row[0]))
 		e.max_hp = maxi(1, int(row[1]))
 		e.base = maxi(1, int(row[2]))
-		e.armor = maxi(0, int(row[3]))
+		e.brace = maxi(0, int(row[3]))
 		e.block = maxi(0, int(row[4]))
 		e.kind = clampi(int(row[5]), 0, 1)
 		e.pick = maxi(0, int(row[6]))

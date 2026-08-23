@@ -75,9 +75,9 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb.drones.append(d2)
 		cb._log("Drone launched (%d/turn)." % c.drone_damage, &"good")
 
-	if c.drone_armor > 0:
-		cb.drone_armor += c.drone_armor
-		cb._log("Screen drone launched (+%d armor/turn)." % c.drone_armor, &"good")
+	if c.drone_brace > 0:
+		cb.drone_brace += c.drone_brace
+		cb._log("Screen drone launched (+%d brace/turn)." % c.drone_brace, &"good")
 
 	if c.evoke > 0:
 		var n := cb.drones.size()
@@ -87,17 +87,17 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		else:
 			cb._log("No drones to evoke.", &"sys")
 
-	if c.armor > 0:
-		var a := c.armor
+	if c.brace > 0:
+		var a := c.brace
 		if Run.has_set(&"probate", 5):
 			a += 2
-		cb.armor += a
-		cb._log("Brace +%d armor." % a, &"you")
+		cb.brace += a
+		cb._log("Brace +%d." % a, &"you")
 
-	if c.armor_from_heat:
+	if c.brace_from_heat:
 		var a2 := maxi(2, int(Run.heat / 2) + 2)
-		cb.armor += a2
-		cb._log("Shroud +%d armor from heat." % a2, &"you")
+		cb.brace += a2
+		cb._log("Shroud +%d brace from heat." % a2, &"you")
 
 	if c.block > 0:
 		cb.block += c.block

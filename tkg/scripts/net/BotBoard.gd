@@ -94,7 +94,7 @@ static func fight(cb: Combat, seq: int) -> Dictionary:
 	d["turn"] = cb.turn
 	d["energy"] = cb.energy
 	d["block"] = cb.block
-	d["armor"] = cb.armor
+	d["brace"] = cb.brace
 	d["lock_on"] = cb.lock_on
 	d["shared"] = cb.is_shared()
 	d["enemies"] = []
@@ -106,7 +106,7 @@ static func fight(cb: Combat, seq: int) -> Dictionary:
 			"hp": e.hp,
 			"max_hp": e.max_hp,
 			"block": e.block,
-			"armor": e.armor,
+			"brace": e.brace,
 			"alive": e.hp > 0,
 			# What it has telegraphed for the end of the turn. This is the
 			# single most decision-relevant fact on the board — the whole
@@ -125,7 +125,7 @@ static func fight(cb: Combat, seq: int) -> Dictionary:
 			"text": c.describe(),
 			"playable": cb.can_play(c),
 			# What it would actually do to the current target, after lock-on,
-			# salvo, heat scaling and the target's armor. The card text is the
+			# salvo, heat scaling and the target's brace. The card text is the
 			# rule; this is the number.
 			"damage_now": cb.preview_damage(c) if c.damage > 0 else 0,
 		})

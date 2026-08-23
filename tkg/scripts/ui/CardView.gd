@@ -558,7 +558,7 @@ func _type_glyph() -> void:
 			_r(c + Vector2(-20, -14) * s, Vector2(6, 6) * s, dark)
 			_r(c + Vector2(15, 8) * s, Vector2(6, 6) * s, dark)
 			_r(c + Vector2(17, -12) * s, Vector2(5, 5) * s, dark)
-		&"armor":
+		&"brace":
 			# BRACE: a wall you keep. Thick, bevelled, whole — and unbroken,
 			# which is the whole difference from block below.
 			_r(c + Vector2(-15, -20) * s, Vector2(30, 40) * s, dark)

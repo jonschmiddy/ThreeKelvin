@@ -416,7 +416,7 @@ func _no_echoes() -> void:
 
 ## KORVAN BALLISTICS RUN COLD. The manufacturer says so in the one line a
 ## player reads before choosing it: "Ex-military surplus parts. Ballistics run
-## cold; ordnance and armor run hot."
+## cold; ordnance and brace run hot."
 ##
 ## THE MECHANICS ALREADY TELL THE TWO APART and nothing had noticed. An
 ## ordnance card BANKS THE SHOT — it charges, and the heat is the price of

@@ -67,5 +67,5 @@ signal party_fight_changed(at: int)
 ## Something in a shared fight is swinging at YOU. `kind`/`pick` name the intent
 ## by index into the enemy's own scaled lists; see NetSession._swing(). Sent to
 ## one machine only, because everything it resolves against — dodge, block,
-## armor, hull — exists only there.
+## brace, hull — exists only there.
 signal party_fight_swing(at: int, which: int, kind: int, pick: int)

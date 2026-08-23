@@ -55,7 +55,7 @@ func run() -> void:
 	# draws is a rung that is dead — either the fields moved under it or it was
 	# written for a card that does not exist yet, and both are worth knowing.
 	print("")
-	for k in ["slug", "burst", "pyre", "charge", "drone", "armor", "block",
+	for k in ["slug", "burst", "pyre", "charge", "drone", "brace", "block",
 			"feedback", "slip", "vent", "repair", "lock", "draw", "power",
 			"scrip", "malfunction", "utility"]:
 		if not by.has(StringName(k)):

@@ -519,7 +519,7 @@ func _build_hand() -> PanelContainer:
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
 
-	# Your own status, under your own numbers. Armor, block, lock-on, feedback,
+	# Your own status, under your own numbers. Brace, block, lock-on, feedback,
 	# adapt and drones are things you are carrying, so they belong beside the
 	# energy you spend rather than in a strip about the enemy.
 	_player_chips = HBoxContainer.new()
@@ -730,8 +730,8 @@ func _refresh_player() -> void:
 	_energy_text.text = "%d/%d" % [combat.energy, Run.reactor()]
 
 	Widgets.clear(_player_chips)
-	if combat.armor > 0:
-		_player_chips.add_child(Widgets.chip("armor %d" % combat.armor, Color("#3a5a6e")))
+	if combat.brace > 0:
+		_player_chips.add_child(Widgets.chip("brace %d" % combat.brace, Color("#3a5a6e")))
 	if combat.block > 0:
 		_player_chips.add_child(Widgets.chip("block %d" % combat.block, Color("#3a4a6e")))
 	if combat.lock_on > 0:
@@ -744,8 +744,8 @@ func _refresh_player() -> void:
 		_player_chips.add_child(Widgets.chip("adapt +%d" % combat.adapt_bonus))
 	for d in combat.drones:
 		_player_chips.add_child(Widgets.chip("drone %d" % d.damage, Color("#5a7a94")))
-	if combat.drone_armor > 0:
-		_player_chips.add_child(Widgets.chip("wasp %d" % combat.drone_armor, Color("#5a7a94")))
+	if combat.drone_brace > 0:
+		_player_chips.add_child(Widgets.chip("wasp %d" % combat.drone_brace, Color("#5a7a94")))
 	for c in combat.charging:
 		_player_chips.add_child(Widgets.chip(
 			"%s · %d" % [c.card.name, c.turns_left], UITheme.EMBER))
@@ -890,9 +890,9 @@ func _drag_preview(c: CardData, index: int) -> String:
 	# Your own hull. Whatever the card actually does when it lands there, in the
 	# order the player would say it.
 	var bits: PackedStringArray = []
-	if c.armor > 0:
-		bits.append("+%d BRACE" % c.armor)
-	if c.armor_from_heat:
+	if c.brace > 0:
+		bits.append("+%d BRACE" % c.brace)
+	if c.brace_from_heat:
 		bits.append("+%d BRACE" % Run.heat)
 	if c.block > 0:
 		bits.append("+%d BLOCK" % c.block)

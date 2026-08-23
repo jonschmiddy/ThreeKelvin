@@ -400,7 +400,7 @@ func _on_card_played(c: CardData) -> void:
 		play(&"weapon_energy" if c.heat > 0 else &"weapon_ballistic", 0.07)
 	elif c.vent > 0 or c.vent_all:
 		play(&"vent", 0.05)
-	elif c.block > 0 or c.armor > 0 or c.armor_from_heat:
+	elif c.block > 0 or c.brace > 0 or c.brace_from_heat:
 		play(&"shield_block", 0.06)
 
 ## Heat is a second health bar you can choose to spend, and going over costs

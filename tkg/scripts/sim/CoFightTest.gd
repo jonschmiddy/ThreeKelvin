@@ -433,7 +433,7 @@ func _score(c: CardData, cb: Combat) -> float:
 		return 85.0
 	if c.damage > 0:
 		return 40.0 + float(c.damage * maxi(1, c.hits)) / 4.0
-	if c.block > 0 or c.armor > 0:
+	if c.block > 0 or c.brace > 0:
 		return 30.0
 	return 5.0
 

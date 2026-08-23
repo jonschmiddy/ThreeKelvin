@@ -326,7 +326,7 @@ func resolved_cards() -> Array[CardData]:
 		var c: CardData = pool[i % pool.size()].duplicate(true)
 		c.copies = 1
 		# BEFORE the affixes, and that ordering is the whole point — an affix can
-		# add damage, armor, heal, draw or credits, and a picture chosen after
+		# add damage, brace, heal, draw or credits, and a picture chosen after
 		# they land describes the roll instead of the part. See CardData.base_glyph.
 		c.base_glyph = c.glyph_kind()
 		for a in affixes:

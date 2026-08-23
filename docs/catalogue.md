@@ -114,6 +114,38 @@ A house's cards should be recognisable as that house *without the name*:
 | Calyx Biosystems | Growth, healing, cards that change through use. |
 | Unbranded | Exotic (grown) and artifact (precursor). No house voice. |
 
+### One name per thing: Brace, Block, Feedback
+
+Two defensive layers and one counter, and each has exactly one name:
+
+| | soaks | persists | costs |
+| --- | --- | --- | --- |
+| **Block** | first | no, gone at end of enemy turn | nothing |
+| **Brace** | after block | yes | 1 heat a turn to hold |
+| **Feedback** | — | yes | — |
+
+**The word "armor" no longer names a stat anywhere in the game.** It was the
+field name, while every card printed *Brace* and the glossary defined Brace as
+*"Armor."* — a word a player had never seen on a card. Block's entry then
+explained its ordering as *"soaks damage before armor"*, using that same
+invisible word. Two mechanics, three names.
+
+The contradiction was already written down in `CardData.gd`: a comment reading
+*"BRACE, not armor. Armor is the resource; Brace is the word the game shows"*
+directly above the glossary line that said **"Brace — Armor."** The decision had
+been made and the text never followed it.
+
+183 references across 21 files — `armor`, `armor_from_heat`, `drone_armor`,
+`add_armor`, the glyph key, the combat variable, `ArmorPips`. **What the code
+calls a thing and what the card prints are now the same word**, which is the
+rule §13 already applies to vent.
+
+**Flavour keeps the English noun.** `Slag Armor Kit` and *"Armor that answers
+back"* describe plating you could touch, not a number. Two house identity lines
+say **plate** instead — *"ordnance and plate run hot"* — because those were
+making a mechanical claim and forcing the stat word in made them read like rules
+text.
+
 ### Flavour is the house's voice, not the writer's
 
 Korvan is clipped ex-military surplus: *"It decides. You pull."* — *"Cheap

@@ -85,12 +85,12 @@ func score(c: CardData, cb: Combat) -> float:
 	# between the two policies.
 	if c.vent > 0 and Run.heat > Run.heat_cap() * (1.15 if hot else 0.7):
 		return 85.0
-	if (c.armor > 0 or c.block > 0) and incoming > cb.armor + cb.block:
+	if (c.brace > 0 or c.block > 0) and incoming > cb.brace + cb.block:
 		return 80.0
 	# Repair, and it RISES AS THE HULL FALLS rather than sitting at one number.
 	#
 	# The flat 75 modelled a player who repairs when convenient. It ranked below
-	# armor and venting at every level of damage, so at three hull the model
+	# brace and venting at every level of damage, so at three hull the model
 	# braced against a hit it could not survive instead of buying the turn that
 	# would let it. That is not a competent player, and the repair cards are now
 	# scaled on hull missing — see CardData.heal_scale — so the card the model was

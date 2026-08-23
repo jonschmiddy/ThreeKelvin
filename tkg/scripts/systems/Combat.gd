@@ -23,7 +23,7 @@ class EnemyState extends RefCounted:
 	var template: EnemyTemplate
 	var hp: int
 	var max_hp: int
-	var armor: int
+	var brace: int
 	var block: int = 0
 	var step: int = 0
 	var intent: IntentData
@@ -74,14 +74,14 @@ var choosing: int = 0
 var choose_kind: StringName = &""
 
 var energy: int = 0
-var armor: int = 0
+var brace: int = 0
 var block: int = 0
 var lock_on: int = 0
 var feedback: int = 0
 var adapt_bonus: int = 0
 var negate_next: bool = false
 var drones: Array[Drone] = []
-var drone_armor: int = 0
+var drone_brace: int = 0
 var charging: Array[ChargingCard] = []
 
 ## Which enemy the card being played is aimed at. Set by play(); damage_enemy
@@ -100,7 +100,7 @@ var clears_node: bool = true
 ## Null in the solo game, in every headless sim, and in a party of one — and
 ## everything below falls back to the fight the game has always had.
 ##
-## THE ENEMY IS THE ONLY SHARED THING. Your deck, hand, energy, block, armor,
+## THE ENEMY IS THE ONLY SHARED THING. Your deck, hand, energy, block, brace,
 ## heat and hull stay exactly where they are, in `Run` and in this object, on
 ## your own machine. No other player targets them, spends them or reads them, so
 ## nothing about them has to cross. That asymmetry is why joint combat fits in
@@ -186,10 +186,10 @@ func foe_hp() -> PackedInt32Array:
 		out.append(e.max_hp)
 	return out
 
-func foe_armor() -> PackedInt32Array:
+func foe_brace() -> PackedInt32Array:
 	var out := PackedInt32Array()
 	for e in enemies:
-		out.append(e.armor)
+		out.append(e.brace)
 	return out
 
 ## Whether this fight is the party's rather than yours.
@@ -225,7 +225,7 @@ func _spawn(template: EnemyTemplate, danger: int, hp_share: float = 1.0) -> Enem
 	e.template = t
 	e.max_hp = maxi(1, int(round(template.max_hull * hp_mult * hp_share)))
 	e.hp = e.max_hp
-	e.armor = int(round(template.armor * hp_mult))
+	e.brace = int(round(template.brace * hp_mult))
 	e.pick_intent()
 	return e
 
@@ -292,9 +292,9 @@ func begin_turn() -> void:
 		for i in times:
 			damage_enemy(d.damage, 1, "Drone")
 		d.fresh = false
-	if drone_armor > 0:
-		armor += drone_armor
-		_log("Shield wasps add %d armor." % drone_armor, &"good")
+	if drone_brace > 0:
+		brace += drone_brace
+		_log("Shield wasps add %d brace." % drone_brace, &"good")
 
 	for c in fired:
 		_log("▸ %s detonates." % c.name, &"big")
@@ -348,9 +348,9 @@ func end_turn() -> void:
 		_finish(&"dead", Run.death_reason)
 		return
 
-	if armor > 0:
+	if brace > 0:
 		Run.heat += 1
-		_log("+1 heat maintaining armor.", &"heat")
+		_log("+1 heat maintaining brace.", &"heat")
 
 	var shed := mini(Run.heat, Run.dissipation())
 	if shed > 0:
@@ -409,7 +409,7 @@ func end_turn() -> void:
 	# existed. CardData has said "decays at end of enemy turn" the whole time;
 	# the code was clearing it at the start of one.
 	#
-	# Armor was unaffected, which is what hid it: the defensive cards that
+	# Brace was unaffected, which is what hid it: the defensive cards that
 	# obviously worked were the ones that used the other field.
 	block = 0
 	turn += 1
@@ -457,9 +457,9 @@ func _act_one(e: EnemyState) -> void:
 					var a := mini(block, d)
 					block -= a
 					d -= a
-				if d > 0 and armor > 0:
-					var a2 := mini(armor, d)
-					armor -= a2
+				if d > 0 and brace > 0:
+					var a2 := mini(brace, d)
+					brace -= a2
 					d -= a2
 				total += d
 			if total > 0:
@@ -584,7 +584,7 @@ func play(index: int, target_index: int = -1) -> void:
 	Sig.player_combat_state_changed.emit()
 
 ## What this card would actually land, right now, after the enemy's block and
-## armor. Mirrors CardResolver's attack maths without mutating anything — if the
+## brace. Mirrors CardResolver's attack maths without mutating anything — if the
 ## two ever drift, the number on screen becomes a lie, so keep them together.
 func preview_damage(c: CardData, target_index: int = -1) -> int:
 	if finished:
@@ -616,7 +616,7 @@ func preview_damage(c: CardData, target_index: int = -1) -> int:
 
 	# Spend a copy of the enemy's mitigation so multi-hit cards read correctly.
 	var block_left := e.block
-	var armor_left := e.armor
+	var brace_left := e.brace
 	var total := 0
 	for i in maxi(1, c.hits):
 		var d := per
@@ -624,8 +624,8 @@ func preview_damage(c: CardData, target_index: int = -1) -> int:
 		block_left -= a
 		d -= a
 		if d > 0:
-			var a2 := mini(armor_left, d)
-			armor_left -= a2
+			var a2 := mini(brace_left, d)
+			brace_left -= a2
 			d -= a2
 		total += maxi(0, d)
 	return total
@@ -647,9 +647,9 @@ func damage_enemy(amount: int, hits: int, label: String,
 			var a := mini(e.block, d)
 			e.block -= a
 			d -= a
-		if d > 0 and e.armor > 0:
-			var a2 := mini(e.armor, d)
-			e.armor -= a2
+		if d > 0 and e.brace > 0:
+			var a2 := mini(e.brace, d)
+			e.brace -= a2
 			d -= a2
 		e.hp -= d
 		total += d
@@ -664,7 +664,7 @@ func damage_enemy(amount: int, hits: int, label: String,
 		# as it does alone — you played it, you see the number, there is no
 		# round trip between the click and the hit. Sent because the host owns
 		# the hull: its push arrives a moment later and overwrites hp, block and
-		# armor with the answer that counts, which is how two ships firing in
+		# brace with the answer that counts, which is how two ships firing in
 		# the same instant end up agreeing about what is left.
 		#
 		# The RAW amount goes, not `total`. The host redoes the mitigation
@@ -840,7 +840,7 @@ func release() -> void:
 ##
 ## Only the numbers move. The templates, the art and the scaled intent lists
 ## were built identically on every machine from the same ids and the same
-## danger, so what crosses is hull, block, armor and WHICH intent — never the
+## danger, so what crosses is hull, block, brace and WHICH intent — never the
 ## intent itself.
 func _adopt(f: SharedFight) -> void:
 	var n := mini(f.foes.size(), enemies.size())
@@ -850,7 +850,7 @@ func _adopt(f: SharedFight) -> void:
 		var was := dst.hp
 		dst.hp = src.hp
 		dst.max_hp = src.max_hp
-		dst.armor = src.armor
+		dst.brace = src.brace
 		dst.block = src.block
 		var list: Array[IntentData] = dst.template.pool \
 			if src.kind == SharedFight.Pick.POOL else dst.template.loop
@@ -933,7 +933,7 @@ func _on_party_lost(_reason: String) -> void:
 
 ## Something is shooting at you.
 ##
-## Resolved here, on your machine, against your own dodge, block, armor and
+## Resolved here, on your machine, against your own dodge, block, brace and
 ## hull, because those numbers exist nowhere else. The host chose the target and
 ## named the intent; everything after that is local.
 func _on_swing(at: int, which: int, kind: int, pick: int) -> void:

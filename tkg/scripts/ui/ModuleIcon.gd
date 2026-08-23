@@ -479,7 +479,7 @@ func _glyph(mark: Color) -> void:
 			draw_rect(Rect2(c + Vector2(-11, -1), Vector2(10, 7)), dim, true)
 			draw_rect(Rect2(c + Vector2(2, -8), Vector2(6, 6)), ink, true)
 			draw_rect(Rect2(c + Vector2(4, -2), Vector2(2, 3)), ink, true)
-		&"armor":
+		&"brace":
 			# A plate with a bevel. Whole, because Brace is a wall you keep.
 			draw_rect(Rect2(c + Vector2(-8, -9), Vector2(16, 15)), dim, true)
 			draw_rect(Rect2(c + Vector2(-8, -9), Vector2(16, 3)), ink, true)

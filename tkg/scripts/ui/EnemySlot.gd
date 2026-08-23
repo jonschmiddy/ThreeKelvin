@@ -1,14 +1,14 @@
 class_name EnemySlot
 extends Control
 
-## Armor as countable cells, sitting on the hull bar.
+## Brace as countable cells, sitting on the hull bar.
 ##
-## Armor was a small bar with "2 ARMOR" written under it, which is a bar doing
-## a number's job and a number doing a bar's. Armor values are small and every
+## Brace was a small bar with "2 ARMOR" written under it, which is a bar doing
+## a number's job and a number doing a bar's. Brace values are small and every
 ## point is one hit's worth of nothing happening — so what matters is HOW MANY,
 ## exactly, the same reason heat and energy are cells rather than bars. Read
 ## them and the label is redundant; the label goes.
-class ArmorPips extends Control:
+class BracePips extends Control:
 	const CELL := Vector2(6, 4)
 	const GAP := 1
 	var value: int = 0
@@ -59,7 +59,7 @@ var _intent_text: Label
 const BAR_W := 120
 
 var _bar: ProgressBar
-var _armor_bar: ArmorPips
+var _brace_bar: BracePips
 ## Steel, so it never reads as a second kind of hull.
 const ARMOR_COL := Color("#9fb0c4")
 var _hot: bool = false
@@ -135,14 +135,14 @@ func _init() -> void:
 	bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(bars)
 
-	# Armor ON TOP, hull beneath — the order damage goes through them. Armor is
+	# Brace ON TOP, hull beneath — the order damage goes through them. Brace is
 	# a second pool that has to be chewed away before the first one moves, so it
 	# gets a bar rather than a chip: that is what a second bar says and what a
 	# word and a number do not.
-	_armor_bar = ArmorPips.new()
-	_armor_bar.custom_minimum_size = Vector2(BAR_W, ArmorPips.CELL.y)
-	_armor_bar.visible = false
-	bars.add_child(_armor_bar)
+	_brace_bar = BracePips.new()
+	_brace_bar.custom_minimum_size = Vector2(BAR_W, BracePips.CELL.y)
+	_brace_bar.visible = false
+	bars.add_child(_brace_bar)
 
 	_bar = ProgressBar.new()
 	_bar.custom_minimum_size = Vector2(BAR_W, 6)
@@ -180,8 +180,8 @@ func bind(i: int, e, telegraphed: bool) -> void:
 		Color("#4a5c72") if _dead else UITheme.THEM)
 	_bar.max_value = e.max_hp
 	_bar.value = e.hp
-	_armor_bar.visible = not _dead and e.armor > 0
-	_armor_bar.set_value(e.armor)
+	_brace_bar.visible = not _dead and e.brace > 0
+	_brace_bar.set_value(e.brace)
 	_hp.text = "WRECKED" if _dead else "%d / %d" % [e.hp, e.max_hp]
 	_hp.add_theme_color_override("font_color",
 		Color("#4a5c72") if _dead else UITheme.GOOD)

@@ -25,9 +25,9 @@ extends Resource
 @export var adapt: int = 0              ## permanently grows this combat
 
 @export_group("Defence")
-@export var armor: int = 0              ## persists between turns, costs heat to hold
+@export var brace: int = 0              ## persists between turns, costs heat to hold
 @export var block: int = 0              ## decays at end of enemy turn
-@export var armor_from_heat: bool = false
+@export var brace_from_heat: bool = false
 @export var feedback: int = 0
 @export var negate_next: bool = false
 
@@ -63,7 +63,7 @@ extends Resource
 @export var credit_gain: int = 0
 @export var credit_cost: int = 0
 @export var drone_damage: int = 0
-@export var drone_armor: int = 0
+@export var drone_brace: int = 0
 @export var evoke: int = 0
 @export var unplayable: bool = false
 
@@ -172,7 +172,7 @@ func glyph_kind() -> StringName:
 		return &"malfunction"
 	if charge_turns > 0:
 		return &"charge"
-	if drone_damage > 0 or drone_armor > 0:
+	if drone_damage > 0 or drone_brace > 0:
 		return &"drone"
 	# An attack whose number is your heat is a different animal from one with a
 	# number printed on it — it is the build asking you to run hot on purpose.
@@ -193,10 +193,10 @@ func glyph_kind() -> StringName:
 	# 8, and calling that a Brace card because Brace is checked first would draw
 	# a picture of the smaller half. A ladder is right for kinds that cannot be
 	# compared; these two are the same kind of thing in different amounts.
-	if armor_from_heat:
-		return &"armor"
-	if armor > 0 or block > 0:
-		return &"armor" if armor >= block else &"block"
+	if brace_from_heat:
+		return &"brace"
+	if brace > 0 or block > 0:
+		return &"brace" if brace >= block else &"block"
 	# Utility, in the order a player would name the card by.
 	if vent > 0 or vent_all:
 		return &"vent"
@@ -263,7 +263,7 @@ var source_rarity: int = 0
 ## Lives here, beside the fields it explains, because these two go stale
 ## together or not at all: a keyword whose definition sits in a UI file drifts
 ## from the mechanic the first time somebody tunes the mechanic. Every entry
-## below was written against Combat.gd rather than from memory — armor really
+## below was written against Combat.gd rather than from memory — brace really
 ## is charged a heat per turn, feedback really does fire once per attacking
 ## enemy — and if that changes, this is the file already open.
 ##
@@ -272,15 +272,15 @@ var source_rarity: int = 0
 func keywords() -> Array:
 	var out: Array = []
 	if block > 0:
-		out.append(["Block", "Soaks damage before armor. Gone at the end of the enemy's turn."])
-	if armor > 0 or armor_from_heat:
-		# BRACE, not "armor". Armor is the resource; Brace is the word the game
+		out.append(["Block", "Soaks damage before your brace does. Gone at the end of the enemy's turn."])
+	if brace > 0 or brace_from_heat:
+		# BRACE, not "brace". Brace is the resource; Brace is the word the game
 		# actually says — it is what the card text prints and what Probate's set
 		# bonus calls this whole class of card. A glossary that explains a term
 		# appearing nowhere on the card is a glossary for a different game.
-		out.append(["Brace", "Armor. Stays up between turns, and costs 1 heat a turn to hold."])
-	if armor_from_heat:
-		out.append(["Brace from heat", "The armor equals your current heat."])
+		out.append(["Brace", "Stays up between turns, and costs 1 heat a turn to hold."])
+	if brace_from_heat:
+		out.append(["Brace from heat", "You brace for however much heat you are carrying."])
 	if feedback > 0:
 		out.append(["Feedback", "Deals this straight back to any enemy that attacks you."])
 	if negate_next:
@@ -302,7 +302,7 @@ func keywords() -> Array:
 		out.append(["Lock on", "Your next attack this turn deals this much more."])
 	if vent > 0 or vent_all:
 		out.append(["Vent", "Sheds heat. The one corner on a card that runs backwards."])
-	if drone_damage > 0 or drone_armor > 0:
+	if drone_damage > 0 or drone_brace > 0:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
 	if fused:
 		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it works — it just costs you a card."])
@@ -361,9 +361,9 @@ func describe() -> String:
 		bits.append("Salvo +%d" % salvo)
 	if adapt > 0:
 		bits.append("Grows +%d" % adapt)
-	if armor > 0:
-		bits.append("Brace %d" % armor)
-	if armor_from_heat:
+	if brace > 0:
+		bits.append("Brace %d" % brace)
+	if brace_from_heat:
 		bits.append("Brace from heat")
 	if block > 0:
 		bits.append("Block %d" % block)
@@ -425,8 +425,8 @@ func describe() -> String:
 	# point at the one glossary entry that explains them, which is Drone.
 	if drone_damage > 0:
 		bits.append("Attack drone %d" % drone_damage)
-	if drone_armor > 0:
-		bits.append("Screen drone %d" % drone_armor)
+	if drone_brace > 0:
+		bits.append("Screen drone %d" % drone_brace)
 	if evoke > 0:
 		bits.append("Evoke %d per drone" % evoke)
 	if unplayable:

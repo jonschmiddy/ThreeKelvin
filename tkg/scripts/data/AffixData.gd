@@ -14,7 +14,7 @@ extends Resource
 
 @export var add_damage: int = 0
 @export var add_hits: int = 0
-@export var add_armor: int = 0
+@export var add_brace: int = 0
 @export var add_draw: int = 0
 @export var add_vent: int = 0
 @export var add_heal: int = 0
@@ -28,8 +28,8 @@ func apply_to(c: CardData) -> void:
 		c.damage += add_damage
 	if add_hits != 0 and c.damage > 0:
 		c.hits += add_hits
-	if add_armor != 0 and c.armor > 0:
-		c.armor += add_armor
+	if add_brace != 0 and c.brace > 0:
+		c.brace += add_brace
 	if add_draw != 0:
 		c.draw += add_draw
 	if add_vent != 0:

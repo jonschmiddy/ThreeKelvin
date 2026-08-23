@@ -49,7 +49,7 @@ extends Node
 ## 4: a claim names an OPTION within a system rather than the whole system, and
 ##    records WHO took it. A version 3 host would answer a request for one
 ##    option by consuming the entire node.
-## 5: fights are shared. The host owns the enemy — hull, block, armor and
+## 5: fights are shared. The host owns the enemy — hull, block, brace and
 ##    intent — and decides who it swings at. A version 4 host answers none of
 ##    the fight messages, so two ships in one system would fight two private
 ##    copies of the same frigate and both be paid for killing it.
@@ -553,9 +553,9 @@ func _push_claims_to(all: Dictionary) -> void:
 ## second both believe they are first, and only the host can say otherwise.
 @rpc("any_peer", "call_remote", "reliable")
 func _open_fight_at_host(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		armor: PackedInt32Array) -> void:
+		brace: PackedInt32Array) -> void:
 	if is_host():
-		_open_or_join(index, ids, hp, armor, multiplayer.get_remote_sender_id())
+		_open_or_join(index, ids, hp, brace, multiplayer.get_remote_sender_id())
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -784,7 +784,7 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 
 ## Engage at a system, alone or beside whoever is already shooting.
 ##
-## `hp` and `armor` are what the caller's own `Combat._spawn` produced. They are
+## `hp` and `brace` are what the caller's own `Combat._spawn` produced. They are
 ## passed in rather than worked out here so that danger scaling, boss exemption
 ## and the pack split stay in the one function that has always owned them — the
 ## session layer is not going to grow a second opinion about how tough a frigate
@@ -795,17 +795,17 @@ func take(index: int, option: int = MapGen.OPTION_WHOLE) -> int:
 ## a client gets if the host never answers. All three want the same behaviour,
 ## which is the fight the game has always had.
 func open_fight(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		armor: PackedInt32Array) -> SharedFight:
+		brace: PackedInt32Array) -> SharedFight:
 	if not _can_talk() or index < 0 or party_size() < 2:
 		return null
 	if is_host():
-		_open_or_join(index, ids, hp, armor, 1)
+		_open_or_join(index, ids, hp, brace, 1)
 		return fights.get(index, null)
 	# Ask and wait, for the same reason `take()` does: two ships arriving at one
 	# system in the same second must end up in ONE fight. A client that opened
 	# optimistically would spawn a private frigate, and the host's would arrive
 	# a moment later holding different numbers.
-	_open_fight_at_host.rpc_id(1, index, ids, hp, armor)
+	_open_fight_at_host.rpc_id(1, index, ids, hp, brace)
 	var me := local_id()
 	var deadline := _now() + TAKE_TIMEOUT
 	while _now() < deadline:
@@ -929,7 +929,7 @@ func _push_claims() -> void:
 # --- fights, on the host --------------------------------------------------
 
 func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
-		armor: PackedInt32Array, by: int) -> void:
+		brace: PackedInt32Array, by: int) -> void:
 	var f: SharedFight = fights.get(index, null)
 	if f != null and not f.over:
 		# Already somebody's fight. The second ship in is help, not a second
@@ -937,7 +937,7 @@ func _open_or_join(index: int, ids: PackedStringArray, hp: PackedInt32Array,
 		if not f.join(by):
 			return
 	else:
-		f = SharedFight.open(index, ids, hp, armor, by)
+		f = SharedFight.open(index, ids, hp, brace, by)
 		fights[index] = f
 		for i in f.foes.size():
 			_pick_intent(f, i)
@@ -981,7 +981,7 @@ func _apply_leave(index: int, by: int) -> void:
 ## because it is the one moment a shared object acts on several private ones.
 ##
 ## Each hull swings at ONE ship and the message goes to that ship alone. What
-## happens next — dodge, block, armor, hull, feedback — is resolved on the
+## happens next — dodge, block, brace, hull, feedback — is resolved on the
 ## victim's machine against its own `Run`, because those numbers live nowhere
 ## else and no other player has any use for them. Mirroring three partners'
 ## block values across the party would be a lot of wire for something nobody

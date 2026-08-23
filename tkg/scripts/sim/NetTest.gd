@@ -626,15 +626,15 @@ func _fight_rules_test() -> void:
 	check("three in the crew", f.crew.size(), 3)
 	ok("joining twice is joining once", not f.join(22))
 
-	# Block first, then armor, per hit — the same order Combat.damage_enemy
+	# Block first, then brace, per hit — the same order Combat.damage_enemy
 	# spends them in. If these two ever disagree the hull bar contradicts the
 	# combat log.
 	f.foes[0].block = 5
 	var landed := f.hurt(0, 10, 2, 22)
-	# Two hits of 10 into 5 block and 3 armor: the first hit spends both and
+	# Two hits of 10 into 5 block and 3 brace: the first hit spends both and
 	# lands 2, the second lands all 10. Mitigation is per-fight, not per-hit,
-	# which is what makes multi-hit cards good into armor.
-	check("block and armor come off the first hit only", landed, 12)
+	# which is what makes multi-hit cards good into brace.
+	check("block and brace come off the first hit only", landed, 12)
 	check("hull took exactly that", f.foes[0].hp, 208)
 	check("the shot is stamped with who fired it", f.last_hit[0], 22)
 	check("and with a serial, so it is drawn once", f.hit_serial, 1)
