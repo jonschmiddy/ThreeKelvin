@@ -83,6 +83,12 @@ func _build() -> void:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(col)
 
+	# KEPT, because every press of the filter refills this exact column. It was
+	# lost once: deleting the readout panel took a slice that ran up to the
+	# _fill call and swallowed the line above it, so _col stayed null, Widgets
+	# .clear(null) threw on every press, and the page silently kept whatever the
+	# first build had put there. The buttons lit up and nothing moved.
+	_col = col
 	var n := _fill(col)
 	_count.text = "%d of %d modules · %d cards" % [_shown, DB.modules.size(), n]
 
@@ -128,9 +134,7 @@ func _fill(col: VBoxContainer) -> int:
 				if m.cells() == n:
 					bucket.append(m)
 			if not bucket.is_empty():
-				bucket.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
-					return a.footprint().x < b.footprint().x or (
-						a.footprint().x == b.footprint().x and a.name < b.name))
+				_by_size(bucket)
 				groups.append({label = "%d %s" % [n, "CELL" if n == 1 else "CELLS"],
 					colour = UITheme.COLD, parts = bucket})
 	else:
@@ -140,6 +144,7 @@ func _fill(col: VBoxContainer) -> int:
 				if m.manufacturer == id:
 					bucket2.append(m)
 			if not bucket2.is_empty():
+				_by_size(bucket2)
 				groups.append({label = DB.manufacturer_name(id).to_upper(),
 					colour = DB.manufacturer_colour(id), parts = bucket2})
 		var yard: Array[ModuleData] = []
@@ -147,6 +152,7 @@ func _fill(col: VBoxContainer) -> int:
 			if m.manufacturer == &"":
 				yard.append(m)
 		if not yard.is_empty():
+			_by_size(yard)
 			groups.append({label = "UNBRANDED", colour = UITheme.COLD, parts = yard})
 
 	var cards := 0
@@ -201,6 +207,22 @@ func _fill(col: VBoxContainer) -> int:
 		col.add_child(UITheme.body("NOTHING MATCHES", UITheme.COLD, UITheme.FS_SMALL))
 	_shown = kept.size()
 	return cards
+
+
+## SMALLEST FIRST, WITHIN WHATEVER GROUP. A house block used to come out in
+## database order, which is the order somebody typed the parts in — so a
+## 2x2 bay sat between two 1x1 sights and the row read as noise. Sorted, a
+## house reads as a ladder of sizes and the shapes line up down the page.
+##
+## Cells first, then width, then name: a 3x1 and a 2x2 are both three-ish and
+## the eye wants the long one and the blocky one apart, not interleaved.
+func _by_size(parts: Array) -> void:
+	parts.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
+		if a.cells() != b.cells():
+			return a.cells() < b.cells()
+		if a.footprint().x != b.footprint().x:
+			return a.footprint().x < b.footprint().x
+		return a.name < b.name)
 
 
 func _on_filter(_state: Dictionary) -> void:
