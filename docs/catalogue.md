@@ -114,6 +114,27 @@ A house's cards should be recognisable as that house *without the name*:
 | Calyx Biosystems | Growth, healing, cards that change through use. |
 | Unbranded | Exotic (grown) and artifact (precursor). No house voice. |
 
+### Korvan ballistics run cold — and the mechanics already say which is which
+
+The manufacturer line is *"Ex-military surplus parts. Ballistics run cold;
+ordnance and armor run hot."* That needs no new field to enforce, because the
+card data already tells the two apart:
+
+| | banks the shot | fires |
+| --- | --- | --- |
+| field | `charge_turns` | `hits` / `salvo` |
+| is | ordnance | ballistics |
+| heat | **yes** | **no** |
+
+**Gate:** a Korvan weapon card may cost heat if and only if it charges. Armour
+is exempt and hot by the same sentence — Bulwark and Bulkhead pay heat to hold a
+plate up.
+
+Four cards failed it when the check was written, and every one was a gun whose
+own flavour said ballistic: a rotary cannon, a three-barrel ripsaw, and both
+cards off the KH-500. They cost the house the only advantage it has — **a Korvan
+gun that heats you up is a worse Solari gun.**
+
 A card that contradicts its house is a bug even when the numbers are fine —
 Spinal Mount was a heat-scaling gun on the low-heat house, which made it a
 Solari card wearing a Korvan name.
@@ -687,7 +708,52 @@ Standing artifact: **Yard Manifest**, republished in place each time.
 
 ---
 
-## §16 Where it stands
+## §16 What the catalogue measures
+
+Numbers to check a pass against, not rules. All from `-- content json`.
+
+### Strength against grade
+
+    grade        n   avg power   avg cost   power per cost
+    Common      26        5.4       0.97           5.5
+    Uncommon    21        6.0       1.07           5.6
+    Rare        22        7.7       1.22           6.3
+    Epic         7       13.8       1.99           6.9
+    Legendary    7       17.5       2.91           6.0
+    Exotic       3       14.0       1.00          14.0
+    Artifact     9       16.9       1.47          11.5
+
+Power climbs cleanly and **efficiency stays flat from common to legendary** —
+higher grades give more *and* cost more, which is the healthy shape. Two things
+are worth knowing:
+
+**Exotic and artifact are about twice as efficient as legendary.** Cheap and
+strong. Under Pillar 5 that is arguably right — that is the tier meant to feel
+broken — but it is a cliff rather than a gradient, and it is deliberate rather
+than drift.
+
+**Common to uncommon is a weak step**, 5.4 to 6.0. An uncommon barely reads as
+an upgrade. If one thing gets tuned next, it is that.
+
+### House neutrality
+
+**0 of 26 unbranded cards lean on a house mechanic** — no drones (Cygnet), no
+credits (Probate), no heat-scaling or brace-from-heat (Solari). Unbranded stock
+has to work on any frame, and it does.
+
+### Gauge coverage by house
+
+    Korvan      hull 1/2/2/3   thermal 1/2/3   sensors 1/2/3   maneuver —   stealth —
+    Unbranded   hull 4         thermal 4       sensors 3/4     maneuver 4   stealth 4
+
+Korvan covers every gauge that is not stealth or maneuver, at +1, +2 and +3.
+Unbranded covers all five and only at the top, which is right: exotic and
+artifact are unbranded by definition, so the ceiling of every ladder is the
+yard's.
+
+---
+
+## §17 Where it stands
 
     korvan          25 parts   40 cards   want 40   done
     (unbranded)     18         20         want 20   done

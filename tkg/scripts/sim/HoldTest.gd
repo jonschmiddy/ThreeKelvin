@@ -24,6 +24,7 @@ func run() -> void:
 	_card_law()
 	_no_twins()
 	_no_echoes()
+	_korvan_runs_cold()
 	verdict("holdtest")
 
 
@@ -411,3 +412,39 @@ func _no_echoes() -> void:
 	for e in echoed:
 		_fail(e)
 	print("  glossary: %d keywords across %d cards" % [glossary.size(), seen.size()])
+
+
+## KORVAN BALLISTICS RUN COLD. The manufacturer says so in the one line a
+## player reads before choosing it: "Ex-military surplus parts. Ballistics run
+## cold; ordnance and armor run hot."
+##
+## THE MECHANICS ALREADY TELL THE TWO APART and nothing had noticed. An
+## ordnance card BANKS THE SHOT — it charges, and the heat is the price of
+## holding it. A ballistic card FIRES — hits and salvo, volume rather than
+## patience. So the rule needs no new field: a Korvan attack may cost heat if
+## and only if it charges.
+##
+## Four cards failed it when this was written, and every one was a gun whose
+## own flavour said ballistic: a rotary cannon, a three-barrel ripsaw and both
+## cards off the KH-500. They cost the house the one advantage it has — a
+## Korvan gun that heats you up is a worse Solari gun.
+##
+## ARMOUR IS EXEMPT AND HOT BY THE SAME LINE. Bulwark and Bulkhead pay heat to
+## hold a plate up, which is the other half of the sentence.
+func _korvan_runs_cold() -> void:
+	var bad: Array[String] = []
+	for id in DB.modules:
+		var m: ModuleData = DB.modules[id]
+		if m.manufacturer != &"korvan" or m.slot != ModuleData.Slot.WEAPON:
+			continue
+		for c in m.resolved_cards():
+			var cd: CardData = c
+			if cd.damage <= 0 or cd.heat <= 0:
+				continue
+			if cd.charge_turns > 0:
+				continue
+			bad.append("%s (%s) costs %d heat and does not charge"
+				% [cd.name, m.name, cd.heat])
+	_ok("Korvan ballistics run cold; only its ordnance runs hot", bad.is_empty())
+	for b in bad:
+		_fail(b)

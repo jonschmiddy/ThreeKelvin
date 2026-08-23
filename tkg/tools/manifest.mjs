@@ -177,7 +177,7 @@ function cardLine(c) {
   // squashing them into a sum was this page's invention, and somebody read a
   // Ripple Fire as costing two of something.
   const cost = '<span class="cost">' + c.energy
-    + (c.heat ? '<b>' + c.heat + '°</b>' : '') + '</span>';
+    + (c.heat ? '<i>|</i><b>' + c.heat + '°</b>' : '') + '</span>';
   return '<li>' + r + cost + '<span class="cn">' + esc(c.name) + '</span>'
     + '<span class="ct">' + esc(c.text) + '</span></li>';
 }
@@ -282,7 +282,7 @@ const cardRows = CARDS.map(c =>
   + '<td class="c-name">' + esc(c.name)
   + (c.parts.size > 1 ? '<span class="tag">' + c.parts.size + ' parts</span>' : '') + '</td>'
   + '<td class="c-cost">' + c.energy
-    + (c.heat ? ' <b>' + c.heat + '°</b>' : '') + '</td>'
+    + (c.heat ? ' <i>|</i> <b>' + c.heat + '°</b>' : '') + '</td>'
   + '<td class="c-text">' + esc(c.text) + '</td>'
   + '<td class="c-rar">' + [...c.rarities].map(r =>
       '<span class="r-' + slug(r) + '">' + esc(r) + '</span>').join(' / ') + '</td>'
@@ -411,6 +411,7 @@ const CSS = [
 '  text-transform:uppercase;text-align:center;border:1px solid currentColor;line-height:1.6}',
 '.cost{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--cold);text-align:right}',
 '.cost b{color:var(--ember);font-weight:500}',
+'.cost i,.c-cost i{color:var(--line);font-style:normal;padding:0 2px}',
 '.cn{font-weight:500;grid-column:3}',
 '.ct{color:var(--chill);font-size:12px;grid-column:3;margin-top:-3px}',
 '.scroll{overflow-x:auto;border:1px solid var(--line);background:var(--panel-2)}',
@@ -566,6 +567,10 @@ auditVerdict,
 '<div class="set" data-k="sort"><span class="lbl">Sort</span>'
 + '<button data-v="house" data-on="1">By house</button>'
 + '<button data-v="cells">By cells</button></div></div>',
+'<p class="note"><b>The number beside a card is what it costs</b> — energy on '
++ 'the left, heat on the right in orange. <code>1 | 1°</code> is one energy and '
++ 'one heat; a card with nothing on the right costs no heat at all, which for '
++ 'Korvan ballistics is most of them.</p>',
 '<p class="note"><b>Pair</b> on a plate means the part grants <b>two copies of '
 + 'one card</b> rather than two different ones — how a part says <i>this is the '
 + 'only thing I do, and I do it twice</i>. It is right for the parts whose flavour '

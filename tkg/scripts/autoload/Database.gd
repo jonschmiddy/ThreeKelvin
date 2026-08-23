@@ -427,7 +427,7 @@ func _seed_modules() -> void:
 		[{name = "Bore Sight", energy = 1, lock_on = 4, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
 		"Rotary cannon. Volume as a philosophy.",
-		[{name = "Full Auto", energy = 2, heat = 1, damage = 2, hits = 5, salvo = 1}, &"feed"])
+		[{name = "Full Auto", energy = 2, damage = 2, hits = 5, salvo = 1}, &"feed"])
 	_module(&"widow", "Widowmaker Siege Driver", &"korvan", W, C3,
 		"Two turns of silence, then nothing left.",
 		[{name = "Siege Round", energy = 3, heat = 6, damage = 40, charge_turns = 2, copies = 1}])
@@ -462,7 +462,7 @@ func _seed_modules() -> void:
 	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
 	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
 		"Three barrels, one trigger, no subtlety.",
-		[{name = "Ripple Fire", energy = 1, heat = 1, damage = 2, hits = 3, salvo = 2}, &"feed"])
+		[{name = "Ripple Fire", energy = 1, damage = 2, hits = 3, salvo = 2}, &"feed"])
 	# The top of the KH line, and the payoff for the whole salvo spine: 20 cold,
 	# 40 once anything has already fired. Three energy and one copy, so it is a
 	# HEAVY's card by construction — a reactor of four plays a Ripsaw into this and
@@ -470,8 +470,8 @@ func _seed_modules() -> void:
 	# patient) written as a weapon, and at five set pieces the enabler is free.
 	_module(&"kh500", "KH-500 Drumfire", &"korvan", W, C4,
 		"The last argument of a slow ship.",
-		[{name = "Drumfire", energy = 3, heat = 5, damage = 4, hits = 5, salvo = 4},
-			{name = "Walking Fire", energy = 2, heat = 3, damage = 3, hits = 6, salvo = 2}])
+		[{name = "Drumfire", energy = 3, damage = 4, hits = 5, salvo = 4},
+			{name = "Walking Fire", energy = 2, damage = 3, hits = 6, salvo = 2}])
 
 	# Systems climb ARMOUR, and the verb arrives at the top rather than along the
 	# way: C1 marries the two Commons, C2 buys a different defence entirely, C3
