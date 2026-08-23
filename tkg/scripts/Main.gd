@@ -539,6 +539,15 @@ func _ready() -> void:
 				named = DB.enemies.get(StringName(a.split("=")[1]))
 		if named != null:
 			Router.start_combat(named, [], false)
+			# `foehp=20` opens the named contact already hurt — the only way to
+			# photograph the states a fight normally has to earn: the wound
+			# bands, and the hellbender's escape-burn telegraph.
+			for a2 in OS.get_cmdline_user_args():
+				if a2.begins_with("foehp="):
+					var e0 := Router.combat.enemies[0]
+					e0.hp = clampi(int(a2.split("=")[1]), 1, e0.max_hp)
+					e0.pick_intent()
+					Sig.enemy_changed.emit()
 		else:
 			var pool := DB.fight_pool(3, false)
 			Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])

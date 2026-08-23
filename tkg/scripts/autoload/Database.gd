@@ -2033,7 +2033,7 @@ func _seed_enemies() -> void:
 	# The device lives in the tag and, someday, in an archive document that
 	# describes the emblem without explaining it. Nobody explains anything in
 	# this galaxy; see docs/lore.md.
-	_enemy(&"hellbender", "The Hellbender", "rival harvester · a salamander device on the hull", 90, 6, 90, &"hulk", [
+	_enemy(&"hellbender", "The Hellbender", "rival harvester · a salamander device on the hull", 90, 6, 90, &"hellbender", [
 		{name = "Heat Lance", text = "Deal 11", damage = 11},
 		{name = "Slag Guns", text = "Deal 4 × 3", damage = 4, hits = 3},
 		{name = "Ashplate", text = "Gain 10 block", block = 10},

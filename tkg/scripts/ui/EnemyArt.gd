@@ -263,6 +263,7 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
 	match e.template.art:
 		&"cutter": _draw_cutter(wounded)
 		&"hulk": _draw_hulk(wounded, telegraphing)
+		&"hellbender": _draw_hellbender(wounded, telegraphing)
 		_: _draw_fauna(wounded, e.max_hp > 60)
 	_track = false
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
@@ -455,6 +456,110 @@ func _draw_hulk(wounded: float, telegraphing: bool) -> void:
 
 	if wounded < 0.5:
 		_wound(100, 58, 24, 17)
+
+## The Hellbender: a furnace wearing a hull. Every other ship out here is cold
+## metal with one warm exception at the nozzle; this one is black iron leaking
+## its own cargo — ember light standing in every seam, a radiator spine that
+## cannot not glow, and an intake maw at the bow because it eats wrecks for a
+## living. No new ramp: ART_CONTRACT reserves those for manufacturers, and the
+## whole design is _gun darks letting _heat out, which is the one warm ramp a
+## ship is allowed and the one thing this ship IS.
+##
+## Telegraphing here is the ESCAPE BURN — the only telegraph in its kit — so
+## the tell lights the DRIVE, not a weapon: the hulk teaches you its glow means
+## a ram is coming, this one teaches you its glow means it is leaving.
+func _draw_hellbender(wounded: float, telegraphing: bool) -> void:
+	var body := _profile([
+		Vector3i(46, 52, 74), Vector3i(58, 44, 82), Vector3i(72, 40, 86),
+		Vector3i(96, 38, 88), Vector3i(128, 38, 88), Vector3i(150, 40, 85),
+		Vector3i(164, 44, 80), Vector3i(174, 48, 74)])
+
+	# Radiator spine first, so the hull's rim light cuts across its foot — the
+	# same trick that seats the hulk's containers on its deck.
+	_hull(_profile([
+		Vector3i(78, 32, 44), Vector3i(90, 29, 44), Vector3i(140, 28, 44),
+		Vector3i(152, 31, 44)]), _gun, 0.6, false)
+	_hull(body, _gun, 0.5)
+	# The spine's louvres, glowing out of their recesses. Five of them: this is
+	# the ship the chart draws in ember, and the sprite has to be why.
+	for i in 5:
+		_vent(84 + i * 13, 31, 8, 5)
+
+	# Plate seams — and the light behind them. A cold ship's seam is a shadow
+	# line; on this one the lower half of every seam is a slit with the hold's
+	# fire standing in it. The two-plane break stays untouched above the lip.
+	for x in [70, 92, 114, 136, 156]:
+		var span: Vector2i = body[x]
+		var d := int(float(span.y - span.x) * 0.5)
+		_seam(x, span.x + 2, d - 3, _gun)
+		px(x, span.x + d + 4, 1, 10, _heat[1])
+		px(x, span.x + d + 4, 1, 2, _heat[2])
+		_streak(x + 3, span.x + d + 4, 18, _gun)
+	rivets(64, 42, 24, 4, _gun[1])
+	# Crew windows, every one of them furnace-coloured. The hulk's portholes
+	# say somebody lives aboard; these say what they live inside.
+	for i in 9:
+		px(66 + i * 11, 78, 3, 2, _heat[0])
+		px(66 + i * 11, 78, 3, 1, _heat[3])
+
+	# The salamander device, amidships on a plaque: a bright curl of a beast
+	# over three licks of flame. Enough pixels to read as heraldry, not enough
+	# to pretend it explains itself — see docs/lore.md on devices going
+	# unglossed.
+	px(99, 55, 18, 13, _ink)
+	px(100, 56, 16, 11, _gun[1])
+	px(100, 56, 16, 1, _gun[3])
+	px(112, 58, 2, 2, _heat[4])
+	for raw in [[110, 59], [108, 60], [106, 61], [105, 62], [106, 63], [108, 64]]:
+		var seg: Array = raw
+		px(int(seg[0]), int(seg[1]), 2, 1, _heat[3])
+	for fx in [103, 107, 111]:
+		px(fx, 65, 1, 1, _heat[2])
+
+	# The intake maw: an upper jaw, a lower jaw hanging in the hull's shadow,
+	# and between them the dark it feeds wrecks into — never fully cold, even
+	# at rest. This is the bow because this is what the ship is for.
+	_hull(_profile([Vector3i(26, 46, 58), Vector3i(48, 44, 60)]), _gun, 0.55)
+	_hull(_profile([Vector3i(30, 64, 76), Vector3i(48, 62, 78)]),
+		_under(_gun), 0.35, false)
+	px(28, 59, 18, 4, _ink)
+	dither(30, 60, 14, 2, _heat[0], 0.6)
+	dither(32, 60, 8, 1, _heat[1], 0.4)
+	# Cutting teeth along both jaws.
+	for i in 4:
+		px(28 + i * 5, 57, 2, 2, _gun[4])
+		px(30 + i * 5, 63, 2, 2, _gun[3])
+
+	# Stern drive block, oversized for the tonnage — it runs hot because it can.
+	_hull(_profile([Vector3i(174, 46, 76), Vector3i(188, 49, 73)]), _gun, 0.5)
+	_vent(166, 52, 8, 5)
+	_vent(166, 64, 8, 5)
+	px(188, 52, 6, 18, _ink)
+	px(188, 53, 6, 16, _gun[1])
+	px(188, 53, 6, 1, _gun[3])
+
+	# The escape burn, spooling. The drive goes white-hot, the spine's louvres
+	# jump two stops, and a pre-burn haze stands off the stern — one full turn
+	# of THIS is the window the fight gives you to finish it. See
+	# Combat.escape_intent().
+	if telegraphing:
+		px(189, 55, 4, 12, _heat[5])
+		for i in 5:
+			px(84 + i * 13, 31, 8, 3, _heat[3])
+			px(84 + i * 13, 31, 8, 1, _heat[5])
+		_glow(194, 61, 11, 34)
+		dither(196, 44, 30, 34, _heat[3], 0.35)
+	else:
+		_glow(194, 61, 9, 22)
+
+	if wounded < 0.5:
+		_wound(94, 60, 20, 14)
+	# A second, older hole. This ship carries its damage between engagements —
+	# RunState mends it a few points per move — so a hellbender met twice
+	# should look like a ship you have already been beating on.
+	if wounded < 0.25:
+		_wound(142, 50, 13, 9)
+
 
 ## The fauna: an armoured, segmented thing. Not a ship, and lit like one anyway,
 ## because the light in this sector does not care what it is falling on. What

@@ -19,6 +19,7 @@ const BANDS := ["intact", "marked", "mauled", "wrecked"]
 const STUFF := {
 	&"cutter": HullWear.Substance.METAL,
 	&"hulk": HullWear.Substance.METAL,
+	&"hellbender": HullWear.Substance.METAL,
 }
 
 var _seed: int = 1
@@ -28,7 +29,7 @@ func run(tree: SceneTree) -> void:
 		if a.begins_with("seed="):
 			_seed = int(a.substr(5))
 	DirAccess.make_dir_recursive_absolute(OUT)
-	for art in [&"cutter", &"hulk", &"leviathan"]:
+	for art in [&"cutter", &"hulk", &"hellbender", &"leviathan"]:
 		_sheet(art)
 	print("\nwrote to %s" % ProjectSettings.globalize_path(OUT))
 	tree.quit()
