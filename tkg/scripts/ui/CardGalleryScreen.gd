@@ -35,6 +35,11 @@ var _hot: CardView = null
 ## than a string.
 var _owner: Dictionary = {}
 
+var _col: VBoxContainer
+var _filter: GalleryFilter
+var _count: Label
+var _all: int = 0
+
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
@@ -50,9 +55,25 @@ func _build() -> void:
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(gap)
-	var count := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	head.add_child(count)
+	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	head.add_child(_count)
 	col_root.add_child(head)
+
+	# The same bar the module gallery and the Yard Manifest carry. Grade filters
+	# the CARD and slot filters the PART that grants it, which is the question a
+	# player actually asks: what does a Korvan utility put in my deck.
+	_filter = GalleryFilter.new()
+	_filter.setup([[
+		{key = &"house", label = "Manufacturer", options = GalleryFilter.house_options()},
+	], [
+		{key = &"grade", label = "Grade", options = GalleryFilter.grade_options()},
+		{key = &"slot", label = "Slot", options = GalleryFilter.slot_options()},
+		{key = &"sort", label = "Sort", options = [
+			{value = &"house", text = "By house"},
+			{value = &"grade", text = "By grade"}]},
+	]])
+	_filter.changed.connect(_on_filter)
+	col_root.add_child(_filter)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -64,8 +85,10 @@ func _build() -> void:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(col)
 
+	_col = col
 	var total := _fill(col)
-	count.text = "%d cards · %d modules" % [total, DB.modules.size()]
+	_all = total
+	_count.text = "%d of %d cards" % [total, _all]
 
 	# Above everything, and deaf to the mouse: the pop must never become the
 	# thing the cursor is pointing at, or hovering it would count as leaving the
@@ -75,35 +98,83 @@ func _build() -> void:
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_overlay)
 
-## One block per manufacturer, houses first and the unbranded last: precursor
-## and grown things have no banner to compare, so they are not part of the
-## comparison the grouping exists to make.
+## GROUPED BY HOUSE OR BY GRADE, and filtered, from the bar above.
+##
+## Houses first and the unbranded last: precursor and grown things have no
+## banner to compare, so they are not part of the comparison the grouping exists
+## to make.
+##
+## Rebuilt on every press rather than hiding children, for the same reason the
+## module gallery is: the group headings carry counts, and a heading that has to
+## know how many of its own children are still visible is bookkeeping a rebuild
+## does for free.
 func _fill(col: VBoxContainer) -> int:
-	var by_maker: Dictionary = {}
+	Widgets.clear(col)
+	var f: Dictionary = _filter.state() if _filter != null else {}
+	var house: Variant = f.get(&"house", &"")
+	var grade: int = int(f.get(&"grade", -1))
+	var slot: int = int(f.get(&"slot", -1))
+	var by_grade: bool = f.get(&"sort", &"house") == &"grade"
+
+	# EVERY CARD A DECK CAN BE HANDED, carried with the module that grants it,
+	# because the filters are questions about the PART as often as about the card.
+	# "What does a Korvan utility put in my deck" is a slot filter on a card page.
+	var kept: Array = []
 	for k in DB.modules:
 		var m: ModuleData = DB.modules[k]
-		var key := String(m.manufacturer)
-		if not by_maker.has(key):
-			by_maker[key] = []
-		by_maker[key].append(m)
+		if house == &"(unbranded)":
+			if m.manufacturer != &"":
+				continue
+		elif house != &"" and m.manufacturer != house:
+			continue
+		if slot >= 0 and int(m.slot) != slot:
+			continue
+		# resolved_cards(), not `cards`. The Grant Count Law decides how many a
+		# module actually puts in a deck, so authoring two verbs on a module that
+		# grants one means only one is ever seen. This page shows what the deck sees.
+		for c in m.resolved_cards():
+			var cd: CardData = c
+			if grade >= 0 and cd.rarity != grade:
+				continue
+			kept.append({card = cd, part = m})
 
-	var order: Array = []
-	for id in DB.manufacturers:
-		if by_maker.has(String(id)):
-			order.append(String(id))
-	if by_maker.has(""):
-		order.append("")
+	var groups: Array = []
+	if by_grade:
+		for r in ModuleData.Rarity.size():
+			var bucket: Array = []
+			for row in kept:
+				if (row as Dictionary).card.rarity == r:
+					bucket.append(row)
+			if not bucket.is_empty():
+				groups.append({label = ModuleData.rarity_name(r).to_upper(),
+					colour = ModuleData.rarity_ink(r), rows = bucket})
+	else:
+		for id in DB.manufacturers:
+			var bucket2: Array = []
+			for row in kept:
+				if (row as Dictionary).part.manufacturer == id:
+					bucket2.append(row)
+			if not bucket2.is_empty():
+				groups.append({label = DB.manufacturer_name(id).to_upper(),
+					colour = DB.manufacturer_colour(id), rows = bucket2})
+		var yard: Array = []
+		for row in kept:
+			if (row as Dictionary).part.manufacturer == &"":
+				yard.append(row)
+		if not yard.is_empty():
+			groups.append({label = "UNBRANDED", colour = UITheme.COLD, rows = yard})
 
 	var total := 0
-	for key in order:
-		var label := DB.manufacturer_name(StringName(key)) if key != "" else "Unbranded"
+	for raw in groups:
+		var g: Dictionary = raw
 		var bar := HBoxContainer.new()
 		bar.add_theme_constant_override("separation", 5)
 		var swatch := ColorRect.new()
-		swatch.color = DB.manufacturer_colour(StringName(key))
+		swatch.color = g.colour
 		swatch.custom_minimum_size = Vector2(4, 12)
 		bar.add_child(swatch)
-		bar.add_child(UITheme.body(label.to_upper(), UITheme.ICE, UITheme.FS_SMALL))
+		bar.add_child(UITheme.body("%s — %d" % [g.label, (g.rows as Array).size()],
+			UITheme.ICE, UITheme.FS_SMALL))
 		col.add_child(bar)
 
 		var flow := HFlowContainer.new()
@@ -112,20 +183,22 @@ func _fill(col: VBoxContainer) -> int:
 		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		col.add_child(flow)
 
-		for raw in by_maker[key]:
-			var m: ModuleData = raw
-			# resolved_cards(), not `cards`. The Grant Count Law decides how many
-			# a module actually puts in a deck, so authoring two verbs on a
-			# module that grants one means only one of them is ever seen. This
-			# page shows what the deck sees.
-			for c in m.resolved_cards():
-				var v := CardView.new()
-				v.setup(c, true, 1)
-				v.mouse_filter = Control.MOUSE_FILTER_PASS
-				v.hovered.connect(_on_hover)
-				flow.add_child(v)
-				total += 1
+		for row2 in g.rows:
+			var v := CardView.new()
+			v.setup((row2 as Dictionary).card, true, 1)
+			v.mouse_filter = Control.MOUSE_FILTER_PASS
+			v.hovered.connect(_on_hover)
+			flow.add_child(v)
+			total += 1
+	if groups.is_empty():
+		col.add_child(UITheme.body("NOTHING MATCHES", UITheme.COLD, UITheme.FS_SMALL))
 	return total
+
+
+func _on_filter(_state: Dictionary) -> void:
+	var n := _fill(_col)
+	_count.text = "%d of %d cards" % [n, _all]
+
 
 func _on_hover(v: CardView, entered: bool) -> void:
 	if not entered:

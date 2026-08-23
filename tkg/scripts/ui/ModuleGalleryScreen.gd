@@ -24,9 +24,10 @@ extends Control
 ## How much room a readout needs beside the grid. Fixed, because it is a column
 ## of labels and a column of labels that resizes with its contents makes the
 ## whole page reflow every time the cursor moves.
-const READOUT_W := 240
 
-var _readout: VBoxContainer
+var _filter: GalleryFilter
+var _col: VBoxContainer
+var _shown: int = 0
 var _count: Label
 
 func setup() -> void:
@@ -48,6 +49,24 @@ func _build() -> void:
 	head.add_child(_count)
 	root.add_child(head)
 
+	# THE SAME FILTERS THE YARD MANIFEST CARRIES, so the page a designer reads
+	# and the screen a player reads sort the same way. Shared with the card
+	# gallery, because a filter that drifts between two pages is one a player has
+	# to learn twice.
+	_filter = GalleryFilter.new()
+	_filter.setup([[
+		{key = &"house", label = "Manufacturer", options = GalleryFilter.house_options()},
+	], [
+		{key = &"grade", label = "Grade", options = GalleryFilter.grade_options()},
+		{key = &"slot", label = "Slot", options = GalleryFilter.slot_options()},
+		{key = &"sort", label = "Sort", options = [
+			{value = &"house", text = "By house"},
+			{value = &"cells", text = "By cells"}]},
+	]])
+	_filter.changed.connect(_on_filter)
+	root.add_child(_filter)
+
+
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 6)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -64,52 +83,83 @@ func _build() -> void:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(col)
 
-	# The readout is a SIBLING of the scroller, not an overlay over the grid.
-	# The card gallery lifts a card because a card is a picture you want bigger;
-	# a module is a plate whose whole content is its shape and colour, and there
-	# is nothing to enlarge. What is missing is the words.
-	var side := Widgets.panel_with(_make_readout())
-	side.custom_minimum_size = Vector2(READOUT_W, 0)
-	side.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(side)
-
 	var n := _fill(col)
-	_count.text = "%d modules · %d cards" % [DB.modules.size(), n]
-	_show(null)
+	_count.text = "%d of %d modules · %d cards" % [_shown, DB.modules.size(), n]
 
-func _make_readout() -> Control:
-	_readout = VBoxContainer.new()
-	_readout.add_theme_constant_override("separation", 3)
-	return _readout
-
-## One block per manufacturer, unbranded last.
+## GROUPED BY HOUSE OR BY SIZE, and filtered, from the bar above.
+##
+## The whole list is rebuilt on every press rather than hiding children. It is
+## seventy-seven plates and a flow container that has to reflow anyway, and the
+## alternative — keeping every icon alive and toggling visibility — means the
+## group headings have to know how many of their own children are still showing.
+## That bookkeeping is what a rebuild is for.
 func _fill(col: VBoxContainer) -> int:
-	var by_maker: Dictionary = {}
+	Widgets.clear(col)
+	var f: Dictionary = _filter.state() if _filter != null else {}
+	var house: Variant = f.get(&"house", &"")
+	var grade: int = int(f.get(&"grade", -1))
+	var slot: int = int(f.get(&"slot", -1))
+	var by_size: bool = f.get(&"sort", &"house") == &"cells"
+
+	var kept: Array[ModuleData] = []
 	for k in DB.modules:
 		var m: ModuleData = DB.modules[k]
-		var key := String(m.manufacturer)
-		if not by_maker.has(key):
-			by_maker[key] = []
-		by_maker[key].append(m)
+		# `(unbranded)` rather than the empty StringName, because empty is also
+		# what "All" uses and the two would be the same button.
+		if house == &"(unbranded)":
+			if m.manufacturer != &"":
+				continue
+		elif house != &"" and m.manufacturer != house:
+			continue
+		if grade >= 0 and int(m.rarity) != grade:
+			continue
+		if slot >= 0 and int(m.slot) != slot:
+			continue
+		kept.append(m)
 
-	var order: Array = []
-	for id in DB.manufacturers:
-		if by_maker.has(String(id)):
-			order.append(String(id))
-	if by_maker.has(""):
-		order.append("")
+	var groups: Array = []
+	if by_size:
+		# GROUPED AND NOT MERELY SORTED, because the question a size view answers
+		# is "what fits in three cells", and that is a bucket rather than a
+		# position in a list.
+		for n in [1, 2, 3, 4]:
+			var bucket: Array[ModuleData] = []
+			for m in kept:
+				if m.cells() == n:
+					bucket.append(m)
+			if not bucket.is_empty():
+				bucket.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
+					return a.footprint().x < b.footprint().x or (
+						a.footprint().x == b.footprint().x and a.name < b.name))
+				groups.append({label = "%d %s" % [n, "CELL" if n == 1 else "CELLS"],
+					colour = UITheme.COLD, parts = bucket})
+	else:
+		for id in DB.manufacturers:
+			var bucket2: Array[ModuleData] = []
+			for m in kept:
+				if m.manufacturer == id:
+					bucket2.append(m)
+			if not bucket2.is_empty():
+				groups.append({label = DB.manufacturer_name(id).to_upper(),
+					colour = DB.manufacturer_colour(id), parts = bucket2})
+		var yard: Array[ModuleData] = []
+		for m in kept:
+			if m.manufacturer == &"":
+				yard.append(m)
+		if not yard.is_empty():
+			groups.append({label = "UNBRANDED", colour = UITheme.COLD, parts = yard})
 
 	var cards := 0
-	for key in order:
-		var label := DB.manufacturer_name(StringName(key)) if key != "" else "Unbranded"
+	for raw in groups:
+		var g: Dictionary = raw
 		var bar := HBoxContainer.new()
 		bar.add_theme_constant_override("separation", 5)
 		var swatch := ColorRect.new()
-		swatch.color = DB.manufacturer_colour(StringName(key))
+		swatch.color = g.colour
 		swatch.custom_minimum_size = Vector2(4, 12)
 		bar.add_child(swatch)
-		bar.add_child(UITheme.body("%s — %d" % [label.to_upper(),
-			(by_maker[key] as Array).size()], UITheme.ICE, UITheme.FS_SMALL))
+		bar.add_child(UITheme.body("%s — %d" % [g.label, (g.parts as Array).size()],
+			UITheme.ICE, UITheme.FS_SMALL))
 		col.add_child(bar)
 
 		var flow := HFlowContainer.new()
@@ -118,57 +168,29 @@ func _fill(col: VBoxContainer) -> int:
 		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		col.add_child(flow)
 
-		for raw in by_maker[key]:
-			var m: ModuleData = raw
-			cards += m.resolved_cards().size()
+		for raw2 in g.parts:
+			var m2: ModuleData = raw2
+			cards += m2.resolved_cards().size()
 			var icon := ModuleIcon.new()
-			icon.setup(m, &"gallery")
-			# The plate at its own footprint, which is the point of the page.
-			# custom_minimum_size and NOT size: a flow container decides where
-			# its children go and asking for a size it did not choose is how the
-			# hold ended up drawing 1x1 plates at 44px.
-			icon.custom_minimum_size = ModuleIcon.footprint_box(m)
+			icon.setup(m2, &"gallery")
+			# 1x, WHICH IS THE SIZE IT IS ON THE SHIP. The hold and the refit screen
+			# are authored at 2x; this page is a catalogue of what a part IS, and
+			# what it is is the rectangle it takes up on a hull.
+			#
+			# custom_minimum_size and NOT size: a flow container decides where its
+			# children go, and asking for a size it did not choose is how the hold
+			# once drew 1x1 plates at 44px.
+			icon.custom_minimum_size = ModuleIcon.footprint_box(m2, 1.0)
 			icon.mouse_filter = Control.MOUSE_FILTER_PASS
-			icon.mouse_entered.connect(_show.bind(m))
 			flow.add_child(icon)
+	if groups.is_empty():
+		col.add_child(UITheme.body("NOTHING MATCHES", UITheme.COLD, UITheme.FS_SMALL))
+	_shown = kept.size()
 	return cards
 
-## What the part IS, in the panel beside the grid.
-func _show(m: ModuleData) -> void:
-	Widgets.clear(_readout)
-	if m == null:
-		_readout.add_child(UITheme.body("POINT AT A PART", UITheme.COLD,
-			UITheme.FS_SMALL))
-		return
-	var maker := DB.manufacturer_name(m.manufacturer) if m.manufacturer != &"" \
-		else "Unbranded"
-	_readout.add_child(UITheme.body(m.name.to_upper(), UITheme.ICE, UITheme.FS_SMALL))
-	_readout.add_child(UITheme.body(maker,
-		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL))
-	var f := m.footprint()
-	_readout.add_child(UITheme.body("%s · %s · %dx%d · %d cells"
-		% [ModuleData.rarity_name(m.rarity).to_upper(),
-			ModuleData.slot_name(m.slot).to_upper(), f.x, f.y, m.cells()],
-		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
-	if m.flavour != "":
-		_readout.add_child(_wrapped(m.flavour, UITheme.CHILL))
 
-	# The cards it GRANTS, which is what a module actually is. resolved_cards()
-	# and not `cards`: the Grant Count Law decides how many of them reach a deck,
-	# and a part authored with two verbs that grants one has only ever shown one.
-	var got := m.resolved_cards()
-	_readout.add_child(UITheme.body("GRANTS %d" % got.size(), UITheme.COLD,
-		UITheme.FS_SMALL))
-	for c in got:
-		var cd: CardData = c
-		_readout.add_child(_wrapped("· %s — %s" % [cd.name, cd.describe()], UITheme.CHILL))
+func _on_filter(_state: Dictionary) -> void:
+	var n := _fill(_col)
+	_count.text = "%d of %d modules · %d cards" % [_shown, DB.modules.size(), n]
 
 
-## A label that wraps. The readout is a fixed-width column and a card's own text
-## is written to be read, not to fit — so the alternative is either a panel that
-## resizes with the cursor or a sentence running off the edge of the screen.
-func _wrapped(text: String, colour: Color) -> Label:
-	var l := UITheme.body(text, colour, UITheme.FS_SMALL)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(READOUT_W - 28, 0)
-	return l

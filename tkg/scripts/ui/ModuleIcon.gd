@@ -385,10 +385,19 @@ static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
 ## point of the last two commits is that they agree: the hold sizes its plate to
 ## this, the hull scales the silhouette to it, and the drag ghost is cut to it.
 ## Written out separately in each, they would only have to disagree once.
-static func footprint_box(m: ModuleData) -> Vector2:
+## `k` is the MAGNIFICATION the box is wanted at, and it defaults to the one the
+## hold is authored at. Pass 1.0 for the size a part is on the ship at native
+## zoom — the gallery does, so a plate there is exactly the rectangle the part
+## occupies on a hull rather than the twice-size one the refit screen shows.
+##
+## Same arithmetic as MountPoints.part_rect, deliberately: if these two ever
+## disagree, a part is one size in the gallery and another on the ship, which is
+## the thing the shared silhouette exists to prevent.
+static func footprint_box(m: ModuleData, k: float = HOLD_K) -> Vector2:
 	var f := m.footprint()
-	var step := float(HoldGrid.CELL + HoldGrid.GAP)
-	return Vector2(f) * step - Vector2(HoldGrid.GAP, HoldGrid.GAP)
+	var q := k / HOLD_K
+	var step := (float(HoldGrid.CELL) + float(HoldGrid.GAP)) * q
+	return Vector2(f) * step - Vector2(HoldGrid.GAP, HoldGrid.GAP) * q
 
 
 ## How big a slot's silhouette is when nothing has scaled it, in the same units
