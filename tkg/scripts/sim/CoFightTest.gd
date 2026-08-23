@@ -52,6 +52,12 @@ var _boss: bool = false
 ## different path through `_open_or_join` than opening one, and it is the one a
 ## playtest exercises.
 var _late: bool = false
+## `-- cofight host hellbender` / `-- cofight join CODE hellbender`. The roamer, flown:
+## host authority moving it on both charts, a client's jumps ticking the clock
+## through presence, the blockade refusing to auto-engage, a staggered two-ship
+## engagement, and whichever ending the fight produces — the kill's one bag, or
+## the escape leaving the same banked damage on both machines.
+var _hellbender: bool = false
 ## How long the late arrival waits. Long enough that the host is unambiguously
 ## in the fight first, short enough that the harness is not mostly sleeping.
 const LATE_ARRIVAL := 6.0
@@ -73,6 +79,7 @@ func run(tree: SceneTree) -> void:
 	var hosting := "host" in argv
 	_boss = "boss" in argv
 	_late = "late" in argv
+	_hellbender = "hellbender" in argv
 	_me = "HOST" if hosting else "GUEST"
 
 	if hosting:
@@ -147,6 +154,10 @@ func _fly() -> void:
 	# actually be checked.
 	print("[cofight] seat %d" % Rng.seat)
 	print("[cofight] lootseed %d" % Rng.loot.seed)
+
+	if _hellbender:
+		await _hellbender_leg()
+		return
 
 	_at = _find(MapGen.NodeType.GOAL) if _boss else _find(MapGen.NodeType.FIGHT)
 	if not _ok("the shared galaxy holds a %s to share" % (
@@ -277,7 +288,11 @@ func _play(cb: Combat) -> void:
 	# which is the only way to check "both were paid" without a third observer.
 	if cb.result == &"victory":
 		_ok("and the win paid THIS ship", Run.kills == kills_before + 1)
-		_ok("and consumed the system for the party", Run.map[_at].cleared)
+		# The hellbender is a visitor: killing it must NOT consume the system it
+		# happened to be caught in. Its own leg asserts that; the ordinary
+		# contact still has to consume its node.
+		if not _hellbender:
+			_ok("and consumed the system for the party", Run.map[_at].cleared)
 		await _bag()
 
 
@@ -327,6 +342,100 @@ func _bag() -> void:
 		got == Run.cargo.has(wanted))
 	_ok("and a part somebody took is marked taken for everybody",
 		n.taken.has(MapGen.OPTION_BAG))
+
+
+## The roamer, end to end: clock, wire, blockade, fight, ending.
+func _hellbender_leg() -> void:
+	if not _ok("a rival spawned with the galaxy", Run.hellbender_alive()):
+		return
+
+	if _me == "HOST":
+		# Three party jumps is one stride. This is the call jump_to() makes,
+		# made bare so the leg does not depend on fuel or adjacency.
+		var was := Run.hellbender_at
+		for i in Run.HELLBENDER_STRIDE:
+			Run.hellbender_jumped()
+		_ok("one stride moved it on the authority's chart", Run.hellbender_at != was)
+	else:
+		# The same call is a NO-OP on a client — proving the guard, not the
+		# wire. No awaits between the capture and the check, so a host push
+		# cannot land in the middle and fake a failure.
+		var was := Run.hellbender_at
+		for i in Run.HELLBENDER_STRIDE:
+			Run.hellbender_jumped()
+		_ok("a client cannot move it", Run.hellbender_at == was)
+		# Then the guest jumps three times the only way the host can see:
+		# presence. Each hop moves `at` and says so, which is what a real jump
+		# does — this is the _apply_presence clock, flown.
+		var a := Run.at
+		var b := int(Run.map[a].links[0])
+		for i in Run.HELLBENDER_STRIDE:
+			Run.at = b if Run.at == a else a
+			Sig.resources_changed.emit()
+			await _until(func() -> bool: return false, 0.4)
+
+	# Two moves: one off the host's own stride, one off the guest's three
+	# presence hops. Both machines converge on one chart or this fails.
+	var moved := await _until(func() -> bool: return Run.hellbender_moves >= 2, 20.0)
+	if not _ok("the party's jumps moved it twice on both charts", moved):
+		return
+	# Let the last push land everywhere before anything is printed or engaged.
+	await _until(func() -> bool: return false, 1.0)
+	print("[cofight] hellbenderat %d" % Run.hellbender_at)
+
+	_at = Run.hellbender_at
+	var was_cleared: bool = Run.map[_at].cleared
+	Run.at = _at
+	Run.map[_at].visited = true
+	Router.resolve_current_node()
+	await _tree.process_frame
+	# The blockade, and the core's lesson applied to it: a set piece a party
+	# cannot gather at is fought alone by design.
+	_ok("arrival does not auto-engage the set piece", Router.combat == null)
+
+	if _me == "GUEST":
+		print("  GUEST holding off 3s so the host opens the fight first")
+		await _until(func() -> bool: return false, 3.0)
+	Router.engage_here()
+	var started := await _until(func() -> bool:
+		return Router.combat != null, 10.0)
+	if not _ok("ENGAGE opened the hellbender fight", started):
+		return
+	var cb: Combat = Router.combat
+	_ok("and it is the rival, hand-tuned", cb.enemies[0].template.miniboss)
+	var shared := await _until(func() -> bool: return cb.is_shared(), 15.0)
+	if not _ok("and it is the party's fight, not a private one", shared):
+		return
+	var together := await _until(func() -> bool:
+		var f := Net.fight_at(_at)
+		return f != null and f.crew.size() >= 2, PARTNER_TIMEOUT)
+	if not _ok("both ships are in it", together):
+		return
+	var f0 := Net.fight_at(_at)
+	print("  %s sees the Hellbender at %d of %d hull — one ship's worth is %d" % [
+		_me, f0.foes[0].hp, f0.foes[0].max_hp, f0.foes[0].base])
+	_ok("scaled for the crew, not for one ship",
+		f0.foes[0].max_hp > f0.foes[0].base)
+
+	await _play(cb)
+
+	# The two endings a hellbender fight can have, and what each must leave true on
+	# BOTH machines. The dive seed decides which one this run takes; either way
+	# the fate line has to match across the pair, which only the shell can see.
+	if cb.result == &"victory":
+		_ok("the rival is dead on this machine's chart", not Run.hellbender_alive())
+		_ok("and its system was not consumed by the kill",
+			Run.map[_at].cleared == was_cleared)
+		print("[cofight] hellbenderfate dead")
+	elif cb.result == &"broke_off":
+		var gone := await _until(func() -> bool:
+			return Run.hellbender_at != _at, 10.0)
+		_ok("the escape moved it off this system on this machine's chart", gone)
+		_ok("carrying the damage it took", Run.hellbender_hp < Run.hellbender_max)
+		print("[cofight] hellbenderfate fled")
+		print("[cofight] hellbenderafter %d:%d" % [Run.hellbender_at, Run.hellbender_hp])
+	else:
+		print("[cofight] hellbenderfate %s" % cb.result)
 
 
 func _count_hit(_at2: int) -> void:
@@ -405,13 +514,18 @@ func _shop() -> void:
 ## copy was one type constant's worth of value.
 ##
 ## `cleared` is honoured for a FIGHT because a spent contact is not a fight to
-## share; a station and the core do not go away.
+## share; a station and the core do not go away. Migration-route fights are
+## skipped too, and that one was learned from a flaking run: a fauna kill pays
+## exotic and ZERO module drops by design, so there is no bag at the node and
+## the bag leg fails on a fight that behaved perfectly. The harness is here to
+## measure the shared kill's payout, which needs a kill that pays one.
 func _find(t: MapGen.NodeType) -> int:
 	for i in Run.map.size():
 		var n: MapGen.MapNode = Run.map[i]
 		if i == 0 or n.type != t:
 			continue
-		if t == MapGen.NodeType.FIGHT and n.cleared:
+		if t == MapGen.NodeType.FIGHT \
+				and (n.cleared or n.region == MapGen.Region.FAUNA):
 			continue
 		return i
 	return -1

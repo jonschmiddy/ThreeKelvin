@@ -1208,7 +1208,7 @@ func _intent(d: Dictionary) -> IntentData:
 
 func _enemy(id: StringName, name: String, tag: String, hp: int, armor: int,
 		credits: int, art: StringName, loop: Array, pool: Array,
-		fauna: bool = false, boss: bool = false) -> void:
+		fauna: bool = false, boss: bool = false, miniboss: bool = false) -> void:
 	var e := EnemyTemplate.new()
 	e.id = id
 	e.name = name
@@ -1219,6 +1219,7 @@ func _enemy(id: StringName, name: String, tag: String, hp: int, armor: int,
 	e.art = art
 	e.fauna = fauna
 	e.boss = boss
+	e.miniboss = miniboss
 	var l: Array[IntentData] = []
 	for d in loop:
 		l.append(_intent(d))
@@ -1267,6 +1268,27 @@ func _seed_enemies() -> void:
 		{name = "Breach", text = "Deal 15", damage = 15, weight = 45},
 		{name = "Spore Storm", text = "Deal 5, +2 Dross", damage = 5, dross = 2, weight = 35},
 	], true)
+	# THE HELLBENDER: the galaxy's other harvester crew, and the only enemy with a
+	# position instead of an address. Hand-tuned like the custodian — it is a
+	# set piece wherever you catch it, so danger scaling would make WHERE you
+	# fight it matter more than WHETHER you are ready to. Numbers sit between
+	# the sentinel and the custodian: a party kills it comfortably, one ship
+	# kills it with a good build and a reason. Below 35% hull it spools an
+	# escape burn and leaves — see Combat.escape_intent() — so the loop below
+	# is what it does while it still thinks it is winning.
+	#
+	# The name is a real salamander, and the crew is in on the joke: the hull
+	# flies the heraldic salamander — the beast drawn sitting unharmed in
+	# flames — which is what a ship built to drink heat would paint on itself.
+	# The device lives in the tag and, someday, in an archive document that
+	# describes the emblem without explaining it. Nobody explains anything in
+	# this galaxy; see docs/lore.md.
+	_enemy(&"hellbender", "The Hellbender", "rival harvester · a salamander device on the hull", 90, 6, 90, &"hulk", [
+		{name = "Heat Lance", text = "Deal 11", damage = 11},
+		{name = "Slag Guns", text = "Deal 4 × 3", damage = 4, hits = 3},
+		{name = "Ashplate", text = "Gain 10 block", block = 10},
+		{name = "Furnace Bleed", text = "Deal 7, +1 Dross", damage = 7, dross = 1},
+	], [], false, false, true)
 	# Boss: unscaled, tuned by hand.
 	_enemy(&"custodian", "The Custodian", "guardian of the light", 120, 8, 120, &"hulk", [
 		{name = "Plated Up", text = "Gain 12 block", block = 12},

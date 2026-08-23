@@ -39,7 +39,12 @@ const PATH := "user://run.save"
 ## rolled. Stored by value like the shelf rather than re-derived: the roll is
 ## deterministic from the node, but its SIZE came from how many ships were in the
 ## fight, and nothing on a resumed map remembers that.
-const VERSION := 7
+## 8: the hellbender — where the galaxy's other harvester is, what hull it has
+## left, and how many moves it has made (the counter is a seed source, so
+## losing it would re-derive a different walk). A node also carries `eaten`:
+## a save that forgot it would resume a derelict the rival stripped as one
+## somebody in the party did.
+const VERSION := 8
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -164,6 +169,12 @@ static func _snapshot() -> Dictionary:
 		trail = Array(Run.trail),
 		jumps = Run.jumps,
 		kills = Run.kills,
+
+		hellbender_at = Run.hellbender_at,
+		hellbender_hp = Run.hellbender_hp,
+		hellbender_max = Run.hellbender_max,
+		hellbender_moves = Run.hellbender_moves,
+		hellbender_ticks = Run.hellbender_ticks,
 	}
 
 # ----------------------------------------------------------------------- read
@@ -291,6 +302,14 @@ static func load_into_run() -> bool:
 	Run.trail = trail
 	Run.jumps = int(d.get("jumps", 0))
 	Run.kills = int(d.get("kills", 0))
+
+	# Clamped like `at`, because a stale index here is not a wrong marker — it
+	# is an index error inside whatever reads the hellbender's node next.
+	Run.hellbender_at = clampi(int(d.get("hellbender_at", -1)), -1, map.size() - 1)
+	Run.hellbender_max = maxi(0, int(d.get("hellbender_max", 0)))
+	Run.hellbender_hp = clampi(int(d.get("hellbender_hp", 0)), 0, Run.hellbender_max)
+	Run.hellbender_moves = maxi(0, int(d.get("hellbender_moves", 0)))
+	Run.hellbender_ticks = maxi(0, int(d.get("hellbender_ticks", 0)))
 
 	Run.won = false
 	Run.dead = false
@@ -475,7 +494,8 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		security = n.security, makers = makers,
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
-		visited = n.visited, cleared = n.cleared, taken = Array(n.taken),
+		visited = n.visited, cleared = n.cleared, eaten = n.eaten,
+		taken = Array(n.taken),
 		inspected = n.inspected,
 		fled = n.fled, stocked = n.stocked, trades = n.trades,
 		foes = _names(n.foes), event_key = n.event_key,
@@ -508,6 +528,7 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
 	n.cleared = bool(d.get("cleared", false))
+	n.eaten = bool(d.get("eaten", false))
 	# Absent on a save written before a system could offer more than one thing
 	# to do. A cleared node with no list is a node whose single option was the
 	# system itself, which is what it always was.

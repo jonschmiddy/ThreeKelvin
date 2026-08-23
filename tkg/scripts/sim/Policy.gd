@@ -229,6 +229,16 @@ func bench(n: MapGen.MapNode) -> void:
 ## move that ends well is onward — and a player who has decided to descend
 ## descends whether or not they are healthy, because sitting still does not heal
 ## you.
+## Whether the model commits to the hellbender when it lands on one. Health-gated
+## rather than build-gated: the model cannot read its own deck quality, but a
+## player at full hull who has found a set piece engages it and a player at
+## half does not. Damage banked from a previous engagement makes the fight
+## strictly better, so the bar drops with the hellbender's own hull.
+func engage_hellbender() -> bool:
+	var mine := float(Run.hp) / float(maxi(1, Run.max_hp()))
+	var its := float(Run.hellbender_hp) / float(maxi(1, Run.hellbender_max))
+	return mine >= 0.45 + its * 0.3
+
 func choose_jump(node: MapGen.MapNode) -> int:
 	var options: Array[int] = []
 	for idx in node.links:
