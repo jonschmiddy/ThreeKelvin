@@ -882,70 +882,67 @@ func ambush_chance(n: MapGen.MapNode) -> float:
 		return 0.0
 	var p := AMBUSH_AT_CAP * (sig - SIGNATURE_FLOOR) / (1.0 - SIGNATURE_FLOOR)
 	p *= 1.0 + float(n.danger - 1) * 0.08
-	p *= 1.0 - float(attr_stealth()) / float(ATTR_MAX) * 0.6
+	# CLAMPED HERE, not at the gauge. Attributes go over ten now, and a stealth
+	# of 17 would drive this ratio past 1 and the probability below zero — a ship
+	# that is ambushed a negative amount of the time. Sixty per cent off is the
+	# most stealth can buy, however much of it you have.
+	p *= 1.0 - minf(1.0, float(attr_stealth()) / float(ATTR_MAX)) * 0.6
 	return clampf(p, 0.0, 0.6)
 
-## WHAT A REACTOR LEVEL IS. Cells of hardware it can run, and energy a turn.
+## WHAT A REACTOR LEVEL IS. Three cells of hardware, and a step of energy
+## every second level.
+##
+##     REACTOR   4    5    6    7    8    9   10   11   12   13   14
+##     cells    12   15   18   21   24   27   30   33   36   39   42
+##     energy    3    3    4    4    5    5    6    6    7    7    8
 ##
 ## THE LEVEL IS THE STAT AND THE OTHER TWO ARE READ OFF IT, which is the
-## opposite of how this started. It was a SCORE: you had energy and cells, and
-## the bar weighed them into a number between 0 and 10. That worked and could
-## not be read backwards — REACTOR 10 meant "at least this good", not any
-## particular ship — and on the one gauge whose raw unit is printed directly
-## under it, being unreadable backwards is the whole complaint.
+## opposite of how this started. It was a SCORE: you had energy and cells and
+## the bar weighed them into a number. That could not be read backwards —
+## REACTOR 10 meant "at least this good", not any particular ship — and on the
+## one gauge whose raw unit is printed directly under it, being unreadable
+## backwards is the whole complaint.
 ##
-## Now REACTOR 10 is thirty cells and six energy, always, and a coupling that
-## raises it by two raises both. That is what "the reactor is bigger" should
-## have meant from the start.
+## IT WAS AN ELEVEN-ROW TABLE AND THE TABLE WAS THE CEILING. Attributes go over
+## ten now (Pillar 5), and every other one of them does — but a lookup clamps at
+## its own length, so REACTOR alone stopped at 10 while the rule said otherwise.
+## Two lines of arithmetic have no length. The table is kept above as the
+## LADDER, which is what anybody actually wanted to read off it.
 ##
-## A TABLE AND NOT A FORMULA, because energy is a step and a step written as
-## arithmetic is a floor division nobody can read. Eleven rows is the whole
-## thing; anyone can see where the energy changes.
-const REACTOR_TABLE := [
-	{cells = 0, energy = 1},   ## 0 — adrift
-	{cells = 3, energy = 2},
-	{cells = 6, energy = 2},
-	{cells = 9, energy = 3},
-	{cells = 12, energy = 3},  ## 4 — C class
-	{cells = 15, energy = 3},  ## 5 — B class
-	{cells = 18, energy = 4},
-	{cells = 21, energy = 4},  ## 7 — A class
-	{cells = 24, energy = 5},  ## 8 — S class
-	{cells = 27, energy = 5},
-	{cells = 30, energy = 6},  ## 10 — the ceiling
-]
+## The arithmetic and the old table disagree at levels 1 and 3, by one point of
+## energy. Nothing in the game is ever there: the worst frame is 4 and nothing
+## lowers a reactor.
+const CELLS_PER_LEVEL := 3
+
 
 ## THE REACTOR LEVEL ITSELF: the hull grade, plus every part that raises it.
 ##
-## Clamped to the table, which is also the attribute range. attr_reactor is
-## this number and nothing else — no weighting, no formula, no offset. That is
-## the point of turning it round.
+## Floored at zero and NOT capped. attr_reactor is this number and nothing
+## else — no weighting, no formula, no offset — so a ship carrying four
+## couplings reads 16 and means it.
 func reactor_level(bare: bool = false) -> int:
 	var n := hull.reactor
 	if not bare:
 		for m in installed:
 			n += m.reactor
-	return clampi(n, 0, REACTOR_TABLE.size() - 1)
+	return maxi(0, n)
 
 
-## Energy a turn. Read off the level, then the two things that grant energy
-## DIRECTLY rather than by growing the reactor — a perk and a set bonus, which
-## stay as they were because a bonus that sometimes did nothing (a level that
-## lands between steps) is a bonus nobody can price.
+## Energy a turn. A step every second level from 3 at REACTOR 4, then the two
+## things that grant energy DIRECTLY rather than by growing the reactor — a
+## perk and a set bonus, which stay as they were because a bonus that sometimes
+## did nothing (a level landing between steps) is a bonus nobody can price.
 func reactor() -> int:
-	var e: int = REACTOR_TABLE[reactor_level()].energy
+	var e := maxi(1, 3 + floori(float(reactor_level() - 4) / 2.0))
 	if hull.perk_id == &"overspec_reactor":
 		e += 1
 	if has_set(&"verity", 5):
 		e += 1
 	return e
 
-## THE OTHER HALF OF THE REACTOR: how many cells of hardware it can run.
-##
-## Hull plus every module that grants capacity. A part that grants it also
-## occupies it, so the sum can never run away — see `ModuleData.reactor`.
+
 func power_cap() -> int:
-	return REACTOR_TABLE[reactor_level()].cells
+	return reactor_level() * CELLS_PER_LEVEL
 
 ## What is bolted on right now, in cells. The SAME number the hold counts a
 ## part in, deliberately: a player already knows a 2x2 bay is four, and a
@@ -976,7 +973,7 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 	if replacing != null:
 		draw -= replacing.cells()
 		level -= replacing.reactor
-	var cap: int = REACTOR_TABLE[clampi(level, 0, REACTOR_TABLE.size() - 1)].cells
+	var cap := maxi(0, level) * CELLS_PER_LEVEL
 	return draw <= cap
 
 ## Development override, set by `-- fight N`. Zero means "use the real value".
@@ -1048,6 +1045,21 @@ func has_set(id: StringName, threshold: int) -> bool:
 ## medium and a Solari medium — which is most of what those two makers ARE —
 ## rounded away. Every constant below was rescaled with it, not multiplied
 ## through: the point of the wider scale is that the ships spread out in it.
+## HOW MANY CELLS THE BAR DRAWS. NOT a ceiling on the value.
+##
+## Attributes go over ten and are meant to. Pillar 5: the ceiling is meant to
+## break, and a gauge that clamps is a gauge that hides the one moment the
+## whole loot loop exists to produce. A stealth build that reads 14 should say
+## 14 — the bar runs out of cells, and the bar running out IS the readout.
+##
+## THE FLOOR STAYS. Zero is still zero; nothing reads negative. See attr_sensors
+## for why that one is enforced and where.
+##
+## WHAT DOES CAP IS EVERY CONSUMER, at its own call site rather than here. The
+## ambush roll divides by this and would take a probability negative at 17
+## stealth; it clamps its own ratio now. That is the correct place for it: the
+## gauge reports what you built, and each rule decides how much of it it can
+## use.
 const ATTR_MAX := 10
 
 ## Hull is measured against a fixed reference, not against your own maximum.
@@ -1069,12 +1081,12 @@ const HULL_REF := 70.0
 ## doing, and it should show as the plating's.
 func attr_hull(bare: bool = false) -> int:
 	var v := mini(hp, max_hp(true)) if bare else hp
-	return clampi(int(round(ATTR_MAX * float(v) / HULL_REF)), 0, ATTR_MAX)
+	return maxi(0, int(round(ATTR_MAX * float(v) / HULL_REF)))
 
 ## Thrust reads off fuel burn: a bigger engine moves more ship and drinks more
 ## doing it, so the factor that prices your jumps is already the number.
 func attr_thrust(bare: bool = false) -> int:
-	return clampi(int(round(fuel_factor(bare) * 4.7)), 0, ATTR_MAX)
+	return maxi(0, int(round(fuel_factor(bare) * 4.7)))
 
 ## Dodge is the bulk of it; initiative tilts it. The +1 floor is there because
 ## without it every chassis with dodge under 0.05 and negative initiative read
@@ -1087,8 +1099,7 @@ func attr_maneuver(bare: bool = false) -> int:
 	# have to be able to carry half a pip in their own unit — initiative is an
 	# int, so at 0.9 it could not. Only one reading moves: a heavy goes from 0 to
 	# 1, which the floor below was arguably always meant to give it.
-	return clampi(int(round(dodge(bare) * 23.0 + initiative(bare) * 0.5 + 1.5)),
-		0, ATTR_MAX)
+	return maxi(0, int(round(dodge(bare) * 23.0 + initiative(bare) * 0.5 + 1.5)))
 
 ## VENT, not "shedding". The card face says "Vent 3" and the field is called
 ## dissipation; a third word for the same quantity in the comments is how two
@@ -1159,7 +1170,7 @@ const CELLS_PER_PIP := 3.0
 ## plating and THERMAL weighs capacity against vent because nobody counts
 ## either of those; the ship screen counts cells under the mounts.
 func attr_reactor(bare: bool = false) -> int:
-	return clampi(reactor_level(bare), 0, ATTR_MAX)
+	return maxi(0, reactor_level(bare))
 
 
 func attr_thermal(bare: bool = false) -> int:
@@ -1177,7 +1188,7 @@ func attr_thermal(bare: bool = false) -> int:
 	# reading that moves is a light, 2 to 1, which is the correct direction for
 	# the frame with the smallest tank and the least to shed.
 	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.0 + dissipation(bare) / 2.0
-	return clampi(int(round(v)), 0, ATTR_MAX)
+	return maxi(0, int(round(v)))
 
 ## Sensors and Stealth are the two with no other gauge in the game, so unlike
 ## the four above they are summed rather than derived. Hull baseline plus fitted
@@ -1215,7 +1226,7 @@ func attr_sensors(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.sensors
-	return clampi(int(round(n * SENSE_SCALE)), 0, ATTR_MAX)
+	return maxi(0, int(round(n * SENSE_SCALE)))
 
 ## Heat comes off the top of Stealth rather than out of the modules that grant
 ## it, because it is the one thing on the ship you cannot bolt a cover over. A
@@ -1238,7 +1249,7 @@ func attr_stealth(bare: bool = false) -> int:
 	# only from the full reading would paint the loss as a module's fault in the
 	# attribute block, which draws chassis and modules in different colours.
 	var v := float(n) * SENSE_SCALE - signature() * HEAT_STEALTH_COST
-	return clampi(int(round(v)), 0, ATTR_MAX)
+	return maxi(0, int(round(v)))
 
 ## Every attribute, in display order, as {key, label, short, value, base, text}.
 ##

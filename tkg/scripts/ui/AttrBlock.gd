@@ -42,6 +42,7 @@ const GAIN := Color("#ffffff")
 ## all — the cell is dark like an empty one, and the slash says something took it.
 const LOSS := Color("#d4614f")
 
+
 var _rows: Array[Cells] = []
 var _values: Array[Label] = []
 var _accent: Color = UITheme.CHILL
@@ -157,6 +158,18 @@ class Cells extends Control:
 		size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	## OVER TEN IS DRAWN, not clipped. Pillar 5 says the ceiling is meant to
+	## break, and a row that silently stops at ten hides the exact moment the
+	## whole loot loop was paying out for — a stealth build reading 14 looked
+	## identical to one reading 10.
+	##
+	## THE BAR NEEDED NO CODE FOR IT. Ten cells, and when the value is over ten
+	## every one of them lights because `i < value` is true for all of them — the
+	## loop already said what to do. The numeral beside the row says how far past.
+	##
+	## A special case was written first, in a hotter colour, and removed: it was
+	## an answer to a question the existing loop had already answered, and the
+	## only way to find that out was to take it away and see nothing change.
 	func _draw() -> void:
 		# Same optical +1 as BoxGauge: Silkscreen's caps sit high in the line box,
 		# so a mathematically centred cell reads above the label beside it.

@@ -378,22 +378,25 @@ longest guns something a light frame pays dearly to carry.
 
 **One number. Everything else is read off it.**
 
-`HullData.reactor` is a level from 0 to 10. `RunState.REACTOR_TABLE` turns it
-into the two things that matter:
+`HullData.reactor` is a level, and two lines of arithmetic turn it into the
+things that matter: **three cells a level**, and a step of energy every second
+level.
 
-| REACTOR | cells | energy | |
-| --- | --- | --- | --- |
-| 4 | 12 | 3 | C class |
-| 5 | 15 | 3 | B class |
-| 6 | 18 | 4 | |
-| 7 | 21 | 4 | A class |
-| 8 | 24 | 5 | S class |
-| 9 | 27 | 5 | |
-| 10 | 30 | 6 | the ceiling |
+| REACTOR | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 12 | 14 | 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cells | 12 | 15 | 18 | 21 | 24 | 27 | 30 | 36 | 42 | 48 |
+| energy | 3 | 3 | 4 | 4 | 5 | 5 | 6 | 7 | 8 | 9 |
+| | C | B | | A | S | | | | | |
 
 `attr_reactor` returns the level and nothing else — no weighting, no offset, no
-formula. **REACTOR 10 is thirty cells and six energy, on every hull in the
-game**, so a player who reads the bar and multiplies is right.
+formula. **REACTOR 10 is thirty cells and six energy**, so a player who reads
+the bar and multiplies is right.
+
+**And it does not stop at 10.** Attributes go over (§13), and this was the one
+that silently did not: it was an eleven-row table, and a lookup clamps at its
+own length. Four Jumper Cables on an S frame is REACTOR 16, 48 cells, 9 energy.
+Arithmetic has no length; the ladder above is kept as a *table* because that is
+the part anyone wants to read.
 
 ### Why it points this way
 
@@ -477,7 +480,35 @@ unit and now wrong by design — the nets legitimately run +2 to +5.
 
 ---
 
-## §13 The attribute ladder
+## §13 Attributes are not capped
+
+`ATTR_MAX` is **how many cells the bar draws**, not a ceiling on the value.
+A stealth build that reads 14 says 14.
+
+Pillar 5 — *the ceiling is meant to break* — and a gauge that clamps hides the
+exact moment the loot loop was paying out for. **The floor stays**: zero is
+still zero, and nothing reads negative — see §14.
+
+**The bar needed no code for it.** Ten cells, and when the value is over ten
+every one lights because `i < value` is true for all of them — the loop had
+already answered the question. A special case in a hotter colour was written
+first and removed; the only way to learn it was redundant was to delete it and
+see nothing change.
+
+**What does cap is every consumer, at its own call site.** The ambush roll
+divides stealth by `ATTR_MAX` and would drive a probability *negative* at 17
+stealth — a ship ambushed a negative fraction of the time. It clamps its own
+ratio now: sixty per cent off is the most stealth can buy, however much you
+have. That is the right place for it. The gauge reports what you built; each
+rule decides how much of it it can use.
+
+Measured at seed 4242 over 200 runs it changed **nothing** — same wins, same
+deaths, same death causes. The simulated pilot never stacks couplings, so this
+is not a balance change at all. It is headroom for a player who does.
+
+---
+
+## §14 The attribute ladder
 
 **A part's grade decides how far it moves a gauge, in whole pips out of ten.**
 `Database.ATTR_BUMP`, enforced by the gate.
@@ -613,7 +644,7 @@ offsets rares and above gaining more.
 
 ---
 
-## §14 The loop
+## §15 The loop
 
 1. Write parts in `Database.gd`.
 2. `godot --headless --path tkg -- holdtest` — every gate in this document.
@@ -638,7 +669,7 @@ Standing artifact: **Yard Manifest**, republished in place each time.
 
 ---
 
-## §15 Where it stands
+## §16 Where it stands
 
     korvan          19 parts   30 cards   want 40   short 10
     (unbranded)     13         12         want 20   short  8
