@@ -1405,7 +1405,19 @@ class MapChart extends Control:
 	## the galaxy across a deep field that stayed where it was.
 	func _repaint_galaxy() -> void:
 		_polar_cache.clear()
-		for layer in [_deep, _backdrop, _halo]:
+		# _anim IS IN THIS LIST, and leaving it out is what made the core lag.
+		#
+		# It queues its own redraw from _process, which is enough while the
+		# view is still and wrong the moment the view MOVES: that redraw is
+		# asked for before the thing that moves the view has moved it, so the
+		# core draws with the pan from the frame before. Measured, not
+		# guessed -- `ANIM f=N` printed exactly what `BACK f=N-1` had.
+		#
+		# One frame is enough to see because the backdrop carries a HOLE where
+		# the core goes: the hole arrives on time and the core does not, so
+		# what you see is an empty socket travelling ahead of its contents,
+		# closing the instant the motion stops.
+		for layer in [_deep, _backdrop, _anim, _halo]:
 			if layer != null:
 				layer.queue_redraw()
 		queue_redraw()
