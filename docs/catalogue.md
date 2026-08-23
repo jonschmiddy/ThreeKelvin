@@ -496,17 +496,39 @@ two. **Contraband sits at Epic on purpose**: it is not a quality grade at all,
 it is a fact about who sold it to you, so it performs like an epic and carries
 risk instead of power.
 
-### One axis each
+### One gauge each
 
-`Database.PASSIVE_AXIS` says *which* gauge; the grade says *how far*. Cold
-Sights used to carry venting **and** sensors, Ghost Drive dodge **and**
-stealth, the Fire Director initiative **and** sensors — so "a rare part is worth
-one pip" could not be true of any of them, and a part quietly moving two gauges
-was worth double its grade with nothing saying so.
+`Database.PASSIVE_AXIS` says *which* gauge; the grade says *how far*. There are
+five a part can move, and **a gauge is one number**:
 
-The axis is the one the **name** picks: sights see, a drive is how you are not
-there, a director decides. Most of the catalogue has no axis at all, which is
-also deliberate — a gun is not a claim about any of the six.
+| Gauge | What a pip raises |
+| --- | --- |
+| HULL | max hull, 7 a pip |
+| THERMAL | how much heat you hold **and** how fast you lose it |
+| MANEUVER | dodge **and** initiative |
+| SENSORS | sensors |
+| STEALTH | stealth |
+
+A part says **+1 MANEUVER** and gets faster *and* harder to hit. Those are not
+two things a player weighs separately while reading one bar, so they are not two
+entries. The same for THERMAL: capacity and vent both move, and there is nothing
+to explain in brackets after the number.
+
+Each half of a two-term gauge carries **half a pip**, which is what decides the
+divisors in `attr_thermal` and `attr_maneuver`: half a pip has to be one whole
+point in an int field. Dodge is a float and can carry a fraction; initiative and
+dissipation cannot. Two hull readings moved when those divisors were set — a
+light drops from THERMAL 2 to 1, and a heavy rises from MANEUVER 0 to 1.
+
+**One gauge per part**, which was the other half of the change. Cold Sights used
+to carry vent **and** sensors, Ghost Drive dodge **and** stealth, the Fire
+Director initiative **and** sensors — so "a rare part is worth one pip" could not
+be true of any of them, and a part quietly moving two gauges was worth double its
+grade with nothing saying so.
+
+The gauge is the one the **name** picks: sights see, a drive is how you are not
+there, a director decides. Most of the catalogue has none at all, which is also
+deliberate — a gun is not a claim about any of the five.
 
 ### Prices are authored, not laddered
 
@@ -520,7 +542,7 @@ Capacity has its own rule (§12: net ≤ +2, self-limiting) and does **not** fol
 the pip ladder. The two genuinely conflict — a legendary part at +3 pips would
 be +12 cells, which breaks the budget the cells *are* — and the reason is that
 REACTOR is the one attribute that is itself a constraint on installing modules.
-A part that raises it is a feedback loop the other six do not have.
+A part that raises it is a feedback loop the other five do not have.
 
 ### Zero is the floor
 
@@ -542,13 +564,11 @@ is THERMAL. Those are three names for one quantity and that is already one too
 many — do not add a fourth. "Shedding" appeared in these comments for exactly
 one commit and was removed.
 
-THERMAL has two axes and the manifest names which one a part moves, because
-`THERMAL +1 (vent)` and `THERMAL +1 (capacity)` move the gauge the same distance
-and are not the same part: capacity is 2 more heat you can hold, vent is 1 more
-off you every turn, forever. The gauge treats them as equal because an event
-asking *can you sit in this* is answered by either. A fight is not. That is a
-fact about `attr_thermal` weighting vent too lightly, and it is the first thing
-to re-measure if a coolant build starts winning.
+THERMAL is one gauge made of both, and a part raises both — see above. Worth
+knowing that they are not equally valuable in a fight even though the gauge
+treats them as equal: capacity is heat you can hold, vent is heat off you every
+turn, forever. An event asking *can you sit in this* is answered by either. A
+fight is not.
 
 ### The round trip is checked
 

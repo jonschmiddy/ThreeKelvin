@@ -1034,7 +1034,12 @@ func attr_thrust(bare: bool = false) -> int:
 ## Maneuver as an ore barge, which is not a distinction worth erasing. A barge
 ## can still reach 0 by being an actual barge.
 func attr_maneuver(bare: bool = false) -> int:
-	return clampi(int(round(dodge(bare) * 23.0 + initiative(bare) * 0.9 + 1.5)),
+	# 0.5 AND NOT 0.9 on initiative, so that HALF a pip is exactly one whole
+	# point of it. A part that raises MANEUVER raises both terms, and both terms
+	# have to be able to carry half a pip in their own unit — initiative is an
+	# int, so at 0.9 it could not. Only one reading moves: a heavy goes from 0 to
+	# 1, which the floor below was arguably always meant to give it.
+	return clampi(int(round(dodge(bare) * 23.0 + initiative(bare) * 0.5 + 1.5)),
 		0, ATTR_MAX)
 
 ## VENT, not "shedding". The card face says "Vent 3" and the field is called
@@ -1098,7 +1103,11 @@ func attr_thermal(bare: bool = false) -> int:
 	# is a rounding convenience and not a retune. What it buys is that one point
 	# of venting is exactly one pip and two of capacity is exactly one pip, so
 	# the ladder can be exact instead of nearly right.
-	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.0 + dissipation(bare) / 1.0
+	# BOTH TERMS AT 2.0, so one point of capacity and one point of vent are each
+	# half a pip and a part that raises THERMAL raises both by one. The only
+	# reading that moves is a light, 2 to 1, which is the correct direction for
+	# the frame with the smallest tank and the least to shed.
+	var v := (heat_cap(bare) - THERMAL_FLOOR) / 2.0 + dissipation(bare) / 2.0
 	return clampi(int(round(v)), 0, ATTR_MAX)
 
 ## Sensors and Stealth are the two with no other gauge in the game, so unlike
@@ -1172,32 +1181,30 @@ func attr_stealth(bare: bool = false) -> int:
 ## bonus cell that the attribute does not actually have.
 ## One list so the ship tab, the chassis select and any future check UI cannot
 ## disagree about the order or the names.
-## WHAT ONE PIP COSTS, in the raw unit each attribute formula reads.
+## WHAT ONE PIP COSTS, in the raw units the attribute formulas read.
 ##
-## INVERTED OUT OF THE FUNCTIONS ABOVE, not measured against them. attr_hull
-## is ATTR_MAX * hp / HULL_REF, so a pip is HULL_REF / ATTR_MAX = 7 hull;
-## attr_thermal divides capacity by 2 and venting by 1, so those are the
-## costs — and those two divisors are whole NUMBERS because of this table,
-## since an int field cannot deliver a fractional pip. Change a formula and this has to change with it, which is exactly
-## what `-- attrtest` is for: it installs every part on a reference frame and
-## checks the gauge actually moved by the number the grade promised.
+## ONE ENTRY PER GAUGE, and a gauge with two terms moves BOTH. A part that
+## raises MANEUVER raises dodge and initiative; a part that raises THERMAL
+## raises how much heat you hold and how fast you lose it. That is the whole
+## simplification: a part says +1 MANEUVER, not "+1 of the initiative half of
+## maneuver", and there is nothing to explain in brackets afterwards.
 ##
-## THE COSTS ARE NOT COMPARABLE AND THAT IS THE INTERESTING PART. A pip of
-## THERMAL bought with capacity is 2.1 heat you can hold; the same pip bought
-## with venting is 1.5 heat a turn, forever. The gauge says they are equal
-## because an event asking "can you sit in this" is answered by either. A
-## FIGHT is not, and a part that vents is worth more than the gauge admits.
-## That is a fact about attr_thermal weighting venting too lightly, not about
-## the ladder, and it is the first thing to re-measure if a coolant build
-## starts winning.
+## Each term carries HALF a pip, and the divisors above were set to whole
+## numbers so that half a pip is one whole point in an int field. That is the
+## constraint that decides those divisors, and it is why they are here rather
+## than tuned to taste: dodge is a float and can carry a fraction, initiative
+## and dissipation cannot.
+##
+## INVERTED OUT OF THE FUNCTIONS ABOVE, not measured against them. Change one
+## of those formulas and this has to change with it, which is exactly what
+## `-- attrtest` is for: it bolts every part onto a reference frame and checks
+## the gauge actually moved by the number the grade promised.
 const PER_PIP := {
-	&"hull": 7.0,          ## HULL_REF / ATTR_MAX
-	&"heat": 2.0,          ## attr_thermal capacity term
-	&"vent": 1.0,          ## attr_thermal venting term
-	&"dodge": 1.0 / 23.0,  ## attr_maneuver
-	&"init": 1.0 / 0.9,    ## attr_maneuver
-	&"sensors": 1.0,       ## SENSE_SCALE, which is 1 for this reason
-	&"stealth": 1.0,
+	&"hull": {&"max_hull": 7.0},                       ## HULL_REF / ATTR_MAX
+	&"thermal": {&"heat_cap": 1.0, &"dissipation": 1.0},
+	&"maneuver": {&"dodge": 1.0 / 46.0, &"initiative": 1.0},
+	&"sensors": {&"sensors": 1.0},
+	&"stealth": {&"stealth": 1.0},
 }
 
 func attributes() -> Array[Dictionary]:

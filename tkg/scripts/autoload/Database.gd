@@ -985,7 +985,7 @@ const ATTR_BUMP := [0, 0, 1, 2, 3, 3, 4, 2]
 ## WHICH GAUGE A PART MOVES. The size is not here — it comes from the grade,
 ## through ATTR_BUMP and RunState.PER_PIP. This table only answers "which one".
 ##
-## ONE AXIS EACH, which is the change. Cold Sights used to carry venting AND
+## ONE GAUGE EACH, which is the change. Cold Sights used to carry vent AND
 ## sensors, Ghost Drive dodge AND stealth, the Fire Director initiative AND
 ## sensors — so "a rare part is worth one pip" could not be true of any of them,
 ## and a part quietly moving two gauges was worth double its grade with nothing
@@ -1000,14 +1000,11 @@ const PASSIVE_AXIS := {
 	&"plating": &"hull", &"bracing": &"hull", &"plate": &"hull",
 	&"reactive": &"hull", &"sinkplate": &"hull", &"braceframe": &"hull",
 	&"bulkhead": &"hull",
-	# Holding heat.
-	&"shroud": &"heat", &"overdrive": &"heat", &"ventcan": &"heat",
-	# Venting it.
-	&"coolant": &"vent", &"coolline": &"vent", &"sporevent": &"vent",
-	# Not being hit.
-	&"chaff": &"dodge",
-	# Acting sooner.
-	&"singing": &"init", &"servo": &"init",
+	# Heat: how much you hold and how fast you lose it, which is ONE gauge.
+	&"shroud": &"thermal", &"overdrive": &"thermal", &"ventcan": &"thermal",
+	&"coolant": &"thermal", &"coolline": &"thermal", &"sporevent": &"thermal",
+	# Not being hit and going first, which is also one gauge.
+	&"chaff": &"maneuver", &"singing": &"maneuver", &"servo": &"maneuver",
 	# Seeing.
 	&"auspex": &"sensors", &"board": &"sensors", &"scope": &"sensors",
 	&"optics": &"sensors", &"coldsights": &"sensors", &"director": &"sensors",
@@ -1050,7 +1047,12 @@ func _seed_module_passives() -> void:
 		_lay_pips(modules[id] as ModuleData, row[0], -int(row[1]))
 
 
-## Move one gauge by `pips`, in whatever unit that gauge is kept in.
+## Move one gauge by `pips`, through every field that gauge is made of.
+##
+## THERMAL and MANEUVER each have two, and BOTH move. That is the whole point
+## of a gauge being one entry: a part says +1 MANEUVER and gets faster and
+## harder to hit, because those are not two things a player weighs separately
+## while reading one bar.
 ##
 ## `+=` and not `=`, so a part can take a bump on one axis and a price on
 ## another without the second overwriting the first. The Voidwhale Ganglion is
@@ -1058,15 +1060,17 @@ func _seed_module_passives() -> void:
 func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 	if pips == 0:
 		return
-	var unit: float = float(RUNSTATE.PER_PIP[axis]) * float(pips)
-	match axis:
-		&"hull": m.max_hull += int(round(unit))
-		&"heat": m.heat_cap += int(round(unit))
-		&"vent": m.dissipation += int(round(unit))
-		&"dodge": m.dodge += unit
-		&"init": m.initiative += int(round(unit))
-		&"sensors": m.sensors += int(round(unit))
-		&"stealth": m.stealth += int(round(unit))
+	var fields: Dictionary = RUNSTATE.PER_PIP[axis]
+	for field in fields:
+		var unit: float = float(fields[field]) * float(pips)
+		match field:
+			&"max_hull": m.max_hull += int(round(unit))
+			&"heat_cap": m.heat_cap += int(round(unit))
+			&"dissipation": m.dissipation += int(round(unit))
+			&"dodge": m.dodge += unit
+			&"initiative": m.initiative += int(round(unit))
+			&"sensors": m.sensors += int(round(unit))
+			&"stealth": m.stealth += int(round(unit))
 
 
 # ------------------------------------------------------------------------ hulls

@@ -26,11 +26,13 @@ extends Harness
 ## differ by one. The frame everything is measured against has to be named, and
 ## this is it.
 
-## Which gauge each axis lands on. Two axes share THERMAL and two share
-## MANEUVER, which is the whole reason `attr_thermal` exists in that shape.
+## An axis IS a gauge now, so the table that used to translate between them is
+## a pair of names that are the same name. Kept as a lookup rather than deleted
+## because the attribute keys are what `attributes()` returns and the passive
+## keys are what the catalogue authors — two vocabularies that happen to agree
+## are still two vocabularies, and this is where they are joined.
 const ON := {
-	&"hull": &"hull", &"heat": &"thermal", &"vent": &"thermal",
-	&"dodge": &"maneuver", &"init": &"maneuver",
+	&"hull": &"hull", &"thermal": &"thermal", &"maneuver": &"maneuver",
 	&"sensors": &"sensors", &"stealth": &"stealth",
 }
 
@@ -117,8 +119,8 @@ func _supplier(axis: StringName) -> StringName:
 		&"stealth": return &"lattice"
 		&"sensors": return &"director"
 		&"hull": return &"reactive"
-		&"heat", &"vent": return &"shroud"
-		&"dodge", &"init": return &"singing"
+		&"thermal": return &"shroud"
+		&"maneuver": return &"singing"
 	return &""
 
 
