@@ -531,8 +531,17 @@ func _ready() -> void:
 		for a in OS.get_cmdline_user_args():
 			if a.is_valid_int():
 				Run.hand_size_override = clampi(int(a), 1, 12)
-		var pool := DB.fight_pool(3, false)
-		Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
+		# `-- fight foe=hellbender` names the contact. The pool never holds the
+		# set pieces, so without this the only way to LOOK at one is to earn it.
+		var named: EnemyTemplate = null
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("foe=") and not a.contains("foes="):
+				named = DB.enemies.get(StringName(a.split("=")[1]))
+		if named != null:
+			Router.start_combat(named, [], false)
+		else:
+			var pool := DB.fight_pool(3, false)
+			Router.start_combat(DB.enemies[Rng.pick(Rng.foe, pool)])
 
 	# `-- shot` writes what is on screen and quits. For looking at a layout from
 	# a place that cannot look at a window — a headless CI leg, an agent, a bug
