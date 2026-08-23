@@ -31,6 +31,7 @@ Still in place, deliberately:
 | [coop-design.md](coop-design.md) | Four ships in one galaxy — the design questions and the rulings that answered them. |
 | [netcode.md](netcode.md) | How the party actually talks. Transports, the relay, and what crosses the wire. |
 | [lore.md](lore.md) | Who is paying for all this, and why nobody will say what the heat is for. The archive's writing rules live here. |
+| [building-a-house.md](building-a-house.md) | **The method.** How a manufacturer's parts and cards get written, in the order it happened, with the checks at each step and the traps. Read with catalogue.md — that one is the rules, this one is the sequence. |
 | [catalogue.md](catalogue.md) | Every rule that decides what a module is, what cards it grants, and what they may be called. Read before writing a part. |
 | [handbook.md](handbook.md) | The long half of `tkg/CLAUDE.md`: screen layout, art direction and generation, audio, the economy's internals, the two procedural engines. Reference, not context — you open it on the day you need it. |
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | The build order, and how much of it is done. |

@@ -6,6 +6,10 @@ built — 63 parts and 73 cards against a target of 63 and 300 — and the last
 two hundred and twenty-seven cards will be written by somebody who was not in
 the room when these were decided.
 
+**This is the rules. The method is [building-a-house.md](building-a-house.md)** —
+the order to do a manufacturer in, the gates to run at each step, and the traps.
+Read that one when starting a house; read this one when writing a part.
+
 Most of what follows is **enforced**. That is the important half of this
 document: a rule that lives only in prose is a rule that holds until the first
 tired afternoon, and four duplicate cards shipped that way before anything
