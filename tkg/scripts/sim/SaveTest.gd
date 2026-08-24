@@ -75,11 +75,19 @@ func fingerprint() -> Dictionary:
 			# this fingerprint would notice.
 			Array(n.taken)])
 	return {
-		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s" % [
+		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
+		# loader does not call `at_tier`, so nothing regrants them on the way
+		# back in — an S-tier ship that lost all three would come back with
+		# every number here identical and three perks missing, and this test
+		# would have said PASS. `perk_id` alone could not see it: that one is
+		# the HOUSE's and survives on the frame.
+		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s|%s" % [
 			Run.hull.name, Run.hull.tier, Run.hull.reactor, Run.hull.hand_size,
 			Run.hull.max_hull, Run.hull.heat_cap, Run.hull.dodge,
 			Run.hull.initiative, Run.hull.fuel_factor, Run.hull.weapon_slots,
-			Run.hull.system_slots, Run.hull.utility_slots, Run.hull.perk_id],
+			Run.hull.system_slots, Run.hull.utility_slots, Run.hull.perk_id,
+			",".join(Array(Run.hull.tier_perks).map(func(x: StringName) -> String:
+				return String(x)))],
 		installed = mods.call(Run.installed),
 		cargo = mods.call(Run.cargo),
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,

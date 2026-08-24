@@ -238,6 +238,59 @@ func net_heat() -> int:
 ## it, which is the same answer for an unaffixed card.
 var base_glyph: StringName = &""
 
+## WHICH ILLUSTRATION this card shows, without the folder or the extension.
+##
+## Empty is the ordinary case: `art_key()` then slugs the card's own name, so a
+## card called "Scored Barrel" looks for `scored_barrel.png` and no entry has to
+## be written for it. Seventy-six cards times one bookkeeping line each is the
+## kind of edit that goes wrong quietly, and the name is already the identity a
+## player uses.
+##
+## Set it when the file cannot follow the name: two cards that should share one
+## picture, or a card whose name changes and whose art should not be orphaned by
+## the rename.
+@export var art: StringName = &""
+
+## The file this card's illustration lives under, name-derived unless overridden.
+##
+## Lowercased, spaces and punctuation to underscores, runs collapsed. Written
+## once here rather than at each call site, because a slug rule that exists in
+## two places is a slug rule that disagrees with itself the first time a card is
+## named with a hyphen.
+func art_key() -> StringName:
+	if art != &"":
+		return art
+	var out := ""
+	var gap := false
+	for ch in name.to_lower():
+		if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9"):
+			out += ch
+			gap = false
+		elif not gap and out != "":
+			out += "_"
+			gap = true
+	return StringName(out.rstrip("_"))
+
+## THE RESOLVED ILLUSTRATION, looked up ONCE when the catalogue is built.
+##
+## NEVER LOAD THIS FROM INSIDE `_draw`. That is not a style preference, it is
+## the bug this field exists to prevent: `load()` called during a draw pass
+## hands back a resource whose CPU image is perfectly correct and whose GPU
+## texture is not yet bound, so the card paints a SOLID WHITE RECTANGLE of
+## exactly the right size. Every probe says the texture is fine, because it is
+## -- it simply is not on the card when the draw command is recorded.
+##
+## `ModuleData.sprite` was right by accident on both counts: Database assigns it
+## while building the catalogue, which is nowhere near a frame, and it is
+## EXPORTED.
+##
+## Exported matters here as much as the timing. A card is `duplicate()`d on its
+## way into a deck, and Resource.duplicate copies exported properties and drops
+## everything else -- so a plain `var` holding the picture survives the
+## catalogue and is null on every card a player actually holds. The failure is
+## quiet and looks exactly like "the art did not load".
+@export var sprite: Texture2D
+
 ## Runtime-only, set by DeckBuilder
 var source_module: String = ""
 ## The granting module's id. source_module is its NAME, which is for printing;

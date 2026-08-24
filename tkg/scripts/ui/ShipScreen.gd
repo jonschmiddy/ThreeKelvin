@@ -177,6 +177,12 @@ var _class: Label
 var _hand: Label
 var _hold: Label
 var _abilities: VBoxContainer
+## The perk list in the masthead's top-right corner. An OVERLAY on the
+## panel rather than a column in its layout, and that is deliberate: the
+## ship is centred by arithmetic that reads the row it sits in, so a new
+## sibling would narrow the ship's window and move the ship to make room
+## for text about the ship. Anchored over the corner it costs nothing.
+var _perkbox: VBoxContainer
 var _fithead: Label
 var _fitted: VBoxContainer
 
@@ -302,6 +308,10 @@ func _build() -> void:
 	# rule and 1x is the only step below 2x, so this is half rather than a nudge;
 	# the viewport is itself scaled 2x into a 1920x1080 window, so an art pixel
 	# still lands on four real ones and stays crisp.
+	# THE WINDOW CLIPS, NOT THE VIEW. `_clip` bounds everything on this screen,
+	# so the view clipping itself as well can only take a bite out of its own
+	# children — which is the hardpoint layer, and the guns on it.
+	view.self_clip = false
 	view.magnify(1, HULL_VIEW_H)
 	view.bob(2)
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -328,6 +338,7 @@ func _build() -> void:
 	var vwrap := HBoxContainer.new()
 	vwrap.add_theme_constant_override("separation", 0)
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	# The LEFT pad is the one that carries the number, and the right one only
 	# soaks up whatever is over. A minimum on the left is a position; a minimum
@@ -345,11 +356,19 @@ func _build() -> void:
 	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
 	_clip.gui_input.connect(_on_clip_input)
 	_clip.add_child(view)
+	# THE WINDOW TAKES THE REST OF THE ROW. It used to be sized to a computed
+	# width with a spacer after it soaking up the remainder, which put an
+	# invisible edge a hundred pixels inside the panel — and at 2x on a heavy
+	# that edge lands exactly where the longest gun is, so the muzzle was cut
+	# off by a piece of empty panel. Expanding instead means the viewable area
+	# IS the panel, which is what was asked for.
+	_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# AND VERTICALLY, for the same reason and with a worse symptom. The window
+	# was pinned to HULL_VIEW_H at every zoom, but a heavy's canvas is 208 rows
+	# once doubled — so 58 rows of ship were cut off top and bottom while the
+	# panel underneath had the space to show them.
+	_clip.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vwrap.add_child(_clip)
-	var padr := Control.new()
-	padr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	padr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vwrap.add_child(padr)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
 	top.add_child(header)
@@ -470,6 +489,20 @@ func _build() -> void:
 	_panel = twrap
 	lcol.add_child(twrap)
 
+	# THE PERKS, top right, over the masthead. Named here, described on hover —
+	# four short names cost a corner nobody was using, where the same four with
+	# their effects spelled out cost a block the width of the panel.
+	_perkbox = VBoxContainer.new()
+	_perkbox.add_theme_constant_override("separation", 1)
+	_perkbox.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_perkbox.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_perkbox.offset_top = PANEL_PAD
+	_perkbox.offset_right = -PANEL_PAD
+	# PASS, not STOP: the labels inside want hover for their tooltips, but the
+	# column between and around them must not eat a drag meant for the ship.
+	_perkbox.mouse_filter = Control.MOUSE_FILTER_PASS
+	twrap.add_child(_perkbox)
+
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lcol.add_child(lwrap)
@@ -582,7 +615,20 @@ func _row_width() -> float:
 ## A gun is drawn on a mount and its barrel runs off the end of the sprite it is
 ## bolted to, so a window sized to the canvas cuts the front off the longest one.
 ## The canvas is the hull's extent, never the ship's.
-const MOUNT_BLEED := 72.0
+##
+## MEASURED FROM THE LONGEST PART, and no longer a flat 72. The widest
+## footprint is four cells, which is 4 x 20 = 80 art pixels — already more than
+## 72 at 1x, and 160 with the zoom on, so the front of a siege driver on a
+## zoomed heavy was outside the window and could not be panned into it. A
+## constant cannot be right at two magnifications; this is the same number the
+## part is drawn at.
+##
+## Plus a cell of air, so the muzzle has somewhere to be rather than sitting
+## exactly on the edge of the window.
+const MOUNT_CELLS := 4
+func _bleed() -> float:
+	var mag := _view.art_scale() if _view != null else 1.0
+	return float((MOUNT_CELLS + 1) * HoldGrid.CELL) * 0.5 * maxf(mag, 1.0)
 
 ## Where the ship's left edge goes so its middle is the PANEL's middle.
 ##
@@ -592,12 +638,31 @@ const MOUNT_BLEED := 72.0
 ## far the hull sits from the middle of its own canvas -- which is not zero,
 ## because the canvas carries the exhaust plume's clearance on one side only.
 func _ship_x() -> float:
-	if _view == null:
+	if _view == null or _clip == null:
 		return 0.0
-	return ((PANEL_W - PANEL_PAD * 2.0) * 0.5
-		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP)
-		- _view.canvas_width() * 0.5
-		- _view.ship_offset_x())
+	# MEASURED OFF THE WINDOW, not rebuilt from the panel and the banner. The
+	# window is now whatever the row gives it, so re-deriving its width here
+	# from constants is a second opinion that can disagree with the layout —
+	# and did. `ship_offset_x` stays: the canvas carries the exhaust plume's
+	# clearance on one side only, so the hull is not in the middle of it.
+	var win := maxf(_clip.size.x, _row_width())
+	var wide := _view.canvas_width()
+	# THE OFFSET ONLY APPLIES WHILE THE SHIP FITS.
+	#
+	# It exists because the canvas carries the exhaust plume's clearance on one
+	# side only, so the hull is not in the middle of its own image and centring
+	# the IMAGE leaves the SHIP looking off. That is true and worth doing — while
+	# there is room to do it in.
+	#
+	# Zoomed, there is not. The offset scales with the magnification, so at 2x it
+	# pushed a heavy some 123 pixels to the right of a window it was already 217
+	# too wide for, and a fifth of the ship — the front, and every gun on it —
+	# was outside the window before a drag had even happened. When the ship is
+	# wider than what it is being shown in, the only honest starting place is the
+	# middle.
+	if wide > win:
+		return (win - wide) * 0.5
+	return (win - wide) * 0.5 - _view.ship_offset_x()
 
 ## Size the window onto the ship, and place the ship in it.
 ##
@@ -607,13 +672,16 @@ func _ship_x() -> float:
 func _sync_clip() -> void:
 	if _clip == null or _view == null:
 		return
+	# A FLOOR, not a fixed size: the window expands into the rest of the row.
 	var box := Vector2(maxf(_row_width(), 1.0), float(HULL_VIEW_H))
 	_clip.custom_minimum_size = box
-	_clip.size = box
+	box.x = maxf(_clip.size.x, box.x)
+	box.y = maxf(_clip.size.y, box.y)
 	# The box fills the row, so there is nothing left for the pad to do.
 	if _padl != null:
 		_padl.custom_minimum_size = Vector2.ZERO
 	_view.size = Vector2(_view.canvas_width(), _view.canvas_height())
+	_clamp_pan()
 	_view.position = (Vector2(_ship_x(), (box.y - _view.size.y) * 0.5)
 		+ _pan).floor()
 	# THE MOUNTS HAVE TO BE TOLD. Every marker and fitted part is placed through
@@ -625,6 +693,36 @@ func _sync_clip() -> void:
 		# And again once layout has settled: the call above runs before the
 		# container has resized its children, so it places against the OLD rect.
 		_mountpts.refresh.call_deferred()
+
+## Keep the pan legal, WHEREVER IT CAME FROM.
+##
+## It lived inside the drag handler, which meant it was only true while a
+## mouse was moving: anything else that set `_pan` — a tool, a future keyboard
+## nudge, a restored view — produced a position no drag could ever reach, and
+## the ship went somewhere it is not allowed to be. `_sync_clip` calls this, so
+## it holds by construction rather than by everyone remembering.
+func _clamp_pan() -> void:
+	if _clip == null or _view == null:
+		return
+	# CLAMPED AGAINST THE SHIP'S EDGES, not by a symmetric slack around the
+	# middle. A slack says how far the ship may travel; it does not say where
+	# the ship ENDS, so at full pan on a zoomed heavy the hull was dragged
+	# clean out of its own window and what you were looking at was the empty
+	# panel behind it, with the hull sliced off at the edge.
+	#
+	# The rule is instead: neither edge of the ship may travel further inside
+	# the window than the bleed. So the front can always be brought to the
+	# front of the window with room for the longest gun ahead of it, and no
+	# drag can put the ship somewhere it is not.
+	var bleed := _bleed()
+	var base := _ship_x()
+	var lo := _clip.size.x - _view.size.x - bleed - base
+	var hi := bleed - base
+	_pan.x = clampf(_pan.x, minf(lo, hi), maxf(lo, hi))
+	# Vertically there is nothing overhanging to reach for, so this stays a
+	# plain slack: enough to see the top and bottom of a zoomed hull.
+	var slack_y := maxf((_view.size.y - _clip.size.y) * 0.5, 0.0) + bleed * 0.25
+	_pan.y = clampf(_pan.y, -slack_y, slack_y)
 
 ## Drag to pan, but only while zoomed and only when nothing is being carried.
 ##
@@ -643,14 +741,7 @@ func _on_clip_input(event: InputEvent) -> void:
 		_panning = false
 		return
 	_pan += mm.relative
-	# Far enough to bring an overhanging gun into the window, and no
-	# further. Measured off the SHIP's extent rather than the box's, so it
-	# still allows movement at 1x where the hull is narrower than the row.
-	var slack := (_view.size - _clip.size) * 0.5
-	slack.x = maxf(slack.x, 0.0) + MOUNT_BLEED
-	slack.y = maxf(slack.y, 0.0) + MOUNT_BLEED * 0.5
-	_pan.x = clampf(_pan.x, -slack.x, slack.x)
-	_pan.y = clampf(_pan.y, -slack.y, slack.y)
+	_clamp_pan()
 	_view.position = (Vector2(_ship_x(),
 		(_clip.size.y - _view.size.y) * 0.5) + _pan).floor()
 	if _mountpts != null:
@@ -755,6 +846,22 @@ func _refresh() -> void:
 
 	# Rebuilt every refresh, because the unlock state is the point: fitting a
 	# third Korvan part has to light the 3+ row the moment it lands.
+	# THE HULL'S OWN PERKS, house first then the grade's, in the corner.
+	if _perkbox != null:
+		Widgets.clear(_perkbox)
+		for pid in Run.hull.perks():
+			var pd: Dictionary = DB.hull_perks.get(pid, {})
+			if pd.is_empty():
+				continue
+			var lab := UITheme.body(str(pd.name).to_upper(), UITheme.EMBER,
+				UITheme.FS_SMALL)
+			lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			# STOP so the label can be hovered at all; a Label ignores the
+			# mouse by default and a tooltip on an ignored control never shows.
+			lab.mouse_filter = Control.MOUSE_FILTER_STOP
+			lab.tooltip_text = Widgets.tip(str(pd.text))
+			_perkbox.add_child(lab)
+
 	Widgets.clear(_abilities)
 	for row in Widgets.ability_rows(man, Run.hull.perk_id, Run.manufacturer_count(man)):
 		_abilities.add_child(row)

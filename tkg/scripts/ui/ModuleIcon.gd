@@ -270,7 +270,8 @@ func _draw() -> void:
 ## from `footprint()` behind its back, which is why the box came out level
 ## and the gun inside it did not.
 static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
-		cells := Vector2i.ZERO, mirror: bool = false) -> void:
+		cells := Vector2i.ZERO, mirror: bool = false,
+		scale: float = HOLD_K) -> void:
 	if m == null:
 		return
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
@@ -303,8 +304,7 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# one thing you look at — the shape in the middle of the plate — answered
 	# the question you can already answer from the field it is sitting on, and
 	# left how good the part is to a one-pixel line.
-	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
-		part_turn(m.slot, f), mirror)
+	draw_body(ci, m, r, mark, f, mirror, scale)
 
 	# THE EDGE IS THE INK, not the ground. Identical for seven grades and the
 	# whole plate for the eighth: a contraband ground is darker than the screen,
@@ -315,6 +315,63 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
 			Rect2(p, Vector2(1, z.y)), Rect2(p + Vector2(z.x - 1, 0), Vector2(1, z.y))]:
 		ci.draw_rect(side, e, true)
+
+## THE PART, by whichever means it has: its sprite when one exists, the drawn
+## silhouette when it does not.
+##
+## ONE DOOR, called by the hull and by the hold, for the same reason `draw_part`
+## is one function — the alternative is two places that decide independently
+## whether a module has art yet, and they drift the moment one of them is fixed.
+## `ShipView` already proved the shape on hulls: sprite when there is one, the
+## procedural path underneath forever, and no third state where a part vanishes
+## because its file has not been generated.
+##
+## `cells` is the footprint to reason about, which is the HULL's business rather
+## than the hold's — see `draw_plate`. Zero means "ask the module".
+static func draw_body(ci: CanvasItem, m: ModuleData, box: Rect2, col: Color,
+		cells := Vector2i.ZERO, mirror: bool = false, scale: float = 1.0) -> void:
+	if m == null:
+		return
+	var f := m.footprint() if cells == Vector2i.ZERO else cells
+	if m.sprite != null:
+		draw_sprite(ci, m.sprite, box, mirror, scale)
+		return
+	fill_part(ci, m.slot, box, col, part_scale(m.slot, f, box.size),
+		part_turn(m.slot, f), mirror)
+
+
+## A module's sprite, centred on its box AT A WHOLE MULTIPLE OF THE VIEW.
+##
+## THE SCALE COMES FROM THE VIEW, not from fitting the box, and that is the
+## whole difference. Deriving it from the box looks right until the zoom goes
+## on: the box doubles, the sprite divides into it no better than before, and
+## the part stays small on a ship that has just become twice as big.
+##
+## THE BOX IS A GUIDE, NOT A FRAME. A sprite is generated at the width its
+## cells ask for and cropped to its own ink, so its height is whatever the art
+## needed - a gun standing a few rows proud of its mount is a gun, not a
+## defect. What the box still says is where the part sits and how big it ought
+## to read, and `-- artcheck` fails only what misses that by a wide margin.
+##
+## Never a fractional multiple. Resampling pixel art onto a grid it was not
+## drawn for is the one thing the art direction refuses outright.
+static func draw_sprite(ci: CanvasItem, tex: Texture2D, box: Rect2,
+		mirror: bool = false, scale: float = 1.0) -> void:
+	var src := Vector2(tex.get_size())
+	if src.x < 1.0 or src.y < 1.0:
+		return
+	var k := maxi(1, int(roundf(scale)))
+	var dst := src * float(k)
+	var r := Rect2((box.position + (box.size - dst) * 0.5).round(), dst)
+	# Mirrored about the BOX's middle, the same line `fill_part` reflects the
+	# silhouette about, so a flipped part lands in the same place either way.
+	if mirror:
+		ci.draw_set_transform_matrix(Transform2D(Vector2(1.0, 0.0),
+			Vector2(0.0, -1.0), Vector2(0.0, box.get_center().y * 2.0)))
+	ci.draw_texture_rect(tex, r, false)
+	if mirror:
+		ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+
 
 ## THE SILHOUETTE A PART READS AS, drawn the same way wherever it appears.
 ##

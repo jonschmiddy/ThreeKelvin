@@ -242,6 +242,11 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	if "artcheck" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ArtCheck.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "shipsheet" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
@@ -402,6 +407,15 @@ func _ready() -> void:
 	# The refit screen at a chosen weight:  godot --path . -- shipshot heavy
 	# Needs a window and runs after boot, same as convoy. The heavy is the
 	# default because its 6x5 hold is what any change to that panel has to clear.
+	# Every drawn part on one ship, live:  godot --path . -- artdemo
+	# AFTER BOOT, beside shipshot and not up with the headless checks: show_ship
+	# needs the Router to have been handed a content node, and the branches above
+	# run before that exists.
+	if "artdemo" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ArtDemo.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "shipshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ShipShot.gd").new()
 		_convoy_test.run(get_tree())
@@ -671,10 +685,10 @@ func _print_attribute_table() -> void:
 			var deck := 0
 			for mod in Run.installed:
 				deck += mod.grant_count()
-			# slots_for(), not the raw hull numbers: perks add mounts, and a table
-			# that prints 1/2/3 for a ship carrying four utilities is a table that
-			# makes you go looking for a bug in the fitting code. Cygnet's
-			# spare_bay is exactly that case.
+			# slots_for(), not the raw hull numbers. No perk adds a mount any more --
+			# spare_bay was the only one that did and it is gone -- but the set
+			# bonuses and the hull perks still reach these numbers, and a table that
+			# disagrees with the ship sends you looking for a bug in the fitting code.
 			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d %4d %4d  %s %d" % [
 				Run.hull.name, row, Run.hp, Run.heat_cap(), Run.dissipation(),
 				Run.dodge(), Run.initiative(), Run.fuel_factor(),

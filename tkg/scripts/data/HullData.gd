@@ -98,7 +98,37 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 @export var weapon_slots: int = 3
 @export var system_slots: int = 2
 @export var utility_slots: int = 1
+## THE MANUFACTURER'S PERK. Every hull a house builds carries it, at every
+## grade, so a C-class is never characterless.
 @export var perk_id: StringName = &"salvage_rack"
+
+## WHAT THE GRADE ADDS, on top of the house's own. Cumulative and authored,
+## never rolled: C gets none, B one, A two, S three, and each is the previous
+## list plus one more — so upgrading a hull adds without taking away, and two
+## ships of the same house and grade are the same ship.
+##
+## Granted by `Database.at_tier`, which is where every other thing a grade
+## confers already happens.
+@export var tier_perks: Array[StringName] = []
+
+## DOES THIS HULL CARRY `id`, from any source.
+##
+## Every perk check in the game used to be `hull.perk_id == &"x"`, which is
+## a question that only has an answer while a hull has exactly one perk. It
+## now has up to four, and an equality test would silently report three of
+## them as absent — the perk would be printed on the screen and do nothing.
+func has_perk(id: StringName) -> bool:
+	return id == perk_id or id in tier_perks
+
+## Everything this hull carries, house first, then the grade's in order.
+func perks() -> Array[StringName]:
+	var out: Array[StringName] = []
+	if perk_id != &"":
+		out.append(perk_id)
+	for p in tier_perks:
+		if p != &"" and not (p in out):
+			out.append(p)
+	return out
 
 @export_group("Art")
 ## The engine plume: a horizontal STRIP of equal frames, kept off the hull plate

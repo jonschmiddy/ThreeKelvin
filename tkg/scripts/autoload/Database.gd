@@ -256,6 +256,13 @@ func malfunction(id: StringName) -> CardData:
 		c.hand_heat = row[3]
 		c.fused = row[4]
 		c.source_module = "spore residue"
+		# KEYED ON THE ID, not left to the name slug. A malfunction has no module
+		# to inherit a picture from, and its id is the one thing here that is
+		# already promised to be stable — the names are display text and the
+		# ladder they describe (Corrode 1/2/3) is exactly the sort that gets
+		# reworded.
+		c.art = row[0]
+		c.sprite = card_art(c.art_key())
 		return c
 	return malfunction(&"dross")
 
@@ -361,6 +368,8 @@ func _card(d: Dictionary) -> CardData:
 	var c := CardData.new()
 	for k in d.keys():
 		c.set(k, d[k])
+	# HERE, and not at draw time. See CardData.sprite.
+	c.sprite = card_art(c.art_key())
 	return c
 
 func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slot,
@@ -384,6 +393,8 @@ func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slo
 			arr.append(_card(cd))
 	m.cards = arr
 	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
+	# Null until the art exists, which is what the drawn silhouette is for.
+	m.sprite = module_sprite(id)
 	modules[id] = m
 
 func _seed_modules() -> void:
@@ -1307,16 +1318,23 @@ const MAKER_HULLS := {
 	# It also had the one perk we PROVED does nothing. cheap_parts halves repair
 	# prices, and cutting repair prices by 40% across the whole game moved the
 	# win rate inside its own noise band — so Redline was effectively flying
-	# without a perk. spare_bay gives it a mount instead, which suits a house
-	# whose whole business is refits.
+	# without a perk. It takes salvage_rack instead: a chop shop that registers
+	# no serials is a salvage yard with a shopfront. It had spare_bay for a
+	# while, which suited the refit business and asked for a hardpoint no hull
+	# was rigged to carry -- see the note in _seed_perks.
 	&"redline": {
 		names = ["Hairpin", "Switchback", "Blindside"],
-		perk_id = &"spare_bay",
+		# Was spare_bay. A chop shop that registers no serials is a salvage
+		# yard with a shopfront, so it takes the salvage perk outright.
+		perk_id = &"salvage_rack",
 		d = {max_hull = -3, dodge = 0.06, initiative = 1, fuel_factor = -0.1,
 			sensors = 1, stealth = 2}},
 	&"cygnet": {
 		names = ["Fledgling", "Brood Tender", "Rookery"],
-		perk_id = &"spare_bay",
+		# Was spare_bay. Drones are cards, and a drone house wants more of
+		# them in hand -- which is also why this one is NOT Redline's, whose
+		# 3-set already draws an extra card and would have stacked with it.
+		perk_id = &"quick_hands",
 		d = {max_hull = -3, dissipation = 1, dodge = 0.03, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
 	&"verity": {
@@ -1446,6 +1464,36 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false) -> Textur
 	# and the filenames stay identical inside each folder.
 	var sub := "half/" if half else ""
 	return load("res://art/sprites/hulls/korvan/%s%s.png" % [sub, n]) as Texture2D
+
+## THE SPRITE BOLTED TO A HULL for a module, or null while it has none.
+##
+## Guarded on `ResourceLoader.exists` rather than handed straight to `load()`,
+## and that is not politeness. A missing path makes `load()` log an error every
+## call, and on the day this lands every one of forty-three modules is missing —
+## which is not a warning, it is a wall of them, hiding whatever real error
+## arrives next. Null is the honest answer and every drawing site already has a
+## procedural fallback for it.
+##
+## One folder, keyed on the module's own id, for the same reason the hulls are:
+## the filename cannot then describe a different part than the data does.
+func module_sprite(id: StringName) -> Texture2D:
+	if id == &"":
+		return null
+	var path := "res://art/sprites/modules/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+## A CARD'S ILLUSTRATION, or null while it has none. See `CardData.art_key()`
+## for where the key comes from — it is the card's name slugged, unless the card
+## names a file itself.
+func card_art(key: StringName) -> Texture2D:
+	if key == &"":
+		return null
+	var path := "res://art/sprites/cards/%s.png" % key
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
 
 ## The art file for a weight and class, without the extension. One place the
 ## naming convention is written, so the sprite and its measured lines cannot
@@ -1850,6 +1898,11 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# ship, so the four mediums are 54 to 81 pixels tall; swapping the texture
 	# and keeping the frame's offset would hang the flame off the bottom of the
 	# short ones.
+	# THE GRADE'S PERKS, alongside the reactor and the hardpoints it already
+	# grants. Cumulative and authored — see TIER_PERKS.
+	#
+	# See TIER_PERKS on why every house ends up with the same four at S.
+	h.tier_perks = tier_perks_for(h.manufacturer, t)
 	h.sprite = hull_sprite(h.weight, t)
 	h.sprite_half = hull_sprite(h.weight, t, true)
 	apply_hull_lines(h)
@@ -1863,12 +1916,78 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 		h.name = named
 	return h
 
+## WHAT EACH GRADE ADDS, per house, in order. C takes none, B the first, A the
+## first two, S all three — cumulative, so upgrading a hull only ever adds.
+##
+## Authored rather than rolled. A hull is a thing you recognise: two Bastions
+## have to be the same ship, and a perk that came out of the RNG would make the
+## grade letter a lottery ticket instead of a promise.
+##
+## WEAKEST FIRST, STRONGEST LAST, so a grade is worth what it costs. The pool
+## is not flat: +1 energy a turn is a fifth of a whole turn's budget forever,
+## +1 utility mount is a permanent extra part, and +40% on scrap is money you
+## still have to go and earn. The strongest one a house can get is its S.
+##
+## `spare_bay` IS GONE FROM THE GAME, and for a harder reason than balance:
+## it granted a utility HARDPOINT, and a hardpoint is a place on a hull that
+## somebody put there by hand. `HullData.mounts_along` prefers the anchors
+## authored for a sprite and falls back to a derived line when asked for more
+## mounts than there are anchors -- so the perk did not add a mount where a
+## mount belongs, it added one wherever the arithmetic landed. A perk that
+## moves geometry needs the geometry rigged first, and none of these hulls
+## are. Three perks that move only numbers replaced it.
+##
+## `cheap_parts` IS IN NO LADDER, and that is not an oversight — this file
+## already records that halving repair prices across a whole game moved the
+## win rate inside its own noise band. It is the one perk measured to do
+## nothing, and a grade whose reward is a proven no-op is a grade that lies.
+## Which leaves four working perks and a house owning one: every ladder is
+## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT HOUSES NOW
+## CARRY THE SAME FOUR PERKS. The grades separate; the houses stop separating
+## at the top. Widening the pool with perks that work is the fix, and until
+## there are some, this is the honest arrangement rather than a varied one
+## built out of a perk that does nothing.
+const TIER_PERKS := {
+	&"korvan":  [&"salvage_rack", &"deep_tanks", &"overspec_reactor"],
+	&"solari":  [&"salvage_rack", &"heat_sink", &"baffled_vents"],
+	&"probate": [&"deep_tanks", &"heat_sink", &"overspec_reactor"],
+	&"redline": [&"deep_tanks", &"baffled_vents", &"quick_hands"],
+	&"cygnet":  [&"salvage_rack", &"deep_tanks", &"baffled_vents"],
+	&"verity":  [&"deep_tanks", &"heat_sink", &"quick_hands"],
+	&"calyx":   [&"salvage_rack", &"heat_sink", &"quick_hands"],
+}
+
+## The perks a grade confers on a hull of this house. Empty at C.
+func tier_perks_for(man: StringName, tier: int) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if not TIER_PERKS.has(man):
+		return out
+	var ladder: Array = TIER_PERKS[man]
+	for i in mini(clampi(tier, 0, 3), ladder.size()):
+		out.append(ladder[i])
+	return out
+
 func _seed_perks() -> void:
 	hull_perks = {
-		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +50%."},
+		# +40%, which is what MELT_PERK actually is. The text said 50 and the code
+		# said 1.4 since both were written; it is about to be printed up to four
+		# times on one ship, so the lie stops here.
+		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +40%."},
 		&"baffled_vents": {name = "Baffled Vents", text = "+1 heat dissipation."},
 		&"overspec_reactor": {name = "Overspec Reactor", text = "+1 energy per turn."},
-		&"spare_bay": {name = "Spare Bay", text = "+1 utility hardpoint."},
+		# NO `spare_bay`. It granted a utility HARDPOINT, and a hardpoint is a
+		# place on a hull that somebody put there by hand -- `mounts_along` falls
+		# back to a derived line when asked for more mounts than a sprite has
+		# anchors, so the perk did not add a mount where a mount belongs, it
+		# added one wherever the arithmetic landed. A perk that moves geometry
+		# needs the geometry rigged first, and none of these hulls are.
+		#
+		# The three below ask nothing of any sprite. Every one of them moves a
+		# number that already exists and is already consumed somewhere, which is
+		# the property `cheap_parts` turned out not to have.
+		&"deep_tanks": {name = "Deep Tanks", text = "Every jump costs 10% less fuel."},
+		&"heat_sink": {name = "Heat Sink", text = "+2 heat capacity."},
+		&"quick_hands": {name = "Quick Hands", text = "+1 card a turn."},
 		&"cheap_parts": {name = "Cheap Parts", text = "Station repairs cost half."},
 	}
 

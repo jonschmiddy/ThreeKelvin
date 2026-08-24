@@ -403,11 +403,24 @@ func magnify(k: int, view_height: int) -> void:
 	# hardpoint layer. A gun bolted to the last mount on the spine reaches past
 	# the hull it is mounted on, and it was losing its muzzle to a rectangle
 	# with nothing else to cut.
-	clip_contents = view_height < _h * _k
+	clip_contents = self_clip and view_height < _h * _k
 	# AFTER crop, which clears it. StationScreen calls magnify and then crop
 	# with a width it means, and setting this first let the canvas re-fit undo
 	# that deliberate crop the next time the sprite changed size.
 	_fit_h = view_height
+
+## WHETHER THIS VIEW MAY CLIP ITSELF.
+##
+## True everywhere by default, and FALSE on the refit screen, which wraps the
+## view in a window of its own and does the clipping there.
+##
+## It matters because the hardpoint layer is a CHILD of this control, so a clip
+## meant to keep a magnified hull inside a short row also cuts every gun that
+## reaches past the hull it is bolted to. `magnify` already refuses to clip
+## when the box covers the canvas, for exactly that reason — but the moment the
+## zoom makes the canvas taller than the box, the clip comes back on and takes
+## the muzzles with it. Two owners of one decision; this is the one that wins.
+var self_clip: bool = true
 
 ## Magnify WITHOUT taking a position on how big the control should be.
 ##
@@ -438,7 +451,7 @@ func crop(view_width: int, view_height: int) -> void:
 	_sized = true
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	custom_minimum_size = Vector2(view_width, view_height)
-	clip_contents = true
+	clip_contents = self_clip
 	refresh()
 
 func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
@@ -458,7 +471,7 @@ func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:
 		# top of the attribute block underneath it.
 		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		custom_minimum_size = Vector2(_w * _k, view_height)
-		clip_contents = true
+		clip_contents = self_clip
 		_sized = true
 	refresh()
 
@@ -630,7 +643,7 @@ func _resize_canvas(w: int, h: int) -> void:
 	# inside a panel that had quietly resized itself. Nothing threw.
 	if _fit_h > 0:
 		custom_minimum_size = Vector2(_w * _k, _fit_h)
-		clip_contents = _fit_h < _h * _k
+		clip_contents = self_clip and _fit_h < _h * _k
 	elif _k <= 1 and not _sized:
 		custom_minimum_size = Vector2(_w, _h)
 

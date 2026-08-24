@@ -11,6 +11,8 @@ See docs/art/PIXELLAB_WORKFLOW.md for the process these functions implement.
     python pixeltools.py strip     in.png out.png        # opaque bg -> alpha
     python pixeltools.py crop      in.png out.png X Y W H
     python pixeltools.py snap      in.png palette.png out.png
+    python pixeltools.py trim      in.png out.png        # crop to the ink
+    python pixeltools.py reduce    in.png out.png N       # /N, dominant pixel
     python pixeltools.py strip-anim out.png f0.png f1.png ...
 """
 
@@ -188,6 +190,153 @@ def snap(w, h, rows, pal):
     return n
 
 
+def trim(w, h, rows):
+    """Crop to the ink and nothing else. THE PREFERRED WAY DOWN TO SIZE.
+
+    Every pixel that ships is exactly the pixel the generator drew, because
+    nothing is resampled -- only empty margin is removed. That is the whole
+    difference between this and reduce(), and on a 46x15 gun the difference is
+    not subtle: reduce() halves a 92x30 image whose detail was drawn at 92x30,
+    so half of it goes in the bin and the rest reads as speckle.
+
+    The catch is that the generator decides how tall its subject is, so the
+    result is whatever it is rather than a size you chose. That is why the
+    fitted-part box is a guide and not a frame -- see ModuleIcon.draw_sprite.
+    Ask for a canvas the width you want and let this take the rest away.
+    """
+    b = bbox(w, h, rows)
+    if not b:
+        return w, h, rows
+    return crop(w, h, rows, b[0], b[1], b[2] - b[0] + 1, b[3] - b[1] + 1)
+
+
+def reduce(w, h, rows, n):
+    """Shrink by an exact integer factor, one n*n block to one pixel.
+
+    PREFER trim(). This resamples, and resampling a generated sprite throws
+    away detail that was drawn at full density. It survives for the one case
+    trim cannot serve: a part whose box is too small for the generator's floor
+    in BOTH axes, where there is no canvas that is both legal and small enough.
+
+    THE DOMINANT PIXEL, NOT THE AVERAGE. Averaging four colours invents a fifth,
+    which is how a snapped sprite comes back off its own palette and why this
+    does not need a snap() afterwards: every colour it emits was already in the
+    source, so the palette cannot drift by construction.
+
+    Why this exists at all. A module is drawn on the hull at HALF the hold's
+    cell -- a long gun is 46x15 art pixels -- and every module footprint is
+    under PixelLab's floor of 16 per side and 1024 of area. Nothing in the set
+    can be generated at the size it is drawn, so it is generated at 2x or 3x and
+    brought down here, offline, once. The runtime still draws 1:1.
+
+    A block is opaque when at least HALF its pixels are, which keeps an edge
+    where the edge was. The alternative -- opaque if any pixel is -- fattens
+    every silhouette by a pixel on all four sides, and at 15 pixels tall that is
+    a seventh of the part.
+
+    Ties go to the lowest RGB rather than to whichever the counter happened to
+    see first, so a rebuild produces the same bytes. Determinism is worth more
+    than the shade it occasionally costs.
+    """
+    if n < 1 or w % n or h % n:
+        raise ValueError("%dx%d does not divide by %d" % (w, h, n))
+    nw, nh = w // n, h // n
+    out = []
+    for by in range(nh):
+        line = bytearray(nw * 4)
+        for bx in range(nw):
+            tally, solid = {}, 0
+            for dy in range(n):
+                r = rows[by * n + dy]
+                for dx in range(n):
+                    o = (bx * n + dx) * 4
+                    if not r[o + 3]:
+                        continue
+                    solid += 1
+                    c = (r[o], r[o + 1], r[o + 2])
+                    tally[c] = tally.get(c, 0) + 1
+            if solid * 2 < n * n:
+                continue                      # left transparent
+            c = min(tally.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+            o = bx * 4
+            line[o], line[o + 1], line[o + 2], line[o + 3] = c[0], c[1], c[2], 255
+        out.append(line)
+    return nw, nh, out
+
+
+def fit(w, h, rows, bw, bh):
+    """Centre the ink in an EXACTLY bw x bh canvas. Never resamples.
+
+    THE LAST STEP OF EVERY MODULE SPRITE. A part is authored at the size of its
+    box -- 20x20, 40x20, 60x20, 80x20, 40x40 -- and this is what guarantees it,
+    whatever the generator happened to draw. Trimming alone gives whatever the
+    ink measured (16x15, 38x13), which then has to be centred at draw time by
+    code that could get it wrong, and leaves `-- artcheck` unable to say
+    anything stricter than "close enough".
+
+    Transparent margin costs nothing: it is the same pixels the draw would have
+    left blank, decided here where it can be looked at instead of at runtime.
+
+    Ink larger than the box is CLIPPED, deliberately and loudly -- it returns
+    the overflow so the caller can refuse the asset. Silently shrinking it would
+    be a resample by another name.
+    """
+    b = bbox(w, h, rows)
+    if not b:
+        return bw, bh, [bytearray(bw * 4) for _ in range(bh)], (0, 0)
+    iw, ih = b[2] - b[0] + 1, b[3] - b[1] + 1
+    over = (max(0, iw - bw), max(0, ih - bh))
+    out = [bytearray(bw * 4) for _ in range(bh)]
+    ox, oy = (bw - iw) // 2, (bh - ih) // 2
+    for y in range(min(ih, bh)):
+        for x in range(min(iw, bw)):
+            s = (b[0] + x) * 4
+            dx, dy = ox + x, oy + y
+            if 0 <= dx < bw and 0 <= dy < bh:
+                out[dy][dx * 4:dx * 4 + 4] = rows[b[1] + y][s:s + 4]
+    return bw, bh, out, over
+
+
+def reduce_avg(w, h, rows, n):
+    """Like reduce(), but each block picks the pixel NEAREST ITS OWN AVERAGE.
+
+    Same guarantee -- only colours that were already in the block are emitted,
+    so the palette cannot drift -- and a different answer where a block is split
+    between a highlight and a shadow. reduce() takes whichever is more numerous
+    and can drop a one-pixel specular entirely; this takes whichever is closest
+    to what the block MEANS, which keeps a lit edge reading as a lit edge.
+
+    Which is better is a question about the art, not about the code. Try both.
+    """
+    if n < 1 or w % n or h % n:
+        raise ValueError("%dx%d does not divide by %d" % (w, h, n))
+    nw, nh = w // n, h // n
+    out = []
+    for by in range(nh):
+        line = bytearray(nw * 4)
+        for bx in range(nw):
+            seen, tot = [], [0, 0, 0]
+            for dy in range(n):
+                r = rows[by * n + dy]
+                for dx in range(n):
+                    o = (bx * n + dx) * 4
+                    if not r[o + 3]:
+                        continue
+                    c = (r[o], r[o + 1], r[o + 2])
+                    seen.append(c)
+                    tot[0] += c[0]; tot[1] += c[1]; tot[2] += c[2]
+            if len(seen) * 2 < n * n:
+                continue
+            k = len(seen)
+            av = (tot[0] / k, tot[1] / k, tot[2] / k)
+            c = min(seen, key=lambda p: (p[0] - av[0]) ** 2 + (p[1] - av[1]) ** 2
+                    + (p[2] - av[2]) ** 2)
+            o = bx * 4
+            line[o], line[o + 1], line[o + 2], line[o + 3] = c[0], c[1], c[2], 255
+        out.append(line)
+    return nw, nh, out
+
+
 def hstrip(frames):
     """[(w,h,rows), ...] of equal size -> one horizontal strip."""
     fw, fh = frames[0][0], frames[0][1]
@@ -232,6 +381,16 @@ def _main(argv):
         n = snap(w, h, rows, pal)
         encode(argv[4], w, h, rows)
         print("snapped %d px onto %d source colours" % (n, len(pal)))
+    elif cmd == "trim":
+        w, h, rows = decode(argv[2])
+        encode(argv[3], *trim(w, h, rows))
+        nw, nh, _ = trim(w, h, rows)
+        print("%dx%d -> %dx%d" % (w, h, nw, nh))
+    elif cmd == "reduce":
+        w, h, rows = decode(argv[2])
+        n = int(argv[4])
+        encode(argv[3], *reduce(w, h, rows, n))
+        print("%dx%d /%d -> %dx%d" % (w, h, n, w // n, h // n))
     elif cmd == "strip-anim":
         frames = [decode(f) for f in argv[3:]]
         w, h, rows = hstrip(frames)

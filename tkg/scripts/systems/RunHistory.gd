@@ -62,6 +62,11 @@ static func record(outcome: Outcome, reason: String) -> void:
 		# Unlocks.
 		chassis_maker = String(Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),
+		# THE GRADE'S PERKS TOO. `perk` alone answers "which house", which the
+		# line above already answers; what a record of a flight wants is what the
+		# ship could actually DO.
+		tier_perks = ",".join(Array(Run.hull.tier_perks).map(
+			func(x: StringName) -> String: return String(x))),
 		# THE RUN, AS ONE NUMBER. Everything a run is — the galaxy, the map, the
 		# loot, who was waiting at every node — derives from this, so recording
 		# it turns the flight record from a list of things that happened into a

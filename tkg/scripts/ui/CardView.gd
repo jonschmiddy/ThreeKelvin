@@ -248,7 +248,7 @@ func _draw() -> void:
 			draw_line(Vector2(art.position.x, y), Vector2(art.end.x, y),
 				Color(0.42, 0.38, 0.44, 0.5), s)
 			y += step
-	else:
+	elif not _draw_art(art):
 		_type_glyph()
 
 	# Recessed plates at BOTH scales, including the ones that only hold text at
@@ -497,6 +497,27 @@ static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
 			# Unbranded: precursor or grown. A bare punched square.
 			r.call(Vector2(-3.5, -3.5), Vector2(7, 7), mark)
 			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), field)
+
+## THE CARD'S OWN ILLUSTRATION, if one exists. False means there is none and the
+## drawn glyph should take the window instead.
+##
+## AT WHOLE MULTIPLES ONLY. The illustration is authored at the window's own
+## size, so hand scale draws it 1:1 and inspect draws it at exactly 2 — the same
+## reason the two card sizes are an exact 2x and not a comfortable 1.8. Anything
+## else resamples pixel art onto a grid it was not drawn for, which is the one
+## thing the art direction refuses outright.
+##
+## Centred rather than stretched when the file is not the size it should be. A
+## wrong-sized asset is a mistake to SEE, and `-- artcheck` names it; silently
+## scaling it to fit would hide exactly the mistake that check exists to catch.
+func _draw_art(where: Rect2) -> bool:
+	var tex: Texture2D = card.sprite
+	if tex == null:
+		return false
+	var at := where.position + (where.size - Vector2(tex.get_size()) * float(_s)) * 0.5
+	draw_texture_rect(tex, Rect2(at.round(),
+		Vector2(tex.get_size()) * float(_s)), false)
+	return true
 
 ## What the module looks like, until there is a module sprite to show.
 ##
