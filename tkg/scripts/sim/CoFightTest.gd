@@ -241,6 +241,9 @@ func _play(cb: Combat) -> void:
 		var acted := true
 		while acted and not cb.finished:
 			acted = false
+			# A pending pick blocks every play, so answer it first.
+			while cb.choosing > 0:
+				cb.choose(cb.best_choice())
 			var best := -1
 			var best_at := 0.0
 			for i in cb.hand.size():
@@ -252,9 +255,6 @@ func _play(cb: Combat) -> void:
 					best_at = sc
 					best = i
 			if best >= 0:
-# A pending pick blocks every play, so answer it first.
-while cb.choosing > 0:
-	cb.choose(cb.best_choice())
 				cb.play(best)
 				acted = true
 		if not cb.finished:
