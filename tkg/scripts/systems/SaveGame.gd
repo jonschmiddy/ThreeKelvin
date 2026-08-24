@@ -41,6 +41,12 @@ const PATH := "user://run.save"
 ## silently loses work the player had already flown for.
 ## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
 ## arranged comes back arranged rather than re-packed from scratch.
+## 10: a hull carries the perks its GRADE grants, on top of its house's one.
+## They are granted by `at_tier` and the loader does not call it, so they are
+## written and read back explicitly. A version 9 save has none of them, and
+## an S-tier ship restored from one is three perks short with every number
+## still right — unreadable rather than wrong, which is what the rule at the
+## top is for.
 ## 9: the hellbender — where the galaxy's other harvester is, what hull it has
 ## left, and how many moves it has made (the counter is a seed source, so
 ## losing it would re-derive a different walk). A node also carries `eaten`:
@@ -65,7 +71,7 @@ const PATH := "user://run.save"
 ## rule at the top -- an unreadable file is DISCARDED rather than guessed at --
 ## and the number is only how that rule recognises one. 8 is discarded now for
 ## the same reason 6 and 7 were.
-const VERSION := 9
+const VERSION := 10
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -468,8 +474,14 @@ static func _module_from(e: Variant) -> ModuleData:
 ## any save whose hull name stopped matching would silently cost you a set piece
 ## and nothing would report it.
 static func _hull_to(h: HullData) -> Dictionary:
+	# `tier_perks` goes here beside perk_id and NOT in HULL_FIELDS, for the
+	# reason stated above it: that loop coerces every field to int or float,
+	# so a list of StringNames put in it comes back as 0.
+	var wrote: Array = []
+	for tp in h.tier_perks:
+		wrote.append(String(tp))
 	var d := {name = h.name, perk_id = String(h.perk_id),
-		manufacturer = String(h.manufacturer)}
+		manufacturer = String(h.manufacturer), tier_perks = wrote}
 	for f in HULL_FIELDS:
 		d[f] = h.get(f)
 	return d
@@ -507,6 +519,18 @@ static func _hull_from(e: Variant) -> HullData:
 	if saved_name != "":
 		h.name = saved_name
 	h.perk_id = StringName(str(d.get("perk_id", "salvage_rack")))
+	# RESTORED, NEVER RE-DERIVED. `_hull_from` does not go through `at_tier`
+	# -- it copies a tier-0 frame and puts the saved scalars back on it -- so
+	# nothing here would grant the grade's perks a second time. An S-tier ship
+	# would come back carrying only its house perk, three short, with every
+	# number on the screen still correct. That is the same shape of fault as
+	# the Halberd that came back a Picket, and it is why the version below
+	# moved: a save written before this cannot be told from one written after.
+	var tp: Array = d.get("tier_perks", []) as Array
+	var restored: Array[StringName] = []
+	for e2 in tp:
+		restored.append(StringName(str(e2)))
+	h.tier_perks = restored
 	# Absent in a save written before hulls had makers, in which case the frame
 	# matched by name above already carries the right one.
 	if d.has("manufacturer"):

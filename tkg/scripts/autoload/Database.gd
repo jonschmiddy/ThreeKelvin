@@ -1891,6 +1891,14 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# ship, so the four mediums are 54 to 81 pixels tall; swapping the texture
 	# and keeping the frame's offset would hang the flame off the bottom of the
 	# short ones.
+	# THE GRADE'S PERKS, alongside the reactor and the hardpoints it already
+	# grants. Cumulative and authored — see TIER_PERKS.
+	#
+	# WORTH WATCHING: the pool is five and a house uses four of them, so at S
+	# every house has all four of its own and two houses differ only by which
+	# single perk each lacks. The grades separate cleanly; the HOUSES converge
+	# at the top. Widening the pool is the fix if that turns out to matter.
+	h.tier_perks = tier_perks_for(h.manufacturer, t)
 	h.sprite = hull_sprite(h.weight, t)
 	h.sprite_half = hull_sprite(h.weight, t, true)
 	apply_hull_lines(h)
@@ -1903,6 +1911,38 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	if named != "":
 		h.name = named
 	return h
+
+## WHAT EACH GRADE ADDS, per house, in order. C takes none, B the first, A the
+## first two, S all three — cumulative, so upgrading a hull only ever adds.
+##
+## Authored rather than rolled. A hull is a thing you recognise: two Bastions
+## have to be the same ship, and a perk that came out of the RNG would make the
+## grade letter a lottery ticket instead of a promise.
+##
+## Each house lists three, all different from its own `perk_id`, so a house
+## uses FOUR of the five and never gets the fifth. That omission is the point:
+## Korvan does not do cheap repairs, Probate does not overspec a reactor. It is
+## also the whole of what separates two S-tier ships — see the note in
+## at_tier about what that costs.
+const TIER_PERKS := {
+	&"korvan":  [&"spare_bay", &"overspec_reactor", &"salvage_rack"],
+	&"solari":  [&"baffled_vents", &"spare_bay", &"cheap_parts"],
+	&"probate": [&"cheap_parts", &"spare_bay", &"baffled_vents"],
+	&"redline": [&"overspec_reactor", &"salvage_rack", &"cheap_parts"],
+	&"cygnet":  [&"baffled_vents", &"overspec_reactor", &"cheap_parts"],
+	&"verity":  [&"spare_bay", &"baffled_vents", &"salvage_rack"],
+	&"calyx":   [&"overspec_reactor", &"cheap_parts", &"salvage_rack"],
+}
+
+## The perks a grade confers on a hull of this house. Empty at C.
+func tier_perks_for(man: StringName, tier: int) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if not TIER_PERKS.has(man):
+		return out
+	var ladder: Array = TIER_PERKS[man]
+	for i in mini(clampi(tier, 0, 3), ladder.size()):
+		out.append(ladder[i])
+	return out
 
 func _seed_perks() -> void:
 	hull_perks = {

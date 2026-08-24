@@ -177,6 +177,12 @@ var _class: Label
 var _hand: Label
 var _hold: Label
 var _abilities: VBoxContainer
+## The perk list in the masthead's top-right corner. An OVERLAY on the
+## panel rather than a column in its layout, and that is deliberate: the
+## ship is centred by arithmetic that reads the row it sits in, so a new
+## sibling would narrow the ship's window and move the ship to make room
+## for text about the ship. Anchored over the corner it costs nothing.
+var _perkbox: VBoxContainer
 var _fithead: Label
 var _fitted: VBoxContainer
 
@@ -482,6 +488,20 @@ func _build() -> void:
 	# The ship is centred against THIS panel now, not against the whole column.
 	_panel = twrap
 	lcol.add_child(twrap)
+
+	# THE PERKS, top right, over the masthead. Named here, described on hover —
+	# four short names cost a corner nobody was using, where the same four with
+	# their effects spelled out cost a block the width of the panel.
+	_perkbox = VBoxContainer.new()
+	_perkbox.add_theme_constant_override("separation", 1)
+	_perkbox.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_perkbox.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_perkbox.offset_top = PANEL_PAD
+	_perkbox.offset_right = -PANEL_PAD
+	# PASS, not STOP: the labels inside want hover for their tooltips, but the
+	# column between and around them must not eat a drag meant for the ship.
+	_perkbox.mouse_filter = Control.MOUSE_FILTER_PASS
+	twrap.add_child(_perkbox)
 
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -826,6 +846,22 @@ func _refresh() -> void:
 
 	# Rebuilt every refresh, because the unlock state is the point: fitting a
 	# third Korvan part has to light the 3+ row the moment it lands.
+	# THE HULL'S OWN PERKS, house first then the grade's, in the corner.
+	if _perkbox != null:
+		Widgets.clear(_perkbox)
+		for pid in Run.hull.perks():
+			var pd: Dictionary = DB.hull_perks.get(pid, {})
+			if pd.is_empty():
+				continue
+			var lab := UITheme.body(str(pd.name).to_upper(), UITheme.EMBER,
+				UITheme.FS_SMALL)
+			lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			# STOP so the label can be hovered at all; a Label ignores the
+			# mouse by default and a tooltip on an ignored control never shows.
+			lab.mouse_filter = Control.MOUSE_FILTER_STOP
+			lab.tooltip_text = Widgets.tip(str(pd.text))
+			_perkbox.add_child(lab)
+
 	Widgets.clear(_abilities)
 	for row in Widgets.ability_rows(man, Run.hull.perk_id, Run.manufacturer_count(man)):
 		_abilities.add_child(row)

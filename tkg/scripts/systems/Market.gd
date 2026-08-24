@@ -171,7 +171,7 @@ static func _saturation(n: MapGen.MapNode) -> float:
 ## with no station and no route.
 static func melt(m: ModuleData) -> int:
 	var v := float(base_value(m)) * MELT
-	if Run.hull != null and Run.hull.perk_id == &"salvage_rack":
+	if Run.hull != null and Run.hull.has_perk(&"salvage_rack"):
 		v *= MELT_PERK
 	return maxi(1, int(round(v)))
 
@@ -215,7 +215,7 @@ const REPAIR_BASE := 2.0
 
 static func repair_rate(n: MapGen.MapNode) -> float:
 	var r := REPAIR_BASE * service_index(n)
-	if Run.hull != null and Run.hull.perk_id == &"cheap_parts":
+	if Run.hull != null and Run.hull.has_perk(&"cheap_parts"):
 		r *= 0.5
 	return r
 

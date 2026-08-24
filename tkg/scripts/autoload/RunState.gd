@@ -799,7 +799,7 @@ func heat_cap(bare: bool = false) -> int:
 
 func dissipation(bare: bool = false) -> int:
 	var d := hull.dissipation
-	if hull.perk_id == &"baffled_vents":
+	if hull.has_perk(&"baffled_vents"):
 		d += 1
 	if not bare:
 		for m in installed:
@@ -935,7 +935,7 @@ func reactor_level(bare: bool = false) -> int:
 ## did nothing (a level landing between steps) is a bonus nobody can price.
 func reactor() -> int:
 	var e := maxi(1, 3 + floori(float(reactor_level() - 4) / 2.0))
-	if hull.perk_id == &"overspec_reactor":
+	if hull.has_perk(&"overspec_reactor"):
 		e += 1
 	if has_set(&"verity", 5):
 		e += 1
@@ -993,7 +993,7 @@ func hand_size() -> int:
 
 func slots_for(s: ModuleData.Slot) -> int:
 	var c := hull.slots_for(s)
-	if s == ModuleData.Slot.UTILITY and hull.perk_id == &"spare_bay":
+	if s == ModuleData.Slot.UTILITY and hull.has_perk(&"spare_bay"):
 		c += 1
 	return c
 
@@ -1550,7 +1550,7 @@ func transfer_to_hull(h: HullData) -> void:
 	# Shed anything that no longer fits, cheapest first.
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		var cap: int = h.slots_for(s)
-		if s == ModuleData.Slot.UTILITY and h.perk_id == &"spare_bay":
+		if s == ModuleData.Slot.UTILITY and h.has_perk(&"spare_bay"):
 			cap += 1
 		while slots_used(s) > cap:
 			var worst: ModuleData = null
