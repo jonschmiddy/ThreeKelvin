@@ -123,7 +123,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 >
 > Countersign exercise from the current exemplar, third sheet passes for all four, usual. One asked the usual question too, why the exemplar volumes are not sorted by author when the countersign in volume forty and the countersign in volume one are the same hand. Gave the syllabus answer, they are sorted by author. He looked at me the way they all look at me and I gave him his seal.
 >
-> Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this house, everything is in perpetuity except the heat.
+> Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this company, everything is in perpetuity except the heat.
 
 *The syllabus answers the question by refusing to hear it. Nobody in the document finds this remarkable, which is rule five doing its work.*
 
@@ -195,9 +195,9 @@ One new entry only. This thread must stay thin — it is the closest the archive
 **Anchors:** `cygnet_receipt` (Cygnet does not retain a copy), `rate_schedule` (unchanged at every revision), `vault_routing` (the destination parses as a temperature), `solari_memo` (the terminal application is on the schedule), `redline_scratch` (they will always go higher). The deep end of the archive, where the professions whose whole job is reconciliation meet the account that has one side. Register decay applies hardest here: these are the entries where the voice is allowed to crack.
 
 > **`audit_minute`** — "AUDIT MINUTE, THERMAL ACCOUNTS" — *an auditor, engagement not stated* — "audit year not entered" — no manufacturer — **depth 7**
-> Thermal deliveries sampled across seven berths, one to a house, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
+> Thermal deliveries sampled across seven berths, one to a manufacturer, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
 >
-> The seller keeps the receipt. The house keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
+> The seller keeps the receipt. The manufacturer keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
 >
 > I was twenty years at grain accounts. A granary that pays on the scale and keeps no tally of what came over it, I would have had shut by winter. I put the question to the engagement partner in those words, and the minute records that the question was put.
 >
@@ -229,7 +229,7 @@ One new entry only. This thread must stay thin — it is the closest the archive
 
 **Anchor:** `custodian_note` (it made room), and `lore.md` §4's ruling: the Custodian gets no entry of its own, only other people's paperwork. The second document about the core should be in the most anaesthetic register available. Nothing is colder than expense adjudication.
 
-> **`expense_claim`** — "EXPENSE CLAIM, DISALLOWED" — *a finance clerk, house not stated* — "claim period as stamped" — no manufacturer — **depth 7**
+> **`expense_claim`** — "EXPENSE CLAIM, DISALLOWED" — *a finance clerk, manufacturer not stated* — "claim period as stamped" — no manufacturer — **depth 7**
 > Hazard claim, four crew, deep transit to the core approach and return, standard rate sought for the days out.
 >
 > Denied on the schedule of hazards, first pass. Their account gives no shot fired, no pursuit, no damage, no loss, and the words they put in the box were four days of being watched, and I have no line for that. Told them to resubmit. They resubmitted with the box empty, which is four days of nothing, and I have no line for that either.
@@ -246,8 +246,8 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 
 **Keys:** forty-one, posted and filled · revision eleven · *the specimen is retained*, quoted from the incident form · *survives the owner*, quoted from Clause 4 · the schedule.
 
-> **`seven_clauses`** — "NON-RETURN, ALL HOUSES" — *a contracts clerk, compiled for training* — "undated, marked CURRENT" — no manufacturer — **depth 0**
-> For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each house's own words. Check them against the registry, that is what it is for.
+> **`seven_clauses`** — "NON-RETURN, ALL SEVEN" — *a contracts clerk, compiled for training* — "undated, marked CURRENT" — no manufacturer — **depth 0**
+> For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each manufacturer's own words. Check them against the registry, that is what it is for.
 >
 > Korvan, clause nine: the line of credit closes and accounts settle against the hull.
 > Solari: unspent advances revert to the schedule.
@@ -288,12 +288,12 @@ A craft ruling opens this thread, because it spends a device the rest of the arc
 
 *The counterweight, inside the thread rather than beside it: the manufacturers keep no record of the dead, so the dock does — in chalk, by hand, property of no manufacturer. Both halves of the one idea on one wall.*
 
-> **`actuarial_note`** — "AMORTIZATION SCHEDULE, EXTRACT" — *an actuarial clerk, house not stated* — "revision eleven" — no manufacturer — **depth 2**
+> **`actuarial_note`** — "AMORTIZATION SCHEDULE, EXTRACT" — *an actuarial clerk, manufacturer not stated* — "revision eleven" — no manufacturer — **depth 2**
 > Extract, revision eleven current, requested by the western office and sent with the usual reminder that extracts are not the schedule.
 >
 > A contracted hull amortizes by deliveries, not years. The assumption under that is loss, not wear, and it has held inside tolerance since the first drawing of the schedule, which is longer than the western office has existed, they may put that in their pipe.
 >
-> Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and houses, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
+> Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and manufacturers, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
 >
 > Postage to their account.
 

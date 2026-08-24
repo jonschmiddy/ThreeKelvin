@@ -1942,7 +1942,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## win rate inside its own noise band. It is the one perk measured to do
 ## nothing, and a grade whose reward is a proven no-op is a grade that lies.
 ## Which leaves four working perks and a manufacturer owning one: every ladder is
-## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT HOUSES NOW
+## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT MAKES NOW
 ## CARRY THE SAME FOUR PERKS. The grades separate; the manufacturers stop separating
 ## at the top. Widening the pool with perks that work is the fix, and until
 ## there are some, this is the honest arrangement rather than a varied one
@@ -2317,9 +2317,9 @@ Retain for your records. Cygnet does not retain a copy.")
 
 I am not going back down. I will go back down.")
 
-	_doc(&"rate_schedule", "POSTED RATE, THERMAL — REVISION 209", "a posting clerk, house not stated",
+	_doc(&"rate_schedule", "POSTED RATE, THERMAL — REVISION 209", "a posting clerk, manufacturer not stated",
 		"revision two hundred and nine", &"", 4,
-		"Rate per banked unit, all houses, all berths, effective immediately and until revised.
+		"Rate per banked unit, all manufacturers, all berths, effective immediately and until revised.
 
 [figure struck out and rewritten in the same figure]
 
@@ -2404,13 +2404,13 @@ He says he does not know why he did not go in and that this is the part he wants
 
 Not for filing. He would not take a drink and he would not take the money.")
 
-	_doc(&"vault_routing", "ROUTING MANIFEST, BANKED THERMAL", "a logistics clerk, house not stated",
+	_doc(&"vault_routing", "ROUTING MANIFEST, BANKED THERMAL", "a logistics clerk, manufacturer not stated",
 		"undated, appended to a formatting query", &"", 8,
 		"Raising this as a formatting fault rather than an operational one.
 
-The destination field on every thermal manifest crossing this desk resolves to a code in three segments. Segment one is the house. Segment two is the berth of origin. Segment three is the destination and is supposed to be a location.
+The destination field on every thermal manifest crossing this desk resolves to a code in three segments. Segment one is the manufacturer. Segment two is the berth of origin. Segment three is the destination and is supposed to be a location.
 
-It is not a location. It is not in the location tables, it does not parse as a bearing, and it is identical on all seven houses' manifests, which it should not be.
+It is not a location. It is not in the location tables, it does not parse as a bearing, and it is identical on all seven manufacturers' manifests, which it should not be.
 
 It parses as a temperature.
 
@@ -2482,7 +2482,7 @@ Owner absent, as since the fourth attendance. Obligation unaffected. Next attend
 
 Countersign exercise from the current exemplar, third sheet passes for all four, usual. One asked the usual question too, why the exemplar volumes are not sorted by author when the countersign in volume forty and the countersign in volume one are the same hand. Gave the syllabus answer, they are sorted by author. He looked at me the way they all look at me and I gave him his seal.
 
-Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this house, everything is in perpetuity except the heat.")
+Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this company, everything is in perpetuity except the heat.")
 
 	_doc(&"denial_notice", "NOTICE OF DENIAL", "a claims adjuster, underwriters not named",
 		"policy year forty-four", &"", 4,
@@ -2534,9 +2534,9 @@ Bundle to binding on the fourth. No word on when the twelfth is commissioned, or
 
 	_doc(&"audit_minute", "AUDIT MINUTE, THERMAL ACCOUNTS", "an auditor, engagement not stated",
 		"audit year not entered", &"", 7,
-		"Thermal deliveries sampled across seven berths, one to a house, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
+		"Thermal deliveries sampled across seven berths, one to a manufacturer, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
 
-The seller keeps the receipt. The house keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
+The seller keeps the receipt. The manufacturer keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
 
 I was twenty years at grain accounts. A granary that pays on the scale and keeps no tally of what came over it, I would have had shut by winter. I put the question to the engagement partner in those words, and the minute records that the question was put.
 
@@ -2560,7 +2560,7 @@ Asked him straight this time, what do you do with it. He laughed. He said same a
 
 Next meet is fixed for after the dark quarter. Bring the small cells too, he says, he will take those now as well.")
 
-	_doc(&"expense_claim", "EXPENSE CLAIM, DISALLOWED", "a finance clerk, house not stated",
+	_doc(&"expense_claim", "EXPENSE CLAIM, DISALLOWED", "a finance clerk, manufacturer not stated",
 		"claim period as stamped", &"", 7,
 		"Hazard claim, four crew, deep transit to the core approach and return, standard rate sought for the days out.
 
@@ -2570,9 +2570,9 @@ Passed it up rather than deny twice, which is allowed at my discretion, and my d
 
 Ledger note: none of the four has taken deep work since. The postings sit a week now.")
 
-	_doc(&"seven_clauses", "NON-RETURN, ALL HOUSES", "a contracts clerk, compiled for training",
+	_doc(&"seven_clauses", "NON-RETURN, ALL SEVEN", "a contracts clerk, compiled for training",
 		"undated, marked CURRENT", &"", 0,
-		"For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each house's own words. Check them against the registry, that is what it is for.
+		"For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each manufacturer's own words. Check them against the registry, that is what it is for.
 
 Korvan, clause nine: the line of credit closes and accounts settle against the hull.
 Solari: unspent advances revert to the schedule.
@@ -2612,13 +2612,13 @@ Names go at the base where there is room. There is room.
 
 Gate hours unchanged. Mind the hoist chains, they have been greased.")
 
-	_doc(&"actuarial_note", "AMORTIZATION SCHEDULE, EXTRACT", "an actuarial clerk, house not stated",
+	_doc(&"actuarial_note", "AMORTIZATION SCHEDULE, EXTRACT", "an actuarial clerk, manufacturer not stated",
 		"revision eleven", &"", 2,
 		"Extract, revision eleven current, requested by the western office and sent with the usual reminder that extracts are not the schedule.
 
 A contracted hull amortizes by deliveries, not years. The assumption under that is loss, not wear, and it has held inside tolerance since the first drawing of the schedule, which is longer than the western office has existed, they may put that in their pipe.
 
-Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and houses, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
+Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and manufacturers, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
 
 Postage to their account.")
 
