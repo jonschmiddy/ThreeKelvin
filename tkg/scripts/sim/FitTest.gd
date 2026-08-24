@@ -495,6 +495,20 @@ func _nothing_cut(screen: Node) -> void:
 	_ok("the view is showing the whole canvas, so it has nothing to clip",
 		view.size.y >= view.canvas_height())
 
+	# AND ZOOMED, which is the case this check was blind to for as long as it
+	# has existed. At 1x the row is taller than the canvas so `magnify` leaves
+	# clipping off and the assertion above passes for free. The zoom doubles the
+	# canvas past the row, `magnify` turns clipping back on, and every gun that
+	# reaches past its hull loses its muzzle — the exact thing this test names,
+	# in the one state it never entered.
+	var sc := screen as ShipScreen
+	if sc == null:
+		return
+	sc._set_zoom(true)
+	_ok("the view does not clip what is bolted to the hull WHEN ZOOMED",
+		not view.clip_contents)
+	sc._set_zoom(false)
+
 
 ## THE HARDPOINT SITS AT THE RIGHT POINT INSIDE THE PART.
 ##

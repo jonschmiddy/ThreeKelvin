@@ -302,6 +302,10 @@ func _build() -> void:
 	# rule and 1x is the only step below 2x, so this is half rather than a nudge;
 	# the viewport is itself scaled 2x into a 1920x1080 window, so an art pixel
 	# still lands on four real ones and stays crisp.
+	# THE WINDOW CLIPS, NOT THE VIEW. `_clip` bounds everything on this screen,
+	# so the view clipping itself as well can only take a bite out of its own
+	# children — which is the hardpoint layer, and the guns on it.
+	view.self_clip = false
 	view.magnify(1, HULL_VIEW_H)
 	view.bob(2)
 	view.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
