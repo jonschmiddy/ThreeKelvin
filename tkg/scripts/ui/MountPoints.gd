@@ -253,9 +253,9 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	# set out here does not survive, because the silhouette sets the canvas
 	# transform absolutely when it draws itself.
 	if full:
-		ModuleIcon.draw_plate(self, m, r, f, m.flipped)
+		ModuleIcon.draw_plate(self, m, r, f, m.flipped, k)
 	else:
-		ModuleIcon.draw_body(self, m, r, col, f, m.flipped)
+		ModuleIcon.draw_body(self, m, r, col, f, m.flipped, k)
 
 	# RARITY, as a bar where the part meets the hull. The same split the plate
 	# uses, kept the same way round out here: the ART says whose it is, and what

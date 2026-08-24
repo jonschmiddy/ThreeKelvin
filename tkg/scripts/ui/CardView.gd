@@ -511,11 +511,12 @@ static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
 ## wrong-sized asset is a mistake to SEE, and `-- artcheck` names it; silently
 ## scaling it to fit would hide exactly the mistake that check exists to catch.
 func _draw_art(where: Rect2) -> bool:
-	var tex: Texture2D = DB.card_art(card.art_key())
+	var tex: Texture2D = card.sprite
 	if tex == null:
 		return false
 	var at := where.position + (where.size - Vector2(tex.get_size()) * float(_s)) * 0.5
-	draw_texture_rect(tex, Rect2(at.round(), Vector2(tex.get_size()) * float(_s)), false)
+	draw_texture_rect(tex, Rect2(at.round(),
+		Vector2(tex.get_size()) * float(_s)), false)
 	return true
 
 ## What the module looks like, until there is a module sprite to show.

@@ -407,6 +407,15 @@ func _ready() -> void:
 	# The refit screen at a chosen weight:  godot --path . -- shipshot heavy
 	# Needs a window and runs after boot, same as convoy. The heavy is the
 	# default because its 6x5 hold is what any change to that panel has to clear.
+	# Every drawn part on one ship, live:  godot --path . -- artdemo
+	# AFTER BOOT, beside shipshot and not up with the headless checks: show_ship
+	# needs the Router to have been handed a content node, and the branches above
+	# run before that exists.
+	if "artdemo" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/ArtDemo.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "shipshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ShipShot.gd").new()
 		_convoy_test.run(get_tree())

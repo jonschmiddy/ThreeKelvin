@@ -11,6 +11,7 @@ See docs/art/PIXELLAB_WORKFLOW.md for the process these functions implement.
     python pixeltools.py strip     in.png out.png        # opaque bg -> alpha
     python pixeltools.py crop      in.png out.png X Y W H
     python pixeltools.py snap      in.png palette.png out.png
+    python pixeltools.py trim      in.png out.png        # crop to the ink
     python pixeltools.py reduce    in.png out.png N       # /N, dominant pixel
     python pixeltools.py strip-anim out.png f0.png f1.png ...
 """
@@ -189,8 +190,33 @@ def snap(w, h, rows, pal):
     return n
 
 
+def trim(w, h, rows):
+    """Crop to the ink and nothing else. THE PREFERRED WAY DOWN TO SIZE.
+
+    Every pixel that ships is exactly the pixel the generator drew, because
+    nothing is resampled -- only empty margin is removed. That is the whole
+    difference between this and reduce(), and on a 46x15 gun the difference is
+    not subtle: reduce() halves a 92x30 image whose detail was drawn at 92x30,
+    so half of it goes in the bin and the rest reads as speckle.
+
+    The catch is that the generator decides how tall its subject is, so the
+    result is whatever it is rather than a size you chose. That is why the
+    fitted-part box is a guide and not a frame -- see ModuleIcon.draw_sprite.
+    Ask for a canvas the width you want and let this take the rest away.
+    """
+    b = bbox(w, h, rows)
+    if not b:
+        return w, h, rows
+    return crop(w, h, rows, b[0], b[1], b[2] - b[0] + 1, b[3] - b[1] + 1)
+
+
 def reduce(w, h, rows, n):
     """Shrink by an exact integer factor, one n*n block to one pixel.
+
+    PREFER trim(). This resamples, and resampling a generated sprite throws
+    away detail that was drawn at full density. It survives for the one case
+    trim cannot serve: a part whose box is too small for the generator's floor
+    in BOTH axes, where there is no canvas that is both legal and small enough.
 
     THE DOMINANT PIXEL, NOT THE AVERAGE. Averaging four colours invents a fifth,
     which is how a snapped sprite comes back off its own palette and why this
@@ -282,6 +308,11 @@ def _main(argv):
         n = snap(w, h, rows, pal)
         encode(argv[4], w, h, rows)
         print("snapped %d px onto %d source colours" % (n, len(pal)))
+    elif cmd == "trim":
+        w, h, rows = decode(argv[2])
+        encode(argv[3], *trim(w, h, rows))
+        nw, nh, _ = trim(w, h, rows)
+        print("%dx%d -> %dx%d" % (w, h, nw, nh))
     elif cmd == "reduce":
         w, h, rows = decode(argv[2])
         n = int(argv[4])

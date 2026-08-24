@@ -16,6 +16,13 @@ extends Harness
 ## that cannot be seen from a filename and is invisible on screen until you know
 ## what you are looking for.
 ##
+## THE BOX IS A GUIDE, NOT A FRAME, so this does not demand an exact size. A
+## sprite is generated at the width its cells ask for and cropped to its own ink
+## -- nothing is resampled -- so its height is whatever the art needed. A gun
+## standing a row or two proud of its mount is a gun. What is checked is that it
+## does not miss by a WIDE margin: far over and it hangs off the hull, far under
+## and there is nothing to see at fifteen pixels.
+##
 ## The size a module wants is arithmetic, not a constant: MountPoints sizes a
 ## fitted part from the hold's cell at half scale, so it is derived here from
 ## the same numbers rather than written down twice.
@@ -24,6 +31,17 @@ extends Harness
 ## Cards in scope come from modules of these houses, plus the malfunctions.
 ## `&""` is unbranded, which is a real key and not a missing one.
 const HOUSES: Array[StringName] = [&"korvan", &""]
+
+## How far past its box a part may stand before it is a fault, in art pixels.
+## Half a cell. Beyond that it is not a gun on a mount, it is a gun beside one.
+const PROUD := 8
+
+## CARD ART IS 92 WIDE AND THE WINDOW IS 93, and that one pixel is not a bug.
+## `create_image_pixflux` refuses an odd side at this size -- it answers 93x60
+## with "Use 92x60 instead" -- so the art is generated one column short and
+## centred, which leaves half a pixel of margin against a window that is already
+## a recessed dark box. Height is exact.
+const CARD_ART := Vector2i(92, 60)
 
 
 func run() -> void:
@@ -39,10 +57,19 @@ func run() -> void:
 		var note := "no art yet"
 		if m.sprite != null:
 			has = "%dx%d" % [m.sprite.get_width(), m.sprite.get_height()]
-			var fits := (m.sprite.get_width() == int(want.x)
-				and m.sprite.get_height() == int(want.y))
-			note = "ok" if fits else "WRONG SIZE"
+			var over := Vector2i(m.sprite.get_width() - int(want.x),
+				m.sprite.get_height() - int(want.y))
+			var fits := over.x <= PROUD and over.y <= PROUD
+			var tiny := (m.sprite.get_width() * 2 < int(want.x)
+				or m.sprite.get_height() * 2 < int(want.y))
+			note = "ok"
 			if not fits:
+				note = "OVERHANGS by %d,%d" % [maxi(0, over.x), maxi(0, over.y)]
+			elif tiny:
+				note = "UNDERSIZED"
+			elif over.x > 0 or over.y > 0:
+				note = "proud %d,%d" % [maxi(0, over.x), maxi(0, over.y)]
+			if not fits or tiny:
 				m_wrong += 1
 		else:
 			m_missing += 1
@@ -54,7 +81,7 @@ func run() -> void:
 	print("\n=== CARDS (%d in scope) ===" % cards.size())
 	var c_missing := 0
 	var c_wrong := 0
-	var want_card := Vector2(CardView.Z_ART.size)
+	var want_card := Vector2(CARD_ART)
 	for row in cards:
 		var c: CardData = row["card"]
 		var tex: Texture2D = DB.card_art(c.art_key())
@@ -72,7 +99,7 @@ func run() -> void:
 		m_missing])
 	print("  cards    %d drawn, %d still on glyphs (art window %dx%d)"
 		% [cards.size() - c_missing, c_missing, int(want_card.x), int(want_card.y)])
-	_ok("every module sprite that exists is the size its box wants", m_wrong == 0)
+	_ok("every module sprite that exists sits within a cell of its box", m_wrong == 0)
 	_ok("every card illustration that exists is the size the window wants",
 		c_wrong == 0)
 	verdict("artcheck")

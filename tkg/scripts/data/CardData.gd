@@ -271,6 +271,26 @@ func art_key() -> StringName:
 			gap = true
 	return StringName(out.rstrip("_"))
 
+## THE RESOLVED ILLUSTRATION, looked up ONCE when the catalogue is built.
+##
+## NEVER LOAD THIS FROM INSIDE `_draw`. That is not a style preference, it is
+## the bug this field exists to prevent: `load()` called during a draw pass
+## hands back a resource whose CPU image is perfectly correct and whose GPU
+## texture is not yet bound, so the card paints a SOLID WHITE RECTANGLE of
+## exactly the right size. Every probe says the texture is fine, because it is
+## -- it simply is not on the card when the draw command is recorded.
+##
+## `ModuleData.sprite` was right by accident on both counts: Database assigns it
+## while building the catalogue, which is nowhere near a frame, and it is
+## EXPORTED.
+##
+## Exported matters here as much as the timing. A card is `duplicate()`d on its
+## way into a deck, and Resource.duplicate copies exported properties and drops
+## everything else -- so a plain `var` holding the picture survives the
+## catalogue and is null on every card a player actually holds. The failure is
+## quiet and looks exactly like "the art did not load".
+@export var sprite: Texture2D
+
 ## Runtime-only, set by DeckBuilder
 var source_module: String = ""
 ## The granting module's id. source_module is its NAME, which is for printing;

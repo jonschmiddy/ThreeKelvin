@@ -270,7 +270,8 @@ func _draw() -> void:
 ## from `footprint()` behind its back, which is why the box came out level
 ## and the gun inside it did not.
 static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
-		cells := Vector2i.ZERO, mirror: bool = false) -> void:
+		cells := Vector2i.ZERO, mirror: bool = false,
+		scale: float = HOLD_K) -> void:
 	if m == null:
 		return
 	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
@@ -303,7 +304,7 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# one thing you look at — the shape in the middle of the plate — answered
 	# the question you can already answer from the field it is sitting on, and
 	# left how good the part is to a one-pixel line.
-	draw_body(ci, m, r, mark, f, mirror)
+	draw_body(ci, m, r, mark, f, mirror, scale)
 
 	# THE EDGE IS THE INK, not the ground. Identical for seven grades and the
 	# whole plate for the eighth: a contraband ground is darker than the screen,
@@ -328,32 +329,38 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 ## `cells` is the footprint to reason about, which is the HULL's business rather
 ## than the hold's — see `draw_plate`. Zero means "ask the module".
 static func draw_body(ci: CanvasItem, m: ModuleData, box: Rect2, col: Color,
-		cells := Vector2i.ZERO, mirror: bool = false) -> void:
+		cells := Vector2i.ZERO, mirror: bool = false, scale: float = 1.0) -> void:
 	if m == null:
 		return
 	var f := m.footprint() if cells == Vector2i.ZERO else cells
 	if m.sprite != null:
-		draw_sprite(ci, m.sprite, box, mirror)
+		draw_sprite(ci, m.sprite, box, mirror, scale)
 		return
 	fill_part(ci, m.slot, box, col, part_scale(m.slot, f, box.size),
 		part_turn(m.slot, f), mirror)
 
 
-## A module's sprite, centred in its box AT A WHOLE MULTIPLE.
+## A module's sprite, centred on its box AT A WHOLE MULTIPLE OF THE VIEW.
 ##
-## The asset is authored at the size the hull draws it, so the multiple is 1 on
-## the refit screen and 2 with the zoom on — and never 1.7, because resampling
-## pixel art onto a grid it was not drawn for is the one thing the art direction
-## refuses outright. Whatever the box has left over becomes margin.
+## THE SCALE COMES FROM THE VIEW, not from fitting the box, and that is the
+## whole difference. Deriving it from the box looks right until the zoom goes
+## on: the box doubles, the sprite divides into it no better than before, and
+## the part stays small on a ship that has just become twice as big.
 ##
-## Centred rather than stretched when the file is the wrong size, so a wrong
-## asset reads as wrong instead of quietly fitting. `-- artcheck` names it.
+## THE BOX IS A GUIDE, NOT A FRAME. A sprite is generated at the width its
+## cells ask for and cropped to its own ink, so its height is whatever the art
+## needed - a gun standing a few rows proud of its mount is a gun, not a
+## defect. What the box still says is where the part sits and how big it ought
+## to read, and `-- artcheck` fails only what misses that by a wide margin.
+##
+## Never a fractional multiple. Resampling pixel art onto a grid it was not
+## drawn for is the one thing the art direction refuses outright.
 static func draw_sprite(ci: CanvasItem, tex: Texture2D, box: Rect2,
-		mirror: bool = false) -> void:
+		mirror: bool = false, scale: float = 1.0) -> void:
 	var src := Vector2(tex.get_size())
 	if src.x < 1.0 or src.y < 1.0:
 		return
-	var k := maxi(1, int(floorf(minf(box.size.x / src.x, box.size.y / src.y))))
+	var k := maxi(1, int(roundf(scale)))
 	var dst := src * float(k)
 	var r := Rect2((box.position + (box.size - dst) * 0.5).round(), dst)
 	# Mirrored about the BOX's middle, the same line `fill_part` reflects the

@@ -262,6 +262,7 @@ func malfunction(id: StringName) -> CardData:
 		# ladder they describe (Corrode 1/2/3) is exactly the sort that gets
 		# reworded.
 		c.art = row[0]
+		c.sprite = card_art(c.art_key())
 		return c
 	return malfunction(&"dross")
 
@@ -367,6 +368,8 @@ func _card(d: Dictionary) -> CardData:
 	var c := CardData.new()
 	for k in d.keys():
 		c.set(k, d[k])
+	# HERE, and not at draw time. See CardData.sprite.
+	c.sprite = card_art(c.art_key())
 	return c
 
 func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slot,
