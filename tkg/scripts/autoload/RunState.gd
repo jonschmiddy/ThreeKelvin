@@ -1696,10 +1696,22 @@ func range_from(here: MapGen.MapNode) -> float:
 ##
 ## Charted links do not grant passage either: a link is how generation
 ## guarantees the galaxy hangs together, not a promise that the place is near.
+##
+## SYMMETRIC, and it has to be. Range is relative to the neighbourhood you are
+## standing in, and two ends of one hop can disagree about it: out on a thin
+## frontier your nearest neighbour is far, so the radius is wide and a crowded
+## cluster three parsecs off is a legal jump — and once you are down in that
+## cluster your nearest neighbour is a hand's width away, the radius shrinks to
+## match, and the way you CAME IN is suddenly out of range. A one-way door, and
+## the chart still draws the link you flew. So a hop is legal if either end
+## thinks the other is close: n is in my neighbourhood, or I am in n's. The
+## fuel cost is distance-priced already, so a long way back is expensive rather
+## than impossible.
 func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if n.index == here.index:
 		return false
-	return MapGen.hop_distance(here, n) <= range_from(here)
+	var d := MapGen.hop_distance(here, n)
+	return d <= range_from(here) or d <= range_from(n)
 
 func reachable(n: MapGen.MapNode) -> bool:
 	return reachable_from(node_at(), n)
