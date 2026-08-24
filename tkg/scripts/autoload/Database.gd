@@ -2449,8 +2449,8 @@ Kitchen to note: hot meals, second watch, the whole way out, his standing order.
 
 The grey flour goes back to Herron. Third time now.")
 
-	_doc(&"asphodel_claim", "FILING 214-C, THE ASPHODEL", "a claims officer, The Dredge Combine",
-		"filing year 9,904", &"dredge", 3,
+	_doc(&"asphodel_claim", "FILING 214-C, THE ASPHODEL", "a claims officer, The Probate Combine",
+		"filing year 9,904", &"probate", 3,
 		"Reviewed annual per standing order, claim 214-C, the ASPHODEL, hull and cargo arising. Open. Nothing arisen.
 
 Same note as last year and I will keep making it while I hold this desk: oldest claim on the register, carried in from the register before this one, unsigned, which they allowed then. If the Combine wants my opinion, the officer who filed it is longer dead than some of what we salvage. Recommend closure.
@@ -2459,8 +2459,15 @@ Declined above my signature, same hand as last year, same words: we do not close
 
 Down the reach they say the berth is still lit for her. Dock talk. Reviewed, open, next year.")
 
-	_doc(&"halcyon_attendance", "ATTENDANCE, COMMISSION 311", "a service supervisor, Halcyon",
-		"commission three hundred and eleven, ninety-first attendance", &"halcyon", 5,
+	# RENAMED 2026-08-24. These two were `halcyon_*` until the manufacturer
+	# rename reached the archive. Free to do here because nobody is playing yet
+	# — but the hazard is permanent and worth knowing before the next one:
+	# Archive._load() filters found ids against DB.documents and drops what it
+	# does not recognise, so renaming a document id retires every discovery of
+	# it, silently. `asphodel_claim` kept its id — it is named for the ship, not
+	# the manufacturer.
+	_doc(&"verity_attendance", "ATTENDANCE, COMMISSION 311", "a service supervisor, Verity",
+		"commission three hundred and eleven, ninety-first attendance", &"verity", 5,
 		"Attendance ninety-one, commission 311. Out and back eleven days, crew of two, allowance claimed for both.
 
 Work: forward hatch reseated, one plate faired where something had leaned on it, name repainted. Eight letters, and the paint we carry is matched to her first coat, the tin says so in a hand nobody at the yard writes anymore.
@@ -2469,8 +2476,8 @@ She sat where the schedule had her. She always sits where the schedule has her. 
 
 Owner absent, as since the fourth attendance. Obligation unaffected. Next attendance is in the schedule.")
 
-	_doc(&"halcyon_exemplar", "EXAMINATION, NOTARY'S SEAL", "an examiner, Halcyon",
-		"exemplar volume forty", &"halcyon", 5,
+	_doc(&"verity_exemplar", "EXAMINATION, NOTARY'S SEAL", "an examiner, Verity",
+		"exemplar volume forty", &"verity", 5,
 		"Six candidates today, passed four. Room too cold again, told Wren about the stove, Wren says talk to the yard, the yard says talk to Wren.
 
 Countersign exercise from the current exemplar, third sheet passes for all four, usual. One asked the usual question too, why the exemplar volumes are not sorted by author when the countersign in volume forty and the countersign in volume one are the same hand. Gave the syllabus answer, they are sorted by author. He looked at me the way they all look at me and I gave him his seal.
@@ -2489,7 +2496,7 @@ Appeal lies within the term. He signed the form like a man paying a toll and tha
 
 	_doc(&"rendering_account", "RENDERING ACCOUNT, ONE CARCASS", "a rendering foreman",
 		"season's books", &"", 2,
-		"One adult, taken at the mouth of Kestrel Reach. The Dredge man was at the gate before we had her half in, waved his claim, settled at the standard cut.
+		"One adult, taken at the mouth of Kestrel Reach. The Probate man was at the gate before we had her half in, waved his claim, settled at the standard cut.
 
 Oil, eleven barrels. Plate-bone graded and sold. Organs forward at posted. A spotter's tag out of the left flank, logged, sent back up to the post like they ask.
 
@@ -2569,9 +2576,9 @@ Ledger note: none of the four has taken deep work since. The postings sit a week
 
 Korvan, clause nine: the line of credit closes and accounts settle against the hull.
 Solari: unspent advances revert to the schedule.
-Dredge: the Combine's claim to the wreckage precedes the wreckage.
+Probate: the Combine's claim to the wreckage precedes the wreckage.
 Redline: no clause on file.
-Halcyon: the company's obligation to the hull survives the owner.
+Verity: the company's obligation to the hull survives the owner.
 Cygnet: recovery, where undertaken, is recovery of equipment.
 Calyx: the specimen is retained.
 

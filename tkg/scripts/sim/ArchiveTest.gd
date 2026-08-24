@@ -24,6 +24,7 @@ func run() -> void:
 	Archive.wipe()
 	_machinery()
 	_content()
+	_branding()
 	print("")
 	verdict("archivetest")
 	Archive.wipe()
@@ -115,3 +116,41 @@ func _content() -> void:
 		if (DB.documents[key] as DocumentData).depth >= 5:
 			deep += 1
 	_ok("and some of it is only readable deep", deep >= 3)
+
+
+## Every id that claims a manufacturer has to resolve to one that exists.
+##
+## This check is here because it did not exist and three entries were wrong for
+## months. `asphodel_claim` was tagged `dredge` and two more were tagged
+## `halcyon` -- ids retired when those manufacturers were renamed to Probate and
+## Verity. Nothing failed. `manufacturer_colour()` returns the unbranded grey
+## for an id it does not know and `manufacturer_name()` returns "unbranded",
+## both by design, so ArchiveScreen drew three documents in neutral grey while
+## their own bylines named a manufacturer. Silent by construction is the whole
+## problem: the fallback that stops a missing id from crashing also stops it
+## from being seen.
+##
+## Widened past documents deliberately. Anything statically seeded that carries
+## a manufacturer id is checked in the one place, because "modules would show as
+## an uncoloured plate so somebody would notice" is exactly the reasoning that
+## let the documents rot.
+func _branding() -> void:
+	var bad := 0
+	for key in DB.documents:
+		var d: DocumentData = DB.documents[key]
+		if d.manufacturer != &"" and not DB.manufacturers.has(d.manufacturer):
+			_ok("document %s is tagged to %s, which is not a manufacturer" % [
+				d.id, d.manufacturer], false)
+			bad += 1
+	for key in DB.modules:
+		var m: ModuleData = DB.modules[key]
+		if m.manufacturer != &"" and not DB.manufacturers.has(m.manufacturer):
+			_ok("module %s is tagged to %s, which is not a manufacturer" % [
+				m.id, m.manufacturer], false)
+			bad += 1
+	for h in DB.hull_frames:
+		if h.manufacturer != &"" and not DB.manufacturers.has(h.manufacturer):
+			_ok("hull %s is tagged to %s, which is not a manufacturer" % [
+				h.id, h.manufacturer], false)
+			bad += 1
+	_ok("every document, module and hull resolves to a live manufacturer", bad == 0)
