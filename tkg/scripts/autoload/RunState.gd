@@ -1585,7 +1585,10 @@ func transfer_to_hull(h: HullData) -> void:
 			if m.slot == s:
 				m.mount = free_mount(s)
 	found_hull = null
-	log_line("Transferred to %s. %s" % [h.display_name(), DB.perk_text(h.perk_id)], &"big")
+	var said: Array[String] = []
+	for pid in h.perks():
+		said.append(DB.perk_text(pid))
+	log_line("Transferred to %s. %s" % [h.display_name(), " ".join(said)], &"big")
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
 

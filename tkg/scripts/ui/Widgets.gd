@@ -173,7 +173,11 @@ static func hull_row(h: HullData, label: String, price: int,
 			HullData.weight_name(h.weight), h.reactor, h.hand_size, h.max_hull,
 			h.heat_cap, h.dissipation, h.weapon_slots, h.system_slots, h.utility_slots,
 		], UITheme.COLD, 10))
-	box.add_child(UITheme.body(DB.perk_text(h.perk_id), Color("#d4b98f"), 10))
+	# EVERY PERK, not just the house's. This is the card you decide to BUY a
+	# hull from, and an S-tier carries four -- showing one understated the
+	# offer by three and the player had no way to find the rest.
+	for pid in h.perks():
+		box.add_child(UITheme.body(DB.perk_text(pid), Color("#d4b98f"), 10))
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 5)
@@ -452,11 +456,16 @@ static func ability_rows(man: StringName, perk_id: StringName, have: int) -> Arr
 	var m: ManufacturerData = DB.manufacturers.get(man)
 	if m == null:
 		return out
-	var perk: Dictionary = DB.hull_perks.get(perk_id, {})
+	# THE PERK ROW IS GONE FROM HERE. It is named in the masthead's top-right
+	# corner now, with its effect on hover — and a hull can carry four of them,
+	# so four full-width rows of always-on fact would have crowded out the two
+	# rows that are actually a TRACKER. What is left in this block is only
+	# progress: what you have not earned yet and how close you are.
+	#
+	# `perk_id` stays in the signature. Every caller has one, the argument costs
+	# nothing, and a block about a manufacturer that cannot see the hull's perk
+	# is the wrong shape to hand the next person.
 	var short := DB.short_name(m.name).to_upper()
-	if not perk.is_empty():
-		out.append(ability_row("BUILT IN", str(perk.name), str(perk.text),
-			m.colour, true, "HULL"))
 	out.append(ability_row("3+ %s" % short, m.set3_name, m.set3_text,
 		m.colour, have >= 3, "%d / 3" % have))
 	out.append(ability_row("5+ %s" % short, m.set5_name, m.set5_text,

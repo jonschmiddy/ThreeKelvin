@@ -1894,10 +1894,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# THE GRADE'S PERKS, alongside the reactor and the hardpoints it already
 	# grants. Cumulative and authored — see TIER_PERKS.
 	#
-	# WORTH WATCHING: the pool is five and a house uses four of them, so at S
-	# every house has all four of its own and two houses differ only by which
-	# single perk each lacks. The grades separate cleanly; the HOUSES converge
-	# at the top. Widening the pool is the fix if that turns out to matter.
+	# See TIER_PERKS on why every house ends up with the same four at S.
 	h.tier_perks = tier_perks_for(h.manufacturer, t)
 	h.sprite = hull_sprite(h.weight, t)
 	h.sprite_half = hull_sprite(h.weight, t, true)
@@ -1919,19 +1916,45 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## have to be the same ship, and a perk that came out of the RNG would make the
 ## grade letter a lottery ticket instead of a promise.
 ##
-## Each house lists three, all different from its own `perk_id`, so a house
-## uses FOUR of the five and never gets the fifth. That omission is the point:
-## Korvan does not do cheap repairs, Probate does not overspec a reactor. It is
-## also the whole of what separates two S-tier ships — see the note in
-## at_tier about what that costs.
+## WEAKEST FIRST, STRONGEST LAST, so a grade is worth what it costs. The pool
+## is not flat: +1 energy a turn is a fifth of a whole turn's budget forever,
+## +1 utility mount is a permanent extra part, and +40% on scrap is money you
+## still have to go and earn. The strongest one a house can get is its S.
+##
+## `spare_bay` IS IN NO LADDER EITHER, and for a harder reason than balance:
+## it grants a utility HARDPOINT, and a hardpoint is a place on a hull that
+## somebody put there by hand. `HullData.mounts_along` prefers the anchors
+## authored for that sprite and falls back to a derived line when it is asked
+## for more mounts than there are anchors — so granting this to a house whose
+## hulls were never rigged for it does not add a mount where a mount belongs,
+## it adds one wherever the arithmetic lands. A perk that moves geometry needs
+## the geometry to exist first. It stays a HOUSE perk, on the two houses whose
+## hulls are drawn for it.
+##
+## WHICH LEAVES THE LADDERS SHORT. Three working perks minus the one a house
+## already owns is two, so five of the seven houses can only fill B and A and
+## their S grants nothing further. That is recorded here rather than papered
+## over: the ladder wants perks that are neither measured no-ops nor demands
+## on hand-placed anchors, and there are currently none left to give it.
+##
+## `cheap_parts` IS IN NO LADDER, and that is not an oversight — this file
+## already records that halving repair prices across a whole game moved the
+## win rate inside its own noise band. It is the one perk measured to do
+## nothing, and a grade whose reward is a proven no-op is a grade that lies.
+## Which leaves four working perks and a house owning one: every ladder is
+## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT HOUSES NOW
+## CARRY THE SAME FOUR PERKS. The grades separate; the houses stop separating
+## at the top. Widening the pool with perks that work is the fix, and until
+## there are some, this is the honest arrangement rather than a varied one
+## built out of a perk that does nothing.
 const TIER_PERKS := {
-	&"korvan":  [&"spare_bay", &"overspec_reactor", &"salvage_rack"],
-	&"solari":  [&"baffled_vents", &"spare_bay", &"cheap_parts"],
-	&"probate": [&"cheap_parts", &"spare_bay", &"baffled_vents"],
-	&"redline": [&"overspec_reactor", &"salvage_rack", &"cheap_parts"],
-	&"cygnet":  [&"baffled_vents", &"overspec_reactor", &"cheap_parts"],
-	&"verity":  [&"spare_bay", &"baffled_vents", &"salvage_rack"],
-	&"calyx":   [&"overspec_reactor", &"cheap_parts", &"salvage_rack"],
+	&"korvan":  [&"salvage_rack", &"overspec_reactor"],
+	&"solari":  [&"salvage_rack", &"baffled_vents"],
+	&"probate": [&"baffled_vents", &"overspec_reactor"],
+	&"redline": [&"salvage_rack", &"baffled_vents", &"overspec_reactor"],
+	&"cygnet":  [&"salvage_rack", &"baffled_vents", &"overspec_reactor"],
+	&"verity":  [&"salvage_rack", &"baffled_vents"],
+	&"calyx":   [&"salvage_rack", &"overspec_reactor"],
 }
 
 ## The perks a grade confers on a hull of this house. Empty at C.
@@ -1946,7 +1969,10 @@ func tier_perks_for(man: StringName, tier: int) -> Array[StringName]:
 
 func _seed_perks() -> void:
 	hull_perks = {
-		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +50%."},
+		# +40%, which is what MELT_PERK actually is. The text said 50 and the code
+		# said 1.4 since both were written; it is about to be printed up to four
+		# times on one ship, so the lie stops here.
+		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +40%."},
 		&"baffled_vents": {name = "Baffled Vents", text = "+1 heat dissipation."},
 		&"overspec_reactor": {name = "Overspec Reactor", text = "+1 energy per turn."},
 		&"spare_bay": {name = "Spare Bay", text = "+1 utility hardpoint."},
