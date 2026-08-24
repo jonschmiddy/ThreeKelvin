@@ -36,12 +36,12 @@ const PATH := "user://run.save"
 ## rolled. Stored by value like the shelf rather than re-derived: the roll is
 ## deterministic from the node, but its SIZE came from how many ships were in the
 ## fight, and nothing on a resumed map remembers that.
-## 7: the contract ledger and house standing. A version 6 save has neither, so
+## 7: the contract ledger and manufacturer standing. A version 6 save has neither, so
 ## it resumes with an empty board and no accounts — which is survivable but
 ## silently loses work the player had already flown for.
 ## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
 ## arranged comes back arranged rather than re-packed from scratch.
-## 10: a hull carries the perks its GRADE grants, on top of its house's one.
+## 10: a hull carries the perks its GRADE grants, on top of its manufacturer's one.
 ## They are granted by `at_tier` and the loader does not call it, so they are
 ## written and read back explicitly. A version 9 save has none of them, and
 ## an S-tier ship restored from one is three perks short with every number
@@ -332,11 +332,11 @@ static func load_into_run() -> bool:
 	var saved_stand: Variant = d.get("standing", {})
 	if typeof(saved_stand) == TYPE_DICTIONARY:
 		for k in (saved_stand as Dictionary).keys():
-			# Filtered against the catalogue: a house that no longer exists is
+			# Filtered against the catalogue: a manufacturer that no longer exists is
 			# standing the player can never spend and a row they can never clear.
-			var house := StringName(str(k))
-			if DB.manufacturers.has(house):
-				stand[house] = int((saved_stand as Dictionary)[k])
+			var manufacturer := StringName(str(k))
+			if DB.manufacturers.has(manufacturer):
+				stand[manufacturer] = int((saved_stand as Dictionary)[k])
 	Run.standing = stand
 
 	var map: Array = []
@@ -489,18 +489,18 @@ static func _hull_to(h: HullData) -> Dictionary:
 static func _hull_from(e: Variant) -> HullData:
 	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}
 	var base: HullData = DB.hull_frames[1]
-	# MAKER AND WEIGHT FIRST, name only as a fallback.
+	# MANUFACTURER AND WEIGHT FIRST, name only as a fallback.
 	#
 	# The warning above came true: hulls gained a name per CLASS, so a save
 	# holding a Halberd Cutter found nothing in `hull_frames` — those carry
 	# the tier-0 name — and silently restored an unbranded Medium Frame with
-	# somebody else's perk. Maker and weight are both written into the save
+	# somebody else's perk. Manufacturer and weight are both written into the save
 	# and neither is renameable, so they identify the frame outright.
-	var man := StringName(str(d.get("manufacturer", "")))
+	var manufacturer := StringName(str(d.get("manufacturer", "")))
 	var found := false
-	if man != &"":
+	if manufacturer != &"":
 		for frame in DB.hull_frames:
-			if frame.manufacturer == man and int(frame.weight) == int(d.get("weight", -1)):
+			if frame.manufacturer == manufacturer and int(frame.weight) == int(d.get("weight", -1)):
 				base = frame
 				found = true
 				break
@@ -511,7 +511,7 @@ static func _hull_from(e: Variant) -> HullData:
 				break
 	var h := base.duplicate(true) as HullData
 	# THE NAME IS RESTORED, not inherited. It used to come free because the
-	# frame was FOUND by name; matching on maker and weight instead means the
+	# frame was FOUND by name; matching on manufacturer and weight instead means the
 	# frame carries the tier-0 name, so a Halberd Cutter came back as a Picket
 	# Cutter — same ship, same stats, wrong badge. Intermittent, because it
 	# only shows on a hull rolled above C.
@@ -522,7 +522,7 @@ static func _hull_from(e: Variant) -> HullData:
 	# RESTORED, NEVER RE-DERIVED. `_hull_from` does not go through `at_tier`
 	# -- it copies a tier-0 frame and puts the saved scalars back on it -- so
 	# nothing here would grant the grade's perks a second time. An S-tier ship
-	# would come back carrying only its house perk, three short, with every
+	# would come back carrying only its manufacturer perk, three short, with every
 	# number on the screen still correct. That is the same shape of fault as
 	# the Halberd that came back a Picket, and it is why the version below
 	# moved: a save written before this cannot be told from one written after.
@@ -531,7 +531,7 @@ static func _hull_from(e: Variant) -> HullData:
 	for e2 in tp:
 		restored.append(StringName(str(e2)))
 	h.tier_perks = restored
-	# Absent in a save written before hulls had makers, in which case the frame
+	# Absent in a save written before hulls had berths, in which case the frame
 	# matched by name above already carries the right one.
 	if d.has("manufacturer"):
 		h.manufacturer = StringName(str(d["manufacturer"]))
@@ -572,9 +572,9 @@ static func _standing_to() -> Dictionary:
 
 
 static func _node_to(n: MapGen.MapNode) -> Dictionary:
-	var makers: Array = []
-	for m in n.makers:
-		makers.append(String(m))
+	var berths: Array = []
+	for m in n.berths:
+		berths.append(String(m))
 	var shop: Array = []
 	for m in n.shop:
 		shop.append(_module_to(m))
@@ -589,7 +589,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
 		region = int(n.region), development = int(n.development),
-		security = n.security, makers = makers,
+		security = n.security, berths = berths,
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
 		visited = n.visited, cleared = n.cleared, eaten = n.eaten,
@@ -616,10 +616,10 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.region = int(d.get("region", 0)) as MapGen.Region
 	n.development = int(d.get("development", 0)) as MapGen.Development
 	n.security = int(d.get("security", 1))
-	var makers: Array[StringName] = []
-	for m in d.get("makers", []):
-		makers.append(StringName(str(m)))
-	n.makers = makers
+	var berths: Array[StringName] = []
+	for m in d.get("berths", []):
+		berths.append(StringName(str(m)))
+	n.berths = berths
 	n.manufacturer = StringName(str(d.get("manufacturer", "")))
 	n.fauna = bool(d.get("fauna", false))
 	n.danger = int(d.get("danger", 1))

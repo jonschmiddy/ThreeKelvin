@@ -3,7 +3,7 @@ extends RefCounted
 ## Which picture every card in the game draws:
 ##   godot --headless --path . -- glyphs
 ##
-## The card gallery shows one house at a time and the glyph problem is a
+## The card gallery shows one manufacturer at a time and the glyph problem is a
 ## DISTRIBUTION problem — "they all look the same" is a claim about the whole set
 ## that cannot be checked by looking at eight cards from one manufacturer. This
 ## counts every card, prints the split, and names the cards behind each picture

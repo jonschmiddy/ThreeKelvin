@@ -1,7 +1,7 @@
 class_name ContractData
 extends RefCounted
 
-## One piece of work a house has posted at a station.
+## One piece of work a manufacturer has posted at a station.
 ##
 ## `docs/lore.md` §6 specified these as "an offer to take delivery, not a quest —
 ## no objectives, no waypoints". That line is AMENDED rather than broken, and the
@@ -47,8 +47,8 @@ enum State {
 ## contract nobody has taken does not need to be told apart from anything.
 var id: int = 0
 ## Who is paying. Never empty — an unbranded station posts no work, because the
-## whole point is that the money has a house behind it.
-var house: StringName = &""
+## whole point is that the money has a manufacturer behind it.
+var manufacturer: StringName = &""
 var kind: Kind = Kind.FETCH
 var state: State = State.OFFERED
 
@@ -60,15 +60,15 @@ var at: int = -1
 var posted_at: int = -1
 
 ## What it pays, in credits. The human economy — see `docs/lore.md` §1. Heat is
-## what the houses are buying; credits are what they pay a person in.
+## what the manufacturers are buying; credits are what they pay a person in.
 var pay: int = 0
-## What it adds to your standing with this house on delivery. See
+## What it adds to your standing with this manufacturer on delivery. See
 ## `RunState.standing`.
 var standing: int = 1
 ## For HEAT: how much heat has to be on the hull when you dock.
 var amount: int = 0
 
-## The ask, in the house's own voice. Written at generation because it names a
+## The ask, in the manufacturer's own voice. Written at generation because it names a
 ## real system on a real map and a template rendered at display time would have
 ## to be handed the map again.
 var text: String = ""
@@ -76,15 +76,15 @@ var text: String = ""
 var item: String = ""
 
 
-## Whether this station is one of the issuing house's berths.
+## Whether this station is one of the issuing manufacturer's berths.
 ##
-## Delivery is to the HOUSE, not to the desk that posted it. A contract you can
+## Delivery is to the MANUFACTURER, not to the desk that posted it. A contract you can
 ## only close where you took it is a contract that sends you backwards, and the
 ## map does not guarantee a route home.
-static func berth_of(n: MapGen.MapNode, house: StringName) -> bool:
-	if n == null or house == &"" or n.type != MapGen.NodeType.STATION:
+static func berth_of(n: MapGen.MapNode, manufacturer: StringName) -> bool:
+	if n == null or manufacturer == &"" or n.type != MapGen.NodeType.STATION:
 		return false
-	return n.manufacturer == house or n.makers.has(house)
+	return n.manufacturer == manufacturer or n.berths.has(manufacturer)
 
 
 ## One line for the ledger. Deliberately says the STATE first: a player checking
@@ -95,7 +95,7 @@ func status_line() -> String:
 	# describe a place. It used to fall through to _where() and answer
 	# "somewhere out there" on the board, which is a heat contract describing
 	# itself as a fetch.
-	var who := DB.short_name(DB.manufacturer_name(house))
+	var who := DB.short_name(DB.manufacturer_name(manufacturer))
 	if state == State.CLOSED:
 		return "Closed."
 	if state == State.READY:
@@ -114,7 +114,7 @@ func _where() -> String:
 
 func to_wire() -> Dictionary:
 	return {
-		"id": id, "house": String(house), "kind": int(kind), "state": int(state),
+		"id": id, "manufacturer": String(manufacturer), "kind": int(kind), "state": int(state),
 		"at": at, "posted_at": posted_at, "pay": pay, "standing": standing,
 		"amount": amount, "text": text, "item": item,
 	}
@@ -123,7 +123,7 @@ func to_wire() -> Dictionary:
 static func from_wire(d: Dictionary) -> ContractData:
 	var c := ContractData.new()
 	c.id = int(d.get("id", 0))
-	c.house = StringName(d.get("house", ""))
+	c.manufacturer = StringName(d.get("manufacturer", ""))
 	c.kind = clampi(int(d.get("kind", 0)), 0, Kind.size() - 1) as Kind
 	c.state = clampi(int(d.get("state", 0)), 0, State.size() - 1) as State
 	c.at = int(d.get("at", -1))

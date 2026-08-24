@@ -56,13 +56,13 @@ static func record(outcome: Outcome, reason: String) -> void:
 		depth = _deepest_shell(),
 		shells = MapGen.LAYERS,
 		hull = Run.hull.display_name(),
-		# WHO YOU LAUNCHED AS, by id. `hull` is a display string and `makers` is a
-		# tally of the parts you ended up carrying; neither answers "which house
+		# WHO YOU LAUNCHED AS, by id. `hull` is a display string and `manufacturers` is a
+		# tally of the parts you ended up carrying; neither answers "which manufacturer
 		# did this player fly", which is the question the unlock chain asks. See
 		# Unlocks.
-		chassis_maker = String(Run.hull.manufacturer),
+		chassis_manufacturer = String(Run.hull.manufacturer),
 		perk = String(Run.hull.perk_id),
-		# THE GRADE'S PERKS TOO. `perk` alone answers "which house", which the
+		# THE GRADE'S PERKS TOO. `perk` alone answers "which manufacturer", which the
 		# line above already answers; what a record of a flight wants is what the
 		# ship could actually DO.
 		tier_perks = ",".join(Array(Run.hull.tier_perks).map(
@@ -80,7 +80,7 @@ static func record(outcome: Outcome, reason: String) -> void:
 		galaxy_title = Run.galaxy_title,
 		galaxy_type = GalaxyGen.type_name(Run.galaxy_kind),
 		# The build, as the set-bonus system sees it: who you ended up flying.
-		makers = _maker_tally(),
+		manufacturers = _manufacturer_tally(),
 		system = MapGen.star_name(Run.node_at()),
 	}
 	var all := load_all()
@@ -96,10 +96,10 @@ static func _deepest_shell() -> int:
 			deepest = maxi(deepest, (Run.map[i] as MapGen.MapNode).layer)
 	return deepest
 
-## Installed modules by house, biggest first — the thing a run is actually
+## Installed modules by manufacturer, biggest first — the thing a run is actually
 ## remembered by. Cargo is excluded: what you were flying is what you committed
 ## to, and set bonuses only count what is installed.
-static func _maker_tally() -> Array:
+static func _manufacturer_tally() -> Array:
 	var counts: Dictionary = {}
 	for m in Run.installed:
 		var key := String(m.manufacturer)

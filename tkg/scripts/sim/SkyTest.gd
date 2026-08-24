@@ -88,15 +88,15 @@ func _census() -> void:
 	for k in keys:
 		print("  %-22s %d" % [k, tally[k]])
 
-func _node(idx: int, type: int, dev: int, makers: Array[StringName],
+func _node(idx: int, type: int, dev: int, berths: Array[StringName],
 		fauna: bool = false) -> MapGen.MapNode:
 	var n := MapGen.MapNode.new()
 	n.index = idx
 	n.type = type
 	n.development = dev
-	n.makers = makers
-	n.manufacturer = makers[0] if not makers.is_empty() else &""
-	n.security = 3 if not makers.is_empty() else 1
+	n.berths = berths
+	n.manufacturer = berths[0] if not berths.is_empty() else &""
+	n.security = 3 if not berths.is_empty() else 1
 	n.fauna = fauna
 	n.danger = 4
 	return n

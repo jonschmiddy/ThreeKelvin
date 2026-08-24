@@ -731,9 +731,9 @@ func draw_ship() -> void:
 	# glow and core tones, because those are the heat channel and the art
 	# direction allows exactly one source of warmth in frame: the reactor.
 	# Paint is a property of the object; light is not.
-	var maker: ManufacturerData = DB.manufacturers.get(hull.manufacturer)
-	var livery: Color = maker.colour if maker != null else Color("#5a6a7a")
-	if maker != null:
+	var m: ManufacturerData = DB.manufacturers.get(hull.manufacturer)
+	var livery: Color = m.colour if m != null else Color("#5a6a7a")
+	if m != null:
 		a = a.lerp(livery, 0.10)
 		b = b.lerp(livery, 0.16)
 		c = c.lerp(livery, 0.16)
@@ -784,9 +784,10 @@ func draw_ship() -> void:
 	px(hx, hy, hw, hh, b)
 	px(hx, hy, hw, 4, c)
 	px(hx, hy, hw, 1, hi)
-	# A painted stripe where the top face turns down. One pixel of the maker's
-	# actual colour, so the livery is legible even at the tint strength above.
-	if maker != null:
+	# A painted stripe where the top face turns down. One pixel of the
+	# manufacturer's actual colour, so the livery is legible even at the tint
+	# strength above.
+	if m != null:
 		px(hx, hy + 4, hw, 1, livery.darkened(0.25))
 	dither(hx, hy + 5, hw, 4, c, 0.5)
 	px(hx, hy + hh - 6, hw, 6, a)
@@ -848,7 +849,7 @@ func draw_ship() -> void:
 		px(hx + int(hw * 0.65), hy + hh - 12, 9, 7, Color("#1a1010"))
 		px(hx + int(hw * 0.2), hy + 2, 6, 4, Color("#3a1a10"))
 
-## Installed modules are bolted onto hardpoints in their maker's colours.
+## Installed modules are bolted onto hardpoints in their manufacturer's colours.
 ##
 ## Position comes from `m.mount`, never from the order of `installed`. These
 ## have always been fixed places on the hull — weapon 0 is the dorsal ordnance,
@@ -859,15 +860,15 @@ func draw_ship() -> void:
 func _draw_modules(hx: int, hy: int, hw: int, hh: int, metal: Color, outline: Color) -> void:
 	for part in _b().parts:
 		var at := maxi(int(part.get("mount", 0)), 0)
-		var maker := StringName(part.get("maker", &""))
+		var manufacturer := StringName(part.get("manufacturer", &""))
 		match int(part.get("slot", ModuleData.Slot.WEAPON)):
-			ModuleData.Slot.WEAPON: _draw_weapon(maker, at, hx, hy, hw, hh, metal, outline)
-			ModuleData.Slot.SYSTEM: _draw_system(maker, at, hx, hy, hh)
-			_: _draw_util(maker, at, hx, hy)
+			ModuleData.Slot.WEAPON: _draw_weapon(manufacturer, at, hx, hy, hw, hh, metal, outline)
+			ModuleData.Slot.SYSTEM: _draw_system(manufacturer, at, hx, hy, hh)
+			_: _draw_util(manufacturer, at, hx, hy)
 
-func _draw_weapon(maker: StringName, at: int, hx: int, hy: int, hw: int, hh: int,
+func _draw_weapon(manufacturer: StringName, at: int, hx: int, hy: int, hw: int, hh: int,
 		metal: Color, outline: Color) -> void:
-	var col := DB.manufacturer_colour(maker)
+	var col := DB.manufacturer_colour(manufacturer)
 	var dark := lerp(col, Color("#0a0e13"), 0.55) as Color
 	var lite := lerp(col, Color.WHITE, 0.25) as Color
 	match at:
@@ -894,15 +895,15 @@ func _draw_weapon(maker: StringName, at: int, hx: int, hy: int, hw: int, hh: int
 			px(hx + 30, hy - 19, 16, 2, col)
 			px(hx + 46, hy - 17, 26, 4, metal)
 
-func _draw_system(maker: StringName, at: int, hx: int, hy: int, hh: int) -> void:
-	var col := DB.manufacturer_colour(maker)
+func _draw_system(manufacturer: StringName, at: int, hx: int, hy: int, hh: int) -> void:
+	var col := DB.manufacturer_colour(manufacturer)
 	var bx := hx + 10 + at * 22
 	px(bx, hy + hh - 4, 16, 7, lerp(col, Color("#0a0e13"), 0.5) as Color)
 	px(bx, hy + hh - 4, 16, 2, col)
 	px(bx + 2, hy + hh - 1, 3, 2, lerp(col, Color.WHITE, 0.3) as Color)
 
-func _draw_util(maker: StringName, at: int, hx: int, hy: int) -> void:
-	var col := DB.manufacturer_colour(maker)
+func _draw_util(manufacturer: StringName, at: int, hx: int, hy: int) -> void:
+	var col := DB.manufacturer_colour(manufacturer)
 	var ux := hx + 18 + at * 20
 	px(ux, hy - 7, 5, 7, lerp(col, Color("#0a0e13"), 0.4) as Color)
 	px(ux + 1, hy - 11, 3, 5, col)

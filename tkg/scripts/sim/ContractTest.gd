@@ -10,7 +10,7 @@ extends Harness
 ## That last check is the reason this test is not optional. `-- market` proves
 ## the invariant at standing zero, which is the only standing it has ever been
 ## able to reach; every price in the game is fine until a player delivers four
-## contracts to one house.
+## contracts to one manufacturer.
 
 
 func run() -> void:
@@ -37,13 +37,13 @@ func _boards() -> void:
 	var a := Contracts.board(n)
 	var b := Contracts.board(n)
 	_ok("a station posts the same board twice", _same(a, b))
-	# Not every station has a house behind it, so an empty board is legal. What
+	# Not every station has a manufacturer behind it, so an empty board is legal. What
 	# is not legal is a board with work on it that nobody is paying for.
-	var housed := true
+	var has_manufacturer := true
 	for c in a:
-		if (c as ContractData).house == &"" or (c as ContractData).pay <= 0:
-			housed = false
-	_ok("and every offer on it has a house and a price", housed)
+		if (c as ContractData).manufacturer == &"" or (c as ContractData).pay <= 0:
+			has_manufacturer = false
+	_ok("and every offer on it has a manufacturer and a price", has_manufacturer)
 	# Somewhere in a 150-system galaxy there is work, or the feature does not
 	# exist for most runs.
 	var boards := 0
@@ -76,7 +76,7 @@ func _fetch() -> void:
 	# accidentally scrapped, is a bug wearing a decision's clothes.
 	_ok("and does not put anything in the hold", Run.cargo.is_empty())
 
-	var berth := _berth(mine.house)
+	var berth := _berth(mine.manufacturer)
 	if not _ok("the galaxy holds one of their berths", berth >= 0):
 		return
 	var n: MapGen.MapNode = Run.map[berth]
@@ -85,7 +85,7 @@ func _fetch() -> void:
 	Run.deliver_contract(mine)
 	_ok("delivering pays", Run.credits == before + mine.pay)
 	_ok("and closes it", mine.state == ContractData.State.CLOSED)
-	_ok("and raises standing", Run.standing_with(mine.house) > 0)
+	_ok("and raises standing", Run.standing_with(mine.manufacturer) > 0)
 	# Paid once, however many times the button is pressed.
 	var after := Run.credits
 	Run.deliver_contract(mine)
@@ -109,7 +109,7 @@ func _heat() -> void:
 	if not _ok("a heat contract can be found", job != null):
 		return
 	var mine := Run.take_contract(job)
-	var berth := _berth(mine.house)
+	var berth := _berth(mine.manufacturer)
 	if berth < 0:
 		return
 	var n: MapGen.MapNode = Run.map[berth]
@@ -132,7 +132,7 @@ func _heat() -> void:
 
 ## The check `-- market` cannot make, because standing is always zero there.
 func _standing() -> void:
-	# A station with a DOMINANT house, not just any station — standing is read
+	# A station with a DOMINANT manufacturer, not just any station — standing is read
 	# off `n.manufacturer` and an unbranded desk gives no bonus to check. The
 	# first search bailed out silently on exactly that, which is a skipped test
 	# wearing a passing test's clothes.
@@ -245,9 +245,9 @@ func _find(t: MapGen.NodeType) -> int:
 	return -1
 
 
-func _berth(house: StringName) -> int:
+func _berth(manufacturer: StringName) -> int:
 	for i in Run.map.size():
-		if ContractData.berth_of(Run.map[i] as MapGen.MapNode, house):
+		if ContractData.berth_of(Run.map[i] as MapGen.MapNode, manufacturer):
 			return i
 	return -1
 
@@ -265,7 +265,7 @@ func _same(a: Array, b: Array) -> bool:
 	for i in a.size():
 		var x: ContractData = a[i]
 		var y: ContractData = b[i]
-		if x.house != y.house or x.kind != y.kind or x.at != y.at \
+		if x.manufacturer != y.manufacturer or x.kind != y.kind or x.at != y.at \
 				or x.pay != y.pay or x.text != y.text:
 			return false
 	return true

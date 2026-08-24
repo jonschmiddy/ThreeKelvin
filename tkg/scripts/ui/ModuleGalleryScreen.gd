@@ -7,7 +7,7 @@ extends Control
 ## The sibling of CardGalleryScreen and written for the same complaint one level
 ## up: the only way to see a module used to be to find one, which means a wreck
 ## rolling it, which means most of the catalogue is never looked at. A part can
-## be wrong — wrong shape, wrong slot, wrong house, a silhouette that reads as
+## be wrong — wrong shape, wrong slot, wrong manufacturer, a silhouette that reads as
 ## something else — for as long as nobody happens to be handed it.
 ##
 ## SHOWS THE PLATE, not a list row. A module's shape is a fact about it now: a
@@ -16,8 +16,8 @@ extends Control
 ## every part is drawn at the size it occupies in the hold, in a flow that lets
 ## the shapes sit against each other.
 ##
-## Grouped by manufacturer, houses first and the unbranded last — the same order
-## and the same reason as the card gallery: a house's mark only works if it does
+## Grouped by manufacturer, manufacturers first and the unbranded last — the same order
+## and the same reason as the card gallery: a manufacturer's mark only works if it does
 ## not look like the other six, and that is a comparison you can only make with
 ## them side by side.
 
@@ -59,7 +59,7 @@ func _build() -> void:
 	# to learn twice.
 	_filter = GalleryFilter.new()
 	_filter.setup([[
-		{key = &"house", label = "Manufacturer", options = GalleryFilter.house_options()},
+		{key = &"manufacturer", label = "Manufacturer", options = GalleryFilter.manufacturer_options()},
 	], [
 		{key = &"grade", label = "Grade", options = GalleryFilter.grade_options()},
 		{key = &"slot", label = "Slot", options = GalleryFilter.slot_options()},
@@ -93,7 +93,7 @@ func _build() -> void:
 	var n := _fill(col)
 	_count.text = "%d of %d modules · %d cards" % [_shown, DB.modules.size(), n]
 
-## GROUPED BY HOUSE OR BY SIZE, and filtered, from the bar above.
+## GROUPED BY MANUFACTURER OR BY SIZE, and filtered, from the bar above.
 ##
 ## The whole list is rebuilt on every press rather than hiding children. It is
 ## seventy-seven plates and a flow container that has to reflow anyway, and the
@@ -103,7 +103,7 @@ func _build() -> void:
 func _fill(col: VBoxContainer) -> int:
 	Widgets.clear(col)
 	var f: Dictionary = _filter.state() if _filter != null else {}
-	var house: Variant = f.get(&"house", &"")
+	var manufacturer: Variant = f.get(&"manufacturer", &"")
 	var grade: int = int(f.get(&"grade", -1))
 	var slot: int = int(f.get(&"slot", -1))
 
@@ -112,10 +112,10 @@ func _fill(col: VBoxContainer) -> int:
 		var m: ModuleData = DB.modules[k]
 		# `(unbranded)` rather than the empty StringName, because empty is also
 		# what "All" uses and the two would be the same button.
-		if house == &"(unbranded)":
+		if manufacturer == &"(unbranded)":
 			if m.manufacturer != &"":
 				continue
-		elif house != &"" and m.manufacturer != house:
+		elif manufacturer != &"" and m.manufacturer != manufacturer:
 			continue
 		if grade >= 0 and int(m.rarity) != grade:
 			continue
@@ -144,10 +144,10 @@ func _fill(col: VBoxContainer) -> int:
 	var cards := 0
 	for raw in groups:
 		var g: Dictionary = raw
-		# A RULE BETWEEN HOUSES, and not before the first one. The shape
-		# subheadings inside a house are already quieter than its name, but
+		# A RULE BETWEEN MANUFACTURERS, and not before the first one. The shape
+		# subheadings inside a manufacturer are already quieter than its name, but
 		# quieter is a comparison the eye has to make; a line is a wall it does
-		# not. Without it eight houses down a scroller read as one long list with
+		# not. Without it eight manufacturers down a scroller read as one long list with
 		# occasional coloured text in it.
 		if col.get_child_count() > 0:
 			col.add_child(UITheme.hsep())
@@ -157,7 +157,7 @@ func _fill(col: VBoxContainer) -> int:
 		swatch.color = g.colour
 		swatch.custom_minimum_size = Vector2(4, 12)
 		bar.add_child(swatch)
-		# THE HOUSE NAME IN THE HOUSE COLOUR. It was ICE, the same white every
+		# THE MANUFACTURER NAME IN ITS OWN COLOUR. It was ICE, the same white every
 		# other heading wears, with the only colour on the row in a 4px swatch
 		# beside it. A manufacturer owns a colour everywhere else in the game —
 		# the banner, the emblem, the border down a card readout — and this was
@@ -220,9 +220,9 @@ func _fill(col: VBoxContainer) -> int:
 
 ## The label over one shape's row: "2x1 · 11 parts".
 ##
-## Dimmer than the house above it and indented, because it is a subdivision
-## rather than a peer — two headings at the same weight would make a house of
-## five shapes read as five houses.
+## Dimmer than the manufacturer above it and indented, because it is a subdivision
+## rather than a peer — two headings at the same weight would make a manufacturer of
+## five shapes read as five manufacturers.
 func _shape_head(shape: Vector2i, parts: Array) -> Control:
 	var n := 0
 	for raw in parts:
@@ -249,7 +249,7 @@ func _shape_head(shape: Vector2i, parts: Array) -> Control:
 ## thing the eye is following: a 4x1 and a 2x2 are both four cells, so a row of
 ## lengthening bars had a square dropped into the middle of it.
 ##
-## Before either, a house block came out in DATABASE order — the order somebody
+## Before either, a manufacturer block came out in DATABASE order — the order somebody
 ## typed the parts in — so a 2x2 bay sat between two 1x1 sights and the row read
 ## as noise.
 func _by_size(parts: Array) -> void:

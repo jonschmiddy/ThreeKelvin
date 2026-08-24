@@ -163,7 +163,7 @@ Not WebRTC. Cloudflare would serve that shape well too — Worker and Durable Ob
 ## 3. The recommendation
 
 1. **Now — direct.** Built. It is the test harness for everything above it, and it is the LAN path forever.
-2. **Before any playtest with people outside your house — a Cloudflare Durable Object relay.** Room codes already exist in `LobbyCode`, and the code is the object's address. Free at this scale, nothing to keep running. This is the smallest thing that makes the game playable by four friends who have never heard of port forwarding, and it is independent of where the game ships.
+2. **Before any playtest with people outside your manufacturer — a Cloudflare Durable Object relay.** Room codes already exist in `LobbyCode`, and the code is the object's address. Free at this scale, nothing to keep running. This is the smallest thing that makes the game playable by four friends who have never heard of port forwarding, and it is independent of where the game ships.
 3. **At the Steam page — add Steam.** One more `NetTransport`. Prefer it when Steam is running; fall back to the rendezvous when it is not.
 4. **Only if shipping off-Steam matters and the bill does not — EOS instead of step 2.**
 
@@ -219,7 +219,7 @@ Every one of those strings is asserted by the test. A refusal that arrives as a 
 
 ### The first thing above the seed: everybody's ship
 
-A roster slot carries a `build` — `ShipBuild.to_wire()`, which is a hull's manufacturer and weight class, the `{slot, mount, maker, id}` of every fitted part, and hull points and heat. That is enough to draw somebody else's ship exactly as they assembled it, and it is deliberately not enough to do anything else with: no cards, no affixes, no rolled numbers. It is a picture, not a game state.
+A roster slot carries a `build` — `ShipBuild.to_wire()`, which is a hull's manufacturer and weight class, the `{slot, mount, manufacturer, id}` of every fitted part, and hull points and heat. That is enough to draw somebody else's ship exactly as they assembled it, and it is deliberately not enough to do anything else with: no cards, no affixes, no rolled numbers. It is a picture, not a game state.
 
 Four decisions are worth recording, because each of them is the cheap version of something expensive.
 
@@ -231,7 +231,7 @@ Four decisions are worth recording, because each of them is the cheap version of
 
 **Identity travels as ids.** Both machines already agreed on the content tables at the handshake or there is no party, so sending a `HullData` would be sending a copy of something already agreed. A looted hull is a `duplicate()` of a catalogue frame with its numbers rolled up, so manufacturer plus weight class names its appearance exactly — which is why tier is not on the wire.
 
-`-- nettest` sends a ship in both directions and checks what arrives: the maker, the weight class, the hardpoint each part sits on, who built each part, the damage, and an overheat that has to arrive as an overheat rather than clamped on the way. Those are the fields whose loss is invisible — a build that comes back with every mount at zero draws every gun on the spine and looks like a rendering decision.
+`-- nettest` sends a ship in both directions and checks what arrives: the manufacturer, the weight class, the hardpoint each part sits on, who built each part, the damage, and an overheat that has to arrive as an overheat rather than clamped on the way. Those are the fields whose loss is invisible — a build that comes back with every mount at zero draws every gun on the spine and looks like a rendering decision.
 
 **Protocol 2** was this change. A version 1 host sends slots with no build in them, and every partner would be drawn as a bare hull.
 

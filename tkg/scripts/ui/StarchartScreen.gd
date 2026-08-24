@@ -271,7 +271,7 @@ func _refresh() -> void:
 	#
 	# It answers exactly one question — why is this circled — and refuses the
 	# rest. No CONTAINS, no development, no security, no operators, because none
-	# of that was in the offer: the house said go here, it did not say what here
+	# of that was in the offer: the manufacturer said go here, it did not say what here
 	# is. Reading the panel and reading the contract give the same information,
 	# which is correct, because the contract is the only source there is.
 	#
@@ -284,8 +284,8 @@ func _refresh() -> void:
 		_dest_class.text = "%s - POSITION ONLY" % Run.galaxy_name
 		_dest_blurb.text = job.text
 		_rows.add_child(_row("CIRCLED BY",
-			DB.manufacturer_name(job.house).to_upper(),
-			DB.manufacturer_colour(job.house)))
+			DB.manufacturer_name(job.manufacturer).to_upper(),
+			DB.manufacturer_colour(job.manufacturer)))
 		_rows.add_child(_row("PAYS", "%d CREDITS" % job.pay))
 		# Said plainly rather than left as four blank rows. An absence the player
 		# can read is information; an absence they have to notice is a bug.
@@ -324,9 +324,9 @@ func _refresh() -> void:
 		_rows.add_child(_row("SECURITY", MapGen.security_name(t.security).to_upper(),
 			Color("#c8734f") if t.security <= 2 else UITheme.CHILL))
 		var who := "UNCLAIMED"
-		if not t.makers.is_empty():
+		if not t.berths.is_empty():
 			var names: Array[String] = []
-			for m in t.makers:
+			for m in t.berths:
 				names.append(DB.short_name(DB.manufacturer_name(m)).to_upper())
 			who = " / ".join(names)
 		_rows.add_child(_row("OPERATORS", who))
@@ -2182,7 +2182,7 @@ class MapChart extends Control:
 		if Run.known_only_by_contract(n.index):
 			var job := Run.contract_at(n.index)
 			l2 = "%s WANTS SOMETHING HERE" % DB.short_name(
-				DB.manufacturer_name(job.house)).to_upper()
+				DB.manufacturer_name(job.manufacturer)).to_upper()
 			l3 = "POSITION ONLY · NO SURVEY"
 			l4 = "%d CREDITS" % job.pay
 			if here.links.has(n.index):
@@ -2620,7 +2620,7 @@ class MapChart extends Control:
 	var _work_key: String = ""
 	var _work_berths: Dictionary = {}
 
-	## Where the work is. A ring in the issuing house's colour, on every system an
+	## Where the work is. A ring in the issuing manufacturer's colour, on every system an
 	## open contract points at.
 	##
 	## THE CHART IS WHERE A CONTRACT BECOMES PLAYABLE. A fetch that names "Kappa
@@ -2639,7 +2639,7 @@ class MapChart extends Control:
 		if not show_icons or Run.map.is_empty():
 			return
 		# CACHED, because this runs inside _draw(). `_nearest_berths` scans all
-		# ~190 systems and sorts them, once per paying house — and _draw() is
+		# ~190 systems and sorts them, once per paying manufacturer — and _draw() is
 		# queued on every mouse-motion frame while panning and on every frame of
 		# the hover ease. None of its inputs change during either, so the same
 		# scan-and-sort was repeated for identical output several times a second.
@@ -2647,8 +2647,8 @@ class MapChart extends Control:
 		if key != _work_key:
 			_work_key = key
 			_work_berths = {}
-			for house in Run.delivery_houses():
-				_work_berths[house] = _nearest_berths(house, 3)
+			for manufacturer in Run.delivery_houses():
+				_work_berths[manufacturer] = _nearest_berths(manufacturer, 3)
 		for raw in Run.contracts:
 			var job: ContractData = raw
 			if job.state != ContractData.State.TAKEN:
@@ -2656,7 +2656,7 @@ class MapChart extends Control:
 			if job.at < 0 or job.at >= Run.map.size():
 				continue
 			var c := _screen_pos(Run.map[job.at])
-			var col := DB.manufacturer_colour(job.house)
+			var col := DB.manufacturer_colour(job.manufacturer)
 			# Backed in ink for the reason the party diamond is: the deep systems
 			# sit over the core, which is the brightest thing on the chart.
 			draw_arc(c, 9.0, 0.0, TAU, 20, UITheme.VOID, 3.0)
@@ -2670,37 +2670,37 @@ class MapChart extends Control:
 		# one that was missing. A fetch and a hunt ring a place before you go; a
 		# finished job and a heat contract have to ring a place you come BACK to,
 		# and a heat contract never had a target at all. Every berth of that
-		# house, because delivery is to the house rather than to the desk that
+		# manufacturer, because delivery is to the manufacturer rather than to the desk that
 		# posted it.
 		#
 		# A square rather than a ring, and filled: this is not somewhere to look,
 		# it is somewhere to land.
-		# THE NEAREST FEW, NOT ALL OF THEM. A house holds berths all over the
+		# THE NEAREST FEW, NOT ALL OF THEM. A manufacturer holds berths all over the
 		# galaxy and marking every one drew twelve squares across the disc, which
 		# reads as a rash rather than as directions — and the question a player is
 		# actually asking is not "where could I hand this over" but "where is the
 		# closest place I can". Three is enough to offer a choice of routes and
 		# few enough to be a marking.
-		for house in _work_berths:
-			var hcol := DB.manufacturer_colour(house)
-			for st in _work_berths[house]:
+		for manufacturer in _work_berths:
+			var hcol := DB.manufacturer_colour(manufacturer)
+			for st in _work_berths[manufacturer]:
 				var p := _screen_pos(st)
 				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), UITheme.VOID, false, 3.0)
 				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), hcol, false, 1.0)
 				draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), hcol, true)
 
-	## The closest berths of one house, by galaxy distance from where you stand.
+	## The closest berths of one manufacturer, by galaxy distance from where you stand.
 	##
 	## Distance rather than jumps, deliberately. A route is a fuel question that
 	## the neighbour list answers properly and a straight line cannot, and a chart
 	## marking that pretended to know the route would be wrong the first time a
 	## link did not exist. This says WHICH WAY, and leaves the how to the list.
-	func _nearest_berths(house: StringName, want: int) -> Array:
+	func _nearest_berths(manufacturer: StringName, want: int) -> Array:
 		var here := Run.node_at()
 		var found: Array = []
 		for raw in Run.map:
 			var st: MapGen.MapNode = raw
-			if ContractData.berth_of(st, house):
+			if ContractData.berth_of(st, manufacturer):
 				found.append(st)
 		found.sort_custom(func(a: MapGen.MapNode, b: MapGen.MapNode) -> bool:
 			return a.gal.distance_squared_to(here.gal) \

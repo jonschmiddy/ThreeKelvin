@@ -21,6 +21,7 @@ Still in place, deliberately:
 | `tkg/audio/README.md` | How to run the generators, next to the generators. |
 | `tkg/art/ui/README.md` | What the UI assets in that folder are. |
 | `relay/README.md` | How to deploy the worker, next to the worker. |
+| `site/README.md` | How to deploy threekelvingame.com, next to the page. |
 | `tkg/assets/fonts/LICENSE.md` | A licence belongs with what it licenses. |
 
 ## Design
@@ -31,7 +32,7 @@ Still in place, deliberately:
 | [coop-design.md](coop-design.md) | Four ships in one galaxy — the design questions and the rulings that answered them. |
 | [netcode.md](netcode.md) | How the party actually talks. Transports, the relay, and what crosses the wire. |
 | [lore.md](lore.md) | Who is paying for all this, and why nobody will say what the heat is for. The archive's writing rules live here. |
-| [building-a-house.md](building-a-house.md) | **The method.** How a manufacturer's parts and cards get written, in the order it happened, with the checks at each step and the traps. Read with catalogue.md — that one is the rules, this one is the sequence. |
+| [building-a-manufacturer.md](building-a-manufacturer.md) | **The method.** How a manufacturer's parts and cards get written, in the order it happened, with the checks at each step and the traps. Read with catalogue.md — that one is the rules, this one is the sequence. |
 | [catalogue.md](catalogue.md) | Every rule that decides what a module is, what cards it grants, and what they may be called. Read before writing a part. |
 | [handbook.md](handbook.md) | The long half of `tkg/CLAUDE.md`: screen layout, art direction and generation, audio, the economy's internals, the two procedural engines. Reference, not context — you open it on the day you need it. |
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | The build order, and how much of it is done. |
@@ -64,3 +65,44 @@ are kept because they record why something is the way it is, and they are
 separated because they describe a moment rather than the current state — a
 handoff written three months ago is history, not documentation, and reading it
 as though it were current is how a stale instruction gets followed.
+
+---
+
+## The rule that keeps these true
+
+Added 2026-08-24, after a pass that found fourteen places where two files
+disagreed about the same fact. Every one was the same failure: **a number or a
+ruling written down twice, and one copy moved.**
+
+**A number that exists in code does not get a second copy in prose.** Name the
+constant, name the harness that prints it, and stop.
+
+`ART_CONTRACT.md` said a card illustration was 104 × 44 for eleven weeks while
+`ArtCheck.CARD_ART` said 92 × 60, and nothing could have caught it, because prose
+is not checked against anything. `catalogue.md`'s header said 63 parts while its
+own §17 said 77. `tkg/README.md` said Godot 4.3+ two minor versions after the
+migration.
+
+Where to point instead:
+
+| Instead of restating | Point at |
+| --- | --- |
+| module or card art dimensions | `-- artcheck` |
+| how much of the catalogue is built | `catalogue.md` §17, which `-- content` prints |
+| win rates, or anything the economy does | `-- sim`, with the run count and the date attached |
+| the seven manufacturers' names, colours, taglines, set bonuses | `Database.gd`'s `_seed_manufacturers()` |
+| a design ruling, or a reversal of one | `tkg/CLAUDE.md`'s rulings table |
+
+The last two are the ones that bite. Seven files described the seven
+manufacturers and four disagreed; `design-doc.md` and `tkg/README.md` both
+carried *parallel* rulings tables that were never updated when a ruling was
+reversed. Both now defer to `CLAUDE.md` rather than restating it. **A doc table
+should carry what a manufacturer *plays* like, and never its name, colour,
+tagline or set bonus.**
+
+Reversals get recorded, not erased — state what was reversed, what decided it,
+and what it cost. `ART_CONTRACT.md` §2a is the house style, and `design-doc.md`
+now carries two paragraphs in it.
+
+`validate.sh` greps for the retired vocabulary, so the one-word rule
+(`manufacturer`, never `house` or `maker`) is checked rather than remembered.

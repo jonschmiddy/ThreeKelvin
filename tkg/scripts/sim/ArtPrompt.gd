@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ##     godot --headless --path . -- artprompt korvan structures
 ##     godot --headless --path . -- artprompt verity fittings
-##     godot --headless --path . -- artprompt              (every house, every batch)
+##     godot --headless --path . -- artprompt      (every manufacturer, every batch)
 ##
 ## WHY THIS EXISTS. Every prompt sent this session said "spaceship hull
 ## fittings" and nothing else, so the generator produced generic parts that
@@ -15,15 +15,15 @@ extends RefCounted
 ## read faction" — and then never says what any faction LOOKS like. That gap is
 ## SHAPE below. The rest is read live from DB.manufacturers, so the fiction has
 ## exactly one home and a prompt cannot quietly drift from the tooltip a player
-## reads on the same house.
+## reads on the same manufacturer.
 
-## What each house's parts are SHAPED like. The one thing here that is not
+## What each manufacturer's parts are SHAPED like. The one thing here that is not
 ## already in the game, because the game had no reason to know it.
 ##
 ## Written to be CONTRASTIVE. The point is not that Korvan looks industrial —
 ## it is that Korvan looks nothing like Verity, so a part is placeable by
 ## silhouette before the palette is read. Each line was derived from that
-## house's own backstory rather than invented: Korvan "inherited the jigs",
+## manufacturer's own backstory rather than invented: Korvan "inherited the jigs",
 ## Probate is "everything is salvage", Verity signs each hull.
 const SHAPE := {
 	&"korvan": "Heavy stamped plate, blunt right angles, exposed bolt heads and "
@@ -102,7 +102,7 @@ const BATCH := {
 		# camera instruction got ignored: the run that finally got shape and camera
 		# right came back with 7 colours and zero amber.
 		#
-		# So the accent is attached to the objects instead. "%s" is the house
+		# So the accent is attached to the objects instead. "%s" is the manufacturer
 		# colour, filled in by _prompt() from the manufacturer record.
 		parts = ["a long flat-topped rectangular cargo block, twice as wide as it "
 				+ "is tall, its flank faced with %s ribbed panels set in steel "
@@ -137,18 +137,18 @@ const BATCH := {
 
 func run(tree: SceneTree) -> void:
 	var args := OS.get_cmdline_user_args()
-	var want_maker := &""
+	var want_manufacturer := &""
 	var want_batch := &""
 	for a in args:
 		var s := StringName(a)
 		if DB.manufacturers.has(s):
-			want_maker = s
+			want_manufacturer = s
 		elif BATCH.has(s):
 			want_batch = s
 
-	var makers: Array = [want_maker] if want_maker != &"" else DB.manufacturers.keys()
+	var manufacturers: Array = [want_manufacturer] if want_manufacturer != &"" else DB.manufacturers.keys()
 	var batches: Array = [want_batch] if want_batch != &"" else BATCH.keys()
-	for m in makers:
+	for m in manufacturers:
 		for b in batches:
 			_emit(m, b)
 	tree.quit()
@@ -205,7 +205,7 @@ func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	# person feel something and which a generator reads as an instruction to
 	# draw a warship. The lore paragraph overrode every other line in the prompt.
 	#
-	# So the backstory's job is to tell whoever writes SHAPE what this house is.
+	# So the backstory's job is to tell whoever writes SHAPE what this manufacturer is.
 	# SHAPE is the translation, and only the translation is sent. Prose written
 	# for players is not a prompt and pasting it in is not free.
 	out += String(SHAPE.get(m.id, ""))
@@ -219,7 +219,7 @@ func _prompt(m: ManufacturerData, spec: Dictionary) -> String:
 	return out
 
 
-## The house colour as a word, because a hex in a prompt reads as noise. The
+## The manufacturer colour as a word, because a hex in a prompt reads as noise. The
 ## forced palette does the real work; this only nudges which of its entries the
 ## generator reaches for, which is the gap the fittings exposed — every colour
 ## was legal and the parts still came back greyer than the ship.

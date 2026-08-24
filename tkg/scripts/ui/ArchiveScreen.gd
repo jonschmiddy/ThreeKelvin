@@ -167,7 +167,7 @@ func _show(id: StringName) -> void:
 	# Who held the pen, and when they thought it was. The epochs do not
 	# reconcile and are not meant to — see Database._seed_documents.
 	var by := UITheme.body("%s · %s" % [d.by, d.dated],
-		DB.manufacturer_colour(d.house) if d.house != &"" else UITheme.COLD,
+		DB.manufacturer_colour(d.manufacturer) if d.manufacturer != &"" else UITheme.COLD,
 		UITheme.FS_SMALL)
 	by.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_page.add_child(by)

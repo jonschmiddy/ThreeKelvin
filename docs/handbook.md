@@ -36,7 +36,7 @@ shows the star chart's view-mode buttons. Turn it off to see the game a player s
   does.
 
 **`DB.ACTIVE_MAKERS = [&"korvan"]` — only Korvan parts DROP.** `STARTABLE` is
-still all seven, so run start still offers seven houses and their attribute signatures
+still all seven, so run start still offers seven manufacturers and their attribute signatures
 still differ. The combination is intentional and has a cost worth stating plainly: a
 Solari ship never finds a second Solari part, so the 3+/5+ set bonuses of the other six
 are **unreachable while the loot is narrowed**, and the win rate is six points lower
@@ -69,8 +69,8 @@ ordering is what `-- market` proves — renaming it would rename the invariant.
 
 `ask_index` is how dear goods are HERE (development, then depth). `demand` is how
 badly this place wants THAT brand, and it is the whole cross-system economy in four
-lines: 0.78 in the maker's own space, 1.26 in a rival's, 1.25 for unbranded relic and
-organic tech that nobody presses more of anywhere. It is derived from `makers`, which
+lines: 0.78 in the manufacturer's own space, 1.26 in a rival's, 1.25 for unbranded relic and
+organic tech that nobody presses more of anywhere. It is derived from `manufacturers`, which
 the chart already prints on every system — so the trade map is a map you are already
 reading, and `Market.trade_line()` says it in words on the chart and at the dock.
 
@@ -151,7 +151,7 @@ Pixel art is generated via the **PixelLab MCP server** (tool names may be bare o
 the REST API. Full mechanics in `docs/art/PIXELLAB_WORKFLOW.md`. For engine plumes specifically —
 generate, strip, erode, animate, install — `docs/art/EXHAUST_PIPELINE.md` is the worked
 end-to-end recipe, and `art/tools/plume_pipe.py` is the code. To place mounts and
-thrusters on a maker's hulls, `art/tools/rig_bench.py <maker>` builds an interactive
+thrusters on a manufacturer's hulls, `art/tools/rig_bench.py <manufacturer>` builds an interactive
 page for it and `art/tools/read_rig.py` reads the result back.
 
 **Do NOT use `create_character` / `animate_character`** — that is a skeleton-rigged
@@ -366,15 +366,15 @@ hull and heat gauges. It is hidden — the whole cell, not just its contents —
 is flying with you, so the solo game is the screen it always was.
 
 The thing that made this possible is that **`ShipView` takes a subject rather than
-reading `Run`**. `ShipBuild` is that subject: a hull's maker and weight class, the
-`{slot, mount, maker, id}` of every fitted part, and the two gauges the art reacts to.
+reading `Run`**. `ShipBuild` is that subject: a hull's manufacturer and weight class, the
+`{slot, mount, manufacturer, id}` of every fitted part, and the two gauges the art reacts to.
 Three rules hold it up:
 
 - **It carries what is drawn, not what is played.** No cards, no affixes, no rolled
   stats. None of those move a pixel and every one of them would be on the wire.
 - **Identity travels as ids.** A manufacturer and a weight class, not a `HullData`. Both
   machines hold the same catalogue or the handshake refused the join. A looted hull is a
-  `duplicate()` of a catalogue frame, so maker plus weight names its appearance exactly —
+  `duplicate()` of a catalogue frame, so manufacturer plus weight names its appearance exactly —
   which is also why tier is not sent.
 - **Parts are dictionaries, not `ModuleData`.** The catalogue entry is shared. Writing a
   remote player's `mount` onto `DB.modules[id]` would move that hardpoint on every ship
@@ -534,15 +534,19 @@ explored and rejected. Nothing was taken from them.
 ## Manufacturers (seven, each a playstyle)
 
 `korvan` ballistics + charged ordnance (starter) · `solari` weaponised heat ·
-`dredge` scrap economy and sustain · `redline` evasion, refits, contraband ·
-`halcyon` thin perfect deck · `cygnet` drones · `calyx` regeneration and adaptation.
+`probate` scrap economy and sustain · `redline` evasion, refits, contraband ·
+`verity` thin perfect deck · `cygnet` drones · `calyx` regeneration and adaptation.
 
-Korvan/Solari mirror each other (manage heat vs. surf it); Dredge/Redline mirror each
+Korvan/Solari mirror each other (manage heat vs. surf it); Probate/Redline mirror each
 other (melt it down vs. repurpose it).
+
+*Names, colours, taglines and set bonuses are defined once, in `Database.gd`'s
+`_seed_manufacturers()`. The line above carries playstyle only — if it ever
+disagrees with the code, the code is right.*
 
 **Each one builds a chassis in all three weight classes**, and you pick both at run
 start — manufacturer *and* light/medium/heavy. Two genuinely different questions: the
-maker is who you are (which cards, which set bonus, which attribute signature), the
+manufacturer is who you are (which cards, which set bonus, which attribute signature), the
 weight is how much ship (hull, hardpoints, hand size, evasion). Picking Redline does
 not force a paper hull; it means a Redline heavy is the fastest heavy in the game.
 
@@ -551,7 +555,7 @@ Three unbranded salvage frames still exist for hulls you find; they belong to no
 and count for nobody, which is what keeps taking one a real cost.
 
 **Hulls are authored as baseline + signature**, not as 21 stat blocks — `WEIGHT_BASE`
-holds what a weight class is, `MAKER_HULLS` holds one row of deltas per maker. Writing
+holds what a weight class is, `MAKER_HULLS` holds one row of deltas per manufacturer. Writing
 all 21 by hand would scatter each identity across three rows, so "what IS Solari" would
 only be answerable by diffing tables, and a signature could drift between weights
 unnoticed. Solari is `+8 heat cap, -1 dissipation, -2 stealth` on every frame it welds.
@@ -585,7 +589,7 @@ the price of the scope cut and it is paid in difficulty rather than in content:
 
 | loot pool | wins / 500 | win rate | hull deaths |
 |---|---|---|---|
-| all seven makers dropping | 111 | **22%** | 160 |
+| all seven manufacturers dropping | 111 | **22%** | 160 |
 | `ACTIVE_MAKERS = [korvan]` | 78 | **16%** | 218 |
 
 Same build, one constant apart, 500 runs a side — about 2.6 standard errors, so it
@@ -603,7 +607,7 @@ against the commit *before* manufacturer hulls (`4f7f6ec`) scores **2%**, 32.2 j
 
 | | wins | jumps | kills | hull deaths |
 |---|---|---|---|---|
-| `4f7f6ec` — one Korvan frame, six makers gated off | 2% | 32.2 | 3.6 | 76% |
+| `4f7f6ec` — one Korvan frame, six manufacturers gated off | 2% | 32.2 | 3.6 | 76% |
 | seven manufacturer hulls, `ACTIVE_MAKERS` reopened | 10% | 52.8 | 6.3 | 50% |
 | all three weight classes per manufacturer | **13%** | 56.0 | 6.0 | 49% |
 | the market, materials and the fabricator | **17%** | 82.3 | 7.4 | 41% |

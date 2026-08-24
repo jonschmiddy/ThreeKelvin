@@ -94,7 +94,7 @@ func map_print() -> String:
 		parts.append("%d:%d/%d d%d t%d dev%d sec%d f%d neb%d %s [%s] %s" % [
 			nn.index, nn.layer, nn.row, nn.danger, int(nn.type),
 			int(nn.development), nn.security, int(nn.fauna), int(nn.in_nebula),
-			MapGen.star_name(nn), ",".join(_names(nn.makers)),
+			MapGen.star_name(nn), ",".join(_names(nn.berths)),
 			",".join(PackedStringArray(Array(nn.links).map(func(i: int) -> String: return str(i)))),
 		])
 	return "\n".join(parts)

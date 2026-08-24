@@ -3,7 +3,7 @@ extends Harness
 ## How much of the catalogue actually exists:
 ##   godot --headless --path . -- content
 ##
-## A MEASUREMENT, not a gate. It prints what each house has and what it is
+## A MEASUREMENT, not a gate. It prints what each manufacturer has and what it is
 ## supposed to have, and passes either way — the same shape as `-- glyphs` and
 ## for the same reason: a number nobody can see does not get acted on, and a
 ## test that fails for a year because content has not been written yet is a test
@@ -11,9 +11,9 @@ extends Harness
 ##
 ## Counts UNIQUE CARDS BY NAME, not grants. The module gallery says "98 cards"
 ## and that is the honest count of what a deck can be handed, because two
-## modules can grant the same verb — a house with eight parts that all fit a
-## Brace is not a house with eight cards. This asks the other question: how many
-## DIFFERENT things can this house do.
+## modules can grant the same verb — a manufacturer with eight parts that all fit a
+## Brace is not a manufacturer with eight cards. This asks the other question: how many
+## DIFFERENT things can this manufacturer do.
 ##
 ## MALFUNCTIONS ARE NOT ON MODULES, and this used to count them as though they
 ## were — it reported 1, and that 1 was a dead `dross` module nothing could hand
@@ -22,7 +22,7 @@ extends Harness
 
 ## What the catalogue is aiming at. Korvan, the unbranded stock and the
 ## malfunctions first, because those are the three being written; the other six
-## houses are listed so the shortfall is visible rather than forgotten.
+## manufacturers are listed so the shortfall is visible rather than forgotten.
 const TARGET := {
 	&"korvan": 40,
 	&"(unbranded)": 20,
@@ -81,7 +81,7 @@ func run() -> void:
 ##
 ## Exists because the alternative is retyping the catalogue by hand into
 ## whatever is reviewing it, and a hand-copied catalogue is wrong the day after
-## it is copied. The picking page for one house is going to be made seven times;
+## it is copied. The picking page for one manufacturer is going to be made seven times;
 ## this is the half that must not be done seven times by eye.
 func _dump() -> void:
 	var out: Array = []
@@ -120,8 +120,8 @@ func _dump() -> void:
 		out.append({
 			id = String(id),
 			name = m.name,
-			house = String(m.manufacturer),
-			house_name = DB.manufacturer_name(m.manufacturer) if m.manufacturer != &"" else "Unbranded",
+			manufacturer = String(m.manufacturer),
+			manufacturer_name = DB.manufacturer_name(m.manufacturer) if m.manufacturer != &"" else "Unbranded",
 			slot = ModuleData.slot_name(m.slot),
 			rarity = ModuleData.rarity_name(m.rarity),
 			w = f.x, h = f.y, cells = m.cells(),

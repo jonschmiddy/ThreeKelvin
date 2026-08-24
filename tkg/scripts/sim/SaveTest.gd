@@ -64,7 +64,7 @@ func fingerprint() -> Dictionary:
 			# market that came back un-saturated pays full price again. Both are
 			# run marks and both are silent when lost.
 			n.stocked, n.trades,
-			Array(n.links), n.makers, shop,
+			Array(n.links), n.berths, shop,
 			# What the system is offering. Rolled on arrival and fixed from then
 			# on, so losing it across a save is a re-roll the player can force.
 			n.foes, n.event_key,
@@ -80,7 +80,7 @@ func fingerprint() -> Dictionary:
 		# back in — an S-tier ship that lost all three would come back with
 		# every number here identical and three perks missing, and this test
 		# would have said PASS. `perk_id` alone could not see it: that one is
-		# the HOUSE's and survives on the frame.
+		# the MANUFACTURER's and survives on the frame.
 		hull = "%s|%d|%d|%d|%d|%d|%.9f|%d|%.9f|%d|%d|%d|%s|%s" % [
 			Run.hull.name, Run.hull.tier, Run.hull.reactor, Run.hull.hand_size,
 			Run.hull.max_hull, Run.hull.heat_cap, Run.hull.dodge,

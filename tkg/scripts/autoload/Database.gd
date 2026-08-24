@@ -8,8 +8,8 @@ extends Node
 ## codebase only ever sees ModuleData / HullData / EnemyTemplate.
 
 ## Loot-pool gate. While this is non-empty, only these manufacturers can drop;
-## an empty array means every maker is live. Nothing is deleted — all 33 modules
-## stay authored and seeded, so flipping a maker back on is a one-word edit and
+## an empty array means every manufacturer is live. Nothing is deleted — all 33 modules
+## stay authored and seeded, so flipping a manufacturer back on is a one-word edit and
 ## the sim can A/B a narrow pool against the full one.
 ##
 ## Brand-agnostic modules are never gated: Exotic is harvested and Artifact is
@@ -17,18 +17,18 @@ extends Node
 ##
 ## NARROWED TO KORVAN, deliberately, and this is the second time. It was opened
 ## to all seven when manufacturer hulls landed, because a chassis select offering
-## seven makers over a Korvan-only loot pool would have made six choices
+## seven manufacturers over a Korvan-only loot pool would have made six choices
 ## unplayable. STARTABLE has now been cut to match, so that objection is answered
-## rather than ignored: there is one house, and it is the only one you can fly.
+## rather than ignored: there is one manufacturer, and it is the only one you can fly.
 ##
-## The reason is depth over breadth. Seven houses at three modules each is seven
-## shallow loot streams; one house with a full ladder is a run where the next
+## The reason is depth over breadth. Seven manufacturers at three modules each is seven
+## shallow loot streams; one manufacturer with a full ladder is a run where the next
 ## wreck can plausibly hold something you want. Korvan is the one to do first —
-## ballistics and charged ordnance, no gimmick, the tutorial house.
+## ballistics and charged ordnance, no gimmick, the tutorial manufacturer.
 ##
 ## Restoring the others means putting this back to [] and STARTABLE back to all
 ## seven. Nothing else is gated on it.
-const ACTIVE_MAKERS: Array[StringName] = [&"korvan"]
+const ACTIVE_MANUFACTURERS: Array[StringName] = [&"korvan"]
 
 var manufacturers: Dictionary = {}      ## StringName -> ManufacturerData
 var modules: Dictionary = {}            ## StringName -> ModuleData (templates)
@@ -45,7 +45,7 @@ var hull_perks: Dictionary = {}         ## StringName -> {name, text}
 ## and its identity already finished. Nothing you found afterwards could change
 ## what you were; the best it could do was be a slightly better version of it.
 ##
-## Now the maker gives you a gun and a hull, which is two of the three a set
+## Now the manufacturer gives you a gun and a hull, which is two of the three a set
 ## needs. Everything else is generic. The third piece is out there in a wreck or
 ## behind a station's counter, and until you go and get it you are flying a
 ## chassis with a good weapon bolted to it — which is a much better description
@@ -74,7 +74,7 @@ const GENERIC_STOCK: Array[StringName] = [
 ## The one module each yard sends you off with. Common or Uncommon — never Rare,
 ## which it used to be for three of them.
 ##
-## The rule was "each maker's cheapest weapon", which sounded even and was not:
+## The rule was "each manufacturer's cheapest weapon", which sounded even and was not:
 ## Probate, Verity and Calyx had no common weapon at all, so their floor was C2.
 ## That leaked somewhere invisible. Market.melt() reads scrap_value, which is a
 ## table indexed by RARITY, so a Probate player could scrap their free gun for
@@ -100,18 +100,18 @@ const STARTER_WEAPON: Dictionary = {
 	&"calyx": &"barb",
 }
 
-## The makers you can start as, in the order the chassis select shows them.
+## The manufacturers you can start as, in the order the chassis select shows them.
 ## Korvan first because it is the tutorial ship: no gimmick, all three slots
 ## filled, nothing that needs explaining before the first fight.
 ##
-## ALL SEVEN, even though only Korvan parts drop — see ACTIVE_MAKERS. The focus
+## ALL SEVEN, even though only Korvan parts drop — see ACTIVE_MANUFACTURERS. The focus
 ## is on what gets BUILT, not on what you may fly, and the run-start choice is
-## the one place the other six houses still pay for themselves: seven attribute
+## the one place the other six manufacturers still pay for themselves: seven attribute
 ## signatures, seven hulls, seven palettes, all authored and all reachable.
 ##
 ## THE COST, on the record. A loot pool gated to Korvan means a Solari ship
 ## finds no second Solari part, so the 3+ and 5+ set bonuses of the other six
-## are unreachable for as long as ACTIVE_MAKERS is narrowed. You can fly them;
+## are unreachable for as long as ACTIVE_MANUFACTURERS is narrowed. You can fly them;
 ## you cannot complete them.
 const STARTABLE: Array[StringName] = [
 	&"korvan", &"solari", &"probate", &"redline", &"cygnet", &"verity", &"calyx",
@@ -120,8 +120,8 @@ const STARTABLE: Array[StringName] = [
 ## Branded weapon first, so that when a light frame runs out of hardpoints it is
 ## the generic parts that fall off the end rather than the one module that says
 ## who you fly for.
-func starter_kit(man: StringName) -> Array:
-	var out: Array = [STARTER_WEAPON.get(man, &"kh20")]
+func starter_kit(manufacturer: StringName) -> Array:
+	var out: Array = [STARTER_WEAPON.get(manufacturer, &"kh20")]
 	out.append_array(GENERIC_KIT)
 	return out
 
@@ -182,7 +182,7 @@ func _seed_manufacturers() -> void:
 		m.backstory = BACKSTORY.get(m.id, "")
 		manufacturers[m.id] = m
 
-## Who each house is, as opposed to what flying it does.
+## Who each manufacturer is, as opposed to what flying it does.
 ##
 ## Kept out of the table above because that table is already ten columns wide
 ## and these are paragraphs; a wall of prose wedged into positional array
@@ -287,7 +287,7 @@ func manufacturer_name(id: StringName) -> String:
 	return (manufacturers[id] as ManufacturerData).name
 
 ## One-word display name for chips and map labels. Taking the first word works
-## for six of the seven makers but turns "The Probate Combine" into "The", so the
+## for six of the seven manufacturers but turns "The Probate Combine" into "The", so the
 ## article goes first.
 func short_name(full: String) -> String:
 	var n := full
@@ -339,7 +339,7 @@ func _seed_affixes() -> void:
 ## without ever breaking it.
 ##
 ## Deliberately NOT a card for every verb. These are the ones a dozen parts
-## could plausibly grant; anything with a house's fingerprints on it stays
+## could plausibly grant; anything with a manufacturer's fingerprints on it stays
 ## written where it is granted, because that is what makes it that part's card.
 const SHARED := {
 	# "Bolt On" and not "Brace". Brace is the KEYWORD — the card face already
@@ -351,7 +351,7 @@ const SHARED := {
 	&"reroute":  {name = "Reroute", energy = 1, rarity = 0, draw = 1},
 	# +2 AND NOT +3, so that Korvan's own Lock On has a reason to cost energy.
 	# At +3 the shared card was 0 energy for one point less than a 1-energy
-	# house card, which is a full energy for one point of mark — nobody would
+	# manufacturer card, which is a full energy for one point of mark — nobody would
 	# ever pay it, and the Targeting Servo was a worse Ranging Optics. Surfaced
 	# by holdtest's single-verb report, which exists to put exactly this kind of
 	# near-twin next to itself.
@@ -372,12 +372,12 @@ func _card(d: Dictionary) -> CardData:
 	c.sprite = card_art(c.art_key())
 	return c
 
-func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slot,
+func _module(id: StringName, name: String, manufacturer: StringName, slot: ModuleData.Slot,
 		rarity: ModuleData.Rarity, flavour: String, cards: Array) -> void:
 	var m := ModuleData.new()
 	m.id = id
 	m.name = name
-	m.manufacturer = man
+	m.manufacturer = manufacturer
 	m.slot = slot
 	m.rarity = rarity
 	m.flavour = flavour
@@ -461,13 +461,13 @@ func _seed_modules() -> void:
 	##
 	## Utility is built on LOCK-ON for the mirror reason: lock-on adds per HIT, so
 	## it multiplies by the thing Korvan's guns already do. Servo into Jackhammer
-	## was the house's best combo and its only one; there are now four rungs of it.
+	## was the manufacturer's best combo and its only one; there are now four rungs of it.
 	##
 	## What Korvan does NOT get, however well it would fit: heat_scale and
 	## damage_equals_heat (Solari IS weaponised heat), credit_gain (Probate),
 	## drones and evoke (Cygnet), negate_next (Redline), adapt and heal (Calyx).
-	## A house that borrows another's verb at a higher rarity does not read as
-	## stronger, it reads as the other house.
+	## A manufacturer that borrows another's verb at a higher rarity does not read as
+	## stronger, it reads as the other manufacturer.
 
 	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
 	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
@@ -493,7 +493,7 @@ func _seed_modules() -> void:
 	# BLOCK, which Korvan has never had. Armour persists and costs heat to hold;
 	# block decays and costs nothing. So this is the card for the turn a Mass
 	# Driver is charging and there is nothing to do but be hit — the one turn in
-	# the house's whole design where a decaying shield is exactly right.
+	# the manufacturer's whole design where a decaying shield is exactly right.
 	_module(&"braceframe", "Brace Frame", &"korvan", S, C2,
 		"For the turn you have nothing to shoot with.",
 		[{name = "Dig In", energy = 1, block = 8, brace = 2},
@@ -506,7 +506,7 @@ func _seed_modules() -> void:
 	# Four rungs of lock-on, which is the column Korvan had one card in.
 	# Deliberately CHEAP rather than large: Solari's Flare Rack is lock-on 6 for a
 	# Common-adjacent price and pays 2 heat for it, and Korvan undercutting that on
-	# heat instead of beating it on size is the difference between the two houses.
+	# heat instead of beating it on size is the difference between the two manufacturers.
 	_module(&"optics", "Ranging Optics", &"korvan", U, C1,
 		"Cheap glass. Correct answers.",
 		[{name = "Cold Read", energy = 0, lock_on = 4, vent = 1}, &"range"])
@@ -540,9 +540,9 @@ func _seed_modules() -> void:
 	_module(&"shroud", "Solari Heat Shroud", &"solari", S, C2,
 		"Converts fever into shielding.",
 		[{name = "Shroud", energy = 1, brace_from_heat = true, copies = 2}])
-	## Solari was the one maker with no utility at all, which made a Solari
+	## Solari was the one manufacturer with no utility at all, which made a Solari
 	## starting kit impossible. Deliberately Korvan's Targeting Servo read hot:
-	## a better mark, paid for in heat — the whole maker in one card.
+	## a better mark, paid for in heat — the whole manufacturer in one card.
 	_module(&"flare", "Solari Flare Rack", &"solari", U, C1,
 		"Burns bright enough that everyone can see what you meant.",
 		[{name = "Flare", energy = 1, heat = 2, lock_on = 6, copies = 2}])
@@ -594,7 +594,7 @@ func _seed_modules() -> void:
 	## Issued weapon. Hits harder per card than the other two starters on
 	## purpose: Verity grants one fewer card than anybody, so this is the only
 	## copy of it in the deck and a merely-average Common would have left the
-	## house opening a fight with a single mediocre attack.
+	## manufacturer opening a fight with a single mediocre attack.
 	_module(&"markone", "Verity Mark I", &"verity", W, C0,
 		"Numbered, signed, and the cheapest thing they will sell you.",
 		[{name = "Sidearm", energy = 1, damage = 7, copies = 2}])
@@ -605,7 +605,7 @@ func _seed_modules() -> void:
 		"You always have the card you need.",
 		## DRAW THREE AND THROW ONE, not draw two — which is what this said until
 		## the twin check put it next to Redline's Jury-Rig and they were the same
-		## card. Both houses want cards; only one of them wants THE RIGHT card,
+		## card. Both manufacturers want cards; only one of them wants THE RIGHT card,
 		## and that is a filter, not a bigger number. Verity grants one card where
 		## everyone else grants two, so the one is allowed to be the better one.
 		[{name = "Foresight", energy = 0, draw = 3, discard = 1, copies = 2}])
@@ -617,7 +617,7 @@ func _seed_modules() -> void:
 	_module(&"weave", "Vital Weave", &"calyx", S, C1,
 		"The hull knits itself. Slowly.",
 		[{name = "Knit", energy = 1, heal = 5, copies = 2}])
-	## Issued weapon. Bites and knits at once, which is the house in miniature.
+	## Issued weapon. Bites and knits at once, which is the manufacturer in miniature.
 	##
 	## Trimmed from 5/heal 2. Calyx measured strongest of the seven at every
 	## weight, and sustain is why: a weapon that repairs while it fires is worth
@@ -644,18 +644,18 @@ func _seed_modules() -> void:
 		"Grown coolant. Unsettlingly warm.",
 		[{name = "Bloom", energy = 0, vent = 6, heal = 3, copies = 1}])
 
-	# --- Repair, one way per house
+	# --- Repair, one way per manufacturer
 	#
 	# Healing used to be Calyx's and nobody else's — Knit, Barb and Bloom, plus
-	# the yard's Patch Kit and the Voidwhale Ganglion. Every other house had to
+	# the yard's Patch Kit and the Voidwhale Ganglion. Every other manufacturer had to
 	# buy its hull back at a station, which is correct as an economy and wrong as
 	# a deck: a build with no answer to being hurt has one answer to being hurt,
 	# and it is "leave".
 	#
 	# So all seven can repair now, and NOT ONE OF THEM DOES IT THE SAME WAY. A
-	# heal card handed identically to seven houses is seven houses minus their
+	# heal card handed identically to seven manufacturers is seven manufacturers minus their
 	# differences, and the differences are the class system. Each of these pays
-	# for its hull points in the currency its house already trades in: Korvan in
+	# for its hull points in the currency its manufacturer already trades in: Korvan in
 	# tempo, Solari in heat, Probate in credits, Redline in nothing much and not
 	# much back, Verity in energy, Cygnet in time.
 	#
@@ -665,7 +665,7 @@ func _seed_modules() -> void:
 	# energy — and priced them for a HEALTHY turn, which is the one turn that does
 	# not need them. At three hull and one energy left, a card that costs two is
 	# not a card. Every one of these now costs at most one energy (Verity's costs
-	# two, and one under Bespoke, which is that house answering the question its
+	# two, and one under Bespoke, which is that manufacturer answering the question its
 	# own way) and every one of them scales on hull MISSING rather than paying a
 	# flat number. See CardData.heal_scale.
 	#
@@ -675,18 +675,18 @@ func _seed_modules() -> void:
 	# CALYX IS FLAT AND STAYS FLAT, which is now a real distinction rather than an
 	# omission: Calyx heals you all fight and the other six save you at the end of
 	# one. Knit for 5 twice over is better than any of these on a turn you are
-	# winning and worse than all of them on a turn you are not. That is the house
-	# that grows hulls versus the houses that patch them.
+	# winning and worse than all of them on a turn you are not. That is the manufacturer
+	# that grows hulls versus the manufacturers that patch them.
 	#
 	# CALYX GETS NOTHING HERE, deliberately. It already has three, it is the
-	# sustain house, and `barb` above records what happened last time sustain was
+	# sustain manufacturer, and `barb` above records what happened last time sustain was
 	# handed out freely: Calyx measured strongest of the seven at every weight.
 	# Widening the thing that made it strongest is not how the other six catch up.
 	# Every rate below is deliberately worse than Knit's 10 hull for 2 energy.
 	_module(&"weldkit", "Field Weld Kit", &"korvan", U, C1,
 		"Surplus. One kit, one weld, and it holds.",
 		[{name = "Field Weld", energy = 1, heal = 3, heal_scale = 3}, &"patch"])
-	## Heat as the welding torch, which is the house's whole argument. Costs four
+	## Heat as the welding torch, which is the manufacturer's whole argument. Costs four
 	## heat to buy seven hull, so it is a good trade on a cold turn and a way to
 	## kill yourself on a hot one — and Ignition (5-set, overheat halved) is what
 	## turns the second case back into the first.
@@ -702,7 +702,7 @@ func _seed_modules() -> void:
 		[{name = "Reclaim", energy = 1, heal = 2, heal_scale = 3, credit_cost = 8, copies = 1}])
 	## Cheap, fast, and not very good — which is Redline. Free to play and it
 	## replaces itself, so it costs a card slot rather than a turn, and Chop Shop
-	## (3-set, draw 1 extra) is a house that can afford to run thin cards.
+	## (3-set, draw 1 extra) is a manufacturer that can afford to run thin cards.
 	_module(&"bodge", "Bodge Kit", &"redline", U, C0,
 		"Foam, tape, and no paperwork. Still flying? Then we did our job.",
 		[{name = "Bodge", energy = 0, heal = 1, heal_scale = 5, draw = 1, copies = 2}])
@@ -719,7 +719,7 @@ func _seed_modules() -> void:
 	_module(&"menders", "Mender Swarm", &"cygnet", S, C2,
 		"They find the hole before you do. Nobody has asked how.",
 		## A SWARM THAT STAYS. This was the yard's Patch to the decimal — same
-		## energy, same 1, same scale of 5 — on a rare part of a house that does
+		## energy, same 1, same scale of 5 — on a rare part of a manufacturer that does
 		## not repair by hand. Cygnet sends things, so the repair leaves the things
 		## behind: it patches the hole and screens what it patched.
 		[{name = "Mend", energy = 1, heal = 2, heal_scale = 6, drone_brace = 2,
@@ -761,7 +761,7 @@ func _seed_modules() -> void:
 	# There has to be an ANSWER to junk or it is only arithmetic. A malfunction
 	# now charges you at the end of the turn if you are still holding it, which
 	# makes it a question — and these are what you answer it with. Spread across
-	# houses rather than sold by one, because every ship gets junk and a mechanic
+	# manufacturers rather than sold by one, because every ship gets junk and a mechanic
 	# only one manufacturer can address is a mechanic six of them play around.
 	# COMMON, not uncommon. It grants two shared cards and nothing of its own,
 	# which is the definition of yard stock — and the rarity law is what caught
@@ -785,10 +785,10 @@ func _seed_modules() -> void:
 	# something.
 	#
 	# Unbranded, so they count toward no set. A ship launches with its hull and
-	# ONE weapon from its maker, which is two of the three you need — the third
+	# ONE weapon from its manufacturer, which is two of the three you need — the third
 	# is out there.
 	# Three of each slot, so a frame of any shape can fill itself from stock.
-	# The kit is one shape and the frames are not — four makers drop a weapon
+	# The kit is one shape and the frames are not — four manufacturers drop a weapon
 	# mount, three add a utility — so without a spread here the top-up ran out
 	# of things that fit and fell back on bolting on a second identical plate.
 	_module(&"beam", "Mining Laser", &"", W, C0,
@@ -911,8 +911,8 @@ func _seed_modules() -> void:
 	# the Verity five-set, where there are exactly three of it and it can be
 	# reasoned about. What these sell is ROOM.
 	#
-	# Four houses and the yard, and not the other three, because a power bus is a
-	# thing a maker has an opinion about: Solari runs the reactor, the Combine
+	# Four manufacturers and the yard, and not the other three, because a power bus is a
+	# thing a manufacturer has an opinion about: Solari runs the reactor, the Combine
 	# pulls one out of something else, Redline adds cable, and Korvan overbuilds
 	# the armature. Cygnet, Verity and Calyx have nothing to say about it.
 	_module(&"buscoupling", "Bus Coupling", &"", S, C0,
@@ -1174,11 +1174,11 @@ func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 ## AUTHORED AS BASELINE + SIGNATURE, not as twenty-four stat blocks. Weight class
 ## decides the shape of a ship — a light frame is fast and thin whoever welded
 ## it — and the manufacturer decides how that shape is bent. Writing all
-## twenty-four out by hand would scatter each maker's identity across three
+## twenty-four out by hand would scatter each manufacturer's identity across three
 ## rows, so "what IS Solari" would only be answerable by diffing three tables,
 ## and a signature could drift between weights without anyone noticing.
 ##
-## Here it is one line per maker. Solari is +8 heat capacity, -1 dissipation and
+## Here it is one line per manufacturer. Solari is +8 heat capacity, -1 dissipation and
 ## -2 stealth, on every frame it builds. That is the whole manufacturer.
 ##
 ## DISSIPATION IS SMALL ON PURPOSE — one or two a turn, four at the very top.
@@ -1280,13 +1280,13 @@ const TIER_DELTA := [
 	{scale = 1.52, weapon = 1, system = 1, reactor = 8, dissipation = 1},
 ]
 
-## Per-maker deltas applied on top, and the three names. `names` runs
+## Per-manufacturer deltas applied on top, and the three names. `names` runs
 ## light, medium, heavy.
-const MAKER_HULLS := {
+const MANUFACTURER_HULLS := {
 	&"korvan": {
 		names = ["Picket Cutter", "Ironside Cutter", "Bastion Monitor"],
 		# A NAME PER CLASS, C through S. `names` above stays as the fallback for
-		# a house that has not been given twelve yet, and its entry is the C of
+		# a manufacturer that has not been given twelve yet, and its entry is the C of
 		# each line here, so nothing that shipped changed its name.
 		#
 		# The escalation is inside the family rather than across it: a Korvan
@@ -1331,7 +1331,7 @@ const MAKER_HULLS := {
 			sensors = 1, stealth = 2}},
 	&"cygnet": {
 		names = ["Fledgling", "Brood Tender", "Rookery"],
-		# Was spare_bay. Drones are cards, and a drone house wants more of
+		# Was spare_bay. Drones are cards, and a drone manufacturer wants more of
 		# them in hand -- which is also why this one is NOT Redline's, whose
 		# 3-set already draws an extra card and would have stacked with it.
 		perk_id = &"quick_hands",
@@ -1342,7 +1342,7 @@ const MAKER_HULLS := {
 		perk_id = &"overspec_reactor",
 		d = {max_hull = -2, reactor = 1, hand_size = -1, dodge = 0.05, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, stealth = 1, weapon_slots = -1}},
-	# Strongest maker at every weight, measured twice. The hull bonus is the part
+	# Strongest manufacturer at every weight, measured twice. The hull bonus is the part
 	# that had no business being there: Calyx is regeneration and adaptation, not
 	# armour, and +2 max hull on top of the extra system mount and the best
 	# dissipation in the game made its heavy the best chassis by six points.
@@ -1357,7 +1357,7 @@ const MAKER_HULLS := {
 func _seed_hulls() -> void:
 	# The unbranded three, kept exactly as this game shipped them. A derelict has
 	# to be able to offer a chassis that carries no allegiance — it is what keeps
-	# "identity is assembled mid-run" true after choosing a maker at the start,
+	# "identity is assembled mid-run" true after choosing a manufacturer at the start,
 	# because taking a salvage frame COSTS you a set piece.
 	var salvage := [
 		{name = "Skiff Frame", weight = HullData.Weight.LIGHT},
@@ -1376,28 +1376,28 @@ func _seed_hulls() -> void:
 		set_exhaust(h, h.exhaust_id)
 		hull_frames.append(h)
 
-	for man in MAKER_HULLS:
-		var spec: Dictionary = MAKER_HULLS[man]
+	for manufacturer in MANUFACTURER_HULLS:
+		var spec: Dictionary = MANUFACTURER_HULLS[manufacturer]
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
-			hull_frames.append(_maker_hull(man, w, spec))
+			hull_frames.append(_manufacturer_hull(manufacturer, w, spec))
 
-## What a maker calls a hull at a given class.
+## What a manufacturer calls a hull at a given class.
 ##
-## Falls back to the one-name-per-weight list, which is what every house had
-## before and what six of the seven still have. A house with `class_names` gets
+## Falls back to the one-name-per-weight list, which is what every manufacturer had
+## before and what six of the seven still have. A manufacturer with `class_names` gets
 ## four distinct ships per weight instead of four grades of the same ship —
 ## which is the difference between "Picket Cutter, C TIER" and a Sabre Cutter.
-func maker_hull_name(man: StringName, w: HullData.Weight, cls: int = 0) -> String:
-	if not MAKER_HULLS.has(man):
+func manufacturer_hull_name(manufacturer: StringName, w: HullData.Weight, cls: int = 0) -> String:
+	if not MANUFACTURER_HULLS.has(manufacturer):
 		return ""
-	var spec: Dictionary = MAKER_HULLS[man]
+	var spec: Dictionary = MANUFACTURER_HULLS[manufacturer]
 	if spec.has("class_names"):
 		var rows: Array = spec.class_names
 		var row: Array = rows[int(w)]
 		return row[clampi(cls, 0, row.size() - 1)]
 	return spec.names[int(w)]
 
-func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullData:
+func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dictionary) -> HullData:
 	var h := HullData.new()
 	var base: Dictionary = WEIGHT_BASE[w]
 	for k in base.keys():
@@ -1415,11 +1415,11 @@ func _maker_hull(man: StringName, w: HullData.Weight, spec: Dictionary) -> HullD
 	h.dodge = maxf(0.0, h.dodge)
 	h.fuel_factor = maxf(0.5, h.fuel_factor)
 	# WEIGHT_BASE holds stats, not identity, so the weight itself is not among
-	# the keys copied above. Without this every maker hull stayed at HullData's
-	# default MEDIUM and hull_for(man, LIGHT) matched nothing.
+	# the keys copied above. Without this every manufacturer hull stayed at HullData's
+	# default MEDIUM and hull_for(manufacturer, LIGHT) matched nothing.
 	h.weight = w
-	h.manufacturer = man
-	h.name = maker_hull_name(man, w, 0)
+	h.manufacturer = manufacturer
+	h.name = manufacturer_hull_name(manufacturer, w, 0)
 	h.perk_id = spec.perk_id
 	h.sprite = hull_sprite(w)
 	h.sprite_half = hull_sprite(w, 0, true)
@@ -1460,7 +1460,7 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false) -> Textur
 	if n == "":
 		return null
 	# One folder per manufacturer. Korvan is hardcoded because it is the only
-	# one with art; when Solari and the rest arrive this takes a maker argument
+	# one with art; when Solari and the rest arrive this takes a manufacturer argument
 	# and the filenames stay identical inside each folder.
 	var sub := "half/" if half else ""
 	return load("res://art/sprites/hulls/korvan/%s%s.png" % [sub, n]) as Texture2D
@@ -1541,7 +1541,7 @@ func apply_hull_lines(h: HullData) -> void:
 ## fail loudly.
 ##
 ## These SUPERSEDE HULL_LINES where they exist; the lines remain the
-## fallback for a maker whose slot count this rigging does not cover.
+## fallback for a manufacturer whose slot count this rigging does not cover.
 ## See HullData.mounts_along().
 const HULL_MOUNTS := {
 	"hull_light_c": {
@@ -1633,7 +1633,7 @@ const HULL_EXHAUST := {
 ## that fails loudly. `-- mounts` is what makes it fail loudly.
 ##
 ## Lines rather than points, because a hull carries one to five mounts of a kind
-## depending on weight, class and maker — a fixed list of five used two at a time
+## depending on weight, class and manufacturer — a fixed list of five used two at a time
 ## clusters both at one end of the ship. See HullData.mounts_along().
 ##
 ## Plain Vector2 arrays, not PackedVector2Array: the packed constructor is a CALL
@@ -1821,29 +1821,29 @@ func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
 ##
 ## AUTHORED BUT NOT DISPLAYED. The screens print plain LIGHT / MEDIUM / HEAVY,
 ## because that is what reads for a player: weight class is the fact you compare
-## ACROSS makers, and this turns one shared word into twenty-one to learn. Kept
+## ACROSS manufacturers, and this turns one shared word into twenty-one to learn. Kept
 ## because the names are content rather than code, and the moment there is
 ## somewhere flavour costs nothing — a tooltip, a shipyard, a flight record —
 ## hull_class() is already here.
 ##
-## Real vessel types, one coherent family per maker, escalating in size. This is
+## Real vessel types, one coherent family per manufacturer, escalating in size. This is
 ## free identity: a Probate heavy called a Barge and a Verity heavy called a
-## Barque tell you who built them before you have read the maker name, and the
+## Barque tell you who built them before you have read the manufacturer name, and the
 ## hull names were already doing this work while the line underneath them said a
 ## flat "HEAVY CHASSIS".
 ##
-## Korvan and Solari are the two warship lines because they are the two houses
+## Korvan and Solari are the two warship lines because they are the two manufacturers
 ## that mirror each other mechanically. Probate gets working boats: nobody names a
 ## barge to impress you. Redline gets fast rigs and a smuggling term. Cygnet gets
 ## the three real vessel types that exist to carry OTHER vessels, which is the
-## house motto stated as a hull class. Verity gets sailing rigs, where the rig
+## manufacturer motto stated as a hull class. Verity gets sailing rigs, where the rig
 ## itself is the craftsmanship. Calyx gets the three real hulls with no cut
 ## timber and no metal in them at all: a coracle is woven willow under a stretched
 ## hide, a pirogue is one hollowed tree, and an umiak is driftwood ribs under
 ## sewn skin, big enough to carry a whole crew. Grown, not built, literally.
 ##
 ## The MECHANICAL word is not replaced by these, only fronted. Weight class is
-## what a player compares across makers, and this turns one shared word into
+## what a player compares across manufacturers, and this turns one shared word into
 ## twenty-one — so `HullData.weight_name()` stays, and the screens print both.
 const CLASS_NAMES := {
 	&"korvan":  ["Cutter", "Frigate", "Monitor"],
@@ -1855,20 +1855,20 @@ const CLASS_NAMES := {
 	&"calyx":   ["Coracle", "Pirogue", "Umiak"],
 }
 
-## The maker's name for a weight class, or the plain word for an unbranded frame.
+## The manufacturer's name for a weight class, or the plain word for an unbranded frame.
 ##
 ## Not called class_name() — that is a GDScript keyword.
-func hull_class(man: StringName, w: HullData.Weight) -> String:
-	if CLASS_NAMES.has(man):
-		return CLASS_NAMES[man][int(w)]
+func hull_class(manufacturer: StringName, w: HullData.Weight) -> String:
+	if CLASS_NAMES.has(manufacturer):
+		return CLASS_NAMES[manufacturer][int(w)]
 	return HullData.weight_name(w)
 
 ## The hull a manufacturer builds in a given weight class. Lookup by value
 ## rather than by index: an index would work today and break the moment anyone
 ## reorders the tables above, which is exactly the edit those tables invite.
-func hull_for(man: StringName, w: HullData.Weight = HullData.Weight.MEDIUM) -> HullData:
+func hull_for(manufacturer: StringName, w: HullData.Weight = HullData.Weight.MEDIUM) -> HullData:
 	for h in hull_frames:
-		if h.manufacturer == man and h.weight == w:
+		if h.manufacturer == manufacturer and h.weight == w:
 			return h
 	return null
 
@@ -1901,7 +1901,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# THE GRADE'S PERKS, alongside the reactor and the hardpoints it already
 	# grants. Cumulative and authored — see TIER_PERKS.
 	#
-	# See TIER_PERKS on why every house ends up with the same four at S.
+	# See TIER_PERKS on why every manufacturer ends up with the same four at S.
 	h.tier_perks = tier_perks_for(h.manufacturer, t)
 	h.sprite = hull_sprite(h.weight, t)
 	h.sprite_half = hull_sprite(h.weight, t, true)
@@ -1910,13 +1910,13 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	# AND THE NAME. A class already grants a different sprite, different
 	# hardpoints and a different reactor; leaving four of them sharing one name
 	# meant the only thing telling a Sabre from a Picket was a letter in the
-	# subtitle. Salvage frames keep theirs — they have no house to name them.
-	var named := maker_hull_name(h.manufacturer, h.weight, t)
+	# subtitle. Salvage frames keep theirs — they have no manufacturer to name them.
+	var named := manufacturer_hull_name(h.manufacturer, h.weight, t)
 	if named != "":
 		h.name = named
 	return h
 
-## WHAT EACH GRADE ADDS, per house, in order. C takes none, B the first, A the
+## WHAT EACH GRADE ADDS, per manufacturer, in order. C takes none, B the first, A the
 ## first two, S all three — cumulative, so upgrading a hull only ever adds.
 ##
 ## Authored rather than rolled. A hull is a thing you recognise: two Bastions
@@ -1926,7 +1926,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## WEAKEST FIRST, STRONGEST LAST, so a grade is worth what it costs. The pool
 ## is not flat: +1 energy a turn is a fifth of a whole turn's budget forever,
 ## +1 utility mount is a permanent extra part, and +40% on scrap is money you
-## still have to go and earn. The strongest one a house can get is its S.
+## still have to go and earn. The strongest one a manufacturer can get is its S.
 ##
 ## `spare_bay` IS GONE FROM THE GAME, and for a harder reason than balance:
 ## it granted a utility HARDPOINT, and a hardpoint is a place on a hull that
@@ -1941,9 +1941,9 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## already records that halving repair prices across a whole game moved the
 ## win rate inside its own noise band. It is the one perk measured to do
 ## nothing, and a grade whose reward is a proven no-op is a grade that lies.
-## Which leaves four working perks and a house owning one: every ladder is
-## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT HOUSES NOW
-## CARRY THE SAME FOUR PERKS. The grades separate; the houses stop separating
+## Which leaves four working perks and a manufacturer owning one: every ladder is
+## therefore the other three, and TWO S-TIER SHIPS OF DIFFERENT MAKES NOW
+## CARRY THE SAME FOUR PERKS. The grades separate; the manufacturers stop separating
 ## at the top. Widening the pool with perks that work is the fix, and until
 ## there are some, this is the honest arrangement rather than a varied one
 ## built out of a perk that does nothing.
@@ -1957,12 +1957,12 @@ const TIER_PERKS := {
 	&"calyx":   [&"salvage_rack", &"heat_sink", &"quick_hands"],
 }
 
-## The perks a grade confers on a hull of this house. Empty at C.
-func tier_perks_for(man: StringName, tier: int) -> Array[StringName]:
+## The perks a grade confers on a hull of this manufacturer. Empty at C.
+func tier_perks_for(manufacturer: StringName, tier: int) -> Array[StringName]:
 	var out: Array[StringName] = []
-	if not TIER_PERKS.has(man):
+	if not TIER_PERKS.has(manufacturer):
 		return out
-	var ladder: Array = TIER_PERKS[man]
+	var ladder: Array = TIER_PERKS[manufacturer]
 	for i in mini(clampi(tier, 0, 3), ladder.size()):
 		out.append(ladder[i])
 	return out
@@ -2317,9 +2317,9 @@ Retain for your records. Cygnet does not retain a copy.")
 
 I am not going back down. I will go back down.")
 
-	_doc(&"rate_schedule", "POSTED RATE, THERMAL — REVISION 209", "a posting clerk, house not stated",
+	_doc(&"rate_schedule", "POSTED RATE, THERMAL — REVISION 209", "a posting clerk, manufacturer not stated",
 		"revision two hundred and nine", &"", 4,
-		"Rate per banked unit, all houses, all berths, effective immediately and until revised.
+		"Rate per banked unit, all manufacturers, all berths, effective immediately and until revised.
 
 [figure struck out and rewritten in the same figure]
 
@@ -2404,13 +2404,13 @@ He says he does not know why he did not go in and that this is the part he wants
 
 Not for filing. He would not take a drink and he would not take the money.")
 
-	_doc(&"vault_routing", "ROUTING MANIFEST, BANKED THERMAL", "a logistics clerk, house not stated",
+	_doc(&"vault_routing", "ROUTING MANIFEST, BANKED THERMAL", "a logistics clerk, manufacturer not stated",
 		"undated, appended to a formatting query", &"", 8,
 		"Raising this as a formatting fault rather than an operational one.
 
-The destination field on every thermal manifest crossing this desk resolves to a code in three segments. Segment one is the house. Segment two is the berth of origin. Segment three is the destination and is supposed to be a location.
+The destination field on every thermal manifest crossing this desk resolves to a code in three segments. Segment one is the manufacturer. Segment two is the berth of origin. Segment three is the destination and is supposed to be a location.
 
-It is not a location. It is not in the location tables, it does not parse as a bearing, and it is identical on all seven houses' manifests, which it should not be.
+It is not a location. It is not in the location tables, it does not parse as a bearing, and it is identical on all seven manufacturers' manifests, which it should not be.
 
 It parses as a temperature.
 
@@ -2449,8 +2449,8 @@ Kitchen to note: hot meals, second watch, the whole way out, his standing order.
 
 The grey flour goes back to Herron. Third time now.")
 
-	_doc(&"asphodel_claim", "FILING 214-C, THE ASPHODEL", "a claims officer, The Dredge Combine",
-		"filing year 9,904", &"dredge", 3,
+	_doc(&"asphodel_claim", "FILING 214-C, THE ASPHODEL", "a claims officer, The Probate Combine",
+		"filing year 9,904", &"probate", 3,
 		"Reviewed annual per standing order, claim 214-C, the ASPHODEL, hull and cargo arising. Open. Nothing arisen.
 
 Same note as last year and I will keep making it while I hold this desk: oldest claim on the register, carried in from the register before this one, unsigned, which they allowed then. If the Combine wants my opinion, the officer who filed it is longer dead than some of what we salvage. Recommend closure.
@@ -2459,8 +2459,15 @@ Declined above my signature, same hand as last year, same words: we do not close
 
 Down the reach they say the berth is still lit for her. Dock talk. Reviewed, open, next year.")
 
-	_doc(&"halcyon_attendance", "ATTENDANCE, COMMISSION 311", "a service supervisor, Halcyon",
-		"commission three hundred and eleven, ninety-first attendance", &"halcyon", 5,
+	# RENAMED 2026-08-24. These two were `halcyon_*` until the manufacturer
+	# rename reached the archive. Free to do here because nobody is playing yet
+	# — but the hazard is permanent and worth knowing before the next one:
+	# Archive._load() filters found ids against DB.documents and drops what it
+	# does not recognise, so renaming a document id retires every discovery of
+	# it, silently. `asphodel_claim` kept its id — it is named for the ship, not
+	# the manufacturer.
+	_doc(&"verity_attendance", "ATTENDANCE, COMMISSION 311", "a service supervisor, Verity",
+		"commission three hundred and eleven, ninety-first attendance", &"verity", 5,
 		"Attendance ninety-one, commission 311. Out and back eleven days, crew of two, allowance claimed for both.
 
 Work: forward hatch reseated, one plate faired where something had leaned on it, name repainted. Eight letters, and the paint we carry is matched to her first coat, the tin says so in a hand nobody at the yard writes anymore.
@@ -2469,13 +2476,13 @@ She sat where the schedule had her. She always sits where the schedule has her. 
 
 Owner absent, as since the fourth attendance. Obligation unaffected. Next attendance is in the schedule.")
 
-	_doc(&"halcyon_exemplar", "EXAMINATION, NOTARY'S SEAL", "an examiner, Halcyon",
-		"exemplar volume forty", &"halcyon", 5,
+	_doc(&"verity_exemplar", "EXAMINATION, NOTARY'S SEAL", "an examiner, Verity",
+		"exemplar volume forty", &"verity", 5,
 		"Six candidates today, passed four. Room too cold again, told Wren about the stove, Wren says talk to the yard, the yard says talk to Wren.
 
 Countersign exercise from the current exemplar, third sheet passes for all four, usual. One asked the usual question too, why the exemplar volumes are not sorted by author when the countersign in volume forty and the countersign in volume one are the same hand. Gave the syllabus answer, they are sorted by author. He looked at me the way they all look at me and I gave him his seal.
 
-Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this house, everything is in perpetuity except the heat.")
+Tomorrow, eight more. Wren says the stove is my problem. The stove is nobody's problem, that is the trouble with this company, everything is in perpetuity except the heat.")
 
 	_doc(&"denial_notice", "NOTICE OF DENIAL", "a claims adjuster, underwriters not named",
 		"policy year forty-four", &"", 4,
@@ -2489,7 +2496,7 @@ Appeal lies within the term. He signed the form like a man paying a toll and tha
 
 	_doc(&"rendering_account", "RENDERING ACCOUNT, ONE CARCASS", "a rendering foreman",
 		"season's books", &"", 2,
-		"One adult, taken at the mouth of Kestrel Reach. The Dredge man was at the gate before we had her half in, waved his claim, settled at the standard cut.
+		"One adult, taken at the mouth of Kestrel Reach. The Probate man was at the gate before we had her half in, waved his claim, settled at the standard cut.
 
 Oil, eleven barrels. Plate-bone graded and sold. Organs forward at posted. A spotter's tag out of the left flank, logged, sent back up to the post like they ask.
 
@@ -2527,9 +2534,9 @@ Bundle to binding on the fourth. No word on when the twelfth is commissioned, or
 
 	_doc(&"audit_minute", "AUDIT MINUTE, THERMAL ACCOUNTS", "an auditor, engagement not stated",
 		"audit year not entered", &"", 7,
-		"Thermal deliveries sampled across seven berths, one to a house, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
+		"Thermal deliveries sampled across seven berths, one to a manufacturer, receipt numbers running seven figures. Weighed, receipted, paid at posted, every one, and I will say for the berths that their paper is cleaner than most of what this profession walks through.
 
-The seller keeps the receipt. The house keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
+The seller keeps the receipt. The manufacturer keeps nothing. I confirmed that at head office level for all seven, in writing, and the confirmations came back by return post as if I had asked the colour of the sky.
 
 I was twenty years at grain accounts. A granary that pays on the scale and keeps no tally of what came over it, I would have had shut by winter. I put the question to the engagement partner in those words, and the minute records that the question was put.
 
@@ -2553,7 +2560,7 @@ Asked him straight this time, what do you do with it. He laughed. He said same a
 
 Next meet is fixed for after the dark quarter. Bring the small cells too, he says, he will take those now as well.")
 
-	_doc(&"expense_claim", "EXPENSE CLAIM, DISALLOWED", "a finance clerk, house not stated",
+	_doc(&"expense_claim", "EXPENSE CLAIM, DISALLOWED", "a finance clerk, manufacturer not stated",
 		"claim period as stamped", &"", 7,
 		"Hazard claim, four crew, deep transit to the core approach and return, standard rate sought for the days out.
 
@@ -2563,15 +2570,15 @@ Passed it up rather than deny twice, which is allowed at my discretion, and my d
 
 Ledger note: none of the four has taken deep work since. The postings sit a week now.")
 
-	_doc(&"seven_clauses", "NON-RETURN, ALL HOUSES", "a contracts clerk, compiled for training",
+	_doc(&"seven_clauses", "NON-RETURN, ALL SEVEN", "a contracts clerk, compiled for training",
 		"undated, marked CURRENT", &"", 0,
-		"For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each house's own words. Check them against the registry, that is what it is for.
+		"For the training intake, who asked what happens when a contractor does not come back, and wanted more than the short answer. Compiled from the standard terms as filed, one line in each manufacturer's own words. Check them against the registry, that is what it is for.
 
 Korvan, clause nine: the line of credit closes and accounts settle against the hull.
 Solari: unspent advances revert to the schedule.
-Dredge: the Combine's claim to the wreckage precedes the wreckage.
+Probate: the Combine's claim to the wreckage precedes the wreckage.
 Redline: no clause on file.
-Halcyon: the company's obligation to the hull survives the owner.
+Verity: the company's obligation to the hull survives the owner.
 Cygnet: recovery, where undertaken, is recovery of equipment.
 Calyx: the specimen is retained.
 
@@ -2605,13 +2612,13 @@ Names go at the base where there is room. There is room.
 
 Gate hours unchanged. Mind the hoist chains, they have been greased.")
 
-	_doc(&"actuarial_note", "AMORTIZATION SCHEDULE, EXTRACT", "an actuarial clerk, house not stated",
+	_doc(&"actuarial_note", "AMORTIZATION SCHEDULE, EXTRACT", "an actuarial clerk, manufacturer not stated",
 		"revision eleven", &"", 2,
 		"Extract, revision eleven current, requested by the western office and sent with the usual reminder that extracts are not the schedule.
 
 A contracted hull amortizes by deliveries, not years. The assumption under that is loss, not wear, and it has held inside tolerance since the first drawing of the schedule, which is longer than the western office has existed, they may put that in their pipe.
 
-Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and houses, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
+Their actual question, whether there is a contractor column to match the hull column: there was. Struck at revision eleven. The figure sat still across grades, regions and manufacturers, too still to be worth the printing, one figure serves, it is folded into the hull line. Any first-year could confirm it from the loss books, and the western office is welcome to a first-year.
 
 Postage to their account.")
 
@@ -2690,13 +2697,13 @@ Your transfer to the rim posting is approved with regret, effective the first. T
 In hand at the foot: your nineteen is right. It was eleven the year I sat your desk, and it will not be nineteen next year. Nobody disputes your table. Go to the rim, the fishing is better than they say.")
 
 func _doc(id: StringName, title: String, by: String, dated: String,
-		house: StringName, depth: int, body: String) -> void:
+		manufacturer: StringName, depth: int, body: String) -> void:
 	var d := DocumentData.new()
 	d.id = id
 	d.title = title
 	d.by = by
 	d.dated = dated
-	d.house = house
+	d.manufacturer = manufacturer
 	d.depth = depth
 	d.body = body
 	documents[id] = d

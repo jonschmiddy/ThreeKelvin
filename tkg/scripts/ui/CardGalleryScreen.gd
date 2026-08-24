@@ -10,7 +10,7 @@ extends Control
 ## wrong for a week and nothing would say so.
 ##
 ## Grouped by manufacturer, because the banner, the emblem and the cut are the
-## one part of a card that is meaningless in isolation — a house's mark only
+## one part of a card that is meaningless in isolation — a manufacturer's mark only
 ## works if it does not look like the other six.
 ##
 ## Hovering lifts the card off the grid and opens a readout beside it. It is a
@@ -64,12 +64,12 @@ func _build() -> void:
 	# player actually asks: what does a Korvan utility put in my deck.
 	_filter = GalleryFilter.new()
 	_filter.setup([[
-		{key = &"house", label = "Manufacturer", options = GalleryFilter.house_options()},
+		{key = &"manufacturer", label = "Manufacturer", options = GalleryFilter.manufacturer_options()},
 	], [
 		{key = &"grade", label = "Grade", options = GalleryFilter.grade_options()},
 		{key = &"slot", label = "Slot", options = GalleryFilter.slot_options()},
 		{key = &"sort", label = "Sort", options = [
-			{value = &"house", text = "By house"},
+			{value = &"manufacturer", text = "By manufacturer"},
 			{value = &"grade", text = "By grade"}]},
 	]])
 	_filter.changed.connect(_on_filter)
@@ -98,9 +98,9 @@ func _build() -> void:
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_overlay)
 
-## GROUPED BY HOUSE OR BY GRADE, and filtered, from the bar above.
+## GROUPED BY MANUFACTURER OR BY GRADE, and filtered, from the bar above.
 ##
-## Houses first and the unbranded last: precursor and grown things have no
+## Manufacturers first and the unbranded last: precursor and grown things have no
 ## banner to compare, so they are not part of the comparison the grouping exists
 ## to make.
 ##
@@ -111,10 +111,10 @@ func _build() -> void:
 func _fill(col: VBoxContainer) -> int:
 	Widgets.clear(col)
 	var f: Dictionary = _filter.state() if _filter != null else {}
-	var house: Variant = f.get(&"house", &"")
+	var manufacturer: Variant = f.get(&"manufacturer", &"")
 	var grade: int = int(f.get(&"grade", -1))
 	var slot: int = int(f.get(&"slot", -1))
-	var by_grade: bool = f.get(&"sort", &"house") == &"grade"
+	var by_grade: bool = f.get(&"sort", &"manufacturer") == &"grade"
 
 	# EVERY CARD A DECK CAN BE HANDED, carried with the module that grants it,
 	# because the filters are questions about the PART as often as about the card.
@@ -122,10 +122,10 @@ func _fill(col: VBoxContainer) -> int:
 	var kept: Array = []
 	for k in DB.modules:
 		var m: ModuleData = DB.modules[k]
-		if house == &"(unbranded)":
+		if manufacturer == &"(unbranded)":
 			if m.manufacturer != &"":
 				continue
-		elif house != &"" and m.manufacturer != house:
+		elif manufacturer != &"" and m.manufacturer != manufacturer:
 			continue
 		if slot >= 0 and int(m.slot) != slot:
 			continue

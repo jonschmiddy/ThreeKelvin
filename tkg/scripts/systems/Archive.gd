@@ -12,7 +12,7 @@ extends RefCounted
 ##
 ## STORED, NOT DERIVED, and that is a deliberate departure from `Unlocks`.
 ##
-## Unlocks folds over `RunHistory` because the question it asks — "which houses
+## Unlocks folds over `RunHistory` because the question it asks — "which manufacturers
 ## have you won with" — is answerable from the record. This one is not: a
 ## document is recovered at a node, in a galaxy that is gone the moment the run
 ## ends, and the record does not carry where you were standing when you read

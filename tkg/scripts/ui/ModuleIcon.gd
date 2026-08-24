@@ -27,10 +27,10 @@ const PAD := 4.0
 ##
 ## MEASURED, not picked, and PULLED BACK FROM 0.88 because the measurement was
 ## answering only half the question. The half it had was legibility: the art on
-## the ground is the house's own colour, so all 56 manufacturer-by-rarity
+## the ground is the manufacturer's own colour, so all 56 manufacturer-by-rarity
 ## pairings have to clear 3.0:1, and Verity's dark gold on a green ground is the
 ## one that binds. `-- holdtest` still holds that line and it is still the line a
-## new house colour breaks first.
+## new manufacturer colour breaks first.
 ##
 ## THE HALF IT DID NOT HAVE is whether the grades can be told apart AT ALL. A
 ## grade is read off a 30-pixel plate, and 0.88 leaves about a tenth of the
@@ -47,7 +47,7 @@ const PAD := 4.0
 ##     0.80   closest plates 7.4   Verity on Uncommon 3.03
 ##     0.76   closest plates 8.7   Verity on Uncommon 2.77  refused
 ##
-## 0.82 AND NOT 0.80 on purpose. 0.80 is the most the current house colours
+## 0.82 AND NOT 0.80 on purpose. 0.80 is the most the current manufacturer colours
 ## allow and it clears the floor by three hundredths, which means the next
 ## colour change starts failing the gate — correct behaviour, but a bill paid
 ## later for a difference of one unit now. The ceiling is Verity's #8a7340 and
@@ -244,13 +244,13 @@ func _get_drag_data(_at: Vector2) -> Variant:
 ## Drawn to the control's OWN size, not to SIZE.
 ##
 ## A 1x1 fitting and a 1x3 gun are the same icon at different footprints once
-## the hold is a grid, so the plate, the house stripe and the rarity border all
+## the hold is a grid, so the plate, the manufacturer stripe and the rarity border all
 ## measure themselves off `size`. Every existing use is a 44x44 cell and is
 ## unchanged by this; the glyph was already centre-relative.
 func _draw() -> void:
 	draw_plate(self, module, Rect2(Vector2.ZERO, size))
 
-## A PART, WHOLE, IN A RECTANGLE — plate, house stripe, silhouette and rarity
+## A PART, WHOLE, IN A RECTANGLE — plate, manufacturer stripe, silhouette and rarity
 ## edge. Static and rect-taking so the HULL can draw the identical thing at the
 ## identical size, which is the entire point: a 1x3 lance in the hold and the
 ## same lance bolted to the ship should be one object that moved, not two
@@ -274,23 +274,23 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 		scale: float = HOLD_K) -> void:
 	if m == null:
 		return
-	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
-	var mark: Color = maker.colour if maker != null else UITheme.COLD
+	var manufacturer: ManufacturerData = DB.manufacturers.get(m.manufacturer)
+	var mark: Color = manufacturer.colour if manufacturer != null else UITheme.COLD
 	var rar := ModuleData.rarity_colour(m.rarity)
 	# RARITY IS THE GROUND the part sits on — the whole plate, darkened until it
 	# is a tint rather than a colour, so five plates side by side sort by
 	# quality before anything is read.
 	ci.draw_rect(r, rar.lerp(UITheme.VOID, GROUND), true)
 
-	# AND THE HOUSE IS THE ART. Which is a bet on what the art is going to be:
+	# AND THE MANUFACTURER IS THE ART. Which is a bet on what the art is going to be:
 	# a generated Korvan gun and a generated Solari gun will not need a stripe
 	# to tell them apart, any more than the hulls do. Until those exist the
-	# silhouette is drawn in the house's own colour, which is the same claim
+	# silhouette is drawn in the manufacturer's own colour, which is the same claim
 	# made with the one channel a rectangle has.
 	#
 	# It cost a stripe, and that is the point of writing it down: the stripe was
 	# a reliable answer that does not depend on art that has not been made yet.
-	# If the generated parts turn out not to read as their house, this is the
+	# If the generated parts turn out not to read as their manufacturer, this is the
 	# commit to come back to.
 
 	# The silhouette, at THE SAME SIZE THE HULL DRAWS IT and standing whichever

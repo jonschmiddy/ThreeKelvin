@@ -442,7 +442,7 @@ func _stock_up() -> void:
 		if n.region == MapGen.Region.TERRITORY:
 			force = n.manufacturer
 		elif n.region == MapGen.Region.COSMOPOLITAN:
-			# Cosmopolitan hubs carry multiple makers side by side.
+			# Cosmopolitan hubs carry multiple manufacturers side by side.
 			force = Rng.pick(r, DB.manufacturers.keys())
 		var danger := n.danger + 3 if n.region == MapGen.Region.LAWLESS else maxi(1, n.danger - 2)
 		var m := LootGen.roll_module(danger, force, n.region == MapGen.Region.LAWLESS, r)
@@ -758,7 +758,7 @@ func _on_action(action: String, thing: Variant) -> void:
 	_refresh()
 
 
-## What this house wants doing, and what you can close standing here.
+## What this manufacturer wants doing, and what you can close standing here.
 ##
 ## Three groups, in the order a player acts on them: things you can be PAID for
 ## right now, then things you have already agreed to that this desk cannot close,
@@ -773,7 +773,7 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 	var hot := Run.heat_deliverable_at(n)
 	var mine := _open_elsewhere(n)
 
-	# The TAB goes at a station with no house behind it — see the fabricator's
+	# The TAB goes at a station with no manufacturer behind it — see the fabricator's
 	# note. An empty board with a heading is a page telling you about a thing
 	# that is not there.
 	_enable_tab(&"work", not (offers.is_empty() and ready.is_empty()
@@ -812,9 +812,9 @@ func _open_elsewhere(n: MapGen.MapNode) -> Array:
 		var job: ContractData = c
 		if job.state == ContractData.State.CLOSED:
 			continue
-		if ContractData.berth_of(n, job.house) and job.state == ContractData.State.READY:
+		if ContractData.berth_of(n, job.manufacturer) and job.state == ContractData.State.READY:
 			continue
-		if job.kind == ContractData.Kind.HEAT and ContractData.berth_of(n, job.house) \
+		if job.kind == ContractData.Kind.HEAT and ContractData.berth_of(n, job.manufacturer) \
 				and Run.heat >= job.amount:
 			continue
 		out.append(job)
@@ -827,15 +827,15 @@ func _offer_row(c: ContractData) -> Control:
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 6)
-	top.add_child(UITheme.body(DB.manufacturer_name(c.house).to_upper(),
-		DB.manufacturer_colour(c.house), UITheme.FS_SMALL))
+	top.add_child(UITheme.body(DB.manufacturer_name(c.manufacturer).to_upper(),
+		DB.manufacturer_colour(c.manufacturer), UITheme.FS_SMALL))
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(sp)
 	top.add_child(UITheme.body("%d cr" % c.pay, UITheme.ICE, UITheme.FS_SMALL))
 	box.add_child(top)
 
-	# The ask, in the house's own voice. The largest thing in the row, because it
+	# The ask, in the manufacturer's own voice. The largest thing in the row, because it
 	# is the only part a player reads twice.
 	var ask := UITheme.body(c.text, UITheme.CHILL, UITheme.FS_SMALL)
 	ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -860,8 +860,8 @@ func _deliver_row(c: ContractData, label: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	var what := UITheme.body("%s · %d cr" % [
-		DB.manufacturer_name(c.house).to_upper(), c.pay],
-		DB.manufacturer_colour(c.house), UITheme.FS_SMALL)
+		DB.manufacturer_name(c.manufacturer).to_upper(), c.pay],
+		DB.manufacturer_colour(c.manufacturer), UITheme.FS_SMALL)
 	row.add_child(what)
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL

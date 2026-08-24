@@ -222,16 +222,16 @@ var contracts: Array = []
 ## Handed out on acceptance so a contract can be referred to after it is closed.
 var next_contract_id: int = 1
 
-## What each house thinks of you, by id. Higher is better and it only goes up.
+## What each manufacturer thinks of you, by id. Higher is better and it only goes up.
 ##
 ## GOODS, NEVER SECRETS. `docs/lore.md` §2 rules that there is no promotion — no
-## rank, no inner circle, no point at which a house starts telling you things —
+## rank, no inner circle, no point at which a manufacturer starts telling you things —
 ## and that ruling stands unchanged. This is not a relationship, it is an
 ## account: deliver their work and their berths pay you better for your parts and
 ## carry more of their stock. They still never explain anything.
 ##
-## Deliberately not a reputation you can lose. A house that can be offended is a
-## house you can lock yourself out of by playing badly, which is a punishment for
+## Deliberately not a reputation you can lose. A manufacturer that can be offended is a
+## manufacturer you can lock yourself out of by playing badly, which is a punishment for
 ## the player who most needs the money.
 var standing: Dictionary = {}
 
@@ -358,17 +358,17 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 ## build can be flown at the grade it was designed around without playing to it.
 func fit_chassis(manufacturer: StringName = &"",
 		w: HullData.Weight = HullData.Weight.MEDIUM, tier: int = 0) -> void:
-	var man := manufacturer
-	if man == &"" or not DB.STARTER_WEAPON.has(man):
-		man = Rng.pick(Rng.derive(&"start", 1), DB.STARTABLE)
-	hull = DB.at_tier(DB.hull_for(man, w) as HullData, tier)
+	var chosen := manufacturer
+	if chosen == &"" or not DB.STARTER_WEAPON.has(chosen):
+		chosen = Rng.pick(Rng.derive(&"start", 1), DB.STARTABLE)
+	hull = DB.at_tier(DB.hull_for(chosen, w) as HullData, tier)
 	installed.clear()
 	# Only what fits. The kit is written per manufacturer but the hardpoints
 	# belong to the weight class, so a light frame launches with fewer modules
 	# than a heavy one carrying the same kit — you traded guns for speed and the
 	# loadout says so. Installing past the slot count would let the select screen
 	# hand you a ship the refit screen considers illegal.
-	for id in DB.starter_kit(man):
+	for id in DB.starter_kit(chosen):
 		var m := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
 		if slots_used(m.slot) >= slots_for(m.slot):
 			continue
@@ -718,7 +718,7 @@ func deck_size() -> int:
 ## from.
 ##
 ## The starting kit is one shape — a weapon, two systems, a utility — and the
-## frames are not. Four makers drop a weapon mount, so on a LIGHT frame their
+## frames are not. Four manufacturers drop a weapon mount, so on a LIGHT frame their
 ## generic weapon had nowhere to go and two cards vanished, while the same ship
 ## sat on spare system and utility mounts the kit could not reach. Probate,
 ## Cygnet, Verity and Calyx lights opened two cards down on Korvan's for no
@@ -1014,7 +1014,7 @@ func slots_used(s: ModuleData.Slot) -> int:
 			n += 1
 	return n
 
-## Modules from this maker, PLUS the hull if it built one.
+## Modules from this manufacturer, PLUS the hull if it built one.
 ##
 ## The hull counting is what makes choosing a chassis a build decision instead
 ## of a stat decision: a Korvan hull puts you one module from Standard Issue,
@@ -1053,7 +1053,7 @@ func has_set(id: StringName, threshold: int) -> bool:
 
 ## Ten, not six. Six cells could not separate twenty-one chassis: half the
 ## Thermal column landed on the same number and the difference between a Korvan
-## medium and a Solari medium — which is most of what those two makers ARE —
+## medium and a Solari medium — which is most of what those two manufacturers ARE —
 ## rounded away. Every constant below was rescaled with it, not multiplied
 ## through: the point of the wider scale is that the ships spread out in it.
 ## HOW MANY CELLS THE BAR DRAWS. NOT a ceiling on the value.
@@ -1126,7 +1126,7 @@ func attr_maneuver(bare: bool = false) -> int:
 ## Tender caps at 12 and vents 4, and the two terms cancelled so cleanly that
 ## the heat manufacturer and the drone manufacturer scored identically. Weighting
 ## capacity harder and subtracting a floor spreads it 2-6, with Solari at the
-## top where the whole maker says it should be.
+## top where the whole manufacturer says it should be.
 ##
 ## They are not interchangeable in fiction and must not be in the formula:
 ## capacity is how much you can take, dissipation is how fast you get rid of it,
@@ -2040,7 +2040,7 @@ func holds_contract(c: ContractData) -> bool:
 		var o: ContractData = other
 		if o.state == ContractData.State.CLOSED:
 			continue
-		if o.house == c.house and o.kind == c.kind and o.at == c.at \
+		if o.manufacturer == c.manufacturer and o.kind == c.kind and o.at == c.at \
 				and o.amount == c.amount and o.posted_at == c.posted_at:
 			return true
 	return false
@@ -2052,7 +2052,7 @@ func deliverable_at(n: MapGen.MapNode) -> Array:
 		var job: ContractData = c
 		if job.state != ContractData.State.READY:
 			continue
-		if ContractData.berth_of(n, job.house):
+		if ContractData.berth_of(n, job.manufacturer):
 			out.append(job)
 	return out
 
@@ -2069,7 +2069,7 @@ func heat_deliverable_at(n: MapGen.MapNode) -> Array:
 		if job.state != ContractData.State.TAKEN \
 				or job.kind != ContractData.Kind.HEAT:
 			continue
-		if ContractData.berth_of(n, job.house) and heat >= job.amount:
+		if ContractData.berth_of(n, job.manufacturer) and heat >= job.amount:
 			out.append(job)
 	return out
 
@@ -2085,9 +2085,9 @@ func deliver_contract(job: ContractData) -> void:
 		log_line("Offloaded %d heat. Weighed, receipted, gone." % job.amount, &"heat")
 	job.state = ContractData.State.CLOSED
 	add_credits(job.pay)
-	standing[job.house] = int(standing.get(job.house, 0)) + job.standing
+	standing[job.manufacturer] = int(standing.get(job.manufacturer, 0)) + job.standing
 	log_line("Delivered. %d credits. %s account in good order." % [
-		job.pay, DB.short_name(DB.manufacturer_name(job.house))], &"good")
+		job.pay, DB.short_name(DB.manufacturer_name(job.manufacturer))], &"good")
 	Sig.contracts_changed.emit()
 	Sig.resources_changed.emit()
 
@@ -2111,8 +2111,8 @@ func reach_contract_target(index: int) -> void:
 		log_line("Recovered: %s. Lashed to the frame and not yours yet." % job.item,
 			&"good")
 	if moved:
-		# The paperwork rides with the thing the house wanted back, and the
-		# house never asks what you read on the way. Fourth door, same hinge —
+		# The paperwork rides with the thing the manufacturer wanted back, and the
+		# manufacturer never asks what you read on the way. Fourth door, same hinge —
 		# see Archive.recover_at.
 		Archive.recover_at(map[index], "folded in with the contract cargo")
 		Sig.contracts_changed.emit()
@@ -2129,13 +2129,13 @@ func clear_contract_target(index: int) -> void:
 		job.state = ContractData.State.READY
 		moved = true
 		log_line("Contact removed. %s will want to hear about it." %
-			DB.short_name(DB.manufacturer_name(job.house)).to_upper(), &"good")
+			DB.short_name(DB.manufacturer_name(job.manufacturer)).to_upper(), &"good")
 	if moved:
 		Sig.contracts_changed.emit()
 
-## How well a house thinks of you. Zero for six of them, most of the time.
-func standing_with(house: StringName) -> int:
-	return int(standing.get(house, 0))
+## How well a manufacturer thinks of you. Zero for six of them, most of the time.
+func standing_with(manufacturer: StringName) -> int:
+	return int(standing.get(manufacturer, 0))
 
 ## What their berths pay OVER the going rate for your parts, as a fraction.
 ##
@@ -2149,14 +2149,14 @@ func standing_with(house: StringName) -> int:
 ## Capped, because bid is a fraction of ask and must stay one.
 const STANDING_BID := 0.05
 const STANDING_BID_MAX := 0.20
-func standing_bid_bonus(house: StringName) -> float:
-	return minf(float(standing_with(house)) * STANDING_BID, STANDING_BID_MAX)
+func standing_bid_bonus(manufacturer: StringName) -> float:
+	return minf(float(standing_with(manufacturer)) * STANDING_BID, STANDING_BID_MAX)
 
 func _contract_short(c: ContractData) -> String:
 	match c.kind:
 		ContractData.Kind.HEAT:
 			return "%d heat to %s" % [c.amount,
-				DB.short_name(DB.manufacturer_name(c.house))]
+				DB.short_name(DB.manufacturer_name(c.manufacturer))]
 		ContractData.Kind.HUNT:
 			return "a contact at %s" % MapGen.star_name(map[c.at]) if c.at >= 0 \
 				and c.at < map.size() else "a contact"
@@ -2166,7 +2166,7 @@ func _contract_short(c: ContractData) -> String:
 
 
 ## The open contract pointing at this system, or null. First match wins; two
-## houses wanting something from one place is legal and the chart only has room
+## manufacturers wanting something from one place is legal and the chart only has room
 ## to say so once.
 func contract_at(index: int) -> ContractData:
 	for c in contracts:
@@ -2176,7 +2176,7 @@ func contract_at(index: int) -> ContractData:
 	return null
 
 
-## Houses with something waiting to be handed over: a heat contract you are
+## Manufacturers with something waiting to be handed over: a heat contract you are
 ## carrying the heat for, or any job you have already finished out there.
 ##
 ## THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place
@@ -2184,15 +2184,15 @@ func contract_at(index: int) -> ContractData:
 ## at one and never had a target at all. Without it the chart answers "where is
 ## the work" and goes silent on "where do I take it", which is the half of the
 ## trip that actually costs fuel.
-func delivery_houses() -> Array:
+func delivery_manufacturers() -> Array:
 	var out: Array = []
 	for c in contracts:
 		var job: ContractData = c
 		if job.state == ContractData.State.READY \
 				or (job.state == ContractData.State.TAKEN
 					and job.kind == ContractData.Kind.HEAT):
-			if not out.has(job.house):
-				out.append(job.house)
+			if not out.has(job.manufacturer):
+				out.append(job.manufacturer)
 	return out
 
 
@@ -2202,7 +2202,7 @@ func delivery_houses() -> Array:
 ## Signing reveals WHERE, and nothing else. You are told a place exists and given
 ## its name, because a job that names a system you cannot find is a memory test;
 ## you are not told what is in it, how policed it is or who operates there,
-## because none of that was in the offer. The house said go here. It did not say
+## because none of that was in the offer. The manufacturer said go here. It did not say
 ## what here is.
 ##
 ## That asymmetry is the whole point and it is worth not smoothing away later: a

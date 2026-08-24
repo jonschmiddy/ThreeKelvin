@@ -19,7 +19,7 @@ const GAP := 1
 ##
 ## The base cells stay the MANUFACTURER's colour — that is the ship, and it is
 ## what makes a Solari row read as Solari before you have read a word. So the
-## bonus has to wear a colour no house flies, or it just reads as more chassis.
+## bonus has to wear a colour no manufacturer flies, or it just reads as more chassis.
 ##
 ## White is the one that is left. The seven accents are #d97b2e, #ef9f27,
 ## #b3924e, #e24b4a, #8a7340, #58c8d8 and #3f8f6b — between them they cover
@@ -66,7 +66,7 @@ func _measure_labels(rows: Array[Dictionary]) -> float:
 
 ## `accent` tints the filled cells. The chassis select passes the manufacturer's
 ## colour, which is what makes a Solari attribute row read as Solari before you
-## have read a word of it; the ship tab passes the hull's maker for the same
+## have read a word of it; the ship tab passes the hull's manufacturer for the same
 ## reason. Steel is the fallback for an unbranded frame.
 func setup(rows: Array[Dictionary], accent: Color = UITheme.CHILL) -> void:
 	_accent = accent
@@ -128,7 +128,7 @@ func _build_row(a: Dictionary) -> Control:
 ## It used to also print the value and a "Chassis 40, fitted modules +3" split.
 ## Both were repeating the row they were attached to — the cells and the number
 ## are an inch away, and the split is visible in the cells themselves, which
-## already paint the chassis in the house colour and anything fitted in white.
+## already paint the chassis in the manufacturer colour and anything fitted in white.
 ## A tooltip that restates what you are pointing at is a tooltip you stop reading.
 static func _hint(a: Dictionary) -> String:
 	return "%s\n%s" % [String(a.label).capitalize(), String(a.text)]

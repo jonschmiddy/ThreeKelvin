@@ -158,19 +158,19 @@ its engines out. Nothing throws and no test fails.
 ## 4b. Rigging: where it goes on the ship
 
 A strip is only half the job — something has to say which hull carries it and
-where. `art/tools/rig_bench.py <maker>` builds a self-contained page for that
-maker's hulls: drag the mounts, drop as many thrusters as the ship has engines,
+where. `art/tools/rig_bench.py <manufacturer>` builds a self-contained page for that
+manufacturer's hulls: drag the mounts, drop as many thrusters as the ship has engines,
 snap to align, save a `rigging.json`. `art/tools/read_rig.py` reads the newest
 export back (by mtime — the browser writes `rigging (23).json`, and those sort
 wrong alphabetically).
 
-**Nothing in it is written for one maker.** The hull folder, the roster, the slot
+**Nothing in it is written for one manufacturer.** The hull folder, the roster, the slot
 counts and the seed positions are all read from the repo when the page is built:
-`WEIGHT_BASE` sets a count, `TIER_DELTA` adds at A and S, and the house itself
+`WEIGHT_BASE` sets a count, `TIER_DELTA` adds at A and S, and the manufacturer itself
 changes it again — Probate trades a weapon for a utility. A page built by hand
-against one maker's numbers is quietly wrong for the next.
+against one manufacturer's numbers is quietly wrong for the next.
 
-Mounts seed from `HULL_LINES` run through the real `mounts_along()`, so a maker
+Mounts seed from `HULL_LINES` run through the real `mounts_along()`, so a manufacturer
 whose lines are measured opens on the status quo; one with art but no lines gets
 an even spread, which is something to drag rather than nothing.
 
@@ -178,7 +178,7 @@ an even spread, which is something to drag rather than nothing.
 negative offset, so a bare hull cannot show a thruster at all. Every Korvan hull
 carries 76px on the left — the widest exhaust frame in the library — added by
 `scratch/pad_hulls.py`-style padding, with the bare originals kept in
-`hulls/<maker>/bare/`. Width only: the screens budget hull HEIGHT at 120, and a
+`hulls/<manufacturer>/bare/`. Width only: the screens budget hull HEIGHT at 120, and a
 taller canvas clips on two of them.
 
 ## 5. When it goes wrong

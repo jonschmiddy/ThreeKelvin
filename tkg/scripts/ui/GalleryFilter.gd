@@ -11,7 +11,7 @@ extends VBoxContainer
 ##
 ## Rows are DATA, not layout. A screen hands over a list of {key, label,
 ## options} and gets a bar back; the screen never touches a button. That is what
-## makes adding a grade or a house a one-line change in the caller rather than a
+## makes adding a grade or a manufacturer a one-line change in the caller rather than a
 ## row of hand-placed controls here.
 
 ## Emitted whenever any button is pressed, with the whole current selection as
@@ -103,15 +103,16 @@ func state() -> Dictionary:
 
 
 ## The two sets both galleries want, built here so they cannot disagree about
-## the order or the wording. House order comes from DB.manufacturers, which is
+## the order or the wording. Manufacturer order comes from DB.manufacturers,
+## which is
 ## the only place it is written down.
-## A BUTTON IS ONE WORD, and it is the word the house is CALLED, not the first
+## A BUTTON IS ONE WORD, and it is the word the manufacturer is CALLED, not the first
 ## token of its legal name. "The Probate Combine" split on spaces gives "The",
 ## which is a button that says nothing and sits next to six that say plenty.
 ##
 ## Leading articles are dropped first, which is the only rule needed: every
-## house in the game is named <Word> <Word> and one of them wears a "The".
-static func house_options() -> Array:
+## manufacturer in the game is named <Word> <Word> and one of them wears a "The".
+static func manufacturer_options() -> Array:
 	var out: Array = [{value = &"", text = "All"}]
 	for id in DB.manufacturers:
 		var name := String(DB.manufacturer_name(id))

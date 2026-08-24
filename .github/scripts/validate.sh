@@ -376,6 +376,86 @@ else
 	ok "python absent, skipped"
 fi
 
+step "One word for the thing: manufacturer"
+# A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
+# months with four words for one concept -- house, maker, man, manufacturer --
+# spread across 42 code files, a save key, a network wire key and eleven
+# documents. Ruled 2026-08-24: the word is `manufacturer`. They manufacture
+# parts for spaceships; they are corporations, not families, and `house`
+# imported a dynastic register the setting does not have.
+#
+# THE MATCH IS CASE-INSENSITIVE. It was not, at first, and `GROUPED BY HOUSE`,
+# `THE HOUSE PERK IS REROLLED` and eleven more upper-case comments walked
+# straight past a guard whose whole job was to catch them. A vocabulary check
+# that only sees one casing is a vocabulary check that lies.
+#
+# The archive prose in `Database._seed_documents` used to be exempt as a whole
+# function. It is not any more: the entries were rewritten, and the four
+# "house not stated" bylines now read "manufacturer not stated" -- which sits
+# fine beside their siblings "name torn off" and "station unnamed", because
+# that field is the archive's annotation and not the clerk's own sentence.
+# Where a literal swap would have broken a voice it was not taken: the examiner
+# complaining about the stove says "the trouble with this COMPANY", because
+# nobody says "manufacturer" about their own employer while cold.
+#
+# Three exemptions, all deliberate, all narrow:
+#
+#   1. The LAN idiom -- "friends in the house", "outside the house" -- is
+#      English about people under your roof, describing local-network play.
+#      Renaming it produces nonsense.
+#   2. "maker's mark" -- the stamp a craftsman leaves on the work. A real
+#      English term, used in an art prompt and in an insurance document.
+#   3. "Widowmaker" (a gun) and "gatehouse" (a building) are words that merely
+#      contain the string.
+#
+# If you are adding a fifth, the bar is: would a person say this out loud?
+# Two passes, because `man` needs one exemption the other words do not: the
+# archive is full of people, and "a man paying a toll" is not a schema word.
+# That skip is scoped to `man` alone -- `house` and `maker` are checked inside
+# the prose too, which is how the four bylines got found and rewritten.
+VOCAB=$(
+	{
+		# Pass A -- house/maker, everywhere, no prose exemption.
+		grep -rnwiE 'house|houses|maker|makers' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
+		# Pass B -- man/hull_man, everywhere except the archive's own prose.
+		awk '/^func _seed_documents/{skip=1} /^func /&&!/_seed_documents/{skip=0} !skip{print FILENAME":"FNR": "$0}' \
+			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null \
+			| grep -wiE 'man|hull_man'
+		grep -rnwiE 'man|hull_man' "$PROJECT/scripts" --include='*.gd' 2>/dev/null \
+			| grep -v "^$PROJECT/scripts/autoload/Database.gd:"
+	} | grep -viE 'widowmaker|gatehouse' \
+	  | grep -v "maker's mark" \
+	  | grep -v 'friends in the house' \
+	  | grep -v 'wrong for anyone outside the house'
+)
+
+# The same check for prose. docs/archive/ is out of scope on purpose -- those
+# files describe a moment and are kept stale deliberately.
+#
+# Two exemptions here that the code does not need: "house style", the
+# publishing idiom for a publication's own conventions, and the line in
+# docs/README.md that states the rule, which has to name the words it bans.
+VOCAB_DOCS=$(
+	grep -rnwiE 'house|houses|maker|makers' docs tkg/*.md 2>/dev/null \
+	  | grep -v '^docs/archive/' \
+	  | grep -viE 'widowmaker|gatehouse' \
+	  | grep -v "maker's mark" \
+	  | grep -v 'house style' \
+	  | grep -v 'never .house. or .maker.'
+)
+if [ -z "$VOCAB" ]; then
+	ok "no retired vocabulary in $PROJECT/scripts"
+else
+	bad "retired vocabulary (house/maker/man) outside the allow-list"
+	printf '%s\n' "$VOCAB" | head -n 20 | sed 's/^/        /'
+fi
+if [ -z "$VOCAB_DOCS" ]; then
+	ok "no retired vocabulary in the docs"
+else
+	bad "retired vocabulary in the docs"
+	printf '%s\n' "$VOCAB_DOCS" | head -n 20 | sed 's/^/        /'
+fi
+
 printf '\n'
 if [ $FAIL -ne 0 ]; then
 	printf '\033[31mVALIDATION FAILED\033[0m  logs in %s\n' "$LOG_DIR"
