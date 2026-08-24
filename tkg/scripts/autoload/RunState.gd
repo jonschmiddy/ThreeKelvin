@@ -792,6 +792,8 @@ func max_hp(bare: bool = false) -> int:
 
 func heat_cap(bare: bool = false) -> int:
 	var n := hull.heat_cap + heat_cap_bonus
+	if hull.has_perk(&"heat_sink"):
+		n += 2
 	if not bare:
 		for m in installed:
 			n += m.heat_cap
@@ -830,6 +832,12 @@ func fuel_factor(bare: bool = false) -> float:
 	if not bare:
 		for m in installed:
 			v += m.fuel_factor
+	# AFTER the modules, because it is a discount on what the ship actually
+	# burns rather than on the hull it started as. Multiplicative and small:
+	# this number prices every jump in the game, and the floor below it is
+	# there because a ship that drove it to zero would cross the galaxy free.
+	if hull.has_perk(&"deep_tanks"):
+		v *= 0.9
 	return maxf(0.3, v)
 
 ## HEAT SHEDS BETWEEN SYSTEMS, NOT ONLY BETWEEN TURNS.
@@ -987,15 +995,17 @@ func hand_size() -> int:
 	if hand_size_override > 0:
 		return hand_size_override
 	var h := hull.hand_size
+	if hull.has_perk(&"quick_hands"):
+		h += 1
 	if has_set(&"redline", 3):
 		h += 1
 	return h
 
 func slots_for(s: ModuleData.Slot) -> int:
-	var c := hull.slots_for(s)
-	if s == ModuleData.Slot.UTILITY and hull.has_perk(&"spare_bay"):
-		c += 1
-	return c
+	# NO PERK ADDS A MOUNT ANY MORE. `spare_bay` did, and a mount is a place on
+	# a hull that somebody rigged by hand -- the extra one had no anchor and
+	# landed wherever the fallback line put it.
+	return hull.slots_for(s)
 
 func slots_used(s: ModuleData.Slot) -> int:
 	var n := 0
@@ -1550,8 +1560,6 @@ func transfer_to_hull(h: HullData) -> void:
 	# Shed anything that no longer fits, cheapest first.
 	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		var cap: int = h.slots_for(s)
-		if s == ModuleData.Slot.UTILITY and h.has_perk(&"spare_bay"):
-			cap += 1
 		while slots_used(s) > cap:
 			var worst: ModuleData = null
 			for x in installed:

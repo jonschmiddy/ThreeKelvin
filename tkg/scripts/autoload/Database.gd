@@ -1318,16 +1318,23 @@ const MAKER_HULLS := {
 	# It also had the one perk we PROVED does nothing. cheap_parts halves repair
 	# prices, and cutting repair prices by 40% across the whole game moved the
 	# win rate inside its own noise band — so Redline was effectively flying
-	# without a perk. spare_bay gives it a mount instead, which suits a house
-	# whose whole business is refits.
+	# without a perk. It takes salvage_rack instead: a chop shop that registers
+	# no serials is a salvage yard with a shopfront. It had spare_bay for a
+	# while, which suited the refit business and asked for a hardpoint no hull
+	# was rigged to carry -- see the note in _seed_perks.
 	&"redline": {
 		names = ["Hairpin", "Switchback", "Blindside"],
-		perk_id = &"spare_bay",
+		# Was spare_bay. A chop shop that registers no serials is a salvage
+		# yard with a shopfront, so it takes the salvage perk outright.
+		perk_id = &"salvage_rack",
 		d = {max_hull = -3, dodge = 0.06, initiative = 1, fuel_factor = -0.1,
 			sensors = 1, stealth = 2}},
 	&"cygnet": {
 		names = ["Fledgling", "Brood Tender", "Rookery"],
-		perk_id = &"spare_bay",
+		# Was spare_bay. Drones are cards, and a drone house wants more of
+		# them in hand -- which is also why this one is NOT Redline's, whose
+		# 3-set already draws an extra card and would have stacked with it.
+		perk_id = &"quick_hands",
 		d = {max_hull = -3, dissipation = 1, dodge = 0.03, initiative = 1,
 			fuel_factor = -0.1, sensors = 2, utility_slots = 1, weapon_slots = -1}},
 	&"verity": {
@@ -1921,21 +1928,14 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## +1 utility mount is a permanent extra part, and +40% on scrap is money you
 ## still have to go and earn. The strongest one a house can get is its S.
 ##
-## `spare_bay` IS IN NO LADDER EITHER, and for a harder reason than balance:
-## it grants a utility HARDPOINT, and a hardpoint is a place on a hull that
+## `spare_bay` IS GONE FROM THE GAME, and for a harder reason than balance:
+## it granted a utility HARDPOINT, and a hardpoint is a place on a hull that
 ## somebody put there by hand. `HullData.mounts_along` prefers the anchors
-## authored for that sprite and falls back to a derived line when it is asked
-## for more mounts than there are anchors — so granting this to a house whose
-## hulls were never rigged for it does not add a mount where a mount belongs,
-## it adds one wherever the arithmetic lands. A perk that moves geometry needs
-## the geometry to exist first. It stays a HOUSE perk, on the two houses whose
-## hulls are drawn for it.
-##
-## WHICH LEAVES THE LADDERS SHORT. Three working perks minus the one a house
-## already owns is two, so five of the seven houses can only fill B and A and
-## their S grants nothing further. That is recorded here rather than papered
-## over: the ladder wants perks that are neither measured no-ops nor demands
-## on hand-placed anchors, and there are currently none left to give it.
+## authored for a sprite and falls back to a derived line when asked for more
+## mounts than there are anchors -- so the perk did not add a mount where a
+## mount belongs, it added one wherever the arithmetic landed. A perk that
+## moves geometry needs the geometry rigged first, and none of these hulls
+## are. Three perks that move only numbers replaced it.
 ##
 ## `cheap_parts` IS IN NO LADDER, and that is not an oversight — this file
 ## already records that halving repair prices across a whole game moved the
@@ -1948,13 +1948,13 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## there are some, this is the honest arrangement rather than a varied one
 ## built out of a perk that does nothing.
 const TIER_PERKS := {
-	&"korvan":  [&"salvage_rack", &"overspec_reactor"],
-	&"solari":  [&"salvage_rack", &"baffled_vents"],
-	&"probate": [&"baffled_vents", &"overspec_reactor"],
-	&"redline": [&"salvage_rack", &"baffled_vents", &"overspec_reactor"],
-	&"cygnet":  [&"salvage_rack", &"baffled_vents", &"overspec_reactor"],
-	&"verity":  [&"salvage_rack", &"baffled_vents"],
-	&"calyx":   [&"salvage_rack", &"overspec_reactor"],
+	&"korvan":  [&"salvage_rack", &"deep_tanks", &"overspec_reactor"],
+	&"solari":  [&"salvage_rack", &"heat_sink", &"baffled_vents"],
+	&"probate": [&"deep_tanks", &"heat_sink", &"overspec_reactor"],
+	&"redline": [&"deep_tanks", &"baffled_vents", &"quick_hands"],
+	&"cygnet":  [&"salvage_rack", &"deep_tanks", &"baffled_vents"],
+	&"verity":  [&"deep_tanks", &"heat_sink", &"quick_hands"],
+	&"calyx":   [&"salvage_rack", &"heat_sink", &"quick_hands"],
 }
 
 ## The perks a grade confers on a hull of this house. Empty at C.
@@ -1975,7 +1975,19 @@ func _seed_perks() -> void:
 		&"salvage_rack": {name = "Salvage Rack", text = "Scrapping modules pays +40%."},
 		&"baffled_vents": {name = "Baffled Vents", text = "+1 heat dissipation."},
 		&"overspec_reactor": {name = "Overspec Reactor", text = "+1 energy per turn."},
-		&"spare_bay": {name = "Spare Bay", text = "+1 utility hardpoint."},
+		# NO `spare_bay`. It granted a utility HARDPOINT, and a hardpoint is a
+		# place on a hull that somebody put there by hand -- `mounts_along` falls
+		# back to a derived line when asked for more mounts than a sprite has
+		# anchors, so the perk did not add a mount where a mount belongs, it
+		# added one wherever the arithmetic landed. A perk that moves geometry
+		# needs the geometry rigged first, and none of these hulls are.
+		#
+		# The three below ask nothing of any sprite. Every one of them moves a
+		# number that already exists and is already consumed somewhere, which is
+		# the property `cheap_parts` turned out not to have.
+		&"deep_tanks": {name = "Deep Tanks", text = "Every jump costs 10% less fuel."},
+		&"heat_sink": {name = "Heat Sink", text = "+2 heat capacity."},
+		&"quick_hands": {name = "Quick Hands", text = "+1 card a turn."},
 		&"cheap_parts": {name = "Cheap Parts", text = "Station repairs cost half."},
 	}
 

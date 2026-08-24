@@ -667,10 +667,10 @@ func _print_attribute_table() -> void:
 			var deck := 0
 			for mod in Run.installed:
 				deck += mod.grant_count()
-			# slots_for(), not the raw hull numbers: perks add mounts, and a table
-			# that prints 1/2/3 for a ship carrying four utilities is a table that
-			# makes you go looking for a bug in the fitting code. Cygnet's
-			# spare_bay is exactly that case.
+			# slots_for(), not the raw hull numbers. No perk adds a mount any more --
+			# spare_bay was the only one that did and it is gone -- but the set
+			# bonuses and the hull perks still reach these numbers, and a table that
+			# disagrees with the ship sends you looking for a bug in the fitting code.
 			print("%-18s %s  %3d/%3d/%3d/%.2f/%+d/%.1f   %d/%d/%d    %d %4d %4d  %s %d" % [
 				Run.hull.name, row, Run.hp, Run.heat_cap(), Run.dissipation(),
 				Run.dodge(), Run.initiative(), Run.fuel_factor(),
