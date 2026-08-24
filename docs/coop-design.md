@@ -512,7 +512,7 @@ Measured against `main`, not assumed.
 
 | # | Ruling | Blocks |
 |---|---|---|
-| 1 | **Does the solo game become extraction too, or stay a roguelite?** One model is far less balance work and reuses everything. Two modes doubles it. *Lean: one model.* | Everything. This is the top ruling. |
+| 1 | **Does the solo game become extraction too, or stay a roguelite?** One model is far less balance work and reuses everything. Two modes doubles it. *Lean: one model.* **This is the same question `DEVELOPMENT_PLAN.md` carried as its open ruling #11, rescued here 2026-08-24 when that file was trimmed.** Its framing is worth keeping: §16.1 *overturns the no-meta-progression ruling stated in `RunHistory.gd` and `design-doc.md`* — persistent collection, per-dive credits, win = reach the rim alive. Whichever way it goes, those two files have to be corrected or confirmed in the same pass. | Everything. This is the top ruling. Decide before the economy is tuned. |
 | 2 | Party size floor. Four is the target. Is a solo dive a first-class mode or a practice range? | Tuning of §6, §7, §13 |
 | 3 | Wreck decay rate, and whether it has a floor | Rescue urgency; how much cold gets in |
 | 4 | Does dead-player sight cover the whole chart or only nearby nodes | Balance of the §11 Hanabi split |

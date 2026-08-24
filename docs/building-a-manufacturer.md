@@ -1,4 +1,4 @@
-# Building a house
+# Building a manufacturer
 
 How Korvan and the unbranded stock were written, in the order it happened, so
 the next five manufacturers can be built the same way rather than rediscovered.
@@ -6,20 +6,20 @@ the next five manufacturers can be built the same way rather than rediscovered.
 `docs/catalogue.md` is the **rules** — what a module is, what it may grant, what
 a grade is worth. This is the **method**: the sequence, the checks at each step,
 the questions to ask at the end, and the traps that cost real time on the first
-two houses.
+two manufacturers.
 
-One house is roughly **40 cards across 20-25 parts**. Korvan took a day and
+One manufacturer is roughly **40 cards across 20-25 parts**. Korvan took a day and
 about eight passes, most of them because the checks in step 4 did not exist yet.
 They exist now, so the next one should take fewer.
 
 ---
 
-## §1 Read the house's own line first
+## §1 Read the manufacturer's own line first
 
 Every manufacturer has one sentence on the chassis screen, and **it is a
 contract, not decoration**:
 
-| House | The line |
+| Manufacturer | The line |
 | --- | --- |
 | Korvan Heavy Works | Ex-military surplus parts. Ballistics run cold; ordnance and plate run hot. |
 | Solari Foundry | The line between reactor and weapon is philosophy. |
@@ -34,7 +34,7 @@ runs hot, and the card data already told the two apart — ordnance banks the sh
 (`charge_turns`), ballistics fire (`hits`/`salvo`). Four cards were breaking it
 and nobody had noticed, because nothing was looking.
 
-**Before writing a card, ask whether the house's line implies a rule that can be
+**Before writing a card, ask whether the manufacturer's line implies a rule that can be
 checked.** If it does, write the check first. It will find things.
 
 ---
@@ -43,14 +43,14 @@ checked.** If it does, write the check first. It will find things.
 
     godot --headless --path tkg -- content
 
-Prints parts, unique cards, target and shortfall per house. Run it before and
+Prints parts, unique cards, target and shortfall per manufacturer. Run it before and
 after; it is the only number that says whether the pass is done.
 
 ---
 
 ## §3 Write the parts
 
-In `tkg/scripts/autoload/Database.gd`, as `_module()` calls, grouped by house.
+In `tkg/scripts/autoload/Database.gd`, as `_module()` calls, grouped by manufacturer.
 All the laws are in `docs/catalogue.md`; the four that shape a pass most are:
 
 - **Every module grants two cards** (§2). Verity grants one.
@@ -58,10 +58,10 @@ All the laws are in `docs/catalogue.md`; the four that shape a pass most are:
   cells is two at grade. This also decides which parts *may* be a pair.
 - **About one in four parts is a pair** (§5) — two copies of one card, right for
   the parts whose own flavour says they do one thing.
-- **A house's parts grant that house's cards** (§4), with the shared library
+- **A manufacturer's parts grant that manufacturer's cards** (§4), with the shared library
   (§6) as the exception any part may draw on.
 
-### Fill the gauge ladder, but only where the house owns it
+### Fill the gauge ladder, but only where the manufacturer owns it
 
 Every gauge should be reachable at +1, +2, +3 and +4. **A rung nobody can buy is
 a rung that does not exist**, and a player building for an attribute finds that
@@ -70,11 +70,11 @@ out by not finding the part.
 **Do not fill a gap with an off-brand part.** Korvan is heavy, slow and loud, so
 its maneuver and stealth rungs were left empty for Redline and Cygnet. Writing a
 nimble Korvan part to complete a table is the Spinal Mount mistake — a
-heat-scaling gun on the low-heat house, which was caught only because a person
+heat-scaling gun on the low-heat manufacturer, which was caught only because a person
 read it and said so.
 
 Exotic and Artifact are unbranded by definition, so **the top of every ladder is
-the yard's problem**, never a house's.
+the yard's problem**, never a manufacturer's.
 
 ---
 
@@ -152,14 +152,14 @@ anyway did.
 Six questions. All of them are answerable with a script over
 `user://modules.json`; none should be answered by impression.
 
-**Does every card speak the house's language?** Check the house's line from §1
+**Does every card speak the manufacturer's language?** Check the manufacturer's line from §1
 mechanically where you can. Korvan: which attacks cost heat, and do they charge?
 
 **Are the unbranded cards general enough for any frame?** No drones (Cygnet), no
 credits (Probate), no heat-scaling or brace-from-heat (Solari). Yard stock has
 to work on anything.
 
-**Is every gauge covered, at every rung the house can honestly reach?**
+**Is every gauge covered, at every rung the manufacturer can honestly reach?**
 
 **Does strength fit the grade?** Score every card, group by grade, and look at
 the shape — power should climb and efficiency should stay roughly flat, meaning
@@ -170,7 +170,7 @@ test and the average will not show it. Five cards failed it and **three were
 worse than a common a player already has** — Ripple Fire dealt 6 where the
 common Slug deals 8.
 
-**Does the flavour sound like the house?** Korvan is clipped ex-military
+**Does the flavour sound like the manufacturer?** Korvan is clipped ex-military
 surplus and averages 8 words. Three tells that a line has drifted:
 
 - **it explains the mechanic** — the card already says that
@@ -180,7 +180,7 @@ surplus and averages 8 words. Three tells that a line has drifted:
 
 ---
 
-## §8 Traps, all of which cost time on the first two houses
+## §8 Traps, all of which cost time on the first two manufacturers
 
 **A gate only protects what it is looking at.** Twice the check was right and
 the page a person reads was wrong: the manifest printed reactor cells gross
@@ -223,7 +223,7 @@ independently and report each one.
 
 ## §9 The order, in one block
 
-    1  read the house's line; write a check for it if it implies a rule
+    1  read the manufacturer's line; write a check for it if it implies a rule
     2  -- content                     what is missing
     3  write the parts                Database.gd
     4  -- holdtest -- attrtest        the laws

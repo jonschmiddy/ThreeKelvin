@@ -97,10 +97,18 @@ manufacturer, and keep it to 5 stops with the same value spacing.
 
 **Signals** warning red `#d64a3a` · status teal `#4fbfa8`
 
-### Manufacturer accent ramps still to define
-Solari (hot orange-red), Dredge (industrial ochre-grey), Redline (dirty green-grey),
-Veyra (pale violet-white), Calyx (clean sage-green). Define each as 5 stops before
-generating that faction's modules.
+### Manufacturer accent ramps
+
+**The two anchor colours are already chosen and live in `Database.gd`'s
+`_seed_manufacturers()` — `colour` (the mark) and `field` (the banner ground).
+Read them there.** They are not repeated here: the prose that used to sit in this
+spot described Redline as "dirty green-grey" when it is `#e24b4a`, and Verity as
+"pale violet-white" when it is a muted brass `#8a7340` on cream `#e8e0cc`. Those
+descriptions predated the colours being picked and then outlived them.
+
+What is still owed, and is genuinely not in code: **each manufacturer needs a
+5-stop ramp interpolated between its `field` and its `colour`**, defined before
+generating that manufacturer's modules. Korvan's is the only one built.
 
 ---
 
@@ -124,13 +132,42 @@ it as pixen-only (heavy rejected outright).
 | Light hull | **150 × 60** | short, shallow flank, **2 vents**; on a 236 × 82 canvas |
 | Medium hull | **200 × 80** | **3 vents** — **the canonical style reference**; on a 286 × 102 canvas |
 | Heavy hull | **248 × 100** | long, deep flank, **4 vents**; on a 336 × 122 canvas. 248, not 250 — pixflux rejects 250 |
-| Weapon module | 88 × 32 | Housing plus barrel, in profile; sits on the dorsal or ventral line |
-| System module | 32 × 20 | Low blister in profile, still needs a light-to-dark break |
-| Utility module | 20 × 28 | Mast, dish or pod rising off the spine |
+| Any module | **derived — run `-- artcheck`** | Weapon: housing plus barrel, in profile, on the dorsal or ventral line. System: low blister, still needs a light-to-dark break. Utility: mast, dish or pod rising off the spine |
 | Enemy ship | 152–260 wide | Match its danger tier's menace |
 | Megafauna | 240–340 wide | Organic; **commission or hand-draw these** |
 | Station | 200 × 240 | Vertical, lit windows with interior silhouettes |
-| Card illustration | 104 × 44 | **Per module, not per card** — see below |
+| Card illustration | **92 × 60** | **Per module, not per card** — see below |
+
+### Module sizes are DERIVED. Do not write them in this file.
+
+There is no table of module dimensions here because there cannot be a correct
+one. `MountPoints` sizes a fitted part from the hold's cell at half scale, so a
+part's box falls out of `ModuleIcon.HOLD_K`, `HoldGrid.CELL` and `HoldGrid.GAP`
+— and `ArtCheck._module_box()` does that arithmetic rather than repeating the
+answer. Print the real numbers:
+
+```
+godot --headless --path tkg -- artcheck
+```
+
+It prints `wants` and `has` per module and names anything out of tolerance. The
+rules it applies, which a table could never carry:
+
+- **The box is a guide, not a frame.** A part may stand up to `PROUD` past it —
+  8px, half a cell. Beyond that it is not a gun on a mount, it is a gun beside one.
+- **Art is cropped to its own ink and never resampled.** A sprite smaller than
+  half its box is flagged `UNDERSIZED`; one over `PROUD` is flagged `OVERHANGS`.
+
+This section previously carried 88 × 32 / 32 × 20 / 20 × 28. All three were
+wrong, and the four module sprites on disk match none of them — kh20 is 38 × 13,
+km4 60 × 20, widow 80 × 20, reactive 40 × 40. Nothing caught it, because prose
+is not checked against anything.
+
+**Card illustration is 92 × 60**, per `ArtCheck.CARD_ART`, and the 92-vs-93 is
+deliberate: `create_image_pixflux` refuses an odd side at this size — it answers
+a 93 request with "Use 92x60 instead" — so art is generated one column short and
+centred against a 93px window that is already a recessed dark box. Height is
+exact. This file said 104 × 44 for eleven weeks while the checker said 92 × 60.
 
 Native game resolution is **960×540**, presented in a 1920×1080 window — so the
 whole frame is integer-scaled by 2 and one art pixel is a 2×2 block on a 1080p

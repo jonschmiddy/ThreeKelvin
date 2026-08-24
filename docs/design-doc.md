@@ -89,7 +89,7 @@ Slay the Spire grammar adapted to ships:
 
 - **Energy = reactor output.** Your hull's reactor determines energy per turn. Upgrading reactors (or hulls) is upgrading your energy curve.
 - **Hand size = hull weight class.** Light hulls draw few cards but are evasive, cheap to fly, and get the opening move; heavy hulls draw big hands and tank, but dodge poorly, pay more fuel per jump, and can be alpha-struck. Consistency (card draw) is deliberately expensive.
-- **Heat (BattleTech lineage):** cards generate heat as a printed byproduct (energy remains the only cost you *pay*). Hulls have heat capacity and dissipation-per-turn — **heavy hulls: big capacity, poor dissipation (burst rhythm); light hulls: small capacity, fast dissipation (sustain rhythm)**. **Overheat rule: at end of turn, take 1 hull damage per point of heat above capacity.** No caps, no shutdowns — heat is a second health bar you can choose to spend (StS Offering/Bloodletting energy), and since hull repair costs scrap, overheating literally burns money. Venting is a real action. Heat sinks are a module/loot category; heat-related affixes ("generates 0 heat") are chase items.
+- **Heat (BattleTech lineage):** cards generate heat as a printed byproduct (energy remains the only cost you *pay*). Hulls have heat capacity and dissipation-per-turn — **heavy hulls: big capacity, poor dissipation (burst rhythm); light hulls: small capacity, fast dissipation (sustain rhythm)**. **Overheat rule: at end of turn, take 1 hull damage per point of heat above capacity.** No caps, no shutdowns — heat is a second health bar you can choose to spend (StS Offering/Bloodletting energy), and since hull repair costs credits, overheating literally burns money. Venting is a real action. Heat sinks are a module/loot category; heat-related affixes ("generates 0 heat") are chase items.
 - **Asymmetric miss rule:** enemy attacks can miss you (dodge lives on the incoming side); **player attacks never miss**. No player-side miss RNG in telegraphed combat.
 - **Initiative = ambush & escape,** not turn order: determines who acts first when an encounter opens and how feasible fleeing is. Battleships don't sneak away.
 - **Deck = installed modules.** Each module contributes specific cards to the deck (e.g., a Burst Laser adds 2× "Fire Burst Laser"; a Shield Capacitor adds "Overcharge Shields"; an alien relic adds something weird). Swap a module, reshape the deck.
@@ -98,7 +98,7 @@ Slay the Spire grammar adapted to ships:
 - **Starter hulls are bad on purpose:** tiny reactor (2–3 energy), few module slots, weak base cards, possibly dead "Malfunction" cards clogging the deck. Progression is *felt* in combat.
 
 **Enemy variety:**
-- **Ships** — faction-flavored, drop modules/scrap, may have 1–2 destructible parts (kept minimal; full FTL subsystem targeting is cut to reduce per-turn friction).
+- **Ships** — faction-flavored, drop modules/credits, may have 1–2 destructible parts (kept minimal; full FTL subsystem targeting is cut to reduce per-turn friction).
 - **Space megafauna** (whales, spore clouds, void leviathans) — biological telegraphs, no module drops (drop organic/exotic crafting materials instead), some can be **pacified or befriended** rather than killed, feeding the event layer.
 
 **Open combat questions:** hand size, draw rules, card upgrades (do modules level up?), status effects, escape mechanics, multi-enemy encounters.
@@ -118,21 +118,37 @@ Slay the Spire grammar adapted to ships:
   - "Gains 1 charge whenever you take hull damage"
   - "Cards from this module cost 1 less if played first"
 - **Manufacturer-branded modules** have themed affix pools; **set bonuses** for running 3+ modules from one manufacturer.
-- **No dead loot — unified scrap economy:** unwanted modules are **scrapped** into scrap, the game's single primary currency: it repairs hull, funds crafting, and pays for all station services. Repair vs. upgrade vs. save-for-that-hull is one budget fighting itself (FTL's scrap economy × Diablo's trash-loot-as-income).
-- **Exotic materials** (megafauna organs, relic fragments) are a rare secondary currency for special crafting only — keeps whale hunts and anomalies uniquely rewarding without complicating the core economy. *Decision lean: resist a scrap/credits split; dual currencies dilute tension.*
+- **No dead loot — unified credit economy:** unwanted modules are **scrapped** into credits, the game's single primary currency: it repairs hull, funds crafting, and pays for all station services. Repair vs. upgrade vs. save-for-that-hull is one budget fighting itself (FTL's scrap economy × Diablo's trash-loot-as-income). *A rename, not a re-ruling — `scrap_value` and `scrap_module()` keep their names, because scrapping is still the verb and only the unit changed. The rename is what made a HOLD make sense: scrap is a substance and sits in cargo, credits are a number and do not.*
+- **Exotic materials** (megafauna organs, relic fragments) are a rare secondary currency for special crafting only — keeps whale hunts and anomalies uniquely rewarding without complicating the core economy. *Settled: one wallet. Exotic materials remain the only secondary, and craft-only.*
 - **Hulls are loot too** (see below).
 
 ---
 
-## Hulls: Size & Tier (manufacturer-neutral)
+## Hulls: Size & Tier
 
-**Hulls have no manufacturer.** A hull is a chassis defined by two axes only — nobody's brand, just a frame you salvaged, bought, or claimed:
+> **REVERSED, and this section is kept because the reasoning still matters.**
+> This used to read *"Hulls have no manufacturer"* — a chassis was two axes and
+> nobody's brand, so a hull swap stayed a pure power decision with no identity
+> whiplash. **Hulls ARE branded now:** seven chassis × three weight classes ×
+> four grades, plus three unbranded salvage frames, and the hull counts as one
+> toward its own set bonus.
+>
+> What forced it: `attributes-and-checks.md` §1.5 gives every manufacturer an
+> attribute signature, and every one of those — thermal capacity, dodge, hull
+> mass — is a property of a chassis, not of a bolt-on module. Under neutral
+> hulls that section was unimplementable.
+>
+> **The cost was real and was accepted: swapping hulls now moves your set
+> count.** The authority is `CLAUDE.md`'s rulings table; this paragraph is a
+> pointer to it, not a second copy.
+
+A hull is a chassis defined by two axes plus its maker:
 
 - **Weight class:** Light / Medium / Heavy. Sets hand size, dodge, initiative, fuel cost per jump, heat capacity/dissipation, and HP/slot baselines. Light sustains and evades; heavy bursts and cooks.
 - **Tier:** C / B / A / S (NMS-style). Sets the *ranges* for reactor output, slot count, HP, and heat stats.
 - **Stats roll within tier ranges,** so a god-rolled B-tier medium can rival a badly-rolled A-tier. Hulls are Diablo loot.
-- **Each hull rolls one innate perk** from a generic pool (extra utility slot, cheaper station repairs, +1 dissipation, bonus scrap from wrecks). Perks are chassis quirks, not brand identity.
-- **Mid-run hull swapping:** derelict or purchasable hulls can be claimed mid-run, transferring modules (slot limits permitting). Because chassis are neutral, swapping is a pure power/shape decision with no identity whiplash.
+- **Each hull carries its manufacturer's perk,** at every grade, plus what the grade adds on top. Perks are brand identity, not chassis quirks — see `HullData` and `DB.TIER_PERKS`.
+- **Mid-run hull swapping:** derelict or purchasable hulls can be claimed mid-run, transferring modules (slot limits permitting). Swapping moves your set count as well as your stats — that is the accepted cost of branded chassis.
 
 ## Manufacturers: Parts & Set Bonuses (the class system)
 
@@ -147,15 +163,15 @@ The roster of seven:
 |---|---|---|---|
 | **Korvan Heavy Works** | *"It fires. Every time."* Ex-military surplus; ugly, riveted, reliable | Two lanes — **Ballistics** (cheap multi-hit kinetics, near-zero heat; Salvo) and **Ordnance** (Charge mega-weapons, banked payoffs) — plus heat-costing persistent armor (Brace). Full spec: `korvan-heavy-works.md` | Poor dissipation; low dodge/initiative; if the alpha misses the window, panic |
 | **Solari Foundry** | Sun-worshipping industrial cult | Weaponized heat: plasma damage scales with current heat, deliberate overheating for payoff, offensive venting | Self-damage is real; heat-reduction loot is anti-synergy (inverted chase items) |
-| **The Dredge Combine** | Mining conglomerate; ships that look like refineries | Scrap & salvage galore: scrap-on-kill, scrap→armor conversion, armor sustain, salvage bonuses from wrecks | Low burst, bad initiative; fights drag |
+| **The Probate Combine** | Breaker yards that stopped competing and started invoicing | Credit & salvage galore: credits-on-kill, salvage→armor conversion, armor sustain, salvage bonuses from wrecks | Low burst, bad initiative; fights drag |
 | **Redline Shipyards** | Chop-shop salvage-tech; jury-rigged refits | Stealth, refitting, stolen tech: evasion, initiative, mid-combat module reconfiguration, **innate contraband affinity** (smuggling capacity, black-market access) | Paper hull; cornered = dead |
-| **Veyra Ateliers** *(name TBD)* | Luxury marque; waiting-list prestige (Origin Jumpworks energy) | The thin, perfect deck: few slots but modules pre-upgraded, retain/scry/card-selection, superb initiative & dodge | Everything is expensive: premium repair costs, won't interface with low-rarity modules, dainty heat capacity |
+| **Verity Ateliers** | Luxury marque; waiting-list prestige (Origin Jumpworks energy) | The thin, perfect deck: few slots but modules pre-upgraded, retain/scry/card-selection, superb initiative & dodge | Everything is expensive: premium repair costs, won't interface with low-rarity modules, dainty heat capacity |
 | **Cygnet Dynamics** | Hyper-tech drone specialist; wirey, more antenna than hull | Defect-style drone slots: autonomous per-turn triggers, drones intercept telegraphed hits, evoke/sacrifice for burst | AoE feasts on drones; sustained energy upkeep |
-| **Calyx Systems** *(name TBD)* | Clean corporate biotech; sterile, faintly unsettling (NuCaloric energy) | Adaptation: cards mutate/evolve through use mid-run, hull regeneration, exotic-material scaling, megafauna symbiosis | Stations can't repair you well — you heal your own way or not at all |
+| **Calyx Biosystems** | Clean corporate biotech; sterile, faintly unsettling (NuCaloric energy) | Adaptation: cards mutate/evolve through use mid-run, hull regeneration, exotic-material scaling, megafauna symbiosis | Stations can't repair you well — you heal your own way or not at all |
 
-**Roster notes:** Korvan/Solari are mirrored heat philosophies (manage it vs. surf it); Dredge/Redline are mirrored salvage philosophies (melt it down vs. repurpose it). Mirrored pairs drive "try the next unlock" appetite. **Starter kit: Korvan** (teaches energy, charging, and heat honestly; legible power fantasy). The former relic-faction identity is dissolved into the Artifact loot tier — every faction can chase precursor tech.
+**Roster notes:** Korvan/Solari are mirrored heat philosophies (manage it vs. surf it); Probate/Redline are mirrored salvage philosophies (melt it down vs. repurpose it). Mirrored pairs drive "try the next unlock" appetite. **Starter kit: Korvan** (teaches energy, charging, and heat honestly; legible power fantasy). The former relic-faction identity is dissolved into the Artifact loot tier — every faction can chase precursor tech.
 
-**Visual identity:** modular sprite composition — neutral hull chassis (shape reads weight class and tier) + module sprites snapped to hardpoint anchors, carrying manufacturer shape language and palette accents. Since chassis are brand-neutral, *all* faction identity is build-derived: what you see is what you assembled.
+**Visual identity:** modular sprite composition — hull chassis (shape reads weight class and tier) + module sprites snapped to hardpoint anchors, carrying manufacturer shape language and palette accents. Identity is *assembled*: a chassis launches with its hull and one branded weapon, which is 2 of the 3 a set needs, so you start pointed at a manufacturer and arrive at it later.
 
 ---
 
@@ -173,7 +189,7 @@ The roster of seven:
   - Deep core / precursor ruins: Artifact-tier tech, brand-agnostic.
 - **Danger gradient = loot gradient.** Deeper/hostile space (nebulae, dead zones, core regions, alien territory) = harder fights, better drops. Fuel cost per jump scales with hull mass, tying weight class into exploration economics.
 - **Node types:** combat encounters, narrative events, planets (landable, Out There–style surveying/harvesting), derelicts (hull + module loot, risk-laden), stations (see below), anomalies (relic tech, weirdness).
-- **Stations = paid campfires.** All services cost scrap: hull repair, module upgrades (improves **all** cards a module contributes — StS rest-stop analog), junk-card removal, shop inventory, chart data, fuel. Tension comes from the unified economy, not artificial pick limits — every purchase is scrap not spent on something else.
+- **Stations = paid campfires.** All services cost credits: hull repair, module upgrades (improves **all** cards a module contributes — StS rest-stop analog), junk-card removal, shop inventory, chart data, fuel. Tension comes from the unified economy, not artificial pick limits — every purchase is credits not spent on something else.
 - **Heat signature (map layer):** hot-running ships attract more encounters/ambushes; cold light ships can slip past. Suns and nebulae modify heat dissipation regionally, making route-planning a thermal decision for heavy hulls.
 - **Events emphasize meaningful choice** over stat-check coin flips; outcomes should interact with build (e.g., options unlocked by installed modules or manufacturer reputation).
 - **Run goal:** rumor/star-chart threads point toward a deep-space objective (jump gate home? derelict mothership? artifact?). Flavor TBD; melancholy "long way home" framing is the current lean.
@@ -182,7 +198,7 @@ The roster of seven:
 
 ## Meta-Progression
 
-- **Unlock manufacturers** — each unlock adds a starting loadout kit and puts that maker's modules into loot pools. **Unlock hull tiers/sizes** as available starting chassis.
+- **Unlock manufacturers** — each unlock adds a starting loadout kit and puts that manufacturer's modules into loot pools. **Unlock hull tiers/sizes** as available starting chassis.
 - **Unlock starting regions / map layers** for run variety.
 - Possibly a light permanent-upgrade layer (starting resources, reroll tokens) — kept restrained to protect run integrity. **Avoid** numeric power creep that trivializes early game.
 - Death feeds knowledge + unlocks, not raw stats (lean toward StS/FTL-style unlock meta over Rogue Legacy–style stat meta). *Open question — revisit.*
@@ -193,13 +209,24 @@ The roster of seven:
 
 **Thesis: lush objects in a cold void.** Stardew Valley's craft density applied to space — but lushness is *detail density, not warmth*. The emptiness stays cold and lonely; everything in it is rendered with obsessive care.
 
-- **Perspective: top-down.** Ships are viewed from above. This is chosen for mechanics as much as looks — a top-down hull is a broad bilaterally symmetric surface, so hardpoints come in **mirrored port/starboard pairs**. Installing one module lights up two visible mounts, which reads far more clearly than bolting parts onto a side silhouette. Your nose points right, toward whatever you're facing.
+- **Perspective: EDGE ON.** Flat side elevation, camera exactly level with the ship, no top surface, no foreshortening. Mounts live on the **dorsal line (top edge) and the ventral line (bottom edge)**, plus an aft mount and an upper spine. There is no far row and no near row, and nothing occludes anything else. Your nose points right, toward whatever you're facing.
+
+  > **REVERSED.** This read *"top-down, hardpoints in mirrored port/starboard
+  > pairs"* — and the argument for it was good: installing one module lighting
+  > two visible mounts genuinely does read better than bolting a part onto a
+  > side silhouette. **That is what was given up.**
+  >
+  > What decided it, over thirteen candidates across three cameras: edge-on
+  > candidates read at 1×, the 3/4 ones did not; compositing a module meant
+  > drawing it at a 45° tilt occluding correctly across two rows, where edge on
+  > makes each one a flat sprite; and `ShipView._draw_weapon` had already
+  > assumed edge on. Authority is `ART_CONTRACT.md` §2 and §2a.
 - **The void is never flat black.** Deep indigo-to-black dithered gradients with nebula wash coloured per region — this is where most of the visual richness comes from at almost no asset cost, and it gives each region a colour signature (Korvan space rusty amber, fauna space teal bioluminescence, precursor ruins violet).
 - **Objects are genuinely lush.** Weathered plating, stencilled hull numbers, decals, lit viewports with tiny interior detail, station windows with warm interior light and silhouettes moving inside, barnacles and scars on megafauna. Spend the pixel budget here.
 - **Warm/cold survives as lighting logic, not a saturation cap.** Objects are richly coloured but *coldly lit*, with warm rim light from your own reactor and engines. Your heat glow reads because it's the only *self-emitted* warmth in frame.
 - **Heat still drives the hull.** Cold and dark at 0; ember vents along the spine as it climbs; past capacity the ship is the brightest object on screen while taking damage. Warmth = life = danger.
-- **Resolution:** mid-res pixel art, native 960×540, shown at 1920×1080 (×2, integer). Ship sprites 150–248px wide so there's room for real detail. Modules snap to standardised mirrored hardpoint anchors.
-- **Silhouette reads chassis; modules read faction.** Hull outline communicates weight class (light frames narrow and open, heavy frames broad and slab-sided). Manufacturer identity lives in module shape language and palette accents: Korvan slabs/rivets/oversized barrels; Cygnet thin frames and antennae; Veyra continuous curves; Calyx too-organic symmetry.
+- **Resolution:** mid-res pixel art, native 960×540, shown at 1920×1080 (×2, integer). Ship sprites 150–248px wide so there's room for real detail. Modules snap to hardpoint anchors **measured per sprite** by `art/tools/anchors.py`; `-- mounts` checks all 89 against the sprite's own opaque pixels.
+- **Silhouette reads chassis; modules read faction.** Hull outline communicates weight class (light frames narrow and open, heavy frames broad and slab-sided). Manufacturer identity lives in module shape language and palette accents: Korvan slabs/rivets/oversized barrels; Cygnet thin frames and antennae; Verity continuous curves; Calyx too-organic symmetry.
 - **Melancholy comes from composition:** small ship, vast frame, generous negative space, sparse animation with strong impact effects.
 - **Cards: hybrid UI.** Pixel art inside card frames, clean vector type on top — readability and localisation-proofing over purism.
 - **Know the neighbour:** Cobalt Core exists. Differentiation: open-map loot game, modular ships, lush-cold industrial tone vs. its linear cartoon brightness.
@@ -224,7 +251,7 @@ This is a significant simplification — rather than separate Map/Combat/Station
 ## Scope Notes (Solo-Dev Reality Check)
 
 Turn-based combat + node-based map + 2D pixel art = very buildable solo scope. Suggested MVP slice:
-1 manufacturer, 2 hull tiers, ~15 modules/cards, 5 enemy types (incl. 1 megafauna), 1 map region, ~10 events, scrap economy, no meta-progression yet. Prove the loop: *jump → fight → loot → reconfigure → jump.*
+1 manufacturer, 2 hull tiers, ~15 modules/cards, 5 enemy types (incl. 1 megafauna), 1 map region, ~10 events, credit economy, no meta-progression yet. Prove the loop: *jump → fight → loot → reconfigure → jump.*
 
 ---
 
@@ -236,7 +263,7 @@ Turn-based combat + node-based map + 2D pixel art = very buildable solo scope. S
 - Contraband details: inspection odds, regional law levels, penalty ladder, how contraband variants generate
 - Combat details: draw/discard rules, statuses, multi-enemy fights, exact escape mechanics
 - Heat tuning: capacity/dissipation numbers per weight class, overheat penalty curve, venting cost
-- Economy tuning: scrap income rates vs. service prices; what do exotic materials craft, exactly?
+- Economy tuning: credit income rates vs. service prices; what do exotic materials craft, exactly?
 - Fuel model: how soft is the constraint? What refuels you (stations, planet harvesting, whale... byproducts)?
 - Galaxy generation specifics: size, region count, arm/core topology, run length target
 - Win condition flavor & narrative frame

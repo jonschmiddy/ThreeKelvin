@@ -10,7 +10,16 @@ Named after the temperature of the cosmic microwave background — the universe'
 
 ## Running it
 
-Godot **4.3+**. Open the project and press F5. No art assets required — all sprites are generated procedurally at runtime (see `scripts/ui/ShipView.gd`), so the project runs on a clean clone.
+Godot **4.7.1**. Open the project and press F5. Migrated from the original 4.3
+target with no code changes — `docs/handbook.md` has the record.
+
+Art is **generated procedurally as a fallback**, so the project still runs and
+looks like itself on a clean clone (see `scripts/ui/ShipView.gd`). Real sprites
+now exist and load where they are present: the full hull set, four module
+sprites and three card illustrations. Run `-- artcheck` to see which.
+
+First clone? Run `./setup.sh` once — it points git at the hooks in `.githooks/`,
+which git cannot do for you.
 
 ### Balance simulator
 
@@ -60,12 +69,17 @@ resources/        (populated by the exporter)
 
 These were settled during design and prototyping. Don't re-litigate them without a reason.
 
+> **`tkg/CLAUDE.md`'s rulings table is the authority.** This one is a shorter
+> read for newcomers and has been a revision behind more than once — it carried
+> "hulls have no manufacturer" and "one currency: scrap" for months after both
+> were overturned. When the two disagree, CLAUDE.md is right; fix this one.
+
 | Ruling | Why |
 |---|---|
-| **Hulls have no manufacturer** — size × tier only, with rolled stats and a rolled perk | Build identity comes entirely from parts you find. Hull swapping is a pure power decision. |
-| **Set bonuses are the class system** (3+ / 5+ modules from one maker) | Identity is *assembled mid-run*, not chosen at the start. Every drop is a commitment-vs-flexibility question. |
+| **Hulls ARE built by a manufacturer** — seven branded chassis × three weights × four grades, plus three unbranded salvage frames | REVERSED from "hulls have no manufacturer". Every manufacturer attribute signature (thermal capacity, dodge, hull mass) is a chassis property, so the old ruling was unimplementable. The hull counts as one toward its own set, and swapping now moves your set count — an accepted cost. |
+| **Set bonuses are the class system** (3+ / 5+ modules from one manufacturer) | Identity is *assembled mid-run*, not chosen at the start. Every drop is a commitment-vs-flexibility question. |
 | **Charge fires automatically** when ready | Tension lives in *when you start* charging, not in a release button. |
-| **Overheat = predictable self-damage**, 1 hull per point over cap, no cliff, no cap on heat | Heat becomes a second health bar you can choose to spend. Since repairs cost scrap, overheating burns money. |
+| **Overheat = predictable self-damage**, 1 hull per point over cap, no cliff, no cap on heat | Heat becomes a second health bar you can choose to spend. Since repairs cost credits, overheating burns money. |
 | **The deck only reshuffles at the start of your turn** | Without this, zero-cost draw cards (Emergency Vent, Jury-Rig, Foresight) loop forever once the discard recycles. Also makes deck size strategically meaningful. |
 | **Your attacks never miss; only enemies can** | Player-side miss RNG feels awful in telegraphed combat. Light hulls dodge incoming fire. |
 | **Ballistics run cold, energy weapons run hot** | Gives materials a readable thermal language before you read the numbers. |
@@ -73,7 +87,7 @@ These were settled during design and prototyping. Don't re-litigate them without
 | **Bosses are hand-tuned, not danger-scaled** | A boss-grade stat block appearing as a random encounter is a run-killer. |
 | **HP scales faster than damage with danger** | Deeper fights should be *longer*, not one-shot lethal. |
 | **Lateral map travel is cheap and always available** | You can farm a danger band before descending, so every death is self-authored. This is the greed clock. |
-| **One currency: scrap** | Repair, upgrade, and purchase all compete for the same pool. This is where the difficulty actually lives. |
+| **One currency: credits** | Repair, upgrade, and purchase all compete for the same pool. This is where the difficulty actually lives. RENAMED from scrap, not re-ruled — `scrap_value` and `scrap_module()` keep their names, because scrapping is still the verb and only the unit changed. |
 
 ---
 
@@ -89,15 +103,15 @@ So when tuning: **raise repair prices before touching enemy damage.** If repairs
 
 Seven, each a playstyle, a worldbuilding hook, and an affix pool. Mirrored pairs drive the appetite to try the next unlock.
 
-| Maker | Identity | Mirror of |
+| Manufacturer | Identity | Mirror of |
 |---|---|---|
 | **Korvan Heavy Works** — *"It fires. Every time."* | Ballistics (cold, multi-hit, Salvo) + ordnance (Charge) + heat-costing persistent armor | Solari |
 | **Solari Foundry** | Weaponised heat: damage scales with your own fever, deliberate overheating | Korvan |
 | **The Probate Combine** | Scrap economy, armor sustain, wins slowly and richly | Redline |
 | **Redline Shipyards** | Salvage tech, evasion, refits, innate contraband affinity | Probate |
-| **Veyra Ateliers** | The thin perfect deck: few slots, pre-upgraded cards, expensive everything | — |
+| **Verity Ateliers** | The thin perfect deck: few slots, pre-upgraded cards, expensive everything | — |
 | **Cygnet Dynamics** | Autonomous drones that fight and intercept | — |
-| **Calyx Systems** | Regeneration and cards that mutate through use | — |
+| **Calyx Biosystems** | Regeneration and cards that mutate through use | — |
 
 Korvan is the starter loadout: it teaches energy, charging, and heat honestly.
 

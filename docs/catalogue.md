@@ -1,14 +1,18 @@
 # The catalogue
 
 Every rule that decides what a module is, what cards it grants, and what those
-cards may be called. Written down because the catalogue is about a quarter
-built — 63 parts and 73 cards against a target of 63 and 300 — and the last
-two hundred and twenty-seven cards will be written by somebody who was not in
-the room when these were decided.
+cards may be called. Written down because the catalogue is only part built, and
+most of the cards will be written by somebody who was not in the room when these
+were decided.
 
-**This is the rules. The method is [building-a-house.md](building-a-house.md)** —
+**How much is built is in §17, and §17 is printed by `-- content`.** It is not
+repeated here. This paragraph used to say "63 parts and 73 cards against a
+target of 63 and 300" while §17 of this same file said 95 cards across 77
+modules — two numbers, one document, and nothing to catch it.
+
+**This is the rules. The method is [building-a-manufacturer.md](building-a-manufacturer.md)** —
 the order to do a manufacturer in, the gates to run at each step, and the traps.
-Read that one when starting a house; read this one when writing a part.
+Read that one when starting a manufacturer; read this one when writing a part.
 
 Most of what follows is **enforced**. That is the important half of this
 document: a rule that lives only in prose is a rule that holds until the first
@@ -19,7 +23,7 @@ is judgement, this says that too, so the difference is never guessed at.
     godot --headless --path tkg -- holdtest      # every rule below marked "gate"
     godot --headless --path tkg -- reactor       # what every frame launches with
     godot --headless --path tkg -- attrtest      # the attribute ladder, round trip
-    godot --headless --path tkg -- content       # how much is written, per house
+    godot --headless --path tkg -- content       # how much is written, per manufacturer
     godot --headless --path tkg -- content json  # the export the manifest is built from
 
 ---
@@ -27,7 +31,7 @@ is judgement, this says that too, so the difference is never guessed at.
 ## §1 What a module is
 
 A part you find in a wreck, pack in the hold, and bolt to a hardpoint. It has a
-**shape** in cells, a **slot** (weapon, system, utility), a **house**, a
+**shape** in cells, a **slot** (weapon, system, utility), a **manufacturer**, a
 **grade**, a line of flavour, and the **cards it grants**.
 
 The cards are the point. A module is not a stat stick; it is a way of putting
@@ -58,7 +62,7 @@ not: a utility was a part you found, packed and bolted on for a single card,
 which made half the catalogue feel like a rounding error next to a gun.
 
 **Verity Ateliers grants one.** The exception is a ruling, not an oversight —
-the thin perfect deck the house is named for, made mechanical instead of
+the thin perfect deck the manufacturer is named for, made mechanical instead of
 flavourful. It is why a Verity card is allowed to be stronger than its
 neighbours at the same grade.
 
@@ -95,19 +99,19 @@ card a module lists first is a fact about typing, not about the card.
 
 ---
 
-## §4 A house's parts grant that house's cards
+## §4 A manufacturer's parts grant that manufacturer's cards
 
 Korvan modules grant Korvan cards. Unbranded modules grant unbranded cards. The
 exception is the shared library (§6), which anyone may draw on.
 
-**Judgement, not gate.** A card carries no house field; the association is that
+**Judgement, not gate.** A card carries no manufacturer field; the association is that
 it is authored inside the module's `_module()` call. The check that would
 enforce this is worth writing when the catalogue is larger and the cost of
 getting it wrong is higher.
 
-A house's cards should be recognisable as that house *without the name*:
+A manufacturer's cards should be recognisable as that manufacturer *without the name*:
 
-| House | What its cards do |
+| Manufacturer | What its cards do |
 | --- | --- |
 | Korvan Heavy Works | Ballistics, armour, cold. Big numbers, no heat. |
 | Solari Foundry | Heat as a resource. Pays in temperature for everything. |
@@ -116,7 +120,7 @@ A house's cards should be recognisable as that house *without the name*:
 | Cygnet Dynamics | Drones. Things that keep fighting after the card is gone. |
 | Verity Ateliers | One card, better. Precision and filtering. |
 | Calyx Biosystems | Growth, healing, cards that change through use. |
-| Unbranded | Exotic (grown) and artifact (precursor). No house voice. |
+| Unbranded | Exotic (grown) and artifact (precursor). No manufacturer voice. |
 
 ### One name per thing: Brace, Block, Feedback
 
@@ -154,12 +158,12 @@ calls a thing and what the card prints are now the same word**, which is the
 rule §13 already applies to vent.
 
 **Flavour keeps the English noun.** `Slag Armor Kit` and *"Armor that answers
-back"* describe plating you could touch, not a number. Two house identity lines
+back"* describe plating you could touch, not a number. Two manufacturer identity lines
 say **plate** instead — *"ordnance and plate run hot"* — because those were
 making a mechanical claim and forcing the stat word in made them read like rules
 text.
 
-### Flavour is the house's voice, not the writer's
+### Flavour is the manufacturer's voice, not the writer's
 
 Korvan is clipped ex-military surplus: *"It decides. You pull."* — *"Cheap
 glass. Correct answers."* — *"Armor that answers back."* Korvan and the yard
@@ -197,11 +201,11 @@ plate up.
 
 Four cards failed it when the check was written, and every one was a gun whose
 own flavour said ballistic: a rotary cannon, a three-barrel ripsaw, and both
-cards off the KH-500. They cost the house the only advantage it has — **a Korvan
+cards off the KH-500. They cost the manufacturer the only advantage it has — **a Korvan
 gun that heats you up is a worse Solari gun.**
 
-A card that contradicts its house is a bug even when the numbers are fine —
-Spinal Mount was a heat-scaling gun on the low-heat house, which made it a
+A card that contradicts its manufacturer is a bug even when the numbers are fine —
+Spinal Mount was a heat-scaling gun on the low-heat manufacturer, which made it a
 Solari card wearing a Korvan name.
 
 ---
@@ -222,9 +226,9 @@ failing on it, because the right number is a matter of feel:
 
     shape: 33 of 63 modules grant a pair (52%), 22 draw on shared cards (35%)
 
-52% overall, because the six houses that have not been rewritten yet sit at 97%.
+52% overall, because the six manufacturers that have not been rewritten yet sit at 97%.
 Korvan and the unbranded stock, which have been, sit at 25%. **Bringing the
-other six houses down to a quarter is the largest single job left in the
+other six manufacturers down to a quarter is the largest single job left in the
 catalogue.**
 
 ---
@@ -245,11 +249,11 @@ card. A shared uncommon would be legal on some parts and not others, which is a
 rule nobody would remember.
 
 They exist so a part can be a **combination** rather than a verb with a name on
-it — a house card and a plain one beside it. It is also what makes a catalogue
+it — a manufacturer card and a plain one beside it. It is also what makes a catalogue
 of sixty read as more than sixty things: two parts sharing a card while each
 keeping something of their own are related without being the same.
 
-Anything with a house's fingerprints on it stays written where it is granted.
+Anything with a manufacturer's fingerprints on it stays written where it is granted.
 That is what makes it that part's card.
 
 ---
@@ -314,8 +318,8 @@ the corner, and it costs the glossary its referent: "lock on" ends up meaning
 both a mechanic and one piece of Korvan hardware.
 
 **Two of those four were the keyword's fault.** "Wasp screen" was Cygnet's own
-flavour standing in for a mechanic any house could have. A keyword has to be
-house-neutral, so it prints "Screen drone" now and Wasp Screen keeps its name.
+flavour standing in for a mechanic any manufacturer could have. A keyword has to be
+manufacturer-neutral, so it prints "Screen drone" now and Wasp Screen keeps its name.
 When a card and a keyword collide, ask which one is wearing the other's clothes.
 
 The glossary the check tests against is **collected from the cards** —
@@ -348,7 +352,7 @@ ground, only a bone edge. Those looked like one job only while every grade was a
 mid-tone.
 
 **Gate:** every ink clears 3.0:1 on the void, and every one of the 56
-house-by-grade pairings clears 3.0:1 for art on ground.
+manufacturer-by-grade pairings clears 3.0:1 for art on ground.
 
 ### The bar tracks the cells, not the energy
 
@@ -384,7 +388,7 @@ back from 0.88 because at 0.88 the whole ladder was squashed into a band 22
 CIELAB units wide and the closest pair of plates sat at 2.5, against a
 just-noticeable difference of 2.3. Two grades were, to an eye, one grade.
 
-The ceiling is **Verity's `#8a7340`**, the darkest house colour, against a green
+The ceiling is **Verity's `#8a7340`**, the darkest manufacturer colour, against a green
 ground. Nothing else binds. Brightening that one colour is what would buy real
 room; 0.80 is the most the current colours allow and clears the floor by three
 hundredths.
@@ -394,7 +398,7 @@ hundredths.
 Contraband is the one grade that is a fact about **who sold you the thing**
 rather than how well it was made. It comes only from **the Probate Combine,
 Redline and Cygnet** — the scrappers, the hackers and the technologists, the
-three houses with a reason to move something off the manifest.
+three manufacturers with a reason to move something off the manifest.
 
 Not implemented. `LootGen` currently gates `rarity >= EXOTIC` behind
 `allow_unbranded`, which swallows Contraband along with Exotic and Artifact —
@@ -734,7 +738,7 @@ offsets rares and above gaining more.
 
 1. Write parts in `Database.gd`.
 2. `godot --headless --path tkg -- holdtest` — every gate in this document.
-3. `godot --headless --path tkg -- content` — the shortfall, per house.
+3. `godot --headless --path tkg -- content` — the shortfall, per manufacturer.
 4. `godot --headless --path tkg -- content json` — the export.
 5. `node tkg/tools/manifest.mjs out.html` — the Yard Manifest.
 6. Publish `out.html` as an artifact and read the catalogue.
@@ -826,13 +830,13 @@ worse than its common**:
 Common to uncommon went from +0.6 to **+2.6**, the largest step in the bottom
 half. Measured at seed 4242 over 200 runs: 41 wins to 48.
 
-### House neutrality
+### Manufacturer neutrality
 
-**0 of 26 unbranded cards lean on a house mechanic** — no drones (Cygnet), no
+**0 of 26 unbranded cards lean on a manufacturer mechanic** — no drones (Cygnet), no
 credits (Probate), no heat-scaling or brace-from-heat (Solari). Unbranded stock
 has to work on any frame, and it does.
 
-### Gauge coverage by house
+### Gauge coverage by manufacturer
 
     Korvan      hull 1/2/2/3   thermal 1/2/3   sensors 1/2/3   maneuver —   stealth —
     Unbranded   hull 4         thermal 4       sensors 3/4     maneuver 4   stealth 4
@@ -846,6 +850,10 @@ yard's.
 
 ## §17 Where it stands
 
+*Generated. Re-print it with `godot --headless --path tkg -- content` and paste
+the result — do not hand-edit the block below, and do not restate its numbers
+anywhere else in this file.*
+
     korvan          25 parts   40 cards   want 40   done
     (unbranded)     18         20         want 20   done
     solari           7          7         want 40   short 33
@@ -858,11 +866,11 @@ yard's.
 
     95 unique cards across 77 modules; 205 still to write
 
-A card counts toward the first house that uses it, so the ten shared cards are
+A card counts toward the first manufacturer that uses it, so the ten shared cards are
 counted once. Both `-- content` and the manifest do it that way; two answers to
 one question is how a number stops being believed.
 
-**Korvan and the unbranded stock are finished.** The five houses left are the
+**Korvan and the unbranded stock are finished.** The five manufacturers left are the
 work: 205 cards, and their parts are still 97% pairs against a one-in-four
 target.
 
@@ -884,7 +892,7 @@ by not finding the part.
 slow and loud; unbranded yard stock is common and gives nothing, and its relics
 already hold the +4s. Those rungs belong to **Redline** (dodge, stealth) and
 **Cygnet**. Writing a nimble Korvan part to fill a table would be the Spinal
-Mount mistake again — a card that contradicts its house is a bug even when the
+Mount mistake again — a card that contradicts its manufacturer is a bug even when the
 numbers are fine (§4).
 
 Exotic and Artifact are unbranded by definition, so **the top of every ladder is
