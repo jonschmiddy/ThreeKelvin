@@ -376,6 +376,50 @@ else
 	ok "python absent, skipped"
 fi
 
+step "One word for the thing: manufacturer"
+# A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
+# months with four words for one concept -- house, maker, man, manufacturer --
+# spread across 42 code files, a save key, a network wire key and eleven
+# documents. Ruled 2026-08-24: the word is `manufacturer`. They manufacture
+# parts for spaceships; they are corporations, not families, and `house`
+# imported a dynastic register the setting does not have.
+#
+# Four exemptions, all deliberate, all narrow:
+#
+#   1. `Database._seed_documents` -- the archive is written in clerks' voices
+#      and `docs/lore.md` §5 says edit meaning, not music. A clerk may say
+#      `house`; the game may not. "a posting clerk, house not stated" has no
+#      natural replacement -- "manufacturer not stated" is a form field, not a
+#      person. The whole function is skipped rather than line-listed, because
+#      any new entry is prose too.
+#   2. The LAN idiom -- "friends in the house", "outside the house" -- is
+#      English about people under your roof, describing local-network play.
+#      Renaming it produces nonsense.
+#   3. "maker's mark" -- the stamp a craftsman leaves on the work. A real
+#      English term, used in an art prompt and in an insurance document.
+#   4. "Widowmaker" (a gun) and "gatehouse" (a building) are words that merely
+#      contain the string.
+#
+# If you are adding a fifth, the bar is: would a person say this out loud?
+VOCAB=$(
+	{
+		awk '/^func _seed_documents/{skip=1} /^func /&&!/_seed_documents/{skip=0} !skip{print FILENAME":"FNR": "$0}' \
+			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null
+		grep -rnE '.' "$PROJECT/scripts" --include='*.gd' 2>/dev/null \
+			| grep -v "^$PROJECT/scripts/autoload/Database.gd:"
+	} | grep -wE 'house|houses|maker|makers|man|hull_man' \
+	  | grep -viE 'widowmaker|gatehouse' \
+	  | grep -v "maker's mark" \
+	  | grep -v 'friends in the house' \
+	  | grep -v 'wrong for anyone outside the house'
+)
+if [ -z "$VOCAB" ]; then
+	ok "no retired vocabulary in $PROJECT/scripts"
+else
+	bad "retired vocabulary (house/maker/man) outside the allow-list"
+	printf '%s\n' "$VOCAB" | head -n 20 | sed 's/^/        /'
+fi
+
 printf '\n'
 if [ $FAIL -ne 0 ]; then
 	printf '\033[31mVALIDATION FAILED\033[0m  logs in %s\n' "$LOG_DIR"

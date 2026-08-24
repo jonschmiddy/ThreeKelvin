@@ -65,3 +65,44 @@ are kept because they record why something is the way it is, and they are
 separated because they describe a moment rather than the current state — a
 handoff written three months ago is history, not documentation, and reading it
 as though it were current is how a stale instruction gets followed.
+
+---
+
+## The rule that keeps these true
+
+Added 2026-08-24, after a pass that found fourteen places where two files
+disagreed about the same fact. Every one was the same failure: **a number or a
+ruling written down twice, and one copy moved.**
+
+**A number that exists in code does not get a second copy in prose.** Name the
+constant, name the harness that prints it, and stop.
+
+`ART_CONTRACT.md` said a card illustration was 104 × 44 for eleven weeks while
+`ArtCheck.CARD_ART` said 92 × 60, and nothing could have caught it, because prose
+is not checked against anything. `catalogue.md`'s header said 63 parts while its
+own §17 said 77. `tkg/README.md` said Godot 4.3+ two minor versions after the
+migration.
+
+Where to point instead:
+
+| Instead of restating | Point at |
+| --- | --- |
+| module or card art dimensions | `-- artcheck` |
+| how much of the catalogue is built | `catalogue.md` §17, which `-- content` prints |
+| win rates, or anything the economy does | `-- sim`, with the run count and the date attached |
+| the seven manufacturers' names, colours, taglines, set bonuses | `Database.gd`'s `_seed_manufacturers()` |
+| a design ruling, or a reversal of one | `tkg/CLAUDE.md`'s rulings table |
+
+The last two are the ones that bite. Seven files described the seven
+manufacturers and four disagreed; `design-doc.md` and `tkg/README.md` both
+carried *parallel* rulings tables that were never updated when a ruling was
+reversed. Both now defer to `CLAUDE.md` rather than restating it. **A doc table
+should carry what a manufacturer *plays* like, and never its name, colour,
+tagline or set bonus.**
+
+Reversals get recorded, not erased — state what was reversed, what decided it,
+and what it cost. `ART_CONTRACT.md` §2a is the house style, and `design-doc.md`
+now carries two paragraphs in it.
+
+`validate.sh` greps for the retired vocabulary, so the one-word rule
+(`manufacturer`, never `house` or `maker`) is checked rather than remembered.
