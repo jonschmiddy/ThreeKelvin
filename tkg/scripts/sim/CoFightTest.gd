@@ -353,10 +353,11 @@ func _hellbender_leg() -> void:
 		return
 
 	if _me == "HOST":
-		# Three party jumps is one stride. This is the call jump_to() makes,
-		# made bare so the leg does not depend on fuel or adjacency.
+		# One stride of party jumps, whatever this crew's stride is. This is the
+		# call jump_to() makes, made bare so the leg does not depend on fuel or
+		# adjacency.
 		var was := Run.hellbender_at
-		for i in Run.HELLBENDER_STRIDE:
+		for i in Run.hellbender_stride():
 			Run.hellbender_jumped()
 		_ok("one stride moved it on the authority's chart", Run.hellbender_at != was)
 	else:
@@ -364,20 +365,20 @@ func _hellbender_leg() -> void:
 		# wire. No awaits between the capture and the check, so a host push
 		# cannot land in the middle and fake a failure.
 		var was := Run.hellbender_at
-		for i in Run.HELLBENDER_STRIDE:
+		for i in Run.hellbender_stride():
 			Run.hellbender_jumped()
 		_ok("a client cannot move it", Run.hellbender_at == was)
-		# Then the guest jumps three times the only way the host can see:
+		# Then the guest jumps a stride's worth, the only way the host can see:
 		# presence. Each hop moves `at` and says so, which is what a real jump
 		# does — this is the _apply_presence clock, flown.
 		var a := Run.at
 		var b := int(Run.map[a].links[0])
-		for i in Run.HELLBENDER_STRIDE:
+		for i in Run.hellbender_stride():
 			Run.at = b if Run.at == a else a
 			Sig.resources_changed.emit()
 			await _until(func() -> bool: return false, 0.4)
 
-	# Two moves: one off the host's own stride, one off the guest's three
+	# Two moves: one off the host's own stride, one off the guest's stride of
 	# presence hops. Both machines converge on one chart or this fails.
 	var moved := await _until(func() -> bool: return Run.hellbender_moves >= 2, 20.0)
 	if not _ok("the party's jumps moved it twice on both charts", moved):

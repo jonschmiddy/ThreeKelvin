@@ -804,7 +804,11 @@ func _focus_part(m: ModuleData, slot: MarginContainer = null,
 	# One tween per row, killed before a new one starts: moving the mouse
 	# along the column fires enter and exit faster than a tween finishes,
 	# and two live tweens on one margin fight over it.
-	var old: Tween = slot.get_meta(&"nudge", null) as Tween
+	# `get_meta(key, null)` is not a quiet miss: the engine cannot tell a null
+	# DEFAULT from no default at all, so a row that has never been nudged
+	# prints "does not have any 'meta' values" instead of handing back null.
+	# has_meta is the only way to ask without the error.
+	var old: Tween = slot.get_meta(&"nudge") as Tween if slot.has_meta(&"nudge") else null
 	if old != null and old.is_valid():
 		old.kill()
 	var tw := create_tween()

@@ -449,7 +449,7 @@ on. Four players jump at their own pace; there is no tick.
 So the party's jumps ARE the tick, and the host counts them. Its own jumps
 count in `RunState.jump_to()`; everybody else's are read off the presence
 message, which already carries `at` — a presence whose `at` moved is a jump,
-and no new client-to-host message was needed. Every `HELLBENDER_STRIDE` of them the
+and no new client-to-host message was needed. Every `hellbender_stride()` of them the
 host moves the hellbender one link and broadcasts the whole state — position, hull,
 move counter — through `_push_hellbender_to`. Whole, like claims, so a dropped push
 costs one update rather than a drift. WHERE it goes is still derived

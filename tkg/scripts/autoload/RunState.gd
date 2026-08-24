@@ -1696,10 +1696,22 @@ func range_from(here: MapGen.MapNode) -> float:
 ##
 ## Charted links do not grant passage either: a link is how generation
 ## guarantees the galaxy hangs together, not a promise that the place is near.
+##
+## SYMMETRIC, and it has to be. Range is relative to the neighbourhood you are
+## standing in, and two ends of one hop can disagree about it: out on a thin
+## frontier your nearest neighbour is far, so the radius is wide and a crowded
+## cluster three parsecs off is a legal jump — and once you are down in that
+## cluster your nearest neighbour is a hand's width away, the radius shrinks to
+## match, and the way you CAME IN is suddenly out of range. A one-way door, and
+## the chart still draws the link you flew. So a hop is legal if either end
+## thinks the other is close: n is in my neighbourhood, or I am in n's. The
+## fuel cost is distance-priced already, so a long way back is expensive rather
+## than impossible.
 func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if n.index == here.index:
 		return false
-	return MapGen.hop_distance(here, n) <= range_from(here)
+	var d := MapGen.hop_distance(here, n)
+	return d <= range_from(here) or d <= range_from(n)
 
 func reachable(n: MapGen.MapNode) -> bool:
 	return reachable_from(node_at(), n)
@@ -1768,8 +1780,10 @@ func jump_to(index: int) -> void:
 ## clock, and this game deliberately has no shared one: four ships jump at
 ## their own pace. So the hellbender is host-authoritative, like a claim. The host
 ## counts every ship's jumps (its own directly, a client's when the presence
-## message lands), moves the hellbender every HELLBENDER_STRIDE of them, and pushes the
-## whole state — position, hull, move counter — through `Net.push_hellbender()`.
+## message lands), moves the hellbender every `hellbender_stride()` of them —
+## a threshold that scales with the crew, so a bigger party does not shake it
+## off the chart — and pushes the whole state — position, hull, move counter —
+## through `Net.push_hellbender()`.
 ## Solo, this machine IS the host of nothing and runs the same code without a
 ## wire. WHERE it goes is `Rng.derive(&"hellbender", move counter)` — positional in
 ## time rather than in space, so a replayed seed replays the pursuit and a
@@ -1787,9 +1801,19 @@ func jump_to(index: int) -> void:
 ## slowly, so catching it two jumps later finishes a fight you already started,
 ## and letting it go quiet for twenty is starting over.
 
-## Jumps between moves. At ~65 jumps a run this is ~20 moves — enough to matter
-## on the chart, slow enough to be caught.
+## Jumps between moves, SOLO. At ~65 jumps a run this is ~20 moves — enough to
+## matter on the chart, slow enough to be caught.
 const HELLBENDER_STRIDE := 3
+## Jumps between moves in a crew, PER SHIP. The clock counts the whole party's
+## jumps, so a flat threshold means the more of you there are the faster it
+## runs: at three, two ships moved it every jump and a half each, and it was
+## always gone by the time anybody landed on it. Nobody ever met it. Scaled by
+## the crew, the cadence is a thing each pilot can feel — two of YOUR jumps per
+## port, however many of you are flying — and the second jump is the window
+## somebody catches it in. A shade quicker per ship than the solo three,
+## because four ships strip a galaxy four times as fast and a rival that cannot
+## keep up is not a rival.
+const HELLBENDER_STRIDE_CREW := 2
 ## Hops taken all at once when it breaks off a fight. Two, so it is out of the
 ## system and out of jump range, but never out of the story.
 const HELLBENDER_FLEE_HOPS := 2
@@ -1845,6 +1869,16 @@ func _spawn_hellbender() -> void:
 	hellbender_hp = hellbender_max
 	hellbender_at = Rng.pick(Rng.derive(&"hellbender", 0), candidates)
 
+## Party jumps per move, for the crew currently flying. See the constants: the
+## count is the whole party's, so the threshold has to be the whole party's too
+## or the rival outruns a bigger crew. The call site tests the counter against
+## this with `<` rather than an equality, so a crew that SHRINKS mid-run — the
+## threshold dropping under a counter already past it — moves the rival on the
+## next jump instead of stranding it forever.
+func hellbender_stride() -> int:
+	var crew := maxi(1, Net.party_size())
+	return HELLBENDER_STRIDE if crew <= 1 else HELLBENDER_STRIDE_CREW * crew
+
 ## A jump happened somewhere in the party. Called by jump_to() for this ship
 ## and by NetSession._apply_presence() for everybody else's; the authority
 ## guard makes both safe to call unconditionally.
@@ -1857,7 +1891,7 @@ func hellbender_jumped() -> void:
 	if Net.fight_open_at(hellbender_at):
 		return
 	hellbender_ticks += 1
-	if hellbender_ticks < HELLBENDER_STRIDE:
+	if hellbender_ticks < hellbender_stride():
 		return
 	hellbender_ticks = 0
 	_hellbender_step(true)
