@@ -244,8 +244,6 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	var col: Color = maker.colour if maker != null else UITheme.CHILL
 	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	var r := part_rect(m, slot, at, k)
-	var up := ModuleIcon.part_turn(slot, f)
-	var k2 := ModuleIcon.part_scale(slot, f, r.size)
 
 	# THE PART ITSELF, and normally nothing around it. A ship is not an
 	# inventory: what is bolted to it is the object, not a plate with the object
@@ -257,7 +255,7 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	if full:
 		ModuleIcon.draw_plate(self, m, r, f, m.flipped)
 	else:
-		ModuleIcon.fill_part(self, slot, r, col, k2, up, m.flipped)
+		ModuleIcon.draw_body(self, m, r, col, f, m.flipped)
 
 	# RARITY, as a bar where the part meets the hull. The same split the plate
 	# uses, kept the same way round out here: the ART says whose it is, and what

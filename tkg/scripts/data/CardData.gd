@@ -238,6 +238,39 @@ func net_heat() -> int:
 ## it, which is the same answer for an unaffixed card.
 var base_glyph: StringName = &""
 
+## WHICH ILLUSTRATION this card shows, without the folder or the extension.
+##
+## Empty is the ordinary case: `art_key()` then slugs the card's own name, so a
+## card called "Scored Barrel" looks for `scored_barrel.png` and no entry has to
+## be written for it. Seventy-six cards times one bookkeeping line each is the
+## kind of edit that goes wrong quietly, and the name is already the identity a
+## player uses.
+##
+## Set it when the file cannot follow the name: two cards that should share one
+## picture, or a card whose name changes and whose art should not be orphaned by
+## the rename.
+@export var art: StringName = &""
+
+## The file this card's illustration lives under, name-derived unless overridden.
+##
+## Lowercased, spaces and punctuation to underscores, runs collapsed. Written
+## once here rather than at each call site, because a slug rule that exists in
+## two places is a slug rule that disagrees with itself the first time a card is
+## named with a hyphen.
+func art_key() -> StringName:
+	if art != &"":
+		return art
+	var out := ""
+	var gap := false
+	for ch in name.to_lower():
+		if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9"):
+			out += ch
+			gap = false
+		elif not gap and out != "":
+			out += "_"
+			gap = true
+	return StringName(out.rstrip("_"))
+
 ## Runtime-only, set by DeckBuilder
 var source_module: String = ""
 ## The granting module's id. source_module is its NAME, which is for printing;

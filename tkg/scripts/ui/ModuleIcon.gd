@@ -303,8 +303,7 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# one thing you look at — the shape in the middle of the plate — answered
 	# the question you can already answer from the field it is sitting on, and
 	# left how good the part is to a one-pixel line.
-	fill_part(ci, m.slot, r, mark, part_scale(m.slot, f, r.size),
-		part_turn(m.slot, f), mirror)
+	draw_body(ci, m, r, mark, f, mirror)
 
 	# THE EDGE IS THE INK, not the ground. Identical for seven grades and the
 	# whole plate for the eighth: a contraband ground is darker than the screen,
@@ -315,6 +314,57 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	for side in [Rect2(p, Vector2(z.x, 1)), Rect2(p + Vector2(0, z.y - 1), Vector2(z.x, 1)),
 			Rect2(p, Vector2(1, z.y)), Rect2(p + Vector2(z.x - 1, 0), Vector2(1, z.y))]:
 		ci.draw_rect(side, e, true)
+
+## THE PART, by whichever means it has: its sprite when one exists, the drawn
+## silhouette when it does not.
+##
+## ONE DOOR, called by the hull and by the hold, for the same reason `draw_part`
+## is one function — the alternative is two places that decide independently
+## whether a module has art yet, and they drift the moment one of them is fixed.
+## `ShipView` already proved the shape on hulls: sprite when there is one, the
+## procedural path underneath forever, and no third state where a part vanishes
+## because its file has not been generated.
+##
+## `cells` is the footprint to reason about, which is the HULL's business rather
+## than the hold's — see `draw_plate`. Zero means "ask the module".
+static func draw_body(ci: CanvasItem, m: ModuleData, box: Rect2, col: Color,
+		cells := Vector2i.ZERO, mirror: bool = false) -> void:
+	if m == null:
+		return
+	var f := m.footprint() if cells == Vector2i.ZERO else cells
+	if m.sprite != null:
+		draw_sprite(ci, m.sprite, box, mirror)
+		return
+	fill_part(ci, m.slot, box, col, part_scale(m.slot, f, box.size),
+		part_turn(m.slot, f), mirror)
+
+
+## A module's sprite, centred in its box AT A WHOLE MULTIPLE.
+##
+## The asset is authored at the size the hull draws it, so the multiple is 1 on
+## the refit screen and 2 with the zoom on — and never 1.7, because resampling
+## pixel art onto a grid it was not drawn for is the one thing the art direction
+## refuses outright. Whatever the box has left over becomes margin.
+##
+## Centred rather than stretched when the file is the wrong size, so a wrong
+## asset reads as wrong instead of quietly fitting. `-- artcheck` names it.
+static func draw_sprite(ci: CanvasItem, tex: Texture2D, box: Rect2,
+		mirror: bool = false) -> void:
+	var src := Vector2(tex.get_size())
+	if src.x < 1.0 or src.y < 1.0:
+		return
+	var k := maxi(1, int(floorf(minf(box.size.x / src.x, box.size.y / src.y))))
+	var dst := src * float(k)
+	var r := Rect2((box.position + (box.size - dst) * 0.5).round(), dst)
+	# Mirrored about the BOX's middle, the same line `fill_part` reflects the
+	# silhouette about, so a flipped part lands in the same place either way.
+	if mirror:
+		ci.draw_set_transform_matrix(Transform2D(Vector2(1.0, 0.0),
+			Vector2(0.0, -1.0), Vector2(0.0, box.get_center().y * 2.0)))
+	ci.draw_texture_rect(tex, r, false)
+	if mirror:
+		ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+
 
 ## THE SILHOUETTE A PART READS AS, drawn the same way wherever it appears.
 ##

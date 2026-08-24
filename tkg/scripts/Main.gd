@@ -242,6 +242,11 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	if "artcheck" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ArtCheck.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "shipsheet" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())

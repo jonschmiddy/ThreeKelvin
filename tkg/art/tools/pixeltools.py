@@ -11,6 +11,7 @@ See docs/art/PIXELLAB_WORKFLOW.md for the process these functions implement.
     python pixeltools.py strip     in.png out.png        # opaque bg -> alpha
     python pixeltools.py crop      in.png out.png X Y W H
     python pixeltools.py snap      in.png palette.png out.png
+    python pixeltools.py reduce    in.png out.png N       # /N, dominant pixel
     python pixeltools.py strip-anim out.png f0.png f1.png ...
 """
 
@@ -188,6 +189,55 @@ def snap(w, h, rows, pal):
     return n
 
 
+def reduce(w, h, rows, n):
+    """Shrink by an exact integer factor, one n*n block to one pixel.
+
+    THE DOMINANT PIXEL, NOT THE AVERAGE. Averaging four colours invents a fifth,
+    which is how a snapped sprite comes back off its own palette and why this
+    does not need a snap() afterwards: every colour it emits was already in the
+    source, so the palette cannot drift by construction.
+
+    Why this exists at all. A module is drawn on the hull at HALF the hold's
+    cell -- a long gun is 46x15 art pixels -- and every module footprint is
+    under PixelLab's floor of 16 per side and 1024 of area. Nothing in the set
+    can be generated at the size it is drawn, so it is generated at 2x or 3x and
+    brought down here, offline, once. The runtime still draws 1:1.
+
+    A block is opaque when at least HALF its pixels are, which keeps an edge
+    where the edge was. The alternative -- opaque if any pixel is -- fattens
+    every silhouette by a pixel on all four sides, and at 15 pixels tall that is
+    a seventh of the part.
+
+    Ties go to the lowest RGB rather than to whichever the counter happened to
+    see first, so a rebuild produces the same bytes. Determinism is worth more
+    than the shade it occasionally costs.
+    """
+    if n < 1 or w % n or h % n:
+        raise ValueError("%dx%d does not divide by %d" % (w, h, n))
+    nw, nh = w // n, h // n
+    out = []
+    for by in range(nh):
+        line = bytearray(nw * 4)
+        for bx in range(nw):
+            tally, solid = {}, 0
+            for dy in range(n):
+                r = rows[by * n + dy]
+                for dx in range(n):
+                    o = (bx * n + dx) * 4
+                    if not r[o + 3]:
+                        continue
+                    solid += 1
+                    c = (r[o], r[o + 1], r[o + 2])
+                    tally[c] = tally.get(c, 0) + 1
+            if solid * 2 < n * n:
+                continue                      # left transparent
+            c = min(tally.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+            o = bx * 4
+            line[o], line[o + 1], line[o + 2], line[o + 3] = c[0], c[1], c[2], 255
+        out.append(line)
+    return nw, nh, out
+
+
 def hstrip(frames):
     """[(w,h,rows), ...] of equal size -> one horizontal strip."""
     fw, fh = frames[0][0], frames[0][1]
@@ -232,6 +282,11 @@ def _main(argv):
         n = snap(w, h, rows, pal)
         encode(argv[4], w, h, rows)
         print("snapped %d px onto %d source colours" % (n, len(pal)))
+    elif cmd == "reduce":
+        w, h, rows = decode(argv[2])
+        n = int(argv[4])
+        encode(argv[3], *reduce(w, h, rows, n))
+        print("%dx%d /%d -> %dx%d" % (w, h, n, w // n, h // n))
     elif cmd == "strip-anim":
         frames = [decode(f) for f in argv[3:]]
         w, h, rows = hstrip(frames)

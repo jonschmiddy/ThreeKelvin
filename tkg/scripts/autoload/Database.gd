@@ -256,6 +256,12 @@ func malfunction(id: StringName) -> CardData:
 		c.hand_heat = row[3]
 		c.fused = row[4]
 		c.source_module = "spore residue"
+		# KEYED ON THE ID, not left to the name slug. A malfunction has no module
+		# to inherit a picture from, and its id is the one thing here that is
+		# already promised to be stable — the names are display text and the
+		# ladder they describe (Corrode 1/2/3) is exactly the sort that gets
+		# reworded.
+		c.art = row[0]
 		return c
 	return malfunction(&"dross")
 
@@ -384,6 +390,8 @@ func _module(id: StringName, name: String, man: StringName, slot: ModuleData.Slo
 			arr.append(_card(cd))
 	m.cards = arr
 	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
+	# Null until the art exists, which is what the drawn silhouette is for.
+	m.sprite = module_sprite(id)
 	modules[id] = m
 
 func _seed_modules() -> void:
@@ -1446,6 +1454,36 @@ func hull_sprite(w: HullData.Weight, cls: int = 0, half: bool = false) -> Textur
 	# and the filenames stay identical inside each folder.
 	var sub := "half/" if half else ""
 	return load("res://art/sprites/hulls/korvan/%s%s.png" % [sub, n]) as Texture2D
+
+## THE SPRITE BOLTED TO A HULL for a module, or null while it has none.
+##
+## Guarded on `ResourceLoader.exists` rather than handed straight to `load()`,
+## and that is not politeness. A missing path makes `load()` log an error every
+## call, and on the day this lands every one of forty-three modules is missing —
+## which is not a warning, it is a wall of them, hiding whatever real error
+## arrives next. Null is the honest answer and every drawing site already has a
+## procedural fallback for it.
+##
+## One folder, keyed on the module's own id, for the same reason the hulls are:
+## the filename cannot then describe a different part than the data does.
+func module_sprite(id: StringName) -> Texture2D:
+	if id == &"":
+		return null
+	var path := "res://art/sprites/modules/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+## A CARD'S ILLUSTRATION, or null while it has none. See `CardData.art_key()`
+## for where the key comes from — it is the card's name slugged, unless the card
+## names a file itself.
+func card_art(key: StringName) -> Texture2D:
+	if key == &"":
+		return null
+	var path := "res://art/sprites/cards/%s.png" % key
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
 
 ## The art file for a weight and class, without the extension. One place the
 ## naming convention is written, so the sprite and its measured lines cannot
