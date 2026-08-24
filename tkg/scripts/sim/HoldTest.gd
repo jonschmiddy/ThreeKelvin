@@ -82,8 +82,8 @@ func _card_law() -> void:
 ##
 ## A plate says two things at once: rarity is the ground it is painted on and
 ## the manufacturer is the art standing on it. That only works while the two
-## palettes stay apart, and nothing keeps them apart except this — 7 makers by 7
-## rarities is 49 pairings and a new house is one line of a table.
+## palettes stay apart, and nothing keeps them apart except this — 7 manufacturers by 7
+## rarities is 49 pairings and a new manufacturer is one line of a table.
 ##
 ## Here rather than in `-- fittest`, which is where the rest of the plate is
 ## tested, because this is arithmetic on two colour tables and needs no window.
@@ -92,14 +92,14 @@ func _legible() -> void:
 	var worst := 99.0
 	var who := ""
 	for id in DB.manufacturers:
-		var man: ManufacturerData = DB.manufacturers[id]
+		var m: ManufacturerData = DB.manufacturers[id]
 		for r in ModuleData.Rarity.size():
 			var ground: Color = ModuleData.rarity_colour(r).lerp(
 				UITheme.VOID, ModuleIcon.GROUND)
-			var c := _contrast(man.colour, ground)
+			var c := _contrast(m.colour, ground)
 			if c < worst:
 				worst = c
-				who = "%s on %s" % [man.name, ModuleData.rarity_name(r)]
+				who = "%s on %s" % [m.name, ModuleData.rarity_name(r)]
 	_ok("art on ground: worst pairing is %s at %.2f:1, floor 3.0" % [who, worst],
 		worst >= 3.0)
 
@@ -426,7 +426,7 @@ func _no_echoes() -> void:
 ##
 ## Four cards failed it when this was written, and every one was a gun whose
 ## own flavour said ballistic: a rotary cannon, a three-barrel ripsaw and both
-## cards off the KH-500. They cost the house the one advantage it has — a
+## cards off the KH-500. They cost the manufacturer the one advantage it has — a
 ## Korvan gun that heats you up is a worse Solari gun.
 ##
 ## ARMOUR IS EXEMPT AND HOT BY THE SAME LINE. Bulwark and Bulkhead pay heat to

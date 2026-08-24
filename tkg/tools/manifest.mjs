@@ -73,7 +73,7 @@ function vet(mods) {
   }
 }
 
-const HOUSE_ORDER = ['Korvan Heavy Works','Solari Foundry','The Probate Combine',
+const MANUFACTURER_ORDER = ['Korvan Heavy Works','Solari Foundry','The Probate Combine',
   'Redline Shipyards','Cygnet Dynamics','Verity Ateliers','Calyx Biosystems','Unbranded'];
 const SHORT = {'Korvan Heavy Works':'Korvan','Solari Foundry':'Solari',
   'The Probate Combine':'Probate','Redline Shipyards':'Redline',
@@ -195,29 +195,29 @@ const CARDS = [];
     const k = c.name + '|' + c.text + '|' + c.energy + '|' + c.heat;
     if (!seen.has(k)) {
       const e = {name: c.name, text: c.text, energy: c.energy, heat: c.heat,
-        rarities: new Set(), houses: new Set(), parts: new Set()};
+        rarities: new Set(), manufacturers: new Set(), parts: new Set()};
       seen.set(k, e); CARDS.push(e);
     }
     const e = seen.get(k);
     e.rarities.add(c.rarity || '—');
-    e.houses.add(m.house_name); e.parts.add(m.name);
+    e.manufacturers.add(m.manufacturer_name); e.parts.add(m.name);
   }
 }
 CARDS.sort((a, b) => a.text.localeCompare(b.text) || a.name.localeCompare(b.name));
 const SHARED = CARDS.filter(c => c.parts.size > 1);
 
-// ---- per-house tallies ----
-// A card counts ONCE, toward the first house that uses it, walking the parts in
-// the game's own order. Counting it in every house that grants it would inflate
+// ---- per-manufacturer tallies ----
+// A card counts ONCE, toward the first manufacturer that uses it, walking the parts in
+// the game's own order. Counting it in every manufacturer that grants it would inflate
 // the totals by the eight shared cards and make this page disagree with what
 // `-- content` prints, which is the one thing a page generated from the export
 // must never do.
 const owner = new Map();
 for (const m of MODS) for (const c of m.cards) {
-  if (!owner.has(c.name)) owner.set(c.name, m.house_name);
+  if (!owner.has(c.name)) owner.set(c.name, m.manufacturer_name);
 }
-const houses = HOUSE_ORDER.map(h => {
-  const parts = MODS.filter(m => m.house_name === h);
+const manufacturers = MANUFACTURER_ORDER.map(h => {
+  const parts = MODS.filter(m => m.manufacturer_name === h);
   const names = new Set();
   for (const m of parts) for (const c of m.cards) {
     if (owner.get(c.name) === h) names.add(c.name);
@@ -227,7 +227,7 @@ const houses = HOUSE_ORDER.map(h => {
   return {name: h, short: SHORT[h], parts, cards: names.size, want: TARGET[h], pairs};
 });
 const totalCards = new Set(MODS.flatMap(m => m.cards.map(c => c.name))).size;
-const shortfall = houses.reduce((n, h) => n + Math.max(0, h.want - h.cards), 0);
+const shortfall = manufacturers.reduce((n, h) => n + Math.max(0, h.want - h.cards), 0);
 
 // ---- rendering ----
 function plate(m) {
@@ -285,7 +285,7 @@ function passiveLine(m) {
 
 function partCard(m) {
   const dupe = new Set(m.cards.map(c => c.name)).size === 1 && m.cards.length > 1;
-  return '<article class="part" data-house="' + esc(m.house_name) + '" data-rarity="'
+  return '<article class="part" data-manufacturer="' + esc(m.manufacturer_name) + '" data-rarity="'
     + esc(m.rarity) + '" data-slot="' + esc(m.slot) + '" data-cells="' + m.cells + '">'
     + '<header>' + plate(m)
     + '<div class="ph"><h3>' + esc(m.name) + '</h3>'
@@ -299,8 +299,8 @@ function partCard(m) {
     + '</article>';
 }
 
-const houseSections = houses.map(h =>
-  '<section class="house" data-house="' + esc(h.name) + '">'
+const manufacturerSections = manufacturers.map(h =>
+  '<section class="manufacturer" data-manufacturer="' + esc(h.name) + '">'
   + '<h2><span class="swatch m-' + slug(h.short) + '"></span>'
   + esc(h.name.toUpperCase()) + '<span class="hcount">' + h.parts.length + ' parts &middot; '
   + h.cards + ' cards' + (h.cards < h.want ? ' &middot; <em>' + (h.want - h.cards)
@@ -308,7 +308,7 @@ const houseSections = houses.map(h =>
   + '<div class="grid">' + h.parts.map(partCard).join('') + '</div></section>').join(NL);
 
 // THE SAME PARTS, GROUPED BY SIZE. A second rendering rather than a re-sort of
-// the first: the house view is a set of sections and a flat sort would have to
+// the first: the manufacturer view is a set of sections and a flat sort would have to
 // dismantle them, and 68 cards of duplicated markup is cheaper than the CSS that
 // would keep one list in two orders.
 //
@@ -322,7 +322,7 @@ const sizeSections = [1, 2, 3, 4].map(n => {
     .sort((a, b) => a.w - b.w || a.name.localeCompare(b.name));
   if (!parts.length) return '';
   const shapes = [...new Set(parts.map(m => m.w + '×' + m.h))].join(', ');
-  return '<section class="house size" data-house="">'
+  return '<section class="manufacturer size" data-manufacturer="">'
     + '<h2><span class="swatch cells"></span>' + n + (n === 1 ? ' CELL' : ' CELLS')
     + '<span class="hcount">' + parts.length + ' parts &middot; ' + shapes + '</span></h2>'
     + '<div class="grid">' + parts.map(partCard).join('') + '</div></section>';
@@ -423,7 +423,7 @@ const sharedRows = SHARED.slice().sort((a, b) => b.parts.size - a.parts.size).ma
   + '</td><td class="c-cnt">' + c.parts.size + '</td>'
   + '<td class="c-from">' + esc([...c.parts].join(', ')) + '</td></tr>').join(NL);
 
-const tally = houses.map(h =>
+const tally = manufacturers.map(h =>
   '<tr><td><span class="swatch m-' + slug(h.short) + '"></span>' + esc(h.short) + '</td>'
   + '<td class="n">' + h.parts.length + '</td>'
   + '<td class="n">' + h.cards + '</td>'
@@ -582,23 +582,23 @@ const CSS = [
 
 const JS = [
 '(function(){',
-'  var f={house:"all",rarity:"all",slot:"all",sort:"house"};',
+'  var f={manufacturer:"all",rarity:"all",slot:"all",sort:"manufacturer"};',
 '  var parts=[].slice.call(document.querySelectorAll(".part"));',
 '  var shown=document.getElementById("shown");',
 '  function apply(){',
 '    var n=0;',
 '    parts.forEach(function(p){',
-'      var ok=(f.house==="all"||p.dataset.house===f.house)',
+'      var ok=(f.manufacturer==="all"||p.dataset.manufacturer===f.manufacturer)',
 '        &&(f.rarity==="all"||p.dataset.rarity===f.rarity)',
 '        &&(f.slot==="all"||p.dataset.slot===f.slot);',
 '      p.classList.toggle("hide",!ok); if(ok)n++;',
 '    });',
-'    document.querySelectorAll(".house").forEach(function(s){',
+'    document.querySelectorAll(".manufacturer").forEach(function(s){',
 '      s.classList.toggle("hide",!s.querySelector(".part:not(.hide)"));',
 '    });',
 '    shown.textContent=n;',
 '  }',
-'  var byHouse=document.getElementById("by-house");',
+'  var byManufacturer=document.getElementById("by-manufacturer");',
 '  var byCells=document.getElementById("by-cells");',
 '  document.querySelectorAll(".filters .set").forEach(function(set){',
 '    set.addEventListener("click",function(e){',
@@ -606,7 +606,7 @@ const JS = [
 '      set.querySelectorAll("button").forEach(function(x){x.removeAttribute("data-on")});',
 '      b.setAttribute("data-on","1");',
 '      if(set.dataset.k==="sort"){',
-'        byHouse.classList.toggle("hide",b.dataset.v!=="house");',
+'        byManufacturer.classList.toggle("hide",b.dataset.v!=="manufacturer");',
 '        byCells.classList.toggle("hide",b.dataset.v!=="cells");',
 '      }',
 '      f[set.dataset.k]=b.dataset.v; apply();',
@@ -653,7 +653,7 @@ auditVerdict,
 '<p class="note"><b>Contraband is black, and has no parts yet.</b> It is the one grade that '
 + 'is a fact about who sold you the thing rather than how well it was made, and it comes only '
 + 'from the Probate Combine, Redline and Cygnet — the scrappers, the hackers and the '
-+ 'technologists, the three houses with a reason to move something off the manifest. Black is '
++ 'technologists, the three manufacturers with a reason to move something off the manifest. Black is '
 + 'darker than the screen it is drawn on, so a contraband plate has no visible ground at all: '
 + 'only a bone edge, the shape of a part with nothing filled in.</p>',
 
@@ -666,16 +666,16 @@ auditVerdict,
 '<div class="scroll"><table><thead><tr><th>Keyword</th><th>What it does</th>'
 + '</tr></thead><tbody>' + wordRows + '</tbody></table></div>',
 
-'<h2>What each house owes</h2>',
-'<div class="scroll"><table><thead><tr><th>House</th><th class="n">Parts</th>'
+'<h2>What each manufacturer owes</h2>',
+'<div class="scroll"><table><thead><tr><th>Manufacturer</th><th class="n">Parts</th>'
 + '<th class="n">Cards</th><th class="n">Want</th><th class="n">Short</th><th>Progress</th>'
 + '</tr></thead><tbody>' + tally + '</tbody></table></div>',
 
 '<h2>Every part</h2>',
 '<div class="filters">',
-'<div class="set" data-k="house"><span class="lbl">House</span>'
+'<div class="set" data-k="manufacturer"><span class="lbl">Manufacturer</span>'
 + '<button data-v="all" data-on="1">All</button>'
-+ houses.map(function(h){
++ manufacturers.map(function(h){
     return '<button data-v="' + esc(h.name) + '">' + esc(h.short) + '</button>';
   }).join('') + '</div>',
 '<div class="set" data-k="rarity"><span class="lbl">Grade</span>'
@@ -689,7 +689,7 @@ auditVerdict,
     return '<button data-v="' + s + '">' + s.charAt(0).toUpperCase() + s.slice(1) + '</button>';
   }).join('') + '</div>',
 '<div class="set" data-k="sort"><span class="lbl">Sort</span>'
-+ '<button data-v="house" data-on="1">By house</button>'
++ '<button data-v="manufacturer" data-on="1">By manufacturer</button>'
 + '<button data-v="cells">By cells</button></div></div>',
 '<p class="note"><b>The number beside a card is what it costs</b> — energy on '
 + 'the left, heat on the right in orange. <code>1 | 1°</code> is one energy and '
@@ -704,7 +704,7 @@ auditVerdict,
 + 'leaves free after powering itself are in the table further down.</p>',
 '<p class="showing"><b id="shown">' + MODS.length + '</b> of ' + MODS.length
 + ' showing &middot; the plate is the part’s real footprint in the hold</p>',
-'<div id="by-house">' + houseSections + '</div>',
+'<div id="by-manufacturer">' + manufacturerSections + '</div>',
 '<div id="by-cells" class="hide">' + sizeSections + '</div>',
 
 '<h2>Power by grade</h2>',

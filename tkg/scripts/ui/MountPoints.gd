@@ -240,8 +240,8 @@ func part_rect(m: ModuleData, slot: ModuleData.Slot, at: Vector2,
 
 func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 		full: bool) -> void:
-	var maker: ManufacturerData = DB.manufacturers.get(m.manufacturer)
-	var col: Color = maker.colour if maker != null else UITheme.CHILL
+	var manufacturer: ManufacturerData = DB.manufacturers.get(m.manufacturer)
+	var col: Color = manufacturer.colour if manufacturer != null else UITheme.CHILL
 	var f := Vector2i(maxi(1, m.size.x), maxi(1, m.size.y))
 	var r := part_rect(m, slot, at, k)
 

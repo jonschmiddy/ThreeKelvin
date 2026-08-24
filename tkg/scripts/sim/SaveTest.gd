@@ -64,7 +64,7 @@ func fingerprint() -> Dictionary:
 			# market that came back un-saturated pays full price again. Both are
 			# run marks and both are silent when lost.
 			n.stocked, n.trades,
-			Array(n.links), n.makers, shop,
+			Array(n.links), n.berths, shop,
 			# What the system is offering. Rolled on arrival and fixed from then
 			# on, so losing it across a save is a re-roll the player can force.
 			n.foes, n.event_key,

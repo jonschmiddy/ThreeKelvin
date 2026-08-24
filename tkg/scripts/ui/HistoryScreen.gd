@@ -114,9 +114,9 @@ func _row(e: Dictionary) -> Control:
 	col.add_child(top)
 
 	var where := "%s · %s" % [str(e.get("galaxy_title", "")), str(e.get("hull", ""))]
-	var makers := _makers_text(e.get("makers", []))
-	if makers != "":
-		where += " · " + makers
+	var manufacturers := _manufacturers_text(e.get("manufacturers", []))
+	if manufacturers != "":
+		where += " · " + manufacturers
 	col.add_child(UITheme.body(where, UITheme.CHILL, UITheme.FS_SMALL))
 
 	# The seed, on its own line and in the dimmest colour on the screen. It is
@@ -144,9 +144,9 @@ func _row(e: Dictionary) -> Control:
 	panel.add_child(pad)
 	return panel
 
-## What the ship was flying, in the vocabulary set bonuses use: house and count,
+## What the ship was flying, in the vocabulary set bonuses use: manufacturer and count,
 ## biggest first. Two entries is enough to name a build.
-func _makers_text(raw: Variant) -> String:
+func _manufacturers_text(raw: Variant) -> String:
 	if typeof(raw) != TYPE_ARRAY:
 		return ""
 	var parts: PackedStringArray = []

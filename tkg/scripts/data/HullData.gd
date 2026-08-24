@@ -98,14 +98,14 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 @export var weapon_slots: int = 3
 @export var system_slots: int = 2
 @export var utility_slots: int = 1
-## THE MANUFACTURER'S PERK. Every hull a house builds carries it, at every
+## THE MANUFACTURER'S PERK. Every hull a manufacturer builds carries it, at every
 ## grade, so a C-class is never characterless.
 @export var perk_id: StringName = &"salvage_rack"
 
-## WHAT THE GRADE ADDS, on top of the house's own. Cumulative and authored,
+## WHAT THE GRADE ADDS, on top of the manufacturer's own. Cumulative and authored,
 ## never rolled: C gets none, B one, A two, S three, and each is the previous
 ## list plus one more — so upgrading a hull adds without taking away, and two
-## ships of the same house and grade are the same ship.
+## ships of the same manufacturer and grade are the same ship.
 ##
 ## Granted by `Database.at_tier`, which is where every other thing a grade
 ## confers already happens.
@@ -120,7 +120,7 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 func has_perk(id: StringName) -> bool:
 	return id == perk_id or id in tier_perks
 
-## Everything this hull carries, house first, then the grade's in order.
+## Everything this hull carries, manufacturer first, then the grade's in order.
 func perks() -> Array[StringName]:
 	var out: Array[StringName] = []
 	if perk_id != &"":
@@ -196,7 +196,7 @@ func anchors_for(s: ModuleData.Slot) -> Array[Vector2]:
 ## Measured off the hull's own silhouette by `art/tools/anchors.py` and assigned
 ## from `DB.HULL_LINES`. A LINE rather than a list of mount points, because how
 ## many mounts a hull has is not a property of the hull art: weight sets a base,
-## `TIER_DELTA` grants more at A and S, and six of the seven makers move it
+## `TIER_DELTA` grants more at A and S, and six of the seven manufacturers move it
 ## again. Five authored points used two at a time put both mounts at one end of
 ## the ship; a line spreads however many there are.
 @export var dorsal: PackedVector2Array = PackedVector2Array()
@@ -227,8 +227,8 @@ func mounts_along(s: ModuleData.Slot, n: int) -> PackedVector2Array:
 		for i in n:
 			out.append(placed[i])
 		return out
-	# Rigged for fewer than this ship needs — hull art is shared between makers
-	# and makers move slot counts. Spread along what was placed, which is a
+	# Rigged for fewer than this ship needs — hull art is shared between manufacturers
+	# and manufacturers move slot counts. Spread along what was placed, which is a
 	# better line than the measured one even when it is short.
 	var line := PackedVector2Array(placed) if placed.size() > 1 else line_for(s)
 	if line.is_empty():

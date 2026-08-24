@@ -15,7 +15,7 @@ extends RefCounted
 ## rolled stats. A partner's Chatterbox has an affix on it and a scrap value and
 ## eleven other fields; none of that changes a single pixel, and every one of
 ## them would be on the wire four times a second. What changes pixels is the
-## hull's weight and maker, which hardpoint each part sits on, who built it, and
+## hull's weight and manufacturer, which hardpoint each part sits on, who built it, and
 ## the two gauges the art reacts to — heat and damage.
 ##
 ## **Identity travels as ids, never as objects.** `to_wire()` sends a
@@ -25,7 +25,7 @@ extends RefCounted
 ## sending the tables again would be sending a copy of something already agreed.
 ##
 ## A looted hull is a `duplicate()` of a catalogue frame with its numbers rolled
-## up, so maker plus weight plus GRADE names its appearance exactly.
+## up, so manufacturer plus weight plus GRADE names its appearance exactly.
 ##
 ## The grade is on the wire and it did not used to be. The note that stood here
 ## said an A-tier Korvan Frigate and a C-tier one were the same picture, and
@@ -42,7 +42,7 @@ extends RefCounted
 ## Who is flying it. Empty for your own ship, which needs no label.
 var pilot: String = ""
 var hull: HullData = null
-## What is bolted on, as `{slot, mount, maker, id}`. Plain dictionaries rather
+## What is bolted on, as `{slot, mount, manufacturer, id}`. Plain dictionaries rather
 ## than `ModuleData` on purpose: a remote part has to be resolved from the
 ## catalogue, and the catalogue entry is SHARED — writing the sender's `mount`
 ## onto `DB.modules[id]` would move that hardpoint on every ship in the game.
@@ -72,7 +72,7 @@ static func local() -> ShipBuild:
 		b.parts.append({
 			"slot": int(m.slot),
 			"mount": maxi(m.mount, 0),
-			"maker": m.manufacturer,
+			"manufacturer": m.manufacturer,
 			"id": m.id,
 		})
 	b.hp = Run.hp
@@ -118,7 +118,7 @@ func damage() -> float:
 func to_wire() -> Dictionary:
 	return {
 		"pilot": pilot,
-		"maker": hull.manufacturer if hull != null else &"",
+		"manufacturer": hull.manufacturer if hull != null else &"",
 		"weight": int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM),
 		"tier": tier,
 		"parts": parts,
@@ -142,9 +142,9 @@ static func from_wire(d: Dictionary) -> ShipBuild:
 	b.pilot = String(d.get("pilot", ""))
 	var w := clampi(int(d.get("weight", int(HullData.Weight.MEDIUM))),
 		int(HullData.Weight.LIGHT), int(HullData.Weight.HEAVY)) as HullData.Weight
-	b.hull = DB.hull_for(StringName(d.get("maker", &"")), w)
+	b.hull = DB.hull_for(StringName(d.get("manufacturer", &"")), w)
 	# Falling back to the unbranded frame of the same class rather than to
-	# nothing. A maker the catalogue does not build in that class cannot happen
+	# nothing. A manufacturer the catalogue does not build in that class cannot happen
 	# behind the content fingerprint, so this is not a compatibility path — it is
 	# the difference between a partner drawn as the wrong hull and a partner not
 	# drawn at all, and the first one is far easier to notice and report.

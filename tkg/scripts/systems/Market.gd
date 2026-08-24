@@ -28,7 +28,7 @@ extends RefCounted
 ##
 ## WHAT REPLACES THE EXPLOIT. Round-tripping a part in one place is now a
 ## guaranteed loss, and that is correct: a scrapyard is not a market. The profit
-## moved to where it belongs — the distance between two places. A house's own
+## moved to where it belongs — the distance between two places. A manufacturer's own
 ## yard is thick with its own parts and buys them back at a glut price; a rival's
 ## yard needs parts it cannot press itself and pays for them. Buy Korvan in
 ## Korvan space, sell it in a Solari capital. The route is the trade.
@@ -68,19 +68,19 @@ static func ask_index(n: MapGen.MapNode) -> float:
 ## How badly THIS place wants THAT brand. The whole cross-system economy is these
 ## four lines.
 ##
-## Derived from `makers`, which the chart already prints on every system, so the
+## Derived from `berths`, which the chart already prints on every system, so the
 ## trade map is a map the player is already reading. No new state, nothing to
 ## discover by trial, and it survives a save because it is not stored.
-static func demand(n: MapGen.MapNode, man: StringName) -> float:
+static func demand(n: MapGen.MapNode, manufacturer: StringName) -> float:
 	if n == null:
 		return 1.0
-	if man == &"":
+	if manufacturer == &"":
 		# Unbranded: relic and organic tech. Nobody presses more of it anywhere,
 		# so it is scarce in every market and never falls to a glut price.
 		return 1.25
-	if n.makers.has(man):
-		return 0.78      # the house's own yard, thick with its own parts
-	if n.makers.is_empty():
+	if n.berths.has(manufacturer):
+		return 0.78      # the manufacturer's own yard, thick with its own parts
+	if n.berths.is_empty():
 		return 1.00      # nobody's space, no opinion either way
 	return 1.26          # a rival's yard: they need what they cannot press
 
@@ -236,7 +236,7 @@ static func coolant_price(n: MapGen.MapNode) -> int:
 	return maxi(1, int(round(30.0 * service_index(n))))
 
 ## A flyable hull on the pad. Goods, not work, so it reads off the goods index —
-## and off the maker who built it, exactly like a module does.
+## and off the manufacturer who built it, exactly like a module does.
 static func hull_price(n: MapGen.MapNode, h: HullData) -> int:
 	# The 80 + 70/tier ladder is unchanged; only where you buy it now matters.
 	# No MARKUP on this one — the ladder already IS the asking price, unlike a
@@ -256,19 +256,19 @@ static func trade_line(n: MapGen.MapNode) -> String:
 		return ""
 	if n.type == MapGen.NodeType.GOAL:
 		return ""
-	if n.makers.is_empty():
+	if n.berths.is_empty():
 		# The tail said what a flat rate MEANS, which the price beside it already
 		# says every time you read one. Two words is a state; the sentence was a
 		# tutorial repeated on every visit.
 		return "NO MARKET"
 	var short: Array[String] = []
 	for id in DB.STARTABLE:
-		if not n.makers.has(id):
+		if not n.berths.has(id):
 			short.append(DB.short_name(DB.manufacturer_name(id)).to_upper())
 	var glut: Array[String] = []
-	for id in n.makers:
+	for id in n.berths:
 		glut.append(DB.short_name(DB.manufacturer_name(id)).to_upper())
-	# Naming five houses it pays for is a list, not information. The glut is the
+	# Naming five manufacturers it pays for is a list, not information. The glut is the
 	# short list and the actionable one — it is what you should not be carrying
 	# in, and what you should be buying while you are here.
 	var out := "GLUT " + "/".join(glut)

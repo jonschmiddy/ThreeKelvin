@@ -52,12 +52,12 @@ const INSPECT_H := CARD_H * 2
 ## half-pixel that made every emblem read off-centre when this started.
 ##
 ## Thirteen leaves a field of eleven inside the border, for a mark of nine — a
-## pixel of house colour showing either side of its own emblem. Seventeen was
+## pixel of manufacturer colour showing either side of its own emblem. Seventeen was
 ## about a fifth of the card given to one flat block of colour; eleven made the
 ## marks so narrow they had to stretch vertically to stay legible, which is its
 ## own kind of wrong. Nine across and nine tall is the size at which these
 ## shapes are square.
-const Z_BANNER := Rect2(2, 1, 13, 158)      ## the house, full height, left edge
+const Z_BANNER := Rect2(2, 1, 13, 158)      ## the manufacturer, full height, left edge
 const Z_ENERGY := Rect2(16, 3, 13, 13)      ## what you pay
 const Z_HEAT := Rect2(96, 3, 13, 13)        ## what it leaves behind
 ## Two lines. "Suppressing Fire" is sixteen characters and ran off the right
@@ -222,9 +222,9 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, w, h), Color("#1a1418") if dim else UITheme.PANEL2, true)
 	draw_rect(Rect2(0, 0, w, h), UITheme.LINE, false, s)
 
-	# The house banner. Brand is colour, emblem and cut; TYPE is structure. The
+	# The manufacturer banner. Brand is colour, emblem and cut; TYPE is structure. The
 	# two channels never share an encoding, so a colourblind player reads type
-	# off the silhouettes and the house off the mark, and both survive a 96px
+	# off the silhouettes and the manufacturer off the mark, and both survive a 96px
 	# thumbnail.
 	if not dim:
 		_banner()
@@ -281,10 +281,10 @@ func _draw() -> void:
 
 ## The manufacturer banner: a field, a mark, and a cut.
 ##
-## A 2px accent stripe carried the house colour and nothing else — brand as a
+## A 2px accent stripe carried the manufacturer colour and nothing else — brand as a
 ## legal requirement rather than as identity. A banner is the emblem's largest
 ## habitat, and at 13px wide it still has room for the three things that
-## distinguish a house at a glance: the ground it flies on, the mark it carries,
+## distinguish a manufacturer at a glance: the ground it flies on, the mark it carries,
 ## and the shape of its own bottom edge.
 ##
 ## The cut is doing real work, not decoration. It is the one brand channel that
@@ -293,16 +293,16 @@ func _draw() -> void:
 ## edges; Verity ends in a swallowtail because it can afford to.
 func _banner() -> void:
 	var s := float(_s)
-	var man: ManufacturerData = DB.manufacturers.get(card.manufacturer)
+	var manufacturer: ManufacturerData = DB.manufacturers.get(card.manufacturer)
 	var b := _z(Z_BANNER)
-	var field := man.field if man != null else UITheme.PANEL
-	var mark := man.colour if man != null else UITheme.COLD
+	var field := manufacturer.field if manufacturer != null else UITheme.PANEL
+	var mark := manufacturer.colour if manufacturer != null else UITheme.COLD
 	draw_rect(b, field, true)
 	_cut(b, mark)
 	# Centred on the energy gem's row, not on the banner's own.
 	#
 	# Z_ENERGY runs y 3 to 16, so a centre of 9 puts the tallest marks — Solari's
-	# rays, Calyx's cross — at exactly 3 to 16 as well. The house and the cost
+	# rays, Calyx's cross — at exactly 3 to 16 as well. The manufacturer and the cost
 	# then share one horizontal line across the top of the card, which is the
 	# line the eye starts on.
 	# Centre taken FROM the banner, not written next to it.
@@ -311,7 +311,7 @@ func _banner() -> void:
 	# guessed — so every mark sat half a pixel left, which at 1x rounds to a
 	# whole one. Two numbers that must agree should never be two numbers.
 	#
-	# Vertically it lines up with the energy gem rather than the flag: the house
+	# Vertically it lines up with the energy gem rather than the flag: the manufacturer
 	# and the cost then share the top line of the card, which is where the eye
 	# starts.
 	_emblem(Vector2(b.position.x + b.size.x * 0.5,
@@ -319,13 +319,13 @@ func _banner() -> void:
 	# EVERY banner is outlined, and the outline goes on LAST.
 	#
 	# It started as a light-field rule — Verity and Calyx bleed into the card
-	# without one. But two houses fly fields that are the card's own colour:
+	# without one. But two manufacturers fly fields that are the card's own colour:
 	# Redline's charcoal is #1c2127 against a #161f2c panel, and Cygnet's
 	# #16202e is nearer still. Those banners had no edge at all, so their hems
 	# were carving shapes out of a flag whose outline you could not see, and the
 	# bottom of the flag simply merged into the card.
 	#
-	# In the house's own mark, dimmed: it reads on a dark field and stays quiet
+	# In the manufacturer's own mark, dimmed: it reads on a dark field and stays quiet
 	# on a bright one. Last, because a frame drawn before its contents is not a
 	# frame — underneath the hem it lost exactly the edge this is for.
 	# Four filled rects, not draw_rect's outline mode.
@@ -342,7 +342,7 @@ func _banner() -> void:
 	draw_rect(Rect2(b.position.x, b.position.y, b.size.x, s), edge, true)
 	draw_rect(Rect2(b.position.x, b.end.y - s, b.size.x, s), edge, true)
 
-## Carve the bottom edge into the house's shape by painting the card back over
+## Carve the bottom edge into the manufacturer's shape by painting the card back over
 ## it. Cheaper than authoring seven polygons and it stays on the pixel grid.
 func _cut(b: Rect2, mark: Color) -> void:
 	draw_cut(self, card.manufacturer, b, mark, UITheme.PANEL2, float(_s))
@@ -358,7 +358,7 @@ func _cut(b: Rect2, mark: Color) -> void:
 ## `back` is whatever the banner is sitting ON. Most of these shapes are CUT,
 ## by painting the background back over the flag, so passing the wrong colour
 ## does not misdraw the hem — it makes the hem invisible.
-static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
+static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: Color,
 		back: Color, s: float) -> void:
 	var base := b.end.y
 
@@ -373,7 +373,7 @@ static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
 		var y1 := minf(r.end.y, b.end.y)
 		if x1 > x0 and y1 > y0:
 			ci.draw_rect(Rect2(x0, y0, x1 - x0, y1 - y0), col, true)
-	match man:
+	match manufacturer:
 		&"solari":
 			# Vent slots. A forge hem: the flag ends where the heat gets out.
 			hem.call(Rect2(b.position.x, base - 4 * s, b.size.x, 3.0 * s),
@@ -408,7 +408,7 @@ static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
 			# thing grown in one piece rather than assembled.
 			hem.call(Rect2(b.position.x, base - 5 * s, b.size.x, 4.0 * s), mark)
 		&"redline":
-			# A torn hem, DRAWN rather than carved. Every other house cuts its
+			# A torn hem, DRAWN rather than carved. Every other manufacturer cuts its
 			# shape by painting the card back over the flag, which relies on the
 			# field differing from the card — and Redline's #1c2127 against a
 			# #161f2c panel IS the card. A subtraction needs two colours to
@@ -426,7 +426,7 @@ static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
 			for i in 4:
 				hem.call(Rect2(b.position.x + (3 + i * 2) * s, base - 3 * s, s, s), mark)
 		_:
-			# Unbranded: nothing. Precursor tech and grown things have no house
+			# Unbranded: nothing. Precursor tech and grown things have no manufacturer
 			# to fly for, and a blank hem says that better than any shape would.
 			pass
 
@@ -434,7 +434,7 @@ static func draw_cut(ci: CanvasItem, man: StringName, b: Rect2, mark: Color,
 ## a HALF — -6.5 with a width of 13, not -6 with a width of 13. That is what
 ## straddling a centre actually looks like: an odd-width mark has to start half
 ## its width to the left, and half of 13 is 6.5. Writing whole numbers there put
-## every emblem half a pixel off, in the same direction, on all seven houses.
+## every emblem half a pixel off, in the same direction, on all seven manufacturers.
 func _emblem(c: Vector2, mark: Color, field: Color) -> void:
 	draw_emblem(self, card.manufacturer, c, float(_s), mark, field)
 
@@ -445,11 +445,11 @@ func _emblem(c: Vector2, mark: Color, field: Color) -> void:
 ## cards that manufacturer grants. Two copies of these offsets would be two
 ## copies to fix the next time one is half a pixel out — which has already
 ## happened once, to all seven at the same time.
-static func draw_emblem(ci: CanvasItem, man: StringName, c: Vector2, s: float,
+static func draw_emblem(ci: CanvasItem, manufacturer: StringName, c: Vector2, s: float,
 		mark: Color, field: Color) -> void:
 	var r := func(off: Vector2, sz: Vector2, col: Color) -> void:
 		ci.draw_rect(Rect2(c + off * s, sz * s), col, true)
-	match man:
+	match manufacturer:
 		&"korvan":
 			# Three descending armour slabs. Armour as heraldry.
 			# Pitch 4: two of bar, two of gap, three times over. The bars were

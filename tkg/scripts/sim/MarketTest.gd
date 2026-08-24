@@ -42,21 +42,21 @@ func run() -> void:
 
 ## A place with the axes set by hand. Every price in the game is a function of
 ## these fields and nothing else, so a synthetic node is a complete input.
-func _place(dev: int, sec: int, makers: Array[StringName], danger: int) -> MapGen.MapNode:
+func _place(dev: int, sec: int, berths: Array[StringName], danger: int) -> MapGen.MapNode:
 	var n := MapGen.MapNode.new()
 	n.development = dev as MapGen.Development
 	n.security = sec
-	n.makers = makers
-	n.manufacturer = makers[0] if not makers.is_empty() else &""
+	n.berths = berths
+	n.manufacturer = berths[0] if not berths.is_empty() else &""
 	n.danger = danger
 	n.type = MapGen.NodeType.STATION
 	return n
 
-func _part(rarity: int, man: StringName, contraband: bool) -> ModuleData:
+func _part(rarity: int, manufacturer: StringName, contraband: bool) -> ModuleData:
 	# Built from a real template so `contraband` reads off a real affix rather
 	# than a flag nothing in the game sets that way.
 	var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
-	m.manufacturer = man
+	m.manufacturer = manufacturer
 	m.rarity = rarity as ModuleData.Rarity
 	m.scrap_value = ModuleData.SCRAP_VALUE[rarity]
 	var af: Array[AffixData] = []
@@ -77,16 +77,16 @@ func _check_invariant() -> void:
 		for dev in 5:
 			for sec in [1, 3, 5]:
 				for danger in [1, 3, 5, 7, 10]:
-					for man in [&"korvan", &""]:
+					for manufacturer in [&"korvan", &""]:
 						for rarity in 7:
 							for cb in [false, true]:
-								# Three brand relationships: the part's own house
+								# Three brand relationships: the part's own manufacturer
 								# holds this place, a rival does, or nobody does.
-								for makers in [[] as Array[StringName],
+								for berths in [[] as Array[StringName],
 										[&"korvan"] as Array[StringName],
 										[&"solari", &"cygnet"] as Array[StringName]]:
-									var n := _place(dev, sec, makers, danger)
-									var m := _part(rarity, man, cb)
+									var n := _place(dev, sec, berths, danger)
+									var m := _part(rarity, manufacturer, cb)
 									var ask := Market.ask(n, m)
 									var bid := Market.bid(n, m)
 									var melt := Market.melt(m)
@@ -95,7 +95,7 @@ func _check_invariant() -> void:
 									if ratio > worst_ratio:
 										worst_ratio = ratio
 										worst = "%s C%d dev%d sec%d d%d %s" % [
-											"unbranded" if man == &"" else man,
+											"unbranded" if manufacturer == &"" else manufacturer,
 											rarity, dev, sec, danger,
 											"contraband" if cb else "clean"]
 									if melt >= ask:

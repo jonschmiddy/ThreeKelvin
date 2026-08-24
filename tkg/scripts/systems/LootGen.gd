@@ -11,10 +11,10 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	# Every threshold below was tuned against the five-tier ladder. Read the
 	# wider scale through tier() rather than restating all of them.
 	var danger := MapGen.tier(danger_in)
-	# A Territory region can force a maker that the active-maker gate has switched
+	# A Territory region can force a manufacturer that the active-manufacturer gate has switched
 	# off. Honouring that would empty the pool and collapse every drop in the
 	# region to the fallback, so treat it as an unbranded roll instead.
-	if force_manufacturer != &"" and not _maker_active(force_manufacturer):
+	if force_manufacturer != &"" and not _manufacturer_active(force_manufacturer):
 		force_manufacturer = &""
 
 	var pool: Array[StringName] = []
@@ -28,7 +28,7 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 			continue
 		if m.rarity >= ModuleData.Rarity.EXOTIC and not allow_unbranded:
 			continue
-		if not _maker_active(m.manufacturer):
+		if not _manufacturer_active(m.manufacturer):
 			continue
 		if force_manufacturer != &"" and m.manufacturer != force_manufacturer:
 			continue
@@ -52,10 +52,10 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	m.scrap_value = int(round(ModuleData.SCRAP_VALUE[m.rarity] * r.randf_range(0.8, 1.3)))
 	return m
 
-## True when a maker may drop. Brand-agnostic modules (manufacturer &"") always
-## pass — see DB.ACTIVE_MAKERS.
-static func _maker_active(man: StringName) -> bool:
-	return man == &"" or DB.ACTIVE_MAKERS.is_empty() or DB.ACTIVE_MAKERS.has(man)
+## True when a manufacturer may drop. Brand-agnostic modules (manufacturer &"") always
+## pass — see DB.ACTIVE_MANUFACTURERS.
+static func _manufacturer_active(manufacturer: StringName) -> bool:
+	return manufacturer == &"" or DB.ACTIVE_MANUFACTURERS.is_empty() or DB.ACTIVE_MANUFACTURERS.has(manufacturer)
 
 static func _affix_count(r: ModuleData.Rarity) -> int:
 	return [0, 1, 2, 3, 3, 3, 2][r]
@@ -83,7 +83,7 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 ## than one number in it.
 ##
 ## The perk is REROLLED even on a manufacturer hull, unlike the one you start
-## with, which keeps the perk its maker authored. A ship you were handed at the
+## with, which keeps the perk its manufacturer authored. A ship you were handed at the
 ## yard is to spec; a ship you cut out of a wreck is whatever it ended up as.
 static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> HullData:
 	var danger := MapGen.tier(danger_in)
@@ -103,7 +103,7 @@ static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> Hu
 	h.max_hull = maxi(1, h.max_hull + r.randi_range(-spread, spread))
 	h.heat_cap = maxi(1, h.heat_cap + r.randi_range(-1, 1))
 	# THE HOUSE PERK IS REROLLED, THE GRADE'S ARE NOT. A derelict is somebody
-	# else's ship with an unknown yard behind it, so its house perk is a roll --
+	# else's ship with an unknown yard behind it, so its manufacturer perk is a roll --
 	# but `at_tier` granted the ladder its GRADE earns, and overwriting the one
 	# must not quietly discard the other.
 	h.perk_id = Rng.pick(r, DB.hull_perks.keys())

@@ -28,9 +28,9 @@ extends Harness
 ## the same numbers rather than written down twice.
 
 
-## Cards in scope come from modules of these houses, plus the malfunctions.
+## Cards in scope come from modules of these manufacturers, plus the malfunctions.
 ## `&""` is unbranded, which is a real key and not a missing one.
-const HOUSES: Array[StringName] = [&"korvan", &""]
+const MANUFACTURERS: Array[StringName] = [&"korvan", &""]
 
 ## How far past its box a part may stand before it is a fault, in art pixels.
 ## Half a cell. Beyond that it is not a gun on a mount, it is a gun beside one.
@@ -124,7 +124,7 @@ func _modules() -> Array[ModuleData]:
 	var out: Array[ModuleData] = []
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
-		if m.manufacturer in HOUSES:
+		if m.manufacturer in MANUFACTURERS:
 			out.append(m)
 	out.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
 		return str(a.id) < str(b.id))

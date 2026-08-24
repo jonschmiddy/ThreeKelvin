@@ -16,7 +16,7 @@ extends Control
 ## near, so an event sector is empty sky. Derelicts drift where the rocks are,
 ## fauna follow the gas giants, and a fleet is only ever in space somebody
 ## holds. Nothing is rolled freely: the roll picks between the things that are
-## true of that node, and the node's own axes — development, security, makers —
+## true of that node, and the node's own axes — development, security, berths —
 ## decide which list it rolls on. That is what makes the sky readable. If you
 ## have learned that lit cities mean a settled world, an unlit one means
 ## something.
@@ -226,7 +226,7 @@ func _pick_open(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 	if n.fauna:
 		# Migration follows the giants. The whales are here because the gas is.
 		return Kind.GIANT if r.randf() < 0.62 else Kind.DEEP
-	if n.makers.size() >= 2 and r.randf() < 0.42:
+	if n.berths.size() >= 2 and r.randf() < 0.42:
 		# Contested space is space with hulls in it.
 		return Kind.FLEET
 	var roll := r.randf()
@@ -756,7 +756,7 @@ func _near_star(r: RandomNumberGenerator) -> void:
 
 
 ## Somebody else's ships, far enough away to be silhouettes. Running lights take
-## the holding house's mark colour, which is the only place a maker's colour is
+## the holding manufacturer's mark colour, which is the only place its colour is
 ## allowed to describe a whole sector.
 func _fleet(r: RandomNumberGenerator) -> void:
 	var lane := r.randf_range(0.16, 0.34) if r.randf() < 0.5 else r.randf_range(0.66, 0.86)
@@ -794,7 +794,7 @@ func _hull_silhouette(at: Vector2, w: float, depth: float, r: RandomNumberGenera
 			Vector2(maxf(2.0, w * 0.22), 1.0)), plate.lightened(0.1), true)
 		draw_rect(Rect2((at + Vector2(w * 0.12, h)).floor(),
 			Vector2(maxf(2.0, w * 0.3), 1.0)), plate.darkened(0.4), true)
-	# One running light, in the holding house's mark colour.
+	# One running light, in the holding manufacturer's mark colour.
 	draw_rect(Rect2((at + Vector2(w * 0.2, h * 0.5)).floor(), Vector2(1, 1)), _accent, true)
 	# Engines, cold and blue at this distance.
 	draw_rect(Rect2((at - Vector2(2.0, -h * 0.35)).floor(), Vector2(2, 1)),

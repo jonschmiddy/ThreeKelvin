@@ -24,15 +24,15 @@ extends Resource
 ## Who wrote it and why they were holding a pen. Never a narrator.
 @export var by: String = ""
 ## Its own date, in its own epoch. THE EPOCHS DO NOT RECONCILE, deliberately —
-## each house counts from something different and none of them says from what.
+## each manufacturer counts from something different and none of them says from what.
 ## Enough internal consistency for a careful reader to feel duration; never
 ## enough to build a timeline. Duration is the horror; chronology is a wiki.
 @export var dated: String = ""
 @export_multiline var body: String = ""
-## Which house's paperwork this is, or empty for a document that belongs to
+## Which manufacturer's paperwork this is, or empty for a document that belongs to
 ## nobody — a pilot's private log, a transponder, a thing scratched into a wall.
 ## Only colours the entry. There is no faction standing and never will be.
-@export var house: StringName = &""
+@export var manufacturer: StringName = &""
 
 ## The shallowest shell this can be recovered from, 0 at the rim.
 ##

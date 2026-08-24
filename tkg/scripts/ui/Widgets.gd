@@ -112,7 +112,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 			# whether the part is broken.
 			if price > 0:
 				var sell := _btn("SELL +%d" % price, on_action.bind("sell", m))
-				sell.tooltip_text = tip("What this market pays. A house's own yard is thick with its own parts; a rival's yard is short of them.")
+				sell.tooltip_text = tip("What this market pays. A manufacturer's own yard is thick with its own parts; a rival's yard is short of them.")
 				buttons.add_child(sell)
 			else:
 				var refused := _btn("WILL NOT BUY", on_action.bind("noop", m))
@@ -173,7 +173,7 @@ static func hull_row(h: HullData, label: String, price: int,
 			HullData.weight_name(h.weight), h.reactor, h.hand_size, h.max_hull,
 			h.heat_cap, h.dissipation, h.weapon_slots, h.system_slots, h.utility_slots,
 		], UITheme.COLD, 10))
-	# EVERY PERK, not just the house's. This is the card you decide to BUY a
+	# EVERY PERK, not just the manufacturer's. This is the card you decide to BUY a
 	# hull from, and an S-tier carries four -- showing one understated the
 	# offer by three and the player had no way to find the rest.
 	for pid in h.perks():
@@ -345,11 +345,11 @@ static func card_readout(c: CardData) -> PanelContainer:
 	panel.add_child(box)
 
 	# The two NAMES first, then the two CLASSIFICATIONS. What the card is called
-	# and what granted it are the pair you are looking for; type, rarity, house
+	# and what granted it are the pair you are looking for; type, rarity, manufacturer
 	# and slot are all the same kind of fact and belong together underneath,
 	# rather than interleaved so that the eye crosses a category line twice.
 	# Two pairs. What the CARD is — its verb and its class — then where it came
-	# FROM — the house and the module. Each pair is a name over its
+	# FROM — the manufacturer and the module. Each pair is a name over its
 	# classification, and the two questions never interleave.
 	var mod: ModuleData = DB.modules.get(c.source_id)
 	var rare := ModuleData.rarity_ink(c.source_rarity)
@@ -358,10 +358,10 @@ static func card_readout(c: CardData) -> PanelContainer:
 		ModuleData.rarity_name(c.source_rarity).to_upper()],
 		UITheme.COLD, UITheme.FS_SMALL))
 	if mod != null:
-		# The house in its own colour. It is the only line in the panel that
+		# The manufacturer in its own colour. It is the only line in the panel that
 		# names a brand, and the brand already owns a colour everywhere else on
 		# the card — the banner, the emblem, the border down the left of this
-		# very panel. Printing it in cold grey was the one place the house went
+		# very panel. Printing it in cold grey was the one place the manufacturer went
 		# unbranded.
 		box.add_child(UITheme.body(
 			DB.manufacturer_name(mod.manufacturer).to_upper(),
@@ -410,7 +410,7 @@ static func card_readout(c: CardData) -> PanelContainer:
 ## One manufacturer ability: what it costs, what it is called, what it does.
 ##
 ## Shared by the chassis select and the refit screen, because they are asking
-## the same question at two different moments — "what would flying this house
+## the same question at two different moments — "what would flying this manufacturer
 ## give me" and "how close am I now" — and two copies of the row would drift the
 ## first time either one was reworded.
 ##
@@ -451,9 +451,9 @@ static func ability_row(at: String, title: String, text: String, accent: Color,
 ## The three ability rows for a manufacturer, given a live set count and the
 ## hull's own perk. Built as a list so a caller can drop them into whatever
 ## container it has.
-static func ability_rows(man: StringName, perk_id: StringName, have: int) -> Array:
+static func ability_rows(manufacturer: StringName, perk_id: StringName, have: int) -> Array:
 	var out: Array = []
-	var m: ManufacturerData = DB.manufacturers.get(man)
+	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
 	if m == null:
 		return out
 	# THE PERK ROW IS GONE FROM HERE. It is named in the masthead's top-right
@@ -474,14 +474,14 @@ static func ability_rows(man: StringName, perk_id: StringName, have: int) -> Arr
 
 ## The manufacturers you are carrying parts from OTHER than your hull's.
 ##
-## The hardpoints header used to chip every maker with a count, which was the
+## The hardpoints header used to chip every manufacturer with a count, which was the
 ## only place a second allegiance showed at all. Moving the hull's own progress
 ## into the ability rows would have thrown that away — you can be two Solari
 ## parts from a set on a Korvan ship, and nothing else on the screen says so.
-static func other_maker_rows(hull_man: StringName) -> Array:
+static func other_manufacturer_rows(hull_manufacturer: StringName) -> Array:
 	var out: Array = []
 	for id in DB.manufacturers.keys():
-		if id == hull_man:
+		if id == hull_manufacturer:
 			continue
 		var n := Run.manufacturer_count(id)
 		if n == 0:
@@ -508,7 +508,7 @@ static func other_maker_rows(hull_man: StringName) -> Array:
 ## right next to it, which is how the module gallery ended up with three copies
 ## of the same facts before the readout panel was deleted.
 ##
-## Same left border in the house colour, same width, same order of facts: what
+## Same left border in the manufacturer colour, same width, same order of facts: what
 ## it is called, then what class of thing it is, then the flavour last. Flavour
 ## next to specifications always loses — the eye is scanning for facts and finds
 ## a sentence in the middle of them.

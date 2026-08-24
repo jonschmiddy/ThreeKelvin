@@ -499,7 +499,7 @@ func _ready() -> void:
 		here.type = MapGen.NodeType.STATION
 		here.development = MapGen.Development.CITY
 		here.security = 4
-		here.makers = [&"solari", &"cygnet"]
+		here.berths = [&"solari", &"cygnet"]
 		here.manufacturer = &"solari"
 		here.danger = 5
 		# Something in the hold to sell, something to scrap, and enough of every
@@ -672,9 +672,9 @@ func _print_check_table() -> void:
 ## traced to the stat that caused it without opening Database.gd.
 func _print_attribute_table() -> void:
 	print("chassis            HUL THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit deck hand set")
-	for man in DB.STARTABLE:
+	for manufacturer in DB.STARTABLE:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
-			Run.start_new_run(man, int(w))
+			Run.start_new_run(manufacturer, int(w))
 			var row := ""
 			for a in Run.attributes():
 				row += "%3d " % int(a.value)
@@ -696,7 +696,8 @@ func _print_attribute_table() -> void:
 				Run.slots_for(ModuleData.Slot.SYSTEM),
 				Run.slots_for(ModuleData.Slot.UTILITY),
 				Run.installed.size(), deck, Run.hand_size(),
-				DB.short_name(DB.manufacturer_name(man)), Run.manufacturer_count(man)])
+				DB.short_name(DB.manufacturer_name(manufacturer)),
+				Run.manufacturer_count(manufacturer)])
 		print("")
 	print("\nunbranded salvage frames, at full hull:")
 	for h in DB.hull_frames:

@@ -59,7 +59,7 @@ func _sheet(h: HullData) -> int:
 				if c.a > 0.0:
 					opaque += 1
 					# The manufacturer's paint. Korvan flies amber, and a grade
-					# that scrubs the house colour off is a grade that costs the
+					# that scrubs the manufacturer colour off is a grade that costs the
 					# player the ability to tell whose ship they are looking at.
 					if c.r - c.b > 0.157 and c.r > 0.392:
 						livery += 1

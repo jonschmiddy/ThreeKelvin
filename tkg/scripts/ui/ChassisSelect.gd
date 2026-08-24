@@ -4,14 +4,14 @@ extends Control
 ## Which ship you fly out in: a manufacturer, then a weight class.
 ##
 ## The first screen of a run, and the first time the game asks you for anything.
-## It exists because hulls now have makers: a chassis sets four of your six
+## It exists because hulls now have manufacturers: a chassis sets four of your six
 ## attributes, decides which cards your starting modules grant, and counts as
 ## one toward its own set bonus.
 ##
 ## TWO AXES, and they are genuinely different questions. The manufacturer is
 ## who you are — which cards, which set bonus, which attribute signature. The
 ## weight class is how much ship — hull, hardpoints, hand size, evasion. Every
-## maker builds all three, so picking Redline does not force you into a paper
+## manufacturer builds all three, so picking Redline does not force you into a paper
 ## hull; it means a Redline heavy is still the fastest heavy in the game.
 ##
 ## Selecting REALLY REFITS THE SHIP rather than previewing it — Run.fit_chassis()
@@ -107,7 +107,7 @@ Total cells of hardware this frame can RUN. The hold is what you can haul; this 
 const HEAD_GAP := 12
 ## The identity header's height, held equal across all seven. Measured, not
 ## chosen. Was 169, then 155, now 145 — each drop bought vertical room the panel
-## below needed. The cost is real: this is a MINIMUM, so makers whose backstory
+## below needed. The cost is real: this is a MINIMUM, so manufacturers whose backstory
 ## wraps past it grow their own header and the page shifts by that much when you
 ## click between them. See _build_detail.
 const HEAD_H := 145
@@ -181,7 +181,7 @@ func _build() -> void:
 	_list.add_theme_constant_override("separation", 3)
 	_list.custom_minimum_size = Vector2(126, 0)
 	for i in DB.STARTABLE.size():
-		var r := _maker_row(i)
+		var r := _manufacturer_row(i)
 		_rows.append(r)
 		_list.add_child(r)
 	split.add_child(Widgets.panel_with(_list))
@@ -215,25 +215,25 @@ func _build() -> void:
 ## One manufacturer. Emblem and name only — the hull's name belongs beside the
 ## hull it names, and there are three of those now, so printing one here would
 ## have been printing whichever weight happened to be selected.
-func _maker_row(i: int) -> Button:
-	var man: StringName = DB.STARTABLE[i]
-	var m: ManufacturerData = DB.manufacturers[man]
+func _manufacturer_row(i: int) -> Button:
+	var manufacturer: StringName = DB.STARTABLE[i]
+	var m: ManufacturerData = DB.manufacturers[manufacturer]
 
 	# Widgets.button, not Button.new(). That is where every click and hover sound
 	# in the game is wired, so building the Button directly made the chassis
 	# select the one screen in the interface that answered silently.
-	var open := Unlocks.unlocked(man)
+	var open := Unlocks.unlocked(manufacturer)
 	var btn := Widgets.button("", _select.bind(i))
 	btn.flat = true
 	btn.custom_minimum_size = Vector2(0, 34)
-	# A locked house still says WHAT IT IS. The identity line is the pitch, and it
+	# A locked manufacturer still says WHAT IT IS. The identity line is the pitch, and it
 	# is what makes a locked row a thing you want rather than a row you cannot
 	# press. Only the NAME is withheld, and the line under it says what it costs.
 	btn.tooltip_text = Widgets.tip("%s\n%s" % [m.name if open else "????", m.identity])
 	if not open:
-		btn.tooltip_text += Widgets.tip("\n\n%s" % Unlocks.lock_line(man))
+		btn.tooltip_text += Widgets.tip("\n\n%s" % Unlocks.lock_line(manufacturer))
 		btn.disabled = true
-	# Hover fills with the maker's SECONDARY colour — the field the emblem is
+	# Hover fills with the manufacturer's SECONDARY colour — the field the emblem is
 	# stamped on, not the accent. Seven rows that highlight identically make you
 	# read the label to know what you are pointing at; seven that light up in
 	# their own livery do not.
@@ -256,9 +256,9 @@ func _maker_row(i: int) -> Button:
 	row.offset_right = -5
 
 	var badge := Badge.new()
-	# Locked rows keep their SHAPE so the list still reads as seven houses rather
-	# than one house and six gaps. Only the identifying marks are withheld.
-	badge.man = man if open else &""
+	# Locked rows keep their SHAPE so the list still reads as seven manufacturers rather
+	# than one manufacturer and six gaps. Only the identifying marks are withheld.
+	badge.manufacturer = manufacturer if open else &""
 	badge.mark = m.colour if open else UITheme.QUOTE
 	badge.field = m.field if open else UITheme.PANEL
 	badge.scale_px = 2.0
@@ -285,7 +285,7 @@ const DIM := Color(0.62, 0.66, 0.74, 0.42)
 const LIT := Color(1, 1, 1, 1)
 
 func _select(i: int) -> void:
-	# A locked house is not flyable. The button is disabled too; this is the belt
+	# A locked manufacturer is not flyable. The button is disabled too; this is the belt
 	# to that braces, because _select is also called from setup() with a literal 0.
 	if not Unlocks.unlocked(DB.STARTABLE[i]):
 		return
@@ -319,15 +319,15 @@ func _refit() -> void:
 
 func _build_detail() -> void:
 	Widgets.clear(_detail)
-	var man: StringName = DB.STARTABLE[_sel]
-	var m: ManufacturerData = DB.manufacturers[man]
+	var manufacturer: StringName = DB.STARTABLE[_sel]
+	var m: ManufacturerData = DB.manufacturers[manufacturer]
 
 	# --- who built it. The banner the cards fly, four times the size.
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", HEAD_GAP)
 
 	var flag := Banner.new()
-	flag.man = man
+	flag.manufacturer = manufacturer
 	flag.mark = m.colour
 	flag.field = m.field
 	head.add_child(flag)
@@ -346,7 +346,7 @@ func _build_detail() -> void:
 	ident.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	idc.add_child(ident)
 	idc.add_child(_gap(4))
-	# The set bonuses are the strategy this maker is FOR, so they belong beside
+	# The set bonuses are the strategy this manufacturer is FOR, so they belong beside
 	# its name rather than buried under the loadout — you are picking a way to
 	# play, and these two lines are what it turns into. Given a heading because
 	# unlabelled they read as trivia; they are the abilities.
@@ -356,10 +356,10 @@ func _build_detail() -> void:
 	# at the point of choosing a manufacturer it is one of their abilities, and
 	# it is the only one you get without collecting anything.
 	#
-	# It is a HULL property, not a maker property, and the two come apart later:
+	# It is a HULL property, not a manufacturer property, and the two come apart later:
 	# LootGen rerolls the perk on a wreck, so a salvaged Korvan frame can carry
 	# anything. That is why the tag reads HULL rather than 1+.
-	for row in Widgets.ability_rows(man, Run.hull.perk_id, Run.manufacturer_count(man)):
+	for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):
 		idc.add_child(row)
 	# What the two rows above are actually counting, and where this ship starts
 	# on that count. The old wording explained the arithmetic — "modules from
@@ -417,10 +417,10 @@ func _build_detail() -> void:
 	ngap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	namerow.add_child(ngap)
 	for w in WEIGHTS:
-		namerow.add_child(_weight_button(man, w, m))
+		namerow.add_child(_weight_button(manufacturer, w, m))
 	shipcol.add_child(namerow)
 	shipcol.add_child(_gap(PICKER_ROWS_GAP))
-	shipcol.add_child(_tier_row(man, m))
+	shipcol.add_child(_tier_row(manufacturer, m))
 	var chosen := ShipView.new()
 	chosen.setup_preview(Run.hull, HERO_H, HERO_SCALE)
 	chosen.bob(2)
@@ -729,7 +729,7 @@ func _gap(h: int) -> Control:
 ## still takes layout and focus order. The line then reads exactly as it always
 ## has, which is the point — a player has no grade to choose, because a run
 ## starts at C and every better frame is something you found.
-func _tier_row(man: StringName, m: ManufacturerData) -> Control:
+func _tier_row(manufacturer: StringName, m: ManufacturerData) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", PICKER_GAP)
 	row.add_child(UITheme.body(
@@ -743,13 +743,13 @@ func _tier_row(man: StringName, m: ManufacturerData) -> Control:
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(gap)
 	for t in HullData.TIER_NAMES.size():
-		row.add_child(_tier_button(man, t, m))
+		row.add_child(_tier_button(manufacturer, t, m))
 	return row
 
 ## One grade button. Deliberately the same 22x20 face as a weight button — they
 ## are the same KIND of control (pick one of a short list, the ship changes
 ## under you), and two sizes would say they were not.
-func _tier_button(man: StringName, t: int, m: ManufacturerData) -> Button:
+func _tier_button(manufacturer: StringName, t: int, m: ManufacturerData) -> Button:
 	var chosen := t == _tier
 	var btn := Widgets.button(String(HullData.TIER_NAMES[t]), _pick_tier.bind(t))
 	btn.custom_minimum_size = Vector2(22, 20)
@@ -767,8 +767,8 @@ func _tier_button(man: StringName, t: int, m: ManufacturerData) -> Button:
 	return btn
 
 
-func _weight_button(man: StringName, w: HullData.Weight, m: ManufacturerData) -> Button:
-	var h := DB.hull_for(man, w)
+func _weight_button(manufacturer: StringName, w: HullData.Weight, m: ManufacturerData) -> Button:
+	var h := DB.hull_for(manufacturer, w)
 	var chosen := w == _weight
 
 	# Widgets.button for the sounds, as everywhere else.
@@ -802,7 +802,7 @@ func _weight_button(man: StringName, w: HullData.Weight, m: ManufacturerData) ->
 ## The same flag the cards carry down their left edge, at four times the scale
 ## and drawn by the same two functions — CardView.draw_cut for the hem and
 ## draw_emblem for the mark. Not a picture OF the card's banner; literally the
-## card's banner, so a house whose hem gets redesigned is redesigned here too.
+## card's banner, so a manufacturer whose hem gets redesigned is redesigned here too.
 ##
 ## Thirteen units wide because that is what the hems are authored against: the
 ## shapes use absolute offsets across the flag (Redline's tear is six two-unit
@@ -824,7 +824,7 @@ class Banner extends Control:
 	const UNITS_H := 22
 	const S := 3.0
 
-	var man: StringName = &""
+	var manufacturer: StringName = &""
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
 
@@ -848,9 +848,9 @@ class Banner extends Control:
 		# this. Most of the hems are CUT — carved by painting the background back
 		# over the flag — so the wrong colour here does not misdraw a hem, it
 		# makes it invisible.
-		CardView.draw_cut(self, man, b, mark, UITheme.PANEL, S)
-		CardView.draw_emblem(self, man, Vector2(b.size.x * 0.5, 11.0 * S), S, mark, field)
-		# Outlined last, in the house's own mark dimmed. Two houses fly fields
+		CardView.draw_cut(self, manufacturer, b, mark, UITheme.PANEL, S)
+		CardView.draw_emblem(self, manufacturer, Vector2(b.size.x * 0.5, 11.0 * S), S, mark, field)
+		# Outlined last, in the manufacturer's own mark dimmed. Two manufacturers fly fields
 		# that are nearly the panel's own colour — Redline's charcoal, Cygnet's
 		# midnight — and without this their banners have no edge at all.
 		var e := mark.darkened(0.35)
@@ -912,12 +912,12 @@ class SlotPads extends Control:
 ## A manufacturer's mark on a small dark plate. Nine by nine at 1x, which is the
 ## size CardView.draw_emblem's offsets are authored for.
 class Badge extends Control:
-	var man: StringName = &""
+	var manufacturer: StringName = &""
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
 	var scale_px: float = 1.0
-	## Draw a question mark instead of the house's emblem. An emblem IS the
-	## identity, so showing one on a house you have not earned would give the
+	## Draw a question mark instead of the manufacturer's emblem. An emblem IS the
+	## identity, so showing one on a manufacturer you have not earned would give the
 	## answer away in the one place the name is being withheld.
 	var locked: bool = false
 
@@ -936,7 +936,7 @@ class Badge extends Control:
 		if locked:
 			_question(s)
 			return
-		CardView.draw_emblem(self, man, Vector2(s, s) * 0.5, scale_px, mark, field)
+		CardView.draw_emblem(self, manufacturer, Vector2(s, s) * 0.5, scale_px, mark, field)
 
 	## A question mark in rects, at the emblem's own scale. Drawn rather than
 	## typed because every mark beside it is drawn, and a font glyph at this size

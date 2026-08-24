@@ -1,7 +1,7 @@
 class_name Contracts
 extends RefCounted
 
-## What a station's house wants doing, and what it pays.
+## What a station's manufacturer wants doing, and what it pays.
 ##
 ## POSITIONAL, like the shelf and the wreck. What is on a station's board is
 ## drawn from `Rng.derive(&"work", node.index)`, so it is a property of the place
@@ -43,7 +43,7 @@ const HEAT_MIN := 4
 const HEAT_MAX := 9
 
 
-## What this station is offering, or empty for a station with no house behind it.
+## What this station is offering, or empty for a station with no manufacturer behind it.
 ##
 ## Idempotent and derived — nothing is stored on the node. A board that was
 ## generated once and saved would be a board that could drift from the seed, and
@@ -52,8 +52,8 @@ static func board(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	if n == null or n.type != MapGen.NodeType.STATION:
 		return out
-	var houses := _houses(n)
-	if houses.is_empty():
+	var manufacturers := _manufacturers(n)
+	if manufacturers.is_empty():
 		return out
 	var r := Rng.derive(&"work", n.index)
 	# Both offers are rolled against the same map, so the two candidate pools are
@@ -61,30 +61,30 @@ static func board(n: MapGen.MapNode) -> Array:
 	# `board()` is called on every station refresh and the scan is the whole map.
 	var pools: Dictionary = {}
 	for i in OFFERS:
-		var c := _roll(n, houses[i % houses.size()], r, pools)
+		var c := _roll(n, manufacturers[i % manufacturers.size()], r, pools)
 		if c != null:
 			out.append(c)
 	return out
 
 
-## Every house with a berth here. `manufacturer` is the dominant one and `makers`
-## is everyone present, so a contested station posts two different houses' work
+## Every manufacturer with a berth here. `manufacturer` is the dominant one and `berths`
+## is everyone present, so a contested station posts two different manufacturers' work
 ## side by side — which is the trade map the chart already draws, saying
 ## something about itself.
-static func _houses(n: MapGen.MapNode) -> Array:
+static func _manufacturers(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	if n.manufacturer != &"" and DB.manufacturers.has(n.manufacturer):
 		out.append(n.manufacturer)
-	for m in n.makers:
+	for m in n.berths:
 		if m != &"" and m != n.manufacturer and DB.manufacturers.has(m):
 			out.append(m)
 	return out
 
 
-static func _roll(n: MapGen.MapNode, house: StringName,
+static func _roll(n: MapGen.MapNode, manufacturer: StringName,
 		r: RandomNumberGenerator, pools: Dictionary) -> ContractData:
 	var c := ContractData.new()
-	c.house = house
+	c.manufacturer = manufacturer
 	c.posted_at = n.index
 	var roll := r.randf()
 	if roll < 0.45:
@@ -99,7 +99,7 @@ static func _roll(n: MapGen.MapNode, house: StringName,
 			c.amount = r.randi_range(HEAT_MIN, HEAT_MAX)
 			c.pay = c.amount * HEAT_PER_UNIT
 			c.standing = 1
-			c.text = _voice(house, c.kind, "", c.amount, r)
+			c.text = _voice(manufacturer, c.kind, "", c.amount, r)
 		ContractData.Kind.HUNT:
 			var target := _target(n, r, true, pools)
 			if target < 0:
@@ -107,20 +107,20 @@ static func _roll(n: MapGen.MapNode, house: StringName,
 			c.at = target
 			c.pay = int(round(_trip_pay(n, Run.map[target]) * HUNT_BONUS))
 			c.standing = 1
-			c.text = _voice(house, c.kind, MapGen.star_name(Run.map[target]), 0, r)
+			c.text = _voice(manufacturer, c.kind, MapGen.star_name(Run.map[target]), 0, r)
 		_:
 			var target2 := _target(n, r, false, pools)
 			if target2 < 0:
 				return null
 			c.at = target2
-			c.item = _item(house, r)
+			c.item = _item(manufacturer, r)
 			c.pay = _trip_pay(n, Run.map[target2])
 			# The deep ones are worth more standing as well as more money. This is
 			# the only place standing scales, and it scales on DEPTH rather than on
-			# how many you have done, so a house's regard is bought by flying
+			# how many you have done, so a manufacturer's regard is bought by flying
 			# somewhere unpleasant rather than by grinding the rim.
 			c.standing = 2 if Run.map[target2].layer >= 5 else 1
-			c.text = _voice(house, c.kind, MapGen.star_name(Run.map[target2]), 0, r)
+			c.text = _voice(manufacturer, c.kind, MapGen.star_name(Run.map[target2]), 0, r)
 	return c
 
 
@@ -128,7 +128,7 @@ static func _roll(n: MapGen.MapNode, house: StringName,
 ## the map cannot name.
 ##
 ## Biased OUTWARD-ish rather than always deeper: a board that only ever points
-## coreward is a board that is spending the player's fuel on the house's behalf,
+## coreward is a board that is spending the player's fuel on the manufacturer's behalf,
 ## which is the "somebody else's schedule" §6 was worried about. About a third of
 ## the work sits shallower than the station posting it.
 static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
@@ -165,11 +165,11 @@ static func _trip_pay(from: MapGen.MapNode, to: MapGen.MapNode) -> int:
 
 
 ## What got left out there. A NAME AND NOTHING ELSE — see recover().
-static func _item(house: StringName, r: RandomNumberGenerator) -> String:
+static func _item(manufacturer: StringName, r: RandomNumberGenerator) -> String:
 	var pool: Array = []
 	for id in DB.modules:
 		var m: ModuleData = DB.modules[id]
-		if m.manufacturer == house and not m.starter_only:
+		if m.manufacturer == manufacturer and not m.starter_only:
 			pool.append(m.name)
 	if pool.is_empty():
 		return "a crate with no markings on it"
@@ -178,14 +178,14 @@ static func _item(house: StringName, r: RandomNumberGenerator) -> String:
 
 # --- the seven, asking for things ------------------------------------------
 
-## The ask, in the house's own register.
+## The ask, in the manufacturer's own register.
 ##
 ## Every one of these is a person at a desk with a job, in the same voice the
 ## archive is written in — see `docs/lore.md` §5. Nobody explains anything,
 ## nobody is grateful, and nobody says what the heat is for.
-static func _voice(house: StringName, kind: ContractData.Kind, place: String,
+static func _voice(manufacturer: StringName, kind: ContractData.Kind, place: String,
 		amount: int, r: RandomNumberGenerator) -> String:
-	var lines: Array = _LINES.get(house, {}).get(kind, [])
+	var lines: Array = _LINES.get(manufacturer, {}).get(kind, [])
 	if lines.is_empty():
 		lines = _LINES[&"korvan"][kind]
 	var s := String(lines[r.randi() % lines.size()])

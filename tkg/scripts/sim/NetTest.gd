@@ -318,8 +318,8 @@ func _wire_tests() -> void:
 	b.pilot = "Mercer"
 	b.hull = DB.hull_for(&"probate", HullData.Weight.MEDIUM)
 	b.parts = [
-		{"slot": int(ModuleData.Slot.WEAPON), "mount": 2, "maker": &"verity", "id": &"beam"},
-		{"slot": int(ModuleData.Slot.UTILITY), "mount": 0, "maker": &"cygnet", "id": &"coolline"},
+		{"slot": int(ModuleData.Slot.WEAPON), "mount": 2, "manufacturer": &"verity", "id": &"beam"},
+		{"slot": int(ModuleData.Slot.UTILITY), "mount": 0, "manufacturer": &"cygnet", "id": &"coolline"},
 	]
 	b.hp = 7
 	b.max_hp = 44
@@ -328,11 +328,11 @@ func _wire_tests() -> void:
 
 	var back := ShipBuild.from_wire(b.to_wire())
 	check("the pilot survives", back.pilot, "Mercer")
-	check("the hull maker survives", back.hull.manufacturer, &"probate")
+	check("the hull manufacturer survives", back.hull.manufacturer, &"probate")
 	check("the weight class survives", int(back.hull.weight), int(HullData.Weight.MEDIUM))
 	check("the part count survives", back.parts.size(), 2)
 	check("the hardpoint survives", int(back.parts[0].mount), 2)
-	check("who built the part survives", StringName(back.parts[0].maker), &"verity")
+	check("who built the part survives", StringName(back.parts[0].manufacturer), &"verity")
 	check("damage survives", back.hp, 7)
 	# Over cap is a state the ship art has its own colours for, so it has to
 	# arrive as itself rather than clamped on the way.
@@ -350,7 +350,7 @@ func _wire_tests() -> void:
 	# the slot that draws a partner asks that hull for its manufacturer — so the
 	# cost of not checking is the sector screen going down, on every machine,
 	# because of one bad field on one peer.
-	var junk := ShipBuild.from_wire({"maker": &"nobody", "weight": 99,
+	var junk := ShipBuild.from_wire({"manufacturer": &"nobody", "weight": 99,
 		"parts": "not a list", "hp": "seven"})
 	ok("nonsense off the wire still names a hull", junk.hull != null)
 	check("and carries no parts", junk.parts.size(), 0)
@@ -419,7 +419,7 @@ func _build_test() -> void:
 			want.append("%d/%d/%s" % [int(m.slot), maxi(m.mount, 0), m.manufacturer])
 		var have: Array = []
 		for part in got.parts:
-			have.append("%d/%d/%s" % [int(part.slot), int(part.mount), part.maker])
+			have.append("%d/%d/%s" % [int(part.slot), int(part.mount), part.manufacturer])
 		check("and every part on its own hardpoint", "|".join(have), "|".join(want))
 	await _teardown()
 
@@ -796,9 +796,9 @@ func _targeting_test(host: NetSession) -> void:
 		ok("two partners to aim at", false)
 		return
 	f.crew = PackedInt32Array([cold, hot])
-	host.roster[cold].build = {"maker": &"redline", "weight": 1, "parts": [],
+	host.roster[cold].build = {"manufacturer": &"redline", "weight": 1, "parts": [],
 		"hp": 30, "max_hp": 30, "heat": 0, "heat_cap": 10, "dead": false}
-	host.roster[hot].build = {"maker": &"solari", "weight": 1, "parts": [],
+	host.roster[hot].build = {"manufacturer": &"solari", "weight": 1, "parts": [],
 		"hp": 30, "max_hp": 30, "heat": 17, "heat_cap": 10, "dead": false}
 	var tally := {cold: 0, hot: 0}
 	for i in 4000:

@@ -7,8 +7,8 @@ extends RefCounted
 ## the greed clock work: every death is self-authored.
 
 ## A place is described by three independent axes rather than one label.
-## Development is how built-up it is, security is how policed, and the maker
-## list is who operates there - nobody, one house, or several competing. They
+## Development is how built-up it is, security is how policed, and the berth
+## list is who operates there - nobody, one manufacturer, or several competing. They
 ## are independent on purpose: a rich city with no law is a story, and so is a
 ## lone policed outpost at the edge of nothing.
 enum Development { UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL }
@@ -165,8 +165,8 @@ class MapNode extends RefCounted:
 	## 1 lawless ... 5 extreme.
 	var security: int = 1
 	## Who operates here. Empty is nobody's space; two or more is contested.
-	var makers: Array[StringName] = []
-	## The dominant house, or empty. Loot rolls take a single maker to bias to.
+	var berths: Array[StringName] = []
+	## The dominant manufacturer, or empty. Loot rolls take a single manufacturer to bias to.
 	var manufacturer: StringName = &""
 	## Migration route. Independent of the social axes - whales do not care who
 	## polices the sector.
@@ -293,20 +293,20 @@ static func star_name(n: MapNode) -> String:
 static func region_name(r: Region) -> String:
 	return ["Frontier", "Territory", "Cosmopolitan", "Lawless", "Migration Route", "Precursor Ruins"][r]
 
-## Colour follows the axes: one house flies its colours, several read as neutral
+## Colour follows the axes: one manufacturer flies its colours, several read as neutral
 ## trade, and unclaimed space is dim.
 ## What colour a system is drawn.
 ##
 ## Five states you can name, and deliberately NOT one colour per manufacturer.
 ##
-## The maker colours are accents: small highlights on a module sprite, where
+## The manufacturer colours are accents: small highlights on a module sprite, where
 ## being a few points apart is exactly right. Reused as the identity of a whole
 ## system they stopped working — redline and calyx are both muted greens within
 ## a hair of each other, probate and korvan are both browns, and cygnet sits on
 ## top of the unclaimed grey-blue. On a chart of a hundred and fifty icons that
 ## is not a code, it is noise that looks like a code.
 ##
-## Which house holds a place is a detail you read when you point at one, and the
+## Which manufacturer holds a place is a detail you read when you point at one, and the
 ## tooltip and the panel both say it in words. What the chart has to carry at a
 ## glance is whether anyone holds it at all.
 static func region_colour(n: MapNode) -> Color:
@@ -316,13 +316,13 @@ static func region_colour(n: MapNode) -> Color:
 		return Color("#8fd2e0")
 	if n.fauna:
 		return Color("#4a7a8a")
-	if n.security <= 2 and not n.makers.is_empty():
+	if n.security <= 2 and not n.berths.is_empty():
 		# Lawless but held: the one distinction worth a colour of its own,
 		# because it changes what the place sells and what it does to you.
 		return Color("#a9713d")
-	if n.makers.size() >= 2:
+	if n.berths.size() >= 2:
 		return Color("#93a8c2")
-	if n.makers.size() == 1:
+	if n.berths.size() == 1:
 		return Color("#6f8296")
 	return Color("#41505f")
 
@@ -343,9 +343,9 @@ static func place_line(n: MapNode) -> String:
 		return "MIGRATION ROUTE - " + security_name(n.security).to_upper()
 	var out := development_name(n.development).to_upper() \
 		+ " - " + security_name(n.security).to_upper()
-	if not n.makers.is_empty():
+	if not n.berths.is_empty():
 		var names: Array[String] = []
-		for m in n.makers:
+		for m in n.berths:
 			names.append(DB.short_name(DB.manufacturer_name(m)).to_upper())
 		out += " - " + " / ".join(names)
 	return out
@@ -362,9 +362,9 @@ static func place_blurb(n: MapNode) -> String:
 		var gas := "Lit gas. Something inside this cloud is still burning." 			if n.nebula_emission else "Cold gas, thick enough to hide in."
 		return gas + " Nothing else out here to see by."
 	var who := ""
-	match n.makers.size():
+	match n.berths.size():
 		0: who = "Nobody's space. Thin, random salvage."
-		1: who = "One maker dominates local salvage."
+		1: who = "One manufacturer dominates local salvage."
 		_: who = "Contested. Broad stock, and nobody agrees on a price."
 	var law := ""
 	if n.security <= 2:
@@ -444,7 +444,7 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 	if n.type == NodeType.PULSAR:
 		# Nothing is established beside a neutron star. The beam sterilises
 		# whatever it sweeps and the wind strips the rest, so there is no
-		# outpost to police, no house with a claim on it, and nothing living
+		# outpost to police, no manufacturer with a claim on it, and nothing living
 		# that migrates through — a pulsar is weather, not territory.
 		#
 		# Re-run rather than rolled in place: _seed_pulsars sets the type long
@@ -452,7 +452,7 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 		# them. The depth argument is ignored on this path.
 		n.development = Development.UNCLAIMED
 		n.security = 1
-		n.makers.clear()
+		n.berths.clear()
 		n.manufacturer = &""
 		n.fauna = false
 		return
@@ -467,7 +467,7 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 	# common enough to matter - it is where the contraband economy lives.
 	n.security = clampi(1 + int(n.development) + Rng.world.randi_range(-2, 1), 1, 5)
 
-	# Nobody claims empty space; the deeper and richer it gets the more houses
+	# Nobody claims empty space; the deeper and richer it gets the more manufacturers
 	# want a piece, and two or more competing is what a crossroads actually is.
 	var want := 0
 	match n.development:
@@ -479,12 +479,12 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 	var pool: Array = DB.manufacturers.keys()
 	Rng.shuffle(Rng.world, pool)
 	for i in mini(want, pool.size()):
-		n.makers.append(pool[i])
-	if not n.makers.is_empty():
-		n.manufacturer = n.makers[0]
+		n.berths.append(pool[i])
+	if not n.berths.is_empty():
+		n.manufacturer = n.berths[0]
 
 	# Megafauna keep to the thin places.
-	n.fauna = n.makers.is_empty() and int(n.development) <= 1 and Rng.world.randf() < 0.3
+	n.fauna = n.berths.is_empty() and int(n.development) <= 1 and Rng.world.randf() < 0.3
 
 ## Collapse the three axes back onto the old label, once, here. Order matters:
 ## the most specific claim about a place wins.
@@ -514,11 +514,11 @@ static func _derive_region(n: MapNode) -> Region:
 		return Region.CORE
 	if n.fauna:
 		return Region.FAUNA
-	if n.security <= 2 and not n.makers.is_empty():
+	if n.security <= 2 and not n.berths.is_empty():
 		return Region.LAWLESS
-	if n.makers.size() >= 2:
+	if n.berths.size() >= 2:
 		return Region.COSMOPOLITAN
-	if n.makers.size() == 1:
+	if n.berths.size() == 1:
 		return Region.TERRITORY
 	return Region.FRONTIER
 

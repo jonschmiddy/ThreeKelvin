@@ -100,7 +100,7 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 			return "Coolant braid laid in. Heat cap +%d." % int(r.amount)
 		&"artifact":
 			# Precursor tech is unbranded by definition, so it is rolled the way
-			# a fauna or core drop is rather than being pulled from a house's
+			# a fauna or core drop is rather than being pulled from a manufacturer's
 			# catalog. Danger biases it, which makes reading a fragment deep in
 			# the galaxy worth more than reading one on the rim.
 			var m := LootGen.roll_module(n.danger, &"", true)

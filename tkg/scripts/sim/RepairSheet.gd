@@ -36,7 +36,7 @@ func run() -> void:
 		var h := DB.hull_for(&"", w[0] as HullData.Weight)
 		hulls.append([String(w[1]), h.max_hull if h != null else 30])
 
-	var head := "%-26s %-9s %4s" % ["", "house", "nrg"]
+	var head := "%-26s %-9s %4s" % ["", "manufacturer", "nrg"]
 	for h in hulls:
 		head += "  %s %s" % [String(h[0]).substr(0, 3), "full/half/low"]
 	print(head)
@@ -48,10 +48,10 @@ func run() -> void:
 			var card: CardData = c
 			if card.heal <= 0 and card.heal_scale <= 0:
 				continue
-			var house := String(card.manufacturer if card.manufacturer != &"" \
+			var manufacturer := String(card.manufacturer if card.manufacturer != &"" \
 				else m.manufacturer)
 			var row := "%-26s %-9s %4d" % [card.name,
-				house if house != "" else "yard", card.energy]
+				manufacturer if manufacturer != "" else "yard", card.energy]
 			for h in hulls:
 				var cap := int(h[1])
 				row += "   %2d/%2d/%2d" % [_at(card, cap, cap),

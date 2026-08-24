@@ -103,21 +103,21 @@ func _run_by_chassis() -> void:
 		runs, DB.STARTABLE.size() * weights.size(),
 		runs * DB.STARTABLE.size() * weights.size()])
 	print("%-18s %-8s %6s %6s %6s %6s   deaths" % [
-		"chassis", "maker", "wins", "win%", "jumps", "kills"])
+		"chassis", "manufacturer", "wins", "win%", "jumps", "kills"])
 	var rows: Array = []
-	for man in DB.STARTABLE:
+	for manufacturer in DB.STARTABLE:
 		for w in weights:
 			_reset()
 			for i in runs:
-				_play_one(man, int(w))
-			var hull := DB.hull_for(man, w)
+				_play_one(manufacturer, int(w))
+			var hull := DB.hull_for(manufacturer, w)
 			var rate := 100.0 * wins / maxi(1, runs)
 			rows.append({name = hull.name, rate = rate})
 			print("%-18s %-8s %6d %5.1f%% %6.1f %6.1f   %s" % [
-				hull.name, DB.short_name(DB.manufacturer_name(man)), wins, rate,
+				hull.name, DB.short_name(DB.manufacturer_name(manufacturer)), wins, rate,
 				float(total_jumps) / runs, float(total_kills) / runs,
 				str(death_causes)])
-	# Sorted afterwards, because the table above is grouped by maker for reading
+	# Sorted afterwards, because the table above is grouped by manufacturer for reading
 	# and this is the ranking you actually act on.
 	rows.sort_custom(func(a, b): return a.rate > b.rate)
 	print("\n--- ranked ---")
@@ -154,9 +154,9 @@ func _reset() -> void:
 ## seed rather than playing one run a thousand times. A sim that reports "40% of
 ## runs strand" is only actionable if one of those runs can be handed back:
 ## `-- seed <the number printed with the death>` flies it again exactly.
-func _play_one(man: StringName = &"", w: int = -1, index: int = 0) -> void:
+func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> void:
 	Rng.forced = (seed_base + index) if seed_base != 0 else 0
-	Run.start_new_run(man, w)
+	Run.start_new_run(manufacturer, w)
 	# The simulated pilot's own generator: one per run, seeded from the run's
 	# master seed. The model is a player, not a place — so its choices replay
 	# with the run, and drawing them does not move what the world rolls next.

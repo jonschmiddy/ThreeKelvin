@@ -304,11 +304,11 @@ static func fake_party(count: int) -> void:
 	Sig.party_changed.emit()
 
 
-static func _build(maker: StringName, w: HullData.Weight, parts: Array) -> ShipBuild:
+static func _build(manufacturer: StringName, w: HullData.Weight, parts: Array) -> ShipBuild:
 	var b := ShipBuild.new()
-	b.hull = DB.hull_for(maker, w)
+	b.hull = DB.hull_for(manufacturer, w)
 	for p in parts:
-		b.parts.append({"slot": int(p[0]), "mount": int(p[1]), "maker": p[2],
+		b.parts.append({"slot": int(p[0]), "mount": int(p[1]), "manufacturer": p[2],
 			"id": &"beam"})
 	b.hp = b.hull.max_hull
 	b.max_hp = b.hull.max_hull

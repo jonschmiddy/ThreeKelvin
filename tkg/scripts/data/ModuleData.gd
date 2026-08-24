@@ -4,15 +4,15 @@ extends Resource
 enum Slot { WEAPON, SYSTEM, UTILITY }
 ## THE GRADE LADDER, and it is a ladder of PROVENANCE as much as of power.
 ##
-## Common through Legendary is one house doing its job better. Exotic and
-## Artifact leave the houses entirely — grown and precursor, which is why
+## Common through Legendary is one manufacturer doing its job better. Exotic and
+## Artifact leave the manufacturers entirely — grown and precursor, which is why
 ## LootGen gates both behind `allow_unbranded`.
 ##
 ## CONTRABAND is the eighth and the only one that is a fact about WHO, not
 ## about what: a part nobody will admit to selling. RULING, NOT YET BUILT —
 ## contraband comes only from the Probate Combine, Redline and Cygnet, the
 ## scrappers, the hackers and the technologists, because those are the three
-## houses with a reason to move something off the manifest. Recorded here
+## manufacturers with a reason to move something off the manifest. Recorded here
 ## rather than in a note because the enum is what a future module will pick
 ## from; the sourcing belongs in LootGen's pool filter beside the
 ## `allow_unbranded` gate, which currently swallows CONTRABAND along with
@@ -262,7 +262,7 @@ static func rarity_ink(r: Rarity) -> Color:
 ##
 ## Manufacturer is allowed to vary it, because that is build identity with a
 ## number behind it: Verity grants fewer, better cards — the thin perfect deck
-## the house is named for, made mechanical instead of flavourful.
+## the manufacturer is named for, made mechanical instead of flavourful.
 ## TWO, FROM EVERY MODULE. It was 2 for weapons and systems and 1 for utilities,
 ## on the reading that a utility is the situational third slot — and the reading
 ## was sound but the result was not: a utility was a part you found, packed and
@@ -278,9 +278,9 @@ static func rarity_ink(r: Rarity) -> Color:
 ## commit that made the change.
 ##
 ## VERITY IS THE EXCEPTION AND STILL GRANTS ONE. That is a ruling, not an
-## oversight — the house is named for the thin perfect deck and this is the only
+## oversight — the manufacturer is named for the thin perfect deck and this is the only
 ## place that claim is mechanical rather than flavour. It does now mean "every
-## module grants two" is true of six houses out of seven.
+## module grants two" is true of six manufacturers out of seven.
 func grant_count() -> int:
 	var base := 2
 	if manufacturer == &"verity":

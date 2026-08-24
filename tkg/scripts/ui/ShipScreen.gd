@@ -137,7 +137,7 @@ const STORAGE_COLS := 4
 
 ## How wide a module readout is in the installed list.
 ##
-## WIDER THAN A CARD, deliberately. At a card's 112 the longest maker line
+## WIDER THAN A CARD, deliberately. At a card's 112 the longest manufacturer line
 ## wrapped to two rows on Korvan parts and one on unbranded ones, so the boxes
 ## were the same width and different HEIGHTS — which is the same raggedness
 ## moved to the other axis. 150 fits "KORVAN HEAVY WORKS" on one line.
@@ -172,7 +172,7 @@ var _mountpts: MountPoints
 var _view: ShipView
 var _banner: ChassisSelect.Banner
 var _name: Label
-var _maker: Label
+var _manufacturer: Label
 var _class: Label
 var _hand: Label
 var _hold: Label
@@ -257,8 +257,8 @@ func _build() -> void:
 	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
 	names.add_child(_name)
-	_maker = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
-	names.add_child(_maker)
+	_manufacturer = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	names.add_child(_manufacturer)
 	var clsrow := HBoxContainer.new()
 	clsrow.add_theme_constant_override("separation", 8)
 	_class = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
@@ -455,7 +455,7 @@ func _build() -> void:
 	left.add_child(midrow)
 
 	# The abilities go here, not on the chassis select's terms. There they
-	# answer "what would flying this house give me"; here they answer "how close
+	# answer "what would flying this manufacturer give me"; here they answer "how close
 	# am I now", and the answer changes every time you drop a part into a mount
 	# on the other half of this screen. Under the attributes because it is the
 	# same column of facts about the ship — what it is, then what it unlocks.
@@ -820,16 +820,16 @@ func _refresh() -> void:
 	# may have too -- and the clip box is sized off the canvas, so it has to
 	# be re-fitted before anything is centred against it.
 	_sync_clip()
-	var man := Run.hull.manufacturer
-	var maker: ManufacturerData = DB.manufacturers.get(man)
-	var accent := maker.colour if maker != null else UITheme.CHILL
-	_banner.man = man
+	var manufacturer := Run.hull.manufacturer
+	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
+	var accent := m.colour if m != null else UITheme.CHILL
+	_banner.manufacturer = manufacturer
 	_banner.mark = accent
-	_banner.field = maker.field if maker != null else UITheme.PANEL
+	_banner.field = m.field if m != null else UITheme.PANEL
 	_banner.queue_redraw()
 	_name.text = Run.hull.name.to_upper()
-	_maker.text = maker.name.to_upper() if maker != null else "UNBRANDED SALVAGE"
-	_maker.add_theme_color_override("font_color", accent)
+	_manufacturer.text = m.name.to_upper() if m != null else "UNBRANDED SALVAGE"
+	_manufacturer.add_theme_color_override("font_color", accent)
 	_class.text = "%s CHASSIS · %s TIER" % [
 		HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()]
 	_attrs.setup(Run.attributes(), accent)
@@ -846,7 +846,7 @@ func _refresh() -> void:
 
 	# Rebuilt every refresh, because the unlock state is the point: fitting a
 	# third Korvan part has to light the 3+ row the moment it lands.
-	# THE HULL'S OWN PERKS, house first then the grade's, in the corner.
+	# THE HULL'S OWN PERKS, manufacturer first then the grade's, in the corner.
 	if _perkbox != null:
 		Widgets.clear(_perkbox)
 		for pid in Run.hull.perks():
@@ -863,13 +863,13 @@ func _refresh() -> void:
 			_perkbox.add_child(lab)
 
 	Widgets.clear(_abilities)
-	for row in Widgets.ability_rows(man, Run.hull.perk_id, Run.manufacturer_count(man)):
+	for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):
 		_abilities.add_child(row)
 
 	# Other allegiances go under the hull's own, and only when you have one. A
 	# Korvan ship carrying two Solari parts is two from a second set bonus, and
 	# this is now the only place on the screen that says so.
-	var others := Widgets.other_maker_rows(man)
+	var others := Widgets.other_manufacturer_rows(manufacturer)
 	if not others.is_empty():
 		_abilities.add_child(UITheme.hsep())
 		for row2 in others:
@@ -951,8 +951,8 @@ func _refresh_loadout() -> void:
 			# MODULE FIRST, THEN ITS CARDS. The part is the thing you fitted
 			# and the cards are what it gives you, so the row reads in the
 			# order the decision was made — and every row starts with the
-			# maker's colour bar down its left edge, which turns the column
-			# into something you can scan by house.
+			# manufacturer's colour bar down its left edge, which turns the column
+			# into something you can scan by manufacturer.
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 4)
 			# A CARD'S WIDTH exactly, so the rows line up into a column. Left to
