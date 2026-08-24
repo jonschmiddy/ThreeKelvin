@@ -78,7 +78,7 @@ var item: String = ""
 
 ## Whether this station is one of the issuing manufacturer's berths.
 ##
-## Delivery is to the HOUSE, not to the desk that posted it. A contract you can
+## Delivery is to the MANUFACTURER, not to the desk that posted it. A contract you can
 ## only close where you took it is a contract that sends you backwards, and the
 ## map does not guarantee a route home.
 static func berth_of(n: MapGen.MapNode, manufacturer: StringName) -> bool:

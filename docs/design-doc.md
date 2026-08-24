@@ -142,7 +142,7 @@ Slay the Spire grammar adapted to ships:
 > count.** The authority is `CLAUDE.md`'s rulings table; this paragraph is a
 > pointer to it, not a second copy.
 
-A hull is a chassis defined by two axes plus its maker:
+A hull is a chassis defined by two axes plus its manufacturer:
 
 - **Weight class:** Light / Medium / Heavy. Sets hand size, dodge, initiative, fuel cost per jump, heat capacity/dissipation, and HP/slot baselines. Light sustains and evades; heavy bursts and cooks.
 - **Tier:** C / B / A / S (NMS-style). Sets the *ranges* for reactor output, slot count, HP, and heat stats.

@@ -489,12 +489,12 @@ static func _hull_to(h: HullData) -> Dictionary:
 static func _hull_from(e: Variant) -> HullData:
 	var d: Dictionary = e if typeof(e) == TYPE_DICTIONARY else {}
 	var base: HullData = DB.hull_frames[1]
-	# MAKER AND WEIGHT FIRST, name only as a fallback.
+	# MANUFACTURER AND WEIGHT FIRST, name only as a fallback.
 	#
 	# The warning above came true: hulls gained a name per CLASS, so a save
 	# holding a Halberd Cutter found nothing in `hull_frames` — those carry
 	# the tier-0 name — and silently restored an unbranded Medium Frame with
-	# somebody else's perk. Maker and weight are both written into the save
+	# somebody else's perk. Manufacturer and weight are both written into the save
 	# and neither is renameable, so they identify the frame outright.
 	var manufacturer := StringName(str(d.get("manufacturer", "")))
 	var found := false

@@ -103,7 +103,8 @@ func state() -> Dictionary:
 
 
 ## The two sets both galleries want, built here so they cannot disagree about
-## the order or the wording. House order comes from DB.manufacturers, which is
+## the order or the wording. Manufacturer order comes from DB.manufacturers,
+## which is
 ## the only place it is written down.
 ## A BUTTON IS ONE WORD, and it is the word the manufacturer is CALLED, not the first
 ## token of its legal name. "The Probate Combine" split on spaces gives "The",

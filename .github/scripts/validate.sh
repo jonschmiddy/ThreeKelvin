@@ -384,40 +384,76 @@ step "One word for the thing: manufacturer"
 # parts for spaceships; they are corporations, not families, and `house`
 # imported a dynastic register the setting does not have.
 #
-# Four exemptions, all deliberate, all narrow:
+# THE MATCH IS CASE-INSENSITIVE. It was not, at first, and `GROUPED BY HOUSE`,
+# `THE HOUSE PERK IS REROLLED` and eleven more upper-case comments walked
+# straight past a guard whose whole job was to catch them. A vocabulary check
+# that only sees one casing is a vocabulary check that lies.
 #
-#   1. `Database._seed_documents` -- the archive is written in clerks' voices
-#      and `docs/lore.md` §5 says edit meaning, not music. A clerk may say
-#      `house`; the game may not. "a posting clerk, house not stated" has no
-#      natural replacement -- "manufacturer not stated" is a form field, not a
-#      person. The whole function is skipped rather than line-listed, because
-#      any new entry is prose too.
-#   2. The LAN idiom -- "friends in the house", "outside the house" -- is
+# The archive prose in `Database._seed_documents` used to be exempt as a whole
+# function. It is not any more: the entries were rewritten, and the four
+# "house not stated" bylines now read "manufacturer not stated" -- which sits
+# fine beside their siblings "name torn off" and "station unnamed", because
+# that field is the archive's annotation and not the clerk's own sentence.
+# Where a literal swap would have broken a voice it was not taken: the examiner
+# complaining about the stove says "the trouble with this COMPANY", because
+# nobody says "manufacturer" about their own employer while cold.
+#
+# Three exemptions, all deliberate, all narrow:
+#
+#   1. The LAN idiom -- "friends in the house", "outside the house" -- is
 #      English about people under your roof, describing local-network play.
 #      Renaming it produces nonsense.
-#   3. "maker's mark" -- the stamp a craftsman leaves on the work. A real
+#   2. "maker's mark" -- the stamp a craftsman leaves on the work. A real
 #      English term, used in an art prompt and in an insurance document.
-#   4. "Widowmaker" (a gun) and "gatehouse" (a building) are words that merely
+#   3. "Widowmaker" (a gun) and "gatehouse" (a building) are words that merely
 #      contain the string.
 #
 # If you are adding a fifth, the bar is: would a person say this out loud?
+# Two passes, because `man` needs one exemption the other words do not: the
+# archive is full of people, and "a man paying a toll" is not a schema word.
+# That skip is scoped to `man` alone -- `house` and `maker` are checked inside
+# the prose too, which is how the four bylines got found and rewritten.
 VOCAB=$(
 	{
+		# Pass A -- house/maker, everywhere, no prose exemption.
+		grep -rnwiE 'house|houses|maker|makers' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
+		# Pass B -- man/hull_man, everywhere except the archive's own prose.
 		awk '/^func _seed_documents/{skip=1} /^func /&&!/_seed_documents/{skip=0} !skip{print FILENAME":"FNR": "$0}' \
-			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null
-		grep -rnE '.' "$PROJECT/scripts" --include='*.gd' 2>/dev/null \
+			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null \
+			| grep -wiE 'man|hull_man'
+		grep -rnwiE 'man|hull_man' "$PROJECT/scripts" --include='*.gd' 2>/dev/null \
 			| grep -v "^$PROJECT/scripts/autoload/Database.gd:"
-	} | grep -wE 'house|houses|maker|makers|man|hull_man' \
-	  | grep -viE 'widowmaker|gatehouse' \
+	} | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'friends in the house' \
 	  | grep -v 'wrong for anyone outside the house'
+)
+
+# The same check for prose. docs/archive/ is out of scope on purpose -- those
+# files describe a moment and are kept stale deliberately.
+#
+# Two exemptions here that the code does not need: "house style", the
+# publishing idiom for a publication's own conventions, and the line in
+# docs/README.md that states the rule, which has to name the words it bans.
+VOCAB_DOCS=$(
+	grep -rnwiE 'house|houses|maker|makers' docs tkg/*.md 2>/dev/null \
+	  | grep -v '^docs/archive/' \
+	  | grep -viE 'widowmaker|gatehouse' \
+	  | grep -v "maker's mark" \
+	  | grep -v 'house style' \
+	  | grep -v 'never .house. or .maker.'
 )
 if [ -z "$VOCAB" ]; then
 	ok "no retired vocabulary in $PROJECT/scripts"
 else
 	bad "retired vocabulary (house/maker/man) outside the allow-list"
 	printf '%s\n' "$VOCAB" | head -n 20 | sed 's/^/        /'
+fi
+if [ -z "$VOCAB_DOCS" ]; then
+	ok "no retired vocabulary in the docs"
+else
+	bad "retired vocabulary in the docs"
+	printf '%s\n' "$VOCAB_DOCS" | head -n 20 | sed 's/^/        /'
 fi
 
 printf '\n'

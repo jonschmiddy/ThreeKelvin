@@ -2176,7 +2176,7 @@ func contract_at(index: int) -> ContractData:
 	return null
 
 
-## Houses with something waiting to be handed over: a heat contract you are
+## Manufacturers with something waiting to be handed over: a heat contract you are
 ## carrying the heat for, or any job you have already finished out there.
 ##
 ## THE THIRD THING THE CHART HAS TO MARK. A fetch and a hunt point at a place

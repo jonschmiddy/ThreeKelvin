@@ -102,7 +102,7 @@ static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> Hu
 	var spread := 1 + t
 	h.max_hull = maxi(1, h.max_hull + r.randi_range(-spread, spread))
 	h.heat_cap = maxi(1, h.heat_cap + r.randi_range(-1, 1))
-	# THE HOUSE PERK IS REROLLED, THE GRADE'S ARE NOT. A derelict is somebody
+	# THE MANUFACTURER PERK IS REROLLED, THE GRADE'S ARE NOT. A derelict is somebody
 	# else's ship with an unknown yard behind it, so its manufacturer perk is a roll --
 	# but `at_tier` granted the ladder its GRADE earns, and overwriting the one
 	# must not quietly discard the other.

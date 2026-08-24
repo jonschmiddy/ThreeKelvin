@@ -555,7 +555,7 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		if m.manufacturer != &"" else "Unbranded"),
 		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL)
 	if width > 0.0:
-		# THE MAKER LINE IS THE WIDEST, not the name: "KORVAN HEAVY WORKS"
+		# THE MANUFACTURER LINE IS THE WIDEST, not the name: "KORVAN HEAVY WORKS"
 		# is three characters longer than "KH-20 CHATTERBOX". Wrapping only
 		# the name left this one setting the width and the column ragged.
 		mk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

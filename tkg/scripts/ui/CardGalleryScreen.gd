@@ -98,9 +98,9 @@ func _build() -> void:
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_overlay)
 
-## GROUPED BY HOUSE OR BY GRADE, and filtered, from the bar above.
+## GROUPED BY MANUFACTURER OR BY GRADE, and filtered, from the bar above.
 ##
-## Houses first and the unbranded last: precursor and grown things have no
+## Manufacturers first and the unbranded last: precursor and grown things have no
 ## banner to compare, so they are not part of the comparison the grouping exists
 ## to make.
 ##

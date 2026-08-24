@@ -78,7 +78,7 @@ func _card_law() -> void:
 		% [pairs, n, roundi(100.0 * pairs / n), shared, roundi(100.0 * shared / n)])
 
 
-## EVERY HOUSE'S ART STAYS READABLE ON EVERY RARITY'S GROUND.
+## EVERY MANUFACTURER'S ART STAYS READABLE ON EVERY RARITY'S GROUND.
 ##
 ## A plate says two things at once: rarity is the ground it is painted on and
 ## the manufacturer is the art standing on it. That only works while the two

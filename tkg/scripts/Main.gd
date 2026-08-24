@@ -158,7 +158,7 @@ func _ready() -> void:
 	# Image is the file. See ConvoyTest.
 	# A PixelLab prompt, built from a manufacturer rather than from memory:
 	#   godot --headless --path . -- artprompt korvan structures
-	# RUN THIS BEFORE GENERATING ANY MAKER'S PARTS. It reads the fiction live from
+	# RUN THIS BEFORE GENERATING ANY MANUFACTURER'S PARTS. It reads the fiction live from
 	# DB.manufacturers so a prompt cannot drift from the tooltip a player reads,
 	# and it carries the two settings that were learned expensively: force the
 	# palette, and send no init image or transparency is silently dropped.

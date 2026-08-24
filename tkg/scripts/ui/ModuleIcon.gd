@@ -282,7 +282,7 @@ static func draw_plate(ci: CanvasItem, m: ModuleData, r: Rect2,
 	# quality before anything is read.
 	ci.draw_rect(r, rar.lerp(UITheme.VOID, GROUND), true)
 
-	# AND THE HOUSE IS THE ART. Which is a bet on what the art is going to be:
+	# AND THE MANUFACTURER IS THE ART. Which is a bet on what the art is going to be:
 	# a generated Korvan gun and a generated Solari gun will not need a stripe
 	# to tell them apart, any more than the hulls do. Until those exist the
 	# silhouette is drawn in the manufacturer's own colour, which is the same claim

@@ -93,7 +93,7 @@ func _build() -> void:
 	var n := _fill(col)
 	_count.text = "%d of %d modules · %d cards" % [_shown, DB.modules.size(), n]
 
-## GROUPED BY HOUSE OR BY SIZE, and filtered, from the bar above.
+## GROUPED BY MANUFACTURER OR BY SIZE, and filtered, from the bar above.
 ##
 ## The whole list is rebuilt on every press rather than hiding children. It is
 ## seventy-seven plates and a flow container that has to reflow anyway, and the
@@ -157,7 +157,7 @@ func _fill(col: VBoxContainer) -> int:
 		swatch.color = g.colour
 		swatch.custom_minimum_size = Vector2(4, 12)
 		bar.add_child(swatch)
-		# THE HOUSE NAME IN THE HOUSE COLOUR. It was ICE, the same white every
+		# THE MANUFACTURER NAME IN ITS OWN COLOUR. It was ICE, the same white every
 		# other heading wears, with the only colour on the row in a 4px swatch
 		# beside it. A manufacturer owns a colour everywhere else in the game —
 		# the banner, the emblem, the border down a card readout — and this was
