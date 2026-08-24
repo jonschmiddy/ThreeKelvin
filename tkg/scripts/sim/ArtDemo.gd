@@ -26,7 +26,21 @@ const ART_DIR := "res://art/sprites/modules/"
 
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
-	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# WHICH SHIP TO LOOK AT:  -- artdemo heavy s
+	# The tight case is not the medium. A heavy at S tier is the longest hull
+	# in the game carrying the most mounts, which is where a long part runs out
+	# of window first — so the thing most worth looking at has to be reachable.
+	var argv := OS.get_cmdline_user_args()
+	var weight := HullData.Weight.MEDIUM
+	if "light" in argv:
+		weight = HullData.Weight.LIGHT
+	elif "heavy" in argv:
+		weight = HullData.Weight.HEAVY
+	Run.start_new_run(&"korvan", int(weight))
+	for i in HullData.TIER_NAMES.size():
+		if str(HullData.TIER_NAMES[i]).to_lower() in argv:
+			Run.hull = DB.at_tier(DB.hull_for(&"korvan", weight) as HullData, i)
+			break
 
 	# THE DRAWN ONES, most cells first. Biggest parts get their pick of the
 	# hardpoints, which is the same order the hold would pack them in and stops a
@@ -99,6 +113,17 @@ func run(tree: SceneTree) -> void:
 	# parts being drawn, so every card in its panel falls back to a glyph and
 	# a reading taken off it says nothing about the art at all. That mistake
 	# cost an afternoon.
+	# `-- artdemo heavy s zoom shot` photographs the tight case ZOOMED, which is
+	# where a long part runs out of window. Settle first: the zoom retimes the
+	# clip and the mounts, and a shot taken during that is a shot of the
+	# transition rather than of the result.
+	if "zoom" in OS.get_cmdline_user_args() and Router.current is ShipScreen:
+		for i in 30:
+			await RenderingServer.frame_post_draw
+		(Router.current as ShipScreen)._set_zoom(true)
+		for i in 30:
+			await RenderingServer.frame_post_draw
+
 	if not ("shot" in OS.get_cmdline_user_args()):
 		return
 	var t0 := Time.get_ticks_msec()

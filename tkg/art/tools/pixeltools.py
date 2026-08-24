@@ -264,6 +264,79 @@ def reduce(w, h, rows, n):
     return nw, nh, out
 
 
+def fit(w, h, rows, bw, bh):
+    """Centre the ink in an EXACTLY bw x bh canvas. Never resamples.
+
+    THE LAST STEP OF EVERY MODULE SPRITE. A part is authored at the size of its
+    box -- 20x20, 40x20, 60x20, 80x20, 40x40 -- and this is what guarantees it,
+    whatever the generator happened to draw. Trimming alone gives whatever the
+    ink measured (16x15, 38x13), which then has to be centred at draw time by
+    code that could get it wrong, and leaves `-- artcheck` unable to say
+    anything stricter than "close enough".
+
+    Transparent margin costs nothing: it is the same pixels the draw would have
+    left blank, decided here where it can be looked at instead of at runtime.
+
+    Ink larger than the box is CLIPPED, deliberately and loudly -- it returns
+    the overflow so the caller can refuse the asset. Silently shrinking it would
+    be a resample by another name.
+    """
+    b = bbox(w, h, rows)
+    if not b:
+        return bw, bh, [bytearray(bw * 4) for _ in range(bh)], (0, 0)
+    iw, ih = b[2] - b[0] + 1, b[3] - b[1] + 1
+    over = (max(0, iw - bw), max(0, ih - bh))
+    out = [bytearray(bw * 4) for _ in range(bh)]
+    ox, oy = (bw - iw) // 2, (bh - ih) // 2
+    for y in range(min(ih, bh)):
+        for x in range(min(iw, bw)):
+            s = (b[0] + x) * 4
+            dx, dy = ox + x, oy + y
+            if 0 <= dx < bw and 0 <= dy < bh:
+                out[dy][dx * 4:dx * 4 + 4] = rows[b[1] + y][s:s + 4]
+    return bw, bh, out, over
+
+
+def reduce_avg(w, h, rows, n):
+    """Like reduce(), but each block picks the pixel NEAREST ITS OWN AVERAGE.
+
+    Same guarantee -- only colours that were already in the block are emitted,
+    so the palette cannot drift -- and a different answer where a block is split
+    between a highlight and a shadow. reduce() takes whichever is more numerous
+    and can drop a one-pixel specular entirely; this takes whichever is closest
+    to what the block MEANS, which keeps a lit edge reading as a lit edge.
+
+    Which is better is a question about the art, not about the code. Try both.
+    """
+    if n < 1 or w % n or h % n:
+        raise ValueError("%dx%d does not divide by %d" % (w, h, n))
+    nw, nh = w // n, h // n
+    out = []
+    for by in range(nh):
+        line = bytearray(nw * 4)
+        for bx in range(nw):
+            seen, tot = [], [0, 0, 0]
+            for dy in range(n):
+                r = rows[by * n + dy]
+                for dx in range(n):
+                    o = (bx * n + dx) * 4
+                    if not r[o + 3]:
+                        continue
+                    c = (r[o], r[o + 1], r[o + 2])
+                    seen.append(c)
+                    tot[0] += c[0]; tot[1] += c[1]; tot[2] += c[2]
+            if len(seen) * 2 < n * n:
+                continue
+            k = len(seen)
+            av = (tot[0] / k, tot[1] / k, tot[2] / k)
+            c = min(seen, key=lambda p: (p[0] - av[0]) ** 2 + (p[1] - av[1]) ** 2
+                    + (p[2] - av[2]) ** 2)
+            o = bx * 4
+            line[o], line[o + 1], line[o + 2], line[o + 3] = c[0], c[1], c[2], 255
+        out.append(line)
+    return nw, nh, out
+
+
 def hstrip(frames):
     """[(w,h,rows), ...] of equal size -> one horizontal strip."""
     fw, fh = frames[0][0], frames[0][1]

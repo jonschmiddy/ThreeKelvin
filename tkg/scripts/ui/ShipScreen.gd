@@ -345,11 +345,14 @@ func _build() -> void:
 	_clip.mouse_filter = Control.MOUSE_FILTER_STOP
 	_clip.gui_input.connect(_on_clip_input)
 	_clip.add_child(view)
+	# THE WINDOW TAKES THE REST OF THE ROW. It used to be sized to a computed
+	# width with a spacer after it soaking up the remainder, which put an
+	# invisible edge a hundred pixels inside the panel — and at 2x on a heavy
+	# that edge lands exactly where the longest gun is, so the muzzle was cut
+	# off by a piece of empty panel. Expanding instead means the viewable area
+	# IS the panel, which is what was asked for.
+	_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vwrap.add_child(_clip)
-	var padr := Control.new()
-	padr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	padr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vwrap.add_child(padr)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
 	top.add_child(header)
@@ -582,7 +585,20 @@ func _row_width() -> float:
 ## A gun is drawn on a mount and its barrel runs off the end of the sprite it is
 ## bolted to, so a window sized to the canvas cuts the front off the longest one.
 ## The canvas is the hull's extent, never the ship's.
-const MOUNT_BLEED := 72.0
+##
+## MEASURED FROM THE LONGEST PART, and no longer a flat 72. The widest
+## footprint is four cells, which is 4 x 20 = 80 art pixels — already more than
+## 72 at 1x, and 160 with the zoom on, so the front of a siege driver on a
+## zoomed heavy was outside the window and could not be panned into it. A
+## constant cannot be right at two magnifications; this is the same number the
+## part is drawn at.
+##
+## Plus a cell of air, so the muzzle has somewhere to be rather than sitting
+## exactly on the edge of the window.
+const MOUNT_CELLS := 4
+func _bleed() -> float:
+	var mag := _view.art_scale() if _view != null else 1.0
+	return float((MOUNT_CELLS + 1) * HoldGrid.CELL) * 0.5 * maxf(mag, 1.0)
 
 ## Where the ship's left edge goes so its middle is the PANEL's middle.
 ##
@@ -592,11 +608,14 @@ const MOUNT_BLEED := 72.0
 ## far the hull sits from the middle of its own canvas -- which is not zero,
 ## because the canvas carries the exhaust plume's clearance on one side only.
 func _ship_x() -> float:
-	if _view == null:
+	if _view == null or _clip == null:
 		return 0.0
-	return ((PANEL_W - PANEL_PAD * 2.0) * 0.5
-		- (ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S + HEADER_SEP)
-		- _view.canvas_width() * 0.5
+	# MEASURED OFF THE WINDOW, not rebuilt from the panel and the banner. The
+	# window is now whatever the row gives it, so re-deriving its width here
+	# from constants is a second opinion that can disagree with the layout —
+	# and did. `ship_offset_x` stays: the canvas carries the exhaust plume's
+	# clearance on one side only, so the hull is not in the middle of it.
+	return ((maxf(_clip.size.x, _row_width()) - _view.canvas_width()) * 0.5
 		- _view.ship_offset_x())
 
 ## Size the window onto the ship, and place the ship in it.
@@ -607,9 +626,10 @@ func _ship_x() -> float:
 func _sync_clip() -> void:
 	if _clip == null or _view == null:
 		return
+	# A FLOOR, not a fixed size: the window expands into the rest of the row.
 	var box := Vector2(maxf(_row_width(), 1.0), float(HULL_VIEW_H))
 	_clip.custom_minimum_size = box
-	_clip.size = box
+	box.x = maxf(_clip.size.x, box.x)
 	# The box fills the row, so there is nothing left for the pad to do.
 	if _padl != null:
 		_padl.custom_minimum_size = Vector2.ZERO
@@ -647,8 +667,9 @@ func _on_clip_input(event: InputEvent) -> void:
 	# further. Measured off the SHIP's extent rather than the box's, so it
 	# still allows movement at 1x where the hull is narrower than the row.
 	var slack := (_view.size - _clip.size) * 0.5
-	slack.x = maxf(slack.x, 0.0) + MOUNT_BLEED
-	slack.y = maxf(slack.y, 0.0) + MOUNT_BLEED * 0.5
+	var bleed := _bleed()
+	slack.x = maxf(slack.x, 0.0) + bleed
+	slack.y = maxf(slack.y, 0.0) + bleed * 0.5
 	_pan.x = clampf(_pan.x, -slack.x, slack.x)
 	_pan.y = clampf(_pan.y, -slack.y, slack.y)
 	_view.position = (Vector2(_ship_x(),
