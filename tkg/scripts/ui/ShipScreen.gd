@@ -328,6 +328,7 @@ func _build() -> void:
 	var vwrap := HBoxContainer.new()
 	vwrap.add_theme_constant_override("separation", 0)
 	vwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	# The LEFT pad is the one that carries the number, and the right one only
 	# soaks up whatever is over. A minimum on the left is a position; a minimum
@@ -352,6 +353,11 @@ func _build() -> void:
 	# off by a piece of empty panel. Expanding instead means the viewable area
 	# IS the panel, which is what was asked for.
 	_clip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# AND VERTICALLY, for the same reason and with a worse symptom. The window
+	# was pinned to HULL_VIEW_H at every zoom, but a heavy's canvas is 208 rows
+	# once doubled — so 58 rows of ship were cut off top and bottom while the
+	# panel underneath had the space to show them.
+	_clip.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vwrap.add_child(_clip)
 	shiprow.add_child(vwrap)
 	names.add_child(shiprow)
@@ -615,8 +621,24 @@ func _ship_x() -> float:
 	# from constants is a second opinion that can disagree with the layout —
 	# and did. `ship_offset_x` stays: the canvas carries the exhaust plume's
 	# clearance on one side only, so the hull is not in the middle of it.
-	return ((maxf(_clip.size.x, _row_width()) - _view.canvas_width()) * 0.5
-		- _view.ship_offset_x())
+	var win := maxf(_clip.size.x, _row_width())
+	var wide := _view.canvas_width()
+	# THE OFFSET ONLY APPLIES WHILE THE SHIP FITS.
+	#
+	# It exists because the canvas carries the exhaust plume's clearance on one
+	# side only, so the hull is not in the middle of its own image and centring
+	# the IMAGE leaves the SHIP looking off. That is true and worth doing — while
+	# there is room to do it in.
+	#
+	# Zoomed, there is not. The offset scales with the magnification, so at 2x it
+	# pushed a heavy some 123 pixels to the right of a window it was already 217
+	# too wide for, and a fifth of the ship — the front, and every gun on it —
+	# was outside the window before a drag had even happened. When the ship is
+	# wider than what it is being shown in, the only honest starting place is the
+	# middle.
+	if wide > win:
+		return (win - wide) * 0.5
+	return (win - wide) * 0.5 - _view.ship_offset_x()
 
 ## Size the window onto the ship, and place the ship in it.
 ##
@@ -630,10 +652,12 @@ func _sync_clip() -> void:
 	var box := Vector2(maxf(_row_width(), 1.0), float(HULL_VIEW_H))
 	_clip.custom_minimum_size = box
 	box.x = maxf(_clip.size.x, box.x)
+	box.y = maxf(_clip.size.y, box.y)
 	# The box fills the row, so there is nothing left for the pad to do.
 	if _padl != null:
 		_padl.custom_minimum_size = Vector2.ZERO
 	_view.size = Vector2(_view.canvas_width(), _view.canvas_height())
+	_clamp_pan()
 	_view.position = (Vector2(_ship_x(), (box.y - _view.size.y) * 0.5)
 		+ _pan).floor()
 	# THE MOUNTS HAVE TO BE TOLD. Every marker and fitted part is placed through
@@ -645,6 +669,36 @@ func _sync_clip() -> void:
 		# And again once layout has settled: the call above runs before the
 		# container has resized its children, so it places against the OLD rect.
 		_mountpts.refresh.call_deferred()
+
+## Keep the pan legal, WHEREVER IT CAME FROM.
+##
+## It lived inside the drag handler, which meant it was only true while a
+## mouse was moving: anything else that set `_pan` — a tool, a future keyboard
+## nudge, a restored view — produced a position no drag could ever reach, and
+## the ship went somewhere it is not allowed to be. `_sync_clip` calls this, so
+## it holds by construction rather than by everyone remembering.
+func _clamp_pan() -> void:
+	if _clip == null or _view == null:
+		return
+	# CLAMPED AGAINST THE SHIP'S EDGES, not by a symmetric slack around the
+	# middle. A slack says how far the ship may travel; it does not say where
+	# the ship ENDS, so at full pan on a zoomed heavy the hull was dragged
+	# clean out of its own window and what you were looking at was the empty
+	# panel behind it, with the hull sliced off at the edge.
+	#
+	# The rule is instead: neither edge of the ship may travel further inside
+	# the window than the bleed. So the front can always be brought to the
+	# front of the window with room for the longest gun ahead of it, and no
+	# drag can put the ship somewhere it is not.
+	var bleed := _bleed()
+	var base := _ship_x()
+	var lo := _clip.size.x - _view.size.x - bleed - base
+	var hi := bleed - base
+	_pan.x = clampf(_pan.x, minf(lo, hi), maxf(lo, hi))
+	# Vertically there is nothing overhanging to reach for, so this stays a
+	# plain slack: enough to see the top and bottom of a zoomed hull.
+	var slack_y := maxf((_view.size.y - _clip.size.y) * 0.5, 0.0) + bleed * 0.25
+	_pan.y = clampf(_pan.y, -slack_y, slack_y)
 
 ## Drag to pan, but only while zoomed and only when nothing is being carried.
 ##
@@ -663,15 +717,7 @@ func _on_clip_input(event: InputEvent) -> void:
 		_panning = false
 		return
 	_pan += mm.relative
-	# Far enough to bring an overhanging gun into the window, and no
-	# further. Measured off the SHIP's extent rather than the box's, so it
-	# still allows movement at 1x where the hull is narrower than the row.
-	var slack := (_view.size - _clip.size) * 0.5
-	var bleed := _bleed()
-	slack.x = maxf(slack.x, 0.0) + bleed
-	slack.y = maxf(slack.y, 0.0) + bleed * 0.5
-	_pan.x = clampf(_pan.x, -slack.x, slack.x)
-	_pan.y = clampf(_pan.y, -slack.y, slack.y)
+	_clamp_pan()
 	_view.position = (Vector2(_ship_x(),
 		(_clip.size.y - _view.size.y) * 0.5) + _pan).floor()
 	if _mountpts != null:

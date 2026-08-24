@@ -120,9 +120,20 @@ func run(tree: SceneTree) -> void:
 	if "zoom" in OS.get_cmdline_user_args() and Router.current is ShipScreen:
 		for i in 30:
 			await RenderingServer.frame_post_draw
-		(Router.current as ShipScreen)._set_zoom(true)
+		var sc := Router.current as ShipScreen
+		sc._set_zoom(true)
 		for i in 30:
 			await RenderingServer.frame_post_draw
+		# `-- artdemo heavy s zoom front shot` drags the view as far forward as
+		# the pan allows. That is the state a player reaches by grabbing the ship
+		# and pulling, and it is the only one that can show whether the NOSE and
+		# the longest gun can actually be brought into the window.
+		if "front" in OS.get_cmdline_user_args():
+			var slack: float = maxf((sc._view.size.x - sc._clip.size.x) * 0.5, 0.0)
+			sc._pan.x = -(slack + sc._bleed())
+			sc._sync_clip()
+			for i in 20:
+				await RenderingServer.frame_post_draw
 
 	if not ("shot" in OS.get_cmdline_user_args()):
 		return
