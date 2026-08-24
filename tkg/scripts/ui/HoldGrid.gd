@@ -21,14 +21,30 @@ extends Control
 ## about to bolt on. ModuleIcon divides by 26 for its scale, so a 1x1 plate
 ## went from 0.92 to 1.15 of the authored size for free.
 ##
-## Bounded by the panel, not by taste: 5 columns at 30 is 154px against the
-## 245 of clear panel to the right of x=254.
-const CELL := 30
+## FORTY, so the hull draws a cell at TWENTY.
+##
+## A fitted part is sized at half the hold (MountPoints.part_rect), so this
+## number is really a decision about the ART: at 30 the hull cell was 15 and
+## every module footprint — 15x15 up to 62x15 — sat under PixelLab's floor of
+## 1024px of area, so no module could be generated at the size it is drawn.
+## At 40 the hull cell is a round 20 and the boxes become 20x20, 40x20, 60x20,
+## 80x20 and 40x40; the 3x1 and 4x1 clear the floor outright and can be
+## generated native, with no crop and no reduction.
+##
+## It costs panel: 5 columns go from 154px to 200px. That is the trade, and it
+## was made knowingly — fidelity in the thing you look at, paid for in a
+## workbench that is a third larger.
+const CELL := 40
 
-## The skinny line between two cells. It is the BACKGROUND showing through
-## rather than a stroke, which is what makes it subtle without picking a colour
-## that has to be kept in step with the panel behind it.
-const GAP := 1
+## ZERO, and the lattice is now DRAWN rather than left as a hole.
+##
+## It used to be background showing between cells, which was subtle and cost
+## nothing to maintain. It also made every cell 31 wide instead of 30, and a
+## part five cells long 154 instead of 155 — fine on its own, and not fine once
+## the hull's box is meant to be exactly half of it. A gap of one does not
+## halve. So the cells now abut and `_draw` strokes the boundaries, which reads
+## the same and divides cleanly.
+const GAP := 0
 
 ## The outer edge, which is a stroke and is meant to be seen. The hold is one
 ## object with an inside; before this every cell drew its own full border, so
@@ -120,9 +136,17 @@ func _draw() -> void:
 		for x in _cols:
 			var r := Rect2(_origin(Vector2i(x, y)), Vector2(CELL, CELL))
 			draw_rect(r, Color("#0b1017"), true)
-			# Cell fills ONLY. The GAP between them is the inner line, so it is
-			# one pixel of background wherever two cells meet and nothing at all
-			# at the outside edge.
+	# THE LATTICE, drawn. With GAP at zero the cells abut, so the boundary
+	# between two of them has to be a stroke — one line per interior edge,
+	# shared by both cells, in the same ink as the outer edge so the hold
+	# still reads as one object with an inside rather than as a stack of
+	# separate tiles.
+	for x in range(1, _cols):
+		var px := float(x * CELL)
+		draw_line(Vector2(px, 0.0), Vector2(px, size.y), UITheme.LINE, 1.0)
+	for y in range(1, _rows):
+		var py := float(y * CELL)
+		draw_line(Vector2(0.0, py), Vector2(size.x, py), UITheme.LINE, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, size), UITheme.LINE, false, EDGE)
 	if _beam.is_empty():
 		return
