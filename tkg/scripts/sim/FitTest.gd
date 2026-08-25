@@ -111,7 +111,9 @@ func _to_hold(grid: HoldGrid, mounts: MountPoints) -> void:
 		return
 	await _settle(grid)
 
-	var cell := _empty_cell(grid)
+	var cell := _room_for(grid, m)
+	if not _ok("the hold has room for the part being taken off", cell != Vector2.INF):
+		return
 	var live := await _carry(from, grid, cell - grid.get_global_rect().position)
 	await _became(func() -> bool: return Run.cargo.has(m))
 	_ok("a part bolted to the hull can be picked up", live)
@@ -174,9 +176,11 @@ func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
 			from != Vector2.INF):
 		return
 	await _settle(grid)
-	await _carry(from, grid, _empty_cell(grid) - grid.get_global_rect().position)
+	var target := _room_for(grid, goes)
+	if not _ok("the hold has room for the part being stripped", target != Vector2.INF):
+		return
+	await _carry(from, grid, target - grid.get_global_rect().position)
 	await _became(func() -> bool: return not Run.installed.has(goes))
-
 	_ok("the part that was dragged off is off", not Run.installed.has(goes))
 	_ok("the part that was NOT touched is still installed",
 		Run.installed.has(stays))
@@ -807,20 +811,39 @@ func _mount_where(mounts: MountPoints, want: Callable) -> Vector2:
 	return Vector2.INF
 
 
-## The middle of a cell nothing is sitting in.
-func _empty_cell(grid: HoldGrid) -> Vector2:
+## The middle of a cell where `m` would actually FIT, or INF if it would not.
+##
+## THE PART'S SIZE IS THE POINT, and leaving it out is what made this test
+## flaky. It used to return the first cell nothing was sitting in, which is a
+## fine answer for a one-cell part and a wrong one for a Widowmaker: four cells
+## wide in a five-wide hold, dropped on a cell with no four free columns after
+## it, is a drop the hold correctly REFUSES -- so the part went back on the
+## hull and the assertion "the part that was dragged off is off" failed.
+##
+## It looked random because it depended on whether the four-cell gun happened
+## to come first in mount order, which is why chasing it as a timing problem
+## got nowhere: a bounded wait on the fact did not help, because the fact was
+## never going to become true.
+func _room_for(grid: HoldGrid, m: ModuleData) -> Vector2:
 	var g := Run.hold_grid()
 	var taken := {}
-	for m in Run.cargo:
-		if m.hold_at.x < 0:
+	for c in Run.cargo:
+		if c.hold_at.x < 0:
 			continue
-		for dy in maxi(1, m.size.y):
-			for dx in maxi(1, m.size.x):
-				taken[m.hold_at + Vector2i(dx, dy)] = true
-	for y in g.y:
-		for x in g.x:
-			if not taken.has(Vector2i(x, y)):
-				return grid.get_global_rect().position \
-					+ Vector2((x + 0.5) * (HoldGrid.CELL + HoldGrid.GAP),
-						(y + 0.5) * (HoldGrid.CELL + HoldGrid.GAP))
-	return grid.get_global_rect().get_center()
+		for dy in maxi(1, c.size.y):
+			for dx in maxi(1, c.size.x):
+				taken[c.hold_at + Vector2i(dx, dy)] = true
+	var w := maxi(1, m.size.x)
+	var h := maxi(1, m.size.y)
+	for y in maxi(0, g.y - h + 1):
+		for x in maxi(0, g.x - w + 1):
+			var fits := true
+			for dy in h:
+				for dx in w:
+					if taken.has(Vector2i(x + dx, y + dy)):
+						fits = false
+			if fits:
+				var step := float(HoldGrid.CELL + HoldGrid.GAP)
+				return (grid.get_global_rect().position
+					+ Vector2((x + 0.5) * step, (y + 0.5) * step))
+	return Vector2.INF

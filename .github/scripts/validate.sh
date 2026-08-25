@@ -287,20 +287,31 @@ if run_godot mounts 120 --headless --path "$PROJECT" -- mounts; then
 	fi
 fi
 
-# NOT GATED YET: "A part can be moved between the hold and the hull".
+step "A part can be moved between the hold and the hull"
+# THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
+# here, so it went eight failures deep without anybody hearing -- six of them a
+# real break: a module could not be picked up off the hull at all, because an
+# overlay had been added to a PanelContainer, which lays out every child it has
+# and ignores their anchors, so an invisible box the size of the panel sat in
+# front of the ship eating the drag. Nothing looked wrong.
 #
-# `-- fittest` is worth having and it earned its keep today -- it caught a
-# module that could no longer be picked up off the hull at all, because an
-# overlay had been added to a PanelContainer, which lays out every child it
-# has and ignores their anchors, so an invisible box the size of the panel
-# sat in front of the ship eating the drag. Nothing else noticed.
+# It was left out for a while as "flaky, about one run in six". It was not
+# flaky. It picked the first EMPTY cell in the hold to drop onto without asking
+# whether the part fit there, and a Widowmaker is four cells wide in a five-wide
+# hold -- so when the mount order happened to put the big gun first, the hold
+# correctly refused the drop and the assertion failed. Calling that flakiness
+# and reaching for a timing fix is why it took two tries: a bounded wait cannot
+# make a fact true that was never going to be.
 #
-# It is also FLAKY: about one run in six, "the part that was dragged off is
-# off" fails because the drag never starts, and a bounded wait on the fact
-# rather than on a count of frames did not fix it. A flaky check in a gate
-# teaches everybody to re-run until it is green, which is the same as not
-# having it -- so it stays out until the drag is deterministic. Run it by
-# hand: godot --headless --path tkg -- fittest
+# Six seconds, and fourteen consecutive passes.
+if run_godot fittest 120 --headless --path "$PROJECT" -- fittest; then
+	if grep -qE '^fittest: PASS' "$LOG_DIR/fittest.log"; then
+		ok "fittest"
+	else
+		bad "a part cannot be moved between the hold and the hull"
+		grep -E '^  FAIL|^fittest' "$LOG_DIR/fittest.log" | head -n 20 			| sed 's/^/        /'
+	fi
+fi
 
 step "Every script in the project parses"
 # `--check-only` DOES NOT SEE EVERY FILE. CoFightTest.gd sat un-parseable for
