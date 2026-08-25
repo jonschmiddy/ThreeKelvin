@@ -424,6 +424,46 @@ else
 	ok "python absent, skipped"
 fi
 
+step "A shape that changed took its version with it"
+# THE GUARD THE VOCABULARY PASS NEEDED AND DID NOT HAVE. That pass renamed keys
+# in three persistence surfaces and raised none of the numbers guarding them.
+# Nothing failed: a save stamped with the current version was read with keys
+# that were not in it and came back as a galaxy with no contracts, two co-op
+# builds shook hands and drew every partner unbranded, and every run ever flown
+# stopped unlocking its manufacturer.
+#
+# The vocabulary check below could not have caught it and neither could any word
+# grep, because BOTH SPELLINGS ARE LEGAL. What changed was the shape.
+#
+# Run against this branch's diff from main, or against the last commit when
+# there is none. It found all four surfaces of the August break when pointed at
+# it after the fact, and a fifth nobody knew about -- five save keys renamed
+# stoker_* to hellbender_* at a version that did not move.
+# FOUND BY RUNNING IT, for the reason the audio step below already gives: on
+# Windows `python3` is a Store alias stub that satisfies `command -v` and then
+# refuses to run. This step was written with `command -v` first and failed on
+# this machine immediately, which is the comment down there doing its job.
+VGPY=""
+for candidate in python3 python; do
+	if "$candidate" -c "" >/dev/null 2>&1; then
+		VGPY="$candidate"
+		break
+	fi
+done
+if [ -n "$VGPY" ]; then
+	PY="$VGPY"
+	VG="$("$PY" .github/scripts/version_guard.py 2>&1)"
+	if printf '%s' "$VG" | grep -q 'version guard: PASS'; then
+		ok "$(printf '%s' "$VG" | tail -n 1)"
+	else
+		bad "a serialised shape changed without its version"
+		printf '%s
+' "$VG" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "no python for the version guard"
+fi
+
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
 # months with four words for one concept -- house, maker, man, manufacturer --

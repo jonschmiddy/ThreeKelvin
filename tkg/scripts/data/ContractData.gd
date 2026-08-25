@@ -1,6 +1,16 @@
 class_name ContractData
 extends RefCounted
 
+## @guarded-by SaveGame.VERSION
+##
+## THIS FILE IS PART OF THE SAVE FORMAT, and nothing said so out loud until it
+## broke. `to_wire`/`from_wire` read like a network pair and contracts never go
+## over the net -- SaveGame is the only caller. So renaming a key here changes
+## the shape of every save on disk, guarded by a number in another file.
+##
+## The annotation above is read by .github/scripts/version_guard.py, which
+## fails when the keys below move and that number does not.
+##
 ## One piece of work a manufacturer has posted at a station.
 ##
 ## `docs/lore.md` §6 specified these as "an offer to take delivery, not a quest —

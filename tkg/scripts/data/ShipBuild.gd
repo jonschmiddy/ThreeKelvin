@@ -1,6 +1,15 @@
 class_name ShipBuild
 extends RefCounted
 
+## @guarded-by NetSession.PROTOCOL
+##
+## THIS FILE IS THE WIRE FORMAT. A key renamed here is a protocol change, and
+## the number that guards it lives in NetSession -- so the two move together or
+## two builds shake hands and draw each other wrong. `content_fingerprint`
+## cannot help: it hashes the TABLES, not the wire.
+##
+## The annotation above is read by .github/scripts/version_guard.py.
+##
 ## One ship, described well enough to draw it — and small enough to send.
 ##
 ## Every screen used to draw the player's ship by reaching into `Run` for the
