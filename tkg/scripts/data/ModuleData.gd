@@ -60,6 +60,15 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 @export var initiative: int = 0
 @export var fuel_factor: float = 0.0
 
+## How far this part raises the ship's THRUST.
+##
+## SEPARATE FROM `fuel_factor`, which it used to be welded to. THRUST read
+## `fuel_factor * 4.7`, so the gauge and the cost of a jump were one number:
+## a part that made the ship thriftier also made it worse at thrust checks,
+## which is precisely backwards. Fuel is what a jump COSTS; thrust is what the
+## engine can DO.
+@export var thrust: int = 0
+
 ## How far this part raises the ship's REACTOR, in levels.
 ##
 ## LEVELS AND NOT CELLS, since the reactor turned round. A coupling used to
@@ -164,6 +173,25 @@ func cells() -> int:
 @export var mount_offset: Vector2 = Vector2.ZERO
 ## Illustration used on the cards this module contributes (one per module, not per card).
 @export var card_art: Texture2D
+
+## What this part's affixes add to one raw passive field.
+##
+## The sums in RunState read this beside the authored value. It is COMPUTED
+## rather than baked into the fields for the reason AffixData.raw_for gives:
+## a saved module comes back as a fresh template plus a list of affix names, so
+## a baked bonus does not survive being loaded.
+func affix_raw(field: StringName) -> float:
+	var total := 0.0
+	for a in affixes:
+		total += (a as AffixData).raw_for(field)
+	return total
+
+
+## Same, rounded, for the fields that are ints. Every PER_PIP unit except dodge
+## is a whole number, so this is exact rather than approximate.
+func affix_int(field: StringName) -> int:
+	return int(round(affix_raw(field)))
+
 
 var contraband: bool:
 	get:
@@ -337,8 +365,6 @@ func resolved_cards() -> Array[CardData]:
 		# add damage, brace, heal, draw or credits, and a picture chosen after
 		# they land describes the roll instead of the part. See CardData.base_glyph.
 		c.base_glyph = c.glyph_kind()
-		for a in affixes:
-			a.apply_to(c)
 		c.source_module = name
 		c.source_id = id
 		c.manufacturer = manufacturer

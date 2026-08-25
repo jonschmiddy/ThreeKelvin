@@ -220,22 +220,20 @@ func net_heat() -> int:
 
 ## What this card's picture was before any affix touched it.
 ##
-## Affixes MUTATE THESE FIELDS — `ModuleData.resolved_cards()` calls
-## `AffixData.apply_to()` on a duplicate — so a rolled part can hand a card
-## properties its designer never gave it. Grafted adds `heal`, Salvaged adds
-## `credit_gain`, Autoloader adds `draw`, Overbored adds `damage`.
+## THE HAZARD THIS GUARDED AGAINST IS GONE, and the field is kept anyway. Affixes
+## used to mutate card fields — `resolved_cards()` called `AffixData.apply_to()`
+## on a duplicate — so a rolled part handed out cards with properties their
+## designer never gave them, and the ladder in glyph_kind() then drew the AFFIX
+## instead of the card. A Lock On that rolled Grafted stopped being a reticle and
+## became a weld; a Brace Frame that rolled Overbored drew a round. The picture
+## is supposed to say what a card is FOR, and +2 damage on a plate is not what
+## the plate is for.
 ##
-## Read straight, the ladder in glyph_kind() then draws the AFFIX rather than the
-## card: a Lock On that happens to roll Grafted stops being a reticle and becomes
-## a weld, and a Brace Frame that rolls Overbored draws a round. The picture is
-## supposed to say what the card is for, and +2 damage on a plate is not what the
-## plate is for.
-##
-## So the answer is decided once, on the base card, before any affix is applied,
-## and the affixes are left to do their talking in the rules text where the
-## numbers actually are. Empty on a card nothing has resolved — the gallery and
-## the tests build cards directly — and glyph_kind() falls through to computing
-## it, which is the same answer for an unaffixed card.
+## Affixes now pay in ship attributes and never touch a card, so a card's picture
+## can no longer be hijacked. What remains is the rule that produced the right
+## answer anyway: the glyph is decided once, on the base card. Empty on a card
+## nothing has resolved — the gallery and the tests build cards directly — and
+## glyph_kind() falls through to computing it, which is the same answer.
 var base_glyph: StringName = &""
 
 ## WHICH ILLUSTRATION this card shows, without the folder or the extension.

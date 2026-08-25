@@ -359,7 +359,7 @@ static func card_readout(c: CardData) -> PanelContainer:
 		UITheme.COLD, UITheme.FS_SMALL))
 	if mod != null:
 		# The manufacturer in its own colour. It is the only line in the panel that
-		# names a brand, and the brand already owns a colour everywhere else on
+		# names a manufacturer, and it already owns a colour everywhere else on
 		# the card — the banner, the emblem, the border down the left of this
 		# very panel. Printing it in cold grey was the one place the manufacturer went
 		# unbranded.
@@ -472,32 +472,6 @@ static func ability_rows(manufacturer: StringName, perk_id: StringName, have: in
 		m.colour, have >= 5, "%d / 5" % have))
 	return out
 
-## The manufacturers you are carrying parts from OTHER than your hull's.
-##
-## The hardpoints header used to chip every manufacturer with a count, which was the
-## only place a second allegiance showed at all. Moving the hull's own progress
-## into the ability rows would have thrown that away — you can be two Solari
-## parts from a set on a Korvan ship, and nothing else on the screen says so.
-static func other_manufacturer_rows(hull_manufacturer: StringName) -> Array:
-	var out: Array = []
-	for id in DB.manufacturers.keys():
-		if id == hull_manufacturer:
-			continue
-		var n := Run.manufacturer_count(id)
-		if n == 0:
-			continue
-		var m: ManufacturerData = DB.manufacturers[id]
-		var short := DB.short_name(m.name).to_upper()
-		var next_at := 3 if n < 3 else 5
-		var what := m.set3_name if n < 3 else m.set5_name
-		if n >= 5:
-			out.append(ability_row(short, m.set5_name, m.set5_text, m.colour,
-				true, "%d / 5" % n))
-		else:
-			out.append(ability_row(short, what, m.set3_text if n < 3 else m.set5_text,
-				m.colour, n >= 3, "%d / %d" % [n, next_at]))
-	return out
-
 
 ## THE MODULE'S OWN PANEL, built like card_readout so a part and a card look
 ## like two things from the same game.
@@ -566,19 +540,26 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 	# WHAT IT DOES TO THE SHIP, which is the half of a part that is not cards and
 	# which nothing showed until the tooltip was rewritten. A legendary carrying
 	# three pips of hull said nothing about them anywhere.
-	# ZERO IS PRINTED, and that is the point of printing it. A common plate
-	# carries the hull axis and adds nothing AT THAT GRADE, which is the ladder
-	# being legible rather than a part that moves no gauge at all. Skipping it
-	# made those two read identically — and somebody hovered a Ripsaw, which has
-	# no axis, and concluded the tooltip did not show attributes.
+	# ZERO IS NOT PRINTED, reversing the ruling that used to sit here. That
+	# ruling was that "HULL +0" on a common plate keeps the LADDER legible — it
+	# says the part is on the hull axis and simply pays nothing at this grade,
+	# where a part with no axis at all says nothing. True, and it cost more than
+	# it bought: ATTR_BUMP is [0, 0, 1, ...], so EVERY common and EVERY uncommon
+	# part in the game printed a line that reads as a fact about the part and
+	# means "not yet". Two thirds of the catalogue wearing a +0.
 	#
-	# The manifest prints its +0 for the same reason and draws it dashed; here
-	# the dimmer ink does that job.
+	# WHAT THIS GIVES UP, stated because it will be rediscovered otherwise: a
+	# common plate and a Ripsaw now read identically in this box, and the only
+	# way to tell that one is on the hull ladder is to find a better one. The
+	# manifest still prints its +0 and draws it dashed, so the information is
+	# not gone from the project, only from the hover.
 	var gauges: Array = []
 	for axis in DB.PASSIVE_AXIS.get(m.id, []):
 		var pips: int = DB.ATTR_BUMP[int(m.rarity)]
+		if pips == 0:
+			continue
 		gauges.append(["%s +%d" % [String(axis).to_upper(), pips],
-			UITheme.ICE if pips > 0 else UITheme.COLD])
+			UITheme.ICE])
 	if DB.PASSIVE_COST.has(m.id):
 		var row: Array = DB.PASSIVE_COST[m.id]
 		gauges.append(["%s \u2212%d" % [String(row[0]).to_upper(),
@@ -602,3 +583,135 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 		q.custom_minimum_size = Vector2(CardView.CARD_W - 14, 0)
 		box.add_child(q)
 	return panel
+
+## Every perk on a hull, in ONE tooltip, grouped by where it came from.
+##
+## Four perks used to mean four separate hovers, and no hover said whether what
+## you were reading was a fact about the MANUFACTURER — carried by every hull
+## they build, at every grade — or a fact about this hull's GRADE. Those are
+## different things to know: one survives swapping chassis within the manufacturer,
+## the other is precisely what upgrading bought.
+##
+## THE EMPTY CASE IS PRINTED. A C-class hull has no grade perks, and a tooltip
+## that then shows only one section reads as a hull whose perks failed to load.
+## Saying "none, and B/A/S each add one more" turns the same blank into the
+## ladder explaining itself — which is the one moment a player is looking
+## straight at the thing an upgrade would change.
+static func perk_tip(h: HullData) -> String:
+	if h == null:
+		return ""
+	var out: PackedStringArray = ["PERKS"]
+	var manufacturer: ManufacturerData = DB.manufacturers.get(h.manufacturer)
+	var own := _perk_line(h.perk_id)
+	if own != "":
+		out.append("")
+		out.append(manufacturer.name.to_upper() if manufacturer != null
+			else "UNBRANDED")
+		out.append(own)
+	out.append("")
+	out.append("%s TIER" % h.tier_letter())
+	var any := false
+	for p in h.tier_perks:
+		var line := _perk_line(p)
+		if line != "":
+			out.append(line)
+			any = true
+	if not any:
+		out.append("None. B, A and S each add one more.")
+	return "\n".join(out)
+
+
+## "Salvage Rack — Scrapping modules pays +40%." Empty for a perk id that is
+## not in the table, so a hull carrying a retired one prints nothing rather
+## than a dash with a hole either side of it.
+static func _perk_line(id: StringName) -> String:
+	var pd: Dictionary = DB.hull_perks.get(id, {})
+	if pd.is_empty():
+		return ""
+	return "%s \u2014 %s" % [str(pd.name), str(pd.text)]
+
+
+## How wide the perk tooltip is. Named because two things need to agree on it:
+## the panel, and the wrapped label inside it that would otherwise have no width
+## to wrap against.
+## The same perks as a PANEL, which is what actually shows on hover.
+##
+## `perk_tip` above is the plain-text fallback and the trigger string; this is
+## the content. Built like `module_readout` and deliberately so — the border in
+## the manufacturer's colour, the flat plate, the small type — because a tooltip
+## that looks like the rest of the game reads as part of it, and one assembled
+## out of default labels reads as debug output that shipped.
+##
+## TWO GROUPS, AND THE HEADINGS CARRY THE COLOUR. Which perk came from the
+## manufacturer and which from the grade is the thing the old per-label tooltips
+## could not say at all. The manufacturer's own is on every hull they build, at
+## every grade, and survives swapping chassis inside the same manufacturer; the
+## grade's are exactly what the upgrade bought, and are lost dropping back down.
+static func perk_readout(h: HullData) -> VBoxContainer:
+	# NO PLATE OF ITS OWN, and that is the whole of looking like the other
+	# tooltips. Godot wraps whatever `_make_custom_tooltip` returns in a
+	# PopupPanel styled as TooltipPanel -- `bevel(PANEL2)`, with content margins
+	# already set -- so a PanelContainer here meant TWO plates: a darker
+	# rectangle sitting inset inside the lighter tooltip, with both paddings
+	# stacked. Removing the inner BORDER did not help, because the inner PLATE
+	# was the thing being seen.
+	#
+	# Every plain tooltip in the game is a Label on the theme's plate. This is
+	# that, with more rows. It also means the width comes from the same place
+	# theirs does -- `tip()` wrapping at TOOLTIP_WRAP -- so it sits in the same
+	# family of rectangles rather than being its own size.
+	var accent := DB.manufacturer_colour(h.manufacturer)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	box.add_child(UITheme.body("PERKS", UITheme.COLD, UITheme.FS_SMALL))
+
+	var manufacturer: ManufacturerData = DB.manufacturers.get(h.manufacturer)
+	var own: Dictionary = DB.hull_perks.get(h.perk_id, {})
+	if not own.is_empty():
+		box.add_child(UITheme.hsep())
+		box.add_child(UITheme.body(
+			manufacturer.name.to_upper() if manufacturer != null else "UNBRANDED",
+			accent, UITheme.FS_SMALL))
+		_perk_rows(box, own)
+
+	box.add_child(UITheme.hsep())
+	box.add_child(UITheme.body("%s TIER" % h.tier_letter(), UITheme.ICE,
+		UITheme.FS_SMALL))
+	var any := false
+	for p in h.tier_perks:
+		var pd: Dictionary = DB.hull_perks.get(p, {})
+		if pd.is_empty():
+			continue
+		_perk_rows(box, pd)
+		any = true
+	# THE EMPTY CASE IS DRAWN, for the reason `perk_tip` gives: a C hull showing
+	# a heading and nothing under it reads as a failure to load, where the same
+	# blank with a sentence in it is the ladder explaining itself.
+	if not any:
+		box.add_child(UITheme.body(tip("None yet. B, A and S each add one more."),
+			UITheme.QUOTE, UITheme.FS_SMALL))
+	return box
+
+
+## One perk: its name, then what it does, indented under it.
+##
+## The name in EMBER and the effect in COLD, which is the same split the module
+## readout uses for an affix — the thing you are looking for, then the thing you
+## are looking it up for.
+static func _perk_rows(box: VBoxContainer, pd: Dictionary) -> void:
+	box.add_child(UITheme.body(str(pd.name), UITheme.EMBER, UITheme.FS_SMALL))
+	# WRAPPED IN THE STRING, NOT BY THE LABEL, and that is the whole fix for a
+	# tooltip that reached the bottom of the screen. An autowrapping Label
+	# reports its minimum HEIGHT from its current WIDTH -- and a tooltip is
+	# measured the instant it is built, before any container has handed it one.
+	# Measured: this panel asked for 309 rows off-tree and settled at 168 once
+	# laid out, and it is the first number a tooltip believes.
+	#
+	# A `custom_minimum_size.x` on the label is not enough either; that was tried
+	# and it still came out at 309. `tip()` above already carries this same
+	# finding for the plain tooltips -- "the wrap has to happen in the STRING"
+	# -- so this uses it, and the label then measures the same on-tree and off.
+	var body := UITheme.body(tip(str(pd.text)), UITheme.COLD, UITheme.FS_SMALL)
+	box.add_child(pad(body, 8, 0))

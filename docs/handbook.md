@@ -68,7 +68,7 @@ keeps the name `melt()` because it is the FLOOR in the price ordering above and 
 ordering is what `-- market` proves — renaming it would rename the invariant.
 
 `ask_index` is how dear goods are HERE (development, then depth). `demand` is how
-badly this place wants THAT brand, and it is the whole cross-system economy in four
+badly this place wants THAT manufacturer, and it is the whole cross-system economy in four
 lines: 0.78 in the manufacturer's own space, 1.26 in a rival's, 1.25 for unbranded relic and
 organic tech that nobody presses more of anywhere. It is derived from `manufacturers`, which
 the chart already prints on every system — so the trade map is a map you are already
@@ -567,7 +567,7 @@ a heavy one carrying the same kit.
 ## Rarity ladder — top tiers are *sources*, not bigger numbers
 
 Common → Legendary are manufactured. **Exotic** is grown/harvested (megafauna).
-**Artifact** is precursor relic tech, brand-agnostic, rule-breaking.
+**Artifact** is precursor relic tech, manufacturer-agnostic, rule-breaking.
 **Contraband is a tag, not a tier** — above-curve power plus station-inspection risk.
 
 ---

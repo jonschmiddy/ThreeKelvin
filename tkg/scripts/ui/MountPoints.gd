@@ -257,13 +257,22 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 	else:
 		ModuleIcon.draw_body(self, m, r, col, f, m.flipped, k)
 
-	# RARITY, as a bar where the part meets the hull. The same split the plate
-	# uses, kept the same way round out here: the ART says whose it is, and what
-	# is behind or under it says how good.
-	if not full:
-		var w := minf(r.size.x, 10.0 * k)
-		draw_rect(Rect2(roundf(at.x - w * 0.5), roundf(at.y - k * 0.5), w, k),
-			ModuleData.rarity_ink(m.rarity), true)
+	# NO RARITY BAR ON THE HULL, and this is where one used to be.
+	#
+	# It was a coloured bar drawn across the hardpoint whenever the part was not
+	# hovered -- the same rarity split the plate uses, applied out here on the
+	# assumption that "what is under the art says how good it is" would read the
+	# same way on a ship as it does in the hold. It does not. In the hold the
+	# rarity is the GROUND behind a plate and the eye takes it as a background;
+	# on the hull there is no plate, so the bar landed on top of the part itself
+	# and read as a stripe painted down the middle of the object. Every fitted
+	# module wore one, and it vanished on hover -- which is exactly backwards,
+	# since hovering is when you are asking about the part.
+	#
+	# Rarity on a fitted part is now answered by hovering it, which draws the
+	# full plate, and by the module list on the right. That is a real loss of
+	# an at-a-glance read and it is the trade that was chosen knowingly: a
+	# ship is not an inventory, and the line cost more than it told.
 
 ## Where every mount is and what is in it, in this control's own coordinates.
 ## Read-only, and it exists for `-- fittest`: a test that has to drop something

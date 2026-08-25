@@ -787,7 +787,7 @@ func max_hp(bare: bool = false) -> int:
 	var n := hull.max_hull
 	if not bare:
 		for m in installed:
-			n += m.max_hull
+			n += m.max_hull + m.affix_int(&"max_hull")
 	return maxi(1, n)
 
 func heat_cap(bare: bool = false) -> int:
@@ -796,7 +796,7 @@ func heat_cap(bare: bool = false) -> int:
 		n += 2
 	if not bare:
 		for m in installed:
-			n += m.heat_cap
+			n += m.heat_cap + m.affix_int(&"heat_cap")
 	return maxi(1, n)
 
 func dissipation(bare: bool = false) -> int:
@@ -805,7 +805,7 @@ func dissipation(bare: bool = false) -> int:
 		d += 1
 	if not bare:
 		for m in installed:
-			d += m.dissipation
+			d += m.dissipation + m.affix_int(&"dissipation")
 	return maxi(0, d)
 
 ## Capped at 0.6. Dodge is the enemy's miss chance, so an uncapped sum is a ship
@@ -815,14 +815,14 @@ func dodge(bare: bool = false) -> float:
 	var v := hull.dodge
 	if not bare:
 		for m in installed:
-			v += m.dodge
+			v += m.dodge + m.affix_raw(&"dodge")
 	return clampf(v, 0.0, 0.6)
 
 func initiative(bare: bool = false) -> int:
 	var v := hull.initiative
 	if not bare:
 		for m in installed:
-			v += m.initiative
+			v += m.initiative + m.affix_int(&"initiative")
 	return v
 
 ## Floored well above zero: this multiplies the price of every jump, and a ship
@@ -895,7 +895,7 @@ func ambush_chance(n: MapGen.MapNode) -> float:
 	# of 17 would drive this ratio past 1 and the probability below zero — a ship
 	# that is ambushed a negative amount of the time. Sixty per cent off is the
 	# most stealth can buy, however much of it you have.
-	p *= 1.0 - minf(1.0, float(attr_stealth()) / float(ATTR_MAX)) * 0.6
+	p *= 1.0 - minf(1.0, float(attr_stealth()) / float(ATTR_MAX)) * AMBUSH_RELIEF
 	return clampf(p, 0.0, 0.6)
 
 ## WHAT A REACTOR LEVEL IS. Three cells of hardware, and a step of energy
@@ -933,7 +933,7 @@ func reactor_level(bare: bool = false) -> int:
 	var n := hull.reactor
 	if not bare:
 		for m in installed:
-			n += m.reactor
+			n += m.reactor + m.affix_int(&"reactor")
 	return maxi(0, n)
 
 
@@ -978,7 +978,7 @@ func can_power(m: ModuleData, replacing: ModuleData = null) -> bool:
 	# The cap WITH this part on, which matters because a coupling raises the
 	# level it is being measured against. Read off the table rather than added,
 	# since a level is not a number of cells until the table says so.
-	var level := reactor_level() + m.reactor
+	var level := reactor_level() + m.reactor + m.affix_int(&"reactor")
 	if replacing != null:
 		draw -= replacing.cells()
 		level -= replacing.reactor
@@ -1073,6 +1073,11 @@ func has_set(id: StringName, threshold: int) -> bool:
 ## use.
 const ATTR_MAX := 10
 
+## The most stealth can take off an ambush, at ATTR_MAX. Named because the
+## attribute tooltip quotes it: a percentage typed into a hint and a constant
+## used by the maths drift apart the first time either is touched.
+const AMBUSH_RELIEF := 0.6
+
 ## Hull is measured against a fixed reference, not against your own maximum.
 ##
 ## Dividing by max_hp was the obvious version and it is wrong: it reads 6 for a
@@ -1097,7 +1102,11 @@ func attr_hull(bare: bool = false) -> int:
 ## Thrust reads off fuel burn: a bigger engine moves more ship and drinks more
 ## doing it, so the factor that prices your jumps is already the number.
 func attr_thrust(bare: bool = false) -> int:
-	return maxi(0, int(round(fuel_factor(bare) * 4.7)))
+	var n := hull.thrust
+	if not bare:
+		for m in installed:
+			n += m.thrust + m.affix_int(&"thrust")
+	return maxi(0, n)
 
 ## Dodge is the bulk of it; initiative tilts it. The +1 floor is there because
 ## without it every chassis with dodge under 0.05 and negative initiative read
@@ -1236,7 +1245,7 @@ func attr_sensors(bare: bool = false) -> int:
 	var n := hull.sensors
 	if not bare:
 		for m in installed:
-			n += m.sensors
+			n += m.sensors + m.affix_int(&"sensors")
 	return maxi(0, int(round(n * SENSE_SCALE)))
 
 ## Heat comes off the top of Stealth rather than out of the modules that grant
@@ -1254,7 +1263,7 @@ func attr_stealth(bare: bool = false) -> int:
 	var n := hull.stealth
 	if not bare:
 		for m in installed:
-			n += m.stealth
+			n += m.stealth + m.affix_int(&"stealth")
 	# The heat penalty applies to BOTH readings. `bare` means "the chassis with
 	# nothing fitted", and heat is not something you fitted — so subtracting it
 	# only from the full reading would paint the loss as a module's fault in the
@@ -1296,6 +1305,16 @@ const PER_PIP := {
 	&"maneuver": {&"dodge": 1.0 / 46.0, &"initiative": 1.0},
 	&"sensors": {&"sensors": 1.0},
 	&"stealth": {&"stealth": 1.0},
+	# THE TWO THAT WERE MISSING. Every other gauge could be graded and these two
+	# could not, so a part meant to be worth a pip of REACTOR or THRUST had no
+	# unit to be worth it in. Both are one-for-one: a reactor level IS a pip
+	# (attr_reactor returns the level), and thrust is now its own field for the
+	# same reason -- see attr_thrust.
+	#
+	# A reactor pip is the dearest thing on this table: three cells of capacity
+	# AND half a point of energy, since energy steps every second level.
+	&"reactor": {&"reactor": 1.0},
+	&"thrust": {&"thrust": 1.0},
 }
 
 func attributes() -> Array[Dictionary]:
@@ -1303,25 +1322,48 @@ func attributes() -> Array[Dictionary]:
 	out.assign([
 		{key = &"hull", label = "HULL", short = "HUL",
 			value = attr_hull(), base = attr_hull(true),
-			text = "Ramming, boarding, holding together under structural stress."},
+			text = "Ramming, boarding, holding together under structural stress.",
+			# READS CURRENT HULL, not maximum, which is worth saying out loud:
+			# it is the one gauge that falls as you take damage, so a holed ship
+			# really does fail a check it would have passed intact.
+			effect = "A pip is 7 hull. This gauge reads CURRENT hull, so damage lowers it until you repair."},
 		{key = &"reactor", label = "REACTOR", short = "RCT",
 			value = attr_reactor(), base = attr_reactor(true),
-			text = "Energy to spend in a fight, and hardware the ship can run."},
+			text = "Energy to spend in a fight, and hardware the ship can run.",
+			# The only gauge no event check reads. It pays in combat instead.
+			effect = "A pip is %d more cells of hardware. Energy rises every second pip." % CELLS_PER_LEVEL},
 		{key = &"thrust", label = "THRUST", short = "THR",
 			value = attr_thrust(), base = attr_thrust(true),
-			text = "Outrunning, breaking orbit, pulling free of a gravity well."},
+			text = "Outrunning, breaking orbit, pulling free of a gravity well.",
+			# NO EFFECT LINE, and that is a statement rather than an oversight:
+			# thrust is read by event checks and by nothing else. A hint saying
+			# what a pip buys would be inventing a mechanic. Give thrust a job
+			# and the line goes here.
+			effect = "Separate from fuel: a thriftier engine costs you no speed."},
 		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV",
 			value = attr_maneuver(), base = attr_maneuver(true),
-			text = "Threading debris, evading a lock, choosing how a fight opens."},
+			text = "Threading debris, evading a lock, choosing how a fight opens.",
+			# HALF A PIP IS DODGE and half is initiative, and only the dodge half
+			# does anything: Combat rolls `randf() < Run.dodge()` for the enemy
+			# to miss, and NOTHING reads initiative. So the honest number is the
+			# dodge half alone -- 1/46 of a pip, near enough 2%.
+			effect = "A pip is about 2% of enemy attacks missing outright."},
 		{key = &"thermal", label = "THERMAL", short = "THM",
 			value = attr_thermal(), base = attr_thermal(true),
-			text = "Sitting in heat: coronas, reactors, anything that cooks you."},
+			text = "Sitting in heat: coronas, reactors, anything that cooks you.",
+			effect = "A pip is 1 more heat capacity and 1 more heat vented every turn."},
 		{key = &"sensors", label = "SENSORS", short = "SEN",
 			value = attr_sensors(), base = attr_sensors(true),
-			text = "Reading a wreck, finding the lane, seeing it before it sees you."},
+			text = "Reading a wreck, finding the lane, seeing it before it sees you.",
+			# As with thrust: read by event checks and nothing else, so there is
+			# nothing true to print here yet.
+			effect = ""},
 		{key = &"stealth", label = "STEALTH", short = "STL",
 			value = attr_stealth(), base = attr_stealth(true),
-			text = "Going dark, slipping a patrol, arriving unannounced."},
+			text = "Going dark, slipping a patrol, arriving unannounced.",
+			effect = "A pip is %d%% fewer ambushes, to a maximum of %d%% at %d."
+				% [int(round(AMBUSH_RELIEF * 100.0)) / ATTR_MAX,
+					int(round(AMBUSH_RELIEF * 100.0)), ATTR_MAX]},
 	])
 	return out
 

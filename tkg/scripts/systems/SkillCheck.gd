@@ -74,7 +74,16 @@ static func badge(check: Dictionary) -> String:
 	var pct := int(round(odds(check) * 100.0))
 	if have >= need:
 		return "%s %d · you have %d · certain" % [attr_name(check), need, have]
-	return "%s %d · you have %d · %d%%" % [attr_name(check), need, have, pct]
+	# AND WHAT ONE MORE PIP WOULD BUY, at the only moment that is a live
+	# question. The attribute tooltips used to carry the ladder in the abstract,
+	# which is a worse answer than this one: here the player is looking at a
+	# specific requirement they are specifically short of, and "one more: 65%"
+	# prices the next module for them without any arithmetic.
+	var short := shortfall(check)
+	var next := "certain" if short <= 1 else "%d%%" % int(round(
+		ODDS[mini(short - 1, ODDS.size() - 1)] * 100.0))
+	return "%s %d · you have %d · %d%% · one more: %s" % [
+		attr_name(check), need, have, pct, next]
 
 static func attr_name(check: Dictionary) -> String:
 	match StringName(check.get("attr", &"")):

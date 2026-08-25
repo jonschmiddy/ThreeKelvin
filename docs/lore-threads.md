@@ -518,7 +518,7 @@ Web-checked every invented name and load-bearing concept against fiction, games,
   The second choice was never written down at the time; `Database.gd` simply
   shipped `verity`. Recorded here because "the audit said Alcyone and the code
   says Verity" is exactly the kind of gap that costs somebody an afternoon.
-- **The Dredge Combine — MEDIUM-HIGH, optics not law.** DREDGE (2023) is a live, defended game brand with a film in development; Banner Saga's antagonists are the Dredge; "The X Combine" carries Half-Life flavour. A faction inside a game rarely draws claims, and the full phrase is distinctive — but it stacks two loud genre associations. Decide with eyes open; if renaming, change either half, not both.
+- **The Dredge Combine — MEDIUM-HIGH, optics not law.** DREDGE (2023) is a live, defended game trademark with a film in development; Banner Saga's antagonists are the Dredge; "The X Combine" carries Half-Life flavour. A faction inside a game rarely draws claims, and the full phrase is distinctive — but it stacks two loud genre associations. Decide with eyes open; if renaming, change either half, not both.
   **Outcome: renamed, 2026-08 — The Probate Combine.** The advice was taken
   literally: one half changed, "Combine" kept. Probate-as-in-wills turned out
   to fit better than the name it replaced — a manufacturer whose only preparation for

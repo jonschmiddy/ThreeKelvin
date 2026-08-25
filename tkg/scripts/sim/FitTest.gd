@@ -59,6 +59,7 @@ func run(tree: SceneTree) -> void:
 	_nothing_cut(screen)
 	_nudging(grid)
 	_hold_ladder()
+	_pinned(screen)
 	verdict("fittest")
 	# AND IT ENDS ITSELF. Every other harness is dispatched with a
 	# `get_tree().quit()` on the line after it; this one runs ACROSS
@@ -847,3 +848,51 @@ func _room_for(grid: HoldGrid, m: ModuleData) -> Vector2:
 				return (grid.get_global_rect().position
 					+ Vector2((x + 0.5) * step, (y + 0.5) * step))
 	return Vector2.INF
+
+## THE SHIP HOLDS STILL AT 1x, and still pans when zoomed.
+##
+## `_on_clip_input` documented itself as panning "only while zoomed" and then
+## never checked, which is the whole bug: at 1x `_ship_x` centres the ship and
+## there is nothing off screen to reach for, but `_clamp_pan` still allows it as
+## far as +85 -- so a press on the hull and a few pixels of motion slid the ship
+## off centre and LEFT it there, through every later refresh, because nothing
+## zeroes `_pan` except turning the zoom off.
+##
+## It was reported as the ship moving when a part was moved in the HOLD. The
+## hold was innocent: `_panning` was still set from an earlier press whose
+## release landed outside the hull window and so never arrived to clear it.
+##
+## Events go STRAIGHT to the handler rather than through the input system, for
+## the reason `_turn_in_hold` takes its position as an argument: a synthetic
+## drag never moves the OS cursor, so a pushed event is swallowed on the way.
+func _pinned(screen: Node) -> void:
+	var sc := screen as ShipScreen
+	if not _ok("the ship screen is still up to test panning", sc != null):
+		return
+	var mm := InputEventMouseMotion.new()
+	mm.relative = Vector2(30.0, 0.0)
+	mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+
+	sc._set_zoom(false)
+	sc._panning = true
+	sc._on_clip_input(mm)
+	_ok("the ship cannot be panned at 1x", is_equal_approx(sc._pan.x, 0.0))
+
+	sc._set_zoom(true)
+	var was := sc._pan.x
+	sc._panning = true
+	sc._on_clip_input(mm)
+	_ok("the ship can still be panned while zoomed",
+		not is_equal_approx(sc._pan.x, was))
+
+	# The press-started-here-released-elsewhere case, which is what left the
+	# flag set with nothing held down.
+	var up := InputEventMouseMotion.new()
+	up.relative = Vector2(30.0, 0.0)
+	up.button_mask = 0
+	var held := sc._pan.x
+	sc._panning = true
+	sc._on_clip_input(up)
+	_ok("a stuck pan flag with no button held moves nothing",
+		is_equal_approx(sc._pan.x, held))
+	sc._set_zoom(false)

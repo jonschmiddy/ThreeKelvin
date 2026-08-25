@@ -59,6 +59,20 @@ KEY_PATTERNS = [
     re.compile(r"^\s*([a-z_][\w]*)\s*=\s*.+,\s*$"),     # chassis = x,
 ]
 
+# A FIELD LIST, which is the most explicit statement of a shape there is and
+# was the one thing this could not read. `HULL_FIELDS = ["weight", "tier", ...]`
+# names every key of a saved hull, and none of the patterns above match a bare
+# quoted string in an array. Adding one sailed through a PASS.
+#
+# Deliberately not "any quoted string": that fires on every log line, every
+# error message and every piece of flavour text in the file. It is a key only
+# when the line declares a FIELDS constant, or when the line is nothing but
+# quoted words and punctuation -- which is what the continuation lines of such
+# a declaration look like and very little else does.
+FIELD_DECL_RE = re.compile(r"\bFIELDS\b")
+FIELD_LIST_RE = re.compile(r'^[+-]?[\s\[]*(?:"[A-Za-z_]\w*"\s*,?\s*)+[\]\s,]*$')
+QUOTED_RE = re.compile(r'"([A-Za-z_]\w*)"')
+
 # A line that changes the number itself.
 BUMP_RE = re.compile(r"^[+-]\s*const\s+(VERSION|PROTOCOL)\b")
 
@@ -73,6 +87,9 @@ def keys_in(line):
     out = set()
     for pat in KEY_PATTERNS:
         for m in pat.finditer(body):
+            out.add(m.group(1))
+    if FIELD_DECL_RE.search(body) or FIELD_LIST_RE.match(line):
+        for m in QUOTED_RE.finditer(body):
             out.add(m.group(1))
     return out
 

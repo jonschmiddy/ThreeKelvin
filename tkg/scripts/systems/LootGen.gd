@@ -52,13 +52,19 @@ static func roll_module(danger_in: int, force_manufacturer: StringName = &"",
 	m.scrap_value = int(round(ModuleData.SCRAP_VALUE[m.rarity] * r.randf_range(0.8, 1.3)))
 	return m
 
-## True when a manufacturer may drop. Brand-agnostic modules (manufacturer &"") always
+## True when a manufacturer may drop. Manufacturer-agnostic modules (manufacturer &"") always
 ## pass — see DB.ACTIVE_MANUFACTURERS.
 static func _manufacturer_active(manufacturer: StringName) -> bool:
 	return manufacturer == &"" or DB.ACTIVE_MANUFACTURERS.is_empty() or DB.ACTIVE_MANUFACTURERS.has(manufacturer)
 
+## EIGHT ENTRIES FOR AN EIGHT-VALUE ENUM. This was seven long against a Rarity
+## that ends at CONTRABAND, so `_affix_count(CONTRABAND)` indexed past the end.
+## Nothing in the module tables is authored contraband today and the rarity
+## upgrade roll caps at LEGENDARY, so it was unreachable rather than broken —
+## which is the kind of thing that stays unreachable right up until somebody
+## authors the first contraband part.
 static func _affix_count(r: ModuleData.Rarity) -> int:
-	return [0, 1, 2, 3, 3, 3, 2][r]
+	return [0, 1, 2, 3, 3, 3, 2, 3][r]
 
 static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Array[AffixData]:
 	var out: Array[AffixData] = []
@@ -71,6 +77,14 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 		var pick: AffixData = avail[r.randi() % avail.size()]
 		# Contraband is rarer in policed space; the caller decides where it lands.
 		if pick.contraband and r.randf() > 0.35 + 0.05 * danger:
+			avail.erase(pick)
+			continue
+		# AND SOME AFFIXES ARE SIMPLY SCARCER. A reactor pip is three cells of
+		# capacity and half a point of energy a turn, against one currency for
+		# every other gauge, so the two that pay it are rolled less often rather
+		# than made weaker — see AffixData.weight. Erased either way, so a
+		# refused pick costs the roll rather than looping on the same affix.
+		if pick.weight < 1.0 and r.randf() > pick.weight:
 			avail.erase(pick)
 			continue
 		avail.erase(pick)

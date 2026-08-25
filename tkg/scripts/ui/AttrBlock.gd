@@ -130,8 +130,23 @@ func _build_row(a: Dictionary) -> Control:
 ## are an inch away, and the split is visible in the cells themselves, which
 ## already paint the chassis in the manufacturer colour and anything fitted in white.
 ## A tooltip that restates what you are pointing at is a tooltip you stop reading.
+##
+## THEN WHAT A PIP BUYS, which is the half that was missing. The sentence above
+## says what the gauge is FOR; a player choosing between two parts needs to know
+## what one more of it does, and that was only knowable by reading RunState.
+##
+## NOT THE ODDS LADDER, which lived here for one commit and was in the wrong
+## place twice: it repeated itself across seven tooltips, and it could only ever
+## state the ladder in the abstract. `SkillCheck.badge` prints the real number
+## for the real check at the moment of choosing -- which is strictly better, so
+## the abstract copy is gone rather than duplicated.
 static func _hint(a: Dictionary) -> String:
-	return "%s\n%s" % [String(a.label).capitalize(), String(a.text)]
+	var out := "%s\n%s" % [String(a.label).capitalize(), String(a.text)]
+	var effect := String(a.get("effect", ""))
+	if effect != "":
+		out += "\n\n%s" % effect
+	return out
+
 
 ## Repaint in place. Hull falls as you take damage and Sensors moves every time
 ## you fit something, so this is called far more often than setup().

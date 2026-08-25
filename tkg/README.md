@@ -123,7 +123,7 @@ The top tiers are **sources**, not just bigger numbers:
 
 - **Common → Legendary** — manufactured; affix count and quality scale up
 - **Exotic** — grown/harvested; megafauna-derived, organic mechanics
-- **Artifact** — precursor relics; never manufactured, rule-breaking, brand-agnostic
+- **Artifact** — precursor relics; never manufactured, rule-breaking, manufacturer-agnostic
 
 **Contraband is a tag, not a tier.** Any module can be an illegally-modified variant: above-curve power, and map-layer risk from station inspections. Lawless space doesn't inspect; cosmopolitan space inspects thoroughly.
 

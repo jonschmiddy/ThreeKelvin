@@ -508,7 +508,21 @@ step "One word for the thing: manufacturer"
 #      `var maker := ...` is still caught, which is the vocabulary this rule was
 #      written for -- checked by dropping such a file in and watching it fail.
 #
-# If you are adding a fifth, the bar is: would a person say this out loud?
+# BRAND AND MARQUE were added after they were used to route AROUND this check:
+# a rename hit the guard on `maker`, and a synonym went in instead -- first as a
+# local called `brand`, then as `marque` in a comment. Neither was on the list,
+# so neither failed, and the vocabulary the list exists to protect drifted
+# anyway. A guard that only knows two of a word's synonyms teaches people the
+# third.
+#
+# BRANDED AND UNBRANDED ARE DELIBERATELY NOT HERE, and this is the line: the
+# banned usage is the NOUN standing in for `manufacturer`. `unbranded` means
+# "carries no manufacturer", which is a real state a part can be in -- it is on
+# screen as UNBRANDED SALVAGE and there is no one-word replacement -- and
+# retiring `branded` while keeping its antonym would leave the pair incoherent.
+# `-w` treats both as their own words, so they pass by construction.
+#
+# If you are adding a sixth, the bar is: would a person say this out loud?
 # Two passes, because `man` needs one exemption the other words do not: the
 # archive is full of people, and "a man paying a toll" is not a schema word.
 # That skip is scoped to `man` alone -- `house` and `maker` are checked inside
@@ -516,7 +530,7 @@ step "One word for the thing: manufacturer"
 VOCAB=$(
 	{
 		# Pass A -- house/maker, everywhere, no prose exemption.
-		grep -rnwiE 'house|houses|maker|makers' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
+		grep -rnwiE 'house|houses|maker|makers|brand|brands|marque|marques' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 		# Pass B -- man/hull_man, everywhere except the archive's own prose.
 		awk '/^func _seed_documents/{skip=1} /^func /&&!/_seed_documents/{skip=0} !skip{print FILENAME":"FNR": "$0}' \
 			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null \
@@ -540,7 +554,7 @@ VOCAB=$(
 # publishing idiom for a publication's own conventions, and the line in
 # docs/README.md that states the rule, which has to name the words it bans.
 VOCAB_DOCS=$(
-	grep -rnwiE 'house|houses|maker|makers' docs tkg/*.md 2>/dev/null \
+	grep -rnwiE 'house|houses|maker|makers|brand|brands|marque|marques' docs tkg/*.md 2>/dev/null \
 	  | grep -v '^docs/archive/' \
 	  | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
@@ -550,7 +564,7 @@ VOCAB_DOCS=$(
 if [ -z "$VOCAB" ]; then
 	ok "no retired vocabulary in $PROJECT/scripts"
 else
-	bad "retired vocabulary (house/maker/man) outside the allow-list"
+	bad "retired vocabulary (house/maker/man/brand/marque) outside the allow-list"
 	printf '%s\n' "$VOCAB" | head -n 20 | sed 's/^/        /'
 fi
 if [ -z "$VOCAB_DOCS" ]; then

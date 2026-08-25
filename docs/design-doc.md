@@ -128,8 +128,8 @@ Slay the Spire grammar adapted to ships:
 
 > **REVERSED, and this section is kept because the reasoning still matters.**
 > This used to read *"Hulls have no manufacturer"* — a chassis was two axes and
-> nobody's brand, so a hull swap stayed a pure power decision with no identity
-> whiplash. **Hulls ARE branded now:** seven chassis × three weight classes ×
+> nobody's manufacturer, so a hull swap stayed a pure power decision with no identity
+> whiplash. **Hulls CARRY a manufacturer now:** seven chassis × three weight classes ×
 > four grades, plus three unbranded salvage frames, and the hull counts as one
 > toward its own set bonus.
 >
@@ -147,7 +147,7 @@ A hull is a chassis defined by two axes plus its manufacturer:
 - **Weight class:** Light / Medium / Heavy. Sets hand size, dodge, initiative, fuel cost per jump, heat capacity/dissipation, and HP/slot baselines. Light sustains and evades; heavy bursts and cooks.
 - **Tier:** C / B / A / S (NMS-style). Sets the *ranges* for reactor output, slot count, HP, and heat stats.
 - **Stats roll within tier ranges,** so a god-rolled B-tier medium can rival a badly-rolled A-tier. Hulls are Diablo loot.
-- **Each hull carries its manufacturer's perk,** at every grade, plus what the grade adds on top. Perks are brand identity, not chassis quirks — see `HullData` and `DB.TIER_PERKS`.
+- **Each hull carries its manufacturer's perk,** at every grade, plus what the grade adds on top. Perks are manufacturer identity, not chassis quirks — see `HullData` and `DB.TIER_PERKS`.
 - **Mid-run hull swapping:** derelict or purchasable hulls can be claimed mid-run, transferring modules (slot limits permitting). Swapping moves your set count as well as your stats — that is the accepted cost of branded chassis.
 
 ## Manufacturers: Parts & Set Bonuses (the class system)
@@ -165,7 +165,7 @@ The roster of seven:
 | **Solari Foundry** | Sun-worshipping industrial cult | Weaponized heat: plasma damage scales with current heat, deliberate overheating for payoff, offensive venting | Self-damage is real; heat-reduction loot is anti-synergy (inverted chase items) |
 | **The Probate Combine** | Breaker yards that stopped competing and started invoicing | Credit & salvage galore: credits-on-kill, salvage→armor conversion, armor sustain, salvage bonuses from wrecks | Low burst, bad initiative; fights drag |
 | **Redline Shipyards** | Chop-shop salvage-tech; jury-rigged refits | Stealth, refitting, stolen tech: evasion, initiative, mid-combat module reconfiguration, **innate contraband affinity** (smuggling capacity, black-market access) | Paper hull; cornered = dead |
-| **Verity Ateliers** | Luxury marque; waiting-list prestige (Origin Jumpworks energy) | The thin, perfect deck: few slots but modules pre-upgraded, retain/scry/card-selection, superb initiative & dodge | Everything is expensive: premium repair costs, won't interface with low-rarity modules, dainty heat capacity |
+| **Verity Ateliers** | Luxury manufacturer; waiting-list prestige (Origin Jumpworks energy) | The thin, perfect deck: few slots but modules pre-upgraded, retain/scry/card-selection, superb initiative & dodge | Everything is expensive: premium repair costs, won't interface with low-rarity modules, dainty heat capacity |
 | **Cygnet Dynamics** | Hyper-tech drone specialist; wirey, more antenna than hull | Defect-style drone slots: autonomous per-turn triggers, drones intercept telegraphed hits, evoke/sacrifice for burst | AoE feasts on drones; sustained energy upkeep |
 | **Calyx Biosystems** | Clean corporate biotech; sterile, faintly unsettling (NuCaloric energy) | Adaptation: cards mutate/evolve through use mid-run, hull regeneration, exotic-material scaling, megafauna symbiosis | Stations can't repair you well — you heal your own way or not at all |
 
@@ -180,13 +180,13 @@ The roster of seven:
 - **Procedurally generated galaxy each run.** Starting region at the safe edge; danger/loot rating scales toward the galactic core. Regions seeded with guaranteed anchors (≥1 station per region). Rumor threads generated as breadcrumb chains toward the run objective.
 - **Seeded runs:** galaxy seeds are shareable for community challenges and comparisons.
 - **Fog of war:** sensors and star-chart data determine what you can see; chart data is itself lootable/purchasable.
-- **Manufacturer territories bias loot pools.** Regions are controlled or dominated by specific manufacturers, and their modules dominate local drops, shop stock, and derelict salvage. This is what makes set bonuses reachable by *choice* rather than luck: if you're two Korvan parts from "Full Broadside," you route through Korvan space to fish for them — trading the loot gradient (deeper = better) against build coherence (this direction = my brand). Route planning becomes a build decision.
+- **Manufacturer territories bias loot pools.** Regions are controlled or dominated by specific manufacturers, and their modules dominate local drops, shop stock, and derelict salvage. This is what makes set bonuses reachable by *choice* rather than luck: if you're two Korvan parts from "Full Broadside," you route through Korvan space to fish for them — trading the loot gradient (deeper = better) against build coherence (this direction = my manufacturer). Route planning becomes a build decision.
   - Territories are procedurally placed each run, so the same build plan doesn't work twice.
-  - **Cosmopolitan sectors:** trade crossroads where multiple manufacturers sell side by side. Stations carry broad multi-brand stock you can browse and buy *deliberately* — the "shopping" region, versus territory's "fishing." Trade-off: higher prices and a lower rarity ceiling (Legendary/Exotic/Artifact don't move through legitimate open markets), plus high law presence and thorough contraband inspections. Where you go to fix a build gap. Tonally, the only crowded places in a lonely game — the emptiness reads louder after a crossroads.
+  - **Cosmopolitan sectors:** trade crossroads where multiple manufacturers sell side by side. Stations carry broad stock from many manufacturers you can browse and buy *deliberately* — the "shopping" region, versus territory's "fishing." Trade-off: higher prices and a lower rarity ceiling (Legendary/Exotic/Artifact don't move through legitimate open markets), plus high law presence and thorough contraband inspections. Where you go to fix a build gap. Tonally, the only crowded places in a lonely game — the emptiness reads louder after a crossroads.
   - Contested frontier regions have mixed *drops* — random, thin, nobody's territory. You take what you find.
   - Lawless regions: contraband variants common, no inspections, black-market fences carry high-rarity stock, worse prices on everything legitimate.
   - Fauna-dense regions (nebulae, migration routes): Exotic-tier drops and exotic materials.
-  - Deep core / precursor ruins: Artifact-tier tech, brand-agnostic.
+  - Deep core / precursor ruins: Artifact-tier tech, manufacturer-agnostic.
 - **Danger gradient = loot gradient.** Deeper/hostile space (nebulae, dead zones, core regions, alien territory) = harder fights, better drops. Fuel cost per jump scales with hull mass, tying weight class into exploration economics.
 - **Node types:** combat encounters, narrative events, planets (landable, Out There–style surveying/harvesting), derelicts (hull + module loot, risk-laden), stations (see below), anomalies (relic tech, weirdness).
 - **Stations = paid campfires.** All services cost credits: hull repair, module upgrades (improves **all** cards a module contributes — StS rest-stop analog), junk-card removal, shop inventory, chart data, fuel. Tension comes from the unified economy, not artificial pick limits — every purchase is credits not spent on something else.

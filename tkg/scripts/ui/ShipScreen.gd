@@ -63,10 +63,12 @@ extends Control
 ##
 ## The panel bottom does not move as this grows. Two equal expanding spacers in
 ## `textcol` carry all the slack, so what shrinks is the air between ATTRIBUTES,
-## HARDPOINTS and MANUFACTURER ABILITIES — and it shrinks EQUALLY, which is the
-## property worth keeping. At 150 those two gaps are 20 rows each. At 200 they
-## are nothing and the abilities fall off the panel, which is the failure to
-## watch for: it does not throw, and it only happens on one of the three weights.
+## HARDPOINTS below it, and it shrinks EQUALLY, which is the property worth
+## keeping. At 150 those two gaps are 20 rows each; at 200 they are nothing
+## and the bottom of the column runs off the panel, which is the failure to
+## watch for: it does not throw, and it only happens on one of the three
+## weights. A MANUFACTURER ABILITIES block used to be the thing that fell
+## off first, and its removal bought this margin rather than fixed it.
 const HULL_VIEW_H := 150
 
 ## Clearance between the name block and the ship. The mount markers draw ABOVE
@@ -106,15 +108,22 @@ const STATS_W := 220
 ## placement has to subtract it — see `_centre_ship`.
 ## The left panel's width, fixed. See `_centre_ship` for why it cannot float.
 ##
-## 524 is the smallest that fits everything: the manufacturer abilities want 470
-## across, and a centred heavy needs the flag's 49 plus half a 336px view plus
-## the 33 the hull sits off its own centre, which is 500 inside the padding.
+## 524 was the smallest that fitted everything WHEN THE WIDEST THING IN THIS
+## column was the manufacturer abilities block at 470 across. A centred heavy
+## needs the flag's 49 plus half a 336px view plus the 33 the hull sits off
+## its own centre, which is 500 inside the padding -- and that half still
+## holds, because it is about the ship rather than the readouts.
+##
 ## 504, not 524. The right panel takes whatever the left column leaves, and a
-## readout NUDGES right on hover — so the row it sits in has to have twenty
-## pixels of slack or the far card slides under the screen edge while you are
-## reading about it. Taking them from here rather than adding them there,
-## because the left column is the one with room: its widest block, the
-## manufacturer abilities, wants 470 across.
+## readout NUDGES right on hover, so its row needs twenty pixels of slack or
+## the far card slides under the screen edge while you are reading about it.
+## Taken from here rather than added there, because this column had room.
+##
+## THE 470 CONSTRAINT IS GONE with the abilities block, so this is no longer
+## the smallest width that fits -- it is merely a width that does. Left as it
+## is on purpose: narrowing the panel moves the ship, the hold and the whole
+## right-hand column, which is a layout decision and not the tail end of
+## deleting a list. The 500 the ship needs is the real floor now.
 const PANEL_W := 504
 
 ## What Widgets.panel_with insets its child by, on each side.
@@ -176,13 +185,12 @@ var _manufacturer: Label
 var _class: Label
 var _hand: Label
 var _hold: Label
-var _abilities: VBoxContainer
 ## The perk list in the masthead's top-right corner. An OVERLAY on the
 ## panel rather than a column in its layout, and that is deliberate: the
 ## ship is centred by arithmetic that reads the row it sits in, so a new
 ## sibling would narrow the ship's window and move the ship to make room
 ## for text about the ship. Anchored over the corner it costs nothing.
-var _perkbox: VBoxContainer
+var _perkbox: PerkBox
 var _fithead: Label
 var _fitted: VBoxContainer
 
@@ -390,15 +398,16 @@ func _build() -> void:
 	midrow.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	# ATTRIBUTES AND HARDPOINTS, with equal space above and below the second.
-	# That is what centres HARDPOINTS between the numbers and the abilities: the
+	# That is what centres HARDPOINTS under the numbers: the
 	# gap over it and the gap under it are the same object with the same weight,
 	# so it stays centred when a hull with more mounts makes its block taller.
 	#
-	# The MANUFACTURER ABILITIES block is deliberately NOT in here, and that is
-	# a horizontal argument rather than a vertical one. Its rows run the width of
-	# the panel, so inside this column it — not STATS_W — set the column's width,
-	# and the hold got shoved 240px right of where it was pinned. Below the row
-	# it can be as wide as it likes.
+	# STILL FIXED-WIDTH even though the block that forced it is gone. The
+	# MANUFACTURER ABILITIES rows ran the full width of the panel, so inside
+	# this column they -- not STATS_W -- set the column's width, and the hold
+	# got shoved 240px right of where it was pinned. The rows have gone; the
+	# pin has not, because STATS_W is what the hold is placed against and a
+	# column that sizes to its widest child would move it again.
 	var textcol := VBoxContainer.new()
 	textcol.add_theme_constant_override("separation", 2)
 	# FIXED, not expanding. See STATS_W — this is what pins the hold's top-left
@@ -454,19 +463,15 @@ func _build() -> void:
 
 	left.add_child(midrow)
 
-	# The abilities go here, not on the chassis select's terms. There they
-	# answer "what would flying this manufacturer give me"; here they answer "how close
-	# am I now", and the answer changes every time you drop a part into a mount
-	# on the other half of this screen. Under the attributes because it is the
-	# same column of facts about the ship — what it is, then what it unlocks.
-	# NO SPREAD HERE. The row above is the only expanding child of this
-	# column, so a second one halved the space it had to place HARDPOINTS in
-	# and dropped the gap over it to 10px against 33 below — the exact
-	# lopsidedness this pass set out to remove.
-	left.add_child(UITheme.body("MANUFACTURER ABILITIES", UITheme.COLD, UITheme.FS_SMALL))
-	_abilities = VBoxContainer.new()
-	_abilities.add_theme_constant_override("separation", 1)
-	left.add_child(_abilities)
+	# NO MANUFACTURER ABILITIES BLOCK, and this is where one used to be. It
+	# listed the set-bonus ladder for the hull's own manufacturer and, under a
+	# rule, the counts for any other allegiance the fitted parts had earned.
+	#
+	# Removed on request. What went with it: the only place on this screen that
+	# said how close a mixed loadout was to a SECOND manufacturer's bonus. The
+	# hull's own perks are still in the masthead's top-right corner, and the
+	# chassis select still answers the ladder question for a manufacturer you
+	# are choosing rather than one you are already flying.
 	var foot := Control.new()
 	foot.custom_minimum_size = Vector2(0, LABEL_AIR)
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -492,7 +497,7 @@ func _build() -> void:
 	# THE PERKS, top right, over the masthead. Named here, described on hover —
 	# four short names cost a corner nobody was using, where the same four with
 	# their effects spelled out cost a block the width of the panel.
-	_perkbox = VBoxContainer.new()
+	_perkbox = PerkBox.new()
 	_perkbox.add_theme_constant_override("separation", 1)
 	# TOP LEVEL, and that is the whole trick. `panel_with` returns a
 	# PanelContainer, and a Container lays out EVERY child it has and ignores
@@ -755,12 +760,36 @@ func _clamp_pan() -> void:
 ## live Godot drag and its motion still arrives here. Without it, taking a gun
 ## off the hull also slid the ship out from under the cursor.
 func _on_clip_input(event: InputEvent) -> void:
+	# NOT AT 1x. The line above has always said "only while zoomed" and the code
+	# never checked, which is the whole of the bug: at 1x `_ship_x` centres the
+	# ship and there is nothing off screen to pan TO, but `_clamp_pan` still
+	# allows it as far as +85 -- so a press on the hull and a few pixels of
+	# motion slid the ship off centre and LEFT it there, surviving every later
+	# refresh, because nothing zeroes `_pan` except turning the zoom off.
+	#
+	# Measured before this branch existed: a 30px motion at 1x moved the ship
+	# 30px right, permanently. Reported as "the ship moved slightly to the
+	# right" after moving a part in the hold -- the hold was innocent.
+	if not _zoomed:
+		_panning = false
+		if _pan != Vector2.ZERO:
+			_pan = Vector2.ZERO
+			_sync_clip()
+		return
 	var mb := event as InputEventMouseButton
 	if mb != null and mb.button_index == MOUSE_BUTTON_LEFT:
 		_panning = mb.pressed and not get_viewport().gui_is_dragging()
 		return
 	var mm := event as InputEventMouseMotion
 	if mm == null or not _panning:
+		return
+	# AND ONLY WHILE THE BUTTON IS ACTUALLY DOWN. `_panning` is cleared by a
+	# button event ON THIS CONTROL, so a press that started on the hull and
+	# released anywhere else never sent its release here and left the flag
+	# stuck true with nothing held. The next time the cursor crossed the ship
+	# -- while dragging a part in the hold, say -- the ship came with it.
+	if not (mm.button_mask & MOUSE_BUTTON_MASK_LEFT):
+		_panning = false
 		return
 	if get_viewport().gui_is_dragging():
 		_panning = false
@@ -881,25 +910,20 @@ func _refresh() -> void:
 			var lab := UITheme.body(str(pd.name).to_upper(), UITheme.EMBER,
 				UITheme.FS_SMALL)
 			lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			# STOP so the label can be hovered at all; a Label ignores the
-			# mouse by default and a tooltip on an ignored control never shows.
-			lab.mouse_filter = Control.MOUSE_FILTER_STOP
-			lab.tooltip_text = Widgets.tip(str(pd.text))
+			# IGNORE, so the hover falls through to the BOX. Each label used to
+			# carry its own tooltip, which meant four hovers to read four perks
+			# and no way to see them as one list -- and nothing on screen said
+			# which came from the manufacturer and which from the grade.
+			lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_perkbox.add_child(lab)
+		# ONE TOOLTIP FOR THE WHOLE CORNER, grouped by origin.
+		_perkbox.mouse_filter = Control.MOUSE_FILTER_STOP
+		# THE TRIGGER, not the content. Godot only asks for a tooltip when this is
+		# non-empty, and PerkBox._make_custom_tooltip replaces it with a panel --
+		# but the full text is set rather than a placeholder so that a failure to
+		# build the panel degrades to something readable instead of one word.
+		_perkbox.tooltip_text = Widgets.tip(Widgets.perk_tip(Run.hull))
 		_place_perks.call_deferred()
-
-	Widgets.clear(_abilities)
-	for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):
-		_abilities.add_child(row)
-
-	# Other allegiances go under the hull's own, and only when you have one. A
-	# Korvan ship carrying two Solari parts is two from a second set bonus, and
-	# this is now the only place on the screen that says so.
-	var others := Widgets.other_manufacturer_rows(manufacturer)
-	if not others.is_empty():
-		_abilities.add_child(UITheme.hsep())
-		for row2 in others:
-			_abilities.add_child(row2)
 
 	# --- the hardpoints are ON THE SHIP now, drawn over the view on the left.
 	# What used to be a rack of squares here is the HARDPOINTS tally under the

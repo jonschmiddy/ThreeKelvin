@@ -334,7 +334,7 @@ static func draw_body(ci: CanvasItem, m: ModuleData, box: Rect2, col: Color,
 		return
 	var f := m.footprint() if cells == Vector2i.ZERO else cells
 	if m.sprite != null:
-		draw_sprite(ci, m.sprite, box, mirror, scale)
+		draw_sprite(ci, m.sprite, box, mirror, scale, sprite_turn(m.sprite, f))
 		return
 	fill_part(ci, m.slot, box, col, part_scale(m.slot, f, box.size),
 		part_turn(m.slot, f), mirror)
@@ -355,22 +355,51 @@ static func draw_body(ci: CanvasItem, m: ModuleData, box: Rect2, col: Color,
 ##
 ## Never a fractional multiple. Resampling pixel art onto a grid it was not
 ## drawn for is the one thing the art direction refuses outright.
+##
+## `upright` STANDS IT ON END, and the silhouette path has taken that argument
+## since long before there was art to turn. This one ignored it -- there was no
+## argument to ignore -- so a part rotated in the hold kept its picture lying
+## down while its cell stood up, and the art hung out over both neighbours.
 static func draw_sprite(ci: CanvasItem, tex: Texture2D, box: Rect2,
-		mirror: bool = false, scale: float = 1.0) -> void:
+		mirror: bool = false, scale: float = 1.0, upright: bool = false) -> void:
 	var src := Vector2(tex.get_size())
 	if src.x < 1.0 or src.y < 1.0:
 		return
 	var k := maxi(1, int(roundf(scale)))
 	var dst := src * float(k)
-	var r := Rect2((box.position + (box.size - dst) * 0.5).round(), dst)
-	# Mirrored about the BOX's middle, the same line `fill_part` reflects the
-	# silhouette about, so a flipped part lands in the same place either way.
+	var cy := box.get_center().y
+	if not upright:
+		var r := Rect2((box.position + (box.size - dst) * 0.5).round(), dst)
+		# Mirrored about the BOX's middle, the same line `fill_part` reflects the
+		# silhouette about, so a flipped part lands in the same place either way.
+		if mirror:
+			ci.draw_set_transform_matrix(Transform2D(Vector2(1.0, 0.0),
+				Vector2(0.0, -1.0), Vector2(0.0, cy * 2.0)))
+		ci.draw_texture_rect(tex, r, false)
+		if mirror:
+			ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+		return
+
+	# ANTICLOCKWISE, and that is not a free choice: `draw_part` turns the
+	# procedural silhouette this way, so a barrel pointing forward on a ship
+	# facing right points UP once stood on end. Turning the other way would fire
+	# a stood-up gun downward -- and worse, a part WITH art would then disagree
+	# with the same part without it, which is the one thing `draw_body` exists
+	# to prevent.
+	#
+	# The mirror composes on the LEFT so it lands AFTER the turn, for the reason
+	# `draw_part` gives at the same junction: reflect first and the turn rotates
+	# the reflection, which reads as a differently-shaped object rather than the
+	# same one seen from underneath.
+	var c := box.get_center().round()
+	var t := Transform2D(-PI * 0.5, c)
 	if mirror:
-		ci.draw_set_transform_matrix(Transform2D(Vector2(1.0, 0.0),
-			Vector2(0.0, -1.0), Vector2(0.0, box.get_center().y * 2.0)))
-	ci.draw_texture_rect(tex, r, false)
-	if mirror:
-		ci.draw_set_transform_matrix(Transform2D.IDENTITY)
+		t = Transform2D(Vector2(1.0, 0.0), Vector2(0.0, -1.0),
+			Vector2(0.0, cy * 2.0)) * t
+	ci.draw_set_transform_matrix(t)
+	# Drawn about the ORIGIN, because the transform carries it to the box.
+	ci.draw_texture_rect(tex, Rect2((-dst * 0.5).round(), dst), false)
+	ci.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 ## THE SILHOUETTE A PART READS AS, drawn the same way wherever it appears.
@@ -544,6 +573,28 @@ static func part_turn(slot: ModuleData.Slot, f: Vector2i) -> bool:
 		return false
 	var nat := part_extent(slot)
 	return (f.y > f.x) != (nat.y > nat.x)
+
+
+## The same question asked of a SPRITE, which answers it differently.
+##
+## THE ART'S OWN SHAPE decides, where `part_turn` above asks the slot -- and the
+## slot is the wrong oracle for a picture. `part_extent` says what a WEAPON or a
+## UTILITY is authored like in rectangles; it cannot say what a given PNG was
+## actually drawn like, and the two need not agree. A sprite is generated at the
+## size its authored footprint asks for and then cropped to its own ink, so the
+## image is the honest record of which way that object lies.
+##
+## Both functions therefore exist, rather than one: where there is no art the
+## slot is all there is to go on.
+##
+## Square either way asks for nothing -- a 1x1 and a 2x2 look the same turned.
+static func sprite_turn(tex: Texture2D, f: Vector2i) -> bool:
+	if tex == null or f.x == f.y:
+		return false
+	var s := Vector2(tex.get_size())
+	if s.x == s.y:
+		return false
+	return (f.y > f.x) != (s.y > s.x)
 
 
 ## The scale that makes a slot's silhouette fill `box`, at `f` cells.

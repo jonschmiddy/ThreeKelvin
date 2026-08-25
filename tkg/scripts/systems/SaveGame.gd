@@ -84,13 +84,37 @@ const PATH := "user://run.save"
 ## rule at the top -- an unreadable file is DISCARDED rather than guessed at --
 ## and the number is only how that rule recognises one. 8 is discarded now for
 ## the same reason 6 and 7 were.
-const VERSION := 11
+## 12: THRUST BECAME A FIELD. It was read off fuel_factor -- the gauge and the
+## price of a jump were one number -- so every fuel-efficiency part quietly
+## lowered the pilot's thrust and made them worse at thrust checks for fitting
+## a thriftier engine. HULL_FIELDS gained 'thrust', so a version 11 hull has
+## no such key and would restore with a thrust of whatever the default is
+## rather than what its weight class says. Discarded instead.
+##
+## Caught by .github/scripts/version_guard.py, which is the first time that
+## has happened in anger -- and it needed fixing first: a field LIST declares
+## its keys as bare quoted strings, and the guard could not read one. It said
+## PASS on this very change until it was taught to.
+## 13: THE AFFIX VOCABULARY CHANGED, and this is a break the version guard
+## cannot see. An affix is stored as its NAME — a string VALUE in the save, not
+## a key — and the guard watches keys. Seven of the ten names are gone
+## (Overbored, Autoloader, Salvaged, Mass-Fed, Efficient, Grafted, Heat-Sinked),
+## and `_module_from` resolves a name by walking DB.affixes and simply skipping
+## what it cannot match. So a version 12 save would load, and every rolled part
+## on it would come back stripped of its rolls: no crash, no warning, a quietly
+## weaker ship. Discarded instead.
+##
+## Worth writing down because it is the shape of break the guard is blind to by
+## construction: renaming the VALUES a save stores is exactly as destructive as
+## renaming its keys, and nothing automated is watching for it.
+const VERSION := 13
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
 const HULL_FIELDS: Array[String] = ["weight", "tier", "reactor", "hand_size",
 	"max_hull", "heat_cap", "dissipation", "dodge", "initiative", "fuel_factor",
-	"weapon_slots", "system_slots", "utility_slots", "sensors", "stealth"]
+	"thrust", "weapon_slots", "system_slots", "utility_slots", "sensors",
+	"stealth"]
 
 # --------------------------------------------------------------------- queries
 

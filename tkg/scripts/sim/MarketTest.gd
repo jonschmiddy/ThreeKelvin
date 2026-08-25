@@ -9,7 +9,7 @@ extends RefCounted
 ##
 ## FIRST, it proves the invariant by exhaustion. Every combination of the axes a
 ## price is derived from — five development levels, five security levels, the
-## three brand relationships, five danger tiers, both hull perks, every rarity,
+## three manufacturer relationships, five danger tiers, both hull perks, every rarity,
 ## clean and contraband — is priced, and every one is checked for:
 ##
 ##     melt < ask       you cannot buy a part and melt it for a profit
@@ -80,7 +80,7 @@ func _check_invariant() -> void:
 					for manufacturer in [&"korvan", &""]:
 						for rarity in 7:
 							for cb in [false, true]:
-								# Three brand relationships: the part's own manufacturer
+								# Three manufacturer relationships: the part's own
 								# holds this place, a rival does, or nobody does.
 								for berths in [[] as Array[StringName],
 										[&"korvan"] as Array[StringName],

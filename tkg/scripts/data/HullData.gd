@@ -49,6 +49,14 @@ enum Weight { LIGHT, MEDIUM, HEAVY }
 @export var initiative: int = 0
 @export var fuel_factor: float = 1.2
 
+## The frame's THRUST, as its own number rather than a reading off fuel burn.
+##
+## Seeded at what each weight already showed -- 4 light, 6 medium, 8 heavy,
+## which is 0.8/1.2/1.8 times the old 4.7 multiplier, rounded. Nothing on any
+## existing ship moves; what changes is that fuel efficiency stops dragging the
+## gauge down with it.
+@export var thrust: int = 6
+
 ## Sensors and Stealth have no gauge anywhere else in the game — unlike Hull,
 ## Thrust, Maneuverability and Thermal, which RunState derives from hp, fuel,
 ## dodge and heat. So the chassis carries their baseline and modules adjust it,

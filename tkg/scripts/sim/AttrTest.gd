@@ -74,6 +74,7 @@ func run() -> void:
 		bad.is_empty())
 	for b in bad:
 		_fail(b)
+	_affixes()
 	verdict("attrtest")
 
 
@@ -159,3 +160,85 @@ func _floor() -> void:
 	_ok("a gauge with nothing on it stays at zero", bad.is_empty())
 	for b in bad:
 		_fail(b)
+
+
+## Every affix in the table moves the gauge it advertises, by its pips.
+##
+## MEASURED THE SAME WAY A PART IS, on a bare medium C with one thing attached,
+## because the arithmetic rounds and a bump measured from a different starting
+## value can legitimately differ by one. Reusing the reference frame is what
+## makes the two comparable.
+##
+## A negative pip is checked as carefully as a positive one: `Stripped` trades
+## two of maneuverability for one of hull, and a table where the plus half works
+## and the minus half silently does not is worse than one that never worked.
+##
+## STEALTH IS EXCLUDED, and that is a real exception rather than a fudge:
+## `attr_stealth` subtracts the ship's heat signature, which the reference frame
+## has, so a stealth pip does not survive to the gauge cleanly. The affix is
+## still applied -- `_read` would show it on a cold ship -- and the sum it goes
+## through is the same one every other gauge uses.
+func _affixes() -> void:
+	var bad: Array[String] = []
+	for a in DB.affixes:
+		var af := a as AffixData
+		for g in AffixData.GAUGES:
+			var pips: int = int(af.get(g))
+			if pips == 0 or g == &"stealth":
+				continue
+			Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+			Run.installed.clear()
+			Run.hp = Run.max_hp()
+			var before := _read(g)
+			# A part with NO passive of its own, so what moves is the affix and
+			# nothing else. The chatterbox is a plain gun.
+			var m := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
+			m.affixes = [af]
+			Run.installed.append(m)
+			m.mount = 0
+			Run.hp = Run.max_hp()
+			var moved := _read(g) - before
+			if moved != pips:
+				bad.append("%s: %s moved %+d, promised %+d"
+					% [af.name, String(g).to_upper(), moved, pips])
+	_ok("every affix moves the gauge it names, by the pips it names",
+		bad.is_empty())
+	for b in bad:
+		_fail(b)
+	_faces()
+
+
+## A card reads the same however the module that granted it rolled.
+##
+## THE POINT OF THE WHOLE MOVE. Affixes used to write into card fields and
+## `describe()` prints a clause per non-zero field, so a Slug off a plain module
+## read "Deal 4 x 2." and the same Slug off a well-rolled one read "Deal 4 x 2.
+## Draw 1. Vent 2. Heal 2." -- in a box 93 pixels wide, with fit_content on and
+## no clipping, so the words simply left the card.
+##
+## Compared against the SAME module with no affixes rather than against a
+## remembered string, because the expected answer is "whatever this card says
+## when nothing has touched it" and hard-coding that would need updating every
+## time a card is retuned.
+func _faces() -> void:
+	var bad: Array[String] = []
+	for id in DB.modules:
+		var plain := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
+		plain.affixes = []
+		var rolled := (DB.modules[id] as ModuleData).duplicate(true) as ModuleData
+		rolled.affixes = DB.affixes.duplicate()
+		var a := plain.resolved_cards()
+		var b := rolled.resolved_cards()
+		if a.size() != b.size():
+			bad.append("%s grants %d cards plain, %d rolled"
+				% [id, a.size(), b.size()])
+			continue
+		for i in a.size():
+			var want := (a[i] as CardData).describe()
+			var got := (b[i] as CardData).describe()
+			if want != got:
+				bad.append("%s card %d: plain \"%s\" vs rolled \"%s\""
+					% [id, i, want, got])
+	_ok("a card reads the same however its module rolled", bad.is_empty())
+	for b2 in bad:
+		_fail(b2)

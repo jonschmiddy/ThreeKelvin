@@ -65,7 +65,7 @@ static func ask_index(n: MapGen.MapNode) -> float:
 	var dev: float = [1.14, 1.06, 1.00, 0.94, 0.88][clampi(int(n.development), 0, 4)]
 	return dev * (1.0 + 0.02 * float(MapGen.tier(n.danger) - 1))
 
-## How badly THIS place wants THAT brand. The whole cross-system economy is these
+## How badly THIS place wants THAT manufacturer. The whole cross-system economy is these
 ## four lines.
 ##
 ## Derived from `berths`, which the chart already prints on every system, so the

@@ -492,7 +492,7 @@ func _refresh() -> void:
 func _refresh_header(n: MapGen.MapNode) -> void:
 	var note := ""
 	match n.region:
-		MapGen.Region.COSMOPOLITAN: note = " · multi-brand stock, strict inspections"
+		MapGen.Region.COSMOPOLITAN: note = " · stock from many manufacturers, strict inspections"
 		MapGen.Region.LAWLESS: note = " · fenced goods, no questions"
 	_header.clear()
 	# Named by what the place is, not by the derived region label — "Frontier

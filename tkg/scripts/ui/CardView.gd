@@ -222,7 +222,7 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, w, h), Color("#1a1418") if dim else UITheme.PANEL2, true)
 	draw_rect(Rect2(0, 0, w, h), UITheme.LINE, false, s)
 
-	# The manufacturer banner. Brand is colour, emblem and cut; TYPE is structure. The
+	# The manufacturer banner. Manufacturer is colour, emblem and cut; TYPE is structure. The
 	# two channels never share an encoding, so a colourblind player reads type
 	# off the silhouettes and the manufacturer off the mark, and both survive a 96px
 	# thumbnail.
@@ -281,13 +281,13 @@ func _draw() -> void:
 
 ## The manufacturer banner: a field, a mark, and a cut.
 ##
-## A 2px accent stripe carried the manufacturer colour and nothing else — brand as a
+## A 2px accent stripe carried the manufacturer colour and nothing else — manufacturer as a
 ## legal requirement rather than as identity. A banner is the emblem's largest
 ## habitat, and at 13px wide it still has room for the three things that
 ## distinguish a manufacturer at a glance: the ground it flies on, the mark it carries,
 ## and the shape of its own bottom edge.
 ##
-## The cut is doing real work, not decoration. It is the one brand channel that
+## The cut is doing real work, not decoration. It is the one manufacturer channel that
 ## survives with no colour at all — Korvan ends square because decoration is for
 ## people whose guns jam; Redline ends torn because salvage does not finish
 ## edges; Verity ends in a swallowtail because it can afford to.
@@ -467,7 +467,7 @@ static func draw_emblem(ci: CanvasItem, manufacturer: StringName, c: Vector2, s:
 			r.call(Vector2(-4.5, -0.5), Vector2(3, 1), mark)
 			r.call(Vector2(1.5, -0.5), Vector2(3, 1), mark)
 		&"probate":
-			# A bucket narrowing to its teeth. The bite is the brand.
+			# A bucket narrowing to its teeth. The bite is the manufacturer.
 			r.call(Vector2(-4.5, -4.5), Vector2(9, 2), mark)
 			r.call(Vector2(-3.5, -2.5), Vector2(7, 2), mark)
 			r.call(Vector2(-2.5, -0.5), Vector2(5, 2), mark)

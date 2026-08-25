@@ -12,7 +12,7 @@ extends Node
 ## stay authored and seeded, so flipping a manufacturer back on is a one-word edit and
 ## the sim can A/B a narrow pool against the full one.
 ##
-## Brand-agnostic modules are never gated: Exotic is harvested and Artifact is
+## Manufacturer-agnostic modules are never gated: Exotic is harvested and Artifact is
 ## precursor tech, so they have no manufacturer to gate on.
 ##
 ## NARROWED TO KORVAN, deliberately, and this is the second time. It was opened
@@ -298,17 +298,33 @@ func short_name(full: String) -> String:
 # ---------------------------------------------------------------------- affixes
 
 func _seed_affixes() -> void:
+	# TEN, PAID IN SHIP ATTRIBUTES. See AffixData for why they stopped paying in
+	# card numbers: a card whose face changes with the module that granted it is
+	# a card nobody can learn, and three affixes grew the text out of the bottom
+	# of a 93-pixel box.
+	#
+	# All seven gauges are reachable, so no attribute is a dead end for loot.
+	# Three names survive the change — Reinforced, Cryo-Lined and Deregulated —
+	# because they still mean what they say; the other seven meant card verbs
+	# and had nothing to be renamed to.
+	#
+	# `weight` prices the two reactor entries. A reactor pip is three cells of
+	# capacity AND half a point of energy a turn; every other gauge pays in one
+	# currency, so these are made SCARCE rather than weakened.
 	var raw := [
-		{name = "Overbored", text = "+2 damage", add_damage = 2},
-		{name = "Heat-Sinked", text = "-2 heat", reduce_heat = 2},
-		{name = "Reinforced", text = "+3 brace", add_brace = 3},
-		{name = "Autoloader", text = "draw 1 on play", add_draw = 1},
-		{name = "Deregulated", text = "+4 damage, +2 heat", add_damage = 4, add_heat = 2, contraband = true},
-		{name = "Salvaged", text = "+2 credits on play", add_credits = 2},
-		{name = "Cryo-Lined", text = "vent 2 on play", add_vent = 2},
-		{name = "Mass-Fed", text = "+1 hit", add_hits = 1},
-		{name = "Efficient", text = "-1 energy", reduce_energy = 1},
-		{name = "Grafted", text = "heal 2 on play", add_heal = 2},
+		{name = "Reinforced", text = "+1 HULL", hull = 1},
+		{name = "Cryo-Lined", text = "+1 THERMAL", thermal = 1},
+		{name = "Gyro-Trimmed", text = "+1 MANEUVERABILITY", maneuver = 1},
+		{name = "Wide-Banded", text = "+1 SENSORS", sensors = 1},
+		{name = "Signature-Damped", text = "+1 STEALTH", stealth = 1},
+		{name = "Tuned Injectors", text = "+1 THRUST", thrust = 1},
+		{name = "Double-Plated", text = "+2 HULL", hull = 2},
+		# The tradeoff pair: lighter and thinner, louder and hotter.
+		{name = "Stripped", text = "+2 MANEUVERABILITY, -1 HULL",
+			maneuver = 2, hull = -1},
+		{name = "Bus-Fed", text = "+1 REACTOR", reactor = 1, weight = 0.35},
+		{name = "Deregulated", text = "+2 REACTOR, -1 STEALTH",
+			reactor = 2, stealth = -1, contraband = true, weight = 0.5},
 	]
 	for d in raw:
 		var a := AffixData.new()
@@ -1164,6 +1180,8 @@ func _lay_pips(m: ModuleData, axis: StringName, pips: int) -> void:
 			&"initiative": m.initiative += int(round(unit))
 			&"sensors": m.sensors += int(round(unit))
 			&"stealth": m.stealth += int(round(unit))
+			&"reactor": m.reactor += int(round(unit))
+			&"thrust": m.thrust += int(round(unit))
 
 
 # ------------------------------------------------------------------------ hulls
@@ -1196,7 +1214,8 @@ const WEIGHT_BASE := {
 	# The extra system slot is where the floor comes from.
 	HullData.Weight.LIGHT: {
 		hand_size = 6, max_hull = 24, heat_cap = 8, dissipation = 2,
-		dodge = 0.18, initiative = 2, fuel_factor = 0.8, cargo_slots = 12,
+		dodge = 0.18, initiative = 2, fuel_factor = 0.8, thrust = 4,
+			cargo_slots = 12,
 		hold_grid = Vector2i(4, 3),
 		weapon_slots = 2, system_slots = 2, utility_slots = 2},
 	# A second utility mount, because the middle had nothing of its own.
@@ -1210,12 +1229,14 @@ const WEIGHT_BASE := {
 	# the middle of a range to be.
 	HullData.Weight.MEDIUM: {
 		hand_size = 5, max_hull = 35, heat_cap = 12, dissipation = 1,
-		dodge = 0.05, initiative = 0, fuel_factor = 1.2, cargo_slots = 20,
+		dodge = 0.05, initiative = 0, fuel_factor = 1.2, thrust = 6,
+			cargo_slots = 20,
 		hold_grid = Vector2i(5, 4),
 		weapon_slots = 3, system_slots = 2, utility_slots = 2},
 	HullData.Weight.HEAVY: {
 		hand_size = 4, max_hull = 52, heat_cap = 18, dissipation = 1,
-		dodge = 0.0, initiative = -2, fuel_factor = 1.8, cargo_slots = 30,
+		dodge = 0.0, initiative = -2, fuel_factor = 1.8, thrust = 8,
+			cargo_slots = 30,
 		hold_grid = Vector2i(6, 5),
 		weapon_slots = 4, system_slots = 2, utility_slots = 1},
 }

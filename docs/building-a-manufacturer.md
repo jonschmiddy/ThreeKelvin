@@ -67,7 +67,7 @@ Every gauge should be reachable at +1, +2, +3 and +4. **A rung nobody can buy is
 a rung that does not exist**, and a player building for an attribute finds that
 out by not finding the part.
 
-**Do not fill a gap with an off-brand part.** Korvan is heavy, slow and loud, so
+**Do not fill a gap with a part from another manufacturer.** Korvan is heavy, slow and loud, so
 its maneuver and stealth rungs were left empty for Redline and Cygnet. Writing a
 nimble Korvan part to complete a table is the Spinal Mount mistake — a
 heat-scaling gun on the low-heat manufacturer, which was caught only because a person

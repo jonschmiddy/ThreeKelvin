@@ -211,6 +211,12 @@ func _ready() -> void:
 		load("res://scripts/sim/ContentCount.gd").new().run()
 		get_tree().quit()
 		return
+	# What a rarity actually buys, in card numbers:
+	#   godot --headless --path . -- rarity
+	if "rarity" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/RaritySheet.gd").new().run()
+		get_tree().quit()
+		return
 	if "holdtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/HoldTest.gd").new().run()
 		get_tree().quit()
@@ -679,7 +685,11 @@ func _print_check_table() -> void:
 ## the raw gauges each one is derived from so a surprising attribute can be
 ## traced to the stat that caused it without opening Database.gd.
 func _print_attribute_table() -> void:
-	print("chassis            HUL THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit deck hand set")
+	# RCT WAS MISSING and the row has always printed it: the loop below walks
+	# `Run.attributes()`, which is seven gauges, against six labels. Every
+	# column after HUL read as the one to its left, so a heavy's thrust of 8
+	# looked like a maneuverability of 8 on a frame that cannot turn at all.
+	print("chassis            HUL RCT THR MNV THM SEN STL   hp/cap/diss/dodge/init/fuel  mounts  kit deck hand set")
 	for manufacturer in DB.STARTABLE:
 		for w in [HullData.Weight.LIGHT, HullData.Weight.MEDIUM, HullData.Weight.HEAVY]:
 			Run.start_new_run(manufacturer, int(w))
