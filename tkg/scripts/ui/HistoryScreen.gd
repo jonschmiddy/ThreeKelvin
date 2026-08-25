@@ -114,7 +114,12 @@ func _row(e: Dictionary) -> Control:
 	col.add_child(top)
 
 	var where := "%s · %s" % [str(e.get("galaxy_title", "")), str(e.get("hull", ""))]
-	var manufacturers := _manufacturers_text(e.get("manufacturers", []))
+	# `makers` is the pre-rename spelling. Same reasoning as Unlocks: the
+	# record is append-only, so a row written before the vocabulary pass keeps
+	# its old key forever and reading only the new one blanks the tally for
+	# every run in the history.
+	var manufacturers := _manufacturers_text(
+		e.get("manufacturers", e.get("makers", [])))
 	if manufacturers != "":
 		where += " · " + manufacturers
 	col.add_child(UITheme.body(where, UITheme.CHILL, UITheme.FS_SMALL))

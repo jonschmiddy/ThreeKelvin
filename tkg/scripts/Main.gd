@@ -26,6 +26,7 @@ func _ready() -> void:
 		var t: RefCounted = load("res://scripts/sim/SaveTest.gd").new()
 		t.run()
 		t.run_history_test()
+		t.run_version_test()
 		get_tree().quit()
 		return
 

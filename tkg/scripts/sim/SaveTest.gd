@@ -323,6 +323,51 @@ func run() -> void:
 
 	print("=== %s (%d mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
 
+## A file from the version before this one is REFUSED, and a flight record
+## from before a rename is still READ. The two rules look contradictory and
+## are not, which is exactly why neither had a test.
+##
+## Both were broken at once by the vocabulary pass: it renamed keys in three
+## serialisers and raised none of the numbers guarding them. Nothing failed.
+## A save stamped 10 was read with keys that were not in it and came back as a
+## galaxy with no berths and no contracts, and every past run stopped
+## unlocking its manufacturer because the record said `chassis_maker` and the
+## reader had moved on to `chassis_manufacturer`.
+##
+## THE SAVE DISCARDS AND THE RECORD DOES NOT, because they are different
+## kinds of file. A suspend save is one run in progress; refusing it costs
+## that run and protects everything else. The flight record is append-only
+## and holds every run ever flown, so refusing it deletes the lot -- which is
+## why RunHistory keeps VERSION at 1 and reads the old key instead.
+func run_version_test() -> void:
+	print("=== VERSION GATES ===")
+	var fails_before := fails
+
+	# A save one version behind must not load, whatever is inside it.
+	var stale := {"version": SaveGame.VERSION - 1, "hp": 99}
+	var f := FileAccess.open(SaveGame.PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(stale))
+		f.close()
+	check("a save one version behind is refused", false, SaveGame.load_into_run())
+
+	# And a flight record written before the rename still unlocks.
+	RunHistory.clear()
+	var old := {"version": RunHistory.VERSION, "runs": [{
+		"outcome": int(RunHistory.Outcome.WON), "chassis_maker": "korvan"}]}
+	var g := FileAccess.open(RunHistory.PATH, FileAccess.WRITE)
+	if g != null:
+		g.store_string(JSON.stringify(old))
+		g.close()
+	var won := Unlocks.won_with()
+	check("a pre-rename record still unlocks its manufacturer",
+		true, won.has(&"korvan"))
+	RunHistory.clear()
+
+	print("=== %s (%d mismatches) ===
+"
+		% ["PASS" if fails == fails_before else "FAIL", fails - fails_before])
+
 func run_history_test() -> void:
 	print("=== HISTORY ===")
 	RunHistory.clear()

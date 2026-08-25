@@ -41,17 +41,30 @@ const PATH := "user://run.save"
 ## silently loses work the player had already flown for.
 ## 8: the hold became a GRID. A part carries the cell it sits in, so a hold you
 ## arranged comes back arranged rather than re-packed from scratch.
+## 9: the hellbender — where the galaxy's other harvester is, what hull it has
+## left, and how many moves it has made (the counter is a seed source, so
+## losing it would re-derive a different walk). A node also carries `eaten`:
+## a save that forgot it would resume a derelict the rival stripped as one
+## somebody in the party did.
 ## 10: a hull carries the perks its GRADE grants, on top of its manufacturer's one.
 ## They are granted by `at_tier` and the loader does not call it, so they are
 ## written and read back explicitly. A version 9 save has none of them, and
 ## an S-tier ship restored from one is three perks short with every number
 ## still right — unreadable rather than wrong, which is what the rule at the
 ## top is for.
-## 9: the hellbender — where the galaxy's other harvester is, what hull it has
-## left, and how many moves it has made (the counter is a seed source, so
-## losing it would re-derive a different walk). A node also carries `eaten`:
-## a save that forgot it would resume a derelict the rival stripped as one
-## somebody in the party did.
+## 11: the vocabulary pass. A node's manufacturers-with-berths moved from
+## `makers` to `berths`, and a contract's manufacturer from `house` to
+## `manufacturer`. A version 10 file has neither key, so it would resume
+## with every node stripped of its berths and every contract unbranded — a
+## galaxy that looks intact, posts no work anywhere, and tints nothing on
+## the chart. Discarded instead.
+##
+## THE RENAME DID NOT TOUCH THIS NUMBER, and that is the whole reason this
+## entry exists. The keys moved and the gate above went on saying 10, so an
+## old save PASSED the check and was read with keys that are not in it —
+## the exact failure the rule at the top of this file forbids, arrived at by
+## renaming rather than by shipping a new shape. See the note below: the
+## number is not the defence, it is only how the defence notices.
 ##
 ## 8 rather than either side's number, and the reason is worth writing down: two
 ## branches both shipped a "6" — the shared-kill bag on one and the hold grid on
@@ -71,7 +84,7 @@ const PATH := "user://run.save"
 ## rule at the top -- an unreadable file is DISCARDED rather than guessed at --
 ## and the number is only how that rule recognises one. 8 is discarded now for
 ## the same reason 6 and 7 were.
-const VERSION := 10
+const VERSION := 11
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.

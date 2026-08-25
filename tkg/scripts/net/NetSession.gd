@@ -65,7 +65,22 @@ extends Node
 ##    ESCAPE on an intent). A version 6 partner has no hellbender on its chart,
 ##    would fight it at full health, and would sit in a broken-off fight
 ##    waiting for a turn that is never coming.
-const PROTOCOL: int = 7
+## 8: a build names its manufacturer as `manufacturer` rather than `maker`,
+##    for the hull and for every part on it. A version 7 partner sends a key
+##    nothing reads, so `from_wire` falls to its `&""` default and the ship
+##    arrives as an unbranded frame with every part stripped of its
+##    manufacturer — and therefore of its set count.
+##
+##    IT ARRIVES THAT WAY SILENTLY, which is why this entry is worth more
+##    than the rename that caused it. The keys moved in the vocabulary pass
+##    and this number did not, so the handshake matched. So did
+##    `content_fingerprint`, which hashes module ids, enemy ids, hull
+##    manufacturer/weight pairs and affix names — the TABLES, not the wire —
+##    and the rename touched none of them. Both doors opened on a protocol
+##    break. The `&""` defaults exist so a malformed build cannot take the
+##    sector screen down; here they turned a loud failure into a quiet wrong
+##    one, which is the trade they make and the reason the number matters.
+const PROTOCOL: int = 8
 
 ## How long a contested option waits for the host to say who got it.
 ##

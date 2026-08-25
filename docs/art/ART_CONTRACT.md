@@ -136,7 +136,7 @@ it as pixen-only (heavy rejected outright).
 | Enemy ship | 152–260 wide | Match its danger tier's menace |
 | Megafauna | 240–340 wide | Organic; **commission or hand-draw these** |
 | Station | 200 × 240 | Vertical, lit windows with interior silhouettes |
-| Card illustration | **92 × 60** | **Per module, not per card** — see below |
+| Card illustration | **92 × 60** | **Per card** — see Stage 7 |
 
 ### Module sizes are DERIVED. Do not write them in this file.
 
@@ -246,9 +246,22 @@ universe reads as one shipyard tradition.
 22. Precursor structure (violet, non-manufactured geometry)
 
 ### Stage 7 — card illustrations
-23. One illustration **per module**, not per card. Both Chatterbox cards share the
-autocannon illustration. This cuts the set from ~50 to ~33 and strengthens the fiction —
-cards showing the same gun feel like the same gun.
+23. One illustration **per card**. Ruled 2026-08-23, reversing what this section
+said before, and the reversal is recorded rather than quietly applied.
+
+It used to say one illustration per MODULE — both Chatterbox cards sharing the
+autocannon — on the grounds that it cut the set from ~50 to ~33 and that cards
+showing the same gun feel like the same gun. That is a real argument and it was
+overruled deliberately: a card is the thing a player reads in their hand, and
+Suppressing Fire and Slug are not the same card because they came out of the
+same gun.
+
+It costs about 40% more generation and, more expensively, 40% more REVIEW —
+which is the part that is somebody's afternoon rather than an API call.
+
+The scope is 76 illustrations for Korvan, unbranded and the malfunctions.
+`-- artcheck` counts them, and it counts CARDS; a save of this file that still
+said "per module" while the checker counted per card sat here for a day.
 
 ### Stage 8 — remaining manufacturers
 24+. Define the accent ramp, then generate that faction's modules as a batch so they

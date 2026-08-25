@@ -456,6 +456,18 @@ step "One word for the thing: manufacturer"
 #   3. "Widowmaker" (a gun) and "gatehouse" (a building) are words that merely
 #      contain the string.
 #
+#   4. A retired word in BACKTICKS or as a QUOTED KEY is being NAMED, not used.
+#      `"chassis_maker"` and `"makers"` are keys sitting in files on players'
+#      disks. The readers that still honour them are the fix for a rename that
+#      shipped without raising the numbers guarding it, and a version ladder
+#      saying a key moved from `makers` to `berths` is doing the same job.
+#      Banning the old spelling from the code that has to READ the old spelling
+#      would force a choice between a green gate and a working load.
+#
+#      Deliberately narrow: the quotes or the backticks have to be there.
+#      `var maker := ...` is still caught, which is the vocabulary this rule was
+#      written for -- checked by dropping such a file in and watching it fail.
+#
 # If you are adding a fifth, the bar is: would a person say this out loud?
 # Two passes, because `man` needs one exemption the other words do not: the
 # archive is full of people, and "a man paying a toll" is not a schema word.
@@ -474,7 +486,11 @@ VOCAB=$(
 	} | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'friends in the house' \
-	  | grep -v 'wrong for anyone outside the house'
+	  | grep -v 'wrong for anyone outside the house' \
+	  | grep -v '"chassis_maker"' \
+	  | grep -v '"makers"' \
+	  | grep -v '`maker`' \
+	  | grep -v '`makers`'
 )
 
 # The same check for prose. docs/archive/ is out of scope on purpose -- those

@@ -40,7 +40,20 @@ static func won_with() -> Dictionary:
 		var e: Dictionary = r
 		if int(e.get("outcome", -1)) != int(RunHistory.Outcome.WON):
 			continue
-		var m := StringName(str(e.get("chassis_manufacturer", "")))
+		# THE OLD KEY IS STILL HONOURED, and here that is the fix rather than a
+		# courtesy. The vocabulary pass renamed this field to
+		# `chassis_manufacturer`; every record already on disk says
+		# `chassis_maker`, so reading only the new name reports an empty
+		# manufacturer for every run ever flown and silently re-locks the lot.
+		#
+		# A VERSION BUMP WOULD BE WORSE. RunHistory discards the whole file on a
+		# mismatch, so raising its number would delete the flight record and take
+		# every unlock with it -- destroying exactly what this read exists to
+		# recover. The file still parses at version 1; two field names moved
+		# inside it, and the record is append-only and never rewritten on load.
+		# A run flown in July is meant to keep counting.
+		var m := StringName(str(e.get("chassis_manufacturer",
+			e.get("chassis_maker", ""))))
 		if m != &"":
 			out[m] = true
 	return out
