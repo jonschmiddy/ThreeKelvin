@@ -39,12 +39,14 @@ func run(tree: SceneTree) -> void:
 	var screen := Router.current
 	if not _ok("the refit screen is up", screen is ShipScreen):
 		verdict("fittest")
+		_tree.quit()
 		return
 	var grid := first(screen, func(n: Node) -> bool: return n is HoldGrid) as HoldGrid
 	var mounts := first(screen, func(n: Node) -> bool: return n is MountPoints) as MountPoints
 	if not _ok("the hold and the hardpoints are both on it",
 			grid != null and mounts != null):
 		verdict("fittest")
+		_tree.quit()
 		return
 
 	await _to_hull(grid, mounts)
@@ -58,6 +60,14 @@ func run(tree: SceneTree) -> void:
 	_nudging(grid)
 	_hold_ladder()
 	verdict("fittest")
+	# AND IT ENDS ITSELF. Every other harness is dispatched with a
+	# `get_tree().quit()` on the line after it; this one runs ACROSS
+	# frames, so Main returns immediately and there is nobody left to
+	# end it. It has therefore always printed its verdict and then sat
+	# there until something killed it -- which read as "still running
+	# after 240s" the moment it went into the gate, on a run where
+	# every one of its checks had passed.
+	_tree.quit()
 
 
 # ---------------------------------------------------------------- the crossings
@@ -103,6 +113,7 @@ func _to_hold(grid: HoldGrid, mounts: MountPoints) -> void:
 
 	var cell := _empty_cell(grid)
 	var live := await _carry(from, grid, cell - grid.get_global_rect().position)
+	await _became(func() -> bool: return Run.cargo.has(m))
 	_ok("a part bolted to the hull can be picked up", live)
 	_ok("dragged off the hull into the hold: it is stowed", Run.cargo.has(m))
 	_ok("dragged off the hull into the hold: it is off the ship",
@@ -164,6 +175,7 @@ func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
 		return
 	await _settle(grid)
 	await _carry(from, grid, _empty_cell(grid) - grid.get_global_rect().position)
+	await _became(func() -> bool: return not Run.installed.has(goes))
 
 	_ok("the part that was dragged off is off", not Run.installed.has(goes))
 	_ok("the part that was NOT touched is still installed",
@@ -213,7 +225,13 @@ func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
 
 	# AND A PART IS GRABBED ANYWHERE ON ITSELF, not just at the dot it hangs
 	# from. A three-cell rail used to be pickable only by its breech.
-	var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), 2.0)
+	# THE LIVE MAGNIFICATION, not a hardcoded 2. The refit screen draws at 1x
+	# unless the zoom is on, so asking for the rect at 2x measured a part twice
+	# the size of the one on screen and probed a corner well outside it. The
+	# assertion then failed for a part that was perfectly grabbable, which is
+	# the exact breakage ShipView warns about: harmless while every screen
+	# magnified by 2, silent the moment one stopped.
+	var r := mounts.part_rect(m, m.slot, _mount_local(mounts, m), mounts._mag())
 	var far := r.position + r.size - Vector2(2, 2)
 	_ok("a fitted part can be grabbed at its far corner", mounts.spot_at(far) >= 0)
 	_ok("...and the far corner finds THAT part",
@@ -682,7 +700,17 @@ func _carry(from: Vector2, onto: Control, local: Vector2) -> bool:
 		if onto._can_drop_data(local, data):
 			onto._drop_data(local, data)
 	await _press(_at, false)
-	await _tree.process_frame
+	# LET THE DROP LAND. One frame is not enough and it is not a fixed number
+	# of frames either: a drop is handled through signals and deferred calls,
+	# so a caller that asserts on the frame the drag ended is reading the
+	# state from BEFORE the part arrived. It only bites sometimes, which is
+	# worse than always -- this test failed about one run in four, on an
+	# assertion about a part that had moved perfectly well.
+	#
+	# Every caller asserts something about `Run` right after this returns, so
+	# the wait belongs here rather than repeated at each of them.
+	for i in 12:
+		await _tree.process_frame
 	return live
 
 
@@ -724,6 +752,24 @@ func _stow(slot: ModuleData.Slot) -> ModuleData:
 			Sig.ship_changed.emit()
 			return m
 	return null
+
+
+## Wait until `cond` holds, or give up. Returns whether it ever did.
+##
+## THE CONDITION, NOT A COUNT OF FRAMES. A drop is handled through signals and
+## deferred calls, so how many frames it takes to land is not a number anybody
+## knows -- it is however long the engine feels like taking on the day. This
+## test asserted on a fixed count and failed about one run in four, always on
+## an assertion about a part that had moved perfectly well.
+##
+## A flaky check in a gate is worse than no check at all: it teaches everybody
+## to re-run until it is green, which is the same as not having it.
+func _became(cond: Callable, frames: int = 90) -> bool:
+	for i in frames:
+		if cond.call():
+			return true
+		await _tree.process_frame
+	return bool(cond.call())
 
 
 func _settle(grid: HoldGrid) -> void:

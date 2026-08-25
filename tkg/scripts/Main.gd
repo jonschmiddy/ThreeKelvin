@@ -242,6 +242,13 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	# Every .gd in the project, loaded:  godot --headless --path . -- parseall
+	# `--check-only` does not reach a file nothing instantiates. See ParseAll.
+	if "parseall" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/ParseAll.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "artcheck" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/ArtCheck.gd").new().run()
 		get_tree().quit()

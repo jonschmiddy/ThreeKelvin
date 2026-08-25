@@ -287,6 +287,43 @@ if run_godot mounts 120 --headless --path "$PROJECT" -- mounts; then
 	fi
 fi
 
+# NOT GATED YET: "A part can be moved between the hold and the hull".
+#
+# `-- fittest` is worth having and it earned its keep today -- it caught a
+# module that could no longer be picked up off the hull at all, because an
+# overlay had been added to a PanelContainer, which lays out every child it
+# has and ignores their anchors, so an invisible box the size of the panel
+# sat in front of the ship eating the drag. Nothing else noticed.
+#
+# It is also FLAKY: about one run in six, "the part that was dragged off is
+# off" fails because the drag never starts, and a bounded wait on the fact
+# rather than on a count of frames did not fix it. A flaky check in a gate
+# teaches everybody to re-run until it is green, which is the same as not
+# having it -- so it stays out until the drag is deterministic. Run it by
+# hand: godot --headless --path tkg -- fittest
+
+step "Every script in the project parses"
+# `--check-only` DOES NOT SEE EVERY FILE. CoFightTest.gd sat un-parseable for
+# five days while it reported zero errors, because it only reaches scripts the
+# scene tree pulls in -- and the out-of-band harnesses are loaded by hand, at
+# the moment somebody runs them, which is never in CI. This loads every .gd in
+# the project and reports the ones that will not.
+if run_godot parseall 180 --headless --path "$PROJECT" -- parseall; then
+	# THE LOG, NOT THE VERDICT. The harness only guarantees every file was
+	# LOADED; Godot is the thing that knows whether one parsed, and it says so
+	# on stderr. Three attempts to have the harness judge for itself were all
+	# wrong in different ways -- see ParseAll.gd -- so it touches, and this
+	# reads.
+	if grep -qE 'Parse Error|Failed to load script' "$LOG_DIR/parseall.log"; then
+		bad "a script in the project does not parse"
+		grep -E 'Parse Error|Failed to load script' "$LOG_DIR/parseall.log" 			| head -n 20 | sed 's/^/        /'
+	elif grep -qE '^parseall: PASS' "$LOG_DIR/parseall.log"; then
+		ok "every script parses"
+	else
+		bad "the parse sweep did not finish"
+	fi
+fi
+
 step "The archive round-trips, and none of it has become an essay"
 # Half machinery and half STYLE GATE. `docs/lore.md` §5 says an entry is a
 # primary source that fits on one screen, and that is prose — it rots, and its

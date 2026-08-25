@@ -494,14 +494,26 @@ func _build() -> void:
 	# their effects spelled out cost a block the width of the panel.
 	_perkbox = VBoxContainer.new()
 	_perkbox.add_theme_constant_override("separation", 1)
-	_perkbox.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_perkbox.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_perkbox.offset_top = PANEL_PAD
-	_perkbox.offset_right = -PANEL_PAD
+	# TOP LEVEL, and that is the whole trick. `panel_with` returns a
+	# PanelContainer, and a Container lays out EVERY child it has and ignores
+	# their anchors -- so adding this beside the ship column did not put a
+	# small box in the corner, it stretched the box across the entire panel and
+	# put it in front of the ship. Nothing looked wrong: the labels still drew
+	# in the corner because they are the only thing in the box with a size.
+	# What broke was INPUT -- a part could no longer be picked up off the hull,
+	# because the drag was landing on an invisible column instead. `-- fittest`
+	# went from two failures to eight and nothing else noticed, because
+	# fittest is not in validate.sh.
+	#
+	# Godot Containers skip children set top-level, so this one is positioned
+	# by hand and laid out by nobody. See `_place_perks`.
+	_perkbox.set_as_top_level(true)
 	# PASS, not STOP: the labels inside want hover for their tooltips, but the
 	# column between and around them must not eat a drag meant for the ship.
 	_perkbox.mouse_filter = Control.MOUSE_FILTER_PASS
 	twrap.add_child(_perkbox)
+	twrap.resized.connect(_place_perks)
+	_perkbox.resized.connect(_place_perks)
 
 	var lwrap := Widgets.panel_with(left)
 	lwrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -663,6 +675,19 @@ func _ship_x() -> float:
 	if wide > win:
 		return (win - wide) * 0.5
 	return (win - wide) * 0.5 - _view.ship_offset_x()
+
+## Park the perk list in the masthead's top-right corner.
+##
+## By hand, because it is top-level and therefore laid out by nobody -- which
+## is exactly why it is top-level. Driven off both the panel resizing and the
+## box itself resizing: the box changes width whenever the perks change, and a
+## right-aligned thing whose width moved has to be repositioned or it drifts
+## off the edge.
+func _place_perks() -> void:
+	if _perkbox == null or _panel == null:
+		return
+	_perkbox.position = (_panel.global_position
+		+ Vector2(_panel.size.x - _perkbox.size.x - PANEL_PAD, PANEL_PAD)).round()
 
 ## Size the window onto the ship, and place the ship in it.
 ##
@@ -861,6 +886,7 @@ func _refresh() -> void:
 			lab.mouse_filter = Control.MOUSE_FILTER_STOP
 			lab.tooltip_text = Widgets.tip(str(pd.text))
 			_perkbox.add_child(lab)
+		_place_perks.call_deferred()
 
 	Widgets.clear(_abilities)
 	for row in Widgets.ability_rows(manufacturer, Run.hull.perk_id, Run.manufacturer_count(manufacturer)):

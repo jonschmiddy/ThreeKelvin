@@ -589,11 +589,11 @@ func _fight(cb: Combat) -> void:
 				"pass":
 					# Policy finishes the turn. The escape hatch the shot clock
 					# lands on, and a move a brain can also choose on purpose.
+					# A pending pick blocks every play, so answer it first.
+					while cb.choosing > 0:
+						cb.choose(cb.best_choice())
 					var best := policy.best_card(cb)
 					while best >= 0 and not cb.finished:
-# A pending pick blocks every play, so answer it first.
-while cb.choosing > 0:
-	cb.choose(cb.best_choice())
 						cb.play(best)
 						best = policy.best_card(cb)
 					acting = false
