@@ -58,6 +58,14 @@ var hellbender_kills := 0
 var hellbender_escapes := 0
 var derelicts_eaten := 0
 
+## Per galaxy kind: name -> {runs, wins, jumps, kills, systems}.
+##
+## NOT cleared by `_reset()`. That is called once per batch in the by-chassis
+## sweep, and a per-kind table wants to span the whole sweep -- fifteen kinds
+## across twenty-one chassis is already thin, and resetting it per chassis would
+## leave every cell too small to read.
+var by_kind: Dictionary = {}
+
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.
 func run_sim() -> void:
@@ -265,6 +273,19 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		var key := Run.death_reason.substr(0, 24)
 		death_causes[key] = int(death_causes.get(key, 0)) + 1
 
+	# WHICH GALAXY THIS RUN HAPPENED IN. Read after the run rather than before,
+	# because `start_new_run` is what rolls the kind and the map it implies.
+	var kind := GalaxyGen.type_name(Run.galaxy_kind)
+	var row: Dictionary = by_kind.get(kind, {
+		"runs": 0, "wins": 0, "jumps": 0, "kills": 0, "systems": 0,
+	})
+	row.runs += 1
+	row.wins += 1 if Run.won else 0
+	row.jumps += Run.jumps
+	row.kills += Run.kills
+	row.systems += Run.map.size()
+	by_kind[kind] = row
+
 ## Competent-player model: lock on before attacking, brace against telegraphed
 ## damage, vent before overheating, and never overheat unless it secures a kill.
 func _fight(template: EnemyTemplate) -> bool:
@@ -356,7 +377,59 @@ func _report() -> void:
 	print("ambushes %d (%.2f per run) · runs jumped at least once %d (%.1f%%)" % [
 		ambushes, float(ambushes) / maxi(1, runs), runs_ambushed,
 		100.0 * runs_ambushed / maxi(1, runs)])
+	_report_kinds()
 	print("---")
 	print("Healthy target: 40-55% win rate for this competent-player model.")
 	print("Too easy? Raise station repair prices before touching enemy damage —")
 	print("this design's difficulty lives in the economy, not in single fights.")
+
+
+## What each galaxy kind actually played like.
+##
+## FIFTEEN KINDS THAT ARE NOT THE SAME GAME. `GalaxyGen`'s header claims the
+## shape of a galaxy cannot move a jump or a fuel cost; it can and does, because
+## `MapGen.ring_count()` reads `squash` and `hop_distance()` measures in squashed
+## space. A Lenticular is a smaller galaxy whose hops are cheaper. So a single
+## win rate is an average over fifteen different games, and the moment that
+## variation becomes DELIBERATE -- authored `density` and `reach` per kind -- it
+## has to be readable or there is no way to tell a tuning change from a roll.
+##
+## SYSTEMS IS THE COLUMN TO WATCH during the galaxy resize: it is the number
+## `LAYERS` and `RING_SPACING` move, and the one that says whether a change did
+## what it claimed.
+##
+## Sorted by win rate, so the spread is the first thing visible. A kind with a
+## handful of runs is noise -- the count is printed so it can be discounted.
+func _report_kinds() -> void:
+	if by_kind.is_empty():
+		return
+	print("---")
+	print("by galaxy kind:")
+	print("  %-22s %5s %6s %7s %7s %8s"
+		% ["kind", "runs", "win%", "jumps", "kills", "systems"])
+	var rows: Array = []
+	for k in by_kind:
+		var v: Dictionary = by_kind[k]
+		var n: int = maxi(1, int(v.runs))
+		rows.append({
+			name = k,
+			runs = int(v.runs),
+			rate = 100.0 * float(v.wins) / float(n),
+			jumps = float(v.jumps) / float(n),
+			kills = float(v.kills) / float(n),
+			systems = float(v.systems) / float(n),
+		})
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.rate) > float(b.rate))
+	for r in rows:
+		var row: Dictionary = r
+		print("  %-22s %5d %5.0f%% %7.1f %7.1f %8.1f"
+			% [row.name, row.runs, row.rate, row.jumps, row.kills, row.systems])
+	# THE SPREAD, said out loud. Two kinds thirty points apart is the whole
+	# reason this table exists, and it should not need reading off the rows.
+	if rows.size() > 1:
+		var hi: Dictionary = rows[0]
+		var lo: Dictionary = rows[rows.size() - 1]
+		print("  spread: %s %.0f%% down to %s %.0f%% (%.0f points across %d kinds)"
+			% [hi.name, hi.rate, lo.name, lo.rate,
+				float(hi.rate) - float(lo.rate), rows.size()])
