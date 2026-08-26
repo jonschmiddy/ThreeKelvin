@@ -911,7 +911,10 @@ func _drag_preview(c: CardData, index: int) -> String:
 	if c.vent_all:
 		bits.append("-%d HEAT" % Run.heat)
 	elif c.vent > 0:
-		bits.append("-%d HEAT" % mini(c.vent, Run.heat))
+		# THE SHIP'S HALF INCLUDED. This is the preview a player reads at the
+		# moment of committing a card, and without the dissipation term it
+		# under-reports every vent card by the whole radiator.
+		bits.append("-%d HEAT" % mini(c.vent + Run.dissipation(), Run.heat))
 	if c.draw > 0:
 		bits.append("+%d CARD" % c.draw)
 	if c.energy_gain > 0:

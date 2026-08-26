@@ -389,10 +389,28 @@ func end_turn() -> void:
 		Run.heat += 1
 		_log("+1 heat maintaining brace.", &"heat")
 
-	var shed := mini(Run.heat, Run.dissipation())
-	if shed > 0:
-		Run.heat -= shed
-		_log("Dissipated %d heat." % shed, &"sys")
+	# NO END-OF-TURN SHED, and this is where it used to be. It was one point --
+	# dissipation runs 2/1/1 across light, medium and heavy -- against card heat
+	# of 1 to 6 with two or three cards a turn. Too small to plan around and too
+	# present to ignore: it printed a line, nudged the gauge and asked for
+	# arithmetic every turn for a change that never altered a decision.
+	#
+	# It was also why the interesting half of heat was never built. `heat_scale`
+	# appears on one card of 149, `damage_equals_heat` on one, `brace_from_heat`
+	# on one. Those cards want heat HIGH, and automatic cooling worked against
+	# them every turn in a direction the player could not switch off.
+	#
+	# Dissipation now multiplies venting instead -- see CardResolver. In a fight
+	# you generate faster than any radiator sheds, so heat comes off only when
+	# you deliberately dump it; between systems you drift, which is
+	# `cool_in_transit`.
+	#
+	# REMOVING IT MOVES THE OVERHEAT CHECK ONE STEP CLOSER to the heat you just
+	# generated, which is the intended effect: the burn now measures what you
+	# did rather than what survived a free refund. Do not compensate by
+	# softening overheat -- it is deliberately a linear 1:1 hull burn with no
+	# cliff and no cap, and Solari's 5-set halving it is a set bonus that should
+	# stay worth having.
 
 	# Overheat: predictable self-damage. Heat is a second health bar you spend.
 	if Run.heat > Run.heat_cap():

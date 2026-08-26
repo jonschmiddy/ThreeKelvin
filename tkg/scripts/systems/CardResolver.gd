@@ -111,7 +111,15 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 		cb._log("Next attack will be slipped.", &"good")
 
 	if c.vent > 0:
-		var v := mini(Run.heat, c.vent)
+		# PLUS THE SHIP'S DISSIPATION, which no longer sheds on its own. The
+		# stat's prominence is finally earned: it was half of attr_thermal and
+		# worth one point a turn, and it is now a multiplier on a decision the
+		# player makes rather than a drip that happens to them. Fifteen vent
+		# cards get better and stop competing against free automatic cooling.
+		#
+		# `vent_all` is untouched -- it already zeroes heat and there is nothing
+		# for a multiplier to add to.
+		var v := mini(Run.heat, c.vent + Run.dissipation())
 		Run.heat -= v
 		if v > 0:
 			cb._log("Vented %d heat." % v, &"heat")

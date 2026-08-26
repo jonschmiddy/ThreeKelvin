@@ -864,6 +864,35 @@ func fuel_factor(bare: bool = false) -> float:
 ## floor of one exists so that the worst dissipation in the game still cools
 ## eventually rather than fossilising at capacity for the rest of the run.
 func cool_in_transit() -> void:
+	# HALF RATE, and full rate was tried on 2026-08-25 and put back. The
+	# argument for trying it was good and the measurement refused it.
+	#
+	# THE ARGUMENT: an older comment here recorded full rate deleting the map
+	# mechanic -- average arrival signature 0.32 down to 0.05 -- but that test
+	# ran with in-combat dissipation still active, so fights ended cool and
+	# full-rate transit was compounding an already-cool start. With the
+	# end-of-turn shed now deleted, fights end near capacity, so full rate
+	# should have been a counterweight rather than a second pull the same way.
+	#
+	# THE MEASUREMENT, 500 runs each, combat change held constant:
+	#
+	#     transit      arrival sig   arrived hot   ambush/run   win
+	#     full rate       0.04           5.5%         0.21       30%
+	#     half rate       0.07           9.4%         0.24       29%
+	#
+	# Half rate is better on every axis the change was FOR, and the win rate
+	# difference is inside the noise of 500 runs. So the ruling is reverted.
+	#
+	# THE REAL FINDING IS THAT THIS RATE IS NOT THE LEVER. Fights now end at
+	# 0.31 signature -- more than double what they did -- and arrival is still
+	# 0.07 against a SIGNATURE_FLOOR of 0.25. Cooling is charged PER JUMP and
+	# there are roughly four jumps per fight, so whatever a fight builds is
+	# spent long before the next one. Halving the rate cannot fix that and
+	# neither can doubling it; the dials that would are the per-jump floor
+	# below, the number of jumps between fights, or the floor itself.
+	#
+	# The floor of 1 stays regardless: it is what stops the worst dissipation
+	# in the game fossilising at capacity.
 	heat = maxi(0, heat - maxi(1, int(dissipation() / 2.0)))
 
 ## How loud you are: 0.0 stone cold, 1.0 at capacity, higher while overheating.
@@ -1366,7 +1395,7 @@ func attributes() -> Array[Dictionary]:
 		{key = &"thermal", label = "THERMAL", short = "THM",
 			value = attr_thermal(), base = attr_thermal(true),
 			text = "Sitting in heat: coronas, reactors, anything that cooks you.",
-			effect = "A pip is 1 more heat capacity and 1 more heat vented every turn."},
+			effect = "A pip is 1 more heat capacity, and 1 more heat off every vent card you play."},
 		{key = &"sensors", label = "SENSORS", short = "SEN",
 			value = attr_sensors(), base = attr_sensors(true),
 			text = "Reading a wreck, finding the lane, seeing it before it sees you.",

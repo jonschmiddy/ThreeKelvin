@@ -300,10 +300,14 @@ func refresh() -> void:
 	# The second line changes when you are over because at that point the rule
 	# has stopped being hypothetical and become a bill.
 	var shed: int = maxi(1, Run.dissipation())
-	var heat_note := "Weapons and systems run hot — heat is what they leave behind.\nPast %d it burns 1 hull a point at end of turn. Vents %d a turn on its own." % [
+	# WHAT YOUR SHIP ADDS TO A VENT CARD. It used to say "vents %d a turn on
+	# its own", which stopped being true the moment the end-of-turn shed was
+	# deleted. Learned once from the gauge and true of every vent card you
+	# own -- which is why the card face does not reprint it.
+	var heat_note := "Weapons and systems run hot — heat is what they leave behind.\nPast %d it burns 1 hull a point at end of turn. Your vent cards shed %d more than they print." % [
 		Run.heat_cap(), shed]
 	if over > 0:
-		heat_note = "Weapons and systems run hot — heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Vents %d a turn on its own." % [
+		heat_note = "Weapons and systems run hot — heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Your vent cards shed %d more than they print." % [
 			over, over, shed]
 	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
 	_heat.tooltip_text = Widgets.tip(heat_note)

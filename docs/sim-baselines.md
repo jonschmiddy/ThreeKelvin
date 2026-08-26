@@ -86,3 +86,95 @@ FTL's 40–60. Eight is the **shortest forced path to the core**; a competent
 player actually takes **38**. The real problem is that the fast dive is
 *available and dominant if you want it*, which is worth fixing — but the game is
 not eight jumps long, and the FTL comparison is between a minimum and an actual.
+
+---
+
+## Phase 2 — HEAT_REWORK, 2026-08-25
+
+`HEAT_REWORK.md` ruled two changes. **One landed. One was tried and put back**,
+which is what that brief asked for when it said *"Re-run the measurement; do not
+assume it lands right."*
+
+### What landed: dissipation amplifies venting (§2)
+
+The end-of-turn shed in combat is deleted; a vent card now sheds
+`vent + dissipation()`.
+
+| | phase 0 | after §2 |
+| --- | --- | --- |
+| win rate | 35% | **30%** |
+| post-fight signature | 0.14 | **0.31** |
+| left a fight hot | 19.1% | **37.7%** |
+| overheat deaths | 6 | **47** |
+| ambushes per run | 0.14 | **0.21** |
+| runs ever jumped | 7.2% | **14.8%** |
+
+It does what it was for. Heat accumulates instead of being refunded, fights end
+near capacity, and the run-hot archetype that `heat_scale`,
+`damage_equals_heat` and `brace_from_heat` have been waiting for now has room to
+exist. Ambush roughly doubled purely as a side effect of hotter fights.
+
+**Overheat deaths went 6 → 47.** §7 anticipates this: *"If burn spikes, the vent
+multiplier is not carrying enough and the answer is more vent cards in the pool,
+not restoring the drip."* Part of it is that the sim's policy has not been
+retuned — `Policy.gd`:86 is still playing the old game.
+
+### What was reverted: full-rate transit cooling (§3)
+
+Three 500-run passes with the combat change held constant:
+
+| transit | arrival sig | arrived hot | ambush/run | win |
+| --- | --- | --- | --- | --- |
+| full rate (§3 as ruled) | 0.04 | 5.5% | 0.21 | 30% |
+| **half rate (kept)** | **0.07** | **9.4%** | **0.24** | 29% |
+| *(phase 0, for reference)* | 0.04 | 5.0% | 0.14 | 35% |
+
+Half rate is better on **every axis the change was for**, and the one point of
+win rate is inside the noise of 500 runs.
+
+### The finding underneath both, which is the useful part
+
+**The transit rate is not the lever, and the 0.32 target is unreachable by
+tuning it.**
+
+Fights now end at 0.31 signature — more than double phase 0 — and arrival is
+still **0.07** against a `SIGNATURE_FLOOR` of **0.25**. Cooling is charged *per
+jump* and there are roughly four jumps per fight, so whatever a fight builds is
+spent long before the next one. Halving the rate cannot fix that; neither can
+doubling it.
+
+If `ENCOUNTER_REBUILD.md` §6 wants signature to be the map's involuntary risk
+dial, the dials that would actually move it are:
+
+- the **per-jump floor** of 1, which sheds even on a ship with no dissipation
+- the **number of jumps between fights** — a galaxy question, not a heat one
+- **`SIGNATURE_FLOOR` itself**, currently 0.25 against a curve that peaks at 0.31
+
+### H amplifies the galaxy spread
+
+The kind spread widened 33 → 38 points, and it is the long galaxies that
+collapsed: Round Elliptical 29% → 10%, Flocculent Spiral 25% → 7%. More jumps
+means more fights, and fights now cost more heat. Worth knowing before phase 3
+doubles the system count.
+
+### §7's fourth check: the two policies still diverge, but barely on heat
+
+| 500 runs | cold (default) | hot (`-- sim hot`) |
+| --- | --- | --- |
+| win rate | 29% | **26%** |
+| post-fight signature | 0.31 | 0.32 |
+| arrived hot | 9.4% | 9.4% |
+| overheat deaths | 59 | 63 |
+
+Three points of win rate apart, so they are not identical — but their **heat
+profiles are now the same to two decimal places**, which is precisely what §7
+says to watch for: *"if both policies now behave the same, the threshold needs
+retuning before any other number here is trustworthy."*
+
+`Policy.gd`:86 vents at `heat_cap * 1.15` when hot and `* 0.7` when cold. With
+the free shed gone, heat climbs fast enough that both thresholds are crossed in
+the same turns, so the "hot" model is not actually running hotter — it is just
+dying slightly more. **Retuning that threshold is the first thing to do before
+trusting any further heat number**, and it is deliberately not done in the same
+commit as the change it would be measuring.
+
