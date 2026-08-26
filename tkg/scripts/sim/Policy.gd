@@ -343,10 +343,18 @@ func engage_hellbender() -> bool:
 	return mine >= 0.45 + its * 0.3
 
 func choose_jump(node: MapGen.MapNode) -> int:
+	# IN RANGE, NOT LINKED. `links` is the graph the chart DRAWS; it is not the
+	# graph the ship flies. `can_jump_to` is `reachable_from` plus fuel, and
+	# `reachable_from` is a radius that never consults `links` -- the chart's own
+	# neighbour list is `in_range()`, which is what the player picks from.
+	#
+	# Routing on links made the simulator play a narrower game than the one that
+	# ships, and it showed: the policy running out of charted options was being
+	# counted as the run ending, and 46% of those ships could still fly.
 	var options: Array[int] = []
-	for idx in node.links:
-		if Run.can_jump_to(Run.map[idx]):
-			options.append(idx)
+	for n in Run.in_range_of(node):
+		if Run.can_jump_to(n):
+			options.append((n as MapGen.MapNode).index)
 	if options.is_empty():
 		return -1
 	var lateral: Array[int] = []
@@ -395,11 +403,16 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	# deliberately do not count against FARM_LIMIT: a limit on how much you farm
 	# should not also be a limit on how far you may walk to leave.
 	if not sideways.is_empty():
+		# ALSO IN RANGE RATHER THAN LINKED, for the same reason: "can this
+		# neighbour get further in" is a question about what it can REACH.
+		#
+		# This is the expensive branch -- a map-wide pass per candidate -- but it
+		# now almost never runs. `forward` is only empty when nothing deeper is
+		# in radius at all, which a radius reaching several rings rarely manages.
 		var doors: Array[int] = []
 		for idx in sideways:
-			for onward in (Run.map[idx] as MapGen.MapNode).links:
-				if onward >= 0 and onward < Run.map.size() \
-						and (Run.map[onward] as MapGen.MapNode).layer > node.layer:
+			for t in Run.in_range_of(Run.map[idx]):
+				if (t as MapGen.MapNode).layer > node.layer:
 					doors.append(idx)
 					break
 		if not doors.is_empty():
