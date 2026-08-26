@@ -569,7 +569,9 @@ VOCAB_DOCS=$(
 	  | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'house style' \
-	  | grep -v 'never .house. or .maker.' \n  | grep -v '`chassis_maker`'
+	  | grep -v 'never .house. or .maker.' \
+	  | grep -viE 'never house, maker, brand, or marque' \
+	  | grep -v '`chassis_maker`'
 )
 if [ -z "$VOCAB" ]; then
 	ok "no retired vocabulary in $PROJECT/scripts"

@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Three Kelvin — sector screen prototype</title>
+<style>
+:root{
+  --void:#0a0e15; --panel:#111823; --panel2:#161f2c; --line:#22303f;
+  --cold:#6b7d94; --chill:#8fa3ba; --ice:#c3d2e2;
+  --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --leave:#d4614f; --quote:#5a6470;
+  --bevel-hi:#3d4d61; --bevel-lo:#080b11; --them:#c98d7a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--void);color:var(--chill)}
+body{
+  font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  font-size:13px; line-height:1.55;
+  padding:20px 14px 60px;
+  -webkit-font-smoothing:none;
+}
+.wrap{max-width:760px;margin:0 auto}
+
+/* ---- chrome ---- */
+.eyebrow{
+  font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--quote);margin:0 0 14px
+}
+.panel{
+  background:var(--panel);
+  border-top:1px solid var(--bevel-hi);
+  border-left:1px solid var(--bevel-hi);
+  border-right:1px solid var(--bevel-lo);
+  border-bottom:1px solid var(--bevel-lo);
+  padding:14px 16px;margin-bottom:12px;
+}
+
+/* ---- system header ---- */
+.sys-name{
+  font-size:20px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ice);margin:0 0 8px;font-weight:400
+}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  padding:2px 7px;border:1px solid var(--line);color:var(--cold);
+  background:var(--panel2)
+}
+.chip.danger{color:var(--flare);border-color:#4a3520}
+.chip.berth{color:var(--hot);border-color:#4a3a20}
+.flavour{color:var(--cold);margin:0;font-style:italic}
+
+/* ---- option rows ---- */
+.group{
+  border:1px dashed var(--line);padding:10px 12px 4px;margin:14px 0;position:relative
+}
+.group-label{
+  position:absolute;top:-8px;left:10px;background:var(--panel);
+  font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--quote);
+  padding:0 6px
+}
+.opt{
+  border-left:2px solid transparent;padding:9px 12px;margin:6px 0;
+  cursor:pointer;transition:background .09s,border-color .09s,opacity .12s;
+  background:transparent;
+}
+.opt:hover:not(.spent):not(.locked):not(.gated){
+  background:var(--panel2);border-left-color:var(--ember)
+}
+.opt-body{color:var(--cold);font-size:12px;margin:0 0 4px}
+.full{margin:8px 0 10px;border-left:1px solid var(--line);padding-left:12px}
+.full p{margin:0 0 7px;color:var(--chill);font-size:12.5px;line-height:1.6}
+.full p:last-child{margin-bottom:0}
+.opt-label{
+  color:var(--ice);font-size:13px;letter-spacing:.14em;text-transform:uppercase;margin:0
+}
+.badge{
+  font-size:10px;letter-spacing:.09em;color:var(--quote);margin-top:5px;
+  text-transform:uppercase
+}
+.badge .have{color:var(--chill)}
+.badge .odds{color:var(--hot)}
+.badge .certain{color:var(--good)}
+.badge .more{color:var(--quote);margin-left:8px}
+.badge.cant{color:var(--leave)}
+
+/* foreclosure preview — the signature interaction */
+.opt.dimmed{opacity:.3}
+/* Space is RESERVED, never created. Toggling display here shoved every row
+   below it down the page — the panel appeared to shake. visibility keeps the
+   line in the layout and only changes whether it is painted. */
+.warn{
+  visibility:hidden;color:var(--leave);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;margin-top:5px
+}
+.opt.dimmed .warn{visibility:visible}
+.opt.spent,.opt.locked,.opt.gated{cursor:default;opacity:.42}
+.opt.spent{opacity:1}
+.locked-why,.gated-why{
+  color:var(--leave);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;margin-top:5px
+}
+.outcome{
+  border-left:2px solid var(--ember);background:var(--panel2);
+  padding:9px 12px;margin:6px 0
+}
+.band{
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin:0 0 5px
+}
+.band.met{color:var(--good)}
+.band.clean{color:var(--chill)}
+.band.partial{color:var(--hot)}
+.band.botched{color:var(--leave)}
+.band.flat{color:var(--cold)}
+.outcome p{margin:0;color:var(--ice);font-size:12px}
+.ledger{margin-top:6px;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.ledger .up{color:var(--good)}
+.ledger .down{color:var(--leave)}
+
+/* ---- leave ---- */
+.leave-btn{
+  display:block;width:100%;margin-top:16px;padding:11px;
+  background:var(--panel2);color:var(--cold);
+  border-top:1px solid var(--bevel-hi);border-left:1px solid var(--bevel-hi);
+  border-right:1px solid var(--bevel-lo);border-bottom:1px solid var(--bevel-lo);
+  font:inherit;font-size:12px;letter-spacing:.24em;text-transform:uppercase;
+  cursor:pointer
+}
+.leave-btn:hover{background:#243244;color:var(--ice)}
+
+/* ---- ship strip ---- */
+.ship{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:10px}
+.gauge{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--quote)}
+.gauge b{display:block;font-size:16px;letter-spacing:.06em;color:var(--ice);font-weight:400}
+.gauge.heat b{color:var(--flare)}
+.attrs{display:flex;flex-wrap:wrap;gap:10px}
+.attr{
+  display:flex;align-items:center;gap:6px;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--quote)
+}
+.attr input{
+  width:46px;background:var(--void);color:var(--ice);border:1px solid var(--line);
+  font:inherit;font-size:12px;padding:1px 4px;text-align:center
+}
+.hint{color:var(--quote);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.tab{
+  background:var(--panel);color:var(--cold);border:1px solid var(--line);
+  font:inherit;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  padding:5px 10px;cursor:pointer
+}
+.tab.on{color:var(--hot);border-color:#4a3a20;background:var(--panel2)}
+.log{color:var(--quote);font-size:11px;margin-top:14px;white-space:pre-wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="eyebrow">Three Kelvin · sector screen · prototype</p>
+
+<div class="panel">
+  <div class="ship" id="ship"></div>
+  <div class="attrs" id="attrs"></div>
+  <p class="hint" style="margin:10px 0 0">Attributes are editable — change one and the badges move with it.</p>
+</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="panel">
+  <h1 class="sys-name" id="sysname"></h1>
+  <div class="chips" id="chips"></div>
+  <p class="flavour" id="flavour"></p>
+  <div id="options"></div>
+  <button class="leave-btn" id="leave">Plot next jump</button>
+</div>
+
+<div class="log" id="log"></div>
+
+</div>
+<script>
+// ---------------------------------------------------------------- SkillCheck
+// Ported verbatim from scripts/systems/SkillCheck.gd
+const ODDS = [1.0, 0.65, 0.40, 0.20, 0.05];
+const shortfall = (need, have) => Math.max(0, need - have);
+const oddsFor = (need, have) => ODDS[Math.min(shortfall(need, have), ODDS.length - 1)];
+function roll(need, have){
+  if (shortfall(need, have) <= 0) return "MET";
+  const p = oddsFor(need, have), r = Math.random();
+  if (r < p) return "CLEAN";
+  return r < p + (1 - p) * 0.5 ? "PARTIAL" : "BOTCHED";
+}
+
+// ---------------------------------------------------------------- ship
+const ship = { hull:34, maxHull:40, fuel:212, credits:118, heat:6,
+  attrs:{ hull:4, thrust:5, maneuver:3, thermal:4, sensors:3, stealth:4 } };
+
+// ---------------------------------------------------------------- content
+// Options as authored in batch-02-draft.md.
+const SYSTEMS = [
+{
+  name:"Ganne Reach", region:"LAWLESS", danger:4, security:2, berths:["Verity","Redline"],
+  flavour:"The lane is quiet and the board is not.",
+  options:[
+    { id:"salvage_rights", group:"wreck",
+      body:"Two outfits filed on the same wreck. Neither has arrived.", label:"Salvage rights",
+      full:"Something big came apart out here — a bulk hauler, by the frame, and recently enough that the debris is still on the same heading it died on. Two salvage outfits filed on it inside an hour of each other. Neither has arrived.\n\nBoth filings sit on the local board, same date, each naming the other as the party in error. The board will settle it in about nine days. The wreck will not last nine days.",
+      choices:[
+        { label:"Strip it now",
+          flat:"You take what is loose and leave before either office establishes which of them was right.",
+          gain:{module:1} },
+        { label:"File a third claim", check:{attr:"sensors", need:5},
+          bands:{
+            MET:["Your filing is cleaner than either of theirs and predates the dispute by exactly as long as it took you to write it. The wreck is yours on paper before you touch it.", {module:1, credits:35}],
+            CLEAN:["Your claim holds long enough to matter.", {module:1}],
+            PARTIAL:["The board accepts it and one claimant contests it within the hour. You take what you can carry and draft a reply you will never send.", {credits:45}],
+            BOTCHED:["You file into the middle of a dispute that now has three parties and a docket number. The fee is not refundable.", {credits:-25}] } },
+        { label:"Leave it to them", decline:true,
+          flat:"Two claims, one wreck, an office each." } ] },
+
+    { id:"still_under_warranty", group:"wreck",
+      body:"A dead hauler, still billing itself for maintenance.", label:"Still under warranty",
+      full:"A hauler went down here long enough ago that the ice on it has ice on it. Nothing aboard is alive and nothing aboard is under power — except a service transponder, which has been billing a dead ship for its scheduled maintenance since before you were flying.\n\nVerity fit them as standard. They tend to outlast the warranty, the ship, and the owner.",
+      quote:"COVERAGE CONTINUES. THE HOLDER IS ADVISED THAT COVERAGE IS NOT CONTINGENT UPON THE CONTINUED EXISTENCE OF THE HOLDER.",
+      choices:[
+        { label:"Answer the notice",
+          flat:"You transmit your own registry against the loop. Something at the far end of a very long chain accepts it, and the loop stops.",
+          gain:{module:1, credits:20} },
+        { label:"Strip it and say nothing", check:{attr:"stealth", need:4},
+          bands:{
+            MET:["You take the plate off first. Whatever the loop was reporting to receives nothing further, ever.", {module:1}],
+            CLEAN:["You take the racks and leave the plate where it is.", {module:1}],
+            PARTIAL:["The loop logs a registry on its way past. Yours. You are gone before anything answers, and something will.", {module:1, credits:-20}],
+            BOTCHED:["The loop logs your registry, your heading, and the eleven minutes you spent aboard.", {module:1, credits:-45}] } },
+        { label:"Leave it transmitting", decline:true,
+          flat:"It has been saying that for a while. It will keep saying it." } ] },
+
+    { id:"cordon",
+      body:"Someone has fenced a wreck and is charging to see it.", label:"The cordon",
+      full:"Four hulls strung on cable around a debris field, close enough that nothing bigger than a courier gets between them. They did not put the wreck there. They got here first and decided that was the same as owning it, and they have been at it long enough to have a rate card.\\n\\nBehind the cable is a bulk hauler's spine with the holds still sealed.",
+      choices:[
+        { label:"Pay the rate", gate:{credits:60},
+          flat:"Sixty credits and a wave from a man in a chair. They open the cable, watch you work, and close it behind you.",
+          gain:{credits:-60, module:1} },
+        { label:"Slip the cable", check:{attr:"thrust", need:6},
+          bands:{
+            MET:["You are inside the ring before the ring is past discussing it, and out again with a rack off the spine.", {module:1}],
+            CLEAN:["They get a burn off as you leave. You keep the rack and the tank shows the sprint.", {module:1, fuel:-14}],
+            PARTIAL:["You get in, get nothing, and spend the exit at full burn on the wide side of the field.", {fuel:-26}],
+            BOTCHED:["You cross the ring twice, both times flat out, the second time for no reason either of you could name afterwards.", {fuel:-40}] } },
+        { label:"Cut the cable", fight:true,
+          flat:"They are not expecting a ship that came out here to do this." },
+        { label:"Leave them to it", decline:true,
+          flat:"Four hulls, one wreck, and a rate card. Somebody will pay it." } ] }
+  ]
+},
+{
+  name:"Tolbeck Crossing", region:"COSMOPOLITAN", danger:6, security:4, berths:["Probate","Calyx","Cygnet"],
+  flavour:"Three offices, one lane, and a queue at every counter.",
+  options:[
+    { id:"weighing", group:"berth",
+      body:"Two offices, two scales, and a third of a cargo between them.", label:"The weighing",
+      full:"A hauler has a hold of reclaimed coolant and two offices willing to buy it, and their scales disagree by a third. Both quotes are honest — each office weighed what it weighed. Only one of them is right.\n\nShe cannot get it weighed twice; the seals break on the first reading. She needs somebody with no berth here to stand between the two counters and say which instrument is lying.",
+      choices:[
+        { label:"Stand as her witness", check:{attr:"sensors", need:5},
+          bands:{
+            MET:["You read both scales off their own telemetry before either office opens its mouth. The low one recalibrates without being asked, and nobody says the word error. She pays you out of the difference.", {credits:45}],
+            CLEAN:["You catch the discrepancy but not its direction. The offices settle it between themselves, courteously, at a table you are not at. She pays you for the afternoon.", {credits:22}],
+            PARTIAL:["Your figures agree with neither of theirs. A third number turns a disagreement into a procedure, and the procedure takes the rest of the day.", {credits:8}],
+            BOTCHED:["You certify the wrong scale. It is corrected inside the hour, the correction carries your registry, and you return the fee.", {credits:-15}] } },
+        { label:"Take the low quote and haul it yourself",
+          flat:"Her cargo, your hold, the cheaper office. She keeps the difference and you keep the work.",
+          gain:{credits:18} },
+        { label:"Leave them to it", decline:true,
+          flat:"Two offices and a scale each. It will be settled by people who file for a living." } ] },
+
+    { id:"countersign", group:"berth",
+      body:"A clerk needs a signature from someone with no stake here.", label:"Countersign",
+      full:"She hails you on a private band rather than the dock channel, which is the first thing worth noticing. The second is that she is not asking for money and not offering much.\n\nThe document needs a second signature from someone with no berth on this station and no interest in the outcome. That is a narrow description and you fit it. She says she will remember it, and says it like a woman who does.",
+      choices:[
+        { label:"Sign it",
+          flat:"You do not read it closely. That is the arrangement. A name at this station will recognise yours.",
+          gain:{credits:15}, places:"clerk_owes" },
+        { label:"Read it first", check:{attr:"sensors", need:4},
+          bands:{
+            MET:["A routine transfer with one clause that is not routine, and the clause is in your favour. You sign, and you know why.", {credits:40}, "clerk_owes"],
+            CLEAN:["Routine. You sign.", {credits:15}, "clerk_owes"],
+            PARTIAL:["Half of it is in a register you do not read. You sign anyway, which is what she expected, and she notes how long it took.", {credits:15}, "clerk_owes"],
+            BOTCHED:["You take long enough that she withdraws it, pleasantly, and files it alone.", {}] } },
+        { label:"Decline", decline:true,
+          flat:"She files it alone, which she was always going to have to do." } ] },
+
+    { id:"customs_cordon",
+      body:"A revenue cutter sitting on a seized hull.", label:"Customs cordon",
+      full:"A revenue cutter with two cold escorts off her flanks, holding station over a hull she took nine days ago. The seizure is still in processing, which means the manifest is public, which is how you know what is still aboard it.\\n\\nThey are not stopping you. They are just here, and so is it.",
+      choices:[
+        { label:"Board her dark", check:{attr:"stealth", need:4},
+          bands:{
+            MET:["You go across cold and silent, close enough to read the cutter's hull number on the way past. They never look up, and the seized hold is exactly as public as its manifest said.", {module:1, credits:30}],
+            CLEAN:["You hold everything off but the reactor, and the reactor is what you pay with. One rack, six heat, no questions.", {module:1, heat:6}],
+            PARTIAL:["They get a partial return and hail you in before you reach it. The fine is forty credits and a lecture.", {credits:-40}],
+            BOTCHED:["They light you up from two sides, and something in the cutter's escort decides you are worth the trouble.", {credits:-40, fight:true}] } },
+        { label:"Hail them and ask", decline:true,
+          flat:"You raise the cutter, ask what she is sitting on, and get told. It costs an afternoon and nothing else, and the hold stays sealed." } ] }
+  ]
+},
+{
+  name:"Aster Shelf", region:"FRONTIER", danger:2, security:1, berths:[],
+  flavour:"Nobody has been through here in a while. It shows.",
+  options:[
+    { id:"long_claim",
+      body:"An unfiled seam, and a day to work it.", label:"The long claim",
+      full:"A shelf of exotic-bearing rock, unfiled, because filing costs more than this much of it is worth and nobody comes out this far on spec. The seam is shallow and the good part of it runs under an overhang that has been deciding whether to come down for a very long time.\n\nA day of cutting. Nothing here is in a hurry and nothing here is coming to help.",
+      choices:[
+        { label:"Work it",
+          flat:"Most of a day, one cutting head, and enough off the seam to matter at the next station.",
+          gain:{credits:30, exotic:1} },
+        { label:"Work it hard", check:{attr:"hull", need:4},
+          bands:{
+            MET:["You take the seam and the shelf under it, and the frame does not complain once.", {credits:45, exotic:2}],
+            CLEAN:["You take more than the seam. Something in the forward bracing makes a noise it has not made before, then stops.", {exotic:2, hull:-3}],
+            PARTIAL:["The shelf comes away wrong and takes the cutting head with it. You get half of what you came for and you are cutting by hand after that.", {exotic:1, hull:-6}],
+            BOTCHED:["You are still under the overhang when the overhang decides.", {hull:-12}] } },
+        { label:"Move on", decline:true,
+          flat:"It has been here a long time. It is in no hurry." } ] },
+
+    { id:"ghost_signal",
+      body:"A carrier under the hiss, too regular to be a star.", label:"Ghost signal",
+      full:"There is a carrier under the background hiss on this bearing. Too regular to be a star, too weak to be a station, and it has not moved in the eleven minutes you have been listening to it.\n\nResolving it means holding station and giving the dish everything, which is time you are not spending going anywhere.",
+      choices:[
+        { label:"Resolve it", check:{attr:"sensors", need:4},
+          bands:{
+            MET:["A precursor beacon, still counting. You cannot read it, but you can triangulate off it — nine systems resolve out of the dark, and the housing is worth twenty-five.", {credits:25, sensed:9}],
+            CLEAN:["You pull one clean bearing out of the noise before it drifts. One system, named.", {sensed:1}],
+            PARTIAL:["You chase it for an hour and it resolves into your own reactor harmonics, reflected off something you never find.", {}],
+            BOTCHED:["You follow it a long way before admitting it was never there. Twelve units of fuel, spent on a bearing.", {fuel:-12}] } },
+        { label:"Log it and go", decline:true,
+          flat:"You write the bearing down. Someone with better ears can have it." } ] },
+
+    { id:"slipping_orbit",
+      body:"A gas giant has you. Not badly — yet.", label:"Slipping orbit",
+      full:"A gas giant has you. Not badly — yet. You came in on a lazy transfer to save fuel and the well took the difference.\n\nThe gauges give you perhaps four minutes to decide whether your engines are the answer. After that the decision is made for you and the answer is worse.",
+      choices:[
+        { label:"Burn out of the well", check:{attr:"thrust", need:6},
+          bands:{
+            MET:["You climb out of it like it was nothing, and clip a derelict's tumbling wing on the way past. Thirty credits of somebody else's bad afternoon.", {credits:30}],
+            CLEAN:["The engines find it, eventually, and drink fourteen units doing it.", {fuel:-14}],
+            PARTIAL:["You get out. The tank shows what it cost and you decide not to look at it again.", {fuel:-26}],
+            BOTCHED:["You skim the upper atmosphere on the way up. Forty units, and most of your paint.", {fuel:-40}] } },
+        { label:"Ride it round", decline:true,
+          flat:"One slow orbit, no burn. It costs you nothing but the hour." } ] }
+  ]
+},
+{
+  "name": "Vane Drift",
+  "region": "FAUNA",
+  "danger": 3,
+  "security": 1,
+  "berths": [],
+  "flavour": "Something is moving through, and it is not weather.",
+  "options": [
+   {
+    "id": "the_braid",
+    "body": "Something large is moving through, and moving fast.",
+    "label": "The braid",
+    "full": "Nine of them, in line, big enough that the dish reads them as terrain. They are running a migration lane they have been running since before anyone was out here to name it, and they are shedding a wake you could ride most of the way to the next shell.\n\nThey are not hostile. They are also not paying attention, and the smallest of them is longer than your ship.",
+    "choices": [
+     {
+      "label": "Ride the wake",
+      "check": {
+       "attr": "maneuver",
+       "need": 6
+      },
+      "bands": {
+       "MET": [
+        "You slot into the draught behind the third one and let it carry you. It never registers you were there.",
+        {
+         "fuel": 18
+        }
+       ],
+       "CLEAN": [
+        "You hold the lane most of the way before the turbulence shrugs you out of it.",
+        {
+         "fuel": 11
+        }
+       ],
+       "PARTIAL": [
+        "You misjudge the interval and spend the whole run fighting the wash instead of using it.",
+        {
+         "fuel": -8
+        }
+       ],
+       "BOTCHED": [
+        "The fourth one changes its mind about the lane. You are close enough that the flank takes your dorsal plating with it.",
+        {
+         "hull": -14
+        }
+       ]
+      }
+     },
+     {
+      "label": "Take what they shed",
+      "flat": "You hold off the lane and collect what comes loose in the wake — plate, ice, a lifetime of accreted junk.",
+      "gain": {
+       "exotic": 1,
+       "credits": 25
+      }
+     },
+     {
+      "label": "Let them pass",
+      "flat": "Nine of them, in line, going somewhere. You wait, and then they are not there any more.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "silt",
+    "body": "A dust shoal, and something inside it that is not dust.",
+    "label": "Silt",
+    "full": "A shoal of fines and ice-grit, dense enough that the dish loses the far side of it. It has been accreting here for a long time and it collects whatever comes through — which is how you can see one hard return in the middle of it, ship-sized, that has not moved in a while.\n\nGoing in means going in blind. The grit is slow and soft and there is a very great deal of it.",
+    "choices": [
+     {
+      "label": "Feel your way in",
+      "check": {
+       "attr": "maneuver",
+       "need": 5
+      },
+      "bands": {
+       "MET": [
+        "You go in on attitude jets and touch nothing on the way. It is a survey cutter, intact, and nobody has been here first.",
+        {
+         "module": 1,
+         "credits": 40
+        }
+       ],
+       "CLEAN": [
+        "You clip something soft on the way in and it does not matter. The cutter's racks come away clean.",
+        {
+         "module": 1
+        }
+       ],
+       "PARTIAL": [
+        "You find her, get one panel open, and lose your bearings badly enough that leaving becomes the priority.",
+        {
+         "credits": 30
+        }
+       ],
+       "BOTCHED": [
+        "Something in the shoal is harder than the rest of it and you find that out with your bow.",
+        {
+         "hull": -13
+        }
+       ]
+      }
+     },
+     {
+      "label": "Sweep the edge",
+      "flat": "You work the outside of the shoal where the grit is thin, and take what it has collected there. Nothing dramatic. Enough to matter.",
+      "gain": {
+       "exotic": 1,
+       "credits": 20
+      }
+     },
+     {
+      "label": "Go round",
+      "flat": "It is a very large amount of dust and it is in no hurry.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "ice",
+    "body": "A cometary body, unclaimed, mostly volatiles.",
+    "label": "Ice",
+    "full": "A dirty snowball on a long ellipse, three kilometres of it, and nobody has ever bothered because there is nothing out here to sell it to. It is water and volatiles and a little metal, packed in a crust that has been hardening since the system was warm.\n\nCutting into it is honest work and slightly stupid work. The crust is under compression and it has opinions about being cut.",
+    "choices": [
+     {
+      "label": "Cut deep",
+      "check": {
+       "attr": "hull",
+       "need": 4
+      },
+      "bands": {
+       "MET": [
+        "You take the crust off in sheets and get at the clean ice under it. Volatiles, water, and enough metal in the tail to be worth the trip.",
+        {
+         "fuel": 24,
+         "credits": 35
+        }
+       ],
+       "CLEAN": [
+        "The crust goes where you did not want it to. You get most of what you came for and wear the rest.",
+        {
+         "fuel": 18,
+         "hull": -3
+        }
+       ],
+       "PARTIAL": [
+        "The face calves while you are on it. You back off with a partial hold and a story.",
+        {
+         "fuel": 10,
+         "hull": -6
+        }
+       ],
+       "BOTCHED": [
+        "Three kilometres of compressed ice releases about eleven seconds of stored temper directly into your bow.",
+        {
+         "hull": -14
+        }
+       ]
+      }
+     },
+     {
+      "label": "Skim the tail",
+      "flat": "You do not touch the body. You run the tail and collect what it is already shedding, which is slower and entirely safe.",
+      "gain": {
+       "fuel": 9
+      }
+     },
+     {
+      "label": "Leave it",
+      "flat": "A long ellipse, a hard crust, and nobody out here to sell water to. It will be back around in ninety years.",
+      "decline": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Cygnet Reach",
+  "region": "COSMOPOLITAN",
+  "danger": 5,
+  "security": 4,
+  "berths": [
+   "Cygnet",
+   "Probate"
+  ],
+  "flavour": "Four years of nobody, still running the lights.",
+  "options": [
+   {
+    "id": "refinery_still_lit",
+    "body": "An automated refinery, running with nobody aboard.",
+    "label": "Refinery, still lit",
+    "full": "Cygnet built it, staffed it, and pulled the staff out four years ago when the seam under it stopped paying. Nobody told the refinery. It is still drawing on the seam, still cracking what it draws, and still stacking the output in a yard nobody has emptied since.\n\nThe yard is four years deep. The cracking towers are at operating temperature and the operating temperature is not survivable, which is why the yard is still full.",
+    "group": "refinery",
+    "choices": [
+     {
+      "label": "Go in for the yard",
+      "check": {
+       "attr": "thermal",
+       "need": 5
+      },
+      "bands": {
+       "MET": [
+        "You work the yard in three passes with the vents wide and never once go amber. Four years of output, and you take what fits.",
+        {
+         "exotic": 2,
+         "credits": 60
+        }
+       ],
+       "CLEAN": [
+        "Two passes, and you leave with a full hold and a reactor that will want a minute.",
+        {
+         "exotic": 1,
+         "credits": 40,
+         "heat": 7
+        }
+       ],
+       "PARTIAL": [
+        "One pass. You come out with an armful and a cabin you cannot stand in.",
+        {
+         "credits": 25,
+         "heat": 15
+        }
+       ],
+       "BOTCHED": [
+        "A tower cycles while you are alongside it. You leave with nothing but the temperature.",
+        {
+         "heat": 24
+        }
+       ]
+      }
+     },
+     {
+      "label": "Shut it down first",
+      "flat": "Six hours to talk the control stack into standing down, and it stands down apologetically. The yard is cool by the time you reach it and half of what you wanted has cooked in place.",
+      "gain": {
+       "exotic": 1,
+       "credits": 30
+      }
+     },
+     {
+      "label": "Leave it running",
+      "flat": "It will keep cracking a seam that stopped paying, and stacking a yard nobody comes to. Nothing you do here changes the second part.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "the_sweep",
+    "body": "A wreck inside a pulsar's sweep, and a gap between passes.",
+    "label": "The sweep",
+    "full": "The beam comes round every eleven seconds and it has been sterilising this arc for longer than there has been anyone to sterilise. Sitting in it is a survey hull that got the interval wrong once.\n\nEleven seconds is enough to get in. It is enough to get out. It is not obviously enough to do both and take anything with you.",
+    "group": "refinery",
+    "choices": [
+     {
+      "label": "Time the interval",
+      "check": {
+       "attr": "thermal",
+       "need": 7
+      },
+      "bands": {
+       "MET": [
+        "Three intervals, three passes, and you are clear before the fourth. Whatever killed them was not the arithmetic.",
+        {
+         "module": 1,
+         "credits": 45
+        }
+       ],
+       "CLEAN": [
+        "Two intervals. You take the rack you came for and eat most of the third pass getting clear.",
+        {
+         "module": 1,
+         "heat": 9
+        }
+       ],
+       "PARTIAL": [
+        "You get inside, get turned around, and spend the gap finding the way back out.",
+        {
+         "heat": 18
+        }
+       ],
+       "BOTCHED": [
+        "You are still alongside when it comes round. The hull holds. Everything on the hull does not.",
+        {
+         "heat": 26
+        }
+       ]
+      }
+     },
+     {
+      "label": "Log the bearing",
+      "flat": "You mark the wreck, note the interval, and leave both for somebody with better vents and worse judgement.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "counterweight",
+    "body": "A station module, still tumbling, still stocked.",
+    "label": "Counterweight",
+    "full": "Somebody detached a habitation ring from a station and never came back for it, and it has been tumbling end over end ever since — a slow, patient rotation, once every ninety seconds, with everything still bolted down inside.\n\nThe airlock comes past you once every ninety seconds. It is not moving fast. It is just never in the same place twice.",
+    "choices": [
+     {
+      "label": "Match the tumble",
+      "check": {
+       "attr": "maneuver",
+       "need": 7
+      },
+      "bands": {
+       "MET": [
+        "You match it, hold it, and walk aboard as though the floor had always been down. Somebody's whole life is still bolted to it.",
+        {
+         "module": 1,
+         "exotic": 1,
+         "credits": 50
+        }
+       ],
+       "CLEAN": [
+        "You match it well enough. Getting back off is worse than getting on.",
+        {
+         "module": 1,
+         "hull": -3
+        }
+       ],
+       "PARTIAL": [
+        "You get one hand on it and the rotation takes the decision away from you.",
+        {
+         "credits": 20,
+         "hull": -7
+        }
+       ],
+       "BOTCHED": [
+        "Ninety seconds is a long time to be wrong about which way something is going.",
+        {
+         "hull": -15
+        }
+       ]
+      }
+     },
+     {
+      "label": "Take the outside",
+      "flat": "You do not try to board. You strip what is bolted to the exterior, on the pass, one piece at a time.",
+      "gain": {
+       "exotic": 1,
+       "credits": 25
+      }
+     },
+     {
+      "label": "Leave it turning",
+      "flat": "Once every ninety seconds, with everything still where somebody left it.",
+      "decline": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Halvard Yards",
+  "region": "COSMOPOLITAN",
+  "danger": 6,
+  "security": 4,
+  "berths": [
+   "Probate",
+   "Calyx",
+   "Korvan"
+  ],
+  "flavour": "Nine ships deep and everybody in a hurry.",
+  "options": [
+   {
+    "id": "tug_work",
+    "body": "A hauler wants a push and the yard tugs are all busy.",
+    "label": "Tug work",
+    "full": "A bulk hauler has lost attitude control in a berth queue nine ships long, and the yard's own tugs are all committed for the next eleven hours. Every hour she sits there is an hour nine other ships are not moving, and the berth office is beginning to take an interest in whose fault that is.\n\nShe needs about four minutes of somebody else's engine and a pilot willing to put their nose against a hull forty times their mass.",
+    "choices": [
+     {
+      "label": "Put your nose on her",
+      "check": {
+       "attr": "thrust",
+       "need": 5
+      },
+      "bands": {
+       "MET": [
+        "Four minutes, one contact point, no scoring on either hull. The queue moves and somebody in the office writes down which ship did it.",
+        {
+         "credits": 70
+        }
+       ],
+       "CLEAN": [
+        "Six minutes and a stripe down your flank that will polish out. The queue moves.",
+        {
+         "credits": 55
+        }
+       ],
+       "PARTIAL": [
+        "You get her turned but not clear, and the yard tug that finally arrives gets paid the difference.",
+        {
+         "credits": 20
+        }
+       ],
+       "BOTCHED": [
+        "You put twelve tonnes of thrust into a hull that was not braced for it and both of you learn something.",
+        {
+         "hull": -8
+        }
+       ]
+      }
+     },
+     {
+      "label": "Sell her the fuel instead",
+      "flat": "She cannot manoeuvre but she can burn. You sell her enough to get clear under her own power, at a rate she is in no position to argue with.",
+      "gain": {
+       "fuel": -20,
+       "credits": 85
+      }
+     },
+     {
+      "label": "Wait in the queue",
+      "flat": "Eleven hours. You are not going anywhere in particular, and neither is anyone else.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "the_queue",
+    "body": "A berth slot, held by somebody who no longer needs it.",
+    "label": "The queue",
+    "full": "Nine ships deep and the office is honest about it: the queue is the queue. But the fourth ship in it has been fourth for two days because her charter fell through, and she is holding a slot she cannot use and cannot sell back.\n\nShe can sell it sideways. The office does not mind who docks as long as somebody does.",
+    "group": "berth2",
+    "choices": [
+     {
+      "label": "Buy her slot",
+      "flat": "Forty-five credits and a transfer that takes about a minute. You dock nine ships early and she gets something out of two wasted days.",
+      "gain": {
+       "credits": -45,
+       "module": 1
+      },
+      "gate": {
+       "credits": 45
+      }
+     },
+     {
+      "label": "Trade her fuel for it",
+      "flat": "She has no charter and no reason to sit here. You give her enough to leave and take the slot she was sitting on.",
+      "gain": {
+       "fuel": -25,
+       "module": 1
+      }
+     },
+     {
+      "label": "Wait your turn",
+      "flat": "The queue is the queue. It moves, eventually, in the order it says it will.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "the_auction",
+    "body": "A sealed lot, sold unseen, going cheap.",
+    "label": "The auction",
+    "full": "Probate are clearing an intestate hold and the terms are the terms: the lot is sealed, the manifest is sealed, and the buyer takes it as it lies. Two of the three previous lots went for less than the filing fee. The third went for considerably more than that and the man who bought it has not been seen since, in the good way.\n\nBidding closes in an hour and there are four of you.",
+    "group": "berth2",
+    "choices": [
+     {
+      "label": "Bid on it",
+      "flat": "Seventy credits and a seal broken in your own hold, forty minutes later, with nobody watching in case it is embarrassing.",
+      "gain": {
+       "credits": -70,
+       "module": 1,
+       "exotic": 1
+      },
+      "gate": {
+       "credits": 70
+      }
+     },
+     {
+      "label": "Read the room instead",
+      "check": {
+       "attr": "sensors",
+       "need": 4
+      },
+      "bands": {
+       "MET": [
+        "You do not bid. You watch who does, and what the Probate clerk's face does when the third bidder names a number. Afterwards you know exactly which of the four lots next week is worth having.",
+        {
+         "credits": 40
+        }
+       ],
+       "CLEAN": [
+        "You learn something about two of the bidders that will be worth knowing later.",
+        {
+         "credits": 20
+        }
+       ],
+       "PARTIAL": [
+        "You learn that everyone here is better at this than you are.",
+        {}
+       ],
+       "BOTCHED": [
+        "You misread a nod as a bid and win a lot you did not want, at a price you did not choose.",
+        {
+         "credits": -70,
+         "exotic": 1
+        }
+       ]
+      }
+     },
+     {
+      "label": "Let it go",
+      "flat": "Sealed, unseen, as it lies. Somebody else's forty minutes.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "quarantine_flag",
+    "body": "A station under a flag that may not be real.",
+    "label": "Quarantine flag",
+    "full": "Calyx put a biological flag on this station eight days ago and nobody has been in or out since. The flag is real in the sense that it was properly filed. Whether there is anything behind it is a different question, and the two ships already sitting off it at a polite distance are asking it too.\n\nInside is a full station's worth of stock that nobody is currently allowed to buy.",
+    "choices": [
+     {
+      "label": "Read the flag",
+      "check": {
+       "attr": "sensors",
+       "need": 5
+      },
+      "bands": {
+       "MET": [
+        "The filing is eight days old, the atmosphere reads clean, and the hull temperature says nobody has run a decontamination cycle in any of it. There is no outbreak. There is a stock dispute wearing one.",
+        {
+         "credits": 75,
+         "module": 1
+        }
+       ],
+       "CLEAN": [
+        "Nothing on your instruments supports the flag. Nothing disproves it either. You go in carefully and come out with cargo.",
+        {
+         "module": 1
+        }
+       ],
+       "PARTIAL": [
+        "You get a partial read, do not like it, and buy nothing you cannot inspect from outside.",
+        {
+         "credits": 25
+        }
+       ],
+       "BOTCHED": [
+        "You read it wrong in the reassuring direction, dock, and spend an afternoon in a decontamination cycle that costs more than the stock was worth.",
+        {
+         "credits": -50
+        }
+       ]
+      }
+     },
+     {
+      "label": "Wait it out with the others",
+      "flat": "Two ships are already doing this. In eight more days one of you will find out whether it was worth it.",
+      "decline": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Skene Verge",
+  "region": "LAWLESS",
+  "danger": 4,
+  "security": 2,
+  "berths": [
+   "Redline"
+  ],
+  "flavour": "No law out here, and a great deal of work.",
+  "options": [
+   {
+    "id": "cold_labour",
+    "body": "A breaker's crew wants to test a cutter on a live hull.",
+    "label": "Cold labour",
+    "full": "Redline yard, or something wearing the colours. They have a new cutting head and no confidence in it, and they would rather learn what it does wrong on somebody else's plating than on the hull they are contracted to take apart next week.\n\nThey are offering money to put your flank against it for an hour. They are very clear that they do not know what it will do.",
+    "choices": [
+     {
+      "label": "Give them the flank",
+      "check": {
+       "attr": "hull",
+       "need": 5
+      },
+      "bands": {
+       "MET": [
+        "The head works exactly as advertised and your plating takes it without complaint. They pay, and they pay well, because now they know.",
+        {
+         "credits": 95
+        }
+       ],
+       "CLEAN": [
+        "It bites deeper than the spec said. You come away paid and scored.",
+        {
+         "credits": 80,
+         "hull": -4
+        }
+       ],
+       "PARTIAL": [
+        "It bites much deeper than the spec said, and they stop the test early and pay half.",
+        {
+         "credits": 40,
+         "hull": -9
+        }
+       ],
+       "BOTCHED": [
+        "The head finds a seam. Somebody says a word and somebody else hits the cutoff, and afterwards everyone is very quiet and very apologetic.",
+        {
+         "hull": -17
+        }
+       ]
+      }
+     },
+     {
+      "label": "Sell them the plate instead",
+      "flat": "You have salvage aboard that will take a cut as well as your hull will and cost you nothing when it does not survive.",
+      "gain": {
+       "exotic": -1,
+       "credits": 45
+      }
+     },
+     {
+      "label": "Decline",
+      "flat": "They take it well. Somebody out here will say yes to this before the week is out.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "escort",
+    "body": "A convoy paying for a gun for one shell.",
+    "label": "Escort",
+    "full": "Three haulers and a courier, none of them armed, all of them going the same way you are and none of them happy about it. They have been quoted a price by the only escort in the system and the price is most of what the run is worth.\n\nThey would rather pay you. They are not asking you to win anything — they are asking you to be visible, and to be visible with weapons.",
+    "choices": [
+     {
+      "label": "Take the contract",
+      "flat": "You ride the flank for one shell. Something comes out of the shadow of the third moon and decides the convoy looks softer than it is.",
+      "fight": true
+     },
+     {
+      "label": "Sell them the courier's slot",
+      "flat": "The courier is fast enough to outrun anything out here alone. You tell them so, take a cut for the advice, and the convoy splits.",
+      "gain": {
+       "credits": 50
+      }
+     },
+     {
+      "label": "Decline",
+      "flat": "They pay the other escort most of what the run is worth, and go, and you never learn how it ended.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "nine_tonnes",
+    "body": "A cargo whose manifest does not match its mass.",
+    "label": "Nine tonnes of nothing",
+    "full": "Somebody wants nine tonnes moved one shell inward and is paying above rate for it, which is the first thing. The second is that nine tonnes of what the manifest says would not need a hold this size, and the crate is warm.\n\nHe is very relaxed about you not asking. He is noticeably less relaxed about you opening it.",
+    "choices": [
+     {
+      "label": "Open it",
+      "check": {
+       "attr": "sensors",
+       "need": 4
+      },
+      "bands": {
+       "MET": [
+        "Reactor fuel, undeclared, in a casing rated for something duller. It is worth four times the freight and he knows it, which is why he renegotiates rather than argues.",
+        {
+         "credits": 110
+        }
+       ],
+       "CLEAN": [
+        "Not what the manifest says. Not dangerous either. You take the job at a better rate.",
+        {
+         "credits": 65
+        }
+       ],
+       "PARTIAL": [
+        "You get the casing open, learn nothing useful, and get it closed before he notices. The rate stays the rate.",
+        {
+         "credits": 45
+        }
+       ],
+       "BOTCHED": [
+        "He notices. The job evaporates and so does he, and the crate goes with him.",
+        {}
+       ]
+      }
+     },
+     {
+      "label": "Just take the job",
+      "flat": "Nine tonnes, one shell inward, above rate, no questions. You have carried worse and asked less.",
+      "gain": {
+       "credits": 45
+      }
+     },
+     {
+      "label": "Pass",
+      "flat": "He finds somebody else inside the hour. The crate is still warm when it leaves.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "the_runner",
+    "body": "A package, one shell inward, no questions and no manifest.",
+    "label": "The runner",
+    "full": "She is nineteen at the outside and she is running somebody else's errand with somebody else's ship, and the thing she needs moved fits in one hand. No manifest, no filing, no name on it.\n\nShe cannot pay much now. She says the man it goes to pays properly and pays on delivery, and she says it like somebody repeating a thing she was told rather than a thing she knows.",
+    "choices": [
+     {
+      "label": "Take it quietly",
+      "check": {
+       "attr": "stealth",
+       "need": 5
+      },
+      "bands": {
+       "MET": [
+        "It goes in a void behind the coolant run that nothing scans and nobody knows about. She watches you do it and does not ask what else is in there.",
+        {
+         "credits": 20
+        },
+        "paid_in_full"
+       ],
+       "CLEAN": [
+        "You find somewhere for it that will hold up to an ordinary look.",
+        {
+         "credits": 20
+        },
+        "paid_in_full"
+       ],
+       "PARTIAL": [
+        "You stow it badly and spend the next shell aware of exactly where it is.",
+        {
+         "credits": 20
+        },
+        "paid_in_full"
+       ],
+       "BOTCHED": [
+        "You are still finding somewhere for it when a patrol runs a courtesy sweep of the dock. Nothing comes of it. She sees the sweep and takes it back.",
+        {}
+       ]
+      }
+     },
+     {
+      "label": "Ask what it is",
+      "flat": "She tells you, or tells you something. Either way she takes it somewhere else, politely, and you do not see her again."
+     },
+     {
+      "label": "Decline",
+      "flat": "She nods like she expected it and goes to ask the next ship along the rank.",
+      "decline": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Ordell Shelf",
+  "region": "FRONTIER",
+  "danger": 3,
+  "security": 1,
+  "berths": [],
+  "flavour": "The star is about to do something.",
+  "options": [
+   {
+    "id": "flare_shelter",
+    "body": "A flare inbound, and a rock to put between you and it.",
+    "label": "Flare shelter",
+    "full": "The star is going to do something in about forty minutes and the instruments are confident about it. There is a rock two minutes away, big enough to shadow you, and on the far side of the rock is a survey drone that has evidently been using it the same way for years.\n\nForty minutes is enough to reach the rock. It is enough to strip the drone. It is not enough to be leisurely about either.",
+    "choices": [
+     {
+      "label": "Shelter and strip",
+      "check": {
+       "attr": "thermal",
+       "need": 6
+      },
+      "bands": {
+       "MET": [
+        "You take the shadow, take the drone apart in the dark, and come out the other side of the flare with a hold and a cold reactor.",
+        {
+         "module": 1,
+         "credits": 40
+        }
+       ],
+       "CLEAN": [
+        "You get most of it done before the shadow starts to move and finish the rest in the light.",
+        {
+         "module": 1,
+         "heat": 8
+        }
+       ],
+       "PARTIAL": [
+        "You get the drone open and the flare arrives while you are inside the housing.",
+        {
+         "heat": 17
+        }
+       ],
+       "BOTCHED": [
+        "You misread the rock's rotation and spend the peak of it on the lit side.",
+        {
+         "heat": 25
+        }
+       ]
+      }
+     },
+     {
+      "label": "Just shelter",
+    "decline": true,
+      "flat": "You put the rock between you and the star and wait it out doing nothing at all, which is the correct answer and a dull one."
+     },
+     {
+      "label": "Outrun it",
+      "flat": "You leave before it peaks. It costs a burn you had not budgeted for and you never find out what was on the drone.",
+      "gain": {
+       "fuel": -16
+      }
+     }
+    ]
+   },
+   {
+    "id": "the_memorial",
+    "body": "A marked site, and a beacon nobody maintains.",
+    "label": "The memorial",
+    "full": "Four hundred and six people, a hull breach, and a marker put here afterwards by an office that no longer exists. The beacon still runs on a decay cell that has about a year in it.\n\nThe names are on the marker. The cell is standard and you are carrying two.",
+    "choices": [
+     {
+      "label": "Replace the cell",
+      "flat": "Twenty minutes and one cell out of your own stores. Another eleven years of a beacon nobody will hear, saying four hundred and six names to nobody at all.",
+      "gain": {
+       "credits": -10
+      }
+     },
+     {
+      "label": "Log the names",
+      "flat": "You copy the marker to your own archive, which is not the same as maintaining it, and is not nothing."
+     },
+     {
+      "label": "Hold station a moment",
+      "flat": "You do not do anything. You are just there for a bit, and then you are not.",
+      "decline": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Bracken Fall",
+  "region": "TERRITORY",
+  "danger": 5,
+  "security": 3,
+  "berths": [
+   "Korvan"
+  ],
+  "flavour": "A yard that stopped being paid for a decade ago.",
+  "options": [
+   {
+    "id": "deadfall",
+    "body": "A collapsed gantry field, and something under it.",
+    "label": "Deadfall",
+    "full": "An orbital yard came down on itself — not explosively, just structurally, over about a decade of nobody paying for maintenance. What is left is nine hundred metres of gantry lying across itself at every angle, still under tension in places, still letting go of a piece now and then.\n\nUnder the middle of it is a fitting bay, and fitting bays are where the good parts are when the lights go out.",
+    "choices": [
+     {
+      "label": "Go under it",
+      "check": {
+       "attr": "maneuver",
+       "need": 6
+      },
+      "bands": {
+       "MET": [
+        "You pick a line through nine hundred metres of dead scaffolding and nothing so much as brushes you. The bay is exactly as it was left.",
+        {
+         "module": 1,
+         "exotic": 1
+        }
+       ],
+       "CLEAN": [
+        "You get in, get the bay open, and take a glancing hit from something that let go behind you.",
+        {
+         "module": 1,
+         "hull": -4
+        }
+       ],
+       "PARTIAL": [
+        "Two hundred metres in, a span shifts across your line and you reverse out past a bay you can see and cannot reach.",
+        {
+         "hull": -8
+        }
+       ],
+       "BOTCHED": [
+        "The thing about tension is that it is patient right up until it is not.",
+        {
+         "hull": -16
+        }
+       ]
+      }
+     },
+     {
+      "label": "Work the outside",
+      "flat": "The perimeter of the field is safe enough and picked over enough. You take what the last four crews did not think was worth the lift.",
+      "gain": {
+       "exotic": 1,
+       "credits": 20
+      }
+     },
+     {
+      "label": "Leave it lying",
+      "flat": "Nine hundred metres of somebody's deferred maintenance. It will finish coming down eventually, on its own.",
+      "decline": true
+     }
+    ]
+   },
+   {
+    "id": "the_long_tow",
+    "body": "A dead ship, a live crew, and nowhere near enough engine.",
+    "label": "The long tow",
+    "full": "Her reactor is scrap and her crew are fine, which is the wrong way round for how these usually go. Six people, no power, and a station one shell in that will take them if they can get there.\n\nA tow is four hours of your engine at a load it was not built for, and a hull hanging off your stern the whole way that does not steer.",
+    "choices": [
+     {
+      "label": "Take the tow",
+      "check": {
+       "attr": "thrust",
+       "need": 6
+      },
+      "bands": {
+       "MET": [
+        "Four hours, one heading, no drama. The station takes them and the yard master watches you come in with somebody else's ship on the line.",
+        {
+         "credits": 90
+        },
+        "what_she_was_carrying"
+       ],
+       "CLEAN": [
+        "Five hours and a stern mount you will want looked at. They get there.",
+        {
+         "credits": 75,
+         "hull": -3
+        },
+        "what_she_was_carrying"
+       ],
+       "PARTIAL": [
+        "You get her most of the way before the load tells you it is done. A yard tug comes out for the last of it and takes most of the fee.",
+        {
+         "credits": 25
+        }
+       ],
+       "BOTCHED": [
+        "The line parts under load. Nobody is hurt and nothing is lost except four hours, a tow line, and a certain amount of dignity.",
+        {
+         "fuel": -18
+        }
+       ]
+      }
+     },
+     {
+      "label": "Sell them a reactor start",
+      "flat": "You have enough aboard to bootstrap her if they are not fussy about the state you leave your own stores in. They are not fussy.",
+      "gain": {
+       "exotic": -1,
+       "credits": 70
+      }
+     },
+     {
+      "label": "Signal it in and go",
+      "flat": "You put their position on the emergency band and leave. Somebody will come. Somebody usually comes.",
+      "decline": true
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "Anselm Station",
+  "region": "COSMOPOLITAN",
+  "danger": 4,
+  "security": 4,
+  "berths": [
+   "Verity",
+   "Cygnet"
+  ],
+  "flavour": "Two arrivals here have been waiting on you.",
+  "options": [
+   {
+    "id": "paid_in_full",
+    "body": "Somebody here has been waiting for a package.",
+    "label": "Paid in full",
+    "full": "He is old, and he is not what you were expecting, and he has been waiting at this berth for eleven days for a thing that fits in one hand.\n\nHe does not open it in front of you. He pays what she said he would pay, which is considerably more than she was in a position to promise, and then he asks — carefully, as though the answer matters — whether she looked well.",
+    "choices": [
+     {
+      "label": "Take the money",
+      "flat": "He pays in full, in cash, and thanks you in a register nobody has used on you in a while.",
+      "gain": {
+       "credits": 150
+      }
+     },
+     {
+      "label": "Tell him she looked tired",
+      "flat": "He nods for a while. Then he pays you more than the agreed figure, and gives you a name at a yard two shells in who will fit you something at cost.",
+      "gain": {
+       "credits": 190,
+       "module": 1
+      }
+     }
+    ]
+   },
+   {
+    "id": "what_she_was_carrying",
+    "body": "The ship you towed is here, and running again.",
+    "label": "What she was carrying",
+    "full": "She has a new reactor and an old name and the same six people, and one of them recognises your hull before you have finished docking.\n\nThey never did tell you what was in the hold, because the tow was the thing that mattered and nobody asks a tug. They are telling you now.",
+    "choices": [
+     {
+      "label": "Take the share",
+      "flat": "A fifth of what they were carrying, which they have already sold, in cash, without being asked twice.",
+      "gain": {
+       "credits": 160
+      }
+     },
+     {
+      "label": "Take the favour instead",
+      "flat": "You tell them to keep it. Their engineer spends an afternoon in your machine spaces instead, and does not itemise what she does in there.",
+      "gain": {
+       "module": 1,
+       "hull": 8
+      }
+     }
+    ]
+   }
+  ]
+ }];
+
+// ---------------------------------------------------------------- state
+let sysIndex = 0;
+let taken = {};        // optionId -> outcome html
+let spentGroups = {};  // group -> optionId that closed it
+let logLines = [];
+
+const ATTR_LABEL = {hull:"Hull",thrust:"Thrust",maneuver:"Maneuver",
+  thermal:"Thermal",sensors:"Sensors",stealth:"Stealth"};
+
+function fmtLedger(g){
+  const bits = [];
+  const push = (n, label, invert) => {
+    if (n === undefined || n === 0) return;
+    const good = invert ? n < 0 : n > 0;
+    bits.push(`<span class="${good?'up':'down'}">${n>0?'+':''}${n} ${label}</span>`);
+  };
+  push(g.credits,"credits"); push(g.fuel,"fuel"); push(g.hull,"hull");
+  push(g.heat,"heat",true); push(g.exotic,"exotic");
+  if (g.module) bits.push(`<span class="up">+${g.module} module</span>`);
+  if (g.sensed) bits.push(`<span class="up">${g.sensed} system${g.sensed>1?'s':''} charted</span>`);
+  if (g.fight) bits.push(`<span class="down">fight</span>`);
+  return bits.join(" · ");
+}
+
+function applyGain(g){
+  if(!g) return;
+  if(g.credits) ship.credits += g.credits;
+  if(g.fuel) ship.fuel = Math.max(0, ship.fuel + g.fuel);
+  if(g.hull) ship.hull = Math.max(0, ship.hull + g.hull);
+  if(g.heat) ship.heat += g.heat;
+}
+
+function badgeHTML(check){
+  const have = ship.attrs[check.attr], need = check.need;
+  const name = ATTR_LABEL[check.attr].toUpperCase();
+  if (have >= need)
+    return `<div class="badge">${name} ${need} · <span class="have">you have ${have}</span> · <span class="certain">certain</span></div>`;
+  const pct = Math.round(oddsFor(need, have) * 100);
+  const next = Math.round(oddsFor(need, have + 1) * 100);
+  return `<div class="badge">${name} ${need} · <span class="have">you have ${have}</span> · <span class="odds">${pct}%</span><span class="more">one more: ${next}%</span></div>`;
+}
+
+function render(){
+  const sys = SYSTEMS[sysIndex];
+
+  // tabs
+  document.getElementById("tabs").innerHTML = SYSTEMS.map((s,i)=>
+    `<button class="tab ${i===sysIndex?'on':''}" data-sys="${i}">${s.name}</button>`).join("");
+
+  // ship
+  document.getElementById("ship").innerHTML = `
+    <div class="gauge">Hull<b>${ship.hull}/${ship.maxHull}</b></div>
+    <div class="gauge">Fuel<b>${ship.fuel}</b></div>
+    <div class="gauge">Credits<b>${ship.credits}</b></div>
+    <div class="gauge heat">Heat<b>${ship.heat}</b></div>`;
+  document.getElementById("attrs").innerHTML = Object.keys(ship.attrs).map(a=>
+    `<label class="attr">${ATTR_LABEL[a]}
+      <input type="number" min="0" max="10" value="${ship.attrs[a]}" data-attr="${a}"></label>`).join("");
+
+  // header
+  document.getElementById("sysname").textContent = sys.name;
+  document.getElementById("chips").innerHTML =
+    `<span class="chip">${sys.region}</span>
+     <span class="chip danger">danger ${sys.danger}</span>
+     <span class="chip">security ${sys.security}</span>` +
+    sys.berths.map(b=>`<span class="chip berth">${b}</span>`).join("");
+  document.getElementById("flavour").textContent =
+    Object.keys(taken).length >= sys.options.length
+      ? "Nothing else here wants anything from you."
+      : sys.flavour;
+
+  // options
+  const groups = {};
+  sys.options.forEach(o => { if(o.group) (groups[o.group] ||= []).push(o); });
+  const done = new Set();
+  let html = "";
+
+  sys.options.forEach(o => {
+    if (done.has(o.id)) return;
+    if (o.group && !done.has("g:"+o.group)) {
+      done.add("g:"+o.group);
+      const members = groups[o.group];
+      members.forEach(m => done.add(m.id));
+      html += `<div class="group"><span class="group-label">one of these</span>` +
+        members.map(m => optionHTML(m, o.group)).join("") + `</div>`;
+    } else if (!o.group) {
+      done.add(o.id);
+      html += optionHTML(o, null);
+    }
+  });
+  document.getElementById("options").innerHTML = html;
+  document.getElementById("log").textContent = logLines.slice(-6).join("\n");
+  wire();
+}
+
+function optionHTML(o, group){
+  if (taken[o.id]) return taken[o.id];
+  const closedBy = group && spentGroups[group];
+  if (closedBy && closedBy !== o.id) {
+    return `<div class="opt locked">
+      <p class="opt-body">${o.body}</p>
+      <p class="opt-label">${o.label}</p>
+      <div class="locked-why">Unavailable — ${SYSTEMS[sysIndex].options.find(x=>x.id===closedBy)?.label || "another option"} taken</div></div>`;
+  }
+  const quote = o.quote ? `<p class="opt-body" style="color:var(--quote);font-style:italic">“${o.quote}”</p>` : "";
+  const full = o.full ? `<div class="full">${o.full.split("\n\n").map(x=>`<p>${x}</p>`).join("")}</div>` : "";
+  const choices = o.choices.map((c,i)=>{
+    const cant = c.gate && ship.credits < c.gate.credits;
+    const cls = cant ? "opt gated" : "opt";
+    let badge = "";
+    if (c.check) badge = badgeHTML(c.check);
+    else if (c.gate) badge = `<div class="badge ${cant?'cant':''}">${c.gate.credits} credits · <span class="have">you have ${ship.credits}</span></div>`;
+    else if (c.fight) badge = `<div class="badge">Fight${ship.attrs.sensors>=5?` · <span class="have">three contacts, one running hot</span>`:``}</div>`;
+    return `<div class="${cls}" data-opt="${o.id}" data-choice="${i}" data-group="${group||''}">
+        <p class="opt-label" style="font-size:12px">${c.label}</p>
+        ${badge}
+        ${cant?`<div class="gated-why">Not enough credits.</div>`:``}
+        ${group && !c.decline ? `<div class="warn">Becomes unavailable</div>` : ``}
+      </div>`;
+  }).join("");
+  return `<div class="opt-block"><p class="opt-body">${o.body}</p>
+    <p class="opt-label">${o.label}</p>${full}${quote}${choices}</div>`;
+}
+
+function wire(){
+  document.querySelectorAll(".tab").forEach(t =>
+    t.onclick = () => { sysIndex = +t.dataset.sys; taken={}; spentGroups={}; render(); });
+
+  document.querySelectorAll(".attr input").forEach(i =>
+    i.oninput = () => { ship.attrs[i.dataset.attr] = Math.max(0, Math.min(10, +i.value||0)); render(); });
+
+  document.querySelectorAll("[data-opt]").forEach(el => {
+    const group = el.dataset.group;
+    // ---- the signature interaction: preview what this forecloses
+    // Enter updates the preview; it never clears it. Clearing is the GROUP's
+    // job (below), so moving between two rows inside one box does not flash
+    // the dimming off and back on. ENCOUNTER_FLOW.md ruling 1b.
+    el.onmouseenter = () => {
+      if (el.classList.contains("gated")) return;
+      const decl = SYSTEMS[sysIndex].options.find(o=>o.id===el.dataset.opt)
+        .choices[+el.dataset.choice].decline;
+      document.querySelectorAll(".dimmed").forEach(d => d.classList.remove("dimmed"));
+      if (!group || decl) return;   // declining forecloses nothing
+      document.querySelectorAll(".group [data-opt]").forEach(other => {
+        if (other.dataset.group === group && other.dataset.opt !== el.dataset.opt)
+          other.classList.add("dimmed");
+      });
+    };
+
+    el.onclick = () => {
+      if (el.classList.contains("gated")) return;
+      const sys = SYSTEMS[sysIndex];
+      const opt = sys.options.find(o=>o.id===el.dataset.opt);
+      const ch = opt.choices[+el.dataset.choice];
+      let bandName = "flat", text, gain = {};
+
+      if (ch.check){
+        bandName = roll(ch.check.need, ship.attrs[ch.check.attr]);
+        const b = ch.bands[bandName];
+        text = b[0]; gain = b[1] || {};
+        if (b[2]) logLines.push(`· placed "${b[2]}" on a system one ring deeper`);
+      } else {
+        text = ch.flat; gain = ch.gain || {};
+        if (ch.places) logLines.push(`· placed "${ch.places}" on a system one ring deeper`);
+        if (ch.fight) gain = {fight:true};
+      }
+      applyGain(gain);
+      const ledger = fmtLedger(gain);
+      taken[opt.id] = `<div class="outcome">
+        <p class="band ${bandName.toLowerCase()}">${bandName === "flat" ? opt.label : bandName}</p>
+        <p>${text}</p>
+        ${ledger?`<div class="ledger">${ledger}</div>`:``}</div>`;
+      if (opt.group && !ch.decline) spentGroups[opt.group] = opt.id;
+      if (opt.group && ch.decline) spentGroups[opt.group] = "__declined";
+      logLines.push(`${opt.label} — ${ch.label}${bandName!=="flat"?` (${bandName})`:``}`);
+      render();
+    };
+  });
+
+  document.querySelectorAll(".group").forEach(g =>
+    g.onmouseleave = () =>
+      document.querySelectorAll(".dimmed").forEach(d => d.classList.remove("dimmed")));
+
+  document.getElementById("options").onmouseleave = () =>
+    document.querySelectorAll(".dimmed").forEach(d => d.classList.remove("dimmed"));
+
+  document.getElementById("leave").onclick = () => {
+    logLines.push(`— jumped from ${SYSTEMS[sysIndex].name} —`);
+    sysIndex = (sysIndex + 1) % SYSTEMS.length;
+    taken = {}; spentGroups = {};
+    ship.fuel = Math.max(0, ship.fuel - 3);
+    render();
+  };
+}
+
+render();
+</script>
+</body>
+</html>
