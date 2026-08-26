@@ -350,11 +350,18 @@ func choose_jump(node: MapGen.MapNode) -> int:
 	if options.is_empty():
 		return -1
 	var lateral: Array[int] = []
+	var sideways: Array[int] = []
 	var forward: Array[int] = []
 	for idx in options:
 		var t: MapGen.MapNode = Run.map[idx]
-		if t.layer == node.layer and not t.cleared:
-			lateral.append(idx)
+		if t.layer == node.layer:
+			# `lateral` is somewhere worth STOPPING; `sideways` is anywhere in
+			# this ring at all, cleared or not. They used to be the same list,
+			# which was fine while every system had a way down and travelling
+			# was never necessary.
+			sideways.append(idx)
+			if not t.cleared:
+				lateral.append(idx)
 		elif t.layer > node.layer:
 			forward.append(idx)
 	var healthy := Run.hp > Run.max_hp() * 0.6
@@ -375,4 +382,27 @@ func choose_jump(node: MapGen.MapNode) -> int:
 		return Rng.pick(pilot, lateral)
 	if not forward.is_empty():
 		return Rng.pick(pilot, forward)
+
+	# NO WAY DOWN FROM HERE, so walk the ring until there is one. Since sparse
+	# coreward links landed, most systems have no door and this is the ordinary
+	# case rather than an edge one -- the old fallback picked at random from
+	# every link including BACKWARD ones, which on a sparse map is a random walk
+	# that ends when the fuel does. Measured before this: 70 jumps at an average
+	# danger of 1.8, which is seventy hops without leaving the rim.
+	#
+	# Prefers a neighbour that can itself descend, so the walk is toward
+	# something rather than merely away. These hops are travel, not farming, and
+	# deliberately do not count against FARM_LIMIT: a limit on how much you farm
+	# should not also be a limit on how far you may walk to leave.
+	if not sideways.is_empty():
+		var doors: Array[int] = []
+		for idx in sideways:
+			for onward in (Run.map[idx] as MapGen.MapNode).links:
+				if onward >= 0 and onward < Run.map.size() \
+						and (Run.map[onward] as MapGen.MapNode).layer > node.layer:
+					doors.append(idx)
+					break
+		if not doors.is_empty():
+			return Rng.pick(pilot, doors)
+		return Rng.pick(pilot, sideways)
 	return Rng.pick(pilot, options)

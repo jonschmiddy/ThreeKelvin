@@ -116,6 +116,53 @@ const RING_SPACING := 0.1157
 ## archetype the rest were authored around.
 const SQUASH_REF := 0.62
 
+## What share of a ring's systems carry a link inward.
+##
+## The dial for phase 5. At 1.0 every system has a door, the shortest path is
+## one hop per ring, and lateral travel is decoration -- which is what it was.
+## Below that, crossing a ring becomes how you find the way down.
+##
+## PARKED AT 1.00, WHICH TURNS THE FEATURE OFF. Every system carries a door, as
+## it always did, and the machinery below is inert until this moves.
+##
+## The MAP is not the problem: `-- maptest` passes on 120 galaxies at 0.40, with
+## every ring enterable and the core always reachable, and the forced path rises
+## from a flat 14 to 17..21..28. What does not work is the simulated pilot --
+## `Policy.choose_jump` has no way to ROUTE. With a door under every system it
+## never needed one: take a forward link if there is one, farm otherwise. On a
+## sparse map it must walk to a door it cannot see, and instead it circles the
+## rim. Measured at 0.40: 98.8% of runs stranded, average danger reached 1.72,
+## seventy-seven jumps without leaving the first two rings.
+##
+## So this waits on pathfinding in the sim, not on a different number here.
+## Turning it on before that would be tuning a game against a model that cannot
+## play it -- the mistake FUEL_PER_DISC_RADIUS's own comment warns about.
+##
+## PICKED FROM MEASUREMENT, not from the 0.5-0.66 the brief suggests -- that
+## range was guessed against a mechanism that turned out to be inert, because
+## the old reachability pass restored a door for every forward system whatever
+## this said. With that relaxed, `-- maptest` over 120 galaxies gives:
+##
+##     share   doors/ring   forced path  min .. mean .. max
+##     1.00       20.4          14  ..  14.0  ..  14      (what it was)
+##     0.55       11.0          15  ..  17.9  ..  22
+##     0.40        7.9          17  ..  21.2  ..  28      <- here
+##     0.30        6.1          18  ..  25.1  ..  33
+##     0.18        3.8          23  ..  34.8  ..  59
+##
+## 0.40 puts the fast dive at 21 against a farming run of about 38, so diving is
+## still faster and no longer nearly free. The spread matters as much as the
+## mean: the forced path used to be 14 in EVERY galaxy, and how hard a galaxy is
+## to descend is now a property of that galaxy.
+const DOOR_SHARE := 1.00
+
+## The fewest ways into a ring, whatever DOOR_SHARE rolls.
+##
+## Two rather than one, so a ring is never a single point of entry that every
+## route in the galaxy has to funnel through -- that is a corridor with extra
+## steps, and it would make one unlucky system placement decide the whole run.
+const MIN_DOORS := 2
+
 ## Where each ring sits, as a fraction of the disc radius. Lives here rather
 ## than in the chart because the map's populations are derived from it: if the
 ## two ever disagreed, ring counts would be weighted for radii the chart does
@@ -822,10 +869,23 @@ static func _link(nodes: Array) -> void:
 		# shares a row index. Rings hold different numbers of systems and are
 		# rotated and jittered against each other, so matching by index drew
 		# routes that crossed other routes and skipped the neighbour in front.
+		# NOT EVERY SYSTEM HAS A WAY INWARD. This used to connect unconditionally,
+		# so the shortest path to the core was one hop per ring and nothing could
+		# make it longer -- measured at exactly 14 in all 120 galaxies `--
+		# maptest` rolls, with no variance at all.
+		#
+		# Rolled from `Rng.world` so it is POSITIONAL: the galaxy is a property
+		# of the seed, and four machines in a co-op session must agree about
+		# which systems have doors. A roll off any other stream would give each
+		# peer its own map.
+		var doors := 0
 		for i in here.size():
 			var n: MapNode = here[i]
 			var ranked := _by_distance(n, next)
+			if Rng.world.randf() >= DOOR_SHARE:
+				continue
 			_connect(n, ranked[0])
+			doors += 1
 			# A second route, but only if it is not much further than the first:
 			# the point is a choice between comparable options, not a detour.
 			if ranked.size() > 1 and Rng.world.randf() < 0.62:
@@ -833,26 +893,71 @@ static func _link(nodes: Array) -> void:
 				var d1 := hop_distance(n, ranked[1])
 				if d1 < d0 * 1.8:
 					_connect(n, ranked[1])
-		# Guarantee every forward system is reachable, again from its nearest.
-		for t in next:
-			var tt: MapNode = t
-			var reachable := false
-			for n in here:
-				if (n as MapNode).links.has(tt.index):
-					reachable = true
-					break
-			if not reachable:
-				_connect(_by_distance(tt, here)[0], tt)
-		# Full lateral connectivity within the layer: farm before you descend.
-		for a in here:
-			for b in here:
-				if a != b and absi((a as MapNode).row - (b as MapNode).row) == 1:
-					_connect(a, b)
-		# Close the ring: the last row neighbours the first. A ring you can only
-		# traverse one way is an arc, and farming it means doubling back through
-		# nodes you have already cleared.
-		if here.size() >= 3:
-			_connect(here[0], here[here.size() - 1])
+
+		# THE RING NEEDS DOORS. Each SYSTEM IN IT DOES NOT.
+		#
+		# This used to guarantee that every forward system had an incoming link,
+		# which orphaned nothing and also made thinning impossible: it restored
+		# roughly one door per forward system, so doors per ring sat near 15
+		# whether DOOR_SHARE was 0.55 or 0.15, and the forced path stayed at 14.
+		#
+		# It is safe to relax because the lateral pass below builds a COMPLETE
+		# CYCLE inside every ring -- every adjacent row pair, plus the closure
+		# from last row to first -- so arriving anywhere in a ring means being
+		# able to walk to everywhere in it. A ring with MIN_DOORS ways in is a
+		# ring with every system reachable.
+		#
+		# What it costs is that arriving no longer means arriving where you want
+		# to be, which is the entire point of the phase.
+		while doors < MIN_DOORS and doors < here.size():
+			var spare: Array = here.filter(func(x): return not _descends(x, next))
+			if spare.is_empty():
+				break
+			var extra: MapNode = spare[Rng.world.randi() % spare.size()]
+			_connect(extra, _by_distance(extra, next)[0])
+			doors += 1
+		# LATERAL LINKS GO TO ACTUAL NEIGHBOURS. This used to connect systems
+		# whose ROW INDEX differed by one, plus a closure from the first row to
+		# the last, on the assumption that row order tracks position around the
+		# ring. It does not: a stranded ship probed here had lateral links of
+		# length 1.60 and 1.09 on a disc of radius 0.92 -- straight across the
+		# galaxy.
+		#
+		# That was survivable only because every system also had a short forward
+		# link, so `can_jump_to` filtered the long ones out and nobody noticed.
+		# With sparse doors a system can have nothing BUT those links, and then
+		# it strands on a full tank. Two nearest neighbours each still walks the
+		# whole ring, which is what the row version was reaching for.
+		# BY ANGLE AROUND THE RING, which is the only construction that closes.
+		#
+		# Two earlier versions did not. Connecting by ROW INDEX assumed row order
+		# tracks position, and it does not -- a stranded ship probed here had
+		# lateral links of length 1.60 on a disc of radius 0.92, straight across
+		# the galaxy. Connecting each system to its two NEAREST neighbours makes
+		# short links but not necessarily one cycle: it can settle into separate
+		# clusters, and `-- maptest` found 6 galaxies in 120 where the core was
+		# unreachable because of it.
+		#
+		# Sorting by angle and joining consecutive systems gives exactly one
+		# cycle, every link short, every system reachable from every other. The
+		# angle is taken from the drawn position, and the foreshortening does not
+		# matter: scaling y by a positive constant preserves the ORDER of points
+		# around a circle even though it changes the angles themselves.
+		var ring: Array = here.duplicate()
+		ring.sort_custom(func(x, y) -> bool:
+			return atan2((x as MapNode).gal.y, (x as MapNode).gal.x) 				< atan2((y as MapNode).gal.y, (y as MapNode).gal.x))
+		for i in ring.size():
+			if ring.size() < 2:
+				break
+			_connect(ring[i], ring[(i + 1) % ring.size()])
+
+## Does this system already carry a link into the next ring?
+static func _descends(n: MapNode, next: Array) -> bool:
+	for t in next:
+		if n.links.has((t as MapNode).index):
+			return true
+	return false
+
 
 ## Candidates sorted by how far they are from `from`, nearest first.
 static func _by_distance(from: MapNode, pool: Array) -> Array:

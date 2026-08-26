@@ -1728,7 +1728,19 @@ func here() -> MapGen.MapNode:
 ## the model used to wander on a coin flip regardless of fuel, and tuning this
 ## against that would have made the real game punitive to correct a bug in the
 ## thing measuring it.
-const FUEL_PER_DISC_RADIUS := 17.0
+## 13, down from 17, and this is a UNIT CONVERSION rather than a balance change.
+##
+## `MapGen.hop_distance` used to measure in the drawn, foreshortened space and
+## now measures un-squashed (D1) -- it divides y by the galaxy's squash, which
+## averages 0.62, so every distance in the game grew by about a third overnight.
+## This constant prices raw distance, so the fuel bill grew with it: measured,
+## 1.87 fuel a jump became 2.55, individual hops pinned at the FUEL_MAX_HOP
+## ceiling of 6, and 98% of runs ended adrift.
+##
+## 17 / 1.3 restores the rate the tuning below was measured at. Nothing about
+## how dear a jump SHOULD be has been re-decided; the ruler changed length and
+## the price per unit had to change with it.
+const FUEL_PER_DISC_RADIUS := 13.0
 
 ## What one ring-step of the galaxy is worth in starting fuel.
 ##

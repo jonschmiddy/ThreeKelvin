@@ -213,6 +213,12 @@ func _ready() -> void:
 		return
 	# What a rarity actually buys, in card numbers:
 	#   godot --headless --path . -- rarity
+	# Is the galaxy traversable, and how short is the short way:
+	#   godot --headless --path . -- maptest
+	if "maptest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/MapTest.gd").new().run()
+		get_tree().quit()
+		return
 	if "rarity" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/RaritySheet.gd").new().run()
 		get_tree().quit()
