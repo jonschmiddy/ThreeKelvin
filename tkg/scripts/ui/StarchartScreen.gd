@@ -1593,6 +1593,13 @@ class MapChart extends Control:
 			# Same exception, same reason, as the party markers below.
 			elif Run.station_heard(t.index):
 				out[t.index] = true
+			# And anywhere the dish has picked up. Fourth exception, and the
+			# only one that is a property of the SHIP rather than of the
+			# galaxy or the contract board: a system you have seen from a
+			# distance is on the chart because you saw it, and stays there
+			# because seeing cannot be undone. See RunState.chart_from.
+			elif t.sensed:
+				out[t.index] = true
 			# And anywhere you have signed for. Same exception, third reason:
 			# the filter is right about places you might stumble into and wrong
 			# about a place somebody has PAID you to find. A contract that names

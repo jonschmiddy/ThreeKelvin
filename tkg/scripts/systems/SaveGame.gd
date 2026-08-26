@@ -107,7 +107,12 @@ const PATH := "user://run.save"
 ## Worth writing down because it is the shape of break the guard is blind to by
 ## construction: renaming the VALUES a save stores is exactly as destructive as
 ## renaming its keys, and nothing automated is watching for it.
-const VERSION := 13
+## 14: SENSORS CAN SEE. Every map node carries a `sensed` mark now -- set when
+## the ship is close enough and never cleared -- so the shape of a saved system
+## changed. A version 13 save has no such key, and every node would come back
+## unsensed: not a corruption, but a chart quietly narrower than the one the
+## player left, which is the same class of lie as a stripped module. Discarded.
+const VERSION := 14
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -630,6 +635,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
 		visited = n.visited, cleared = n.cleared, eaten = n.eaten,
+		sensed = n.sensed,
 		taken = Array(n.taken),
 		inspected = n.inspected,
 		fled = n.fled, stocked = n.stocked, trades = n.trades,
@@ -662,6 +668,10 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.danger = int(d.get("danger", 1))
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
+	# Absent on a save from before sensors could see. False is the honest
+	# default -- an old run simply has not charted anything it did not fly to,
+	# and the next arrival fills it in.
+	n.sensed = bool(d.get("sensed", false))
 	n.cleared = bool(d.get("cleared", false))
 	n.eaten = bool(d.get("eaten", false))
 	# Absent on a save written before a system could offer more than one thing

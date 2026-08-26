@@ -340,6 +340,10 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	trail = PackedInt32Array([0])
 	_range_cache.clear()
 	Sig.run_started.emit()
+	# THE DISH IS ALREADY ON. Without this the first system's neighbours are
+	# invisible until the first jump, which reads as sensors not working at
+	# all on the one screen a new run opens to.
+	chart_from(node_at())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	log_line("Reactor cold-started. The core is twenty jumps coreward, at least.", &"big")
@@ -1302,7 +1306,21 @@ func attr_stealth(bare: bool = false) -> int:
 const PER_PIP := {
 	&"hull": {&"max_hull": 7.0},                       ## HULL_REF / ATTR_MAX
 	&"thermal": {&"heat_cap": 1.0, &"dissipation": 1.0},
-	&"maneuver": {&"dodge": 1.0 / 46.0, &"initiative": 1.0},
+	# DODGE ALONE, and initiative is deliberately not here any more. The comment
+	# above still holds for gauges with two live terms -- but initiative is not
+	# one: it is summed, it feeds attr_maneuver, and NOTHING else in the game
+	# reads it. Combat rolls randf() < Run.dodge() for the enemy to miss and never
+	# asks who goes first.
+	#
+	# So half of every maneuver pip was buying nothing at all, and a part or an
+	# affix advertising +1 MANEUVER delivered about 2% of enemy attacks missing
+	# where the gauge implied twice that. 1/23 rather than 1/46 makes the whole
+	# pip land on the half that works.
+	#
+	# Hull initiative is untouched: attr_maneuver still reads it, so a light frame
+	# still gauges higher than a heavy one. That is the gauge DESCRIBING a chassis,
+	# which it does honestly. What it may no longer do is sell a bonus.
+	&"maneuver": {&"dodge": 1.0 / 23.0},
 	&"sensors": {&"sensors": 1.0},
 	&"stealth": {&"stealth": 1.0},
 	# THE TWO THAT WERE MISSING. Every other gauge could be graded and these two
@@ -1335,11 +1353,8 @@ func attributes() -> Array[Dictionary]:
 		{key = &"thrust", label = "THRUST", short = "THR",
 			value = attr_thrust(), base = attr_thrust(true),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well.",
-			# NO EFFECT LINE, and that is a statement rather than an oversight:
-			# thrust is read by event checks and by nothing else. A hint saying
-			# what a pip buys would be inventing a mechanic. Give thrust a job
-			# and the line goes here.
-			effect = "Separate from fuel: a thriftier engine costs you no speed."},
+			effect = "A pip stretches every jump %d%% further, and costs no extra fuel."
+				% int(round(THRUST_REACH * 100.0))},
 		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV",
 			value = attr_maneuver(), base = attr_maneuver(true),
 			text = "Threading debris, evading a lock, choosing how a fight opens.",
@@ -1347,7 +1362,7 @@ func attributes() -> Array[Dictionary]:
 			# does anything: Combat rolls `randf() < Run.dodge()` for the enemy
 			# to miss, and NOTHING reads initiative. So the honest number is the
 			# dodge half alone -- 1/46 of a pip, near enough 2%.
-			effect = "A pip is about 2% of enemy attacks missing outright."},
+			effect = "A pip is about 4% of enemy attacks missing outright."},
 		{key = &"thermal", label = "THERMAL", short = "THM",
 			value = attr_thermal(), base = attr_thermal(true),
 			text = "Sitting in heat: coronas, reactors, anything that cooks you.",
@@ -1355,9 +1370,8 @@ func attributes() -> Array[Dictionary]:
 		{key = &"sensors", label = "SENSORS", short = "SEN",
 			value = attr_sensors(), base = attr_sensors(true),
 			text = "Reading a wreck, finding the lane, seeing it before it sees you.",
-			# As with thrust: read by event checks and nothing else, so there is
-			# nothing true to print here yet.
-			effect = ""},
+			effect = "A pip shows you systems %d%% further out than you can fly to."
+				% int(round(SENSE_REACH * 100.0))},
 		{key = &"stealth", label = "STEALTH", short = "STL",
 			value = attr_stealth(), base = attr_stealth(true),
 			text = "Going dark, slipping a patrol, arriving unannounced.",
@@ -1702,7 +1716,98 @@ const JUMP_NEIGHBOURS := 6
 ## the galaxy, and working it out costs a pass over every system.
 var _range_cache: Dictionary = {}
 
+## Reference thrust, and how far a point above it stretches a jump.
+##
+## REFERENCED TO THE LIGHTEST HULL rather than the middle, because this may only
+## ever ADD. See `thrust_reach`.
+##
+## 0.04 a point is deliberately small: a medium reaches 8% further than a light
+## and a heavy 16%, which is a real difference on a crowded map and not a
+## different game. These two numbers are the obvious dial for the balance pass.
+const THRUST_REF := 4
+const THRUST_REACH := 0.04
+const THRUST_REACH_MAX := 1.4
+
+
+## How far this ship's engine stretches a jump, as a multiplier on the map's own
+## geometry.
+##
+## THRUST WAS READ BY EVENT CHECKS AND NOTHING ELSE. `range_from` below derives a
+## radius entirely from how densely the galaxy is packed around you -- a fact
+## about the MAP, with no term in it for the ship standing on it. The gauge
+## described an engine that never moved anything, and a part that raised it
+## bought a slightly better roll on a Thrust check and no more.
+##
+## IT ONLY EVER EXTENDS, and that is a safety property rather than generosity.
+## The radius carries a floor -- the third-nearest neighbour, so a sparse ring
+## still offers a choice rather than a corridor -- and a multiplier below 1.0
+## would cut straight through that floor and could leave a ship with no legal
+## jump at all. A low-thrust hull gets no bonus here; it does not get a penalty.
+##
+## Heavier frames reach further and pay for it in fuel, which they already do:
+## `fuel_factor` prices every jump and runs 0.8 / 1.2 / 1.8. Long legs and a big
+## tank is a coherent thing for a hauler to be.
+func thrust_reach() -> float:
+	return clampf(1.0 + float(attr_thrust() - THRUST_REF) * THRUST_REACH,
+		1.0, THRUST_REACH_MAX)
+
+
+## How much further than you can FLY you can SEE, per pip of SENSORS.
+##
+## 0.25 a pip against a base of the map's own jump radius: a dish worth two pips
+## shows you half again as far as you can go. Most hulls launch with no sensors
+## at all -- Korvan, Solari and Probate all read zero -- so this is a thing you
+## build toward rather than a thing you are given, which is what makes fitting a
+## dish a decision instead of a formality.
+const SENSE_REACH := 0.25
+
+
+## How far the ship can see, in the same units as the jump radius.
+##
+## OFF THE MAP TERM, not off `range_from`, and deliberately: sight should not
+## quietly inherit the engine. A hauler with long legs is not more observant.
+func sense_radius() -> float:
+	if map.is_empty():
+		return 0.0
+	return _map_range_from(node_at()) * (1.0 + float(attr_sensors()) * SENSE_REACH)
+
+
+## Mark everything within sight of `here` as charted.
+##
+## STICKY, WHICH IS THE WHOLE DESIGN. `station_heard` refuses to scale with
+## sensors because a chart that forgets a system when you sell a dish is worse
+## than one that never showed it. A mark that is only ever SET has no such
+## failure: refitting costs you what you have not seen yet and never takes back
+## what you have. See MapGen.MapNode.sensed.
+##
+## Called on arrival and at the start of a run, so the first thing a dish does
+## is show you where you are standing.
+func chart_from(here: MapGen.MapNode) -> void:
+	if here == null:
+		return
+	var r := sense_radius()
+	if r <= 0.0:
+		return
+	for n in map:
+		var t: MapGen.MapNode = n
+		if t.sensed or t.index == here.index:
+			continue
+		if MapGen.hop_distance(here, t) <= r:
+			t.sensed = true
+
+
+## The jump radius from `here`, engine included.
 func range_from(here: MapGen.MapNode) -> float:
+	return _map_range_from(here) * thrust_reach()
+
+
+## The same radius WITHOUT the ship, which is the half worth caching.
+##
+## The galaxy's own geometry costs a pass over every system to work out and
+## never changes within a run; the engine's multiplier is a property of the ship
+## and moves the moment a part is fitted. Keeping them apart means bolting on a
+## thruster does not have to invalidate anything.
+func _map_range_from(here: MapGen.MapNode) -> float:
 	var hit: float = _range_cache.get(here.index, -1.0)
 	if hit >= 0.0:
 		return hit
@@ -1811,6 +1916,9 @@ func jump_to(index: int) -> void:
 	at = index
 	trail.append(index)
 	n.visited = true
+	# What the dish picks up on arrival. Before the signals below, so a system
+	# revealed by getting near it is on the chart the moment you land.
+	chart_from(n)
 	jumps += 1
 	cool_in_transit()
 	# The galaxy's other harvester moves on the party's clock, and a jump is

@@ -174,6 +174,13 @@ class MapNode extends RefCounted:
 	var danger: int = 1
 	var type: NodeType = NodeType.FIGHT
 	var visited: bool = false
+
+	## SEEN FROM A DISTANCE, without having been flown to.
+	##
+	## Set by `RunState.chart_from` whenever the ship is close enough, and never
+	## cleared -- see the note on RunState.sense_radius. A run mark like
+	## `visited` and `cleared`, saved with them.
+	var sensed: bool = false
 	var cleared: bool = false
 	## Cleared by the Hellbender rather than by anybody in the party. The sector
 	## reads it to say "something fed here" instead of "stripped", which is
