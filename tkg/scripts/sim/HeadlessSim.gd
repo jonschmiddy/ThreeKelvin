@@ -36,6 +36,32 @@ var total_danger := 0
 var death_causes := {}
 var stranded := 0
 var stranded_no_fuel := 0
+
+## The policy ran out of options. NOT the same as the run ending.
+##
+## `choose_jump` builds its candidates from `node.links`; the game lets you jump
+## to anything inside a radius (`reachable_from`), and never consults `links` at
+## all. So the policy giving up means "no CHARTED link was usable", which is a
+## much weaker condition than "stranded" -- and it was being counted as one.
+##
+## Kept alongside `stranded` rather than replacing it, because THE GAP BETWEEN
+## THEM IS THE SIZE OF THE BLIND SPOT, and that gap is the number that says
+## whether any of this mattered.
+var policy_gave_up := 0
+
+## Fuel left in the tank when the run ended, summed.
+##
+## S3A_FUEL_SWEEP 6 asks for this by name, and it is the number that decides
+## whether there is a fuel problem at all: a run that ends with most of a full
+## tank did not end for want of fuel, whatever the strand counter says.
+var end_fuel_total := 0
+
+## Genuinely nowhere to go, at any price -- a MAP failure, not an economy one.
+##
+## Distinct from a dry tank: `stranded_no_fuel` means there were places to go and
+## none affordable, this means the reachable set was empty. If this is ever
+## non-zero the fuel ruling is aimed at the wrong thing entirely.
+var stranded_nowhere := 0
 ## The heat layer. Without these the sim can report that a heat change did
 ## nothing when what actually happened is that it never fired.
 var ambushes := 0
@@ -164,6 +190,9 @@ func _reset() -> void:
 	death_causes = {}
 	stranded = 0
 	stranded_no_fuel = 0
+	policy_gave_up = 0
+	end_fuel_total = 0
+	stranded_nowhere = 0
 	ambushes = 0
 	runs_ambushed = 0
 	heat_samples = 0
@@ -275,12 +304,33 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# there is no choice, which is a measurement rather than a decision.
 		var pick := policy.choose_jump(node)
 		if pick < 0:
+			# F1 -- A STRAND IS WHAT THE GAME SAYS IT IS. This used to call
+			# `check_stranded()` and then increment regardless of what it did:
+			# the counter tracked the POLICY giving up, not the run ending.
+			# `check_stranded` returns void and dies internally, so ask the same
+			# question it asks.
+			policy_gave_up += 1
 			Run.check_stranded()
+			if Run.has_legal_jump():
+				# The policy is out of charted links but the ship can still
+				# fly. Not a strand, and the old counter called it one.
+				break
 			stranded += 1
-			for idx in node.links:
-				if Run.fuel < Run.fuel_cost_to(Run.map[idx]):
-					stranded_no_fuel += 1
+			# F2 -- OVER THE SET THE GAME USES, AND ALL OF IT. This used to walk
+			# `node.links` and break on the FIRST unaffordable one, so it meant
+			# "at least one link was too dear" rather than "nothing was
+			# affordable" -- over the wrong set, in the wrong direction.
+			var any_reachable := false
+			var any_affordable := false
+			for n in Run.in_range_of(node):
+				any_reachable = true
+				if Run.fuel >= Run.fuel_cost_to(n):
+					any_affordable = true
 					break
+			if not any_reachable:
+				stranded_nowhere += 1
+			elif not any_affordable:
+				stranded_no_fuel += 1
 			break
 		# EVERYTHING THAT IS NOT A JUMP AND NOT A STATION, caught as the
 		# remainder: fights, derelicts, pulsars and events all move these and
@@ -299,6 +349,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	total_jumps += Run.jumps
 	total_kills += Run.kills
 	total_danger += Run.node_at().danger
+	end_fuel_total += Run.fuel
 	if Run.won:
 		wins += 1
 	if Run.dead:
@@ -393,8 +444,21 @@ func _report() -> void:
 	# These ARE counted in deaths: check_stranded() ends the run rather than
 	# leaving the ship alive and immobile. Reported separately because a fuel
 	# death is an economy failure, not a combat one.
-	print("stranded, ended by check_stranded() %d (%.1f%%) · of those, blocked by fuel %d" % [
-		stranded, 100.0 * stranded / maxi(1, runs), stranded_no_fuel])
+	print("stranded, ended by check_stranded() %d (%.1f%%) · dry tank %d · nowhere in range %d" % [
+		stranded, 100.0 * stranded / maxi(1, runs), stranded_no_fuel,
+		stranded_nowhere])
+	# THE BLIND SPOT, printed on its own line because it is the point of S1.
+	# `policy_gave_up` counts the policy running out of CHARTED links;
+	# `stranded` counts the ship being unable to fly. Every run in the gap is one
+	# the old counter called stranded and the game did not.
+	print("fuel left at run end: %.0f of a %d tank (%.0f%%)" % [
+		float(end_fuel_total) / maxi(1, runs),
+		int(round(Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2))),
+		100.0 * (float(end_fuel_total) / maxi(1, runs))
+			/ maxf(1.0, Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2))])
+	print("policy gave up %d (%.1f%%) · of those, the ship could still fly %d" % [
+		policy_gave_up, 100.0 * policy_gave_up / maxi(1, runs),
+		policy_gave_up - stranded])
 	# The heat layer, reported separately because it is the newest thing in the
 	# economy and the first question about any tuning pass on it is whether it
 	# fired at all.
