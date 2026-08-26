@@ -286,6 +286,12 @@ func _ready() -> void:
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(content)
 
+	# THE FRAME COUNTER, over everything and part of no layout. Added to the
+	# window rather than to `root`, so it cannot take a pixel from the HUD row --
+	# which is exactly what got the last one deleted. Built whatever the setting
+	# says and hidden if it is off, so the toggle works without a relaunch.
+	add_child(FpsMeter.new())
+
 	Router.register(content, hud)
 
 	# Boot destination. The launcher is the default, and every development flag

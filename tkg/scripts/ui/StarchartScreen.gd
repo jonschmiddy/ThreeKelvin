@@ -2654,7 +2654,7 @@ class MapChart extends Control:
 		if key != _work_key:
 			_work_key = key
 			_work_berths = {}
-			for manufacturer in Run.delivery_houses():
+			for manufacturer in Run.delivery_manufacturers():
 				_work_berths[manufacturer] = _nearest_berths(manufacturer, 3)
 		for raw in Run.contracts:
 			var job: ContractData = raw

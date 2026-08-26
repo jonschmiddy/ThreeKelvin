@@ -18,6 +18,7 @@ var _mode_rows: VBoxContainer
 var _screen_row: HBoxContainer
 var _scale_row: HBoxContainer
 var _blurb: Label
+var _fps_row: HBoxContainer
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -67,6 +68,13 @@ func setup() -> void:
 	col.add_child(_scale_row)
 
 	col.add_child(UITheme.hsep())
+	# THE FRAME COUNTER, under DISPLAY because that is what it measures. Rebuilt
+	# through `_refresh` like every other row here, so the box redraws itself
+	# from the flag rather than from what this closure thinks it set.
+	_fps_row = HBoxContainer.new()
+	col.add_child(_fps_row)
+
+	col.add_child(UITheme.hsep())
 	var audio_title := UITheme.body("AUDIO", UITheme.ICE, UITheme.FS_HEAD)
 	audio_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(audio_title)
@@ -95,6 +103,19 @@ func _refresh() -> void:
 		b.disabled = picked
 		_mode_rows.add_child(b)
 	_blurb.text = DisplaySettings.mode_blurb(DisplaySettings.mode)
+
+	Widgets.clear(_fps_row)
+	var fps_on := DisplaySettings.fps_meter
+	var fps_btn := Widgets.button(
+		"%s  FRAME COUNTER" % ("[X]" if fps_on else "[ ]"),
+		func() -> void:
+			DisplaySettings.set_fps_meter(not DisplaySettings.fps_meter)
+			_refresh())
+	fps_btn.tooltip_text = Widgets.tip(
+		"Frames per second, bottom right. Costs nothing and decides nothing — it is for saying \"the chart felt slow\" with a number attached.")
+	fps_btn.add_theme_color_override("font_color",
+		UITheme.EMBER if fps_on else UITheme.QUOTE)
+	_fps_row.add_child(fps_btn)
 
 	Widgets.clear(_screen_row)
 	var count := DisplayServer.get_screen_count()

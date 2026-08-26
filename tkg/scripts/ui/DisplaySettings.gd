@@ -24,6 +24,15 @@ static var mode: Mode = Mode.WINDOWED
 static var window_scale: int = 1
 static var screen: int = -1          ## -1 means "not chosen yet"; resolves to primary
 
+## Show the frame counter. Off by default.
+##
+## A SETTING RATHER THAN A DEV FLAG. It rode on `DevMode` for one commit, which
+## meant a player could not see their frame rate without also unlocking the card
+## gallery and the whole star chart -- and the counter is a diagnostic, not a
+## cheat. The number a tester quotes when a screen feels choppy should not cost
+## them the game's secrets.
+static var fps_meter: bool = false
+
 static func mode_name(m: Mode) -> String:
 	match m:
 		Mode.WINDOWED: return "WINDOWED"
@@ -93,6 +102,14 @@ static func set_scale(s: int) -> void:
 	mode = Mode.WINDOWED
 	apply()
 
+## Toggle the frame counter. Announced so a meter already on screen can react
+## without the settings menu knowing it exists.
+static func set_fps_meter(on: bool) -> void:
+	fps_meter = on
+	save()
+	Sig.fps_meter_changed.emit(on)
+
+
 static func set_screen(i: int) -> void:
 	screen = i
 	apply()
@@ -111,6 +128,7 @@ static func save() -> void:
 	cfg.set_value("display", "mode", int(mode))
 	cfg.set_value("display", "window_scale", window_scale)
 	cfg.set_value("display", "screen", safe_screen())
+	cfg.set_value("display", "fps_meter", fps_meter)
 	cfg.save(PATH)
 
 static func load_and_apply() -> void:
@@ -119,4 +137,5 @@ static func load_and_apply() -> void:
 		mode = cfg.get_value("display", "mode", int(Mode.WINDOWED)) as Mode
 		window_scale = int(cfg.get_value("display", "window_scale", 1))
 		screen = int(cfg.get_value("display", "screen", -1))
+	fps_meter = bool(cfg.get_value("display", "fps_meter", false))
 	apply()

@@ -73,14 +73,64 @@ const OPTION_BAG := 200
 ## every neighbour at roughly the same distance in every direction, which is
 ## what makes "fly to anything close enough" a rule you can actually see.
 ##
-## Run length does not come from the ring count — it comes from how many systems
-## there are, and there are just as many.
-const LAYERS := 9
+## FIFTEEN, up from nine, and the paragraph above is why this is safe now.
+##
+## The twenty-four-shell version failed because the ring STEP collapsed while
+## the gap along a ring did not. That was not a fact about the ring count -- it
+## was a fact about `target` below, which set the radial gap and the ring
+## POPULATION with one number. Shrink the gap and every ring inflated to match,
+## so the geometry that made nothing near anything came back at any layer count.
+##
+## `RING_SPACING` now owns the gap and `LAYERS` owns the depth. With them apart,
+## fifteen shells is fifteen shells at the spacing that was hard-won.
+##
+## WHY THE RUN GOT LONGER ANYWAY. `_link()` gives every system a coreward link,
+## so the shortest path to the core is one hop per ring: it was 8, it is now 14.
+## That is the forced minimum, not the typical run -- the sim takes 38 jumps
+## either way -- so what this buys is that the fast dive is longer, not that the
+## ordinary run is.
+const LAYERS := 15
+
+## How far apart systems sit ALONG a ring, as a fraction of the disc.
+##
+## NOT THE GAP BETWEEN RINGS, despite being split out of a value that was. That
+## is the whole subtlety: `ring_count` divides a ring's perimeter by this to
+## decide how many systems it holds, so it sets the spacing AROUND a ring, and
+## the gap BETWEEN rings is (RIM - CORE) / (LAYERS - 2), which necessarily
+## shrinks as layers are added because the disc does not grow.
+##
+## Holding it constant is the point of phase 3. It used to be the derived ring
+## gap, so adding layers shrank it and inflated every ring's population at the
+## same time -- LAYERS 15 gave 528 systems and pinned sixteen rings at RING_MAX.
+## Fixed at the value it had when the geometry was tuned, LAYERS 15 gives ~287.
+##
+## The rings being closer together than the systems along them is fine and is
+## not the twenty-four-shell failure: `range_from` derives the jump radius from
+## your NEAREST neighbour, so a tighter ring stack gives a tighter radius rather
+## than a map where nothing is near anything.
+const RING_SPACING := 0.1157
 
 ## Where each ring sits, as a fraction of the disc radius. Lives here rather
 ## than in the chart because the map's populations are derived from it: if the
 ## two ever disagreed, ring counts would be weighted for radii the chart does
 ## not draw.
+##
+## RIM IS AUTHORED, and it was briefly derived from the ring spacing before the
+## starchart objected. `ring_radius()` spreads however many rings it is given
+## across RIM..CORE, so raising LAYERS packs them tighter rather than widening
+## the disc -- which looked like a fault worth fixing by deriving RIM upward.
+##
+## IT IS NOT ONLY THE OUTER RING'S RADIUS. It is the extent the whole chart
+## normalises against: `StarchartScreen._radius()` is screen-derived and never
+## reads this constant, so node positions, the halo that paints the disc, and
+## the pan clamp all assume galaxy coordinates top out near here. Pushing RIM to
+## 1.61 put the rim outside the painted halo -- a hard elliptical edge with
+## unpainted space inside it -- and outside the pan limit, so the sides of the
+## galaxy could not be reached while zoomed.
+##
+## That is one constant doing two jobs, which is the same fault this phase set
+## out to fix in `target`. What made it hard to see is that the second job lives
+## in a file which does not import it.
 const RIM := 0.92
 const CORE := 0.11
 ## How far the rings bend from equal-area spacing toward tracking the galaxy's
@@ -129,8 +179,13 @@ static func ring_count(layer: int) -> int:
 	if layer >= LAYERS - 1:
 		return 1
 	var sq := float(Run.galaxy.squash)
-	# The radial gap the ring spacing is aiming at, on average.
-	var target := (RIM - CORE) / float(maxi(1, LAYERS - 2))
+	# THE RING SPACING, not a value derived from LAYERS. It used to be
+	# `(RIM - CORE) / (LAYERS - 2)`, which meant this divisor moved every time
+	# the layer count did -- so adding rings inflated every ring's population as
+	# well, and the node count grew faster than the shells. Measured: LAYERS 15
+	# with the old derivation gives 528 systems and pins sixteen rings at
+	# RING_MAX; with the spacing held it gives ~287.
+	var target := RING_SPACING
 	# Perimeter of the squashed ring, near enough for counting purposes.
 	var r := ring_radius(layer)
 	var perim := PI * r * (1.0 + sq)

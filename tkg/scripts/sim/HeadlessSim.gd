@@ -66,6 +66,19 @@ var derelicts_eaten := 0
 ## leave every cell too small to read.
 var by_kind: Dictionary = {}
 
+## THE ECONOMY, which decided more runs than danger did and was invisible.
+##
+## Fuel and credits both flow through exactly two places -- a station, and the
+## act of jumping -- so they are sampled by delta around those rather than by
+## hooking RunState. A harness that edits the game to measure it is a harness
+## that measures a different game.
+var stations_visited := 0
+var fuel_spent_jumping := 0
+var fuel_from_stations := 0
+var fuel_from_elsewhere := 0
+var credits_at_stations := 0
+var credits_from_elsewhere := 0
+
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.
 func run_sim() -> void:
@@ -185,6 +198,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 	# by seeding a decision on something that was not a place.
 	pilot = Rng.derive(&"pilot", 0)
 	policy.pilot = pilot
+	policy.begin_run()
 	var guard := 0
 	var jumped_hot := false
 	while not Run.won and not Run.dead and guard < 600:
@@ -237,7 +251,12 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			_fight(DB.enemies[&"custodian"])
 			break
 		elif node.type == MapGen.NodeType.STATION:
+			stations_visited += 1
+			var sf := Run.fuel
+			var sc := Run.credits
 			policy.shop(Run.node_at())
+			fuel_from_stations += maxi(0, Run.fuel - sf)
+			credits_at_stations += Run.credits - sc
 		elif node.type == MapGen.NodeType.PULSAR and not node.cleared:
 			# Always taken. A competent player does not walk past the best fuel
 			# in the galaxy — the question the model cannot answer is whether
@@ -263,7 +282,14 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 					stranded_no_fuel += 1
 					break
 			break
+		# EVERYTHING THAT IS NOT A JUMP AND NOT A STATION, caught as the
+		# remainder: fights, derelicts, pulsars and events all move these and
+		# instrumenting each one separately would be five more places to keep
+		# in step with the loop above.
+		var jf := Run.fuel
+		var jc := Run.credits
 		Run.jump_to(pick)
+		fuel_spent_jumping += maxi(0, jf - Run.fuel)
 
 	if jumped_hot:
 		runs_ambushed += 1
@@ -384,6 +410,7 @@ func _report() -> void:
 	print("ambushes %d (%.2f per run) · runs jumped at least once %d (%.1f%%)" % [
 		ambushes, float(ambushes) / maxi(1, runs), runs_ambushed,
 		100.0 * runs_ambushed / maxi(1, runs)])
+	_report_economy()
 	_report_kinds()
 	print("---")
 	print("Healthy target: 40-55% win rate for this competent-player model.")
@@ -440,3 +467,27 @@ func _report_kinds() -> void:
 		print("  spread: %s %.0f%% down to %s %.0f%% (%.0f points across %d kinds)"
 			% [hi.name, hi.rate, lo.name, lo.rate,
 				float(hi.rate) - float(lo.rate), rows.size()])
+
+
+## Where fuel and credits came from and went, per run.
+##
+## THE LARGEST DEATH CAUSES ARE ECONOMIC. Runs end adrift with a dry tank or
+## holed because repairs were unaffordable, and neither is visible in a report
+## that only counts corpses. This is the sheet that says whether a galaxy is
+## payable at all.
+##
+## FUEL EARNED PER JUMP is the number to watch when the galaxy is resized: a
+## bigger map costs more fuel to cross, and if income per system does not keep
+## pace the run simply runs out of road however large the tank starts.
+func _report_economy() -> void:
+	var r := float(maxi(1, runs))
+	var j := float(maxi(1, total_jumps))
+	print("---")
+	print("economy per run: %.1f stations · fuel %.0f spent jumping, %.0f from stations, %.0f elsewhere"
+		% [float(stations_visited) / r, float(fuel_spent_jumping) / r,
+			float(fuel_from_stations) / r, float(fuel_from_elsewhere) / r])
+	print("  fuel per jump: %.2f spent · %.2f earned  (net %+.2f)"
+		% [float(fuel_spent_jumping) / j,
+			float(fuel_from_stations + fuel_from_elsewhere) / j,
+			float(fuel_from_stations + fuel_from_elsewhere - fuel_spent_jumping) / j])
+	print("  credits: %+.0f net at stations per run" % [float(credits_at_stations) / r])

@@ -91,12 +91,37 @@ var vent_hot: float = 1.15
 ## `BotPilot._brain_up()`.
 var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 
+## Lateral hops already spent in each ring this run. See FARM_LIMIT.
+var _farmed: Dictionary = {}
+
+
+## Called at the top of every run. The farm counters are per-run state and a
+## Policy outlives a run in the by-chassis sweep.
+func begin_run() -> void:
+	_farmed.clear()
+
 ## What the model is willing to haul. A BEHAVIOUR, not a capacity — hulls hold
 ## 8 / 12 / 16. A competent player does not carry twenty parts hoping for a
 ## buyer; they keep the few worth a detour and scrap the rest where they stand.
 ## It must stay at or under the smallest hull's capacity or the model would be
 ## measuring a hold no ship in the game has.
 const HOLD_LIMIT := 4
+
+## Top up to half a tank at a station, and never below this many credits.
+##
+## The reserve exists because hull loss kills more runs than fuel does: a model
+## that spends its last credit on fuel arrives at the next fight unable to
+## repair, which is a worse death for the same money.
+const FUEL_TOPUP := 0.5
+
+## How many lateral hops the model will spend in one ring before descending.
+##
+## Unbounded farming is not a strategy, it is a loop: the old rule moved
+## laterally on every unhealthy turn, so a damaged ship circled its ring picking
+## up more damage until something killed it. Three is enough to visit a station
+## and a couple of sites and still be going somewhere.
+const FARM_LIMIT := 3
+const FUEL_RESERVE := 40
 
 
 ## The best card in hand to play right now, or -1 to stop playing.
@@ -224,8 +249,25 @@ func shop(n: MapGen.MapNode) -> void:
 	if missing > 0 and Run.credits > repair + 25:
 		Run.add_credits(-repair)
 		Run.heal(missing)
+	# A COMPETENT PILOT TOPS UP; they do not coast to empty and hope for a
+	# station. `Run.fuel < 8` was the old test, and it is a fault in the
+	# INSTRUMENT rather than a fact about the game -- see the note on
+	# RunState.FUEL_PER_DISC_RADIUS, which records the same lesson about the
+	# jump policy. With a tank that starts at 279 that test fires about once a
+	# run: the model sailed past twenty-one stations declining fuel and then
+	# stranded when it finally ran low somewhere without one.
+	#
+	# Measured before the change: 21.5 stations a run, 11 fuel bought across all
+	# of them, and 20% of runs ending blocked by fuel while sitting on 125
+	# credits of profit.
+	#
+	# Tops up toward half a tank, keeping a credit reserve so refuelling never
+	# eats the repair budget -- hull loss is the largest death cause and buying
+	# fuel instead of a hull is not competence.
+	var tank := Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2)
+	var want := int(tank * FUEL_TOPUP)
 	var refuel := Market.refuel_price(n)
-	if Run.fuel < 8 and Run.credits >= refuel:
+	while Run.fuel < want and Run.credits >= refuel + FUEL_RESERVE:
 		Run.add_credits(-refuel)
 		Run.fuel += Market.REFUEL_UNITS
 
@@ -316,8 +358,20 @@ func choose_jump(node: MapGen.MapNode) -> int:
 		elif t.layer > node.layer:
 			forward.append(idx)
 	var healthy := Run.hp > Run.max_hp() * 0.6
-	var can_wander := Run.fuel > 45
-	if not lateral.is_empty() and can_wander and (not healthy or pilot.randf() < 0.65):
+	# SCALED TO THE TANK, not a flat 45. That number meant "fuel to spare" when
+	# a run started with 150; at 279 it is true almost always and the gate never
+	# closes. Three tenths reproduces the old proportion.
+	var tank := Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2)
+	var can_wander := float(Run.fuel) > tank * 0.3
+	# AND THE RING HAS TO HAVE SOMETHING LEFT. `not healthy` used to force a
+	# lateral hop, which meant a damaged ship could not descend at all -- it
+	# circled taking damage until it died. Being hurt still biases toward
+	# farming, it just no longer forbids leaving.
+	var spent: int = int(_farmed.get(node.layer, 0))
+	var want_lateral := pilot.randf() < (0.65 if healthy else 0.85)
+	if not lateral.is_empty() and can_wander and want_lateral \
+			and spent < FARM_LIMIT:
+		_farmed[node.layer] = spent + 1
 		return Rng.pick(pilot, lateral)
 	if not forward.is_empty():
 		return Rng.pick(pilot, forward)

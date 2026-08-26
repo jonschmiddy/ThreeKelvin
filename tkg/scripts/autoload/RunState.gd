@@ -306,7 +306,12 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	heat_cap_bonus = 0
 	credits = 40
 	materials.clear()
-	fuel = 150
+	# STILL SCALED TO GALAXY DEPTH, though the reason narrowed. It went in when
+	# RIM was derived and the disc was 1.75x wider, which it no longer is -- but
+	# a fifteen-ring galaxy still asks for fourteen ring-crossings against nine's
+	# eight, plus the lateral travel between them, and a flat 150 was tuned
+	# against the shorter one. LAYERS 9 gives back exactly 150.
+	fuel = int(round(FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2)))
 	dross = []
 	jumps = 0
 	kills = 0
@@ -1724,6 +1729,13 @@ func here() -> MapGen.MapNode:
 ## against that would have made the real game punitive to correct a bug in the
 ## thing measuring it.
 const FUEL_PER_DISC_RADIUS := 17.0
+
+## What one ring-step of the galaxy is worth in starting fuel.
+##
+## 150/7: the flat 150 that was tuned at LAYERS 9, divided by the seven
+## ring-steps that galaxy had. A run now starts with as much fuel as its galaxy
+## is deep, and LAYERS 9 reproduces 150 exactly.
+const FUEL_PER_RING_STEP := 150.0 / 7.0
 const FUEL_MAX_HOP := 6
 
 func fuel_cost_to(n: MapGen.MapNode) -> int:

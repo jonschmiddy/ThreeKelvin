@@ -522,6 +522,15 @@ step "One word for the thing: manufacturer"
 # retiring `branded` while keeping its antonym would leave the pair incoherent.
 # `-w` treats both as their own words, so they pass by construction.
 #
+# NOT `-w`, AND THAT IS THE POINT. To grep, an underscore is a word character,
+# so `-w house` does not match inside `delivery_houses` -- and every compound
+# identifier in the codebase was invisible to this check. It was found the
+# expensive way: `RunState.delivery_houses()` was renamed, `StarchartScreen`
+# was not, and opening the chart printed "Nonexistent function" while the
+# guard stayed green. The boundary below treats an underscore as a separator
+# and still ignores `widowmaker` and `gatehouse`, where the preceding letter
+# is alphanumeric and there is no boundary to match.
+#
 # If you are adding a sixth, the bar is: would a person say this out loud?
 # Two passes, because `man` needs one exemption the other words do not: the
 # archive is full of people, and "a man paying a toll" is not a schema word.
@@ -530,7 +539,7 @@ step "One word for the thing: manufacturer"
 VOCAB=$(
 	{
 		# Pass A -- house/maker, everywhere, no prose exemption.
-		grep -rnwiE 'house|houses|maker|makers|brand|brands|marque|marques' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
+		grep -rniE '(^|[^A-Za-z0-9])(house|houses|maker|makers|brand|brands|marque|marques)([^A-Za-z0-9]|$)' "$PROJECT/scripts" --include='*.gd' 2>/dev/null
 		# Pass B -- man/hull_man, everywhere except the archive's own prose.
 		awk '/^func _seed_documents/{skip=1} /^func /&&!/_seed_documents/{skip=0} !skip{print FILENAME":"FNR": "$0}' \
 			"$PROJECT/scripts/autoload/Database.gd" 2>/dev/null \
@@ -544,7 +553,8 @@ VOCAB=$(
 	  | grep -v '"chassis_maker"' \
 	  | grep -v '"makers"' \
 	  | grep -v '`maker`' \
-	  | grep -v '`makers`'
+	  | grep -v '`makers`' \
+	  | grep -v '`chassis_maker`'
 )
 
 # The same check for prose. docs/archive/ is out of scope on purpose -- those
@@ -554,12 +564,12 @@ VOCAB=$(
 # publishing idiom for a publication's own conventions, and the line in
 # docs/README.md that states the rule, which has to name the words it bans.
 VOCAB_DOCS=$(
-	grep -rnwiE 'house|houses|maker|makers|brand|brands|marque|marques' docs tkg/*.md 2>/dev/null \
+	grep -rniE '(^|[^A-Za-z0-9])(house|houses|maker|makers|brand|brands|marque|marques)([^A-Za-z0-9]|$)' docs tkg/*.md 2>/dev/null \
 	  | grep -v '^docs/archive/' \
 	  | grep -viE 'widowmaker|gatehouse' \
 	  | grep -v "maker's mark" \
 	  | grep -v 'house style' \
-	  | grep -v 'never .house. or .maker.'
+	  | grep -v 'never .house. or .maker.' \n  | grep -v '`chassis_maker`'
 )
 if [ -z "$VOCAB" ]; then
 	ok "no retired vocabulary in $PROJECT/scripts"

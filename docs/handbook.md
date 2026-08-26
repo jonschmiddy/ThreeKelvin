@@ -35,7 +35,7 @@ shows the star chart's view-mode buttons. Turn it off to see the game a player s
   people currently playing this. `DevMode.gd` has a note to flip it before anyone else
   does.
 
-**`DB.ACTIVE_MAKERS = [&"korvan"]` — only Korvan parts DROP.** `STARTABLE` is
+**`DB.ACTIVE_MANUFACTURERS = [&"korvan"]` — only Korvan parts DROP.** `STARTABLE` is
 still all seven, so run start still offers seven manufacturers and their attribute signatures
 still differ. The combination is intentional and has a cost worth stating plainly: a
 Solari ship never finds a second Solari part, so the 3+/5+ set bonuses of the other six
@@ -555,7 +555,7 @@ Three unbranded salvage frames still exist for hulls you find; they belong to no
 and count for nobody, which is what keeps taking one a real cost.
 
 **Hulls are authored as baseline + signature**, not as 21 stat blocks — `WEIGHT_BASE`
-holds what a weight class is, `MAKER_HULLS` holds one row of deltas per manufacturer. Writing
+holds what a weight class is, `MANUFACTURER_HULLS` holds one row of deltas per manufacturer. Writing
 all 21 by hand would scatter each identity across three rows, so "what IS Solari" would
 only be answerable by diffing tables, and a signature could drift between weights
 unnoticed. Solari is `+8 heat cap, -1 dissipation, -2 stealth` on every frame it welds.
@@ -590,7 +590,7 @@ the price of the scope cut and it is paid in difficulty rather than in content:
 | loot pool | wins / 500 | win rate | hull deaths |
 |---|---|---|---|
 | all seven manufacturers dropping | 111 | **22%** | 160 |
-| `ACTIVE_MAKERS = [korvan]` | 78 | **16%** | 218 |
+| `ACTIVE_MANUFACTURERS = [korvan]` | 78 | **16%** | 218 |
 
 Same build, one constant apart, 500 runs a side — about 2.6 standard errors, so it
 is outside noise. **Earlier 250- and 300-run samples of the Korvan-only config read
@@ -608,7 +608,7 @@ against the commit *before* manufacturer hulls (`4f7f6ec`) scores **2%**, 32.2 j
 | | wins | jumps | kills | hull deaths |
 |---|---|---|---|---|
 | `4f7f6ec` — one Korvan frame, six manufacturers gated off | 2% | 32.2 | 3.6 | 76% |
-| seven manufacturer hulls, `ACTIVE_MAKERS` reopened | 10% | 52.8 | 6.3 | 50% |
+| seven manufacturer hulls, `ACTIVE_MANUFACTURERS` reopened | 10% | 52.8 | 6.3 | 50% |
 | all three weight classes per manufacturer | **13%** | 56.0 | 6.0 | 49% |
 | the market, materials and the fabricator | **17%** | 82.3 | 7.4 | 41% |
 
