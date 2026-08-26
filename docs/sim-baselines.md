@@ -178,3 +178,63 @@ dying slightly more. **Retuning that threshold is the first thing to do before
 trusting any further heat number**, and it is deliberately not done in the same
 commit as the change it would be measuring.
 
+---
+
+## Phase 2a — the vent thresholds, swept and left alone, 2026-08-25
+
+`HEAT_REWORK.md` §7 asks whether the sim's two policies still diverge after the
+end-of-turn shed was deleted. They did not, so the thresholds were swept. **The
+answer is that this dial does nothing, and the values are unchanged.**
+
+### The method mattered more than the result
+
+An unpaired sweep at 300 runs a cell looked decisive — both old values landed
+worst in their own column, cold 0.70 at 22% against 0.50 at 28%. **It was
+measuring the galaxy, not the threshold.** Every run rolls a different galaxy
+and the kind alone swings win rate 33–38 points (phase 0), which is an order of
+magnitude larger than anything a vent rule does. A 500-run confirm reversed the
+ordering.
+
+Re-run **paired** — `seed=1000`, so both configs face the same 500 galaxies:
+
+| config | win | cooked | arr.sig | fight.sig | arrived hot |
+| --- | --- | --- | --- | --- | --- |
+| cold 0.50 | 27% (135) | 52 | 0.07 | 0.31 | 8.4% |
+| cold 0.70 | 26% (129) | 53 | 0.07 | 0.32 | 8.6% |
+| hot 1.00 | 26% (128) | 65 | 0.07 | 0.34 | 9.3% |
+| hot 1.15 | 26% (128) | 62 | 0.07 | 0.34 | 9.2% |
+
+Six wins in five hundred between the cold pair, none between the hot pair, every
+heat number the same.
+
+**Rule for every future sweep in this file: pair it with `seed=`.** Unpaired
+comparisons of anything smaller than the galaxy effect are unreadable, and that
+now includes most balance dials.
+
+### Why the dial is inert — and it is not a heat problem
+
+**The hot policy is modelling Solari, on a Korvan ship.**
+
+`design-doc.md` has them as mirrored heat philosophies: *"Korvan/Solari are
+mirrored heat philosophies (manage it vs. surf it)"*, with Solari as
+*"weaponized heat: plasma damage scales with current heat, deliberate
+overheating for payoff, offensive venting"* — and **Korvan as the starter kit**.
+
+Korvan is also the only entry in `ACTIVE_MANUFACTURERS`. So the sim is asking
+the manufacturer whose identity is *managing* heat to *surf* it, with that
+manufacturer's own loot. It loses because it should.
+
+The three cards that want heat high are all Solari modules — Plasma Lance
+(`heat_scale`), Thermal Purge (`damage_equals_heat`), Heat Shroud
+(`brace_from_heat`). **Solari is 7 modules of a targeted 40** and does not drop.
+
+So §7's divergence check is not blocked on heat tuning or on writing generic
+run-hot cards. It is blocked on **Solari existing and being switched on**, which
+is blocker B4 and already tracked. Until then the hot policy has no ship to
+describe, and this dial is measuring the wrong manufacturer.
+
+**What `HEAT_REWORK` §2 did buy Solari**, when it arrives: venting is now a
+deliberate act that carries the ship's whole radiator, which is exactly what
+*"offensive venting"* needs — Thermal Purge is `damage_equals_heat` plus
+`vent_all`, and it now lands in a game where heat actually accumulates to spend.
+

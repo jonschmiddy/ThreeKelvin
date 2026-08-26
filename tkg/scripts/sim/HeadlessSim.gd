@@ -74,6 +74,11 @@ func run_sim() -> void:
 			runs = int(arg.split("=")[1])
 		elif arg.begins_with("seed="):
 			seed_base = int(arg.split("=")[1])
+		# The vent thresholds, as fractions of heat capacity. See Policy.
+		elif arg.begins_with("ventcold="):
+			policy.vent_cold = float(arg.split("=")[1])
+		elif arg.begins_with("venthot="):
+			policy.vent_hot = float(arg.split("=")[1])
 
 	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
@@ -82,6 +87,8 @@ func run_sim() -> void:
 	policy.hot = hot
 	if hot:
 		print("HOT policy: the model spends heat for tempo and vents late.")
+	print("vent thresholds: cold %.2f x cap · hot %.2f x cap"
+		% [policy.vent_cold, policy.vent_hot])
 
 	if "bychassis" in OS.get_cmdline_user_args():
 		_run_by_chassis()

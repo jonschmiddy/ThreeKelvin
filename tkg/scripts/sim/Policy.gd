@@ -25,6 +25,63 @@ extends RefCounted
 ## most of the difference between the two policies the simulator reports.
 var hot: bool = false
 
+## When each model reaches for a vent card, as a fraction of heat capacity.
+##
+## THESE TWO NUMBERS ARE THE TWO POLICIES. The comment at the threshold says it
+## outright, and after the end-of-turn shed was deleted they stopped doing the
+## job: hot and cold ended a fight at 0.32 and 0.31 signature and arrived hot
+## 9.4% of the time each. Identical heat behaviour from the two models that
+## exist to bracket it.
+##
+## Sweepable from the command line -- `-- sim ventcold=0.5 venthot=1.0` -- so
+## that retuning them is a measurement rather than an argument.
+## When each model reaches for a vent card, as a fraction of heat capacity.
+##
+## THESE TWO NUMBERS ARE THE TWO POLICIES -- and they are UNCHANGED after being
+## swept on 2026-08-25, because the sweep says they do not matter.
+##
+## The suspicion was reasonable. They were chosen when a free point of heat came
+## off every turn, and deleting that shed should have made both models hold vent
+## cards too long. An unpaired sweep at 300 runs a cell appeared to confirm it,
+## with both old values landing worst in their own column.
+##
+## THAT SWEEP WAS MEASURING THE GALAXY, NOT THE THRESHOLD. Every run rolls a
+## different galaxy and the kind alone swings win rate 33 to 38 points, which
+## is an order of magnitude more than this dial. Re-run PAIRED -- `seed=1000`,
+## so both configs face the same 500 galaxies -- it collapses:
+##
+##     cold 0.50   win 27% (135)   cooked 52   fightsig 0.31   arrived hot 8.4%
+##     cold 0.70   win 26% (129)   cooked 53   fightsig 0.32   arrived hot 8.6%
+##     hot  1.00   win 26% (128)   cooked 65   fightsig 0.34   arrived hot 9.3%
+##     hot  1.15   win 26% (128)   cooked 62   fightsig 0.34   arrived hot 9.2%
+##
+## Six wins in five hundred between the cold pair, none at all between the hot
+## pair, and every heat number the same. So the values stay where they are: a
+## change with no measured effect is a diff somebody has to read later for
+## nothing.
+##
+## WHY THE DIAL IS INERT, and it is not a heat problem at all.
+##
+## THE HOT POLICY IS MODELLING SOLARI, ON A KORVAN SHIP. `design-doc.md` has
+## them as mirrored heat philosophies -- Korvan MANAGES heat, Solari SURFS it --
+## and Korvan is the starter kit and the only entry in ACTIVE_MANUFACTURERS. So
+## the model is asking the cold manufacturer to run hot, using the cold
+## manufacturer's loot. It loses because it should.
+##
+## The three cards that want heat high are all Solari: Plasma Lance
+## (`heat_scale`), Thermal Purge (`damage_equals_heat`), Heat Shroud
+## (`brace_from_heat`). Solari is SEVEN modules of a targeted forty and does not
+## drop, so those cards are unreachable in a normal run.
+##
+## This dial becomes meaningful when Solari is written and switched on -- that
+## is blocker B4, already tracked -- and not before. Tuning it against Korvan is
+## tuning the wrong ship.
+##
+## Sweepable from the command line -- `-- sim ventcold=0.5 venthot=1.0` --
+## and ALWAYS PAIRED with `seed=`, or the galaxy roll drowns the answer.
+var vent_cold: float = 0.7
+var vent_hot: float = 1.15
+
 ## The pilot's own generator. One per run, seeded from the run's master seed, so
 ## the model's choices replay with the run and drawing them does not move what
 ## the world rolls next.
@@ -83,7 +140,7 @@ func score(c: CardData, cb: Combat) -> float:
 	# Venting is the first thing the cold model reaches for and nearly the last
 	# thing the hot one does. This single threshold is most of the difference
 	# between the two policies.
-	if c.vent > 0 and Run.heat > Run.heat_cap() * (1.15 if hot else 0.7):
+	if c.vent > 0 and Run.heat > Run.heat_cap() * (vent_hot if hot else vent_cold):
 		return 85.0
 	if (c.brace > 0 or c.block > 0) and incoming > cb.brace + cb.block:
 		return 80.0

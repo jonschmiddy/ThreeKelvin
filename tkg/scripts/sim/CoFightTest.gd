@@ -544,6 +544,15 @@ func _score(c: CardData, cb: Combat) -> float:
 		return -1.0
 	if c.energy_gain > 0:
 		return 95.0
+	# NOT Policy.vent_cold, and deliberately not. `Policy` is the balance model
+	# and its thresholds are a dial that gets swept -- see the sweep that set
+	# them after the end-of-turn shed was deleted. This scorer only has to end a
+	# fight, per the header above, and coupling it to a balance dial would mean
+	# retuning the economy could change whether a CO-OP TEST passes.
+	#
+	# 0.7 still holds under the new heat rules for the reason it always did: it
+	# is comfortably under the cap, and a vent card now sheds more than it
+	# prints, so this bot cools better than it used to rather than worse.
 	if c.vent > 0 and Run.heat > Run.heat_cap() * 0.7:
 		return 85.0
 	if c.damage > 0:
