@@ -963,7 +963,15 @@ class SkyAnim extends Control:
 
 ## The galaxy, on a canvas of its own so that highlighting a system does not
 ## repaint forty-eight thousand stars.
-class Backdrop extends Control:
+## A Node2D RATHER THAN A CONTROL, because this layer is MOVED every frame of
+## a drag instead of being repainted, and moving a Control repaints it: its
+## rect changed, so Godot invalidates the draw list. Measured -- the slide was
+## in place and the backdrop still drew 1.08 times a frame.
+##
+## Nothing here wanted Control anyway. `draw_backdrop` is a method on MapChart
+## and reads MAPCHART's `size`, never this node's, so the layer has no use for
+## anchors, and mouse_filter is moot on something that ignores the mouse.
+class Backdrop extends Node2D:
 	var chart: MapChart
 
 	## See SkyAnim above: the galaxy is not the map, and this layer needs only
@@ -1136,7 +1144,7 @@ class MapChart extends Control:
 	## until that item asks to redraw, so putting the star field on a separate
 	## layer means hovering a system repaints two hundred glyphs rather than the
 	## whole galaxy.
-	var _backdrop: Control
+	var _backdrop: Node2D
 	var _anim: Control
 	## Static sky, either side of the galaxy: distant galaxies underneath,
 	## parallax star layers on top. Neither turns. See set_sky_rotation.
@@ -1300,8 +1308,6 @@ class MapChart extends Control:
 
 		_backdrop = Backdrop.new()
 		(_backdrop as Backdrop).chart = self
-		_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_backdrop.show_behind_parent = true
 		add_child(_backdrop)
 
@@ -1393,6 +1399,61 @@ class MapChart extends Control:
 		_drawn_angle = sky_angle
 		_backdrop.queue_redraw()
 
+	## How far the backdrop may slide before it has to be repainted.
+	##
+	## The layer is grown by this much on every side, so stars within this
+	## distance of the screen edge are already drawn and slide INTO view rather
+	## than popping in. MapChart sets `clip_contents`, so the overdraw never
+	## escapes the chart's own rect.
+	##
+	## Bigger means fewer repaints and more stars per repaint.
+	## Over what fraction of the disc radius the foreground field thins out.
+	##
+	## The galaxy is meant to be seen through a sky that gets out of its way --
+	## dim foreground stars scattered over the arms compete with the arms. Doing
+	## that with a radius test draws a circle instead, so the transition is spread
+	## over the outer third of it.
+	##
+	## Small enough and it is a rim again; large enough and the foreground thins
+	## so far out that the galaxy sits in a permanent clearing.
+	## How far past "the rim is in the middle of the view" a drag may go, as a
+	## fraction of the view.
+	##
+	## 0.5 is the ordinary convention -- the rim reaches the near EDGE, so the
+	## galaxy may be pushed exactly out of frame and no further. Worth knowing
+	## before trusting that: `ex` is the disc's NOMINAL radius, and the stars fade
+	## out well inside it, so at full pan the screen really is empty rather than
+	## showing a sliver. Lower this if drifting into the void feels like being
+	## lost rather than like looking away.
+	const PAN_SLACK := 0.5
+
+	const DISC_FEATHER := 0.34
+
+	const SKY_MARGIN := 224.0
+
+	## The view the backdrop was last actually PAINTED at.
+	##
+	## `pan` enters `draw_backdrop` exactly once, as `size * 0.5 + pan` -- so a
+	## pan is a rigid translation of that layer and nothing else, and every star
+	## is `.round()`-snapped on the way out. Moving the canvas by a whole number
+	## of pixels is therefore not an approximation of the repaint, it IS the same
+	## image. Zoom is not like this: it scales the field and grows the brush, so
+	## a zoom always repaints.
+	##
+	## Measured with `-- chartbench`: the repaint was 16.6ms of a 38ms dragged
+	## frame, for a result identical to sliding it.
+	var _sky_pan := Vector2.ZERO
+	var _sky_zoom := -1.0
+
+	## The view the two STATIC sky layers were last drawn at.
+	##
+	## Separate from `_sky_pan` above, which is the backdrop's slide basis: this
+	## pair is a staleness check, that one is an offset. INF so the first repaint
+	## always happens.
+	var _view_pan := Vector2(INF, INF)
+	var _view_sky := Vector2(INF, INF)
+	var _view_zoom := -1.0
+
 	## The galaxy's rotation, in radians, applied to star positions at draw time.
 	var sky_angle: float = 0.0
 	var _drawn_angle: float = 0.0
@@ -1417,10 +1478,86 @@ class MapChart extends Control:
 		# the core goes: the hole arrives on time and the core does not, so
 		# what you see is an empty socket travelling ahead of its contents,
 		# closing the instant the motion stops.
-		for layer in [_deep, _backdrop, _anim, _halo]:
-			if layer != null:
-				layer.queue_redraw()
+		# _deep IS IN THIS LIST, and taking it out was a REGRESSION I shipped.
+		# `draw_deep` looks view-independent and `_draw_far_galaxies` looks it
+		# too, but `_far_layer` two levels down positions every distant galaxy at
+		# `size * 0.5 + sky_pan * parallax`, and reads `pan` and `zoom` besides.
+		# Frozen, the depth layers stop separating as the view moves and the
+		# whole field collapses into one flat furthest layer -- which is exactly
+		# what it looked like.
+		#
+		# I MISSED IT WITH A REGEX: `pan` cannot match `sky_pan`, because an
+		# underscore is a word character. Grep for the substring here, or read
+		# the call tree to the bottom. Two levels of delegation is enough to hide
+		# a dependency from a one-level check.
+		#
+		# _halo is here for the same reason, despite its class comment saying it
+		# "stays put". That comment
+		# is about ROTATION -- the halo does not turn with the arms -- and it is
+		# not about the pan: `_star_layer` reads both `pan` and `zoom`, and the
+		# whole point of the parallax is that those layers slide against the
+		# galaxy as the view moves. Dropping it from here froze the foreground
+		# sky mid-drag. It is only 2.4ms that is free here, not 7.5ms.
+		#
+		# _deep DOES restage when the window resizes, since it is drawn to
+		# `size` -- that is what `_repaint_sky` below is for, and why the resize
+		# notification calls that instead of this.
+		# THE BACKDROP SLIDES WHEN IT CAN. It is 48,000 stars and the most
+		# expensive layer on the screen, and a pan does nothing to it but move
+		# it -- see `_sky_pan`. Repainting is kept for what a slide cannot
+		# express: a change of zoom, or drifting past the margin.
+		if _backdrop != null:
+			var slide := (pan - _sky_pan).round()
+			# Exact, not is_equal_approx: its tolerance scales with magnitude,
+			# and at high zoom that is wide enough to swallow a real step. Same
+			# argument as set_sky_rotation's.
+			var far := absf(slide.x) > SKY_MARGIN or absf(slide.y) > SKY_MARGIN
+			if _sky_zoom == zoom and not far:
+				_slide_backdrop(slide)
+			else:
+				_sky_pan = pan
+				_sky_zoom = zoom
+				_slide_backdrop(Vector2.ZERO)
+				_backdrop.queue_redraw()
+		# _halo AND _deep ONLY WHEN THE VIEW MOVED. Both read `pan`, `zoom` and
+		# `sky_pan` and nothing else -- no clock, no hover, no selection -- while
+		# `_repaint_galaxy` is called for all of those other reasons as well.
+		# Redrawing them on a frame where the view stood still costs about 8ms to
+		# produce a pixel-identical result.
+		#
+		# That is nearly the whole title screen. The launcher turns the galaxy,
+		# which repaints the backdrop through `set_sky_rotation`, and the view
+		# itself never moves at all -- so before this, the deep field and the
+		# halo were being rebuilt sixty times a second for a picture that could
+		# not change. Measured with `-- chartbench`: 44ms a frame, which is the
+		# 22fps the title screen was reported at.
+		if pan != _view_pan or zoom != _view_zoom or sky_pan != _view_sky:
+			_view_pan = pan
+			_view_zoom = zoom
+			_view_sky = sky_pan
+			for layer in [_halo, _deep]:
+				if layer != null:
+					layer.queue_redraw()
+		if _anim != null:
+			_anim.queue_redraw()
 		queue_redraw()
+
+	## Move the backdrop canvas rather than repainting it.
+	func _slide_backdrop(by: Vector2) -> void:
+		if _backdrop != null:
+			_backdrop.position = by
+
+	## Everything, plus the backdrop's slide basis.
+	##
+	## For when the SCREEN changes rather than the view: the backdrop's offset is
+	## measured from `size * 0.5`, which a resize moves, so no slide is valid any
+	## more and the layer has to be repainted outright.
+	func _repaint_sky() -> void:
+		# -1.0 is a zoom nothing matches, which forces the repaint branch. The
+		# static layers are sized to `size` too, so they are stale as well.
+		_sky_zoom = -1.0
+		_view_zoom = -1.0
+		_repaint_galaxy()
 
 	func _process(delta: float) -> void:
 		var target: float = 1.0 if hovered >= 0 else 0.0
@@ -1460,8 +1597,10 @@ class MapChart extends Control:
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_RESIZED:
-			# _radius() is derived from size, so every cached position is stale.
-			_repaint_galaxy()
+			# _radius() is derived from size, so every cached position is stale
+			# -- including the two fixed layers, which is why this is the one
+			# caller that wants `_repaint_sky` rather than `_repaint_galaxy`.
+			_repaint_sky()
 
 	## The event horizon's shadow, and the region around it that the ANIMATED
 	## layer owns outright. The backdrop leaves that annulus empty so the stars
@@ -1747,11 +1886,28 @@ class MapChart extends Control:
 	## visible edge, which reads as the end of a texture rather than the end of
 	## anything. The halo is sized (below) to cover exactly this much.
 	func _pan_limit() -> Vector2:
-		# Scales with the disc, so the rim is reachable at any zoom. A fixed half
-		# screen was fine when the galaxy fit the frame and strands you in the
-		# middle now that it does not.
+		# THE RIM MAY BE PUSHED TO THE EDGE OF THE VIEW, NOT ONLY TO ITS MIDDLE.
+		#
+		# This was `maxf(half a screen, ex)`, which reads as a sensible floor and
+		# is really a REGIME CHANGE. `ex` is the disc's radius in screen pixels,
+		# so it overtakes half a screen at about zoom 0.62, and the two sides of
+		# that switch behave differently: below it you may shift the galaxy 1.47
+		# disc-radii off centre, above it exactly 1.00 and never more, because
+		# panning by `ex` is by definition "put the rim in the middle of the
+		# view". So the drag room collapsed as you leaned in and then stayed
+		# pinned -- which is what "it stops too soon when I zoom in" was.
+		#
+		# Adding half a view instead of taking the larger of the two makes one
+		# rule at every zoom: pan until the rim reaches the NEAR EDGE of the
+		# view. That is strictly more room than before at every zoom, it is the
+		# ordinary convention for panning something bigger than its window, and
+		# it still cannot lose the galaxy -- one more pixel and it would be off
+		# screen, so it never is.
+		#
+		# The `maxf` is gone rather than relaxed: `ex + half` is already at least
+		# half a view, so the floor it provided is built in.
 		var ex := _radius() * DISC * zoom
-		return Vector2(maxf(size.x * 0.5, ex), maxf(size.y * 0.5, ex * _squash()))
+		return Vector2(ex + size.x * PAN_SLACK, ex * _squash() + size.y * PAN_SLACK)
 
 	func _clamp_pan() -> void:
 		var lim := _pan_limit()
@@ -2502,7 +2658,14 @@ class MapChart extends Control:
 		var i1 := int(floor((size.x - c.x) / step)) + 1
 		var j0 := int(floor(-c.y / step)) - 1
 		var j1 := int(floor((size.y - c.y) / step)) + 1
-		var disc := _radius() * zoom * 1.1
+		# TIMES DISC, which it was missing. `_polar` places a system at
+		# `gal * _radius() * DISC`, and `_pan_limit` bounds the view by
+		# `_radius() * DISC * zoom` -- its comment says outright that "the halo
+		# is sized to cover exactly this much". This did not: without the DISC
+		# factor of 2.05 the thinned region was less than half the galaxy's
+		# drawn extent, so its edge fell INSIDE the systems and read as a hard
+		# boundary ring drawn across the disc rather than around it.
+		var disc := _radius() * DISC * zoom * 1.1
 		var r_s := _shadow_r() * zoom * 1.05
 		var core_px := _core_clear() * zoom
 
@@ -2522,8 +2685,21 @@ class MapChart extends Control:
 				if q.x < 0 or q.y < 0 or q.x > size.x or q.y > size.y:
 					continue
 				# Thin out over the disc so the halo never competes with the arms.
-				var over_disc: bool = (q - here).length() < disc
-				if w < 0.88 and over_disc:
+				# HOW FAR IN, 1.0 at the galaxy's centre and 0.0 at `disc`.
+				var dr: float = (q - here).length() / maxf(1.0, disc)
+				var fade: float = clampf((1.0 - dr) / DISC_FEATHER, 0.0, 1.0)
+				# A BINARY TEST HERE DRAWS A CIRCLE. This dropped 88% of the
+				# foreground field inside `disc` and none outside it, so the sky
+				# changed density across a single pixel and the eye reads that
+				# as an edge: a dark moat around the galaxy with a hard rim.
+				# Measured on the radial profile at ZOOM_MIN, lit pixels went
+				# 1.2% at r=192 to 0.5% at r=204 and stayed there until r=336.
+				#
+				# The moat is also why it looked like a ZOOM bug. `disc` scales
+				# with zoom, so its rim sweeps outward as you lean in and the
+				# visible band of ordinary sky between the galaxy and the rim
+				# narrows until it leaves the screen.
+				if w < 0.88 * fade:
 					continue
 				# And a dark cloud blocks whatever is behind it — including
 				# this. These are the far sky, drawn straight through the galaxy
@@ -2536,8 +2712,10 @@ class MapChart extends Control:
 				# The roll comes out of the tile hash rather than a live RNG:
 				# these layers repaint on every pan, and anything not derived
 				# from the tile itself would make the whole field crawl.
-				if over_disc and not _dark_r.is_empty():
-					var ex: float = _extinct((q - here) / maxf(0.001, zoom))
+				# Faded by the same shoulder, or the extinction puts a second
+				# hard rim back at exactly the radius the first one left.
+				if fade > 0.0 and not _dark_r.is_empty():
+					var ex: float = _extinct((q - here) / maxf(0.001, zoom)) * fade
 					if ex > 0.02 and float((h / 7) % 1000) / 1000.0 < ex:
 						continue
 				# And nothing at all over the turning core. These are field
@@ -4191,9 +4369,18 @@ class MapChart extends Control:
 	func draw_backdrop(ci: CanvasItem) -> void:
 		_build_stars()
 
-		var c := size * 0.5 + pan
-		var w := size.x
-		var h := size.y
+		# `_sky_pan`, NOT `pan`: this layer is SLID between repaints rather than
+		# repainted, so what it must draw is the view it is currently offset
+		# from. The live pan here would double-count the slide. See
+		# _repaint_galaxy.
+		var c := size * 0.5 + _sky_pan
+		# The cull box is MapChart's, GROWN BY THE SLIDE MARGIN. This layer is
+		# moved rather than repainted while the view is dragged, so a star
+		# within SKY_MARGIN of the edge is off screen now and on screen after
+		# the next slide -- it has to be in the draw list already, or the sky
+		# grows in from the trailing edge as you pull it.
+		var w := size.x + SKY_MARGIN
+		var h := size.y + SKY_MARGIN
 		var one := Vector2.ONE
 		var two := Vector2(2, 2)
 		# Gas is the one thing out here that is not made of points, so it is the
@@ -4223,7 +4410,7 @@ class MapChart extends Control:
 		if is_zero_approx(sky_angle):
 			for i in _star_pos.size():
 				var q := c + _star_pos[i] * zoom
-				if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
+				if q.x < -SKY_MARGIN or q.y < -SKY_MARGIN or q.x > w or q.y > h:
 					continue
 				var sz := one
 				match _star_big[i]:
@@ -4238,7 +4425,7 @@ class MapChart extends Control:
 			for i in _star_pos.size():
 				var p := _star_pos[i]
 				var q := c + Vector2(p.x * ca - p.y * sa, p.x * sa + p.y * ca) * zoom
-				if q.x < 0.0 or q.y < 0.0 or q.x > w or q.y > h:
+				if q.x < -SKY_MARGIN or q.y < -SKY_MARGIN or q.x > w or q.y > h:
 					continue
 				var sz := one
 				match _star_big[i]:
@@ -4254,9 +4441,13 @@ class MapChart extends Control:
 		if zoom >= 0.85 and not _neb_pos.is_empty():
 			var f := UITheme.pixel_font()
 			var la: float = clampf((zoom - 0.85) / 0.45, 0.0, 1.0) * 0.55
+			# The names carry 80px of text overhang of their own, and that stacks
+			# with the slide margin rather than replacing it.
+			var nlo := -SKY_MARGIN - 80.0
+			var nhi := w + 80.0
 			for i in _neb_pos.size():
 				var q := c + _neb_pos[i] * zoom
-				if q.x < -80.0 or q.y < 0.0 or q.x > w + 80.0 or q.y > h:
+				if q.x < nlo or q.x > nhi or q.y < -SKY_MARGIN or q.y > h:
 					continue
 				# Nothing is written across the cloud any more. A name printed on
 				# every nebula is a label on scenery: it competes with the system

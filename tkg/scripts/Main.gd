@@ -300,6 +300,24 @@ func _ready() -> void:
 
 	Router.register(content, hud)
 
+	# The chart at a ladder of zooms, to SEE the boundary rather than argue
+	# about it:
+	#   godot --path . -- zoomshot
+	if "zoomshot" in OS.get_cmdline_user_args():
+		_zoom_shot = load("res://scripts/sim/ZoomShot.gd").new()
+		_zoom_shot.run(get_tree())
+		return
+
+	# What the chart and the title screen cost:
+	#   godot --path . -- chartbench
+	# AFTER `Router.register`, unlike the headless harnesses above: this one
+	# needs the UI it is measuring to exist.
+	if "chartbench" in OS.get_cmdline_user_args():
+		_chart_bench = load("res://scripts/sim/ChartBench.gd").new()
+		_chart_bench.run(get_tree())
+		return
+
+
 	# Boot destination. The launcher is the default, and every development flag
 	# below skips it — an automated run must never stop at a screen waiting to
 	# be clicked, and a flag that drops you into a fight plainly means "not the
@@ -657,7 +675,9 @@ var _chart_test: RefCounted = null
 var _fit_test
 var _stow_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
-var _sky_test: RefCounted = null
+var _sky_test: RefCounted
+var _chart_bench: RefCounted = null
+var _zoom_shot: RefCounted = null
 var _net_test: RefCounted = null
 ## And `-- cofight`, which awaits a whole second Godot process.
 var _co_fight: RefCounted = null
