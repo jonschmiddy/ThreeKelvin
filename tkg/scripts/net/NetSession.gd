@@ -443,6 +443,13 @@ func content_fingerprint() -> int:
 		parts.append("%s/%d" % [h.manufacturer, int(h.weight)])
 	for a in DB.affixes:
 		parts.append(a.name)
+	# THE GALAXY TABLE, because two peers whose kinds differ lay out DIFFERENT
+	# MAPS from the same seed -- ring populations and every system's position
+	# read it. They would otherwise agree on the fingerprint, connect, and then
+	# disagree about where the galaxy is. Added in the same commit that added
+	# the fields, which is the rule ENCOUNTER_REBUILD 9 states for this class of
+	# bug. GalaxyGen owns the description; see its `table_fingerprint`.
+	parts.append(GalaxyGen.table_fingerprint())
 	return hash("|".join(parts))
 
 

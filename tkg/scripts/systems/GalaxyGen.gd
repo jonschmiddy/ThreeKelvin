@@ -6,7 +6,19 @@ extends RefCounted
 ## Pure presentation. Systems are laid out on rings by MapGen and placed on
 ## rings by the chart, so the shape of the galaxy behind them can vary freely
 ## without moving a single jump or changing a single fuel cost. That separation
-## is what makes fourteen of these cheap.
+## is what makes fifteen of these cheap.
+##
+## THAT SEPARATION WAS NEVER TRUE, and this note is what replaced the claim.
+## `MapGen` read the galaxy in two places: `ring_count()` took `squash` -- a
+## CAMERA ANGLE -- and made node population depend on it, and `hop_distance()`
+## measured in the same foreshortened space, so a tilted galaxy was a smaller
+## galaxy whose jumps were cheaper. Measured over 500 runs: 132 systems on a
+## Lenticular against 188 on a Round Elliptical, and a 33-point spread in win
+## rate that nobody authored.
+##
+## Both are fixed rather than normalised away, because galaxies playing
+## differently is the point. `density` and `reach` below say it OUT LOUD, per
+## kind, and `squash` went back to being what its own docstring says it is.
 ##
 ## Content is data, not code: a new galaxy is a dictionary entry, and the
 ## renderer already knows how to draw every field in it.
@@ -32,105 +44,105 @@ extends RefCounted
 const KINDS := [
 	{
 		name = "Grand-Design Spiral", arms = 2, twist = 8.6, bar = 0.0,
-		squash = 0.62, core_share = 0.5, core_pow = 2.4, halo_pow = 0.92,
+		squash = 0.62, density = 1.00, reach = 1.00, core_share = 0.5, core_pow = 2.4, halo_pow = 0.92,
 		spread = 1.0, chaos = 0.0, ring = 0.0, bulge = 0.30, dust = 1.6,
 		tail = false, gas = 1.0,
 		blurb = "Two arms, unbroken, wound over ten billion years. Nothing has come close enough to disturb it since the disc first cooled.",
 	},
 	{
 		name = "Barred Spiral", arms = 2, twist = 8.6, bar = 0.34,
-		squash = 0.60, core_share = 0.5, core_pow = 2.5, halo_pow = 0.95,
+		squash = 0.60, density = 1.00, reach = 1.00, core_share = 0.5, core_pow = 2.5, halo_pow = 0.95,
 		spread = 1.0, chaos = 0.0, ring = 0.0, bulge = 0.32, dust = 1.6,
 		tail = false, gas = 1.0,
 		blurb = "The disc grew unstable and collapsed into a bar. It has been funnelling gas inward ever since, feeding whatever is at the centre.",
 	},
 	{
 		name = "Multi-Arm Spiral", arms = 4, twist = 6.4, bar = 0.0,
-		squash = 0.66, core_share = 0.45, core_pow = 2.2, halo_pow = 0.9,
+		squash = 0.66, density = 1.05, reach = 1.00, core_share = 0.45, core_pow = 2.2, halo_pow = 0.9,
 		spread = 1.1, chaos = 0.0, ring = 0.0, bulge = 0.26, dust = 1.5,
 		tail = false, gas = 1.15,
 		blurb = "Four arms, none of them dominant. The density waves here never settled into a single pattern and probably never will.",
 	},
 	{
 		name = "Flocculent Spiral", arms = 7, twist = 5.2, bar = 0.0,
-		squash = 0.64, core_share = 0.4, core_pow = 2.0, halo_pow = 0.88,
+		squash = 0.64, density = 1.00, reach = 1.05, core_share = 0.4, core_pow = 2.0, halo_pow = 0.88,
 		spread = 2.4, chaos = 0.18, ring = 0.0, bulge = 0.22, dust = 1.3,
 		tail = false, gas = 1.25,
 		blurb = "No grand design — just scattered, patchy spurs of star formation. It has been making stars in fits and starts for as long as anyone has watched.",
 	},
 	{
 		name = "Barred Ring Spiral", arms = 2, twist = 11.0, bar = 0.30,
-		squash = 0.58, core_share = 0.44, core_pow = 2.6, halo_pow = 1.0,
+		squash = 0.58, density = 0.95, reach = 1.05, core_share = 0.44, core_pow = 2.6, halo_pow = 1.0,
 		spread = 0.9, chaos = 0.0, ring = 0.34, bulge = 0.30, dust = 1.8,
 		tail = false, gas = 0.85,
 		blurb = "The bar swept the inner disc clean and piled it into a ring. Everything between the core and that ring was consumed building it.",
 	},
 	{
 		name = "Lenticular", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.36, core_share = 0.62, core_pow = 2.8, halo_pow = 1.1,
+		squash = 0.36, density = 0.85, reach = 0.90, core_share = 0.62, core_pow = 2.8, halo_pow = 1.1,
 		spread = 0.0, chaos = 0.0, ring = 0.0, bulge = 0.40, dust = 2.2,
 		tail = false, gas = 0.12,
 		blurb = "A spiral that ran out of gas. The disc is still here, the arms are not, and no new star has lit in it for a very long time.",
 	},
 	{
 		name = "Barred Lenticular", arms = 0, twist = 0.0, bar = 0.42,
-		squash = 0.34, core_share = 0.6, core_pow = 2.9, halo_pow = 1.1,
+		squash = 0.34, density = 0.85, reach = 0.90, core_share = 0.6, core_pow = 2.9, halo_pow = 1.1,
 		spread = 0.0, chaos = 0.0, ring = 0.0, bulge = 0.42, dust = 2.2,
 		tail = false, gas = 0.1,
 		blurb = "An old disc with a fossil bar across it. Whatever the bar was feeding finished eating aeons ago.",
 	},
 	{
 		name = "Round Elliptical", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.92, core_share = 0.7, core_pow = 3.0, halo_pow = 1.4,
+		squash = 0.92, density = 1.20, reach = 1.05, core_share = 0.7, core_pow = 3.0, halo_pow = 1.4,
 		spread = 0.0, chaos = 0.0, ring = 0.0, bulge = 0.34, dust = 2.6,
 		tail = false, gas = 0.06,
 		blurb = "The wreckage of a dozen mergers, relaxed into a sphere. Every orbit here points somewhere different; nothing turns together any more.",
 	},
 	{
 		name = "Flattened Elliptical", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.44, core_share = 0.68, core_pow = 2.9, halo_pow = 1.35,
+		squash = 0.44, density = 0.95, reach = 0.95, core_share = 0.68, core_pow = 2.9, halo_pow = 1.35,
 		spread = 0.0, chaos = 0.0, ring = 0.0, bulge = 0.32, dust = 2.5,
 		tail = false, gas = 0.08,
 		blurb = "Two large galaxies met head-on and neither survived as itself. What is left still remembers the direction of the impact.",
 	},
 	{
 		name = "Giant Elliptical", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.78, core_share = 0.72, core_pow = 2.5, halo_pow = 1.7,
+		squash = 0.78, density = 1.25, reach = 1.15, core_share = 0.72, core_pow = 2.5, halo_pow = 1.7,
 		spread = 0.0, chaos = 0.0, ring = 0.0, bulge = 0.46, dust = 2.9,
 		tail = false, gas = 0.05,
 		blurb = "It sits at the centre of its cluster and has eaten everything that came near. The halo is full of stars that used to belong to something else.",
 	},
 	{
 		name = "Irregular", arms = 3, twist = 1.6, bar = 0.0,
-		squash = 0.72, core_share = 0.34, core_pow = 1.7, halo_pow = 0.8,
+		squash = 0.72, density = 1.00, reach = 1.00, core_share = 0.34, core_pow = 1.7, halo_pow = 0.8,
 		spread = 3.2, chaos = 0.42, ring = 0.0, bulge = 0.14, dust = 1.1,
 		tail = false, gas = 1.4,
 		blurb = "No structure worth the name. Something large passed close enough to tear the disc apart, and it has not had time to reform.",
 	},
 	{
 		name = "Interacting Pair", arms = 2, twist = 7.2, bar = 0.0,
-		squash = 0.64, core_share = 0.46, core_pow = 2.3, halo_pow = 0.94,
+		squash = 0.64, density = 1.10, reach = 1.10, core_share = 0.46, core_pow = 2.3, halo_pow = 0.94,
 		spread = 1.4, chaos = 0.12, ring = 0.0, bulge = 0.28, dust = 1.5,
 		tail = true, gas = 1.5,
 		blurb = "Currently being pulled apart by a neighbour. The tidal stream flung off the far side holds a hundred million stars that are already leaving.",
 	},
 	{
 		name = "Collisional Ring", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.70, core_share = 0.30, core_pow = 3.2, halo_pow = 1.0,
+		squash = 0.70, density = 0.90, reach = 1.15, core_share = 0.30, core_pow = 3.2, halo_pow = 1.0,
 		spread = 0.0, chaos = 0.06, ring = 0.52, bulge = 0.18, dust = 2.4,
 		tail = false, gas = 1.1,
 		blurb = "Something went straight through the middle. The shock is still travelling outward as a ring of new stars, and the centre never filled back in.",
 	},
 	{
 		name = "Dwarf Spheroidal", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.86, core_share = 0.5, core_pow = 2.0, halo_pow = 1.15,
+		squash = 0.86, density = 0.55, reach = 0.80, core_share = 0.5, core_pow = 2.0, halo_pow = 1.15,
 		spread = 0.0, chaos = 0.08, ring = 0.0, bulge = 0.12, dust = 2.0,
 		tail = false, gas = 0.15,
 		blurb = "Small, old and thin. It has been losing stars to a larger neighbour for so long that what remains barely holds itself together.",
 	},
 	{
 		name = "Starburst Spiral", arms = 2, twist = 9.4, bar = 0.22,
-		squash = 0.60, core_share = 0.58, core_pow = 3.4, halo_pow = 0.9,
+		squash = 0.60, density = 1.15, reach = 0.95, core_share = 0.58, core_pow = 3.4, halo_pow = 0.9,
 		spread = 1.2, chaos = 0.0, ring = 0.0, bulge = 0.44, dust = 1.7,
 		tail = false, gas = 1.9,
 		blurb = "The core is burning through its gas far faster than it can be replaced. On this timescale that is an event, and you are inside it.",
@@ -228,3 +240,26 @@ static func nebula_name(h: int) -> String:
 		return "%s %d" % [_CATALOGUE[(h >> 5) % _CATALOGUE.size()], (h >> 9) % 8899 + 100]
 	return "THE %s %s" % [
 		_NEB_ADJ[(h >> 5) % _NEB_ADJ.size()], _NEB_NOUN[(h >> 13) % _NEB_NOUN.size()]]
+
+
+## The kind table, as a string two peers can compare.
+##
+## LIVES HERE RATHER THAN IN NetSession, and not only for tidiness. Two peers
+## with different `density` or `reach` values lay out DIFFERENT MAPS from the
+## same seed -- `MapGen.ring_count` and the position of every system read them --
+## so they must not agree on a fingerprint. But writing that loop inside
+## `content_fingerprint` meant `NetSession` grew the strings "density" and
+## "reach", and `version_guard.py` cannot tell a dictionary read from a wire key
+## in a file it is watching: it demanded a PROTOCOL bump for a change that moves
+## no wire shape at all.
+##
+## Asking the table to describe itself is the better factoring regardless. The
+## guard going quiet is a consequence of the code being right, not the reason.
+static func table_fingerprint() -> String:
+	var parts: PackedStringArray = []
+	for k in KINDS:
+		var kind: Dictionary = k
+		parts.append("%s/%.2f/%.2f" % [kind.name,
+			float(kind.get("density", 1.0)), float(kind.get("reach", 1.0))])
+	return "|".join(parts)
+

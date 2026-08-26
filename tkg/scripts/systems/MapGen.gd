@@ -110,6 +110,12 @@ const LAYERS := 15
 ## than a map where nothing is near anything.
 const RING_SPACING := 0.1157
 
+## The foreshortening `ring_count` treats as nominal, so `density = 1.0` means
+## "as many systems as an ordinary galaxy holds" rather than "as many as a
+## perfect circle would". 0.62 is the Grand-Design Spiral's, which is the
+## archetype the rest were authored around.
+const SQUASH_REF := 0.62
+
 ## Where each ring sits, as a fraction of the disc radius. Lives here rather
 ## than in the chart because the map's populations are derived from it: if the
 ## two ever disagreed, ring counts would be weighted for radii the chart does
@@ -178,7 +184,14 @@ const RING_MAX := 60
 static func ring_count(layer: int) -> int:
 	if layer >= LAYERS - 1:
 		return 1
-	var sq := float(Run.galaxy.squash)
+	# DENSITY, NOT SQUASH. This used to read the galaxy's foreshortening --
+	# `squash` is a CAMERA ANGLE, per its own docstring, "1.0 is face-on round,
+	# 0.3 is edge-on" -- and multiply ring populations by it. You do not lose a
+	# fifth of a galaxy's stars by tilting the camera. Measured over 500 runs it
+	# was worth 132 systems on a Lenticular against 188 on a Round Elliptical.
+	#
+	# `density` is the same variation, authored per kind and said out loud.
+	var den := float(Run.galaxy.get("density", 1.0))
 	# THE RING SPACING, not a value derived from LAYERS. It used to be
 	# `(RIM - CORE) / (LAYERS - 2)`, which meant this divisor moved every time
 	# the layer count did -- so adding rings inflated every ring's population as
@@ -188,7 +201,17 @@ static func ring_count(layer: int) -> int:
 	var target := RING_SPACING
 	# Perimeter of the squashed ring, near enough for counting purposes.
 	var r := ring_radius(layer)
-	var perim := PI * r * (1.0 + sq)
+	# A ROUND ring's perimeter, referenced to the NOMINAL galaxy. It was
+	# `PI * r * (1.0 + sq)` -- the squashed ellipse's -- which is where the
+	# camera angle got in.
+	#
+	# SQUASH_REF rather than 2.0, and that matters. The true circumference is
+	# 2*PI*r, and using it raised every ring's population by about a quarter
+	# because the old formula was measuring a foreshortened ellipse: ~287
+	# systems became ~360. Anchoring to the tilt of a nominal galaxy means
+	# `density = 1.0` reproduces exactly what that galaxy always had, and no
+	# galaxy's population depends on its own camera angle any more.
+	var perim := PI * r * (1.0 + SQUASH_REF) * den
 	# Weighted toward the middle. Populations straight off the perimeter give
 	# even spacing everywhere, which reads as a uniform grid of places — and it
 	# puts most of the galaxy out on the rim, where the danger is lowest and
@@ -471,7 +494,11 @@ static func generate(canvas: Rect2) -> Array:
 
 	_layout(nodes, canvas)
 	for n in nodes:
-		(n as MapNode).gal = galaxy_pos(n)
+		# REACH IS APPLIED HERE, once, on the finished position. It scales how
+		# far apart systems sit, and `fuel_cost_to` prices raw distance, so this
+		# is the dial that makes a galaxy expensive or cheap to cross -- the
+		# half of the old `squash` leak that was worth keeping, now authored.
+		(n as MapNode).gal = galaxy_pos(n) * float(Run.galaxy.get("reach", 1.0))
 	for n in nodes:
 		var nn: MapNode = n
 		var cloud := NebulaField.at(nn.gal)
@@ -659,8 +686,24 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 	return Vector2(cos(a), sin(a) * float(g.squash)) * r
 
 ## How far apart two systems are, as the chart draws them, in disc radii.
+## How far apart two systems are, for pricing a jump.
+##
+## MEASURED UN-SQUASHED. Ruled 2026-08-25 (D1). `galaxy_pos` foreshortens the
+## disc for drawing -- `sin(a) * squash` -- and this used to measure in that
+## same space, so a north-south jump cost 1.5x to 3.6x less than an east-west
+## one at the same apparent separation. Optimal routes hugged the minor axis,
+## invisibly, and nothing on screen said so.
+##
+## Undoing the foreshortening restores the disc to the circle it actually is, so
+## a jump costs what it costs whichever way it points. THE COST OF THE RULING is
+## that the chart no longer promises "distance as drawn": on a strongly tilted
+## galaxy two systems that look equally far apart are not, because one pair is
+## further apart in the plane and only looks close from this angle.
 static func hop_distance(a: MapNode, b: MapNode) -> float:
-	return a.gal.distance_to(b.gal)
+	var sq := maxf(0.05, float(Run.galaxy.squash))
+	var pa := Vector2(a.gal.x, a.gal.y / sq)
+	var pb := Vector2(b.gal.x, b.gal.y / sq)
+	return pa.distance_to(pb)
 
 ## Put a neutron star at the heart of every shell that has a system in it.
 ##
