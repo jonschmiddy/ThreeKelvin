@@ -282,10 +282,8 @@ static func _modules(list: Array) -> Array:
 static func _node_type(t: int) -> String:
 	match t:
 		MapGen.NodeType.START: return "start"
-		MapGen.NodeType.FIGHT: return "fight"
 		MapGen.NodeType.STATION: return "station"
-		MapGen.NodeType.EVENT: return "event"
-		MapGen.NodeType.DERELICT: return "derelict"
+		MapGen.NodeType.SYSTEM: return "system"
 		MapGen.NodeType.CORE: return "goal"
 		MapGen.NodeType.PULSAR: return "pulsar"
 	return "?"

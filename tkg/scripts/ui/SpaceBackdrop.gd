@@ -196,10 +196,13 @@ func _pick(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 			# mine. It never floats in nothing — that is the whole reason this
 			# case is not a roll.
 			return Kind.GIANT if n.fauna or r.randf() < 0.18 else Kind.PLANET
-		MapGen.NodeType.EVENT:
-			# A beacon is put where there is nothing to put it near. Empty sky
-			# is the point of the node, so it does not get a body.
-			return Kind.DEEP
+		MapGen.NodeType.SYSTEM:
+			# An ordinary system, and it gets the variety the three types it
+			# replaced used to supply between them: mostly rocks, because that is
+			# where the traffic goes, sometimes a world, sometimes empty sky.
+			if r.randf() < 0.42:
+				return Kind.ASTEROIDS
+			return Kind.PLANET if r.randf() < 0.55 else Kind.DEEP
 		MapGen.NodeType.START:
 			# The one sector that is meant to have nothing in it, and the same
 			# ruling that keeps AreaView from drawing a marker here.
@@ -209,10 +212,7 @@ func _pick(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 			return Kind.DEEP
 		MapGen.NodeType.CORE:
 			return Kind.CORE
-		MapGen.NodeType.DERELICT:
-			# Something died here. Mostly it died in the rocks, because that is
-			# where the traffic that could die was going.
-			return Kind.ASTEROIDS if r.randf() < 0.72 else Kind.PLANET
+
 		_:
 			return _pick_open(n, r)
 

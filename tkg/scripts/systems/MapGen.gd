@@ -20,11 +20,22 @@ enum Development { UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL }
 enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
 ## PULSAR is last on purpose: type_label indexes this by value, and inserting
 ## in the middle would silently relabel every node type after it.
-## THE CORE KEEPS ITS POSITION, and that is not cosmetic: `type` is serialised
-## as an INT, so this list's ORDER is a save format. Renaming a value costs
-## nothing; moving one silently repoints every saved node at a different kind of
-## place. Add at the end, never in the middle.
-enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, CORE, PULSAR }
+## WHAT KIND OF PLACE, never what is in it. FIGHT, EVENT and DERELICT were
+## removed 2026-08-27: what a system holds is `options` now, and those three were
+## only ever labels for what got rolled there.
+##
+## The four that survive share one rule -- a type is a place the CHART NAMES and
+## that has its own interaction. A station is the telegraphed safe node with its
+## own screen; the core is one hand-authored boss; a pulsar is placed against a
+## nebula shell and harvested. SYSTEM is everything else, and 1 says so: every
+## system but a station looks identical from the chart.
+##
+## THE ORDER IS A SAVE FORMAT, because `type` is serialised as an int. Removing
+## three values renumbered every one after them, which is only survivable because
+## `SaveGame.load` refuses a version mismatch outright -- the discard is the
+## migration and the version bump is what arms it. Change this list again and the
+## version goes with it, in the same commit.
+enum NodeType { START, STATION, CORE, PULSAR, SYSTEM }
 
 ## The option id meaning "the system itself, all of it".
 ##
@@ -363,7 +374,7 @@ class MapNode extends RefCounted:
 	## polices the sector.
 	var fauna: bool = false
 	var danger: int = 1
-	var type: NodeType = NodeType.FIGHT
+	var type: NodeType = NodeType.SYSTEM
 	var visited: bool = false
 
 	## SEEN FROM A DISTANCE, without having been flown to.
@@ -964,15 +975,15 @@ static func _pick_type() -> NodeType:
 	# the draw did not quietly change the mix of fights, stations, events and
 	# wrecks along with it.
 	var weights := [
-		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
-		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
-		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
-		NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT, NodeType.FIGHT,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
 		NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
 		NodeType.STATION, NodeType.STATION, NodeType.STATION, NodeType.STATION,
-		NodeType.EVENT, NodeType.EVENT, NodeType.EVENT, NodeType.EVENT,
-		NodeType.EVENT, NodeType.EVENT, NodeType.EVENT, NodeType.EVENT,
-		NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT, NodeType.DERELICT,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
+		NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM, NodeType.SYSTEM,
 	]
 	return Rng.pick(Rng.world, weights)
 

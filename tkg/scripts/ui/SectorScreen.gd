@@ -328,16 +328,11 @@ func _on_action() -> void:
 	match n.type:
 		MapGen.NodeType.STATION:
 			Router.show_station()
-		MapGen.NodeType.DERELICT:
+		MapGen.NodeType.SYSTEM:
 			if n.cleared:
 				Router.show_starchart()
 			else:
-				Router.salvage_here()
-		MapGen.NodeType.EVENT:
-			if n.cleared:
-				Router.show_starchart()
-			else:
-				Router.show_event()
+				Router.show_option()
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
 				Router.show_starchart()
@@ -348,7 +343,7 @@ func _on_action() -> void:
 		# CORE it is the ORDINARY path: the core is a place you arrive at and
 		# then commit to, so a party can be at it together. See
 		# Router.resolve_current_node().
-		MapGen.NodeType.FIGHT, MapGen.NodeType.CORE:
+		MapGen.NodeType.CORE:
 			if n.cleared or n.fled:
 				Router.show_starchart()
 			else:
@@ -367,23 +362,24 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 	match n.type:
 		MapGen.NodeType.STATION:
 			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel — all of it out of the same pocket.", "DOCK"]
-		MapGen.NodeType.DERELICT:
+		MapGen.NodeType.SYSTEM:
 			if n.eaten:
 				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", "PLOT NEXT JUMP"]
 			if n.cleared:
-				return ["Stripped. Whatever is left is welded to the frame.", "PLOT NEXT JUMP"]
-			return ["A dead hull, drifting. No power, no answer to the hail. Something aboard is still worth taking.", "STRIP THE WRECK"]
-		MapGen.NodeType.EVENT:
-			if n.cleared:
-				return ["The signal has stopped.", "PLOT NEXT JUMP"]
-			return ["Something out here is transmitting, and it is addressed to you.", "ANSWER THE HAIL"]
-		MapGen.NodeType.FIGHT:
-			if n.cleared:
-				return ["Wreckage, cooling. Nothing else is moving.", "PLOT NEXT JUMP"]
-			if n.fled:
-				return ["You broke contact. They are still out there, and they still have everything they were carrying.",
-					"PLOT NEXT JUMP"]
-			return ["Contact.", "ENGAGE"]
+				return ["Nothing here answers any more.", "PLOT NEXT JUMP"]
+			# HOW MANY, NOT WHICH. The chart does not say what a system holds and
+			# neither does this line; you learn that by looking. An interim
+			# button until the sector renders the list itself -- see
+			# Router.show_option and ENCOUNTER_FLOW.md.
+			var left := 0
+			for i in n.options.size():
+				if not n.taken.has(MapGen.OPTION_SITE + i):
+					left += 1
+			if left <= 0:
+				return ["Nothing here answers any more.", "PLOT NEXT JUMP"]
+			if left == 1:
+				return ["One thing out here is worth your time.", "LOOK"]
+			return ["Several things out here are worth your time, and you cannot have all of them.", "LOOK"]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
 				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",

@@ -247,9 +247,9 @@ func run() -> void:
 	# player a fresh draw every time they quit and resume.
 	for e in Run.map:
 		var n: MapGen.MapNode = e
-		if n.type == MapGen.NodeType.FIGHT and not n.cleared and n.foes.is_empty():
+		if n.type == MapGen.NodeType.SYSTEM and not n.cleared and n.foes.is_empty():
 			n.foes = [&"cutter", &"lancer"]
-		elif n.type == MapGen.NodeType.EVENT and not n.cleared and n.event_key.is_empty():
+		elif n.type == MapGen.NodeType.SYSTEM and not n.cleared and n.event_key.is_empty():
 			n.event_key = "Dead station"
 		# AND WHAT THE SYSTEM IS OFFERING, rolled the way arriving would roll it.
 		#
@@ -261,7 +261,7 @@ func run() -> void:
 		# A fight owed on arrival, and a roll already made. Both have to be on
 		# some nodes and not others, or an all-false field round-trips to
 		# all-false whatever the save does.
-		if n.type != MapGen.NodeType.FIGHT and n.type != MapGen.NodeType.CORE:
+		if n.type != MapGen.NodeType.SYSTEM and n.type != MapGen.NodeType.CORE:
 			n.ambush_rolled = n.index % 2 == 0
 			n.ambush_pending = n.index % 4 == 0
 
@@ -272,7 +272,7 @@ func run() -> void:
 		Run.hellbender_ticks = 2
 	for e in Run.map:
 		var nd: MapGen.MapNode = e
-		if nd.type == MapGen.NodeType.DERELICT and not nd.cleared:
+		if nd.type == MapGen.NodeType.SYSTEM and not nd.cleared:
 			# The same three writes hellbender_land() makes, because a cleared node
 			# with an empty `taken` is backfilled on load and would mismatch.
 			nd.cleared = true

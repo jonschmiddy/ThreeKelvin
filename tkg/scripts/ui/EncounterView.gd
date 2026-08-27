@@ -515,10 +515,17 @@ class AreaView extends Control:
 		var tint := MapGen.region_colour(node)
 		match node.type:
 			MapGen.NodeType.STATION: _station(c)
-			MapGen.NodeType.DERELICT: _derelict(c)
-			MapGen.NodeType.EVENT: _beacon(c, tint)
+			# READ WHAT IS HERE. The three types this replaced each had their own
+			# picture, and the picture is still worth having -- it just comes off
+			# the options now instead of a label chosen before anything rolled.
+			MapGen.NodeType.SYSTEM:
+				if OptionTable.system_has_tag(node, &"fight"):
+					_battlefield(c)
+				elif OptionTable.system_has_tag(node, &"salvage"):
+					_derelict(c)
+				else:
+					_beacon(c, tint)
 			MapGen.NodeType.CORE: _core(c)
-			MapGen.NodeType.FIGHT: _battlefield(c)
 			MapGen.NodeType.PULSAR: _pulsar(c)
 			MapGen.NodeType.START:
 				# Where you start is empty space. Drawing a marker here would put

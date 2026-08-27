@@ -107,6 +107,19 @@ const PATH := "user://run.save"
 ## Worth writing down because it is the shape of break the guard is blind to by
 ## construction: renaming the VALUES a save stores is exactly as destructive as
 ## renaming its keys, and nothing automated is watching for it.
+## 17: THREE NODE TYPES DELETED. FIGHT, EVENT and DERELICT are gone and SYSTEM
+## replaces them, because what is at a place is `options` now and those three
+## were only labels for what got rolled there.
+##
+## THE ENUM RENUMBERED, and that is the whole reason this line exists. `type` is
+## serialised as an INT, so a version 16 save loaded against this build would
+## come back with every node pointing at a different kind of place -- stations
+## reading as cores, cores as pulsars. It would not crash and it would not warn;
+## it would simply be a different galaxy wearing the old one's name.
+##
+## Discarded, and that discard IS the migration: there is no forward-read worth
+## writing when the mapping is meaningless. This bump is what arms it.
+##
 ## 16: THE AMBUSH IS A FLAG. `MapNode.ambush` held the pack itself; it is now
 ## `ambush_pending`, with the pack derived positionally at fight time. A version
 ## 15 save carries the old array and it is read forward as "pending if it was not
@@ -126,7 +139,7 @@ const PATH := "user://run.save"
 ## changed. A version 13 save has no such key, and every node would come back
 ## unsensed: not a corruption, but a chart quietly narrower than the one the
 ## player left, which is the same class of lie as a stripped module. Discarded.
-const VERSION := 16
+const VERSION := 17
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.

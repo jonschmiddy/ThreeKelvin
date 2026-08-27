@@ -285,7 +285,7 @@ func resolve_current_node() -> void:
 			return
 
 	# The hellbender holds this system. Nothing here is reachable past it — not the
-	# dock, not the contact a FIGHT node rolled — so arrival lands on the sector
+	# dock, not anything the system was offering — so arrival lands on the sector
 	# and the one button says what there is to do. NOT auto-engaged, for the
 	# same reason the core stopped being: two people never arrive at a system on
 	# the same second, and a set piece a party cannot gather at is fought alone
@@ -321,11 +321,6 @@ func resolve_current_node() -> void:
 			else:
 				Run.log_line("The core fills the viewport. Something is guarding it. Engage when you are ready.", &"big")
 			show_sector()
-		MapGen.NodeType.FIGHT:
-			if n.cleared:
-				show_sector()
-			else:
-				engage_here()
 		_:
 			show_sector()
 
@@ -342,15 +337,6 @@ func resolve_current_node() -> void:
 func _roll_here(n: MapGen.MapNode) -> void:
 	if n.cleared:
 		return
-	match n.type:
-		MapGen.NodeType.FIGHT:
-			if n.foes.is_empty():
-				n.foes = _roll_foes(n)
-		MapGen.NodeType.EVENT:
-			if n.event_key.is_empty():
-				n.event_key = EventTable.pick_key(Rng.derive(&"event", n.index))
-		_:
-			pass
 	# WHAT THERE IS TO DO HERE, decided once and written onto the node.
 	#
 	# Same contract as `foes` and `event_key` above and for the same reason: this
@@ -367,12 +353,15 @@ func _roll_here(n: MapGen.MapNode) -> void:
 ##
 ## Rolled here with the rest of what a system holds, and for the same reason:
 ## arriving is the safe point, so a hostile your own throttle attracted cannot
-## be refused by quitting and coming back cold. Combat nodes are excluded
-## because they already hold a fight — being ambushed on the way to a fight is
-## the fight.
+## be refused by quitting and coming back cold.
+##
+## NO NODE INHERENTLY HOLDS A FIGHT ANY MORE, so the old exclusion went with the
+## types: "being ambushed on the way to a fight is the fight" was true of a FIGHT
+## node and is false of a system that merely OFFERS one. The ambush is a separate
+## interrupt and the option is still sitting there when it is over. Only the core
+## is excluded, because it is a hand-authored boss.
 func _roll_ambush(n: MapGen.MapNode) -> void:
-	if n.ambush_rolled or n.type == MapGen.NodeType.FIGHT \
-			or n.type == MapGen.NodeType.CORE:
+	if n.ambush_rolled or n.type == MapGen.NodeType.CORE:
 		return
 	n.ambush_rolled = true
 	# The ambush roll itself is a stream draw, not a positional one, and that is
@@ -426,6 +415,52 @@ func show_station() -> void:
 ## would make leaving and returning a re-roll until the options pay. Holding it
 ## in Router covered that but not a force-quit, because Router is not saved and
 ## the node is.
+## Which option of the current system is open, or -1.
+##
+## Held here rather than on the node because it is a screen's business, not a
+## place's -- the node records which options are SPENT, in `taken`, and that is
+## the part a save has to carry.
+var _open_option := -1
+
+
+## Open the first option this system still has, as its own screen.
+##
+## AN INTERIM. `ENCOUNTER_REBUILD.md` 7 has the sector render the whole list and
+## `_quiet_lines`'s two-element [line, label] array go away with it; that is
+## ENCOUNTER_FLOW.md's job and it is not this commit. Until then one option at a
+## time keeps a system playable rather than inert.
+##
+## It costs almost nothing because the shapes already match: an option is
+## `{title, body, choices}` and `EventScreen` renders `{title, body, options}`.
+## One key renamed.
+func show_option() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null or n.cleared:
+		return
+	_roll_here(n)
+	_open_option = -1
+	for i in n.options.size():
+		if not n.taken.has(MapGen.OPTION_SITE + i):
+			_open_option = i
+			break
+	if _open_option < 0:
+		Run.consume_node(n)
+		show_starchart()
+		return
+	var opt := OptionTable.by_id(n.options[_open_option])
+	if opt.is_empty():
+		# An id this build no longer has. Spend it and move on rather than
+		# stalling the system on a name nobody can resolve.
+		n.taken.append(MapGen.OPTION_SITE + _open_option)
+		show_option()
+		return
+	Audio.music_state(&"event")
+	var e := EventScreen.new()
+	_swap(e)
+	e.setup({title = opt.get("title", ""), body = opt.get("body", ""),
+		options = opt.get("choices", [])})
+
+
 func show_event() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.cleared:
@@ -441,7 +476,20 @@ func show_event() -> void:
 ## would let you take the outcome, leave through a HUD tab, and answer the same
 ## hail again — and the autosave that runs on the way out would bank both.
 func event_resolved() -> void:
-	Run.consume_node(Run.node_at())
+	var n: MapGen.MapNode = Run.node_at()
+	# ONE OPTION IS SPENT, NOT THE SYSTEM. A system holds several things to do
+	# and taking one must not consume the rest -- which is what `taken` has
+	# always been for, and what `OPTION_WHOLE`'s comment apologises for not
+	# using. The node is only finished when nothing is left in it.
+	if _open_option >= 0:
+		var oid := MapGen.OPTION_SITE + _open_option
+		if not n.taken.has(oid):
+			n.taken.append(oid)
+		_open_option = -1
+		for i in n.options.size():
+			if not n.taken.has(MapGen.OPTION_SITE + i):
+				return
+	Run.consume_node(n)
 
 ## Fly the beam.
 ##
@@ -624,9 +672,20 @@ func engage_hellbender() -> void:
 ## rather than from the node, so two players who took the same bait are not
 ## looking at the same ship. The event that produced it was a private
 ## conversation and so is what came out of it.
+## A fight an option's outcome opened.
+##
+## WINNING DOES NOT CONSUME THE SYSTEM, and that changed with the type collapse.
+## An EVENT node held one event, so consuming on victory was harmless -- by the
+## time this ran, `event_resolved` had already consumed it. A SYSTEM holds about
+## three options, and clearing it here would delete the two the player had not
+## reached yet: engage the hostile, win, and the wreck and the beacon that shared
+## the system quietly stop existing.
+##
+## The option consumes ITSELF, through `taken`. The system is finished when
+## nothing is left in it, which is `event_resolved`'s rule.
 func start_ambush() -> void:
 	var pool := DB.fight_pool(Run.node_at().danger, false)
-	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)], [], true, false)
+	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)], [], false, false)
 
 func in_combat() -> bool:
 	return combat != null and not combat.finished

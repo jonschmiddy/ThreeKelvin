@@ -188,10 +188,9 @@ func _build() -> void:
 	key.add_theme_constant_override("separation", 8)
 	key.add_child(UITheme.body("KEY", UITheme.COLD, UITheme.FS_SMALL))
 	for pair in [
-			[MapGen.NodeType.FIGHT, "FIGHT", UITheme.CHILL],
+			[MapGen.NodeType.START, "START", Color("#c8d6e4")],
+			[MapGen.NodeType.SYSTEM, "SYSTEM", Color("#b08ad0")],
 			[MapGen.NodeType.STATION, "STATION", Color("#8ec8e6")],
-			[MapGen.NodeType.EVENT, "EVENT", Color("#b08ad0")],
-			[MapGen.NodeType.DERELICT, "DERELICT", Color("#8a6a3a")],
 			[MapGen.NodeType.PULSAR, "PULSAR", Color("#8fd2e0")],
 			[MapGen.NodeType.CORE, "CORE", Color("#d4614f")]]:
 		var item := HBoxContainer.new()
@@ -455,10 +454,8 @@ func _contains(t: MapGen.MapNode) -> String:
 	if t.cleared:
 		return "PICKED CLEAN"
 	match t.type:
-		MapGen.NodeType.FIGHT: return "HOSTILE x1"
 		MapGen.NodeType.STATION: return "DOCK - REPAIR, REFUEL, STOCK"
-		MapGen.NodeType.EVENT: return "UNKNOWN SIGNAL"
-		MapGen.NodeType.DERELICT: return "SALVAGE"
+		MapGen.NodeType.SYSTEM: return "SYSTEM"
 		MapGen.NodeType.CORE: return "THE CUSTODIAN"
 		_: return "-"
 
@@ -743,7 +740,7 @@ class Glyph extends Control:
 	## Everything except the emissives is derived from the region tint, so a
 	## glyph still tells you whose space you are looking at.
 
-	var type: MapGen.NodeType = MapGen.NodeType.FIGHT
+	var type: MapGen.NodeType = MapGen.NodeType.SYSTEM
 	var tint: Color = Color.WHITE
 
 	func setup(t: MapGen.NodeType, c: Color) -> void:
@@ -819,6 +816,11 @@ class Glyph extends Control:
 		"......+......",
 		"......-......"]
 
+	## NOT DRAWN SINCE THE TYPE COLLAPSE, and kept rather than deleted. Every
+	## system wears `_EVENT` now, but these are authored pixel art and the option
+	## detail view is the obvious place a wreck or a contact wants a picture --
+	## see ENCOUNTER_FLOW.md. Delete them if that never happens.
+	##
 	## A hulk with a bite out of it and its pieces drifting off. Asymmetric on
 	## purpose — a regular wreck reads as a building.
 	##
@@ -902,8 +904,12 @@ class Glyph extends Control:
 		".....---.....",
 		"............."]
 
-	## Where the run began: your own hull, nosing right — the FIGHT dart mirrored
-	## and lit the same way, because it is the same shipyard.
+	## Where the run began: your own hull, nosing right.
+	##
+	## It was drawn as the FIGHT dart mirrored, "because it is the same
+	## shipyard", and read as one more contact among a hundred. The dart is not
+	## drawn any more, so this is the only ship-shaped mark on the chart and is
+	## unique by subtraction rather than by redesign.
 	const _START := [
 		".............",
 		"oooo.........",
@@ -922,12 +928,14 @@ class Glyph extends Control:
 	static func art_for(t: MapGen.NodeType) -> Array:
 		match t:
 			MapGen.NodeType.STATION: return _STATION
-			MapGen.NodeType.EVENT: return _EVENT
-			MapGen.NodeType.DERELICT: return _DERELICT
 			MapGen.NodeType.CORE: return _GOAL
 			MapGen.NodeType.PULSAR: return _PULSAR
 			MapGen.NodeType.START: return _START
-			_: return _FIGHT
+			# EVERY SYSTEM WEARS THE SAME MARK. It used to be three -- a dart, a
+			# hulk, a beacon -- which told you what was waiting before you flew
+			# there. What is at a system is `options` now and the chart does not
+			# say what they are, so the star is what every one of them gets.
+			_: return _EVENT
 
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
 			tint_in: Color, here: bool, selected: bool) -> void:

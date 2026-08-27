@@ -138,6 +138,11 @@ func run_sim() -> void:
 	# pays for the caution in what it never collects; running both on one seed is
 	# how the exclusivity dial gets argued with rather than assumed.
 	policy.risk_averse = "riskaverse" in OS.get_cmdline_user_args()
+	# WITHOUT THIS THE SIM MEASURES A GAME WITH NO COMBAT. Fights live only in
+	# option outcomes now, and Policy has no Combat of its own, so an unwired
+	# `fight_cb` means every hostile line resolves to its prose and nothing shoots
+	# back. It reported 0.2 kills a run before this was connected.
+	policy.fight_cb = _option_fight
 	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
@@ -272,8 +277,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# `_roll_foes`, and this picked ONE enemy off `Rng.foe` from a pool that
 		# always passed `false` for fauna. Two implementations, one of them
 		# measuring the other.
-		if not node.ambush_rolled and node.type != MapGen.NodeType.FIGHT \
-				and node.type != MapGen.NodeType.CORE:
+		if not node.ambush_rolled and node.type != MapGen.NodeType.CORE:
 			node.ambush_rolled = true
 			if Rng.foe.randf() < Run.ambush_chance(node):
 				ambushes += 1
@@ -299,10 +303,6 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# Resolve whatever is here.
 		if blockaded:
 			pass
-		elif node.type == MapGen.NodeType.FIGHT and not node.cleared:
-			var pool := DB.fight_pool(node.danger, node.region == MapGen.Region.FAUNA)
-			if not _fight(DB.enemies[Rng.pick(Rng.foe, pool)]):
-				break
 		elif node.type == MapGen.NodeType.CORE:
 			_fight(DB.enemies[&"custodian"])
 			break
@@ -321,14 +321,12 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			Run.harvest_pulsar()
 			if Run.dead:
 				break
-		elif node.type == MapGen.NodeType.DERELICT and not node.cleared:
-			Run.consume_node(node)
-			Run.place_in_hold(LootGen.roll_module(node.danger))
 		# WHAT THE SYSTEM OFFERS, taken by the policy rather than by the type.
 		#
-		# Additive for now: the node types above still resolve as they always
-		# have, and this runs beside them. Phase 8 is where `NodeType` collapses
-		# and the two stop being separate questions.
+		# THE ONLY WAY AN ORDINARY SYSTEM RESOLVES, since the collapse. It used to
+		# run beside FIGHT and DERELICT branches that did the same work off a
+		# label; those are gone and this is what replaced them, fights included --
+		# `policy.fight_cb` is wired to `_fight` below.
 		if not node.cleared:
 			var got := policy.take_options(node)
 			if int(got.taken) + int(got.declined) + int(got.forgone) + int(got.fights) > 0:
@@ -414,8 +412,26 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 
 ## Competent-player model: lock on before attacking, brace against telegraphed
 ## damage, vent before overheating, and never overheat unless it secures a kill.
-func _fight(template: EnemyTemplate) -> bool:
+## A fight an option opened, against whatever this system would field.
+##
+## The pack comes from the same place the deleted FIGHT branch drew it: the
+## danger-scaled pool, fauna where the region is fauna. What is fought is a
+## property of WHERE YOU ARE, which is what made the node type redundant in the
+## first place -- the label was never carrying information the system did not
+## already have.
+func _option_fight(n: MapGen.MapNode) -> bool:
+	var pool := DB.fight_pool(n.danger, n.region == MapGen.Region.FAUNA)
+	if pool.is_empty():
+		return not Run.dead
+	# Not consuming, for the reason `Router.start_ambush` spells out: the option
+	# spends itself and the system is finished when nothing is left in it. A sim
+	# that cleared the node here would take fewer options than the game does.
+	return _fight(DB.enemies[Rng.pick(Rng.foe, pool)], false)
+
+
+func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 	var cb := Combat.new()
+	cb.clears_node = clears_node
 	cb.start(template, Run.node_at().danger)
 	var turns := 0
 	while not cb.finished and turns < 60:
@@ -508,8 +524,8 @@ func _report() -> void:
 			print("  %.2f checks a system refused for long odds -- what caution costs"
 				% [float(policy.checks_avoided) / float(sites_with_options)])
 		if opts_fight > 0:
-			print("  %d fight lines skipped -- phase 8 is where the sim can run one"
-				% opts_fight)
+			print("  %d of those opened a fight (%.2f a system)"
+				% [opts_fight, float(opts_fight) / float(sites_with_options)])
 	print("policy gave up %d (%.1f%%) · of those, the ship could still fly %d" % [
 		policy_gave_up, 100.0 * policy_gave_up / maxi(1, runs),
 		policy_gave_up - stranded])

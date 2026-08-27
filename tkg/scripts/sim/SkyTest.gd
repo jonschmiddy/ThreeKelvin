@@ -109,21 +109,21 @@ func _cases() -> Array:
 		MapGen.Development.OUTPOST, [&"probate"])])
 	out.append(["station / settlement", _node(24, MapGen.NodeType.STATION,
 		MapGen.Development.SETTLEMENT, [&"korvan"])])
-	out.append(["event beacon", _node(7, MapGen.NodeType.EVENT,
+	out.append(["event beacon", _node(7, MapGen.NodeType.SYSTEM,
 		MapGen.Development.UNCLAIMED, [])])
-	out.append(["derelict", _node(9, MapGen.NodeType.DERELICT,
+	out.append(["derelict", _node(9, MapGen.NodeType.SYSTEM,
 		MapGen.Development.UNCLAIMED, [])])
-	out.append(["derelict b", _node(13, MapGen.NodeType.DERELICT,
+	out.append(["derelict b", _node(13, MapGen.NodeType.SYSTEM,
 		MapGen.Development.UNCLAIMED, [])])
-	out.append(["fight / unclaimed", _node(2, MapGen.NodeType.FIGHT,
+	out.append(["fight / unclaimed", _node(2, MapGen.NodeType.SYSTEM,
 		MapGen.Development.UNCLAIMED, [])])
-	out.append(["fight / migration", _node(5, MapGen.NodeType.FIGHT,
+	out.append(["fight / migration", _node(5, MapGen.NodeType.SYSTEM,
 		MapGen.Development.UNCLAIMED, [], true)])
-	out.append(["fight / contested", _node(6, MapGen.NodeType.FIGHT,
+	out.append(["fight / contested", _node(6, MapGen.NodeType.SYSTEM,
 		MapGen.Development.SETTLEMENT, [&"solari", &"redline"])])
-	out.append(["fight / contested b", _node(28, MapGen.NodeType.FIGHT,
+	out.append(["fight / contested b", _node(28, MapGen.NodeType.SYSTEM,
 		MapGen.Development.SETTLEMENT, [&"cygnet", &"redline"])])
-	out.append(["fight / city", _node(21, MapGen.NodeType.FIGHT,
+	out.append(["fight / city", _node(21, MapGen.NodeType.SYSTEM,
 		MapGen.Development.CITY, [&"verity"])])
 	out.append(["the core", _node(40, MapGen.NodeType.CORE,
 		MapGen.Development.UNCLAIMED, [])])

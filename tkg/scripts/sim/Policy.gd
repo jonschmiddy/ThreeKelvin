@@ -370,6 +370,14 @@ var checks_avoided := 0
 ## §8 asks for.
 const RISK_FLOOR := 0.45
 
+## Runs a fight the way this harness runs fights, and reports whether we lived.
+##
+## Injected because a policy has no Combat of its own and should not: the sim
+## owns the loop, the postfight sampling and the turn cap. Left invalid, fights
+## are counted and not run -- which is a measurement of a different game, so any
+## harness that reports a win rate must set this.
+var fight_cb: Callable = Callable()
+
 
 ## Take what this system offers, and report what was left behind.
 ##
@@ -400,19 +408,24 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 			out.declined += 1
 			continue
 		var line: Dictionary = (opt.choices as Array)[pick]
-		if bool(line.get("fight", false)):
-			# A line that opens a fight is phase 8's business -- `NodeType`
-			# collapsing is what gives the sim somewhere to run it. Counted so
-			# the omission is visible rather than silently biasing the numbers.
-			out.fights += 1
-			continue
-		_resolve_line(n, line)
+		var res := _resolve_line(n, line)
 		n.taken.append(oid)
 		out.taken += 1
 		if g != &"":
 			spent[g] = true
 		if Run.dead:
 			break
+		# AND NOW THE FIGHT, if the outcome opened one. This used to be counted
+		# and skipped, which was defensible while FIGHT was still a node type and
+		# the sim fought there instead. It is not defensible now: fights exist
+		# ONLY as option outcomes, so skipping them meant simulating a game with
+		# no combat in it -- 0.2 kills a run, and a win rate measuring the wrong
+		# game. `fight_cb` is the sim's own `_fight`, handed in because Policy
+		# does not own a Combat.
+		if bool(res.get("fight", false)):
+			out.fights += 1
+			if fight_cb.is_valid() and not fight_cb.call(n):
+				break
 	return out
 
 
@@ -445,7 +458,7 @@ func _choose_line(opt: Dictionary) -> int:
 ## The reward class is §5's: an option that says `module` pays one rolled at the
 ## system's own danger, which is where `LootGen`'s rarity floors do the
 ## high-risk half by themselves.
-func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> void:
+func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> Dictionary:
 	var res: Dictionary = {}
 	if line.has("check"):
 		var band := SkillCheck.roll(line.check)
@@ -456,8 +469,13 @@ func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> void:
 		var cb2: Callable = line.effect
 		if cb2.is_valid():
 			res = cb2.call()
-	if typeof(res) == TYPE_DICTIONARY and bool(res.get("module", false)):
+	if typeof(res) != TYPE_DICTIONARY:
+		return {}
+	if bool(res.get("module", false)):
 		Run.place_in_hold(LootGen.roll_module(n.danger))
+	# Handed back rather than consumed here, because `fight` is the caller's
+	# business: this function grants rewards, it does not start battles.
+	return res
 
 
 func choose_jump(node: MapGen.MapNode) -> int:

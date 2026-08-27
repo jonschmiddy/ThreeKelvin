@@ -286,13 +286,9 @@ func _fly() -> void:
 				MapGen.NodeType.PULSAR:
 					if not n.cleared:
 						Run.harvest_pulsar()
-				MapGen.NodeType.DERELICT:
+				MapGen.NodeType.SYSTEM:
 					if not n.cleared:
-						Router.salvage_here()
-				MapGen.NodeType.FIGHT:
-					if not n.cleared:
-						Router.engage_here()
-						continue
+						Router.show_sector()
 			if Run.dead or Run.won:
 				break
 			policy.manage_cargo()

@@ -2231,7 +2231,10 @@ func _hellbender_step(feeding: bool) -> void:
 		if n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.CORE:
 			continue
 		options.append(i)
-		if n.type == MapGen.NodeType.DERELICT and not n.cleared:
+		# WHAT IS ACTUALLY HERE, not what the node was labelled. A wreck is a
+		# system offering something to strip, which is the same question
+		# `NodeType.DERELICT` used to answer and a better-informed one.
+		if OptionTable.system_has_tag(n, &"salvage") and not n.cleared:
 			food.append(i)
 	if options.is_empty():
 		return
@@ -2252,7 +2255,7 @@ func hellbender_land(to: int, feeding: bool) -> void:
 		return
 	hellbender_at = to
 	var n: MapGen.MapNode = map[to]
-	if feeding and n.type == MapGen.NodeType.DERELICT and not n.cleared:
+	if feeding and OptionTable.system_has_tag(n, &"salvage") and not n.cleared:
 		# Consumed locally, not through Net.claim(): the movement push is
 		# already the shared fact, and every machine applies this rule to the
 		# same landing. `eaten` is what lets the sector say WHO stripped it.

@@ -147,7 +147,7 @@ static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
 			continue
 		if o.type == MapGen.NodeType.START:
 			continue
-		if want_fight and o.type != MapGen.NodeType.FIGHT:
+		if want_fight and not OptionTable.system_has_tag(o, &"fight"):
 			continue
 		var reach := absi(o.layer - n.layer)
 		if reach > 3:

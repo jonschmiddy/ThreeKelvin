@@ -73,18 +73,16 @@ measurements were taken on the wrong kind before this was noticed.
 
 ## 2. WHAT IS NEXT
 
-**Phase 6.** The S-phases are done and S3 dissolved, so `ENCOUNTER_REBUILD.md`
-§4–§5 is the front of the queue. It bumps `SaveGame` **14 → 15** and extends
-`content_fingerprint`, both in the same commit as the thing they describe.
-
-**Do not start it tired.** Stamping a save format at the end of a long session is
-how a bad night's work becomes a migration.
+**Phase 8b.** The type collapse landed, so what is left of E is the screen the
+player actually looks at. `SaveGame` is at **17**.
 
 | | Job | Read |
 | --- | --- | --- |
-| 6 | Option model, table, roller | `ENCOUNTER_REBUILD.md` §4–§5, §5a |
-| 7 | Option policy in the sim | `ENCOUNTER_REBUILD.md` §8 |
-| 8 | Collapse `NodeType`, ambush becomes an interrupt | §6–§7 · **`ENCOUNTER_FLOW.md`** |
+| 6 | Option model, table, roller | ✅ `SaveGame` 15 |
+| 7 | Option policy in the sim | ✅ |
+| 8a-1 | Ambush becomes an interrupt | ✅ `SaveGame` 16 |
+| 8a-2 | Collapse `NodeType` to START/SYSTEM/STATION/PULSAR/CORE | ✅ `SaveGame` 17 |
+| 8b | **The arrival screen** — a system renders its whole list | **`ENCOUNTER_FLOW.md`** |
 | 9 | Tune, including **sector difficulty** — see §7 | §8, `GALAXY_SCALE.md` §6 |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
@@ -95,7 +93,41 @@ overstates income, and never exercises the exclusivity that is the point of 6.
 **▲ E and L both make large edits to `SectorScreen.gd`** — one 1,221-line file
 that is both the arrival screen and the combat screen. **Sequence them.**
 
-**G §5 comes after phase 8**, which deletes four of the chart's six icon entries.
+**G §5 comes after phase 8.** The chart key is now START · SYSTEM · STATION ·
+PULSAR · CORE — five entries, down from seven.
+
+### What 8a-2 changed in the numbers
+
+Against `8e476ff`'s 500-run baseline, at 200 runs:
+
+| | before | after |
+| --- | --- | --- |
+| wins | 35% | **17%** |
+| avg jumps | 16.1 | 14.6 |
+| avg kills | 6.6 | 6.8 |
+| lowest kind | 19% | 6% |
+| derelicts eaten | 2.24/run | **4.36/run** |
+
+**Fight volume did not move** — the game got harder somewhere else, and the
+hellbender row is the strongest lead. Its food used to be `NodeType.DERELICT`,
+**4 of the 40-entry type bag**; it is now "a system offering a `salvage` option",
+and with `dead_hull` at weight 14 in a seven-option table that is most systems.
+The set piece roughly doubled its intake without anyone deciding it should.
+
+Two knock-ons were found and fixed while landing this, both worth recording
+because neither was visible from the type change itself:
+
+- **`system_has_tag` had to roll the system before reading it.** Contracts look
+  three layers ahead and the hellbender scans the whole map, so both were asking
+  about systems nobody had flown to — whose `options` were still empty. It
+  answered "no fight anywhere" and the hunt contract stopped being findable.
+- **Winning an option's fight consumed the whole system.** Fine when an EVENT
+  node held one event; wrong when a system holds about three options, because the
+  two the player had not reached yet silently stopped existing. Worth 2.4 jumps
+  and the last 0% galaxy kind.
+
+**Not tuned here.** Phase 9 owns it, and the hellbender's food supply is the
+first thing to price.
 
 ---
 

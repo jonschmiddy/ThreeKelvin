@@ -159,7 +159,7 @@ func _fly() -> void:
 		await _hellbender_leg()
 		return
 
-	_at = _find(MapGen.NodeType.CORE) if _boss else _find(MapGen.NodeType.FIGHT)
+	_at = _find(MapGen.NodeType.CORE) if _boss else _find(MapGen.NodeType.SYSTEM)
 	if not _ok("the shared galaxy holds a %s to share" % (
 			"core" if _boss else "fight"), _at >= 0):
 		return
@@ -528,7 +528,7 @@ func _find(t: MapGen.NodeType) -> int:
 		var n: MapGen.MapNode = Run.map[i]
 		if i == 0 or n.type != t:
 			continue
-		if t == MapGen.NodeType.FIGHT \
+		if t == MapGen.NodeType.SYSTEM \
 				and (n.cleared or n.region == MapGen.Region.FAUNA):
 			continue
 		return i

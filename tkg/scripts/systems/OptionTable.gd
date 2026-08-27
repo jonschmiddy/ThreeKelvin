@@ -132,6 +132,38 @@ const TIER_PLAN := {
 const ANCHOR_TAGS: Array[StringName] = [&"fight", &"salvage"]
 
 
+## Does this system offer an option carrying `tag`?
+##
+## What `NodeType.FIGHT` and `NodeType.DERELICT` used to answer. Contracts ask
+## for `fight` and the hellbender eats `salvage`, and both now read what is
+## actually here rather than a label that was chosen before anything was rolled.
+static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
+	if n == null:
+		return false
+	# ROLLS THE SYSTEM IF IT HAS NOT BEEN ROLLED, and both callers need that:
+	# a contract board looks three layers ahead and the hellbender scans the whole
+	# map, so every system either of them cares about is one nobody has flown to.
+	# Reading `n.options` raw would have answered "no fight anywhere", which is
+	# how the hunt contract stopped being findable.
+	#
+	# Safe because the answer does not depend on WHEN it is asked. `admits` gates
+	# on node properties only -- danger, security, development, region, fauna,
+	# berths, all fixed at map generation -- and the draw is positional, which is
+	# what `-- optiontest`'s "the same system always rolls the same options" is
+	# there to prove. Rolling early writes the list the arrival would have
+	# written, so the anti-save-scum contract in `_roll_here` is untouched: it is
+	# still decided once and still written before the autosave.
+	ensure(n)
+	for id in n.options:
+		var o := by_id(id)
+		if o.is_empty():
+			continue
+		for t in o.get("tags", []):
+			if StringName(t) == tag:
+				return true
+	return false
+
+
 ## Does this option anchor a system?
 static func _anchors(o: Dictionary) -> bool:
 	for t in o.get("tags", []):
@@ -299,8 +331,12 @@ static func _authored() -> Array[Dictionary]:
 			group = &"",
 			weight = 16,
 			choices = [
-				{label = "Engage", fight = true, effect = func() -> Dictionary:
-					return {text = "It came out here expecting easier work."}},
+				# THE OUTCOME OPENS THE FIGHT, not the line. `EventScreen._choose`
+				# reads `fight` off what the callable RETURNS -- which is how
+				# EventTable's two hostile endings have always worked -- so a flag
+				# on the line was a flag nothing was reading.
+				{label = "Engage", effect = func() -> Dictionary:
+					return {text = "It came out here expecting easier work.", fight = true}},
 				{label = "Burn past it", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 8)
 					return {text = "You put the throttle down and take the long way round the system. It does not follow, and you do not learn what it wanted."}},
@@ -357,8 +393,8 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 40)
 						return {text = "You cross the lane twice, both times at full burn, the second time for no reason either of you could name afterwards."}},
-				{label = "Break it", fight = true, effect = func() -> Dictionary:
-					return {text = "They are not expecting a ship that came out here to do this."}},
+				{label = "Break it", effect = func() -> Dictionary:
+					return {text = "They are not expecting a ship that came out here to do this.", fight = true}},
 			],
 		},
 		{
