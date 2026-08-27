@@ -238,3 +238,220 @@ deliberate act that carries the ship's whole radiator, which is exactly what
 *"offensive venting"* needs — Thermal Purge is `damage_equals_heat` plus
 `vent_all`, and it now lands in a game where heat actually accumulates to spend.
 
+---
+
+## S1 — the strand counter was measuring the wrong set, 2026-08-26
+
+Taken at `dd998f8`. **Paired from here on: `-- sim seed=1000 runs=500`.** The
+unpaired figures above cannot be compared to these — two runs of the same build
+unseeded came out 19% and 23%, a 4-point noise floor that swamps most dials.
+
+### S1a — F1 and F2, counting only
+
+Measurement, no behaviour change. A strand counts only when `has_legal_jump()` is
+false; `stranded_no_fuel` tests the reachable set and requires *all* options
+unaffordable; `policy_gave_up` is kept beside it.
+
+```
+stranded, ended by check_stranded() 100 (20.0%) · dry tank 100 · nowhere in range 0
+policy gave up 185 (37.0%) · of those, the ship could still fly 85
+fuel left at run end: 195 of a 279 tank (70%)
+```
+
+**Eighty-five of 185 reported strands — 46% — were ships that could still fly.**
+`Policy.choose_jump` built its candidates from `node.links`; the game routes on a
+radius and never reads `links` at all. The 38.8% the fuel ruling rested on is
+really 20.0%.
+
+Two things the split says that the old number could not. **`nowhere in range` is
+zero** — every genuine strand had somewhere to go and could not afford it, so it
+is an economy question and not a map one. And the tank ends **70% full**, so
+scarcity is a tail rather than a shortage: four runs in five end near full, one in
+five ends dry.
+
+### S1b — F3, the policy gets the map the player has
+
+Behaviour change, own commit, own run.
+
+| | links | range |
+| --- | --- | --- |
+| wins | 110 (22%) | 149 (30%) |
+| avg jumps | ~46 | 15.4 |
+| danger reached | 5.86 | 8.63 |
+| stranded | 100 (20%) | **0** |
+| policy gave up | 185 | 0 |
+| fuel at end | 195 (70%) | 254 (91%) |
+| per-kind spread | 38 pts | 27 pts |
+
+**Stranding is not reduced, it is gone.** `SIM_INSTRUMENT_FIX` §4's first row:
+the strand figure was an artifact and fuel income is not the problem. It was, and
+it is not — **S3 and S3a are dissolved, and no game code changed to dissolve
+them.**
+
+The 38-point spread was substantially the instrument too. Barred Ring Spiral,
+which could not win once in five hundred, was never a hard galaxy; it was a
+galaxy whose charted graph the policy could not route on.
+
+**And it exposed the real problem.** Jumps collapse to 15.4 against
+`GALAXY_SCALE`'s target of 25–35. The fast dive is not merely available, it is
+dominant — and phase 5 was the plan for preventing it, a plan that cannot work,
+because doors are links and links do not constrain anyone.
+
+---
+
+## Criterion 1 — you may only jump to what you can see, 2026-08-26
+
+Ruled: a jump needs sensors to see it, fuel to afford it, thrust to reach it. Two
+of the three were implemented; `sensed` was set by `chart_from` and read only by
+the chart's visible set, so sensors decided what was DRAWN and never what could
+be flown to.
+
+| | S1b | + sensors |
+| --- | --- | --- |
+| wins | 149 (30%) | 135 (27%) |
+| stranded | 0 | 10 (2.0%) |
+| policy gave up | 0 | 10 |
+
+`policy_gave_up` and `stranded` are now **equal** — the blind spot S1a opened is
+closed, and the simulator and the game agree about when a run is over.
+
+**The mean of 31.9 jumps this reported was a lie**, and the per-kind table said
+so: thirteen kinds ran 10–19 and the median was 15.9. Two dragged it up — Barred
+Ring Spiral at 127.7 jumps and Collisional Ring at 150.1, the only two kinds with
+`ring > 0`.
+
+---
+
+## The ring galaxies, 2026-08-26
+
+Three faults, all in the two kinds with a hole, all exposed rather than caused by
+criterion 1.
+
+1. **One radius, one place.** `ring_count` sized a ring's population from the
+   un-holed radius while `galaxy_pos` drew it at `hole + rn * (1 - hole)` — the
+   innermost ring of a Collisional Ring counted for 0.110 and drawn at 0.573.
+2. **Perimeter is geometry, weight is depth.** Moving the hole broke the
+   population weighting, which reads depth off the same `r` it uses for
+   circumference. Counts *fell*, 259 to 156.
+3. **The core is a landmark.** `reachable_from` is symmetric; `chart_from` only
+   measures your own dish. So a node reachable only through the far end's radius
+   could never be sensed — and on a galaxy with a hole, that node is the core.
+
+| | before | after |
+| --- | --- | --- |
+| wins | 135 (27%) | 153 (31%) |
+| stranded | 10 (2.0%) | 1 (0.2%) |
+| per-kind floor | **0%** | **21%** |
+| spread | 44 pts | 23 pts |
+
+**Every galaxy is winnable.** Densities for the two ring kinds were authored down
+(0.95 to 0.64, 0.90 to 0.55) because the corrected geometry pushes their rings out
+into the annulus, where a fixed gap between neighbours buys far more systems.
+
+---
+
+## Live sight, 2026-08-26
+
+`sensed` recomputed on arrival instead of accumulating. `SENSE_FLOOR` gives a
+baseline so no refit can blind you — **on the radius, not the attribute**, since
+clamping `attr_sensors()` made a Rare part promising +1 move the gauge +0, and
+`-- attrtest` caught it.
+
+```
+wins 154 (31%) · jumps 16.2 · stranded 1 (0.2%) · spread 21 pts
+```
+
+**The simulator cannot measure this change, and these numbers are not evidence it
+did nothing.** `Policy.choose_jump` picks from what is reachable this instant and
+never plans a route, so an accumulated chart is worth exactly nothing to it. What
+a chart is *for* is planning. Judged by looking instead — `-- fogshot` — about 5%
+of the galaxy is lit at a time.
+
+---
+
+## The jump range becomes fixed, 2026-08-26
+
+`JUMP_RADIUS := 0.18`, replacing `clampf(nearest * 2.5, 3rd, 6th) * 1.06`. The old
+rule held the option count near six against a radial density gradient, and did it
+by hiding the range: measured across one galaxy the radius swung **5x**.
+
+`ring_count`'s weight flattened 0.14–3.3 to 0.80–1.80 to allow it. Options scale
+as `(R / spacing)^2`, so a 3x spacing gradient is a 9x option gradient — at
+`R = 0.12` the rim offered **zero** and the deep galaxy offered ten.
+
+The final approach is granted from the last ring. An ordinary galaxy covers that
+hop anyway; a galaxy with a hole cannot, and 0.19 of reach will not cross 0.52.
+
+| | adaptive | fixed |
+| --- | --- | --- |
+| wins | 31% | 39% |
+| stranded | 0.2% | 0.0% |
+| avg jumps | 16.2 | 15.7 |
+
+**Run length is not fixed by this.** An earlier reading of 39.6 jumps was the two
+broken ring kinds dragging the mean — the same trap as the 31.9 above, walked
+into twice in one session.
+
+---
+
+## The arms gather, 2026-08-26
+
+The pull toward an arm is capped in **neighbour widths**. Below 1.0 a system
+cannot overtake its neighbour, so the ring keeps even spacing *by arithmetic* —
+the old 0.6 was not a weak setting, it was a disabled one. The starfield gathered
+into lanes and the systems drifted evenly through them, so the map's density said
+nothing about the galaxy drawn behind it.
+
+Widest void in ring 8 of a Grand-Design Spiral against an even spacing of 15
+degrees, with `-- maptest` asserting the core stays flyable:
+
+| cap | widest void | bunched | flyable mean | gate |
+| --- | --- | --- | --- | --- |
+| 0.6 | 34° | 2 / 24 | 6.1 | ok |
+| 2.0 | 76° | 10 / 24 | 6.2 | ok |
+| 3.0 | 106° | 15 / 24 | 7.4 | ok |
+| 4.0 | 136° | 21 / 24 | 7.9 | **FAILS** |
+| 6.0 | 139° | 22 / 24 | 9.9 | ok |
+
+It **saturates**: the real pull is `best * 0.75`, so past about 4 nothing is
+clipped and 5, 6 and uncapped draw the same galaxy. And **4.0 fails the flyability
+gate** while 6.0 draws a nearly identical galaxy and passes — that pass is luck,
+not safety. Accepted as a roguelite risk rather than repaired.
+
+**2.0 chosen, for how it looks.** Routing barely moves (6.2 against 6.1), which is
+the intended trade: run length is meant to come from sector difficulty rather than
+from walls.
+
+| | 0.6 | 2.0 |
+| --- | --- | --- |
+| wins | 196 (39%) | 177 (35%) |
+| avg jumps | 15.7 | 16.1 |
+| stranded | 0.0% | 0.0% |
+| lowest kind | — | 19% |
+
+---
+
+## Where the night ended
+
+```
+runs 500 · wins 177 (35%) · deaths 313 · errors 0
+avg jumps 16.1 · avg kills 6.6 · avg danger reached 8.61
+stranded 0 (0.0%) · dry tank 0 · nowhere in range 0
+spread: Flattened Elliptical 64% down to Barred Ring Spiral 19% (45 points)
+```
+
+Against the morning's `dd998f8`: stranding **38.8% to 0.0%**, unwinnable kinds
+**2 to 0**, lowest kind **0% to 19%**, wins **19% to 35%**.
+
+**Not one of the four faults fixed tonight was the fuel economy the whole plan was
+built around.** They were: a counter measuring the wrong set, a policy routing on
+a graph the player does not use, a criterion never implemented, and a core that
+was reachable but unsensable.
+
+### Still open
+
+- **Run length.** ~16 jumps against 25–35. Ruled to be handled by **sector
+  difficulty** — the curve is linear today, `1 + round(layer * 9 / 13)` — and
+  parked until encounters are settled.
+- **The flyability margin.** Generation does not guarantee a route; it happens to
+  leave one. Accepted as roguelite variance.
