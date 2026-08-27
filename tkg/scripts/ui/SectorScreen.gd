@@ -485,7 +485,21 @@ func _choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	# still says what it wants and how far off you are.
 	var note := ""
 	var tone := UITheme.COLD
-	if c.has("cost_credits"):
+	# A GATE ON WHAT YOU ARE CARRYING, not on what you can pay. `holding_pattern`
+	# trades an exotic-tier item to a queue that has been waiting long enough to
+	# want one, and the handoff asked for the choice to be HIDDEN if this could
+	# not land tonight. Greying it is better and costs the same: RULING 8 already
+	# says a disabled thing states what it wants and how far off you are, and a
+	# hidden row teaches the player nothing about why the trade was possible the
+	# last time they saw it.
+	if c.has("needs_material"):
+		var mid := StringName(c.needs_material)
+		var have := Run.material(mid)
+		note = "1 %s · you have %d" % [String(mid), have]
+		if have < 1:
+			b.disabled = true
+			tone = UITheme.FLARE
+	elif c.has("cost_credits"):
 		var cost := int(c.cost_credits)
 		note = "%d credits · you have %d" % [cost, Run.credits]
 		if Run.credits < cost:
@@ -582,6 +596,8 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	var c: Dictionary = choices[j]
 	if c.has("cost_credits") and Run.credits < int(c.cost_credits):
 		return
+	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
+		return
 	var band := SkillCheck.Band.MET
 	var call: Callable = c.get("effect", Callable())
 	if c.has("check"):
@@ -592,9 +608,14 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	var res: Dictionary = call.call() if call.is_valid() else {}
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
-	if bool(res.get("module", false)):
-		Run.place_in_hold(LootGen.roll_module(n.danger))
-	_outcomes[i] = String(res.get("text", ""))
+	var got := OptionTable.pay(res, n)
+	# WHAT ARRIVED, APPENDED TO WHAT HAPPENED. A material is the one reward whose
+	# name the prose cannot know -- it is rolled -- so the row says it plainly
+	# rather than leaving the player to notice a number move.
+	var told := String(res.get("text", ""))
+	if got != "":
+		told += "  [%s]" % got
+	_outcomes[i] = told
 	Router.option_resolved(i)
 	if Run.dead:
 		Router.show_game_over()

@@ -95,8 +95,7 @@ func _choose(index: int) -> void:
 	# and paid nothing through here.
 	#
 	# No EventTable event grants one, which is why nothing caught it earlier.
-	if bool(outcome.get("module", false)):
-		Run.place_in_hold(LootGen.roll_module(Run.node_at().danger))
+	var got := OptionTable.pay(outcome, Run.node_at())
 	_then_fight = bool(outcome.get("fight", false))
 	_refresh()
 	var panel := PanelContainer.new()
@@ -112,7 +111,10 @@ func _choose(index: int) -> void:
 	# just gambled against never resolves visibly.
 	if opt.has("check"):
 		col.add_child(UITheme.body(SkillCheck.band_name(band), edge, UITheme.FS_SMALL))
-	var text := UITheme.body(String(outcome.get("text", "")), UITheme.HOT, UITheme.FS_BODY)
+	var said := String(outcome.get("text", ""))
+	if got != "":
+		said += "  [%s]" % got
+	var text := UITheme.body(said, UITheme.HOT, UITheme.FS_BODY)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(text)
 	panel.add_child(col)

@@ -50,6 +50,7 @@ func run() -> void:
 	_ok("every option has a unique id and at least one choice", true)
 
 	OptionTable.floor_fired = 0
+	_gates_are_real()
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n_checked := 0
@@ -158,3 +159,36 @@ func run() -> void:
 	_ok("no system is left with nothing to do", empty == 0)
 
 	verdict("optiontest")
+
+
+## Every field an option gates on is one `admits` actually reads.
+##
+## THE FAILURE THIS EXISTS FOR IS SILENT. `admits` tests the keys it knows and
+## ignores the rest, so an option carrying a gate nobody implemented is not
+## rejected loudly -- it is admitted EVERYWHERE. The content then reads as
+## deliberately placed while being placed nowhere in particular.
+##
+## Batch 04 shipped `max_development` and there was no such gate. `long_claim` is
+## a seam nobody works "because hauling ore back costs more than the ore", and it
+## would have turned up in capital systems saying so. Nothing failed, nothing
+## warned, and the only symptom was prose that did not match where it appeared.
+##
+## Cheap to check and it closes the class: a typo in a gate name is the same bug.
+func _gates_are_real() -> void:
+	# The keys `OptionTable.admits` tests, plus the ones that are not gates.
+	var known := {
+		&"id": true, &"title": true, &"body": true, &"tags": true,
+		&"group": true, &"weight": true, &"choices": true,
+		&"min_danger": true, &"max_danger": true,
+		&"min_security": true, &"max_security": true,
+		&"min_development": true, &"max_development": true,
+		&"regions": true, &"needs_fauna": true, &"needs_berth": true,
+		&"berth": true,
+	}
+	var bad: Array[String] = []
+	for o in OptionTable.all():
+		for k in (o as Dictionary).keys():
+			if not known.has(StringName(k)):
+				bad.append("%s.%s" % [String((o as Dictionary).id), String(k)])
+	_ok("every option field is one the table reads%s"
+		% ("" if bad.is_empty() else " -- " + ", ".join(bad)), bad.is_empty())

@@ -442,6 +442,11 @@ func _choose_line(opt: Dictionary) -> int:
 		var c: Dictionary = choices[i]
 		if c.has("cost_credits") and Run.credits < int(c.cost_credits):
 			continue
+		# The same gate the screen greys. A policy that took a line the player
+		# cannot reach would price a trade nobody can make.
+		if c.has("needs_material") \
+				and Run.material(StringName(c.needs_material)) < 1:
+			continue
 		if not c.has("check"):
 			if fallback < 0:
 				fallback = i
@@ -471,8 +476,7 @@ func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> Dictionary:
 			res = cb2.call()
 	if typeof(res) != TYPE_DICTIONARY:
 		return {}
-	if bool(res.get("module", false)):
-		Run.place_in_hold(LootGen.roll_module(n.danger))
+	OptionTable.pay(res, n)
 	# Handed back rather than consumed here, because `fight` is the caller's
 	# business: this function grants rewards, it does not start battles.
 	return res
