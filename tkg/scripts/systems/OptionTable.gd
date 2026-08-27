@@ -14,7 +14,11 @@ class_name OptionTable
 ## pair WHOLE situations ("salvage_rights competes with still_under_warranty"),
 ## not individual lines.
 ##
-## So the shape is today's `EventTable` entry plus four fields: `id`, gating,
+## `EventTable` WAS DELETED 2026-08-27, its last seven entries ported here. It is
+## named below because it is why this shape is what it is, not because you can go
+## and read it.
+##
+## So the shape is that `EventTable` entry plus four fields: `id`, gating,
 ## `group`, `weight`. That is also why the port is cheap -- OPT-007 to 012 are
 ## literally existing events with a header written on them.
 ##
@@ -47,13 +51,6 @@ class_name OptionTable
 ## `by_key()`, which then linear-searches. At ~290 systems each rolling its own
 ## list that pattern stops being merely wasteful -- `ENCOUNTER_REBUILD.md` §5a
 ## says so in as many words.
-## How often the anchor floor had to step in. See `_anchor_floor`.
-##
-## THIS IS THE DELETION DATE. The floor is scaffolding for a thin table; when
-## this reaches zero over a full sim the pool is supplying anchors on its own and
-## the floor is dead code with a test saying so.
-static var floor_fired: int = 0
-
 static var _all: Array[Dictionary] = []
 static var _by_id: Dictionary = {}
 
@@ -132,15 +129,6 @@ const TIER_PLAN := {
 	4: {"lo": 3, "hi": 4, "groups": 2},
 	5: {"lo": 3, "hi": 4, "groups": 9},
 }
-
-
-## The tags a system needs at least one of, while the table is thin.
-##
-## `fight` because contracts ask for one and because 5's reward classes make
-## fights the only reliable door to the top of the rarity ladder. `salvage`
-## because the hellbender eats wrecks, and because a system with neither is a
-## system with nothing in it worth crossing a galaxy for.
-const ANCHOR_TAGS: Array[StringName] = [&"fight", &"salvage"]
 
 
 ## Hand over everything an outcome promised, and say what arrived.
@@ -228,54 +216,6 @@ static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 	return false
 
 
-## Does this option anchor a system?
-static func _anchors(o: Dictionary) -> bool:
-	for t in o.get("tags", []):
-		if ANCHOR_TAGS.has(StringName(t)):
-			return true
-	return false
-
-
-## Make sure a system offers something to fight or something to strip.
-##
-## SCAFFOLDING. See `floor_fired` for how it ends: when the pool supplies an
-## anchor on its own the swap stops happening, and this becomes dead code with a
-## measurement proving it rather than a note somebody has to remember.
-##
-## Swaps rather than appends, so the tier plan's counts are not quietly
-## exceeded -- the lowest-weight option goes, because weight is how the table
-## says which entries are meant to be common.
-static func _anchor_floor(out: Array[StringName], pool: Array[Dictionary],
-		r: RandomNumberGenerator) -> void:
-	for id in out:
-		if _anchors(by_id(id)):
-			return
-	# UNGROUPED ONLY, and batch 04 is what found this. The floor swaps in any
-	# anchor-tagged option it can reach, and four of the new groups carry anchor
-	# tags -- so at tier 1, where `TIER_PLAN` allows NO groups, the floor could
-	# hand a system an exclusive pair the roller had deliberately not given it.
-	# `-- optiontest` caught it as "node 44 tier 1 opened 1 groups, plan allows 0".
-	#
-	# Scaffolding must not be able to overrule the plan it is propping up. The
-	# floor exists to guarantee there is something to fight or strip; exclusivity
-	# is a separate decision the tier plan owns, and a swap is not the place to
-	# make it. If every admitted anchor here is grouped, the floor simply does not
-	# fire -- the same answer it already gives when there are none at all.
-	var anchors: Array[Dictionary] = []
-	for o in pool:
-		if _anchors(o) and StringName(o.get("group", &"")) == &"":
-			anchors.append(o)
-	if anchors.is_empty():
-		return
-	var swap: Dictionary = anchors[r.randi() % anchors.size()]
-	var worst := 0
-	for i in out.size():
-		if int(by_id(out[i]).get("weight", 10)) < int(by_id(out[worst]).get("weight", 10)):
-			worst = i
-	out[worst] = StringName(swap.id)
-	floor_fired += 1
-
-
 ## What this system holds. Ids only -- callables are never built here.
 ##
 ## POSITIONAL, off `Rng.derive(&"options", n.index)`, because what is AT a place
@@ -325,10 +265,6 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 				continue
 			groups_used[g] = true
 		out.append(StringName(got.id))
-	# `pool` is what the draw did NOT take, which is exactly the set a swap may
-	# come from -- anything already in `out` is either an anchor or was not one.
-	if not out.is_empty():
-		_anchor_floor(out, pool, r)
 	return out
 
 
@@ -446,14 +382,14 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You take the seam and the shelf under it, and the frame does not complain once.", material = &"mining"},
 					clean = func() -> Dictionary:
 						Run.add_credits(55)
-						Run.take_hull_damage(3, "")
+						Run.take_hull_damage(3, "You take more than the seam. Something in the forward bracing makes a noise it has not made before, then stops.")
 						return {text = "You take more than the seam. Something in the forward bracing makes a noise it has not made before, then stops."},
 					partial = func() -> Dictionary:
 						Run.add_credits(30)
-						Run.take_hull_damage(6, "")
+						Run.take_hull_damage(6, "The shelf comes away wrong and takes the cutting head with it. You get half of what you came for and you are cutting by hand after that.")
 						return {text = "The shelf comes away wrong and takes the cutting head with it. You get half of what you came for and you are cutting by hand after that."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(12, "")
+						Run.take_hull_damage(12, "You are still under the overhang when the overhang decides.")
 						return {text = "You are still under the overhang when the overhang decides."}},
 				{label = "Move on", effect = func() -> Dictionary:
 					return {text = "It has been here a long time. It is in no hurry."}},
@@ -500,13 +436,13 @@ static func _authored() -> Array[Dictionary]:
 					met = func() -> Dictionary:
 						return {text = "You go through the field like water through a grate, and lift a module off the wreck of somebody who did not.", module = true},
 					clean = func() -> Dictionary:
-						Run.take_hull_damage(5, "")
+						Run.take_hull_damage(5, "One of them finds your flank on the way out. Only one.")
 						return {text = "One of them finds your flank on the way out. Only one."},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(11, "")
+						Run.take_hull_damage(11, "Two, then a third. You reverse the last hundred metres with the hull ringing.")
 						return {text = "Two, then a third. You reverse the last hundred metres with the hull ringing."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(18, "")
+						Run.take_hull_damage(18, "The old ones are the worst. This one waits until you are past before it decides.")
 						return {text = "The old ones are the worst. This one waits until you are past before it decides."}},
 				{label = "Sweep wide", effect = func() -> Dictionary:
 					return {text = "You give the whole drift a wide margin and lose nothing but time."}},
@@ -615,7 +551,7 @@ static func _authored() -> Array[Dictionary]:
 						Run.fuel = maxi(0, Run.fuel - 8)
 						return {text = "You misjudge the interval and spend the whole run fighting the wash instead of using it."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(14, "")
+						Run.take_hull_damage(14, "The fourth one changes its mind about the lane. You are close enough that the flank takes your dorsal plating with it.")
 						return {text = "The fourth one changes its mind about the lane. You are close enough that the flank takes your dorsal plating with it."}},
 				{label = "Take what they shed", effect = func() -> Dictionary:
 					return {text = "You hold off the lane and collect what works loose in the wake. Their hides carry decades of accreted junk — plate, ice, and today, a whole rack off some ship that once got too close.", module = true, material_id = &"hide_scrap"}},
@@ -703,7 +639,7 @@ static func _authored() -> Array[Dictionary]:
 						Run.add_credits(20)
 						return {text = "You get her turned but not clear, and the yard tug that finally arrives gets paid the difference."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(8, "")
+						Run.take_hull_damage(8, "You put twelve tonnes of thrust into a hull that was not braced for it and both of you learn something.")
 						return {text = "You put twelve tonnes of thrust into a hull that was not braced for it and both of you learn something."}},
 				{label = "Sell her the fuel instead", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 20)
@@ -733,7 +669,7 @@ static func _authored() -> Array[Dictionary]:
 						Run.add_credits(30)
 						return {text = "You find her, get one panel open, and lose your bearings badly enough that leaving becomes the priority."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(13, "")
+						Run.take_hull_damage(13, "Something in the shoal is harder than the rest of it and you find that out with your bow.")
 						return {text = "Something in the shoal is harder than the rest of it and you find that out with your bow."}},
 				{label = "Sweep the edge", effect = func() -> Dictionary:
 					Run.add_credits(20)
@@ -778,14 +714,14 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The head works exactly as advertised and your plating takes it without complaint. They pay, and they pay well, because now they know."},
 					clean = func() -> Dictionary:
 						Run.add_credits(80)
-						Run.take_hull_damage(4, "")
+						Run.take_hull_damage(4, "It bites deeper than the spec said. You come away paid and scored.")
 						return {text = "It bites deeper than the spec said. You come away paid and scored."},
 					partial = func() -> Dictionary:
 						Run.add_credits(40)
-						Run.take_hull_damage(9, "")
+						Run.take_hull_damage(9, "It bites much deeper than the spec said, and they stop the test early and pay half.")
 						return {text = "It bites much deeper than the spec said, and they stop the test early and pay half."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(17, "")
+						Run.take_hull_damage(17, "The head finds a seam. Somebody says a word and somebody else hits the cutoff, and afterwards everyone is very quiet and very apologetic.")
 						return {text = "The head finds a seam. Somebody says a word and somebody else hits the cutoff, and afterwards everyone is very quiet and very apologetic."}},
 				{label = "Rig them a target instead", effect = func() -> Dictionary:
 					Run.add_credits(30)
@@ -835,14 +771,14 @@ static func _authored() -> Array[Dictionary]:
 						Run.add_credits(50)
 						return {text = "You match it, hold it, and walk aboard as though the floor had always been down. Somebody's whole life is still bolted to it.", module = true, material = &"wreck"},
 					clean = func() -> Dictionary:
-						Run.take_hull_damage(3, "")
+						Run.take_hull_damage(3, "You match it well enough. Getting back off is worse than getting on.")
 						return {text = "You match it well enough. Getting back off is worse than getting on.", module = true},
 					partial = func() -> Dictionary:
 						Run.add_credits(20)
-						Run.take_hull_damage(7, "")
+						Run.take_hull_damage(7, "You get one hand on it and the rotation takes the decision away from you.")
 						return {text = "You get one hand on it and the rotation takes the decision away from you."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(15, "")
+						Run.take_hull_damage(15, "Ninety seconds is a long time to be wrong about which way something is going.")
 						return {text = "Ninety seconds is a long time to be wrong about which way something is going."}},
 				{label = "Take the outside", effect = func() -> Dictionary:
 					Run.add_credits(25)
@@ -944,14 +880,14 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You take the crust off in sheets and get at the clean ice under it. Volatiles, water, and enough material in the tail to be worth the trip.", material = &"mining"},
 					clean = func() -> Dictionary:
 						Run.fuel += 18
-						Run.take_hull_damage(3, "")
+						Run.take_hull_damage(3, "The crust goes where you did not want it to. You get most of what you came for and wear the rest.")
 						return {text = "The crust goes where you did not want it to. You get most of what you came for and wear the rest."},
 					partial = func() -> Dictionary:
 						Run.fuel += 10
-						Run.take_hull_damage(6, "")
+						Run.take_hull_damage(6, "The face calves while you are on it. You back off with a partial hold and a story.")
 						return {text = "The face calves while you are on it. You back off with a partial hold and a story."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(14, "")
+						Run.take_hull_damage(14, "Three kilometres of compressed ice releases about eleven seconds of stored temper directly into your bow.")
 						return {text = "Three kilometres of compressed ice releases about eleven seconds of stored temper directly into your bow."}},
 				{label = "Skim the tail", effect = func() -> Dictionary:
 					Run.fuel += 9
@@ -1003,13 +939,13 @@ static func _authored() -> Array[Dictionary]:
 					met = func() -> Dictionary:
 						return {text = "You pick a line through nine hundred metres of dead scaffolding and nothing so much as brushes you. The bay is exactly as it was left.", module = true, material = &"wreck"},
 					clean = func() -> Dictionary:
-						Run.take_hull_damage(4, "")
+						Run.take_hull_damage(4, "You get in, get the bay open, and take a glancing hit from something that let go behind you.")
 						return {text = "You get in, get the bay open, and take a glancing hit from something that let go behind you.", module = true},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(8, "")
+						Run.take_hull_damage(8, "Two hundred metres in, a span shifts across your line and you reverse out past a bay you can see and cannot reach.")
 						return {text = "Two hundred metres in, a span shifts across your line and you reverse out past a bay you can see and cannot reach."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(16, "")
+						Run.take_hull_damage(16, "The thing about tension is that it is patient right up until it is not.")
 						return {text = "The thing about tension is that it is patient right up until it is not."}},
 				{label = "Work the outside", effect = func() -> Dictionary:
 					Run.add_credits(20)
@@ -1034,7 +970,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "Four hours, one heading, no drama. The dock takes her, and the dockmaster watches you come in with somebody else's ship on the line."},
 					clean = func() -> Dictionary:
 						Run.add_credits(75)
-						Run.take_hull_damage(3, "")
+						Run.take_hull_damage(3, "Five hours and a stern mount you will want looked at. She gets there.")
 						return {text = "Five hours and a stern mount you will want looked at. She gets there."},
 					partial = func() -> Dictionary:
 						Run.add_credits(25)
@@ -1074,7 +1010,7 @@ static func _authored() -> Array[Dictionary]:
 						Run.fuel = maxi(0, Run.fuel - 10)
 						return {text = "It bolts the wrong way twice and you spend an hour of burn undoing each one before it finally hears the pod itself."},
 					botched = func() -> Dictionary:
-						Run.take_hull_damage(12, "")
+						Run.take_hull_damage(12, "It panics at exactly the wrong moment and its flank finds you at speed. It reaches the pod anyway. You limp.")
 						return {text = "It panics at exactly the wrong moment and its flank finds you at speed. It reaches the pod anyway. You limp."}},
 				{label = "Leave it calling", effect = func() -> Dictionary:
 					return {text = "The pod is two hours out. The hunter is closer. You do not stay to see which arrives first."}},
@@ -1234,6 +1170,151 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You feed it a malformed registry and something in its logic decides YOU are the addressee of every consignment on its manifest. It follows you to the edge of sensor range, waiting."}},
 				{label = "Decline the handshake", effect = func() -> Dictionary:
 					return {text = "It holds formation for exactly one hour, then returns to its route. Somewhere out there is a registry one digit from yours, and its parcel is still coming."}},
+			],
+		},
+		{
+			id = &"dead_station",
+			title = "Dead station",
+			body = "A station hangs dark and unpowered, turning a little off true. The docking clamps still have pressure in them, which means the reactor died slowly enough for somebody to shut things down in order. There is no one aboard to ask about that.",
+			tags = [&"salvage"],
+			group = &"",
+			weight = 12,
+			choices = [
+				{label = "Salvage the racks", effect = func() -> Dictionary:
+					return {text = "You pull a module out of a dead bay. The rack releases it on the first try, which it should not have, after this long.", module = true, material = &"wreck"}},
+				{label = "Siphon the tanks", effect = func() -> Dictionary:
+					Run.fuel += 12
+					return {text = "Four jumps of fuel, tasting of rust."}},
+			],
+		},
+		{
+			id = &"coolant_seller",
+			title = "Coolant seller",
+			body = "Somebody is selling surplus coolant off the back of a hauler, at a price that is either a favour or a confession. The drums are unlabelled and the seals are the right ones, which is a strange combination to arrive at honestly.",
+			tags = [&"contract"],
+			group = &"",
+			weight = 9,
+			min_development = MapGen.Development.OUTPOST,
+			choices = [
+				{label = "Buy the drums", cost_credits = 20, effect = func() -> Dictionary:
+					Run.add_heat_cap(3)
+					return {text = "It runs cold and it runs clean, and your loop holds three more points of heat than it did this morning. Permanently."}},
+				{label = "Ask where it came from", effect = func() -> Dictionary:
+					Run.add_credits(15)
+					return {text = "He tells you, at length, and the answer is boring enough to be true. You do not buy any. He pays you fifteen to say so to the next ship that asks, which is somehow the better deal."}},
+			],
+		},
+		{
+			id = &"distress_beacon",
+			title = "Distress beacon",
+			body = "A looping voice repeating coordinates one jump off your route, in the flat cadence of a recording that has been running a long time. Whatever is at the other end has been transmitting through a hull big enough to carry a real transmitter — so it is either worth reaching or worth avoiding, and the recording does not say which.",
+			tags = [&"signal", &"fight"],
+			group = &"",
+			weight = 11,
+			choices = [
+				{label = "Answer it", fight = true, effect = func() -> Dictionary:
+					return {text = "It was bait, and the hull it was broadcasting from is real — still loaded, still worth taking off whoever is currently using it as a hook. Something is already firing.", fight = true}},
+				{label = "Read it from cover",
+					check = {attr = &"sensors", need = 4},
+					met = func() -> Dictionary:
+						Run.add_credits(40)
+						return {text = "You sit off the coordinates and listen. The loop has a second signature under it, holding station and not moving, which tells you what this is. You sell the coordinates as a hazard note at the next dock."},
+					clean = func() -> Dictionary:
+						Run.add_credits(20)
+						return {text = "Enough of the carrier resolves to tell you nobody aboard is alive to be rescued. That is worth logging, and a little to whoever buys logs."},
+					partial = func() -> Dictionary:
+						return {text = "You learn nothing except that it repeats every ninety seconds, which you could have counted from here."},
+					botched = func() -> Dictionary:
+						Run.heat += 8
+						return {text = "You hold position long enough for the thing under the loop to get a good look at you, and you leave with your bloom up."}},
+				{label = "Run silent", effect = func() -> Dictionary:
+					Run.heat = 0
+					return {text = "You cut the reactor and drift past it with everything dark. Heat cleared, and the voice goes on repeating behind you."}},
+			],
+		},
+		{
+			id = &"whale_fall",
+			title = "Whale fall",
+			body = "The corpse of something enormous, coming apart slowly in the dark and feeding a whole economy of smaller things while it does. It has been dead long enough to have a population and not long enough to have a smell you can get out of the filters.",
+			tags = [&"salvage"],
+			group = &"",
+			weight = 8,
+			needs_fauna = true,
+			choices = [
+				{label = "Harvest it", effect = func() -> Dictionary:
+					Run.add_material(&"exotic", 2)
+					return {text = "Two exotic, and a smell you will not forget.", material = &"fauna"}},
+				{label = "Let it rest", effect = func() -> Dictionary:
+					var h := Run.heal(8)
+					return {text = "You drift alongside it a while and do not cut anything. Hull +%d, and hard to explain afterwards." % h}},
+			],
+		},
+		{
+			id = &"inspection_sweep",
+			title = "Inspection sweep",
+			body = "A patrol is stopping everything through this lane, and the reason is parked behind them: a hauler pulled over two days ago and abandoned by its crew, its load sitting on the apron under a seizure notice nobody has come to execute. The queue moves slowly. Whatever is on that apron goes to the yard at the end of the week.",
+			tags = [&"contract"],
+			group = &"",
+			weight = 10,
+			min_security = 3,
+			choices = [
+				{label = "Wait your turn and bid on the load", cost_credits = 40, effect = func() -> Dictionary:
+					var lost := Run.contraband_count()
+					if lost > 0:
+						Run.add_credits(-20 * lost)
+						return {text = "They find what you are carrying and price it into the paperwork, and you pay both bills. What is left on the apron is still worth more than the morning cost you.", module = true}
+					return {text = "Clean, waved through, and first in line for an apron nobody else waited out. The seizure clerk is glad of the company and the price is what it says on the notice.", module = true, material = &"wreck"}},
+				{label = "Talk your way to the front",
+					check = {attr = &"stealth", need = 4},
+					met = func() -> Dictionary:
+						Run.add_credits(70)
+						return {text = "Your registry says you are already cleared, because for the forty seconds it took them to read it, it did.", module = true},
+					clean = func() -> Dictionary:
+						Run.add_credits(30)
+						return {text = "You come out of the queue two hours early and take the smaller half of the apron, which is still a half."},
+					partial = func() -> Dictionary:
+						Run.take_hull_damage(4, "A patrol skiff crowded you off the apron.")
+						return {text = "They notice, and the noticing is expensive in the way that costs paint rather than credits. You leave with nothing off the apron."},
+					botched = func() -> Dictionary:
+						Run.add_credits(-45)
+						return {text = "You are fined for the attempt, itemised, and made to wait anyway. The apron is empty by the time you reach it."}},
+				{label = "Burn away", effect = func() -> Dictionary:
+					Run.fuel = maxi(0, Run.fuel - 6)
+					Run.take_hull_damage(4, "You ran the lane, and something clipped you on the way out.")
+					return {text = "You run. Six fuel, four hull, no record — and the apron goes to the yard on Friday without you."}},
+			],
+		},
+		{
+			id = &"derelict_hauler",
+			title = "Derelict hauler",
+			body = "An old freight frame, gutted down to structure and still holding its lines. Whoever stripped it took the fittings and left the thing they were bolted to, which is the opposite of the usual order and says they were in a hurry about something other than money.",
+			tags = [&"salvage"],
+			group = &"",
+			weight = 6,
+			min_danger = 2,
+			choices = [
+				{label = "Claim the hull", effect = func() -> Dictionary:
+					Run.find_hull(LootGen.roll_hull(Run.node_at().danger))
+					return {text = "The frame is flyable, which you establish the slow way: %s." % Run.found_hull.display_name()}},
+				{label = "Strip it for scrap", effect = func() -> Dictionary:
+					Run.add_credits(35)
+					return {text = "Thirty-five credits of plating and wire, and a frame left a little more gutted than you found it.", material = &"wreck"}},
+			],
+		},
+		{
+			id = &"cold_sleeper",
+			title = "Cold sleeper",
+			body = "A single cryopod, still drawing power from a cell that has been dying for a while and will finish soon. The occupant's chart reads three degrees. Everything else about the pod is working exactly as designed, which is the part that takes a moment.",
+			tags = [&"signal"],
+			group = &"",
+			weight = 9,
+			choices = [
+				{label = "Restore power", cost_credits = 10, effect = func() -> Dictionary:
+					Run.add_material(&"exotic", 1)
+					return {text = "They live, briefly, and are lucid for less of it than you would want. What they give you they had been holding since before the cell started to go."}},
+				{label = "Take the power cell", effect = func() -> Dictionary:
+					Run.fuel += 9
+					return {text = "Three jumps. The pod goes dark behind you, on the schedule it was already on."}},
 			],
 		},
 		{

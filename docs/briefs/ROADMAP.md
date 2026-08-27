@@ -73,10 +73,51 @@ measurements were taken on the wrong kind before this was noticed.
 
 ## 2. WHAT IS NEXT
 
-**Content.** E is done — the collapse landed and the arrival screen renders the
-list. `SaveGame` is at **17**. What is left is that the table is **seven options
-deep**, so a system draws ~2.9 of the same seven every time and neither 8b nor
-phase 9 can be judged until that changes.
+**Phase 9.** E is done, the pool is 44 deep, and the loop is finally worth
+measuring. `SaveGame` is at **17**.
+
+### The phase 9 baseline — 500 runs, 2026-08-27
+
+```
+runs 500 · wins 177 (35%) · deaths 311 · errors 0
+avg jumps 15.0 · avg kills 3.3 · avg danger reached 7.84
+stranded 1 (0.2%) · dry tank 1 · nowhere in range 0
+options: 3.03 taken per system · 0.29 opened a fight
+spread: Multi-Arm Spiral 50% down to Barred Lenticular 22% (28 points)
+```
+
+**This is the healthiest the game has been measured.** 35% matches the
+pre-collapse baseline, and the SPREAD is the real result: 28 points across 15
+kinds with a floor of 22%, against 45 points and a floor of 19% at `8e476ff`.
+No kind is unwinnable and no kind is a walkover.
+
+**Take 500 before concluding anything.** A 200-run reading is worth ±4 points,
+measured — three consecutive runs of one build gave 20%, 13%, 16%.
+
+**What phase 9 should look at, in order:**
+
+1. **`avg kills 3.3`, down from 6.6.** Fights are now 0.29 an option rather than
+   a node type, and this is the number that moved most. Is a run with three
+   fights in it the game we want? That is a design question, not a bug — but the
+   combat system is a lot of machinery to exercise three times.
+2. **`credits: -1 net at stations per run`.** The economy is almost exactly flat
+   at the one place designed to move it. Worth knowing whether that is the
+   intent.
+3. **§9a, the hellbender's food** — 3.79/run now, down from 4.36 but still well
+   above the 2.24 the old type bag produced.
+4. **Sector difficulty** — `GALAXY_SCALE.md` §6, parked since phase 8.
+
+### Deleted in the same pass
+
+- **The anchor floor.** Its premise — "a system with neither is a system with
+  nothing in it worth crossing a galaxy for" — was written against a five-option
+  table and is false at 44: `no system is left with nothing to do` passes without
+  it. It had stopped being scaffolding and become a fight-density knob firing on
+  half of all systems. Density is a weight, not a swap that overrides the roll.
+- **`EventTable.gd`.** Emptied by the batch-04 port and deleted. Its two live
+  tools now read `OptionTable`: `-- checks` verifies the odds ladder against four
+  times as much content, and `rngtest` fingerprints the option roll. `event_key`
+  stays on `MapNode` and in the save until the next version bump.
 
 | | Job | Read |
 | --- | --- | --- |
@@ -85,7 +126,8 @@ phase 9 can be judged until that changes.
 | 8a-1 | Ambush becomes an interrupt | ✅ `SaveGame` 16 |
 | 8a-2 | Collapse `NodeType` to START/SYSTEM/STATION/PULSAR/CORE | ✅ `SaveGame` 17 |
 | 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
-| — | **Content** — 8 of batch-02, 20 of batch-03 | `ENCOUNTER_AUTHORING.md` |
+| — | Content — batch 04, thirty options | ✅ pool is **44** |
+| 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
 | 9 | Tune — **the hellbender's food first**, then sector difficulty | §8 · **§9a below** |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |

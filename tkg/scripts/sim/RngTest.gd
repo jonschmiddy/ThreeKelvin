@@ -298,7 +298,7 @@ func _walk(seed_value: int) -> String:
 		var foes := Router._roll_foes(n)
 		parts.append("%d>%d %s %s %s" % [
 			here.index, n.index, MapGen.star_name(n), ",".join(_names(foes)),
-			EventTable.pick_key(Rng.derive(&"event", n.index)),
+			",".join(_names(OptionTable.roll_for(n))),
 		])
 		parts.append("  " + module_print(LootGen.roll_module(n.danger, &"", false,
 			Rng.derive(&"salvage", n.index))))

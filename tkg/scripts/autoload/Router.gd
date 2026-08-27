@@ -467,20 +467,6 @@ func option_resolved(index: int) -> void:
 	event_resolved()
 
 
-func show_event() -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n.cleared:
-		return
-	_roll_here(n)
-	Audio.music_state(&"event")
-	var e := EventScreen.new()
-	_swap(e)
-	e.setup(EventTable.by_key(n.event_key))
-
-## The hail has been answered: the outcome is already on RunState, so the node
-## is consumed at that instant and not a moment later. Waiting for CONTINUE
-## would let you take the outcome, leave through a HUD tab, and answer the same
-## hail again — and the autosave that runs on the way out would bank both.
 func event_resolved() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	# ONE OPTION IS SPENT, NOT THE SYSTEM. A system holds several things to do

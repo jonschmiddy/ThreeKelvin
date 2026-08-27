@@ -736,8 +736,12 @@ func _print_check_table() -> void:
 		print("\n=== %s ===" % Run.hull.name)
 		print("%-22s %-34s %6s %6s %6s %6s" % [
 			"event", "badge", "met", "clean", "part", "botch"])
-		for e in EventTable.build_all():
-			for o in e.options:
+		# THE OPTIONS, because that is where checks live now. This probe read
+		# `EventTable` until that table was emptied by the batch-04 port; the
+		# ladder it verifies did not move, only the content carrying it, and
+		# there is now four times as much of it to verify against.
+		for e in OptionTable.all():
+			for o in (e as Dictionary).choices:
 				var opt: Dictionary = o
 				if not opt.has("check"):
 					continue
