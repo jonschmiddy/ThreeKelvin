@@ -17,6 +17,13 @@ extends RefCounted
 ## rate that nobody authored.
 ##
 ## Both are fixed rather than normalised away, because galaxies playing
+## THE TWO RING KINDS CARRY A LOWER `density` ON PURPOSE. Their rings are all
+## pushed out into the annulus `[ring, 1.0]`, so every circumference is longer
+## and a fixed gap between neighbours buys far more systems: at the densities
+## the other kinds use they came out at 427 and 473 against a ~287 nominal.
+## Geometry decides the spacing, `density` decides how many, and these two need
+## less of it to land in the same place as everyone else.
+##
 ## differently is the point. `density` and `reach` below say it OUT LOUD, per
 ## kind, and `squash` went back to being what its own docstring says it is.
 ##
@@ -72,7 +79,7 @@ const KINDS := [
 	},
 	{
 		name = "Barred Ring Spiral", arms = 2, twist = 11.0, bar = 0.30,
-		squash = 0.58, density = 0.95, reach = 1.05, core_share = 0.44, core_pow = 2.6, halo_pow = 1.0,
+		squash = 0.58, density = 0.64, reach = 1.05, core_share = 0.44, core_pow = 2.6, halo_pow = 1.0,
 		spread = 0.9, chaos = 0.0, ring = 0.34, bulge = 0.30, dust = 1.8,
 		tail = false, gas = 0.85,
 		blurb = "The bar swept the inner disc clean and piled it into a ring. Everything between the core and that ring was consumed building it.",
@@ -128,7 +135,7 @@ const KINDS := [
 	},
 	{
 		name = "Collisional Ring", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.70, density = 0.90, reach = 1.15, core_share = 0.30, core_pow = 3.2, halo_pow = 1.0,
+		squash = 0.70, density = 0.55, reach = 1.15, core_share = 0.30, core_pow = 3.2, halo_pow = 1.0,
 		spread = 0.0, chaos = 0.06, ring = 0.52, bulge = 0.18, dust = 2.4,
 		tail = false, gas = 1.1,
 		blurb = "Something went straight through the middle. The shock is still travelling outward as a ring of new stars, and the centre never filled back in.",

@@ -1822,7 +1822,27 @@ const SENSE_REACH := 0.25
 func sense_radius() -> float:
 	if map.is_empty():
 		return 0.0
-	return _map_range_from(node_at()) * (1.0 + float(attr_sensors()) * SENSE_REACH)
+	return sense_radius_of(node_at())
+
+
+## The same radius around any system, not just the one under the ship.
+##
+## Needed because SIGHT HAS TO HAVE THE SAME SHAPE AS REACH. `reachable_from` is
+## symmetric -- a hop is legal if EITHER end's radius encloses the other -- and
+## `chart_from` was not, so anything reachable only through the far end's radius
+## could never be seen, and criterion 1 then made it permanently unjumpable.
+##
+## On a ring galaxy that is the core itself: it sits alone inside the hole, its
+## own neighbourhood radius is huge because its nearest neighbour is half a disc
+## away, and the inner ring can therefore reach it -- but never sensed it, so the
+## ship circled the rim until the run ended. Collisional Ring: 0% wins, 233 jumps.
+##
+## It reads sensibly too. A system that dominates a large empty region is one you
+## can pick out from further off than a system crowded in among others.
+func sense_radius_of(here: MapGen.MapNode) -> float:
+	if map.is_empty() or here == null:
+		return 0.0
+	return _map_range_from(here) * (1.0 + float(attr_sensors()) * SENSE_REACH)
 
 
 ## Mark everything within sight of `here` as charted.
@@ -1841,10 +1861,27 @@ func chart_from(here: MapGen.MapNode) -> void:
 	var r := sense_radius()
 	if r <= 0.0:
 		return
+	# THE CORE IS NOT SOMETHING YOU FIND. It is the galactic centre, it is where
+	# the run ends, and the chart names it from the first frame -- so criterion 1
+	# should never be what stands between a ship and the objective.
+	#
+	# It has to be said explicitly because the core is the one node that sits
+	# outside the rings. On a galaxy with a hole it is alone in the middle, half
+	# a disc from its nearest neighbour: `reachable_from` allows the hop through
+	# the core's own radius, and `chart_from` -- which only ever measures YOUR
+	# dish -- could never mark it seen. Collisional Ring: 0% wins, 233 jumps
+	# spent circling a rim, because the destination was unsensed and unjumpable.
+	for g in map:
+		if (g as MapGen.MapNode).type == MapGen.NodeType.GOAL:
+			(g as MapGen.MapNode).sensed = true
 	for n in map:
 		var t: MapGen.MapNode = n
 		if t.sensed or t.index == here.index:
 			continue
+		# YOUR DISH, one-directional. Mirroring `reachable_from`'s symmetry here
+		# was tried and is far too generous: a system alone in a sparse region
+		# has a huge neighbourhood radius, so every such system became visible
+		# from across the galaxy and a Collisional Ring fell to 7.4 jumps.
 		if MapGen.hop_distance(here, t) <= r:
 			t.sensed = true
 

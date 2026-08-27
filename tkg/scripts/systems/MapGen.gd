@@ -195,7 +195,29 @@ const LIGHT_BLEND := 0.42
 ## which left a third of the disc radius — the brightest part of the galaxy —
 ## with nothing in it at all. The populated rings run RIM to CORE between them;
 ## the Core sits inside the lot.
+## THE HOLE IS APPLIED HERE, so that everything asking where a ring is gets the
+## same answer. It used to be applied at the placement site only, which meant
+## `ring_count` sized a ring's population from the un-holed circle while
+## `galaxy_pos` drew that ring somewhere else entirely.
+##
+## On a Collisional Ring (`ring = 0.52`) the innermost ring was counted for
+## radius 0.110 and drawn at 0.573 -- 5.2x the circumference, carrying the
+## population of the small one. The field thinned toward the middle, which is
+## the opposite of what the weighting in `ring_count` exists to do, and left
+## gaps a sensor-gated ship cannot see across.
 static func ring_radius(layer: int) -> float:
+	var rn := _ring_radius_raw(layer)
+	# Galaxies with a hole in the middle have no systems in the hole.
+	var hole: float = float(Run.galaxy.get("ring", 0.0))
+	if hole > 0.0:
+		rn = hole + rn * (1.0 - hole)
+	return rn
+
+
+## The schedule before the hole is punched in it. Private on purpose: a caller
+## that wants "where is this ring" wants `ring_radius`, and the whole bug was
+## two callers disagreeing about which of these two they meant.
+static func _ring_radius_raw(layer: int) -> float:
 	if layer >= LAYERS - 1:
 		return 0.0
 	var depth := float(layer) / float(maxi(1, LAYERS - 2))
@@ -273,7 +295,16 @@ static func ring_count(layer: int) -> int:
 	# then climbs steeply, which is what actually empties the frontier and packs
 	# the deep galaxy. Areal density now runs about fifty to one from rim to
 	# core, against six to one before.
-	var f: float = clampf(1.0 - (r - CORE) / maxf(0.001, RIM - CORE), 0.0, 1.0)
+	# DEPTH OFF THE UNHOLED SCHEDULE, not off where the ring is drawn. `r` above
+	# is the drawn circle, and on a ring galaxy the drawn circles are compressed
+	# into [hole, 1] -- so reading depth off it tells this weighting that every
+	# ring is out near the rim, and the innermost gets the rim's weight of 0.14
+	# where it wants the core's 3.3. Perimeter is geometry and weight is depth;
+	# they were the same number only because the hole used to be applied later.
+	#
+	# Identical for every galaxy with no hole, where the two radii are equal.
+	var depth_r := _ring_radius_raw(layer)
+	var f: float = clampf(1.0 - (depth_r - CORE) / maxf(0.001, RIM - CORE), 0.0, 1.0)
 	var weight: float = lerpf(0.14, 3.3, pow(f, 1.6))
 	return clampi(int(round(perim / maxf(0.001, target) * weight)),
 		RING_MIN, RING_MAX)
@@ -692,11 +723,9 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 	if n.type == NodeType.GOAL:
 		return Vector2.ZERO
 	var g := Run.galaxy
+	# The hole is inside ring_radius now -- applying it again here is what made
+	# the counted ring and the drawn ring two different circles.
 	var rn := ring_radius(n.layer)
-	# Galaxies with a hole in the middle have no systems in the hole.
-	var hole: float = g.ring
-	if hole > 0.0:
-		rn = hole + rn * (1.0 - hole)
 
 	var rows := maxi(1, n.rows_in_layer)
 	# Alternate rings are offset half a step so they interleave rather than
