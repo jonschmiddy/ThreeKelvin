@@ -67,7 +67,75 @@ func run() -> void:
 	_ok("a fresh chart shows at most %d%% of the galaxy (worst %s: %.0f%%)"
 		% [roundi(OPENING_CEILING * 100.0), worst_at, worst * 100.0],
 		worst <= OPENING_CEILING)
+	_outside_sight()
 	verdict("chartfilter")
+
+
+## Is anything DRAWN that is further off than the dish can see?
+##
+## THE SHEET ABOVE COULD NOT ANSWER THIS. It counts `visited or station_heard or
+## at` -- three of the six reasons `StarchartScreen._visible_set` draws a dot --
+## so the one the player actually complains about, `sensed`, was outside what it
+## measured. It passed while the screen looked wrong, which is the same blind
+## spot shape as a fingerprint that omits a field.
+##
+## Reported "I can see systems out of my view range", twice. Both rings are drawn
+## and the outer one is sight, so the question is not whether dots appear beyond
+## the ORANGE ring -- they should, that gap is what a dish buys -- but whether
+## any appear beyond the TEAL one, which nothing should.
+func _outside_sight() -> void:
+	print("\n  %-6s %7s %7s %8s %9s" % ["seed", "shown", "sensed", "beyond", "why"])
+	var worst := 0
+	for seed_i in [11, 4242, 90210, 31337]:
+		Rng.forced = seed_i
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var here: MapGen.MapNode = Run.node_at()
+		Run.chart_from(here)
+		var r := Run.sense_radius()
+		var shown := 0
+		var sensed := 0
+		var beyond := 0
+		var beyond_not_core := 0
+		var why: Dictionary = {}
+		for n in Run.map:
+			var t: MapGen.MapNode = n
+			if t.sensed:
+				sensed += 1
+			# `_visible_set`'s reasons, in its order. `selected` and `hovered` are
+			# left out on purpose: they are a mouse, not a rule.
+			var reason := ""
+			if t.index == here.index:
+				reason = "here"
+			elif t.visited:
+				reason = "visited"
+			elif Run.station_heard(t.index):
+				reason = "station"
+			elif t.sensed:
+				reason = "sensed"
+			elif Run.contract_at(t.index) != null:
+				reason = "contract"
+			elif Run.can_jump_to(t):
+				reason = "reach"
+			if reason == "":
+				continue
+			shown += 1
+			if MapGen.hop_distance(here, t) > r:
+				beyond += 1
+				why[reason] = int(why.get(reason, 0)) + 1
+				if t.type != MapGen.NodeType.CORE:
+					beyond_not_core += 1
+		print("  %-6d %7d %7d %8d   %s"
+			% [seed_i, shown, sensed, beyond, JSON.stringify(why)])
+		worst = maxi(worst, beyond_not_core)
+	# THE CORE IS THE ONE THING ALLOWED PAST THE DISH, and `chart_from` says why:
+	# it is the galactic centre and the chart names it from the first frame. Every
+	# seed shows exactly one node beyond sight and it is that one.
+	#
+	# Written as `beyond_not_core`, not as `beyond <= 1`, because a count is not
+	# an identity: "at most one" would also pass on the day some ordinary system
+	# started leaking through and the core stopped being drawn.
+	_ok("nothing but the core is drawn beyond the dish (worst %d)" % worst,
+		worst == 0)
 
 
 ## Mark `n` systems visited, walking outward from the start rather than picking

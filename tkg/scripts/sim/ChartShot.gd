@@ -11,6 +11,29 @@ func run(tree: SceneTree) -> void:
 	for i in 120:
 		await RenderingServer.frame_post_draw
 	var tag := ""
+	# `zoom=N` frames it the way the PLAYER looks at it: centred on the ship,
+	# close enough that both range rings are on screen.
+	#
+	# The galaxy-wide shot above cannot answer a question about the rings at all
+	# -- `_ring` gives up under six pixels of radius, so at full zoom-out neither
+	# one is drawn and a screenshot of that view is evidence of nothing. Both
+	# reports of "I can see systems outside my range" came from this framing.
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("zoom="):
+			continue
+		var s2 := Router.current as StarchartScreen
+		if s2 == null or s2._chart == null:
+			break
+		var chart := s2._chart
+		chart.zoom = float((a as String).substr(5))
+		chart.pan = -chart._polar(Run.node_at()) * chart.zoom
+		chart._clamp_pan()
+		# A zoom invalidates the backdrop's slide basis outright, so the sky is
+		# repainted rather than slid. ZoomShot learned this first.
+		chart._repaint_sky()
+		tag = "_zoom"
+		for i in 30:
+			await RenderingServer.frame_post_draw
 	if "region" in OS.get_cmdline_user_args():
 		var s := Router.current as StarchartScreen
 		if s != null:

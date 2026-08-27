@@ -2414,13 +2414,29 @@ class MapChart extends Control:
 		#
 		# The gap between them is what a dish BUYS, and now it is a visible band
 		# rather than an inference from which dots happen to be lit.
+		# AND THE OUTER ONE HAS TO BE VISIBLE, which took a second report to
+		# notice. Drawing it was not enough: at alpha 0.34 in single pixels, two
+		# on and three off, on a ring with a far bigger circumference than the
+		# inner one, the dots land further apart AND dimmer than reach's -- so on
+		# a dense starfield the only boundary a player could actually find was the
+		# orange one, and every system in the band between them read as a bug.
+		# Measured after the fact by `-- chartfilter`: nothing was wrong with the
+		# filter, the line saying where the limit was simply could not be seen.
+		#
+		# So sight carries reach's weight and a LONGER dash. Two boundaries at the
+		# same rhythm in two colours are one boundary drawn twice; a long dash
+		# reads as an outer limit and a short dot as an immediate one, which is
+		# what they respectively are.
 		if show_sight:
-			_ring(c, Run.sense_radius(), Color(0.31, 0.69, 0.74, 0.34))
+			_ring(c, Run.sense_radius(), Color(0.31, 0.69, 0.74, 0.50), 5, 9)
 		if show_reach:
 			_ring(c, Run.jump_range(), Color(0.83, 0.46, 0.24, 0.46))
 
 	## One dashed ellipse at `r` galaxy units, centred on the ship.
-	func _ring(c: Vector2, r: float, col: Color) -> void:
+	##
+	## `on`/`period` is the dash rhythm. It is a parameter because the two rings
+	## have to be TELLABLE APART at a glance -- see `_draw_reach_ring`.
+	func _ring(c: Vector2, r: float, col: Color, on: int = 2, period: int = 5) -> void:
 		if r <= 0.0:
 			return
 		var rx := r * _radius() * DISC * zoom
@@ -2433,8 +2449,7 @@ class MapChart extends Control:
 		# stays the same length on screen at every zoom.
 		var steps := clampi(int(rx * 1.6), 60, 480)
 		for i in steps:
-			# Two on, three off, matching `_dotted`.
-			if i % 5 >= 2:
+			if i % period >= on:
 				continue
 			var a := TAU * float(i) / float(steps)
 			draw_rect(Rect2((c + Vector2(cos(a) * rx, sin(a) * ry)).round(),
