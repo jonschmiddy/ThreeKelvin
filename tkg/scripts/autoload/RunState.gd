@@ -1941,8 +1941,23 @@ func in_range() -> Array:
 func jump_range() -> float:
 	return range_from(node_at())
 
+## The three criteria, and they are the whole rule: SEE it, AFFORD it, REACH it.
+##
+## `n.sensed` is the first of them and used to be missing. It was set by
+## `chart_from` and read only by the chart's visible set, so sensors decided what
+## was DRAWN and never what could be flown to -- and because sight and reach come
+## off the same base with different multipliers, any ship whose thrust outran its
+## dish could jump to somewhere it had never seen.
+##
+## Sticky, so this is "have you ever charted it", not "is it lit up right now".
+## That is `chart_from`'s design and the right reading here too: a place you
+## surveyed last ring does not stop existing when you move on.
+##
+## Cannot stand a ship still. Sight is base * (1 + sensors * 0.25) and reach is
+## base * thrust_reach(), thrust_reach is floored at 1.0, so everything within
+## the base radius is always both -- and that set is never empty.
 func can_jump_to(n: MapGen.MapNode) -> bool:
-	return reachable(n) and fuel >= fuel_cost_to(n)
+	return n.sensed and reachable(n) and fuel >= fuel_cost_to(n)
 
 ## True while at least one link out of the current node is affordable.
 func has_legal_jump() -> bool:

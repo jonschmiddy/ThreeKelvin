@@ -385,7 +385,14 @@ func _refresh() -> void:
 ## information that decides whether you farm on or dive.
 func _fill_neighbours(here: MapGen.MapNode) -> void:
 	_clear(_neigh)
-	var near := Run.in_range()
+	# WHAT YOU CAN SEE, not merely what is in engine range. `in_range_of` is
+	# geometry -- it answers "could the drive cross that gap" and knows nothing
+	# about the dish. Listing the unscanned ones here named every system in
+	# thrust range, its type and its danger, for a ship that has never seen them.
+	var near: Array = []
+	for n in Run.in_range():
+		if (n as MapGen.MapNode).sensed:
+			near.append(n)
 	near.sort_custom(func(x, y):
 		return MapGen.hop_distance(here, x) < MapGen.hop_distance(here, y))
 	if near.is_empty():
