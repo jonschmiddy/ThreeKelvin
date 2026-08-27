@@ -2546,10 +2546,18 @@ func station_heard(index: int) -> bool:
 		return false
 	if n.visited or index == at:
 		return true
-	for other in map:
-		var t: MapGen.MapNode = other
-		if t.visited and t.links.has(index):
-			return true
+	# AND NOTHING ELSE. A station used to be revealed when any VISITED system
+	# had a `link` to it, which is a relationship that governs nothing -- links
+	# are the graph the chart draws, not the one the ship flies -- and a link
+	# can be long. Swapping it for `reachable_from` was more defensible and
+	# revealed MORE, because a radius is wider than a link.
+	#
+	# Ruled 2026-08-26: you can only see what you can see. Sight is live, and a
+	# station is a place you sensed, or a place you have been. The old comment
+	# above objects that a chart which loses places you were told about is worse
+	# than one that never said -- and that is answered rather than overruled,
+	# because nothing is lost now: the mark is never gained in the first place,
+	# so no refit and no departure can take it away.
 	return false
 
 
