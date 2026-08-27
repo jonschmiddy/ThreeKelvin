@@ -300,6 +300,13 @@ func _ready() -> void:
 
 	Router.register(content, hud)
 
+	# What the chart looks like now that sight is live:
+	#   godot --path . -- fogshot
+	if "fogshot" in OS.get_cmdline_user_args():
+		_fog_shot = load("res://scripts/sim/FogShot.gd").new()
+		_fog_shot.run(get_tree())
+		return
+
 	# Does the ship move when its loadout changes? It must not:
 	#   godot --headless --path . -- shipdrift
 	if "shipdrift" in OS.get_cmdline_user_args():
@@ -684,6 +691,7 @@ var _stow_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted
 var _chart_bench: RefCounted = null
+var _fog_shot: RefCounted = null
 var _ship_drift: RefCounted = null
 var _zoom_shot: RefCounted = null
 var _net_test: RefCounted = null

@@ -1284,7 +1284,7 @@ func attr_sensors(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.sensors + m.affix_int(&"sensors")
-	return maxi(0, int(round(n * SENSE_SCALE)))
+	return maxi(SENSE_FLOOR, int(round(n * SENSE_SCALE)))
 
 ## Heat comes off the top of Stealth rather than out of the modules that grant
 ## it, because it is the one thing on the ship you cannot bolt a cover over. A
@@ -1812,6 +1812,21 @@ func thrust_reach() -> float:
 ## at all -- Korvan, Solari and Probate all read zero -- so this is a thing you
 ## build toward rather than a thing you are given, which is what makes fitting a
 ## dish a decision instead of a formality.
+## The fewest pips of SENSORS any ship has, however it is fitted.
+##
+## Sight is live now -- see `chart_from` -- so a ship that could reach zero
+## sensors would go blind, and selling a dish would take the chart with it. The
+## floor is what makes that impossible: there is always a baseline neighbourhood
+## and no refit can drop below it.
+##
+## It is also the dial for whether a galaxy is playable at all. The base radius
+## is RELATIVE to your nearest neighbour rather than absolute -- `_map_range_from`
+## takes about 2.5x the nearest, floored at the third and capped at the sixth --
+## so a sparse frontier already widens it and a spawn in a system desert is not
+## the trap it looks like. If a kind still comes out unplayable, raise this
+## before touching the geometry.
+const SENSE_FLOOR := 2
+
 const SENSE_REACH := 0.25
 
 
@@ -1861,6 +1876,18 @@ func chart_from(here: MapGen.MapNode) -> void:
 	var r := sense_radius()
 	if r <= 0.0:
 		return
+	# LIVE, NOT REMEMBERED. This mark used to be set and never cleared, so the
+	# chart accumulated every system the dish had ever swept and the galaxy was
+	# solved after enough hops. Clearing first is what makes the frontier dark
+	# and what gives a better dish something to buy.
+	#
+	# `visited` is NOT cleared and is a separate reason to draw a system -- see
+	# StarchartScreen._visible_set. Where you have BEEN is a track record rather
+	# than a sighting, `Run.trail` draws it, and it is what you plan routes
+	# through. Nor are `station_heard` or a contract's marker: those are things
+	# you were TOLD, and being told does not stop being true when you move.
+	for n in map:
+		(n as MapGen.MapNode).sensed = false
 	# THE CORE IS NOT SOMETHING YOU FIND. It is the galactic centre, it is where
 	# the run ends, and the chart names it from the first frame -- so criterion 1
 	# should never be what stands between a ship and the objective.
