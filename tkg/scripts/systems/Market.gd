@@ -254,7 +254,7 @@ static func hull_price(n: MapGen.MapNode, h: HullData) -> int:
 static func trade_line(n: MapGen.MapNode) -> String:
 	if n == null:
 		return ""
-	if n.type == MapGen.NodeType.GOAL:
+	if n.type == MapGen.NodeType.CORE:
 		return ""
 	if n.berths.is_empty():
 		# The tail said what a flat rate MEANS, which the price beside it already

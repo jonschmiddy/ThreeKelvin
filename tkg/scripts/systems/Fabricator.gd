@@ -19,7 +19,7 @@ extends RefCounted
 ## to go and find one more exotic.
 static func available(n: MapGen.MapNode) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	if n.type == MapGen.NodeType.GOAL:
+	if n.type == MapGen.NodeType.CORE:
 		return out
 	for r in DB.RECIPES:
 		if int(n.development) >= int(r.dev):

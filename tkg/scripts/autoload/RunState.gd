@@ -1932,7 +1932,7 @@ func chart_from(here: MapGen.MapNode) -> void:
 	# dish -- could never mark it seen. Collisional Ring: 0% wins, 233 jumps
 	# spent circling a rim, because the destination was unsensed and unjumpable.
 	for g in map:
-		if (g as MapGen.MapNode).type == MapGen.NodeType.GOAL:
+		if (g as MapGen.MapNode).type == MapGen.NodeType.CORE:
 			(g as MapGen.MapNode).sensed = true
 	for n in map:
 		var t: MapGen.MapNode = n
@@ -2006,7 +2006,7 @@ func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	# It is the same argument as the core being permanently charted: the middle
 	# of the galaxy is where the run ENDS, and it should be the danger that stops
 	# you there, never the geometry.
-	if n.type == MapGen.NodeType.GOAL and here.layer >= MapGen.LAYERS - 2:
+	if n.type == MapGen.NodeType.CORE and here.layer >= MapGen.LAYERS - 2:
 		return true
 	var d := MapGen.hop_distance(here, n)
 	return d <= range_from(here) or d <= range_from(n)
@@ -2228,7 +2228,7 @@ func _hellbender_step(feeding: bool) -> void:
 		var n: MapGen.MapNode = map[i]
 		# Not the rim's first system and not the core: one is the front door,
 		# and the other already has a custodian in it.
-		if n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.GOAL:
+		if n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.CORE:
 			continue
 		options.append(i)
 		if n.type == MapGen.NodeType.DERELICT and not n.cleared:

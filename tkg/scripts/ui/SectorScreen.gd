@@ -345,10 +345,10 @@ func _on_action() -> void:
 				Router.harvest_pulsar()
 		# A contact you have not fought yet. For FIGHT that is a resumed run —
 		# arriving at one normally starts the fight before this screen draws. For
-		# GOAL it is the ORDINARY path: the core is a place you arrive at and
+		# CORE it is the ORDINARY path: the core is a place you arrive at and
 		# then commit to, so a party can be at it together. See
 		# Router.resolve_current_node().
-		MapGen.NodeType.FIGHT, MapGen.NodeType.GOAL:
+		MapGen.NodeType.FIGHT, MapGen.NodeType.CORE:
 			if n.cleared or n.fled:
 				Router.show_starchart()
 			else:
@@ -395,7 +395,7 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 		# The core, waiting. Arriving here no longer opens the fight, so this is
 		# what the screen says while the party gathers and somebody decides to
 		# commit — the line above the button has to name what pressing it does.
-		MapGen.NodeType.GOAL:
+		MapGen.NodeType.CORE:
 			if n.cleared:
 				return ["The light is behind you.", "PLOT NEXT JUMP"]
 			if n.fled:

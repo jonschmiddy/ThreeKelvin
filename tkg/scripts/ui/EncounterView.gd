@@ -517,7 +517,7 @@ class AreaView extends Control:
 			MapGen.NodeType.STATION: _station(c)
 			MapGen.NodeType.DERELICT: _derelict(c)
 			MapGen.NodeType.EVENT: _beacon(c, tint)
-			MapGen.NodeType.GOAL: _core(c)
+			MapGen.NodeType.CORE: _core(c)
 			MapGen.NodeType.FIGHT: _battlefield(c)
 			MapGen.NodeType.PULSAR: _pulsar(c)
 			MapGen.NodeType.START:

@@ -256,12 +256,12 @@ func run() -> void:
 		# Without this every node's list is empty, empty round-trips to empty,
 		# and the fingerprint above proves nothing -- verified by deleting the
 		# field from `_node_to` and watching the test still pass.
-		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.GOAL 				and n.options.is_empty():
+		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.CORE 				and n.options.is_empty():
 			n.options = OptionTable.roll_for(n)
 		# A fight owed on arrival, and a roll already made. Both have to be on
 		# some nodes and not others, or an all-false field round-trips to
 		# all-false whatever the save does.
-		if n.type != MapGen.NodeType.FIGHT and n.type != MapGen.NodeType.GOAL:
+		if n.type != MapGen.NodeType.FIGHT and n.type != MapGen.NodeType.CORE:
 			n.ambush_rolled = n.index % 2 == 0
 			n.ambush_pending = n.index % 4 == 0
 

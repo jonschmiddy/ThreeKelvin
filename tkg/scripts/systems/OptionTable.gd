@@ -180,7 +180,7 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 ## is excluded because it is a hand-authored boss.
 static func ensure(n: MapGen.MapNode) -> bool:
 	if n == null or n.type == MapGen.NodeType.STATION \
-			or n.type == MapGen.NodeType.GOAL:
+			or n.type == MapGen.NodeType.CORE:
 		return false
 	if n.options.is_empty():
 		n.options = roll_for(n)

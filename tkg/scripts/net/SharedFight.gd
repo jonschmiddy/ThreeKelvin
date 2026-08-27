@@ -60,7 +60,7 @@ var at: int = -1
 ## What is being fought, by database id. Carried on the fight rather than
 ## re-derived from the node, so a ship that arrives mid-fight learns what it has
 ## joined from the fight itself. An ambush is not written on the node it
-## happened at, and the GOAL node's custodian is not in `foes` at all, so the
+## happened at, and the CORE node's custodian is not in `foes` at all, so the
 ## node is not a reliable name for what is actually in the room.
 var foe_ids: PackedStringArray = PackedStringArray()
 var foes: Array[Foe] = []

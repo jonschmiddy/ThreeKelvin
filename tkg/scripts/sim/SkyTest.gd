@@ -125,6 +125,6 @@ func _cases() -> Array:
 		MapGen.Development.SETTLEMENT, [&"cygnet", &"redline"])])
 	out.append(["fight / city", _node(21, MapGen.NodeType.FIGHT,
 		MapGen.Development.CITY, [&"verity"])])
-	out.append(["the core", _node(40, MapGen.NodeType.GOAL,
+	out.append(["the core", _node(40, MapGen.NodeType.CORE,
 		MapGen.Development.UNCLAIMED, [])])
 	return out

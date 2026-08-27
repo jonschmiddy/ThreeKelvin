@@ -55,7 +55,7 @@ func run() -> void:
 
 	for n in Run.map:
 		var node: MapGen.MapNode = n
-		if node.type == MapGen.NodeType.STATION or node.type == MapGen.NodeType.GOAL:
+		if node.type == MapGen.NodeType.STATION or node.type == MapGen.NodeType.CORE:
 			continue
 		if n_checked >= ROLLS:
 			break

@@ -142,7 +142,7 @@ func _in_layer(map: Array, layer: int) -> Array:
 
 func _goal(map: Array) -> int:
 	for n in map:
-		if (n as MapGen.MapNode).type == MapGen.NodeType.GOAL:
+		if (n as MapGen.MapNode).type == MapGen.NodeType.CORE:
 			return (n as MapGen.MapNode).index
 	return -1
 

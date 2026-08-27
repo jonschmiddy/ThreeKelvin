@@ -273,7 +273,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		# always passed `false` for fauna. Two implementations, one of them
 		# measuring the other.
 		if not node.ambush_rolled and node.type != MapGen.NodeType.FIGHT \
-				and node.type != MapGen.NodeType.GOAL:
+				and node.type != MapGen.NodeType.CORE:
 			node.ambush_rolled = true
 			if Rng.foe.randf() < Run.ambush_chance(node):
 				ambushes += 1
@@ -303,7 +303,7 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 			var pool := DB.fight_pool(node.danger, node.region == MapGen.Region.FAUNA)
 			if not _fight(DB.enemies[Rng.pick(Rng.foe, pool)]):
 				break
-		elif node.type == MapGen.NodeType.GOAL:
+		elif node.type == MapGen.NodeType.CORE:
 			_fight(DB.enemies[&"custodian"])
 			break
 		elif node.type == MapGen.NodeType.STATION:

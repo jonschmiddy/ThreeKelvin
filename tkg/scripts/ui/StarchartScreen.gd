@@ -193,7 +193,7 @@ func _build() -> void:
 			[MapGen.NodeType.EVENT, "EVENT", Color("#b08ad0")],
 			[MapGen.NodeType.DERELICT, "DERELICT", Color("#8a6a3a")],
 			[MapGen.NodeType.PULSAR, "PULSAR", Color("#8fd2e0")],
-			[MapGen.NodeType.GOAL, "CORE", Color("#d4614f")]]:
+			[MapGen.NodeType.CORE, "CORE", Color("#d4614f")]]:
 		var item := HBoxContainer.new()
 		item.add_theme_constant_override("separation", 3)
 		var g := Glyph.new()
@@ -303,7 +303,7 @@ func _refresh() -> void:
 	# The three axes get their own rows. They are what the place IS, and reading
 	# them off a single run-on classification line meant scanning a sentence to
 	# answer "how policed is it".
-	if t.type == MapGen.NodeType.GOAL:
+	if t.type == MapGen.NodeType.CORE:
 		# Development and security are questions about a society. There is not
 		# one here.
 		_rows.add_child(_row("STRUCTURE", "PRECURSOR RUINS"))
@@ -422,7 +422,7 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 
 	var dim := Color("#55647a")
 	var name_col := UITheme.ICE if afford else dim
-	if n.cleared and n.type != MapGen.NodeType.GOAL:
+	if n.cleared and n.type != MapGen.NodeType.CORE:
 		name_col = dim
 	if n.index == _selected:
 		name_col = UITheme.FLARE
@@ -459,7 +459,7 @@ func _contains(t: MapGen.MapNode) -> String:
 		MapGen.NodeType.STATION: return "DOCK - REPAIR, REFUEL, STOCK"
 		MapGen.NodeType.EVENT: return "UNKNOWN SIGNAL"
 		MapGen.NodeType.DERELICT: return "SALVAGE"
-		MapGen.NodeType.GOAL: return "THE CUSTODIAN"
+		MapGen.NodeType.CORE: return "THE CUSTODIAN"
 		_: return "-"
 
 ## Empty a container NOW, not at the end of the frame.
@@ -924,7 +924,7 @@ class Glyph extends Control:
 			MapGen.NodeType.STATION: return _STATION
 			MapGen.NodeType.EVENT: return _EVENT
 			MapGen.NodeType.DERELICT: return _DERELICT
-			MapGen.NodeType.GOAL: return _GOAL
+			MapGen.NodeType.CORE: return _GOAL
 			MapGen.NodeType.PULSAR: return _PULSAR
 			MapGen.NodeType.START: return _START
 			_: return _FIGHT
@@ -2087,7 +2087,7 @@ class MapChart extends Control:
 				continue
 			var p := (_screen_pos(node2) - Vector2(6, 6)).round()
 			var tint := MapGen.region_colour(node2)
-			if node2.cleared and node2.type != MapGen.NodeType.GOAL:
+			if node2.cleared and node2.type != MapGen.NodeType.CORE:
 				tint = Color("#37424f")
 			if tiny:
 				var lit: bool = node2.index == here.index \
@@ -2469,7 +2469,7 @@ class MapChart extends Control:
 
 		var l1 := MapGen.star_name(n)
 		var l2 := MapGen.type_label(n.type)
-		if n.cleared and n.type != MapGen.NodeType.GOAL:
+		if n.cleared and n.type != MapGen.NodeType.CORE:
 			l2 = "CLEARED · " + l2
 		var l3 := MapGen.place_line(n)
 		var l4 := "DANGER %d/10" % n.danger

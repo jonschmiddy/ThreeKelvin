@@ -143,7 +143,7 @@ static func _target(n: MapGen.MapNode, r: RandomNumberGenerator,
 	var pool: Array = []
 	for other in Run.map:
 		var o: MapGen.MapNode = other
-		if o.index == n.index or o.type == MapGen.NodeType.GOAL:
+		if o.index == n.index or o.type == MapGen.NodeType.CORE:
 			continue
 		if o.type == MapGen.NodeType.START:
 			continue

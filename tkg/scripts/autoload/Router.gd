@@ -289,7 +289,7 @@ func resolve_current_node() -> void:
 	# and the one button says what there is to do. NOT auto-engaged, for the
 	# same reason the core stopped being: two people never arrive at a system on
 	# the same second, and a set piece a party cannot gather at is fought alone
-	# by design. See the GOAL note below.
+	# by design. See the CORE note below.
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		Run.log_line("The Hellbender rides at anchor here, holds glowing with everything it has taken. It is between you and the rest of the system.", &"big")
 		show_sector()
@@ -309,13 +309,13 @@ func resolve_current_node() -> void:
 		# It also fixes a second core: winning consumed the node, and this branch
 		# never checked `cleared`, so the next ship to arrive rolled a fresh
 		# custodian and killed the galaxy's boss again. FIGHT has checked that
-		# since it was written; GOAL never did.
+		# since it was written; CORE never did.
 		#
 		# So the core is a place you arrive at now. The sector says what is out
 		# there and the button says ENGAGE, which is the wiring a resumed run has
 		# always used — `_on_action` and `_quiet_lines` both already had the
 		# case, and this makes it the ordinary path instead of the restored one.
-		MapGen.NodeType.GOAL:
+		MapGen.NodeType.CORE:
 			if n.cleared:
 				Run.log_line("The core is open. The light is behind you.", &"good")
 			else:
@@ -372,7 +372,7 @@ func _roll_here(n: MapGen.MapNode) -> void:
 ## the fight.
 func _roll_ambush(n: MapGen.MapNode) -> void:
 	if n.ambush_rolled or n.type == MapGen.NodeType.FIGHT \
-			or n.type == MapGen.NodeType.GOAL:
+			or n.type == MapGen.NodeType.CORE:
 		return
 	n.ambush_rolled = true
 	# The ambush roll itself is a stream draw, not a positional one, and that is
@@ -594,7 +594,7 @@ func engage_here() -> void:
 		return
 	if n.cleared or in_combat():
 		return
-	if n.type == MapGen.NodeType.GOAL:
+	if n.type == MapGen.NodeType.CORE:
 		start_combat(DB.enemies[&"custodian"])
 		return
 	# Whatever this system rolled when you arrived, including on a run restored

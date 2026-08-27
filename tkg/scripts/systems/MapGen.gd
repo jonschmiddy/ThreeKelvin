@@ -20,7 +20,11 @@ enum Development { UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL }
 enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
 ## PULSAR is last on purpose: type_label indexes this by value, and inserting
 ## in the middle would silently relabel every node type after it.
-enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, GOAL, PULSAR }
+## THE CORE KEEPS ITS POSITION, and that is not cosmetic: `type` is serialised
+## as an INT, so this list's ORDER is a save format. Renaming a value costs
+## nothing; moving one silently repoints every saved node at a different kind of
+## place. Add at the end, never in the middle.
+enum NodeType { START, FIGHT, STATION, EVENT, DERELICT, CORE, PULSAR }
 
 ## The option id meaning "the system itself, all of it".
 ##
@@ -499,7 +503,7 @@ const _SUFFIX := [" PRIME", " SECUNDUS", "-9", "-4", " V", " IX", " MINOR",
 ## A name, fixed for the life of the run. Hashed from the index rather than
 ## rolled, so the same system is called the same thing every time you look.
 static func star_name(n: MapNode) -> String:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		return "THE CORE"
 	var h := (n.index + 1) * 2654435761
 	var a := (h >> 3) % _BAYER.size()
@@ -529,7 +533,7 @@ static func region_name(r: Region) -> String:
 ## tooltip and the panel both say it in words. What the chart has to carry at a
 ## glance is whether anyone holds it at all.
 static func region_colour(n: MapNode) -> Color:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		return Color("#d4614f")
 	if n.type == NodeType.PULSAR:
 		return Color("#8fd2e0")
@@ -556,7 +560,7 @@ static func security_name(sec: int) -> String:
 
 ## The classification line: what kind of place, how policed, and who runs it.
 static func place_line(n: MapNode) -> String:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		return "SUPERMASSIVE BLACK HOLE"
 	if n.fauna:
 		return "MIGRATION ROUTE - " + security_name(n.security).to_upper()
@@ -571,7 +575,7 @@ static func place_line(n: MapNode) -> String:
 
 ## One sentence on what being here means for you.
 static func place_blurb(n: MapNode) -> String:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		return "Four million suns in a point, and the ruins of whatever came first still orbiting it. Nothing here was manufactured."
 	if n.fauna:
 		return "Megafauna. Exotic materials, no module salvage."
@@ -619,7 +623,7 @@ static func generate(canvas: Rect2) -> Array:
 			if layer == 0 and row == 0:
 				n.type = NodeType.START
 			elif layer == LAYERS - 1:
-				n.type = NodeType.GOAL
+				n.type = NodeType.CORE
 			else:
 				n.type = _pick_type()
 			_roll_axes(n, depth)
@@ -658,7 +662,7 @@ static func generate(canvas: Rect2) -> Array:
 ## it being a readout of the ring number: a city out on the frontier is worth the
 ## detour, and an unclaimed pocket deep in is worth the risk.
 static func _roll_axes(n: MapNode, depth: float) -> void:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		# Nobody develops a black hole and nobody polices it. The social axes
 		# do not apply to the thing at the centre of a galaxy.
 		n.development = Development.UNCLAIMED
@@ -728,12 +732,12 @@ static func hazards(n: MapNode) -> PackedStringArray:
 		out.append("PULSAR")
 	if n.in_nebula:
 		out.append("NEBULA")
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		out.append("EVENT HORIZON")
 	return out
 
 static func _derive_region(n: MapNode) -> Region:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		return Region.CORE
 	if n.fauna:
 		return Region.FAUNA
@@ -776,7 +780,7 @@ static func _frac(h: int) -> float:
 ## links and fuel costs are derived from it - two copies would mean pricing a
 ## jump for a position nobody draws.
 static func galaxy_pos(n: MapNode) -> Vector2:
-	if n.type == NodeType.GOAL:
+	if n.type == NodeType.CORE:
 		return Vector2.ZERO
 	var g := Run.galaxy
 	# The hole is inside ring_radius now -- applying it again here is what made
@@ -916,7 +920,7 @@ static func _seed_pulsars(nodes: Array) -> void:
 		var closest := INF
 		for n in nodes:
 			var nn: MapNode = n
-			if nn.type == NodeType.START or nn.type == NodeType.GOAL:
+			if nn.type == NodeType.START or nn.type == NodeType.CORE:
 				continue
 			if nn.type == NodeType.PULSAR:
 				continue

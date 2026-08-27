@@ -207,7 +207,7 @@ func _pick(n: MapGen.MapNode, r: RandomNumberGenerator) -> int:
 		MapGen.NodeType.PULSAR:
 			# The beam IS the subject. Anything else in frame competes with it.
 			return Kind.DEEP
-		MapGen.NodeType.GOAL:
+		MapGen.NodeType.CORE:
 			return Kind.CORE
 		MapGen.NodeType.DERELICT:
 			# Something died here. Mostly it died in the rocks, because that is

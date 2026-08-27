@@ -286,7 +286,7 @@ static func _node_type(t: int) -> String:
 		MapGen.NodeType.STATION: return "station"
 		MapGen.NodeType.EVENT: return "event"
 		MapGen.NodeType.DERELICT: return "derelict"
-		MapGen.NodeType.GOAL: return "goal"
+		MapGen.NodeType.CORE: return "goal"
 		MapGen.NodeType.PULSAR: return "pulsar"
 	return "?"
 
