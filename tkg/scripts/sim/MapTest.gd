@@ -34,6 +34,11 @@ func run() -> void:
 	var paths := 0
 	var doorless: Array[String] = []
 	var unreachable: Array[String] = []
+	var unflyable: Array[String] = []
+	var fly_total := 0
+	var fly_worst := 0
+	var fly_best := 999
+	var flown := 0
 	var total_doors := 0
 	var total_rings := 0
 
@@ -83,6 +88,25 @@ func run() -> void:
 		worst_path = maxi(worst_path, hops)
 		best_path = mini(best_path, hops)
 
+		# AND THE SAME QUESTION ASKED OF THE RULE THE SHIP FLIES. The search
+		# above walks `links`, which is the graph the CHART draws and which
+		# nothing in the jump path consults. This one walks `reachable_from` --
+		# a radius, fixed since JUMP_RADIUS landed, so a gap wider than it is a
+		# wall that the link graph knows nothing about.
+		#
+		# Fuel is deliberately not considered: running dry is a RunState problem
+		# and a different kind of stranding. This asks whether the geometry
+		# permits the route at all.
+		var flyable := _shortest_by_range(map, start, goal)
+		if flyable < 0:
+			unflyable.append("roll %d: the core cannot be FLOWN to (kind %s)"
+				% [i, String(Run.galaxy.get("name", "?"))])
+			continue
+		flown += 1
+		fly_total += flyable
+		fly_worst = maxi(fly_worst, flyable)
+		fly_best = mini(fly_best, flyable)
+
 	print("\n=== MAP ===")
 	print("  %d galaxies rolled, %d rings" % [ROLLS, total_rings])
 	if paths > 0:
@@ -90,6 +114,9 @@ func run() -> void:
 			% [best_path, float(total_path) / float(paths), worst_path])
 	print("  coreward doors per ring: %.1f average"
 		% [float(total_doors) / maxf(1.0, float(total_rings))])
+	if flown > 0:
+		print("  FLYABLE path (radius, not links): %d shortest · %.1f mean · %d longest"
+			% [fly_best, float(fly_total) / float(flown), fly_worst])
 
 	_ok("every ring has at least one way inward", doorless.is_empty())
 	for d in doorless:
@@ -97,6 +124,10 @@ func run() -> void:
 	_ok("the core is reachable from the start in every galaxy",
 		unreachable.is_empty())
 	for u in unreachable:
+		_fail(u)
+	# THE ONE THAT MATTERS TO A PLAYER, now that links do not gate movement.
+	_ok("the core can be FLOWN to in every galaxy", unflyable.is_empty())
+	for u in unflyable:
 		_fail(u)
 	verdict("maptest")
 
@@ -139,4 +170,38 @@ func _shortest(map: Array, a: int, b: int) -> int:
 					next.append(idx)
 		frontier = next
 		depth += 1
+	return -1
+
+
+## Fewest hops to the core under the rule the ship actually flies.
+##
+## `reachable_from`, not `links`. Breadth-first, and deliberately blind to fuel:
+## this asks whether the GEOMETRY permits a route, which is the thing a galaxy
+## can be generated wrong. Running dry is a different failure with a different
+## fix.
+##
+## O(n) per node because `reachable_from` has no index behind it, so this is
+## about n^2 a galaxy. At ~350 systems and 120 rolls that is affordable, and it
+## only runs in the harness.
+func _shortest_by_range(map: Array, start: int, goal: int) -> int:
+	var seen: Dictionary = {start: true}
+	var frontier: Array[int] = [start]
+	var depth := 0
+	while not frontier.is_empty():
+		if frontier.has(goal):
+			return depth
+		var next: Array[int] = []
+		for idx in frontier:
+			var a: MapGen.MapNode = map[idx]
+			for n in map:
+				var b: MapGen.MapNode = n
+				if seen.has(b.index):
+					continue
+				if Run.reachable_from(a, b):
+					seen[b.index] = true
+					next.append(b.index)
+		frontier = next
+		depth += 1
+		if depth > map.size():
+			return -1
 	return -1
