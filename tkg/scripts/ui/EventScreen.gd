@@ -83,6 +83,20 @@ func _choose(index: int) -> void:
 	# node that gives nothing. Router holds the pick until this call.
 	Router.event_resolved()
 	_resolved = true
+	# THE REWARD AN OPTION PAYS, which this screen never had to handle before.
+	#
+	# `module = true` in the returned dictionary means "one rolled at this
+	# system's danger", and both other resolution paths honour it -- `Policy` for
+	# the sim and `SectorScreen` for a row that resolves in place. This screen
+	# predates the option model and only read `fight`, so when RULING 2 made it
+	# the detail view it became the one path that silently dropped the pay: it is
+	# reached by exactly the options with prose AND a check, and those are the
+	# ones that pay in parts. `salvage_rights` pays a module in two of its bands
+	# and paid nothing through here.
+	#
+	# No EventTable event grants one, which is why nothing caught it earlier.
+	if bool(outcome.get("module", false)):
+		Run.place_in_hold(LootGen.roll_module(Run.node_at().danger))
 	_then_fight = bool(outcome.get("fight", false))
 	_refresh()
 	var panel := PanelContainer.new()
