@@ -2318,7 +2318,23 @@ class MapChart extends Control:
 	## gives below: a ring walked in continuous space lands its dashes on
 	## fractions of a pixel and shimmers as you pan.
 	func _draw_reach_ring(c: Vector2) -> void:
-		var r := Run.jump_range()
+		# TWO RINGS, BECAUSE THERE ARE TWO LIMITS AND THEY ARE NOT THE SAME ONE.
+		# Sight is `base * (SENSE_FLOOR + sensors * SENSE_REACH)` and reach is
+		# `base * thrust_reach()`, so the dish ALWAYS outruns the engine -- 1.39x
+		# at no sensors at all, near 3x at ten.
+		#
+		# Only the inner one used to be drawn, which left the outer boundary with
+		# no line on it: systems lit up outside the ring you could see and there
+		# was nothing to say why. Reported as "I can see outside my range
+		# circle?", which is exactly right and exactly the design.
+		#
+		# The gap between them is what a dish BUYS, and now it is a visible band
+		# rather than an inference from which dots happen to be lit.
+		_ring(c, Run.sense_radius(), Color(0.31, 0.69, 0.74, 0.34))
+		_ring(c, Run.jump_range(), Color(0.83, 0.46, 0.24, 0.46))
+
+	## One dashed ellipse at `r` galaxy units, centred on the ship.
+	func _ring(c: Vector2, r: float, col: Color) -> void:
 		if r <= 0.0:
 			return
 		var rx := r * _radius() * DISC * zoom
@@ -2330,7 +2346,6 @@ class MapChart extends Control:
 		# One step per pixel of circumference, near enough, so the dash rhythm
 		# stays the same length on screen at every zoom.
 		var steps := clampi(int(rx * 1.6), 60, 480)
-		var col := Color(0.42, 0.56, 0.72, 0.42)
 		for i in steps:
 			# Two on, three off, matching `_dotted`.
 			if i % 5 >= 2:
