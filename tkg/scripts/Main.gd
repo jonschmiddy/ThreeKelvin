@@ -463,6 +463,12 @@ func _ready() -> void:
 		Net.state = NetSession.State.IN_PARTY
 		Router.show_party()
 
+	# The arrival screen, with its option list:  godot --path . -- sectorshot
+	if "sectorshot" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/SectorShot.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "chartshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ChartShot.gd").new()
 		_convoy_test.run(get_tree())

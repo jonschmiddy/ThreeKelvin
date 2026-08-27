@@ -73,8 +73,10 @@ measurements were taken on the wrong kind before this was noticed.
 
 ## 2. WHAT IS NEXT
 
-**Phase 8b.** The type collapse landed, so what is left of E is the screen the
-player actually looks at. `SaveGame` is at **17**.
+**Content.** E is done — the collapse landed and the arrival screen renders the
+list. `SaveGame` is at **17**. What is left is that the table is **seven options
+deep**, so a system draws ~2.9 of the same seven every time and neither 8b nor
+phase 9 can be judged until that changes.
 
 | | Job | Read |
 | --- | --- | --- |
@@ -82,7 +84,8 @@ player actually looks at. `SaveGame` is at **17**.
 | 7 | Option policy in the sim | ✅ |
 | 8a-1 | Ambush becomes an interrupt | ✅ `SaveGame` 16 |
 | 8a-2 | Collapse `NodeType` to START/SYSTEM/STATION/PULSAR/CORE | ✅ `SaveGame` 17 |
-| 8b | **The arrival screen** — a system renders its whole list | **`ENCOUNTER_FLOW.md`** |
+| 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
+| — | **Content** — 8 of batch-02, 20 of batch-03 | `ENCOUNTER_AUTHORING.md` |
 | 9 | Tune — **the hellbender's food first**, then sector difficulty | §8 · **§9a below** |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
@@ -107,6 +110,12 @@ Against `8e476ff`'s 500-run baseline, at 200 runs:
 | avg kills | 6.6 | 6.8 |
 | lowest kind | 19% | 6% |
 | derelicts eaten | 2.24/run | **4.36/run** |
+
+**A 200-run sim is worth ±4 points, measured.** Three consecutive runs of the
+same build: **20% · 13% · 16%**. So a single 200-run reading cannot tell a
+four-point change from nothing, and the row above is a band, not a number —
+`8e476ff`'s baseline was 500 runs for this reason. **Take 500 before concluding
+a change moved the win rate, and never tune against one 200-run delta.**
 
 **Fight volume did not move** — the game got harder somewhere else, and the
 hellbender row is the strongest lead. Its food used to be `NodeType.DERELICT`,

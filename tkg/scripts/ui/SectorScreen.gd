@@ -116,6 +116,21 @@ var _log: LogPanel
 var _quiet_wrap: PanelContainer
 var _quiet_text: Label
 var _action: Button
+## The options this system is offering, one row each.
+var _options_box: VBoxContainer
+## Which group the pointer is over, or &"". Drives RULING 1b's preview.
+var _hover_group: StringName = &""
+## And which ROW in it, because the hovered option is the one thing in the box
+## that must NOT dim -- it is the row doing the closing.
+var _hover_index: int = -1
+## Outcome prose for options taken THIS VISIT, keyed by option index.
+##
+## Screen-local on purpose. Beat 5 has a resolved row become its outcome text,
+## and persisting that prose across a save would be a save-format change for a
+## sentence -- so a row taken while you are standing here shows what happened,
+## and a row taken before a reload shows that it is taken. `MapNode.taken` is
+## the fact; this is only the telling of it.
+var _outcomes: Dictionary = {}
 var _overlay: PanelContainer
 var _overlay_title: Label
 var _overlay_body: Label
@@ -301,17 +316,311 @@ func _build_salvage_rail() -> PanelContainer:
 ## the enemy intent strip does in a fight, so the screen keeps one shape whether
 ## the sector is quiet or not.
 func _build_quiet_strip() -> PanelContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	# A COLUMN, NOT A ROW. It held one label and one button because a node did one
+	# thing; a system offers two to four and the player chooses among them, so the
+	# place line sits above the list and the departure button below it.
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
 	_quiet_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_quiet_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_quiet_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(_quiet_text)
+	col.add_child(_quiet_text)
+	_options_box = VBoxContainer.new()
+	_options_box.add_theme_constant_override("separation", 5)
+	col.add_child(_options_box)
 	_action = Widgets.button("", _on_action)
 	_action.custom_minimum_size = Vector2(196, 22)
-	row.add_child(_action)
-	_quiet_wrap = Widgets.panel_with(row)
+	_action.size_flags_horizontal = Control.SIZE_SHRINK_END
+	col.add_child(_action)
+	_quiet_wrap = Widgets.panel_with(col)
 	return _quiet_wrap
+
+
+# ------------------------------------------------------------------- options
+
+
+## Everything this system is offering, in the order it was rolled.
+##
+## RULING 6: rolled order, and a group's box sits in its FIRST member's slot
+## rather than being sorted to the top. Sorting it up implies it matters more,
+## which is the one thing a group does not mean -- and rolled order gives each
+## option a stable position per id, which is worth something when lateral travel
+## keeps bringing you back through systems you have already read.
+func _rebuild_options(n: MapGen.MapNode) -> void:
+	Widgets.clear(_options_box)
+	_options_box.visible = false
+	if n == null or n.type != MapGen.NodeType.SYSTEM or n.cleared:
+		return
+	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		return
+	if n.options.is_empty():
+		return
+	_options_box.visible = true
+	# Which groups still have an untaken member, and which slot each one owns.
+	var placed: Dictionary = {}
+	for i in n.options.size():
+		var opt := OptionTable.by_id(n.options[i])
+		if opt.is_empty():
+			continue
+		var g := StringName(opt.get("group", &""))
+		if g == &"":
+			_options_box.add_child(_option_row(n, i, opt, false))
+			continue
+		if placed.has(g):
+			continue
+		placed[g] = true
+		_options_box.add_child(_group_box(n, g))
+
+
+## One "one of these" box, holding every option in `g`.
+##
+## RULING 1: exclusivity is shown BEFORE the choice, never after. Learning the
+## group by watching a sibling grey out afterwards is punishing someone for
+## exploring, and it is the failure that makes exclusivity feel arbitrary rather
+## than tense.
+func _group_box(n: MapGen.MapNode, g: StringName) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.add_child(UITheme.body("ONE OF THESE", UITheme.EMBER, UITheme.FS_SMALL))
+	for i in n.options.size():
+		var opt := OptionTable.by_id(n.options[i])
+		if opt.is_empty() or StringName(opt.get("group", &"")) != g:
+			continue
+		col.add_child(_option_row(n, i, opt, true))
+	var wrap := Widgets.panel_with(col)
+	wrap.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL, UITheme.EMBER.darkened(0.5), 0, 8, 7))
+	return wrap
+
+
+## One option: a line of body, then what you can do about it.
+func _option_row(n: MapGen.MapNode, i: int, opt: Dictionary,
+		grouped: bool) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	var oid := MapGen.OPTION_SITE + i
+	if n.taken.has(oid):
+		return _spent_row(col, n, i, opt)
+	# RULING 1b: hovering an option that would close others greys those rows now,
+	# while the choice is still open. Dimming a sibling is the preview; the group
+	# box above is the standing statement that a relationship exists.
+	var closed_by_hover := grouped and _hover_group == StringName(
+		opt.get("group", &"")) and _hover_index != i
+	var body := String(opt.get("body", ""))
+	var lead := UITheme.body(_first_sentence(body),
+		UITheme.COLD.darkened(0.35) if closed_by_hover else UITheme.CHILL,
+		UITheme.FS_SMALL)
+	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(lead)
+	if closed_by_hover:
+		# Plain, because a label that explains a RULE is not the place for the
+		# setting's register: fiction in a rule slot makes the player parse prose
+		# to learn a mechanic. It shares one word with the aftermath line below,
+		# in two tenses, so the second confirms the first.
+		col.add_child(UITheme.body("    BECOMES UNAVAILABLE", UITheme.FLARE,
+			UITheme.FS_SMALL))
+		return col
+	col.add_child(_choices_for(n, i, opt))
+	return col
+
+
+## What a taken option leaves behind.
+##
+## RULING 4: it says who claimed it, and it keeps its slot. An option that
+## silently disappears reads as a bug; one that names what closed it reads as a
+## party. This is why `MapNode.taken` is a list of ids rather than a count.
+func _spent_row(col: VBoxContainer, n: MapGen.MapNode, i: int,
+		opt: Dictionary) -> Control:
+	# `taker_name` is host-authoritative and already returns "" for nobody and for
+	# yourself, so a solo run never sees a name and never has to test for one.
+	var who := Net.taker_name(n.index, MapGen.OPTION_SITE + i)
+	var line := "Unavailable — %s taken" % String(opt.get("title", "it"))
+	if who != "":
+		line = "Taken by %s" % who
+	elif _outcomes.has(i):
+		line = String(_outcomes[i])
+	var lab := UITheme.body(line, UITheme.COLD, UITheme.FS_SMALL)
+	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(lab)
+	return col
+
+
+## The buttons under one option.
+##
+## RULING 2 decides whether they are the choices themselves or a single door into
+## the detail view: an option with BOTH prose and a check has something worth
+## slowing down for, and everything else resolves where it stands.
+func _choices_for(n: MapGen.MapNode, i: int, opt: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	if _wants_detail(opt):
+		var b := Widgets.button(String(opt.get("title", "LOOK")).to_upper(),
+			func() -> void: Router.show_option_at(i))
+		b.custom_minimum_size = Vector2(200, 22)
+		_watch_hover(b, n, i, opt)
+		row.add_child(b)
+		var chk := _lead_check(opt)
+		if not chk.is_empty():
+			row.add_child(UITheme.body(SkillCheck.badge(chk),
+				SkillCheck.badge_colour(chk), UITheme.FS_SMALL))
+		return row
+	var choices: Array = opt.get("choices", [])
+	for j in choices.size():
+		var c: Dictionary = choices[j]
+		row.add_child(_choice_button(n, i, j, c, opt))
+	return row
+
+
+## One choice, with what it costs and what it is worth on its face.
+func _choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
+		opt: Dictionary) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 1)
+	var b := Widgets.button(String(c.get("label", "…")).to_upper(),
+		func() -> void: _take(n, i, j))
+	b.custom_minimum_size = Vector2(150, 22)
+	_watch_hover(b, n, i, opt)
+	# RULING 8: an unaffordable hard gate greys and says by how much. A gate is a
+	# meter payment and 40 credits genuinely is not 60 -- but a disabled thing
+	# still says what it wants and how far off you are.
+	var note := ""
+	var tone := UITheme.COLD
+	if c.has("cost_credits"):
+		var cost := int(c.cost_credits)
+		note = "%d credits · you have %d" % [cost, Run.credits]
+		if Run.credits < cost:
+			b.disabled = true
+			tone = UITheme.FLARE
+	elif c.has("check"):
+		# RULING 3: the odds are on the button, so there is no confirm step. A
+		# dialog after showing 40% asks the same question twice and teaches the
+		# player the number was not the commitment.
+		note = SkillCheck.badge(c.check)
+		tone = SkillCheck.badge_colour(c.check)
+	elif bool(c.get("fight", false)) or _opens_fight(c):
+		note = _contact_reading(n)
+		tone = UITheme.THEM
+	col.add_child(b)
+	if note != "":
+		col.add_child(UITheme.body(note, tone, UITheme.FS_SMALL))
+	return col
+
+
+## RULING 5 — what a fight row prints, and it is something the player bought.
+##
+## Every other row prints a number and this one printed nothing until the fight
+## started. A flat enemy count spoils a reveal worth keeping; leaving it bare is
+## inconsistent. So it is `chart_from()` one scale down: the dish already tells
+## you WHERE things are, and a better dish tells you WHAT they are.
+##
+## It also finally gives SENSORS something to do outside event checks -- its
+## attribute row prints an empty effect string today because nothing reads it.
+func _contact_reading(n: MapGen.MapNode) -> String:
+	var s := Run.attr_sensors()
+	if s < 3:
+		return "Fight."
+	var pack := Router._roll_foes(n)
+	if pack.is_empty():
+		return "Fight."
+	if s < 6:
+		return "Fight · %d %s" % [pack.size(),
+			"contact" if pack.size() == 1 else "contacts"]
+	# One adjective, not a build readout. Composition starts to read the enemy's
+	# loadout, which is closer to a combat preview than a chart reading -- see
+	# ENCOUNTER_FLOW.md 7, which asks for count first and a measurement before
+	# going further.
+	var hot: String = String(DB.enemies[pack[0]].name).to_lower()
+	return "Fight · %d %s, one of them a %s" % [pack.size(),
+		"contact" if pack.size() == 1 else "contacts", hot]
+
+
+## Does this choice SAY it leads to a fight?
+##
+## The declaration, not the trigger -- see the note on `hostile_contact`. A list
+## has to print its reading before the click, and the trigger only exists after
+## the callable has run.
+func _opens_fight(c: Dictionary) -> bool:
+	return bool(c.get("fight", false))
+
+
+## Prose AND a number is what earns a screen. Either alone resolves in place.
+func _wants_detail(opt: Dictionary) -> bool:
+	if String(opt.get("body", "")) == "":
+		return false
+	for c in opt.get("choices", []):
+		if (c as Dictionary).has("check"):
+			return true
+	return false
+
+
+## The check a detail-view row shows on its face, if it has exactly one.
+func _lead_check(opt: Dictionary) -> Dictionary:
+	var found: Dictionary = {}
+	var count := 0
+	for c in opt.get("choices", []):
+		if not (c as Dictionary).has("check"):
+			continue
+		count += 1
+		found = (c as Dictionary).check
+	return found if count == 1 else {}
+
+
+## One line of body for the list. The rest lives in the detail view.
+func _first_sentence(body: String) -> String:
+	var cut := body.find(". ")
+	if cut < 0:
+		return body
+	return body.substr(0, cut + 1)
+
+
+## Take one choice where it stands.
+func _take(n: MapGen.MapNode, i: int, j: int) -> void:
+	var opt := OptionTable.by_id(n.options[i])
+	var choices: Array = opt.get("choices", [])
+	if j < 0 or j >= choices.size():
+		return
+	var c: Dictionary = choices[j]
+	if c.has("cost_credits") and Run.credits < int(c.cost_credits):
+		return
+	var band := SkillCheck.Band.MET
+	var call: Callable = c.get("effect", Callable())
+	if c.has("check"):
+		band = SkillCheck.roll(c.check)
+		call = SkillCheck.pick_outcome(c, band)
+	if c.has("cost_credits"):
+		Run.add_credits(-int(c.cost_credits))
+	var res: Dictionary = call.call() if call.is_valid() else {}
+	if typeof(res) != TYPE_DICTIONARY:
+		res = {}
+	if bool(res.get("module", false)):
+		Run.place_in_hold(LootGen.roll_module(n.danger))
+	_outcomes[i] = String(res.get("text", ""))
+	Router.option_resolved(i)
+	if Run.dead:
+		Router.show_game_over()
+		return
+	# The outcome may open a fight, and winning it does not consume the system --
+	# the option spent itself above. Same rule as `Router.start_ambush`.
+	if bool(res.get("fight", false)):
+		Router.start_ambush()
+		return
+	_refresh()
+
+
+## Hover drives RULING 1b's preview, so it has to be known per ROW and not only
+## per group -- the hovered row is the one thing in the box that does not dim.
+func _watch_hover(b: Button, n: MapGen.MapNode, i: int, opt: Dictionary) -> void:
+	var g := StringName(opt.get("group", &""))
+	if g == &"":
+		return
+	b.mouse_entered.connect(func() -> void:
+		_hover_group = g
+		_hover_index = i
+		_rebuild_options(n))
+	b.mouse_exited.connect(func() -> void:
+		_hover_group = &""
+		_hover_index = -1
+		_rebuild_options(n))
 
 ## The one thing this place offers. Named for the act, not the screen it opens:
 ## you dock at a station, you strip a wreck, you answer a hail.
@@ -328,11 +637,9 @@ func _on_action() -> void:
 	match n.type:
 		MapGen.NodeType.STATION:
 			Router.show_station()
+		# The rows are the options now, so the button under them only ever leaves.
 		MapGen.NodeType.SYSTEM:
-			if n.cleared:
-				Router.show_starchart()
-			else:
-				Router.show_option()
+			Router.show_starchart()
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
 				Router.show_starchart()
@@ -365,21 +672,20 @@ func _quiet_lines(n: MapGen.MapNode) -> Array:
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:
 				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", "PLOT NEXT JUMP"]
-			if n.cleared:
-				return ["Nothing here answers any more.", "PLOT NEXT JUMP"]
-			# HOW MANY, NOT WHICH. The chart does not say what a system holds and
-			# neither does this line; you learn that by looking. An interim
-			# button until the sector renders the list itself -- see
-			# Router.show_option and ENCOUNTER_FLOW.md.
+			# THE LIST SAYS WHAT IS HERE; this line only says where you are. It
+			# used to name a button -- LOOK -- because a system opened one thing
+			# at a time, and the button is now every row below.
 			var left := 0
 			for i in n.options.size():
 				if not n.taken.has(MapGen.OPTION_SITE + i):
 					left += 1
-			if left <= 0:
-				return ["Nothing here answers any more.", "PLOT NEXT JUMP"]
-			if left == 1:
-				return ["One thing out here is worth your time.", "LOOK"]
-			return ["Several things out here are worth your time, and you cannot have all of them.", "LOOK"]
+			if n.cleared or left <= 0:
+				# RULING 7. Every system rolls two to four options, so an empty one
+				# only ever means you took it all -- and in a setting whose premise
+				# is extraction from a universe running down, that is not a
+				# completion tick. A small subtraction, which is also simply true.
+				return ["Nothing else here wants anything from you.", "PLOT NEXT JUMP"]
+			return ["The lane is quiet and the board is not.", "PLOT NEXT JUMP"]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
 				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",
@@ -631,6 +937,7 @@ func _refresh() -> void:
 		var lines := _quiet_lines(n)
 		_quiet_text.text = lines[0]
 		_action.text = lines[1]
+		_rebuild_options(n)
 
 	_title.text = MapGen.star_name(n)
 	_sub.text = MapGen.place_line(n)

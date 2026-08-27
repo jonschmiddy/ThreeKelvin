@@ -423,42 +423,48 @@ func show_station() -> void:
 var _open_option := -1
 
 
-## Open the first option this system still has, as its own screen.
+## Open one named option as the detail view.
 ##
-## AN INTERIM. `ENCOUNTER_REBUILD.md` 7 has the sector render the whole list and
-## `_quiet_lines`'s two-element [line, label] array go away with it; that is
-## ENCOUNTER_FLOW.md's job and it is not this commit. Until then one option at a
-## time keeps a system playable rather than inert.
+## RULING 2. The sector renders the list; this is the screen an option gets when
+## it has earned one -- both a `body` and a check, so there is prose worth reading
+## and a number worth weighing. Everything simpler resolves in its own row and
+## never comes here, because two to four options across twenty-five systems is a
+## great deal of reading and prose that is unavoidable stops being read.
 ##
-## It costs almost nothing because the shapes already match: an option is
-## `{title, body, choices}` and `EventScreen` renders `{title, body, options}`.
-## One key renamed.
-func show_option() -> void:
+## `EventScreen` is reused rather than replaced: an option is
+## `{title, body, choices}` and it renders `{title, body, options}`. One key.
+func show_option_at(index: int) -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or n.cleared:
 		return
 	_roll_here(n)
-	_open_option = -1
-	for i in n.options.size():
-		if not n.taken.has(MapGen.OPTION_SITE + i):
-			_open_option = i
-			break
-	if _open_option < 0:
-		Run.consume_node(n)
-		show_starchart()
+	if index < 0 or index >= n.options.size():
 		return
-	var opt := OptionTable.by_id(n.options[_open_option])
+	if n.taken.has(MapGen.OPTION_SITE + index):
+		return
+	var opt := OptionTable.by_id(n.options[index])
 	if opt.is_empty():
-		# An id this build no longer has. Spend it and move on rather than
-		# stalling the system on a name nobody can resolve.
-		n.taken.append(MapGen.OPTION_SITE + _open_option)
-		show_option()
+		# An id this build no longer has. Spend it rather than stalling the
+		# system on a name nobody can resolve.
+		n.taken.append(MapGen.OPTION_SITE + index)
 		return
+	_open_option = index
 	Audio.music_state(&"event")
 	var e := EventScreen.new()
 	_swap(e)
 	e.setup({title = opt.get("title", ""), body = opt.get("body", ""),
 		options = opt.get("choices", [])})
+
+
+## Mark one option spent without opening anything.
+##
+## What the sector calls when a row resolved IN PLACE. The bookkeeping is the
+## same as `event_resolved`'s and lives in one function so the two paths cannot
+## drift: an option spends itself, and the system is finished only when nothing
+## is left in it.
+func option_resolved(index: int) -> void:
+	_open_option = index
+	event_resolved()
 
 
 func show_event() -> void:

@@ -331,11 +331,21 @@ static func _authored() -> Array[Dictionary]:
 			group = &"",
 			weight = 16,
 			choices = [
-				# THE OUTCOME OPENS THE FIGHT, not the line. `EventScreen._choose`
-				# reads `fight` off what the callable RETURNS -- which is how
-				# EventTable's two hostile endings have always worked -- so a flag
-				# on the line was a flag nothing was reading.
-				{label = "Engage", effect = func() -> Dictionary:
+				# TWO STATEMENTS, NOT ONE, and collapsing them broke RULING 5.
+				#
+				# `fight` in the RETURNED dictionary is the TRIGGER: it is what
+				# `EventScreen._choose` reads to start the fight, and it is how
+				# EventTable's two hostile endings have always worked. It is only
+				# knowable by running the callable.
+				#
+				# `fight` on the CHOICE is a DECLARATION: this row leads to a
+				# fight. The sector list has to print a contact reading BEFORE the
+				# click, so it needs an answer that does not require resolving the
+				# option first. Removing it made every hostile row print nothing.
+				#
+				# An outcome may still open a fight the choice did not declare --
+				# that is a twist, and it is why the trigger is the runtime one.
+				{label = "Engage", fight = true, effect = func() -> Dictionary:
 					return {text = "It came out here expecting easier work.", fight = true}},
 				{label = "Burn past it", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 8)
@@ -393,7 +403,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 40)
 						return {text = "You cross the lane twice, both times at full burn, the second time for no reason either of you could name afterwards."}},
-				{label = "Break it", effect = func() -> Dictionary:
+				{label = "Break it", fight = true, effect = func() -> Dictionary:
 					return {text = "They are not expecting a ship that came out here to do this.", fight = true}},
 			],
 		},
