@@ -353,9 +353,7 @@ func _roll_here(n: MapGen.MapNode) -> void:
 	# Stations are excluded because a station IS its option list -- the shelf,
 	# the hull on the rack, repair and fuel -- and it is the one node the chart
 	# telegraphs. The core is excluded because it is a hand-authored boss.
-	if n.options.is_empty() and n.type != MapGen.NodeType.STATION \
-			and n.type != MapGen.NodeType.GOAL:
-		n.options = OptionTable.roll_for(n)
+	OptionTable.ensure(n)
 	_roll_ambush(n)
 
 ## Whether anything followed your heat trail in.

@@ -168,6 +168,25 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 	return out
 
 
+## Roll this system's list if it has none, and answer whether it has one.
+##
+## THE SAME DECISION IN ONE PLACE. `Router._roll_here` rolls on arrival for a
+## played run and the headless simulator never goes through Router at all, so
+## without this the two would each carry a copy of "which nodes get options"
+## and drift the first time either changed.
+##
+## Stations are excluded because a station IS its option list -- the shelf, the
+## rack, repair and fuel -- and it is the one node the chart telegraphs. The core
+## is excluded because it is a hand-authored boss.
+static func ensure(n: MapGen.MapNode) -> bool:
+	if n == null or n.type == MapGen.NodeType.STATION \
+			or n.type == MapGen.NodeType.GOAL:
+		return false
+	if n.options.is_empty():
+		n.options = roll_for(n)
+	return not n.options.is_empty()
+
+
 ## Resolve stored ids back to definitions, dropping any this build no longer has.
 ##
 ## `ENCOUNTER_REBUILD.md` §4: a save must be able to rebuild its list after the

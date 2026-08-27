@@ -62,6 +62,19 @@ var end_fuel_total := 0
 ## none affordable, this means the reachable set was empty. If this is ever
 ## non-zero the fuel ruling is aimed at the wrong thing entirely.
 var stranded_nowhere := 0
+
+## What the pilot did with what each system offered.
+##
+## `ENCOUNTER_REBUILD.md` 8 names `forgone` as the number the model must be able
+## to report: an option lost because something else in its GROUP was taken
+## first. It is the depth curve made visible -- counts stay flat and only the
+## grouping moves, so if this stays near zero the exclusivity dial is not
+## actually doing anything.
+var opts_taken := 0
+var opts_declined := 0
+var opts_forgone := 0
+var opts_fight := 0
+var sites_with_options := 0
 ## The heat layer. Without these the sim can report that a heat change did
 ## nothing when what actually happened is that it never fired.
 var ambushes := 0
@@ -119,6 +132,12 @@ func run_sim() -> void:
 		elif arg.begins_with("venthot="):
 			policy.vent_hot = float(arg.split("=")[1])
 
+	# THE SECOND POLICY `ENCOUNTER_REBUILD.md` 8 ASKS FOR. A greedy model takes
+	# every check it is offered, which overstates income and makes the shortfall
+	# ladder look free. `-- sim riskaverse` declines below Policy.RISK_FLOOR and
+	# pays for the caution in what it never collects; running both on one seed is
+	# how the exclusivity dial gets argued with rather than assumed.
+	policy.risk_averse = "riskaverse" in OS.get_cmdline_user_args()
 	hot = "hot" in OS.get_cmdline_user_args()
 	# The control cell. Comparing `nohellbender` against the default on one build
 	# is what says what the roamer costs, without keeping a second checkout.
@@ -193,6 +212,11 @@ func _reset() -> void:
 	policy_gave_up = 0
 	end_fuel_total = 0
 	stranded_nowhere = 0
+	opts_taken = 0
+	opts_declined = 0
+	opts_forgone = 0
+	opts_fight = 0
+	sites_with_options = 0
 	ambushes = 0
 	runs_ambushed = 0
 	heat_samples = 0
@@ -297,6 +321,21 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		elif node.type == MapGen.NodeType.DERELICT and not node.cleared:
 			Run.consume_node(node)
 			Run.place_in_hold(LootGen.roll_module(node.danger))
+		# WHAT THE SYSTEM OFFERS, taken by the policy rather than by the type.
+		#
+		# Additive for now: the node types above still resolve as they always
+		# have, and this runs beside them. Phase 8 is where `NodeType` collapses
+		# and the two stop being separate questions.
+		if not node.cleared:
+			var got := policy.take_options(node)
+			if int(got.taken) + int(got.declined) + int(got.forgone) + int(got.fights) > 0:
+				sites_with_options += 1
+			opts_taken += int(got.taken)
+			opts_declined += int(got.declined)
+			opts_forgone += int(got.forgone)
+			opts_fight += int(got.fights)
+			if Run.dead:
+				break
 		policy.manage_cargo()
 
 		# Farm laterally while healthy enough, then descend. The choice itself
@@ -456,6 +495,18 @@ func _report() -> void:
 		int(round(Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2))),
 		100.0 * (float(end_fuel_total) / maxi(1, runs))
 			/ maxf(1.0, Run.FUEL_PER_RING_STEP * float(MapGen.LAYERS - 2))])
+	if sites_with_options > 0:
+		print("options: %d systems offered them · %.2f taken, %.2f declined, %.2f FORGONE per system"
+			% [sites_with_options,
+				float(opts_taken) / float(sites_with_options),
+				float(opts_declined) / float(sites_with_options),
+				float(opts_forgone) / float(sites_with_options)])
+		if policy.checks_avoided > 0:
+			print("  %.2f checks a system refused for long odds -- what caution costs"
+				% [float(policy.checks_avoided) / float(sites_with_options)])
+		if opts_fight > 0:
+			print("  %d fight lines skipped -- phase 8 is where the sim can run one"
+				% opts_fight)
 	print("policy gave up %d (%.1f%%) · of those, the ship could still fly %d" % [
 		policy_gave_up, 100.0 * policy_gave_up / maxi(1, runs),
 		policy_gave_up - stranded])

@@ -342,6 +342,124 @@ func engage_hellbender() -> bool:
 	var its := float(Run.hellbender_hp) / float(maxi(1, Run.hellbender_max))
 	return mine >= 0.45 + its * 0.3
 
+## Whether this pilot declines long odds.
+##
+## The second policy `ENCOUNTER_REBUILD.md` §8 asks for. A greedy model takes
+## every check it is offered, which overstates income and makes the shortfall
+## ladder look free; a risk-averse one refuses below `RISK_FLOOR` and pays for
+## the caution in what it never collects. Running both is how the exclusivity
+## dial gets argued with rather than assumed.
+var risk_averse: bool = false
+
+## How often caution took the safe line instead of the check.
+##
+## `declined` counts walking away from an option ENTIRELY, and it measured
+## nothing: a cautious pilot almost never does that, it takes the unchecked
+## fallback instead. So the two policies differed by eight points of win rate
+## with an identical `declined` of 0.00, and the number that was supposed to
+## explain the gap could not see it.
+##
+## This is what caution actually costs, and what it buys.
+var checks_avoided := 0
+
+## The odds a cautious pilot will not go below.
+##
+## `SkillCheck.ODDS` is [1.0, 0.65, 0.40, 0.20, 0.05] by shortfall, so 0.45 sits
+## between one pip short and two: this pilot takes a check it is one under and
+## declines one it is two under. Not a ruling -- a starting point for the sweep
+## §8 asks for.
+const RISK_FLOOR := 0.45
+
+
+## Take what this system offers, and report what was left behind.
+##
+## GROUPS ARE THE POINT. Taking an option marks its group spent and every other
+## option in that group becomes unavailable -- so a grouped system is a system
+## where arriving rich means choosing what to leave. `forgone` counts exactly
+## that, and it is the number §8 says the model must be able to report.
+func take_options(n: MapGen.MapNode) -> Dictionary:
+	var out := {"taken": 0, "declined": 0, "forgone": 0, "fights": 0}
+	if n == null or not OptionTable.ensure(n):
+		return out
+	var spent: Dictionary = {}
+	for i in n.options.size():
+		var opt := OptionTable.by_id(n.options[i])
+		if opt.is_empty():
+			continue
+		var oid := MapGen.OPTION_SITE + i
+		if n.taken.has(oid):
+			continue
+		var g := StringName(opt.get("group", &""))
+		if g != &"" and spent.has(g):
+			# Not declined -- FORGONE. The pilot never got to weigh it, because
+			# something else in its group was taken first.
+			out.forgone += 1
+			continue
+		var pick := _choose_line(opt)
+		if pick < 0:
+			out.declined += 1
+			continue
+		var line: Dictionary = (opt.choices as Array)[pick]
+		if bool(line.get("fight", false)):
+			# A line that opens a fight is phase 8's business -- `NodeType`
+			# collapsing is what gives the sim somewhere to run it. Counted so
+			# the omission is visible rather than silently biasing the numbers.
+			out.fights += 1
+			continue
+		_resolve_line(n, line)
+		n.taken.append(oid)
+		out.taken += 1
+		if g != &"":
+			spent[g] = true
+		if Run.dead:
+			break
+	return out
+
+
+## Which line of an option to take, or -1 to walk away.
+##
+## Prefers a check this pilot will pass over a flat effect, because the checked
+## bands are where the payouts are -- but only when the odds clear the floor. A
+## cautious pilot falling back to the unchecked line is the whole difference
+## between the two policies.
+func _choose_line(opt: Dictionary) -> int:
+	var choices: Array = opt.get("choices", [])
+	var fallback := -1
+	for i in choices.size():
+		var c: Dictionary = choices[i]
+		if c.has("cost_credits") and Run.credits < int(c.cost_credits):
+			continue
+		if not c.has("check"):
+			if fallback < 0:
+				fallback = i
+			continue
+		if risk_averse and SkillCheck.odds(c.check) < RISK_FLOOR:
+			checks_avoided += 1
+			continue
+		return i
+	return fallback
+
+
+## Run one line and grant what it pays.
+##
+## The reward class is §5's: an option that says `module` pays one rolled at the
+## system's own danger, which is where `LootGen`'s rarity floors do the
+## high-risk half by themselves.
+func _resolve_line(n: MapGen.MapNode, line: Dictionary) -> void:
+	var res: Dictionary = {}
+	if line.has("check"):
+		var band := SkillCheck.roll(line.check)
+		var cb: Callable = SkillCheck.pick_outcome(line, band)
+		if cb.is_valid():
+			res = cb.call()
+	elif line.has("effect"):
+		var cb2: Callable = line.effect
+		if cb2.is_valid():
+			res = cb2.call()
+	if typeof(res) == TYPE_DICTIONARY and bool(res.get("module", false)):
+		Run.place_in_hold(LootGen.roll_module(n.danger))
+
+
 func choose_jump(node: MapGen.MapNode) -> int:
 	# IN RANGE, NOT LINKED. `links` is the graph the chart DRAWS; it is not the
 	# graph the ship flies. `can_jump_to` is `reachable_from` plus fuel, and
