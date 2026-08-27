@@ -49,6 +49,7 @@ func run() -> void:
 			_fail("option '%s' has no choices" % id)
 	_ok("every option has a unique id and at least one choice", true)
 
+	OptionTable.floor_fired = 0
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var n_checked := 0
@@ -126,6 +127,12 @@ func run() -> void:
 			float(t.opts) / float(t.n),
 			"%d-%d" % [int(plan2.lo), int(plan2.hi)],
 			float(t.grouped) / float(t.n), int(t.short)])
+	# THE FLOOR'S DELETION DATE, reported as a rate. It is scaffolding for a thin
+	# table: at zero the pool supplies an anchor on its own and `_anchor_floor`
+	# is dead code with this line proving it.
+	print("  anchor floor fired on %d of %d systems (%.0f%%) -- delete it at 0"
+		% [OptionTable.floor_fired, n_checked,
+			100.0 * float(OptionTable.floor_fired) / maxf(1.0, float(n_checked))])
 	if short_total > 0:
 		print("  %d of %d systems fell short of the tier plan -- THE TABLE IS THIN,"
 			% [short_total, n_checked])

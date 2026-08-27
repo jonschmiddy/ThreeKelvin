@@ -47,6 +47,13 @@ class_name OptionTable
 ## `by_key()`, which then linear-searches. At ~290 systems each rolling its own
 ## list that pattern stops being merely wasteful -- `ENCOUNTER_REBUILD.md` §5a
 ## says so in as many words.
+## How often the anchor floor had to step in. See `_anchor_floor`.
+##
+## THIS IS THE DELETION DATE. The floor is scaffolding for a thin table; when
+## this reaches zero over a full sim the pool is supplying anchors on its own and
+## the floor is dead code with a test saying so.
+static var floor_fired: int = 0
+
 static var _all: Array[Dictionary] = []
 static var _by_id: Dictionary = {}
 
@@ -116,6 +123,52 @@ const TIER_PLAN := {
 }
 
 
+## The tags a system needs at least one of, while the table is thin.
+##
+## `fight` because contracts ask for one and because 5's reward classes make
+## fights the only reliable door to the top of the rarity ladder. `salvage`
+## because the hellbender eats wrecks, and because a system with neither is a
+## system with nothing in it worth crossing a galaxy for.
+const ANCHOR_TAGS: Array[StringName] = [&"fight", &"salvage"]
+
+
+## Does this option anchor a system?
+static func _anchors(o: Dictionary) -> bool:
+	for t in o.get("tags", []):
+		if ANCHOR_TAGS.has(StringName(t)):
+			return true
+	return false
+
+
+## Make sure a system offers something to fight or something to strip.
+##
+## SCAFFOLDING. See `floor_fired` for how it ends: when the pool supplies an
+## anchor on its own the swap stops happening, and this becomes dead code with a
+## measurement proving it rather than a note somebody has to remember.
+##
+## Swaps rather than appends, so the tier plan's counts are not quietly
+## exceeded -- the lowest-weight option goes, because weight is how the table
+## says which entries are meant to be common.
+static func _anchor_floor(out: Array[StringName], pool: Array[Dictionary],
+		r: RandomNumberGenerator) -> void:
+	for id in out:
+		if _anchors(by_id(id)):
+			return
+	var anchors: Array[Dictionary] = []
+	for o in pool:
+		if _anchors(o):
+			anchors.append(o)
+	if anchors.is_empty():
+		return
+	var swap: Dictionary = anchors[r.randi() % anchors.size()]
+	var worst := 0
+	for i in out.size():
+		if int(by_id(out[i]).get("weight", 10)) < int(by_id(out[worst]).get("weight", 10)):
+			worst = i
+	out[worst] = StringName(swap.id)
+	floor_fired += 1
+
+
 ## What this system holds. Ids only -- callables are never built here.
 ##
 ## POSITIONAL, off `Rng.derive(&"options", n.index)`, because what is AT a place
@@ -165,6 +218,10 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 				continue
 			groups_used[g] = true
 		out.append(StringName(got.id))
+	# `pool` is what the draw did NOT take, which is exactly the set a swap may
+	# come from -- anything already in `out` is either an anchor or was not one.
+	if not out.is_empty():
+		_anchor_floor(out, pool, r)
 	return out
 
 
@@ -234,6 +291,45 @@ static func _build() -> void:
 static func _authored() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([
+		{
+			id = &"hostile_contact",
+			title = "Hostile contact",
+			body = "Something is holding station where nothing should be, and it has your registry already. No hail, no demand. It simply turns to face you.",
+			tags = [&"fight"],
+			group = &"",
+			weight = 16,
+			choices = [
+				{label = "Engage", fight = true, effect = func() -> Dictionary:
+					return {text = "It came out here expecting easier work."}},
+				{label = "Burn past it", effect = func() -> Dictionary:
+					Run.fuel = maxi(0, Run.fuel - 8)
+					return {text = "You put the throttle down and take the long way round the system. It does not follow, and you do not learn what it wanted."}},
+			],
+		},
+		{
+			id = &"dead_hull",
+			title = "A dead hull",
+			body = "It has been here long enough to go cold all the way through. No beacon, no claim on the board, nothing on any registry you can reach from here.",
+			tags = [&"salvage"],
+			group = &"",
+			weight = 14,
+			choices = [
+				{label = "Strip it", effect = func() -> Dictionary:
+					return {text = "Whatever killed it did not take the parts. You leave with what would have been someone's spares.", module = true}},
+				{label = "Read the log first",
+					check = {attr = &"sensors", need = 3},
+					met = func() -> Dictionary:
+						Run.add_credits(20)
+						return {text = "The log is intact and says who they were owed money by. The debt is transferable.", module = true},
+					clean = func() -> Dictionary:
+						return {text = "Enough of the log survives to say the hull is not booby-trapped, which is the part worth knowing.", module = true},
+					partial = func() -> Dictionary:
+						return {text = "The recorder is slag. You take what is loose and do not learn anything."},
+					botched = func() -> Dictionary:
+						Run.take_hull_damage(5, "Something in the dead hull was still charged.")
+						return {text = "A cell that should have been flat was not. You leave with less than you arrived with."}},
+			],
+		},
 		{
 			id = &"cordon",
 			title = "The cordon",
