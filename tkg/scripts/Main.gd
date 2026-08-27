@@ -300,6 +300,13 @@ func _ready() -> void:
 
 	Router.register(content, hud)
 
+	# Real galaxy data for the sensor-ladder study:
+	#   godot --headless --path . -- sensordump
+	if "sensordump" in OS.get_cmdline_user_args():
+		_sensor_dump = load("res://scripts/sim/SensorDump.gd").new()
+		_sensor_dump.run(get_tree())
+		return
+
 	# What the chart looks like now that sight is live:
 	#   godot --path . -- fogshot
 	if "fogshot" in OS.get_cmdline_user_args():
@@ -691,6 +698,7 @@ var _stow_test: RefCounted = null
 ## And for `-- sky`, for the same reason: it awaits.
 var _sky_test: RefCounted
 var _chart_bench: RefCounted = null
+var _sensor_dump: RefCounted = null
 var _fog_shot: RefCounted = null
 var _ship_drift: RefCounted = null
 var _zoom_shot: RefCounted = null

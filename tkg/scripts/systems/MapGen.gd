@@ -305,7 +305,20 @@ static func ring_count(layer: int) -> int:
 	# Identical for every galaxy with no hole, where the two radii are equal.
 	var depth_r := _ring_radius_raw(layer)
 	var f: float = clampf(1.0 - (depth_r - CORE) / maxf(0.001, RIM - CORE), 0.0, 1.0)
-	var weight: float = lerpf(0.14, 3.3, pow(f, 1.6))
+	# FLATTENED, from 0.14-3.3, so that a FIXED jump radius can work at all.
+	#
+	# The steep curve above is still the right description of what this used to
+	# do and why -- it emptied the frontier and packed the deep galaxy, about
+	# fifty to one by area. It is incompatible with a fixed range: options scale
+	# as (R / spacing)^2, so a 3x spacing gradient is a 9x option gradient, and
+	# no single radius serves both ends. Measured at R = 0.12, the rim offered
+	# zero systems and the deep galaxy offered ten.
+	#
+	# At 0.80-1.80 spacing varies 1.4x instead of 3x and every ring is jumpable.
+	# What the galaxy loses in radial character it should get back from its
+	# SHAPE -- dense along the arms, thin between them -- which is a property a
+	# player can actually see, and which a fixed radius does not fight.
+	var weight: float = lerpf(0.80, 1.80, pow(f, 1.6))
 	return clampi(int(round(perim / maxf(0.001, target) * weight)),
 		RING_MIN, RING_MAX)
 

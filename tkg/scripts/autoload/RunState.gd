@@ -1387,8 +1387,11 @@ func attributes() -> Array[Dictionary]:
 		{key = &"thrust", label = "THRUST", short = "THR",
 			value = attr_thrust(), base = attr_thrust(true),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well.",
-			effect = "A pip stretches every jump %d%% further, and costs no extra fuel."
-				% int(round(THRUST_REACH * 100.0))},
+			# The jump range is a FIXED distance now, so this is a plain
+			# percentage of a known number rather than of a local accident.
+			effect = "A pip is %d%% further travel on the starchart, to a maximum of %d%%, and costs no extra fuel."
+				% [int(round(THRUST_REACH * 100.0)),
+					int(round((THRUST_REACH_MAX - 1.0) * 100.0))]},
 		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV",
 			value = attr_maneuver(), base = attr_maneuver(true),
 			text = "Threading debris, evading a lock, choosing how a fight opens.",
@@ -1404,7 +1407,12 @@ func attributes() -> Array[Dictionary]:
 		{key = &"sensors", label = "SENSORS", short = "SEN",
 			value = attr_sensors(), base = attr_sensors(true),
 			text = "Reading a wreck, finding the lane, seeing it before it sees you.",
-			effect = "A pip shows you systems %d%% further out than you can fly to."
+			# SAYS WHAT IT DOES NOW. It used to read "further out than you can
+			# fly to", which described sight as a margin over the drive. Sight
+			# is live and it is the gate -- you may only jump to what you can
+			# see -- so the pip has to be priced against the starchart itself,
+			# not against thrust.
+			effect = "A pip is %d%% further sight on the starchart. You can only jump to systems you can see."
 				% int(round(SENSE_REACH * 100.0))},
 		{key = &"stealth", label = "STEALTH", short = "STL",
 			value = attr_stealth(), base = attr_stealth(true),
@@ -1833,6 +1841,23 @@ func thrust_reach() -> float:
 ## so a sparse frontier already widens it and a spawn in a system desert is not
 ## the trap it looks like. If a kind still comes out unplayable, raise this
 ## before touching the geometry.
+## How far a drive reaches, in galaxy units. A FIXED distance.
+##
+## It used to be derived from local density -- 2.5x your nearest neighbour,
+## clamped between the third and sixth, which held the option count near six
+## wherever you stood. That worked and it hid the range: measured across one
+## galaxy the radius swung 5x, so the reach ellipse resized as the ship moved,
+## a rim jump crossed five times what a core jump did and was billed for it,
+## and thrust multiplied a local accident rather than a knowable number.
+##
+## 0.18 measured against the flattened rings in `MapGen.ring_count`: five
+## systems in reach at the rim, fourteen at the deepest, never none.
+##
+## NOT scaled by the galaxy. `reach` already multiplies every position -- see
+## MapGen `gal = galaxy_pos(n) * reach` -- so a galaxy authored large is one a
+## fixed radius crosses in more hops, which is exactly what that dial is for.
+const JUMP_RADIUS := 0.18
+
 const SENSE_FLOOR := 1.5
 
 const SENSE_REACH := 0.25
@@ -1932,39 +1957,8 @@ func range_from(here: MapGen.MapNode) -> float:
 ## never changes within a run; the engine's multiplier is a property of the ship
 ## and moves the moment a part is fitted. Keeping them apart means bolting on a
 ## thruster does not have to invalidate anything.
-func _map_range_from(here: MapGen.MapNode) -> float:
-	var hit: float = _range_cache.get(here.index, -1.0)
-	if hit >= 0.0:
-		return hit
-	var ds: Array[float] = []
-	for n in map:
-		var t: MapGen.MapNode = n
-		if t.index == here.index:
-			continue
-		ds.append(MapGen.hop_distance(here, t))
-	if ds.is_empty():
-		_range_cache[here.index] = 0.0
-		return 0.0
-	ds.sort()
-	# Relative to your CLOSEST neighbour, not a fixed count.
-	#
-	# Taking the sixth-nearest meant the drive always reached exactly six
-	# systems — so out on the thin frontier it stretched across enormous gaps to
-	# find them, and in the crowded deep galaxy it stopped short of things
-	# sitting right next to you. Every neighbourhood looked identical however
-	# dense the region actually was, which quietly threw away the whole point of
-	# populating the rings unevenly.
-	#
-	# Anything within about two and a half times your nearest neighbour is close
-	# enough to be a real option; past that it is a trek. Floored at the third
-	# nearest so a sparse ring still offers a choice rather than a corridor, and
-	# capped at the sixth so a dense one does not offer twenty.
-	var nearest: float = ds[0]
-	var lo: float = ds[mini(2, ds.size() - 1)]
-	var hi: float = ds[mini(JUMP_NEIGHBOURS - 1, ds.size() - 1)]
-	var r: float = clampf(nearest * 2.5, lo, hi) * 1.06
-	_range_cache[here.index] = r
-	return r
+func _map_range_from(_here: MapGen.MapNode) -> float:
+	return JUMP_RADIUS
 
 ## Close enough to fly to. Pure distance, nothing else.
 ##
@@ -1993,6 +1987,27 @@ func _map_range_from(here: MapGen.MapNode) -> float:
 func reachable_from(here: MapGen.MapNode, n: MapGen.MapNode) -> bool:
 	if n.index == here.index:
 		return false
+	# THE FINAL APPROACH IS ALWAYS AVAILABLE FROM THE LAST RING.
+	#
+	# The core sits at the centre, at radius zero, while the innermost ring sits
+	# at `CORE` -- about 0.11 -- so in an ordinary galaxy a fixed reach of 0.19
+	# covers that last hop with room to spare and this rule changes nothing.
+	#
+	# A galaxy with a HOLE is the exception it exists for. `galaxy_pos` maps every
+	# ring into the annulus above `ring`, so on a Collisional Ring the innermost
+	# ring is at 0.52 and the core is still at zero. Nothing can cross that: the
+	# old density-derived radius grew in the sparse middle and bridged it, and a
+	# fixed radius cannot. Measured without this: 0% wins and 317 jumps spent
+	# circling a rim that has no way in.
+	#
+	# Shrinking `ring` instead would need it under about 0.09 to close the gap
+	# geometrically, which is not a ring galaxy any more.
+	#
+	# It is the same argument as the core being permanently charted: the middle
+	# of the galaxy is where the run ENDS, and it should be the danger that stops
+	# you there, never the geometry.
+	if n.type == MapGen.NodeType.GOAL and here.layer >= MapGen.LAYERS - 2:
+		return true
 	var d := MapGen.hop_distance(here, n)
 	return d <= range_from(here) or d <= range_from(n)
 
