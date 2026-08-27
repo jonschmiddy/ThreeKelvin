@@ -38,6 +38,20 @@ func run(tree: SceneTree) -> void:
 			Run.jump_to(pick)
 			jumped += 1
 		Router.show_starchart()
+		# ZOOMED, AND CENTRED ON THE SHIP. The default view centres the GALAXY,
+		# and the ship spawns on the rim -- so the one thing these shots are of
+		# sits off the edge of the frame.
+		# AFTER the screen has settled. `show_starchart` builds a fresh screen and
+		# its deferred fit sets zoom and pan itself, so anything set before that
+		# lands is simply overwritten.
+		for i in 20:
+			await RenderingServer.frame_post_draw
+		var chart = (Router.current as StarchartScreen)._chart
+		if chart != null:
+			chart.zoom = 2.2
+			chart.pan = -chart._polar(Run.node_at()) * chart.zoom
+			chart._clamp_pan()
+			chart._repaint_sky()
 		for i in 24:
 			await RenderingServer.frame_post_draw
 		var lit := 0

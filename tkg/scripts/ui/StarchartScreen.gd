@@ -1966,6 +1966,8 @@ class MapChart extends Control:
 						draw_line(a3, _screen_pos(Run.map[idx]),
 							Color(0.35, 0.45, 0.60, 0.22), 1.0)
 
+			_draw_reach_ring(hp)
+
 			# Two kinds of line, and they should not look alike. Where you HAVE
 			# been is settled fact: solid, white, unbroken. Where you COULD go is
 			# a proposal: dotted, dim, obviously provisional. Drawing both as
@@ -2297,6 +2299,45 @@ class MapChart extends Control:
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UITheme.ICE)
 		draw_string(f, o + Vector2(6, 22), l2,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 8, edge)
+
+	## How far the ship can go, drawn where it can be seen.
+	##
+	## AN ELLIPSE, NOT A CIRCLE, and that is the whole of it. `galaxy_pos` draws
+	## the disc foreshortened -- `Vector2(cos(a), sin(a) * squash)` -- and
+	## `hop_distance` measures in the disc's own plane, dividing `gal.y` back out
+	## by that same squash. So the reachable set is a circle in the galaxy and an
+	## ELLIPSE on the chart: at squash 0.62 you reach about 1.6x further sideways
+	## than you do up or down, in screen pixels.
+	##
+	## Reported as a bug -- a system plainly nearer than a reachable one that
+	## could not be reached. It is not one; it was just impossible to see. A ring
+	## that is visibly wide and flat says "down costs more than across" without a
+	## word of explanation, and says the galaxy is tilted while it is at it.
+	##
+	## Whole pixels and a step count tied to the radius, for the reason `_dotted`
+	## gives below: a ring walked in continuous space lands its dashes on
+	## fractions of a pixel and shimmers as you pan.
+	func _draw_reach_ring(c: Vector2) -> void:
+		var r := Run.jump_range()
+		if r <= 0.0:
+			return
+		var rx := r * _radius() * DISC * zoom
+		var ry := rx * _squash()
+		# Under about six pixels it is a smudge on the ship rather than a ring,
+		# and at that size the dotted lines already say everything it would.
+		if rx < 6.0:
+			return
+		# One step per pixel of circumference, near enough, so the dash rhythm
+		# stays the same length on screen at every zoom.
+		var steps := clampi(int(rx * 1.6), 60, 480)
+		var col := Color(0.42, 0.56, 0.72, 0.42)
+		for i in steps:
+			# Two on, three off, matching `_dotted`.
+			if i % 5 >= 2:
+				continue
+			var a := TAU * float(i) / float(steps)
+			draw_rect(Rect2((c + Vector2(cos(a) * rx, sin(a) * ry)).round(),
+				Vector2.ONE), col, true)
 
 	## A dashed run between two points, in whole pixels. draw_dashed_line exists
 	## but works in continuous space, so its gaps land on fractions of a pixel
