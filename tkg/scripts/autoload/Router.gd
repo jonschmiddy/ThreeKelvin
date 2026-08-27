@@ -344,6 +344,18 @@ func _roll_here(n: MapGen.MapNode) -> void:
 				n.event_key = EventTable.pick_key(Rng.derive(&"event", n.index))
 		_:
 			pass
+	# WHAT THERE IS TO DO HERE, decided once and written onto the node.
+	#
+	# Same contract as `foes` and `event_key` above and for the same reason: this
+	# runs before the autosave, so quitting and coming back cannot re-roll it.
+	# Save-scumming through the front door is what that rule exists to stop.
+	#
+	# Stations are excluded because a station IS its option list -- the shelf,
+	# the hull on the rack, repair and fuel -- and it is the one node the chart
+	# telegraphs. The core is excluded because it is a hand-authored boss.
+	if n.options.is_empty() and n.type != MapGen.NodeType.STATION \
+			and n.type != MapGen.NodeType.GOAL:
+		n.options = OptionTable.roll_for(n)
 	_roll_ambush(n)
 
 ## Whether anything followed your heat trail in.

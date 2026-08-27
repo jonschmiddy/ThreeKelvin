@@ -55,7 +55,7 @@ func fingerprint() -> Dictionary:
 			# quoted price is checked separately, below, against the market that
 			# quotes it.
 			shop.append("%s:%d" % [m.id, m.scrap_value])
-		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
+		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
@@ -73,7 +73,13 @@ func fingerprint() -> Dictionary:
 			# and one of them taken comes back with all three on offer if this
 			# is lost, and `cleared` is false either way — so nothing else in
 			# this fingerprint would notice.
-			Array(n.taken)])
+			Array(n.taken),
+			# AND WHAT THOSE THINGS ARE. `taken` above is a list of INDICES into
+			# this one, so losing it does not merely re-roll the system -- it
+			# renumbers what `taken` refers to, and option 2 of the new list is
+			# marked spent because option 2 of the old one was. Nothing else here
+			# would see it: `cleared` is false either way and the counts match.
+			n.options])
 	return {
 		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
 		# loader does not call `at_tier`, so nothing regrants them on the way
@@ -237,6 +243,13 @@ func run() -> void:
 			n.foes = [&"cutter", &"lancer"]
 		elif n.type == MapGen.NodeType.EVENT and not n.cleared and n.event_key.is_empty():
 			n.event_key = "Dead station"
+		# AND WHAT THE SYSTEM IS OFFERING, rolled the way arriving would roll it.
+		#
+		# Without this every node's list is empty, empty round-trips to empty,
+		# and the fingerprint above proves nothing -- verified by deleting the
+		# field from `_node_to` and watching the test still pass.
+		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.GOAL 				and n.options.is_empty():
+			n.options = OptionTable.roll_for(n)
 
 	# The hellbender mid-chase: hurt, mid-stride, and having eaten something — the
 	# state a resume has to hand back exactly, or the pursuit resets.

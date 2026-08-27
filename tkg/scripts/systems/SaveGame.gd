@@ -107,12 +107,20 @@ const PATH := "user://run.save"
 ## Worth writing down because it is the shape of break the guard is blind to by
 ## construction: renaming the VALUES a save stores is exactly as destructive as
 ## renaming its keys, and nothing automated is watching for it.
+## 15: A SYSTEM HOLDS A LIST. `MapNode.options` carries the ids of what was
+## rolled at each node, so the shape of a saved system changed. A version 14
+## save has no such key and every node comes back with an empty list, which
+## re-rolls once on the next arrival -- the same contract `foes` has, and not a
+## corruption. KEPT rather than discarded for that reason: the worst case is one
+## system offering a different set than it did before the quit, against losing
+## the run entirely.
+##
 ## 14: SENSORS CAN SEE. Every map node carries a `sensed` mark now -- set when
 ## the ship is close enough and never cleared -- so the shape of a saved system
 ## changed. A version 13 save has no such key, and every node would come back
 ## unsensed: not a corruption, but a chart quietly narrower than the one the
 ## player left, which is the same class of lie as a stripped module. Discarded.
-const VERSION := 14
+const VERSION := 15
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -647,6 +655,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		shop = shop,
 		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
 		bag = bag, bagged = n.bagged,
+		options = _names(n.options),
 	}
 
 static func _node_from(e: Variant) -> MapGen.MapNode:
@@ -692,6 +701,17 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 		foes.append(StringName(str(f)))
 	n.foes = foes
 	n.event_key = str(d.get("event_key", ""))
+	# Absent on a save written before a system held a LIST of things to do. Left
+	# empty, which makes the node roll once on the next arrival and keep it from
+	# then on -- the same contract `foes` and `ambush` state above.
+	#
+	# Ids rather than definitions, so a save can be rebuilt after the table has
+	# changed underneath it. `OptionTable.resolve` drops an id this build does
+	# not have with a warning; a missing option must never refuse a save.
+	var opts: Array[StringName] = []
+	for o in d.get("options", []):
+		opts.append(StringName(str(o)))
+	n.options = opts
 	# Absent on a save written before heat had a map layer. An unrolled node
 	# rolls once on the next arrival, which is the old behaviour for exactly one
 	# more visit rather than a crash — same contract as `foes` above.

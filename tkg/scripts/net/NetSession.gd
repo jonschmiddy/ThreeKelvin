@@ -450,6 +450,17 @@ func content_fingerprint() -> int:
 	# the fields, which is the rule ENCOUNTER_REBUILD 9 states for this class of
 	# bug. GalaxyGen owns the description; see its `table_fingerprint`.
 	parts.append(GalaxyGen.table_fingerprint())
+	# AND THE OPTION TABLE, for the same reason and by the same rule. What a
+	# system holds is derived POSITIONALLY off `Rng.derive(&"options", index)`,
+	# so two peers whose pools differ roll different lists at the same node --
+	# and would otherwise agree on the fingerprint, connect, and disagree about
+	# what is in front of them. Ids only: the prose is copy and may be edited
+	# without splitting a party, while adding or gating an option may not.
+	var opt_ids: PackedStringArray = []
+	for o in OptionTable.all():
+		opt_ids.append(String(o.id))
+	opt_ids.sort()
+	parts.append("|".join(opt_ids))
 	return hash("|".join(parts))
 
 
