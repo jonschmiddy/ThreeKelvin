@@ -97,5 +97,25 @@ func run(tree: SceneTree) -> void:
 		tree.root.get_texture().get_image().save_png(
 			"user://fog_%02d.png" % jumped)
 
+	# AND THE REACH OVERLAY, which is hover-driven and so cannot be seen from a
+	# screenshot without saying what is hovered. Points at a system a couple of
+	# hops out rather than the ship's own, since the ship already draws its
+	# dotted lines and would prove nothing.
+	var chart2 = (Router.current as StarchartScreen)._chart
+	if chart2 != null:
+		chart2.show_links = true
+		var pick := Run.node_at().index
+		for n in Run.map:
+			var t: MapGen.MapNode = n
+			if t.sensed and t.index != Run.node_at().index:
+				pick = t.index
+				break
+		chart2.hovered = pick
+		chart2.queue_redraw()
+		for i in 20:
+			await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("user://fog_reach.png")
+		print("  reach overlay on system %d" % pick)
+
 	print("  shots in " + ProjectSettings.globalize_path("user://"))
 	tree.quit()

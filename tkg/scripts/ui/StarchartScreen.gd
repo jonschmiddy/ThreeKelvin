@@ -88,7 +88,7 @@ func _build() -> void:
 	# are allowed to use. Pairs with the button beside it — that one shows every
 	# system, this one shows how they are wired, and a generation problem is
 	# usually only visible with both on.
-		_links_btn = Widgets.button("SHOW ALL LINKS", _on_toggle_links)
+		_links_btn = Widgets.button("SHOW REACH", _on_toggle_links)
 		_links_btn.custom_minimum_size = Vector2(128, 14)
 		strip.add_child(_links_btn)
 
@@ -638,7 +638,10 @@ func _on_toggle_icons() -> void:
 func _on_toggle_links() -> void:
 	_chart.show_links = not _chart.show_links
 	if _links_btn != null:
-		_links_btn.text = "SHOW ALL LINKS" if not _chart.show_links else "HIDE LINKS"
+		# SAYS WHAT IT DOES NOW. It read "ALL LINKS" while it drew the whole
+		# lattice; it draws one system's REACH, and the label has to keep up or
+		# it is describing the version that was replaced.
+		_links_btn.text = "SHOW REACH" if not _chart.show_links else "HIDE REACH"
 	_chart.queue_redraw()
 
 func _on_chart_cleared() -> void:
@@ -1175,10 +1178,11 @@ class MapChart extends Control:
 	## most of the galaxy.
 	##
 	## Its absence read as a bug rather than as a decision, which is the other
-	## half of why it is back: SHOW ALL LINKS drew the whole lattice over a chart
-	## that was still hiding the systems those links ran to, so the diagnostic
-	## showed edges going nowhere and stations floating in the dark — stations
-	## being the one type the filter always lets through.
+	## half of why it is back: the link overlay -- SHOW REACH now, and it drew
+	## the whole `links` lattice then -- painted edges over a chart that was
+	## still hiding the systems those edges ran to, so the diagnostic showed
+	## lines going nowhere and stations floating in the dark, stations being the
+	## one type the filter always let through.
 	##
 	## Nothing is reachable through it. Jumping has always been gated on
 	## Run.can_jump_to(), so this reveals and never travels.
@@ -2010,24 +2014,33 @@ class MapChart extends Control:
 		# With the systems hidden, the chart is the galaxy alone: no routes, no
 		# trail, no glyphs, no tooltip, and nothing that answers the cursor.
 		if show_icons:
-			# DEVELOPMENT: the whole lattice at once.
+			# WHAT THE SYSTEM UNDER THE CURSOR CAN REACH.
 			#
-			# Under it first and very dim, so it reads as the graph the map is
-			# built on rather than as another set of options — the two live line
-			# kinds below have to stay legible on top of it. Every link is drawn
-			# from both ends, so each one is painted twice; at this alpha that is
-			# invisible and not worth a set to deduplicate.
+			# This used to draw every `links` entry from every system at once --
+			# both ends, so each line twice -- and at four hundred systems that
+			# is a grey fog rather than a diagram. It was also a picture of the
+			# WRONG GRAPH: links are what the chart draws, while `can_jump_to` is
+			# `sensed` plus `reachable_from` plus fuel and never consults them.
 			#
-			# It answers the question no in-game view can: whether MapGen wired
-			# the galaxy up sensibly. An unreachable pocket or a shell that only
-			# connects at one point is obvious here and invisible everywhere else.
-			if show_links:
+			# Its old comment said it "answers the question no in-game view can:
+			# whether MapGen wired the galaxy up sensibly", and that was true
+			# while links gated movement. The modern form of the question is
+			# whether a system can be flown out of, which is what this shows.
+			#
+			# ONE SYSTEM AT A TIME, because the reachable graph is DENSER than
+			# the link graph, not sparser -- a radius reaches further than the
+			# lattice does. Drawing all of it would be worse than what it
+			# replaces. Pointing at a system is the question.
+			if show_links and hovered >= 0 and hovered < Run.map.size():
+				var from: MapGen.MapNode = Run.map[hovered]
+				var a3 := _screen_pos(from)
 				for n3 in Run.map:
-					var from: MapGen.MapNode = n3
-					var a3 := _screen_pos(from)
-					for idx in from.links:
-						draw_line(a3, _screen_pos(Run.map[idx]),
-							Color(0.35, 0.45, 0.60, 0.22), 1.0)
+					var t3: MapGen.MapNode = n3
+					if t3.index == from.index:
+						continue
+					if Run.reachable_from(from, t3):
+						draw_line(a3, _screen_pos(t3),
+							Color(0.36, 0.56, 0.72, 0.38), 1.0)
 
 			_draw_reach_ring(hp)
 
