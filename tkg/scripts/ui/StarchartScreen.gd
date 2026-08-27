@@ -128,8 +128,11 @@ func _build() -> void:
 	# can I see and go", which is a question you ask while reading the map --
 	# the scale bar and LOCAL REGION are about the view itself and belong
 	# together down there.
-	_sight_btn = _corner_toggle(_on_sight, 0, 150.0, true)
-	_reach_btn = _corner_toggle(_on_reach, 1, 150.0, true)
+	# THRUSTER REACH first because it is the LONGER label. These are right
+	# aligned, so the longest line on top gives a clean descending edge; the
+	# other order notches inward and then back out.
+	_reach_btn = _corner_toggle(_on_reach, 0, 150.0, true)
+	_sight_btn = _corner_toggle(_on_sight, 1, 150.0, true)
 	_paint_rings()
 
 	var right := VBoxContainer.new()
