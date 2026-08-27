@@ -63,8 +63,37 @@ func run(tree: SceneTree) -> void:
 			var t: MapGen.MapNode = n
 			if t.sensed or t.visited or Run.station_heard(t.index):
 				seen += 1
-		print("  after %2d jumps: %d of %d systems in sensor range, %d on the chart"
+		# WHY each visible system is visible. `_visible_set` has four reasons and
+		# only one of them is the dish, so a system can be lit well outside the
+		# sensor ring and still be correct -- or not, which is the question.
+		var here2: MapGen.MapNode = Run.node_at()
+		var r_sight := Run.sense_radius()
+		var out_only_sensed := 0
+		var by_visited := 0
+		var by_station := 0
+		var by_contract := 0
+		var by_sensed := 0
+		for n in Run.map:
+			var t: MapGen.MapNode = n
+			var d2 := MapGen.hop_distance(here2, t)
+			var outside := d2 > r_sight
+			if t.visited:
+				if outside:
+					by_visited += 1
+			elif Run.station_heard(t.index):
+				if outside:
+					by_station += 1
+			elif t.sensed:
+				by_sensed += 1
+				if outside:
+					out_only_sensed += 1
+			elif Run.contract_at(t.index) != null:
+				if outside:
+					by_contract += 1
+		print("  after %2d jumps: %d of %d in sensor range, %d on the chart"
 			% [jumped, lit, Run.map.size(), seen])
+		print("       OUTSIDE the sensor ring: %d visited - %d station_heard - %d contract - %d STILL FLAGGED sensed"
+			% [by_visited, by_station, by_contract, out_only_sensed])
 		tree.root.get_texture().get_image().save_png(
 			"user://fog_%02d.png" % jumped)
 

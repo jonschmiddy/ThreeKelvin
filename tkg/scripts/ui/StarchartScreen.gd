@@ -18,6 +18,14 @@ var _all_btn: Button
 var _icons_btn: Button
 var _links_btn: Button
 var _region_btn: Button
+var _sight_btn: Button
+var _reach_btn: Button
+
+## Which rings the chart draws. Both on by default: they are how the two
+## limits are read, and a player who has never seen them cannot know to
+## look for them.
+var _sight_on := true
+var _reach_on := true
 ## Whether the view is held on the local region. A TOGGLE rather than a
 ## jump, because the press has an obvious undo and a jump does not: you
 ## would otherwise have to find the way back out by hand every time.
@@ -114,36 +122,15 @@ func _build() -> void:
 	#
 	# A child of the CHART rather than of the panel around it, so it follows
 	# the chart's rect and needs no second set of margins to stay put.
-	_region_btn = Widgets.button("", _on_region)
-	# NO CHROME, the same treatment the launcher gives DEVELOPER MODE. A button
-	# plate over a starfield reads as a dialog dropped on the galaxy; this is a
-	# label you can press, not a form control.
-	_region_btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
-	_region_btn.add_theme_color_override("font_hover_color", UITheme.ICE)
-	_region_btn.add_theme_color_override("font_pressed_color", UITheme.HOT)
-	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
-		_region_btn.add_theme_stylebox_override(st, UITheme.empty())
+	_region_btn = _corner_toggle(_on_region, 0, 112.0)
 	_paint_region()
-	_region_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	# Clear of the bar by its own padding, plus the height of the bar and
-	# its label. Measured off the chart's own constants so the two cannot
-	# drift apart when either is retuned.
-	_region_btn.offset_left = -(112.0 + MapChart.BAR_PAD)
-	_region_btn.offset_right = -MapChart.BAR_PAD
-	# AND THE TEXT SITS AT THAT EDGE. The box was already flush with the
-	# bar; a Button centres its label inside it, so the words stopped some
-	# thirteen pixels short and the three lines of one instrument each
-	# ended somewhere different.
-	_region_btn.alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	# 8px of clear air over the SCALE BLOCK, not over the bar's rule. The
-	# label is drawn above the rule, so the block's real top is the rule
-	# minus the baseline offset and the cap height — measured off the
-	# chart's own numbers rather than eyeballed, so retuning either moves
-	# both together.
-	var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
-	_region_btn.offset_top = -(14.0 + scale_top)
-	_region_btn.offset_bottom = -scale_top
-	_chart.add_child(_region_btn)
+	# TOP right, not stacked under the scale block. These two answer "how far
+	# can I see and go", which is a question you ask while reading the map --
+	# the scale bar and LOCAL REGION are about the view itself and belong
+	# together down there.
+	_sight_btn = _corner_toggle(_on_sight, 0, 150.0, true)
+	_reach_btn = _corner_toggle(_on_reach, 1, 150.0, true)
+	_paint_rings()
 
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
@@ -541,6 +528,75 @@ func _on_view_dragged() -> void:
 		return
 	_region_on = false
 	_paint_region()
+
+## One pressable label in the chart's bottom-right corner, `row` lines up.
+##
+## Extracted from LOCAL REGION rather than copied. That control carries a
+## paragraph of measured offsets and three of them drifting apart is the exact
+## failure its comments exist to prevent.
+func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button:
+	var b := Widgets.button("", cb)
+	# NO CHROME, the same treatment the launcher gives DEVELOPER MODE. A button
+	# plate over a starfield reads as a dialog dropped on the galaxy; this is a
+	# label you can press, not a form control.
+	b.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
+	b.add_theme_color_override("font_hover_color", UITheme.ICE)
+	b.add_theme_color_override("font_pressed_color", UITheme.HOT)
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(st, UITheme.empty())
+	b.set_anchors_preset(Control.PRESET_TOP_RIGHT if top else Control.PRESET_BOTTOM_RIGHT)
+	# Clear of the bar by its own padding, plus the height of the bar and
+	# its label. Measured off the chart's own constants so the two cannot
+	# drift apart when either is retuned.
+	b.offset_left = -(wide + MapChart.BAR_PAD)
+	b.offset_right = -MapChart.BAR_PAD
+	# AND THE TEXT SITS AT THAT EDGE. The box was already flush with the
+	# bar; a Button centres its label inside it, so the words stopped some
+	# thirteen pixels short and the three lines of one instrument each
+	# ended somewhere different.
+	b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# 8px of clear air over the SCALE BLOCK, not over the bar's rule. The
+	# label is drawn above the rule, so the block's real top is the rule
+	# minus the baseline offset and the cap height — measured off the
+	# chart's own numbers rather than eyeballed, so retuning either moves
+	# both together. `row` then stacks upward one line at a time.
+	if top:
+		# Down from the top edge instead, by the same padding the scale block
+		# keeps off the bottom, so both corners sit the same distance in.
+		b.offset_top = MapChart.BAR_PAD + 14.0 * float(row)
+		b.offset_bottom = MapChart.BAR_PAD + 14.0 * float(row + 1)
+	else:
+		var scale_top := MapChart.BAR_PAD + MapChart.BAR_LABEL_H
+		b.offset_top = -(14.0 * float(row + 1) + scale_top)
+		b.offset_bottom = -(14.0 * float(row) + scale_top)
+	_chart.add_child(b)
+	return b
+
+## The two ring toggles, tinted to the rings they govern so the corner reads
+## as a key as well as a control.
+func _paint_rings() -> void:
+	if _sight_btn != null:
+		_sight_btn.text = "%s  SENSOR RANGE" % ["[X]" if _sight_on else "[ ]"]
+		var t := UITheme.ICE if _sight_on else UITheme.QUOTE
+		_sight_btn.add_theme_color_override("font_color", t)
+		_sight_btn.add_theme_color_override("font_focus_color", t)
+	if _reach_btn != null:
+		_reach_btn.text = "%s  THRUSTER REACH" % ["[X]" if _reach_on else "[ ]"]
+		var t2 := UITheme.EMBER if _reach_on else UITheme.QUOTE
+		_reach_btn.add_theme_color_override("font_color", t2)
+		_reach_btn.add_theme_color_override("font_focus_color", t2)
+	if _chart != null:
+		_chart.show_sight = _sight_on
+		_chart.show_reach = _reach_on
+		_chart.queue_redraw()
+
+func _on_sight() -> void:
+	_sight_on = not _sight_on
+	_paint_rings()
+
+func _on_reach() -> void:
+	_reach_on = not _reach_on
+	_paint_rings()
 
 func _paint_region() -> void:
 	if _region_btn == null:
@@ -1449,6 +1505,10 @@ class MapChart extends Control:
 	##
 	## Measured with `-- chartbench`: the repaint was 16.6ms of a 38ms dragged
 	## frame, for a result identical to sliding it.
+	## Whether each ring is drawn. Owned by the screen's corner toggles.
+	var show_sight := true
+	var show_reach := true
+
 	var _sky_pan := Vector2.ZERO
 	var _sky_zoom := -1.0
 
@@ -2330,8 +2390,10 @@ class MapChart extends Control:
 		#
 		# The gap between them is what a dish BUYS, and now it is a visible band
 		# rather than an inference from which dots happen to be lit.
-		_ring(c, Run.sense_radius(), Color(0.31, 0.69, 0.74, 0.34))
-		_ring(c, Run.jump_range(), Color(0.83, 0.46, 0.24, 0.46))
+		if show_sight:
+			_ring(c, Run.sense_radius(), Color(0.31, 0.69, 0.74, 0.34))
+		if show_reach:
+			_ring(c, Run.jump_range(), Color(0.83, 0.46, 0.24, 0.46))
 
 	## One dashed ellipse at `r` galaxy units, centred on the ship.
 	func _ring(c: Vector2, r: float, col: Color) -> void:
