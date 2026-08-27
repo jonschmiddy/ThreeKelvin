@@ -55,7 +55,9 @@ func run() -> void:
 
 	for n in Run.map:
 		var node: MapGen.MapNode = n
-		if node.type == MapGen.NodeType.STATION or node.type == MapGen.NodeType.CORE:
+		# The same three `ensure` refuses: a station is its own list, the core is
+		# a boss, and the start is deliberately quiet.
+		if node.type == MapGen.NodeType.STATION or node.type == MapGen.NodeType.CORE 				or node.type == MapGen.NodeType.START:
 			continue
 		if n_checked >= ROLLS:
 			break

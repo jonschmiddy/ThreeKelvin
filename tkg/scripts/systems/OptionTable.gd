@@ -178,9 +178,21 @@ static func roll_for(n: MapGen.MapNode) -> Array[StringName]:
 ## Stations are excluded because a station IS its option list -- the shelf, the
 ## rack, repair and fuel -- and it is the one node the chart telegraphs. The core
 ## is excluded because it is a hand-authored boss.
+##
+## AND THE START IS QUIET ON PURPOSE. A run opens on a system with nothing in it,
+## so the first thing a player does is read the chart rather than resolve an
+## encounter -- which matters more now that sight is live and most of the map is
+## dark. It is also the one arrival nobody chose, and asking someone to spend a
+## decision before they have seen the galaxy is asking them to guess.
 static func ensure(n: MapGen.MapNode) -> bool:
-	if n == null or n.type == MapGen.NodeType.STATION \
-			or n.type == MapGen.NodeType.CORE:
+	if n == null:
+		return false
+	# A station IS its list -- shelf, rack, repair, fuel -- and the core is a
+	# hand-authored boss.
+	if n.type == MapGen.NodeType.STATION or n.type == MapGen.NodeType.CORE:
+		return false
+	# And the start is quiet on purpose.
+	if n.type == MapGen.NodeType.START:
 		return false
 	if n.options.is_empty():
 		n.options = roll_for(n)
