@@ -398,7 +398,20 @@ class MapNode extends RefCounted:
 	## node for the same reason `foes` is: an ambush that re-rolled on resume
 	## would be a hostile you could refuse by quitting and coming back cold,
 	## which is save-scumming through the front door.
-	var ambush: Array[StringName] = []
+	## Whether a fight is OWED here because your heat brought one in.
+	##
+	## A FLAG RATHER THAN THE PACK. `ENCOUNTER_REBUILD.md` 6 asks for the node
+	## state to go away entirely, and that cannot be taken literally: `_roll_here`
+	## runs at Router:253 and the autosave at :263, so whatever arrival decided is
+	## on disk BEFORE the ambush resolves at :272. With nothing stored, a player
+	## who quits on arrival resumes with `ambush_rolled` already true and nothing
+	## waiting -- which is exactly the refusal the safe-point rule exists to stop,
+	## and which the comment above states in as many words.
+	##
+	## What is waiting is not stored because it need not be: `_roll_foes` is
+	## positional off `Rng.derive(&"foes", index)`, so it answers the same way
+	## every time it is asked, on every machine.
+	var ambush_pending: bool = false
 	## Whether the roll has HAPPENED, which is not the same as whether it hit.
 	## Without this an empty `ambush` cannot be told from "not rolled yet", so a
 	## quiet arrival would roll again on every redraw until something bit.

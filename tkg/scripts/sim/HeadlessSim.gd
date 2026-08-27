@@ -266,17 +266,20 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		if Run.signature() > Run.SIGNATURE_FLOOR:
 			hot_arrivals += 1
 
-		# Something followed the heat in. Rolled exactly as Router does it on
-		# arrival — a model that never gets jumped cannot measure whether
-		# getting jumped matters.
+		# Something followed the heat in, through the SAME function the game
+		# uses. This comment used to claim it was "rolled exactly as Router does
+		# it on arrival" and it was not: Router rolls the pack positionally via
+		# `_roll_foes`, and this picked ONE enemy off `Rng.foe` from a pool that
+		# always passed `false` for fauna. Two implementations, one of them
+		# measuring the other.
 		if not node.ambush_rolled and node.type != MapGen.NodeType.FIGHT \
 				and node.type != MapGen.NodeType.GOAL:
 			node.ambush_rolled = true
 			if Rng.foe.randf() < Run.ambush_chance(node):
 				ambushes += 1
 				jumped_hot = true
-				var apool := DB.fight_pool(node.danger, false)
-				if not _fight(DB.enemies[Rng.pick(Rng.foe, apool)]):
+				var pack := Router._roll_foes(node)
+				if not pack.is_empty() and not _fight(DB.enemies[pack[0]]):
 					break
 
 		# The hellbender holds this system. Same blockade the game enforces in

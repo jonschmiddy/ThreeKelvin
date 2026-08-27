@@ -269,13 +269,20 @@ func resolve_current_node() -> void:
 	# Something followed you in. This is a fight on the way to the door rather
 	# than instead of it: the system still holds whatever it held, so the node
 	# is NOT consumed by winning here — see start_combat's `clears_node`.
-	if not n.ambush.is_empty():
+	if n.ambush_pending:
 		Run.log_line("Contact. Your heat bloom lit you up on the approach.", &"heat")
-		var extras: Array = []
-		for i in range(1, n.ambush.size()):
-			extras.append(DB.enemies[n.ambush[i]])
-		start_combat(DB.enemies[n.ambush[0]], extras, false, false)
-		return
+		# Asked for HERE rather than stored at arrival. Positional, so it is the
+		# same pack however often it is asked and on whichever machine -- which
+		# is what lets the flag be a boolean instead of a list.
+		var pack := _roll_foes(n)
+		if pack.is_empty():
+			n.ambush_pending = false
+		else:
+			var extras: Array = []
+			for i in range(1, pack.size()):
+				extras.append(DB.enemies[pack[i]])
+			start_combat(DB.enemies[pack[0]], extras, false, false)
+			return
 
 	# The hellbender holds this system. Nothing here is reachable past it — not the
 	# dock, not the contact a FIGHT node rolled — so arrival lands on the sector
@@ -374,7 +381,11 @@ func _roll_ambush(n: MapGen.MapNode) -> void:
 	# What is waiting IF you are jumped is positional, like everything else that
 	# lives at a node.
 	if Rng.foe.randf() < Run.ambush_chance(n):
-		n.ambush = _roll_foes(n)
+		# THE FLAG, not the pack. Rolled off `Rng.foe` and therefore salted per
+		# seat -- whether something notices you depends on YOUR signature, so
+		# four ships arriving together do not all get jumped. What is waiting is
+		# positional and is asked for at fight time.
+		n.ambush_pending = true
 
 ## The contact and its pack. Packs appear deeper in, and more often in lawless
 ## space where nobody is flying alone. They split health rather than doubling it
@@ -625,7 +636,7 @@ func after_combat(_c: Combat) -> void:
 	# An ambush is spent whatever happened to it — killed, pacified or shaken
 	# off. Left on the node it would fire again the next time you flew in here,
 	# and the heat that attracted it is not the heat you are carrying now.
-	Run.node_at().ambush = []
+	Run.node_at().ambush_pending = false
 	if Run.dead or Run.won:
 		show_game_over()
 		return

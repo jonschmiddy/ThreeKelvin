@@ -55,7 +55,7 @@ func fingerprint() -> Dictionary:
 			# quoted price is checked separately, below, against the market that
 			# quotes it.
 			shop.append("%s:%d" % [m.id, m.scrap_value])
-		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
+		nodes.append("%d/%d/%d/%d/%d/%s/%s/%s/%.9f,%.9f/%.9f,%.9f/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s/%s" % [
 			n.index, n.layer, n.row, n.rows_in_layer, n.danger,
 			n.type, n.region, n.development,
 			n.pos.x, n.pos.y, n.gal.x, n.gal.y,
@@ -79,7 +79,15 @@ func fingerprint() -> Dictionary:
 			# renumbers what `taken` refers to, and option 2 of the new list is
 			# marked spent because option 2 of the old one was. Nothing else here
 			# would see it: `cleared` is false either way and the counts match.
-			n.options])
+			n.options,
+			# WHETHER A FIGHT IS OWED HERE, and whether the roll has happened at
+			# all. Never covered before this: the old `ambush` array was not in
+			# the fingerprint either, so the save could have dropped it silently
+			# for as long as it existed. Losing `ambush_pending` hands back a
+			# system that quietly forgets it was about to jump you; losing
+			# `ambush_rolled` re-rolls it on the next redraw until something
+			# bites, which is worse.
+			n.ambush_pending, n.ambush_rolled])
 	return {
 		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
 		# loader does not call `at_tier`, so nothing regrants them on the way
@@ -250,6 +258,12 @@ func run() -> void:
 		# field from `_node_to` and watching the test still pass.
 		if n.type != MapGen.NodeType.STATION and n.type != MapGen.NodeType.GOAL 				and n.options.is_empty():
 			n.options = OptionTable.roll_for(n)
+		# A fight owed on arrival, and a roll already made. Both have to be on
+		# some nodes and not others, or an all-false field round-trips to
+		# all-false whatever the save does.
+		if n.type != MapGen.NodeType.FIGHT and n.type != MapGen.NodeType.GOAL:
+			n.ambush_rolled = n.index % 2 == 0
+			n.ambush_pending = n.index % 4 == 0
 
 	# The hellbender mid-chase: hurt, mid-stride, and having eaten something — the
 	# state a resume has to hand back exactly, or the pursuit resets.

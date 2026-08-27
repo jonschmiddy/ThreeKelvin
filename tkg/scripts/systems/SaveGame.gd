@@ -107,6 +107,12 @@ const PATH := "user://run.save"
 ## Worth writing down because it is the shape of break the guard is blind to by
 ## construction: renaming the VALUES a save stores is exactly as destructive as
 ## renaming its keys, and nothing automated is watching for it.
+## 16: THE AMBUSH IS A FLAG. `MapNode.ambush` held the pack itself; it is now
+## `ambush_pending`, with the pack derived positionally at fight time. A version
+## 15 save carries the old array and it is read forward as "pending if it was not
+## empty" -- so a run suspended mid-approach still gets jumped, by the SAME pack,
+## because `_roll_foes` answers the same way it did when the array was written.
+##
 ## 15: A SYSTEM HOLDS A LIST. `MapNode.options` carries the ids of what was
 ## rolled at each node, so the shape of a saved system changed. A version 14
 ## save has no such key and every node comes back with an empty list, which
@@ -120,7 +126,7 @@ const PATH := "user://run.save"
 ## changed. A version 13 save has no such key, and every node would come back
 ## unsensed: not a corruption, but a chart quietly narrower than the one the
 ## player left, which is the same class of lie as a stripped module. Discarded.
-const VERSION := 15
+const VERSION := 16
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -648,7 +654,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		inspected = n.inspected,
 		fled = n.fled, stocked = n.stocked, trades = n.trades,
 		foes = _names(n.foes), event_key = n.event_key,
-		ambush = _names(n.ambush), ambush_rolled = n.ambush_rolled,
+		ambush_pending = n.ambush_pending, ambush_rolled = n.ambush_rolled,
 		in_nebula = n.in_nebula, nebula_emission = n.nebula_emission,
 		pos = [n.pos.x, n.pos.y], gal = [n.gal.x, n.gal.y],
 		links = Array(n.links),
@@ -718,7 +724,7 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	var amb: Array[StringName] = []
 	for a in d.get("ambush", []):
 		amb.append(StringName(str(a)))
-	n.ambush = amb
+	n.ambush_pending = bool(d.get("ambush_pending", not amb.is_empty()))
 	n.ambush_rolled = bool(d.get("ambush_rolled", false))
 	n.inspected = bool(d.get("inspected", false))
 	# Whether the shelf has ever been rolled, and how much has been sold into
