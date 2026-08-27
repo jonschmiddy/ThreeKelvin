@@ -83,7 +83,7 @@ player actually looks at. `SaveGame` is at **17**.
 | 8a-1 | Ambush becomes an interrupt | ✅ `SaveGame` 16 |
 | 8a-2 | Collapse `NodeType` to START/SYSTEM/STATION/PULSAR/CORE | ✅ `SaveGame` 17 |
 | 8b | **The arrival screen** — a system renders its whole list | **`ENCOUNTER_FLOW.md`** |
-| 9 | Tune, including **sector difficulty** — see §7 | §8, `GALAXY_SCALE.md` §6 |
+| 9 | Tune — **the hellbender's food first**, then sector difficulty | §8 · **§9a below** |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
 
@@ -126,8 +126,31 @@ because neither was visible from the type change itself:
   two the player had not reached yet silently stopped existing. Worth 2.4 jumps
   and the last 0% galaxy kind.
 
-**Not tuned here.** Phase 9 owns it, and the hellbender's food supply is the
-first thing to price.
+**Not tuned here.** Phase 9 owns it. See §9a.
+
+### §9a — the hellbender's food supply, first thing to price in phase 9
+
+**Nobody decided this.** It fell out of the type collapse and was found by
+reading the sim report, not by playing.
+
+The hellbender eats wrecks. Its food used to be `NodeType.DERELICT` — **4 of the
+40-entry type bag, 10% of systems**. It is now "a system offering a `salvage`
+option", and with `dead_hull` ungated at weight 14 in a seven-option table, that
+is most of them. Measured: **2.24 derelicts eaten per run → 4.36**.
+
+That is not a difficulty knob anyone turned. It is a constant that used to be
+written in the type bag and is now written in `OptionTable`'s weights, where
+nothing was watching it.
+
+**The trap in fixing it.** The obvious lever is `dead_hull`'s weight, and that is
+the wrong one — it would thin out salvage for the PLAYER in order to slow the
+hellbender down, which are two different problems sharing a tag. The lever that
+matches the intent is the feed rate in `RunState`, or a scarcity rule on what
+counts as food. Price it against the 10% the old bag implied.
+
+**Do not tune this before content lands.** The table is seven options deep and
+`dead_hull`'s share of it is an artefact of that. At thirty options the number
+moves on its own, and tuning against the thin table would bake the artefact in.
 
 ---
 

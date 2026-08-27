@@ -2097,6 +2097,23 @@ class MapChart extends Control:
 			var tint := MapGen.region_colour(node2)
 			if node2.cleared and node2.type != MapGen.NodeType.CORE:
 				tint = Color("#37424f")
+			# REMEMBERED, NOT SEEN. Reported three times as "I can see systems
+			# beyond my range", and the filter was right every time: `visited` is
+			# never cleared, deliberately, because where you have BEEN is a track
+			# record and not a sighting. `-- chartfilter` prices it at thirteen to
+			# fifteen systems behind you after twenty-five jumps.
+			#
+			# The fault was that memory and live sight were drawn IDENTICALLY, so
+			# a chart full of remembered systems looked like a dish reaching much
+			# further than it does, and the ring appeared to be lying. Dimming is
+			# the whole fix: the bright systems are the ones you can see right
+			# now, and the ring is their boundary.
+			#
+			# Not `cleared`'s dead grey, which says "spent". These keep their
+			# region colour because they are still real places you might route
+			# back through -- they are simply not on the dish this minute.
+			if not node2.sensed and node2.index != here.index:
+				tint = tint.darkened(0.45)
 			if tiny:
 				var lit: bool = node2.index == here.index \
 					or node2.index == selected or node2.index == hovered

@@ -7,6 +7,28 @@ extends RefCounted
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	Run.start_new_run(&"korvan", 1)
+	# `flown=N` marks N systems visited before the chart opens.
+	#
+	# A FRESH CHART CANNOT SHOW THE BUG. Everything on it is currently sensed, so
+	# the "remembered" treatment has nothing to apply to and a screenshot of it is
+	# evidence about the wrong state. Every report of "systems beyond my range"
+	# has been a chart somebody had been flying for a while.
+	for a0 in OS.get_cmdline_user_args():
+		if not (a0 as String).begins_with("flown="):
+			continue
+		var want := int((a0 as String).substr(6))
+		var queue: Array[int] = [Run.at]
+		var seen := {Run.at: true}
+		var done := 0
+		while not queue.is_empty() and done < want:
+			var i: int = queue.pop_front()
+			(Run.map[i] as MapGen.MapNode).visited = true
+			done += 1
+			for j in (Run.map[i] as MapGen.MapNode).links:
+				if not seen.has(j):
+					seen[j] = true
+					queue.append(j)
+		Run.chart_from(Run.node_at())
 	Router.show_starchart()
 	for i in 120:
 		await RenderingServer.frame_post_draw

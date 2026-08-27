@@ -79,63 +79,86 @@ func run() -> void:
 ## measured. It passed while the screen looked wrong, which is the same blind
 ## spot shape as a fingerprint that omits a field.
 ##
-## Reported "I can see systems out of my view range", twice. Both rings are drawn
-## and the outer one is sight, so the question is not whether dots appear beyond
-## the ORANGE ring -- they should, that gap is what a dish buys -- but whether
-## any appear beyond the TEAL one, which nothing should.
+## Reported "I can see systems out of my view range", three times. Both rings are
+## drawn and the outer one is sight, so the question is not whether dots appear
+## beyond the ORANGE ring -- they should, that gap is what a dish buys -- but
+## whether any appear beyond the TEAL one.
+##
+## MEASURED AFTER FLYING, which the first cut of this check did not do. A fresh
+## chart is the one state where `visited` is a single node and `station_heard`
+## reaches almost nothing, so measuring only there measures the case that cannot
+## fail. Every report has been a screenshot of a chart somebody had been flying.
 func _outside_sight() -> void:
-	print("\n  %-6s %7s %7s %8s %9s" % ["seed", "shown", "sensed", "beyond", "why"])
+	print("\n  %-6s %6s %6s %7s %7s   %s"
+		% ["seed", "flown", "shown", "sensed", "beyond", "why"])
 	var worst := 0
 	for seed_i in [11, 4242, 90210, 31337]:
-		Rng.forced = seed_i
-		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-		var here: MapGen.MapNode = Run.node_at()
-		Run.chart_from(here)
-		var r := Run.sense_radius()
-		var shown := 0
-		var sensed := 0
-		var beyond := 0
-		var beyond_not_core := 0
-		var why: Dictionary = {}
-		for n in Run.map:
-			var t: MapGen.MapNode = n
-			if t.sensed:
-				sensed += 1
-			# `_visible_set`'s reasons, in its order. `selected` and `hovered` are
-			# left out on purpose: they are a mouse, not a rule.
-			var reason := ""
-			if t.index == here.index:
-				reason = "here"
-			elif t.visited:
-				reason = "visited"
-			elif Run.station_heard(t.index):
-				reason = "station"
-			elif t.sensed:
-				reason = "sensed"
-			elif Run.contract_at(t.index) != null:
-				reason = "contract"
-			elif Run.can_jump_to(t):
-				reason = "reach"
-			if reason == "":
-				continue
-			shown += 1
-			if MapGen.hop_distance(here, t) > r:
-				beyond += 1
-				why[reason] = int(why.get(reason, 0)) + 1
-				if t.type != MapGen.NodeType.CORE:
-					beyond_not_core += 1
-		print("  %-6d %7d %7d %8d   %s"
-			% [seed_i, shown, sensed, beyond, JSON.stringify(why)])
-		worst = maxi(worst, beyond_not_core)
-	# THE CORE IS THE ONE THING ALLOWED PAST THE DISH, and `chart_from` says why:
-	# it is the galactic centre and the chart names it from the first frame. Every
-	# seed shows exactly one node beyond sight and it is that one.
+		for flown in [1, 8, 25]:
+			worst = maxi(worst, _one_chart(seed_i, flown))
+	# WHAT THIS IS AND IS NOT. `beyond` climbs to fifteen after twenty-five jumps
+	# and that is CORRECT: it is where you have been, plus stations you have
+	# heard, plus the core. None of those claim to be a current sighting, and
+	# StarchartScreen draws them dimmed for exactly that reason.
 	#
-	# Written as `beyond_not_core`, not as `beyond <= 1`, because a count is not
-	# an identity: "at most one" would also pass on the day some ordinary system
-	# started leaking through and the core stopped being drawn.
-	_ok("nothing but the core is drawn beyond the dish (worst %d)" % worst,
+	# The invariant is narrower and is about the DISH alone: `sensed` is set by
+	# `chart_from` measuring a radius, so a `sensed` node outside that radius is
+	# the radius not being honoured. Written as a reason test rather than a count,
+	# because a count is not an identity -- "at most one" would also pass on the
+	# day an ordinary system started leaking through and the core stopped being
+	# drawn.
+	_ok("the dish never marks anything beyond its own radius (worst %d)" % worst,
 		worst == 0)
+
+
+## One galaxy, flown `flown` systems deep. Returns how many non-core nodes are
+## drawn beyond sight.
+func _one_chart(seed_i: int, flown: int) -> int:
+	Rng.forced = seed_i
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	_walk(flown)
+	var here: MapGen.MapNode = Run.node_at()
+	Run.chart_from(here)
+	var r := Run.sense_radius()
+	var shown := 0
+	var sensed := 0
+	var beyond := 0
+	var beyond_not_core := 0
+	var why: Dictionary = {}
+	for n in Run.map:
+		var t: MapGen.MapNode = n
+		if t.sensed:
+			sensed += 1
+		# `_visible_set`'s reasons, in its order. `selected` and `hovered` are
+		# left out on purpose: they are a mouse, not a rule.
+		var reason := ""
+		if t.index == here.index:
+			reason = "here"
+		elif t.visited:
+			reason = "visited"
+		elif Run.station_heard(t.index):
+			reason = "station"
+		elif t.sensed:
+			reason = "sensed"
+		elif Run.contract_at(t.index) != null:
+			reason = "contract"
+		elif Run.can_jump_to(t):
+			reason = "reach"
+		if reason == "":
+			continue
+		shown += 1
+		if MapGen.hop_distance(here, t) > r:
+			beyond += 1
+			why[reason] = int(why.get(reason, 0)) + 1
+			# WHAT IS ACTUALLY FORBIDDEN is the DISH reaching past its own
+			# radius. `visited`, `station` and `contract` beyond sight are all
+			# correct -- they are things you were told or places you have been,
+			# and none of them claim to be a current sighting. The core is
+			# `chart_from`'s deliberate exception.
+			if reason == "sensed" and t.type != MapGen.NodeType.CORE:
+				beyond_not_core += 1
+	print("  %-6d %6d %6d %7d %7d   %s"
+		% [seed_i, flown, shown, sensed, beyond, JSON.stringify(why)])
+	return beyond_not_core
 
 
 ## Mark `n` systems visited, walking outward from the start rather than picking
