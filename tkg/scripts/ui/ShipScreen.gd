@@ -746,9 +746,24 @@ func _clamp_pan() -> void:
 	# drag can put the ship somewhere it is not.
 	var bleed := _bleed()
 	var base := _ship_x()
-	var lo := _clip.size.x - _view.size.x - bleed - base
-	var hi := bleed - base
-	_pan.x = clampf(_pan.x, minf(lo, hi), maxf(lo, hi))
+	# A SHIP THAT FITS HAS NOWHERE TO GO. The rule below is about a hull too
+	# WIDE for its window; applied to one that fits, it forces the ship off
+	# centre and holds it there. Measured on a medium at 1x: window 431, ship
+	# 276, so the two bounds came out 15 and 60 and the legal range for `_pan.x`
+	# was [15, 60] -- zero was illegal, and `_ship_x()` had already centred the
+	# hull. The ship sat 15px right of centre with nothing having been dragged.
+	#
+	# That is the drift reported twice. `_on_clip_input` zeroes `_pan` at 1x,
+	# which fixed it for anything that arrived as an INPUT and could not fix it
+	# for a relayout: the first `_sync_clip` runs before the clip has its final
+	# width, where zero is still legal, and the next one -- unmounting a module,
+	# say -- recomputes against the settled width and shoves the hull right.
+	if _view.size.x <= _clip.size.x:
+		_pan.x = 0.0
+	else:
+		var lo := _clip.size.x - _view.size.x - bleed - base
+		var hi := bleed - base
+		_pan.x = clampf(_pan.x, minf(lo, hi), maxf(lo, hi))
 	# Vertically there is nothing overhanging to reach for, so this stays a
 	# plain slack: enough to see the top and bottom of a zoomed hull.
 	var slack_y := maxf((_view.size.y - _clip.size.y) * 0.5, 0.0) + bleed * 0.25
