@@ -1284,7 +1284,7 @@ func attr_sensors(bare: bool = false) -> int:
 	if not bare:
 		for m in installed:
 			n += m.sensors + m.affix_int(&"sensors")
-	return maxi(SENSE_FLOOR, int(round(n * SENSE_SCALE)))
+	return maxi(0, int(round(n * SENSE_SCALE)))
 
 ## Heat comes off the top of Stealth rather than out of the modules that grant
 ## it, because it is the one thing on the ship you cannot bolt a cover over. A
@@ -1812,12 +1812,20 @@ func thrust_reach() -> float:
 ## at all -- Korvan, Solari and Probate all read zero -- so this is a thing you
 ## build toward rather than a thing you are given, which is what makes fitting a
 ## dish a decision instead of a formality.
-## The fewest pips of SENSORS any ship has, however it is fitted.
+## The sight a ship has with NO dish at all, as a multiple of the map's own
+## jump radius.
 ##
-## Sight is live now -- see `chart_from` -- so a ship that could reach zero
-## sensors would go blind, and selling a dish would take the chart with it. The
-## floor is what makes that impossible: there is always a baseline neighbourhood
-## and no refit can drop below it.
+## Sight is live now -- see `chart_from` -- so a ship at zero sensors would go
+## blind and selling a dish would take the chart with it. This is the floor that
+## makes that impossible: there is always a baseline neighbourhood.
+##
+## ON THE RADIUS, NOT ON THE ATTRIBUTE. Flooring `attr_sensors()` was tried and
+## it breaks the gauge contract that `-- attrtest` enforces: with the pips
+## clamped to 2, a Rare part promising +1 sensors moved the gauge +0 and an
+## Artifact promising +4 moved it +2. A dish you fit has to do something. So the
+## attribute stays honest from 0 and the BASELINE lives here, which also means
+## every pip still buys the same 0.25 on top rather than the first two being
+## dead.
 ##
 ## It is also the dial for whether a galaxy is playable at all. The base radius
 ## is RELATIVE to your nearest neighbour rather than absolute -- `_map_range_from`
@@ -1825,7 +1833,7 @@ func thrust_reach() -> float:
 ## so a sparse frontier already widens it and a spawn in a system desert is not
 ## the trap it looks like. If a kind still comes out unplayable, raise this
 ## before touching the geometry.
-const SENSE_FLOOR := 2
+const SENSE_FLOOR := 1.5
 
 const SENSE_REACH := 0.25
 
@@ -1857,7 +1865,7 @@ func sense_radius() -> float:
 func sense_radius_of(here: MapGen.MapNode) -> float:
 	if map.is_empty() or here == null:
 		return 0.0
-	return _map_range_from(here) * (1.0 + float(attr_sensors()) * SENSE_REACH)
+	return _map_range_from(here) * (SENSE_FLOOR + float(attr_sensors()) * SENSE_REACH)
 
 
 ## Mark everything within sight of `here` as charted.
