@@ -63,6 +63,24 @@ const OPTION_SHOP_HULL := 110
 ## one day stocks more than ten parts must not start renumbering into the bag.
 const OPTION_BAG := 200
 
+## What a system holds: `OPTION_SITE + i` is the i-th option rolled at it.
+##
+## The fourth contested thing, and the LIST the other three were rehearsals for
+## -- `OPTION_WHOLE`'s comment says almost apologetically that it is the id for
+## "the case where there is only one", and this is the case where there is not.
+##
+## BASED AT 300 RATHER THAN 210, following the same reasoning `OPTION_BAG` gives
+## for not sitting at 120: the bag keeps room to grow, and a system may one day
+## hold more than the current 2-4. Never re-base an existing constant -- these
+## numbers are in saved `taken` arrays and in the co-op claims table.
+##
+## AND THE LIST MUST NEVER SHRINK, which is the lesson `OPTION_SHOP` learned the
+## hard way: `n.shop` used to have the bought part erased out of it, silently
+## renumbering everything after it, so one purchase and every machine disagreed
+## about slot 2. A taken option stays in `MapNode.options` and is marked in
+## `taken`.
+const OPTION_SITE := 300
+
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
 ## Twenty-four rings put the systems in a shape where nothing was near anything:
@@ -410,6 +428,18 @@ class MapNode extends RefCounted:
 	## Like `shop`, THIS ARRAY MUST NOT SHRINK — a taken part stays in it and is
 	## marked gone in `taken`, or two machines stop agreeing what "part 2" is.
 	var bag: Array = []
+
+	## What this system holds, as option IDS rather than definitions.
+	##
+	## Ids so a save can rebuild the list after the table has changed underneath
+	## it -- an unknown id is dropped with a warning rather than refusing the
+	## save. Definitions are resolved lazily through `OptionTable.by_id`, never
+	## stored: at ~290 systems, building every closure to answer "what is here"
+	## is the pattern `ENCOUNTER_REBUILD.md` 5a warns about.
+	##
+	## Rolled once in `Router._roll_here()` before the autosave, like `foes` and
+	## `event_key`, so quitting and resuming cannot re-roll them.
+	var options: Array[StringName] = []
 	## Rolled once, and never again. The same distinction `stocked` draws for the
 	## shelf, and it exists here for a sharper reason: every machine in the party
 	## rolls this bag independently off `Rng.derive(&"bag", index)`, so a second

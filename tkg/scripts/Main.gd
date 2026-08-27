@@ -215,6 +215,12 @@ func _ready() -> void:
 	#   godot --headless --path . -- rarity
 	# Is the galaxy traversable, and how short is the short way:
 	#   godot --headless --path . -- maptest
+	# Does the option roller obey its own rules -- positional, gated, in plan:
+	#   godot --headless --path . -- optiontest
+	if "optiontest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/OptionTest.gd").new().run()
+		get_tree().quit()
+		return
 	if "maptest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/MapTest.gd").new().run()
 		get_tree().quit()
