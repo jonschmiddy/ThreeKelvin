@@ -13,8 +13,24 @@ extends RefCounted
 
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
+	# `seed=N` so a SPIRAL can be asked for. The default 4242 is a Giant
+	# Elliptical, `arms = 0`, and the arm-pull block never runs on one -- so it
+	# is the one kind that cannot show what the arm clamp does.
 	Rng.forced = 4242
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("seed="):
+			Rng.forced = int((a as String).substr(5))
 	Run.start_new_run(&"korvan", 1)
+	# `kind=N` re-rolls the galaxy as a chosen kind and regenerates the map.
+	# Needed because the kind is rolled from the seed, and the arm-pull study
+	# wants a SPIRAL specifically -- kind 0 is Grand-Design, arms 2.
+	for a2 in OS.get_cmdline_user_args():
+		if (a2 as String).begins_with("kind="):
+			Run.galaxy_kind = int((a2 as String).substr(5))
+			Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
+			Run.map = MapGen.generate(Run.MAP_CANVAS)
+			Run.at = 0
+			Run.chart_from(Run.node_at())
 
 	var here: MapGen.MapNode = Run.node_at()
 	var g: Dictionary = Run.galaxy

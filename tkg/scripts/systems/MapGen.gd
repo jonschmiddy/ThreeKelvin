@@ -758,9 +758,46 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 	var r := rn + jr * 0.026
 	var a := (float(n.row) + half) * astep + rot + ja * astep * 0.42 + Run.galaxy_spin
 
-	# Drawn toward the nearest arm so systems sit in the bright lanes. Capped to
-	# a fraction of a ring step: an uncapped pull sends adjacent rows to opposite
-	# arms, which is how one-fuel jumps once crossed the whole galaxy.
+	# Drawn toward the nearest arm so systems sit in the bright lanes -- and far
+	# enough to ACTUALLY GATHER, which the old cap of 0.6 could not.
+	#
+	# THE CAP IS COUNTED IN NEIGHBOUR WIDTHS. `astep` is the angle between
+	# adjacent systems in the ring, so below 1.0 a system cannot overtake one and
+	# the ring keeps even spacing BY ARITHMETIC, however bright the arm is. The
+	# old value was not a weak setting, it was a disabled one: the starfield
+	# gathered into lanes and the systems drifted evenly through them, so the
+	# map's density said nothing about the galaxy drawn behind it. Everything
+	# already agreed WHERE the arms are -- `shape_angle` is the one definition,
+	# and the stars, the gas and the systems all read it -- they disagreed about
+	# how much to believe it.
+	#
+	# THE OLD CAP'S REASON HAS EXPIRED. It read "an uncapped pull sends adjacent
+	# rows to opposite arms, which is how one-fuel jumps once crossed the whole
+	# galaxy", which was about `links` built by ROW INDEX. Links are a suggestion
+	# now, and the lateral pass was rebuilt in angular order.
+	#
+	# Measured on a Grand-Design Spiral, widest void in ring 8 against an even
+	# spacing of 15 degrees, with `-- maptest` asserting the core stays FLYABLE:
+	#
+	#     0.6   34 deg,  2 of 24 gaps bunched   flyable 6.1 mean   ok
+	#     2.0   76 deg, 10 of 24                        6.2        ok
+	#     3.0  106 deg, 15 of 24                        7.4        ok
+	#     4.0  136 deg, 21 of 24                        7.9        FAILS
+	#     6.0  139 deg, 22 of 24                        9.9        ok
+	#
+	# TWO THINGS THAT TABLE SAYS. It saturates: the real pull is `best * 0.75`,
+	# so past about 4 nothing is being clipped and 5, 6 and uncapped draw the
+	# same galaxy. And 4.0 FAILS the flyability gate -- one Grand-Design Spiral
+	# in 120 ends up with no route to its core -- while 6.0, which draws a nearly
+	# identical galaxy, passes. That pass is luck rather than safety, and the
+	# honest fix is for generation to GUARANTEE a route the way MIN_DOORS
+	# guarantees a ring has an exit. Until it does, staying well below 4 is not
+	# a preference, it is the margin.
+	#
+	# 2.0 chosen for how it LOOKS. It buys the lanes and almost no detour --
+	# routing barely moves, 6.2 against 6.1 -- and that is the right trade here,
+	# because run length is meant to be handled by sector difficulty rather than
+	# by walls.
 	if int(g.arms) > 0:
 		var arms := maxi(1, int(g.arms))
 		var best := 0.0
@@ -770,7 +807,7 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 			if absf(d) < closest:
 				closest = absf(d)
 				best = d
-		a += clampf(best * 0.75, -astep * 0.6, astep * 0.6)
+		a += clampf(best * 0.75, -astep * 2.0, astep * 2.0)
 
 	return Vector2(cos(a), sin(a) * float(g.squash)) * r
 
