@@ -16,8 +16,8 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 | File | What it is | Status |
 | --- | --- | --- |
 | `ROADMAP.md` | this index and the phase tracker | live |
-| `ENCOUNTER_REBUILD.md` | options replace node types; the phase 6–8 design | ⬜ **next** |
-| `ENCOUNTER_FLOW.md` | **what the player sees** — arrival to departure | ⬜ phase 8 |
+| `ENCOUNTER_REBUILD.md` | options replace node types; the phase 6–8 design | ✅ landed |
+| `ENCOUNTER_FLOW.md` | **what the player sees** — arrival to departure | ✅ all nine rulings |
 | `ENCOUNTER_AUTHORING.md` | **how to write more** — pipeline, rules, audit | reference |
 | `ENCOUNTER_GENERATION.md` | filling the option pool; gating, archetypes | reference |
 | `batch-02-draft.md` | first six authored options, plus six ported events | draft |
@@ -75,6 +75,25 @@ measurements were taken on the wrong kind before this was noticed.
 
 **Phase 9.** E is done, the pool is 44 deep, and the loop is finally worth
 measuring. `SaveGame` is at **17**.
+
+### ▸ RULING — win rate is not a gate until every system is in
+
+**Ruled 2026-08-27, by Jonathan, in as many words:** *"I'm not worried about win
+rate until all systems are in."*
+
+So the number below is a READING, not a target, and a six-point move in it is not
+a reason to change a design decision. Half the systems that will price the loop
+do not exist yet — materials are a credit shim, there is no placement mechanic,
+star features are a proxy gate, ascension levels are unbuilt. Tuning against a
+loop with pieces missing bakes the missing pieces into the numbers.
+
+**What still IS a gate, unchanged:** a galaxy kind at **0%** is a broken loop and
+not a difficulty setting; stranding above a percent or two is a bug; `errors 0`
+is not negotiable. Those say something is wrong. A win rate of 28 says the game
+is hard today.
+
+**When the gate comes back:** phase 9 moved behind the remaining systems for this
+reason. Tune last, against the whole thing.
 
 ### The phase 9 baseline — 500 runs, 2026-08-27
 
@@ -145,9 +164,12 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
 | 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
 | — | Content — batch 04, thirty options | ✅ pool is **44** |
 | 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
-| 9 | Tune — **the hellbender's food first**, then sector difficulty | §8 · **§9a below** |
+| — | **Materials become items** — hold cells, selling, the shim deleted | `MATERIALS_NOTE.md` |
+| — | **Placement** — unblocks the five held options | `BLOCKED_PLACEMENT.md` |
+| — | **Star features** — a real pulsar gate, not `min_danger 4` | `the_sweep`'s note |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
+| 9 | **Tune LAST** — hellbender's food, then sector difficulty | §8 · **§9a below** |
 
 **Phase 7 is not optional.** Without an option policy the sim takes everything,
 overstates income, and never exercises the exclusivity that is the point of 6.
@@ -259,10 +281,12 @@ every step of the night.
 | 3–4 | **G** — `LAYERS 15`, `density`/`reach`, D1 | ✅ |
 | 5 | **G** — sparse coreward links | ❌ **DELETED — see §5** |
 | S0–S3 | docs, instrument, re-measure, fuel ruling | ✅ done; **S3 dissolved** |
-| 6–8 | **E** — the encounter rebuild | ⬜ **next** |
-| 9 | Tune, incl. sector difficulty | ⬜ |
+| 6–8 | **E** — the encounter rebuild | ✅ |
+| — | Content — batch 04, reviewed | ✅ pool **42** |
+| — | Materials as items · placement · star features | ⬜ **next** |
 | 10 | **G §5** — chart primer | ⬜ |
 | 11–12 | **L** | ⬜ |
+| 9 | Tune — **moved to last**, see the ruling | ⬜ |
 
 ---
 
