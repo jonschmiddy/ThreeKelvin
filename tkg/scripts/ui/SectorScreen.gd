@@ -169,6 +169,13 @@ var _res: Dictionary = {}
 var _res_band: SkillCheck.Band = SkillCheck.Band.MET
 var _res_checked: bool = false
 var _res_got: String = ""
+## Which node the approach animation has already played for.
+##
+## STATIC, because this screen is rebuilt every time you tab away and back, and
+## the question it answers is about the RUN rather than about the screen: have
+## you already flown into this system? `Run.at` is the whole of that.
+static var _approached_at: int = -1
+
 ## The box the drawer's contents are rebuilt into.
 var _drawer: VBoxContainer
 
@@ -218,7 +225,14 @@ func setup(c: Combat = null) -> void:
 	# Not during a fight. A combat sector is one you are already in the middle
 	# of, and Router rebuilds this screen when the fight starts, so playing the
 	# approach there would fly the ship back in mid-battle.
-	if not fighting():
+	# ONCE PER ARRIVAL, not once per screen. This is rebuilt every time you come
+	# back from SHIP or STARCHART, so the approach played again each time -- the
+	# ship flying in to a system it has been parked in for five minutes.
+	#
+	# Static because the screen is not: the flag has to outlive the thing that
+	# sets it, in the same way the chart's view memory does.
+	if not fighting() and _approached_at != Run.at:
+		_approached_at = Run.at
 		var art := _view.ship_view()
 		if art != null:
 			art.arrive()
@@ -1433,6 +1447,11 @@ func _refresh() -> void:
 
 	_hand_wrap.visible = at_war
 	_quiet_wrap.visible = not at_war
+	# A HULL BAR IS A COMBAT READOUT. Out of a fight the top bar already carries
+	# the number and nothing is taking it off you, so a second copy floating
+	# under the ship is a gauge for a thing that is not happening.
+	if _self_plate != null:
+		_self_plate.visible = at_war
 	_refresh_hail()
 	_refresh_flee()
 	_refresh_self_plate()
@@ -1568,6 +1587,19 @@ func _refresh_player() -> void:
 		_player_chips.add_child(Widgets.chip("lock +%d" % combat.lock_on, Color("#6e5a3a")))
 	if combat.negate_next:
 		_player_chips.add_child(Widgets.chip("slip ready", UITheme.GOOD))
+	# SALVO IS NOT A STATUS, BUT ITS CONDITION IS. The keyword lives on the card
+	# -- "if you have already attacked this turn, +N" -- so there is nothing on
+	# the ship to show. What IS on the ship is `attacks_this_turn`, which decides
+	# whether every salvo card in your hand is currently worth more, and which
+	# was invisible: you had to remember whether you had swung yet.
+	#
+	# Only when a salvo card is actually in hand. A chip that fires on every
+	# second attack whether or not it means anything is a light that is always on.
+	if combat.attacks_this_turn > 0:
+		for c in combat.hand:
+			if (c as CardData).salvo > 0:
+				_player_chips.add_child(Widgets.chip("salvo up", UITheme.EMBER))
+				break
 	if combat.feedback > 0:
 		_player_chips.add_child(Widgets.chip("feedback %d" % combat.feedback))
 	if combat.adapt_bonus > 0:
