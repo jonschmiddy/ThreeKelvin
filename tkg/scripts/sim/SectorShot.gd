@@ -46,6 +46,22 @@ func run(tree: SceneTree) -> void:
 	# LIST -> OPTION -> RESULT can each be photographed. Driving the screen
 	# directly rather than faking a pointer, for the same reason the hover shot
 	# does: there is no pointer.
+	# `combat` swaps the drawer for the hand, which is the only way to see
+	# whether the two bands actually match -- they are mutually exclusive, so no
+	# single frame shows both and the comparison is between two screenshots.
+	if "combat" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 5
+		Router.start_combat(DB.enemies[&"custodian"], [], false)
+		for i6 in 40:
+			await RenderingServer.frame_post_draw
+		var sc := Router.current as SectorScreen
+		if sc != null:
+			print("  hand band: %.0f  drawer band: %.0f  (DRAWER_H %d)"
+				% [sc._hand_wrap.size.y, sc._quiet_wrap.size.y, SectorScreen.DRAWER_H])
+		tree.root.get_texture().get_image().save_png("user://sector_combat.png")
+		print("wrote ", ProjectSettings.globalize_path("user://sector_combat.png"))
+		tree.quit()
+		return
 	var s0 := Router.current as SectorScreen
 	for a2 in OS.get_cmdline_user_args():
 		if (a2 as String).begins_with("open=") and s0 != null:
@@ -77,6 +93,10 @@ func run(tree: SceneTree) -> void:
 		tag += "_hover"
 		for i3 in 30:
 			await RenderingServer.frame_post_draw
+	var sc2 := Router.current as SectorScreen
+	if sc2 != null:
+		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"
+			% [sc2._quiet_wrap.size.y, sc2._hand_wrap.size.y, SectorScreen.DRAWER_H])
 	var path := "user://sector%s.png" % tag
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))

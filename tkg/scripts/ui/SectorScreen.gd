@@ -125,15 +125,18 @@ var _hover_group: StringName = &""
 var _hover_index: int = -1
 ## How tall the drawer is, and therefore how tall the viewport is not.
 ##
-## 135 of 540 is a quarter, so the system fills the other three. FIXED rather
-## than sized to content on purpose: the drawer holds three different things --
-## the list, one option, one result -- and if it resized between them the
-## viewport would jump on every click. A view that moves while you are reading it
-## is the thing this layout exists to stop.
+## 170 of 540, so the system keeps a little over two thirds. FIXED rather than
+## sized to content on purpose: the drawer holds three different things -- the
+## list, one option, one result -- and if it resized between them the viewport
+## would jump on every click. A view that moves while you are reading it is the
+## thing this layout exists to stop.
 ##
 ## THE HAND USES IT TOO, so a fight is a clean swap: the system does not resize
-## when something starts shooting.
-const DRAWER_H := 135
+## when something starts shooting. 170 rather than a cleaner quarter because a
+## card is 160 tall and the hand reserves 164 -- below that the cards have to
+## hang out of the band, and a number both panels can actually hold is worth
+## more than the extra 35 pixels of sky.
+const DRAWER_H := 170
 
 ## What the drawer is showing.
 ##
@@ -896,10 +899,15 @@ func _dead_strip_note() -> void:
 const CHIP_ROW_H := 18
 
 class PileView extends Control:
-	# Big enough to read as a card rather than as an icon of one. The hand row
-	# is 160 tall to fit a card, so there was height going spare either side.
+	# Big enough to read as a card rather than as an icon of one.
+	#
+	# WAS 86, WHICH THE BAND CAN NO LONGER HOLD. The old note read "the hand row
+	# is 160 tall to fit a card, so there was height going spare either side" --
+	# and the spare is gone now the band is a fixed 170 shared with the drawer.
+	# At 86 the left rail came to about 179 and pushed the whole panel past the
+	# drawer it is supposed to swap with.
 	const W := 60
-	const H := 86
+	const H := 66
 	var count: int = 0
 	var label: String = ""
 
@@ -1056,6 +1064,14 @@ TURN", _on_end_turn)
 	# are mutually exclusive and occupy the same band; matching them means the
 	# system above does not resize the moment something starts shooting, which is
 	# the one frame where a viewport jumping would be most obvious.
+	#
+	# AND THE PADDING HAD TO GIVE. `custom_minimum_size` is a floor, not a
+	# ceiling: the hand reserves a card's height plus four, and `panel_with`'s
+	# default 12 above and below took that to 188 against the drawer's 170. The
+	# measurement is why this is 3 rather than a guess -- 164 + 6 is exactly the
+	# band, and any more padding puts the cards back through the ceiling.
+	_hand_wrap.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 12))
 	_hand_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
 	_hand_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
 	return _hand_wrap
