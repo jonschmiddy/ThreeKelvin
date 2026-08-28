@@ -812,6 +812,25 @@ func can_hail() -> bool:
 	return true
 
 
+## Which of the three shut the door, for a tooltip to explain. Empty when open.
+##
+## Separate from `hail_reason` on purpose: the button wants one word for the
+## state and the tooltip wants the cause, and folding them together is what made
+## the button carry three vocabularies.
+func hail_cause() -> StringName:
+	if enemies.is_empty():
+		return &""
+	if struck:
+		return &"struck"
+	for e in enemies:
+		var t: EnemyTemplate = (e as EnemyState).template
+		if t.fauna:
+			return &"fauna"
+		if t.boss or t.miniboss:
+			return &"boss"
+	return &""
+
+
 ## Why not, for the button to say. Empty when it can.
 ##
 ## RULING 8's shape: a disabled thing states what it wants. "HAIL" greyed with no
@@ -819,18 +838,17 @@ func can_hail() -> bool:
 func hail_reason() -> String:
 	if enemies.is_empty():
 		return ""
-	# ORDERED BY WHAT THE PLAYER CAN STILL CHANGE. A creature was never going to
-	# answer and the core's guard was never going to deal, but "you shot first"
-	# is a thing they did a moment ago and could have not done -- so it wins the
-	# label when both are true.
+	# ONE LABEL FOR A SHUT DOOR. Three different words for "no" made the button
+	# read as three different mechanics -- a player would learn NO REPLY, NO
+	# TERMS and YOU FIRED separately before noticing they are the same greyed
+	# state. The BUTTON says what is true of the button; the TOOLTIP says why,
+	# and why is where the three actually differ.
 	if struck:
-		return "YOU FIRED"
+		return "NOT NEGOTIATING"
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
-		if t.fauna:
-			return "NO REPLY"
-		if t.boss or t.miniboss:
-			return "NO TERMS"
+		if t.fauna or t.boss or t.miniboss:
+			return "NOT NEGOTIATING"
 	return ""
 
 

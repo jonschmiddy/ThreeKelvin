@@ -159,6 +159,15 @@ func run(tree: SceneTree) -> void:
 			print("    card base_y %.0f (rest y %.0f)"
 				% [(sc._hand.get_child(0) as CardView)._base_y,
 					(sc._hand.get_child(0) as Control).position.y])
+			# IN ROW COORDS, which is the only frame the pile labels share. The
+			# card's own y is relative to the hand, so it reads 8 whether the
+			# hand is at the top of the row or the bottom of it.
+			var pv: Control = sc._draw_pile
+			print("    hand y %.0f; card bottom in row %.0f; pile label %.0f"
+				% [sc._hand.position.y,
+					sc._hand.position.y + (sc._hand.get_child(0) as Control).position.y
+						+ (sc._hand.get_child(0) as Control).size.y,
+					pv.position.y + SectorScreen.PileView.H + 14])
 			print("    hand view %.0f tall; card top %.0f, bottom %.0f"
 				% [sc._hand.size.y,
 					(sc._hand.get_child(0) as Control).position.y,

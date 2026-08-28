@@ -43,7 +43,12 @@ func _init() -> void:
 	# grew for the piles the cards got looser, and every time it shrank for the
 	# cards the piles lost height.
 	custom_minimum_size = Vector2(0, CardView.CARD_H + 16)
-	size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# BOTTOM, not centre. Centred left the cards seven pixels above the line the
+	# DRAW and DISCARD labels sit on, which reads as the hand floating rather
+	# than resting on the same shelf as the rails. Bottom-aligned puts the card
+	# edge exactly on that baseline -- the row is 190, the hand 176, and the pile
+	# label lands at 182, which is 14 + 8 + 160.
+	size_flags_vertical = Control.SIZE_SHRINK_END
 	clip_contents = false
 
 ## The y a card sits at: centred in whatever height the hand has.

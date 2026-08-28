@@ -956,9 +956,11 @@ class PileView extends Control:
 	# out at 24 against its neighbours' 16, and no amount of stylebox padding was
 	# ever going to explain that. The eight pixels come off the card area, which
 	# has them.
-	# 68, NOT 60. Every button on both rails is cut to this width, and "END TURN"
-	# wants the room to stay on one line.
-	const W := 68
+	# Every button on both rails is cut to this width, so it is set by the
+	# LONGEST thing any of them ever says -- which is HAIL's "NOT NEGOTIATING",
+	# not END TURN. At 68 that clipped, and a greyed button whose reason is cut
+	# in half is worse than no reason at all.
+	const W := 100
 	# 52 IS THE CEILING, swept rather than guessed: the band is a fixed 170 shared
 	# with the drawer, and `-- sectorshot` reports 171 at 53 and 175 at 57. Every
 	# pixel this gains comes straight off the panel it has to fit inside.
@@ -1456,12 +1458,15 @@ func _refresh_hail() -> void:
 	# The button has room for two words of why not; the tooltip has room for a
 	# short sentence, and that is all it should be. Godot's tooltip does not
 	# wrap, so a long one is a strip half the screen wide.
-	if why == "YOU FIRED":
-		_hail_button.tooltip_text = "HAIL\n\nToo late. You shot first."
-	elif why != "":
-		_hail_button.tooltip_text = "HAIL\n\nThis one is not listening."
-	else:
-		_hail_button.tooltip_text = "HAIL\n\nTalk them down. Stealth check."
+	match combat.hail_cause():
+		&"struck":
+			_hail_button.tooltip_text = "HAIL\n\nToo late. You shot first."
+		&"fauna":
+			_hail_button.tooltip_text = "HAIL\n\nIt does not have a radio."
+		&"boss":
+			_hail_button.tooltip_text = "HAIL\n\nThis one is not here to deal."
+		_:
+			_hail_button.tooltip_text = "HAIL\n\nTalk them down. Stealth check."
 	_hail_button.add_theme_color_override("font_color",
 		UITheme.COLD if why != "" else UITheme.CHILL)
 
