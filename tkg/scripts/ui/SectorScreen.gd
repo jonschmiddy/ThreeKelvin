@@ -933,17 +933,6 @@ func _dead_strip_note() -> void:
 ## chips and y=654 with one, either way.
 const CHIP_ROW_H := 18
 
-## The right rail's answer to the chip row, and it is NOT the same number.
-##
-## The left spends ENERGY, TURN and the chips above its pile; the right spends
-## three buttons. Those two blocks do not come to the same height on their own --
-## a bevel button has a floor and the chips do not -- so this gap is sized to
-## make up the difference, which is what keeps the two piles level.
-##
-## Measured, not derived: `-- sectorshot combat` prints every child of both
-## rails, and this is what makes them both 164.
-const RIGHT_GAP := 18
-
 class PileView extends Control:
 	# Big enough to read as a card rather than as an icon of one.
 	#
@@ -1067,6 +1056,22 @@ class PileView extends Control:
 		draw_string(f, Vector2((W - lw) * 0.5, H + 14), label,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.COLD)
 
+## Where the rails begin, which is where a HOVERED card begins.
+##
+## A card rests at 8 inside a hand bottom-aligned at 14, and hovering lifts it by
+## 8 -- so the top edge of the card you are looking at is at 14, and that is the
+## line the rails should start on. Rested cards sit 8 below it, which is right:
+## the lifted one is the one you are considering, so it is the one the panel
+## squares up to.
+##
+## Separate from `RAIL_DROP` because they stopped being the same number the
+## moment this had to match something. That one is still the gap BETWEEN things
+## and the air under the pile label; this is only the gap above the first box.
+## 10, NOT 14. The spacer is a CHILD of the rail, so the separation lands after
+## it too -- 10 plus a 4 gap puts the first box on 14, which is the line. Setting
+## this to the target directly overshot it by exactly one separation.
+const RAIL_TOP := 10
+
 ## How far the rails sit below the top of the band.
 ##
 ## A card's frame starts at the very top of the panel and its CONTENT starts a
@@ -1080,7 +1085,7 @@ const RAIL_DROP := 6
 ## The gap at the top of each rail. Both get it, or they stop being a pair.
 func _rail_drop() -> Control:
 	var c := Control.new()
-	c.custom_minimum_size = Vector2(0, RAIL_DROP)
+	c.custom_minimum_size = Vector2(0, RAIL_TOP)
 	return c
 
 
@@ -1096,11 +1101,12 @@ func _build_hand() -> PanelContainer:
 	# further down you looked. ENERGY/END TURN, TURN/FLEE and the two piles are
 	# the same three rows on both sides, and now they start at the same y.
 	var left := VBoxContainer.new()
-	# SIX, WHICH IS `RAIL_DROP`, so every gap in the rail is the same gap: above
-	# the first box, between each pair, and under the last label -- the pile
-	# carries the same six inside its own box. One number, so nothing in the
-	# column has a spacing that means something different from its neighbour's.
-	left.add_theme_constant_override("separation", RAIL_DROP)
+	# FOUR BETWEEN ITEMS, against `RAIL_TOP` above the first and `RAIL_DROP`
+	# under the last label. Three numbers where there was one, and the reason is
+	# that the top now has to LINE UP with something outside the rail -- a
+	# hovered card -- rather than just look even. The eight that costs comes off
+	# the separations rather than off the band or the pile.
+	left.add_theme_constant_override("separation", 4)
 	left.alignment = BoxContainer.ALIGNMENT_BEGIN
 	left.add_child(_rail_drop())
 
@@ -1162,6 +1168,19 @@ func _build_hand() -> PanelContainer:
 	_player_chips.custom_minimum_size = Vector2(0, CHIP_ROW_H)
 	left.add_child(_player_chips)
 
+	# PUSHES THE PILE TO THE BOTTOM, and this is what `RIGHT_GAP` was doing by
+	# hand. That gap was a measured constant chosen to make the two rails come
+	# out the same length -- which held exactly until any other number in either
+	# column moved, and then the piles were four pixels apart again and the fix
+	# was another measurement.
+	#
+	# An expanding spacer needs no measuring: both piles sit on the rail's bottom
+	# edge, so they are level with each other by construction and their labels
+	# land on the card edge because the band is what it is.
+	var draw_push := Control.new()
+	draw_push.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(draw_push)
+
 	_draw_pile = PileView.new()
 	_draw_pile.tooltip_text = "DRAW\n\nWhat is left to draw from."
 	left.add_child(_draw_pile)
@@ -1179,7 +1198,7 @@ func _build_hand() -> PanelContainer:
 	# once a run is a thin red line under it, and the pile you never press at
 	# all is at the bottom.
 	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", RAIL_DROP)
+	right.add_theme_constant_override("separation", 4)
 	right.alignment = BoxContainer.ALIGNMENT_BEGIN
 	right.add_child(_rail_drop())
 
@@ -1254,11 +1273,9 @@ func _build_hand() -> PanelContainer:
 	# sits that much higher than the draw pile and the two columns stop being
 	# columns. Empty on purpose -- the enemy's chips live in their own strip.
 	var chip_gap := Control.new()
-	# NOT `CHIP_ROW_H` EXACTLY. Three buttons at their floor come to a few pixels
-	# more than the ENERGY-and-TURN block they mirror, and this gap is the only
-	# thing on the right whose height means nothing on its own -- so it absorbs
-	# the difference and the two piles stay level, which is the point of it.
-	chip_gap.custom_minimum_size = Vector2(0, RIGHT_GAP)
+	# EXPANDING, like the left one. Neither rail needs to know how tall the other
+	# is any more; both piles simply sit on the bottom.
+	chip_gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	right.add_child(chip_gap)
 
 	_discard_pile = PileView.new()

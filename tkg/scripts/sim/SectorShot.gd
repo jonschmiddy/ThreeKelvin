@@ -171,6 +171,14 @@ func run(tree: SceneTree) -> void:
 			# card's own y is relative to the hand, so it reads 8 whether the
 			# hand is at the top of the row or the bottom of it.
 			var pv: Control = sc._draw_pile
+			# WHERE A HOVERED CARD'S TOP EDGE IS, against where the rails start.
+			# The lift is -8 from the resting baseline, so this is the line the
+			# ENERGY and END TURN boxes are meant to square up to.
+			var e0: Control = sc._energy.get_parent().get_parent()
+			print("    hovered card top %.0f; rail first box top %.0f"
+				% [sc._hand.position.y
+						+ (sc._hand.get_child(0) as Control).position.y - 8.0,
+					e0.position.y])
 			print("    hand y %.0f; card bottom in row %.0f; pile label %.0f"
 				% [sc._hand.position.y,
 					sc._hand.position.y + (sc._hand.get_child(0) as Control).position.y
