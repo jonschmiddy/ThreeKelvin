@@ -51,6 +51,36 @@ func run(tree: SceneTree) -> void:
 	# `combat` swaps the drawer for the hand, which is the only way to see
 	# whether the two bands actually match -- they are mutually exclusive, so no
 	# single frame shows both and the comparison is between two screenshots.
+	# `menu` proves the view memory does not leak into the launcher's galaxy.
+	# It pans the starchart's remembered view a long way off centre, opens the
+	# menu, and reports where the menu's own chart actually ended up -- which is
+	# the bug: both screens build the same MapChart, and the memory is on the
+	# class rather than on the instance.
+	if "menu" in OS.get_cmdline_user_args():
+		StarchartScreen._view_zoom = 3.0
+		StarchartScreen._view_pan = Vector2(-420.0, 260.0)
+		StarchartScreen._view_map = Run.map.size()
+		Router.show_launcher()
+		for i8 in 40:
+			await RenderingServer.frame_post_draw
+		var ls := Router.current as LauncherScreen
+		if ls != null and ls._sky != null:
+			print("  remembered pan %s zoom %.2f" % [StarchartScreen._view_pan,
+				StarchartScreen._view_zoom])
+			print("  menu galaxy  pan %s zoom %.2f" % [ls._sky.pan, ls._sky.zoom])
+		# AND THE HALF THAT IS SUPPOSED TO WORK. Gating the memory behind a flag
+		# could as easily have turned it off everywhere; the starchart has to
+		# still come back where it was left.
+		Router.show_starchart()
+		for i9 in 30:
+			await RenderingServer.frame_post_draw
+		var ss := Router.current as StarchartScreen
+		if ss != null and ss._chart != null:
+			print("  starchart    pan %s zoom %.2f" % [ss._chart.pan, ss._chart.zoom])
+		tree.root.get_texture().get_image().save_png("user://menu.png")
+		print("wrote ", ProjectSettings.globalize_path("user://menu.png"))
+		tree.quit()
+		return
 	if "combat" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"custodian"], [], false)

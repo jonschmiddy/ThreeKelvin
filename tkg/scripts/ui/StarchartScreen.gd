@@ -146,6 +146,8 @@ func _build() -> void:
 	root.add_child(mid)
 
 	_chart = MapChart.new()
+	# THIS one is navigated, so this one remembers. See `remembers_view`.
+	_chart.remembers_view = true
 	_chart.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_chart.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_chart.node_picked.connect(_on_node_picked)
@@ -1787,7 +1789,7 @@ class MapChart extends Control:
 		# the wheel, by a drag, by `glide_to`'s animation and by both framing
 		# helpers; hooking all of them would leave one out. Reading the result
 		# once a frame cannot.
-		if size.x > 0.0:
+		if remembers_view and size.x > 0.0:
 			StarchartScreen._view_zoom = zoom
 			StarchartScreen._view_pan = pan
 			StarchartScreen._view_map = Run.map.size()
@@ -1826,11 +1828,24 @@ class MapChart extends Control:
 		zoom = fill * minf(screen.x, screen.y) * 0.5 / r_max
 		_repaint_galaxy()
 
+	## Whether this chart is the one the player navigates.
+	##
+	## `LauncherScreen` builds a MapChart too, as the menu's galaxy backdrop, and
+	## the view memory lives on the CLASS -- so a chart panned in a run was
+	## recorded by one instance and restored by the other, and quitting to the
+	## menu showed a galaxy sitting off centre in exactly the way you had left the
+	## starchart. Reported as, correctly, "LOL".
+	##
+	## Off by default so anything decorative stays where it was put; the screen
+	## that owns the real chart opts in.
+	var remembers_view := false
+
 	## Whether the saved view has been put back yet. One shot.
 	var _restored := false
 
 	func _notification(what: int) -> void:
-		if what == NOTIFICATION_RESIZED and not _restored and size.x > 0.0:
+		if what == NOTIFICATION_RESIZED and remembers_view and not _restored \
+				and size.x > 0.0:
 			# THE FIRST MOMENT `size` IS REAL, which is what the old build-time
 			# call was missing. Everything that derives a view from the panel --
 			# this, and `frame_region` -- has to wait for layout.
