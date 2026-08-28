@@ -68,6 +68,7 @@ var _energy: BoxGauge
 var _energy_text: Label
 var _player_chips: HBoxContainer
 var _self_bar: ProgressBar
+var _self_name: Label
 var _self_plate: VBoxContainer
 var _self_hp: Label
 var _enemy_name: Label
@@ -408,7 +409,27 @@ func _build_self_plate() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	# BEGIN, NOT CENTER. A Control's size does not shrink back when its minimum
+	# does, so with no statuses showing the box stayed as tall as it had been
+	# with them -- and centring the contents in that leftover height put the
+	# hull bar eight pixels lower than it sat a moment before. The bar moved
+	# every time an effect came or went.
+	#
+	# Top-aligned, the bar is at the top of the plate whatever else is in it,
+	# and the statuses print underneath. The bar is the thing you look for; it
+	# does not get to move.
+	col.alignment = BoxContainer.ALIGNMENT_BEGIN
+
+	# YOUR NAME, ABOVE YOUR BAR, in the same order the enemy's readout uses:
+	# name, bar, number, statuses. Two ships in a fight should be described the
+	# same way -- theirs has always said who it is, and yours said nothing.
+	#
+	# ICE against their THEM. The colour is the only part of the readout that is
+	# NOT mirrored, and it is the part carrying whose ship it is.
+	_self_name = UITheme.body("", UITheme.ICE, UITheme.FS_SMALL)
+	_self_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_self_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_self_name)
 
 	_self_bar = ProgressBar.new()
 	_self_bar.custom_minimum_size = Vector2(PLATE_W, 6)
@@ -1693,6 +1714,8 @@ func _refresh_self_plate() -> void:
 	_self_bar.max_value = cap
 	_self_bar.value = Run.hp
 	_self_hp.text = "%d / %d" % [Run.hp, cap]
+	if Run.hull != null:
+		_self_name.text = Run.hull.name.to_upper()
 	# The same three bands the top bar uses, so a hull in trouble reads the same
 	# wherever you happen to be looking.
 	var frac := float(Run.hp) / float(cap)
@@ -1744,7 +1767,7 @@ func _refresh_player() -> void:
 	Widgets.clear(_player_chips)
 	if combat.brace > 0:
 		_player_chips.add_child(StatusChip.make(&"brace", str(combat.brace),
-			Color("#3a5a6e"), "BRACE\n\nSoaks %d damage, then goes." % combat.brace))
+			Color("#3a5a6e"), "BRACE\n\nMitigates %d damage, then goes away." % combat.brace))
 	if combat.block > 0:
 		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
 			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))

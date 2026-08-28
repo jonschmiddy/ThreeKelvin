@@ -112,6 +112,13 @@ func run(tree: SceneTree) -> void:
 		var ss := Router.current as SectorScreen
 		if ss != null and ss.combat != null:
 			var cs := ss.combat
+			# THE BAR MUST NOT MOVE. Statuses arrive and leave every turn, and a
+			# hull bar that shifts when one does is a readout you have to find
+			# again mid-fight.
+			var bar_before: float = ss._self_bar.global_position.y
+			print("  BEFORE plate y %.0f h %.0f ; bar local y %.0f"
+				% [ss._self_plate.position.y, ss._self_plate.size.y,
+					ss._self_bar.position.y])
 			cs.brace = 5
 			cs.block = 3
 			cs.lock_on = 2
@@ -125,6 +132,11 @@ func run(tree: SceneTree) -> void:
 			# THE ROW HAS TO FIT UNDER THE SHIP. Icons were the answer to a row
 			# of words that grew wider than the hull it belonged to, so the
 			# width is the number that says whether it worked.
+			print("  AFTER  plate y %.0f h %.0f ; bar local y %.0f"
+				% [ss._self_plate.position.y, ss._self_plate.size.y,
+					ss._self_bar.position.y])
+			print("  hull bar y %.0f before, %.0f with 7 statuses  (must match)"
+				% [bar_before, ss._self_bar.global_position.y])
 			print("  status row %.0f wide, %d chips"
 				% [ss._player_chips.size.x, ss._player_chips.get_child_count()])
 			var sv := ss._view.ship_view()
@@ -134,6 +146,31 @@ func run(tree: SceneTree) -> void:
 			print("  hull bottom y %.0f ; plate top y %.0f"
 				% [sv.position.y + sv.size.y * 0.5 + sv.ship_bottom_y(),
 					ss._self_plate.position.y])
+		# THE DRIFT, SAMPLED OVER TIME. Both ships have to move and the readouts
+		# bolted to them have to not: your bob is inside the canvas and the
+		# plate takes the offset back out, so a plate that drifts means
+		# `ship_bottom_y` stopped subtracting it.
+		if ss != null:
+			var svb := ss._view.ship_view()
+			var slb: EnemySlot = ss.view_slot(0)
+			var you: Array[int] = []
+			var them: Array[float] = []
+			var plate: Array[float] = []
+			# 240 FRAMES, BECAUSE THE CYCLE IS FOUR SECONDS. Sampled over 40
+			# the ship sat at the top of its arc the whole time and the range
+			# came out 2..2 -- a still ship and a slow one are the same
+			# reading through too short a window.
+			for ih in 240:
+				await RenderingServer.frame_post_draw
+				you.append(svb.bob_offset())
+				them.append(slb.art.position.y)
+				plate.append(ss._self_plate.position.y)
+			print("  your bob spans %d..%d  (must not be 0..0)"
+				% [you.min(), you.max()])
+			print("  their drift spans %.0f..%.0f  (must not be 0..0)"
+				% [them.min(), them.max()])
+			print("  plate y spans %.0f..%.0f  (must NOT move)"
+				% [plate.min(), plate.max()])
 		tree.root.get_texture().get_image().save_png("user://sector_status.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_status.png"))
 

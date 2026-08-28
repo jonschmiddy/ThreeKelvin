@@ -901,6 +901,15 @@ class ShipSlot extends Control:
 		# zoom(), not magnify(): the slot's width is anchored to a fraction of
 		# the encounter and a minimum size would fight that.
 		art.zoom(1)
+		# THE IDLE DRIFT, which this slot never had. The convoy slots below ask
+		# for `bob(1, 0.19)` and call it "slower and shallower than your own
+		# ship's" -- a comparison to a bob that was not there. The ship screen
+		# and the chassis select both use 2, so that is what your own ship's is.
+		#
+		# It moves inside the canvas rather than moving the Control: see
+		# `ShipView`'s note, which is why anything riding the hull has to take
+		# the offset out again. `_place_self_plate` does.
+		art.bob(2)
 		# The hull is now bigger than its slot on the deepest frames, and the
 		# enemy panel is immediately to the right of it.
 		art.clip_contents = true

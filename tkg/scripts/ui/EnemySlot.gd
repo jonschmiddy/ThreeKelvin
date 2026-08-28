@@ -69,6 +69,22 @@ var _hot: bool = false
 var claim: Callable
 var _dead: bool = false
 
+## The idle drift: whole pixels, up and down, so a contact reads as floating
+## rather than pinned to the panel.
+##
+## Done by MOVING THE ART, which `ShipView` explicitly cannot do -- its note says
+## animating the Control's position "would fight the containers every screen puts
+## this inside", so it bobs inside its own canvas instead. This one can, because
+## the entrance already gave the art a plain holder to move in, and moving a
+## Control is far cheaper than regenerating an image eight times a second.
+##
+## Slower and shallower than your ship's `bob(2)`: they are further away, and a
+## pack drifting in step reads as one object rather than three ships. The phase
+## comes off the slot index for the same reason.
+const BOB_AMP := 2.0
+const BOB_HZ := 0.21
+var _bob_phase: float = 0.0
+
 ## How far off to starboard a contact starts when it engages.
 ##
 ## Past the edge of the SCREEN rather than the edge of the slot: it should look
@@ -90,6 +106,15 @@ func holder_rect() -> Rect2:
 	return Rect2(_art_holder.global_position, _art_holder.size)
 
 
+func _process(_dt: float) -> void:
+	if _art_holder == null:
+		return
+	# ROUNDED. A sub-pixel offset resamples the sprite and undoes the
+	# nearest-neighbour crispness the whole art direction rests on.
+	var t := float(Time.get_ticks_msec()) / 1000.0
+	art.position.y = roundf(sin((t + _bob_phase) * TAU * BOB_HZ) * BOB_AMP)
+
+
 func enter(delay: float = 0.0) -> void:
 	if _art_holder == null:
 		return
@@ -109,6 +134,7 @@ func enter(delay: float = 0.0) -> void:
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	set_process(true)
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# One pixel. Everything in this column belongs to the ship in the middle of
@@ -226,6 +252,8 @@ func _init() -> void:
 	mouse_exited.connect(func() -> void: hovered.emit(index, false))
 
 func bind(i: int, e, telegraphed: bool) -> void:
+	# A third of a cycle apart, so three contacts never reach the top together.
+	_bob_phase = float(i) * (1.0 / BOB_HZ) / 3.0
 	index = i
 	_dead = e.hp <= 0
 	art.set_enemy(e, telegraphed)
