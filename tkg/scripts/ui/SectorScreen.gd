@@ -126,7 +126,7 @@ var _hover_group: StringName = &""
 var _hover_index: int = -1
 ## How tall the drawer is, and therefore how tall the viewport is not.
 ##
-## 170 of 540, so the system keeps a little over two thirds. FIXED rather than
+## 190 of 540, so the system keeps a little under two thirds. FIXED rather than
 ## sized to content on purpose: the drawer holds three different things -- the
 ## list, one option, one result -- and if it resized between them the viewport
 ## would jump on every click. A view that moves while you are reading it is the
@@ -135,9 +135,13 @@ var _hover_index: int = -1
 ## THE HAND USES IT TOO, so a fight is a clean swap: the system does not resize
 ## when something starts shooting. 170 rather than a cleaner quarter because a
 ## card is 160 tall and the hand reserves 164 -- below that the cards have to
-## hang out of the band, and a number both panels can actually hold is worth
-## more than the extra 35 pixels of sky.
-const DRAWER_H := 170
+## hang out of the band.
+##
+## 190 RATHER THAN 170 BECAUSE THE PILES HAD NOWHERE TO GROW. Every pixel of the
+## rail was spoken for, so a taller draw pile could only come out of the band.
+## That is the trade this number is: twenty pixels of sky for two piles you can
+## actually read at a glance.
+const DRAWER_H := 190
 
 ## What the drawer is showing.
 ##
@@ -934,7 +938,7 @@ const CHIP_ROW_H := 18
 ##
 ## Measured, not derived: `-- sectorshot combat` prints every child of both
 ## rails, and this is what makes them both 164.
-const RIGHT_GAP := 20
+const RIGHT_GAP := 18
 
 class PileView extends Control:
 	# Big enough to read as a card rather than as an icon of one.
@@ -960,7 +964,8 @@ class PileView extends Control:
 	# gained -- the fixed band, then the stack's lean, then the air under the
 	# label. If it needs to be bigger the room has to come from somewhere else in
 	# the column, because there is none here.
-	const H := 52
+	# 60, and it took the band going to 190 to afford it.
+	const H := 60
 	var count: int = 0
 	var label: String = ""
 
@@ -993,10 +998,20 @@ class PileView extends Control:
 	## HEIGHT IS MAXED, not chosen: the control is `H + 16 + RAIL_DROP` and every
 	## one of those is spoken for -- the lean, the label, and the air under it --
 	## inside a band that is a fixed 170. Width was the only slack left.
-	const CARD_W := 60
+	# 64, so the WIDEST the pile ever draws -- three cards, each leaning two
+	# right of the last -- comes to exactly `W`, the width every button on both
+	# rails is cut to. A full pile and END TURN now start and stop on the same
+	# two columns.
+	const CARD_W := 64
 
-	func _card_x() -> float:
-		return float(W - CARD_W) * 0.5
+	## Where the BACK card starts, so the whole leaning stack is centred.
+	##
+	## Centring one card and then leaning the others off it pushed the pile right
+	## as it filled, which is a pile that moves while you play. The lean is known
+	## -- two pixels per card behind the front one -- so it is subtracted here and
+	## the group stays put.
+	func _card_x(shown: int) -> float:
+		return float(W - CARD_W - maxi(shown - 1, 0) * 2) * 0.5
 
 	func _draw() -> void:
 		# Up to three backs, offset, so the pile has depth without needing to
@@ -1012,7 +1027,7 @@ class PileView extends Control:
 			# The stack still leans up and to the right; the whole thing is just
 			# offset down by as far as it leans, so the deepest card starts at
 			# zero instead of the front one.
-			var o := Vector2(_card_x() + float(i) * 2.0, float(shown - 1 - i) * 2.0)
+			var o := Vector2(_card_x(shown) + float(i) * 2.0, float(shown - 1 - i) * 2.0)
 			var r := Rect2(o, Vector2(CARD_W, H))
 			draw_rect(r, UITheme.PANEL2, true)
 			draw_rect(r, UITheme.LINE, false, 1.0)
@@ -1024,7 +1039,7 @@ class PileView extends Control:
 		if shown == 0:
 			# An empty pile still holds its place, or the hand jumps sideways the
 			# turn your draw pile runs out.
-			draw_rect(Rect2(Vector2(_card_x(), 4), Vector2(CARD_W, H)),
+			draw_rect(Rect2(Vector2(_card_x(1), 4), Vector2(CARD_W, H)),
 				Color("#1b2430"), false, 1.0)
 
 		var f := UITheme.pixel_font()
@@ -1066,9 +1081,11 @@ func _build_hand() -> PanelContainer:
 	# further down you looked. ENERGY/END TURN, TURN/FLEE and the two piles are
 	# the same three rows on both sides, and now they start at the same y.
 	var left := VBoxContainer.new()
-	# Three, not four: the drop above costs a gap of its own, and four across
-	# five children pushed the band to 172 against the drawer's 170.
-	left.add_theme_constant_override("separation", 3)
+	# SIX, WHICH IS `RAIL_DROP`, so every gap in the rail is the same gap: above
+	# the first box, between each pair, and under the last label -- the pile
+	# carries the same six inside its own box. One number, so nothing in the
+	# column has a spacing that means something different from its neighbour's.
+	left.add_theme_constant_override("separation", RAIL_DROP)
 	left.alignment = BoxContainer.ALIGNMENT_BEGIN
 	left.add_child(_rail_drop())
 
@@ -1093,8 +1110,7 @@ func _build_hand() -> PanelContainer:
 	nrg_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 3, 4))
 	nrg_box.custom_minimum_size = Vector2(PileView.W, 38)
-	nrg_box.tooltip_text = ("ENERGY\nWhat you have left to spend this turn. "
-		+ "Every card costs some, and it refills when the turn does.")
+	nrg_box.tooltip_text = "ENERGY\n\nWhat you have left to spend."
 	nrg_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	nrg_box.add_child(nrg)
 	left.add_child(nrg_box)
@@ -1108,8 +1124,7 @@ func _build_hand() -> PanelContainer:
 	turn_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 0, 4))
 	turn_box.custom_minimum_size = Vector2(PileView.W, 13)
-	turn_box.tooltip_text = ("TURN\nHow long this has been going on. "
-		+ "Some cards and some contacts count it.")
+	turn_box.tooltip_text = "TURN\n\nHow long this fight has been going on."
 	turn_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
@@ -1133,8 +1148,7 @@ func _build_hand() -> PanelContainer:
 	left.add_child(_player_chips)
 
 	_draw_pile = PileView.new()
-	_draw_pile.tooltip_text = ("DRAW\nWhat is left to draw from. "
-		+ "When it empties, the discard is shuffled back into it.")
+	_draw_pile.tooltip_text = "DRAW\n\nWhat is left to draw from."
 	left.add_child(_draw_pile)
 	hand_row.add_child(left)
 
@@ -1150,7 +1164,7 @@ func _build_hand() -> PanelContainer:
 	# once a run is a thin red line under it, and the pile you never press at
 	# all is at the bottom.
 	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 3)
+	right.add_theme_constant_override("separation", RAIL_DROP)
 	right.alignment = BoxContainer.ALIGNMENT_BEGIN
 	right.add_child(_rail_drop())
 
@@ -1170,8 +1184,7 @@ func _build_hand() -> PanelContainer:
 	# three of them plus a 22 came to 62 against the 54 the left rail spends on
 	# ENERGY and TURN. Levelling them is what makes the block fit at all.
 	_end_button.custom_minimum_size = Vector2(PileView.W, 16)
-	_end_button.tooltip_text = ("END TURN\nPlay nothing else. They act, "
-		+ "your heat vents, and you draw a fresh hand.")
+	_end_button.tooltip_text = "END TURN\n\nStop, and let them act."
 	# ITS OWN STYLEBOX, because the default bevel pads four above and below and
 	# rendered this at 28 while FLEE and HAIL -- which already carry flat boxes
 	# with no vertical padding -- came out at 16. Three buttons cannot share a
@@ -1189,8 +1202,7 @@ func _build_hand() -> PanelContainer:
 	# Fleeing costs a run's worth of progress; it should take a deliberate aim.
 	var flee := Widgets.button("FLEE", _on_flee)
 	flee.custom_minimum_size = Vector2(PileView.W, 16)
-	flee.tooltip_text = ("FLEE\nBreak contact on a MANEUVER check. "
-		+ "Burns fuel, leaves the salvage, and a bad roll leaves you here too.")
+	flee.tooltip_text = "FLEE\n\nRun for it. Maneuver check."
 	flee.add_theme_color_override("font_color", Color("#d4614f"))
 	flee.add_theme_color_override("font_hover_color", Color("#f08872"))
 	flee.add_theme_stylebox_override("normal",
@@ -1234,8 +1246,7 @@ func _build_hand() -> PanelContainer:
 	right.add_child(chip_gap)
 
 	_discard_pile = PileView.new()
-	_discard_pile.tooltip_text = ("DISCARD\nEverything you have played or "
-		+ "thrown away this fight. It comes back when the draw pile runs dry.")
+	_discard_pile.tooltip_text = "DISCARD\n\nWhat you have played so far."
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
@@ -1437,16 +1448,13 @@ func _refresh_hail() -> void:
 	var why := combat.hail_reason()
 	_hail_button.disabled = why != ""
 	_hail_button.text = why if why != "" else "HAIL"
-	# The tooltip carries the WHY at length, because the button only has room
-	# for two words of it.
+	# The button has room for two words of why not; the tooltip has room for a
+	# short sentence, and that is all it should be. Godot's tooltip does not
+	# wrap, so a long one is a strip half the screen wide.
 	if why != "":
-		_hail_button.tooltip_text = ("HAIL\nNot this one. "
-			+ "Fauna do not answer a radio, and the thing at the core is not "
-			+ "here to make terms.")
+		_hail_button.tooltip_text = "HAIL\n\nThis one is not listening."
 	else:
-		_hail_button.tooltip_text = ("HAIL\nTalk them down on a STEALTH check. "
-			+ "Costs nothing if it lands. If it does not, you have just told "
-			+ "them exactly where you are.")
+		_hail_button.tooltip_text = "HAIL\n\nTalk them down. Stealth check."
 	_hail_button.add_theme_color_override("font_color",
 		UITheme.COLD if why != "" else UITheme.CHILL)
 
