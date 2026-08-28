@@ -970,7 +970,10 @@ class PileView extends Control:
 		# are the last thing in each column and sat flush against the panel edge
 		# while everything above them had six of air.
 		custom_minimum_size = Vector2(W, H + 16 + SectorScreen.RAIL_DROP)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# STOP, not IGNORE. A control that ignores the mouse never shows a
+		# tooltip, and these two are the least self-explanatory things on the
+		# panel -- a number on a card back that reshuffles when it runs out.
+		mouse_filter = Control.MOUSE_FILTER_STOP
 
 	func set_count(n: int, text: String) -> void:
 		if n == count and text == label:
@@ -983,9 +986,14 @@ class PileView extends Control:
 	##
 	## `W` is the rail's width and every button on both sides is cut to it, so
 	## narrowing that narrows the whole panel. The card is drawn at `CARD_W`
-	## instead, centred -- 44 against 52 tall reads as a card standing up, where
-	## 60 against 52 read as a tile.
-	const CARD_W := 44
+	## instead, centred, at 60 against 68 -- four pixels of margin each side and
+	## the rest of the column filled. It was 44, which left twenty-four pixels of
+	## nothing beside a pile that had already been squeezed three times.
+	##
+	## HEIGHT IS MAXED, not chosen: the control is `H + 16 + RAIL_DROP` and every
+	## one of those is spoken for -- the lean, the label, and the air under it --
+	## inside a band that is a fixed 170. Width was the only slack left.
+	const CARD_W := 60
 
 	func _card_x() -> float:
 		return float(W - CARD_W) * 0.5
@@ -1085,6 +1093,9 @@ func _build_hand() -> PanelContainer:
 	nrg_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 3, 4))
 	nrg_box.custom_minimum_size = Vector2(PileView.W, 38)
+	nrg_box.tooltip_text = ("ENERGY\nWhat you have left to spend this turn. "
+		+ "Every card costs some, and it refills when the turn does.")
+	nrg_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	nrg_box.add_child(nrg)
 	left.add_child(nrg_box)
 
@@ -1097,6 +1108,9 @@ func _build_hand() -> PanelContainer:
 	turn_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 0, 4))
 	turn_box.custom_minimum_size = Vector2(PileView.W, 13)
+	turn_box.tooltip_text = ("TURN\nHow long this has been going on. "
+		+ "Some cards and some contacts count it.")
+	turn_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
 
@@ -1119,6 +1133,8 @@ func _build_hand() -> PanelContainer:
 	left.add_child(_player_chips)
 
 	_draw_pile = PileView.new()
+	_draw_pile.tooltip_text = ("DRAW\nWhat is left to draw from. "
+		+ "When it empties, the discard is shuffled back into it.")
 	left.add_child(_draw_pile)
 	hand_row.add_child(left)
 
@@ -1154,6 +1170,8 @@ func _build_hand() -> PanelContainer:
 	# three of them plus a 22 came to 62 against the 54 the left rail spends on
 	# ENERGY and TURN. Levelling them is what makes the block fit at all.
 	_end_button.custom_minimum_size = Vector2(PileView.W, 16)
+	_end_button.tooltip_text = ("END TURN\nPlay nothing else. They act, "
+		+ "your heat vents, and you draw a fresh hand.")
 	# ITS OWN STYLEBOX, because the default bevel pads four above and below and
 	# rendered this at 28 while FLEE and HAIL -- which already carry flat boxes
 	# with no vertical padding -- came out at 16. Three buttons cannot share a
@@ -1171,6 +1189,8 @@ func _build_hand() -> PanelContainer:
 	# Fleeing costs a run's worth of progress; it should take a deliberate aim.
 	var flee := Widgets.button("FLEE", _on_flee)
 	flee.custom_minimum_size = Vector2(PileView.W, 16)
+	flee.tooltip_text = ("FLEE\nBreak contact on a MANEUVER check. "
+		+ "Burns fuel, leaves the salvage, and a bad roll leaves you here too.")
 	flee.add_theme_color_override("font_color", Color("#d4614f"))
 	flee.add_theme_color_override("font_hover_color", Color("#f08872"))
 	flee.add_theme_stylebox_override("normal",
@@ -1186,11 +1206,19 @@ func _build_hand() -> PanelContainer:
 	# two attributes, and a ship is usually good at one of them.
 	_hail_button = Widgets.button("HAIL", _on_hail)
 	_hail_button.custom_minimum_size = Vector2(PileView.W, 16)
-	_hail_button.add_theme_color_override("font_color", UITheme.CHILL)
+	# YELLOW, against FLEE's red. Two exits, and they should not look like the
+	# same button twice -- red is the one that costs you a run's salvage, yellow
+	# is the one that costs you nothing if it lands. `HOT` is the palette's warm
+	# high note and is otherwise spent on outcome prose, which is close enough to
+	# "this went well" for a button that tries to make a fight not happen.
+	_hail_button.add_theme_color_override("font_color", UITheme.HOT)
+	_hail_button.add_theme_color_override("font_hover_color", Color("#fff0c4"))
 	_hail_button.add_theme_stylebox_override("normal",
-		UITheme.flat(Color(0, 0, 0, 0), Color("#3d5566"), 0, 0, 6))
+		UITheme.flat(Color(0, 0, 0, 0), Color("#8a6a2e"), 0, 0, 6))
 	_hail_button.add_theme_stylebox_override("hover",
-		UITheme.flat(Color("#14212a"), UITheme.TRACTOR.darkened(0.4), 0, 0, 6))
+		UITheme.flat(Color("#2a2213"), UITheme.HOT, 0, 0, 6))
+	_hail_button.add_theme_stylebox_override("pressed",
+		UITheme.flat(Color("#3a2f1a"), UITheme.HOT, 0, 0, 6))
 	right.add_child(_hail_button)
 
 	# THE CHIP ROW'S OPPOSITE NUMBER. The left column spends `CHIP_ROW_H` on
@@ -1206,6 +1234,8 @@ func _build_hand() -> PanelContainer:
 	right.add_child(chip_gap)
 
 	_discard_pile = PileView.new()
+	_discard_pile.tooltip_text = ("DISCARD\nEverything you have played or "
+		+ "thrown away this fight. It comes back when the draw pile runs dry.")
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
@@ -1407,6 +1437,16 @@ func _refresh_hail() -> void:
 	var why := combat.hail_reason()
 	_hail_button.disabled = why != ""
 	_hail_button.text = why if why != "" else "HAIL"
+	# The tooltip carries the WHY at length, because the button only has room
+	# for two words of it.
+	if why != "":
+		_hail_button.tooltip_text = ("HAIL\nNot this one. "
+			+ "Fauna do not answer a radio, and the thing at the core is not "
+			+ "here to make terms.")
+	else:
+		_hail_button.tooltip_text = ("HAIL\nTalk them down on a STEALTH check. "
+			+ "Costs nothing if it lands. If it does not, you have just told "
+			+ "them exactly where you are.")
 	_hail_button.add_theme_color_override("font_color",
 		UITheme.COLD if why != "" else UITheme.CHILL)
 

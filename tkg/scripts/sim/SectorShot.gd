@@ -106,7 +106,7 @@ func run(tree: SceneTree) -> void:
 		return
 	if "combat" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
-		Router.start_combat(DB.enemies[&"custodian"], [], false)
+		Router.start_combat(DB.enemies[&"cutter"], [], false)
 		for i6 in 40:
 			await RenderingServer.frame_post_draw
 		var sc := Router.current as SectorScreen
