@@ -174,6 +174,13 @@ func run(tree: SceneTree) -> void:
 			# WHERE A HOVERED CARD'S TOP EDGE IS, against where the rails start.
 			# The lift is -8 from the resting baseline, so this is the line the
 			# ENERGY and END TURN boxes are meant to square up to.
+			# WHERE THE SHIP ACTUALLY IS, against where the plate went. The art
+			# Control is not the slot -- it sizes and animates itself -- so the
+			# offset from its rect centre is a number to read, not to reason to.
+			var sv: Control = sc._view.ship_view()
+			print("    ship rect %s ; anchor %s ; plate at %s"
+				% [sv.get_rect(), sc._view.self_anchor(),
+					sc._self_plate.position if sc._self_plate != null else "-"])
 			var e0: Control = sc._energy.get_parent().get_parent()
 			print("    hovered card top %.0f; rail first box top %.0f"
 				% [sc._hand.position.y

@@ -67,6 +67,9 @@ var _preview: Label
 var _energy: BoxGauge
 var _energy_text: Label
 var _player_chips: HBoxContainer
+var _self_bar: ProgressBar
+var _self_plate: VBoxContainer
+var _self_hp: Label
 var _enemy_name: Label
 var _enemy_tag: Label
 var _enemy_hp: Label
@@ -245,6 +248,7 @@ func _build() -> void:
 	_view = EncounterView.new()
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_view)
+	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
 
 	var pad := Widgets.pad(null, 8, 6)
@@ -357,6 +361,97 @@ func _build_salvage_rail() -> PanelContainer:
 	_salvage_wrap = Widgets.panel_with(col)
 	_salvage_wrap.custom_minimum_size = Vector2(268, 0)
 	return _salvage_wrap
+
+## Your hull and your status, under your own ship.
+##
+## THE ENEMY HAS HAD ONE SINCE THE START and you have not: their name, their bar
+## and their number sit under their hull where you are already looking, while
+## yours were a strip in the corner of the card rail and a pair of digits in the
+## top bar. Two pools read from two different parts of the screen.
+##
+## Mirrors `EnemySlot` deliberately -- same bar width, same six pixels of height,
+## same centred number under it -- so the two sides of the fight are one
+## vocabulary rather than two.
+##
+## `HULL_BIAS` is `ShipSlot`'s: the hull is centred in the left 68% of its half,
+## so the plate is centred on the same fraction rather than on the middle of the
+## panel, which would put it off the ship's nose.
+const PLATE_W := 120
+## How far under the hull the plate sits.
+const PLATE_DROP := 56.0
+
+## Where along the slot the plate is centred, as a fraction.
+##
+## MEASURED, NOT DERIVED, and `ShipView.setup_preview` says why in as many words:
+## "a hull occupies about a third of the canvas vertically and is centred in it
+## ... horizontally it is NOT centred". So there is no fraction of the slot that
+## lands on the hull by construction -- `HULL_BIAS * 0.5` centres the CANVAS, and
+## the ship inside it sits left of that.
+##
+## This is where the hull actually draws, read off a screenshot at 960x540.
+const PLATE_X := 0.26
+
+func _build_self_plate() -> void:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+
+	_self_bar = ProgressBar.new()
+	_self_bar.custom_minimum_size = Vector2(PLATE_W, 6)
+	_self_bar.show_percentage = false
+	_self_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_self_bar)
+
+	_self_hp = UITheme.body("", UITheme.HULL_GREEN, UITheme.FS_SMALL)
+	_self_hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_self_hp)
+
+	# THE CHIPS COME DOWN HERE FROM THE RAIL. They are things carried on YOUR
+	# hull -- brace, block, lock-on, a charging card -- so they belong on the
+	# hull rather than in a strip beside the deck. It also gives the draw pile
+	# the twenty-two pixels the rail was spending on a row that is empty most of
+	# the time.
+	_player_chips = HBoxContainer.new()
+	_player_chips.add_theme_constant_override("separation", 3)
+	_player_chips.alignment = BoxContainer.ALIGNMENT_CENTER
+	_player_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_player_chips)
+
+	# Centred under the hull rather than under the half: see `HULL_BIAS`.
+	# A CHILD OF THE SHIP, so it goes where the ship goes.
+	#
+	# Two wrong answers came first and both were about the same thing. Anchoring
+	# it to a fraction of the panel assumed the ship's slot was the whole width;
+	# it is one of several children of a row, so the plate sat a long way to
+	# starboard. Positioning it from `self_anchor()` on refresh got the place
+	# right and the TIME wrong -- `ShipView.arrive()` animates, so the plate was
+	# aimed at where the hull had been when the last refresh happened and stayed
+	# there.
+	#
+	# Parenting settles both: the offset is measured once, against the art, and
+	# the arrival carries the plate in with the ship.
+	_self_plate = col
+	col.offset_left = -PLATE_W * 0.5
+	col.offset_right = PLATE_W * 0.5
+	col.offset_top = PLATE_DROP
+	col.offset_bottom = PLATE_DROP
+	col.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	col.grow_vertical = Control.GROW_DIRECTION_END
+	# THE SLOT, NOT THE ART. `ShipView` animates its own position on arrival and
+	# its control is wider than the sprite inside it, so centring on that control
+	# put the plate off the hull's nose and moving with it. The slot is stable.
+	var slot: Control = _view.ship_view().get_parent()
+	col.anchor_left = PLATE_X
+	col.anchor_right = PLATE_X
+	col.anchor_top = 0.5
+	col.anchor_bottom = 0.5
+	col.offset_left = -PLATE_W * 0.5
+	col.offset_right = PLATE_W * 0.5
+	col.offset_top = PLATE_DROP
+	col.offset_bottom = PLATE_DROP
+	slot.add_child(col)
+
 
 ## What there is to do here, when nothing is shooting. Occupies the same band as
 ## the enemy intent strip does in a fight, so the screen keeps one shape whether
@@ -966,7 +1061,7 @@ class PileView extends Control:
 	# 66, which is where it was always trying to get to. It has been 86, 66, 62,
 	# 58, 52, 60 and 52 again across one night of the rail and the cards trading
 	# pixels; the hand holding its own height is what ended the argument.
-	const H := 66
+	const H := 88
 	var count: int = 0
 	var label: String = ""
 
@@ -1157,23 +1252,6 @@ func _build_hand() -> PanelContainer:
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
 
-	# Your own status, under your own numbers. Brace, block, lock-on, feedback,
-	# adapt and drones are things you are carrying, so they belong beside the
-	# energy you spend rather than in a strip about the enemy.
-	_player_chips = HBoxContainer.new()
-	_player_chips.add_theme_constant_override("separation", 3)
-	_player_chips.alignment = BoxContainer.ALIGNMENT_CENTER
-	# HOLDS ITS HEIGHT WHILE EMPTY. An HBox with no children is zero rows tall,
-	# so the first chip of the fight grew this column, grew the hand row with
-	# it, and shoved every card in your hand upward — mid-turn, while you were
-	# reading them. It reads as the hand jumping for no reason, and the reason
-	# it seems to happen "around three discards" is that armour comes from
-	# Brace and Reinforce, which are also what put those cards in the pile.
-	#
-	# A chip is 10px of text plus 2px of padding either side; 16 is that with a
-	# pixel to spare, measured rather than guessed.
-	_player_chips.custom_minimum_size = Vector2(0, CHIP_ROW_H)
-	left.add_child(_player_chips)
 
 	# PUSHES THE PILE TO THE BOTTOM, and this is what `RIGHT_GAP` was doing by
 	# hand. That gap was a measured constant chosen to make the two rails come
@@ -1357,6 +1435,7 @@ func _refresh() -> void:
 	_quiet_wrap.visible = not at_war
 	_refresh_hail()
 	_refresh_flee()
+	_refresh_self_plate()
 	if not at_war:
 		_rebuild_drawer(n)
 
@@ -1455,6 +1534,23 @@ func _refresh_salvage() -> void:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
 	for m in Run.cargo:
 		_salvage.add_child(Widgets.module_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage, "", deck))
+
+
+## Your hull, under your hull.
+func _refresh_self_plate() -> void:
+	if _self_bar == null:
+		return
+	var cap := maxi(1, Run.max_hp())
+	_self_bar.max_value = cap
+	_self_bar.value = Run.hp
+	_self_hp.text = "%d / %d" % [Run.hp, cap]
+	# The same three bands the top bar uses, so a hull in trouble reads the same
+	# wherever you happen to be looking.
+	var frac := float(Run.hp) / float(cap)
+	_self_hp.add_theme_color_override("font_color",
+		UITheme.LEAVE if frac < 0.34 else (UITheme.EMBER if frac < 0.67
+			else UITheme.HULL_GREEN))
+
 
 
 func _refresh_player() -> void:

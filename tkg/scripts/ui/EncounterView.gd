@@ -451,6 +451,20 @@ func enemy_anchor(i: int) -> Vector2:
 		return size * 0.5
 	return fx.get_global_transform().affine_inverse() * art.get_global_rect().get_center()
 
+## Where YOUR hull is, in this view's own coordinates.
+##
+## The mirror of `enemy_anchor`, and it exists for the same reason: anything that
+## wants to sit under the ship has to ask where the ship IS. Deriving it from
+## `ShipSlot.HULL_BIAS` and a guess at how wide the slot is gets it wrong the
+## moment the row gains or loses a child -- which it does, because the enemy
+## slots live in the same row.
+func self_anchor() -> Vector2:
+	if _ship == null:
+		return size * 0.5
+	return get_global_transform().affine_inverse() \
+		* _ship.get_global_rect().get_center()
+
+
 func ship_view() -> ShipView:
 	return _ship
 
