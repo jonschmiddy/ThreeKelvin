@@ -127,7 +127,7 @@ var _hover_group: StringName = &""
 var _hover_index: int = -1
 ## How tall the drawer is, and therefore how tall the viewport is not.
 ##
-## 196 of 540, so the system keeps a little under two thirds. FIXED rather than
+## 190 of 540, so the system keeps a little over two thirds. FIXED rather than
 ## sized to content on purpose: the drawer holds three different things -- the
 ## list, one option, one result -- and if it resized between them the viewport
 ## would jump on every click. A view that moves while you are reading it is the
@@ -145,7 +145,7 @@ var _hover_index: int = -1
 ## It has been 135, 170, 190, 182 and now 196, and every move before this one was
 ## the cards and the piles taking room off each other through it. They are
 ## decoupled now: this grows when the rails need it, and nothing else moves.
-const DRAWER_H := 196
+const DRAWER_H := 190
 
 ## What the drawer is showing.
 ##
@@ -1067,10 +1067,17 @@ class PileView extends Control:
 ## Separate from `RAIL_DROP` because they stopped being the same number the
 ## moment this had to match something. That one is still the gap BETWEEN things
 ## and the air under the pile label; this is only the gap above the first box.
-## 10, NOT 14. The spacer is a CHILD of the rail, so the separation lands after
-## it too -- 10 plus a 4 gap puts the first box on 14, which is the line. Setting
-## this to the target directly overshot it by exactly one separation.
-const RAIL_TOP := 10
+## 4, plus the 4 gap that lands after it, puts the first box on 8.
+##
+## EIGHT IS ALSO WHERE A HOVERED CARD STARTS, and that is not a coincidence
+## surviving by luck -- the hand is bottom-aligned, so shortening the band moves
+## it up by exactly what the band lost, and the lift is a constant. Both were 14
+## at a band of 196 and both are 8 at 190. They travel together.
+##
+## The spacer is a CHILD of the rail, so the separation lands after it too, which
+## is why this is 4 and not 8. Setting it to the target directly overshoots by
+## exactly one gap.
+const RAIL_TOP := 4
 
 ## How far the rails sit below the top of the band.
 ##
@@ -1230,6 +1237,13 @@ func _build_hand() -> PanelContainer:
 		UITheme.flat(Color("#1d2836"), UITheme.ICE, 0, 1, 6))
 	_end_button.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#243044"), UITheme.ICE, 0, 1, 6))
+	# AND `disabled`, WHICH IS THE ONE EVERY CUSTOM BUTTON FORGETS. The theme's
+	# is `bevel_in(PANEL, 3, 5)` -- three above and below against these boxes'
+	# zero -- so a button that greys GROWS, and the rail and everything under it
+	# shifts a couple of pixels. Reported as the drawer moving when FLEE turns to
+	# NO ESCAPE, which is exactly when a button greys.
+	_end_button.add_theme_stylebox_override("disabled",
+		UITheme.flat(UITheme.PANEL, Color("#2b3746"), 0, 1, 6))
 	right.add_child(_end_button)
 
 	# Thin, and red, and never sitting beside the button you actually want.
@@ -1246,6 +1260,9 @@ func _build_hand() -> PanelContainer:
 		UITheme.flat(Color("#2a1a18"), Color("#d4614f"), 0, 0, 6))
 	flee.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#3a2320"), Color("#d4614f"), 0, 0, 6))
+	# Same padding as the others, so NO ESCAPE is exactly as tall as FLEE.
+	flee.add_theme_stylebox_override("disabled",
+		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
 	right.add_child(flee)
 
 	# THE OTHER WAY OUT, and the one that costs nothing if it works. FLEE burns
@@ -1266,6 +1283,8 @@ func _build_hand() -> PanelContainer:
 		UITheme.flat(Color("#2a2213"), UITheme.HOT, 0, 0, 6))
 	_hail_button.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#3a2f1a"), UITheme.HOT, 0, 0, 6))
+	_hail_button.add_theme_stylebox_override("disabled",
+		UITheme.flat(Color(0, 0, 0, 0), Color("#3a3a3a"), 0, 0, 6))
 	right.add_child(_hail_button)
 
 	# THE CHIP ROW'S OPPOSITE NUMBER. The left column spends `CHIP_ROW_H` on
