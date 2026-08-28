@@ -464,6 +464,11 @@ func _ready() -> void:
 		Router.show_party()
 
 	# The arrival screen, with its option list:  godot --path . -- sectorshot
+	if "fitwords" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/FitWords.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "namefit" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/NameFit.gd").new().run()
 		get_tree().quit()
