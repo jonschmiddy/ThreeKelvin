@@ -704,6 +704,11 @@ func damage_enemy(amount: int, hits: int, label: String,
 	if e == null:
 		return 0
 
+	# THE SHOT IS FIRED HERE, whatever fired it. Gating on the card that was
+	# played would miss drones and feedback, which damage a contact without you
+	# aiming anything at it -- and from their side that is the same thing.
+	struck = true
+
 	var total := 0
 	for i in maxi(1, hits):
 		var d := amount
@@ -766,6 +771,17 @@ const FLEE_FUEL := 6
 ## 3 is a real ladder rather than a formality: a hull with no stealth at all is
 ## on the 20% band and a Redline launches at 2, which puts it on 65%. That is
 ## the manufacturer difference showing up in a button rather than in a tooltip.
+## Whether you have put a shot into anything this fight.
+##
+## HAIL closes the moment you do, and only then: bracing, venting, patching and
+## every other thing you do to your OWN ship leave it open. That is the line the
+## rule is actually drawn on -- not "have you acted" but "have you shot at them",
+## which is what they would care about.
+##
+## Set in `damage_enemy`, which is the one place a hit on a contact lands
+## whatever card, drone or feedback effect caused it.
+var struck := false
+
 const HAIL_ATTR := &"stealth"
 const HAIL_NEED := 3
 
@@ -787,6 +803,8 @@ const HAIL_HEAT_BOTCHED := 14
 func can_hail() -> bool:
 	if finished or waiting or enemies.is_empty():
 		return false
+	if struck:
+		return false
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
 		if t.fauna or t.boss or t.miniboss:
@@ -801,6 +819,12 @@ func can_hail() -> bool:
 func hail_reason() -> String:
 	if enemies.is_empty():
 		return ""
+	# ORDERED BY WHAT THE PLAYER CAN STILL CHANGE. A creature was never going to
+	# answer and the core's guard was never going to deal, but "you shot first"
+	# is a thing they did a moment ago and could have not done -- so it wins the
+	# label when both are true.
+	if struck:
+		return "YOU FIRED"
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
 		if t.fauna:

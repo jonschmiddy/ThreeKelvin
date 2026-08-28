@@ -731,6 +731,19 @@ func set_playable(can_play: bool) -> void:
 	playable = can_play
 	modulate.a = 1.0 if can_play else 0.34
 
+## Where the hover lift returns to.
+##
+## `_ready` CANNOT KNOW THIS. It fires on `add_child`, and the hand sets the
+## card's position on the line after -- so the value captured there is always
+## zero, and every hovered card animated to the top of the hand rather than back
+## to where it was sitting. Invisible while the cards rested at zero anyway;
+## the moment they were centred, hovering one threw it eight pixels upward.
+##
+## The hand owns layout, so the hand owns this. See `HandView._layout`.
+func set_base_y(y: float) -> void:
+	_base_y = y
+
+
 func _ready() -> void:
 	_base_y = position.y
 	mouse_entered.connect(_on_hover_in)

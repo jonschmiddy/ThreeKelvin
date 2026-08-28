@@ -110,6 +110,19 @@ func run(tree: SceneTree) -> void:
 		for i6 in 100:
 			await RenderingServer.frame_post_draw
 		var sc := Router.current as SectorScreen
+		# THE HAIL GATE, BOTH WAYS. Bracing must leave it open and shooting must
+		# close it, and one flag serving both is exactly the shape that ends up
+		# doing only one of them.
+		if sc != null and sc.combat != null:
+			var c0 := sc.combat
+			print("  hail before anything: %s (%s)"
+				% [c0.can_hail(), c0.hail_reason()])
+			c0.block += 5
+			print("  hail after bracing:   %s (%s)"
+				% [c0.can_hail(), c0.hail_reason()])
+			c0.damage_enemy(1, 1, "probe")
+			print("  hail after a shot:    %s (%s)"
+				% [c0.can_hail(), c0.hail_reason()])
 		if sc != null:
 			# A FULL DISCARD, because that is the state that was broken and an
 			# opening hand never shows it: the stack drew its back cards above
@@ -139,6 +152,13 @@ func run(tree: SceneTree) -> void:
 			# WHERE THE CARDS ACTUALLY SIT. The hand stretches to the row and the
 			# cards are placed against a baseline inside it, so the gap above and
 			# below them is not any constant in the file -- it has to be read.
+			# WHERE A HOVER WOULD SPRING BACK TO. It is captured in `_ready`,
+			# which fires before the hand positions the card, so it was always
+			# zero -- and a hovered card animated to the top of the band rather
+			# than back to its own row.
+			print("    card base_y %.0f (rest y %.0f)"
+				% [(sc._hand.get_child(0) as CardView)._base_y,
+					(sc._hand.get_child(0) as Control).position.y])
 			print("    hand view %.0f tall; card top %.0f, bottom %.0f"
 				% [sc._hand.size.y,
 					(sc._hand.get_child(0) as Control).position.y,

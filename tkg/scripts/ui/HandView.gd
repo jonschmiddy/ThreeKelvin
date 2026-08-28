@@ -36,7 +36,14 @@ func _init() -> void:
 	# than played. Enemies and your hull are the other drop zones; which one
 	# you release over is the whole choice.
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	custom_minimum_size = Vector2(0, CardView.CARD_H + 4)
+	# A CARD PLUS ITS PADDING, AND NO MORE. Shrink-centred rather than filling,
+	# so the hand is always exactly this tall however tall the row around it
+	# gets -- which is what stops the cards' eight pixels of air and the draw
+	# pile's height from being the same argument. They were: every time the band
+	# grew for the piles the cards got looser, and every time it shrank for the
+	# cards the piles lost height.
+	custom_minimum_size = Vector2(0, CardView.CARD_H + 16)
+	size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	clip_contents = false
 
 ## The y a card sits at: centred in whatever height the hand has.
@@ -123,6 +130,10 @@ func _layout() -> void:
 	for i in n:
 		var v: CardView = order[i]
 		var target := Vector2(x + i * step, _baseline())
+		# The card's hover lift springs back to this, and it is the only thing
+		# that knows it. Set on every layout, not just on deal, because the
+		# baseline moves whenever the band does.
+		v.set_base_y(target.y)
 		v.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 		if v.position.distance_to(target) < 0.5:
 			continue

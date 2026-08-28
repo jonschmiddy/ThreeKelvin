@@ -126,7 +126,7 @@ var _hover_group: StringName = &""
 var _hover_index: int = -1
 ## How tall the drawer is, and therefore how tall the viewport is not.
 ##
-## 182 of 540, so the system keeps a little over two thirds. FIXED rather than
+## 196 of 540, so the system keeps a little under two thirds. FIXED rather than
 ## sized to content on purpose: the drawer holds three different things -- the
 ## list, one option, one result -- and if it resized between them the viewport
 ## would jump on every click. A view that moves while you are reading it is the
@@ -137,14 +137,14 @@ var _hover_index: int = -1
 ## card is 160 tall and the hand reserves 164 -- below that the cards have to
 ## hang out of the band.
 ##
-## 182 IS A CARD PLUS ITS PADDING. A card is 160, the hand panel spends 3 above
-## and below, and eight pixels of air each side of the cards makes 176 -- so 182
-## is the smallest band that lets the cards SIT in it rather than hang from it.
+## THE CARDS NO LONGER CARE WHAT THIS IS. `HandView` holds itself at a card plus
+## sixteen and centres, so its eight pixels of air are fixed whatever the band
+## does -- which is what lets this number belong to the RAILS again.
 ##
-## THE RAILS HAVE TO FIT INSIDE IT, which is what brought the pile back to 52
-## from 60. Eight pixels of card padding and a sixty-tall pile do not both fit,
-## and the band is the only place either could come from.
-const DRAWER_H := 182
+## It has been 135, 170, 190, 182 and now 196, and every move before this one was
+## the cards and the piles taking room off each other through it. They are
+## decoupled now: this grows when the rails need it, and nothing else moves.
+const DRAWER_H := 196
 
 ## What the drawer is showing.
 ##
@@ -967,9 +967,10 @@ class PileView extends Control:
 	# gained -- the fixed band, then the stack's lean, then the air under the
 	# label. If it needs to be bigger the room has to come from somewhere else in
 	# the column, because there is none here.
-	# 52. It was 60 for one commit, until the cards asked for eight pixels of air
-	# above and below and the band could only afford one of the two.
-	const H := 52
+	# 66, which is where it was always trying to get to. It has been 86, 66, 62,
+	# 58, 52, 60 and 52 again across one night of the rail and the cards trading
+	# pixels; the hand holding its own height is what ended the argument.
+	const H := 66
 	var count: int = 0
 	var label: String = ""
 
@@ -1455,7 +1456,9 @@ func _refresh_hail() -> void:
 	# The button has room for two words of why not; the tooltip has room for a
 	# short sentence, and that is all it should be. Godot's tooltip does not
 	# wrap, so a long one is a strip half the screen wide.
-	if why != "":
+	if why == "YOU FIRED":
+		_hail_button.tooltip_text = "HAIL\n\nToo late. You shot first."
+	elif why != "":
 		_hail_button.tooltip_text = "HAIL\n\nThis one is not listening."
 	else:
 		_hail_button.tooltip_text = "HAIL\n\nTalk them down. Stealth check."
