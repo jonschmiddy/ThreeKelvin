@@ -113,4 +113,37 @@ func _beyond() -> void:
 				why[reason] = int(why.get(reason, 0)) + 1
 		print("  %-6d %7d %7d %8d   %s"
 			% [seed_i, shown, sensed, beyond, JSON.stringify(why)])
+	_gap()
 	_ok("measured", true)
+
+
+## Can a system be REACHABLE and not SENSED?
+##
+## That combination is what the chart's jump button reports as "NOT ENOUGH FUEL",
+## because `can_jump_to` is `sensed and reachable and afford` and the screen's
+## if-chain treats anything left over as an affordability problem. With 279 fuel
+## and a 6-unit cap that message cannot be literally true.
+func _gap() -> void:
+	print("\n  === REACHABLE BUT NOT SENSED ===")
+	print("  %-6s %8s %8s %8s   %s" % ["seed", "inrange", "sensed", "gap", "types"])
+	for seed_i in [11, 4242, 90210, 31337]:
+		Rng.forced = seed_i
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var here: MapGen.MapNode = Run.node_at()
+		Run.chart_from(here)
+		var inr := Run.in_range()
+		var gap := 0
+		var kinds: Dictionary = {}
+		for n in inr:
+			var t: MapGen.MapNode = n
+			if t.sensed:
+				continue
+			gap += 1
+			var k := MapGen.type_label(t.type)
+			kinds[k] = int(kinds.get(k, 0)) + 1
+		var sensed := 0
+		for n2 in inr:
+			if (n2 as MapGen.MapNode).sensed:
+				sensed += 1
+		print("  %-6d %8d %8d %8d   %s"
+			% [seed_i, inr.size(), sensed, gap, JSON.stringify(kinds)])

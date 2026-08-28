@@ -1782,12 +1782,18 @@ var _range_cache: Dictionary = {}
 ## REFERENCED TO THE LIGHTEST HULL rather than the middle, because this may only
 ## ever ADD. See `thrust_reach`.
 ##
-## 0.04 a point is deliberately small: a medium reaches 8% further than a light
-## and a heavy 16%, which is a real difference on a crowded map and not a
-## different game. These two numbers are the obvious dial for the balance pass.
+## 0.04 a point was deliberately small and turned out to be invisible: hull
+## thrust runs 4 / 6 / 8 by class, so a medium reached 8% further than a light
+## and a heavy 16%, and on a chart that is two or three pixels of ellipse.
+## Reported as "no matter what the thrusters are, the circle is the same size" --
+## which was not true and could not be told apart from true.
+##
+## 0.15 makes the class ladder legible: light 1.00, medium 1.30, heavy 1.60. The
+## cap moves with it, because at 1.4 a heavy hull would have been clamped before
+## it left the yard and the top of the ladder would have flattened again.
 const THRUST_REF := 4
-const THRUST_REACH := 0.04
-const THRUST_REACH_MAX := 1.4
+const THRUST_REACH := 0.15
+const THRUST_REACH_MAX := 1.6
 
 
 ## How far this ship's engine stretches a jump, as a multiplier on the map's own
@@ -1879,9 +1885,14 @@ const SENSE_REACH := 0.25
 ##
 ## - `sensed` -- your dish has it right now. `chart_from` clears this every
 ##   arrival, so it is live sight and not a memory.
-## - a station you have HEARD of. The filter is right about a place you might GO
-##   and wrong about one you navigate BY, and `station_heard` bounds how far that
-##   carries.
+## - a station you have HEARD of -- WHICH IS NOW A SUBSET OF `visited` and admits
+##   nothing on its own. It was "a station next door to somewhere you have been",
+##   and that clause was cut on 2026-08-26 under a ruling that you can only see
+##   what you can see. What survived is `is a station AND (visited or here)`, so
+##   every system it admits was already admitted. Kept in the call below only
+##   because deleting a live-looking condition and its function in the same pass
+##   as a range change would make two things hard to tell apart; it goes on its
+##   own, next time this file is opened.
 ## - a system somebody has PAID you to find. A contract naming a system the chart
 ##   will not draw is a memory test.
 ## - where you are standing.
@@ -1905,7 +1916,9 @@ const SENSE_REACH := 0.25
 func charted(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
-	return n.sensed or n.visited or n.index == at or station_heard(n.index) \
+	# `station_heard` is deliberately absent: see the note above. It cannot admit
+	# a system that `visited` has not already admitted.
+	return n.sensed or n.visited or n.index == at \
 		or contract_at(n.index) != null
 
 

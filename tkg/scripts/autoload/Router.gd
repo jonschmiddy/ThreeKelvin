@@ -179,7 +179,27 @@ func show_archive(from_launcher: bool = false) -> void:
 	_swap(s, not from_launcher)
 	s.setup(show_launcher if from_launcher else show_sector)
 
+## Re-scan before drawing, because SIGHT IS A SNAPSHOT AND REACH IS LIVE.
+##
+## `chart_from` runs on arrival and `sensed` keeps that answer until the next
+## one. `reachable` is computed from the ship's CURRENT thrust every time it is
+## asked. Fit a thruster at a station and reach grows while the sight marks do
+## not -- so a system becomes reachable, is drawn, prices its fuel, and cannot be
+## jumped to, because `can_jump_to` wants `sensed` as well.
+##
+## Reported as a system inside both rings whose button read NOT ENOUGH FUEL, on a
+## ship carrying 279 fuel against a 6-unit cap. The message was the screen's
+## if-chain treating anything left over as an affordability problem; the cause
+## was two answers to "how far can I see" taken at different times.
+##
+## Cheap enough to just do: one pass over the map, once per opening, against a
+## draw that walks every node anyway.
 func show_starchart() -> void:
+	Run.chart_from(Run.node_at())
+	_show_starchart()
+
+
+func _show_starchart() -> void:
 	# The chart is the only place jumps are offered, so it is the one chokepoint
 	# where being out of fuel has to resolve rather than stall.
 	Run.check_stranded()

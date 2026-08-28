@@ -24,12 +24,25 @@ var _reach_btn: Button
 ## Which rings the chart draws. Both on by default: they are how the two
 ## limits are read, and a player who has never seen them cannot know to
 ## look for them.
-var _sight_on := true
-var _reach_on := true
+## HOW THE CHART IS BEING LOOKED AT, and STATIC because the screen is not.
+##
+## `show_starchart` builds a fresh StarchartScreen on every arrival, so anything
+## held on the instance is a preference the player re-enters after every single
+## jump. Reported for LOCAL REGION -- "it's kinda annoying always having to zoom
+## into my local region every jump" -- and the other three are the same control
+## in the same corner, so they would have been reported next.
+##
+## Static rather than saved: these describe how somebody is looking at the map
+## this session, not anything about the run. A save that restored a zoom level
+## would be a save that could restore a WRONG one.
+static var _sight_on := true
+static var _reach_on := true
 ## Whether the view is held on the local region. A TOGGLE rather than a
 ## jump, because the press has an obvious undo and a jump does not: you
 ## would otherwise have to find the way back out by hand every time.
-var _region_on: bool = false
+static var _region_on: bool = false
+## And whether the filter is off entirely.
+static var _show_all: bool = false
 const REGION_LABEL := "LOCAL REGION"
 
 var _dest_name: Label
@@ -225,6 +238,19 @@ func _build() -> void:
 		key.add_child(item)
 	root.add_child(key)
 
+	# THE VIEW THE PLAYER LEFT IT IN. The toggles above are static, so this is
+	# where a freshly built screen catches up with them -- painting the labels,
+	# handing the rings to the chart, and re-framing if the region was held.
+	_paint_rings()
+	_paint_region()
+	_chart.show_all = _show_all
+	if _all_btn != null:
+		_all_btn.text = "SHOW KNOWN ONLY" if _show_all else "SHOW ALL SYSTEMS"
+	if _region_on:
+		var rh: MapGen.MapNode = Run.node_at()
+		if rh != null:
+			_chart.frame_region(rh)
+
 func _first_reachable() -> int:
 	for idx in Run.node_at().links:
 		if Run.can_jump_to(Run.map[idx]):
@@ -361,6 +387,11 @@ func _refresh() -> void:
 	else:
 		if not Run.reachable(t):
 			_rows.add_child(_row("FUEL", "OUT OF RANGE", Color("#7c6a58")))
+		elif not t.sensed:
+			# Quoting a price for a system the dish has not resolved is the same
+			# mistake as quoting one for a system out of range: it answers a
+			# question the ship cannot ask yet.
+			_rows.add_child(_row("FUEL", "NOT SCANNED", Color("#7c6a58")))
 		else:
 			var cost := Run.fuel_cost_to(t)
 			_rows.add_child(_fuel_row(cost, cost <= Run.fuel))
@@ -389,6 +420,12 @@ func _refresh() -> void:
 		_jump.text = "YOU ARE HERE"
 	elif not Run.reachable(t):
 		_jump.text = "TOO FAR TO REACH"
+	elif not t.sensed:
+		# THE THIRD REASON, and it used to fall through to the fuel message.
+		# `can_jump_to` is `sensed and reachable and afford`; the chain tested two
+		# of the three and blamed the last one for everything left over, so a
+		# ship with a full tank was told it was broke.
+		_jump.text = "NOT SCANNED"
 	else:
 		_jump.text = "NOT ENOUGH FUEL"
 
@@ -692,9 +729,10 @@ func _on_region() -> void:
 		_chart.frame_region(here)
 
 func _on_toggle_all() -> void:
-	_chart.show_all = not _chart.show_all
+	_show_all = not _show_all
+	_chart.show_all = _show_all
 	if _all_btn != null:
-		_all_btn.text = "SHOW KNOWN ONLY" if _chart.show_all else "SHOW ALL SYSTEMS"
+		_all_btn.text = "SHOW KNOWN ONLY" if _show_all else "SHOW ALL SYSTEMS"
 	_chart.queue_redraw()
 
 
