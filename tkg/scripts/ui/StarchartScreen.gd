@@ -189,8 +189,21 @@ func _build() -> void:
 	# OMEGA CALLOUS SECUNDUS at head size pushed the whole sidebar out and the
 	# chart shrank to make room — the panel changing width as you point at
 	# different systems is far worse than a name taking two lines.
+	#
+	# AND THE HEIGHT IS RESERVED, because that fix only moved the problem onto
+	# the other axis. A wrapped name is TALLER, the panel's height is its
+	# content's, and the chart shares a row with it -- so selecting THETA ABYSSAL
+	# SECUNDUS pushed every row below it down and resized the chart, while OMEGA
+	# WICK REACH did not. Two lines' worth is always held whether the name needs
+	# it or not, so nothing below can move.
+	#
+	# TWO IS MEASURED, not guessed: `-- namefit` wraps every name five galaxies
+	# generate at this font and this width. 94.4% take one line, 5.6% take two,
+	# none take three, and it fails if that ever stops being true.
 	_dest_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_dest_name.custom_minimum_size = Vector2(228, 0)
+	_dest_name.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_dest_name.custom_minimum_size = Vector2(228,
+		UITheme.pixel_font().get_height(UITheme.FS_HEAD) * 2)
 	right.add_child(_dest_name)
 	_dest_class = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_dest_class.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -237,6 +237,21 @@ if run_godot attrtest 120 --headless --path "$PROJECT" -- attrtest; then
 			| head -n 20 | sed 's/^/        /'
 	fi
 fi
+step "A destination name fits the height the panel reserves for it"
+# The right-hand panel is as tall as its content and the chart shares a row with
+# it, so a name that wraps one line further than the panel reserves moves the
+# whole screen -- reported as the chart changing size when a particular system
+# was selected. The reserve is two lines; this says two is still enough.
+if run_godot namefit 120 --headless --path "$PROJECT" -- namefit; then
+	if grep -qE '^namefit: PASS' "$LOG_DIR/namefit.log"; then
+		ok "every destination name fits two lines"
+	else
+		bad "a system name needs more lines than the panel reserves"
+		grep -E '^  FAIL|^  worst|^namefit' "$LOG_DIR/namefit.log" \
+			| head -n 10 | sed 's/^/        /'
+	fi
+fi
+
 step "The chart's filtered view is mostly filtered"
 # An exception that grows until it swallows the rule. Stations are on the
 # chart before you visit them, deliberately, and the range that exception
