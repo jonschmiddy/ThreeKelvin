@@ -838,17 +838,20 @@ func hail_cause() -> StringName:
 func hail_reason() -> String:
 	if enemies.is_empty():
 		return ""
-	# ONE LABEL FOR A SHUT DOOR. Three different words for "no" made the button
+	# ONE LABEL FOR A SHUT DOOR, and it has to fit the rail -- which is 68,
+	# because END TURN sets that and the pile is cut to it. "NOT NEGOTIATING"
+	# needed 93 and took the rail to 100, which made the pile landscape; this
+	# needs 66. Three different words for "no" made the button
 	# read as three different mechanics -- a player would learn NO REPLY, NO
 	# TERMS and YOU FIRED separately before noticing they are the same greyed
 	# state. The BUTTON says what is true of the button; the TOOLTIP says why,
 	# and why is where the three actually differ.
 	if struck:
-		return "NOT NEGOTIATING"
+		return "WON'T TALK"
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
 		if t.fauna or t.boss or t.miniboss:
-			return "NOT NEGOTIATING"
+			return "WON'T TALK"
 	return ""
 
 

@@ -16,6 +16,20 @@ extends Harness
 const PAD := 12
 
 const WORDS: Array[String] = [
+	"NO CONTACT",
+	"NO CHANNEL",
+	"NO REPLY",
+	"NO ANSWER",
+	"WON'T TALK",
+	"NOT TALKING",
+	"UNREACHABLE",
+	"NO TERMS",
+	"CLOSED",
+	"SHUT",
+	"NO ESCAPE",
+	"NO EXIT",
+	"CANNOT RUN",
+	"HELD",
 	"NOT NEGOTIATING",
 	"NOT TALKING",
 	"NO NEGOTIATION",

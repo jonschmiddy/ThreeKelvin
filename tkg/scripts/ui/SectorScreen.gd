@@ -956,11 +956,15 @@ class PileView extends Control:
 	# out at 24 against its neighbours' 16, and no amount of stylebox padding was
 	# ever going to explain that. The eight pixels come off the card area, which
 	# has them.
-	# Every button on both rails is cut to this width, so it is set by the
-	# LONGEST thing any of them ever says -- which is HAIL's "NOT NEGOTIATING",
-	# not END TURN. At 68 that clipped, and a greyed button whose reason is cut
-	# in half is worse than no reason at all.
-	const W := 100
+	# THE FLOOR, NOT A CHOICE. `END TURN` measures 58 at FS_SMALL and the flat
+	# button boxes add six each side, so no rail can be narrower than this
+	# whatever else is written on one. `-- fitwords` prints the table.
+	#
+	# It went to 100 to hold "NOT NEGOTIATING" and that was the wrong way round:
+	# the rail sets what a word may be, because the PILE is cut to the rail too
+	# and a wide rail makes a landscape pile. At 68 a full stack is 64 across
+	# against 66 tall; at 100 it was 96 against 66.
+	const W := 68
 	# 52 IS THE CEILING, swept rather than guessed: the band is a fixed 170 shared
 	# with the drawer, and `-- sectorshot` reports 171 at 53 and 175 at 57. Every
 	# pixel this gains comes straight off the panel it has to fit inside.
@@ -1005,11 +1009,14 @@ class PileView extends Control:
 	## HEIGHT IS MAXED, not chosen: the control is `H + 16 + RAIL_DROP` and every
 	## one of those is spoken for -- the lean, the label, and the air under it --
 	## inside a band that is a fixed 170. Width was the only slack left.
-	# 64, so the WIDEST the pile ever draws -- three cards, each leaning two
-	# right of the last -- comes to exactly `W`, the width every button on both
-	# rails is cut to. A full pile and END TURN now start and stop on the same
-	# two columns.
-	const CARD_W := 64
+	## The card, sized so a FULL stack is exactly as wide as a button.
+	##
+	## Three cards each lean two right of the last, so the widest the pile ever
+	## draws is this plus four -- and tying it to `W` here is what stops the two
+	## drifting apart. They did: the rail went to 100 for a long word and the
+	## card stayed at 64, which put the pile back in the dead space it had just
+	## been given to fill.
+	const CARD_W := W - 4
 
 	## Where the BACK card starts, so the whole leaning stack is centred.
 	##
