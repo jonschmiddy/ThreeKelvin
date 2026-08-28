@@ -253,8 +253,12 @@ func mounts_along(s: ModuleData.Slot, n: int) -> PackedVector2Array:
 		out.append(line[a].lerp(line[b], f - float(a)))
 	return out
 
+## A constant so its length can be checked against `Weight` -- see
+## `MapTest._labels`.
+const WEIGHT_NAMES: Array[String] = ["Light", "Medium", "Heavy"]
+
 static func weight_name(w: Weight) -> String:
-	return ["Light", "Medium", "Heavy"][w]
+	return WEIGHT_NAMES[w]
 
 ## The four specification classes, worst to best. Lives HERE rather than in
 ## Database because a class is part of what a hull IS, and because HullData

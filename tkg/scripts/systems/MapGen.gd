@@ -522,8 +522,16 @@ static func star_name(n: MapNode) -> String:
 		return "%s %s" % [_BAYER[a], _STEM[b]]
 	return "%s %s%s" % [_BAYER[a], _STEM[b], _SUFFIX[c]]
 
+## PROSE, NOT KEYS, which is why this cannot read `Region.keys()` the way
+## `type_label` does: FAUNA is "Migration Route" and CORE is "Precursor Ruins".
+## A constant rather than a literal inside the function so `-- maptest` can check
+## its length against the enum -- see `MapTest._labels` for the bug that makes
+## that worth doing.
+const REGION_NAMES: Array[String] = ["Frontier", "Territory", "Cosmopolitan",
+	"Lawless", "Migration Route", "Precursor Ruins"]
+
 static func region_name(r: Region) -> String:
-	return ["Frontier", "Territory", "Cosmopolitan", "Lawless", "Migration Route", "Precursor Ruins"][r]
+	return REGION_NAMES[r]
 
 ## Colour follows the axes: one manufacturer flies its colours, several read as neutral
 ## trade, and unclaimed space is dim.
@@ -577,8 +585,12 @@ static func region_colour(n: MapNode) -> Color:
 static func type_label(t: NodeType) -> String:
 	return NodeType.keys()[t]
 
+## Title case rather than the enum's shouting, so it reads in a sentence.
+const DEVELOPMENT_NAMES: Array[String] = ["Unclaimed", "Outpost", "Settlement",
+	"City", "Capital"]
+
 static func development_name(d: Development) -> String:
-	return ["Unclaimed", "Outpost", "Settlement", "City", "Capital"][d]
+	return DEVELOPMENT_NAMES[d]
 
 static func security_name(sec: int) -> String:
 	return ["", "Lawless", "Minimal", "Moderate", "High", "Extreme"][clampi(sec, 1, 5)]

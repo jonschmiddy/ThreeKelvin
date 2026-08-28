@@ -43,6 +43,24 @@ static var _reach_on := true
 static var _region_on: bool = false
 ## And whether the filter is off entirely.
 static var _show_all: bool = false
+
+## WHERE THE CHART WAS POINTED, kept for the same reason the toggles are.
+##
+## LOCAL REGION persisted and the VIEW did not, which reads as the toggle being
+## broken: it stayed lit while the chart sat fully zoomed out. The cause is that
+## `frame_region` divides by `size`, and during `_build` the control has not been
+## laid out yet -- so `size` is zero, the wanted zoom is zero, and it clamps to
+## ZOOM_MIN. It was re-deriving the view at the one moment it could not.
+##
+## Storing the view itself sidesteps that entirely, and answers the actual ask:
+## the zoom and the position stay put across a jump, whether they came from the
+## region button, the wheel or a drag.
+##
+## `_view_map` is a crude galaxy fingerprint. A new run is a new galaxy and the
+## old pan means nothing in it, so a mismatch throws the saved view away.
+static var _view_zoom: float = 0.0
+static var _view_pan: Vector2 = Vector2.ZERO
+static var _view_map: int = -1
 const REGION_LABEL := "LOCAL REGION"
 
 var _dest_name: Label
@@ -246,10 +264,9 @@ func _build() -> void:
 	_chart.show_all = _show_all
 	if _all_btn != null:
 		_all_btn.text = "SHOW KNOWN ONLY" if _show_all else "SHOW ALL SYSTEMS"
-	if _region_on:
-		var rh: MapGen.MapNode = Run.node_at()
-		if rh != null:
-			_chart.frame_region(rh)
+	# The VIEW itself is restored by the chart on its first resize -- see
+	# `_view_zoom`. Re-framing here would run before layout and land on ZOOM_MIN,
+	# which is the bug that made LOCAL REGION look like it had stopped working.
 
 func _first_reachable() -> int:
 	for idx in Run.node_at().links:
@@ -1753,6 +1770,14 @@ class MapChart extends Control:
 		_repaint_galaxy()
 
 	func _process(delta: float) -> void:
+		# RECORDED HERE RATHER THAN AT EVERY MUTATION. Zoom and pan are moved by
+		# the wheel, by a drag, by `glide_to`'s animation and by both framing
+		# helpers; hooking all of them would leave one out. Reading the result
+		# once a frame cannot.
+		if size.x > 0.0:
+			StarchartScreen._view_zoom = zoom
+			StarchartScreen._view_pan = pan
+			StarchartScreen._view_map = Run.map.size()
 		var target: float = 1.0 if hovered >= 0 else 0.0
 		if is_equal_approx(_hover_t, target):
 			return
@@ -1788,7 +1813,21 @@ class MapChart extends Control:
 		zoom = fill * minf(screen.x, screen.y) * 0.5 / r_max
 		_repaint_galaxy()
 
+	## Whether the saved view has been put back yet. One shot.
+	var _restored := false
+
 	func _notification(what: int) -> void:
+		if what == NOTIFICATION_RESIZED and not _restored and size.x > 0.0:
+			# THE FIRST MOMENT `size` IS REAL, which is what the old build-time
+			# call was missing. Everything that derives a view from the panel --
+			# this, and `frame_region` -- has to wait for layout.
+			_restored = true
+			if StarchartScreen._view_zoom > 0.0 \
+					and StarchartScreen._view_map == Run.map.size():
+				zoom = StarchartScreen._view_zoom
+				pan = StarchartScreen._view_pan
+				_clamp_pan()
+				_repaint_sky()
 		if what == NOTIFICATION_RESIZED:
 			# _radius() is derived from size, so every cached position is stale
 			# -- including the two fixed layers, which is why this is the one
@@ -2142,7 +2181,8 @@ class MapChart extends Control:
 					var t3: MapGen.MapNode = n3
 					if t3.index == from.index:
 						continue
-					if Run.reachable_from(from, t3):
+					# Same rule as the routes out of YOU: geometry is not sight.
+					if Run.reachable_from(from, t3) and Run.charted(t3):
 						draw_line(a3, _screen_pos(t3),
 							Color(0.36, 0.56, 0.72, 0.38), 1.0)
 
@@ -2153,7 +2193,15 @@ class MapChart extends Control:
 			# a proposal: dotted, dim, obviously provisional. Drawing both as
 			# plain lines in different colours made the chart look like one
 			# network when it is really a record and a set of options.
-			reach = Run.in_range()
+			# ONLY TO SYSTEMS THAT ARE DRAWN. `in_range` is geometry and knows
+			# nothing about the dish, so a fast ship with no sensors got dotted
+			# lines running out to nothing -- the destination glyph was correctly
+			# hidden and the route to it was not. A line to an invisible place is
+			# worse than either showing both or hiding both.
+			reach = []
+			for cand in Run.in_range():
+				if Run.charted(cand):
+					reach.append(cand)
 			for r in reach:
 				var rn2: MapGen.MapNode = r
 				var afford: bool = Run.can_jump_to(rn2)

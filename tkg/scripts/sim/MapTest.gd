@@ -127,9 +127,52 @@ func run() -> void:
 		_fail(u)
 	# THE ONE THAT MATTERS TO A PLAYER, now that links do not gate movement.
 	_ok("the core can be FLOWN to in every galaxy", unflyable.is_empty())
-	for u in unflyable:
-		_fail(u)
-	verdict("maptest")
+	_labels()
+
+
+## Every enum value still has a name, and the name still belongs to it.
+##
+## THE BUG THIS EXISTS FOR IS SILENT AND ALREADY HAPPENED. `type_label` was a
+## hand-written array indexed by the enum value; the 8a-2 collapse renumbered
+## `NodeType` and left the array alone, so STATION read "FIGHT", CORE read
+## "STATION", PULSAR read "EVENT" and SYSTEM read "DERELICT" -- four of five node
+## types naming themselves wrong on the sector screen for a day.
+##
+## Nothing errored. The array was still seven long and every lookup was in
+## bounds, which is the whole hazard: a parallel array does not break when it
+## stops corresponding, it answers a different question. A warning comment sat
+## directly above the enum and survived the edit it was warning about, because
+## comments do not run.
+##
+## `type_label` reads `NodeType.keys()` now and cannot drift. The other three
+## CANNOT do that and should not: `region_name` deliberately maps FAUNA to
+## "Migration Route" and CORE to "Precursor Ruins", which are prose, not keys.
+## So this checks the property that actually matters -- every value in the enum
+## resolves to a non-empty label, and one past the end does not resolve at all.
+func _labels() -> void:
+	var bad: Array[String] = []
+	# LENGTH, NOT BLANKNESS, because the bug that happened was an array that was
+	# too LONG and full of the wrong names -- every lookup in bounds, every label
+	# non-empty, and four of five of them wrong. Checking for blanks would have
+	# passed it. A count is the only thing that actually drifted.
+	if MapGen.REGION_NAMES.size() != MapGen.Region.size():
+		bad.append("Region: %d names for %d values"
+			% [MapGen.REGION_NAMES.size(), MapGen.Region.size()])
+	if MapGen.DEVELOPMENT_NAMES.size() != MapGen.Development.size():
+		bad.append("Development: %d names for %d values"
+			% [MapGen.DEVELOPMENT_NAMES.size(), MapGen.Development.size()])
+	if HullData.WEIGHT_NAMES.size() != HullData.Weight.size():
+		bad.append("Weight: %d names for %d values"
+			% [HullData.WEIGHT_NAMES.size(), HullData.Weight.size()])
+	# `type_label` reads `NodeType.keys()` and cannot drift by construction, so
+	# what is checked there is that it still does -- a future edit swapping it
+	# back to a literal array would slip past everything above.
+	for i in MapGen.NodeType.size():
+		if MapGen.type_label(i) != MapGen.NodeType.keys()[i]:
+			bad.append("NodeType[%d] is %s, not %s"
+				% [i, MapGen.type_label(i), MapGen.NodeType.keys()[i]])
+	_ok("every enum has exactly as many labels as values%s"
+		% ("" if bad.is_empty() else " -- " + ", ".join(bad)), bad.is_empty())
 
 
 func _in_layer(map: Array, layer: int) -> Array:
