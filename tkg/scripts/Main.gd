@@ -464,6 +464,11 @@ func _ready() -> void:
 		Router.show_party()
 
 	# The arrival screen, with its option list:  godot --path . -- sectorshot
+	if "sighttest" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/SightTest.gd").new()
+		_convoy_test.run()
+		return
+
 	if "sectorshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/SectorShot.gd").new()
 		_convoy_test.run(get_tree())

@@ -1858,7 +1858,7 @@ func thrust_reach() -> float:
 ## fixed radius crosses in more hops, which is exactly what that dial is for.
 const JUMP_RADIUS := 0.18
 
-const SENSE_FLOOR := 1.5
+const SENSE_FLOOR := 1.0
 
 const SENSE_REACH := 0.25
 
@@ -1867,6 +1867,37 @@ const SENSE_REACH := 0.25
 ##
 ## OFF THE MAP TERM, not off `range_from`, and deliberately: sight should not
 ## quietly inherit the engine. A hauler with long legs is not more observant.
+## Does the chart draw this system?
+##
+## ONE DEFINITION, because there were three and they disagreed. The screen had
+## it, `-- chartfilter` had a copy to measure against, and `-- sighttest` had
+## another -- so tightening the rule in the screen left both harnesses reporting
+## the old answer, confidently, in a table. A test that carries its own copy of
+## the thing it is testing measures itself.
+##
+## Four reasons, and only the first is a sighting:
+##
+## - `sensed` -- your dish has it right now. `chart_from` clears this every
+##   arrival, so it is live sight and not a memory.
+## - a station you have HEARD of. The filter is right about a place you might GO
+##   and wrong about one you navigate BY, and `station_heard` bounds how far that
+##   carries.
+## - a system somebody has PAID you to find. A contract naming a system the chart
+##   will not draw is a memory test.
+## - where you are standing.
+##
+## WHERE YOU HAVE BEEN IS NOT ON THIS LIST, deliberately, and that changed
+## 2026-08-27 after the third report of "systems outside my sensor range". The
+## ring is the boundary a player reads; a glyph outside it says the ring is
+## lying. `Run.trail` still draws the route you flew, so history is a PATH rather
+## than a set of places you can somehow still see.
+func charted(n: MapGen.MapNode) -> bool:
+	if n == null:
+		return false
+	return n.sensed or n.index == at or station_heard(n.index) \
+		or contract_at(n.index) != null
+
+
 func sense_radius() -> float:
 	if map.is_empty():
 		return 0.0
@@ -1890,7 +1921,24 @@ func sense_radius() -> float:
 func sense_radius_of(here: MapGen.MapNode) -> float:
 	if map.is_empty() or here == null:
 		return 0.0
-	return _map_range_from(here) * (SENSE_FLOOR + float(attr_sensors()) * SENSE_REACH)
+	# NEVER LESS THAN YOU CAN FLY, and that is what lets the floor be 1.0.
+	#
+	# 1.5 was not a feel decision, it was a load-bearing one: `thrust_reach()`
+	# clamps at 1.4, so any floor under that let a fast ship REACH a system its
+	# own dish could not SEE -- and `can_jump_to` requires `sensed`, so the system
+	# became permanently unjumpable. The floor was sitting just above the thrust
+	# clamp to prevent that, and it cost every ship a view it had not earned.
+	#
+	# Taking the max decouples them. Reach can grow however it likes and sight
+	# follows it for free, so the floor is free to describe what a DISH is worth
+	# rather than what a thruster might do.
+	#
+	# WHICH MAKES THE RULE SAYABLE: with no dish you see exactly as far as you can
+	# fly, which is about five systems. Every pip of SENSORS shows you further
+	# than you can go. That is the whole of it, and it is why the two rings sit on
+	# top of each other on a ship that has bought no sensors.
+	return maxf(range_from(here),
+		_map_range_from(here) * (SENSE_FLOOR + float(attr_sensors()) * SENSE_REACH))
 
 
 ## Mark everything within sight of `here` as charted.

@@ -1801,36 +1801,11 @@ class MapChart extends Control:
 			for i in Run.map.size():
 				out[i] = true
 			return out
+		# `Run.charted` is the rule and lives on the run, not here -- two test
+		# harnesses need to measure it and both used to carry their own copy.
 		for n in Run.map:
-			var t: MapGen.MapNode = n
-			if t.visited:
-				out[t.index] = true
-			# A station you have HEARD — one you have been to, or one next door to
-			# somewhere you have. Stations are on the chart before you visit them,
-			# because the filter is right about a place you might GO and wrong
-			# about a place you navigate BY; the range that exception reaches is
-			# `RunState.station_heard`, and it used to be the whole galaxy.
-			#
-			# Same exception, same reason, as the party markers below.
-			elif Run.station_heard(t.index):
-				out[t.index] = true
-			# And anywhere the dish has picked up. Fourth exception, and the
-			# only one that is a property of the SHIP rather than of the
-			# galaxy or the contract board: a system you have seen from a
-			# distance is on the chart because you saw it, and stays there
-			# because seeing cannot be undone. See RunState.chart_from.
-			elif t.sensed:
-				out[t.index] = true
-			# And anywhere you have signed for. Same exception, third reason:
-			# the filter is right about places you might stumble into and wrong
-			# about a place somebody has PAID you to find. A contract that names
-			# a system the chart will not draw is a memory test.
-			#
-			# It reveals the dot and nothing else — see
-			# `RunState.known_only_by_contract()`, and the panel and the tooltip
-			# that read it.
-			elif Run.contract_at(t.index) != null:
-				out[t.index] = true
+			if Run.charted(n):
+				out[(n as MapGen.MapNode).index] = true
 		out[here.index] = true
 		for r in reach:
 			out[(r as MapGen.MapNode).index] = true

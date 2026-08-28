@@ -133,16 +133,16 @@ func _one_chart(seed_i: int, flown: int) -> int:
 		var reason := ""
 		if t.index == here.index:
 			reason = "here"
-		elif t.visited:
-			reason = "visited"
-		elif Run.station_heard(t.index):
-			reason = "station"
 		elif t.sensed:
 			reason = "sensed"
+		elif Run.station_heard(t.index):
+			reason = "station"
 		elif Run.contract_at(t.index) != null:
 			reason = "contract"
-		elif Run.can_jump_to(t):
-			reason = "reach"
+		# `Run.charted` is the rule; this only names WHICH clause admitted it, for
+		# the table. If the two ever disagree the rule wins and this is stale.
+		if reason != "" and not Run.charted(t):
+			reason = ""
 		if reason == "":
 			continue
 		shown += 1
