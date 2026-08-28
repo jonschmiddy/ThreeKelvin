@@ -432,6 +432,18 @@ step "Simulator plays $SIM_RUNS complete runs"
 # The repo's actual regression test. It has already caught an infinite draw
 # loop and a structural map flaw; a balance change that crashes a run shows up
 # here and nowhere else.
+#
+# READ `errors`, NOT `wins`. This is a smoke test, not a measurement. The run is
+# unseeded and 40 runs is far too few to say anything about balance: three
+# consecutive runs at one unchanged commit gave 23%, 30% and 35%, and across one
+# day of pure UI work the same gate printed 45%, 40%, 25% and 8%. Nothing in
+# those numbers was a change to the game.
+#
+# So a win rate here is worth roughly +/-15 points and cannot detect a real
+# economy shift. `ROADMAP.md` records the honest figures: 200 runs is +/-4, and
+# 500 is what a conclusion costs. Quoting this line as a result -- which is easy
+# to do, because it is the number the gate prints -- says something the gate did
+# not measure.
 if run_godot sim $((90 + SIM_RUNS * 9)) --headless --path "$PROJECT" -- sim "runs=$SIM_RUNS"; then
 	if grep -qE '^runs [0-9]+ · wins' "$LOG_DIR/sim.log"; then
 		ok "simulator reached its report"
