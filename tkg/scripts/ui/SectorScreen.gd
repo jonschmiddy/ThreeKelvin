@@ -126,7 +126,7 @@ var _hover_group: StringName = &""
 var _hover_index: int = -1
 ## How tall the drawer is, and therefore how tall the viewport is not.
 ##
-## 190 of 540, so the system keeps a little under two thirds. FIXED rather than
+## 182 of 540, so the system keeps a little over two thirds. FIXED rather than
 ## sized to content on purpose: the drawer holds three different things -- the
 ## list, one option, one result -- and if it resized between them the viewport
 ## would jump on every click. A view that moves while you are reading it is the
@@ -137,11 +137,14 @@ var _hover_index: int = -1
 ## card is 160 tall and the hand reserves 164 -- below that the cards have to
 ## hang out of the band.
 ##
-## 190 RATHER THAN 170 BECAUSE THE PILES HAD NOWHERE TO GROW. Every pixel of the
-## rail was spoken for, so a taller draw pile could only come out of the band.
-## That is the trade this number is: twenty pixels of sky for two piles you can
-## actually read at a glance.
-const DRAWER_H := 190
+## 182 IS A CARD PLUS ITS PADDING. A card is 160, the hand panel spends 3 above
+## and below, and eight pixels of air each side of the cards makes 176 -- so 182
+## is the smallest band that lets the cards SIT in it rather than hang from it.
+##
+## THE RAILS HAVE TO FIT INSIDE IT, which is what brought the pile back to 52
+## from 60. Eight pixels of card padding and a sixty-tall pile do not both fit,
+## and the band is the only place either could come from.
+const DRAWER_H := 182
 
 ## What the drawer is showing.
 ##
@@ -964,8 +967,9 @@ class PileView extends Control:
 	# gained -- the fixed band, then the stack's lean, then the air under the
 	# label. If it needs to be bigger the room has to come from somewhere else in
 	# the column, because there is none here.
-	# 60, and it took the band going to 190 to afford it.
-	const H := 60
+	# 52. It was 60 for one commit, until the cards asked for eight pixels of air
+	# above and below and the band could only afford one of the two.
+	const H := 52
 	var count: int = 0
 	var label: String = ""
 

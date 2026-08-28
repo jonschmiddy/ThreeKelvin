@@ -107,7 +107,7 @@ func run(tree: SceneTree) -> void:
 	if "combat" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"cutter"], [], false)
-		for i6 in 40:
+		for i6 in 100:
 			await RenderingServer.frame_post_draw
 		var sc := Router.current as SectorScreen
 		if sc != null:
@@ -136,6 +136,14 @@ func run(tree: SceneTree) -> void:
 				% [tot, col.size.y])
 			for ch2 in col.get_children():
 				print("      R %-14s %.0f" % [(ch2 as Control).name, (ch2 as Control).size.y])
+			# WHERE THE CARDS ACTUALLY SIT. The hand stretches to the row and the
+			# cards are placed against a baseline inside it, so the gap above and
+			# below them is not any constant in the file -- it has to be read.
+			print("    hand view %.0f tall; card top %.0f, bottom %.0f"
+				% [sc._hand.size.y,
+					(sc._hand.get_child(0) as Control).position.y,
+					(sc._hand.get_child(0) as Control).position.y
+						+ (sc._hand.get_child(0) as Control).size.y])
 			var lcol: Control = sc._energy.get_parent().get_parent().get_parent()
 			print("    left rail %.0f" % lcol.size.y)
 			for ch3 in lcol.get_children():

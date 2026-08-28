@@ -39,6 +39,19 @@ func _init() -> void:
 	custom_minimum_size = Vector2(0, CardView.CARD_H + 4)
 	clip_contents = false
 
+## The y a card sits at: centred in whatever height the hand has.
+##
+## Cards used to be placed at ZERO, and the hand stretches to fill the row -- so
+## every pixel the row had spare piled up UNDERNEATH them. Measured at 160 of
+## card inside 184 of hand: nothing above, twenty-four below.
+##
+## Both placement sites read this rather than assuming a constant, because the
+## deal-in animation used a hard 12 and the layout used a hard 0, and either left
+## behind would deal cards to a different height than the hand settles them at.
+func _baseline() -> float:
+	return maxf(0.0, (size.y - CardView.CARD_H) * 0.5)
+
+
 ## Reconcile against the current hand: keep what is still held, drop what is not,
 ## deal what is new, then slide everything to where it now belongs.
 ## `choosing` puts the hand into picking mode: nothing is playable, every card
@@ -58,7 +71,7 @@ func sync(cards: Array, playable: Callable, choosing: bool = false) -> void:
 			found.chosen.connect(func(v: CardView) -> void: picked.emit(v.card))
 			found.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 			# Dealt from the deck side, so a draw reads as coming from somewhere.
-			found.position = Vector2(-CardView.CARD_W, 12)
+			found.position = Vector2(-CardView.CARD_W, _baseline() + 12.0)
 			found.hovered.connect(func(v: CardView, e: bool) -> void:
 				# Out of the stack while you are pointing at it. In an
 				# overlapping fan the card under the cursor is half-buried by
@@ -109,7 +122,7 @@ func _layout() -> void:
 	var x := (size.x - span) * 0.5
 	for i in n:
 		var v: CardView = order[i]
-		var target := Vector2(x + i * step, 0)
+		var target := Vector2(x + i * step, _baseline())
 		v.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 		if v.position.distance_to(target) < 0.5:
 			continue
