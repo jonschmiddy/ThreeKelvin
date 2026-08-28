@@ -41,6 +41,25 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
+	# THE DRAWER HAS THREE STATES AND A SCREENSHOT ONLY EVER CATCHES THE FIRST.
+	# `open=N` clicks into an option, `take=N` resolves one of its choices, so
+	# LIST -> OPTION -> RESULT can each be photographed. Driving the screen
+	# directly rather than faking a pointer, for the same reason the hover shot
+	# does: there is no pointer.
+	var s0 := Router.current as SectorScreen
+	for a2 in OS.get_cmdline_user_args():
+		if (a2 as String).begins_with("open=") and s0 != null:
+			s0._open = int((a2 as String).substr(5))
+			s0._dstate = SectorScreen.Drawer.OPTION
+			s0._refresh()
+			tag += "_open"
+			for i4 in 20:
+				await RenderingServer.frame_post_draw
+		elif (a2 as String).begins_with("take=") and s0 != null:
+			s0._take(n, s0._open, int((a2 as String).substr(5)))
+			tag += "_result"
+			for i5 in 20:
+				await RenderingServer.frame_post_draw
 	# RULING 1b IS A HOVER STATE, so a screenshot cannot reach it by waiting --
 	# there is no pointer. Setting it directly is the only way to photograph the
 	# preview, and the preview is half of what rulings 1 and 1b are.

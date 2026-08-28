@@ -123,6 +123,40 @@ var _hover_group: StringName = &""
 ## And which ROW in it, because the hovered option is the one thing in the box
 ## that must NOT dim -- it is the row doing the closing.
 var _hover_index: int = -1
+## How tall the drawer is, and therefore how tall the viewport is not.
+##
+## 135 of 540 is a quarter, so the system fills the other three. FIXED rather
+## than sized to content on purpose: the drawer holds three different things --
+## the list, one option, one result -- and if it resized between them the
+## viewport would jump on every click. A view that moves while you are reading it
+## is the thing this layout exists to stop.
+##
+## THE HAND USES IT TOO, so a fight is a clean swap: the system does not resize
+## when something starts shooting.
+const DRAWER_H := 135
+
+## What the drawer is showing.
+##
+## LIST -> OPTION -> RESULT -> LIST, and a fight is just a RESULT that happens on
+## another screen before landing back on LIST -- `after_combat` returns to the
+## sector, and a rebuilt drawer defaults here.
+##
+## THIS IS WHERE RULING 2 LIVES NOW. It said prose plus a check earns its own
+## screen, for pacing: prose you cannot avoid stops being read. The drawer does
+## that job without the swap -- the list gives one line, and the body only
+## appears once you have chosen to look. `EventScreen` is off the option path.
+enum Drawer { LIST, OPTION, RESULT }
+var _dstate: Drawer = Drawer.LIST
+## Which option the drawer has open, or -1.
+var _open: int = -1
+## The outcome being shown, and what the roll said about it.
+var _res: Dictionary = {}
+var _res_band: SkillCheck.Band = SkillCheck.Band.MET
+var _res_checked: bool = false
+var _res_got: String = ""
+## The box the drawer's contents are rebuilt into.
+var _drawer: VBoxContainer
+
 ## Outcome prose for options taken THIS VISIT, keyed by option index.
 ##
 ## Screen-local on purpose. Beat 5 has a resolved row become its outcome text,
@@ -316,162 +350,301 @@ func _build_salvage_rail() -> PanelContainer:
 ## the enemy intent strip does in a fight, so the screen keeps one shape whether
 ## the sector is quiet or not.
 func _build_quiet_strip() -> PanelContainer:
-	# A COLUMN, NOT A ROW. It held one label and one button because a node did one
-	# thing; a system offers two to four and the player chooses among them, so the
-	# place line sits above the list and the departure button below it.
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
-	_quiet_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_quiet_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_quiet_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_quiet_text)
-	_options_box = VBoxContainer.new()
-	_options_box.add_theme_constant_override("separation", 5)
-	col.add_child(_options_box)
-	_action = Widgets.button("", _on_action)
-	_action.custom_minimum_size = Vector2(196, 22)
-	_action.size_flags_horizontal = Control.SIZE_SHRINK_END
-	col.add_child(_action)
-	_quiet_wrap = Widgets.panel_with(col)
+	# `arena` above expands, so pinning this pins the viewport at the remainder
+	# without either of them having to know about the split.
+	_drawer = VBoxContainer.new()
+	_drawer.add_theme_constant_override("separation", 3)
+	_quiet_wrap = Widgets.panel_with(_drawer)
+	_quiet_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
+	_quiet_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
 	return _quiet_wrap
 
 
-# ------------------------------------------------------------------- options
+# -------------------------------------------------------------------- drawer
 
 
-## Everything this system is offering, in the order it was rolled.
-##
-## RULING 6: rolled order, and a group's box sits in its FIRST member's slot
-## rather than being sorted to the top. Sorting it up implies it matters more,
-## which is the one thing a group does not mean -- and rolled order gives each
-## option a stable position per id, which is worth something when lateral travel
-## keeps bringing you back through systems you have already read.
-func _rebuild_options(n: MapGen.MapNode) -> void:
-	Widgets.clear(_options_box)
-	_options_box.visible = false
-	if n == null or n.type != MapGen.NodeType.SYSTEM or n.cleared:
+## Put the right thing in the drawer.
+func _rebuild_drawer(n: MapGen.MapNode) -> void:
+	Widgets.clear(_drawer)
+	if Run.dead:
+		_drawer_simple("Nothing on this hull answers any more.", "SUMMARY")
 		return
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
+		_drawer_simple("The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
+			"ENGAGE THE HELLBENDER")
 		return
-	if n.options.is_empty():
+	if n.type != MapGen.NodeType.SYSTEM:
+		var lines := _quiet_lines(n)
+		_drawer_simple(String(lines[0]), String(lines[1]))
 		return
-	_options_box.visible = true
-	# Which groups still have an untaken member, and which slot each one owns.
-	var placed: Dictionary = {}
-	for i in n.options.size():
-		var opt := OptionTable.by_id(n.options[i])
-		if opt.is_empty():
-			continue
-		var g := StringName(opt.get("group", &""))
-		if g == &"":
-			_options_box.add_child(_option_row(n, i, opt, false))
-			continue
-		if placed.has(g):
-			continue
-		placed[g] = true
-		_options_box.add_child(_group_box(n, g))
+	match _dstate:
+		Drawer.OPTION: _drawer_option(n)
+		Drawer.RESULT: _drawer_result(n)
+		_: _drawer_list(n)
 
 
-## One "one of these" box, holding every option in `g`.
-##
-## RULING 1: exclusivity is shown BEFORE the choice, never after. Learning the
-## group by watching a sibling grey out afterwards is punishing someone for
-## exploring, and it is the failure that makes exclusivity feel arbitrary rather
-## than tense.
-func _group_box(n: MapGen.MapNode, g: StringName) -> Control:
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 4)
-	col.add_child(UITheme.body("ONE OF THESE", UITheme.EMBER, UITheme.FS_SMALL))
-	for i in n.options.size():
-		var opt := OptionTable.by_id(n.options[i])
-		if opt.is_empty() or StringName(opt.get("group", &"")) != g:
-			continue
-		col.add_child(_option_row(n, i, opt, true))
-	var wrap := Widgets.panel_with(col)
-	wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL, UITheme.EMBER.darkened(0.5), 0, 8, 7))
-	return wrap
-
-
-## One option: a line of body, then what you can do about it.
-func _option_row(n: MapGen.MapNode, i: int, opt: Dictionary,
-		grouped: bool) -> Control:
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 2)
-	var oid := MapGen.OPTION_SITE + i
-	if n.taken.has(oid):
-		return _spent_row(col, n, i, opt)
-	# RULING 1b: hovering an option that would close others greys those rows now,
-	# while the choice is still open. Dimming a sibling is the preview; the group
-	# box above is the standing statement that a relationship exists.
-	var closed_by_hover := grouped and _hover_group == StringName(
-		opt.get("group", &"")) and _hover_index != i
-	var body := String(opt.get("body", ""))
-	var lead := UITheme.body(_first_sentence(body),
-		UITheme.COLD.darkened(0.35) if closed_by_hover else UITheme.CHILL,
-		UITheme.FS_SMALL)
-	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(lead)
-	if closed_by_hover:
-		# Plain, because a label that explains a RULE is not the place for the
-		# setting's register: fiction in a rule slot makes the player parse prose
-		# to learn a mechanic. It shares one word with the aftermath line below,
-		# in two tenses, so the second confirms the first.
-		col.add_child(UITheme.body("    BECOMES UNAVAILABLE", UITheme.FLARE,
-			UITheme.FS_SMALL))
-		return col
-	col.add_child(_choices_for(n, i, opt))
-	return col
-
-
-## What a taken option leaves behind.
-##
-## RULING 4: it says who claimed it, and it keeps its slot. An option that
-## silently disappears reads as a bug; one that names what closed it reads as a
-## party. This is why `MapNode.taken` is a list of ids rather than a count.
-func _spent_row(col: VBoxContainer, n: MapGen.MapNode, i: int,
-		opt: Dictionary) -> Control:
-	# `taker_name` is host-authoritative and already returns "" for nobody and for
-	# yourself, so a solo run never sees a name and never has to test for one.
-	var who := Net.taker_name(n.index, MapGen.OPTION_SITE + i)
-	var line := "Unavailable — %s taken" % String(opt.get("title", "it"))
-	if who != "":
-		line = "Taken by %s" % who
-	elif _outcomes.has(i):
-		line = String(_outcomes[i])
-	var lab := UITheme.body(line, UITheme.COLD, UITheme.FS_SMALL)
-	lab.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(lab)
-	return col
-
-
-## The buttons under one option.
-##
-## RULING 2 decides whether they are the choices themselves or a single door into
-## the detail view: an option with BOTH prose and a check has something worth
-## slowing down for, and everything else resolves where it stands.
-func _choices_for(n: MapGen.MapNode, i: int, opt: Dictionary) -> Control:
+## A place with exactly one thing to do: a station, a pulsar, the core.
+func _drawer_simple(line: String, label: String) -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	if _wants_detail(opt):
-		var b := Widgets.button(String(opt.get("title", "LOOK")).to_upper(),
-			func() -> void: Router.show_option_at(i))
-		b.custom_minimum_size = Vector2(200, 22)
-		_watch_hover(b, n, i, opt)
-		row.add_child(b)
-		var chk := _lead_check(opt)
-		if not chk.is_empty():
-			row.add_child(UITheme.body(SkillCheck.badge(chk),
-				SkillCheck.badge_colour(chk), UITheme.FS_SMALL))
-		return row
-	var choices: Array = opt.get("choices", [])
-	for j in choices.size():
-		var c: Dictionary = choices[j]
-		row.add_child(_choice_button(n, i, j, c, opt))
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var t := UITheme.body(line, UITheme.CHILL, UITheme.FS_SMALL)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(t)
+	var b := Widgets.button(label, _on_action)
+	b.custom_minimum_size = Vector2(210, 26)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(b)
+	_drawer.add_child(row)
+
+
+## Everything this system still offers, one condensed line each.
+func _drawer_list(n: MapGen.MapNode) -> void:
+	var left := _untaken(n)
+	if left.is_empty():
+		# RULING 7. Every system rolls two to four, so an empty one only ever
+		# means you took it all -- a small subtraction, not a completion tick.
+		_drawer_simple("Nothing else here wants anything from you.", "PLOT NEXT JUMP")
+		return
+	_drawer.add_child(_drawer_head("%d THING%s OUT HERE WANT%s SOMETHING FROM YOU"
+		% [left.size(), "" if left.size() == 1 else "S",
+			"S" if left.size() == 1 else ""]))
+	var placed: Dictionary = {}
+	for i in left:
+		var opt := OptionTable.by_id(n.options[i])
+		var g := StringName(opt.get("group", &""))
+		if g != &"":
+			if placed.has(g):
+				continue
+			placed[g] = true
+			_drawer.add_child(_group_strip(n, g, left))
+		else:
+			_drawer.add_child(_list_row(n, i, opt))
+
+
+## The drawer's top line, with the way out parked on its right.
+##
+## Departure is on screen in EVERY state, which is what RULING 9 rests on: no
+## option can pretend to be a wall while the exit is visible from inside it.
+func _drawer_head(text: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var l := UITheme.body(text, UITheme.COLD, UITheme.FS_SMALL)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(l)
+	var b := Widgets.button("PLOT NEXT JUMP", _on_action)
+	b.custom_minimum_size = Vector2(148, 17)
+	row.add_child(b)
 	return row
 
 
-## One choice, with what it costs and what it is worth on its face.
+## One condensed option: a stripe, its name, a line of body, and its hardest number.
+func _list_row(n: MapGen.MapNode, i: int, opt: Dictionary) -> Control:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, 21)
+	b.focus_mode = Control.FOCUS_NONE
+	b.flat = true
+	b.pressed.connect(func() -> void:
+		_open = i
+		_dstate = Drawer.OPTION
+		_refresh())
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.add_theme_constant_override("separation", 7)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(row)
+	var bar := ColorRect.new()
+	bar.color = _tag_colour(opt)
+	bar.custom_minimum_size = Vector2(3, 0)
+	row.add_child(bar)
+	var nm := UITheme.body(String(opt.get("title", "")).to_upper(),
+		UITheme.ICE, UITheme.FS_SMALL)
+	nm.custom_minimum_size = Vector2(148, 0)
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(nm)
+	var lead := UITheme.body(_first_sentence(String(opt.get("body", ""))),
+		UITheme.COLD, UITheme.FS_SMALL)
+	lead.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lead.clip_text = true
+	lead.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(lead)
+	# ALWAYS PRESENT, EVEN WHEN EMPTY. The lead above expands into whatever is
+	# left, so a row with no number let its prose run further than a row with
+	# one -- three rows clipping at three different x positions, which reads as
+	# broken text rather than as a column. Reserving the width makes the ragged
+	# edge a straight one.
+	var hint := _row_hint(n, opt)
+	var h := UITheme.body(String(hint[0]), hint[1] as Color, UITheme.FS_SMALL)
+	h.custom_minimum_size = Vector2(196, 0)
+	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.clip_text = true
+	row.add_child(h)
+	return b
+
+
+## The one number a condensed row is allowed.
+##
+## A row that printed every band would be the detail view with worse spacing, so
+## it shows the hardest thing about the option: what is waiting if it opens a
+## fight, else its check, else what it costs.
+func _row_hint(n: MapGen.MapNode, opt: Dictionary) -> Array:
+	for c in opt.get("choices", []):
+		if bool((c as Dictionary).get("fight", false)):
+			return [_contact_reading(n).to_upper(), UITheme.THEM]
+	var chk := _lead_check(opt)
+	if not chk.is_empty():
+		# THE SHORT FORM: what it wants, and the odds. `SkillCheck.badge` also
+		# carries "you have N" and "one more: X%", and both of those are for the
+		# moment you are DECIDING -- in a list they overran the column and clipped
+		# the attribute name off the front, which is the one part the badge exists
+		# to show. The full badge is on the choice button in the OPTION state.
+		return ["%s %d · %d%%" % [SkillCheck.attr_name(chk).to_upper(),
+			int(chk.get("need", 0)), int(round(SkillCheck.odds(chk) * 100.0))],
+			SkillCheck.badge_colour(chk)]
+	for c2 in opt.get("choices", []):
+		var cd := c2 as Dictionary
+		if cd.has("cost_credits"):
+			var cost := int(cd.cost_credits)
+			return ["%d CREDITS" % cost,
+				UITheme.EMBER if Run.credits >= cost else UITheme.FLARE]
+	return ["", UITheme.COLD]
+
+
+## An exclusive set, bracketed.
+##
+## RULING 1: you see what a choice forecloses while you are still deciding. In a
+## drawer this has to be cheap -- a bordered strip and two words, not a box with
+## a caption, because there are only a hundred and thirty-five pixels of it.
+func _group_strip(n: MapGen.MapNode, g: StringName, left: Array) -> Control:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.add_child(UITheme.body("ONE ONLY", UITheme.EMBER, UITheme.FS_SMALL))
+	for i in left:
+		var opt := OptionTable.by_id(n.options[i])
+		if StringName(opt.get("group", &"")) != g:
+			continue
+		col.add_child(_list_row(n, i, opt))
+	var wrap := PanelContainer.new()
+	wrap.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL2, UITheme.EMBER.darkened(0.5), 0, 5, 2))
+	wrap.add_child(col)
+	return wrap
+
+
+## The option you clicked, with its choices.
+func _drawer_option(n: MapGen.MapNode) -> void:
+	var opt: Dictionary = OptionTable.by_id(n.options[_open]) if _open >= 0 \
+		and _open < n.options.size() else {}
+	if opt.is_empty():
+		_dstate = Drawer.LIST
+		_drawer_list(n)
+		return
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var back := Widgets.button("<  BACK", func() -> void:
+		_dstate = Drawer.LIST
+		_open = -1
+		_refresh())
+	back.custom_minimum_size = Vector2(70, 17)
+	head.add_child(back)
+	var t := UITheme.body(String(opt.get("title", "")).to_upper(),
+		UITheme.HOT, UITheme.FS_SMALL)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.add_child(t)
+	var jb := Widgets.button("PLOT NEXT JUMP", _on_action)
+	jb.custom_minimum_size = Vector2(148, 17)
+	head.add_child(jb)
+	_drawer.add_child(head)
+	# THE FULL BODY, and this is the only place it appears. The list showed one
+	# sentence of it; the rest is what looking buys.
+	var body := UITheme.body(String(opt.get("body", "")), UITheme.CHILL,
+		UITheme.FS_SMALL)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_drawer.add_child(body)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 7)
+	var choices: Array = opt.get("choices", [])
+	for j in choices.size():
+		row.add_child(_choice_button(n, _open, j, choices[j] as Dictionary, opt))
+	_drawer.add_child(row)
+
+
+## What happened, until you accept it.
+func _drawer_result(n: MapGen.MapNode) -> void:
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	# NAME THE BAND. The prose is written in fiction and deliberately never says
+	# "you failed", so without this a PARTIAL and a BOTCHED are two paragraphs
+	# you cannot tell apart and the ladder never resolves where you can see it.
+	if _res_checked:
+		head.add_child(UITheme.body(SkillCheck.band_name(_res_band),
+			SkillCheck.band_colour(_res_band), UITheme.FS_SMALL))
+	else:
+		head.add_child(UITheme.body("RESOLVED", UITheme.COLD, UITheme.FS_SMALL))
+	if _res_got != "":
+		head.add_child(UITheme.body(_res_got.to_upper(), UITheme.GOOD,
+			UITheme.FS_SMALL))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(sp)
+	_drawer.add_child(head)
+	var text := UITheme.body(String(_res.get("text", "")), UITheme.HOT,
+		UITheme.FS_SMALL)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_drawer.add_child(text)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 7)
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sp2)
+	if Run.dead:
+		row.add_child(Widgets.button("…", func() -> void: Router.show_game_over()))
+	elif bool(_res.get("fight", false)):
+		# LIST -> FIGHT -> RESULT -> LIST. The fight is a screen of its own and
+		# then `after_combat` returns to the sector, where a rebuilt drawer
+		# defaults to LIST with this option already spent.
+		var f := Widgets.button("THEY ARE ALREADY FIRING", func() -> void:
+			Router.start_ambush())
+		f.custom_minimum_size = Vector2(210, 22)
+		row.add_child(f)
+	else:
+		var c := Widgets.button("CONTINUE", func() -> void:
+			_dstate = Drawer.LIST
+			_open = -1
+			_res = {}
+			_refresh())
+		c.custom_minimum_size = Vector2(148, 22)
+		row.add_child(c)
+	_drawer.add_child(row)
+
+
+## Which options this system still has.
+func _untaken(n: MapGen.MapNode) -> Array:
+	var out: Array = []
+	for i in n.options.size():
+		if OptionTable.by_id(n.options[i]).is_empty():
+			continue
+		if not n.taken.has(MapGen.OPTION_SITE + i):
+			out.append(i)
+	return out
+
+
+## What a tag reads as at three pixels wide. A fight is a threat, salvage is a
+## wreck, a signal is somebody talking.
+func _tag_colour(opt: Dictionary) -> Color:
+	for t in opt.get("tags", []):
+		match StringName(t):
+			&"fight": return UITheme.LEAVE
+			&"salvage": return Color("#9a7b52")
+			&"signal": return Color("#8ec8e6")
+	return UITheme.LINE
 func _choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 		opt: Dictionary) -> Control:
 	var col := VBoxContainer.new()
@@ -479,7 +652,6 @@ func _choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	var b := Widgets.button(String(c.get("label", "…")).to_upper(),
 		func() -> void: _take(n, i, j))
 	b.custom_minimum_size = Vector2(150, 22)
-	_watch_hover(b, n, i, opt)
 	# RULING 8: an unaffordable hard gate greys and says by how much. A gate is a
 	# meter payment and 40 credits genuinely is not 60 -- but a disabled thing
 	# still says what it wants and how far off you are.
@@ -555,19 +727,6 @@ func _contact_reading(n: MapGen.MapNode) -> String:
 ## the callable has run.
 func _opens_fight(c: Dictionary) -> bool:
 	return bool(c.get("fight", false))
-
-
-## Prose AND a number is what earns a screen. Either alone resolves in place.
-func _wants_detail(opt: Dictionary) -> bool:
-	if String(opt.get("body", "")) == "":
-		return false
-	for c in opt.get("choices", []):
-		if (c as Dictionary).has("check"):
-			return true
-	return false
-
-
-## The check a detail-view row shows on its face, if it has exactly one.
 func _lead_check(opt: Dictionary) -> Dictionary:
 	var found: Dictionary = {}
 	var count := 0
@@ -598,53 +757,31 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 		return
 	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 		return
-	var band := SkillCheck.Band.MET
+	_res_checked = c.has("check")
+	_res_band = SkillCheck.Band.MET
 	var call: Callable = c.get("effect", Callable())
-	if c.has("check"):
-		band = SkillCheck.roll(c.check)
-		call = SkillCheck.pick_outcome(c, band)
+	if _res_checked:
+		_res_band = SkillCheck.roll(c.check)
+		call = SkillCheck.pick_outcome(c, _res_band)
 	if c.has("cost_credits"):
 		Run.add_credits(-int(c.cost_credits))
 	var res: Dictionary = call.call() if call.is_valid() else {}
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
-	var got := OptionTable.pay(res, n)
-	# WHAT ARRIVED, APPENDED TO WHAT HAPPENED. A material is the one reward whose
-	# name the prose cannot know -- it is rolled -- so the row says it plainly
-	# rather than leaving the player to notice a number move.
-	var told := String(res.get("text", ""))
-	if got != "":
-		told += "  [%s]" % got
-	_outcomes[i] = told
+	_res = res
+	_res_got = OptionTable.pay(res, n)
+	_outcomes[i] = String(res.get("text", ""))
+	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
+	# hull taken, a module in the hold -- so a player who closed the game on the
+	# result screen must not come back to an option they have already been paid
+	# for. `option_resolved` is the same bookkeeping the old path used.
 	Router.option_resolved(i)
 	if Run.dead:
 		Router.show_game_over()
 		return
-	# The outcome may open a fight, and winning it does not consume the system --
-	# the option spent itself above. Same rule as `Router.start_ambush`.
-	if bool(res.get("fight", false)):
-		Router.start_ambush()
-		return
+	_dstate = Drawer.RESULT
 	_refresh()
 
-
-## Hover drives RULING 1b's preview, so it has to be known per ROW and not only
-## per group -- the hovered row is the one thing in the box that does not dim.
-func _watch_hover(b: Button, n: MapGen.MapNode, i: int, opt: Dictionary) -> void:
-	var g := StringName(opt.get("group", &""))
-	if g == &"":
-		return
-	b.mouse_entered.connect(func() -> void:
-		_hover_group = g
-		_hover_index = i
-		_rebuild_options(n))
-	b.mouse_exited.connect(func() -> void:
-		_hover_group = &""
-		_hover_index = -1
-		_rebuild_options(n))
-
-## The one thing this place offers. Named for the act, not the screen it opens:
-## you dock at a station, you strip a wreck, you answer a hail.
 func _on_action() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if Run.dead:
@@ -915,6 +1052,12 @@ TURN", _on_end_turn)
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
+	# THE SAME HEIGHT AS THE DRAWER, so a fight is a clean swap. The two panels
+	# are mutually exclusive and occupy the same band; matching them means the
+	# system above does not resize the moment something starts shooting, which is
+	# the one frame where a viewport jumping would be most obvious.
+	_hand_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
+	_hand_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
 	return _hand_wrap
 
 func _build_overlay() -> void:
@@ -955,10 +1098,7 @@ func _refresh() -> void:
 	_hand_wrap.visible = at_war
 	_quiet_wrap.visible = not at_war
 	if not at_war:
-		var lines := _quiet_lines(n)
-		_quiet_text.text = lines[0]
-		_action.text = lines[1]
-		_rebuild_options(n)
+		_rebuild_drawer(n)
 
 	_title.text = MapGen.star_name(n)
 	_sub.text = MapGen.place_line(n)
