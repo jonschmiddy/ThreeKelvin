@@ -106,7 +106,15 @@ func run(tree: SceneTree) -> void:
 		return
 	if "status" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
-		Router.start_combat(DB.enemies[&"cutter"], [], false)
+		# WHICH CONTACT, because hull SIZE is what the readouts' placement
+		# depends on: each hangs under its own ship, so two hulls of different
+		# heights put their readouts on different lines. `foe=leviathan` is the
+		# case that shows it; the cutter is the case that hides it.
+		var foe := &"cutter"
+		for af in OS.get_cmdline_user_args():
+			if (af as String).begins_with("foe="):
+				foe = StringName((af as String).substr(4))
+		Router.start_combat(DB.enemies[foe], [], false)
 		for id in 60:
 			await RenderingServer.frame_post_draw
 		var ss := Router.current as SectorScreen
@@ -140,6 +148,21 @@ func run(tree: SceneTree) -> void:
 			print("  status row %.0f wide, %d chips"
 				% [ss._player_chips.size.x, ss._player_chips.get_child_count()])
 			var sv := ss._view.ship_view()
+			# WHERE THE TWO READOUTS ACTUALLY LAND, which is a question two
+			# different rules answer. Yours hangs `PLATE_AIR` below the
+			# sprite's last opaque row, so it tracks YOUR hull. Theirs is
+			# simply the next child after a fixed 240x120 art box, so the
+			# contact's size does not move it at all -- measured across
+			# cutter, hulk, whale and leviathan it spans four pixels, while
+			# yours does not move.
+			#
+			# RULED: leave them on their own rules. The gap is a steady four
+			# to six pixels and yours hugging your ship is what makes it read
+			# as belonging to the ship. Swapping YOUR hull is the case that
+			# would separate them, and that is the case to judge it on.
+			print("  your name y %.0f ; their name y %.0f"
+				% [ss._self_name.global_position.y,
+					ss.view_slot(0)._name.global_position.y])
 			print("  hull centre x %.0f ; plate centre x %.0f  (must match)"
 				% [sv.position.x + sv.size.x * 0.5 + sv.ship_offset_x(),
 					ss._self_plate.position.x + ss._self_plate.size.x * 0.5])
