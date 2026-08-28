@@ -60,12 +60,52 @@ const BAR_W := 120
 
 var _bar: ProgressBar
 var _brace_bar: BracePips
+## Gives `art` a position of its own that the column does not overwrite.
+var _art_holder: Control
 ## Steel, so it never reads as a second kind of hull.
 const ARMOR_COL := Color("#9fb0c4")
 var _hot: bool = false
 ## Told by the view when another slot takes the cursor.
 var claim: Callable
 var _dead: bool = false
+
+## How far off to starboard a contact starts when it engages.
+##
+## Past the edge of the SCREEN rather than the edge of the slot: it should look
+## like it came from somewhere, and a ship that slides in from half a slot away
+## reads as a rendering fault rather than as an approach.
+const ENTER_FROM := 520.0
+const ENTER_SECS := 0.5
+
+
+## Fly in, as the fight opens.
+##
+## Your own approach is `ShipView.arrive()` and is deliberately NOT played when
+## a fight starts -- you were already here, parked. The contact was not: it is
+## the thing that just turned up, so it is the thing that moves.
+## Where the brackets go, in screen space. For `-- sectorshot entrance`, which
+## checks it against the art's own rect -- the two are the same box, and the
+## reticle is wrong the moment they stop being.
+func holder_rect() -> Rect2:
+	return Rect2(_art_holder.global_position, _art_holder.size)
+
+
+func enter(delay: float = 0.0) -> void:
+	if _art_holder == null:
+		return
+	art.position.x = ENTER_FROM
+	# THE READOUT ARRIVES WITH THE SHIP. The name and the hull bar belong to the
+	# slot rather than to the art, so they do not move -- and a bar sitting at
+	# full for a ship that is still off-screen reads as a rendering fault. Fading
+	# the whole slot up over the same window keeps the two halves one event.
+	modulate.a = 0.0
+	create_tween().tween_property(self, "modulate:a", 1.0, ENTER_SECS * 0.7) 		.set_delay(delay)
+	var tw := create_tween()
+	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if delay > 0.0:
+		tw.tween_interval(delay)
+	tw.tween_property(art, "position:x", 0.0, ENTER_SECS)
+
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -113,10 +153,29 @@ func _init() -> void:
 	# of zero let the Control stretch to whatever share of the arena the slot
 	# had, which is what the reticle was then framing. Shrink on both axes and
 	# the Control is the ship's own box.
-	art.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	art.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(art)
+	# A PLAIN CONTROL BETWEEN THE ART AND THE COLUMN, so the art has a position
+	# of its own to animate. A container child's position belongs to the
+	# container -- it is rewritten on the next sort -- so `enter()` tweening it
+	# directly would hold until the next layout pass and then snap back.
+	# `ShipView` needs none of this because its slot is not a container.
+	#
+	# The holder is what the column measures, so the size flags move onto it and
+	# the art fills it.
+	_art_holder = Control.new()
+	_art_holder.custom_minimum_size = Vector2(EnemyArt.W, EnemyArt.H)
+	_art_holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_art_holder.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_art_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_art_holder.clip_contents = false
+	# SIZED, NOT ANCHORED. A full-rect preset would tie the art's position to
+	# the holder's edges, and Godot recomputes an anchored control's position
+	# whenever its parent resizes -- which the holder does on the first layout
+	# pass, a frame after `enter()` has already put the ship off-screen. Free
+	# position, fixed size: the same shape `ShipView` gets for free.
+	art.size = Vector2(EnemyArt.W, EnemyArt.H)
+	_art_holder.add_child(art)
+	col.add_child(_art_holder)
 
 	_name = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -240,10 +299,17 @@ func _draw() -> void:
 	# you are aiming at, which is the one thing you need to still see.
 	var c := UITheme.FLARE
 	var n := 7.0
-	# Simply the art's rect: EnemyArt now sizes itself to the hull, so its box
-	# and the ship are the same thing and the brackets need no correction.
+	# THE HOLDER'S RECT, NOT THE ART'S. EnemyArt sizes itself to the hull, so
+	# either box is the ship -- but the art's position is measured inside the
+	# holder now and is zero at rest, which would draw the brackets in the
+	# slot's top corner. The holder is the one that sits where the column put
+	# it.
+	#
+	# It is also the one that does not move: a reticle should frame the place
+	# the ship is going to be, not chase it in from off-screen.
 	var pad := 2.0
-	var r := Rect2(art.position - Vector2(pad, pad), art.size + Vector2(pad, pad) * 2.0)
+	var r := Rect2(_art_holder.position - Vector2(pad, pad),
+		_art_holder.size + Vector2(pad, pad) * 2.0)
 	var x0 := r.position.x
 	var y0 := r.position.y
 	var w := r.end.x

@@ -104,6 +104,69 @@ func run(tree: SceneTree) -> void:
 		print("wrote ", ProjectSettings.globalize_path("user://menu.png"))
 		tree.quit()
 		return
+	if "entrance" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 5
+		Router.start_combat(DB.enemies[&"cutter"], [], false)
+		var se := Router.current as SectorScreen
+		# SAMPLED EARLY AND LATE, and the early sample is the one that matters.
+		# The last time an animation was checked here it was sampled at 30 frames
+		# against a run of 33, which cannot tell a glide from a snap. Six frames
+		# is a tenth of the way through half a second, so a ship that is NOT
+		# animating reads as zero here and fails loudly.
+		for i8 in 6:
+			await RenderingServer.frame_post_draw
+		var sl0: EnemySlot = se.view_slot(0) if se != null else null
+		print("  contact x at 6 frames:  %.0f  (must not be 0)"
+			% (sl0.art.position.x if sl0 != null else -1.0))
+		tree.root.get_texture().get_image().save_png("user://sector_entrance.png")
+		for i9 in 90:
+			await RenderingServer.frame_post_draw
+		print("  contact x at 96 frames: %.0f  (must be 0)"
+			% (sl0.art.position.x if sl0 != null else -1.0))
+		# THE RETICLE, which reads a rect that just changed meaning. The two
+		# boxes have to coincide once the ship has landed, or the brackets
+		# frame empty space.
+		if sl0 != null:
+			sl0.set_hot(true)
+			for ic in 3:
+				await RenderingServer.frame_post_draw
+			print("  art in slot %s ; holder %s  (must match)"
+				% [sl0.art.get_global_rect(), sl0.holder_rect()])
+			tree.root.get_texture().get_image().save_png("user://sector_reticle.png")
+			print("wrote ", ProjectSettings.globalize_path("user://sector_reticle.png"))
+		print("wrote ", ProjectSettings.globalize_path("user://sector_entrance.png"))
+		tree.quit()
+		return
+	if "pile" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 5
+		Router.start_combat(DB.enemies[&"cutter"], [], false)
+		for ia in 60:
+			await RenderingServer.frame_post_draw
+		var sp := Router.current as SectorScreen
+		if sp != null:
+			# THE DISCARD, because it is the pile that is empty when a fight
+			# opens and so the one whose listing is easy to get wrong. Fed from
+			# the draw pile so the cards are real ones.
+			# NINETEEN, so the flow WRAPS and the scroll has something to
+			# scroll. A one-card discard is the case that cannot fail: it
+			# fits on any row, at any column count, with or without the
+			# ScrollContainer working at all.
+			var seed_from: Array = sp.combat.deck.duplicate()
+			while sp.combat.discard.size() < 19 and not seed_from.is_empty():
+				for c9 in seed_from:
+					sp.combat.discard.append(c9)
+					if sp.combat.discard.size() >= 19:
+						break
+			sp._show_pile("DISCARD PILE", sp.combat.discard, false)
+			for ib in 6:
+				await RenderingServer.frame_post_draw
+			print("  listed %d of %d discards"
+				% [sp._pile_panel.get_child(0).get_child(1).get_child(0)
+					.get_child_count(), sp.combat.discard.size()])
+		tree.root.get_texture().get_image().save_png("user://sector_pile.png")
+		print("wrote ", ProjectSettings.globalize_path("user://sector_pile.png"))
+		tree.quit()
+		return
 	if "combat" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"cutter"], [], false)

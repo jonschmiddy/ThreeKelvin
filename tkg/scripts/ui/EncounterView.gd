@@ -395,6 +395,15 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable) -> void:
 			slot.card_dropped.connect(on_drop)
 			slot.hovered.connect(on_hover)
 			_slots.add_child(slot)
+			# A NEW SLOT IS AN ARRIVAL. This branch runs when the count
+			# changes, which is when a fight opens and when reinforcements
+			# turn up -- both of which are ships that were not here a moment
+			# ago, so both should fly in. Nothing else needs a flag to say
+			# "the first time": the rebuild already means it.
+			#
+			# The dead keep their slots, so a kill does not change the count
+			# and the survivors are never re-flown.
+			slot.enter(float(i) * 0.09)
 			_made.append(slot)
 
 	for i in list.size():

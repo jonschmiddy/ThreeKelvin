@@ -113,6 +113,9 @@ var _deck_label: Label
 var _draw_pile: PileView
 ## The confirmation panel while it is open. See _on_flee.
 var _flee_ask: PanelContainer = null
+## The open pile listing, or null. Built and torn down per open rather than
+## hidden, because its contents change every single turn.
+var _pile_panel: PanelContainer = null
 var _discard_pile: PileView
 var _end_button: Button
 var _hail_button: Button
@@ -1090,6 +1093,18 @@ class PileView extends Control:
 		# panel -- a number on a card back that reshuffles when it runs out.
 		mouse_filter = Control.MOUSE_FILTER_STOP
 
+	## Told when the pile is clicked. Set by whoever built it.
+	var opened: Callable
+
+	func _gui_input(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb == null or not mb.pressed \
+				or mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if opened.is_valid():
+			accept_event()
+			opened.call()
+
 	func set_count(n: int, text: String) -> void:
 		if n == count and text == label:
 			return
@@ -1281,7 +1296,9 @@ func _build_hand() -> PanelContainer:
 	left.add_child(draw_push)
 
 	_draw_pile = PileView.new()
-	_draw_pile.tooltip_text = "DRAW\n\nWhat is left to draw from."
+	_draw_pile.tooltip_text = "DRAW\n\nWhat is left to draw from.\nClick to look."
+	_draw_pile.opened = func() -> void:
+		_show_pile("DRAW PILE", combat.deck, true)
 	left.add_child(_draw_pile)
 	hand_row.add_child(left)
 
@@ -1390,7 +1407,9 @@ func _build_hand() -> PanelContainer:
 	right.add_child(chip_gap)
 
 	_discard_pile = PileView.new()
-	_discard_pile.tooltip_text = "DISCARD\n\nWhat you have played so far."
+	_discard_pile.opened = func() -> void:
+		_show_pile("DISCARD PILE", combat.discard, false)
+	_discard_pile.tooltip_text = "DISCARD\n\nWhat you have played so far.\nClick to look."
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
@@ -1409,6 +1428,117 @@ func _build_hand() -> PanelContainer:
 	_hand_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
 	_hand_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
 	return _hand_wrap
+
+## How many cards fit across the panel before it wraps.
+##
+## Seven at `CARD_W` plus the flow's four is 808, which leaves the 960 a margin
+## either side. Past that the panel would be wider than the screen it is
+## centred in, so the flow wraps and the scroll takes the overflow -- a starting
+## deck is ten cards but nothing stops a run ending with forty.
+const PILE_COLS := 7
+
+
+## What is in a pile.
+##
+## Both piles are public information -- the discard always was, and a draw pile
+## you cannot count is just an unfair surprise -- but they are public in
+## DIFFERENT ways, which is why the draw pile is sorted and the discard is not.
+## The ORDER of the draw pile is the one thing that is genuinely hidden, so
+## showing it in sequence would hand over the next five turns; sorting by name
+## answers "what is left" without answering "what is next". The discard has no
+## such secret, so it reads newest-first, the way you put it there.
+func _show_pile(title: String, cards: Array[CardData], sorted_by_name: bool) -> void:
+	if _pile_panel != null:
+		_close_pile()
+
+	_pile_panel = PanelContainer.new()
+	_pile_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_pile_panel.add_theme_stylebox_override("panel",
+		UITheme.flat(Color(0.031, 0.043, 0.067, 0.95), Color(0, 0, 0, 0), 0, 20, 20))
+	# STOP, so the fight underneath cannot be played through the panel covering
+	# it. A card dropped on an enemy you cannot see is not a click you meant.
+	_pile_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	# CLICK ANYWHERE TO PUT IT DOWN. The cards ignore the mouse and the CLOSE
+	# button eats its own click, so everything that reaches the backdrop is a
+	# click on nothing -- which is the gesture people already try first.
+	_pile_panel.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_close_pile())
+	add_child(_pile_panel)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	_pile_panel.add_child(col)
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	col.add_child(head)
+	head.add_child(UITheme.body(title, UITheme.ICE, UITheme.FS_HEAD))
+	var count := UITheme.body("%d CARDS" % cards.size(), UITheme.COLD, UITheme.FS_SMALL)
+	count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(count)
+	var pad := Control.new()
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(pad)
+	head.add_child(Widgets.button("CLOSE", _close_pile))
+
+	var shown: Array[CardData] = cards.duplicate()
+	if sorted_by_name:
+		shown.sort_custom(func(a: CardData, b: CardData) -> bool:
+			return a.name < b.name)
+	else:
+		shown.reverse()
+
+	if shown.is_empty():
+		var none := UITheme.body("EMPTY", UITheme.COLD, UITheme.FS_SMALL)
+		none.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		none.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		none.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(none)
+		return
+
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_child(scroll)
+
+	var flow := HFlowContainer.new()
+	flow.add_theme_constant_override("h_separation", 4)
+	flow.add_theme_constant_override("v_separation", 4)
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.custom_minimum_size = Vector2(
+		float(PILE_COLS) * (CardView.CARD_W + 4), 0)
+	scroll.add_child(flow)
+
+	for c in shown:
+		var v := CardView.new()
+		# PLAYABLE, WHICH IS A LIE THAT READS TRUE. `set_playable(false)` drops
+		# a card to a third alpha, and `CardView` already records why that is
+		# wrong in bulk: "a hand greyed out end to end reads as unplayable".
+		# A pile listing greyed end to end reads the same way -- as if the
+		# cards had been taken off you rather than merely put down.
+		#
+		# Nothing can be played from here regardless: the flow is not a
+		# `HandView`, which is the parent `CardView` checks before it will
+		# start a drag, and the card ignores the mouse anyway.
+		v.setup(c, true, 1)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		flow.add_child(v)
+
+
+## One enemy slot, for `-- entrance`. The view is private to this screen and
+## the harness has to reach past it to read where the contact actually IS.
+func view_slot(i: int) -> EnemySlot:
+	return _view.slot(i) if _view != null else null
+
+
+func _close_pile() -> void:
+	if _pile_panel == null:
+		return
+	_pile_panel.queue_free()
+	_pile_panel = null
+
 
 func _build_overlay() -> void:
 	_overlay = PanelContainer.new()
