@@ -841,17 +841,17 @@ func hail_reason() -> String:
 	# ONE LABEL FOR A SHUT DOOR, and it has to fit the rail -- which is 68,
 	# because END TURN sets that and the pile is cut to it. "NOT NEGOTIATING"
 	# needed 93 and took the rail to 100, which made the pile landscape; this
-	# needs 66. Three different words for "no" made the button
+	# needs 58. Three different words for "no" made the button
 	# read as three different mechanics -- a player would learn NO REPLY, NO
 	# TERMS and YOU FIRED separately before noticing they are the same greyed
 	# state. The BUTTON says what is true of the button; the TOOLTIP says why,
 	# and why is where the three actually differ.
 	if struck:
-		return "WON'T TALK"
+		return "NO REPLY"
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
 		if t.fauna or t.boss or t.miniboss:
-			return "WON'T TALK"
+			return "NO REPLY"
 	return ""
 
 
@@ -890,6 +890,45 @@ func hail() -> void:
 			end_turn()
 
 
+## Whether the burn has been tried and missed.
+##
+## ONE ATTEMPT. Fleeing used to be a purchase, then a check you could re-roll
+## every turn until it landed -- which is the same thing with extra steps, since
+## a check you may repeat is a check you will eventually pass. Failing it now
+## closes the door: you committed to the burn, they are still on you, and the
+## fight is the only thing left.
+var flee_failed := false
+
+
+## Can you still try to run?
+##
+## Not from the core's guard: that is the fight the run has been travelling
+## towards and there is nowhere past it to run TO. The hellbender is deliberately
+## NOT included -- breaking off it banks the damage you did, which is the whole
+## shape of that chase, and taking that away would quietly delete a mechanic.
+func can_flee() -> bool:
+	if finished or waiting or flee_failed:
+		return false
+	for e in enemies:
+		if (e as EnemyState).template.boss:
+			return false
+	return true
+
+
+## What the button says when it cannot. Empty when it can.
+func flee_reason() -> String:
+	return "" if can_flee() else "NO ESCAPE"
+
+
+## Which shut it, for the tooltip. Empty when open.
+func flee_cause() -> StringName:
+	if can_flee():
+		return &""
+	if flee_failed:
+		return &"failed"
+	return &"boss"
+
+
 ## Breaking contact is MANEUVER, and it can fail.
 ##
 ## It used to be a purchase: six fuel, always granted. That made FLEE the safest
@@ -913,10 +952,11 @@ func flee_check() -> Dictionary:
 
 
 func flee() -> void:
-	if finished:
+	if not can_flee():
 		return
 	var band := SkillCheck.roll(flee_check())
 	if band == SkillCheck.Band.BOTCHED:
+		flee_failed = true
 		# YOU HAVE TO STAY. The burn is spent whether or not it worked, which is
 		# the honest cost of trying: you turned your back to do it.
 		Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)

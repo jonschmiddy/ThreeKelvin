@@ -113,6 +113,7 @@ var _flee_ask: PanelContainer = null
 var _discard_pile: PileView
 var _end_button: Button
 var _hail_button: Button
+var _flee_button: Button
 var _log: LogPanel
 var _quiet_wrap: PanelContainer
 var _quiet_text: Label
@@ -1215,6 +1216,7 @@ func _build_hand() -> PanelContainer:
 	# Thin, and red, and never sitting beside the button you actually want.
 	# Fleeing costs a run's worth of progress; it should take a deliberate aim.
 	var flee := Widgets.button("FLEE", _on_flee)
+	_flee_button = flee
 	flee.custom_minimum_size = Vector2(PileView.W, 16)
 	flee.tooltip_text = "FLEE\n\nRun for it. Maneuver check."
 	flee.add_theme_color_override("font_color", Color("#d4614f"))
@@ -1318,6 +1320,7 @@ func _refresh() -> void:
 	_hand_wrap.visible = at_war
 	_quiet_wrap.visible = not at_war
 	_refresh_hail()
+	_refresh_flee()
 	if not at_war:
 		_rebuild_drawer(n)
 
@@ -1453,6 +1456,31 @@ func _refresh_player() -> void:
 ## and "NO TERMS" on the thing guarding the core both say the rule out loud,
 ## once, at the moment it applies -- and both fit the button, which the first
 ## pair did not.
+## The same shape as `_refresh_hail`, for the same reason.
+##
+## FLEE can be shut two ways now -- you tried and missed, or it is the core's
+## guard and there is nowhere to run to -- and a greyed button with no reason
+## reads as a bug either way.
+func _refresh_flee() -> void:
+	if _flee_button == null:
+		return
+	if not fighting():
+		_flee_button.disabled = true
+		return
+	var why := combat.flee_reason()
+	_flee_button.disabled = why != ""
+	_flee_button.text = why if why != "" else "FLEE"
+	_flee_button.add_theme_color_override("font_color",
+		UITheme.COLD if why != "" else Color("#d4614f"))
+	match combat.flee_cause():
+		&"failed":
+			_flee_button.tooltip_text = "FLEE\n\nYou tried. They are still here."
+		&"boss":
+			_flee_button.tooltip_text = "FLEE\n\nThere is nothing past this."
+		_:
+			_flee_button.tooltip_text = "FLEE\n\nRun for it. Maneuver check."
+
+
 func _refresh_hail() -> void:
 	if _hail_button == null:
 		return
@@ -1833,7 +1861,7 @@ func _on_hail() -> void:
 ## Nothing else in combat costs a run's progress in one press, so nothing else
 ## needs this.
 func _on_flee() -> void:
-	if not fighting() or _flee_ask != null:
+	if not fighting() or _flee_ask != null or not combat.can_flee():
 		return
 
 	var box := VBoxContainer.new()
@@ -1848,7 +1876,7 @@ func _on_flee() -> void:
 	# rather than discovered afterwards.
 	var fchk := combat.flee_check()
 	var body := UITheme.body(
-		"%s. You lose the salvage and burn %d fuel. Fail and you are still here."
+		"%s. You lose the salvage and burn %d fuel. Fail and there is no second try."
 		% [SkillCheck.badge(fchk), Combat.FLEE_FUEL], UITheme.CHILL,
 		UITheme.FS_SMALL)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

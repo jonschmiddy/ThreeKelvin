@@ -120,9 +120,17 @@ func run(tree: SceneTree) -> void:
 			c0.block += 5
 			print("  hail after bracing:   %s (%s)"
 				% [c0.can_hail(), c0.hail_reason()])
+			print("  flee before anything: %s (%s)"
+				% [c0.can_flee(), c0.flee_reason()])
+			c0.flee_failed = true
+			print("  flee after a miss:    %s (%s)"
+				% [c0.can_flee(), c0.flee_reason()])
+			c0.flee_failed = false
 			c0.damage_enemy(1, 1, "probe")
 			print("  hail after a shot:    %s (%s)"
 				% [c0.can_hail(), c0.hail_reason()])
+			print("  flee after a shot:    %s (%s)   <- shooting must NOT block it"
+				% [c0.can_flee(), c0.flee_reason()])
 		if sc != null:
 			# A FULL DISCARD, because that is the state that was broken and an
 			# opening hand never shows it: the stack drew its back cards above
