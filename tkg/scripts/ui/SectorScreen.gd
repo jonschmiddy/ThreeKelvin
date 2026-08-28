@@ -934,7 +934,7 @@ class PileView extends Control:
 	# 62 rather than 66 because the box grew by the four the stack leans by, and
 	# the rail has no four to spare -- the band is a fixed 170 shared with the
 	# drawer, and `-- sectorshot` reports it as 172 the moment this is too big.
-	const H := 62
+	const H := 58
 	var count: int = 0
 	var label: String = ""
 
@@ -988,6 +988,23 @@ class PileView extends Control:
 		draw_string(f, Vector2((W - lw) * 0.5, H + 14), label,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.COLD)
 
+## How far the rails sit below the top of the band.
+##
+## A card's frame starts at the very top of the panel and its CONTENT starts a
+## few pixels in, so rails flush with the frame read as sitting higher than the
+## cards they flank. Six is the difference, and it is paid for out of the pile
+## rather than added to the band -- 170 is shared with the drawer and there is no
+## slack in it.
+const RAIL_DROP := 6
+
+
+## The gap at the top of each rail. Both get it, or they stop being a pair.
+func _rail_drop() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, RAIL_DROP)
+	return c
+
+
 func _build_hand() -> PanelContainer:
 	var hand_row := HBoxContainer.new()
 	hand_row.add_theme_constant_override("separation", 6)
@@ -1000,8 +1017,11 @@ func _build_hand() -> PanelContainer:
 	# further down you looked. ENERGY/END TURN, TURN/FLEE and the two piles are
 	# the same three rows on both sides, and now they start at the same y.
 	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 4)
+	# Three, not four: the drop above costs a gap of its own, and four across
+	# five children pushed the band to 172 against the drawer's 170.
+	left.add_theme_constant_override("separation", 3)
 	left.alignment = BoxContainer.ALIGNMENT_BEGIN
+	left.add_child(_rail_drop())
 
 	# A box of the same width as END TURN opposite it, so the panel reads as a
 	# pair of columns rather than as a pile of leftovers at each end. Label,
@@ -1073,8 +1093,9 @@ func _build_hand() -> PanelContainer:
 	# once a run is a thin red line under it, and the pile you never press at
 	# all is at the bottom.
 	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 4)
+	right.add_theme_constant_override("separation", 3)
 	right.alignment = BoxContainer.ALIGNMENT_BEGIN
+	right.add_child(_rail_drop())
 
 	# Two lines and a box. It is the button you press every single turn, so it
 	# should be the biggest target on the panel — and stacked it reads as a
