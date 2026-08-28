@@ -79,24 +79,41 @@ measuring. `SaveGame` is at **17**.
 ### The phase 9 baseline — 500 runs, 2026-08-27
 
 ```
-runs 500 · wins 177 (35%) · deaths 311 · errors 0
-avg jumps 15.0 · avg kills 3.3 · avg danger reached 7.84
-stranded 1 (0.2%) · dry tank 1 · nowhere in range 0
-options: 3.03 taken per system · 0.29 opened a fight
-spread: Multi-Arm Spiral 50% down to Barred Lenticular 22% (28 points)
+runs 500 · wins 139-146 (28-29%) · errors 0
+avg jumps 14.3 · avg kills 3.5 · avg danger reached 7.47
+options: 0.33 opened a fight
+spread: Collisional Ring 44% down to Grand-Design Spiral 20% (24 points)
 ```
 
-**This is the healthiest the game has been measured.** 35% matches the
-pre-collapse baseline, and the SPREAD is the real result: 28 points across 15
-kinds with a floor of 22%, against 45 points and a floor of 19% at `8e476ff`.
-No kind is unwinnable and no kind is a walkover.
+**Read this next to the number it replaced.** Before the option review the same
+build measured **35%** (177/500). The review cut two options and made a third
+risky, and that cost **six points**. It is not noise: 29% and 28% on consecutive
+500-run samples, and **500-run noise is about ±1** — far tighter than the ±4 a
+200-run reading carries.
+
+**What the cuts actually removed**, which is the part worth keeping in mind
+before cutting content again:
+
+- `coolant_seller` held the pool's **only permanent +3 heat cap**. Reactor-cook
+  went from 28% of deaths to **31%**, and is now level with hull loss as the
+  leading killer.
+- `cold_sleeper` was a fuel and exotic source on an ungated option.
+- `whale_fall`'s "let it rest" paid a free **+8 hull** and now pays nothing; its
+  harvest can cost 11 hull where it previously could not hurt you.
+
+**The reward was load-bearing, the wrapper was not.** A permanent heat cap is the
+only thing in the pool that answers the leading cause of death, and it left the
+game because the fiction around it was weak. If 28% is too low, re-homing that
+reward on a better-written option is the first move and a one-line change to the
+win rate's biggest lever.
 
 **Take 500 before concluding anything.** A 200-run reading is worth ±4 points,
 measured — three consecutive runs of one build gave 20%, 13%, 16%.
 
 **What phase 9 should look at, in order:**
 
-1. **`avg kills 3.3`, down from 6.6.** Fights are now 0.29 an option rather than
+0. **Whether 28% is the target**, and if not, where the heat cap goes. See above.
+1. **`avg kills 3.5`, down from 6.6.** Fights are now 0.29 an option rather than
    a node type, and this is the number that moved most. Is a run with three
    fights in it the game we want? That is a design question, not a bug — but the
    combat system is a lot of machinery to exercise three times.

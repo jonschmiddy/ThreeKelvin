@@ -1188,23 +1188,6 @@ static func _authored() -> Array[Dictionary]:
 			],
 		},
 		{
-			id = &"coolant_seller",
-			title = "Coolant seller",
-			body = "Somebody is selling surplus coolant off the back of a hauler, at a price that is either a favour or a confession. The drums are unlabelled and the seals are the right ones, which is a strange combination to arrive at honestly.",
-			tags = [&"contract"],
-			group = &"",
-			weight = 9,
-			min_development = MapGen.Development.OUTPOST,
-			choices = [
-				{label = "Buy the drums", cost_credits = 20, effect = func() -> Dictionary:
-					Run.add_heat_cap(3)
-					return {text = "It runs cold and it runs clean, and your loop holds three more points of heat than it did this morning. Permanently."}},
-				{label = "Ask where it came from", effect = func() -> Dictionary:
-					Run.add_credits(15)
-					return {text = "He tells you, at length, and the answer is boring enough to be true. You do not buy any. He pays you fifteen to say so to the next ship that asks, which is somehow the better deal."}},
-			],
-		},
-		{
 			id = &"distress_beacon",
 			title = "Distress beacon",
 			body = "A looping voice repeating coordinates one jump off your route, in the flat cadence of a recording that has been running a long time. Whatever is at the other end has been transmitting through a hull big enough to carry a real transmitter — so it is either worth reaching or worth avoiding, and the recording does not say which.",
@@ -1235,24 +1218,37 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"whale_fall",
 			title = "Whale fall",
-			body = "The corpse of something enormous, coming apart slowly in the dark and feeding a whole economy of smaller things while it does. It has been dead long enough to have a population and not long enough to have a smell you can get out of the filters.",
+			body = "The corpse of something enormous, coming apart slowly in the dark and feeding a whole economy of smaller things while it does. It has been dead long enough to have a population. Most of them are too small to matter and a few of them are not, and all of them are busy.",
 			tags = [&"salvage"],
 			group = &"",
 			weight = 8,
 			needs_fauna = true,
 			choices = [
-				{label = "Harvest it", effect = func() -> Dictionary:
-					Run.add_material(&"exotic", 2)
-					return {text = "Two exotic, and a smell you will not forget.", material = &"fauna"}},
+				{label = "Cut into it",
+					check = {attr = &"stealth", need = 4},
+					met = func() -> Dictionary:
+						Run.add_material(&"exotic", 2)
+						return {text = "You work the seam quietly, in the lee of the ribs, and nothing that lives here decides you are worth interrupting a meal for.", material = &"fauna"},
+					clean = func() -> Dictionary:
+						Run.add_material(&"exotic", 2)
+						return {text = "You take what you came for. Something the size of a hatch cover watches you do it and elects not to mind."},
+					partial = func() -> Dictionary:
+						Run.add_material(&"exotic", 1)
+						Run.take_hull_damage(5, "Something feeding on the whale fall took an interest in the ship.")
+						return {text = "Halfway through the cut the population decides collectively that you are competition. You leave with less than you wanted and a new set of scratches."},
+					botched = func() -> Dictionary:
+						Run.take_hull_damage(11, "The whale fall was still occupied, and it objected.")
+						return {text = "It is not the big ones. It is that there are so many of the small ones, and that they all arrive at once."}},
+				{label = "Take what has come loose", effect = func() -> Dictionary:
+					return {text = "There is enough drifting clear of it to fill a bay without cutting anything, or annoying anything.", material = &"fauna"}},
 				{label = "Let it rest", effect = func() -> Dictionary:
-					var h := Run.heal(8)
-					return {text = "You drift alongside it a while and do not cut anything. Hull +%d, and hard to explain afterwards." % h}},
+					return {text = "You hold station a while and take nothing off it. It is doing something on its own schedule and will be doing it long after you are not."}},
 			],
 		},
 		{
 			id = &"inspection_sweep",
 			title = "Inspection sweep",
-			body = "A patrol is stopping everything through this lane, and the reason is parked behind them: a hauler pulled over two days ago and abandoned by its crew, its load sitting on the apron under a seizure notice nobody has come to execute. The queue moves slowly. Whatever is on that apron goes to the yard at the end of the week.",
+			body = "A patrol is stopping everything through this lane, and the reason is parked behind them: a hauler pulled over two days ago and abandoned by its crew, its load sitting in the impound under a seizure notice nobody has come to execute. The queue moves slowly. Whatever is still in the impound at the end of the week goes to the breakers.",
 			tags = [&"contract"],
 			group = &"",
 			weight = 10,
@@ -1262,8 +1258,8 @@ static func _authored() -> Array[Dictionary]:
 					var lost := Run.contraband_count()
 					if lost > 0:
 						Run.add_credits(-20 * lost)
-						return {text = "They find what you are carrying and price it into the paperwork, and you pay both bills. What is left on the apron is still worth more than the morning cost you.", module = true}
-					return {text = "Clean, waved through, and first in line for an apron nobody else waited out. The seizure clerk is glad of the company and the price is what it says on the notice.", module = true, material = &"wreck"}},
+						return {text = "They find what you are carrying and price it into the paperwork, and you pay both bills. What is left in the impound is still worth more than the morning cost you.", module = true}
+					return {text = "Clean, waved through, and first in line for an impound nobody else waited out. The seizure clerk is glad of the company and the price is what it says on the notice.", module = true, material = &"wreck"}},
 				{label = "Talk your way to the front",
 					check = {attr = &"stealth", need = 4},
 					met = func() -> Dictionary:
@@ -1271,17 +1267,17 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "Your registry says you are already cleared, because for the forty seconds it took them to read it, it did.", module = true},
 					clean = func() -> Dictionary:
 						Run.add_credits(30)
-						return {text = "You come out of the queue two hours early and take the smaller half of the apron, which is still a half."},
+						return {text = "You come out of the queue two hours early and take the smaller half of the impound, which is still a half."},
 					partial = func() -> Dictionary:
-						Run.take_hull_damage(4, "A patrol skiff crowded you off the apron.")
-						return {text = "They notice, and the noticing is expensive in the way that costs paint rather than credits. You leave with nothing off the apron."},
+						Run.take_hull_damage(4, "A patrol skiff crowded you off the impound gate.")
+						return {text = "They notice, and the noticing is expensive in the way that costs paint rather than credits. You leave with nothing out of the impound."},
 					botched = func() -> Dictionary:
 						Run.add_credits(-45)
-						return {text = "You are fined for the attempt, itemised, and made to wait anyway. The apron is empty by the time you reach it."}},
+						return {text = "You are fined for the attempt, itemised, and made to wait anyway. The impound is empty by the time you reach it."}},
 				{label = "Burn away", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 6)
 					Run.take_hull_damage(4, "You ran the lane, and something clipped you on the way out.")
-					return {text = "You run. Six fuel, four hull, no record — and the apron goes to the yard on Friday without you."}},
+					return {text = "You run. Six fuel, four hull, no record — and the impound goes to the breakers on Friday without you."}},
 			],
 		},
 		{
@@ -1299,22 +1295,6 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Strip it for scrap", effect = func() -> Dictionary:
 					Run.add_credits(35)
 					return {text = "Thirty-five credits of plating and wire, and a frame left a little more gutted than you found it.", material = &"wreck"}},
-			],
-		},
-		{
-			id = &"cold_sleeper",
-			title = "Cold sleeper",
-			body = "A single cryopod, still drawing power from a cell that has been dying for a while and will finish soon. The occupant's chart reads three degrees. Everything else about the pod is working exactly as designed, which is the part that takes a moment.",
-			tags = [&"signal"],
-			group = &"",
-			weight = 9,
-			choices = [
-				{label = "Restore power", cost_credits = 10, effect = func() -> Dictionary:
-					Run.add_material(&"exotic", 1)
-					return {text = "They live, briefly, and are lucid for less of it than you would want. What they give you they had been holding since before the cell started to go."}},
-				{label = "Take the power cell", effect = func() -> Dictionary:
-					Run.fuel += 9
-					return {text = "Three jumps. The pod goes dark behind you, on the schedule it was already on."}},
 			],
 		},
 		{
