@@ -1871,7 +1871,8 @@ class MapChart extends Control:
 		if StarchartScreen._region_on:
 			var here: MapGen.MapNode = Run.node_at()
 			if here != null:
-				frame_region(here)
+				# Snapped, not glided: nobody asked for this move.
+				frame_region(here, 0.24, false)
 				return
 		# `_view_map` is a galaxy fingerprint: a new run is a new galaxy and an
 		# old pan means nothing in it.
@@ -2460,7 +2461,16 @@ class MapChart extends Control:
 	func frame_galaxy() -> void:
 		glide_to(ZOOM_MIN, Vector2.ZERO)
 
-	func frame_region(here: MapGen.MapNode, span: float = 0.24) -> void:
+	## `animate` false SNAPS, which is what an ARRIVAL wants.
+	##
+	## `glide_to` tweens for half a second and repaints the galaxy on every frame
+	## of it. That is right for a PRESS -- you asked for the view to move, and
+	## watching it travel is how you keep your bearings -- and wrong for a jump,
+	## where the screen is rebuilt at ZOOM_MIN and then visibly zooms itself in.
+	## Reported as jitter with LOCAL REGION on, and absent with it off for exactly
+	## this reason: the off path assigns and repaints once.
+	func frame_region(here: MapGen.MapNode, span: float = 0.24,
+			animate: bool = true) -> void:
 		if Run.map.is_empty() or here == null:
 			return
 		var lo := Vector2.INF
@@ -2478,14 +2488,28 @@ class MapChart extends Control:
 			# Nothing near you but you. Centre on the ship at a readable zoom
 		# rather than dividing by a span of nothing.
 			var solo := clampf(2.0, ZOOM_MIN, ZOOM_MAX)
-			glide_to(solo, -_polar(here) * solo)
+			_go_to(solo, -_polar(here) * solo, animate)
 			return
 		var box := (hi - lo).max(Vector2.ONE)
 		# A margin, or the outermost system sits on the frame edge with its name
 		# label hanging off the chart.
 		var want := minf(size.x / (box.x + 180.0), size.y / (box.y + 140.0))
 		var z := clampf(want, ZOOM_MIN, ZOOM_MAX)
-		glide_to(z, -((lo + hi) * 0.5) * z)
+		_go_to(z, -((lo + hi) * 0.5) * z, animate)
+
+	## Travel there, or simply be there.
+	##
+	## The snap is the same two assignments the remembered-view restore makes,
+	## and that path was already smooth -- there is no third way of moving the
+	## chart, only the question of whether the move is watched.
+	func _go_to(z: float, p: Vector2, animate: bool) -> void:
+		if animate:
+			glide_to(z, p)
+			return
+		zoom = z
+		pan = p
+		_clamp_pan()
+		_repaint_sky()
 
 	## Move the SKY to match a jump the view just made.
 	##

@@ -67,7 +67,11 @@ func run(tree: SceneTree) -> void:
 		for on in [false, true]:
 			StarchartScreen._region_on = on
 			Router.show_starchart()
-			for iA in 30:
+			# THREE FRAMES, NOT THIRTY. A glide runs 0.55s -- about thirty-three
+			# frames -- so sampling at thirty reads almost the end state and
+			# cannot tell a snap from an animation nearly finished. If the view
+			# is already final here, nothing tweened.
+			for iA in 3:
 				await RenderingServer.frame_post_draw
 			var st := Router.current as StarchartScreen
 			if st != null and st._chart != null:
