@@ -1886,15 +1886,26 @@ const SENSE_REACH := 0.25
 ##   will not draw is a memory test.
 ## - where you are standing.
 ##
-## WHERE YOU HAVE BEEN IS NOT ON THIS LIST, deliberately, and that changed
-## 2026-08-27 after the third report of "systems outside my sensor range". The
-## ring is the boundary a player reads; a glyph outside it says the ring is
-## lying. `Run.trail` still draws the route you flew, so history is a PATH rather
-## than a set of places you can somehow still see.
+## - a system you have VISITED. Ruled 2026-08-27: *"The chart SHOULD draw the
+##   sectors that you have been, even if they're out of range. It's a historical
+##   marker."* It is not a claim about what is there NOW, which is why the chart
+##   draws it dimmed rather than lit -- see `StarchartScreen`'s remembered tint.
+##
+## THIS WAS BRIEFLY REMOVED AND THAT WAS AN OVER-CORRECTION, worth recording
+## because the reasoning looked sound. Three reports of "systems outside my
+## sensor range" pointed at this clause, so it went. The reports were real and
+## this was not the cause: the ship in them had made a handful of jumps and the
+## systems it could see were SENSED, by a dish whose floor was 1.5x its own jump
+## range. Fixing the radius fixed the complaint; deleting history as well threw
+## away a thing the player wanted and had never objected to.
+##
+## The lesson is not about charts. Two candidate causes were on the table, one
+## measured and one plausible, and both were changed at once -- so the fix could
+## not be told apart from the damage until somebody noticed the damage.
 func charted(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
-	return n.sensed or n.index == at or station_heard(n.index) \
+	return n.sensed or n.visited or n.index == at or station_heard(n.index) \
 		or contract_at(n.index) != null
 
 

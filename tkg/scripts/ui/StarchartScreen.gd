@@ -38,6 +38,15 @@ var _dest_blurb: Label
 var _rows: VBoxContainer
 var _hint: Label
 var _neigh: VBoxContainer
+## The box holding it, resized to the list up to `NEIGH_H`.
+var _neigh_scroll: ScrollContainer
+
+## Eight rows of the in-range list, and the rest scrolls. Eight because it is the
+## most that fits above JUMP without the panel needing to be taller than the
+## chart beside it.
+const NEIGH_H := 128
+## One row plus its separation, for sizing the box to the list.
+const NEIGH_ROW := 16.0
 var _jump: Button
 
 ## -1 is no selection, which is how the chart opens: the galaxy first, and a
@@ -176,7 +185,21 @@ func _build() -> void:
 	right.add_child(_hint)
 	_neigh = VBoxContainer.new()
 	_neigh.add_theme_constant_override("separation", 1)
-	right.add_child(_neigh)
+	# A CEILING, because the list is as long as the galaxy is generous and JUMP
+	# sits under it. Seventeen rows in a built-up ship's range pushed the button
+	# off the bottom of the panel outright -- the one control the screen exists
+	# to reach. Any list that grows without a bound will do that eventually; this
+	# one just got there first.
+	#
+	# Scrolled rather than truncated, because every row is somewhere you can
+	# legally fly and hiding a destination is worse than making it a scroll.
+	_neigh_scroll = ScrollContainer.new()
+	_neigh_scroll.custom_minimum_size = Vector2(0, NEIGH_H)
+	_neigh_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_neigh_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_neigh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_neigh_scroll.add_child(_neigh)
+	right.add_child(_neigh_scroll)
 	_jump = Widgets.button("JUMP", _on_jump)
 	_jump.custom_minimum_size = Vector2(0, 24)
 	right.add_child(_jump)
@@ -382,7 +405,20 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 	for n in Run.in_range():
 		if (n as MapGen.MapNode).sensed:
 			near.append(n)
+	# TELEGRAPHED FIRST, then nearest. Distance alone buried the four places the
+	# chart actually names among fourteen it deliberately does not: RULING 1 says
+	# every system but a station looks identical until you fly to it, so a list
+	# sorted by distance is a list of near-identical rows with the notable ones
+	# scattered through it.
+	#
+	# This orders by what the chart ALREADY tells you and never by what a system
+	# holds -- reading `options` here would be the chart answering the question
+	# arrival is for.
 	near.sort_custom(func(x, y):
+		var rx := _notable(x)
+		var ry := _notable(y)
+		if rx != ry:
+			return rx < ry
 		return MapGen.hop_distance(here, x) < MapGen.hop_distance(here, y))
 	if near.is_empty():
 		_hint.text = "Nothing in range. The tank is too low to reach anything."
@@ -391,10 +427,47 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 	for n in near:
 		if not (n as MapGen.MapNode).cleared:
 			fresh += 1
+	var named := 0
+	for n in near:
+		if _notable(n) < 4:
+			named += 1
+	# The count first, because it is the number that decides whether to farm or
+	# dive, then what the top of the list is -- otherwise a player who sees a
+	# station at the top assumes the list is sorted by distance and misreads
+	# every row under it.
 	_hint.text = "IN RANGE - %d SYSTEM%s, %d UNTOUCHED" % [
 		near.size(), "" if near.size() == 1 else "S", fresh]
+	if named > 0:
+		_hint.text += " - %d NAMED FIRST" % named
 	for n in near:
 		_neigh.add_child(_neighbour_row(n))
+	# TO THE LIST, UP TO THE CEILING. A fixed box is a bounded box, but it also
+	# holds its full height for a two-row list and leaves the panel with a hole
+	# in it. `NEIGH_H` is a maximum, not a size.
+	_neigh_scroll.custom_minimum_size = Vector2(0,
+		minf(float(near.size()) * NEIGH_ROW, float(NEIGH_H)))
+
+## How far up the in-range list a system sits. Lower is higher.
+##
+## ONLY WHAT THE CHART TELEGRAPHS. A contract target because somebody paid you to
+## find it, the core because it is the run, a station because it is the one node
+## type the chart names, a pulsar because it is placed against a nebula and you
+## can see the shell. Everything else is an ordinary system and they are
+## interchangeable from here BY DESIGN -- which is exactly why they sort below.
+##
+## Cleared last, and still listed: knowing the nearby ground is already stripped
+## is what decides whether you farm on or dive.
+func _notable(n: MapGen.MapNode) -> int:
+	if n.cleared and n.type != MapGen.NodeType.CORE:
+		return 5
+	if Run.contract_at(n.index) != null:
+		return 0
+	match n.type:
+		MapGen.NodeType.CORE: return 1
+		MapGen.NodeType.STATION: return 2
+		MapGen.NodeType.PULSAR: return 3
+	return 4
+
 
 ## One system in the list: its icon, its name, its danger and what it costs.
 func _neighbour_row(n: MapGen.MapNode) -> Control:
@@ -2072,17 +2145,14 @@ class MapChart extends Control:
 			var tint := MapGen.region_colour(node2)
 			if node2.cleared and node2.type != MapGen.NodeType.CORE:
 				tint = Color("#37424f")
-			# REMEMBERED, NOT SEEN. Reported three times as "I can see systems
-			# beyond my range", and the filter was right every time: `visited` is
-			# never cleared, deliberately, because where you have BEEN is a track
-			# record and not a sighting. `-- chartfilter` prices it at thirteen to
-			# fifteen systems behind you after twenty-five jumps.
+			# REMEMBERED, NOT SEEN, and both are meant to be on the chart: where
+			# you have been is a historical marker and stays, which is a ruling.
 			#
-			# The fault was that memory and live sight were drawn IDENTICALLY, so
-			# a chart full of remembered systems looked like a dish reaching much
-			# further than it does, and the ring appeared to be lying. Dimming is
-			# the whole fix: the bright systems are the ones you can see right
-			# now, and the ring is their boundary.
+			# So the whole job here is telling them apart. Drawn identically, a
+			# chart carrying a run's worth of history looked like a dish reaching
+			# far past its own ring, and the ring read as a lie. Dimmed, the lit
+			# systems are the ones you can see RIGHT NOW and the ring is their
+			# boundary; the dim ones are places you have been.
 			#
 			# Not `cleared`'s dead grey, which says "spent". These keep their
 			# region colour because they are still real places you might route

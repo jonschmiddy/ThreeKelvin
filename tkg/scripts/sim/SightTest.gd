@@ -93,6 +93,8 @@ func _beyond() -> void:
 			var reason := ""
 			if t.index == here.index:
 				reason = "here"
+			elif t.visited:
+				reason = "visited"
 			elif t.sensed:
 				reason = "sensed"
 			elif Run.station_heard(t.index):
