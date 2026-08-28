@@ -24,7 +24,9 @@ func run(tree: SceneTree) -> void:
 			Rng.forced = int((a as String).substr(5))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var want_group := "group" in OS.get_cmdline_user_args()
-	var target := _find(want_group)
+	# `start` photographs the node the run opens on, which is the one place with
+	# its own drawer height.
+	var target := Run.at if "start" in OS.get_cmdline_user_args() else _find(want_group)
 	if target < 0:
 		print("no system %s found on seed %d"
 			% ["with a group" if want_group else "with options", Rng.forced])

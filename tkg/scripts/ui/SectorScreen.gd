@@ -369,6 +369,7 @@ func _build_quiet_strip() -> PanelContainer:
 ## Put the right thing in the drawer.
 func _rebuild_drawer(n: MapGen.MapNode) -> void:
 	Widgets.clear(_drawer)
+	_size_drawer(n)
 	if Run.dead:
 		_drawer_simple("Nothing on this hull answers any more.", "SUMMARY")
 		return
@@ -386,6 +387,27 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 		_: _drawer_list(n)
 
 
+## How tall the drawer is for this place.
+##
+## THE START IS THE ONE EXCEPTION and it is deliberately narrow. Every other
+## place gets the fixed `DRAWER_H`, because the drawer swaps between a list, an
+## option and a result and a band that resized between them would make the
+## viewport jump on every click. The start swaps between nothing: it says one
+## line, offers one button, and you leave. A hundred and seventy pixels of panel
+## holding forty of content is just a hole under the ship.
+##
+## Costs one resize, on the first jump of a run, between a screen you see once
+## and every screen after it. That is a fair price for not opening the game on a
+## mostly empty box -- and it is the FIRST thing anybody sees.
+func _size_drawer(n: MapGen.MapNode) -> void:
+	var start := n != null and n.type == MapGen.NodeType.START and not Run.dead
+	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if start else DRAWER_H)
+	# The panel's own padding has to come down with it, or twelve above and
+	# twelve below is most of what is left.
+	_quiet_wrap.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 6 if start else 12, 12))
+
+
 ## A place with exactly one thing to do: a station, a pulsar, the core.
 func _drawer_simple(line: String, label: String) -> void:
 	var row := HBoxContainer.new()
@@ -397,7 +419,9 @@ func _drawer_simple(line: String, label: String) -> void:
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(t)
 	var b := Widgets.button(label, _on_action)
-	b.custom_minimum_size = Vector2(210, 26)
+	# 150, not 210. It was sized to balance a drawer that was mostly empty around
+	# it; against a bar the width of its own label it read as a slab.
+	b.custom_minimum_size = Vector2(150, 24)
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(b)
 	_drawer.add_child(row)
