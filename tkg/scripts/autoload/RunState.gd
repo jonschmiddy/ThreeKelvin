@@ -1945,24 +1945,21 @@ func sense_radius() -> float:
 func sense_radius_of(here: MapGen.MapNode) -> float:
 	if map.is_empty() or here == null:
 		return 0.0
-	# NEVER LESS THAN YOU CAN FLY, and that is what lets the floor be 1.0.
+	# THE DISH ALONE, and nothing about the engine. Ruled 2026-08-28: a thruster
+	# buys reach and a dish buys sight, and neither pays for the other.
 	#
-	# 1.5 was not a feel decision, it was a load-bearing one: `thrust_reach()`
-	# clamps at 1.4, so any floor under that let a fast ship REACH a system its
-	# own dish could not SEE -- and `can_jump_to` requires `sensed`, so the system
-	# became permanently unjumpable. The floor was sitting just above the thrust
-	# clamp to prevent that, and it cost every ship a view it had not earned.
+	# SO REACH CAN OUTRUN SIGHT, on purpose. A heavy hull with no sensors flies
+	# 1.6x the base radius and sees 1.0x, and the systems in the gap are drawn,
+	# priced, and refused -- `can_jump_to` wants `sensed`, and the chart says NOT
+	# SCANNED rather than inventing a reason. That is the trade being legible: an
+	# engine with no dish behind it is range you cannot spend.
 	#
-	# Taking the max decouples them. Reach can grow however it likes and sight
-	# follows it for free, so the floor is free to describe what a DISH is worth
-	# rather than what a thruster might do.
-	#
-	# WHICH MAKES THE RULE SAYABLE: with no dish you see exactly as far as you can
-	# fly, which is about five systems. Every pip of SENSORS shows you further
-	# than you can go. That is the whole of it, and it is why the two rings sit on
-	# top of each other on a ship that has bought no sensors.
-	return maxf(range_from(here),
-		_map_range_from(here) * (SENSE_FLOOR + float(attr_sensors()) * SENSE_REACH))
+	# This USED to be `maxf(range_from(here), ...)`, which kept the two in step
+	# and was defended on the grounds that a reachable-but-unseen system is a
+	# trap. It is not a trap once the screen says so; it is a reason to fit
+	# sensors. The floor stays 1.0 because it now means one thing only -- what a
+	# ship with no dish at all can make out, which is about five systems.
+	return _map_range_from(here) * (SENSE_FLOOR + float(attr_sensors()) * SENSE_REACH)
 
 
 ## Mark everything within sight of `here` as charted.

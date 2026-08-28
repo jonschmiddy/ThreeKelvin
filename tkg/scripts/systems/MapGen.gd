@@ -18,8 +18,6 @@ enum Development { UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL }
 ## it across five files, and collapsing three axes onto one label in exactly one
 ## place beats teaching every one of those sites the new vocabulary.
 enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
-## PULSAR is last on purpose: type_label indexes this by value, and inserting
-## in the middle would silently relabel every node type after it.
 ## WHAT KIND OF PLACE, never what is in it. FIGHT, EVENT and DERELICT were
 ## removed 2026-08-27: what a system holds is `options` now, and those three were
 ## only ever labels for what got rolled there.
@@ -560,8 +558,24 @@ static func region_colour(n: MapNode) -> Color:
 		return Color("#6f8296")
 	return Color("#41505f")
 
+## What kind of place this is, in a word.
+##
+## FROM THE ENUM ITSELF, so it cannot drift from it. This was a hand-written
+## array indexed by the enum value, and the collapse on 2026-08-27 renumbered
+## every value without touching it: STATION read "FIGHT", CORE read "STATION",
+## PULSAR read "EVENT" and SYSTEM read "DERELICT". Four of five node types named
+## themselves wrong on the sector screen for a day.
+##
+## Nothing failed. The array was still seven entries long and every lookup was
+## still in bounds, which is the whole hazard of a parallel array: it does not
+## break when it stops corresponding, it just answers a different question.
+##
+## The warning was even written down, above the enum -- "type_label indexes this
+## by value, and inserting in the middle would silently relabel every node type
+## after it". It survived the edit it was warning about because it was a comment
+## and comments do not run. `keys()` does.
 static func type_label(t: NodeType) -> String:
-	return ["START", "FIGHT", "STATION", "EVENT", "DERELICT", "CORE", "PULSAR"][t]
+	return NodeType.keys()[t]
 
 static func development_name(d: Development) -> String:
 	return ["Unclaimed", "Outpost", "Settlement", "City", "Capital"][d]

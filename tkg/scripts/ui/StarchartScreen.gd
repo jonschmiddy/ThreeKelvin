@@ -1918,8 +1918,18 @@ class MapChart extends Control:
 			if Run.charted(n):
 				out[(n as MapGen.MapNode).index] = true
 		out[here.index] = true
-		for r in reach:
-			out[(r as MapGen.MapNode).index] = true
+		# ENGINE RANGE IS NOT SIGHT. This used to add everything `in_range()`
+		# returns, which is pure geometry and knows nothing about the dish -- so a
+		# ship with a big thruster and no sensors was shown systems it had never
+		# resolved, could select them, and got a fuel quote for them.
+		#
+		# Ruled 2026-08-28: "you still shouldn't be able to SEE those sectors
+		# unless you have the sensor range to see them." Reach beyond sight is
+		# real and allowed -- it is simply range you cannot spend until you fit a
+		# dish, and an unspendable range draws nothing.
+		#
+		# Nothing is lost by dropping the clause: anything reachable AND sensed is
+		# already in by `Run.charted`.
 		if selected >= 0:
 			out[selected] = true
 		if hovered >= 0 and hovered < Run.map.size():
