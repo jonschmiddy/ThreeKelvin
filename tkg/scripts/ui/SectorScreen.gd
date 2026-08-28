@@ -931,16 +931,24 @@ class PileView extends Control:
 	# At 86 the left rail came to about 179 and pushed the whole panel past the
 	# drawer it is supposed to swap with.
 	const W := 60
-	# 62 rather than 66 because the box grew by the four the stack leans by, and
-	# the rail has no four to spare -- the band is a fixed 170 shared with the
-	# drawer, and `-- sectorshot` reports it as 172 the moment this is too big.
-	const H := 58
+	# 52 IS THE CEILING, swept rather than guessed: the band is a fixed 170 shared
+	# with the drawer, and `-- sectorshot` reports 171 at 53 and 175 at 57. Every
+	# pixel this gains comes straight off the panel it has to fit inside.
+	#
+	# It has come down from 86 in three steps, each paying for something the rail
+	# gained -- the fixed band, then the stack's lean, then the air under the
+	# label. If it needs to be bigger the room has to come from somewhere else in
+	# the column, because there is none here.
+	const H := 52
 	var count: int = 0
 	var label: String = ""
 
 	func _init() -> void:
-		# H, plus the four the stack leans by, plus room for the label under it.
-		custom_minimum_size = Vector2(W, H + 16)
+		# H, plus the four the stack leans by, plus room for the label under it,
+		# plus the same gap under THAT as the rails carry above them -- the piles
+		# are the last thing in each column and sat flush against the panel edge
+		# while everything above them had six of air.
+		custom_minimum_size = Vector2(W, H + 16 + SectorScreen.RAIL_DROP)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func set_count(n: int, text: String) -> void:

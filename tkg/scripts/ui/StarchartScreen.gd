@@ -1850,16 +1850,36 @@ class MapChart extends Control:
 			# call was missing. Everything that derives a view from the panel --
 			# this, and `frame_region` -- has to wait for layout.
 			_restored = true
-			if StarchartScreen._view_zoom > 0.0 \
-					and StarchartScreen._view_map == Run.map.size():
-				zoom = StarchartScreen._view_zoom
-				pan = StarchartScreen._view_pan
-				_clamp_pan()
-				_repaint_sky()
+			_arrive()
 		if what == NOTIFICATION_RESIZED:
 			# _radius() is derived from size, so every cached position is stale
 			# -- including the two fixed layers, which is why this is the one
 			# caller that wants `_repaint_sky` rather than `_repaint_galaxy`.
+			_repaint_sky()
+
+	## What an arrival does to the view, which is what LOCAL REGION is FOR.
+	##
+	## ON, the chart follows you: every arrival re-frames on the region you are
+	## standing in, so the ship is always in the middle of what you are looking
+	## at. OFF, the chart stays exactly where you left it -- same zoom, same pan
+	## -- so you can park on a distant approach and keep watching it across
+	## several jumps.
+	##
+	## The toggle used to persist while doing NOTHING on arrival, which read as
+	## broken: it stayed lit and the view sat wherever the last jump had left it.
+	func _arrive() -> void:
+		if StarchartScreen._region_on:
+			var here: MapGen.MapNode = Run.node_at()
+			if here != null:
+				frame_region(here)
+				return
+		# `_view_map` is a galaxy fingerprint: a new run is a new galaxy and an
+		# old pan means nothing in it.
+		if StarchartScreen._view_zoom > 0.0 \
+				and StarchartScreen._view_map == Run.map.size():
+			zoom = StarchartScreen._view_zoom
+			pan = StarchartScreen._view_pan
+			_clamp_pan()
 			_repaint_sky()
 
 	## The event horizon's shadow, and the region around it that the ANIMATED

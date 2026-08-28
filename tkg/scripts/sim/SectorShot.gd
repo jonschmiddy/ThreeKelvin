@@ -56,6 +56,25 @@ func run(tree: SceneTree) -> void:
 	# menu, and reports where the menu's own chart actually ended up -- which is
 	# the bug: both screens build the same MapChart, and the memory is on the
 	# class rather than on the instance.
+	# `region` proves what LOCAL REGION does to an arrival. ON, the chart must
+	# re-frame on where you are standing; OFF, it must come back exactly where
+	# you left it. Both are one flag and one code path, so one of them silently
+	# doing the other's job is the failure to watch for.
+	if "region" in OS.get_cmdline_user_args():
+		StarchartScreen._view_zoom = 3.0
+		StarchartScreen._view_pan = Vector2(-420.0, 260.0)
+		StarchartScreen._view_map = Run.map.size()
+		for on in [false, true]:
+			StarchartScreen._region_on = on
+			Router.show_starchart()
+			for iA in 30:
+				await RenderingServer.frame_post_draw
+			var st := Router.current as StarchartScreen
+			if st != null and st._chart != null:
+				print("  LOCAL REGION %-3s -> pan %s zoom %.2f"
+					% ["ON" if on else "OFF", st._chart.pan, st._chart.zoom])
+		tree.quit()
+		return
 	if "menu" in OS.get_cmdline_user_args():
 		StarchartScreen._view_zoom = 3.0
 		StarchartScreen._view_pan = Vector2(-420.0, 260.0)
