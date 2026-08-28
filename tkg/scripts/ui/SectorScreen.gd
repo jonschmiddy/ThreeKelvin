@@ -395,18 +395,14 @@ func _build_salvage_rail() -> PanelContainer:
 ## panel, which would put it off the ship's nose.
 const PLATE_W := 120
 ## How far under the hull the plate sits.
-const PLATE_DROP := 56.0
-
-## Where along the slot the plate is centred, as a fraction.
+## How much air between the hull's last row and the top of the bar.
 ##
-## MEASURED, NOT DERIVED, and `ShipView.setup_preview` says why in as many words:
-## "a hull occupies about a third of the canvas vertically and is centred in it
-## ... horizontally it is NOT centred". So there is no fraction of the slot that
-## lands on the hull by construction -- `HULL_BIAS * 0.5` centres the CANVAS, and
-## the ship inside it sits left of that.
-##
-## This is where the hull actually draws, read off a screenshot at 960x540.
-const PLATE_X := 0.26
+## AIR UNDER THE SHIP, not distance from its middle, which is what `PLATE_DROP`
+## measured and why it read as neither centred nor clear: the hull is about a
+## third of its canvas, so 56 from the middle lands wherever that particular
+## hull happens to end. The enemy's own readout sits about this far under its
+## art, and the two sides of the fight should agree.
+const PLATE_AIR := 26.0
 
 func _build_self_plate() -> void:
 	var col := VBoxContainer.new()
@@ -416,6 +412,11 @@ func _build_self_plate() -> void:
 
 	_self_bar = ProgressBar.new()
 	_self_bar.custom_minimum_size = Vector2(PLATE_W, 6)
+	# SHRINK, or the bar is as wide as the widest thing under it. A VBox fills
+	# its children horizontally by default, and the status row is the child that
+	# grows -- so a fight with five effects running would have stretched the
+	# hull bar to match, and the bar's LENGTH is a reading. It has to mean hull.
+	_self_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_self_bar.show_percentage = false
 	_self_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_self_bar)
@@ -449,25 +450,24 @@ func _build_self_plate() -> void:
 	# Parenting settles both: the offset is measured once, against the art, and
 	# the arrival carries the plate in with the ship.
 	_self_plate = col
-	col.offset_left = -PLATE_W * 0.5
-	col.offset_right = PLATE_W * 0.5
-	col.offset_top = PLATE_DROP
-	col.offset_bottom = PLATE_DROP
-	col.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	col.grow_vertical = Control.GROW_DIRECTION_END
+	col.size = Vector2(PLATE_W, 0)
 	# THE SLOT, NOT THE ART. `ShipView` animates its own position on arrival and
 	# its control is wider than the sprite inside it, so centring on that control
-	# put the plate off the hull's nose and moving with it. The slot is stable.
-	var slot: Control = _view.ship_view().get_parent()
-	col.anchor_left = PLATE_X
-	col.anchor_right = PLATE_X
-	col.anchor_top = 0.5
-	col.anchor_bottom = 0.5
-	col.offset_left = -PLATE_W * 0.5
-	col.offset_right = PLATE_W * 0.5
-	col.offset_top = PLATE_DROP
-	col.offset_bottom = PLATE_DROP
-	slot.add_child(col)
+	# put the plate off the hull's nose and moving with it. The slot is stable,
+	# is a plain Control rather than a container, and so leaves a child's
+	# position alone -- which is what `_place_self_plate` then sets.
+	_view.ship_view().get_parent().add_child(col)
+	# ON RESIZE, NOT JUST ON REFRESH. The first version placed the plate only
+	# from `_refresh_self_plate`, which runs before the slot has been laid out
+	# -- `ship_bottom_y` had no canvas to measure yet and the ship's control was
+	# still half its eventual height, so the plate landed eighty pixels above
+	# the hull and stayed there.
+	#
+	# Both signals matter and for different reasons: the ship resizing moves the
+	# hull, and the plate resizing changes what "centred" means, because a
+	# status row wider than the bar widens the box the bar sits in.
+	_view.ship_view().resized.connect(_place_self_plate)
+	col.resized.connect(_place_self_plate)
 
 
 ## What there is to do here, when nothing is shooting. Occupies the same band as
@@ -1699,6 +1699,32 @@ func _refresh_self_plate() -> void:
 	_self_hp.add_theme_color_override("font_color",
 		UITheme.LEAVE if frac < 0.34 else (UITheme.EMBER if frac < 0.67
 			else UITheme.HULL_GREEN))
+	_place_self_plate()
+
+
+## Under the hull, centred on the hull.
+##
+## MEASURED FROM THE SPRITE, not from the box around it. `PLATE_X` was 0.26 of
+## the slot's width, arrived at by looking at a screenshot, and it was wrong the
+## moment anything about the layout moved -- which is how it came to sit off to
+## port of the ship it belongs to. `ship_offset_x` is the same question answered
+## by the image itself, and `ship_bottom_y` is the vertical half of it.
+##
+## The canvas is drawn `STRETCH_KEEP_CENTERED`, so the control's middle IS the
+## canvas's middle and both offsets are corrections from there.
+func _place_self_plate() -> void:
+	if _self_plate == null or _view == null:
+		return
+	var sv := _view.ship_view()
+	if sv == null:
+		return
+	# ITS OWN WIDTH, not `PLATE_W`. The box is as wide as its widest child and
+	# the status row can be twice the bar, so halving the CONSTANT centres a
+	# narrower plate than the one actually on screen.
+	_self_plate.position = Vector2(
+		sv.position.x + sv.size.x * 0.5 + sv.ship_offset_x()
+			- _self_plate.size.x * 0.5,
+		sv.position.y + sv.size.y * 0.5 + sv.ship_bottom_y() + PLATE_AIR)
 
 
 
@@ -1708,15 +1734,27 @@ func _refresh_player() -> void:
 	_energy.setup(BoxGauge.Mode.ENERGY, Run.reactor(), combat.energy)
 	_energy_text.text = "%d/%d" % [combat.energy, Run.reactor()]
 
+	# EVERY EFFECT ON YOUR HULL, AS A PICTURE. See `StatusChip` for why these
+	# stopped being words: five words under a sprite is a paragraph, five icons
+	# is a glance, and the word survives in the tooltip.
+	#
+	# The colours are the ones the words already carried, because colour is what
+	# says whose an effect is -- the two blues are yours, ember is a timer, and
+	# the drones share one steel.
 	Widgets.clear(_player_chips)
 	if combat.brace > 0:
-		_player_chips.add_child(Widgets.chip("brace %d" % combat.brace, Color("#3a5a6e")))
+		_player_chips.add_child(StatusChip.make(&"brace", str(combat.brace),
+			Color("#3a5a6e"), "BRACE\n\nSoaks %d damage, then goes." % combat.brace))
 	if combat.block > 0:
-		_player_chips.add_child(Widgets.chip("block %d" % combat.block, Color("#3a4a6e")))
+		_player_chips.add_child(StatusChip.make(&"block", str(combat.block),
+			Color("#3a4a6e"), "BLOCK\n\nStops %d damage this turn." % combat.block))
 	if combat.lock_on > 0:
-		_player_chips.add_child(Widgets.chip("lock +%d" % combat.lock_on, Color("#6e5a3a")))
+		_player_chips.add_child(StatusChip.make(&"lock", "+%d" % combat.lock_on,
+			Color("#6e5a3a"), "LOCK ON\n\nYour next attack deals %d more."
+				% combat.lock_on))
 	if combat.negate_next:
-		_player_chips.add_child(Widgets.chip("slip ready", UITheme.GOOD))
+		_player_chips.add_child(StatusChip.make(&"slip", "", UITheme.GOOD,
+			"SLIP\n\nThe next hit on you misses."))
 	# SALVO IS NOT A STATUS, BUT ITS CONDITION IS. The keyword lives on the card
 	# -- "if you have already attacked this turn, +N" -- so there is nothing on
 	# the ship to show. What IS on the ship is `attacks_this_turn`, which decides
@@ -1728,21 +1766,31 @@ func _refresh_player() -> void:
 	if combat.attacks_this_turn > 0:
 		for c in combat.hand:
 			if (c as CardData).salvo > 0:
-				_player_chips.add_child(Widgets.chip("salvo up", UITheme.EMBER))
+				_player_chips.add_child(StatusChip.make(&"salvo", "", UITheme.EMBER,
+					"SALVO UP\n\nYou have attacked this turn, so salvo cards\nin your hand are worth more."))
 				break
 	if combat.feedback > 0:
-		_player_chips.add_child(Widgets.chip("feedback %d" % combat.feedback))
+		_player_chips.add_child(StatusChip.make(&"feedback", str(combat.feedback),
+			Color("#6e3a4a"), "FEEDBACK\n\nAttackers take %d back." % combat.feedback))
 	if combat.adapt_bonus > 0:
-		_player_chips.add_child(Widgets.chip("adapt +%d" % combat.adapt_bonus))
-	for d in combat.drones:
-		_player_chips.add_child(Widgets.chip("drone %d" % d.damage, Color("#5a7a94")))
+		_player_chips.add_child(StatusChip.make(&"adapt", "+%d" % combat.adapt_bonus,
+			Color("#4a6e3a"), "ADAPT\n\nAdapting cards deal %d more."
+				% combat.adapt_bonus))
+	for d2 in combat.drones:
+		_player_chips.add_child(StatusChip.make(&"drone", str(d2.damage),
+			Color("#5a7a94"), "DRONE\n\nAttacks for %d at the end of your turn."
+				% d2.damage))
 	if combat.drone_brace > 0:
-		_player_chips.add_child(Widgets.chip("wasp %d" % combat.drone_brace, Color("#5a7a94")))
-	for c in combat.charging:
-		_player_chips.add_child(Widgets.chip(
-			"%s · %d" % [c.card.name, c.turns_left], UITheme.EMBER))
+		_player_chips.add_child(StatusChip.make(&"wasp", str(combat.drone_brace),
+			Color("#5a7a94"), "WASP\n\nYour drones add %d brace." % combat.drone_brace))
+	for c2 in combat.charging:
+		_player_chips.add_child(StatusChip.make(&"charging", str(c2.turns_left),
+			UITheme.EMBER, "%s\n\nFires in %d." % [c2.card.name, c2.turns_left]))
 	if combat.enemy.template.fauna and combat.peaceful_turns > 0:
-		_player_chips.add_child(Widgets.chip("peaceful %d/2" % combat.peaceful_turns))
+		_player_chips.add_child(StatusChip.make(&"peaceful",
+			"%d/2" % combat.peaceful_turns, Color("#4a6e5a"),
+			"PEACEFUL\n\nIt has not been provoked for %d turns."
+				% combat.peaceful_turns))
 
 ## RULING 8's shape: a disabled thing says what it wants.
 ##

@@ -531,8 +531,21 @@ class AreaView extends Control:
 		node = n
 		queue_redraw()
 
+	## The sector pictures are OFF while their real art is drawn.
+	##
+	## Everything below this line still works and is still correct; it is
+	## placeholder art, and placeholder art that is good enough to read is
+	## exactly the kind that quietly becomes the shipped answer. Empty space
+	## says "not drawn yet" in a way a passable procedural station does not.
+	##
+	## One switch rather than a deletion: the kit underneath -- the two-plane
+	## bodies, the six-stop ramps, the dither -- is the vocabulary the real
+	## sprites will be checked against, and START already proves the screen
+	## reads fine with nothing in it.
+	const SHOW_PLACES := false
+
 	func _draw() -> void:
-		if node == null:
+		if node == null or not SHOW_PLACES:
 			return
 		var c := (size * 0.5).round()
 		var tint := MapGen.region_colour(node)

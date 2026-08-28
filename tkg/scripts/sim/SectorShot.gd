@@ -104,6 +104,75 @@ func run(tree: SceneTree) -> void:
 		print("wrote ", ProjectSettings.globalize_path("user://menu.png"))
 		tree.quit()
 		return
+	if "status" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 5
+		Router.start_combat(DB.enemies[&"cutter"], [], false)
+		for id in 60:
+			await RenderingServer.frame_post_draw
+		var ss := Router.current as SectorScreen
+		if ss != null and ss.combat != null:
+			var cs := ss.combat
+			cs.brace = 5
+			cs.block = 3
+			cs.lock_on = 2
+			cs.negate_next = true
+			cs.feedback = 2
+			cs.adapt_bonus = 1
+			cs.drone_brace = 1
+			ss._refresh_player()
+			for ie in 4:
+				await RenderingServer.frame_post_draw
+			# THE ROW HAS TO FIT UNDER THE SHIP. Icons were the answer to a row
+			# of words that grew wider than the hull it belonged to, so the
+			# width is the number that says whether it worked.
+			print("  status row %.0f wide, %d chips"
+				% [ss._player_chips.size.x, ss._player_chips.get_child_count()])
+			var sv := ss._view.ship_view()
+			print("  hull centre x %.0f ; plate centre x %.0f  (must match)"
+				% [sv.position.x + sv.size.x * 0.5 + sv.ship_offset_x(),
+					ss._self_plate.position.x + ss._self_plate.size.x * 0.5])
+			print("  hull bottom y %.0f ; plate top y %.0f"
+				% [sv.position.y + sv.size.y * 0.5 + sv.ship_bottom_y(),
+					ss._self_plate.position.y])
+		tree.root.get_texture().get_image().save_png("user://sector_status.png")
+		print("wrote ", ProjectSettings.globalize_path("user://sector_status.png"))
+
+		# EVERY GLYPH AT ONCE, because a status row only ever shows the handful
+		# the fight happens to have produced. Half of these cannot be reached
+		# without a specific card in a specific hand, and an icon nobody has
+		# looked at is an icon nobody has checked.
+		var sheet := PanelContainer.new()
+		sheet.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		sheet.add_theme_stylebox_override("panel",
+			UITheme.flat(Color(0.031, 0.043, 0.067, 1.0), Color(0, 0, 0, 0), 0, 24, 24))
+		tree.root.add_child(sheet)
+		var grid := HFlowContainer.new()
+		grid.add_theme_constant_override("h_separation", 18)
+		grid.add_theme_constant_override("v_separation", 14)
+		sheet.add_child(grid)
+		for kind in [&"brace", &"block", &"lock", &"slip", &"salvo", &"feedback",
+				&"adapt", &"drone", &"wasp", &"charging", &"peaceful", &"unknown"]:
+			var cell := VBoxContainer.new()
+			cell.add_theme_constant_override("separation", 4)
+			cell.alignment = BoxContainer.ALIGNMENT_CENTER
+			var big := StatusChip.Glyph.new(kind, Color("#7a94b4"))
+			big.custom_minimum_size = Vector2(StatusChip.ICON, StatusChip.ICON) * 4.0
+			big.scale = Vector2(4, 4)
+			var pad := Control.new()
+			pad.custom_minimum_size = Vector2(StatusChip.ICON, StatusChip.ICON) * 4.0
+			pad.add_child(big)
+			cell.add_child(pad)
+			cell.add_child(StatusChip.make(kind, "9", Color("#7a94b4"), ""))
+			var cap := UITheme.body(String(kind), UITheme.COLD, 10)
+			cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			cell.add_child(cap)
+			grid.add_child(cell)
+		for ig in 6:
+			await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("user://status_sheet.png")
+		print("wrote ", ProjectSettings.globalize_path("user://status_sheet.png"))
+		tree.quit()
+		return
 	if "entrance" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		Router.start_combat(DB.enemies[&"cutter"], [], false)

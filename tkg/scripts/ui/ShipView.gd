@@ -373,6 +373,25 @@ func canvas_width() -> float:
 func canvas_height() -> float:
 	return float(_h * _k)
 
+## How far BELOW the canvas's middle the hull's last opaque row falls.
+##
+## The vertical twin of `ship_offset_x`, and it exists for the same reason: a
+## hull occupies about a third of its canvas, so anything placed a fixed
+## distance from the middle is placed a fixed distance from nothing. A light
+## hull and a heavy one want the same air under them, not the same number.
+##
+## The bob is subtracted. It moves the drawn rows a couple of pixels either way
+## several times a second, and a readout that recomputed its place from a bobbing
+## sprite would twitch every time the screen refreshed.
+func ship_bottom_y() -> float:
+	if _img == null:
+		return 0.0
+	var r := _img.get_used_rect()
+	if r.size.y <= 0:
+		return 0.0
+	return (float(r.end.y) - float(bob_offset()) - float(_h) * 0.5) * float(_k)
+
+
 func ship_offset_x() -> float:
 	if _img == null:
 		return 0.0
