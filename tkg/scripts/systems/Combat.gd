@@ -756,12 +756,137 @@ func damage_enemy(amount: int, hits: int, label: String,
 ## warning cannot drift from the charge.
 const FLEE_FUEL := 6
 
+## What a hail is checked against, and how hard.
+##
+## STEALTH, because talking your way out of this universe is not charm, it is
+## looking like a ship nobody wants the paperwork of. There is precedent in the
+## option table: `inspection_sweep`'s "talk your way to the front" is a Stealth
+## check for exactly the same act.
+##
+## 3 is a real ladder rather than a formality: a hull with no stealth at all is
+## on the 20% band and a Redline launches at 2, which puts it on 65%. That is
+## the manufacturer difference showing up in a button rather than in a tooltip.
+const HAIL_ATTR := &"stealth"
+const HAIL_NEED := 3
+
+## What a failed hail costs. Heat, never hull.
+##
+## `ENCOUNTER_GENERATION.md` §1: a sneak costs DETECTION. Broadcasting on an open
+## channel to something that did not take the offer is exactly that, and a botch
+## must surprise in degree rather than in kind -- so this is never damage.
+const HAIL_HEAT_PARTIAL := 6
+const HAIL_HEAT_BOTCHED := 14
+
+
+## Can this contact be talked to at all?
+##
+## RULED: not fauna and not a boss. You do not negotiate with something that
+## hunts by smell, and the thing guarding the core is not there to be reasoned
+## with -- it is the run's ending. `EnemyTemplate` already carries both flags, so
+## the gate needs no new data.
+func can_hail() -> bool:
+	if finished or waiting or enemies.is_empty():
+		return false
+	for e in enemies:
+		var t: EnemyTemplate = (e as EnemyState).template
+		if t.fauna or t.boss or t.miniboss:
+			return false
+	return true
+
+
+## Why not, for the button to say. Empty when it can.
+##
+## RULING 8's shape: a disabled thing states what it wants. "HAIL" greyed with no
+## reason reads as a bug in a way that "NOT LISTENING" never does.
+func hail_reason() -> String:
+	if enemies.is_empty():
+		return ""
+	for e in enemies:
+		var t: EnemyTemplate = (e as EnemyState).template
+		if t.fauna:
+			return "NO REPLY"
+		if t.boss or t.miniboss:
+			return "NO TERMS"
+	return ""
+
+
+## Talk your way out.
+##
+## The same exit `flee` buys, bought with words: the contact breaks off, there is
+## no salvage, and the node is marked so the sector offers a jump rather than the
+## fight again. What it does NOT cost is the six fuel -- that is the whole point
+## of having stealth on the ship.
+##
+## Failure is loud rather than damaging. You have broadcast, and they did not
+## take it.
+func hail() -> void:
+	if not can_hail():
+		return
+	var chk := {attr = HAIL_ATTR, need = HAIL_NEED}
+	var band := SkillCheck.roll(chk)
+	match band:
+		SkillCheck.Band.MET, SkillCheck.Band.CLEAN:
+			Run.node_at().fled = true
+			Sig.resources_changed.emit()
+			_finish(&"hailed",
+				"They listen, decide you are not worth the paperwork, and go.")
+		SkillCheck.Band.PARTIAL:
+			Run.heat += HAIL_HEAT_PARTIAL
+			Run.node_at().fled = true
+			Sig.resources_changed.emit()
+			_finish(&"hailed",
+				"They break off, slowly, and take a long look at you on the way past.")
+		_:
+			Run.heat += HAIL_HEAT_BOTCHED
+			Sig.resources_changed.emit()
+			Run.log_line(
+				"You hail on an open channel. It tells them exactly where you are.",
+				&"heat")
+			end_turn()
+
+
+## Breaking contact is MANEUVER, and it can fail.
+##
+## It used to be a purchase: six fuel, always granted. That made FLEE the safest
+## button on the panel -- every fight had a guaranteed exit and the only question
+## was whether you minded the price. A check makes leaving a thing your ship is
+## either good at or is not, and puts MANEUVER -- which had almost nothing to do
+## outside dodge -- on a button you reach for under pressure.
+##
+## 3 against a ladder that runs 4/6/8 by hull class: a light frame is on the good
+## bands and a heavy is on the bad ones, which is what a light frame is FOR.
+const FLEE_ATTR := &"maneuver"
+const FLEE_NEED := 3
+
+## The ugly version of getting away. Beyond `FLEE_FUEL`, not instead of it.
+const FLEE_FUEL_PARTIAL := 10
+
+
+## What a flee would roll, for the panel to print before you commit.
+func flee_check() -> Dictionary:
+	return {attr = FLEE_ATTR, need = FLEE_NEED}
+
+
 func flee() -> void:
 	if finished:
+		return
+	var band := SkillCheck.roll(flee_check())
+	if band == SkillCheck.Band.BOTCHED:
+		# YOU HAVE TO STAY. The burn is spent whether or not it worked, which is
+		# the honest cost of trying: you turned your back to do it.
+		Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
+		Sig.resources_changed.emit()
+		Run.log_line(
+			"You commit to the burn and they are still on you when it ends.",
+			&"heat")
+		end_turn()
 		return
 	# One number, named once. The line said 2 while the code took 6 — a
 	# discrepancy the player pays and the log denies.
 	Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
+	if band == SkillCheck.Band.PARTIAL:
+		# Out, but the expensive way round. In domain: a burn costs fuel.
+		Run.fuel = maxi(0, Run.fuel - FLEE_FUEL_PARTIAL)
 	# So the sector you are dropped back onto offers a jump rather than the
 	# fight you just paid six fuel to leave.
 	Run.node_at().fled = true
@@ -772,7 +897,8 @@ func flee() -> void:
 	if not is_shared() and not enemies.is_empty() and enemies[0].template.miniboss:
 		Run.hellbender_scarred(enemies[0].hp)
 	Sig.resources_changed.emit()
-	_finish(&"fled", "You burned %d fuel breaking contact. No salvage." % FLEE_FUEL)
+	_finish(&"fled", "You burned %d fuel breaking contact. No salvage."
+		% (FLEE_FUEL + (FLEE_FUEL_PARTIAL if band == SkillCheck.Band.PARTIAL else 0)))
 
 func _victory() -> void:
 	Run.kills += 1

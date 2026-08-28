@@ -121,6 +121,25 @@ func run(tree: SceneTree) -> void:
 		if sc != null:
 			print("  hand band: %.0f  drawer band: %.0f  (DRAWER_H %d)"
 				% [sc._hand_wrap.size.y, sc._quiet_wrap.size.y, SectorScreen.DRAWER_H])
+			# WHAT EACH RAIL ACTUALLY MEASURES, because a minimum is not a size:
+			# a button's stylebox padding can push it well past what it was asked
+			# for, and the band then reports a number no single constant explains.
+			var rails: Array[Control] = [sc._end_button, sc._hail_button]
+			for r2 in rails:
+				if r2 != null:
+					print("    %-10s %.0f" % [r2.text, r2.size.y])
+			var col: Control = sc._end_button.get_parent()
+			var tot := 0.0
+			for ch in col.get_children():
+				tot += (ch as Control).size.y
+			print("    right rail children total %.0f in %.0f"
+				% [tot, col.size.y])
+			for ch2 in col.get_children():
+				print("      R %-14s %.0f" % [(ch2 as Control).name, (ch2 as Control).size.y])
+			var lcol: Control = sc._energy.get_parent().get_parent().get_parent()
+			print("    left rail %.0f" % lcol.size.y)
+			for ch3 in lcol.get_children():
+				print("      L %-14s %.0f" % [(ch3 as Control).name, (ch3 as Control).size.y])
 		tree.root.get_texture().get_image().save_png("user://sector_combat.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_combat.png"))
 		tree.quit()

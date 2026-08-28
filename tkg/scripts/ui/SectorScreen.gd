@@ -112,6 +112,7 @@ var _draw_pile: PileView
 var _flee_ask: PanelContainer = null
 var _discard_pile: PileView
 var _end_button: Button
+var _hail_button: Button
 var _log: LogPanel
 var _quiet_wrap: PanelContainer
 var _quiet_text: Label
@@ -389,23 +390,25 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 
 ## How tall the drawer is for this place.
 ##
-## THE START IS THE ONE EXCEPTION and it is deliberately narrow. Every other
-## place gets the fixed `DRAWER_H`, because the drawer swaps between a list, an
-## option and a result and a band that resized between them would make the
-## viewport jump on every click. The start swaps between nothing: it says one
-## line, offers one button, and you leave. A hundred and seventy pixels of panel
-## holding forty of content is just a hole under the ship.
+## THE BOOKENDS ARE NARROW. A system gets the fixed `DRAWER_H`, because its
+## drawer swaps between a list, an option and a result and a band that resized
+## between those would make the viewport jump on every click. The start and the
+## core swap between nothing: each says one line, offers one button, and that is
+## the whole of it. A hundred and seventy pixels of panel holding forty of
+## content is a hole under the ship, and these two are the first and last things
+## anybody sees.
 ##
-## Costs one resize, on the first jump of a run, between a screen you see once
-## and every screen after it. That is a fair price for not opening the game on a
-## mostly empty box -- and it is the FIRST thing anybody sees.
+## Costs one resize on the first jump of a run and one on the last. Stations and
+## pulsars are the same shape and could have the same treatment; they are left
+## alone because each one would add a resize to a transition that has none, and
+## unlike these two you dock at them repeatedly.
 func _size_drawer(n: MapGen.MapNode) -> void:
-	var start := n != null and n.type == MapGen.NodeType.START and not Run.dead
-	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if start else DRAWER_H)
+	var bookend := n != null and not Run.dead 		and (n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.CORE)
+	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.
 	_quiet_wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 6 if start else 12, 12))
+		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 6 if bookend else 12, 12))
 
 
 ## A place with exactly one thing to do: a station, a pulsar, the core.
@@ -922,6 +925,17 @@ func _dead_strip_note() -> void:
 ## chips and y=654 with one, either way.
 const CHIP_ROW_H := 18
 
+## The right rail's answer to the chip row, and it is NOT the same number.
+##
+## The left spends ENERGY, TURN and the chips above its pile; the right spends
+## three buttons. Those two blocks do not come to the same height on their own --
+## a bevel button has a floor and the chips do not -- so this gap is sized to
+## make up the difference, which is what keeps the two piles level.
+##
+## Measured, not derived: `-- sectorshot combat` prints every child of both
+## rails, and this is what makes them both 164.
+const RIGHT_GAP := 20
+
 class PileView extends Control:
 	# Big enough to read as a card rather than as an icon of one.
 	#
@@ -930,7 +944,14 @@ class PileView extends Control:
 	# and the spare is gone now the band is a fixed 170 shared with the drawer.
 	# At 86 the left rail came to about 179 and pushed the whole panel past the
 	# drawer it is supposed to swap with.
-	const W := 60
+	# 68, NOT 60, and the reason is a word. Every button on both rails is cut to
+	# this width, and "END TURN" on one line does not fit 60 -- it wrapped, came
+	# out at 24 against its neighbours' 16, and no amount of stylebox padding was
+	# ever going to explain that. The eight pixels come off the card area, which
+	# has them.
+	# 68, NOT 60. Every button on both rails is cut to this width, and "END TURN"
+	# wants the room to stay on one line.
+	const W := 68
 	# 52 IS THE CEILING, swept rather than guessed: the band is a fixed 170 shared
 	# with the drawer, and `-- sectorshot` reports 171 at 53 and 175 at 57. Every
 	# pixel this gains comes straight off the panel it has to fit inside.
@@ -958,6 +979,17 @@ class PileView extends Control:
 		label = text
 		queue_redraw()
 
+	## The card inside the column, which is NARROWER than the column.
+	##
+	## `W` is the rail's width and every button on both sides is cut to it, so
+	## narrowing that narrows the whole panel. The card is drawn at `CARD_W`
+	## instead, centred -- 44 against 52 tall reads as a card standing up, where
+	## 60 against 52 read as a tile.
+	const CARD_W := 44
+
+	func _card_x() -> float:
+		return float(W - CARD_W) * 0.5
+
 	func _draw() -> void:
 		# Up to three backs, offset, so the pile has depth without needing to
 		# draw one rect per card. Depth is the only thing the extra backs are
@@ -972,19 +1004,20 @@ class PileView extends Control:
 			# The stack still leans up and to the right; the whole thing is just
 			# offset down by as far as it leans, so the deepest card starts at
 			# zero instead of the front one.
-			var o := Vector2(i * 2, float(shown - 1 - i) * 2.0)
-			var r := Rect2(o, Vector2(W, H))
+			var o := Vector2(_card_x() + float(i) * 2.0, float(shown - 1 - i) * 2.0)
+			var r := Rect2(o, Vector2(CARD_W, H))
 			draw_rect(r, UITheme.PANEL2, true)
 			draw_rect(r, UITheme.LINE, false, 1.0)
-			draw_rect(Rect2(o + Vector2(3, 3), Vector2(9, H - 6)), Color("#2b3646"), true)
-			draw_rect(Rect2(o + Vector2(W * 0.5 - 7, H * 0.5 - 7), Vector2(14, 14)),
+			draw_rect(Rect2(o + Vector2(3, 3), Vector2(7, H - 6)), Color("#2b3646"), true)
+			draw_rect(Rect2(o + Vector2(CARD_W * 0.5 - 7, H * 0.5 - 7), Vector2(14, 14)),
 				Color("#3a4a5e"), true)
-			draw_rect(Rect2(o + Vector2(W * 0.5 - 3, H * 0.5 - 3), Vector2(6, 6)),
+			draw_rect(Rect2(o + Vector2(CARD_W * 0.5 - 3, H * 0.5 - 3), Vector2(6, 6)),
 				UITheme.PANEL2, true)
 		if shown == 0:
 			# An empty pile still holds its place, or the hand jumps sideways the
 			# turn your draw pile runs out.
-			draw_rect(Rect2(Vector2(0, 4), Vector2(W, H)), Color("#1b2430"), false, 1.0)
+			draw_rect(Rect2(Vector2(_card_x(), 4), Vector2(CARD_W, H)),
+				Color("#1b2430"), false, 1.0)
 
 		var f := UITheme.pixel_font()
 		var n := str(count)
@@ -1108,15 +1141,36 @@ func _build_hand() -> PanelContainer:
 	# Two lines and a box. It is the button you press every single turn, so it
 	# should be the biggest target on the panel — and stacked it reads as a
 	# button rather than as a word in a row of words.
-	_end_button = Widgets.button("END
-TURN", _on_end_turn)
-	_end_button.custom_minimum_size = Vector2(PileView.W, 38)
+	# THREE BUTTONS SPANNING ONE BLOCK. Together they come to the same 54 as
+	# ENERGY and TURN opposite -- 22 + 3 + 14 + 3 + 14 -- so the piles below stay
+	# level with the draw pile and the two rails read as columns rather than as
+	# two lists that happen to be the same length.
+	#
+	# END TURN keeps the weight because it is the one you press every turn. It was
+	# two lines and 38 tall, which made it a different size from the ENERGY box it
+	# is supposed to mirror; one line at 22 mirrors it as part of the block.
+	_end_button = Widgets.button("END TURN", _on_end_turn)
+	# 16, not 22. A bevel button floors at about 17 whatever it is asked for, so
+	# three of them plus a 22 came to 62 against the 54 the left rail spends on
+	# ENERGY and TURN. Levelling them is what makes the block fit at all.
+	_end_button.custom_minimum_size = Vector2(PileView.W, 16)
+	# ITS OWN STYLEBOX, because the default bevel pads four above and below and
+	# rendered this at 28 while FLEE and HAIL -- which already carry flat boxes
+	# with no vertical padding -- came out at 16. Three buttons cannot share a
+	# block while one of them is nearly twice the others. Brighter border rather
+	# than more height: it is still the primary, it just says so in colour.
+	_end_button.add_theme_stylebox_override("normal",
+		UITheme.flat(UITheme.PANEL2, Color("#4a5f78"), 0, 1, 6))
+	_end_button.add_theme_stylebox_override("hover",
+		UITheme.flat(Color("#1d2836"), UITheme.ICE, 0, 1, 6))
+	_end_button.add_theme_stylebox_override("pressed",
+		UITheme.flat(Color("#243044"), UITheme.ICE, 0, 1, 6))
 	right.add_child(_end_button)
 
 	# Thin, and red, and never sitting beside the button you actually want.
 	# Fleeing costs a run's worth of progress; it should take a deliberate aim.
 	var flee := Widgets.button("FLEE", _on_flee)
-	flee.custom_minimum_size = Vector2(PileView.W, 13)
+	flee.custom_minimum_size = Vector2(PileView.W, 16)
 	flee.add_theme_color_override("font_color", Color("#d4614f"))
 	flee.add_theme_color_override("font_hover_color", Color("#f08872"))
 	flee.add_theme_stylebox_override("normal",
@@ -1127,12 +1181,28 @@ TURN", _on_end_turn)
 		UITheme.flat(Color("#3a2320"), Color("#d4614f"), 0, 0, 6))
 	right.add_child(flee)
 
+	# THE OTHER WAY OUT, and the one that costs nothing if it works. FLEE burns
+	# fuel and rolls MANEUVER; HAIL burns nothing and rolls STEALTH. Two exits,
+	# two attributes, and a ship is usually good at one of them.
+	_hail_button = Widgets.button("HAIL", _on_hail)
+	_hail_button.custom_minimum_size = Vector2(PileView.W, 16)
+	_hail_button.add_theme_color_override("font_color", UITheme.CHILL)
+	_hail_button.add_theme_stylebox_override("normal",
+		UITheme.flat(Color(0, 0, 0, 0), Color("#3d5566"), 0, 0, 6))
+	_hail_button.add_theme_stylebox_override("hover",
+		UITheme.flat(Color("#14212a"), UITheme.TRACTOR.darkened(0.4), 0, 0, 6))
+	right.add_child(_hail_button)
+
 	# THE CHIP ROW'S OPPOSITE NUMBER. The left column spends `CHIP_ROW_H` on
 	# your brace, block and lock-on; without the same gap here the discard pile
 	# sits that much higher than the draw pile and the two columns stop being
 	# columns. Empty on purpose -- the enemy's chips live in their own strip.
 	var chip_gap := Control.new()
-	chip_gap.custom_minimum_size = Vector2(0, CHIP_ROW_H)
+	# NOT `CHIP_ROW_H` EXACTLY. Three buttons at their floor come to a few pixels
+	# more than the ENERGY-and-TURN block they mirror, and this gap is the only
+	# thing on the right whose height means nothing on its own -- so it absorbs
+	# the difference and the two piles stay level, which is the point of it.
+	chip_gap.custom_minimum_size = Vector2(0, RIGHT_GAP)
 	right.add_child(chip_gap)
 
 	_discard_pile = PileView.new()
@@ -1192,6 +1262,7 @@ func _refresh() -> void:
 
 	_hand_wrap.visible = at_war
 	_quiet_wrap.visible = not at_war
+	_refresh_hail()
 	if not at_war:
 		_rebuild_drawer(n)
 
@@ -1321,6 +1392,25 @@ func _refresh_player() -> void:
 	if combat.enemy.template.fauna and combat.peaceful_turns > 0:
 		_player_chips.add_child(Widgets.chip("peaceful %d/2" % combat.peaceful_turns))
 
+## RULING 8's shape: a disabled thing says what it wants.
+##
+## A greyed HAIL with no explanation reads as a bug. "NO REPLY" on a creature
+## and "NO TERMS" on the thing guarding the core both say the rule out loud,
+## once, at the moment it applies -- and both fit the button, which the first
+## pair did not.
+func _refresh_hail() -> void:
+	if _hail_button == null:
+		return
+	if not fighting():
+		_hail_button.disabled = true
+		return
+	var why := combat.hail_reason()
+	_hail_button.disabled = why != ""
+	_hail_button.text = why if why != "" else "HAIL"
+	_hail_button.add_theme_color_override("font_color",
+		UITheme.COLD if why != "" else UITheme.CHILL)
+
+
 func _refresh_enemy() -> void:
 	if not fighting():
 		return
@@ -1391,7 +1481,12 @@ func _refresh_hand() -> void:
 		_end_button.text = "WAIT\n%s" % (names[0] if names.size() == 1
 			else ("%d SHIPS" % names.size() if names.size() > 1 else "..."))
 	else:
-		_end_button.text = "END\nTURN"
+		# ONE LINE, and it is set here as well as at construction because this
+		# runs on every refresh and used to put the newline back. That is why
+		# the button measured 24 against its neighbours' 16 whatever its
+		# minimum size or its stylebox said: it was two lines tall again by
+		# the time anything looked at it.
+		_end_button.text = "END TURN"
 	_end_button.disabled = combat.finished or combat.waiting
 
 # --------------------------------------------------------------------- input
@@ -1651,6 +1746,18 @@ func _on_end_turn() -> void:
 	if fighting() and not combat.waiting:
 		combat.end_turn()
 
+## Talk instead of shoot. `Combat.hail` owns the ruling and the roll.
+##
+## No confirm panel, unlike FLEE. Fleeing throws a run's salvage away and deserves
+## the second question; hailing costs nothing you can see, and RULING 3 says a
+## number on the button IS the commitment.
+func _on_hail() -> void:
+	if not fighting() or not combat.can_hail():
+		return
+	combat.hail()
+	_refresh()
+
+
 ## Fleeing asks first.
 ##
 ## It ends the fight, forfeits every scrap of salvage and burns fuel — and it
@@ -1668,9 +1775,15 @@ func _on_flee() -> void:
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(head)
 	# The exact cost, from the same constant the code charges.
+	# RULING 3'S SHAPE, borrowed: the odds are on the button, so pressing it is
+	# the commitment. This panel exists because breaking contact throws a run's
+	# salvage away -- but now that it can also FAIL, the number has to be here
+	# rather than discovered afterwards.
+	var fchk := combat.flee_check()
 	var body := UITheme.body(
-		"You lose the salvage and burn %d fuel. The fight ends here."
-		% Combat.FLEE_FUEL, UITheme.CHILL, UITheme.FS_SMALL)
+		"%s. You lose the salvage and burn %d fuel. Fail and you are still here."
+		% [SkillCheck.badge(fchk), Combat.FLEE_FUEL], UITheme.CHILL,
+		UITheme.FS_SMALL)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(220, 0)
@@ -1766,6 +1879,7 @@ func _on_combat_ended(result: StringName, text: String) -> void:
 		&"victory": "TARGET DESTROYED",
 		&"pacified": "CALF PACIFIED",
 		&"fled": "DISENGAGED",
+		&"hailed": "STOOD DOWN",
 	}
 	_overlay_title.text = String(titles.get(result, "COMBAT ENDED"))
 	_overlay_body.text = text
