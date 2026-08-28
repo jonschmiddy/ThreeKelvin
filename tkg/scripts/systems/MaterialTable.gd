@@ -2,7 +2,8 @@ class_name MaterialTable
 
 ## Everything a system can hand you that is not a module.
 ##
-## DRAFT 1, 64 items, authored 2026-08-27. `MATERIALS_NOTE.md` is the contract
+## DRAFT 1, 64 items, authored 2026-08-27. `docs/briefs/MATERIALS_NOTE.md` is
+## the contract
 ## this is built to and is worth reading before editing: materials are becoming a
 ## second ITEM CLASS in the existing spatial hold -- tiers, shaped cells, sold at
 ## stations -- not a new storage system and not a currency. `RunState` still says

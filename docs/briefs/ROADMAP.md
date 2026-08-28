@@ -164,8 +164,8 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
 | 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
 | — | Content — batch 04, thirty options | ✅ pool is **44** |
 | 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
-| — | **Materials become items** — hold cells, selling, the shim deleted | `MATERIALS_NOTE.md` |
-| — | **Placement** — unblocks the five held options | `BLOCKED_PLACEMENT.md` |
+| — | **Materials become items** — hold cells, selling, jettison, the shim deleted | `MATERIALS_NOTE.md` ✅ |
+| — | **Placement** — unblocks the five held options | `BLOCKED_PLACEMENT.md` ❌ **missing** |
 | — | **Star features** — a real pulsar gate, not `min_danger 4` | `the_sweep`'s note |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
