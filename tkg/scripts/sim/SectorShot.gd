@@ -56,6 +56,14 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var sc := Router.current as SectorScreen
 		if sc != null:
+			# A FULL DISCARD, because that is the state that was broken and an
+			# opening hand never shows it: the stack drew its back cards above
+			# its own box and painted them across FLEE.
+			sc._discard_pile.set_count(9, "DISCARD")
+			sc._draw_pile.set_count(14, "DRAW")
+			for i7 in 4:
+				await RenderingServer.frame_post_draw
+		if sc != null:
 			print("  hand band: %.0f  drawer band: %.0f  (DRAWER_H %d)"
 				% [sc._hand_wrap.size.y, sc._quiet_wrap.size.y, SectorScreen.DRAWER_H])
 		tree.root.get_texture().get_image().save_png("user://sector_combat.png")

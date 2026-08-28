@@ -907,12 +907,16 @@ class PileView extends Control:
 	# At 86 the left rail came to about 179 and pushed the whole panel past the
 	# drawer it is supposed to swap with.
 	const W := 60
-	const H := 66
+	# 62 rather than 66 because the box grew by the four the stack leans by, and
+	# the rail has no four to spare -- the band is a fixed 170 shared with the
+	# drawer, and `-- sectorshot` reports it as 172 the moment this is too big.
+	const H := 62
 	var count: int = 0
 	var label: String = ""
 
 	func _init() -> void:
-		custom_minimum_size = Vector2(W, H + 12)
+		# H, plus the four the stack leans by, plus room for the label under it.
+		custom_minimum_size = Vector2(W, H + 16)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func set_count(n: int, text: String) -> void:
@@ -928,7 +932,15 @@ class PileView extends Control:
 		# for — the number says how many.
 		var shown: int = clampi(count, 0, 3)
 		for i in range(shown - 1, -1, -1):
-			var o := Vector2(i * 2, -i * 2)
+			# INSIDE ITS OWN BOX. This was `-i * 2`, which drew the cards behind
+			# the front one ABOVE y=0 -- outside the control, over whatever sits
+			# above it. On the right rail that is FLEE, so a discard pile with
+			# anything in it painted across the button.
+			#
+			# The stack still leans up and to the right; the whole thing is just
+			# offset down by as far as it leans, so the deepest card starts at
+			# zero instead of the front one.
+			var o := Vector2(i * 2, float(shown - 1 - i) * 2.0)
 			var r := Rect2(o, Vector2(W, H))
 			draw_rect(r, UITheme.PANEL2, true)
 			draw_rect(r, UITheme.LINE, false, 1.0)
@@ -940,15 +952,16 @@ class PileView extends Control:
 		if shown == 0:
 			# An empty pile still holds its place, or the hand jumps sideways the
 			# turn your draw pile runs out.
-			draw_rect(Rect2(Vector2.ZERO, Vector2(W, H)), Color("#1b2430"), false, 1.0)
+			draw_rect(Rect2(Vector2(0, 4), Vector2(W, H)), Color("#1b2430"), false, 1.0)
 
 		var f := UITheme.pixel_font()
 		var n := str(count)
 		var nw := f.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD).x
-		draw_string(f, Vector2((W - nw) * 0.5 + 1, H * 0.5 + 7), n,
+		# The count rides the FRONT card, which is now four lower than the box.
+		draw_string(f, Vector2((W - nw) * 0.5 + 1, H * 0.5 + 11), n,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_HEAD, UITheme.ICE)
 		var lw := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-		draw_string(f, Vector2((W - lw) * 0.5, H + 10), label,
+		draw_string(f, Vector2((W - lw) * 0.5, H + 14), label,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, UITheme.COLD)
 
 func _build_hand() -> PanelContainer:
@@ -957,9 +970,14 @@ func _build_hand() -> PanelContainer:
 	# Everything you spend on the left, everything you end with on the right,
 	# and the cards in between. Energy sits at the top of the left column
 	# because it is the number you check before choosing a card, not after.
+	# TOP-ALIGNED, BOTH OF THEM. Centred, each column centres against its OWN
+	# height -- and the left carries a chip row the right does not -- so the
+	# pairs that are meant to read across the panel drifted apart by more the
+	# further down you looked. ENERGY/END TURN, TURN/FLEE and the two piles are
+	# the same three rows on both sides, and now they start at the same y.
 	var left := VBoxContainer.new()
 	left.add_theme_constant_override("separation", 4)
-	left.alignment = BoxContainer.ALIGNMENT_CENTER
+	left.alignment = BoxContainer.ALIGNMENT_BEGIN
 
 	# A box of the same width as END TURN opposite it, so the panel reads as a
 	# pair of columns rather than as a pile of leftovers at each end. Label,
@@ -1032,7 +1050,7 @@ func _build_hand() -> PanelContainer:
 	# all is at the bottom.
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
-	right.alignment = BoxContainer.ALIGNMENT_CENTER
+	right.alignment = BoxContainer.ALIGNMENT_BEGIN
 
 	# Two lines and a box. It is the button you press every single turn, so it
 	# should be the biggest target on the panel — and stacked it reads as a
@@ -1055,6 +1073,14 @@ TURN", _on_end_turn)
 	flee.add_theme_stylebox_override("pressed",
 		UITheme.flat(Color("#3a2320"), Color("#d4614f"), 0, 0, 6))
 	right.add_child(flee)
+
+	# THE CHIP ROW'S OPPOSITE NUMBER. The left column spends `CHIP_ROW_H` on
+	# your brace, block and lock-on; without the same gap here the discard pile
+	# sits that much higher than the draw pile and the two columns stop being
+	# columns. Empty on purpose -- the enemy's chips live in their own strip.
+	var chip_gap := Control.new()
+	chip_gap.custom_minimum_size = Vector2(0, CHIP_ROW_H)
+	right.add_child(chip_gap)
 
 	_discard_pile = PileView.new()
 	right.add_child(_discard_pile)
