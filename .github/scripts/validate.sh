@@ -237,6 +237,36 @@ if run_godot attrtest 120 --headless --path "$PROJECT" -- attrtest; then
 			| head -n 20 | sed 's/^/        /'
 	fi
 fi
+step "Every galaxy can be crossed, and every enum still has its labels"
+# NOT GATED UNTIL NOW, which is how MapTest lost its verdict line without
+# anything noticing: it prints four results and nothing was reading them. It
+# checks that a core exists, is reachable, and can be FLOWN to in 120 rolled
+# galaxies -- three of the most expensive failures the generator can produce --
+# plus that no label array has drifted from its enum.
+if run_godot maptest 180 --headless --path "$PROJECT" -- maptest; then
+	if grep -qE '^maptest: PASS' "$LOG_DIR/maptest.log"; then
+		ok "every galaxy is crossable"
+	else
+		bad "a galaxy cannot be crossed, or a label array has drifted"
+		grep -E '^  FAIL|^maptest' "$LOG_DIR/maptest.log" \
+			| head -n 10 | sed 's/^/        /'
+	fi
+fi
+
+step "The option table rolls a legal system every time"
+# Also never gated, and it is the only thing checking the content that landed
+# tonight: 42 options, unique ids, every rolled option admitted by its own gate,
+# counts and groups inside the tier plan, and no system left with nothing to do.
+if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
+	if grep -qE '^optiontest: PASS' "$LOG_DIR/optiontest.log"; then
+		ok "options roll legally"
+	else
+		bad "the option table rolled something illegal"
+		grep -E '^  FAIL|^optiontest' "$LOG_DIR/optiontest.log" \
+			| head -n 12 | sed 's/^/        /'
+	fi
+fi
+
 step "A destination name fits the height the panel reserves for it"
 # The right-hand panel is as tall as its content and the chart shares a row with
 # it, so a name that wraps one line further than the panel reserves moves the

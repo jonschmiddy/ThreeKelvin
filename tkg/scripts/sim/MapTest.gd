@@ -128,6 +128,7 @@ func run() -> void:
 	# THE ONE THAT MATTERS TO A PLAYER, now that links do not gate movement.
 	_ok("the core can be FLOWN to in every galaxy", unflyable.is_empty())
 	_labels()
+	verdict("maptest")
 
 
 ## Every enum value still has a name, and the name still belongs to it.
@@ -147,8 +148,11 @@ func run() -> void:
 ## `type_label` reads `NodeType.keys()` now and cannot drift. The other three
 ## CANNOT do that and should not: `region_name` deliberately maps FAUNA to
 ## "Migration Route" and CORE to "Precursor Ruins", which are prose, not keys.
-## So this checks the property that actually matters -- every value in the enum
-## resolves to a non-empty label, and one past the end does not resolve at all.
+##
+## So what is checked is LENGTH. The first cut of this looked for BLANK labels
+## and would have passed the very bug it was written for: the array was too LONG,
+## so every lookup was in bounds and every label was a real word -- just the
+## wrong one. A count is the only thing that actually drifted.
 func _labels() -> void:
 	var bad: Array[String] = []
 	# LENGTH, NOT BLANKNESS, because the bug that happened was an array that was
