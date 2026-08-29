@@ -741,7 +741,11 @@ func adopt_party_claims() -> void:
 ## to make room for something you asked to fit, and uninstalling to a full hold
 ## is refused at the point of asking; neither can be allowed to destroy a module
 ## because the arithmetic did not work out.
-func stow(m: ModuleData) -> bool:
+## A HoldItem. This was the last `ModuleData` between a bag and a hold, and it
+## is why TAKE did nothing on a crate: `take_from_bag` claimed the item, marked
+## the option taken, and then failed silently at the parameter type -- so the
+## claim was spent and the thing stayed on the floor.
+func stow(m: HoldItem) -> bool:
 	if not place_in_hold(m):
 		log_line("No room in the hold for %s." % m.name, &"them")
 		return false

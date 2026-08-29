@@ -188,4 +188,21 @@ func run() -> void:
 	if grow != null:
 		grow.queue_free()
 
+	# --- and back again ------------------------------------------------------
+	#
+	# `stow` is what TAKE calls once the claim is won, and it was the last
+	# `ModuleData` on the path from a bag to a hold. The failure was the bad
+	# kind: `take_from_bag` marked the option taken FIRST and then stowed, so a
+	# crate spent its claim and stayed on the floor -- gone from the bag's point
+	# of view and never in your hold.
+	Run.cargo.clear()
+	var retrieved := MaterialData.of(rows[1])
+	_ok("a material stows", Run.stow(retrieved))
+	_ok("and is in the hold", Run.cargo.has(retrieved))
+	_ok("with a cell of its own", retrieved.hold_at.x >= 0)
+
+	# A module has to still stow, since the signature moved under it.
+	var part := LootGen.roll_module(1, &"", false, Rng.derive(&"materialtest", 2))
+	_ok("a module still stows", Run.stow(part))
+
 	verdict("materialtest")

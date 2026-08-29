@@ -357,23 +357,35 @@ func _build_salvage_rail() -> PanelContainer:
 
 	_salvage_actions = HBoxContainer.new()
 	_salvage_actions.add_theme_constant_override("separation", 4)
-	# Stowing keeps everything. The hold is unlimited, so nothing here should
-	# destroy salvage by default.
-	var stow := Widgets.button("STOW - DECIDE LATER",
+	# IT HIDES THE PANEL. It does not move anything, and it never did -- what it
+	# sets is a hush, and the old label got away with "STOW" only because
+	# everything it listed was already in the hold.
+	#
+	# A bag is not. Loose salvage sits in the SYSTEM until you take it, so
+	# pressing this on a bag put the panel away and left the parts on the floor,
+	# which read exactly like the game had eaten them. Same word, two states,
+	# and only one of them was true.
+	var stow := Widgets.button("DECIDE LATER",
 		func() -> void:
 			Run.salvage_hushed_hauls = Run.hauls
 			Run.salvage_hushed_bag = _bag_here()
 			_refresh())
 	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stow.tooltip_text = Widgets.tip("Keeps it all in the hold. Fit or scrap it from the SHIP page.")
+	stow.tooltip_text = Widgets.tip("Closes this panel. Anything already in your hold stays there; anything still loose stays in this system until you take it or you jump.")
 	_salvage_actions.add_child(stow)
-	var dump := Widgets.button("JETTISON",
-		func() -> void:
-			Run.cargo.clear()
-			Run.found_hull = null
-			_refresh())
-	dump.tooltip_text = Widgets.tip("Destroys everything in the hold. There is no reason to do this.")
-	_salvage_actions.add_child(dump)
+	# THE JETTISON BUTTON IS GONE, and it was wrong twice over.
+	#
+	# It called `Run.cargo.clear()` -- it emptied your whole hold, everything,
+	# in one press. Its own tooltip said "Destroys everything in the hold. There
+	# is no reason to do this", which is an accurate description of a control
+	# that should not exist. MATERIALS_NOTE 3.4 now rules it out outright:
+	# nothing of yours is ever destroyed for you.
+	#
+	# And the word had been taken. Jettison means one thing now -- overboard,
+	# into the bag at this system, recoverable until you jump -- and it is done
+	# by right-clicking the thing you want rid of, one at a time, wherever the
+	# hold is shown. A second button spelled the same way and meaning "burn
+	# everything" is not a button, it is a trap.
 	col.add_child(_salvage_actions)
 
 	_salvage_wrap = Widgets.panel_with(col)

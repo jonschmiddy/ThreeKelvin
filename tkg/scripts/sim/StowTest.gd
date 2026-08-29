@@ -42,12 +42,18 @@ func run(tree: SceneTree) -> void:
 
 	# Press the real button rather than setting the flag by hand. The handler is
 	# what a player touches and the handler is what was wrong the first time.
-	var stow := _button("STOW")
-	if not _ok("and it has a STOW button", stow != null):
+	# "DECIDE LATER", not "STOW". The verb was dropped because the button does
+	# not move anything -- it hushes the rail -- and "STOW" was only ever true
+	# while everything the rail listed was already in the hold. A bag is not:
+	# loose salvage sits in the system, so pressing STOW on one put the panel
+	# away and left the parts on the floor. The rule this test guards is
+	# unchanged; only the word is.
+	var stow := _button("DECIDE LATER")
+	if not _ok("and it has a DECIDE LATER button", stow != null):
 		return _finish()
 	stow.pressed.emit()
 	await tree.process_frame
-	_ok("pressing STOW shuts it", not _rail_visible())
+	_ok("pressing DECIDE LATER shuts it", not _rail_visible())
 
 	# THE JUMP. Router builds a whole new SectorScreen here, which is the step
 	# that defeated the first fix.
@@ -69,13 +75,29 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	_ok("a fresh haul opens it again", _rail_visible())
 
-	# And JETTISON has to actually empty the hold and close the rail.
-	var dump := _button("JETTISON")
-	if _ok("there is a JETTISON button", dump != null):
-		dump.pressed.emit()
-		await tree.process_frame
-		_ok("jettison empties the hold", Run.cargo.is_empty())
-		_ok("and closes the rail behind it", not _rail_visible())
+	# AND NOTHING ON THIS RAIL MAY EMPTY THE HOLD.
+	#
+	# This assertion used to read the other way round: it required a JETTISON
+	# button and required it to leave `Run.cargo` empty. That button called
+	# `Run.cargo.clear()` -- one press, everything you were carrying, gone --
+	# and its own tooltip admitted "there is no reason to do this".
+	#
+	# `MATERIALS_NOTE` 3.4 rules it out: nothing of yours is destroyed for you.
+	# Jettison now means one thing, overboard into this system's bag and
+	# recoverable until you jump, done one item at a time by right-clicking it.
+	#
+	# So the test is inverted rather than deleted. A deleted assertion protects
+	# nothing; this one keeps the trap from being rebuilt, and would have failed
+	# on the day it was first written.
+	var before := Run.cargo.size()
+	_ok("nothing on the rail is spelled JETTISON", _button("JETTISON") == null)
+	var wipes: Button = null
+	for b in [_button("DUMP"), _button("DESTROY"), _button("EMPTY")]:
+		if b != null:
+			wipes = b
+	_ok("and nothing else offers to empty the hold", wipes == null)
+	_ok("so the hold is untouched by looking at it",
+		Run.cargo.size() == before and before > 0)
 
 	_finish()
 
