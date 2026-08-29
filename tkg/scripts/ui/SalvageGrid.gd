@@ -58,35 +58,44 @@ var _beam: Rect2i = Rect2i()
 
 ## HOW FAST THE SWEEP CROSSES THE CONTAINER, in cells per second.
 ##
-## 1.6 cells a second: a six-row container takes about three and three quarter
-## seconds, and the two-row case a shade over one.
+## 1.05 cells a second: a six-row container takes about five and a half seconds,
+## a two-row one just under two.
 ##
-## This has been 14, then 4.5, then 2.6, and every one of them was too quick for
-## the same reason -- the sweep finished before it had cost you anything, so it
-## was decoration laid over a container that was simply there. At this rate
-## opening a wreck TAKES a moment, and the moment is the point: you are reading
-## the top row while the bottom is still dark, and deciding before you have seen
-## everything.
-const SCAN_CELLS_PER_SEC := 1.6
+## This has been 14, then 4.5, then 2.6, then 1.6, and every one was too quick
+## for the same reason -- the sweep finished before it had cost you anything, so
+## it was decoration laid over a container that was simply there. At this rate
+## opening a wreck TAKES a moment: you read the top row while the bottom is
+## still dark, and you start deciding before you have seen everything.
+const SCAN_CELLS_PER_SEC := 1.05
 
-## The steps one thing goes through on its way out of the dark.
+## HOW LONG A THING TAKES TO SETTLE, measured in ROWS OF SWEEP rather than in
+## seconds.
 ##
-## Colour, horizontal offset, and how long to hold there. Deliberately a LIST OF
-## STATES rather than a duration to interpolate over: a smooth fade is a light
-## being turned up, and what this wants to be is a signal resolving -- a couple
-## of false starts, a tear sideways, and then the thing is simply there.
+## A row and a half: a crate is at its worst the instant the line finds it and
+## is done by the time the line is halfway through the row below. Tying it to
+## the sweep rather than to a clock is what keeps the two in step -- retune the
+## scan speed and the glitch follows it, instead of becoming a flicker on a slow
+## sweep or an unresolved mess on a fast one.
 ##
-## The offsets are small on purpose. Four pixels at a forty-pixel cell reads as
-## the picture failing to hold still; twelve would read as the crate being in
+## It also means several crates are always mid-resolve at once, at different
+## stages, which is most of why the container looks like an instrument reading
+## rather than a list appearing.
+const GLITCH_ROWS := 1.5
+
+## How many hard cuts it takes to get there. Fourteen at a row and a half is
+## about a cut every tenth of a second -- fast enough to read as interference,
+## slow enough that you see each one.
+const GLITCH_STEPS := 14
+
+## The worst sideways tear, at the very start. Six pixels on a forty-pixel cell
+## reads as the picture failing to hold; twenty would read as the crate being in
 ## the wrong place, which is a bug rather than an effect.
-const GLITCH: Array = [
-	[0.85, 3.0, 0.045],
-	[0.08, -4.0, 0.035],
-	[1.00, 2.0, 0.050],
-	[0.20, -2.0, 0.030],
-	[0.90, 1.0, 0.045],
-	[0.45, 0.0, 0.030],
-]
+const GLITCH_TEAR := 6.0
+
+## The shape of the interference, cycled through and scaled by how far the thing
+## still has to settle. Not random: a repeating pattern that DECAYS reads as a
+## signal locking on, where noise reads as a fault.
+const GLITCH_SHAPE: Array[float] = [1.0, -0.8, 0.55, -1.0, 0.3, -0.45]
 ## How far down the sweep has reached, in pixels, or -1 when it is not running.
 var _scan: float = -1.0
 ## What the sweep has already found, so a rebuild mid-scan does not make a crate
@@ -163,16 +172,28 @@ func _apply_scan() -> void:
 func _materialise(ic: ItemIcon) -> void:
 	var glow := UITheme.TRACTOR
 	var home := ic.position
+	var hold := (GLITCH_ROWS / SCAN_CELLS_PER_SEC) / float(GLITCH_STEPS)
 	ic.modulate = Color(glow.r, glow.g, glow.b, 0.0)
 	var t := ic.create_tween()
-	for raw in GLITCH:
-		var step: Array = raw
-		var a: float = step[0]
-		var dx: float = step[1]
+	for i in GLITCH_STEPS:
+		# `wild` runs 1 to 0 across the sequence and everything scales by it, so
+		# the first cut is the loudest and each one after is quieter. Intensity
+		# is a decay, not a constant -- that is the difference between finding
+		# something and something being broken.
+		var wild := 1.0 - float(i) / float(GLITCH_STEPS)
+		var settled := 1.0 - wild
+		var swing: float = GLITCH_SHAPE[i % GLITCH_SHAPE.size()]
+		# The alpha lurches either side of where it is heading, hard and early,
+		# and the lurch shrinks with everything else.
+		var a := clampf(settled + swing * wild * 0.85, 0.0, 1.0)
+		# And it cools out of the sweep's colour into its own as it settles.
+		var col := Color(glow.r, glow.g, glow.b).lerp(Color.WHITE, settled)
+		col.a = a
+		var dx := swing * wild * GLITCH_TEAR
 		t.tween_callback(func() -> void:
-			ic.modulate = Color(glow.r, glow.g, glow.b, a)
+			ic.modulate = col
 			ic.position = home + Vector2(dx, 0.0))
-		t.tween_interval(float(step[2]))
+		t.tween_interval(hold)
 	# AND THEN IT IS SIMPLY THERE. Snapping home rather than easing to it: the
 	# last thing a glitch should do is look like it was always going to land.
 	t.tween_callback(func() -> void:

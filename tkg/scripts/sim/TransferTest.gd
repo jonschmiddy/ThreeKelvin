@@ -129,6 +129,32 @@ func run(tree: SceneTree) -> void:
 		_ok("and the container did not shrink (%d -> %d)"
 			% [tall, _view._loose._rows], _view._loose._rows >= tall)
 
+	# --- the sweep is a first-visit thing ------------------------------------
+	#
+	# Opening a container sweeps it; opening the SAME one again does not. A
+	# wreck you have already been through is not being discovered, and replaying
+	# the reveal would say it was.
+	_node.scanned = false
+	var open_a := TransferView.new()
+	_tree.root.add_child(open_a)
+	open_a.setup("SALVAGE", _node, func() -> void: pass)
+	await _tree.process_frame
+	_ok("the first open sweeps (%.0f)" % open_a._loose._scan,
+		open_a._loose._scan >= 0.0)
+	_ok("and the node remembers it", _node.scanned)
+	open_a.queue_free()
+
+	var open_b := TransferView.new()
+	_tree.root.add_child(open_b)
+	open_b.setup("SALVAGE", _node, func() -> void: pass)
+	await _tree.process_frame
+	_ok("the second open does not (%.0f)" % open_b._loose._scan,
+		open_b._loose._scan < 0.0)
+	_ok("and everything is visible straight away",
+		_icons(open_b._loose) == open_b._loose._items.size())
+	open_b.queue_free()
+	await _tree.process_frame
+
 	# --- the popup does not change shape -------------------------------------
 	#
 	# It used to size itself to its contents, so filling the container grew it,

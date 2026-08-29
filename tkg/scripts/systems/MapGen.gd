@@ -472,6 +472,13 @@ class MapNode extends RefCounted:
 	## roll is not a re-stock, it is one machine disagreeing with the others about
 	## what is in the room.
 	var bagged: bool = false
+	## Whether this system's container has already been swept open.
+	##
+	## RUNTIME ONLY, and deliberately not in `SaveGame._node_to`: it is about
+	## what you have LOOKED at rather than about what is true of the galaxy, and
+	## a reloaded save replaying one sweep is a better answer than a save format
+	## that has to carry it.
+	var scanned: bool = false
 	## Populated lazily by StationScreen
 	var shop: Array = []
 	var shop_hull: HullData = null

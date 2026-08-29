@@ -60,7 +60,12 @@ func setup(title: String, n: MapGen.MapNode, on_close: Callable,
 	_on_close = on_close
 	_title.text = title
 	refresh()
-	if animate:
+	# ONCE PER CONTAINER. The sweep is what OPENING something looks like, and a
+	# wreck you have already been through is not being opened -- replaying it
+	# every visit would make walking back to a half-stripped pile feel like
+	# finding it again, which is the one thing it must not say.
+	if animate and not n.scanned:
+		n.scanned = true
 		_loose.scan()
 	else:
 		_loose.skip_scan()
