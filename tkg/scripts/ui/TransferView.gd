@@ -86,6 +86,96 @@ func _init() -> void:
 	row.add_child(_side("OUT HERE", _build_loose()))
 
 
+## THE SCREEN ITSELF CATCHES ANYTHING THE GRIDS DID NOT.
+##
+## `SalvageGrid` has its own `_can_drop_data` and it is correct -- driven
+## directly it accepts the payload and moves the item every time. What could not
+## be established is whether Godot ever ASKS it: hit-testing a drop through a
+## scroll container, past PASS-filtered icons, onto a control that is one of
+## several stacked full-rect siblings has too many places to fail quietly, and
+## the harness cannot answer it either -- an unfocused window does not track a
+## warped cursor, so simulated input measures itself rather than the game.
+##
+## So the decision moves to the one control that cannot be missed. This panel is
+## topmost, covers everything, and is `MOUSE_FILTER_STOP`; a drop that reaches
+## it is a drop the grids declined. Which side you let go over is then plain
+## arithmetic on the x, which needs no hit-testing to be right.
+##
+## The grid keeps its own handler. Two answers to one question is not ideal, but
+## they agree, and the alternative is removing the one that demonstrably works
+## in favour of the one that may not be reached.
+func _can_drop_data(at: Vector2, data: Variant) -> bool:
+	return _side_of(at, data) != 0
+
+
+func _drop_data(at: Vector2, data: Variant) -> void:
+	var where := _side_of(at, data)
+	var m: HoldItem = (data as Dictionary).module
+	if where < 0:
+		# Onto your own side, from out there: the same claim `_on_hold_drop`
+		# makes, aimed at wherever the hold has room.
+		var i := _node.bag.find(m)
+		if i >= 0 and not _busy:
+			_busy = true
+			var got: bool = await Run.take_from_bag(_node, i)
+			_busy = false
+			if got:
+				Audio.play(&"module_install", 0.05, 70, -6.0)
+	elif where > 0 and Run.jettison(m):
+		pass
+	refresh()
+
+
+## -1 for your hold, +1 for out here, 0 for a drop that means nothing.
+##
+## The halves are decided by the grids' own rects rather than by the middle of
+## the screen, so the answer stays right when either side changes size.
+func _side_of(at: Vector2, data: Variant) -> int:
+	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
+		return 0
+	var m: HoldItem = (data as Dictionary).module
+	if m == null or _node == null:
+		return 0
+	var from_bag := String((data as Dictionary).get("origin", &"")) == "bag"
+	var split := (_hold.get_global_rect().end.x
+		+ _loose.get_global_rect().position.x) * 0.5
+	var out_here := get_global_position().x + at.x >= split
+	if out_here:
+		# Only your own things can be put down, and only once.
+		return 1 if (not from_bag and Run.cargo.has(m)) else 0
+	return -1 if from_bag else 0
+
+
+## R TURNS WHAT YOU ARE CARRYING.
+##
+## The refit screen has had this since the hold became a grid, and this screen
+## had none of it -- so a 4x1 that would only fit standing up could be seen not
+## fitting and not be turned. Packing is the whole game of a hold; a view you
+## pack in and cannot rotate in is a worse version of the one next door.
+##
+## Deliberately only the carried item. `ShipScreen` also turns a part sitting in
+## the hold under the pointer, which is a second verb on a second target -- worth
+## having there, and not worth two ways to do it here while this screen is young.
+func _unhandled_key_input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k == null or not k.pressed or k.echo or k.keycode != KEY_R:
+		return
+	var carried: Variant = get_viewport().gui_get_drag_data()
+	if typeof(carried) != TYPE_DICTIONARY \
+			or not (carried as Dictionary).has("module"):
+		return
+	var m: HoldItem = (carried as Dictionary).module
+	if m == null:
+		return
+	m.turned = not m.turned
+	# The plate in your hand has to change shape too, or you are aiming a 4x1
+	# while holding a picture of a 1x4.
+	if ItemIcon.carried != null and is_instance_valid(ItemIcon.carried):
+		ItemIcon.carried.fit_footprint()
+		ItemIcon.carried.spin()
+	get_viewport().set_input_as_handled()
+
+
 func _side(label: String, body: Control) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)

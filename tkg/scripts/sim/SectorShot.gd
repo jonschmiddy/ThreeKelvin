@@ -223,12 +223,90 @@ func run(tree: SceneTree) -> void:
 				var payload := {module = mine, origin = &"cargo"}
 				var accepts: bool = tv3._loose._can_drop_data(Vector2(20, 20), payload)
 				print("  container accepts one of yours: %s" % accepts)
+				# WHERE THE TARGET ACTUALLY IS. Godot offers a drop to the
+				# control under the pointer, so a target whose rect is not
+				# where it looks is a target that is never asked.
+				print("    loose grid rect  %s" % tv3._loose.get_global_rect())
+				print("    hold grid rect   %s" % tv3._hold.get_global_rect())
+				print("    loose filter %d, scroll parent %s"
+					% [tv3._loose.mouse_filter, tv3._loose.get_parent().name])
+				var sc := tv3._loose.get_parent() as Control
+				if sc != null:
+					print("    scroll rect      %s filter %d"
+						% [sc.get_global_rect(), sc.mouse_filter])
 				var n3: MapGen.MapNode = Run.node_at()
 				var bag_was := n3.bag.size()
 				if accepts:
 					tv3._loose._drop_data(Vector2(20, 20), payload)
 				print("  bag %d -> %d ; still in hold: %s"
 					% [bag_was, n3.bag.size(), Run.cargo.has(mine)])
+		# A REAL DRAG. Everything so far called `_can_drop_data` directly, which
+		# proves the LOGIC and says nothing about whether Godot ever asks it --
+		# and "the logic is right and unreachable" has been the answer twice.
+		# Press, move, release, and then look at the bag.
+		if st != null and st._transfer != null:
+			var tv4 := st._transfer
+			# CLEAN STATE FIRST. The probes above already took and jettisoned
+			# things, so the grid this reaches into is whatever they left.
+			# WHAT IS ABOVE IT. A drop target under an opaque sibling is a drop
+			# target that never sees a cursor.
+			for ch5 in st.get_children():
+				var c5 := ch5 as Control
+				if c5 != null:
+					print("    %-22s vis %s filter %d rect %s"
+						% [c5.name.substr(0, 22), c5.visible, c5.mouse_filter,
+							c5.get_global_rect()])
+			tv4.refresh()
+			for ix in 3:
+				await RenderingServer.frame_post_draw
+			var src: ItemIcon = null
+			for ch4 in tv4._hold.get_children():
+				var ic4 := ch4 as ItemIcon
+				if ic4 != null:
+					src = ic4
+					break
+			if src != null:
+				var carried: HoldItem = src.held_item()
+				var from := src.get_global_rect().get_center()
+				var lr := tv4._loose.get_global_rect()
+				var to := lr.position + Vector2(lr.size.x * 0.5, lr.size.y - 24.0)
+				var n4: MapGen.MapNode = Run.node_at()
+				var was4 := n4.bag.size()
+				var held4 := Run.cargo.size()
+
+				Input.warp_mouse(from)
+				await RenderingServer.frame_post_draw
+				var hov := tv4.get_viewport().gui_get_hovered_control()
+				print("    under the cursor: %s (want an ItemIcon)"
+					% ("null" if hov == null else hov.get_class() + "/" + str(hov.get_script() != null)))
+				var press := InputEventMouseButton.new()
+				press.button_index = MOUSE_BUTTON_LEFT
+				press.pressed = true
+				press.position = from
+				press.global_position = from
+				Input.parse_input_event(press)
+				await RenderingServer.frame_post_draw
+				for step in 8:
+					var mm := InputEventMouseMotion.new()
+					mm.position = from.lerp(to, float(step + 1) / 8.0)
+					mm.global_position = mm.position
+					mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+					Input.parse_input_event(mm)
+					await RenderingServer.frame_post_draw
+				print("    mid-drag: viewport has payload: %s"
+					% (typeof(tv4.get_viewport().gui_get_drag_data())
+						== TYPE_DICTIONARY))
+				var rel := InputEventMouseButton.new()
+				rel.button_index = MOUSE_BUTTON_LEFT
+				rel.pressed = false
+				rel.position = to
+				rel.global_position = to
+				Input.parse_input_event(rel)
+				for iw in 4:
+					await RenderingServer.frame_post_draw
+				print("  REAL DRAG hold->out: bag %d -> %d, hold %d -> %d (%s)"
+					% [was4, n4.bag.size(), held4, Run.cargo.size(),
+						"moved" if not Run.cargo.has(carried) else "STAYED"])
 		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()

@@ -525,7 +525,27 @@ func jettison(m: HoldItem) -> bool:
 		return false
 	take_from_hold(m)
 	m.hold_at = -Vector2i.ONE
-	n.bag.append(m)
+	# THE SAME THING TWICE IS STILL ONE THING.
+	#
+	# Taking from a bag does not remove the entry -- it marks the index taken,
+	# so a party can see who got what. Jettisoning then APPENDED, so throwing
+	# the same crate out twice put two references to one object in `n.bag`, and
+	# `find()` answers with the FIRST -- which is the spent one. `take_from_bag`
+	# saw an index already claimed and refused, so an item you had thrown out
+	# more than once could not be picked back up.
+	#
+	# Put back where it was instead: the entry is still there, so clearing its
+	# claim is the whole of what "it is loose again" means.
+	var already := n.bag.find(m)
+	if already >= 0:
+		# A PackedInt32Array, so `remove_at` by position rather than `erase` by
+		# value. `_mark_taken` appends to it; this is the other direction and
+		# there was no other direction until now.
+		var slot := n.taken.find(MapGen.OPTION_BAG + already)
+		if slot >= 0:
+			n.taken.remove_at(slot)
+	else:
+		n.bag.append(m)
 	log_line("%s goes overboard. It is still out there." % m.name, &"sys")
 	Sig.ship_changed.emit()
 	Sig.map_changed.emit()

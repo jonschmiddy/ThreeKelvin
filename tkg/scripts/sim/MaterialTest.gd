@@ -267,4 +267,30 @@ func run() -> void:
 	_ok("a bigger one still does not fit",
 		not Run.has_room_for(bigger, leaving) or bigger.cells() <= leaving.cells())
 
+	# --- out, back, out, back ------------------------------------------------
+	#
+	# Taking from a bag marks the index claimed rather than removing the entry,
+	# so jettison used to APPEND -- and the second throw put a second reference
+	# to one object in the bag. `find()` answers with the first, which is the
+	# spent one, so `take_from_bag` saw a claimed index and refused. Anything
+	# you had thrown out more than once could not be picked back up.
+	Run.cargo.clear()
+	var here2: MapGen.MapNode = Run.node_at()
+	here2.bag.clear()
+	here2.taken.clear()
+	var yoyo := MaterialData.of(rows[2])
+	_ok("it is in the hold to begin with", Run.place_in_hold(yoyo))
+	_ok("first throw", Run.jettison(yoyo))
+	_ok("the bag holds it once", here2.bag.count(yoyo) == 1)
+	_ok("first pick-up", Run.stow(yoyo) if here2.bag.has(yoyo) else false)
+	# `stow` is what `take_from_bag` calls once the claim is won; mark the claim
+	# the way taking it would have.
+	here2.taken.append(MapGen.OPTION_BAG + here2.bag.find(yoyo))
+
+	_ok("second throw", Run.jettison(yoyo))
+	_ok("the bag STILL holds it once", here2.bag.count(yoyo) == 1)
+	_ok("and the claim was released, so it can be taken again",
+		not here2.taken.has(MapGen.OPTION_BAG + here2.bag.find(yoyo)))
+	_ok("so it is loose out there", Run.bag_left(here2) == 1)
+
 	verdict("materialtest")
