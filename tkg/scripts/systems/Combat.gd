@@ -1059,16 +1059,16 @@ func _victory() -> void:
 	for e in enemies:
 		made.append(Run.new_wreck(node, (e as EnemyState).template))
 	if made.is_empty():
-		made.append(Run.sector_hoard(node))
+		made.append(Run.sector_flotsam(node))
 	var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
 	for i in pool:
-		var h: MapGen.Hoard = made[i % made.size()]
+		var h: MapGen.Flotsam = made[i % made.size()]
 		h.items.append(LootGen.roll_module(node.danger, force,
 			node.region == MapGen.Region.CORE))
 	# THE MONEY IS IN THE FIRST HULL. It has to be somewhere you reach, and the
 	# alternative -- a chit in each -- turns one payout into a chore.
 	if purse > 0:
-		(made[0] as MapGen.Hoard).items.append(CreditChit.of(purse))
+		(made[0] as MapGen.Flotsam).items.append(CreditChit.of(purse))
 	if pool > 0:
 		bits.append("%d in the wreck%s" % [pool, "" if made.size() == 1 else "s"])
 	if new_dross > 0:

@@ -117,7 +117,7 @@ var _flee_ask: PanelContainer = null
 ## The open pile listing, or null. Built and torn down per open rather than
 ## hidden, because its contents change every single turn.
 var _pile_panel: PanelContainer = null
-## The open container, or null. See `_open_hoard`.
+## The open container, or null. See `_open_flotsam`.
 var _transfer: TransferView = null
 var _discard_pile: PileView
 var _end_button: Button
@@ -598,7 +598,7 @@ func _drawer_simple(line: String, label: String) -> void:
 	# vanish; there was nowhere to stand that could see it, which is worse,
 	# because the game looked like it had eaten the thing.
 	var n_here: MapGen.MapNode = Run.node_at()
-	var on_floor := Run.hoard_left(n_here, Run.sector_hoard(n_here, false))
+	var on_floor := Run.flotsam_left(n_here, Run.sector_flotsam(n_here, false))
 	var loot := Widgets.button("SECTOR LOOT", _open_sector_loot)
 	loot.custom_minimum_size = EncounterDrawer.BTN
 	loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -641,7 +641,7 @@ func _drawer_list(n: MapGen.MapNode) -> void:
 	_drawer.add_child(EncounterDrawer.head("%d THING%s OUT HERE WANT%s SOMETHING FROM YOU"
 		% [left.size(), "" if left.size() == 1 else "S",
 			"S" if left.size() == 1 else ""], _on_action,
-		Run.hoard_left(n, Run.sector_hoard(n, false)), _open_sector_loot))
+		Run.flotsam_left(n, Run.sector_flotsam(n, false)), _open_sector_loot))
 	var placed: Dictionary = {}
 	for i in left:
 		var opt := OptionTable.by_id(n.options[i])
@@ -738,8 +738,8 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	# Only when there is something loose here to take. An option that paid in
 	# credits and fuel has nothing to open, and a button that opens an empty
 	# container is a button that lies once per event.
-	var floor_h := Run.sector_hoard(n, false)
-	var on_floor := Run.hoard_left(n, floor_h)
+	var floor_h := Run.sector_flotsam(n, false)
+	var on_floor := Run.flotsam_left(n, floor_h)
 	if on_floor > 0 and not Run.dead:
 		var claim := Widgets.button("CLAIM %d" % on_floor, _open_sector_loot)
 		claim.custom_minimum_size = Vector2(120, 22)
@@ -1455,11 +1455,11 @@ func _refresh() -> void:
 		# and one that vanished when picked clean would say the sector had
 		# forgotten a fight happened in it.
 		var wrecks: Array = []
-		for raw in n.hoards:
-			if (raw as MapGen.Hoard).is_wreck():
+		for raw in n.flotsam:
+			if (raw as MapGen.Flotsam).is_wreck():
 				wrecks.append(raw)
 		if not wrecks.is_empty():
-			_view.show_wrecks(wrecks, _open_hoard)
+			_view.show_wrecks(wrecks, _open_flotsam)
 		else:
 			_view.show_area(n)
 		# The readout survives death on purpose. Hiding it at the moment the run
@@ -1809,7 +1809,7 @@ func _refresh_hand() -> void:
 ## contents -- `MATERIALS_NOTE` 3.6 -- and the only difference is which door you
 ## came through. The container names the popup, so a Rustjaw Cutter says so and
 ## the floor says SECTOR LOOT.
-func _open_hoard(h: MapGen.Hoard) -> void:
+func _open_flotsam(h: MapGen.Flotsam) -> void:
 	if _transfer != null or h == null:
 		return
 	var n: MapGen.MapNode = Run.node_at()
@@ -1828,7 +1828,7 @@ func _open_hoard(h: MapGen.Hoard) -> void:
 func _open_sector_loot() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n != null:
-		_open_hoard(Run.sector_hoard(n, false))
+		_open_flotsam(Run.sector_flotsam(n, false))
 
 
 func _close_transfer() -> void:

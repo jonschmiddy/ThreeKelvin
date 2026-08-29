@@ -156,11 +156,16 @@ const PATH := "user://run.save"
 ## each with its own items and its own claims -- and they persist, which is the
 ## point: a wreck you left half stripped is somewhere you can go back to.
 ##
-## A version 19 save has no `hoards` key and reads back with none, which is
+## A version 19 save has no `flotsam` key and reads back with none, which is
 ## correct for it: nothing was ever put in one. The bump is for the other
 ## direction, as 18 and 19 were -- a 19 build handed this save would show you a
 ## sector with the loot missing and no wrecks in it.
-const VERSION := 20
+## 21: `hoards` became `flotsam`. A RENAME AND NOTHING ELSE -- same shape, same
+## contents, same claims -- but the key a save is written under is the key a
+## save is read from, so a version 20 file would come back with no containers in
+## it and a version 20 build handed this one would do the same. `SaveGame.load`
+## refuses a mismatch, which is what makes the discard the migration.
+const VERSION := 21
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -725,13 +730,13 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	# EVERY CONTAINER IN THE SYSTEM. They persist across a jump by being node
 	# state, and across a session by being here -- a wreck you left half
 	# stripped is somewhere you can go back to, which is most of the point.
-	var hoards: Array = []
-	for raw in n.hoards:
-		var h: MapGen.Hoard = raw
+	var flotsam: Array = []
+	for raw in n.flotsam:
+		var h: MapGen.Flotsam = raw
 		var items: Array = []
 		for m2 in h.items:
 			items.append(_item_to(m2))
-		hoards.append({slot = h.slot, art = String(h.art), label = h.label,
+		flotsam.append({slot = h.slot, art = String(h.art), label = h.label,
 			scanned = h.scanned, items = items})
 	return {
 		index = n.index, layer = n.layer, row = n.row,
@@ -752,7 +757,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		links = Array(n.links),
 		shop = shop,
 		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
-		bag = bag, bagged = n.bagged, hoards = hoards,
+		bag = bag, bagged = n.bagged, flotsam = flotsam,
 		options = _names(n.options),
 	}
 
@@ -838,9 +843,9 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 			n.shop.append(mod)
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
-	for raw in d.get("hoards", []):
+	for raw in d.get("flotsam", []):
 		var row: Dictionary = raw
-		var h := MapGen.Hoard.new()
+		var h := MapGen.Flotsam.new()
 		h.slot = int(row.get("slot", 0))
 		h.art = StringName(row.get("art", ""))
 		h.label = String(row.get("label", "SECTOR LOOT"))
@@ -849,7 +854,7 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 			var it := _item_from(e2)
 			if it != null:
 				h.items.append(it)
-		n.hoards.append(h)
+		n.flotsam.append(h)
 	for m in d.get("bag", []):
 		var part := _item_from(m)
 		if part != null:

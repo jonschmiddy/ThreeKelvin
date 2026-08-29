@@ -513,12 +513,12 @@ func take_from_hold(m: HoldItem) -> void:
 ## One per ship, in the order you killed them, and they are never reused: the
 ## slot is what the claims are numbered from, so handing a new wreck an old slot
 ## would have it inherit the claims on the last one.
-func new_wreck(n: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Hoard:
-	var h := MapGen.Hoard.new()
-	h.slot = n.hoards.size()
+func new_wreck(n: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Flotsam:
+	var h := MapGen.Flotsam.new()
+	h.slot = n.flotsam.size()
 	h.art = t.id
 	h.label = String(t.name).to_upper()
-	n.hoards.append(h)
+	n.flotsam.append(h)
 	Sig.map_changed.emit()
 	return h
 
@@ -528,21 +528,21 @@ func new_wreck(n: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Hoard:
 ##
 ## Made on demand and then kept, because a floor with nothing on it is not a
 ## container -- the door to it only exists once there is something behind it.
-func sector_hoard(n: MapGen.MapNode, make: bool = true) -> MapGen.Hoard:
-	for raw in n.hoards:
-		var h: MapGen.Hoard = raw
+func sector_flotsam(n: MapGen.MapNode, make: bool = true) -> MapGen.Flotsam:
+	for raw in n.flotsam:
+		var h: MapGen.Flotsam = raw
 		if not h.is_wreck():
 			return h
 	if not make:
 		return null
-	var fresh := MapGen.Hoard.new()
-	fresh.slot = n.hoards.size()
-	n.hoards.append(fresh)
+	var fresh := MapGen.Flotsam.new()
+	fresh.slot = n.flotsam.size()
+	n.flotsam.append(fresh)
 	return fresh
 
 
 ## What is still unclaimed in one container.
-func hoard_left(n: MapGen.MapNode, h: MapGen.Hoard) -> int:
+func flotsam_left(n: MapGen.MapNode, h: MapGen.Flotsam) -> int:
 	if n == null or h == null:
 		return 0
 	var left := 0
@@ -557,8 +557,8 @@ func loose_here(n: MapGen.MapNode) -> int:
 	if n == null:
 		return 0
 	var left := 0
-	for raw in n.hoards:
-		left += hoard_left(n, raw as MapGen.Hoard)
+	for raw in n.flotsam:
+		left += flotsam_left(n, raw as MapGen.Flotsam)
 	return left
 
 
@@ -567,7 +567,7 @@ func loose_here(n: MapGen.MapNode) -> int:
 ## The same shape `take_from_bag` has and for the same reasons: the hold is
 ## checked BEFORE the claim is spent, so a full hold costs you nothing, and the
 ## claim is awaited because in a party it is a round trip.
-func take_from_hoard(n: MapGen.MapNode, h: MapGen.Hoard, i: int) -> bool:
+func take_from_flotsam(n: MapGen.MapNode, h: MapGen.Flotsam, i: int) -> bool:
 	if n == null or h == null or i < 0 or i >= h.items.size():
 		return false
 	var option := h.option(i)
@@ -606,11 +606,11 @@ func take_item(m: HoldItem) -> bool:
 	# index rather than removing the entry.
 	# Every container in the system, because the icon knows what you clicked and
 	# not which pile it came out of.
-	for raw in n.hoards:
-		var h: MapGen.Hoard = raw
+	for raw in n.flotsam:
+		var h: MapGen.Flotsam = raw
 		for i in h.items.size():
 			if h.items[i] == m and not n.taken.has(h.option(i)):
-				return await take_from_hoard(n, h, i)
+				return await take_from_flotsam(n, h, i)
 	for i in n.bag.size():
 		if n.bag[i] == m and not n.taken.has(MapGen.OPTION_BAG + i):
 			return await take_from_bag(n, i)
@@ -638,7 +638,7 @@ func take_item(m: HoldItem) -> bool:
 ## into it must put it in THAT hull -- what you are looking at is where it goes,
 ## and quietly routing it to the floor instead would be the screen lying about
 ## its own contents.
-func put_in(n: MapGen.MapNode, h: MapGen.Hoard, m: HoldItem) -> bool:
+func put_in(n: MapGen.MapNode, h: MapGen.Flotsam, m: HoldItem) -> bool:
 	if m == null or n == null or h == null or not cargo.has(m):
 		return false
 	take_from_hold(m)
@@ -683,7 +683,7 @@ func jettison(m: HoldItem) -> bool:
 	var n: MapGen.MapNode = node_at()
 	if n == null:
 		return false
-	return put_in(n, sector_hoard(n), m)
+	return put_in(n, sector_flotsam(n), m)
 
 
 ## Make sure one item's cell is still a cell it can occupy.

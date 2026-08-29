@@ -32,7 +32,7 @@ func run(tree: SceneTree) -> void:
 	Rng.reseed(4242, 0)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
-	_node.hoards.clear()
+	_node.flotsam.clear()
 	_node.taken.clear()
 	Run.cargo.clear()
 	# ONE CONTAINER, made the way a kill makes one, so this exercises the real
@@ -121,7 +121,7 @@ func run(tree: SceneTree) -> void:
 	var first: HoldItem = wreck.items[0]
 	var i := wreck.items.find(first)
 	if i >= 0 and Run.has_room_for(first):
-		await Run.take_from_hoard(_node, wreck, i)
+		await Run.take_from_flotsam(_node, wreck, i)
 		await tree.process_frame
 		var moved := 0
 		for k2 in _view._loose._at:

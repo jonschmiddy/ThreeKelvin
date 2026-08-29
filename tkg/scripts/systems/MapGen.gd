@@ -94,7 +94,7 @@ const OPTION_BAG := 200
 ## `taken`.
 const OPTION_SITE := 300
 
-## Every container in a system: `OPTION_HOARD + h * HOARD_STRIDE + i` is the
+## Every container in a system: `OPTION_FLOTSAM + h * FLOTSAM_STRIDE + i` is the
 ## i-th thing in the h-th one.
 ##
 ## The fifth contested list, and the first that is a list OF lists. A system used
@@ -110,8 +110,8 @@ const OPTION_SITE := 300
 ## THE STRIDE IS A CEILING ON ONE CONTAINER, not on how many there are. Sixty-four
 ## is far past what a wreck holds -- drops are single digits -- and the cost of
 ## being wrong is two containers sharing a claim, so it is deliberately loose.
-const OPTION_HOARD := 1000
-const HOARD_STRIDE := 64
+const OPTION_FLOTSAM := 1000
+const FLOTSAM_STRIDE := 64
 
 
 ## One container of loose things, sitting in a system.
@@ -124,9 +124,9 @@ const HOARD_STRIDE := 64
 ## They persist. Jump away and come back and your wrecks are still where you left
 ## them with whatever you did not take still in them, which is the whole point of
 ## it being the system's state rather than the fight's.
-class Hoard extends RefCounted:
-	## Its slot in `MapNode.hoards`, and what its claims are numbered from. Never
-	## reused and never renumbered -- see `OPTION_HOARD`.
+class Flotsam extends RefCounted:
+	## Its slot in `MapNode.flotsam`, and what its claims are numbered from. Never
+	## reused and never renumbered -- see `OPTION_FLOTSAM`.
 	var slot: int = 0
 	## The enemy template whose hull this is, or empty for the system's own pile.
 	## Empty is what makes it the floor rather than a wreck.
@@ -142,19 +142,10 @@ class Hoard extends RefCounted:
 	func is_wreck() -> bool:
 		return art != &""
 
-	## What the grid holding this is called, over the grid.
-	##
-	## The popup's heading already names the container -- a hull says which hull
-	## -- so this says what the pile IS rather than repeating it. SALVAGE for a
-	## wreck, because that is the game's word for loose things worth taking, and
-	## the floor says where it is, because "salvage" on a pile you dropped
-	## yourself would be flattering it.
-	func column_label() -> String:
-		return "SALVAGE" if is_wreck() else "LEFT IN THE SYSTEM"
 
 	## The claim id of the i-th thing in here.
 	func option(i: int) -> int:
-		return OPTION_HOARD + slot * HOARD_STRIDE + i
+		return OPTION_FLOTSAM + slot * FLOTSAM_STRIDE + i
 
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
@@ -523,8 +514,8 @@ class MapNode extends RefCounted:
 	## SEPARATE FROM `bag`, which stays exactly as it was. That array is the
 	## shared-kill pool and its claims are numbered from `OPTION_BAG`; renumbering
 	## it into here would break saved runs and the co-op claims table for no gain.
-	## New work uses hoards; `bag` is left alone until it has no callers.
-	var hoards: Array = []
+	## New work uses flotsam; `bag` is left alone until it has no callers.
+	var flotsam: Array = []
 
 	## What this system holds, as option IDS rather than definitions.
 	##

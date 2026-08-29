@@ -123,12 +123,12 @@ static func loot(n: MapGen.MapNode) -> int:
 	while true:
 		var best := -1
 		var best_worth := -1
-		var from: MapGen.Hoard = null
+		var from: MapGen.Flotsam = null
 		# EVERY CONTAINER IN THE SYSTEM, weighed together. A pilot standing in a
 		# sector with three wrecks in it does not empty the nearest one first;
 		# they take the best thing they can carry, wherever it is.
-		for raw in n.hoards:
-			var h: MapGen.Hoard = raw
+		for raw in n.flotsam:
+			var h: MapGen.Flotsam = raw
 			for i in h.items.size():
 				if n.taken.has(h.option(i)):
 					continue

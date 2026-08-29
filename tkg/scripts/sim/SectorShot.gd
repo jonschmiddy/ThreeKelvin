@@ -172,7 +172,7 @@ func run(tree: SceneTree) -> void:
 			&"exotic", &"common", &"artifact", &"epic"]
 		var want0 := ["2x2", "4x1", "1x1", "3x1", "2x1", "1x1", "2x1"]
 		var k0 := 0
-		var pile := Run.sector_hoard(n0)
+		var pile := Run.sector_flotsam(n0)
 		for shape0 in want0:
 			for row0 in MaterialTable.all():
 				if String(row0.get("cells", "")) != shape0:
