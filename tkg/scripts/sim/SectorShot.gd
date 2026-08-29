@@ -106,6 +106,20 @@ func run(tree: SceneTree) -> void:
 		return
 	if "transfer" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
+		# THE REPORTED CASE, not a convenient one. The glitch was seen on a
+		# heavy hull with the hold packed solid, and an empty 5x4 hold beside an
+		# eight-item pile is exactly the arrangement that cannot show it.
+		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+		var fill: Array[StringName] = [&"legendary", &"exotic", &"rare",
+			&"common", &"epic", &"artifact", &"contraband"]
+		var fi := 0
+		for frow in MaterialTable.all():
+			if Run.hold_full():
+				break
+			var fm := MaterialData.of(frow)
+			fm.tier = fill[fi % fill.size()]
+			fi += 1
+			Run.place_in_hold(fm)
 		# A CONTAINER WORTH LOOKING AT: a spread of shapes and tiers on the floor,
 		# a part among them so the two icon kinds are judged side by side, and
 		# one already claimed so the taken state is visible.
@@ -133,6 +147,46 @@ func run(tree: SceneTree) -> void:
 			st._open_transfer()
 			for iu in 8:
 				await RenderingServer.frame_post_draw
+		# CELLS CLAIMED TWICE, on both sides. Two items drawn over each other is
+		# what "glitchy" looks like, and it is a DATA question -- the icons are
+		# only ever placed where the model says.
+		var clash := 0
+		var seen: Dictionary = {}
+		for c0 in Run.cargo:
+			if c0.hold_at.x < 0:
+				continue
+			for dy0 in c0.footprint().y:
+				for dx0 in c0.footprint().x:
+					var cell0: Vector2i = c0.hold_at + Vector2i(dx0, dy0)
+					if seen.has(cell0):
+						clash += 1
+						print("    HOLD CLASH at %s: %s over %s"
+							% [cell0, c0.name, seen[cell0]])
+					seen[cell0] = c0.name
+		print("  hold cells claimed twice: %d" % clash)
+		var g := Run.hold_grid()
+		var outside := 0
+		for c1 in Run.cargo:
+			if c1.hold_at.x < 0:
+				continue
+			var f1 := c1.footprint()
+			if c1.hold_at.x + f1.x > g.x or c1.hold_at.y + f1.y > g.y:
+				outside += 1
+				print("    OUTSIDE THE GRID: %s at %s size %s in %s"
+					% [c1.name, c1.hold_at, f1, g])
+		print("  hold items past the edge: %d" % outside)
+		if st != null and st._transfer != null:
+			var tv := st._transfer
+			print("  hold grid: size %s  cols*CELL %d" % [tv._hold.size,
+				tv._hold._cols * HoldGrid.CELL])
+			print("  loose grid: size %s  cols*CELL %d  rows*CELL %d"
+				% [tv._loose.size, tv._loose._cols * SalvageGrid.CELL,
+					tv._loose._rows * SalvageGrid.CELL])
+			for ch in tv._loose.get_children():
+				var ic := ch as ItemIcon
+				if ic != null:
+					print("    %-22s pos %s size %s" % [ic.held_item().name,
+						ic.position, ic.size])
 		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()

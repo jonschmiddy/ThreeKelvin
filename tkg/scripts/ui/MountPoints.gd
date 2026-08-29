@@ -362,7 +362,24 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 		_lit = m
 		queue_redraw()
 	var i := spot_at(at)
-	return i >= 0 and (_spots[i].slot as ModuleData.Slot) == m.slot
+	if i < 0 or (_spots[i].slot as ModuleData.Slot) != m.slot:
+		return false
+	# AND THE RESIDENT HAS TO HAVE SOMEWHERE TO GO.
+	#
+	# `ShipScreen._on_mount_drop` already refuses this -- it will not take a part
+	# off the hull with no room in the hold for it -- but it refused SILENTLY,
+	# after accepting the drag, with only a line in the log to say why. On a
+	# packed hold that reads as "I cannot replace a mounted weapon", because the
+	# gesture completes and nothing happens.
+	#
+	# Answering it here instead means the cursor says no while you are still
+	# holding the thing, which is where a refusal belongs.
+	var resident := Run.module_at(_spots[i].slot as ModuleData.Slot,
+		int(_spots[i].index))
+	if resident != null and resident != m and not Run.installed.has(m) \
+			and not Run.has_room_for(resident):
+		return false
+	return true
 
 func _drop_data(at: Vector2, data: Variant) -> void:
 	var m: ModuleData = (data as Dictionary).module

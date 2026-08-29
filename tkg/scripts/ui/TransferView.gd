@@ -139,11 +139,22 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	if m == null or _busy:
 		return
 	if String(payload.get("origin", &"")) != "bag":
-		# Yours already. Move it, and put it back if the cell refuses.
+		# Yours already, so this is a rearrangement and it is free.
+		#
+		# ASKED BEFORE IT IS LIFTED. The first version took the item out of the
+		# hold, tried the new cell, and put it back on failure -- which is one
+		# `place_in_hold` away from losing it outright if BOTH calls refuse.
+		# 3.4 does not allow a move to cost you the thing being moved, so the
+		# question is answered while the item is still safely where it was.
+		if m.hold_at != at and not Run.can_place(m, at):
+			return
 		var was := m.hold_at
 		Run.take_from_hold(m)
-		if not Run.place_in_hold(m, at) and was.x >= 0:
-			Run.place_in_hold(m, was)
+		if not Run.place_in_hold(m, at) and not Run.place_in_hold(m, was):
+			# Cannot happen -- the cell was checked a line ago and the old one
+			# is definitionally free. If it ever does, the item goes back in the
+			# hold somewhere rather than nowhere.
+			Run.place_in_hold(m)
 		refresh()
 		return
 	var i := _loose.index_of(m)
@@ -165,5 +176,11 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 			Run.take_from_hold(m)
 			if not Run.place_in_hold(m, at):
 				Run.place_in_hold(m)
-		Audio.play(&"loot_drop")
+		# QUIET, and pitched down. `loot_drop` is written as a reward sting and
+		# it is the wrong instrument here: taking a crate off the floor is a
+		# thing you do six times in a system, and a fanfare on each one turns
+		# packing a hold into a slot machine paying out. The same cue at a
+		# fraction of the volume and below its written pitch reads as the object
+		# arriving rather than as you winning.
+		Audio.play(&"loot_drop", -12.0, 70)
 	refresh()
