@@ -44,6 +44,13 @@ var _at: Dictionary = {}
 ## The tallest the grid has been this visit. It does not shrink, because a
 ## container that gets shorter as you empty it moves everything still in it.
 var _high: int = 0
+## The cells a carried thing would cover if you let go now, or empty.
+##
+## The hold has had this since it became a grid and the container had none, so
+## dragging something out here lit nothing up and read as a dead surface -- which
+## is half of why it looked like the drop was being refused when it was being
+## accepted and not drawn.
+var _beam: Rect2i = Rect2i()
 ## Which entries are spoken for. A bag row someone already claimed still takes
 ## up space in the picture, because a hole where a part was is information and
 ## a silently reflowed grid is not.
@@ -207,6 +214,16 @@ func _draw() -> void:
 		draw_line(Vector2(0.0, y * CELL), Vector2(w, y * CELL),
 			UITheme.LINE, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, Vector2(w, h)), UITheme.LINE, false, EDGE)
+	if _beam.size.x <= 0:
+		return
+	# The same ink the hold uses for the same question, because the hold and the
+	# container are answering one thing -- where does this go -- and two idioms
+	# for it would read as two different answers.
+	var c := UITheme.TRACTOR
+	var r := Rect2(Vector2(_beam.position) * float(CELL),
+		Vector2(_beam.size) * float(CELL))
+	draw_rect(r, Color(c.r, c.g, c.b, 0.14), true)
+	draw_rect(r, Color(c.r, c.g, c.b, 0.7), false, 1.0)
 
 
 ## Which entry an item is, so a claim can name it. Identity, not equality --
@@ -233,14 +250,37 @@ func index_of(m: HoldItem) -> int:
 ## principled: the cells are right there, the thing moves under your hand
 ## everywhere else in the game, and refusing costs a rule nobody asked for.
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
+	_show_beam(Rect2i())
 	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
 		return false
 	var m: HoldItem = (data as Dictionary).module
 	if m == null:
 		return false
+	var cell := _cell_of(at, m)
 	if String((data as Dictionary).get("origin", &"")) == "bag":
-		return _at.has(m) and _fits(m, _cell_of(at, m))
-	return Run.cargo.has(m)
+		if not (_at.has(m) and _fits(m, cell)):
+			return false
+		_show_beam(Rect2i(cell, m.footprint()))
+		return true
+	if not Run.cargo.has(m):
+		return false
+	# One of yours, landing here. Where it lands is decided when it is dropped
+	# -- it goes wherever the pile has room -- so the beam frames the whole
+	# container rather than a cell, which is the honest answer.
+	_show_beam(Rect2i(Vector2i.ZERO, Vector2i(_cols, _rows)))
+	return true
+
+
+func _show_beam(r: Rect2i) -> void:
+	if r == _beam:
+		return
+	_beam = r
+	queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END:
+		_show_beam(Rect2i())
 
 
 func _drop_data(at: Vector2, data: Variant) -> void:

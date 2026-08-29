@@ -201,6 +201,19 @@ func _build_hold() -> Control:
 
 func _build_loose() -> Control:
 	_loose = SalvageGrid.new()
+	# THIS LINE IS THE WHOLE BUG. `SalvageGrid` jettisons on a drop and then
+	# announces it -- and nothing was listening, so the model changed and the
+	# screen did not. The item left your hold, went into the bag, and carried on
+	# being drawn where it had been.
+	#
+	# Which is exactly what it looked like from outside: drop it out here and it
+	# "goes back", then move anything else and the earlier one is suddenly out
+	# there. The second action was not moving it. It was the first refresh since
+	# it moved.
+	#
+	# The hold has to redraw too, not just the container, which is why this is
+	# the view's refresh rather than the grid's own.
+	_loose.picked.connect(func(_m: HoldItem) -> void: refresh())
 	# FILLS ITS SIDE. Everything below the pile is still 'out here' as far as a
 	# hand is concerned, and a target you have to hit exactly is a target that
 	# does not exist when the pile happens to be full.

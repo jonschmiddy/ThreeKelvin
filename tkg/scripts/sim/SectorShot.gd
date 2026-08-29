@@ -221,6 +221,7 @@ func run(tree: SceneTree) -> void:
 			var mine: HoldItem = Run.cargo[0] if Run.cargo.size() > 0 else null
 			if mine != null:
 				var payload := {module = mine, origin = &"cargo"}
+				var icons_before := tv3._hold.get_child_count()
 				var accepts: bool = tv3._loose._can_drop_data(Vector2(20, 20), payload)
 				print("  container accepts one of yours: %s" % accepts)
 				# WHERE THE TARGET ACTUALLY IS. Godot offers a drop to the
@@ -240,6 +241,13 @@ func run(tree: SceneTree) -> void:
 					tv3._loose._drop_data(Vector2(20, 20), payload)
 				print("  bag %d -> %d ; still in hold: %s"
 					% [bag_was, n3.bag.size(), Run.cargo.has(mine)])
+				# NO MANUAL REFRESH. The drop has to redraw the screen by
+				# itself -- that is the bug this checks: the model changed and
+				# the view did not, so the item stayed drawn where it had been
+				# until some later action forced a repaint.
+				print("  hold icons %d -> %d (must drop by one, with no refresh"
+					% [icons_before, tv3._hold.get_child_count()]
+					+ " called here)")
 		# NOTHING ELSE MOVES WHEN ONE THING LEAVES.
 		#
 		# The container used to re-lay-out on every change, so taking one item
@@ -273,73 +281,13 @@ func run(tree: SceneTree) -> void:
 			print("  container height %d -> %d (must not shrink)"
 				% [tall_before, tvs._loose._rows])
 
-		# A REAL DRAG. Everything so far called `_can_drop_data` directly, which
-		# proves the LOGIC and says nothing about whether Godot ever asks it --
-		# and "the logic is right and unreachable" has been the answer twice.
-		# Press, move, release, and then look at the bag.
-		if st != null and st._transfer != null:
-			var tv4 := st._transfer
-			# CLEAN STATE FIRST. The probes above already took and jettisoned
-			# things, so the grid this reaches into is whatever they left.
-			# WHAT IS ABOVE IT. A drop target under an opaque sibling is a drop
-			# target that never sees a cursor.
-			for ch5 in st.get_children():
-				var c5 := ch5 as Control
-				if c5 != null:
-					print("    %-22s vis %s filter %d rect %s"
-						% [c5.name.substr(0, 22), c5.visible, c5.mouse_filter,
-							c5.get_global_rect()])
-			tv4.refresh()
-			for ix in 3:
-				await RenderingServer.frame_post_draw
-			var src: ItemIcon = null
-			for ch4 in tv4._hold.get_children():
-				var ic4 := ch4 as ItemIcon
-				if ic4 != null:
-					src = ic4
-					break
-			if src != null:
-				var carried: HoldItem = src.held_item()
-				var from := src.get_global_rect().get_center()
-				var lr := tv4._loose.get_global_rect()
-				var to := lr.position + Vector2(lr.size.x * 0.5, lr.size.y - 24.0)
-				var n4: MapGen.MapNode = Run.node_at()
-				var was4 := n4.bag.size()
-				var held4 := Run.cargo.size()
-
-				Input.warp_mouse(from)
-				await RenderingServer.frame_post_draw
-				var hov := tv4.get_viewport().gui_get_hovered_control()
-				print("    under the cursor: %s (want an ItemIcon)"
-					% ("null" if hov == null else hov.get_class() + "/" + str(hov.get_script() != null)))
-				var press := InputEventMouseButton.new()
-				press.button_index = MOUSE_BUTTON_LEFT
-				press.pressed = true
-				press.position = from
-				press.global_position = from
-				Input.parse_input_event(press)
-				await RenderingServer.frame_post_draw
-				for step in 8:
-					var mm := InputEventMouseMotion.new()
-					mm.position = from.lerp(to, float(step + 1) / 8.0)
-					mm.global_position = mm.position
-					mm.button_mask = MOUSE_BUTTON_MASK_LEFT
-					Input.parse_input_event(mm)
-					await RenderingServer.frame_post_draw
-				print("    mid-drag: viewport has payload: %s"
-					% (typeof(tv4.get_viewport().gui_get_drag_data())
-						== TYPE_DICTIONARY))
-				var rel := InputEventMouseButton.new()
-				rel.button_index = MOUSE_BUTTON_LEFT
-				rel.pressed = false
-				rel.position = to
-				rel.global_position = to
-				Input.parse_input_event(rel)
-				for iw in 4:
-					await RenderingServer.frame_post_draw
-				print("  REAL DRAG hold->out: bag %d -> %d, hold %d -> %d (%s)"
-					% [was4, n4.bag.size(), held4, Run.cargo.size(),
-						"moved" if not Run.cargo.has(carried) else "STAYED"])
+		# NO SIMULATED DRAG HERE, and that is a finding rather than a gap.
+		# `Input.parse_input_event` plus `warp_mouse` does not drive the GUI in
+		# an unfocused harness window -- `gui_get_hovered_control` came back
+		# null over an icon plainly on screen -- so the probe reported a failure
+		# that was its own. A harness that cries wolf is worse than one that is
+		# silent, so the drop paths are driven directly and the real drag is a
+		# thing a person has to check.
 		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()
