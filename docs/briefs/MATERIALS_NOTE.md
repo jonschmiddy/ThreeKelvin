@@ -81,8 +81,21 @@ of ore with no station in range would be a hold with no exit.
 - The item drops into **the node's bag** — `MapNode.bag`, the same one a kill
   fills. The sector drawer already lists what is loose at a node, so a jettisoned
   material shows up there with no new state and no new screen.
-- It is therefore **recoverable until you jump**, and gone the moment you do.
-  Changing your mind costs nothing; changing it late costs the whole item.
+- It is therefore **permanent, and recoverable forever**. Revised 2026-08-29:
+  it used to be gone the moment you jumped, on the reasoning that changing your
+  mind should cost nothing and changing it late should cost everything. In play
+  that made jettison a small tragedy every time -- you drop the third-best gun
+  to take the best one and the galaxy eats it.
+
+  What it is instead: **a system is a place you can leave things.** Fly back and
+  they are where you put them. The cost is the trip -- fuel, and a jump spent
+  going backwards rather than in -- which is a real price on a run with a
+  finite tank, and a far better one than a thing you owned quietly ceasing to
+  exist.
+
+  **This is free distributed storage and that is the thing to watch.** A hold is
+  finite by design and the galaxy now is not; if hoarding across a dozen systems
+  turns out to beat packing well, the lever is fuel rather than deletion.
 
 This reuses the bag wholesale. `bag_left()` counts by index against `n.taken`,
 so appending is index-stable and safe.
@@ -159,7 +172,7 @@ decide something. What it must not do is use a power the player does not have.
 ### 3.5 Jettison applies to everything
 
 Not just materials. Any physical thing in your hold can go overboard: pays
-nothing, lands in the node's bag, recoverable until you jump. Modules therefore
+nothing, lands in that system's own pile, and stays there. Modules therefore
 have both — `SCRAP` destroys and pays, `JETTISON` drops and does not.
 
 ### 3.6 Every physical grant is a container

@@ -62,7 +62,7 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 		var loot := Widgets.button("SECTOR LOOT", on_loot)
 		loot.custom_minimum_size = BTN
 		loot.disabled = loose <= 0
-		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays until you jump."
+		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays for the rest of the run."
 			if loose > 0 else "Nothing is loose in this system.")
 		row.add_child(loot)
 	var b := Widgets.button("PLOT NEXT JUMP", on_jump)

@@ -625,9 +625,9 @@ func take_item(m: HoldItem) -> bool:
 ##
 ## IT GOES IN THE BAG. The same `MapNode.bag` a kill fills, so the sector already
 ## lists it and picking it back up is a mechanism that exists. That makes the
-## whole thing free to change your mind about right up until you jump, and total
-## the moment you do -- which is the shape the ruling wanted: cheap now,
-## expensive late.
+## whole thing free to change your mind about, now and later: a system is a
+## place you can leave things, and what you leave is still there when you fly
+## back. The price of a second thought is the trip, not the item.
 ##
 ## Returns whether it went. Nothing outside a system to throw it into is the one
 ## case that refuses, and it refuses rather than destroying -- §3.4.

@@ -384,7 +384,7 @@ func _build_salvage_rail() -> PanelContainer:
 	# nothing of yours is ever destroyed for you.
 	#
 	# And the word had been taken. Jettison means one thing now -- overboard,
-	# into the bag at this system, recoverable until you jump -- and it is done
+	# into this system's own pile, where it stays -- and it is done
 	# by right-clicking the thing you want rid of, one at a time, wherever the
 	# hold is shown. A second button spelled the same way and meaning "burn
 	# everything" is not a button, it is a trap.
@@ -732,7 +732,7 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	if on_floor > 0 and not Run.dead:
 		var claim := Widgets.button("CLAIM %d" % on_floor, _open_sector_loot)
 		claim.custom_minimum_size = Vector2(120, 22)
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system until you jump.")
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system -- you can come back for it.")
 		row.add_child(claim)
 
 	if Run.dead:

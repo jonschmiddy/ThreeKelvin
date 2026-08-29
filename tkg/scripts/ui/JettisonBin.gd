@@ -11,7 +11,8 @@ extends Control
 ## It puts things on the SYSTEM'S FLOOR, not into a wreck: this is the ship
 ## page, there is no container open, and `RunState.jettison` is exactly the
 ## "no screen open to say where you meant" case. What you drop here is
-## recoverable from SECTOR LOOT until you jump, and gone after.
+## recoverable from SECTOR LOOT for the rest of the run. A system is a place
+## you can leave things; the price of coming back for one is the trip.
 
 signal dumped(item: HoldItem)
 
@@ -24,12 +25,19 @@ const H := 20
 
 ## Lit while something is being carried over it.
 var _hot: bool = false
+## Awake while something of YOURS is in the air anywhere on screen.
+##
+## Three states rather than two, and the third is the one that was missing: a
+## control that is always red is always shouting, and a red cross beside a hold
+## you are not touching reads as a warning about the hold. Grey until there is
+## something it could act on.
+var _armed: bool = false
 
 
 func _init() -> void:
 	custom_minimum_size = Vector2(W, H)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to put it down in this system. It stays until you jump, and you can take it back from SECTOR LOOT.\n\nRight-clicking anything in your hold does the same.")
+	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to put it down in this system. It stays there for the rest of the run -- fly back and take it from SECTOR LOOT whenever you want it.\n\nRight-clicking anything in your hold does the same.")
 
 
 func _can_drop_data(_at: Vector2, data: Variant) -> bool:
@@ -55,14 +63,27 @@ func _drop_data(_at: Vector2, data: Variant) -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END and _hot:
+	# NOTIFICATION_DRAG_BEGIN reaches every control, which is exactly what this
+	# needs: the drag starts on an icon somewhere else and this has to hear
+	# about it without being under the cursor.
+	if what == NOTIFICATION_DRAG_BEGIN:
+		var carried: Variant = get_viewport().gui_get_drag_data()
+		var m: HoldItem = null
+		if typeof(carried) == TYPE_DICTIONARY 				and (carried as Dictionary).has("module"):
+			m = (carried as Dictionary).module
+		# Only what is in the HOLD. A part on the hull is not yours to drop from
+		# here -- taking it off the ship is the mount's decision -- so carrying
+		# one must leave this asleep rather than promising something it refuses.
+		_armed = m != null and Run.cargo.has(m)
+		queue_redraw()
+	elif what == NOTIFICATION_DRAG_END:
+		_armed = false
 		_hot = false
 		queue_redraw()
 
 
 func _draw() -> void:
 	var edge := UITheme.TRACTOR if _hot else UITheme.LINE
-	var ink := UITheme.EMBER if _hot else UITheme.COLD
 	var box := Rect2(Vector2.ZERO, size)
 	draw_rect(box, Color(0.043, 0.055, 0.078, 1.0), true)
 
@@ -74,7 +95,14 @@ func _draw() -> void:
 	# thing under it stops -- and red is the only colour in this palette that
 	# has never meant anything else.
 	var pad := 5.0
-	var c := UITheme.LEAVE if not _hot else Color("#e0503c")
+	# ASLEEP, AWAKE, AIMED AT. Grey while nothing is in the air, the real red
+	# once you are carrying something it can take, and brighter still when you
+	# are over it -- so the mark answers before you have let go.
+	var c := UITheme.LINE
+	if _hot:
+		c = Color("#e0503c")
+	elif _armed:
+		c = UITheme.LEAVE
 	var span := size - Vector2(pad, pad) * 2.0
 	var step := 2.0
 	# Drawn as squares along both diagonals rather than as lines: a rotated
