@@ -1,10 +1,10 @@
 # Materials become items
 
-*Reconstructed 2026-08-28. The original was written outside the repo and never
-landed; `ROADMAP.md` and `MaterialTable.gd` both cite it, and the code quotes it
+*Reconstructed 2026-08-28, and ruled the same day. The original was written
+outside the repo and never landed; `ROADMAP.md` and `MaterialTable.gd` both cite it, and the code quotes it
 in four places. Everything in §1 is recovered from those quotes or from the
-catalogue itself and is therefore **settled**. §3 is what did not survive and
-needs a ruling before the work starts.*
+catalogue itself and is therefore **settled**. §3 is what did not
+survive, now answered — and §3.4 reaches well beyond materials.*
 
 ---
 
@@ -89,20 +89,89 @@ so appending is index-stable and safe.
 
 ---
 
-## 3. Not recovered — needs a ruling before the work starts
+## 3. Ruled 2026-08-28
 
-These were in the original and did not survive in any quote. Each one shapes
-code, so none of them should be settled by whoever writes it first.
+The five open questions, answered. Two of them turned out to answer each other.
 
-| # | Question | Why it matters |
-| --- | --- | --- |
-| 1 | **Instance or row-and-count?** Does a material become an object like `ModuleData` with its own `hold_at`, or does the hold carry a row id and a quantity? | Decides whether `cells` is per item or per stack, and whether the hold grid needs a new cell type at all |
-| 2 | **Do materials stack?** Two `COIL STOCK` in one `1x1`, or two cells? | The whole feel of hold pressure. Stacking makes ore cheap to carry; not stacking makes every pickup a real decision |
-| 3 | **The station sale.** Which screen, what price, and does danger or tier move it? | `value` exists per row but nothing reads it as a price yet |
-| 4 | **Does `HOLD_LIMIT` count materials?** `Policy.gd` enforces a cap by scrapping the cheapest thing aboard | If materials count, the sim's make-room policy needs to know how to choose between a gun and a crate of sand |
-| 5 | **Does JETTISON also apply to modules?** A free drop alongside the paying SCRAP | Dropping a module into the bag to pick it back up later is a different game from destroying it for credits |
+### 3.1 Materials do not stack
 
-**Question 2 is the one to answer first.** Everything else bends around it.
+Two `COIL STOCK` take two cells. Every pickup is a real decision about space,
+which is the point of putting them in the hold at all.
+
+**Leave the door open.** If hold pressure turns out to be too tight to play
+against, stacking is the first knob to reach for — so the code carries a single
+switch for it rather than assuming one-per-cell everywhere. It is a balance
+lever held in reserve, not a maybe.
+
+### 3.2 An instance, because of 3.1
+
+*The question was: when you pick up a `DECK PLATE`, does the game make an object
+for that particular plate — which remembers where it sits in your hold, the way
+a module does — or does the hold just keep a tally, "3 × DECK PLATE"?*
+
+**3.1 settles it.** A tally cannot say "one is here and the other is over
+there", and not stacking means exactly that. So a material becomes an instance
+with its own `hold_at`, mirroring `ModuleData`.
+
+This is also the cheaper answer: `HoldGrid` already places, drags and draws
+anything that has a footprint and a cell. A tally would have needed a second
+kind of cell that the grid does not have.
+
+### 3.3 `value` is the price, and stations buy
+
+*The question was: every row carries a `value`. Is that simply the price
+everywhere, or does what you are paid depend on where you sell — a core station
+paying more for ore than a rim outpost — or on the danger of the system it came
+from?*
+
+**Flat.** `value` is what a station pays, anywhere, and stations are the only
+buyer. Nothing else in the game prices by region, and a material whose worth
+changes with the map is a spreadsheet the player has to keep.
+
+A regional multiplier can be added later without touching one row of the
+catalogue, so this is reversible if selling turns out to be too flat to think
+about.
+
+### 3.4 Nothing is ever destroyed for you
+
+**The strongest ruling here, and it is not only about materials.** The game
+never scraps, sheds or leaves behind anything of yours to make room. If
+something will not fit, it does not go in — and you decide what leaves.
+
+`take_from_bag` already works this way and is the model: *"The hold is full.
+%s stays where it is."* It refuses. It does not tidy up.
+
+**Three paths in `RunState` currently break this** and must be fixed as part of
+the work. All three pick the cheapest thing you own by `scrap_value` and destroy
+it, telling you afterwards in the log:
+
+| Where | What it does today |
+| --- | --- |
+| `install_module` — slot full | Uninstalls your cheapest module of that slot; if the hold has no room, *"It was left behind."* |
+| `install_module` — reactor loop | Shuts down the cheapest installed modules until the power fits; same silent loss |
+| `transfer_to_hull` | *"Shed anything that no longer fits, cheapest first."* |
+
+Each becomes a refusal or a prompt. `Policy.gd`'s auto-scrap is a separate
+thing — that is the SIMULATOR deciding, and a simulated pilot does have to
+decide something. What it must not do is use a power the player does not have.
+
+### 3.5 Jettison applies to everything
+
+Not just materials. Any physical thing in your hold can go overboard: pays
+nothing, lands in the node's bag, recoverable until you jump. Modules therefore
+have both — `SCRAP` destroys and pays, `JETTISON` drops and does not.
+
+### 3.6 Every physical grant is a container
+
+Falling out of 3.4, and larger than materials: **if something hands you a
+physical item, it hands you a container, not the item.** An event that pays out
+in cargo opens the same two-grid view a wreck does — its grid on one side, your
+hold on the other — and you drag across what you want, jettisoning or scrapping
+your own things to make space if you need it.
+
+This makes the wreck view *the* way physical property enters your ship, rather
+than one special case of it. It is also the only way 3.4 can hold: a payout that
+cannot refuse has to either destroy something or overflow.
 
 ---
 
