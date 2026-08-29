@@ -177,7 +177,12 @@ func _apply_scan() -> void:
 		if m == null or _lit.has(m):
 			continue
 		_lit[m] = true
-		_materialise(ic)
+		# SEEDED BY HOW MANY HAVE ALREADY ARRIVED, so no two in one sweep
+		# resolve the same way and the same pile resolves the same way twice.
+		# Random would do neither: a container that glitched differently every
+		# time you opened it would read as unstable rather than as several
+		# objects.
+		_materialise(ic, _lit.size())
 
 
 ## One thing resolving out of the sweep.
@@ -190,10 +195,14 @@ func _apply_scan() -> void:
 ## It runs in the SWEEP'S colour and only lands on white at the end, so for the
 ## first tenth of a second the crate is the same light as the line that found
 ## it. Revealed by the sweep, rather than switched on underneath it.
-func _materialise(ic: ItemIcon) -> void:
+func _materialise(ic: ItemIcon, seed_at: int) -> void:
 	var glow := UITheme.TRACTOR
 	var home := ic.position
-	var hold := (GLITCH_ROWS / SCAN_CELLS_PER_SEC) / float(GLITCH_STEPS)
+	# Each thing settles at its own pace, within a fifth either side. The sweep
+	# stays the clock -- everything is still done by the time the line is a row
+	# and a half past it -- but they stop arriving in lockstep.
+	var spread := 1.0 + (float(seed_at % 5) - 2.0) * 0.09
+	var hold := (GLITCH_ROWS / SCAN_CELLS_PER_SEC) * spread / float(GLITCH_STEPS)
 	ic.modulate = Color(glow.r, glow.g, glow.b, 0.0)
 	var t := ic.create_tween()
 	for i in GLITCH_STEPS:
@@ -203,12 +212,16 @@ func _materialise(ic: ItemIcon) -> void:
 		# something and something being broken.
 		var wild := 1.0 - float(i) / float(GLITCH_STEPS)
 		var settled := 1.0 - wild
-		var swing: float = GLITCH_SHAPE[i % GLITCH_SHAPE.size()]
+		# The pattern is walked from a different place per item, so one crate
+		# tears left first and the next tears right.
+		var swing: float = GLITCH_SHAPE[(i + seed_at) % GLITCH_SHAPE.size()]
 		# VISIBLE FROM THE FIRST CUT and rising, rather than swinging. See
 		# `GLITCH_DROPS`: the two dropouts are the only time it dims, and even
 		# then not to nothing.
 		var a := 0.6 + settled * 0.4
-		if GLITCH_DROPS.has(i):
+		# And it blinks on different cuts. Still twice -- see `GLITCH_DROPS` --
+		# but not the same twice as its neighbour.
+		if GLITCH_DROPS.has((i + seed_at) % GLITCH_STEPS):
 			a *= GLITCH_DROP_TO
 		# And it cools out of the sweep's colour into its own as it settles.
 		var col := Color(glow.r, glow.g, glow.b).lerp(Color.WHITE, settled)

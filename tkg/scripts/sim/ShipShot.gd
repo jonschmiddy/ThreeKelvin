@@ -137,5 +137,18 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 			if mp._get_tooltip(at) != "":
 				answered += 1
 		print("  %d of %d mounted parts answer a tooltip" % [answered, asked])
+		# AND THE PANEL BUILDS. A tooltip that names a part and then throws
+		# while drawing it is the same failure as no tooltip at all -- which is
+		# how this one shipped the first time.
+		var built := 0
+		for i2 in mp._spots.size():
+			var h2: ModuleData = mp._spots[i2].held
+			if h2 == null:
+				continue
+			var pnl := Widgets.module_tip_panel(h2)
+			if pnl != null:
+				built += 1
+				pnl.queue_free()
+		print("  %d of %d build a tooltip panel" % [built, asked])
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))

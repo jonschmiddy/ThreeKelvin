@@ -916,7 +916,19 @@ func _input(event: InputEvent) -> void:
 	if k == null or not k.pressed or k.echo or k.keycode != KEY_TAB:
 		return
 	get_viewport().set_input_as_handled()
-	Router.show_ship()
+	# SHIP, SECTOR, STARCHART, round. The three screens a run is actually played
+	# on, in the order you move between them: what you are carrying, where you
+	# are, where you are going.
+	#
+	# Each `show_` refuses on its own terms -- `show_ship` during a fight, the
+	# chart with nothing to jump to -- so a refused step simply leaves you where
+	# you were rather than needing a guard here.
+	if Router.current is ShipScreen:
+		Router.show_sector()
+	elif Router.current is SectorScreen:
+		Router.show_starchart()
+	else:
+		Router.show_ship()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

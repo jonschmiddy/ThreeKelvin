@@ -558,7 +558,12 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 ## alone because each one would add a resize to a transition that has none, and
 ## unlike these two you dock at them repeatedly.
 func _size_drawer(n: MapGen.MapNode) -> void:
-	var bookend := n != null and not Run.dead 		and (n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.CORE)
+	# EVERY PLACE WITH ONE THING TO DO. It was the two bookends of a run; a
+	# station and a pulsar say exactly as little -- a line and a button -- and
+	# were being given a drawer sized for a list of four options, so most of the
+	# panel was air.
+	var bookend := n != null and not Run.dead \
+		and n.type != MapGen.NodeType.SYSTEM
 	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.
@@ -586,15 +591,23 @@ func _drawer_simple(line: String, label: String) -> void:
 	if on_floor > 0:
 		var loot := Widgets.button("SECTOR LOOT - %d" % on_floor,
 			_open_sector_loot)
-		loot.custom_minimum_size = Vector2(150, 24)
+		loot.custom_minimum_size = EncounterDrawer.BTN
 		loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(loot)
 	var b := Widgets.button(label, _on_action)
-	# 150, not 210. It was sized to balance a drawer that was mostly empty around
-	# it; against a bar the width of its own label it read as a slab.
-	b.custom_minimum_size = Vector2(150, 24)
+	b.custom_minimum_size = EncounterDrawer.BTN
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(b)
+	# AND THE WAY OUT, WHICH IS NOT `_on_action`. That function is "the one
+	# thing this place offers" and it is DIFFERENT per node -- dock at a
+	# station, harvest a pulsar -- and only happens to be the chart at a system
+	# because a system's options are the rows above it. Wiring the jump to it
+	# would make PLOT NEXT JUMP dock you.
+	var jump := Widgets.button("PLOT NEXT JUMP",
+		func() -> void: Router.show_starchart())
+	jump.custom_minimum_size = EncounterDrawer.BTN
+	jump.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(jump)
 	_drawer.add_child(row)
 
 

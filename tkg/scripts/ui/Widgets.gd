@@ -90,6 +90,73 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 	return panel
 
 
+## A part, as a PANEL, for a tooltip.
+##
+## Godot tooltips are one label of plain text -- no rules, no colour, and no
+## wrapping either. That was fine while this said a name; it is not fine for a
+## rolled part, where the grade, the gauges it moved and the affixes it rolled
+## are three different kinds of fact and reading them as one paragraph is most
+## of the work.
+##
+## `_make_custom_tooltip` takes a Control instead, so this builds the same
+## vocabulary the module panel uses -- grade in its own ink, a rule under the
+## name, gauges in ICE, affixes in EMBER, cards last -- at tooltip scale.
+##
+## Deliberately still shorter than `module_panel`. This is read standing over
+## something else.
+static func module_tip_panel(m: ModuleData) -> Control:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	panel.add_child(box)
+
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	box.add_child(top)
+	top.add_child(UITheme.body(m.name.to_upper(), UITheme.ICE, UITheme.FS_BODY))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(sp)
+	top.add_child(UITheme.body(ModuleData.rarity_name(m.rarity),
+		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
+
+	box.add_child(UITheme.body("%s · %s · %d x %d" % [
+		DB.manufacturer_name(m.manufacturer), ModuleData.slot_name(m.slot),
+		m.size.x, m.size.y], UITheme.COLD, UITheme.FS_SMALL))
+
+	var gauges: PackedStringArray = []
+	for g in AffixData.GAUGES:
+		var raw: Variant = m.get(g)
+		var v: int = int(raw) if raw != null else 0
+		if v != 0:
+			gauges.append("%s%d %s" % ["+" if v > 0 else "", v,
+				String(g).to_upper()])
+	if not gauges.is_empty():
+		box.add_child(UITheme.hsep())
+		box.add_child(UITheme.body(" · ".join(gauges), UITheme.ICE,
+			UITheme.FS_SMALL))
+
+	if not m.affixes.is_empty():
+		box.add_child(UITheme.hsep())
+		for a in m.affixes:
+			var al := UITheme.body("%s — %s" % [a.name, a.text], UITheme.EMBER,
+				UITheme.FS_SMALL)
+			al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			al.custom_minimum_size = Vector2(CardView.CARD_W + 40, 0)
+			box.add_child(al)
+
+	var cards: PackedStringArray = []
+	for c in m.resolved_cards():
+		cards.append(c.name.to_upper())
+	if not cards.is_empty():
+		box.add_child(UITheme.hsep())
+		box.add_child(UITheme.body("GRANTS  %s" % " · ".join(cards),
+			UITheme.CHILL, UITheme.FS_SMALL))
+	return panel
+
+
 ## A part, in words, for a tooltip.
 ##
 ## The hull is the one place a module has always been unreadable: it is drawn as

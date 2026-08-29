@@ -311,10 +311,23 @@ func part_under(p: Vector2) -> ModuleData:
 ## string means no tooltip at all, which is exactly right over bare hull.
 func _get_tooltip(at: Vector2) -> String:
 	var i := spot_at(at)
-	if i < 0:
-		return ""
-	var m: ModuleData = _spots[i].held
-	return Widgets.module_hint(m) if m != null else ""
+	_tip_for = _spots[i].held if i >= 0 else null
+	# THE NAME, NOT THE DESCRIPTION. Godot needs a non-empty string here to
+	# decide there IS a tooltip, and then hands that string to
+	# `_make_custom_tooltip` -- which ignores it and builds from `_tip_for`,
+	# because a panel cannot be encoded in a string and back.
+	return String(_tip_for.name) if _tip_for != null else ""
+
+
+## What the last hover asked about. Set by `_get_tooltip`, which Godot always
+## calls first, and read by the builder below.
+var _tip_for: ModuleData = null
+
+
+func _make_custom_tooltip(_for_text: String) -> Object:
+	if _tip_for == null:
+		return null
+	return Widgets.module_tip_panel(_tip_for)
 
 
 func spot_at(p: Vector2) -> int:

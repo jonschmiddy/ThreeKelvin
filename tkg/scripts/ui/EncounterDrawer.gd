@@ -30,6 +30,18 @@ class_name EncounterDrawer
 ## Beside PLOT NEXT JUMP because those are the two things you do with a system
 ## once you have read it -- take what is in it, and leave. What a WRECK holds is
 ## reached through the wreck, which is sitting in the picture above.
+## WHAT A SECTOR'S BUTTONS MEASURE, everywhere.
+##
+## They were 148x17 in the option drawer and 150x24 in the one-thing drawer, so
+## the same three controls changed height depending on what kind of place you
+## had flown into -- which reads as the panel being rebuilt rather than as the
+## contents changing.
+##
+## Narrower than either. They were sized to fill a row that had nothing else in
+## it; with two or three side by side they only need to fit their own words.
+const BTN := Vector2(132, 20)
+
+
 static func head(text: String, on_jump: Callable, loose: int = 0,
 		on_loot: Callable = Callable()) -> Control:
 	var row := HBoxContainer.new()
@@ -40,11 +52,11 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 	row.add_child(l)
 	if loose > 0 and on_loot.is_valid():
 		var loot := Widgets.button("SECTOR LOOT - %d" % loose, on_loot)
-		loot.custom_minimum_size = Vector2(148, 17)
+		loot.custom_minimum_size = BTN
 		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays until you jump.")
 		row.add_child(loot)
 	var b := Widgets.button("PLOT NEXT JUMP", on_jump)
-	b.custom_minimum_size = Vector2(148, 17)
+	b.custom_minimum_size = BTN
 	row.add_child(b)
 	return row
 
