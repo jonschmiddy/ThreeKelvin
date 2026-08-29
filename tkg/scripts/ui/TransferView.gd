@@ -79,6 +79,25 @@ func _init() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	mid.add_child(row)
 
+	# LISTEN TO THE MODEL, NOT TO EACH THING THAT CHANGES IT.
+	#
+	# This is the second time the same bug has been reported with a different
+	# trigger. First a drop into the container moved the item and left it drawn
+	# where it had been; now a RIGHT-CLICK does -- `Run.jettison` runs, the item
+	# leaves the hold, and the screen carries on showing it until the next
+	# action forces a repaint. Both times the symptom was "it goes back, then
+	# reappears out here when I do something else", and both times the something
+	# else was just the first redraw.
+	#
+	# Wiring the second trigger would leave a third. `ship_changed` is what
+	# every one of them already emits -- jettison, stow, place, take -- so the
+	# view now redraws because the SHIP changed, whatever did it.
+	#
+	# The `picked` connection above stays. It is redundant with this and it is
+	# known to work, and while this screen is being hammered on I would rather
+	# have two things agreeing than one clever one.
+	Sig.ship_changed.connect(_on_ship_changed)
+
 	# YOUR SHIP ON THE LEFT, always, matching the encounter view. Which side a
 	# thing is on is how you know whose it is, and that has to be the same
 	# answer everywhere or it is not a convention.
@@ -174,6 +193,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		ItemIcon.carried.fit_footprint()
 		ItemIcon.carried.spin()
 	get_viewport().set_input_as_handled()
+
+
+## Redraw because something happened to the ship, whatever it was.
+##
+## Guarded on being in the tree: the signal outlives a closed view by however
+## long the free takes, and refreshing a torn-down panel is a crash rather than
+## a wasted frame.
+func _on_ship_changed() -> void:
+	if is_inside_tree() and _node != null:
+		refresh()
 
 
 func _side(label: String, body: Control) -> Control:

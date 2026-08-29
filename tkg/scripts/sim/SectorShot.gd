@@ -290,6 +290,36 @@ func run(tree: SceneTree) -> void:
 			print("  container height %d -> %d (must not shrink)"
 				% [tall_before, tvs._loose._rows])
 
+		# RIGHT-CLICK, WHICH IS THE OTHER WAY TO PUT SOMETHING DOWN. It goes
+		# through no drop handler at all -- `ItemIcon._gui_input` calls
+		# `Run.jettison` directly -- so nothing in the view hears about it
+		# unless the view is listening to the SHIP rather than to the drop.
+		if st != null and st._transfer != null:
+			var tvr := st._transfer
+			tvr.refresh()
+			for ir in 3:
+				await RenderingServer.frame_post_draw
+			var icon_r: ItemIcon = null
+			for chr2 in tvr._hold.get_children():
+				var ii2 := chr2 as ItemIcon
+				if ii2 != null:
+					icon_r = ii2
+					break
+			if icon_r != null:
+				var held_r := icon_r.held_item()
+				var hold_r := tvr._hold.get_child_count()
+				var loose_r := tvr._loose.get_child_count()
+				var click := InputEventMouseButton.new()
+				click.button_index = MOUSE_BUTTON_RIGHT
+				click.pressed = true
+				icon_r._gui_input(click)
+				for is2 in 3:
+					await RenderingServer.frame_post_draw
+				print("  right-click %s: hold icons %d -> %d, out here %d -> %d"
+					% [held_r.name, hold_r, tvr._hold.get_child_count(),
+						loose_r, tvr._loose.get_child_count()])
+				print("    (no refresh called here -- the view has to hear it)")
+
 		# NO SIMULATED DRAG HERE, and that is a finding rather than a gap.
 		# `Input.parse_input_event` plus `warp_mouse` does not drive the GUI in
 		# an unfocused harness window -- `gui_get_hovered_control` came back
