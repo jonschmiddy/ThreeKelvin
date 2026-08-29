@@ -51,7 +51,7 @@ var _loose_label: Label
 var _node: MapGen.MapNode = null
 ## WHICH container. A system holds several -- one per hull you killed, plus its
 ## own floor -- and this screen is a view of exactly one of them at a time.
-var _flotsam: MapGen.Flotsam = null
+var _jetsam: MapGen.Jetsam = null
 var _busy: bool = false
 var _on_close: Callable
 
@@ -60,16 +60,16 @@ var _on_close: Callable
 ## to you. `n` is the system whose bag this is.
 ## `animate` is off for the harness, which counts VISIBLE icons -- a sweep in
 ## progress would have it measuring an empty container and calling it a bug.
-func setup(h: MapGen.Flotsam, n: MapGen.MapNode, on_close: Callable,
+func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 		animate: bool = true) -> void:
 	_node = n
-	_flotsam = h
+	_jetsam = h
 	_on_close = on_close
 	# WHAT IT IS, THEN WHOSE. The heading was the ship's name and the column
 	# said SALVAGE, which read as a screen about the Rustjaw Cutter that
 	# happened to contain salvage -- when it is a salvage screen that happens to
 	# be about a Rustjaw Cutter. The name belongs over the grid it names.
-	_title.text = "FLOTSAM"
+	_title.text = "JETSAM"
 	refresh()
 	# ONCE PER CONTAINER. The sweep is what OPENING something looks like, and a
 	# wreck you have already been through is not being opened -- replaying it
@@ -207,14 +207,14 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	if where < 0:
 		# Onto your own side, from out there: the same claim `_on_hold_drop`
 		# makes, aimed at wherever the hold has room.
-		var i := _flotsam.items.find(m)
+		var i := _jetsam.items.find(m)
 		if i >= 0 and not _busy:
 			_busy = true
-			var got: bool = await Run.take_from_flotsam(_node, _flotsam, i)
+			var got: bool = await Run.take_from_jetsam(_node, _jetsam, i)
 			_busy = false
 			if got:
 				Audio.play(&"module_install", 0.05, 70, -6.0)
-	elif where > 0 and Run.put_in(_node, _flotsam, m):
+	elif where > 0 and Run.put_in(_node, _jetsam, m):
 		pass
 	refresh()
 
@@ -328,7 +328,7 @@ func _build_loose() -> Control:
 	# dropping something in must put it in that hull rather than on the floor,
 	# or the screen is lying about what it is showing.
 	_loose.on_put = func(m: HoldItem) -> bool:
-		return Run.put_in(_node, _flotsam, m)
+		return Run.put_in(_node, _jetsam, m)
 	# FILLS ITS SIDE OF THE POPUP. It keeps the spare row `_layout` adds, so
 	# there is always somewhere to put a thing down, and it stretches to
 	# whichever side of the popup is taller so the two grids read as one pair
@@ -339,7 +339,7 @@ func _build_loose() -> Control:
 
 
 func refresh() -> void:
-	if _node == null or _flotsam == null:
+	if _node == null or _jetsam == null:
 		return
 	_hold.refresh()
 	# SOMEBODY ELSE'S CLAIMS, not every claim.
@@ -353,23 +353,23 @@ func refresh() -> void:
 	# thing not having moved. So a claim with no other name on it leaves nothing
 	# behind: it is in your hold, and that is where it is.
 	var spent: Dictionary = {}
-	for i in _flotsam.items.size():
-		if not _node.taken.has(_flotsam.option(i)):
+	for i in _jetsam.items.size():
+		if not _node.taken.has(_jetsam.option(i)):
 			continue
-		if Net.taker_name(_node.index, _flotsam.option(i)) != "":
+		if Net.taker_name(_node.index, _jetsam.option(i)) != "":
 			spent[i] = true
 	# What is still out here, plus whatever somebody else is holding. Your own
 	# claims are gone from the list entirely -- see `spent` above.
 	var showing: Array = []
 	var showing_spent: Dictionary = {}
-	for i in _flotsam.items.size():
-		if _node.taken.has(_flotsam.option(i)) and not spent.has(i):
+	for i in _jetsam.items.size():
+		if _node.taken.has(_jetsam.option(i)) and not spent.has(i):
 			continue
 		if spent.has(i):
 			showing_spent[showing.size()] = true
-		showing.append(_flotsam.items[i])
+		showing.append(_jetsam.items[i])
 	_loose.setup(showing, showing_spent, 5)
-	_loose_label.text = _flotsam.label if _flotsam != null else "SECTOR LOOT"
+	_loose_label.text = _jetsam.label if _jetsam != null else "SECTOR LOOT"
 
 
 ## Something dragged INTO your hold.
@@ -405,7 +405,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	# its positions and `n.bag`'s stopped agreeing -- and `take_from_bag` claims
 	# by index, which is exactly the kind of mismatch that claims the wrong thing
 	# rather than failing.
-	var i := _flotsam.items.find(m)
+	var i := _jetsam.items.find(m)
 	if i < 0:
 		return
 	# ASKED BEFORE IT IS PLACED, and the order matters: `take_from_bag` checks
@@ -413,7 +413,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	# nothing. See its own note.
 	_busy = true
 	refresh()
-	var got: bool = await Run.take_from_flotsam(_node, _flotsam, i)
+	var got: bool = await Run.take_from_jetsam(_node, _jetsam, i)
 	_busy = false
 	if got:
 		# It landed wherever the hold had room. Move it to the cell actually

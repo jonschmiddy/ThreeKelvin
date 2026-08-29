@@ -94,7 +94,7 @@ const OPTION_BAG := 200
 ## `taken`.
 const OPTION_SITE := 300
 
-## Every container in a system: `OPTION_FLOTSAM + h * FLOTSAM_STRIDE + i` is the
+## Every container in a system: `OPTION_JETSAM + h * JETSAM_STRIDE + i` is the
 ## i-th thing in the h-th one.
 ##
 ## The fifth contested list, and the first that is a list OF lists. A system used
@@ -110,11 +110,22 @@ const OPTION_SITE := 300
 ## THE STRIDE IS A CEILING ON ONE CONTAINER, not on how many there are. Sixty-four
 ## is far past what a wreck holds -- drops are single digits -- and the cost of
 ## being wrong is two containers sharing a claim, so it is deliberately loose.
-const OPTION_FLOTSAM := 1000
-const FLOTSAM_STRIDE := 64
+const OPTION_JETSAM := 1000
+const JETSAM_STRIDE := 64
 
 
 ## One container of loose things, sitting in a system.
+##
+## NAMED FOR THE VERB. `jettison` is what you do to fill one, and jetsam is that
+## verb's own noun -- goods put over the side of a ship. The two words teach
+## each other, which no other candidate did: this was `Hoard`, which implied
+## treasure, and then `Flotsam`, which is wreckage that floats free rather than
+## anything anybody decided to drop.
+##
+## A wreck's contents are the half this name fits least -- nobody threw those
+## overboard, the ship simply stopped being one. It is still the right word,
+## because the thing a player DOES here is throw things away and come back for
+## them, and the container is named after the action rather than the accident.
 ##
 ## A WRECK IS ONE, AND SO IS THE FLOOR. What a hull was carrying when you killed
 ## it and what you have put down here are both piles you reach into, and making
@@ -124,9 +135,9 @@ const FLOTSAM_STRIDE := 64
 ## They persist. Jump away and come back and your wrecks are still where you left
 ## them with whatever you did not take still in them, which is the whole point of
 ## it being the system's state rather than the fight's.
-class Flotsam extends RefCounted:
-	## Its slot in `MapNode.flotsam`, and what its claims are numbered from. Never
-	## reused and never renumbered -- see `OPTION_FLOTSAM`.
+class Jetsam extends RefCounted:
+	## Its slot in `MapNode.jetsam`, and what its claims are numbered from. Never
+	## reused and never renumbered -- see `OPTION_JETSAM`.
 	var slot: int = 0
 	## The enemy template whose hull this is, or empty for the system's own pile.
 	## Empty is what makes it the floor rather than a wreck.
@@ -145,7 +156,7 @@ class Flotsam extends RefCounted:
 
 	## The claim id of the i-th thing in here.
 	func option(i: int) -> int:
-		return OPTION_FLOTSAM + slot * FLOTSAM_STRIDE + i
+		return OPTION_JETSAM + slot * JETSAM_STRIDE + i
 
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
@@ -514,8 +525,8 @@ class MapNode extends RefCounted:
 	## SEPARATE FROM `bag`, which stays exactly as it was. That array is the
 	## shared-kill pool and its claims are numbered from `OPTION_BAG`; renumbering
 	## it into here would break saved runs and the co-op claims table for no gain.
-	## New work uses flotsam; `bag` is left alone until it has no callers.
-	var flotsam: Array = []
+	## New work uses jetsam; `bag` is left alone until it has no callers.
+	var jetsam: Array = []
 
 	## What this system holds, as option IDS rather than definitions.
 	##

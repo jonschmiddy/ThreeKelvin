@@ -385,7 +385,7 @@ func set_weather(n: MapGen.MapNode) -> void:
 ## asks it anything a dead ship cannot answer.
 ## Every hull that died here, each a door to its own container.
 ##
-## `on_open` is called with the flotsam that hull is, so the screen does not have
+## `on_open` is called with the jetsam that hull is, so the screen does not have
 ## to work out which wreck was clicked from a position on screen -- the slot
 ## already knows, because it was built from one.
 func show_wrecks(wrecks: Array, on_open: Callable) -> void:
@@ -406,7 +406,7 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 			_slots.add_child(slot)
 			_made.append(slot)
 	for i in wrecks.size():
-		var h: MapGen.Flotsam = wrecks[i]
+		var h: MapGen.Jetsam = wrecks[i]
 		var t: EnemyTemplate = DB.enemies.get(h.art)
 		if t == null:
 			continue

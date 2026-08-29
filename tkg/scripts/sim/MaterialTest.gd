@@ -158,7 +158,7 @@ func run() -> void:
 	# forgot to append it would look identical from the hold.
 	Run.cargo.clear()
 	var here: MapGen.MapNode = Run.node_at()
-	var floor_h := Run.sector_flotsam(here)
+	var floor_h := Run.sector_jetsam(here)
 	var before := floor_h.items.size()
 	var thrown := MaterialData.of(rows[0])
 	_ok("something is in the hold to throw", Run.place_in_hold(thrown))
@@ -166,7 +166,7 @@ func run() -> void:
 	_ok("and it is out of the hold", not Run.cargo.has(thrown))
 	_ok("and it is on this system's floor",
 		floor_h.items.size() == before + 1 and floor_h.items.has(thrown))
-	_ok("so it can be picked back up", Run.flotsam_left(here, floor_h) > 0)
+	_ok("so it can be picked back up", Run.jetsam_left(here, floor_h) > 0)
 
 	# AND THE SECTOR CAN DRAW IT. This is the half that made jettison look
 	# broken when it was not: the item went into the bag correctly and the
@@ -277,12 +277,12 @@ func run() -> void:
 	# you had thrown out more than once could not be picked back up.
 	Run.cargo.clear()
 	var here2: MapGen.MapNode = Run.node_at()
-	here2.flotsam.clear()
+	here2.jetsam.clear()
 	here2.taken.clear()
 	var yoyo := MaterialData.of(rows[2])
 	_ok("it is in the hold to begin with", Run.place_in_hold(yoyo))
 	_ok("first throw", Run.jettison(yoyo))
-	var floor2 := Run.sector_flotsam(here2)
+	var floor2 := Run.sector_jetsam(here2)
 	_ok("the floor holds it once", floor2.items.count(yoyo) == 1)
 	_ok("first pick-up", Run.stow(yoyo) if floor2.items.has(yoyo) else false)
 	# `stow` is what `take_from_bag` calls once the claim is won; mark the claim
@@ -293,7 +293,7 @@ func run() -> void:
 	_ok("the floor STILL holds it once", floor2.items.count(yoyo) == 1)
 	_ok("and the claim was released, so it can be taken again",
 		not here2.taken.has(floor2.option(floor2.items.find(yoyo))))
-	_ok("so it is loose out there", Run.flotsam_left(here2, floor2) == 1)
+	_ok("so it is loose out there", Run.jetsam_left(here2, floor2) == 1)
 
 	# --- a turn that did not land --------------------------------------------
 	#

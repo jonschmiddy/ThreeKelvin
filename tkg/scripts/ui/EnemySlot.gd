@@ -269,13 +269,13 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	_bar.value = e.hp
 	_brace_bar.visible = not _dead and e.brace > 0
 	_brace_bar.set_value(e.brace)
-	# FLOTSAM, not WRECKED, once there is a reason to touch it.
+	# JETSAM, not WRECKED, once there is a reason to touch it.
 	#
 	# "WRECKED" is a state and states are not affordances -- it told you the
 	# thing was dead and said nothing about it being the way into what it was
 	# carrying. The word only changes when the slot can actually be opened, so
 	# a hull with nothing left in it goes back to being a fact.
-	_hp.text = ("FLOTSAM" if opened.is_valid() else "WRECKED") if _dead \
+	_hp.text = ("JETSAM" if opened.is_valid() else "WRECKED") if _dead \
 		else "%d / %d" % [e.hp, e.max_hp]
 	if _dead and opened.is_valid():
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
