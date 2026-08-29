@@ -37,9 +37,11 @@ class_name EncounterDrawer
 ## had flown into -- which reads as the panel being rebuilt rather than as the
 ## contents changing.
 ##
-## Narrower than either. They were sized to fill a row that had nothing else in
-## it; with two or three side by side they only need to fit their own words.
-const BTN := Vector2(132, 20)
+## Narrower than either, and then narrower again. They were sized to fill a row
+## that had nothing else in it; with three abreast they only need to hold their
+## own words. 104 fits "PLOT NEXT JUMP" and "SECTOR LOOT - 12" at FS_SMALL with
+## the stylebox's own padding either side and nothing spare.
+const BTN := Vector2(94, 20)
 
 
 static func head(text: String, on_jump: Callable, loose: int = 0,

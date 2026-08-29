@@ -598,16 +598,25 @@ func _drawer_simple(line: String, label: String) -> void:
 	b.custom_minimum_size = EncounterDrawer.BTN
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(b)
+	# AND THE WAY OUT -- UNLESS LEAVING IS ALREADY THE ONE THING. A cleared
+	# system and a spent pulsar have nothing left to do but go, so their own
+	# button IS the jump, and adding a second one printed PLOT NEXT JUMP twice
+	# side by side.
+	#
+	# Compared against the label rather than the node type on purpose: what the
+	# button SAYS is the thing that would be duplicated, and `_on_action` decides
+	# that from four different branches.
 	# AND THE WAY OUT, WHICH IS NOT `_on_action`. That function is "the one
 	# thing this place offers" and it is DIFFERENT per node -- dock at a
 	# station, harvest a pulsar -- and only happens to be the chart at a system
 	# because a system's options are the rows above it. Wiring the jump to it
 	# would make PLOT NEXT JUMP dock you.
-	var jump := Widgets.button("PLOT NEXT JUMP",
-		func() -> void: Router.show_starchart())
-	jump.custom_minimum_size = EncounterDrawer.BTN
-	jump.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(jump)
+	if label != "PLOT NEXT JUMP":
+		var jump := Widgets.button("PLOT NEXT JUMP",
+			func() -> void: Router.show_starchart())
+		jump.custom_minimum_size = EncounterDrawer.BTN
+		jump.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(jump)
 	_drawer.add_child(row)
 
 

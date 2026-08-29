@@ -25,6 +25,18 @@ func _showing(g: Control) -> int:
 	return n
 
 
+## Every button in the sector's drawer, however deep it is nested.
+func _buttons(root: Node) -> Array[Button]:
+	var out: Array[Button] = []
+	if root == null:
+		return out
+	for c in root.get_children():
+		if c is Button and (c as Button).visible:
+			out.append(c)
+		out.append_array(_buttons(c))
+	return out
+
+
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	Rng.forced = 4242
@@ -111,6 +123,41 @@ func run(tree: SceneTree) -> void:
 			print("  starchart    pan %s zoom %.2f" % [ss._chart.pan, ss._chart.zoom])
 		tree.root.get_texture().get_image().save_png("user://menu.png")
 		print("wrote ", ProjectSettings.globalize_path("user://menu.png"))
+		tree.quit()
+		return
+	if "buttons" in OS.get_cmdline_user_args():
+		# DOES THE WORD FIT THE BOX? `custom_minimum_size` is a floor, so a
+		# label too long for it does not overflow -- the BUTTON grows, silently,
+		# and the row stops being the width it was designed to be. Measuring the
+		# text is the only way to know whether 104 is a size or a wish.
+		Router.show_sector()
+		for ib in 20:
+			await RenderingServer.frame_post_draw
+		var font := ThemeDB.fallback_font
+		var worst := 0.0
+		for word in ["PLOT NEXT JUMP", "SECTOR LOOT - 12", "DOCK", "SUMMARY",
+				"HARVEST", "DECIDE LATER"]:
+			var w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				UITheme.FS_SMALL).x
+			worst = maxf(worst, w)
+			print("  %-18s %.0f px" % [word, w])
+		print("  widest %.0f, button %.0f, padding either side %.0f"
+			% [worst, EncounterDrawer.BTN.x, (EncounterDrawer.BTN.x - worst) * 0.5])
+		# AND THE REAL ONES ON SCREEN. A button whose label does not fit its
+		# minimum does not clip -- it grows, and the row quietly stops being the
+		# width it was designed to be.
+		var st2 := Router.current as SectorScreen
+		var grew := 0
+		for b in _buttons(st2):
+			# Only the ones sized to the box. An option row is a full-width
+			# button by design and would report as an overflow forever.
+			if b.custom_minimum_size.x != EncounterDrawer.BTN.x:
+				continue
+			if b.size.x > EncounterDrawer.BTN.x + 0.5:
+				grew += 1
+				print("  GREW: %-20s %.0f > %.0f" % [b.text, b.size.x,
+					EncounterDrawer.BTN.x])
+		print("  %d drawer buttons wider than the box" % grew)
 		tree.quit()
 		return
 	if "transfer" in OS.get_cmdline_user_args():
