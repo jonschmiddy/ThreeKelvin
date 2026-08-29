@@ -56,6 +56,27 @@ func run(tree: SceneTree) -> void:
 
 func _shot(tree: SceneTree, weight_name: String) -> void:
 	Run.start_new_run(&"korvan", int(WEIGHTS[weight_name]))
+	# `-- shipshot medium cargo` fills the hold with materials, which is the only
+	# way to look at the thing materials are FOR. One of every shape and a spread
+	# of tiers, so the crate art is judged across the range it has to cover
+	# rather than on whichever row happened to roll.
+	if "cargo" in OS.get_cmdline_user_args():
+		var want := ["1x1", "2x1", "2x2", "3x1", "4x1"]
+		var tiers: Array[StringName] = [&"common", &"rare", &"epic",
+			&"legendary", &"exotic", &"artifact", &"contraband"]
+		var ti := 0
+		for shape in want:
+			for row in MaterialTable.all():
+				if String(row.get("cells", "")) != shape:
+					continue
+				var m := MaterialData.of(row)
+				m.tier = tiers[ti % tiers.size()]
+				ti += 1
+				if not Run.place_in_hold(m):
+					print("  no room for %s %s" % [m.id, shape])
+				break
+		print("  hold %dx%d, %d items" % [Run.hull.hold_grid.x,
+			Run.hull.hold_grid.y, Run.cargo.size()])
 	Router.show_ship()
 	# The ship flies in and the mounts settle behind it, and this waits for
 	# THE ANIMATION rather than for a number of frames.

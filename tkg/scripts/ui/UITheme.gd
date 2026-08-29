@@ -17,6 +17,38 @@ const FLARE := Color("#ff9d3d")
 const HOT := Color("#ffd28a")
 const HULL_GREEN := Color("#4d7a63")
 const THEM := Color("#c98d7a")
+
+## What a tier looks like, for anything that has one.
+##
+## ONE LADDER, TWO USERS. `MaterialTable` names its tiers as strings and
+## `ModuleData.Rarity` names the same eight as an enum -- common, uncommon, rare,
+## epic, legendary, exotic, artifact, contraband -- and neither had a colour
+## until materials needed one to draw. Putting it here rather than in the
+## material icon is the difference between a ladder and a second scheme: when
+## modules want to show their grade, this is already the answer.
+##
+## MUTED ON PURPOSE. The usual loot-game ladder is a rainbow, and a rainbow in a
+## hold would be the brightest thing on a screen whose whole palette is cold
+## steel. These are the same hues the game already uses, separated by enough to
+## tell apart at a 40-pixel cell and no more.
+##
+## The ladder is one of PROVENANCE as much as power, which the colours follow:
+## common through legendary is one manufacturer doing better and stays in metal,
+## exotic is grown, artifact is precursor, and contraband is the only one that is
+## a fact about who rather than what.
+const TIERS := {
+	&"common": Color("#6b7d94"),      ## plain steel
+	&"uncommon": Color("#7f9a86"),
+	&"rare": Color("#5a7fa8"),        ## cold blue
+	&"epic": Color("#8a6fa8"),
+	&"legendary": Color("#b8894a"),   ## brass
+	&"exotic": Color("#5fa08a"),      ## grown
+	&"artifact": Color("#a8b6c8"),    ## precursor, nearly colourless
+	&"contraband": Color("#a8595a"),  ## nobody will admit to selling it
+}
+
+static func tier_colour(tier: StringName) -> Color:
+	return TIERS.get(tier, TIERS[&"common"]) as Color
 const GOOD := Color("#7fb89a")
 
 ## A mount reaching for the thing you are holding. See ModuleCell.Tractor.

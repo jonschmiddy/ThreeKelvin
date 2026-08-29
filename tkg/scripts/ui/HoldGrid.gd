@@ -67,7 +67,7 @@ var _rows: int = 5
 ## Lit cells during a drag: where the thing being carried would actually fit.
 var _beam: Dictionary = {}
 var _beam_phase: float = 0.0
-var _carrying: ModuleData = null
+var _carrying: HoldItem = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -83,8 +83,19 @@ func refresh() -> void:
 	for m in Run.cargo:
 		if m.hold_at.x < 0:
 			continue
-		var icon := ModuleIcon.new()
-		icon.setup(m, &"cargo")
+		# TWO KINDS IN ONE GRID. A module draws the part, because recognising
+		# the gun you are about to bolt on is the whole point of it sharing a
+		# silhouette with the thing on the hull. A material has no hull form to
+		# echo, so it draws a crate. See `MaterialIcon`.
+		var icon: Control
+		if m is MaterialData:
+			var mi := MaterialIcon.new()
+			mi.setup(m as MaterialData, &"cargo")
+			icon = mi
+		else:
+			var gi := ModuleIcon.new()
+			gi.setup(m as ModuleData, &"cargo")
+			icon = gi
 		# PASS, not STOP: the icon is what you pick UP, and the grid under it is
 		# what you drop ONTO. A child that swallowed the hover would leave the
 		# grid unable to say which cell the cursor is over.
@@ -108,7 +119,7 @@ func refresh() -> void:
 func _origin(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * (CELL + GAP), cell.y * (CELL + GAP))
 
-func _footprint(m: ModuleData) -> Vector2:
+func _footprint(m: HoldItem) -> Vector2:
 	return ModuleIcon.footprint_box(m)
 
 ## The plate under a point in SCREEN coordinates, or null. What R turns when
@@ -172,7 +183,7 @@ func _draw() -> void:
 ##
 ## Grabbed by the CELL UNDER THE CURSOR rather than by the part's top-left, so a
 ## wide part dropped with the cursor over its middle does not jump a cell left.
-func target_for(m: ModuleData, p: Vector2) -> Vector2i:
+func target_for(m: HoldItem, p: Vector2) -> Vector2i:
 	var g := Run.hold_grid()
 	# Clamped, not rejected: a drop a few pixels outside the grid is aimed at
 	# the edge cell, which is what the hand meant.
@@ -197,14 +208,14 @@ func target_for(m: ModuleData, p: Vector2) -> Vector2i:
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
 		return false
-	var m: ModuleData = data.module
+	var m: HoldItem = data.module
 	if m == null:
 		return false
 	var target := target_for(m, at)
 	_light(m, target)
 	return target != -Vector2i.ONE
 
-func _light(m: ModuleData, target: Vector2i) -> void:
+func _light(m: HoldItem, target: Vector2i) -> void:
 	_beam.clear()
 	if target != -Vector2i.ONE:
 		var f := m.footprint()
@@ -215,7 +226,7 @@ func _light(m: ModuleData, target: Vector2i) -> void:
 	queue_redraw()
 
 func _drop_data(at: Vector2, data: Variant) -> void:
-	var m: ModuleData = (data as Dictionary).module
+	var m: HoldItem = (data as Dictionary).module
 	var target := target_for(m, at)
 	_clear_beam()
 	if target != -Vector2i.ONE:

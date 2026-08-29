@@ -139,7 +139,16 @@ const PATH := "user://run.save"
 ## changed. A version 13 save has no such key, and every node would come back
 ## unsensed: not a corruption, but a chart quietly narrower than the one the
 ## player left, which is the same class of lie as a stripped module. Discarded.
-const VERSION := 17
+## 18: THE HOLD CARRIES TWO KINDS OF THING. Cargo rows gained a `kind`, and a
+## material row stores an id and a cell instead of a rolled part.
+##
+## Backward compatibility actually holds -- `kind` is absent on every module row
+## ever written, so a version 17 save reads back through exactly the old path.
+## The bump is about the OTHER direction: a version 17 build handed a material
+## row would run it through `_module_from` and produce a nameless part with no
+## affixes sitting in your hold. That is the stripped-module lie again, so the
+## number moves and the save is discarded rather than half-understood.
+const VERSION := 18
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -212,7 +221,7 @@ static func _snapshot() -> Dictionary:
 		installed.append(_module_to(m))
 	var cargo: Array = []
 	for m in Run.cargo:
-		cargo.append(_module_to(m))
+		cargo.append(_item_to(m))
 	var nodes: Array = []
 	for n in Run.map:
 		nodes.append(_node_to(n))
@@ -340,7 +349,7 @@ static func load_into_run() -> bool:
 			m.mount = Run.free_mount(m.slot)
 	var cargo: Array[HoldItem] = []
 	for e in d.get("cargo", []):
-		var m := _module_from(e)
+		var m := _item_from(e)
 		if m != null:
 			cargo.append(m)
 	Run.cargo = cargo
@@ -484,6 +493,48 @@ static func _galaxy_from(kind: int, saved: Variant) -> Dictionary:
 ## and the part, computed when it is asked for, so there is no longer a price
 ## anywhere to lose. A derived number that is saved is a second copy of the
 ## truth, and it only ever goes one way.
+## Cargo is two kinds of thing now, so the hold's rows say which they are.
+##
+## A material stores ONLY its id and where it sits. Everything else -- name,
+## tier, value, shape, text -- is rebuilt from `MaterialTable`, which is the
+## right way round: a catalogue row that changed between versions should change
+## what you are carrying, rather than leaving a save that contradicts the table
+## it was authored against. A module cannot do this, because a module is rolled
+## rather than looked up: its affixes and its wear are the instance.
+##
+## `kind` is absent on every module row, old and new, so a save written before
+## materials existed reads back exactly as it did -- there is nothing to migrate
+## and the version did not need to move for this.
+static func _item_to(m: HoldItem) -> Dictionary:
+	if m is MaterialData:
+		var mat := m as MaterialData
+		return {
+			kind = "material",
+			id = String(mat.id),
+			hold_at = [mat.hold_at.x, mat.hold_at.y],
+			turned = mat.turned,
+		}
+	return _module_to(m as ModuleData)
+
+
+static func _item_from(e: Variant) -> HoldItem:
+	var row := e as Dictionary
+	if row == null:
+		return null
+	if String(row.get("kind", "")) == "material":
+		var mat := MaterialData.by_id(StringName(row.get("id", &"")))
+		if mat == null:
+			# The row was dropped from the catalogue between versions. Losing the
+			# item is better than carrying a nameless shape that sells for zero.
+			return null
+		var at: Array = row.get("hold_at", [-1, -1])
+		mat.hold_at = Vector2i(int(at[0]), int(at[1])) if at.size() == 2 \
+			else -Vector2i.ONE
+		mat.turned = bool(row.get("turned", false))
+		return mat
+	return _module_from(e)
+
+
 static func _module_to(m: ModuleData) -> Dictionary:
 	var affixes: Array = []
 	for a in m.affixes:

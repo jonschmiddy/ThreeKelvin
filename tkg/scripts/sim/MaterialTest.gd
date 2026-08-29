@@ -118,4 +118,36 @@ func run() -> void:
 					m2.footprint().x, m2.footprint().y,
 					Run.hull.hold_grid.x, Run.hull.hold_grid.y])
 
+	# --- and it survives a save ----------------------------------------------
+	#
+	# A material stores only its id and its cell; everything else is rebuilt from
+	# the catalogue. That is the right way round, and it is also the half that
+	# can silently fail -- a row rebuilt from a table is a row that can come back
+	# as something else, or as nothing.
+	Run.cargo.clear()
+	var want: Array[StringName] = []
+	for row in rows:
+		var m3 := MaterialData.of(row)
+		if not Run.place_in_hold(m3):
+			break
+		want.append(m3.id)
+	var placed_at: Array[Vector2i] = []
+	for c in Run.cargo:
+		placed_at.append(c.hold_at)
+	_ok("a hold can be filled with materials", want.size() > 0)
+
+	SaveGame.save()
+	Run.cargo.clear()
+	_ok("save then load returns a run", SaveGame.load_into_run())
+
+	var back: Array[StringName] = []
+	var cells_back: Array[Vector2i] = []
+	for c in Run.cargo:
+		if c is MaterialData:
+			back.append((c as MaterialData).id)
+			cells_back.append(c.hold_at)
+	_ok("every material came back (%d of %d)" % [back.size(), want.size()],
+		back == want)
+	_ok("and came back in the same cells", cells_back == placed_at)
+
 	verdict("materialtest")

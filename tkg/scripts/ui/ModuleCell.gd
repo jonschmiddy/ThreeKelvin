@@ -77,6 +77,10 @@ func _style(hot: bool) -> void:
 	add_theme_stylebox_override("panel", UITheme.flat(bg, edge, 0, PAD, PAD))
 
 ## Would this cell take that part?
+## A MOUNT, not a shelf. Materials live in the hold and never bolt to a hull --
+## they have no slot, no mount and no power draw -- so this stays typed to
+## `ModuleData` on purpose and the drop check below refuses anything else.
+## Before materials existed the type was the whole guard; now it has to say so.
 func _accepts(m: ModuleData) -> bool:
 	if m == null:
 		return false
@@ -86,6 +90,10 @@ func _accepts(m: ModuleData) -> bool:
 
 func _can_drop_data(_at: Vector2, data: Variant) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
+		return false
+	# `as ModuleData` yields null for a material, and null is not acceptable --
+	# which is the refusal, but only by accident of the cast. Said out loud:
+	if not (data.module is ModuleData):
 		return false
 	var ok := _accepts(data.module as ModuleData)
 	# Light the cell only while it would actually take the thing. Godot calls

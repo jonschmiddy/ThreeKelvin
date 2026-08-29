@@ -465,7 +465,10 @@ static func draw_part(ci: CanvasItem, slot: ModuleData.Slot, at: Vector2,
 ## Same arithmetic as MountPoints.part_rect, deliberately: if these two ever
 ## disagree, a part is one size in the gallery and another on the ship, which is
 ## the thing the shared silhouette exists to prevent.
-static func footprint_box(m: ModuleData, k: float = HOLD_K) -> Vector2:
+## Takes a `HoldItem`, not a `ModuleData`: it reads `footprint()` and nothing
+## else, so it was never about modules -- it was about shapes, and a material has
+## one of those too.
+static func footprint_box(m: HoldItem, k: float = HOLD_K) -> Vector2:
 	var f := m.footprint()
 	var q := k / HOLD_K
 	var step := (float(HoldGrid.CELL) + float(HoldGrid.GAP)) * q
