@@ -280,15 +280,26 @@ func _build() -> void:
 	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.add_child(col)
-	col.add_child(UITheme.body("SECTOR", UITheme.COLD, UITheme.FS_SMALL))
-	_title = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
+	# THE NAME, AND NOTHING ELSE.
+	#
+	# This corner carried an eyebrow reading SECTOR, the name, a class line, and
+	# a paragraph of description -- four things, three of which the screen was
+	# already answering. SECTOR is which tab is lit. The class line and the
+	# blurb describe a place whose contents are the drawer along the bottom and
+	# whatever is floating in the middle, and both are things you can see.
+	#
+	# What is left is the one fact nothing else on screen carries: where you
+	# are. Bigger, because it is now the only thing there and a heading sized to
+	# sit above three other lines reads as a label without them.
+	#
+	# `_sub` and `_blurb` are BUILT AND NOT ADDED, following the note below
+	# about `_hull` and `_facts`: the refresh writes to them every frame and
+	# would have to grow a null check for each one otherwise.
+	_title = UITheme.body("", UITheme.ICE, UITheme.FS_PLACE)
 	col.add_child(_title)
 	_sub = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
-	col.add_child(_sub)
 	_blurb = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_blurb.custom_minimum_size = Vector2(300, 0)
-	col.add_child(_blurb)
 	var gap := Control.new()
 	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE

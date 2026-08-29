@@ -98,6 +98,14 @@ const TOOLTIP_WRAP := 32
 const FS_BODY := 8
 const FS_HEAD := 16
 
+## For a heading that is the ONLY thing in its corner.
+##
+## `FS_HEAD` is sized to sit above a subtitle and a paragraph; with those gone
+## it reads as a label rather than as the name of the place you are standing in.
+## 26 is the same face at the next whole multiple that stays crisp -- the font
+## is a pixel face and anything between magnifications fuzzes.
+const FS_PLACE := 26
+
 ## Loaded once and shared. Antialiasing and hinting are forced off in code as
 ## well as in project settings — a bitmap face at integer scale must not be
 ## smoothed, and a stray .import setting would otherwise undo it silently.
