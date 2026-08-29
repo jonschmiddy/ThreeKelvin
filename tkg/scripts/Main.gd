@@ -912,6 +912,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			pass   ## nothing to pause: the launcher IS the menu
 		else:
 			toggle_menu()
+	elif k.keycode == KEY_TAB:
+		# TAB IS THE SHIP. It is the screen you go to most and the only one you
+		# reach for mid-thought -- "will that fit" is a question you ask while
+		# looking at something else.
+		#
+		# `Router.show_ship` refuses during a fight on its own, so this needs no
+		# guard of its own; and `_unhandled_key_input` means anything with focus
+		# that wants Tab -- a text field, a focused button walk -- has already
+		# had it.
+		Router.show_ship()
 	elif k.keycode == KEY_F11:
 		DisplaySettings.toggle_fullscreen()
 

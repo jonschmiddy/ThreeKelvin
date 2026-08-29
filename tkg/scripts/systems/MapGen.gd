@@ -142,6 +142,16 @@ class Hoard extends RefCounted:
 	func is_wreck() -> bool:
 		return art != &""
 
+	## What the grid holding this is called, over the grid.
+	##
+	## The popup's heading already names the container -- a hull says which hull
+	## -- so this says what the pile IS rather than repeating it. SALVAGE for a
+	## wreck, because that is the game's word for loose things worth taking, and
+	## the floor says where it is, because "salvage" on a pile you dropped
+	## yourself would be flattering it.
+	func column_label() -> String:
+		return "SALVAGE" if is_wreck() else "LEFT IN THE SYSTEM"
+
 	## The claim id of the i-th thing in here.
 	func option(i: int) -> int:
 		return OPTION_HOARD + slot * HOARD_STRIDE + i

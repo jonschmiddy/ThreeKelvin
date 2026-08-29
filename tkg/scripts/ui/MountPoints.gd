@@ -303,6 +303,20 @@ func part_under(p: Vector2) -> ModuleData:
 ## hardpoint for everything, so a three-cell rail could only be picked up by the
 ## dot at its breech — the rest of it was scenery you could click through. An
 ## EMPTY mount is genuinely just a point, so that keeps its radius.
+## WHAT IS BOLTED HERE, if the cursor is over anything.
+##
+## Position-keyed, which is the only shape that works: the mounts are drawn onto
+## one control rather than being controls themselves, so there is nothing per
+## part to hang a `tooltip_text` on. Godot asks this per position and an empty
+## string means no tooltip at all, which is exactly right over bare hull.
+func _get_tooltip(at: Vector2) -> String:
+	var i := spot_at(at)
+	if i < 0:
+		return ""
+	var m: ModuleData = _spots[i].held
+	return Widgets.module_hint(m) if m != null else ""
+
+
 func spot_at(p: Vector2) -> int:
 	var k := _mag()
 	for i in _spots.size():

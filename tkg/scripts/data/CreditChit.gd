@@ -19,6 +19,14 @@ extends HoldItem
 ## exception, and the exception is the interesting part: this is the one item in
 ## the game where "do I have room" is never the question.
 
+## WHAT MONEY IS, said once.
+##
+## `HudBar` says this over the balance in the top bar and the chit says it over
+## the object -- and they were two sentences about one thing, which is how two
+## sentences about one thing start disagreeing. The chit adds what it is worth
+## and how much room it takes; the rule underneath is shared.
+const WHAT_MONEY_IS := "Credits are the only currency.\nRepairs, upgrades and purchases all come out of the same balance."
+
 ## What it is worth. Set when the chit is minted; nothing rolls it afterwards.
 @export var amount: int = 0
 

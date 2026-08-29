@@ -1243,6 +1243,24 @@ class MapChart extends Control:
 	## just the galaxy.
 	signal cleared()
 
+	## WASD, held. The same move a drag makes, so it goes through the same three
+	## lines: the sky follows what the galaxy ACTUALLY did after the clamp, not
+	## what the key asked for, or the background slides under a stationary
+	## galaxy at the edge of the chart.
+	##
+	## It counts as moving it by hand, so a held view lets go -- pressing a
+	## direction is exactly as much "I am looking somewhere else" as dragging is.
+	func _walk_view(delta: float) -> void:
+		if _walk == Vector2.ZERO:
+			return
+		var before := pan
+		pan -= _walk.normalized() * WALK_PX_PER_SEC * delta
+		_clamp_pan()
+		sky_pan += pan - before
+		if pan != before:
+			view_dragged.emit()
+			_repaint_galaxy()
+
 	## Low enough to frame the whole galaxy at once, which is how you plan a
 	## route; 1.0 is the reading zoom.
 	const ZOOM_MIN := 0.42
@@ -1345,6 +1363,21 @@ class MapChart extends Control:
 	var hovered: int = -1
 	var zoom: float = ZOOM_MIN
 	var pan: Vector2 = Vector2.ZERO
+
+	## HOW FAST WASD WALKS THE CHART, in screen pixels a second.
+	##
+	## 320 crosses a 960-wide view in three seconds at the reading zoom, which is
+	## the pace of somebody looking rather than somebody travelling. A drag is
+	## for going somewhere; this is for reading along a route, and it should feel
+	## closer to leaning than to flying.
+	##
+	## Divided by the zoom, so it moves the same distance across the GALAXY at
+	## every magnification -- otherwise zoomed in it crawls and zoomed out it
+	## throws you across the disc, and the key stops meaning one thing.
+	const WALK_PX_PER_SEC := 320.0
+	## Which of WASD are down. Read every frame rather than on the event, so
+	## holding two moves diagonally and releasing one keeps the other going.
+	var _walk: Vector2 = Vector2.ZERO
 	## The offset the parallax layers use. It follows dragging and ONLY
 	## dragging. Zooming has to move `pan` to keep the point under the cursor
 	## anchored, and feeding that to the deep field made the sky slide sideways
@@ -1785,6 +1818,7 @@ class MapChart extends Control:
 		_repaint_galaxy()
 
 	func _process(delta: float) -> void:
+		_walk_view(delta)
 		# RECORDED HERE RATHER THAN AT EVERY MUTATION. Zoom and pan are moved by
 		# the wheel, by a drag, by `glide_to`'s animation and by both framing
 		# helpers; hooking all of them would leave one out. Reading the result
@@ -2038,6 +2072,29 @@ class MapChart extends Control:
 			p = _polar(n)
 			_polar_cache[n.index] = p
 		return size * 0.5 + pan + p * zoom
+
+	## WASD, HELD. Read as a state rather than acted on per press, so two keys
+	## move diagonally and letting one go leaves the other running.
+	##
+	## `_unhandled_key_input`, so anything with focus that wants a letter -- a
+	## field, a shortcut on a button -- has already had it.
+	func _unhandled_key_input(e: InputEvent) -> void:
+		var k := e as InputEventKey
+		if k == null or k.echo:
+			return
+		var dir := Vector2.ZERO
+		match k.keycode:
+			KEY_W: dir = Vector2.UP
+			KEY_S: dir = Vector2.DOWN
+			KEY_A: dir = Vector2.LEFT
+			KEY_D: dir = Vector2.RIGHT
+			_: return
+		# Accumulated rather than assigned: holding W and A is up AND left, and
+		# releasing A must leave W running.
+		_walk += dir if k.pressed else -dir
+		_walk = _walk.clamp(-Vector2.ONE, Vector2.ONE)
+		accept_event()
+
 
 	func _gui_input(event: InputEvent) -> void:
 		if event is InputEventMouseButton:

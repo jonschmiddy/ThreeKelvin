@@ -115,28 +115,17 @@ func run(tree: SceneTree) -> void:
 		return
 	if "transfer" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
-		# THE REPORTED CASE, not a convenient one. The glitch was seen on a
-		# heavy hull with the hold packed solid, and an empty 5x4 hold beside an
-		# eight-item pile is exactly the arrangement that cannot show it.
-		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
-		var fill: Array[StringName] = [&"legendary", &"exotic", &"rare",
-			&"common", &"epic", &"artifact", &"contraband"]
-		var fi := 0
-		for frow in MaterialTable.all():
-			if Run.hold_full():
-				break
-			var fm := MaterialData.of(frow)
-			fm.tier = fill[fi % fill.size()]
-			fi += 1
-			Run.place_in_hold(fm)
-		# A CONTAINER WORTH LOOKING AT: a spread of shapes and tiers on the floor,
-		# a part among them so the two icon kinds are judged side by side, and
-		# one already claimed so the taken state is visible.
+		# A PHOTOGRAPH, and nothing else. This mode had grown eight probes
+		# chasing a bug that turned out to be a signal with no listener, and
+		# every one of them asserted on the model -- the half that was never
+		# broken. `-- transfertest` now does that properly and headlessly, on
+		# what is DRAWN, so what is left here is the job a shot is actually for.
 		var n0: MapGen.MapNode = Run.node_at()
 		var tiers0: Array[StringName] = [&"legendary", &"contraband", &"rare",
 			&"exotic", &"common", &"artifact", &"epic"]
 		var want0 := ["2x2", "4x1", "1x1", "3x1", "2x1", "1x1", "2x1"]
 		var k0 := 0
+		var pile := Run.sector_hoard(n0)
 		for shape0 in want0:
 			for row0 in MaterialTable.all():
 				if String(row0.get("cells", "")) != shape0:
@@ -144,224 +133,27 @@ func run(tree: SceneTree) -> void:
 				var mm := MaterialData.of(row0)
 				mm.tier = tiers0[k0 % tiers0.size()]
 				k0 += 1
-				n0.bag.append(mm)
+				pile.items.append(mm)
 				break
-		n0.bag.append(LootGen.roll_module(3, &"", false, Rng.derive(&"look", 7)))
-		n0.bagged = true
+		pile.items.append(LootGen.roll_module(3, &"", false, Rng.derive(&"look", 7)))
+		pile.items.append(CreditChit.of(240))
+
 		Router.show_sector()
 		for it in 40:
 			await RenderingServer.frame_post_draw
 		var st := Router.current as SectorScreen
 		if st != null:
-			st._open_transfer()
-			# MID-SWEEP, not after it. Three frames in, the line is partway
-			# down and the items behind it are the only ones showing -- which
-			# is the frame worth photographing, and the one a settled shot
-			# cannot tell apart from a broken container.
+			st._open_sector_loot()
+			# MID-SWEEP. Three frames in, the line is partway down and the
+			# things behind it are the only ones showing -- the frame worth
+			# photographing, and the one a settled shot cannot tell apart from
+			# a broken container.
 			for iu in 3:
 				await RenderingServer.frame_post_draw
-			# SAMPLED ACROSS THE SWEEP, because the question is whether things
-			# ARRIVE or merely appear -- and a single frame cannot tell a fade
-			# from a pop. Counting how many are part-way lit is the difference.
-			for shot in 5:
-				var lg := st._transfer._loose
-				var mid := 0
-				for ch6 in lg.get_children():
-					var ii6 := ch6 as ItemIcon
-					if ii6 != null and ii6.visible and (ii6.modulate.a < 0.98
-							or absf(ii6.position.x - float(
-								lg._at.get(ii6.held_item(),
-									Vector2i.ZERO).x * SalvageGrid.CELL)) > 0.5):
-						mid += 1
-				print("  sweep %3.0f/%d px  showing %d  mid-fade %d"
-					% [lg._scan, lg._rows * SalvageGrid.CELL,
-						_showing(lg), mid])
-				for w6 in 24:
-					await RenderingServer.frame_post_draw
 			tree.root.get_texture().get_image().save_png("user://sector_scan.png")
 			print("wrote ", ProjectSettings.globalize_path("user://sector_scan.png"))
-			for iu2 in 60:
+			for iu2 in 90:
 				await RenderingServer.frame_post_draw
-		# CELLS CLAIMED TWICE, on both sides. Two items drawn over each other is
-		# what "glitchy" looks like, and it is a DATA question -- the icons are
-		# only ever placed where the model says.
-		var clash := 0
-		var seen: Dictionary = {}
-		for c0 in Run.cargo:
-			if c0.hold_at.x < 0:
-				continue
-			for dy0 in c0.footprint().y:
-				for dx0 in c0.footprint().x:
-					var cell0: Vector2i = c0.hold_at + Vector2i(dx0, dy0)
-					if seen.has(cell0):
-						clash += 1
-						print("    HOLD CLASH at %s: %s over %s"
-							% [cell0, c0.name, seen[cell0]])
-					seen[cell0] = c0.name
-		print("  hold cells claimed twice: %d" % clash)
-		var g := Run.hold_grid()
-		var outside := 0
-		for c1 in Run.cargo:
-			if c1.hold_at.x < 0:
-				continue
-			var f1 := c1.footprint()
-			if c1.hold_at.x + f1.x > g.x or c1.hold_at.y + f1.y > g.y:
-				outside += 1
-				print("    OUTSIDE THE GRID: %s at %s size %s in %s"
-					% [c1.name, c1.hold_at, f1, g])
-		print("  hold items past the edge: %d" % outside)
-		if st != null and st._transfer != null:
-			var tv := st._transfer
-			print("  hold grid: size %s  cols*CELL %d" % [tv._hold.size,
-				tv._hold._cols * HoldGrid.CELL])
-			print("  loose grid: size %s  cols*CELL %d  rows*CELL %d"
-				% [tv._loose.size, tv._loose._cols * SalvageGrid.CELL,
-					tv._loose._rows * SalvageGrid.CELL])
-			for ch in tv._loose.get_children():
-				var ic := ch as ItemIcon
-				if ic != null:
-					print("    %-22s pos %s size %s" % [ic.held_item().name,
-						ic.position, ic.size])
-		# TAKE ONE, AND COUNT THE PLACES IT IS. A claimed entry used to stay in
-		# the container greyed, which is right when somebody ELSE took it and
-		# wrong when you did -- alone, the leftover sits beside the same object
-		# now in your hold and reads as the thing not having moved.
-		if st != null and st._transfer != null:
-			var tv2 := st._transfer
-			var n2: MapGen.MapNode = Run.node_at()
-			# ROOM FIRST. The seeded hold is packed solid, so the take was
-			# refused and the probe was measuring a refusal rather than the
-			# thing it is about.
-			while Run.cargo.size() > 2:
-				Run.take_from_hold(Run.cargo[Run.cargo.size() - 1])
-			var first: HoldItem = n2.bag[0]
-			var before2 := Run.cargo.size()
-			var took: bool = await Run.take_from_bag(n2, 0)
-			tv2.refresh()
-			for iv in 4:
-				await RenderingServer.frame_post_draw
-			var in_grid := 0
-			for ch2 in tv2._loose.get_children():
-				var ii := ch2 as ItemIcon
-				if ii != null and ii.held_item() == first:
-					in_grid += 1
-			print("  took %s: %s" % [first.name, took])
-			print("  hold %d -> %d ; still drawn out here: %d (must be 0)"
-				% [before2, Run.cargo.size(), in_grid])
-		# THE OTHER DIRECTION. Dragging one of your own things into the container
-		# is jettison, and it is the half nobody has confirmed works -- a drop
-		# target that is never asked reports nothing, it simply does not accept.
-		if st != null and st._transfer != null:
-			var tv3 := st._transfer
-			var mine: HoldItem = Run.cargo[0] if Run.cargo.size() > 0 else null
-			if mine != null:
-				var payload := {module = mine, origin = &"cargo"}
-				var icons_before := tv3._hold.get_child_count()
-				# THE BEAM AND THE LANDING HAVE TO AGREE. A highlight that
-				# frames one place while the drop puts it in another is worse
-				# than no highlight -- it is a promise the game breaks in front
-				# of you.
-				var aim_pt := Vector2(3.5 * SalvageGrid.CELL,
-					4.5 * SalvageGrid.CELL)
-				var accepts: bool = tv3._loose._can_drop_data(aim_pt, payload)
-				var beamed: Rect2i = tv3._loose._beam
-				print("  container accepts one of yours: %s" % accepts)
-				# WHERE THE TARGET ACTUALLY IS. Godot offers a drop to the
-				# control under the pointer, so a target whose rect is not
-				# where it looks is a target that is never asked.
-				print("    loose grid rect  %s" % tv3._loose.get_global_rect())
-				print("    hold grid rect   %s" % tv3._hold.get_global_rect())
-				print("    loose filter %d, scroll parent %s"
-					% [tv3._loose.mouse_filter, tv3._loose.get_parent().name])
-				var sc := tv3._loose.get_parent() as Control
-				if sc != null:
-					print("    scroll rect      %s filter %d"
-						% [sc.get_global_rect(), sc.mouse_filter])
-				var n3: MapGen.MapNode = Run.node_at()
-				var bag_was := n3.bag.size()
-				if accepts:
-					tv3._loose._drop_data(aim_pt, payload)
-					print("  beam said %s ; it landed at %s (must match)"
-						% [beamed.position, tv3._loose._at.get(mine, "nowhere")])
-				print("  bag %d -> %d ; still in hold: %s"
-					% [bag_was, n3.bag.size(), Run.cargo.has(mine)])
-				# NO MANUAL REFRESH. The drop has to redraw the screen by
-				# itself -- that is the bug this checks: the model changed and
-				# the view did not, so the item stayed drawn where it had been
-				# until some later action forced a repaint.
-				print("  hold icons %d -> %d (must drop by one, with no refresh"
-					% [icons_before, tv3._hold.get_child_count()]
-					+ " called here)")
-		# NOTHING ELSE MOVES WHEN ONE THING LEAVES.
-		#
-		# The container used to re-lay-out on every change, so taking one item
-		# sent every other item to a new cell and changed the container's
-		# height -- the pile squirmed away from the cursor each time it was
-		# touched. This records where everything is, removes one, and checks
-		# the survivors are exactly where they were.
-		if st != null and st._transfer != null:
-			var tvs := st._transfer
-			tvs.refresh()
-			for iy in 3:
-				await RenderingServer.frame_post_draw
-			var ns: MapGen.MapNode = Run.node_at()
-			var before_at: Dictionary = {}
-			for k in tvs._loose._at:
-				before_at[k] = tvs._loose._at[k]
-			var tall_before := tvs._loose._rows
-			var victim: HoldItem = ns.bag[0]
-			while Run.cargo.size() > 1:
-				Run.take_from_hold(Run.cargo[Run.cargo.size() - 1])
-			var gone: bool = await Run.take_from_bag(ns, 0)
-			tvs.refresh()
-			for iz in 3:
-				await RenderingServer.frame_post_draw
-			var moved := 0
-			for k2 in tvs._loose._at:
-				if before_at.has(k2) and before_at[k2] != tvs._loose._at[k2]:
-					moved += 1
-			print("  took %s: %s" % [victim.name, gone])
-			print("  others that moved: %d (must be 0)" % moved)
-			print("  container height %d -> %d (must not shrink)"
-				% [tall_before, tvs._loose._rows])
-
-		# RIGHT-CLICK, WHICH IS THE OTHER WAY TO PUT SOMETHING DOWN. It goes
-		# through no drop handler at all -- `ItemIcon._gui_input` calls
-		# `Run.jettison` directly -- so nothing in the view hears about it
-		# unless the view is listening to the SHIP rather than to the drop.
-		if st != null and st._transfer != null:
-			var tvr := st._transfer
-			tvr.refresh()
-			for ir in 3:
-				await RenderingServer.frame_post_draw
-			var icon_r: ItemIcon = null
-			for chr2 in tvr._hold.get_children():
-				var ii2 := chr2 as ItemIcon
-				if ii2 != null:
-					icon_r = ii2
-					break
-			if icon_r != null:
-				var held_r := icon_r.held_item()
-				var hold_r := tvr._hold.get_child_count()
-				var loose_r := tvr._loose.get_child_count()
-				var click := InputEventMouseButton.new()
-				click.button_index = MOUSE_BUTTON_RIGHT
-				click.pressed = true
-				icon_r._gui_input(click)
-				for is2 in 3:
-					await RenderingServer.frame_post_draw
-				print("  right-click %s: hold icons %d -> %d, out here %d -> %d"
-					% [held_r.name, hold_r, tvr._hold.get_child_count(),
-						loose_r, tvr._loose.get_child_count()])
-				print("    (no refresh called here -- the view has to hear it)")
-
-		# NO SIMULATED DRAG HERE, and that is a finding rather than a gap.
-		# `Input.parse_input_event` plus `warp_mouse` does not drive the GUI in
-		# an unfocused harness window -- `gui_get_hovered_control` came back
-		# null over an icon plainly on screen -- so the probe reported a failure
-		# that was its own. A harness that cries wolf is worse than one that is
-		# silent, so the drop paths are driven directly and the real drag is a
-		# thing a person has to check.
 		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()

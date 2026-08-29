@@ -44,7 +44,10 @@ const BAR := 14
 var _hold: HoldGrid
 var _loose: SalvageGrid
 var _title: Label
-var _count: Label
+## The heading over the right-hand grid. It names the container rather than the
+## direction: "OUT HERE" was a placeholder from when there was one bag per
+## system and it read as a compass rather than as a thing.
+var _loose_label: Label
 var _node: MapGen.MapNode = null
 ## WHICH container. A system holds several -- one per hull you killed, plus its
 ## own floor -- and this screen is a view of exactly one of them at a time.
@@ -125,9 +128,10 @@ func _init() -> void:
 	col.add_child(head)
 	_title = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
 	head.add_child(_title)
-	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	head.add_child(_count)
+	# NO RUNNING TOTAL. "2 LEFT" and "PICKED CLEAN" were counting something you
+	# are looking at: the grid on the right IS the answer, and a number beside
+	# the name only competes with it. An empty container says it is empty by
+	# being empty.
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(sp)
@@ -169,7 +173,8 @@ func _init() -> void:
 	# The hold's width is the hull's; the container's is its own constant. Both
 	# are known before anything is in them, which is the point.
 	row.add_child(_side("YOUR HOLD", _build_hold(), Run.hold_grid().x))
-	row.add_child(_side("OUT HERE", _build_loose(), SalvageGrid.COLS))
+	# Empty, because the container names itself on refresh. See `_loose_label`.
+	row.add_child(_side("", _build_loose(), SalvageGrid.COLS))
 
 
 ## THE SCREEN ITSELF CATCHES ANYTHING THE GRIDS DID NOT.
@@ -276,6 +281,8 @@ func _side(label: String, body: Control, cols: int) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	var l := UITheme.body(label, UITheme.COLD, UITheme.FS_SMALL)
+	if label == "":
+		_loose_label = l
 	box.add_child(l)
 	# A CAP, not a fill. Both grids are exactly as big as their contents need,
 	# and a scroll only appears when a pile outgrows the screen -- which is the
@@ -360,8 +367,7 @@ func refresh() -> void:
 			showing_spent[showing.size()] = true
 		showing.append(_hoard.items[i])
 	_loose.setup(showing, showing_spent, 5)
-	var left := Run.hoard_left(_node, _hoard)
-	_count.text = "%d LEFT" % left if left > 0 else "PICKED CLEAN"
+	_loose_label.text = _hoard.column_label() if _hoard != null else "SALVAGE"
 
 
 ## Something dragged INTO your hold.

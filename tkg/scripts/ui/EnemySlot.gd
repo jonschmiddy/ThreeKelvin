@@ -309,15 +309,33 @@ var _drag_text: String = ""
 var opened: Callable
 
 
+## THE HULL, NOT THE SLOT. A slot expands to share the arena, so it is most of
+## a screen -- and answering a click anywhere in it made a wreck something you
+## opened by aiming near it. The art is where the ship is.
+func _on_hull(p: Vector2) -> bool:
+	if _art_holder == null:
+		return false
+	return Rect2(_art_holder.position, _art_holder.size).has_point(p)
+
+
 func _gui_input(e: InputEvent) -> void:
 	if not _dead:
 		return
 	var mb := e as InputEventMouseButton
 	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 		return
-	if opened.is_valid():
+	if opened.is_valid() and _on_hull(mb.position):
 		accept_event()
 		opened.call()
+
+
+## And the tooltip only exists over the hull, for the same reason. Godot asks
+## per position, which is exactly the hook this needs -- an empty string is no
+## tooltip rather than an empty one.
+func _get_tooltip(at: Vector2) -> String:
+	if not _dead or not opened.is_valid() or not _on_hull(at):
+		return ""
+	return tooltip_text
 
 
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:

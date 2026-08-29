@@ -90,6 +90,41 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 	return panel
 
 
+## A part, in words, for a tooltip.
+##
+## The hull is the one place a module has always been unreadable: it is drawn as
+## a silhouette bolted to the ship, which says what KIND it is and nothing about
+## what it does -- and the panel that would tell you is a click away on a screen
+## you have to already be on.
+##
+## Deliberately shorter than `module_panel`. A tooltip is read standing over
+## something else, so this is the name, what it is, what it moved, and what it
+## puts in the deck. The affixes are the part of a rolled module that is
+## actually a surprise, so they stay.
+static func module_hint(m: ModuleData) -> String:
+	if m == null:
+		return ""
+	var lines: PackedStringArray = [m.name.to_upper()]
+	lines.append("%s · %s · %s" % [ModuleData.rarity_name(m.rarity),
+		DB.manufacturer_name(m.manufacturer), ModuleData.slot_name(m.slot)])
+	var gauges: PackedStringArray = []
+	for g in AffixData.GAUGES:
+		var v: int = m.get(g)
+		if v != 0:
+			gauges.append("%s%d %s" % ["+" if v > 0 else "", v,
+				String(g).to_upper()])
+	if not gauges.is_empty():
+		lines.append(", ".join(gauges))
+	for a in m.affixes:
+		lines.append("%s - %s" % [a.name, a.text])
+	var cards: PackedStringArray = []
+	for c in m.resolved_cards():
+		cards.append(c.name)
+	if not cards.is_empty():
+		lines.append("Grants %s." % ", ".join(cards))
+	return tip("\n".join(lines))
+
+
 static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 		on_action: Callable, note: String = "", deck_size: int = -1) -> PanelContainer:
 	var panel := PanelContainer.new()

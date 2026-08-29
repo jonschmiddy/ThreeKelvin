@@ -18,9 +18,9 @@ var chit: CreditChit = null
 func setup(c: CreditChit, from: StringName) -> void:
 	chit = c
 	origin = from
-	tooltip_text = Widgets.tip(
-		"%d CREDITS\n\nTakes no room. It goes in whatever your hold looks like."
-			% c.amount)
+	# The same rule the top bar states, plus the two facts only the object has.
+	tooltip_text = Widgets.tip("%d CREDITS\n\n%s\n\nTakes no room. It goes in whatever your hold looks like."
+		% [c.amount, CreditChit.WHAT_MONEY_IS])
 	queue_redraw()
 
 

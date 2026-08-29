@@ -319,7 +319,8 @@ func refresh() -> void:
 	_hint(_heat_text, heat_note)
 
 	_value(_scrap, str(Run.credits))
-	_hint(_scrap, "Credits are the only currency.\nRepairs, upgrades and purchases all come out of the same balance.")
+	# One sentence, in one place. See `CreditChit.WHAT_MONEY_IS`.
+	_hint(_scrap, CreditChit.WHAT_MONEY_IS)
 	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")
