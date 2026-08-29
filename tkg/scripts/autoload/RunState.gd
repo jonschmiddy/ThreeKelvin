@@ -433,13 +433,16 @@ func cargo_used() -> int:
 ## a hold with four free cells has room for four fittings, one bulky array, or a
 ## long gun only if three of those cells happen to lie in a row. Callers that
 ## want a yes/no now have to say what they are trying to put down.
-func has_room_for(m: ModuleData) -> bool:
+func has_room_for(m: HoldItem) -> bool:
 	return find_hold_slot(m) != -Vector2i.ONE
 
 ## True when nothing at all will fit — the honest replacement for `hold_full`,
 ## used where there is no particular module in hand.
 func hold_full() -> bool:
-	var one := ModuleData.new()
+	# A bare HoldItem, not a ModuleData. The question is whether ONE CELL is
+	# free, and asking it with a module was only ever true because a module was
+	# the only thing the hold could hold.
+	var one := HoldItem.new()
 	one.size = Vector2i.ONE
 	return not has_room_for(one)
 
@@ -453,7 +456,7 @@ func _cells_of(m: HoldItem, at: Vector2i) -> Array[Vector2i]:
 	return out
 
 ## Can `m` sit at `at`, ignoring itself if it is already down?
-func can_place(m: ModuleData, at: Vector2i) -> bool:
+func can_place(m: HoldItem, at: Vector2i) -> bool:
 	var g := hold_grid()
 	if at.x < 0 or at.y < 0:
 		return false
@@ -522,7 +525,7 @@ func repack_hold() -> void:
 ## Row-major FIRST FIT rather than best fit. Best fit packs tighter and moves
 ## things around behind your back to do it; the hold is a place you arranged, so
 ## a predictable rule you can learn beats a clever one you cannot.
-func find_hold_slot(m: ModuleData) -> Vector2i:
+func find_hold_slot(m: HoldItem) -> Vector2i:
 	var g := hold_grid()
 	for y in g.y:
 		for x in g.x:

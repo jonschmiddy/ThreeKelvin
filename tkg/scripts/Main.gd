@@ -229,6 +229,13 @@ func _ready() -> void:
 		load("res://scripts/sim/RaritySheet.gd").new().run()
 		get_tree().quit()
 		return
+	# Every catalogue row becomes an item a real hold accepts:
+	#   godot --headless --path . -- materialtest
+	if "materialtest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/MaterialTest.gd").new().run()
+		get_tree().quit()
+		return
+
 	if "holdtest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/HoldTest.gd").new().run()
 		get_tree().quit()

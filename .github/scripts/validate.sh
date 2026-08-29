@@ -193,6 +193,22 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 	fi
 fi
 
+step "Every material is a thing the hold can actually hold"
+# `MaterialTable` authored 64 rows a day before anything could carry one, so its
+# shapes had never met the grid that has to accept them. A row whose `cells`
+# reads wider than the smallest hull's hold parses fine, builds fine, and can
+# never be placed -- and nothing would say why. Checked against the LIGHTEST
+# hull, because an item that fits a heavy and not a light vanishes for half the
+# roster, quietly.
+if run_godot materialtest 120 --headless --path "$PROJECT" -- materialtest; then
+	if grep -qE '^materialtest: PASS' "$LOG_DIR/materialtest.log"; then
+		ok "materials"
+	else
+		bad "a material cannot be carried"
+		grep -E '^  FAIL|^ +refused|^materialtest' "$LOG_DIR/materialtest.log" | head -n 20 | sed 's/^/        /'
+	fi
+fi
+
 step "The catalogue export is a shape the manifest can read"
 # NEITHER OF THESE WAS IN THE GATE AT ALL, which is how the export and the page
 # drifted apart in silence. PASSIVE_AXIS values became arrays while the exporter
