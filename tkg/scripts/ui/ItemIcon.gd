@@ -184,8 +184,20 @@ func _get_drag_data(_at: Vector2) -> Variant:
 ## rebuilds the grid and this icon is freed anyway, so the restore is only ever
 ## seen in the cases where nothing happened.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_DRAG_END and not visible:
-		visible = true
+	if what != NOTIFICATION_DRAG_END:
+		return
+	visible = true
+	# AND THE SHAPE IT CAME BACK AS HAS TO FIT WHERE IT CAME FROM.
+	#
+	# Turning mid-drag flips `turned` on the item itself while it is still in
+	# the hold at its old cell, so a drag that does not land leaves a part in a
+	# cell its new footprint does not fit. `Run.settle` is the one line that
+	# puts that right, and it lives here so every screen with a hold in it gets
+	# the same answer -- there are three now and none of them should have to
+	# know this happened.
+	var m := held_item()
+	if m != null:
+		Run.settle(m)
 
 
 ## A copy of this icon, sized to its footprint, inside a following wrapper.

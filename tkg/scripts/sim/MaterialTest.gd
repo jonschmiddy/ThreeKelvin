@@ -293,4 +293,36 @@ func run() -> void:
 		not here2.taken.has(MapGen.OPTION_BAG + here2.bag.find(yoyo)))
 	_ok("so it is loose out there", Run.bag_left(here2) == 1)
 
+	# --- a turn that did not land --------------------------------------------
+	#
+	# Pressing R mid-drag flips `turned` on the item while it is still sitting
+	# in the hold at the cell it was picked up from. If the drag is then
+	# cancelled, that cell now holds a different shape -- a 4x1 in the bottom
+	# row becomes a 1x4 hanging off the bottom of the grid, over whatever it
+	# crosses. That is the state this reproduces and `Run.settle` is what
+	# answers it.
+	Run.cargo.clear()
+	var g2 := Run.hold_grid()
+	var bar := MaterialData.new()
+	bar.size = Vector2i(4, 1)
+	bar.name = "TEST BAR"
+	_ok("a 4x1 goes in the last row",
+		Run.place_in_hold(bar, Vector2i(0, g2.y - 1)))
+
+	# The mid-drag turn, exactly as the key handler does it: on the item, in
+	# place, with no re-validation.
+	bar.turned = not bar.turned
+	var f2 := bar.footprint()
+	var hangs := bar.hold_at.y + f2.y > g2.y
+	_ok("turning it in place puts it outside the grid (%s + %s in %s)"
+		% [bar.hold_at, f2, g2], hangs)
+
+	_ok("settle puts it somewhere legal", Run.settle(bar))
+	var f3 := bar.footprint()
+	_ok("and it is inside the grid now (%s + %s in %s)"
+		% [bar.hold_at, f3, g2],
+		bar.hold_at.x >= 0 and bar.hold_at.x + f3.x <= g2.x
+			and bar.hold_at.y + f3.y <= g2.y)
+	_ok("and it is still in the hold", Run.cargo.has(bar))
+
 	verdict("materialtest")

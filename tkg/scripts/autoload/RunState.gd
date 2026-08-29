@@ -552,6 +552,43 @@ func jettison(m: HoldItem) -> bool:
 	return true
 
 
+## Make sure one item's cell is still a cell it can occupy.
+##
+## TURNING A CARRIED PART MUTATES THE PART, and that is the whole problem this
+## exists for. Press R mid-drag and `turned` flips on the object itself -- which
+## it has to, because the drop target asks `footprint()` where it would land.
+## But the item is still in `cargo` at the cell it was picked up from, so if the
+## drag is then cancelled or refused, it stays there with a NEW shape: a 4x1
+## sitting in the last row becomes a 1x4 hanging four rows off the bottom of the
+## hold, overlapping whatever it crosses.
+##
+## That is the corruption behind "items overflow the grid" and behind "it only
+## works if I shuffle things afterwards" -- shuffling calls `place_in_hold`,
+## which quietly puts the mess right.
+##
+## Three answers, in order of how little they cost you: the cell still works;
+## some other cell does; or turning it is what broke it, so turn it back. Only
+## if none of those hold does it fail, and then it has changed nothing.
+func settle(m: HoldItem) -> bool:
+	if m == null or not cargo.has(m):
+		return false
+	if m.hold_at.x >= 0 and can_place(m, m.hold_at):
+		return true
+	var at := find_hold_slot(m)
+	if at != -Vector2i.ONE:
+		m.hold_at = at
+		Sig.ship_changed.emit()
+		return true
+	m.turned = not m.turned
+	at = find_hold_slot(m)
+	if at != -Vector2i.ONE:
+		m.hold_at = at
+		Sig.ship_changed.emit()
+		return true
+	m.turned = not m.turned
+	return false
+
+
 ## Re-seat everything, largest first, after the grid changes shape.
 ##
 ## Called when the hull is swapped: a heavy's 4x10 hold becomes a light's 4x5 and
