@@ -240,6 +240,39 @@ func run(tree: SceneTree) -> void:
 					tv3._loose._drop_data(Vector2(20, 20), payload)
 				print("  bag %d -> %d ; still in hold: %s"
 					% [bag_was, n3.bag.size(), Run.cargo.has(mine)])
+		# NOTHING ELSE MOVES WHEN ONE THING LEAVES.
+		#
+		# The container used to re-lay-out on every change, so taking one item
+		# sent every other item to a new cell and changed the container's
+		# height -- the pile squirmed away from the cursor each time it was
+		# touched. This records where everything is, removes one, and checks
+		# the survivors are exactly where they were.
+		if st != null and st._transfer != null:
+			var tvs := st._transfer
+			tvs.refresh()
+			for iy in 3:
+				await RenderingServer.frame_post_draw
+			var ns: MapGen.MapNode = Run.node_at()
+			var before_at: Dictionary = {}
+			for k in tvs._loose._at:
+				before_at[k] = tvs._loose._at[k]
+			var tall_before := tvs._loose._rows
+			var victim: HoldItem = ns.bag[0]
+			while Run.cargo.size() > 1:
+				Run.take_from_hold(Run.cargo[Run.cargo.size() - 1])
+			var gone: bool = await Run.take_from_bag(ns, 0)
+			tvs.refresh()
+			for iz in 3:
+				await RenderingServer.frame_post_draw
+			var moved := 0
+			for k2 in tvs._loose._at:
+				if before_at.has(k2) and before_at[k2] != tvs._loose._at[k2]:
+					moved += 1
+			print("  took %s: %s" % [victim.name, gone])
+			print("  others that moved: %d (must be 0)" % moved)
+			print("  container height %d -> %d (must not shrink)"
+				% [tall_before, tvs._loose._rows])
+
 		# A REAL DRAG. Everything so far called `_can_drop_data` directly, which
 		# proves the LOGIC and says nothing about whether Godot ever asks it --
 		# and "the logic is right and unreachable" has been the answer twice.

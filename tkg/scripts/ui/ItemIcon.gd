@@ -200,6 +200,32 @@ func _notification(what: int) -> void:
 		Run.settle(m)
 
 
+## AN ICON ANSWERS FOR THE GRID UNDER IT.
+##
+## Godot offers a drop to the control it finds at the cursor. The icons sitting
+## in a grid are controls, they are on top of it, and they have no opinion about
+## drops -- so whether the grid beneath ever gets asked depends on whether the
+## engine walks up the tree from a control that declined. It may; I could not
+## establish it, and three rounds of "the logic is right and unreachable" is
+## enough of that.
+##
+## So the icon stops being an obstacle and becomes a pass-through: it answers
+## exactly what its parent would answer, at the same point in the parent's own
+## coordinates. Dropping onto a crate that is sitting in a container is dropping
+## into the container, which is what it looks like.
+func _can_drop_data(at: Vector2, data: Variant) -> bool:
+	var g := get_parent() as Control
+	if g == null or not g.has_method("_can_drop_data"):
+		return false
+	return g._can_drop_data(at + position, data)
+
+
+func _drop_data(at: Vector2, data: Variant) -> void:
+	var g := get_parent() as Control
+	if g != null and g.has_method("_drop_data"):
+		g._drop_data(at + position, data)
+
+
 ## A copy of this icon, sized to its footprint, inside a following wrapper.
 ## Overridden so each kind builds its own sort of plate.
 func _ghost() -> Control:

@@ -9,9 +9,17 @@ extends Control
 ## a puzzle. Nobody arranged it. It is a pile, and the only question it asks is
 ## which of these you want.
 ##
-## So this grid places things itself, first-fit, and never stores where it put
-## them. Rearranging the inside of a wreck is not a decision anybody wants to
-## make, and letting you would imply it mattered.
+## It places things itself, first-fit, and then REMEMBERS. The first version
+## re-laid-out on every change, on the reasoning that nobody arranges a wreck and
+## letting you would imply it mattered. That was wrong in practice for a reason
+## that has nothing to do with wrecks: taking one thing out made everything else
+## jump to a new cell and the container change height, so the pile you were
+## halfway through reading rearranged itself under your hand every time you
+## touched it.
+##
+## Positions last as long as the view is open. Close it and come back and the
+## pile is tidied again, which is the one place the original reasoning still
+## holds -- you did not arrange it, so it owes you nothing across a visit.
 ##
 ## Same 40-pixel cell and same lattice as the hold beside it, because the whole
 ## point of showing them together is that a shape means the same thing on both
@@ -29,9 +37,13 @@ const EDGE := 2.0
 var _cols: int = 5
 var _rows: int = 1
 var _items: Array = []
-## Where this grid decided to draw each item. Index-matched to `_items`, and
-## thrown away on every rebuild -- see the note above about not remembering.
-var _cells: Array[Vector2i] = []
+## Where this grid decided to draw each item, keyed by the item itself so it
+## survives a rebuild. Identity, not index: the list is filtered and reordered
+## between refreshes and an index means nothing across one.
+var _at: Dictionary = {}
+## The tallest the grid has been this visit. It does not shrink, because a
+## container that gets shorter as you empty it moves everything still in it.
+var _high: int = 0
 ## Which entries are spoken for. A bag row someone already claimed still takes
 ## up space in the picture, because a hole where a part was is information and
 ## a silently reflowed grid is not.
@@ -61,26 +73,42 @@ func setup(items: Array, spent: Dictionary, cols: int = 5) -> void:
 ## for the same reason: first-fit on a fresh grid strands big things behind
 ## small ones, and a 4x1 that cannot find a row is a 4x1 you cannot see.
 func _layout() -> void:
-	_cells.clear()
-	_cells.resize(_items.size())
-	var order: Array[int] = []
-	for i in _items.size():
-		order.append(i)
-		_cells[i] = -Vector2i.ONE
-	order.sort_custom(func(a: int, b: int) -> bool:
-		return (_items[a] as HoldItem).cells() > (_items[b] as HoldItem).cells())
-
+	# WHAT IS ALREADY PLACED KEEPS ITS CELL. Only things this grid has not seen
+	# before get a slot found for them, and they get it around what is already
+	# there -- so arriving loot lands in the gaps rather than reshuffling the
+	# pile you were reading.
 	var taken: Dictionary = {}
+	var fresh: Array[HoldItem] = []
+	for m0 in _items:
+		var m: HoldItem = m0
+		if _at.has(m):
+			var was: Vector2i = _at[m]
+			for dy0 in m.footprint().y:
+				for dx0 in m.footprint().x:
+					taken[was + Vector2i(dx0, dy0)] = true
+		else:
+			fresh.append(m)
+	# Largest first among the new ones, the same rule `reseat` uses: first-fit
+	# on a fresh grid strands big things behind small ones.
+	fresh.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
+		return a.cells() > b.cells())
+	for m2 in fresh:
+		var f2 := m2.footprint()
+		var at2 := _first_fit(taken, f2)
+		_at[m2] = at2
+		for dy2 in f2.y:
+			for dx2 in f2.x:
+				taken[at2 + Vector2i(dx2, dy2)] = true
+
+	# Anything no longer here forgets its cell, or the map grows forever.
+	for key in _at.keys():
+		if not _items.has(key):
+			_at.erase(key)
+
 	_rows = 1
-	for i in order:
-		var m: HoldItem = _items[i]
-		var f := m.footprint()
-		var at := _first_fit(taken, f)
-		_cells[i] = at
-		for dy in f.y:
-			for dx in f.x:
-				taken[at + Vector2i(dx, dy)] = true
-		_rows = maxi(_rows, at.y + f.y)
+	for m3 in _items:
+		var mm: HoldItem = m3
+		_rows = maxi(_rows, (_at[mm] as Vector2i).y + mm.footprint().y)
 	# ONE SPARE ROW, ALWAYS.
 	#
 	# The grid was exactly as big as its contents, which is tidy and made the
@@ -91,6 +119,11 @@ func _layout() -> void:
 	# An empty row also says the thing that needs saying without a label -- that
 	# this is somewhere you can put something, not just somewhere you take from.
 	_rows += 1
+	# NEVER SHORTER THAN IT HAS BEEN. Emptying a container used to shrink it,
+	# which moved every remaining item up the screen -- the grid was correct and
+	# the experience was of the pile squirming away from the cursor.
+	_high = maxi(_high, _rows)
+	_rows = _high
 	# The MINIMUM is the picture. The control is allowed to be larger -- see
 	# `_draw` -- and in `TransferView` it is, because the whole column is the
 	# place you put things down.
@@ -138,7 +171,8 @@ func _rebuild() -> void:
 		icon.mouse_filter = Control.MOUSE_FILTER_PASS
 		add_child(icon)
 		icon.custom_minimum_size = Vector2.ZERO
-		icon.position = Vector2(_cells[i].x * CELL, _cells[i].y * CELL)
+		var cell: Vector2i = _at.get(m, Vector2i.ZERO)
+		icon.position = Vector2(cell.x * CELL, cell.y * CELL)
 		icon.size = ModuleIcon.footprint_box(m)
 		if _spent.has(i):
 			# Still drawn, still in its cell, plainly not yours. See `_spent`.
@@ -191,16 +225,60 @@ func index_of(m: HoldItem) -> int:
 ## Only things you OWN. An item already loose out here has nowhere further to
 ## fall, and letting it be dragged around inside the pile would suggest the
 ## arrangement meant something -- see the note at the top.
-func _can_drop_data(_at: Vector2, data: Variant) -> bool:
+## Two kinds of drop land here, and they are different things.
+##
+## One of YOURS is jettison -- putting it down in the system you are standing in.
+## One already out here is a REARRANGEMENT, which the first version refused on
+## the grounds that nobody arranges a wreck. That reads as broken rather than as
+## principled: the cells are right there, the thing moves under your hand
+## everywhere else in the game, and refusing costs a rule nobody asked for.
+func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
 		return false
-	if String((data as Dictionary).get("origin", &"")) == "bag":
+	var m: HoldItem = (data as Dictionary).module
+	if m == null:
 		return false
-	var m: HoldItem = (data as Dictionary).module
-	return m != null and Run.cargo.has(m)
+	if String((data as Dictionary).get("origin", &"")) == "bag":
+		return _at.has(m) and _fits(m, _cell_of(at, m))
+	return Run.cargo.has(m)
 
 
-func _drop_data(_at: Vector2, data: Variant) -> void:
+func _drop_data(at: Vector2, data: Variant) -> void:
 	var m: HoldItem = (data as Dictionary).module
-	if m != null and Run.jettison(m):
+	if m == null:
+		return
+	if String((data as Dictionary).get("origin", &"")) == "bag":
+		_at[m] = _cell_of(at, m)
+		_layout()
+		_rebuild()
+		return
+	if Run.jettison(m):
 		picked.emit(m)
+
+
+## Where a carried thing would land, measured from the ITEM rather than the
+## pointer -- the same correction `HoldGrid.target_for` makes, and for the same
+## reason: the plate is centred on the cursor.
+func _cell_of(at: Vector2, m: HoldItem) -> Vector2i:
+	var f := m.footprint()
+	var top_left := at - Vector2(f.x, f.y) * float(CELL) * 0.5
+	return Vector2i(
+		clampi(int(round(top_left.x / float(CELL))), 0, maxi(0, _cols - f.x)),
+		maxi(0, int(round(top_left.y / float(CELL)))))
+
+
+## Whether a cell is clear of everything except the item being moved.
+func _fits(m: HoldItem, cell: Vector2i) -> bool:
+	var f := m.footprint()
+	if cell.x < 0 or cell.y < 0 or cell.x + f.x > _cols:
+		return false
+	for other in _items:
+		var o: HoldItem = other
+		if o == m or not _at.has(o):
+			continue
+		var oc: Vector2i = _at[o]
+		var of := o.footprint()
+		if cell.x < oc.x + of.x and oc.x < cell.x + f.x \
+				and cell.y < oc.y + of.y and oc.y < cell.y + f.y:
+			return false
+	return true
