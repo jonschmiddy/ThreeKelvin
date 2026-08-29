@@ -117,6 +117,8 @@ var _flee_ask: PanelContainer = null
 ## The open pile listing, or null. Built and torn down per open rather than
 ## hidden, because its contents change every single turn.
 var _pile_panel: PanelContainer = null
+## The open salvage transfer, or null. See `_open_transfer`.
+var _transfer: TransferView = null
 var _discard_pile: PileView
 var _end_button: Button
 var _hail_button: Button
@@ -1433,22 +1435,26 @@ func _refresh_salvage() -> void:
 	_salvage_head.text = "SALVAGE - ONE BAG, FIRST HAND IN" if loose > 0 \
 		else "SALVAGE - STOW IT OR FIT IT"
 
-	# What the kill left, before what you are already carrying. Loose parts are
-	# the only thing on this panel with a clock on them.
-	for i in n.bag.size():
-		if n.taken.has(MapGen.OPTION_BAG + i):
-			# Kept on screen rather than dropped out of the list. A part that
-			# vanishes reads as a part that was never there; a part with somebody
-			# else's name on it is the whole texture of flying together, and it
-			# is the same argument `MapGen.OPTION_SHOP` makes about a sold shelf.
-			var who := Net.taker_name(n.index, MapGen.OPTION_BAG + i)
-			_salvage.add_child(_bag_row(n.bag[i],
-				Widgets.ModuleContext.BAG, 0, _on_salvage,
-				"%s TOOK THIS" % who.to_upper() if who != "" else "TAKEN", deck))
-			continue
-		# No price on a bag. You already paid for it by being in the fight.
-		_salvage.add_child(_bag_row(n.bag[i],
-			Widgets.ModuleContext.BAG, 0, _on_bag, "", deck))
+	# THE BAG IS A CONTAINER, NOT A LIST. `MATERIALS_NOTE` 3.6: if something
+	# hands you a physical thing it hands you a place to reach into, with your
+	# own hold beside it, because 3.4 means no payout may force itself into a
+	# full hold.
+	#
+	# Rows could not carry that. A row says the name and a number; what you
+	# actually need to decide is whether a 2x2 will go anywhere, and the only
+	# honest answer to that is both grids side by side. So the rail keeps the
+	# summary and the reaching happens in `TransferView`.
+	if loose > 0:
+		var open := Widgets.button("OPEN SALVAGE - %d LEFT" % loose,
+			_open_transfer)
+		open.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		open.tooltip_text = Widgets.tip("Your hold on one side, what is loose out here on the other. Drag across what you want; drag your own back out to put it down.")
+		_salvage.add_child(open)
+		var note := UITheme.body(
+			"It stays in this system until you take it or you jump.",
+			UITheme.COLD, UITheme.FS_SMALL)
+		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_salvage.add_child(note)
 
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
@@ -1712,6 +1718,29 @@ func _refresh_hand() -> void:
 ## The bag holds two now: what a kill dropped, and whatever you threw overboard
 ## here. A material has no manufacturer, no slot and no cards, so it gets its own
 ## row rather than nulls threaded through the module one.
+## Open the two-grid view over this system's loose salvage.
+##
+## Built per open and torn down on close, the same as the pile listing, because
+## what it shows changes every time something is taken out of it.
+func _open_transfer() -> void:
+	if _transfer != null:
+		return
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		return
+	_transfer = TransferView.new()
+	add_child(_transfer)
+	_transfer.setup("SALVAGE", n, _close_transfer)
+
+
+func _close_transfer() -> void:
+	if _transfer == null:
+		return
+	_transfer.queue_free()
+	_transfer = null
+	_refresh()
+
+
 func _bag_row(thing: Variant, ctx: int, price: int, on_action: Callable,
 		note: String, deck: int) -> PanelContainer:
 	if thing is MaterialData:

@@ -447,6 +447,27 @@ func _ready() -> void:
 		print("%s -- hold %dx%d, %d items, %d of %d cells" % [Run.hull.name,
 			Run.hull.hold_grid.x, Run.hull.hold_grid.y, Run.cargo.size(),
 			used, Run.hull.hold_grid.x * Run.hull.hold_grid.y])
+		# And something on the floor of this system, so SECTOR has a container
+		# to open. Half the point of the flag is the reaching, not the packing.
+		# A CONTAINER WORTH LOOKING AT: a spread of shapes and tiers on the floor,
+		# a part among them so the two icon kinds are judged side by side, and
+		# one already claimed so the taken state is visible.
+		var n0: MapGen.MapNode = Run.node_at()
+		var tiers0: Array[StringName] = [&"legendary", &"contraband", &"rare",
+			&"exotic", &"common", &"artifact", &"epic"]
+		var want0 := ["2x2", "4x1", "1x1", "3x1", "2x1", "1x1", "2x1"]
+		var k0 := 0
+		for shape0 in want0:
+			for row0 in MaterialTable.all():
+				if String(row0.get("cells", "")) != shape0:
+					continue
+				var mm := MaterialData.of(row0)
+				mm.tier = tiers0[k0 % tiers0.size()]
+				k0 += 1
+				n0.bag.append(mm)
+				break
+		n0.bag.append(LootGen.roll_module(3, &"", false, Rng.derive(&"look", 7)))
+		n0.bagged = true
 		Router.show_ship()
 		return
 

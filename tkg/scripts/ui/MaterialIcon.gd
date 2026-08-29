@@ -54,9 +54,23 @@ func _ghost() -> Control:
 func _draw() -> void:
 	if item == null:
 		return
-	var tint := UITheme.tier_colour(item.tier)
-	var lit := tint.lerp(Color.WHITE, 0.28)
-	var dim := tint.lerp(Color("#0b0f16"), 0.52)
+	# THE TIER IS AN ACCENT HERE, NOT THE WALL.
+	#
+	# `rarity_colour` is the game's one grade ladder and it is a saturated set --
+	# correctly, because everywhere it existed before it was an INK: a card's
+	# name, a plate's edge, four readouts. A crate is not an ink, it is forty
+	# pixels square of fill, and eight of those in the game's saturations turned
+	# the container into the brightest object on a screen made of cold steel.
+	#
+	# So the same colour is used twice at two strengths, which is the split
+	# `rarity_ink` already admits exists. The BODY is the tier pulled most of the
+	# way toward the ground -- enough to tell two crates apart, not enough to
+	# shout -- and the EDGE and the pip stay full strength, because that is where
+	# identity is read from down a row of them.
+	var tier := UITheme.tier_colour(item.tier)
+	var tint := Color.from_hsv(tier.h, tier.s * 0.42, tier.v * 0.62)
+	var lit := tint.lerp(Color.WHITE, 0.22)
+	var dim := tint.lerp(Color("#0b0f16"), 0.42)
 	var ink := Color("#0b0f16")
 
 	# The body fills the footprint less a hairline, so two crates in adjacent
@@ -64,7 +78,7 @@ func _draw() -> void:
 	var box := Rect2(Vector2.ONE, size - Vector2(2, 2))
 	draw_rect(box, dim, true)
 	draw_rect(Rect2(box.position, Vector2(box.size.x, 2)), lit, true)
-	draw_rect(box, tint, false, 1.0)
+	draw_rect(box, tier, false, 1.0)
 
 	# BANDING ACROSS THE SHORT AXIS, which is what makes it read as a crate
 	# rather than as a coloured rectangle. Spaced off the cell rather than off
@@ -87,4 +101,4 @@ func _draw() -> void:
 	# A corner pip in the tier's own colour. The band colour is already the tier,
 	# but a crate seen against a lit neighbour loses it -- the pip sits on ink and
 	# does not.
-	draw_rect(Rect2(box.position + Vector2(2, 2), Vector2(4, 4)), lit, true)
+	draw_rect(Rect2(box.position + Vector2(2, 2), Vector2(4, 4)), tier, true)

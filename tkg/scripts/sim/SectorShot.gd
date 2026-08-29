@@ -104,6 +104,39 @@ func run(tree: SceneTree) -> void:
 		print("wrote ", ProjectSettings.globalize_path("user://menu.png"))
 		tree.quit()
 		return
+	if "transfer" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 5
+		# A CONTAINER WORTH LOOKING AT: a spread of shapes and tiers on the floor,
+		# a part among them so the two icon kinds are judged side by side, and
+		# one already claimed so the taken state is visible.
+		var n0: MapGen.MapNode = Run.node_at()
+		var tiers0: Array[StringName] = [&"legendary", &"contraband", &"rare",
+			&"exotic", &"common", &"artifact", &"epic"]
+		var want0 := ["2x2", "4x1", "1x1", "3x1", "2x1", "1x1", "2x1"]
+		var k0 := 0
+		for shape0 in want0:
+			for row0 in MaterialTable.all():
+				if String(row0.get("cells", "")) != shape0:
+					continue
+				var mm := MaterialData.of(row0)
+				mm.tier = tiers0[k0 % tiers0.size()]
+				k0 += 1
+				n0.bag.append(mm)
+				break
+		n0.bag.append(LootGen.roll_module(3, &"", false, Rng.derive(&"look", 7)))
+		n0.bagged = true
+		Router.show_sector()
+		for it in 40:
+			await RenderingServer.frame_post_draw
+		var st := Router.current as SectorScreen
+		if st != null:
+			st._open_transfer()
+			for iu in 8:
+				await RenderingServer.frame_post_draw
+		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
+		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
+		tree.quit()
+		return
 	if "status" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		# WHICH CONTACT, because hull SIZE is what the readouts' placement
