@@ -1458,7 +1458,18 @@ func _refresh_salvage() -> void:
 
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
+	# MODULES ONLY. This rail asks "stow it or fit it", and a crate of ore
+	# answers neither: it cannot be bolted to anything and there is nothing to
+	# decide about it here.
+	#
+	# It listed everything in `Run.cargo`, which was every part you owned and
+	# was survivable while a hold held four of them. With materials in there it
+	# became your whole inventory, printed down the side of the sector, every
+	# time you arrived anywhere. The hold is where you look at what you are
+	# carrying; this is where you look at what just arrived and is fittable.
 	for m in Run.cargo:
+		if not (m is ModuleData):
+			continue
 		_salvage.add_child(Widgets.item_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage, "", deck))
 
 

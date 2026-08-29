@@ -213,6 +213,22 @@ func run(tree: SceneTree) -> void:
 			print("  took %s: %s" % [first.name, took])
 			print("  hold %d -> %d ; still drawn out here: %d (must be 0)"
 				% [before2, Run.cargo.size(), in_grid])
+		# THE OTHER DIRECTION. Dragging one of your own things into the container
+		# is jettison, and it is the half nobody has confirmed works -- a drop
+		# target that is never asked reports nothing, it simply does not accept.
+		if st != null and st._transfer != null:
+			var tv3 := st._transfer
+			var mine: HoldItem = Run.cargo[0] if Run.cargo.size() > 0 else null
+			if mine != null:
+				var payload := {module = mine, origin = &"cargo"}
+				var accepts: bool = tv3._loose._can_drop_data(Vector2(20, 20), payload)
+				print("  container accepts one of yours: %s" % accepts)
+				var n3: MapGen.MapNode = Run.node_at()
+				var bag_was := n3.bag.size()
+				if accepts:
+					tv3._loose._drop_data(Vector2(20, 20), payload)
+				print("  bag %d -> %d ; still in hold: %s"
+					% [bag_was, n3.bag.size(), Run.cargo.has(mine)])
 		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()

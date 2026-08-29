@@ -644,9 +644,22 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 			var g: Array = raw
 			box.add_child(UITheme.body(String(g[0]), g[1], UITheme.FS_SMALL))
 
+	# WRAPPED, AND CAPPED AT THE SAME WIDTH THE FLAVOUR ALREADY USES.
+	#
+	# Nothing else in this panel is long: a gauge line is "THERMAL +2" and a
+	# manufacturer is three words. An affix is a sentence -- "STRIPPED - +2
+	# MANEUVER, -1 HULL" -- and a Label with no wrap is as wide as its longest
+	# line, so ONE rolled affix decided the width of the whole panel and a part
+	# with three of them threw it across the screen.
+	#
+	# The cap was already sitting eight lines below, on the flavour. This is the
+	# same number for the same reason.
 	for a in m.affixes:
-		box.add_child(UITheme.body("%s \u2014 %s" % [a.name, a.text],
-			UITheme.EMBER, UITheme.FS_SMALL))
+		var al := UITheme.body("%s \u2014 %s" % [a.name, a.text],
+			UITheme.EMBER, UITheme.FS_SMALL)
+		al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		al.custom_minimum_size = Vector2(CardView.CARD_W - 14, 0)
+		box.add_child(al)
 
 	if m.flavour != "":
 		box.add_child(UITheme.hsep())

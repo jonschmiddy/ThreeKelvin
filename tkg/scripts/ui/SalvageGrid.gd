@@ -77,6 +77,16 @@ func _layout() -> void:
 			for dx in f.x:
 				taken[at + Vector2i(dx, dy)] = true
 		_rows = maxi(_rows, at.y + f.y)
+	# ONE SPARE ROW, ALWAYS.
+	#
+	# The grid was exactly as big as its contents, which is tidy and made the
+	# other half of the design unreachable: dropping one of YOUR things in here
+	# is jettison, and with every cell occupied there was nowhere to aim it. The
+	# drop logic worked the whole time and could not be asked.
+	#
+	# An empty row also says the thing that needs saying without a label -- that
+	# this is somewhere you can put something, not just somewhere you take from.
+	_rows += 1
 	custom_minimum_size = Vector2(_cols * CELL, _rows * CELL)
 	size = custom_minimum_size
 

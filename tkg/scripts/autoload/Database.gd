@@ -314,13 +314,13 @@ func _seed_affixes() -> void:
 	var raw := [
 		{name = "Reinforced", text = "+1 HULL", hull = 1},
 		{name = "Cryo-Lined", text = "+1 THERMAL", thermal = 1},
-		{name = "Gyro-Trimmed", text = "+1 MANEUVERABILITY", maneuver = 1},
+		{name = "Gyro-Trimmed", text = "+1 MANEUVER", maneuver = 1},
 		{name = "Wide-Banded", text = "+1 SENSORS", sensors = 1},
 		{name = "Signature-Damped", text = "+1 STEALTH", stealth = 1},
 		{name = "Tuned Injectors", text = "+1 THRUST", thrust = 1},
 		{name = "Double-Plated", text = "+2 HULL", hull = 2},
 		# The tradeoff pair: lighter and thinner, louder and hotter.
-		{name = "Stripped", text = "+2 MANEUVERABILITY, -1 HULL",
+		{name = "Stripped", text = "+2 MANEUVER, -1 HULL",
 			maneuver = 2, hull = -1},
 		{name = "Bus-Fed", text = "+1 REACTOR", reactor = 1, weight = 0.35},
 		{name = "Deregulated", text = "+2 REACTOR, -1 STEALTH",
