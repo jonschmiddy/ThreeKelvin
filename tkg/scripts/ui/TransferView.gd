@@ -69,7 +69,10 @@ func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 	# said SALVAGE, which read as a screen about the Rustjaw Cutter that
 	# happened to contain salvage -- when it is a salvage screen that happens to
 	# be about a Rustjaw Cutter. The name belongs over the grid it names.
-	_title.text = "JETSAM"
+	#
+	# AND IT ASKS THE CONTAINER, because the heading was a constant and there is
+	# more than one kind of pile. See `MapGen.Jetsam.title`.
+	_title.text = h.title() if h != null else "JETSAM"
 	refresh()
 	# ONCE PER CONTAINER. The sweep is what OPENING something looks like, and a
 	# wreck you have already been through is not being opened -- replaying it

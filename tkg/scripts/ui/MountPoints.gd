@@ -182,12 +182,20 @@ func _draw() -> void:
 				# "what have I got on here" for all of them at once.
 				draw_rect(r.grow(1.0),
 					ModuleData.rarity_ink(m.rarity), false, 1.0)
-			# POINTED AT FROM THE LIST. Two rings rather than one, because a
-			# single hairline on a busy hull is not findable — the whole
-			# point is that your eye lands on it without searching.
+			# POINTED AT FROM THE LIST. ONE ring, and this used to be two.
+			#
+			# The pair was reasoned from findability -- a single hairline on a
+			# busy hull is easy to miss -- and it bought that by fencing the
+			# part off: two strokes and the gap between them put four pixels of
+			# white around a gun fifteen pixels tall, so what your eye landed on
+			# was the frame rather than the thing inside it. On a part that
+			# small the border IS the highlight, and it was most of it.
+			#
+			# Still ICE, which is the brightest ink on the screen and is doing
+			# the finding now. One pixel of air so the stroke does not sit on
+			# the silhouette and read as part of it.
 			if m == _focus:
-				draw_rect(r.grow(3.0), UITheme.ICE, false, 1.0)
-				draw_rect(r.grow(1.0), UITheme.ICE, false, 1.0)
+				draw_rect(r.grow(2.0), UITheme.ICE, false, 1.0)
 			continue
 		# AN EMPTY HARDPOINT IS NOT DRAWN AT ALL. A ring on every unfilled
 		# mount put a row of orange circles across a ship that was finished —

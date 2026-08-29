@@ -154,6 +154,23 @@ class Jetsam extends RefCounted:
 		return art != &""
 
 
+	## THE WORD OVER THE GRID, which is not one word.
+	##
+	## Jetsam is what you throw over the side, and nothing was thrown over the
+	## side of a ship you shot: it stopped being a ship and what it was carrying
+	## is now yours to recover, which is the dictionary definition of salvage.
+	## One class, because a pile is a pile and the popup, the claim, the sweep
+	## and the save all want exactly one thing to know about -- but ONE class is
+	## not one noun, and the screen should say the true one.
+	##
+	## Asked of the container rather than set on it, because there is nothing
+	## here a wreck knows that `art` does not already carry. A third kind (what
+	## an event outcome hands you) needs a door in the sector before it needs a
+	## field, so it is not invented here.
+	func title() -> String:
+		return "SALVAGE" if is_wreck() else "JETSAM"
+
+
 	## The claim id of the i-th thing in here.
 	func option(i: int) -> int:
 		return OPTION_JETSAM + slot * JETSAM_STRIDE + i
