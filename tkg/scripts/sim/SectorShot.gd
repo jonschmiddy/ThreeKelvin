@@ -222,7 +222,14 @@ func run(tree: SceneTree) -> void:
 			if mine != null:
 				var payload := {module = mine, origin = &"cargo"}
 				var icons_before := tv3._hold.get_child_count()
-				var accepts: bool = tv3._loose._can_drop_data(Vector2(20, 20), payload)
+				# THE BEAM AND THE LANDING HAVE TO AGREE. A highlight that
+				# frames one place while the drop puts it in another is worse
+				# than no highlight -- it is a promise the game breaks in front
+				# of you.
+				var aim_pt := Vector2(3.5 * SalvageGrid.CELL,
+					4.5 * SalvageGrid.CELL)
+				var accepts: bool = tv3._loose._can_drop_data(aim_pt, payload)
+				var beamed: Rect2i = tv3._loose._beam
 				print("  container accepts one of yours: %s" % accepts)
 				# WHERE THE TARGET ACTUALLY IS. Godot offers a drop to the
 				# control under the pointer, so a target whose rect is not
@@ -238,7 +245,9 @@ func run(tree: SceneTree) -> void:
 				var n3: MapGen.MapNode = Run.node_at()
 				var bag_was := n3.bag.size()
 				if accepts:
-					tv3._loose._drop_data(Vector2(20, 20), payload)
+					tv3._loose._drop_data(aim_pt, payload)
+					print("  beam said %s ; it landed at %s (must match)"
+						% [beamed.position, tv3._loose._at.get(mine, "nowhere")])
 				print("  bag %d -> %d ; still in hold: %s"
 					% [bag_was, n3.bag.size(), Run.cargo.has(mine)])
 				# NO MANUAL REFRESH. The drop has to redraw the screen by

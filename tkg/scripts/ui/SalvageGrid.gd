@@ -264,10 +264,12 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 		return true
 	if not Run.cargo.has(m):
 		return false
-	# One of yours, landing here. Where it lands is decided when it is dropped
-	# -- it goes wherever the pile has room -- so the beam frames the whole
-	# container rather than a cell, which is the honest answer.
-	_show_beam(Rect2i(Vector2i.ZERO, Vector2i(_cols, _rows)))
+	# One of yours, landing on the cells you are pointing at. The first version
+	# framed the WHOLE container, on the grounds that the drop put it wherever
+	# there was room -- which was true and was the wrong way round. A drop is a
+	# decision about WHERE, and a highlight that cannot say where is a highlight
+	# that says nothing.
+	_show_beam(Rect2i(_target_for(at, m), m.footprint()))
 	return true
 
 
@@ -292,7 +294,14 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 		_layout()
 		_rebuild()
 		return
+	# THE CELL IS CHOSEN BEFORE THE THROW, and recorded after it. `_layout`
+	# keeps any cell this grid already knows and only finds slots for items it
+	# has not seen -- so writing it here is what makes the thing land where the
+	# beam said it would, instead of first-fitting into the top-left corner a
+	# frame later.
+	var cell := _target_for(at, m)
 	if Run.jettison(m):
+		_at[m] = cell
 		picked.emit(m)
 
 
@@ -305,6 +314,44 @@ func _cell_of(at: Vector2, m: HoldItem) -> Vector2i:
 	return Vector2i(
 		clampi(int(round(top_left.x / float(CELL))), 0, maxi(0, _cols - f.x)),
 		maxi(0, int(round(top_left.y / float(CELL)))))
+
+
+## The cell a carried thing would actually land on.
+##
+## Where you aimed if that is clear; otherwise the nearest cell that is, scanned
+## outward. The hold does the same thing through `target_for` and its `NUDGE` --
+## a drop a cell off is a drop that meant the cell next to it, and refusing it
+## outright makes packing a test of aim rather than of arithmetic.
+func _target_for(at: Vector2, m: HoldItem) -> Vector2i:
+	var want := _cell_of(at, m)
+	if _fits(m, want):
+		return want
+	var best := want
+	var best_d := 1e9
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var t := want + Vector2i(dx, dy)
+			if t.x < 0 or t.y < 0 or not _fits(m, t):
+				continue
+			var dist := Vector2(dx, dy).length_squared()
+			if dist < best_d:
+				best_d = dist
+				best = t
+	if _fits(m, best):
+		return best
+	# Nowhere near it will do, so anywhere will: a container has no floor and
+	# refusing to accept something you are putting down would be inventing a
+	# rule the fiction does not have.
+	var taken: Dictionary = {}
+	for other in _items:
+		var o: HoldItem = other
+		if o == m or not _at.has(o):
+			continue
+		var oc: Vector2i = _at[o]
+		for dy2 in o.footprint().y:
+			for dx2 in o.footprint().x:
+				taken[oc + Vector2i(dx2, dy2)] = true
+	return _first_fit(taken, m.footprint())
 
 
 ## Whether a cell is clear of everything except the item being moved.
