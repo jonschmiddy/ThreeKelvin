@@ -377,7 +377,7 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	var resident := Run.module_at(_spots[i].slot as ModuleData.Slot,
 		int(_spots[i].index))
 	if resident != null and resident != m and not Run.installed.has(m) \
-			and not Run.has_room_for(resident):
+			and not Run.has_room_for(resident, m):
 		return false
 	return true
 

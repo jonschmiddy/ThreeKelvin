@@ -433,8 +433,16 @@ func cargo_used() -> int:
 ## a hold with four free cells has room for four fittings, one bulky array, or a
 ## long gun only if three of those cells happen to lie in a row. Callers that
 ## want a yes/no now have to say what they are trying to put down.
-func has_room_for(m: HoldItem) -> bool:
-	return find_hold_slot(m) != -Vector2i.ONE
+## Is there anywhere this could go?
+##
+## `leaving` is a thing that is ABOUT to vacate its cells and should not be
+## counted as in the way. A swap is the case: dragging a stowed gun onto an
+## occupied hardpoint takes the resident off the hull and puts the new one on,
+## so the resident is landing in the space the new one is that instant giving up.
+## Asked without it, a full hold refuses every swap -- including swapping a part
+## for one exactly the same size, which cannot fail by construction.
+func has_room_for(m: HoldItem, leaving: HoldItem = null) -> bool:
+	return find_hold_slot(m, leaving) != -Vector2i.ONE
 
 ## True when nothing at all will fit — the honest replacement for `hold_full`,
 ## used where there is no particular module in hand.
@@ -456,7 +464,7 @@ func _cells_of(m: HoldItem, at: Vector2i) -> Array[Vector2i]:
 	return out
 
 ## Can `m` sit at `at`, ignoring itself if it is already down?
-func can_place(m: HoldItem, at: Vector2i) -> bool:
+func can_place(m: HoldItem, at: Vector2i, leaving: HoldItem = null) -> bool:
 	var g := hold_grid()
 	if at.x < 0 or at.y < 0:
 		return false
@@ -465,7 +473,7 @@ func can_place(m: HoldItem, at: Vector2i) -> bool:
 		return false
 	var taken := {}
 	for other in cargo:
-		if other == m or other.hold_at.x < 0:
+		if other == m or other == leaving or other.hold_at.x < 0:
 			continue
 		for c in _cells_of(other, other.hold_at):
 			taken[c] = true
@@ -554,12 +562,12 @@ func repack_hold() -> void:
 ## Row-major FIRST FIT rather than best fit. Best fit packs tighter and moves
 ## things around behind your back to do it; the hold is a place you arranged, so
 ## a predictable rule you can learn beats a clever one you cannot.
-func find_hold_slot(m: HoldItem) -> Vector2i:
+func find_hold_slot(m: HoldItem, leaving: HoldItem = null) -> Vector2i:
 	var g := hold_grid()
 	for y in g.y:
 		for x in g.x:
 			var at := Vector2i(x, y)
-			if can_place(m, at):
+			if can_place(m, at, leaving):
 				return at
 	return -Vector2i.ONE
 

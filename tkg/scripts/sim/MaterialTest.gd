@@ -205,4 +205,66 @@ func run() -> void:
 	var part := LootGen.roll_module(1, &"", false, Rng.derive(&"materialtest", 2))
 	_ok("a module still stows", Run.stow(part))
 
+	# --- what the cursor is aiming at ----------------------------------------
+	#
+	# The ghost centres the plate on the pointer, so the cell a 3x1 lands on is
+	# a cell and a half LEFT of the pointer -- and `target_for` was reading the
+	# pointer as the item's top-left. For a 1x1 the two answers agree, which is
+	# why it looked fine until something long was dragged.
+	#
+	# Pointer at the centre of cell (2,1) is (100, 60) at a 40px cell. A 3x1
+	# centred there starts at x=40, which is column 1.
+	Run.cargo.clear()
+	var grid := HoldGrid.new()
+	grid.refresh()
+	var long_one := MaterialData.new()
+	long_one.size = Vector2i(3, 1)
+	var aim := grid.target_for(long_one, Vector2(100, 60))
+	_ok("a 3x1 lands where the plate is, not where the pointer is (%s)" % aim,
+		aim == Vector2i(1, 1))
+	var one := MaterialData.new()
+	one.size = Vector2i.ONE
+	var aim1 := grid.target_for(one, Vector2(100, 60))
+	_ok("and a 1x1 still lands under the pointer (%s)" % aim1,
+		aim1 == Vector2i(2, 1))
+	# A 4x1 in a 4-wide hold has exactly one column it can start in, and the
+	# clamp has to find it from anywhere along the row.
+	var wide := MaterialData.new()
+	wide.size = Vector2i(4, 1)
+	_ok("a full-width item clamps into the only column that fits",
+		grid.target_for(wide, Vector2(300, 20)) == Vector2i(0, 0))
+	grid.queue_free()
+
+	# --- swapping out of a full hold -----------------------------------------
+	#
+	# Dragging a stowed part onto an occupied hardpoint takes the resident off
+	# the hull and puts the new one on. The resident lands in the cells the new
+	# one is that instant giving up, so a swap for a part of the same size or
+	# smaller cannot fail -- and a full hold refused all of them, because the
+	# room test ran while the departing part was still counted as in the way.
+	Run.cargo.clear()
+	var packed := 0
+	for prow in rows:
+		if Run.hold_full():
+			break
+		var pm := MaterialData.of(prow)
+		if Run.place_in_hold(pm):
+			packed += 1
+	_ok("the hold is packed (%d items, full: %s)" % [packed, Run.hold_full()],
+		Run.hold_full())
+
+	var leaving: HoldItem = Run.cargo[0]
+	var same := MaterialData.new()
+	same.size = leaving.size
+	_ok("with the hold full, nothing new fits", not Run.has_room_for(same))
+	_ok("but a same-size swap does, once the departing part is counted out",
+		Run.has_room_for(same, leaving))
+
+	# And bigger still does not, because the arithmetic is real rather than a
+	# blanket exemption for anything called a swap.
+	var bigger := MaterialData.new()
+	bigger.size = Vector2i(leaving.size.x + 1, leaving.size.y + 1)
+	_ok("a bigger one still does not fit",
+		not Run.has_room_for(bigger, leaving) or bigger.cells() <= leaving.cells())
+
 	verdict("materialtest")

@@ -1157,7 +1157,11 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 
 	# The resident has nowhere to go but the hold, and if it will not fit there
 	# the move is refused BEFORE anything has been taken off the ship.
-	if resident != null and not Run.has_room_for(resident):
+	# `m` IS LEAVING. It is in the hold this instant and on the hull the next,
+	# so the cells it currently occupies are exactly where the resident is going.
+	# Without saying so, a full hold refused every swap -- including a part for
+	# one the same size, which is a move that cannot fail.
+	if resident != null and not Run.has_room_for(resident, m):
 		Run.log_line("No room in the hold for %s." % resident.name, &"them")
 		return
 

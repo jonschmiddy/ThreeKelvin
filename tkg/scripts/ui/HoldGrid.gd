@@ -183,13 +183,28 @@ func _draw() -> void:
 ##
 ## Grabbed by the CELL UNDER THE CURSOR rather than by the part's top-left, so a
 ## wide part dropped with the cursor over its middle does not jump a cell left.
+## Which cell the thing in your hand would land on.
+##
+## MEASURED FROM THE ITEM, NOT FROM THE POINTER. `ItemIcon.Ghost` centres the
+## plate on the cursor -- that is what makes a drag feel like carrying something
+## -- but this read the raw pointer position as the item's TOP-LEFT cell. For a
+## 1x1 the two agree and nothing looked wrong. For a 3x1 the highlight sat a cell
+## and a half to the right of the plate you were looking at, so the cells lit up
+## only when the CURSOR crossed them rather than when the item did.
+##
+## Rounding, not flooring, once the half-footprint is taken off: with the plate
+## centred, the nearest cell boundary is the one it is visibly nearest to, and
+## flooring biases every drop up and to the left by half a cell.
 func target_for(m: HoldItem, p: Vector2) -> Vector2i:
 	var g := Run.hold_grid()
+	var f := m.footprint()
+	var step := float(CELL + GAP)
+	var top_left := p - Vector2(f.x, f.y) * step * 0.5
 	# Clamped, not rejected: a drop a few pixels outside the grid is aimed at
 	# the edge cell, which is what the hand meant.
 	var c := Vector2i(
-		clampi(int(floor(p.x / float(CELL + GAP))), 0, maxi(0, g.x - 1)),
-		clampi(int(floor(p.y / float(CELL + GAP))), 0, maxi(0, g.y - 1)))
+		clampi(int(round(top_left.x / step)), 0, maxi(0, g.x - f.x)),
+		clampi(int(round(top_left.y / step)), 0, maxi(0, g.y - f.y)))
 	if Run.can_place(m, c):
 		return c
 	var best := -Vector2i.ONE

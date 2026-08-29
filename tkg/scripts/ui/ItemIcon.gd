@@ -155,12 +155,37 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	if m == null:
 		return null
 	set_drag_preview(_ghost())
+	# IT LEAVES THE CELL THE MOMENT YOU LIFT IT.
+	#
+	# Godot's default is to leave the source control exactly where it was and
+	# follow the cursor with a copy, so a dragged part is on screen twice -- in
+	# your hand and still in the hold. That reads as previewing a move rather
+	# than making one, and it hides the thing you most need to see, which is the
+	# hole it came out of.
+	#
+	# Hidden rather than removed. A drag that is cancelled has to put it back,
+	# and the item is still legitimately in `Run.cargo` the whole time it is in
+	# the air -- nothing is committed until it lands. `can_place` already skips
+	# the item being placed, so the cells it is vacating light as free.
+	visible = false
 	picked_up.emit(self)
 	# `module` is the payload key, and it is the wrong word now that cargo is two
 	# kinds of thing. It is kept because every drop site in the game reads it,
 	# and renaming a key across four screens to improve a noun is a change with
 	# no upside and a long tail of silent misses.
 	return {module = m, origin = origin}
+
+
+## Put back whatever the drag did not consume.
+##
+## `NOTIFICATION_DRAG_END` reaches every control, dropped on or not, which is
+## exactly what is wanted: the icon has to come back whether the drop landed
+## somewhere else, was refused, or was let go over nothing. A successful drop
+## rebuilds the grid and this icon is freed anyway, so the restore is only ever
+## seen in the cases where nothing happened.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_DRAG_END and not visible:
+		visible = true
 
 
 ## A copy of this icon, sized to its footprint, inside a following wrapper.

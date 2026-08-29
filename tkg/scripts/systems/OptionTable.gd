@@ -152,7 +152,18 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		return ""
 	var got: Array[String] = []
 	if bool(res.get("module", false)):
-		Run.place_in_hold(LootGen.roll_module(n.danger))
+		# INTO THE SYSTEM, NOT INTO YOUR POCKET. `MATERIALS_NOTE` 3.6: if
+		# something hands you a physical thing it hands you a CONTAINER, and you
+		# reach in for it with your own hold open beside you.
+		#
+		# It was `Run.place_in_hold(...)` with the result thrown away, which
+		# meant a reward you had earned quietly ceased to exist whenever the
+		# hold was full -- 3.4's exact failure, in the one place where the game
+		# is supposed to be paying you. A bag cannot fail that way: it sits in
+		# the system until you take it or you jump, and if there is no room you
+		# can see there is no room and decide what leaves.
+		n.bag.append(LootGen.roll_module(n.danger))
+		n.bagged = true
 	# THE ROLL IS POSITIONAL, like everything else a system decides about itself:
 	# derived from the node index so a party at one system is handed the same
 	# thing, and so a reload cannot shop for a better item.
