@@ -162,8 +162,12 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		# is supposed to be paying you. A bag cannot fail that way: it sits in
 		# the system until you take it or you jump, and if there is no room you
 		# can see there is no room and decide what leaves.
+		# NOT `n.bagged`. That flag means "the kill bag here has been rolled"
+		# and `open_bag` refuses to fill a node that has it -- so an option
+		# setting it would silently rob the next fight in this system of its
+		# entire payout. An option cannot be taken twice anyway; `n.taken` is
+		# what stops that.
 		n.bag.append(LootGen.roll_module(n.danger))
-		n.bagged = true
 	# THE ROLL IS POSITIONAL, like everything else a system decides about itself:
 	# derived from the node index so a party at one system is handed the same
 	# thing, and so a reload cannot shop for a better item.

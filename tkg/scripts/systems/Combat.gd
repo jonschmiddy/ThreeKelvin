@@ -1023,34 +1023,30 @@ func _victory() -> void:
 		drops = 3
 		Run.hellbender_defeated()
 
-	# TWO WAYS TO BE PAID, and which one runs is decided by whether anybody else
-	# was shooting at it.
+	# ONE WAY TO BE PAID, and it is the wreck you just made.
 	#
-	# Alone, the parts go straight into the hold, exactly as they always have.
-	# There is nobody to divide them with and a bag with one hand reaching into
-	# it is a menu between you and your own loot.
+	# This used to branch. Alone the parts went straight into your hold, on the
+	# reasoning that "a bag with one hand reaching into it is a menu between you
+	# and your own loot" -- which was true of a LIST and is not true of a
+	# container you open. `MATERIALS_NOTE` 3.6 made every physical payout a
+	# place you reach into, and 3.4 is why: `Run.stow` returns false on a full
+	# hold, so the solo arm quietly destroyed the reward for winning whenever
+	# you were carrying anything.
 	#
-	# In a party they go into a BAG at the node instead. Both ships used to roll
-	# their own drop off their own seat-salted stream, which stops two players
-	# being handed the identical part and does nothing about the real problem:
-	# one frigate paid the party twice over. `docs/coop-design.md` §3 runs the
-	# dive economy as a closed loop, and a kill that pays per-head is not closed.
+	# In a party it was always this, and for a reason worth keeping: both ships
+	# used to roll their own drop off their own seat-salted stream, which stops
+	# two players being handed the identical part and does nothing about one
+	# frigate paying the party twice over. `docs/coop-design.md` 3 runs the dive
+	# economy as a closed loop, and a kill that pays per-head is not closed. The
+	# parts sit where the fight happened until somebody reaches for one, and the
+	# reach is first come, first served.
 	#
-	# The bag is that loop restored, and it is also the better toy: the parts sit
-	# where the fight happened until somebody reaches for one, and the reach is
-	# first come, first served. See RunState.open_bag().
-	if is_shared() and shared != null and shared.paid > 1:
-		Run.open_bag(node, drops, shared.paid)
-		var pool := drops * shared.paid
-		if pool > 0:
-			bits.append("%d in the bag" % pool)
-	else:
-		for i in drops:
-			var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
-			Run.stow(LootGen.roll_module(node.danger, force,
-				node.region == MapGen.Region.CORE))
-		if drops > 0:
-			bits.append("%d module%s" % [drops, "" if drops == 1 else "s"])
+	# So the party rule became the only rule, and solo is a party of one.
+	var hands := shared.paid if (is_shared() and shared != null) else 1
+	Run.open_bag(node, drops, maxi(1, hands))
+	var pool := drops * maxi(1, hands)
+	if pool > 0:
+		bits.append("%d in the wreck" % pool)
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
 	# What was aboard the thing you just killed. Not part of the bag and not

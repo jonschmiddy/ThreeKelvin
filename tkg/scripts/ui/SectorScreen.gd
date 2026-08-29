@@ -682,6 +682,22 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	var sp2 := Control.new()
 	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(sp2)
+	# WHAT AN EVENT PAID YOU IN OBJECTS, if it paid you in any.
+	#
+	# `MATERIALS_NOTE` 3.6: a physical payout is a CONTAINER rather than a thing
+	# that arrives. The text above already told you what you got; this is the
+	# door to it, sitting next to CONTINUE so taking it is a decision rather
+	# than something that happened while you were reading.
+	#
+	# Only when there is something loose here to take. An option that paid in
+	# credits and fuel has nothing to open, and a button that opens an empty
+	# container is a button that lies once per event.
+	if Run.bag_left(n) > 0 and not Run.dead:
+		var claim := Widgets.button("CLAIM %d" % Run.bag_left(n), _open_transfer)
+		claim.custom_minimum_size = Vector2(120, 22)
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system until you jump.")
+		row.add_child(claim)
+
 	if Run.dead:
 		row.add_child(Widgets.button("…", func() -> void: Router.show_game_over()))
 	elif bool(_res.get("fight", false)):
@@ -1379,7 +1395,7 @@ func _refresh() -> void:
 
 	if at_war:
 		_view.bind_self_drop(_on_self_drop)
-		_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
+		_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered, _open_wreck)
 		_state.text = "ENGAGED - %d HOSTILE%s" % [
 			combat.alive().size(), "" if combat.alive().size() == 1 else "S"]
 		_refresh_player()
@@ -1676,7 +1692,7 @@ func _refresh_enemy() -> void:
 			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
 
 	_view.bind_self_drop(_on_self_drop)
-	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
+	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered, _open_wreck)
 
 func _refresh_hand() -> void:
 	if not fighting():
@@ -1743,6 +1759,27 @@ func _open_transfer() -> void:
 	_transfer = TransferView.new()
 	add_child(_transfer)
 	_transfer.setup("SALVAGE", n, _close_transfer)
+
+
+## Clicking the hull you just killed.
+##
+## The wreck IS the container: what a fight paid you is sitting in the thing you
+## shot, and the way to it is to go and look. Same popup as the sector's loose
+## salvage because it is the same idea -- `MATERIALS_NOTE` 3.6 -- and titled for
+## what you are standing over rather than generically, so opening a Rustjaw
+## Cutter says so.
+func _open_wreck() -> void:
+	if _transfer != null:
+		return
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null or Run.bag_left(n) <= 0:
+		return
+	var name := "WRECK"
+	if combat != null and not combat.enemies.is_empty():
+		name = String(combat.enemies[0].template.name).to_upper()
+	_transfer = TransferView.new()
+	add_child(_transfer)
+	_transfer.setup(name, n, _close_transfer)
 
 
 func _close_transfer() -> void:

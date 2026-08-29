@@ -285,6 +285,25 @@ var _drag_text: String = ""
 ## Godot asks this continuously while a drag hovers, which doubles as the
 ## "is this a legal target" highlight without any extra plumbing.
 
+## Told when a WRECK is clicked. Set by the screen that owns the slot.
+##
+## Only when dead: a live ship is a target you drop cards on, and a hull with
+## nothing left in it is a container you open. Same object, and which one it is
+## depends entirely on whether it is still shooting.
+var opened: Callable
+
+
+func _gui_input(e: InputEvent) -> void:
+	if not _dead:
+		return
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	if opened.is_valid():
+		accept_event()
+		opened.call()
+
+
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
 	if not (data is Dictionary and data.has("card")):
 		return false

@@ -85,6 +85,10 @@ var hot_arrivals := 0
 ## Signature at the moment a fight ENDS, which is the only heat a run ever has
 ## a chance to carry onto the map. If this is near zero the map heat layer
 ## cannot matter no matter what is attached to it.
+## How many things were taken out of containers across the run. The first
+## number the sim has ever had for "did the pilot collect", which used to be
+## true by construction.
+var looted: int = 0
 var postfight_samples := 0
 var postfight_total := 0.0
 var postfight_hot := 0
@@ -451,6 +455,11 @@ func _fight(template: EnemyTemplate, clears_node: bool = true) -> bool:
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
+	# AND THEN YOU GO AND LOOK IN IT. A kill fills a container at the node now
+	# rather than putting parts in your hold, so a sim that does not reach into
+	# one is a sim whose pilot never picks anything up. See `Policy.loot`.
+	if not Run.dead:
+		looted += Policy.loot(Run.node_at())
 	postfight_samples += 1
 	postfight_total += Run.signature()
 	if Run.signature() > Run.SIGNATURE_FLOOR:
@@ -481,6 +490,8 @@ func _fight_hellbender() -> bool:
 				acted = true
 		if not cb.finished:
 			cb.end_turn()
+	if not Run.dead:
+		looted += Policy.loot(Run.node_at())
 	if cb.result == &"victory":
 		hellbender_kills += 1
 	elif cb.result == &"broke_off":
@@ -494,6 +505,11 @@ func _fight_hellbender() -> bool:
 
 func _report() -> void:
 	print("---")
+	# WHAT THE PILOT COLLECTED. Zero here means every wreck in the galaxy was
+	# walked past, which is the failure this number exists to make impossible to
+	# miss -- it was zero by construction until containers landed.
+	print("looted %d items across %d runs (%.1f per run)"
+		% [looted, maxi(1, runs), float(looted) / float(maxi(1, runs))])
 	print("runs %d · wins %d (%.0f%%) · deaths %d · errors %d" % [
 		runs, wins, 100.0 * wins / maxi(1, runs), deaths, errors])
 	print("avg jumps %.1f · avg kills %.1f · avg danger reached %.2f" % [

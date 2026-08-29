@@ -97,6 +97,60 @@ var _farmed: Dictionary = {}
 
 ## Called at the top of every run. The farm counters are per-run state and a
 ## Policy outlives a run in the by-chassis sweep.
+## WHAT A PILOT TAKES OUT OF A CONTAINER, and it is a design statement rather
+## than plumbing.
+##
+## Until now nothing physical could fail to reach the sim: a kill called
+## `Run.stow` and the part was aboard. `MATERIALS_NOTE` 3.6 changed that -- every
+## payout is a place you reach into -- so without this the simulated pilot walks
+## past every wreck in the galaxy and every number the sim reports describes
+## somebody who picks nothing up.
+##
+## The rule: take the most valuable thing that fits, and keep going until
+## nothing does. Not "take everything", because a hold is finite and the whole
+## point of the change is that room is a decision; not "take the first thing",
+## because nobody plays that way. What it does NOT do is scrap to make space --
+## that is the player choosing to destroy something, and a model that does it
+## automatically would be measuring a game nobody is playing.
+##
+## The number this leaves behind is worth watching. It is the first time the sim
+## can fail to collect, and how much a competent pilot walks away from is now a
+## fact about the balance rather than zero by construction.
+static func loot(n: MapGen.MapNode) -> int:
+	if n == null:
+		return 0
+	var took := 0
+	while true:
+		var best := -1
+		var best_worth := -1
+		for i in n.bag.size():
+			if n.taken.has(MapGen.OPTION_BAG + i):
+				continue
+			var m: HoldItem = n.bag[i]
+			if not Run.has_room_for(m):
+				continue
+			var worth := _worth(m)
+			if worth > best_worth:
+				best_worth = worth
+				best = i
+		if best < 0:
+			return took
+		# Not awaited: solo has no round trip to make, and the sim is solo. A
+		# party's claim is a network question and this is not that.
+		if not Run.stow(n.bag[best]):
+			return took
+		n.taken.append(MapGen.OPTION_BAG + best)
+		took += 1
+	return took
+
+
+## What a thing is worth to a pilot deciding what to carry.
+static func _worth(m: HoldItem) -> int:
+	if m is MaterialData:
+		return (m as MaterialData).value
+	return Market.base_value(m as ModuleData)
+
+
 func begin_run() -> void:
 	_farmed.clear()
 

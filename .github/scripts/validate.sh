@@ -478,7 +478,7 @@ step "Simulator plays $SIM_RUNS complete runs"
 if run_godot sim $((90 + SIM_RUNS * 9)) --headless --path "$PROJECT" -- sim "runs=$SIM_RUNS"; then
 	if grep -qE '^runs [0-9]+ · wins' "$LOG_DIR/sim.log"; then
 		ok "simulator reached its report"
-		grep -E '^runs |^avg |^death causes|^stranded' "$LOG_DIR/sim.log" | sed 's/^/        /'
+		grep -E '^runs |^avg |^looted |^death causes|^stranded' "$LOG_DIR/sim.log" | sed 's/^/        /'
 	else
 		bad "simulator never printed its report — a run is stuck or the boot path changed"
 		tail -n 20 "$LOG_DIR/sim.log" | sed 's/^/        /'

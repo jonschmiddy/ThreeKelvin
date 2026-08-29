@@ -378,7 +378,8 @@ func bind_self_drop(on_drop: Callable) -> void:
 	if not _ship_slot.card_dropped.is_connected(on_drop):
 		_ship_slot.card_dropped.connect(on_drop)
 
-func show_enemies(list: Array, on_drop: Callable, on_hover: Callable) -> void:
+func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
+		on_wreck: Callable = Callable()) -> void:
 	_area.visible = false
 	_slots.visible = true
 	_ship.modulate = Color.WHITE
@@ -392,6 +393,9 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable) -> void:
 			slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 			slot.claim = _claim_hot
 			slot.preview = preview
+			# A WRECK IS A CONTAINER. The screen decides what opening one means;
+			# the slot only knows it was clicked and that it is dead.
+			slot.opened = on_wreck
 			slot.card_dropped.connect(on_drop)
 			slot.hovered.connect(on_hover)
 			_slots.add_child(slot)
