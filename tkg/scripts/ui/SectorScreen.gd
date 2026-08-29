@@ -1430,12 +1430,12 @@ func _refresh_salvage() -> void:
 			# else's name on it is the whole texture of flying together, and it
 			# is the same argument `MapGen.OPTION_SHOP` makes about a sold shelf.
 			var who := Net.taker_name(n.index, MapGen.OPTION_BAG + i)
-			_salvage.add_child(Widgets.module_row(n.bag[i],
+			_salvage.add_child(_bag_row(n.bag[i],
 				Widgets.ModuleContext.BAG, 0, _on_salvage,
 				"%s TOOK THIS" % who.to_upper() if who != "" else "TAKEN", deck))
 			continue
 		# No price on a bag. You already paid for it by being in the fight.
-		_salvage.add_child(Widgets.module_row(n.bag[i],
+		_salvage.add_child(_bag_row(n.bag[i],
 			Widgets.ModuleContext.BAG, 0, _on_bag, "", deck))
 
 	if Run.found_hull != null:
@@ -1695,6 +1695,20 @@ func _refresh_hand() -> void:
 ## `Widgets` binds the module rather than the index, so the index is recovered by
 ## identity — `n.bag` holds the very objects the rows were built from, and the
 ## array never shrinks, so `find()` is exact rather than a lookup by name.
+## One row in the bag, whichever kind of thing it is.
+##
+## The bag holds two now: what a kill dropped, and whatever you threw overboard
+## here. A material has no manufacturer, no slot and no cards, so it gets its own
+## row rather than nulls threaded through the module one.
+func _bag_row(thing: Variant, ctx: int, price: int, on_action: Callable,
+		note: String, deck: int) -> PanelContainer:
+	if thing is MaterialData:
+		return Widgets.material_row(thing as MaterialData,
+			ctx as Widgets.ModuleContext, price, on_action, note)
+	return Widgets.module_row(thing as ModuleData,
+		ctx as Widgets.ModuleContext, price, on_action, note, deck)
+
+
 func _on_bag(action: String, thing: Variant) -> void:
 	if action != "take" or _taking:
 		return

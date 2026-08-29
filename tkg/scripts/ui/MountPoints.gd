@@ -353,6 +353,8 @@ func _get_drag_data(at: Vector2) -> Variant:
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
 		return false
+	# A hardpoint, so this stays typed: a material has no slot and cannot bolt
+	# to a hull. The cast yields null for one and the check below refuses it.
 	var m: ModuleData = data.module
 	if m == null:
 		return false

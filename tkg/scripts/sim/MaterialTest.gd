@@ -167,4 +167,25 @@ func run() -> void:
 		here != null and here.bag.size() == before + 1 and here.bag.has(thrown))
 	_ok("so it can be picked back up", Run.bag_left(here) > 0)
 
+	# AND THE SECTOR CAN DRAW IT. This is the half that made jettison look
+	# broken when it was not: the item went into the bag correctly and the
+	# salvage list built its rows with `Widgets.module_row`, which reads a
+	# manufacturer, a slot and an affix list off whatever it is handed. A crate
+	# has none of those, so the row failed and the system appeared to have
+	# swallowed the thing.
+	var row := Widgets.material_row(thrown, Widgets.ModuleContext.BAG, 0,
+		func(_a: String, _t: Variant) -> void: pass, "")
+	_ok("and the sector can draw a row for it", row != null)
+	if row != null:
+		row.queue_free()
+
+	# A module has to survive the same path, because `_bag_row` now chooses
+	# between two builders and a wrong branch would only show on one kind.
+	var gun := LootGen.roll_module(1, &"", false, Rng.derive(&"materialtest", 1))
+	var grow := Widgets.module_row(gun, Widgets.ModuleContext.BAG, 0,
+		func(_a: String, _t: Variant) -> void: pass, "", 10)
+	_ok("and still one for a module", grow != null)
+	if grow != null:
+		grow.queue_free()
+
 	verdict("materialtest")

@@ -1124,6 +1124,9 @@ func _on_release() -> void:
 
 
 func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> void:
+	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
+	# hull; a crate of ore has no slot to match and no power to draw. The cast
+	# yields null for a material and the null check below refuses it.
 	var m: ModuleData = payload.get("module")
 	if m == null or m.slot != slot:
 		return
@@ -1199,7 +1202,11 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 ## hardpoint asks "does this slot type match"; the hold asks "does this shape
 ## fit here", and the cell it fits at is information a mount has no use for.
 func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
-	var m: ModuleData = payload.get("module")
+	# A HoldItem. Typed as `ModuleData` this assignment simply failed for a
+	# crate and the handler returned -- so the ghost flew, the drop was accepted
+	# by the grid, and the item never moved. The hold is the one place that must
+	# not care which kind it is holding.
+	var m: HoldItem = payload.get("module")
 	if m == null:
 		return
 	var was_at := m.hold_at

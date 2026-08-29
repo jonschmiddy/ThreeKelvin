@@ -18,6 +18,62 @@ enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD, BAG }
 ## button changes height and the list reflows under the cursor — and because
 ## "MERCER TOOK THIS" is the single most interesting thing the bag has to say.
 ## Empty for every other context, which is all of them but BAG.
+## One material, as a row.
+##
+## NOT a branch inside `module_row`. That function reads a rarity, a
+## manufacturer, a slot, an affix list and a card count -- five things a crate of
+## ore does not have and never will -- so folding materials into it would be
+## threading nulls through every one of them to save a panel.
+##
+## What it shares is the SHAPE: same stylebox, same name-and-grade top line, same
+## button strip on the right, so a bag holding a gun and a crate reads as one
+## list rather than as two.
+static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
+		on_action: Callable, note: String = "") -> PanelContainer:
+	var panel := PanelContainer.new()
+	var sb := UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10)
+	sb.border_width_left = 3
+	# The tier, on the edge, where the manufacturer's colour sits on a module.
+	# Both answer "what sort of thing is this" at a glance down a list.
+	sb.border_color = UITheme.tier_colour(m.tier)
+	panel.add_theme_stylebox_override("panel", sb)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	panel.add_child(box)
+
+	var top := HBoxContainer.new()
+	box.add_child(top)
+	top.add_child(UITheme.body(m.name, UITheme.ICE, UITheme.FS_BODY))
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(sp)
+	top.add_child(UITheme.body(String(m.tier).to_upper(),
+		UITheme.tier_colour(m.tier), UITheme.FS_SMALL))
+
+	# The two facts a decision turns on: what it costs you in room, and what it
+	# is worth when you find somewhere to sell it.
+	box.add_child(UITheme.body("%d x %d · sells for %d"
+		% [m.size.x, m.size.y, m.value], UITheme.COLD, UITheme.FS_SMALL))
+	var blurb := UITheme.body(m.text, UITheme.CHILL, UITheme.FS_SMALL)
+	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(blurb)
+
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_END
+	box.add_child(buttons)
+	if ctx == ModuleContext.BAG:
+		if note != "":
+			var gone := _btn(note, on_action.bind("noop", m))
+			gone.disabled = true
+			buttons.add_child(gone)
+		else:
+			var take := _btn("TAKE", on_action.bind("take", m))
+			take.tooltip_text = tip("Into your hold, if there is room for it.")
+			buttons.add_child(take)
+	return panel
+
+
 static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 		on_action: Callable, note: String = "", deck_size: int = -1) -> PanelContainer:
 	var panel := PanelContainer.new()

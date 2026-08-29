@@ -704,7 +704,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	# in memory. See MapGen.OPTION_BAG.
 	var bag: Array = []
 	for m in n.bag:
-		bag.append(_module_to(m))
+		bag.append(_item_to(m))
 	return {
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
@@ -811,7 +811,7 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
 	for m in d.get("bag", []):
-		var part := _module_from(m)
+		var part := _item_from(m)
 		if part != null:
 			n.bag.append(part)
 	n.bagged = bool(d.get("bagged", false))

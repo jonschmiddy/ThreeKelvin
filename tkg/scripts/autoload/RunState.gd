@@ -667,7 +667,8 @@ func take_from_bag(n: MapGen.MapNode, i: int) -> bool:
 	var option := MapGen.OPTION_BAG + i
 	if n.taken.has(option):
 		return false
-	var m: ModuleData = n.bag[i]
+	# A HoldItem: jettison puts materials in the same bag a kill fills.
+	var m: HoldItem = n.bag[i]
 	if hold_full():
 		log_line("The hold is full. %s stays where it is." % m.name, &"them")
 		return false
