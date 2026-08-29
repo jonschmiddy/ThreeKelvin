@@ -141,7 +141,7 @@ something will not fit, it does not go in — and you decide what leaves.
 `take_from_bag` already works this way and is the model: *"The hold is full.
 %s stays where it is."* It refuses. It does not tidy up.
 
-**Three paths in `RunState` currently break this** and must be fixed as part of
+**Four paths in `RunState` currently break this** and must be fixed as part of
 the work. All three pick the cheapest thing you own by `scrap_value` and destroy
 it, telling you afterwards in the log:
 
@@ -150,6 +150,7 @@ it, telling you afterwards in the log:
 | `install_module` — slot full | Uninstalls your cheapest module of that slot; if the hold has no room, *"It was left behind."* |
 | `install_module` — reactor loop | Shuts down the cheapest installed modules until the power fits; same silent loss |
 | `transfer_to_hull` | *"Shed anything that no longer fits, cheapest first."* |
+| `reseat` | Re-packs the hold after a hull swap; anything that finds no cell is *"Left behind."* |
 
 Each becomes a refusal or a prompt. `Policy.gd`'s auto-scrap is a separate
 thing — that is the SIMULATOR deciding, and a simulated pilot does have to
