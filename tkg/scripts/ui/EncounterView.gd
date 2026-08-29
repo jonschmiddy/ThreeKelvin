@@ -364,6 +364,42 @@ func set_weather(n: MapGen.MapNode) -> void:
 		weather.setup(n.nebula_emission,
 			Color("#8a5f7a") if n.nebula_emission else Color("#4a7a8a"))
 
+## What is left of the ship that died here, if anything is.
+##
+## REUSES `EnemySlot` WHOLE, which is the point: it already knows how to draw a
+## dead hull -- dimmed, named, "WRECKED" where the health was -- and it already
+## answers a click when dead. Building a second thing that draws a wreck would
+## have been a second thing to keep looking like the first.
+##
+## The state it is handed is fabricated: the fight is over and `Combat` is gone,
+## so this is a template out of the node and a hull of zero. Nothing downstream
+## asks it anything a dead ship cannot answer.
+func show_wreck(n: MapGen.MapNode, on_open: Callable) -> void:
+	var t: EnemyTemplate = DB.enemies.get(n.wreck)
+	if t == null:
+		show_area(n)
+		return
+	_area.visible = false
+	_slots.visible = true
+	_ship.modulate = Color.WHITE
+	if _made.size() != 1:
+		Widgets.clear(_slots)
+		_made.clear()
+		var slot := EnemySlot.new()
+		slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		slot.claim = _claim_hot
+		_slots.add_child(slot)
+		_made.append(slot)
+	var ghost := Combat.EnemyState.new()
+	ghost.template = t
+	ghost.max_hp = t.max_hull
+	ghost.hp = 0
+	_made[0].opened = on_open
+	_made[0].bind(0, ghost, false)
+	queue_redraw()
+
+
 func show_area(n: MapGen.MapNode) -> void:
 	_area.setup(n)
 	_area.visible = true

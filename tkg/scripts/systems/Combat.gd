@@ -991,7 +991,11 @@ func _victory() -> void:
 	var gained := int(round(enemy.template.credit_reward * (1.0 + (node.danger - 1) * 0.2)))
 	if Run.has_set(&"probate", 3):
 		gained = int(round(gained * 1.5))
-	Run.add_credits(gained)
+	# INTO THE WRECK, not into the wallet. A hull that hands you a gun by making
+	# you reach for it and hands you money by incrementing a counter is saying
+	# those are two different kinds of event, and they are not. The chit takes
+	# no room -- see `CreditChit` -- so this costs you nothing but the reach.
+	node.bag.append(CreditChit.of(gained))
 	for i in new_dross:
 		var which: StringName = named_dross[i] if i < named_dross.size() else &""
 		Run.add_dross(danger, which)
@@ -1044,6 +1048,12 @@ func _victory() -> void:
 	# So the party rule became the only rule, and solo is a party of one.
 	var hands := shared.paid if (is_shared() and shared != null) else 1
 	Run.open_bag(node, drops, maxi(1, hands))
+	# THE HULL STAYS. It is the way into what it was carrying, so the sector has
+	# to be able to draw it after the fight object is gone. Only when there is
+	# something in it: a wreck you cannot open is scenery, and scenery that
+	# looks like a control is worse than no scenery.
+	if Run.bag_left(node) > 0:
+		node.wreck = enemy.template.id
 	var pool := drops * maxi(1, hands)
 	if pool > 0:
 		bits.append("%d in the wreck" % pool)

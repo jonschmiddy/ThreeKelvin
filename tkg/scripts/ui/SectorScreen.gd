@@ -1402,7 +1402,13 @@ func _refresh() -> void:
 		_refresh_enemy()
 		_refresh_hand()
 	else:
-		_view.show_area(n)
+		# A HULL IF ONE DIED HERE, otherwise the place itself. The wreck is the way
+		# into what it was carrying, so it stays until the thing is picked clean.
+		if n.wreck != &"" and Run.bag_left(n) > 0:
+			_view.show_wreck(n, _open_wreck)
+		else:
+			n.wreck = &""
+			_view.show_area(n)
 		# The readout survives death on purpose. Hiding it at the moment the run
 		# ends is how a game stops explaining what just happened to you.
 		if Run.dead:
@@ -1774,8 +1780,15 @@ func _open_wreck() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null or Run.bag_left(n) <= 0:
 		return
+	# THE NAME COMES OFF THE NODE, not off `combat`. By the time you click a
+	# wreck the fight is over and `Router.after_combat` has cleared the object --
+	# reading it there worked only while the popup was opened from the salvage
+	# rail during a fight, which is not how this is reached any more.
 	var name := "WRECK"
-	if combat != null and not combat.enemies.is_empty():
+	var t: EnemyTemplate = DB.enemies.get(n.wreck) if n.wreck != &"" else null
+	if t != null:
+		name = String(t.name).to_upper()
+	elif combat != null and not combat.enemies.is_empty():
 		name = String(combat.enemies[0].template.name).to_upper()
 	_transfer = TransferView.new()
 	add_child(_transfer)
@@ -2165,6 +2178,16 @@ func _on_combat_ended(result: StringName, text: String) -> void:
 	# says the same thing twice, and puts a CONTINUE button between the player
 	# and the only information that matters.
 	if result == &"dead" or result == &"won":
+		call_deferred("_leave_combat")
+		return
+	# A KILL DOES NOT INTERRUPT THE SECTOR TO TELL YOU ABOUT ITSELF.
+	#
+	# "TARGET DESTROYED" across the whole screen, with a CONTINUE button, said
+	# something the scene was already showing: the thing stopped shooting and is
+	# now a wreck hanging where you left it. The overlay stays for the endings
+	# that are NOT visible -- a creature calmed, a contact broken off, a hail
+	# accepted -- because those need saying.
+	if result == &"victory":
 		call_deferred("_leave_combat")
 		return
 

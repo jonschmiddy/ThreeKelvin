@@ -325,4 +325,26 @@ func run() -> void:
 			and bar.hold_at.y + f3.y <= g2.y)
 	_ok("and it is still in the hold", Run.cargo.has(bar))
 
+	# --- money takes no room -------------------------------------------------
+	#
+	# A chit is a HoldItem that lies: it has a footprint so a container can draw
+	# it, and it never occupies a cell. The claim worth checking is that a FULL
+	# hold still takes it -- that is the one item in the game where "do I have
+	# room" is not a question, and the whole point of it.
+	Run.cargo.clear()
+	while not Run.hold_full():
+		var filler := MaterialData.of(rows[0])
+		if not Run.place_in_hold(filler):
+			break
+	_ok("the hold is full", Run.hold_full())
+	var purse := Run.credits
+	var chit := CreditChit.of(137)
+	_ok("a full hold still has room for money", Run.has_room_for(chit))
+	var held := Run.cargo.size()
+	_ok("and takes it", Run.stow(chit))
+	_ok("crediting %d -> %d" % [purse, Run.credits],
+		Run.credits == purse + 137)
+	_ok("without occupying a cell (%d items either side)" % Run.cargo.size(),
+		Run.cargo.size() == held and not Run.cargo.has(chit))
+
 	verdict("materialtest")

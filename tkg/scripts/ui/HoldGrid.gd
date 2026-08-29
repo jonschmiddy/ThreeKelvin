@@ -226,9 +226,29 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	var m: HoldItem = data.module
 	if m == null:
 		return false
+	# MONEY GOES ANYWHERE, so the whole hold lights up. It occupies no cell --
+	# see `CreditChit` -- and beaming one square would be asking a question
+	# about room that does not apply to it. Lighting all of them says the true
+	# thing: wherever you let go, this lands.
+	if m is CreditChit:
+		_light_all()
+		return true
 	var target := target_for(m, at)
 	_light(m, target)
 	return target != -Vector2i.ONE
+
+## Every cell at once, for the one thing that fits in all of them.
+func _light_all() -> void:
+	var g := Run.hold_grid()
+	var want: Dictionary = {}
+	for y in g.y:
+		for x in g.x:
+			want[Vector2i(x, y)] = true
+	if want.keys() == _beam.keys():
+		return
+	_beam = want
+	queue_redraw()
+
 
 func _light(m: HoldItem, target: Vector2i) -> void:
 	_beam.clear()

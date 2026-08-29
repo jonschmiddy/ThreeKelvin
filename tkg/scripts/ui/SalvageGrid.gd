@@ -331,7 +331,11 @@ func _rebuild() -> void:
 	for i in _items.size():
 		var m: HoldItem = _items[i]
 		var icon: ItemIcon
-		if m is MaterialData:
+		if m is CreditChit:
+			var ci := ChitIcon.new()
+			ci.setup(m as CreditChit, &"bag")
+			icon = ci
+		elif m is MaterialData:
 			var mi := MaterialIcon.new()
 			mi.setup(m as MaterialData, &"bag")
 			icon = mi

@@ -146,6 +146,10 @@ static func loot(n: MapGen.MapNode) -> int:
 
 ## What a thing is worth to a pilot deciding what to carry.
 static func _worth(m: HoldItem) -> int:
+	# Money first, always. It costs no room, so there is never a reason to
+	# leave it and never a trade to weigh it against.
+	if m is CreditChit:
+		return 1 << 30
 	if m is MaterialData:
 		return (m as MaterialData).value
 	return Market.base_value(m as ModuleData)

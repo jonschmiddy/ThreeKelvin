@@ -442,6 +442,11 @@ func cargo_used() -> int:
 ## Asked without it, a full hold refuses every swap -- including swapping a part
 ## for one exactly the same size, which cannot fail by construction.
 func has_room_for(m: HoldItem, leaving: HoldItem = null) -> bool:
+	# A FULL HOLD CANNOT REFUSE MONEY. It takes no cell, so the question does
+	# not apply -- and answering it honestly would have `take_from_bag` turn
+	# down credits because you were carrying a wide gun.
+	if m is CreditChit:
+		return true
 	return find_hold_slot(m, leaving) != -Vector2i.ONE
 
 ## True when nothing at all will fit — the honest replacement for `hold_full`,
@@ -835,6 +840,17 @@ func adopt_party_claims() -> void:
 ## the option taken, and then failed silently at the parameter type -- so the
 ## claim was spent and the thing stayed on the floor.
 func stow(m: HoldItem) -> bool:
+	# MONEY IS CASHED, NOT PLACED, and this is the only branch the whole feature
+	# needs. Every route into the hold runs through here -- a drag, a
+	# shift-click, `take_from_bag`, the simulator's own policy -- so putting the
+	# exception at the bottom means none of them has to know about it.
+	if m is CreditChit:
+		var chit := m as CreditChit
+		add_credits(chit.amount)
+		log_line("%d credits aboard." % chit.amount, &"good")
+		hauls += 1
+		Sig.ship_changed.emit()
+		return true
 	if not place_in_hold(m):
 		log_line("No room in the hold for %s." % m.name, &"them")
 		return false

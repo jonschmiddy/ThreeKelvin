@@ -148,7 +148,11 @@ const PATH := "user://run.save"
 ## row would run it through `_module_from` and produce a nameless part with no
 ## affixes sitting in your hold. That is the stripped-module lie again, so the
 ## number moves and the save is discarded rather than half-understood.
-const VERSION := 18
+## 19: MONEY IS A THING IN A CONTAINER. A bag row can now be `kind = credits`,
+## which a version 18 build would push through `_module_from` and land in your
+## hold as a nameless part worth nothing. Same argument as 18 and the same
+## direction: old saves read back fine, new ones must not be handed backwards.
+const VERSION := 19
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -506,6 +510,8 @@ static func _galaxy_from(kind: int, saved: Variant) -> Dictionary:
 ## materials existed reads back exactly as it did -- there is nothing to migrate
 ## and the version did not need to move for this.
 static func _item_to(m: HoldItem) -> Dictionary:
+	if m is CreditChit:
+		return {kind = "credits", amount = (m as CreditChit).amount}
 	if m is MaterialData:
 		var mat := m as MaterialData
 		return {
@@ -521,6 +527,9 @@ static func _item_from(e: Variant) -> HoldItem:
 	var row := e as Dictionary
 	if row == null:
 		return null
+	if String(row.get("kind", "")) == "credits":
+		# Only the amount. A chit has no other state and never sits in a cell.
+		return CreditChit.of(int(row.get("amount", 0)))
 	if String(row.get("kind", "")) == "material":
 		var mat := MaterialData.by_id(StringName(row.get("id", &"")))
 		if mat == null:
