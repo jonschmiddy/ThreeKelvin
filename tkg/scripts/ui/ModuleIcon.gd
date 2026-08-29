@@ -1,5 +1,5 @@
 class_name ModuleIcon
-extends Control
+extends ItemIcon
 
 ## A module as a thing you can pick up.
 ##
@@ -66,75 +66,6 @@ const HOLD_K := 2.0
 var module: ModuleData
 ## Where a drag from here would be taking it FROM. The drop target needs to know
 ## whether this is a refit or an install.
-var origin: StringName = &"cargo"
-
-signal picked_up(icon: ModuleIcon)
-
-## The preview currently under the cursor, or null.
-##
-## STATIC because Godot takes ownership of whatever `set_drag_preview` is handed
-## and offers no way to ask for it back — and turning a part while you are
-## carrying it has to resize the thing you are looking at, not just the record.
-static var carried: ModuleIcon = null
-
-
-## WHAT YOU ARE CARRYING, and how it behaves while you carry it.
-##
-## Godot pins whatever `set_drag_preview` is given to the pointer, exactly, on
-## every frame. That is correct and it feels dead: grab a three-cell rail by its
-## far end and it stays gripped at that corner for the whole drag, and a fast
-## flick moves it as though it were welded to the mouse.
-##
-## So the thing the engine pins is a WRAPPER, and the plate inside it is eased
-## toward the cursor in SCREEN space. One easing buys both halves of what people
-## mean when they say a drag feels good: whatever corner you grabbed drifts to
-## the middle over a few frames, and a fast flick leaves the plate trailing
-## until the mouse stops, at which point it catches up and centres.
-class Ghost extends Control:
-	## How fast the plate closes on the cursor, in e-folds per second. Higher is
-	## tighter. At 16 a flick leaves a plainly visible trail and a stop settles
-	## in about a fifth of a second, which is long enough to see and short
-	## enough not to fight.
-	const FOLLOW := 16.0
-
-	## How see-through. The point is the GRID under the plate: packing is a game
-	## of seeing what a part would displace, and at 0.78 the plate in hand hid
-	## the two cells the decision was about.
-	const ALPHA := 0.55
-
-	var plate: ModuleIcon
-	var _spawn: Vector2
-	var _at: Vector2
-	var _live: bool = false
-
-	func _init() -> void:
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		modulate.a = ALPHA
-		set_process(true)
-
-	## `from` is where the part is on screen at the moment it is picked up, so
-	## the plate starts exactly over the thing it came out of rather than
-	## appearing already centred somewhere else.
-	func start(p: ModuleIcon, from: Vector2) -> void:
-		plate = p
-		_spawn = from
-		add_child(p)
-
-	func _process(delta: float) -> void:
-		if plate == null:
-			return
-		if not _live:
-			# First frame in the tree, which is the first time a global
-			# position means anything.
-			_live = true
-			_at = _spawn
-		var want := get_global_mouse_position() - plate.size * 0.5
-		# Frame-rate independent. What is fixed is the fraction closed per
-		# SECOND; lerping by a constant per frame makes the whole feel depend on
-		# how busy the machine is, which is the one thing it must not do.
-		_at = _at.lerp(want, 1.0 - exp(-FOLLOW * delta))
-		plate.global_position = _at
-
 
 ## The preview for a part being picked up, wherever it was picked up FROM.
 ## Both drag sources call this, so a lance leaving the hold and the same lance
@@ -144,35 +75,20 @@ static func ghost_for(m: ModuleData, from: StringName, at: Vector2) -> Control:
 	g.setup(m, from)
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	g.fit_footprint()
-	carried = g
-	var wrap := Ghost.new()
+	ItemIcon.carried = g
+	var wrap := ItemIcon.Ghost.new()
 	wrap.start(g, at)
 	return wrap
 
 
-## Size to the part's CURRENT shape, in the hold's own cells.
-func fit_footprint() -> void:
-	if module == null:
-		return
-	var f := footprint_box(module)
-	custom_minimum_size = f
-	size = f
-	pivot_offset = f * 0.5
-	queue_redraw()
+func held_item() -> HoldItem:
+	return module
 
 
-## A quarter turn, played backwards from where it just was.
-##
-## Short on purpose — 0.14s. This is an answer, not a flourish: the whole job is
-## to say WHICH WAY it turned, because a 1x3 becoming a 3x1 in one frame reads
-## as the part having been swapped for a different one.
-func spin() -> void:
-	pivot_offset = size * 0.5
-	rotation = -PI * 0.5
-	var t := create_tween()
-	var step := t.tween_property(self, "rotation", 0.0, 0.14)
-	step.set_trans(Tween.TRANS_CUBIC)
-	step.set_ease(Tween.EASE_OUT)
+func _ghost() -> Control:
+	return ghost_for(module, origin, global_position)
+
+
 
 func setup(m: ModuleData, from: StringName) -> void:
 	module = m
@@ -225,21 +141,6 @@ func _hint() -> String:
 		return ""
 	return module.name
 
-
-## Picking one up. The preview is a copy of the icon rather than the icon
-## itself: Godot reparents whatever you return, so handing over the live control
-## would tear it out of the grid it is sitting in and leave a hole that only
-## closes on the next refresh.
-func _get_drag_data(_at: Vector2) -> Variant:
-	if module == null:
-		return null
-	# The ghost carries the part's SHAPE, not a square. What you are dragging
-	# has to look like what will land: the hold is a grid you pack, and a 1x3
-	# gun previewed as a 1x1 tile tells you nothing about whether it will fit
-	# in the row you are aiming at.
-	set_drag_preview(ghost_for(module, origin, global_position))
-	picked_up.emit(self)
-	return {module = module, origin = origin}
 
 ## Drawn to the control's OWN size, not to SIZE.
 ##

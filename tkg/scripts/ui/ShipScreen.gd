@@ -835,13 +835,17 @@ func _turn_carried() -> bool:
 	var d: Variant = get_viewport().gui_get_drag_data()
 	if typeof(d) != TYPE_DICTIONARY or not (d as Dictionary).has("module"):
 		return false
-	var m: ModuleData = (d as Dictionary).module
+	# A HoldItem, not a ModuleData. Turning is a packing move and a crate needs
+	# it as much as a rail does -- `-- materialtest` already accepts a shape
+	# "flat or turned", so refusing to turn one made that check a promise the
+	# game did not keep.
+	var m: HoldItem = (d as Dictionary).module
 	if m == null:
 		return false
 	m.turned = not m.turned
-	if ModuleIcon.carried != null and is_instance_valid(ModuleIcon.carried):
-		ModuleIcon.carried.fit_footprint()
-		ModuleIcon.carried.spin()
+	if ItemIcon.carried != null and is_instance_valid(ItemIcon.carried):
+		ItemIcon.carried.fit_footprint()
+		ItemIcon.carried.spin()
 	return true
 
 

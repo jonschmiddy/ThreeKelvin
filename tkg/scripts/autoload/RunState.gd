@@ -495,6 +495,35 @@ func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
 	m.hold_at = -Vector2i.ONE
 
+## Throw something overboard. It lands in the system you are standing in.
+##
+## `MATERIALS_NOTE` §3.5: jettison applies to EVERYTHING, not only materials. A
+## module already has SCRAP, which destroys it and pays -- this is the other
+## choice, which destroys nothing and pays nothing.
+##
+## IT GOES IN THE BAG. The same `MapNode.bag` a kill fills, so the sector already
+## lists it and picking it back up is a mechanism that exists. That makes the
+## whole thing free to change your mind about right up until you jump, and total
+## the moment you do -- which is the shape the ruling wanted: cheap now,
+## expensive late.
+##
+## Returns whether it went. Nothing outside a system to throw it into is the one
+## case that refuses, and it refuses rather than destroying -- §3.4.
+func jettison(m: HoldItem) -> bool:
+	if m == null or not cargo.has(m):
+		return false
+	var n: MapGen.MapNode = node_at()
+	if n == null:
+		return false
+	take_from_hold(m)
+	m.hold_at = -Vector2i.ONE
+	n.bag.append(m)
+	log_line("%s goes overboard. It is still out there." % m.name, &"sys")
+	Sig.ship_changed.emit()
+	Sig.map_changed.emit()
+	return true
+
+
 ## Re-seat everything, largest first, after the grid changes shape.
 ##
 ## Called when the hull is swapped: a heavy's 4x10 hold becomes a light's 4x5 and

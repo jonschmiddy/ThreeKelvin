@@ -150,4 +150,21 @@ func run() -> void:
 		back == want)
 	_ok("and came back in the same cells", cells_back == placed_at)
 
+	# --- overboard -----------------------------------------------------------
+	#
+	# The ruling is that jettison DESTROYS NOTHING: it moves the item into the
+	# bag at the system you are standing in, so it is recoverable until you jump.
+	# Both halves are checked, because a jettison that removed the item and
+	# forgot to append it would look identical from the hold.
+	Run.cargo.clear()
+	var here: MapGen.MapNode = Run.node_at()
+	var before := here.bag.size() if here != null else -1
+	var thrown := MaterialData.of(rows[0])
+	_ok("something is in the hold to throw", Run.place_in_hold(thrown))
+	_ok("it goes overboard", Run.jettison(thrown))
+	_ok("and it is out of the hold", not Run.cargo.has(thrown))
+	_ok("and it is in this system's bag",
+		here != null and here.bag.size() == before + 1 and here.bag.has(thrown))
+	_ok("so it can be picked back up", Run.bag_left(here) > 0)
+
 	verdict("materialtest")

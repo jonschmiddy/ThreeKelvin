@@ -1,5 +1,5 @@
 class_name MaterialIcon
-extends Control
+extends ItemIcon
 
 ## A material sitting in the hold.
 ##
@@ -17,16 +17,38 @@ extends Control
 
 var item: MaterialData = null
 
-## Where it came from, matching `ModuleIcon.origin` -- the drag payload carries
-## it so a drop knows whether it is a move inside the hold or an arrival.
-var origin: StringName = &"cargo"
-
-
 func setup(m: MaterialData, from: StringName) -> void:
 	item = m
 	origin = from
-	tooltip_text = "%s\n\n%s\n\nSells for %d." % [m.name, m.text, m.value]
+	# THE SAME SHAPE EVERY OTHER TOOLTIP USES: a name, a line of hard facts,
+	# then the prose, wrapped by
+	# `Widgets.tip` because Godot does not wrap tooltips at all -- a tooltip is
+	# as wide as the longest line it was handed, so a paragraph given raw becomes
+	# a banner across the screen.
+	#
+	# The facts line carries what the crate cannot say by looking. Its tier is in
+	# the colour and its footprint is in the shape, but what a station will PAY is
+	# nowhere on the icon, and that is the number a packing decision turns on.
+	var shape := "%d x %d" % [m.size.x, m.size.y]
+	tooltip_text = Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s\n\n%s" % [
+		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text,
+		"Right-click to put it overboard here. It stays in this system until you jump."])
 	queue_redraw()
+
+
+func held_item() -> HoldItem:
+	return item
+
+
+func _ghost() -> Control:
+	var g := MaterialIcon.new()
+	g.setup(item, origin)
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.fit_footprint()
+	ItemIcon.carried = g
+	var wrap := ItemIcon.Ghost.new()
+	wrap.start(g, global_position)
+	return wrap
 
 
 func _draw() -> void:

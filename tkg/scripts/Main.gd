@@ -407,6 +407,49 @@ func _ready() -> void:
 	# `-- archive` opens the reading room, and `-- archive all` recovers every
 	# entry first. The archive fills up over many runs by design, so without this
 	# the only way to look at a deep page is to fly to layer eight.
+	# `-- cargo` starts a heavy run with a hold full of materials, and then hands
+	# the game back to you.
+	#
+	# Not a screenshot. `-- shipshot heavy cargo` photographs the same hold and
+	# quits, which answers "does it draw" and not "does it feel like anything to
+	# pack". Materials are a SPATIAL toy -- the whole ruling behind them is that
+	# they do not stack, so every one is a decision about room -- and that is not
+	# a thing a still image can be judged on.
+	#
+	# One of every shape first, then a spread of tiers, then whatever else fits.
+	if "cargo" in OS.get_cmdline_user_args():
+		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+		var shapes := ["2x2", "4x1", "3x1", "2x1", "1x1"]
+		var tiers: Array[StringName] = [&"legendary", &"exotic", &"contraband",
+			&"artifact", &"epic", &"rare", &"common"]
+		var ti := 0
+		for shape in shapes:
+			for row in MaterialTable.all():
+				if String(row.get("cells", "")) != shape:
+					continue
+				var m := MaterialData.of(row)
+				m.tier = tiers[ti % tiers.size()]
+				ti += 1
+				if not Run.place_in_hold(m):
+					break
+		# Then fill the rest, so the hold is genuinely tight and the packing is
+		# something you have to think about rather than look at.
+		for row in MaterialTable.all():
+			if Run.hold_full():
+				break
+			var m2 := MaterialData.of(row)
+			m2.tier = tiers[ti % tiers.size()]
+			ti += 1
+			Run.place_in_hold(m2)
+		var used := 0
+		for c in Run.cargo:
+			used += c.cells()
+		print("%s -- hold %dx%d, %d items, %d of %d cells" % [Run.hull.name,
+			Run.hull.hold_grid.x, Run.hull.hold_grid.y, Run.cargo.size(),
+			used, Run.hull.hold_grid.x * Run.hull.hold_grid.y])
+		Router.show_ship()
+		return
+
 	if "archive" in OS.get_cmdline_user_args():
 		# `all`, or a count — the PARTIAL archive is the state a real player is in
 		# for most of the game, and the redacted rows are most of what the screen

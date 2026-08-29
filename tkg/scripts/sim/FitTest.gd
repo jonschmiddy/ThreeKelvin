@@ -454,7 +454,7 @@ func _ghost_once() -> void:
 	if _ghost_checked:
 		return
 	_ghost_checked = true
-	var plate := ModuleIcon.carried
+	var plate := ItemIcon.carried
 	if not _ok("something is being carried", plate != null):
 		return
 	var wrap := plate.get_parent() as Control
