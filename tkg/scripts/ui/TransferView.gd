@@ -21,14 +21,32 @@ extends PanelContainer
 
 const PAD := 24
 
+## HOW TALL BOTH GRIDS ARE, in cells, whatever is in them.
+##
+## The popup used to size itself to its contents, which meant every change of
+## contents changed its shape: fill the container and it grew, empty it and it
+## shrank, and the moment a scrollbar appeared it got wider and everything
+## jumped sideways. A window that moves while you are working in it is worse
+## than one that is occasionally too big.
+##
+## Six rows fits a heavy hull's five with a row spare, and is the most a pile
+## shows before it scrolls instead of growing.
+const PANEL_ROWS := 6
+
+## Room kept for a scrollbar whether or not there is one.
+##
+## Godot gives a ScrollContainer its bar out of the child's width, so the frame
+## has to be wider than the grid by this much or the grid loses a column the
+## instant the pile outgrows the view -- which is exactly when you least want
+## the layout moving.
+const BAR := 14
+
 var _hold: HoldGrid
 var _loose: SalvageGrid
 var _title: Label
 var _count: Label
 var _node: MapGen.MapNode = null
 var _busy: bool = false
-## The two scroll frames, so their heights can follow their contents.
-var _scrolls: Array[ScrollContainer] = []
 var _on_close: Callable
 
 
@@ -135,8 +153,10 @@ func _init() -> void:
 	# YOUR SHIP ON THE LEFT, always, matching the encounter view. Which side a
 	# thing is on is how you know whose it is, and that has to be the same
 	# answer everywhere or it is not a convention.
-	row.add_child(_side("YOUR HOLD", _build_hold()))
-	row.add_child(_side("OUT HERE", _build_loose()))
+	# The hold's width is the hull's; the container's is its own constant. Both
+	# are known before anything is in them, which is the point.
+	row.add_child(_side("YOUR HOLD", _build_hold(), Run.hold_grid().x))
+	row.add_child(_side("OUT HERE", _build_loose(), SalvageGrid.COLS))
 
 
 ## THE SCREEN ITSELF CATCHES ANYTHING THE GRIDS DID NOT.
@@ -239,7 +259,7 @@ func _on_ship_changed() -> void:
 		refresh()
 
 
-func _side(label: String, body: Control) -> Control:
+func _side(label: String, body: Control, cols: int) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	var l := UITheme.body(label, UITheme.COLD, UITheme.FS_SMALL)
@@ -249,13 +269,13 @@ func _side(label: String, body: Control) -> Control:
 	# rare case, and the one where a fixed box would hide the last row.
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	# `custom_minimum_size` IS A FLOOR, NOT A CEILING, which I wrote a comment
-	# calling a ceiling and then watched clip both grids to two rows. It is set
-	# per refresh in `_cap_scrolls` to the content's own height, up to a cap --
-	# which is the only way to get "as tall as it needs, but no taller than the
-	# screen" out of a control whose minimum is the only number it takes.
+	# FIXED, HERE, ONCE. `custom_minimum_size` is a floor -- this file has
+	# already got that wrong once and clipped both grids to two rows -- so
+	# setting it and never touching it again is what makes the popup one shape.
+	# Nothing about the contents may reach this number.
+	scroll.custom_minimum_size = Vector2(cols * HoldGrid.CELL + BAR,
+		PANEL_ROWS * HoldGrid.CELL)
 	scroll.size_flags_vertical = Control.SIZE_FILL
-	_scrolls.append(scroll)
 	scroll.add_child(body)
 	box.add_child(scroll)
 	return box
@@ -322,24 +342,8 @@ func refresh() -> void:
 			showing_spent[showing.size()] = true
 		showing.append(_node.bag[i])
 	_loose.setup(showing, showing_spent, 5)
-	_cap_scrolls()
 	var left := Run.bag_left(_node)
 	_count.text = "%d LEFT" % left if left > 0 else "PICKED CLEAN"
-
-
-## As tall as the taller grid, up to eight cells.
-##
-## Both frames get the SAME height so the two sides read as a pair rather than
-## as two objects that happen to be next to each other -- and so the empty half
-## of a nearly-full hold is still visibly a hold.
-func _cap_scrolls() -> void:
-	var want := 0.0
-	for s in _scrolls:
-		if s.get_child_count() > 0:
-			want = maxf(want, (s.get_child(0) as Control).get_combined_minimum_size().y)
-	want = clampf(want, HoldGrid.CELL * 3, HoldGrid.CELL * 8)
-	for s2 in _scrolls:
-		s2.custom_minimum_size = Vector2(0, want)
 
 
 ## Something dragged INTO your hold.

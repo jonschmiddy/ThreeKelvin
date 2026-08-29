@@ -129,6 +129,34 @@ func run(tree: SceneTree) -> void:
 		_ok("and the container did not shrink (%d -> %d)"
 			% [tall, _view._loose._rows], _view._loose._rows >= tall)
 
+	# --- the popup does not change shape -------------------------------------
+	#
+	# It used to size itself to its contents, so filling the container grew it,
+	# emptying it shrank it, and a scrollbar appearing made it wider -- a window
+	# that moves while you are working in it. Three states, one size: as it
+	# stands, stuffed past scrolling, and stripped bare.
+	var frame := _view._loose.get_parent() as Control
+	await _tree.process_frame
+	var shape_now := frame.size
+
+	for _pad in 40:
+		_node.bag.append(MaterialData.of(MaterialTable.all()[0]))
+	_view.refresh()
+	await _tree.process_frame
+	await _tree.process_frame
+	_ok("stuffing the container does not resize it (%s vs %s)"
+		% [frame.size, shape_now], frame.size == shape_now)
+
+	_node.bag.clear()
+	_node.taken.clear()
+	_view.refresh()
+	await _tree.process_frame
+	await _tree.process_frame
+	_ok("emptying it does not resize it either (%s vs %s)"
+		% [frame.size, shape_now], frame.size == shape_now)
+	_ok("and it is six rows tall (%s)" % frame.size,
+		int(frame.size.y) == TransferView.PANEL_ROWS * HoldGrid.CELL)
+
 	_finish()
 
 

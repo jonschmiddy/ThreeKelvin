@@ -34,7 +34,11 @@ signal picked(item: HoldItem)
 const CELL := HoldGrid.CELL
 const EDGE := 2.0
 
-var _cols: int = 5
+## How wide a container reads. A constant rather than an argument, because the
+## frame around it has to reserve the width BEFORE there is anything in it --
+## see `TransferView.BAR`.
+const COLS := 5
+var _cols: int = COLS
 var _rows: int = 1
 var _items: Array = []
 ## Where this grid decided to draw each item, keyed by the item itself so it
@@ -54,13 +58,40 @@ var _beam: Rect2i = Rect2i()
 
 ## HOW FAST THE SWEEP CROSSES THE CONTAINER, in cells per second.
 ##
-## Fast enough that it is never a wait -- six cells of pile is under half a
-## second -- and slow enough that the items arrive in an order you can see.
-## The point is not suspense. It is that the pile READS as being found rather
-## than as having been there all along.
-const SCAN_CELLS_PER_SEC := 14.0
+## 1.6 cells a second: a six-row container takes about three and three quarter
+## seconds, and the two-row case a shade over one.
+##
+## This has been 14, then 4.5, then 2.6, and every one of them was too quick for
+## the same reason -- the sweep finished before it had cost you anything, so it
+## was decoration laid over a container that was simply there. At this rate
+## opening a wreck TAKES a moment, and the moment is the point: you are reading
+## the top row while the bottom is still dark, and deciding before you have seen
+## everything.
+const SCAN_CELLS_PER_SEC := 1.6
+
+## The steps one thing goes through on its way out of the dark.
+##
+## Colour, horizontal offset, and how long to hold there. Deliberately a LIST OF
+## STATES rather than a duration to interpolate over: a smooth fade is a light
+## being turned up, and what this wants to be is a signal resolving -- a couple
+## of false starts, a tear sideways, and then the thing is simply there.
+##
+## The offsets are small on purpose. Four pixels at a forty-pixel cell reads as
+## the picture failing to hold still; twelve would read as the crate being in
+## the wrong place, which is a bug rather than an effect.
+const GLITCH: Array = [
+	[0.85, 3.0, 0.045],
+	[0.08, -4.0, 0.035],
+	[1.00, 2.0, 0.050],
+	[0.20, -2.0, 0.030],
+	[0.90, 1.0, 0.045],
+	[0.45, 0.0, 0.030],
+]
 ## How far down the sweep has reached, in pixels, or -1 when it is not running.
 var _scan: float = -1.0
+## What the sweep has already found, so a rebuild mid-scan does not make a crate
+## materialise twice.
+var _lit: Dictionary = {}
 
 
 ## Sweep the container and let the contents in behind the line.
@@ -70,6 +101,7 @@ var _scan: float = -1.0
 ## every take feel like a new discovery.
 func scan() -> void:
 	_scan = 0.0
+	_lit.clear()
 	set_process(true)
 	_apply_scan()
 	queue_redraw()
@@ -103,7 +135,49 @@ func _apply_scan() -> void:
 		var ic := c as ItemIcon
 		if ic == null:
 			continue
-		ic.visible = _scan < 0.0 or ic.position.y < _scan
+		if _scan < 0.0:
+			ic.visible = true
+			ic.modulate = Color.WHITE
+			continue
+		var found := ic.position.y < _scan
+		ic.visible = found
+		if not found:
+			continue
+		var m := ic.held_item()
+		if m == null or _lit.has(m):
+			continue
+		_lit[m] = true
+		_materialise(ic)
+
+
+## One thing resolving out of the sweep.
+##
+## Stepped, not interpolated. `tween_callback` sets a state and `tween_interval`
+## holds it, so every change is a hard cut -- which is the whole difference
+## between a thing switching on and a thing being picked up by an instrument
+## that is not quite sure yet.
+##
+## It runs in the SWEEP'S colour and only lands on white at the end, so for the
+## first tenth of a second the crate is the same light as the line that found
+## it. Revealed by the sweep, rather than switched on underneath it.
+func _materialise(ic: ItemIcon) -> void:
+	var glow := UITheme.TRACTOR
+	var home := ic.position
+	ic.modulate = Color(glow.r, glow.g, glow.b, 0.0)
+	var t := ic.create_tween()
+	for raw in GLITCH:
+		var step: Array = raw
+		var a: float = step[0]
+		var dx: float = step[1]
+		t.tween_callback(func() -> void:
+			ic.modulate = Color(glow.r, glow.g, glow.b, a)
+			ic.position = home + Vector2(dx, 0.0))
+		t.tween_interval(float(step[2]))
+	# AND THEN IT IS SIMPLY THERE. Snapping home rather than easing to it: the
+	# last thing a glitch should do is look like it was always going to land.
+	t.tween_callback(func() -> void:
+		ic.modulate = Color.WHITE
+		ic.position = home)
 ## Which entries are spoken for. A bag row someone already claimed still takes
 ## up space in the picture, because a hole where a part was is information and
 ## a silently reflowed grid is not.
@@ -121,7 +195,7 @@ func _init() -> void:
 ## `spent` holds the indices already claimed -- they draw greyed and cannot be
 ## picked up. `cols` is how wide the container reads; the rows follow from what
 ## has to fit.
-func setup(items: Array, spent: Dictionary, cols: int = 5) -> void:
+func setup(items: Array, spent: Dictionary, cols: int = COLS) -> void:
 	_items = items
 	_spent = spent
 	_cols = maxi(1, cols)
@@ -235,8 +309,11 @@ func _rebuild() -> void:
 		icon.position = Vector2(cell.x * CELL, cell.y * CELL)
 		icon.size = ModuleIcon.footprint_box(m)
 		if _scan >= 0.0:
-			# Mid-sweep, so a rebuild must not hand the dark back its items.
+			# Mid-sweep, so a rebuild must not hand the dark back its items --
+			# nor replay the arrival of something already found.
 			icon.visible = icon.position.y < _scan
+			if _lit.has(m):
+				icon.modulate = Color.WHITE
 		if _spent.has(i):
 			# Still drawn, still in its cell, plainly not yours. See `_spent`.
 			icon.modulate = Color(0.42, 0.42, 0.48, 0.7)

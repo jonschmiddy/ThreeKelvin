@@ -160,10 +160,24 @@ func run(tree: SceneTree) -> void:
 			# cannot tell apart from a broken container.
 			for iu in 3:
 				await RenderingServer.frame_post_draw
-			print("  sweep at %.0f of %d px, %d of %d items showing"
-				% [st._transfer._loose._scan,
-					st._transfer._loose._rows * SalvageGrid.CELL,
-					_showing(st._transfer._loose), st._transfer._loose._items.size()])
+			# SAMPLED ACROSS THE SWEEP, because the question is whether things
+			# ARRIVE or merely appear -- and a single frame cannot tell a fade
+			# from a pop. Counting how many are part-way lit is the difference.
+			for shot in 5:
+				var lg := st._transfer._loose
+				var mid := 0
+				for ch6 in lg.get_children():
+					var ii6 := ch6 as ItemIcon
+					if ii6 != null and ii6.visible and (ii6.modulate.a < 0.98
+							or absf(ii6.position.x - float(
+								lg._at.get(ii6.held_item(),
+									Vector2i.ZERO).x * SalvageGrid.CELL)) > 0.5):
+						mid += 1
+				print("  sweep %3.0f/%d px  showing %d  mid-fade %d"
+					% [lg._scan, lg._rows * SalvageGrid.CELL,
+						_showing(lg), mid])
+				for w6 in 24:
+					await RenderingServer.frame_post_draw
 			tree.root.get_texture().get_image().save_png("user://sector_scan.png")
 			print("wrote ", ProjectSettings.globalize_path("user://sector_scan.png"))
 			for iu2 in 60:
