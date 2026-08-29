@@ -147,11 +147,23 @@ const TIER_PLAN := {
 ## `fight` is deliberately NOT handled here: it is the CALLER's business, because
 ## starting a battle means something different in a sim than on a screen. This
 ## function grants; it does not decide what happens next.
+## Whether resolving this puts a THING in the system, as opposed to moving
+## numbers around on your ship.
+##
+## One definition, because three places ask: `pay` to do it, and the two screens
+## that resolve an option to decide whether there is a prize to open. It was
+## `res.module` read separately in each, which is a fact about the reward model
+## living in the UI -- and the moment a second kind of physical payout exists,
+## two of the three would go on being right by accident.
+static func pays_item(res: Dictionary) -> bool:
+	return bool(res.get("module", false))
+
+
 static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 	if res.is_empty() or n == null:
 		return ""
 	var got: Array[String] = []
-	if bool(res.get("module", false)):
+	if pays_item(res):
 		# INTO THE SYSTEM, NOT INTO YOUR POCKET. `MATERIALS_NOTE` 3.6: if
 		# something hands you a physical thing it hands you a CONTAINER, and you
 		# reach in for it with your own hold open beside you.

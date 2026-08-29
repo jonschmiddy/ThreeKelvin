@@ -738,12 +738,17 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	# Only when there is something loose here to take. An option that paid in
 	# credits and fuel has nothing to open, and a button that opens an empty
 	# container is a button that lies once per event.
-	var floor_h := Run.sector_jetsam(n, false)
-	var on_floor := Run.jetsam_left(n, floor_h)
-	if on_floor > 0 and not Run.dead:
-		var claim := Widgets.button("CLAIM %d" % on_floor, _open_sector_loot)
+	# GATED ON WHAT THIS RESOLUTION PAID, not on what is lying around.
+	#
+	# It was `jetsam_left(...) > 0`, which is a question about the SYSTEM:
+	# resolve a credits-only option in a sector where you had jettisoned a crate
+	# an hour ago and the button appeared anyway. Reading CLAIM that was merely
+	# vague; reading PRIZE it is a lie, because the word names this outcome. An
+	# option that paid in numbers has nothing to open and says nothing.
+	if OptionTable.pays_item(_res) and not Run.dead:
+		var claim := Widgets.button("PRIZE", _open_prize)
 		claim.custom_minimum_size = Vector2(120, 22)
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system -- you can come back for it.")
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there.")
 		row.add_child(claim)
 
 	if Run.dead:
@@ -1809,7 +1814,7 @@ func _refresh_hand() -> void:
 ## contents -- `MATERIALS_NOTE` 3.6 -- and the only difference is which door you
 ## came through. The container names the popup, so a Rustjaw Cutter says so and
 ## the floor says SECTOR LOOT.
-func _open_jetsam(h: MapGen.Jetsam) -> void:
+func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 	if _transfer != null or h == null:
 		return
 	var n: MapGen.MapNode = Run.node_at()
@@ -1817,7 +1822,22 @@ func _open_jetsam(h: MapGen.Jetsam) -> void:
 		return
 	_transfer = TransferView.new()
 	add_child(_transfer)
-	_transfer.setup(h, n, _close_transfer)
+	_transfer.setup(h, n, _close_transfer, true, title)
+
+
+## The same pile, through the door an event resolution just opened.
+##
+## PRIZE IS A MOMENT AND NOT A CONTAINER, which is the whole of this design and
+## the reason there is no third kind of pile. What an option pays lands on the
+## system's floor beside anything you have put down here -- one container per
+## system, so three events that all pay out pool into one -- and it is called a
+## prize for exactly as long as you are standing in the result. Walk away
+## without taking it and it is jetsam, reachable from SECTOR LOOT for the rest
+## of the run, because that is what it now is: junk left in a system.
+func _open_prize() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n != null:
+		_open_jetsam(Run.sector_jetsam(n, false), "PRIZE")
 
 
 ## The system's own pile, from the button beside PLOT NEXT JUMP.

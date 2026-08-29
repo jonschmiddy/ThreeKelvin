@@ -11,6 +11,8 @@ var _result: VBoxContainer
 var _event: Dictionary
 var _resolved: bool = false
 var _then_fight: bool = false
+## The prize popup, while it is up. One at a time, like the sector's.
+var _transfer: TransferView = null
 
 func setup(event: Dictionary) -> void:
 	_event = event
@@ -121,8 +123,49 @@ func _choose(index: int) -> void:
 	_result.add_child(panel)
 	if Run.dead:
 		_result.add_child(Widgets.button("…", func(): Router.show_game_over()))
-	else:
-		_result.add_child(Widgets.button("CONTINUE", _continue))
+		return
+	# THE DOOR, WHICH THIS SCREEN NEVER HAD.
+	#
+	# `pay` has always put a module on the system's floor from here, and this
+	# screen has always said nothing about it -- the prose named the thing and
+	# then the thing was somewhere else, two screens away, behind a button in a
+	# sector you had to walk back to. `salvage_rights` pays a module in two of
+	# its bands and is reached by exactly this path.
+	#
+	# Same word and same pile as the drawer's: see `SectorScreen._open_prize`.
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 7)
+	if OptionTable.pays_item(outcome):
+		var claim := Widgets.button("PRIZE", _open_prize)
+		claim.custom_minimum_size = Vector2(120, 22)
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there.")
+		row.add_child(claim)
+	row.add_child(Widgets.button("CONTINUE", _continue))
+	_result.add_child(row)
+
+
+## What this event just paid, on the system's floor. See
+## `SectorScreen._open_prize` -- one pile per system, and it is jetsam the
+## moment you stop standing in the result.
+func _open_prize() -> void:
+	if _transfer != null:
+		return
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		return
+	var h := Run.sector_jetsam(n, false)
+	if h == null:
+		return
+	_transfer = TransferView.new()
+	add_child(_transfer)
+	_transfer.setup(h, n, _close_transfer, true, "PRIZE")
+
+
+func _close_transfer() -> void:
+	if _transfer == null:
+		return
+	_transfer.queue_free()
+	_transfer = null
 
 func _continue() -> void:
 	if _then_fight:

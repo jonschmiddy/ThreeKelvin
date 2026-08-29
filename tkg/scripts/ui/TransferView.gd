@@ -60,8 +60,13 @@ var _on_close: Callable
 ## to you. `n` is the system whose bag this is.
 ## `animate` is off for the harness, which counts VISIBLE icons -- a sweep in
 ## progress would have it measuring an empty container and calling it a bug.
+##
+## `title` OVERRIDES the container's own word, and exists for exactly one case:
+## the instant an event resolution hands you something. See `Jetsam.title` --
+## the pile is the system's floor either way, and PRIZE is a fact about the
+## moment you are standing in rather than about the crate.
 func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
-		animate: bool = true) -> void:
+		animate: bool = true, title: String = "") -> void:
 	_node = n
 	_jetsam = h
 	_on_close = on_close
@@ -72,7 +77,10 @@ func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 	#
 	# AND IT ASKS THE CONTAINER, because the heading was a constant and there is
 	# more than one kind of pile. See `MapGen.Jetsam.title`.
-	_title.text = h.title() if h != null else "JETSAM"
+	if title != "":
+		_title.text = title
+	else:
+		_title.text = h.title() if h != null else "JETSAM"
 	refresh()
 	# ONCE PER CONTAINER. The sweep is what OPENING something looks like, and a
 	# wreck you have already been through is not being opened -- replaying it
