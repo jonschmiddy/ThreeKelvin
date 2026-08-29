@@ -96,6 +96,22 @@ const GLITCH_TEAR := 6.0
 ## still has to settle. Not random: a repeating pattern that DECAYS reads as a
 ## signal locking on, where noise reads as a fault.
 const GLITCH_SHAPE: Array[float] = [1.0, -0.8, 0.55, -1.0, 0.3, -0.45]
+
+## WHICH STEPS DROP OUT, and it is only two of fourteen.
+##
+## The first version swung the alpha the full way either side of where it was
+## heading on EVERY cut, which is a strobe rather than a glitch -- the thing
+## vanished and returned fourteen times and read as a fault in the screen.
+##
+## The brightness holds now and the TEAR carries the effect: the crate is
+## plainly there from the first cut, sliding sideways and settling, and it
+## blinks exactly twice on the way in. Interference is something happening to a
+## picture you can see, not the picture being taken away and given back.
+const GLITCH_DROPS: Array[int] = [1, 4]
+
+## How far a dropout knocks the brightness down. Not to nothing: a crate at a
+## fifth is still a crate, and a crate at zero is a hole.
+const GLITCH_DROP_TO := 0.22
 ## How far down the sweep has reached, in pixels, or -1 when it is not running.
 var _scan: float = -1.0
 ## What the sweep has already found, so a rebuild mid-scan does not make a crate
@@ -183,9 +199,12 @@ func _materialise(ic: ItemIcon) -> void:
 		var wild := 1.0 - float(i) / float(GLITCH_STEPS)
 		var settled := 1.0 - wild
 		var swing: float = GLITCH_SHAPE[i % GLITCH_SHAPE.size()]
-		# The alpha lurches either side of where it is heading, hard and early,
-		# and the lurch shrinks with everything else.
-		var a := clampf(settled + swing * wild * 0.85, 0.0, 1.0)
+		# VISIBLE FROM THE FIRST CUT and rising, rather than swinging. See
+		# `GLITCH_DROPS`: the two dropouts are the only time it dims, and even
+		# then not to nothing.
+		var a := 0.6 + settled * 0.4
+		if GLITCH_DROPS.has(i):
+			a *= GLITCH_DROP_TO
 		# And it cools out of the sweep's colour into its own as it settles.
 		var col := Color(glow.r, glow.g, glow.b).lerp(Color.WHITE, settled)
 		col.a = a

@@ -129,6 +129,30 @@ func run(tree: SceneTree) -> void:
 		_ok("and the container did not shrink (%d -> %d)"
 			% [tall, _view._loose._rows], _view._loose._rows >= tall)
 
+	# --- how much it blinks --------------------------------------------------
+	#
+	# "Too much flashing... it is like strobing instead of glitching" -- which
+	# is a countable claim, so this counts it. The alpha used to swing the full
+	# way either side of where it was heading on every one of fourteen cuts;
+	# the crate vanished and came back fourteen times and read as a fault in the
+	# screen rather than as interference.
+	#
+	# The rule now: it is plainly visible for most of the sequence, and it dims
+	# a small, fixed number of times.
+	var dips := 0
+	var faint := 0
+	for step in SalvageGrid.GLITCH_STEPS:
+		var settled_at := float(step) / float(SalvageGrid.GLITCH_STEPS)
+		var a := 0.6 + settled_at * 0.4
+		if SalvageGrid.GLITCH_DROPS.has(step):
+			a *= SalvageGrid.GLITCH_DROP_TO
+			dips += 1
+		if a < 0.5:
+			faint += 1
+	_ok("it dims %d times in %d cuts, not every one"
+		% [dips, SalvageGrid.GLITCH_STEPS], dips <= 3)
+	_ok("and is plainly visible for the rest (%d faint)" % faint, faint == dips)
+
 	# --- the sweep is a first-visit thing ------------------------------------
 	#
 	# Opening a container sweeps it; opening the SAME one again does not. A
