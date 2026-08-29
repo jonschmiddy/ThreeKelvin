@@ -420,7 +420,14 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		# aimed at, if that cell will still take it -- a drop is a decision about
 		# WHERE, and silently ignoring the half of it you can honour is worse
 		# than not offering the choice.
-		if Run.can_place(m, at) or m.hold_at == at:
+		# NOT MONEY. `stow` cashed a chit and did NOT put it in the hold, and
+		# then this put it there anyway to honour the cell you aimed at -- so
+		# it sat in cargo occupying cells that nothing could be dropped into,
+		# and `HoldGrid` draws no icon for one, so the space was invisible.
+		#
+		# A chit has already landed by the time we are here. There is nothing
+		# left to place.
+		if not (m is CreditChit) and (Run.can_place(m, at) or m.hold_at == at):
 			Run.take_from_hold(m)
 			if not Run.place_in_hold(m, at):
 				Run.place_in_hold(m)

@@ -35,15 +35,17 @@ func run(tree: SceneTree) -> void:
 	# was not empty -- but the rail no longer reports what you are carrying,
 	# only what is out there and unclaimed. The dismissal rule this test guards
 	# is unchanged; what opens the rail is not.
-	var here0: MapGen.MapNode = Run.node_at()
-	here0.bag.append(LootGen.roll_module(3))
-	here0.bag.append(LootGen.roll_module(3))
-	here0.bagged = true
+	# A HULL ON OFFER, which is what this rail is now for. It has been three
+	# things across this file's life -- your cargo, then loose salvage, now an
+	# offer -- and each time the DISMISSAL RULE it guards was unchanged and what
+	# opened the panel was not. That rule has been got wrong three times; the
+	# trigger is incidental.
+	Run.found_hull = DB.hull_frames[0]
 
 	Router.show_sector()
 	await tree.process_frame
 	var rail := _rail()
-	if not _ok("the rail opens with salvage aboard", rail != null and rail.visible):
+	if not _ok("the rail opens with a hull on offer", rail != null and rail.visible):
 		return _finish()
 
 	# Press the real button rather than setting the flag by hand. The handler is
@@ -76,16 +78,14 @@ func run(tree: SceneTree) -> void:
 	# THE SALVAGE IS STILL WHERE IT WAS. It was never in the hold -- it is loose
 	# in the system you left, and dismissing a rail must not have quietly taken
 	# it, dropped it, or claimed it on your behalf.
-	_ok("and the salvage is still loose where you left it",
-		Run.bag_left(here0) == 2)
+	_ok("and the offer is still standing", Run.found_hull != null)
 
 	# New loot must bring it back, or the fix has traded one silence for another.
 	# A BAG AT A SYSTEM YOU HAVE NOT STOOD OVER, which is the case the rule is
 	# actually written around -- `salvage_hushed` keys the dismissal to a node,
 	# so arriving somewhere new with something loose in it has to speak up.
-	var here1: MapGen.MapNode = Run.node_at()
-	here1.bag.append(LootGen.roll_module(4))
-	here1.bagged = true
+	# A fresh haul is what un-hushes it, so the count has to move.
+	Run.stow(LootGen.roll_module(4))
 	Router.show_sector()
 	await tree.process_frame
 	_ok("a fresh haul opens it again", _rail_visible())

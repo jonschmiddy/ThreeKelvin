@@ -47,6 +47,15 @@ var _ship: ShipView
 var _area: AreaView
 var _slots: HBoxContainer
 var _made: Array[EnemySlot] = []
+## WHAT THE SLOTS ARE CURRENTLY SHOWING: a fight, or the wrecks it left.
+##
+## They are rebuilt only when the COUNT changes -- which is right within one
+## mode, since reinforcements should slide in without resetting the ships
+## already there -- and catastrophically wrong across the two. One wreck in a
+## system and then one new contact is a count that did not change, so the slot
+## kept its dead binding: the live ship drew on top of a corpse and could not be
+## hit, because the thing under the cursor was still a hull with no hp.
+var _slots_mode: StringName = &""
 var _tint: Color = Color("#16202c")
 ## What is actually out there: the world, the rocks or the fleet this system
 ## has in it. Behind everything, including the gas.
@@ -385,7 +394,8 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 	_area.visible = false
 	_slots.visible = true
 	_ship.modulate = Color.WHITE
-	if _made.size() != wrecks.size():
+	if _made.size() != wrecks.size() or _slots_mode != &"wrecks":
+		_slots_mode = &"wrecks"
 		Widgets.clear(_slots)
 		_made.clear()
 		for i in wrecks.size():
@@ -432,7 +442,8 @@ func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 	_slots.visible = true
 	_ship.modulate = Color.WHITE
 
-	if _made.size() != list.size():
+	if _made.size() != list.size() or _slots_mode != &"fight":
+		_slots_mode = &"fight"
 		Widgets.clear(_slots)
 		_made.clear()
 		for i in list.size():

@@ -748,6 +748,22 @@ func _paint_region() -> void:
 	_region_btn.add_theme_color_override("font_color", tint)
 	_region_btn.add_theme_color_override("font_focus_color", tint)
 
+## L IS THE LOCAL REGION, on the screen rather than on the chart control.
+##
+## It belongs here because the toggle does: `_on_region` repaints a button this
+## screen owns and then tells the chart what to do, and a shortcut that reached
+## past that would have the key and the button doing two different amounts.
+##
+## `_unhandled_key_input`, so WASD keeps its own handler on the chart and
+## anything focused has had first refusal.
+func _unhandled_key_input(e: InputEvent) -> void:
+	var k := e as InputEventKey
+	if k == null or not k.pressed or k.echo or k.keycode != KEY_L:
+		return
+	_on_region()
+	accept_event()
+
+
 func _on_region() -> void:
 	if _chart == null:
 		return

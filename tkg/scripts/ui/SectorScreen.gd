@@ -1487,7 +1487,12 @@ func _refresh_salvage() -> void:
 	# to drag a part off a hardpoint into the hold — that grows the hold too, so
 	# unbolting your own coolant line made this panel offer it back as salvage.
 	var hushed := Run.salvage_hushed(bag_here)
-	var has := (loose > 0 or mine) and not fighting()
+	# JUST THE HULL. `loose` counted `MapNode.bag`, which nothing fills any more
+	# -- containers replaced it -- so the panel was opening on a stale number
+	# and showing a heading with nothing under it. A panel with no contents is
+	# the clearest possible statement that a screen has stopped being about
+	# anything.
+	var has := mine and not fighting()
 	_salvage_wrap.visible = has and not hushed
 	if not _salvage_wrap.visible:
 		return

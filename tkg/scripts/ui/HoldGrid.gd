@@ -88,7 +88,13 @@ func refresh() -> void:
 		# silhouette with the thing on the hull. A material has no hull form to
 		# echo, so it draws a crate. See `MaterialIcon`.
 		var icon: Control
-		if m is MaterialData:
+		if m is CreditChit:
+			# A chit should never be in here -- `stow` cashes it. If one is, it
+			# is a bug, and a bug you can SEE beats an invisible occupied cell.
+			var ci := ChitIcon.new()
+			ci.setup(m as CreditChit, &"cargo")
+			icon = ci
+		elif m is MaterialData:
 			var mi := MaterialIcon.new()
 			mi.setup(m as MaterialData, &"cargo")
 			icon = mi
