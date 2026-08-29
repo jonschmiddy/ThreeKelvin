@@ -1459,7 +1459,7 @@ func _refresh_salvage() -> void:
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
 	for m in Run.cargo:
-		_salvage.add_child(Widgets.module_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage, "", deck))
+		_salvage.add_child(Widgets.item_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage, "", deck))
 
 
 ## Your hull, under your hull.
@@ -1713,11 +1713,6 @@ func _refresh_hand() -> void:
 ## `Widgets` binds the module rather than the index, so the index is recovered by
 ## identity — `n.bag` holds the very objects the rows were built from, and the
 ## array never shrinks, so `find()` is exact rather than a lookup by name.
-## One row in the bag, whichever kind of thing it is.
-##
-## The bag holds two now: what a kill dropped, and whatever you threw overboard
-## here. A material has no manufacturer, no slot and no cards, so it gets its own
-## row rather than nulls threaded through the module one.
 ## Open the two-grid view over this system's loose salvage.
 ##
 ## Built per open and torn down on close, the same as the pile listing, because
@@ -1739,15 +1734,6 @@ func _close_transfer() -> void:
 	_transfer.queue_free()
 	_transfer = null
 	_refresh()
-
-
-func _bag_row(thing: Variant, ctx: int, price: int, on_action: Callable,
-		note: String, deck: int) -> PanelContainer:
-	if thing is MaterialData:
-		return Widgets.material_row(thing as MaterialData,
-			ctx as Widgets.ModuleContext, price, on_action, note)
-	return Widgets.module_row(thing as ModuleData,
-		ctx as Widgets.ModuleContext, price, on_action, note, deck)
 
 
 func _on_bag(action: String, thing: Variant) -> void:

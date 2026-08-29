@@ -619,7 +619,9 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 	if Run.cargo.is_empty():
 		_hold.add_child(UITheme.body("Hold empty.", UITheme.COLD, UITheme.FS_SMALL))
 	for m in Run.cargo:
-		_hold.add_child(Widgets.module_row(m, Widgets.ModuleContext.HOLD,
+		# The hold holds two kinds of thing. The SHOP above still sells modules
+		# only, so it keeps `module_row` and its stricter type.
+		_hold.add_child(Widgets.item_row(m, Widgets.ModuleContext.HOLD,
 			Market.bid(n, m), _on_action, "", deck))
 
 

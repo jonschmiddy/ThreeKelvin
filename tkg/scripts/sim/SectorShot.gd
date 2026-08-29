@@ -187,6 +187,32 @@ func run(tree: SceneTree) -> void:
 				if ic != null:
 					print("    %-22s pos %s size %s" % [ic.held_item().name,
 						ic.position, ic.size])
+		# TAKE ONE, AND COUNT THE PLACES IT IS. A claimed entry used to stay in
+		# the container greyed, which is right when somebody ELSE took it and
+		# wrong when you did -- alone, the leftover sits beside the same object
+		# now in your hold and reads as the thing not having moved.
+		if st != null and st._transfer != null:
+			var tv2 := st._transfer
+			var n2: MapGen.MapNode = Run.node_at()
+			# ROOM FIRST. The seeded hold is packed solid, so the take was
+			# refused and the probe was measuring a refusal rather than the
+			# thing it is about.
+			while Run.cargo.size() > 2:
+				Run.take_from_hold(Run.cargo[Run.cargo.size() - 1])
+			var first: HoldItem = n2.bag[0]
+			var before2 := Run.cargo.size()
+			var took: bool = await Run.take_from_bag(n2, 0)
+			tv2.refresh()
+			for iv in 4:
+				await RenderingServer.frame_post_draw
+			var in_grid := 0
+			for ch2 in tv2._loose.get_children():
+				var ii := ch2 as ItemIcon
+				if ii != null and ii.held_item() == first:
+					in_grid += 1
+			print("  took %s: %s" % [first.name, took])
+			print("  hold %d -> %d ; still drawn out here: %d (must be 0)"
+				% [before2, Run.cargo.size(), in_grid])
 		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()

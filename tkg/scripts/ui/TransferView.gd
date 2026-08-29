@@ -118,12 +118,33 @@ func refresh() -> void:
 	if _node == null:
 		return
 	_hold.refresh()
-	# The spent set is `n.taken`, translated back into indices of `n.bag`.
+	# SOMEBODY ELSE'S CLAIMS, not every claim.
+	#
+	# A taken entry is kept on screen greyed, because in a party a part with
+	# somebody's name on it is the texture of flying together -- a part that
+	# simply vanished would read as one that was never there.
+	#
+	# None of that is true of your OWN take. Alone, the greyed leftover sits in
+	# the container next to the same object now in your hold, which reads as the
+	# thing not having moved. So a claim with no other name on it leaves nothing
+	# behind: it is in your hold, and that is where it is.
 	var spent: Dictionary = {}
 	for i in _node.bag.size():
-		if _node.taken.has(MapGen.OPTION_BAG + i):
+		if not _node.taken.has(MapGen.OPTION_BAG + i):
+			continue
+		if Net.taker_name(_node.index, MapGen.OPTION_BAG + i) != "":
 			spent[i] = true
-	_loose.setup(_node.bag, spent, 5)
+	# What is still out here, plus whatever somebody else is holding. Your own
+	# claims are gone from the list entirely -- see `spent` above.
+	var showing: Array = []
+	var showing_spent: Dictionary = {}
+	for i in _node.bag.size():
+		if _node.taken.has(MapGen.OPTION_BAG + i) and not spent.has(i):
+			continue
+		if spent.has(i):
+			showing_spent[showing.size()] = true
+		showing.append(_node.bag[i])
+	_loose.setup(showing, showing_spent, 5)
 	var left := Run.bag_left(_node)
 	_count.text = "%d LEFT" % left if left > 0 else "PICKED CLEAN"
 
@@ -157,7 +178,11 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 			Run.place_in_hold(m)
 		refresh()
 		return
-	var i := _loose.index_of(m)
+	# THE BAG'S INDEX, not the grid's. The grid shows a filtered list now, so
+	# its positions and `n.bag`'s stopped agreeing -- and `take_from_bag` claims
+	# by index, which is exactly the kind of mismatch that claims the wrong thing
+	# rather than failing.
+	var i := _node.bag.find(m)
 	if i < 0:
 		return
 	# ASKED BEFORE IT IS PLACED, and the order matters: `take_from_bag` checks
@@ -176,11 +201,15 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 			Run.take_from_hold(m)
 			if not Run.place_in_hold(m, at):
 				Run.place_in_hold(m)
-		# QUIET, and pitched down. `loot_drop` is written as a reward sting and
-		# it is the wrong instrument here: taking a crate off the floor is a
-		# thing you do six times in a system, and a fanfare on each one turns
-		# packing a hold into a slot machine paying out. The same cue at a
-		# fraction of the volume and below its written pitch reads as the object
-		# arriving rather than as you winning.
-		Audio.play(&"loot_drop", -12.0, 70)
+		# A DIFFERENT SOUND, not the same one turned down.
+		#
+		# `loot_drop` is a reward sting and the problem with it here is its
+		# CHARACTER, not its level: taking a crate off the floor is something
+		# you do six times in a system, and a fanfare on each one turns packing
+		# a hold into a slot machine paying out. `module_install` is the sound
+		# of a part being handled -- mechanical, over quickly, no arrival in it.
+		#
+		# Down six anyway, and rate-limited, because a fast hand emptying a bag
+		# fires this several times in a second and even a dry sound stacks.
+		Audio.play(&"module_install", 0.05, 70, -6.0)
 	refresh()

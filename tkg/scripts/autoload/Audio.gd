@@ -361,7 +361,14 @@ func _stem_level(p: AudioStreamPlayer) -> float:
 ## pitch_var randomises playback rate a little, which is what keeps a click
 ## you hear four hundred times an hour from turning into a machine gun.
 ## limit_ms drops repeats inside a window, for signals that fire in bursts.
-func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0) -> void:
+## `db` is an OFFSET, and it is new. Every cue played at whatever level it was
+## mastered at, which is right for a game where each sound happens once at a
+## moment that earned it -- and wrong the moment one of them starts happening
+## six times a system. `loot_drop` is written as a reward sting; taking a crate
+## off the floor does not deserve one, but the alternative was authoring a second
+## quieter file rather than turning the existing one down.
+func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
+		db: float = 0.0) -> void:
 	if not _enabled:
 		return
 	var now := Time.get_ticks_msec()
@@ -381,6 +388,7 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0) -> void:
 	_sfx_next = (_sfx_next + 1) % _sfx.size()
 	p.stream = stream
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
+	p.volume_db = db
 	p.play()
 
 func click() -> void:   play(&"ui_click", 0.05)

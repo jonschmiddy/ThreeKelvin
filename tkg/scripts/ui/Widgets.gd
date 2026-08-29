@@ -18,6 +18,22 @@ enum ModuleContext { CARGO, INSTALLED, SHOP, HOLD, BAG }
 ## button changes height and the list reflows under the cursor — and because
 ## "MERCER TOOK THIS" is the single most interesting thing the bag has to say.
 ## Empty for every other context, which is all of them but BAG.
+## A row for whatever is in the hold, whichever kind it is.
+##
+## THE ONE PLACE THIS IS DECIDED. Three screens iterate `Run.cargo` and build a
+## row per entry, and every one of them called `module_row` directly -- which was
+## correct right up until cargo held two kinds of thing, and then failed at the
+## parameter type on the first crate. A private branch on each screen would be
+## the same bug waiting on the fourth.
+static func item_row(thing: Variant, ctx: ModuleContext, price: int,
+		on_action: Callable, note: String = "",
+		deck_size: int = -1) -> PanelContainer:
+	if thing is MaterialData:
+		return material_row(thing as MaterialData, ctx, price, on_action, note)
+	return module_row(thing as ModuleData, ctx, price, on_action, note,
+		deck_size)
+
+
 ## One material, as a row.
 ##
 ## NOT a branch inside `module_row`. That function reads a rarity, a
