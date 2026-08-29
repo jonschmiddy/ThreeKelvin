@@ -46,6 +46,9 @@ var _loose: SalvageGrid
 var _title: Label
 var _count: Label
 var _node: MapGen.MapNode = null
+## WHICH container. A system holds several -- one per hull you killed, plus its
+## own floor -- and this screen is a view of exactly one of them at a time.
+var _hoard: MapGen.Hoard = null
 var _busy: bool = false
 var _on_close: Callable
 
@@ -54,18 +57,23 @@ var _on_close: Callable
 ## to you. `n` is the system whose bag this is.
 ## `animate` is off for the harness, which counts VISIBLE icons -- a sweep in
 ## progress would have it measuring an empty container and calling it a bug.
-func setup(title: String, n: MapGen.MapNode, on_close: Callable,
+func setup(h: MapGen.Hoard, n: MapGen.MapNode, on_close: Callable,
 		animate: bool = true) -> void:
 	_node = n
+	_hoard = h
 	_on_close = on_close
-	_title.text = title
+	# The container names itself. A wreck is called after the hull it was, and
+	# the system's own pile is called what it is.
+	_title.text = h.label if h != null else "SALVAGE"
 	refresh()
 	# ONCE PER CONTAINER. The sweep is what OPENING something looks like, and a
 	# wreck you have already been through is not being opened -- replaying it
 	# every visit would make walking back to a half-stripped pile feel like
 	# finding it again, which is the one thing it must not say.
-	if animate and not n.scanned:
-		n.scanned = true
+	# PER CONTAINER, not per system. Three wrecks in one sector are three
+	# things found, and the second should sweep exactly as the first did.
+	if animate and h != null and not h.scanned:
+		h.scanned = true
 		_loose.scan()
 	else:
 		_loose.skip_scan()
@@ -192,14 +200,14 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	if where < 0:
 		# Onto your own side, from out there: the same claim `_on_hold_drop`
 		# makes, aimed at wherever the hold has room.
-		var i := _node.bag.find(m)
+		var i := _hoard.items.find(m)
 		if i >= 0 and not _busy:
 			_busy = true
-			var got: bool = await Run.take_from_bag(_node, i)
+			var got: bool = await Run.take_from_hoard(_node, _hoard, i)
 			_busy = false
 			if got:
 				Audio.play(&"module_install", 0.05, 70, -6.0)
-	elif where > 0 and Run.jettison(m):
+	elif where > 0 and Run.put_in(_node, _hoard, m):
 		pass
 	refresh()
 
@@ -307,6 +315,11 @@ func _build_loose() -> Control:
 	# The hold has to redraw too, not just the container, which is why this is
 	# the view's refresh rather than the grid's own.
 	_loose.picked.connect(func(_m: HoldItem) -> void: refresh())
+	# INTO THE CONTAINER ON SCREEN. See `RunState.put_in`: with a wreck open,
+	# dropping something in must put it in that hull rather than on the floor,
+	# or the screen is lying about what it is showing.
+	_loose.on_put = func(m: HoldItem) -> bool:
+		return Run.put_in(_node, _hoard, m)
 	# FILLS ITS SIDE OF THE POPUP. It keeps the spare row `_layout` adds, so
 	# there is always somewhere to put a thing down, and it stretches to
 	# whichever side of the popup is taller so the two grids read as one pair
@@ -317,7 +330,7 @@ func _build_loose() -> Control:
 
 
 func refresh() -> void:
-	if _node == null:
+	if _node == null or _hoard == null:
 		return
 	_hold.refresh()
 	# SOMEBODY ELSE'S CLAIMS, not every claim.
@@ -331,23 +344,23 @@ func refresh() -> void:
 	# thing not having moved. So a claim with no other name on it leaves nothing
 	# behind: it is in your hold, and that is where it is.
 	var spent: Dictionary = {}
-	for i in _node.bag.size():
-		if not _node.taken.has(MapGen.OPTION_BAG + i):
+	for i in _hoard.items.size():
+		if not _node.taken.has(_hoard.option(i)):
 			continue
-		if Net.taker_name(_node.index, MapGen.OPTION_BAG + i) != "":
+		if Net.taker_name(_node.index, _hoard.option(i)) != "":
 			spent[i] = true
 	# What is still out here, plus whatever somebody else is holding. Your own
 	# claims are gone from the list entirely -- see `spent` above.
 	var showing: Array = []
 	var showing_spent: Dictionary = {}
-	for i in _node.bag.size():
-		if _node.taken.has(MapGen.OPTION_BAG + i) and not spent.has(i):
+	for i in _hoard.items.size():
+		if _node.taken.has(_hoard.option(i)) and not spent.has(i):
 			continue
 		if spent.has(i):
 			showing_spent[showing.size()] = true
-		showing.append(_node.bag[i])
+		showing.append(_hoard.items[i])
 	_loose.setup(showing, showing_spent, 5)
-	var left := Run.bag_left(_node)
+	var left := Run.hoard_left(_node, _hoard)
 	_count.text = "%d LEFT" % left if left > 0 else "PICKED CLEAN"
 
 
@@ -384,7 +397,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	# its positions and `n.bag`'s stopped agreeing -- and `take_from_bag` claims
 	# by index, which is exactly the kind of mismatch that claims the wrong thing
 	# rather than failing.
-	var i := _node.bag.find(m)
+	var i := _hoard.items.find(m)
 	if i < 0:
 		return
 	# ASKED BEFORE IT IS PLACED, and the order matters: `take_from_bag` checks
@@ -392,7 +405,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	# nothing. See its own note.
 	_busy = true
 	refresh()
-	var got: bool = await Run.take_from_bag(_node, i)
+	var got: bool = await Run.take_from_hoard(_node, _hoard, i)
 	_busy = false
 	if got:
 		# It landed wherever the hold had room. Move it to the cell actually

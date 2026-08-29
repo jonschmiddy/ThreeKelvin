@@ -158,14 +158,15 @@ func run() -> void:
 	# forgot to append it would look identical from the hold.
 	Run.cargo.clear()
 	var here: MapGen.MapNode = Run.node_at()
-	var before := here.bag.size() if here != null else -1
+	var floor_h := Run.sector_hoard(here)
+	var before := floor_h.items.size()
 	var thrown := MaterialData.of(rows[0])
 	_ok("something is in the hold to throw", Run.place_in_hold(thrown))
 	_ok("it goes overboard", Run.jettison(thrown))
 	_ok("and it is out of the hold", not Run.cargo.has(thrown))
-	_ok("and it is in this system's bag",
-		here != null and here.bag.size() == before + 1 and here.bag.has(thrown))
-	_ok("so it can be picked back up", Run.bag_left(here) > 0)
+	_ok("and it is on this system's floor",
+		floor_h.items.size() == before + 1 and floor_h.items.has(thrown))
+	_ok("so it can be picked back up", Run.hoard_left(here, floor_h) > 0)
 
 	# AND THE SECTOR CAN DRAW IT. This is the half that made jettison look
 	# broken when it was not: the item went into the bag correctly and the
@@ -276,22 +277,23 @@ func run() -> void:
 	# you had thrown out more than once could not be picked back up.
 	Run.cargo.clear()
 	var here2: MapGen.MapNode = Run.node_at()
-	here2.bag.clear()
+	here2.hoards.clear()
 	here2.taken.clear()
 	var yoyo := MaterialData.of(rows[2])
 	_ok("it is in the hold to begin with", Run.place_in_hold(yoyo))
 	_ok("first throw", Run.jettison(yoyo))
-	_ok("the bag holds it once", here2.bag.count(yoyo) == 1)
-	_ok("first pick-up", Run.stow(yoyo) if here2.bag.has(yoyo) else false)
+	var floor2 := Run.sector_hoard(here2)
+	_ok("the floor holds it once", floor2.items.count(yoyo) == 1)
+	_ok("first pick-up", Run.stow(yoyo) if floor2.items.has(yoyo) else false)
 	# `stow` is what `take_from_bag` calls once the claim is won; mark the claim
 	# the way taking it would have.
-	here2.taken.append(MapGen.OPTION_BAG + here2.bag.find(yoyo))
+	here2.taken.append(floor2.option(floor2.items.find(yoyo)))
 
 	_ok("second throw", Run.jettison(yoyo))
-	_ok("the bag STILL holds it once", here2.bag.count(yoyo) == 1)
+	_ok("the floor STILL holds it once", floor2.items.count(yoyo) == 1)
 	_ok("and the claim was released, so it can be taken again",
-		not here2.taken.has(MapGen.OPTION_BAG + here2.bag.find(yoyo)))
-	_ok("so it is loose out there", Run.bag_left(here2) == 1)
+		not here2.taken.has(floor2.option(floor2.items.find(yoyo))))
+	_ok("so it is loose out there", Run.hoard_left(here2, floor2) == 1)
 
 	# --- a turn that did not land --------------------------------------------
 	#

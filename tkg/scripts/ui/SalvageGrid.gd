@@ -31,6 +31,11 @@ extends Control
 
 signal picked(item: HoldItem)
 
+## Called with something of yours dropped in here. The GRID does not know which
+## container it is drawing -- `TransferView` does -- so putting the thing away is
+## the view's business and this is how it asks.
+var on_put: Callable
+
 const CELL := HoldGrid.CELL
 const EDGE := 2.0
 
@@ -489,7 +494,7 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	# beam said it would, instead of first-fitting into the top-left corner a
 	# frame later.
 	var cell := _target_for(at, m)
-	if Run.jettison(m):
+	if on_put.is_valid() and on_put.call(m):
 		_at[m] = cell
 		picked.emit(m)
 

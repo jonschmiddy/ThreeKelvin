@@ -508,6 +508,84 @@ func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
 	m.hold_at = -Vector2i.ONE
 
+## The container for a hull you just killed, or a fresh one.
+##
+## One per ship, in the order you killed them, and they are never reused: the
+## slot is what the claims are numbered from, so handing a new wreck an old slot
+## would have it inherit the claims on the last one.
+func new_wreck(n: MapGen.MapNode, t: EnemyTemplate) -> MapGen.Hoard:
+	var h := MapGen.Hoard.new()
+	h.slot = n.hoards.size()
+	h.art = t.id
+	h.label = String(t.name).to_upper()
+	n.hoards.append(h)
+	Sig.map_changed.emit()
+	return h
+
+
+## The system's own pile: what you have put down here, and what an event paid
+## into the open rather than into a hull.
+##
+## Made on demand and then kept, because a floor with nothing on it is not a
+## container -- the door to it only exists once there is something behind it.
+func sector_hoard(n: MapGen.MapNode, make: bool = true) -> MapGen.Hoard:
+	for raw in n.hoards:
+		var h: MapGen.Hoard = raw
+		if not h.is_wreck():
+			return h
+	if not make:
+		return null
+	var fresh := MapGen.Hoard.new()
+	fresh.slot = n.hoards.size()
+	n.hoards.append(fresh)
+	return fresh
+
+
+## What is still unclaimed in one container.
+func hoard_left(n: MapGen.MapNode, h: MapGen.Hoard) -> int:
+	if n == null or h == null:
+		return 0
+	var left := 0
+	for i in h.items.size():
+		if not n.taken.has(h.option(i)):
+			left += 1
+	return left
+
+
+## And across all of them, which is what a button in the sector wants to say.
+func loose_here(n: MapGen.MapNode) -> int:
+	if n == null:
+		return 0
+	var left := 0
+	for raw in n.hoards:
+		left += hoard_left(n, raw as MapGen.Hoard)
+	return left
+
+
+## Take the i-th thing out of a container.
+##
+## The same shape `take_from_bag` has and for the same reasons: the hold is
+## checked BEFORE the claim is spent, so a full hold costs you nothing, and the
+## claim is awaited because in a party it is a round trip.
+func take_from_hoard(n: MapGen.MapNode, h: MapGen.Hoard, i: int) -> bool:
+	if n == null or h == null or i < 0 or i >= h.items.size():
+		return false
+	var option := h.option(i)
+	if n.taken.has(option):
+		return false
+	var m: HoldItem = h.items[i]
+	if not has_room_for(m):
+		log_line("The hold is full. %s stays where it is." % m.name, &"them")
+		return false
+	if not await take_option(n, option):
+		var who := Net.taker_name(n.index, option)
+		log_line("%s is already gone.%s" % [m.name,
+			" %s took it." % who.to_upper() if who != "" else ""], &"them")
+		return false
+	stow(m)
+	return true
+
+
 ## Reach for one loose thing, without knowing which entry it is.
 ##
 ## The mirror of `jettison`, and it exists because the ICON knows what you
@@ -526,6 +604,13 @@ func take_item(m: HoldItem) -> bool:
 	# The first UNCLAIMED entry for this item. `find` alone would answer with a
 	# spent one -- the same trap `jettison` fell into -- because taking marks an
 	# index rather than removing the entry.
+	# Every container in the system, because the icon knows what you clicked and
+	# not which pile it came out of.
+	for raw in n.hoards:
+		var h: MapGen.Hoard = raw
+		for i in h.items.size():
+			if h.items[i] == m and not n.taken.has(h.option(i)):
+				return await take_from_hoard(n, h, i)
 	for i in n.bag.size():
 		if n.bag[i] == m and not n.taken.has(MapGen.OPTION_BAG + i):
 			return await take_from_bag(n, i)
@@ -546,11 +631,15 @@ func take_item(m: HoldItem) -> bool:
 ##
 ## Returns whether it went. Nothing outside a system to throw it into is the one
 ## case that refuses, and it refuses rather than destroying -- §3.4.
-func jettison(m: HoldItem) -> bool:
-	if m == null or not cargo.has(m):
-		return false
-	var n: MapGen.MapNode = node_at()
-	if n == null:
+## Put something down in a NAMED container.
+##
+## `jettison` is this with the container chosen for you. They are separate
+## because the choice matters: with a wreck open on screen, dragging something
+## into it must put it in THAT hull -- what you are looking at is where it goes,
+## and quietly routing it to the floor instead would be the screen lying about
+## its own contents.
+func put_in(n: MapGen.MapNode, h: MapGen.Hoard, m: HoldItem) -> bool:
+	if m == null or n == null or h == null or not cargo.has(m):
 		return false
 	take_from_hold(m)
 	m.hold_at = -Vector2i.ONE
@@ -565,20 +654,36 @@ func jettison(m: HoldItem) -> bool:
 	#
 	# Put back where it was instead: the entry is still there, so clearing its
 	# claim is the whole of what "it is loose again" means.
-	var already := n.bag.find(m)
+	# THE FLOOR, not a wreck. What you put down is the system's, and a hull you
+	# killed is not a bin -- keeping them separate is what makes "everything in
+	# this sector" and "what that ship was carrying" two different questions
+	# with two different doors.
+	var already := h.items.find(m)
 	if already >= 0:
 		# A PackedInt32Array, so `remove_at` by position rather than `erase` by
 		# value. `_mark_taken` appends to it; this is the other direction and
 		# there was no other direction until now.
-		var slot := n.taken.find(MapGen.OPTION_BAG + already)
+		var slot := n.taken.find(h.option(already))
 		if slot >= 0:
 			n.taken.remove_at(slot)
 	else:
-		n.bag.append(m)
+		h.items.append(m)
 	log_line("%s goes overboard. It is still out there." % m.name, &"sys")
 	Sig.ship_changed.emit()
 	Sig.map_changed.emit()
 	return true
+
+
+## Overboard, with no container in mind: it lands on the system's own floor.
+##
+## This is the right-click path, which has no screen open to tell it where you
+## meant. A wreck is somewhere you chose to look inside; the floor is where a
+## thing goes when you simply do not want it.
+func jettison(m: HoldItem) -> bool:
+	var n: MapGen.MapNode = node_at()
+	if n == null:
+		return false
+	return put_in(n, sector_hoard(n), m)
 
 
 ## Make sure one item's cell is still a cell it can occupy.

@@ -23,13 +23,26 @@ class_name EncounterDrawer
 ## `on_jump` is the third and last thing these builders reached back into the
 ## screen for: the PLOT NEXT JUMP button hangs off the heading, and pressing it
 ## is the screen's business.
-static func head(text: String, on_jump: Callable) -> Control:
+## `loose` is how much is lying around this system's own pile, and `on_loot`
+## opens it. Zero hides the button: a door onto an empty room lies once per
+## system.
+##
+## Beside PLOT NEXT JUMP because those are the two things you do with a system
+## once you have read it -- take what is in it, and leave. What a WRECK holds is
+## reached through the wreck, which is sitting in the picture above.
+static func head(text: String, on_jump: Callable, loose: int = 0,
+		on_loot: Callable = Callable()) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	var l := UITheme.body(text, UITheme.COLD, UITheme.FS_SMALL)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(l)
+	if loose > 0 and on_loot.is_valid():
+		var loot := Widgets.button("SECTOR LOOT - %d" % loose, on_loot)
+		loot.custom_minimum_size = Vector2(148, 17)
+		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays until you jump.")
+		row.add_child(loot)
 	var b := Widgets.button("PLOT NEXT JUMP", on_jump)
 	b.custom_minimum_size = Vector2(148, 17)
 	row.add_child(b)

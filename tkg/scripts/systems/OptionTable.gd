@@ -167,7 +167,9 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		# setting it would silently rob the next fight in this system of its
 		# entire payout. An option cannot be taken twice anyway; `n.taken` is
 		# what stops that.
-		n.bag.append(LootGen.roll_module(n.danger))
+		# THE FLOOR, not a wreck: nothing died to produce this, so it lands in
+		# the system's own pile beside anything you have put down here.
+		Run.sector_hoard(n).items.append(LootGen.roll_module(n.danger))
 	# THE ROLL IS POSITIONAL, like everything else a system decides about itself:
 	# derived from the node index so a party at one system is handed the same
 	# thing, and so a reload cannot shop for a better item.

@@ -123,23 +123,30 @@ static func loot(n: MapGen.MapNode) -> int:
 	while true:
 		var best := -1
 		var best_worth := -1
-		for i in n.bag.size():
-			if n.taken.has(MapGen.OPTION_BAG + i):
-				continue
-			var m: HoldItem = n.bag[i]
-			if not Run.has_room_for(m):
-				continue
-			var worth := _worth(m)
-			if worth > best_worth:
-				best_worth = worth
-				best = i
-		if best < 0:
+		var from: MapGen.Hoard = null
+		# EVERY CONTAINER IN THE SYSTEM, weighed together. A pilot standing in a
+		# sector with three wrecks in it does not empty the nearest one first;
+		# they take the best thing they can carry, wherever it is.
+		for raw in n.hoards:
+			var h: MapGen.Hoard = raw
+			for i in h.items.size():
+				if n.taken.has(h.option(i)):
+					continue
+				var m: HoldItem = h.items[i]
+				if not Run.has_room_for(m):
+					continue
+				var worth := _worth(m)
+				if worth > best_worth:
+					best_worth = worth
+					best = i
+					from = h
+		if best < 0 or from == null:
 			return took
 		# Not awaited: solo has no round trip to make, and the sim is solo. A
 		# party's claim is a network question and this is not that.
-		if not Run.stow(n.bag[best]):
+		if not Run.stow(from.items[best]):
 			return took
-		n.taken.append(MapGen.OPTION_BAG + best)
+		n.taken.append(from.option(best))
 		took += 1
 	return took
 

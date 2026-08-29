@@ -94,6 +94,58 @@ const OPTION_BAG := 200
 ## `taken`.
 const OPTION_SITE := 300
 
+## Every container in a system: `OPTION_HOARD + h * HOARD_STRIDE + i` is the
+## i-th thing in the h-th one.
+##
+## The fifth contested list, and the first that is a list OF lists. A system used
+## to hold one bag, so `OPTION_BAG + i` was enough; it now holds one container
+## per hull you killed plus one of its own, and those are separate piles that
+## have to be claimed separately.
+##
+## BASED AT 1000, and the reason is the one this file already gives twice: never
+## re-base an existing constant, because these numbers are in saved `taken`
+## arrays and in the co-op claims table. `OPTION_BAG` keeps its hundred slots and
+## keeps meaning what it always meant; nothing renumbers.
+##
+## THE STRIDE IS A CEILING ON ONE CONTAINER, not on how many there are. Sixty-four
+## is far past what a wreck holds -- drops are single digits -- and the cost of
+## being wrong is two containers sharing a claim, so it is deliberately loose.
+const OPTION_HOARD := 1000
+const HOARD_STRIDE := 64
+
+
+## One container of loose things, sitting in a system.
+##
+## A WRECK IS ONE, AND SO IS THE FLOOR. What a hull was carrying when you killed
+## it and what you have put down here are both piles you reach into, and making
+## them the same class means the popup, the claim, the sweep and the save all
+## have one thing to know about.
+##
+## They persist. Jump away and come back and your wrecks are still where you left
+## them with whatever you did not take still in them, which is the whole point of
+## it being the system's state rather than the fight's.
+class Hoard extends RefCounted:
+	## Its slot in `MapNode.hoards`, and what its claims are numbered from. Never
+	## reused and never renumbered -- see `OPTION_HOARD`.
+	var slot: int = 0
+	## The enemy template whose hull this is, or empty for the system's own pile.
+	## Empty is what makes it the floor rather than a wreck.
+	var art: StringName = &""
+	var label: String = "SECTOR LOOT"
+	## MUST NOT SHRINK. A taken thing stays in it and is marked in `MapNode.taken`,
+	## exactly as `shop` and `bag` learned to.
+	var items: Array = []
+	## Whether the sweep has already run on this one. Once per container, so
+	## opening a wreck you have already been through is not a discovery.
+	var scanned: bool = false
+
+	func is_wreck() -> bool:
+		return art != &""
+
+	## The claim id of the i-th thing in here.
+	func option(i: int) -> int:
+		return OPTION_HOARD + slot * HOARD_STRIDE + i
+
 ## Eight shells, wide apart, rather than twenty-four thin ones.
 ##
 ## Twenty-four rings put the systems in a shape where nothing was near anything:
@@ -454,6 +506,15 @@ class MapNode extends RefCounted:
 	## Like `shop`, THIS ARRAY MUST NOT SHRINK — a taken part stays in it and is
 	## marked gone in `taken`, or two machines stop agreeing what "part 2" is.
 	var bag: Array = []
+
+	## Every container in this system: wrecks in the order you made them, plus
+	## the system's own pile whenever something has been put down here.
+	##
+	## SEPARATE FROM `bag`, which stays exactly as it was. That array is the
+	## shared-kill pool and its claims are numbered from `OPTION_BAG`; renumbering
+	## it into here would break saved runs and the co-op claims table for no gain.
+	## New work uses hoards; `bag` is left alone until it has no callers.
+	var hoards: Array = []
 
 	## What this system holds, as option IDS rather than definitions.
 	##

@@ -374,29 +374,41 @@ func set_weather(n: MapGen.MapNode) -> void:
 ## The state it is handed is fabricated: the fight is over and `Combat` is gone,
 ## so this is a template out of the node and a hull of zero. Nothing downstream
 ## asks it anything a dead ship cannot answer.
-func show_wreck(n: MapGen.MapNode, on_open: Callable) -> void:
-	var t: EnemyTemplate = DB.enemies.get(n.wreck)
-	if t == null:
-		show_area(n)
+## Every hull that died here, each a door to its own container.
+##
+## `on_open` is called with the hoard that hull is, so the screen does not have
+## to work out which wreck was clicked from a position on screen -- the slot
+## already knows, because it was built from one.
+func show_wrecks(wrecks: Array, on_open: Callable) -> void:
+	if wrecks.is_empty():
 		return
 	_area.visible = false
 	_slots.visible = true
 	_ship.modulate = Color.WHITE
-	if _made.size() != 1:
+	if _made.size() != wrecks.size():
 		Widgets.clear(_slots)
 		_made.clear()
-		var slot := EnemySlot.new()
-		slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		slot.claim = _claim_hot
-		_slots.add_child(slot)
-		_made.append(slot)
-	var ghost := Combat.EnemyState.new()
-	ghost.template = t
-	ghost.max_hp = t.max_hull
-	ghost.hp = 0
-	_made[0].opened = on_open
-	_made[0].bind(0, ghost, false)
+		for i in wrecks.size():
+			var slot := EnemySlot.new()
+			slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			slot.claim = _claim_hot
+			_slots.add_child(slot)
+			_made.append(slot)
+	for i in wrecks.size():
+		var h: MapGen.Hoard = wrecks[i]
+		var t: EnemyTemplate = DB.enemies.get(h.art)
+		if t == null:
+			continue
+		# FABRICATED, because the fight is long over and `Combat` is gone. A
+		# template out of the container and a hull of zero is everything a dead
+		# ship has to be able to answer.
+		var ghost := Combat.EnemyState.new()
+		ghost.template = t
+		ghost.max_hp = t.max_hull
+		ghost.hp = 0
+		_made[i].opened = on_open.bind(h)
+		_made[i].bind(i, ghost, false)
 	queue_redraw()
 
 

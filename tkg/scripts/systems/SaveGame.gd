@@ -152,7 +152,15 @@ const PATH := "user://run.save"
 ## which a version 18 build would push through `_module_from` and land in your
 ## hold as a nameless part worth nothing. Same argument as 18 and the same
 ## direction: old saves read back fine, new ones must not be handed backwards.
-const VERSION := 19
+## 20: A SYSTEM HOLDS CONTAINERS. One per hull you killed plus one of its own,
+## each with its own items and its own claims -- and they persist, which is the
+## point: a wreck you left half stripped is somewhere you can go back to.
+##
+## A version 19 save has no `hoards` key and reads back with none, which is
+## correct for it: nothing was ever put in one. The bump is for the other
+## direction, as 18 and 19 were -- a 19 build handed this save would show you a
+## sector with the loot missing and no wrecks in it.
+const VERSION := 20
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -714,6 +722,17 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	var bag: Array = []
 	for m in n.bag:
 		bag.append(_item_to(m))
+	# EVERY CONTAINER IN THE SYSTEM. They persist across a jump by being node
+	# state, and across a session by being here -- a wreck you left half
+	# stripped is somewhere you can go back to, which is most of the point.
+	var hoards: Array = []
+	for raw in n.hoards:
+		var h: MapGen.Hoard = raw
+		var items: Array = []
+		for m2 in h.items:
+			items.append(_item_to(m2))
+		hoards.append({slot = h.slot, art = String(h.art), label = h.label,
+			scanned = h.scanned, items = items})
 	return {
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
@@ -733,7 +752,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		links = Array(n.links),
 		shop = shop,
 		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
-		bag = bag, bagged = n.bagged,
+		bag = bag, bagged = n.bagged, hoards = hoards,
 		options = _names(n.options),
 	}
 
@@ -819,6 +838,18 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 			n.shop.append(mod)
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
+	for raw in d.get("hoards", []):
+		var row: Dictionary = raw
+		var h := MapGen.Hoard.new()
+		h.slot = int(row.get("slot", 0))
+		h.art = StringName(row.get("art", ""))
+		h.label = String(row.get("label", "SECTOR LOOT"))
+		h.scanned = bool(row.get("scanned", false))
+		for e2 in row.get("items", []):
+			var it := _item_from(e2)
+			if it != null:
+				h.items.append(it)
+		n.hoards.append(h)
 	for m in d.get("bag", []):
 		var part := _item_from(m)
 		if part != null:

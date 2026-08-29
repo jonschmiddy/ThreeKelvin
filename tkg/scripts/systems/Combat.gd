@@ -991,11 +991,8 @@ func _victory() -> void:
 	var gained := int(round(enemy.template.credit_reward * (1.0 + (node.danger - 1) * 0.2)))
 	if Run.has_set(&"probate", 3):
 		gained = int(round(gained * 1.5))
-	# INTO THE WRECK, not into the wallet. A hull that hands you a gun by making
-	# you reach for it and hands you money by incrementing a counter is saying
-	# those are two different kinds of event, and they are not. The chit takes
-	# no room -- see `CreditChit` -- so this costs you nothing but the reach.
-	node.bag.append(CreditChit.of(gained))
+	# Held until the wrecks exist, because the money goes INTO one -- see below.
+	var purse := gained
 	for i in new_dross:
 		var which: StringName = named_dross[i] if i < named_dross.size() else &""
 		Run.add_dross(danger, which)
@@ -1046,17 +1043,34 @@ func _victory() -> void:
 	# reach is first come, first served.
 	#
 	# So the party rule became the only rule, and solo is a party of one.
-	var hands := shared.paid if (is_shared() and shared != null) else 1
-	Run.open_bag(node, drops, maxi(1, hands))
-	# THE HULL STAYS. It is the way into what it was carrying, so the sector has
-	# to be able to draw it after the fight object is gone. Only when there is
-	# something in it: a wreck you cannot open is scenery, and scenery that
-	# looks like a control is worse than no scenery.
-	if Run.bag_left(node) > 0:
-		node.wreck = enemy.template.id
-	var pool := drops * maxi(1, hands)
+	# ONE CONTAINER PER HULL, and the totals do not move.
+	#
+	# What the fight is worth is unchanged -- `drops` scaled by the crew, the same
+	# roll, the same credits. What changes is the PACKAGING: it used to be one
+	# pool for the whole fight, and a pool is the right answer to "how much" and
+	# the wrong answer to "where is it". A wreck you can point at is a wreck you
+	# can go and open, and three of them is three decisions instead of one list.
+	#
+	# Dealt round-robin so a two-ship fight does not put everything in the first
+	# hull and leave the second as an empty box you still have to check.
+	var hands := maxi(1, shared.paid if (is_shared() and shared != null) else 1)
+	var pool := drops * hands
+	var made: Array = []
+	for e in enemies:
+		made.append(Run.new_wreck(node, (e as EnemyState).template))
+	if made.is_empty():
+		made.append(Run.sector_hoard(node))
+	var force := node.manufacturer if node.region == MapGen.Region.TERRITORY else &""
+	for i in pool:
+		var h: MapGen.Hoard = made[i % made.size()]
+		h.items.append(LootGen.roll_module(node.danger, force,
+			node.region == MapGen.Region.CORE))
+	# THE MONEY IS IN THE FIRST HULL. It has to be somewhere you reach, and the
+	# alternative -- a chit in each -- turns one payout into a chore.
+	if purse > 0:
+		(made[0] as MapGen.Hoard).items.append(CreditChit.of(purse))
 	if pool > 0:
-		bits.append("%d in the wreck" % pool)
+		bits.append("%d in the wreck%s" % [pool, "" if made.size() == 1 else "s"])
 	if new_dross > 0:
 		bits.append("%d Dross" % new_dross)
 	# What was aboard the thing you just killed. Not part of the bag and not

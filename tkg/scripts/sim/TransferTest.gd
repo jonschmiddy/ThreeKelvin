@@ -32,24 +32,26 @@ func run(tree: SceneTree) -> void:
 	Rng.reseed(4242, 0)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_node = Run.node_at()
-	_node.bag.clear()
+	_node.hoards.clear()
 	_node.taken.clear()
 	Run.cargo.clear()
+	# ONE CONTAINER, made the way a kill makes one, so this exercises the real
+	# shape rather than a bag propped up beside it.
+	var wreck := Run.new_wreck(_node, DB.enemies[&"cutter"])
 
 	# Something in the hold and something on the floor, which is the only state
 	# this screen exists for.
 	var mine := LootGen.roll_module(3)
 	if not _ok("a part goes in the hold", Run.place_in_hold(mine)):
 		return _finish()
-	_node.bag.append(LootGen.roll_module(3))
-	_node.bag.append(MaterialData.of(MaterialTable.all()[0]))
-	_node.bagged = true
+	wreck.items.append(LootGen.roll_module(3))
+	wreck.items.append(MaterialData.of(MaterialTable.all()[0]))
 
 	_view = TransferView.new()
 	tree.root.add_child(_view)
 	# No sweep: this harness counts what is VISIBLE, and a reveal in progress
 	# would have it measuring an empty container and reporting a bug.
-	_view.setup("SALVAGE", _node, func() -> void: pass, false)
+	_view.setup(wreck, _node, func() -> void: pass, false)
 	await tree.process_frame
 	await tree.process_frame
 
@@ -75,7 +77,7 @@ func run(tree: SceneTree) -> void:
 
 	# --- and a right-click, which goes through no drop handler at all --------
 	# `n.bag` is untyped, so the element needs saying out loud.
-	var back: HoldItem = _node.bag[0]
+	var back: HoldItem = wreck.items[0]
 	_ok("something comes back into the hold", Run.stow(back))
 	await tree.process_frame
 	var hold1 := _icons(_view._hold)
@@ -116,10 +118,10 @@ func run(tree: SceneTree) -> void:
 	for k in _view._loose._at:
 		where[k] = _view._loose._at[k]
 	var tall := _view._loose._rows
-	var first: HoldItem = _node.bag[0]
-	var i := _node.bag.find(first)
+	var first: HoldItem = wreck.items[0]
+	var i := wreck.items.find(first)
 	if i >= 0 and Run.has_room_for(first):
-		await Run.take_from_bag(_node, i)
+		await Run.take_from_hoard(_node, wreck, i)
 		await tree.process_frame
 		var moved := 0
 		for k2 in _view._loose._at:
@@ -158,19 +160,19 @@ func run(tree: SceneTree) -> void:
 	# Opening a container sweeps it; opening the SAME one again does not. A
 	# wreck you have already been through is not being discovered, and replaying
 	# the reveal would say it was.
-	_node.scanned = false
+	wreck.scanned = false
 	var open_a := TransferView.new()
 	_tree.root.add_child(open_a)
-	open_a.setup("SALVAGE", _node, func() -> void: pass)
+	open_a.setup(wreck, _node, func() -> void: pass)
 	await _tree.process_frame
 	_ok("the first open sweeps (%.0f)" % open_a._loose._scan,
 		open_a._loose._scan >= 0.0)
-	_ok("and the node remembers it", _node.scanned)
+	_ok("and the container remembers it", wreck.scanned)
 	open_a.queue_free()
 
 	var open_b := TransferView.new()
 	_tree.root.add_child(open_b)
-	open_b.setup("SALVAGE", _node, func() -> void: pass)
+	open_b.setup(wreck, _node, func() -> void: pass)
 	await _tree.process_frame
 	_ok("the second open does not (%.0f)" % open_b._loose._scan,
 		open_b._loose._scan < 0.0)
@@ -190,14 +192,14 @@ func run(tree: SceneTree) -> void:
 	var shape_now := frame.size
 
 	for _pad in 40:
-		_node.bag.append(MaterialData.of(MaterialTable.all()[0]))
+		wreck.items.append(MaterialData.of(MaterialTable.all()[0]))
 	_view.refresh()
 	await _tree.process_frame
 	await _tree.process_frame
 	_ok("stuffing the container does not resize it (%s vs %s)"
 		% [frame.size, shape_now], frame.size == shape_now)
 
-	_node.bag.clear()
+	wreck.items.clear()
 	_node.taken.clear()
 	_view.refresh()
 	await _tree.process_frame

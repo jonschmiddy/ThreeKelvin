@@ -117,7 +117,7 @@ var _flee_ask: PanelContainer = null
 ## The open pile listing, or null. Built and torn down per open rather than
 ## hidden, because its contents change every single turn.
 var _pile_panel: PanelContainer = null
-## The open salvage transfer, or null. See `_open_transfer`.
+## The open container, or null. See `_open_hoard`.
 var _transfer: TransferView = null
 var _discard_pile: PileView
 var _end_button: Button
@@ -595,7 +595,8 @@ func _drawer_list(n: MapGen.MapNode) -> void:
 		return
 	_drawer.add_child(EncounterDrawer.head("%d THING%s OUT HERE WANT%s SOMETHING FROM YOU"
 		% [left.size(), "" if left.size() == 1 else "S",
-			"S" if left.size() == 1 else ""], _on_action))
+			"S" if left.size() == 1 else ""], _on_action,
+		Run.hoard_left(n, Run.sector_hoard(n, false)), _open_sector_loot))
 	var placed: Dictionary = {}
 	for i in left:
 		var opt := OptionTable.by_id(n.options[i])
@@ -692,8 +693,10 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	# Only when there is something loose here to take. An option that paid in
 	# credits and fuel has nothing to open, and a button that opens an empty
 	# container is a button that lies once per event.
-	if Run.bag_left(n) > 0 and not Run.dead:
-		var claim := Widgets.button("CLAIM %d" % Run.bag_left(n), _open_transfer)
+	var floor_h := Run.sector_hoard(n, false)
+	var on_floor := Run.hoard_left(n, floor_h)
+	if on_floor > 0 and not Run.dead:
+		var claim := Widgets.button("CLAIM %d" % on_floor, _open_sector_loot)
 		claim.custom_minimum_size = Vector2(120, 22)
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system until you jump.")
 		row.add_child(claim)
@@ -1395,19 +1398,24 @@ func _refresh() -> void:
 
 	if at_war:
 		_view.bind_self_drop(_on_self_drop)
-		_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered, _open_wreck)
+		_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 		_state.text = "ENGAGED - %d HOSTILE%s" % [
 			combat.alive().size(), "" if combat.alive().size() == 1 else "S"]
 		_refresh_player()
 		_refresh_enemy()
 		_refresh_hand()
 	else:
-		# A HULL IF ONE DIED HERE, otherwise the place itself. The wreck is the way
-		# into what it was carrying, so it stays until the thing is picked clean.
-		if n.wreck != &"" and Run.bag_left(n) > 0:
-			_view.show_wreck(n, _open_wreck)
+		# EVERY HULL THAT DIED HERE, and they stay whether or not anything is
+		# left in them. A wreck does not stop existing because you emptied it,
+		# and one that vanished when picked clean would say the sector had
+		# forgotten a fight happened in it.
+		var wrecks: Array = []
+		for raw in n.hoards:
+			if (raw as MapGen.Hoard).is_wreck():
+				wrecks.append(raw)
+		if not wrecks.is_empty():
+			_view.show_wrecks(wrecks, _open_hoard)
 		else:
-			n.wreck = &""
 			_view.show_area(n)
 		# The readout survives death on purpose. Hiding it at the moment the run
 		# ends is how a game stops explaining what just happened to you.
@@ -1443,6 +1451,17 @@ func _refresh_salvage() -> void:
 	#
 	# A found hull is different and stays: it is not in your hold, it is an
 	# offer, and the rail is where the offer lives.
+	# ONLY A HULL OPENS THIS NOW.
+	#
+	# The rail has been shedding jobs for a while: it stopped listing your cargo
+	# when every payout became a container, and the bag it summarised is now
+	# several containers reached through the hulls they came out of. What was
+	# left was a panel occupying the top right of every system to hold one
+	# button and a sentence.
+	#
+	# A found hull is a real reason to keep it: an OFFER rather than a
+	# possession, not a hold item so it cannot go in a container, and rare
+	# enough that a panel appearing for it reads as something having happened.
 	var mine := Run.found_hull != null
 	var bag_here := n.index if loose > 0 else -1
 
@@ -1463,29 +1482,7 @@ func _refresh_salvage() -> void:
 	# The bag names itself, because the rule is not obvious from looking at it
 	# and it is the rule that matters: the parts are not yours yet, and they stop
 	# being available the moment somebody reaches for one.
-	_salvage_head.text = "SALVAGE - ONE BAG, FIRST HAND IN" if loose > 0 \
-		else "A HULL, IF YOU WANT IT"
-
-	# THE BAG IS A CONTAINER, NOT A LIST. `MATERIALS_NOTE` 3.6: if something
-	# hands you a physical thing it hands you a place to reach into, with your
-	# own hold beside it, because 3.4 means no payout may force itself into a
-	# full hold.
-	#
-	# Rows could not carry that. A row says the name and a number; what you
-	# actually need to decide is whether a 2x2 will go anywhere, and the only
-	# honest answer to that is both grids side by side. So the rail keeps the
-	# summary and the reaching happens in `TransferView`.
-	if loose > 0:
-		var open := Widgets.button("OPEN SALVAGE - %d LEFT" % loose,
-			_open_transfer)
-		open.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		open.tooltip_text = Widgets.tip("Your hold on one side, what is loose out here on the other. Drag across what you want; drag your own back out to put it down.")
-		_salvage.add_child(open)
-		var note := UITheme.body(
-			"It stays in this system until you take it or you jump.",
-			UITheme.COLD, UITheme.FS_SMALL)
-		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_salvage.add_child(note)
+	_salvage_head.text = "A HULL, IF YOU WANT IT"
 
 	if Run.found_hull != null:
 		_salvage.add_child(Widgets.hull_row(Run.found_hull, "TRANSFER", 0, _on_salvage))
@@ -1698,7 +1695,7 @@ func _refresh_enemy() -> void:
 			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
 
 	_view.bind_self_drop(_on_self_drop)
-	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered, _open_wreck)
+	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 
 func _refresh_hand() -> void:
 	if not fighting():
@@ -1756,43 +1753,32 @@ func _refresh_hand() -> void:
 ##
 ## Built per open and torn down on close, the same as the pile listing, because
 ## what it shows changes every time something is taken out of it.
-func _open_transfer() -> void:
-	if _transfer != null:
+## Open one container: a hull you killed, or the system's own pile.
+##
+## ONE FUNCTION FOR BOTH, because they are the same thing with different
+## contents -- `MATERIALS_NOTE` 3.6 -- and the only difference is which door you
+## came through. The container names the popup, so a Rustjaw Cutter says so and
+## the floor says SECTOR LOOT.
+func _open_hoard(h: MapGen.Hoard) -> void:
+	if _transfer != null or h == null:
 		return
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null:
 		return
 	_transfer = TransferView.new()
 	add_child(_transfer)
-	_transfer.setup("SALVAGE", n, _close_transfer)
+	_transfer.setup(h, n, _close_transfer)
 
 
-## Clicking the hull you just killed.
+## The system's own pile, from the button beside PLOT NEXT JUMP.
 ##
-## The wreck IS the container: what a fight paid you is sitting in the thing you
-## shot, and the way to it is to go and look. Same popup as the sector's loose
-## salvage because it is the same idea -- `MATERIALS_NOTE` 3.6 -- and titled for
-## what you are standing over rather than generically, so opening a Rustjaw
-## Cutter says so.
-func _open_wreck() -> void:
-	if _transfer != null:
-		return
+## `false` so it is not created by being asked about: the floor exists once
+## something is on it, and a door onto a pile that does not exist yet is a door
+## that lies.
+func _open_sector_loot() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	if n == null or Run.bag_left(n) <= 0:
-		return
-	# THE NAME COMES OFF THE NODE, not off `combat`. By the time you click a
-	# wreck the fight is over and `Router.after_combat` has cleared the object --
-	# reading it there worked only while the popup was opened from the salvage
-	# rail during a fight, which is not how this is reached any more.
-	var name := "WRECK"
-	var t: EnemyTemplate = DB.enemies.get(n.wreck) if n.wreck != &"" else null
-	if t != null:
-		name = String(t.name).to_upper()
-	elif combat != null and not combat.enemies.is_empty():
-		name = String(combat.enemies[0].template.name).to_upper()
-	_transfer = TransferView.new()
-	add_child(_transfer)
-	_transfer.setup(name, n, _close_transfer)
+	if n != null:
+		_open_hoard(Run.sector_hoard(n, false))
 
 
 func _close_transfer() -> void:
