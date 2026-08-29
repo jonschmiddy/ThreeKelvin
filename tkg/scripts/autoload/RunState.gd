@@ -4,7 +4,7 @@ extends Node
 
 var hull: HullData
 var installed: Array[ModuleData] = []
-var cargo: Array[ModuleData] = []
+var cargo: Array[HoldItem] = []
 ## Which galaxy this run is flown in. Chosen once at the start so the chart
 ## is the same shape all the way through — a map that changes shape is not a
 ## map. 0 two-arm spiral, 1 barred, 2 four-arm.
@@ -444,7 +444,7 @@ func hold_full() -> bool:
 	return not has_room_for(one)
 
 ## Every cell a part covers at a given origin.
-func _cells_of(m: ModuleData, at: Vector2i) -> Array[Vector2i]:
+func _cells_of(m: HoldItem, at: Vector2i) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var f := m.footprint()
 	for dy in f.y:
@@ -477,7 +477,7 @@ func can_place(m: ModuleData, at: Vector2i) -> bool:
 ## append leaves a module at (-1,-1) — in the array, drawn nowhere, overlapping
 ## everything because it claims no cells — and that is a bug you find later, in
 ## the UI, looking like a part that vanished.
-func place_in_hold(m: ModuleData, at: Vector2i = -Vector2i.ONE) -> bool:
+func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 	var cell := at if at != -Vector2i.ONE else find_hold_slot(m)
 	if cell == -Vector2i.ONE or not can_place(m, cell):
 		return false
@@ -488,7 +488,7 @@ func place_in_hold(m: ModuleData, at: Vector2i = -Vector2i.ONE) -> bool:
 	return true
 
 ## Take a part out, releasing its cells.
-func take_from_hold(m: ModuleData) -> void:
+func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
 	m.hold_at = -Vector2i.ONE
 
@@ -504,7 +504,7 @@ func repack_hold() -> void:
 	all.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
 		return a.cells() > b.cells())
 	cargo.clear()
-	var lost: Array[ModuleData] = []
+	var lost: Array[HoldItem] = []
 	for m in all:
 		m.hold_at = -Vector2i.ONE
 	for m in all:

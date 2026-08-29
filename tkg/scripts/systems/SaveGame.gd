@@ -338,7 +338,7 @@ static func load_into_run() -> bool:
 	for m in Run.installed:
 		if m.mount < 0:
 			m.mount = Run.free_mount(m.slot)
-	var cargo: Array[ModuleData] = []
+	var cargo: Array[HoldItem] = []
 	for e in d.get("cargo", []):
 		var m := _module_from(e)
 		if m != null:

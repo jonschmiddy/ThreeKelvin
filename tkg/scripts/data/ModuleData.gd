@@ -1,5 +1,5 @@
 class_name ModuleData
-extends Resource
+extends HoldItem
 
 enum Slot { WEAPON, SYSTEM, UTILITY }
 ## THE GRADE LADDER, and it is a ladder of PROVENANCE as much as of power.
@@ -21,7 +21,6 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 	CONTRABAND }
 
 @export var id: StringName = &""
-@export var name: String = ""
 @export var manufacturer: StringName = &""   ## empty = unbranded (relic/organic)
 @export var slot: Slot = Slot.WEAPON
 @export var rarity: Rarity = Rarity.COMMON
@@ -124,7 +123,8 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 ## is read. Deliberately NOT keyed to rarity: a Legendary sight is still a sight,
 ## and making the good ones big would turn packing into a second power budget
 ## rather than a physical one.
-@export var size: Vector2i = Vector2i.ONE
+## Moved to `HoldItem`, which every hold function now takes. The vocabulary
+## note above is the reason it is worth having at all.
 
 ## Turned on its side in the hold. A 1x3 lance laid flat is a 3x1.
 ##
@@ -132,7 +132,7 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 ## survives being turned and turned back — and so a hull swap, which repacks the
 ## whole hold, does not slowly grind every long thing into whatever orientation
 ## it last happened to fit in.
-@export var turned: bool = false
+## Moved to `HoldItem`.
 
 ## MIRRORED ON THE HULL, top to bottom. Per fitted part, and nothing to do
 ## with `turned`: that one is about packing a shape into the hold, this is
@@ -142,25 +142,13 @@ enum Rarity { COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, EXOTIC, ARTIFACT,
 ## Drawing only. It moves no number, so nothing in the sim reads it.
 @export var flipped: bool = false
 
-## The shape it actually occupies right now. Everything that asks where a part
-## fits asks THIS; `size` is what it was authored as.
-func footprint() -> Vector2i:
-	var w := maxi(1, size.x)
-	var h := maxi(1, size.y)
-	return Vector2i(h, w) if turned else Vector2i(w, h)
-
-## Cells consumed. Convenience, and the one place the multiply is written.
-## Turning cannot change it, which is why the hold's totals need no rotation.
-func cells() -> int:
-	return maxi(1, size.x) * maxi(1, size.y)
-
 ## WHERE in the hold grid, top-left cell. (-1, -1) while not in the hold.
 ##
 ## Runtime state exactly as `mount` is, and stored for the same reason: the hold
 ## is a place you arrange, so a part has to come back where you left it. Deriving
 ## it from array order would re-pack the hold every time something was removed,
 ## which is the behaviour `mount` was changed away from.
-@export var hold_at: Vector2i = -Vector2i.ONE
+## Moved to `HoldItem`.
 
 ## Rolled at generation time
 @export var affixes: Array[AffixData] = []
