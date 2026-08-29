@@ -47,7 +47,9 @@ func run(tree: SceneTree) -> void:
 
 	_view = TransferView.new()
 	tree.root.add_child(_view)
-	_view.setup("SALVAGE", _node, func() -> void: pass)
+	# No sweep: this harness counts what is VISIBLE, and a reveal in progress
+	# would have it measuring an empty container and reporting a bug.
+	_view.setup("SALVAGE", _node, func() -> void: pass, false)
 	await tree.process_frame
 	await tree.process_frame
 

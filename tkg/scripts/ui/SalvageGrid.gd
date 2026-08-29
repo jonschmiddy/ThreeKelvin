@@ -51,6 +51,59 @@ var _high: int = 0
 ## is half of why it looked like the drop was being refused when it was being
 ## accepted and not drawn.
 var _beam: Rect2i = Rect2i()
+
+## HOW FAST THE SWEEP CROSSES THE CONTAINER, in cells per second.
+##
+## Fast enough that it is never a wait -- six cells of pile is under half a
+## second -- and slow enough that the items arrive in an order you can see.
+## The point is not suspense. It is that the pile READS as being found rather
+## than as having been there all along.
+const SCAN_CELLS_PER_SEC := 14.0
+## How far down the sweep has reached, in pixels, or -1 when it is not running.
+var _scan: float = -1.0
+
+
+## Sweep the container and let the contents in behind the line.
+##
+## Called once when the view opens, not on every refresh: this is what OPENING
+## something looks like, and replaying it each time a crate moved would make
+## every take feel like a new discovery.
+func scan() -> void:
+	_scan = 0.0
+	set_process(true)
+	_apply_scan()
+	queue_redraw()
+
+
+## Everything visible, now. For the harness, and for anything that needs the
+## container settled rather than pretty.
+func skip_scan() -> void:
+	_scan = -1.0
+	set_process(false)
+	_apply_scan()
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if _scan < 0.0:
+		set_process(false)
+		return
+	_scan += SCAN_CELLS_PER_SEC * float(CELL) * delta
+	if _scan >= float(_rows * CELL):
+		skip_scan()
+		return
+	_apply_scan()
+	queue_redraw()
+
+
+## An item is out of the dark once the line has passed the TOP of it, so a tall
+## crate appears as the sweep reaches it rather than after it has cleared it.
+func _apply_scan() -> void:
+	for c in get_children():
+		var ic := c as ItemIcon
+		if ic == null:
+			continue
+		ic.visible = _scan < 0.0 or ic.position.y < _scan
 ## Which entries are spoken for. A bag row someone already claimed still takes
 ## up space in the picture, because a hole where a part was is information and
 ## a silently reflowed grid is not.
@@ -181,6 +234,9 @@ func _rebuild() -> void:
 		var cell: Vector2i = _at.get(m, Vector2i.ZERO)
 		icon.position = Vector2(cell.x * CELL, cell.y * CELL)
 		icon.size = ModuleIcon.footprint_box(m)
+		if _scan >= 0.0:
+			# Mid-sweep, so a rebuild must not hand the dark back its items.
+			icon.visible = icon.position.y < _scan
 		if _spent.has(i):
 			# Still drawn, still in its cell, plainly not yours. See `_spent`.
 			icon.modulate = Color(0.42, 0.42, 0.48, 0.7)
@@ -214,6 +270,18 @@ func _draw() -> void:
 		draw_line(Vector2(0.0, y * CELL), Vector2(w, y * CELL),
 			UITheme.LINE, 1.0)
 	draw_rect(Rect2(Vector2.ZERO, Vector2(w, h)), UITheme.LINE, false, EDGE)
+	if _scan >= 0.0:
+		# THE UNSWEPT PART IS DARK, and the line itself is the brightest thing
+		# on the panel for the moment it is there. Two rectangles and a rule --
+		# the same flat vocabulary as everything else, and no shader.
+		var dark := Rect2(0.0, _scan, w, h - _scan)
+		if dark.size.y > 0.0:
+			draw_rect(dark, Color(0.04, 0.055, 0.08, 0.92), true)
+		var glow := UITheme.TRACTOR
+		draw_rect(Rect2(0.0, _scan - 6.0, w, 6.0),
+			Color(glow.r, glow.g, glow.b, 0.10), true)
+		draw_rect(Rect2(0.0, _scan - 1.0, w, 2.0),
+			Color(glow.r, glow.g, glow.b, 0.85), true)
 	if _beam.size.x <= 0:
 		return
 	# The same ink the hold uses for the same question, because the hold and the

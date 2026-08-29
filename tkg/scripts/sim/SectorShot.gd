@@ -16,6 +16,15 @@ extends RefCounted
 ## case.
 
 
+## How many of a grid's icons are actually on screen.
+func _showing(g: Control) -> int:
+	var n := 0
+	for c in g.get_children():
+		if c is ItemIcon and (c as Control).visible:
+			n += 1
+	return n
+
+
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	Rng.forced = 4242
@@ -145,7 +154,19 @@ func run(tree: SceneTree) -> void:
 		var st := Router.current as SectorScreen
 		if st != null:
 			st._open_transfer()
-			for iu in 8:
+			# MID-SWEEP, not after it. Three frames in, the line is partway
+			# down and the items behind it are the only ones showing -- which
+			# is the frame worth photographing, and the one a settled shot
+			# cannot tell apart from a broken container.
+			for iu in 3:
+				await RenderingServer.frame_post_draw
+			print("  sweep at %.0f of %d px, %d of %d items showing"
+				% [st._transfer._loose._scan,
+					st._transfer._loose._rows * SalvageGrid.CELL,
+					_showing(st._transfer._loose), st._transfer._loose._items.size()])
+			tree.root.get_texture().get_image().save_png("user://sector_scan.png")
+			print("wrote ", ProjectSettings.globalize_path("user://sector_scan.png"))
+			for iu2 in 60:
 				await RenderingServer.frame_post_draw
 		# CELLS CLAIMED TWICE, on both sides. Two items drawn over each other is
 		# what "glitchy" looks like, and it is a DATA question -- the icons are

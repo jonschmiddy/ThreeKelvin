@@ -27,29 +27,67 @@ var _title: Label
 var _count: Label
 var _node: MapGen.MapNode = null
 var _busy: bool = false
+## The two scroll frames, so their heights can follow their contents.
+var _scrolls: Array[ScrollContainer] = []
 var _on_close: Callable
 
 
 ## `title` names the container -- SALVAGE, the wreck's name, whatever handed it
 ## to you. `n` is the system whose bag this is.
-func setup(title: String, n: MapGen.MapNode, on_close: Callable) -> void:
+## `animate` is off for the harness, which counts VISIBLE icons -- a sweep in
+## progress would have it measuring an empty container and calling it a bug.
+func setup(title: String, n: MapGen.MapNode, on_close: Callable,
+		animate: bool = true) -> void:
 	_node = n
 	_on_close = on_close
 	_title.text = title
 	refresh()
+	if animate:
+		_loose.scan()
+	else:
+		_loose.skip_scan()
 
 
 func _init() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# THE BACKDROP, and it is only a backdrop now.
+	#
+	# This used to be the whole screen: an opaque full-rect panel with the grids
+	# laid out directly on it. That reads as a MODE -- the sector is gone and you
+	# are somewhere else -- when the thing it describes is a crate on the floor
+	# twenty metres away. Dimmed rather than replaced, so the system you are
+	# standing in is still visibly there behind what you are sorting.
+	#
+	# Still STOP, and that has not changed for a reason: nothing behind may be
+	# clicked through it, and a drop that misses both grids still has to land
+	# somewhere that knows what to do with it.
 	add_theme_stylebox_override("panel",
-		UITheme.flat(Color(0.031, 0.043, 0.067, 0.97), Color(0, 0, 0, 0), 0,
+		UITheme.flat(Color(0.031, 0.043, 0.067, 0.72), Color(0, 0, 0, 0), 0,
 			PAD, PAD))
-	# STOP, so nothing behind this can be clicked through it.
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	var centre := CenterContainer.new()
+	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	centre.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(centre)
+
+	# THE POPUP ITSELF. Sized to what is in it rather than to the window, with
+	# an edge, so it reads as an object on top of the sector.
+	#
+	# IGNORE, not STOP: the frame is decoration and must not become a drop
+	# target. Its children still receive everything -- the grids and their icons
+	# are what answer a drop -- and anything that misses them falls through to
+	# the backdrop, which is this view's own catch-all. A STOP frame would eat
+	# exactly the drops that are currently reaching it.
+	var popup := PanelContainer.new()
+	popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	popup.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 16, 18))
+	centre.add_child(popup)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 12)
-	add_child(col)
+	popup.add_child(col)
 
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
@@ -66,18 +104,14 @@ func _init() -> void:
 		if _on_close.is_valid():
 			_on_close.call()))
 
-	# CENTRED, both ways. Two grids pinned to the top-left of a 960x540 screen
-	# leave most of the panel as dead space and read as a dialog that failed to
-	# lay out rather than as a place you are standing.
-	var mid := CenterContainer.new()
-	mid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(mid)
-
+	# NO CENTRING LAYER ANY MORE. The popup is the size of what is in it and
+	# the popup is centred, so a second centring inside it was two answers to
+	# one question -- and it was what made the grids sit in the corner of a
+	# window-sized panel when this was full screen.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 40)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	mid.add_child(row)
+	col.add_child(row)
 
 	# LISTEN TO THE MODEL, NOT TO EACH THING THAT CHANGES IT.
 	#
@@ -215,8 +249,13 @@ func _side(label: String, body: Control) -> Control:
 	# rare case, and the one where a fixed box would hide the last row.
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, mini(360, 8 * HoldGrid.CELL))
+	# `custom_minimum_size` IS A FLOOR, NOT A CEILING, which I wrote a comment
+	# calling a ceiling and then watched clip both grids to two rows. It is set
+	# per refresh in `_cap_scrolls` to the content's own height, up to a cap --
+	# which is the only way to get "as tall as it needs, but no taller than the
+	# screen" out of a control whose minimum is the only number it takes.
 	scroll.size_flags_vertical = Control.SIZE_FILL
+	_scrolls.append(scroll)
 	scroll.add_child(body)
 	box.add_child(scroll)
 	return box
@@ -243,11 +282,12 @@ func _build_loose() -> Control:
 	# The hold has to redraw too, not just the container, which is why this is
 	# the view's refresh rather than the grid's own.
 	_loose.picked.connect(func(_m: HoldItem) -> void: refresh())
-	# FILLS ITS SIDE. Everything below the pile is still 'out here' as far as a
-	# hand is concerned, and a target you have to hit exactly is a target that
-	# does not exist when the pile happens to be full.
+	# FILLS ITS SIDE OF THE POPUP. It keeps the spare row `_layout` adds, so
+	# there is always somewhere to put a thing down, and it stretches to
+	# whichever side of the popup is taller so the two grids read as one pair
+	# rather than as two objects of different heights.
 	_loose.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_loose.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_loose.size_flags_vertical = Control.SIZE_FILL
 	return _loose
 
 
@@ -282,8 +322,24 @@ func refresh() -> void:
 			showing_spent[showing.size()] = true
 		showing.append(_node.bag[i])
 	_loose.setup(showing, showing_spent, 5)
+	_cap_scrolls()
 	var left := Run.bag_left(_node)
 	_count.text = "%d LEFT" % left if left > 0 else "PICKED CLEAN"
+
+
+## As tall as the taller grid, up to eight cells.
+##
+## Both frames get the SAME height so the two sides read as a pair rather than
+## as two objects that happen to be next to each other -- and so the empty half
+## of a nearly-full hold is still visibly a hold.
+func _cap_scrolls() -> void:
+	var want := 0.0
+	for s in _scrolls:
+		if s.get_child_count() > 0:
+			want = maxf(want, (s.get_child(0) as Control).get_combined_minimum_size().y)
+	want = clampf(want, HoldGrid.CELL * 3, HoldGrid.CELL * 8)
+	for s2 in _scrolls:
+		s2.custom_minimum_size = Vector2(0, want)
 
 
 ## Something dragged INTO your hold.
