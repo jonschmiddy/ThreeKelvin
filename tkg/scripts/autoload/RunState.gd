@@ -503,6 +503,30 @@ func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
 	m.hold_at = -Vector2i.ONE
 
+## Reach for one loose thing, without knowing which entry it is.
+##
+## The mirror of `jettison`, and it exists because the ICON knows what you
+## clicked and nothing else: it has an item, not a node and an index. Finding
+## those is the bag's business.
+##
+## Awaits, because `take_from_bag` does -- the claim is a round trip in a party,
+## and "one bag, first hand in" is only true if everybody asks the same question
+## in the same order.
+func take_item(m: HoldItem) -> bool:
+	if m == null:
+		return false
+	var n: MapGen.MapNode = node_at()
+	if n == null:
+		return false
+	# The first UNCLAIMED entry for this item. `find` alone would answer with a
+	# spent one -- the same trap `jettison` fell into -- because taking marks an
+	# index rather than removing the entry.
+	for i in n.bag.size():
+		if n.bag[i] == m and not n.taken.has(MapGen.OPTION_BAG + i):
+			return await take_from_bag(n, i)
+	return false
+
+
 ## Throw something overboard. It lands in the system you are standing in.
 ##
 ## `MATERIALS_NOTE` §3.5: jettison applies to EVERYTHING, not only materials. A

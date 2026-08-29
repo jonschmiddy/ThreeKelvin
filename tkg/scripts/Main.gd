@@ -591,6 +591,14 @@ func _ready() -> void:
 	# The salvage rail, driven through the real screen and a real jump — the one
 	# thing unit assertions on the rule cannot see:
 	#   godot --headless --path . -- stowtest
+	# The container, checked on what it DRAWS. Beside stowtest and for the same
+	# reason: it builds a real screen and needs a live tree, but no pixels.
+	#   godot --headless --path . -- transfertest
+	if "transfertest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/TransferTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	if "stowtest" in OS.get_cmdline_user_args():
 		_stow_test = load("res://scripts/sim/StowTest.gd").new()
 		_stow_test.run(get_tree())

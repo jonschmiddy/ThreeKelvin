@@ -100,10 +100,25 @@ class Ghost extends Control:
 ## your mind. The log line says where it went.
 func _gui_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
-	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_RIGHT:
+	if mb == null or not mb.pressed:
 		return
 	var m := held_item()
 	if m == null:
+		return
+	# SHIFT-CLICK BRINGS IT ABOARD, right-click puts it down. One gesture each
+	# way, for anyone who would rather not drag six things across a screen.
+	#
+	# Which one applies is decided by WHERE THE THING IS rather than by which
+	# button you pressed: `origin` is set when the icon is built, so a crate out
+	# here can only be taken and one in your hold can only be thrown. No state
+	# offers both, and none offers neither.
+	if mb.button_index == MOUSE_BUTTON_LEFT and mb.shift_pressed:
+		if origin != &"bag":
+			return
+		accept_event()
+		await Run.take_item(m)
+		return
+	if mb.button_index != MOUSE_BUTTON_RIGHT or origin == &"bag":
 		return
 	accept_event()
 	Run.jettison(m)

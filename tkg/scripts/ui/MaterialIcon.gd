@@ -30,9 +30,8 @@ func setup(m: MaterialData, from: StringName) -> void:
 	# the colour and its footprint is in the shape, but what a station will PAY is
 	# nowhere on the icon, and that is the number a packing decision turns on.
 	var shape := "%d x %d" % [m.size.x, m.size.y]
-	tooltip_text = Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s\n\n%s" % [
-		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text,
-		"Right-click to put it overboard here. It stays in this system until you jump."])
+	tooltip_text = Widgets.tip("%s\n%s \u00b7 %s \u00b7 SELLS FOR %d\n\n%s" % [
+		m.name.to_upper(), String(m.tier).to_upper(), shape, m.value, m.text])
 	queue_redraw()
 
 

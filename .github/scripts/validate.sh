@@ -193,6 +193,21 @@ if run_godot holdtest 120 --headless --path "$PROJECT" -- holdtest; then
 	fi
 fi
 
+step "The container draws what the ship actually holds"
+# THE VIEW, NOT THE MODEL. One bug was reported three times with three different
+# triggers -- a drop, a right-click, a drag that looked refused -- and every time
+# the model was already correct and the SCREEN had not been told. Every probe
+# written to chase it asserted on `Run.cargo` and `n.bag`, which is the half that
+# was never broken. This one counts icons, because an icon is what a player sees.
+if run_godot transfertest 120 --headless --path "$PROJECT" -- transfertest; then
+	if grep -qE '^transfertest: PASS' "$LOG_DIR/transfertest.log"; then
+		ok "the container"
+	else
+		bad "the container and the hold disagree about what you are carrying"
+		grep -E '^  FAIL|^transfertest' "$LOG_DIR/transfertest.log" | head -n 20 | sed 's/^/        /'
+	fi
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`
