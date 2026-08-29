@@ -30,9 +30,15 @@ func run(tree: SceneTree) -> void:
 
 	Rng.reseed(8899, 0)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	# Two parts in the hold, arriving the way loot actually arrives.
-	Run.stow(LootGen.roll_module(3))
-	Run.stow(LootGen.roll_module(3))
+	# TWO PARTS LOOSE IN THE SYSTEM, which is how loot arrives now. They used
+	# to be stowed straight into the hold and the rail opened because the hold
+	# was not empty -- but the rail no longer reports what you are carrying,
+	# only what is out there and unclaimed. The dismissal rule this test guards
+	# is unchanged; what opens the rail is not.
+	var here0: MapGen.MapNode = Run.node_at()
+	here0.bag.append(LootGen.roll_module(3))
+	here0.bag.append(LootGen.roll_module(3))
+	here0.bagged = true
 
 	Router.show_sector()
 	await tree.process_frame
@@ -67,10 +73,19 @@ func run(tree: SceneTree) -> void:
 	_ok("and it is STILL shut on the next screen", not _rail_visible())
 	_ok("without anything having been added to the hold",
 		Run.hauls == hauls_before)
-	_ok("and the hold still holds it", Run.cargo.size() == 2)
+	# THE SALVAGE IS STILL WHERE IT WAS. It was never in the hold -- it is loose
+	# in the system you left, and dismissing a rail must not have quietly taken
+	# it, dropped it, or claimed it on your behalf.
+	_ok("and the salvage is still loose where you left it",
+		Run.bag_left(here0) == 2)
 
 	# New loot must bring it back, or the fix has traded one silence for another.
-	Run.stow(LootGen.roll_module(4))
+	# A BAG AT A SYSTEM YOU HAVE NOT STOOD OVER, which is the case the rule is
+	# actually written around -- `salvage_hushed` keys the dismissal to a node,
+	# so arriving somewhere new with something loose in it has to speak up.
+	var here1: MapGen.MapNode = Run.node_at()
+	here1.bag.append(LootGen.roll_module(4))
+	here1.bagged = true
 	Router.show_sector()
 	await tree.process_frame
 	_ok("a fresh haul opens it again", _rail_visible())
@@ -89,6 +104,11 @@ func run(tree: SceneTree) -> void:
 	# So the test is inverted rather than deleted. A deleted assertion protects
 	# nothing; this one keeps the trap from being rebuilt, and would have failed
 	# on the day it was first written.
+	# SOMETHING IN THE HOLD TO BE UNTOUCHED. Nothing is stowed by this test any
+	# more -- the salvage stays loose in the system -- so without this the claim
+	# "the hold is untouched" would be made about an empty hold, which is the
+	# case that cannot fail.
+	Run.stow(LootGen.roll_module(3))
 	var before := Run.cargo.size()
 	_ok("nothing on the rail is spelled JETTISON", _button("JETTISON") == null)
 	var wipes: Button = null

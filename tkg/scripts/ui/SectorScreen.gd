@@ -1412,7 +1412,16 @@ func _refresh_salvage() -> void:
 
 	var n: MapGen.MapNode = Run.node_at()
 	var loose := Run.bag_left(n)
-	var mine := Run.cargo.size() > 0 or Run.found_hull != null
+	# NOT `Run.cargo`. This rail listed everything in your hold, which made
+	# sense when loot ARRIVED there -- something turned up and the rail was how
+	# you heard about it. Nothing arrives any more: 3.6 made every physical
+	# grant a container you reach into, so by the time a part is in your hold
+	# you have already picked it up on purpose and decided to keep it. Printing
+	# it again in the sector is the game telling you something you just did.
+	#
+	# A found hull is different and stays: it is not in your hold, it is an
+	# offer, and the rail is where the offer lives.
+	var mine := Run.found_hull != null
 	var bag_here := n.index if loose > 0 else -1
 
 	# STAYS DISMISSED ACROSS A JUMP. The state lives on `Run` because this screen
@@ -1433,7 +1442,7 @@ func _refresh_salvage() -> void:
 	# and it is the rule that matters: the parts are not yours yet, and they stop
 	# being available the moment somebody reaches for one.
 	_salvage_head.text = "SALVAGE - ONE BAG, FIRST HAND IN" if loose > 0 \
-		else "SALVAGE - STOW IT OR FIT IT"
+		else "A HULL, IF YOU WANT IT"
 
 	# THE BAG IS A CONTAINER, NOT A LIST. `MATERIALS_NOTE` 3.6: if something
 	# hands you a physical thing it hands you a place to reach into, with your
@@ -1467,10 +1476,7 @@ func _refresh_salvage() -> void:
 	# became your whole inventory, printed down the side of the sector, every
 	# time you arrived anywhere. The hold is where you look at what you are
 	# carrying; this is where you look at what just arrived and is fittable.
-	for m in Run.cargo:
-		if not (m is ModuleData):
-			continue
-		_salvage.add_child(Widgets.item_row(m, Widgets.ModuleContext.CARGO, 0, _on_salvage, "", deck))
+
 
 
 ## Your hull, under your hull.

@@ -97,7 +97,7 @@ func _side(label: String, body: Control) -> Control:
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.custom_minimum_size = Vector2(0, mini(360, 8 * HoldGrid.CELL))
-	scroll.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	scroll.size_flags_vertical = Control.SIZE_FILL
 	scroll.add_child(body)
 	box.add_child(scroll)
 	return box
@@ -111,6 +111,11 @@ func _build_hold() -> Control:
 
 func _build_loose() -> Control:
 	_loose = SalvageGrid.new()
+	# FILLS ITS SIDE. Everything below the pile is still 'out here' as far as a
+	# hand is concerned, and a target you have to hit exactly is a target that
+	# does not exist when the pile happens to be full.
+	_loose.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_loose.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	return _loose
 
 

@@ -39,7 +39,11 @@ var _spent: Dictionary = {}
 
 
 func _init() -> void:
-	mouse_filter = Control.MOUSE_FILTER_PASS
+	# STOP, not PASS. This control is a drop target across its whole area, and
+	# PASS hands the event on to whatever is behind it -- which in a scroll
+	# container is the scroll. The icons inside stay PASS so they can still be
+	# picked up while the grid underneath keeps catching drops.
+	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
 ## `spent` holds the indices already claimed -- they draw greyed and cannot be
@@ -87,8 +91,10 @@ func _layout() -> void:
 	# An empty row also says the thing that needs saying without a label -- that
 	# this is somewhere you can put something, not just somewhere you take from.
 	_rows += 1
+	# The MINIMUM is the picture. The control is allowed to be larger -- see
+	# `_draw` -- and in `TransferView` it is, because the whole column is the
+	# place you put things down.
 	custom_minimum_size = Vector2(_cols * CELL, _rows * CELL)
-	size = custom_minimum_size
 
 
 ## Scans down as far as it needs to. The container has no floor -- unlike a hold,
@@ -142,18 +148,31 @@ func _rebuild() -> void:
 	queue_redraw()
 
 
+## The lattice is drawn at its OWN extent, not at the control's.
+##
+## The control is now bigger than the grid on purpose -- it fills the whole
+## right-hand column so that dropping one of your things anywhere on that side
+## is jettison. Before, its rect was exactly the packed cells, and Godot only
+## offers a drop to the control under the pointer: with every cell occupied
+## there was no part of it left to aim at, so `_can_drop_data` was never asked.
+## The logic had been right the whole time and unreachable.
+##
+## So the picture and the target part company here. Everything below draws at
+## `_cols` by `_rows`; the control extends past it and is all target.
 func _draw() -> void:
+	var w := float(_cols * CELL)
+	var h := float(_rows * CELL)
 	for y in _rows:
 		for x in _cols:
 			draw_rect(Rect2(Vector2(x * CELL, y * CELL), Vector2(CELL, CELL)),
 				Color("#0b1017"), true)
 	for x in range(1, _cols):
-		draw_line(Vector2(x * CELL, 0.0), Vector2(x * CELL, size.y),
+		draw_line(Vector2(x * CELL, 0.0), Vector2(x * CELL, h),
 			UITheme.LINE, 1.0)
 	for y in range(1, _rows):
-		draw_line(Vector2(0.0, y * CELL), Vector2(size.x, y * CELL),
+		draw_line(Vector2(0.0, y * CELL), Vector2(w, y * CELL),
 			UITheme.LINE, 1.0)
-	draw_rect(Rect2(Vector2.ZERO, size), UITheme.LINE, false, EDGE)
+	draw_rect(Rect2(Vector2.ZERO, Vector2(w, h)), UITheme.LINE, false, EDGE)
 
 
 ## Which entry an item is, so a claim can name it. Identity, not equality --
