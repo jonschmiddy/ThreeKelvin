@@ -109,7 +109,13 @@ static func module_hint(m: ModuleData) -> String:
 		DB.manufacturer_name(m.manufacturer), ModuleData.slot_name(m.slot)])
 	var gauges: PackedStringArray = []
 	for g in AffixData.GAUGES:
-		var v: int = m.get(g)
+		# `get` on a name the object does not declare returns null, not zero --
+		# and `AffixData.GAUGES` is the AFFIX vocabulary, which is not the same
+		# set as a module's own fields. Assigning that straight into an `int`
+		# threw, which is why no tooltip ever appeared: the hook was reached
+		# every time and died before it could answer.
+		var raw: Variant = m.get(g)
+		var v: int = int(raw) if raw != null else 0
 		if v != 0:
 			gauges.append("%s%d %s" % ["+" if v > 0 else "", v,
 				String(g).to_upper()])

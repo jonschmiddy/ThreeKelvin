@@ -901,6 +901,24 @@ var _settings: SettingsMenu = null
 ## The game shipped with no way to exit — no quit action, no input map entries.
 ## Escape now opens the menu; F11 toggles fullscreen so a screen-sized window
 ## can never trap the player behind missing title-bar chrome again.
+## TAB IS THE SHIP, and it has to be caught in `_input` rather than in
+## `_unhandled_key_input`.
+##
+## Godot binds Tab to `ui_focus_next` and the GUI consumes it walking focus
+## between controls, so it never reaches the unhandled pass -- which is where I
+## put it first, and why it did nothing. Taking it here and marking it handled
+## costs the focus walk, which this game does not use: nothing is keyboard
+## navigable and every control is clicked.
+##
+## `show_ship` refuses during a fight on its own, so there is no guard here.
+func _input(event: InputEvent) -> void:
+	var k := event as InputEventKey
+	if k == null or not k.pressed or k.echo or k.keycode != KEY_TAB:
+		return
+	get_viewport().set_input_as_handled()
+	Router.show_ship()
+
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
@@ -912,16 +930,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			pass   ## nothing to pause: the launcher IS the menu
 		else:
 			toggle_menu()
-	elif k.keycode == KEY_TAB:
-		# TAB IS THE SHIP. It is the screen you go to most and the only one you
-		# reach for mid-thought -- "will that fit" is a question you ask while
-		# looking at something else.
-		#
-		# `Router.show_ship` refuses during a fight on its own, so this needs no
-		# guard of its own; and `_unhandled_key_input` means anything with focus
-		# that wants Tab -- a text field, a focused button walk -- has already
-		# had it.
-		Router.show_ship()
 	elif k.keycode == KEY_F11:
 		DisplaySettings.toggle_fullscreen()
 

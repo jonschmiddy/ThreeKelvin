@@ -119,5 +119,23 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 	var turned_shot := "turn" in OS.get_cmdline_user_args()
 	var path := "user://ship_%s%s%s.png" % [weight_name,
 		"_turn" if turned_shot else "", "_zoom" if zoomed else ""]
+	# CAN YOU READ WHAT IS BOLTED ON? The hull draws its parts rather than
+	# holding controls for them, so the tooltip is position-keyed -- and a hook
+	# that is never reached looks exactly like one that returns nothing.
+	var sh := Router.current as ShipScreen
+	if sh != null and sh._mountpts != null:
+		var mp := sh._mountpts
+		print("  mounts filter %d, spots %d" % [mp.mouse_filter, mp._spots.size()])
+		var asked := 0
+		var answered := 0
+		for i in mp._spots.size():
+			var held: ModuleData = mp._spots[i].held
+			if held == null:
+				continue
+			asked += 1
+			var at: Vector2 = mp._spots[i].at
+			if mp._get_tooltip(at) != "":
+				answered += 1
+		print("  %d of %d mounted parts answer a tooltip" % [answered, asked])
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))

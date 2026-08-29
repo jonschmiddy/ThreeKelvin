@@ -65,9 +65,11 @@ func setup(h: MapGen.Hoard, n: MapGen.MapNode, on_close: Callable,
 	_node = n
 	_hoard = h
 	_on_close = on_close
-	# The container names itself. A wreck is called after the hull it was, and
-	# the system's own pile is called what it is.
-	_title.text = h.label if h != null else "SALVAGE"
+	# WHAT IT IS, THEN WHOSE. The heading was the ship's name and the column
+	# said SALVAGE, which read as a screen about the Rustjaw Cutter that
+	# happened to contain salvage -- when it is a salvage screen that happens to
+	# be about a Rustjaw Cutter. The name belongs over the grid it names.
+	_title.text = "SALVAGE"
 	refresh()
 	# ONCE PER CONTAINER. The sweep is what OPENING something looks like, and a
 	# wreck you have already been through is not being opened -- replaying it
@@ -367,7 +369,7 @@ func refresh() -> void:
 			showing_spent[showing.size()] = true
 		showing.append(_hoard.items[i])
 	_loose.setup(showing, showing_spent, 5)
-	_loose_label.text = _hoard.column_label() if _hoard != null else "SALVAGE"
+	_loose_label.text = _hoard.label if _hoard != null else "SECTOR LOOT"
 
 
 ## Something dragged INTO your hold.

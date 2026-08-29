@@ -279,12 +279,10 @@ func bind(i: int, e, telegraphed: bool) -> void:
 		else "%d / %d" % [e.hp, e.max_hp]
 	if _dead and opened.is_valid():
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
-		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		tooltip_text = Widgets.tip(
 			"%s\n\nDead in the water and still loaded. Open it." % e.template.name.to_upper())
 	else:
 		_hp.remove_theme_color_override("font_color")
-		mouse_default_cursor_shape = Control.CURSOR_ARROW
 		tooltip_text = ""
 	_hp.add_theme_color_override("font_color",
 		Color("#4a5c72") if _dead else UITheme.GOOD)
@@ -327,6 +325,16 @@ func _gui_input(e: InputEvent) -> void:
 	if opened.is_valid() and _on_hull(mb.position):
 		accept_event()
 		opened.call()
+
+
+## AND SO DOES THE CURSOR. `mouse_default_cursor_shape` is a property of the
+## whole control, and the control is most of the arena -- so a pointing hand
+## appeared halfway across the screen from the only thing it could point at.
+## Godot asks this per position, which is the shape the question actually has.
+func _get_cursor_shape(at: Vector2) -> CursorShape:
+	if _dead and opened.is_valid() and _on_hull(at):
+		return Control.CURSOR_POINTING_HAND
+	return Control.CURSOR_ARROW
 
 
 ## And the tooltip only exists over the hull, for the same reason. Godot asks

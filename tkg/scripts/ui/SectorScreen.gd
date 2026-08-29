@@ -576,6 +576,19 @@ func _drawer_simple(line: String, label: String) -> void:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(t)
+	# A DOOR HERE TOO. This drawer is the START and the CORE -- places with one
+	# thing to do -- and it had no SECTOR LOOT button, so anything jettisoned in
+	# the first system went onto a floor with no way back to it. It did not
+	# vanish; there was nowhere to stand that could see it, which is worse,
+	# because the game looked like it had eaten the thing.
+	var n_here: MapGen.MapNode = Run.node_at()
+	var on_floor := Run.hoard_left(n_here, Run.sector_hoard(n_here, false))
+	if on_floor > 0:
+		var loot := Widgets.button("SECTOR LOOT - %d" % on_floor,
+			_open_sector_loot)
+		loot.custom_minimum_size = Vector2(150, 24)
+		loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(loot)
 	var b := Widgets.button(label, _on_action)
 	# 150, not 210. It was sized to balance a drawer that was mostly empty around
 	# it; against a bar the width of its own label it read as a slab.
