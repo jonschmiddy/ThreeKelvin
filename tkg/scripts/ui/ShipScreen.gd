@@ -459,6 +459,16 @@ func _build() -> void:
 	_storage = HoldGrid.new()
 	_storage.dropped.connect(_on_hold_drop)
 	holdcol.add_child(_storage)
+	# THE HATCH, under the hold it empties. Right-click has always done this and
+	# nothing on this screen said so; a hatch is the same instruction drawn
+	# rather than written. See `JettisonBin`.
+	var binrow := HBoxContainer.new()
+	binrow.add_theme_constant_override("separation", 8)
+	binrow.alignment = BoxContainer.ALIGNMENT_END
+	var bin := JettisonBin.new()
+	bin.dumped.connect(func(_m: HoldItem) -> void: _refresh())
+	binrow.add_child(bin)
+	holdcol.add_child(binrow)
 	midrow.add_child(holdcol)
 
 	left.add_child(midrow)

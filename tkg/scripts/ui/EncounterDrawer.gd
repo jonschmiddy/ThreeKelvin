@@ -52,10 +52,18 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(l)
-	if loose > 0 and on_loot.is_valid():
-		var loot := Widgets.button("SECTOR LOOT - %d" % loose, on_loot)
+	# ALWAYS THERE, GREYED WHEN EMPTY, and no count on it.
+	#
+	# A button that appears and disappears moves the two beside it, so the jump
+	# is somewhere different depending on whether you happen to have dropped
+	# something -- and a number on it was a running total of a thing you open to
+	# look at anyway. Greyed says "nothing here" and keeps the row still.
+	if on_loot.is_valid():
+		var loot := Widgets.button("SECTOR LOOT", on_loot)
 		loot.custom_minimum_size = BTN
-		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays until you jump.")
+		loot.disabled = loose <= 0
+		loot.tooltip_text = Widgets.tip("What is loose in this system that no hull is holding: what an event paid out, and anything you have put down here. It stays until you jump."
+			if loose > 0 else "Nothing is loose in this system.")
 		row.add_child(loot)
 	var b := Widgets.button("PLOT NEXT JUMP", on_jump)
 	b.custom_minimum_size = BTN

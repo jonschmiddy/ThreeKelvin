@@ -90,6 +90,16 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 	return panel
 
 
+## How wide a part's tooltip is, always.
+##
+## Wide enough for the longest affix sentence to take two lines rather than
+## five, and narrow enough that it does not read as a second panel. A tooltip
+## that changes shape as you move along a row of mounts reads as four different
+## panels rather than as one reading four things -- and an affix is a sentence
+## while a gauge line is three words, so left alone they differ by a factor of
+## three.
+const TIP_W := 196
+
 ## A part, as a PANEL, for a tooltip.
 ##
 ## Godot tooltips are one label of plain text -- no rules, no colour, and no
@@ -108,6 +118,7 @@ static func module_tip_panel(m: ModuleData) -> Control:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10))
+	panel.custom_minimum_size = Vector2(TIP_W, 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)
 	panel.add_child(box)
@@ -122,9 +133,17 @@ static func module_tip_panel(m: ModuleData) -> Control:
 	top.add_child(UITheme.body(ModuleData.rarity_name(m.rarity),
 		ModuleData.rarity_ink(m.rarity), UITheme.FS_SMALL))
 
-	box.add_child(UITheme.body("%s · %s · %d x %d" % [
-		DB.manufacturer_name(m.manufacturer), ModuleData.slot_name(m.slot),
-		m.size.x, m.size.y], UITheme.COLD, UITheme.FS_SMALL))
+	# THE MANUFACTURER IN ITS OWN COLOUR, which is the one the plate's edge and
+	# the hold's border already carry -- so the word and the stripe you have been
+	# reading it off all game are visibly the same fact.
+	var meta := HBoxContainer.new()
+	meta.add_theme_constant_override("separation", 5)
+	box.add_child(meta)
+	meta.add_child(UITheme.body(DB.manufacturer_name(m.manufacturer),
+		DB.manufacturer_colour(m.manufacturer), UITheme.FS_SMALL))
+	meta.add_child(UITheme.body("· %s · %d x %d" % [
+		ModuleData.slot_name(m.slot), m.size.x, m.size.y],
+		UITheme.COLD, UITheme.FS_SMALL))
 
 	var gauges: PackedStringArray = []
 	for g in AffixData.GAUGES:
@@ -144,7 +163,7 @@ static func module_tip_panel(m: ModuleData) -> Control:
 			var al := UITheme.body("%s — %s" % [a.name, a.text], UITheme.EMBER,
 				UITheme.FS_SMALL)
 			al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			al.custom_minimum_size = Vector2(CardView.CARD_W + 40, 0)
+			al.custom_minimum_size = Vector2(TIP_W - 20, 0)
 			box.add_child(al)
 
 	var cards: PackedStringArray = []

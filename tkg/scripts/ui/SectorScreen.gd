@@ -588,12 +588,11 @@ func _drawer_simple(line: String, label: String) -> void:
 	# because the game looked like it had eaten the thing.
 	var n_here: MapGen.MapNode = Run.node_at()
 	var on_floor := Run.hoard_left(n_here, Run.sector_hoard(n_here, false))
-	if on_floor > 0:
-		var loot := Widgets.button("SECTOR LOOT - %d" % on_floor,
-			_open_sector_loot)
-		loot.custom_minimum_size = EncounterDrawer.BTN
-		loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(loot)
+	var loot := Widgets.button("SECTOR LOOT", _open_sector_loot)
+	loot.custom_minimum_size = EncounterDrawer.BTN
+	loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	loot.disabled = on_floor <= 0
+	row.add_child(loot)
 	var b := Widgets.button(label, _on_action)
 	b.custom_minimum_size = EncounterDrawer.BTN
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
