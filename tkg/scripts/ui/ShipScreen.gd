@@ -446,8 +446,25 @@ func _build() -> void:
 	var holdcol := VBoxContainer.new()
 	holdcol.add_theme_constant_override("separation", 2)
 	holdcol.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	# THE HEADING AND THE HATCH SHARE A ROW.
+	#
+	# It was under the grid, which put it off the bottom of the screen on a
+	# heavy hull -- the hold is five rows there, and the panel had no more to
+	# give. Up here it is above the fold whatever you are flying, and it is
+	# beside the thing it acts on rather than after it.
+	var holdhead := HBoxContainer.new()
+	holdhead.add_theme_constant_override("separation", 8)
 	_hold = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	holdcol.add_child(_hold)
+	_hold.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	holdhead.add_child(_hold)
+	var headgap := Control.new()
+	headgap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	headgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holdhead.add_child(headgap)
+	var bin := JettisonBin.new()
+	bin.dumped.connect(func(_m: HoldItem) -> void: _refresh())
+	holdhead.add_child(bin)
+	holdcol.add_child(holdhead)
 	# A heading wants air under it. Every other block on this panel gets it from
 	# the gap between a label and the first ROW of what it labels; the hold's
 	# first row is a hard-edged plate that butts straight up under the text
@@ -459,16 +476,7 @@ func _build() -> void:
 	_storage = HoldGrid.new()
 	_storage.dropped.connect(_on_hold_drop)
 	holdcol.add_child(_storage)
-	# THE HATCH, under the hold it empties. Right-click has always done this and
-	# nothing on this screen said so; a hatch is the same instruction drawn
-	# rather than written. See `JettisonBin`.
-	var binrow := HBoxContainer.new()
-	binrow.add_theme_constant_override("separation", 8)
-	binrow.alignment = BoxContainer.ALIGNMENT_END
-	var bin := JettisonBin.new()
-	bin.dumped.connect(func(_m: HoldItem) -> void: _refresh())
-	binrow.add_child(bin)
-	holdcol.add_child(binrow)
+
 	midrow.add_child(holdcol)
 
 	left.add_child(midrow)

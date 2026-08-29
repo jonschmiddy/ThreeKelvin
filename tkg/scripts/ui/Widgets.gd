@@ -98,7 +98,7 @@ static func material_row(m: MaterialData, ctx: ModuleContext, price: int,
 ## panels rather than as one reading four things -- and an affix is a sentence
 ## while a gauge line is three words, so left alone they differ by a factor of
 ## three.
-const TIP_W := 196
+const TIP_W := 168
 
 ## A part, as a PANEL, for a tooltip.
 ##
@@ -116,8 +116,11 @@ const TIP_W := 196
 ## something else.
 static func module_tip_panel(m: ModuleData) -> Control:
 	var panel := PanelContainer.new()
+	# NO BORDER. A tooltip is already separated from what is under it by
+	# floating over it, and a second frame around a panel that is already a
+	# panel reads as a window rather than as an answer.
 	panel.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 8, 10))
+		UITheme.flat(UITheme.PANEL2, Color(0, 0, 0, 0), 0, 8, 10))
 	panel.custom_minimum_size = Vector2(TIP_W, 0)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 3)

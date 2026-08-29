@@ -15,10 +15,12 @@ extends Control
 
 signal dumped(item: HoldItem)
 
-## SQUARE, because the mark on it is. 56 is the hold's own cell and a half, so
-## it sits under the grid as something the same kind of size as what goes in it.
-const W := 56
-const H := 56
+## SQUARE, because the mark on it is, and small because it sits on a heading
+## rather than under a grid. 20 is the row's own height: any taller and the
+## label beside it stops being the tallest thing in the line, which is what
+## makes a heading read as one.
+const W := 20
+const H := 20
 
 ## Lit while something is being carried over it.
 var _hot: bool = false
@@ -71,10 +73,10 @@ func _draw() -> void:
 	# work out). A cross is the one mark nobody has to read -- it means the
 	# thing under it stops -- and red is the only colour in this palette that
 	# has never meant anything else.
-	var pad := 14.0
+	var pad := 5.0
 	var c := UITheme.LEAVE if not _hot else Color("#e0503c")
 	var span := size - Vector2(pad, pad) * 2.0
-	var step := 3.0
+	var step := 2.0
 	# Drawn as squares along both diagonals rather than as lines: a rotated
 	# line anti-aliases, and nothing else on this screen has a soft edge.
 	var n := int(minf(span.x, span.y) / step)
@@ -82,8 +84,8 @@ func _draw() -> void:
 		var t := float(i) / float(maxi(1, n))
 		var x := pad + span.x * t
 		var y := pad + span.y * t
-		draw_rect(Rect2(roundf(x) - 1.5, roundf(y) - 1.5, 3.0, 3.0), c, true)
-		draw_rect(Rect2(roundf(x) - 1.5, roundf(size.y - y) - 1.5, 3.0, 3.0),
+		draw_rect(Rect2(roundf(x) - 1.0, roundf(y) - 1.0, 2.0, 2.0), c, true)
+		draw_rect(Rect2(roundf(x) - 1.0, roundf(size.y - y) - 1.0, 2.0, 2.0),
 			c, true)
 
 	draw_rect(box, edge, false, 2.0 if _hot else 1.0)
