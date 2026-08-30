@@ -697,7 +697,7 @@ func _drawer_option(n: MapGen.MapNode) -> void:
 	row.add_theme_constant_override("separation", 7)
 	var choices: Array = opt.get("choices", [])
 	for j in choices.size():
-		row.add_child(EncounterDrawer.choice_button(
+		row.add_child(EncounterDrawer.choice_card(
 			n, _open, j, choices[j] as Dictionary, opt, _take_choice))
 	_drawer.add_child(row)
 

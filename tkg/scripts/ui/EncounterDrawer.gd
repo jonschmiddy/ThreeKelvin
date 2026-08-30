@@ -57,17 +57,30 @@ const BTN := Vector2(94, 20)
 ## it cannot pad itself from its own stylebox, so the row anchored its contents
 ## to the full rect and had no margins at all. This sizes to its contents and
 ## the stylebox does the spacing, which is what makes the padding uniform.
+## `press` TAKES NO ARGUMENTS. It was an index and a callable to hand it to,
+## which only suited the one caller; a choice needs an option AND a choice
+## number. Binding at the call site means the plate does not have to know what
+## kind of thing it is pressing.
 class OptionCard extends PanelContainer:
-	var index: int = 0
-	var on_open: Callable
-	## The option's tag colour, on the left edge. See `tag_colour`.
+	var press: Callable
+	## The left edge stripe: what kind of thing this is, or what stands in the
+	## way of it. See `tag_colour` and `choice_card`.
 	var edge: Color = UITheme.LINE
+	## A choice you cannot afford still says what it wants -- RULING 8 -- so it
+	## is drawn and dimmed rather than hidden, and does not answer a click.
+	var live: bool = true
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	func bar(on: bool) -> void:
+		live = on
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if on \
+			else Control.CURSOR_ARROW
+		dress(false)
 
 	## THE FRAME IS STATE AND THE STRIPE IS IDENTITY, and putting both on the
 	## border was the mistake. `tag_colour` spans a bright cyan for a signal, a
@@ -80,11 +93,17 @@ class OptionCard extends PanelContainer:
 	## insets its whole child by the stylebox margins, so the spacing moved to a
 	## MarginContainer around the text only.
 	func dress(hot: bool) -> void:
+		if not live:
+			add_theme_stylebox_override("panel", UITheme.flat(
+				UITheme.PANEL, UITheme.LINE.darkened(0.3), 0, 0, 0))
+			return
 		add_theme_stylebox_override("panel", UITheme.flat(
 			UITheme.PANEL2.lightened(0.06) if hot else UITheme.PANEL2,
 			UITheme.COLD if hot else UITheme.LINE, 0, 0, 0))
 
 	func _notification(what: int) -> void:
+		if not live:
+			return
 		if what == NOTIFICATION_MOUSE_ENTER:
 			dress(true)
 		elif what == NOTIFICATION_MOUSE_EXIT:
@@ -94,9 +113,48 @@ class OptionCard extends PanelContainer:
 		var mb := e as InputEventMouseButton
 		if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 			return
-		if on_open.is_valid():
-			on_open.call(index)
+		if live and press.is_valid():
+			press.call()
 		accept_event()
+
+
+## The plate itself, without any opinion about what goes on it.
+##
+## Three callers now: an encounter, a choice, and whatever is next. Each one
+## fills the box; none of them repeats the stripe, the padding or the hover.
+static func plate(stripe: Color, on_press: Callable) -> Array:
+	var card := OptionCard.new()
+	card.press = on_press
+	card.edge = stripe
+	card.dress(false)
+	var lane := HBoxContainer.new()
+	lane.add_theme_constant_override("separation", 0)
+	lane.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# WHAT KIND OF THING THIS IS, at two pixels. An untagged option gets `LINE`
+	# back, which is the frame's own colour -- so no tag draws no stripe rather
+	# than drawing a grey one that means nothing.
+	var tag := ColorRect.new()
+	tag.color = stripe
+	tag.custom_minimum_size = Vector2(2, 0)
+	tag.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lane.add_child(tag)
+	var pad := MarginContainer.new()
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 7)
+	for side2 in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side2, 9)
+	lane.add_child(pad)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 5)
+	# THROUGH TO THE PLATE. The card is the thing that answers a click, and a
+	# label that ate the press would leave dead spots over the words.
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.add_child(col)
+	card.add_child(lane)
+	return [card, col]
 
 
 
@@ -164,36 +222,8 @@ static func option_row(n: MapGen.MapNode, left: Array,
 ## `n` is not a parameter any more for the same reason: everything the old row
 ## needed the system for was in that column.
 static func option_card(i: int, opt: Dictionary, on_open: Callable) -> Control:
-	var card := OptionCard.new()
-	card.index = i
-	card.on_open = on_open
-	card.edge = tag_colour(opt)
-	card.dress(false)
-	var lane := HBoxContainer.new()
-	lane.add_theme_constant_override("separation", 0)
-	lane.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# WHAT KIND OF THING THIS IS, at two pixels. An untagged option gets `LINE`
-	# back, which is the frame's own colour -- so no tag draws no stripe rather
-	# than drawing a grey one that means nothing.
-	var tag := ColorRect.new()
-	tag.color = card.edge
-	tag.custom_minimum_size = Vector2(2, 0)
-	tag.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lane.add_child(tag)
-	var pad := MarginContainer.new()
-	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 7)
-	for side2 in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side2, 9)
-	lane.add_child(pad)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 5)
-	# THROUGH TO THE PLATE. The card is the thing that answers a click, and a
-	# label that ate the press would leave dead spots over the words.
-	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var made := plate(tag_colour(opt), on_open.bind(i))
+	var col: VBoxContainer = made[1]
 	var nm := UITheme.body(String(opt.get("title", "")).to_upper(),
 		UITheme.ICE, UITheme.FS_SMALL)
 	# WRAPPED, NOT CLIPPED. A fixed name column is what the bar had, and a long
@@ -205,9 +235,7 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable) -> Control:
 	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lead.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(lead)
-	pad.add_child(col)
-	card.add_child(lane)
-	return card
+	return made[0]
 
 
 
@@ -287,18 +315,27 @@ static func tag_colour(opt: Dictionary) -> Color:
 					&"signal": return Color("#8ec8e6")
 					_: return TAG_CONTRACT
 	return UITheme.LINE
-static func choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
-		opt: Dictionary, on_take: Callable) -> Control:
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 1)
-	var b := Widgets.button(String(c.get("label", "…")).to_upper(),
-		func() -> void: on_take.call(i, j))
-	b.custom_minimum_size = Vector2(150, 22)
+## THE SAME PLATE THE ENCOUNTER WAS, one screen further in.
+##
+## These were stock buttons with a caption underneath: a grey rectangle, a word
+## in the middle of it, and the number that the whole decision turns on floating
+## outside the thing you were about to press. Three of them in a row read as a
+## form. On a plate the label and its number are one object, the number is INSIDE
+## what you are committing to, and the OPTION state matches the list you reached
+## it from -- the same shape means the same kind of act.
+##
+## The stripe is what stands in the way. `tag_colour` answers "what kind of thing
+## is this" for an encounter; here there is only one kind of thing and the useful
+## fact is the gate: red when you cannot pay, the band's own colour when it is a
+## roll, the contact colour when it opens a fight.
+static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
+		_opt: Dictionary, on_take: Callable) -> Control:
 	# RULING 8: an unaffordable hard gate greys and says by how much. A gate is a
 	# meter payment and 40 credits genuinely is not 60 -- but a disabled thing
 	# still says what it wants and how far off you are.
 	var note := ""
 	var tone := UITheme.COLD
+	var open := true
 	# A GATE ON WHAT YOU ARE CARRYING, not on what you can pay. `holding_pattern`
 	# trades an exotic-tier item to a queue that has been waiting long enough to
 	# want one, and the handoff asked for the choice to be HIDDEN if this could
@@ -311,13 +348,13 @@ static func choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 		var have := Run.material(mid)
 		note = "1 %s · you have %d" % [String(mid), have]
 		if have < 1:
-			b.disabled = true
+			open = false
 			tone = UITheme.FLARE
 	elif c.has("cost_credits"):
 		var cost := int(c.cost_credits)
 		note = "%d credits · you have %d" % [cost, Run.credits]
 		if Run.credits < cost:
-			b.disabled = true
+			open = false
 			tone = UITheme.FLARE
 	elif c.has("check"):
 		# RULING 3: the odds are on the button, so there is no confirm step. A
@@ -328,10 +365,25 @@ static func choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	elif bool(c.get("fight", false)) or opens_fight(c):
 		note = contact_reading(n)
 		tone = UITheme.THEM
-	col.add_child(b)
+	var made := plate(tone, on_take.bind(i, j))
+	var card: OptionCard = made[0]
+	var col: VBoxContainer = made[1]
+	# TALLER THAN ITS WORDS. A plate the exact height of one line and a caption
+	# is a button with extra steps; the room is what makes it a thing you press
+	# rather than a row you read.
+	card.custom_minimum_size = Vector2(150, 44)
+	if not open:
+		card.bar(false)
+	var lb := UITheme.body(String(c.get("label", "…")).to_upper(),
+		UITheme.ICE if open else UITheme.COLD, UITheme.FS_SMALL)
+	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(lb)
 	if note != "":
-		col.add_child(UITheme.body(note, tone, UITheme.FS_SMALL))
-	return col
+		var nl := UITheme.body(note, tone, UITheme.FS_SMALL)
+		nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		col.add_child(nl)
+	return card
 
 
 ## RULING 5 — what a fight row prints, and it is something the player bought.

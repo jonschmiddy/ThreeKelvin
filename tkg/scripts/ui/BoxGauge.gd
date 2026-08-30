@@ -37,6 +37,20 @@ const CELLS := 10
 const CELL := Vector2(6, 9)
 const GAP := 1
 
+## THE BILL IS COUNTABLE UP TO A POINT, AND THEN IT IS A NUMBER.
+##
+## Past the cap this gauge draws one cell per point, which is the right unit --
+## each is one hull at end of turn. It was drawing ALL of them: 41 heat against
+## a cap of 14 is twenty-seven cells, 189 pixels of gauge grown out of a widget
+## whose `custom_minimum_size` is a floor, and the HUD row it sits in pushed
+## CREDITS, FUEL and two buttons off the right edge of the screen.
+##
+## Ten, then a tick, which is exactly what `EnemySlot.BracePips` does with the
+## same problem: more than the strip can hold says so rather than lying about
+## the count. Nothing is lost -- `HudBar` prints "41 - 27 HULL" beside it, and
+## by twenty-seven over you are reading the number, not counting boxes.
+const OVER_MAX := 10
+
 var mode: Mode = Mode.HEAT
 var cap: int = 12
 var value: int = 0
@@ -73,10 +87,12 @@ func _slots() -> int:
 	return cap if mode == Mode.ENERGY else CELLS
 
 func _width() -> float:
-	var over := maxi(0, value - cap)
+	var over := mini(maxi(0, value - cap), OVER_MAX)
 	var w := _slots() * (CELL.x + GAP)
 	if over > 0:
 		w += 4 + over * (CELL.x + GAP)
+	if maxi(0, value - cap) > OVER_MAX:
+		w += 4
 	return w
 
 func _draw() -> void:
@@ -97,9 +113,13 @@ func _draw() -> void:
 	# The divider is the cap line. Everything right of it is self-damage.
 	draw_rect(Rect2(Vector2(x + 1, y - 2), Vector2(1, CELL.y + 4)), UITheme.CHILL, true)
 	x += 4
-	for i in over:
+	for i in mini(over, OVER_MAX):
 		_cell(Vector2(x, y), 3)
 		x += CELL.x + GAP
+	# AND THE REST IS A TICK. See `OVER_MAX`.
+	if over > OVER_MAX:
+		draw_rect(Rect2(Vector2(x + 1, y + 1), Vector2(2, CELL.y - 2)),
+			UITheme.FLARE, true)
 
 ## Set from hp and max_hp.
 ##
