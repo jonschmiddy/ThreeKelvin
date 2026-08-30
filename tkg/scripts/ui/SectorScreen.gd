@@ -175,7 +175,6 @@ var _open: int = -1
 var _res: Dictionary = {}
 var _res_band: SkillCheck.Band = SkillCheck.Band.MET
 var _res_checked: bool = false
-var _res_got: String = ""
 ## What the roll was worth, READ BEFORE THE OUTCOME RAN. See
 ## `SkillCheck.odds_line`: an outcome that takes hull changes what a HULL check
 ## was worth, so asking afterwards prints the odds of a roll nobody made.
@@ -762,7 +761,7 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	_drawer.add_child(EncounterDrawer.outcome(opt,
 		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
 		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
-		_res_odds, String(_res.get("text", "")), _res_bill, _res_got))
+		_res_odds, String(_res.get("text", "")), _res_bill))
 
 
 
@@ -813,10 +812,11 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
 	_res = res
-	# AND AFTER `pay`, WHICH ALSO SPENDS. Materials still cash out through
-	# `MaterialTable.grant` today, so a bill closed before it ran would miss
-	# the credits an outcome paid you in the one way it is still allowed to.
-	_res_got = OptionTable.pay(res, n)
+	# AND AFTER `pay`, WHICH CAN STILL MOVE THE LEDGER. It does not cash
+	# materials out any more -- they are crates in a container -- but it is the
+	# one call that turns a payload into what the payload promised, so the books
+	# close on the far side of it or they close early.
+	OptionTable.pay(res, n)
 	_res_bill = EncounterDrawer.bill_rows(was, Run.ledger())
 	_outcomes[i] = String(res.get("text", ""))
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,

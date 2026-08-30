@@ -497,7 +497,7 @@ static func bill_rows(before: Dictionary, after: Dictionary) -> Array:
 ## It also names the encounter, which the old one did not: three clicks after
 ## you opened it, the only thing on screen was an outcome with nothing attached.
 static func outcome(opt: Dictionary, word: String, ink: Color, odds: String,
-		said: String, rows: Array, got: String) -> Control:
+		said: String, rows: Array) -> Control:
 	var card := PanelContainer.new()
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.add_theme_stylebox_override("panel",
@@ -561,11 +561,12 @@ static func outcome(opt: Dictionary, word: String, ink: Color, odds: String,
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(body)
-	# WHAT CAME OUT OF IT AS AN OBJECT, which the rail cannot hold: the rail is
-	# four numbers and a material is a thing with a name.
-	if got != "":
-		col.add_child(UITheme.body(got.to_upper(), UITheme.GOOD,
-			UITheme.FS_SMALL))
+	# AND IT DOES NOT NAME WHAT IT PAID YOU. It used to, in green under the
+	# prose, and it had to while a material was a name and twelve credits that
+	# appeared from nowhere -- there was no object to point at. There is now:
+	# the crate is in REWARD, one button away, drawn at the size it will take
+	# up in your hold. Printing the name here as well is the drawer telling you
+	# the same thing twice and only one of them can be picked up.
 
 	lane.add_child(_wall())
 	var rail := MarginContainer.new()

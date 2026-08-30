@@ -98,7 +98,7 @@ func _choose(index: int) -> void:
 	# and paid nothing through here.
 	#
 	# No EventTable event grants one, which is why nothing caught it earlier.
-	var got := OptionTable.pay(outcome, Run.node_at())
+	OptionTable.pay(outcome, Run.node_at())
 	_then_fight = bool(outcome.get("fight", false))
 	_refresh()
 	var panel := PanelContainer.new()
@@ -115,8 +115,9 @@ func _choose(index: int) -> void:
 	if opt.has("check"):
 		col.add_child(UITheme.body(SkillCheck.band_name(band), edge, UITheme.FS_SMALL))
 	var said := String(outcome.get("text", ""))
-	if got != "":
-		said += "  [%s]" % got
+	# NOT THE NAME OF WHAT IT PAID. Same as the drawer: the thing is in REWARD
+	# below, and a bracketed name in the prose is a second copy of it that
+	# cannot be picked up.
 	var text := UITheme.body(said, UITheme.HOT, UITheme.FS_BODY)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(text)
