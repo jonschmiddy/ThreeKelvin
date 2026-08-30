@@ -349,19 +349,28 @@ func _refresh() -> void:
 	if _selected < 0:
 		_fill_neighbours(here)
 		# Two different nothings: nothing chosen, versus nothing possible.
-		if _first_reachable() < 0:
-			_dest_name.text = "NOWHERE"
-			_dest_class.text = ""
-			_dest_blurb.text = "No jump you can afford. The tank is dry."
-		else:
+		if _first_reachable() >= 0:
 			# With nothing selected the panel describes the galaxy itself. It is
 			# the one thing on this screen that is always true, and a run should
 			# know where it is happening.
 			_dest_name.text = Run.galaxy_title.to_upper()
-			_dest_class.text = "%s - %s" % [
-				Run.galaxy_name, GalaxyGen.type_name(Run.galaxy_kind).to_upper()]
+			_class("%s - %s" % [
+				Run.galaxy_name, GalaxyGen.type_name(Run.galaxy_kind).to_upper()])
 			_dest_blurb.text = GalaxyGen.blurb(Run.galaxy_kind)
-		_hint.text = ""
+			# AND THE COUNT STAYS. `_fill_neighbours` set it four lines up and
+			# this blanked it, so the one state you are guaranteed to see -- the
+			# start of a run, nothing selected -- was the one state with a list
+			# and no number above it. The hint was an instruction back when it
+			# read "pick somewhere"; it is a count of the rows underneath it now,
+			# and those rows are right there.
+		else:
+			_dest_name.text = "NOWHERE"
+			_class("")
+			_dest_blurb.text = "No jump you can afford. The tank is dry."
+			# Except here, where the header has already said it. "Nothing in
+			# range" above an empty list under "No jump you can afford" is the
+			# same sentence twice, and this panel has been shedding those.
+			_hint.text = ""
 		_jump.disabled = true
 		return
 
@@ -381,7 +390,7 @@ func _refresh() -> void:
 	if Run.known_only_by_contract(_selected):
 		var job := Run.contract_at(_selected)
 		_dest_name.text = MapGen.star_name(t)
-		_dest_class.text = "%s - POSITION ONLY" % Run.galaxy_name
+		_class("%s - POSITION ONLY" % Run.galaxy_name)
 		_dest_blurb.text = job.text
 		_rows.add_child(_row("CIRCLED BY",
 			DB.manufacturer_name(job.manufacturer).to_upper(),
@@ -397,23 +406,19 @@ func _refresh() -> void:
 	# The name is the place; the classification is what kind of place it is -
 	# how built up, how policed, and whose it is, in that order.
 	_dest_name.text = MapGen.star_name(t)
-	# Galaxy, then the cloud if it is in one, then what kind of place it is —
-	# outermost thing first, narrowing to the system. The nebula belongs in this
-	# line rather than in the rows below: the rows are facts ABOUT the place,
-	# and the cloud is part of its address.
-	# ONLY THE CLOUD, AND ONLY WHEN THERE IS ONE.
+	# NO CLASS LINE ON A SYSTEM AT ALL. Name, then blurb, with nothing between.
 	#
-	# This read "PGC 5055 - SETTLEMENT": a galaxy catalogue number that is the
-	# same for every system in the run, and a development word that the
-	# DEVELOPMENT row three lines below says again. Two thirds of the line was
-	# noise and the last third was a duplicate.
+	# MEASURED: 7.0% of systems are inside a cloud (161 of 2289 across seven
+	# galaxies), so the line this replaced was EMPTY for nineteen systems in
+	# twenty -- and an empty Label still reserves a line of its font, so the gap
+	# between a name and its description was a blank fact almost every time.
 	#
-	# What was worth keeping is the middle: a nebula's name appears NOWHERE else
-	# on this screen, and being inside one is a real fact about a place. So the
-	# line is the cloud or it is nothing, and most systems get nothing -- which
-	# is the point, because the header is as tall as what it says now.
-	var cloud := NebulaField.at(t.gal) if t.in_nebula else null
-	_dest_class.text = "INSIDE %s" % cloud.name.to_upper() if cloud != null else ""
+	# It read "PGC 5055 - SETTLEMENT" once: a galaxy catalogue number identical
+	# for every system in the run, and a development word the DEVELOPMENT row
+	# says again three lines below. Cutting that back to the nebula kept the one
+	# part that was not noise -- but the panel was ALREADY saying it, down in the
+	# WARNING group, and the header had been holding a line open to repeat it.
+	_class("")
 	_dest_blurb.text = MapGen.place_blurb(t)
 
 	# THREE ANSWERS, IN THE ORDER YOU WANT THEM, and the order is the change.
@@ -450,6 +455,17 @@ func _refresh() -> void:
 		_rows.add_child(_row("BODIES", "GAS GIANT"))
 	if t.near_pulsar and t.type != MapGen.NodeType.PULSAR:
 		_rows.add_child(_row("NEARBY", "PULSAR", Color("#8fd2e0")))
+	# AND NO NEBULA ROW HERE, though one was written and taken out again.
+	# `MapGen.hazards()` already returns "NEBULA" for an `in_nebula` system, so
+	# the panel says it in the WARNING group at the bottom -- where it belongs,
+	# because being inside gas is a thing that acts on the ship rather than a
+	# thing to look at. A second row above would have been the same fact twice
+	# in one panel, which is what this rework has spent its time deleting.
+	#
+	# What that costs is the cloud's NAME, which the class line used to carry
+	# and nothing here does now. It is still on the chart itself: hovering the
+	# gas names it. If it should be on the panel too, the honest place is inside
+	# the existing warning rather than in a row of its own.
 
 	_rows.add_child(_gap())
 	# The three axes get their own rows. They are what the place IS, and reading
@@ -704,6 +720,17 @@ func _clear(host: Node) -> void:
 ## already spoken for — a warning has to win against a panel that is otherwise
 ## entirely cold blues.
 const _WARN := Color("#d4614f")
+
+## The class line under the name — and NOTHING AT ALL when it has nothing to
+## say. An empty Label is not a zero-height Label: Godot reserves a line of the
+## font whether or not there is text on it, so a blank class pushed the blurb
+## down by a line and left a gap that read as a mistake. A hidden child is
+## skipped by the container outright, which is the only way to actually get the
+## space back.
+func _class(s: String) -> void:
+	_dest_class.text = s
+	_dest_class.visible = not s.is_empty()
+
 
 ## Four pixels of nothing, to group the rows without drawing on them.
 func _gap() -> Control:

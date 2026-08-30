@@ -6,7 +6,33 @@ extends RefCounted
 ## button is a click, and neither is visible in a headless render.
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
+	# `seed=N` before anything else. A state that is rare per galaxy -- a system
+	# inside a cloud, a long blurb -- is found by trying seeds, and a harness
+	# that cannot be told which seed can only be run until it gets lucky.
+	for a0 in OS.get_cmdline_user_args():
+		if (a0 as String).begins_with("seed="):
+			Rng.reseed(int((a0 as String).substr(5)))
 	Run.start_new_run(&"korvan", 1)
+	# `kind=N` photographs a CHOSEN galaxy instead of a rolled one, which is the
+	# only way to look at a new shape without rerolling seeds until it turns up.
+	#
+	# The map is regenerated after the swap rather than left alone. Node
+	# positions read `reach`, `squash` and `ring` off `Run.galaxy`, so a chart
+	# painted as one kind with systems laid out for another is a picture of a
+	# galaxy that does not exist -- and the layout is half of what a new kind
+	# has to be judged on.
+	for a1 in OS.get_cmdline_user_args():
+		if not (a1 as String).begins_with("kind="):
+			continue
+		Run.galaxy_kind = clampi(int((a1 as String).substr(5)), 0,
+			GalaxyGen.count() - 1)
+		Run.galaxy = GalaxyGen.roll(Run.galaxy_kind)
+		Run.map = MapGen.generate(Run.MAP_CANVAS)
+		Run.at = 0
+		Run.trail = PackedInt32Array([0])
+		Run._range_cache.clear()
+		Run.chart_from(Run.node_at())
+		print("  %s" % GalaxyGen.type_name(Run.galaxy_kind).to_upper())
 	# `flown=N` marks N systems visited before the chart opens.
 	#
 	# A FRESH CHART CANNOT SHOW THE BUG. Everything on it is currently sensed, so
@@ -70,9 +96,24 @@ func run(tree: SceneTree) -> void:
 					want = nn.index
 					break
 				continue
+			# `pick=neb` takes one inside a cloud, to photograph the NEBULA
+			# warning. MEASURED at 7.0% of systems, and only 4 of 161 were
+			# charted at run start across seven seeds -- so this wants `flown=N`
+			# in front of it or it will miss every time.
+			if "neb" in OS.get_cmdline_user_args():
+				if nn.in_nebula and NebulaField.at(nn.gal) != null:
+					want = nn.index
+					break
+				continue
 			if nn.star != MapGen.Star.ORDINARY:
 				want = nn.index
 				break
+		# SAY SO WHEN THE PREFERENCE MISSED. This fell back to the first charted
+		# system in silence, so `pick neb` on a galaxy with no charted cloud
+		# photographed an ordinary system and the missing NEBULA row read as a
+		# broken row rather than as a chart with nothing to show.
+		if want < 0:
+			print("  NO MATCH for the preference -- falling back")
 		var at2 := want if want >= 0 else fallback
 		if sc0 != null and at2 >= 0:
 			sc0._on_node_picked(at2)

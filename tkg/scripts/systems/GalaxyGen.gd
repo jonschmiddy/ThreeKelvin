@@ -17,15 +17,26 @@ extends RefCounted
 ## rate that nobody authored.
 ##
 ## Both are fixed rather than normalised away, because galaxies playing
-## THE TWO RING KINDS CARRY A LOWER `density` ON PURPOSE. Their rings are all
-## pushed out into the annulus `[ring, 1.0]`, so every circumference is longer
-## and a fixed gap between neighbours buys far more systems: at the densities
-## the other kinds use they came out at 427 and 473 against a ~287 nominal.
-## Geometry decides the spacing, `density` decides how many, and these two need
-## less of it to land in the same place as everyone else.
-##
 ## differently is the point. `density` and `reach` below say it OUT LOUD, per
 ## kind, and `squash` went back to being what its own docstring says it is.
+##
+## AND NO KIND HAS A HOLE IN IT ANY MORE. Barred Ring Spiral (`ring = 0.34`)
+## and Collisional Ring (`ring = 0.52`) were the only two, and the hole was not
+## a picture: `MapGen.ring_radius` remaps every populated ring into the annulus
+## `[ring, 1.0]`, while the Core is drawn at the origin regardless. Measured
+## across four seeds each, the nearest system to the Core sat at 0.046..0.100
+## of the disc radius on every other kind, at 0.235 on the Barred Ring and at
+## 0.397 on the Collisional Ring -- so the last jump of a run crossed four to
+## eight times more empty space than anywhere else, and the Barred Ring also
+## held the longest single link in the game at 1.363, sixty per cent past the
+## next worst.
+##
+## They were replaced rather than retuned. A smaller hole is the same hole.
+##
+## `ring` itself stays in the schema and stays applied, because the machinery
+## is correct and a future ring galaxy would want it -- but it would want the
+## hole to be PAINT ONLY, with systems filling the middle the way stars in a
+## real collisional ring still do. Nothing reads it at 0.0.
 ##
 ## Content is data, not code: a new galaxy is a dictionary entry, and the
 ## renderer already knows how to draw every field in it.
@@ -78,11 +89,18 @@ const KINDS := [
 		blurb = "No grand design — just scattered, patchy spurs of star formation. It has been making stars in fits and starts for as long as anyone has watched.",
 	},
 	{
-		name = "Barred Ring Spiral", arms = 2, twist = 11.0, bar = 0.30,
-		squash = 0.58, density = 0.64, reach = 1.05, core_share = 0.44, core_pow = 2.6, halo_pow = 1.0,
-		spread = 0.9, chaos = 0.0, ring = 0.34, bulge = 0.30, dust = 1.8,
-		tail = false, gas = 0.85,
-		blurb = "The bar swept the inner disc clean and piled it into a ring. Everything between the core and that ring was consumed building it.",
+		name = "Anemic Spiral", arms = 2, twist = 8.0, bar = 0.0,
+		squash = 0.56, density = 0.95, reach = 0.98, core_share = 0.58, core_pow = 2.7, halo_pow = 1.08,
+		spread = 0.7, chaos = 0.0, ring = 0.0, bulge = 0.34, dust = 2.3,
+		tail = false, gas = 0.22,
+		blurb = "It fell into a cluster and the gas was stripped off it on the way in. The arms are still there and still turning, with nothing left in them to light.",
+	},
+	{
+		name = "Magellanic Irregular", arms = 1, twist = 2.8, bar = 0.44,
+		squash = 0.80, density = 1.00, reach = 1.00, core_share = 0.32, core_pow = 1.7, halo_pow = 0.84,
+		spread = 2.6, chaos = 0.30, ring = 0.0, bulge = 0.11, dust = 1.2,
+		tail = false, gas = 1.55,
+		blurb = "One arm, dragged off a bar that sits nowhere near the middle. Something larger has been pulling at it for a billion years and this is the shape that makes.",
 	},
 	{
 		name = "Lenticular", arms = 0, twist = 0.0, bar = 0.0,
@@ -134,11 +152,18 @@ const KINDS := [
 		blurb = "Currently being pulled apart by a neighbour. The tidal stream flung off the far side holds a hundred million stars that are already leaving.",
 	},
 	{
-		name = "Collisional Ring", arms = 0, twist = 0.0, bar = 0.0,
-		squash = 0.70, density = 0.55, reach = 1.15, core_share = 0.30, core_pow = 3.2, halo_pow = 1.0,
-		spread = 0.0, chaos = 0.06, ring = 0.52, bulge = 0.18, dust = 2.4,
-		tail = false, gas = 1.1,
-		blurb = "Something went straight through the middle. The shock is still travelling outward as a ring of new stars, and the centre never filled back in.",
+		name = "Merger Remnant", arms = 0, twist = 0.0, bar = 0.0,
+		squash = 0.68, density = 1.10, reach = 1.05, core_share = 0.70, core_pow = 2.6, halo_pow = 1.5,
+		spread = 0.0, chaos = 0.16, ring = 0.0, bulge = 0.38, dust = 2.7,
+		tail = true, gas = 0.30,
+		blurb = "The two galaxies that made this finished merging a long time ago. The stream still hanging off one side is the last of the smaller one, and it is not coming back.",
+	},
+	{
+		name = "Blue Compact Dwarf", arms = 0, twist = 0.0, bar = 0.0,
+		squash = 0.84, density = 0.60, reach = 0.76, core_share = 0.78, core_pow = 3.5, halo_pow = 1.85,
+		spread = 0.0, chaos = 0.20, ring = 0.0, bulge = 0.44, dust = 1.9,
+		tail = false, gas = 1.75,
+		blurb = "Small, and burning through what it has at a rate it cannot keep up. Everything this galaxy will ever make, it is making now.",
 	},
 	{
 		name = "Dwarf Spheroidal", arms = 0, twist = 0.0, bar = 0.0,

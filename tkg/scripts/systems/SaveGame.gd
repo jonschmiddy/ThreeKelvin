@@ -193,7 +193,13 @@ const PATH := "user://run.save"
 ## MAP, not the seed that made it: a 24 save read by this build would come back
 ## with an ordinary sky everywhere, and the systems that had been offering those
 ## options would quietly stop.
-const VERSION := 25
+## 26: THE GALAXY TABLE LOST TWO KINDS AND GAINED FOUR. `galaxy_kind` is an
+## INDEX into `GalaxyGen.KINDS`, so removing Barred Ring Spiral and Collisional
+## Ring renumbered everything after them. The rolled parameters are saved
+## alongside the index and would still restore correctly -- the map would be
+## intact -- but the run would name itself after a different galaxy than the one
+## it is, on the one screen that exists to tell you where you are.
+const VERSION := 26
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
