@@ -713,7 +713,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"maneuver", need = 5},
 					met = func() -> Dictionary:
 						Run.add_credits(40)
-						return {text = "You go in on attitude jets and touch nothing on the way. It is a survey cutter, intact, and nobody has been here first.", module = true},
+						return {text = "You go in on attitude jets and touch nothing on the way. It is a survey cutter, intact, nobody has been here first, and it gives up its fittings like it had been expecting somebody.", module = true},
 					clean = func() -> Dictionary:
 						return {text = "You clip something soft on the way in and it does not matter. The cutter's racks come away clean.", module = true},
 					partial = func() -> Dictionary:
@@ -794,7 +794,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 5},
 					met = func() -> Dictionary:
 						Run.add_credits(75)
-						return {text = "The atmosphere reads clean, the hull sits at ambient, and no decontamination cycle has ever run. There is no outbreak behind the flag. There is a stock dispute wearing one — and a station very happy to sell to the first ship that notices.", module = true},
+						return {text = "The atmosphere reads clean, the hull sits at ambient, and no decontamination cycle has ever run. There is no outbreak behind the flag. There is a stock dispute wearing one — and a station very happy to sell to the first ship that notices. You are the first ship that notices.", module = true},
 					clean = func() -> Dictionary:
 						return {text = "Nothing on your instruments supports the flag. Nothing disproves it. You dock braced, buy fast, and leave loaded.", module = true},
 					partial = func() -> Dictionary:
@@ -823,7 +823,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You match it, hold it, and walk aboard as though the floor had always been down. Somebody's whole life is still bolted to it.", module = true, material = &"wreck"},
 					clean = func() -> Dictionary:
 						Run.take_hull_damage(3, "You match it well enough. Getting back off is worse than getting on.")
-						return {text = "You match it well enough. Getting back off is worse than getting on.", module = true},
+						return {text = "You match it well enough. What you carry out you carry out one-handed, and getting back off is worse than getting on.", module = true},
 					partial = func() -> Dictionary:
 						Run.add_credits(20)
 						Run.take_hull_damage(7, "You get one hand on it and the rotation takes the decision away from you.")
@@ -1279,7 +1279,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"stealth", need = 4},
 					met = func() -> Dictionary:
 						Run.add_material(&"exotic", 2)
-						return {text = "You work the seam quietly, in the lee of the ribs, and nothing that lives here decides you are worth interrupting a meal for.", material = &"fauna"},
+						return {text = "You work the seam quietly, in the lee of the ribs, and come away loaded before anything that lives here decides you are worth interrupting a meal for.", material = &"fauna"},
 					clean = func() -> Dictionary:
 						Run.add_material(&"exotic", 2)
 						return {text = "You take what you came for. Something the size of a hatch cover watches you do it and elects not to mind."},
@@ -1391,9 +1391,9 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 3},
 					met = func() -> Dictionary:
 						Run.add_credits(20)
-						return {text = "The log is intact and says who they were owed money by. The debt is transferable.", module = true},
+						return {text = "The log is intact and says who they were owed money by. The debt is transferable, and so is everything still in the racks.", module = true},
 					clean = func() -> Dictionary:
-						return {text = "Enough of the log survives to say the hull is not booby-trapped, which is the part worth knowing.", module = true},
+						return {text = "Enough of the log survives to say the hull is not booby-trapped, which is the part worth knowing. You strip it at your own pace.", module = true},
 					partial = func() -> Dictionary:
 						return {text = "The recorder is slag. You take what is loose and do not learn anything."},
 					botched = func() -> Dictionary:
@@ -1485,7 +1485,7 @@ static func _authored() -> Array[Dictionary]:
 						Run.add_credits(-15)
 						return {text = "You are logged as having made a claim against a policy you do not hold. There is a fee for that."}},
 				{label = "Strip it regardless", effect = func() -> Dictionary:
-					return {text = "The notice is still transmitting when you leave. It will be transmitting for a long time.", module = true}},
+					return {text = "You take what you came for. The notice is still transmitting when you leave, and it will be transmitting for a long time.", module = true}},
 			],
 		},
 		{
