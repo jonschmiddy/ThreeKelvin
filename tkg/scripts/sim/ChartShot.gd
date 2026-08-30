@@ -62,6 +62,14 @@ func run(tree: SceneTree) -> void:
 				continue
 			if fallback < 0:
 				fallback = nn.index
+			# `pick=long` takes the wordiest description instead, which is what
+			# the header reservation exists for: if the rows below sit at the
+			# same y for the shortest blurb and the longest, nothing moves.
+			if "long" in OS.get_cmdline_user_args():
+				if MapGen.place_blurb(nn).length() > 104:
+					want = nn.index
+					break
+				continue
 			if nn.star != MapGen.Star.ORDINARY:
 				want = nn.index
 				break
@@ -74,6 +82,8 @@ func run(tree: SceneTree) -> void:
 				" + gas giant" if t2.gas_giant else ""])
 			for iP in 8:
 				await RenderingServer.frame_post_draw
+			print("    blurb %d chars · rows begin at y %.0f"
+				% [MapGen.place_blurb(t2).length(), sc0._rows.global_position.y])
 	var tag := ""
 	# `zoom=N` frames it the way the PLAYER looks at it: centred on the ship,
 	# close enough that both range rings are on screen.

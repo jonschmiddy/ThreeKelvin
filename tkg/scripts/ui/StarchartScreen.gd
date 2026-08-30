@@ -202,19 +202,40 @@ func _build() -> void:
 	# TWO IS MEASURED, not guessed: `-- namefit` wraps every name five galaxies
 	# generate at this font and this width. 94.4% take one line, 5.6% take two,
 	# none take three, and it fails if that ever stops being true.
+	#
+	# THE RESERVATION MOVED OFF THE NAME AND ONTO THE BLOCK, and that fixes two
+	# things at once. Held on the name, a one-line name left a whole blank line
+	# of head-sized gap above the class -- the reservation was visible as empty
+	# space 94% of the time. And it only ever covered the NAME: the blurb below
+	# it is one to four lines depending on how much there is to say about a
+	# place, so a contested city with thorough inspections pushed every row down
+	# and resized the chart exactly the way a long name used to.
+	#
+	# One height for the whole header instead. A short name lets the class sit
+	# straight underneath it, a long blurb spends the slack that a short one
+	# leaves, and nothing below the separator moves whichever system you point
+	# at.
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 4)
+	# Two lines of name, two of class -- a galaxy designation and a development
+	# word can wrap -- and four of blurb, which is the longest `place_blurb`
+	# builds: the contested-city line plus the inspections clause.
+	head.custom_minimum_size = Vector2(228,
+		UITheme.pixel_font().get_height(UITheme.FS_HEAD) * 2
+		+ UITheme.pixel_font().get_height(UITheme.FS_SMALL) * 6 + 20)
+	right.add_child(head)
 	_dest_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_dest_name.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_dest_name.custom_minimum_size = Vector2(228,
-		UITheme.pixel_font().get_height(UITheme.FS_HEAD) * 2)
-	right.add_child(_dest_name)
+	_dest_name.custom_minimum_size = Vector2(228, 0)
+	head.add_child(_dest_name)
 	_dest_class = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_dest_class.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_dest_class.custom_minimum_size = Vector2(228, 0)
-	right.add_child(_dest_class)
+	head.add_child(_dest_class)
 	_dest_blurb = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_dest_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_dest_blurb.custom_minimum_size = Vector2(228, 0)
-	right.add_child(_dest_blurb)
+	head.add_child(_dest_blurb)
 	right.add_child(UITheme.hsep())
 
 	_rows = VBoxContainer.new()
@@ -379,7 +400,42 @@ func _refresh() -> void:
 	_dest_class.text = addr + MapGen.development_name(t.development).to_upper()
 	_dest_blurb.text = MapGen.place_blurb(t)
 
+	# THREE ANSWERS, IN THE ORDER YOU WANT THEM, and the order is the change.
+	#
+	# It used to run CONTAINS, DEVELOPMENT, SECURITY, OPERATORS, MARKET, STAR,
+	# BODIES, NEARBY, DANGER, FUEL -- which put the sky between the market and
+	# the fuel bill, so the physical facts about a place were interrupted by
+	# trade and then resumed as travel. Eleven rows in one column with no shape
+	# to them is a list you read from the top every time.
+	#
+	# WHAT IT IS, then WHO IS THERE, then WHAT IT COSTS. That is the order the
+	# questions actually arrive in: you look at a system to find out what it is,
+	# decide whether you want what is being sold, and commit the fuel last. The
+	# gaps are four pixels rather than rules, because three separators in a
+	# panel this narrow reads as three panels.
 	_rows.add_child(_row("CONTAINS", _contains(t)))
+	# WHAT IS IN THE SKY, which is the half of a system the panel never said.
+	#
+	# It decides what you will be offered: a red hypergiant is the only place
+	# `corona` and `flare_shelter` exist, a blue one is the only place the wind,
+	# the glare and the scouring do, and a giant is what `slipping_orbit` needs.
+	# The chart has painted this since the star colours landed -- this is the
+	# row that says what the colour MEANS, so it can be learned rather than
+	# guessed at.
+	#
+	# In the star's own colour, so the swatch on the map and the words here are
+	# obviously the same fact.
+	_rows.add_child(_row("STAR", MapGen.star_kind(t), MapGen.star_colour(t)))
+	# Only when there IS one, and under labels that are true: a gas giant is a
+	# body IN this system and a pulsar is a neighbour, so neither of them is
+	# "also". A row reading NONE for the commonest possible answer is blank four
+	# times in nine and says nothing the other five.
+	if t.gas_giant:
+		_rows.add_child(_row("BODIES", "GAS GIANT"))
+	if t.near_pulsar and t.type != MapGen.NodeType.PULSAR:
+		_rows.add_child(_row("NEARBY", "PULSAR", Color("#8fd2e0")))
+
+	_rows.add_child(_gap())
 	# The three axes get their own rows. They are what the place IS, and reading
 	# them off a single run-on classification line meant scanning a sentence to
 	# answer "how policed is it".
@@ -408,25 +464,8 @@ func _refresh() -> void:
 		var trade := Market.trade_line(t)
 		if not trade.is_empty():
 			_rows.add_child(_row("MARKET", trade, Color("#d99b29")))
-	# WHAT IS IN THE SKY, which is the half of a system the panel never said.
-	#
-	# It decides what you will be offered: a red hypergiant is the only place
-	# `corona` and `flare_shelter` exist, a blue one is the only place the wind,
-	# the glare and the scouring do, and a giant is what `slipping_orbit` needs.
-	# The chart has painted this since the star colours landed -- this is the
-	# row that says what the colour MEANS, so it can be learned rather than
-	# guessed at.
-	#
-	# In the star's own colour, so the swatch on the map and the words here are
-	# obviously the same fact.
-	_rows.add_child(_row("STAR", MapGen.star_kind(t), MapGen.star_colour(t)))
-	# Only when there IS one. A row reading NONE for the commonest possible
-	# answer is a row that is blank four times in nine and says nothing the
-	# other five.
-	if t.gas_giant:
-		_rows.add_child(_row("ALSO", "GAS GIANT"))
-	if t.near_pulsar and t.type != MapGen.NodeType.PULSAR:
-		_rows.add_child(_row("ALSO", "PULSAR IN REACH", Color("#8fd2e0")))
+
+	_rows.add_child(_gap())
 	_rows.add_child(_danger_row(t.danger))
 
 	# Out of range is a different answer from "cannot afford it", and quoting a
@@ -641,6 +680,14 @@ func _clear(host: Node) -> void:
 ## already spoken for — a warning has to win against a panel that is otherwise
 ## entirely cold blues.
 const _WARN := Color("#d4614f")
+
+## Four pixels of nothing, to group the rows without drawing on them.
+func _gap() -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, 4)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
 
 func _row(key: String, value: String, colour: Color = UITheme.CHILL) -> Control:
 	var row := HBoxContainer.new()
