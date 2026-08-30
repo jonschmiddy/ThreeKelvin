@@ -176,6 +176,12 @@ var _res: Dictionary = {}
 var _res_band: SkillCheck.Band = SkillCheck.Band.MET
 var _res_checked: bool = false
 var _res_got: String = ""
+## What the roll was worth, READ BEFORE THE OUTCOME RAN. See
+## `SkillCheck.odds_line`: an outcome that takes hull changes what a HULL check
+## was worth, so asking afterwards prints the odds of a roll nobody made.
+var _res_odds: String = ""
+## The ledger either side of the resolution. `RunState.ledger`.
+var _res_bill: Array = []
 ## Which node the approach animation has already played for.
 ##
 ## STATIC, because this screen is rebuilt every time you tab away and back, and
@@ -715,7 +721,7 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	_drawer.add_child(EncounterDrawer.outcome(opt,
 		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
 		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
-		String(_res.get("text", "")), _res_got))
+		_res_odds, String(_res.get("text", "")), _res_bill, _res_got))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
 	var sp2 := Control.new()
@@ -739,9 +745,16 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	# vague; reading PRIZE it is a lie, because the word names this outcome. An
 	# option that paid in numbers has nothing to open and says nothing.
 	if OptionTable.pays_item(_res) and not Run.dead:
-		var claim := Widgets.button("PRIZE", _open_prize)
+		var claim := Widgets.button("REWARD", _open_prize)
 		claim.custom_minimum_size = Vector2(120, 22)
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there.")
+		# GREYED WHEN THERE IS NOTHING BEHIND IT. The button appears because
+		# this outcome paid you an object; it stays on the row after you have
+		# taken it, because a button that vanishes moves CONTINUE out from
+		# under your hand. What it must not do is still look like a door.
+		var left := Run.jetsam_left(n, Run.sector_jetsam(n, false))
+		claim.disabled = left <= 0
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
+			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
 
 	if Run.dead:
@@ -797,17 +810,26 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 		return
 	_res_checked = c.has("check")
 	_res_band = SkillCheck.Band.MET
+	_res_odds = SkillCheck.odds_line(c.get("check", {}))
 	var call: Callable = c.get("effect", Callable())
 	if _res_checked:
 		_res_band = SkillCheck.roll(c.check)
 		call = SkillCheck.pick_outcome(c, _res_band)
+	# BEFORE THE COST, NOT AFTER IT. A gate you pay to attempt is part of what
+	# the option cost you, and a bill that started counting after the toll was
+	# taken would show a botched sixty-credit gamble as costing nothing.
+	var was := Run.ledger()
 	if c.has("cost_credits"):
 		Run.add_credits(-int(c.cost_credits))
 	var res: Dictionary = call.call() if call.is_valid() else {}
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
 	_res = res
+	# AND AFTER `pay`, WHICH ALSO SPENDS. Materials still cash out through
+	# `MaterialTable.grant` today, so a bill closed before it ran would miss
+	# the credits an outcome paid you in the one way it is still allowed to.
 	_res_got = OptionTable.pay(res, n)
+	_res_bill = EncounterDrawer.bill_rows(was, Run.ledger())
 	_outcomes[i] = String(res.get("text", ""))
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
 	# hull taken, a module in the hold -- so a player who closed the game on the
@@ -1831,7 +1853,7 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 func _open_prize() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n != null:
-		_open_jetsam(Run.sector_jetsam(n, false), "PRIZE")
+		_open_jetsam(Run.sector_jetsam(n, false), "REWARD")
 
 
 ## The system's own pile, from the button beside PLOT NEXT JUMP.

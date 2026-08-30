@@ -75,7 +75,12 @@ func run(tree: SceneTree) -> void:
 	_ok("and it is drawn out here instead (%d)" % _icons(_view._loose),
 		_icons(_view._loose) == out0 + 1)
 
-	# --- and a right-click, which goes through no drop handler at all --------
+	# --- and a right-click, which must now do NOTHING ------------------------
+	#
+	# It used to jettison, which made it the only destructive gesture in the
+	# game with no confirmation and no travel. The assertion is INVERTED rather
+	# than deleted: a binding that was removed and quietly comes back is exactly
+	# the kind of thing that reaches a player before it reaches a test.
 	# `n.bag` is untyped, so the element needs saying out loud.
 	var back: HoldItem = wreck.items[0]
 	_ok("something comes back into the hold", Run.stow(back))
@@ -89,8 +94,11 @@ func run(tree: SceneTree) -> void:
 	click.pressed = true
 	icon._gui_input(click)
 	await tree.process_frame
-	_ok("right-click takes it out of the hold's picture (%d -> %d)"
-		% [hold1, _icons(_view._hold)], _icons(_view._hold) == hold1 - 1)
+	_ok("right-click leaves it exactly where it was (%d)" % hold1,
+		_icons(_view._hold) == hold1)
+	# Put the hold back the way the next section expects to find it.
+	Run.take_from_hold(back)
+	await tree.process_frame
 
 	# --- shift-click, the other way ------------------------------------------
 	#

@@ -118,10 +118,16 @@ func _gui_input(e: InputEvent) -> void:
 		accept_event()
 		await Run.take_item(m)
 		return
-	if mb.button_index != MOUSE_BUTTON_RIGHT or origin == &"bag":
-		return
-	accept_event()
-	Run.jettison(m)
+	# AND RIGHT-CLICK NO LONGER THROWS IT OVERBOARD.
+	#
+	# It was the fast way to empty a hold, and it was also the only destructive
+	# gesture in the game with no confirmation, no travel and no target: one
+	# twitch over the wrong cell and a rare part was in the sector behind you.
+	# The bin does the same job and cannot be hit by accident, because you have
+	# to carry the thing to it.
+	#
+	# The whole branch goes rather than just the call. A right-click that is
+	# bound and does nothing is an invitation to give it a job.
 
 
 ## What this icon is showing. Overridden by each kind; the drag machinery and

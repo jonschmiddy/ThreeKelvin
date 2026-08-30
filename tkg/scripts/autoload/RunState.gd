@@ -503,6 +503,24 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 	Sig.ship_changed.emit()
 	return true
 
+## EVERYTHING AN EVENT CAN MOVE, in one dictionary, so it can be moved again.
+##
+## An outcome does not report what it did -- it DOES it, inside a callable, and
+## hands back prose. There are a hundred and sixty-seven direct mutations in
+## `OptionTable` (`add_credits(-70)`, `heat += 20`, `take_hull_damage(8)`) and
+## the returned dictionary carries none of them: it has `text`, `module`,
+## `material`, `material_id`, `fight`, `archive_recover` and
+## `consume_material_tier`, and nothing else.
+##
+## SNAPSHOT AND DIFF, rather than a reward field on each outcome. Two hundred and
+## sixteen of those callables would have to be edited to declare what they do,
+## every one of them could declare it wrong, and the declaration would drift the
+## first time somebody tuned a number and forgot the label. This reads the
+## ledger, so it cannot disagree with the ledger.
+func ledger() -> Dictionary:
+	return {credits = credits, fuel = fuel, heat = heat, hp = hp}
+
+
 ## Take a part out, releasing its cells.
 func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)

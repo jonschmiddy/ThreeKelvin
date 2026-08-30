@@ -137,9 +137,16 @@ func _choose(index: int) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
 	if OptionTable.pays_item(outcome):
-		var claim := Widgets.button("PRIZE", _open_prize)
+		var claim := Widgets.button("REWARD", _open_prize)
 		claim.custom_minimum_size = Vector2(120, 22)
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there.")
+		# See `SectorScreen`: it stays put and greys rather than vanishing,
+		# because a button that disappears moves CONTINUE out from under your
+		# hand at the moment you reach for it.
+		var n2: MapGen.MapNode = Run.node_at()
+		var left := Run.jetsam_left(n2, Run.sector_jetsam(n2, false))
+		claim.disabled = left <= 0
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
+			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
 	row.add_child(Widgets.button("CONTINUE", _continue))
 	_result.add_child(row)
@@ -159,7 +166,7 @@ func _open_prize() -> void:
 		return
 	_transfer = TransferView.new()
 	add_child(_transfer)
-	_transfer.setup(h, n, _close_transfer, true, "PRIZE")
+	_transfer.setup(h, n, _close_transfer, true, "REWARD")
 
 
 func _close_transfer() -> void:

@@ -355,7 +355,12 @@ static func result_stamp(r: StringName) -> Array:
 		MapGen.R_SUCCESS: return ["SUCCESS", UITheme.GOOD]
 		MapGen.R_PARTIAL: return ["PARTIAL", UITheme.EMBER]
 		MapGen.R_BOTCHED: return ["BOTCHED", Color("#d4614f")]
-		MapGen.R_GONE: return ["UNAVAILABLE", UITheme.COLD]
+		# CHILL, NOT COLD. Every other seal is a saturated band colour and this
+		# one is a grey on a scrim over a dimmed card -- three things making it
+		# fainter at once, and it came out looking like a card that had simply
+		# gone grey for no stated reason. It is the one seal that has to explain
+		# itself, because nothing you did produced it.
+		MapGen.R_GONE: return ["UNAVAILABLE", UITheme.CHILL]
 	return ["RESOLVED", UITheme.CHILL]
 
 
@@ -432,6 +437,39 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 
 
 
+## WHAT MOVED, as four fixed rows.
+##
+## FIXED, and printing an em dash for the two that did not. The alternative is
+## listing only what changed, which makes the rail a different height and a
+## different shape on every outcome -- so CREDITS is on the second line
+## sometimes and the fourth line other times, and you have to read it to find
+## out. Four rows always means you learn where each number lives once.
+##
+## HEAT RISING IS NOT A LOSS, and gets `FLARE` rather than the red the other
+## three use when they fall: nothing was taken off the ship. It is a bill that
+## comes due at the end of the turn, which is what that colour means everywhere
+## else on this screen.
+const BILL: Array[Array] = [
+	["CREDITS", "credits", 1], ["HEAT", "heat", -1],
+	["HULL", "hp", 1], ["FUEL", "fuel", 1],
+]
+
+static func bill_rows(before: Dictionary, after: Dictionary) -> Array:
+	var out: Array = []
+	for row in BILL:
+		var key := String(row[1])
+		var n := int(after.get(key, 0)) - int(before.get(key, 0))
+		var good := (n * int(row[2])) > 0
+		out.append({
+			name = String(row[0]),
+			text = "—" if n == 0 else ("%+d" % n),
+			tone = UITheme.COLD if n == 0 \
+				else (UITheme.GOOD if good else \
+					(UITheme.FLARE if key == "heat" else UITheme.LEAVE)),
+		})
+	return out
+
+
 ## WHAT JUST HAPPENED, at the size it happened.
 ##
 ## The result was an eyebrow, a sentence, and a hundred and forty pixels of
@@ -447,8 +485,8 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 ##
 ## It also names the encounter, which the old one did not: three clicks after
 ## you opened it, the only thing on screen was an outcome with nothing attached.
-static func outcome(opt: Dictionary, word: String, ink: Color, said: String,
-		got: String) -> Control:
+static func outcome(opt: Dictionary, word: String, ink: Color, odds: String,
+		said: String, rows: Array, got: String) -> Control:
 	var card := PanelContainer.new()
 	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card.add_theme_stylebox_override("panel",
@@ -463,6 +501,30 @@ static func outcome(opt: Dictionary, word: String, ink: Color, said: String,
 	bar.custom_minimum_size = Vector2(3, 0)
 	bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	lane.add_child(bar)
+
+	# THE VERDICT AS A BLOCK OF ITS OWN. It was a heading over a paragraph,
+	# which makes the paragraph the subject; the outcome is the subject.
+	var verdict := VBoxContainer.new()
+	verdict.add_theme_constant_override("separation", 4)
+	verdict.alignment = BoxContainer.ALIGNMENT_CENTER
+	verdict.custom_minimum_size = Vector2(118, 0)
+	var w := UITheme.body(word, ink, UITheme.FS_HEAD)
+	w.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	w.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	verdict.add_child(w)
+	# THE BET YOU TOOK, under the verdict, and this is the line the drawer used
+	# to throw away. It knows you just took a twenty percent shot and forgot it
+	# the instant it resolved -- so a botch and a safe choice that happened to
+	# go wrong read identically afterwards. Four words, and it is the difference
+	# between "this game is random" and "I knew".
+	if odds != "":
+		var o := UITheme.body(odds, UITheme.COLD, UITheme.FS_SMALL)
+		o.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		o.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		verdict.add_child(o)
+	lane.add_child(verdict)
+	lane.add_child(_wall())
+
 	var pad := MarginContainer.new()
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for s in ["top", "bottom"]:
@@ -473,26 +535,62 @@ static func outcome(opt: Dictionary, word: String, ink: Color, said: String,
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 7)
 	pad.add_child(col)
-	var head := VBoxContainer.new()
-	head.add_theme_constant_override("separation", 1)
-	col.add_child(head)
+	# IT NAMES THE ENCOUNTER, which the old one did not: three clicks after you
+	# opened it, the only thing on screen was an outcome with nothing attached.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
 	head.add_child(UITheme.body(String(opt.get("title", "")).to_upper(),
 		UITheme.ICE, UITheme.FS_SMALL))
 	var kind := lead_tag(opt)
 	if kind != &"":
-		head.add_child(UITheme.body(String(kind).to_upper(), tag_colour(opt),
-			UITheme.FS_SMALL))
-	col.add_child(UITheme.body(word, ink, UITheme.FS_HEAD))
+		head.add_child(UITheme.body("· " + String(kind).to_upper(),
+			tag_colour(opt), UITheme.FS_SMALL))
+	col.add_child(head)
 	var body := UITheme.body(said, UITheme.HOT, UITheme.FS_SMALL)
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(body)
-	# WHAT CAME OUT OF IT, last, because it is the thing you go looking for
-	# after you have read what happened.
+	# WHAT CAME OUT OF IT AS AN OBJECT, which the rail cannot hold: the rail is
+	# four numbers and a material is a thing with a name.
 	if got != "":
 		col.add_child(UITheme.body(got.to_upper(), UITheme.GOOD,
 			UITheme.FS_SMALL))
+
+	lane.add_child(_wall())
+	var rail := MarginContainer.new()
+	rail.custom_minimum_size = Vector2(132, 0)
+	for s3 in ["top", "bottom"]:
+		rail.add_theme_constant_override("margin_" + s3, 9)
+	for s4 in ["left", "right"]:
+		rail.add_theme_constant_override("margin_" + s4, 12)
+	lane.add_child(rail)
+	var ledger := VBoxContainer.new()
+	ledger.add_theme_constant_override("separation", 3)
+	rail.add_child(ledger)
+	# RESULT on screen, `bill` in the code, and they are allowed to differ --
+	# same rule `berth` and the containers follow. The identifiers name the
+	# mechanism (a ledger closed either side of a resolution); the label names
+	# what the player is looking at, which is what came of the thing they did.
+	ledger.add_child(UITheme.body("RESULT", UITheme.COLD, UITheme.FS_SMALL))
+	for r in rows:
+		var line := HBoxContainer.new()
+		var nm := UITheme.body(String(r.name), r.tone as Color, UITheme.FS_SMALL)
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		line.add_child(nm)
+		line.add_child(UITheme.body(String(r.text), r.tone as Color,
+			UITheme.FS_SMALL))
+		ledger.add_child(line)
 	return card
+
+
+## A hairline between two columns of one plate. `VSeparator` carries theme
+## padding that would show up as a gap either side of it.
+static func _wall() -> ColorRect:
+	var c := ColorRect.new()
+	c.color = UITheme.LINE
+	c.custom_minimum_size = Vector2(1, 0)
+	c.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	return c
 
 
 ## The option you clicked, with its choices.

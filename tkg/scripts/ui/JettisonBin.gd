@@ -37,7 +37,7 @@ var _armed: bool = false
 func _init() -> void:
 	custom_minimum_size = Vector2(W, H)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to put it down in this system. It stays there for the rest of the run -- fly back and take it from SECTOR LOOT whenever you want it.\n\nRight-clicking anything in your hold does the same.")
+	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to put it down in this system. It stays there for the rest of the run -- fly back and take it from SECTOR LOOT whenever you want it.")
 
 
 func _can_drop_data(_at: Vector2, data: Variant) -> bool:

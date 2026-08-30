@@ -103,6 +103,20 @@ const VERDICTS: Array[String] = ["certain success", "likely", "uncertain",
 static func verdict(check: Dictionary) -> String:
 	return VERDICTS[mini(shortfall(check), VERDICTS.size() - 1)]
 
+## The short form: what it wanted, and what it was worth.
+##
+## MUST BE READ BEFORE THE OUTCOME RUNS. `odds` goes through `value_of`, which
+## reads the CURRENT attribute -- that is the whole point of attributes being
+## derived -- so an outcome that takes eight hull changes what a HULL check was
+## worth, retroactively. Asking afterwards would print the odds of the roll you
+## did not make.
+static func odds_line(check: Dictionary) -> String:
+	if check.is_empty():
+		return ""
+	return "%s %d · %d%%" % [attr_name(check), int(check.get("need", 0)),
+		int(round(odds(check) * 100.0))]
+
+
 static func attr_name(check: Dictionary) -> String:
 	match StringName(check.get("attr", &"")):
 		&"hull": return "HULL"
@@ -141,7 +155,13 @@ static func pick_outcome(opt: Dictionary, band: Band) -> Callable:
 
 static func band_name(band: Band) -> String:
 	match band:
-		Band.MET: return "MET"
+		# SUCCESS, not MET. "Met" is what the CHECK did -- you met a
+		# requirement -- and by the time this word is on screen the check is
+		# over and the subject is the thing you were trying to do. It also had
+		# to be read against SCRAPED THROUGH and BOTCHED, which are outcomes,
+		# and one label out of four describing a different noun is the reason
+		# the band never quite parsed.
+		Band.MET: return "SUCCESS"
 		Band.CLEAN: return "SCRAPED THROUGH"
 		Band.PARTIAL: return "PARTIAL"
 	return "BOTCHED"
