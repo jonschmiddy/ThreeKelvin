@@ -5,6 +5,10 @@ after the S-phase session**, against `main` at `a5db9c1`. Phases 0–5 done, pha
 5 **deleted** rather than parked, and the S-phases resolved — mostly by
 dissolving. §1 is the state of the world; §2 is what is next.*
 
+***Updated 2026-08-30.** Materials became items — the one ⬜ marked **next** — and
+§1 was seven save versions out of date. What is left before the tune gate
+reopens is **placement**, then **star features**, then G §5, then L.*
+
 This is the index. Every other file in this bundle is linked from here.
 
 ---
@@ -33,11 +37,15 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 
 ## 1. STATE OF THE WORLD
 
-**Repo:** `main` at `a5db9c1`, pushed. `SaveGame VERSION 14`, `PROTOCOL 8`,
-`validate.sh` passing.
+**Repo:** `main` at `76001d1`, two commits ahead of `origin`. `SaveGame VERSION
+24`, `PROTOCOL 8`, `validate.sh` passing.
 
-**⚠ `VERSION` IS ALREADY 14.** `be37b3e` stamped it during the attributes work.
-**Phase 6 bumps 14 → 15.**
+**⚠ `VERSION` MOVES OFTEN AND THE DISCARD IS THE MIGRATION.** It has gone 14 → 24
+since this file was written; `SaveGame.gd`'s own header carries a line per bump
+and is the place to read them. The two that matter to anyone reading this for
+context: **21–22** renamed the container class twice (`hoards` → `flotsam` →
+`jetsam`) and **24** deleted the material ledger. A mismatch refuses the load, so
+every one of those is a discarded save rather than a migration path.
 
 **Constants that moved on 2026-08-26** — several of these are new, and the old
 values appear all over the older briefs:
@@ -60,6 +68,9 @@ RunState:  JUMP_RADIUS 0.18   (was derived from local density)
 | `-- shipdrift` | does the ship move when its loadout changes | no |
 | `-- sensordump seed=N kind=N` | real galaxy geometry as JSON | no |
 | `-- fogshot` | what the chart shows, and **why each system is lit** | **yes** |
+| `-- sectorshot [group\|spent\|hover\|open=N\|take=N]` | the drawer in every state it has | **yes** |
+| `-- sectorshot combat ask{hail,flee} [resolve]` | the exit panel, and pressing through it | **yes** |
+| `-- transfertest` · `-- materialtest` | containers and materials, on what is DRAWN | no |
 | `-- chartbench` / `-- zoomshot` | frame cost; zoom ladder + density profile | **yes** |
 
 **`--headless` never emits `frame_post_draw`.** A harness that draws must run
@@ -83,9 +94,13 @@ rate until all systems are in."*
 
 So the number below is a READING, not a target, and a six-point move in it is not
 a reason to change a design decision. Half the systems that will price the loop
-do not exist yet — materials are a credit shim, there is no placement mechanic,
-star features are a proxy gate, ascension levels are unbuilt. Tuning against a
-loop with pieces missing bakes the missing pieces into the numbers.
+do not exist yet — ~~materials are a credit shim~~ (**landed 2026-08-30**), there
+is no placement mechanic, star features are a proxy gate, ascension levels are
+unbuilt. Tuning against a loop with pieces missing bakes the missing pieces into
+the numbers.
+
+**Re-affirmed 2026-08-30, unprompted and in the same words**, when the materials
+number came in. The ruling is holding on its own.
 
 **What still IS a gate, unchanged:** a galaxy kind at **0%** is a broken loop and
 not a difficulty setting; stranding above a percent or two is a bug; `errors 0`
@@ -164,8 +179,8 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
 | 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
 | — | Content — batch 04, thirty options | ✅ pool is **44** |
 | 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
-| — | **Materials become items** — hold cells, selling, jettison, the shim deleted | `MATERIALS_NOTE.md` ✅ |
-| — | **Placement** — unblocks the five held options | `BLOCKED_PLACEMENT.md` ❌ **missing** |
+| — | **Materials become items** — hold cells, selling, jettison, the shim deleted | ✅ `SaveGame` 24 |
+| — | **Placement** — unblocks the five held options | `BLOCKED_PLACEMENT.md` ❌ **missing** · ⬜ **NEXT** |
 | — | **Star features** — a real pulsar gate, not `min_danger 4` | `the_sweep`'s note |
 | 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
@@ -217,6 +232,46 @@ because neither was visible from the type change itself:
   and the last 0% galaxy kind.
 
 **Not tuned here.** Phase 9 owns it. See §9a.
+
+### What materials-as-items cost, measured 2026-08-30
+
+The shim is gone: `MaterialTable.grant` hands over an object and the parallel
+`Run.materials` ledger is deleted, so `material()` counts the hold and
+`spend_material` takes things off it. The fabricator, the station counter and
+the `needs_material` gates followed without being touched, which is what the
+note promised when it put the shim in one function.
+
+**Wins fall 26% → 15% at 300 runs, and it is not the simulator's fault.** That
+was the obvious suspicion — `Policy.HOLD_LIMIT` is 4 and counts ITEMS while
+hulls hold 8/12/16 CELLS, so the model looked like it was binning a one-cell
+artifact to keep a fourth gun. Three arms, 900 runs:
+
+| cap | wins | looted/run | hull deaths | reactor |
+| --- | --- | --- | --- | --- |
+| 4 items *(shipped)* | 15% | 7.2 | 112 | 62 |
+| 8 cells | 13% | 6.6 | 101 | 88 |
+| 12 cells | 14% | 6.5 | 104 | 82 |
+
+All three are inside one standard error. **The cap unit makes no difference**,
+and loosening it from 8 to 12 changed nothing either — so the cap was never the
+binding constraint. `Policy` was reverted to 4 items; the change had not earned
+its place.
+
+Which points at the answer being the game, working as designed: the constraint
+that bites is the **real hull grid**. Crates take real cells, fewer modules fit,
+ships arrive worse-armed. Deaths are 44% hull and 24% reactor with stranding at
+0.7% — these ships lose fights, they do not go broke. That is what "loot costs
+space" means, and it is the point of a spatial hold.
+
+**Do not tune against this.** See the ruling above; it is a reading.
+
+**Unexplained, and left standing:** reactor deaths were 62 in the shipped arm and
+82–88 in both cell arms — well beyond noise, and a cargo cap should have nothing
+to do with overheating. Also `credits: −4 net at stations per run` and **zero
+fuel bought across 2.5 station visits**, which predates all of this and means
+the sim barely exercises the counter that materials exist to be carried to.
+
+---
 
 ### §9a — the hellbender's food supply, first thing to price in phase 9
 
@@ -283,7 +338,8 @@ every step of the night.
 | S0–S3 | docs, instrument, re-measure, fuel ruling | ✅ done; **S3 dissolved** |
 | 6–8 | **E** — the encounter rebuild | ✅ |
 | — | Content — batch 04, reviewed | ✅ pool **42** |
-| — | Materials as items · placement · star features | ⬜ **next** |
+| — | **Materials as items** | ✅ 2026-08-30 |
+| — | Placement · star features | ⬜ **next** |
 | 10 | **G §5** — chart primer | ⬜ |
 | 11–12 | **L** | ⬜ |
 | 9 | Tune — **moved to last**, see the ruling | ⬜ |
