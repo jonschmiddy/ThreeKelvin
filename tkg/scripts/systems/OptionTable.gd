@@ -683,6 +683,91 @@ static func _authored() -> Array[Dictionary]:
 			],
 		},
 		{
+			id = &"the_wind",
+			title = "The wind",
+			body = "The star is shedding itself. A blue hypergiant burns through its own mass fast enough to notice, and what comes off it crosses this lane as a front you can read on the dish — thin, very fast gas, moving outward at a speed nothing here evolved to survive. It is going the way you are going.",
+			tags = [&"hazard"],
+			group = &"",
+			weight = 8,
+			needs_star = MapGen.Star.BLUE,
+			choices = [
+				{label = "Ride the front",
+					check = {attr = &"thrust", need = 6},
+					met = func() -> Dictionary:
+						Run.fuel += 20
+						return {text = "You put the hull side-on for ninety seconds and let it take you. The tank does not fill; the distance simply stops costing anything."},
+					clean = func() -> Dictionary:
+						Run.fuel += 14
+						return {text = "You catch the edge of it and hold, and the reactor spends the crossing idling."},
+					partial = func() -> Dictionary:
+						Run.fuel += 8
+						Run.heat += 5
+						return {text = "You catch it badly and spend the crossing correcting, which costs you most of what it gave."},
+					botched = func() -> Dictionary:
+						Run.take_hull_damage(9, "The front takes the bow first and the rest of the ship follows, sideways.")
+						return {text = "It takes the bow first and the rest of the ship follows, sideways, for longer than anyone aboard enjoys."}},
+				{label = "Burn across it", effect = func() -> Dictionary:
+					Run.fuel = maxi(0, Run.fuel - 8)
+					return {text = "You cross it at an angle, under power the whole way, and come out the far side having paid for every metre."}},
+				{label = "Wait it out", effect = func() -> Dictionary:
+					return {text = "You hold in the lee of nothing in particular until the front has gone past. It costs you the afternoon and nothing else."}},
+			],
+		},
+		{
+			id = &"the_glare",
+			title = "The glare",
+			body = "Everything on this approach is white. A blue hypergiant puts out more light in an hour than most stars manage in a year, and the dish is reading it as a wall — no returns, no shadows, nothing resolvable across a quarter of the sky. The last clean sweep before it whited out had something in it, ship-sized, holding still.",
+			tags = [&"hazard"],
+			group = &"",
+			weight = 7,
+			needs_star = MapGen.Star.BLUE,
+			choices = [
+				{label = "Go in on the last bearing",
+					check = {attr = &"sensors", need = 6},
+					met = func() -> Dictionary:
+						return {text = "You fly the bearing and trust it, and the thing is exactly where the dish said before the dish stopped being any use. Nobody has been here first. There was never a reason for anybody to look, and it gives up its racks like it had been waiting for the excuse.", module = true, material = &"wreck"},
+					clean = func() -> Dictionary:
+						return {text = "You find it on the third pass, which is two more than you wanted and one fewer than you had, and strip what you can reach before the light closes over it again.", module = true},
+					partial = func() -> Dictionary:
+						return {text = "You find where it was. Something came off it recently enough to still be nearby, and you take that instead.", material = &"wreck"},
+					botched = func() -> Dictionary:
+						Run.heat += 8
+						return {text = "You spend an hour inside the glare and come out with a hot hull and no idea whether you were ever within ten kilometres of it."}},
+				{label = "Sweep the shadow side", effect = func() -> Dictionary:
+					return {text = "You put the nearest body between yourself and the star and read the sliver of sky that leaves you. It is not where the contact was. It is where something smaller has been drifting for a while.", material = &"wreck"}},
+				{label = "Log the bearing and go", effect = func() -> Dictionary:
+					return {text = "You write down a number that will mean nothing to anybody who has not been here, and leave it in the archive for somebody who has."}},
+			],
+		},
+		{
+			id = &"the_scouring",
+			title = "The scouring",
+			body = "A hull has been parked in the wind of a blue hypergiant for a long time. Everything soft is gone — paint, markings, seals, the outer layer of everyone who was aboard — and what is left is structure and fittings, polished to bare metal and still bolted down. The star does the same to you at a slower rate the entire time you are alongside.",
+			tags = [&"hazard", &"salvage"],
+			group = &"",
+			weight = 7,
+			needs_star = MapGen.Star.BLUE,
+			choices = [
+				{label = "Work it until you have to leave",
+					check = {attr = &"hull", need = 6},
+					met = func() -> Dictionary:
+						return {text = "Four hours alongside, and you come away with the racks and most of a reactor housing. Your own plating has a shine on the star-facing side that will not come off.", module = true, material = &"wreck"},
+					clean = func() -> Dictionary:
+						Run.take_hull_damage(3, "Three hours alongside a blue hypergiant, which is two hours longer than the plating wanted.")
+						return {text = "Three hours, one rack, and a hull that needs looking at.", module = true},
+					partial = func() -> Dictionary:
+						Run.take_hull_damage(7, "You stayed alongside until your own plating started arguing with you.")
+						return {text = "You get one thing off it before the readings on your own plating start to argue with you.", module = true},
+					botched = func() -> Dictionary:
+						Run.take_hull_damage(12, "You misjudged how long is too long beside a blue hypergiant.")
+						return {text = "You misjudge how long is too long. The wreck keeps its fittings and you leave with less hull than you arrived with."}},
+				{label = "Take what is already loose", effect = func() -> Dictionary:
+					return {text = "You work the drift downwind of it, where the star has done the removing for you.", material = &"wreck"}},
+				{label = "Leave it polished", effect = func() -> Dictionary:
+					return {text = "It has been there long enough to be a landmark. It will be there considerably longer."}},
+			],
+		},
+		{
 			id = &"the_runner",
 			title = "The runner",
 			body = "She is nineteen at the outside and she is running somebody else's errand with somebody else's ship, and the thing she needs moved fits in one hand. No manifest, no filing, no name on it. She cannot pay much now. She says the one it goes to pays properly and pays on delivery, and she says it like somebody repeating a thing she was told rather than a thing she knows.",
