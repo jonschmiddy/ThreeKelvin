@@ -722,11 +722,13 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
 		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
 		_res_odds, String(_res.get("text", "")), _res_bill, _res_got))
+	# THE SAME ROW THE CHOICES SAT IN. Separation 7 and no leading spacer, so
+	# the plates start where the choice plates started and run the same width --
+	# see `EncounterDrawer.act_card`. The outcome above stops where the prose
+	# above the choices stopped, and the two states of the drawer stop moving
+	# under you.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
-	var sp2 := Control.new()
-	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(sp2)
 	# WHAT AN EVENT PAID YOU IN OBJECTS, if it paid you in any.
 	#
 	# `MATERIALS_NOTE` 3.6: a physical payout is a CONTAINER rather than a thing
@@ -745,36 +747,33 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	# vague; reading PRIZE it is a lie, because the word names this outcome. An
 	# option that paid in numbers has nothing to open and says nothing.
 	if OptionTable.pays_item(_res) and not Run.dead:
-		var claim := Widgets.button("REWARD", _open_prize)
-		claim.custom_minimum_size = Vector2(120, 22)
-		# GREYED WHEN THERE IS NOTHING BEHIND IT. The button appears because
-		# this outcome paid you an object; it stays on the row after you have
-		# taken it, because a button that vanishes moves CONTINUE out from
-		# under your hand. What it must not do is still look like a door.
+		# GREYED WHEN THERE IS NOTHING BEHIND IT. The plate appears because this
+		# outcome paid you an object; it stays on the row after you have taken
+		# it, because one that vanishes moves CONTINUE out from under your hand.
+		# What it must not do is still look like a door.
 		var left := Run.jetsam_left(n, Run.sector_jetsam(n, false))
-		claim.disabled = left <= 0
+		var claim := EncounterDrawer.act_card("REWARD", UITheme.HOT,
+			_open_prize, left > 0)
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
 
 	if Run.dead:
-		row.add_child(Widgets.button("…", func() -> void: Router.show_game_over()))
+		row.add_child(EncounterDrawer.act_card("SUMMARY", UITheme.LEAVE,
+			func() -> void: Router.show_game_over()))
 	elif bool(_res.get("fight", false)):
 		# LIST -> FIGHT -> RESULT -> LIST. The fight is a screen of its own and
 		# then `after_combat` returns to the sector, where a rebuilt drawer
 		# defaults to LIST with this option already spent.
-		var f := Widgets.button("THEY ARE ALREADY FIRING", func() -> void:
-			Router.start_ambush())
-		f.custom_minimum_size = Vector2(210, 22)
-		row.add_child(f)
+		row.add_child(EncounterDrawer.act_card("THEY ARE ALREADY FIRING",
+			UITheme.LEAVE, func() -> void: Router.start_ambush()))
 	else:
-		var c := Widgets.button("CONTINUE", func() -> void:
-			_dstate = Drawer.LIST
-			_open = -1
-			_res = {}
-			_refresh())
-		c.custom_minimum_size = Vector2(148, 22)
-		row.add_child(c)
+		row.add_child(EncounterDrawer.act_card("CONTINUE", UITheme.ICE,
+			func() -> void:
+				_dstate = Drawer.LIST
+				_open = -1
+				_res = {}
+				_refresh()))
 	_drawer.add_child(row)
 
 

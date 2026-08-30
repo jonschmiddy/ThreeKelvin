@@ -448,6 +448,35 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 
 
 
+## A THING TO PRESS, IN THE SHAPE OF THE THINGS YOU JUST PRESSED.
+##
+## The RESULT state ended in two stock buttons huddled in the bottom-right
+## corner while the OPTION state you arrived from ended in a row of 44-pixel
+## plates across the whole drawer. Same band, same instant apart, two different
+## vocabularies for "press this" -- so the panel read as being rebuilt rather
+## than as the contents changing, and the outcome sat higher than the choices it
+## replaced because it was expanding into the room the buttons no longer used.
+##
+## Same plate, same height, same row. What you press to leave an encounter looks
+## like what you pressed to enter it.
+static func act_card(label: String, ink: Color, on_press: Callable,
+		open: bool = true) -> Control:
+	var made := plate(ink if open else UITheme.LINE, on_press)
+	var card: OptionCard = made[0]
+	var col: VBoxContainer = made[1]
+	card.custom_minimum_size = Vector2(150, 44)
+	if not open:
+		card.bar(false)
+	# CENTRED, because it is one word rather than a heading over a note -- see
+	# `choice_card`, which stacks two and therefore starts at the top.
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	var lb := UITheme.body(label, ink if open else UITheme.COLD,
+		UITheme.FS_SMALL)
+	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(lb)
+	return card
+
+
 ## WHAT MOVED, as four fixed rows.
 ##
 ## FIXED, and printing an em dash for the two that did not. The alternative is
