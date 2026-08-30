@@ -49,6 +49,31 @@ func run(tree: SceneTree) -> void:
 	Router.show_starchart()
 	for i in 120:
 		await RenderingServer.frame_post_draw
+	# `pick` selects a destination so the panel has something to describe, and
+	# prefers a system with a STAR worth reading -- an ordinary one shows the row
+	# but not that the row varies, which is the half worth photographing.
+	if "pick" in OS.get_cmdline_user_args():
+		var sc0 := Router.current as StarchartScreen
+		var want := -1
+		var fallback := -1
+		for raw in Run.map:
+			var nn: MapGen.MapNode = raw
+			if nn.type != MapGen.NodeType.SYSTEM or not Run.charted(nn):
+				continue
+			if fallback < 0:
+				fallback = nn.index
+			if nn.star != MapGen.Star.ORDINARY:
+				want = nn.index
+				break
+		var at2 := want if want >= 0 else fallback
+		if sc0 != null and at2 >= 0:
+			sc0._on_node_picked(at2)
+			var t2: MapGen.MapNode = Run.map[at2]
+			print("  picked %s -- %s%s" % [MapGen.star_name(t2),
+				MapGen.star_kind(t2),
+				" + gas giant" if t2.gas_giant else ""])
+			for iP in 8:
+				await RenderingServer.frame_post_draw
 	var tag := ""
 	# `zoom=N` frames it the way the PLAYER looks at it: centred on the ship,
 	# close enough that both range rings are on screen.

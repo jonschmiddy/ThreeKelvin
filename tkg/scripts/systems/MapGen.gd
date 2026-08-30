@@ -735,6 +735,25 @@ static func region_name(r: Region) -> String:
 ## Which manufacturer holds a place is a detail you read when you point at one, and the
 ## tooltip and the panel both say it in words. What the chart has to carry at a
 ## glance is whether anyone holds it at all.
+## THE STAR, IN WORDS. Beside `star_colour` because they are two readings of
+## one fact and the panel prints both -- the swatch says which and the words say
+## what, and a player who never learns the colour can still read the row.
+##
+## `star_kind` and not `star_name`: that name was taken sixty lines up by the
+## thing that names a SYSTEM -- Epsilon Tallow III -- which is what you would
+## reach for first and would have compiled quietly in half the places it is
+## wrong.
+static func star_kind(n: MapNode) -> String:
+	if n.type == NodeType.PULSAR:
+		return "NEUTRON STAR"
+	if n.type == NodeType.CORE:
+		return "NOTHING THAT SHINES"
+	match n.star:
+		Star.RED: return "RED HYPERGIANT"
+		Star.BLUE: return "BLUE HYPERGIANT"
+	return "ORDINARY"
+
+
 ## WHAT COLOUR A PLACE IS, and it is the colour of its star.
 ##
 ## This was a development gradient: two berths pale, one berth grey, none dark,

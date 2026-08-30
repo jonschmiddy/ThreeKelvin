@@ -408,6 +408,25 @@ func _refresh() -> void:
 		var trade := Market.trade_line(t)
 		if not trade.is_empty():
 			_rows.add_child(_row("MARKET", trade, Color("#d99b29")))
+	# WHAT IS IN THE SKY, which is the half of a system the panel never said.
+	#
+	# It decides what you will be offered: a red hypergiant is the only place
+	# `corona` and `flare_shelter` exist, a blue one is the only place the wind,
+	# the glare and the scouring do, and a giant is what `slipping_orbit` needs.
+	# The chart has painted this since the star colours landed -- this is the
+	# row that says what the colour MEANS, so it can be learned rather than
+	# guessed at.
+	#
+	# In the star's own colour, so the swatch on the map and the words here are
+	# obviously the same fact.
+	_rows.add_child(_row("STAR", MapGen.star_kind(t), MapGen.star_colour(t)))
+	# Only when there IS one. A row reading NONE for the commonest possible
+	# answer is a row that is blank four times in nine and says nothing the
+	# other five.
+	if t.gas_giant:
+		_rows.add_child(_row("ALSO", "GAS GIANT"))
+	if t.near_pulsar and t.type != MapGen.NodeType.PULSAR:
+		_rows.add_child(_row("ALSO", "PULSAR IN REACH", Color("#8fd2e0")))
 	_rows.add_child(_danger_row(t.danger))
 
 	# Out of range is a different answer from "cannot afford it", and quoting a
