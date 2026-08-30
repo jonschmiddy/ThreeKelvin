@@ -13,6 +13,10 @@ var _resolved: bool = false
 var _then_fight: bool = false
 ## The prize popup, while it is up. One at a time, like the sector's.
 var _transfer: TransferView = null
+## CONTINUE, held while a crate sits unopened. See `SectorScreen._res_seen` --
+## this screen builds its result once rather than on refresh, so the button is
+## kept rather than re-derived.
+var _go: Button = null
 
 func setup(event: Dictionary) -> void:
 	_event = event
@@ -149,7 +153,14 @@ func _choose(index: int) -> void:
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
-	row.add_child(Widgets.button("CONTINUE", _continue))
+	_go = Widgets.button("CONTINUE", _continue)
+	# HELD UNTIL YOU HAVE LOOKED, and only while there is something to look at.
+	if OptionTable.pays_item(outcome):
+		var nR: MapGen.MapNode = Run.node_at()
+		if Run.jetsam_left(nR, Run.sector_jetsam(nR, false)) > 0:
+			_go.disabled = true
+			_go.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go -- what you leave stays in this system, but you should at least know it is there.")
+	row.add_child(_go)
 	_result.add_child(row)
 
 
@@ -175,6 +186,9 @@ func _close_transfer() -> void:
 		return
 	_transfer.queue_free()
 	_transfer = null
+	# You have seen it. Whether you took it is your business.
+	if _go != null:
+		_go.disabled = false
 
 func _continue() -> void:
 	if _then_fight:

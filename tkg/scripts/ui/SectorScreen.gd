@@ -181,6 +181,15 @@ var _res_checked: bool = false
 var _res_odds: String = ""
 ## The ledger either side of the resolution. `RunState.ledger`.
 var _res_bill: Array = []
+## Whether the REWARD door has been opened since this outcome resolved.
+##
+## CONTINUE waits on it. An outcome that pays you an object drops the object in
+## a container beside you and it stays in the system whether or not you look --
+## which is honest, and is also how a player walks away from a reward they never
+## knew they had, one keypress after being told they earned it. Being made to
+## open the crate is not a nag: it is the one moment the game can be sure you
+## saw the thing, and it costs a click you were going to make anyway.
+var _res_seen: bool = false
 ## Which node the approach animation has already played for.
 ##
 ## STATIC, because this screen is rebuilt every time you tab away and back, and
@@ -726,11 +735,16 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(sp)
+	var waiting := false
 	if OptionTable.pays_item(_res) and not Run.dead:
 		# GREYED WHEN THERE IS NOTHING BEHIND IT. It stays on the row after you
 		# have taken it, because one that vanishes moves CONTINUE out from under
 		# your hand. What it must not do is still look like a door.
 		var left := Run.jetsam_left(n, Run.sector_jetsam(n, false))
+		# AND ONLY WHILE THE DOOR STILL OPENS. Gating CONTINUE on a crate you
+		# cannot reach would be a locked room: if the container is somehow
+		# already empty, there is nothing to be shown and nothing to wait for.
+		waiting = left > 0 and not _res_seen
 		var claim := Widgets.button("REWARD", _open_prize)
 		claim.custom_minimum_size = EncounterDrawer.BTN
 		claim.disabled = left <= 0
@@ -751,6 +765,9 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 		out = Widgets.button("THEY ARE FIRING", func() -> void:
 			Router.start_ambush())
 	out.custom_minimum_size = EncounterDrawer.BTN
+	if waiting:
+		out.disabled = true
+		out.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go -- what you leave stays in this system, but you should at least know it is there.")
 	head.add_child(out)
 	_drawer.add_child(head)
 	# NAME THE BAND. The prose is written in fiction and deliberately never says
@@ -818,6 +835,7 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	# close on the far side of it or they close early.
 	OptionTable.pay(res, n)
 	_res_bill = EncounterDrawer.bill_rows(was, Run.ledger())
+	_res_seen = false
 	_outcomes[i] = String(res.get("text", ""))
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
 	# hull taken, a module in the hold -- so a player who closed the game on the
@@ -1840,8 +1858,13 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 ## of the run, because that is what it now is: junk left in a system.
 func _open_prize() -> void:
 	var n: MapGen.MapNode = Run.node_at()
-	if n != null:
-		_open_jetsam(Run.sector_jetsam(n, false), "REWARD")
+	if n == null:
+		return
+	# LOOKED AT IT. `_close_transfer` refreshes, so CONTINUE comes back live the
+	# moment the popup shuts -- whether or not anything came out of the crate.
+	# Taking it is your business; knowing it was there is the game's.
+	_res_seen = true
+	_open_jetsam(Run.sector_jetsam(n, false), "REWARD")
 
 
 ## The system's own pile, from the button beside PLOT NEXT JUMP.
