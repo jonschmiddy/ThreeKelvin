@@ -642,17 +642,7 @@ func _drawer_list(n: MapGen.MapNode) -> void:
 		% [left.size(), "" if left.size() == 1 else "S",
 			"S" if left.size() == 1 else ""], _on_action,
 		Run.jetsam_left(n, Run.sector_jetsam(n, false)), _open_sector_loot))
-	var placed: Dictionary = {}
-	for i in left:
-		var opt := OptionTable.by_id(n.options[i])
-		var g := StringName(opt.get("group", &""))
-		if g != &"":
-			if placed.has(g):
-				continue
-			placed[g] = true
-			_drawer.add_child(EncounterDrawer.group_strip(n, g, left, _open_option))
-		else:
-			_drawer.add_child(EncounterDrawer.list_row(n, i, opt, _open_option))
+	_drawer.add_child(EncounterDrawer.option_row(n, left, _open_option))
 
 
 ## The drawer's top line, with the way out parked on its right.
@@ -773,7 +763,7 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 
 
 ## Which options this system still has.
-## Opening one option, handed to `EncounterDrawer.list_row` as a callable.
+## Opening one option, handed to `EncounterDrawer.option_card` as a callable.
 ##
 ## The drawer's builders do not get to know about `Drawer.OPTION` or about
 ## `_refresh`; they get to say "this row was clicked". This is the whole of what

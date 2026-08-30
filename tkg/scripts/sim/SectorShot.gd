@@ -149,8 +149,9 @@ func run(tree: SceneTree) -> void:
 		var st2 := Router.current as SectorScreen
 		var grew := 0
 		for b in _buttons(st2):
-			# Only the ones sized to the box. An option row is a full-width
-			# button by design and would report as an overflow forever.
+			# Only the ones sized to the box. Choice buttons in the OPTION
+			# state are 150 wide by design and would report as overflows
+			# forever. Option cards are not buttons at all any more.
 			if b.custom_minimum_size.x != EncounterDrawer.BTN.x:
 				continue
 			if b.size.x > EncounterDrawer.BTN.x + 0.5:

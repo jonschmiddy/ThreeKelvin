@@ -43,6 +43,63 @@ class_name EncounterDrawer
 ## the stylebox's own padding either side and nothing spare.
 const BTN := Vector2(94, 20)
 
+## One encounter, as a plate you click into.
+##
+## A ROW IS A LEDGER LINE AND AN ENCOUNTER IS NOT ONE. These were full-width
+## bars 21 pixels tall: a name column, a sentence clipped mid-word, and a
+## right-aligned number. Three of them stacked read as a table of accounts,
+## which is the wrong promise -- a table is something you scan for a value, and
+## these are things you go and do. Side by side and square-ish, they read as
+## choices instead, and the drawer stops looking like a receipt.
+##
+## THE PLATE IS THE CLICK TARGET, which is most of the argument for a
+## `PanelContainer` over the `Button` the row used. A Button is not a container:
+## it cannot pad itself from its own stylebox, so the row anchored its contents
+## to the full rect and had no margins at all. This sizes to its contents and
+## the stylebox does the spacing, which is what makes the padding uniform.
+class OptionCard extends PanelContainer:
+	var index: int = 0
+	var on_open: Callable
+	## The option's tag colour, on the left edge. See `tag_colour`.
+	var edge: Color = UITheme.LINE
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	## THE FRAME IS STATE AND THE STRIPE IS IDENTITY, and putting both on the
+	## border was the mistake. `tag_colour` spans a bright cyan for a signal, a
+	## muted brown for salvage and `LINE` itself for an untagged option, so four
+	## cards edged in their own tag came out at four different weights and the
+	## brightest one read as the selected one. It is a uniform frame now, and the
+	## tag is the flush stripe down the left that `option_card` adds.
+	##
+	## Zero padding, because the stripe has to touch the edge: a PanelContainer
+	## insets its whole child by the stylebox margins, so the spacing moved to a
+	## MarginContainer around the text only.
+	func dress(hot: bool) -> void:
+		add_theme_stylebox_override("panel", UITheme.flat(
+			UITheme.PANEL2.lightened(0.06) if hot else UITheme.PANEL2,
+			UITheme.COLD if hot else UITheme.LINE, 0, 0, 0))
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_MOUSE_ENTER:
+			dress(true)
+		elif what == NOTIFICATION_MOUSE_EXIT:
+			dress(false)
+
+	func _gui_input(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if on_open.is_valid():
+			on_open.call(index)
+		accept_event()
+
+
+
 
 static func head(text: String, on_jump: Callable, loose: int = 0,
 		on_loot: Callable = Callable()) -> Control:
@@ -71,97 +128,123 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 	return row
 
 
-## One condensed option: a stripe, its name, a line of body, and its hardest number.
-static func list_row(n: MapGen.MapNode, i: int, opt: Dictionary,
+## Every untaken option in this system, side by side.
+##
+## The screen used to run this loop itself and add one child per option; it is
+## here because it is a picture, and because the exclusive-set bracket below has
+## to be laid out ALONGSIDE the loose options rather than above them.
+static func option_row(n: MapGen.MapNode, left: Array,
 		on_open: Callable) -> Control:
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, 21)
-	b.focus_mode = Control.FOCUS_NONE
-	b.flat = true
-	b.pressed.connect(func() -> void: on_open.call(i))
 	var row := HBoxContainer.new()
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.add_theme_constant_override("separation", 7)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(row)
-	var bar := ColorRect.new()
-	bar.color = tag_colour(opt)
-	bar.custom_minimum_size = Vector2(3, 0)
-	row.add_child(bar)
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var placed: Dictionary = {}
+	for i in left:
+		var opt := OptionTable.by_id(n.options[i])
+		var g := StringName(opt.get("group", &""))
+		if g == &"":
+			row.add_child(option_card(i, opt, on_open))
+			continue
+		if placed.has(g):
+			continue
+		placed[g] = true
+		row.add_child(group_strip(n, g, left, on_open))
+	return row
+
+
+## ITS NAME AND ONE SENTENCE, AND NOTHING ELSE.
+##
+## The row printed a third column: the odds on its check, or what it cost, or
+## what the dish read off the contact. That is the detail view leaking into the
+## list. A number you can compare across four rows turns choosing an encounter
+## into arithmetic before you have read what any of them ARE -- and the numbers
+## are all still there, one click away, on the choice buttons where you are
+## actually committing to one. `row_hint` and `lead_check` went with it.
+##
+## `n` is not a parameter any more for the same reason: everything the old row
+## needed the system for was in that column.
+static func option_card(i: int, opt: Dictionary, on_open: Callable) -> Control:
+	var card := OptionCard.new()
+	card.index = i
+	card.on_open = on_open
+	card.edge = tag_colour(opt)
+	card.dress(false)
+	var lane := HBoxContainer.new()
+	lane.add_theme_constant_override("separation", 0)
+	lane.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# WHAT KIND OF THING THIS IS, at two pixels. An untagged option gets `LINE`
+	# back, which is the frame's own colour -- so no tag draws no stripe rather
+	# than drawing a grey one that means nothing.
+	var tag := ColorRect.new()
+	tag.color = card.edge
+	tag.custom_minimum_size = Vector2(2, 0)
+	tag.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lane.add_child(tag)
+	var pad := MarginContainer.new()
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 7)
+	for side2 in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + side2, 9)
+	lane.add_child(pad)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 5)
+	# THROUGH TO THE PLATE. The card is the thing that answers a click, and a
+	# label that ate the press would leave dead spots over the words.
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var nm := UITheme.body(String(opt.get("title", "")).to_upper(),
 		UITheme.ICE, UITheme.FS_SMALL)
-	nm.custom_minimum_size = Vector2(148, 0)
-	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(nm)
+	# WRAPPED, NOT CLIPPED. A fixed name column is what the bar had, and a long
+	# title lost its last word to it. A card is as tall as it needs to be.
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(nm)
 	var lead := UITheme.body(first_sentence(String(opt.get("body", ""))),
 		UITheme.COLD, UITheme.FS_SMALL)
-	lead.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lead.clip_text = true
-	lead.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(lead)
-	# ALWAYS PRESENT, EVEN WHEN EMPTY. The lead above expands into whatever is
-	# left, so a row with no number let its prose run further than a row with
-	# one -- three rows clipping at three different x positions, which reads as
-	# broken text rather than as a column. Reserving the width makes the ragged
-	# edge a straight one.
-	var hint := row_hint(n, opt)
-	var h := UITheme.body(String(hint[0]), hint[1] as Color, UITheme.FS_SMALL)
-	h.custom_minimum_size = Vector2(196, 0)
-	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	h.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	h.clip_text = true
-	row.add_child(h)
-	return b
+	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lead.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_child(lead)
+	pad.add_child(col)
+	card.add_child(lane)
+	return card
 
-
-## The one number a condensed row is allowed.
-##
-## A row that printed every band would be the detail view with worse spacing, so
-## it shows the hardest thing about the option: what is waiting if it opens a
-## fight, else its check, else what it costs.
-static func row_hint(n: MapGen.MapNode, opt: Dictionary) -> Array:
-	for c in opt.get("choices", []):
-		if bool((c as Dictionary).get("fight", false)):
-			return [contact_reading(n).to_upper(), UITheme.THEM]
-	var chk := lead_check(opt)
-	if not chk.is_empty():
-		# THE SHORT FORM: what it wants, and the odds. `SkillCheck.badge` also
-		# carries "you have N" and "one more: X%", and both of those are for the
-		# moment you are DECIDING -- in a list they overran the column and clipped
-		# the attribute name off the front, which is the one part the badge exists
-		# to show. The full badge is on the choice button in the OPTION state.
-		return ["%s %d · %d%%" % [SkillCheck.attr_name(chk).to_upper(),
-			int(chk.get("need", 0)), int(round(SkillCheck.odds(chk) * 100.0))],
-			SkillCheck.badge_colour(chk)]
-	for c2 in opt.get("choices", []):
-		var cd := c2 as Dictionary
-		if cd.has("cost_credits"):
-			var cost := int(cd.cost_credits)
-			return ["%d CREDITS" % cost,
-				UITheme.EMBER if Run.credits >= cost else UITheme.FLARE]
-	return ["", UITheme.COLD]
 
 
 ## An exclusive set, bracketed.
 ##
-## RULING 1: you see what a choice forecloses while you are still deciding. In a
-## drawer this has to be cheap -- a bordered strip and two words, not a box with
-## a caption, because there are only a hundred and thirty-five pixels of it.
+## RULING 1: you see what a choice forecloses while you are still deciding. It
+## is a border and two words rather than a box with a caption, because it is
+## competing for room with the options it contains.
 static func group_strip(n: MapGen.MapNode, g: StringName, left: Array,
 		on_open: Callable) -> Control:
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 0)
-	col.add_child(UITheme.body("ONE ONLY", UITheme.EMBER, UITheme.FS_SMALL))
+	var inner := HBoxContainer.new()
+	inner.add_theme_constant_override("separation", 6)
+	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var members := 0
 	for i in left:
 		var opt := OptionTable.by_id(n.options[i])
 		if StringName(opt.get("group", &"")) != g:
 			continue
-		col.add_child(list_row(n, i, opt, on_open))
+		members += 1
+		inner.add_child(option_card(i, opt, on_open))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	col.add_child(UITheme.body("ONE ONLY", UITheme.EMBER, UITheme.FS_SMALL))
+	col.add_child(inner)
 	var wrap := PanelContainer.new()
 	wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL2, UITheme.EMBER.darkened(0.5), 0, 5, 2))
+		UITheme.flat(Color(0, 0, 0, 0), UITheme.EMBER.darkened(0.5), 0, 4, 5))
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# IT TAKES THE ROOM ITS MEMBERS WOULD HAVE. Every card in the row expands
+	# into an equal share, so a bracket holding two of them beside one loose
+	# option would come out the same width as that option and squeeze both of
+	# its own to half size -- the exclusive pair reading as the SMALL choice.
+	wrap.size_flags_stretch_ratio = float(maxi(1, members))
 	wrap.add_child(col)
 	return wrap
+
 
 
 ## The option you clicked, with its choices.
@@ -267,15 +350,6 @@ static func contact_reading(n: MapGen.MapNode) -> String:
 ## the callable has run.
 static func opens_fight(c: Dictionary) -> bool:
 	return bool(c.get("fight", false))
-static func lead_check(opt: Dictionary) -> Dictionary:
-	var found: Dictionary = {}
-	var count := 0
-	for c in opt.get("choices", []):
-		if not (c as Dictionary).has("check"):
-			continue
-		count += 1
-		found = (c as Dictionary).check
-	return found if count == 1 else {}
 
 
 ## One line of body for the list. The rest lives in the detail view.
