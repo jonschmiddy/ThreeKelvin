@@ -64,6 +64,7 @@ static var _view_map: int = -1
 const REGION_LABEL := "LOCAL REGION"
 
 var _dest_name: Label
+## The line under the name. Usually EMPTY -- see where it is filled.
 var _dest_class: Label
 var _dest_blurb: Label
 var _rows: VBoxContainer
@@ -199,30 +200,26 @@ func _build() -> void:
 	# WICK REACH did not. Two lines' worth is always held whether the name needs
 	# it or not, so nothing below can move.
 	#
-	# TWO IS MEASURED, not guessed: `-- namefit` wraps every name five galaxies
-	# generate at this font and this width. 94.4% take one line, 5.6% take two,
-	# none take three, and it fails if that ever stops being true.
+	# `-- namefit` still wraps every name five galaxies generate at this font
+	# and this width -- 94.4% one line, 5.6% two, none three -- and still fails
+	# if that stops being true. It is a WIDTH check now rather than the evidence
+	# for a height: the name sizes to its own lines like everything else here.
 	#
-	# THE RESERVATION MOVED OFF THE NAME AND ONTO THE BLOCK, and that fixes two
-	# things at once. Held on the name, a one-line name left a whole blank line
-	# of head-sized gap above the class -- the reservation was visible as empty
-	# space 94% of the time. And it only ever covered the NAME: the blurb below
-	# it is one to four lines depending on how much there is to say about a
-	# place, so a contested city with thorough inspections pushed every row down
-	# and resized the chart exactly the way a long name used to.
+	# NO RESERVED HEIGHT, AND THE SLACK LIVES BELOW THE ROWS INSTEAD.
 	#
-	# One height for the whole header instead. A short name lets the class sit
-	# straight underneath it, a long blurb spends the slack that a short one
-	# leaves, and nothing below the separator moves whichever system you point
-	# at.
+	# This block held a fixed height so that a long blurb could not push the
+	# rows down -- and it worked, and the cost was a fixed gap under every short
+	# description, which is most of them. Both readings of that trade have now
+	# been looked at on screen and the gap is the worse one.
+	#
+	# What makes giving it up cheap is that the panel ALREADY anchors its bottom
+	# half: there is an expanding spacer between the rows and the in-range list,
+	# so IN RANGE and JUMP sit where they sit no matter what happens above them.
+	# Letting the header size to its own text spends that spacer rather than
+	# moving anything a hand is aimed at. The rows shift by a line or two
+	# between systems; the buttons do not move at all.
 	var head := VBoxContainer.new()
 	head.add_theme_constant_override("separation", 4)
-	# Two lines of name, two of class -- a galaxy designation and a development
-	# word can wrap -- and four of blurb, which is the longest `place_blurb`
-	# builds: the contested-city line plus the inspections clause.
-	head.custom_minimum_size = Vector2(228,
-		UITheme.pixel_font().get_height(UITheme.FS_HEAD) * 2
-		+ UITheme.pixel_font().get_height(UITheme.FS_SMALL) * 6 + 20)
 	right.add_child(head)
 	_dest_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_dest_name.vertical_alignment = VERTICAL_ALIGNMENT_TOP
@@ -242,9 +239,11 @@ func _build() -> void:
 	_rows.add_theme_constant_override("separation", 3)
 	right.add_child(_rows)
 
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(spacer)
+	# NO SPACER HERE ANY MORE. It used to hold the slack between the rows and
+	# the in-range list, which meant the list itself had to declare a height --
+	# and a declared height is a demand. The list expands instead, so it IS the
+	# slack: it swells when there is little above it and shrinks when there is
+	# much, and either way the thing below it stays on the screen.
 
 	_hint = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -260,9 +259,19 @@ func _build() -> void:
 	#
 	# Scrolled rather than truncated, because every row is somewhere you can
 	# legally fly and hiding a destination is worse than making it a scroll.
+	#
+	# AND THE CEILING WAS A FLOOR, which is why the button went off the bottom
+	# again. `NEIGH_H` was written to `custom_minimum_size`, and a minimum size
+	# is a DEMAND: with eleven rows of system facts above it the panel no longer
+	# had 128 pixels spare, and the list took them anyway. Twelve systems in
+	# range and JUMP was below the screen.
+	#
+	# It expands into what is left instead. The floor is one row, so it never
+	# vanishes; everything past that is whatever the header and the rows have
+	# not already spent, and the button underneath cannot be pushed anywhere.
 	_neigh_scroll = ScrollContainer.new()
-	_neigh_scroll.custom_minimum_size = Vector2(0, NEIGH_H)
-	_neigh_scroll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	_neigh_scroll.custom_minimum_size = Vector2(0, NEIGH_ROW)
+	_neigh_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_neigh_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_neigh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_neigh_scroll.add_child(_neigh)
@@ -392,12 +401,19 @@ func _refresh() -> void:
 	# outermost thing first, narrowing to the system. The nebula belongs in this
 	# line rather than in the rows below: the rows are facts ABOUT the place,
 	# and the cloud is part of its address.
-	var addr := "%s - " % Run.galaxy_name
-	if t.in_nebula:
-		var cl := NebulaField.at(t.gal)
-		if cl != null:
-			addr += "%s - " % cl.name.to_upper()
-	_dest_class.text = addr + MapGen.development_name(t.development).to_upper()
+	# ONLY THE CLOUD, AND ONLY WHEN THERE IS ONE.
+	#
+	# This read "PGC 5055 - SETTLEMENT": a galaxy catalogue number that is the
+	# same for every system in the run, and a development word that the
+	# DEVELOPMENT row three lines below says again. Two thirds of the line was
+	# noise and the last third was a duplicate.
+	#
+	# What was worth keeping is the middle: a nebula's name appears NOWHERE else
+	# on this screen, and being inside one is a real fact about a place. So the
+	# line is the cloud or it is nothing, and most systems get nothing -- which
+	# is the point, because the header is as tall as what it says now.
+	var cloud := NebulaField.at(t.gal) if t.in_nebula else null
+	_dest_class.text = "INSIDE %s" % cloud.name.to_upper() if cloud != null else ""
 	_dest_blurb.text = MapGen.place_blurb(t)
 
 	# THREE ANSWERS, IN THE ORDER YOU WANT THEM, and the order is the change.
@@ -568,11 +584,17 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 		_hint.text += " - %d NAMED FIRST" % named
 	for n in near:
 		_neigh.add_child(_neighbour_row(n))
-	# TO THE LIST, UP TO THE CEILING. A fixed box is a bounded box, but it also
-	# holds its full height for a two-row list and leaves the panel with a hole
-	# in it. `NEIGH_H` is a maximum, not a size.
-	_neigh_scroll.custom_minimum_size = Vector2(0,
-		minf(float(near.size()) * NEIGH_ROW, float(NEIGH_H)))
+	# AND NOTHING IS SET HERE ANY MORE.
+	#
+	# This wrote `min(rows, NEIGH_H)` to `custom_minimum_size`, which reads like
+	# a ceiling and is a DEMAND: Godot will not size a control under its minimum
+	# for any reason, so with eleven rows of system facts above it the panel had
+	# no 128 pixels spare and the list took them regardless. Twelve systems in
+	# range and JUMP was off the bottom of the screen.
+	#
+	# The container expands into what is left instead -- see where it is built.
+	# A short list leaves its slack inside its own box rather than above it,
+	# which is the same hole in a better place, and a long one scrolls.
 
 ## How far up the in-range list a system sits. Lower is higher.
 ##

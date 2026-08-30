@@ -82,8 +82,19 @@ func run(tree: SceneTree) -> void:
 				" + gas giant" if t2.gas_giant else ""])
 			for iP in 8:
 				await RenderingServer.frame_post_draw
-			print("    blurb %d chars · rows begin at y %.0f"
-				% [MapGen.place_blurb(t2).length(), sc0._rows.global_position.y])
+			# JUMP IS THE CONTROL THIS SCREEN EXISTS TO REACH, so where its
+			# bottom edge sits against the window is the assertion, not the
+			# decoration. Anything at or past the height is off the screen.
+			# AGAINST THE VIEWPORT, not against the panel. `global_position` is
+			# in the viewport's frame and `sc0.size.y` is the panel's own height,
+			# which starts below the HUD bar -- comparing them said the button
+			# was thirteen pixels off the bottom of a screen it was plainly on.
+			var screen_h: float = sc0.get_viewport_rect().size.y
+			var jb: float = sc0._jump.global_position.y + sc0._jump.size.y
+			print("    blurb %d · rows y %.0f · %d in range · JUMP ends at %.0f of %.0f%s"
+				% [MapGen.place_blurb(t2).length(), sc0._rows.global_position.y,
+					sc0._neigh.get_child_count(), jb, screen_h,
+					"  <-- OFF SCREEN" if jb > screen_h else ""])
 	var tag := ""
 	# `zoom=N` frames it the way the PLAYER looks at it: centred on the ship,
 	# close enough that both range rings are on screen.
