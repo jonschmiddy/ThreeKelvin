@@ -151,6 +151,78 @@ func run() -> void:
 	# names: "sparse-and-easy is not tension, it is dead air".
 	_ok("no system is left with nothing to do", empty == 0)
 
+	# AND AN OPTION NO GALAXY WILL ADMIT IS DEAD CONTENT.
+	#
+	# The counterpart to the gate check above, and the failure that arrives with
+	# star features: `needs_pulsar` is a real gate rather than the `min_danger 4`
+	# proxy it replaced, and a real gate can be too tight. An option gated on a
+	# sky nothing has is authored, reviewed, committed and never seen -- and
+	# nothing else here would say so, because every other test is about what WAS
+	# rolled rather than what COULD be.
+	#
+	# ACROSS SEEDS, and that distinction is the whole of it. Pulsars are derived
+	# from supernova remnants and `_seed_pulsars` says plainly that "a galaxy can
+	# roll none" -- so an option needing one is CORRECTLY absent from a galaxy
+	# with no corpses in it, the way a fauna option is absent from a galaxy of
+	# cities. Homeless everywhere is a bug. Homeless somewhere is the map doing
+	# its job, and asserting against it would force every gate down to the
+	# weakest galaxy the generator can produce.
+	#
+	# Admittance rather than appearance: weight and the draw are the roller's
+	# business and a rare option legitimately misses a small sample. What must
+	# never happen is a home that exists nowhere.
+	var reach: Dictionary = {}
+	var skies: Array[String] = []
+	for seed in [4242, 11, 90210, 31337, 7, 1000, 5150, 8675309, 42, 99, 2024, 777]:
+		Rng.forced = seed
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var pulsars := 0
+		var flares := 0
+		var giants := 0
+		for raw0 in Run.map:
+			var s: MapGen.MapNode = raw0
+			if s.type == MapGen.NodeType.PULSAR:
+				pulsars += 1
+			if s.type != MapGen.NodeType.SYSTEM:
+				continue
+			if s.star == MapGen.Star.FLARE:
+				flares += 1
+			if s.gas_giant:
+				giants += 1
+		var remnants := 0
+		for cc in NebulaField.clouds():
+			if (cc as NebulaField.Cloud).kind == NebulaField.Kind.REMNANT:
+				remnants += 1
+		skies.append("    seed %-8d %-22s gas %.2f · %d clouds · %d remnants"
+			% [seed, String(Run.galaxy.get("name", "?")),
+				float(Run.galaxy.get("gas", 0.0)),
+				NebulaField.clouds().size(), remnants])
+		skies.append("    seed %-6d %3d pulsars · %3d flare stars · %3d giants"
+			% [seed, pulsars, flares, giants])
+		for o in OptionTable.all():
+			if bool(o.get("placed", false)):
+				continue   # placed options are never rolled; that is the point
+			var id0 := StringName(o.id)
+			var homes := 0
+			for raw in Run.map:
+				if OptionTable.admits(o, raw as MapGen.MapNode):
+					homes += 1
+			reach[id0] = int(reach.get(id0, 0)) + homes
+	var homeless: Array[String] = []
+	for id1 in reach:
+		if int(reach[id1]) == 0:
+			homeless.append(String(id1))
+	_ok("every option has somewhere it could appear", homeless.is_empty())
+	for bb in homeless:
+		_fail("no system in any of four galaxies admits '%s'" % bb)
+	print("  what the four galaxies actually hold:")
+	for line in skies:
+		print(line)
+	print("  systems admitting each sky-gated option, over four galaxies:")
+	for id2 in [&"the_sweep", &"corona", &"flare_shelter", &"slipping_orbit"]:
+		if reach.has(id2):
+			print("    %-16s %d" % [String(id2), int(reach[id2])])
+
 	verdict("optiontest")
 
 
@@ -183,6 +255,9 @@ func _gates_are_real() -> void:
 		# from silently doing nothing -- which is the failure the `admits`
 		# header describes, and which this test exists to catch.
 		&"placed": true,
+		# STAR FEATURES: what is in the sky at a system, gated the way
+		# `needs_fauna` is. See `OptionTable.admits`.
+		&"needs_star": true, &"needs_giant": true, &"needs_pulsar": true,
 	}
 	var bad: Array[String] = []
 	for o in OptionTable.all():

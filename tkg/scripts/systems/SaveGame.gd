@@ -186,7 +186,14 @@ const PATH := "user://run.save"
 ## version 24 build would ignore it, which is the quiet half; the loud half is
 ## that a 23 build handed this save would find no ledger and show you nothing
 ## for a hold full of crates.
-const VERSION := 24
+## 25: A SYSTEM HAS A SKY. `star`, `gas_giant` and `near_pulsar` decide whether
+## four options may appear at all -- the pulsar sweep, the two flare-star
+## encounters and the gas giant -- and all three are rolled at generation off
+## `Rng.world`. They are saved rather than recomputed because a save carries the
+## MAP, not the seed that made it: a 24 save read by this build would come back
+## with an ordinary sky everywhere, and the systems that had been offering those
+## options would quietly stop.
+const VERSION := 25
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -765,6 +772,8 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		index = n.index, layer = n.layer, row = n.row,
 		rows_in_layer = n.rows_in_layer,
 		region = int(n.region), development = int(n.development),
+		star = int(n.star), gas_giant = n.gas_giant,
+		near_pulsar = n.near_pulsar,
 		security = n.security, berths = berths,
 		manufacturer = String(n.manufacturer), fauna = n.fauna,
 		danger = n.danger, type = int(n.type),
@@ -802,6 +811,9 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	n.manufacturer = StringName(str(d.get("manufacturer", "")))
 	n.fauna = bool(d.get("fauna", false))
 	n.danger = int(d.get("danger", 1))
+	n.star = int(d.get("star", 0)) as MapGen.Star
+	n.gas_giant = bool(d.get("gas_giant", false))
+	n.near_pulsar = bool(d.get("near_pulsar", false))
 	n.type = int(d.get("type", 0)) as MapGen.NodeType
 	n.visited = bool(d.get("visited", false))
 	# Absent on a save from before sensors could see. False is the honest

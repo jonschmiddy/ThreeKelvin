@@ -561,7 +561,7 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 	for i in count:
 		var force := n.manufacturer if n.region == MapGen.Region.TERRITORY else &""
 		Run.stow(LootGen.roll_module(n.danger, force,
-			n.region == MapGen.Region.CORE or n.region == MapGen.Region.FAUNA, r))
+			n.region == MapGen.Region.DEEP or n.region == MapGen.Region.FAUNA, r))
 	# Precursor fragments come off deep wrecks and nowhere else in normal space.
 	# They are the one material with no manufactured source, which is what makes
 	# RELIC ANALYSIS a reason to have flown coreward rather than a recipe you

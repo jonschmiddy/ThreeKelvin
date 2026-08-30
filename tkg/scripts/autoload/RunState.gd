@@ -868,7 +868,7 @@ func open_bag(n: MapGen.MapNode, drops: int, hands: int) -> void:
 	# the other side of that bargain.
 	for i in drops * maxi(1, hands):
 		n.bag.append(LootGen.roll_module(n.danger, force,
-			n.region == MapGen.Region.CORE, r))
+			n.region == MapGen.Region.DEEP, r))
 	Sig.map_changed.emit()
 
 

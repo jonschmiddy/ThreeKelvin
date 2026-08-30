@@ -17,7 +17,23 @@ enum Development { UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL }
 ## Loot bias, fauna pools, contraband stock and station inventory all branch on
 ## it across five files, and collapsing three axes onto one label in exactly one
 ## place beats teaching every one of those sites the new vocabulary.
-enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, CORE }
+## WHERE YOU ARE, as a kind of place. Every value here is somewhere you visit
+## and the encounters gate on it.
+##
+## `CORE` USED TO BE THE LAST ONE AND IT WAS NEVER A REGION. `_derive_region`
+## handed it to `NodeType.CORE` and to nothing else -- the boss at the centre --
+## and `OptionTable.ensure` refuses to roll options for the boss, so the gate
+## selected exactly the one node that would never be asked. Four authored
+## encounters were gated on it: the last lit dock, the barge on its final leg,
+## the relay counting down, the six ships holding. All four were committed,
+## reviewed, and impossible.
+##
+## DEEP is the region those four were written for -- the approach, where the
+## claims have run out and the traffic has stopped. The word is the game's own:
+## it says "nobody disinterested comes this deep" in that very encounter.
+##
+## Same ordinal, so a saved region still reads back as what it was.
+enum Region { FRONTIER, TERRITORY, COSMOPOLITAN, LAWLESS, FAUNA, DEEP }
 ## WHAT KIND OF PLACE, never what is in it. FIGHT, EVENT and DERELICT were
 ## removed 2026-08-27: what a system holds is `options` now, and those three were
 ## only ever labels for what got rolled there.
@@ -92,6 +108,14 @@ const OPTION_BAG := 200
 ## renumbering everything after it, so one purchase and every machine disagreed
 ## about slot 2. A taken option stays in `MapNode.options` and is marked in
 ## `taken`.
+## The sky over a system, for the options that describe it.
+##
+## ORDINARY is most of them and says nothing. FLARE is a star that throws
+## tantrums, which is what `corona` and `flare_shelter` are both about, and it
+## is the one that has to be MUTUALLY EXCLUSIVE with a quiet star -- you cannot
+## shelter from a flare at a system whose star does not throw any.
+enum Star { ORDINARY, FLARE }
+
 const OPTION_SITE := 300
 
 ## WHAT BECAME OF AN OPTION. `MapNode.results` holds one of these per spent
@@ -467,6 +491,27 @@ class MapNode extends RefCounted:
 	## Migration route. Independent of the social axes - whales do not care who
 	## polices the sector.
 	var fauna: bool = false
+
+	## WHAT THE STAR HERE IS. One per system, because a system has one star.
+	##
+	## PULSAR IS DELIBERATELY NOT IN THIS LIST. `NodeType.PULSAR` already means
+	## "a pulsar, and you can fly to it and harvest the beam" -- so a SYSTEM
+	## whose star was also a pulsar would make some pulsars harvestable and
+	## some not, which is two rules for one object. What an option like
+	## `the_sweep` actually says is "a pulsar, CLOSE", and that is `near_pulsar`
+	## below: a fact about the neighbourhood rather than about this star.
+	var star: Star = Star.ORDINARY
+
+	## A gas giant in the system. Its own flag rather than a value of `star`
+	## because it is not one: a system can have a temperamental star AND a gas
+	## giant, and `slipping_orbit` only cares about the second.
+	var gas_giant: bool = false
+
+	## Is there a pulsar near enough to matter? Computed once at generation --
+	## see `_seed_pulsars` -- rather than measured when an option asks, because
+	## `admits` runs for every option against every system and a distance scan
+	## per question is a scan nobody needs to repeat.
+	var near_pulsar: bool = false
 	var danger: int = 1
 	var type: NodeType = NodeType.SYSTEM
 	var visited: bool = false
@@ -814,6 +859,7 @@ static func generate(canvas: Rect2) -> Array:
 		if cloud != null:
 			nn.nebula_emission = cloud.emission
 	_seed_pulsars(nodes)
+	_mark_pulsar_neighbours(nodes)
 
 	_link(nodes)
 	nodes[0].visited = true
@@ -826,6 +872,34 @@ static func generate(canvas: Rect2) -> Array:
 	# round trip. That is exactly the shape of bug savetest exists to catch.
 	nodes[0].taken.append(OPTION_WHOLE)
 	return nodes
+
+## WHICH SYSTEMS HAVE A PULSAR FOR A NEIGHBOUR.
+##
+## After `_seed_pulsars`, because it decides the types -- and before anything
+## reads it, because `admits` will ask this of every system for every option and
+## measuring a distance each time is a scan repeated for an answer that cannot
+## change once the map exists.
+##
+## THE RADIUS IS THE ONE SIGHT USES. A beam that sweeps your arc every eleven
+## seconds is a thing you can see from where you are standing, so "close" here
+## means the same as "close" everywhere else on this map rather than a second
+## number nobody can reconcile with the first.
+static func _mark_pulsar_neighbours(nodes: Array) -> void:
+	var beacons: Array = []
+	for raw in nodes:
+		if (raw as MapNode).type == NodeType.PULSAR:
+			beacons.append(raw)
+	if beacons.is_empty():
+		return
+	for raw2 in nodes:
+		var n: MapNode = raw2
+		if n.type != NodeType.SYSTEM:
+			continue
+		for b in beacons:
+			if hop_distance(n, b as MapNode) <= RING_SPACING * 2.0:
+				n.near_pulsar = true
+				break
+
 
 ## The rim is unclaimed and the core is built up - that is the whole shape of
 ## the journey, so development tracks depth directly. The variance is what stops
@@ -883,6 +957,17 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 	# Megafauna keep to the thin places.
 	n.fauna = n.berths.is_empty() and int(n.development) <= 1 and Rng.world.randf() < 0.3
 
+	# THE SKY, rolled here for the reason fauna is: it is a property of the
+	# place, decided once off `Rng.world`, so four machines agree about it and a
+	# save carries it without anything having to recompute.
+	#
+	# A flare star is rarer than a gas giant and does not care where it is --
+	# stars do not respect development. A giant is common because most systems
+	# have one; it is furniture, and the option that wants it is about being
+	# caught in the well rather than about the planet being unusual.
+	n.star = Star.FLARE if Rng.world.randf() < 0.18 else Star.ORDINARY
+	n.gas_giant = Rng.world.randf() < 0.45
+
 ## Collapse the three axes back onto the old label, once, here. Order matters:
 ## the most specific claim about a place wins.
 ## What is wrong with a place, as short shouted words.
@@ -906,9 +991,31 @@ static func hazards(n: MapNode) -> PackedStringArray:
 		out.append("EVENT HORIZON")
 	return out
 
+## HOW DEEP IS DEEP. The last four shells of fifteen -- far enough in that a
+## run reaching them has committed to the ending rather than wandered into it.
+const DEEP_FROM := LAYERS - 4
+
 static func _derive_region(n: MapNode) -> Region:
 	if n.type == NodeType.CORE:
-		return Region.CORE
+		return Region.DEEP
+	# MEGAFAUNA FIRST, because a herd is a thing IN a place and outranks where
+	# the place is -- the fauna encounters are about the animals and would read
+	# the same on the rim.
+	if n.fauna:
+		return Region.FAUNA
+	# THEN DEPTH, over everything else. This first took the slot FRONTIER would
+	# have had, on the reasoning that a deep system somebody still works is a
+	# Territory first -- and that excluded the one encounter of the four that
+	# needs a dock. "The last berth" is a lit counter with a clerk behind it and
+	# no traffic since before her posting: a berth in the deep is not a
+	# contradiction, it is the whole point of the piece.
+	#
+	# So depth wins. Down here the claims have run out, and which manufacturer
+	# nominally holds the paperwork stops being the thing worth knowing about a
+	# system -- which is also why `roll_module` opens the unbranded pool for it,
+	# the same treatment fauna space already gets.
+	if n.layer >= DEEP_FROM:
+		return Region.DEEP
 	if n.fauna:
 		return Region.FAUNA
 	if n.security <= 2 and not n.berths.is_empty():

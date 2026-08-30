@@ -116,6 +116,21 @@ static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 			return false
 	if o.has("needs_fauna") and bool(o.needs_fauna) and not n.fauna:
 		return false
+	# WHAT IS ACTUALLY IN THE SKY. These four options describe a specific thing
+	# overhead -- a star throwing tantrums, a gas giant with you in its well, a
+	# pulsar sweeping the arc -- and had `min_danger` for a gate, which says
+	# "deep enough that it is plausible" and nothing more. `the_sweep` could
+	# land on a system with no pulsar within reach and the prose simply lied.
+	#
+	# The header above says it: a gate that silently does nothing is worse than
+	# one that does not exist, because the content reads as if it were placed.
+	# These were the four where that was true.
+	if o.has("needs_star") and int(n.star) != int(o.needs_star):
+		return false
+	if o.has("needs_giant") and bool(o.needs_giant) and not n.gas_giant:
+		return false
+	if o.has("needs_pulsar") and bool(o.needs_pulsar) and not n.near_pulsar:
+		return false
 	if o.has("needs_berth") and bool(o.needs_berth) and n.berths.is_empty():
 		return false
 	if o.has("berth") and not n.berths.has(StringName(o.berth)):
@@ -587,7 +602,9 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"hazard"],
 			group = &"",
 			weight = 10,
-			min_danger = 2,
+			# A GAS GIANT FILLS HALF THE VIEWPORT. It cannot fill half of
+			# anything at a system that does not have one.
+			needs_giant = true,
 			choices = [
 				{label = "Burn out of the well",
 					check = {attr = &"thrust", need = 6},
@@ -640,7 +657,10 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"hazard", &"salvage"],
 			group = &"",
 			weight = 7,
-			min_danger = 3,
+			# THE STAR HERE IS MID-TANTRUM, which is a fact about the star and
+			# not about how deep you are. Danger stays off it entirely: a
+			# flare star on the rim is exactly as dangerous to sit next to.
+			needs_star = MapGen.Star.FLARE,
 			choices = [
 				{label = "Go in hot",
 					check = {attr = &"thermal", need = 6},
@@ -835,7 +855,9 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"hazard"],
 			group = &"refinery",
 			weight = 6,
-			min_danger = 4,
+			# A PULSAR, CLOSE. `min_danger 4` meant "deep enough to be
+			# plausible"; this means there is one.
+			needs_pulsar = true,
 			choices = [
 				{label = "Time the interval",
 					check = {attr = &"thermal", need = 7},
@@ -1140,7 +1162,9 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"hazard"],
 			group = &"",
 			weight = 11,
-			min_danger = 2,
+			# The same star, from the other side: one is a hold worth reaching
+			# through a flare, the other is forty minutes to get behind a rock.
+			needs_star = MapGen.Star.FLARE,
 			choices = [
 				{label = "Shelter and strip",
 					check = {attr = &"thermal", need = 6},
@@ -1260,7 +1284,7 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"contract"],
 			group = &"threshold",
 			weight = 9,
-			regions = [MapGen.Region.CORE],
+			regions = [MapGen.Region.DEEP],
 			choices = [
 				{label = "Sign and ride along", effect = func() -> Dictionary:
 					Run.add_credits(80)
@@ -1290,7 +1314,7 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"contract"],
 			group = &"threshold",
 			weight = 8,
-			regions = [MapGen.Region.CORE],
+			regions = [MapGen.Region.DEEP],
 			needs_berth = true,
 			choices = [
 				{label = "Fill the tank at her rates", cost_credits = 30, effect = func() -> Dictionary:
@@ -1311,7 +1335,7 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"signal"],
 			group = &"",
 			weight = 7,
-			regions = [MapGen.Region.CORE],
+			regions = [MapGen.Region.DEEP],
 			choices = [
 				{label = "Pull the housing",
 					check = {attr = &"thermal", need = 6},
@@ -1340,7 +1364,7 @@ static func _authored() -> Array[Dictionary]:
 			tags = [&"signal"],
 			group = &"",
 			weight = 8,
-			regions = [MapGen.Region.CORE],
+			regions = [MapGen.Region.DEEP],
 			choices = [
 				{label = "Trade with the waiting", needs_material = &"exotic", effect = func() -> Dictionary:
 					Run.add_credits(95)

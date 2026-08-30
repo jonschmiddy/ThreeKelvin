@@ -1108,7 +1108,7 @@ func _victory() -> void:
 	for i in pool:
 		var h: MapGen.Jetsam = made[i % made.size()]
 		h.items.append(LootGen.roll_module(node.danger, force,
-			node.region == MapGen.Region.CORE))
+			node.region == MapGen.Region.DEEP))
 	# THE MONEY IS IN THE FIRST HULL. It has to be somewhere you reach, and the
 	# alternative -- a chit in each -- turns one payout into a chore.
 	if purse > 0:
