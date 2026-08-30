@@ -1270,7 +1270,35 @@ class MapChart extends Control:
 	##
 	## It counts as moving it by hand, so a held view lets go -- pressing a
 	## direction is exactly as much "I am looking somewhere else" as dragging is.
+	## A KEY-UP THAT NEVER ARRIVED CANNOT LEAVE THE CHART DRIVING.
+	##
+	## `_walk` accumulates on key-down and subtracts on key-up, so it depends on
+	## seeing both halves of every press -- and WIN+SHIFT+S is a press of S
+	## followed by the operating system taking focus for the snip overlay. The
+	## release goes to Windows, `_walk` keeps its DOWN, and the chart pans on
+	## its own until you press and release S again to balance the books.
+	##
+	## Checked here rather than only on focus loss because this covers every way
+	## a release can go missing -- alt-tab, a shortcut, a lost window -- and it
+	## can only ever CANCEL movement. That is what makes it safe next to
+	## `_unhandled_key_input`: polling `Input` directly to START a pan would let
+	## a keystroke meant for a focused field drive the chart, which is the exact
+	## thing routing this through `_unhandled_key_input` was for.
+	func _settle_walk() -> void:
+		if _walk == Vector2.ZERO:
+			return
+		if _walk.y < 0.0 and not Input.is_key_pressed(KEY_W):
+			_walk.y = 0.0
+		if _walk.y > 0.0 and not Input.is_key_pressed(KEY_S):
+			_walk.y = 0.0
+		if _walk.x < 0.0 and not Input.is_key_pressed(KEY_A):
+			_walk.x = 0.0
+		if _walk.x > 0.0 and not Input.is_key_pressed(KEY_D):
+			_walk.x = 0.0
+
+
 	func _walk_view(delta: float) -> void:
+		_settle_walk()
 		if _walk == Vector2.ZERO:
 			return
 		var before := pan
