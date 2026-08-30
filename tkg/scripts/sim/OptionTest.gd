@@ -177,6 +177,12 @@ func _gates_are_real() -> void:
 		&"min_development": true, &"max_development": true,
 		&"regions": true, &"needs_fauna": true, &"needs_berth": true,
 		&"berth": true,
+		# PLACED: this option is never rolled, only put on a system by another
+		# option's outcome. `OptionTable.admits` refuses it and `place` is the
+		# only door in. Declared here because this list is what stops a gate
+		# from silently doing nothing -- which is the failure the `admits`
+		# header describes, and which this test exists to catch.
+		&"placed": true,
 	}
 	var bad: Array[String] = []
 	for o in OptionTable.all():

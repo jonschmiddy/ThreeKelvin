@@ -652,6 +652,15 @@ const TAG_HAZARD := Color("#f2761d")
 ## and a green one would collide with `GOOD`, which is the SUCCESS stamp.
 const TAG_SALVAGE := Color("#b3a488")
 
+## Gold, and the only tag that is not a KIND of thing.
+##
+## The other five say what an encounter IS. This one says where it came from:
+## somebody put it here because of something you did, and it is the only option
+## in the game that could not have been rolled. Gold because it has to read as
+## the one worth crossing a system for, and because it is the last hue the other
+## five leave open -- red, orange, bone, cyan and violet are spoken for.
+const TAG_QUEST := Color("#e0b83c")
+
 ## PRIORITY, NOT AUTHORING ORDER. `lead_tag` read the option's own `tags` array
 ## and returned the first one it recognised, so `[signal, fight]` came out cyan
 ## and `[fight, signal]` came out red -- the same option two colours depending
@@ -664,7 +673,11 @@ const TAG_SALVAGE := Color("#b3a488")
 ## whether you go in is the star and the mines. A fight still outranks it,
 ## because something aiming at you is a shorter clock than something you are
 ## flying into.
-const TAG_ORDER: Array[StringName] = [&"fight", &"hazard", &"salvage",
+## QUEST OUTRANKS EVERYTHING, including a fight. The others describe what you
+## are walking into; this one is the reason you came, and a thread you have been
+## carrying for four jumps should not be filed under whatever else is true of
+## the encounter that pays it off.
+const TAG_ORDER: Array[StringName] = [&"quest", &"fight", &"hazard", &"salvage",
 	&"signal", &"contract"]
 
 ## WHICH ONE OF ITS TAGS THIS OPTION IS, once and for both readings of it.
@@ -683,6 +696,7 @@ static func lead_tag(opt: Dictionary) -> StringName:
 
 static func tag_colour(opt: Dictionary) -> Color:
 	match lead_tag(opt):
+		&"quest": return TAG_QUEST
 		&"fight": return UITheme.LEAVE
 		&"hazard": return TAG_HAZARD
 		&"salvage": return TAG_SALVAGE

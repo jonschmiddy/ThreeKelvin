@@ -82,6 +82,13 @@ static func by_id(id: StringName) -> Dictionary:
 static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
+	# PLACED OPTIONS ARE NEVER ROLLED. A quest is the payoff of something you
+	# did somewhere else, and meeting the buyer at the far end without having carried the
+	# package is the one way it can be worthless. This is the gate rather than
+	# a zero weight because a weight of zero still leaves the row in the pool
+	# and `roll_for` floors every weight at one.
+	if bool(o.get("placed", false)):
+		return false
 	if o.has("min_danger") and n.danger < int(o.min_danger):
 		return false
 	if o.has("max_danger") and n.danger > int(o.max_danger):
@@ -208,6 +215,12 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 	# derived from the node index so a party at one system is handed the same
 	# thing, and so a reload cannot shop for a better item.
 	var r := Rng.derive(&"material", n.index)
+	# WHAT THIS PUTS SOMEWHERE ELSE. The reward for some options is not a number
+	# and not an object -- it is the encounter this plants four jumps deeper.
+	if res.has("place"):
+		var at := place(n, StringName(res.place))
+		if at >= 0:
+			got.append("%s MARKED" % quest_name(Run.map[at]))
 	if res.has("material"):
 		got.append(MaterialTable.grant(MaterialTable.roll(
 			StringName(res.material), n.danger, r)))
@@ -265,6 +278,106 @@ static func system_has_tag(n: MapGen.MapNode, tag: StringName) -> bool:
 			if StringName(t) == tag:
 				return true
 	return false
+
+
+## Put an option on a system ahead of this one, and say which.
+##
+## THE MECHANISM IS AN ARRAY APPEND. A system's encounters are `MapNode.options`
+## and nothing else, so a consequence that travels is one id written onto a node
+## you have not reached. It saves for free -- `options` is already in the file --
+## and it survives a jump for the same reason the wrecks do: it is node state.
+##
+## THE TARGET IS DERIVED, NOT CHOSEN, and that is what makes this work in co-op
+## without a single packet. `roll_for`'s note says options are positional
+## because "what is AT a place is a property of the place and four machines must
+## agree about it" -- a placement is NOT a property of the place, it is a
+## consequence of what one ship did elsewhere, so it would have had to be
+## replicated. Deriving the target from the SOURCE node's index instead makes it
+## a property of the place after all: every machine that resolves the same
+## option at the same system computes the same target and nobody has to be told.
+##
+## `ensure` FIRST, and this is the trap. It rolls a system's own options only
+## when the list is EMPTY -- so appending to a system that has not been visited
+## yet would leave it non-empty forever, and you would arrive at a place
+## offering the quest and nothing else. Rolling it before appending is one line
+## and the difference between a working thread and a content bug that surfaces
+## months later.
+##
+## Returns the node index it landed on, or -1 if there was nowhere: near the
+## core there may be no unvisited system deep enough, and a thread that never
+## pays off is better than one that pays off in the wrong place.
+const PLACE_DEPTH := 3
+
+static func place(from: MapGen.MapNode, id: StringName) -> int:
+	if from == null:
+		return -1
+	var what := by_id(id)
+	if what.is_empty():
+		return -1
+	# A QUEST STANDS ALONE. An exclusive set is a choice between things that are
+	# both there for you to weigh; a placed payoff is the consequence of
+	# something you already did, and putting it in a group means the system it
+	# lands on can foreclose it with an option that has nothing to do with the
+	# thread. You would lose the delivery by bidding at an auction.
+	#
+	# Refused rather than stripped: a grouped quest is an authoring mistake, and
+	# quietly ungrouping it here would hide the mistake in a place nobody looks.
+	if StringName(what.get("group", &"")) != &"":
+		push_warning("placed option %s carries a group; not placed" % id)
+		return -1
+	var want := from.layer + PLACE_DEPTH
+	var picks: Array[int] = []
+	# The nearest layer at or past the wanted depth that has anything free.
+	while want < MapGen.LAYERS and picks.is_empty():
+		for other in Run.map:
+			var o: MapGen.MapNode = other
+			if o.layer != want or o.visited:
+				continue
+			if o.type != MapGen.NodeType.SYSTEM:
+				continue
+			# ONE THREAD PER SYSTEM. Two payoffs landing on one node reads as a
+			# coincidence rather than as a consequence, and the chart can only
+			# mark it once.
+			if holds_quest(o):
+				continue
+			picks.append(o.index)
+		want += 1
+	if picks.is_empty():
+		return -1
+	picks.sort()
+	var r := Rng.derive(&"placed", from.index)
+	var at: int = picks[r.randi() % picks.size()]
+	var node: MapGen.MapNode = Run.map[at]
+	ensure(node)
+	node.options.append(id)
+	Sig.map_changed.emit()
+	return at
+
+
+## Does this system hold a placed encounter nobody has taken yet? The chart asks,
+## to know whether to mark it.
+static func holds_quest(n: MapGen.MapNode) -> bool:
+	if n == null:
+		return false
+	for i in n.options.size():
+		if n.taken.has(MapGen.OPTION_SITE + i):
+			continue
+		if bool(by_id(n.options[i]).get("placed", false)):
+			return true
+	return false
+
+
+## The name a marked system shows on the chart: the quest's own title.
+static func quest_name(n: MapGen.MapNode) -> String:
+	if n == null:
+		return ""
+	for i in n.options.size():
+		if n.taken.has(MapGen.OPTION_SITE + i):
+			continue
+		var o := by_id(n.options[i])
+		if bool(o.get("placed", false)):
+			return String(o.get("title", "")).to_upper()
+	return ""
 
 
 ## What this system holds. Ids only -- callables are never built here.
@@ -526,6 +639,58 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The flare comes early. You leave with nothing and a ship that is still ticking as it cools."}},
 				{label = "Watch it burn", effect = func() -> Dictionary:
 					return {text = "You hold station outside the corona and log the wreck for somebody with better vents."}},
+			],
+		},
+		{
+			id = &"the_runner",
+			title = "The runner",
+			body = "She is nineteen at the outside and she is running somebody else's errand with somebody else's ship, and the thing she needs moved fits in one hand. No manifest, no filing, no name on it. She cannot pay much now. She says the one it goes to pays properly and pays on delivery, and she says it like somebody repeating a thing she was told rather than a thing she knows.",
+			tags = [&"contract"],
+			group = &"",
+			weight = 7,
+			max_security = 2,
+			choices = [
+				{label = "Take it quietly",
+					check = {attr = &"stealth", need = 5},
+					met = func() -> Dictionary:
+						Run.add_credits(20)
+						return {text = "It goes in a void behind the coolant run that nothing scans and nobody knows about. She watches you do it and does not ask what else is in there.", place = &"paid_in_full"},
+					clean = func() -> Dictionary:
+						Run.add_credits(20)
+						return {text = "You find somewhere for it that will hold up to an ordinary look.", place = &"paid_in_full"},
+					partial = func() -> Dictionary:
+						Run.add_credits(20)
+						return {text = "You stow it badly and spend the next shell aware of exactly where it is.", place = &"paid_in_full"},
+					botched = func() -> Dictionary:
+						return {text = "You are still finding somewhere for it when a patrol runs a courtesy sweep of the dock. Nothing comes of it. She sees the sweep and takes it back."}},
+				{label = "Ask what it is", effect = func() -> Dictionary:
+					return {text = "She tells you, or tells you something. Either way she takes it somewhere else, politely, and you do not see her again."}},
+				{label = "Decline", effect = func() -> Dictionary:
+					return {text = "She nods like she expected it and goes to ask the next ship along the rank."}},
+			],
+		},
+		{
+			# PLACED, NEVER ROLLED. `admits` refuses anything carrying this key,
+			# so the only way to reach the buyer is to have taken the package.
+			# Ungrouped on purpose -- see `place`: a quest that an auction can
+			# foreclose is a consequence you can lose without touching it.
+			id = &"paid_in_full",
+			title = "Paid in full",
+			body = "He is old, and he is not what you were expecting, and he has been waiting at this berth for eleven days for a thing that fits in one hand. He does not open it in front of you. He pays what she said he would pay, which is considerably more than she was in a position to promise, and then he asks — carefully, as though the answer matters — whether she looked well.",
+			tags = [&"quest"],
+			group = &"",
+			placed = true,
+			weight = 0,
+			choices = [
+				# NO FAILING BAND AND NOTHING TO DECLINE. `batch-03`: taxing a
+				# reward the player earned four jumps ago teaches them not to
+				# take the offer next time. Both of these are gains.
+				{label = "Take the money", effect = func() -> Dictionary:
+					Run.add_credits(150)
+					return {text = "He pays in full, in cash, and thanks you in a register nobody has used on you in a while."}},
+				{label = "Tell him she looked tired", effect = func() -> Dictionary:
+					Run.add_credits(190)
+					return {text = "He nods for a while. Then he pays you more than the agreed figure, and gives you a name at a yard two shells in who will fit you something at cost.", module = true}},
 			],
 		},
 		{
