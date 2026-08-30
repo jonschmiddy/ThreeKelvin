@@ -482,12 +482,12 @@ func show_option_at(index: int) -> void:
 ## same as `event_resolved`'s and lives in one function so the two paths cannot
 ## drift: an option spends itself, and the system is finished only when nothing
 ## is left in it.
-func option_resolved(index: int) -> void:
+func option_resolved(index: int, result: StringName = &"done") -> void:
 	_open_option = index
-	event_resolved()
+	event_resolved(result)
 
 
-func event_resolved() -> void:
+func event_resolved(result: StringName = &"done") -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	# ONE OPTION IS SPENT, NOT THE SYSTEM. A system holds several things to do
 	# and taking one must not consume the rest -- which is what `taken` has
@@ -497,6 +497,15 @@ func event_resolved() -> void:
 		var oid := MapGen.OPTION_SITE + _open_option
 		if not n.taken.has(oid):
 			n.taken.append(oid)
+		n.results[_open_option] = result
+		# ONE ONLY, ENFORCED. The list has promised this since exclusive sets
+		# existed -- first as a bracket captioned ONE ONLY, now as the rival
+		# greying under the cursor -- and nothing has ever made it true: taking
+		# the auction left the queue sitting there, takeable. The SIMULATOR has
+		# been playing the rule correctly all along (`Policy.take_options`
+		# counts what it forwent), so the model the balance numbers come from
+		# and the game you actually play have disagreed about it.
+		OptionTable.foreclose(n, _open_option)
 		_open_option = -1
 		for i in n.options.size():
 			if not n.taken.has(MapGen.OPTION_SITE + i):

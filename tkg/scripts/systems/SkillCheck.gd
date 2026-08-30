@@ -146,6 +146,19 @@ static func band_name(band: Band) -> String:
 		Band.PARTIAL: return "PARTIAL"
 	return "BOTCHED"
 
+## The band as the word a spent card wears.
+##
+## MET AND CLEAN COLLAPSE INTO ONE. The two are a real distinction in the
+## RESULT drawer -- doing the thing versus getting away with it, which is why
+## `band_name` keeps them apart -- but a stamp is a summary and "you succeeded"
+## is the whole of what it has room to say.
+static func band_result(band: Band) -> StringName:
+	match band:
+		Band.PARTIAL: return MapGen.R_PARTIAL
+		Band.BOTCHED: return MapGen.R_BOTCHED
+	return MapGen.R_SUCCESS
+
+
 static func band_colour(band: Band) -> Color:
 	match band:
 		Band.MET: return UITheme.GOOD

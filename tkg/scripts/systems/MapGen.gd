@@ -94,6 +94,21 @@ const OPTION_BAG := 200
 ## `taken`.
 const OPTION_SITE := 300
 
+## WHAT BECAME OF AN OPTION. `MapNode.results` holds one of these per spent
+## index, and the drawer turns it into the word stamped across the dead card.
+##
+## `GONE` is the one that is not an outcome: it is the other half of an
+## exclusive set, closed by the choice you made rather than by anything you did
+## to it. Kept distinct from `DONE` because "you resolved this" and "you can no
+## longer resolve this" are opposite facts that would otherwise share a word.
+const R_SUCCESS := &"success"
+const R_PARTIAL := &"partial"
+const R_BOTCHED := &"botched"
+const R_DONE := &"done"
+const R_GONE := &"gone"
+const RESULTS: Array[StringName] = [R_SUCCESS, R_PARTIAL, R_BOTCHED, R_DONE,
+	R_GONE]
+
 ## Every container in a system: `OPTION_JETSAM + h * JETSAM_STRIDE + i` is the
 ## i-th thing in the h-th one.
 ##
@@ -488,6 +503,16 @@ class MapNode extends RefCounted:
 	##
 	## In a party this is a copy of what the host holds. See NetSession.claims.
 	var taken: PackedInt32Array = PackedInt32Array()
+	## WHAT EACH SPENT OPTION CAME TO, by its index in `options`.
+	##
+	## `taken` says an option is done and nothing said what happened. That was
+	## enough while a spent option vanished off the list; it is not enough now
+	## that the card stays and says SUCCESS or BOTCHED across itself, and it has
+	## to survive a jump away and back -- what you did in a system is a fact
+	## about the system, exactly as its wrecks and its jetsam are.
+	##
+	## One of `MapGen.RESULTS`. Absent means an option nobody has touched.
+	var results: Dictionary = {}
 	## What followed your heat trail in, rolled once on arrival. Stored on the
 	## node for the same reason `foes` is: an ambush that re-rolled on resume
 	## would be a hostile you could refuse by quitting and coming back cold,

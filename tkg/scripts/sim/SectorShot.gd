@@ -78,8 +78,15 @@ func run(tree: SceneTree) -> void:
 	# being looked at is the height of a drawer with an empty list, and running
 	# four payouts to get there would put their loot in the picture.
 	if "spent" in OS.get_cmdline_user_args():
+		# ONE OF EACH, because the four words are four colours and the only
+		# thing worth looking at is whether they read as a set. A run that
+		# reached this state honestly would take a dozen systems and would still
+		# only show whichever bands it happened to roll.
+		var bands: Array[StringName] = [MapGen.R_SUCCESS, MapGen.R_PARTIAL,
+			MapGen.R_BOTCHED, MapGen.R_GONE, MapGen.R_DONE]
 		for si in n.options.size():
 			n.taken.append(MapGen.OPTION_SITE + si)
+			n.results[si] = bands[si % bands.size()]
 	Router.show_sector()
 	for i in 90:
 		await RenderingServer.frame_post_draw

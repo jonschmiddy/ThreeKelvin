@@ -168,7 +168,18 @@ const PATH := "user://run.save"
 ## 22: and `flotsam` became `jetsam`, for the reason 21 should have used --
 ## `jettison` is the verb and jetsam is its noun. Same rename, same argument:
 ## the key a save is written under is the key it is read from.
-const VERSION := 22
+## 23: A SPENT OPTION REMEMBERS WHAT IT CAME TO. `taken` said an option was
+## done and nothing said what happened, which was enough while a spent option
+## vanished off the list and is not now that the card stays and wears its band.
+## `results` is written as two parallel arrays because JSON has no integer
+## keys -- a dictionary keyed by option index comes back keyed by "0" and "3".
+##
+## A version 22 save has no `results` and reads back with none, which draws
+## every already-spent option as RESOLVED rather than as the band it actually
+## got. That is a downgrade rather than a lie, and it is the direction the
+## version guard does not care about; the bump is for the other one, as 18
+## through 22 were.
+const VERSION := 23
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -733,6 +744,14 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	# EVERY CONTAINER IN THE SYSTEM. They persist across a jump by being node
 	# state, and across a session by being here -- a wreck you left half
 	# stripped is somewhere you can go back to, which is most of the point.
+	# TWO ARRAYS, NOT A DICTIONARY. See VERSION 23: JSON keys are strings, so a
+	# map from option index to outcome comes back with "0" where 0 went in and
+	# every lookup misses silently.
+	var res_at: Array = []
+	var res_of: Array = []
+	for k in n.results:
+		res_at.append(int(k))
+		res_of.append(String(n.results[k]))
 	var jetsam: Array = []
 	for raw in n.jetsam:
 		var h: MapGen.Jetsam = raw
@@ -762,6 +781,7 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		shop_hull = _hull_to(n.shop_hull) if n.shop_hull != null else null,
 		bag = bag, bagged = n.bagged, jetsam = jetsam,
 		options = _names(n.options),
+		results_at = res_at, results_of = res_of,
 	}
 
 static func _node_from(e: Variant) -> MapGen.MapNode:
@@ -846,6 +866,10 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 			n.shop.append(mod)
 	var sh: Variant = d.get("shop_hull", null)
 	n.shop_hull = _hull_from(sh) if typeof(sh) == TYPE_DICTIONARY else null
+	var res_at: Array = d.get("results_at", [])
+	var res_of: Array = d.get("results_of", [])
+	for ri in mini(res_at.size(), res_of.size()):
+		n.results[int(res_at[ri])] = StringName(res_of[ri])
 	for raw in d.get("jetsam", []):
 		var row: Dictionary = raw
 		var h := MapGen.Jetsam.new()

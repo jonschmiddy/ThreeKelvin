@@ -83,7 +83,8 @@ func _choose(index: int) -> void:
 	# The node is consumed here rather than when the hail opened, so that
 	# quitting at the options costs nothing and cannot be quit into a cleared
 	# node that gives nothing. Router holds the pick until this call.
-	Router.event_resolved()
+	Router.event_resolved(SkillCheck.band_result(band) if opt.has("check") \
+		else MapGen.R_DONE)
 	_resolved = true
 	# THE REWARD AN OPTION PAYS, which this screen never had to handle before.
 	#

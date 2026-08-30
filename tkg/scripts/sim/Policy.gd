@@ -460,13 +460,17 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 		if opt.is_empty():
 			continue
 		var oid := MapGen.OPTION_SITE + i
-		if n.taken.has(oid):
-			continue
+		# THIS VISIT'S GROUP BEFORE THE NODE'S CLAIMS, and the order is the
+		# whole of the `forgone` metric. `foreclose` now marks a closed sibling
+		# in `taken` as well -- so testing `taken` first would skip it silently
+		# and report zero forgone forever, which is §8's number.
 		var g := StringName(opt.get("group", &""))
 		if g != &"" and spent.has(g):
 			# Not declined -- FORGONE. The pilot never got to weigh it, because
 			# something else in its group was taken first.
 			out.forgone += 1
+			continue
+		if n.taken.has(oid):
 			continue
 		var pick := _choose_line(opt)
 		if pick < 0:
@@ -475,6 +479,11 @@ func take_options(n: MapGen.MapNode) -> Dictionary:
 		var line: Dictionary = (opt.choices as Array)[pick]
 		var res := _resolve_line(n, line)
 		n.taken.append(oid)
+		# THE SAME RULE THE GAME PLAYS. This loop has always honoured exclusive
+		# sets through its own `spent` dictionary and never wrote the decision
+		# down, so a node the simulator had finished came out of it still
+		# offering the option it had forgone.
+		OptionTable.foreclose(n, i)
 		out.taken += 1
 		if g != &"":
 			spent[g] = true

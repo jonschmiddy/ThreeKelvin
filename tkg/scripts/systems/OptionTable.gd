@@ -155,6 +155,28 @@ const TIER_PLAN := {
 ## `res.module` read separately in each, which is a fact about the reward model
 ## living in the UI -- and the moment a second kind of physical payout exists,
 ## two of the three would go on being right by accident.
+## Close everything the option at `i` shares a group with.
+##
+## RULING 1's other half. The list shows what a choice forecloses; this is the
+## foreclosing. A closed option is marked `taken` so nothing offers it again AND
+## given `R_GONE`, so the card can say UNAVAILABLE rather than quietly not
+## being there -- which is the difference between a rule and a disappearance.
+static func foreclose(n: MapGen.MapNode, i: int) -> void:
+	if n == null or i < 0 or i >= n.options.size():
+		return
+	var g := StringName(by_id(n.options[i]).get("group", &""))
+	if g == &"":
+		return
+	for j in n.options.size():
+		if j == i or StringName(by_id(n.options[j]).get("group", &"")) != g:
+			continue
+		var jid := MapGen.OPTION_SITE + j
+		if n.taken.has(jid):
+			continue
+		n.taken.append(jid)
+		n.results[j] = MapGen.R_GONE
+
+
 static func pays_item(res: Dictionary) -> bool:
 	return bool(res.get("module", false))
 

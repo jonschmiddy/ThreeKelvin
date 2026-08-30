@@ -75,9 +75,11 @@ class OptionCard extends PanelContainer:
 	## you have not committed to anything by hovering -- so this is a warning
 	## about what the OTHER card costs, drawn on the thing it would cost.
 	var doomed: bool = false
-	## Faded when doomed: the heading and the prose, and not the warning.
+	## Faded when doomed or spent: everything the card SAYS about its option.
 	var flesh: Control = null
-	var warn: Control = null
+	## The word across the middle. One label, because a card is never both
+	## warned-about and finished: a spent option is out of every group it was in.
+	var stamp: Label = null
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -126,10 +128,47 @@ class OptionCard extends PanelContainer:
 			return
 		doomed = on
 		if flesh != null:
-			flesh.modulate = Color(1, 1, 1, 0.4 if on else 1.0)
-		if warn != null:
-			warn.modulate = Color(1, 1, 1, 1.0 if on else 0.0)
+			flesh.modulate = Color(1, 1, 1, 0.55 if on else 1.0)
+		if stamp != null:
+			stamp.modulate = Color(1, 1, 1, 1.0 if on else 0.0)
 		dress(false)
+
+
+	## THE WORD ACROSS THE MIDDLE, over everything else on the card.
+	##
+	## In a plain `Control` rather than a container, and that is the whole
+	## trick: a `PanelContainer` takes its own minimum size from its children,
+	## and a heading-sized label saying WILL BECOME UNAVAILABLE reports a
+	## minimum two hundred pixels wide -- which would push the card past its
+	## fifth of the row and take the drawer with it. A bare Control reports
+	## nothing, and the panel stretches it to fill instead.
+	func seal(text: String, ink: Color, shown: bool) -> void:
+		if stamp == null:
+			var over := Control.new()
+			over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(over)
+			# THE THING THAT MAKES IT A STAMP RATHER THAN A CAPTION. A word
+			# lying on top of legible prose reads as part of the card; the same
+			# word over a card you can no longer quite read reads as a seal on
+			# it. `ColorRect` has no minimum size of its own, so the scrim is
+			# free -- see the note above about what a heading-sized label would
+			# have cost.
+			var veil := ColorRect.new()
+			veil.color = Color(UITheme.VOID.r, UITheme.VOID.g, UITheme.VOID.b,
+				0.55)
+			veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			over.add_child(veil)
+			stamp = UITheme.body("", ink, UITheme.FS_HEAD)
+			stamp.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			stamp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			stamp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			stamp.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			over.add_child(stamp)
+		stamp.text = text
+		stamp.add_theme_color_override("font_color", ink)
+		stamp.modulate = Color(1, 1, 1, 1.0 if shown else 0.0)
 
 	func _notification(what: int) -> void:
 		if not live:
@@ -243,8 +282,10 @@ const SLOTS := 5
 ## The screen used to run this loop itself and add one child per option; it is
 ## here because it is a picture, and because the exclusive-set bracket below has
 ## to be laid out ALONGSIDE the loose options rather than above them.
-static func option_row(n: MapGen.MapNode, left: Array,
-		on_open: Callable) -> Control:
+## EVERY OPTION THE SYSTEM EVER HAD, not just the live ones. What you did here
+## is part of what the place is, so a spent option keeps its card and wears its
+## outcome -- see `option_card`.
+static func option_row(n: MapGen.MapNode, on_open: Callable) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -254,13 +295,22 @@ static func option_row(n: MapGen.MapNode, left: Array,
 	# different shape from the option beside it.
 	var sets: Dictionary = {}
 	var used := 0
-	for i in left:
+	for i in n.options.size():
 		var opt := OptionTable.by_id(n.options[i])
-		var card := option_card(i, opt, on_open) as OptionCard
+		if opt.is_empty():
+			continue
+		var done := StringName(n.results.get(i, &""))
+		# A CLAIM WITH NO RESULT BEHIND IT is a version 22 save, or an option
+		# spent before this was recorded. It happened; we do not know how.
+		if done == &"" and n.taken.has(MapGen.OPTION_SITE + i):
+			done = MapGen.R_DONE
+		var card := option_card(i, opt, on_open, done) as OptionCard
 		row.add_child(card)
 		used += 1
 		var g := StringName(opt.get("group", &""))
-		if g == &"":
+		# ONLY THE LIVE ONES ARE RIVALS. A spent card cannot be foreclosed and
+		# has nothing left to warn you about.
+		if g == &"" or done != &"":
 			continue
 		if not sets.has(g):
 			sets[g] = []
@@ -295,15 +345,32 @@ static func option_row(n: MapGen.MapNode, left: Array,
 ##
 ## `n` is not a parameter any more for the same reason: everything the old row
 ## needed the system for was in that column.
-static func option_card(i: int, opt: Dictionary, on_open: Callable) -> Control:
+## THE WORD A SPENT CARD WEARS, and its colour.
+##
+## Success, partial and botched take the bands' own colours, so the stamp and
+## the result panel that produced it agree. `DONE` is an option with no check in
+## it -- there was nothing to succeed at, so it says what happened and no more.
+static func result_stamp(r: StringName) -> Array:
+	match r:
+		MapGen.R_SUCCESS: return ["SUCCESS", UITheme.GOOD]
+		MapGen.R_PARTIAL: return ["PARTIAL", UITheme.EMBER]
+		MapGen.R_BOTCHED: return ["BOTCHED", Color("#d4614f")]
+		MapGen.R_GONE: return ["UNAVAILABLE", UITheme.COLD]
+	return ["RESOLVED", UITheme.CHILL]
+
+
+## `result` empty means an option nobody has touched. Anything else is a card
+## that stays on the row with the word across it and does not answer a click.
+static func option_card(i: int, opt: Dictionary, on_open: Callable,
+		result: StringName = &"") -> Control:
 	var kind := lead_tag(opt)
 	var ink := tag_colour(opt)
 	var made := plate(ink, on_open.bind(i))
 	var card: OptionCard = made[0]
 	var outer: VBoxContainer = made[1]
 	# THE HALF THAT FADES, and the half that does not. Everything the card SAYS
-	# about its option dims when a rival is pointed at; the warning about why is
-	# a sibling of it rather than a child, so it stays at full strength.
+	# about its option dims when a rival is pointed at or when it is spent; the
+	# word explaining why is an overlay rather than a child, so it stays lit.
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 5)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -344,17 +411,23 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable) -> Control:
 	lead.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	lead.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(lead)
+	# SPENT, AND STILL HERE. A resolved option used to drop off the list, so a
+	# system you had worked through went blank and the drawer said "nothing else
+	# wants anything from you" over an empty band -- the record of what you did
+	# there erased at the moment it became history. It stays, greyed, wearing
+	# what it came to.
+	if result != &"":
+		var m := result_stamp(result)
+		card.bar(false)
+		col.modulate = Color(1, 1, 1, 0.55)
+		card.seal(String(m[0]), m[1] as Color, true)
+		return card
 	# RESERVED, NOT SHOWN. Built for every card in an exclusive set and faded to
 	# nothing until one of its rivals is pointed at -- appearing on hover would
 	# make the card taller at the moment the cursor lands on it, and a drawer
 	# that grows under the pointer is the one thing this row must not do.
 	if StringName(opt.get("group", &"")) != &"":
-		var w := UITheme.body("WILL BECOME UNAVAILABLE", UITheme.LEAVE,
-			UITheme.FS_SMALL)
-		w.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		w.modulate = Color(1, 1, 1, 0.0)
-		outer.add_child(w)
-		card.warn = w
+		card.seal("WILL BECOME UNAVAILABLE", UITheme.LEAVE, false)
 	return card
 
 

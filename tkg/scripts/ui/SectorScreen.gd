@@ -574,20 +574,15 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	# were being given a drawer sized for a list of four options, so most of the
 	# panel was air.
 	#
-	# AND A SYSTEM YOU HAVE FINISHED IS ONE OF THEM. It says one line and offers
-	# the jump, which is the same shape as the start and the core, and it was
-	# holding a hundred and ninety pixels open to say it.
-	#
-	# COSTS ONE RESIZE, on the click that takes the last option. The note above
-	# argues a system must not resize because its drawer swaps between LIST,
-	# OPTION and RESULT -- that still holds, and the guard below is what keeps
-	# it: the band only comes down in the LIST state, so reading a RESULT never
-	# happens in a collapsed drawer. What is left is one step down at the moment
-	# a system is finished, which is a thing worth showing rather than a jump.
-	var spent := n != null and n.type == MapGen.NodeType.SYSTEM \
-		and _dstate == Drawer.LIST and EncounterDrawer.untaken(n).is_empty()
+	# AND A SYSTEM NEVER IS ONE, WHICH REVERSES A RULING FROM AN HOUR AGO. A
+	# finished system did collapse to this height and should have: it said one
+	# line over a hundred and ninety pixels of air. It does not say one line any
+	# more -- every option it ever had is still on the row wearing SUCCESS or
+	# BOTCHED or UNAVAILABLE, so there is no air to collapse and the record of
+	# what you did there is the thing that would be hidden. The collapse was a
+	# fix for emptiness, and the emptiness is gone.
 	var bookend := n != null and not Run.dead \
-		and (n.type != MapGen.NodeType.SYSTEM or spent)
+		and n.type != MapGen.NodeType.SYSTEM
 	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.
@@ -646,16 +641,21 @@ func _drawer_simple(line: String, label: String) -> void:
 ## Everything this system still offers, one condensed line each.
 func _drawer_list(n: MapGen.MapNode) -> void:
 	var left := EncounterDrawer.untaken(n)
-	if left.is_empty():
-		# RULING 7. Every system rolls two to four, so an empty one only ever
-		# means you took it all -- a small subtraction, not a completion tick.
+	if n.options.is_empty():
 		_drawer_simple("Nothing else here wants anything from you.", "PLOT NEXT JUMP")
 		return
-	_drawer.add_child(EncounterDrawer.head("%d THING%s OUT HERE WANT%s SOMETHING FROM YOU"
-		% [left.size(), "" if left.size() == 1 else "S",
-			"S" if left.size() == 1 else ""], _on_action,
+	# THE HEADING COUNTS THE LIVE ONES; THE ROW SHOWS THEM ALL. A system you
+	# have finished still has four cards in it, each wearing what it came to,
+	# so the line above them is the only thing left to say the system is done.
+	# RULING 7 still holds: every system rolls two to four, so a count of zero
+	# only ever means you took it all.
+	var line := "NOTHING ELSE HERE WANTS ANYTHING FROM YOU"
+	if not left.is_empty():
+		line = "%d THING%s OUT HERE WANT%s SOMETHING FROM YOU" % [left.size(),
+			"" if left.size() == 1 else "S", "S" if left.size() == 1 else ""]
+	_drawer.add_child(EncounterDrawer.head(line, _on_action,
 		Run.jetsam_left(n, Run.sector_jetsam(n, false)), _open_sector_loot))
-	_drawer.add_child(EncounterDrawer.option_row(n, left, _open_option))
+	_drawer.add_child(EncounterDrawer.option_row(n, _open_option))
 
 
 ## The drawer's top line, with the way out parked on its right.
@@ -823,7 +823,8 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	# hull taken, a module in the hold -- so a player who closed the game on the
 	# result screen must not come back to an option they have already been paid
 	# for. `option_resolved` is the same bookkeeping the old path used.
-	Router.option_resolved(i)
+	Router.option_resolved(i, SkillCheck.band_result(_res_band) if _res_checked \
+		else MapGen.R_DONE)
 	if Run.dead:
 		Router.show_game_over()
 		return
