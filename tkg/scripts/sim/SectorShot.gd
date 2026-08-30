@@ -568,6 +568,16 @@ func run(tree: SceneTree) -> void:
 			tag += "_result"
 			for i5 in 20:
 				await RenderingServer.frame_post_draw
+	# EVERY CARD'S STATE. Two cards reading as lit in one frame would mean a
+	# hover entered and never left, and a still frame cannot tell that from the
+	# real cursor happening to rest on the window -- the shot runs windowed.
+	var seen: Array = []
+	_cards(Router.current, seen)
+	for sc0 in seen:
+		var oc := sc0 as EncounterDrawer.OptionCard
+		print("  card live=%s doomed=%s flesh=%.2f kin=%d" % [oc.live,
+			oc.doomed, (oc.flesh.modulate.a if oc.flesh != null else -1.0),
+			oc.kin.size()])
 	var sc2 := Router.current as SectorScreen
 	if sc2 != null:
 		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"

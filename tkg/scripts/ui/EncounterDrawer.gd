@@ -456,13 +456,43 @@ static func untaken(n: MapGen.MapNode) -> Array:
 ## brown is already stretching that; green is the hull bar's.
 const TAG_CONTRACT := Color("#9b8ec8")
 
+## Hazard orange, and it is the one warm tag that earns the palette's exception.
+##
+## `UITheme`'s note reserves the warm end for combustion -- reactor glow, weapon
+## fire, heat on your own hull -- and four of these seven options ARE combustion:
+## a star mid-tantrum, a flare forty minutes out, a pulsar beam, a lane you
+## cannot thread. Saturated past `EMBER`, which is a reading on your own ship,
+## and away from `LEAVE`, which is somebody shooting.
+const TAG_HAZARD := Color("#f2761d")
+
+## Bone. A wreck is not dirt, and brown said dirt.
+##
+## This was `#9a7b52`, which worked while it was the only warm tag and stopped
+## the moment HAZARD arrived beside it: red, orange and brown are one family,
+## and salvage is the SAFE one of the three -- the tag that says nothing here is
+## trying to kill you. Bleached and desaturated, it reads as material rather
+## than as heat, and it never competes with the two that are warnings.
+##
+## Warm on purpose even so. The cold half of the wheel is where this game keeps
+## its TEXT -- `COLD`, `CHILL`, `ICE` are the body, the labels and the titles --
+## so a grey stripe would sit a shade away from the words printed next to it,
+## and a green one would collide with `GOOD`, which is the SUCCESS stamp.
+const TAG_SALVAGE := Color("#b3a488")
+
 ## PRIORITY, NOT AUTHORING ORDER. `lead_tag` read the option's own `tags` array
 ## and returned the first one it recognised, so `[signal, fight]` came out cyan
 ## and `[fight, signal]` came out red -- the same option two colours depending
 ## on which word got typed first. A fight is the fact that changes what you
 ## would do about the thing, so it outranks whatever else is true of it.
-const TAG_ORDER: Array[StringName] = [&"fight", &"salvage", &"signal",
-	&"contract"]
+##
+## HAZARD SITS SECOND, under a fight and over everything else. The corona and
+## the mine drift are both wrecks worth stripping and both are tagged salvage,
+## which is true and is not the thing you need to know first: what decides
+## whether you go in is the star and the mines. A fight still outranks it,
+## because something aiming at you is a shorter clock than something you are
+## flying into.
+const TAG_ORDER: Array[StringName] = [&"fight", &"hazard", &"salvage",
+	&"signal", &"contract"]
 
 ## WHICH ONE OF ITS TAGS THIS OPTION IS, once and for both readings of it.
 ##
@@ -481,7 +511,8 @@ static func lead_tag(opt: Dictionary) -> StringName:
 static func tag_colour(opt: Dictionary) -> Color:
 	match lead_tag(opt):
 		&"fight": return UITheme.LEAVE
-		&"salvage": return Color("#9a7b52")
+		&"hazard": return TAG_HAZARD
+		&"salvage": return TAG_SALVAGE
 		&"signal": return Color("#8ec8e6")
 		&"contract": return TAG_CONTRACT
 	return UITheme.LINE
