@@ -3,6 +3,9 @@ extends Control
 ## area to Router. Everything else is created in code by the screens.
 
 func _ready() -> void:
+	# Start on the first candidate so there is something to compare against
+	# without pressing anything. See `_wear_cursor`.
+	_wear_cursor(0)
 	# The run seed, before anything can roll:  godot --path . -- seed 12345
 	# A run is one number. This is the flag that makes a bug report replayable,
 	# and it is read before every other branch below because HeadlessSim and the
@@ -550,6 +553,11 @@ func _ready() -> void:
 		get_tree().quit()
 		return
 
+	if "cursorsheet" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/CursorSheet.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "sectorshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/SectorShot.gd").new()
 		_convoy_test.run(get_tree())
@@ -914,9 +922,53 @@ var _settings: SettingsMenu = null
 ## navigable and every control is clicked.
 ##
 ## `show_ship` refuses during a fight on its own, so there is no guard here.
+## THE CANDIDATE CURSORS, WORN RATHER THAN PHOTOGRAPHED.
+##
+## `Input.set_custom_mouse_cursor` hands the image to the operating system, and
+## the viewport capture never sees it -- so there is no screenshot of a cursor,
+## only a screenshot of a picture of one. The only way to judge a pointer is to
+## push it around the screen it has to work on, so F1 cycles them and the name
+## goes to the log.
+##
+## TEMPORARY, and deliberately so: when one is chosen this collapses to a single
+## `set_custom_mouse_cursor` at startup and the other two files leave the tree.
+const CURSORS: Array[String] = ["reticle", "caliper", "cell"]
+## The pixel you are actually pointing with, per candidate. A reticle aims from
+## its middle; the other two aim from the corner, like an arrow.
+const CURSOR_HOT: Array[Vector2] = [Vector2(16, 16), Vector2(2, 2),
+	Vector2(2, 2)]
+var _cursor: int = -1
+
+
+func _wear_cursor(i: int) -> void:
+	_cursor = posmod(i, CURSORS.size())
+	var img := Image.new()
+	# FROM DISK. Nothing has been chosen, so these are candidates rather than
+	# assets and the import pipeline never has to hear about them.
+	var path := ProjectSettings.globalize_path(
+		"res://art/cursors/%s_2x.png" % CURSORS[_cursor])
+	if img.load(path) != OK:
+		print("no cursor at ", path)
+		return
+	Input.set_custom_mouse_cursor(ImageTexture.create_from_image(img),
+		Input.CURSOR_ARROW, CURSOR_HOT[_cursor])
+	# AND THE POINTING HAND TOO, or every button on the screen hands you the
+	# system arrow back and the thing you are judging vanishes wherever it
+	# matters most.
+	Input.set_custom_mouse_cursor(ImageTexture.create_from_image(img),
+		Input.CURSOR_POINTING_HAND, CURSOR_HOT[_cursor])
+	print("cursor: ", CURSORS[_cursor])
+
+
 func _input(event: InputEvent) -> void:
 	var k := event as InputEventKey
-	if k == null or not k.pressed or k.echo or k.keycode != KEY_TAB:
+	if k == null or not k.pressed or k.echo:
+		return
+	if k.keycode == KEY_F1:
+		get_viewport().set_input_as_handled()
+		_wear_cursor(_cursor + 1)
+		return
+	if k.keycode != KEY_TAB:
 		return
 	get_viewport().set_input_as_handled()
 	# SHIP, SECTOR, STARCHART, round. The three screens a run is actually played
