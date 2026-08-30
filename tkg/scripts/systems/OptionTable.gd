@@ -356,13 +356,33 @@ static func place(from: MapGen.MapNode, id: StringName) -> int:
 
 ## Does this system hold a placed encounter nobody has taken yet? The chart asks,
 ## to know whether to mark it.
+## THE IDS THAT CAN ONLY BE PLACED, as a set, built once.
+##
+## `holds_quest` is asked of every system on the chart on every mouse-motion
+## frame, and `by_id` is a linear walk of the whole table -- a hundred and ninety
+## systems times three options times fifty rows is thirty thousand comparisons a
+## frame for an answer that changes about twice a run. `_draw_work` solved the
+## same problem by caching in the view; this fixes it at the source instead, so
+## nothing downstream has to know it was ever expensive.
+static var _placed: Dictionary = {}
+
+
+static func placed_ids() -> Dictionary:
+	if _placed.is_empty():
+		for o in all():
+			if bool(o.get("placed", false)):
+				_placed[StringName(o.id)] = true
+	return _placed
+
+
 static func holds_quest(n: MapGen.MapNode) -> bool:
 	if n == null:
 		return false
+	var set := placed_ids()
 	for i in n.options.size():
-		if n.taken.has(MapGen.OPTION_SITE + i):
+		if not set.has(n.options[i]):
 			continue
-		if bool(by_id(n.options[i]).get("placed", false)):
+		if not n.taken.has(MapGen.OPTION_SITE + i):
 			return true
 	return false
 
@@ -371,12 +391,13 @@ static func holds_quest(n: MapGen.MapNode) -> bool:
 static func quest_name(n: MapGen.MapNode) -> String:
 	if n == null:
 		return ""
+	var set := placed_ids()
 	for i in n.options.size():
+		if not set.has(n.options[i]):
+			continue
 		if n.taken.has(MapGen.OPTION_SITE + i):
 			continue
-		var o := by_id(n.options[i])
-		if bool(o.get("placed", false)):
-			return String(o.get("title", "")).to_upper()
+		return String(by_id(n.options[i]).get("title", "")).to_upper()
 	return ""
 
 

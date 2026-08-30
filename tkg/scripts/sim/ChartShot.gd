@@ -29,6 +29,23 @@ func run(tree: SceneTree) -> void:
 					seen[j] = true
 					queue.append(j)
 		Run.chart_from(Run.node_at())
+	# `quest` places one and photographs the marker.
+	#
+	# A PLACEMENT CANNOT BE SET UP ANY OTHER WAY. It is the consequence of an
+	# option resolution four jumps back, so there is no state to pose -- the only
+	# honest setup is to make the call the outcome would make and let it choose
+	# its own target the way it will in a real run.
+	if "quest" in OS.get_cmdline_user_args():
+		var at := OptionTable.place(Run.node_at(), &"paid_in_full")
+		if at < 0:
+			print("  nowhere to place it")
+		else:
+			var t: MapGen.MapNode = Run.map[at]
+			print("  placed on %s (layer %d, you are on %d): %s"
+				% [MapGen.star_name(t), t.layer,
+					(Run.node_at() as MapGen.MapNode).layer,
+					OptionTable.quest_name(t)])
+			print("  its options: %s" % [t.options])
 	Router.show_starchart()
 	for i in 120:
 		await RenderingServer.frame_post_draw

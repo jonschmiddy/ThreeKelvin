@@ -2406,6 +2406,7 @@ class MapChart extends Control:
 
 		_draw_party()
 		_draw_hellbender()
+		_draw_quests()
 		_draw_work()
 		_draw_neb_edges()
 
@@ -3291,6 +3292,48 @@ class MapChart extends Control:
 	##
 	## Not a route and not an arrow. It says where, and leaves the whether alone —
 	## see ContractData's header on why nothing here pushes you anywhere.
+	## A SYSTEM SOMEBODY PUT SOMETHING ON, and the name of the thing.
+	##
+	## A WAYPOINT POINTING DOWN AT IT, and every other shape was taken. The chart
+	## speaks in rings for contracts -- one for a fetch, two for a hunt -- in
+	## diamonds for the party and the hellbender, and in four corner ticks for
+	## YOU. The corner ticks were the first thing I drew here and they were
+	## wrong: gold ticks beside amber ticks is the same marker in two colours,
+	## and the one that means "you are here" is the one you least want doubled.
+	##
+	## IT IGNORES THE VISIBILITY RULE, and that is the point of it. The chart
+	## deliberately hides systems you have never been to and cannot reach,
+	## because "a system you can neither see nor go to is not information you can
+	## act on" -- and a quest is the one thing on the map that IS. You cannot act
+	## on it this minute; you can route toward it, which is the entire reason it
+	## was placed four jumps deeper instead of handed to you.
+	##
+	## The name goes ABOVE. Hovering already prints a system's own name below it,
+	## and two labels on one node stacked on each other.
+	func _draw_quests() -> void:
+		if not show_icons or Run.map.is_empty():
+			return
+		var gold := EncounterDrawer.TAG_QUEST
+		for raw in Run.map:
+			var n: MapGen.MapNode = raw
+			if not OptionTable.holds_quest(n):
+				continue
+			var c := _screen_pos(n)
+			# Backed in ink first, for the reason the party diamond is: the deep
+			# systems sit over the core, which is the brightest thing here.
+			for pass_i in 2:
+				var g := 2.0 if pass_i == 0 else 0.0
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0, -7 + g),
+					c + Vector2(-6 - g, -16 - g),
+					c + Vector2(6 + g, -16 - g)]),
+					UITheme.VOID if pass_i == 0 else gold)
+			var said := OptionTable.quest_name(n)
+			if said != "":
+				draw_string(UITheme.pixel_font(), c + Vector2(-46, -20), said,
+					HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
+
+
 	func _draw_work() -> void:
 		if not show_icons or Run.map.is_empty():
 			return
