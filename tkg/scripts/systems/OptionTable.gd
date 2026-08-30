@@ -1232,7 +1232,7 @@ static func _authored() -> Array[Dictionary]:
 			weight = 12,
 			choices = [
 				{label = "Salvage the racks", effect = func() -> Dictionary:
-					return {text = "You pull a module out of a dead bay. The rack releases it on the first try, which it should not have, after this long.", module = true, material = &"wreck"}},
+					return {text = "You pull a module out of a dead bay, and clear the rack around it while you are in there. It all comes away on the first try, which it should not have, after this long.", module = true, material = &"wreck"}},
 				{label = "Siphon the tanks", effect = func() -> Dictionary:
 					Run.fuel += 12
 					return {text = "Four jumps of fuel, tasting of rust."}},
