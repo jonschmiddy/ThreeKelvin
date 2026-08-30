@@ -17,11 +17,11 @@ extends RefCounted
 ## one of those alone will vanish on another. The strip down the right is the
 ## same three at 6x, for judging the shape rather than the legibility.
 
-const NAMES: Array[String] = ["reticle", "caliper", "cell"]
+const NAMES: Array[String] = ["reticle", "reticle_hot"]
 ## Where each one is dropped, in design pixels: hull, sky, drawer, card.
 const OVER: Array[Vector2] = [Vector2(150, 190), Vector2(700, 140),
 	Vector2(120, 470), Vector2(430, 500)]
-const ZOOM := 3
+const ZOOM := 5
 
 
 class Sheet extends Control:

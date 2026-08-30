@@ -395,6 +395,12 @@ static func hull_row(h: HullData, label: String, price: int,
 static func _btn(text: String, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
+	# THE CURSOR READS THIS. `CURSOR_POINTING_HAND` is what the closed reticle
+	# is bound to -- see `Main._wear_cursor` -- and Godot's own default for a
+	# Button is the plain arrow, so without this the pointer would sit open over
+	# every control in the game and close only on the four things that happened
+	# to set it by hand.
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	# Sound before action. Every button in the game is built here, so this is
 	# the one place the interface needs wiring — and the action is usually a
 	# screen swap, so the click has to be queued before the tree changes.

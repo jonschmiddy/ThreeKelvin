@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c2s451h3e7tgj"
-path="res://.godot/imported/caliper.png-3c5043d81160da7adf68222400a6fd8c.ctex"
+uid="uid://buut6hadaahgl"
+path="res://.godot/imported/reticle_hot_2x.png-1c437e00c3b5a3884efc104509b52e09.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/cursors/caliper.png"
-dest_files=["res://.godot/imported/caliper.png-3c5043d81160da7adf68222400a6fd8c.ctex"]
+source_file="res://art/cursors/reticle_hot_2x.png"
+dest_files=["res://.godot/imported/reticle_hot_2x.png-1c437e00c3b5a3884efc104509b52e09.ctex"]
 
 [params]
 
