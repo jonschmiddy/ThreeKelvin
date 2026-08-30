@@ -710,71 +710,60 @@ func _drawer_option(n: MapGen.MapNode) -> void:
 
 
 ## What happened, until you accept it.
+##
+## THE WAY OUT IS ON TOP, WHICH IS WHERE THE OPTION PAGE KEEPS ITS WAYS OUT.
+## `< BACK` and `PLOT NEXT JUMP` sit on that row a frame ago; REWARD and
+## CONTINUE were down in the far corner instead, so the one control you are
+## certain to press moved across the drawer between the two states.
+##
+## And the plate drops below it rather than filling the band, so it starts where
+## the option page's body starts instead of at the very top -- which is the
+## other half of why stepping between them felt like a different screen.
 func _drawer_result(n: MapGen.MapNode) -> void:
-	# NAME THE BAND, LOUDLY. The prose is written in fiction and deliberately
-	# never says "you failed", so without this a PARTIAL and a BOTCHED are two
-	# paragraphs you cannot tell apart and the ladder never resolves where you
-	# can see it. `band_name` rather than the seal's word, because this is the
-	# one place MET and SCRAPED THROUGH are worth telling apart.
 	var opt: Dictionary = OptionTable.by_id(n.options[_open]) if _open >= 0 \
 		and _open < n.options.size() else {}
-	_drawer.add_child(EncounterDrawer.outcome(opt,
-		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
-		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
-		_res_odds, String(_res.get("text", "")), _res_bill, _res_got))
-	# THE SAME ROW THE CHOICES SAT IN. Separation 7 and no leading spacer, so
-	# the plates start where the choice plates started and run the same width --
-	# see `EncounterDrawer.act_card`. The outcome above stops where the prose
-	# above the choices stopped, and the two states of the drawer stop moving
-	# under you.
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 7)
-	# WHAT AN EVENT PAID YOU IN OBJECTS, if it paid you in any.
-	#
-	# `MATERIALS_NOTE` 3.6: a physical payout is a CONTAINER rather than a thing
-	# that arrives. The text above already told you what you got; this is the
-	# door to it, sitting next to CONTINUE so taking it is a decision rather
-	# than something that happened while you were reading.
-	#
-	# Only when there is something loose here to take. An option that paid in
-	# credits and fuel has nothing to open, and a button that opens an empty
-	# container is a button that lies once per event.
-	# GATED ON WHAT THIS RESOLUTION PAID, not on what is lying around.
-	#
-	# It was `jetsam_left(...) > 0`, which is a question about the SYSTEM:
-	# resolve a credits-only option in a sector where you had jettisoned a crate
-	# an hour ago and the button appeared anyway. Reading CLAIM that was merely
-	# vague; reading PRIZE it is a lie, because the word names this outcome. An
-	# option that paid in numbers has nothing to open and says nothing.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(sp)
 	if OptionTable.pays_item(_res) and not Run.dead:
-		# GREYED WHEN THERE IS NOTHING BEHIND IT. The plate appears because this
-		# outcome paid you an object; it stays on the row after you have taken
-		# it, because one that vanishes moves CONTINUE out from under your hand.
-		# What it must not do is still look like a door.
+		# GREYED WHEN THERE IS NOTHING BEHIND IT. It stays on the row after you
+		# have taken it, because one that vanishes moves CONTINUE out from under
+		# your hand. What it must not do is still look like a door.
 		var left := Run.jetsam_left(n, Run.sector_jetsam(n, false))
-		var claim := EncounterDrawer.act_card("REWARD", UITheme.HOT,
-			_open_prize, left > 0)
+		var claim := Widgets.button("REWARD", _open_prize)
+		claim.custom_minimum_size = EncounterDrawer.BTN
+		claim.disabled = left <= 0
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
-		row.add_child(claim)
-
+		head.add_child(claim)
+	var out := Widgets.button("CONTINUE", func() -> void:
+		_dstate = Drawer.LIST
+		_open = -1
+		_res = {}
+		_refresh())
 	if Run.dead:
-		row.add_child(EncounterDrawer.act_card("SUMMARY", UITheme.LEAVE,
-			func() -> void: Router.show_game_over()))
+		out = Widgets.button("SUMMARY", func() -> void: Router.show_game_over())
 	elif bool(_res.get("fight", false)):
 		# LIST -> FIGHT -> RESULT -> LIST. The fight is a screen of its own and
 		# then `after_combat` returns to the sector, where a rebuilt drawer
 		# defaults to LIST with this option already spent.
-		row.add_child(EncounterDrawer.act_card("THEY ARE ALREADY FIRING",
-			UITheme.LEAVE, func() -> void: Router.start_ambush()))
-	else:
-		row.add_child(EncounterDrawer.act_card("CONTINUE", UITheme.ICE,
-			func() -> void:
-				_dstate = Drawer.LIST
-				_open = -1
-				_res = {}
-				_refresh()))
-	_drawer.add_child(row)
+		out = Widgets.button("THEY ARE FIRING", func() -> void:
+			Router.start_ambush())
+	out.custom_minimum_size = EncounterDrawer.BTN
+	head.add_child(out)
+	_drawer.add_child(head)
+	# NAME THE BAND. The prose is written in fiction and deliberately never says
+	# "you failed", so without this a PARTIAL and a BOTCHED are two paragraphs
+	# you cannot tell apart and the ladder never resolves where you can see it.
+	# `band_name` rather than the seal's word, because this is the one place MET
+	# and SCRAPED THROUGH are worth telling apart.
+	_drawer.add_child(EncounterDrawer.outcome(opt,
+		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
+		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
+		_res_odds, String(_res.get("text", "")), _res_bill, _res_got))
+
 
 
 ## Which options this system still has.
