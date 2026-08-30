@@ -923,30 +923,98 @@ var _settings: SettingsMenu = null
 ## THE POINTER, AND THE POINTER CLOSING.
 ##
 ## Four corners and a dot -- see `art/tools/cursors.py` for why there is no
-## crosshair -- and `reticle_hot` is the same four corners pulled in toward the
-## dot. Godot swaps them itself: `CURSOR_ARROW` is the resting shape and
-## `CURSOR_POINTING_HAND` is the closed one, so anything that declares itself
-## clickable makes the reticle scrunch without a line of code between them.
+## crosshair -- travelling from six pixels out to three when the thing under
+## them can be pressed.
 ##
-## WHICH MEANS THE DECLARATION HAS TO BE TRUE EVERYWHERE. It was set on four
-## controls in the whole project, so the cursor would have reacted to a card in
-## the hold and ignored every button on every screen. `Widgets._btn` sets it
-## now, which is the one door every button in the game comes through.
+## FRAMES, BECAUSE A CUSTOM CURSOR IS ONE STATIC TEXTURE PER SHAPE. Godot has
+## no animated form of it, so the animation is four images and the swapping is
+## here. The alternative -- hiding the system cursor and painting our own
+## Control at the mouse position -- can tween anything, and is a cursor one
+## frame behind the mouse forever. A pointer that lags is a worse pointer than
+## one that does not ease, so the frames win.
+##
+## IT COSTS FOUR OS CALLS PER HOVER, not four a second: `_process` only touches
+## the cursor when the rounded frame index actually changes, which is three
+## times on the way in and three on the way out.
+const CURSOR_FRAMES := 4
+## The pixel you are pointing with: the middle, for a shape that closes around
+## it rather than an arrow that points from a corner.
 const CURSOR_HOT := Vector2(16, 16)
+## Frames per second of travel. Nine hundredths of a second end to end, which is
+## fast enough to feel like a response and slow enough to see happen.
+const CURSOR_SPEED := 34.0
+
+var _cursor_tex: Array[ImageTexture] = []
+## Where the animation currently is, 0 open to 3 closed. Fractional between.
+var _cursor_at: float = 0.0
+## Which frame the operating system is actually holding, to avoid handing it the
+## same image sixty times a second.
+var _cursor_shown: int = -1
 
 
 func _wear_cursor() -> void:
-	for pair in [["reticle", Input.CURSOR_ARROW],
-			["reticle_hot", Input.CURSOR_POINTING_HAND]]:
+	_cursor_tex.clear()
+	for i in CURSOR_FRAMES:
 		var img := Image.new()
 		if img.load(ProjectSettings.globalize_path(
-				"res://art/cursors/%s_2x.png" % pair[0])) != OK:
-			continue
-		Input.set_custom_mouse_cursor(ImageTexture.create_from_image(img),
-			pair[1] as Input.CursorShape, CURSOR_HOT)
+				"res://art/cursors/reticle_%d_2x.png" % i)) != OK:
+			return
+		_cursor_tex.append(ImageTexture.create_from_image(img))
+	_show_cursor(0)
+
+
+func _show_cursor(f: int) -> void:
+	if f == _cursor_shown or f < 0 or f >= _cursor_tex.size():
+		return
+	_cursor_shown = f
+	# BOTH SHAPES, THE SAME IMAGE. Godot swaps ARROW for POINTING_HAND by itself
+	# the instant the pointer crosses a control, which would jump the reticle to
+	# its end state and leave the animation running behind it. Holding both to
+	# the current frame means the swap is invisible and this is the only thing
+	# deciding what the cursor looks like.
+	for shape in [Input.CURSOR_ARROW, Input.CURSOR_POINTING_HAND]:
+		Input.set_custom_mouse_cursor(_cursor_tex[f],
+			shape as Input.CursorShape, CURSOR_HOT)
+
+
+## Is the thing under the pointer something you can press?
+##
+## Asked of the hovered control rather than of the cursor, because the cursor is
+## what we are deciding. `mouse_default_cursor_shape` is the declaration every
+## button makes through `Widgets._btn`, so this reads the same fact Godot would
+## have read to do the swap we are taking over.
+func _cursor_wants_shut() -> bool:
+	# A HELD BUTTON IS A GRIP. Dragging the starchart, dragging a crate across
+	# the hold, holding a card -- the pointer has hold of something for the
+	# whole of it, and one rule covers all three without any of them knowing
+	# this exists. It is also what keeps a click scrunched for as long as the
+	# click lasts, rather than for one frame.
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return true
+	var h := get_viewport().gui_get_hovered_control()
+	return h != null and h.mouse_default_cursor_shape == Control.CURSOR_POINTING_HAND
+
+
+func _process(delta: float) -> void:
+	if _cursor_tex.is_empty():
+		return
+	var want := float(CURSOR_FRAMES - 1) if _cursor_wants_shut() else 0.0
+	_cursor_at = move_toward(_cursor_at, want, delta * CURSOR_SPEED)
+	_show_cursor(int(round(_cursor_at)))
 
 
 func _input(event: InputEvent) -> void:
+	# SNAP SHUT, EASE OPEN. A press jumps the reticle to closed rather than
+	# travelling there: the animation is a response to hovering, and a click is
+	# an impact. Easing INTO a click makes the pointer feel behind your hand;
+	# easing out of one reads as the thing recovering.
+	#
+	# NOT HANDLED, deliberately. This watches the click on the way past; the
+	# control under it still gets it.
+	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		_cursor_at = float(CURSOR_FRAMES - 1)
+		_show_cursor(CURSOR_FRAMES - 1)
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return

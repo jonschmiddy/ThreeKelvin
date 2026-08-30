@@ -292,6 +292,22 @@ func spots() -> Array[Dictionary]:
 func _ring(at: Vector2, r: float, col: Color) -> void:
 	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
 
+## A PART ON THE HULL IS A THING YOU CAN PRESS, and the hull is one Control.
+##
+## Every mounted module is drawn by this node rather than being a node of its
+## own, so there is nothing for `mouse_default_cursor_shape` to sit on and the
+## reticle stayed open across a ship covered in things you can pick up, flip and
+## pull off. Position-keyed, like `_get_tooltip` beside it -- the answer depends
+## on WHERE in this Control you are, which is exactly what the hook is for.
+##
+## `_passive` is the display-only hull -- the convoy column, the shot harness --
+## where nothing answers a click and the pointer should not promise one.
+func _get_cursor_shape(at: Vector2) -> CursorShape:
+	if _passive or part_under(at) == null:
+		return Control.CURSOR_ARROW
+	return Control.CURSOR_POINTING_HAND
+
+
 ## The INSTALLED PART under a point, or null. Same hit test the mount lookup
 ## uses, answering with the thing rather than the place -- a caller that wants
 ## to flip what it is pointing at does not care which hardpoint holds it.

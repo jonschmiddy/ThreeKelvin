@@ -542,6 +542,10 @@ func _notable(n: MapGen.MapNode) -> int:
 func _neighbour_row(n: MapGen.MapNode) -> Control:
 	var afford := Run.can_jump_to(n)
 	var b := Button.new()
+	# See `ShipScreen._zoombtn`: a bare Button points with the plain arrow.
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# See `ShipScreen._zoombtn`: a bare Button points with the plain arrow.
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.custom_minimum_size = Vector2(0, 15)
 	b.focus_mode = Control.FOCUS_NONE
 	b.flat = true

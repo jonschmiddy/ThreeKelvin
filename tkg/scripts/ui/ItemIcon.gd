@@ -98,6 +98,16 @@ class Ghost extends Control:
 ## and you can pick it straight back up. A dialog guarding an action you can undo
 ## by clicking the thing you just dropped would be asking permission to change
 ## your mind. The log line says where it went.
+## A THING YOU CAN PICK UP IS A THING YOU CAN PRESS.
+##
+## The reticle closes on `CURSOR_POINTING_HAND` -- see `Main._cursor_wants_shut`
+## -- and a crate you can drag, turn, shift-click and jettison is the most
+## interactive object on the screen. It was pointing with the same open shape as
+## the empty sky behind it.
+func _init() -> void:
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+
 func _gui_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
 	if mb == null or not mb.pressed:

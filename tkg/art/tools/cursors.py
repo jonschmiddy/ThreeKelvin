@@ -101,14 +101,22 @@ def write(path, rows, scale):
 def main():
 	if not os.path.isdir(OUT):
 		os.makedirs(OUT)
-	# Six out, three in. Wide enough at rest that the corners are clearly
-	# outside whatever they are around; close enough on hover that the change
-	# is unmistakable at a glance without the shape ever leaving the pixel.
-	for name, gap, arm in (("reticle", 6, 2), ("reticle_hot", 3, 1)):
-		g = reticle(gap, arm)
-		write(os.path.join(OUT, "%s.png" % name), g.px, 1)
-		write(os.path.join(OUT, "%s_2x.png" % name), g.px, 2)
-		print("  %-12s gap %d arm %d" % (name, gap, arm))
+	# SIX OUT TO THREE IN, AS FOUR FRAMES.
+	#
+	# A custom mouse cursor in Godot is one static texture per shape; there is
+	# no animated form of it. So the animation is the frames, and `Main` swaps
+	# them -- which is worth the trouble over drawing the pointer ourselves,
+	# because a cursor we paint is a cursor one frame behind the mouse and a
+	# hardware one never is.
+	#
+	# The arm stays at two the whole way and only the corners travel. Shrinking
+	# both at once read as a different shape arriving rather than as this one
+	# closing, which is the entire point of doing it in steps.
+	for i, gap in enumerate((6, 5, 4, 3)):
+		g = reticle(gap, 2)
+		write(os.path.join(OUT, "reticle_%d.png" % i), g.px, 1)
+		write(os.path.join(OUT, "reticle_%d_2x.png" % i), g.px, 2)
+		print("  reticle_%d    gap %d" % (i, gap))
 
 
 main()

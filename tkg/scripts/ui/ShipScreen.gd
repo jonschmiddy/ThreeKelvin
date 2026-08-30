@@ -274,6 +274,12 @@ func _build() -> void:
 	# Beside the class line rather than over the ship: anything drawn on the
 	# hull is a hardpoint, and a button there would read as one.
 	_zoombtn = Button.new()
+	# The reticle reads this. See `Main._cursor_wants_shut` -- a bare
+	# `Button` defaults to the plain arrow, and only `Widgets._btn` sets it.
+	_zoombtn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	# The reticle reads this. See `Main._cursor_wants_shut` -- a bare
+	# `Button` defaults to the plain arrow, and only `Widgets._btn` sets it.
+	_zoombtn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_zoombtn.text = "ZOOM"
 	_zoombtn.focus_mode = Control.FOCUS_NONE
 	_zoombtn.tooltip_text = "Z - double the ship, then drag it about"
