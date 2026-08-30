@@ -114,7 +114,15 @@ const OPTION_BAG := 200
 ## tantrums, which is what `corona` and `flare_shelter` are both about, and it
 ## is the one that has to be MUTUALLY EXCLUSIVE with a quiet star -- you cannot
 ## shelter from a flare at a system whose star does not throw any.
-enum Star { ORDINARY, FLARE }
+## RED and BLUE are both hypergiants -- the two ways a star can be big enough to
+## be a problem -- and ORDINARY is everything else, which is most of it.
+##
+## `FLARE` was the first name for the red one, from when it existed only to gate
+## two encounters about a star throwing tantrums. It is RED now because the
+## chart paints it: what you see from three systems away is the colour, and a
+## name that describes the hazard rather than the star reads backwards the
+## moment the star is the thing on screen.
+enum Star { ORDINARY, RED, BLUE }
 
 const OPTION_SITE := 300
 
@@ -727,22 +735,33 @@ static func region_name(r: Region) -> String:
 ## Which manufacturer holds a place is a detail you read when you point at one, and the
 ## tooltip and the panel both say it in words. What the chart has to carry at a
 ## glance is whether anyone holds it at all.
-static func region_colour(n: MapNode) -> Color:
+## WHAT COLOUR A PLACE IS, and it is the colour of its star.
+##
+## This was a development gradient: two berths pale, one berth grey, none dark,
+## lawless-but-held amber. It read as a manufacturer map because more berths
+## meant brighter, and it meant the whole galaxy was tinted by PAPERWORK -- who
+## holds a claim here -- rather than by anything you could see out of a window.
+##
+## It feeds more than the chart. `SpaceBackdrop` takes the dust from it,
+## `EncounterView` tints the whole sector with it, and the chart glyphs and
+## nebula wash both use it -- so standing in a red hypergiant's light now looks
+## like standing in a red hypergiant's light, everywhere at once.
+##
+## WHAT IS LOST: fauna space was teal and lawless-but-held was amber, both
+## readable at a glance. Those are facts about people and animals rather than
+## about the sky, and they stay on the tooltip and in the destination panel.
+## A star is the thing a system IS.
+static func star_colour(n: MapNode) -> Color:
 	if n.type == NodeType.CORE:
 		return Color("#d4614f")
+	# The pulsar keeps its own, which is the point of it: a neutron star is not
+	# a colour of starlight, it is a lighthouse.
 	if n.type == NodeType.PULSAR:
 		return Color("#8fd2e0")
-	if n.fauna:
-		return Color("#4a7a8a")
-	if n.security <= 2 and not n.berths.is_empty():
-		# Lawless but held: the one distinction worth a colour of its own,
-		# because it changes what the place sells and what it does to you.
-		return Color("#a9713d")
-	if n.berths.size() >= 2:
-		return Color("#93a8c2")
-	if n.berths.size() == 1:
-		return Color("#6f8296")
-	return Color("#41505f")
+	match n.star:
+		Star.RED: return Color("#c05046")
+		Star.BLUE: return Color("#5b8fd4")
+	return Color("#cbd6e3")
 
 ## What kind of place this is, in a word.
 ##
@@ -965,7 +984,12 @@ static func _roll_axes(n: MapNode, depth: float) -> void:
 	# stars do not respect development. A giant is common because most systems
 	# have one; it is furniture, and the option that wants it is about being
 	# caught in the well rather than about the planet being unusual.
-	n.star = Star.FLARE if Rng.world.randf() < 0.18 else Star.ORDINARY
+	# Rare on purpose, and rarer than the eighteen per cent the single FLARE
+	# kind had: a sky worth remarking on has to be a minority of the sky. Twelve
+	# and eight leaves four systems in five ordinary, which is what makes the
+	# other one worth crossing the chart to look at.
+	var sky := Rng.world.randf()
+	n.star = Star.RED if sky < 0.12 else (Star.BLUE if sky < 0.20 else Star.ORDINARY)
 	n.gas_giant = Rng.world.randf() < 0.45
 
 ## Collapse the three axes back onto the old label, once, here. Order matters:

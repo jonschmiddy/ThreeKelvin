@@ -660,7 +660,7 @@ static func _authored() -> Array[Dictionary]:
 			# THE STAR HERE IS MID-TANTRUM, which is a fact about the star and
 			# not about how deep you are. Danger stays off it entirely: a
 			# flare star on the rim is exactly as dangerous to sit next to.
-			needs_star = MapGen.Star.FLARE,
+			needs_star = MapGen.Star.RED,
 			choices = [
 				{label = "Go in hot",
 					check = {attr = &"thermal", need = 6},
@@ -1164,7 +1164,7 @@ static func _authored() -> Array[Dictionary]:
 			weight = 11,
 			# The same star, from the other side: one is a hold worth reaching
 			# through a flare, the other is forty minutes to get behind a rock.
-			needs_star = MapGen.Star.FLARE,
+			needs_star = MapGen.Star.RED,
 			choices = [
 				{label = "Shelter and strip",
 					check = {attr = &"thermal", need = 6},

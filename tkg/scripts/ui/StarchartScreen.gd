@@ -561,7 +561,7 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 	b.add_child(row)
 
 	var g := Glyph.new()
-	g.setup(n.type, MapGen.region_colour(n))
+	g.setup(n.type, MapGen.star_colour(n))
 	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(g)
 
@@ -2392,7 +2392,7 @@ class MapChart extends Control:
 			if not visible.has(node2.index):
 				continue
 			var p := (_screen_pos(node2) - Vector2(6, 6)).round()
-			var tint := MapGen.region_colour(node2)
+			var tint := MapGen.star_colour(node2)
 			if node2.cleared and node2.type != MapGen.NodeType.CORE:
 				tint = Color("#37424f")
 			# REMEMBERED, NOT SEEN, and both are meant to be on the chart: where
@@ -2873,7 +2873,7 @@ class MapChart extends Control:
 		# A colour chip: region identity is already carried by the dot's tint, so
 		# repeating it here ties the panel to the point you are pointing at.
 		draw_rect(Rect2(o + Vector2(1, 1), Vector2(2, box.y - 2)),
-			Color(MapGen.region_colour(n), a), true)
+			Color(MapGen.star_colour(n), a), true)
 
 		var tx := o + Vector2(7, 12)
 		draw_string(f, tx, l1, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(UITheme.ICE, a))
@@ -3923,7 +3923,7 @@ class MapChart extends Control:
 			var d: float = (_polar(node) - at).length_squared()
 			if d < best:
 				best = d
-				col = MapGen.region_colour(node)
+				col = MapGen.star_colour(node)
 		return col
 
 	## Emission gas is lit from inside by the stars forming in it and runs

@@ -145,7 +145,7 @@ func setup(n: MapGen.MapNode) -> void:
 	else:
 		_star_tint = Color("#dff0ff")
 		_star_edge = Color("#6f9fc8")
-	_dust = MapGen.region_colour(n)
+	_dust = MapGen.star_colour(n)
 	_accent = _dust
 	if n.manufacturer != &"":
 		_accent = DB.manufacturer_colour(n.manufacturer)

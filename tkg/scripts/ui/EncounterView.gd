@@ -359,7 +359,7 @@ func _slot_for(id: int) -> ConvoySlot:
 ## default tint and would now leave the sky on the last system's. What is out
 ## there does not care whether something is shooting at you.
 func set_place(n: MapGen.MapNode) -> void:
-	_tint = MapGen.region_colour(n).darkened(0.72)
+	_tint = MapGen.star_colour(n).darkened(0.72)
 	if backdrop != null:
 		backdrop.setup(n)
 	set_weather(n)
@@ -611,7 +611,7 @@ class AreaView extends Control:
 		if node == null or not SHOW_PLACES:
 			return
 		var c := (size * 0.5).round()
-		var tint := MapGen.region_colour(node)
+		var tint := MapGen.star_colour(node)
 		match node.type:
 			MapGen.NodeType.STATION: _station(c)
 			# READ WHAT IS HERE. The three types this replaced each had their own

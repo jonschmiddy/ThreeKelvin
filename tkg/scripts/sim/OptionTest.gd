@@ -177,7 +177,8 @@ func run() -> void:
 		Rng.forced = seed
 		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 		var pulsars := 0
-		var flares := 0
+		var reds := 0
+		var blues := 0
 		var giants := 0
 		for raw0 in Run.map:
 			var s: MapGen.MapNode = raw0
@@ -185,8 +186,10 @@ func run() -> void:
 				pulsars += 1
 			if s.type != MapGen.NodeType.SYSTEM:
 				continue
-			if s.star == MapGen.Star.FLARE:
-				flares += 1
+			if s.star == MapGen.Star.RED:
+				reds += 1
+			if s.star == MapGen.Star.BLUE:
+				blues += 1
 			if s.gas_giant:
 				giants += 1
 		var remnants := 0
@@ -197,8 +200,8 @@ func run() -> void:
 			% [seed, String(Run.galaxy.get("name", "?")),
 				float(Run.galaxy.get("gas", 0.0)),
 				NebulaField.clouds().size(), remnants])
-		skies.append("    seed %-6d %3d pulsars · %3d flare stars · %3d giants"
-			% [seed, pulsars, flares, giants])
+		skies.append("    seed %-8d %3d pulsars · %3d red · %3d blue · %3d giants"
+			% [seed, pulsars, reds, blues, giants])
 		for o in OptionTable.all():
 			if bool(o.get("placed", false)):
 				continue   # placed options are never rolled; that is the point
