@@ -2191,6 +2191,12 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 			return
 		combat.exit_note = ""
 		on_go.call()
+		# AND THE SCREEN CATCHES UP, for both of them. Hailing did this in its
+		# own closure and fleeing did not, so a successful hail left the hand
+		# greyed behind the panel and a successful burn left five playable cards
+		# sitting under a fight that was already over. The refresh belongs to
+		# "an exit was taken", not to one of the two exits.
+		_refresh()
 		# `finished`, NOT `fighting()`. That helper asks whether there is a fight
 		# on this screen and stays true after one ends -- `_finish` sets a flag,
 		# it does not clear the enemy -- so testing it here ran the failure
@@ -2284,8 +2290,7 @@ func _on_hail() -> void:
 		"%s. They break off and there is no salvage. Fail and you have told them exactly where you are: %d heat, and the turn is theirs."
 			% [SkillCheck.badge(combat.hail_check()), Combat.HAIL_HEAT_BOTCHED],
 		"HAIL THEM", "NO ANSWER", func() -> void:
-			combat.hail()
-			_refresh())
+			combat.hail())
 
 
 func _close_exit_ask() -> void:
