@@ -23,17 +23,37 @@ class_name MaterialTable
 ## ledger today and appear here with their values and text unchanged, so recipes,
 ## combat drops and saved runs keep working. Every other row is additive.
 ##
-## `drops` is a LOOT-TABLE KEY and never a fiction: which table a row rolls from,
-## and there are exactly five. Precursor pieces sit in `wreck` because the lore
-## says fragments come off deep wrecks and nowhere else.
+## `drops` is a LOOT-TABLE KEY and never a fiction: which table a row rolls from.
+## Five of them roll; `named` is the sixth and nothing asks for it -- see `NAMED`.
+## Precursor pieces sit in `wreck` because the lore says fragments come off deep
+## wrecks and nowhere else.
 ##
 ##     tier    artifact 4 · common 16 · contraband 8 · epic 9 · exotic 9 · legendary 5 · rare 13
-##     table   event 22 · fauna 9 · fight 7 · mining 2 · wreck 24
+##     table   event 20 · fauna 8 · fight 7 · mining 2 · wreck 22 · named 5
 ##     cells   1x1 40 · 2x1 14 · 2x2 4 · 3x1 4 · 4x1 2
+##
+## WHAT LEAVING COSTS THE TABLES, because it is a real thinning at the top and
+## not only tidiness: `event` loses its only ARTIFACT and `wreck` both of its
+## EXOTICS. Nothing can roll empty -- every table keeps ungated commons and
+## rares, and `admits` is a floor rather than a band -- but a deep-galaxy event
+## can no longer pay out a hundred and ninety credits in one row. If it should,
+## the answer is a generic artifact authored for the table, not a story item
+## borrowed back into it.
 ##
 ## MINING IS THE THIN TABLE and is known to be -- the mining-flavoured options
 ## are where its rolls come from, and the next materials batch should feed it.
 
+
+## THE POOL THAT NOTHING ROLLS. A material written FOR one encounter is handed
+## over by name -- `{material_id = &"counting_core"}` -- and has no business in a
+## generic table: a delivery drone paid out COUNTING CORE, whose own flavour text
+## is about a relay counting down on an approach three encounters away, because
+## it was sitting in `event` alongside the ration bricks.
+##
+## `roll` filters on `drops`, so parking them under a table nobody asks for is
+## the whole mechanism. They are still reachable, and only the way they were
+## written to be reached.
+const NAMED := &"named"
 
 ## Which tiers a system of this danger may roll.
 ##
@@ -170,7 +190,7 @@ static func all() -> Array[Dictionary]:
 			value = 28, drops = &"fight",
 			text = "The eight bolts a hull is allowed to trust. These came off a hull, which is the discount."},
 		{id = &"survey_film", name = "SURVEY FILM", tier = &"rare", cells = "1x1",
-			value = 35, drops = &"event",
+			value = 35, drops = &"named",
 			text = "Exposed once, never developed. Whoever shot it wanted a record more than they wanted to know."},
 		{id = &"probate_ledger_stock", name = "LEDGER STOCK", tier = &"rare", cells = "1x1",
 			value = 27, drops = &"event",
@@ -242,13 +262,13 @@ static func all() -> Array[Dictionary]:
 			value = 66, drops = &"fauna",
 			text = "Conductive thread from along a spine longer than your ship. Calyx pays double and asks you to sign something."},
 		{id = &"sweep_glass", name = "SWEEP GLASS", tier = &"exotic", cells = "1x1",
-			value = 49, drops = &"wreck",
+			value = 49, drops = &"named",
 			text = "What eleven seconds of pulsar leaves on a hull, eleven seconds at a time, for centuries. Scrapes off in colours with no names."},
 		{id = &"corona_amber", name = "CORONA AMBER", tier = &"exotic", cells = "1x1",
-			value = 55, drops = &"wreck",
+			value = 55, drops = &"named",
 			text = "Star-fused resin found only on wrecks that stayed too close. Something was alive in the resin. Opinion is divided on whether it still is."},
 		{id = &"hide_scrap", name = "HIDE SCRAP", tier = &"exotic", cells = "2x1",
-			value = 41, drops = &"fauna",
+			value = 41, drops = &"named",
 			text = "Shed hide with forty years of accreted junk in it. The junk is worth sorting. The hide is worth more."},
 		{id = &"grave_pollen", name = "GRAVE POLLEN", tier = &"exotic", cells = "1x1",
 			value = 47, drops = &"fauna",
@@ -287,7 +307,7 @@ static func all() -> Array[Dictionary]:
 			value = 165, drops = &"wreck",
 			text = "Fist-sized, weighs like a hull section, and the weight moves a half-second after you do. The distribution nobody would choose, in miniature."},
 		{id = &"counting_core", name = "COUNTING CORE", tier = &"artifact", cells = "1x1",
-			value = 190, drops = &"event",
+			value = 190, drops = &"named",
 			text = "Warm after all this time, and still counting down. The number is smaller than it was when you picked it up."},
 	]
 	return _all

@@ -598,9 +598,12 @@ func run(tree: SceneTree) -> void:
 	_cards(Router.current, seen)
 	for sc0 in seen:
 		var oc := sc0 as EncounterDrawer.OptionCard
-		print("  card live=%s doomed=%s flesh=%.2f kin=%d" % [oc.live,
-			oc.doomed, (oc.flesh.modulate.a if oc.flesh != null else -1.0),
-			oc.kin.size()])
+		print("  card live=%s doomed=%s flesh=%.2f kin=%d stamp=%s"
+			% [oc.live, oc.doomed,
+				(oc.flesh.modulate.a if oc.flesh != null else -1.0),
+				oc.kin.size(),
+				("<none>" if oc.stamp == null else "%s a=%.2f"
+					% [oc.stamp.text, oc.stamp.modulate.a])])
 	var sc2 := Router.current as SectorScreen
 	if sc2 != null:
 		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"
