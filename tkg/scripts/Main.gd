@@ -418,6 +418,47 @@ func _ready() -> void:
 	# a thing a still image can be judged on.
 	#
 	# One of every shape first, then a spread of tiers, then whatever else fits.
+	# `-- questrun` places one and opens the chart on it, then hands the game
+	# back. NOT `quest`: every mode here matches on a bare word appearing
+	# anywhere in the arguments, so `-- chartshot quest` matched this first and
+	# quietly opened a playable game instead of taking the photograph.
+	#
+	# A PLACEMENT CANNOT BE POSED. It is the consequence of an option resolution
+	# several jumps back, so the only honest setup is to make the call the
+	# outcome makes and let it choose its own target the way it will in a real
+	# run. `-- chartshot quest` photographs the marker and quits, which answers
+	# "does it draw"; this answers "can you find it, and does the chart still
+	# read with it on".
+	#
+	# `flown` first, because a fresh chart shows every system as currently
+	# sensed and the marker is most interesting on a system you CANNOT see --
+	# which is the one rule it deliberately breaks.
+	if "questrun" in OS.get_cmdline_user_args():
+		Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+		var seen := {Run.at: true}
+		var queue: Array[int] = [Run.at]
+		var done := 0
+		while not queue.is_empty() and done < 24:
+			var i: int = queue.pop_front()
+			(Run.map[i] as MapGen.MapNode).visited = true
+			done += 1
+			for j in (Run.map[i] as MapGen.MapNode).links:
+				if not seen.has(j):
+					seen[j] = true
+					queue.append(j)
+		Run.chart_from(Run.node_at())
+		var at := OptionTable.place(Run.node_at(), &"paid_in_full")
+		if at < 0:
+			print("nowhere to place it")
+		else:
+			var t: MapGen.MapNode = Run.map[at]
+			print("%s -- %s on %s, layer %d, you are on %d"
+				% [Run.hull.name, OptionTable.quest_name(t),
+					MapGen.star_name(t), t.layer,
+					(Run.node_at() as MapGen.MapNode).layer])
+		Router.show_starchart()
+		return
+
 	if "cargo" in OS.get_cmdline_user_args():
 		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
 		var shapes := ["2x2", "4x1", "3x1", "2x1", "1x1"]

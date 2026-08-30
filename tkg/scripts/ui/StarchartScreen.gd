@@ -2397,7 +2397,7 @@ class MapChart extends Control:
 				Glyph.draw_glyph(self, p, node2.type, tint,
 					node2.index == here.index, node2.index == selected)
 			if node2.index == here.index:
-				_draw_you(p)
+				_draw_you(p, tiny)
 			elif node2.index == hovered or node2.index == selected:
 				draw_string(UITheme.pixel_font(), p + Vector2(-40, 30),
 					MapGen.star_name(node2), HORIZONTAL_ALIGNMENT_CENTER, 92, 8,
@@ -3294,12 +3294,25 @@ class MapChart extends Control:
 	## see ContractData's header on why nothing here pushes you anywhere.
 	## A SYSTEM SOMEBODY PUT SOMETHING ON, and the name of the thing.
 	##
-	## A WAYPOINT POINTING DOWN AT IT, and every other shape was taken. The chart
+	## A CHEVRON POINTING DOWN AT IT, and every other shape was taken. The chart
 	## speaks in rings for contracts -- one for a fetch, two for a hunt -- in
 	## diamonds for the party and the hellbender, and in four corner ticks for
-	## YOU. The corner ticks were the first thing I drew here and they were
-	## wrong: gold ticks beside amber ticks is the same marker in two colours,
-	## and the one that means "you are here" is the one you least want doubled.
+	## YOU. Corner ticks were the first thing I drew here and they were wrong:
+	## gold ticks beside amber ticks is the same marker in two colours, and the
+	## one meaning "you are here" is the one you least want doubled.
+	##
+	## A SQUARE, and it took three tries to get there. A filled triangle was too
+	## heavy -- nothing on this map is filled -- and an open chevron was two
+	## strokes floating over a star with nothing tying them to it.
+	##
+	## The three markers are now three shapes at the same weight: a SQUARE for a
+	## quest, a DIAMOND for the hellbender, and the corner brackets for YOU. All
+	## outlines, all a pixel wide, told apart by form rather than by colour --
+	## which matters most zoomed out, where colour is two pixels and shape is
+	## the only thing left.
+	##
+	## The name rides above it, which no other marker carries and which is the
+	## one thing a quest has that a contract ring does not.
 	##
 	## IT IGNORES THE VISIBILITY RULE, and that is the point of it. The chart
 	## deliberately hides systems you have never been to and cannot reach,
@@ -3321,17 +3334,16 @@ class MapChart extends Control:
 			var c := _screen_pos(n)
 			# Backed in ink first, for the reason the party diamond is: the deep
 			# systems sit over the core, which is the brightest thing here.
-			for pass_i in 2:
-				var g := 2.0 if pass_i == 0 else 0.0
-				draw_colored_polygon(PackedVector2Array([
-					c + Vector2(0, -7 + g),
-					c + Vector2(-6 - g, -16 - g),
-					c + Vector2(6 + g, -16 - g)]),
-					UITheme.VOID if pass_i == 0 else gold)
 			var said := OptionTable.quest_name(n)
-			if said != "":
-				draw_string(UITheme.pixel_font(), c + Vector2(-46, -20), said,
-					HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
+			if said == "":
+				continue
+			# Backed in ink first, for the reason the party diamond is: the deep
+			# systems sit over the core, which is the brightest thing here.
+			var box := Rect2(c - Vector2(7, 7), Vector2(14, 14))
+			draw_rect(box.grow(1.0), UITheme.VOID, false, 3.0)
+			draw_rect(box, gold, false, 1.0)
+			draw_string(UITheme.pixel_font(), c + Vector2(-46, -13), said,
+				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
 
 
 	func _draw_work() -> void:
@@ -3410,19 +3422,34 @@ class MapChart extends Control:
 		draw_polyline([c + Vector2(0, -d), c + Vector2(d, 0),
 			c + Vector2(0, d), c + Vector2(-d, 0), c + Vector2(0, -d)], col, 1.0)
 
-	func _draw_you(p: Vector2) -> void:
-		var b := 5.0
-		var o := p - Vector2(4, 4)
-		var w := 21.0
-		for corner in [
-				[Vector2(0, 0), Vector2(1, 1)],
-				[Vector2(w, 0), Vector2(-1, 1)],
-				[Vector2(0, w), Vector2(1, -1)],
-				[Vector2(w, w), Vector2(-1, -1)]]:
-			var k: Vector2 = o + corner[0]
-			var d: Vector2 = corner[1]
-			draw_rect(Rect2(k + Vector2(0, -1 if d.y < 0 else 0), Vector2(b * d.x, 1)), UITheme.FLARE, true)
-			draw_rect(Rect2(k + Vector2(-1 if d.x < 0 else 0, 0), Vector2(1, b * d.y)), UITheme.FLARE, true)
+	## THE LABEL ONLY. This used to draw corner brackets as well, at 21 pixels
+	## with 5-pixel arms -- and `Glyph.draw_glyph` has always bracketed the
+	## current node too, at 16 with 4, in the same FLARE. So the ship sat inside
+	## two nested boxes that were meant to be one, close enough in size to read
+	## as a rendering fault rather than as a design.
+	##
+	## The glyph's are kept because they are drawn WITH the node and scale with
+	## it; this one is a label and does the job the glyph cannot.
+	func _draw_you(p: Vector2, tiny: bool) -> void:
+		# AND ITS BRACKETS ONLY WHERE THE GLYPH IS NOT DRAWING ANY. Zoomed out,
+		# a system is a two-pixel rect and `Glyph.draw_glyph` never runs -- so
+		# removing these outright to kill the double box took the ship's marker
+		# off the chart at exactly the zoom where it is hardest to find.
+		if tiny:
+			var b := 5.0
+			var o := p - Vector2(4, 4)
+			var w := 21.0
+			for corner in [
+					[Vector2(0, 0), Vector2(1, 1)],
+					[Vector2(w, 0), Vector2(-1, 1)],
+					[Vector2(0, w), Vector2(1, -1)],
+					[Vector2(w, w), Vector2(-1, -1)]]:
+				var k: Vector2 = o + corner[0]
+				var dd: Vector2 = corner[1]
+				draw_rect(Rect2(k + Vector2(0, -1 if dd.y < 0 else 0),
+					Vector2(b * dd.x, 1)), UITheme.FLARE, true)
+				draw_rect(Rect2(k + Vector2(-1 if dd.x < 0 else 0, 0),
+					Vector2(1, b * dd.y)), UITheme.FLARE, true)
 		draw_string(UITheme.pixel_font(), p + Vector2(-14, 30), "YOU",
 			HORIZONTAL_ALIGNMENT_CENTER, 40, 8, UITheme.FLARE)
 
