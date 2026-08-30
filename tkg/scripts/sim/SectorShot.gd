@@ -481,6 +481,29 @@ func run(tree: SceneTree) -> void:
 				% [c0.can_hail(), c0.hail_reason()])
 			print("  flee after a shot:    %s (%s)   <- shooting must NOT block it"
 				% [c0.can_flee(), c0.flee_reason()])
+		# THE PANEL EITHER EXIT PUTS UP. It is a Control that only exists
+		# between a press and an answer, so no ordinary frame contains it, and
+		# `_ask_exit` awaits a frame before it can even place itself. Calling
+		# the handler is what the button does; there is no pointer here.
+		if sc != null and ("askhail" in OS.get_cmdline_user_args()
+				or "askflee" in OS.get_cmdline_user_args()):
+			if "askhail" in OS.get_cmdline_user_args():
+				# THE PROBE ABOVE FIRED A SHOT, and `struck` is exactly what
+				# shuts hailing -- so this mode was asking for a panel it had
+				# just made illegal, and reported the refusal as a missing
+				# panel. The gate is what the lines above are for; this is not
+				# testing it.
+				sc.combat.struck = false
+				sc._on_hail()
+			else:
+				sc._on_flee()
+			for iA2 in 6:
+				await RenderingServer.frame_post_draw
+			print("  panel up: %s" % [sc._exit_ask != null])
+			tree.root.get_texture().get_image().save_png("user://ask.png")
+			print("wrote ", ProjectSettings.globalize_path("user://ask.png"))
+			tree.quit()
+			return
 		if sc != null:
 			# A FULL DISCARD, because that is the state that was broken and an
 			# opening hand never shows it: the stack drew its back cards above

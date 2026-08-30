@@ -112,8 +112,9 @@ const READOUT_DELAY := 1.0
 const SALVAGE_MIN_H := 96
 var _deck_label: Label
 var _draw_pile: PileView
-## The confirmation panel while it is open. See _on_flee.
-var _flee_ask: PanelContainer = null
+## The confirmation panel while it is open. See `_ask_exit`. One at a time:
+## both exits use it, and they are alternatives to each other.
+var _exit_ask: PanelContainer = null
 ## The open pile listing, or null. Built and torn down per open rather than
 ## hidden, because its contents change every single turn.
 var _pile_panel: PanelContainer = null
@@ -704,28 +705,17 @@ func _drawer_option(n: MapGen.MapNode) -> void:
 
 ## What happened, until you accept it.
 func _drawer_result(n: MapGen.MapNode) -> void:
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 10)
-	# NAME THE BAND. The prose is written in fiction and deliberately never says
-	# "you failed", so without this a PARTIAL and a BOTCHED are two paragraphs
-	# you cannot tell apart and the ladder never resolves where you can see it.
-	if _res_checked:
-		head.add_child(UITheme.body(SkillCheck.band_name(_res_band),
-			SkillCheck.band_colour(_res_band), UITheme.FS_SMALL))
-	else:
-		head.add_child(UITheme.body("RESOLVED", UITheme.COLD, UITheme.FS_SMALL))
-	if _res_got != "":
-		head.add_child(UITheme.body(_res_got.to_upper(), UITheme.GOOD,
-			UITheme.FS_SMALL))
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(sp)
-	_drawer.add_child(head)
-	var text := UITheme.body(String(_res.get("text", "")), UITheme.HOT,
-		UITheme.FS_SMALL)
-	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_drawer.add_child(text)
+	# NAME THE BAND, LOUDLY. The prose is written in fiction and deliberately
+	# never says "you failed", so without this a PARTIAL and a BOTCHED are two
+	# paragraphs you cannot tell apart and the ladder never resolves where you
+	# can see it. `band_name` rather than the seal's word, because this is the
+	# one place MET and SCRAPED THROUGH are worth telling apart.
+	var opt: Dictionary = OptionTable.by_id(n.options[_open]) if _open >= 0 \
+		and _open < n.options.size() else {}
+	_drawer.add_child(EncounterDrawer.outcome(opt,
+		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
+		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
+		String(_res.get("text", "")), _res_got))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
 	var sp2 := Control.new()
@@ -2117,39 +2107,26 @@ func _on_end_turn() -> void:
 ## No confirm panel, unlike FLEE. Fleeing throws a run's salvage away and deserves
 ## the second question; hailing costs nothing you can see, and RULING 3 says a
 ## number on the button IS the commitment.
-func _on_hail() -> void:
-	if not fighting() or not combat.can_hail():
-		return
-	combat.hail()
-	_refresh()
-
-
-## Fleeing asks first.
+## BOTH WAYS OUT ASK FIRST.
 ##
-## It ends the fight, forfeits every scrap of salvage and burns fuel — and it
-## was a button one row from END TURN, which you press every single turn. Making
-## it thin and red narrowed the target; it did not make the click reversible.
-## Nothing else in combat costs a run's progress in one press, so nothing else
-## needs this.
-func _on_flee() -> void:
-	if not fighting() or _flee_ask != null or not combat.can_flee():
-		return
-
+## Each is a single press that spends a run's progress, and each sits one row
+## from END TURN, which you press every single turn. Making them thin and
+## coloured narrowed the target; it did not make the click reversible.
+##
+## They are also both CHECKS now, and that is the other half of it: RULING 3
+## says the odds go on the thing you press, so a button that rolls something
+## behind you is the one shape the rest of this game does not use. The panel is
+## where the number lives.
+##
+## Nothing else in combat costs a run in one press, so nothing else gets this.
+func _ask_exit(title: String, ink: Color, edge: Color, said: String,
+		go_label: String, on_go: Callable) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
-	var head := UITheme.body("BREAK CONTACT?", Color("#d4614f"), UITheme.FS_HEAD)
+	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(head)
-	# The exact cost, from the same constant the code charges.
-	# RULING 3'S SHAPE, borrowed: the odds are on the button, so pressing it is
-	# the commitment. This panel exists because breaking contact throws a run's
-	# salvage away -- but now that it can also FAIL, the number has to be here
-	# rather than discovered afterwards.
-	var fchk := combat.flee_check()
-	var body := UITheme.body(
-		"%s. You lose the salvage and burn %d fuel. Fail and there is no second try."
-		% [SkillCheck.badge(fchk), Combat.FLEE_FUEL], UITheme.CHILL,
-		UITheme.FS_SMALL)
+	var body := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(220, 0)
@@ -2160,29 +2137,65 @@ func _on_flee() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	# Staying is the default and sits first: the safe answer should be the one
 	# under your hand when the panel opens.
-	row.add_child(Widgets.button("KEEP FIGHTING", _close_flee_ask))
-	var go := Widgets.button("BREAK CONTACT", func() -> void:
-		_close_flee_ask()
+	row.add_child(Widgets.button("KEEP FIGHTING", _close_exit_ask))
+	var go := Widgets.button(go_label, func() -> void:
+		_close_exit_ask()
 		if fighting():
-			combat.flee())
-	go.add_theme_color_override("font_color", Color("#d4614f"))
+			on_go.call())
+	go.add_theme_color_override("font_color", ink)
 	row.add_child(go)
 	box.add_child(row)
 
-	_flee_ask = PanelContainer.new()
-	_flee_ask.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL, Color("#8f4034"), 0, 10, 12))
-	_flee_ask.add_child(box)
-	add_child(_flee_ask)
-	_flee_ask.set_anchors_preset(Control.PRESET_CENTER)
+	_exit_ask = PanelContainer.new()
+	_exit_ask.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL, edge, 0, 10, 12))
+	_exit_ask.add_child(box)
+	add_child(_exit_ask)
+	_exit_ask.set_anchors_preset(Control.PRESET_CENTER)
 	await get_tree().process_frame
-	if is_instance_valid(_flee_ask):
-		_flee_ask.position = (size - _flee_ask.size) * 0.5
+	if is_instance_valid(_exit_ask):
+		_exit_ask.position = (size - _exit_ask.size) * 0.5
 
-func _close_flee_ask() -> void:
-	if _flee_ask != null:
-		_flee_ask.queue_free()
-		_flee_ask = null
+
+## Fleeing: it ends the fight, forfeits every scrap of salvage and burns fuel.
+func _on_flee() -> void:
+	if not fighting() or _exit_ask != null or not combat.can_flee():
+		return
+	# The exact cost, from the same constant the code charges.
+	_ask_exit("BREAK CONTACT?", Color("#d4614f"), Color("#8f4034"),
+		"%s. You lose the salvage and burn %d fuel. Fail and there is no second try."
+			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL],
+		"BREAK CONTACT", func() -> void: combat.flee())
+
+
+## Hailing: the same exit bought with words rather than fuel.
+##
+## It used to fire on the press. That was defensible while it was the cheap way
+## out -- nothing spent, nothing lost -- and it stopped being true once failing
+## it broadcast your position: fourteen heat and the turn handed back is a worse
+## afternoon than the six fuel FLEE asks you to confirm, and FLEE was the one
+## with the panel.
+##
+## Heat rather than fuel, and the number is the botched one, because that is the
+## outcome the panel exists to warn about. A partial costs six and they still
+## leave; nobody presses a button because of what a partial costs.
+func _on_hail() -> void:
+	if not fighting() or _exit_ask != null or not combat.can_hail():
+		return
+	_ask_exit("OPEN A CHANNEL?", UITheme.HOT, Color("#8a6420"),
+		"%s. They break off and there is no salvage. Fail and you have told them exactly where you are: %d heat, and the turn is theirs."
+			% [SkillCheck.badge(combat.hail_check()), Combat.HAIL_HEAT_BOTCHED],
+		"HAIL THEM", func() -> void:
+			combat.hail()
+			_refresh())
+
+
+func _close_exit_ask() -> void:
+	if _exit_ask != null:
+		_exit_ask.queue_free()
+		_exit_ask = null
+
+
 
 ## An attack landed. Draw the shot rather than the result: something crosses the
 ## gap, and the hull it reaches flinches when it arrives.

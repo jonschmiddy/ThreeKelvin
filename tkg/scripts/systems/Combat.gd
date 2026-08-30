@@ -800,6 +800,14 @@ const HAIL_HEAT_BOTCHED := 14
 ## hunts by smell, and the thing guarding the core is not there to be reasoned
 ## with -- it is the run's ending. `EnemyTemplate` already carries both flags, so
 ## the gate needs no new data.
+## What hailing rolls. The mirror of `flee_check`, and it exists for the same
+## reason: the panel that asks whether you mean it has to print the odds you are
+## about to take, and it must be reading the number the roll uses rather than
+## the one somebody typed twice.
+func hail_check() -> Dictionary:
+	return {attr = HAIL_ATTR, need = HAIL_NEED}
+
+
 func can_hail() -> bool:
 	if finished or waiting or enemies.is_empty():
 		return false
@@ -867,8 +875,7 @@ func hail_reason() -> String:
 func hail() -> void:
 	if not can_hail():
 		return
-	var chk := {attr = HAIL_ATTR, need = HAIL_NEED}
-	var band := SkillCheck.roll(chk)
+	var band := SkillCheck.roll(hail_check())
 	match band:
 		SkillCheck.Band.MET, SkillCheck.Band.CLEAN:
 			Run.node_at().fled = true

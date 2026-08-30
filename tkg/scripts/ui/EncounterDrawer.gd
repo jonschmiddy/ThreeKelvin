@@ -432,6 +432,69 @@ static func option_card(i: int, opt: Dictionary, on_open: Callable,
 
 
 
+## WHAT JUST HAPPENED, at the size it happened.
+##
+## The result was an eyebrow, a sentence, and a hundred and forty pixels of
+## nothing: the band in small type, the prose beside it, and a CONTINUE button
+## marooned in the far corner of a drawer that had gone empty. It is the payoff
+## of the only decision the screen asks you to make, and it was the quietest
+## thing on it.
+##
+## The same plate as the card you pressed to get here, which is the point --
+## you chose a thing that looked like this, and this is that thing answering.
+## The band gets the heading size the seals on the list already use, so the
+## outcome reads from across the room and the prose is what you lean in for.
+##
+## It also names the encounter, which the old one did not: three clicks after
+## you opened it, the only thing on screen was an outcome with nothing attached.
+static func outcome(opt: Dictionary, word: String, ink: Color, said: String,
+		got: String) -> Control:
+	var card := PanelContainer.new()
+	card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 0, 0))
+	var lane := HBoxContainer.new()
+	lane.add_theme_constant_override("separation", 0)
+	card.add_child(lane)
+	# THE BAND'S OWN COLOUR, not the tag's. On the list a stripe says what KIND
+	# of thing this is; here you already know, and the live fact is how it went.
+	var bar := ColorRect.new()
+	bar.color = ink
+	bar.custom_minimum_size = Vector2(3, 0)
+	bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lane.add_child(bar)
+	var pad := MarginContainer.new()
+	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for s in ["top", "bottom"]:
+		pad.add_theme_constant_override("margin_" + s, 9)
+	for s2 in ["left", "right"]:
+		pad.add_theme_constant_override("margin_" + s2, 12)
+	lane.add_child(pad)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 7)
+	pad.add_child(col)
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 1)
+	col.add_child(head)
+	head.add_child(UITheme.body(String(opt.get("title", "")).to_upper(),
+		UITheme.ICE, UITheme.FS_SMALL))
+	var kind := lead_tag(opt)
+	if kind != &"":
+		head.add_child(UITheme.body(String(kind).to_upper(), tag_colour(opt),
+			UITheme.FS_SMALL))
+	col.add_child(UITheme.body(word, ink, UITheme.FS_HEAD))
+	var body := UITheme.body(said, UITheme.HOT, UITheme.FS_SMALL)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_child(body)
+	# WHAT CAME OUT OF IT, last, because it is the thing you go looking for
+	# after you have read what happened.
+	if got != "":
+		col.add_child(UITheme.body(got.to_upper(), UITheme.GOOD,
+			UITheme.FS_SMALL))
+	return card
+
+
 ## The option you clicked, with its choices.
 
 static func untaken(n: MapGen.MapNode) -> Array:
