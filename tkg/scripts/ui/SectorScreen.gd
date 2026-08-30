@@ -1754,6 +1754,8 @@ func _refresh_hail() -> void:
 	# short sentence, and that is all it should be. Godot's tooltip does not
 	# wrap, so a long one is a strip half the screen wide.
 	match combat.hail_cause():
+		&"failed":
+			_hail_button.tooltip_text = "HAIL\n\nYou already tried. They heard you."
 		&"struck":
 			_hail_button.tooltip_text = "HAIL\n\nToo late. You shot first."
 		&"fauna":

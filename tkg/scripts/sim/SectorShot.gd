@@ -472,6 +472,10 @@ func run(tree: SceneTree) -> void:
 				% [c0.can_hail(), c0.hail_reason()])
 			print("  flee before anything: %s (%s)"
 				% [c0.can_flee(), c0.flee_reason()])
+			c0.hail_failed = true
+			print("  hail after a refusal: %s (%s)"
+				% [c0.can_hail(), c0.hail_reason()])
+			c0.hail_failed = false
 			c0.flee_failed = true
 			print("  flee after a miss:    %s (%s)"
 				% [c0.can_flee(), c0.flee_reason()])

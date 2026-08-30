@@ -808,10 +808,20 @@ func hail_check() -> Dictionary:
 	return {attr = HAIL_ATTR, need = HAIL_NEED}
 
 
+## Whether the channel has been tried and refused.
+##
+## ONE ATTEMPT, and the argument is `flee_failed`'s word for word: a check you
+## may repeat is a check you will eventually pass, so a hail you could re-open
+## every turn was a stealth roll with unlimited retries and a heat bill. It was
+## also the louder of the two -- fourteen heat and the turn handed back -- which
+## made it the one you could least afford to spam and the only one you could.
+var hail_failed := false
+
+
 func can_hail() -> bool:
 	if finished or waiting or enemies.is_empty():
 		return false
-	if struck:
+	if struck or hail_failed:
 		return false
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
@@ -828,6 +838,8 @@ func can_hail() -> bool:
 func hail_cause() -> StringName:
 	if enemies.is_empty():
 		return &""
+	if hail_failed:
+		return &"failed"
 	if struck:
 		return &"struck"
 	for e in enemies:
@@ -854,7 +866,7 @@ func hail_reason() -> String:
 	# TERMS and YOU FIRED separately before noticing they are the same greyed
 	# state. The BUTTON says what is true of the button; the TOOLTIP says why,
 	# and why is where the three actually differ.
-	if struck:
+	if struck or hail_failed:
 		return "NO REPLY"
 	for e in enemies:
 		var t: EnemyTemplate = (e as EnemyState).template
@@ -891,7 +903,8 @@ func hail() -> void:
 		_:
 			Run.heat += HAIL_HEAT_BOTCHED
 			Sig.resources_changed.emit()
-			exit_note = "You hail on an open channel. It tells them exactly where you are, and the turn is theirs."
+			hail_failed = true
+			exit_note = "You hail on an open channel. It tells them exactly where you are, and the turn is theirs. They will not take another."
 			Run.log_line(exit_note, &"heat")
 			end_turn()
 
