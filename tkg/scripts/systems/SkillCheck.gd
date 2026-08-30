@@ -73,17 +73,35 @@ static func badge(check: Dictionary) -> String:
 	var need := int(check.get("need", 0))
 	var pct := int(round(odds(check) * 100.0))
 	if have >= need:
-		return "%s %d · you have %d · certain" % [attr_name(check), need, have]
-	# AND WHAT ONE MORE PIP WOULD BUY, at the only moment that is a live
-	# question. The attribute tooltips used to carry the ladder in the abstract,
-	# which is a worse answer than this one: here the player is looking at a
-	# specific requirement they are specifically short of, and "one more: 65%"
-	# prices the next module for them without any arithmetic.
-	var short := shortfall(check)
-	var next := "certain" if short <= 1 else "%d%%" % int(round(
-		ODDS[mini(short - 1, ODDS.size() - 1)] * 100.0))
-	return "%s %d · you have %d · %d%% · one more: %s" % [
-		attr_name(check), need, have, pct, next]
+		return "%s %d · you have %d · %s" % [attr_name(check), need,
+			have, verdict(check)]
+	return "%s %d · you have %d · %d%% · %s" % [
+		attr_name(check), need, have, pct, verdict(check)]
+
+
+## THE ODDS IN WORDS, and it replaced what one more pip would buy.
+##
+## The badge used to end "one more: 65%", pricing the next module for you at the
+## moment you were short. That is a shopping answer to a gambling question: you
+## are standing in front of a thing you are about to do, and what you want to
+## know is whether to do it. The number is already there; the word is what it
+## MEANS, and reading the two together is how the percentage stops being a
+## digit and starts being a feeling.
+##
+## ONE WORD PER RUNG, not thresholds on the percentage. `ODDS` has exactly five
+## steps and they are fixed, so there is nothing to interpolate and no boundary
+## to get wrong -- the ladder is the vocabulary.
+##
+## THE BOTTOM RUNG IS NOT "CERTAIN FAILURE" and that is deliberate. It is 5%,
+## kept off zero on purpose -- see `odds` -- so that a desperate option is a bet
+## someone will take rather than a disabled button with extra steps. Calling it
+## certain would talk the player out of the exact choice the floor exists to
+## preserve, and it would be a lie about a number printed beside it.
+const VERDICTS: Array[String] = ["certain success", "likely", "uncertain",
+	"unlikely", "near-certain failure"]
+
+static func verdict(check: Dictionary) -> String:
+	return VERDICTS[mini(shortfall(check), VERDICTS.size() - 1)]
 
 static func attr_name(check: Dictionary) -> String:
 	match StringName(check.get("attr", &"")):

@@ -69,6 +69,15 @@ class OptionCard extends PanelContainer:
 	## A choice you cannot afford still says what it wants -- RULING 8 -- so it
 	## is drawn and dimmed rather than hidden, and does not answer a click.
 	var live: bool = true
+	## The other cards this one would cost you. See `option_row`.
+	var kin: Array = []
+	## Pointed at from a card that would foreclose this one. Still takeable --
+	## you have not committed to anything by hovering -- so this is a warning
+	## about what the OTHER card costs, drawn on the thing it would cost.
+	var doomed: bool = false
+	## Faded when doomed: the heading and the prose, and not the warning.
+	var flesh: Control = null
+	var warn: Control = null
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -93,7 +102,7 @@ class OptionCard extends PanelContainer:
 	## insets its whole child by the stylebox margins, so the spacing moved to a
 	## MarginContainer around the text only.
 	func dress(hot: bool) -> void:
-		if not live:
+		if not live or doomed:
 			add_theme_stylebox_override("panel", UITheme.flat(
 				UITheme.PANEL, UITheme.LINE.darkened(0.3), 0, 0, 0))
 			return
@@ -101,12 +110,42 @@ class OptionCard extends PanelContainer:
 			UITheme.PANEL2.lightened(0.06) if hot else UITheme.PANEL2,
 			UITheme.COLD if hot else UITheme.LINE, 0, 0, 0))
 
+	## RULING 1, AS A GESTURE RATHER THAN A BOX.
+	##
+	## An exclusive set used to be a bordered panel labelled ONE ONLY wrapped
+	## around its members: a caption you read once and then stopped seeing, and a
+	## second level of layout that made a pair of options a different SHAPE from
+	## every other option on the row. Pointing at one and watching the other go
+	## grey says the same thing at the moment it is worth knowing, costs no
+	## chrome, and lets every card be one card again.
+	##
+	## The warning is at full strength while everything else in the card fades,
+	## because the fade is the thing being said and the sentence is what says it.
+	func doom(on: bool) -> void:
+		if doomed == on:
+			return
+		doomed = on
+		if flesh != null:
+			flesh.modulate = Color(1, 1, 1, 0.4 if on else 1.0)
+		if warn != null:
+			warn.modulate = Color(1, 1, 1, 1.0 if on else 0.0)
+		dress(false)
+
 	func _notification(what: int) -> void:
 		if not live:
 			return
 		if what == NOTIFICATION_MOUSE_ENTER:
+			# BOTH DIRECTIONS, and the order the two events arrive in stops
+			# mattering: sliding from one card of a pair to the other fires an
+			# exit and an enter, and whichever lands second still leaves exactly
+			# the pointed-at card lit and its rival grey.
+			doom(false)
+			for k in kin:
+				(k as OptionCard).doom(true)
 			dress(true)
 		elif what == NOTIFICATION_MOUSE_EXIT:
+			for k2 in kin:
+				(k2 as OptionCard).doom(false)
 			dress(false)
 
 	func _gui_input(e: InputEvent) -> void:
@@ -186,6 +225,19 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 	return row
 
 
+## A ROW IS ALWAYS FIVE CARDS WIDE, however many are in it.
+##
+## Every card takes an equal share of whatever room the row has, so a system
+## with one thing in it drew one card nine hundred pixels across -- a bar again,
+## and the shape a card exists not to be. Padding the row out to five keeps a
+## card the same object from system to system: the same width, the same amount
+## of prose before it wraps, the same thing in the same place.
+##
+## Five rather than four because the table rolls two to FOUR and an exclusive
+## pair beside three loose options is five slots' worth. `maxi` is the guard for
+## the day that stops being true.
+const SLOTS := 5
+
 ## Every untaken option in this system, side by side.
 ##
 ## The screen used to run this loop itself and add one child per option; it is
@@ -196,17 +248,39 @@ static func option_row(n: MapGen.MapNode, left: Array,
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var placed: Dictionary = {}
+	# FLAT. Every option is one card in one row, including the members of an
+	# exclusive set -- what makes them exclusive is now the hover, not a box
+	# around them, so there is no second level of layout and no option that is a
+	# different shape from the option beside it.
+	var sets: Dictionary = {}
+	var used := 0
 	for i in left:
 		var opt := OptionTable.by_id(n.options[i])
+		var card := option_card(i, opt, on_open) as OptionCard
+		row.add_child(card)
+		used += 1
 		var g := StringName(opt.get("group", &""))
 		if g == &"":
-			row.add_child(option_card(i, opt, on_open))
 			continue
-		if placed.has(g):
-			continue
-		placed[g] = true
-		row.add_child(group_strip(n, g, left, on_open))
+		if not sets.has(g):
+			sets[g] = []
+		(sets[g] as Array).append(card)
+	# WHAT EACH ONE WOULD COST YOU. Wired after the row is built because a card
+	# cannot know its rivals while it is the only one that exists yet.
+	for g2 in sets:
+		var members: Array = sets[g2]
+		for c in members:
+			for other in members:
+				if other != c:
+					(c as OptionCard).kin.append(other)
+	# AND THE REST OF THE ROW IS NOTHING, DELIBERATELY. Spacers on the same
+	# stretch ratio as a card, which is the whole mechanism: the row divides
+	# itself five ways and hands four of them to air.
+	for _s in maxi(0, SLOTS - used):
+		var gap := Control.new()
+		gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(gap)
 	return row
 
 
@@ -222,56 +296,66 @@ static func option_row(n: MapGen.MapNode, left: Array,
 ## `n` is not a parameter any more for the same reason: everything the old row
 ## needed the system for was in that column.
 static func option_card(i: int, opt: Dictionary, on_open: Callable) -> Control:
-	var made := plate(tag_colour(opt), on_open.bind(i))
-	var col: VBoxContainer = made[1]
+	var kind := lead_tag(opt)
+	var ink := tag_colour(opt)
+	var made := plate(ink, on_open.bind(i))
+	var card: OptionCard = made[0]
+	var outer: VBoxContainer = made[1]
+	# THE HALF THAT FADES, and the half that does not. Everything the card SAYS
+	# about its option dims when a rival is pointed at; the warning about why is
+	# a sibling of it rather than a child, so it stays at full strength.
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 5)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(col)
+	card.flesh = col
+	# THE NAME AND WHAT KIND OF THING IT IS, as one block. Tight, because they
+	# are two readings of the same heading -- the gap before the prose is what
+	# separates the heading from the body.
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 1)
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(head)
 	var nm := UITheme.body(String(opt.get("title", "")).to_upper(),
 		UITheme.ICE, UITheme.FS_SMALL)
 	# WRAPPED, NOT CLIPPED. A fixed name column is what the bar had, and a long
 	# title lost its last word to it. A card is as tall as it needs to be.
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(nm)
+	head.add_child(nm)
+	# THE STRIPE, SPELLED OUT. Two pixels of colour is a code you have to be
+	# taught; the word beside it in the same colour teaches it, and after a
+	# few systems the colour alone carries. An untagged option says nothing
+	# rather than saying UNTAGGED.
+	if kind != &"":
+		head.add_child(UITheme.body(String(kind).to_upper(), ink,
+			UITheme.FS_SMALL))
 	var lead := UITheme.body(first_sentence(String(opt.get("body", ""))),
 		UITheme.COLD, UITheme.FS_SMALL)
 	lead.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# A CEILING, WHICH A LABEL DOES NOT OTHERWISE HAVE. `custom_minimum_size` is
+	# a floor and an autowrapped label reports its wrapped height as a minimum,
+	# so a long first sentence in a fifth-width card pushed the whole drawer to
+	# 206 -- past the fixed band, and out of step with the hand band that is
+	# supposed to match it. `max_lines_visible` is the one thing that actually
+	# caps a Label, and the ellipsis is what keeps a cut sentence honest: the
+	# row it replaced clipped mid-word with no mark at all.
+	lead.max_lines_visible = 5
+	lead.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	lead.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(lead)
-	return made[0]
-
-
-
-## An exclusive set, bracketed.
-##
-## RULING 1: you see what a choice forecloses while you are still deciding. It
-## is a border and two words rather than a box with a caption, because it is
-## competing for room with the options it contains.
-static func group_strip(n: MapGen.MapNode, g: StringName, left: Array,
-		on_open: Callable) -> Control:
-	var inner := HBoxContainer.new()
-	inner.add_theme_constant_override("separation", 6)
-	inner.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var members := 0
-	for i in left:
-		var opt := OptionTable.by_id(n.options[i])
-		if StringName(opt.get("group", &"")) != g:
-			continue
-		members += 1
-		inner.add_child(option_card(i, opt, on_open))
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 3)
-	col.add_child(UITheme.body("ONE ONLY", UITheme.EMBER, UITheme.FS_SMALL))
-	col.add_child(inner)
-	var wrap := PanelContainer.new()
-	wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(0, 0, 0, 0), UITheme.EMBER.darkened(0.5), 0, 4, 5))
-	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# IT TAKES THE ROOM ITS MEMBERS WOULD HAVE. Every card in the row expands
-	# into an equal share, so a bracket holding two of them beside one loose
-	# option would come out the same width as that option and squeeze both of
-	# its own to half size -- the exclusive pair reading as the SMALL choice.
-	wrap.size_flags_stretch_ratio = float(maxi(1, members))
-	wrap.add_child(col)
-	return wrap
+	# RESERVED, NOT SHOWN. Built for every card in an exclusive set and faded to
+	# nothing until one of its rivals is pointed at -- appearing on hover would
+	# make the card taller at the moment the cursor lands on it, and a drawer
+	# that grows under the pointer is the one thing this row must not do.
+	if StringName(opt.get("group", &"")) != &"":
+		var w := UITheme.body("WILL BECOME UNAVAILABLE", UITheme.LEAVE,
+			UITheme.FS_SMALL)
+		w.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		w.modulate = Color(1, 1, 1, 0.0)
+		outer.add_child(w)
+		card.warn = w
+	return card
 
 
 
@@ -299,21 +383,34 @@ static func untaken(n: MapGen.MapNode) -> Array:
 ## brown is already stretching that; green is the hull bar's.
 const TAG_CONTRACT := Color("#9b8ec8")
 
-## PRIORITY, NOT AUTHORING ORDER. This read the option's own `tags` array and
-## returned on the first one it recognised, so `[signal, fight]` came out cyan
+## PRIORITY, NOT AUTHORING ORDER. `lead_tag` read the option's own `tags` array
+## and returned the first one it recognised, so `[signal, fight]` came out cyan
 ## and `[fight, signal]` came out red -- the same option two colours depending
 ## on which word got typed first. A fight is the fact that changes what you
 ## would do about the thing, so it outranks whatever else is true of it.
-static func tag_colour(opt: Dictionary) -> Color:
+const TAG_ORDER: Array[StringName] = [&"fight", &"salvage", &"signal",
+	&"contract"]
+
+## WHICH ONE OF ITS TAGS THIS OPTION IS, once and for both readings of it.
+##
+## The colour and the word under the title have to agree or the stripe is
+## teaching the wrong lesson, and they can only agree by coming from the same
+## resolution -- two priority lists is one of them going stale.
+static func lead_tag(opt: Dictionary) -> StringName:
 	var tags: Array = opt.get("tags", [])
-	for want in [&"fight", &"salvage", &"signal", &"contract"]:
+	for want in TAG_ORDER:
 		for t in tags:
 			if StringName(t) == want:
-				match want:
-					&"fight": return UITheme.LEAVE
-					&"salvage": return Color("#9a7b52")
-					&"signal": return Color("#8ec8e6")
-					_: return TAG_CONTRACT
+				return want
+	return &""
+
+
+static func tag_colour(opt: Dictionary) -> Color:
+	match lead_tag(opt):
+		&"fight": return UITheme.LEAVE
+		&"salvage": return Color("#9a7b52")
+		&"signal": return Color("#8ec8e6")
+		&"contract": return TAG_CONTRACT
 	return UITheme.LINE
 ## THE SAME PLATE THE ENCOUNTER WAS, one screen further in.
 ##

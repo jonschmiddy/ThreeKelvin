@@ -25,6 +25,16 @@ func _showing(g: Control) -> int:
 	return n
 
 
+## Every option card on screen, in the order they are laid out.
+func _cards(root: Node, out: Array) -> void:
+	if root == null:
+		return
+	for c in root.get_children():
+		if c is EncounterDrawer.OptionCard:
+			out.append(c)
+		_cards(c, out)
+
+
 ## Every button in the sector's drawer, however deep it is nested.
 func _buttons(root: Node) -> Array[Button]:
 	var out: Array[Button] = []
@@ -74,6 +84,29 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
+	# WHAT AN EXCLUSIVE SET LOOKS LIKE WHEN YOU POINT AT ONE OF IT. RULING 1 is
+	# a hover now rather than a box, so there is no frame in which it is visible
+	# by itself -- and `Input.parse_input_event` plus `warp_mouse` does not drive
+	# GUI in a window that does not have focus, which has produced false failures
+	# here before. Notifying the card is what a pointer over it would do, and it
+	# is the same "drive the screen directly" the open= and take= modes use.
+	if "hover" in OS.get_cmdline_user_args():
+		var cards: Array = []
+		_cards(Router.current, cards)
+		var lit: EncounterDrawer.OptionCard = null
+		for c in cards:
+			if not (c as EncounterDrawer.OptionCard).kin.is_empty():
+				lit = c
+				break
+		if lit == null:
+			print("  no exclusive set on screen")
+		else:
+			lit.notification(Control.NOTIFICATION_MOUSE_ENTER)
+			print("  %d cards, %d in a set with the one pointed at"
+				% [cards.size(), lit.kin.size()])
+			for f in 4:
+				await RenderingServer.frame_post_draw
+		tag += "_hover"
 	if "spent" in OS.get_cmdline_user_args():
 		tag += "_spent"
 		var sc := Router.current as SectorScreen
@@ -528,23 +561,6 @@ func run(tree: SceneTree) -> void:
 			tag += "_result"
 			for i5 in 20:
 				await RenderingServer.frame_post_draw
-	# RULING 1b IS A HOVER STATE, so a screenshot cannot reach it by waiting --
-	# there is no pointer. Setting it directly is the only way to photograph the
-	# preview, and the preview is half of what rulings 1 and 1b are.
-	if "hover" in OS.get_cmdline_user_args():
-		var s := Router.current as SectorScreen
-		if s != null:
-			for i2 in n.options.size():
-				var g := StringName(OptionTable.by_id(n.options[i2]).get("group", &""))
-				if g == &"":
-					continue
-				s._hover_group = g
-				s._hover_index = i2
-				s._rebuild_options(n)
-				break
-		tag += "_hover"
-		for i3 in 30:
-			await RenderingServer.frame_post_draw
 	var sc2 := Router.current as SectorScreen
 	if sc2 != null:
 		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"
