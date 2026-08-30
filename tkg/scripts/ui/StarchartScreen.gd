@@ -566,22 +566,26 @@ func _fill_neighbours(here: MapGen.MapNode) -> void:
 	if near.is_empty():
 		_hint.text = "Nothing in range. The tank is too low to reach anything."
 		return
-	var fresh := 0
-	for n in near:
-		if not (n as MapGen.MapNode).cleared:
-			fresh += 1
-	var named := 0
-	for n in near:
-		if _notable(n) < 4:
-			named += 1
-	# The count first, because it is the number that decides whether to farm or
-	# dive, then what the top of the list is -- otherwise a player who sees a
-	# station at the top assumes the list is sorted by distance and misreads
-	# every row under it.
-	_hint.text = "IN RANGE - %d SYSTEM%s, %d UNTOUCHED" % [
-		near.size(), "" if near.size() == 1 else "S", fresh]
-	if named > 0:
-		_hint.text += " - %d NAMED FIRST" % named
+	# ONE NUMBER, because it is the only one the list below does not already
+	# give you. This line used to carry two more.
+	#
+	# "N UNTOUCHED" counted cleared systems six lines above a list that dims a
+	# cleared system's name to `#55647a`, row by row. "N NAMED FIRST" counted the
+	# ones `_notable` pins to the top -- each of which draws its own glyph, so a
+	# station in the list is legible as a station without a number promising one.
+	# Both were the panel reading its own rows aloud.
+	#
+	# The count survives because you cannot see it: it is the number that decides
+	# farm or dive, and it decides it before you have read a single row.
+	#
+	# The pinning itself stays -- `_notable` still sorts. What is gone is the
+	# warning about it, which existed to stop a player reading the list as
+	# distance-ordered. Nothing in a row invites that reading: there is no
+	# distance column, only a name, a danger gauge and a fuel cost. The label was
+	# guarding against a misreading the panel never offered, and asking a
+	# question of its own to do it.
+	_hint.text = "IN RANGE - %d SYSTEM%s" % [
+		near.size(), "" if near.size() == 1 else "S"]
 	for n in near:
 		_neigh.add_child(_neighbour_row(n))
 	# AND NOTHING IS SET HERE ANY MORE.
@@ -622,8 +626,6 @@ func _notable(n: MapGen.MapNode) -> int:
 func _neighbour_row(n: MapGen.MapNode) -> Control:
 	var afford := Run.can_jump_to(n)
 	var b := Button.new()
-	# See `ShipScreen._zoombtn`: a bare Button points with the plain arrow.
-	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	# See `ShipScreen._zoombtn`: a bare Button points with the plain arrow.
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.custom_minimum_size = Vector2(0, 15)
