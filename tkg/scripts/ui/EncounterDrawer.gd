@@ -80,6 +80,16 @@ class OptionCard extends PanelContainer:
 	## The word across the middle. One label, because a card is never both
 	## warned-about and finished: a spent option is out of every group it was in.
 	var stamp: Label = null
+	## AND THE THING THAT HOLDS IT, which is what has to be hidden.
+	##
+	## Fading the LABEL left its scrim painted: every card in an exclusive set
+	## was built with `seal(..., false)`, which created a 55 per cent-black rectangle
+	## over the whole plate and then hid only the word on top of it. So a
+	## grouped option sat permanently dimmed with nothing to explain it, hover
+	## lifted the panel behind the scrim and could not lift the scrim, and the
+	## probe reported `flesh=1.00 stamp a=0.00` -- both true, and neither of
+	## them the thing that was dark.
+	var over: Control = null
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_STOP
@@ -129,8 +139,8 @@ class OptionCard extends PanelContainer:
 		doomed = on
 		if flesh != null:
 			flesh.modulate = Color(1, 1, 1, 0.55 if on else 1.0)
-		if stamp != null:
-			stamp.modulate = Color(1, 1, 1, 1.0 if on else 0.0)
+		if over != null:
+			over.modulate = Color(1, 1, 1, 1.0 if on else 0.0)
 		dress(false)
 
 
@@ -144,7 +154,7 @@ class OptionCard extends PanelContainer:
 	## nothing, and the panel stretches it to fill instead.
 	func seal(text: String, ink: Color, shown: bool) -> void:
 		if stamp == null:
-			var over := Control.new()
+			over = Control.new()
 			over.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(over)
 			# THE THING THAT MAKES IT A STAMP RATHER THAN A CAPTION. A word
@@ -168,7 +178,8 @@ class OptionCard extends PanelContainer:
 			over.add_child(stamp)
 		stamp.text = text
 		stamp.add_theme_color_override("font_color", ink)
-		stamp.modulate = Color(1, 1, 1, 1.0 if shown else 0.0)
+		stamp.modulate = Color(1, 1, 1, 1.0)
+		over.modulate = Color(1, 1, 1, 1.0 if shown else 0.0)
 
 	func _notification(what: int) -> void:
 		if not live:

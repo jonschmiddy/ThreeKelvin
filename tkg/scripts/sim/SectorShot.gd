@@ -602,8 +602,8 @@ func run(tree: SceneTree) -> void:
 			% [oc.live, oc.doomed,
 				(oc.flesh.modulate.a if oc.flesh != null else -1.0),
 				oc.kin.size(),
-				("<none>" if oc.stamp == null else "%s a=%.2f"
-					% [oc.stamp.text, oc.stamp.modulate.a])])
+				("<none>" if oc.over == null else "%s a=%.2f"
+					% [oc.stamp.text, oc.over.modulate.a])])
 	# DID THE REWARD DOOR ACTUALLY GET SOMETHING? `pays_item` puts the button on
 	# the row and `jetsam_left` decides whether it is greyed, and the two
 	# disagreeing would look exactly like a payout that never happened.
