@@ -669,10 +669,7 @@ func preview_damage(c: CardData, target_index: int = -1) -> int:
 			per += 2
 		if c.adapt > 0:
 			per += adapt_bonus
-		var salvo_ok := attacks_this_turn > 0
-		if c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5):
-			salvo_ok = true
-		if c.salvo > 0 and salvo_ok:
+		if c.salvo > 0 and salvo_live(c):
 			per += c.salvo
 		per += lock_on
 	if per <= 0:
@@ -816,6 +813,21 @@ func hail_check() -> Dictionary:
 ## also the louder of the two -- fourteen heat and the turn handed back -- which
 ## made it the one you could least afford to spam and the only one you could.
 var hail_failed := false
+
+
+## IS THIS SALVO CARD WORTH MORE RIGHT NOW. One definition, because three
+## places asked and one of them asked differently.
+##
+## Salvo pays "if you have already attacked this turn" -- except with five
+## Korvan aboard, which makes a Korvan card's salvo unconditional. The resolver
+## knew that and the preview knew that; the CHIP on your ship only tested the
+## counter, so a Korvan-5 pilot was told SALVO was down at the top of every turn
+## while the cards in their hand were quietly already paying it. A readout that
+## contradicts the rule is worse than no readout.
+func salvo_live(c: CardData) -> bool:
+	if attacks_this_turn > 0:
+		return true
+	return c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5)
 
 
 func can_hail() -> bool:

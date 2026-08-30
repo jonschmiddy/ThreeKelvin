@@ -1681,12 +1681,15 @@ func _refresh_player() -> void:
 	#
 	# Only when a salvo card is actually in hand. A chip that fires on every
 	# second attack whether or not it means anything is a light that is always on.
-	if combat.attacks_this_turn > 0:
-		for c in combat.hand:
-			if (c as CardData).salvo > 0:
-				_player_chips.add_child(StatusChip.make(&"salvo", "", UITheme.EMBER,
-					"SALVO UP\n\nYou have attacked this turn, so salvo cards\nin your hand are worth more."))
-				break
+	# AND IT ASKS THE RULE, not the counter. See `Combat.salvo_live`: five
+	# Korvan aboard makes a Korvan card's salvo unconditional, so testing
+	# `attacks_this_turn` here told that pilot SALVO was down at the top of
+	# every turn while the cards in their hand were already paying it.
+	for c in combat.hand:
+		if (c as CardData).salvo > 0 and combat.salvo_live(c as CardData):
+			_player_chips.add_child(StatusChip.make(&"salvo", "", UITheme.EMBER,
+				"SALVO UP\n\nSalvo cards in your hand are worth more right now."))
+			break
 	if combat.feedback > 0:
 		_player_chips.add_child(StatusChip.make(&"feedback", str(combat.feedback),
 			Color("#6e3a4a"), "FEEDBACK\n\nAttackers take %d back." % combat.feedback))

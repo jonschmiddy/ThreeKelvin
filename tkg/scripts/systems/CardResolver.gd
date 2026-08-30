@@ -54,10 +54,7 @@ static func resolve(c: CardData, cb: Combat, from_charge: bool) -> void:
 			dmg += 2
 		if c.adapt > 0:
 			dmg += cb.adapt_bonus
-		var salvo_ok := cb.attacks_this_turn > 0
-		if c.manufacturer == &"korvan" and Run.has_set(&"korvan", 5):
-			salvo_ok = true
-		if c.salvo > 0 and salvo_ok:
+		if c.salvo > 0 and cb.salvo_live(c):
 			dmg += c.salvo
 			cb._log("  salvo +%d/hit" % c.salvo, &"good")
 		if cb.lock_on > 0:
