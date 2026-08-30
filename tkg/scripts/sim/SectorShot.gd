@@ -604,6 +604,15 @@ func run(tree: SceneTree) -> void:
 				oc.kin.size(),
 				("<none>" if oc.stamp == null else "%s a=%.2f"
 					% [oc.stamp.text, oc.stamp.modulate.a])])
+	# DID THE REWARD DOOR ACTUALLY GET SOMETHING? `pays_item` puts the button on
+	# the row and `jetsam_left` decides whether it is greyed, and the two
+	# disagreeing would look exactly like a payout that never happened.
+	var nR: MapGen.MapNode = Run.node_at()
+	if nR != null:
+		print("  reward door: pays=%s left=%d"
+			% [OptionTable.pays_item((Router.current as SectorScreen)._res
+				if Router.current is SectorScreen else {}),
+				Run.jetsam_left(nR, Run.sector_jetsam(nR, false))])
 	var sc2 := Router.current as SectorScreen
 	if sc2 != null:
 		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"
