@@ -607,11 +607,11 @@ func run(tree: SceneTree) -> void:
 	# DID THE REWARD DOOR ACTUALLY GET SOMETHING? `pays_item` puts the button on
 	# the row and `jetsam_left` decides whether it is greyed, and the two
 	# disagreeing would look exactly like a payout that never happened.
+	var scR := Router.current as SectorScreen
 	var nR: MapGen.MapNode = Run.node_at()
-	if nR != null:
+	if scR != null and nR != null:
 		print("  reward door: pays=%s left=%d"
-			% [OptionTable.pays_item((Router.current as SectorScreen)._res
-				if Router.current is SectorScreen else {}),
+			% [OptionTable.pays_item(scR._res),
 				Run.jetsam_left(nR, Run.sector_jetsam(nR, false))])
 	var sc2 := Router.current as SectorScreen
 	if sc2 != null:
