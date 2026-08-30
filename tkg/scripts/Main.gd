@@ -677,8 +677,11 @@ func _ready() -> void:
 		# material to light up the fabricator and the material rows.
 		for i in 3:
 			Run.stow(LootGen.roll_module(4 + i, &"", true))
-		Run.add_material(&"exotic", 2)
-		Run.add_material(&"relic", 1)
+		# STRAIGHT INTO THE HOLD, because this is the debug seed and its whole
+		# job is to put you in a state -- `add_material` would leave them
+		# floating in the sector for you to go and fetch.
+		for seeded in [&"exotic", &"exotic", &"relic"]:
+			Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
 		Run.hp = maxi(1, Run.max_hp() - 12)
 		Run.add_dross(3)
 		Router.show_station()

@@ -718,6 +718,10 @@ static func choice_card(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 	# last time they saw it.
 	if c.has("needs_material"):
 		var mid := StringName(c.needs_material)
+		# ABOARD, not in a ledger. `Run.material` counts the hold now, so a gate
+		# that wants one of a thing wants one you are actually carrying -- and
+		# leaving it in the sector because there was no room is a real answer
+		# to it rather than a bookkeeping quirk.
 		var have := Run.material(mid)
 		note = "1 %s · you have %d" % [String(mid), have]
 		if have < 1:

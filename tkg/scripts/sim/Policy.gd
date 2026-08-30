@@ -265,10 +265,20 @@ func score(c: CardData, cb: Combat) -> float:
 ## report a win rate for a game with no market in it.
 func manage_cargo() -> void:
 	var guard := 0
-	var passed: Array[ModuleData] = []
+	var passed: Array[HoldItem] = []
 	while not Run.cargo.is_empty() and guard < 24:
 		guard += 1
-		var m: ModuleData = Run.cargo[0]
+		var item: HoldItem = Run.cargo[0]
+		# A MATERIAL IS CARGO, NOT A FITTING. The hold used to be modules only,
+		# so this loop read `Run.cargo[0]` as a `ModuleData` and threw the
+		# moment materials became things you carry. It comes out of the queue so
+		# the loop still terminates, and goes back in the hold below with the
+		# parts that were passed over.
+		var m := item as ModuleData
+		if m == null:
+			Run.take_from_hold(item)
+			passed.append(item)
+			continue
 		var free := Run.slots_used(m.slot) < Run.slots_for(m.slot)
 		var worst: ModuleData = null
 		for x in Run.installed:
@@ -280,18 +290,31 @@ func manage_cargo() -> void:
 			# Out of the queue and into the hold, so the loop terminates.
 			Run.take_from_hold(m)
 			passed.append(m)
-	for m in passed:
+	for it in passed:
 		# Back through the door so it is given a cell again. A bare append
 		# leaves it at (-1,-1) claiming none, and the model would then be
 		# measuring a hold that overlaps itself.
-		if not Run.place_in_hold(m):
-			Run.scrap_module(m)
+		if not Run.place_in_hold(it):
+			_shed(it)
 	while Run.cargo.size() > HOLD_LIMIT:
-		var cheapest: ModuleData = Run.cargo[0]
-		for m in Run.cargo:
-			if Market.base_value(m) < Market.base_value(cheapest):
-				cheapest = m
-		Run.scrap_module(cheapest)
+		var cheapest: HoldItem = Run.cargo[0]
+		for it2 in Run.cargo:
+			if _worth(it2) < _worth(cheapest):
+				cheapest = it2
+		_shed(cheapest)
+
+
+## Get rid of one thing, by whatever means it has.
+##
+## A part melts for scrap; a material cannot -- there is no furnace for a spool
+## of copper -- so it goes over the side and stays in the system, which is what
+## a player with a full hold and a better crate in front of them does.
+func _shed(it: HoldItem) -> void:
+	var m := it as ModuleData
+	if m != null:
+		Run.scrap_module(m)
+	else:
+		Run.jettison(it)
 	if Run.found_hull != null:
 		if Run.found_hull.max_hull > Run.max_hp() or Run.found_hull.tier > Run.hull.tier:
 			Run.transfer_to_hull(Run.found_hull)
@@ -345,7 +368,18 @@ func sell_hold(n: MapGen.MapNode) -> void:
 	var guard := 0
 	while not Run.cargo.is_empty() and guard < 24:
 		guard += 1
-		var m: ModuleData = Run.cargo[0]
+		var item: HoldItem = Run.cargo[0]
+		# A MATERIAL IS ONLY EVER SOLD. It has no scrap value to weigh a bid
+		# against and nothing to install it into: carrying it to a counter IS
+		# the whole of what it is for, which is the half of the economy the
+		# credits shim was standing in for until now.
+		var mat := item as MaterialData
+		if mat != null:
+			Run.take_from_hold(mat)
+			Run.add_credits(Market.material_price(n, mat.id))
+			n.trades += 1
+			continue
+		var m := item as ModuleData
 		var paid := Market.bid(n, m)
 		if paid > Run.scrap_value_of(m):
 			Run.take_from_hold(m)

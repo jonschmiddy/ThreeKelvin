@@ -179,7 +179,14 @@ const PATH := "user://run.save"
 ## got. That is a downgrade rather than a lie, and it is the direction the
 ## version guard does not care about; the bump is for the other one, as 18
 ## through 22 were.
-const VERSION := 23
+## 24: THE MATERIAL LEDGER IS GONE. `materials` was a dictionary of id to count
+## saved beside `cargo`, which already stored the same materials as objects with
+## shapes and positions -- and the objects are what the game reads now, so the
+## dictionary is not written and not read. A version 23 save carries one and a
+## version 24 build would ignore it, which is the quiet half; the loud half is
+## that a 23 build handed this save would find no ledger and show you nothing
+## for a hold full of crates.
+const VERSION := 24
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -289,7 +296,6 @@ static func _snapshot() -> Dictionary:
 		# The whole ledger, not the one row that used to be a field. A material
 		# added to DB.MATERIALS is saved by construction rather than by somebody
 		# remembering to add a line here.
-		materials = Run.materials.duplicate(),
 		fuel = Run.fuel,
 		dross = Run.dross.map(func(x: StringName) -> String: return String(x)),
 		whale_boon = Run.whale_boon,
@@ -408,11 +414,6 @@ static func load_into_run() -> bool:
 	# differently from the one it replaced — and that difference is the sort of
 	# thing that gets chased for an hour later.
 	var mats: Dictionary = {}
-	var saved_mats: Variant = d.get("materials", {})
-	if typeof(saved_mats) == TYPE_DICTIONARY:
-		for k in (saved_mats as Dictionary).keys():
-			mats[StringName(str(k))] = int((saved_mats as Dictionary)[k])
-	Run.materials = mats
 	Run.fuel = int(d.get("fuel", 0))
 	# A save written when dross was a COUNT restores as that many Dross, which is
 	# exactly what it meant at the time. Nothing is lost and nothing is invented.

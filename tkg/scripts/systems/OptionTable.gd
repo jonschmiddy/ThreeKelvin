@@ -224,7 +224,7 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		# live `exotic` counter -- which is the same thing today, because the
 		# ledger is what exotic currently means. It becomes a hold search when
 		# materials become items, in this function and nowhere else.
-		Run.spend_material(StringName(res.consume_material_tier), 1)
+		Run.spend_material_tier(StringName(res.consume_material_tier))
 	if bool(res.get("archive_recover", false)):
 		# THIS SYSTEM'S DOCUMENT OR NONE. `Archive.at_node` derives from the
 		# node's own index, so an option cannot conjure a document -- most systems

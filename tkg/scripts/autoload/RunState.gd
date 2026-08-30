@@ -50,7 +50,6 @@ var fuel: int = 150:
 ## down, so it accumulated from the hold you were emptying anyway rather than from
 ## anywhere you went — a resource with a faucet that large is a second currency
 ## whatever the ruling calls it.
-var materials: Dictionary = {}
 
 ## Exotic was a bare int here from the day megafauna existed, and about fifteen
 ## call sites still read and write it that way. It is now the `exotic` row of
@@ -64,12 +63,14 @@ var materials: Dictionary = {}
 ## unrelated redraw happened to correct it. That is the third instance of the
 ## class of bug the header above describes, found by looking for it rather than
 ## by anyone noticing a wrong number.
+## READ ONLY NOW. It was a settable view onto the ledger row; there is no ledger
+## row, and the five places that wrote `Run.exotic += n` were all handing you a
+## physical thing -- a fauna kill, a pacified herd, a pulsar sweep -- which is
+## `add_material` and a container. Reading it stays, because the history and the
+## save screen ask what you came home with.
 var exotic: int:
 	get:
-		return int(materials.get(&"exotic", 0))
-	set(v):
-		materials[&"exotic"] = maxi(0, v)
-		Sig.resources_changed.emit()
+		return material(&"exotic")
 ## WHICH malfunctions are lodged in you, not how many.
 ##
 ## It was a count, and a count could only ever produce one card sixteen times.
@@ -305,7 +306,6 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	heat = 0
 	heat_cap_bonus = 0
 	credits = 40
-	materials.clear()
 	# STILL SCALED TO GALAXY DEPTH, though the reason narrowed. It went in when
 	# RIM was derived and the disc was 1.75x wider, which it no longer is -- but
 	# a fifteen-ring galaxy still asks for fourteen ring-crossings against nine's
@@ -750,7 +750,11 @@ func settle(m: HoldItem) -> bool:
 ## did not arrange this and cannot be surprised by it.
 func repack_hold() -> void:
 	var all := cargo.duplicate()
-	all.sort_custom(func(a: ModuleData, b: ModuleData) -> bool:
+	# `HoldItem`, NOT `ModuleData`. The hold carries materials too now, and a
+	# lambda typed to the narrower class refuses the whole comparison at
+	# runtime -- so a repack with one crate in it failed silently, item by item.
+	# `cells()` is `HoldItem`'s in the first place.
+	all.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
 		return a.cells() > b.cells())
 	cargo.clear()
 	var lost: Array[HoldItem] = []
@@ -1714,21 +1718,78 @@ func scrap_value_of(m: ModuleData) -> int:
 
 # --------------------------------------------------------------------- materials
 
+## HOW MANY OF ONE THING YOU ARE CARRYING, counted off the hold.
+##
+## THE LEDGER IS GONE AND THIS IS WHY. `materials` was a dictionary of id to
+## count living beside `cargo`, which held the same idea as objects with shapes
+## and positions -- two stores for one fact, and `MATERIALS_NOTE` 3.1 is explicit
+## that materials do not stack precisely so that "one is here and the other is
+## over there" can be true. A tally cannot say that, and a tally sitting next to
+## the thing that can is the older half waiting to disagree.
+##
+## It also ends the shim. `MaterialTable.grant` paid a row's `value` in credits
+## because there was nowhere to put the object; there is now, so it hands over
+## the object and the station is where it becomes money.
 func material(id: StringName) -> int:
-	return int(materials.get(id, 0))
+	var n := 0
+	for raw in cargo:
+		var m := raw as MaterialData
+		if m != null and m.id == id:
+			n += 1
+	return n
 
-func add_material(id: StringName, n: int) -> void:
-	if n == 0:
-		return
-	materials[id] = maxi(0, material(id) + n)
+
+## Put some in the system, NOT in the hold. `MATERIALS_NOTE` 3.6: if something
+## hands you a physical thing it hands you a CONTAINER, and you reach in for it
+## with your own hold open beside you -- which is the only way a full hold can
+## refuse a reward without the reward quietly ceasing to exist.
+##
+## Returns what it made, so a caller with its own container can take them.
+func add_material(id: StringName, n: int) -> Array[MaterialData]:
+	var made: Array[MaterialData] = []
+	var row := MaterialTable.by_id(id)
+	if row.is_empty() or n <= 0:
+		return made
+	for i in n:
+		made.append(MaterialData.of(row))
+	var here := node_at()
+	if here != null:
+		for m in made:
+			sector_jetsam(here).items.append(m)
+		Sig.map_changed.emit()
 	Sig.resources_changed.emit()
+	return made
 
+
+## Take some off the hold. False, and nothing moves, if you are not carrying
+## enough -- a recipe that half-charged you would be worse than one that refused.
 func spend_material(id: StringName, n: int) -> bool:
-	if material(id) < n:
+	var found: Array[HoldItem] = []
+	for raw in cargo:
+		var m := raw as MaterialData
+		if m != null and m.id == id:
+			found.append(m)
+			if found.size() >= n:
+				break
+	if found.size() < n:
 		return false
-	materials[id] = material(id) - n
+	for m2 in found:
+		take_from_hold(m2)
 	Sig.resources_changed.emit()
 	return true
+
+
+## One of any material of this tier, off the hold. `consume_material_tier` asks
+## for a TIER rather than a thing -- "an exotic-tier item" -- so the choice of
+## which one to give up is the hold's rather than the option's.
+func spend_material_tier(tier: StringName) -> bool:
+	for raw in cargo:
+		var m := raw as MaterialData
+		if m != null and m.tier == tier:
+			take_from_hold(m)
+			Sig.resources_changed.emit()
+			return true
+	return false
 
 ## Everything you are carrying, in table order, as {id, name, count}. One list so
 ## the HUD, the station and the fabricator cannot disagree about what a material
@@ -1762,10 +1823,14 @@ func harvest_pulsar() -> void:
 	var gain_heat := 3 + int(n.danger / 3)
 
 	fuel += gain_fuel
-	exotic += gain_exotic
+	# INTO THE SYSTEM, not into your pocket. What the beam throws off is matter,
+	# and matter needs somewhere to be -- see `add_material`. It is beside you
+	# in the sector and you load what fits.
+	add_material(&"exotic", gain_exotic)
 	heat += gain_heat
 	log_line("Beam sweep. The tank fills in eleven seconds.", &"good")
-	log_line("+%d fuel, +%d exotic." % [gain_fuel, gain_exotic], &"good")
+	log_line("+%d fuel, and %d exotic adrift alongside." % [gain_fuel,
+		gain_exotic], &"good")
 	log_line("Hard radiation through the hull. +%d heat." % gain_heat, &"them")
 	Sig.resources_changed.emit()
 	# Last: it can end the run, and everything above has to have happened first.

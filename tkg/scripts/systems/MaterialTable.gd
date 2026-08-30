@@ -90,14 +90,17 @@ static func roll(table: StringName, danger: int,
 
 ## Hand one over, and say what it was.
 ##
-## THE SHIM LIVES HERE AND NOWHERE ELSE. Until the hold carries items this pays
-## the row's `value` in credits; when it does, this body changes and no option,
-## no screen and no policy has to be touched -- which is the whole reason the
-## option payload says `{material = &"wreck"}` rather than doing arithmetic.
+## THE SHIM IS GONE, and this is the body it was always going to become. It paid
+## the row's `value` in credits because the hold could not carry an object; the
+## hold can, so this makes the object and puts it in the system beside you --
+## `RunState.add_material` -- and a station is where it turns back into money.
+##
+## The note promised no option, no screen and no policy would have to be touched
+## when this changed. That held: the payload still says `{material = &"wreck"}`.
 static func grant(row: Dictionary) -> String:
 	if row.is_empty():
 		return ""
-	Run.add_credits(int(row.get("value", 0)))
+	Run.add_material(StringName(row.get("id", &"")), 1)
 	return String(row.get("name", ""))
 
 

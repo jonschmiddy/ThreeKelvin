@@ -1005,10 +1005,13 @@ func _victory() -> void:
 		Run.add_dross(danger, which)
 	var bits: PackedStringArray = ["%d credits" % gained]
 	if enemy.template.fauna:
-		Run.exotic += 2
-		bits.append("2 exotic")
-		if Run.has_set(&"calyx", 5):
-			Run.exotic += 1
+		# INTO THE HULL YOU JUST KILLED. It was `Run.exotic += 2`, which put two
+		# points of a ledger straight into your pocket past a hold that might
+		# have had no room for them -- and megafauna are the one enemy whose
+		# whole drop IS material. See `RunState.add_material`.
+		var got := 2 + (1 if Run.has_set(&"calyx", 5) else 0)
+		Run.add_material(&"exotic", got)
+		bits.append("%d exotic" % got)
 	if Run.has_set(&"calyx", 3):
 		Run.heal(3)
 	if clears_node:
@@ -1090,7 +1093,8 @@ func _pacify() -> void:
 	var node: MapGen.MapNode = Run.node_at()
 	if clears_node:
 		Run.consume_node(node)
-	Run.exotic += 1
+	# Pacifying pays the same way killing does, in the same place.
+	Run.add_material(&"exotic", 1)
 	for i in new_dross:
 		var which: StringName = named_dross[i] if i < named_dross.size() else &""
 		Run.add_dross(danger, which)

@@ -33,7 +33,17 @@ func check(what: String, a: Variant, b: Variant) -> void:
 func fingerprint() -> Dictionary:
 	var mods := func(list: Array) -> Array:
 		var out: Array = []
-		for m in list:
+		for raw in list:
+			# A CRATE HAS AN ID AND A CELL AND NOTHING ELSE TO LOSE. The hold
+			# carries materials now, and everything below this line is a
+			# module's -- affixes, rarity, scrap value, mount. A material that
+			# came back in the wrong place, or did not come back, still shows
+			# up: those are the two fields it has.
+			var mat := raw as MaterialData
+			if mat != null:
+				out.append("%s|h%d,%d" % [mat.id, mat.hold_at.x, mat.hold_at.y])
+				continue
+			var m := raw as ModuleData
 			var af: Array = []
 			for a in m.affixes:
 				af.append(a.name)
@@ -131,13 +141,24 @@ func fingerprint() -> Dictionary:
 			Run.reactor(), Run.hand_size(), Run.dissipation()],
 	}
 
+## What you are carrying, as a stable string. Off the HOLD, because that is the
+## only store now -- see `RunState.material`. Counted per catalogue id rather
+## than listed per instance, so a round trip that kept every crate but shuffled
+## their cells still compares equal: this probe is about survival, and
+## `-- holdtest` is about placement.
 func _materials() -> String:
-	var keys: Array = Run.materials.keys()
-	keys.sort_custom(func(a: Variant, b: Variant) -> bool: return str(a) < str(b))
-	var parts: PackedStringArray = []
+	var seen: Dictionary = {}
+	for raw in Run.cargo:
+		var m := raw as MaterialData
+		if m != null:
+			seen[m.id] = int(seen.get(m.id, 0)) + 1
+	var keys: Array = seen.keys()
+	keys.sort()
+	var parts: Array[String] = []
 	for k in keys:
-		parts.append("%s=%d" % [str(k), int(Run.materials[k])])
-	return " ".join(parts)
+		parts.append("%s=%d" % [str(k), int(seen[k])])
+	return ", ".join(parts)
+
 
 func _quotes() -> String:
 	var n: MapGen.MapNode = Run.node_at()
@@ -145,7 +166,15 @@ func _quotes() -> String:
 		"refuel=%d" % Market.refuel_price(n), "coolant=%d" % Market.coolant_price(n)]
 	for m in n.shop:
 		parts.append("ask:%s=%d" % [m.id, Market.ask(n, m)])
-	for m in Run.cargo:
+	# PARTS QUOTE, MATERIALS PRICE. `bid` and `melt` are a module's two numbers
+	# -- what a counter offers and what a furnace pays -- and a material has
+	# neither. It has one flat value and the row below already quotes every one
+	# of those, so a crate in the hold contributes its identity and nothing else.
+	for raw in Run.cargo:
+		var m := raw as ModuleData
+		if m == null:
+			parts.append("hold:%s" % (raw as MaterialData).id)
+			continue
 		parts.append("bid:%s=%d/melt=%d" % [m.id, Market.bid(n, m), Market.melt(m)])
 	for d in DB.MATERIALS:
 		parts.append("mat:%s=%d" % [d.id, Market.material_price(n, d.id)])
@@ -193,15 +222,23 @@ func run() -> void:
 	# All three materials, not just the one that used to be a bare field. A
 	# ledger keyed by StringName and reloaded from JSON's String keys is exactly
 	# the kind of thing that comes back looking right and compares wrong.
-	Run.exotic = 3
-	Run.add_material(&"exotic", 7)
-	Run.add_material(&"relic", 2)
+	# ABOARD, because the probe is asking whether a save keeps what you are
+	# CARRYING. `add_material` leaves them in the sector, which is the right
+	# answer for a reward and the wrong one for a fixture.
+	for seeded in [&"exotic", &"exotic", &"exotic", &"relic", &"relic"]:
+		Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
 	Run.dross = [&"slag", &"arcfault"] as Array[StringName]
 	Run.whale_boon = true
 	Run.kills = 4
 	for i in 4:
 		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
-	Run.install_module(Run.cargo[0])
+	# THE FIRST PART, not the first thing in the hold. Materials are stowed
+	# above, so `cargo[0]` is a crate of exotic now and nothing installs a crate.
+	for raw in Run.cargo:
+		var part := raw as ModuleData
+		if part != null:
+			Run.install_module(part)
+			break
 	Run.found_hull = LootGen.roll_hull(4)
 	Run.transfer_to_hull(LootGen.roll_hull(5))
 	# ARRANGE the hold, do not just fill it.
@@ -215,7 +252,10 @@ func run() -> void:
 	# the saved value load-bearing, which is what a player rearranging their hold
 	# does every time they touch it.
 	if not Run.cargo.is_empty():
-		var last: ModuleData = Run.cargo[Run.cargo.size() - 1]
+		# `HoldItem`: the last thing in the hold may be a crate, and what this
+		# block is proving is that a POSITION survives a round trip, which is
+		# true of anything that occupies cells.
+		var last: HoldItem = Run.cargo[Run.cargo.size() - 1]
 		var home := last.hold_at
 		var g := Run.hold_grid()
 		for y in range(g.y - 1, -1, -1):
@@ -300,7 +340,6 @@ func run() -> void:
 	Run.heat = 99
 	Run.heat_cap_bonus = 0
 	Run.credits = 0
-	Run.materials = {}
 	Run.fuel = 0
 	Run.dross = [] as Array[StringName]
 	Run.whale_boon = false
