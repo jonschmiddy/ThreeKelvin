@@ -117,6 +117,26 @@ var _draw_pile: PileView
 var _exit_ask: PanelContainer = null
 ## Its contents, so the question can be replaced by the answer in place.
 var _exit_box: VBoxContainer = null
+
+## ONE SIZE FOR ALL FOUR OF THEM.
+##
+## There are two exits and each has a question and an answer, and every one of
+## the four was a different height: the hail question is five wrapped lines and
+## its answer is two, so the box shrank under the cursor at the moment of the
+## press and CONTINUE landed somewhere KEEP FIGHTING had not been. A panel that
+## resizes between asking and answering is two panels wearing the same border.
+##
+## MEASURED, not guessed -- `-- sectorshot combat askhail resolve` prints the
+## box either side of the press. The tallest of the four is the hail question at
+## 137 -- its badge and its two sentences wrap to one line more than anything
+## else -- and this is that plus a line of slack, because the badge is the part
+## that varies: SENSORS 4 - YOU HAVE 0 - 5% - NEAR-CERTAIN FAILURE is a good
+## deal longer than THRUST 3 - CERTAIN SUCCESS, and a floor that only just fits
+## the case I happened to photograph would be a wish rather than a size.
+##
+## The body expands into whatever is left, so the buttons sit on the same line
+## in all four.
+const EXIT_ASK := Vector2(244, 144)
 ## What colour this exit is, and what it says when it fails. Held on the screen
 ## because the answer arrives on a signal, long after the question was built.
 var _exit_ink: Color = UITheme.ICE
@@ -2172,6 +2192,7 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.custom_minimum_size = Vector2(220, 0)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(body)
 
 	var row := HBoxContainer.new()
@@ -2212,6 +2233,7 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	box.add_child(row)
 
 	_exit_ask = PanelContainer.new()
+	_exit_ask.custom_minimum_size = EXIT_ASK
 	_exit_ask.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL, edge, 0, 10, 12))
 	_exit_ask.add_child(box)
@@ -2233,12 +2255,15 @@ func _exit_ask_result(title: String, ink: Color, said: String,
 	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_exit_box.add_child(head)
-	if said != "":
-		var body := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
-		body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		body.custom_minimum_size = Vector2(220, 0)
-		_exit_box.add_child(body)
+	# ALWAYS BUILT, even with nothing to say. It is what pushes CONTINUE to the
+	# bottom of the box, and a button that moves up when the sentence is short
+	# is the thing this size exists to stop.
+	var body := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.custom_minimum_size = Vector2(220, 0)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_exit_box.add_child(body)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(Widgets.button("CONTINUE", on_go))

@@ -499,7 +499,9 @@ func run(tree: SceneTree) -> void:
 				sc._on_flee()
 			for iA2 in 6:
 				await RenderingServer.frame_post_draw
-			print("  panel up: %s" % [sc._exit_ask != null])
+			print("  panel up: %s  box %.0fx%.0f"
+				% [sc._exit_ask != null, sc._exit_ask.size.x,
+					sc._exit_ask.size.y])
 			# AND THEN PRESS IT. The panel now holds the answer as well as the
 			# question, and the answer is the half no still frame reached.
 			if "resolve" in OS.get_cmdline_user_args():
@@ -512,7 +514,9 @@ func run(tree: SceneTree) -> void:
 				var said := "<none>"
 				if sc._exit_box != null and sc._exit_box.get_child_count() > 0:
 					said = (sc._exit_box.get_child(0) as Label).text
-				print("  after: %-12s finished=%s" % [said, sc.combat.finished])
+				print("  after: %-12s finished=%-5s box %.0fx%.0f"
+					% [said, sc.combat.finished, sc._exit_ask.size.x,
+						sc._exit_ask.size.y])
 			tree.root.get_texture().get_image().save_png("user://ask.png")
 			print("wrote ", ProjectSettings.globalize_path("user://ask.png"))
 			tree.quit()
