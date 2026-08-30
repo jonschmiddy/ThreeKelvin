@@ -261,12 +261,31 @@ static func untaken(n: MapGen.MapNode) -> Array:
 
 ## What a tag reads as at three pixels wide. A fight is a threat, salvage is a
 ## wreck, a signal is somebody talking.
+## CONTRACT WAS MISSING, and it is the biggest group in the table: fifteen of
+## forty-nine options are tagged `contract` and nothing else, so a third of the
+## table fell through to `LINE` and drew no stripe at all. A code that is silent
+## about its largest category is not a code.
+##
+## Violet because it has to be cold and it has to be unused. The palette note at
+## the top of `UITheme` reserves every warm colour for combustion, and salvage's
+## brown is already stretching that; green is the hull bar's.
+const TAG_CONTRACT := Color("#9b8ec8")
+
+## PRIORITY, NOT AUTHORING ORDER. This read the option's own `tags` array and
+## returned on the first one it recognised, so `[signal, fight]` came out cyan
+## and `[fight, signal]` came out red -- the same option two colours depending
+## on which word got typed first. A fight is the fact that changes what you
+## would do about the thing, so it outranks whatever else is true of it.
 static func tag_colour(opt: Dictionary) -> Color:
-	for t in opt.get("tags", []):
-		match StringName(t):
-			&"fight": return UITheme.LEAVE
-			&"salvage": return Color("#9a7b52")
-			&"signal": return Color("#8ec8e6")
+	var tags: Array = opt.get("tags", [])
+	for want in [&"fight", &"salvage", &"signal", &"contract"]:
+		for t in tags:
+			if StringName(t) == want:
+				match want:
+					&"fight": return UITheme.LEAVE
+					&"salvage": return Color("#9a7b52")
+					&"signal": return Color("#8ec8e6")
+					_: return TAG_CONTRACT
 	return UITheme.LINE
 static func choice_button(n: MapGen.MapNode, i: int, j: int, c: Dictionary,
 		opt: Dictionary, on_take: Callable) -> Control:

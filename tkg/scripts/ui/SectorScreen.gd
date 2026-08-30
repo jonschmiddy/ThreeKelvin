@@ -573,8 +573,21 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	# station and a pulsar say exactly as little -- a line and a button -- and
 	# were being given a drawer sized for a list of four options, so most of the
 	# panel was air.
+	#
+	# AND A SYSTEM YOU HAVE FINISHED IS ONE OF THEM. It says one line and offers
+	# the jump, which is the same shape as the start and the core, and it was
+	# holding a hundred and ninety pixels open to say it.
+	#
+	# COSTS ONE RESIZE, on the click that takes the last option. The note above
+	# argues a system must not resize because its drawer swaps between LIST,
+	# OPTION and RESULT -- that still holds, and the guard below is what keeps
+	# it: the band only comes down in the LIST state, so reading a RESULT never
+	# happens in a collapsed drawer. What is left is one step down at the moment
+	# a system is finished, which is a thing worth showing rather than a jump.
+	var spent := n != null and n.type == MapGen.NodeType.SYSTEM \
+		and _dstate == Drawer.LIST and EncounterDrawer.untaken(n).is_empty()
 	var bookend := n != null and not Run.dead \
-		and n.type != MapGen.NodeType.SYSTEM
+		and (n.type != MapGen.NodeType.SYSTEM or spent)
 	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.

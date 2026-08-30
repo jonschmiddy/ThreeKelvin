@@ -60,10 +60,26 @@ func run(tree: SceneTree) -> void:
 	OptionTable.ensure(n)
 	print("  %s -- danger %d, %d options: %s"
 		% [MapGen.star_name(n), n.danger, n.options.size(), n.options])
+	# A SYSTEM WITH NOTHING LEFT IN IT, which is a fourth drawer state and the
+	# only one no mode could reach. `open=` and `take=` walk LIST -> OPTION ->
+	# RESULT, and all three of those need a system that still has options; the
+	# band that a FINISHED system gets is the one thing they cannot photograph.
+	# Marking the claims directly rather than resolving each option: what is
+	# being looked at is the height of a drawer with an empty list, and running
+	# four payouts to get there would put their loot in the picture.
+	if "spent" in OS.get_cmdline_user_args():
+		for si in n.options.size():
+			n.taken.append(MapGen.OPTION_SITE + si)
 	Router.show_sector()
 	for i in 90:
 		await RenderingServer.frame_post_draw
 	var tag := "_group" if want_group else ""
+	if "spent" in OS.get_cmdline_user_args():
+		tag += "_spent"
+		var sc := Router.current as SectorScreen
+		if sc != null:
+			print("  drawer band: %.0f  (DRAWER_H %d)"
+				% [sc._quiet_wrap.size.y, SectorScreen.DRAWER_H])
 	# THE DRAWER HAS THREE STATES AND A SCREENSHOT ONLY EVER CATCHES THE FIRST.
 	# `open=N` clicks into an option, `take=N` resolves one of its choices, so
 	# LIST -> OPTION -> RESULT can each be photographed. Driving the screen
