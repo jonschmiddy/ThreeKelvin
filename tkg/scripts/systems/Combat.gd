@@ -891,9 +891,8 @@ func hail() -> void:
 		_:
 			Run.heat += HAIL_HEAT_BOTCHED
 			Sig.resources_changed.emit()
-			Run.log_line(
-				"You hail on an open channel. It tells them exactly where you are.",
-				&"heat")
+			exit_note = "You hail on an open channel. It tells them exactly where you are, and the turn is theirs."
+			Run.log_line(exit_note, &"heat")
 			end_turn()
 
 
@@ -954,6 +953,17 @@ const FLEE_FUEL_PARTIAL := 10
 
 
 ## What a flee would roll, for the panel to print before you commit.
+## WHAT A FAILED EXIT DID, for the panel that asked to print.
+##
+## A hail or a burn that WORKS ends the fight, and `_finish` carries its own
+## summary out on `combat_ended`. One that fails does not end anything: it spends
+## the fuel or the heat, logs a line into a feed you are not looking at, and
+## hands the turn back -- so the one moment the player is owed an answer is the
+## one moment nothing was telling them. Set on every path through both, cleared
+## by the caller before it asks.
+var exit_note: String = ""
+
+
 func flee_check() -> Dictionary:
 	return {attr = FLEE_ATTR, need = FLEE_NEED}
 
@@ -968,9 +978,8 @@ func flee() -> void:
 		# the honest cost of trying: you turned your back to do it.
 		Run.fuel = maxi(0, Run.fuel - FLEE_FUEL)
 		Sig.resources_changed.emit()
-		Run.log_line(
-			"You commit to the burn and they are still on you when it ends.",
-			&"heat")
+		exit_note = "You commit to the burn and they are still on you when it ends."
+		Run.log_line(exit_note, &"heat")
 		end_turn()
 		return
 	# One number, named once. The line said 2 while the code took 6 — a

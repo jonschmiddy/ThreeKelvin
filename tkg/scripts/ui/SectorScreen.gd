@@ -115,6 +115,12 @@ var _draw_pile: PileView
 ## The confirmation panel while it is open. See `_ask_exit`. One at a time:
 ## both exits use it, and they are alternatives to each other.
 var _exit_ask: PanelContainer = null
+## Its contents, so the question can be replaced by the answer in place.
+var _exit_box: VBoxContainer = null
+## What colour this exit is, and what it says when it fails. Held on the screen
+## because the answer arrives on a signal, long after the question was built.
+var _exit_ink: Color = UITheme.ICE
+var _exit_fail: String = ""
 ## The open pile listing, or null. Built and torn down per open rather than
 ## hidden, because its contents change every single turn.
 var _pile_panel: PanelContainer = null
@@ -2153,9 +2159,12 @@ func _on_end_turn() -> void:
 ##
 ## Nothing else in combat costs a run in one press, so nothing else gets this.
 func _ask_exit(title: String, ink: Color, edge: Color, said: String,
-		go_label: String, on_go: Callable) -> void:
+		go_label: String, fail_title: String, on_go: Callable) -> void:
+	_exit_ink = ink
+	_exit_fail = fail_title
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
+	_exit_box = box
 	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(head)
@@ -2171,10 +2180,27 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	# Staying is the default and sits first: the safe answer should be the one
 	# under your hand when the panel opens.
 	row.add_child(Widgets.button("KEEP FIGHTING", _close_exit_ask))
+	# IT DOES NOT CLOSE. The panel asked the question and it is the thing the
+	# player is looking at, so it is where the answer belongs -- a panel that
+	# vanishes and hands off to a full-screen overlay somewhere else makes you
+	# find the result of your own press. `_on_combat_ended` rewrites it when the
+	# exit works; the branch below rewrites it when the exit fails and the fight
+	# simply goes on, which nothing was telling you at all.
 	var go := Widgets.button(go_label, func() -> void:
-		_close_exit_ask()
-		if fighting():
-			on_go.call())
+		if not fighting():
+			return
+		combat.exit_note = ""
+		on_go.call()
+		# `finished`, NOT `fighting()`. That helper asks whether there is a fight
+		# on this screen and stays true after one ends -- `_finish` sets a flag,
+		# it does not clear the enemy -- so testing it here ran the failure
+		# branch over a hail that had just WORKED, and `_on_combat_ended` had
+		# already written STOOD DOWN into the panel a microsecond earlier. The
+		# only way to see it was the empty body: a success carries its summary
+		# on the signal, so `exit_note` was still the empty string.
+		if _exit_ask != null and not combat.finished:
+			_exit_ask_result(_exit_fail, _exit_ink, combat.exit_note,
+				_close_exit_ask))
 	go.add_theme_color_override("font_color", ink)
 	row.add_child(go)
 	box.add_child(row)
@@ -2185,6 +2211,45 @@ func _ask_exit(title: String, ink: Color, edge: Color, said: String,
 	_exit_ask.add_child(box)
 	add_child(_exit_ask)
 	_exit_ask.set_anchors_preset(Control.PRESET_CENTER)
+	_centre_exit_ask()
+
+
+## The same panel, holding what happened instead of what it would cost.
+##
+## `Widgets.clear` rather than a fresh panel: the border, the position and the
+## thing under the cursor all stay put, so the question becoming the answer
+## reads as one object rather than as two that happened to be the same size.
+func _exit_ask_result(title: String, ink: Color, said: String,
+		on_go: Callable) -> void:
+	if _exit_ask == null or _exit_box == null:
+		return
+	Widgets.clear(_exit_box)
+	var head := UITheme.body(title, ink, UITheme.FS_HEAD)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_exit_box.add_child(head)
+	if said != "":
+		var body := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
+		body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.custom_minimum_size = Vector2(220, 0)
+		_exit_box.add_child(body)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(Widgets.button("CONTINUE", on_go))
+	_exit_box.add_child(row)
+	_centre_exit_ask()
+
+
+## The panel changes size when its contents do, and a centred thing that grew
+## from its top-left corner is not centred any more.
+func _centre_exit_ask() -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(_exit_ask):
+		return
+	# SHRINK FIRST. A `Control` grows to fit its contents and never shrinks back,
+	# so the answer -- two lines where the question had five -- kept the
+	# question's box and sat in the top third of a rectangle of nothing.
+	_exit_ask.reset_size()
 	await get_tree().process_frame
 	if is_instance_valid(_exit_ask):
 		_exit_ask.position = (size - _exit_ask.size) * 0.5
@@ -2198,7 +2263,7 @@ func _on_flee() -> void:
 	_ask_exit("BREAK CONTACT?", Color("#d4614f"), Color("#8f4034"),
 		"%s. You lose the salvage and burn %d fuel. Fail and there is no second try."
 			% [SkillCheck.badge(combat.flee_check()), Combat.FLEE_FUEL],
-		"BREAK CONTACT", func() -> void: combat.flee())
+		"BREAK CONTACT", "STILL ON YOU", func() -> void: combat.flee())
 
 
 ## Hailing: the same exit bought with words rather than fuel.
@@ -2218,7 +2283,7 @@ func _on_hail() -> void:
 	_ask_exit("OPEN A CHANNEL?", UITheme.HOT, Color("#8a6420"),
 		"%s. They break off and there is no salvage. Fail and you have told them exactly where you are: %d heat, and the turn is theirs."
 			% [SkillCheck.badge(combat.hail_check()), Combat.HAIL_HEAT_BOTCHED],
-		"HAIL THEM", func() -> void:
+		"HAIL THEM", "NO ANSWER", func() -> void:
 			combat.hail()
 			_refresh())
 
@@ -2227,6 +2292,7 @@ func _close_exit_ask() -> void:
 	if _exit_ask != null:
 		_exit_ask.queue_free()
 		_exit_ask = null
+		_exit_box = null
 
 
 
@@ -2303,7 +2369,20 @@ func _on_combat_ended(result: StringName, text: String) -> void:
 		&"fled": "DISENGAGED",
 		&"hailed": "STOOD DOWN",
 	}
-	_overlay_title.text = String(titles.get(result, "COMBAT ENDED"))
+	var said := String(titles.get(result, "COMBAT ENDED"))
+	# IN THE PANEL YOU PRESSED, if you got here by pressing one. Fleeing and
+	# hailing are the only two endings a player ASKS for, and both were asked
+	# for in a small panel that then closed and handed the answer to a
+	# full-screen overlay -- which is the game losing the thread of your own
+	# gesture. Everything else that ends a fight ends it TO you and the overlay
+	# is right for those.
+	if _exit_ask != null:
+		_end_button.disabled = true
+		_exit_ask_result(said, _exit_ink, text, func() -> void:
+			_close_exit_ask()
+			_on_continue())
+		return
+	_overlay_title.text = said
 	_overlay_body.text = text
 	_overlay.visible = true
 	_overlay.move_to_front()
