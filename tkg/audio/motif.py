@@ -19,6 +19,57 @@ only when a `Track` places them.  That is what lets one form serve a 142 BPM
 combat cue and a 71 BPM dread cue unchanged.
 """
 
+# ---------------- the cast ----------------
+#
+# The soundtrack acquired a second and third character late, and this is
+# where they live so every score draws them from one place.  The design is
+# three ideas so simple they can be stated in a phrase each, chosen so that
+# any two can sound together without arranging around each other:
+#
+#   THE QUESTION  (MOTIF, below)  -- the person.  Five notes, whistled,
+#       never touches the fifth.  Horizontal: a melody.
+#   THE FIFTH     (FIFTH, below)  -- the institutions.  The interval the
+#       question never reaches, held as PROPERTY: an open fifth, bare, no
+#       third, struck rather than sung.  Vertical: a sonority.  The person
+#       spends the whole game failing to reach melodically what the eternal
+#       things simply own vertically.
+#   THE LAMENT    (LAMENT, below) -- the cold.  F Eb Db C, the Phrygian
+#       descent, the oldest death figure in music -- and it ENDS on C.  The
+#       two ways to the fifth in this soundtrack: "Warm Ship" is GIVEN it,
+#       once per loop, in the one safe place; the lament REACHES it, by
+#       falling.  Safety and death arrive at the same note.
+#
+# One rhythmic constant joins them: THE LOOP -- a figure that repeats on a
+# cycle that does not fit the bar, forever, unchanged.  It is the transponder
+# loop from the lore (a schedule still running in an empty system), and it is
+# native language here: "Dead Sector" has a 7-beat ostinato, "Hard Burn" a
+# 3-beat cell.  `loop_beats()` places one.  Plant it unremarked; never
+# explain it -- the lore's rule for constants is "never the subject".
+
+## The institutions' sonority: a bare open fifth on the tonic.  Voice it as
+## a chord and never as a melody; no third.  The tierce de Picardie -- the
+## one A natural the soundtrack spends -- is what it sounds like when this
+## interval is finally filled with something warm.
+FIFTH = ['F2', 'C3']
+
+## The cold's line: the Phrygian tetrachord, one note every two beats at its
+## native pace.  Scores are free to augment it further -- "Dead Sector" runs
+## it at one note per two BARS.
+LAMENT = [('F', 0, 2), ('Eb', 2, 2), ('Db', 4, 2), ('C', 6, 2)]
+
+
+def loop_beats(cell_beats, total_beats, offset=0.0):
+    """Beat positions for THE LOOP: a cell repeating every `cell_beats`
+    across `total_beats`, indifferent to where the barlines fall.  41 cells
+    of a 3-beat loop cross a 4/4 barline in every alignment there is, which
+    is the point -- a schedule does not consult the bar."""
+    out, b = [], float(offset)
+    while b < total_beats:
+        out.append(b)
+        b += cell_beats
+    return out
+
+
 # ---------------- forms ----------------
 
 ## As whistled.  Whole tone rocking 1-2, then the lean up to ♭3.

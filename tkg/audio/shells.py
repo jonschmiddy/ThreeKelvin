@@ -97,6 +97,57 @@ WHOLE = [('F',  0, 'F5',  3,  1), ('Ab', 3, 'Ab5', 3, 11),
 PENT  = [('F',  0, 'F5',  2,  7), ('Ab', 3, 'Ab5', 2, 17),
          ('B',  6, 'B4',  2, 27), ('F',  0, 'F5',  2, 37)]
 
+# --- the tune -------------------------------------------------------
+# Twenty-four motif statements in 135 seconds and no other melodic material.
+# The cue has a tune now and keeps eight.
+#
+# It is written in SCALE DEGREES rather than in pitches, which is the whole
+# trick and it is the cue's own idea rather than a new one.  The whole-tone
+# and pentatonic collections on any root share their first three degrees --
+# on F, both start F G A -- and disagree only at the fourth and fifth, by a
+# semitone each:
+#
+#     whole tone   F  G  A  B   D♭
+#     pentatonic   F  G  A  C   D
+#
+# So one degree sequence, realised against whichever collection the ground is
+# currently in, comes out as two different tunes that are recognisably the
+# same tune -- floating or landed, from no edit at all.  That is exactly what
+# the piece already does to the motif with MOTIF and MAGGIORE, and it is a
+# better argument for a melody than for five notes, because a melody has
+# somewhere to put the disagreement.
+#
+# The two shapes are deliberately opposite.  SEARCH rises through six bars
+# and ends an octave up, unresolved, which is the whole-tone sections' job.
+# LANDED descends four bars onto the root, which is what an answer is.
+
+#: (degree, octave offset, beat, duration).  Six bars, 24 beats.
+SEARCH = [(0, 0, 0, 4),
+          (2, 0, 4, 2), (1, 0, 6, 2),
+          (3, 0, 8, 4),
+          (4, 0, 12, 4),
+          (2, 1, 16, 4),
+          (1, 1, 20, 2), (0, 1, 22, 2)]
+
+#: Four bars, 16 beats.  The mirror: it comes down and stops.
+LANDED = [(4, 0, 0, 4),
+          (3, 0, 4, 2), (2, 0, 6, 2),
+          (1, 0, 8, 4),
+          (0, 0, 12, 4)]
+
+
+def degrees(scale, base_oct, seq):
+    """Realise a degree sequence against a scale of any length.
+
+    `rise()` on the scale repeated three times gives an ascending ladder with
+    the octaves already carried, so a degree plus an octave offset is just an
+    index into it -- and it works unchanged for a six-note collection and a
+    five-note one, which is the point.
+    """
+    ladder = rise(list(scale)*3, base_oct)
+    return [(ladder[d + o*len(scale)], b, dur) for d, o, b, dur in seq]
+
+
 T = {k: Track(BARS) for k in ['pad', 'harp', 'motif', 'reed', 'bell', 'fx']}
 
 _pc, _st = {}, {}
@@ -141,13 +192,18 @@ for si, (root, step, start, cho, bar0) in enumerate(WHOLE):
     up = rise(sc + [sc[0]], cho + 2)
     arabesque(up, bar0, 0.10 + lift*0.2, bell, 1.1)
     arabesque(up[::-1], bar0 + 3, 0.09 + lift*0.2, bell, 1.1, pan0=0.40)
-    for k, bar in enumerate([bar0, bar0 + 3]):
-        for n, b, d in pitches(transpose(MOTIF, step), start):
-            T['motif'].add(glass(hz(n), d*SPB*0.95, 0.22 + lift), bb(bar) + b,
-                           pan=-0.28 + 0.56*k)
-    lo = start[:-1] + str(int(start[-1]) - 1)
-    for n, b, d in pitches(transpose(MOTIF, step), lo):
-        T['reed'].add(reed(hz(n), d*SPB*0.9, 0.15 + lift*0.4), bb(bar0 + 1) + b, pan=0.28)
+    # The tune, searching: it rises through the section and ends an octave up
+    # with nowhere to go, which is what a whole-tone collection is for.
+    for n, b, d in degrees(sc, cho + 2, SEARCH):
+        T['motif'].add(glass(hz(n), d*SPB*0.95, 0.22 + lift), bb(bar0) + b,
+                       pan=-0.20 + 0.10*si)
+    for n, b, d in degrees(sc, cho + 1, SEARCH[:5]):
+        T['reed'].add(reed(hz(n), d*SPB*0.9, 0.13 + lift*0.4), bb(bar0) + b,
+                      pan=0.28)
+    # ...and the motif once, in the middle, where the tune is resting.
+    for n, b, d in pitches(transpose(MOTIF, step), start):
+        T['motif'].add(glass(hz(n), d*SPB*0.95, 0.18 + lift), bb(bar0 + 3) + b,
+                       pan=0.30)
     # air only where the ground is unstable, so landing lifts the noise floor
     T['fx'].add(air(6*BAR, 0.045, 200, 1600), bb(bar0))
 
@@ -171,12 +227,18 @@ for pi, (root, step, start, cho, bar0) in enumerate(PENT):
         for i, n in enumerate(run):
             T['harp'].add(pk(hz(n), 0.95, 0.12), bb(bar) + i*0.75,
                           pan=(-0.34 if k == 0 else 0.34)*(1 - 2*i/6.0))
+
+    # The same tune, landed: the degrees are unchanged and only the collection
+    # under them moved, so the fourth and fifth degrees come out a semitone
+    # different and the line stops instead of hanging.
+    for n, b, d in degrees(sc, cho + 2, LANDED):
+        T['motif'].add(glass(hz(n), d*SPB*0.95, 0.26 + 0.04*home), bb(bar0) + b,
+                       pan=-0.14)
+    for n, b, d in degrees(sc, cho + 1, LANDED[:3]):
+        T['reed'].add(reed(hz(n), d*SPB*0.9, 0.18), bb(bar0 + 2) + b, pan=0.30)
+    if home:                      # the motif comes home with the cue, once
         for n, b, d in pitches(transpose(MAGGIORE, step), start):
-            T['motif'].add(glass(hz(n), d*SPB*0.95, 0.26 + 0.04*home), bb(bar) + b,
-                           pan=-0.18 + 0.36*k)
-    lo = start[:-1] + str(int(start[-1]) - 1)
-    for n, b, d in pitches(transpose(MAGGIORE, step), lo):
-        T['reed'].add(reed(hz(n), d*SPB*0.9, 0.20), bb(bar0 + 1) + b, pan=0.30)
+            T['motif'].add(glass(hz(n), d*SPB*0.95, 0.28), bb(bar0 + 2) + b, pan=0.22)
     T['bell'].add(bell(hz(rise(sc, cho + 3)[0]), 4.5, 0.11), bb(bar0 + 1), pan=0.36)
 T['fx'].add(noise_swell(2*BAR, 0.05), bb(39))
 

@@ -99,6 +99,24 @@ ORNAMENTED = pitches(appoggiatura(MOTIF[:4], frac=0.5, scale=F_MINOR)
                      + MOTIF[4:], 'F5', anchor=1)
 TURN_FIG = pitches(turn(MOTIF[4:], 0, frac=0.5, up=2, down=-1)[:4], 'Ab5')
 
+#: The theme's antecedent, and its major form.
+#:
+#: Every variation after the first used to work on the five notes of the
+#: motif alone -- MAGGIORE at F5, F6 and F4, MOTIF in canon with itself, the
+#: motif augmented -- while THEME, sitting right above them, is a
+#: thirty-two-beat period with a half cadence and a PAC in it.  A set of
+#: variations on a five-note head is not a set of variations, it is the head
+#: five times, and it is why this cue audited at 24 motif statements.
+#:
+#: So the variations vary the THEME now.  ANTE is its first sixteen beats;
+#: MAJOR_ANTE is the same phrase with every ♭3 and ♭6 raised, which is what
+#: "maggiore" means and is a great deal more than one note.
+ANTE = [(n, b, d) for n, b, d in THEME if b < 16]
+
+_MAJ = {'Ab': 'A', 'Db': 'D', 'Eb': 'E'}
+MAJOR_ANTE = [(_MAJ.get(n[:-1], n[:-1]) + n[-1], b, d) for n, b, d in ANTE]
+
+
 T = {k: Track(BARS) for k in ['whistle', 'strings', 'hammer', 'glass', 'reed', 'fx']}
 
 _h, _s, _p = {}, {}, {}
@@ -153,9 +171,11 @@ sing(T['reed'], pitches(MOTIF, 'F4'), 13, 0.20, reed, pan=0.30)
 # same rhythm, same phrase lengths, same bar-by-bar harmonic rhythm.
 quartet(MAJOR, 17, amp=0.70, cut=5000, atk=0.13)
 keys(MAJOR, 17, amp=0.32, n=8)
-for k, bar in enumerate([17, 21]):
-    sing(T['reed'], pitches(MAGGIORE, 'F5'), bar, 0.28, reed, pan=0.20)
-    sing(T['whistle'], pitches(MAGGIORE, 'F6'), bar, 0.18, whistle, pan=-0.34)
+sing(T['whistle'], MAJOR_ANTE, 17, 0.36, whistle, pan=-0.12)
+sing(T['reed'], [(n, b, d) for n, b, d in MAJOR_ANTE if d >= 2], 17, 0.24,
+     reed, pan=0.20)
+sing(T['whistle'], [(n, b, d) for n, b, d in MAJOR_ANTE if d >= 2], 21, 0.20,
+     whistle, pan=-0.34)
 sing(T['whistle'], [('C6', 0, 2), ('Bb5', 2, 2), ('A5', 4, 2), ('G5', 6, 1),
                     ('F5', 7, 1)], 19, 0.34, whistle, pan=-0.10)
 sing(T['whistle'], [('A5', 0, 2), ('G5', 2, 2), ('F5', 4, 4)], 23, 0.34, whistle)
@@ -198,9 +218,12 @@ for k, bar in enumerate([25, 29]):
 # Strict, at the octave, two beats apart. The learned style, and the one
 # variation that adds no colour at all -- just the tune against itself.
 quartet(CANON, 33, amp=0.50, cut=3200, bass=0.26)
-for bar in [33, 35, 37, 39]:
-    sing(T['whistle'], pitches(MOTIF, 'F5'), bar, 0.38, whistle, pan=-0.30)   # dux
-    sing(T['reed'], pitches(MOTIF, 'F4'), bar, 0.24, reed, pan=0.32, off=2)   # comes
+# Canon on the ANTECEDENT rather than on the head -- four bars of real
+# imitation instead of the same five notes chasing themselves eight times.
+for bar in [33, 37]:
+    sing(T['whistle'], ANTE, bar, 0.38, whistle, pan=-0.30)                   # dux
+    sing(T['reed'], [(n[:-1] + str(int(n[-1]) - 1), b, d) for n, b, d in ANTE],
+         bar, 0.24, reed, pan=0.32, off=2)                                    # comes
 for i, bar in enumerate([34, 36, 38, 40]):
     T['hammer'].add(hm(hz(CANON[bar - 33][1])*0.5, 3.2*SPB, 0.30), bb(bar))
 
@@ -209,13 +232,15 @@ for i, bar in enumerate([34, 36, 38, 40]):
 # The loop turns over out of the tonic straight back into bar 1, so the
 # title screen restates the tune plainly every eighty seconds.
 quartet(CHORALE, 41, amp=0.80, cut=3400, atk=0.30, bass=0.30)
-for bar in [41, 45]:
-    sing(T['whistle'], [(n, b, d) for n, b, d in augment(pitches(MOTIF, 'F5'), 2)],
-         bar, 0.36, whistle, pan=-0.10, art=0.92)
-    sing(T['reed'], [(n, b, d) for n, b, d in augment(pitches(MOTIF, 'F4'), 2)],
-         bar, 0.22, reed, pan=0.28)
-    sing(T['glass'], [(n, b, d) for n, b, d in augment(pitches(MOTIF, 'F6'), 2)],
-         bar, 0.14, glass, pan=0.34)
+# The antecedent augmented fills the eight bars exactly -- sixteen beats
+# doubled -- so the chorale is the tune at half speed and not the head at
+# half speed with silence after it.
+sing(T['whistle'], augment(ANTE, 2), 41, 0.36, whistle, pan=-0.10, art=0.92)
+sing(T['reed'], augment([(n[:-1] + str(int(n[-1]) - 1), b, d)
+                         for n, b, d in ANTE], 2), 41, 0.22, reed, pan=0.28)
+sing(T['glass'], augment([(n[:-1] + str(int(n[-1]) + 1), b, d)
+                          for n, b, d in ANTE if d >= 2], 2), 41, 0.14,
+     glass, pan=0.34)
 T['whistle'].add(whistle(hz('F5'), 2.6, 0.28), bb(47) + 2, pan=0.0)
 T['fx'].add(air(8*BAR, 0.05, 260, 2200), bb(41))
 T['fx'].add(noise_swell(2*BAR, 0.06), bb(47))

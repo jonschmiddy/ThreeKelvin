@@ -29,13 +29,21 @@ Standard developmental toolkit — each one appears in the track:
 
 | Technique | Where | Result |
 |---|---|---|
-| **Statement** | Intro, bar 1 | F6 G6 F6 G6 A♭6, original register, dry-ish with ping-pong delay |
-| **Transposition (register)** | A, bar 9 | Down one octave to F5 — singable lead range |
+| **Statement** | Intro, bar 1 | F5 G5 F5 G5 A♭5, dry-ish with ping-pong delay |
+| **Transposition (register)** | A, bar 9 | Same octave as the statement — singable lead range |
 | **Reharmonisation** | A, all | Notes stay fixed; the chord under them changes every 2 bars |
 | **Inversion** | B, bar 25 | Intervals mirrored: F E♭ F E♭ **D** — the D natural forces Dorian |
 | **Augmentation** | Bridge, bar 41 | Same notes, doubled durations — half-speed, weightless |
 | **Canon at the octave** | A′, bar 49 | Second voice enters 2 beats late, one octave below |
 | **Octave doubling** | A (2nd pass), A′ | Bells restate the original F6 register on top |
+
+The intro was in the original F6 register — the measured pitch of the whistled
+source, §1 — and is an octave down as of the recorded instrument set. A
+near-sine at 1397 Hz is distant; a piccolo at 1397 Hz is *piercing*, and eight
+bare bars is a long time to be sure which one you meant. The statement itself
+is unharmed: the bell doubling and the outro's last word both still sit at F6,
+and the outro is the one that carries it, because the cue ends on the
+recording's own pitch. Reverting is one digit in `arrange.py`'s intro loop.
 
 ---
 

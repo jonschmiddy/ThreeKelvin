@@ -5,6 +5,10 @@
     python3 build.py music burn    # one cue only
     python3 build.py sfx
 
+    python3 build.py music theme --sampled    # recorded instruments, synth kit
+    python3 build.py music theme --drums      # ...and a recorded kit too
+    python3 build.py music --lead=piano       # what plays the melody
+
 Needs numpy, scipy and soundfile (libsndfile supplies the Vorbis encoder).
 
 What lands where
@@ -81,6 +85,13 @@ CUES = [
     ('shells.py',  'shells','shells_loop.wav','shells_stems_loop'),
     ('business.py','business','business_loop.wav','business_stems_loop'),
     ('home.py',    'home',  'home_loop.wav',  'home_stems_loop'),
+    ('first_light.py', 'first_light', 'first_light_loop.wav',
+     'first_light_stems_loop'),
+    ('perpetuity.py', 'perpetuity', 'perpetuity_loop.wav',
+     'perpetuity_stems_loop'),
+    ('core.py',    'core',    'core_loop.wav',    'core_stems_loop'),
+    ('fauna.py',   'fauna',   'fauna_loop.wav',   'fauna_stems_loop'),
+    ('nofault.py', 'nofault', 'nofault_loop.wav', 'nofault_stems_loop'),
 ]
 
 def ogg(path, wav_path, compression=0.3):
@@ -106,9 +117,15 @@ def ogg(path, wav_path, compression=0.3):
             dst.write(block)
     return os.path.getsize(path)
 
+#: Set by --sampled/--drums and passed to every score subprocess.  It has to
+#: travel as environment rather than as an argument, because a score binds its
+#: instruments with `from synth import *` at import time -- long before its own
+#: argument parser runs.  See sampler.py.
+VOICES = {}
+
 def render(script, *args):
     subprocess.run([sys.executable, script, '--out', OUT] + list(args),
-                   cwd=HERE, check=True)
+                   cwd=HERE, check=True, env=dict(os.environ, **VOICES))
 
 def build_music(only=()):
     """Render and encode every cue, or just the named ones.
@@ -166,8 +183,22 @@ def build_sfx():
     print('sfx   %d files -> %.1f MB' % (n, size/1e6))
 
 if __name__ == '__main__':
-    what = sys.argv[1] if len(sys.argv) > 1 else 'all'
-    only = tuple(sys.argv[2:])
+    argv = sys.argv[1:]
+    # Recorded instruments instead of oscillators for the melodic stems, and
+    # optionally for the kit as well.  Measured on `theme`: renders ~40%
+    # FASTER (pluck() is a per-sample Python loop and resampling is not), and
+    # the encoded stems came out 7% SMALLER, because a recorded flute has far
+    # less above 8 kHz than three detuned saws and Vorbis charges for that.
+    # audio/samples/ has to exist -- `python3 fetch_samples.py`.
+    if '--sampled' in argv or '--drums' in argv or any(
+            a.startswith('--lead=') for a in argv):
+        VOICES['TK_VOICES'] = 'sampled+drums' if '--drums' in argv else 'sampled'
+    for a in argv:                                  # --lead=piano, --lead=vibes
+        if a.startswith('--lead='):
+            VOICES['TK_LEAD'] = a.split('=', 1)[1]
+    argv = [a for a in argv if not a.startswith('--')]
+    what = argv[0] if argv else 'all'
+    only = tuple(argv[1:])
     os.makedirs(ASSETS, exist_ok=True)
     if what in ('all', 'music'): build_music(only)
     if what in ('all', 'sfx'):   build_sfx()

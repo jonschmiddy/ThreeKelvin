@@ -175,6 +175,7 @@ func show_party() -> void:
 ## screen, because the archive is readable out of a run as well as in one — what
 ## you have read survives the ship. See Archive.
 func show_archive(from_launcher: bool = false) -> void:
+	Audio.music_state(&"archive")
 	var s := ArchiveScreen.new()
 	_swap(s, not from_launcher)
 	s.setup(show_launcher if from_launcher else show_sector)

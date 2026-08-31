@@ -6,7 +6,8 @@ import numpy as np
 np.random.seed(1729)          # renders are deterministic
 import synth; synth.set_tempo(142)
 from synth import *
-from motif import (MOTIF, MAGGIORE, bar as bb, pitches, transpose,
+from motif import (MOTIF, MAGGIORE, FIFTH, bar as bb, pitches, transpose,
+                   _midi, _name,
                    diminish, appoggiatura, turn, F_MINOR)
 
 # =====================================================================
@@ -95,6 +96,43 @@ CIRCLE = [(0, 'F5'), (5, 'Bb4'), (10, 'Eb5'), (3, 'Ab4'),
           (8, 'Db5'), (2, 'G4'), (7, 'C5'), (0, 'F4')]
 CIRCLE_CH = [FM, BBM, EB7, AB, DB, GDIM, C7, FM]
 
+# --- the second subject ---------------------------------------------
+# The second subject used to be MAGGIORE: the first subject with its ♭3
+# raised.  The comment called that "either a very economical piece of writing
+# or the only honest thing to do with a five-note tune", and it is neither --
+# it is a sonata with one theme in it.  The whole point of the form is two
+# subjects that behave differently, so that the development has an argument
+# to have and the recapitulation has something to reconcile.
+#
+# SECOND_SUBJ is a real one and it is built to contrast on every axis the
+# first subject has.  ANTE rocks between two notes and moves in quarters;
+# this one leaps a sixth in its first gesture and moves in dotted halves.
+# ANTE stays inside a fifth; this one spans an octave and a third.  ANTE is
+# minor and circles; this one is major and descends to its own root.
+#
+# It is in A♭ major, the relative -- the exposition's key already -- so
+# nothing about the harmonic plan moves.
+
+#: Eight bars, 32 beats, in A♭.  Leaps first, then steps down.
+SECOND_SUBJ = [('Eb5', 0, 3), ('C6', 3, 5),               # the sixth, up
+               ('Bb5', 8, 2), ('Ab5', 10, 2), ('G5', 12, 4),
+               ('Ab5', 16, 3), ('Eb5', 19, 1), ('F5', 20, 4),
+               ('Eb5', 24, 2), ('C5', 26, 2), ('Ab4', 28, 4)]
+
+#: The transition's sequence.  A four-note falling figure taken from the
+#: second subject's tail (E♭ C A♭ + a step), sequenced down the circle --
+#: which is what a transition is supposed to do.  It used to be eight
+#: consecutive statements of the motif, one per key, which modulates
+#: correctly and says nothing.
+SEQ = [(0, 0, 0, 1), (-2, 0, 1, 1), (-4, 0, 2, 1), (-3, 0, 3, 1)]
+
+
+def semi(root, seq):
+    """A degree-in-semitones figure hung off a starting pitch."""
+    m = _midi(root)
+    return [(_name(m + k), b, d) for k, _, b, d in seq]
+
+
 T = {k: Track(BARS) for k in ['strings', 'hammer', 'motif', 'reed', 'bass', 'fx']}
 
 _h, _s, _p = {}, {}, {}
@@ -136,6 +174,16 @@ def sing(track, notes, bar0, amp, voice, pan=0.0, art=0.94):
     for n, b, d in notes:
         track.add(voice(hz(n), d*SPB*art, amp), bb(bar0) + b, pan=pan)
 
+# THE FIFTH -- the institutions' bare interval, struck at the top of each
+# large section like a letterhead.  This is the contracts cue; the paperwork
+# is theirs even when the business is yours.  Planted, never the subject.
+def stamp(bar, amp=0.22):
+    for n in FIFTH:
+        T['hammer'].add(hm(hz(n), 2.6*SPB, amp, 0.85), bb(bar), pan=-0.05)
+stamp(1)
+stamp(17)
+stamp(41, 0.26)
+
 # ============ EXPOSITION, first group : bars 1-8 ============
 bed(PERIOD, 1)
 walk(PERIOD, 1)
@@ -153,12 +201,15 @@ bed(CIRCLE_CH, 9, amp=0.64)
 walk(CIRCLE_CH, 9, amp=0.26)
 alberti(CIRCLE_CH, 9, amp=0.40, n=16, br=0.85)
 for i, (step, start) in enumerate(CIRCLE):
-    sing(T['motif'], pitches(transpose(CELL, step), start), 9 + i, 0.36, whistle,
+    sing(T['motif'], semi(start, SEQ), 9 + i, 0.36, whistle,
          pan=-0.34 + 0.68*(i/7.0))
     if i >= 3:                                   # the wind joins the descent
         lo = start[:-1] + str(int(start[-1]) - 1)
-        sing(T['reed'], pitches(transpose(CELL, step), lo), 9 + i, 0.17, reed,
+        sing(T['reed'], semi(lo, SEQ), 9 + i, 0.17, reed,
              pan=0.34 - 0.68*(i/7.0))
+    if i == 7:                                   # the motif, once, at the hinge
+        sing(T['motif'], pitches(transpose(CELL, step), start), 16, 0.30,
+             whistle, pan=0.20)
 
 # ============ EXPOSITION, second group : bars 17-24 ============
 # A♭ major, and the second subject is MAGGIORE -- the motif with its ♭3
@@ -168,11 +219,11 @@ for i, (step, start) in enumerate(CIRCLE):
 bed(SECOND, 17, amp=0.66, cut=4600, atk=0.13)
 walk(SECOND, 17, amp=0.24)
 alberti(SECOND, 17, amp=0.40, n=16)
-for k, bar in enumerate([17, 21]):
-    sing(T['reed'], pitches(MAGGIORE, 'Ab5'), bar, 0.26, reed, pan=0.22)
-    sing(T['motif'], pitches(MAGGIORE, 'Ab4'), bar + 1, 0.22, whistle, pan=-0.28)
-sing(T['motif'], [('Eb5', 0, 1), ('C5', 1, 1), ('Ab4', 2, 2)], 23, 0.28, whistle)
-sing(T['reed'], [('Ab5', 0, 4)], 23, 0.22, reed, pan=0.22)
+sing(T['motif'], SECOND_SUBJ, 17, 0.34, whistle, pan=-0.14)
+sing(T['reed'], [(n, b, d) for n, b, d in SECOND_SUBJ if d >= 4], 17, 0.22,
+     reed, pan=0.24)
+sing(T['hammer'], [(n, b + 2, d) for n, b, d in SECOND_SUBJ if d >= 4], 17,
+     0.14, hammer, pan=0.34)
 
 # ============ DEVELOPMENT : bars 25-32 ============
 # The head only, two notes, thrown between the two voices a beat apart and

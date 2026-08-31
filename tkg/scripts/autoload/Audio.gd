@@ -46,9 +46,11 @@ const SFX_PATH := "res://assets/audio/sfx/%s.wav"
 ## So a cue named here loads that one file and behaves as a single-rung cue.
 ## Everything downstream — the crossfade, the DEEP swap, the ducking — works on
 ## a cue's gain and never looked inside it.
-const TRACKS := {
-	&"home": "res://assets/audio/music/theme/leberch-space-440026.mp3",
-}
+## Empty since the lobby got its own cue: "Five Ways Home" was written from
+## measurements of the placeholder track this table carried, and shipped as
+## proper stems.  The mechanism stays for the next time somebody has one
+## finished file and no reason to cut it up.
+const TRACKS := {}
 
 ## The one stem a TRACKS cue has. Named rather than empty so the mixer's
 ## per-stem dictionaries do not need a special case.
@@ -115,13 +117,44 @@ const CUES := {
 		[&"whistle", &"hammer"],    ## 1  the variations proper
 		[&"reed", &"glass"],        ## 2  full
 	],
+	## The album pass added five cues.  Same three-fat-rungs shape as the
+	## other single-state screens.
+	&"first_light": [
+		[&"strings", &"fx"],        ## 0  the floor: cold pad, nothing yet
+		[&"hammer", &"glass"],      ## 1  the figure gathering
+		[&"whistle", &"reed"],      ## 2  full: the climb and the grand turn
+	],
+	&"perpetuity": [
+		[&"pedal", &"fx"],          ## 0  the reading room, lights on
+		[&"harmony", &"arps"],      ## 1  the ground and its filework
+		[&"descant", &"stamp"],     ## 2  full: the descant over the ledger
+	],
+	&"core": [
+		[&"pedal", &"fx"],          ## 0  the last warm place, far off
+		[&"loop", &"ost"],          ## 1  the tick and the hammer eighths
+		[&"theme", &"perc"],        ## 2  the theme reaching for C
+		[&"answers"],               ## 3  the unresolved answer, held
+	],
+	&"fauna": [
+		[&"water", &"fx"],          ## 0  the deep, breathing
+		[&"arps", &"pulse"],        ## 1  movement below
+		[&"song", &"whale"],        ## 2  full: the song and the answer
+	],
+	&"nofault": [
+		[&"pedal", &"fx"],          ## 0  the finding, in silence
+		[&"filing", &"toll"],       ## 1  the lament sequence and the bell
+		[&"chorale", &"stamp"],     ## 2  full: the chorale over the stamps
+	],
 }
 
 ## Where a screen sits on the ladder. Router names the state; this is the only
 ## table that decides what it sounds like, so retuning the whole game's music
 ## pacing is a one-file edit.
 const STATES := {
-	&"menu":     [&"home", 2],
+	## "First Light" on the title screen: the album's opener is the game's
+	## opener.  "Five Ways Home" keeps the gameover-adjacent duties it was
+	## written for and stays reachable if a screen asks.
+	&"menu":     [&"first_light", 2],
 	&"chart":    [&"shells", 2],
 	&"ship":     [&"warm", 1],
 	&"station":  [&"warm", 2],
@@ -129,7 +162,8 @@ const STATES := {
 	&"event":    [&"business", 2],
 	&"combat":   [&"burn", 4],
 	&"boss":     [&"boss", 4],
-	&"gameover": [&"theme", 0],
+	&"gameover": [&"nofault", 2],
+	&"archive":  [&"perpetuity", 2],
 }
 
 ## Deep space swaps a cue for its darker counterpart at the same rung. Both

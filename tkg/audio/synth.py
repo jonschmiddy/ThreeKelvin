@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from scipy import signal
 
@@ -238,11 +240,63 @@ def hammer(f, dur, amp=1.0, bright=1.0):
     thump = lp(np.random.randn(N), 2600)*np.exp(-t/0.006)*0.18
     e = np.ones(N); a = int(0.0015*SR)
     e[:a] = np.linspace(0, 1, a)
-    return amp*(y*0.42 + thump)*e
+    return fade_tail(amp*(y*0.42 + thump)*e)
 
 def noise_swell(dur, amp=1.0):
     N = int(dur*SR); t = np.arange(N)/SR
-    return amp*bp(np.random.randn(N), 300, 6000)*(t/dur)**2.4*0.5
+    return fade_tail(amp*bp(np.random.randn(N), 300, 6000)*(t/dur)**2.4*0.5)
+
+def sweep_lp(x, fc, order=2, steps=64):
+    """Low-pass with a moving cutoff, without a click at every step.
+
+    The obvious way to sweep a filter in numpy is to chop the signal into
+    blocks and call `lfilter` on each at a new cutoff.  That is what `drone()`
+    used to do, in 0.25 s blocks, and it is wrong in a way that stays
+    invisible until something with a low end plays it: `lfilter` starts from
+    ZERO STATE on every call, so each block opens with the filter's own
+    startup transient and every boundary is a step.  It put a pop every
+    0.25 s -- 4 Hz, dead regular -- through every drone in the game.  Measured
+    on the boss cue, which is mostly drone: 382 pops in the sub stem and 207
+    in the drone stem.
+
+    Two changes.  The filter STATE carries across blocks, which is what
+    removes the discontinuity; and the cutoff is quantised to `steps` bands so
+    coefficients change only when they meaningfully differ, keeping the
+    remaining swap transients few and small.  Blocks are the runs between band
+    changes rather than a fixed length, so a slow sweep barely re-designs.
+    """
+    fc = np.clip(np.asarray(fc, dtype=float), 20.0, SR*0.45)
+    lo, hi = float(fc.min()), float(fc.max())
+    if hi - lo < 1.0:
+        return lp(x, lo, order)
+    band = np.clip(((fc - lo)/(hi - lo)*(steps - 1)).round().astype(int),
+                   0, steps - 1)
+    out = np.empty_like(x)
+    zi, start = None, 0
+    for stop in list(np.flatnonzero(np.diff(band)) + 1) + [len(x)]:
+        f = lo + (hi - lo)*band[start]/(steps - 1)
+        b, a = signal.butter(order, min(f/(SR/2), 0.99), 'low')
+        if zi is None:
+            zi = signal.lfilter_zi(b, a)*x[0]
+        out[start:stop], zi = signal.lfilter(b, a, x[start:stop], zi=zi)
+        start = stop
+    return out
+
+
+def fade_tail(y, ms=12.0):
+    """Cosine fade on the last `ms`, so a voice cannot end mid-cycle.
+
+    `metal`, `heart`, `impact`, `rev_swell`, `noise_swell` and `hammer` all
+    ended at between 2% and 22% of their own peak, which is a step to zero and
+    a click.  Named `fade_tail` and not `tail` on purpose: `impact()` already
+    has a local called `tail`, and shadowing it here would have been silent.
+    """
+    n = min(len(y), int(ms*SR/1000.0))
+    if n > 1:
+        y = y.copy()
+        y[-n:] *= 0.5*(1 + np.cos(np.linspace(0, np.pi, n)))
+    return y
+
 
 # ---------------- effects ----------------
 
@@ -276,14 +330,85 @@ def delay(x_st, time_s, fb=0.42, mix=0.32):
         y += mix*g*tap[::-1]          # ping-pong
     return y
 
+def wah(x_st, lo=380.0, hi=2100.0, q=5.0, attack=0.004, release=0.11,
+        mix=0.85):
+    """Auto-wah: an envelope follower sweeping a resonant bandpass.
+
+    Each attack throws the filter open toward `hi` and the release lets it
+    fall back toward `lo` -- the mouth of the effect.  The filter is a
+    time-varying biquad with coefficients quantised to 48 log-spaced bands
+    and state carried across every block (the sweep_lp trick), so the sweep
+    is continuous and there is no zipper noise.  The wet path is
+    renormalised to the dry RMS before mixing: a resonant bandpass eats
+    everything outside the band, and without that the effect doubles as a
+    volume drop."""
+    from scipy.ndimage import maximum_filter1d
+    n = x_st.shape[1]
+    drive = np.abs(x_st).mean(axis=0)
+    env = maximum_filter1d(drive, max(1, int(attack*SR)))
+    a_r = np.exp(-1.0/(release*SR))
+    env = signal.lfilter([1 - a_r], [1, -a_r], env)
+    ref = np.percentile(env, 97.0) + 1e-9
+    env = np.clip(env/ref, 0.0, 1.0) ** 0.6
+    f = lo * (hi/lo) ** env
+    bands = np.clip((np.log(f/lo) / np.log(hi/lo) * 47).astype(int), 0, 47)
+    fc = lo * (hi/lo) ** (np.arange(48)/47.0)
+    coeff = []
+    for fk in fc:
+        w0 = 2*np.pi*fk/SR
+        al = np.sin(w0)/(2*q)
+        a0 = 1 + al
+        coeff.append(([al/a0, 0.0, -al/a0], [1.0, -2*np.cos(w0)/a0, (1-al)/a0]))
+    wet = np.zeros_like(x_st)
+    B = 128
+    zi = [np.zeros(2), np.zeros(2)]
+    for i in range(0, n, B):
+        k = bands[min(i + B//2, n-1)]
+        b, a = coeff[k]
+        for c in (0, 1):
+            wet[c, i:i+B], zi[c] = signal.lfilter(b, a, x_st[c, i:i+B], zi=zi[c])
+    dr = np.sqrt(np.mean(x_st**2)); wr = np.sqrt(np.mean(wet**2))
+    if wr > 1e-9:
+        wet *= dr/wr
+    return (1-mix)*x_st + mix*wet
+
+
 # ---------------- arrangement helpers ----------------
+
+#: Humanization, applied at placement.
+#:
+#: The magnitude comes from the sensorimotor-synchronization literature:
+#: musicians locked to an established beat hold a per-note asynchrony of
+#: roughly 4-15 ms SD (Repp), so a 5 ms sigma is a tight player.  The
+#: STRUCTURE matters as much as the size, and the first version had it
+#: wrong: it drew white noise, so consecutive notes could lurch 20+ ms in
+#: opposite directions -- and a lurch is what sloppiness IS.  A real player
+#: phase-corrects: the error wanders smoothly and is pulled back toward the
+#: grid, which makes adjacent deviations strongly correlated.  So each
+#: Track -- one player -- carries an AR(1) error state: e' = RHO*e + w,
+#: with w scaled so the marginal SD stays HUMAN_T.  Slow drift, constant
+#: correction, no note-to-note flip-flops.
+#:
+#: Draws come from numpy's global generator, which every score seeds, so
+#: renders are deterministic -- cosmetic RNG in the repo's own sense.  The
+#: stems still sum to the mix exactly: jitter happens before the bus.
+HUMAN_T = 0.005
+HUMAN_DB = 0.7
+HUMAN_RHO = 0.72
+
 
 class Track:
     def __init__(self, bars):
         self.n = int(bars*BAR*SR) + SR*3
         self.buf = np.zeros((2, self.n))
+        self._terr = 0.0                    # this player's current phase error
     def add(self, x, at_beat, pan=0.0, gain=1.0):
-        i = int(at_beat*SPB*SR)
+        if HUMAN_T > 0:
+            self._terr = (HUMAN_RHO*self._terr +
+                          np.random.randn()*HUMAN_T*(1-HUMAN_RHO**2)**0.5)
+            at_beat = at_beat + self._terr/SPB
+            gain = gain * 10**(np.random.randn()*HUMAN_DB/20.0)
+        i = max(0, int(at_beat*SPB*SR))
         j = min(self.n, i+len(x))
         if j <= i: return
         seg = x[:j-i]*gain
@@ -303,10 +428,7 @@ def drone(f, dur, amp=1.0, cut0=280, cut1=900):
         y += saw(f*(1+dt), N)/5
     y += 0.25*np.sin(2*np.pi*f*0.5*t)                 # sub octave
     op = np.clip(t/(dur*0.55), 0, 1)
-    seg = int(SR*0.25); out = np.zeros(N)
-    for i in range(0, N, seg):                        # stepped filter sweep
-        fc = cut0 + (cut1-cut0)*op[min(i, N-1)]
-        out[i:i+seg] = lp(y[i:i+seg], fc, 2)
+    out = sweep_lp(y, cut0 + (cut1-cut0)*op, 2)
     return amp*out*env_adsr(N, dur*0.30, dur*0.15, 0.85, dur*0.32)
 
 def cluster(freqs, dur, amp=1.0, cut=1400):
@@ -333,7 +455,7 @@ def metal(f, dur, amp=1.0):
     N = int(dur*SR); t = np.arange(N)/SR; y = np.zeros(N)
     for r, a in [(1,1.0),(1.41,0.62),(2.37,0.44),(3.16,0.3),(4.53,0.2),(6.11,0.12)]:
         y += a*np.sin(2*np.pi*f*r*t + np.random.rand()*6)*np.exp(-t/(dur*0.42/r**0.4))
-    return amp*y*0.30
+    return fade_tail(amp*y*0.30)
 
 def heart(amp=1.0):
     """Two-thump pulse. Felt more than heard."""
@@ -342,7 +464,7 @@ def heart(amp=1.0):
         N = int(0.34*SR); t = np.arange(N)/SR
         f = 62*np.exp(-t/0.05) + 31
         th = np.sin(2*np.pi*np.cumsum(f)/SR)*np.exp(-t/0.11)*g
-        i = int(off*SR); out[i:i+N] += th
+        i = int(off*SR); out[i:i+N] += fade_tail(th, 25.0)
     return amp*out*0.9
 
 def impact(amp=1.0, dur=3.4):
@@ -350,7 +472,7 @@ def impact(amp=1.0, dur=3.4):
     boom = np.sin(2*np.pi*np.cumsum(48*np.exp(-t/0.35)+27)/SR)*np.exp(-t/0.9)
     crack = lp(np.random.randn(N), 900)*np.exp(-t/0.22)*0.5
     tail = bp(np.random.randn(N), 120, 2200)*np.exp(-t/1.5)*0.16
-    return amp*np.tanh(1.4*(boom+crack+tail))*0.8
+    return fade_tail(amp*np.tanh(1.4*(boom+crack+tail))*0.8)
 
 def rev_swell(dur, amp=1.0, f=None):
     """Reversed rise — lands on the downbeat after it."""
@@ -358,7 +480,7 @@ def rev_swell(dur, amp=1.0, f=None):
     n = bp(np.random.randn(N), 200, 5200)
     if f: n = n*0.5 + np.sin(2*np.pi*f*t)*0.5
     y = n*np.exp(-t/(dur*0.4))
-    return amp*y[::-1]*0.55
+    return fade_tail(amp*y[::-1]*0.55)
 
 def whistle_bend(f, dur, amp=1.0, cents=0.0, vib=0.013):
     """Whistle whose pitch drifts by `cents` across its length."""
@@ -369,6 +491,38 @@ def whistle_bend(f, dur, amp=1.0, cents=0.0, vib=0.013):
     y = np.sin(ph) + 0.05*np.sin(2*ph)
     br = hp(np.random.randn(N), 2200)*0.014*np.exp(-t/0.2)
     return amp*(y*env_adsr(N, 0.09, 0.14, 0.85, min(0.5, dur*0.45)) + br)
+
+def organ(f, dur, amp=1.0, bright=1.0):
+    """A flue pipe: near-square, a chiff at the start, and wind.
+
+    An organ rank is one pipe per note and the pipe is close to a stopped or
+    open cylinder, so the tone is a handful of strong low harmonics and very
+    little else -- nothing like the sawtooth stack a synth pad uses.  What
+    makes an organ sound like an organ is not the single pipe, it is that
+    REGISTRATION sounds several ranks at once at 16', 8', 4', 2 2/3' and 2'
+    -- octaves and a twelfth above the written note.  That is left to the
+    score, because it is a musical decision and not a timbre.
+
+    The chiff is the puff of air before the pipe speaks, and it is the one
+    transient an organ has: no dynamic control, no attack shaping, the note
+    is either sounding or it is not.
+    """
+    N = int(dur*SR); t = np.arange(N)/SR
+    y = np.zeros(N)
+    for k, a in ((1, 1.0), (2, 0.30), (3, 0.16*bright), (4, 0.10),
+                 (5, 0.05*bright), (6, 0.03)):
+        if f*k > SR/2.2:
+            break
+        y += a*np.sin(2*np.pi*f*k*t)
+    y /= 1.64
+    chiff = bp(np.random.randn(N), f*1.5, min(f*6, SR/2.2))*np.exp(-t/0.018)*0.09
+    wind = bp(np.random.randn(N), 400, 3000)*0.004
+    e = np.ones(N)
+    a_n = int(0.022*SR); r_n = min(int(0.09*SR), N//3)
+    e[:a_n] = np.linspace(0, 1, a_n)**0.6
+    e[-r_n:] = np.linspace(1, 0, r_n)**1.4
+    return amp*(y + chiff + wind)*e
+
 
 def air(dur, amp=1.0, lo=120, hi=1400):
     N = int(dur*SR); t = np.arange(N)/SR
@@ -454,6 +608,21 @@ def master(stems, shelf=(0.25, 90), drive=1.25, peak=0.89,
             k = int(fade_out[0]*SR); env[-k:] = np.linspace(1, 0, k)**fade_out[1]
         bus = bus*env
         printed = {n: v*env for n, v in printed.items()}
+
+    # A stem may legitimately sit above the mix -- stems cancel each other, so
+    # the sum can peak lower than a part of it.  What it may NOT do is pass
+    # 1.0, because `write_wav` clips there and a clipped stem no longer sums
+    # back to the mix.  That is the one property the runtime ladder rests on,
+    # and it fails silently: the cue sounds fine, every file is written, and
+    # only a sample-by-sample comparison shows it.  Found the hard way, on a
+    # sampled render whose string bed clipped 36 samples out of 7.3 million
+    # and took the sum error from 5 LSB to 2508.
+    for n, v in printed.items():
+        m = float(np.max(np.abs(v)))
+        if m > 1.0:
+            print('  ! stem %r peaks at %.3f -- it will clip on write and the '
+                  'stems will no longer sum to the mix. Lower it in the score.'
+                  % (n, m))
     return bus, printed
 
 def write_wav(path, x):
@@ -461,3 +630,42 @@ def write_wav(path, x):
     import os, scipy.io.wavfile as wav
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
     wav.write(path, SR, (np.clip(x.T, -1, 1)*32767).astype(np.int16))
+
+# ================= recorded instruments =================
+# Every instrument above is `f, dur, amp -> mono array`, and no score knows
+# what is behind that.  So a set of recorded instruments with the same
+# signatures is a drop-in, and `sampler.py` is exactly that -- see its
+# docstring for which doors it takes and why the bass, the drone and the
+# blade keep their oscillators.
+#
+# It has to happen before the score runs `from synth import *`, because that
+# copies these names into the score's namespace once.  Two ways in:
+#
+#     import synth; synth.use_samples(); from synth import *
+#     TK_VOICES=sampled python3 arrange.py        # each score is its own
+#                                                 # process, so this reaches
+#                                                 # all eight
+# `TK_VOICES=sampled+drums` swaps the kit as well.  It is off by default
+# because a recorded kit and a synthesised one are a real choice here rather
+# than an upgrade: see sampler.DRUMS.
+
+def use_samples(drums=True, names=None):
+    """Rebind the instrument doors to recorded samples. Returns what changed.
+
+    The FULL set by default now -- melodic, texture and kit.  The hybrid
+    (oscillators under sampled melody) is still reachable with
+    names=sampler.MELODIC, but listening ruled against it: a synthesised
+    texture next to a recorded instrument reads as a different room.
+    """
+    import sampler
+    g = globals()
+    chosen = names or (sampler.DOORS if drums else
+                       sampler.MELODIC + sampler.TEXTURE)
+    for n in chosen:
+        g[n] = getattr(sampler, n)
+    return tuple(chosen)
+
+
+_v = os.environ.get('TK_VOICES', '')
+if _v.startswith('sampled'):
+    use_samples(drums='drums' in _v)

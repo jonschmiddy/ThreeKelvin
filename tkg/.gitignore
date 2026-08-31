@@ -26,4 +26,20 @@ Thumbs.db
 # loads is encoded into `assets/audio/` by `audio/build.py`. The raw WAVs in
 # between run to about 850 MB and regenerate in half a minute.
 audio/out/
+# alternate backends (out_s, out_p) and one-off trial renders
+audio/out_*/
 audio/__pycache__/
+
+# CC0 sample libraries fetched by `audio/fetch_samples.py` (VSCO-2 CE and VCSL,
+# both public domain). Build-environment only -- the game ships the rendered
+# stems in assets/audio/, never the source samples.
+audio/samples/
+
+# The listener: MOSS-Music (Apache-2.0), an audio-understanding model used as
+# ears for iterative refinement -- audio in, critique out.  18 GB of weights
+# and a venv, build-environment only, like audio/samples/.
+audio/weights/
+audio/listener-env/
+audio/MOSS-Music/
+audio/musicgen-mlx/
+audio/musicgen-env/
