@@ -287,6 +287,34 @@ def build_all():
             *(t/0.01).clip(0, 1)*0.20, 0.00)
     put(ar, bell(hz('F6'), 0.70, 0.30), 0.10)
     S['archive_found'] = (room(st(ar, 0.10), 0.28), 0.40)
+    # A boss dies twice: the hit, then the reactor. First detonation like
+    # the small one, a beat of silence -- wreckage coasting -- then the
+    # secondary, deeper and slower, and the tritone (B against F) ringing
+    # out in the debris: the dread cue's own note, dying with its ship.
+    N = int(2.30*SR); t = np.arange(N)/SR
+    bx = np.zeros(int(2.30*SR))
+    d1 = np.sin(2*np.pi*hz('F1')*t[:int(0.5*SR)]*(1-0.10*t[:int(0.5*SR)]))
+    d1 = np.tanh((d1*np.exp(-t[:int(0.5*SR)]/0.14)
+                  + lp(np.random.randn(int(0.5*SR)), 1800)
+                  * np.exp(-t[:int(0.5*SR)]/0.08)*0.8)*2.2)/2.2
+    put(bx, d1, 0.00)
+    M = int(1.5*SR); tm = np.arange(M)/SR
+    d2 = np.sin(2*np.pi*hz('F0' if False else 'F1')*0.5*tm*(1-0.06*tm))
+    d2 = np.tanh((d2*np.exp(-tm/0.30)
+                  + lp(np.random.randn(M), 900)*np.exp(-tm/0.20)*0.7)*2.0)/2.0
+    put(bx, d2, 0.55, 1.0)
+    put(bx, bp(np.random.randn(M), 1800, 8000)*np.exp(-tm/0.55)*0.14, 0.60)
+    put(bx, metal(hz('B4'), 1.4, 0.30), 0.62)
+    put(bx, metal(hz('F5'), 1.2, 0.20), 0.70)
+    S['explosion_boss'] = (room(st(bx), 0.30), 1.00)
+    # Fauna do not explode. One of the warm things going out: a low bowed
+    # note that falls a minor third and a small bell over it, quiet, and
+    # then nothing. The gesture is the whale-song's leap, run downward.
+    ff = np.zeros(int(2.00*SR))
+    put(ff, bowed(hz('Ab2'), 0.90, 0.40, 3.0), 0.00)
+    put(ff, bowed(hz('F2'), 1.20, 0.36, 3.2), 0.70)
+    put(ff, bell(hz('Ab5'), 1.1, 0.20), 0.75)
+    S['fauna_falls'] = (room(st(ff), 0.34), 0.62)
     return S
 
 def main(out_dir='out/sfx'):

@@ -240,10 +240,7 @@ func _connect_signals() -> void:
 	Sig.combat_started.connect(func(_n: String) -> void: play(&"combat_start"))
 	Sig.combat_ended.connect(_on_combat_ended)
 	Sig.jumped.connect(func(_i: int) -> void: play(&"jump"))
-	# A kill flashes warm and dies cold. limit_ms: a card that clears the
-	# board is one explosion, not a drum roll.
-	Sig.enemy_destroyed.connect(func(_w: int) -> void:
-		play(&"explosion_small", 0.09, 160))
+	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
 	# Paperwork: the ledger stamps with the institutions' bare fifth, same
 	# figure the score's stamp lanes carry.
 	Sig.contracts_changed.connect(func() -> void:
@@ -481,6 +478,22 @@ func _poll_resources() -> void:
 		play(&"loot_drop", 0.03, 200)
 	_last_credits = credits
 	_last_cargo = cargo
+
+## A kill flashes warm and dies cold -- but WHAT died decides the sound.
+## Bosses get the two-stage reactor death with the tritone in the debris;
+## fauna do not explode at all, because one of the warm things going out is
+## a loss even when it was trying to eat you. limit_ms: a card that clears
+## a board is one explosion, not a drum roll.
+func _on_enemy_destroyed(who: int) -> void:
+	var t: EnemyTemplate = null
+	if Router.combat != null and who >= 0 and who < Router.combat.enemies.size():
+		t = Router.combat.enemies[who].template
+	if t != null and t.fauna:
+		play(&"fauna_falls", 0.04, 400)
+	elif t != null and (t.boss or t.miniboss):
+		play(&"explosion_boss", 0.03, 400)
+	else:
+		play(&"explosion_small", 0.09, 160)
 
 func _on_damage(_amount: int, to_player: bool, _who: int) -> void:
 	if to_player:
