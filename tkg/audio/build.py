@@ -166,7 +166,11 @@ def build_music(only=()):
     print('music -> %.1f MB' % (total/1e6))
 
 def build_sfx():
-    import sfx as sfxmod
+    # sfx2 is the shipping set -- the hybrid redesign (recorded material +
+    # foley palette + tonal glue).  sfx.py v1 stays runnable as the pure
+    # synthesis reference.  sfx2 plays recorded doors, so it needs voices.
+    os.environ.setdefault('TK_VOICES', 'sampled')
+    import sfx2 as sfxmod
     src = os.path.join(OUT, 'sfx')
     sfxmod.main(src)
     d = os.path.join(ASSETS, 'sfx')
