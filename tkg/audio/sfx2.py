@@ -248,6 +248,59 @@ def build_all():
     put(cl, tone('Ab4', 0.28, 0.34), 0.64)
     S['svc_coolant'] = (room(st(cl), 0.14), 0.50)
 
+    # ---- the shelf and the rack ---------------------------------------
+    # Five more desk actions, each its own gesture.  The blanket rule that
+    # played module_install for every ship_changed made a sale sound like
+    # an installation; now the sound follows the ACTION, wired at the UI.
+    # Buying: the part comes over the counter and into the hold -- a slide,
+    # a stow thud, and the credits tick going AWAY (down, F to C below).
+    by = np.zeros(int(0.60*SR))
+    put(by, foley('metal_small', 0.16, lpf=6000), 0.00, 0.7)
+    put(by, thunk(hz('F2'), 0.16, 0.2), 0.16, 0.6)
+    put(by, click(hz('C5'), 0.05, tone=0.45), 0.30, 0.5)
+    put(by, click(hz('F4'), 0.06, tone=0.45), 0.40, 0.5)
+    S['shop_buy'] = (room(st(by), 0.14), 0.48)
+    # Selling: the same slide the other way; scrap_gain rings the credits,
+    # so this is just the part leaving the hold.
+    sl = np.zeros(int(0.40*SR))
+    put(sl, foley('paper_slide', 0.14, gain=0.5, hpf=400), 0.00)
+    put(sl, foley('metal_small', 0.14, gain=0.7, lpf=4000), 0.12)
+    S['shop_sell'] = (room(st(sl), 0.12), 0.40)
+    # Scrapping: a teardown, not a transaction. Ratchet backing bolts out,
+    # parts hitting the tray, and no resolving pitch -- the module is gone.
+    sc = np.zeros(int(0.95*SR))
+    put(sc, foley('ratchet', 0.13, hpf=400), 0.00, 0.8)
+    put(sc, foley('ratchet', 0.11, hpf=600), 0.18, 0.6)
+    put(sc, foley('debris', 0.50, hpf=500), 0.32, 0.9)
+    put(sc, thunk(hz('Eb2'), 0.18, 0.25), 0.34, 0.5)
+    S['module_scrap'] = (room(st(sc), 0.16), 0.55)
+    # Uninstall: the install run backwards -- latch opens, servo backs out.
+    un = np.zeros(int(0.45*SR))
+    put(un, foley('latch', 0.09), 0.00, 0.9)
+    put(un, foley('servo_move', 0.22, lpf=3000), 0.10, 0.7)
+    S['module_uninstall'] = (room(st(un), 0.14), 0.55)
+    # A hull transfer is the biggest purchase on the desk: dock-scale
+    # machinery, two heavy seats, and then the NEW ship answers warm --
+    # same F the old one spoke.
+    ht = np.zeros(int(1.60*SR))
+    put(ht, foley('servo_move', 0.45, lpf=2000), 0.00, 0.7)
+    put(ht, foley('metal_big', 0.40, lpf=2500), 0.50, 0.9)
+    put(ht, foley('latch', 0.12), 0.95, 0.9)
+    put(ht, thunk(hz('F1'), 0.35, 0.3), 0.95, 0.7)
+    put(ht, tone('F4', 0.40, 0.30), 1.10)
+    put(ht, tone('C5', 0.35, 0.22), 1.22)
+    S['hull_transfer'] = (room(st(ht), 0.22), 0.72)
+    # Fabrication: work happening -- servo, sparks, and the finished part
+    # dropped on the bench with a clean fifth over it.
+    fb = np.zeros(int(1.10*SR))
+    put(fb, foley('servo_move', 0.30, lpf=4500), 0.00, 0.8)
+    put(fb, foley('static_tick', 0.10, hpf=1500), 0.28, 0.7)
+    put(fb, foley('static_tick', 0.08, hpf=2000), 0.42, 0.5)
+    put(fb, foley('metal_small', 0.18), 0.62, 0.8)
+    put(fb, tone('F5', 0.22, 0.26), 0.70)
+    put(fb, tone('C6', 0.20, 0.20), 0.80)
+    S['fabricate'] = (room(st(fb), 0.16), 0.52)
+
     # ---- run-level stings ---------------------------------------------
     cb = np.zeros(int(1.80*SR))
     put(cb, _gong(0.6, 1.4), 0.00)

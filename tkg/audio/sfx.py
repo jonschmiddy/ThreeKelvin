@@ -389,6 +389,8 @@ WIDTH = {
     'jettison': 0.50,
     'svc_repair': 0.30, 'svc_refuel': 0.30, 'svc_purge': 0.25,
     'svc_coolant': 0.30,
+    'shop_buy': 0.25, 'shop_sell': 0.25, 'module_scrap': 0.40,
+    'module_uninstall': 0.25, 'hull_transfer': 0.50, 'fabricate': 0.30,
     'victory': 0.60, 'death_sting': 0.70,
 }
 WIDTH_DEFAULT = 0.35

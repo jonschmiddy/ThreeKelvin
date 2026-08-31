@@ -1973,10 +1973,18 @@ func _on_bag(action: String, thing: Variant) -> void:
 
 func _on_salvage(action: String, thing: Variant) -> void:
 	match action:
-		"install": Run.install_module(thing as ModuleData)
-		"scrap": Run.scrap_module(thing as ModuleData)
-		"uninstall": Run.uninstall_module(thing as ModuleData)
-		"take_hull": Run.transfer_to_hull(thing as HullData)
+		"install":
+			Audio.play(&"module_install", 0.04)
+			Run.install_module(thing as ModuleData)
+		"scrap":
+			Audio.play(&"module_scrap", 0.05)
+			Run.scrap_module(thing as ModuleData)
+		"uninstall":
+			Audio.play(&"module_uninstall", 0.05)
+			Run.uninstall_module(thing as ModuleData)
+		"take_hull":
+			Audio.play(&"hull_transfer", 0.03)
+			Run.transfer_to_hull(thing as HullData)
 		"leave_hull":
 			Run.found_hull = null
 	_refresh()

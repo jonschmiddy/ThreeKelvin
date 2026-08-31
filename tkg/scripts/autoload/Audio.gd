@@ -253,7 +253,10 @@ func _connect_signals() -> void:
 	# some routes swap twice on the way somewhere).
 	Sig.screen_changed.connect(func() -> void:
 		play(&"ui_tab", 0.04, 350))
-	Sig.ship_changed.connect(func() -> void: play(&"module_install", 0.04, 120))
+	# ship_changed used to play module_install for EVERYTHING -- a sale
+	# sounded like an installation. The desk actions now carry their own
+	# sounds at the UI call sites (StationScreen/SectorScreen _on_action),
+	# which also keeps bot pilots from clicking speakers they do not have.
 	Sig.run_ended.connect(_on_run_ended)
 	# Draw on turn start, not on hand_changed — the hand also changes when a
 	# card leaves it, which put a draw sound on top of every card played.

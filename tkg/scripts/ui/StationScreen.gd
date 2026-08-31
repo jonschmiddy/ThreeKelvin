@@ -700,6 +700,7 @@ func _fabricate(r: Dictionary) -> void:
 	var line := Fabricator.make(Run.node_at(), r)
 	if line.is_empty():
 		return
+	Audio.play(&"fabricate", 0.04)
 	Run.log_line(line, &"good")
 
 func _on_action(action: String, thing: Variant) -> void:
@@ -728,6 +729,7 @@ func _on_action(action: String, thing: Variant) -> void:
 				return
 			Run.add_credits(-price)
 			Run.stow(m)
+			Audio.play(&"shop_buy", 0.05)
 			Run.log_line("Bought %s for %d credits." % [m.name, price], &"good")
 			Sig.ship_changed.emit()
 		"sell":
@@ -740,6 +742,7 @@ func _on_action(action: String, thing: Variant) -> void:
 			if paid <= 0:
 				return
 			Run.take_from_hold(sm)
+			Audio.play(&"shop_sell", 0.06)
 			Run.add_credits(paid)
 			n.trades += 1
 			Run.log_line("Sold %s for %d credits." % [sm.name, paid], &"good")
@@ -758,9 +761,14 @@ func _on_action(action: String, thing: Variant) -> void:
 				_refresh()
 				return
 			Run.add_credits(-price2)
+			Audio.play(&"hull_transfer", 0.03)
 			Run.transfer_to_hull(h)
-		"install": Run.install_module(thing as ModuleData)
-		"scrap": Run.scrap_module(thing as ModuleData)
+		"install":
+			Audio.play(&"module_install", 0.04)
+			Run.install_module(thing as ModuleData)
+		"scrap":
+			Audio.play(&"module_scrap", 0.05)
+			Run.scrap_module(thing as ModuleData)
 	_refresh()
 
 

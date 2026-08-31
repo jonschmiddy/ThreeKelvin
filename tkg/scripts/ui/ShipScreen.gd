@@ -1175,6 +1175,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 			Run.installed.append(m)
 			_lifted = null
 		Sig.ship_changed.emit()
+		Audio.play(&"module_install", 0.05)
 		Run.log_line("Moved %s." % m.name, &"sys")
 		_refresh()
 		return
@@ -1209,6 +1210,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 	Run.installed.append(m)
 	_lifted = null
 	Sig.ship_changed.emit()
+	Audio.play(&"module_install", 0.05)
 	Run.log_line("Fitted %s." % m.name, &"good")
 	_refresh()
 
