@@ -262,6 +262,39 @@ func run(tree: SceneTree) -> void:
 		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
 		tree.quit()
 		return
+	# LIVE_CARD_NUMBERS section 3, photographed before and after. Poses a lock-on
+	# and then emits the SIGNAL rather than calling the refresh, because the wire
+	# under test is exactly that: whether a modifier written in `CardResolver`
+	# reaches faces already sitting in the hand.
+	if "live" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 6
+		Router.start_combat(DB.enemies[&"cutter"], [], false)
+		for iL in 60:
+			await RenderingServer.frame_post_draw
+		var sl := Router.current as SectorScreen
+		if sl != null and sl.combat != null:
+			tree.root.get_texture().get_image().save_png("user://live_before.png")
+			print("wrote ", ProjectSettings.globalize_path("user://live_before.png"))
+			var cl := sl.combat
+			for cc in cl.hand:
+				print("  BEFORE %-22s printed %d  live %d" % [
+					(cc as CardData).name, (cc as CardData).damage,
+					cl.card_output(cc as CardData)])
+			cl.lock_on = 4
+			cl.adapt_bonus = 2
+			cl.attacks_this_turn = 1
+			Sig.player_combat_state_changed.emit()
+			for iL2 in 8:
+				await RenderingServer.frame_post_draw
+			for cc in cl.hand:
+				print("  AFTER  %-22s printed %d  live %d | %s" % [
+					(cc as CardData).name, (cc as CardData).damage,
+					cl.card_output(cc as CardData),
+					(cc as CardData).describe_rich(cl.card_output(cc as CardData))])
+			tree.root.get_texture().get_image().save_png("user://live_after.png")
+			print("wrote ", ProjectSettings.globalize_path("user://live_after.png"))
+		tree.quit()
+		return
 	if "status" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		# WHICH CONTACT, because hull SIZE is what the readouts' placement

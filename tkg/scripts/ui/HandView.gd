@@ -68,7 +68,11 @@ func _baseline() -> float:
 ## deal what is new, then slide everything to where it now belongs.
 ## `choosing` puts the hand into picking mode: nothing is playable, every card
 ## is clickable, and a click reports which one rather than playing it.
-func sync(cards: Array, playable: Callable, choosing: bool = false) -> void:
+## `live` answers "what does this card throw per hit right now" -- see
+## `Combat.card_output`. Left unset the faces print what they were printed with,
+## which is what every non-combat caller wants.
+func sync(cards: Array, playable: Callable, choosing: bool = false,
+		live: Callable = Callable()) -> void:
 	var keep: Array[CardView] = []
 	for c in cards:
 		var found: CardView = null
@@ -97,6 +101,12 @@ func sync(cards: Array, playable: Callable, choosing: bool = false) -> void:
 		else:
 			found.set_playable(playable.call(c))
 		found.set_picking(choosing)
+		# AFTER the branch, so it reaches kept cards as well as new ones. `sync`
+		# only calls `setup` for a card it has not seen, and every modifier this
+		# figure depends on -- lock-on, salvo, adapt, heat -- moves while the
+		# card sits in your hand untouched. Refreshing only new views would mean
+		# the number went live for exactly the cards that had just been drawn.
+		found.set_live(live.call(c) if live.is_valid() else -1)
 		keep.append(found)
 
 	for v in _views:

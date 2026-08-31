@@ -650,13 +650,24 @@ func play(index: int, target_index: int = -1) -> void:
 ## What this card would actually land, right now, after the enemy's block and
 ## brace. Mirrors CardResolver's attack maths without mutating anything — if the
 ## two ever drift, the number on screen becomes a lie, so keep them together.
-func preview_damage(c: CardData, target_index: int = -1) -> int:
+## WHAT ONE HIT OF THIS CARD THROWS, before anybody's mitigation.
+##
+## The face's number, and the reason it is a separate function from
+## `preview_damage`: that one folds in THE TARGET'S block and brace, so with
+## several enemies on the board it has no single right answer for a card sitting
+## in your hand -- the same card reads 12 against one and 4 against another. What
+## the card will THROW is true regardless of who it is pointed at.
+##
+## `preview_damage` calls this and then spends a copy of the target's mitigation
+## over `hits`. One chain, two readings; a second copy of this arithmetic is
+## exactly the drift DOC_RECONCILIATION.md exists to clean up.
+##
+## PER HIT, NOT PER CARD. `hits` is already drawn structurally on the face, and
+## per-hit is the figure the modifiers actually move: lock-on adds to `per`, so
+## on a three-hit card it is worth three times as much, which is the thing the
+## card should be teaching.
+func card_output(c: CardData) -> int:
 	if finished:
-		return 0
-	var e := enemy
-	if target_index >= 0 and target_index < enemies.size() and enemies[target_index].hp > 0:
-		e = enemies[target_index]
-	if e == null:
 		return 0
 	var per := 0
 	if c.damage_equals_heat:
@@ -671,7 +682,21 @@ func preview_damage(c: CardData, target_index: int = -1) -> int:
 			per += adapt_bonus
 		if c.salvo > 0 and salvo_live(c):
 			per += c.salvo
+		# LOCK-ON IS INSIDE THE `elif`, deliberately and as it always was: a card
+		# whose damage IS your heat does not also get the sight bonus.
 		per += lock_on
+	return per
+
+
+func preview_damage(c: CardData, target_index: int = -1) -> int:
+	if finished:
+		return 0
+	var e := enemy
+	if target_index >= 0 and target_index < enemies.size() and enemies[target_index].hp > 0:
+		e = enemies[target_index]
+	if e == null:
+		return 0
+	var per := card_output(c)
 	if per <= 0:
 		return 0
 

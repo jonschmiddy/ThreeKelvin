@@ -248,7 +248,17 @@ func setup(c: Combat = null) -> void:
 	Sig.map_changed.connect(_refresh)
 	Sig.hand_changed.connect(_refresh_hand)
 	Sig.enemy_changed.connect(_refresh_enemy)
-	Sig.player_combat_state_changed.connect(_refresh_player)
+	# THE HAND TOO, not just the ship panel. Every modifier the card faces show --
+	# lock-on, salvo, adapt, heat -- is written in `CardResolver` when a card
+	# resolves, and this is the signal that fires for it. Hooked here as ONE
+	# refresh rather than four separate hooks, which is what the brief's section
+	# 5 recommends: the alternative is subscribing the hand to heat, lock-on,
+	# adapt and the turn's first attack independently and hoping nobody adds a
+	# fifth modifier without remembering the fifth hook.
+	Sig.player_combat_state_changed.connect(func() -> void:
+		_refresh_player()
+		if fighting():
+			_refresh_hand())
 	# The party moved: a partner ended their turn, or shot something. The hand
 	# panel carries the WAITING button and the enemy panel carries their hits.
 	Sig.party_fight_changed.connect(func(_at: int) -> void:
@@ -1810,7 +1820,8 @@ func _refresh_hand() -> void:
 		return
 	# The hand reconciles rather than rebuilds, so cards slide into the gap a
 	# played card leaves instead of the whole row snapping to new positions.
-	_hand.sync(combat.hand, func(c): return combat.can_play(c), combat.choosing > 0)
+	_hand.sync(combat.hand, func(c): return combat.can_play(c), combat.choosing > 0,
+		func(c): return combat.card_output(c))
 	# A card that left the hand takes its panel with it. The panel is closed by
 	# the card's own exit event, and a card that was played or discarded never
 	# sends one — its view flies off and fades on a tween, so it is not even

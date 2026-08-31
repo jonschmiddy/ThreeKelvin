@@ -387,21 +387,43 @@ func keywords() -> Array:
 ##
 ## Longest first. "Brace from heat" contains "Brace", and replacing the short
 ## one first would leave markup inside the long one.
-func describe_rich() -> String:
+## `live` is what the card will ACTUALLY throw per hit right now -- see
+## `Combat.card_output`. -1 means "print what the card was printed with", which
+## is what every caller outside a fight passes.
+func describe_rich(live: int = -1) -> String:
 	var terms: Array = []
 	for raw in keywords():
 		terms.append(String((raw as Array)[0]))
 	terms.sort_custom(func(x: String, y: String) -> bool: return x.length() > y.length())
-	var out := describe()
+	var out := describe(live)
 	for t in terms:
 		out = out.replace(t, "[u][color=#c3d2e2]%s[/color][/u]" % t)
+	# COLOURED AFTER THE KEYWORDS, not inside `describe`. A number that silently
+	# differs from the one you learned is worse than either number: a player who
+	# knows Charged Slug hits for 8 and sees 12 cannot tell whether the card
+	# changed or they misremembered. Higher reads as a gain, lower as a loss.
+	#
+	# Safe in this order because no keyword is "Deal" or a digit, so the clause
+	# survives the replacement above untouched -- checked against `keywords()`,
+	# which is all capitalised game terms.
+	if live >= 0 and damage > 0 and live != damage:
+		var col := "#7fb89a" if live > damage else "#d4614f"
+		out = out.replace("Deal %d" % live,
+			"Deal [color=%s]%d[/color]" % [col, live])
 	return out
 
 ## Short human-readable effect line for the card face.
-func describe() -> String:
+##
+## `live` overrides the printed damage with what the card will throw per hit
+## right now. Default -1 prints the card as authored, which is what `BotBoard`
+## and `AttrTest` want and what everywhere outside combat wants -- in a shop you
+## are comparing this card against another one, and a figure inflated by a
+## lock-on you happen to be holding is the wrong answer to that question.
+func describe(live: int = -1) -> String:
 	var bits: PackedStringArray = []
 	if damage > 0:
-		bits.append("Deal %d%s" % [damage, "" if hits <= 1 else " × %d" % hits])
+		var n := live if live >= 0 else damage
+		bits.append("Deal %d%s" % [n, "" if hits <= 1 else " × %d" % hits])
 	if damage_equals_heat:
 		bits.append("Damage from heat")
 	if heat_scale > 0:

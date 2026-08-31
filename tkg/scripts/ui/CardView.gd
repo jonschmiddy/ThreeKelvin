@@ -98,6 +98,30 @@ var _tween: Tween
 var _base_y: float = 0.0
 var _tint: Color = UITheme.CHILL
 
+## The effect label, kept so the number on it can change without a rebuild.
+var _body: RichTextLabel = null
+
+## What this card throws per hit right now, or -1 for "print what it says".
+##
+## COMBAT ONLY, and it is a push rather than a lookup on purpose. `CardGallery`
+## and `ChassisSelect` build `CardView`s too and there is no fight behind them;
+## leaving the default at -1 means they cannot accidentally acquire live numbers
+## by existing. Nothing has to know about a mode flag -- the hand pushes a figure
+## in, and everywhere else simply never does.
+var live_output: int = -1
+
+
+## Tell the face what the card is currently worth. Cheap to call every refresh:
+## it returns immediately unless the number actually moved, because a hand is
+## five to seven of these and the body is a rich-text relayout.
+func set_live(n: int) -> void:
+	if n == live_output:
+		return
+	live_output = n
+	if _body != null and card != null:
+		_body.text = card.describe_rich(live_output)
+
+
 func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	card = c
 	playable = can_play
@@ -166,7 +190,8 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	body.add_theme_font_size_override("normal_font_size", UITheme.FS_SMALL * _s)
 	body.add_theme_color_override("default_color", UITheme.CHILL)
 	body.add_theme_constant_override("line_separation", 0)
-	body.text = c.describe_rich()
+	_body = body
+	body.text = c.describe_rich(live_output)
 	body.position = Vector2((Z_TEXT.position.x + 2) * _s, Z_TEXT.position.y * _s)
 	body.size = Vector2((Z_TEXT.size.x - 4) * _s, Z_TEXT.size.y * _s)
 	add_child(body)
