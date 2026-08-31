@@ -108,17 +108,56 @@ def build_all():
     S['card_play'] = (st(cp, -0.08), 0.46)
 
     # ---- weapons ------------------------------------------------------
-    bal = np.zeros(int(0.40*SR))
-    put(bal, foley('latch', 0.05, hpf=1200), 0.000, 0.9)   # the action
-    put(bal, foley('metal_small', 0.16, hpf=400), 0.008, 0.8)
-    put(bal, _bd(0.5), 0.004, 0.55)                        # real drum body
-    put(bal, foley('debris', 0.22, gain=0.25, hpf=2000), 0.05)
-    S['weapon_ballistic'] = (room(st(bal, -0.12), 0.13), 0.72)
-    en = np.zeros(int(0.34*SR))
-    put(en, zap(hz('C6'), 0.24), 0.00, 1.0)
-    put(en, foley('static_tick', 0.08, hpf=1500), 0.00, 0.6)
-    put(en, foley('air_hiss', 0.18, gain=0.3, hpf=3000), 0.06)
-    S['weapon_energy'] = (room(st(en, 0.10), 0.18), 0.66)
+    # Four FAMILIES keyed on what the card mechanically is, each with round
+    # robins (Audio.play picks among name/name_2/name_3), all built on the
+    # serious diffusion takes -- deep discharges and mechanical actions,
+    # no cartoon pitch-bend anywhere.  The v1 zap survives only inside
+    # charge_fire, where a rising whine is the honest mechanic.
+    def _shot(src, body, tail=0.28, act=None):
+        y = np.zeros(int((0.10 + tail + 0.30)*SR))
+        if act:
+            put(y, foley(act, 0.05, hpf=1500), 0.000, 0.5)
+        put(y, foley(src, tail + 0.25), 0.006, 1.0)
+        put(y, _bd(body), 0.004, body)
+        return y
+    # plain kinetic: one shot, one variant per diffusion take
+    S['shot_kinetic']   = (room(st(_shot('shot_kinetic_1', 0.55), -0.10), 0.12), 0.72)
+    S['shot_kinetic_2'] = (room(st(_shot('shot_kinetic_3', 0.50, act='latch'), -0.08), 0.12), 0.72)
+    # autocannon burst: three cracks off the same takes, jittered
+    def _burst(seed):
+        r = np.random.RandomState(seed)
+        y = np.zeros(int(0.75*SR))
+        for i in range(3):
+            at = i*0.11 + r.uniform(-0.008, 0.008)
+            src = ('shot_kinetic_3', 'shot_kinetic_1')[i % 2]
+            put(y, foley(src, 0.16, hpf=250)*r.uniform(0.8, 1.0), at)
+        put(y, _bd(0.4), 0.004, 0.4)
+        put(y, foley('debris', 0.25, gain=0.2, hpf=2000), 0.36)
+        return y
+    S['shot_auto']   = (room(st(_burst(3), -0.10), 0.12), 0.70)
+    S['shot_auto_2'] = (room(st(_burst(9), -0.06), 0.12), 0.70)
+    # heavy ordnance: the big slug -- deep take, full drum, long settle
+    hv = np.zeros(int(1.10*SR))
+    put(hv, foley('shot_kinetic_2', 0.70), 0.00, 1.0)
+    put(hv, _bd(1.0), 0.004, 0.85)
+    put(hv, foley('debris', 0.45, gain=0.3, hpf=1200), 0.22)
+    put(hv, thunk(hz('F1'), 0.30, 0.2), 0.01, 0.6)
+    S['shot_heavy'] = (room(st(hv), 0.16), 0.85)
+    hv2 = np.zeros(int(1.10*SR))
+    put(hv2, foley('shot_energy_2', 0.65, lpf=3500), 0.00, 0.9)
+    put(hv2, _bd(1.0), 0.004, 0.9)
+    put(hv2, foley('metal_big', 0.4, lpf=2000), 0.15, 0.5)
+    S['shot_heavy_2'] = (room(st(hv2), 0.16), 0.85)
+    # energy discharge: the serious takes carry it; a single dark F tail
+    # keeps the key without singing
+    for i, src in enumerate(('shot_energy_1', 'shot_energy_2', 'shot_energy_3')):
+        en = np.zeros(int(0.80*SR))
+        put(en, foley(src, 0.55), 0.00, 1.0)
+        put(en, _bd(0.4), 0.004, 0.35)
+        put(en, np.sin(2*np.pi*hz('F2')*np.arange(int(0.4*SR))/SR)
+                *np.exp(-np.arange(int(0.4*SR))/SR/0.10), 0.01, 0.30)
+        S['shot_energy' + ('' if i == 0 else '_%d' % (i+1))] = (
+            room(st(en, 0.08), 0.15), 0.72)
     ch = np.zeros(int(0.95*SR))
     put(ch, sweep(0.45, 120, 700, 900, 5200, curve=2.2)
             *np.linspace(0, 1, int(0.45*SR))**2.0, 0.00, 0.45)

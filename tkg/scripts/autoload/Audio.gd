@@ -207,6 +207,7 @@ var _intensity: int = 0
 var _sfx: Array[AudioStreamPlayer] = []
 var _sfx_next: int = 0
 var _cache: Dictionary = {}
+var _variants: Dictionary = {}  ## name -> [name, name_2, ...] round robins
 var _last: Dictionary = {}          ## sfx name -> msec, for rate limiting
 var _enabled: bool = true
 var _last_credits: int = -1
@@ -425,13 +426,27 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	if limit_ms > 0 and now - int(_last.get(name, -limit_ms)) < limit_ms:
 		return
 	_last[name] = now
-	var stream: AudioStream = _cache.get(name)
+	# Round robins: a name with `name_2.wav`, `name_3.wav`... beside it
+	# plays a random take.  One file per shot always reads as a toy, no
+	# matter how good the file is -- the ear catches the exact repeat.
+	var pick := name
+	var vars: Array = _variants.get(name, [])
+	if vars.is_empty() and not _variants.has(name):
+		vars = [name]
+		for i in range(2, 5):
+			var vn := StringName("%s_%d" % [name, i])
+			if ResourceLoader.exists(SFX_PATH % vn):
+				vars.append(vn)
+		_variants[name] = vars
+	if vars.size() > 1:
+		pick = vars[randi() % vars.size()]
+	var stream: AudioStream = _cache.get(pick)
 	if stream == null:
-		stream = load(SFX_PATH % name)
+		stream = load(SFX_PATH % pick)
 		if stream == null:
-			push_warning("Audio: missing sfx %s" % name)
+			push_warning("Audio: missing sfx %s" % pick)
 			return
-		_cache[name] = stream
+		_cache[pick] = stream
 	# Round-robin the pool. Fourteen voices is more than the game ever asks
 	# for at once; stealing the oldest is the right failure if it ever does.
 	var p := _sfx[_sfx_next]
@@ -455,7 +470,16 @@ func denied() -> void:  play(&"ui_denied", 0.03)
 func _on_card_played(c: CardData) -> void:
 	play(&"card_play", 0.05)
 	if c.damage > 0 or c.damage_equals_heat or c.heat_scale > 0:
-		play(&"weapon_energy" if c.heat > 0 else &"weapon_ballistic", 0.07)
+		# What the card mechanically IS picks the family; the files carry
+		# round robins so no two shots are the exact same take.
+		if c.charge_turns > 0:
+			play(&"shot_heavy", 0.05)          # banked ordnance landing
+		elif c.hits >= 2:
+			play(&"shot_auto", 0.06)           # autocannon burst
+		elif c.heat > 0 or c.damage_equals_heat or c.heat_scale > 0:
+			play(&"shot_energy", 0.06)         # hot discharge
+		else:
+			play(&"shot_kinetic", 0.06)        # one cold slug
 	elif c.vent > 0 or c.vent_all:
 		play(&"vent", 0.05)
 	elif c.block > 0 or c.brace > 0 or c.brace_from_heat:

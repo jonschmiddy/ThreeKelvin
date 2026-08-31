@@ -86,8 +86,10 @@ def wide(x, amt=0.6, keep_ms=18.0, mono_below=180.0):
     return out
 
 def put(buf, x, at=0.0, gain=1.0):
-    """Add x into buf starting at `at` seconds, clipped to the buffer."""
-    i = int(at*SR); j = min(len(buf), i+len(x))
+    """Add x into buf starting at `at` seconds, clipped to the buffer.
+    Clamped at zero: a humanised `at` can jitter negative, and a negative
+    index is a wrap in numpy, not a clip."""
+    i = max(0, int(at*SR)); j = min(len(buf), i+len(x))
     if j > i: buf[i:j] += x[:j-i]*gain
     return buf
 
@@ -389,6 +391,9 @@ WIDTH = {
     'jettison': 0.50,
     'svc_repair': 0.30, 'svc_refuel': 0.30, 'svc_purge': 0.25,
     'svc_coolant': 0.30,
+    'shot_kinetic': 0.35, 'shot_kinetic_2': 0.35, 'shot_auto': 0.35,
+    'shot_auto_2': 0.35, 'shot_heavy': 0.50, 'shot_heavy_2': 0.50,
+    'shot_energy': 0.40, 'shot_energy_2': 0.40, 'shot_energy_3': 0.40,
     'shop_buy': 0.25, 'shop_sell': 0.25, 'module_scrap': 0.40,
     'module_uninstall': 0.25, 'hull_transfer': 0.50, 'fabricate': 0.30,
     'victory': 0.60, 'death_sting': 0.70,
