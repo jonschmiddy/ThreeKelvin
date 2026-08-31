@@ -28,6 +28,7 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 | `batch-03.md` | twenty more, aimed at the coverage gaps | draft |
 | `encounter-prototype.html` | playable feel-test: 10 systems, 29 options | tool |
 | `LIVE_CARD_NUMBERS.md` | live card faces and the targeting line | ⬜ unblocked |
+| `ENCOUNTER_PROSE.md` | all 47 encounters, their gates, and the rules for writing them | ✅ reference |
 | `GALAXY_SCALE.md` | map scale, declared shape, the chart primer | §1–§4 ✅ · §3 **void** · §5 ✅ |
 | `HEAT_REWORK.md` | dissipation amplifies venting | ✅ landed (§3 reverted) |
 | `SIM_INSTRUMENT_FIX.md` | the strand counter measured the wrong set | ✅ **done, and it was right** |

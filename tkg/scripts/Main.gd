@@ -609,6 +609,11 @@ func _ready() -> void:
 
 	# Every exhaust strip loaded and measured:  godot --headless --path . -- exhaust
 	# Headless on purpose: a plume that fails to load is invisible, not loud.
+	if "encdump" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/EncDump.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "exhaust" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ExhaustCheck.gd").new()
 		_convoy_test.run(get_tree())
