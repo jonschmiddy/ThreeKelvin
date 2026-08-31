@@ -387,6 +387,8 @@ WIDTH = {
     'explosion_small': 0.70, 'explosion_boss': 0.85, 'fauna_falls': 0.60,
     'jump': 0.75, 'station_dock': 0.55, 'combat_start': 0.75,
     'jettison': 0.50,
+    'svc_repair': 0.30, 'svc_refuel': 0.30, 'svc_purge': 0.25,
+    'svc_coolant': 0.30,
     'victory': 0.60, 'death_sting': 0.70,
 }
 WIDTH_DEFAULT = 0.35

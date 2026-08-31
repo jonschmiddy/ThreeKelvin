@@ -647,6 +647,7 @@ func _repair(amount: int) -> void:
 	if Run.credits < cost:
 		return
 	Run.add_credits(-cost)
+	Audio.play(&"svc_repair", 0.05)
 	var healed := Run.heal(amount)
 	Run.log_line("Repaired %d hull for %d credits." % [healed, cost], &"good")
 
@@ -659,6 +660,7 @@ func _refuel() -> void:
 	# copy of the write-then-remember-to-emit shape that three of today's bugs
 	# came out of.
 	Run.fuel += Market.REFUEL_UNITS
+	Audio.play(&"svc_refuel", 0.04)
 	Run.log_line("Refuelled.", &"good")
 
 ## One malfunction, named, and only one. `clear_dross` removes a single entry,
@@ -672,6 +674,7 @@ func _purge(which: StringName) -> void:
 	if not Run.clear_dross(which):
 		return
 	Run.add_credits(-cost)
+	Audio.play(&"svc_purge", 0.05)
 	Run.log_line("%s cleared." % card.name, &"good")
 
 func _coolant() -> void:
@@ -682,6 +685,7 @@ func _coolant() -> void:
 	# Through the mutator, so the gauge is told. Writing the field directly left
 	# the only signal in this function firing before the change it was announcing.
 	Run.add_heat_cap(2)
+	Audio.play(&"svc_coolant", 0.04)
 	Run.log_line("Coolant upgraded. Heat cap +2 to %d." % Run.heat_cap(), &"good")
 
 func _sell_material(id: StringName) -> void:

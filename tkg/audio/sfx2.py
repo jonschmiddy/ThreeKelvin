@@ -209,6 +209,45 @@ def build_all():
     put(ar, _chime(hz('F6'), 0.70, 0.30), 0.14)
     S['archive_found'] = (room(st(ar, 0.10), 0.26), 0.40)
 
+    # ---- station services ---------------------------------------------
+    # Four purchases, four different kinds of work, all heard from inside
+    # the ship they are being done to.  Repairing YOUR hull earns warmth
+    # (the ship is the warm thing); coolant is the one deliberately cold
+    # purchase -- it is refrigerant, and the falling minor third says the
+    # temperature went down.
+    rp = np.zeros(int(0.85*SR))
+    put(rp, foley('ratchet', 0.14, hpf=300), 0.00, 0.9)     # the wrench
+    put(rp, foley('ratchet', 0.12, hpf=500), 0.22, 0.6)
+    put(rp, foley('metal_small', 0.20, lpf=5000), 0.42, 0.8)  # plate seats
+    put(rp, thunk(hz('F2'), 0.22, 0.15), 0.43, 0.6)         # ...and the ship
+    S['svc_repair'] = (room(st(rp), 0.15), 0.55)            # answers, warm
+    # Refuel: nozzle in, flow, and the tank's pitch RISES as it fills --
+    # the oldest liquid cue there is -- then the nozzle out.
+    rf = np.zeros(int(1.30*SR))
+    put(rf, foley('latch', 0.08), 0.00, 0.7)
+    N = int(0.85*SR); t = np.arange(N)/SR
+    fill = lp(np.random.randn(N), 900)*0.5
+    fill += np.sin(2*np.pi*(hz('F3')*(1+0.5*t/0.85))*t)*0.22   # rising body
+    put(rf, fill*env_adsr(N, 0.06, 0.2, 0.7, 0.25), 0.10)
+    put(rf, foley('latch', 0.08, gain=0.8), 1.05)
+    S['svc_refuel'] = (room(st(rf), 0.14), 0.52)
+    # System repair: fine electronics work, and the fault LEAVES -- the
+    # little static tick dies and a clean Ab answers where it was.
+    pg = np.zeros(int(0.80*SR))
+    put(pg, foley('static_tick', 0.10, hpf=1200), 0.00, 0.7)
+    put(pg, foley('servo_move', 0.18, lpf=3500), 0.08, 0.6)
+    put(pg, foley('click_mech', 0.06), 0.30, 0.8)
+    put(pg, tone('Ab5', 0.30, 0.30), 0.38)
+    S['svc_purge'] = (room(st(pg), 0.16), 0.48)
+    # Coolant: pressurised, COLD, and falling.  Db down to Ab -- the only
+    # purchase whose pitch goes down, because that is what it bought.
+    cl = np.zeros(int(0.90*SR))
+    put(cl, foley('air_hiss', 0.45, hpf=900), 0.02, 0.9)
+    put(cl, foley('latch', 0.08), 0.00, 0.6)
+    put(cl, tone('Db5', 0.16, 0.30), 0.50)
+    put(cl, tone('Ab4', 0.28, 0.34), 0.64)
+    S['svc_coolant'] = (room(st(cl), 0.14), 0.50)
+
     # ---- run-level stings ---------------------------------------------
     cb = np.zeros(int(1.80*SR))
     put(cb, _gong(0.6, 1.4), 0.00)
