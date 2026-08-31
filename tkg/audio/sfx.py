@@ -32,7 +32,23 @@ def _room(dur=0.30, decay=0.10):
     return ir/np.max(np.abs(ir))
 
 np.random.seed(2024)
-ROOM_L, ROOM_R = _room(0.30, 0.10), _room(0.30, 0.095)
+# Two genuinely different rooms, not one room twice: distinct early
+# reflection taps per side (a real wall is not equidistant from both ears),
+# then the diffuse tail.  Longer than the old 0.30 s -- the smallness came
+# from the WET level, not the IR, and a too-short IR just sounded cheap.
+def _room_pair(dur=0.42, decay=0.12):
+    def one(seed):
+        r = np.random.RandomState(seed)
+        N = int(dur*SR); t = np.arange(N)/SR
+        ir = r.randn(N)*np.exp(-t/decay)*0.5
+        for at, g in zip(r.uniform(0.004, 0.045, 6), r.uniform(0.3, 1.0, 6)):
+            i = int(at*SR)
+            ir[i] += g*(1 if r.rand() > 0.5 else -1)
+        ir = lp(ir, 7000); ir = hp(ir, 350)
+        return ir/np.max(np.abs(ir))
+    return one(101), one(202)
+
+ROOM_L, ROOM_R = _room_pair()
 
 def room(x, wet=0.18):
     from scipy import signal as _sg
@@ -41,6 +57,33 @@ def room(x, wet=0.18):
     w = np.stack([L, R]); m = np.max(np.abs(w))
     if m > 0: w *= np.max(np.abs(x))/m
     return (1-wet)*x + wet*w
+
+def wide(x, amt=0.6, keep_ms=18.0, mono_below=180.0):
+    """Real stereo from a panned mono pair: decorrelate the channels.
+
+    `st()` alone is mono in stereo clothing -- identical channels at two
+    levels.  This rotates the phase of one channel's spectrum by a random
+    amount per bin (a fixed seed, so renders stay deterministic), which is
+    inaudible as timbre but makes the ears disagree -- width.  Three
+    guards keep it honest: the first `keep_ms` stay untouched so the
+    transient still hits as one event; everything under `mono_below` stays
+    correlated so the low end does not hollow out on a phone speaker; and
+    `amt` blends, because chrome should stay nearly mono and wreckage
+    should not."""
+    if amt <= 0:
+        return x
+    n = x.shape[1]
+    k = int(keep_ms*SR/1000)
+    rng = np.random.RandomState(777)
+    X = np.fft.rfft(x[1])
+    fr = np.fft.rfftfreq(n, 1.0/SR)
+    ph = rng.uniform(-np.pi, np.pi, len(X))
+    ph *= np.clip((fr - mono_below)/mono_below, 0, 1)
+    d = np.fft.irfft(X*np.exp(1j*ph*amt), n)
+    out = x.copy()
+    ramp = np.clip((np.arange(n) - k)/max(k, 1), 0, 1)
+    out[1] = x[1]*(1 - ramp) + d*ramp
+    return out
 
 def put(buf, x, at=0.0, gain=1.0):
     """Add x into buf starting at `at` seconds, clipped to the buffer."""
@@ -315,13 +358,45 @@ def build_all():
     put(ff, bowed(hz('F2'), 1.20, 0.36, 3.2), 0.70)
     put(ff, bell(hz('Ab5'), 1.1, 0.20), 0.75)
     S['fauna_falls'] = (room(st(ff), 0.34), 0.62)
+    # The jettison hatch.  The closest thing this ship has to an airlock:
+    # a valve chuff, air leaving with whatever you dropped, and then the
+    # cold quiet where it used to be.  The sweep falls and DOES NOT
+    # resolve -- vent() resolves because venting helps; throwing cargo
+    # overboard is just gone.
+    jt = np.zeros(int(0.95*SR))
+    put(jt, click(hz('Db5'), 0.05, tone=0.30), 0.00, 0.60)
+    put(jt, sweep(0.70, 700, 90, 6000, 500, curve=0.8)
+            *env_adsr(int(0.70*SR), 0.015, 0.12, 0.45, 0.42), 0.04, 0.70)
+    put(jt, thunk(hz('F2'), 0.14, bite=0.20), 0.05, 0.50)
+    S['jettison'] = (room(st(jt), 0.18), 0.56)
     return S
+
+#: Stereo width by kind, applied in one place so the design stays legible:
+#: chrome is a small relay inches away (near-mono), gameplay has a body in
+#: a room, and the big world events -- wreckage, jumps, stings -- are the
+#: only things wide enough to touch the edges of the image.  Anything not
+#: named here gets the gameplay default.
+WIDTH = {
+    'ui_click': 0.0, 'ui_hover': 0.0, 'ui_confirm': 0.12, 'ui_back': 0.10,
+    'ui_denied': 0.08, 'ui_tab': 0.22, 'card_draw': 0.15, 'card_play': 0.15,
+    'contract_stamp': 0.12, 'archive_found': 0.35,
+    'weapon_ballistic': 0.35, 'weapon_energy': 0.35, 'charge_fire': 0.45,
+    'impact_enemy': 0.30, 'shield_block': 0.35, 'heat_warn': 0.20,
+    'scrap_gain': 0.25, 'loot_drop': 0.45, 'module_install': 0.30,
+    'impact_hull': 0.55, 'overheat': 0.55, 'vent': 0.55,
+    'explosion_small': 0.70, 'explosion_boss': 0.85, 'fauna_falls': 0.60,
+    'jump': 0.75, 'station_dock': 0.55, 'combat_start': 0.75,
+    'jettison': 0.50,
+    'victory': 0.60, 'death_sting': 0.70,
+}
+WIDTH_DEFAULT = 0.35
 
 def main(out_dir='out/sfx'):
     os.makedirs(out_dir, exist_ok=True)
     for name, (y, peak) in sorted(build_all().items()):
         y = np.asarray(y, dtype=np.float64)
         if y.ndim == 1: y = st(y)
+        y = wide(y, WIDTH.get(name, WIDTH_DEFAULT))
         # Edges first, then normalise.  A sample that starts or ends on a
         # non-zero value clicks -- and a click on every UI click is a long
         # mystery bug -- but these are transient sounds whose peak IS the

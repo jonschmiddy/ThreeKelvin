@@ -59,6 +59,7 @@ func _drop_data(_at: Vector2, data: Variant) -> void:
 	_hot = false
 	queue_redraw()
 	if m != null and Run.jettison(m):
+		Audio.play(&"jettison", 0.06)
 		dumped.emit(m)
 
 
