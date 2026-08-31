@@ -688,6 +688,28 @@ func card_output(c: CardData) -> int:
 	return per
 
 
+## WHICH OF THIS CARD'S OWN CLAUSES ARE PAYING RIGHT NOW, by keyword.
+##
+## `card_output` returns one number and the face needs to say what moved it.
+## Colouring every modifier clause the moment the number is up would be a lie
+## the one time it matters: a card raised purely by lock-on would light its
+## SALVO clause, teaching the player the wrong rule about the mechanic they are
+## looking at. So this reports only the clauses that are actually contributing,
+## and lock-on is deliberately absent -- it is not a clause on the card, it is a
+## thing on the ship, and the ship's status row already carries it.
+func card_hot(c: CardData) -> PackedStringArray:
+	var out := PackedStringArray()
+	if c.damage <= 0:
+		return out
+	if c.heat_scale > 0 and int(Run.heat / c.heat_scale) > 0:
+		out.append("Heat scaling")
+	if c.adapt > 0 and adapt_bonus > 0:
+		out.append("Grows")
+	if c.salvo > 0 and salvo_live(c):
+		out.append("Salvo")
+	return out
+
+
 func preview_damage(c: CardData, target_index: int = -1) -> int:
 	if finished:
 		return 0

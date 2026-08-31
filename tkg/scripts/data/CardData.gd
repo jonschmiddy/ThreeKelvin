@@ -390,14 +390,40 @@ func keywords() -> Array:
 ## `live` is what the card will ACTUALLY throw per hit right now -- see
 ## `Combat.card_output`. -1 means "print what the card was printed with", which
 ## is what every caller outside a fight passes.
-func describe_rich(live: int = -1) -> String:
+## `hot` names the clauses that are currently paying -- see `Combat.card_hot`.
+## They go the same green as the raised damage number, so the clause reads as
+## THE REASON the number moved rather than as a second sum on top of it.
+##
+## Without this the face said the same thing twice: a live salvo card printed
+## "Deal 5 x 2. Salvo +2." where the 5 already contained the +2, which reads as
+## a promise of two more. Removing the SALVO status chip put the fact on the
+## card; this stops the card double-counting it.
+func describe_rich(live: int = -1,
+		hot: PackedStringArray = PackedStringArray()) -> String:
 	var terms: Array = []
 	for raw in keywords():
 		terms.append(String((raw as Array)[0]))
 	terms.sort_custom(func(x: String, y: String) -> bool: return x.length() > y.length())
 	var out := describe(live)
 	for t in terms:
-		out = out.replace(t, "[u][color=#c3d2e2]%s[/color][/u]" % t)
+		out = out.replace(t, "[u][color=%s]%s[/color][/u]"
+			% ["#7fb89a" if hot.has(t) else "#c3d2e2", t])
+	# THE VALUE GOES GREEN WITH ITS KEYWORD. `describe` writes a hot clause as
+	# "Salvo +2" or "Heat scaling per 3" -- keyword, space, value, full stop --
+	# so once the keyword is wrapped the rest of the clause runs to the next
+	# period. Colouring only the word would leave the number it governs looking
+	# like it was still owed.
+	for t in hot:
+		var tag := "[u][color=#7fb89a]%s[/color][/u] " % t
+		var i := out.find(tag)
+		if i < 0:
+			continue
+		var from := i + tag.length()
+		var j := out.find(".", from)
+		if j < 0:
+			j = out.length()
+		var val := out.substr(from, j - from)
+		out = out.replace(tag + val, tag + "[color=#7fb89a]%s[/color]" % val)
 	# COLOURED AFTER THE KEYWORDS, not inside `describe`. A number that silently
 	# differs from the one you learned is worse than either number: a player who
 	# knows Charged Slug hits for 8 and sees 12 cannot tell whether the card

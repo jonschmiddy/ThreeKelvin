@@ -1820,7 +1820,8 @@ func _refresh_hand() -> void:
 	# The hand reconciles rather than rebuilds, so cards slide into the gap a
 	# played card leaves instead of the whole row snapping to new positions.
 	_hand.sync(combat.hand, func(c): return combat.can_play(c), combat.choosing > 0,
-		func(c): return combat.card_output(c))
+		func(c): return combat.card_output(c),
+		func(c): return combat.card_hot(c))
 	# A card that left the hand takes its panel with it. The panel is closed by
 	# the card's own exit event, and a card that was played or discarded never
 	# sends one — its view flies off and fades on a tween, so it is not even

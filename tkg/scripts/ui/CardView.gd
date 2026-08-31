@@ -110,16 +110,24 @@ var _body: RichTextLabel = null
 ## in, and everywhere else simply never does.
 var live_output: int = -1
 
+## Which of its own clauses are paying, by keyword -- see `Combat.card_hot`.
+var live_hot: PackedStringArray = PackedStringArray()
+
 
 ## Tell the face what the card is currently worth. Cheap to call every refresh:
 ## it returns immediately unless the number actually moved, because a hand is
 ## five to seven of these and the body is a rich-text relayout.
-func set_live(n: int) -> void:
-	if n == live_output:
+func set_live(n: int, hot: PackedStringArray = PackedStringArray()) -> void:
+	# BOTH, because they move independently. A salvo card's number is unchanged
+	# by the turn's first attack when a lock-on is already covering the same
+	# amount, while the clause doing the paying has swapped -- comparing only
+	# the number would leave the wrong clause lit.
+	if n == live_output and hot == live_hot:
 		return
 	live_output = n
+	live_hot = hot
 	if _body != null and card != null:
-		_body.text = card.describe_rich(live_output)
+		_body.text = card.describe_rich(live_output, live_hot)
 
 
 func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
@@ -191,7 +199,7 @@ func setup(c: CardData, can_play: bool, scale_step: int = 1) -> void:
 	body.add_theme_color_override("default_color", UITheme.CHILL)
 	body.add_theme_constant_override("line_separation", 0)
 	_body = body
-	body.text = c.describe_rich(live_output)
+	body.text = c.describe_rich(live_output, live_hot)
 	body.position = Vector2((Z_TEXT.position.x + 2) * _s, Z_TEXT.position.y * _s)
 	body.size = Vector2((Z_TEXT.size.x - 4) * _s, Z_TEXT.size.y * _s)
 	add_child(body)
@@ -876,6 +884,7 @@ func _get_drag_data(_pos: Vector2) -> Variant:
 	# early-outs when the value has not changed and would have nothing to write
 	# to yet anyway.
 	ghost.live_output = live_output
+	ghost.live_hot = live_hot
 	ghost.setup(card, true, _s)
 	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var wrap := Control.new()

@@ -71,8 +71,10 @@ func _baseline() -> float:
 ## `live` answers "what does this card throw per hit right now" -- see
 ## `Combat.card_output`. Left unset the faces print what they were printed with,
 ## which is what every non-combat caller wants.
+## `live` answers "what does this card throw per hit right now" and `hot` names
+## which of its clauses are paying -- see `Combat.card_output` and `card_hot`.
 func sync(cards: Array, playable: Callable, choosing: bool = false,
-		live: Callable = Callable()) -> void:
+		live: Callable = Callable(), hot: Callable = Callable()) -> void:
 	var keep: Array[CardView] = []
 	for c in cards:
 		var found: CardView = null
@@ -106,7 +108,8 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 		# figure depends on -- lock-on, salvo, adapt, heat -- moves while the
 		# card sits in your hand untouched. Refreshing only new views would mean
 		# the number went live for exactly the cards that had just been drawn.
-		found.set_live(live.call(c) if live.is_valid() else -1)
+		found.set_live(live.call(c) if live.is_valid() else -1,
+			hot.call(c) if hot.is_valid() else PackedStringArray())
 		keep.append(found)
 
 	for v in _views:
