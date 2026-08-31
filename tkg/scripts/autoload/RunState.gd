@@ -68,9 +68,23 @@ var fuel: int = 150:
 ## physical thing -- a fauna kill, a pacified herd, a pulsar sweep -- which is
 ## `add_material` and a container. Reading it stays, because the history and the
 ## save screen ask what you came home with.
+## BY TIER, NOT BY ID, and that is a change worth stating. This counted the
+## single id `&"exotic"` -- so the moment the pulsar drop was given a name of
+## its own it would have stopped counting beam hauls entirely, and it was
+## already blind to SINGER'S OIL, FLANK IVORY and every other named exotic in
+## the table. A number that means "what you came home with" and silently
+## excludes most of what you came home with is worse than no number.
+##
+## Read by `RunHistory` alone, so widening it moves the run record and nothing
+## in play.
 var exotic: int:
 	get:
-		return material(&"exotic")
+		var n := 0
+		for raw in cargo:
+			var m := raw as MaterialData
+			if m != null and m.tier == &"exotic":
+				n += 1
+		return n
 ## WHICH malfunctions are lodged in you, not how many.
 ##
 ## It was a count, and a count could only ever produce one card sixteen times.
@@ -1810,6 +1824,10 @@ func material_stock() -> Array[Dictionary]:
 ## be able to run it. Anything that only exists on a screen is invisible to the
 ## balance model, and a node type that hands out fuel and takes hull is exactly
 ## the kind of thing the model needs to see.
+## What a neutron star leaves alongside. Named once so the grant, the log line
+## and the table cannot drift apart.
+const PULSAR_DROP := &"magnetar_silt"
+
 func harvest_pulsar() -> void:
 	var n := node_at()
 	if n.cleared:
@@ -1826,11 +1844,23 @@ func harvest_pulsar() -> void:
 	# INTO THE SYSTEM, not into your pocket. What the beam throws off is matter,
 	# and matter needs somewhere to be -- see `add_material`. It is beside you
 	# in the sector and you load what fits.
-	add_material(&"exotic", gain_exotic)
+	#
+	# AND IT HAS A NAME NOW. This granted `&"exotic"` -- an item literally called
+	# "Exotic", the one placeholder left in a table where every other
+	# exotic-tier row is a named thing with prose attached, and whose own text
+	# had to straddle two unrelated sources ("Megafauna organs and whatever a
+	# pulsar leaves behind"). Flying the beam is the game's most deliberate
+	# trade and it paid out in a category name.
+	#
+	# `&"exotic"` is still dropped by fauna, so `COOLANT BRAID` -- which asks for
+	# it by ID and not by tier -- is unaffected.
+	add_material(PULSAR_DROP, gain_exotic)
 	heat += gain_heat
 	log_line("Beam sweep. The tank fills in eleven seconds.", &"good")
-	log_line("+%d fuel, and %d exotic adrift alongside." % [gain_fuel,
-		gain_exotic], &"good")
+	# The name comes off the table rather than being written here twice.
+	var silt: Dictionary = MaterialTable.by_id(PULSAR_DROP)
+	log_line("+%d fuel, and %d %s adrift alongside." % [gain_fuel, gain_exotic,
+		String(silt.get("name", "exotic")).to_lower()], &"good")
 	log_line("Hard radiation through the hull. +%d heat." % gain_heat, &"them")
 	Sig.resources_changed.emit()
 	# Last: it can end the run, and everything above has to have happened first.

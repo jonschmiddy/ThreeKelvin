@@ -28,9 +28,9 @@ class_name MaterialTable
 ## Precursor pieces sit in `wreck` because the lore says fragments come off deep
 ## wrecks and nowhere else.
 ##
-##     tier    artifact 4 · common 16 · contraband 8 · epic 9 · exotic 9 · legendary 5 · rare 13
-##     table   event 20 · fauna 8 · fight 7 · mining 2 · wreck 22 · named 5
-##     cells   1x1 40 · 2x1 14 · 2x2 4 · 3x1 4 · 4x1 2
+##     tier    artifact 4 · common 16 · contraband 8 · epic 9 · exotic 10 · legendary 5 · rare 13
+##     table   event 20 · fauna 8 · fight 7 · mining 2 · wreck 22 · named 6
+##     cells   1x1 41 · 2x1 14 · 2x2 4 · 3x1 4 · 4x1 2
 ##
 ## WHAT LEAVING COSTS THE TABLES, because it is a real thinning at the top and
 ## not only tidiness: `event` loses its only ARTIFACT and `wreck` both of its
@@ -264,6 +264,9 @@ static func all() -> Array[Dictionary]:
 		{id = &"nerve_silk", name = "NERVE SILK", tier = &"exotic", cells = "1x1",
 			value = 66, drops = &"fauna",
 			text = "Conductive thread from along a spine longer than your ship. Calyx pays double and asks you to sign something."},
+		{id = &"magnetar_silt", name = "MAGNETAR SILT", tier = &"exotic", cells = "1x1",
+			value = 48, drops = &"named",
+			text = "Fine, dense, and it wants to line itself up with anything magnetic you put it near. Refiners bid on it sight unseen."},
 		{id = &"sweep_glass", name = "SWEEP GLASS", tier = &"exotic", cells = "1x1",
 			value = 49, drops = &"named",
 			text = "What eleven seconds of pulsar leaves on a hull, eleven seconds at a time, for centuries. Scrapes off in colours with no names."},
