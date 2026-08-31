@@ -122,7 +122,13 @@ func _gui_input(e: InputEvent) -> void:
 	# button you pressed: `origin` is set when the icon is built, so a crate out
 	# here can only be taken and one in your hold can only be thrown. No state
 	# offers both, and none offers neither.
-	if mb.button_index == MOUSE_BUTTON_LEFT and mb.shift_pressed:
+	#
+	# DOUBLE-CLICK IS THE SAME TAKE. Shift is the gesture nobody finds on their
+	# own; double-clicking the thing you want is the one everybody tries first.
+	# Same guard, same path — a second click on something already claimed just
+	# finds the entry gone and does nothing.
+	if mb.button_index == MOUSE_BUTTON_LEFT \
+			and (mb.shift_pressed or mb.double_click):
 		if origin != &"bag":
 			return
 		accept_event()

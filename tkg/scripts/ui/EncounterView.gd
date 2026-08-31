@@ -419,6 +419,9 @@ func show_wrecks(wrecks: Array, on_open: Callable) -> void:
 		ghost.hp = 0
 		_made[i].opened = on_open.bind(h)
 		_made[i].bind(i, ghost, false)
+		# What is still in it, on the label. `ship_changed` re-runs the screen's
+		# refresh on every take, so the number follows the hand emptying it.
+		_made[i].set_salvage(Run.jetsam_left(Run.node_at(), h))
 	queue_redraw()
 
 

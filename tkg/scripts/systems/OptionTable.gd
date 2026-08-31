@@ -31,9 +31,17 @@ class_name OptionTable
 ##     group = &"wreck",                # &"" is independent
 ##     weight = 11,
 ##     regions = [MapGen.Region.LAWLESS], min_danger = 2,   # gating, all ANDed
-##     choices = [ {label, check?, effect|met/clean/partial/botched}, ... ],
+##     choices = [ {label, check?, stay?, effect|met/clean/partial/botched}, ... ],
 ## }
 ## ```
+##
+## `stay = true` MARKS A WALK-AWAY: a choice that rolls nothing, costs nothing
+## and pays nothing — "Leave it", "Decline", "Pass". The sector shows its prose
+## and does NOT mark the option resolved, so declining a thing leaves it there
+## to come back to. It is a declaration, not a detection, because only the
+## author knows whether "she goes to ask the next ship" means the encounter is
+## narratively spent — a choice whose effect changes anything must never carry
+## it.
 ##
 ## IDENTITY IS THE `id`, NEVER THE TITLE. `EventTable.by_key()` matches on
 ## `str(e.title)`, so renaming "Whale fall" invalidates every save that rolled
@@ -559,7 +567,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Snatch it while they argue", fight = true, effect = func() -> Dictionary:
 					Run.add_credits(40)
 					return {text = "You burn in and take the thing both of them are shouting about. They stop shouting at each other.", fight = true, material = &"event"}},
-				{label = "Leave them to it", effect = func() -> Dictionary:
+				{label = "Leave them to it", stay = true, effect = func() -> Dictionary:
 					return {text = "Two ships, one pod, and an open channel. It was going to be a long afternoon anyway."}},
 			],
 		},
@@ -763,7 +771,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You misjudge how long is too long. The wreck keeps its fittings and you leave with less hull than you arrived with."}},
 				{label = "Take what is already loose", effect = func() -> Dictionary:
 					return {text = "You work the drift downwind of it, where the star has done the removing for you.", material = &"wreck"}},
-				{label = "Leave it polished", effect = func() -> Dictionary:
+				{label = "Leave it polished", stay = true, effect = func() -> Dictionary:
 					return {text = "It has been there long enough to be a landmark. It will be there considerably longer."}},
 			],
 		},
@@ -791,7 +799,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You are still finding somewhere for it when a patrol runs a courtesy sweep of the dock. Nothing comes of it. She sees the sweep and takes it back."}},
 				{label = "Ask what it is", effect = func() -> Dictionary:
 					return {text = "She tells you, or tells you something. Either way she takes it somewhere else, politely, and you do not see her again."}},
-				{label = "Decline", effect = func() -> Dictionary:
+				{label = "Decline", stay = true, effect = func() -> Dictionary:
 					return {text = "She nods like she expected it and goes to ask the next ship along the rank."}},
 			],
 		},
@@ -929,7 +937,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Shut it down first", effect = func() -> Dictionary:
 					Run.add_credits(25)
 					return {text = "Six hours to talk the control stack into standing down, and it stands down apologetically. The yard is cool by the time you reach it and half of what you wanted has cooked in place.", material = &"mining"}},
-				{label = "Leave it running", effect = func() -> Dictionary:
+				{label = "Leave it running", stay = true, effect = func() -> Dictionary:
 					return {text = "It will keep cracking a seam that stopped paying, and stacking a yard nobody comes to. Nothing you do here changes the second part."}},
 			],
 		},
@@ -1070,7 +1078,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Rig them a target instead", effect = func() -> Dictionary:
 					Run.add_credits(30)
 					return {text = "You weld them a test target out of scrap plating from your own stores. It does not survive the afternoon, which was the point of it."}},
-				{label = "Decline", effect = func() -> Dictionary:
+				{label = "Decline", stay = true, effect = func() -> Dictionary:
 					return {text = "They take it well. Somebody out here will say yes to this before the week is out."}},
 			],
 		},
@@ -1127,7 +1135,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Take the outside", effect = func() -> Dictionary:
 					Run.add_credits(25)
 					return {text = "You do not try to board. You strip what is bolted to the exterior, on the pass, one piece at a time.", material = &"wreck"}},
-				{label = "Leave it turning", effect = func() -> Dictionary:
+				{label = "Leave it turning", stay = true, effect = func() -> Dictionary:
 					return {text = "Once every ninety seconds, with everything still where somebody left it."}},
 			],
 		},
@@ -1175,7 +1183,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Sell them the courier's slot", effect = func() -> Dictionary:
 					Run.add_credits(50)
 					return {text = "The courier is fast enough to outrun anything out here alone. You tell them so, take a cut for the advice, and the convoy splits."}},
-				{label = "Decline", effect = func() -> Dictionary:
+				{label = "Decline", stay = true, effect = func() -> Dictionary:
 					return {text = "They pay the other escort most of what the run is worth, and go, and you never learn how it ended."}},
 			],
 		},
@@ -1204,7 +1212,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Just take the job", effect = func() -> Dictionary:
 					Run.add_credits(45)
 					return {text = "Nine tonnes, one ring inward, above rate, no questions. You have carried worse and asked less."}},
-				{label = "Pass", effect = func() -> Dictionary:
+				{label = "Pass", stay = true, effect = func() -> Dictionary:
 					return {text = "He finds somebody else inside the hour. The crate is still warm when it leaves."}},
 			],
 		},
@@ -1236,7 +1244,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Skim the tail", effect = func() -> Dictionary:
 					Run.fuel += 9
 					return {text = "You do not touch the body. You run the tail and collect what it is already shedding, which is slower and entirely safe."}},
-				{label = "Leave it", effect = func() -> Dictionary:
+				{label = "Leave it", stay = true, effect = func() -> Dictionary:
 					return {text = "A long ellipse, a hard crust, and nobody out here to sell water to. It will be back around in ninety years."}},
 			],
 		},
@@ -1296,7 +1304,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Work the outside", effect = func() -> Dictionary:
 					Run.add_credits(20)
 					return {text = "The perimeter of the field is safe enough and picked over enough. You take what the last four crews did not think was worth the lift.", material = &"wreck"}},
-				{label = "Leave it lying", effect = func() -> Dictionary:
+				{label = "Leave it lying", stay = true, effect = func() -> Dictionary:
 					return {text = "Nine hundred metres of somebody's deferred maintenance. It will finish coming down eventually, on its own."}},
 			],
 		},
@@ -1358,7 +1366,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(12, "It panics at exactly the wrong moment and its flank finds you at speed. It reaches the pod anyway. You limp.")
 						return {text = "It panics at exactly the wrong moment and its flank finds you at speed. It reaches the pod anyway. You limp."}},
-				{label = "Leave it calling", effect = func() -> Dictionary:
+				{label = "Leave it calling", stay = true, effect = func() -> Dictionary:
 					return {text = "The pod is two hours out. The hunter is closer. You do not stay to see which arrives first."}},
 			],
 		},
@@ -1409,7 +1417,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Ask about the folder", effect = func() -> Dictionary:
 					Run.add_credits(20)
 					return {text = "Other people's paperwork about the thing at the core — transit logs that stop mid-line, a mass estimate crossed out four times, a requisition for instruments that were never sent. She lets you copy it. She has been waiting eleven years for someone to ask.", archive_recover = true}},
-				{label = "Leave her to the ledger", effect = func() -> Dictionary:
+				{label = "Leave her to the ledger", stay = true, effect = func() -> Dictionary:
 					return {text = "One clerk, one drawer, one folder. Your arrival is the first entry she has logged in a while, and she logs it beautifully."}},
 			],
 		},
@@ -1514,7 +1522,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.add_credits(-15)
 						return {text = "You feed it a malformed registry and something in its logic decides YOU are the addressee of every consignment on its manifest. It follows you to the edge of sensor range, waiting."}},
-				{label = "Decline the handshake", effect = func() -> Dictionary:
+				{label = "Decline the handshake", stay = true, effect = func() -> Dictionary:
 					return {text = "It holds formation for exactly one hour, then returns to its route. Somewhere out there is a registry one digit from yours, and its parcel is still coming."}},
 			],
 		},
@@ -1752,7 +1760,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.add_credits(-25)
 						return {text = "You file into the middle of a dispute that now has three parties and a docket number. The fee is not refundable."}},
-				{label = "Leave it to them", effect = func() -> Dictionary:
+				{label = "Leave it to them", stay = true, effect = func() -> Dictionary:
 					return {text = "Two claims, one wreck, an office each."}},
 			],
 		},
@@ -1827,7 +1835,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "Cargo, no occupant. Twenty-five credits."}
 					Run.take_hull_damage(6, "A scavenger trap finished what the cold started.")
 					return {text = "A scavenger trap. Six hull."}},
-				{label = "Leave it", effect = func() -> Dictionary:
+				{label = "Leave it", stay = true, effect = func() -> Dictionary:
 					return {text = "It tumbles on. The transponder is still going when it leaves sensor range."}},
 			],
 		},
