@@ -254,6 +254,30 @@ def build_all():
     put(tn, foley('ratchet', 0.07, hpf=600), 0.00, 0.8)
     S['hold_turn'] = (st(tn), 0.28)
 
+    # ---- salvage: the take, tiered ------------------------------------
+    # The ruling in TransferView stands: taking a crate is packing, not a
+    # payout, so every tier shares the same dry HANDLING and rarity only
+    # adds a small ring on top.  The ladder is audible but never a slot
+    # machine: common is just hands, rare rings once, prized shimmers --
+    # quietly -- and credits are coins because they are coins.
+    hand = mix(foley('metal_small', 0.12, lpf=5000)*0.7,
+               thunk(hz('F3'), 0.10, 0.15)*0.5)
+    S['take_common'] = (st(hand, -0.03), 0.36)
+    tr = np.zeros(int(0.55*SR))
+    put(tr, hand, 0.00)
+    put(tr, _chime(hz('C6'), 0.40, 0.22), 0.05)
+    S['take_rare'] = (room(st(tr, 0.05), 0.12), 0.40)
+    tp = np.zeros(int(0.90*SR))
+    put(tp, hand, 0.00)
+    put(tp, _chime(hz('C6'), 0.55, 0.22), 0.05)
+    put(tp, _chime(hz('F6'), 0.60, 0.18), 0.13)
+    put(tp, sampler.glass(hz('Ab5'), 0.6, 0.10), 0.10)
+    S['take_prized'] = (room(st(tp, 0.05), 0.16), 0.44)
+    cc = np.zeros(int(0.45*SR))
+    put(cc, foley('coins', 0.30, hpf=500), 0.00, 0.9)
+    put(cc, click(hz('C5'), 0.04, tone=0.4), 0.28, 0.4)
+    S['take_credits'] = (st(cc, 0.03), 0.40)
+
     # ---- paperwork ----------------------------------------------------
     cs = np.zeros(int(0.42*SR))
     put(cs, foley('card_snap', 0.10, lpf=3000), 0.00, 0.9)
