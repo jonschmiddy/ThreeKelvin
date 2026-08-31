@@ -247,6 +247,12 @@ func _connect_signals() -> void:
 		play(&"contract_stamp", 0.04, 250))
 	Sig.archive_changed.connect(func() -> void:
 		play(&"archive_found", 0.05, 400))
+	# Every screen change is the same pressure door -- _swap() is the one
+	# chokepoint, so the sound is right by construction, like the resource
+	# poll. limit_ms soaks the double-swap paths (flee already stings, and
+	# some routes swap twice on the way somewhere).
+	Sig.screen_changed.connect(func() -> void:
+		play(&"ui_tab", 0.04, 350))
 	Sig.ship_changed.connect(func() -> void: play(&"module_install", 0.04, 120))
 	Sig.run_ended.connect(_on_run_ended)
 	# Draw on turn start, not on hand_changed — the hand also changes when a
