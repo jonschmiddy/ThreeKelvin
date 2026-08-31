@@ -240,6 +240,16 @@ func _connect_signals() -> void:
 	Sig.combat_started.connect(func(_n: String) -> void: play(&"combat_start"))
 	Sig.combat_ended.connect(_on_combat_ended)
 	Sig.jumped.connect(func(_i: int) -> void: play(&"jump"))
+	# A kill flashes warm and dies cold. limit_ms: a card that clears the
+	# board is one explosion, not a drum roll.
+	Sig.enemy_destroyed.connect(func(_w: int) -> void:
+		play(&"explosion_small", 0.09, 160))
+	# Paperwork: the ledger stamps with the institutions' bare fifth, same
+	# figure the score's stamp lanes carry.
+	Sig.contracts_changed.connect(func() -> void:
+		play(&"contract_stamp", 0.04, 250))
+	Sig.archive_changed.connect(func() -> void:
+		play(&"archive_found", 0.05, 400))
 	Sig.ship_changed.connect(func() -> void: play(&"module_install", 0.04, 120))
 	Sig.run_ended.connect(_on_run_ended)
 	# Draw on turn start, not on hand_changed — the hand also changes when a
@@ -475,6 +485,10 @@ func _poll_resources() -> void:
 func _on_damage(_amount: int, to_player: bool, _who: int) -> void:
 	if to_player:
 		play(&"impact_hull", 0.05)
+	else:
+		# Your shot landing on THEM: distance runs cold, so it is small and
+		# dry. limit_ms keeps multi-hit turns from machine-gunning it.
+		play(&"impact_enemy", 0.08, 90)
 
 func _on_combat_ended(result: StringName, _summary: String) -> void:
 	match result:

@@ -247,6 +247,46 @@ def build_all():
     put(ds, bowed(hz('Gb2'), 1.40, 0.50, 3.4), 0.85)
     put(ds, drone(hz('F1'), 2.0, 0.30, 70, 150), 0.10)
     S['death_sting'] = (room(st(ds), 0.30), 0.80)
+
+    # ---- the other ship -----------------------------------------------
+    # Your shot landing. THEIR hull, and far away: by the thermal ruling
+    # distance is cold, so this has no warm body at all -- a dry mid thunk
+    # and a metal tick, quieter than anything that happens to you.
+    ie = np.zeros(int(0.30*SR))
+    put(ie, thunk(hz('F3'), 0.12, bite=0.35), 0.00, 0.80)
+    put(ie, metal(hz('Eb5'), 0.26, 0.30), 0.02, 0.55)
+    S['impact_enemy'] = (room(st(ie, 0.18), 0.12), 0.44)
+    # A kill. An explosion EMITS, so it earns the warm low body -- briefly.
+    # Hot F1 boom with grit, then only the cold part survives: debris, a
+    # thin metal ring, and the room. The warmth dies with the ship.
+    N = int(1.00*SR); t = np.arange(N)/SR
+    ex = np.sin(2*np.pi*hz('F1')*t*(1-0.10*t))*np.exp(-t/0.16)
+    ex += lp(np.random.randn(N), 1600)*np.exp(-t/0.09)*0.8
+    ex = np.tanh(ex*2.2)/2.2
+    put(ex, bp(np.random.randn(N), 2200, 9000)*np.exp(-t/0.30)*0.16, 0.04)
+    put(ex, metal(hz('Ab5'), 0.70, 0.28), 0.10)
+    S['explosion_small'] = (room(st(ex), 0.24), 0.90)
+
+    # ---- paperwork ----------------------------------------------------
+    # A contract signed or settled: the STAMP. The institutions sign with
+    # the bare fifth all over the score -- business, perpetuity, nofault
+    # all carry stamp lanes on F+C -- so the ledger sounds the same in the
+    # interface as it does in the music. Dry: paperwork is chrome.
+    cs = np.zeros(int(0.40*SR))
+    put(cs, thunk(hz('F2'), 0.14, bite=0.30), 0.00, 0.85)
+    put(cs, tone('F4', 0.10, 0.30), 0.01)
+    put(cs, tone('C5', 0.10, 0.24), 0.01)
+    put(cs, click(hz('C6'), 0.04, tone=0.25), 0.11, 0.40)
+    S['contract_stamp'] = (st(cs, -0.10), 0.52)
+    # Something aboard was still readable. Quiet: paper, and one small
+    # bell an octave over the tonic. Restraint is the whole gesture --
+    # a document is not loot.
+    N = int(0.14*SR); t = np.arange(N)/SR
+    ar = np.zeros(int(0.90*SR))
+    put(ar, bp(np.random.randn(N), 900, 6000)*np.exp(-t/0.05)
+            *(t/0.01).clip(0, 1)*0.20, 0.00)
+    put(ar, bell(hz('F6'), 0.70, 0.30), 0.10)
+    S['archive_found'] = (room(st(ar, 0.10), 0.28), 0.40)
     return S
 
 def main(out_dir='out/sfx'):
