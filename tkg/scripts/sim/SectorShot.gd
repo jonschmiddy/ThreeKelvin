@@ -293,6 +293,35 @@ func run(tree: SceneTree) -> void:
 					(cc as CardData).describe_rich(cl.card_output(cc as CardData))])
 			tree.root.get_texture().get_image().save_png("user://live_after.png")
 			print("wrote ", ProjectSettings.globalize_path("user://live_after.png"))
+			# THE GHOST'S NUMBER, checked where it can honestly be checked.
+			#
+			# NOT END TO END, and the reason is worth writing down. The ghost is
+			# built inside `CardView._get_drag_data` and handed to
+			# `set_drag_preview`, which only parents it during a drag the ENGINE
+			# started. Calling `_get_drag_data` directly returns the payload but
+			# throws the preview away, so a search of the tree reports NOT FOUND
+			# on a fix that works. Driving a real drag with pushed events was
+			# tried next and `gui_is_dragging()` stayed false even with the
+			# coordinates through `get_final_transform` and the card confirmed
+			# playable -- `FitTest` warns about this exact ground, and drives
+			# only the pick-up for the same reason.
+			#
+			# So this checks the property the fix is: that a `CardView` handed a
+			# live figure BEFORE `setup` prints it, which is the order
+			# `_get_drag_data` now uses. The drag itself is checked by hand.
+			for hv in sl._hand.get_children():
+				var cvx := hv as CardView
+				if cvx == null or cvx.card == null or cvx.card.damage <= 0:
+					continue
+				var copy := CardView.new()
+				copy.live_output = cvx.live_output
+				sl.add_child(copy)
+				copy.setup(cvx.card, true, 1)
+				print("  GHOST-ORDER %s: hand live %d, copy prints %s" % [
+					cvx.card.name, cvx.live_output,
+					cvx.card.describe_rich(copy.live_output)])
+				copy.queue_free()
+				break
 		tree.quit()
 		return
 	if "status" in OS.get_cmdline_user_args():

@@ -866,6 +866,16 @@ func _get_drag_data(_pos: Vector2) -> Variant:
 	# are trying to aim at.
 	hovered.emit(self, false)
 	var ghost := CardView.new()
+	# CARRY THE LIVE NUMBER ACROSS. The ghost is a fresh `CardView` and
+	# `live_output` defaults to -1, so a card reading "Deal 8" under a lock-on
+	# reverted to "Deal 4" the instant you picked it up -- the bonus appeared to
+	# be lost by the act of aiming with it.
+	#
+	# Set BEFORE `setup`, because `setup` is what builds the body label and reads
+	# the figure into it. Assigned directly rather than through `set_live`, which
+	# early-outs when the value has not changed and would have nothing to write
+	# to yet anyway.
+	ghost.live_output = live_output
 	ghost.setup(card, true, _s)
 	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var wrap := Control.new()

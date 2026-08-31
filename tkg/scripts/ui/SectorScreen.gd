@@ -1683,23 +1683,22 @@ func _refresh_player() -> void:
 	if combat.negate_next:
 		_player_chips.add_child(StatusChip.make(&"slip", "", UITheme.GOOD,
 			"SLIP\n\nThe next hit on you misses."))
-	# SALVO IS NOT A STATUS, BUT ITS CONDITION IS. The keyword lives on the card
-	# -- "if you have already attacked this turn, +N" -- so there is nothing on
-	# the ship to show. What IS on the ship is `attacks_this_turn`, which decides
-	# whether every salvo card in your hand is currently worth more, and which
-	# was invisible: you had to remember whether you had swung yet.
+	# NO SALVO CHIP, AND LIVE_CARD_NUMBERS SECTION 3 IS WHY IT IS GONE.
 	#
-	# Only when a salvo card is actually in hand. A chip that fires on every
-	# second attack whether or not it means anything is a light that is always on.
-	# AND IT ASKS THE RULE, not the counter. See `Combat.salvo_live`: five
-	# Korvan aboard makes a Korvan card's salvo unconditional, so testing
-	# `attacks_this_turn` here told that pilot SALVO was down at the top of
-	# every turn while the cards in their hand were already paying it.
-	for c in combat.hand:
-		if (c as CardData).salvo > 0 and combat.salvo_live(c as CardData):
-			_player_chips.add_child(StatusChip.make(&"salvo", "", UITheme.EMBER,
-				"SALVO UP\n\nSalvo cards in your hand are worth more right now."))
-			break
+	# It never was a status. Its own note said so -- "SALVO IS NOT A STATUS, BUT
+	# ITS CONDITION IS" -- and it sat in this row regardless, between BRACE and
+	# FEEDBACK, which are things ON THE SHIP that got there because you played a
+	# card. This one appeared and vanished according to what was in your HAND,
+	# which nothing else in the row does, and it was never the result of an
+	# action you took. A light in the status row answering a different kind of
+	# question from every light beside it reads as broken even when it is right.
+	#
+	# What it was FOR was the arithmetic: "whether every salvo card in your hand
+	# is currently worth more was invisible -- you had to remember whether you
+	# had swung yet." That is exactly the tax section 3 removed. A salvo card in
+	# hand now prints its raised number, in the modified colour, under the same
+	# `salvo_live` test this chip was asking. The fact moved onto the card it is
+	# a fact about, which is where it had been trying to get to.
 	if combat.feedback > 0:
 		_player_chips.add_child(StatusChip.make(&"feedback", str(combat.feedback),
 			Color("#6e3a4a"), "FEEDBACK\n\nAttackers take %d back." % combat.feedback))
