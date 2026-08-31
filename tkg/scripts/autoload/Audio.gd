@@ -456,6 +456,13 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	p.volume_db = db
 	p.play()
 
+## Hold a name's tongue for a moment. The resource watcher plays loot_drop
+## and scrap_gain on ANY cargo/credit increase -- right for a windfall,
+## wrong layered over a screen that just played its own, better-informed
+## sound for the same change. The screen calls this before it speaks.
+func suppress(name: StringName, ms: int = 400) -> void:
+	_last[name] = Time.get_ticks_msec() + ms
+
 func click() -> void:   play(&"ui_click", 0.05)
 func hover() -> void:   play(&"ui_hover", 0.09, 40)
 func back() -> void:    play(&"ui_back", 0.03)

@@ -249,6 +249,11 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 			var got: bool = await Run.take_from_jetsam(_node, _jetsam, i)
 			_busy = false
 			if got:
+				# The resource watcher would answer the same take with the
+				# flat loot_drop / scrap_gain a frame later. This sound IS
+				# that sound, better informed -- hold their tongues.
+				Audio.suppress(&"loot_drop")
+				Audio.suppress(&"scrap_gain")
 				Audio.play(_take_sound(m), 0.05, 70, -4.0)
 	elif where > 0 and Run.put_in(_node, _jetsam, m):
 		pass
@@ -477,5 +482,7 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		#
 		# Down four anyway, and rate-limited, because a fast hand emptying a
 		# bag fires this several times in a second and even a dry sound stacks.
+		Audio.suppress(&"loot_drop")
+		Audio.suppress(&"scrap_gain")
 		Audio.play(_take_sound(m), 0.05, 70, -4.0)
 	refresh()
