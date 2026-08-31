@@ -903,6 +903,7 @@ func _turn_in_hold(at: Vector2) -> bool:
 		Run.place_in_hold(m, was)
 		Run.log_line("No room to turn %s." % m.name, &"them")
 		return true
+	Audio.play(&"hold_turn", 0.10)
 	_storage.refresh()
 	var now := _storage.icon_at(at)
 	if now != null:
@@ -1127,6 +1128,7 @@ func _on_lift(m: ModuleData) -> void:
 		return
 	_lifted = m
 	_lifted_mount = m.mount
+	Audio.play(&"hold_lift", 0.08)
 	Run.installed.erase(m)
 	m.mount = -1
 	Sig.ship_changed.emit()
@@ -1257,5 +1259,6 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 		m.mount = -1
 		_lifted = null
 		Run.log_line("Stowed %s." % m.name, &"sys")
+	Audio.play(&"hold_stow", 0.08)
 	Sig.ship_changed.emit()
 	_refresh()

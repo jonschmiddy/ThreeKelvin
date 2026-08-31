@@ -58,7 +58,16 @@ def foley(name, dur=None, gain=1.0, hpf=None, lpf=None, tail_ms=25):
 # doors shared with the score
 _gong   = lambda a, d=2.5: sampler.impact(a, d)
 _cym    = lambda f, d, a: sampler.metal(f, d, a)
-_bd     = sampler.kick
+def _bd(amp=1.0, dur=0.9):
+    # The VCSL door can hand back a 12-second take; a drum HIT is its
+    # first second.  Cap and fade, so mix()'s max-length rule stays sane.
+    y = sampler.kick(amp)
+    n = int(dur*SR)
+    if len(y) > n:
+        y = y[:n].copy()
+        k = int(0.12*SR)
+        y[-k:] *= np.linspace(1, 0, k)
+    return y
 _chime  = lambda f, d, a: sampler.bell(f, d, a)
 _pf     = lambda f, d, a: sampler._piano().note(f, d, a)*0.2
 
@@ -108,63 +117,49 @@ def build_all():
     S['card_play'] = (st(cp, -0.08), 0.46)
 
     # ---- weapons ------------------------------------------------------
-    # Four FAMILIES keyed on what the card mechanically is, each with round
-    # robins (Audio.play picks among name/name_2/name_3), all built on the
-    # serious diffusion takes -- deep discharges and mechanical actions,
-    # no cartoon pitch-bend anywhere.  The v1 zap survives only inside
-    # charge_fire, where a rising whine is the honest mechanic.
-    def _shot(src, body, tail=0.28, act=None):
-        y = np.zeros(int((0.10 + tail + 0.30)*SR))
-        if act:
-            put(y, foley(act, 0.05, hpf=1500), 0.000, 0.5)
-        put(y, foley(src, tail + 0.25), 0.006, 1.0)
-        put(y, _bd(body), 0.004, body)
-        return y
-    # plain kinetic: one shot, one variant per diffusion take
-    S['shot_kinetic']   = (room(st(_shot('shot_kinetic_1', 0.55), -0.10), 0.12), 0.72)
-    S['shot_kinetic_2'] = (room(st(_shot('shot_kinetic_3', 0.50, act='latch'), -0.08), 0.12), 0.72)
-    # autocannon burst: three cracks off the same takes, jittered
+    # Reworked on a listening note: the takes' crackle and the debris
+    # layers read as STATIC.  A serious gun is clean -- a tight low-passed
+    # transient and a heavy CHEST, which is a pure falling sine, the same
+    # cleanliness the reactor-loop reference has.  Nothing hissy survives.
+    def _chest(f0=58.0, dur=0.45, drop=0.45, amp=1.0):
+        n = int(dur*SR); t = np.arange(n)/SR
+        f = f0*(1 - drop*t/dur)
+        ph = 2*np.pi*np.cumsum(f)/SR
+        return np.sin(ph)*np.exp(-t/(dur*0.38))*amp
+    def _crack(src, dur, cut):
+        return lp(foley(src, dur, tail_ms=40), cut)
+    S['shot_kinetic'] = (room(st(mix(
+        _crack('shot_kinetic_1', 0.16, 2600),
+        _chest(62, 0.38, amp=0.9), _bd(0.5)*0.5), -0.10), 0.10), 0.72)
+    S['shot_kinetic_2'] = (room(st(mix(
+        _crack('shot_kinetic_3', 0.14, 2400),
+        _chest(58, 0.36, amp=0.9), _bd(0.45)*0.5), -0.06), 0.10), 0.72)
     def _burst(seed):
         r = np.random.RandomState(seed)
-        y = np.zeros(int(0.75*SR))
+        y = np.zeros(int(0.70*SR))
         for i in range(3):
-            at = i*0.11 + r.uniform(-0.008, 0.008)
+            at = max(0.0, i*0.11 + r.uniform(-0.008, 0.008))
             src = ('shot_kinetic_3', 'shot_kinetic_1')[i % 2]
-            put(y, foley(src, 0.16, hpf=250)*r.uniform(0.8, 1.0), at)
+            put(y, _crack(src, 0.12, 2600)*r.uniform(0.8, 1.0), at)
+        put(y, _chest(60, 0.45, amp=0.8), 0.0)
         put(y, _bd(0.4), 0.004, 0.4)
-        put(y, foley('debris', 0.25, gain=0.2, hpf=2000), 0.36)
         return y
-    S['shot_auto']   = (room(st(_burst(3), -0.10), 0.12), 0.70)
-    S['shot_auto_2'] = (room(st(_burst(9), -0.06), 0.12), 0.70)
-    # heavy ordnance: the big slug -- deep take, full drum, long settle
-    hv = np.zeros(int(1.10*SR))
-    put(hv, foley('shot_kinetic_2', 0.70), 0.00, 1.0)
-    put(hv, _bd(1.0), 0.004, 0.85)
-    put(hv, foley('debris', 0.45, gain=0.3, hpf=1200), 0.22)
-    put(hv, thunk(hz('F1'), 0.30, 0.2), 0.01, 0.6)
-    S['shot_heavy'] = (room(st(hv), 0.16), 0.85)
-    hv2 = np.zeros(int(1.10*SR))
-    put(hv2, foley('shot_energy_2', 0.65, lpf=3500), 0.00, 0.9)
-    put(hv2, _bd(1.0), 0.004, 0.9)
-    put(hv2, foley('metal_big', 0.4, lpf=2000), 0.15, 0.5)
-    S['shot_heavy_2'] = (room(st(hv2), 0.16), 0.85)
-    # energy discharge: the serious takes carry it; a single dark F tail
-    # keeps the key without singing
+    S['shot_auto']   = (room(st(_burst(3), -0.10), 0.10), 0.70)
+    S['shot_auto_2'] = (room(st(_burst(9), -0.06), 0.10), 0.70)
+    S['shot_heavy'] = (room(st(mix(
+        _crack('shot_kinetic_2', 0.45, 1700),
+        _chest(48, 0.90, drop=0.5, amp=1.1),
+        _bd(1.0)*0.8, thunk(hz('F1'), 0.30, 0.0)*0.5)), 0.14), 0.85)
+    S['shot_heavy_2'] = (room(st(mix(
+        _crack('shot_energy_2', 0.40, 1500),
+        _chest(45, 0.95, drop=0.5, amp=1.1), _bd(1.0)*0.85)), 0.14), 0.85)
     for i, src in enumerate(('shot_energy_1', 'shot_energy_2', 'shot_energy_3')):
-        en = np.zeros(int(0.80*SR))
-        put(en, foley(src, 0.55), 0.00, 1.0)
-        put(en, _bd(0.4), 0.004, 0.35)
-        put(en, np.sin(2*np.pi*hz('F2')*np.arange(int(0.4*SR))/SR)
-                *np.exp(-np.arange(int(0.4*SR))/SR/0.10), 0.01, 0.30)
-        S['shot_energy' + ('' if i == 0 else '_%d' % (i+1))] = (
-            room(st(en, 0.08), 0.15), 0.72)
-    ch = np.zeros(int(0.95*SR))
-    put(ch, sweep(0.45, 120, 700, 900, 5200, curve=2.2)
-            *np.linspace(0, 1, int(0.45*SR))**2.0, 0.00, 0.45)
-    put(ch, foley('static_tick', 0.10, hpf=1000), 0.38, 0.7)
-    put(ch, zap(hz('F5'), 0.42, bend=-0.62), 0.42, 1.05)
-    put(ch, foley('steam_puff', 0.30, gain=0.4, hpf=800), 0.50)
-    S['charge_fire'] = (room(st(ch), 0.22), 0.80)
+        N = int(0.4*SR)
+        S['shot_energy' + ('' if i == 0 else '_%d' % (i+1))] = (room(st(mix(
+            _crack(src, 0.30, 2000),
+            _chest(55, 0.50, amp=0.9), _bd(0.4)*0.35,
+            np.sin(2*np.pi*hz('F2')*np.arange(N)/SR)
+            *np.exp(-np.arange(N)/SR/0.10)*0.3), 0.06), 0.12), 0.72)
 
     # ---- taking it ----------------------------------------------------
     dmg = np.zeros(int(0.70*SR))
@@ -240,6 +235,24 @@ def build_all():
     put(jt, foley('whoosh', 0.40, gain=0.35, hpf=500), 0.30)
     put(jt, thunk(hz('F2'), 0.12, 0.2), 0.06, 0.4)
     S['jettison'] = (room(st(jt), 0.18), 0.56)
+
+    # ---- the hold -----------------------------------------------------
+    # Drag-and-drop needs its hands: a part LIFTING off its cell (small,
+    # upward gesture, cold -- you are just holding it), a part STOWING
+    # into one (the reverse, with the cell answering), and the quarter
+    # turn (one ratchet tooth).  All chrome-quiet: rearranging your hold
+    # is tidying, not gameplay.
+    lf = np.zeros(int(0.16*SR))
+    put(lf, foley('metal_small', 0.09, hpf=900), 0.00, 0.6)
+    put(lf, click(hz('C5'), 0.04, tone=0.35), 0.01, 0.4)
+    S['hold_lift'] = (st(lf, 0.05), 0.30)
+    sw_ = np.zeros(int(0.22*SR))
+    put(sw_, foley('metal_small', 0.12, lpf=5000), 0.00, 0.7)
+    put(sw_, thunk(hz('F3'), 0.10, 0.15), 0.01, 0.5)
+    S['hold_stow'] = (st(sw_, -0.05), 0.36)
+    tn = np.zeros(int(0.12*SR))
+    put(tn, foley('ratchet', 0.07, hpf=600), 0.00, 0.8)
+    S['hold_turn'] = (st(tn), 0.28)
 
     # ---- paperwork ----------------------------------------------------
     cs = np.zeros(int(0.42*SR))
