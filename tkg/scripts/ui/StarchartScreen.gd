@@ -313,11 +313,27 @@ func _build() -> void:
 	# `_view_zoom`. Re-framing here would run before layout and land on ZOOM_MIN,
 	# which is the bug that made LOCAL REGION look like it had stopped working.
 
-func _first_reachable() -> int:
-	for idx in Run.node_at().links:
-		if Run.can_jump_to(Run.map[idx]):
-			return idx
-	return -1
+## IS THERE ANYWHERE TO GO AT ALL -- asked of the whole map, the way every other
+## part of the game asks it.
+##
+## This used to walk `Run.node_at().links` and say NOWHERE if none of THOSE was
+## jumpable. But links are TOPOLOGY -- the lines the chart draws -- and travel is
+## not link-gated: `reachable_from` is pure geometry, `in_range_of` scans the
+## whole map with it, and `can_jump_to` never mentions links. A node has a
+## handful of links and a great many systems in range.
+##
+## So the panel announced NOWHERE over a list of places you could fly to, any
+## time your few linked neighbours were the unaffordable ones. Rare enough to be
+## hard to reproduce on purpose, which is why it survived: it needs the links to
+## be expensive while the rest of the neighbourhood is not.
+##
+## `has_legal_jump()` is the same question asked by `check_stranded()`, which
+## ENDS THE RUN when it answers no. That is the right authority for a panel whose
+## message is "the tank is dry": the header now says NOWHERE exactly when the run
+## is one resolution away from being over, and never merely because the drawn
+## lines went somewhere costly.
+func _anywhere_to_go() -> bool:
+	return Run.has_legal_jump()
 
 func _on_node_picked(index: int) -> void:
 	_selected = index
@@ -349,7 +365,7 @@ func _refresh() -> void:
 	if _selected < 0:
 		_fill_neighbours(here)
 		# Two different nothings: nothing chosen, versus nothing possible.
-		if _first_reachable() >= 0:
+		if _anywhere_to_go():
 			# With nothing selected the panel describes the galaxy itself. It is
 			# the one thing on this screen that is always true, and a run should
 			# know where it is happening.
@@ -481,7 +497,20 @@ func _refresh() -> void:
 		_rows.add_child(_row("DEVELOPMENT", MapGen.development_name(t.development).to_upper()))
 		_rows.add_child(_row("SECURITY", MapGen.security_name(t.security).to_upper(),
 			Color("#c8734f") if t.security <= 2 else UITheme.CHILL))
-		var who := "UNCLAIMED"
+		# "NONE", NOT "UNCLAIMED", and the word is the whole change.
+		#
+		# `DEVELOPMENT_NAMES[0]` is "Unclaimed" -- a real rung on the development
+		# scale -- and this was a bare literal that happened to pick the same
+		# word. Measured across 1938 systems in six galaxies: 416 are
+		# development-zero, 484 have no berths, and 341 are BOTH -- so 18% of
+		# systems printed UNCLAIMED on two consecutive rows.
+		#
+		# The row is not dropped, though dropping it was the tempting fix. The
+		# two facts are not the same one: 143 systems have no berths while being
+		# a real outpost or settlement, and "nobody operates this place" is worth
+		# saying about those. NONE is already this panel's word for an absence --
+		# SECURITY: NONE on the Core, SURVEY: NONE on a contract system.
+		var who := "NONE"
 		if not t.berths.is_empty():
 			var names: Array[String] = []
 			for m in t.berths:
