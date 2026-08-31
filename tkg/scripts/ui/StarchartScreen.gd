@@ -415,6 +415,9 @@ func _build_primer() -> void:
 	col.add_child(_gap())
 	col.add_child(UITheme.body("READING THE CHART", UITheme.CHILL, UITheme.FS_SMALL))
 	col.add_child(_primer_glyphs())
+	# The shapes are a picture and the rows under them are prose; butted
+	# together they read as one block and the glyphs stop being a legend.
+	col.add_child(_gap())
 	for line in PRIMER_LEGEND:
 		col.add_child(_primer_para(line, UITheme.COLD))
 
@@ -428,10 +431,30 @@ const PRIMER_W := 460
 
 
 ## The half of the card that does not change with the galaxy.
+##
+## SHORTER, NOT RESHAPED. These were three long sentences that came to seven
+## lines of small caps -- a wall you skip rather than a legend you read. Tried as
+## keyed rows first, which cut the length and read as a spec sheet: COLOUR and
+## CIRCLES are not things on the chart you can point at, so labelling them made
+## instructions look like data. They stay sentences and lose half their words.
+##
+## TWO OF THE THREE WERE ALSO WRONG, which is worse in teaching text than
+## anywhere else in the game:
+##
+## "Outrunning your dish means arriving somewhere you never surveyed" promised
+## exactly what `can_jump_to` forbids -- it wants `sensed`, so a system past your
+## sight is drawn, priced and REFUSED. Reach can outrun sight on purpose (see
+## `sense_radius_of`); what that buys is range you cannot spend, which is the
+## opposite of the danger this line invented.
+##
+## "A short danger bar beside a long fuel one is a cheap trip somewhere awful"
+## is inside out. `_neighbour_row` has said it correctly for months: a FULL
+## danger gauge beside a NEARLY EMPTY fuel one is the cheap trip into somewhere
+## awful. This was a paraphrase of that comment that inverted it.
 const PRIMER_LEGEND: Array[String] = [
-	"A system's colour is its star. Pale is ordinary. Red and blue hypergiants are rarer, and each one offers things nothing else does.",
-	"The two circles around you are your ship, and they are not the same circle: THRUSTER REACH is how far you can fly, SENSOR RANGE is how far you can see. Outrunning your dish means arriving somewhere you never surveyed.",
-	"Every row in the list carries two gauges: how dangerous a place is, and what the jump costs. A short danger bar beside a long fuel one is a cheap trip somewhere awful.",
+	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
+	"You fly as far as THRUSTER REACH and see as far as SENSOR RANGE. Past your sight a jump is priced and then refused: NOT SCANNED.",
+	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap trip somewhere awful.",
 ]
 
 
@@ -453,10 +476,10 @@ func _primer_cost() -> Array[String]:
 	var out: Array[String] = []
 	var reach: float = float(Run.galaxy.get("reach", 1.0))
 	var dens: float = float(Run.galaxy.get("density", 1.0))
-	# SAID ONLY WHEN THERE IS SOMETHING TO SAY. Gluing a clause for each axis
-	# together unconditionally produced "an ordinary spread, ordinarily settled"
-	# -- two thirds of a sentence spent telling you nothing is unusual, with the
-	# same word in it twice.
+	# SENTENCES, NOT ROWS. The legend above is instruction and reads better cut
+	# to the bone; this is the galaxy talking about itself, in the same voice as
+	# the blurb directly over it, and clipping it to "Tight." lost the half that
+	# was worth reading.
 	if reach >= 1.08:
 		out.append("A wide disc. The crossings are long and every one of them is fuel.")
 	elif reach <= 0.85:
@@ -465,17 +488,22 @@ func _primer_cost() -> Array[String]:
 		out.append("It is thick with systems -- there will be more places to stop than you can afford to.")
 	elif dens <= 0.80:
 		out.append("It is thin of systems. Expect stretches with nothing in them.")
-	# THE ANISOTROPY, and only when it is worth a sentence. Distance is measured
-	# in the squashed space the chart draws, so on a foreshortened disc a jump
-	# along the short axis is genuinely shorter -- section 4 rules to accept that
-	# and explain it here rather than measure un-squashed and break the promise
-	# that cost is as the chart draws it.
+	# THE ANISOTROPY, AND IT RUNS THE OTHER WAY FROM THE BRIEF.
+	#
+	# GALAXY_SCALE.md section 4 describes north-south jumps as costing 1.5x to
+	# 3.6x LESS and lists measuring un-squashed as the alternative it did not
+	# take. The code took it: `hop_distance` DIVIDES y by squash, so fuel is
+	# spent on the round distance and not on the drawn one. The brief's note is
+	# stale and section 4's "still open" ruling has already been decided by the
+	# implementation.
+	#
+	# MEASURED on a Lenticular at squash 0.372: the same drawn gap of 0.200
+	# costs 3 fuel sideways and 6 up-and-down. So the player-facing fact is the
+	# one section 4 warned about as the price of this choice -- two systems that
+	# look equally far apart are not -- and this is the line that says so.
 	var sq: float = float(Run.galaxy.get("squash", 1.0))
 	if sq < 0.5:
-		out.append("It is steeply tilted, and fuel is spent on the distance you SEE. A hop up or down the short way across costs less than the same span left to right.")
-	# LAST, AND ONLY IF NOTHING ELSE SPOKE. Placed before the tilt check this
-	# said "Ordinary to cross" directly above "It is steeply tilted", which is
-	# the card contradicting itself inside two lines.
+		out.append("It is steeply tilted, and the drawing lies about distance: a gap up or down costs far more than the same gap sideways.")
 	if out.is_empty():
 		out.append("Ordinary to cross: no unusual distances, and no unusual gaps.")
 	return out

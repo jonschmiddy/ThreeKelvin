@@ -197,9 +197,11 @@ CORE — five entries, down from seven — and two of the five were drawn in col
 that no longer appear on the map. Both now come from `MapGen.swatch`.
 
 **The brief's gate was wrong** and is corrected in place: `trail` is never empty,
-so `trail.size() <= 1` is the test. Left open by §4: whether to tighten the
-`squash` jitter clamp from 0.28 to 0.45. The primer EXPLAINS the anisotropy on a
-steeply tilted disc; nothing has narrowed it.
+so `trail.size() <= 1` is the test. **§4's "still open" anisotropy ruling was
+also already closed by the code, in the opposite direction** — `hop_distance`
+divides y by `squash`, so an up-and-down gap costs MORE than the same drawn gap
+sideways (3 fuel vs 6, measured at `squash 0.372`). The primer says so. Whether
+to narrow the clamp is still a live question, now for the opposite reason.
 
 ### What 8a-2 changed in the numbers
 

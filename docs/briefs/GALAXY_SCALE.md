@@ -192,7 +192,23 @@ count has no business depending on it, and this needs no balance argument.
 property — how hard the population packs inward — and `reach` absorbs its knock-on
 effect on fuel.
 
-### Still open: the anisotropy
+### Still open: the anisotropy — **CLOSED, AND BACKWARDS**
+
+> **The code already took the second option, and this section describes the old
+> behaviour.** `MapGen.hop_distance` **divides** y by `squash`, so fuel is spent
+> on the ROUND distance, not on the drawn one. The anisotropy therefore runs the
+> other way: an up-and-down gap costs MORE than the same drawn gap sideways, not
+> less.
+>
+> **Measured** on a Lenticular at `squash 0.372`: the same drawn gap of 0.200
+> costs **3 fuel sideways and 6 up-and-down**.
+>
+> So the price this section named as the cost of measuring un-squashed — *two
+> systems which look equally far apart sometimes are not* — is the behaviour
+> that shipped, and §5's primer is where it finally gets said: **TILT — Steep. A
+> gap up or down costs far more than the same gap sideways.** The clamp
+> recommendation below is moot in its stated form; if the ratio is still worth
+> narrowing, it is worth narrowing for the opposite reason.
 
 Because distance is measured in squashed space, a north–south jump costs
 **1.5× to 3.6× less** than an east–west one at the same angular separation,
