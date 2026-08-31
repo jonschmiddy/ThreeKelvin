@@ -75,6 +75,31 @@ func run(tree: SceneTree) -> void:
 	Router.show_starchart()
 	for i in 120:
 		await RenderingServer.frame_post_draw
+	# THE PRIMER IS UP IN EVERY SHOT UNLESS IT IS TAKEN DOWN. It shows on the
+	# first chart open of a run, and `flown=N` marks systems VISITED without
+	# appending to `trail` -- so a harness run is always a first open, however
+	# far it has notionally flown, and the card would sit over every photograph
+	# ever taken of this screen.
+	#
+	# `primer` keeps it up, to photograph the card itself.
+	var scp := Router.current as StarchartScreen
+	if "primerkey" in OS.get_cmdline_user_args():
+		# THE DISMISS PATH ITSELF, driven with a real event rather than by
+		# calling the teardown. `dismiss_primer()` returning true proves the card
+		# can be removed; it proves nothing about whether any key REACHES it, and
+		# a primer that cannot be got past is the one failure mode that matters.
+		var ev := InputEventKey.new()
+		ev.keycode = KEY_SPACE
+		ev.pressed = true
+		scp._input(ev)
+		for iK in 4:
+			await RenderingServer.frame_post_draw
+		print("  after a keypress the primer is %s"
+			% ["GONE" if scp._primer == null else "STILL UP"])
+	elif "primer" in OS.get_cmdline_user_args():
+		print("  primer left up")
+	elif scp != null and scp.dismiss_primer():
+		print("  primer dismissed")
 	# `pick` selects a destination so the panel has something to describe, and
 	# prefers a system with a STAR worth reading -- an ordinary one shows the row
 	# but not that the row varies, which is the half worth photographing.

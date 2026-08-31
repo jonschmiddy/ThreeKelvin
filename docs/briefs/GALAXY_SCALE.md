@@ -233,7 +233,18 @@ than to decision inputs. Nothing currently teaches that. A galaxy-blurb popup
 and a chart primer are the same amount of work and very different amounts of
 value.
 
-### Gate it on `trail.is_empty()`
+### Gate it on `trail.is_empty()` — **WRONG, see below**
+
+> **LANDED 2026-08-30, and this gate does not work.** `Run.trail` is NOT empty
+> until the first jump: `start_new_run` sets it to `PackedInt32Array([0])`, the
+> system you begin on. A primer gated on `is_empty()` would never once have
+> appeared. Shipped as **`trail.size() <= 1`** — same intent, and it fires.
+>
+> The re-show wrinkle below was also cheap to fix rather than accept: a
+> **static `_primed_for` holding `Run.galaxy_seed`** outlives a screen that is
+> rebuilt on every open, and keying on the seed rather than a bool means a
+> second run in the same session is primed again instead of silently skipped.
+> Still no save key, still nothing on the wire.
 
 `Run.trail` is a `PackedInt32Array`, empty until the first jump. Gate on that
 and first-open behaviour costs **no new state, no save key, and no
@@ -279,6 +290,28 @@ the run will feel.
 There is **no existing overlay or modal machinery in `StarchartScreen`** — no
 popup, no dismiss, nothing to hang this on. It is new UI in a 4,260-line file.
 Do not estimate it as small.
+
+**It was still true at 5,173 lines.** The overlay is a full-rect `Control` added
+LAST so sibling order puts it on top — no `CanvasLayer` needed — with a scrim at
+`MOUSE_FILTER_STOP` so the dismissing press does not also pick a destination,
+and the card in a **`CenterContainer`**: `set_anchors_preset(PRESET_CENTER)`
+moves the anchors and leaves the offsets, so the card lays out from the centre
+going down-right and hangs off the bottom of the screen. It did exactly that.
+
+**The legend was lying before the primer pointed at it.** The chart key drew
+SYSTEM violet (`#b08ad0`) and STATION pale blue (`#8ec8e6`) from back when a
+system was tinted by who held it; since the colours became starlight every glyph
+on the map is `star_colour`, so two of five key entries named colours that
+appear nowhere on the map. Fixed at the source: `MapGen.swatch(type, star)` is
+the one implementation and `star_colour(n)` is a call to it, so the key and the
+map cannot drift again.
+
+**`chartshot` had to learn about it.** `flown=N` marks systems visited without
+appending to `trail`, so every harness run is a first open and the card sat over
+every photograph. The harness dismisses it by default, `primer` keeps it up, and
+`primerkey` fires a real `InputEventKey` and asserts the card is gone — because
+`dismiss_primer()` returning true proves nothing about whether a key REACHES it,
+and a primer you cannot get past is the only failure mode that matters.
 
 ---
 

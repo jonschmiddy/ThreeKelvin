@@ -5,9 +5,9 @@ after the S-phase session**, against `main` at `a5db9c1`. Phases 0–5 done, pha
 5 **deleted** rather than parked, and the S-phases resolved — mostly by
 dissolving. §1 is the state of the world; §2 is what is next.*
 
-***Updated 2026-08-30.** Materials became items — the one ⬜ marked **next** — and
-§1 was seven save versions out of date. What is left before the tune gate
-reopens is **placement**, then **star features**, then G §5, then L.*
+***Updated 2026-08-30.** Placement, star features and **G §5's chart primer** have
+all landed; the galaxy table lost its two ring kinds and gained four shapes
+(SaveGame 26). What is left before the tune gate reopens is **L**.*
 
 This is the index. Every other file in this bundle is linked from here.
 
@@ -28,7 +28,7 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 | `batch-03.md` | twenty more, aimed at the coverage gaps | draft |
 | `encounter-prototype.html` | playable feel-test: 10 systems, 29 options | tool |
 | `LIVE_CARD_NUMBERS.md` | live card faces and the targeting line | ⬜ unblocked |
-| `GALAXY_SCALE.md` | map scale, declared shape, the chart primer | §1–§4 ✅ · §3 **void** · §5 ⬜ |
+| `GALAXY_SCALE.md` | map scale, declared shape, the chart primer | §1–§4 ✅ · §3 **void** · §5 ✅ |
 | `HEAT_REWORK.md` | dissipation amplifies venting | ✅ landed (§3 reverted) |
 | `SIM_INSTRUMENT_FIX.md` | the strand counter measured the wrong set | ✅ **done, and it was right** |
 | `S3A_FUEL_SWEEP.md` | the fuel sweep spec | ❌ **dissolved — never needed** |
@@ -180,9 +180,9 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
 | — | Content — batch 04, thirty options | ✅ pool is **44** |
 | 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
 | — | **Materials become items** — hold cells, selling, jettison, the shim deleted | ✅ `SaveGame` 24 |
-| — | **Placement** — unblocks the five held options | `BLOCKED_PLACEMENT.md` ❌ **missing** · ⬜ **NEXT** |
+| — | **Placement** — unblocks the five held options | ✅ landed · quests carry a chart marker |
 | — | **Star features** — a real pulsar gate, not `min_danger 4` | `the_sweep`'s note |
-| 10 | **G §5** — chart primer | `GALAXY_SCALE.md` §5 |
+| 10 | **G §5** — chart primer | ✅ landed · `GALAXY_SCALE.md` §5 |
 | 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
 | 9 | **Tune LAST** — hellbender's food, then sector difficulty | §8 · **§9a below** |
 
@@ -192,8 +192,14 @@ overstates income, and never exercises the exclusivity that is the point of 6.
 **▲ E and L both make large edits to `SectorScreen.gd`** — one 1,221-line file
 that is both the arrival screen and the combat screen. **Sequence them.**
 
-**G §5 comes after phase 8.** The chart key is now START · SYSTEM · STATION ·
-PULSAR · CORE — five entries, down from seven.
+**G §5 landed 2026-08-30.** The chart key is START · SYSTEM · STATION · PULSAR ·
+CORE — five entries, down from seven — and two of the five were drawn in colours
+that no longer appear on the map. Both now come from `MapGen.swatch`.
+
+**The brief's gate was wrong** and is corrected in place: `trail` is never empty,
+so `trail.size() <= 1` is the test. Left open by §4: whether to tighten the
+`squash` jitter clamp from 0.28 to 0.45. The primer EXPLAINS the anisotropy on a
+steeply tilted disc; nothing has narrowed it.
 
 ### What 8a-2 changed in the numbers
 
@@ -339,8 +345,8 @@ every step of the night.
 | 6–8 | **E** — the encounter rebuild | ✅ |
 | — | Content — batch 04, reviewed | ✅ pool **42** |
 | — | **Materials as items** | ✅ 2026-08-30 |
-| — | Placement · star features | ⬜ **next** |
-| 10 | **G §5** — chart primer | ⬜ |
+| — | Placement · star features | ✅ |
+| 10 | **G §5** — chart primer | ✅ |
 | 11–12 | **L** | ⬜ |
 | 9 | Tune — **moved to last**, see the ruling | ⬜ |
 

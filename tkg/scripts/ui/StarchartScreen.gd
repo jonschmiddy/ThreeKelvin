@@ -85,6 +85,24 @@ var _jump: Button
 ## destination only once you have chosen to look at one.
 var _selected: int = -1
 
+## The overlay itself, or null once it has been dismissed.
+var _primer: Control = null
+
+## WHICH RUN HAS ALREADY BEEN PRIMED, as a galaxy seed.
+##
+## GALAXY_SCALE.md section 5 says to gate on `Run.trail.is_empty()` and spend no
+## save key on this. THE FIRST HALF OF THAT IS WRONG ABOUT THE CODE: a run
+## starts with `trail = PackedInt32Array([0])`, the system you begin on, so the
+## trail is never empty and a primer gated on emptiness would never once appear.
+## `size() <= 1` is the same intent -- you have not jumped yet -- and does work.
+##
+## The brief then accepts re-showing the card if you open the chart, dismiss it
+## and reopen before jumping. That is cheap to do better: this is static, so it
+## outlives a screen that is rebuilt on every open, and holding the SEED rather
+## than a bool means a second run in the same session is primed again rather
+## than silently skipped. Still no save key, still nothing on the wire.
+static var _primed_for: int = -1
+
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
@@ -286,16 +304,24 @@ func _build() -> void:
 	var key := HBoxContainer.new()
 	key.add_theme_constant_override("separation", 8)
 	key.add_child(UITheme.body("KEY", UITheme.COLD, UITheme.FS_SMALL))
+	# THE COLOURS COME FROM `MapGen.swatch` NOW, not from five literals here.
+	#
+	# They had gone wrong. This drew SYSTEM in violet and STATION in pale blue,
+	# which is what the chart used when a system was tinted by who HELD it. The
+	# colours have been starlight for a while now and every glyph on the map is
+	# `star_colour` -- so the legend was naming two colours that appear nowhere
+	# on the thing it is a legend for, which is worse than having no legend.
 	for pair in [
-			[MapGen.NodeType.START, "START", Color("#c8d6e4")],
-			[MapGen.NodeType.SYSTEM, "SYSTEM", Color("#b08ad0")],
-			[MapGen.NodeType.STATION, "STATION", Color("#8ec8e6")],
-			[MapGen.NodeType.PULSAR, "PULSAR", Color("#8fd2e0")],
-			[MapGen.NodeType.CORE, "CORE", Color("#d4614f")]]:
+			[MapGen.NodeType.START, "START"],
+			[MapGen.NodeType.SYSTEM, "SYSTEM"],
+			[MapGen.NodeType.STATION, "STATION"],
+			[MapGen.NodeType.PULSAR, "PULSAR"],
+			[MapGen.NodeType.CORE, "CORE"]]:
 		var item := HBoxContainer.new()
 		item.add_theme_constant_override("separation", 3)
 		var g := Glyph.new()
-		g.setup(pair[0] as MapGen.NodeType, pair[2] as Color)
+		g.setup(pair[0] as MapGen.NodeType,
+			MapGen.swatch(pair[0] as MapGen.NodeType))
 		item.add_child(g)
 		item.add_child(UITheme.body(pair[1] as String, UITheme.COLD, UITheme.FS_SMALL))
 		key.add_child(item)
@@ -312,6 +338,195 @@ func _build() -> void:
 	# The VIEW itself is restored by the chart on its first resize -- see
 	# `_view_zoom`. Re-framing here would run before layout and land on ZOOM_MIN,
 	# which is the bug that made LOCAL REGION look like it had stopped working.
+
+	# LAST, so it is the last child and therefore the top one. There is no
+	# CanvasLayer on this screen and it does not need one: sibling order is draw
+	# order, and the primer is the only thing that has ever wanted to be above
+	# the chart.
+	_build_primer()
+
+## THE FIRST TIME YOU OPEN THE CHART IN A RUN, what this galaxy is and how to
+## read the thing you are looking at.
+##
+## GALAXY_SCALE.md section 5. Two halves, and the second is the one that earns
+## it: the chart draws systems as coloured glyphs, hangs two range rings off
+## your ship and puts danger and fuel on every row of the list, and until now
+## nothing anywhere said what any of that meant. The galaxy blurb on its own
+## would have been a popup; the legend is the reason to build it.
+##
+## It is NOT the only home for this. The no-selection destination panel says the
+## galaxy's name, type and blurb permanently, and says so in its own comment:
+## the card is the moment, the panel is the reference at jump forty.
+func _build_primer() -> void:
+	if Run.trail.size() > 1 or _primed_for == Run.galaxy_seed:
+		return
+	_primed_for = Run.galaxy_seed
+
+	# STOP, so the scrim eats the click that dismisses it rather than letting it
+	# fall through onto a system glyph. Dismissing and selecting a destination
+	# with one press would make the card feel like it had swallowed the click.
+	_primer = Control.new()
+	_primer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_primer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_primer)
+
+	var scrim := ColorRect.new()
+	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim.color = Color(UITheme.VOID.r, UITheme.VOID.g, UITheme.VOID.b, 0.82)
+	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_primer.add_child(scrim)
+
+	# A CenterContainer, NOT `set_anchors_preset(PRESET_CENTER)`. The preset moves
+	# the anchors to the middle and leaves the offsets alone, so the card lays
+	# itself out from the centre point going down and right and hangs off the
+	# bottom of the screen -- which is exactly what it did.
+	var mid_c := CenterContainer.new()
+	mid_c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mid_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_primer.add_child(mid_c)
+
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel",
+		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 12, 14))
+	card.custom_minimum_size = Vector2(PRIMER_W, 0)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mid_c.add_child(card)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	card.add_child(col)
+
+	col.add_child(UITheme.body("FIRST SURVEY", UITheme.EMBER, UITheme.FS_SMALL))
+	var title := UITheme.body(Run.galaxy_title.to_upper(), UITheme.ICE, UITheme.FS_HEAD)
+	col.add_child(title)
+	col.add_child(UITheme.body("%s - %s" % [Run.galaxy_name,
+		GalaxyGen.type_name(Run.galaxy_kind).to_upper()], UITheme.THEM, UITheme.FS_SMALL))
+	col.add_child(_primer_para(GalaxyGen.blurb(Run.galaxy_kind), UITheme.COLD))
+
+	col.add_child(_gap())
+	col.add_child(UITheme.hsep())
+	col.add_child(_gap())
+	col.add_child(UITheme.body("WHAT IT COSTS TO CROSS", UITheme.CHILL, UITheme.FS_SMALL))
+	for line in _primer_cost():
+		col.add_child(_primer_para(line, UITheme.COLD))
+
+	col.add_child(_gap())
+	col.add_child(UITheme.hsep())
+	col.add_child(_gap())
+	col.add_child(UITheme.body("READING THE CHART", UITheme.CHILL, UITheme.FS_SMALL))
+	col.add_child(_primer_glyphs())
+	for line in PRIMER_LEGEND:
+		col.add_child(_primer_para(line, UITheme.COLD))
+
+	col.add_child(_gap())
+	col.add_child(UITheme.body("PRESS ANYTHING TO CONTINUE", UITheme.EMBER,
+		UITheme.FS_SMALL))
+
+
+## Wide enough for the blurbs, narrow enough that a line of it is one glance.
+const PRIMER_W := 460
+
+
+## The half of the card that does not change with the galaxy.
+const PRIMER_LEGEND: Array[String] = [
+	"A system's colour is its star. Pale is ordinary. Red and blue hypergiants are rarer, and each one offers things nothing else does.",
+	"The two circles around you are your ship, and they are not the same circle: THRUSTER REACH is how far you can fly, SENSOR RANGE is how far you can see. Outrunning your dish means arriving somewhere you never surveyed.",
+	"Every row in the list carries two gauges: how dangerous a place is, and what the jump costs. A short danger bar beside a long fuel one is a cheap trip somewhere awful.",
+]
+
+
+## One wrapped paragraph at the card's width.
+func _primer_para(text: String, colour: Color) -> Label:
+	var l := UITheme.body(text, colour, UITheme.FS_SMALL)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(PRIMER_W - 28, 0)
+	return l
+
+
+## What this galaxy does to a fuel tank, in the words section 4 made authorable.
+##
+## `reach` and `density` are archetype constants and `roll()` does not jitter
+## them, so these thresholds do not move under a re-roll -- unlike `squash`,
+## which is jittered and is why the tilt line is decided per run rather than per
+## kind.
+func _primer_cost() -> Array[String]:
+	var out: Array[String] = []
+	var reach: float = float(Run.galaxy.get("reach", 1.0))
+	var dens: float = float(Run.galaxy.get("density", 1.0))
+	# SAID ONLY WHEN THERE IS SOMETHING TO SAY. Gluing a clause for each axis
+	# together unconditionally produced "an ordinary spread, ordinarily settled"
+	# -- two thirds of a sentence spent telling you nothing is unusual, with the
+	# same word in it twice.
+	if reach >= 1.08:
+		out.append("A wide disc. The crossings are long and every one of them is fuel.")
+	elif reach <= 0.85:
+		out.append("A tight disc. Everything is close, and a tank goes further here than it looks.")
+	if dens >= 1.15:
+		out.append("It is thick with systems -- there will be more places to stop than you can afford to.")
+	elif dens <= 0.80:
+		out.append("It is thin of systems. Expect stretches with nothing in them.")
+	# THE ANISOTROPY, and only when it is worth a sentence. Distance is measured
+	# in the squashed space the chart draws, so on a foreshortened disc a jump
+	# along the short axis is genuinely shorter -- section 4 rules to accept that
+	# and explain it here rather than measure un-squashed and break the promise
+	# that cost is as the chart draws it.
+	var sq: float = float(Run.galaxy.get("squash", 1.0))
+	if sq < 0.5:
+		out.append("It is steeply tilted, and fuel is spent on the distance you SEE. A hop up or down the short way across costs less than the same span left to right.")
+	# LAST, AND ONLY IF NOTHING ELSE SPOKE. Placed before the tilt check this
+	# said "Ordinary to cross" directly above "It is steeply tilted", which is
+	# the card contradicting itself inside two lines.
+	if out.is_empty():
+		out.append("Ordinary to cross: no unusual distances, and no unusual gaps.")
+	return out
+
+
+## The five shapes, in the colours the map actually paints them.
+func _primer_glyphs() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 9)
+	for pair in [
+			[MapGen.NodeType.START, "START"],
+			[MapGen.NodeType.SYSTEM, "SYSTEM"],
+			[MapGen.NodeType.STATION, "STATION"],
+			[MapGen.NodeType.PULSAR, "PULSAR"],
+			[MapGen.NodeType.CORE, "CORE"]]:
+		var item := HBoxContainer.new()
+		item.add_theme_constant_override("separation", 3)
+		var g := Glyph.new()
+		g.setup(pair[0] as MapGen.NodeType,
+			MapGen.swatch(pair[0] as MapGen.NodeType))
+		item.add_child(g)
+		item.add_child(UITheme.body(pair[1] as String, UITheme.COLD, UITheme.FS_SMALL))
+		row.add_child(item)
+	return row
+
+
+## Any press at all, which is the whole contract: it must never be a thing to
+## get past. Handled as `_input` rather than `_gui_input` so a key works without
+## the overlay having to hold focus -- and consumed, so the press that dismisses
+## it does not also pick a destination.
+func _input(e: InputEvent) -> void:
+	if _primer == null:
+		return
+	var press := (e is InputEventKey and (e as InputEventKey).pressed) \
+		or (e is InputEventMouseButton and (e as InputEventMouseButton).pressed) \
+		or e is InputEventJoypadButton
+	if not press:
+		return
+	dismiss_primer()
+	get_viewport().set_input_as_handled()
+
+
+## Take the card down. Public because the shot harness needs the chart without
+## it, and because a screen that is being torn down should not leave one up.
+func dismiss_primer() -> bool:
+	if _primer == null:
+		return false
+	_primer.queue_free()
+	_primer = null
+	return true
+
 
 ## IS THERE ANYWHERE TO GO AT ALL -- asked of the whole map, the way every other
 ## part of the game asks it.

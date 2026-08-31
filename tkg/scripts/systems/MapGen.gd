@@ -771,13 +771,30 @@ static func star_kind(n: MapNode) -> String:
 ## about the sky, and they stay on the tooltip and in the destination panel.
 ## A star is the thing a system IS.
 static func star_colour(n: MapNode) -> Color:
-	if n.type == NodeType.CORE:
+	return swatch(n.type, n.star)
+
+
+## THE SAME ANSWER WITHOUT A NODE TO ASK ABOUT, for the chart's key.
+##
+## The key had its own hard-coded colours and they had gone wrong: it drew
+## SYSTEM in violet (#b08ad0) and STATION in pale blue (#8ec8e6) from back when
+## a system was tinted by who held it. Since the colours became STARLIGHT the
+## chart has drawn both in the colour of the star -- so the legend was naming
+## two colours that appear nowhere on the map it is a legend for.
+##
+## A legend that disagrees with the picture is worse than no legend, and it is
+## the first thing the chart primer points at. So there is one implementation
+## and `star_colour` is a call to it: a key entry asks what an ORDINARY star of
+## some type looks like, a real system asks about itself, and neither can drift
+## from the other.
+static func swatch(t: NodeType, star: Star = Star.ORDINARY) -> Color:
+	if t == NodeType.CORE:
 		return Color("#d4614f")
 	# The pulsar keeps its own, which is the point of it: a neutron star is not
 	# a colour of starlight, it is a lighthouse.
-	if n.type == NodeType.PULSAR:
+	if t == NodeType.PULSAR:
 		return Color("#8fd2e0")
-	match n.star:
+	match star:
 		Star.RED: return Color("#c05046")
 		Star.BLUE: return Color("#5b8fd4")
 	return Color("#cbd6e3")
