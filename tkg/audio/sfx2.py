@@ -179,11 +179,16 @@ def build_all():
     put(lt, _chime(hz('C6'), 0.85, 0.55), 0.02)
     put(lt, _chime(hz('F6'), 0.95, 0.42), 0.13)
     S['loot_drop'] = (room(st(lt), 0.32), 0.52)
-    ins = np.zeros(int(0.50*SR))
-    put(ins, foley('servo_move', 0.20, lpf=4000), 0.00, 0.8)
-    put(ins, foley('latch', 0.10), 0.20, 0.9)
-    put(ins, click(hz('F4'), 0.08, tone=0.4), 0.21, 0.5)
-    S['module_install'] = (room(st(ins), 0.15), 0.60)
+    # Reworked on a listening note: the servo-and-latch read as a printer.
+    # A module is BOLTED on -- so it is the wrench doing the work: two
+    # turns, the torque-seat click, and the F answering that the part is
+    # now part of the ship.
+    ins = np.zeros(int(0.90*SR))
+    put(ins, foley('wrench_work', 0.45, hpf=250), 0.00, 0.9)
+    put(ins, foley('wrench_seat', 0.25, hpf=300), 0.48, 1.0)
+    put(ins, thunk(hz('F2'), 0.16, 0.15), 0.50, 0.5)
+    put(ins, click(hz('F4'), 0.08, tone=0.4), 0.52, 0.4)
+    S['module_install'] = (room(st(ins), 0.14), 0.60)
     dk = np.zeros(int(1.30*SR))
     put(dk, foley('servo_move', 0.50, lpf=2500), 0.00, 0.6)
     put(dk, foley('metal_big', 0.45, lpf=3000), 0.52, 0.9)
@@ -216,8 +221,7 @@ def build_all():
     # purchase -- it is refrigerant, and the falling minor third says the
     # temperature went down.
     rp = np.zeros(int(0.85*SR))
-    put(rp, foley('ratchet', 0.14, hpf=300), 0.00, 0.9)     # the wrench
-    put(rp, foley('ratchet', 0.12, hpf=500), 0.22, 0.6)
+    put(rp, foley('wrench_work', 0.40, hpf=300), 0.00, 0.9)  # the real wrench
     put(rp, foley('metal_small', 0.20, lpf=5000), 0.42, 0.8)  # plate seats
     put(rp, thunk(hz('F2'), 0.22, 0.15), 0.43, 0.6)         # ...and the ship
     S['svc_repair'] = (room(st(rp), 0.15), 0.55)            # answers, warm
@@ -254,12 +258,15 @@ def build_all():
     # an installation; now the sound follows the ACTION, wired at the UI.
     # Buying: the part comes over the counter and into the hold -- a slide,
     # a stow thud, and the credits tick going AWAY (down, F to C below).
-    by = np.zeros(int(0.60*SR))
-    put(by, foley('metal_small', 0.16, lpf=6000), 0.00, 0.7)
-    put(by, thunk(hz('F2'), 0.16, 0.2), 0.16, 0.6)
-    put(by, click(hz('C5'), 0.05, tone=0.45), 0.30, 0.5)
-    put(by, click(hz('F4'), 0.06, tone=0.45), 0.40, 0.5)
-    S['shop_buy'] = (room(st(by), 0.14), 0.48)
+    # Reworked: money changing hands should sound like a TILL. The
+    # register's key-and-drawer does the work, coins land in the tray,
+    # and the falling F keeps the "credits leaving" direction.
+    by = np.zeros(int(0.85*SR))
+    put(by, foley('register', 0.45, hpf=300), 0.00, 0.9)
+    put(by, foley('coins', 0.30, hpf=400), 0.40, 0.7)
+    put(by, click(hz('C5'), 0.05, tone=0.45), 0.55, 0.4)
+    put(by, click(hz('F4'), 0.06, tone=0.45), 0.66, 0.4)
+    S['shop_buy'] = (room(st(by), 0.13), 0.48)
     # Selling: the same slide the other way; scrap_gain rings the credits,
     # so this is just the part leaving the hold.
     sl = np.zeros(int(0.40*SR))

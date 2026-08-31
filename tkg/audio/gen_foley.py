@@ -27,6 +27,10 @@ PALETTE = [
     ('card_snap',   'playing card snapped down onto a table, single', 1.0),
     ('ratchet',     'small ratchet wrench single click turn', 1.0),
     ('steam_puff',  'short steam puff release, single chuff', 1.2),
+    ('wrench_work', 'socket wrench tightening a bolt, several ratchet turns, workshop, close', 2.0),
+    ('wrench_seat', 'torque wrench final tighten and click, bolt seating firmly', 1.2),
+    ('register',    'old mechanical cash register: keys, drawer opening with bell ring', 2.0),
+    ('coins',       'a few heavy coins dropped into a metal tray', 1.2),
 ]
 
 if __name__ == '__main__':
