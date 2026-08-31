@@ -346,24 +346,34 @@ func _get_tooltip(at: Vector2) -> String:
 	return tooltip_text
 
 
-func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
-	if not (data is Dictionary and data.has("card")):
+## NO `_can_drop_data`. Nothing is dropped on an enemy any more -- see `aim`
+## directly above, which is the same rule driven by the screen instead of by the
+## engine, and `CardView`'s note on why the drag had to go.
+
+
+## CAN THIS CARD BE AIMED HERE. The rule the drop path used to hold, kept when
+## the drop path went: brace does nothing to a Rustjaw, and a dead slot is not a
+## target at all.
+func aimable(c: CardData) -> bool:
+	if c == null:
 		return false
-	var c: CardData = data["card"]
-	# Brace does nothing to a Rustjaw. Refuse it here rather than accepting the
-	# drop and quietly resolving it on yourself — the card returns to hand.
-	var aimable: bool = c.damage > 0 or c.damage_equals_heat or c.evoke > 0
-	var ok: bool = aimable and not _dead
-	if ok != _hot:
-		set_hot(ok)
-	if ok:
-		var t: String = "" if not preview.is_valid() else String(preview.call(c, index))
-		if t != _drag_text:
-			_drag_text = t
-			queue_redraw()
-		if claim.is_valid():
-			claim.call(self)
-	return ok
+	return (c.damage > 0 or c.damage_equals_heat or c.evoke > 0) and not _dead
+
+
+## Light up under an aimed line, with what the card would do written on it.
+##
+## The same `_hot` and `_drag_text` the drop path set, driven by the screen
+## instead of by the engine. `set_drag_preview` pinned the card over the target,
+## so the figure appeared at the exact moment the thing it applied to went
+## behind a 112x160 card; the line leaves the board visible and this puts the
+## number back on it.
+func aim(on: bool, text: String = "") -> void:
+	set_hot(on)
+	var t := text if on else ""
+	if t != _drag_text:
+		_drag_text = t
+		queue_redraw()
+
 
 func set_hot(v: bool) -> void:
 	if _hot == v:
@@ -371,10 +381,11 @@ func set_hot(v: bool) -> void:
 	_hot = v
 	queue_redraw()
 
-func _drop_data(_pos: Vector2, data: Variant) -> void:
-	_hot = false
-	queue_redraw()
-	card_dropped.emit(index, data.get("view"))
+## AND NO `_drop_data`. Kept as a comment because leaving the body in place was
+## a live hazard rather than dead weight: it emits `card_dropped`, which is
+## still wired to `SectorScreen._on_card_dropped`, so any Godot drop that ever
+## reached a slot would play a card straight past the aiming gesture.
+
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END and _hot:

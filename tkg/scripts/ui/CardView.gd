@@ -21,6 +21,14 @@ extends Control
 ## "this is the cost, this is the byproduct".
 
 signal chosen(view: CardView)
+## Pressed in a hand. What that TURNS INTO is not decided here and cannot be:
+## sideways is a reorder and up-and-out is a shot, and which one you meant is
+## only knowable once the pointer moves. The screen owns that decision.
+## WITH THE POINT IT HAPPENED AT, rather than leaving the screen to ask where
+## the mouse is. `get_global_mouse_position()` reports the OS cursor, which is
+## not necessarily where this event was: a pushed event does not move it at
+## all, and the gesture's whole decision is a delta from the press.
+signal grabbed(view: CardView, at: Vector2)
 signal hovered(view: CardView, entered: bool)
 
 ## Hand scale. Named CARD_W/CARD_H because the hand layout has always called
@@ -804,13 +812,29 @@ func set_picking(on: bool) -> void:
 	queue_redraw()
 
 func _on_input(event: InputEvent) -> void:
-	if not picking:
-		return
 	var mb := event as InputEventMouseButton
 	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
 		return
+	# THE PICKING GUARD, and it stays first. Godot's drag used to be refused in
+	# `_get_drag_data` while a discard or decommission choice was open, because
+	# aiming one card at an enemy while another waits to be picked resolves two
+	# cards in an order neither stated. Leaving the engine's drag behind means
+	# carrying that by hand, and this is where it lands.
+	if picking:
+		accept_event()
+		chosen.emit(self)
+		return
+	if not playable or not (get_parent() is HandView):
+		return
 	accept_event()
-	chosen.emit(self)
+	# Picking it up ends the hover. Godot sends no `mouse_exited` when a press
+	# turns into a gesture -- the cursor never technically leaves -- and without
+	# this the keyword panel stayed open over the board for the whole drag,
+	# covering the enemy being aimed at. That bug is the one this whole section
+	# exists to fix, found once already; it must not come back through the door
+	# the fix opened.
+	hovered.emit(self, false)
+	grabbed.emit(self, get_global_transform() * mb.position)
 
 func _on_hover_in() -> void:
 	emitted_hover(true)
@@ -840,6 +864,10 @@ func _on_hover_out() -> void:
 func _animate_lift(offset: float) -> void:
 	if not (get_parent() is HandView):
 		return
+	# An armed card owns its own height. Hovering off it mid-aim would otherwise
+	# tween it back down into the fan while the line is still attached to it.
+	if armed and not is_equal_approx(offset, -22.0):
+		return
 	if _tween != null and _tween.is_running():
 		_tween.kill()
 	_tween = create_tween()
@@ -858,48 +886,35 @@ func play_flourish(target: Vector2) -> void:
 func emitted_hover(entered: bool) -> void:
 	hovered.emit(self, entered)
 
-## Dragging a card onto an enemy targets it. The preview is a copy so the cursor
-## still shows what is being thrown.
-func _get_drag_data(_pos: Vector2) -> Variant:
-	# Same rule: you can drag a card out of a hand and nowhere else. And not at
-	# all while a choice is open — dragging one card onto an enemy while another
-	# is waiting to be picked resolves two cards in an order neither stated.
-	if picking:
-		return null
-	if not playable or not (get_parent() is HandView):
-		return null
-	# Picking it up ends the hover. Godot does not send mouse_exited when a drag
-	# begins — the cursor never technically leaves — so without this the keyword
-	# panel stays open over the board for the whole drag, covering the enemy you
-	# are trying to aim at.
-	hovered.emit(self, false)
-	var ghost := CardView.new()
-	# CARRY THE LIVE NUMBER ACROSS. The ghost is a fresh `CardView` and
-	# `live_output` defaults to -1, so a card reading "Deal 8" under a lock-on
-	# reverted to "Deal 4" the instant you picked it up -- the bonus appeared to
-	# be lost by the act of aiming with it.
-	#
-	# Set BEFORE `setup`, because `setup` is what builds the body label and reads
-	# the figure into it. Assigned directly rather than through `set_live`, which
-	# early-outs when the value has not changed and would have nothing to write
-	# to yet anyway.
-	ghost.live_output = live_output
-	ghost.live_hot = live_hot
-	ghost.setup(card, true, _s)
-	ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var wrap := Control.new()
-	wrap.add_child(ghost)
-	ghost.position = -Vector2(CARD_W * _s, CARD_H * _s) * 0.5
-	set_drag_preview(wrap)
-	# Hide the original outright rather than ghosting it. A half-faded copy reads
-	# as a rendering fault; an empty slot reads as "you are holding that one".
-	# Alpha rather than visible so the hand does not reflow mid-drag.
-	modulate = Color(1, 1, 1, 0)
-	# And stop it intercepting. The reorder preview parks this card under the
-	# cursor by design, so leaving it clickable means the drop lands on the card
-	# being dragged, gets refused, and snaps back.
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return {"card": card, "view": self}
+## ARMED: lifted out of the hand and held there while a line does the aiming.
+##
+## `_animate_lift` is the hand's own hover lift and this borrows it, so an armed
+## card sits where a hovered one would and a little higher. It also has to WIN
+## against hover: the pointer leaves the card the instant you start aiming, and
+## an unguarded `_on_hover_out` would drop it back into the fan mid-gesture.
+var armed: bool = false
+
+func set_armed(on: bool) -> void:
+	if armed == on:
+		return
+	armed = on
+	_tint = UITheme.FLARE if on else DB.manufacturer_colour(card.manufacturer)
+	queue_redraw()
+	_animate_lift(-22.0 if on else 0.0)
+
+
+## NO `_get_drag_data` ANY MORE. A card is never handed to Godot's drag.
+##
+## `set_drag_preview` pins its argument to the pointer every frame and offers no
+## way to get it back, which is the exact opposite of what aiming needs: the
+## card must STAY where it is while a line does the pointing. So the gesture is
+## hand-rolled -- press to grab (`grabbed`), the screen decides whether that
+## became a reorder or a shot, release resolves it.
+##
+## What went with it: a full-size ghost pinned to the cursor that covered the
+## enemy underneath at exactly the moment the damage figure appeared. See
+## `SectorScreen._on_card_grabbed`.
+
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:

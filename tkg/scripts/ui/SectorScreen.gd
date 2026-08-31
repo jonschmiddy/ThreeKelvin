@@ -77,6 +77,31 @@ var _enemy_hp: Label
 var _enemy_bar: ProgressBar
 var _intent_label: Label
 var _hand: HandView
+
+## The card currently being aimed, or null. Everything about the gesture hangs
+## off this being non-null.
+var _aim_view: CardView = null
+## The line's moving end, in this screen's space. Eased toward the cursor rather
+## than snapped to it -- see `AimLine.FOLLOW`.
+var _aim_tip: Vector2 = Vector2.ZERO
+var _aim_line: AimLine = null
+
+## A press that has not yet become anything. See `_on_card_grabbed`.
+var _grab_view: CardView = null
+var _grab_from: Vector2 = Vector2.ZERO
+## 0 undecided, 1 reordering, 2 aiming.
+var _grab_mode: int = 0
+
+## How far sideways before a press is a REORDER, and how far up before it is a
+## SHOT. Both in design pixels, both deliberately small -- the gesture should
+## commit early enough that the card is following your hand rather than lagging
+## a decision behind it.
+##
+## Sideways is the larger of the two because it is the recoverable one: reorder
+## the wrong way and you drag back, fire the wrong card and it is spent. The
+## bias belongs on the side that costs something.
+const GRAB_SIDE := 14.0
+const GRAB_UP := 9.0
 ## The keyword panel while a card is hovered. See _show_readout.
 var _readout: PanelContainer = null
 ## Every keyword panel is parented HERE and nowhere else, and opening one empties
@@ -1203,6 +1228,7 @@ func _build_hand() -> PanelContainer:
 	hand_row.add_child(left)
 
 	_hand = HandView.new()
+	_hand.card_grabbed.connect(_on_card_grabbed)
 	_hand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_hand.card_hovered.connect(_on_card_hovered)
 	_hand.picked.connect(_on_card_picked)
@@ -2026,10 +2052,173 @@ func _on_card_hovered(view: CardView, entered: bool) -> void:
 		return
 	var c := view.card
 	var aimable: bool = c.damage > 0 or c.damage_equals_heat or c.evoke > 0
-	_preview.text = "DRAG ONTO A TARGET" if aimable else "DRAG ONTO YOUR HULL"
+	_preview.text = "HOLD AND AIM AT A TARGET" if aimable else "HOLD AND AIM AT YOUR HULL"
 
 func _on_slot_hovered(_index: int, _entered: bool) -> void:
 	pass
+
+## A card was pressed in the hand. Arm it: it lifts and stays, and from here the
+## LINE does the aiming.
+##
+## The whole point of section 3a. `set_drag_preview` pinned a full-size card to
+## the cursor, so at the exact moment the damage figure appeared the enemy it
+## applied to was behind a 112x160 card. Live numbers made that worse rather
+## than better: the biggest number on the screen was hidden under the thing that
+## produced it.
+## A card was pressed. NOTHING HAPPENS YET.
+##
+## Sideways inside the hand is a reorder; up and out of it is a shot. Which one
+## was meant is not knowable at the press -- only once the pointer moves -- so
+## this records the grab and `_grab_decide` commits to a mode on the first
+## motion that clears a threshold.
+##
+## LIVE_CARD_NUMBERS section 3a rules hand reorder DROPPED, on the grounds that
+## it collides with the targeting line. It does not collide if the two are told
+## apart by DIRECTION, and both are worth having: the fan is the only place hand
+## order can be arranged, and order is the whole of what a hand is.
+func _on_card_grabbed(view: CardView, at: Vector2) -> void:
+	if not fighting() or combat.finished or view == null:
+		return
+	_end_aim(false)
+	_end_reorder(false)
+	_grab_view = view
+	_grab_from = at
+	_grab_mode = 0
+
+## Which gesture this is, decided once and then held.
+##
+## Held, because a gesture that can change its mind mid-drag is a gesture you
+## cannot perform confidently: a shot that becomes a reorder because your hand
+## drifted back down over the fan would eat the click.
+func _grab_decide(at: Vector2) -> void:
+	if _grab_view == null or _grab_mode != 0:
+		return
+	var d := at - _grab_from
+	var out_of_hand := not _hand.get_global_rect().has_point(at)
+	if out_of_hand or d.y < -GRAB_UP:
+		if not combat.can_play(_grab_view.card):
+			# Unplayable cards can still be REARRANGED, so this refuses the shot
+			# without ending the grab -- push it sideways instead.
+			return
+		_grab_mode = 2
+		_begin_aim(_grab_view)
+	elif absf(d.x) > GRAB_SIDE:
+		_grab_mode = 1
+		_hand.slide_to(at.x, _grab_view.card)
+
+func _end_reorder(commit: bool) -> void:
+	if _grab_mode == 1:
+		if commit:
+			_hand.commit()
+		else:
+			_hand.clear_preview()
+	_grab_view = null
+	_grab_mode = 0
+
+func _begin_aim(view: CardView) -> void:
+	_aim_view = view
+	view.set_armed(true)
+	# Started AT the card, so the line grows out of it rather than snapping
+	# across the screen on the first frame.
+	_aim_tip = _aim_anchor()
+	if _aim_line == null:
+		_aim_line = AimLine.new()
+		_aim_line.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_aim_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_aim_line)
+	_aim_line.owner_screen = self
+	_aim_line.visible = true
+	_aim_line.queue_redraw()
+
+## Where the line leaves the card: the top edge, middle. The card is below the
+## board and everything it can be aimed at is above it.
+func _aim_anchor() -> Vector2:
+	if _aim_view == null:
+		return Vector2.ZERO
+	var r := _aim_view.get_global_rect()
+	return get_global_transform().affine_inverse() \
+		* Vector2(r.position.x + r.size.x * 0.5, r.position.y)
+
+## Take the line down. `played` says whether the card resolved, which decides
+## only whether the armed card is put back the way it was -- a played card is
+## about to be rebuilt out of the hand anyway.
+func _end_aim(played: bool) -> void:
+	if _aim_view != null and not played:
+		_aim_view.set_armed(false)
+	_aim_view = null
+	_grab_view = null
+	_grab_mode = 0
+	if _aim_line != null:
+		_aim_line.visible = false
+	if _view != null:
+		_view.clear_aim()
+
+## Motion and release while a card is armed.
+##
+## `_input` rather than `_unhandled_input`: the release has to be seen wherever
+## it happens, including over a Control that would otherwise swallow it, because
+## a gesture you cannot get out of is worse than one that occasionally misfires.
+## Cancel comes free from this -- releasing over nothing is releasing over
+## AIM_NONE, which resolves nothing and puts the card back.
+func _input(e: InputEvent) -> void:
+	if _grab_view == null and _aim_view == null:
+		return
+	var mm := e as InputEventMouseMotion
+	if mm != null:
+		if _grab_mode == 0:
+			_grab_decide(mm.position)
+		elif _grab_mode == 1:
+			_hand.slide_to(mm.position.x, _grab_view.card)
+		elif _aim_view != null:
+			_aim_track(mm.position)
+		return
+	var mb := e as InputEventMouseButton
+	if mb == null or mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+		return
+	get_viewport().set_input_as_handled()
+	if _grab_mode == 1:
+		_end_reorder(true)
+		return
+	if _aim_view != null:
+		_aim_release(mb.position)
+	# A PRESS THAT NEVER MOVED does nothing, and that is the honest answer. It
+	# is equally the start of a reorder and the start of a shot, and picking one
+	# would fire a card every time somebody tapped the fan to look at it.
+	_grab_view = null
+	_grab_mode = 0
+
+## Light whatever is under the cursor, and remember where to draw to.
+func _aim_track(where: Vector2) -> void:
+	if _view == null or _aim_view == null:
+		return
+	var at := get_global_transform().affine_inverse() * where
+	if _aim_line != null:
+		_aim_line.target = at
+	_view.aim_at(_view.target_at(where), _aim_view.card, _drag_preview)
+
+## Resolve against whatever is under the cursor, or put the card back.
+func _aim_release(where: Vector2) -> void:
+	var view := _aim_view
+	if _view == null or view == null:
+		_end_aim(false)
+		return
+	var idx := _view.target_at(where)
+	# ASKED OF THE SLOT, not of the index. `aimable` is the same rule the drop
+	# path used, and it is the slot's to answer: brace does nothing to a
+	# Rustjaw, an attack does nothing to your own hull, and a dead slot is not
+	# a target at all.
+	var legal := idx != EncounterView.AIM_NONE \
+		and _view.aim_at(idx, view.card, _drag_preview)
+	_end_aim(legal)
+	if not legal:
+		return
+	var hand_index := combat.hand.find(view.card)
+	if hand_index < 0 or not combat.can_play(view.card):
+		return
+	if idx < 0:
+		combat.play(hand_index)
+	else:
+		combat.play(hand_index, idx)
 
 ## Dropping a card on an enemy plays it at that enemy.
 func _on_card_dropped(index: int, view: CardView) -> void:
@@ -2044,6 +2233,54 @@ func _on_card_dropped(index: int, view: CardView) -> void:
 ## Hand order is presentation, not state — the deck, discard and draw rules do
 ## not care — so reordering is free. The view hands over the order it is already
 ## showing, which is why nothing can land a slot off.
+## The aiming line: from the armed card to wherever you are pointing.
+##
+## Its own Control because it must draw OVER the board and under nothing, and
+## because a `_draw` on the screen itself would be behind every child panel.
+## Ignores the mouse entirely -- it is a picture of a gesture, not a part of one.
+class AimLine extends Control:
+	## E-folds per second the tip chases the cursor. Borrowed from
+	## `ModuleIcon.FOLLOW`, which is a MEASURED value rather than a guess: it is
+	## what makes a dragged thing feel alive rather than welded to the pointer.
+	const FOLLOW := 16.0
+
+	var owner_screen: SectorScreen = null
+	var target: Vector2 = Vector2.ZERO
+
+	func _process(delta: float) -> void:
+		if owner_screen == null or owner_screen._aim_view == null:
+			return
+		# Exponential, so the tip never overshoots and the rate does not depend
+		# on the frame rate.
+		var k: float = 1.0 - exp(-FOLLOW * delta)
+		owner_screen._aim_tip = owner_screen._aim_tip.lerp(target, k)
+		queue_redraw()
+
+	func _draw() -> void:
+		if owner_screen == null or owner_screen._aim_view == null:
+			return
+		var a: Vector2 = owner_screen._aim_anchor()
+		var b: Vector2 = owner_screen._aim_tip
+		# A SHALLOW ARC, not a straight rule. A straight line between two points
+		# on a busy board reads as a UI divider; a curve reads as a thing being
+		# thrown. The control point is pushed perpendicular to the run, so the
+		# bow always leans the same way relative to the aim.
+		var mid: Vector2 = (a + b) * 0.5
+		var run: Vector2 = b - a
+		var bow: Vector2 = Vector2(-run.y, run.x).normalized() \
+			* minf(run.length() * 0.14, 26.0)
+		var pts := PackedVector2Array()
+		for i in 17:
+			var t := float(i) / 16.0
+			var u := 1.0 - t
+			pts.append(a * (u * u) + (mid + bow) * (2.0 * u * t) + b * (t * t))
+		draw_polyline(pts, Color(0.06, 0.09, 0.13, 0.85), 5.0, true)
+		draw_polyline(pts, UITheme.FLARE, 2.0, true)
+		# The head, so the line has a direction and an obvious hit point.
+		draw_circle(b, 4.0, Color(0.06, 0.09, 0.13, 0.85))
+		draw_circle(b, 2.5, UITheme.HOT)
+
+
 ## The keyword panel, in a fight.
 ##
 ## Same builder the gallery uses. The glossary was only reachable from a

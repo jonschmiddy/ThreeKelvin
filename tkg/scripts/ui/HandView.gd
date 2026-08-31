@@ -19,6 +19,9 @@ signal reordered(cards: Array)
 ## A card in the hand was picked to satisfy a discard or a decommission. Separate
 ## from playing one, because it is a different question with a different answer.
 signal picked(card: CardData)
+## A card in this hand was pressed. Forwarded rather than handled: what the
+## press becomes is the screen's business, not the hand's.
+signal card_grabbed(view: CardView, at: Vector2)
 
 const GAP := 5
 const SLIDE := 0.14
@@ -87,6 +90,8 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 			add_child(found)
 			found.setup(c, playable.call(c))
 			found.chosen.connect(func(v: CardView) -> void: picked.emit(v.card))
+			found.grabbed.connect(func(v: CardView, p: Vector2) -> void:
+				card_grabbed.emit(v, p))
 			found.size = Vector2(CardView.CARD_W, CardView.CARD_H)
 			# Dealt from the deck side, so a draw reads as coming from somewhere.
 			found.position = Vector2(-CardView.CARD_W, _baseline() + 12.0)
@@ -237,15 +242,11 @@ func _notification(what: int) -> void:
 	elif what == NOTIFICATION_DRAG_END:
 		clear_preview()
 
-func _can_drop_data(pos: Vector2, data: Variant) -> bool:
-	if not (data is Dictionary and data.has("card")):
-		return false
-	preview(data["card"], _slot_at(pos.x))
-	return true
+## NO DROP HANDLERS. The hand used to accept a Godot drop so a card dragged
+## back over it was reordered rather than played; there is no Godot drag to
+## accept any more. `SectorScreen` drives `slide_to` and `commit` directly, and
+## releasing over the hand is simply releasing over nothing aimable.
 
-func _drop_data(pos: Vector2, data: Variant) -> void:
-	preview(data["card"], _slot_at(pos.x))
-	_commit()
 
 ## Which gap the cursor is nearest. Rounding rather than flooring means dropping
 ## on the right half of a card puts you after it, which is what the eye expects.
@@ -261,12 +262,21 @@ func _slot_at(x: float) -> int:
 	var slot := int(round((x - start) / step))
 	return clampi(slot, 0, n - 1)
 
-## Dropped straight onto a card: take that card's slot.
-func reorder_onto(card: CardData, onto: CardView) -> void:
-	preview_onto(card, onto)
+## `reorder_onto` went with the drop handlers -- its only caller was the drag.
+## `slide_to` above is what drives a reorder now.
+
+
+## Drive the reorder from a gesture this view does not own. `preview_at` and
+## `_commit` were reachable only through Godot's drop before, which is why hand
+## reorder died with the drag -- the machinery survived, its only caller did not.
+func slide_to(x_global: float, card: CardData) -> void:
+	preview_at(x_global - global_position.x, card)
+
+
+func commit() -> void:
 	_commit()
 
-## What you see is what you get: hand over exactly the order on screen.
+
 func _commit() -> void:
 	var order := _order_for_layout()
 	var cards: Array = []

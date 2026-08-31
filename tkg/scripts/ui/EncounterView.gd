@@ -432,6 +432,58 @@ func show_area(n: MapGen.MapNode) -> void:
 ## Combat: the right side is everything shooting at you. Slots are rebuilt only
 ## when the count changes, so reinforcements arriving mid-fight slide in without
 ## resetting the ones already there.
+## WHAT IS UNDER THIS GLOBAL POINT: an enemy index, -1 for your own hull, or
+## AIM_NONE for nothing.
+##
+## BY RECTANGLE, NOT BY INPUT PICKING, and that is deliberate. The party column
+## sits over the arena and carries `MOUSE_FILTER_IGNORE` precisely so a card can
+## be dropped THROUGH it -- a tuning that exists for Godot's drop propagation and
+## does not survive leaving it. Testing the slots' own rectangles reproduces the
+## rule on purpose rather than inheriting it: the column is not a target, and the
+## arena behind it is.
+const AIM_NONE := -2
+
+func target_at(p: Vector2) -> int:
+	for i in _made.size():
+		var s := _made[i] as EnemySlot
+		if s != null and s.visible and s.get_global_rect().has_point(p):
+			return i
+	if _ship_slot != null and _ship_slot.visible \
+			and _ship_slot.get_global_rect().has_point(p):
+		return -1
+	return AIM_NONE
+
+
+## Light exactly one target, or none. Returns whether `c` may actually be played
+## there -- an illegal target lights nothing and the caller refuses the release.
+func aim_at(index: int, c: CardData, prev: Callable) -> bool:
+	var ok := false
+	for i in _made.size():
+		var s := _made[i] as EnemySlot
+		if s == null:
+			continue
+		var hit: bool = i == index and s.aimable(c)
+		s.aim(hit, "" if not (hit and prev.is_valid()) else String(prev.call(c, i)))
+		ok = ok or hit
+	if _ship_slot != null:
+		var hit_s: bool = index == -1 and _ship_slot.aimable(c)
+		_ship_slot.aim(hit_s,
+			"" if not (hit_s and prev.is_valid()) else String(prev.call(c, -1)))
+		ok = ok or hit_s
+	return ok
+
+
+## Put every slot back to cold. Called on release and on cancel; cheap enough to
+## call unconditionally rather than tracking which one was lit.
+func clear_aim() -> void:
+	for i in _made.size():
+		var s := _made[i] as EnemySlot
+		if s != null:
+			s.aim(false)
+	if _ship_slot != null:
+		_ship_slot.aim(false)
+
+
 func bind_self_drop(on_drop: Callable) -> void:
 	if not _ship_slot.card_dropped.is_connected(on_drop):
 		_ship_slot.card_dropped.connect(on_drop)
@@ -988,31 +1040,30 @@ class ShipSlot extends Control:
 		mounts.passive()
 		art.add_child(mounts)
 
+	## Your hull refuses attacks, same rule the drop path uses.
+	func aimable(c: CardData) -> bool:
+		if c == null:
+			return false
+		return c.damage <= 0 and not c.damage_equals_heat and c.evoke <= 0
+
+
+	func aim(on: bool, text: String = "") -> void:
+		set_hot(on)
+		var t := text if on else ""
+		if t != _drag_text:
+			_drag_text = t
+			queue_redraw()
+
+
 	func set_hot(v: bool) -> void:
 		if _hot == v:
 			return
 		_hot = v
 		queue_redraw()
 
-	func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
-		if not (data is Dictionary and data.has("card")):
-			return false
-		var c: CardData = data["card"]
-		var ok: bool = c.damage <= 0 and not c.damage_equals_heat and c.evoke <= 0
-		set_hot(ok)
-		if ok:
-			var t: String = "" if not preview.is_valid() else String(preview.call(c, -1))
-			if t != _drag_text:
-				_drag_text = t
-				queue_redraw()
-			if claim.is_valid():
-				claim.call(self)
-		return ok
+	## NO `_can_drop_data`. See `aim` above and `CardView`'s note: your hull is
+	## aimed at, not dropped on.
 
-	func _drop_data(_pos: Vector2, data: Variant) -> void:
-		_hot = false
-		queue_redraw()
-		card_dropped.emit(data.get("view"))
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_DRAG_END and _hot:

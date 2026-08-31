@@ -324,6 +324,108 @@ func run(tree: SceneTree) -> void:
 				break
 		tree.quit()
 		return
+	# THE TARGETING LINE AND THE REORDER, both driven end to end. This is
+	# testable in a way the old gesture was not: the drag belonged to Godot and
+	# pushed events would not start it, so `FitTest` gave up and drove only the
+	# pick-up. The gesture is ours now -- press, motion and release all arrive
+	# through `SectorScreen._input` -- so the whole thing can be flown from here.
+	if "aim" in OS.get_cmdline_user_args():
+		Run.hand_size_override = 5
+		Router.start_combat(DB.enemies[&"cutter"], [], false)
+		for iA in 60:
+			await RenderingServer.frame_post_draw
+		var sa := Router.current as SectorScreen
+		if sa == null or sa.combat == null:
+			tree.quit()
+			return
+		var xf := tree.root.get_final_transform()
+
+		# --- SIDEWAYS IS A REORDER ---------------------------------------
+		var first := sa.combat.hand[0]
+		var second := sa.combat.hand[1]
+		var v0: CardView = null
+		for hv0 in sa._hand.get_children():
+			var c0 := hv0 as CardView
+			if c0 != null and c0.card == first:
+				v0 = c0
+				break
+		if v0 != null:
+			var f0: Vector2 = xf * (v0.global_position + v0.size * 0.5)
+			await _shove(tree, f0, false, false)
+			await _shove(tree, f0, true, false)
+			# Sideways, staying inside the fan.
+			for sx in range(1, 7):
+				await _shove(tree, f0 + Vector2(float(sx) * 40.0, 0.0), true, true)
+			print("  after sideways: mode %d (1 = reorder), aiming? %s"
+				% [sa._grab_mode, sa._aim_view != null])
+			await _shove(tree, f0 + Vector2(240.0, 0.0), false, false)
+			for iR in 10:
+				await RenderingServer.frame_post_draw
+			print("  reorder: hand[0] was %s, is now %s ; card moved to %d"
+				% [first.name, sa.combat.hand[0].name, sa.combat.hand.find(first)])
+
+		# --- UP AND OUT IS A SHOT ----------------------------------------
+		var pick: CardView = null
+		for hv in sa._hand.get_children():
+			var cvv := hv as CardView
+			if cvv != null and cvv.card != null and cvv.card.damage > 0 \
+					and sa.combat.can_play(cvv.card):
+				pick = cvv
+				break
+		if pick == null:
+			print("  no playable attack in hand")
+			tree.quit()
+			return
+		var before_hp: int = sa.combat.enemies[0].hp
+		var held := pick.card
+		var from: Vector2 = xf * (pick.global_position + pick.size * 0.5)
+		var slot: EnemySlot = sa.view_slot(0)
+		var onto: Vector2 = xf * slot.get_global_rect().get_center()
+
+		await _shove(tree, from, false, false)
+		await _shove(tree, from, true, false)
+		print("  press alone: mode %d, aiming? %s  (both must be idle)"
+			% [sa._grab_mode, sa._aim_view != null])
+		# Straight up, which is the shot gesture.
+		await _shove(tree, from + Vector2(0, -40), true, true)
+		print("  after UP: mode %d (2 = aim), armed? %s"
+			% [sa._grab_mode, sa._aim_view != null])
+		for st in range(1, 9):
+			await _shove(tree, from.lerp(onto, float(st) / 8.0), true, true)
+			await RenderingServer.frame_post_draw
+		for iA2 in 10:
+			await RenderingServer.frame_post_draw
+		print("  target lit? %s ; reads \"%s\"" % [slot._hot, slot._drag_text])
+		tree.root.get_texture().get_image().save_png("user://aim_line.png")
+		print("wrote ", ProjectSettings.globalize_path("user://aim_line.png"))
+		await _shove(tree, onto, false, false)
+		for iA3 in 12:
+			await RenderingServer.frame_post_draw
+		print("  released on the enemy: hp %d -> %d ; armed? %s ; in hand? %s"
+			% [before_hp, sa.combat.enemies[0].hp, sa._aim_view != null,
+				sa.combat.hand.has(held)])
+
+		# --- CANCEL, which Godot used to provide for nothing --------------
+		var pick2: CardView = null
+		for hv2 in sa._hand.get_children():
+			var cv2 := hv2 as CardView
+			if cv2 != null and cv2.card != null and sa.combat.can_play(cv2.card):
+				pick2 = cv2
+				break
+		if pick2 != null:
+			var held2 := pick2.card
+			var f2: Vector2 = xf * (pick2.global_position + pick2.size * 0.5)
+			await _shove(tree, f2, false, false)
+			await _shove(tree, f2, true, false)
+			await _shove(tree, f2 + Vector2(0, -60), true, true)
+			await _shove(tree, f2, true, true)
+			await _shove(tree, f2, false, false)
+			for iA4 in 12:
+				await RenderingServer.frame_post_draw
+			print("  cancelled back over the hand: in hand? %s ; armed? %s ; lifted? %s"
+				% [sa.combat.hand.has(held2), sa._aim_view != null, pick2.armed])
+		tree.quit()
+		return
 	if "status" in OS.get_cmdline_user_args():
 		Run.hand_size_override = 5
 		# WHICH CONTACT, because hull SIZE is what the readouts' placement
@@ -733,3 +835,25 @@ func _find(want_group: bool) -> int:
 				return t.index
 			seen[g] = true
 	return -1
+
+
+## One mouse event in WINDOW space. Motion when `move`, otherwise a left button
+## at `down`. See `FitTest._win`: a Control's `global_position` is in the design
+## space the game is presented at 2x from, and an event fed straight from one to
+## the other lands half a screen away.
+func _shove(tree: SceneTree, at: Vector2, down: bool, move: bool) -> void:
+	if move:
+		var mm := InputEventMouseMotion.new()
+		mm.position = at
+		mm.global_position = at
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
+		tree.root.push_input(mm)
+	else:
+		var mb := InputEventMouseButton.new()
+		mb.button_index = MOUSE_BUTTON_LEFT
+		mb.pressed = down
+		mb.position = at
+		mb.global_position = at
+		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
+		tree.root.push_input(mb)
+	await tree.process_frame
