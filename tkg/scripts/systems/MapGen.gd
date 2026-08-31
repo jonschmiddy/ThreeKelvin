@@ -406,6 +406,22 @@ const DANGER_MAX := 10
 static func tier(danger: int) -> int:
 	return clampi((danger + 1) / 2, 1, 5)
 
+
+## THE FIVE RUNGS, IN WORDS. Display only.
+##
+## The ladder was always there -- `tier()` has collapsed danger to five since the
+## scale widened, and enemy pools, loot gates, hull tiers and station stock have
+## all been read through it -- but it had no name a player could see, so the one
+## number they DO see (danger, 1 to 10) carried the whole ladder implicitly.
+##
+## NEVER IN ENCOUNTER PROSE. An encounter says what is in front of you; naming
+## its tier would be the fiction reading its own gate out loud. This is for the
+## chart and the tooltip, where the question is "how bad is it over there".
+const TIER_NAMES: Array[String] = ["", "EASY", "ROUGH", "HARD", "BRUTAL", "LETHAL"]
+
+static func tier_name(danger: int) -> String:
+	return TIER_NAMES[tier(danger)]
+
 const RING_MIN := 5
 const RING_MAX := 60
 

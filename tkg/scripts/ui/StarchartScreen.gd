@@ -455,6 +455,7 @@ const PRIMER_LEGEND: Array[String] = [
 	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
 	"You fly as far as THRUSTER REACH and see as far as SENSOR RANGE. Past your sight a jump is priced and then refused: NOT SCANNED.",
 	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap trip somewhere awful.",
+	"Danger climbs in five named steps -- EASY, ROUGH, HARD, BRUTAL, LETHAL -- and what a system is willing to offer you climbs with it.",
 ]
 
 
@@ -962,8 +963,13 @@ func _neighbour_row(n: MapGen.MapNode) -> Control:
 	row.add_child(fg)
 	# The exact numbers are still one hover away, which is where precision
 	# belongs once the shape of the thing is readable at a glance.
-	b.tooltip_text = "%s\ndanger %d of %d · %d fuel" % [
-		MapGen.place_line(n), n.danger, MapGen.DANGER_MAX, cost]
+	# THE RUNG BY NAME, beside the number. "danger 7 of 10" is precise and
+	# says nothing about how bad 7 IS. The ladder it sits on has been driving
+	# enemy pools, loot gates, hull tiers and station stock since the scale
+	# widened, and it has never once been spoken. See `MapGen.tier_name`.
+	b.tooltip_text = "%s\ndanger %d of %d · %s · %d fuel" % [
+		MapGen.place_line(n), n.danger, MapGen.DANGER_MAX,
+		MapGen.tier_name(n.danger), cost]
 	return b
 
 func _contains(t: MapGen.MapNode) -> String:
@@ -1021,8 +1027,15 @@ func _row(key: String, value: String, colour: Color = UITheme.CHILL) -> Control:
 	row.add_child(UITheme.body(value, colour, UITheme.FS_SMALL))
 	return row
 
+## THE GAUGE PLUS THE WORD. The cells say how much; the word says what that
+## amount is CALLED -- and the word is the half that transfers. A player
+## learns BRUTAL once and can then read every system in the galaxy against
+## it, where "seven cells" has to be counted again every time.
 func _danger_row(danger: int) -> Control:
-	return _gauge_row("DANGER", danger, MicroGauge.Mode.DANGER)
+	var row := _gauge_row("DANGER", danger, MicroGauge.Mode.DANGER)
+	row.add_child(UITheme.body(" " + MapGen.tier_name(danger),
+		_WARN if danger >= 7 else UITheme.COLD, UITheme.FS_SMALL))
+	return row
 
 ## Fuel in the same boxes as danger, at the same count, so the two rows read as
 ## one comparison: what it costs against what it costs you.
