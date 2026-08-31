@@ -282,10 +282,39 @@ func bind(i: int, e, telegraphed: bool) -> void:
 		tooltip_text = Widgets.tip(
 			"%s\n\nDead in the water and still loaded. Open it." % e.template.name.to_upper())
 	else:
-		_hp.remove_theme_color_override("font_color")
+		# ONLY HERE. This override used to run unconditionally after the branch
+		# above, which repainted the SALVAGE word in corpse-grey the instant it
+		# had been lit — so the one clickable thing in the sector wore the same
+		# ink as a fact you could not touch, and read as disabled.
 		tooltip_text = ""
-	_hp.add_theme_color_override("font_color",
-		Color("#4a5c72") if _dead else UITheme.GOOD)
+		_hp.add_theme_color_override("font_color",
+			Color("#4a5c72") if _dead else UITheme.GOOD)
+	queue_redraw()
+
+
+## THE COUNT IS THE AFFORDANCE. "SALVAGE" said the door existed and nothing
+## about whether walking through it was worth it — so a stripped wreck and a
+## loaded one wore the same word, and a fight's whole payout could sit behind a
+## label indistinguishable from scenery. The number is what makes the sector
+## answer "is there loot here" without being opened.
+##
+## Asked after `bind`, by the view that knows the container — the slot only
+## knows the ghost. A wreck with nothing left goes back to being a fact:
+## grey, still openable, no longer advertising.
+func set_salvage(left: int) -> void:
+	if not _dead:
+		return
+	if left > 0:
+		_hp.text = "SALVAGE · %d" % left
+		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
+		tooltip_text = Widgets.tip(
+			"%s\n\nDead in the water and still loaded — %d aboard. Open it."
+			% [_name.text, left])
+	elif opened.is_valid():
+		_hp.text = "STRIPPED"
+		_hp.add_theme_color_override("font_color", Color("#4a5c72"))
+		tooltip_text = Widgets.tip(
+			"%s\n\nPicked clean. The hull stays; what it carried is yours or gone." % _name.text)
 	queue_redraw()
 
 ## What this card would do here, asked at drop-test time.

@@ -226,6 +226,8 @@ var _open: int = -1
 var _res: Dictionary = {}
 var _res_band: SkillCheck.Band = SkillCheck.Band.MET
 var _res_checked: bool = false
+## Whether the choice shown was a walk-away — see `stay` in OptionTable.
+var _res_stay: bool = false
 ## What the roll was worth, READ BEFORE THE OUTCOME RAN. See
 ## `SkillCheck.odds_line`: an outcome that takes hull changes what a HULL check
 ## was worth, so asking afterwards prints the odds of a roll nobody made.
@@ -836,8 +838,13 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	# you cannot tell apart and the ladder never resolves where you can see it.
 	# `band_name` rather than the seal's word, because this is the one place MET
 	# and SCRAPED THROUGH are worth telling apart.
+	# LEFT ALONE, not RESOLVED, on a walk-away. The card is still live behind
+	# this screen — see `stay` in `_take` — and a header claiming resolution
+	# over a thing that was deliberately not resolved would be the screen
+	# arguing with the list it returns to.
 	_drawer.add_child(EncounterDrawer.outcome(opt,
-		SkillCheck.band_name(_res_band) if _res_checked else "RESOLVED",
+		SkillCheck.band_name(_res_band) if _res_checked \
+			else ("LEFT ALONE" if _res_stay else "RESOLVED"),
 		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
 		_res_odds, String(_res.get("text", "")), _res_bill))
 
@@ -874,6 +881,7 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
 		return
 	_res_checked = c.has("check")
+	_res_stay = bool(c.get("stay", false))
 	_res_band = SkillCheck.Band.MET
 	_res_odds = SkillCheck.odds_line(c.get("check", {}))
 	var call: Callable = c.get("effect", Callable())
@@ -902,8 +910,15 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	# hull taken, a module in the hold -- so a player who closed the game on the
 	# result screen must not come back to an option they have already been paid
 	# for. `option_resolved` is the same bookkeeping the old path used.
-	Router.option_resolved(i, SkillCheck.band_result(_res_band) if _res_checked \
-		else MapGen.R_DONE)
+	#
+	# UNLESS NOTHING HAPPENED. A `stay` choice is walking away — no roll, no
+	# cost, no payout — and marking the card RESOLVED for it spent an encounter
+	# on the act of declining it. Declining leaves the thing exactly as found:
+	# the card stays live and you can come back with a fuller tank or a change
+	# of heart. Only a choice that DID something gets to close the door.
+	if not _res_stay:
+		Router.option_resolved(i, SkillCheck.band_result(_res_band) \
+			if _res_checked else MapGen.R_DONE)
 	if Run.dead:
 		Router.show_game_over()
 		return
