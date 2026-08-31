@@ -228,8 +228,14 @@ static func _take_sound(m: HoldItem) -> StringName:
 			return &"take_common"
 		ModuleData.Rarity.RARE:
 			return &"take_rare"
+		ModuleData.Rarity.EPIC:
+			return &"take_epic"
+		ModuleData.Rarity.LEGENDARY:
+			return &"take_legendary"
+		ModuleData.Rarity.EXOTIC:
+			return &"take_exotic"
 		_:
-			return &"take_prized"
+			return &"take_artifact"
 
 func _drop_data(at: Vector2, data: Variant) -> void:
 	var where := _side_of(at, data)

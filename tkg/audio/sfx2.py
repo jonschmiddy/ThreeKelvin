@@ -267,12 +267,45 @@ def build_all():
     put(tr, hand, 0.00)
     put(tr, _chime(hz('C6'), 0.40, 0.22), 0.05)
     S['take_rare'] = (room(st(tr, 0.05), 0.12), 0.40)
+    # The upper ladder: each rung one audible step grander than the one
+    # below, and even the top is a MOMENT, not a fanfare.  Epic adds a
+    # second chime and the first touch of glass; legendary arpeggiates;
+    # exotic is the first true glass SWELL with the piano's warm fifth
+    # under it; and an artifact -- the rarest thing in the game -- sings
+    # the motif's own G->Ab rise on the glass, which no other sound in
+    # the interface is allowed to do.
     tp = np.zeros(int(0.90*SR))
     put(tp, hand, 0.00)
     put(tp, _chime(hz('C6'), 0.55, 0.22), 0.05)
     put(tp, _chime(hz('F6'), 0.60, 0.18), 0.13)
     put(tp, sampler.glass(hz('Ab5'), 0.6, 0.10), 0.10)
-    S['take_prized'] = (room(st(tp, 0.05), 0.16), 0.44)
+    S['take_epic'] = (room(st(tp, 0.05), 0.16), 0.44)
+    lg = np.zeros(int(1.20*SR))
+    put(lg, hand, 0.00)
+    for nn, at in (('C6', 0.05), ('F6', 0.14), ('Ab6', 0.24)):
+        put(lg, _chime(hz(nn), 0.65, 0.20), at)
+    put(lg, sampler.glass(hz('Ab5'), 0.9, 0.13), 0.10)
+    put(lg, _pf(hz('F4'), 0.9, 0.5), 0.08)
+    S['take_legendary'] = (room(st(lg, 0.05), 0.20), 0.48)
+    ex = np.zeros(int(1.60*SR))
+    put(ex, hand, 0.00)
+    for nn, at in (('C6', 0.05), ('F6', 0.14), ('Ab6', 0.24), ('C7', 0.36)):
+        put(ex, _chime(hz(nn), 0.70, 0.18), at)
+    put(ex, sampler.glass(hz('Ab5'), 1.2, 0.16), 0.10)
+    put(ex, sampler.glass(hz('C6'), 1.1, 0.12), 0.30)
+    put(ex, _pf(hz('F3'), 1.2, 0.55), 0.08)
+    put(ex, _pf(hz('C4'), 1.1, 0.40), 0.16)
+    S['take_exotic'] = (room(st(ex, 0.05), 0.24), 0.52)
+    af = np.zeros(int(2.20*SR))
+    put(af, hand, 0.00)
+    put(af, sampler.glass(hz('G5'), 0.7, 0.16), 0.10)      # the motif's rise,
+    put(af, sampler.glass(hz('Ab5'), 1.5, 0.20), 0.42)     # G -> Ab, sung
+    for nn, at in (('C6', 0.50), ('F6', 0.62), ('Ab6', 0.76), ('C7', 0.92)):
+        put(af, _chime(hz(nn), 0.80, 0.16), at)
+    put(af, _pf(hz('F3'), 1.6, 0.6), 0.44)
+    put(af, _pf(hz('C4'), 1.5, 0.45), 0.52)
+    put(af, _pf(hz('Ab4'), 1.4, 0.35), 0.60)
+    S['take_artifact'] = (room(st(af, 0.02), 0.30), 0.56)
     cc = np.zeros(int(0.45*SR))
     put(cc, foley('coins', 0.30, hpf=500), 0.00, 0.9)
     put(cc, click(hz('C5'), 0.04, tone=0.4), 0.28, 0.4)
