@@ -230,12 +230,20 @@ func _scan_taken() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null:
 		return
-	# A stripped wreck is a resolved encounter too -- it is the same drawer and
-	# the same decision, it just pays in parts rather than prose.
-	if n.taken.has(MapGen.OPTION_WHOLE):
-		_did_calm = true
+	# OPTION_WHOLE is deliberately NOT read here, though a stripped wreck is a
+	# resolved encounter in spirit. The marker is overloaded: MapGen stamps it
+	# on the start node at generation, and consume_node appends it when a
+	# system finishes for ANY reason -- so jumping back to the start, or
+	# winning a system whose only option was the fight, would tick the calm
+	# half of a lesson nobody was taught. The drawer options carry results per
+	# slot; the whole-system marker carries nothing to tell those cases apart.
 	for i in n.options.size():
 		if not n.taken.has(MapGen.OPTION_SITE + i):
+			continue
+		# Spent is not the same as RESOLVED BY YOU: foreclosure and a party
+		# partner's claim both append to `taken` and both write R_GONE. Only a
+		# slot with a recorded outcome that is not "gone" was seen through.
+		if n.results.get(i, MapGen.R_GONE) == MapGen.R_GONE:
 			continue
 		if not _fights(OptionTable.by_id(n.options[i])):
 			_did_calm = true
@@ -266,25 +274,43 @@ func _pick_target() -> int:
 		var n: MapGen.MapNode = Run.map[i]
 		if n.type != MapGen.NodeType.SYSTEM or not Run.can_jump_to(n):
 			continue
-		OptionTable.ensure(n)
-		var fight_group: StringName = &"-"
-		var has_fight := false
-		var calm := false
-		for oid in n.options:
-			var o := OptionTable.by_id(oid)
-			if _fights(o):
-				has_fight = true
-				fight_group = StringName(o.get("group", &""))
-		for oid in n.options:
-			var o := OptionTable.by_id(oid)
-			if _fights(o):
-				continue
-			var g := StringName(o.get("group", &""))
-			if g == &"" or g != fight_group:
-				calm = true
-		if has_fight and calm:
+		if lesson_at(n):
 			return i
 	return -1
+
+
+## Whether one system offers both halves of the lesson: a declared fight, and
+## a peaceful encounter that no fight can foreclose. THE ONE COPY of this
+## predicate -- the CHART step's recommendation and the seed scan both call
+## it, so a seed the scan certifies is a seed the overlay will recommend, by
+## construction rather than by keeping two files in step.
+##
+## The fight GROUPS are collected as a set, not a survivor: with one variable,
+## two grouped fights would leave only the second's group held, and a calm
+## option sharing the first's would pass -- certified by the scan, foreclosed
+## in play, stranding step three. All of today's fight options are ungrouped,
+## which is exactly when a latent bug gets written.
+static func lesson_at(n: MapGen.MapNode) -> bool:
+	OptionTable.ensure(n)
+	var fight_groups: Dictionary = {}
+	var has_fight := false
+	for oid in n.options:
+		var o := OptionTable.by_id(oid)
+		if _fights(o):
+			has_fight = true
+			var g := StringName(o.get("group", &""))
+			if g != &"":
+				fight_groups[g] = true
+	if not has_fight:
+		return false
+	for oid in n.options:
+		var o := OptionTable.by_id(oid)
+		if _fights(o):
+			continue
+		var g2 := StringName(o.get("group", &""))
+		if g2 == &"" or not fight_groups.has(g2):
+			return true
+	return false
 
 
 # ------------------------------------------------------------------ rendering

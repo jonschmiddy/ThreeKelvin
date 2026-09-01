@@ -66,24 +66,17 @@ func _judge(seed_value: int) -> String:
 		# the answer does not depend on how many foe-stream draws precede it.
 		if Run.ambush_chance(n) > 0.0:
 			continue
-		OptionTable.ensure(n)
-		var fight_ids: Array[StringName] = []
-		var fight_group: StringName = &"-"
-		var calm_ids: Array[StringName] = []
-		for oid in n.options:
-			var o := OptionTable.by_id(oid)
-			if TutorialOverlay._fights(o):
-				fight_ids.append(StringName(oid))
-				fight_group = StringName(o.get("group", &""))
-		for oid in n.options:
-			var o := OptionTable.by_id(oid)
-			if TutorialOverlay._fights(o):
-				continue
-			var g := StringName(o.get("group", &""))
-			if g == &"" or g != fight_group:
-				calm_ids.append(StringName(oid))
-		if fight_ids.is_empty() or calm_ids.is_empty():
+		# The verdict is the overlay's own predicate, so a certified seed and a
+		# recommended system cannot drift apart. Only the log line is local.
+		if not TutorialOverlay.lesson_at(n):
 			continue
+		var fight_ids: Array[String] = []
+		var calm_ids: Array[String] = []
+		for oid in n.options:
+			if TutorialOverlay._fights(OptionTable.by_id(oid)):
+				fight_ids.append(String(oid))
+			else:
+				calm_ids.append(String(oid))
 		return "%s (danger %d): %s + %s" % [MapGen.star_name(n), n.danger,
 			fight_ids[0], ", ".join(calm_ids)]
 	return ""

@@ -99,6 +99,12 @@ func _ready() -> void:
 	Sig.ship_changed.connect(refresh)
 	Sig.screen_changed.connect(refresh)
 	Sig.dev_mode_changed.connect(_rebuild)
+	# The material fold is budgeted against the row's own width, so the row
+	# changing width has to re-ask -- without this, shrinking the window keeps
+	# a fold made for the wide bar and clips the tabs until the next jump.
+	# The 24px guard in _refresh_materials keeps a resize storm from
+	# rebuilding the strip once per pixel.
+	_row.resized.connect(_refresh_materials)
 	refresh()
 
 ## Throw the bar away and build it again.
@@ -398,20 +404,33 @@ func _refresh_materials() -> void:
 		_mat_budget_used = budget
 		Widgets.clear(_materials)
 		var f := UITheme.pixel_font()
+		# Row widths first, because whether the "+N" readout exists decides
+		# how much room the named ones may spend: the chip is a row like any
+		# other, and a fold that never charged for it clipped the tabs in
+		# exactly the narrow band this function exists to close.
+		var widths: Array[float] = []
+		var total := 0.0
+		for s in stock:
+			# A label, a count and the box's own separation; the count is
+			# measured at two digits so a 9 becoming a 10 cannot move the
+			# fold.
+			var w: float = f.get_string_size("%s 00" % str(s.name).to_upper(),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 16.0
+			widths.append(w)
+			total += w
+		if total > budget:
+			budget -= f.get_string_size("+ 00", HORIZONTAL_ALIGNMENT_LEFT, -1,
+				UITheme.FS_SMALL).x + 16.0
 		var used := 0.0
 		var shown := 0
 		for s in stock:
-			# The row is a label, a count and the box's own separation; the
-			# count is measured at two digits so a 9 becoming a 10 cannot move
-			# the fold. Even the FIRST readout folds when it does not fit --
-			# with the dev tabs up the leftover can be smaller than one long
-			# name, and a lone "+3" with the names a hover away beats HISTORY
-			# half off the window.
-			var w: float = f.get_string_size("%s 00" % str(s.name).to_upper(),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 16.0
-			if used + w > budget:
+			# Even the FIRST readout folds when it does not fit -- with the
+			# dev tabs up the leftover can be smaller than one long name, and
+			# a lone "+3" with the names a hover away beats HISTORY half off
+			# the window.
+			if used + widths[shown] > budget:
 				break
-			used += w
+			used += widths[shown]
 			shown += 1
 			var tier := StringName(MaterialTable.by_id(s.id).get("tier", &"common"))
 			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
