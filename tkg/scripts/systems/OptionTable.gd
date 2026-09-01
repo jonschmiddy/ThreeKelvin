@@ -190,6 +190,12 @@ static func admits(o: Dictionary, n: MapGen.MapNode) -> bool:
 	# These were the four where that was true.
 	if o.has("needs_star") and int(n.star) != int(o.needs_star):
 		return false
+	# INSIDE THE GAS, which every node already knows and no encounter could ask.
+	# `in_nebula` is generated, saved, drawn on the chart and printed in the
+	# destination panel's WARNING row -- it was the one sky fact with no gate, so
+	# the category had zero content and no way to write any.
+	if o.has("needs_nebula") and bool(o.needs_nebula) and not n.in_nebula:
+		return false
 	if o.has("needs_giant") and bool(o.needs_giant) and not n.gas_giant:
 		return false
 	if o.has("needs_pulsar") and bool(o.needs_pulsar) and not n.near_pulsar:

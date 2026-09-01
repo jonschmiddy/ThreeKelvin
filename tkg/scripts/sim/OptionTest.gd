@@ -261,6 +261,7 @@ func _gates_are_real() -> void:
 		# STAR FEATURES: what is in the sky at a system, gated the way
 		# `needs_fauna` is. See `OptionTable.admits`.
 		&"needs_star": true, &"needs_giant": true, &"needs_pulsar": true,
+		&"needs_nebula": true,
 	}
 	var bad: Array[String] = []
 	for o in OptionTable.all():
