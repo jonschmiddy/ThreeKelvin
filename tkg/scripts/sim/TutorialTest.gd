@@ -15,7 +15,7 @@ extends Harness
 ## connection fails silently: the panel just stops advancing, and the only
 ## symptom is a player who has done the thing the panel still asks for. So
 ## this drives the real Router through the real lesson -- chart, jump, resolve
-## a situation, fight the fight -- and asserts the overlay walked its five
+## an encounter, fight the fight -- and asserts the overlay walked its five
 ## steps alongside.
 ##
 ## `_process` is called by hand where a played run would tick it, because this
@@ -53,7 +53,7 @@ func run() -> void:
 	_ok("the jump advances to SETTLE",
 		ov._step == TutorialOverlay.Step.SETTLE)
 
-	# Resolve the first peaceful situation the way the sector's in-place path
+	# Resolve the first peaceful encounter the way the sector's in-place path
 	# does. The overlay must notice on its next tick, because this path swaps
 	# no screen and fires no signal.
 	var n: MapGen.MapNode = Run.node_at()
@@ -70,7 +70,7 @@ func run() -> void:
 		return
 	Router.option_resolved(calm)
 	ov._process(0.016)
-	_ok("a resolved situation is noticed by the poll", ov._did_calm)
+	_ok("a resolved encounter is noticed by the poll", ov._did_calm)
 	_ok("half a lesson does not finish it",
 		ov._step == TutorialOverlay.Step.SETTLE)
 

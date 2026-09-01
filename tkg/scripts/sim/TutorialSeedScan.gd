@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## A PICKER, not a gate. `TutorialOverlay.SEED` is a curated number, and this
 ## is where the curation happens: the tutorial promises a fight and a peaceful
-## situation within one jump of the start, and a seed either delivers that or
+## encounter within one jump of the start, and a seed either delivers that or
 ## it does not. The judgement here is the SAME test the overlay's CHART step
 ## runs to pick its recommendation (`TutorialOverlay._pick_target`), plus the
 ## two things only a scan can afford to demand:

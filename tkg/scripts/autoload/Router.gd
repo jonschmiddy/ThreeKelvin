@@ -126,7 +126,7 @@ func new_run(seed_value: int = 0) -> void:
 ## A guided first run. An ordinary run in every rule -- it autosaves, it can be
 ## died in, it goes on the flight record -- flown on the curated seed in
 ## TutorialOverlay.SEED, so the first jump reliably lands on a system holding
-## both halves of the lesson: a peaceful situation and a declared fight.
+## both halves of the lesson: a peaceful encounter and a declared fight.
 ##
 ## `-- seed N` still wins, which is how a candidate seed from `-- tutseed` is
 ## auditioned without editing the constant.

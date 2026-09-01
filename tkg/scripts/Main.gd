@@ -540,6 +540,12 @@ func _ready() -> void:
 		n0.bag.append(LootGen.roll_module(3, &"", false, Rng.derive(&"look", 7)))
 		n0.bagged = true
 		Router.show_ship()
+		# The generic shot hook at the bottom of _ready is unreachable past this
+		# return, and the HUD with a hold's worth of material readouts is a
+		# layout worth photographing -- it is the one that pushed ARCHIVE off
+		# the bar.
+		if _wants_shot():
+			_shoot()
 		return
 
 	if "archive" in OS.get_cmdline_user_args():

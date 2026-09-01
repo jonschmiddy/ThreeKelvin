@@ -3,7 +3,7 @@ extends Control
 
 ## The first flight, guided. A small panel that rides above every screen and
 ## walks a new player through one loop of the game: open the chart, jump, read
-## a system, resolve one situation, win one fight, and then the run is theirs.
+## a system, resolve one encounter, win one fight, and then the run is theirs.
 ##
 ## IT IS AN ORDINARY RUN ON A CURATED SEED, not a scripted level. Nothing here
 ## spawns anything, forces anything or blocks anything -- the galaxy the player
@@ -14,7 +14,7 @@ extends Control
 ##
 ## 1. **The steps are conditions, not locations.** The player cannot be walked
 ##    off a rail because there is no rail: whichever system they jump to and
-##    whichever order they do things in, the overlay checks "has a situation
+##    whichever order they do things in, the overlay checks "has an encounter
 ##    been resolved" and "has a fight been fought" and moves on when both are
 ##    true. The curated seed guarantees the RECOMMENDED path has both within
 ##    one jump; wandering just takes longer.
@@ -31,7 +31,7 @@ extends Control
 
 ## The curated seed. Picked by `-- tutseed` (see TutorialSeedScan.gd): from the
 ## start system, at least one in-reach neighbour offers BOTH a declared fight
-## and a peaceful situation in different groups, with no ambush possible on the
+## and a peaceful encounter in different groups, with no ambush possible on the
 ## way in. Re-run the scan and change this number whenever the option table or
 ## the map generator moves under it.
 ## Seed 1: one jump from the start, ALPHA ABYSSAL GATE (danger 1) offers
@@ -224,13 +224,13 @@ func _process(_delta: float) -> void:
 		_render()
 
 
-## Read what the current system says has been done. Set-only: a situation
+## Read what the current system says has been done. Set-only: an encounter
 ## resolved three jumps ago stays counted wherever the ship is now.
 func _scan_taken() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n == null:
 		return
-	# A stripped wreck is a resolved situation too -- it is the same drawer and
+	# A stripped wreck is a resolved encounter too -- it is the same drawer and
 	# the same decision, it just pays in parts rather than prose.
 	if n.taken.has(MapGen.OPTION_WHOLE):
 		_did_calm = true
@@ -310,7 +310,7 @@ func _render() -> void:
 				_instr.text = "Jump to any system in reach."
 		Step.SETTLE:
 			_count.text = "3/5"
-			_body.text = "A system offers two to four situations. Walking away is always free -- a situation only ever guards a reward, never the way out."
+			_body.text = "A system offers up to five encounters. Walking away is always free -- an encounter only ever guards a reward, never the way out."
 			_instr.text = _settle_lines()
 		Step.FIGHT:
 			_count.text = "4/5"
@@ -344,9 +344,9 @@ func _settle_lines() -> String:
 			else:
 				here_calm = true
 	if _did_calm:
-		lines.append("[x] A situation, seen through.")
+		lines.append("[x] An encounter, seen through.")
 	elif here_calm:
-		lines.append("[ ] Open a situation from the drawer and see it through.")
+		lines.append("[ ] Open an encounter from the drawer and see it through.")
 	if _did_fight:
 		lines.append("[x] A fight, fought.")
 	elif here_fights:
