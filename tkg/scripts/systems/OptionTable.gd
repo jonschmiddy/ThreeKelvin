@@ -672,7 +672,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(5), "You are still under the overhang when the overhang decides.")
 						return {text = "You are still under the overhang when the overhang decides."}},
-				{label = "Move on", effect = func() -> Dictionary:
+				{label = "Move on", stay = true, effect = func() -> Dictionary:
 					return {text = "It has been here a long time. It is in no hurry."}},
 			],
 		},
@@ -701,7 +701,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 40)
 						return {text = "You skim the upper atmosphere on the way up. Forty units, and most of your paint."}},
-				{label = "Ride it round", effect = func() -> Dictionary:
+				{label = "Ride it round", stay = true, effect = func() -> Dictionary:
 					return {text = "One slow orbit, no burn. It costs you nothing but the hour."}},
 			],
 		},
@@ -727,7 +727,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(4), "The old ones are the worst. This one waits until you are past before it decides.")
 						return {text = "The old ones are the worst. This one waits until you are past before it decides."}},
-				{label = "Sweep wide", effect = func() -> Dictionary:
+				{label = "Sweep wide", stay = true, effect = func() -> Dictionary:
 					return {text = "You give the whole drift a wide margin and lose nothing but time."}},
 			],
 		},
@@ -760,7 +760,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.heat += 20
 						return {text = "The flare comes early. You leave with nothing and a ship that is still ticking as it cools."}},
-				{label = "Watch it burn", effect = func() -> Dictionary:
+				{label = "Watch it burn", stay = true, effect = func() -> Dictionary:
 					return {text = "You hold station outside the corona and log the wreck for somebody with better vents."}},
 			],
 		},
@@ -792,7 +792,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Burn across it", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 8)
 					return {text = "You cross it at an angle, under power the whole way, and come out the far side having paid for every metre."}},
-				{label = "Wait it out", effect = func() -> Dictionary:
+				{label = "Wait it out", stay = true, effect = func() -> Dictionary:
 					return {text = "You hold in the lee of nothing in particular until the front has gone past. It costs you the afternoon and nothing else."}},
 			],
 		},
@@ -819,7 +819,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "You spend an hour inside the glare and come out with a hot hull and no idea whether you were ever within ten kilometres of it."}},
 				{label = "Sweep the shadow side", effect = func() -> Dictionary:
 					return {text = "You put the nearest body between yourself and the star and read the sliver of sky that leaves you. It is not where the contact was. It is where something smaller has been drifting for a while.", material = &"wreck"}},
-				{label = "Log the bearing and go", effect = func() -> Dictionary:
+				{label = "Log the bearing and go", stay = true, effect = func() -> Dictionary:
 					return {text = "You write down a number that will mean nothing to anybody who has not been here, and leave it in the archive for somebody who has."}},
 			],
 		},
@@ -929,7 +929,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 12)
 						return {text = "You follow it a long way before admitting it was never there. Twelve units of fuel, spent on a bearing."}},
-				{label = "Log it and go", effect = func() -> Dictionary:
+				{label = "Log it and go", stay = true, effect = func() -> Dictionary:
 					return {text = "You write the bearing down. Someone with better ears can have it."}},
 			],
 		},
@@ -989,7 +989,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The fourth one changes its mind about the lane. You are close enough that the flank takes your dorsal plating with it."}},
 				{label = "Take what they shed", effect = func() -> Dictionary:
 					return {text = "You hold off the lane and collect what works loose in the wake. Their hides carry decades of accreted junk — plate, ice, and today, a whole rack off some ship that once got too close.", module = true, material_id = &"hide_scrap"}},
-				{label = "Let them pass", effect = func() -> Dictionary:
+				{label = "Let them pass", stay = true, effect = func() -> Dictionary:
 					return {text = "Nine of them, in line, going somewhere. You wait, and then they are not there any more."}},
 			],
 		},
@@ -1052,7 +1052,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.heat += 26
 						return {text = "You are still alongside when it comes round. The hull holds. Everything on the hull does not."}},
-				{label = "Log the bearing", effect = func() -> Dictionary:
+				{label = "Log the bearing", stay = true, effect = func() -> Dictionary:
 					return {text = "You mark the wreck, note the interval, and leave both for somebody with better vents and worse judgement."}},
 			],
 		},
@@ -1117,7 +1117,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Sweep the edge", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(11))
 					return {text = "You work the outside of the shoal where the grit is thin, and take what it has collected there. Nothing dramatic. Enough to matter.", material = &"wreck"}},
-				{label = "Go round", effect = func() -> Dictionary:
+				{label = "Go round", stay = true, effect = func() -> Dictionary:
 					return {text = "It is a very large amount of dust and it is in no hurry."}},
 			],
 		},
@@ -1262,7 +1262,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.add_credits(-70)
 						return {text = "You misread a nod as a bid and win a lot you did not want, at a price you did not choose.", material = &"event"}},
-				{label = "Let it go", effect = func() -> Dictionary:
+				{label = "Let it go", stay = true, effect = func() -> Dictionary:
 					return {text = "Sealed, unseen, as it lies. Somebody else's forty minutes."}},
 			],
 		},
@@ -1443,7 +1443,7 @@ static func _authored() -> Array[Dictionary]:
 					Run.fuel = maxi(0, Run.fuel - 15)
 					Run.add_credits(OptionTable.purse(36))
 					return {text = "You have enough fuel aboard to bootstrap her cold reactor if they are not fussy about the margin you leave yourself. They are not fussy."}},
-				{label = "Signal it in and go", effect = func() -> Dictionary:
+				{label = "Signal it in and go", stay = true, effect = func() -> Dictionary:
 					return {text = "You put their position on the emergency band and leave. Somebody will come. Somebody usually comes."}},
 			],
 		},
@@ -1527,7 +1527,7 @@ static func _authored() -> Array[Dictionary]:
 					return {text = "Thirty credits for what a rim station would charge ninety, off a sheet she sees no authority to amend and no reason to doubt. She stamps the receipt twice. The second stamp is for the copy nobody has collected in eleven years, and she makes it as carefully as the first."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 8)
-					return {text = "It takes most of a shift and the reactor idling the whole time. Other people's paperwork about the thing at the core: transit logs that stop mid-line, a mass estimate crossed out four times and never replaced, a requisition for instruments that were never sent and never cancelled. She reads over your shoulder the entire time and does not say anything. She has been waiting eleven years for somebody to ask.", archive_recover = true, material_id = &"survey_film"}},
+					return {text = "It takes most of a shift and the reactor idling the whole time. Other people's paperwork about the thing at the core: transit logs that stop mid-line, a mass estimate crossed out four times and never replaced, a requisition for instruments that were never sent and never cancelled. She reads over your shoulder the entire time and does not say anything. She has been waiting eleven years for somebody to ask.", archive_recover = true, material_id = &"survey_film", material = &"event"}},
 				{label = "Leave her to the ledger", stay = true, effect = func() -> Dictionary:
 					return {text = "One clerk, one drawer, one folder. Your arrival is the first entry she has logged in a long while, and she logs it beautifully."}},
 			],
@@ -1624,7 +1624,7 @@ static func _authored() -> Array[Dictionary]:
 					Run.fuel = maxi(0, Run.fuel - 20)
 					Run.add_credits(OptionTable.purse(36))
 					return {text = "Enough to arrive with margin. She pays the rate without blinking, which tells you what the charter is worth, which stings slightly."}},
-				{label = "Wish her luck", effect = func() -> Dictionary:
+				{label = "Wish her luck", stay = true, effect = func() -> Dictionary:
 					return {text = "She thanks you with the particular politeness of somebody updating a list, and resumes hailing everything with a tank."}},
 			],
 		},
@@ -1696,7 +1696,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.heat += 8
 						return {text = "You hold position long enough for the thing under the loop to get a good look at you, and you leave with your bloom up."}},
-				{label = "Run silent", effect = func() -> Dictionary:
+				{label = "Run silent", stay = true, effect = func() -> Dictionary:
 					Run.heat = 0
 					return {text = "You cut the reactor and drift past it with everything dark. Heat cleared, and the voice goes on repeating behind you."}},
 			],
@@ -1729,7 +1729,7 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "It is not the big ones. It is that there are so many of the small ones, and that they all arrive at once."}},
 				{label = "Take what has come loose", effect = func() -> Dictionary:
 					return {text = "There is enough drifting clear of it to fill a bay without cutting anything, or annoying anything.", material = &"fauna"}},
-				{label = "Let it rest", effect = func() -> Dictionary:
+				{label = "Let it rest", stay = true, effect = func() -> Dictionary:
 					return {text = "You hold station a while and take nothing off it. It is doing something on its own schedule and will be doing it long after you are not."}},
 			],
 		},
@@ -1958,7 +1958,7 @@ static func _authored() -> Array[Dictionary]:
 					botched = func() -> Dictionary:
 						Run.take_hull_damage(OptionTable.toll(5), "A dead hull folded the bow in the breaker's lane.")
 						return {text = "The lane closes on you between two hulls that were never going to stay where the breakers left them. What comes out the other side is your ship, mostly."}},
-				{label = "Go around", effect = func() -> Dictionary:
+				{label = "Go around", stay = true, effect = func() -> Dictionary:
 					return {text = "The long way. A day around the yard with the wrecks on your beam the whole time, and nothing happens, which is the point. The day is the price."}},
 			],
 		},

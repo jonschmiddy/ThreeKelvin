@@ -33,6 +33,16 @@ TOLL = [0, 1.0, 1.9, 3.0, 4.3, 5.8]
 CRD_MAX = [0, 40, 70, 110, 170, 260]
 HULL_MAX = [0, 6, 10, 15, 20, 28]
 BODY_MIN = 300          # measured: the four reviewed bodies run 402-573
+TIER_NAME = ["", "EASY", "ROUGH", "HARD", "BRUTAL", "LETHAL"]
+
+# What every named material is worth, read off the table rather than guessed.
+VALUE = {}
+_mt = os.path.join(ROOT, "tkg", "scripts", "systems", "MaterialTable.gd")
+if os.path.exists(_mt):
+	for _m in re.finditer(
+			r'\{id = &"([a-z_]+)".*?value = (\d+)',
+			io.open(_mt, encoding="utf-8").read(), re.S):
+		VALUE[_m.group(1)] = int(_m.group(2))
 
 # A walk-away by its label. Declining a thing must not spend the encounter.
 WALK = re.compile(
@@ -49,6 +59,14 @@ PERSON = re.compile(
 # A vessel, for the pronoun-slide check.
 VESSEL = re.compile(r"\b(barge|hauler|cutter|freighter|hull|ship|tug|skiff|"
 	r"lighter|tender|relay|station|dock|rig|yard)\b", re.I)
+
+
+def _key(entry):
+	"""id + message. Deliberately NOT the line number: everything shifts when an
+	encounter above it is edited, and a baseline that decays on every edit is a
+	baseline nobody trusts."""
+	parts = entry.split(None, 2)
+	return "%s %s" % (parts[1], parts[2]) if len(parts) > 2 else entry
 
 
 def tier(d):
@@ -144,14 +162,26 @@ def main():
 				err('choice "%s" costs nothing and gives nothing, and is not a '
 					"tagged walk-away" % label)
 
-		# --- 7. a deep branch paying only a named material --------------
+		# --- 7. a deep branch paying only a CHEAP named material --------
+		#
+		# Value-aware, and it has to be. The first version fired on any
+		# named-only branch and flagged `LAST BROADCAST` -- artifact tier, 150,
+		# a perfectly good LETHAL payout. The fault is not "named", it is
+		# "named and worth less than the tier pays", which is what happened to
+		# `survey_film` at 35 in a band that pays 170-260.
 		if thi >= 4:
 			for label, chunk in chs:
-				named = re.search(r'material_id = &"', chunk)
-				if named and not re.search(
+				named = re.findall(r'material_id = &"([a-z_]+)"', chunk)
+				if not named or re.search(
 						r'material = &"|add_credits|module = true', chunk):
-					warn('"%s" pays only a NAMED material -- fixed value, so it '
-						"does not grade with depth" % label)
+					continue
+				worth = sum(VALUE.get(x, 0) for x in named)
+				floor = CRD_MAX[thi] // 3
+				if worth < floor:
+					warn('"%s" pays only %d in named materials; %s pays %d-%d, '
+						"and a named value never grades with depth"
+						% (label, worth, TIER_NAME[thi],
+							CRD_MAX[thi] // 3, CRD_MAX[thi]))
 
 		# --- 8. one pronoun, two referents ------------------------------
 		if VESSEL.search(body) and re.search(r"\b(her|she)\b", body, re.I):
@@ -163,12 +193,39 @@ def main():
 		if len(body) < BODY_MIN:
 			warn("body is %d chars; the reviewed four run 402-573" % len(body))
 
+	# --- the baseline -----------------------------------------------------
+	#
+	# `--strict` has to be usable on the day it is written or nobody adopts it.
+	# The table had 35 findings the moment the linter existed, so a gate that
+	# failed on all of them was a gate that could only ever be switched on after
+	# a cleanup nobody had time for -- and meanwhile eighty new encounters would
+	# arrive ungated.
+	#
+	# So: known findings are recorded once, and `--strict` fails only on ones
+	# that are NOT in that record. Old debt stays visible in the plain report and
+	# stops blocking new work. `--baseline` re-records after a genuine fix.
+	base = set()
+	bp = os.path.join(ROOT, "tools", "encounter_lint_baseline.txt")
+	if os.path.exists(bp):
+		base = set(l.strip() for l in io.open(bp, encoding="utf-8")
+			if l.strip() and not l.startswith("#"))
+	if "--baseline" in sys.argv:
+		io.open(bp, "w", encoding="utf-8", newline="\n").write(
+			"# Findings that predate the linter. `--strict` ignores these\n"
+			"# and fails on anything new. Re-record with --baseline after a\n"
+			"# real fix.\n"
+			+ "\n".join(sorted(_key(e) for e in errors)) + "\n")
+		print("baselined %d findings" % len(errors))
+		return 0
+	fresh = [e for e in errors if _key(e) not in base]
+
 	print("%d encounters checked" % seen)
 	print()
 	if errors:
-		print("ERRORS  (%d) -- these are rulings, not taste" % len(errors))
+		print("ERRORS  (%d, of which %d are new since the baseline)"
+			% (len(errors), len(fresh)))
 		for e in errors:
-			print("  " + e)
+			print("  %s%s" % ("NEW  " if _key(e) not in base else "     ", e))
 		print()
 	if warns:
 		print("REVIEW  (%d) -- worth a look, not automatically wrong" % len(warns))
@@ -177,7 +234,7 @@ def main():
 		print()
 	if not errors and not warns:
 		print("clean")
-	return 1 if (errors and "--strict" in sys.argv) else 0
+	return 1 if (fresh and "--strict" in sys.argv) else 0
 
 
 if __name__ == "__main__":

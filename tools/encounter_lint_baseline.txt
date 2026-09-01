@@ -1,0 +1,18 @@
+# Findings that predate the linter. `--strict` ignores these
+# and fails on anything new. Re-record with --baseline after a
+# real fix.
+corona pays credits with nobody in the body to pay them (hazard,salvage)
+customs_cordon choice "Hail them and ask" costs nothing and gives nothing, and is not a tagged walk-away
+dead_hull pays credits with nobody in the body to pay them (salvage)
+deadfall pays credits with nobody in the body to pay them (salvage)
+derelict_hauler choice "Claim the hull" costs nothing and gives nothing, and is not a tagged walk-away
+flare_shelter choice "Just shelter" costs nothing and gives nothing, and is not a tagged walk-away
+ghost_signal pays credits with nobody in the body to pay them (signal)
+quarantine_flag choice "Wait with the others" costs nothing and gives nothing, and is not a tagged walk-away
+quarantine_flag pays credits with nobody in the body to pay them (signal)
+silt pays credits with nobody in the body to pay them (hazard)
+slipping_orbit pays credits with nobody in the body to pay them (hazard)
+the_queue choice "Wait your turn" costs nothing and gives nothing, and is not a tagged walk-away
+the_runner choice "Ask what it is" costs nothing and gives nothing, and is not a tagged walk-away
+tug_work choice "Wait in the queue" costs nothing and gives nothing, and is not a tagged walk-away
+wrong_registry pays credits with nobody in the body to pay them (signal)

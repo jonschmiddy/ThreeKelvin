@@ -4,6 +4,12 @@
 this document was read out of `OptionTable.all()` rather than counted by hand,
 so if it disagrees with the code, the code moved.*
 
+> **Writing NEW encounters?** This file describes what an encounter *is*.
+> `ENCOUNTER_COMMISSION.md` is the brief for the eighty being added, and it
+> carries the standard, the envelope and the slot list. Read this one first,
+> then that one. Run `python tools/encounter_lint.py` before anybody reads a
+> word of what you write.
+
 **Who this is for:** an editor working on the words. It describes what an
 encounter *is*, what each prose field has to do, where every one of them lives,
 and the rules that will fail the build if broken. It deliberately does **not**
@@ -73,6 +79,37 @@ partial = func() -> Dictionary:
 So each encounter carries **one body** plus **up to four outcome texts per
 choice**. That is where the bulk of the words are.
 
+### Payouts are written in rim prices
+
+`OptionTable.purse(base)` and `toll(base)` scale with how deep the system is:
+credits by 1.0 / 1.8 / 3.0 / 4.7 / 7.2 across the five tiers, hull by 1.0 / 1.9
+/ 3.0 / 4.3 / 5.8. **Author the EASY value.** `purse(30)` is 30 credits on the
+rim and 216 at LETHAL.
+
+This exists because thirty-one of the forty-seven encounters span three tiers,
+so a literal had to serve danger 3 and danger 8 at once — and measured, it did:
+average credits per tier read 50, 50, 49, 52, 56 from EASY to LETHAL before this
+landed. **Never quote a credit figure in prose.** Of 207 outcome texts, zero do,
+and the ledger rail under the result already prints what moved.
+
+### A walk-away is tagged, and does not spend the encounter
+
+```gdscript
+{label = "Leave it counting", stay = true, effect = func() -> Dictionary:
+    return {text = "..."}},
+```
+
+`stay = true` means declining leaves the thing where it was found: the card
+stays live, the result plate reads **LEFT ALONE** rather than RESOLVED, and you
+can come back. It is also the only choice that can never be dominated, because
+keeping the door open is itself a reason to pick it.
+
+### The hold is the player's
+
+Nothing takes an item the player did not choose. `consume_material_tier` grabs
+the first thing of that tier it finds in cargo; it has no callers and must not
+get one.
+
 Note the second string in `take_hull_damage` — that is a **death line**. If that
 damage kills you it becomes the run's epitaph on the game-over screen, so it has
 to read as a cause of death and not as a description of a scratch.
@@ -112,27 +149,60 @@ Current spread across 47 encounters:
 
 ## 5. Gates: where an encounter can appear
 
-Every gate is optional and they are ANDed. **18 of 47 encounters are gated**;
+Every gate is optional and they are ANDed. **45 of 47 encounters are gated**;
 the rest can appear anywhere.
 
+- `dropped_load` — **max_danger=8** (The dropped load)
+- `long_claim` — **max_danger=4** (The long claim)
 - `slipping_orbit` — **needs_giant** (Slipping orbit)
-- `mine_drift` — **min_danger=3** (Mine drift)
-- `corona` — **needs_star=RED HYPERGIANT** (The corona)
-- `the_wind` — **needs_star=BLUE HYPERGIANT** (The wind)
-- `the_glare` — **needs_star=BLUE HYPERGIANT** (The glare)
-- `the_scouring` — **needs_star=BLUE HYPERGIANT** (The scouring)
+- `mine_drift` — **min_danger=5** (Mine drift)
+- `corona` — **needs_star=RED HYPERGIANT, min_danger=5** (The corona)
+- `the_wind` — **needs_star=BLUE HYPERGIANT, min_danger=5** (The wind)
+- `the_glare` — **needs_star=BLUE HYPERGIANT, min_danger=5** (The glare)
+- `the_scouring` — **needs_star=BLUE HYPERGIANT, min_danger=5** (The scouring)
+- `the_runner` — **min_danger=3, max_danger=8** (The runner)
 - `paid_in_full` — **placed** (Paid in full)
-- `the_braid` — **needs_fauna** (The braid)
-- `the_sweep` — **needs_pulsar** (The sweep)
-- `silt` — **needs_fauna** (Silt)
-- `cold_labour` — **min_danger=2** (Cold labour)
-- `flare_shelter` — **needs_star=RED HYPERGIANT** (Flare shelter)
-- `deadfall` — **min_danger=3** (Deadfall)
-- `the_calf` — **needs_fauna** (The calf)
-- `whale_fall` — **needs_fauna** (Whale fall)
-- `derelict_hauler` — **min_danger=2** (Derelict hauler)
-- `cordon` — **min_danger=3** (The cordon)
-- `salvage_rights` — **min_danger=2** (Salvage rights)
+- `ghost_signal` — **max_danger=4** (Ghost signal)
+- `customs_cordon` — **min_danger=3, max_danger=8** (Customs cordon)
+- `the_braid` — **needs_fauna, min_danger=3, max_danger=8** (The braid)
+- `refinery_still_lit` — **min_danger=3, max_danger=8** (Refinery, still lit)
+- `the_sweep` — **needs_pulsar, min_danger=7** (The sweep)
+- `tug_work` — **min_danger=3, max_danger=8** (Tug work)
+- `silt` — **needs_fauna, min_danger=3, max_danger=6** (Silt)
+- `the_queue` — **min_danger=3, max_danger=8** (The queue)
+- `cold_labour` — **min_danger=3, max_danger=8** (Cold labour)
+- `quarantine_flag` — **min_danger=3, max_danger=8** (Quarantine flag)
+- `counterweight` — **min_danger=5** (Counterweight)
+- `the_auction` — **min_danger=5** (The auction)
+- `escort` — **min_danger=3, max_danger=8** (Escort)
+- `nine_tonnes` — **min_danger=3, max_danger=8** (Nine tonnes of nothing)
+- `ice` — **max_danger=4** (Ice)
+- `flare_shelter` — **needs_star=RED HYPERGIANT, min_danger=3, max_danger=8** (Flare shelter)
+- `deadfall` — **min_danger=5** (Deadfall)
+- `the_long_tow` — **min_danger=3, max_danger=8** (The long tow)
+- `the_calf` — **needs_fauna, min_danger=3, max_danger=8** (The calf)
+- `the_manifest` — **min_danger=9** (The manifest)
+- `the_last_berth` — **min_danger=9** (The last counter)
+- `counting_backwards` — **min_danger=9** (Counting backwards)
+- `holding_pattern` — **min_danger=9** (Holding pattern)
+- `the_favour` — **max_danger=6** (The favour)
+- `wrong_registry` — **max_danger=6** (Wrong registry)
+- `dead_station` — **max_danger=6** (Dead station)
+- `distress_beacon` — **max_danger=6** (Distress beacon)
+- `whale_fall` — **needs_fauna, min_danger=3, max_danger=8** (Whale fall)
+- `inspection_sweep` — **min_danger=3, max_danger=8** (Inspection sweep)
+- `derelict_hauler` — **min_danger=2, max_danger=6** (Derelict hauler)
+- `cordon` — **min_danger=5** (The cordon)
+- `salvage_rights` — **min_danger=2, max_danger=6** (Salvage rights)
+- `still_under_warranty` — **max_danger=6** (Still under warranty)
+- `collapsed_lane` — **min_danger=3, max_danger=6** (Collapsed lane)
+- `drifting_lifepod` — **max_danger=4** (Drifting lifepod)
+
+The full gate list, all ANDed: `min_danger`, `max_danger`, `min_security`,
+`max_security`, `min_development`, `max_development`, `regions`, `needs_fauna`,
+`needs_star`, `needs_giant`, `needs_pulsar`, **`needs_nebula`** (added
+2026-08-31 — every node carried `in_nebula` and no encounter could ask),
+`needs_berth`, `berth`, `placed`.
 
 `min_danger` is a depth floor, not a place. Everything else names a physical
 fact about the system: a gas giant, a red or blue hypergiant, a neutron star in
@@ -179,6 +249,9 @@ A resolved encounter's card is stamped in the centre in large type:
 | `R_DONE` | (spent) |
 | `R_GONE` | UNAVAILABLE |
 
+A `stay` choice produces no stamp at all: the plate reads **LEFT ALONE** and the
+encounter is still there when you come back.
+
 Options in the same `group` are mutually exclusive — taking one stamps its
 siblings UNAVAILABLE. Hovering a card that would close another greys the sibling
 and prints **WILL BECOME UNAVAILABLE** across it.
@@ -206,6 +279,19 @@ Read a dozen entries before writing one. The register, consistently:
 - **Understatement on the worst outcomes.** "The hull holds. Everything on the
   hull does not."
 - **No exclamation marks. No rhetorical questions. No winking.**
+- **DETAIL IS NOT COMPRESSION**, and this is the one that went wrong most. A
+  clause earns its place by parsing on the *first* read. Four lines had to be
+  rewritten for it: *"nobody this deep is disinterested twice"*, *"which is how
+  you carry that sort of thing"*, *"burning fuel to hold a position you will
+  want that fuel back for"*, and a tail that asked the reader to infer a
+  negative. If you cannot say the plain version of a clause out loud, cut it.
+- **A ship is `it`. People get the pronouns.** "her master is hailing" then "she
+  has been holding here" slid between the barge and the pilot with nothing
+  marking the handover. `master` went with it — a nautical rank nobody in this
+  game speaks. `dockmaster` is fine; it is a job.
+- **Credits come from people.** A `contract` pays cash because a client exists.
+  A `salvage` or `hazard` with nobody in the body hands over an *object*, and
+  the object becomes money at a station.
 - Bodies run roughly 40–70 words; outcome texts 20–45. The drawer will wrap
   anything, but a plate that needs scrolling stops being scannable.
 
@@ -239,7 +325,11 @@ Read a dozen entries before writing one. The register, consistently:
 
 ## 9. What will fail the build
 
-Run `bash .github/scripts/validate.sh` before pushing. Two guards bite prose:
+Run `python tools/encounter_lint.py` first — it finds every fault a machine
+can name, and it found 35 rulings and 15 review items on these 47 in one pass.
+`--strict` fails only on findings that are NOT in
+`tools/encounter_lint_baseline.txt`, so it is usable as a gate today rather than
+after a cleanup. Then run `bash .github/scripts/validate.sh` before pushing. Two guards bite prose:
 
 **One word for a company: manufacturer.** The validator greps for retired
 vocabulary in both `tkg/scripts` and `docs`, and a hit fails the run. Say
@@ -268,53 +358,53 @@ grep the `id` instead.
 
 | id | title | tags | gates | choices | line |
 |---|---|---|---|---|---|
-| `dropped_load` | The dropped load | contract | — | 3 | 538 |
-| `long_claim` | The long claim | contract | — | 3 | 567 |
-| `slipping_orbit` | Slipping orbit | hazard | needs_giant | 2 | 599 |
-| `mine_drift` | Mine drift | hazard salvage | min_danger=3 | 2 | 628 |
-| `corona` | The corona | hazard salvage | needs_star=RED HYPERGIANT | 2 | 654 |
-| `the_wind` | The wind | hazard | needs_star=BLUE HYPERGIANT | 3 | 686 |
-| `the_glare` | The glare | hazard | needs_star=BLUE HYPERGIANT | 3 | 717 |
-| `the_scouring` | The scouring | hazard salvage | needs_star=BLUE HYPERGIANT | 3 | 743 |
-| `the_runner` | The runner | contract | — | 3 | 771 |
-| `paid_in_full` | Paid in full | quest | placed | 2 | 803 |
-| `ghost_signal` | Ghost signal | signal | — | 2 | 823 |
-| `customs_cordon` | Customs cordon | signal fight | — | 2 | 849 |
-| `the_braid` | The braid | signal | needs_fauna | 3 | 876 |
-| `refinery_still_lit` | Refinery, still lit | contract | — | 3 | 905 |
-| `the_sweep` | The sweep | hazard | needs_pulsar | 2 | 937 |
-| `tug_work` | Tug work | contract | — | 3 | 965 |
-| `silt` | Silt | hazard | needs_fauna | 3 | 997 |
-| `the_queue` | The queue | contract | — | 3 | 1026 |
-| `cold_labour` | Cold labour | contract | min_danger=2 | 3 | 1046 |
-| `quarantine_flag` | Quarantine flag | signal | — | 2 | 1078 |
-| `counterweight` | Counterweight | contract | — | 3 | 1104 |
-| `the_auction` | The auction | contract | — | 3 | 1135 |
-| `escort` | Escort | fight contract | — | 3 | 1164 |
-| `nine_tonnes` | Nine tonnes of nothing | contract | — | 3 | 1183 |
-| `ice` | Ice | contract | — | 3 | 1212 |
-| `flare_shelter` | Flare shelter | hazard | needs_star=RED HYPERGIANT | 3 | 1244 |
-| `deadfall` | Deadfall | salvage | min_danger=3 | 3 | 1275 |
-| `the_long_tow` | The long tow | contract | — | 3 | 1304 |
-| `the_calf` | The calf | signal | needs_fauna | 3 | 1336 |
-| `the_manifest` | The manifest | contract | — | 3 | 1366 |
-| `the_last_berth` | The last berth | contract | — | 3 | 1396 |
-| `counting_backwards` | Counting backwards | signal | — | 3 | 1417 |
-| `holding_pattern` | Holding pattern | signal | — | 3 | 1446 |
-| `the_favour` | The favour | contract | — | 3 | 1475 |
-| `wrong_registry` | Wrong registry | signal | — | 3 | 1495 |
-| `dead_station` | Dead station | salvage | — | 2 | 1522 |
-| `distress_beacon` | Distress beacon | signal fight | — | 3 | 1537 |
-| `whale_fall` | Whale fall | salvage | needs_fauna | 3 | 1565 |
-| `inspection_sweep` | Inspection sweep | contract | — | 3 | 1595 |
-| `derelict_hauler` | Derelict hauler | salvage | min_danger=2 | 2 | 1630 |
-| `hostile_contact` | Hostile contact | fight | — | 2 | 1647 |
-| `dead_hull` | A dead hull | salvage | — | 2 | 1676 |
-| `cordon` | The cordon | fight signal | min_danger=3 | 3 | 1700 |
-| `salvage_rights` | Salvage rights | salvage contract | min_danger=2 | 3 | 1731 |
-| `still_under_warranty` | Still under warranty | salvage | — | 2 | 1760 |
-| `collapsed_lane` | Collapsed lane | hazard | — | 2 | 1787 |
-| `drifting_lifepod` | Drifting lifepod | signal | — | 2 | 1817 |
+| `dropped_load` | The dropped load | contract | max_danger=8 | 3 | 617 |
+| `long_claim` | The long claim | contract | max_danger=4 | 3 | 647 |
+| `slipping_orbit` | Slipping orbit | hazard | needs_giant | 2 | 680 |
+| `mine_drift` | Mine drift | hazard salvage | min_danger=5 | 2 | 709 |
+| `corona` | The corona | hazard salvage | needs_star=RED HYPERGIANT, min_danger=5 | 2 | 735 |
+| `the_wind` | The wind | hazard | needs_star=BLUE HYPERGIANT, min_danger=5 | 3 | 768 |
+| `the_glare` | The glare | hazard | needs_star=BLUE HYPERGIANT, min_danger=5 | 3 | 800 |
+| `the_scouring` | The scouring | hazard salvage | needs_star=BLUE HYPERGIANT, min_danger=5 | 3 | 827 |
+| `the_runner` | The runner | contract | min_danger=3, max_danger=8 | 3 | 856 |
+| `paid_in_full` | Paid in full | quest | placed | 2 | 890 |
+| `ghost_signal` | Ghost signal | signal | max_danger=4 | 2 | 910 |
+| `customs_cordon` | Customs cordon | signal fight | min_danger=3, max_danger=8 | 2 | 937 |
+| `the_braid` | The braid | signal | needs_fauna, min_danger=3, max_danger=8 | 3 | 966 |
+| `refinery_still_lit` | Refinery, still lit | contract | min_danger=3, max_danger=8 | 3 | 997 |
+| `the_sweep` | The sweep | hazard | needs_pulsar, min_danger=7 | 2 | 1031 |
+| `tug_work` | Tug work | contract | min_danger=3, max_danger=8 | 3 | 1060 |
+| `silt` | Silt | hazard | needs_fauna, min_danger=3, max_danger=6 | 3 | 1094 |
+| `the_queue` | The queue | contract | min_danger=3, max_danger=8 | 3 | 1125 |
+| `cold_labour` | Cold labour | contract | min_danger=3, max_danger=8 | 3 | 1147 |
+| `quarantine_flag` | Quarantine flag | signal | min_danger=3, max_danger=8 | 2 | 1180 |
+| `counterweight` | Counterweight | contract | min_danger=5 | 3 | 1208 |
+| `the_auction` | The auction | contract | min_danger=5 | 3 | 1240 |
+| `escort` | Escort | fight contract | min_danger=3, max_danger=8 | 3 | 1270 |
+| `nine_tonnes` | Nine tonnes of nothing | contract | min_danger=3, max_danger=8 | 3 | 1291 |
+| `ice` | Ice | contract | max_danger=4 | 3 | 1322 |
+| `flare_shelter` | Flare shelter | hazard | needs_star=RED HYPERGIANT, min_danger=3, max_danger=8 | 3 | 1355 |
+| `deadfall` | Deadfall | salvage | min_danger=5 | 3 | 1388 |
+| `the_long_tow` | The long tow | contract | min_danger=3, max_danger=8 | 3 | 1417 |
+| `the_calf` | The calf | signal | needs_fauna, min_danger=3, max_danger=8 | 3 | 1451 |
+| `the_manifest` | The manifest | contract | min_danger=9 | 3 | 1483 |
+| `the_last_berth` | The last counter | contract | min_danger=9 | 3 | 1514 |
+| `counting_backwards` | Counting backwards | signal | min_danger=9 | 3 | 1536 |
+| `holding_pattern` | Holding pattern | signal | min_danger=9 | 3 | 1581 |
+| `the_favour` | The favour | contract | max_danger=6 | 3 | 1611 |
+| `wrong_registry` | Wrong registry | signal | max_danger=6 | 3 | 1632 |
+| `dead_station` | Dead station | salvage | max_danger=6 | 2 | 1660 |
+| `distress_beacon` | Distress beacon | signal fight | max_danger=6 | 3 | 1676 |
+| `whale_fall` | Whale fall | salvage | needs_fauna, min_danger=3, max_danger=8 | 3 | 1705 |
+| `inspection_sweep` | Inspection sweep | contract | min_danger=3, max_danger=8 | 3 | 1737 |
+| `derelict_hauler` | Derelict hauler | salvage | min_danger=2, max_danger=6 | 2 | 1774 |
+| `hostile_contact` | Hostile contact | fight | — | 2 | 1792 |
+| `dead_hull` | A dead hull | salvage | — | 2 | 1821 |
+| `cordon` | The cordon | fight signal | min_danger=5 | 3 | 1845 |
+| `salvage_rights` | Salvage rights | salvage contract | min_danger=2, max_danger=6 | 3 | 1876 |
+| `still_under_warranty` | Still under warranty | salvage | max_danger=6 | 2 | 1906 |
+| `collapsed_lane` | Collapsed lane | hazard | min_danger=3, max_danger=6 | 2 | 1934 |
+| `drifting_lifepod` | Drifting lifepod | signal | max_danger=4 | 2 | 1966 |
 
 ---
 
