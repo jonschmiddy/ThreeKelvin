@@ -134,6 +134,7 @@ godot --headless --path . --import             # REQUIRED after any new class_na
 | `-- fittest` | touching the hold, the hardpoints, `ModuleIcon`, module ROTATION or either drop handler. **Needs a window, so it is NOT in the gate** — it drives real drags. Crossings between the hold and the hull both ways, a refused drop, and R turning a part — including a turn with nowhere to go, which is the branch where the part is out of the hold and has to get back. The return journey was unreachable for weeks and looked written: `_on_hold_drop` had always handled a part arriving off the ship and nothing could start that drag |
 | `-- mounts` | **replacing a hull sprite.** In the gate, so this is a backstop rather than a thing to remember. The dorsal/ventral/flank lines are measured per sprite by `art/tools/anchors.py`, so a swapped hull aims its guns at empty space with nothing thrown and nothing logged. Checks all 89 mounts against the sprite's own opaque pixels |
 | `-- convoy [N\|solo\|chart\|flare]` | touching the convoy strip. `solo` is the control: the party cell must cost the solo game nothing |
+| `-- tutorialtest` | touching the tutorial overlay, Router's arrival flow, or the option table's `fight` declarations. **In the merge gate** — the curated seed rots silently when the option table or map generator moves, because the overlay degrades politely instead of failing. `-- tutseed` prints replacement seeds when it does |
 | `-- charttest` / `-- sky` | touching the chart's star cache / `SpaceBackdrop`. Both need a window |
 
 **Getting somewhere fast.** Every one is a flag rather than a menu item, because each
@@ -146,6 +147,7 @@ godot --path . -- salvage 8 [bag=4]            # the sector with a full hold, or
 godot --path . -- archive [all|5] [open=<id>]  # the reading room
 godot --path . -- party 6                      # the party page against a fake roster
 godot --path . -- quest                        # signs work and opens the chart on it
+godot --path . -- tutorial                     # the first flight, panel and all
 godot --path . -- lobby [host|join CODE] [auto] [relay ws://localhost:8787]
 tools/coplay.sh [N]                            # N playable windows, one party
 tools/bot.sh [CODE] [MAILBOX]                  # a ship nobody is sitting in front of

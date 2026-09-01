@@ -174,6 +174,23 @@ static func build() -> Theme:
 	t.set_color("font_disabled_color", "Button", Color(COLD.r, COLD.g, COLD.b, 0.35))
 	t.set_font_size("font_size", "Button", FS_SMALL)
 
+	# THE ONE HOT BUTTON ON A PANEL. `Widgets.cta()` opts a button into this
+	# variation; everything it does not set falls through to Button above, and
+	# two of those fall-throughs are the point rather than laziness. PRESSED is
+	# already ember in the base theme, so a pressed CTA and a pressed button
+	# answer with the same heat -- the plate only ever promised what the press
+	# was going to say anyway. And DISABLED drops the warmth entirely: a greyed
+	# JUMP or a held CONTINUE has to read as "no", and a plate that stayed warm
+	# while refusing would be the button equivalent of a lit door that does not
+	# open. The bevel highlight goes warm with the plate, because a cool grey
+	# edge on an ember face reads as a repaint rather than a different metal.
+	t.set_type_variation(&"CtaButton", &"Button")
+	t.set_stylebox("normal", "CtaButton",
+		_bevel_box(Color("#4a2c10"), Color("#a15c1e"), BEVEL_LO, 3, 5))
+	t.set_stylebox("hover", "CtaButton",
+		_bevel_box(Color("#5f3915"), Color("#c47828"), BEVEL_LO, 3, 5))
+	t.set_color("font_color", "CtaButton", HOT)
+
 	# Labels
 	t.set_color("font_color", "Label", CHILL)
 	t.set_font_size("font_size", "Label", FS_BODY)

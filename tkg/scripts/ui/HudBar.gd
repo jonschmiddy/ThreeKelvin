@@ -51,6 +51,9 @@ var _heat_text: Label
 var _scrap: HBoxContainer
 var _fuel: HBoxContainer
 var _materials: HBoxContainer
+## What _mat_budget() answered when the strip was last folded -- see
+## _refresh_materials for why a moved budget refolds.
+var _mat_budget_used := -1.0
 ## Which materials the row currently holds a readout for. Rebuilt only when this
 ## changes; a count moving is a text update.
 var _mat_ids: Array = []
@@ -96,6 +99,12 @@ func _ready() -> void:
 	Sig.ship_changed.connect(refresh)
 	Sig.screen_changed.connect(refresh)
 	Sig.dev_mode_changed.connect(_rebuild)
+	# The material fold is budgeted against the row's own width, so the row
+	# changing width has to re-ask -- without this, shrinking the window keeps
+	# a fold made for the wide bar and clips the tabs until the next jump.
+	# The 24px guard in _refresh_materials keeps a resize storm from
+	# rebuilding the strip once per pixel.
+	_row.resized.connect(_refresh_materials)
 	refresh()
 
 ## Throw the bar away and build it again.
@@ -345,23 +354,93 @@ func _hint(c: Control, text: String) -> void:
 		if cc != null:
 			cc.tooltip_text = Widgets.tip(text)
 
-## One readout per material held. Rebuilt only when the SET changes — picking up
-## a material you had none of, or spending the last of one. A count going from 3
-## to 2 is a text write, which is the common case by a wide margin.
+## The material strip's fallback budget, for the one refresh that can run
+## before the bar has been laid out and measured. Every later fold uses the
+## row's own arithmetic -- see _mat_budget().
+const MAT_BUDGET := 190.0
+
+## How much of the bar the material strip may spend: whatever is left after
+## every other readout and tab has taken its minimum. The strip is the only
+## part of this bar whose child count follows the economy, and the economy
+## grew: a hold carrying ballast sand, ledger stock and four more pushed
+## ARCHIVE and HISTORY clean off the right edge of the window, which is worse
+## than any count being hidden -- the tabs are navigation, and a reading is a
+## tooltip away. Computed rather than constant because the neighbours move:
+## the dev tabs are 120px that only exist with the switch on, and a constant
+## tuned for either mode overflows the other.
+func _mat_budget() -> float:
+	if _row == null or _row.size.x <= 0.0:
+		return MAT_BUDGET
+	var sep := 6.0
+	var rest := 0.0
+	for c in _row.get_children():
+		if c == _materials:
+			continue
+		var ctl := c as Control
+		if ctl == null or not ctl.visible:
+			continue
+		rest += ctl.get_combined_minimum_size().x + sep
+	# The slack absorbs what this pass cannot see coming: CREDITS growing a
+	# digit, the heat figure taking its over-cap form. Both are small and both
+	# already reserve where they can -- see _reserve().
+	return maxf(0.0, _row.size.x - rest - 24.0)
+
+## One readout per material held, until they stop fitting. Rebuilt only when
+## the SET changes — picking up a material you had none of, or spending the
+## last of one. A count going from 3 to 2 is a text write, which is the common
+## case by a wide margin. Everything past the budget is one "+N" readout whose
+## tooltip carries the names and counts it folded.
 func _refresh_materials() -> void:
 	var stock := Run.material_stock()
 	var ids: Array = []
 	for s in stock:
 		ids.append(s.id)
-	if ids != _mat_ids:
+	var budget := _mat_budget()
+	# Refold on a moved budget as well as a changed set: the first refresh of
+	# a restored run happens before the bar has a size, so its fold was made
+	# against the fallback and has to be remade against the measurement.
+	if ids != _mat_ids or absf(budget - _mat_budget_used) > 24.0:
 		_mat_ids = ids
+		_mat_budget_used = budget
 		Widgets.clear(_materials)
+		var f := UITheme.pixel_font()
+		# Row widths first, because whether the "+N" readout exists decides
+		# how much room the named ones may spend: the chip is a row like any
+		# other, and a fold that never charged for it clipped the tabs in
+		# exactly the narrow band this function exists to close.
+		var widths: Array[float] = []
+		var total := 0.0
 		for s in stock:
+			# A label, a count and the box's own separation; the count is
+			# measured at two digits so a 9 becoming a 10 cannot move the
+			# fold.
+			var w: float = f.get_string_size("%s 00" % str(s.name).to_upper(),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x + 16.0
+			widths.append(w)
+			total += w
+		if total > budget:
+			budget -= f.get_string_size("+ 00", HORIZONTAL_ALIGNMENT_LEFT, -1,
+				UITheme.FS_SMALL).x + 16.0
+		var used := 0.0
+		var shown := 0
+		for s in stock:
+			# Even the FIRST readout folds when it does not fit -- with the
+			# dev tabs up the leftover can be smaller than one long name, and
+			# a lone "+3" with the names a hover away beats HISTORY half off
+			# the window.
+			if used + widths[shown] > budget:
+				break
+			used += widths[shown]
+			shown += 1
 			var tier := StringName(MaterialTable.by_id(s.id).get("tier", &"common"))
 			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
 				UITheme.tier_colour(tier))
 			row.name = "mat_" + String(s.id)
 			_materials.add_child(_hintable(row))
+		if shown < stock.size():
+			var more := Widgets.stat("+", str(stock.size() - shown))
+			more.name = "mat_overflow"
+			_materials.add_child(_hintable(more))
 	for s in stock:
 		var row2 := _materials.get_node_or_null("mat_" + String(s.id)) as HBoxContainer
 		if row2 == null:
@@ -369,6 +448,18 @@ func _refresh_materials() -> void:
 		_value(row2, str(s.count))
 		var d := MaterialTable.by_id(s.id)
 		_hint(row2, "%s\n%s" % [str(s.name), str(d.get("text", ""))])
+	# The folded readouts keep their counts current through the tooltip, which
+	# is the only place they are stated.
+	var over := _materials.get_node_or_null("mat_overflow") as HBoxContainer
+	if over != null:
+		var lines: PackedStringArray = ["ALSO CARRYING"]
+		var listed := 0
+		for s in stock:
+			if _materials.get_node_or_null("mat_" + String(s.id)) == null:
+				lines.append("%s %d" % [str(s.name), int(s.count)])
+				listed += 1
+		_value(over, str(listed))
+		_hint(over, "\n".join(lines))
 
 func _value(row: HBoxContainer, text: String) -> void:
 	var v := row.get_node_or_null("Value") as Label

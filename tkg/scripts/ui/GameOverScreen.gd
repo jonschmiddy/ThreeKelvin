@@ -36,6 +36,6 @@ func setup() -> void:
 
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_child(Widgets.button("NEW RUN", func(): Router.new_run()))
+	row.add_child(Widgets.cta("NEW RUN", func(): Router.new_run()))
 	box.add_child(row)
 	centre.add_child(Widgets.panel_with(box))

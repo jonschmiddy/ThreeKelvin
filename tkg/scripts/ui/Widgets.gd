@@ -409,6 +409,16 @@ static func _btn(text: String, action: Callable) -> Button:
 static func button(text: String, action: Callable) -> Button:
 	return _btn(text, action)
 
+## The panel's primary action -- the thing this screen exists to offer, on the
+## warm plate the theme's `CtaButton` variation draws. ONE per panel, or the
+## heat means nothing: JUMP on the chart, END TURN in a fight, CONTINUE out of
+## a result, LAUNCH off the launcher. Anything a player merely MAY do -- back,
+## loot, a rival choice among equals -- stays on the grey `button()` above.
+static func cta(text: String, action: Callable) -> Button:
+	var b := _btn(text, action)
+	b.theme_type_variation = &"CtaButton"
+	return b
+
 ## Label + value readout used in the HUD and unit panels.
 static func stat(key: String, value: String, value_colour: Color = UITheme.ICE) -> HBoxContainer:
 	var row := HBoxContainer.new()

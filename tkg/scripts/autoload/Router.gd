@@ -123,6 +123,36 @@ func new_run(seed_value: int = 0) -> void:
 	Rng.forced = was
 	show_chassis_select()
 
+## A guided first run. An ordinary run in every rule -- it autosaves, it can be
+## died in, it goes on the flight record -- flown on the curated seed in
+## TutorialOverlay.SEED, so the first jump reliably lands on a system holding
+## both halves of the lesson: a peaceful encounter and a declared fight.
+##
+## `-- seed N` still wins, which is how a candidate seed from `-- tutseed` is
+## auditioned without editing the constant.
+##
+## THE CHASSIS SELECT IS SKIPPED, deliberately. The korvan medium is the
+## catalogue's own tutorial ship -- no gimmick, all three slots -- and asking a
+## first-time player to weigh twenty-one hulls before they have seen a sector
+## is asking them to guess. Which is also why this launches straight onto the
+## sector: the select screen's job is a choice this run has already made.
+##
+## The overlay itself is session-local and not saved. Quitting mid-tutorial and
+## pressing CONTINUE resumes the RUN, plain -- see TutorialOverlay's header.
+func new_tutorial() -> void:
+	if Run.hull != null and not Run.dead and not Run.won:
+		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
+	SaveGame.clear()
+	var was := Rng.forced
+	if Rng.forced == 0:
+		Rng.forced = TutorialOverlay.SEED
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Rng.forced = was
+	# After start_new_run, so the run_started emission that ends any previous
+	# lesson has already passed.
+	TutorialOverlay.begin()
+	show_sector()
+
 func show_chassis_select() -> void:
 	Audio.music_state(&"ship")
 	var s := ChassisSelect.new()

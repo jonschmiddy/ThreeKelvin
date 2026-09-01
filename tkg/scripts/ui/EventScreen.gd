@@ -144,7 +144,7 @@ func _choose(index: int) -> void:
 	panel.add_child(col)
 	_result.add_child(panel)
 	if Run.dead:
-		_result.add_child(Widgets.button("…", func(): Router.show_game_over()))
+		_result.add_child(Widgets.cta("…", func(): Router.show_game_over()))
 		return
 	# THE DOOR, WHICH THIS SCREEN NEVER HAD.
 	#
@@ -173,7 +173,7 @@ func _choose(index: int) -> void:
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
-	_go = Widgets.button("CONTINUE", _continue)
+	_go = Widgets.cta("CONTINUE", _continue)
 	# HELD UNTIL YOU HAVE LOOKED, and only while there is something to look at.
 	if left > 0:
 		_go.disabled = true

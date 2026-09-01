@@ -169,6 +169,10 @@ func setup() -> void:
 	# new one. Everything else is grey. Hard-coding CONTINUE as the white one
 	# would leave a first-time player looking at five identical grey lines.
 	menu.add_child(_option("NEW RUN", _confirm_new_run, save.is_empty()))
+	# Under NEW RUN rather than above it: the tutorial is a kind of run, not
+	# the thing most visits to this screen are for. It is a real run on a
+	# curated seed with a panel narrating it -- see Router.new_tutorial.
+	menu.add_child(_option("FIRST FLIGHT", _confirm_tutorial))
 	menu.add_child(_option("FLY TOGETHER", func() -> void:
 		var lob := LobbyScreen.new()
 		lob.on_leave = _close_popup
@@ -262,7 +266,7 @@ func _confirm_continue() -> void:
 		UITheme.COLD, UITheme.FS_SMALL))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.add_child(Widgets.button("CONTINUE", func() -> void:
+	row.add_child(Widgets.cta("CONTINUE", func() -> void:
 		_close_popup()
 		Router.continue_run()))
 	row.add_child(_leave_button("NOT YET", _close_popup))
@@ -418,7 +422,7 @@ func _confirm_new_run() -> void:
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.add_child(Widgets.button("LAUNCH", _launch))
+	row.add_child(Widgets.cta("LAUNCH", _launch))
 	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
 
@@ -432,6 +436,35 @@ func _launch() -> void:
 	var n := _typed_seed()
 	_close_popup()
 	Router.new_run(n)
+
+## FIRST FLIGHT. Straight in when nothing would be lost; one question when a
+## suspended run is on disk, because the tutorial abandons it exactly the way
+## NEW RUN does and deserves exactly the same warning. No seed field -- the
+## seed is the one thing this run exists to have chosen already.
+func _confirm_tutorial() -> void:
+	var save := SaveGame.summary()
+	if save.is_empty():
+		Router.new_tutorial()
+		return
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	col.add_child(UITheme.body("FIRST FLIGHT", UITheme.ICE, UITheme.FS_HEAD))
+	col.add_child(UITheme.body(_save_line(save), UITheme.CHILL, UITheme.FS_SMALL))
+	col.add_child(UITheme.body(
+		"Launching abandons that run. It keeps its place on the flight record.",
+		UITheme.COLD, UITheme.FS_SMALL))
+	col.add_child(_gap(4))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(Widgets.cta("LAUNCH", _launch_tutorial))
+	row.add_child(_leave_button("NOT YET", _close_popup))
+	col.add_child(row)
+	_open_popup(col, true)
+
+func _launch_tutorial() -> void:
+	_close_popup()
+	Router.new_tutorial()
 
 ## SEED, and a box to put one in.
 func _seed_row() -> Control:

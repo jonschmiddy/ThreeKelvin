@@ -226,6 +226,13 @@ func _ready() -> void:
 		load("res://scripts/sim/MapTest.gd").new().run()
 		get_tree().quit()
 		return
+	# Which seeds can carry the first flight -- candidates for
+	# TutorialOverlay.SEED, judged by the tutorial's own test:
+	#   godot --headless --path . -- tutseed [from=1] [want=8]
+	if "tutseed" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/TutorialSeedScan.gd").new().run()
+		get_tree().quit()
+		return
 	if "rarity" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/RaritySheet.gd").new().run()
 		get_tree().quit()
@@ -312,7 +319,24 @@ func _ready() -> void:
 	# says and hidden if it is off, so the toggle works without a relaunch.
 	add_child(FpsMeter.new())
 
+	# THE TUTORIAL'S COACH PANEL, same placement rule as the meter: over
+	# everything, part of no layout. Built whatever mode the game is in and
+	# invisible until Router starts a first flight, so the solo game pays one
+	# hidden Control for it.
+	add_child(TutorialOverlay.new())
+
 	Router.register(content, hud)
+
+	# Does the first flight keep its promise -- the curated seed still carries
+	# the lesson, and the overlay's steps still advance:
+	#   godot --headless --path . -- tutorialtest
+	# AFTER Router.register, because it drives the real screens through the
+	# real lesson. Clears the suspend save like every flag that starts a run.
+	if "tutorialtest" in OS.get_cmdline_user_args():
+		var _tut_test = load("res://scripts/sim/TutorialTest.gd").new()
+		_tut_test.run()
+		get_tree().quit(_tut_test.code())
+		return
 
 	# Real galaxy data for the sensor-ladder study:
 	#   godot --headless --path . -- sensordump
@@ -376,7 +400,12 @@ func _ready() -> void:
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
 	# to be made from, and new_run() would have rolled one already.
-	if "lobby" in argv:
+	# Straight into the first flight:  godot --path . -- tutorial
+	# For iterating on the overlay itself -- the launcher's FIRST FLIGHT is the
+	# same door.
+	if "tutorial" in argv:
+		Router.new_tutorial()
+	elif "lobby" in argv:
 		Router.show_lobby()
 	elif "resume" in argv and SaveGame.has_save():
 		Router.continue_run()
@@ -511,6 +540,12 @@ func _ready() -> void:
 		n0.bag.append(LootGen.roll_module(3, &"", false, Rng.derive(&"look", 7)))
 		n0.bagged = true
 		Router.show_ship()
+		# The generic shot hook at the bottom of _ready is unreachable past this
+		# return, and the HUD with a hold's worth of material readouts is a
+		# layout worth photographing -- it is the one that pushed ARCHIVE off
+		# the bar.
+		if _wants_shot():
+			_shoot()
 		return
 
 	if "archive" in OS.get_cmdline_user_args():

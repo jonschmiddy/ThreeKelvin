@@ -180,7 +180,7 @@ func _build() -> void:
 	var spacer := Control.new()
 	spacer.custom_minimum_size = Vector2(20, 0)
 	bar.add_child(spacer)
-	var out := Widgets.button("UNDOCK", func(): Router.show_sector())
+	var out := Widgets.cta("UNDOCK", func(): Router.show_sector())
 	out.custom_minimum_size = Vector2(104, 20)
 	bar.add_child(out)
 	var gap := Control.new()
