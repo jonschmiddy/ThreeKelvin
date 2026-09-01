@@ -1476,7 +1476,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_manifest",
 			title = "The manifest",
-			body = "A heat barge sits across the lane inward with its running lights on and its drives cold, and the woman flying it is hailing for a witness. The delivery protocols want a countersignature on the last leg and nobody this deep is disinterested twice, so she has been holding station a day and a half waiting for a ship that neither pays her nor competes with her. The seal on the load reads nine hundred units, receipted at the last station that still had the authority to receipt anything. Your mass reading puts the barge four points heavy for nine hundred units of anything.",
+			body = "A heat barge sits across the lane inward with its running lights on and its drives cold, and the woman flying it is hailing for a witness. The delivery protocols want a countersignature on the last leg from somebody with nothing to gain by it, and out here that is a short list. She has been holding station a day and a half waiting for a ship that neither pays her nor competes with her. The seal on the load reads nine hundred units, receipted at the last station that still had the authority to receipt anything. Your mass reading puts the barge four points heavy for nine hundred units of anything.",
 			tags = [&"contract"],
 			group = &"threshold",
 			weight = 9,
@@ -1490,7 +1490,7 @@ static func _authored() -> Array[Dictionary]:
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "Eleven hundred units against a receipt for nine. Somebody upstream is moving two hundred units of something inward and paying tax on the smaller number, and the woman flying it has been carrying that without being told what it is, which is how you carry that sort of thing. You sign the honest figure. She pays you for the correction with the exact gratitude of a person who has just handed a problem back to the people who made it."},
+						return {text = "Eleven hundred units against a receipt for nine. Somebody upstream is moving two hundred units of something inward and paying tax on the smaller number, and the woman flying it was never told what it is, which is how that kind of cargo gets carried. You sign the honest figure. She pays you for the correction with the exact gratitude of a person who has just handed a problem back to the people who made it."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(14))
 						return {text = "The mass settles close enough to the seal that the difference is fuel, ice, and the way a barge rides when it is low on both. You sign, fly the leg, and collect."},
@@ -1521,7 +1521,7 @@ static func _authored() -> Array[Dictionary]:
 					return {text = "Thirty credits for what a rim station would charge ninety, off a sheet she sees no authority to amend and no reason to doubt. She stamps the receipt twice. The second stamp is for the copy nobody has collected in eleven years, and she makes it as carefully as the first."}},
 				{label = "Stay and copy the folder", effect = func() -> Dictionary:
 					Run.fuel = maxi(0, Run.fuel - 8)
-					return {text = "It takes most of a shift and the reactor idling the whole time. Other people's paperwork about the thing at the core: transit logs that stop mid-line, a mass estimate crossed out four times and never replaced, a requisition for instruments that were never sent and never cancelled. She reads over your shoulder the entire time and does not say anything. She has been waiting eleven years for somebody to ask, and what she wanted was not the folder back.", archive_recover = true, material_id = &"survey_film"}},
+					return {text = "It takes most of a shift and the reactor idling the whole time. Other people's paperwork about the thing at the core: transit logs that stop mid-line, a mass estimate crossed out four times and never replaced, a requisition for instruments that were never sent and never cancelled. She reads over your shoulder the entire time and does not say anything. She has been waiting eleven years for somebody to ask.", archive_recover = true, material_id = &"survey_film"}},
 				{label = "Leave her to the ledger", stay = true, effect = func() -> Dictionary:
 					return {text = "One clerk, one drawer, one folder. Your arrival is the first entry she has logged in a long while, and she logs it beautifully."}},
 			],
@@ -1566,7 +1566,7 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Wait out the four days",
 					effect = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 10)
-						return {text = "Four days on station, burning fuel to hold a position you will want that fuel back for, watching a number that does not move. On the fourth day it moves. It goes to zero, the transponder stops, and then nothing happens at all -- no signal, no light, nothing answering from anywhere in the sky. The recording runs for six more hours of that nothing, and the nothing is the part worth carrying.", material_id = &"last_broadcast"}},
+						return {text = "Four days on station, holding position on fuel you will want later, watching a number that does not move. On the fourth day it moves. It goes to zero, the transponder stops, and then nothing happens at all -- no signal, no light, nothing answering from anywhere in the sky. The recording runs for six more hours of that nothing, and the nothing is the part worth carrying.", material_id = &"last_broadcast"}},
 				{label = "Leave it counting", stay = true, effect = func() -> Dictionary:
 					return {text = "You log the bearing and go. It has waited two centuries for company and can wait a little longer for somebody with more fuel and fewer places to be."}},
 			],
