@@ -298,6 +298,24 @@ if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
 	fi
 fi
 
+step "The first flight keeps its promise"
+# The tutorial is an ordinary run on a curated seed, and the seed is a number
+# somebody verified against an option table and a map generator that both keep
+# moving. When it rots the overlay degrades politely -- which is exactly why
+# nothing in a played run would ever say so. This drives the real Router
+# through the whole lesson. Same exit-time teardown allowance as stowtest: it
+# ends inside a live run, holding the theme's font.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot tutorialtest 180 --headless --path "$PROJECT" -- tutorialtest; then
+	if grep -qE '^tutorialtest: PASS' "$LOG_DIR/tutorialtest.log"; then
+		ok "the curated seed still carries the lesson"
+	else
+		bad "the first flight broke its promise -- re-pick TutorialOverlay.SEED with -- tutseed"
+		grep -E '^  FAIL|^tutorialtest' "$LOG_DIR/tutorialtest.log" \
+			| head -n 12 | sed 's/^/        /'
+	fi
+fi
+
 step "A destination name fits the height the panel reserves for it"
 # The right-hand panel is as tall as its content and the chart shares a row with
 # it, so a name that wraps one line further than the panel reserves moves the
