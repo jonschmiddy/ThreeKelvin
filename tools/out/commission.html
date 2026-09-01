@@ -1,0 +1,213 @@
+<title>Eighty Encounters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen&display=swap">
+<style>
+:root{--void:#070a10;--sunk:#0a0e16;--plate:#111823;--line:#1b2430;--line2:#2a3648;
+ --ice:#cbd6e3;--cold:#8b9bb0;--dim:#5f6f85;--flare:#d99b29;--hot:#ffd28a;
+ --good:#7fb89a;--warn:#d99b29;--bad:#c05046;--violet:#9b8ec8;
+ --serif:"Instrument Serif",Georgia,serif;
+ --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+ --pix:"Silkscreen",var(--mono);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--void);color:var(--ice);font-family:var(--mono);
+ font-size:15px;line-height:1.6}
+.wrap{max-width:1000px;margin:0 auto;padding:0 22px 90px}
+header{padding:64px 0 0}
+.eyebrow{font-family:var(--pix);font-size:10px;letter-spacing:.17em;color:var(--flare);
+ text-transform:uppercase;margin-bottom:22px}
+h1{font-family:var(--serif);font-weight:400;font-size:clamp(46px,8vw,80px);line-height:.98;
+ margin:0 0 18px;letter-spacing:-.015em;text-wrap:balance}
+.stand{max-width:63ch;color:var(--cold);margin:0 0 12px}
+.stand b{color:var(--ice);font-weight:500}
+h2{font-family:var(--serif);font-weight:400;font-size:31px;margin:0 0 8px}
+.sec{margin:58px 0 0;border-top:1px solid var(--line2);padding-top:24px}
+.sub{color:var(--cold);margin:0 0 20px;max-width:64ch;font-size:14px}
+code{font-family:var(--mono);font-size:.9em;color:var(--flare)}
+.tablewrap{overflow-x:auto;margin:0 0 8px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:13px}
+th{font-family:var(--pix);font-size:9px;letter-spacing:.12em;color:var(--dim);
+ text-transform:uppercase;text-align:right;font-weight:400;padding:0 8px 9px 0;
+ border-bottom:1px solid var(--line)}
+th:first-child{text-align:left;padding-left:0}
+td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);text-align:right;color:var(--cold)}
+td:first-child{text-align:left;color:var(--ice);padding-left:0}
+tr.thin td{color:var(--bad)} tr.thin td:first-child{color:var(--bad)}
+tr.add td{color:var(--good)} tr.add td:first-child{color:var(--good)}
+.bars{display:grid;gap:9px;margin:4px 0 0}
+.barrow{display:grid;grid-template-columns:96px 1fr 58px;gap:12px;align-items:center}
+.blab{font-family:var(--pix);font-size:9px;letter-spacing:.1em;color:var(--dim);
+ text-transform:uppercase}
+.btrack{height:15px;background:var(--plate);border:1px solid var(--line);position:relative}
+.bnow{position:absolute;left:0;top:0;bottom:0;background:var(--line2)}
+.badd{position:absolute;top:0;bottom:0;background:var(--good);opacity:.85}
+.bnum{font-size:12px;color:var(--cold);text-align:right;font-variant-numeric:tabular-nums}
+.bnum b{color:var(--good);font-weight:500}
+.rules{display:grid;gap:15px;margin:6px 0 0}
+.rule{display:grid;grid-template-columns:22px 1fr;gap:14px;max-width:72ch}
+.rn{font-family:var(--pix);font-size:11px;color:var(--flare);padding-top:3px}
+.rt{color:var(--cold);font-size:14px}
+.rt b{color:var(--ice);font-weight:500}
+.warnbox{border-left:2px solid var(--bad);padding:2px 0 2px 18px;margin:22px 0 0;max-width:66ch}
+.warnbox .k{font-family:var(--pix);font-size:9px;letter-spacing:.14em;color:var(--bad);
+ text-transform:uppercase;display:block;margin-bottom:8px}
+.warnbox p{margin:0 0 10px;color:var(--cold);font-size:14px}
+.warnbox b{color:var(--ice);font-weight:500}
+footer{margin:56px 0 0;border-top:1px solid var(--line2);padding-top:22px;color:var(--dim);
+ font-size:12.5px;max-width:74ch}
+footer b{color:var(--cold);font-weight:500}
+footer p{margin:0 0 11px}
+@media(max-width:700px){.barrow{grid-template-columns:76px 1fr 50px}header{padding-top:44px}}
+</style>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Three Kelvin &middot; commission &middot; 47 encounters &rarr; 127</div>
+  <h1>Eighty Encounters</h1>
+  <p class="stand">The brief is <code>docs/briefs/ENCOUNTER_COMMISSION.md</code>.
+  This page is the plan behind it: <b>which</b> eighty, and why those eighty and
+  not some other eighty.</p>
+  <p class="stand">Every slot below was derived from a measured gap in the live
+  table. Nothing here is a round number somebody liked.</p>
+</header>
+
+<section class="sec">
+  <h2>Where the table is thin</h2>
+  <p class="sub">Two numbers per tier. <b>Total</b> is everything that can roll
+  there. <b>Free</b> is the part with no physical gate &mdash; what a plain
+  system, with no hypergiant or herd or gas, actually draws from.</p>
+  <div class="tablewrap">
+	<table>
+	  <thead><tr><th>tier</th><th>total</th><th>free</th><th>fight</th><th>hazard</th><th>salvage</th><th>signal</th><th>contract</th></tr></thead>
+	  <tbody>
+		<tr><td>EASY</td><td>16</td><td>12</td><td>2</td><td class="ex">1</td><td>5</td><td>4</td><td>5</td></tr>
+		<tr><td>ROUGH</td><td>33</td><td>17</td><td>4</td><td>4</td><td>6</td><td>8</td><td>14</td></tr>
+		<tr><td>HARD</td><td>38</td><td>16</td><td>5</td><td>9</td><td>10</td><td>7</td><td>14</td></tr>
+		<tr><td>BRUTAL</td><td>30</td><td>11</td><td>4</td><td>8</td><td>6</td><td>5</td><td>12</td></tr>
+		<tr class="thin"><td>LETHAL</td><td>18</td><td>5</td><td>2</td><td>7</td><td>5</td><td>3</td><td>4</td></tr>
+	  </tbody>
+	</table>
+  </div>
+  <p class="sub"><b>LETHAL is the problem.</b> Eighteen encounters, but only five
+  with no physical gate &mdash; so a deep, ordinary system, with no hypergiant and
+  no herd, is drawing from a bag of five at the most dangerous point in the run.
+  <code>fight</code> is thin everywhere, and EASY has exactly <b>one</b> hazard.</p>
+</section>
+
+<section class="sec">
+  <h2>The sky has almost nothing in it</h2>
+  <p class="sub">Grey is what exists. Green is what this commission adds.</p>
+  <div class="bars">
+	<div class="barrow"><span class="blab">Red giant</span>
+	  <span class="btrack"><span class="bnow" style="width:22%"></span><span class="badd" style="left:22%;width:67%"></span></span>
+	  <span class="bnum">2 <b>+6</b></span></div>
+	<div class="barrow"><span class="blab">Blue giant</span>
+	  <span class="btrack"><span class="bnow" style="width:33%"></span><span class="badd" style="left:33%;width:67%"></span></span>
+	  <span class="bnum">3 <b>+6</b></span></div>
+	<div class="barrow"><span class="blab">Gas giant</span>
+	  <span class="btrack"><span class="bnow" style="width:11%"></span><span class="badd" style="left:11%;width:56%"></span></span>
+	  <span class="bnum">1 <b>+5</b></span></div>
+	<div class="barrow"><span class="blab">Pulsar</span>
+	  <span class="btrack"><span class="bnow" style="width:11%"></span><span class="badd" style="left:11%;width:56%"></span></span>
+	  <span class="bnum">1 <b>+5</b></span></div>
+	<div class="barrow"><span class="blab">Nebula</span>
+	  <span class="btrack"><span class="badd" style="left:0;width:56%"></span></span>
+	  <span class="bnum">0 <b>+5</b></span></div>
+	<div class="barrow"><span class="blab">Megafauna</span>
+	  <span class="btrack"><span class="bnow" style="width:44%"></span><span class="badd" style="left:44%;width:34%"></span></span>
+	  <span class="bnum">4 <b>+3</b></span></div>
+  </div>
+  <div class="warnbox">
+	<span class="k">The nebula gate did not exist until tonight</span>
+	<p>Every node already carries <code>in_nebula</code>. It is generated, saved,
+	drawn on the chart, and printed in the destination panel's WARNING row
+	&mdash; and <b>no encounter could ask about it</b>, because
+	<code>admits()</code> had no clause for it. So the category had zero content
+	and no way to write any.</p>
+	<p>Added, with the schema taught to accept it. That is why nebula is the one
+	bar starting from nothing.</p>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>The eighty</h2>
+  <p class="sub">Thirty for the sky, thirty for depth, twenty for tags. A slot
+  satisfies one line only &mdash; a red-star fight is not counted twice.</p>
+  <div class="tablewrap">
+	<table>
+	  <thead><tr><th>group</th><th>new</th><th>spread</th></tr></thead>
+	  <tbody>
+		<tr class="add"><td>Sky &mdash; red, blue, giant, pulsar, nebula, fauna</td><td>30</td><td>2 ROUGH &rarr; 2 LETHAL each, by what the sky suits</td></tr>
+		<tr class="add"><td>Depth &mdash; ungated by physics</td><td>30</td><td>8 LETHAL &middot; 7 BRUTAL &middot; 8 EASY &middot; 4 HARD &middot; 3 ROUGH</td></tr>
+		<tr class="add"><td>Tags &mdash; fight and hazard</td><td>20</td><td>12 fight across all five &middot; 8 hazard at EASY and ROUGH</td></tr>
+	  </tbody>
+	</table>
+  </div>
+  <p class="sub">Depth is weighted to LETHAL and BRUTAL because that is where
+  the free pool is thinnest, and to EASY because sixteen is the smallest pool in
+  the game and it is the one every player meets first.</p>
+</section>
+
+<section class="sec">
+  <h2>What "written properly" means</h2>
+  <p class="sub">Six rules, every one of them learned by getting it wrong on the
+  four encounters already done to standard.</p>
+  <div class="rules">
+	<div class="rule"><div class="rn">1</div><div class="rt">
+	  <b>Detail is not compression.</b> A clause earns its place by parsing on the
+	  <i>first</i> read. Four lines had to be rewritten for this &mdash; squeezing
+	  a plain sentence until it sounds clever costs a second pass, and the second
+	  pass is where a player stops reading encounters at all.</div></div>
+	<div class="rule"><div class="rn">2</div><div class="rt">
+	  <b>No dominated choice.</b> <b>Twenty-two of the current forty-seven</b>
+	  have an option that costs nothing and gives nothing beside one that gives
+	  something. Do not add more.</div></div>
+	<div class="rule"><div class="rn">3</div><div class="rt">
+	  <b>Three choices, three kinds of question.</b> A check you might fail is not
+	  the same question as a resource you must spend, which is not the same as a
+	  thing you decline.</div></div>
+	<div class="rule"><div class="rn">4</div><div class="rt">
+	  <b>Credits come from people.</b> Deep space pays in cargo.
+	  <b>Seven encounters</b> currently hand you money with nobody in the body to
+	  hand it over.</div></div>
+	<div class="rule"><div class="rn">5</div><div class="rt">
+	  <b>Never reach into the hold.</b> The hold is the player's. Nothing takes an
+	  item the player did not choose.</div></div>
+	<div class="rule"><div class="rn">6</div><div class="rt">
+	  <b>The player never leaves the ship.</b> No hands, no boarding on foot, no
+	  corridors. A grapple, a cutter, a dish and a board. And a ship is
+	  <code>it</code> &mdash; people get the pronouns.</div></div>
+  </div>
+</section>
+
+<section class="sec">
+  <h2>Rim prices, not real ones</h2>
+  <p class="sub">Payouts are written as what a thing is worth on the rim and the
+  tier multiplies them, so one authored number serves a band of three tiers. The
+  base column is what actually gets typed &mdash; it barely moves.</p>
+  <div class="tablewrap">
+	<table>
+	  <thead><tr><th>tier</th><th>danger</th><th>check</th><th>credits</th><th>hull</th><th>purse base</th><th>toll base</th></tr></thead>
+	  <tbody>
+		<tr><td>EASY</td><td>1&ndash;2</td><td>3&ndash;4</td><td>20&ndash;40</td><td>2&ndash;6</td><td>20&ndash;40</td><td>2&ndash;6</td></tr>
+		<tr><td>ROUGH</td><td>3&ndash;4</td><td>4&ndash;5</td><td>40&ndash;70</td><td>5&ndash;10</td><td>22&ndash;39</td><td>3&ndash;5</td></tr>
+		<tr><td>HARD</td><td>5&ndash;6</td><td>5&ndash;6</td><td>70&ndash;110</td><td>9&ndash;15</td><td>23&ndash;37</td><td>3&ndash;5</td></tr>
+		<tr><td>BRUTAL</td><td>7&ndash;8</td><td>6&ndash;7</td><td>110&ndash;170</td><td>14&ndash;20</td><td>23&ndash;36</td><td>3&ndash;4</td></tr>
+		<tr><td>LETHAL</td><td>9&ndash;10</td><td>7&ndash;8</td><td>170&ndash;260</td><td>18&ndash;28</td><td>24&ndash;36</td><td>3&ndash;4</td></tr>
+	  </tbody>
+	</table>
+  </div>
+</section>
+
+<footer>
+  <p><b>Checking it.</b> <code>python tools/encounter_lint.py --strict</code>
+  finds every fault a machine can name &mdash; dominated choices, untagged
+  walk-aways, credits paid to an empty sky, out-of-band checks, hold grabs. It
+  found 35 rulings and 15 review items on the existing 47 in one run. Run it
+  before anybody reads a word.</p>
+  <p><b>Reviewing it.</b> <code>python tools/encounter_bench.py</code> builds a
+  page with every encounter, its branches, its ledger and the linter's findings,
+  with keep / rewrite / cut buttons and a JSON export.</p>
+  <p><b>The existing 47 are not in scope.</b> Their 35 findings are being fixed
+  separately. Append only, and do not copy their patterns.</p>
+</footer>
+</div>
