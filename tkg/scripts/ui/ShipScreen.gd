@@ -274,12 +274,7 @@ func _build() -> void:
 	# Beside the class line rather than over the ship: anything drawn on the
 	# hull is a hardpoint, and a button there would read as one.
 	_zoombtn = Button.new()
-	# The reticle reads this. See `Main._cursor_wants_shut` -- a bare
-	# `Button` defaults to the plain arrow, and only `Widgets._btn` sets it.
-	_zoombtn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	# The reticle reads this. See `Main._cursor_wants_shut` -- a bare
-	# `Button` defaults to the plain arrow, and only `Widgets._btn` sets it.
-	_zoombtn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	Widgets.wear_pointer(_zoombtn)
 	_zoombtn.text = "ZOOM"
 	_zoombtn.focus_mode = Control.FOCUS_NONE
 	_zoombtn.tooltip_text = "Z - double the ship, then drag it about"
@@ -1177,7 +1172,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 			Run.installed.append(m)
 			_lifted = null
 		Sig.ship_changed.emit()
-		Audio.play(&"module_install", 0.05)
+		Audio.act(&"module_install")
 		Run.log_line("Moved %s." % m.name, &"sys")
 		_refresh()
 		return
@@ -1212,7 +1207,7 @@ func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> v
 	Run.installed.append(m)
 	_lifted = null
 	Sig.ship_changed.emit()
-	Audio.play(&"module_install", 0.05)
+	Audio.act(&"module_install")
 	Run.log_line("Fitted %s." % m.name, &"good")
 	_refresh()
 

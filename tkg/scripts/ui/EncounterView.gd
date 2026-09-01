@@ -487,10 +487,6 @@ func clear_aim() -> void:
 		_ship_slot.aim(false)
 
 
-func bind_self_drop(on_drop: Callable) -> void:
-	if not _ship_slot.card_dropped.is_connected(on_drop):
-		_ship_slot.card_dropped.connect(on_drop)
-
 func show_enemies(list: Array, on_drop: Callable, on_hover: Callable,
 		on_wreck: Callable = Callable()) -> void:
 	_area.visible = false
@@ -973,8 +969,6 @@ class AreaView extends Control:
 ## Your own hull as a drop target. Attacks are refused here — dropping a weapon
 ## on yourself should not silently do something else.
 class ShipSlot extends Control:
-	signal card_dropped(view: CardView)
-
 	var art: ShipView
 	var _hot: bool = false
 	var claim: Callable

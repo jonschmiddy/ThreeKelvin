@@ -65,12 +65,14 @@ const NAMED := &"named"
 ## gate IS the risk -- security scans care what you are carrying, so a rim run
 ## with contraband aboard is already paying for it. EXOTIC is ungated because it
 ## is live today and gating it would be a migration.
+const TIER_MIN_DANGER: Dictionary = {
+	&"epic": 3,
+	&"legendary": 4,
+	&"artifact": 4,
+}
+
 static func admits(tier: StringName, danger: int) -> bool:
-	match tier:
-		&"epic": return danger >= 3
-		&"legendary": return danger >= 4
-		&"artifact": return danger >= 4
-	return true
+	return danger >= int(TIER_MIN_DANGER.get(tier, 1))
 
 
 ## One row from `table`, respecting `danger`. Empty if the table has nothing legal.
@@ -193,7 +195,7 @@ static func all() -> Array[Dictionary]:
 			value = 28, drops = &"fight",
 			text = "The eight bolts a hull is allowed to trust. These came off a hull, which is the discount."},
 		{id = &"survey_film", name = "SURVEY FILM", tier = &"rare", cells = "1x1",
-			value = 35, drops = &"named",
+			value = 35, drops = NAMED,
 			text = "Exposed once, never developed. Whoever shot it wanted a record more than they wanted to know."},
 		{id = &"probate_ledger_stock", name = "LEDGER STOCK", tier = &"rare", cells = "1x1",
 			value = 27, drops = &"event",
@@ -265,16 +267,16 @@ static func all() -> Array[Dictionary]:
 			value = 66, drops = &"fauna",
 			text = "Conductive thread from along a spine longer than your ship. Calyx pays double and asks you to sign something."},
 		{id = &"magnetar_silt", name = "MAGNETAR SILT", tier = &"exotic", cells = "1x1",
-			value = 48, drops = &"named",
+			value = 48, drops = NAMED,
 			text = "Fine, dense, and it wants to line itself up with anything magnetic you put it near. Refiners bid on it sight unseen."},
 		{id = &"sweep_glass", name = "SWEEP GLASS", tier = &"exotic", cells = "1x1",
-			value = 49, drops = &"named",
+			value = 49, drops = NAMED,
 			text = "What eleven seconds of pulsar leaves on a hull, eleven seconds at a time, for centuries. Scrapes off in colours with no names."},
 		{id = &"corona_amber", name = "CORONA AMBER", tier = &"exotic", cells = "1x1",
-			value = 55, drops = &"named",
+			value = 55, drops = NAMED,
 			text = "Star-fused resin found only on wrecks that stayed too close. Something was alive in the resin. Opinion is divided on whether it still is."},
 		{id = &"hide_scrap", name = "HIDE SCRAP", tier = &"exotic", cells = "2x1",
-			value = 41, drops = &"named",
+			value = 41, drops = NAMED,
 			text = "Shed hide with forty years of accreted junk in it. The junk is worth sorting. The hide is worth more."},
 		{id = &"grave_pollen", name = "GRAVE POLLEN", tier = &"exotic", cells = "1x1",
 			value = 47, drops = &"fauna",
@@ -316,7 +318,7 @@ static func all() -> Array[Dictionary]:
 			value = 150, drops = &"named",
 			text = "Forty-one years between one number and the next, and this is the recording of the last one. It is what plays after the number that people pay for."},
 		{id = &"counting_core", name = "COUNTING CORE", tier = &"artifact", cells = "1x1",
-			value = 190, drops = &"named",
+			value = 190, drops = NAMED,
 			text = "Warm after all this time, and still counting down. The number is smaller than it was when you picked it up."},
 	]
 	return _all

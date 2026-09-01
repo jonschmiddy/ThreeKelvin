@@ -89,13 +89,10 @@ func _accepts(m: ModuleData) -> bool:
 	return true
 
 func _can_drop_data(_at: Vector2, data: Variant) -> bool:
-	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
+	var m := Widgets.dragged_module(data)
+	if m == null:
 		return false
-	# `as ModuleData` yields null for a material, and null is not acceptable --
-	# which is the refusal, but only by accident of the cast. Said out loud:
-	if not (data.module is ModuleData):
-		return false
-	var ok := _accepts(data.module as ModuleData)
+	var ok := _accepts(m)
 	# Light the cell only while it would actually take the thing. Godot calls
 	# this on every frame the cursor is over us, so it doubles as the hover
 	# signal and there is no second place for the two to disagree.
@@ -113,10 +110,7 @@ func _notification(what: int) -> void:
 	# Godot only calls that on the one cell under the cursor, so you would have
 	# to go and ask each mount in turn whether it wanted the thing.
 	if what == NOTIFICATION_DRAG_BEGIN and _tractor != null:
-		var data: Variant = get_viewport().gui_get_drag_data()
-		var m: ModuleData = null
-		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).has("module"):
-			m = (data as Dictionary).module
+		var m := Widgets.dragged_module(get_viewport().gui_get_drag_data())
 		# INVERTED from the mark this replaced: lit where the part CAN go.
 		_tractor.visible = m != null and _accepts(m)
 		_tractor.queue_redraw()

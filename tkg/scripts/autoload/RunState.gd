@@ -38,7 +38,7 @@ var fuel: int = 150:
 		fuel = v
 		Sig.resources_changed.emit()
 
-## Raw materials, by id. See DB.MATERIALS.
+## Raw materials, by id. See MaterialTable.
 ##
 ## CREDITS are still the only CURRENCY — the ruling has not moved, only the name
 ## has. These are not a second wallet; nothing on a price tag is denominated in
@@ -482,24 +482,39 @@ func _cells_of(m: HoldItem, at: Vector2i) -> Array[Vector2i]:
 			out.append(at + Vector2i(dx, dy))
 	return out
 
-## Can `m` sit at `at`, ignoring itself if it is already down?
-func can_place(m: HoldItem, at: Vector2i, leaving: HoldItem = null) -> bool:
-	var g := hold_grid()
-	if at.x < 0 or at.y < 0:
-		return false
-	var f := m.footprint()
-	if at.x + f.x > g.x or at.y + f.y > g.y:
-		return false
+## Every occupied cell of the hold, once. `m` and `leaving` are not counted --
+## the thing being placed, and a thing about to vacate its cells.
+##
+## Public because the drag paths need it too: probing candidate cells through
+## `can_place` rebuilt this map per cell, which put an O(cells x cargo) scan on
+## every drag-over frame for an answer one map gives in one pass.
+func hold_taken(m: HoldItem = null, leaving: HoldItem = null) -> Dictionary:
 	var taken := {}
 	for other in cargo:
 		if other == m or other == leaving or other.hold_at.x < 0:
 			continue
 		for c in _cells_of(other, other.hold_at):
 			taken[c] = true
+	return taken
+
+
+## Whether `m` at `at` stays inside the grid and off the `taken` cells.
+func fits_at(taken: Dictionary, m: HoldItem, at: Vector2i) -> bool:
+	var g := hold_grid()
+	if at.x < 0 or at.y < 0:
+		return false
+	var f := m.footprint()
+	if at.x + f.x > g.x or at.y + f.y > g.y:
+		return false
 	for c in _cells_of(m, at):
 		if taken.has(c):
 			return false
 	return true
+
+
+## Can `m` sit at `at`, ignoring itself if it is already down?
+func can_place(m: HoldItem, at: Vector2i, leaving: HoldItem = null) -> bool:
+	return fits_at(hold_taken(m, leaving), m, at)
 
 ## Put a part in the hold, finding it a cell. False when nothing fits.
 ##
@@ -649,20 +664,6 @@ func take_item(m: HoldItem) -> bool:
 	return false
 
 
-## Throw something overboard. It lands in the system you are standing in.
-##
-## `MATERIALS_NOTE` §3.5: jettison applies to EVERYTHING, not only materials. A
-## module already has SCRAP, which destroys it and pays -- this is the other
-## choice, which destroys nothing and pays nothing.
-##
-## IT GOES IN THE BAG. The same `MapNode.bag` a kill fills, so the sector already
-## lists it and picking it back up is a mechanism that exists. That makes the
-## whole thing free to change your mind about, now and later: a system is a
-## place you can leave things, and what you leave is still there when you fly
-## back. The price of a second thought is the trip, not the item.
-##
-## Returns whether it went. Nothing outside a system to throw it into is the one
-## case that refuses, and it refuses rather than destroying -- §3.4.
 ## Put something down in a NAMED container.
 ##
 ## `jettison` is this with the container chosen for you. They are separate
@@ -791,10 +792,11 @@ func repack_hold() -> void:
 ## a predictable rule you can learn beats a clever one you cannot.
 func find_hold_slot(m: HoldItem, leaving: HoldItem = null) -> Vector2i:
 	var g := hold_grid()
+	var taken := hold_taken(m, leaving)
 	for y in g.y:
 		for x in g.x:
 			var at := Vector2i(x, y)
-			if can_place(m, at, leaving):
+			if fits_at(taken, m, at):
 				return at
 	return -Vector2i.ONE
 
@@ -961,6 +963,14 @@ func adopt_party_claims() -> void:
 			moved = true
 			if o == MapGen.OPTION_WHOLE:
 				n.cleared = true
+			elif o >= MapGen.OPTION_SITE and o - MapGen.OPTION_SITE < n.options.size():
+				# A site option a partner took closes its exclusive group HERE
+				# as well. Foreclosure is DERIVED, never replicated: every
+				# machine applies the same rule to the same claim and arrives
+				# at the same shut doors without a byte crossing the wire.
+				# A node whose options are not rolled yet is caught by
+				# `OptionTable.ensure` re-deriving on the roll.
+				OptionTable.foreclose(n, o - MapGen.OPTION_SITE)
 	if moved:
 		Sig.map_changed.emit()
 
@@ -1809,9 +1819,17 @@ func spend_material_tier(tier: StringName) -> bool:
 ## the HUD, the station and the fabricator cannot disagree about what a material
 ## is called or what order they come in.
 func material_stock() -> Array[Dictionary]:
+	# One pass over the hold, then one over the table. Counting per row through
+	# `material()` re-scanned all of cargo once per material, and the HUD asks
+	# for this list on every refresh.
+	var counts: Dictionary = {}
+	for raw in cargo:
+		var m := raw as MaterialData
+		if m != null:
+			counts[m.id] = int(counts.get(m.id, 0)) + 1
 	var out: Array[Dictionary] = []
-	for d in DB.MATERIALS:
-		var n := material(d.id)
+	for d in MaterialTable.all():
+		var n: int = counts.get(d.id, 0)
 		if n > 0:
 			out.append({id = d.id, name = str(d.name), count = n})
 	return out

@@ -925,13 +925,9 @@ func hail_reason() -> String:
 	# TERMS and YOU FIRED separately before noticing they are the same greyed
 	# state. The BUTTON says what is true of the button; the TOOLTIP says why,
 	# and why is where the three actually differ.
-	if struck or hail_failed:
-		return "NO REPLY"
-	for e in enemies:
-		var t: EnemyTemplate = (e as EnemyState).template
-		if t.fauna or t.boss or t.miniboss:
-			return "NO REPLY"
-	return ""
+	# Derived from `hail_cause`, the same way `flee_reason` derives from
+	# `can_flee` -- the blocking conditions live once, in the cause.
+	return "" if hail_cause() == &"" else "NO REPLY"
 
 
 ## Talk your way out.
@@ -1101,6 +1097,12 @@ func _victory() -> void:
 	Run.clear_contract_target(node.index)
 
 	if enemy.template.boss:
+		# STRAIGHT TO THE LEDGER, not into a wreck. The run ends on this kill,
+		# so there is no sector to reach into and no later screen to collect
+		# from -- packaged as salvage, the core boss's authored credit_reward
+		# simply evaporated. A chit takes no room, and the flight record logs
+		# the credits you finish with.
+		Run.add_credits(purse)
 		Run.win()
 		_finish(&"won", "The core opens.")
 		return

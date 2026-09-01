@@ -40,10 +40,16 @@ func _init() -> void:
 	tooltip_text = Widgets.tip("JETTISON\n\nDrag something here to put it down in this system. It stays there for the rest of the run -- fly back and take it from SECTOR LOOT whenever you want it.")
 
 
-func _can_drop_data(_at: Vector2, data: Variant) -> bool:
+## The HoldItem inside a drag payload, or null for anything else. All three
+## handlers unpack the same dictionary; the shape is decided once, here.
+static func _held(data: Variant) -> HoldItem:
 	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
-		return false
-	var m: HoldItem = (data as Dictionary).module
+		return null
+	return (data as Dictionary).module as HoldItem
+
+
+func _can_drop_data(_at: Vector2, data: Variant) -> bool:
+	var m := _held(data)
 	# ONLY WHAT YOU ARE CARRYING. A part on the hull is not in the hold, and
 	# dropping one here would have to take it off the ship first -- which is a
 	# different decision and belongs to the mount it is bolted to.
@@ -55,7 +61,7 @@ func _can_drop_data(_at: Vector2, data: Variant) -> bool:
 
 
 func _drop_data(_at: Vector2, data: Variant) -> void:
-	var m: HoldItem = (data as Dictionary).module
+	var m := _held(data)
 	_hot = false
 	queue_redraw()
 	if m != null and Run.jettison(m):
@@ -68,10 +74,7 @@ func _notification(what: int) -> void:
 	# needs: the drag starts on an icon somewhere else and this has to hear
 	# about it without being under the cursor.
 	if what == NOTIFICATION_DRAG_BEGIN:
-		var carried: Variant = get_viewport().gui_get_drag_data()
-		var m: HoldItem = null
-		if typeof(carried) == TYPE_DICTIONARY 				and (carried as Dictionary).has("module"):
-			m = (carried as Dictionary).module
+		var m := _held(get_viewport().gui_get_drag_data())
 		# Only what is in the HOLD. A part on the hull is not yours to drop from
 		# here -- taking it off the ship is the mount's decision -- so carrying
 		# one must leave this asleep rather than promising something it refuses.
@@ -86,7 +89,7 @@ func _notification(what: int) -> void:
 func _draw() -> void:
 	var edge := UITheme.TRACTOR if _hot else UITheme.LINE
 	var box := Rect2(Vector2.ZERO, size)
-	draw_rect(box, Color(0.043, 0.055, 0.078, 1.0), true)
+	draw_rect(box, UITheme.VOID, true)
 
 	# A SQUARE WITH A RED CROSS, and the plainness is the point.
 	#

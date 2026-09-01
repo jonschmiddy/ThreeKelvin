@@ -575,23 +575,17 @@ static func ensure(n: MapGen.MapNode) -> bool:
 		return false
 	if n.options.is_empty():
 		n.options = roll_for(n)
+		# A partner's claim can arrive BEFORE the options it closes are rolled
+		# here -- they took an exclusive option in a system this machine has
+		# never visited. Foreclosure is derived from `taken`, so deriving it
+		# again the moment the options exist catches everything adoption could
+		# not resolve at the time.
+		for t in n.taken:
+			var i := int(t) - MapGen.OPTION_SITE
+			if i >= 0 and i < n.options.size():
+				foreclose(n, i)
 	return not n.options.is_empty()
 
-
-## Resolve stored ids back to definitions, dropping any this build no longer has.
-##
-## `ENCOUNTER_REBUILD.md` §4: a save must be able to rebuild its list after the
-## table has changed underneath it. An unknown id is a warning and a gap, never a
-## refused save.
-static func resolve(ids: Array) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for id in ids:
-		var o := by_id(StringName(id))
-		if o.is_empty():
-			push_warning("OptionTable: save names option '%s', which this build does not have" % id)
-			continue
-		out.append(o)
-	return out
 
 
 static func _build() -> void:

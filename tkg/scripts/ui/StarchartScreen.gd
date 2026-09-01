@@ -70,13 +70,9 @@ var _dest_blurb: Label
 var _rows: VBoxContainer
 var _hint: Label
 var _neigh: VBoxContainer
-## The box holding it, resized to the list up to `NEIGH_H`.
+## The box holding it, resized to the list.
 var _neigh_scroll: ScrollContainer
 
-## Eight rows of the in-range list, and the rest scrolls. Eight because it is the
-## most that fits above JUMP without the panel needing to be taller than the
-## chart beside it.
-const NEIGH_H := 128
 ## One row plus its separation, for sizing the box to the list.
 const NEIGH_ROW := 16.0
 var _jump: Button
@@ -184,7 +180,6 @@ func _build() -> void:
 	# A child of the CHART rather than of the panel around it, so it follows
 	# the chart's rect and needs no second set of margins to stay put.
 	_region_btn = _corner_toggle(_on_region, 0, 112.0)
-	_paint_region()
 	# TOP right, not stacked under the scale block. These two answer "how far
 	# can I see and go", which is a question you ask while reading the map --
 	# the scale bar and LOCAL REGION are about the view itself and belong
@@ -194,7 +189,6 @@ func _build() -> void:
 	# other order notches inward and then back out.
 	_reach_btn = _corner_toggle(_on_reach, 0, 150.0, true)
 	_sight_btn = _corner_toggle(_on_sight, 1, 150.0, true)
-	_paint_rings()
 
 	var right := VBoxContainer.new()
 	right.add_theme_constant_override("separation", 4)
@@ -311,19 +305,7 @@ func _build() -> void:
 	# colours have been starlight for a while now and every glyph on the map is
 	# `star_colour` -- so the legend was naming two colours that appear nowhere
 	# on the thing it is a legend for, which is worse than having no legend.
-	for pair in [
-			[MapGen.NodeType.START, "START"],
-			[MapGen.NodeType.SYSTEM, "SYSTEM"],
-			[MapGen.NodeType.STATION, "STATION"],
-			[MapGen.NodeType.PULSAR, "PULSAR"],
-			[MapGen.NodeType.CORE, "CORE"]]:
-		var item := HBoxContainer.new()
-		item.add_theme_constant_override("separation", 3)
-		var g := Glyph.new()
-		g.setup(pair[0] as MapGen.NodeType,
-			MapGen.swatch(pair[0] as MapGen.NodeType))
-		item.add_child(g)
-		item.add_child(UITheme.body(pair[1] as String, UITheme.COLD, UITheme.FS_SMALL))
+	for item in _legend_items():
 		key.add_child(item)
 	root.add_child(key)
 
@@ -514,6 +496,16 @@ func _primer_cost() -> Array[String]:
 func _primer_glyphs() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 9)
+	for item in _legend_items():
+		row.add_child(item)
+	return row
+
+
+## The five node types, glyph and name, in the colours the map actually paints
+## them. The corner KEY and the primer draw the same legend, so the list of
+## what a legend contains lives once.
+func _legend_items() -> Array[Control]:
+	var out: Array[Control] = []
 	for pair in [
 			[MapGen.NodeType.START, "START"],
 			[MapGen.NodeType.SYSTEM, "SYSTEM"],
@@ -527,8 +519,8 @@ func _primer_glyphs() -> Control:
 			MapGen.swatch(pair[0] as MapGen.NodeType))
 		item.add_child(g)
 		item.add_child(UITheme.body(pair[1] as String, UITheme.COLD, UITheme.FS_SMALL))
-		row.add_child(item)
-	return row
+		out.append(item)
+	return out
 
 
 ## Any press at all, which is the whole contract: it must never be a thing to
@@ -915,8 +907,7 @@ func _notable(n: MapGen.MapNode) -> int:
 func _neighbour_row(n: MapGen.MapNode) -> Control:
 	var afford := Run.can_jump_to(n)
 	var b := Button.new()
-	# See `ShipScreen._zoombtn`: a bare Button points with the plain arrow.
-	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	Widgets.wear_pointer(b)
 	b.custom_minimum_size = Vector2(0, 15)
 	b.focus_mode = Control.FOCUS_NONE
 	b.flat = true
@@ -1124,15 +1115,9 @@ func _corner_toggle(cb: Callable, row: int, wide: float, top := false) -> Button
 ## as a key as well as a control.
 func _paint_rings() -> void:
 	if _sight_btn != null:
-		_sight_btn.text = "%s  SENSOR RANGE" % ["[X]" if _sight_on else "[ ]"]
-		var t := UITheme.ICE if _sight_on else UITheme.QUOTE
-		_sight_btn.add_theme_color_override("font_color", t)
-		_sight_btn.add_theme_color_override("font_focus_color", t)
+		Widgets.paint_toggle(_sight_btn, "SENSOR RANGE", _sight_on, UITheme.ICE)
 	if _reach_btn != null:
-		_reach_btn.text = "%s  THRUSTER REACH" % ["[X]" if _reach_on else "[ ]"]
-		var t2 := UITheme.EMBER if _reach_on else UITheme.QUOTE
-		_reach_btn.add_theme_color_override("font_color", t2)
-		_reach_btn.add_theme_color_override("font_focus_color", t2)
+		Widgets.paint_toggle(_reach_btn, "THRUSTER REACH", _reach_on)
 	if _chart != null:
 		_chart.show_sight = _sight_on
 		_chart.show_reach = _reach_on
@@ -1149,10 +1134,7 @@ func _on_reach() -> void:
 func _paint_region() -> void:
 	if _region_btn == null:
 		return
-	_region_btn.text = "%s  %s" % ["[X]" if _region_on else "[ ]", REGION_LABEL]
-	var tint := UITheme.EMBER if _region_on else UITheme.QUOTE
-	_region_btn.add_theme_color_override("font_color", tint)
-	_region_btn.add_theme_color_override("font_focus_color", tint)
+	Widgets.paint_toggle(_region_btn, REGION_LABEL, _region_on)
 
 ## L IS THE LOCAL REGION, on the screen rather than on the chart control.
 ##
@@ -1270,9 +1252,9 @@ class MicroGauge extends Control:
 						if i < 3:
 							col = Color("#5d7a93")
 						elif i < 6:
-							col = Color("#b8923f")
+							col = UITheme.WARN
 						else:
-							col = Color("#c8503c")
+							col = UITheme.BAD
 			draw_rect(Rect2(float(i * st), y, c.x, c.y), col, true)
 
 
@@ -2362,10 +2344,7 @@ class MapChart extends Control:
 		# old pan means nothing in it.
 		if StarchartScreen._view_zoom > 0.0 \
 				and StarchartScreen._view_map == Run.map.size():
-			zoom = StarchartScreen._view_zoom
-			pan = StarchartScreen._view_pan
-			_clamp_pan()
-			_repaint_sky()
+			_go_to(StarchartScreen._view_zoom, StarchartScreen._view_pan, false)
 
 	## The event horizon's shadow, and the region around it that the ANIMATED
 	## layer owns outright. The backdrop leaves that annulus empty so the stars
@@ -3010,6 +2989,14 @@ class MapChart extends Control:
 	## The snap is the same two assignments the remembered-view restore makes,
 	## and that path was already smooth -- there is no third way of moving the
 	## chart, only the question of whether the move is watched.
+	## Frame the ship at a given zoom. The screenshot harnesses both need
+	## exactly this and were each poking zoom, pan, `_clamp_pan` and
+	## `_repaint_sky` by hand -- and a zoom invalidates the backdrop's slide
+	## basis outright, so the sky must be repainted rather than slid, which is
+	## the part a caller doing it by hand forgets.
+	func center_on_ship(z: float) -> void:
+		_go_to(z, -_polar(Run.node_at()) * z, false)
+
 	func _go_to(z: float, p: Vector2, animate: bool) -> void:
 		if animate:
 			glide_to(z, p)

@@ -220,10 +220,17 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 static func _take_sound(m: HoldItem) -> StringName:
 	if m is CreditChit:
 		return &"take_credits"
-	var mod := m as ModuleData
-	if mod == null:
-		return &"take_common"
-	match mod.rarity:
+	# ONE GRADE LADDER FOR BOTH KINDS OF THING. A module carries its rarity and
+	# a material's tier converts through the same lookup the colours already
+	# use, so a legendary organ arrives with the same ring as a legendary gun.
+	# Materials used to fall through to `take_common` at every tier, which left
+	# the ladder this sound set was built for firing only for modules.
+	var r := ModuleData.Rarity.COMMON
+	if m is ModuleData:
+		r = (m as ModuleData).rarity
+	elif m is MaterialData:
+		r = UITheme.tier_rarity((m as MaterialData).tier)
+	match r:
 		ModuleData.Rarity.COMMON, ModuleData.Rarity.UNCOMMON:
 			return &"take_common"
 		ModuleData.Rarity.RARE:
@@ -237,6 +244,20 @@ static func _take_sound(m: HoldItem) -> StringName:
 		_:
 			return &"take_artifact"
 
+
+## The whole sound of a take, both drop paths. A DIFFERENT SOUND from the
+## reward sting, not the same one turned down: `loot_drop` is a fanfare and its
+## problem here is CHARACTER, not level -- taking a crate off the floor happens
+## six times a system, and a fanfare each time turns packing into a slot
+## machine paying out. The resource watcher would answer the same take with
+## the flat loot_drop / scrap_gain a frame later; this sound IS that sound,
+## better informed, so theirs are held. Down four and rate-limited, because a
+## fast hand emptying a bag fires this several times a second.
+func _take_fx(m: HoldItem) -> void:
+	Audio.suppress(&"loot_drop")
+	Audio.suppress(&"scrap_gain")
+	Audio.play(_take_sound(m), 0.05, 70, -4.0)
+
 func _drop_data(at: Vector2, data: Variant) -> void:
 	var where := _side_of(at, data)
 	var m: HoldItem = (data as Dictionary).module
@@ -249,12 +270,7 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 			var got: bool = await Run.take_from_jetsam(_node, _jetsam, i)
 			_busy = false
 			if got:
-				# The resource watcher would answer the same take with the
-				# flat loot_drop / scrap_gain a frame later. This sound IS
-				# that sound, better informed -- hold their tongues.
-				Audio.suppress(&"loot_drop")
-				Audio.suppress(&"scrap_gain")
-				Audio.play(_take_sound(m), 0.05, 70, -4.0)
+				_take_fx(m)
 	elif where > 0 and Run.put_in(_node, _jetsam, m):
 		pass
 	refresh()
@@ -472,17 +488,5 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 			Run.take_from_hold(m)
 			if not Run.place_in_hold(m, at):
 				Run.place_in_hold(m)
-		# A DIFFERENT SOUND, not the same one turned down.
-		#
-		# `loot_drop` is a reward sting and the problem with it here is its
-		# CHARACTER, not its level: taking a crate off the floor is something
-		# you do six times in a system, and a fanfare on each one turns packing
-		# a hold into a slot machine paying out. `module_install` is the sound
-		# of a part being handled -- mechanical, over quickly, no arrival in it.
-		#
-		# Down four anyway, and rate-limited, because a fast hand emptying a
-		# bag fires this several times in a second and even a dry sound stacks.
-		Audio.suppress(&"loot_drop")
-		Audio.suppress(&"scrap_gain")
-		Audio.play(_take_sound(m), 0.05, 70, -4.0)
+		_take_fx(m)
 	refresh()

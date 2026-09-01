@@ -73,12 +73,7 @@ var module: ModuleData
 static func ghost_for(m: ModuleData, from: StringName, at: Vector2) -> Control:
 	var g := ModuleIcon.new()
 	g.setup(m, from)
-	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	g.fit_footprint()
-	ItemIcon.carried = g
-	var wrap := ItemIcon.Ghost.new()
-	wrap.start(g, at)
-	return wrap
+	return ItemIcon.wrap_ghost(g, at)
 
 
 func held_item() -> HoldItem:

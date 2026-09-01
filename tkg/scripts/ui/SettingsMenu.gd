@@ -106,15 +106,13 @@ func _refresh() -> void:
 
 	Widgets.clear(_fps_row)
 	var fps_on := DisplaySettings.fps_meter
-	var fps_btn := Widgets.button(
-		"%s  FRAME COUNTER" % ("[X]" if fps_on else "[ ]"),
+	var fps_btn := Widgets.button("",
 		func() -> void:
 			DisplaySettings.set_fps_meter(not DisplaySettings.fps_meter)
 			_refresh())
+	Widgets.paint_toggle(fps_btn, "FRAME COUNTER", fps_on)
 	fps_btn.tooltip_text = Widgets.tip(
 		"Frames per second, bottom right. Costs nothing and decides nothing — it is for saying \"the chart felt slow\" with a number attached.")
-	fps_btn.add_theme_color_override("font_color",
-		UITheme.EMBER if fps_on else UITheme.QUOTE)
 	_fps_row.add_child(fps_btn)
 
 	Widgets.clear(_screen_row)

@@ -10,6 +10,8 @@ var _options: VBoxContainer
 var _result: VBoxContainer
 var _event: Dictionary
 var _resolved: bool = false
+## Held while a claim is in the air, so a double-click cannot commit twice.
+var _claiming: bool = false
 var _then_fight: bool = false
 ## The prize popup, while it is up. One at a time, like the sector's.
 var _transfer: TransferView = null
@@ -74,6 +76,20 @@ func _refresh() -> void:
 			_options.add_child(pad)
 
 func _choose(index: int) -> void:
+	if _resolved or _claiming:
+		return
+	# ASK THE PARTY FIRST -- same door as `SectorScreen._take`. This screen is
+	# the prose view of the same raceable option, and the claim lands when a
+	# choice COMMITS, so reading the event and walking away still costs
+	# nothing. Losing the race reads as the thing being gone, not as a roll.
+	_claiming = true
+	var won_it: bool = await Router.claim_open_option()
+	_claiming = false
+	if not won_it:
+		Run.log_line("Too late. Somebody in the party got there first.", &"them")
+		Router.event_resolved(MapGen.R_GONE)
+		Router.after_event()
+		return
 	var opt: Dictionary = _event.options[index]
 	# Checked options carry four callables and no `effect`; plain ones are
 	# unchanged. Both shapes are legal so the existing events did not have to be
@@ -141,25 +157,27 @@ func _choose(index: int) -> void:
 	# Same word and same pile as the drawer's: see `SectorScreen._open_prize`.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 7)
-	if OptionTable.pays_item(outcome):
+	# One count drives both buttons: REWARD greys on it, CONTINUE holds on it.
+	var pays := OptionTable.pays_item(outcome)
+	var left := 0
+	if pays:
+		var n2: MapGen.MapNode = Run.node_at()
+		left = Run.jetsam_left(n2, Run.sector_jetsam(n2, false))
+	if pays:
 		var claim := Widgets.button("REWARD", _open_prize)
 		claim.custom_minimum_size = Vector2(120, 22)
 		# See `SectorScreen`: it stays put and greys rather than vanishing,
 		# because a button that disappears moves CONTINUE out from under your
 		# hand at the moment you reach for it.
-		var n2: MapGen.MapNode = Run.node_at()
-		var left := Run.jetsam_left(n2, Run.sector_jetsam(n2, false))
 		claim.disabled = left <= 0
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
 	_go = Widgets.button("CONTINUE", _continue)
 	# HELD UNTIL YOU HAVE LOOKED, and only while there is something to look at.
-	if OptionTable.pays_item(outcome):
-		var nR: MapGen.MapNode = Run.node_at()
-		if Run.jetsam_left(nR, Run.sector_jetsam(nR, false)) > 0:
-			_go.disabled = true
-			_go.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go -- what you leave stays in this system, but you should at least know it is there.")
+	if left > 0:
+		_go.disabled = true
+		_go.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go -- what you leave stays in this system, but you should at least know it is there.")
 	row.add_child(_go)
 	_result.add_child(row)
 

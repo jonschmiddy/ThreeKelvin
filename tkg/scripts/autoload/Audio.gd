@@ -409,6 +409,21 @@ func _stem_level(p: AudioStreamPlayer) -> float:
 
 # ---------------- sound effects ----------------
 
+## ONE VOICE PER HOLD/HULL ACTION, wherever a screen triggers it. Three screens
+## hand-picked these name-and-pitch pairs independently and `module_install`
+## had already drifted to two different variances between them -- each site read
+## as locally correct, so nothing caught it. The pair is data; it lives once.
+const ACT_SFX: Dictionary = {
+	&"module_install": 0.04,
+	&"module_uninstall": 0.05,
+	&"module_scrap": 0.05,
+	&"hull_transfer": 0.03,
+}
+
+func act(name: StringName) -> void:
+	play(name, float(ACT_SFX.get(name, 0.06)))
+
+
 ## pitch_var randomises playback rate a little, which is what keeps a click
 ## you hear four hundred times an hour from turning into a machine gun.
 ## limit_ms drops repeats inside a window, for signals that fire in bursts.
