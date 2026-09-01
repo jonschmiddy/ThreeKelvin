@@ -552,6 +552,32 @@ else
 	bad "no python for the version guard"
 fi
 
+step "Encounters follow their own rulings"
+
+# WHY THIS IS A GATE AND NOT A HABIT. Every fault it finds was found by hand
+# first, one encounter at a time, by a person reading prose -- a dominated
+# choice, a walk-away that spent the encounter, credits paid to an empty sky, an
+# encounter reaching into the hold. All of them are patterns. Only "this reads
+# weird" needs eyes, and eyes are wasted on the rest.
+#
+# BASELINED, so it could be switched on the day it was written. The table had 35
+# findings the moment the linter existed; a gate that failed on all of them
+# could only ever be turned on after a cleanup nobody had time for, and eighty
+# new encounters were about to arrive. `--strict` fails on what is NOT in
+# `tools/encounter_lint_baseline.txt`, so old debt stays visible and stops
+# blocking new work.
+if [ -n "$PY" ]; then
+	if "$PY" tools/encounter_lint.py --strict >/tmp/enclint.$$ 2>&1; then
+		ok "encounters: no new findings"
+	else
+		sed -n '/^ERRORS/,$p' /tmp/enclint.$$ | grep "NEW" | head -20
+		bad "encounters: new lint findings (see above)"
+	fi
+	rm -f /tmp/enclint.$$
+else
+	warn "no python for the encounter linter"
+fi
+
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
 # months with four words for one concept -- house, maker, man, manufacturer --
