@@ -873,7 +873,7 @@ static func _authored() -> Array[Dictionary]:
 			# foreclose is a consequence you can lose without touching it.
 			id = &"paid_in_full",
 			title = "Paid in full",
-			body = "He is old, and he is not what you were expecting, and he has been waiting at this berth for eleven days for a thing that fits in one hand. He does not open it in front of you. He pays what she said he would pay, which is considerably more than she was in a position to promise, and then he asks — carefully, as though the answer matters — whether she looked well.",
+			body = "He is old, and he is not what you were expecting, and he has been waiting at this dock for eleven days for a thing that fits in one hand. He does not open it in front of you. He pays what she said he would pay, which is considerably more than she was in a position to promise, and then he asks — carefully, as though the answer matters — whether she looked well.",
 			tags = [&"quest"],
 			group = &"",
 			placed = true,
@@ -1466,38 +1466,38 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_manifest",
 			title = "The manifest",
-			body = "A heat barge rides the lane inward under Korvan seal, and her master is hailing for a witness — the delivery protocols want a countersignature on the final leg, and nobody disinterested comes this deep twice. The seal declares nine hundred units, receipted. On your mass reading she sits four points heavy for nine hundred units of anything.",
+			body = "A heat barge rides the lane inward under Korvan seal and her master is hailing for a witness. The delivery protocols want a countersignature on the final leg and nobody disinterested comes this deep twice, so she has been holding here for a day and a half waiting for a ship that is neither her employer nor her competition. The seal declares nine hundred units, receipted, sealed at the last station that had a seal to give. On your mass reading she sits four points heavy for nine hundred units of anything.",
 			tags = [&"contract"],
 			group = &"threshold",
 			weight = 9,
 			min_danger = 9,
 			regions = [MapGen.Region.DEEP],
 			choices = [
-				{label = "Sign and ride along", effect = func() -> Dictionary:
-					Run.add_credits(OptionTable.purse(11))
-					return {text = "You countersign, hold formation for the last leg, and watch the barge be somewhere else. The fee clears before you have finished deciding what you saw."}},
-				{label = "Weigh her first",
-					check = {attr = &"sensors", need = 6},
+				{label = "Sign what the seal says", effect = func() -> Dictionary:
+					Run.add_credits(OptionTable.purse(14))
+					return {text = "You countersign nine hundred units, hold formation for the last leg, and watch the barge become somebody else's jurisdiction. The fee clears before you have finished deciding what you saw. It is a clean fee for an hour of flying straight, and you will think about the four points again later, when there is less to do."}},
+				{label = "Put the dish on her first",
+					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
-						Run.add_credits(OptionTable.purse(17))
-						return {text = "Eleven hundred units against a receipt for nine. Somebody upstream is skimming into the vault and paying tax on the smaller number. You sign the honest figure, and the master pays you for the correction with the specific gratitude of someone now holding a problem that is not theirs."},
+						Run.add_credits(OptionTable.purse(30))
+						return {text = "Eleven hundred units against a receipt for nine. Somebody upstream is moving two hundred units of something inward and paying tax on the smaller number, and the master has been carrying it without being told what it is, which is how you carry that sort of thing. You sign the honest figure. She pays you for the correction with the specific gratitude of a woman who has just handed a problem to the people who made it."},
 					clean = func() -> Dictionary:
-						Run.add_credits(OptionTable.purse(11))
-						return {text = "The mass checks close enough. You sign, ride the leg, collect."},
+						Run.add_credits(OptionTable.purse(14))
+						return {text = "The mass settles close enough to the seal that the difference is fuel, ice and the way a barge sits when she is low on both. You sign, ride the leg, and collect."},
 					partial = func() -> Dictionary:
-						Run.add_credits(OptionTable.purse(2))
-						return {text = "Your figures will not settle and the window will not wait. You decline to sign and she takes the long way to find another witness."},
+						Run.add_credits(OptionTable.purse(3))
+						return {text = "Your figures will not settle and her window will not wait. You decline to sign anything you cannot read, take the standing fee for the hail, and watch her go looking for a witness with a worse dish."},
 					botched = func() -> Dictionary:
-						Run.add_credits(-40)
-						return {text = "You sign a number the vault's own scale later disagrees with, and the correction lands on the witness who signed it. You."}},
-				{label = "Wave her past", effect = func() -> Dictionary:
-					return {text = "She holds for another hour, hailing, and then risks the leg unwitnessed. Whatever she was four points heavy with goes wherever it was going."}},
+						Run.add_credits(-60)
+						return {text = "You sign a number the vault's own scale later disagrees with. The correction is applied to the witness who signed it, because the witness is the only name on the document that anyone can find."}},
+				{label = "Wave her past", stay = true, effect = func() -> Dictionary:
+					return {text = "She holds another hour, hailing on the open channel, and then takes the last leg unwitnessed rather than lose the window. Whatever she is four points heavy with goes wherever it was going."}},
 			],
 		},
 		{
 			id = &"the_last_berth",
-			title = "The last berth",
-			body = "The deepest dock still lit, and behind its counter, one clerk. She has been logging arrivals for traffic that stopped arriving before her posting began. Her rate sheet has not changed in eleven years, which makes her fuel the cheapest in the galaxy, and her archive drawer holds one folder — thick, unlabelled. She calls it the observations.",
+			title = "The last counter",
+			body = "The deepest dock still lit, and behind its counter, one clerk. She has been logging arrivals for traffic that stopped arriving before her posting began, and she logs yours properly: name, mass, heading, the time to the minute. Her rate sheet has not changed in eleven years, which makes her fuel the cheapest in the galaxy and makes her the only person out here who does not know it. Her archive drawer holds one folder. Thick, unlabelled, and she calls it the observations.",
 			tags = [&"contract"],
 			group = &"threshold",
 			weight = 8,
@@ -1508,72 +1508,87 @@ static func _authored() -> Array[Dictionary]:
 				{label = "Fill the tank at her rates", cost_credits = 30, effect = func() -> Dictionary:
 					Run.add_credits(-30)
 					Run.fuel += 40
-					return {text = "Thirty credits for what a rim station would charge ninety, off a sheet she sees no authority to amend. She stamps the receipt twice, because the second stamp is for the copy nobody collects."}},
-				{label = "Ask about the folder", effect = func() -> Dictionary:
-					Run.add_credits(OptionTable.purse(3))
-					return {text = "Other people's paperwork about the thing at the core — transit logs that stop mid-line, a mass estimate crossed out four times, a requisition for instruments that were never sent. She lets you copy it. She has been waiting eleven years for someone to ask.", archive_recover = true}},
+					return {text = "Thirty credits for what a rim station would charge ninety, off a sheet she sees no authority to amend and no reason to doubt. She stamps the receipt twice. The second stamp is for the copy nobody has collected in eleven years, and she makes it as carefully as the first."}},
+				{label = "Stay and copy the folder", effect = func() -> Dictionary:
+					Run.fuel = maxi(0, Run.fuel - 8)
+					return {text = "It takes most of a shift and the reactor idling the whole time. Other people's paperwork about the thing at the core: transit logs that stop mid-line, a mass estimate crossed out four times and never replaced, a requisition for instruments that were never sent and never cancelled. She reads over your shoulder the entire time and does not say anything. She has been waiting eleven years for somebody to ask, and what she wanted was not the folder back.", archive_recover = true, material_id = &"survey_film"}},
 				{label = "Leave her to the ledger", stay = true, effect = func() -> Dictionary:
-					return {text = "One clerk, one drawer, one folder. Your arrival is the first entry she has logged in a while, and she logs it beautifully."}},
+					return {text = "One clerk, one drawer, one folder. Your arrival is the first entry she has logged in a long while, and she logs it beautifully."}},
 			],
 		},
 		{
 			id = &"counting_backwards",
 			title = "Counting backwards",
-			body = "A dead relay hangs on the approach with its transponder alive, broadcasting a number, and the number is going down. Not counting toward anything the relay knows about — the interval between broadcasts is forty-one years, and it has been counting since before the manufacturers had names. Whatever it is counting toward, it is nearly there.",
+			body = "A relay hangs dead on the approach with its transponder still talking. One number, broadcast once every forty-one years, each one lower than the last. Your archive holds three of them, logged by three different ships across two centuries, and the arithmetic is not hard: the next broadcast is zero. The dish puts that broadcast four days out. The relay is precursor work, older than any name anyone has for it, and it has been patient about whatever it is counting toward.",
 			tags = [&"signal"],
 			group = &"",
 			weight = 7,
 			min_danger = 9,
 			regions = [MapGen.Region.DEEP],
 			choices = [
-				{label = "Pull the housing",
-					check = {attr = &"thermal", need = 6},
+				# NOBODY IS OUT HERE TO PAY YOU, so nothing here pays in credits.
+				# Every branch hands over an OBJECT and the object becomes money at
+				# a station, where somebody is standing behind a counter. See the
+				# note on `purse` -- cash is what people give you, and a relay two
+				# centuries dead is not people.
+				{label = "Cut the core out",
+					check = {attr = &"thermal", need = 7},
 					met = func() -> Dictionary:
-						return {text = "The relay's core is precursor work, still warm after all this time, which out here is worth more than the metal. You take the housing and the number keeps counting in your hold, one digit smaller than anyone has ever seen it.", material_id = &"counting_core"},
+						return {text = "The cutter opens the housing along a seam the builders left for exactly this, and the core comes away still warm. Forty-one years between one heartbeat and the next and it has never once gone cold. The grapple walks it into the hold, and the count goes with it, and it does not miss a beat for the change of address.", material_id = &"counting_core"},
 					clean = func() -> Dictionary:
-						Run.heat += 8
-						return {text = "The housing comes away hot and you carry it hot. The count continues, indifferent to the change of address.", material_id = &"counting_core"},
+						Run.heat += 10
+						return {text = "You take it fast and pay for the speed in waste heat the radiators will spend an hour shedding. The core sits in the hold counting down to something, on its own schedule, indifferent to having been moved.", material_id = &"counting_core"},
 					partial = func() -> Dictionary:
-						Run.add_credits(OptionTable.purse(4))
-						return {text = "The housing is fused to the relay by forty-one-year cycles of heat and cold. You take instruments' worth of readings and nothing else."},
+						Run.heat += 8
+						# NAMED FOR THE STORY, ROLLED FOR THE SCALE, and a branch this
+						# deep wants both. `survey_film` is the readings and is worth
+						# 35 whatever the danger -- a named material has a FIXED value
+						# and is the one kind of payout the tier ladder cannot reach.
+						# Alone it made a LETHAL partial pay less than an EASY
+						# success. The rolled wreck material beside it goes through
+						# `MaterialTable.roll(table, danger)`, which grades, so the
+						# depth is paid for by the half of the haul that can be.
+						return {text = "Forty-one years of heat and cold have welded the housing to its frame, and the cutter is not going to argue with that in the time you have. You come away with the readings instead -- the interval, the bearing, the decay curve, shot straight off the dish and never developed -- and whatever the cutter shook loose on its way back out.", material_id = &"survey_film", material = &"wreck"},
 					botched = func() -> Dictionary:
-						Run.heat += 22
-						return {text = "Whatever keeps the core warm objects to being handled, briefly and thoroughly."}},
-				{label = "Record it and go", effect = func() -> Dictionary:
-					Run.add_credits(OptionTable.purse(5))
-					return {text = "You log the number, the interval, and the bearing. Somebody will pay for a reading this deep, if anybody who takes readings is left."}},
-				{label = "Let it count", effect = func() -> Dictionary:
-					return {text = "Forty-one years to the next broadcast. You will not be here. Neither, possibly, will the number."}},
+						Run.take_hull_damage(OptionTable.toll(4), "Something that had kept itself warm for two centuries objected to the cutter.")
+						Run.heat += 20
+						return {text = "Whatever has kept that core warm since before there were manufacturers objects to being opened. It objects briefly, and thoroughly, and through the hull."}},
+				{label = "Wait out the four days",
+					effect = func() -> Dictionary:
+						Run.fuel = maxi(0, Run.fuel - 10)
+						return {text = "Four days on station, burning fuel to hold a position you will want that fuel back for, watching a number that does not move. On the fourth day it moves. It goes to zero, the transponder stops, and then nothing happens at all -- no signal, no light, nothing answering from anywhere in the sky. The recording runs for six more hours of that nothing, and the nothing is the part worth carrying.", material_id = &"last_broadcast"}},
+				{label = "Leave it counting", stay = true, effect = func() -> Dictionary:
+					return {text = "You log the bearing and go. It has waited two centuries for company and can wait a little longer for somebody with more fuel and fewer places to be."}},
 			],
 		},
 		{
 			id = &"holding_pattern",
 			title = "Holding pattern",
-			body = "Six ships hold a loose ring ahead — engines cold, transponders on, hulls weathered enough that they arrived years apart. They are not a convoy and not a blockade, and every one of them is pointed the same way. Inward. Hail them and the only answer is a receipt code.",
+			body = "Six ships hold a loose ring ahead with their engines cold and their transponders on. The hulls are weathered unevenly enough that they arrived years apart, and not one of them has moved since your dish first resolved them. They are not a convoy and not a blockade. Every one of them is pointed the same way, which is inward, and when you hail the ring the only answer that comes back is a receipt code.",
 			tags = [&"signal"],
 			group = &"",
 			weight = 8,
 			min_danger = 9,
 			regions = [MapGen.Region.DEEP],
 			choices = [
-				{label = "Trade with the waiting", needs_material = &"exotic", effect = func() -> Dictionary:
-					Run.add_credits(OptionTable.purse(13))
-					return {text = "Whatever they are waiting for, they are provisioned for it, and they will pay warm-economy prices for anything that runs. You sell off the top of your stores to ships that thank you in receipt codes.", consume_material_tier = &"exotic"}},
+				{label = "Sell them what you are carrying", needs_material = &"exotic", effect = func() -> Dictionary:
+					Run.add_credits(OptionTable.purse(30))
+					return {text = "Whatever they are waiting for, they provisioned for it properly, and they will pay warm-economy prices for anything that still runs. You sell off the top of the hold to ships that thank you in receipt codes and pay in credits that were minted somewhere with a mint. Nobody asks where you are going. Everybody watches you go.", consume_material_tier = &"exotic"}},
 				{label = "Read their receipts",
-					check = {attr = &"sensors", need = 5},
+					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
-						Run.add_credits(OptionTable.purse(10))
-						return {text = "Six receipt codes, one issuing authority, and the authority is a vault. They have delivered — everything, by the empty holds — and they are waiting to be paid in whatever a vault pays. You copy the codes. Somebody inward will want to know what the queue looks like from outside."},
+						Run.add_credits(OptionTable.purse(20))
+						return {text = "Six codes, one issuing authority, and the authority is a vault. They have delivered -- everything, by the way the holds read empty -- and they are waiting to be paid in whatever it is a vault pays with. The oldest code is forty years old. You copy all six, because somebody further out will want to know what the queue looks like from the back of it.", archive_recover = true},
 					clean = func() -> Dictionary:
-						Run.add_credits(OptionTable.purse(5))
-						return {text = "The codes are vault-issued and sequential. Whatever queue this is, it is orderly, and it is old."},
+						Run.add_credits(OptionTable.purse(10))
+						return {text = "The codes are vault-issued and sequential, which means this is a queue and somebody built it. It is orderly. It is also old."},
 					partial = func() -> Dictionary:
-						return {text = "The codes decode to references in a ledger you will never see."},
+						return {text = "The codes decode into references to a ledger you are never going to see, held somewhere you are not going to be admitted."},
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 10)
-						return {text = "You interrogate the nearest transponder hard enough that all six ships light their drives for exactly four seconds, in unison, and then go cold again. You leave before learning what that was."}},
-				{label = "Hold station with them", effect = func() -> Dictionary:
-					return {text = "You point inward, kill the engines, and sit in the ring for a while. Nothing happens. You suspect nothing happening is the whole activity."}},
+						return {text = "You lean on the nearest transponder hard enough that all six ships light their drives at once, hold them for exactly four seconds, and go cold again. Nothing is said. You burn out of the ring on a heading you did not plan and do not want to explain."}},
+				{label = "Hold station with them", stay = true, effect = func() -> Dictionary:
+					return {text = "You point inward, kill the engines, and sit in the ring a while. Nothing happens, and you come to suspect that nothing happening is the entire activity. The ring is still there when you leave, and there is nothing stopping you coming back to it with something to sell."}},
 			],
 		},
 		{
