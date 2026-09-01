@@ -71,9 +71,6 @@ func _baseline() -> float:
 ## deal what is new, then slide everything to where it now belongs.
 ## `choosing` puts the hand into picking mode: nothing is playable, every card
 ## is clickable, and a click reports which one rather than playing it.
-## `live` answers "what does this card throw per hit right now" -- see
-## `Combat.card_output`. Left unset the faces print what they were printed with,
-## which is what every non-combat caller wants.
 ## `live` answers "what does this card throw per hit right now" and `hot` names
 ## which of its clauses are paying -- see `Combat.card_output` and `card_hot`.
 func sync(cards: Array, playable: Callable, choosing: bool = false,

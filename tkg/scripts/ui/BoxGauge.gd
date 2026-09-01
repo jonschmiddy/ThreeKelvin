@@ -87,11 +87,12 @@ func _slots() -> int:
 	return cap if mode == Mode.ENERGY else CELLS
 
 func _width() -> float:
-	var over := mini(maxi(0, value - cap), OVER_MAX)
+	var raw := maxi(0, value - cap)
+	var over := mini(raw, OVER_MAX)
 	var w := _slots() * (CELL.x + GAP)
 	if over > 0:
 		w += 4 + over * (CELL.x + GAP)
-	if maxi(0, value - cap) > OVER_MAX:
+	if raw > OVER_MAX:
 		w += 4
 	return w
 

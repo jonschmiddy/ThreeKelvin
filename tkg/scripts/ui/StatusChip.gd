@@ -182,7 +182,7 @@ static func make(kind: StringName, text: String, colour: Color,
 		UITheme.flat(Color(0, 0, 0, 0), colour, 2, 2, 4))
 	# THE WHOLE CHIP ANSWERS THE HOVER. A tooltip on the glyph alone leaves the
 	# digit beside it inert, which reads as two things when it is one.
-	chip.tooltip_text = tip
+	chip.tooltip_text = Widgets.tip(tip)
 	chip.mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var row := HBoxContainer.new()

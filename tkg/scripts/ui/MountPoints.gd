@@ -402,11 +402,9 @@ func _get_drag_data(at: Vector2) -> Variant:
 	return {module = m, origin = &"hull"}
 
 func _can_drop_data(at: Vector2, data: Variant) -> bool:
-	if typeof(data) != TYPE_DICTIONARY or not data.has("module"):
-		return false
-	# A hardpoint, so this stays typed: a material has no slot and cannot bolt
-	# to a hull. The cast yields null for one and the check below refuses it.
-	var m: ModuleData = data.module
+	# A hardpoint, so only a MODULE answers: a material has no slot and cannot
+	# bolt to a hull. `dragged_module` is the refusal.
+	var m := Widgets.dragged_module(data)
 	if m == null:
 		return false
 	if _lit != m:
@@ -433,7 +431,7 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	return true
 
 func _drop_data(at: Vector2, data: Variant) -> void:
-	var m: ModuleData = (data as Dictionary).module
+	var m := Widgets.dragged_module(data)
 	var i := spot_at(at)
 	_unlight()
 	if i < 0 or m == null:

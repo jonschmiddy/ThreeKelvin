@@ -48,10 +48,7 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var chart = (Router.current as StarchartScreen)._chart
 		if chart != null:
-			chart.zoom = 2.2
-			chart.pan = -chart._polar(Run.node_at()) * chart.zoom
-			chart._clamp_pan()
-			chart._repaint_sky()
+			chart.center_on_ship(2.2)
 		for i in 24:
 			await RenderingServer.frame_post_draw
 		var lit := 0
@@ -72,7 +69,6 @@ func run(tree: SceneTree) -> void:
 		var by_visited := 0
 		var by_station := 0
 		var by_contract := 0
-		var by_sensed := 0
 		for n in Run.map:
 			var t: MapGen.MapNode = n
 			var d2 := MapGen.hop_distance(here2, t)
@@ -84,7 +80,6 @@ func run(tree: SceneTree) -> void:
 				if outside:
 					by_station += 1
 			elif t.sensed:
-				by_sensed += 1
 				if outside:
 					out_only_sensed += 1
 			elif Run.contract_at(t.index) != null:

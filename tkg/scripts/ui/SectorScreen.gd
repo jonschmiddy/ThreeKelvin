@@ -179,13 +179,6 @@ var _log: LogPanel
 var _quiet_wrap: PanelContainer
 var _quiet_text: Label
 var _action: Button
-## The options this system is offering, one row each.
-var _options_box: VBoxContainer
-## Which group the pointer is over, or &"". Drives RULING 1b's preview.
-var _hover_group: StringName = &""
-## And which ROW in it, because the hovered option is the one thing in the box
-## that must NOT dim -- it is the row doing the closing.
-var _hover_index: int = -1
 ## How tall the drawer is, and therefore how tall the viewport is not.
 ##
 ## 190 of 540, so the system keeps a little over two thirds. FIXED rather than
@@ -253,14 +246,6 @@ static var _approached_at: int = -1
 ## The box the drawer's contents are rebuilt into.
 var _drawer: VBoxContainer
 
-## Outcome prose for options taken THIS VISIT, keyed by option index.
-##
-## Screen-local on purpose. Beat 5 has a resolved row become its outcome text,
-## and persisting that prose across a save would be a save-format change for a
-## sentence -- so a row taken while you are standing here shows what happened,
-## and a row taken before a reload shows that it is taken. `MapNode.taken` is
-## the fact; this is only the telling of it.
-var _outcomes: Dictionary = {}
 var _overlay: PanelContainer
 var _overlay_title: Label
 var _overlay_body: Label
@@ -882,6 +867,24 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 		return
 	_res_checked = c.has("check")
 	_res_stay = bool(c.get("stay", false))
+	# ASK THE PARTY FIRST -- the same door the wreck path uses. An option two
+	# ships can race for is arbitrated through `Run.take_option` before
+	# anything is rolled or paid: assume you won and both players pocket the
+	# payout, and the flag agreeing afterwards does not take it back. Walking
+	# away (`stay`) consumes nothing, so it does not ask. `_taking` holds the
+	# row shut while the answer is in the air.
+	if not _res_stay:
+		if _taking:
+			return
+		_taking = true
+		var won_it: bool = await Run.take_option(n, MapGen.OPTION_SITE + i)
+		_taking = false
+		if not won_it:
+			var who := Net.taker_name(n.index, MapGen.OPTION_SITE + i)
+			Run.log_line("Too late.%s" % (" %s got there first." % who.to_upper()
+				if who != "" else ""), &"them")
+			_refresh()
+			return
 	_res_band = SkillCheck.Band.MET
 	_res_odds = SkillCheck.odds_line(c.get("check", {}))
 	var call: Callable = c.get("effect", Callable())
@@ -905,7 +908,6 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	OptionTable.pay(res, n)
 	_res_bill = EncounterDrawer.bill_rows(was, Run.ledger())
 	_res_seen = false
-	_outcomes[i] = String(res.get("text", ""))
 	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
 	# hull taken, a module in the hold -- so a player who closed the game on the
 	# result screen must not come back to an option they have already been paid
@@ -1202,7 +1204,7 @@ func _build_hand() -> PanelContainer:
 	nrg_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 3, 4))
 	nrg_box.custom_minimum_size = Vector2(PileView.W, 38)
-	nrg_box.tooltip_text = "ENERGY\n\nWhat you have left to spend."
+	nrg_box.tooltip_text = Widgets.tip("ENERGY\n\nWhat you have left to spend.")
 	nrg_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	nrg_box.add_child(nrg)
 	left.add_child(nrg_box)
@@ -1216,7 +1218,7 @@ func _build_hand() -> PanelContainer:
 	turn_box.add_theme_stylebox_override("panel",
 		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 0, 4))
 	turn_box.custom_minimum_size = Vector2(PileView.W, 13)
-	turn_box.tooltip_text = "TURN\n\nHow long this fight has been going on."
+	turn_box.tooltip_text = Widgets.tip("TURN\n\nHow long this fight has been going on.")
 	turn_box.mouse_filter = Control.MOUSE_FILTER_STOP
 	turn_box.add_child(_deck_label)
 	left.add_child(turn_box)
@@ -1236,7 +1238,7 @@ func _build_hand() -> PanelContainer:
 	left.add_child(draw_push)
 
 	_draw_pile = PileView.new()
-	_draw_pile.tooltip_text = "DRAW\n\nWhat is left to draw from.\nClick to look."
+	_draw_pile.tooltip_text = Widgets.tip("DRAW\n\nWhat is left to draw from.\nClick to look.")
 	_draw_pile.opened = func() -> void:
 		_show_pile("DRAW PILE", combat.deck, true)
 	left.add_child(_draw_pile)
@@ -1275,7 +1277,7 @@ func _build_hand() -> PanelContainer:
 	# three of them plus a 22 came to 62 against the 54 the left rail spends on
 	# ENERGY and TURN. Levelling them is what makes the block fit at all.
 	_end_button.custom_minimum_size = Vector2(PileView.W, 16)
-	_end_button.tooltip_text = "END TURN\n\nStop, and let them act."
+	_end_button.tooltip_text = Widgets.tip("END TURN\n\nStop, and let them act.")
 	# ITS OWN STYLEBOX, because the default bevel pads four above and below and
 	# rendered this at 28 while FLEE and HAIL -- which already carry flat boxes
 	# with no vertical padding -- came out at 16. Three buttons cannot share a
@@ -1301,7 +1303,7 @@ func _build_hand() -> PanelContainer:
 	var flee := Widgets.button("FLEE", _on_flee)
 	_flee_button = flee
 	flee.custom_minimum_size = Vector2(PileView.W, 16)
-	flee.tooltip_text = "FLEE\n\nRun for it. Maneuver check."
+	flee.tooltip_text = Widgets.tip("FLEE\n\nRun for it. Maneuver check.")
 	flee.add_theme_color_override("font_color", Color("#d4614f"))
 	flee.add_theme_color_override("font_hover_color", Color("#f08872"))
 	flee.add_theme_stylebox_override("normal",
@@ -1350,7 +1352,7 @@ func _build_hand() -> PanelContainer:
 	_discard_pile = PileView.new()
 	_discard_pile.opened = func() -> void:
 		_show_pile("DISCARD PILE", combat.discard, false)
-	_discard_pile.tooltip_text = "DISCARD\n\nWhat you have played so far.\nClick to look."
+	_discard_pile.tooltip_text = Widgets.tip("DISCARD\n\nWhat you have played so far.\nClick to look.")
 	right.add_child(_discard_pile)
 	hand_row.add_child(right)
 	_hand_wrap = Widgets.panel_with(hand_row)
@@ -1546,7 +1548,6 @@ func _refresh() -> void:
 	_blurb.text = MapGen.place_blurb(n)
 
 	if at_war:
-		_view.bind_self_drop(_on_self_drop)
 		_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 		_state.text = "ENGAGED - %d HOSTILE%s" % [
 			combat.alive().size(), "" if combat.alive().size() == 1 else "S"]
@@ -1769,56 +1770,51 @@ func _refresh_player() -> void:
 ## and "NO TERMS" on the thing guarding the core both say the rule out loud,
 ## once, at the moment it applies -- and both fit the button, which the first
 ## pair did not.
-## The same shape as `_refresh_hail`, for the same reason.
-##
-## FLEE can be shut two ways now -- you tried and missed, or it is the core's
+## One shape for the two shut-door buttons. RULING 8: a disabled thing states
+## what it wants -- the LABEL carries the reason, the TOOLTIP the cause, and
+## the ink cools while the door is shut. The button has room for two words of
+## why not; the tooltip has room for a short sentence, and that is all it
+## should be. Only the cause-to-sentence table differs between the two.
+func _refresh_gate(b: Button, label: String, why: String, cause: StringName,
+		tips: Dictionary, lit: Color) -> void:
+	if b == null:
+		return
+	if not fighting():
+		b.disabled = true
+		return
+	b.disabled = why != ""
+	b.text = why if why != "" else label
+	b.add_theme_color_override("font_color", UITheme.COLD if why != "" else lit)
+	b.tooltip_text = Widgets.tip("%s\n\n%s" % [label, str(tips.get(cause, tips[&""]))])
+
+
+## FLEE can be shut two ways -- you tried and missed, or it is the core's
 ## guard and there is nowhere to run to -- and a greyed button with no reason
 ## reads as a bug either way.
 func _refresh_flee() -> void:
-	if _flee_button == null:
-		return
 	if not fighting():
-		_flee_button.disabled = true
+		_refresh_gate(_flee_button, "FLEE", "", &"", {&"": ""}, UITheme.LEAVE)
 		return
-	var why := combat.flee_reason()
-	_flee_button.disabled = why != ""
-	_flee_button.text = why if why != "" else "FLEE"
-	_flee_button.add_theme_color_override("font_color",
-		UITheme.COLD if why != "" else Color("#d4614f"))
-	match combat.flee_cause():
-		&"failed":
-			_flee_button.tooltip_text = "FLEE\n\nYou tried. They are still here."
-		&"boss":
-			_flee_button.tooltip_text = "FLEE\n\nThere is nothing past this."
-		_:
-			_flee_button.tooltip_text = "FLEE\n\nRun for it. Maneuver check."
+	_refresh_gate(_flee_button, "FLEE", combat.flee_reason(),
+		combat.flee_cause(), {
+			&"failed": "You tried. They are still here.",
+			&"boss": "There is nothing past this.",
+			&"": "Run for it. Maneuver check.",
+		}, UITheme.LEAVE)
 
 
 func _refresh_hail() -> void:
-	if _hail_button == null:
-		return
 	if not fighting():
-		_hail_button.disabled = true
+		_refresh_gate(_hail_button, "HAIL", "", &"", {&"": ""}, UITheme.CHILL)
 		return
-	var why := combat.hail_reason()
-	_hail_button.disabled = why != ""
-	_hail_button.text = why if why != "" else "HAIL"
-	# The button has room for two words of why not; the tooltip has room for a
-	# short sentence, and that is all it should be. Godot's tooltip does not
-	# wrap, so a long one is a strip half the screen wide.
-	match combat.hail_cause():
-		&"failed":
-			_hail_button.tooltip_text = "HAIL\n\nYou already tried. They heard you."
-		&"struck":
-			_hail_button.tooltip_text = "HAIL\n\nToo late. You shot first."
-		&"fauna":
-			_hail_button.tooltip_text = "HAIL\n\nIt does not have a radio."
-		&"boss":
-			_hail_button.tooltip_text = "HAIL\n\nThis one is not here to deal."
-		_:
-			_hail_button.tooltip_text = "HAIL\n\nTalk them down. Stealth check."
-	_hail_button.add_theme_color_override("font_color",
-		UITheme.COLD if why != "" else UITheme.CHILL)
+	_refresh_gate(_hail_button, "HAIL", combat.hail_reason(),
+		combat.hail_cause(), {
+			&"failed": "You already tried. They heard you.",
+			&"struck": "Too late. You shot first.",
+			&"fauna": "It does not have a radio.",
+			&"boss": "This one is not here to deal.",
+			&"": "Talk them down. Stealth check.",
+		}, UITheme.CHILL)
 
 
 func _refresh_enemy() -> void:
@@ -1852,7 +1848,6 @@ func _refresh_enemy() -> void:
 		if e.hp > 0 and e.block > 0:
 			row.add_child(Widgets.chip("block %d" % e.block, Color("#3a4a6e")))
 
-	_view.bind_self_drop(_on_self_drop)
 	_view.show_enemies(combat.enemies, _on_card_dropped, _on_slot_hovered)
 
 func _refresh_hand() -> void:
@@ -1969,49 +1964,23 @@ func _close_transfer() -> void:
 	_refresh()
 
 
-func _on_bag(action: String, thing: Variant) -> void:
-	if action != "take" or _taking:
-		return
-	var n: MapGen.MapNode = Run.node_at()
-	var i := n.bag.find(thing)
-	if i < 0:
-		return
-	_taking = true
-	# Redrawn twice on purpose: once now so the row cannot be pressed again while
-	# the answer is in the air, and once when it lands.
-	_refresh()
-	var got := await Run.take_from_bag(n, i)
-	_taking = false
-	if got:
-		Audio.play(&"loot_drop")
-	_refresh()
-
 func _on_salvage(action: String, thing: Variant) -> void:
 	match action:
 		"install":
-			Audio.play(&"module_install", 0.04)
+			Audio.act(&"module_install")
 			Run.install_module(thing as ModuleData)
 		"scrap":
-			Audio.play(&"module_scrap", 0.05)
+			Audio.act(&"module_scrap")
 			Run.scrap_module(thing as ModuleData)
 		"uninstall":
-			Audio.play(&"module_uninstall", 0.05)
+			Audio.act(&"module_uninstall")
 			Run.uninstall_module(thing as ModuleData)
 		"take_hull":
-			Audio.play(&"hull_transfer", 0.03)
+			Audio.act(&"hull_transfer")
 			Run.transfer_to_hull(thing as HullData)
 		"leave_hull":
 			Run.found_hull = null
 	_refresh()
-
-## Played by dropping on your own hull: defence, venting, drawing — anything
-## that is not aimed at an enemy.
-func _on_self_drop(view: CardView) -> void:
-	if not fighting() or view == null:
-		return
-	var hand_index := combat.hand.find(view.card)
-	if hand_index >= 0 and combat.can_play(view.card):
-		combat.play(hand_index)
 
 ## Hovering a card prices it against every enemy at once, so choosing a target
 ## is a comparison rather than a guess.

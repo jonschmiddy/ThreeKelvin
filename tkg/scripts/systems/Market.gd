@@ -183,7 +183,7 @@ static func melt(m: ModuleData) -> int:
 ## rather than off the goods index — an exotic organ is worth more to a capital
 ## with a biology department than to a mining outpost that would use it as ballast.
 static func material_price(n: MapGen.MapNode, id: StringName) -> int:
-	var base: float = float(DB.material_value(id))
+	var base: float = float(int(MaterialTable.by_id(id).get("value", 1)))
 	var dev := 2 if n == null else int(n.development)
 	return maxi(1, int(round(base * (0.80 + 0.10 * float(dev)))))
 

@@ -179,45 +179,35 @@ static func module_tip_panel(m: ModuleData) -> Control:
 	return panel
 
 
-## A part, in words, for a tooltip.
-##
-## The hull is the one place a module has always been unreadable: it is drawn as
-## a silhouette bolted to the ship, which says what KIND it is and nothing about
-## what it does -- and the panel that would tell you is a click away on a screen
-## you have to already be on.
-##
-## Deliberately shorter than `module_panel`. A tooltip is read standing over
-## something else, so this is the name, what it is, what it moved, and what it
-## puts in the deck. The affixes are the part of a rolled module that is
-## actually a surprise, so they stay.
-static func module_hint(m: ModuleData) -> String:
-	if m == null:
-		return ""
-	var lines: PackedStringArray = [m.name.to_upper()]
-	lines.append("%s · %s · %s" % [ModuleData.rarity_name(m.rarity),
-		DB.manufacturer_name(m.manufacturer), ModuleData.slot_name(m.slot)])
-	var gauges: PackedStringArray = []
-	for g in AffixData.GAUGES:
-		# `get` on a name the object does not declare returns null, not zero --
-		# and `AffixData.GAUGES` is the AFFIX vocabulary, which is not the same
-		# set as a module's own fields. Assigning that straight into an `int`
-		# threw, which is why no tooltip ever appeared: the hook was reached
-		# every time and died before it could answer.
-		var raw: Variant = m.get(g)
-		var v: int = int(raw) if raw != null else 0
-		if v != 0:
-			gauges.append("%s%d %s" % ["+" if v > 0 else "", v,
-				String(g).to_upper()])
-	if not gauges.is_empty():
-		lines.append(", ".join(gauges))
-	for a in m.affixes:
-		lines.append("%s - %s" % [a.name, a.text])
-	var cards: PackedStringArray = []
-	for c in m.resolved_cards():
-		cards.append(c.name)
-	if not cards.is_empty():
-		lines.append("Grants %s." % ", ".join(cards))
-	return tip("\n".join(lines))
+## A bare `Button` points with the plain arrow -- only `_btn` sets the hand,
+## and the reticle reads it (see `Main._cursor_wants_shut`). For the places
+## that need a naked Button anyway, this is that one line, named, instead of a
+## comment-and-assignment pasted per screen.
+static func wear_pointer(c: Control) -> void:
+	c.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+
+## The ModuleData inside a drag payload, or null for a material, a chit, or
+## anything else in the air. The one shape for this refusal: a typed assignment
+## straight off the dictionary RAISES for a non-module payload -- `as` is the
+## cast that answers null -- and the drop targets had grown two different
+## idioms for the same question, one of them the raising kind.
+static func dragged_module(data: Variant) -> ModuleData:
+	if typeof(data) != TYPE_DICTIONARY or not (data as Dictionary).has("module"):
+		return null
+	return (data as Dictionary).module as ModuleData
+
+
+## Paint a checkbox-style toggle: "[X]  LABEL" in its lit colour, "[ ]  LABEL"
+## in QUOTE. One shape, three screens -- and it sets the FOCUS ink too, which
+## the third hand-rolled copy forgot, so a keyboard-focused toggle tinted
+## differently there than everywhere else.
+static func paint_toggle(b: Button, label: String, on: bool,
+		lit: Color = UITheme.EMBER) -> void:
+	b.text = "%s  %s" % ["[X]" if on else "[ ]", label]
+	var tint := lit if on else UITheme.QUOTE
+	b.add_theme_color_override("font_color", tint)
+	b.add_theme_color_override("font_focus_color", tint)
 
 
 static func module_row(m: ModuleData, ctx: ModuleContext, price: int,

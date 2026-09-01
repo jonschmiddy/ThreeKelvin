@@ -267,3 +267,32 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 ## Overridden so each kind builds its own sort of plate.
 func _ghost() -> Control:
 	return null
+
+
+## The right icon for a thing, wherever a hold is drawn. The kind-to-icon
+## decision is made HERE and only here -- both grids call this, so a new kind of
+## `HoldItem` gets wired in once instead of once per screen.
+static func make(m: HoldItem, from: StringName) -> ItemIcon:
+	if m is CreditChit:
+		var ci := ChitIcon.new()
+		ci.setup(m as CreditChit, from)
+		return ci
+	if m is MaterialData:
+		var mi := MaterialIcon.new()
+		mi.setup(m as MaterialData, from)
+		return mi
+	var gi := ModuleIcon.new()
+	gi.setup(m as ModuleData, from)
+	return gi
+
+
+## The shared tail of picking something up: every kind's ghost is a copy of
+## itself inside the same following wrapper. Subclasses build the copy and this
+## does the rest, so how a ghost is built is decided in one place.
+static func wrap_ghost(g: ItemIcon, at: Vector2) -> Control:
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.fit_footprint()
+	ItemIcon.carried = g
+	var wrap := Ghost.new()
+	wrap.start(g, at)
+	return wrap

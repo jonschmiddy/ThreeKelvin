@@ -341,10 +341,7 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 
 ## The box and its colour, for whichever state the flag is in now.
 static func _paint_dev_toggle(box: Button) -> void:
-	box.text = "%s  DEVELOPER MODE" % ("[X]" if DevMode.enabled else "[ ]")
-	var tint := UITheme.EMBER if DevMode.enabled else UITheme.QUOTE
-	box.add_theme_color_override("font_color", tint)
-	box.add_theme_color_override("font_focus_color", tint)
+	Widgets.paint_toggle(box, "DEVELOPER MODE", DevMode.enabled)
 
 func _close_popup() -> void:
 	if _popup == null:

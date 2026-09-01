@@ -19,14 +19,11 @@ func run() -> void:
 	_ok("catalogue is not empty", not rows.is_empty())
 
 	# --- every row builds -----------------------------------------------------
-	var built := 0
 	var bad_build: Array[String] = []
 	for row in rows:
 		var m := MaterialData.of(row)
 		if m == null or m.id == &"" or m.name == "":
 			bad_build.append(String(row.get("id", "?")))
-		else:
-			built += 1
 	_ok("all %d rows build an instance" % rows.size(), bad_build.is_empty())
 	if not bad_build.is_empty():
 		print("       %s" % ", ".join(bad_build))

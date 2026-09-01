@@ -357,8 +357,9 @@ func _refresh_materials() -> void:
 		_mat_ids = ids
 		Widgets.clear(_materials)
 		for s in stock:
+			var tier := StringName(MaterialTable.by_id(s.id).get("tier", &"common"))
 			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
-				DB.material_colour(s.id))
+				UITheme.tier_colour(tier))
 			row.name = "mat_" + String(s.id)
 			_materials.add_child(_hintable(row))
 	for s in stock:
@@ -366,7 +367,7 @@ func _refresh_materials() -> void:
 		if row2 == null:
 			continue
 		_value(row2, str(s.count))
-		var d := DB.material(s.id)
+		var d := MaterialTable.by_id(s.id)
 		_hint(row2, "%s\n%s" % [str(s.name), str(d.get("text", ""))])
 
 func _value(row: HBoxContainer, text: String) -> void:

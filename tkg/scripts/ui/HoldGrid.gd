@@ -67,7 +67,6 @@ var _rows: int = 5
 ## Lit cells during a drag: where the thing being carried would actually fit.
 var _beam: Dictionary = {}
 var _beam_phase: float = 0.0
-var _carrying: HoldItem = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -87,21 +86,9 @@ func refresh() -> void:
 		# the gun you are about to bolt on is the whole point of it sharing a
 		# silhouette with the thing on the hull. A material has no hull form to
 		# echo, so it draws a crate. See `MaterialIcon`.
-		var icon: Control
-		if m is CreditChit:
-			# A chit should never be in here -- `stow` cashes it. If one is, it
-			# is a bug, and a bug you can SEE beats an invisible occupied cell.
-			var ci := ChitIcon.new()
-			ci.setup(m as CreditChit, &"cargo")
-			icon = ci
-		elif m is MaterialData:
-			var mi := MaterialIcon.new()
-			mi.setup(m as MaterialData, &"cargo")
-			icon = mi
-		else:
-			var gi := ModuleIcon.new()
-			gi.setup(m as ModuleData, &"cargo")
-			icon = gi
+		# A chit should never be in here -- `stow` cashes it. If one is, it
+		# is a bug, and a bug you can SEE beats an invisible occupied cell.
+		var icon := ItemIcon.make(m, &"cargo")
 		# PASS, not STOP: the icon is what you pick UP, and the grid under it is
 		# what you drop ONTO. A child that swallowed the hover would leave the
 		# grid unable to say which cell the cursor is over.
@@ -211,14 +198,17 @@ func target_for(m: HoldItem, p: Vector2) -> Vector2i:
 	var c := Vector2i(
 		clampi(int(round(top_left.x / step)), 0, maxi(0, g.x - f.x)),
 		clampi(int(round(top_left.y / step)), 0, maxi(0, g.y - f.y)))
-	if Run.can_place(m, c):
+	# One occupancy map for the whole probe -- this runs on every drag-over
+	# frame, and `can_place` re-derived the map for each of the 26 candidates.
+	var taken := Run.hold_taken(m)
+	if Run.fits_at(taken, m, c):
 		return c
 	var best := -Vector2i.ONE
 	var best_d := 1e9
 	for dy in range(-NUDGE, NUDGE + 1):
 		for dx in range(-NUDGE, NUDGE + 1):
 			var t := c + Vector2i(dx, dy)
-			if t.x < 0 or t.y < 0 or not Run.can_place(m, t):
+			if t.x < 0 or t.y < 0 or not Run.fits_at(taken, m, t):
 				continue
 			var d := Vector2(dx, dy).length_squared()
 			if d < best_d:
@@ -275,7 +265,6 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 
 func _clear_beam() -> void:
 	_beam.clear()
-	_carrying = null
 	set_process(false)
 	queue_redraw()
 

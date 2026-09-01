@@ -176,7 +176,7 @@ func _quotes() -> String:
 			parts.append("hold:%s" % (raw as MaterialData).id)
 			continue
 		parts.append("bid:%s=%d/melt=%d" % [m.id, Market.bid(n, m), Market.melt(m)])
-	for d in DB.MATERIALS:
+	for d in MaterialTable.all():
 		parts.append("mat:%s=%d" % [d.id, Market.material_price(n, d.id)])
 	return " ".join(parts)
 

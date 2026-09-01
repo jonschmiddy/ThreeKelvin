@@ -2031,33 +2031,16 @@ func perk_text(id: StringName) -> String:
 # RunState, and it is now simply the first row of this table — same number, same
 # sources, one ledger. Everything that said `Run.exotic` still does.
 
-const MATERIALS: Array[Dictionary] = [
-	{id = &"exotic", name = "Exotic", short = "EXO", colour = "#4fbfa8", value = 45,
-		text = "Grown, not manufactured. Megafauna organs and whatever a pulsar leaves behind."},
-	{id = &"relic", name = "Relic", short = "RLC", colour = "#d4614f", value = 90,
-		text = "Precursor fragment. Nobody presses more of these and nobody knows how."},
-]
+# THE TABLE LIVES IN `MaterialTable`, not here. This file briefly carried a
+# two-row shadow of it (exotic and relic, with their own accessors), and the two
+# catalogues immediately diverged: every material authored only over there sold
+# for the 1-credit fallback and never appeared in a stock list, because half the
+# game was still reading this one. One catalogue, one `by_id`.
 
 ## RETIRED with alloy. Kept as a comment rather than a constant so the shape is
 ## on record if parts ever break down into materials again: it was flat at the
 ## top on purpose, because rarity buys better verbs, not more metal — a Legendary is not
 ## a bigger lump of a Common, it is a cleverer one.
-
-func material(id: StringName) -> Dictionary:
-	for m in MATERIALS:
-		if m.id == id:
-			return m
-	return {}
-
-func material_name(id: StringName) -> String:
-	var m := material(id)
-	return str(m.get("name", id))
-
-func material_value(id: StringName) -> int:
-	return int(material(id).get("value", 1))
-
-func material_colour(id: StringName) -> Color:
-	return Color(str(material(id).get("colour", "#8fa3ba")))
 
 # -------------------------------------------------------------------- recipes
 #

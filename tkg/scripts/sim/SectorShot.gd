@@ -16,13 +16,11 @@ extends RefCounted
 ## case.
 
 
-## How many of a grid's icons are actually on screen.
-func _showing(g: Control) -> int:
-	var n := 0
-	for c in g.get_children():
-		if c is ItemIcon and (c as Control).visible:
-			n += 1
-	return n
+## Photograph the tree and say where it went. Every shot in this file is this
+## same pair of lines; the filename is the only thing that varies.
+func _snap(tree: SceneTree, path: String) -> void:
+	tree.root.get_texture().get_image().save_png(path)
+	print("wrote ", ProjectSettings.globalize_path(path))
 
 
 ## Every option card on screen, in the order they are laid out.
@@ -177,8 +175,7 @@ func run(tree: SceneTree) -> void:
 		var ss := Router.current as StarchartScreen
 		if ss != null and ss._chart != null:
 			print("  starchart    pan %s zoom %.2f" % [ss._chart.pan, ss._chart.zoom])
-		tree.root.get_texture().get_image().save_png("user://menu.png")
-		print("wrote ", ProjectSettings.globalize_path("user://menu.png"))
+		_snap(tree, "user://menu.png")
 		tree.quit()
 		return
 	if "buttons" in OS.get_cmdline_user_args():
@@ -254,12 +251,10 @@ func run(tree: SceneTree) -> void:
 			# a broken container.
 			for iu in 3:
 				await RenderingServer.frame_post_draw
-			tree.root.get_texture().get_image().save_png("user://sector_scan.png")
-			print("wrote ", ProjectSettings.globalize_path("user://sector_scan.png"))
+			_snap(tree, "user://sector_scan.png")
 			for iu2 in 90:
 				await RenderingServer.frame_post_draw
-		tree.root.get_texture().get_image().save_png("user://sector_transfer.png")
-		print("wrote ", ProjectSettings.globalize_path("user://sector_transfer.png"))
+		_snap(tree, "user://sector_transfer.png")
 		tree.quit()
 		return
 	# LIVE_CARD_NUMBERS section 3, photographed before and after. Poses a lock-on
@@ -273,8 +268,7 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var sl := Router.current as SectorScreen
 		if sl != null and sl.combat != null:
-			tree.root.get_texture().get_image().save_png("user://live_before.png")
-			print("wrote ", ProjectSettings.globalize_path("user://live_before.png"))
+			_snap(tree, "user://live_before.png")
 			var cl := sl.combat
 			for cc in cl.hand:
 				print("  BEFORE %-22s printed %d  live %d" % [
@@ -291,8 +285,7 @@ func run(tree: SceneTree) -> void:
 					(cc as CardData).name, (cc as CardData).damage,
 					cl.card_output(cc as CardData),
 					(cc as CardData).describe_rich(cl.card_output(cc as CardData))])
-			tree.root.get_texture().get_image().save_png("user://live_after.png")
-			print("wrote ", ProjectSettings.globalize_path("user://live_after.png"))
+			_snap(tree, "user://live_after.png")
 			# THE GHOST'S NUMBER, checked where it can honestly be checked.
 			#
 			# NOT END TO END, and the reason is worth writing down. The ghost is
@@ -396,8 +389,7 @@ func run(tree: SceneTree) -> void:
 		for iA2 in 10:
 			await RenderingServer.frame_post_draw
 		print("  target lit? %s ; reads \"%s\"" % [slot._hot, slot._drag_text])
-		tree.root.get_texture().get_image().save_png("user://aim_line.png")
-		print("wrote ", ProjectSettings.globalize_path("user://aim_line.png"))
+		_snap(tree, "user://aim_line.png")
 		await _shove(tree, onto, false, false)
 		for iA3 in 12:
 			await RenderingServer.frame_post_draw
@@ -516,8 +508,7 @@ func run(tree: SceneTree) -> void:
 				% [them.min(), them.max()])
 			print("  plate y spans %.0f..%.0f  (must NOT move)"
 				% [plate.min(), plate.max()])
-		tree.root.get_texture().get_image().save_png("user://sector_status.png")
-		print("wrote ", ProjectSettings.globalize_path("user://sector_status.png"))
+		_snap(tree, "user://sector_status.png")
 
 		# EVERY GLYPH AT ONCE, because a status row only ever shows the handful
 		# the fight happens to have produced. Half of these cannot be reached
@@ -551,8 +542,7 @@ func run(tree: SceneTree) -> void:
 			grid.add_child(cell)
 		for ig in 6:
 			await RenderingServer.frame_post_draw
-		tree.root.get_texture().get_image().save_png("user://status_sheet.png")
-		print("wrote ", ProjectSettings.globalize_path("user://status_sheet.png"))
+		_snap(tree, "user://status_sheet.png")
 		tree.quit()
 		return
 	if "entrance" in OS.get_cmdline_user_args():
@@ -583,8 +573,7 @@ func run(tree: SceneTree) -> void:
 				await RenderingServer.frame_post_draw
 			print("  art in slot %s ; holder %s  (must match)"
 				% [sl0.art.get_global_rect(), sl0.holder_rect()])
-			tree.root.get_texture().get_image().save_png("user://sector_reticle.png")
-			print("wrote ", ProjectSettings.globalize_path("user://sector_reticle.png"))
+			_snap(tree, "user://sector_reticle.png")
 		print("wrote ", ProjectSettings.globalize_path("user://sector_entrance.png"))
 		tree.quit()
 		return
@@ -614,8 +603,7 @@ func run(tree: SceneTree) -> void:
 			print("  listed %d of %d discards"
 				% [sp._pile_panel.get_child(0).get_child(1).get_child(0)
 					.get_child_count(), sp.combat.discard.size()])
-		tree.root.get_texture().get_image().save_png("user://sector_pile.png")
-		print("wrote ", ProjectSettings.globalize_path("user://sector_pile.png"))
+		_snap(tree, "user://sector_pile.png")
 		tree.quit()
 		return
 	if "combat" in OS.get_cmdline_user_args():
@@ -685,8 +673,7 @@ func run(tree: SceneTree) -> void:
 				print("  after: %-12s finished=%-5s box %.0fx%.0f"
 					% [said, sc.combat.finished, sc._exit_ask.size.x,
 						sc._exit_ask.size.y])
-			tree.root.get_texture().get_image().save_png("user://ask.png")
-			print("wrote ", ProjectSettings.globalize_path("user://ask.png"))
+			_snap(tree, "user://ask.png")
 			tree.quit()
 			return
 		if sc != null:
@@ -758,8 +745,7 @@ func run(tree: SceneTree) -> void:
 			print("    left rail %.0f" % lcol.size.y)
 			for ch3 in lcol.get_children():
 				print("      L %-14s %.0f" % [(ch3 as Control).name, (ch3 as Control).size.y])
-		tree.root.get_texture().get_image().save_png("user://sector_combat.png")
-		print("wrote ", ProjectSettings.globalize_path("user://sector_combat.png"))
+		_snap(tree, "user://sector_combat.png")
 		tree.quit()
 		return
 	var s0 := Router.current as SectorScreen
@@ -802,9 +788,7 @@ func run(tree: SceneTree) -> void:
 	if sc2 != null:
 		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"
 			% [sc2._quiet_wrap.size.y, sc2._hand_wrap.size.y, SectorScreen.DRAWER_H])
-	var path := "user://sector%s.png" % tag
-	tree.root.get_texture().get_image().save_png(path)
-	print("wrote ", ProjectSettings.globalize_path(path))
+	_snap(tree, "user://sector%s.png" % tag)
 	tree.quit()
 
 
