@@ -309,6 +309,16 @@ static func pay(res: Dictionary, n: MapGen.MapNode) -> String:
 		# prose depends on.
 		got.append(MaterialTable.grant(
 			MaterialTable.by_id(StringName(res.material_id))))
+	# NOTHING USES THIS, AND THAT IS A RULING RATHER THAN AN ACCIDENT.
+	#
+	# `holding_pattern` was the only caller. `spend_material_tier` takes the FIRST
+	# item of that tier it finds in the hold, so the encounter reached in and chose
+	# for you -- tolerable while materials were a ledger counter, indefensible now
+	# they are objects with names, values and cells. THE HOLD IS THE PLAYER'S.
+	#
+	# The mechanism stays because a future encounter might legitimately want to
+	# take something NAMED that the player has already agreed to hand over. It must
+	# not be used to take a tier and let the code pick.
 	if res.has("consume_material_tier"):
 		# UNDER THE SHIM THIS IS THE LEDGER, not the hold. `holding_pattern` asks
 		# for one exotic-TIER item and there are no items yet, so it spends the
@@ -1466,7 +1476,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_manifest",
 			title = "The manifest",
-			body = "A heat barge rides the lane inward under Korvan seal and her master is hailing for a witness. The delivery protocols want a countersignature on the final leg and nobody disinterested comes this deep twice, so she has been holding here for a day and a half waiting for a ship that is neither her employer nor her competition. The seal declares nine hundred units, receipted, sealed at the last station that had a seal to give. On your mass reading she sits four points heavy for nine hundred units of anything.",
+			body = "A heat barge sits across the lane inward with its running lights on and its drives cold, and the woman flying it is hailing for a witness. The delivery protocols want a countersignature on the last leg and nobody this deep is disinterested twice, so she has been holding station a day and a half waiting for a ship that neither pays her nor competes with her. The seal on the load reads nine hundred units, receipted at the last station that still had the authority to receipt anything. Your mass reading puts the barge four points heavy for nine hundred units of anything.",
 			tags = [&"contract"],
 			group = &"threshold",
 			weight = 9,
@@ -1475,23 +1485,23 @@ static func _authored() -> Array[Dictionary]:
 			choices = [
 				{label = "Sign what the seal says", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(14))
-					return {text = "You countersign nine hundred units, hold formation for the last leg, and watch the barge become somebody else's jurisdiction. The fee clears before you have finished deciding what you saw. It is a clean fee for an hour of flying straight, and you will think about the four points again later, when there is less to do."}},
-				{label = "Put the dish on her first",
+					return {text = "You countersign nine hundred units, hold formation for the last leg, and watch the barge become somebody else's jurisdiction. The fee clears before you have finished deciding what you saw. It is clean money for an hour of flying straight, and you will think about the four points again later, when there is less to do."}},
+				{label = "Put the dish on the load first",
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(30))
-						return {text = "Eleven hundred units against a receipt for nine. Somebody upstream is moving two hundred units of something inward and paying tax on the smaller number, and the master has been carrying it without being told what it is, which is how you carry that sort of thing. You sign the honest figure. She pays you for the correction with the specific gratitude of a woman who has just handed a problem to the people who made it."},
+						return {text = "Eleven hundred units against a receipt for nine. Somebody upstream is moving two hundred units of something inward and paying tax on the smaller number, and the woman flying it has been carrying that without being told what it is, which is how you carry that sort of thing. You sign the honest figure. She pays you for the correction with the exact gratitude of a person who has just handed a problem back to the people who made it."},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(14))
-						return {text = "The mass settles close enough to the seal that the difference is fuel, ice and the way a barge sits when she is low on both. You sign, ride the leg, and collect."},
+						return {text = "The mass settles close enough to the seal that the difference is fuel, ice, and the way a barge rides when it is low on both. You sign, fly the leg, and collect."},
 					partial = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(3))
-						return {text = "Your figures will not settle and her window will not wait. You decline to sign anything you cannot read, take the standing fee for the hail, and watch her go looking for a witness with a worse dish."},
+						return {text = "Your figures will not settle and her window will not wait. You decline to sign anything you cannot read, take the standing fee for answering the hail, and watch her go looking for a witness with a worse dish."},
 					botched = func() -> Dictionary:
 						Run.add_credits(-60)
-						return {text = "You sign a number the vault's own scale later disagrees with. The correction is applied to the witness who signed it, because the witness is the only name on the document that anyone can find."}},
-				{label = "Wave her past", stay = true, effect = func() -> Dictionary:
-					return {text = "She holds another hour, hailing on the open channel, and then takes the last leg unwitnessed rather than lose the window. Whatever she is four points heavy with goes wherever it was going."}},
+						return {text = "You sign a number the vault's own scale later disagrees with. The correction is applied to the witness who signed it, because the witness is the only name on the document anybody can find."}},
+				{label = "Let her carry on", stay = true, effect = func() -> Dictionary:
+					return {text = "She holds another hour on the open channel and then flies the last leg unwitnessed rather than lose the window. Whatever the barge is four points heavy with goes wherever it was going."}},
 			],
 		},
 		{
@@ -1564,21 +1574,21 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"holding_pattern",
 			title = "Holding pattern",
-			body = "Six ships hold a loose ring ahead with their engines cold and their transponders on. The hulls are weathered unevenly enough that they arrived years apart, and not one of them has moved since your dish first resolved them. They are not a convoy and not a blockade. Every one of them is pointed the same way, which is inward, and when you hail the ring the only answer that comes back is a receipt code.",
+			body = "Six ships hold a loose ring ahead with their drives cold and their transponders on. The hulls are weathered unevenly enough that they arrived years apart, and not one of them has moved since your dish first resolved them. They are not a convoy and they are not a blockade. Every one of them is pointed the same way, which is inward, and when you hail the ring the only answer that comes back is a receipt code.",
 			tags = [&"signal"],
 			group = &"",
 			weight = 8,
 			min_danger = 9,
 			regions = [MapGen.Region.DEEP],
 			choices = [
-				{label = "Sell them what you are carrying", needs_material = &"exotic", effect = func() -> Dictionary:
+				{label = "Sell them the way out", effect = func() -> Dictionary:
 					Run.add_credits(OptionTable.purse(30))
-					return {text = "Whatever they are waiting for, they provisioned for it properly, and they will pay warm-economy prices for anything that still runs. You sell off the top of the hold to ships that thank you in receipt codes and pay in credits that were minted somewhere with a mint. Nobody asks where you are going. Everybody watches you go.", consume_material_tier = &"exotic"}},
+					return {text = "They have been pointed inward long enough that the route behind them has gone out of date, and a current one is worth more than any of them will say out loud. You send the run so far: bearings, what the crossings cost, which stations still have somebody behind a counter. They pay warm-economy prices in credits minted somewhere that still has a mint. Nobody says what they want it for. Two of them ask for a second copy."}},
 				{label = "Read their receipts",
 					check = {attr = &"sensors", need = 7},
 					met = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(20))
-						return {text = "Six codes, one issuing authority, and the authority is a vault. They have delivered -- everything, by the way the holds read empty -- and they are waiting to be paid in whatever it is a vault pays with. The oldest code is forty years old. You copy all six, because somebody further out will want to know what the queue looks like from the back of it.", archive_recover = true},
+						return {text = "Six codes, one issuing authority, and the authority is a vault. They have delivered -- everything, by the way the holds read empty -- and they are waiting to be paid in whatever it is a vault pays with. The oldest code is forty years old. You copy all six, because somebody further out will want to know what this queue looks like from the back of it.", archive_recover = true},
 					clean = func() -> Dictionary:
 						Run.add_credits(OptionTable.purse(10))
 						return {text = "The codes are vault-issued and sequential, which means this is a queue and somebody built it. It is orderly. It is also old."},
@@ -1586,9 +1596,9 @@ static func _authored() -> Array[Dictionary]:
 						return {text = "The codes decode into references to a ledger you are never going to see, held somewhere you are not going to be admitted."},
 					botched = func() -> Dictionary:
 						Run.fuel = maxi(0, Run.fuel - 10)
-						return {text = "You lean on the nearest transponder hard enough that all six ships light their drives at once, hold them for exactly four seconds, and go cold again. Nothing is said. You burn out of the ring on a heading you did not plan and do not want to explain."}},
+						return {text = "You lean on the nearest transponder hard enough that all six ships light their drives at once, hold them for four seconds, and go cold again. Nothing is said. You burn out of the ring on a heading you did not plan and would rather not explain."}},
 				{label = "Hold station with them", stay = true, effect = func() -> Dictionary:
-					return {text = "You point inward, kill the engines, and sit in the ring a while. Nothing happens, and you come to suspect that nothing happening is the entire activity. The ring is still there when you leave, and there is nothing stopping you coming back to it with something to sell."}},
+					return {text = "You point inward, kill the drives, and sit in the ring a while. Nothing happens, and you come to suspect that nothing happening is the entire activity. The ring is still there when you leave."}},
 			],
 		},
 		{
