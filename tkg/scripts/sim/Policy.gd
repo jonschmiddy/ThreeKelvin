@@ -27,16 +27,6 @@ var hot: bool = false
 
 ## When each model reaches for a vent card, as a fraction of heat capacity.
 ##
-## THESE TWO NUMBERS ARE THE TWO POLICIES. The comment at the threshold says it
-## outright, and after the end-of-turn shed was deleted they stopped doing the
-## job: hot and cold ended a fight at 0.32 and 0.31 signature and arrived hot
-## 9.4% of the time each. Identical heat behaviour from the two models that
-## exist to bracket it.
-##
-## Sweepable from the command line -- `-- sim ventcold=0.5 venthot=1.0` -- so
-## that retuning them is a measurement rather than an argument.
-## When each model reaches for a vent card, as a fraction of heat capacity.
-##
 ## THESE TWO NUMBERS ARE THE TWO POLICIES -- and they are UNCHANGED after being
 ## swept on 2026-08-25, because the sweep says they do not matter.
 ##
@@ -95,8 +85,6 @@ var pilot: RandomNumberGenerator = RandomNumberGenerator.new()
 var _farmed: Dictionary = {}
 
 
-## Called at the top of every run. The farm counters are per-run state and a
-## Policy outlives a run in the by-chassis sweep.
 ## WHAT A PILOT TAKES OUT OF A CONTAINER, and it is a design statement rather
 ## than plumbing.
 ##
@@ -162,6 +150,8 @@ static func _worth(m: HoldItem) -> int:
 	return Market.base_value(m as ModuleData)
 
 
+## Called at the top of every run. The farm counters are per-run state and a
+## Policy outlives a run in the by-chassis sweep.
 func begin_run() -> void:
 	_farmed.clear()
 

@@ -120,7 +120,6 @@ var fuel_spent_jumping := 0
 var fuel_from_stations := 0
 var fuel_from_elsewhere := 0
 var credits_at_stations := 0
-var credits_from_elsewhere := 0
 
 ## Entry point. Reads `runs=N` from the user args after `--`, plays that many
 ## complete runs, and prints the report. The caller quits the tree.

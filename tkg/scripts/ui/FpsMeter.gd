@@ -71,9 +71,9 @@ func _process(delta: float) -> void:
 	var f := Engine.get_frames_per_second()
 	var col := UITheme.COLD
 	if f < BAD:
-		col = Color("#c8503c")
+		col = UITheme.BAD
 	elif f < WARN:
-		col = Color("#b8923f")
+		col = UITheme.WARN
 	text = "%d FPS" % f
 	add_theme_color_override("font_color", col)
 	# PLACED EVERY TICK RATHER THAN ANCHORED. A top-level Control is excluded

@@ -31,12 +31,7 @@ func held_item() -> HoldItem:
 func _ghost() -> Control:
 	var g := ChitIcon.new()
 	g.setup(chit, origin)
-	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	g.fit_footprint()
-	ItemIcon.carried = g
-	var wrap := ItemIcon.Ghost.new()
-	wrap.start(g, global_position)
-	return wrap
+	return ItemIcon.wrap_ghost(g, global_position)
 
 
 func _draw() -> void:

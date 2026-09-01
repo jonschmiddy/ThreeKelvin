@@ -640,24 +640,6 @@ class MapNode extends RefCounted:
 	## roll is not a re-stock, it is one machine disagreeing with the others about
 	## what is in the room.
 	var bagged: bool = false
-	## Whether this system's container has already been swept open.
-	##
-	## RUNTIME ONLY, and deliberately not in `SaveGame._node_to`: it is about
-	## what you have LOOKED at rather than about what is true of the galaxy, and
-	## a reloaded save replaying one sweep is a better answer than a save format
-	## that has to carry it.
-	var scanned: bool = false
-	## Which enemy died here, by template id, or empty.
-	##
-	## The hull you killed stays in the sector as the way into its own loot, so
-	## the picture has to outlive the fight that made it -- `Combat` is gone by
-	## then. Cleared when the wreck is picked clean.
-	##
-	## RUNTIME ONLY, like `scanned`, and for a weaker reason: a reloaded save
-	## keeps the loot and loses the hull to click on. That is a real gap and it
-	## is the cheap half of the trade until this shape settles -- the sector
-	## drawer still lists what is loose here, so nothing is unreachable.
-	var wreck: StringName = &""
 	## Populated lazily by StationScreen
 	var shop: Array = []
 	var shop_hull: HullData = null

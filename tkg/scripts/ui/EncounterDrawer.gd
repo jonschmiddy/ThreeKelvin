@@ -228,13 +228,9 @@ static func plate(stripe: Color, on_press: Callable) -> Array:
 	tag.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lane.add_child(tag)
-	var pad := MarginContainer.new()
+	var pad := Widgets.pad(null, 9, 7)
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for side in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 7)
-	for side2 in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + side2, 9)
 	lane.add_child(pad)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 5)
@@ -536,12 +532,8 @@ static func outcome(opt: Dictionary, word: String, ink: Color, odds: String,
 	lane.add_child(verdict)
 	lane.add_child(_wall())
 
-	var pad := MarginContainer.new()
+	var pad := Widgets.pad(null, 12, 9)
 	pad.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for s in ["top", "bottom"]:
-		pad.add_theme_constant_override("margin_" + s, 9)
-	for s2 in ["left", "right"]:
-		pad.add_theme_constant_override("margin_" + s2, 12)
 	lane.add_child(pad)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 7)
@@ -569,12 +561,8 @@ static func outcome(opt: Dictionary, word: String, ink: Color, odds: String,
 	# the same thing twice and only one of them can be picked up.
 
 	lane.add_child(_wall())
-	var rail := MarginContainer.new()
+	var rail := Widgets.pad(null, 12, 9)
 	rail.custom_minimum_size = Vector2(132, 0)
-	for s3 in ["top", "bottom"]:
-		rail.add_theme_constant_override("margin_" + s3, 9)
-	for s4 in ["left", "right"]:
-		rail.add_theme_constant_override("margin_" + s4, 12)
 	lane.add_child(rail)
 	var ledger := VBoxContainer.new()
 	ledger.add_theme_constant_override("separation", 3)

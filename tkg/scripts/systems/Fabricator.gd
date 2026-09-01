@@ -66,7 +66,8 @@ static func _useful(r: Dictionary) -> bool:
 static func cost_line(n: MapGen.MapNode, r: Dictionary) -> String:
 	var bits: PackedStringArray = []
 	for id in (r.mats as Dictionary).keys():
-		bits.append("%d %s" % [int(r.mats[id]), DB.material_name(id).to_lower()])
+		bits.append("%d %s" % [int(r.mats[id]),
+			str(MaterialTable.by_id(id).get("name", id)).to_lower()])
 	bits.append("%d credits" % price(n, r))
 	return " · ".join(bits)
 

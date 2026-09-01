@@ -694,7 +694,8 @@ func _sell_material(id: StringName) -> void:
 		return
 	var paid := Market.material_price(n, id)
 	Run.add_credits(paid)
-	Run.log_line("Sold 1 %s for %d credits." % [DB.material_name(id).to_lower(), paid], &"good")
+	Run.log_line("Sold 1 %s for %d credits."
+		% [str(MaterialTable.by_id(id).get("name", id)).to_lower(), paid], &"good")
 
 func _fabricate(r: Dictionary) -> void:
 	var line := Fabricator.make(Run.node_at(), r)
@@ -761,13 +762,13 @@ func _on_action(action: String, thing: Variant) -> void:
 				_refresh()
 				return
 			Run.add_credits(-price2)
-			Audio.play(&"hull_transfer", 0.03)
+			Audio.act(&"hull_transfer")
 			Run.transfer_to_hull(h)
 		"install":
-			Audio.play(&"module_install", 0.04)
+			Audio.act(&"module_install")
 			Run.install_module(thing as ModuleData)
 		"scrap":
-			Audio.play(&"module_scrap", 0.05)
+			Audio.act(&"module_scrap")
 			Run.scrap_module(thing as ModuleData)
 	_refresh()
 

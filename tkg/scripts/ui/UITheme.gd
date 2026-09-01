@@ -72,6 +72,12 @@ const TRACTOR := Color("#4fe0cc")
 ## constant because they share a hex is how a palette stops meaning anything.
 const LEAVE := Color("#d4614f")
 
+## The two-step warning ramp: amber for "worth noticing", red for "bad". The
+## chart's danger meter and the frame counter were each spelling this pair out
+## as literals and agreeing only by coincidence.
+const WARN := Color("#b8923f")
+const BAD := Color("#c8503c")
+
 # Bevel ramp. Raised chrome catches light top-left and falls away bottom-right —
 # the same two-plane rule the sprite contract uses, applied to interface chrome.
 const BEVEL_HI := Color("#3d4d61")

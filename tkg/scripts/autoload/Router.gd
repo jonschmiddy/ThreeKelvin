@@ -488,6 +488,19 @@ func option_resolved(index: int, result: StringName = &"done") -> void:
 	event_resolved(result)
 
 
+## Ask the party for the option this event screen is standing in, BEFORE the
+## screen rolls or pays anything. The other half of the seam `event_resolved`
+## records: consumption is arbitrated here through `Run.take_option`, because
+## an option two ships can race for must be asked for, not assumed -- roll
+## first and apologise afterwards, and the loser has already pocketed the
+## payout. See `_resolve_derelict` for the shape.
+func claim_open_option() -> bool:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null or _open_option < 0:
+		return false
+	return await Run.take_option(n, MapGen.OPTION_SITE + _open_option)
+
+
 func event_resolved(result: StringName = &"done") -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	# ONE OPTION IS SPENT, NOT THE SYSTEM. A system holds several things to do

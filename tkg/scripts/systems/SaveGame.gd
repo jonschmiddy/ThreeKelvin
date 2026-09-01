@@ -307,7 +307,7 @@ static func _snapshot() -> Dictionary:
 		heat_cap_bonus = Run.heat_cap_bonus,
 		credits = Run.credits,
 		# The whole ledger, not the one row that used to be a field. A material
-		# added to DB.MATERIALS is saved by construction rather than by somebody
+		# added to MaterialTable is saved by construction rather than by somebody
 		# remembering to add a line here.
 		fuel = Run.fuel,
 		dross = Run.dross.map(func(x: StringName) -> String: return String(x)),
@@ -851,8 +851,9 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	# then on -- the same contract `foes` and `ambush` state above.
 	#
 	# Ids rather than definitions, so a save can be rebuilt after the table has
-	# changed underneath it. `OptionTable.resolve` drops an id this build does
-	# not have with a warning; a missing option must never refuse a save.
+	# changed underneath it. Resolution is lazy -- `OptionTable.by_id` answers
+	# empty for an id this build does not have; a missing option must never
+	# refuse a save.
 	var opts: Array[StringName] = []
 	for o in d.get("options", []):
 		opts.append(StringName(str(o)))

@@ -269,17 +269,11 @@ func _layout() -> void:
 	# before get a slot found for them, and they get it around what is already
 	# there -- so arriving loot lands in the gaps rather than reshuffling the
 	# pile you were reading.
-	var taken: Dictionary = {}
+	var taken := _occupied()
 	var fresh: Array[HoldItem] = []
 	for m0 in _items:
-		var m: HoldItem = m0
-		if _at.has(m):
-			var was: Vector2i = _at[m]
-			for dy0 in m.footprint().y:
-				for dx0 in m.footprint().x:
-					taken[was + Vector2i(dx0, dy0)] = true
-		else:
-			fresh.append(m)
+		if not _at.has(m0):
+			fresh.append(m0)
 	# Largest first among the new ones, the same rule `reseat` uses: first-fit
 	# on a fresh grid strands big things behind small ones.
 	fresh.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
@@ -348,19 +342,7 @@ func _rebuild() -> void:
 	Widgets.clear(self)
 	for i in _items.size():
 		var m: HoldItem = _items[i]
-		var icon: ItemIcon
-		if m is CreditChit:
-			var ci := ChitIcon.new()
-			ci.setup(m as CreditChit, &"bag")
-			icon = ci
-		elif m is MaterialData:
-			var mi := MaterialIcon.new()
-			mi.setup(m as MaterialData, &"bag")
-			icon = mi
-		else:
-			var gi := ModuleIcon.new()
-			gi.setup(m as ModuleData, &"bag")
-			icon = gi
+		var icon := ItemIcon.make(m, &"bag")
 		# `bag`, not `cargo`, and this is the whole wiring. The drop site reads
 		# it to know that taking this costs a CLAIM -- one bag, first hand in --
 		# rather than being a free rearrangement of something you already own.
@@ -497,7 +479,16 @@ func _drop_data(at: Vector2, data: Variant) -> void:
 	if m == null:
 		return
 	if String((data as Dictionary).get("origin", &"")) == "bag":
-		_at[m] = _cell_of(at, m)
+		# RE-CHECKED AT THE LANDING, not only on the hover. A partner mutating
+		# the same pile fires a refresh mid-drag, so the hover's yes can be
+		# stale by the time you let go -- and `_layout` keeps any cell it is
+		# handed, so a stale yes drew two items on one cell until the
+		# container was reopened. A cell that stopped fitting goes through the
+		# same nudge-and-anywhere search a throw-in uses.
+		var cell := _cell_of(at, m)
+		if not _fits(m, cell):
+			cell = _target_for(at, m)
+		_at[m] = cell
 		_layout()
 		_rebuild()
 		return
@@ -531,48 +522,58 @@ func _cell_of(at: Vector2, m: HoldItem) -> Vector2i:
 ## outright makes packing a test of aim rather than of arithmetic.
 func _target_for(at: Vector2, m: HoldItem) -> Vector2i:
 	var want := _cell_of(at, m)
-	if _fits(m, want):
+	var f := m.footprint()
+	# One occupancy map for the whole search -- this runs on every drag-over
+	# frame, and rescanning the pile per candidate cell was most of its cost.
+	var taken := _occupied(m)
+	if _clear_at(taken, want, f):
 		return want
-	var best := want
+	var best := -Vector2i.ONE
 	var best_d := 1e9
-	for dy in range(-2, 3):
-		for dx in range(-2, 3):
+	for dy in range(-HoldGrid.NUDGE, HoldGrid.NUDGE + 1):
+		for dx in range(-HoldGrid.NUDGE, HoldGrid.NUDGE + 1):
 			var t := want + Vector2i(dx, dy)
-			if t.x < 0 or t.y < 0 or not _fits(m, t):
+			if not _clear_at(taken, t, f):
 				continue
 			var dist := Vector2(dx, dy).length_squared()
 			if dist < best_d:
 				best_d = dist
 				best = t
-	if _fits(m, best):
+	if best != -Vector2i.ONE:
 		return best
 	# Nowhere near it will do, so anywhere will: a container has no floor and
 	# refusing to accept something you are putting down would be inventing a
 	# rule the fiction does not have.
+	return _first_fit(taken, f)
+
+
+## Every cell covered by anything placed here, except `exclude`. The one
+## occupancy computation -- layout, fit checks and the drop search all read the
+## pile through this.
+func _occupied(exclude: HoldItem = null) -> Dictionary:
 	var taken: Dictionary = {}
 	for other in _items:
 		var o: HoldItem = other
-		if o == m or not _at.has(o):
+		if o == exclude or not _at.has(o):
 			continue
 		var oc: Vector2i = _at[o]
-		for dy2 in o.footprint().y:
-			for dx2 in o.footprint().x:
-				taken[oc + Vector2i(dx2, dy2)] = true
-	return _first_fit(taken, m.footprint())
+		for dy in o.footprint().y:
+			for dx in o.footprint().x:
+				taken[oc + Vector2i(dx, dy)] = true
+	return taken
+
+
+## Whether a footprint at `cell` stays in the columns and off the `taken` cells.
+func _clear_at(taken: Dictionary, cell: Vector2i, f: Vector2i) -> bool:
+	if cell.x < 0 or cell.y < 0 or cell.x + f.x > _cols:
+		return false
+	for dy in f.y:
+		for dx in f.x:
+			if taken.has(cell + Vector2i(dx, dy)):
+				return false
+	return true
 
 
 ## Whether a cell is clear of everything except the item being moved.
 func _fits(m: HoldItem, cell: Vector2i) -> bool:
-	var f := m.footprint()
-	if cell.x < 0 or cell.y < 0 or cell.x + f.x > _cols:
-		return false
-	for other in _items:
-		var o: HoldItem = other
-		if o == m or not _at.has(o):
-			continue
-		var oc: Vector2i = _at[o]
-		var of := o.footprint()
-		if cell.x < oc.x + of.x and oc.x < cell.x + f.x \
-				and cell.y < oc.y + of.y and oc.y < cell.y + f.y:
-			return false
-	return true
+	return _clear_at(_occupied(m), cell, m.footprint())
