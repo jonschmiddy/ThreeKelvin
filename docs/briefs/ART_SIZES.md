@@ -160,3 +160,78 @@ refactor.**
 
 **Standing rule, unchanged: no PixelLab generation without explicit
 go-ahead.** Every step above stops and asks.
+
+---
+
+## 7. The Korvan design language
+
+*Read off `hull_light_c`, `hull_medium_a` and `hull_heavy_s` rather than
+invented. Ninety sprites are being generated and the whole point of them is that
+they look like one manufacturer's line, so this is the part of the brief that
+matters most.*
+
+### What a Korvan hull is
+
+**A monitor.** Long, low and horizontal — a naval gun-platform that happens to
+be in space, not an aircraft and not a wedge. The silhouette sits far wider than
+it is tall, and the mass is carried low.
+
+| | |
+|---|---|
+| **orientation** | side-on profile, **nose to the right**, flat to the viewer |
+| **proportion** | 2.1 : 1 to 2.7 : 1, wider than tall, mass low in the frame |
+| **hull line** | a long spine with a blunt, slightly tapered bow and a squared stern |
+| **superstructure** | a boxy layered stack rising forward of centre — a bridge tower, stepped, two to four tiers |
+| **plating** | visible panel seams dividing the flank into segments; riveted, industrial, worked-on |
+| **underside** | a darker keel band running the length, so the hull reads as sitting IN light rather than glowing |
+| **stern** | an engine block, squared, with the warmest colour in the sprite |
+
+### The palette
+
+Cold steel body, **one warm accent**, and the accent is rationed.
+
+| role | colour | where |
+|---|---|---|
+| hull | slate blue-grey, `#5c6b7d` family | the body, most of the sprite |
+| shadow | deep blue-black | keel band, panel recesses, under the stack |
+| highlight | pale grey-blue | top faces, the lip where deck meets flank |
+| **accent** | **amber / orange** | a flank stripe, a hatch, the engine block, one or two lit ports |
+
+**The amber is the signature and it must stay rationed.** On the existing three
+it is well under a tenth of the pixels: a stripe along the flank, the stern
+glow, and a couple of lit windows. A Korvan hull with orange panels all over it
+is not a Korvan hull.
+
+### What tells the tiers apart
+
+C to S is **accumulation, not redesign**. The same ship, further along.
+
+| tier | reads as |
+|---|---|
+| **C** | flat deck, minimal stack, few seams, almost no accent. A working hull |
+| **B** | a second tier on the stack, more panel detail, the flank stripe appears |
+| **A** | a full bridge tower, dorsal clutter, sensor masts, more lit ports |
+| **S** | the tower crowned with fittings, heavy plating, the most amber — but still rationed |
+
+A tier is not a new shape. If a C and an S from the same weight do not read as
+the same yard's work, the pair has failed regardless of how good either looks
+alone.
+
+### What is NOT Korvan
+
+Stated because a generator will reach for all of these:
+
+- swept wings, fins, or anything aerodynamic
+- a cockpit canopy, or a nose that reads as a face
+- curves as the dominant line — Korvan is boxes and slabs
+- glow, bloom, engine flares baked into the sprite (the exhaust is a separate
+  animated asset — see `tkg/art/sprites/exhaust/`)
+- a second accent colour. One warm, and it is amber
+- symmetry top-to-bottom. The deck is busy and the keel is plain
+- anti-aliasing of any kind — see `ART_CONTRACT.md` §6
+
+### Checking a batch
+
+The test is not "is this a good ship". It is **"put beside the three that exist,
+does this come out of the same yard."** Judge them side by side at 1× on the
+game's own background, never alone and never zoomed.
