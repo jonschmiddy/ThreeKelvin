@@ -34,10 +34,12 @@ extends Control
 ## and a peaceful situation in different groups, with no ambush possible on the
 ## way in. Re-run the scan and change this number whenever the option table or
 ## the map generator moves under it.
-## Seed 10: one jump from the start, ALPHA ABYSSAL GATE (danger 1) offers
+## Seed 1: one jump from the start, ALPHA ABYSSAL GATE (danger 1) offers
 ## `hostile_contact` -- the plainest declared fight in the table -- alongside
-## `ice` and `the_long_tow`. Verified by the scan on 2026-08-31.
-const SEED := 10
+## `drifting_lifepod` and `dead_station`. Re-picked 2026-09-01 after the
+## eighty-encounter commission moved the positional rolls out from under
+## seed 10 -- the merge gate caught it, which is the gate doing its job.
+const SEED := 1
 
 enum Step { OFF, WELCOME, CHART, SETTLE, FIGHT, WRAP }
 
