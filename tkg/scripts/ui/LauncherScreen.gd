@@ -266,7 +266,7 @@ func _confirm_continue() -> void:
 		UITheme.COLD, UITheme.FS_SMALL))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.add_child(Widgets.button("CONTINUE", func() -> void:
+	row.add_child(Widgets.cta("CONTINUE", func() -> void:
 		_close_popup()
 		Router.continue_run()))
 	row.add_child(_leave_button("NOT YET", _close_popup))
@@ -422,7 +422,7 @@ func _confirm_new_run() -> void:
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.add_child(Widgets.button("LAUNCH", _launch))
+	row.add_child(Widgets.cta("LAUNCH", _launch))
 	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
 
@@ -457,7 +457,7 @@ func _confirm_tutorial() -> void:
 	col.add_child(_gap(4))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.add_child(Widgets.button("LAUNCH", _launch_tutorial))
+	row.add_child(Widgets.cta("LAUNCH", _launch_tutorial))
 	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
 	_open_popup(col, true)

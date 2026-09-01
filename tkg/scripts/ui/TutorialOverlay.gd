@@ -321,7 +321,7 @@ func _render() -> void:
 		_:
 			return
 	if _step == Step.WRAP:
-		_add_button("FINISH", _end)
+		_add_button("FINISH", _end, true)
 	else:
 		_add_button("END TUTORIAL", _end)
 
@@ -358,7 +358,7 @@ func _settle_lines() -> String:
 	return "\n".join(lines)
 
 
-func _add_button(text: String, action: Callable) -> void:
-	var b := Widgets.button(text, action)
+func _add_button(text: String, action: Callable, primary: bool = false) -> void:
+	var b := Widgets.cta(text, action) if primary else Widgets.button(text, action)
 	b.custom_minimum_size = Vector2(110, 17)
 	_buttons.add_child(b)

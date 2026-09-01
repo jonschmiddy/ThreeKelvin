@@ -675,7 +675,7 @@ func _drawer_simple(line: String, label: String) -> void:
 	loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	loot.disabled = on_floor <= 0
 	row.add_child(loot)
-	var b := Widgets.button(label, _on_action)
+	var b := Widgets.cta(label, _on_action)
 	b.custom_minimum_size = EncounterDrawer.BTN
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(b)
@@ -799,18 +799,18 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		head.add_child(claim)
-	var out := Widgets.button("CONTINUE", func() -> void:
+	var out := Widgets.cta("CONTINUE", func() -> void:
 		_dstate = Drawer.LIST
 		_open = -1
 		_res = {}
 		_refresh())
 	if Run.dead:
-		out = Widgets.button("SUMMARY", func() -> void: Router.show_game_over())
+		out = Widgets.cta("SUMMARY", func() -> void: Router.show_game_over())
 	elif bool(_res.get("fight", false)):
 		# LIST -> FIGHT -> RESULT -> LIST. The fight is a screen of its own and
 		# then `after_combat` returns to the sector, where a rebuilt drawer
 		# defaults to LIST with this option already spent.
-		out = Widgets.button("THEY ARE FIRING", func() -> void:
+		out = Widgets.cta("THEY ARE FIRING", func() -> void:
 			Router.start_ambush())
 	out.custom_minimum_size = EncounterDrawer.BTN
 	if waiting:
@@ -1272,7 +1272,7 @@ func _build_hand() -> PanelContainer:
 	# END TURN keeps the weight because it is the one you press every turn. It was
 	# two lines and 38 tall, which made it a different size from the ENERGY box it
 	# is supposed to mirror; one line at 22 mirrors it as part of the block.
-	_end_button = Widgets.button("END TURN", _on_end_turn)
+	_end_button = Widgets.cta("END TURN", _on_end_turn)
 	# 16, not 22. A bevel button floors at about 17 whatever it is asked for, so
 	# three of them plus a 22 came to 62 against the 54 the left rail spends on
 	# ENERGY and TURN. Levelling them is what makes the block fit at all.
@@ -1507,7 +1507,7 @@ func _build_overlay() -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(row)
-	row.add_child(Widgets.button("CONTINUE", _on_continue))
+	row.add_child(Widgets.cta("CONTINUE", _on_continue))
 
 # -------------------------------------------------------------------- refresh
 
@@ -2511,7 +2511,7 @@ func _exit_ask_result(title: String, ink: Color, said: String,
 	_exit_box.add_child(body)
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_child(Widgets.button("CONTINUE", on_go))
+	row.add_child(Widgets.cta("CONTINUE", on_go))
 	_exit_box.add_child(row)
 	_centre_exit_ask()
 
