@@ -17,3 +17,22 @@ __pycache__/
 # The knowledge graph. Rebuilt from the repo by `/graphify`, and the cache under
 # it is keyed on file hashes — nothing here is a source of truth.
 graphify-out/
+
+# Art generation scratch. Every hull, module and plume batch lands in tools/out,
+# and a culling round is hundreds of candidates for the handful that survive: it
+# reached 49MB and 2127 untracked files before anyone looked, which is mostly how
+# it got there — `git status` was unreadable, so nobody read it.
+#
+# Ignored by contents rather than as a directory, so the exceptions below can be
+# re-included. Git cannot re-include anything under an excluded DIRECTORY, so
+# `tools/out/*` is deliberate and `tools/out/` would break the negations.
+tools/out/*
+# The benches are review pages that get linked and compared against later.
+!tools/out/*.html
+# NOT scratch: these are what the shipped hulls are built FROM. install_hulls.py
+# composes the light and medium sheets out of pool/, and hull_edits.py reads the
+# pristine heavy_raw/ to write heavy_final/. Delete these and the two committed
+# tools still run but cannot reproduce a single sprite in the game.
+!tools/out/pool/
+!tools/out/heavy_final/
+!tools/out/heavy_raw/
