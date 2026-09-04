@@ -1682,7 +1682,7 @@ const HULL_EXHAUST := {
 		{id = 10, at = Vector2i(40, 88), back = false},
 	],
 	"hull_heavy_s": [
-		{id = 24, at = Vector2i(42, 64), back = false},
+		{id = 24, at = Vector2i(44, 64), back = false},
 	],
 }
 
