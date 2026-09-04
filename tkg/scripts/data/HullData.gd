@@ -147,19 +147,30 @@ func perks() -> Array[StringName]:
 ## — the flame swells and gutters — which brightness cycling cannot do at all.
 ## Every frame was snapped back onto the source flame's own twelve colours
 ## afterwards, because the generator drifted 90 pixels off-palette.
-@export var exhaust: Texture2D
 @export var exhaust_frames: int = 1
-## WHICH plume, as an index into art/sprites/exhaust/. Held alongside the
-## texture rather than instead of it so a saved ship remembers its engine
-## across an art change, and so a refit screen has something to cycle.
+## EVERY plume this hull carries, because a ship has as many engines as it has,
+## not one. Rigged in the bench and installed from its export; medium_c and
+## medium_s fly three each, four hulls fly two, and a hull nobody has rigged
+## still gets a single centred plume from `hull_exhaust_at`.
 ##
-## Not derived from weight class, deliberately: a plume that changes size with
-## the hull makes one engine read as three different engines, and the weight is
-## already legible from the ship in front of it.
-@export var exhaust_id: int = 0
-## Where the strip's top-left corner sits on the hull canvas. The frames are
-## cropped tight to the flame, so unlike `sprite` they do not composite at 0,0.
-@export var exhaust_offset: Vector2i = Vector2i.ZERO
+## One entry is `{id: int, tex: Texture2D, at: Vector2i, back: bool}`:
+##
+##   id    which strip, an index into art/sprites/exhaust/. Kept beside the
+##         texture rather than instead of it so a saved ship remembers its engine
+##         across an art change, and so a refit screen has something to cycle.
+##         Not derived from weight class, deliberately: a plume that changes size
+##         with the hull makes one engine read as three different engines, and
+##         the weight is already legible from the ship in front of it.
+##   at    where the strip's top-left corner sits on the hull canvas. The frames
+##         are cropped tight to the flame, so unlike `sprite` they are not at 0,0.
+##   back  drawn BEFORE the hull, so the plating occludes it. A thruster buried
+##         in the ship's own body needs this or its flame paints over the hull it
+##         is meant to be firing out of. Nine of the twenty-two are set this way.
+@export var thrusters: Array[Dictionary] = []
+
+## The first plume, for the callers that only want to know whether there is one.
+func has_exhaust() -> bool:
+	return not thrusters.is_empty()
 @export var sprite: Texture2D
 ## The same hull at HALF, for the views that put several ships on screen at once.
 ##

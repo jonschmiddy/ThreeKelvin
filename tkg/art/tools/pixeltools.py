@@ -108,13 +108,28 @@ def palette(w, h, rows):
 
 # ------------------------------------------------------------------ operations
 
-def strip_bg(w, h, rows, tol=14):
+def strip_bg(w, h, rows, tol=14, creep=0):
     """Opaque background -> alpha, flood-filled INWARD FROM THE BORDER.
 
     Never a global colour key. PixelLab returns a background sampled from the
     forced palette, so the same value occurs inside the hull too, and keying it
     globally punches holes through the ship. Flooding from the edge can only
     reach pixels that are actually outside it.
+
+    `tol` is measured against the seed -- the most common colour on the image
+    border. That is enough for a flat background and not enough for a graded
+    one: the shade lying against the subject can sit 60 away from the corner,
+    survive the flood, and read as a white rim around the sprite. MEASURED on
+    this batch: 30 of 36 hulls kept a rim of 300-700 pixels at tol=14.
+
+    `creep` fixes that by asking a second question. A pixel also joins the
+    background if it is within `creep` of THE NEIGHBOUR IT WAS REACHED FROM,
+    so a smooth gradient is walked down one small step at a time however far it
+    travels, while the hard jump onto the subject stops the flood dead. Keep it
+    well under the contrast between background and subject; 12 clears these
+    hulls without touching the pale deck plating that reaches the silhouette.
+
+    Off by default: it changes what existing callers strip.
     """
     def px(x, y):
         o = x * 4
@@ -132,6 +147,9 @@ def strip_bg(w, h, rows, tol=14):
     def near(c):
         return abs(c[0] - bg[0]) + abs(c[1] - bg[1]) + abs(c[2] - bg[2]) <= tol
 
+    def steps(c, f):
+        return abs(c[0] - f[0]) + abs(c[1] - f[1]) + abs(c[2] - f[2]) <= creep
+
     seen, q = bytearray(w * h), deque()
     for x in range(w):
         for y in (0, h - 1):
@@ -145,7 +163,10 @@ def strip_bg(w, h, rows, tol=14):
         x, y = q.popleft()
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             nx, ny = x + dx, y + dy
-            if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx] and near(px(nx, ny)):
+            if not (0 <= nx < w and 0 <= ny < h) or seen[ny * w + nx]:
+                continue
+            c = px(nx, ny)
+            if near(c) or (creep and steps(c, px(x, y))):
                 seen[ny * w + nx] = 1; q.append((nx, ny))
     n = 0
     for y in range(h):
@@ -403,3 +424,62 @@ def _main(argv):
 
 if __name__ == "__main__":
     sys.exit(_main(sys.argv))
+
+def pieces(w, h, rows):
+    """Every connected run of opaque pixels, biggest first.
+
+    A generated sprite is supposed to be one ship. When it is not, the extra
+    pieces are background the flood fill could not reach or -- more often --
+    invented lettering the model painted in the empty space beside a spare
+    hull. Either way they sit outside the ship and wreck its bounding box:
+    light_02 measured 398 deep against a real ship of 174.
+    """
+    seen = [[0] * w for _ in range(h)]
+    out = []
+    for y in range(h):
+        for x in range(w):
+            if not rows[y][x * 4 + 3] or seen[y][x]:
+                continue
+            q = [(x, y)]
+            seen[y][x] = 1
+            px = []
+            while q:
+                cx, cy = q.pop()
+                px.append((cx, cy))
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < w and 0 <= ny < h and rows[ny][nx * 4 + 3]                             and not seen[ny][nx]:
+                        seen[ny][nx] = 1
+                        q.append((nx, ny))
+            out.append(px)
+    out.sort(key=len, reverse=True)
+    return out
+
+
+def despeckle(w, h, rows, small=0.015):
+    """Erase the small loose pieces. Returns (pixels removed, suspect).
+
+    Only pieces under `small` of the opaque mass go, because "keep the largest
+    piece" is wrong the moment a sprite HAS two large pieces: hv_02 came back
+    from the generator fully opaque, the background flood tore through it into
+    a hundred fragments, and keeping the biggest one threw away 71% of the ship
+    without a word. A second piece that large is not a speck, it is a broken
+    strip, and the caller needs to know rather than be handed a fragment.
+
+    `suspect` is True when the largest piece is under 80% of the mass. Nothing
+    is erased in that case -- the sprite wants looking at, not editing.
+    """
+    ps = pieces(w, h, rows)
+    if len(ps) < 2:
+        return 0, False
+    tot = float(sum(len(q) for q in ps))
+    if len(ps[0]) / tot < 0.80:
+        return 0, True
+    n = 0
+    for q in ps[1:]:
+        if len(q) / tot >= small:
+            continue                      # too big to be debris; leave it alone
+        for x, y in q:
+            rows[y][x * 4 + 3] = 0
+            n += 1
+    return n, False

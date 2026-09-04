@@ -8,10 +8,20 @@ distraction there in both directions: it hides layout problems behind something
 nice to look at, and it makes a size change look like an art change. A box is
 exactly its dimensions and nothing else, so anything that looks wrong IS wrong.
 
-THE SIZES ARE THE SPEC. 75x30, 100x40, 125x50 — small, medium, large, all 2.5:1,
-drawn at 2x in every screen a single player looks at. Settled by putting these
-same boxes on screen and measuring them against the panel, which is the only way
-the question was ever going to be answered.
+THE ART IS THE SPEC NOW, and these numbers follow it rather than lead it. They
+were 75x30, 100x40 and 125x50 — an agreed 2.5:1 settled by putting boxes on
+screen — and the Korvan hulls were then drawn to their own proportions and
+installed at native size by `tools/install_hulls.py`. What is below is measured
+back off those hulls: half of each weight's bare canvas, which is the space a
+hull actually occupies in a layout.
+
+BROKEN IN TWO OTHER WAYS, both older than that and neither fixed here, because
+writing twelve placeholder PNGs somewhere wrong is worse than writing none.
+SPRITES still points at the flat `art/sprites` the hulls left when they moved
+into `hulls/korvan/`, and `--restore` names that same dead path; and the boxes
+are emitted at 1x, from before the doubling moved into the art, so a screen
+calling `magnify(1)` would draw them half the size of the hulls they stand in
+for. Re-point and re-scale both before trusting this tool again.
 
 Each box carries its class as pips, because a placeholder that looks identical
 at C and at S cannot show you that the tier picker works.
@@ -29,14 +39,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SPRITES = os.path.join(HERE, "..", "sprites")
 
 # The agreed hull box per weight class, in art pixels. See the module docstring.
-SPEC = {"light": (75, 30), "medium": (100, 40), "heavy": (125, 50)}
+SPEC = {"light": (96, 46), "medium": (124, 56), "heavy": (158, 70)}
 TIERS = ("c", "b", "a", "s")
 
-# The medium's layout rule, applied to all three: 38px of clearance to the left
-# of the engines for the exhaust plume, 5 at the nose, 11 split top and bottom.
-# Same geometry the real hulls are composed with, so swapping art for a box does
-# not move the mount lines relative to the ship.
-LEFT, RIGHT, VPAD = 38, 5, 11
+# 38px of clearance to the left of the engines for the exhaust plume — half of
+# the 76 the real sheets carry, since these are box units. Nose and vertical
+# padding are zero because SPEC above is the whole bare canvas, margins included,
+# rather than the ship inside it.
+LEFT, RIGHT, VPAD = 38, 0, 0
 
 ICE = (0xC3, 0xD2, 0xE2)
 DIM = (0x1A, 0x24, 0x30)

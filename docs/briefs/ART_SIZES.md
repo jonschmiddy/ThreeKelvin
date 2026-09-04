@@ -235,3 +235,115 @@ Stated because a generator will reach for all of these:
 The test is not "is this a good ship". It is **"put beside the three that exist,
 does this come out of the same yard."** Judge them side by side at 1× on the
 game's own background, never alone and never zoomed.
+
+---
+
+## 8. The hull prompt, and where it came from
+
+Round 1 fired one prompt per weight, varied only by seed, and **32 of 90
+survived the cull**. The prompt was not varied, so the keeps and cuts are a
+clean readout of what the generator does when left alone -- and of which of its
+habits are wanted.
+
+### What the keeps had in common
+
+Read off all 32, and consistent across every weight:
+
+| | |
+|---|---|
+| **silhouette** | a long low slender wedge, tapering the whole way to a fine point |
+| **superstructure** | ONE low block, a single storey, set well forward, thin masts on top |
+| **the amber** | ONE narrow VERTICAL band across the hull, roughly amidships |
+| **plating** | uniform cool grey-white, fine speckle, horizontal seams |
+| **flanks** | plain. Very little clutter |
+
+### What the cuts had
+
+- bulbous domes, blisters and round pods on the flank
+- a tall stacked bridge tower, two or three tiers -- the submarine look
+- deep, fat, blunt hulls that never taper
+- amber run as a long HORIZONTAL stripe, or spread over many panels
+- dense greebles and containers on the upper deck
+- hulls off the palette: teal, brown, near-black
+
+### The two corrections that mattered
+
+Round 1's prompt asked for the wrong thing twice, and the cull found both:
+
+| | round 1 said | the keeps actually showed |
+|---|---|---|
+| bow | "steps down toward a **blunt** angular wedge bow" | tapered the whole length to a **fine sharp point** |
+| amber | "one short amber stripe **near the rear** only" | one narrow **vertical band amidships** |
+
+### The round 2 prompt
+
+Weight word and engine clause vary; everything else is fixed.
+
+> Flat side view of a {**heavy** / **medium** / **small light**} armoured
+> spaceship pointing right. A long low slender hull built from thick flat armour
+> plates like a tank rather than a boat. Deepest at the stern, tapering over its
+> whole length to a fine sharp point at the bow. Its upper works are one low
+> armoured block set well forward, a single storey, flush and squared off,
+> topped by a few thin antenna masts. {**Blocky engine housings** / **A single
+> blocky engine housing**} at the stern. The flanks are plain and unbroken: flat
+> plating, fine panel seams, a few small lit ports, no domes and no round pods.
+> Weathered grey-white armour and one narrow vertical amber band painted across
+> the hull amidships, the only colour on the ship. Brutalist, industrial,
+> {**workmanlike** / **spare**}.
+
+`create_image_pixflux`, `view: side`, `direction: east`, `no_background: true`,
+`detail: highly detailed`, `outline: selective outline`,
+`text_guidance_scale: 12`. Seeds 401-430 heavy, 501-530 medium, 601-630 light;
+round 1 used 101-130 / 201-230 / 301-330, so neither batch repeats the other.
+
+**`direction: east` mostly works.** MEASURED over round 2 by comparing the
+opaque mass either side of centre: **77 of 90 came out nose-right**, 13 nose-left.
+Round 1 agrees -- only 6 of 90 were flipped in the cull. Do not spend
+generations chasing the other 13; the bench has a flip toggle and mirroring is
+free offline.
+
+---
+
+## 9. The prow the generator will not draw
+
+Round 2's silhouette was accepted except at the front: the bow tapers to a fine
+point, and it wants a **Pillar of Autumn prow** -- cut off square, a flat
+vertical face of armour.
+
+**Four promptings and an img2img edit all failed to produce it:**
+
+| attempt | result |
+|---|---|
+| "a flat squared-off prow: a blunt vertical armoured face, chisel-like" | pointed |
+| "cut off square ... as if the tip had been sawn off" | pointed |
+| "a thick square-fronted ram block ... like the head of a hammer" | pointed |
+| "squared off flat like the Pillar of Autumn", plus "a UNSC cruiser from Halo" | pointed |
+| img2img over an accepted hull, `init_image_strength` 220 and 150 | pointed |
+
+Two of those also dragged the rest of the sprite off what had already been
+approved: dropping the word "slender" turned the slab hulls into rounded
+submarine tubes, and the amber drifted back to a horizontal stripe. **The prior
+is too strong to argue with, and every attempt risks the parts that already
+work.**
+
+### So the prow is cut offline
+
+`tools/blunt_bow.py`. The taper is wanted right up until the last stretch, so
+the fix is to stop it early rather than to ask for a different shape:
+
+1. find the bow -- the end carrying less of the ship, read off the sprite rather
+   than assumed, because 13 of 90 face the other way
+2. walk in from it until the hull reaches **0.32** of its thickest column
+3. drop everything beyond, and repaint that column in the darkest colour the
+   ship already uses on its own silhouette
+
+Every pixel in the result was drawn by the generator; the cap is the ship's own
+outline, so it reads as an armoured face rather than an amputation.
+
+**0.32 is measured, not chosen.** On a 320x140 heavy: 0.20 is still visibly
+pointed, 0.26 is close, **0.32 gives a clean flat prow with the length intact**,
+0.38 starts eating hull, and 0.50 removes a third of the ship. Applied across
+all 90 it takes 63,889 pixels, about 710 a hull.
+
+Pointed originals are kept in `tools/out/hull_candidates_r2_pointed/` -- the cut
+is a pipeline step, not a destructive edit, and the threshold can be re-run.

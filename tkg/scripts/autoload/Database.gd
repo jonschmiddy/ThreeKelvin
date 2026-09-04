@@ -1394,7 +1394,7 @@ func _seed_hulls() -> void:
 		h.sprite = hull_sprite(d.weight)
 		h.sprite_half = hull_sprite(d.weight, 0, true)
 		apply_hull_lines(h)
-		set_exhaust(h, h.exhaust_id)
+		set_exhaust(h, DEFAULT_EXHAUST)
 		hull_frames.append(h)
 
 	for manufacturer in MANUFACTURER_HULLS:
@@ -1445,7 +1445,7 @@ func _manufacturer_hull(manufacturer: StringName, w: HullData.Weight, spec: Dict
 	h.sprite = hull_sprite(w)
 	h.sprite_half = hull_sprite(w, 0, true)
 	apply_hull_lines(h)
-	set_exhaust(h, h.exhaust_id)
+	set_exhaust(h, DEFAULT_EXHAUST)
 	return h
 
 ## The art for a weight class at a specification class, or null to fall back to
@@ -1564,66 +1564,71 @@ func apply_hull_lines(h: HullData) -> void:
 ## These SUPERSEDE HULL_LINES where they exist; the lines remain the
 ## fallback for a manufacturer whose slot count this rigging does not cover.
 ## See HullData.mounts_along().
+## RE-RIGGED against the redrawn hulls. The previous 89 were placed on the
+## sprites that shipped before the Korvan redraw and `-- mounts` failed 18 of
+## them outright; these were placed in the bench on the art that is actually
+## here. The measured lines in HULL_LINES remain the fallback for a manufacturer
+## whose slot count this rigging does not cover.
 const HULL_MOUNTS := {
 	"hull_light_c": {
-		weapon = [Vector2(191, 25), Vector2(191, 46)],
-		system = [Vector2(144, 34), Vector2(118, 46)],
-		utility = [Vector2(164, 34), Vector2(100, 35)],
+		weapon = [Vector2(220, 27), Vector2(220, 67)],
+		system = [Vector2(148, 27), Vector2(148, 67)],
+		utility = [Vector2(118, 48), Vector2(184, 48)],
 	},
 	"hull_light_b": {
-		weapon = [Vector2(191, 24), Vector2(191, 44)],
-		system = [Vector2(147, 33), Vector2(166, 44)],
-		utility = [Vector2(101, 33), Vector2(166, 24)],
+		weapon = [Vector2(196, 30), Vector2(197, 77)],
+		system = [Vector2(171, 38), Vector2(171, 64)],
+		utility = [Vector2(128, 51), Vector2(209, 51)],
 	},
 	"hull_light_a": {
-		weapon = [Vector2(198, 25), Vector2(198, 49), Vector2(148, 55)],
-		system = [Vector2(113, 49), Vector2(166, 51)],
-		utility = [Vector2(138, 36), Vector2(103, 36)],
+		weapon = [Vector2(212, 34), Vector2(212, 73), Vector2(162, 79)],
+		system = [Vector2(167, 53), Vector2(212, 53)],
+		utility = [Vector2(122, 64), Vector2(122, 41)],
 	},
 	"hull_light_s": {
-		weapon = [Vector2(198, 22), Vector2(205, 44), Vector2(136, 48)],
-		system = [Vector2(153, 26), Vector2(153, 40), Vector2(101, 36)],
-		utility = [Vector2(113, 48), Vector2(172, 34)],
+		weapon = [Vector2(203, 38), Vector2(171, 75), Vector2(156, 30)],
+		system = [Vector2(128, 38), Vector2(128, 70), Vector2(97, 55)],
+		utility = [Vector2(183, 55), Vector2(236, 55)],
 	},
 	"hull_medium_c": {
-		weapon = [Vector2(238, 40), Vector2(238, 71), Vector2(188, 71)],
-		system = [Vector2(105, 54), Vector2(123, 31)],
-		utility = [Vector2(138, 61), Vector2(169, 46)],
+		weapon = [Vector2(268, 37), Vector2(268, 87), Vector2(188, 87)],
+		system = [Vector2(127, 59), Vector2(184, 60)],
+		utility = [Vector2(158, 30), Vector2(250, 60)],
 	},
 	"hull_medium_b": {
-		weapon = [Vector2(239, 29), Vector2(239, 58), Vector2(162, 60)],
-		system = [Vector2(185, 39), Vector2(101, 40)],
-		utility = [Vector2(148, 39), Vector2(220, 39)],
+		weapon = [Vector2(262, 56), Vector2(262, 90), Vector2(219, 97)],
+		system = [Vector2(107, 71), Vector2(244, 71)],
+		utility = [Vector2(206, 71), Vector2(156, 71)],
 	},
 	"hull_medium_a": {
-		weapon = [Vector2(240, 30), Vector2(240, 64), Vector2(160, 69), Vector2(183, 29)],
-		system = [Vector2(160, 47), Vector2(206, 58)],
-		utility = [Vector2(108, 47), Vector2(206, 40)],
+		weapon = [Vector2(271, 50), Vector2(175, 28), Vector2(271, 89), Vector2(220, 94)],
+		system = [Vector2(111, 67), Vector2(149, 67)],
+		utility = [Vector2(238, 67), Vector2(197, 67)],
 	},
 	"hull_medium_s": {
-		weapon = [Vector2(242, 30), Vector2(242, 51), Vector2(180, 71), Vector2(112, 64)],
-		system = [Vector2(138, 42), Vector2(149, 22), Vector2(211, 51)],
-		utility = [Vector2(107, 42), Vector2(167, 42)],
+		weapon = [Vector2(277, 64), Vector2(277, 91), Vector2(241, 58), Vector2(241, 96)],
+		system = [Vector2(108, 77), Vector2(179, 77), Vector2(257, 77)],
+		utility = [Vector2(152, 48), Vector2(142, 77)],
 	},
 	"hull_heavy_c": {
-		weapon = [Vector2(287, 48), Vector2(287, 88), Vector2(206, 88), Vector2(152, 88)],
-		system = [Vector2(115, 62), Vector2(177, 62)],
-		utility = [Vector2(218, 61)],
+		weapon = [Vector2(326, 72), Vector2(326, 130), Vector2(233, 136), Vector2(201, 136)],
+		system = [Vector2(140, 100), Vector2(307, 100)],
+		utility = [Vector2(200, 60)],
 	},
 	"hull_heavy_b": {
-		weapon = [Vector2(291, 51), Vector2(291, 82), Vector2(206, 88), Vector2(244, 44)],
-		system = [Vector2(111, 62), Vector2(177, 69)],
-		utility = [Vector2(144, 31)],
+		weapon = [Vector2(283, 60), Vector2(343, 109), Vector2(304, 119), Vector2(258, 133)],
+		system = [Vector2(132, 83), Vector2(174, 91)],
+		utility = [Vector2(249, 53)],
 	},
 	"hull_heavy_a": {
-		weapon = [Vector2(296, 50), Vector2(283, 88), Vector2(217, 38), Vector2(180, 88), Vector2(131, 88)],
-		system = [Vector2(108, 56), Vector2(238, 88)],
-		utility = [Vector2(188, 70)],
+		weapon = [Vector2(323, 73), Vector2(323, 110), Vector2(238, 63), Vector2(229, 124), Vector2(183, 121)],
+		system = [Vector2(143, 91), Vector2(185, 92)],
+		utility = [Vector2(200, 64)],
 	},
 	"hull_heavy_s": {
-		weapon = [Vector2(285, 49), Vector2(285, 86), Vector2(191, 31), Vector2(214, 88), Vector2(162, 88)],
-		system = [Vector2(170, 62), Vector2(224, 62), Vector2(129, 79)],
-		utility = [Vector2(137, 31)],
+		weapon = [Vector2(303, 63), Vector2(303, 105), Vector2(205, 42), Vector2(228, 114), Vector2(166, 124)],
+		system = [Vector2(135, 84), Vector2(196, 84), Vector2(262, 84)],
+		utility = [Vector2(176, 50)],
 	},
 }
 
@@ -1633,18 +1638,52 @@ const HULL_MOUNTS := {
 ## light and a heavy can share one engine or carry different ones. The
 ## offset is the strip frame's top-left corner on the hull canvas.
 const HULL_EXHAUST := {
-	"hull_light_c": {id = 0, at = Vector2i(55, 28)},
-	"hull_light_b": {id = 9, at = Vector2i(49, 24)},
-	"hull_light_a": {id = 22, at = Vector2i(31, 24)},
-	"hull_light_s": {id = 11, at = Vector2i(42, 22)},
-	"hull_medium_c": {id = 9, at = Vector2i(55, 36)},
-	"hull_medium_b": {id = 22, at = Vector2i(28, 36)},
-	"hull_medium_a": {id = 2, at = Vector2i(32, 37)},
-	"hull_medium_s": {id = 12, at = Vector2i(29, 34)},
-	"hull_heavy_c": {id = 4, at = Vector2i(51, 49)},
-	"hull_heavy_b": {id = 1, at = Vector2i(21, 48)},
-	"hull_heavy_a": {id = 17, at = Vector2i(5, 44)},
-	"hull_heavy_s": {id = 10, at = Vector2i(21, 49)},
+	"hull_light_c": [
+		{id = 0, at = Vector2i(64, 33), back = false},
+		{id = 0, at = Vector2i(64, 50), back = false},
+	],
+	"hull_light_b": [
+		{id = 6, at = Vector2i(49, 33), back = false},
+		{id = 9, at = Vector2i(67, 9), back = true},
+	],
+	"hull_light_a": [
+		{id = 17, at = Vector2i(21, 32), back = true},
+		{id = 22, at = Vector2i(46, 14), back = true},
+	],
+	"hull_light_s": [
+		{id = 3, at = Vector2i(18, 34), back = true},
+	],
+	"hull_medium_c": [
+		{id = 0, at = Vector2i(58, 38), back = false},
+		{id = 0, at = Vector2i(58, 68), back = false},
+		{id = 23, at = Vector2i(47, 49), back = false},
+	],
+	"hull_medium_b": [
+		{id = 1, at = Vector2i(33, 57), back = true},
+		{id = 9, at = Vector2i(76, 35), back = false},
+	],
+	"hull_medium_a": [
+		{id = 22, at = Vector2i(32, 57), back = false},
+		{id = 22, at = Vector2i(32, 66), back = false},
+	],
+	"hull_medium_s": [
+		{id = 10, at = Vector2i(26, 64), back = false},
+		{id = 11, at = Vector2i(54, 61), back = true},
+		{id = 11, at = Vector2i(54, 76), back = true},
+	],
+	"hull_heavy_c": [
+		{id = 1, at = Vector2i(42, 86), back = true},
+	],
+	"hull_heavy_b": [
+		{id = 16, at = Vector2i(38, 69), back = true},
+	],
+	"hull_heavy_a": [
+		{id = 10, at = Vector2i(40, 72), back = false},
+		{id = 10, at = Vector2i(40, 88), back = false},
+	],
+	"hull_heavy_s": [
+		{id = 24, at = Vector2i(42, 64), back = false},
+	],
 }
 
 ## Measured off each hull's own silhouette by `art/tools/anchors.py`.
@@ -1661,64 +1700,64 @@ const HULL_EXHAUST := {
 ## and a `const` needs an expression the compiler can fold. Converted on assignment.
 const HULL_LINES := {
 	"hull_heavy_a": {
-		dorsal = [Vector2(90, 47), Vector2(115, 39), Vector2(139, 39), Vector2(164, 39), Vector2(188, 39), Vector2(213, 39), Vector2(238, 44), Vector2(262, 48), Vector2(287, 47)],
-		ventral = [Vector2(90, 88), Vector2(115, 85), Vector2(139, 88), Vector2(164, 88), Vector2(188, 88), Vector2(213, 88), Vector2(238, 88), Vector2(262, 87), Vector2(287, 85)],
-		flank = [Vector2(90, 67), Vector2(115, 62), Vector2(139, 63), Vector2(164, 63), Vector2(188, 63), Vector2(213, 63), Vector2(238, 66), Vector2(262, 67), Vector2(287, 66)],
+		dorsal = [Vector2(158, 65), Vector2(172, 58), Vector2(186, 49), Vector2(200, 49), Vector2(214, 49), Vector2(228, 49), Vector2(242, 49), Vector2(256, 59), Vector2(270, 67)],
+		ventral = [Vector2(158, 115), Vector2(172, 121), Vector2(186, 121), Vector2(200, 121), Vector2(214, 121), Vector2(228, 121), Vector2(242, 121), Vector2(256, 121), Vector2(270, 115)],
+		flank = [Vector2(158, 90), Vector2(172, 89), Vector2(186, 85), Vector2(200, 85), Vector2(214, 85), Vector2(228, 85), Vector2(242, 85), Vector2(256, 90), Vector2(270, 91)],
 	},
 	"hull_heavy_b": {
-		dorsal = [Vector2(97, 45), Vector2(120, 44), Vector2(144, 44), Vector2(168, 44), Vector2(191, 44), Vector2(214, 45), Vector2(238, 45), Vector2(262, 45), Vector2(285, 49)],
-		ventral = [Vector2(97, 88), Vector2(120, 88), Vector2(144, 86), Vector2(168, 88), Vector2(191, 88), Vector2(214, 88), Vector2(238, 88), Vector2(262, 88), Vector2(285, 87)],
-		flank = [Vector2(97, 66), Vector2(120, 66), Vector2(144, 65), Vector2(168, 66), Vector2(191, 66), Vector2(214, 66), Vector2(238, 66), Vector2(262, 66), Vector2(285, 68)],
+		dorsal = [Vector2(118, 59), Vector2(140, 65), Vector2(162, 65), Vector2(185, 59), Vector2(207, 59), Vector2(229, 59), Vector2(252, 59), Vector2(274, 59), Vector2(296, 65)],
+		ventral = [Vector2(118, 116), Vector2(140, 130), Vector2(162, 130), Vector2(185, 128), Vector2(207, 128), Vector2(229, 130), Vector2(252, 130), Vector2(274, 130), Vector2(296, 121)],
+		flank = [Vector2(118, 87), Vector2(140, 97), Vector2(162, 97), Vector2(185, 93), Vector2(207, 93), Vector2(229, 94), Vector2(252, 94), Vector2(274, 94), Vector2(296, 93)],
 	},
 	"hull_heavy_c": {
-		dorsal = [Vector2(83, 44), Vector2(108, 44), Vector2(134, 42), Vector2(159, 42), Vector2(184, 42), Vector2(210, 42), Vector2(235, 44), Vector2(261, 45), Vector2(286, 46)],
-		ventral = [Vector2(83, 84), Vector2(108, 88), Vector2(134, 88), Vector2(159, 88), Vector2(184, 88), Vector2(210, 88), Vector2(235, 88), Vector2(261, 88), Vector2(286, 85)],
-		flank = [Vector2(83, 64), Vector2(108, 66), Vector2(134, 65), Vector2(159, 65), Vector2(184, 65), Vector2(210, 65), Vector2(235, 66), Vector2(261, 66), Vector2(286, 65)],
+		dorsal = [Vector2(137, 69), Vector2(161, 58), Vector2(184, 58), Vector2(208, 58), Vector2(232, 58), Vector2(256, 58), Vector2(280, 73), Vector2(303, 72), Vector2(327, 70)],
+		ventral = [Vector2(137, 127), Vector2(161, 127), Vector2(184, 127), Vector2(208, 127), Vector2(232, 127), Vector2(256, 126), Vector2(280, 127), Vector2(303, 127), Vector2(327, 127)],
+		flank = [Vector2(137, 98), Vector2(161, 92), Vector2(184, 92), Vector2(208, 92), Vector2(232, 92), Vector2(256, 92), Vector2(280, 100), Vector2(303, 99), Vector2(327, 98)],
 	},
 	"hull_heavy_s": {
-		dorsal = [Vector2(95, 43), Vector2(119, 43), Vector2(143, 43), Vector2(167, 43), Vector2(191, 43), Vector2(215, 45), Vector2(239, 45), Vector2(263, 45), Vector2(287, 47)],
-		ventral = [Vector2(95, 88), Vector2(119, 85), Vector2(143, 88), Vector2(167, 88), Vector2(191, 88), Vector2(215, 88), Vector2(239, 88), Vector2(263, 88), Vector2(287, 85)],
-		flank = [Vector2(95, 65), Vector2(119, 64), Vector2(143, 65), Vector2(167, 65), Vector2(191, 65), Vector2(215, 66), Vector2(239, 66), Vector2(263, 66), Vector2(287, 66)],
+		dorsal = [Vector2(100, 60), Vector2(123, 45), Vector2(146, 45), Vector2(169, 45), Vector2(192, 45), Vector2(215, 45), Vector2(238, 47), Vector2(261, 57), Vector2(284, 59)],
+		ventral = [Vector2(100, 108), Vector2(123, 114), Vector2(146, 114), Vector2(169, 114), Vector2(192, 114), Vector2(215, 114), Vector2(238, 113), Vector2(261, 110), Vector2(284, 107)],
+		flank = [Vector2(100, 84), Vector2(123, 79), Vector2(146, 79), Vector2(169, 79), Vector2(192, 79), Vector2(215, 79), Vector2(238, 80), Vector2(261, 83), Vector2(284, 83)],
 	},
 	"hull_light_a": {
-		dorsal = [Vector2(87, 25), Vector2(100, 22), Vector2(113, 24), Vector2(126, 24), Vector2(140, 22), Vector2(153, 22), Vector2(166, 22), Vector2(179, 23), Vector2(192, 24)],
-		ventral = [Vector2(87, 48), Vector2(100, 48), Vector2(113, 49), Vector2(126, 51), Vector2(140, 51), Vector2(153, 51), Vector2(166, 51), Vector2(179, 50), Vector2(192, 46)],
-		flank = [Vector2(87, 36), Vector2(100, 35), Vector2(113, 36), Vector2(126, 37), Vector2(140, 36), Vector2(153, 36), Vector2(166, 36), Vector2(179, 36), Vector2(192, 35)],
+		dorsal = [Vector2(96, 33), Vector2(113, 33), Vector2(131, 33), Vector2(148, 33), Vector2(166, 33), Vector2(183, 33), Vector2(200, 34), Vector2(218, 33), Vector2(235, 35)],
+		ventral = [Vector2(96, 65), Vector2(113, 73), Vector2(131, 73), Vector2(148, 73), Vector2(166, 73), Vector2(183, 73), Vector2(200, 72), Vector2(218, 73), Vector2(235, 70)],
+		flank = [Vector2(96, 49), Vector2(113, 53), Vector2(131, 53), Vector2(148, 53), Vector2(166, 53), Vector2(183, 53), Vector2(200, 53), Vector2(218, 53), Vector2(235, 52)],
 	},
 	"hull_light_b": {
-		dorsal = [Vector2(94, 24), Vector2(104, 23), Vector2(114, 23), Vector2(124, 23), Vector2(134, 24), Vector2(144, 24), Vector2(154, 24), Vector2(164, 24), Vector2(174, 24)],
-		ventral = [Vector2(94, 45), Vector2(104, 44), Vector2(114, 46), Vector2(124, 47), Vector2(134, 47), Vector2(144, 47), Vector2(154, 47), Vector2(164, 47), Vector2(174, 44)],
-		flank = [Vector2(94, 34), Vector2(104, 33), Vector2(114, 34), Vector2(124, 35), Vector2(134, 35), Vector2(144, 35), Vector2(154, 35), Vector2(164, 35), Vector2(174, 34)],
+		dorsal = [Vector2(88, 34), Vector2(108, 29), Vector2(128, 29), Vector2(147, 29), Vector2(167, 29), Vector2(187, 29), Vector2(206, 29), Vector2(226, 30), Vector2(246, 36)],
+		ventral = [Vector2(88, 66), Vector2(108, 72), Vector2(128, 72), Vector2(147, 72), Vector2(167, 72), Vector2(187, 72), Vector2(206, 72), Vector2(226, 72), Vector2(246, 67)],
+		flank = [Vector2(88, 50), Vector2(108, 50), Vector2(128, 50), Vector2(147, 50), Vector2(167, 50), Vector2(187, 50), Vector2(206, 50), Vector2(226, 51), Vector2(246, 51)],
 	},
 	"hull_light_c": {
-		dorsal = [Vector2(96, 26), Vector2(110, 25), Vector2(123, 25), Vector2(137, 25), Vector2(150, 25), Vector2(164, 25), Vector2(178, 25), Vector2(191, 25), Vector2(205, 26)],
-		ventral = [Vector2(96, 43), Vector2(110, 46), Vector2(123, 46), Vector2(137, 46), Vector2(150, 46), Vector2(164, 46), Vector2(178, 46), Vector2(191, 45), Vector2(205, 43)],
-		flank = [Vector2(96, 34), Vector2(110, 35), Vector2(123, 35), Vector2(137, 35), Vector2(150, 35), Vector2(164, 35), Vector2(178, 35), Vector2(191, 35), Vector2(205, 34)],
+		dorsal = [Vector2(102, 31), Vector2(119, 27), Vector2(136, 27), Vector2(152, 27), Vector2(169, 27), Vector2(186, 27), Vector2(202, 27), Vector2(219, 27), Vector2(236, 31)],
+		ventral = [Vector2(102, 64), Vector2(119, 67), Vector2(136, 67), Vector2(152, 67), Vector2(169, 67), Vector2(186, 67), Vector2(202, 67), Vector2(219, 66), Vector2(236, 63)],
+		flank = [Vector2(102, 47), Vector2(119, 47), Vector2(136, 47), Vector2(152, 47), Vector2(169, 47), Vector2(186, 47), Vector2(202, 47), Vector2(219, 46), Vector2(236, 47)],
 	},
 	"hull_light_s": {
-		dorsal = [Vector2(95, 24), Vector2(108, 21), Vector2(120, 21), Vector2(133, 21), Vector2(146, 21), Vector2(159, 21), Vector2(172, 21), Vector2(184, 22), Vector2(197, 24)],
-		ventral = [Vector2(95, 44), Vector2(108, 44), Vector2(120, 44), Vector2(133, 44), Vector2(146, 44), Vector2(159, 44), Vector2(172, 44), Vector2(184, 43), Vector2(197, 43)],
-		flank = [Vector2(95, 34), Vector2(108, 32), Vector2(120, 32), Vector2(133, 32), Vector2(146, 32), Vector2(159, 32), Vector2(172, 32), Vector2(184, 32), Vector2(197, 33)],
+		dorsal = [Vector2(85, 38), Vector2(103, 38), Vector2(120, 34), Vector2(138, 34), Vector2(156, 34), Vector2(174, 34), Vector2(192, 34), Vector2(209, 37), Vector2(227, 39)],
+		ventral = [Vector2(85, 69), Vector2(103, 71), Vector2(120, 75), Vector2(138, 75), Vector2(156, 75), Vector2(174, 75), Vector2(192, 75), Vector2(209, 72), Vector2(227, 70)],
+		flank = [Vector2(85, 53), Vector2(103, 54), Vector2(120, 54), Vector2(138, 54), Vector2(156, 54), Vector2(174, 54), Vector2(192, 54), Vector2(209, 54), Vector2(227, 54)],
 	},
 	"hull_medium_a": {
-		dorsal = [Vector2(91, 33), Vector2(110, 31), Vector2(129, 30), Vector2(148, 30), Vector2(167, 30), Vector2(186, 30), Vector2(205, 31), Vector2(224, 30), Vector2(243, 31)],
-		ventral = [Vector2(91, 63), Vector2(110, 65), Vector2(129, 65), Vector2(148, 65), Vector2(167, 65), Vector2(186, 65), Vector2(205, 64), Vector2(224, 64), Vector2(243, 61)],
-		flank = [Vector2(91, 48), Vector2(110, 48), Vector2(129, 47), Vector2(148, 47), Vector2(167, 47), Vector2(186, 47), Vector2(205, 47), Vector2(224, 47), Vector2(243, 46)],
+		dorsal = [Vector2(128, 43), Vector2(144, 40), Vector2(160, 40), Vector2(176, 40), Vector2(192, 40), Vector2(207, 43), Vector2(223, 50), Vector2(239, 50), Vector2(255, 47)],
+		ventral = [Vector2(128, 88), Vector2(144, 89), Vector2(160, 99), Vector2(176, 99), Vector2(192, 99), Vector2(207, 99), Vector2(223, 97), Vector2(239, 88), Vector2(255, 91)],
+		flank = [Vector2(128, 65), Vector2(144, 64), Vector2(160, 69), Vector2(176, 69), Vector2(192, 69), Vector2(207, 71), Vector2(223, 73), Vector2(239, 69), Vector2(255, 69)],
 	},
 	"hull_medium_b": {
-		dorsal = [Vector2(85, 28), Vector2(104, 25), Vector2(124, 25), Vector2(144, 25), Vector2(163, 25), Vector2(182, 25), Vector2(202, 25), Vector2(222, 27), Vector2(241, 29)],
-		ventral = [Vector2(85, 59), Vector2(104, 59), Vector2(124, 58), Vector2(144, 59), Vector2(163, 59), Vector2(182, 59), Vector2(202, 59), Vector2(222, 58), Vector2(241, 55)],
-		flank = [Vector2(85, 43), Vector2(104, 42), Vector2(124, 41), Vector2(144, 42), Vector2(163, 42), Vector2(182, 42), Vector2(202, 42), Vector2(222, 42), Vector2(241, 42)],
+		dorsal = [Vector2(99, 42), Vector2(116, 40), Vector2(132, 40), Vector2(149, 40), Vector2(166, 40), Vector2(182, 40), Vector2(199, 44), Vector2(215, 49), Vector2(232, 50)],
+		ventral = [Vector2(99, 87), Vector2(116, 99), Vector2(132, 95), Vector2(149, 98), Vector2(166, 99), Vector2(182, 99), Vector2(199, 99), Vector2(215, 99), Vector2(232, 92)],
+		flank = [Vector2(99, 64), Vector2(116, 69), Vector2(132, 67), Vector2(149, 69), Vector2(166, 69), Vector2(182, 69), Vector2(199, 71), Vector2(215, 74), Vector2(232, 71)],
 	},
 	"hull_medium_c": {
-		dorsal = [Vector2(100, 39), Vector2(115, 24), Vector2(130, 24), Vector2(144, 24), Vector2(159, 24), Vector2(174, 26), Vector2(188, 33), Vector2(203, 40), Vector2(218, 40)],
-		ventral = [Vector2(100, 70), Vector2(115, 71), Vector2(130, 71), Vector2(144, 71), Vector2(159, 71), Vector2(174, 71), Vector2(188, 71), Vector2(203, 71), Vector2(218, 71)],
-		flank = [Vector2(100, 54), Vector2(115, 47), Vector2(130, 47), Vector2(144, 47), Vector2(159, 47), Vector2(174, 48), Vector2(188, 52), Vector2(203, 55), Vector2(218, 55)],
+		dorsal = [Vector2(88, 41), Vector2(116, 38), Vector2(144, 38), Vector2(172, 38), Vector2(200, 38), Vector2(229, 38), Vector2(257, 38), Vector2(285, 38), Vector2(313, 44)],
+		ventral = [Vector2(88, 77), Vector2(116, 87), Vector2(144, 87), Vector2(172, 87), Vector2(200, 87), Vector2(229, 87), Vector2(257, 87), Vector2(285, 87), Vector2(313, 82)],
+		flank = [Vector2(88, 59), Vector2(116, 62), Vector2(144, 62), Vector2(172, 62), Vector2(200, 62), Vector2(229, 62), Vector2(257, 62), Vector2(285, 62), Vector2(313, 63)],
 	},
 	"hull_medium_s": {
-		dorsal = [Vector2(95, 30), Vector2(114, 29), Vector2(133, 29), Vector2(152, 29), Vector2(172, 29), Vector2(191, 29), Vector2(210, 29), Vector2(229, 30), Vector2(248, 31)],
-		ventral = [Vector2(95, 60), Vector2(114, 63), Vector2(133, 63), Vector2(152, 64), Vector2(172, 64), Vector2(191, 64), Vector2(210, 64), Vector2(229, 64), Vector2(248, 58)],
-		flank = [Vector2(95, 45), Vector2(114, 46), Vector2(133, 46), Vector2(152, 46), Vector2(172, 46), Vector2(191, 46), Vector2(210, 46), Vector2(229, 47), Vector2(248, 44)],
+		dorsal = [Vector2(106, 42), Vector2(119, 41), Vector2(132, 39), Vector2(146, 39), Vector2(159, 39), Vector2(172, 39), Vector2(186, 39), Vector2(199, 41), Vector2(212, 43)],
+		ventral = [Vector2(106, 95), Vector2(119, 96), Vector2(132, 97), Vector2(146, 96), Vector2(159, 98), Vector2(172, 98), Vector2(186, 98), Vector2(199, 98), Vector2(212, 98)],
+		flank = [Vector2(106, 68), Vector2(119, 68), Vector2(132, 68), Vector2(146, 67), Vector2(159, 68), Vector2(172, 68), Vector2(186, 68), Vector2(199, 69), Vector2(212, 70)],
 	},
 }
 
@@ -1794,7 +1833,18 @@ const EXHAUST_AT := Vector2i(0, 27)
 ## into the filename, so a deleted file in the middle is a null texture and an
 ## engine that silently stops burning. Removing one means renumbering the tail
 ## down — that is what `-- exhaust` checks on every run.
-const EXHAUST_COUNT := 24
+## 24 was every plume PixelLab generated. 25 is those plus exhaust_24, which is
+## exhaust_3 masked to heavy_s's stern by `tools/crop_flame.py`. Only the part
+## inside the recess is touched -- it narrows from the cavity mouth to the apex
+## so the fire PLUGS INTO the wedge instead of painting over the stern. Outboard
+## of the mouth the plume is left exactly as drawn: that is open space, and every
+## profile imposed on it only cost the flare that makes it read as thrust. A new
+## id rather than an edit in place: hull_light_s flies on exhaust_3 too, and its
+## stern is a different shape.
+## The plume an unrigged hull falls back to. Only reachable by a hull with art
+## that nobody has taken through the bench; all twelve Korvan frames are rigged.
+const DEFAULT_EXHAUST := 0
+const EXHAUST_COUNT := 25
 
 func exhaust_art(id: int) -> Texture2D:
 	if id < 0 or id >= EXHAUST_COUNT:
@@ -1823,20 +1873,29 @@ func hull_exhaust_at(w: HullData.Weight, cls: int = 0, id: int = 0) -> Vector2i:
 ## the flame off the hull, and the offset cannot be computed without the texture.
 ## Every place that changes one has to change all three, so there is one place.
 func set_exhaust(h: HullData, id: int, cls: int = 0) -> void:
-	# A hull rigged in the bench carries its own strip and its own offset; the
-	# computed centring is only for one that has not been rigged yet.
+	# A hull rigged in the bench carries its own strips, offsets and draw order;
+	# the computed centring is only for one that has not been rigged yet.
+	h.exhaust_frames = EXHAUST_FRAMES
+	h.thrusters = []
 	var key := hull_art_name(h.weight, cls)
 	if HULL_EXHAUST.has(key):
-		var e: Dictionary = HULL_EXHAUST[key]
-		h.exhaust_id = int(e.id)
-		h.exhaust = exhaust_art(h.exhaust_id)
-		h.exhaust_frames = EXHAUST_FRAMES
-		h.exhaust_offset = e.at
+		for e in HULL_EXHAUST[key] as Array:
+			var d: Dictionary = e
+			h.thrusters.append({
+				id = int(d.id),
+				tex = exhaust_art(int(d.id)),
+				at = d.at as Vector2i,
+				back = bool(d.get("back", false)),
+			})
 		return
-	h.exhaust_id = id
-	h.exhaust = exhaust_art(id)
-	h.exhaust_frames = EXHAUST_FRAMES
-	h.exhaust_offset = hull_exhaust_at(h.weight, cls, id)
+	# ONE plume, centred, for a hull nobody has rigged. Still a list, so every
+	# reader has exactly one shape to handle rather than two.
+	h.thrusters.append({
+		id = id,
+		tex = exhaust_art(id),
+		at = hull_exhaust_at(h.weight, cls, id),
+		back = false,
+	})
 
 ## What each manufacturer CALLS its three weight classes.
 ##
@@ -1927,7 +1986,7 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 	h.sprite = hull_sprite(h.weight, t)
 	h.sprite_half = hull_sprite(h.weight, t, true)
 	apply_hull_lines(h)
-	set_exhaust(h, h.exhaust_id, t)
+	set_exhaust(h, DEFAULT_EXHAUST, t)
 	# AND THE NAME. A class already grants a different sprite, different
 	# hardpoints and a different reactor; leaving four of them sharing one name
 	# meant the only thing telling a Sabre from a Picket was a letter in the

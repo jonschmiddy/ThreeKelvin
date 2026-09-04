@@ -3,13 +3,16 @@
 
     python tools/hull_bench.py <folder> [--pass2]
 
-PASS 1 is a cull. One question per sprite: **does this come out of the same yard
-as the three that already exist?** Keep or cut, nothing else. The reference
-hulls sit pinned at the top of the page so the comparison is never from memory.
+PASS 1 is a cull. One question per sprite: **does this belong with the rest of
+the batch?** Keep or cut, nothing else.
 
-PASS 2 ranks the survivors C -> B -> A -> S. Only what survived pass 1 appears,
-and the four reference hulls for that weight sit alongside as the anchor for
-what each tier already looks like.
+The twelve hulls the game ships today USED to sit pinned at the top of this page
+as the thing to judge against. They were taken down: the batch exists to replace
+them, they are drawn at the old smaller sizes, and next to the slab hulls they
+answered a question nobody is asking any more. The standard is now internal --
+the batch has to read as one yard's work.
+
+PASS 2 ranks the survivors C -> B -> A -> S. Only what survived pass 1 appears.
 
 Verdicts live in the browser and export as JSON. Two passes rather than one
 because they are different questions and mixing them makes both worse: "is this
@@ -24,32 +27,36 @@ import struct
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HULLS = os.path.join(ROOT, "tkg", "art", "sprites", "hulls", "korvan")
 OUT = os.path.join(ROOT, "tools", "out", "hull-bench.html")
-TIERS = ["c", "b", "a", "s"]
+
+
+def bbox_of(path):
+	"""The SHIP inside the canvas, which is the only size worth judging.
+
+	A hull generated on a tall frame is mostly transparent, so canvas size says
+	nothing about how big the ship reads. Depth and ratio are what the spec is
+	written in -- boxes.py fixes the heavy at 125x50, 2.5:1 -- so the bench
+	shows them per card and the cull can be on the number rather than the eye.
+	"""
+	sys.path.insert(0, os.path.join(ROOT, "tkg", "art", "tools"))
+	import pixeltools as pt
+	w, h, rows = pt.decode(path)
+	xs = [x for x in range(w) if any(rows[y][x * 4 + 3] for y in range(h))]
+	ys = [y for y in range(h) if any(rows[y][x * 4 + 3] for x in range(w))]
+	if not xs:
+		return 0, 0
+	return xs[-1] - xs[0] + 1, ys[-1] - ys[0] + 1
 
 
 def png(path):
 	with open(path, "rb") as f:
 		b = f.read()
 	w, h = struct.unpack(">II", b[16:24])
+	bw, bh = bbox_of(path)
 	return {"src": "data:image/png;base64," + base64.b64encode(b).decode("ascii"),
-		"w": w, "h": h, "name": os.path.basename(path)}
-
-
-def refs():
-	"""The twelve that exist, as the thing every candidate is judged against."""
-	out = {}
-	for weight in ["light", "medium", "heavy"]:
-		row = []
-		for t in TIERS:
-			p = os.path.join(HULLS, "hull_%s_%s.png" % (weight, t))
-			if os.path.exists(p):
-				d = png(p)
-				d["tier"] = t.upper()
-				row.append(d)
-		out[weight] = row
-	return out
+		"w": w, "h": h, "name": os.path.basename(path),
+		"deep": bh, "long": bw,
+		"ratio": (round(bw / float(bh), 2) if bh else 0)}
 
 
 def candidates(folder):
@@ -61,9 +68,11 @@ def candidates(folder):
 			continue
 		d = png(os.path.join(folder, n))
 		low = n.lower()
-		d["weight"] = ("heavy" if "heavy" in low else
-			"medium" if "medium" in low else
-			"light" if "light" in low else "unsorted")
+		# Ids stay as generated (gh_/med_/lit_) so a verdict saved in the
+		# browser survives the batch growing. The tier is read off the prefix.
+		d["weight"] = ("heavy" if low.startswith("gh_") else
+			"medium" if low.startswith("med_") else
+			"light" if low.startswith("lit_") else "unsorted")
 		d["id"] = os.path.splitext(n)[0]
 		out.append(d)
 	return out
@@ -108,25 +117,19 @@ h1{font-family:var(--serif);font-weight:400;font-size:clamp(38px,7vw,64px);line-
 .copy:hover{background:#fff}
 button:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
 
-/* the reference strip, pinned so nothing is judged from memory */
-.refs{position:sticky;top:47px;z-index:15;background:var(--sunk);
- border:1px solid var(--line2);padding:11px 14px;margin:14px 0 0}
-.refh{font-family:var(--pix);font-size:9px;letter-spacing:.12em;color:var(--flare);
- text-transform:uppercase;margin-bottom:9px}
-.refrow{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
-.ref{text-align:center}
-.ref img{display:block;image-rendering:pixelated;background:#0d1520;
- border:1px solid var(--line)}
-.ref span{font-family:var(--pix);font-size:8px;letter-spacing:.1em;color:var(--dim);
- display:block;margin-top:4px}
 
-.grid{display:grid;gap:14px;margin:18px 0 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));
+ gap:14px;margin:18px 0 0}
 .cand{background:var(--sunk);border:1px solid var(--line2);padding:12px 14px}
 .cand[data-v="keep"]{border-left:3px solid var(--good)}
 .cand[data-v="cut"]{border-left:3px solid var(--bad);opacity:.4}
 .cand[data-t]{border-left:3px solid var(--flare)}
+.btns button[aria-pressed="true"][data-flip]{background:var(--ice);color:#0a0e16;border-color:var(--ice)}
 .chead{display:flex;gap:10px;align-items:baseline;margin-bottom:9px}
 .cname{font-family:var(--pix);font-size:9px;letter-spacing:.1em;color:var(--cold)}
+.cdim.inband{color:var(--good);font-weight:500}
+.odd{font-family:var(--pix);font-size:8px;letter-spacing:.08em;text-transform:uppercase;
+ color:var(--dim);border:1px solid var(--line2);padding:2px 5px;margin-left:6px}
 .cdim{font-family:var(--pix);font-size:8px;letter-spacing:.08em;color:var(--dim);
  margin-left:auto}
 .shot{background:#0d1520;border:1px solid var(--line);padding:8px;
@@ -158,25 +161,19 @@ footer{margin:40px 0 0;border-top:1px solid var(--line2);padding-top:18px;color:
   <button id="p1" aria-pressed="true">Pass 1 &mdash; cull</button>
   <button id="p2" aria-pressed="false">Pass 2 &mdash; rank</button>
  </div>
- <div class="seg" role="group" aria-label="Weight">
-  <button data-w="all" aria-pressed="true">All</button>
-  <button data-w="light" aria-pressed="false">Light</button>
-  <button data-w="medium" aria-pressed="false">Medium</button>
-  <button data-w="heavy" aria-pressed="false">Heavy</button>
- </div>
+ <div class="seg" role="group" aria-label="Weight" id="wseg"></div>
  <div class="seg" role="group" aria-label="Zoom">
   <button data-z="1" aria-pressed="true">1&times;</button>
   <button data-z="2" aria-pressed="false">2&times;</button>
  </div>
  <button class="copy" id="copy">Copy verdicts</button>
 </div>
-<div class="refs">
- <div class="refh" id="refh">What already exists &mdash; judge against these, not from memory</div>
- <div class="refrow" id="refrow"></div>
-</div>
 <div class="grid" id="grid"></div>
 <footer>
- <p>Pass 1 asks one thing: <b>does this come out of the same yard.</b> Pass 2
+ <p>Pass 1 asks one thing: <b>do these come out of the same yard as each
+ other.</b> The twelve hulls in the game today are not on this page &mdash; the
+ batch is here to replace them, and at their old sizes they were the wrong thing
+ to measure against. Pass 2
  ranks what survived, C to S, and a tier is accumulation rather than redesign
  &mdash; if a C and an S do not read as the same yard's work, the pair has failed
  however good either looks alone.</p>
@@ -185,13 +182,18 @@ footer{margin:40px 0 0;border-top:1px solid var(--line2);padding-top:18px;color:
 </footer>
 </div>
 <script>
-const CAND = @@CAND@@, REFS = @@REFS@@;
+const CAND = @@CAND@@;
 const KEY = "tk_hull_bench_v1";
 let V = {};
 try { V = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { V = {}; }
 let pass = 1, weight = "all", zoom = 1;
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(V)); } catch(e){} }
 
+function shown_all(){
+  return CAND.filter(function(c){
+    return weight === "all" || c.weight === weight;
+  });
+}
 function shown(){
   return CAND.filter(function(c){
     if (weight !== "all" && c.weight !== weight) return false;
@@ -201,7 +203,9 @@ function shown(){
 }
 function counted(){
   var k = 0, x = 0, n = 0, t = 0;
-  CAND.forEach(function(c){
+  // Count what is on screen. Judging 106 hulls across three tiers, a single
+  // running total across all of them says nothing about the tier in hand.
+  shown_all().forEach(function(c){
     var v = V[c.id] || {};
     if (v.verdict === "keep") k++; else if (v.verdict === "cut") x++; else n++;
     if (v.tier) t++;
@@ -210,27 +214,10 @@ function counted(){
     ? "keep " + k + " \\u00b7 cut " + x + " \\u00b7 unjudged " + n
     : "ranked " + t + " of " + k + " kept";
 }
-function drawRefs(){
-  var host = document.getElementById("refrow");
-  host.textContent = "";
-  var ws = weight === "all" ? ["light","medium","heavy"] : [weight];
-  ws.forEach(function(w){
-    (REFS[w] || []).forEach(function(r){
-      var d = document.createElement("div"); d.className = "ref";
-      var i = document.createElement("img");
-      i.src = r.src; i.width = r.w * zoom; i.height = r.h * zoom;
-      i.alt = w + " " + r.tier;
-      var s = document.createElement("span");
-      s.textContent = w.slice(0,1).toUpperCase() + " \\u00b7 " + r.tier;
-      d.appendChild(i); d.appendChild(s); host.appendChild(d);
-    });
-  });
-}
 function render(){
   document.getElementById("blurb").textContent = pass === 1
-    ? "One question per sprite: does this come out of the same yard as the ones pinned above? Keep or cut. Nothing else is being asked yet."
+    ? "One question per sprite: does this belong with the rest of the batch? Keep or cut. Nothing else is being asked yet."
     : "Now rank what survived, C to S. A tier is the same ship further along \\u2014 not a different ship.";
-  drawRefs();
   var host = document.getElementById("grid");
   host.textContent = "";
   var list = shown();
@@ -249,11 +236,29 @@ function render(){
     var h = document.createElement("div"); h.className = "chead";
     var n = document.createElement("span"); n.className = "cname"; n.textContent = c.id;
     var dm = document.createElement("span"); dm.className = "cdim";
-    dm.textContent = c.w + " \\u00d7 " + c.h + " \\u00b7 " + c.weight;
-    h.appendChild(n); h.appendChild(dm); box.appendChild(h);
+    // The SHIP's size, not the canvas's: a hull drawn on a tall frame is
+    // mostly transparent, so canvas size says nothing about how big it reads.
+    // Green when it lands in the band that was asked for.
+    var inband = c.deep >= 120 && c.deep <= 130 && c.ratio >= 2.2 && c.ratio <= 2.3;
+    dm.textContent = c.deep + " deep · " + c["long"] + " long · " + c.ratio.toFixed(2) + ":1";
+    if (inband) dm.className = "cdim inband";
+    h.appendChild(n); h.appendChild(dm);
+    // ADVISORY ONLY, never a filter. Every hull kept from the 31-hull batch on
+    // this prompt fell in 2.07-2.53; the 21 cuts spread 0.83 to 4.38. Outside
+    // that band the generator has usually drifted off the brief entirely -- a
+    // blimp, a delta wing, a three-quarter view -- so the card is marked to be
+    // skimmed past quickly. It is still shown, and still yours to keep.
+    if (c.ratio < 2.0 || c.ratio > 2.6) {
+      var od = document.createElement("span");
+      od.className = "odd"; od.textContent = "off-brief?";
+      od.title = "Outside 2.0-2.6:1, where nothing has been kept yet. Advisory only.";
+      h.appendChild(od);
+    }
+    box.appendChild(h);
     var sh = document.createElement("div"); sh.className = "shot";
     var im = document.createElement("img");
     im.src = c.src; im.width = c.w * zoom; im.height = c.h * zoom; im.alt = c.id;
+    if (v.flip) im.style.transform = "scaleX(-1)";
     sh.appendChild(im); box.appendChild(sh);
     var bs = document.createElement("div"); bs.className = "btns";
     if (pass === 1) {
@@ -283,6 +288,16 @@ function render(){
         bs.appendChild(b);
       });
     }
+    var fb = document.createElement("button");
+    fb.setAttribute("data-flip", "1");
+    fb.setAttribute("aria-pressed", String(!!v.flip));
+    fb.textContent = v.flip ? "flipped ⇄" : "flip ⇄";
+    fb.addEventListener("click", function(){
+      V[c.id] = V[c.id] || {};
+      V[c.id].flip = !V[c.id].flip;
+      save(); render();
+    });
+    bs.appendChild(fb);
     box.appendChild(bs);
     var note = document.createElement("input");
     note.className = "note"; note.type = "text";
@@ -299,6 +314,24 @@ function render(){
   document.getElementById("p1").setAttribute("aria-pressed", String(pass === 1));
   document.getElementById("p2").setAttribute("aria-pressed", String(pass === 2));
 }
+(function(){
+  var seen = [], wseg = document.getElementById("wseg");
+  CAND.forEach(function(c){ if (seen.indexOf(c.weight) < 0) seen.push(c.weight); });
+  if (seen.length < 2) { wseg.remove(); return; }   // nothing to filter by
+  // Heaviest first, which is the order they were designed in and the order
+  // the tiers read in the game.
+  var ORDER = ["heavy", "medium", "light", "unsorted"];
+  seen.sort(function(a, b){ return ORDER.indexOf(a) - ORDER.indexOf(b); });
+  ["all"].concat(seen).forEach(function(w){
+    var b = document.createElement("button");
+    b.setAttribute("data-w", w);
+    b.setAttribute("aria-pressed", String(w === "all"));
+    var n = CAND.filter(function(c){ return w === "all" || c.weight === w; }).length;
+    b.textContent = (w === "all" ? "All" : w.charAt(0).toUpperCase() + w.slice(1))
+      + " " + n;
+    wseg.appendChild(b);
+  });
+})();
 document.getElementById("p1").addEventListener("click", function(){ pass = 1; render(); });
 document.getElementById("p2").addEventListener("click", function(){ pass = 2; render(); });
 document.querySelectorAll('[data-w]').forEach(function(b){
@@ -320,7 +353,8 @@ document.querySelectorAll('[data-z]').forEach(function(b){
 document.getElementById("copy").addEventListener("click", function(){
   var out = CAND.filter(function(c){ return V[c.id]; }).map(function(c){
     return {id: c.id, weight: c.weight, verdict: (V[c.id]||{}).verdict || "",
-            tier: (V[c.id]||{}).tier || "", note: (V[c.id]||{}).note || ""};
+            tier: (V[c.id]||{}).tier || "", flip: !!(V[c.id]||{}).flip,
+            note: (V[c.id]||{}).note || ""};
   });
   var txt = JSON.stringify(out, null, 1);
   var btn = document.getElementById("copy");
@@ -343,15 +377,13 @@ def main():
 		ROOT, "tools", "out", "hull_candidates")
 	cand = candidates(folder)
 	page = (PAGE.replace("@@N@@", str(len(cand)))
-		.replace("@@CAND@@", json.dumps(cand))
-		.replace("@@REFS@@", json.dumps(refs())))
+		.replace("@@CAND@@", json.dumps(cand)))
 	os.makedirs(os.path.dirname(OUT), exist_ok=True)
 	io.open(OUT, "w", encoding="utf-8", newline="\n").write(page)
 	print("wrote %s  (%d candidates from %s, %.0f KB)"
 		% (OUT, len(cand), folder, len(page) / 1024.0))
 	if not cand:
-		print("  nothing there yet -- the twelve reference hulls still load, so "
-			"the page is worth opening to check the layout")
+		print("  nothing there yet -- the page will come up empty")
 
 
 if __name__ == "__main__":

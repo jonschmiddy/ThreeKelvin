@@ -76,13 +76,25 @@ const SERVICE_W := 420
 ## How tall the hull portrait is. Enough for a heavy at 2x without the panel
 ## growing past the service column beside it.
 ## Sized off the deepest hull plus the bob, at 1x. See ShipScreen for why the
-## magnification came down.
-const HULL_H := 120
+## magnification came down. 140 rows of heavy canvas and the bob's four: the
+## heavy grew from 100 rows when the hull art was redrawn, and this number is
+## derived from it rather than chosen, so it moves whenever that does.
+##
+## WITH SIX ROWS OF SLACK, matching ShipScreen. The bare derivation is 144 -- the
+## heavy's 140-row canvas plus the bob's four -- and at exactly 144 this sits on
+## a knife edge: `ShipView._resize_canvas` sets `clip_contents` when the canvas
+## is TALLER than the view, so any hull one row deeper, or one call asking for a
+## bob of three, starts clipping the ship's top and bottom rows as it bobs. Rows
+## winking in and out at the edges of a moving sprite is not a loud failure; it
+## reads as the ship shimmering.
+const HULL_H := 150
 ## And how wide the window onto it is. A cap, not a measurement: it bounds the
 ## control's minimum so the row cannot overflow the way it did when a doubled
-## 474-wide hull sat beside 420 of services. At 1x the widest hull is 248, so
-## the cap is slack on purpose and the portrait is centred in it.
-const HULL_W := 380
+## 474-wide hull sat beside 420 of services. At 1x the widest hull is 392 -- the
+## heavy's full sheet, exhaust pad included -- so the cap keeps a little slack
+## and the portrait is centred in it. It was 380 against a 324-wide heavy, which
+## would now crop the nose off rather than bound the row.
+const HULL_W := 400
 ## How wide the station's name line is allowed to be before it wraps. Bounded on
 ## purpose — see the note in _build().
 const HEADER_W := 560

@@ -50,9 +50,18 @@ button[aria-pressed="true"]{color:#12070a;background:var(--hot);border-color:var
   cursor:grab}
 .hull{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;
   z-index:2;pointer-events:none}
-.bounds{position:absolute;outline:1px dashed #24344a;pointer-events:none;z-index:1}
+.bounds{position:absolute;outline:1px dashed #24344a;pointer-events:none;z-index:0}
+/* IN FRONT BY DEFAULT, because that is what the game does: ShipView._blit_sprite
+   pastes the hull and then blends the flame over it. The `behind` toggle drops
+   a plume under the hull so the engine bells occlude it, which is the view that
+   shows whether it is seated on the engines or sailing past them. PER THRUSTER,
+   not per page: a ship can carry several, and the one you are judging is rarely
+   the one you want hidden.
+   Draggable either way -- `.hull` is pointer-events:none, so a click behind it
+   still reaches the plume. */
 .plume{position:absolute;image-rendering:pixelated;image-rendering:crisp-edges;
   background-repeat:no-repeat;cursor:grab;z-index:3}
+.plume.back{z-index:1}
 .plume.sel{outline:1px solid var(--hot);outline-offset:1px}
 .mount{position:absolute;width:15px;height:15px;margin:-8px 0 0 -8px;cursor:grab;
   border-radius:50%;z-index:6;border:2px solid #05080d;
@@ -127,7 +136,7 @@ body.focus .wrap{padding:0 10px 10px}
 </style>
 <div class="wrap">
 <header class="mast">
-<p class="eyebrow">Three Kelvin &middot; __MAKER__ &middot; rigging</p>
+<p class="eyebrow">Three Kelvin &middot; __MANUFACTURER__ &middot; rigging</p>
 <h1>The Rigging Bench</h1>
 <p class="lede">Every mount is a puck you drag. <b>Weapons, systems and utilities go
 wherever you put them</b> &mdash; top, belly, nose, anywhere. Drag a thruster from the
@@ -151,6 +160,7 @@ panel at the bottom is what to send back.</p>
 <button id="tanim" aria-pressed="true">animate</button>
 <button id="tnum" aria-pressed="true">numbers</button>
 <button id="tsnap" aria-pressed="true">snap</button>
+<button id="tplume">all plumes &middot; behind</button>
 <span class="lbl">View</span>
 <button id="tfocus">focus &middot; hide everything else</button>
 <span class="spacer"></span>
@@ -211,7 +221,7 @@ panel at the bottom is what to send back.</p>
 seeded by running the real <code>mounts_along()</code> over the lines in
 <code>Database.gd</code>, so nothing is lost by switching to placing them directly &mdash;
 the first thing you see is the status quo.</p>
-<p><b>The counts are this maker's own.</b> A slot count is WEIGHT_BASE, plus what
+<p><b>The counts are this manufacturer's own.</b> A slot count is WEIGHT_BASE, plus what
 TIER_DELTA adds at A and S, plus whatever the house itself changes &mdash; Probate trades a
 weapon for a utility, Redline's perk grants one. All three are read out of
 <code>Database.gd</code> when this page is built, so they are right for whoever it was built
@@ -287,7 +297,7 @@ function render(){
 
   e.exs.forEach(function(t, ti){
     var ex = D.exhausts[t.id];
-    var p = el("div","plume" +
+    var p = el("div","plume" + (t.back ? " back":"") +
       (st.sel && st.sel.k==="ex" && st.sel.i===ti ? " sel":""));
     p.style.width = (ex.fw*z)+"px"; p.style.height = (ex.h*z)+"px";
     p.style.left = ((P+t.x)*z)+"px"; p.style.top = ((P+t.y)*z)+"px";
@@ -358,12 +368,21 @@ function panel(){
       '<span class="tn">exhaust_'+t.id+'</span>'+
       '<span class="tp">'+t.x+', '+t.y+'</span>'+
       '<button data-pick="'+ti+'">pick</button>'+
+      '<button data-back="'+ti+'"'+(t.back ? ' aria-pressed="true"':'')+'>'+
+        (t.back ? 'behind' : 'front')+'</button>'+
       '<button data-drop="'+ti+'">&times;</button></div>';
   }).join("") : '<div class="row"><span>none mounted</span><b>drag one on</b></div>';
   ew.innerHTML = warn.length ? '<div class="warn">'+warn.join("<br>")+'</div>' : "";
+  // The set-all button's label depends on the hull on screen, and this runs on
+  // every render, so it is where the label gets told to catch up.
+  document.dispatchEvent(new Event("rigrender"));
   Array.prototype.forEach.call(ei.querySelectorAll("[data-pick]"), function(b){
     b.addEventListener("click", function(){
       st.sel = {k:"ex", i:+b.getAttribute("data-pick")}; render(); }); });
+  Array.prototype.forEach.call(ei.querySelectorAll("[data-back]"), function(b){
+    b.addEventListener("click", function(){
+      var t = E().exs[+b.getAttribute("data-back")];
+      t.back = !t.back; save(); render(); out(); }); });
   Array.prototype.forEach.call(ei.querySelectorAll("[data-drop]"), function(b){
     b.addEventListener("click", function(){
       E().exs.splice(+b.getAttribute("data-drop"), 1);
@@ -566,7 +585,7 @@ function state(){
       system:  e.system.map(function(q){ return [Math.round(q[0]), Math.round(q[1])]; }),
       utility: e.utility.map(function(q){ return [Math.round(q[0]), Math.round(q[1])]; }),
       thrusters: (e.exs||[]).map(function(t){
-        return {id: D.exhausts[t.id].id, x: t.x, y: t.y}; })
+        return {id: D.exhausts[t.id].id, x: t.x, y: t.y, back: !!t.back}; })
     };
   });
   return o;
@@ -663,6 +682,32 @@ toggle("tanim","anim"); toggle("tnum","nums"); toggle("tsnap","snap");
   document.addEventListener("keydown", function(ev){
     if(ev.key === "f" && ev.target.tagName !== "TEXTAREA"){ b.click(); }
   });
+})();
+// Front or behind is stored PER THRUSTER, on the thruster itself, so it is
+// saved with the rigging and survives `render()` rebuilding the stage. This
+// button is a set-all for the hull on screen: it sends them all behind unless
+// they already are, in which case it brings them all forward. In front is the
+// default because it is what the game draws today -- ShipView._blit_sprite
+// pastes the hull and then blends the flame over it.
+(function(){
+  var b = document.getElementById("tplume");
+  function label(){
+    var e = E(), all = e.exs.length && e.exs.every(function(t){ return t.back; });
+    b.innerHTML = "all plumes &middot; " + (all ? "in front" : "behind");
+    b.setAttribute("aria-pressed", all ? "true" : "false");
+  }
+  b.addEventListener("click", function(){
+    var e = E();
+    if(!e.exs.length) return;
+    var all = e.exs.every(function(t){ return t.back; });
+    e.exs.forEach(function(t){ t.back = !all; });
+    save(); render(); out(); label();
+  });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "b" && ev.target.tagName !== "TEXTAREA"){ b.click(); }
+  });
+  document.addEventListener("rigrender", label);
+  label();
 })();
 document.getElementById("exdel").addEventListener("click", function(){
   var e = E(); if(!e.exs.length) return;

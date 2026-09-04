@@ -59,9 +59,10 @@ const WEIGHT_BLURB: Array[String] = [
 ## twice and puts a 496px ship on a 960px viewport. See boxes.py.
 const HERO_SCALE := 1
 ## Tall enough to hold the whole hull at HERO_SCALE, measured off the DEEPEST
-## one rather than the only one: 100 rows of heavy hull, the bob's four, and a
-## little air.
-const HERO_H := 120
+## one rather than the only one: 140 rows of heavy hull, the bob's four, and a
+## little air. The heavy was 100 rows until the hull art was redrawn; this is
+## derived from that depth, so it has to move with it or the hero is clipped.
+const HERO_H := 160
 ## The gap between the banner and the identity column, reused as the indent for
 ## everything below that has to line up with it.
 ## The air between ATTRIBUTES, HARDPOINTS and STARTING MODULES. One constant so

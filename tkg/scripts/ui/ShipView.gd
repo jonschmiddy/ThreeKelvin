@@ -142,7 +142,7 @@ func bob(amp: int, hz: float = 0.3) -> void:
 	set_process(true)
 
 func _ready_anim() -> void:
-	if _burning and _hull() != null and _hull().exhaust != null:
+	if _burning and _hull() != null and _hull().has_exhaust():
 		set_process(true)
 
 func _process(_delta: float) -> void:
@@ -157,7 +157,7 @@ func _process(_delta: float) -> void:
 		if off != _bob_off:
 			_bob_off = off
 			dirty = true
-	if _burning and _hull().exhaust != null:
+	if _burning and _hull().has_exhaust():
 		var step := int(t * FLAME_HZ) % maxi(1, _hull().exhaust_frames)
 		if step != _flame_step:
 			_flame_step = step
@@ -173,6 +173,21 @@ func _init() -> void:
 	# Draw at native size, centred. KEEP_ASPECT_CENTERED rescales the texture to
 	# whatever rect it is handed, so the ship changed size whenever a side rail
 	# opened — and scaled pixel art by arbitrary fractions while doing it.
+	#
+	# CENTRED MEANS HALF-PIXELS, and that is why the project turns on
+	# `rendering/2d/snap/snap_2d_transforms_to_pixel`. KEEP_CENTERED puts the
+	# texture at (size - tex) * 0.5 from the control's origin, so whenever those
+	# two differ by an ODD number the sprite is drawn on a half pixel. In the
+	# sector slot the control is 455 tall against a 144-row heavy: (455-144)/2 is
+	# 155.5, and the ship rendered at y=197.50.
+	#
+	# Half a pixel is invisible while the ship is still. It is NOT invisible while
+	# it bobs: with NEAREST filtering every row's sample sits exactly on a texel
+	# boundary, so the tie-break flips as the content moves and about 1100 pixels
+	# of a heavy changed colour on every bob step — the hull appearing to crawl
+	# without moving. The canvas itself was never at fault; it is a pure
+	# translation at all five bob offsets, which is what made this hard to find.
+	# Snapping took that to six pixels. Do not turn the snap settings off.
 	stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	custom_minimum_size = Vector2(_w, _h)
 	_img = Image.create(_w, _h, false, Image.FORMAT_RGBA8)
@@ -641,8 +656,18 @@ func _blit_sprite() -> void:
 	# Headroom above and below so the bob has somewhere to travel without the
 	# sprite being clipped at the extremes of its own canvas.
 	_resize_canvas(img.get_width(), img.get_height() + _bob_amp * 2)
-	_paste(img, 0, _bob_amp + _bob_off, false)
-	_blit_exhaust(_bob_amp + _bob_off)
+	var dy := _bob_amp + _bob_off
+	# BEHIND FIRST, THEN THE HULL OVER IT, THEN THE REST. A thruster buried in
+	# the ship's own body has to be occluded by the plating or its flame paints
+	# across the hull it is supposed to be firing out of.
+	#
+	# The hull is BLENDED rather than blitted when anything is under it: blit
+	# copies alpha, so the hull's transparent pixels would punch a hole straight
+	# through the flame behind it. Onto an empty canvas the two are the same and
+	# blit is cheaper, so the unlayered case keeps it.
+	var behind := _blit_exhaust(dy, true)
+	_paste(img, 0, dy, behind > 0)
+	_blit_exhaust(dy, false)
 
 ## The canvas follows whatever is being drawn into it. Cheap to call every
 ## refresh: it only allocates when the size actually changed.
@@ -670,15 +695,32 @@ func _resize_canvas(w: int, h: int) -> void:
 ##
 ## blend_rect and not blit_rect: blit COPIES alpha, so it would punch the flame
 ## frame's empty pixels straight through the hull underneath it.
-func _blit_exhaust(dy: int) -> void:
+## Every plume on this layer, and how many were drawn.
+##
+## Called twice per repaint — once for the thrusters flagged `back` and once for
+## the rest — so a ship with engines at different depths composites in the right
+## order. Returns the count so the caller knows whether anything is underneath
+## the hull, which decides how the hull itself is pasted.
+func _blit_exhaust(dy: int, back: bool) -> int:
 	var hull := _hull()
-	if not _burning or hull.exhaust == null:
-		return
-	var frames: Array = _flame_frames(hull.exhaust, hull.exhaust_frames)
-	if frames.is_empty():
-		return
-	var f := frames[_flame_step % frames.size()] as Image
-	_paste(f, hull.exhaust_offset.x, hull.exhaust_offset.y + dy, true)
+	if not _burning:
+		return 0
+	var n := 0
+	for t in hull.thrusters:
+		var e: Dictionary = t
+		if bool(e.get("back", false)) != back:
+			continue
+		var tex: Texture2D = e.get("tex")
+		if tex == null:
+			continue
+		var frames: Array = _flame_frames(tex, hull.exhaust_frames)
+		if frames.is_empty():
+			continue
+		var f := frames[_flame_step % frames.size()] as Image
+		var at: Vector2i = e.at
+		_paste(f, at.x, at.y + dy, true)
+		n += 1
+	return n
 
 ## Cut a horizontal strip into equal frames, once per texture.
 static func _flame_frames(ex: Texture2D, count: int) -> Array:
