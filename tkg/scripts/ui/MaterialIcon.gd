@@ -17,6 +17,14 @@ extends ItemIcon
 
 var item: MaterialData = null
 
+## How big the picture inside is drawn. THE SAME NUMBER THE BOX WAS SIZED WITH,
+## which is not a free choice: the crate path below takes its dimensions from
+## `size` and would follow a rescaled icon while a hardcoded sprite scale did
+## not. That exact mismatch is what put a 3x box around a 2x sprite on the
+## module gallery -- see `ModuleIcon.plate_scale`, which carries the same field
+## for the same reason.
+var plate_scale: float = ModuleIcon.HOLD_K
+
 func setup(m: MaterialData, from: StringName) -> void:
 	item = m
 	origin = from
@@ -47,6 +55,19 @@ func _ghost() -> Control:
 
 func _draw() -> void:
 	if item == null:
+		return
+	# ART WHEN THERE IS ART, the crate underneath forever. The same door
+	# `ModuleIcon.draw_body` opens and `ShipView` proved on hulls, and it is
+	# deliberately the ONLY place that decides -- two places asking "does this
+	# have a picture yet" drift the moment one of them is fixed.
+	#
+	# The note above still stands for the forty rows of deck plate: cargo reads
+	# as cargo, and a spool of wire does not need a portrait. What it did not
+	# cover is the ARTIFACT tier, where the object IS the reason it is aboard.
+	# Those get a picture; everything else keeps the container.
+	if item.sprite != null:
+		ModuleIcon.draw_sprite(self, item.sprite,
+			Rect2(Vector2.ZERO, size), false, plate_scale)
 		return
 	# THE TIER IS AN ACCENT HERE, NOT THE WALL.
 	#

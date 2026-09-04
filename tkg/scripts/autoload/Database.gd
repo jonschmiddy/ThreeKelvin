@@ -404,7 +404,9 @@ func _module(id: StringName, name: String, manufacturer: StringName, slot: Modul
 		if cd is StringName or cd is String:
 			var key := StringName(cd)
 			assert(SHARED.has(key), "no shared card named %s" % key)
-			arr.append(_card(SHARED[key]))
+			var sc := _card(SHARED[key])
+			sc.shared = true
+			arr.append(sc)
 		else:
 			arr.append(_card(cd))
 	m.cards = arr
@@ -1501,6 +1503,20 @@ func module_sprite(id: StringName) -> Texture2D:
 	if id == &"":
 		return null
 	var path := "res://art/sprites/modules/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+## A MATERIAL'S PICTURE, or null while it has none.
+##
+## Same convention as `module_sprite`, one directory over. Materials had no art
+## at all until two artifacts earned some, and the forty rows of deck plate and
+## coil stock are expected to keep the drawn container forever -- see
+## `MaterialIcon`, which argues cargo should read as cargo.
+func material_sprite(id: StringName) -> Texture2D:
+	if id == &"":
+		return null
+	var path := "res://art/sprites/materials/%s.png" % id
 	if not ResourceLoader.exists(path):
 		return null
 	return load(path) as Texture2D

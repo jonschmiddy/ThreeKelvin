@@ -297,6 +297,18 @@ var source_module: String = ""
 ## screen builds both, and not in combat, where a hand is only cards.
 var source_id: StringName = &""
 var manufacturer: StringName = &""
+
+## FROM THE SHARED VOCABULARY -- see Database.SHARED. A card more than one
+## module is allowed to grant.
+##
+## It matters because a shared card must look the SAME wherever it came from.
+## Range is granted by Ranging Optics, the KX-9 Fire Director, the Signal Board
+## and the Ranging Scope; the first two are Korvan and sit at different rarities,
+## so stamping the granting part's identity onto the card produced four Ranges in
+## the catalogue wearing two makers and three rarity ticks -- for one line of
+## rules text that is identical in every case. The card is common and unbranded;
+## the PART it came off is a fact about the part.
+@export var shared: bool = false
 ## Rarity of the module that granted this, for the footer's rarity tick.
 var source_rarity: int = 0
 

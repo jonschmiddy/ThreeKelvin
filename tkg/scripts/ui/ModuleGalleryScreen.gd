@@ -25,9 +25,13 @@ extends Control
 ## of labels and a column of labels that resizes with its contents makes the
 ## whole page reflow every time the cursor moves.
 
-## How big a plate is drawn HERE, against the 2x the hold and the refit hull
-## are authored at. A catalogue is read, not packed.
-const GALLERY_K := 3.0
+## How big a plate is drawn HERE. THE SAME 2x the hold and the refit hull are
+## authored at, which it was not: this page asked for a 3x box and got a 2x
+## sprite inside it, because `ModuleIcon._draw` passed HOLD_K and never this.
+## The gap between the two was the border. Closing it downward rather than
+## upward is deliberate -- a catalogue at 3x was bigger than the screen you
+## actually handle parts on, which made the same module read as two sizes.
+const GALLERY_K := ModuleIcon.HOLD_K
 
 var _filter: GalleryFilter
 var _col: VBoxContainer
@@ -188,22 +192,27 @@ func _fill(col: VBoxContainer) -> int:
 				col.add_child(flow)
 			var icon := ModuleIcon.new()
 			icon.setup(m2, &"gallery")
-			# 3x, WHICH IS A SIZE NO OTHER SCREEN DRAWS, and that is the point.
+			# THE SAME 2x AS THE HOLD, and the box and the body are now told the
+			# same number so they cannot drift apart again.
 			#
 			# The hold and the refit hull are both authored at 2x and the sector
 			# drops to 1x. footprint_box and MountPoints.part_rect share their
 			# arithmetic so a part is the SAME size wherever you actually handle
-			# it — that property is what made an earlier 1x version wrong here.
+			# it — that property is what made an earlier 1x version wrong here,
+			# and a later 3x version wrong in the other direction.
 			#
-			# This page is not a screen you handle parts on. It is a catalogue, and
-			# the justification changes with the job: not "the size it is on your
-			# ship" but "large enough to read a silhouette at a glance". A 1x1 at
-			# 30px is a smudge in a grid of eighty.
+			# The 3x came with a reason — "large enough to read a silhouette at a
+			# glance" — that only held while every part WAS a silhouette. Real
+			# sprites read at the size they were drawn for, and blowing a 40x20
+			# gun up past that shows its pixels rather than its shape.
 			#
 			# custom_minimum_size and NOT size: a flow container decides where its
 			# children go, and asking for a size it did not choose is how the hold
 			# once drew 1x1 plates at 44px.
 			icon.custom_minimum_size = ModuleIcon.footprint_box(m2, GALLERY_K)
+			# THE SAME k THE BOX WAS SIZED WITH, always. Passing one and not the
+			# other is the defect above.
+			icon.plate_scale = GALLERY_K
 			# SHRINK, OR THE ROW STRETCHES THEM. An HFlowContainer gives a child
 			# the row height by default, so a 2x1 sitting beside a 2x2 was pulled
 			# to twice its own height and a page of plates showed the wrong shapes
