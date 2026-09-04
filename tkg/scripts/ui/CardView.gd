@@ -784,6 +784,25 @@ func set_playable(can_play: bool) -> void:
 func set_base_y(y: float) -> void:
 	_base_y = y
 
+## Carried by the hand. Kills any lift in flight and refuses new ones until it
+## is put down; see `_animate_lift`.
+var held: bool = false
+
+func set_held(on: bool) -> void:
+	if held == on:
+		return
+	held = on
+	if on:
+		if _tween != null and _tween.is_running():
+			_tween.kill()
+		return
+	# PUT DOWN. An armed card was refused its lift while it was being carried --
+	# see `_animate_lift` -- so it takes it now, from wherever the hand has just
+	# finished setting it down. Without this an armed card lands in the fan at
+	# its resting height and never rises.
+	if armed:
+		_animate_lift(-22.0)
+
 
 func _ready() -> void:
 	_base_y = position.y
@@ -863,6 +882,12 @@ func _on_hover_out() -> void:
 ## own, and nothing else may fight its container for it".
 func _animate_lift(offset: float) -> void:
 	if not (get_parent() is HandView):
+		return
+	# A CARRIED CARD OWNS ITS POSITION OUTRIGHT. The hand drives it toward the
+	# cursor every frame, and picking a card up fires `hovered(false)` -- so
+	# without this the lift tweens `position:y` back to the baseline against that
+	# lerp and the card shakes in place instead of following the pointer.
+	if held:
 		return
 	# An armed card owns its own height. Hovering off it mid-aim would otherwise
 	# tween it back down into the fan while the line is still attached to it.

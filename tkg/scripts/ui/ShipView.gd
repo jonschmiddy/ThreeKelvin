@@ -388,6 +388,29 @@ func canvas_width() -> float:
 func canvas_height() -> float:
 	return float(_h * _k)
 
+## THE SHIP'S OWN RECT, in this control's coordinates.
+##
+## For anything that wants to draw AROUND the hull rather than around the panel
+## holding it. A slot is usually far bigger than the ship in it -- ShipSlot's is
+## half the screen -- so a box at the control's own edges says nothing about
+## what is being pointed at.
+##
+## Measured off the opaque pixels, so it follows whatever art is loaded and
+## whatever is bolted to it, and the bob is taken back out so a box drawn here
+## does not twitch several times a second.
+func ship_rect() -> Rect2:
+	var whole := Rect2(Vector2.ZERO, size)
+	if _img == null:
+		return whole
+	var r := _img.get_used_rect()
+	if r.size.x <= 0 or r.size.y <= 0:
+		return whole
+	# STRETCH_KEEP_CENTERED puts the canvas in the middle of the control.
+	var origin := (size - Vector2(canvas_width(), canvas_height())) * 0.5
+	var at := origin + Vector2(r.position) * float(_k)
+	at.y -= float(_bob_off) * float(_k)
+	return Rect2(at, Vector2(r.size) * float(_k))
+
 ## How far BELOW the canvas's middle the hull's last opaque row falls.
 ##
 ## The vertical twin of `ship_offset_x`, and it exists for the same reason: a
@@ -655,7 +678,26 @@ func _blit_sprite() -> void:
 		img.convert(Image.FORMAT_RGBA8)
 	# Headroom above and below so the bob has somewhere to travel without the
 	# sprite being clipped at the extremes of its own canvas.
-	_resize_canvas(img.get_width(), img.get_height() + _bob_amp * 2)
+	# ONE ROW OF PADDING WHEN THE PARITY IS WRONG, and this is the whole reason
+	# the ship stopped crawling as it bobs.
+	#
+	# STRETCH_KEEP_CENTERED puts the texture at (size - tex) * 0.5 from the
+	# control's origin. When those two differ by an ODD number that is a HALF
+	# pixel -- the sector slot is 455 tall against a 144-row heavy, so the ship
+	# drew at y=197.50 -- and with NEAREST filtering every row's sample then sits
+	# exactly on a texel boundary. Standing still that is invisible. Bobbing, the
+	# tie-break flips as the content moves and about 1100 pixels of a heavy
+	# changed colour on every step, which reads as the hull crawling.
+	#
+	# A transparent row costs nothing and makes the difference even, so the
+	# texture lands on a whole pixel. This was briefly fixed with the project's
+	# `snap_2d_transforms_to_pixel` instead; that works here and quantises the
+	# launcher's rotating galaxy into a visible judder, because a global snap
+	# cannot tell a bobbing sprite from a turning starfield. Fix the sprite.
+	var ch := img.get_height() + _bob_amp * 2
+	if size.y > 0.0 and (int(size.y) - ch) % 2 != 0:
+		ch += 1
+	_resize_canvas(img.get_width(), ch)
 	var dy := _bob_amp + _bob_off
 	# BEHIND FIRST, THEN THE HULL OVER IT, THEN THE REST. A thruster buried in
 	# the ship's own body has to be occluded by the plating or its flame paints

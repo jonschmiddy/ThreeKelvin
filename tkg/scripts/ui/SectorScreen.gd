@@ -101,7 +101,6 @@ var _grab_mode: int = 0
 ## the wrong way and you drag back, fire the wrong card and it is spent. The
 ## bias belongs on the side that costs something.
 const GRAB_SIDE := 14.0
-const GRAB_UP := 9.0
 ## The keyword panel while a card is hovered. See _show_readout.
 var _readout: PanelContainer = null
 ## Every keyword panel is parented HERE and nowhere else, and opening one empties
@@ -2077,26 +2076,69 @@ func _on_card_grabbed(view: CardView, at: Vector2) -> void:
 	_grab_from = at
 	_grab_mode = 0
 
-## Which gesture this is, decided once and then held.
+## Which gesture this is, decided on the first motion that clears a threshold.
 ##
-## Held, because a gesture that can change its mind mid-drag is a gesture you
-## cannot perform confidently: a shot that becomes a reorder because your hand
-## drifted back down over the fan would eat the click.
+## HELD IN ONE DIRECTION ONLY. A shot must never quietly become a reorder --
+## your hand drifting back down over the fan would eat the click, which is the
+## fault this hold was written for and it still stands. A reorder BECOMING a
+## shot is the opposite case and is safe, because the only way to trigger it is
+## to carry the card clean out of the drawer: a deliberate, large gesture that
+## cannot happen by drift. See `_promote_to_aim`.
+##
+## Without that promotion a sideways nudge trapped the card: the only way back
+## to aiming was to drop it and start the drag again.
 func _grab_decide(at: Vector2) -> void:
 	if _grab_view == null or _grab_mode != 0:
 		return
 	var d := at - _grab_from
-	var out_of_hand := not _hand.get_global_rect().has_point(at)
-	if out_of_hand or d.y < -GRAB_UP:
+	# ABOVE THE DRAWER, and nothing else. This used to arm on leaving the hand's
+	# rect in ANY direction, or on any upward travel past GRAB_UP -- so a card
+	# dragged off the side of the fan, or nudged up while still inside it, threw
+	# a targeting line across the board before the player had aimed at anything.
+	# The line now exists only once the cursor is out of the drawer vertically,
+	# which is also the only direction anything can be aimed at.
+	var above_drawer := at.y < _hand.get_global_rect().position.y
+	if above_drawer:
 		if not combat.can_play(_grab_view.card):
 			# Unplayable cards can still be REARRANGED, so this refuses the shot
 			# without ending the grab -- push it sideways instead.
 			return
 		_grab_mode = 2
 		_begin_aim(_grab_view)
-	elif absf(d.x) > GRAB_SIDE:
+	# DOMINANTLY SIDEWAYS, not merely sideways. A drag heading up out of the
+	# drawer carries a little x with it, and on the old test that committed to a
+	# reorder before the cursor had cleared the fan -- so the shot never armed
+	# and the card was left being dragged along a row it was trying to leave.
+	elif absf(d.x) > GRAB_SIDE and absf(d.x) > absf(d.y):
 		_grab_mode = 1
-		_hand.slide_to(at.x, _grab_view.card)
+		_hand.slide_to(at, _grab_view.card)
+
+## A reorder carried out of the drawer becomes a shot. Returns whether it did.
+##
+## THE REORDER IS COMMITTED, not undone. It was written the other way first, on
+## the reasoning that dragging a card up through the fan is not a request to
+## move it -- and that is wrong about what the player sees: the card has spent
+## the whole gesture sitting in its new place, and reverting on the way out
+## yanks it back to where it was grabbed from at the exact moment attention
+## moves to the board. Where you left it is where it stays.
+func _promote_to_aim(at: Vector2) -> bool:
+	if _grab_view == null or combat == null or _hand == null:
+		return false
+	if at.y >= _hand.get_global_rect().position.y:
+		return false
+	# Same refusal `_grab_decide` makes: an unplayable card can still be
+	# rearranged, so this leaves the reorder running rather than arming a shot
+	# that cannot be taken.
+	if not combat.can_play(_grab_view.card):
+		return false
+	# `_end_reorder` clears the grab, and the grab is what the aim is about to
+	# be built from.
+	var view := _grab_view
+	_end_reorder(true)
+	_grab_view = view
+	_grab_mode = 2
+	_begin_aim(view)
+	return true
 
 func _end_reorder(commit: bool) -> void:
 	if _grab_mode == 1:
@@ -2134,7 +2176,28 @@ func _aim_anchor() -> Vector2:
 ## Take the line down. `played` says whether the card resolved, which decides
 ## only whether the armed card is put back the way it was -- a played card is
 ## about to be rebuilt out of the hand anyway.
+## Take the system pointer away, or give it back.
+##
+## `MOUSE_MODE_HIDDEN` rather than a blank cursor image: the game already drives
+## an animated custom cursor from `Main`, and swapping that out from here would
+## fight it for the same slot. Held as a flag so the mode is only pushed when it
+## actually changes -- this is called on every mouse motion during an aim.
+var _cursor_off: bool = false
+
+func _hide_cursor(on: bool) -> void:
+	if _cursor_off == on:
+		return
+	_cursor_off = on
+	Input.set_mouse_mode(Input.MOUSE_MODE_HIDDEN if on else Input.MOUSE_MODE_VISIBLE)
+
+## Whatever happens to the screen, the pointer comes back. A cursor left hidden
+## by a fight that ended mid-drag is not recoverable from inside the game.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_EXIT_TREE:
+		_hide_cursor(false)
+
 func _end_aim(played: bool) -> void:
+	_hide_cursor(false)
 	if _aim_view != null and not played:
 		_aim_view.set_armed(false)
 	_aim_view = null
@@ -2160,7 +2223,8 @@ func _input(e: InputEvent) -> void:
 		if _grab_mode == 0:
 			_grab_decide(mm.position)
 		elif _grab_mode == 1:
-			_hand.slide_to(mm.position.x, _grab_view.card)
+			if not _promote_to_aim(mm.position):
+				_hand.slide_to(mm.position, _grab_view.card)
 		elif _aim_view != null:
 			_aim_track(mm.position)
 		return
@@ -2184,9 +2248,29 @@ func _aim_track(where: Vector2) -> void:
 	if _view == null or _aim_view == null:
 		return
 	var at := get_global_transform().affine_inverse() * where
+	# BACK IN THE DRAWER IS NOT AIMING. The same test that spawned the line takes
+	# it away again: there is nothing above the fan to shoot while the cursor is
+	# inside it, so a line drawn there points at nothing and covers the hand it
+	# is drawn over. The card stays armed -- the gesture is still live and can be
+	# taken back out -- but the line and the target preview both go.
+	var aiming := where.y < _hand.get_global_rect().position.y
+	# THE RETICLE IS THE POINTER while one is drawn. Two of them on the same
+	# spot is one too many, and the system cursor sits on top of the lock it is
+	# meant to be showing you.
+	_hide_cursor(aiming)
 	if _aim_line != null:
-		_aim_line.target = at
-	_view.aim_at(_view.target_at(where), _aim_view.card, _drag_preview)
+		_aim_line.visible = aiming
+		if aiming:
+			_aim_line.target = at
+		else:
+			# Parked at the card, so coming back out GROWS the line again rather
+			# than whipping it across the board from wherever it was left.
+			_aim_tip = _aim_anchor()
+			_aim_line.target = _aim_tip
+	if aiming:
+		_view.aim_at(_view.target_at(where), _aim_view.card, _drag_preview)
+	else:
+		_view.clear_aim()
 
 ## Resolve against whatever is under the cursor, or put the card back.
 func _aim_release(where: Vector2) -> void:
@@ -2236,6 +2320,45 @@ class AimLine extends Control:
 	## what makes a dragged thing feel alive rather than welded to the pointer.
 	const FOLLOW := 16.0
 
+	## TWO WAVES BEATING ALONG A STRAIGHT RUN, under an envelope that is widest
+	## at the middle. Chosen off a bench of forty-odd treatments; the numbers are
+	## the bench's, kept rather than re-guessed.
+	##
+	## Each entry is a frequency in cycles across the run, a travel speed in
+	## radians a second (sign is direction), and its share of the swing. The two
+	## are deliberately not harmonics -- 12 against 17 never repeats over a run,
+	## so the crossings wander instead of standing in a row.
+	const AMP := 5.0
+	const WAVE_F := [12.0, 17.0]
+	const WAVE_S := [5.5, -3.6]
+	const WAVE_A := [1.0, 0.6]
+
+	## How far the run bows off the straight line, as a share of its length and
+	## capped. Generous on purpose: a shallow bow reads as a UI rule, a deep one
+	## reads as something thrown.
+	##
+	## MIRRORED ON THE HORIZONTAL. The bow is perpendicular to the run, so left
+	## to itself it turns WITH the aim -- leaning out when you aim up-left and the
+	## other way up-right, and swinging through the change as the cursor crosses.
+	## Flipping its sign with the run's x makes it always belly away from the
+	## card. That swing is what "acts weirdly" was.
+	const BOW := 0.24
+	const BOW_MAX := 46.0
+
+	## How far short of the tip the shaft stops, so it never draws underneath the
+	## reticle. Slightly more than the reticle's own reach.
+	const HEAD_GAP := 12.0
+
+	## The reticle: three marks at 120 degrees, rotating inward and seating from
+	## radius 8 to 5. It is a LOCK rather than a dot -- the closing is what says
+	## a target is under the cursor.
+	const LOCK_R := 8.0
+	const LOCK_CLOSE := 3.0
+	const LOCK_SPIN := 1.6
+	const LOCK_RATE := 2.2
+
+	const SHADOW := Color("#060a10")
+
 	var owner_screen: SectorScreen = null
 	var target: Vector2 = Vector2.ZERO
 
@@ -2248,29 +2371,84 @@ class AimLine extends Control:
 		owner_screen._aim_tip = owner_screen._aim_tip.lerp(target, k)
 		queue_redraw()
 
+	## One pixel. Everything here is plotted rather than stroked: the board is
+	## 960x540 pixel art and a smoothed curve over it reads as a stray from
+	## another game. See the note on the antialiasing this replaced.
+	func _px(x: float, y: float, c: Color) -> void:
+		draw_rect(Rect2(roundf(x), roundf(y), 1.0, 1.0), c)
+
 	func _draw() -> void:
 		if owner_screen == null or owner_screen._aim_view == null:
 			return
 		var a: Vector2 = owner_screen._aim_anchor()
 		var b: Vector2 = owner_screen._aim_tip
-		# A SHALLOW ARC, not a straight rule. A straight line between two points
-		# on a busy board reads as a UI divider; a curve reads as a thing being
-		# thrown. The control point is pushed perpendicular to the run, so the
-		# bow always leans the same way relative to the aim.
-		var mid: Vector2 = (a + b) * 0.5
-		var run: Vector2 = b - a
-		var bow: Vector2 = Vector2(-run.y, run.x).normalized() \
-			* minf(run.length() * 0.14, 26.0)
-		var pts := PackedVector2Array()
-		for i in 17:
-			var t := float(i) / 16.0
-			var u := 1.0 - t
-			pts.append(a * (u * u) + (mid + bow) * (2.0 * u * t) + b * (t * t))
-		draw_polyline(pts, Color(0.06, 0.09, 0.13, 0.85), 5.0, true)
-		draw_polyline(pts, UITheme.FLARE, 2.0, true)
-		# The head, so the line has a direction and an obvious hit point.
-		draw_circle(b, 4.0, Color(0.06, 0.09, 0.13, 0.85))
-		draw_circle(b, 2.5, UITheme.HOT)
+		var t := float(Time.get_ticks_msec()) / 1000.0
+		_draw_shaft(a, b, t)
+		_draw_lock(b, t)
+
+	## The run, walked a pixel at a time with the waves placed off the axis.
+	##
+	## STRAIGHT, and that is a fix rather than a simplification. This was a bowed
+	## arc whose control point was perpendicular to the run, so the curve leaned
+	## one way aiming left and the other aiming right and swung through the change
+	## as the cursor crossed. Waves on a straight run have no such handedness.
+	func _draw_shaft(a: Vector2, b: Vector2, t: float) -> void:
+		var run := b - a
+		var span := run.length()
+		if span < HEAD_GAP + 4.0:
+			return
+		var lean := -1.0 if run.x >= 0.0 else 1.0
+		var ctrl := (a + b) * 0.5 			+ Vector2(-run.y, run.x) / span * minf(span * BOW, BOW_MAX) * lean
+		# One step per pixel, against an UPPER BOUND on the curve's length -- the
+		# two control legs. Stepping by the straight span leaves the samples more
+		# than a pixel apart once the bow is deep, and the shaft comes out dashed.
+		var steps := int(ceilf(a.distance_to(ctrl) + ctrl.distance_to(b)))
+		if steps < 2:
+			return
+		for i in steps + 1:
+			var u := float(i) / float(steps)
+			var here := a.lerp(ctrl, u).lerp(ctrl.lerp(b, u), u)
+			# Stop short of the reticle. Guarded past the midpoint because a deep
+			# bow can start out closer to the tip than the straight line is.
+			if u > 0.5 and here.distance_to(b) < HEAD_GAP:
+				break
+			# The normal turns with the curve, so the waves stay square to the
+			# run rather than to the straight line between its ends.
+			var tang := (ctrl - a) * (2.0 * (1.0 - u)) + (b - ctrl) * (2.0 * u)
+			if tang.length() < 0.001:
+				continue
+			var nrm := Vector2(-tang.y, tang.x) / tang.length()
+			# Widest at the middle, pinched at both ends: it gives the run a waist
+			# and keeps the air around the reticle clear.
+			var env := 0.2 + sin(u * PI) * 1.1
+			var amp := AMP * env
+			for w in WAVE_F.size():
+				var off: float = sin(u * WAVE_F[w] - t * WAVE_S[w]) * amp * WAVE_A[w]
+				var at := here + nrm * off
+				if w == 0:
+					_px(at.x, at.y + 1.0, SHADOW)
+					_px(at.x, at.y, UITheme.FLARE)
+				else:
+					_px(at.x, at.y, UITheme.EMBER)
+
+	## Three marks closing on the mark.
+	func _draw_lock(b: Vector2, t: float) -> void:
+		var r := LOCK_R - roundf(absf(sin(t * LOCK_RATE)) * LOCK_CLOSE)
+		var ph := -t * LOCK_SPIN
+		for i in 3:
+			var th := ph + float(i) * TAU / 3.0
+			var c := b + Vector2(cos(th), sin(th)) * r
+			var across := Vector2(cos(th + PI * 0.5), sin(th + PI * 0.5))
+			for s in range(-2, 3):
+				var q := c + across * float(s)
+				_px(q.x + 1.0, q.y + 1.0, SHADOW)
+			for s2 in range(-2, 3):
+				var q2 := c + across * float(s2)
+				_px(q2.x, q2.y, UITheme.FLARE)
+			var inward := c - Vector2(cos(th), sin(th))
+			_px(inward.x, inward.y, UITheme.EMBER)
+		draw_rect(Rect2(b.x - 1.0, b.y - 1.0, 3.0, 3.0), SHADOW)
+		_px(b.x, b.y, UITheme.HOT)
 
 
 ## The keyword panel, in a fight.

@@ -1067,16 +1067,32 @@ class ShipSlot extends Control:
 			_hot = false
 			queue_redraw()
 
+	## Where the hull actually is, in this slot's coordinates. Falls back to the
+	## whole slot before the art has anything to measure.
+	func _hull_box() -> Rect2:
+		if art == null:
+			return Rect2(Vector2.ZERO, size)
+		var r := art.ship_rect()
+		r.position += art.position
+		r = r.grow(5.0)
+		var clipped := r.intersection(Rect2(art.position, art.size))
+		return clipped if clipped.size.x > 8.0 and clipped.size.y > 8.0 else r
+
 	func _draw() -> void:
 		if not _hot:
 			return
 		var c := UITheme.GOOD
 		var n := 10.0
+		# BOUND TO THE HULL, not to the slot. This slot is most of half the
+		# screen -- see HULL_BIAS -- so brackets at its own corners lit an area
+		# the size of the board and said nothing about what was being aimed at.
+		# The enemy's brackets sit on the enemy; yours belong on you.
+		var box := _hull_box()
 		for corner in [
-				[Vector2(0, 0), Vector2(1, 1)],
-				[Vector2(size.x, 0), Vector2(-1, 1)],
-				[Vector2(0, size.y), Vector2(1, -1)],
-				[Vector2(size.x, size.y), Vector2(-1, -1)]]:
+				[box.position, Vector2(1, 1)],
+				[Vector2(box.end.x, box.position.y), Vector2(-1, 1)],
+				[Vector2(box.position.x, box.end.y), Vector2(1, -1)],
+				[box.end, Vector2(-1, -1)]]:
 			var o: Vector2 = corner[0]
 			var d: Vector2 = corner[1]
 			draw_rect(Rect2(o + Vector2(0, -1 if d.y < 0 else 0), Vector2(n * d.x, 1)), c, true)
@@ -1089,7 +1105,9 @@ class ShipSlot extends Control:
 			var f := UITheme.pixel_font()
 			var fs := UITheme.FS_HEAD
 			var tw := f.get_string_size(_drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			var at := Vector2((size.x - tw) * 0.5, size.y * 0.5 + fs * 0.4)
+			# Over the hull too, for the same reason the brackets are.
+			var at := Vector2(box.position.x + (box.size.x - tw) * 0.5,
+				box.position.y + box.size.y * 0.5 + fs * 0.4)
 			draw_string(f, at + Vector2(1, 1), _drag_text,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.75))
 			draw_string(f, at, _drag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, UITheme.GOOD)
