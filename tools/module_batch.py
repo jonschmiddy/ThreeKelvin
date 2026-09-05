@@ -87,14 +87,23 @@ BOX = {
 }
 
 
+## Probe ids from a wide round -- `cs01`..`cs20`, `gn01`..`gn20`. They are not
+## module ids and never ship under these names; the winner is copied out under
+## the real id. Kept here so `--post` does not have to be special-cased.
+PROBE_IDS = {"cs": (20, 20), "gn": (20, 20)}
+
+
 def box_for(mid):
     """A variant `slug_b` is the same box as `slug`."""
     if mid in BOX:
         return BOX[mid]
+    head = mid[:2]
+    if head in PROBE_IDS and mid[2:].isdigit():
+        return PROBE_IDS[head]
     return BOX.get(mid.rsplit("_", 1)[0])
 
 
-def module_palette(cold_only=True):
+def module_palette(cold_only=False):
     """The colours the accepted modules use, as a flat list.
 
     COLD ONLY, BY DEFAULT, and that is a bug fix rather than a taste. The first
@@ -125,6 +134,52 @@ def module_palette(cold_only=True):
     return seen
 
 
+def is_warm(c):
+    """Red clearly over blue. The one axis that separates an accent from steel."""
+    return c[0] > c[2] + 12
+
+
+def snap_split(w, h, rows, cold, warm):
+    """Snap greys to the cold ramp, accents to the accent colours, never across.
+
+    THE COLD-ONLY PALETTE WENT TOO FAR. It was added to stop a brass bin coming
+    back with 21 amber pixels it was never generated with -- a real defect, since
+    the nearest palette entry to a warm-ish grey had become `optics`' lens. But
+    dropping the warm colours entirely also removed the thing that makes the
+    accepted 1x1s carry: `optics` is a dark box with an AMBER LENS, `coolline` a
+    dark coil with a tan fitting, `scuttle` a cylinder with a red pip. Every one
+    of them is a dark object with one hot point, and cold-only forbids that.
+
+    So the rule is not "no warm colours", it is NO CROSSING. A pixel the
+    generator drew warm may land on a warm palette entry; a grey one may not.
+    The bug was greys migrating into an accent, and this stops exactly that
+    without also banning the accent.
+
+    Returns (drift, warm_kept).
+    """
+    cache, n, hot = {}, 0, 0
+    for y in range(h):
+        for x in range(w):
+            o = x * 4
+            if not rows[y][o + 3]:
+                continue
+            c = (rows[y][o], rows[y][o + 1], rows[y][o + 2])
+            pool = warm if is_warm(c) else cold
+            if not pool:
+                pool = cold or warm
+            if is_warm(c):
+                hot += 1
+            if c in pool:
+                continue
+            n += 1
+            key = (c, len(pool))
+            if key not in cache:
+                cache[key] = min(pool, key=lambda p: (c[0] - p[0]) ** 2
+                                 + (c[1] - p[1]) ** 2 + (c[2] - p[2]) ** 2)
+            rows[y][o], rows[y][o + 1], rows[y][o + 2] = cache[key]
+    return n, hot
+
+
 def post_one(src, box, pal):
     """Raw generation -> shipping sprite. Returns (w, h, rows, report)."""
     w, h, rows = pt.decode(src)
@@ -135,13 +190,15 @@ def post_one(src, box, pal):
     pt.despeckle(w, h, rows)
     w, h, rows = pt.reduce(w, h, rows, 2)
     w, h, rows = pt.trim(w, h, rows)
-    drift = pt.snap(w, h, rows, pal)
+    cold = [c for c in pal if not is_warm(c)]
+    warm = [c for c in pal if is_warm(c)]
+    drift, hot = snap_split(w, h, rows, cold, warm)
     ink = (w, h)
     # `fit` hands back the OVERFLOW rather than shrinking to hide it. A
     # generation that measures wider than its box after trimming is a failed
     # asset, not one to resample -- so it is reported, loudly, per column.
     w, h, rows, over = pt.fit(w, h, rows, box[0], box[1])
-    return w, h, rows, (ink, drift, over)
+    return w, h, rows, (ink, drift, over, hot)
 
 
 def main(argv):
@@ -160,12 +217,12 @@ def main(argv):
             if box is None:
                 print("  %-12s SKIP  no box in the table" % mid)
                 continue
-            w, h, rows, (ink, drift, over) = post_one(
+            w, h, rows, (ink, drift, over, hot) = post_one(
                 os.path.join(indir, f), box, pal)
             pt.encode(os.path.join(outdir, f), w, h, rows)
             flag = "  CLIPPED %dx%d" % over if any(over) else ""
-            print("  %-12s box %-7s ink %-7s  %4d px snapped%s"
-                  % (mid, "%dx%d" % box, "%dx%d" % ink, drift, flag))
+            print("  %-12s box %-7s ink %-7s  %4d snapped  %3d warm%s"
+                  % (mid, "%dx%d" % box, "%dx%d" % ink, drift, hot, flag))
         return 0
 
     if len(argv) >= 2 and argv[0] == "--sheet":

@@ -200,15 +200,29 @@ func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
 ## check was written first and thrown away: it read the last presented frame and
 ## returned identical counts either side of a real visual change, so it passed
 ## against the very bug it was written for. Twice.
-func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
-	mounts.light(null)
+## Queue a redraw and wait until it has actually HAPPENED.
+##
+## `queue_redraw` marks the canvas item dirty; the draw runs in the engine's
+## draw pass, which is not guaranteed to have completed by the end of the very
+## next `process_frame`. Reading `drawn`/`pinged`/`hinted` after a single frame
+## therefore samples the counters from the PREVIOUS draw about one run in five,
+## and the check fails on a hull that is behaving perfectly.
+##
+## This surfaced as `fittest` reporting one failure and then passing four times
+## in a row on the same tree, which is the worst way for a gate to behave: a
+## flaky check teaches you to re-run it rather than to read it.
+func _redrawn(mounts: MountPoints) -> void:
 	mounts.queue_redraw()
 	await _tree.process_frame
+	await _tree.process_frame
+
+func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
+	mounts.light(null)
+	await _redrawn(mounts)
 	var quiet := mounts.drawn
 
 	mounts.light(m)
-	mounts.queue_redraw()
-	await _tree.process_frame
+	await _redrawn(mounts)
 	var lit := mounts.drawn
 	var pings := mounts.pinged
 
@@ -238,8 +252,7 @@ func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
 	# against the very bug it was written for, twice.
 	mounts.light(null)
 	mounts.hover(_mount_local(mounts, m))
-	mounts.queue_redraw()
-	await _tree.process_frame
+	await _redrawn(mounts)
 	var hints := mounts.hinted
 	var bare := 0
 	for sp in mounts.spots():
@@ -252,15 +265,13 @@ func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
 	# says the thing you are carrying goes in it; on screen together they are
 	# two answers to a question you asked once.
 	mounts.light(m)
-	mounts.queue_redraw()
-	await _tree.process_frame
+	await _redrawn(mounts)
 	_ok("a part in hand replaces the hints with pings: %d hints, %d pings"
 		% [mounts.hinted, mounts.pinged],
 		mounts.hinted == 0 and mounts.pinged == free)
 	mounts.light(null)
 	mounts.hover(Vector2.INF)
-	mounts.queue_redraw()
-	await _tree.process_frame
+	await _redrawn(mounts)
 	_ok("and the hull goes quiet when the pointer leaves: %d hints"
 		% mounts.hinted, mounts.hinted == 0)
 
