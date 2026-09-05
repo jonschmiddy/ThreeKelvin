@@ -2,6 +2,7 @@
 """Widen a module sprite until it spans its box, without resampling it.
 
     python tools/fill_box.py <sprite.png> <box_w> [out.png]
+    python tools/fill_box.py --tall <sprite.png> <box_h> [out.png]
 
 A generated sprite sits in the middle of its canvas with a margin either side.
 `ModuleIcon` CENTRES a sprite in its box and never stretches it -- "the box is a
@@ -17,9 +18,16 @@ housing -- and inserts a copy of it. Repeating a column that already equals its
 neighbour is invisible: the shape grows, every pixel stays where the generator
 put it, and nothing is interpolated.
 
-Only the WIDTH is filled. km4 is 11 rows tall in a 20-row box, so height is the
-subject's business; a gun stretched to fill its height vertically would just be
-a fatter gun.
+HEIGHT IS OPT-IN, and that is a change from the first version, which filled the
+width only and said height was the subject's business. That is still true of a
+GUN -- km4 is 11 rows in a 20-row box and a gun stretched to fill its height is
+just a fatter gun. It is NOT true of a hull part. A blowout panel is a piece of
+the ship's skin and it should span the cell it occupies the way plating does;
+coming back 12 rows tall in a 20-row box left it floating in a band.
+
+So `--tall` does to rows exactly what the default does to columns, and for the
+same reason: 12 to 20 is x1.67, and a non-integer scale is the one thing the
+whole reduction path exists to avoid.
 """
 import io
 import os
@@ -85,16 +93,54 @@ def widen(w, h, rows, want):
     return want, h, out, need
 
 
+def heighten(w, h, rows, want):
+    """The same operation on rows. Duplicates the row that differs least from
+    the one below it, which on a panel is a flat run of plating and on anything
+    else is whatever the generator drew twice already."""
+    _, _, y0, y1 = content(w, h, rows)
+    have = y1 - y0 + 1
+    need = want - have
+    if need <= 0:
+        return w, h, rows, 0
+    body = [bytearray(rows[y]) for y in range(y0, y1 + 1)]
+    for _ in range(need):
+        best, at = None, 0
+        for i in range(len(body) - 1):
+            a, b, c = body[i], body[i + 1], 0
+            for x in range(w):
+                o = x * 4
+                if (a[o + 3] > 8) != (b[o + 3] > 8):
+                    c += 400
+                elif a[o + 3] > 8:
+                    c += sum(abs(a[o + k] - b[o + k]) for k in range(3))
+            if best is None or c < best:
+                best, at = c, i
+        body.insert(at, bytearray(body[at]))
+    out = [bytearray(w * 4) for _ in range(want)]
+    for i, r in enumerate(body):
+        out[i] = r
+    return w, want, out, need
+
+
 def main():
-    src = sys.argv[1]
-    want = int(sys.argv[2])
-    dst = sys.argv[3] if len(sys.argv) > 3 else src
+    argv = sys.argv[1:]
+    tall = "--tall" in argv
+    if tall:
+        argv.remove("--tall")
+    src, want = argv[0], int(argv[1])
+    dst = argv[2] if len(argv) > 2 else src
     w, h, rows = pt.decode(src)
     x0, x1, y0, y1 = content(w, h, rows)
-    nw, nh, out, added = widen(w, h, rows, want)
+    if tall:
+        nw, nh, out, added = heighten(w, h, rows, want)
+        what, span = "rows", nh
+    else:
+        nw, nh, out, added = widen(w, h, rows, want)
+        what, span = "columns", nw
     pt.encode(dst, nw, nh, out)
-    print("  %s: content %dx%d in %dx%d -> %d columns duplicated -> spans %d of %d"
-          % (os.path.basename(src), x1 - x0 + 1, y1 - y0 + 1, w, h, added, nw, want))
+    print("  %s: content %dx%d in %dx%d -> %d %s duplicated -> spans %d of %d"
+          % (os.path.basename(src), x1 - x0 + 1, y1 - y0 + 1, w, h,
+             added, what, span, want))
 
 
 if __name__ == "__main__":

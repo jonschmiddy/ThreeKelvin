@@ -708,6 +708,25 @@ func _ready() -> void:
 		# something worth swapping to.
 		for i in 8:
 			Run.stow(LootGen.roll_module(2 + i, &"", true))
+		# NAME A MODULE AND IT GOES ON THE HULL: `-- ship lattice`.
+		#
+		# The eight above are a random hold, which is right for exercising the
+		# workbench and wrong for looking at ONE part. Checking a sprite meant
+		# rolling until the part turned up, and a 2x2 unbranded system module
+		# does not turn up often. Any argument that matches a module id is now
+		# built and installed, so the thing you want to look at is bolted on
+		# when the screen opens.
+		#
+		# Duplicated, for the reason `fit_chassis` gives at the same call: the
+		# catalogue entry is shared, and a run that mutates it moves that part
+		# on every ship in the game.
+		for a in flags:
+			var mid := StringName(a)
+			if not DB.modules.has(mid):
+				continue
+			var pick := (DB.modules[mid] as ModuleData).duplicate(true) as ModuleData
+			Run.install_module(pick)
+			print("[ship] installed %s (%s)" % [pick.name, mid])
 		Router.show_ship()
 	elif "station" in OS.get_cmdline_user_args():
 		# The dock, immediately. Added when the station became four panels rather

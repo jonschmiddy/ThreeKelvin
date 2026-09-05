@@ -90,7 +90,9 @@ BOX = {
 ## Probe ids from a wide round -- `cs01`..`cs20`, `gn01`..`gn20`. They are not
 ## module ids and never ship under these names; the winner is copied out under
 ## the real id. Kept here so `--post` does not have to be special-cased.
-PROBE_IDS = {"cs": (20, 20), "gn": (20, 20)}
+PROBE_IDS = {"cs": (20, 20), "gn": (20, 20),
+             "sg": (40, 40), "sp": (40, 40),
+             "ke": (40, 40), "mb": (40, 40)}
 
 
 def box_for(mid):
