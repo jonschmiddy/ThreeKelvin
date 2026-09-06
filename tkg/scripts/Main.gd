@@ -636,6 +636,14 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
+	# The station, photographed:  godot --path . -- stationshot [maker=solari]
+	# Beside shipshot and chartshot because it needs a window and it needs the
+	# Router to have a content node, which the headless checks above run before.
+	if "stationshot" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/StationShot.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "convoy" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
@@ -727,6 +735,49 @@ func _ready() -> void:
 			var pick := (DB.modules[mid] as ModuleData).duplicate(true) as ModuleData
 			Run.install_module(pick)
 			print("[ship] installed %s (%s)" % [pick.name, mid])
+		# `sets=N` bolts on N of the hull manufacturer's own parts, `mixed` adds
+		# one each from three others, and `name=Bad Penny` names the ship. All
+		# three exist for the same reason: the masthead and the perk corner
+		# rearrange around state a default run does not have, so the screen this
+		# flag opens was the one state that could not show what was added to it.
+		var want := 0
+		for a2 in flags:
+			if (a2 as String).begins_with("sets="):
+				want = int((a2 as String).substr(5))
+			elif (a2 as String).begins_with("name="):
+				Run.ship_name = (a2 as String).substr(5)
+		var fitted := 0
+		for mid2 in DB.modules:
+			if fitted >= want:
+				break
+			var md: ModuleData = DB.modules[mid2]
+			if md.manufacturer != Run.hull.manufacturer:
+				continue
+			Run.install_module(md.duplicate(true) as ModuleData)
+			fitted += 1
+		# TWO OTHERS, not three. Mounts are finite and these displace the parts
+		# fitted above, so three of them on a heavy left the hull manufacturer at
+		# four -- lit, but one short of the tier that breathes. Two leaves five,
+		# which is the only loadout that shows all three chip states at once.
+		if "mixed" in flags:
+			var others := 0
+			for oid in DB.manufacturers:
+				if oid == Run.hull.manufacturer or others >= 2:
+					continue
+				for mid3 in DB.modules:
+					if (DB.modules[mid3] as ModuleData).manufacturer != oid:
+						continue
+					Run.install_module((DB.modules[mid3] as ModuleData).duplicate(true) as ModuleData)
+					others += 1
+					break
+		var tally := PackedStringArray()
+		for oid2 in DB.manufacturers:
+			var n2 := Run.manufacturer_count(oid2)
+			if n2 > 0:
+				tally.append("%s %d" % [DB.short_name(DB.manufacturer_name(oid2)), n2])
+		if tally.size() > 0:
+			print("[ship] allegiances: %s%s" % [", ".join(tally),
+				"  ·  named '%s'" % Run.ship_name if Run.ship_name != "" else ""])
 		Router.show_ship()
 	elif "station" in OS.get_cmdline_user_args():
 		# The dock, immediately. Added when the station became four panels rather
@@ -753,6 +804,29 @@ func _ready() -> void:
 		# floating in the sector for you to go and fetch.
 		for seeded in [&"exotic", &"exotic", &"relic"]:
 			Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
+		# FOUR OF THE BERTH'S OWN PARTS BOLTED ON.
+		#
+		# A fresh run counts two toward a set -- the hull and one starter module --
+		# and the HUD's set-bonus chip appears at three. So the state this flag
+		# built was the one state that could not show the chip, on the screen the
+		# chip was added to. `sets=N` asks for a different count.
+		var want := 4
+		for a3 in OS.get_cmdline_user_args():
+			if (a3 as String).begins_with("sets="):
+				want = int((a3 as String).substr(5))
+		var fitted := 0
+		for mid2 in DB.modules:
+			if fitted >= want:
+				break
+			var md: ModuleData = DB.modules[mid2]
+			if md.manufacturer != here.manufacturer:
+				continue
+			Run.install_module(md.duplicate(true) as ModuleData)
+			fitted += 1
+		print("[station] %s berth · %d fitted · set count %d" % [
+			DB.manufacturer_name(here.manufacturer), fitted,
+			Run.manufacturer_count(here.manufacturer)])
+
 		Run.hp = maxi(1, Run.max_hp() - 12)
 		Run.add_dross(3)
 		Router.show_station()

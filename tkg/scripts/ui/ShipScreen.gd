@@ -181,6 +181,9 @@ var _mountpts: MountPoints
 var _view: ShipView
 var _banner: ChassisSelect.Banner
 var _name: Label
+var _namebtn: Button
+## How long a ship's name may be. Longer than this and the masthead wraps.
+const NAME_MAX := 24
 var _manufacturer: Label
 var _class: Label
 var _hand: Label
@@ -263,8 +266,21 @@ func _build() -> void:
 	# hard against the flag and every correction below did nothing.
 	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# THE NAME, and the pencil that changes it.
+	#
+	# On a row of its own so the button sits against the text rather than out at
+	# the column's right edge -- the column expands to fill the masthead, and a
+	# button parented straight to it would end up a hundred pixels from the word
+	# it edits.
+	var namerow := HBoxContainer.new()
+	namerow.add_theme_constant_override("separation", 6)
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
-	names.add_child(_name)
+	_name.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	namerow.add_child(_name)
+	_namebtn = NameEdit.new()
+	_namebtn.pressed.connect(_open_rename)
+	namerow.add_child(_namebtn)
+	names.add_child(namerow)
 	_manufacturer = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	names.add_child(_manufacturer)
 	var clsrow := HBoxContainer.new()
@@ -700,6 +716,76 @@ func _ship_x() -> float:
 		return (win - wide) * 0.5
 	return (win - wide) * 0.5 - _view.ship_offset_x()
 
+## Rename the ship, in a panel over the screen.
+##
+## AN AcceptDialog, not a screen. Renaming is a detour of about four seconds and
+## a Router push would tear down the refit screen and rebuild it underneath --
+## losing the ship's arrival animation, the hold's scroll position and whatever
+## part was mid-drag.
+##
+## BUILT AND FREED EACH TIME. A dialog held as a field is one more thing to keep
+## in step with a hull swap, and this one reads `Run` at the moment it opens.
+func _open_rename() -> void:
+	if Run.hull == null:
+		return
+	var dlg := AcceptDialog.new()
+	# BORDERLESS, and the title moves inside. An embedded Window draws its own
+	# title bar out of the editor theme, which is grey -- so a dialog styled to
+	# match the game still wore a strip of Godot across the top of it.
+	dlg.borderless = true
+	dlg.ok_button_text = "SET"
+	dlg.add_cancel_button("CANCEL")
+	dlg.exclusive = true
+	# THE GAME'S OWN PANEL. An AcceptDialog left alone is Godot's default grey,
+	# which against this interface reads as a system dialog that wandered in from
+	# another program rather than as part of the ship.
+	dlg.add_theme_stylebox_override("panel", UITheme.bevel(UITheme.PANEL, 8, 10))
+
+	# ONE CHILD, a column, rather than two siblings. AcceptDialog stretches its
+	# content to fill, so a LineEdit added on its own came out five lines tall
+	# with the hint sitting inside its border -- and with the hint as a second
+	# child the two fought over which was "the" content.
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.add_child(UITheme.header("NAME YOUR SHIP"))
+	box.add_child(UITheme.hsep())
+
+	var note := UITheme.body(
+		"Empty keeps the frame's own name. Names survive a hull swap.",
+		UITheme.COLD, UITheme.FS_SMALL)
+	box.add_child(note)
+
+	var field := UITheme.field(28)
+	# The frame's own name as the PLACEHOLDER, not as the text. Prefilling it
+	# would make clearing the box the only way to go back to being unnamed, and
+	# a player who opens this by accident should be able to press SET and change
+	# nothing.
+	field.placeholder_text = Run.hull.name
+	field.text = Run.ship_name
+	field.max_length = NAME_MAX
+	# SHRINK, or the column hands it every spare pixel of height.
+	field.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	field.select_all_on_focus = true
+	dlg.register_text_enter(field)
+	box.add_child(field)
+	dlg.add_child(box)
+
+	dlg.confirmed.connect(func() -> void:
+		# STRIPPED, and a name that is only spaces is no name. Otherwise the
+		# masthead shows a blank line where a word should be and nothing on the
+		# screen says why.
+		Run.ship_name = field.text.strip_edges()
+		_refresh())
+	# TREE_EXITING rather than a plain `visibility_changed`: the cancel button
+	# hides the dialog too, and freeing on hide would free it out from under the
+	# confirmed handler.
+	dlg.canceled.connect(dlg.queue_free)
+	dlg.confirmed.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
+	field.grab_focus()
+
+
 ## Park the perk list in the masthead's top-right corner.
 ##
 ## By hand, because it is top-level and therefore laid out by nobody -- which
@@ -920,11 +1006,17 @@ func _refresh() -> void:
 	_banner.mark = accent
 	_banner.field = m.field if m != null else UITheme.PANEL
 	_banner.queue_redraw()
-	_name.text = Run.hull.name.to_upper()
+	# NAMED SHIPS PUSH THE FRAME DOWN A LINE rather than replacing it. What the
+	# hull IS stays readable -- a player deciding whether to swap frames needs
+	# "Ironside Cutter" as much as the pilot who called it something else does.
+	var named := Run.ship_name.strip_edges()
+	_name.text = named.to_upper() if named != "" else Run.hull.name.to_upper()
 	_manufacturer.text = m.name.to_upper() if m != null else "UNBRANDED SALVAGE"
 	_manufacturer.add_theme_color_override("font_color", accent)
 	_class.text = "%s CHASSIS · %s TIER" % [
 		HullData.weight_name(Run.hull.weight).to_upper(), Run.hull.tier_letter()]
+	if named != "":
+		_class.text = "%s · %s" % [Run.hull.name.to_upper(), _class.text]
 	_attrs.setup(Run.attributes(), accent)
 	_refresh_mounts()
 	var draw := Run.power_draw()
@@ -942,6 +1034,54 @@ func _refresh() -> void:
 	# THE HULL'S OWN PERKS, manufacturer first then the grade's, in the corner.
 	if _perkbox != null:
 		Widgets.clear(_perkbox)
+		# --- WHAT YOU HAVE BECOME, above what the hull came with.
+		#
+		# The two belong in one corner because they are the same kind of fact:
+		# always-on effects you did not spend a card on. They are not the same
+		# ORIGIN, though -- a perk came with the frame and a set bonus was
+		# assembled -- so the chips read as marks and the perks as words.
+		#
+		# A set-bonus LADDER used to live on this screen and was removed on
+		# request; this is deliberately not that. The ladder showed how close a
+		# mixed loadout was to a bonus it did not have yet. These say only what
+		# is applying right now, which is the half nothing on this screen said.
+		var live := HBoxContainer.new()
+		live.add_theme_constant_override("separation", 3)
+		live.size_flags_horizontal = Control.SIZE_SHRINK_END
+		for mid in DB.manufacturers:
+			var have := Run.manufacturer_count(mid)
+			# ONE TOWARD THE SET IS ENOUGH TO APPEAR, and the hull counts as
+			# one. `manufacturer_count` includes it deliberately -- choosing a
+			# chassis is a build decision, and a Korvan frame really does put you
+			# one part from Standard Issue.
+			#
+			# This was briefly gated on FITTED parts instead, so a bare hull flew
+			# no mark. That made the chip disagree with the number the game
+			# actually uses, which is worse than the confusion it was meant to
+			# fix: a player on an empty Korvan hull IS one toward the set and
+			# should be able to see it. What was missing was never the chip, it
+			# was anything saying where the one came from -- so the count below
+			# names the hull's share instead of hiding it.
+			var parts := 0
+			for inst in Run.installed:
+				if inst.manufacturer == mid:
+					parts += 1
+			if have < 1:
+				continue
+			var mk: ManufacturerData = DB.manufacturers[mid]
+			var chip := HudBar.SetChip.new()
+			chip.manufacturer = mid
+			chip.mark = mk.colour
+			chip.field = mk.field
+			# ITS OWN HOVER, unlike the perk labels beside it. The perks share
+			# one tooltip because four names with no effects are unreadable
+			# apart; a chip is one fact and has room to state itself -- and
+			# `setup` is what gives it that, panel and all.
+			chip.mouse_filter = Control.MOUSE_FILTER_STOP
+			chip.setup(have, parts)
+			live.add_child(chip)
+		if live.get_child_count() > 0:
+			_perkbox.add_child(live)
 		for pid in Run.hull.perks():
 			var pd: Dictionary = DB.hull_perks.get(pid, {})
 			if pd.is_empty():
@@ -1257,3 +1397,36 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	Audio.play(&"hold_stow", 0.08)
 	Sig.ship_changed.emit()
 	_refresh()
+
+
+## THE PENCIL BESIDE THE SHIP'S NAME, drawn rather than typed.
+##
+## The UI font has no pencil glyph, and an "EDIT" label next to a name reads as
+## part of the name -- which on this screen means it reads as part of the SHIP'S
+## name. Everything else in this interface is rectangles on the pixel grid, so
+## this is too.
+class NameEdit extends Button:
+	const ART := 9.0
+
+	func _init() -> void:
+		focus_mode = Control.FOCUS_NONE
+		flat = true
+		custom_minimum_size = Vector2(ART + 8.0, ART + 6.0)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tooltip_text = "Rename the ship"
+		mouse_entered.connect(queue_redraw)
+		mouse_exited.connect(queue_redraw)
+
+	func _draw() -> void:
+		var ink := UITheme.ICE if is_hovered() else UITheme.CHILL
+		var o := (Vector2(size.x - ART, size.y - ART) * 0.5).floor()
+		# The shaft: a stepped diagonal, two pixels wide, which is what a
+		# diagonal IS on this grid. See tools/hand_parts.py's `limb` for the
+		# same shape drawn at module scale.
+		for i in 6:
+			draw_rect(Rect2(o + Vector2(6.0 - i, 1.0 + i), Vector2(2, 1)), ink, true)
+		# The ferrule at the blunt end, dimmer, so the pencil has a direction.
+		draw_rect(Rect2(o + Vector2(6, 0), Vector2(3, 2)), ink.darkened(0.45), true)
+		# The point. EMBER, because it is the only warm pixel in the masthead
+		# and it is what tells you the thing is a pencil rather than a slash.
+		draw_rect(Rect2(o + Vector2(0, 7), Vector2(2, 2)), UITheme.EMBER, true)

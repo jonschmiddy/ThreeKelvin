@@ -187,15 +187,53 @@ need a translation table from the CSV's manufacturer names to `MapGen.Region`.
 
 **Gate:** each batch reviewed and merged before the next begins.
 
-### Phase 9 — Identity art
-*Implements `manufacturer-identity.md` §2. The palette was ruled in
-Phase 2; this is the art that hangs off it.*
+### Phase 9 — Identity art — **done**
+*The palette was ruled in Phase 2; this is the art that hangs off it. The
+citation to `manufacturer-identity.md` §2 is struck — see the footnote.*
 
 Seven emblems at ≤4 primitives each, surviving a 16px crop — that crop
 *is* the HUD set-bonus chip, so it is a hard test. Banners across four
 surfaces. All seven names are locked in `Database.gd`; no mark is draft on that account any more.
 
-**Gate:** every emblem legible at 16px.
+**Gate:** every emblem legible at 16px. **Met.** All seven read at 16 and at
+the 13 the badge actually draws, and — the harder half — read as seven
+*different* things. `tools/` has no part in this: the marks are rectangles in
+`CardView.draw_emblem`, so the test is to render them and look.
+
+Most of this phase turned out to be built already and never measured. What
+finishing it actually took:
+
+- **The chip the gate is named after did not exist.** `Run.has_set` has been
+  deciding whether Solari plasma gains damage and whether Cygnet drones act
+  twice for as long as those bonuses have existed, and the player was told
+  nowhere — the only place a set bonus appeared was the chassis picker, which
+  is the one screen you are not on while it matters. `HudBar`'s own header
+  claimed "live set-bonus progress" and the file contained none. It does now,
+  at exactly 16px, which is where the gate's number came from.
+- **The bar had seven pixels of slack and the chip wanted sixteen.** Measured,
+  not eyeballed: `-- stationshot` prints the row's wanted width against its
+  real one. Separation went 6 → 5, the same lever this file's header records
+  pulling once before, and the bar now wants less *with* the chip than it did
+  without.
+- **The fourth banner surface is the station header.** A territory station
+  stocks its shelf from one manufacturer and prints its contracts in that
+  manufacturer's voice, and never said whose. The flag rather than the badge:
+  the chassis list badges seven you are choosing between, this is the one you
+  are inside of. A station nobody holds hides it rather than flying a blank.
+- **Redline's hem was eating Redline's mark.** Its strips ran sixteen units up
+  a twenty-two unit flag, straight through the emblem at unit 11 — two bars of
+  the mark colour on a column of the mark colour. Replaced with a short hem and
+  two threads pulled long; nothing in it now goes above eight.
+
+**Ruling — the primitive budget counts SHAPES, not draw calls.** A row of
+identical teeth drawn in a loop is one shape; a narrowing stack is one shape.
+Under draw calls `probate` is six rects and fails a budget of four, and it
+cannot come down without becoming a different mark. Under shapes it is a bucket
+and its teeth, and every emblem passes. The budget was only ever a proxy for
+legibility at 16px, and that is gated directly, so the proxy defers to it.
+`solari` came down 5 → 3 anyway — opposite rays are collinear and touch the
+disc, so one bar through does the work of two stubs, and the render is byte
+identical.
 
 ## 3. Running alongside
 
@@ -234,3 +272,9 @@ Each needs a human decision.
 *Rows 2 (card dimensions) and 6 (hull 0–6 mapping) were dropped: the first is
 *settled in `CardView.gd`, the second cites a section of a document that was
 *never landed. Row 11 moved to `coop-design.md` §16.*
+
+*Phase 9's citation to `manufacturer-identity.md` §2 is struck. The header
+*already lists that file among the three source documents that were never
+*landed — the phase then cited a SECTION of it anyway, which is what made it
+*read as a spec somebody could go and consult. Phase 9's own paragraph carried
+*the whole spec, so nothing was lost with it.*

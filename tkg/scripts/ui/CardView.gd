@@ -454,11 +454,23 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 			# field differing from the card — and Redline's #1c2127 against a
 			# #161f2c panel IS the card. A subtraction needs two colours to
 			# subtract between, so this one goes on as a positive.
-			hem.call(Rect2(b.position.x, base - 3 * s, b.size.x, 3.0 * s), mark)
+			#
+			# TWO THREADS PULLED LONG, and the rest of the edge holding. The
+			# first version ran its strips up to SIXTEEN units on a twenty-two
+			# unit flag, which put them at unit 11 -- where the emblem sits.
+			# Redline's mark is two bars in the mark colour, and two bars on a
+			# column of the mark colour are nothing: the hem ate the mark, on
+			# every card the manufacturer flies. Nothing here goes above eight.
+			hem.call(Rect2(b.position.x, base - 2 * s, b.size.x, 2.0 * s), mark)
 			for i in 6:
-				var hh: float = [11, 4, 16, 7, 13, 5][i]
+				var hh: float = [3, 1, 4, 1, 3, 1][i]
 				hem.call(Rect2(b.position.x + i * 2 * s, base - hh * s,
 					2.0 * s, hh * s), mark)
+			# The two that let go. One unit wide against the two-unit teeth, and
+			# at 3 and 9 rather than on the even pitch the rest of the hem sits
+			# on -- a snag is not on the grid the edge it came out of is on.
+			hem.call(Rect2(b.position.x + 3 * s, base - 8 * s, s, 8.0 * s), mark)
+			hem.call(Rect2(b.position.x + 9 * s, base - 6 * s, s, 6.0 * s), mark)
 		&"korvan":
 			# Flat, with a riveted steel band. Decoration is for people whose
 			# guns jam.
@@ -502,11 +514,17 @@ static func draw_emblem(ci: CanvasItem, manufacturer: StringName, c: Vector2, s:
 			r.call(Vector2(-2.5, 3), Vector2(5, 2), mark)
 		&"solari":
 			# Sun disc, four cardinal rays.
+			#
+			# THREE RECTS, NOT FIVE, and not one pixel different. The rays were
+			# drawn as four stubs off the disc, which is how you would describe
+			# the mark -- but opposite stubs are collinear and touch it, so a bar
+			# straight through does the same job twice. Checked by painting both
+			# and comparing: identical. The build plan budgets four primitives an
+			# emblem and this was the only one over it that could come down
+			# without becoming a different mark.
+			r.call(Vector2(-0.5, -4.5), Vector2(1, 9), mark)
+			r.call(Vector2(-4.5, -0.5), Vector2(9, 1), mark)
 			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), mark)
-			r.call(Vector2(-0.5, -4.5), Vector2(1, 3), mark)
-			r.call(Vector2(-0.5, 1.5), Vector2(1, 3), mark)
-			r.call(Vector2(-4.5, -0.5), Vector2(3, 1), mark)
-			r.call(Vector2(1.5, -0.5), Vector2(3, 1), mark)
 		&"probate":
 			# A bucket narrowing to its teeth. The bite is the manufacturer.
 			r.call(Vector2(-4.5, -4.5), Vector2(9, 2), mark)

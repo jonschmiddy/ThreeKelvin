@@ -298,6 +298,7 @@ static func _snapshot() -> Dictionary:
 		galaxy_title = Run.galaxy_title,
 
 		hull = _hull_to(Run.hull),
+		ship_name = Run.ship_name,
 		installed = installed,
 		cargo = cargo,
 		found_hull = _hull_to(Run.found_hull) if Run.found_hull != null else null,
@@ -416,6 +417,10 @@ static func load_into_run() -> bool:
 		Run.repack_hold()
 	var fh: Variant = d.get("found_hull", null)
 	Run.found_hull = _hull_from(fh) if typeof(fh) == TYPE_DICTIONARY else null
+
+	# A save written before ships could be named restores as unnamed, which is
+	# what it meant at the time.
+	Run.ship_name = str(d.get("ship_name", ""))
 
 	Run.hp = int(d.get("hp", 1))
 	Run.heat = int(d.get("heat", 0))

@@ -23,6 +23,12 @@ extends PanelContainer
 ## So refresh() now only writes values and states. Nothing here is constructed
 ## after _ready.
 
+## How far a readout's label sits from its number, and how far one readout sits
+## from the next. THE SECOND MUST BE THE LARGER -- that is the whole of the rule,
+## and it was inverted: six inside against the row's five between.
+const STAT_GAP := 4
+const ECON_GAP := 12
+
 var _row: HBoxContainer
 var _built: bool = false
 
@@ -51,6 +57,12 @@ var _heat_text: Label
 var _scrap: HBoxContainer
 var _fuel: HBoxContainer
 var _materials: HBoxContainer
+## Set-bonus chips, one per manufacturer, all built and all hidden until earned.
+## Seven Controls is cheaper than the rule this bar is built on -- nothing is
+## constructed after _ready, because rebuilding threw away the star chart's sky
+## cache and cost 180ms on every screen change.
+var _sets: HBoxContainer
+var _chips: Dictionary = {}
 ## Which materials the row currently holds a readout for. Rebuilt only when this
 ## changes; a count moving is a text update.
 var _mat_ids: Array = []
@@ -88,7 +100,15 @@ func _ready() -> void:
 	# fitting a 960 window and losing its last readout off the end. Nothing is
 	# removed and nothing is renamed; the air between things is just slightly
 	# less generous.
-	_row.add_theme_constant_override("separation", 6)
+	#
+	# FIVE NOW, for the set-bonus chip, and the same lever for the same reason.
+	# MEASURED: with dev mode on the row wanted 937 of 944 before the chip and
+	# 953 after -- sixteen pixels of chip against seven of slack, clipping the
+	# HISTORY tab by nine. One pixel off each of about twenty gaps returns
+	# twenty, which is the whole cost and some margin. `-- stationshot` prints
+	# both numbers, so the next person to add something here can check rather
+	# than guess.
+	_row.add_theme_constant_override("separation", 5)
 	_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	clip.add_child(_row)
 	_build()
@@ -162,8 +182,18 @@ func _build() -> void:
 	# whole economy is stated and none of it is self-evident: scrap is one
 	# currency competing with itself, fuel is priced by chart distance, and heat
 	# is a second health bar you are allowed to spend.
+	# --- the economy, grouped by PROXIMITY rather than by dividers.
+	#
+	# The gap inside a readout was SIX and the gap between two readouts was the
+	# row's own five, so "CREDITS 40 EXOTIC 2" bound the wrong pairs -- 40 sat
+	# closer to EXOTIC than to the word it belongs to. Nothing was misaligned;
+	# the spacing simply said the opposite of the grouping. Four in, twelve
+	# between, and the eye does the rest without a rule being drawn.
+	var econ := HBoxContainer.new()
+	econ.add_theme_constant_override("separation", ECON_GAP)
 	_scrap = Widgets.stat("credits", "")
-	_row.add_child(_hintable(_scrap))
+	_scrap.add_theme_constant_override("separation", STAT_GAP)
+	econ.add_child(_hintable(_scrap))
 	# Materials are the one part of this bar whose CHILD COUNT is not fixed —
 	# one readout per material held, none for a material you have none of,
 	# because the bar is narrow and empty counters cost the space the ones that
@@ -174,13 +204,40 @@ func _build() -> void:
 	# the thing this class exists to guarantee: the tabs and the frame counter
 	# are never rebuilt, whatever the economy is doing.
 	_materials = HBoxContainer.new()
-	_materials.add_theme_constant_override("separation", 10)
-	_row.add_child(_materials)
+	_materials.add_theme_constant_override("separation", ECON_GAP)
+	econ.add_child(_materials)
+	_row.add_child(econ)
 	# Materials stay on the scrap side of this rule: both are things you are
 	# carrying. Fuel is not — it is the clock — so it gets its own compartment.
 	_row.add_child(_divider())
 	_fuel = Widgets.stat("fuel", "")
+	_fuel.add_theme_constant_override("separation", STAT_GAP)
 	_row.add_child(_hintable(_fuel))
+
+	# --- who you are turning into.
+	#
+	# On the state side of the bar rather than with the tabs: a set bonus is a
+	# fact about your ship, like hull and heat, not a place you can go.
+	#
+	# NO DIVIDER AND NO TIER LABEL, and that is a width decision rather than a
+	# taste one. This bar is full at 960: the first version put a divider and a
+	# "3"/"5" digit beside the plate, cost about forty pixels, and the HISTORY
+	# tab came back clipped to "H". The tier moved into the plate as pips and
+	# into the hover text, which is where the bonus's name and effect already
+	# are.
+	_sets = HBoxContainer.new()
+	_sets.add_theme_constant_override("separation", 3)
+	_sets.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	for id in DB.manufacturers:
+		var mk: ManufacturerData = DB.manufacturers[id]
+		var chip := SetChip.new()
+		chip.manufacturer = id
+		chip.mark = mk.colour
+		chip.field = mk.field
+		chip.visible = false
+		_sets.add_child(_hintable(chip))
+		_chips[id] = chip
+	_row.add_child(_sets)
 
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -238,6 +295,8 @@ func _build() -> void:
 func refresh() -> void:
 	if not _built or Run.hull == null:
 		return
+
+	_refresh_sets()
 
 	var fighting := Router.in_combat()
 	# Choosing a chassis locks the whole bar. Until you have launched there is no
@@ -348,6 +407,33 @@ func _hint(c: Control, text: String) -> void:
 ## One readout per material held. Rebuilt only when the SET changes — picking up
 ## a material you had none of, or spending the last of one. A count going from 3
 ## to 2 is a text write, which is the common case by a wide margin.
+## Which set bonuses are ON, and at which tier.
+##
+## THREE AND FIVE, not a progress bar. `ability_rows` on the chassis screen shows
+## "2 / 3" because that screen is where you are deciding; this one is where you
+## are playing, and a bar that is not full is a fact you can do nothing about
+## mid-fight. A chip appears when it starts applying and not before.
+func _refresh_sets() -> void:
+	for id in _chips:
+		var have := Run.manufacturer_count(id)
+		var chip: SetChip = _chips[id]
+		# EARNED ONLY, ON THIS BAR, and that is a width decision rather than a
+		# design one. The ship screen shows every allegiance you hold a part of,
+		# greyed until it lands -- it has a corner to spend. This row wants 933
+		# of 944 with one chip on it, and a mixed loadout can hold parts from
+		# five manufacturers, which is ninety-five pixels that do not exist.
+		chip.visible = have >= 3
+		if not chip.visible:
+			continue
+		# THE CHIP OWNS ITS OWN TOOLTIP, so `_hint` is not called on it: that
+		# writes plain text, and this one answers with a panel.
+		var parts := 0
+		for inst in Run.installed:
+			if inst.manufacturer == id:
+				parts += 1
+		chip.setup(have, parts)
+
+
 func _refresh_materials() -> void:
 	var stock := Run.material_stock()
 	var ids: Array = []
@@ -360,6 +446,7 @@ func _refresh_materials() -> void:
 			var tier := StringName(MaterialTable.by_id(s.id).get("tier", &"common"))
 			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
 				UITheme.tier_colour(tier))
+			row.add_theme_constant_override("separation", STAT_GAP)
 			row.name = "mat_" + String(s.id)
 			_materials.add_child(_hintable(row))
 	for s in stock:
@@ -426,3 +513,91 @@ func _state(b: Button, active: bool, lock: String, hint: String) -> void:
 		b.remove_theme_stylebox_override("normal")
 		b.remove_theme_stylebox_override("disabled")
 		b.remove_theme_color_override("font_disabled_color")
+
+
+## ONE MANUFACTURER'S SET BONUS, LIT. Sixteen pixels square, which is not a
+## rounded number -- it is the size the build plan's Phase 9 gate names. "Every
+## emblem legible at 16px" was written as a test OF this chip, and until now the
+## chip it was written for did not exist, so the gate had never been run against
+## anything.
+##
+## The bonuses have been live in the sim the whole time: `Run.has_set` decides
+## whether Solari plasma gains damage, whether Cygnet drones act twice, whether
+## Redline negates the first attack. A player could be three modules into an
+## identity, having it applied to every card they play, and be told nowhere.
+## The only place set bonuses appeared was the chassis picker, which is the one
+## screen you are not on while it matters.
+class SetChip extends Control:
+	const PLATE := 16.0
+	## Seconds for one full breath at the top tier.
+	const PULSE := 1.6
+
+	var manufacturer: StringName = &""
+	var mark: Color = UITheme.CHILL
+	var field: Color = UITheme.PANEL
+	## HOW MANY YOU HAVE, not which tier you reached. The chip is a tracker:
+	## one part shows the mark greyed with one pip, three lights it, five sets
+	## it breathing. Reading the count rather than a tier means the pips can say
+	## "two of the three you need" instead of only ever saying "earned".
+	var count: int = 0
+	## How many of the count are PARTS. The panel names the hull's share, and
+	## only the caller knows it.
+	var fitted: int = 0
+
+	var _t: float = 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(PLATE, PLATE)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		set_process(false)
+
+	## ONLY THE TOP TIER TICKS. A chip that redraws every frame to show a state
+	## that is not changing is the same waste as the bar rebuilding itself, and
+	## this bar has a header about exactly that.
+	func setup(n: int, parts: int = 0) -> void:
+		count = n
+		fitted = parts
+		set_process(n >= 5)
+		_t = 0.0
+		# THE TRIGGER, not the content. Godot only asks for a tooltip when this
+		# is non-empty, and `_make_custom_tooltip` replaces it with a panel --
+		# but the plain form is set rather than a placeholder so a failure to
+		# build the panel degrades to something readable. Same contract the perk
+		# corner uses.
+		tooltip_text = Widgets.tip(Widgets.set_tip(manufacturer, n, parts))
+		queue_redraw()
+
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		return Widgets.set_readout(manufacturer, count, fitted)
+
+	func _process(delta: float) -> void:
+		_t = fmod(_t + delta, PULSE)
+		queue_redraw()
+
+	func _draw() -> void:
+		var lit := count >= 3
+		# The breath. A cosine so it dwells at both ends instead of sweeping
+		# evenly through -- an even ramp reads as a flicker at this size.
+		var glow := 0.0
+		if count >= 5:
+			glow = (1.0 - cos(_t / PULSE * TAU)) * 0.5
+		var ink := mark if lit else mark.darkened(0.55)
+		if count >= 5:
+			ink = ink.lerp(mark.lightened(0.45), glow)
+		var bg := field if lit else field.darkened(0.35)
+
+		var b := Rect2(Vector2.ZERO, Vector2(PLATE, PLATE))
+		draw_rect(b, bg, true)
+		draw_rect(b, ink.darkened(0.3), false, 1.0)
+		# AT SCALE 1. draw_emblem's offsets are authored in whole pixels around a
+		# centre, and the marks span nine to ten of them -- so a sixteen-pixel
+		# plate is the emblem with three pixels of air, and any other scale is
+		# the emblem on half-pixel boundaries.
+		CardView.draw_emblem(self, manufacturer, Vector2(PLATE, PLATE) * 0.5,
+			1.0, ink, bg)
+		# The count, in the margin the emblem leaves. Every mark spans nine or
+		# ten pixels of the sixteen, centred -- so columns 13 and 14 are free on
+		# every one of the seven. Bottom-up, so the stack grows as the set does.
+		for i in mini(count, 5):
+			draw_rect(Rect2(13.0, PLATE - 3.0 - i * 2.0, 2.0, 1.0), ink, true)

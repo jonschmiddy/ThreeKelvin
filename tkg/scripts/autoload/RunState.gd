@@ -3,6 +3,15 @@ extends Node
 ## Combat state lives in Combat.gd and is discarded when the fight ends.
 
 var hull: HullData
+## WHAT THE PILOT CALLS IT, or empty for the frame's own name.
+##
+## Empty by default rather than seeded with the hull's name, and that is the
+## whole design: a ship is unnamed until somebody names it, and a hull swap
+## then keeps the name across the frame rather than reverting to whatever the
+## new chassis is called. Storing the hull's name here at run start would make
+## every ship "named" and quietly rename it under the player the first time
+## they changed frames.
+var ship_name: String = ""
 var installed: Array[ModuleData] = []
 var cargo: Array[HoldItem] = []
 ## Which galaxy this run is flown in. Chosen once at the start so the chart
@@ -317,6 +326,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 			HullData.Weight.MEDIUM, HullData.Weight.HEAVY])
 	fit_chassis(manufacturer, weight)
 	cargo.clear()
+	ship_name = ""
 	heat = 0
 	heat_cap_bonus = 0
 	credits = 40

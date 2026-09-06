@@ -12,6 +12,8 @@ extends Control
 ## come back from a save as a discount.
 
 var _header: RichTextLabel
+## Whose yard this is. Null on a station nobody holds.
+var _flag: ChassisSelect.Banner
 var _trade: Label
 ## What kind of place this is, in its own words. Fills the column under the
 ## services with something worth reading rather than with nothing.
@@ -165,7 +167,31 @@ func _build() -> void:
 	# FULL WIDTH, like the tab row and the page under it. A header that stops
 	# two thirds of the way across is the first thing that makes a screen look
 	# unaligned, and every block below it starts and ends at the same two x's.
-	var head_wrap := Widgets.panel_with(Widgets.pad(head))
+	# --- whose yard this is.
+	#
+	# A territory station stocks its shelf from one manufacturer and prints its
+	# contracts in that manufacturer's own voice and colour, and until now the
+	# screen never said whose. You could read REDLINE off a contract row and
+	# still not be told you were standing in a Redline berth.
+	#
+	# The FLAG rather than the badge, because this is a place and not a listing:
+	# the chassis list badges seven manufacturers you are choosing between, and
+	# this is the one you are inside of.
+	var head_row := HBoxContainer.new()
+	head_row.add_theme_constant_override("separation", 10)
+	_flag = ChassisSelect.Banner.new()
+	# ITS OWN MINIMUM DEPTH, which the class does not set. `Banner` fixes only
+	# its width and fills whatever height it is given, and the hem is cut from
+	# the bottom edge -- so in a header two lines tall it would be a flag
+	# stopping mid-emblem, which is exactly what 40px did on the refit screen.
+	_flag.custom_minimum_size = Vector2(
+		ChassisSelect.Banner.UNITS_W * ChassisSelect.Banner.S,
+		ChassisSelect.Banner.UNITS_H * ChassisSelect.Banner.S)
+	head_row.add_child(_flag)
+	head.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head_row.add_child(head)
+
+	var head_wrap := Widgets.panel_with(Widgets.pad(head_row))
 	head_wrap.size_flags_horizontal = Control.SIZE_FILL
 	root.add_child(head_wrap)
 
@@ -513,6 +539,17 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 		UITheme.ICE.to_html(false), MapGen.development_name(n.development),
 		MapGen.security_name(n.security).to_lower(), n.danger,
 		UITheme.COLD.to_html(false), note])
+
+	# HIDDEN, not blanked, on a station nobody holds. An empty flag is a
+	# manufacturer with no mark rather than an absence of manufacturers, and
+	# lawless space having no berth is a fact worth reading off the screen.
+	var held: ManufacturerData = DB.manufacturers.get(n.manufacturer)
+	_flag.visible = held != null
+	if held != null:
+		_flag.manufacturer = n.manufacturer
+		_flag.mark = held.colour
+		_flag.field = held.field
+		_flag.queue_redraw()
 
 	_trade.text = Market.trade_line(n)
 	_blurb.text = MapGen.place_blurb(n)
