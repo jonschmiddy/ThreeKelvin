@@ -54,6 +54,14 @@ twenty-three generations cut and asking rather than guessing a third time.
   half near-white is a bar whatever the total says. Repairing it is a five-pixel
   edge extension, not a regeneration.
 
+  AND THE EDGE COLUMNS ARE WHERE A STRAY PIXEL HIDES. Slag shipped with one
+  pixel of its own brightest colour, (167,195,199), alone at (91,49) in a field
+  of (23,27,34) -- the last column. It was in the raw, so the generator made it;
+  it survived review because a local-maximum scan written as `range(1, w - 1)`
+  never looks at x=0 or x=w-1. Scan the border, and clamp the neighbourhood
+  instead of skipping the pixel. ONE stray pixel IS the case where copying a
+  neighbour is right; the no-hand-repair rule below is about regions.
+
   THE STYLE IMAGE CARRIES DENSITY TOO, and that turned out to matter more than
   shape. Nine of 68 malfunctions landed off `full_auto`, a dense plated
   stencilled close-up. One of 28 brace cards landed off `auspice` and
