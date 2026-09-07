@@ -281,24 +281,18 @@ func _draw() -> void:
 	var art := _z(Z_ART)
 	draw_rect(art, UITheme.VOID, true)
 	draw_rect(art, UITheme.LINE, false, 1.0 * s)
+	# NO HATCH OVER THE ART WINDOW. It used to draw INSTEAD of the picture, which
+	# was invisible while nothing had art and blanked all sixteen malfunctions
+	# the moment they had some; drawing it on top instead still ate them -- at
+	# half alpha Dross lost its stencils and Arc Fault was almost solid stripes.
+	#
+	# So the window is left alone and dead weight is carried by everything else
+	# the card already does: the frame goes to #1a1418, there is no manufacturer
+	# banner down the left edge, the type line reads MALFUNCTION in grey, and the
+	# rules text is the only place a keyword is underlined without being useful.
+	# That is enough to sort a fan of eight without reading, which was the job.
 	if not _draw_art(art):
 		_type_glyph()
-	if dim:
-		# Static hatch, OVER the picture rather than instead of it. It used to
-		# replace the art window, which was invisible while nothing had art and
-		# wrong the moment something did: every malfunction is `unplayable`, so
-		# all sixteen of them would have drawn a hatch over a blank window and
-		# never shown the illustration made for them.
-		#
-		# The hatch is half-alpha, so laying it on top still reads as dead
-		# weight from across the hand -- which is the whole job of it -- while
-		# leaving the picture legible underneath at inspect size.
-		var step := 3.0 * s
-		var y := art.position.y
-		while y < art.end.y:
-			draw_line(Vector2(art.position.x, y), Vector2(art.end.x, y),
-				Color(0.42, 0.38, 0.44, 0.5), s)
-			y += step
 
 	# Recessed plates at BOTH scales, including the ones that only hold text at
 	# inspect. The furniture is one layout drawn once and doubled — that is the
