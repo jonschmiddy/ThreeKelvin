@@ -69,7 +69,20 @@ twenty-three generations cut and asking rather than guessing a third time.
   requesting text. This is `name-the-parts-never-the-category` again from the
   other side: naming a thing gets you the thing, and the thing here is glyphs
   the model cannot spell.
-    IT IS NOT THE WORD ALONE, IT IS THE WORD PLUS ROOM. Of the eleven shipped
+    "NOTHING" IS A WORD THAT PRODUCES WHITE, and so is any other way of naming
+  an absence. Unmade asked for debris "thinning away to NOTHING" and all four
+  takes drew nothing as blank white canvas, three of them tripping the
+  border-connected check. Jon: "the background is totally white. Shouldn't it be
+  something else?" -- and it should, because a card is full bleed and opaque and
+  white is only ever undrawn.
+    This is the letterbox rule again, one level down. It is not enough to
+  describe what fills the frame AROUND the subject; anywhere the picture says a
+  thing STOPS, ends, dissolves, fades or runs out, the prompt has to say what
+  is there afterwards. Name the far side positively -- void, starfield, nebula,
+  more plating -- and never leave the generator to draw an absence, because the
+  only absence it has is the empty canvas.
+
+  IT IS NOT THE WORD ALONE, IT IS THE WORD PLUS ROOM. Of the eleven shipped
   cards whose prompt asked for lettering, dross reads "SECTOR-4 / WASTE" and
   deadcell reads "UNIT 4", both clean, because both sit as a short tag on a
   small crowded surface. Hairline had a wide flat empty panel in the middle of

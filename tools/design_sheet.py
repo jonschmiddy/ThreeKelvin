@@ -76,12 +76,27 @@ COLS = ["key", "state", "name", "glyph", "type", "does",
 ## it has to be industry IN SPACE: a viewport with the void outside it, a nebula
 ## wash instead of a black ground, cold ambient with one warm self-emitted
 ## source. That is the difference between a bomber's belly and a starship's.
+# NO LETTERING IN THE HOUSE STYLE. This string used to end "weathered plating
+# with stencilled numbers and decals", and being the DEFAULT `world` it went
+# into every brief written off this file -- 191 takes generated asking for
+# text, and three garbled lines across the middle of Hairline. Dross and
+# Deadcell prove short lettering can land, but it cannot be steered, and a card
+# ruined by it costs a whole round.
+#
+# THE LAST CLAUSE IS ABOUT THE GAPS, not the surroundings. `card_batch` already
+# said a prompt must name what fills the rest of the frame, and I had been
+# reading that as the space AROUND a subject. All four `standing_load` takes
+# came back with a white background showing between the girders of the frame
+# itself. Naming what sits behind and inside a structure fixed it on the next
+# eight.
 HOUSE = ("industry in space, not on Earth: the void is never flat black but a "
          "dithered indigo with a rusty amber nebula wash; a lit viewport or an "
          "open bay with the dark outside it wherever the picture is an "
          "interior; everything coldly lit with the only warm light "
-         "self-emitted -- reactor glow, heat, a cutting arc; weathered plating "
-         "with stencilled numbers and decals")
+         "self-emitted -- reactor glow, heat, a cutting arc; weathered plating, "
+         "scuffed and patched and never marked with words; and dark plating or "
+         "deep indigo shadow packed solid behind the subject AND in every gap "
+         "inside it, out to all four edges, never empty and never white")
 
 
 def manifest():
