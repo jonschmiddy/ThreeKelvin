@@ -89,6 +89,21 @@ twenty-three generations cut and asking rather than guessing a third time.
   The doc's own words about the approved asset: "That file is now the style
   reference for every future generation." Read that file before generating.
 
+  DO NOT HAND-REPAIR PIXELS -- USE `inpaint_image`. Slag came back with a
+  stencil in a corner that had to go. Repainting it from neighbouring pixels
+  twice produced exactly what the art director then described: "it's just a box
+  covering the text", because copying a neighbour along a row smears a flat
+  patch. The same technique had already left a five-pixel smear down the edge
+  of Full Auto.
+    `inpaint_image` regenerates one rectangle in context and freezes every
+  pixel outside it -- 20 generations, and the machinery continues through the
+  hole instead of being papered over. It is named in PIXELLAB_WORKFLOW.md as
+  "fix specific problems, don't regenerate" and was ignored twice before being
+  tried once.
+    Keep the raw. Both repairs were made ON the raw, so the untouched original
+  was only recoverable because the PixelLab job was still live; a day later it
+  would have been gone.
+
   IT IS A SPACE OPERA AND THE PICTURE HAS TO BE IN SPACE. Twenty takes at Full
   Auto returned a WWII factory -- brass, deck grating, a gloved hand, oily steel
   -- and the note was "these should be spaceship and space opera themed you
