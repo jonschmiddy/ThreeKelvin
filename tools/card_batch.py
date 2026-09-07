@@ -657,6 +657,19 @@ def main(argv):
     if argv[0] == "--bank" and len(argv) >= 4:
         print(bank(argv[1], argv[2], " ".join(argv[3:])))
         return 0
+    # RUN THIS BEFORE THE CALL, NOT AFTER IT. `audit()` has always existed, but
+    # it only ran inside `--post`, which is after the generations are spent --
+    # so it has twice reported a banned word in a prompt that had already been
+    # fired. It caught "flank" once and "cannon" once, and the cannon round came
+    # back as exactly the side-on hero guns the ban exists to prevent.
+    if argv[0] == "--check" and len(argv) >= 2:
+        text = " ".join(argv[1:])
+        hits = [w for w in BANNED if w in text.lower()]
+        if hits:
+            print("BANNED: %s" % ", ".join(hits))
+            return 1
+        print("clean")
+        return 0
     if argv[0] == "--wanted":
         wanted()
         return 0
