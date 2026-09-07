@@ -62,6 +62,21 @@ twenty-three generations cut and asking rather than guessing a third time.
   instead of skipping the pixel. ONE stray pixel IS the case where copying a
   neighbour is right; the no-hand-repair rule below is about regions.
 
+  NEVER ASK FOR LETTERING. Hairline came back with three lines of garbled
+  stencil text across a blank panel, and the prompt that made it says "Rivets
+  and STENCILLED LETTERING around it" -- the boilerplate `scale` and `world`
+  fields of every malfunction brief asked for it, so 191 takes were generated
+  requesting text. This is `name-the-parts-never-the-category` again from the
+  other side: naming a thing gets you the thing, and the thing here is glyphs
+  the model cannot spell.
+    IT IS NOT THE WORD ALONE, IT IS THE WORD PLUS ROOM. Of the eleven shipped
+  cards whose prompt asked for lettering, dross reads "SECTOR-4 / WASTE" and
+  deadcell reads "UNIT 4", both clean, because both sit as a short tag on a
+  small crowded surface. Hairline had a wide flat empty panel in the middle of
+  the frame and the model filled it with three long lines. So the second half of
+  the fix is compositional: say the frame is crowded to every edge with no blank
+  surface, and there is nowhere for text to go even if it wants to write some.
+
   THE STYLE IMAGE CARRIES DENSITY TOO, and that turned out to matter more than
   shape. Nine of 68 malfunctions landed off `full_auto`, a dense plated
   stencilled close-up. One of 28 brace cards landed off `auspice` and
@@ -402,6 +417,87 @@ def audit(log):
     return out
 
 
+def letterbox(w, h, rows):
+    """-> [] or a list of complaints about white filling the frame.
+
+    EVERY COLUMN AND EVERY ROW, NOT JUST THE BORDER. The first version of this
+    walked the outer five columns and the outer two rows, because the bar that
+    prompted it ran down the left edge. `standing_load_2` then shipped a white
+    column 57 pixels of 60 tall THROUGH THE MIDDLE of the frame at 21% white
+    overall -- under a whole-image threshold of 25%, and nowhere near an edge,
+    so both halves of the check waved it through while it was obvious to the
+    eye. A check written around the last failure only ever catches the last
+    failure.
+    """
+    def px(x, y):
+        r = rows[y]
+        i = x * 4
+        return r[i], r[i + 1], r[i + 2]
+
+    def wht(x, y):
+        return min(px(x, y)) >= 200
+
+    out = []
+    # THE TEST THAT ACTUALLY WORKS IS CONNECTEDNESS, NOT A PERCENTAGE. A
+    # background is white that REACHES THE EDGE and joins up; a highlight is
+    # white that does not. Two thresholds were tried before this and both let a
+    # whole round through: 40% of the frame, then a column or row two-thirds
+    # white. All four `standing_load` takes were 14-21% white with the white
+    # broken up between girders, so no single line was two-thirds anything, and
+    # the eye saw a white background on every one of them instantly.
+    #   Flood-filled from the border instead, those four measure 12, 16, 16 and
+    # 19 per cent, while 39 of the 43 shipped cards measure ZERO. The margin is
+    # real but it is not wide: `coolloss` is a legitimate 11%, because its steam
+    # plume genuinely runs off the edge of the frame. So 12 is the line, and
+    # this is a flag to LOOK at a take, never a verdict on it.
+    seen = [[False] * w for _ in range(h)]
+    stack = [(x, y) for x in range(w) for y in (0, h - 1) if wht(x, y)]
+    stack += [(x, y) for y in range(h) for x in (0, w - 1) if wht(x, y)]
+    bg = 0
+    while stack:
+        x, y = stack.pop()
+        if x < 0 or y < 0 or x >= w or y >= h or seen[y][x] or not wht(x, y):
+            continue
+        seen[y][x] = True
+        bg += 1
+        stack += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+    if bg * 100 // (w * h) >= 12:
+        out.append("%d%% of the frame is white joined to the border -- "
+                   "background showing through?" % (bg * 100 // (w * h)))
+    for x in range(w):
+        n = sum(1 for y in range(h) if wht(x, y))
+        if n > h * 2 // 3:
+            out.append("column %d is %d/%d white" % (x, n, h))
+    for y in range(h):
+        n = sum(1 for x in range(w) if wht(x, y))
+        if n > w * 2 // 3:
+            out.append("row %d is %d/%d white" % (y, n, w))
+    return out
+
+
+# NO AUTOMATED STRAY-PIXEL CHECK. There was one here for about an hour, after
+# the single white pixel that shipped on Slag at (91,49). It does not work, and
+# the measurement is worth keeping so nobody writes it a third time:
+#
+#   isolation threshold   catches Slag's pixel   fires across 43 shipped cards
+#            150                  yes                        810
+#            250                  yes                        305
+#            300                  yes                        163
+#            400                  yes                         63
+#
+# Sixty-three at the loosest useful setting, and every one of them is correct
+# art: stars, weld sparks, rivet specular. A refinement -- flag a bright pixel
+# only when nothing of comparable brightness sits within five pixels -- MISSED
+# the Slag pixel outright and still fired 35 times on shipped cards.
+#   The reason is that the metric cannot see what made Slag's pixel wrong. It
+# was not isolation; a star is isolated. It was the brightest colour in the
+# picture sitting in a dark corner of machinery, where nothing in the SUBJECT
+# could be that bright. That is a judgment about what the picture is OF, and it
+# belongs to the eye. What the border taught is still real and is kept in
+# `letterbox` below: scan the whole frame, clamp the neighbourhood, and never
+# write a loop that skips x=0 and x=w-1.
+
+
 def bank(outdir, take, why):
     """Copy one posted take, its raw, and its prompt into the bank."""
     if not os.path.isdir(BANK):
@@ -516,6 +612,8 @@ def main(argv):
             note = ""
             if (w, h) != SIZE:
                 note = "  WRONG SIZE, wants %dx%d" % SIZE
+            for c in letterbox(w, h, rows):
+                note += "\n      WHITE: " + c
             pt.encode(os.path.join(outdir, f), w, h, rows)
             print("  %-24s %dx%d  %4d snapped  %4d warm  %d holes%s"
                   % (f[:-4], w, h, rep["snapped"], rep["warm"],
