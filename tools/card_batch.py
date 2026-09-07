@@ -460,6 +460,17 @@ def letterbox(w, h, rows):
     # the eye saw a white background on every one of them instantly.
     #   Flood-filled from the border instead, those four measure 12, 16, 16 and
     # 19 per cent, while 39 of the 43 shipped cards measure ZERO. The margin is
+    #   AND IT IS BLIND TO A WHITE HOLE IN THE MIDDLE. `fire_solution` came
+    # back with a big white dial face three takes out of four and this check
+    # flagged one, because the face is ENCLOSED BY ITS BEZEL and the white never
+    # reaches the border, which is the exact thing connectedness tests for. That
+    # is a limit of the idea, not a threshold to tune -- a legitimate picture
+    # can be mostly pale (frost, a lit screen) and an illegitimate one can be
+    # pale nowhere near an edge. The prompt-side rule is the one that works:
+    # never call a surface "clean" or "uncluttered", because that is another way
+    # of describing an absence, and the only absence the generator has is white.
+    # `--post` reports what it can see; the eye still has to look.
+    #
     # real but it is not wide: `coolloss` is a legitimate 11%, because its steam
     # plume genuinely runs off the edge of the frame. So 12 is the line, and
     # this is a flag to LOOK at a take, never a verdict on it.
