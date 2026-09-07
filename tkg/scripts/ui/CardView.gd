@@ -281,16 +281,24 @@ func _draw() -> void:
 	var art := _z(Z_ART)
 	draw_rect(art, UITheme.VOID, true)
 	draw_rect(art, UITheme.LINE, false, 1.0 * s)
+	if not _draw_art(art):
+		_type_glyph()
 	if dim:
-		# Static hatch. Damage you can see from across the hand.
+		# Static hatch, OVER the picture rather than instead of it. It used to
+		# replace the art window, which was invisible while nothing had art and
+		# wrong the moment something did: every malfunction is `unplayable`, so
+		# all sixteen of them would have drawn a hatch over a blank window and
+		# never shown the illustration made for them.
+		#
+		# The hatch is half-alpha, so laying it on top still reads as dead
+		# weight from across the hand -- which is the whole job of it -- while
+		# leaving the picture legible underneath at inspect size.
 		var step := 3.0 * s
 		var y := art.position.y
 		while y < art.end.y:
 			draw_line(Vector2(art.position.x, y), Vector2(art.end.x, y),
 				Color(0.42, 0.38, 0.44, 0.5), s)
 			y += step
-	elif not _draw_art(art):
-		_type_glyph()
 
 	# Recessed plates at BOTH scales, including the ones that only hold text at
 	# inspect. The furniture is one layout drawn once and doubled — that is the

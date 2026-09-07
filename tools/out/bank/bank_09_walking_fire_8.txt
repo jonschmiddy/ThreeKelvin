@@ -1,0 +1,3 @@
+take: walking_fire_8
+why: a craft with a bright burst amidships against a nebula
+prompt: {'prompt': 'a craft in the void taking a stitched row of small bursts along its length, each burst distinct, no continuous beam, nebula behind', 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'camera OUTSIDE in the void'}

@@ -1,0 +1,3 @@
+take: walking_fire_9
+why: a row of discrete impact flashes along a distant craft; the walk reads, but not enough to ship
+prompt: {'prompt': 'a row of discrete impact flashes marching along a distant craft, the leading one white and throwing fragments, the trailing ones dark scars, cold light', 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'camera OUTSIDE in the void'}

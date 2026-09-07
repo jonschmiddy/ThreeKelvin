@@ -1,0 +1,3 @@
+take: pool_3
+why: a torpedo running across the void toward a distant craft, bright drive flame -- the one survivor of a 20-scene generic pool
+prompt: {'prompt': 'a torpedo streaking across the void toward a distant craft, bright drive flame, stars and a faint amber nebula, nothing else lit', 'seed': 4703, 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'none -- generic pool, assigned to a card afterwards'}

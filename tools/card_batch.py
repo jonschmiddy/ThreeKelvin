@@ -40,6 +40,55 @@ would drag greys into the flash and flash into the greys. `module_batch`'s
 WHAT A CARD ILLUSTRATION HAS TO BE, learned by having twenty-one of
 twenty-three generations cut and asking rather than guessing a third time.
 
+  THE PRO MODEL WILL LETTERBOX AN OBJECT ON WHITE even with
+  `no_background=false`, if the prompt describes a thing with nothing around it.
+  Two brace prompts ending "the violet the only colour" and "cold blue light
+  only" came back 75% white in all eight candidates -- the model read them as an
+  asset request rather than a scene. Cards are FULL BLEED, so a prompt must
+  always say what fills the rest of the frame: stars, a nebula wash, more of the
+  same plating. `--post` cannot fix this; the pixels are simply white.
+    Worth measuring rather than eyeballing, because 9-16% white is legitimate
+  frost or ice and 70%+ is a letterbox. CHECK THE EDGES SEPARATELY: one take
+  shipped with a five-column white bar down its left side, 8% of the frame,
+  which sailed under a whole-image threshold. A column or row that is more than
+  half near-white is a bar whatever the total says. Repairing it is a five-pixel
+  edge extension, not a regeneration.
+
+  THE STYLE IMAGE CARRIES DENSITY TOO, and that turned out to matter more than
+  shape. Nine of 68 malfunctions landed off `full_auto`, a dense plated
+  stencilled close-up. One of 28 brace cards landed off `auspice` and
+  `sympathetic_burst`, which are single objects in empty space -- and eight of
+  those 28 came back letterboxed on white. Re-firing the same six briefs against
+  `lattice` and `hairline`, both dense and both accepted the same day, filled
+  every frame. A sparse reference makes sparse pictures however the prompt reads.
+
+  THE STYLE IMAGE CARRIES COMPOSITION, NOT JUST COLOUR -- so choose it for
+  SHAPE. Eight takes of Walking Fire from one prompt idea: four with `auspice`
+  as the style reference came back as a bright diagonal line with a ring at the
+  end, which is auspice's own layout and has no craft in it at all. Four with
+  `rack_and_load` -- picked because it is several distinct objects spaced along
+  a line, which is what the card needed -- came back as a craft with a row of
+  separate hits along its length, first time in thirty takes.
+    So `style_copy` is not a filter over colours. Pick the accepted card whose
+  STRUCTURE matches the new card, not the most recent or the prettiest one. The
+  cost to watch for: the result also inherits the reference's palette, so a
+  warm reference makes a warm picture whatever the prompt says about cold light.
+
+  USE THE PRO MODEL WITH A STYLE IMAGE. `docs/art/PIXELLAB_WORKFLOW.md` gives a
+  two-step recipe for every asset in this game and card art used NEITHER half of
+  it for roughly 250 generations: iterate cheaply with `create_image_pixflux`
+  passing an `init_image_url` (download URLs need no auth and feed straight back
+  in) sweeping `init_image_strength` 140-240, THEN finish with
+  `create_image_pro`, `style_image_*` pointed at an approved asset and
+  `style_copy` on all four aspects. Pro returns FOUR candidates per call at
+  92x60 for 20 generations, which is better value than 20 cold pixflux rolls.
+    Every card take before that point was a cold text-to-image roll with no
+  reference at all, so nothing ever built on the last result and nothing was
+  anchored to art that had already been accepted. The first four pro calls
+  produced usable rows for three cards that had failed 21, 25 and 54 takes.
+  The doc's own words about the approved asset: "That file is now the style
+  reference for every future generation." Read that file before generating.
+
   IT IS A SPACE OPERA AND THE PICTURE HAS TO BE IN SPACE. Twenty takes at Full
   Auto returned a WWII factory -- brass, deck grating, a gloved hand, oily steel
   -- and the note was "these should be spaceship and space opera themed you
@@ -102,6 +151,14 @@ twenty-three generations cut and asking rather than guessing a third time.
   generalises: a word arrives with its own most-common picture attached, and
   that picture beats the sentence around it. When a brief keeps losing to the
   generator, suspect the nouns before rewriting the brief.
+
+  "ROUND" DRAWS A BALL. Nine of twelve takes asking for "a heavy round" on a
+  chain returned a SPHERE hanging in a doorway. The word was chosen because
+  "shell" is banned for dragging in a rocky floor, and it turns out to be read
+  as the adjective rather than the noun. Say cartridge, canister or projectile
+  -- unambiguously a long thing. Same class as the category-noun rule below,
+  from the other direction: not a word that means something too big, but a word
+  whose commonest sense is the wrong part of speech.
 
   NEVER SAY "GUN" OR "WEAPON" IN A PROMPT. Twelve takes at Full Auto asked for
   a feed mechanism; the three prompts that used the word "weapon" or "gun"
@@ -302,6 +359,26 @@ def io_open(p, mode="r"):
     return open(p, mode, encoding="utf-8")
 
 
+## Words that have each, at least once, imported a setting or an object nobody
+## asked for. The docstring above explains every one; this is the machine
+## readable copy so a batch cannot go out containing one by accident. It has
+## happened: four prompts in one round used "flank" and one came back as a ship
+## at sea, months after the rule was written down.
+BANNED = ("flank", "naval", "warship", "broadside", "hull", "vessel", "shell",
+          "starship", "derelict", "gun", "weapon", "cannon", "barrel")
+
+
+def audit(log):
+    """Prompts in a log that contain a banned word. Returns [(take, [words])]."""
+    out = []
+    for take, rec in sorted(log.items()):
+        text = (rec.get("prompt", "") if isinstance(rec, dict) else rec).lower()
+        hits = [w for w in BANNED if w in text]
+        if hits:
+            out.append((take, hits))
+    return out
+
+
 def bank(outdir, take, why):
     """Copy one posted take, its raw, and its prompt into the bank."""
     if not os.path.isdir(BANK):
@@ -340,13 +417,30 @@ def bank(outdir, take, why):
 ## wrong for the card it was made for; a card is listed here because it is
 ## waiting and will take a good picture from anywhere. Check this list against
 ## the bank at the end of every round, before deleting anything.
+## FOUR CARDS ARE OPEN, and they have something in common worth reading before
+## briefing anything else. Each one needs the viewer to read a SEQUENCE out of a
+## still 92x60 frame -- first this, then this, then this:
+##
+##   ripple_fire    three shots at three moments
+##   walking_fire   hits arriving one after another
+##   rack_and_load  a loading cycle
+##   torch          a cut progressing along a plate
+##
+## Every illustration that has ever been accepted is a single INSTANT instead:
+## a beam firing, a round in flight, fire leaving a nozzle, a shard projecting a
+## line, a plate splitting, one shard waking two. Even full_auto, which is the
+## most process-like of them, is a mechanism caught at one moment rather than a
+## before-and-after.
+##
+## That is an observation and not yet a proven rule -- full_auto is multi-hit
+## and landed, torch is single-hit and did not -- but 140+ takes across these
+## four cards have produced two shipped pictures and neither was a sequence.
+## Brief a card as ONE MOMENT before assuming it needs a story told in stages.
 WANTED = {
-    "ripple_fire": "three of anything, evenly spaced, with direction through "
-                   "them -- the ripple is the RHYTHM, not the weapon. Four "
-                   "briefs of its own failed; it does not need to be about a "
-                   "gun and it does not need its own round.",
+    # Empty is the good state. Ripple Fire, Walking Fire, Rack and Load and
+    # Torch all sat here after failing their own rounds, and all four were
+    # eventually filled once the method changed rather than the brief.
 }
-
 
 def wanted():
     """Open cards, and what would fill them, against what is in the bank."""
@@ -410,6 +504,8 @@ def main(argv):
             with io_open(os.path.join(outdir, PROMPTS), "w") as fh:
                 json.dump(log, fh, indent=1, ensure_ascii=False)
             print("  carried %d prompts forward" % len(log))
+            for take, hits in audit(log):
+                print("  BANNED WORD in %s: %s" % (take, ", ".join(hits)))
         else:
             print("  NO PROMPT LOG in %s -- write one at generation time" % indir)
         return 0

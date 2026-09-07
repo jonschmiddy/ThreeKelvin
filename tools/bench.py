@@ -83,7 +83,16 @@ def collect(postdir):
 
     out = []
     for key in sorted(groups, key=lambda k: (-len(groups[k]), k)):
+        # A POOL ROW has no card. Takes named `pool_N` are not made for any
+        # particular card -- they are generic scenes generated to be assigned
+        # afterwards with `card_batch.py --install`, which is the art director's
+        # idea after four cards in a row failed their own bespoke briefs. There
+        # is nothing to photograph beside them, so the "on the card today" tile
+        # is dropped rather than shown as a missing-shot placeholder.
         name, module, does = man.get(key, (key, "", ""))
+        if key not in man:
+            name, module, does = ("Pool", "unassigned scenes",
+                                  "install onto any card with --install")
         shot = os.path.join(SHOTS, "%s.png" % key)
         card = ""
         if os.path.exists(shot):

@@ -236,7 +236,7 @@ defined, rather than a blanket rule that hands every Chatterbox card the same
 autocannon.
 
 `-- artcheck` counts the same way — it keys on `art_key()` and dedupes, so the
-number it reports IS the number of illustrations owed. **76 in scope, 13 drawn.**
+number it reports IS the number of illustrations owed. **76 in scope, 29 drawn.**
 The old rule's "~33 instead of ~50" was an estimate against a catalogue that has
 since roughly doubled; the honest figure is the one the check prints.
 

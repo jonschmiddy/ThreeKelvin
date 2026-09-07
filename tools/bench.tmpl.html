@@ -177,16 +177,20 @@ function build(){
     host.appendChild(h);
 
     var row = el("div", "row");
-    var now = el("div", "now");
-    now.appendChild(el("div", "cap", "on the card today"));
-    if (r.card){
-      var cc = document.createElement("canvas");
-      now.appendChild(cc);
-      draw(cc, "card_" + r.key, r.card);
-    } else {
-      now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+    // No card tile for an unassigned pool row -- there is no card to compare
+    // against until one of these is installed on one.
+    if (r.card || r.key !== "pool"){
+      var now = el("div", "now");
+      now.appendChild(el("div", "cap", "on the card today"));
+      if (r.card){
+        var cc = document.createElement("canvas");
+        now.appendChild(cc);
+        draw(cc, "card_" + r.key, r.card);
+      } else {
+        now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+      }
+      row.appendChild(now);
     }
-    row.appendChild(now);
 
     r.takes.forEach(function(t){
       var box = el("div", "item");
