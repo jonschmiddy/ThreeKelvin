@@ -636,6 +636,15 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
+	# One card as it draws today:  godot --path . -- cardshot "Ripple Fire"
+	# Beside stationshot for the same three reasons: it needs a window, it
+	# asserts nothing, and it exists so an art decision can be looked at rather
+	# than argued about.
+	if "cardshot" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/CardShot.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	# The station, photographed:  godot --path . -- stationshot [maker=solari]
 	# Beside shipshot and chartshot because it needs a window and it needs the
 	# Router to have a content node, which the headless checks above run before.

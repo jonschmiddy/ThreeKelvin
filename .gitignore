@@ -36,3 +36,9 @@ tools/out/*
 !tools/out/pool/
 !tools/out/heavy_final/
 !tools/out/heavy_raw/
+# ALSO NOT SCRATCH: the card-art bank. A take lands here because it is good and
+# wrong for the card it was made for, and `card_batch.py --wanted` lists the
+# cards waiting to be filled from it. Every entry keeps its raw and the prompt
+# that made it. Left in the ignore, one `git clean` deletes art that cost real
+# generations and cannot be reproduced without the prompt log.
+!tools/out/bank/

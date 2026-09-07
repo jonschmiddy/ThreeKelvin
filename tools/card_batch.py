@@ -1,0 +1,430 @@
+# -*- coding: utf-8 -*-
+"""Take generated card art from raw PNG to shipping illustration.
+
+    python tools/card_batch.py --post <indir> <outdir>
+    python tools/card_batch.py --bank <outdir> <take> "<why>"
+    python tools/card_batch.py --install <src.png> <card_key>
+    python tools/card_batch.py --wanted
+    python tools/card_batch.py --palette
+
+THE CARD PIPELINE IS NOT THE MODULE PIPELINE, and the difference is one line:
+a module is a SPRITE and a card illustration is a PICTURE. Modules are cut out
+of their background and centred in a box; cards are full-bleed, 92x60, opaque to
+the last pixel. So there is no strip_bg here, no despeckle, no trim and no fit --
+stripping the background off a picture whose background IS the art would eat the
+starfield, and the five that shipped are 100% opaque by measurement.
+
+    92x60 AND NOT 93x60. `create_image_pixflux` refuses an odd side at this
+    size and answers 93x60 with "Use 92x60 instead", which `ArtCheck` records
+    at its CARD_ART constant. The window is 93 wide, so the art is generated one
+    column short and centred -- half a pixel of margin against a recessed dark
+    box, which nothing can see.
+
+NO REDUCTION EITHER. Every module is generated at 2x its box because every
+module box is under PixelLab's floor of 1024 px of area. A card is 5520 and
+clears it comfortably, so card art is generated at exactly the size it ships
+and never resampled. That is the whole reason card art escaped the entire
+scale_to_box / expand_box argument the modules needed.
+
+THE PALETTE IS THE UNION OF THE FIVE THAT SHIPPED, for the same reason the
+module palette is the union of the six accepted modules: the tone is decided
+once, off art somebody actually liked, and every later batch lands on it instead
+of hoping the generator repeats itself. Twenty-nine colours, twenty-one of them
+shared with the module ramp -- which is what makes a card and the part that
+grants it look like two things from one game.
+
+SNAPPED WITH THE SAME NO-CROSSING RULE modules use. A card illustration is cold
+steel with a hot muzzle flash in it, so a blanket snap to the nearest colour
+would drag greys into the flash and flash into the greys. `module_batch`'s
+`snap_split` already implements exactly this and is imported rather than copied.
+WHAT A CARD ILLUSTRATION HAS TO BE, learned by having twenty-one of
+twenty-three generations cut and asking rather than guessing a third time.
+
+  IT IS A SPACE OPERA AND THE PICTURE HAS TO BE IN SPACE. Twenty takes at Full
+  Auto returned a WWII factory -- brass, deck grating, a gloved hand, oily steel
+  -- and the note was "these should be spaceship and space opera themed you
+  know?". `docs/design-doc.md` had already said how, in a section nobody had
+  read before writing a card prompt: the void is never flat black but dithered
+  indigo with a nebula wash (Korvan space rusty amber); objects are lush and
+  weathered with stencilled numbers, decals and LIT VIEWPORTS; everything is
+  COLDLY LIT with the only warm light self-emitted -- reactor, heat, an arc.
+    Industrial is not the problem; the tone is named "lush-cold industrial"
+  against Cobalt Core's "linear cartoon brightness". The problem is industry on
+  EARTH. An interior needs a viewport with the dark outside it, or a bay open to
+  the void, or a nebula wash instead of a black ground. Read that section before
+  writing prompts, not after twenty of them.
+
+  TWO THINGS IN RELATIONSHIP. Every illustration that survived has an actor and
+  a subject with direction between them: a beam and the rock it is cutting, a
+  reticle and the ship inside it, a gun and the station it is firing over. Every
+  one that was cut is ONE OBJECT ALONE -- a barrel, a slug, a breech, floating
+  in the dark, beautifully rendered and about nothing. The art director's words
+  were "the ones I kept are storytelling; the ones I rejected are disembodied,
+  no story, no direction".
+
+  This is not the same as "busy". Two rounds were lost to that misreading: the
+  first asked for restraint and got empty frames, the second asked for close
+  detailed machinery and got cluttered ones. Neither is the axis. A picture of
+  one thing is wrong however much or little is in it.
+
+  SMOKE AND HAZE ARE FINE. Three takes were flagged in review as "a rocket in
+  an atmosphere, not vacuum" on the grounds that a plume should not billow where
+  there is no air. The art director kept one of them. Physics is not the test
+  here; the picture is. Do not fence out drifting smoke, dust or haze -- they
+  give a flat starfield depth, and the objection was invented rather than
+  observed.
+
+  SAY VACUUM, NOT NAVY. "A long-barrelled naval gun on a warship's flank" came
+  back as a battleship at sea, wake and all. The words warship, naval, flank and
+  broadside all pull toward water; starship, vacuum and starfield do not.
+    HULL AND VESSEL ARE ON THE LIST TOO, added after a prompt containing no
+  banned word at all -- "a heavy weapon mount set into the side of a vast
+  starship... hull plating filling the lower half of the frame" -- came back as
+  a grey battleship on an ocean under clouds. "Starship" in the same sentence
+  did not save it. Prefer starship, plating, armour, deck and mount; treat hull
+  and vessel as water words.
+    AND "SHELL" PULLS TOWARD GROUND. Two takes in a batch containing no banned
+  word put the subject on a rocky floor, one of them with a staircase behind it.
+  Three separate words have now imported a setting nobody asked for -- naval,
+  hull, shell -- so this is not a blacklist to be finished but a habit to keep:
+  name the thing by what it is DOING (a round in flight, a bolt crossing) rather
+  than by the object noun, because an object noun arrives with a ground under it.
+
+  SAY BORES, NOT BARREL OR CANNON -- and in general, prefer the noun for the
+  PART OF THE OBJECT the composition is about over the noun for the object. Of
+  twelve takes at Ripple Fire whose prompts said "barrel" or "cannon", EIGHT
+  came back as a side-on hero gun with a muzzle flash and two of those put it on
+  the ground with a horizon, in flat contradiction of an approved brief that said
+  not to. Six more that said "bores" and never "barrel" produced no horizon, no
+  side-on portrait and no flash in any of them. Same brief, same card, same
+  reviewer; one noun.
+    This is the same failure as "say vacuum, not navy" one paragraph up and it
+  generalises: a word arrives with its own most-common picture attached, and
+  that picture beats the sentence around it. When a brief keeps losing to the
+  generator, suspect the nouns before rewriting the brief.
+
+  NEVER SAY "GUN" OR "WEAPON" IN A PROMPT. Twelve takes at Full Auto asked for
+  a feed mechanism; the three prompts that used the word "weapon" or "gun"
+  returned a rifle, a pistol and a rifle, and none of the nine that avoided both
+  did. Eight more with the two words banned outright returned ZERO firearms.
+  Say machinery, belt, links, brass, breech block, feed housing -- the parts,
+  never the category. Third time this has been the whole answer, after
+  "bores, not barrel" and "vacuum, not navy".
+
+  A 92x60 FRAME HAS NO SCALE OF ITS OWN, so something in it must have a known
+  size or the generator picks one. Eighteen takes at Ripple Fire were reviewed
+  as "most of these are just handguns" -- the subject was a starship weapon and
+  it kept arriving as a personal firearm, because pixel-art guns are
+  overwhelmingly handheld ITEM SPRITES and nothing in the frame said otherwise.
+  Put a hull running out of the frame, a deck, a distant ship, anything with an
+  unarguable size, in every brief whose subject is an object.
+    This is the same bug as briefing a card to act on ITSELF, and on that card
+  it was the same brief: one object alone in a void is both storyless AND
+  scaleless. `design_sheet.py` refuses "itself" in the acting-on column now, and
+  every brief carries a "sized by" line.
+
+  ROUND THINGS AT SEVERAL DISTANCES ON A STARFIELD ARE PLANETS. Asking for
+  three rounds in flight receding toward a small distant target produced, five
+  times in twelve, a planet with moons -- and once an asteroid belt. The
+  arrangement IS the arrangement of a solar system, and a starfield behind it
+  settles the reading. If a card needs several objects at several depths in
+  space, give them shapes that cannot be spherical (a tapered body, a trailing
+  glow) or put them against something that is not stars.
+
+  NAME WHAT IS BEING DONE TO. The card is a verb -- Clear the Breech, Walking
+  Fire, Cold Read -- so the prompt needs the object of that verb in it, or the
+  generator draws the noun and stops.
+"""
+import json
+import os
+import shutil
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "tkg", "art", "tools"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pixeltools as pt  # noqa: E402
+import module_batch as mb  # noqa: E402
+
+CARDS = os.path.join("tkg", "art", "sprites", "cards")
+SIZE = (92, 60)
+
+## The illustrations that were accepted. THE TONE COMES FROM THESE and nothing
+## else. `cold_read` is in the list deliberately even though it is the odd one
+## out -- a reticle over a ship rather than a gun firing -- because a palette
+## drawn only from muzzle flashes would have no vocabulary for a card that is
+## not a weapon, and forty of the seventy-one left are not.
+ACCEPTED = ["charged_slug", "cold_read", "drumfire", "siege_round",
+            "suppressing_fire"]
+
+
+def card_palette():
+    """The five accepted illustrations, PLUS the module ramp.
+
+    The five alone are twenty-nine colours and only FOUR of them are usable
+    warms: #4c1613, #c4300e, #bf9a33, #d6b043 -- luminance 39, 86, 132, 152.
+    That is a hole from 86 to 132 exactly where a flame lives, so every mid
+    orange the generator produced landed on gold by nearest-RGB and the first
+    probe came back with mustard beams. Correct arithmetic, wrong ramp.
+
+    The module palette has fourteen warms in a smooth ladder: 34, 39, 56, 57,
+    68, 69, 73, 85, 90, 101, 108, 118, 131, 152. Taking the union fills the
+    flame and costs nothing in tone -- twenty-one of the twenty-nine card
+    colours were already module colours, which is what made a card and the part
+    that grants it look like one game in the first place.
+
+    Sixty-one colours, sixteen of them warm.
+    """
+    seen = []
+    for name in ACCEPTED:
+        p = os.path.join(CARDS, name + ".png")
+        if not os.path.exists(p):
+            continue
+        w, h, rows = pt.decode(p)
+        for c in pt.palette(w, h, rows):
+            if c not in seen:
+                seen.append(c)
+    for c in mb.module_palette():
+        if c not in seen:
+            seen.append(c)
+    return seen
+
+
+## How far from grey a pixel must be before its HUE is worth protecting.
+##
+## `module_batch.is_warm` is `r > b + 12`, which is the right test on a sprite
+## and the wrong one on an illustration. A white-hot muzzle core is about
+## #fff5e0: red does beat blue, so it classifies as warm, and the nearest warm
+## colour on a palette whose hottest entry is #d6b043 is GOLD. Measured on the
+## first probe -- every beam, spark and flash came back mustard, and the raw
+## generation it came from was fine.
+##
+## The warm/cold split exists to stop STEEL migrating into an accent. A
+## near-white highlight is not steel being pulled into an accent; it is a
+## highlight, and it belongs to whichever palette entry is closest. So a pixel
+## only counts as warm if it is also SATURATED: max channel minus min channel.
+## #fff5e0 is 31 and #d6b043 is 147, with the cold ramp all under 35.
+CHROMA = 45
+
+
+def _warm(c):
+    return mb.is_warm(c) and (max(c) - min(c)) >= CHROMA
+
+
+def post_one(src, pal):
+    """Raw generation -> shipping illustration. Returns (w, h, rows, report)."""
+    w, h, rows = pt.decode(src)
+    cold = [c for c in pal if not _warm(c)]
+    warm = [c for c in pal if _warm(c)]
+    drift, hot = _snap_split(w, h, rows, cold, warm)
+    # OPAQUE TO THE EDGE. The generator is asked for a scene rather than a
+    # sprite, but a stray transparent pixel in a full-bleed illustration draws
+    # as a hole in the card, so anything not fully opaque is filled with the
+    # darkest colour on the palette rather than left to the renderer.
+    floor = min(pal, key=lambda c: sum(c))
+    holes = 0
+    for y in range(h):
+        for x in range(w):
+            o = x * 4
+            if rows[y][o + 3] == 255:
+                continue
+            holes += 1
+            rows[y][o], rows[y][o + 1], rows[y][o + 2] = floor
+            rows[y][o + 3] = 255
+    return w, h, rows, {"snapped": drift, "warm": hot, "holes": holes}
+
+
+def _snap_split(w, h, rows, cold, warm):
+    """`module_batch.snap_split`, with `_warm` in place of `is_warm`.
+
+    Copied rather than imported for the one predicate, because the module rule
+    has to keep its own definition: a 20x20 sprite has no highlights big enough
+    for the chroma test to matter, and loosening it there would let a warm-ish
+    grey drift into an accent, which is the exact bug snap_split was written to
+    stop.
+    """
+    cache, n, hot = {}, 0, 0
+    for y in range(h):
+        for x in range(w):
+            o = x * 4
+            if not rows[y][o + 3]:
+                continue
+            c = (rows[y][o], rows[y][o + 1], rows[y][o + 2])
+            pool = warm if _warm(c) else cold
+            if not pool:
+                pool = cold or warm
+            if _warm(c):
+                hot += 1
+            if c in pool:
+                continue
+            n += 1
+            key = (c, len(pool))
+            if key not in cache:
+                cache[key] = min(pool, key=lambda p: (c[0] - p[0]) ** 2
+                                 + (c[1] - p[1]) ** 2 + (c[2] - p[2]) ** 2)
+            rows[y][o], rows[y][o + 1], rows[y][o + 2] = cache[key]
+    return n, hot
+
+
+## Where a take goes when it is good but wrong for its card.
+##
+## The art director asked for a third verdict beside keep and cut: "art like that
+## might not fit a card, but is good enough that it might generally work
+## elsewhere". A cut take is DELETED -- he was explicit that a cut does not need
+## showing again -- so without a bank the only way to keep a picture was to ship
+## it on a card it did not suit.
+##
+## It is a supply and not a graveyard: Phase 8 has ninety authored event options
+## with no art at all, and an event illustration wants the same 92x60 full-bleed
+## shape a card does.
+BANK = os.path.join("tools", "out", "bank")
+
+## The prompt that made each raw generation, written beside the images at
+## generation time and carried through posting.
+##
+## The first two banked takes have no prompt recorded, because this file did not
+## exist yet and reconstructing one from memory would have filed a guess as a
+## record. That is the whole reason it exists now: a banked picture is worth
+## nothing later if nobody can ask for another one like it.
+PROMPTS = "prompts.json"
+
+
+def prompts(d):
+    """The prompt log in a directory, or {} if it has none."""
+    p = os.path.join(d, PROMPTS)
+    if not os.path.exists(p):
+        return {}
+    with io_open(p) as fh:
+        return json.load(fh)
+
+
+def io_open(p, mode="r"):
+    return open(p, mode, encoding="utf-8")
+
+
+def bank(outdir, take, why):
+    """Copy one posted take, its raw, and its prompt into the bank."""
+    if not os.path.isdir(BANK):
+        os.makedirs(BANK)
+    src = os.path.join(outdir, take + ".png")
+    if not os.path.exists(src):
+        return "no such take: %s" % src
+    n = 1 + max([int(f.split("_")[1]) for f in os.listdir(BANK)
+                 if f.startswith("bank_") and f.split("_")[1].isdigit()]
+                or [0])
+    stem = "bank_%02d_%s" % (n, take)
+    shutil.copyfile(src, os.path.join(BANK, stem + ".png"))
+    # THE RAW TOO. Posting is lossy -- it snaps to a palette and fills holes --
+    # and every rule this pipeline has was changed at least once after the fact.
+    # A re-post under a changed rule needs the original; the module work lost a
+    # sprite to exactly this and had to regenerate it.
+    raw = os.path.join(outdir + "_raw", take + ".png")
+    if os.path.exists(raw):
+        shutil.copyfile(raw, os.path.join(BANK, stem + ".raw.png"))
+    pr = prompts(outdir + "_raw").get(take) or prompts(outdir).get(take, "")
+    with io_open(os.path.join(BANK, stem + ".txt"), "w") as fh:
+        fh.write("take: %s\nwhy: %s\nprompt: %s\n"
+                 % (take, why, pr or "NOT RECORDED"))
+    return "%s  %s" % (stem, "with prompt" if pr else "NO PROMPT RECORDED")
+
+
+## Cards that are OPEN: no art, and waiting to be filled from somewhere other
+## than their own round.
+##
+## Ripple Fire is the first entry and the reason this exists. It took four
+## briefs and 54 takes without landing, and the decision was to stop rather than
+## spend a fifth -- but the art director's note was not "give up", it was
+## "maybe another card might generate the art for ripple fire".
+##
+## That is the bank running backwards. A take is banked because it is good and
+## wrong for the card it was made for; a card is listed here because it is
+## waiting and will take a good picture from anywhere. Check this list against
+## the bank at the end of every round, before deleting anything.
+WANTED = {
+    "ripple_fire": "three of anything, evenly spaced, with direction through "
+                   "them -- the ripple is the RHYTHM, not the weapon. Four "
+                   "briefs of its own failed; it does not need to be about a "
+                   "gun and it does not need its own round.",
+}
+
+
+def wanted():
+    """Open cards, and what would fill them, against what is in the bank."""
+    print("OPEN CARDS -- will take a picture from any round")
+    for k, why in WANTED.items():
+        print("  %-18s %s" % (k, why))
+    if not os.path.isdir(BANK):
+        print("\nbank is empty")
+        return
+    print("\nIN THE BANK")
+    for f in sorted(os.listdir(BANK)):
+        if f.endswith(".png") and not f.endswith(".raw.png"):
+            print("  ", f[:-4])
+    print("\ninstall one:  --install %s/<entry>.png <card_key>" % BANK)
+
+
+def install(src, key):
+    """Put any 92x60 picture on any card, whatever round it came from."""
+    if not os.path.exists(src):
+        return "no such file: %s" % src
+    w, h, rows = pt.decode(src)
+    if (w, h) != SIZE:
+        return ("%s is %dx%d, the art window wants %dx%d"
+                % ((src, w, h) + SIZE))
+    dst = os.path.join(CARDS, key + ".png")
+    pt.encode(dst, w, h, rows)
+    return ("%s -> %s\n  run `godot --headless --import` so Godot picks it up, "
+            "then `-- artcheck`" % (src, dst))
+
+
+def main(argv):
+    if not argv or argv[0] == "--palette":
+        pal = card_palette()
+        print("%d colours from %d accepted illustrations"
+              % (len(pal), len(ACCEPTED)))
+        for c in sorted(pal, key=sum):
+            print("   #%02x%02x%02x%s" % (c[0], c[1], c[2],
+                                          "  WARM" if mb.is_warm(c) else ""))
+        return 0
+    if argv[0] == "--post" and len(argv) >= 3:
+        indir, outdir = argv[1], argv[2]
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        pal = card_palette()
+        print("palette: %d colours from %d accepted" % (len(pal), len(ACCEPTED)))
+        for f in sorted(os.listdir(indir)):
+            if not f.endswith(".png"):
+                continue
+            w, h, rows, rep = post_one(os.path.join(indir, f), pal)
+            note = ""
+            if (w, h) != SIZE:
+                note = "  WRONG SIZE, wants %dx%d" % SIZE
+            pt.encode(os.path.join(outdir, f), w, h, rows)
+            print("  %-24s %dx%d  %4d snapped  %4d warm  %d holes%s"
+                  % (f[:-4], w, h, rep["snapped"], rep["warm"],
+                     rep["holes"], note))
+        # The log travels with the pictures, so a take that is banked months
+        # from now still knows what was asked for.
+        log = prompts(indir)
+        if log:
+            with io_open(os.path.join(outdir, PROMPTS), "w") as fh:
+                json.dump(log, fh, indent=1, ensure_ascii=False)
+            print("  carried %d prompts forward" % len(log))
+        else:
+            print("  NO PROMPT LOG in %s -- write one at generation time" % indir)
+        return 0
+    if argv[0] == "--bank" and len(argv) >= 4:
+        print(bank(argv[1], argv[2], " ".join(argv[3:])))
+        return 0
+    if argv[0] == "--wanted":
+        wanted()
+        return 0
+    if argv[0] == "--install" and len(argv) == 3:
+        print(install(argv[1], argv[2]))
+        return 0
+    print(__doc__)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

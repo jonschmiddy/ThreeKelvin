@@ -95,6 +95,40 @@ func run() -> void:
 				tex.get_width(), tex.get_height(),
 				int(want_card.x), int(want_card.y)])
 
+	# `-- artcheck cards` dumps every illustration owed, one per line, with what
+	# the card IS. Writing seventy-one prompts off the card gallery means reading
+	# them off a screen one at a time; this is the same list as a file.
+	#
+	# TAB SEPARATED, because the consumer is a script. `glyph_kind` is in it
+	# because it is the game's OWN answer to "what does this card look like" --
+	# the procedural art has been sorting cards into slug, burst, charge, pyre,
+	# brace and the rest all along, and a prompt that ignores that is inventing a
+	# second taxonomy for the same objects.
+	if "cards" in OS.get_cmdline_user_args():
+		print("
+=== CARD MANIFEST ===")
+		for row in cards:
+			var c: CardData = row["card"]
+			var src: ModuleData = DB.modules.get(StringName(str(row["from"])))
+			# `describe()` and the type line are in it because a DESIGN SHEET is
+			# written off this file, not off the card gallery, and a brief for a
+			# picture that does not know what the card does is how four cards
+			# ended up asking for the same muzzle flash. `type` and `glyph` are
+			# both here on purpose: they are the game's two existing answers to
+			# "what is this", and where they agree across many cards is exactly
+			# where the illustrations are about to collide.
+			print("%s	%s	%s	%s	%s	%s	%s	%s	%s	%s" % [
+				c.art_key(),
+				"DONE" if DB.card_art(c.art_key()) != null else "TODO",
+				c.name, c.glyph_kind(), c.type_name(),
+				c.describe().replace("
+", " "),
+				c.manufacturer if c.manufacturer != &"" else "-",
+				str(row["from"]),
+				src.name if src != null else "-",
+				(src.flavour if src != null else "").replace("
+", " ")])
+
 	print("\n  modules  %d drawn, %d still procedural" % [mods.size() - m_missing,
 		m_missing])
 	print("  cards    %d drawn, %d still on glyphs (art window %dx%d)"

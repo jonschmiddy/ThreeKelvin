@@ -1,0 +1,3 @@
+take: resonance_1
+why: the standing-wave readout: a waveform, wrong for a card because it reads as UI, but a real picture for an event or a sensor screen
+prompt: {'prompt': 'a starship bulkhead coming apart along evenly spaced seams as a standing sound wave passes through it, rivets shearing in a regular repeating pattern, cold blue light, no fire and no explosion', 'seed': 3706, 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/weapons.json'}

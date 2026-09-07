@@ -1,0 +1,264 @@
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --line:#22303f; --cold:#6b7d94;
+  --chill:#8fa3ba; --ice:#c3d2e2; --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --bank:#5b9dc4; --bad:#c8503c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--void);color:var(--ice);font-family:var(--mono);
+  margin:0;padding:26px 20px 90px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--flare);margin:0 0 6px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,38px);
+  letter-spacing:.02em;margin:0 0 12px}
+.lede{color:var(--cold);max-width:76ch;font-size:13.5px;margin:0 0 10px}
+.lede b{color:var(--ice);font-weight:400}
+.lede em{color:var(--hot);font-style:normal}
+code{color:var(--hot);font-size:.94em}
+
+.note{margin:16px 0 0;border:1px solid var(--line);background:var(--sunk)}
+.note .h{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--hot)}
+.note .b{padding:13px 15px;color:var(--cold);font-size:12.5px;line-height:1.7}
+.note b{color:var(--ice);font-weight:400}
+.note p{margin:0 0 10px} .note p:last-child{margin:0}
+.note .bad{color:var(--bad)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 0;
+  border:1px solid var(--line);background:var(--sunk);padding:11px 14px}
+.legend div{font-size:12px;color:var(--cold)}
+.legend b{font-weight:400;letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+.legend .k b{color:var(--good)} .legend .s b{color:var(--bank)} .legend .x b{color:var(--bad)}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--void);
+  display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;
+  align-items:center;border-bottom:1px solid var(--line)}
+.bar .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--cold);margin-right:2px}
+.bar .sp{flex:1 1 auto}
+button{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;background:transparent;color:var(--cold);
+  border:1px solid var(--line);padding:6px 11px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#33475c}
+button:focus-visible{outline:2px solid var(--flare);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--flare);border-color:var(--flare);color:#160b02}
+#tally{font-size:12px;color:var(--chill);letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+
+h2{font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.03em;
+  margin:30px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:6px}
+h2 small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--cold)}
+h2 .does{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--hot)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;align-items:flex-start}
+.item{padding:7px;border:1px solid var(--line);background:var(--sunk);flex:0 0 auto}
+.item.keep{border-color:var(--good)}
+.item.bank{border-color:var(--bank)}
+.item.gone{display:none}
+.now{padding:7px;border:1px solid var(--ember);background:var(--panel);
+  flex:0 0 auto;margin-right:8px}
+.now .cap{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--flare);margin-bottom:5px}
+.noshot{width:224px;height:320px;border:1px dashed var(--line);color:var(--cold);
+  font-size:10.5px;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px}
+canvas{image-rendering:pixelated;display:block}
+.nm{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--chill);
+  margin-top:5px}
+.verdict{display:flex;gap:4px;margin-top:6px}
+.verdict button{flex:1 1 0;padding:4px 0;font-size:10px;letter-spacing:.08em}
+.verdict button.k[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06140d}
+.verdict button.s[aria-pressed="true"]{background:var(--bank);border-color:var(--bank);color:#04121b}
+.verdict button.x[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#1a0603}
+.pr{font-size:10px;color:var(--cold);line-height:1.5;margin-top:6px;max-width:26ch;
+  display:none}
+.showpr .pr{display:block}
+
+.out{margin-top:26px}
+.out .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.out .h span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold)}
+textarea{width:100%;height:150px;background:#070b11;color:var(--chill);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;
+  padding:10px;resize:vertical}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Three Kelvin &middot; card art &middot; review bench</p>
+  <h1>__TITLE__</h1>
+
+  <p class="lede">Every take sits beside <b>the card as the game draws it today</b> &mdash; the
+  orange tile heading each row, at the same zoom as the candidates, so the comparison is against
+  the thing being replaced rather than against the other options.</p>
+
+__NOTE__
+
+  <div class="legend">
+    <div class="k"><b>keep</b> &mdash; install it on this card</div>
+    <div class="s"><b>store</b> &mdash; wrong here, too good to lose; banked with its prompt</div>
+    <div class="x"><b>cut</b> &mdash; deleted, and it disappears from the page</div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">zoom</span>
+    <button data-z="1">1&times;</button>
+    <button data-z="2">2&times;</button>
+    <button data-z="3" aria-pressed="true">3&times;</button>
+    <button data-z="4">4&times;</button>
+    <span class="sp"></span>
+    <button id="prompts" aria-pressed="false">show prompts</button>
+    <button id="reset">clear</button>
+    <span id="tally"></span>
+    <button id="copy">copy</button>
+  </div>
+
+  <div id="groups"></div>
+
+  <div class="out">
+    <div class="h"><span>verdicts</span></div>
+    <textarea id="json" readonly placeholder="judge a take and the JSON appears here"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = __DATA__;
+var Z = 3, V = {}, CACHE = {};
+var KINDS = [["k","keep"],["s","store"],["x","cut"]];
+
+function decode(key, src, cb){
+  if (CACHE[key]) { cb(CACHE[key]); return; }
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var g = c.getContext("2d"); g.drawImage(img, 0, 0);
+    CACHE[key] = g.getImageData(0, 0, img.width, img.height);
+    cb(CACHE[key]);
+  };
+  img.src = "data:image/png;base64," + src;
+}
+
+function draw(c, key, src){
+  decode(key, src, function(d){
+    c.width = d.width * Z; c.height = d.height * Z;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    for (var y = 0; y < d.height; y++){
+      for (var x = 0; x < d.width; x++){
+        var o = (y * d.width + x) * 4;
+        if (d.data[o + 3] < 8) continue;
+        g.fillStyle = "rgb(" + d.data[o] + "," + d.data[o+1] + "," + d.data[o+2] + ")";
+        g.fillRect(x * Z, y * Z, Z, Z);
+      }
+    }
+  });
+}
+
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function build(){
+  var host = document.getElementById("groups");
+  host.textContent = "";
+  ROWS.forEach(function(r){
+    var h = el("h2", null, r.name || r.key);
+    if (r.module) h.appendChild(el("small", null, r.module));
+    if (r.does) h.appendChild(el("span", "does", r.does));
+    h.appendChild(el("small", null, r.takes.length + " takes"));
+    host.appendChild(h);
+
+    var row = el("div", "row");
+    var now = el("div", "now");
+    now.appendChild(el("div", "cap", "on the card today"));
+    if (r.card){
+      var cc = document.createElement("canvas");
+      now.appendChild(cc);
+      draw(cc, "card_" + r.key, r.card);
+    } else {
+      now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+    }
+    row.appendChild(now);
+
+    r.takes.forEach(function(t){
+      var box = el("div", "item");
+      box.dataset.key = t.id;
+      box.dataset.card = r.key;
+      var c = document.createElement("canvas");
+      box.appendChild(c);
+      box.appendChild(el("div", "nm", "take " + t.n));
+      var v = el("div", "verdict");
+      KINDS.forEach(function(kd){
+        var b = el("button", kd[0], kd[1]);
+        b.setAttribute("aria-pressed", "false");
+        b.onclick = function(){
+          if (V[t.id] === kd[1]) delete V[t.id]; else V[t.id] = kd[1];
+          paint();
+        };
+        v.appendChild(b);
+      });
+      box.appendChild(v);
+      if (t.prompt) box.appendChild(el("div", "pr", t.prompt));
+      row.appendChild(box);
+      draw(c, t.id, t.img);
+    });
+    host.appendChild(row);
+  });
+  paint();
+}
+
+function paint(){
+  var n = {keep:0, store:0, cut:0}, total = 0, out = [];
+  document.querySelectorAll(".item[data-key]").forEach(function(box){
+    total++;
+    var v = V[box.dataset.key];
+    box.classList.toggle("keep", v === "keep");
+    box.classList.toggle("bank", v === "store");
+    // A cut take is deleted from disk, so it leaves the page rather than
+    // sitting here greyed out asking to be looked at again.
+    box.classList.toggle("gone", v === "cut");
+    box.querySelectorAll(".verdict button").forEach(function(b){
+      b.setAttribute("aria-pressed", v === b.textContent ? "true" : "false");
+    });
+    if (v){ n[v]++; out.push({id: box.dataset.key, card: box.dataset.card, verdict: v}); }
+  });
+  document.getElementById("tally").textContent =
+    n.keep + " keep · " + n.store + " store · " + n.cut + " cut · " +
+    (total - n.keep - n.store - n.cut) + " left";
+  document.getElementById("json").value = out.length ? JSON.stringify(out, null, 1) : "";
+}
+
+document.querySelectorAll("[data-z]").forEach(function(b){
+  b.onclick = function(){
+    Z = +b.dataset.z;
+    document.querySelectorAll("[data-z]").forEach(function(o){
+      o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    });
+    build();
+  };
+});
+document.getElementById("prompts").onclick = function(){
+  var on = this.getAttribute("aria-pressed") !== "true";
+  this.setAttribute("aria-pressed", on ? "true" : "false");
+  document.body.classList.toggle("showpr", on);
+};
+document.getElementById("reset").onclick = function(){ V = {}; paint(); };
+document.getElementById("copy").onclick = function(){
+  var t = document.getElementById("json");
+  t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+  this.textContent = "copied";
+  var self = this;
+  setTimeout(function(){ self.textContent = "copy"; }, 1200);
+};
+
+build();
+</script>

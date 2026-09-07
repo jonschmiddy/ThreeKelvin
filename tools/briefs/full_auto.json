@@ -1,0 +1,14 @@
+{
+  "set": "Full Auto",
+  "lede": "<p class=\"lede\">Moving on. Ripple Fire keeps its glyph and stays on an <b>open list</b> &mdash; <code>card_batch.py --wanted</code> &mdash; because your note was the right one: a picture made for another card may turn out to be its picture. The bank already runs that way in one direction; it now runs in both, and <code>--install</code> will put any banked 92&times;60 onto any card whatever round it came from.</p>\n\n  <div class=\"note\"><div class=\"h\">What Ripple Fire taught this brief</div><div class=\"b\"><p>Full Auto was the other card at risk of the handgun read &mdash; a close view of a feed mechanism has no more inherent scale than a close view of a gun. So this brief carries a <b>sized by</b> line, which is new, and it does not solve scale with a big foreground object, which is what broke Ripple Fire's second brief.</p><p>The advantage this card has, and Ripple Fire never did, is that <b>its second thing is already in the mechanism</b>: the belt goes in and the spent cases come out. That is an actor, a thing acted on, and direction, without importing a starship or a target into a 92&times;60 frame.</p></div></div>",
+  "cards": [
+    {
+      "id": "full_auto",
+      "actor": "a linked ammunition belt being dragged upward into a breech",
+      "on": "the spent cases it becomes, falling away out of the bottom of the frame",
+      "moment": "one continuous motion read in two directions at once: fresh rounds climbing in on the belt, empty brass tumbling out below, the mechanism between them doing the work. Volume as a feed rate rather than as a flash. The belt should run off the top of the frame and the casings off the bottom, so the machine reads as something that has been doing this for a while and is not about to stop.",
+      "scale": "a gloved crewman's hand or forearm steadying the belt at the edge of frame, or a boot-worn deck grating under the falling brass. One human-sized thing, small and at the margin — enough to say this mechanism is bigger than a person, without becoming the subject the way a starship did.",
+      "avoid": "the muzzle end and any complete weapon — 'volume as a philosophy' is a feed rate, and the picture is the feed. No large foreground structure: that is what ate the frame on Ripple Fire's second brief. Do not say 'hull', 'vessel' or 'shell' in the prompt; all three have imported an ocean or a rocky floor unprompted."
+    }
+  ]
+}

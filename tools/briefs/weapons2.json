@@ -1,0 +1,46 @@
+{
+  "set": "The Last Five Weapons, In Space This Time",
+  "lede": "<p class=\"lede\">You kept <code>full_auto_20</code>, and then said the thing that matters more than the verdict: <em>&ldquo;these should be spaceship and space opera themed you know?&rdquo;</em> They should. Twenty takes came back as a WWII factory &mdash; brass, deck grating, a gloved hand, oily steel &mdash; and the reason is that I never told the generator where any of it was.</p>\n\n  <div class=\"note\"><div class=\"h\">The answer was already written down, in this repo, unread</div><div class=\"b\"><p><code>docs/design-doc.md</code> has a visual-direction section I had not opened before writing a single card prompt. It says, in its own words:</p><p style=\"color:#8fa3ba;border-left:2px solid #d97b29;padding-left:12px\">&ldquo;The void is never flat black. Deep indigo-to-black dithered gradients with nebula wash coloured per region &mdash; Korvan space rusty amber.&rdquo;<br><br>&ldquo;Objects are genuinely lush. Weathered plating, stencilled hull numbers, decals, lit viewports with tiny interior detail. Spend the pixel budget here.&rdquo;<br><br>&ldquo;Warm/cold survives as lighting logic&hellip; objects are richly coloured but <b>coldly lit</b>, with warm rim light from your own reactor and engines. Your heat glow reads because it is the only <b>self-emitted</b> warmth in frame.&rdquo;</p><p>Industrial was never the problem &mdash; the doc names the tone <b>&ldquo;lush-cold industrial&rdquo;</b> against Cobalt Core's cartoon brightness. Industry <em>on Earth</em> was. Every brief now carries a <b>the world</b> line saying so, and it is the same line on every card because it is house style, not a per-card decision.</p><p>Your call on <code>full_auto_20</code>: it is installed, and it is the most factory-ish of the eleven that ship. Say the word and it goes back through with a viewport in it.</p></div></div>",
+  "cards": [
+    {
+      "id": "rack_and_load",
+      "actor": "an ammunition hoist",
+      "on": "a heavy round it is lifting up out of the deck onto a rack",
+      "moment": "the round clears the hatch and swings onto the rack, chain taut and taking the weight. Nothing has fired. This card is the feed, not the shot.",
+      "scale": "the magazine is a ship compartment: a low ceiling with conduit runs, a rack of identical rounds receding, and a lit viewport or an open bay door in the wall with the void beyond it. The room says starship; the round says heavy.",
+      "avoid": "a muzzle flash, and any word from the banned list — no 'gun', no 'weapon', no 'shell', no 'hull', no 'vessel'. Say hoist, chain, rack, round, magazine, conduit."
+    },
+    {
+      "id": "walking_fire",
+      "actor": "a line of impacts",
+      "on": "the flank of an enemy starship",
+      "moment": "the walk seen from the target's side: hits marching across weathered plating with stencilled numbers on it, the newest white-hot and throwing debris, the older ones behind cooling to dark scabs. The impacts are the only warm light in frame.",
+      "scale": "the plating carries a stencilled hull number and a lit viewport or two, so the surface being chewed is unmistakably a ship rather than a wall — and the nebula wash sits behind the curve of it.",
+      "avoid": "any weapon in frame at all — Drumfire's other card can have the machine, this one is what the machine does to somebody. No banned words."
+    },
+    {
+      "id": "auspice",
+      "actor": "the Oracle Shard",
+      "on": "a starship it has not hit yet",
+      "moment": "the shard throws a surveyed line across the void to a mark sitting on an intact ship. The violence is entirely in the future tense, and that is what separates it from every other attack card in the game.",
+      "scale": "the shard is close and the ship is far and small, with a nebula wash between them carrying the distance. The precursor violet of the shard against the amber of Korvan space is the whole colour story.",
+      "avoid": "a hand holding a crystal — the shard is the actor, not a prop. Do not let the shard elongate into something that reads as a missile; that happened twice. No banned words."
+    },
+    {
+      "id": "resonance",
+      "actor": "a standing wave off the Singing Core",
+      "on": "a bulkhead coming apart along its seams",
+      "moment": "the plate failing where the wave nodes sit: rivets shearing in a regular repeating pattern, metal parting along lines too evenly spaced to be blast damage. Two big hits, two nodes. Nothing burns — it comes apart.",
+      "scale": "a compartment interior with the void visible through the split that is opening, so the failure reads as a breach rather than as a wall cracking. Cold light, precursor violet at the fracture.",
+      "avoid": "fire and explosion of any kind — one take put an open flame in it and the module does not burn things. No warm light except the resonance itself. No banned words."
+    },
+    {
+      "id": "torch",
+      "actor": "a cutting torch",
+      "on": "a dead starship it is opening",
+      "moment": "the flame biting into cold plating, cutting a slot rather than a hole, slag running off the bottom edge of the cut. Salvage work — the module is 'meant for hulls that are already dead' — so the picture should look like a job, not a fight.",
+      "scale": "the derelict fills the frame and runs out of it, dark and unlit, with dead viewports and a stencilled number. The torch is the only light source in the picture and the void is behind the wreck.",
+      "avoid": "reading as the Mining Laser's Cutting Beam, which already ships — that one is a beam at range, this is a flame in contact. No banned words; say plating, derelict, slag, arc."
+    }
+  ]
+}
