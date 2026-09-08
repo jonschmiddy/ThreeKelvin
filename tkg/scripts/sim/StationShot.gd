@@ -1,6 +1,6 @@
 extends RefCounted
 
-## The station, photographed. `godot --path . -- stationshot [maker=solari]`
+## The station, photographed. `godot --path . -- stationshot [manufacturer=solari]`
 ##
 ## Same reason ChartShot and ShipShot exist, and one more besides: `-- station`
 ## opens this screen but nothing has ever taken a picture of it, so the busiest
@@ -14,20 +14,20 @@ extends RefCounted
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 
-	# `maker=none` photographs a station NOBODY holds, which is the case the
+	# `manufacturer=none` photographs a station NOBODY holds, which is the case the
 	# header has to get right by omission rather than by drawing -- lawless space
 	# has no berth, and a blank flag there would read as a manufacturer with no
 	# mark instead of as an absence of manufacturers.
-	var maker := &"solari"
+	var berth := &"solari"
 	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with("maker="):
-			var want := StringName((a as String).substr(6))
+		if (a as String).begins_with("manufacturer="):
+			var want := StringName((a as String).substr(13))
 			if want == &"none" or DB.manufacturers.has(want):
-				maker = want
+				berth = want
 			else:
-				print("  no manufacturer '%s' -- keeping %s" % [want, maker])
+				print("  no manufacturer '%s' -- keeping %s" % [want, berth])
 
-	Run.start_new_run(&"korvan" if maker == &"none" else maker, 1)
+	Run.start_new_run(&"korvan" if berth == &"none" else berth, 1)
 
 	# The same state `-- station` builds, so the two flags photograph one screen
 	# rather than two. A shot of a state nothing else ever reaches is evidence
@@ -40,9 +40,9 @@ func run(tree: SceneTree) -> void:
 	# empty array will not assign to it.
 	here.berths.clear()
 	here.manufacturer = &""
-	if maker != &"none":
-		here.berths.append(maker)
-		here.manufacturer = maker
+	if berth != &"none":
+		here.berths.append(berth)
+		here.manufacturer = berth
 	here.danger = 5
 	for i in 3:
 		Run.stow(LootGen.roll_module(4 + i, &"", true))
@@ -56,18 +56,18 @@ func run(tree: SceneTree) -> void:
 	for a2 in OS.get_cmdline_user_args():
 		if (a2 as String).begins_with("sets="):
 			want = int((a2 as String).substr(5))
-	if maker != &"none":
+	if berth != &"none":
 		var fitted := 0
 		for mid in DB.modules:
 			if fitted >= want:
 				break
 			var md: ModuleData = DB.modules[mid]
-			if md.manufacturer != maker:
+			if md.manufacturer != berth:
 				continue
 			Run.install_module(md.duplicate(true) as ModuleData)
 			fitted += 1
 		print("  %d %s parts fitted · set count %d" % [fitted,
-			DB.short_name(DB.manufacturer_name(maker)), Run.manufacturer_count(maker)])
+			DB.short_name(DB.manufacturer_name(berth)), Run.manufacturer_count(berth)])
 
 	Run.hp = maxi(1, Run.max_hp() - 12)
 	Run.add_dross(3)
@@ -90,10 +90,10 @@ func run(tree: SceneTree) -> void:
 		print("  hud row wants %.0f of %.0f%s" % [need, have,
 			"  <-- CLIPPED by %.0f" % (need - have) if need > have else ""])
 
-	print("  %s · %s" % ["no berth" if maker == &"none"
-		else DB.manufacturer_name(maker) + " berth",
+	print("  %s · %s" % ["no berth" if berth == &"none"
+		else DB.manufacturer_name(berth) + " berth",
 		MapGen.development_name(here.development)])
-	var path := "user://station_%s.png" % maker
+	var path := "user://station_%s.png" % berth
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
 	tree.quit()

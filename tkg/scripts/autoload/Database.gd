@@ -311,25 +311,31 @@ func _seed_affixes() -> void:
 	# `weight` prices the two reactor entries. A reactor pip is three cells of
 	# capacity AND half a point of energy a turn; every other gauge pays in one
 	# currency, so these are made SCARCE rather than weakened.
+	#
+	# NO `text` FIELD HERE. It is generated from the pips by
+	# `AffixData.gauge_text()` below, so the sentence on the panel cannot say
+	# something the numbers do not -- and the gauge names come from
+	# `RunState.ATTR_SHORT`, which is the same table the attributes panel labels
+	# its rows from.
 	var raw := [
-		{name = "Reinforced", text = "+1 HULL", hull = 1},
-		{name = "Cryo-Lined", text = "+1 THERMAL", thermal = 1},
-		{name = "Gyro-Trimmed", text = "+1 MANEUVER", maneuver = 1},
-		{name = "Wide-Banded", text = "+1 SENSORS", sensors = 1},
-		{name = "Signature-Damped", text = "+1 STEALTH", stealth = 1},
-		{name = "Tuned Injectors", text = "+1 THRUST", thrust = 1},
-		{name = "Double-Plated", text = "+2 HULL", hull = 2},
+		{name = "Reinforced", hull = 1},
+		{name = "Cryo-Lined", thermal = 1},
+		{name = "Gyro-Trimmed", maneuver = 1},
+		{name = "Wide-Banded", sensors = 1},
+		{name = "Signature-Damped", stealth = 1},
+		{name = "Tuned Injectors", thrust = 1},
+		{name = "Double-Plated", hull = 2},
 		# The tradeoff pair: lighter and thinner, louder and hotter.
-		{name = "Stripped", text = "+2 MANEUVER, -1 HULL",
-			maneuver = 2, hull = -1},
-		{name = "Bus-Fed", text = "+1 REACTOR", reactor = 1, weight = 0.35},
-		{name = "Deregulated", text = "+2 REACTOR, -1 STEALTH",
-			reactor = 2, stealth = -1, contraband = true, weight = 0.5},
+		{name = "Stripped", maneuver = 2, hull = -1},
+		{name = "Bus-Fed", reactor = 1, weight = 0.35},
+		{name = "Deregulated", reactor = 2, stealth = -1,
+			contraband = true, weight = 0.5},
 	]
 	for d in raw:
 		var a := AffixData.new()
 		for k in d.keys():
 			a.set(k, d[k])
+		a.text = a.gauge_text()
 		affixes.append(a)
 
 # ---------------------------------------------------------------------- modules
@@ -843,9 +849,15 @@ func _seed_modules() -> void:
 	## for is the same turn theirs do — and a run whose only repair is a flat 4 is
 	## a run that learns repair does not save you before it ever finds one that
 	## does.
+	## THE SHARED CARD, not a literal copy of it. This authored its own Patch --
+	## same energy, same heal, same scale as `&"patch"` in SHARED above, written
+	## out a second time -- which is exactly the duplication the shared
+	## vocabulary exists to stop. holdtest found it as "Patch is 2 different
+	## cards", and the only thing that actually differed between them was the
+	## `shared` flag.
 	_module(&"patchkit", "Patch Kit", &"", U, C0,
 		"Foam, tape, and a prayer to whoever welded the frame.",
-		[{name = "Patch", energy = 1, heal = 1, heal_scale = 5, copies = 1}])
+		[&"patch"])
 
 
 	# --- Korvan: the top of the thermal and sensor ladders, and brass on the deck

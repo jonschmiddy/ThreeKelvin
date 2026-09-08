@@ -1,0 +1,289 @@
+<title>Range - the antenna</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --line:#22303f; --cold:#6b7d94;
+  --chill:#8fa3ba; --ice:#c3d2e2; --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --bank:#5b9dc4; --bad:#c8503c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--void);color:var(--ice);font-family:var(--mono);
+  margin:0;padding:26px 20px 90px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--flare);margin:0 0 6px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,38px);
+  letter-spacing:.02em;margin:0 0 12px}
+.lede{color:var(--cold);max-width:76ch;font-size:13.5px;margin:0 0 10px}
+.lede b{color:var(--ice);font-weight:400}
+.lede em{color:var(--hot);font-style:normal}
+code{color:var(--hot);font-size:.94em}
+
+.note{margin:16px 0 0;border:1px solid var(--line);background:var(--sunk)}
+.note .h{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--hot)}
+.note .b{padding:13px 15px;color:var(--cold);font-size:12.5px;line-height:1.7}
+.note b{color:var(--ice);font-weight:400}
+.note p{margin:0 0 10px} .note p:last-child{margin:0}
+.note .bad{color:var(--bad)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 0;
+  border:1px solid var(--line);background:var(--sunk);padding:11px 14px}
+.legend div{font-size:12px;color:var(--cold)}
+.legend b{font-weight:400;letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+.legend .k b{color:var(--good)} .legend .s b{color:var(--bank)} .legend .x b{color:var(--bad)}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--void);
+  display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;
+  align-items:center;border-bottom:1px solid var(--line)}
+.bar .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--cold);margin-right:2px}
+.bar .sp{flex:1 1 auto}
+button{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;background:transparent;color:var(--cold);
+  border:1px solid var(--line);padding:6px 11px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#33475c}
+button:focus-visible{outline:2px solid var(--flare);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--flare);border-color:var(--flare);color:#160b02}
+#tally{font-size:12px;color:var(--chill);letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+
+h2{font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.03em;
+  margin:30px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:6px}
+h2 small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--cold)}
+h2 .does{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--hot)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;align-items:flex-start}
+.item{padding:7px;border:1px solid var(--line);background:var(--sunk);flex:0 0 auto}
+.item.keep{border-color:var(--good)}
+.item.bank{border-color:var(--bank)}
+.item.gone{display:none}
+.now{padding:7px;border:1px solid var(--ember);background:var(--panel);
+  flex:0 0 auto;margin-right:8px}
+.now .cap{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--flare);margin-bottom:5px}
+.noshot{width:224px;height:320px;border:1px dashed var(--line);color:var(--cold);
+  font-size:10.5px;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px}
+canvas{image-rendering:pixelated;display:block}
+.nm{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--chill);
+  margin-top:5px}
+.verdict{display:flex;gap:4px;margin-top:6px}
+.verdict button{flex:1 1 0;padding:4px 0;font-size:10px;letter-spacing:.08em}
+.verdict button.k[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06140d}
+.verdict button.s[aria-pressed="true"]{background:var(--bank);border-color:var(--bank);color:#04121b}
+.verdict button.x[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#1a0603}
+.pr{font-size:10px;color:var(--cold);line-height:1.5;margin-top:6px;max-width:26ch;
+  display:none}
+.showpr .pr{display:block}
+
+.out{margin-top:26px}
+.out .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.out .h span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold)}
+textarea{width:100%;height:150px;background:#070b11;color:var(--chill);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;
+  padding:10px;resize:vertical}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Three Kelvin &middot; card art &middot; review bench</p>
+  <h1>Range - the antenna</h1>
+
+  <p class="lede">Every take sits beside <b>the card as the game draws it today</b> &mdash; the
+  orange tile heading each row, at the same zoom as the candidates, so the comparison is against
+  the thing being replaced rather than against the other options.</p>
+
+<p><b>75 of 76.</b> Foreknowledge is installed &mdash; the one I told you
+probably was not there. Range is the last card in the game without a picture.</p>
+
+<div class="note"><div class="h">I am not going to tell you which of these is
+good</div><div class="b">
+<p>On the last bench I said Range worked and Foreknowledge did not. You kept
+Foreknowledge and cut all eight Ranges. That is not a near miss, it is <b>the
+opposite answer on both cards on the same page</b>, and it is the third time my
+read has been inverted. So: eight takes, no recommendation.</p>
+</div></div>
+
+<p><b>1&ndash;4</b> are the dish face-on with rime on the rim.
+<b>5&ndash;8</b> are its ribbed back and mount, void beyond.</p>
+
+<p>The one deliberate choice worth knowing: the frost is written as a <b>tight
+line hugging the rim</b> rather than a plume, because loose frost grew into a
+white fern eight times on Hairline, and Cold Sights only worked once the rime was
+pinned to a collar.</p>
+
+<p>Takes 73&ndash;80 for this card. If none of them land, the glyph is still
+sitting there and it is a Lock On reticle on a Lock On card.</p>
+
+
+  <div class="legend">
+    <div class="k"><b>keep</b> &mdash; install it on this card</div>
+    <div class="s"><b>store</b> &mdash; wrong here, too good to lose; banked with its prompt</div>
+    <div class="x"><b>cut</b> &mdash; deleted, and it disappears from the page</div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">zoom</span>
+    <button data-z="1">1&times;</button>
+    <button data-z="2">2&times;</button>
+    <button data-z="3" aria-pressed="true">3&times;</button>
+    <button data-z="4">4&times;</button>
+    <span class="sp"></span>
+    <button id="prompts" aria-pressed="false">show prompts</button>
+    <button id="reset">clear</button>
+    <span id="tally"></span>
+    <button id="copy">copy</button>
+  </div>
+
+  <div id="groups"></div>
+
+  <div class="out">
+    <div class="h"><span>verdicts</span></div>
+    <textarea id="json" readonly placeholder="judge a take and the JSON appears here"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = [{"key": "range", "name": "Range", "module": "Signal Board", "does": "Lock on +2.", "card": "iVBORw0KGgoAAAANSUhEUgAAAHAAAACgCAYAAADU3uhkAAAAAXNSR0IArs4c6QAABKhJREFUeJzt3TFo1F4Ax/FXaRGxS2kRN6GjdLCUQikHxaG6uXVQUCehDhUcRKXYQRGVDoIOFpysoEO3btVBCkcplNLN0dmh4qKIONTpHa9pknu593LJr/f9gPwv10sa8v2/d8mdd/adOTd2YCBpcGjY9NuFyalG4Q3sbDej7hCK63cXtjY/e684PTNrBoeGO/qlv37+6Gi94ybG8evPeZyX79++Fnr82dHzob/yWAk9fidi7gy6j4DiUqfQa7fuZq7w4e3L0nYGxZUyAjeau2ajuVvGpnvC3sKI2VsY8Xps7kmMO9ryRqVro7lrLjcmjtyGn72FETP+ev/I7Sw8B4ojoLjcKdR32nRdbky0nv+YPosbf73fev5rN30aE+FCPg3hwviEs1IDcqmgg+dAccFTKK9thgk9fkEBeVchTIzjxxQqLngK/ff3T4z9QAEDJ0+1bjMCxRFQHAHFEVAcAcURUBwBxUV9N+LZ86et2w8fLMbcNDJEH4GE665S3g90JUelu+x7H/9TZIs+Ap89f9r2gD98sHjkMXaZWMWUMoXa0WNj+kRJC++7bi8r5SzURrT/TU6RaY83xhx5rM+6va7Pfj5wcqpR+NNJO9vNKO9GuKPPZwrudfbdiEOfD6yaHWnEK6YWAYnWOV6JEUdAcQQUR0BxBBQXfBbq/g0pdF9QwE6/JgNhKv2aEYTha0aOGQKKI6A4AoojoDgCiiOgOAKKI6C4Wrwj7+PO/Ufej3314ons7yyKESiOgOJkplBXt6ardr+nyBRbFkagOAKKI6A4AoojoDgCiiOgOJnrwKpeqspTh31iBIojoDgCiiOgOAKKkzkLjeF3817q/acby13ek3gYgeIIKI6A4ggojoDieuosVPlsMwsjUBwBxRFQHAHFEVCczFmo+7eg6/BOuDH12CdGoDgCiiOgOAKKI6A4AoojoDiZ60BXu0/GVvElB1VhBIojoDiZKbSKl6rq8pJdHkagOAKKI6A4AoojoDgCiiOgOAKKC76QT/5TMOiuoIDuP8KEajCFiiOgOAKKI6A4AoojoLioAeduzLf+2GX3Z1n3ZS2jvWjvyM/dmDdrqyuZP0M5oo3AtdWV3FBZcREm6hRqI+ZNk4gr+klMcqStra60HZ3oXNTnwJD1bPjkMvL1nTk3dmCMMZNTDbO1+dl7xemZWbOz3Sxtx9De4NAw14HqCCiOgOKCT2L+/f0TYz9QwMDJU63bjEBxBBRHQHFRA65/+pJ5f9rP0u53l7O257u+zzaMMWZp+U3qffZPnZX++cD1T1/MlUsXvW+nrVdkuz7r+nh873br9tLym0PLdVKLD3gWjeezPZ9tuKPL3k6GS95XN7UImDzYvgHy2G3ksWHSRlidR50rekB70OzBdw9kWqTk/cmfZ0Vst37yMZ1wR2he7CoFv5htL+SvXr9Zzh5G8vH9u6p3IRp7IT84NBxvBB6nA6SE60BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFHfowy3TM7OFN+B+5QW6r2/0wsxB1TuBzv0HGj9wuQSwPkwAAAAASUVORK5CYII=", "takes": [{"id": "range_1", "n": 1, "img": "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", "prompt": "A battered parabolic dish antenna bolted to the outside plating of a ship, seen close, a tight line of white rime hugging its rim, a thick armoured cable running from its base down into the plating through a bolted gland. Deep indigo void with cold stars and a faint amber nebula wash past its edge, never blank and never white. Bolts, ribs, brackets and cable runs crowd the plating to the bottom and side edges with dark metal packed into every gap. Cold light, one amber pip at the gland, no lettering."}, {"id": "range_2", "n": 2, "img": "iVBORw0KGgoAAAANSUhEUgAAAFwAAAA8CAYAAADrG90CAAALBUlEQVR42rWcPatEVxWGDyGFEJJCwUBSBEVUYqpUIYEIWpkqhYKFFnamTmNpY2Ul+B/SqeBPSJEmpQTya66sC8/lyXvX2mfP3JliMzPnc59nr72+9jpzfP8HP3q4Z3vjjbcffvfZ599p733wybNW29956+cPH/7mtw+vvvLqs/217Zr2i/d/ud3efPvHj/2o86of03G1762fffh4XPW5tr370w++cwx9rmu6P8c9YdPxhF3bEmh1rDoK7AT3xZdfPR7DgHz9zbdb7VL4K9jVL+Aa9jQoCbyOvxnwukEHHNCf/PHPo3SnFNdxBZj2p7/89XH753//xzgDpllT53AdQK3gA7XbXufX/blOSTn7aya//toPnwahA17n3V3CLd0FfQUaqSw4dWxKS22rB+L4X336h6fWqa06r85hsAFfg3CpyjHwhM1zss+wlxJeHb8lbKRsgm11Ua2Oywet8+rhSnoAbugJ2sC77XUNpB7wqImzZt2dwP1MnXTfXYenOqmG7mZKAhppZjrXwBs2A5ESY+k6A15wEzz3T0nHAALRAwJwH882pLgDTt/vBrxubN0NcHQxEm2Jr/3VUBPArnNTWmq/oXfqy7DdVtAn6bZqs3QDnNapE/bVscc9pRvJNuzS0f/8939bXW6dbMk2UHS5f/Mwk7Qn8JR2qxcGPRsC4fvlgKy8E9rdgfMJ7HqwXdj1yTYDTrArFdPBTvBIOv3sWvUR2zENCu7kpL/vosPteyPdwC737hrY1Ri8laHsoO8Ar1Z9Q7X4vvTpkmDL6qQGqQw+v+8CvDqf6uRaycbl2wGe0LEXZ7DrO8DxsycvBYOe/rpnQAK3J3Mx8Dr5EuBI90tgJ9AVcOt13LQVcL5Xny3l9kr4ZDDSdaXfnTohgqYdl8Kuzk3Q0xUEdhdhJmxcwJzOHcwz6BnYdNDxxxM46QADN3S2130quqzrW4ot3Tfxw1cSnsYSX/tWsHeAJ9gOesI2dCTcrp7Bo88LthNXXbKqvhNzXCXhZ41gox6oblTuX0r3S2BPhvHMQDr6A+wZ8II1Aa+GmwfsBI6hrP31nX3HvXzvTne/FDbA7SbueiM+bzomgQO9A+5m2DaWnedyV+CdOiG0n2DfA7j1ep1b6iCNJr/R4QCypE+tM5aZ87mpW+hE1Qo4QDE8Hewd4A4wdmHTanpPg+Tgx8DPoNsdtHSjctDjW25hl+deeScOgSfg1abtOy4fvvAKeAf1bEaUdAMngU/Q6/gEXjPI6sSB03FLddKt0nRQO/CXALeE4/efBTc76gf9nQHMCninv1ftZsB58Gp2CZH6CfilaiWXwLg3rt4K7gq2pXsC3kHv9Hceg5dyVaQ5RZaOLonIsPq7wIHUbSfYsE/rh8T33wnjO9ioQRu7Ug1nwH3cJNUj8B19vZM7sV9qtZLSd4mxNPCUKCe3do2nYden9S5gd6S8iy67QYHBcetEVS6lkW+elrx2G8Azc+c1y9WCwwq2F5eR7h3gUymEGwN5M+Ar2HSoIs5qWTJxLXDPDsPs9PfKBSxhMWzDm4AXwGp4KD6nW3jO9c7jpb73pE4Sej3gDnQS+Sm1CfzM43BOp5PsXGxIH3oFfEpWrRYvMPbHPdVJQmd5bbVisivhO8tnqVIow8BApo/sgKXzVPw7pZs07FSZwPPdFPhOkY9X6l+iUlJ6p0HAU7IKMSyXrBn4pL9pdknPvJNSfS8Cju7GO5iAs6gKcDpZxyJtLwGOz+9lMgdB3CNBG6bzHYa/Ap6+d/0uuFPZHK2uf9xqVb6DTZI+DYoDJUPZBe7ZAWSv2FRDT3uJLGHTl9Tb3VJZd15XI5PPabt0NXASQDvGclUgadfOtYSdx+EMYy4g+NyueqtLk3pfl3RKj4UMZaqTriyOwcUmkbC7ykth1HbUSZZ/rSpW3fm6fhlX1xpOjQLPXPCdVtITtqW7vjMj01h6cHb0N89sHlcDx1gCfmUszxZgPQNWpcWreyBVnXuW7lsn2RlZdsAxglna1lViJXDWPR+B1wUvXdNE3xJ4TCCAyJTKXEhnXLLM4dLWgbI6SBewJLpLsU4Gs6tdxxvh8xT4LnSk20asUyd1TN3cwHNKJnBmigeE6U0ovXLT3Oq+Cb6rRWR1PmGnX70ymKxZAntLwnehFwCArwrsCX8TYNbhpYQ7PwE0T1kng3KaO4PoQe308AQ7pdtVV1yzG5wdHd4CX0GfKqrOgp2VsTTwLAPOkLjLzk0FN5bETz/6uFUnHrgO9pmx9H4HTTbYLgIdgU/QM++9eqNhAj69zmEfNld0Ms1pqSVwyfAaVfS33//kCUK3mj752VM4vwvcbuFVwJm2Vif4xCvPwfBWsDvoeQ3vK5DA7MoTAF7SXcelB9MtGOzYhpyNZwaeZ78YuKWbvPb0Ntol6iTdqQ565pxroL/5z68f/vev7z1lFaeakAJexzI4bE9J7RqFPFPuJJNenUrEHX5mNJmWfCb0s0SVwTt3gncyuYMJ3dPRKyWAwdNY+drejoQD3J7FCvbkv3f3tkHv9j1TKa7On25eDzoBT9gJ3H7rjoRbX1s9ANtLcVkTkq942GjmVJ8kPKW0A+7vdldziY1neOalGHqCt+/dRZfdGwBIEMet4HYvM3k1JUExa3yNVbVqp+fPgK+CqMy1AHN1b4TuMXmVsBP6jjrxuy9IuHXujmRP6sUWP8P/rAPfMYBTELR6/lQnHfCpRCJ1/gici6zUicN3fgPdN0up7N5Nty7sgHuK5zTufOoV8OqfI8Muo2gjOBnLnGHd4nGeewq8YJMZ7BJVeXOvaOdbw2duIecldBs6J8JWwDl38qtTKCiuN2DuWYOT/fB79lkpu6y8Ssh25PG9kewJeJfQwVjYM7Cb2Hku9utd7G59TiJspXOxAWn4LLlIutMN2Xf6x/d8V9/eB/vrWPPKdjhi66QbCZ/SsB1wP1xO5ZSi7iVTG9ruDWBWclZR4rTdK+4Zeea+fDez09PW5/RrNYuf8uEJ3epkAp7vL04+sq9p6FPnMEZnwFep2UuaZ3ZX2ZUzF3WUhrUrjct2dK9sd9J9pk68Qp05hRxIu5D5nek8zSYGw7WFZ4FMVzkF6BQY24D0jIDd1Tby9x0XV8/anfNbwFPL+ow0kp3blXDsivGfI91+rznW9R2qX9u62ZHubuZGEnY+O/nxzEqOS2wJNVfG+cOYKaQFuP/qYteK71j8BP7StlM9lbCnTGJKeRZ3HmepWJrD9lyRT5+5buqZQS3eTuI+V867RQeknaDqUnhnx+ZA2pvpYOe5HNtFoMe0Km//e9Kn3X+HdG8oTKnMLte9GojUtXY1rzGek2fl/nnxY/KA3HdmnvvqoPGYJNt578lY0rmS6JJi/wVRun4c69x2FrU7DzOtiickDJmX5HZUUtqFvC7PcDZIXg6kn1wTfu73CPwsuky1MmXjMnw28C4H3qkQG2i/aNp5Fel1ADUzeN2gItGOZHcSY5S6dX/xkZ7a0S0Sn7mCfrel+78n9rnMzdHmNAhEn5OU85l5ilyxx71cGVUbM9unlUTn6yMpOK5VzP82fAY8XzQ9870zqWR10kVlPiYHIpfQOuBT8n+lu/2fiB4Ip5OR/i4t3c0Ap4m9xloD4f32WjzwR1fCNkm4l77ypf0sd7D0d/rbUmqfN3MnXc0e13PqdgKPsXN1ll/lXuW9J2/Jz9itdTrH0nopDnQm6c51xknP+uFJ5hAIpMHs1gbTumdBJ/uq337A1O0+joBux1vxTMtgq1MXaX8yt5Q27v+sWF1wvp4UswAAAABJRU5ErkJggg==", "prompt": "A battered parabolic dish antenna bolted to the outside plating of a ship, seen close, a tight line of white rime hugging its rim, a thick armoured cable running from its base down into the plating through a bolted gland. Deep indigo void with cold stars and a faint amber nebula wash past its edge, never blank and never white. Bolts, ribs, brackets and cable runs crowd the plating to the bottom and side edges with dark metal packed into every gap. Cold light, one amber pip at the gland, no lettering."}, {"id": "range_3", "n": 3, "img": "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", "prompt": "A battered parabolic dish antenna bolted to the outside plating of a ship, seen close, a tight line of white rime hugging its rim, a thick armoured cable running from its base down into the plating through a bolted gland. Deep indigo void with cold stars and a faint amber nebula wash past its edge, never blank and never white. Bolts, ribs, brackets and cable runs crowd the plating to the bottom and side edges with dark metal packed into every gap. Cold light, one amber pip at the gland, no lettering."}, {"id": "range_4", "n": 4, "img": "iVBORw0KGgoAAAANSUhEUgAAAFwAAAA8CAYAAADrG90CAAAJ4klEQVR42tWcsY40VxFGR8iZhQMsgWQHCAJAQERkGQkkiHDkwGQ4ILNjJw7JiZB4B0KQeAQCEmJLPM2PvkFndfb763b37M7O7galmem5M91z+uu6dauq5/Sd93/w5rXbO99652z/+ea/d/bXv//zvK3H/fHrP53tN5/+4c4++PHHb37+0Sej/ewXvz5/7uPfffbm+x/85Pw847GM+emPProbl+ccz/c+/OGdffvd757Hnl4KtN9/+dWDYQP5k8+/uAPFNkPP8+wnkDMW2IGZ7UAJvLzO+IzLo2EHasblebb5xKyAZ0y23QH/6s9/eVWqDpz8gL/9699nxU7qzHtWOgq3ugOSx4AJOOCh4rwXM+w8ouy85oRMwDOGx9NrdSFRb0QC3Kg0arTKs80qb+CM4zmwMVQc8zZgGzhXAeB5DGhOwD2Fv1bYgAYiz+1aUHmr2366Df9s1ccMG7UbOGC5InBZ2KsCnh9hX214Nqs8r1F5Aw/MjN0CbnU3cPx3q9pqtzt6UZPmEYtPRtEGboU38Dx/CPDJneDDW+ENHMicIF8Fp9fiRgzbvnpP4QYeszsB5AQ9+8oJ8cTZsPeA23dnkn/vvQ//DzxfeCt4OcBLo5Eos2HvAed9gANg8t/Z3uoOHMI5ADZs1A/QhmzL8b94l4KyDbGBb/lyAydm5ruYzFbuBNiAX8EGuGETDuazMbun00uPRibQR1S+BZxV4wQ7FkgZD7jJlRASbgH3JPuiw8KjsI8Az4rRwPOZwFmpO9sBvvLbhj3F3ZhdCmOvDvwaK1ZcyTWAx/8HOCoDeB4DJSekoTNZriDH+H6Hgb3QiV/P5/Jexub1i1N41HVU3R0OTsBZ3nfcHCU3RC/pAdWxtG2Kvz1Jso9HrTSfMqKJAi6B3dCnfArfZ+CrSGKyHBO2GtPq9j44iS8uDt+C3crCH7c1+LgTXJOBHzUilmkxtFphGrLt2YBfoi5+jHMRWIdxwPClH/8cd9LAnX7lc3FlnFwviBzNZIw/1wrHsi+HrT62061hR3VMXihygmh1rS71XuD0ZJorJvvr3Aeweume7/Rrh3e85rNbwPs3PEu2MDtLBBMAK5dANcYWRWFbkcq0jVz5BHwVg++ZJ9WGvfpdhn9T4FRPAo+DCxS2TcBjQFxBb+BkCONOnL9eua1LoW+pe0paOV4/3SoyIVRy2GQIW8AN/WjUEuD5ToBzgtvvA+8IaNzLCrgjGpJVbCeKubkPR+VYv94CHpBbrsVRioE7omhldwFhy5VwrFvAHbcbdo4rJ/7mUQoH7bi2Fwkr6C4AT+4E4MA20C4Csy8u/c6BTMAdZ6PerQyhF1pPBjw/fC89y+WNG7HaffmTmrXtAaeO2XG0JzZHJx25GLojForMLr0ZOPkXF50N/CIf/pg2hsmtBMykZNTuXhGuhJXKAe4QM8DzyAl2zprQz8DJdUwqt5vhmKx2K5x0bAPnani2lWYOIEqe3IZz1q2+7ivpfDipWArMLiDYjXWdkm2G2WNWwG0Ga/N33dyl5KDyw1ntTdBpyAF6T27kqFfAvbzPOEcJAGD8CrhVjotzWmECvhV2XuxSrpkJpNy0NUGidhY9+HhchNXkHhTU7dxHRxSeI+xWeoIkm0jmkHSrgU8ZR76Dao+vztNzpV6ZuY9AJy+Cj+9KitOwLgg3cCu8/bj9dQO3P+eK2VM4sDnJCOemwHOQZO/wxXvAW+0oxrVGp2G9oMl7gGF8RytdRJ7KZJzgLqfxfZ1V7H4VpydOz1EQdjhIhu7I0t4xu1XkZbyX05P/7s4ooLQ7mfz4VL90MqsnaqIiXOhNs4UG7skR4PG9VgLW4DtyaeAdVbT/nvr/9oATpjbwKTXQ6rYIbgo8cANlBTHA21Zqj7KJ1ykydBbQ6m7/3fmQvNf+G+vOWU+27Y7Y34OAX7N92b578s38+KPAgd3L+J7gpnyHJ2v74lVft9vW2m930qtXl46gHq3wS04I6p6AE0c7X34kY0j7Q2wKy7zk3st3GLhhT8BZ4ts99TzxJMAvsQCd3EmHftQhV7A7N36puqcFDA0/XtDY3DTE+6uC8h7wm6VnA5xJcQUcXz5lCH1lMJkegU27WS96uhi9gg1cgHMleNGV93ofDZxw9SYKx2ceKTDkB23BZhsryinX0ROhQTgTOSlzAk6k4hyLAXs1uVL4vUkzg55yoeMuqi3gVOdR+RQW0kU1+W3H1G41M3T8NMmzPgGXAs9jr1QPAZ+g583HwmanR4Ezea5gAzzjVrC7N3tS+Tf/+O1bC5cJuG85maIZl97smg4D984eC/oocMPlAFcnhQVOtwzbJfSEBgSiFacGiJ2n+NvfuVI4WcmLgXcPne0hsLuuF+Dd6mDQBu4mzIZNi0UXdreaiOxGfEykh13kWLkUJspueQO28zWHFf4Y4KvPf/rLX70FfMtdUEJr4G7ocSZwalHoHMkUjXTZbRWDW929Lxr6J/e1An7uS9kDfgT61ucN/EhWkLg1agF2Ptt3H6zuq+lO1ykacc5jyhBuAUfFwF4tqlzWuxj4Cvr0uai6gQPtaBqWaMWdr4BuiNOxTpGHfS+xNavcqZm+J0wDd8N+FyK4WvruiHvACez3oD/ELgGOu3FfCaAdwk13GKxqiUDrE+EqT6BzMlYTpn8P6l7F761yTuAZ+FNAxoh2VpnC7h10foSUaKt6+nFTO3MXGKaThdiorK9uGzFc/LOjk70WOr9+MuDtflDslvlfIablN7ZS1J6twj4mwK7wd8E425jUnbRyL4rF1n+WcM6lHPHfD4XcDUBEGxPkLVV7gTMBf6h5ic7Cy0Vqm8t2HMORzqtW+j3gqwl0L1dyNHwkYjFkqvgAdZy7ugf+mtBRrm+k4njcq8jEPV1VZBXNr8ewwLoH/JYNnVj7uVU3azdaXht6V34cWfS+tkLNady9+zTZya3vgpjuKO4icLcJP6XaJ1/vq34qQq/aIzC7Llapp1vCnhS+dUNT3udSpFvKNckpQ9gTIvmVyX8fgb+adDv8JA7f+45n6Q+f/iTG+QZXw12wJXJwDuOprF1EL7Sm91yYcNModrUbY4921maHNACt7qu89Na+lRu6hm0tsvpY6RJwune6++4i4PG9j1X4UeCX3l541PCvR29Z9KToZXsnxrpFGcBvJa9u9Xd4DXsLeN8z44mIWb+X4ozFjzJRucWtY2tHJtPCpZs2G7iLyxy7bwx4Vh9+VN2dZfMCY7oTzXCI4TuCcFNnFyj6vpytDCCfdVnNjw51V9nHFwuc5b3/1bK7qaZ8hSs8PiF2DaswsMO4KRG1WjO4nXqrmHG6FWw3zm/B9iXat/o5TOx7Jnlk6e3qDJBxMaRq7Yq2Kvm+Evr4XEHyHXn+ixAD/x9yGuWCz4+9KAAAAABJRU5ErkJggg==", "prompt": "A battered parabolic dish antenna bolted to the outside plating of a ship, seen close, a tight line of white rime hugging its rim, a thick armoured cable running from its base down into the plating through a bolted gland. Deep indigo void with cold stars and a faint amber nebula wash past its edge, never blank and never white. Bolts, ribs, brackets and cable runs crowd the plating to the bottom and side edges with dark metal packed into every gap. Cold light, one amber pip at the gland, no lettering."}, {"id": "range_5", "n": 5, "img": "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", "prompt": "The ribbed back of a battered dish antenna turned away from the viewer on its bolted mount, its support struts and pivot exposed, rime along the edge of the dish where it catches the light. Thick armoured cables run from the mount across the ship plating in the foreground. Deep indigo void with cold stars and a faint amber nebula wash beyond the dish, never blank and never white. Ribs, bolts, brackets and cable runs crowd the plating to every edge with dark metal packed into every gap. Cold light, no lettering."}, {"id": "range_6", "n": 6, "img": "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", "prompt": "The ribbed back of a battered dish antenna turned away from the viewer on its bolted mount, its support struts and pivot exposed, rime along the edge of the dish where it catches the light. Thick armoured cables run from the mount across the ship plating in the foreground. Deep indigo void with cold stars and a faint amber nebula wash beyond the dish, never blank and never white. Ribs, bolts, brackets and cable runs crowd the plating to every edge with dark metal packed into every gap. Cold light, no lettering."}, {"id": "range_7", "n": 7, "img": "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", "prompt": "The ribbed back of a battered dish antenna turned away from the viewer on its bolted mount, its support struts and pivot exposed, rime along the edge of the dish where it catches the light. Thick armoured cables run from the mount across the ship plating in the foreground. Deep indigo void with cold stars and a faint amber nebula wash beyond the dish, never blank and never white. Ribs, bolts, brackets and cable runs crowd the plating to every edge with dark metal packed into every gap. Cold light, no lettering."}, {"id": "range_8", "n": 8, "img": "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", "prompt": "The ribbed back of a battered dish antenna turned away from the viewer on its bolted mount, its support struts and pivot exposed, rime along the edge of the dish where it catches the light. Thick armoured cables run from the mount across the ship plating in the foreground. Deep indigo void with cold stars and a faint amber nebula wash beyond the dish, never blank and never white. Ribs, bolts, brackets and cable runs crowd the plating to every edge with dark metal packed into every gap. Cold light, no lettering."}]}];
+var Z = 3, V = {}, CACHE = {};
+var KINDS = [["k","keep"],["s","store"],["x","cut"]];
+
+function decode(key, src, cb){
+  if (CACHE[key]) { cb(CACHE[key]); return; }
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var g = c.getContext("2d"); g.drawImage(img, 0, 0);
+    CACHE[key] = g.getImageData(0, 0, img.width, img.height);
+    cb(CACHE[key]);
+  };
+  img.src = "data:image/png;base64," + src;
+}
+
+function draw(c, key, src){
+  decode(key, src, function(d){
+    c.width = d.width * Z; c.height = d.height * Z;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    for (var y = 0; y < d.height; y++){
+      for (var x = 0; x < d.width; x++){
+        var o = (y * d.width + x) * 4;
+        if (d.data[o + 3] < 8) continue;
+        g.fillStyle = "rgb(" + d.data[o] + "," + d.data[o+1] + "," + d.data[o+2] + ")";
+        g.fillRect(x * Z, y * Z, Z, Z);
+      }
+    }
+  });
+}
+
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function build(){
+  var host = document.getElementById("groups");
+  host.textContent = "";
+  ROWS.forEach(function(r){
+    var h = el("h2", null, r.name || r.key);
+    if (r.module) h.appendChild(el("small", null, r.module));
+    if (r.does) h.appendChild(el("span", "does", r.does));
+    h.appendChild(el("small", null, r.takes.length + " takes"));
+    host.appendChild(h);
+
+    var row = el("div", "row");
+    // No card tile for an unassigned pool row -- there is no card to compare
+    // against until one of these is installed on one.
+    if (r.card || r.key !== "pool"){
+      var now = el("div", "now");
+      now.appendChild(el("div", "cap", "on the card today"));
+      if (r.card){
+        var cc = document.createElement("canvas");
+        now.appendChild(cc);
+        draw(cc, "card_" + r.key, r.card);
+      } else {
+        now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+      }
+      row.appendChild(now);
+    }
+
+    r.takes.forEach(function(t){
+      var box = el("div", "item");
+      box.dataset.key = t.id;
+      box.dataset.card = r.key;
+      var c = document.createElement("canvas");
+      box.appendChild(c);
+      box.appendChild(el("div", "nm", "take " + t.n));
+      var v = el("div", "verdict");
+      KINDS.forEach(function(kd){
+        var b = el("button", kd[0], kd[1]);
+        b.setAttribute("aria-pressed", "false");
+        b.onclick = function(){
+          if (V[t.id] === kd[1]) delete V[t.id]; else V[t.id] = kd[1];
+          paint();
+        };
+        v.appendChild(b);
+      });
+      box.appendChild(v);
+      if (t.prompt) box.appendChild(el("div", "pr", t.prompt));
+      row.appendChild(box);
+      draw(c, t.id, t.img);
+    });
+    host.appendChild(row);
+  });
+  paint();
+}
+
+function paint(){
+  var n = {keep:0, store:0, cut:0}, total = 0, out = [];
+  document.querySelectorAll(".item[data-key]").forEach(function(box){
+    total++;
+    var v = V[box.dataset.key];
+    box.classList.toggle("keep", v === "keep");
+    box.classList.toggle("bank", v === "store");
+    // A cut take is deleted from disk, so it leaves the page rather than
+    // sitting here greyed out asking to be looked at again.
+    box.classList.toggle("gone", v === "cut");
+    box.querySelectorAll(".verdict button").forEach(function(b){
+      b.setAttribute("aria-pressed", v === b.textContent ? "true" : "false");
+    });
+    if (v){ n[v]++; out.push({id: box.dataset.key, card: box.dataset.card, verdict: v}); }
+  });
+  document.getElementById("tally").textContent =
+    n.keep + " keep · " + n.store + " store · " + n.cut + " cut · " +
+    (total - n.keep - n.store - n.cut) + " left";
+  document.getElementById("json").value = out.length ? JSON.stringify(out, null, 1) : "";
+}
+
+document.querySelectorAll("[data-z]").forEach(function(b){
+  b.onclick = function(){
+    Z = +b.dataset.z;
+    document.querySelectorAll("[data-z]").forEach(function(o){
+      o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    });
+    build();
+  };
+});
+document.getElementById("prompts").onclick = function(){
+  var on = this.getAttribute("aria-pressed") !== "true";
+  this.setAttribute("aria-pressed", on ? "true" : "false");
+  document.body.classList.toggle("showpr", on);
+};
+document.getElementById("reset").onclick = function(){ V = {}; paint(); };
+document.getElementById("copy").onclick = function(){
+  var t = document.getElementById("json");
+  t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+  this.textContent = "copied";
+  var self = this;
+  setTimeout(function(){ self.textContent = "copy"; }, 1200);
+};
+
+build();
+</script>

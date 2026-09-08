@@ -645,7 +645,7 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
-	# The station, photographed:  godot --path . -- stationshot [maker=solari]
+	# The station, photographed:  godot --path . -- stationshot [manufacturer=solari]
 	# Beside shipshot and chartshot because it needs a window and it needs the
 	# Router to have a content node, which the headless checks above run before.
 	if "stationshot" in OS.get_cmdline_user_args():

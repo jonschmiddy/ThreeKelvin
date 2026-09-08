@@ -245,13 +245,30 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	for a in m.affixes:
 		box.add_child(UITheme.body("%s: %s" % [a.name, a.text], Color("#d4b98f"), 10))
 
+	# COUNTED, NOT REPEATED. `resolved_cards()` hands back one entry per copy the
+	# Grant Count Law awards, and this printed a hardcoded "×1" for each of them
+	# -- so a module granting two of one card listed that card twice, identically,
+	# directly under a header already saying "grants 2". Three statements of the
+	# same fact, and the only one that was wrong was the ×1.
+	#
+	# Grouped on what the row actually SHOWS rather than on card identity: two
+	# cards that print the same line are the same line, and a player counting
+	# copies on a shelf cannot see any difference the display does not draw.
+	var counts: Dictionary = {}
+	var order: Array[String] = []
 	for c in m.resolved_cards():
-		var line := "×1  %s · %dnrg%s · %s" % [
+		var line := "%s · %dnrg%s · %s" % [
 			c.name, c.energy,
 			"" if c.heat == 0 else " · %dheat" % c.heat,
 			c.describe(),
 		]
-		box.add_child(UITheme.body(line, UITheme.CHILL, 10))
+		if not counts.has(line):
+			counts[line] = 0
+			order.append(line)
+		counts[line] = int(counts[line]) + 1
+	for line in order:
+		box.add_child(UITheme.body("×%d  %s" % [int(counts[line]), line],
+			UITheme.CHILL, 10))
 
 	# Install-time deck delta, at the point of choice.
 	#

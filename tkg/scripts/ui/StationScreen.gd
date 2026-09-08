@@ -67,6 +67,39 @@ const TABS := [
 	[&"bench", "FABRICATOR"],
 ]
 
+## THE SAME FIVE ERRANDS, DRAWN AS A BUILDING RATHER THAN A TAB STRIP.
+##
+## A row of five identical buttons says these are five views of one thing. They
+## are not: they are five different counters, and the tab strip's real cost is
+## that it hides four fifths of the station behind whichever one you are on --
+## you cannot see that there is work posted while you are looking at the shelf.
+##
+## Stacked as DECKS the strip becomes a section through the station, which does
+## three things a row cannot. It is always fully visible, so nothing is hidden.
+## It has room for a second line, so each deck can say what is on it and how
+## much. And it puts your own berth at the bottom of the stack with your ship in
+## it, which is the one fact the old screen never showed: you are inside a place
+## and the place has a shape.
+##
+## ORDERED HIGH TO LOW, berth last. The order is not arbitrary and is not the
+## TABS order: a player reads the rail downward and arrives at their own ship,
+## which is where UNDOCK belongs.
+const DECKS := [
+	[&"stock", "PROMENADE", "THE SHELF"],
+	[&"services", "YARD", "REPAIRS"],
+	[&"hold", "EXCHANGE", "YOUR HOLD"],
+	[&"work", "HIRING HALL", "WORK POSTED"],
+	[&"bench", "LABORATORY", "FABRICATOR"],
+]
+## How wide the section is. Wide enough for "HIRING HALL" plus a count at
+## FS_SMALL without either wrapping, which is what sets it -- not a round number.
+const RAIL_W := 156
+## How tall one deck cell is. Two lines of FS_SMALL plus the padding that keeps
+## the highlight from touching the text.
+const DECK_H := 44
+## The count line under each deck name, refreshed with everything else.
+var _deck_note: Dictionary = {}
+
 var _pages: Dictionary = {}
 var _tabs: Dictionary = {}
 var _tab: StringName = &"services"
@@ -195,42 +228,40 @@ func _build() -> void:
 	head_wrap.size_flags_horizontal = Control.SIZE_FILL
 	root.add_child(head_wrap)
 
-	# --- the tab bar
-	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 4)
-	for entry in TABS:
+	# --- the section: five decks and a berth, down the left
+	var rail := VBoxContainer.new()
+	rail.add_theme_constant_override("separation", 3)
+	rail.custom_minimum_size = Vector2(RAIL_W, 0)
+	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for entry in DECKS:
 		var id: StringName = entry[0]
-		var b := Widgets.button(String(entry[1]), func() -> void: _show_tab(id))
-		b.custom_minimum_size = Vector2(104, 20)
-		_tabs[id] = b
-		bar.add_child(b)
-	# UNDOCK sits WITH the tabs rather than pushed to the far right of the row.
+		var cell := _deck_cell(id, String(entry[1]), String(entry[2]))
+		_tabs[id] = cell
+		rail.add_child(cell)
+	# The berth is the bottom of the section, and UNDOCK lives in it.
 	#
-	# Pinned to the right it was the one control on the screen whose position
-	# depended on the window being exactly as wide as expected, and the window is
-	# resizable — so on a wider window it sat correctly and in a 960 screenshot it
-	# was sliced in half, which cost most of an afternoon to not-diagnose. A
-	# control at the end of an expanding row is a control at the mercy of the
-	# row's width. Grouped left, it is at the mercy of nothing.
-	#
-	# It reads fine there anyway: the row is the things you can do at a station
-	# and leaving is one of them.
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(20, 0)
-	bar.add_child(spacer)
-	var out := Widgets.button("UNDOCK", func(): Router.show_sector())
-	out.custom_minimum_size = Vector2(104, 20)
-	bar.add_child(out)
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bar.add_child(gap)
-	root.add_child(bar)
+	# It used to sit in the tab row, grouped left, because pinned to the right of
+	# an expanding row it was at the mercy of the window width -- on a 960
+	# screenshot it came back sliced in half. In a fixed-width rail that failure
+	# cannot happen: the column is RAIL_W whatever the window does, so the button
+	# can go where it belongs instead of where it is safe.
+	var pusher := Control.new()
+	pusher.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	rail.add_child(pusher)
+	rail.add_child(_berth_cell())
 
 	# --- the pages, all built, one visible
 	var body := Control.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.add_child(body)
+
+	# Section beside pages, rather than strip above them.
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override("separation", 8)
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	split.add_child(rail)
+	split.add_child(body)
+	root.add_child(split)
 
 	_pages[&"services"] = _page_services()
 	_pages[&"work"] = _page_work()
@@ -269,11 +300,13 @@ func _page_services() -> Control:
 	# THE PANEL IS AS TALL AS THE LIST, not as tall as the page. Five services in
 	# a page-height box is four hundred pixels of empty panel, which reads as a
 	# screen that failed to load rather than as a short menu.
+	# THE BLURB MOVED TO THE OTHER COLUMN when the hull portrait left it. It was
+	# under the service list because the right column was full; now the right
+	# column is two gauges and would be four hundred pixels of empty panel, which
+	# is the exact failure the note above warns about one paragraph earlier.
 	_blurb = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
 	_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_blurb.custom_minimum_size = Vector2(SERVICE_W - 24, 0)
-	box.add_child(UITheme.hsep())
-	box.add_child(_blurb)
+	_blurb.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	# HALF THE PAGE, AND ALL OF ITS HEIGHT. Both columns take an equal share and
 	# both fill down to the bottom edge, so the two panels are the same size as
 	# each other and the page has no ragged corner. A stretch ratio rather than a
@@ -285,25 +318,17 @@ func _page_services() -> Control:
 	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.add_child(wrap)
 
-	var ship := Widgets.section("your hull")
-	var art := ShipView.new()
-	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# 1x AND cropped to a fixed window, in that order. The doubling lives in the
-	# art now — hulls are authored at 2x their box — so magnifying here applies
-	# it twice and a heavy becomes 496 wide on a 960px viewport. See boxes.py.
+	# NO HULL PORTRAIT HERE ANY MORE, because the section rail carries one on
+	# every deck. It used to earn its place by being the only ship on the screen;
+	# now it would be the second, forty pixels from the first.
 	#
-	# The crop stays regardless of the scale: `magnify` alone sizes the control
-	# to the whole canvas, and 420 of services plus an unbounded hull overflowed
-	# the row and shoved the whole screen seven pixels past the right edge of the
-	# window. That bug looked like a missing margin and was a minimum nobody had
-	# bounded, which is still true at any magnification.
-	art.magnify(1, HULL_H)
-	art.crop(HULL_W, HULL_H)
-	# Centred in its column rather than left-aligned in it. The column is wider
-	# than the portrait and a picture pinned to one side of a panel is the other
-	# half of "nothing lines up".
-	art.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	ship.add_child(art)
+	# It also no longer FITS. `crop(HULL_W, HULL_H)` is a hard 400-wide minimum
+	# and the comment above it records why it cannot simply shrink: at 1x the
+	# widest hull is 392, so any narrower window clips a heavy's nose or tail.
+	# 420 of services plus 400 of hull needed 820 and the rail leaves 780, so the
+	# choice was a clipped ship, a squeezed service column, or no second ship.
+	# The rail already answers the question this panel was asking.
+	var ship := Widgets.section("your hull")
 	# The two gauges the column to the left is selling. Hull is what REPAIR buys
 	# and heat cap is what the coolant buys, so the numbers those services move
 	# are on the same page as their prices — and the +2 that used to look like it
@@ -313,6 +338,8 @@ func _page_services() -> Control:
 	ship.add_child(_hull_gauge)
 	_heat_gauge = _gauge_row("HEAT")
 	ship.add_child(_heat_gauge)
+	ship.add_child(UITheme.hsep())
+	ship.add_child(_blurb)
 
 	var sw := Widgets.panel_with(Widgets.pad(ship))
 	sw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -385,6 +412,70 @@ func _page_bench() -> Control:
 
 ## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
 ## wherever the player meets one.
+## One deck of the section.
+##
+## A Button with Labels inside it rather than a Button with text, because a
+## Godot Button draws ONE line in ONE colour and a deck needs two of each -- the
+## name, and what is on it. Children set to MOUSE_FILTER_IGNORE let every click
+## fall through to the button underneath, so this keeps the focus, hover and
+## disabled behaviour of the control it replaces and only changes what it looks
+## like.
+func _deck_cell(id: StringName, deck: String, what: String) -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(RAIL_W, DECK_H)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(func() -> void: _show_tab(id))
+
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.offset_left = 9
+	box.offset_top = 6
+	box.offset_right = -7
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 1)
+
+	var title := UITheme.body(deck, UITheme.CHILL, UITheme.FS_BODY)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(title)
+	var note := UITheme.body(what, UITheme.COLD, UITheme.FS_SMALL)
+	note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(note)
+	b.add_child(box)
+
+	# Kept by id so `_refresh` can retitle them without walking the tree.
+	b.set_meta(&"title", title)
+	_deck_note[id] = note
+	return b
+
+
+## The bottom of the section: your own berth, your ship in it, and the way out.
+func _berth_cell() -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	box.add_child(UITheme.body("YOUR BERTH", UITheme.COLD, UITheme.FS_SMALL))
+
+	# The hull at a size that fits the rail rather than at a chosen one: the
+	# sprite is drawn to whatever RAIL_W leaves after the panel's own padding,
+	# so the number moves when the rail does.
+	var art := TextureRect.new()
+	art.texture = Run.hull.sprite
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	art.custom_minimum_size = Vector2(RAIL_W - 22, 34)
+	box.add_child(art)
+
+	var wrap := Widgets.panel_with(Widgets.pad(box, 6, 5))
+	var out := Widgets.button("UNDOCK", func() -> void: Router.show_sector())
+	out.custom_minimum_size = Vector2(RAIL_W, 20)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.add_child(wrap)
+	col.add_child(out)
+	return col
+
+
 func _show_tab(id: StringName) -> void:
 	if not _pages.has(id) or not _tabs_on.get(id, true):
 		return
@@ -395,14 +486,25 @@ func _show_tab(id: StringName) -> void:
 		var b: Button = _tabs[key]
 		var on: bool = key == id
 		b.disabled = on
+		# The deck's own labels carry the colour, not the button's font, because
+		# a Button's font colour cannot reach Labels parented inside it.
+		var title := b.get_meta(&"title", null) as Label
 		if on:
 			b.add_theme_stylebox_override("normal", UITheme.bevel(Color("#4a2a0c"), 3, 5))
 			b.add_theme_stylebox_override("disabled", UITheme.bevel(Color("#4a2a0c"), 3, 5))
-			b.add_theme_color_override("font_disabled_color", UITheme.HOT)
+			if title != null:
+				title.add_theme_color_override("font_color", UITheme.HOT)
+			if _deck_note.has(key):
+				(_deck_note[key] as Label).add_theme_color_override(
+					"font_color", UITheme.EMBER)
 		else:
 			b.remove_theme_stylebox_override("normal")
 			b.remove_theme_stylebox_override("disabled")
-			b.remove_theme_color_override("font_disabled_color")
+			if title != null:
+				title.add_theme_color_override("font_color", UITheme.CHILL)
+			if _deck_note.has(key):
+				(_deck_note[key] as Label).add_theme_color_override(
+					"font_color", UITheme.COLD)
 
 
 ## Turn a tab on or off for this station, and get off it if you are standing on

@@ -38,9 +38,15 @@ var _owner: Dictionary = {}
 var _col: VBoxContainer
 var _filter: GalleryFilter
 var _count: Label
+## Where LEAVE goes. Handed in by Router rather than decided here: these pages
+## sit on the HUD and can be opened from anywhere, so the screen underneath is
+## the only thing that knows.
+var _back: Callable
+
 var _all: int = 0
 
-func setup() -> void:
+func setup(back: Callable = Callable()) -> void:
+	_back = back
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 
@@ -51,12 +57,22 @@ func _build() -> void:
 	add_child(col_root)
 
 	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
 	head.add_child(UITheme.header("CARD GALLERY"))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(gap)
 	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(_count)
+	# THE WAY OUT. These are reached from a HUD tab, and a tab does not untoggle
+	# -- so without this the only way off the page was to pick some other
+	# destination and pretend that was what you wanted.
+	head.add_child(Widgets.button("LEAVE", func() -> void:
+		if _back.is_valid():
+			_back.call()
+		else:
+			Router.show_sector()))
 	col_root.add_child(head)
 
 	# The same bar the module gallery and the Yard Manifest carry. Grade filters
@@ -170,7 +186,7 @@ func _fill(col: VBoxContainer) -> int:
 	# every malfunction art window survived being looked at.
 	#
 	# Shown only when no manufacturer or slot filter is set, because they answer
-	# neither question: a malfunction has no maker and fits no slot. They carry
+	# neither question: a malfunction has no manufacturer and fits no slot. They carry
 	# `part = null` for the same reason, and nothing downstream reads `part`.
 	var faults: Array = []
 	if manufacturer == &"" and slot < 0:

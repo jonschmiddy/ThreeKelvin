@@ -305,7 +305,7 @@ var manufacturer: StringName = &""
 ## Range is granted by Ranging Optics, the KX-9 Fire Director, the Signal Board
 ## and the Ranging Scope; the first two are Korvan and sit at different rarities,
 ## so stamping the granting part's identity onto the card produced four Ranges in
-## the catalogue wearing two makers and three rarity ticks -- for one line of
+## the catalogue wearing two manufacturers and three rarity ticks -- for one line of
 ## rules text that is identical in every case. The card is common and unbranded;
 ## the PART it came off is a fact about the part.
 @export var shared: bool = false

@@ -1,0 +1,293 @@
+<title>Reroute - fewer, bigger jacks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --line:#22303f; --cold:#6b7d94;
+  --chill:#8fa3ba; --ice:#c3d2e2; --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --bank:#5b9dc4; --bad:#c8503c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--void);color:var(--ice);font-family:var(--mono);
+  margin:0;padding:26px 20px 90px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--flare);margin:0 0 6px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,38px);
+  letter-spacing:.02em;margin:0 0 12px}
+.lede{color:var(--cold);max-width:76ch;font-size:13.5px;margin:0 0 10px}
+.lede b{color:var(--ice);font-weight:400}
+.lede em{color:var(--hot);font-style:normal}
+code{color:var(--hot);font-size:.94em}
+
+.note{margin:16px 0 0;border:1px solid var(--line);background:var(--sunk)}
+.note .h{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--hot)}
+.note .b{padding:13px 15px;color:var(--cold);font-size:12.5px;line-height:1.7}
+.note b{color:var(--ice);font-weight:400}
+.note p{margin:0 0 10px} .note p:last-child{margin:0}
+.note .bad{color:var(--bad)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 0;
+  border:1px solid var(--line);background:var(--sunk);padding:11px 14px}
+.legend div{font-size:12px;color:var(--cold)}
+.legend b{font-weight:400;letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+.legend .k b{color:var(--good)} .legend .s b{color:var(--bank)} .legend .x b{color:var(--bad)}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--void);
+  display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;
+  align-items:center;border-bottom:1px solid var(--line)}
+.bar .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--cold);margin-right:2px}
+.bar .sp{flex:1 1 auto}
+button{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;background:transparent;color:var(--cold);
+  border:1px solid var(--line);padding:6px 11px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#33475c}
+button:focus-visible{outline:2px solid var(--flare);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--flare);border-color:var(--flare);color:#160b02}
+#tally{font-size:12px;color:var(--chill);letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+
+h2{font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.03em;
+  margin:30px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:6px}
+h2 small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--cold)}
+h2 .does{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--hot)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;align-items:flex-start}
+.item{padding:7px;border:1px solid var(--line);background:var(--sunk);flex:0 0 auto}
+.item.keep{border-color:var(--good)}
+.item.bank{border-color:var(--bank)}
+.item.gone{display:none}
+.now{padding:7px;border:1px solid var(--ember);background:var(--panel);
+  flex:0 0 auto;margin-right:8px}
+.now .cap{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--flare);margin-bottom:5px}
+.noshot{width:224px;height:320px;border:1px dashed var(--line);color:var(--cold);
+  font-size:10.5px;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px}
+canvas{image-rendering:pixelated;display:block}
+.nm{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--chill);
+  margin-top:5px}
+.verdict{display:flex;gap:4px;margin-top:6px}
+.verdict button{flex:1 1 0;padding:4px 0;font-size:10px;letter-spacing:.08em}
+.verdict button.k[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06140d}
+.verdict button.s[aria-pressed="true"]{background:var(--bank);border-color:var(--bank);color:#04121b}
+.verdict button.x[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#1a0603}
+.pr{font-size:10px;color:var(--cold);line-height:1.5;margin-top:6px;max-width:26ch;
+  display:none}
+.showpr .pr{display:block}
+
+.out{margin-top:26px}
+.out .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.out .h span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold)}
+textarea{width:100%;height:150px;background:#070b11;color:var(--chill);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;
+  padding:10px;resize:vertical}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Three Kelvin &middot; card art &middot; review bench</p>
+  <h1>Reroute - fewer, bigger jacks</h1>
+
+  <p class="lede">Every take sits beside <b>the card as the game draws it today</b> &mdash; the
+  orange tile heading each row, at the same zoom as the candidates, so the comparison is against
+  the thing being replaced rather than against the other options.</p>
+
+<div class="note"><div class="h">The squashed circles are arithmetic, not
+prompting</div><div class="b">
+<p>Measured on the take you have: the jack field sits on a <b>six-pixel
+pitch</b>, so each ring gets <b>three or four pixels of its own</b>. A four-pixel
+circle is a square with the corners knocked off; a three-pixel circle is a plus
+sign. There is no wording that makes one round &mdash; and the eight takes off
+the identical prompt I fired before this changed nothing, which is the evidence
+rather than the theory.</p>
+<p>The only fix is <b>fewer, larger jacks</b> so each has the pixels to be round.
+<b>1&ndash;4</b> cut the field to eight big sockets. <b>5&ndash;8</b> cut it to
+two filling the frame. Both give every ring 8&ndash;12 px, and every circle in
+this round is properly round.</p>
+</div></div>
+
+<div class="note"><div class="h">The cost is the reading, and that is the real
+choice</div><div class="b">
+<p>The card is <b>Draw 1</b> off a <b>Signal Board</b> &mdash; &ldquo;sorts what
+the sensors are shouting about into an order&rdquo;. The picture you have says
+<i>one cord moved among many</i> at a glance, which is exactly the card.
+<b>Eight jacks keeps most of that.</b> <b>Two jacks is a handsome pair of
+sockets that says much less about sorting</b> &mdash; the circles are the
+roundest on the page and the meaning is the thinnest.</p>
+<p>So this is not a pick-the-prettiest; it is whether round circles are worth
+the reading. The card as it stands is in the row on the left for comparison.</p>
+</div></div>
+
+
+  <div class="legend">
+    <div class="k"><b>keep</b> &mdash; install it on this card</div>
+    <div class="s"><b>store</b> &mdash; wrong here, too good to lose; banked with its prompt</div>
+    <div class="x"><b>cut</b> &mdash; deleted, and it disappears from the page</div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">zoom</span>
+    <button data-z="1">1&times;</button>
+    <button data-z="2">2&times;</button>
+    <button data-z="3" aria-pressed="true">3&times;</button>
+    <button data-z="4">4&times;</button>
+    <span class="sp"></span>
+    <button id="prompts" aria-pressed="false">show prompts</button>
+    <button id="reset">clear</button>
+    <span id="tally"></span>
+    <button id="copy">copy</button>
+  </div>
+
+  <div id="groups"></div>
+
+  <div class="out">
+    <div class="h"><span>verdicts</span></div>
+    <textarea id="json" readonly placeholder="judge a take and the JSON appears here"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = [{"key": "reroute", "name": "Reroute", "module": "Signal Board", "does": "Draw 1.", "card": "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", "takes": [{"id": "reroute_1", "n": 1, "img": "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", "prompt": "A patchbay panel carrying only eight large jacks, each one a big round socket with a bright metal rim and a dark bore, spaced well apart in two rows across the panel, and one cloth-wrapped cord plugged into one of them and running across to another. The left of the panel is dark and dead, the right side alive with a few small amber pips. Bolts, brackets and coiled cords crowd the frame to every edge with dark panel packed into every gap. Cold light, the amber small and flat with no glow, no lettering."}, {"id": "reroute_2", "n": 2, "img": "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", "prompt": "A patchbay panel carrying only eight large jacks, each one a big round socket with a bright metal rim and a dark bore, spaced well apart in two rows across the panel, and one cloth-wrapped cord plugged into one of them and running across to another. The left of the panel is dark and dead, the right side alive with a few small amber pips. Bolts, brackets and coiled cords crowd the frame to every edge with dark panel packed into every gap. Cold light, the amber small and flat with no glow, no lettering."}, {"id": "reroute_3", "n": 3, "img": "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", "prompt": "A patchbay panel carrying only eight large jacks, each one a big round socket with a bright metal rim and a dark bore, spaced well apart in two rows across the panel, and one cloth-wrapped cord plugged into one of them and running across to another. The left of the panel is dark and dead, the right side alive with a few small amber pips. Bolts, brackets and coiled cords crowd the frame to every edge with dark panel packed into every gap. Cold light, the amber small and flat with no glow, no lettering."}, {"id": "reroute_4", "n": 4, "img": "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", "prompt": "A patchbay panel carrying only eight large jacks, each one a big round socket with a bright metal rim and a dark bore, spaced well apart in two rows across the panel, and one cloth-wrapped cord plugged into one of them and running across to another. The left of the panel is dark and dead, the right side alive with a few small amber pips. Bolts, brackets and coiled cords crowd the frame to every edge with dark panel packed into every gap. Cold light, the amber small and flat with no glow, no lettering."}, {"id": "reroute_5", "n": 5, "img": "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", "prompt": "Two big round jacks filling much of the frame side by side, one with a heavy plug seated in it and one standing open and dark with a bright metal rim, a cloth-wrapped cord looping from the seated plug across toward the open one. Bolts, brackets, coiled cords and dark panel crowd the rest of the frame to every edge with nothing empty behind them. Cold light, one small flat amber pip beside the open jack, no glow and no halo, no lettering."}, {"id": "reroute_6", "n": 6, "img": "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", "prompt": "Two big round jacks filling much of the frame side by side, one with a heavy plug seated in it and one standing open and dark with a bright metal rim, a cloth-wrapped cord looping from the seated plug across toward the open one. Bolts, brackets, coiled cords and dark panel crowd the rest of the frame to every edge with nothing empty behind them. Cold light, one small flat amber pip beside the open jack, no glow and no halo, no lettering."}, {"id": "reroute_7", "n": 7, "img": "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", "prompt": "Two big round jacks filling much of the frame side by side, one with a heavy plug seated in it and one standing open and dark with a bright metal rim, a cloth-wrapped cord looping from the seated plug across toward the open one. Bolts, brackets, coiled cords and dark panel crowd the rest of the frame to every edge with nothing empty behind them. Cold light, one small flat amber pip beside the open jack, no glow and no halo, no lettering."}, {"id": "reroute_8", "n": 8, "img": "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", "prompt": "Two big round jacks filling much of the frame side by side, one with a heavy plug seated in it and one standing open and dark with a bright metal rim, a cloth-wrapped cord looping from the seated plug across toward the open one. Bolts, brackets, coiled cords and dark panel crowd the rest of the frame to every edge with nothing empty behind them. Cold light, one small flat amber pip beside the open jack, no glow and no halo, no lettering."}]}];
+var Z = 3, V = {}, CACHE = {};
+var KINDS = [["k","keep"],["s","store"],["x","cut"]];
+
+function decode(key, src, cb){
+  if (CACHE[key]) { cb(CACHE[key]); return; }
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var g = c.getContext("2d"); g.drawImage(img, 0, 0);
+    CACHE[key] = g.getImageData(0, 0, img.width, img.height);
+    cb(CACHE[key]);
+  };
+  img.src = "data:image/png;base64," + src;
+}
+
+function draw(c, key, src){
+  decode(key, src, function(d){
+    c.width = d.width * Z; c.height = d.height * Z;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    for (var y = 0; y < d.height; y++){
+      for (var x = 0; x < d.width; x++){
+        var o = (y * d.width + x) * 4;
+        if (d.data[o + 3] < 8) continue;
+        g.fillStyle = "rgb(" + d.data[o] + "," + d.data[o+1] + "," + d.data[o+2] + ")";
+        g.fillRect(x * Z, y * Z, Z, Z);
+      }
+    }
+  });
+}
+
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function build(){
+  var host = document.getElementById("groups");
+  host.textContent = "";
+  ROWS.forEach(function(r){
+    var h = el("h2", null, r.name || r.key);
+    if (r.module) h.appendChild(el("small", null, r.module));
+    if (r.does) h.appendChild(el("span", "does", r.does));
+    h.appendChild(el("small", null, r.takes.length + " takes"));
+    host.appendChild(h);
+
+    var row = el("div", "row");
+    // No card tile for an unassigned pool row -- there is no card to compare
+    // against until one of these is installed on one.
+    if (r.card || r.key !== "pool"){
+      var now = el("div", "now");
+      now.appendChild(el("div", "cap", "on the card today"));
+      if (r.card){
+        var cc = document.createElement("canvas");
+        now.appendChild(cc);
+        draw(cc, "card_" + r.key, r.card);
+      } else {
+        now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+      }
+      row.appendChild(now);
+    }
+
+    r.takes.forEach(function(t){
+      var box = el("div", "item");
+      box.dataset.key = t.id;
+      box.dataset.card = r.key;
+      var c = document.createElement("canvas");
+      box.appendChild(c);
+      box.appendChild(el("div", "nm", "take " + t.n));
+      var v = el("div", "verdict");
+      KINDS.forEach(function(kd){
+        var b = el("button", kd[0], kd[1]);
+        b.setAttribute("aria-pressed", "false");
+        b.onclick = function(){
+          if (V[t.id] === kd[1]) delete V[t.id]; else V[t.id] = kd[1];
+          paint();
+        };
+        v.appendChild(b);
+      });
+      box.appendChild(v);
+      if (t.prompt) box.appendChild(el("div", "pr", t.prompt));
+      row.appendChild(box);
+      draw(c, t.id, t.img);
+    });
+    host.appendChild(row);
+  });
+  paint();
+}
+
+function paint(){
+  var n = {keep:0, store:0, cut:0}, total = 0, out = [];
+  document.querySelectorAll(".item[data-key]").forEach(function(box){
+    total++;
+    var v = V[box.dataset.key];
+    box.classList.toggle("keep", v === "keep");
+    box.classList.toggle("bank", v === "store");
+    // A cut take is deleted from disk, so it leaves the page rather than
+    // sitting here greyed out asking to be looked at again.
+    box.classList.toggle("gone", v === "cut");
+    box.querySelectorAll(".verdict button").forEach(function(b){
+      b.setAttribute("aria-pressed", v === b.textContent ? "true" : "false");
+    });
+    if (v){ n[v]++; out.push({id: box.dataset.key, card: box.dataset.card, verdict: v}); }
+  });
+  document.getElementById("tally").textContent =
+    n.keep + " keep · " + n.store + " store · " + n.cut + " cut · " +
+    (total - n.keep - n.store - n.cut) + " left";
+  document.getElementById("json").value = out.length ? JSON.stringify(out, null, 1) : "";
+}
+
+document.querySelectorAll("[data-z]").forEach(function(b){
+  b.onclick = function(){
+    Z = +b.dataset.z;
+    document.querySelectorAll("[data-z]").forEach(function(o){
+      o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    });
+    build();
+  };
+});
+document.getElementById("prompts").onclick = function(){
+  var on = this.getAttribute("aria-pressed") !== "true";
+  this.setAttribute("aria-pressed", on ? "true" : "false");
+  document.body.classList.toggle("showpr", on);
+};
+document.getElementById("reset").onclick = function(){ V = {}; paint(); };
+document.getElementById("copy").onclick = function(){
+  var t = document.getElementById("json");
+  t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+  this.textContent = "copied";
+  var self = this;
+  setTimeout(function(){ self.textContent = "copy"; }, 1200);
+};
+
+build();
+</script>

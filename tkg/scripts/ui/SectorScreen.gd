@@ -1660,8 +1660,11 @@ func _refresh_self_plate() -> void:
 	_self_bar.max_value = cap
 	_self_bar.value = Run.hp
 	_self_hp.text = "%d / %d" % [Run.hp, cap]
+	# THE NAME YOU GAVE IT, not the frame it came on. This plate is the one you
+	# read while something is shooting at you, and it used to be the one place
+	# in the run that still called your ship by its chassis.
 	if Run.hull != null:
-		_self_name.text = Run.hull.name.to_upper()
+		_self_name.text = Run.display_name().to_upper()
 	# The same three bands the top bar uses, so a hull in trouble reads the same
 	# wherever you happen to be looking.
 	var frac := float(Run.hp) / float(cap)

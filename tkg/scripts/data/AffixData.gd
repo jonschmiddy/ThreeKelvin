@@ -36,7 +36,12 @@ const GAUGES: Array[StringName] = [&"hull", &"reactor", &"thrust", &"maneuver",
 @export var name: String = ""
 
 ## What the module readout prints. Written in pips, in the player's units —
-## "+1 HULL", not "+7 max_hull". The gauge is what they can see on the panel.
+## "+1 HUL", not "+7 max_hull". The gauge is what they can see on the panel.
+##
+## GENERATED FROM THE PIPS, not authored beside them — see `gauge_text()`. It
+## was authored, and an authored sentence next to the numbers it describes is
+## two things to keep in step for no benefit: nothing an affix can say is not
+## already in its seven pip fields.
 @export var text: String = ""
 
 ## Runs hot, loud or illegal. Gated by `LootGen` in policed space and read by
@@ -82,6 +87,31 @@ const GAUGES: Array[StringName] = [&"hull", &"reactor", &"thrust", &"maneuver",
 ## formula moves every affix with it. A pip of MANEUVER is dodge and initiative
 ## together; a caller summing dodge asks for "dodge" and gets only that half,
 ## which is precisely what it wants.
+## What this affix reads as on a panel: "+2 MNV, -1 HUL".
+##
+## THREE LETTERS, from `RunState.ATTR_SHORT`, which is also where the attributes
+## panel gets its row labels. Spelled in full this ran to "TUNED INJECTORS —
+## +1 THRUST", which wrapped onto a second line in a readout the width of a
+## card, so a part with three affixes spent six lines saying three things.
+##
+## WHAT YOU GAIN FIRST, THEN WHAT IT COSTS, rather than in gauge order. Both
+## tradeoff affixes were authored that way and it is the right way round: the
+## reason to take the part, then the reason to think about it.
+func gauge_text() -> String:
+	var up: PackedStringArray = []
+	var down: PackedStringArray = []
+	for g in GAUGES:
+		var pips: int = int(get(g))
+		if pips == 0:
+			continue
+		var short: String = Run.ATTR_SHORT.get(g, String(g).to_upper())
+		if pips > 0:
+			up.append("+%d %s" % [pips, short])
+		else:
+			down.append("%d %s" % [pips, short])
+	return ", ".join(up + down)
+
+
 func raw_for(field: StringName) -> float:
 	var total := 0.0
 	for g in GAUGES:

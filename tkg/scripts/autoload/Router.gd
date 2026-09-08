@@ -6,6 +6,15 @@ var content: Control
 var hud: HudBar
 var current: Control
 var combat: Combat
+## Whether the ship is tied up at a station rather than flying the system.
+##
+## Not on Run and not a Sig signal: it is a fact about which side of the airlock
+## you are on, and the two functions below are the only ways through it in
+## either direction -- every arrival, every UNDOCK and every resume goes through
+## show_sector(). The HUD reads it to decide whether its second tab says SECTOR
+## or STATION, so that walking to SHIP from the berth and back does not make you
+## re-dock to return.
+var docked: bool = false
 
 func register(content_holder: Control, hud_bar: HudBar) -> void:
 	content = content_holder
@@ -152,13 +161,6 @@ func continue_run() -> void:
 func resume_here() -> void:
 	show_sector()
 
-## The record. Reachable from the HUD during a run and from the launcher before
-## one, which is why the way back is decided by the caller.
-func show_history(from_launcher: bool = false) -> void:
-	var s := HistoryScreen.new()
-	_swap(s, not from_launcher)
-	s.setup(show_launcher if from_launcher else show_sector)
-
 ## Everybody you are flying with, with the numbers the convoy strip has no room
 ## for. `back` is where LEAVE returns to, so the HUD can be reached from three
 ## screens without all three landing on the sector. See PartyScreen.
@@ -217,6 +219,9 @@ func _show_starchart() -> void:
 ## "are we in combat" check would swallow the very transition that ends it — the
 ## HUD disables the SECTOR tab during a fight, which is where that belongs.
 func show_sector() -> void:
+	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
+	# this flag inside the refresh that signal triggers.
+	docked = false
 	Audio.music_state(&"sector")
 	var s := SectorScreen.new()
 	_swap(s)
@@ -230,17 +235,38 @@ func show_sector() -> void:
 ## Refit screen. Reachable from the HUD any time you are not in a fight.
 ## Development only: every card in the game on one page. See CardGalleryScreen.
 func show_cards() -> void:
+	var here := current
 	var s := CardGalleryScreen.new()
 	_swap(s)
-	s.setup()
+	s.setup(back_to(here))
 
 ## Development only: every module in the game on one page. See
 ## ModuleGalleryScreen — the sibling of show_cards, and dev-only for the same
 ## reason: a catalogue is the answer to a game about finding out what things do.
 func show_modules() -> void:
+	var here := current
 	var s := ModuleGalleryScreen.new()
 	_swap(s)
-	s.setup()
+	s.setup(back_to(here))
+
+## Where LEAVE goes from a page you opened OVER the run.
+##
+## The catalogues sit on the HUD, so they can be opened from any screen and
+## "back" cannot be a constant -- this is the same question PartyScreen answers
+## inline, asked once so the two galleries do not each answer it differently.
+##
+## A GALLERY IS NOT A PLACE TO BE SENT BACK TO. Opening MODULES from CARDS and
+## pressing LEAVE should put you back in the game, not bounce you between two
+## catalogues; anything not named here falls to the sector, which is the one
+## screen that always exists mid-run.
+func back_to(here: Control) -> Callable:
+	if here is ShipScreen:
+		return show_ship
+	if here is StarchartScreen:
+		return show_starchart
+	if here is StationScreen:
+		return show_station
+	return show_sector
 
 func show_ship() -> void:
 	if in_combat():
@@ -417,6 +443,7 @@ func _roll_foes(n: MapGen.MapNode) -> Array[StringName]:
 
 ## Dock. Reached from the sector, not on arrival.
 func show_station() -> void:
+	docked = true
 	Audio.music_state(&"station")
 	play_dock()
 	var s := StationScreen.new()
@@ -611,6 +638,12 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The hellbender is
 	# one of those in everything but what winning pays, so it gets the cue too.
 	Audio.music_state(&"boss" if template.boss or template.miniboss else &"combat")
+	# A FIGHT IS NOT SOMETHING YOU HAVE WHILE TIED UP. This builds its own
+	# SectorScreen rather than going through show_sector(), so it has to clear
+	# the flag itself -- otherwise the HUD's second tab still said STATION on the
+	# far side of the fight and offered to walk you back into a berth you had
+	# already left.
+	docked = false
 	Run.node_at().fled = false
 	combat = Combat.new()
 	combat.clears_node = clears_node

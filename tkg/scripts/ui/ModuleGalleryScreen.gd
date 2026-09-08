@@ -37,8 +37,14 @@ var _filter: GalleryFilter
 var _col: VBoxContainer
 var _shown: int = 0
 var _count: Label
+## Where LEAVE goes. Handed in by Router rather than decided here: these pages
+## sit on the HUD and can be opened from anywhere, so the screen underneath is
+## the only thing that knows.
+var _back: Callable
 
-func setup() -> void:
+
+func setup(back: Callable = Callable()) -> void:
+	_back = back
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 
@@ -49,12 +55,22 @@ func _build() -> void:
 	add_child(root)
 
 	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
 	head.add_child(UITheme.header("MODULE GALLERY"))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(gap)
 	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(_count)
+	# THE WAY OUT. These are reached from a HUD tab, and a tab does not untoggle
+	# -- so without this the only way off the page was to pick some other
+	# destination and pretend that was what you wanted.
+	head.add_child(Widgets.button("LEAVE", func() -> void:
+		if _back.is_valid():
+			_back.call()
+		else:
+			Router.show_sector()))
 	root.add_child(head)
 
 	# THE SAME FILTERS THE YARD MANIFEST CARRIES, so the page a designer reads

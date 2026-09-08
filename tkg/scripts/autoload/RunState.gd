@@ -12,6 +12,24 @@ var hull: HullData
 ## every ship "named" and quietly rename it under the player the first time
 ## they changed frames.
 var ship_name: String = ""
+
+## WHAT TO PUT ON SCREEN when the player's ship is named. The pilot's name if
+## there is one, the frame's own otherwise.
+##
+## ONE FUNCTION, because there is more than one place that names your ship and
+## they were not agreeing. The refit masthead read `ship_name`; the plate under
+## the hull in a fight read `hull.name` -- so a ship you had named flew into
+## combat as its chassis, which is the one moment you are actually looking at it
+## being shot. Anything that shows the player's ship to the player calls this.
+##
+## NOT `.to_upper()`d here. Silkscreen draws caps for both cases, but the
+## masthead and the combat plate upper it themselves and a name that arrived
+## pre-shouted would defeat any future place that wants it in mixed case.
+func display_name() -> String:
+	var named := ship_name.strip_edges()
+	if named != "":
+		return named
+	return hull.name if hull != null else ""
 var installed: Array[ModuleData] = []
 var cargo: Array[HoldItem] = []
 ## Which galaxy this run is flown in. Chosen once at the start so the chart
@@ -1672,22 +1690,44 @@ const PER_PIP := {
 	&"thrust": {&"thrust": 1.0},
 }
 
+## THREE LETTERS PER GAUGE, and the one place they are spelled.
+##
+## Two things print them -- the attributes panel's own rows, and every rolled
+## affix on a module readout -- and the second used to write the gauge out in
+## full. "TUNED INJECTORS -- +1 THRUST" wrapped onto a second line inside a
+## panel that is 93 pixels of card wide, so a part with three affixes spent six
+## lines saying three things.
+##
+## A dictionary rather than a field on each row, because the affixes need the
+## mapping without building a row: `attribute_rows()` computes seven live values
+## and seven sentences, and Database calls this at seed time when there is no
+## ship to compute them from.
+const ATTR_SHORT := {
+	&"hull": "HUL",
+	&"reactor": "RCT",
+	&"thrust": "THR",
+	&"maneuver": "MNV",
+	&"thermal": "THM",
+	&"sensors": "SEN",
+	&"stealth": "STL",
+}
+
 func attributes() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([
-		{key = &"hull", label = "HULL", short = "HUL",
+		{key = &"hull", label = "HULL", short = ATTR_SHORT[&"hull"],
 			value = attr_hull(), base = attr_hull(true),
 			text = "Ramming, boarding, holding together under structural stress.",
 			# READS CURRENT HULL, not maximum, which is worth saying out loud:
 			# it is the one gauge that falls as you take damage, so a holed ship
 			# really does fail a check it would have passed intact.
 			effect = "A pip is 7 hull. This gauge reads CURRENT hull, so damage lowers it until you repair."},
-		{key = &"reactor", label = "REACTOR", short = "RCT",
+		{key = &"reactor", label = "REACTOR", short = ATTR_SHORT[&"reactor"],
 			value = attr_reactor(), base = attr_reactor(true),
 			text = "Energy to spend in a fight, and hardware the ship can run.",
 			# The only gauge no event check reads. It pays in combat instead.
 			effect = "A pip is %d more cells of hardware. Energy rises every second pip." % CELLS_PER_LEVEL},
-		{key = &"thrust", label = "THRUST", short = "THR",
+		{key = &"thrust", label = "THRUST", short = ATTR_SHORT[&"thrust"],
 			value = attr_thrust(), base = attr_thrust(true),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well.",
 			# The jump range is a FIXED distance now, so this is a plain
@@ -1695,7 +1735,7 @@ func attributes() -> Array[Dictionary]:
 			effect = "A pip is %d%% further travel on the starchart, to a maximum of %d%%, and costs no extra fuel."
 				% [int(round(THRUST_REACH * 100.0)),
 					int(round((THRUST_REACH_MAX - 1.0) * 100.0))]},
-		{key = &"maneuver", label = "MANEUVERABILITY", short = "MNV",
+		{key = &"maneuver", label = "MANEUVERABILITY", short = ATTR_SHORT[&"maneuver"],
 			value = attr_maneuver(), base = attr_maneuver(true),
 			text = "Threading debris, evading a lock, choosing how a fight opens.",
 			# HALF A PIP IS DODGE and half is initiative, and only the dodge half
@@ -1703,11 +1743,11 @@ func attributes() -> Array[Dictionary]:
 			# to miss, and NOTHING reads initiative. So the honest number is the
 			# dodge half alone -- 1/46 of a pip, near enough 2%.
 			effect = "A pip is about 4% of enemy attacks missing outright."},
-		{key = &"thermal", label = "THERMAL", short = "THM",
+		{key = &"thermal", label = "THERMAL", short = ATTR_SHORT[&"thermal"],
 			value = attr_thermal(), base = attr_thermal(true),
 			text = "Sitting in heat: coronas, reactors, anything that cooks you.",
 			effect = "A pip is 1 more heat capacity, and 1 more heat off every vent card you play."},
-		{key = &"sensors", label = "SENSORS", short = "SEN",
+		{key = &"sensors", label = "SENSORS", short = ATTR_SHORT[&"sensors"],
 			value = attr_sensors(), base = attr_sensors(true),
 			text = "Reading a wreck, finding the lane, seeing it before it sees you.",
 			# SAYS WHAT IT DOES NOW. It used to read "further out than you can
@@ -1717,7 +1757,7 @@ func attributes() -> Array[Dictionary]:
 			# not against thrust.
 			effect = "A pip is %d%% further sight on the starchart. You can only jump to systems you can see."
 				% int(round(SENSE_REACH * 100.0))},
-		{key = &"stealth", label = "STEALTH", short = "STL",
+		{key = &"stealth", label = "STEALTH", short = ATTR_SHORT[&"stealth"],
 			value = attr_stealth(), base = attr_stealth(true),
 			text = "Going dark, slipping a patrol, arriving unannounced.",
 			effect = "A pip is %d%% fewer ambushes, to a maximum of %d%% at %d."
