@@ -99,10 +99,34 @@ static func _roll_affixes(n: int, danger: int, r: RandomNumberGenerator) -> Arra
 ## The perk is REROLLED even on a manufacturer hull, unlike the one you start
 ## with, which keeps the perk its manufacturer authored. A ship you were handed at the
 ## yard is to spec; a ship you cut out of a wreck is whatever it ended up as.
+## WHAT GRADE A YARD AT EACH TIER CAN OFFER, authored rather than derived.
+##
+## It was `int(danger / 1.6) + randi() % 2`, which put C on tier 1 alone -- the
+## first ring or two of a fifteen-layer galaxy, and half of those rolls came out
+## B anyway. So the bottom grade barely existed, and "bad ships on the outskirts"
+## was a thing the arithmetic technically allowed rather than a thing you saw.
+##
+## Weighted by repetition, which is the same trick `TIER_DELTA` uses: a grade
+## listed twice is twice as likely. Read down the columns and the ladder is
+## legible -- C through the outer half, S only in the inner.
+##
+##   tier 1  C C B        outskirts: scrap, and the occasional decent frame
+##   tier 2  C B B
+##   tier 3  C B B A      the middle: a C is still possible and still cheap
+##   tier 4  B A A S      S becomes reachable
+##   tier 5  A S S        the core, where a bad ship would be a story
+const GRADES_AT := {
+	1: [0, 0, 1],
+	2: [0, 1, 1],
+	3: [0, 1, 1, 2],
+	4: [1, 2, 2, 3],
+	5: [2, 3, 3],
+}
+
 static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> HullData:
 	var danger := MapGen.tier(danger_in)
 	var base: HullData = Rng.pick(r, DB.hull_frames)
-	var t := clampi(int(danger / 1.6) + r.randi() % 2, 0, 3)
+	var t: int = Rng.pick(r, GRADES_AT[danger])
 	# The grade itself is AUTHORED now — see DB.TIER_DELTA. What used to happen
 	# here was the whole tier system: a bag of bumps with a hardpoint on a coin
 	# flip, so two A-class Bastions could differ by a mount and neither was the
@@ -121,4 +145,21 @@ static func roll_hull(danger_in: int, r: RandomNumberGenerator = Rng.loot) -> Hu
 	# but `at_tier` granted the ladder its GRADE earns, and overwriting the one
 	# must not quietly discard the other.
 	h.perk_id = Rng.pick(r, DB.hull_perks.keys())
+	# A C-TIER CARRIES SOMETHING ODD, and this is the only reason to buy one.
+	#
+	# `DB.tier_perks_for` starts at B, so a C has exactly one perk -- the
+	# manufacturer's -- which is also all a STARTER hull has. Against the ship you
+	# launched in, a C on the blocks was smaller, weaker, had fewer mounts and
+	# offered nothing the starter did not: a purchase with no argument for it at
+	# any price. One extra perk is the argument. It is a cheap frame somebody
+	# else fitted out, and what they left in it is the point.
+	#
+	# ON THE HULL, NOT THE LADDER. Putting it in `TIER_PERKS` would grant it to
+	# every C in the game including the one the player starts in, which is a
+	# different change and not this one.
+	if t == 0:
+		var spare: Array = DB.hull_perks.keys().filter(
+			func(k: StringName) -> bool: return k != h.perk_id)
+		if not spare.is_empty():
+			h.tier_perks = [Rng.pick(r, spare)] as Array[StringName]
 	return h

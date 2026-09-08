@@ -1702,6 +1702,25 @@ const PER_PIP := {
 ## mapping without building a row: `attribute_rows()` computes seven live values
 ## and seven sentences, and Database calls this at seed time when there is no
 ## ship to compute them from.
+## THE GAUGE NAMES IN FULL, and the one place they are spelled.
+##
+## Beside ATTR_SHORT rather than derived from it, because MANEUVERABILITY is not
+## MNV with letters put back -- the short forms were chosen to be three
+## characters, not to be abbreviations of these.
+##
+## The station's part panel prints these. The abbreviations exist because a card
+## readout is 93 pixels wide and "+1 THRUST" wrapped; the shelf's column is 256
+## and has no such problem, so it says the whole word.
+const ATTR_LABEL := {
+	&"hull": "HULL",
+	&"reactor": "REACTOR",
+	&"thrust": "THRUST",
+	&"maneuver": "MANEUVERABILITY",
+	&"thermal": "THERMAL",
+	&"sensors": "SENSORS",
+	&"stealth": "STEALTH",
+}
+
 const ATTR_SHORT := {
 	&"hull": "HUL",
 	&"reactor": "RCT",
@@ -1712,22 +1731,53 @@ const ATTR_SHORT := {
 	&"stealth": "STL",
 }
 
+## THE SEVEN GAUGES A HULL WOULD GIVE YOU BARE, with nothing bolted on.
+##
+## Computed by standing the hull in place for the length of one call rather than
+## by copying the seven formulas out. Every `attr_*` reads `hull` and `installed`
+## off this singleton and none of them takes a hull argument -- so the only other
+## way to price a chassis you do not own is a second set of the same arithmetic,
+## which is exactly the drift `-- attrtest` exists to catch.
+##
+## NOTHING IS EMITTED AND NOTHING IS SAVED. The swap is undone before the
+## function returns and no signal fires in between, so no listener can observe
+## the ship as anything but its real self. It is not re-entrant and does not need
+## to be: it is called from a panel refresh, on the main thread, once per draw.
+func hull_attributes(h: HullData) -> Array[Dictionary]:
+	if h == null:
+		return []
+	var was_hull := hull
+	var was_installed := installed
+	var was_hp := hp
+	hull = h
+	installed = []
+	# AT FULL, because a hull on the blocks has not been shot at. `attr_hull`
+	# reads CURRENT hull deliberately -- see its own note -- and left at your hp
+	# the yard would price a fresh chassis by the damage on yours.
+	hp = h.max_hull
+	var out := attributes()
+	hull = was_hull
+	installed = was_installed
+	hp = was_hp
+	return out
+
+
 func attributes() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.assign([
-		{key = &"hull", label = "HULL", short = ATTR_SHORT[&"hull"],
+		{key = &"hull", label = ATTR_LABEL[&"hull"], short = ATTR_SHORT[&"hull"],
 			value = attr_hull(), base = attr_hull(true),
 			text = "Ramming, boarding, holding together under structural stress.",
 			# READS CURRENT HULL, not maximum, which is worth saying out loud:
 			# it is the one gauge that falls as you take damage, so a holed ship
 			# really does fail a check it would have passed intact.
 			effect = "A pip is 7 hull. This gauge reads CURRENT hull, so damage lowers it until you repair."},
-		{key = &"reactor", label = "REACTOR", short = ATTR_SHORT[&"reactor"],
+		{key = &"reactor", label = ATTR_LABEL[&"reactor"], short = ATTR_SHORT[&"reactor"],
 			value = attr_reactor(), base = attr_reactor(true),
 			text = "Energy to spend in a fight, and hardware the ship can run.",
 			# The only gauge no event check reads. It pays in combat instead.
 			effect = "A pip is %d more cells of hardware. Energy rises every second pip." % CELLS_PER_LEVEL},
-		{key = &"thrust", label = "THRUST", short = ATTR_SHORT[&"thrust"],
+		{key = &"thrust", label = ATTR_LABEL[&"thrust"], short = ATTR_SHORT[&"thrust"],
 			value = attr_thrust(), base = attr_thrust(true),
 			text = "Outrunning, breaking orbit, pulling free of a gravity well.",
 			# The jump range is a FIXED distance now, so this is a plain
@@ -1735,7 +1785,7 @@ func attributes() -> Array[Dictionary]:
 			effect = "A pip is %d%% further travel on the starchart, to a maximum of %d%%, and costs no extra fuel."
 				% [int(round(THRUST_REACH * 100.0)),
 					int(round((THRUST_REACH_MAX - 1.0) * 100.0))]},
-		{key = &"maneuver", label = "MANEUVERABILITY", short = ATTR_SHORT[&"maneuver"],
+		{key = &"maneuver", label = ATTR_LABEL[&"maneuver"], short = ATTR_SHORT[&"maneuver"],
 			value = attr_maneuver(), base = attr_maneuver(true),
 			text = "Threading debris, evading a lock, choosing how a fight opens.",
 			# HALF A PIP IS DODGE and half is initiative, and only the dodge half
@@ -1743,11 +1793,11 @@ func attributes() -> Array[Dictionary]:
 			# to miss, and NOTHING reads initiative. So the honest number is the
 			# dodge half alone -- 1/46 of a pip, near enough 2%.
 			effect = "A pip is about 4% of enemy attacks missing outright."},
-		{key = &"thermal", label = "THERMAL", short = ATTR_SHORT[&"thermal"],
+		{key = &"thermal", label = ATTR_LABEL[&"thermal"], short = ATTR_SHORT[&"thermal"],
 			value = attr_thermal(), base = attr_thermal(true),
 			text = "Sitting in heat: coronas, reactors, anything that cooks you.",
 			effect = "A pip is 1 more heat capacity, and 1 more heat off every vent card you play."},
-		{key = &"sensors", label = "SENSORS", short = ATTR_SHORT[&"sensors"],
+		{key = &"sensors", label = ATTR_LABEL[&"sensors"], short = ATTR_SHORT[&"sensors"],
 			value = attr_sensors(), base = attr_sensors(true),
 			text = "Reading a wreck, finding the lane, seeing it before it sees you.",
 			# SAYS WHAT IT DOES NOW. It used to read "further out than you can
@@ -1757,7 +1807,7 @@ func attributes() -> Array[Dictionary]:
 			# not against thrust.
 			effect = "A pip is %d%% further sight on the starchart. You can only jump to systems you can see."
 				% int(round(SENSE_REACH * 100.0))},
-		{key = &"stealth", label = "STEALTH", short = ATTR_SHORT[&"stealth"],
+		{key = &"stealth", label = ATTR_LABEL[&"stealth"], short = ATTR_SHORT[&"stealth"],
 			value = attr_stealth(), base = attr_stealth(true),
 			text = "Going dark, slipping a patrol, arriving unannounced.",
 			effect = "A pip is %d%% fewer ambushes, to a maximum of %d%% at %d."

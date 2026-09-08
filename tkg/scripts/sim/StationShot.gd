@@ -18,16 +18,35 @@ func run(tree: SceneTree) -> void:
 	# header has to get right by omission rather than by drawing -- lawless space
 	# has no berth, and a blank flag there would read as a manufacturer with no
 	# mark instead of as an absence of manufacturers.
-	var berth := &"solari"
+	# A COMMA LIST, because a station can be held by up to THREE and the rail
+	# sizes its flags to how many are flying. `MapGen` wants three on 35% of
+	# cities and 60% of capitals, so the contested case is common -- and it is
+	# exactly the case no amount of clicking will reliably reach, which is what
+	# this tool is for.
+	#
+	#   manufacturer=solari              one berth
+	#   manufacturer=solari,cygnet       contested
+	#   manufacturer=solari,cygnet,korvan   three, at the smaller flag
+	var berths: Array[StringName] = [&"solari"]
 	for a in OS.get_cmdline_user_args():
-		if (a as String).begins_with("manufacturer="):
-			var want := StringName((a as String).substr(13))
-			if want == &"none" or DB.manufacturers.has(want):
-				berth = want
+		if not (a as String).begins_with("manufacturer="):
+			continue
+		var arg := (a as String).substr(13)
+		if arg == "none":
+			berths = []
+			continue
+		var want: Array[StringName] = []
+		for piece in arg.split(",", false):
+			var id := StringName(piece.strip_edges())
+			if DB.manufacturers.has(id):
+				want.append(id)
 			else:
-				print("  no manufacturer '%s' -- keeping %s" % [want, berth])
+				print("  no manufacturer '%s' -- skipped" % id)
+		if not want.is_empty():
+			berths = want
+	var berth: StringName = berths[0] if not berths.is_empty() else &"none"
 
-	Run.start_new_run(&"korvan" if berth == &"none" else berth, 1)
+	Run.start_new_run(&"korvan" if berths.is_empty() else berths[0], 1)
 
 	# The same state `-- station` builds, so the two flags photograph one screen
 	# rather than two. A shot of a state nothing else ever reaches is evidence
@@ -40,9 +59,10 @@ func run(tree: SceneTree) -> void:
 	# empty array will not assign to it.
 	here.berths.clear()
 	here.manufacturer = &""
-	if berth != &"none":
-		here.berths.append(berth)
-		here.manufacturer = berth
+	for id in berths:
+		here.berths.append(id)
+	if not berths.is_empty():
+		here.manufacturer = berths[0]
 	here.danger = 5
 	for i in 3:
 		Run.stow(LootGen.roll_module(4 + i, &"", true))

@@ -825,6 +825,17 @@ class Banner extends Control:
 	const UNITS_H := 22
 	const S := 3.0
 
+	## PIXELS PER UNIT FOR THIS ONE. `S` stays the default and the only size the
+	## chassis cards use; the station flies its berths larger, because there the
+	## flag IS the heading rather than a mark in the corner of a card.
+	##
+	## An instance member rather than a second const, so every offset in `_draw`
+	## scales together -- the hems are authored in units and a flag drawn at one
+	## size with a hem cut at another is a flag with a hole in it. Set it before
+	## the banner is added, and set `custom_minimum_size` to match: `_init` cannot
+	## see it, so the default minimum is still built from `S`.
+	var s: float = S
+
 	var manufacturer: StringName = &""
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
@@ -849,13 +860,13 @@ class Banner extends Control:
 		# this. Most of the hems are CUT — carved by painting the background back
 		# over the flag — so the wrong colour here does not misdraw a hem, it
 		# makes it invisible.
-		CardView.draw_cut(self, manufacturer, b, mark, UITheme.PANEL, S)
-		CardView.draw_emblem(self, manufacturer, Vector2(b.size.x * 0.5, 11.0 * S), S, mark, field)
+		CardView.draw_cut(self, manufacturer, b, mark, UITheme.PANEL, s)
+		CardView.draw_emblem(self, manufacturer, Vector2(b.size.x * 0.5, 11.0 * s), s, mark, field)
 		# Outlined last, in the manufacturer's own mark dimmed. Two manufacturers fly fields
 		# that are nearly the panel's own colour — Redline's charcoal, Cygnet's
 		# midnight — and without this their banners have no edge at all.
 		var e := mark.darkened(0.35)
-		var w := S
+		var w := s
 		draw_rect(Rect2(b.position, Vector2(b.size.x, w)), e, true)
 		draw_rect(Rect2(Vector2(b.position.x, b.end.y - w), Vector2(b.size.x, w)), e, true)
 		draw_rect(Rect2(b.position, Vector2(w, b.size.y)), e, true)

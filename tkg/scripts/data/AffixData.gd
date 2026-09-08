@@ -97,18 +97,25 @@ const GAUGES: Array[StringName] = [&"hull", &"reactor", &"thrust", &"maneuver",
 ## WHAT YOU GAIN FIRST, THEN WHAT IT COSTS, rather than in gauge order. Both
 ## tradeoff affixes were authored that way and it is the right way round: the
 ## reason to take the part, then the reason to think about it.
-func gauge_text() -> String:
+## `long` spells the gauge out -- "+1 THRUST" rather than "+1 THR".
+##
+## The short form exists because a module readout sits in a column the width of a
+## card and the full words wrapped. Where there is room, there is no reason to
+## make the player expand an abbreviation: the station's part panel is 256 wide
+## and passes true.
+func gauge_text(long: bool = false) -> String:
 	var up: PackedStringArray = []
 	var down: PackedStringArray = []
+	var names: Dictionary = Run.ATTR_LABEL if long else Run.ATTR_SHORT
 	for g in GAUGES:
 		var pips: int = int(get(g))
 		if pips == 0:
 			continue
-		var short: String = Run.ATTR_SHORT.get(g, String(g).to_upper())
+		var nm: String = names.get(g, String(g).to_upper())
 		if pips > 0:
-			up.append("+%d %s" % [pips, short])
+			up.append("+%d %s" % [pips, nm])
 		else:
-			down.append("%d %s" % [pips, short])
+			down.append("%d %s" % [pips, nm])
 	return ", ".join(up + down)
 
 

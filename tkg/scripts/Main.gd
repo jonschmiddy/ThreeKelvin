@@ -801,8 +801,30 @@ func _ready() -> void:
 		here.type = MapGen.NodeType.STATION
 		here.development = MapGen.Development.CITY
 		here.security = 4
-		here.berths = [&"solari", &"cygnet"]
-		here.manufacturer = &"solari"
+		# CONTESTED BY DEFAULT, and `manufacturer=a,b,c` overrides it -- the same
+		# argument `-- stationshot` takes, so the screen you play and the screen
+		# that gets photographed are set up the same way. Up to three: MapGen
+		# wants that many on 35% of cities and 60% of capitals, and the rail sizes
+		# its flags to how many are flying.
+		var berths: Array[StringName] = [&"solari", &"cygnet"]
+		for a4 in OS.get_cmdline_user_args():
+			if not (a4 as String).begins_with("manufacturer="):
+				continue
+			var arg := (a4 as String).substr(13)
+			if arg == "none":
+				berths = []
+				continue
+			var want: Array[StringName] = []
+			for piece in arg.split(",", false):
+				var mid := StringName(piece.strip_edges())
+				if DB.manufacturers.has(mid):
+					want.append(mid)
+				else:
+					print("[station] no manufacturer '%s' -- skipped" % mid)
+			if not want.is_empty():
+				berths = want
+		here.berths = berths
+		here.manufacturer = berths[0] if not berths.is_empty() else &""
 		here.danger = 5
 		# Something in the hold to sell, something to scrap, and enough of every
 		# material to light up the fabricator and the material rows.
