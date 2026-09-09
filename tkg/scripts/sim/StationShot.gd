@@ -91,6 +91,25 @@ func run(tree: SceneTree) -> void:
 
 	Run.hp = maxi(1, Run.max_hp() - 12)
 	Run.add_dross(3)
+
+	# `full` PHOTOGRAPHS THE BUSY CASE, the same one `-- station full` plays.
+	#
+	# Without it the Yard's hull is a 75% roll and the shelf is whatever the node
+	# happened to stock -- so one shot in four of the shipyard is a picture of
+	# the empty-berth line, and a shot of a full shelf is luck. The odds are
+	# balance and are left alone; this forces the state, exactly as the playable
+	# flag does.
+	if "full" in OS.get_cmdline_user_args():
+		while not Run.hold_full() and Run.cargo.size() < 40:
+			Run.stow(LootGen.roll_module(5, &"", true))
+		Run.add_credits(900)
+		here.stocked = true
+		for i in 5:
+			here.shop.append(LootGen.roll_module(5 + i, &"", true))
+		here.shop_hull = LootGen.roll_hull(7)
+		print("  full: hold %d · shelf %d · hull on the blocks"
+			% [Run.cargo.size(), here.shop.size()])
+
 	Router.show_station()
 
 	# Thirty frames rather than one. The screen builds four panels, and a shot

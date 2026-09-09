@@ -836,7 +836,23 @@ class Banner extends Control:
 	## see it, so the default minimum is still built from `S`.
 	var s: float = S
 
-	var manufacturer: StringName = &""
+	## SETTING THE MANUFACTURER ARMS THE TOOLTIP, because every caller sets this
+	## and none of them should have to remember three more lines to make a flag
+	## explain itself. Godot only ASKS for a tooltip when `tooltip_text` is
+	## non-empty, so the name goes in as the trigger -- and as the fallback if
+	## `manufacturer_readout` ever fails to build.
+	var manufacturer: StringName = &"":
+		set(value):
+			manufacturer = value
+			var m: ManufacturerData = DB.manufacturers.get(value)
+			if m == null:
+				return
+			tooltip_text = m.name.to_upper()
+			# PASS, NOT STOP. A banner sits inside a clickable chassis card and
+			# on the shelf rows, and a child that STOPS the pointer eats the
+			# click on the thing it is drawn on. PASS still gets the hover that
+			# raises a tooltip, and hands the press on to the parent.
+			mouse_filter = Control.MOUSE_FILTER_PASS
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
 
@@ -848,6 +864,10 @@ class Banner extends Control:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		custom_minimum_size = Vector2(UNITS_W * S, 0)
 		size_flags_vertical = Control.SIZE_FILL
+
+	## The same rich-panel hook `ModuleIcon`, `CardView` and `PerkBox` use.
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		return Widgets.manufacturer_readout(manufacturer)
 
 	func _notification(what: int) -> void:
 		if what == NOTIFICATION_RESIZED:

@@ -78,7 +78,14 @@ BUMP_RE = re.compile(r"^[+-]\s*const\s+(VERSION|PROTOCOL)\b")
 
 
 def run(*args):
-    return subprocess.run(args, capture_output=True, text=True).stdout
+    # ENCODING NAMED, NOT INHERITED. `text=True` alone decodes with the locale
+    # default, which on Windows is cp1252 -- and every diff of this repo carries
+    # em-dashes, so `git diff` output blew up in subprocess's reader thread and
+    # the guard reported FAIL for a decode error rather than for a finding.
+    # `errors="replace"` because a mangled character is a false negative on one
+    # line; a crash is a false positive on the whole check.
+    return subprocess.run(args, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace").stdout
 
 
 def keys_in(line):

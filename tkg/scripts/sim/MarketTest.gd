@@ -132,10 +132,10 @@ func _print_goods() -> void:
 			bid - Market.melt(m)])
 
 func _print_services() -> void:
-	print("\n  %-34s %6s %6s %6s %6s" % ["place", "repair", "fuel", "coolant", "exotic"])
+	print("\n  %-34s %6s %6s %6s" % ["place", "repair", "fuel", "exotic"])
 	for dev in 5:
 		var n := _place(dev, 3, [] as Array[StringName], 5)
-		print("  %-34s %6.2f %6d %6d %6d" % [
+		print("  %-34s %6.2f %6d %6d" % [
 			MapGen.development_name(dev as MapGen.Development).to_lower(),
 			Market.repair_rate(n), Market.refuel_price(n),
-			Market.coolant_price(n), Market.material_price(n, &"exotic")])
+			Market.material_price(n, &"exotic")])

@@ -27,7 +27,8 @@ var _trade: Label
 ## The ship in the rail, and the scale that makes it fit. See `_fit_berth`.
 var _berth_art: ShipView
 var _hull_offer: VBoxContainer
-var _services: VBoxContainer
+## The service list, a GRID of two so seven short rows are four lines.
+var _services: GridContainer
 ## What is posted at this station and what you can close here. Above the shelf,
 ## because it is the part of a station that is about WHERE YOU GO NEXT.
 var _work: VBoxContainer
@@ -336,77 +337,116 @@ func _build() -> void:
 			_tab = StringName(a.split("=")[1])
 	_show_tab(_tab)
 
-## Repair, refuel, and the ship they are being done to.
+## Repair, refuel, and the yard that sells whole ships.
 ##
-## THE HULL EARNS ITS PLACE HERE AND NOWHERE ELSE. It used to sit in a permanent
-## rail on the right of every page, which is decoration: you can see your ship on
-## the sector screen and the refit page, and at a station it was answering no
-## question you had walked in with. Beside the repair prices it answers one — a
-## hull with its plating opened up, next to the number it costs to close it. That
-## is the only place on this screen where looking at the ship is the point.
+## TWO PANELS STACKED, not two columns side by side. The services are a list of
+## one-line prices and the shipyard is two ships being compared; side by side,
+## the ships got half a page to do the harder job in and the price list got the
+## other half to print seven short rows in. Stacked, each gets the shape it
+## wants -- the list is wide and short, the comparison is wide and tall.
 func _page_services() -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+
 	var box := Widgets.section("services")
-	_services = VBoxContainer.new()
-	_services.add_theme_constant_override("separation", 5)
+	# TWO COLUMNS. A service is a short label and a price, and across the full
+	# 740 the row was nine tenths empty -- seven of them stacked took half the
+	# page and pushed the shipyard's gauges off the bottom of it. Paired, the
+	# same seven are four rows and the panel is half the height for no loss.
+	_services = GridContainer.new()
+	_services.columns = 2
+	_services.add_theme_constant_override("h_separation", 8)
+	_services.add_theme_constant_override("v_separation", 5)
 	box.add_child(_services)
-	# A COLUMN, NOT THE WHOLE WIDTH. A service is a line of text and a price, and
-	# stretched across 700px the price ends up half a screen from the thing it is
-	# the price of. This is the width that keeps them together.
-	# THE PANEL IS AS TALL AS THE LIST, not as tall as the page. Five services in
-	# a page-height box is four hundred pixels of empty panel, which reads as a
-	# screen that failed to load rather than as a short menu.
-	# HALF THE PAGE, AND ALL OF ITS HEIGHT. Both columns take an equal share and
-	# both fill down to the bottom edge, so the two panels are the same size as
-	# each other and the page has no ragged corner. A stretch ratio rather than a
-	# pixel width, because the window is resizable and a fixed 420 is only ever
-	# correct at one size.
-	var wrap := Widgets.panel_with(Widgets.pad(box))
-	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wrap.size_flags_stretch_ratio = 1.0
-	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.add_child(wrap)
+	# TIGHT ABOVE THE HEADING. `panel_with` already gives 12 of content margin and
+	# `pad` was adding six more on top of it, so SERVICES sat eighteen pixels down
+	# from a border it is the first thing inside. Two, and the page gets the
+	# difference back where the shipyard needs it.
+	col.add_child(Widgets.panel_with(Widgets.pad(box, 8, 2)))
 
-	# NO HULL PORTRAIT HERE ANY MORE, because the section rail carries one on
-	# every deck. It used to earn its place by being the only ship on the screen;
-	# now it would be the second, forty pixels from the first.
-	#
-	# It also no longer FITS. `crop(HULL_W, HULL_H)` is a hard 400-wide minimum
-	# and the comment above it records why it cannot simply shrink: at 1x the
-	# widest hull is 392, so any narrower window clips a heavy's nose or tail.
-	# 420 of services plus 400 of hull needed 820 and the rail leaves 780, so the
-	# choice was a clipped ship, a squeezed service column, or no second ship.
-	# The rail already answers the question this panel was asking.
-	# --- WHAT THE YARD HAS ON THE BLOCKS, and nothing else.
-	#
-	# This column used to be YOUR HULL: the hull and heat gauges, and the place
-	# blurb under them. Both gauges are in the top bar on every screen in the
-	# game, so restating them here was the same two numbers twice on one page --
-	# and the blurb describes the SYSTEM, not the yard, so it has gone up to the
-	# facts line with the rest of what is true about where you are standing.
-	#
-	# What is left is the one thing you can only find out here.
-	var ship := Widgets.section("on the blocks")
-
-	# Hulls used to be sold on the Promenade, on the shelf with the parts, because
-	# that was the only page with a shop on it. A hull is not a part -- it is the
-	# thing parts are bolted to -- and it belongs on the deck that deals in whole
-	# ships, beside the prices for putting one back together.
-	#
-	# NOT EVERY YARD HAS ONE. The block says so in a line rather than leaving the
-	# panel blank: an empty half-page reads as a screen that failed to load, and
-	# "no hull here" is a real answer to the question you came to this deck with.
+	# SHIPYARD, not ON THE BLOCKS. The berth is a place, and the deck rail names
+	# the other four for what they are; this one was named for what is standing
+	# in it, which is empty most of the time.
+	var yardbox := Widgets.section("shipyard")
 	_hull_offer = VBoxContainer.new()
-	_hull_offer.add_theme_constant_override("separation", 3)
-	ship.add_child(_hull_offer)
+	_hull_offer.add_theme_constant_override("separation", 4)
+	yardbox.add_child(_hull_offer)
+	var yw := Widgets.panel_with(Widgets.pad(yardbox, 8, 2))
+	yw.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_child(yw)
+	return col
 
-	var sw := Widgets.panel_with(Widgets.pad(ship))
-	sw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sw.size_flags_stretch_ratio = 1.0
-	sw.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.add_child(sw)
-	return row
+
+## A ship drawn at HALF, the same exception the berth in the rail makes.
+##
+## `ShipView` draws at whole multiples only, so its smallest is 1x -- and two
+## ships at 1x are 648 pixels of a 740-wide page before either has a gauge
+## beside it. A half is the one fraction that is clean on pixel art: every 2x2
+## block becomes one, uniformly. The wrapper clips; the view must not clip
+## itself, or it would cut the canvas before the scale is applied.
+func _ship_half(h: HullData, box_w: int) -> Control:
+	var wrap := Control.new()
+	wrap.custom_minimum_size = Vector2(box_w, SHIP_HALF_H)
+	wrap.clip_contents = true
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var v := ShipView.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.self_clip = false
+	v.setup_preview(h, 0, 1)
+	v.scale = Vector2(BERTH_K, BERTH_K)
+	wrap.add_child(v)
+	# Centred by hand, because a scaled Control still reports its UNSCALED size
+	# to any container that would have done this for us.
+	v.position = Vector2((float(box_w) - float(v._w) * BERTH_K) * 0.5,
+		(float(SHIP_HALF_H) - float(v._h) * BERTH_K) * 0.5).round()
+	return wrap
+
+
+## One ship's column in the comparison: what it is, then its seven gauges.
+##
+## BOTH SIDES DRAWN THE SAME WAY, which is the whole point of dropping the delta
+## encoding. The difference version painted one block with your numbers as the
+## floor and the offer's as the fill, which is compact and was unreadable: the
+## base cells take the manufacturer's accent, so four gauges where the new frame
+## was BETTER came out in the manufacturer's own red under a legend saying red
+## meant loss. Two plain blocks say the same thing and cannot mislead.
+func _hull_column(h: HullData, label: String, ink: Color) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(UITheme.body(label, UITheme.COLD, UITheme.FS_SMALL))
+	col.add_child(_ship_half(h, HULL_COL_W))
+	col.add_child(UITheme.body(h.name.to_upper(), ink, UITheme.FS_HEAD))
+	col.add_child(UITheme.body("%s · %s TIER · HAND %d" % [
+		HullData.weight_name(h.weight).to_upper(), h.tier_letter(),
+		h.hand_size], UITheme.COLD, UITheme.FS_SMALL))
+	# BARE, with nothing fitted, on both sides: `transfer_to_hull` carries your
+	# modules over wherever they still fit, so what a swap actually changes is
+	# the FRAME. See `RunState.hull_attributes`.
+	var attrs := AttrBlock.new()
+	attrs.setup(Run.hull_attributes(h), DB.manufacturer_colour(h.manufacturer))
+	col.add_child(attrs)
+	# AND THE HARDPOINTS, which is the part of a swap that can cost you a module:
+	# `transfer_to_hull` sheds the cheapest fitted part of any slot the new frame
+	# has fewer mounts for, and drops it overboard if the hold is full.
+	var mounts := HBoxContainer.new()
+	mounts.add_theme_constant_override("separation", 9)
+	mounts.add_child(UITheme.body("MOUNTS", UITheme.COLD, UITheme.FS_SMALL))
+	for sl in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
+			ModuleData.Slot.UTILITY]:
+		mounts.add_child(UITheme.body("%s %d" % [
+			ModuleData.slot_name(sl).to_upper().substr(0, 3), h.slots_for(sl)],
+			UITheme.CHILL, UITheme.FS_SMALL))
+	col.add_child(mounts)
+	# AND WHAT THE FRAME ITSELF DOES, which is the one thing on this comparison
+	# that no gauge can show: a perk is a rule, not a number, and two hulls with
+	# identical bars can play nothing alike because of these two lines.
+	for pid in h.perks():
+		var pk := UITheme.body(DB.perk_text(pid), UITheme.EMBER, UITheme.FS_SMALL)
+		pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		pk.custom_minimum_size = Vector2(HULL_COL_W, 0)
+		col.add_child(pk)
+	return col
 
 
 ## A label, a gauge and a figure, on the row height everything else uses.
@@ -444,6 +484,10 @@ func _page_work() -> Control:
 ## cards jumped sideways every time you opened a part with a different footprint
 ## -- a 1x1 sight and a 4x1 rail moved the whole right-hand half of the panel.
 const PICK_W := 256
+
+## How tall the block between the name and the price stands, whatever is in it.
+## See where it is built for the arithmetic.
+const DESC_H := 86
 ## Card art is 93x60 in CardView's window and the inspect view is an exact 2x of
 ## it. Same number here, for the same reason: those are the only two scales this
 ## art has, and anything between them lands the frame on half-pixels.
@@ -458,6 +502,9 @@ const SHELF_ROW_H := 38
 ## node on every refresh and a reference would point at the copy from the last
 ## one.
 var _pick: int = 0
+## Which item in the hold is open. Same idea as `_pick`, its own field because
+## the two lists are different lists.
+var _hold_pick: int = 0
 var _shelf: VBoxContainer
 
 
@@ -482,12 +529,15 @@ func _page_stock() -> Control:
 
 ## The hold, with a buyer standing in front of it.
 func _page_hold() -> Control:
-	var box := Widgets.section("your hold")
+	# NO SECTION HEADING AND NO SCROLLER, the same as the Promenade: the thing
+	# open across the top names itself in 16px, and the list underneath is pinned
+	# to the bottom of a fixed panel rather than scrolling inside one.
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
 	_hold = VBoxContainer.new()
-	_hold.add_theme_constant_override("separation", 6)
-	var sc := Widgets.scroller(_hold, 90)
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(sc)
+	_hold.add_theme_constant_override("separation", 8)
+	_hold.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(_hold)
 	return Widgets.panel_with(Widgets.pad(box))
 
 
@@ -588,18 +638,10 @@ func _berth_cell() -> Control:
 	_fit_berth()
 
 	var wrap := Widgets.panel_with(Widgets.pad(box, 6, 5))
-	var out := Widgets.button("UNDOCK", func() -> void: Router.show_sector())
+	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck cell is somewhere you go
+	# and come back from; this is the door, so it wears the same ink BUY does.
+	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
 	out.custom_minimum_size = Vector2(RAIL_W, 20)
-	# THE ONE THING ON THE RAIL THAT LEAVES, and the only ember on it. Every deck
-	# cell is somewhere you go and come back from; this is the door. It wears the
-	# same ink BUY does on the shelf, because both are the moment you commit.
-	for st in ["normal", "hover", "pressed"]:
-		out.add_theme_stylebox_override(st,
-			UITheme.flat(UITheme.PANEL2 if st == "hover" else Color("#0a0f17"),
-				UITheme.EMBER, 0, 4, 8))
-	out.add_theme_color_override("font_color", UITheme.EMBER)
-	out.add_theme_color_override("font_hover_color", UITheme.HOT)
-	out.add_theme_color_override("font_pressed_color", UITheme.HOT)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
@@ -701,8 +743,10 @@ func _service(label: String, price_text: String, action: Callable) -> Button:
 	p.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	p.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	p.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	p.offset_left = -120
-	p.offset_right = -10
+	# NARROWER RESERVE, now that the row is half the page. 120 was most of a
+	# two-column row and the label ran under the price.
+	p.offset_left = -78
+	p.offset_right = -8
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(p)
 	return b
@@ -855,55 +899,64 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 
 
 
-## Repair, fuel, coolant, and one row per material you are carrying.
+## Repair, refuelling, purges -- and the ship on the pad beside your own.
+##
+## WORK ONLY. Everything on the top panel is something the station DOES to the
+## ship you flew in on; what you are carrying, and what it is worth, is the
+## Exchange's question and is asked there.
 
 
 func _refresh_services(n: MapGen.MapNode) -> void:
-	# --- the hull on the blocks, if this yard has one.
+	# --- the shipyard: your frame beside the one for sale.
 	Widgets.clear(_hull_offer)
 	var h: HullData = n.shop_hull
 	var up := h != null and not n.taken.has(MapGen.OPTION_SHOP_HULL)
 	if not up:
+		# A LINE RATHER THAN A BLANK PANEL. Not every yard has a ship, and an
+		# empty half-page reads as a screen that failed to load -- "no hull here"
+		# is a real answer to the question you came to this deck with.
 		_hull_offer.add_child(UITheme.body(
 			"Nothing on the blocks. This yard does repairs.",
 			UITheme.COLD, UITheme.FS_SMALL))
-	if up:
-		_hull_offer.add_child(_hull_art(h))
-		_hull_offer.add_child(UITheme.body(h.name.to_upper(), UITheme.HOT,
-			UITheme.FS_HEAD))
-		_hull_offer.add_child(UITheme.body("%s CHASSIS · %s TIER · HAND %d" % [
-			HullData.weight_name(h.weight).to_upper(), h.tier_letter(),
-			h.hand_size], UITheme.COLD, UITheme.FS_SMALL))
-		# THE SEVEN GAUGES, in the same block the refit screen draws them in.
+	else:
+		var pair := HBoxContainer.new()
+		pair.add_theme_constant_override("separation", 16)
+		_hull_offer.add_child(pair)
+		pair.add_child(_hull_column(Run.hull, "YOURS", UITheme.CHILL))
+		var offer := _hull_column(h, "FOR SALE", UITheme.HOT)
+		pair.add_child(offer)
+
+		# THE PRICE GOES IN THE COLUMN OF THE SHIP IT IS THE PRICE OF.
 		#
-		# It used to print "47 HULL · 7 NRG · HAND 5 · HEAT 16/2", which is four
-		# raw fields in the units the code stores them in -- and the number a
-		# player compares a chassis on is the PIP, because that is what every
-		# skill check and set bonus is counted in. A hull you are deciding whether
-		# to buy has to be readable against the one you are standing in, and the
-		# one you are standing in is drawn as cells on the ship tab.
-		#
-		# BARE, with nothing fitted: this is the frame, not the frame plus your
-		# parts. See `RunState.hull_attributes`.
-		var attrs := AttrBlock.new()
-		attrs.setup(Run.hull_attributes(h), DB.manufacturer_colour(h.manufacturer))
-		_hull_offer.add_child(attrs)
-		for pid in h.perks():
-			var pk := UITheme.body(DB.perk_text(pid), UITheme.EMBER,
-				UITheme.FS_SMALL)
-			pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			pk.custom_minimum_size = Vector2(HULL_W, 0)
-			_hull_offer.add_child(pk)
+		# It sat under the pair, which put it hard against the left edge -- under
+		# YOURS, the one ship on this page that is not for sale. Same for the
+		# perks: `_hull_column` prints each hull's own now, so the two lists sit
+		# under the two ships instead of the offer's list sitting under yours.
 		var pay := HBoxContainer.new()
 		pay.add_theme_constant_override("separation", 11)
 		var price := Market.hull_price(n, h)
 		var cr := UITheme.body("%d CR" % price, UITheme.EMBER, UITheme.FS_HEAD)
 		cr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		pay.add_child(cr)
-		var take := Widgets.button("TAKE IT", _on_action.bind("take_hull", h))
+		var take := _commit_button("TAKE IT", _on_action.bind("take_hull", h))
 		take.disabled = Run.credits < price
+		take.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		pay.add_child(take)
-		_hull_offer.add_child(pay)
+		offer.add_child(pay)
+
+		# WHAT THE SWAP WOULD COST YOU IN PARTS, under both columns rather than
+		# in one of them: it is a fact about the pair, not about either ship.
+		var shed := 0
+		for sl in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
+				ModuleData.Slot.UTILITY]:
+			shed += maxi(0, Run.slots_used(sl) - h.slots_for(sl))
+		if shed > 0:
+			var warn := UITheme.body(
+				"%d fitted part%s would come off. Anything the hold cannot take is left behind."
+					% [shed, "" if shed == 1 else "s"],
+				UITheme.LEAVE, UITheme.FS_SMALL)
+			warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_hull_offer.add_child(warn)
 
 	Widgets.clear(_services)
 	var missing := Run.max_hp() - Run.hp
@@ -952,22 +1005,17 @@ Removes one. %s"
 		_set_service_enabled(b, Run.credits >= purge_cost)
 		_services.add_child(b)
 
-	var coolant_cost := Market.coolant_price(n)
-	var coolant := _service("+2 HEAT CAP", "%d cr" % coolant_cost, _coolant)
-	_set_service_enabled(coolant, Run.credits >= coolant_cost)
-	_services.add_child(coolant)
-
-	# One row per material you are carrying, rather than the single hardcoded
-	# exotic row this replaced. Materials are worth more where there is somebody
-	# who can use them, so a capital pays half again what an outpost does — which
-	# makes hauling an organ inward a trade, and not just inventory.
-	for stock in Run.material_stock():
-		var mid: StringName = stock.id
-		var paid := Market.material_price(n, mid)
-		var b := _service("SELL 1 %s" % str(stock.name).to_upper(),
-			"+%d cr" % paid, _sell_material.bind(mid))
-		b.tooltip_text = Widgets.tip("You have %d. Laboratories pay for these; mining outposts use them as ballast." % int(stock.count))
-		_services.add_child(b)
+	# NO +2 HEAT CAP, AND NO SELLING MATERIALS HERE.
+	#
+	# Heat capacity is what a thermal module is FOR. Buying two points of it off a
+	# counter for credits made the whole thermal ladder optional -- there is no
+	# reason to fit a heat sink, or to want one on a shelf, if the yard will sell
+	# you the same number without a hardpoint.
+	#
+	# And selling an exotic was a row here AND a row on the Exchange, which is the
+	# deck that exists to answer "what will you give me for what I am carrying".
+	# The Exchange prices materials with the same `Market.material_price` this
+	# used, so nothing about the trade changed except where it is done.
 
 
 ## The shelf: a chassis if one is for sale, then whatever parts are left on it.
@@ -1035,6 +1083,180 @@ func _hold_plate(m: ModuleData) -> Control:
 	return box
 
 
+## THE OPEN PART'S LEFT-HAND COLUMN: what the thing IS.
+##
+## SHARED BY THE PROMENADE AND THE EXCHANGE, because they are the same panel
+## asked two different questions -- one about a part on a shelf and one about a
+## part in your hold -- and the answer to "what is this" cannot be allowed to
+## differ between them. It was written twice for a day and the two copies had
+## already drifted on the flavour line.
+##
+## Everything above the actions, and nothing below: the caller owns the buttons,
+## because buying and selling are the half that genuinely differs.
+func _part_column(mod: ModuleData) -> VBoxContainer:
+	var left := VBoxContainer.new()
+	left.add_theme_constant_override("separation", 4)
+	left.custom_minimum_size = Vector2(PICK_W, 0)
+	# SHRINK_BEGIN, so PICK_W is the width and not merely the floor. Left to
+	# expand, a column with nothing beside it takes the whole band.
+	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+
+	var plate := HBoxContainer.new()
+	plate.add_theme_constant_override("separation", 10)
+	# TALL ENOUGH FOR THE TALLEST FOOTPRINT, always. Every shape in the game is
+	# one cell deep except BULK, which is two -- so opening a 2x2 after a 2x1
+	# would push everything under it down by a whole cell. The plate is centred
+	# in the reserved height, so a one-deep part sits in the middle of it.
+	plate.custom_minimum_size = Vector2(0, CELL * 2)
+	var cells_box := _hold_plate(mod)
+	cells_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	plate.add_child(cells_box)
+	var szn := VBoxContainer.new()
+	szn.add_theme_constant_override("separation", 1)
+	szn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	szn.add_child(UITheme.body("%d×%d" % [mod.size.x, mod.size.y],
+		UITheme.CHILL, UITheme.FS_SMALL))
+	szn.add_child(UITheme.body("%d CELL%s" % [mod.cells(),
+		"" if mod.cells() == 1 else "S"], UITheme.COLD, UITheme.FS_SMALL))
+	plate.add_child(szn)
+	left.add_child(plate)
+
+	# THE NAME CARRIES THE GRADE, in the ink the rest of the game grades things
+	# in. On a shelf the question is not what the part is called but how good it
+	# is, and that used to be a word in grey somewhere else.
+	var title := UITheme.body(mod.name.to_upper(),
+		ModuleData.rarity_ink(mod.rarity), UITheme.FS_HEAD)
+	# ONE LINE. A two-line name pushed everything under it down twenty pixels on
+	# exactly the parts with the longest names, so the panel changed height as
+	# you clicked along the list. `clip_text` is the guard rather than the plan.
+	title.clip_text = true
+	title.custom_minimum_size = Vector2(PICK_W, 0)
+	left.add_child(title)
+
+	# THE MANUFACTURER IN ITS OWN COLOUR, the slot beside it in grey. Two labels
+	# rather than one string, because they are two kinds of fact: who built it is
+	# an allegiance, and the slot is a spec.
+	var mrow := HBoxContainer.new()
+	mrow.add_theme_constant_override("separation", 5)
+	mrow.add_child(UITheme.body(
+		DB.manufacturer_name(mod.manufacturer).to_upper(),
+		DB.manufacturer_colour(mod.manufacturer), UITheme.FS_SMALL))
+	mrow.add_child(UITheme.body("· %s" % ModuleData.slot_name(mod.slot).to_upper(),
+		UITheme.COLD, UITheme.FS_SMALL))
+	left.add_child(mrow)
+
+	# NO FIXED HEIGHT HERE ANY MORE. This box was padded to DESC_H so that the
+	# price and its button, which used to sit underneath it, would land at the
+	# same y on every part -- a part with one affix and a one-line flavour is two
+	# labels where a part with a two-line flavour is one, and the extra
+	# separation moved the button four pixels. The money is its own column now,
+	# so nothing below this has to be held still and the text can simply be as
+	# long as it is.
+	var desc := VBoxContainer.new()
+	desc.add_theme_constant_override("separation", 4)
+	left.add_child(desc)
+	for a in mod.affixes:
+		# THE GAUGE IN FULL. `a.text` is the abbreviated form, written for a
+		# readout the width of a card; this column has room for the word.
+		var af := UITheme.body("%s — %s" % [a.name.to_upper(), a.gauge_text(true)],
+			UITheme.EMBER, UITheme.FS_SMALL)
+		af.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		af.custom_minimum_size = Vector2(PICK_W, 0)
+		desc.add_child(af)
+	# WHAT THE THING IS LIKE, under what it does. In QUOTE, the ink this game
+	# reserves for writing that is not a rule.
+	if mod.flavour != "":
+		var fl := UITheme.body(mod.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
+		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		fl.custom_minimum_size = Vector2(PICK_W, 0)
+		desc.add_child(fl)
+	return left
+
+
+## THE BUTTON THAT SPENDS SOMETHING, in the one ink this screen reserves for it.
+##
+## BUY, INSTALL, TAKE IT, MAKE and UNDOCK are the five controls on this station
+## that actually commit -- money, a hardpoint, a material, or the berth itself.
+## Everything else is navigation. They were the same grey box as a deck tab, so
+## the moment of paying looked like the moment of browsing, and UNDOCK had been
+## given ember by hand while BUY had not.
+##
+## DISABLED IS SPELLED OUT, and it has to be: an override on `normal` alone
+## leaves the disabled state ember too, so a BUY you cannot afford would look
+## exactly like one you can. It goes to LINE on VOID, which is the quietest
+## thing on the page.
+func _commit_button(text: String, action: Callable) -> Button:
+	var b := Widgets.button(text, action)
+	b.add_theme_stylebox_override("normal",
+		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, 5, 14))
+	b.add_theme_stylebox_override("hover",
+		UITheme.flat(Color("#1d1409"), UITheme.FLARE, 0, 5, 14))
+	b.add_theme_stylebox_override("pressed",
+		UITheme.flat(UITheme.EMBER, UITheme.HOT, 0, 5, 14))
+	b.add_theme_stylebox_override("disabled",
+		UITheme.flat(Color("#0a0e15"), UITheme.LINE, 0, 5, 14))
+	b.add_theme_color_override("font_color", UITheme.EMBER)
+	b.add_theme_color_override("font_hover_color", UITheme.HOT)
+	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
+	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
+	return b
+
+
+## WHAT IT COSTS AND WHAT YOU CAN DO, in a column of its own.
+##
+## THIRD COLUMN, NOT THE FOOT OF THE FIRST. The price used to sit under the
+## description, which put it a long way down the page and made its y depend on
+## how much the part had to say -- so the whole column had to be padded to a
+## fixed height to stop the button moving as you clicked along the shelf.
+##
+## Beside the cards it is level with them, always in the same place, and it fills
+## the two hundred pixels that were empty to the right of a two-card fan. The
+## page now reads left to right as three answers: what it IS, what it GIVES you,
+## what it COSTS.
+func _money_column(price: int, buttons: Array) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	col.add_child(UITheme.body("%d CR" % price, UITheme.EMBER, UITheme.FS_HEAD))
+	for b in buttons:
+		var btn := b as Button
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		col.add_child(btn)
+	return col
+
+
+## WHAT IT PUTS IN YOUR DECK, as the cards themselves.
+##
+## THE REAL CARD FACE, not the illustration lifted out of it. Cropping `Z_ART`
+## and reprinting the rules line underneath in grey is a card taken apart and
+## laid out again worse -- the face already carries the art, the name, the cost
+## and the text, drawn by the one class that knows how a card in this game looks.
+func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
+	var deck := VBoxContainer.new()
+	deck.add_theme_constant_override("separation", 5)
+	deck.add_child(UITheme.body(heading, UITheme.COLD, UITheme.FS_SMALL))
+	var fan := HBoxContainer.new()
+	fan.add_theme_constant_override("separation", 8)
+	deck.add_child(fan)
+	# ONE FACE PER COPY. `resolved_cards` hands back an entry for every copy the
+	# Grant Count Law awards, and folding them into one face with an "x2" under
+	# it is a receipt for two cards rather than a picture of them.
+	for c in mod.resolved_cards():
+		var v := CardView.new()
+		# `can_play` TRUE, where nothing can be played. The flag greys the face,
+		# and it means "you cannot afford this right now" in a hand -- said about
+		# a card in a shop window it reads as the card being broken.
+		v.setup(c, true, 1)
+		# THE POINTER REACHES IT, and that is the whole of the keyword help:
+		# `CardView._make_custom_tooltip` answers with `Widgets.card_readout`,
+		# which lists every term the card can explain. `tooltip_text` has to be
+		# non-empty or Godot never asks for the custom panel; it is never drawn.
+		v.mouse_filter = Control.MOUSE_FILTER_STOP
+		v.tooltip_text = " "
+		fan.add_child(v)
+	return deck
+
+
 ## THE HULL, WHICH HAS NO CARDS. A frame is the one thing on the shelf that puts
 ## nothing in your deck, so the cards column has nothing to show and the picture
 ## of the ship takes that job instead.
@@ -1049,6 +1271,15 @@ const HULL_ART_H := 72
 ## sized this before hulls moved here, which was a coincidence rather than a
 ## reason.
 const HULL_ART_W := 300
+## Your own ship, shown small above the offer so the two can be compared. Half
+## the offer's height: it is the reference, not the subject.
+const HULL_MINI_H := 34
+## How tall each ship stands in the shipyard comparison, and how wide its column
+## is. The canvas is 324x112 at 1x, so a half is 162x56 -- two of those plus the
+## gap is 340 of the 740 the page has, which leaves the gauges beside them room
+## to be full width.
+const SHIP_HALF_H := 50
+const HULL_COL_W := 300
 
 func _hull_art(h: HullData) -> Control:
 	var frame := PanelContainer.new()
@@ -1062,6 +1293,13 @@ func _hull_art(h: HullData) -> Control:
 	art.custom_minimum_size = Vector2(HULL_ART_W, HULL_ART_H)
 	frame.add_child(art)
 	return frame
+
+
+## Open a different part on the shelf. See `_shelf_row`, which takes the setter
+## as a Callable so one row builder serves both the Promenade and the Exchange.
+func _pick_shelf(i: int) -> void:
+	_pick = i
+	_refresh_stock(Run.node_at())
 
 
 ## One part on the shelf, as a line in the list along the bottom.
@@ -1080,10 +1318,9 @@ const ROW_TALL := 34
 const ROW_PAD := 6
 
 
-func _shelf_row(thing: Variant, price: int, pick: int, open: bool) -> Button:
-	var b := Widgets.button("", func() -> void:
-		_pick = pick
-		_refresh_stock(Run.node_at()))
+func _shelf_row(thing: Variant, price: int, pick: int, open: bool,
+		on_pick: Callable) -> Button:
+	var b := Widgets.button("", on_pick.bind(pick))
 	b.custom_minimum_size = Vector2(0, ROW_TALL)
 	# CLIPPED, as a backstop rather than as the plan. The arithmetic above should
 	# keep every picture inside the box; this makes a future sprite of some shape
@@ -1118,10 +1355,25 @@ func _shelf_row(thing: Variant, price: int, pick: int, open: bool) -> Button:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(row)
 
+	# THREE KINDS OF THING GO DOWN THIS LIST. The Promenade only ever shows hulls
+	# and modules, but the Exchange shows the hold -- which also carries
+	# MATERIALS, and a material is neither. Casting to both and reading `.name`
+	# off whichever was not null threw the moment an exotic reached the row.
 	var h := thing as HullData
 	var m := thing as ModuleData
+	var mat := thing as MaterialData
+	var nm_text: String = h.name if h != null else (m.name if m != null
+		else (mat.name if mat != null else "?"))
+	# Each kind grades itself in its own vocabulary: a hull has a tier letter and
+	# says so on its own line, a module has a rarity, a material has a tier band.
+	var nm_ink: Color = UITheme.ICE
+	if m != null:
+		nm_ink = ModuleData.rarity_ink(m.rarity)
+	elif mat != null:
+		nm_ink = UITheme.tier_colour(mat.tier)
 	var thumb := TextureRect.new()
-	thumb.texture = h.sprite if h != null else (m.sprite if m != null else null)
+	thumb.texture = h.sprite if h != null else (m.sprite if m != null
+		else (mat.sprite if mat != null else null))
 	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	thumb.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -1131,9 +1383,7 @@ func _shelf_row(thing: Variant, price: int, pick: int, open: bool) -> Button:
 
 	# Graded here too, so the shelf reads as a shelf: four names in four inks and
 	# you know which one is worth opening before you open it.
-	var nm := UITheme.body((h.name if h != null else m.name).to_upper(),
-		UITheme.ICE if h != null else ModuleData.rarity_ink(m.rarity),
-		UITheme.FS_SMALL)
+	var nm := UITheme.body(nm_text.to_upper(), nm_ink, UITheme.FS_SMALL)
 	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(nm)
@@ -1147,7 +1397,7 @@ func _shelf_row(thing: Variant, price: int, pick: int, open: bool) -> Button:
 	# Leftmost, so the flags line up in a column: whose yard stocked what is a
 	# thing you scan down, not a thing you read across.
 	var flag: Control = null
-	if h == null:
+	if m != null:
 		var mk: ManufacturerData = DB.manufacturers.get(m.manufacturer)
 		if mk != null:
 			var fl := ChassisSelect.Banner.new()
@@ -1235,144 +1485,15 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 	top.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_shelf.add_child(top)
 
-	# SHRINK_BEGIN, so PICK_W is the width and not merely the floor. A hull grants
-	# no cards, so nothing sits beside this column -- and left to expand it took
-	# the whole band, which pushed the shelf off the bottom of the panel.
-	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 4)
-	left.custom_minimum_size = Vector2(PICK_W, 0)
-	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var mod := open.thing as ModuleData
+	var left := _part_column(mod)
 	top.add_child(left)
 
-	var mod := open.thing as ModuleData
-	var plate := HBoxContainer.new()
-	plate.add_theme_constant_override("separation", 10)
-	plate.add_child(_hold_plate(mod))
-	var szn := VBoxContainer.new()
-	szn.add_theme_constant_override("separation", 1)
-	szn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	szn.add_child(UITheme.body("%d×%d" % [mod.size.x, mod.size.y],
-		UITheme.CHILL, UITheme.FS_SMALL))
-	szn.add_child(UITheme.body("%d CELL%s" % [mod.cells(),
-		"" if mod.cells() == 1 else "S"], UITheme.COLD, UITheme.FS_SMALL))
-	plate.add_child(szn)
-	left.add_child(plate)
 
-	# THE NAME CARRIES THE GRADE, in the ink the rest of the game grades things
-	# in. It was HOT for everything, which is the colour of "this is the heading"
-	# -- true and useless, because on a shelf the question is not what the part is
-	# called but how good it is, and that was a word in grey somewhere else.
-	var title := UITheme.body(mod.name.to_upper(),
-		ModuleData.rarity_ink(mod.rarity), UITheme.FS_HEAD)
-	# ONE LINE. It wrapped, and a two-line name pushed the manufacturer, the
-	# affixes, the flavour and the price down by twenty pixels on exactly the
-	# parts with the longest names -- so the panel changed height as you clicked
-	# along the shelf. The column is sized for the longest name in the game
-	# (see PICK_W); `clip_text` is the guard rather than the plan, so a name
-	# longer than any that exists today loses its tail instead of reflowing the
-	# screen.
-	title.clip_text = true
-	title.custom_minimum_size = Vector2(PICK_W, 0)
-	left.add_child(title)
-
-	# THE MANUFACTURER IN ITS OWN COLOUR, and the slot beside it in grey. Two
-	# labels rather than one string, because they are two different kinds of fact:
-	# who built it is an allegiance -- the thing set bonuses are counted in and
-	# the thing the flags at the top of the rail are flying -- and the slot is a
-	# spec. `manufacturer_colour` answers for the unbranded too, in a grey of its
-	# own, so there is no branch here.
-	var mrow := HBoxContainer.new()
-	mrow.add_theme_constant_override("separation", 5)
-	mrow.add_child(UITheme.body(
-		DB.manufacturer_name(mod.manufacturer).to_upper(),
-		DB.manufacturer_colour(mod.manufacturer), UITheme.FS_SMALL))
-	mrow.add_child(UITheme.body("· %s" % ModuleData.slot_name(mod.slot).to_upper(),
-		UITheme.COLD, UITheme.FS_SMALL))
-	left.add_child(mrow)
-	for a in mod.affixes:
-		# THE GAUGE IN FULL. `a.text` is the abbreviated form, written for a
-		# readout the width of a card; this column has room for the word.
-		var af := UITheme.body("%s — %s" % [a.name.to_upper(),
-				a.gauge_text(true)],
-			UITheme.EMBER, UITheme.FS_SMALL)
-		af.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		af.custom_minimum_size = Vector2(PICK_W, 0)
-		left.add_child(af)
-	# WHAT THE THING IS LIKE, under what it does. In QUOTE, which is the ink this
-	# game reserves for writing that is not a rule -- so it reads as the catalogue
-	# talking rather than as another number you have to weigh.
-	if mod.flavour != "":
-		var fl := UITheme.body(mod.flavour, UITheme.QUOTE, UITheme.FS_SMALL)
-		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		fl.custom_minimum_size = Vector2(PICK_W, 0)
-		left.add_child(fl)
-
-	# NO EXPANDING SPACER ABOVE THE PRICE. It pushed the price to the bottom of
-	# the column, which was right when the column was the full height of the
-	# panel -- with the shelf underneath it now, all that spacer did was inflate
-	# the top band until the tiles fell off the bottom edge.
-	var pay := HBoxContainer.new()
-	pay.add_theme_constant_override("separation", 11)
-	left.add_child(pay)
-	var price := UITheme.body("%d CR" % int(open.price), UITheme.EMBER,
-		UITheme.FS_HEAD)
-	price.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	pay.add_child(price)
-	var buy := Widgets.button("BUY", _on_action.bind("buy", open.thing))
-	# CENTRED ON THE PRICE. A Button fills its row by default and the price beside
-	# it is FS_HEAD, so the button sat tall against a number whose middle was
-	# several pixels below its own -- the two things that belong on one line
-	# reading as one above the other.
-	buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(_card_fan(mod, "ADDS TO YOUR DECK"))
+	var buy := _commit_button("BUY", _on_action.bind("buy", open.thing))
 	buy.disabled = Run.credits < int(open.price)
-	pay.add_child(buy)
-
-	# --- WHAT IT PUTS IN YOUR DECK, as the cards themselves.
-	#
-	# THE REAL CARD FACE, not the illustration lifted out of it. The panel used
-	# to crop `Z_ART` and print the rules line underneath in grey, which is a
-	# card taken apart and laid out again worse -- the face already carries the
-	# art, the name, the cost and the text, drawn by the one class that knows how
-	# a card in this game looks. A part is bought FOR its cards; showing you the
-	# cards you are buying is the whole of the panel's job.
-	if true:
-		var deck := VBoxContainer.new()
-		deck.add_theme_constant_override("separation", 5)
-		top.add_child(deck)
-		# ADDS TO, not IN. "In your deck" says these cards are already there; the
-		# whole point of the panel is that they are not yet, and buying the part
-		# is what puts them in.
-		deck.add_child(UITheme.body("ADDS TO YOUR DECK", UITheme.COLD,
-			UITheme.FS_SMALL))
-		var fan := HBoxContainer.new()
-		fan.add_theme_constant_override("separation", 8)
-		deck.add_child(fan)
-		# ONE FACE PER COPY. `resolved_cards` hands back an entry for every copy
-		# the Grant Count Law awards, and this used to fold them into one face
-		# with an "x2" under it -- which is a receipt for two cards rather than a
-		# picture of them. Two of the same card in a deck is two cards, and the
-		# hand you will be holding has both in it.
-		for c in mod.resolved_cards():
-			var v := CardView.new()
-			# `can_play` TRUE, on a shelf where nothing can be played. The flag
-			# greys the face, and it means "you cannot afford this right now" in
-			# a hand -- said about a card in a shop window it reads as the card
-			# being broken. What you cannot afford here is the PART, and the
-			# price says so.
-			v.setup(c, true, 1)
-			# THE POINTER REACHES IT, and that is the whole of the keyword help.
-			# `CardView._make_custom_tooltip` already answers with
-			# `Widgets.card_readout`, which lists every term this card can
-			# explain -- Salvo, Brace, Charge, Vent -- straight out of
-			# `CardData.keywords()`. Set to IGNORE it could not be hovered, so a
-			# glossary that already existed was unreachable on the one screen
-			# where you are deciding whether you understand the card.
-			#
-			# `tooltip_text` has to be non-empty or Godot never asks for the
-			# custom panel; the string itself is never drawn.
-			v.mouse_filter = Control.MOUSE_FILTER_STOP
-			v.tooltip_text = " "
-			fan.add_child(v)
+	top.add_child(_money_column(int(open.price), [buy]))
 
 	# --- BOTTOM BAND: everything else on the shelf, across the full width.
 	#
@@ -1396,23 +1517,128 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 	_shelf.add_child(rest)
 	for row in on_offer:
 		rest.add_child(_shelf_row(row.thing, int(row.price), int(row.pick),
-			int(row.pick) == _pick))
+			int(row.pick) == _pick, _pick_shelf))
 
 
 ## What you brought, priced at what this place will pay for it.
-
-
+##
+## THE SAME TWO BANDS THE PROMENADE HAS, and deliberately so: one thing open
+## across the top, everything else as a list along the bottom. The two decks ask
+## the same question about a part -- what is it and what does it put in my deck --
+## and the only honest difference is the buttons, so `_part_column` and
+## `_card_fan` are shared and this file owns nothing but the actions.
+##
+## It was a scrolling column of full-width rows, each carrying the name, the
+## manufacturer, the slot, the affixes, both card faces, a deck count and three
+## buttons. Four of those is more text than the Promenade ever showed, on the one
+## page where you already know what you are carrying.
 func _refresh_hold(n: MapGen.MapNode) -> void:
 	Widgets.clear(_hold)
-	# One deck build for the whole list, handed to every row — see Widgets.module_row.
-	var deck := DeckBuilder.build().size()
 	if Run.cargo.is_empty():
 		_hold.add_child(UITheme.body("Hold empty.", UITheme.COLD, UITheme.FS_SMALL))
-	for m in Run.cargo:
-		# The hold holds two kinds of thing. The SHOP above still sells modules
-		# only, so it keeps `module_row` and its stricter type.
-		_hold.add_child(Widgets.item_row(m, Widgets.ModuleContext.HOLD,
-			Market.bid(n, m), _on_action, "", deck))
+		return
+
+	# THE OPEN ITEM SURVIVES A SALE, or falls to whatever is still aboard.
+	# Selling the thing you are looking at removes it from the hold, and an index
+	# left pointing at it would open an empty panel on the one screen where
+	# something just happened.
+	if _hold_pick >= Run.cargo.size():
+		_hold_pick = 0
+	var item: HoldItem = Run.cargo[_hold_pick]
+	var mod := item as ModuleData
+	var mat := item as MaterialData
+	var price: int = Market.material_price(n, mat.id) if mat != null \
+		else Market.bid(n, mod)
+
+	# NO EXPAND ON THE TOP BAND HERE, unlike the Promenade. There the band takes
+	# the slack so the short list is pinned to the bottom; here the SCROLLER
+	# takes it, because the list is the part that can outgrow the page. Two
+	# expanding children would split the space and give the scroller half a panel
+	# whether it needed one or not.
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	_hold.add_child(top)
+
+	var left: VBoxContainer
+	if mod != null:
+		left = _part_column(mod)
+	else:
+		# A MATERIAL IS NOT A PART, and the panel says so by being shorter rather
+		# than by filling the same shape with blanks. It has no slot, no affixes
+		# and no cards -- what it has is a tier, a size and a sentence about where
+		# it comes from, and that is the whole of it.
+		left = VBoxContainer.new()
+		left.add_theme_constant_override("separation", 4)
+		left.custom_minimum_size = Vector2(PICK_W, 0)
+		left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		left.add_child(UITheme.body(mat.name.to_upper(),
+			UITheme.tier_colour(mat.tier), UITheme.FS_HEAD))
+		left.add_child(UITheme.body("%d×%d · %s" % [mat.size.x, mat.size.y,
+			String(mat.tier).to_upper()], UITheme.COLD, UITheme.FS_SMALL))
+		var blurb := UITheme.body(mat.text, UITheme.QUOTE, UITheme.FS_SMALL)
+		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		blurb.custom_minimum_size = Vector2(PICK_W, DESC_H)
+		left.add_child(blurb)
+	top.add_child(left)
+
+	# --- WHAT IT IS WORTH AND WHAT YOU CAN DO, in the same third column the
+	# Promenade prices things in.
+	#
+	# INSTALL first, because the reason to carry a part is to bolt it on, and the
+	# other two are what you do once you have decided not to.
+	var acts: Array = []
+	if mod != null:
+		# SWAP IN when every mount of that slot is taken, which is the same
+		# question `Widgets.module_row` asks -- a button that says INSTALL and
+		# then quietly displaces something is a button that lied.
+		var full := Run.slots_used(mod.slot) >= Run.slots_for(mod.slot)
+		acts.append(_commit_button("SWAP IN" if full else "INSTALL",
+			_on_action.bind("install", mod)))
+	# A MATERIAL SELLS THROUGH ITS OWN PATH. `_sell_material` spends one of that
+	# id out of the hold and pays the flat price. This is the only place in the
+	# game that sells a material now -- the Yard used to carry a row per material
+	# as well, which is the same trade offered twice on two decks.
+	var sell := Widgets.button("SELL", _sell_material.bind(mat.id) if mat != null
+		else _on_action.bind("sell", item))
+	# A MARKET THAT WILL NOT PAY SAYS SO ON THE BUTTON. `Market.bid` returns 0
+	# for contraband where contraband does not trade, and a SELL that silently
+	# does nothing is worse than one that is visibly refused.
+	sell.disabled = price <= 0
+	acts.append(sell)
+	if mod != null:
+		acts.append(Widgets.button("SCRAP", _on_action.bind("scrap", mod)))
+
+	if mod != null:
+		top.add_child(_card_fan(mod, "IN YOUR DECK"))
+	top.add_child(_money_column(price, acts))
+
+	# --- BOTTOM BAND: everything aboard, across the full width.
+	_hold.add_child(UITheme.hsep())
+	_hold.add_child(UITheme.body("HOLD", UITheme.COLD, UITheme.FS_SMALL))
+	# SCROLLED, WHERE THE SHELF IS NOT. A shop stocks at most five things and its
+	# list can never outgrow the band; a hold is twenty cells and routinely
+	# carries more rows than fit. Without this the last one is simply cut off by
+	# the panel edge, which is the failure that hides cargo rather than showing
+	# it -- the same class of bug as the crash this deck had an hour ago.
+	var rest := VBoxContainer.new()
+	rest.add_theme_constant_override("separation", 5)
+	var sc := Widgets.scroller(rest, 60)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_hold.add_child(sc)
+	for i in Run.cargo.size():
+		var it: HoldItem = Run.cargo[i]
+		var m2 := it as MaterialData
+		var p2: int = Market.material_price(n, m2.id) if m2 != null \
+			else Market.bid(n, it as ModuleData)
+		rest.add_child(_shelf_row(it, p2, i, i == _hold_pick, _pick_hold))
+
+
+## Open a different thing in the hold. Its own function because `_shelf_row`
+## takes the setter as a Callable -- the Promenade sets `_pick` and this sets
+## `_hold_pick`, and a row cannot know which list it is in.
+func _pick_hold(i: int) -> void:
+	_hold_pick = i
+	_refresh_hold(Run.node_at())
 
 
 ## The recipes this place can support, and the tab that hides when it cannot.
@@ -1424,12 +1650,38 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 	# The TAB goes, not the page. A page that hides itself leaves a lit tab
 	# pointing at nothing, and `_show_tab` would happily select it.
 	_enable_tab(&"bench", not recipes.is_empty())
+	# A ROW, NOT A BUTTON THE WIDTH OF THE PAGE.
+	#
+	# Each recipe was one wide button whose whole label was "NAME · COST", so the
+	# thing you get was a tooltip and the page was two grey bars. What a recipe
+	# makes is the reason to stand here; it goes on the row in the ink the rest of
+	# the station prices things in.
 	for r in recipes:
-		var b := Widgets.button("%s · %s" % [str(r.name), Fabricator.cost_line(n, r)],
-			_fabricate.bind(r))
-		b.disabled = not Fabricator.can_make(n, r)
-		b.tooltip_text = Widgets.tip(str(r.text))
-		_bench.add_child(b)
+		var can := Fabricator.can_make(n, r)
+		var row := VBoxContainer.new()
+		row.add_theme_constant_override("separation", 2)
+
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 8)
+		head.add_child(UITheme.body(str(r.name).to_upper(),
+			UITheme.ICE if can else UITheme.COLD, UITheme.FS_BODY))
+		var sp := Control.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(sp)
+		# THE COST IN AMBER WHEN YOU CAN PAY IT, grey when you cannot -- the same
+		# read as a BUY button greying out, said in the one place the answer is.
+		head.add_child(UITheme.body(Fabricator.cost_line(n, r).to_upper(),
+			UITheme.EMBER if can else UITheme.QUOTE, UITheme.FS_SMALL))
+		var b := _commit_button("MAKE", _fabricate.bind(r))
+		b.disabled = not can
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		head.add_child(b)
+		row.add_child(head)
+
+		var what := UITheme.body(str(r.text), UITheme.COLD, UITheme.FS_SMALL)
+		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		row.add_child(what)
+		_bench.add_child(Widgets.panel_with(Widgets.pad(row, 8, 6)))
 
 func _repair(amount: int) -> void:
 	var n: MapGen.MapNode = Run.node_at()
@@ -1467,17 +1719,6 @@ func _purge(which: StringName) -> void:
 	Audio.play(&"svc_purge", 0.05)
 	Run.log_line("%s cleared." % card.name, &"good")
 
-func _coolant() -> void:
-	var cost := Market.coolant_price(Run.node_at())
-	if Run.credits < cost:
-		return
-	Run.add_credits(-cost)
-	# Through the mutator, so the gauge is told. Writing the field directly left
-	# the only signal in this function firing before the change it was announcing.
-	Run.add_heat_cap(2)
-	Audio.play(&"svc_coolant", 0.04)
-	Run.log_line("Coolant upgraded. Heat cap +2 to %d." % Run.heat_cap(), &"good")
-
 func _sell_material(id: StringName) -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if not Run.spend_material(id, 1):
@@ -1505,11 +1746,11 @@ func _on_action(action: String, thing: Variant) -> void:
 				return
 			# Before the money, not after. Buying into a full hold used to take
 			# the credits, erase the part off the shelf and then log "left
-			# behind" — the module was gone from both places and paid for.
+			# behind" â€” the module was gone from both places and paid for.
 			if Run.hold_full():
 				Run.log_line("The hold is full. Nowhere to put it.", &"them")
 				return
-			# One shelf, four buyers. ASK, and pay only if you won — a purchase
+			# One shelf, four buyers. ASK, and pay only if you won â€” a purchase
 			# that charged first and lost the race would take credits for a part
 			# somebody else is carrying. See RunState.take_option().
 			if not await Run.take_option(n, MapGen.OPTION_SHOP + slot):
@@ -1631,13 +1872,30 @@ func _offer_row(c: ContractData) -> Control:
 	box.add_theme_constant_override("separation", 2)
 
 	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 6)
+	top.add_theme_constant_override("separation", 7)
+	# THE FLAG, beside the name rather than instead of it. On the shelf a part's
+	# manufacturer is a mark and the name is redundant, but a contract is written
+	# in that manufacturer's own voice -- you are being asked for something BY
+	# somebody, and the somebody is half the row.
+	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
+	if mk != null:
+		var fl := ChassisSelect.Banner.new()
+		# Scale 1: the banner needs 22 units of height to draw its hem and emblem
+		# intact, and a row of text is about that.
+		fl.s = 1.0
+		fl.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W, 0)
+		fl.manufacturer = c.manufacturer
+		fl.mark = mk.colour
+		fl.field = mk.field
+		top.add_child(fl)
 	top.add_child(UITheme.body(DB.manufacturer_name(c.manufacturer).to_upper(),
 		DB.manufacturer_colour(c.manufacturer), UITheme.FS_SMALL))
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(sp)
-	top.add_child(UITheme.body("%d cr" % c.pay, UITheme.ICE, UITheme.FS_SMALL))
+	# THE PAY IN EMBER AT HEAD SIZE. It is the reason to read the row, and it was
+	# the same eight-pixel grey as the place name under it.
+	top.add_child(UITheme.body("%d CR" % c.pay, UITheme.EMBER, UITheme.FS_HEAD))
 	box.add_child(top)
 
 	# The ask, in the manufacturer's own voice. The largest thing in the row, because it

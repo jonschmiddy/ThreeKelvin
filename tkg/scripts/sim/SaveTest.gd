@@ -163,7 +163,7 @@ func _materials() -> String:
 func _quotes() -> String:
 	var n: MapGen.MapNode = Run.node_at()
 	var parts: PackedStringArray = ["repair=%.4f" % Market.repair_rate(n),
-		"refuel=%d" % Market.refuel_price(n), "coolant=%d" % Market.coolant_price(n)]
+		"refuel=%d" % Market.refuel_price(n)]
 	for m in n.shop:
 		parts.append("ask:%s=%d" % [m.id, Market.ask(n, m)])
 	# PARTS QUOTE, MATERIALS PRICE. `bid` and `melt` are a module's two numbers
