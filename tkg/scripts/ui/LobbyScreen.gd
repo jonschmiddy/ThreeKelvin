@@ -540,19 +540,10 @@ func _normalise_code(_t: String) -> void:
 	_code_field.caret_column = mini(at, clean.length())
 
 
-## The first text field in the game, so it is styled here rather than in
-## UITheme — one screen is not a pattern, and putting it in the theme would say
-## the rest of the UI is expected to grow input fields.
+## MOVED TO `UITheme.field`. This was the first text field in the game and its
+## styling lived here on the grounds that one screen is not a pattern; the
+## ship's rename box made it two.
 func _field(initial: String, chars: int) -> LineEdit:
-	var e := LineEdit.new()
+	var e := UITheme.field(chars)
 	e.text = initial
-	e.custom_minimum_size = Vector2(chars * 10, 0)
-	e.add_theme_stylebox_override("normal", UITheme.bevel_in(UITheme.VOID, 4, 6))
-	e.add_theme_stylebox_override("focus", UITheme.bevel_in(UITheme.VOID, 4, 6))
-	e.add_theme_color_override("font_color", UITheme.ICE)
-	e.add_theme_color_override("font_placeholder_color", UITheme.COLD)
-	e.add_theme_color_override("caret_color", UITheme.EMBER)
-	e.add_theme_font_size_override("font_size", UITheme.FS_BODY)
 	return e
-
-

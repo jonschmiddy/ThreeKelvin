@@ -355,8 +355,15 @@ func resolved_cards() -> Array[CardData]:
 		c.base_glyph = c.glyph_kind()
 		c.source_module = name
 		c.source_id = id
-		c.manufacturer = manufacturer
-		c.source_rarity = int(rarity)
+		# THE PART'S IDENTITY IS NOT THE CARD'S, for anything out of the shared
+		# vocabulary. Branding a shared card with whatever granted it put four
+		# Ranges in the catalogue under two manufacturers and three rarity ticks,
+		# all with the same rules line. `source_module`/`source_id` still point
+		# back at the part, because "where did this come from" is a real question
+		# -- it is the LOOK that has to stay common and unbranded.
+		if not c.shared:
+			c.manufacturer = manufacturer
+			c.source_rarity = int(rarity)
 		# The law fills in whatever the card did not declare. Authoring a rarity
 		# is for the exceptions; the shape of the part decides the rest.
 		if c.rarity < 0:

@@ -64,6 +64,14 @@ const GROUND := 0.82
 const HOLD_K := 2.0
 
 var module: ModuleData
+## HOW BIG THE PART INSIDE THE PLATE IS DRAWN, which has to be the same number
+## the box was sized with. `_draw` used to hardcode HOLD_K here while callers
+## sized `custom_minimum_size` from `footprint_box(m, k)` with a k of their own,
+## and the two only agreed by luck. They disagreed on the module gallery: a 3x
+## box around a 2x sprite, which is where its border came from. Worse, only the
+## SPRITE path was wrong -- `fill_part` takes its scale from the box, so a part
+## without art filled the plate and the same part with art floated in it.
+var plate_scale: float = HOLD_K
 ## Where a drag from here would be taking it FROM. The drop target needs to know
 ## whether this is a refit or an install.
 
@@ -144,7 +152,8 @@ func _hint() -> String:
 ## measure themselves off `size`. Every existing use is a 44x44 cell and is
 ## unchanged by this; the glyph was already centre-relative.
 func _draw() -> void:
-	draw_plate(self, module, Rect2(Vector2.ZERO, size))
+	draw_plate(self, module, Rect2(Vector2.ZERO, size), Vector2i.ZERO,
+		false, plate_scale)
 
 ## A PART, WHOLE, IN A RECTANGLE — plate, manufacturer stripe, silhouette and rarity
 ## edge. Static and rect-taking so the HULL can draw the identical thing at the

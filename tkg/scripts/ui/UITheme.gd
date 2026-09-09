@@ -306,6 +306,28 @@ static func log_colour(kind: StringName) -> Color:
 		_: return COLD
 
 ## Small caps-ish section header used throughout the UI.
+## A TEXT FIELD IN THE GAME'S OWN CLOTHES.
+##
+## Lived on LobbyScreen, whose comment said the honest thing at the time: "the
+## first text field in the game, so it is styled here rather than in UITheme --
+## one screen is not a pattern". The ship's rename box is the second, and two is
+## a pattern, so it moves here rather than being copied there.
+##
+## RECESSED, because a field is a hole you type into rather than a plate. The
+## caret is EMBER for the same reason every other live thing in this interface
+## is: it is the one part of the control that is moving.
+static func field(chars: int = 20) -> LineEdit:
+	var e := LineEdit.new()
+	e.custom_minimum_size = Vector2(chars * 10, 0)
+	e.add_theme_stylebox_override("normal", bevel_in(VOID, 4, 6))
+	e.add_theme_stylebox_override("focus", bevel_in(VOID, 4, 6))
+	e.add_theme_color_override("font_color", ICE)
+	e.add_theme_color_override("font_placeholder_color", COLD)
+	e.add_theme_color_override("caret_color", EMBER)
+	e.add_theme_font_size_override("font_size", FS_BODY)
+	return e
+
+
 static func header(text: String) -> Label:
 	var l := Label.new()
 	l.text = text.to_upper()

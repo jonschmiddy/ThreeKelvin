@@ -228,8 +228,22 @@ Follow the generation order in the contract — hulls, then modules, then heat s
 enemies, then station, then card illustrations. Each stage inherits style from the one
 above, so skipping ahead produces drift.
 
-**Card illustrations are per module, not per card.** Both Chatterbox cards share the
-autocannon art. ~33 illustrations instead of ~50, and it strengthens the fiction.
+**Card illustrations are per CARD, with sharing by exception.** This reverses the
+earlier ruling — "per module, not per card; both Chatterbox cards share the
+autocannon art" — which was written before the code had a slug rule and is not
+what the game does.
+
+`CardData.art_key()` derives the filename from the card's own name, and the
+`art` override exists for exactly the case the old rule made universal: two
+cards that should share one picture, or a card renamed whose art should not be
+orphaned. So sharing is a decision made per pair, in the place the pair is
+defined, rather than a blanket rule that hands every Chatterbox card the same
+autocannon.
+
+`-- artcheck` counts the same way — it keys on `art_key()` and dedupes, so the
+number it reports IS the number of illustrations owed. **76 in scope, all 76 drawn.**
+The old rule's "~33 instead of ~50" was an estimate against a catalogue that has
+since roughly doubled; the honest figure is the one the check prints.
 
 **Do not generate megafauna or nebulae.** Whales and leviathans are organic — commission
 or hand-draw them. Nebulae stay procedural (layered translucent masses, dithered edges,

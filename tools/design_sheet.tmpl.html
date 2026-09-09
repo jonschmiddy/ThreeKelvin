@@ -1,0 +1,277 @@
+<title>__SET__ Design Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --line:#22303f; --cold:#6b7d94;
+  --chill:#8fa3ba; --ice:#c3d2e2; --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --maybe:#5b9dc4; --bad:#c8503c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--void);color:var(--ice);font-family:var(--mono);
+  margin:0;padding:26px 20px 90px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--flare);margin:0 0 6px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,38px);
+  letter-spacing:.02em;margin:0 0 12px}
+.lede{color:var(--cold);max-width:76ch;font-size:13.5px;margin:0 0 10px}
+.lede b{color:var(--ice);font-weight:400}
+.lede em{color:var(--hot);font-style:normal}
+code{color:var(--hot);font-size:.94em}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--void);
+  display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 0;padding:10px 0;
+  align-items:center;border-bottom:1px solid var(--line)}
+.bar .sp{flex:1 1 auto}
+button{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;background:transparent;color:var(--cold);
+  border:1px solid var(--line);padding:6px 11px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#33475c}
+button:focus-visible{outline:2px solid var(--flare);outline-offset:1px}
+#tally{font-size:12px;color:var(--chill);letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+
+.brief{display:grid;grid-template-columns:auto 1fr;gap:16px;margin-top:14px;
+  border:1px solid var(--line);background:var(--sunk);padding:13px}
+.brief.yes{border-color:var(--good)}
+.brief.edit{border-color:var(--maybe)}
+.brief.no{border-color:#3a2129;opacity:.6}
+@media (max-width:760px){.brief{grid-template-columns:1fr}}
+
+.left{display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+canvas{image-rendering:pixelated;display:block;border:1px solid var(--line)}
+.noshot{width:224px;height:320px;border:1px dashed var(--line);color:var(--cold);
+  font-size:10.5px;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px}
+.left .cap{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--flare)}
+
+.hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:7px;margin-bottom:10px}
+.hd h3{font-family:var(--disp);font-size:17px;font-weight:600;margin:0;
+  letter-spacing:.02em}
+.hd .mod{font-size:11px;color:var(--cold)}
+.pill{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  border:1px solid var(--line);padding:2px 7px;color:var(--chill)}
+.does{font-size:12.5px;color:var(--hot);margin-bottom:4px}
+.flav{font-size:12px;color:var(--cold);font-style:italic;margin-bottom:12px}
+
+.rel{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;
+  margin-bottom:10px}
+.rel dt{color:var(--cold);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;padding-top:2px}
+.rel dd{margin:0;color:var(--ice)}
+.rel dd.on{color:var(--hot)}
+.rel dd.avoid{color:var(--chill)}
+.rel dd.avoid b{color:var(--bad);font-weight:400}
+
+.acts{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.acts button{min-width:88px}
+.acts button.y[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06140d}
+.acts button.e[aria-pressed="true"]{background:var(--maybe);border-color:var(--maybe);color:#04121b}
+.acts button.n[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#1a0603}
+.acts input{flex:1 1 240px;background:#070b11;border:1px solid var(--line);
+  color:var(--ice);font-family:var(--mono);font-size:12px;padding:6px 9px}
+.acts input:focus{outline:none;border-color:var(--maybe)}
+
+.note{margin-top:30px;border:1px solid var(--line);background:var(--sunk)}
+.note .h{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--hot)}
+.note .b{padding:13px 15px;color:var(--cold);font-size:12.5px;line-height:1.7}
+.note b{color:var(--ice);font-weight:400}
+.note p{margin:0 0 10px} .note p:last-child{margin:0}
+
+.out{margin-top:24px}
+.out .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.out .h span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold)}
+textarea{width:100%;height:150px;background:#070b11;color:var(--chill);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;
+  padding:10px;resize:vertical}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Three Kelvin &middot; card art &middot; design sheet &middot; before generation</p>
+  <h1>__SET__</h1>
+  __LEDE__
+
+  <div class="bar">
+    <button id="allyes">approve all</button>
+    <button id="reset">clear</button>
+    <span class="sp"></span>
+    <span id="tally"></span>
+    <button id="copy">copy verdicts</button>
+  </div>
+
+  <div id="sheet"></div>
+
+  <div class="note">
+    <div class="h">How to use this</div>
+    <div class="b">
+      <p><b>Approve</b> and I generate against that brief. <b>Rewrite</b> and I re-cut the brief
+      first &mdash; type what is wrong in the box beside it, even three words. <b>Drop</b> and the
+      card stays on its procedural glyph, which is a real answer: a glyph that reads is better than
+      an illustration that does not.</p>
+      <p>The two lines that matter are <b>actor</b> and <b>acting on</b>. Every accepted
+      illustration so far has both; every rejected batch had an actor and nothing to act on. If a
+      row names a thing but no relationship, that row is going to fail, and it is a hundred times
+      cheaper to say so here than after six generations of it.</p>
+    </div>
+  </div>
+
+  <div class="out">
+    <div class="h"><span>verdicts</span></div>
+    <textarea id="json" readonly placeholder="approve or reject a brief and the JSON appears here"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = __DATA__;
+var V = {}, NOTE = {};
+
+function cardCanvas(b64){
+  var c = document.createElement("canvas");
+  var img = new Image();
+  img.onload = function(){
+    var t = document.createElement("canvas");
+    t.width = img.width; t.height = img.height;
+    var tg = t.getContext("2d"); tg.drawImage(img, 0, 0);
+    var d = tg.getImageData(0, 0, img.width, img.height);
+    var Z = 2;
+    c.width = img.width * Z; c.height = img.height * Z;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    for (var y = 0; y < d.height; y++){
+      for (var x = 0; x < d.width; x++){
+        var o = (y * d.width + x) * 4;
+        if (d.data[o + 3] < 8) continue;
+        g.fillStyle = "rgb(" + d.data[o] + "," + d.data[o+1] + "," + d.data[o+2] + ")";
+        g.fillRect(x * Z, y * Z, Z, Z);
+      }
+    }
+  };
+  img.src = "data:image/png;base64," + b64;
+  return c;
+}
+
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function build(){
+  var host = document.getElementById("sheet");
+  host.textContent = "";
+  ROWS.forEach(function(r){
+    var box = el("div", "brief");
+    box.dataset.key = r.key;
+
+    var left = el("div", "left");
+    left.appendChild(el("div", "cap", "on the card today"));
+    if (r.shot) left.appendChild(cardCanvas(r.shot));
+    else left.appendChild(el("div", "noshot",
+      "no shot taken — run  -- cardshot \"" + r.name + "\""));
+    box.appendChild(left);
+
+    var right = el("div", "right");
+    var hd = el("div", "hd");
+    hd.appendChild(el("h3", null, r.name));
+    hd.appendChild(el("span", "mod", r.module));
+    hd.appendChild(el("span", "pill", r.type));
+    hd.appendChild(el("span", "pill", "glyph: " + r.glyph));
+    if (r.maker && r.maker !== "-") hd.appendChild(el("span", "pill", r.maker));
+    right.appendChild(hd);
+    right.appendChild(el("div", "does", r.does));
+    right.appendChild(el("div", "flav", "“" + r.flavour + "”"));
+
+    var dl = el("dl", "rel");
+    function pair(k, v, cls){
+      dl.appendChild(el("dt", null, k));
+      var dd = el("dd", cls);
+      dd.innerHTML = v;
+      dl.appendChild(dd);
+    }
+    pair("actor", r.actor);
+    pair("acting on", r.on, "on");
+    pair("the moment", r.moment);
+    if (r.scale) pair("sized by", r.scale, "on");
+    if (r.world) pair("the world", r.world);
+    if (r.avoid) pair("not", "<b>✕</b> " + r.avoid, "avoid");
+    right.appendChild(dl);
+
+    var acts = el("div", "acts");
+    [["y","approve"],["e","rewrite"],["n","drop"]].forEach(function(kd){
+      var b = el("button", kd[0], kd[1]);
+      b.setAttribute("aria-pressed", "false");
+      b.onclick = function(){
+        if (V[r.key] === kd[1]) delete V[r.key]; else V[r.key] = kd[1];
+        paint();
+      };
+      acts.appendChild(b);
+    });
+    var inp = document.createElement("input");
+    inp.type = "text";
+    inp.placeholder = "what is wrong with it — optional, but it saves a round";
+    inp.oninput = function(){
+      if (inp.value.trim()) NOTE[r.key] = inp.value.trim();
+      else delete NOTE[r.key];
+      if (inp.value.trim() && !V[r.key]) V[r.key] = "rewrite";
+      paint();
+    };
+    acts.appendChild(inp);
+    right.appendChild(acts);
+
+    box.appendChild(right);
+    host.appendChild(box);
+  });
+  paint();
+}
+
+function paint(){
+  var n = {approve:0, rewrite:0, drop:0}, out = [];
+  document.querySelectorAll(".brief").forEach(function(box){
+    var k = box.dataset.key, v = V[k];
+    box.classList.toggle("yes", v === "approve");
+    box.classList.toggle("edit", v === "rewrite");
+    box.classList.toggle("no", v === "drop");
+    box.querySelectorAll(".acts button").forEach(function(b){
+      b.setAttribute("aria-pressed", v === b.textContent ? "true" : "false");
+    });
+    if (v){
+      n[v]++;
+      var rec = { id: k, verdict: v };
+      if (NOTE[k]) rec.note = NOTE[k];
+      out.push(rec);
+    }
+  });
+  document.getElementById("tally").textContent =
+    n.approve + " approve · " + n.rewrite + " rewrite · " + n.drop +
+    " drop · " + (ROWS.length - n.approve - n.rewrite - n.drop) + " undecided";
+  document.getElementById("json").value = out.length ? JSON.stringify(out, null, 1) : "";
+}
+
+document.getElementById("allyes").onclick = function(){
+  ROWS.forEach(function(r){ V[r.key] = "approve"; });
+  paint();
+};
+document.getElementById("reset").onclick = function(){
+  V = {}; NOTE = {};
+  document.querySelectorAll(".acts input").forEach(function(i){ i.value = ""; });
+  paint();
+};
+document.getElementById("copy").onclick = function(){
+  var t = document.getElementById("json");
+  t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+  this.textContent = "copied";
+  var self = this;
+  setTimeout(function(){ self.textContent = "copy verdicts"; }, 1200);
+};
+
+build();
+</script>

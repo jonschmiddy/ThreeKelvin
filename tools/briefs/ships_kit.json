@@ -1,0 +1,230 @@
+{
+ "set": "Twenty-Eight Cards: everything the ship does that is not a shot and not a fault",
+ "lede": "<p class=\"lede\">The last set, and the hardest one to keep apart. The sixteen malfunctions were sixteen different objects before I wrote a word &mdash; a crack, a plume, a seized ram. <b>These twenty-eight are twenty-eight different <i>verbs</i></b>: vent, lock on, draw, brace, repair, block. Seven of them are Vent, six are Block or Feedback, five are Lock On. Nothing in the names stops <b>Bleed Heat</b>, <b>Emergency Vent</b>, <b>Shunt</b> and <b>Absolute</b> from all being a jet of gas leaving a pipe.</p>\n\n  <div class=\"note\"><div class=\"h\">So every brief is anchored to its MODULE, not to its keyword</div><div class=\"b\"><p>The card's granting part is the one thing that already differs card to card, and the game has written a line of flavour for each: Cold Sights <i>&ldquo;cools the barrel and the arithmetic&rdquo;</i>, the Ejector Rail is <i>&ldquo;a rail, a hatch, and the dark&rdquo;</i>, the Voidwhale Ganglion is <i>&ldquo;still faintly warm, the smell is overpowering&rdquo;</i>. Two cards off the same module get the same hardware and a different <b>moment</b> of it &mdash; Shunt is the coupling carrying, Cold Sights is the optic, Bleed Heat is the radiator behind it.</p><p>Where two cards genuinely share both module and verb, one takes the <b>quiet</b> reading and one the <b>loud</b> one. Hold Fast is struts holding; Truss is struts already bent from holding.</p></div></div>\n\n  <div class=\"note\"><div class=\"h\">Three things this set must NOT inherit from the malfunctions</div><div class=\"b\"><p><b>These are cards you choose.</b> A malfunction is punishment and looks it &mdash; cold, still, already broken. These are equipment working, and should feel capable: something is being done on purpose and it is holding.</p><p><b>No lettering, anywhere.</b> Asking for stencils is what put three lines of garbled text on Hairline, across 191 takes of every malfunction brief. Every <code>avoid</code> below says so.</p><p><b>Say what fills the frame, including the gaps.</b> All four Standing Load takes came back with a white background showing between the girders. Every <code>world</code> below names what sits behind the subject and inside its gaps, not just around it.</p></div></div>\n\n  <p>Two colours are simply unavailable and no brief may ask for them: <b>there is no green and no bright blue in the palette</b> &mdash; 29 colours, every cool one a blue-grey. Ghost Signal cost twelve takes to that, and Hard Line four. Where a card wants a signal colour it gets <b>amber</b>, which the palette has six of.</p>",
+ "cards": [
+  {
+   "id": "blow_out",
+   "actor": "a blowout panel letting go",
+   "on": "the rack of cells behind it that it is saving",
+   "moment": "the panel already gone and tumbling away, the rack it uncovered venting hard into vacuum, everything behind it intact.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "sort",
+   "actor": "a rack of cartridges half pulled",
+   "on": "the one card-sized slug being drawn out of it",
+   "moment": "a gloveless mechanical picker lifting one round clear of a full rack, the gap it leaves obvious, the rest untouched.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "reroute",
+   "actor": "a patch cable being moved",
+   "on": "the jack it has just been pulled out of",
+   "moment": "one lead lifted mid-swap between two sockets on a crowded board, the empty socket still lit, the new one waiting.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "range",
+   "actor": "a rangefinding drum stepping round",
+   "on": "the detent it is clicking into",
+   "moment": "a knurled measuring drum caught one notch into its travel, the pawl seated, the reading settled.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "dig_in",
+   "actor": "a brace frame's feet biting",
+   "on": "the deck plate they are gouging into",
+   "moment": "toothed feet driven down hard enough to raise a lip of torn metal around each one, everything above them rigid.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "set_feet",
+   "actor": "a spring pack under compression",
+   "on": "the load it is throwing back",
+   "moment": "heavy coil springs squashed nearly solid between two plates, the whole stack quivering, about to return everything it took.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "hold_fast",
+   "actor": "a single impact strut",
+   "on": "the plate it is holding off",
+   "moment": "one thick strut jammed between two surfaces and dead straight, not yet bent, doing its whole job at once.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "truss",
+   "actor": "a lattice of crossed struts",
+   "on": "the one member in it that has already buckled",
+   "moment": "a triangulated brace still standing with a single diagonal bowed out of line, the load visibly redistributing around it.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "shunt",
+   "actor": "a second bus coupling picking up",
+   "on": "the dead line beside it that it is carrying for",
+   "moment": "two thick conductors side by side into one clamp, one of them warm at the joint and one cold and dark.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "cold_sights",
+   "actor": "a chilled optic head",
+   "on": "the frost ring standing on its housing",
+   "moment": "a heavy lens assembly cold enough to carry rime around its collar, the glass itself perfectly clear and dark.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. No feathered plumes of frost -- Hairline lost eight takes to frost that grew into a white fern and ate the card. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "bleed_heat",
+   "actor": "a radiator panel shedding",
+   "on": "the fluid line feeding it",
+   "moment": "a flat finned panel running from hot at its inlet to cold at its far corner, the gradient visible along it, nothing venting.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "emergency_vent",
+   "actor": "a flush valve slammed wide",
+   "on": "the charge of coolant leaving through it",
+   "moment": "a big quick-opening valve fully open with the last of a white slug of coolant clearing the port, the actuator still at the end of its throw.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "patch",
+   "actor": "a clamp closed over a split hose",
+   "on": "the leak it has just stopped",
+   "moment": "a scissor clamp bitten down on a ruptured line, a last few frozen droplets hanging in vacuum past it, the flow held.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "fire_director",
+   "actor": "a director head slewing",
+   "on": "the bearing ring it is turning on",
+   "moment": "a boxy sensor head part way through a traverse, the toothed ring under it caught mid-tooth, drive motors braced.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "overside",
+   "actor": "an ejector hatch standing open",
+   "on": "the dark outside it",
+   "moment": "an open hatch at the end of a rail with nothing beyond it but stars, the seal still warm, something recently gone.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "scuttle",
+   "actor": "an ejector rail mid-throw",
+   "on": "the cradle it is flinging clear",
+   "moment": "a launch cradle running out along its rail with its clamps already sprung, the thing it held tumbling away past the end.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "chain_feed",
+   "actor": "a loading chain under load",
+   "on": "the sprocket it is dragging round",
+   "moment": "a heavy chain pulled tight over a toothed wheel, every link seated, the whole run moving one way and not stopping.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "feed",
+   "actor": "a gantry claw closing",
+   "on": "the canister it is lifting off the rack",
+   "moment": "an overhead claw gripping a fat cylinder and taking its weight, the rack below it one space emptier.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "fire_solution",
+   "actor": "a plotting table's arms",
+   "on": "the curve they have drawn and stopped on",
+   "moment": "linked mechanical arms over a scribed plate, come to rest at one crossing point, the answer already found before anything fired.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "spent_brass",
+   "actor": "a hoist bucket of spent cases",
+   "on": "the chute it is tipping them down",
+   "moment": "a scoop full of dull fired casings upended into a hopper, the cases still faintly warm where they touch.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "foreknowledge",
+   "actor": "an oracle shard suspended in a cage",
+   "on": "the cradle of ordinary clamps built around it",
+   "moment": "a small dark alien fragment held in a hand-made frame of bolts and wire, the frame improvised and the shard perfectly regular.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "whale_song",
+   "actor": "a ganglion cluster twitching",
+   "on": "the bolted steel tray it has been laid in",
+   "moment": "a mass of pale organic cords in a metal tray, faintly warm and slightly moving, plumbed into the ship with clamps.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures, and no faces. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "deep_song",
+   "actor": "a wave travelling down a nerve trunk",
+   "on": "the machinery it is passing through on its way",
+   "moment": "one thick organic cable running through bolted steel guides, a swelling moving along it under the skin, the metal around it undisturbed.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures, and no faces. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "bulwark",
+   "actor": "a reactive tile firing outward",
+   "on": "the strike that set it off",
+   "moment": "one armour tile detonating away from the plating it protects, its neighbours flat and unlit, the blast going out and not in.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "overwatch",
+   "actor": "a field of armed tiles waiting",
+   "on": "the arming lights running across them in sequence",
+   "moment": "rank on rank of flat armour tiles, an amber pip lit at the corner of each, the lighting sweeping across the field and nothing struck yet.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "absolute",
+   "actor": "a sepulchre door standing sealed",
+   "on": "the cold pouring off it",
+   "moment": "a massive alien door frosted opaque, the metal deck in front of it white with rime and the air above it visibly falling.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. No feathered plumes of frost -- Hairline lost eight takes to frost that grew into a white fern. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "bore_sight",
+   "actor": "a targeting servo holding aim",
+   "on": "the worm gear locked under it",
+   "moment": "a small precise servo stopped dead on its mark, the worm gear beneath it seated with no backlash left in the train.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  },
+  {
+   "id": "field_weld",
+   "actor": "a weld bead being laid",
+   "on": "the seam it is closing",
+   "moment": "a single running bead laid along a butt joint, white-hot at the head and cooling to amber and grey behind, closing the gap as it goes.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size.",
+   "avoid": "No lettering, no stencilled words, no numbers. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank."
+  }
+ ]
+}

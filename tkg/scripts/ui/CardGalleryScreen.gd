@@ -38,9 +38,15 @@ var _owner: Dictionary = {}
 var _col: VBoxContainer
 var _filter: GalleryFilter
 var _count: Label
+## Where LEAVE goes. Handed in by Router rather than decided here: these pages
+## sit on the HUD and can be opened from anywhere, so the screen underneath is
+## the only thing that knows.
+var _back: Callable
+
 var _all: int = 0
 
-func setup() -> void:
+func setup(back: Callable = Callable()) -> void:
+	_back = back
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
 
@@ -51,12 +57,22 @@ func _build() -> void:
 	add_child(col_root)
 
 	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
 	head.add_child(UITheme.header("CARD GALLERY"))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(gap)
 	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(_count)
+	# THE WAY OUT. These are reached from a HUD tab, and a tab does not untoggle
+	# -- so without this the only way off the page was to pick some other
+	# destination and pretend that was what you wanted.
+	head.add_child(Widgets.button("LEAVE", func() -> void:
+		if _back.is_valid():
+			_back.call()
+		else:
+			Router.show_sector()))
 	col_root.add_child(head)
 
 	# The same bar the module gallery and the Yard Manifest carry. Grade filters
@@ -65,6 +81,16 @@ func _build() -> void:
 	_filter = GalleryFilter.new()
 	_filter.setup([[
 		{key = &"manufacturer", label = "Manufacturer", options = GalleryFilter.manufacturer_options()},
+		# COLLAPSED BY DEFAULT, which is a change of what this page means and is
+		# therefore worth saying out loud. It used to answer "what does the deck
+		# get", so a module that authors one verb and grants two showed its card
+		# twice, side by side -- KM-4 grants Charged Slug twice, and Feed and
+		# Bolt On are shared cards several modules hand out. All correct, and all
+		# noise when the question is "what art still needs drawing".
+		# `All copies` puts the old view back.
+		{key = &"dupes", label = "Copies", options = [
+			{value = &"one", text = "Collapse"},
+			{value = &"all", text = "All copies"}]},
 	], [
 		{key = &"grade", label = "Grade", options = GalleryFilter.grade_options()},
 		{key = &"slot", label = "Slot", options = GalleryFilter.slot_options()},
@@ -115,6 +141,7 @@ func _fill(col: VBoxContainer) -> int:
 	var grade: int = int(f.get(&"grade", -1))
 	var slot: int = int(f.get(&"slot", -1))
 	var by_grade: bool = f.get(&"sort", &"manufacturer") == &"grade"
+	var collapse: bool = f.get(&"dupes", &"one") != &"all"
 
 	# EVERY CARD A DECK CAN BE HANDED, carried with the module that grants it,
 	# because the filters are questions about the PART as often as about the card.
@@ -137,6 +164,37 @@ func _fill(col: VBoxContainer) -> int:
 			if grade >= 0 and cd.rarity != grade:
 				continue
 			kept.append({card = cd, part = m})
+
+	# One row per distinct illustration, keyed on art_key() -- the same identity
+	# ArtCheck and the manifest count on, so a collapsed gallery and the coverage
+	# gate agree about how many cards there are.
+	if collapse:
+		var seen := {}
+		var thinned: Array = []
+		for row4 in kept:
+			var key4 := ((row4 as Dictionary).card as CardData).art_key()
+			if seen.has(key4):
+				continue
+			seen[key4] = true
+			thinned.append(row4)
+		kept = thinned
+
+	# MALFUNCTIONS, which no module grants and which therefore never appeared on
+	# this page at all. Sixteen of the seventy-six illustrations the game owes
+	# are malfunctions, and the one dev screen that shows many cards at once
+	# could not show any of them -- which is how a rendering bug that blanked
+	# every malfunction art window survived being looked at.
+	#
+	# Shown only when no manufacturer or slot filter is set, because they answer
+	# neither question: a malfunction has no manufacturer and fits no slot. They carry
+	# `part = null` for the same reason, and nothing downstream reads `part`.
+	var faults: Array = []
+	if manufacturer == &"" and slot < 0:
+		for row3 in DB.MALFUNCTIONS:
+			var mc := DB.malfunction(row3[0])
+			if grade >= 0 and mc.rarity != grade:
+				continue
+			faults.append({card = mc, part = null})
 
 	var groups: Array = []
 	if by_grade:
@@ -163,6 +221,11 @@ func _fill(col: VBoxContainer) -> int:
 				yard.append(row)
 		if not yard.is_empty():
 			groups.append({label = "UNBRANDED", colour = UITheme.COLD, rows = yard})
+	# Last in both sorts. A malfunction is not a thing you chose, so it belongs
+	# after everything that was.
+	if not faults.is_empty():
+		groups.append({label = "MALFUNCTIONS", colour = UITheme.BAD,
+			rows = faults})
 
 	var total := 0
 	for raw in groups:

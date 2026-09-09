@@ -292,11 +292,18 @@ func bind(i: int, e, telegraphed: bool) -> void:
 	queue_redraw()
 
 
-## THE COUNT IS THE AFFORDANCE. "SALVAGE" said the door existed and nothing
-## about whether walking through it was worth it — so a stripped wreck and a
-## loaded one wore the same word, and a fight's whole payout could sit behind a
-## label indistinguishable from scenery. The number is what makes the sector
-## answer "is there loot here" without being opened.
+## THE COUNT CAME OFF THE HULL, 2026-09-03, by Jonathan: a wreck says
+## "SALVAGE" and nothing more.
+##
+## IT WAS PUT THERE ON PURPOSE and the reasoning still reads: "SALVAGE" alone
+## said the door existed and nothing about whether walking through it was worth
+## it — a stripped wreck and a loaded one wore the same word, and a fight's
+## whole payout could sit behind a label indistinguishable from scenery. That is
+## why the tooltip still carries the number: the wreck stops advertising, but
+## the answer is one hover away rather than gone.
+##
+## A wreck with nothing left is still told apart, by STRIPPED and by colour, so
+## the case the count was added for is the one case it was never needed in.
 ##
 ## Asked after `bind`, by the view that knows the container — the slot only
 ## knows the ghost. A wreck with nothing left goes back to being a fact:
@@ -305,7 +312,7 @@ func set_salvage(left: int) -> void:
 	if not _dead:
 		return
 	if left > 0:
-		_hp.text = "SALVAGE · %d" % left
+		_hp.text = "SALVAGE"
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
 			"%s\n\nDead in the water and still loaded — %d aboard. Open it."
@@ -428,17 +435,23 @@ func _draw() -> void:
 	# you are aiming at, which is the one thing you need to still see.
 	var c := UITheme.FLARE
 	var n := 7.0
-	# THE HOLDER'S RECT, NOT THE ART'S. EnemyArt sizes itself to the hull, so
-	# either box is the ship -- but the art's position is measured inside the
-	# holder now and is zero at rest, which would draw the brackets in the
-	# slot's top corner. The holder is the one that sits where the column put
-	# it.
+	# THE HOLDER'S POSITION, THE ART'S EXTENT.
 	#
-	# It is also the one that does not move: a reticle should frame the place
-	# the ship is going to be, not chase it in from off-screen.
-	var pad := 2.0
-	var r := Rect2(_art_holder.position - Vector2(pad, pad),
-		_art_holder.size + Vector2(pad, pad) * 2.0)
+	# The holder is a fixed 240x120 -- EnemyArt.W by .H -- whatever is painted in
+	# it, so bracketing the holder framed the same big empty box around a cutter
+	# as around a hulk. `used_rect()` is the bounds EnemyArt tracks as it paints,
+	# which is the ship and nothing else; it keeps its own rather than asking the
+	# image, because a starfield goes down first and would swallow the answer.
+	#
+	# The holder still supplies the ORIGIN. The art's own position is measured
+	# inside it and is zero at rest, so using that would put the brackets in the
+	# slot's top corner -- and the holder is the one that does not move, which is
+	# what lets a reticle frame where the ship is going to be rather than chase
+	# it in from off-screen.
+	var pad := 3.0
+	var u: Rect2i = art.used_rect() if art != null else Rect2i(0, 0, EnemyArt.W, EnemyArt.H)
+	var r := Rect2(_art_holder.position + Vector2(u.position) - Vector2(pad, pad),
+		Vector2(u.size) + Vector2(pad, pad) * 2.0)
 	var x0 := r.position.x
 	var y0 := r.position.y
 	var w := r.end.x

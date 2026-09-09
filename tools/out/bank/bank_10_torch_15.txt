@@ -1,0 +1,3 @@
+take: torch_15
+why: a glowing line of molten metal opening across dark plating adrift -- the only one of 21 Torch takes that is not lava, a beam or a comet
+prompt: {'prompt': 'a glowing line of molten metal opening across dark unlit plating adrift in vacuum, spatter drifting away, cold stars', 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'torch names no tool at all -- the slot is the subject, not the beam that made it'}

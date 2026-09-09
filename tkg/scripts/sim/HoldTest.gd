@@ -251,9 +251,20 @@ func _swaps() -> void:
 ## are the ones that are not the card's behaviour: `name` (the thing under
 ## test), `copies` and `rarity` (how much of it you get and what it is worth —
 ## the same card at two grades is still one card, and Range Finding was exactly
-## that), `lane` (a label for set bonuses), and `source_rarity`, which is not a
+## that), `lane` (a label for set bonuses), `source_rarity`, which is not a
 ## property of the card at all — it is stamped on at grant time with the grade of
-## the part that handed it over, so one shared card carries seven of them.
+## the part that handed it over, so one shared card carries seven of them — and
+## `shared` itself.
+##
+## SIX NOW, and the sixth was found the hard way. `shared` says where a card was
+## AUTHORED, not what it does: a card written into the shared vocabulary and the
+## same card written out again as a module literal differ in that flag and in
+## nothing else. So this check reported them as two cards under one name and gave
+## the flag as the whole of the difference, which reads as a real fork and is
+## not one. The duplicate WAS real and is gone -- Patch Kit grants `&"patch"`
+## now -- but the flag had to come out of the signature too, or the next module
+## that re-authors a shared card trips the same wire with the same confusing
+## message.
 func _no_twins() -> void:
 	var all: Array[CardData] = []
 	for id in DB.modules:
@@ -263,7 +274,7 @@ func _no_twins() -> void:
 		all.append(DB.malfunction(row[0]))
 
 	var skip := {&"name": true, &"copies": true, &"rarity": true, &"lane": true,
-		&"source_rarity": true}
+		&"source_rarity": true, &"shared": true}
 	var by_effect := {}
 	var by_name := {}
 	for c in all:

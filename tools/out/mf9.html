@@ -1,0 +1,291 @@
+<title>Unmade - the far side named</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --line:#22303f; --cold:#6b7d94;
+  --chill:#8fa3ba; --ice:#c3d2e2; --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --bank:#5b9dc4; --bad:#c8503c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--void);color:var(--ice);font-family:var(--mono);
+  margin:0;padding:26px 20px 90px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--flare);margin:0 0 6px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,38px);
+  letter-spacing:.02em;margin:0 0 12px}
+.lede{color:var(--cold);max-width:76ch;font-size:13.5px;margin:0 0 10px}
+.lede b{color:var(--ice);font-weight:400}
+.lede em{color:var(--hot);font-style:normal}
+code{color:var(--hot);font-size:.94em}
+
+.note{margin:16px 0 0;border:1px solid var(--line);background:var(--sunk)}
+.note .h{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--hot)}
+.note .b{padding:13px 15px;color:var(--cold);font-size:12.5px;line-height:1.7}
+.note b{color:var(--ice);font-weight:400}
+.note p{margin:0 0 10px} .note p:last-child{margin:0}
+.note .bad{color:var(--bad)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 0;
+  border:1px solid var(--line);background:var(--sunk);padding:11px 14px}
+.legend div{font-size:12px;color:var(--cold)}
+.legend b{font-weight:400;letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+.legend .k b{color:var(--good)} .legend .s b{color:var(--bank)} .legend .x b{color:var(--bad)}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--void);
+  display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;
+  align-items:center;border-bottom:1px solid var(--line)}
+.bar .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--cold);margin-right:2px}
+.bar .sp{flex:1 1 auto}
+button{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;background:transparent;color:var(--cold);
+  border:1px solid var(--line);padding:6px 11px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#33475c}
+button:focus-visible{outline:2px solid var(--flare);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--flare);border-color:var(--flare);color:#160b02}
+#tally{font-size:12px;color:var(--chill);letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+
+h2{font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.03em;
+  margin:30px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:6px}
+h2 small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--cold)}
+h2 .does{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--hot)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;align-items:flex-start}
+.item{padding:7px;border:1px solid var(--line);background:var(--sunk);flex:0 0 auto}
+.item.keep{border-color:var(--good)}
+.item.bank{border-color:var(--bank)}
+.item.gone{display:none}
+.now{padding:7px;border:1px solid var(--ember);background:var(--panel);
+  flex:0 0 auto;margin-right:8px}
+.now .cap{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--flare);margin-bottom:5px}
+.noshot{width:224px;height:320px;border:1px dashed var(--line);color:var(--cold);
+  font-size:10.5px;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px}
+canvas{image-rendering:pixelated;display:block}
+.nm{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--chill);
+  margin-top:5px}
+.verdict{display:flex;gap:4px;margin-top:6px}
+.verdict button{flex:1 1 0;padding:4px 0;font-size:10px;letter-spacing:.08em}
+.verdict button.k[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06140d}
+.verdict button.s[aria-pressed="true"]{background:var(--bank);border-color:var(--bank);color:#04121b}
+.verdict button.x[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#1a0603}
+.pr{font-size:10px;color:var(--cold);line-height:1.5;margin-top:6px;max-width:26ch;
+  display:none}
+.showpr .pr{display:block}
+
+.out{margin-top:26px}
+.out .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.out .h span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold)}
+textarea{width:100%;height:150px;background:#070b11;color:var(--chill);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;
+  padding:10px;resize:vertical}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Three Kelvin &middot; card art &middot; review bench</p>
+  <h1>Unmade - the far side named</h1>
+
+  <p class="lede">Every take sits beside <b>the card as the game draws it today</b> &mdash; the
+  orange tile heading each row, at the same zoom as the candidates, so the comparison is against
+  the thing being replaced rather than against the other options.</p>
+
+<p><b>You were right and I was wrong to hedge.</b> My check flagged three of the
+four last time and I wrote in the notes that the flag &ldquo;may be describing
+the picture rather than a fault&rdquo;. It was not. A card is full bleed and
+opaque; white is only ever undrawn canvas.</p>
+
+<div class="note"><div class="h">&ldquo;Nothing&rdquo; is a word that produces
+white</div><div class="b">
+<p>The prompt said the debris was <b>&ldquo;thinning away to nothing&rdquo;</b>,
+and the model drew nothing as blank canvas &mdash; the only absence it has.</p>
+<p>This is the letterbox rule one level down. <code>card_batch</code> already
+said a prompt must name what fills the frame around the subject; what it did not
+say is that <b>anywhere the picture says a thing stops, ends, dissolves or runs
+out, the prompt has to say what is there afterwards.</b> Both prompts here name
+the far side positively: deep indigo void, cold stars, a rusty amber nebula
+wash, <i>never blank and never white</i>.</p>
+<p>Seven of the eight now have a starfield where the white was. <b>Take 8 still
+flags at 36%</b> and is the exception, not the rule.</p>
+</div></div>
+
+<p>Takes 1&ndash;4 are the first prompt &mdash; wreckage granulating into stars
+across a boundary. Takes 5&ndash;8 are the second, a single slab of plating with
+one frayed edge against the void, which reads quieter and less like the card's
+&ldquo;Brace 10. Block 10.&rdquo;</p>
+
+
+  <div class="legend">
+    <div class="k"><b>keep</b> &mdash; install it on this card</div>
+    <div class="s"><b>store</b> &mdash; wrong here, too good to lose; banked with its prompt</div>
+    <div class="x"><b>cut</b> &mdash; deleted, and it disappears from the page</div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">zoom</span>
+    <button data-z="1">1&times;</button>
+    <button data-z="2">2&times;</button>
+    <button data-z="3" aria-pressed="true">3&times;</button>
+    <button data-z="4">4&times;</button>
+    <span class="sp"></span>
+    <button id="prompts" aria-pressed="false">show prompts</button>
+    <button id="reset">clear</button>
+    <span id="tally"></span>
+    <button id="copy">copy</button>
+  </div>
+
+  <div id="groups"></div>
+
+  <div class="out">
+    <div class="h"><span>verdicts</span></div>
+    <textarea id="json" readonly placeholder="judge a take and the JSON appears here"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = [{"key": "unmade", "name": "Unmade", "module": "Precursor Keel", "does": "Brace 10. Block 10. Draw 1.", "card": "iVBORw0KGgoAAAANSUhEUgAAAHAAAACgCAYAAADU3uhkAAAAAXNSR0IArs4c6QAABPtJREFUeJztnT9o3FYcx5+LQwjxYhxCt0CmEDz0aAPBGIwLduniLUMKSadCPGTo4NWDVw8dMtjQqS60g7cuJQmkBEwIpOGWEjxlzpDSpSaEDO70Ls+qnqSn99Pdfe8+HzCWnqT3Rx/9nqR3Ot3M5SuLpw4kmZtfcLN+5sbN5eQMXjw/Mq0QpDMbzjx7+rjxhksra25ufqFVof/+83er7SYNi/03W7FeI968fpW0/qdXr+cWOVHk7r9PLCsDwweB4pR2od989310g19+/KGzykA62efAIg+PXg6mv1r+3Dr7qaB//5Jzzrneg7e161YKDKOtKipDQmkPj14iMZH+/UsDceF0DPMIdO5jFCKvezrpQhE3PCoFNu02i3AebE/vwVu7c2AbEJZPE3GeUoHcKujAjbw42V0oY5t55O6/LIF8qpCHxf6jCxUnuwv98P6dRT0ggXPnLwymiUBxECgOAsVBoDgIFAeB4iBQHFOB/WsXS6et6TJvNYhAcTp5pKJIGDG945P/pYWULe8dn5SuX5bvtDG0CCzbwT6td3zSSEDT9aaJoURgKv1rF2sj1TPtQs0FWl1g1HWZxbRpFWkqMLYTw64yNa0q72mVFsJVqDgIFAeB4iBQHASKg0BxEChO9n1g+IQUDJ8sgW1fkwF5jPQ1I5AHrxmZMBAoDgLFQaA4CBQHgeIgUBwEioNAccbyqbSmLPa+GEm5f/X/HEm5ZRCB4iBQHASKI30OLPLl+ted5Pvk0e+d5GsBESgOAsVBoDgIFAeB4kzUVWgZqVeQXV3JdgURKA4CxUGgOAgUB4HiIFAcBIqDQHEQKA4CxUGgOAgUB4HiIFAcBIqDQHEQKA4CxUGgOBP/TIzaMy6pEIHiIFAcBIqDQHEQKM5EXYWO8/f4uoIIFAeB4iBQHOlz4Di9r2VUEIHiIFAcBIqDQHEQKA4CxUGgOAgUJ/tGvvhTMDBcsgSGP8IEo4EuVBwEioNAcRAoDgLFQaA4pgJv3b03+PPz4bJYWmwe6jH7RP7W3Xvu8GA/ugy6wSwCDw/2K0XF5EIepl2ol1jVTYIt5hcxxUg7PNivjU5oj+k5MGc7L744D9XMXL6yeOqcczduLrtnTx833nBpZc29eH7UWcWgnrn5Be4D1UGgOAgUJ/si5sP7dxb1gATOnb8wmCYCxUGgOAgUx/TrZb89+mMwvbG+WpseLmuSXpWPZ3t3zznn3M7WZqP0GFVtKSs7tR1+PpZfU8wjcGN91W2sr57ZAbF0X/mm6WE+McoEbe/uuZ2tTbeztTkQmdOWIm3aES7PwfwLnrHG1h2hMZpGbBfU1S2FsnZYtKGzCCxLT1nfkxqBlliWVdYOiwOkswiMSWxy5IWNS41A30X6btM5d6brDLvYcJ2UthTTY/Wtake4POcgyR7M9jfyt+9827oSbfn15586yXfc2+Jv5OfmF+wisKudOQqU2sJ9oDgIFAeB4iBQHFOB27t7pSMdsfS6fIrbxNJjZdTN59RxXDAVaDmMFdumLL2ujCblNh0jHTfk3pVWN1g9bcidA2OR4iNw2jA/B4b/nfs4jFUctqqLmLJtinnW4dcL/6fUXSGqzYbSYHiEQ2lyXSicBYHiIFAcBIqDQHEQKA4CxUGgOAgUB4HiIFAcBIqDQHEQKA4CxUGgOAgUB4HinHkqbWllLTmD8JUXMHxmrn62cjrqSkB7/gOVBuYvL5PsBAAAAABJRU5ErkJggg==", "takes": [{"id": "unmade_1", "n": 1, "img": "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", "prompt": "Torn plating and tumbling wreckage crossing a hard straight boundary line and breaking into finer and finer grains as they go, until past the line there is only deep indigo void with cold stars scattered through it and a faint rusty amber nebula wash behind them. The near side is packed solid with wreckage out to the frame edge; the far side is starfield and nebula, never blank and never white. Amber rust on the debris and none past the line, no lettering."}, {"id": "unmade_2", "n": 2, "img": "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", "prompt": "Torn plating and tumbling wreckage crossing a hard straight boundary line and breaking into finer and finer grains as they go, until past the line there is only deep indigo void with cold stars scattered through it and a faint rusty amber nebula wash behind them. The near side is packed solid with wreckage out to the frame edge; the far side is starfield and nebula, never blank and never white. Amber rust on the debris and none past the line, no lettering."}, {"id": "unmade_3", "n": 3, "img": "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", "prompt": "Torn plating and tumbling wreckage crossing a hard straight boundary line and breaking into finer and finer grains as they go, until past the line there is only deep indigo void with cold stars scattered through it and a faint rusty amber nebula wash behind them. The near side is packed solid with wreckage out to the frame edge; the far side is starfield and nebula, never blank and never white. Amber rust on the debris and none past the line, no lettering."}, {"id": "unmade_4", "n": 4, "img": "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", "prompt": "Torn plating and tumbling wreckage crossing a hard straight boundary line and breaking into finer and finer grains as they go, until past the line there is only deep indigo void with cold stars scattered through it and a faint rusty amber nebula wash behind them. The near side is packed solid with wreckage out to the frame edge; the far side is starfield and nebula, never blank and never white. Amber rust on the debris and none past the line, no lettering."}, {"id": "unmade_5", "n": 5, "img": "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", "prompt": "A dark starfield with a rusty amber nebula wash filling the whole picture, and standing in it a hard straight edge where a drifting slab of wrecked bolted plating simply stops: the metal frays into coarse grain along that edge and the void carries on cleanly past it. Stars show through everywhere the wreckage is not. Cold light on the plating, amber rust and scorch on the broken side, nothing white anywhere, no lettering."}, {"id": "unmade_6", "n": 6, "img": "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", "prompt": "A dark starfield with a rusty amber nebula wash filling the whole picture, and standing in it a hard straight edge where a drifting slab of wrecked bolted plating simply stops: the metal frays into coarse grain along that edge and the void carries on cleanly past it. Stars show through everywhere the wreckage is not. Cold light on the plating, amber rust and scorch on the broken side, nothing white anywhere, no lettering."}, {"id": "unmade_7", "n": 7, "img": "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", "prompt": "A dark starfield with a rusty amber nebula wash filling the whole picture, and standing in it a hard straight edge where a drifting slab of wrecked bolted plating simply stops: the metal frays into coarse grain along that edge and the void carries on cleanly past it. Stars show through everywhere the wreckage is not. Cold light on the plating, amber rust and scorch on the broken side, nothing white anywhere, no lettering."}, {"id": "unmade_8", "n": 8, "img": "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", "prompt": "A dark starfield with a rusty amber nebula wash filling the whole picture, and standing in it a hard straight edge where a drifting slab of wrecked bolted plating simply stops: the metal frays into coarse grain along that edge and the void carries on cleanly past it. Stars show through everywhere the wreckage is not. Cold light on the plating, amber rust and scorch on the broken side, nothing white anywhere, no lettering."}]}];
+var Z = 3, V = {}, CACHE = {};
+var KINDS = [["k","keep"],["s","store"],["x","cut"]];
+
+function decode(key, src, cb){
+  if (CACHE[key]) { cb(CACHE[key]); return; }
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var g = c.getContext("2d"); g.drawImage(img, 0, 0);
+    CACHE[key] = g.getImageData(0, 0, img.width, img.height);
+    cb(CACHE[key]);
+  };
+  img.src = "data:image/png;base64," + src;
+}
+
+function draw(c, key, src){
+  decode(key, src, function(d){
+    c.width = d.width * Z; c.height = d.height * Z;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    for (var y = 0; y < d.height; y++){
+      for (var x = 0; x < d.width; x++){
+        var o = (y * d.width + x) * 4;
+        if (d.data[o + 3] < 8) continue;
+        g.fillStyle = "rgb(" + d.data[o] + "," + d.data[o+1] + "," + d.data[o+2] + ")";
+        g.fillRect(x * Z, y * Z, Z, Z);
+      }
+    }
+  });
+}
+
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function build(){
+  var host = document.getElementById("groups");
+  host.textContent = "";
+  ROWS.forEach(function(r){
+    var h = el("h2", null, r.name || r.key);
+    if (r.module) h.appendChild(el("small", null, r.module));
+    if (r.does) h.appendChild(el("span", "does", r.does));
+    h.appendChild(el("small", null, r.takes.length + " takes"));
+    host.appendChild(h);
+
+    var row = el("div", "row");
+    // No card tile for an unassigned pool row -- there is no card to compare
+    // against until one of these is installed on one.
+    if (r.card || r.key !== "pool"){
+      var now = el("div", "now");
+      now.appendChild(el("div", "cap", "on the card today"));
+      if (r.card){
+        var cc = document.createElement("canvas");
+        now.appendChild(cc);
+        draw(cc, "card_" + r.key, r.card);
+      } else {
+        now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+      }
+      row.appendChild(now);
+    }
+
+    r.takes.forEach(function(t){
+      var box = el("div", "item");
+      box.dataset.key = t.id;
+      box.dataset.card = r.key;
+      var c = document.createElement("canvas");
+      box.appendChild(c);
+      box.appendChild(el("div", "nm", "take " + t.n));
+      var v = el("div", "verdict");
+      KINDS.forEach(function(kd){
+        var b = el("button", kd[0], kd[1]);
+        b.setAttribute("aria-pressed", "false");
+        b.onclick = function(){
+          if (V[t.id] === kd[1]) delete V[t.id]; else V[t.id] = kd[1];
+          paint();
+        };
+        v.appendChild(b);
+      });
+      box.appendChild(v);
+      if (t.prompt) box.appendChild(el("div", "pr", t.prompt));
+      row.appendChild(box);
+      draw(c, t.id, t.img);
+    });
+    host.appendChild(row);
+  });
+  paint();
+}
+
+function paint(){
+  var n = {keep:0, store:0, cut:0}, total = 0, out = [];
+  document.querySelectorAll(".item[data-key]").forEach(function(box){
+    total++;
+    var v = V[box.dataset.key];
+    box.classList.toggle("keep", v === "keep");
+    box.classList.toggle("bank", v === "store");
+    // A cut take is deleted from disk, so it leaves the page rather than
+    // sitting here greyed out asking to be looked at again.
+    box.classList.toggle("gone", v === "cut");
+    box.querySelectorAll(".verdict button").forEach(function(b){
+      b.setAttribute("aria-pressed", v === b.textContent ? "true" : "false");
+    });
+    if (v){ n[v]++; out.push({id: box.dataset.key, card: box.dataset.card, verdict: v}); }
+  });
+  document.getElementById("tally").textContent =
+    n.keep + " keep · " + n.store + " store · " + n.cut + " cut · " +
+    (total - n.keep - n.store - n.cut) + " left";
+  document.getElementById("json").value = out.length ? JSON.stringify(out, null, 1) : "";
+}
+
+document.querySelectorAll("[data-z]").forEach(function(b){
+  b.onclick = function(){
+    Z = +b.dataset.z;
+    document.querySelectorAll("[data-z]").forEach(function(o){
+      o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    });
+    build();
+  };
+});
+document.getElementById("prompts").onclick = function(){
+  var on = this.getAttribute("aria-pressed") !== "true";
+  this.setAttribute("aria-pressed", on ? "true" : "false");
+  document.body.classList.toggle("showpr", on);
+};
+document.getElementById("reset").onclick = function(){ V = {}; paint(); };
+document.getElementById("copy").onclick = function(){
+  var t = document.getElementById("json");
+  t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+  this.textContent = "copied";
+  var self = this;
+  setTimeout(function(){ self.textContent = "copy"; }, 1200);
+};
+
+build();
+</script>

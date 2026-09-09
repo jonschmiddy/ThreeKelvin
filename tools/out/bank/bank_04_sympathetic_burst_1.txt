@@ -1,0 +1,3 @@
+take: sympathetic_burst_1
+why: the quiet version of the take that won; kept because the chain reads at a smaller scale than the keeper does
+prompt: {'prompt': 'one brightly glowing crystal fragment ringing, and behind it two darker crystal fragments beginning to glow in answer, each fainter than the one before, drifting in vacuum against a starfield', 'seed': 3707, 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/weapons.json'}

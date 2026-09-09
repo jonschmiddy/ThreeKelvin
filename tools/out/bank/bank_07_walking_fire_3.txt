@@ -1,0 +1,3 @@
+take: walking_fire_3
+why: a craft firing over a moon with debris; the beam is continuous where Walking Fire needs discrete hits
+prompt: {'prompt': "a line of strikes stitching down a craft's flank in deep space, the newest hit incandescent, older hits dark scars, the craft still intact, stars and a planet limb behind", 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'camera OUTSIDE in the void -- CONTAINS BANNED WORD: flank'}

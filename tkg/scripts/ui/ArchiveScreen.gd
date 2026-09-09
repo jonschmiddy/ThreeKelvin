@@ -64,29 +64,42 @@ func setup(back: Callable = Callable()) -> void:
 
 
 func _build() -> void:
-	var pad := Widgets.pad(null, 12, 8)
-	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(pad)
-
+	# NO MARGIN WRAPPER, and the head row is built the way the two galleries
+	# build theirs.
+	#
+	# This screen used to sit inside `Widgets.pad(null, 12, 8)`, so its title and
+	# its LEAVE button hung eight pixels below the same two things on CARDS and
+	# MODULES and its panels sat twelve pixels in from theirs. Three pages you
+	# reach from the same strip of tabs, and the furniture moved when you changed
+	# between them -- which reads as the page shifting rather than as a margin
+	# decision.
+	#
+	# THE COUNT MOVED TOO, from beside the title to the right-hand end where the
+	# galleries keep theirs. Same reason: it is the same fact in the same words,
+	# and it should not be in a different place on each page that states it.
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
-	pad.add_child(col)
+	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	col.add_theme_constant_override("separation", 4)
+	add_child(col)
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 10)
 	top.add_child(UITheme.header("THE ARCHIVE"))
-	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	top.add_child(_count)
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(gap)
+	_count = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	_count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(_count)
 	top.add_child(Widgets.button("LEAVE", func() -> void:
 		if _back.is_valid():
 			_back.call()
 		else:
 			Router.show_sector()))
 	col.add_child(top)
+	# The galleries put their filter bar under the head; this page has nothing to
+	# filter, so a rule holds the same line instead of the list running straight
+	# into the title.
 	col.add_child(UITheme.hsep())
 
 	var row := HBoxContainer.new()

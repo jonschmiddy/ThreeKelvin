@@ -86,7 +86,7 @@ measurements were taken on the wrong kind before this was noticed.
 ## 2. WHAT IS NEXT
 
 **Phase 9.** E is done, the pool is 44 deep, and the loop is finally worth
-measuring. `SaveGame` is at **17**.
+measuring. `SaveGame` is at **26**.
 
 ### ▸ RULING — win rate is not a gate until every system is in
 
@@ -178,13 +178,13 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
 | 8a-1 | Ambush becomes an interrupt | ✅ `SaveGame` 16 |
 | 8a-2 | Collapse `NodeType` to START/SYSTEM/STATION/PULSAR/CORE | ✅ `SaveGame` 17 |
 | 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
-| — | Content — batch 04, thirty options | ✅ pool is **44** |
+| — | Content — batch 04, thirty options | ✅ pool is **47** |
 | 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
 | — | **Materials become items** — hold cells, selling, jettison, the shim deleted | ✅ `SaveGame` 24 |
 | — | **Placement** — unblocks the five held options | ✅ landed · quests carry a chart marker |
 | — | **Star features** — a real pulsar gate, not `min_danger 4` | `the_sweep`'s note |
 | 10 | **G §5** — chart primer | ✅ landed · `GALAXY_SCALE.md` §5 |
-| 11–12 | **L** — live card faces, then the targeting line | `LIVE_CARD_NUMBERS.md` |
+| 11–12 | **L** — live card faces, then the targeting line | ✅ landed · `LIVE_CARD_NUMBERS.md` |
 | 9 | **Tune LAST** — hellbender's food, then sector difficulty | §8 · **§9a below** |
 
 **Phase 7 is not optional.** Without an option policy the sim takes everything,
@@ -350,8 +350,9 @@ every step of the night.
 | — | **Materials as items** | ✅ 2026-08-30 |
 | — | Placement · star features | ✅ |
 | 10 | **G §5** — chart primer | ✅ |
-| 11–12 | **L** | ⬜ |
-| 9 | Tune — **moved to last**, see the ruling | ⬜ |
+| 11–12 | **L** | ✅ |
+| 9 | Tune — **moved to last**, see the ruling | ⬜ **blocked, see below** |
+| — | **Eighty encounters** — 47 → 127 | ⬜ `ENCOUNTER_COMMISSION.md` |
 
 ---
 
@@ -416,6 +417,20 @@ var ring_danger := 1 + int(round(layer * float(DANGER_MAX - 1) / float(maxi(1, L
 `1 + round(layer * 9 / 13)`, jittered ±1, capped at 10. The direction wanted is
 **exponential** — the middle exponentially harder than the rim, so reaching it
 means farming the sectors between.
+
+### ▸ TUNE IS BLOCKED BY THE COMMISSION, and the reason is §9a's own
+
+§9a says to price the hellbender's food supply first, and warns: *"Do not tune
+this before content lands. The table is seven options deep and `dead_hull`'s
+share of it is an artefact of that."* The table is 47 now and
+`ENCOUNTER_COMMISSION.md` takes it to **127**. The hellbender eats systems
+offering a `salvage` option, so its food supply is a function of the table's
+size and shape — tuning it against 47 would bake in an artefact of a table about
+to nearly triple.
+
+The 4.36-derelicts-per-run figure also predates the depth bands, the tier
+ladder, and materials becoming items. **Re-measure at 300+ runs after the eighty
+land**, before touching a single lever.
 
 **Parked until phase 8.** Difficulty is meaningless until encounters are what
 they are going to be, and tuning it twice is the argument this document already

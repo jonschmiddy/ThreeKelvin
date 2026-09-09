@@ -34,6 +34,23 @@ var _drag_card: CardData = null
 ## fight, which reads as flicker.
 var _tweens: Dictionary = {}
 
+## E-folds per second the held card closes on the cursor. Lower than
+## `ItemIcon.FOLLOW`'s 16 on purpose: a card is a big object and the weight is
+## the point -- it should feel carried rather than stuck to the pointer.
+const CARD_FOLLOW := 9.0
+## The card being carried, and where it is heading. While this is set the card
+## is driven per frame by `_process` and NOT tweened into its slot by `_layout`:
+## a tween to a slot and a lerp to the cursor fight, and the tween wins on the
+## frame it is created, which is what made the drag snap.
+var _carry: CardView = null
+var _carry_to: Vector2 = Vector2.ZERO
+## And the card that has just been let go, still travelling. A tween would do it
+## in SLIDE seconds from ANY distance, so a card released a hundred pixels out of
+## the fan appears to teleport back into it. Driven by the same follow as the
+## carry, it decelerates into place and reads as the same object being set down.
+var _settle: CardView = null
+var _settle_to: Vector2 = Vector2.ZERO
+
 func _init() -> void:
 	# The hand accepts drops so a card dragged back here is reordered rather
 	# than played. Enemies and your hull are the other drop zones; which one
@@ -155,6 +172,15 @@ func _layout() -> void:
 		# baseline moves whenever the band does.
 		v.set_base_y(target.y)
 		v.size = Vector2(CardView.CARD_W, CardView.CARD_H)
+		# The carried card answers to the cursor, not to its slot. Its neighbours
+		# still slide, so the gap opens and closes under it as it moves.
+		if _carry != null and v == _carry:
+			continue
+		# A card on its way home takes its target from here -- the layout is what
+		# knows where home IS -- but travels under `_process`, not a tween.
+		if _settle != null and v == _settle:
+			_settle_to = target
+			continue
 		if v.position.distance_to(target) < 0.5:
 			continue
 		if _tweens.has(v) and is_instance_valid(_tweens[v]) and _tweens[v].is_valid():
@@ -213,7 +239,9 @@ func preview_onto(card: CardData, onto: CardView) -> void:
 	preview_at(onto.position.x + CardView.CARD_W * 0.5, card)
 
 func clear_preview() -> void:
-	if _preview_slot < 0 and _drag_card == null:
+	var carried := _carry != null
+	_drop_carry()
+	if _preview_slot < 0 and _drag_card == null and not carried:
 		return
 	_preview_slot = -1
 	_drag_card = null
@@ -266,8 +294,78 @@ func _slot_at(x: float) -> int:
 ## Drive the reorder from a gesture this view does not own. `preview_at` and
 ## `_commit` were reachable only through Godot's drop before, which is why hand
 ## reorder died with the drag -- the machinery survived, its only caller did not.
-func slide_to(x_global: float, card: CardData) -> void:
-	preview_at(x_global - global_position.x, card)
+func slide_to(at_global: Vector2, card: CardData) -> void:
+	var v := _view_of(card)
+	if v == null:
+		return
+	# CLAIMED BEFORE THE LAYOUT, not after. `preview_at` runs `_layout`, and a
+	# layout that does not yet know the card is carried starts a 0.14s tween to
+	# its slot -- which then fights the follow. That tween is what threw the card
+	# sideways on the first frame of every drag before settling on the cursor.
+	if _carry != v:
+		# Caught on its way home and picked straight back up: it is the carry's
+		# again, and leaving it in `_settle` would have both driving the same
+		# position every frame.
+		if _settle == v:
+			_settle = null
+		_carry = v
+		v.set_held(true)
+		# Above its neighbours for as long as it is held. z_index rather than
+		# child order, because `_restack` rewrites child order on every layout
+		# and would drop it back into the fan.
+		v.z_index = 1
+		if _tweens.has(v) and is_instance_valid(_tweens[v]) and _tweens[v].is_valid():
+			_tweens[v].kill()
+		set_process(true)
+	# Centred on the pointer: `position` is the top-left corner. The vertical is
+	# CLAMPED INTO THE DRAWER -- a reorder is a horizontal gesture, and letting
+	# the card climb out of the fan with the cursor is how it ended up wrestling
+	# the layout for a place to be.
+	var want := at_global - global_position 		- Vector2(CardView.CARD_W, CardView.CARD_H) * 0.5
+	want.y = clampf(want.y, _baseline() - 26.0, _baseline() + 6.0)
+	_carry_to = want
+	preview_at(at_global.x - global_position.x, card)
+
+func _view_of(card: CardData) -> CardView:
+	for v in _views:
+		if v.card == card:
+			return v
+	return null
+
+func _process(delta: float) -> void:
+	# Exponential, so it never overshoots and the rate does not depend on the
+	# frame rate. Same shape as ItemIcon's, slower.
+	var k := 1.0 - exp(-CARD_FOLLOW * delta)
+	if _carry != null and is_instance_valid(_carry):
+		_carry.position = _carry.position.lerp(_carry_to, k)
+	elif _carry != null:
+		_carry = null
+	if _settle != null and is_instance_valid(_settle):
+		_settle.position = _settle.position.lerp(_settle_to, k)
+		if _settle.position.distance_to(_settle_to) < 0.5:
+			_settle.position = _settle_to
+			# Only now does it stop being held, so the armed lift plays from a
+			# card that has finished travelling rather than against one that has not.
+			_settle.set_held(false)
+			_settle = null
+	elif _settle != null:
+		_settle = null
+	if _carry == null and _settle == null:
+		set_process(false)
+
+## Put the carried card down: it stops chasing the cursor and slides home with
+## everything else.
+func _drop_carry() -> void:
+	if _carry != null and is_instance_valid(_carry):
+		_carry.z_index = 0
+		# STILL HELD, on purpose. It stays the hand's to move until it has
+		# arrived; releasing it here would hand it to `_layout`'s tween and to
+		# the armed lift at the same moment, from a hundred pixels away, and the
+		# two would fight over it in front of you.
+		_settle = _carry
+		_settle_to = _carry.position
+		set_process(true)
+	_carry = null
 
 
 func commit() -> void:
@@ -275,6 +373,7 @@ func commit() -> void:
 
 
 func _commit() -> void:
+	_drop_carry()
 	var order := _order_for_layout()
 	var cards: Array = []
 	for v in order:

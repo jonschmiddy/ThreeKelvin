@@ -1,0 +1,3 @@
+take: walking_fire_1
+why: a craft firing a heavy beam in the void, planet behind -- wrong for Walking Fire (that card is being hit, not hitting) but a strong ship-firing picture
+prompt: {'prompt': 'a row of impact flashes walking down the flank of a distant craft in space, the leading flash bright and throwing debris, the ones behind fading to smoke and scars, a planet behind, cold starfield', 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'camera OUTSIDE in the void -- CONTAINS BANNED WORD: flank'}

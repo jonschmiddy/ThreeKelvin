@@ -56,6 +56,69 @@ func run(tree: SceneTree) -> void:
 
 func _shot(tree: SceneTree, weight_name: String) -> void:
 	Run.start_new_run(&"korvan", int(WEIGHTS[weight_name]))
+	# `-- shipshot heavy sets=4` bolts on that many of the hull manufacturer's own
+	# parts, which is the only way to photograph the set-bonus chips in the perk
+	# corner: a fresh run counts two toward a set and the chips appear at three,
+	# so the state this tool built by default was the one that could not show
+	# them.
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("sets="):
+			continue
+		var fitted := 0
+		var want2 := int((a as String).substr(5))
+		for mid in DB.modules:
+			if fitted >= want2:
+				break
+			var md: ModuleData = DB.modules[mid]
+			if md.manufacturer != Run.hull.manufacturer:
+				continue
+			Run.install_module(md.duplicate(true) as ModuleData)
+			fitted += 1
+		print("  %d fitted · set count %d" % [fitted,
+			Run.manufacturer_count(Run.hull.manufacturer)])
+	# `fit=plasma` bolts on one named part, repeatable. The same argument
+	# `-- ship` takes, so a state reached live can be photographed without
+	# rebuilding it out of `sets=` and `mixed`.
+	for a3 in OS.get_cmdline_user_args():
+		if not (a3 as String).begins_with("fit="):
+			continue
+		var pid := StringName((a3 as String).substr(4))
+		if not DB.modules.has(pid):
+			print("  no module '%s'" % pid)
+			continue
+		Run.install_module((DB.modules[pid] as ModuleData).duplicate(true) as ModuleData)
+
+	# `strip` takes everything off the hull. The state a player reaches by
+	# dragging their whole loadout into the hold, and the one that showed a set
+	# chip for a manufacturer nothing was fitted from -- the hull counts toward a
+	# set, so the total was 1 with an empty ship.
+	if "strip" in OS.get_cmdline_user_args():
+		Run.installed.clear()
+		print("  stripped · set count %d · installed %d" % [
+			Run.manufacturer_count(Run.hull.manufacturer), Run.installed.size()])
+
+	# `mixed` bolts on one part each from three OTHER manufacturers, which is the
+	# only way to photograph the chip's greyed state -- a run fitted from one
+	# catalogue shows the earned chip and nothing else, and "greyed until it
+	# lands" is the half of the design that cannot be seen that way.
+	if "mixed" in OS.get_cmdline_user_args():
+		var others := 0
+		for oid in DB.manufacturers:
+			if oid == Run.hull.manufacturer or others >= 3:
+				continue
+			for mid2 in DB.modules:
+				var md2: ModuleData = DB.modules[mid2]
+				if md2.manufacturer != oid:
+					continue
+				Run.install_module(md2.duplicate(true) as ModuleData)
+				others += 1
+				break
+		var tally := PackedStringArray()
+		for oid2 in DB.manufacturers:
+			var n2 := Run.manufacturer_count(oid2)
+			if n2 > 0:
+				tally.append("%s %d" % [DB.short_name(DB.manufacturer_name(oid2)), n2])
+		print("  mixed · %s" % ", ".join(tally))
 	# `-- shipshot medium cargo` fills the hold with materials, which is the only
 	# way to look at the thing materials are FOR. One of every shape and a spread
 	# of tiers, so the crate art is judged across the range it has to cover
@@ -77,6 +140,28 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 				break
 		print("  hold %dx%d, %d items" % [Run.hull.hold_grid.x,
 			Run.hull.hold_grid.y, Run.cargo.size()])
+	# `name=Bad Penny` photographs a NAMED ship, which is the state the masthead
+	# rearranges for -- the pilot's name takes the big line and the frame's own
+	# drops beside the chassis. A shot of an unnamed one cannot show that.
+	for a2 in OS.get_cmdline_user_args():
+		if (a2 as String).begins_with("name="):
+			Run.ship_name = (a2 as String).substr(5)
+			print("  named '%s'" % Run.ship_name)
+	# `tips` prints what the set chips say on hover. A tooltip is the one part of
+	# a screen a screenshot cannot show, so the only way to check its wording is
+	# to ask for it.
+	if "tips" in OS.get_cmdline_user_args():
+		for oid in DB.manufacturers:
+			var n := Run.manufacturer_count(oid)
+			if n < 1:
+				continue
+			var f := 0
+			for inst in Run.installed:
+				if inst.manufacturer == oid:
+					f += 1
+			print("--- chip hover ---
+%s" % Widgets.set_tip(oid, n, f))
+
 	Router.show_ship()
 	# The ship flies in and the mounts settle behind it, and this waits for
 	# THE ANIMATION rather than for a number of frames.
@@ -92,6 +177,47 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 		await RenderingServer.frame_post_draw
 		if Time.get_ticks_msec() - t0 > 1200:
 			break
+	# `rename` opens the rename dialog and photographs it. A dialog is the one
+	# part of a screen a still of the screen cannot show, and this one is built
+	# fresh every time it opens -- so "does it construct" is a real question and
+	# not a rhetorical one.
+	if "rename" in OS.get_cmdline_user_args():
+		var sc := Router.current as ShipScreen
+		if sc != null:
+			sc._open_rename()
+			for i in 20:
+				await RenderingServer.frame_post_draw
+			print("  rename dialog open")
+
+	# `tippanel` builds what a chip answers with and parks it on the screen.
+	#
+	# `hover` below warps the mouse and waits, which does NOT work: warping the
+	# pointer does not synthesise the motion event Godot's GUI uses to start a
+	# tooltip timer, so the shot comes back with no tooltip and no error. This
+	# builds the panel directly instead and wraps it in the plate Godot would
+	# have wrapped it in -- `bevel(PANEL2)`, which is what `perk_readout`'s own
+	# comment records the tooltip theme using.
+	if "tippanel" in OS.get_cmdline_user_args():
+		var sc3 := Router.current as ShipScreen
+		if sc3 != null:
+			for oid in DB.manufacturers:
+				var n := Run.manufacturer_count(oid)
+				if n < 1:
+					continue
+				var f := 0
+				for inst in Run.installed:
+					if inst.manufacturer == oid:
+						f += 1
+				var plate := PanelContainer.new()
+				plate.add_theme_stylebox_override("panel",
+					UITheme.bevel(UITheme.PANEL2, 6, 8))
+				plate.add_child(Widgets.set_readout(oid, n, f))
+				plate.position = Vector2(250, 150 + 130 * sc3.get_child_count())
+				plate.set_as_top_level(true)
+				sc3.add_child(plate)
+			for i in 6:
+				await RenderingServer.frame_post_draw
+
 	# `-- shipshot heavy zoom` photographs the doubled view, which is the only
 	# way to see it without a hand on the mouse: the zoom is a click and a
 	# drag, and neither exists in a headless render.

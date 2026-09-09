@@ -181,6 +181,13 @@ var _mountpts: MountPoints
 var _view: ShipView
 var _banner: ChassisSelect.Banner
 var _name: Label
+var _namebtn: Button
+## The rename prompt's shade, or null when it is closed. One field, because the
+## shade owns the card and the card owns everything in it -- freeing the shade
+## takes the whole prompt with it.
+var _rename: ColorRect
+## How long a ship's name may be. Longer than this and the masthead wraps.
+const NAME_MAX := 24
 var _manufacturer: Label
 var _class: Label
 var _hand: Label
@@ -263,8 +270,23 @@ func _build() -> void:
 	# hard against the flag and every correction below did nothing.
 	names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	names.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# THE NAME, and the pencil that changes it.
+	#
+	# On a row of its own so the button sits against the text rather than out at
+	# the column's right edge -- the column expands to fill the masthead, and a
+	# button parented straight to it would end up a hundred pixels from the word
+	# it edits.
+	var namerow := HBoxContainer.new()
+	# FOUR, not six. See NameEdit.PAD_X -- the button carries its own air, and
+	# the two were adding up to a gap wide enough to read as a separator.
+	namerow.add_theme_constant_override("separation", 4)
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
-	names.add_child(_name)
+	_name.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	namerow.add_child(_name)
+	_namebtn = NameEdit.new()
+	_namebtn.pressed.connect(_open_rename)
+	namerow.add_child(_namebtn)
+	names.add_child(namerow)
 	_manufacturer = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	names.add_child(_manufacturer)
 	var clsrow := HBoxContainer.new()
@@ -277,7 +299,8 @@ func _build() -> void:
 	Widgets.wear_pointer(_zoombtn)
 	_zoombtn.text = "ZOOM"
 	_zoombtn.focus_mode = Control.FOCUS_NONE
-	_zoombtn.tooltip_text = "Z - double the ship, then drag it about"
+	_zoombtn.tooltip_text = Widgets.tip(
+		"Double the ship, then drag it about. Z does the same.")
 	_zoombtn.pressed.connect(func(): _set_zoom(not _zoomed))
 	clsrow.add_child(_zoombtn)
 	names.add_child(clsrow)
@@ -593,6 +616,20 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
+	# THE RENAME PROMPT SWALLOWS THE LOT. Its shade stops the mouse but not the
+	# keyboard, so without this Z zoomed the ship and F flipped a part behind a
+	# panel the player thought they were typing into -- and the focused field
+	# only protects the letters it consumes itself, which is not Z once the
+	# focus has moved to SET or CANCEL.
+	#
+	# Escape closes it, and here rather than on the button: `_unhandled_key_input`
+	# only sees the key once the focused LineEdit has declined it, which is
+	# exactly the condition wanted.
+	if _rename != null:
+		if k.keycode == KEY_ESCAPE:
+			_close_rename()
+		get_viewport().set_input_as_handled()
+		return
 	if k.keycode == KEY_Z:
 		_set_zoom(not _zoomed)
 		get_viewport().set_input_as_handled()
@@ -699,6 +736,115 @@ func _ship_x() -> float:
 	if wide > win:
 		return (win - wide) * 0.5
 	return (win - wide) * 0.5 - _view.ship_offset_x()
+
+## Rename the ship, in a panel over the screen.
+
+## How wide the prompt is. The same number the title screen's prompts use, and
+## for the same reason its note gives: what reads as ragged between two panels
+## is the WIDTH, because that is the edge the eye lines up against.
+const RENAME_W := 356
+
+## NOT AN AcceptDialog ANY MORE, and that is the whole of it looking like the
+## game.
+##
+## An AcceptDialog is a Window, and an embedded Window paints `embedded_border`
+## from Godot's own theme UNDERNEATH whatever panel you give it -- so the pale
+## grey gradient behind this prompt was not the dialog's background at all,
+## which is why overriding `panel` never removed it. Godot also builds the OK
+## and CANCEL buttons itself, in its own row, at its own spacing.
+##
+## The title screen already had the answer: a full-screen shade, a card centred
+## on it, and the game's own buttons inside. Everything it wears is the game's,
+## because none of it is Godot's furniture.
+##
+## STILL NOT A SCREEN. Renaming is a detour of about four seconds and a Router
+## push would tear down the refit screen and rebuild it underneath -- losing the
+## ship's arrival animation, the hold's scroll position and whatever part was
+## mid-drag.
+##
+## BUILT AND FREED EACH TIME. A prompt held as a field is one more thing to keep
+## in step with a hull swap, and this one reads `Run` at the moment it opens.
+func _open_rename() -> void:
+	if Run.hull == null or _rename != null:
+		return
+
+	# The shade eats input, so the screen underneath cannot be clicked through,
+	# and a click on the dim margin closes -- the same dismissal every other
+	# prompt in the game uses.
+	var shade := ColorRect.new()
+	shade.color = Color(0.02, 0.03, 0.05, 0.80)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	shade.gui_input.connect(func(e: InputEvent) -> void:
+		var mb := e as InputEventMouseButton
+		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			_close_rename())
+	add_child(shade)
+	_rename = shade
+
+	var mid := CenterContainer.new()
+	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.add_child(mid)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.add_child(UITheme.body("NAME YOUR SHIP", UITheme.ICE, UITheme.FS_HEAD))
+
+	var field := UITheme.field(24)
+	# The frame's own name as the PLACEHOLDER, not as the text. Prefilling it
+	# would make clearing the box the only way to go back to being unnamed, and
+	# a player who opens this by accident should be able to press SET and change
+	# nothing.
+	field.placeholder_text = Run.hull.name
+	field.text = Run.ship_name
+	field.max_length = NAME_MAX
+	field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	field.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	field.select_all_on_focus = true
+	col.add_child(field)
+
+	col.add_child(UITheme.body(
+		"Empty keeps the frame's own name. Names survive a hull swap.",
+		UITheme.COLD, UITheme.FS_SMALL))
+
+	var commit := func() -> void:
+		# STRIPPED, and a name that is only spaces is no name. Otherwise the
+		# masthead shows a blank line where a word should be and nothing on the
+		# screen says why.
+		Run.ship_name = field.text.strip_edges()
+		_close_rename()
+		_refresh()
+	# ENTER SETS IT. The field is the only thing focused when this opens, so the
+	# key you would reach for has to be wired to the button you would click.
+	field.text_submitted.connect(func(_t: String) -> void: commit.call())
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(Widgets.button("SET", commit))
+	# The quiet half of the pair, in the ink the title screen leaves its
+	# back-out options in.
+	var cancel := Widgets.button("CANCEL", _close_rename)
+	cancel.add_theme_color_override("font_color", UITheme.LEAVE)
+	cancel.add_theme_color_override("font_hover_color", UITheme.LEAVE.lightened(0.3))
+	cancel.add_theme_color_override("font_focus_color", UITheme.LEAVE)
+	row.add_child(cancel)
+	col.add_child(row)
+
+	var card := Widgets.panel_with(col)
+	card.custom_minimum_size = Vector2(RENAME_W, 0)
+	# The card stops the press, so only the dim margin dismisses.
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	mid.add_child(card)
+	field.grab_focus()
+
+
+func _close_rename() -> void:
+	if _rename == null:
+		return
+	_rename.queue_free()
+	_rename = null
+
 
 ## Park the perk list in the masthead's top-right corner.
 ##
@@ -920,7 +1066,16 @@ func _refresh() -> void:
 	_banner.mark = accent
 	_banner.field = m.field if m != null else UITheme.PANEL
 	_banner.queue_redraw()
-	_name.text = Run.hull.name.to_upper()
+	# A NAMED SHIP REPLACES THE FRAME'S NAME OUTRIGHT. It used to push it down
+	# to the head of the class line -- "IRONSIDE CUTTER · MEDIUM CHASSIS · C
+	# TIER" -- on the reasoning that a player deciding whether to swap frames
+	# needs to know what they are flying. REVERSED ON REQUEST: once you have
+	# named a ship the frame's name is not what you call it, and printing both
+	# read as the rename not having taken. What the frame IS still says itself
+	# on that line, in the two facts that actually decide a swap -- its weight
+	# and its tier -- and the dialog still offers the old name as its
+	# placeholder.
+	_name.text = Run.display_name().to_upper()
 	_manufacturer.text = m.name.to_upper() if m != null else "UNBRANDED SALVAGE"
 	_manufacturer.add_theme_color_override("font_color", accent)
 	_class.text = "%s CHASSIS · %s TIER" % [
@@ -942,6 +1097,54 @@ func _refresh() -> void:
 	# THE HULL'S OWN PERKS, manufacturer first then the grade's, in the corner.
 	if _perkbox != null:
 		Widgets.clear(_perkbox)
+		# --- WHAT YOU HAVE BECOME, above what the hull came with.
+		#
+		# The two belong in one corner because they are the same kind of fact:
+		# always-on effects you did not spend a card on. They are not the same
+		# ORIGIN, though -- a perk came with the frame and a set bonus was
+		# assembled -- so the chips read as marks and the perks as words.
+		#
+		# A set-bonus LADDER used to live on this screen and was removed on
+		# request; this is deliberately not that. The ladder showed how close a
+		# mixed loadout was to a bonus it did not have yet. These say only what
+		# is applying right now, which is the half nothing on this screen said.
+		var live := HBoxContainer.new()
+		live.add_theme_constant_override("separation", 3)
+		live.size_flags_horizontal = Control.SIZE_SHRINK_END
+		for mid in DB.manufacturers:
+			var have := Run.manufacturer_count(mid)
+			# ONE TOWARD THE SET IS ENOUGH TO APPEAR, and the hull counts as
+			# one. `manufacturer_count` includes it deliberately -- choosing a
+			# chassis is a build decision, and a Korvan frame really does put you
+			# one part from Standard Issue.
+			#
+			# This was briefly gated on FITTED parts instead, so a bare hull flew
+			# no mark. That made the chip disagree with the number the game
+			# actually uses, which is worse than the confusion it was meant to
+			# fix: a player on an empty Korvan hull IS one toward the set and
+			# should be able to see it. What was missing was never the chip, it
+			# was anything saying where the one came from -- so the count below
+			# names the hull's share instead of hiding it.
+			var parts := 0
+			for inst in Run.installed:
+				if inst.manufacturer == mid:
+					parts += 1
+			if have < 1:
+				continue
+			var mk: ManufacturerData = DB.manufacturers[mid]
+			var chip := HudBar.SetChip.new()
+			chip.manufacturer = mid
+			chip.mark = mk.colour
+			chip.field = mk.field
+			# ITS OWN HOVER, unlike the perk labels beside it. The perks share
+			# one tooltip because four names with no effects are unreadable
+			# apart; a chip is one fact and has room to state itself -- and
+			# `setup` is what gives it that, panel and all.
+			chip.mouse_filter = Control.MOUSE_FILTER_STOP
+			chip.setup(have, parts)
+			live.add_child(chip)
+		if live.get_child_count() > 0:
+			_perkbox.add_child(live)
 		for pid in Run.hull.perks():
 			var pd: Dictionary = DB.hull_perks.get(pid, {})
 			if pd.is_empty():
@@ -1257,3 +1460,110 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	Audio.play(&"hold_stow", 0.08)
 	Sig.ship_changed.emit()
 	_refresh()
+
+
+## THE PENCIL BESIDE THE SHIP'S NAME, drawn rather than typed.
+##
+## The UI font has no pencil glyph, and an "EDIT" label next to a name reads as
+## part of the name -- which on this screen means it reads as part of the SHIP'S
+## name. Everything else in this interface is rectangles on the pixel grid, so
+## this is too.
+class NameEdit extends Button:
+	## THE NAMEPLATE, in art pixels. Square, and eleven rather than the nine the
+	## pencil before it had.
+	##
+	## ELEVEN IS THE CEILING, not a preference. The name beside it is FS_HEAD,
+	## whose capitals are ten pixels tall; a square any larger stands proud of
+	## the text it belongs to and starts reading as a panel rather than as a mark
+	## on the end of a line.
+	##
+	## Replaced a pencil. The pencil's widest feature was the ferrule at its
+	## blunt end, so the eye landed on the wrong end of it, and at nine pixels a
+	## stepped diagonal is mostly staircase.
+	const ART := 11.0
+	## Air between the plate and the edge of the clickable box. The box is what
+	## you have to hit; the plate is only what you can see.
+	##
+	## THE HORIZONTAL PAD IS PART OF THE GAP TO THE NAME, and was most of it: it
+	## sat on top of the row's own separation, so the mark floated twelve pixels
+	## clear of the word it belongs to and read as the next thing along rather
+	## than as part of the line. Three here against the row's four.
+	const PAD_X := 3.0
+	const PAD_Y := 4.0
+
+	## How far the resting plate is dropped below COLD.
+	##
+	## COLD is the ink the masthead's own quiet text is set in, so a mark drawn
+	## in it competes with the writing instead of waiting behind it. A third of
+	## the way to black leaves it plainly there and plainly inactive -- and makes
+	## the lift to ICE and EMBER on hover read as the thing switching on.
+	const REST_DIM := 0.34
+
+	## Silkscreen's capitals are FIVE of its eight pixels. Measured off the face
+	## and true at every size the game asks for, because UITheme only ever asks
+	## for multiples of eight -- see its note on the font.
+	##
+	## The font itself will not answer this: `get_ascent` is 17 at FS_HEAD
+	## against a cap that is 10, so seven of those pixels are leading with
+	## nothing drawn in them. Centring on ascent centres on the leading.
+	const CAP_RATIO := 5.0 / 8.0
+
+	## How far the art sits BELOW the middle of its own box.
+	##
+	## The row centres this button on the name label's BOX, and that box is
+	## ascent plus descent -- 21 pixels at FS_HEAD. The caps inside it occupy 10,
+	## sitting on a baseline 17 down, so the ink runs 7..16 and its middle is a
+	## pixel and a half UNDER the middle of the box. Centred on the box, the
+	## plate rode high beside every ship name in the game.
+	##
+	## Rounded down onto the baseline rather than up: nine rows of plate cannot
+	## be centred exactly in ten of caps, and of the two off-by-half answers the
+	## one that puts the plate's bottom edge ON the baseline is a relationship
+	## rather than a coin toss.
+	var _drop: float = 0.0
+
+	func _init() -> void:
+		focus_mode = Control.FOCUS_NONE
+		flat = true
+		custom_minimum_size = Vector2(ART + PAD_X * 2.0, ART + PAD_Y * 2.0)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var f := UITheme.pixel_font()
+		var asc := f.get_ascent(UITheme.FS_HEAD)
+		var desc := f.get_descent(UITheme.FS_HEAD)
+		var cap := float(UITheme.FS_HEAD) * CAP_RATIO
+		_drop = roundf((asc - cap * 0.5) - (asc + desc) * 0.5)
+		# THROUGH `tip()`, like every other tooltip in the game. It wraps at
+		# TOOLTIP_WRAP, which is what puts a tooltip in the same family of
+		# rectangles as its neighbours rather than sizing it to its own text --
+		# the two tooltips on this masthead were the only ones setting the string
+		# raw, and they read as somebody else's interface.
+		tooltip_text = Widgets.tip("Rename your ship.")
+		mouse_entered.connect(queue_redraw)
+		mouse_exited.connect(queue_redraw)
+
+	func _draw() -> void:
+		# GREY UNTIL POINTED AT. This is a thing you can do rather than a fact
+		# about the ship, so at rest it stays out of the masthead and carries no
+		# warm pixel at all. Under the cursor the rim brightens and the engraving
+		# lights ember -- which is the one moment the heat is telling you
+		# something rather than just being the only colour in the corner.
+		var hot := is_hovered()
+		var edge := UITheme.ICE if hot else UITheme.COLD.darkened(REST_DIM)
+		var mark := UITheme.EMBER if hot else UITheme.COLD.darkened(REST_DIM)
+		var o := Vector2((size.x - ART) * 0.5,
+			(size.y - ART) * 0.5 + _drop).floor()
+		# The rim, as four rects rather than an unfilled draw_rect: `width` on an
+		# unfilled rect is a float pen that can land on half a pixel, and this
+		# has to be exactly one everywhere.
+		draw_rect(Rect2(o, Vector2(ART, 1)), edge, true)
+		draw_rect(Rect2(o + Vector2(0, ART - 1), Vector2(ART, 1)), edge, true)
+		draw_rect(Rect2(o, Vector2(1, ART)), edge, true)
+		draw_rect(Rect2(o + Vector2(ART - 1, 0), Vector2(1, ART)), edge, true)
+		# Two engraved lines, UNEQUAL. Two bars the same length read as a gauge;
+		# a long one over a short one reads as a name over what the thing is --
+		# which is what the masthead beside it actually says.
+		# Three rows of air above, three below, one between: the pair sits as a
+		# BLOCK of text on the plate rather than as two marks that happen to be
+		# in the same box.
+		draw_rect(Rect2(o + Vector2(2, 4), Vector2(7, 1)), mark, true)
+		draw_rect(Rect2(o + Vector2(2, 6), Vector2(5, 1)), mark, true)

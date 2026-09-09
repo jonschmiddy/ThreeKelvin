@@ -1,8 +1,7 @@
 class_name HudBar
 extends PanelContainer
 
-## Persistent top bar: navigation, hull, heat, economy, and live set-bonus
-## progress.
+## Persistent top bar: navigation, hull, heat, and the economy.
 ##
 ## SHIP and MAP live here rather than inside each screen, so they are in the same
 ## place everywhere. SHIP greys out during combat instead of disappearing — you
@@ -23,6 +22,24 @@ extends PanelContainer
 ## So refresh() now only writes values and states. Nothing here is constructed
 ## after _ready.
 
+## How far a readout's label sits from its number, and how far one readout sits
+## from the next. THE SECOND MUST BE THE LARGER -- that is the whole of the rule,
+## and it was inverted once: six inside against the row's five between, so
+## "CREDITS 40 EXOTIC 2" bound 40 to EXOTIC rather than to its own word.
+##
+## TWELVE CAME DOWN TO EIGHT. Twelve was set while the economy sat in the middle
+## of the bar with a divider on either side of it; at the right-hand end, with
+## nothing after FUEL, that much air read as the readouts drifting apart rather
+## than as a group. Eight against four is still plainly two to one, which is all
+## the rule asks.
+const STAT_GAP := 4
+const ECON_GAP := 8
+
+## Air between the ship's gauges and the two dev catalogues. Wide enough to read
+## as a break, narrow enough that CARDS still belongs to the left-hand half of
+## the bar rather than floating in the middle of it.
+const MID_GAP := 24
+
 var _row: HBoxContainer
 var _built: bool = false
 
@@ -31,7 +48,6 @@ var _tab_sector: Button
 var _tab_chart: Button
 var _tab_cards: Button
 var _tab_parts: Button
-var _tab_history: Button
 ## Only ever visible in a party. Built unconditionally, because a party can form
 ## before the HUD exists and can also outlive it — hiding a built button is one
 ## state to keep in step, and rebuilding the bar when somebody joins is a whole
@@ -39,7 +55,7 @@ var _tab_history: Button
 var _tab_party: Button
 ## The archive. Always built and always available: what you have read survives
 ## the ship, so unlike SHIP and PARTY there is no run state that makes reading a
-## page wrong. It greys during a fight anyway — see refresh().
+## page wrong. It does NOT grey during a fight — see refresh().
 var _tab_archive: Button
 
 var _hull_label: Label
@@ -91,7 +107,11 @@ func _ready() -> void:
 	# fitting a 960 window and losing its last readout off the end. Nothing is
 	# removed and nothing is renamed; the air between things is just slightly
 	# less generous.
-	_row.add_theme_constant_override("separation", 6)
+	#
+	# FIVE NOW, and the same lever for the same reason. `-- stationshot` prints
+	# what the row wants against what it has, so the next person to add
+	# something here can check rather than guess.
+	_row.add_theme_constant_override("separation", 5)
 	_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	clip.add_child(_row)
 	_build()
@@ -122,14 +142,74 @@ func _rebuild() -> void:
 	refresh()
 
 func _build() -> void:
-	# Ship | Sector | Starchart. The page you are on is lit rather than merely
-	# disabled, so the nav says where you are as well as where you can go.
+	# THE OPTIONAL TABS ARE FORGOTTEN FIRST, and this is a bug fix rather than
+	# tidiness.
+	#
+	# `_rebuild` frees every child of the row and builds it again. When dev mode
+	# goes OFF, the branch that makes these two does not run -- so the fields
+	# went on holding the buttons that had just been freed, and every refresh
+	# after that handed a dead Object to `_state`.
+	#
+	# IT DID NOT FAIL WHERE YOU WOULD EXPECT. `_state` opens with `if b == null`,
+	# and a freed reference is not null -- but it never reached that line either:
+	# the call is REJECTED AT THE ARGUMENT, because a typed parameter will not
+	# accept a previously-freed object. No guard inside the function can catch
+	# it.
+	#
+	# It also did not fail immediately. `Widgets.clear` calls queue_free, which
+	# is deferred, so the rebuild's own refresh still saw live buttons and wrote
+	# correct values; the throw waited for the NEXT refresh a frame later. That
+	# is why turning dev off ON THE LAUNCHER -- where there is no run and refresh
+	# returns early -- gave a bar that only broke once a run started: every tab
+	# and gauge built, SHIP through ARCHIVE lit correctly, and then nothing.
+	# PARTY still showing, both gauges empty, no credits and no fuel, because the
+	# throw landed between the tab states and the values.
+	_tab_cards = null
+	_tab_parts = null
+
+	# --- LEFT: where you can go.
+	#
+	# Ship | Sector | Starchart | Archive. The page you are on is lit rather than
+	# merely disabled, so the nav says where you are as well as where you can go.
 	_tab_ship = _tab("SHIP", func() -> void: Router.show_ship())
 	_row.add_child(_tab_ship)
-	_tab_sector = _tab("SECTOR", func() -> void: Router.show_sector())
+	# ONE TAB, TWO NAMES. Docked, this reads STATION and goes to the station;
+	# flying, it reads SECTOR and goes to the sector. It is the same slot either
+	# way because it is the same idea -- "the place I am parked" -- and a second
+	# tab that appears and disappears at a station would move STARCHART and
+	# ARCHIVE sideways every time you tied up.
+	#
+	# The action dispatches at CLICK time rather than being rebound on docking:
+	# nothing on this bar is constructed after _ready, and swapping a Callable
+	# is one more piece of state to keep in step with the label.
+	_tab_sector = _tab("STATION", _go_here)
+	# HELD AT THE WIDTH OF THE LONGER WORD. STATION is a character wider than
+	# SECTOR, and without this the two tabs to its right -- and with them the
+	# gauges, and with them the whole middle of the bar -- shuffled six pixels
+	# sideways every time you tied up or let go.
+	#
+	# MEASURED AFTER add_child, NOT BEFORE. A Button takes its font from the
+	# theme it inherits through the tree, so an unparented one measures itself in
+	# Godot's default face and reserves the wrong number. `_row` is already in
+	# the tree by the time _build() runs, so the child is too the moment it is
+	# added, and the minimum is then taken in Silkscreen.
 	_row.add_child(_tab_sector)
+	_tab_sector.custom_minimum_size = Vector2(
+		_tab_sector.get_combined_minimum_size().x, 0)
 	_tab_chart = _tab("STARCHART", func() -> void: Router.show_starchart())
 	_row.add_child(_tab_chart)
+	# The archive joined the nav rather than sitting off at the right-hand end
+	# with the catalogues. It is a place in the game — a thing the run gives you
+	# and you go and read — where CARDS and MODULES are authoring views, and the
+	# bar now separates those two ideas by position instead of by nothing.
+	_tab_archive = _tab("ARCHIVE", func() -> void: Router.show_archive())
+	_row.add_child(_tab_archive)
+	# Hidden entirely when there is no party — a tab that is permanently greyed
+	# out in the solo game is a tab that teaches the player to ignore it. Built
+	# unconditionally, because a party can form before the HUD exists and can
+	# also outlive it.
+	_tab_party = _tab("PARTY", func() -> void: Router.show_party())
+	_row.add_child(_tab_party)
 
 	_row.add_child(_divider())
 
@@ -161,48 +241,60 @@ func _build() -> void:
 	_heat = BoxGauge.new()
 	_row.add_child(_heat)
 	_heat_text = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	# The over-cap form is the long one and it is the one that appears mid-fight,
-	# which is the worst possible moment for the whole bar to jump sideways.
-	_reserve(_heat_text, "00 — 00 HULL")
+	# NO WIDTH RESERVED HERE ANY MORE, and it is the layout that retired it
+	# rather than a change of mind.
+	#
+	# It reserved the over-cap form -- "00 — 00 HULL" -- because that is the long
+	# one and it appears mid-fight, which is the worst possible moment for the
+	# bar to jump sideways. That was true while the economy sat directly to its
+	# right in the middle of the row. It does not sit there now: everything after
+	# this is either a fixed gap or the slack, and the economy is pinned to the
+	# right-hand end, so heat growing is absorbed by the spacer and nothing a
+	# player can see moves at all.
+	#
+	# MEASURED, because it was not free: the reservation was 78 pixels against
+	# the 21 that "0/22" actually draws, and those 57 pixels of held-open air
+	# were the gap between the gauges and the catalogues. Twenty-four of MID_GAP
+	# was moving the pair four pixels, because the wall it was pushing off was
+	# this and not the heat number.
+	#
+	# The one thing that still moves is CARDS and MODULES, sliding right when you
+	# go over cap. They are dev-only and they are the only things between here
+	# and the slack.
 	_row.add_child(_hintable(_heat_text))
 
-	_row.add_child(_divider())
-	# Every readout on this bar explains itself on hover. The bar is where the
-	# whole economy is stated and none of it is self-evident: scrap is one
-	# currency competing with itself, fuel is priced by chart distance, and heat
-	# is a second health bar you are allowed to spend.
-	_scrap = Widgets.stat("credits", "")
-	_row.add_child(_hintable(_scrap))
-	# Materials are the one part of this bar whose CHILD COUNT is not fixed —
-	# one readout per material held, none for a material you have none of,
-	# because the bar is narrow and empty counters cost the space the ones that
-	# matter are read in.
+	# NO SET-BONUS CHIPS HERE. They were on this bar and are not any more: the
+	# ship screen already shows every allegiance you hold a part of, in a corner
+	# with room to name the bonus and count the parts, and a mark repeated on a
+	# bar that follows you everywhere was the same fact stated twice in the
+	# smaller of the two places. `SetChip` itself stays -- ShipScreen builds it.
+
+	# --- MIDDLE: the catalogues, and nothing else.
 	#
-	# So they get their own container and their own rebuild, and it fires only
-	# when the SET of materials changes rather than when a count does. That keeps
-	# the thing this class exists to guarantee: the tabs and the frame counter
-	# are never rebuilt, whatever the economy is doing.
-	_materials = HBoxContainer.new()
-	_materials.add_theme_constant_override("separation", 10)
-	_row.add_child(_materials)
-	# Materials stay on the scrap side of this rule: both are things you are
-	# carrying. Fuel is not — it is the clock — so it gets its own compartment.
-	_row.add_child(_divider())
-	_fuel = Widgets.stat("fuel", "")
-	_row.add_child(_hintable(_fuel))
+	# A FIXED GAP, not a share of the slack. The bar reads in three groups —
+	# where you can go, what the ship is, what you are carrying — and the two
+	# dev-only catalogues belong to none of them, so they get air on both sides
+	# and no rule.
+	#
+	# It was two expanding spacers, then two at a 1:3 ratio to pull the pair
+	# left. MEASURED: the pair did not move -- 582 either way -- so the ratio was
+	# doing nothing that could be seen, and a lever that does not move the thing
+	# it is aimed at is worse than no lever. A fixed gap puts them a known
+	# distance from the gauges instead of somewhere in the middle of whatever
+	# space happens to be left over.
+	if DevMode.enabled:
+		var gap := Control.new()
+		gap.custom_minimum_size = Vector2(MID_GAP, 0)
+		_row.add_child(gap)
 
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_row.add_child(sp)
-
-	# Card gallery, top right, away from the three tabs that are part of the game.
-	# It never greys out during combat: looking at the catalog changes nothing,
-	# and mid-fight is exactly when you want to check what a card was supposed
-	# to say. It DOES grey while choosing a chassis, which is the one moment
-	# there is no run to come back to.
 	# Dev only. Every card in the game on one page is an authoring view, and a
 	# player who reads it has been handed the answer to a game about finding out
 	# what things do. Not built at all rather than hidden — see DevMode.
+	#
+	# Neither greys out during combat: looking at the catalog changes nothing,
+	# and mid-fight is exactly when you want to check what a card was supposed
+	# to say. They DO grey while choosing a chassis, which is the one moment
+	# there is no run to come back to.
 	if DevMode.enabled:
 		_tab_cards = _tab("CARDS", func() -> void: Router.show_cards())
 		_row.add_child(_tab_cards)
@@ -212,25 +304,65 @@ func _build() -> void:
 		# list of cards with a picture beside each.
 		_tab_parts = _tab("MODULES", func() -> void: Router.show_modules())
 		_row.add_child(_tab_parts)
-	# Beside the three tabs that are part of the game rather than beside the two
-	# readouts, because who you are flying with is a thing you act on: it is
-	# where you learn that somebody is four shells deeper than you and running
-	# hot. Hidden entirely when there is no party — a tab that is permanently
-	# greyed out in the solo game is a tab that teaches the player to ignore it.
-	_tab_party = _tab("PARTY", func() -> void: Router.show_party())
-	_row.add_child(_tab_party)
 
-	# The archive sits with the record and the catalog: three things you READ
-	# rather than three places you go, and none of them changes the run.
-	_tab_archive = _tab("ARCHIVE", func() -> void: Router.show_archive())
-	_row.add_child(_tab_archive)
+	# ALL THE SLACK IN ONE PLACE, and it is here: whatever the window has spare
+	# opens up between the catalogues and the money, so the economy stays pinned
+	# to the right-hand end and everything else stays where it was put.
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_row.add_child(sp)
 
-	# The record sits beside the catalog: both are things you read rather than
-	# places you go, and neither changes the run.
-	_tab_history = _tab("HISTORY", func() -> void: Router.show_history())
-	_row.add_child(_tab_history)
+	# --- RIGHT: what you are carrying, grouped by PROXIMITY rather than by
+	# dividers.
+	#
+	# Every readout on this bar explains itself on hover. The bar is where the
+	# whole economy is stated and none of it is self-evident: credits are one
+	# currency competing with itself, fuel is priced by chart distance, and heat
+	# is a second health bar you are allowed to spend.
+	#
+	# The gap inside a readout was SIX and the gap between two readouts was the
+	# row's own five, so "CREDITS 40 EXOTIC 2" bound the wrong pairs -- 40 sat
+	# closer to EXOTIC than to the word it belongs to. Nothing was misaligned;
+	# the spacing simply said the opposite of the grouping. Four in, twelve
+	# between, and the eye does the rest without a rule being drawn.
+	var econ := HBoxContainer.new()
+	econ.add_theme_constant_override("separation", ECON_GAP)
+	_scrap = Widgets.stat("credits", "")
+	_scrap.add_theme_constant_override("separation", STAT_GAP)
+	econ.add_child(_hintable(_scrap))
+	# Materials are the one part of this bar whose CHILD COUNT is not fixed —
+	# one readout per material held, none for a material you have none of,
+	# because the bar is narrow and empty counters cost the space the ones that
+	# matter are read in.
+	#
+	# So they get their own container and their own rebuild, and it fires only
+	# when the SET of materials changes rather than when a count does. That keeps
+	# the thing this class exists to guarantee: the tabs and the gauges are never
+	# rebuilt, whatever the economy is doing.
+	_materials = HBoxContainer.new()
+	_materials.add_theme_constant_override("separation", ECON_GAP)
+	econ.add_child(_materials)
+	# Fuel joins the group rather than sitting behind a rule of its own. It IS a
+	# different kind of thing -- credits and materials are cargo, fuel is the
+	# clock -- but ECON_GAP already says "separate readout", and a vertical bar
+	# at the very end of the row was drawing a compartment with one thing in it.
+	#
+	# INSIDE `econ`, not beside it. Dropping the rule and leaving fuel on the row
+	# left it on the row's own separation of five against the group's twelve, so
+	# "RELIC 1 FUEL 279" bound the wrong pair -- exactly the mistake ECON_GAP was
+	# introduced to fix, reintroduced by removing the divider that was hiding it.
+	_fuel = Widgets.stat("fuel", "")
+	_fuel.add_theme_constant_override("separation", STAT_GAP)
+	econ.add_child(_hintable(_fuel))
+	_row.add_child(econ)
 
-	# THE FRAME COUNTER IS GONE, and the bar is the better for the room.
+	# THE RUN HISTORY IS NOT HERE ANY MORE. It is FLIGHT RECORD on the title
+	# screen, which is the only place it was ever read: it is the list of runs
+	# you have FINISHED, so consulting it mid-run is looking up somebody else's
+	# ship. Removing it also bought the row back about sixty pixels, which is
+	# what let the economy move to the right-hand end without clipping.
+	#
+	# THE FRAME COUNTER IS GONE TOO, and the bar is the better for the room.
 	#
 	# It was the last thing on the row, so when the row ran out of width it was
 	# the thing that got cut — and it was cut at a standard window size, which is
@@ -248,6 +380,7 @@ func refresh() -> void:
 	if not _built or Run.hull == null:
 		return
 
+
 	var fighting := Router.in_combat()
 	# Choosing a chassis locks the whole bar. Until you have launched there is no
 	# sector to look at, no chart to plot on and nothing to refit — and a SHIP
@@ -258,26 +391,43 @@ func refresh() -> void:
 	var lock := choose_lock if choosing else ("Locked during combat." if fighting else "")
 
 	_state(_tab_ship, Router.current is ShipScreen, lock, "Install and scrap modules.")
-	# Combat happens in the sector, so the tab stays lit through a fight rather
-	# than greying out as if you had left.
-	_state(_tab_sector, Router.current is SectorScreen or fighting, choose_lock,
-		"What is around you.")
+	# Lit on the station screen as well as the sector: both are "here", and the
+	# name on the tab already says which of the three you are looking at. Combat
+	# happens in the sector, so it stays lit through a fight rather than greying
+	# out as if you had left.
+	#
+	# COMBAT OUTRANKS THE OTHER TWO. It is the one state you cannot leave, so the
+	# tab that names where you are had better name that first -- and a tab
+	# reading SECTOR while something is shooting at you is the bar's only
+	# opportunity to be wrong about the most important thing on screen.
+	#
+	# All three fit the reserved width: STATION is the longest at seven, and the
+	# button was built with that word for exactly this reason.
+	if fighting:
+		_tab_sector.text = "COMBAT"
+	elif Router.docked:
+		_tab_sector.text = "STATION"
+	else:
+		_tab_sector.text = "SECTOR"
+	var here_hint := "What is around you."
+	if fighting:
+		here_hint = "The fight you are in."
+	elif Router.docked:
+		here_hint = "The station you are docked at."
+	_state(_tab_sector,
+		Router.current is SectorScreen or Router.current is StationScreen or fighting,
+		choose_lock, here_hint)
 	_state(_tab_chart, Router.current is StarchartScreen, lock, "Where to go next.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")
 	_state(_tab_cards, Router.current is CardGalleryScreen, choose_lock,
 		"Every card in the game.")
-	_state(_tab_history, Router.current is HistoryScreen, choose_lock,
-		"Every run you have finished.")
-	# Locked during a fight for the same reason SHIP is: it is a page you read
-	# while deciding where to go, and the decision it feeds does not exist while
-	# something is shooting at you. The convoy strip covers the fight.
 	# Greys while choosing a chassis for the same reason CARDS does — there is no
 	# run to come back to — but NOT during a fight. Mid-fight is exactly when a
 	# player looks something up, and reading a fifty-year-old manifest changes
 	# nothing about the frigate in front of them.
 	_state(_tab_archive, Router.current is ArchiveScreen, choose_lock,
-		"What you have recovered and read.")
+		"Lore you have recovered.")
 	_tab_party.visible = Net.is_networked()
 	_state(_tab_party, Router.current is PartyScreen, lock,
 		"Everyone you are flying with.")
@@ -333,6 +483,15 @@ func refresh() -> void:
 	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")
+
+## Where the second nav tab goes: the station if you are tied up at one, the
+## sector if you are flying it. Read at click time so the label and the
+## destination cannot disagree.
+func _go_here() -> void:
+	if Router.docked:
+		Router.show_station()
+	else:
+		Router.show_sector()
 
 ## Make a readout able to receive the hover that shows a tooltip. Label defaults
 ## to MOUSE_FILTER_IGNORE, so setting tooltip_text alone is silently a no-op —
@@ -435,6 +594,7 @@ func _refresh_materials() -> void:
 			var tier := StringName(MaterialTable.by_id(s.id).get("tier", &"common"))
 			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
 				UITheme.tier_colour(tier))
+			row.add_theme_constant_override("separation", STAT_GAP)
 			row.name = "mat_" + String(s.id)
 			_materials.add_child(_hintable(row))
 		if shown < stock.size():
@@ -517,3 +677,91 @@ func _state(b: Button, active: bool, lock: String, hint: String) -> void:
 		b.remove_theme_stylebox_override("normal")
 		b.remove_theme_stylebox_override("disabled")
 		b.remove_theme_color_override("font_disabled_color")
+
+
+## ONE MANUFACTURER'S SET BONUS, LIT. Sixteen pixels square, which is not a
+## rounded number -- it is the size the build plan's Phase 9 gate names. "Every
+## emblem legible at 16px" was written as a test OF this chip, and until now the
+## chip it was written for did not exist, so the gate had never been run against
+## anything.
+##
+## The bonuses have been live in the sim the whole time: `Run.has_set` decides
+## whether Solari plasma gains damage, whether Cygnet drones act twice, whether
+## Redline negates the first attack. A player could be three modules into an
+## identity, having it applied to every card they play, and be told nowhere.
+## The only place set bonuses appeared was the chassis picker, which is the one
+## screen you are not on while it matters.
+class SetChip extends Control:
+	const PLATE := 16.0
+	## Seconds for one full breath at the top tier.
+	const PULSE := 1.6
+
+	var manufacturer: StringName = &""
+	var mark: Color = UITheme.CHILL
+	var field: Color = UITheme.PANEL
+	## HOW MANY YOU HAVE, not which tier you reached. The chip is a tracker:
+	## one part shows the mark greyed with one pip, three lights it, five sets
+	## it breathing. Reading the count rather than a tier means the pips can say
+	## "two of the three you need" instead of only ever saying "earned".
+	var count: int = 0
+	## How many of the count are PARTS. The panel names the hull's share, and
+	## only the caller knows it.
+	var fitted: int = 0
+
+	var _t: float = 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(PLATE, PLATE)
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		set_process(false)
+
+	## ONLY THE TOP TIER TICKS. A chip that redraws every frame to show a state
+	## that is not changing is the same waste as the bar rebuilding itself, and
+	## this bar has a header about exactly that.
+	func setup(n: int, parts: int = 0) -> void:
+		count = n
+		fitted = parts
+		set_process(n >= 5)
+		_t = 0.0
+		# THE TRIGGER, not the content. Godot only asks for a tooltip when this
+		# is non-empty, and `_make_custom_tooltip` replaces it with a panel --
+		# but the plain form is set rather than a placeholder so a failure to
+		# build the panel degrades to something readable. Same contract the perk
+		# corner uses.
+		tooltip_text = Widgets.tip(Widgets.set_tip(manufacturer, n, parts))
+		queue_redraw()
+
+	func _make_custom_tooltip(_for_text: String) -> Object:
+		return Widgets.set_readout(manufacturer, count, fitted)
+
+	func _process(delta: float) -> void:
+		_t = fmod(_t + delta, PULSE)
+		queue_redraw()
+
+	func _draw() -> void:
+		var lit := count >= 3
+		# The breath. A cosine so it dwells at both ends instead of sweeping
+		# evenly through -- an even ramp reads as a flicker at this size.
+		var glow := 0.0
+		if count >= 5:
+			glow = (1.0 - cos(_t / PULSE * TAU)) * 0.5
+		var ink := mark if lit else mark.darkened(0.55)
+		if count >= 5:
+			ink = ink.lerp(mark.lightened(0.45), glow)
+		var bg := field if lit else field.darkened(0.35)
+
+		var b := Rect2(Vector2.ZERO, Vector2(PLATE, PLATE))
+		draw_rect(b, bg, true)
+		draw_rect(b, ink.darkened(0.3), false, 1.0)
+		# AT SCALE 1. draw_emblem's offsets are authored in whole pixels around a
+		# centre, and the marks span nine to ten of them -- so a sixteen-pixel
+		# plate is the emblem with three pixels of air, and any other scale is
+		# the emblem on half-pixel boundaries.
+		CardView.draw_emblem(self, manufacturer, Vector2(PLATE, PLATE) * 0.5,
+			1.0, ink, bg)
+		# The count, in the margin the emblem leaves. Every mark spans nine or
+		# ten pixels of the sixteen, centred -- so columns 13 and 14 are free on
+		# every one of the seven. Bottom-up, so the stack grows as the set does.
+		for i in mini(count, 5):
+			draw_rect(Rect2(13.0, PLATE - 3.0 - i * 2.0, 2.0, 1.0), ink, true)

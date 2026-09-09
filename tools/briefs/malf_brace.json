@@ -1,0 +1,285 @@
+{
+ "set": "Thirty-One Cards: Malfunctions and Brace",
+ "lede": "<p class=\"lede\">The easiest set in the game to keep apart, and the exact opposite of the brace problem: <b>sixteen names that are already sixteen different objects</b>. Dross, a hairline crack, a coolant plume, a scored bore, a blown coupling, a dead cell, a loose round, an arc fault, a torn liner, a fouled optic, ballast, a jammed feed, a slow fire, a ghost return, slag, a seized actuator.</p>\n\n  <div class=\"note\"><div class=\"h\">What the keywords mean, and how they show</div><div class=\"b\"><p>Every malfunction has <code>Purge</code> and most carry <b>Corrode</b> (rust, pitting, bloom), <b>Smoulder</b> (heat, smoke, char) or <b>Fused</b> (stuck, cannot be discarded). So the keyword drives the <em>damage</em> and the name drives the <em>object</em> &mdash; which is why no two of these should look alike even though all sixteen mean 'something on your ship is wrong'.</p><p>They are all <b>close details of a bigger machine</b>, which is a frame no card in the game uses yet: the weapon cards are wide exteriors and the two instrument cards are flat faces. That separation is deliberate &mdash; a hand of malfunctions should feel different from a hand of attacks before you read a word of it.</p><p>These are also <b>the only cards a player never chooses</b>. They arrive as punishment, so the pictures should be unwelcome: cold, still, already broken, nothing dramatic happening. Damage already done, not an explosion in progress.</p></div></div>\n\n  <div class=\"note\"><div class=\"h\">And fifteen brace cards, which are the dangerous set</div><div class=\"b\"><p>Fifteen cards that all mean <b>take less damage</b>, and <code>CardData.gd</code> has already written down what happens: <em>\"Brace, Bulwark, Sink Plate, Dig In and Bulkhead drew one identical plate.\"</em> That was about the procedural glyphs. It is the exact trap here.</p><p>So the effect cannot be the subject &mdash; the <b>module</b> is. Nine modules, four visual families: Korvan slabs and rivets (Bulkhead Array, Main Bus Armature), precursor geometry that is too clean to be manufactured (Keel, Lattice), frost and dead cold (Cryogenic Battery, Cold Sepulchre), and ablative plate being physically added (Plate Welder, Heat Sink, Standfast).</p><p>Where one module grants two cards, the pair splits on the second keyword: <em>vent</em> goes cold, <em>block</em> becomes a second layer, <em>draw</em> becomes something noticing. Bulkhead is one door closing; Compartment is three of them closing in sequence down a passage. Bolt On is a plate held against damage; Weld On is the tacks pinning it. <b>No two rows below name the same actor, and the script refuses to build the sheet if they do.</b></p></div></div>",
+ "cards": [
+  {
+   "id": "dross",
+   "actor": "the slag skimmed off a smelt",
+   "on": "the crusted grey scab it has left welded to a deck plate",
+   "moment": "a cooled tongue of waste metal fused where it ran, dull and porous, nobody's job to remove.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "hairline",
+   "actor": "a hairline crack",
+   "on": "the plate it is quietly crossing",
+   "moment": "a single fine split running across a stressed panel, one thread of frost bleeding from it into vacuum.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "coolloss",
+   "actor": "escaping coolant",
+   "on": "the machinery it has stopped protecting",
+   "moment": "a bright plume of vapour venting from a burst line, freezing into glitter as it leaves, the pipework behind it already discolouring with heat.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "scored",
+   "actor": "a scored bore",
+   "on": "the rifling it has ruined",
+   "moment": "looking into a bore whose interior is gouged with deep bright scratches, metal bruised blue and gold around them.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "coupling",
+   "actor": "a blown coupling",
+   "on": "the two pipes it was holding together",
+   "moment": "a heavy flange split open, bolts sheared, the joint gaping with heat still glowing in the break.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "deadcell",
+   "actor": "a dead power cell",
+   "on": "the socket it is still sitting in",
+   "moment": "a blackened cell in its cradle, contacts furred with corrosion, one indicator dark where the others beside it glow.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "ordnance",
+   "actor": "a loose round",
+   "on": "the rack it has come out of",
+   "moment": "a heavy round rolling free of a broken clamp, drifting against a bulkhead, the clamp still open behind it.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "arcfault",
+   "actor": "an arc fault",
+   "on": "the cable run it is chewing through",
+   "moment": "a white electrical arc jumping a gap in a conduit, throwing hard shadows, insulation blackening around it.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "tornliner",
+   "actor": "a torn liner",
+   "on": "the chamber it was lining",
+   "moment": "a peeled sheet of ablative material curling away from the wall it protected, the metal beneath it scorched.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "fouled",
+   "actor": "a filmed-over lens",
+   "on": "the sensor head it has blinded",
+   "moment": "a big optic clouded with grime and scoring, a smear of soot across it, the housing pitted.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "ballast",
+   "actor": "a slab of dead ballast",
+   "on": "the mount it is bolted to and will not leave",
+   "moment": "a featureless mass of poured metal clamped to a frame, no lights, no purpose, too heavy to move.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "jammed",
+   "actor": "a jammed feed",
+   "on": "the belt crushed inside it",
+   "moment": "a linked belt buckled and bound in a feed throat, one link twisted sideways and wedged.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "slowburn",
+   "actor": "a slow fire",
+   "on": "the compartment wall it is eating through",
+   "moment": "a dull red bloom spreading behind a panel, paint blistering outward in a ring, smoke seeping from the seams.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "ghost",
+   "actor": "a ghost return",
+   "on": "the display it keeps appearing on",
+   "moment": "a scope face with a false contact blooming on it, the echo doubled and drifting, other traces clean.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "slag",
+   "actor": "a run of molten slag",
+   "on": "the equipment it has flowed over and set into",
+   "moment": "a solidified pour of metal covering a machine, shapes still recognisable under it, glowing dull at the deepest point.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "seized",
+   "actor": "a seized actuator",
+   "on": "the joint it has locked solid",
+   "moment": "a ram frozen mid-stroke, its shaft scored and rust-bloomed, the linkage around it strained.",
+   "scale": "a hand-sized detail of a much larger machine: bolt heads, weld seams and cable runs give the size without anything else in frame.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "an interior room with a floor. No figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. A malfunction is DAMAGE ALREADY DONE, not an explosion happening. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "bulkhead",
+   "actor": "a blast door driving shut",
+   "on": "the gap it is closing",
+   "moment": "the door most of the way down, one hard shadow thrown by the gap that is left, seals crushing home.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "compartment",
+   "actor": "a run of hatches sealing in sequence",
+   "on": "the corridor they are cutting into sections",
+   "moment": "three hatches at three stages of closing along a receding passage seen from outside through a torn wall, each one further along than the last.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "cold_store",
+   "actor": "frost blooming outward across warm plating",
+   "on": "the heat it is pulling out of it",
+   "moment": "white crystal spreading in a ring from a chilled block, the metal it crosses fading from ember red to blue-black behind the frost line.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "dead_cold",
+   "actor": "total cold",
+   "on": "a machine that has stopped being warm at all",
+   "moment": "a thickly frosted mass with icicles drawn out into vacuum, nothing lit, nothing glowing, every vent white and dead.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "keelbound",
+   "actor": "an enormous precursor spar",
+   "on": "the shattered structure clamped along it that it is holding together",
+   "moment": "a smooth featureless alien beam running the length of frame with battered ordinary plating bolted to it, wreckage held in place by something that is not marked at all.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "unmade",
+   "actor": "a precursor field",
+   "on": "an incoming strike being erased inside it",
+   "moment": "a violet volume in which debris and a shockwave are dissolving to nothing, the far side of the field perfectly clean and untouched.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "lattice",
+   "actor": "a precursor lattice unfolding",
+   "on": "the gap it is growing across",
+   "moment": "an intricate alien openwork spreading itself over a breach like frost on glass, geometric and too regular, faint violet at the joints.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "persist",
+   "actor": "an untouched precursor structure",
+   "on": "the wrecked machinery collapsed around it",
+   "moment": "everything in frame is torn, scorched and bent except one clean alien geometry standing through it, entirely unmarked.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "hard_line",
+   "actor": "a massive bus bar",
+   "on": "the surge earthing through it",
+   "moment": "a heavy copper-dark conductor with current bleeding blue along its length, brackets glowing where the load passes, nothing else lit.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "standing_load",
+   "actor": "an over-built armature",
+   "on": "the mass it is carrying without complaint",
+   "moment": "a crude oversized frame taking the weight of a much larger structure, sagging nothing, rivets the size of fists.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "bolt_on",
+   "actor": "a fresh ablative plate",
+   "on": "the damaged section it is being bolted over",
+   "moment": "a new unweathered slab held against scarred plating, bolts driven at the corners, the old damage still visible around its edges.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "weld_on",
+   "actor": "a line of weld tacks",
+   "on": "the plate they are pinning down",
+   "moment": "short bright tacks spaced along the edge of an added plate, each one a small glowing bead cooling to grey, smoke drifting off in vacuum.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "long_cold",
+   "actor": "an ancient sealed container",
+   "on": "the cold still coming off it after a very long time",
+   "moment": "a frost-scabbed precursor casket, its seams white with age, breath of vapour drifting from it into the dark.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "sink_plate",
+   "actor": "a bank of heat-sink fins",
+   "on": "the heat draining out of the plate behind them",
+   "moment": "fins glowing at their roots and dark at their tips, the gradient running out along every one of them, shimmer rising off the ends.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  },
+  {
+   "id": "standfast",
+   "actor": "bracing struts driving out and locking",
+   "on": "the deck they are jacked against",
+   "moment": "heavy rams extending and setting their feet, everything rigid, one indicator turning amber as the lock takes.",
+   "scale": "bolt heads, weld seams and cable runs carry the size; some of these are the size of a room and some the size of a hand, and the plating detail is what says which.",
+   "world": "in the void or on the outside of something in it -- never an interior room. Dithered indigo ground with a rusty amber nebula wash, everything coldly lit, the only warm light self-emitted. Weathered plating, scuffed and patched, crowded to every edge of the frame with no blank surface.",
+   "avoid": "a flat grey plate on its own -- that is the one picture all fifteen of these collapse into, and CardData.gd already recorded the glyphs doing exactly that. No interior room, no figures. Never say gun, weapon, cannon, barrel, hull, vessel, shell, starship or flank. Also avoid a long diagonal glowing cut across plating: Torch owns that frame now. No lettering, no stencilled words, no numbers -- asking for them is what put three lines of garbled text on Hairline."
+  }
+ ]
+}

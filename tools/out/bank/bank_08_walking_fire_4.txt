@@ -1,0 +1,3 @@
+take: walking_fire_4
+why: a craft venting hard with red fire down one side; reads as a ship in trouble
+prompt: {'prompt': 'a distant craft taking a walking line of hits along its side, flashes at even intervals fading in brightness, cold light everywhere else, amber nebula', 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'camera OUTSIDE in the void'}

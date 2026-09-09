@@ -281,15 +281,17 @@ func _draw() -> void:
 	var art := _z(Z_ART)
 	draw_rect(art, UITheme.VOID, true)
 	draw_rect(art, UITheme.LINE, false, 1.0 * s)
-	if dim:
-		# Static hatch. Damage you can see from across the hand.
-		var step := 3.0 * s
-		var y := art.position.y
-		while y < art.end.y:
-			draw_line(Vector2(art.position.x, y), Vector2(art.end.x, y),
-				Color(0.42, 0.38, 0.44, 0.5), s)
-			y += step
-	elif not _draw_art(art):
+	# NO HATCH OVER THE ART WINDOW. It used to draw INSTEAD of the picture, which
+	# was invisible while nothing had art and blanked all sixteen malfunctions
+	# the moment they had some; drawing it on top instead still ate them -- at
+	# half alpha Dross lost its stencils and Arc Fault was almost solid stripes.
+	#
+	# So the window is left alone and dead weight is carried by everything else
+	# the card already does: the frame goes to #1a1418, there is no manufacturer
+	# banner down the left edge, the type line reads MALFUNCTION in grey, and the
+	# rules text is the only place a keyword is underlined without being useful.
+	# That is enough to sort a fan of eight without reading, which was the job.
+	if not _draw_art(art):
 		_type_glyph()
 
 	# Recessed plates at BOTH scales, including the ones that only hold text at
@@ -454,11 +456,23 @@ static func draw_cut(ci: CanvasItem, manufacturer: StringName, b: Rect2, mark: C
 			# field differing from the card — and Redline's #1c2127 against a
 			# #161f2c panel IS the card. A subtraction needs two colours to
 			# subtract between, so this one goes on as a positive.
-			hem.call(Rect2(b.position.x, base - 3 * s, b.size.x, 3.0 * s), mark)
+			#
+			# TWO THREADS PULLED LONG, and the rest of the edge holding. The
+			# first version ran its strips up to SIXTEEN units on a twenty-two
+			# unit flag, which put them at unit 11 -- where the emblem sits.
+			# Redline's mark is two bars in the mark colour, and two bars on a
+			# column of the mark colour are nothing: the hem ate the mark, on
+			# every card the manufacturer flies. Nothing here goes above eight.
+			hem.call(Rect2(b.position.x, base - 2 * s, b.size.x, 2.0 * s), mark)
 			for i in 6:
-				var hh: float = [11, 4, 16, 7, 13, 5][i]
+				var hh: float = [3, 1, 4, 1, 3, 1][i]
 				hem.call(Rect2(b.position.x + i * 2 * s, base - hh * s,
 					2.0 * s, hh * s), mark)
+			# The two that let go. One unit wide against the two-unit teeth, and
+			# at 3 and 9 rather than on the even pitch the rest of the hem sits
+			# on -- a snag is not on the grid the edge it came out of is on.
+			hem.call(Rect2(b.position.x + 3 * s, base - 8 * s, s, 8.0 * s), mark)
+			hem.call(Rect2(b.position.x + 9 * s, base - 6 * s, s, 6.0 * s), mark)
 		&"korvan":
 			# Flat, with a riveted steel band. Decoration is for people whose
 			# guns jam.
@@ -502,11 +516,17 @@ static func draw_emblem(ci: CanvasItem, manufacturer: StringName, c: Vector2, s:
 			r.call(Vector2(-2.5, 3), Vector2(5, 2), mark)
 		&"solari":
 			# Sun disc, four cardinal rays.
+			#
+			# THREE RECTS, NOT FIVE, and not one pixel different. The rays were
+			# drawn as four stubs off the disc, which is how you would describe
+			# the mark -- but opposite stubs are collinear and touch it, so a bar
+			# straight through does the same job twice. Checked by painting both
+			# and comparing: identical. The build plan budgets four primitives an
+			# emblem and this was the only one over it that could come down
+			# without becoming a different mark.
+			r.call(Vector2(-0.5, -4.5), Vector2(1, 9), mark)
+			r.call(Vector2(-4.5, -0.5), Vector2(9, 1), mark)
 			r.call(Vector2(-1.5, -1.5), Vector2(3, 3), mark)
-			r.call(Vector2(-0.5, -4.5), Vector2(1, 3), mark)
-			r.call(Vector2(-0.5, 1.5), Vector2(1, 3), mark)
-			r.call(Vector2(-4.5, -0.5), Vector2(3, 1), mark)
-			r.call(Vector2(1.5, -0.5), Vector2(3, 1), mark)
 		&"probate":
 			# A bucket narrowing to its teeth. The bite is the manufacturer.
 			r.call(Vector2(-4.5, -4.5), Vector2(9, 2), mark)
@@ -784,6 +804,25 @@ func set_playable(can_play: bool) -> void:
 func set_base_y(y: float) -> void:
 	_base_y = y
 
+## Carried by the hand. Kills any lift in flight and refuses new ones until it
+## is put down; see `_animate_lift`.
+var held: bool = false
+
+func set_held(on: bool) -> void:
+	if held == on:
+		return
+	held = on
+	if on:
+		if _tween != null and _tween.is_running():
+			_tween.kill()
+		return
+	# PUT DOWN. An armed card was refused its lift while it was being carried --
+	# see `_animate_lift` -- so it takes it now, from wherever the hand has just
+	# finished setting it down. Without this an armed card lands in the fan at
+	# its resting height and never rises.
+	if armed:
+		_animate_lift(-22.0)
+
 
 func _ready() -> void:
 	_base_y = position.y
@@ -863,6 +902,12 @@ func _on_hover_out() -> void:
 ## own, and nothing else may fight its container for it".
 func _animate_lift(offset: float) -> void:
 	if not (get_parent() is HandView):
+		return
+	# A CARRIED CARD OWNS ITS POSITION OUTRIGHT. The hand drives it toward the
+	# cursor every frame, and picking a card up fires `hovered(false)` -- so
+	# without this the lift tweens `position:y` back to the baseline against that
+	# lerp and the card shakes in place instead of following the pointer.
+	if held:
 		return
 	# An armed card owns its own height. Hovering off it mid-aim would otherwise
 	# tween it back down into the fan while the line is still attached to it.

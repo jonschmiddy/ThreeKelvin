@@ -1,0 +1,3 @@
+take: walking_fire_2
+why: a craft trailing a long white plume across a starfield; reads as speed rather than damage
+prompt: {'prompt': 'hits marching along the side of a target craft seen at a distance in the void, a line of flashes from bright to dim, drifting debris, nebula behind', 'tool': 'create_image_pixflux', 'size': '92x60', 'no_background': False, 'detail': 'highly detailed', 'brief': 'tools/briefs/from_outside.json', 'note': 'camera OUTSIDE in the void'}

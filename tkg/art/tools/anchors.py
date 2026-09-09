@@ -20,8 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pixeltools as pt
 
 # One folder per manufacturer, since the hulls moved out of the flat sprites
-# directory. Korvan is the only maker with art; when there are others this takes
-# the maker as an argument and the filenames inside each folder stay identical.
+# directory. Korvan is the only manufacturer with art; when there are others this
+# takes the manufacturer as an argument and the filenames inside each folder stay identical.
 SPRITES = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        "..", "sprites", "hulls", "korvan")
 
@@ -109,7 +109,7 @@ HEADER = """## Measured off each hull's own silhouette by `art/tools/anchors.py`
 ## that fails loudly. `-- mounts` is what makes it fail loudly.
 ##
 ## Lines rather than points, because a hull carries one to five mounts of a kind
-## depending on weight, class and maker \u2014 a fixed list of five used two at a time
+## depending on weight, class and manufacturer \u2014 a fixed list of five used two at a time
 ## clusters both at one end of the ship. See HullData.mounts_along().
 ##
 ## Plain Vector2 arrays, not PackedVector2Array: the packed constructor is a CALL

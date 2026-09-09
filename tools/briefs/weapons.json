@@ -1,0 +1,55 @@
+{
+  "set": "Weapons",
+  "lede": "<p class=\"lede\">The weapons in the game without art. (Ripple Fire started in this set and now has its own file, after four rewrites and 54 takes failed to land it.) Five of them have already burned <b>31 generations for zero keeps</b> &mdash; not because the pictures were bad, but because four of the five were briefed as the same picture: a Korvan gun, firing, a lot.</p>\n\n  <p class=\"lede\">So the briefs come first now. Each row below names an <b>actor</b>, a thing it is <b>acting on</b>, and the moment between them &mdash; the structure every illustration you have kept turns out to have, and every batch you cut turns out to lack. <em>The script refuses to build a sheet where two cards name the same actor</em>, which is the check that would have caught this in round three.</p>\n\n  <p class=\"lede\">Three of these eight are not guns at all. That is deliberate: a hoist, an impact pattern and a feed belt cannot collapse into each other the way three muzzle flashes can.</p>",
+  "cards": [
+    {
+      "id": "rack_and_load",
+      "actor": "the ammunition hoist",
+      "on": "a shell it is lifting up out of the deck",
+      "moment": "the shell clears the hatch and swings onto the rack, chain taut and taking the weight. Nothing has fired. The gun is off-frame or barely in it — this card is the feed, not the shot.",
+      "avoid": "any muzzle flash. The card discards to load; the picture is the loading."
+    },
+    {
+      "id": "walking_fire",
+      "actor": "a line of impacts",
+      "on": "an enemy hull plate",
+      "moment": "the walk itself, from the target's side of the fight: hits marching across riveted plate left to right, the newest still white-hot and throwing debris, the older ones behind it cooling to a dull scab. No gun in frame at all.",
+      "avoid": "showing the weapon. Drumfire's other card can have the gun; this one is what the gun does to someone."
+    },
+    {
+      "id": "full_auto",
+      "actor": "an ammunition belt",
+      "on": "the rotor it is being pulled into",
+      "moment": "close on the feed throat: the belt climbing under tension into the breech, links separating, spent casings tumbling out of the bottom of frame in a stream. Volume as a mechanism rather than as a flash.",
+      "avoid": "the muzzle end entirely. 'Volume as a philosophy' is a feed rate, and a feed rate is a belt."
+    },
+    {
+      "id": "auspice",
+      "actor": "the Oracle Shard",
+      "on": "a target it has not hit yet",
+      "moment": "the shard throwing a predicted line — a thin surveyed trajectory with a mark at the far end sitting on an intact, undamaged ship. The violence is entirely in the future tense; that is what separates it from every other attack card.",
+      "avoid": "a hand holding a crystal. The shard is the actor, not a prop, and something has to be on the other end of the line."
+    },
+    {
+      "id": "resonance",
+      "actor": "a standing wave off the Singing Core",
+      "on": "a bulkhead coming apart along its seams",
+      "moment": "the plate failing where the wave nodes sit — rivets shearing in a regular repeating pattern, the metal parting along lines that are too evenly spaced to be blast damage. Two big hits: two nodes.",
+      "avoid": "an explosion. Nothing here burns; it comes apart. Heat colours would read as the wrong weapon entirely."
+    },
+    {
+      "id": "sympathetic_burst",
+      "actor": "one resonating fragment",
+      "on": "two more fragments picking the note up",
+      "moment": "the sympathy itself: a lit shard in front, and behind it two dark shards beginning to ring in answer, each haloed a little brighter than the last. Three hits, three objects, and the causation runs left to right.",
+      "avoid": "repeating Resonance's failing plate. Same module, so these two are the pair most at risk of becoming one picture."
+    },
+    {
+      "id": "torch",
+      "actor": "a cutting torch",
+      "on": "a dead hull it is opening",
+      "moment": "the tip of the flame biting into cold plate, cutting a slot rather than a hole, slag running off the bottom edge of the cut. Salvage work, not combat — the module is 'meant for hulls that are already dead' and the picture should look like a job.",
+      "avoid": "reading as the Mining Laser's Cutting Beam, which is already installed. That one is a beam at range; this is a flame in contact."
+    }
+  ]
+}

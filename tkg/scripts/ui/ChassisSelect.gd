@@ -59,9 +59,10 @@ const WEIGHT_BLURB: Array[String] = [
 ## twice and puts a 496px ship on a 960px viewport. See boxes.py.
 const HERO_SCALE := 1
 ## Tall enough to hold the whole hull at HERO_SCALE, measured off the DEEPEST
-## one rather than the only one: 100 rows of heavy hull, the bob's four, and a
-## little air.
-const HERO_H := 120
+## one rather than the only one: 140 rows of heavy hull, the bob's four, and a
+## little air. The heavy was 100 rows until the hull art was redrawn; this is
+## derived from that depth, so it has to move with it or the hero is clipped.
+const HERO_H := 160
 ## The gap between the banner and the identity column, reused as the indent for
 ## everything below that has to line up with it.
 ## The air between ATTRIBUTES, HARDPOINTS and STARTING MODULES. One constant so
@@ -824,6 +825,17 @@ class Banner extends Control:
 	const UNITS_H := 22
 	const S := 3.0
 
+	## PIXELS PER UNIT FOR THIS ONE. `S` stays the default and the only size the
+	## chassis cards use; the station flies its berths larger, because there the
+	## flag IS the heading rather than a mark in the corner of a card.
+	##
+	## An instance member rather than a second const, so every offset in `_draw`
+	## scales together -- the hems are authored in units and a flag drawn at one
+	## size with a hem cut at another is a flag with a hole in it. Set it before
+	## the banner is added, and set `custom_minimum_size` to match: `_init` cannot
+	## see it, so the default minimum is still built from `S`.
+	var s: float = S
+
 	var manufacturer: StringName = &""
 	var mark: Color = UITheme.CHILL
 	var field: Color = UITheme.PANEL
@@ -848,13 +860,13 @@ class Banner extends Control:
 		# this. Most of the hems are CUT — carved by painting the background back
 		# over the flag — so the wrong colour here does not misdraw a hem, it
 		# makes it invisible.
-		CardView.draw_cut(self, manufacturer, b, mark, UITheme.PANEL, S)
-		CardView.draw_emblem(self, manufacturer, Vector2(b.size.x * 0.5, 11.0 * S), S, mark, field)
+		CardView.draw_cut(self, manufacturer, b, mark, UITheme.PANEL, s)
+		CardView.draw_emblem(self, manufacturer, Vector2(b.size.x * 0.5, 11.0 * s), s, mark, field)
 		# Outlined last, in the manufacturer's own mark dimmed. Two manufacturers fly fields
 		# that are nearly the panel's own colour — Redline's charcoal, Cygnet's
 		# midnight — and without this their banners have no edge at all.
 		var e := mark.darkened(0.35)
-		var w := S
+		var w := s
 		draw_rect(Rect2(b.position, Vector2(b.size.x, w)), e, true)
 		draw_rect(Rect2(Vector2(b.position.x, b.end.y - w), Vector2(b.size.x, w)), e, true)
 		draw_rect(Rect2(b.position, Vector2(w, b.size.y)), e, true)

@@ -200,15 +200,29 @@ func _stripping(grid: HoldGrid, mounts: MountPoints) -> void:
 ## check was written first and thrown away: it read the last presented frame and
 ## returned identical counts either side of a real visual change, so it passed
 ## against the very bug it was written for. Twice.
-func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
-	mounts.light(null)
+## Queue a redraw and wait until it has actually HAPPENED.
+##
+## `queue_redraw` marks the canvas item dirty; the draw runs in the engine's
+## draw pass, which is not guaranteed to have completed by the end of the very
+## next `process_frame`. Reading `drawn`/`pinged`/`hinted` after a single frame
+## therefore samples the counters from the PREVIOUS draw about one run in five,
+## and the check fails on a hull that is behaving perfectly.
+##
+## This surfaced as `fittest` reporting one failure and then passing four times
+## in a row on the same tree, which is the worst way for a gate to behave: a
+## flaky check teaches you to re-run it rather than to read it.
+func _redrawn(mounts: MountPoints) -> void:
 	mounts.queue_redraw()
 	await _tree.process_frame
+	await _tree.process_frame
+
+func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
+	mounts.light(null)
+	await _redrawn(mounts)
 	var quiet := mounts.drawn
 
 	mounts.light(m)
-	mounts.queue_redraw()
-	await _tree.process_frame
+	await _redrawn(mounts)
 	var lit := mounts.drawn
 	var pings := mounts.pinged
 
@@ -227,6 +241,57 @@ func _lit_keeps_the_parts(mounts: MountPoints, m: ModuleData) -> void:
 			free += 1
 	_ok("only empty hardpoints ping: %d pings for %d free mounts of that kind"
 		% [pings, free], pings == free)
+
+	# AND HOVERING WITH EMPTY HANDS HINTS AT EVERY EMPTY MOUNT, of any slot.
+	#
+	# A different question from the ping and so a different answer: the ping is
+	# "the part in your hand fits HERE" and is filtered to that part's slot,
+	# while the hover is "where are the gaps on this ship" and is not filtered
+	# at all. Counted rather than looked at, for the reason the note above this
+	# function gives at length -- a rendered-pixel version of this check passed
+	# against the very bug it was written for, twice.
+	mounts.light(null)
+	mounts.hover(_mount_local(mounts, m))
+	await _redrawn(mounts)
+	var hints := mounts.hinted
+	var bare := 0
+	for sp in mounts.spots():
+		if sp.held == null:
+			bare += 1
+	_ok("hovering hints every empty mount: %d hints for %d empty mounts"
+		% [hints, bare], hints == bare)
+
+	# AND THE TWO ARE NEVER BOTH UP. A hint says a mount is there and a ping
+	# says the thing you are carrying goes in it; on screen together they are
+	# two answers to a question you asked once.
+	mounts.light(m)
+	await _redrawn(mounts)
+	_ok("a part in hand replaces the hints with pings: %d hints, %d pings"
+		% [mounts.hinted, mounts.pinged],
+		mounts.hinted == 0 and mounts.pinged == free)
+	mounts.light(null)
+	mounts.hover(Vector2.INF)
+	await _redrawn(mounts)
+	_ok("and the hull goes quiet when the pointer leaves: %d hints"
+		% mounts.hinted, mounts.hinted == 0)
+
+	# AND THE HINTS ACTUALLY MOVE.
+	#
+	# They shipped once as a still picture: `_process` advanced the animation
+	# phase only while a part was in hand, so the hover rings were painted at
+	# whatever phase the last drag had left and then held there, repainted only
+	# when the idle bob stepped. A count of what was DRAWN cannot see that --
+	# three rings were drawn every frame, correctly, at the same three radii
+	# forever -- so the phase itself is what gets asserted on.
+	mounts.hover(_mount_local(mounts, m))
+	await _tree.process_frame
+	var was: float = mounts._phase
+	await _tree.process_frame
+	await _tree.process_frame
+	_ok("the hints animate: phase moved %.3f -> %.3f"
+		% [was, mounts._phase], not is_equal_approx(was, mounts._phase))
+	mounts.hover(Vector2.INF)
+	await _tree.process_frame
 
 	# AND A PART IS GRABBED ANYWHERE ON ITSELF, not just at the dot it hangs
 	# from. A three-cell rail used to be pickable only by its breech.

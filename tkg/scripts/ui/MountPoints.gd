@@ -77,6 +77,12 @@ var drawn: int = 0
 ## rule is that only an EMPTY hardpoint pings, and nothing in the data says so.
 var pinged: int = 0
 
+## How many empty mounts the last redraw HINTED at -- the hover answer, not the
+## drag answer. Counted for the same reason the other two are: the rule is that
+## a hint and a ping are never both on screen, and only a count of what was
+## drawn can tell.
+var hinted: int = 0
+
 ## Where the pointer is over the hull, or INF. Drives the hover highlight.
 var _hover: Vector2 = Vector2.INF
 
@@ -130,9 +136,22 @@ func _process(delta: float) -> void:
 	if b != _last_bob:
 		_last_bob = b
 		refresh()
-	if _lit != null:
+	# THE PHASE ADVANCES FOR EITHER ANIMATION, and it used to advance for only
+	# one. `_lit` was the sole condition here for as long as the tractor ping
+	# was the sole animated thing on the hull, so the hover hints added beside
+	# it were drawn ONCE and then held -- repainted only when the idle bob
+	# stepped, a few times a second, always at whatever phase the last drag had
+	# left behind. They were not faint. They were STOPPED, which is a thing a
+	# lower alpha looks exactly like and no amount of brightening would fix.
+	if _animating():
 		_phase = fmod(_phase + delta * 2.4, TAU)
 		queue_redraw()
+
+## Is anything on the hull moving right now? A part in hand puts pings up; a
+## pointer on the hull with empty hands puts hints up. One condition, so a third
+## animation cannot be added and quietly not run.
+func _animating() -> bool:
+	return _lit != null or (not _passive and _hover.x < INF)
 
 ## One art pixel, in screen pixels. See ShipView.art_scale.
 ##
@@ -156,6 +175,7 @@ func _mag() -> float:
 func _draw() -> void:
 	drawn = 0
 	pinged = 0
+	hinted = 0
 	var pulse := 0.62 + 0.38 * sin(_phase)
 	# EVERY size below is in art pixels times this. The hull is magnified and
 	# the things bolted to it were not, so a gun came out a sixth of the length
@@ -210,6 +230,47 @@ func _draw() -> void:
 		# rings over a gun 30px tall — which is what made a whole slot look
 		# like it had emptied the moment you picked something up. An occupied
 		# mount will still take a swap; it does not need to shout about it.
+		# HOVERING WITH EMPTY HANDS ANSWERS "WHERE ARE THE GAPS" TOO.
+		#
+		# The note above rules out drawing empty mounts UNPROMPTED, and that
+		# still holds -- a permanent row of rings on a finished ship complains
+		# about a hull with nothing wrong with it. What is different here is
+		# that the hover IS the question. Fitted parts already answer "what
+		# have I got on this thing" with their outlines the moment you point at
+		# the ship; this is the other half of the same answer, and without it
+		# the hover tells you what is there and stays silent about what is not.
+		#
+		# COLD AND FAINT, NEVER THE TRACTOR TEAL. A ping means "the part in
+		# your hand goes here", which is an instruction; a hint means "a mount
+		# is here", which is a fact. Same motion, so it reads as the same
+		# animation -- a third of the alpha, a shorter reach, and the dimmest
+		# ink on the screen, so an empty hull cannot out-shout the guns already
+		# bolted to it. That loudness is what got the first version cut.
+		#
+		# The two can never appear together: `over` requires empty hands and
+		# the ping requires a part in one.
+		if over:
+			hinted += 1
+			# CHILL FOR THE TRAVELLING RINGS, ICE FOR THE ONE THAT STAYS.
+			#
+			# The first pass used COLD at a third of the ping's alpha, reasoning
+			# from the note above that a bare hull must not out-shout the guns
+			# on it. That reasoning was sound and the number was still wrong:
+			# COLD is the dimmest ink in the theme and a third of it against a
+			# hull is nothing. A hint has to be SEEN to be a hint.
+			#
+			# Full reach and near the ping's alpha, but a cold blue-grey where
+			# the ping is teal -- the separation that matters is HUE, not
+			# loudness. Two things that mean different things should look
+			# different, not one of them look absent.
+			var g := UITheme.CHILL
+			for i in RINGS:
+				var t := fmod(_phase / TAU + float(i) / float(RINGS), 1.0)
+				_ring(at, lerpf(R * 0.7, REACH, t) * k,
+					Color(g.r, g.g, g.b, (1.0 - t) * 0.85 * pulse))
+			var b := UITheme.ICE
+			_ring(at, (R + 1.0) * k, Color(b.r, b.g, b.b, 0.95 * pulse))
+
 		if _passive or _lit == null or _lit.slot != spot.slot:
 			continue
 		pinged += 1

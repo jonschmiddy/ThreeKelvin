@@ -1,0 +1,298 @@
+<title>The last two</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --line:#22303f; --cold:#6b7d94;
+  --chill:#8fa3ba; --ice:#c3d2e2; --ember:#d97b29; --flare:#ff9d3d; --hot:#ffd28a;
+  --good:#7fb89a; --bank:#5b9dc4; --bad:#c8503c;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --disp:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--void);color:var(--ice);font-family:var(--mono);
+  margin:0;padding:26px 20px 90px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto}
+.eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--flare);margin:0 0 6px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4vw,38px);
+  letter-spacing:.02em;margin:0 0 12px}
+.lede{color:var(--cold);max-width:76ch;font-size:13.5px;margin:0 0 10px}
+.lede b{color:var(--ice);font-weight:400}
+.lede em{color:var(--hot);font-style:normal}
+code{color:var(--hot);font-size:.94em}
+
+.note{margin:16px 0 0;border:1px solid var(--line);background:var(--sunk)}
+.note .h{padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);
+  font-family:var(--disp);font-size:13px;letter-spacing:.06em;color:var(--hot)}
+.note .b{padding:13px 15px;color:var(--cold);font-size:12.5px;line-height:1.7}
+.note b{color:var(--ice);font-weight:400}
+.note p{margin:0 0 10px} .note p:last-child{margin:0}
+.note .bad{color:var(--bad)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 0;
+  border:1px solid var(--line);background:var(--sunk);padding:11px 14px}
+.legend div{font-size:12px;color:var(--cold)}
+.legend b{font-weight:400;letter-spacing:.08em;text-transform:uppercase;font-size:11px}
+.legend .k b{color:var(--good)} .legend .s b{color:var(--bank)} .legend .x b{color:var(--bad)}
+
+.bar{position:sticky;top:0;z-index:5;background:var(--void);
+  display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0;padding:10px 0;
+  align-items:center;border-bottom:1px solid var(--line)}
+.bar .lbl{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--cold);margin-right:2px}
+.bar .sp{flex:1 1 auto}
+button{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;background:transparent;color:var(--cold);
+  border:1px solid var(--line);padding:6px 11px;cursor:pointer}
+button:hover{color:var(--ice);border-color:#33475c}
+button:focus-visible{outline:2px solid var(--flare);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--flare);border-color:var(--flare);color:#160b02}
+#tally{font-size:12px;color:var(--chill);letter-spacing:.04em;
+  font-variant-numeric:tabular-nums}
+
+h2{font-family:var(--disp);font-weight:600;font-size:15px;letter-spacing:.03em;
+  margin:30px 0 0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:6px}
+h2 small{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--cold)}
+h2 .does{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--hot)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:13px;align-items:flex-start}
+.item{padding:7px;border:1px solid var(--line);background:var(--sunk);flex:0 0 auto}
+.item.keep{border-color:var(--good)}
+.item.bank{border-color:var(--bank)}
+.item.gone{display:none}
+.now{padding:7px;border:1px solid var(--ember);background:var(--panel);
+  flex:0 0 auto;margin-right:8px}
+.now .cap{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--flare);margin-bottom:5px}
+.noshot{width:224px;height:320px;border:1px dashed var(--line);color:var(--cold);
+  font-size:10.5px;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:14px}
+canvas{image-rendering:pixelated;display:block}
+.nm{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--chill);
+  margin-top:5px}
+.verdict{display:flex;gap:4px;margin-top:6px}
+.verdict button{flex:1 1 0;padding:4px 0;font-size:10px;letter-spacing:.08em}
+.verdict button.k[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06140d}
+.verdict button.s[aria-pressed="true"]{background:var(--bank);border-color:var(--bank);color:#04121b}
+.verdict button.x[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#1a0603}
+.pr{font-size:10px;color:var(--cold);line-height:1.5;margin-top:6px;max-width:26ch;
+  display:none}
+.showpr .pr{display:block}
+
+.out{margin-top:26px}
+.out .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.out .h span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold)}
+textarea{width:100%;height:150px;background:#070b11;color:var(--chill);
+  border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;
+  padding:10px;resize:vertical}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Three Kelvin &middot; card art &middot; review bench</p>
+  <h1>The last two</h1>
+
+  <p class="lede">Every take sits beside <b>the card as the game draws it today</b> &mdash; the
+  orange tile heading each row, at the same zoom as the candidates, so the comparison is against
+  the thing being replaced rather than against the other options.</p>
+
+<p><b>74 of 76.</b> Bore Sight and Fire Solution are in. These two are the last.</p>
+
+<div class="note"><div class="h">Foreknowledge stops being a cube</div>
+<div class="b">
+<p>Six takes of &ldquo;a <b>faceted</b> block&rdquo; all came back as a plain
+grey box &mdash; and at 2&times; a plain grey box reads as a <b>shipping
+crate</b>, which is the least interesting alien geometry available. The word
+<i>faceted</i> produced it every single time.</p>
+<p>Now an irregular <b>blade-like shard</b> with nothing box-like about it, plus
+one thing borrowed from direction A that B was missing: a fine bright line
+projecting out of it onto a plate and ending in a marked spot. The module's
+flavour is <i>&ldquo;it tells you where the shot goes; it does not say how it
+knows&rdquo;</i> &mdash; the picture now shows the telling.</p>
+</div></div>
+
+<div class="note"><div class="h">Range: I was judging at the wrong size</div>
+<div class="b">
+<p>The split field has been right since round 6. The problem was that the two
+craft were <b>too small to read at 2&times;</b> &mdash; a big empty circle with
+two specks in it. I had been looking at these tiles at 4&times;, where they were
+fine. The repo has a rule about exactly this and I was not following it.</p>
+<p>Making them large turned them into <b>solid black blobs</b> with no internal
+shape, which was worse. Size alone was never the answer: it is <b>pale outline
+with a lit spine and two engine points</b>, about a third of the field wide.
+Readable at 2&times;, and unmistakably two copies of one thing being slid
+together.</p>
+</div></div>
+
+<p>If both land, the set closes at <b>76 of 76</b>. Only your <b>Sort</b> pick
+stays open.</p>
+
+
+  <div class="legend">
+    <div class="k"><b>keep</b> &mdash; install it on this card</div>
+    <div class="s"><b>store</b> &mdash; wrong here, too good to lose; banked with its prompt</div>
+    <div class="x"><b>cut</b> &mdash; deleted, and it disappears from the page</div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">zoom</span>
+    <button data-z="1">1&times;</button>
+    <button data-z="2">2&times;</button>
+    <button data-z="3" aria-pressed="true">3&times;</button>
+    <button data-z="4">4&times;</button>
+    <span class="sp"></span>
+    <button id="prompts" aria-pressed="false">show prompts</button>
+    <button id="reset">clear</button>
+    <span id="tally"></span>
+    <button id="copy">copy</button>
+  </div>
+
+  <div id="groups"></div>
+
+  <div class="out">
+    <div class="h"><span>verdicts</span></div>
+    <textarea id="json" readonly placeholder="judge a take and the JSON appears here"></textarea>
+  </div>
+</div>
+
+<script>
+var ROWS = [{"key": "foreknowledge", "name": "Foreknowledge", "module": "Oracle Shard", "does": "Draw 2. Lock on +10.", "card": "iVBORw0KGgoAAAANSUhEUgAAAHAAAACgCAYAAADU3uhkAAAAAXNSR0IArs4c6QAABTtJREFUeJztnTFoHEcYRkdBxhipERImncGVCS5yGIEQB8KF7M6diwTiVAGrUCCFSBUXShVUBOLCglRRICnUuZNdGMNhBEJcF1SlTuGQJsIYF0oR5hjt7czO3sze7ie9B4Lb2dnZYd79/+7M3p1mrt+4fWZAkvmFRTNrN5ZX+rUbODocZO0Q1GfW3Xjz+mX0gatr62Z+YXGik/77z98THXfRyDF+s4F6Ufz15x+16n9885PUU14oUsfvo5ydgemDQHFKU+jnX33jPeC3n39srDNQn0Yi8GBwbA4Gx000fSkYbi6Z4eZSVN3gTYwbbaGodDkYHJv7/TtjryGO4eaS6T19O/baB9dAcRAoTjCFxqZNl/v9O6PrH+mzPr2nb0fXv6r0aUyGiXwZiEsjRpylVCBTBR24BoqTnEJZ20wjdfySBPJUIY0c40cKFSc5hX54/y5HP6AGV65eG70mAsVBoDgIFAeB4iBQHASKg0Bxsgoc3pob/aW0kZvYNps4d9Nkf5zUOznN3SQEaOR5oMV9R1uxtqx3cjr2jnflD2/NBesU2y7Wd8vK+uPrg69tXz/bJvs1sJhCeyenY4NQNQDFgbdtFPfnGsiytrokKUTrKbSsfln0xOBGoe/42DbL3kRdpNEUasz5lBnaH6pTxJfWQuk5dL5QXV/K7goz9vuByyv92t9OOjocXLinEUVpXZJlsU8jzn0/EP4nFL1dBIEldDHqfLASIw4CxUGgOAgUB4HiJN+Fup+QgumTJHDSn8mANFr9mRFIg58ZuWAgUBwEioNAcRAoDgLFQaA4CBQHgeLIPJH/+tvvouv+9MP3suesCxEoDgLFkUmhLtNKV1XnqZNim4IIFAeB4iBQHASKg0BxECgOAsWRmQe2tVQVogt9IgLFQaA4CBQHgeIgUByZu9AcnA62Ssvn+jtT7kk+iEBxECgOAsVBoDgIFOdS3YUq3236IALFQaA4CBQHgeIgUByZu1D3U9BdeBJuTDf6RASKg0BxECgOAsVBoDgIFAeB4sjMA12qvhnbxo8ctAURKA4CxZFJoW0sVXVlyS4EESgOAsVBoDgIFAeB4iBQHASKg0BxkifyxX8FA9MlSaD7T5igHUih4iBQHASKg0BxECgOAsXJKvDho8ejP7vt7vOV+bahmmxP5B8+emz293a9+6AZskXg/t5uUJRPLqSRNYVaiaE0CXnJfhNTjLT9vd3K6ITJyXoNTDnOii9uQ5iZ6zdunxljzPJK37x5/TL6wNW1dXN0OGisY1DN/MIi80B1ECgOAsVJvon58P5djn5ADa5cvTZ6TQSKg0BxEChOVoFPdp6N/mLK3X3FstB2bNs+nr945S0v21dW7m772os9PqYNH9kjcHtrw2xvbYwNaFn5k51n3vp2f+z5fG3E8vzFK/Pg3l3z4N7dMTll5cX9ddu1+1KZ2hc87eBub22UljfRdm6KoqrkxbSX2sbUroG+wbXRMyluFDdNMWJ8UVmH1DayR2AoGmyaqxpst15MfTeKbd2q4+yg2Xe/O5BuRPjKi/t9UVR1fLFOXZIXs9Um8p998WXbXQjy+6+/VNaxE/n5hUWdHznIRcwAKcE8UBwEioNAcRAoTiMCY5fMQuUQR6sT+aqlNKgm6zSiuM5pTPPLW5edrAJjV0EgH1NLoTYii8te9hroCiedxnPpltIuAu5SGtMIcRAoDgLFQaA4CBQHgeIgUBwEioNAcRAoDgLFQaA4CBQHgeIgUBwEioNAcRAozrkPNa2urdduwP3JC5g+Mzc/XTtruxMwOf8BBNEPWHlymisAAAAASUVORK5CYII=", "takes": [{"id": "foreknowledge_1", "n": 1, "img": "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", "prompt": "A dark alien shard with irregular blade-like angles, nothing like a box or a cube, wedged into ship structure that has been built up around it over years with welds and bolts crowding it at unplanned angles. One fine bright line projects out of the shard onto a bolted plate and ends in a small marked spot. Brackets, seams and cable runs crowd the frame to every edge with dark plating packed into every gap. Cold light, the shard matte black and irregular against grey patched machinery, no lettering."}, {"id": "foreknowledge_2", "n": 2, "img": "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", "prompt": "A dark alien shard with irregular blade-like angles, nothing like a box or a cube, wedged into ship structure that has been built up around it over years with welds and bolts crowding it at unplanned angles. One fine bright line projects out of the shard onto a bolted plate and ends in a small marked spot. Brackets, seams and cable runs crowd the frame to every edge with dark plating packed into every gap. Cold light, the shard matte black and irregular against grey patched machinery, no lettering."}, {"id": "foreknowledge_3", "n": 3, "img": "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", "prompt": "A dark alien shard with irregular blade-like angles, nothing like a box or a cube, wedged into ship structure that has been built up around it over years with welds and bolts crowding it at unplanned angles. One fine bright line projects out of the shard onto a bolted plate and ends in a small marked spot. Brackets, seams and cable runs crowd the frame to every edge with dark plating packed into every gap. Cold light, the shard matte black and irregular against grey patched machinery, no lettering."}, {"id": "foreknowledge_4", "n": 4, "img": "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", "prompt": "A dark alien shard with irregular blade-like angles, nothing like a box or a cube, wedged into ship structure that has been built up around it over years with welds and bolts crowding it at unplanned angles. One fine bright line projects out of the shard onto a bolted plate and ends in a small marked spot. Brackets, seams and cable runs crowd the frame to every edge with dark plating packed into every gap. Cold light, the shard matte black and irregular against grey patched machinery, no lettering."}]}, {"key": "range", "name": "Range", "module": "Signal Board", "does": "Lock on +2.", "card": "iVBORw0KGgoAAAANSUhEUgAAAHAAAACgCAYAAADU3uhkAAAAAXNSR0IArs4c6QAABKhJREFUeJzt3TFo1F4Ax/FXaRGxS2kRN6GjdLCUQikHxaG6uXVQUCehDhUcRKXYQRGVDoIOFpysoEO3btVBCkcplNLN0dmh4qKIONTpHa9pknu593LJr/f9gPwv10sa8v2/d8mdd/adOTd2YCBpcGjY9NuFyalG4Q3sbDej7hCK63cXtjY/e684PTNrBoeGO/qlv37+6Gi94ybG8evPeZyX79++Fnr82dHzob/yWAk9fidi7gy6j4DiUqfQa7fuZq7w4e3L0nYGxZUyAjeau2ajuVvGpnvC3sKI2VsY8Xps7kmMO9ryRqVro7lrLjcmjtyGn72FETP+ev/I7Sw8B4ojoLjcKdR32nRdbky0nv+YPosbf73fev5rN30aE+FCPg3hwviEs1IDcqmgg+dAccFTKK9thgk9fkEBeVchTIzjxxQqLngK/ff3T4z9QAEDJ0+1bjMCxRFQHAHFEVAcAcURUBwBxUV9N+LZ86et2w8fLMbcNDJEH4GE665S3g90JUelu+x7H/9TZIs+Ap89f9r2gD98sHjkMXaZWMWUMoXa0WNj+kRJC++7bi8r5SzURrT/TU6RaY83xhx5rM+6va7Pfj5wcqpR+NNJO9vNKO9GuKPPZwrudfbdiEOfD6yaHWnEK6YWAYnWOV6JEUdAcQQUR0BxBBQXfBbq/g0pdF9QwE6/JgNhKv2aEYTha0aOGQKKI6A4AoojoDgCiiOgOAKKI6C4Wrwj7+PO/Ufej3314ons7yyKESiOgOJkplBXt6ardr+nyBRbFkagOAKKI6A4AoojoDgCiiOgOJnrwKpeqspTh31iBIojoDgCiiOgOAKKkzkLjeF3817q/acby13ek3gYgeIIKI6A4ggojoDieuosVPlsMwsjUBwBxRFQHAHFEVCczFmo+7eg6/BOuDH12CdGoDgCiiOgOAKKI6A4AoojoDiZ60BXu0/GVvElB1VhBIojoDiZKbSKl6rq8pJdHkagOAKKI6A4AoojoDgCiiOgOAKKC76QT/5TMOiuoIDuP8KEajCFiiOgOAKKI6A4AoojoLioAeduzLf+2GX3Z1n3ZS2jvWjvyM/dmDdrqyuZP0M5oo3AtdWV3FBZcREm6hRqI+ZNk4gr+klMcqStra60HZ3oXNTnwJD1bPjkMvL1nTk3dmCMMZNTDbO1+dl7xemZWbOz3Sxtx9De4NAw14HqCCiOgOKCT2L+/f0TYz9QwMDJU63bjEBxBBRHQHFRA65/+pJ5f9rP0u53l7O257u+zzaMMWZp+U3qffZPnZX++cD1T1/MlUsXvW+nrVdkuz7r+nh873br9tLym0PLdVKLD3gWjeezPZ9tuKPL3k6GS95XN7UImDzYvgHy2G3ksWHSRlidR50rekB70OzBdw9kWqTk/cmfZ0Vst37yMZ1wR2he7CoFv5htL+SvXr9Zzh5G8vH9u6p3IRp7IT84NBxvBB6nA6SE60BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFEdAcQQUR0BxBBRHQHEEFHfowy3TM7OFN+B+5QW6r2/0wsxB1TuBzv0HGj9wuQSwPkwAAAAASUVORK5CYII=", "takes": [{"id": "range_1", "n": 1, "img": "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", "prompt": "A circular optical field split straight across its middle, showing the same craft twice: in the upper half and again in the lower half, each drawn as a pale grey outline with a lit spine and two bright engine points, the two copies offset sideways and being slid together until they line up. Each craft is about a third of the field wide and clearly readable, not a solid black blob. A heavy bolted eyepiece housing and machinery crowd the frame to every edge around the circle. Deep indigo field, cold light on the metal, amber on the adjustment index, no numbers and no lettering."}, {"id": "range_2", "n": 2, "img": "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", "prompt": "A circular optical field split straight across its middle, showing the same craft twice: in the upper half and again in the lower half, each drawn as a pale grey outline with a lit spine and two bright engine points, the two copies offset sideways and being slid together until they line up. Each craft is about a third of the field wide and clearly readable, not a solid black blob. A heavy bolted eyepiece housing and machinery crowd the frame to every edge around the circle. Deep indigo field, cold light on the metal, amber on the adjustment index, no numbers and no lettering."}, {"id": "range_3", "n": 3, "img": "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", "prompt": "A circular optical field split straight across its middle, showing the same craft twice: in the upper half and again in the lower half, each drawn as a pale grey outline with a lit spine and two bright engine points, the two copies offset sideways and being slid together until they line up. Each craft is about a third of the field wide and clearly readable, not a solid black blob. A heavy bolted eyepiece housing and machinery crowd the frame to every edge around the circle. Deep indigo field, cold light on the metal, amber on the adjustment index, no numbers and no lettering."}, {"id": "range_4", "n": 4, "img": "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", "prompt": "A circular optical field split straight across its middle, showing the same craft twice: in the upper half and again in the lower half, each drawn as a pale grey outline with a lit spine and two bright engine points, the two copies offset sideways and being slid together until they line up. Each craft is about a third of the field wide and clearly readable, not a solid black blob. A heavy bolted eyepiece housing and machinery crowd the frame to every edge around the circle. Deep indigo field, cold light on the metal, amber on the adjustment index, no numbers and no lettering."}]}];
+var Z = 3, V = {}, CACHE = {};
+var KINDS = [["k","keep"],["s","store"],["x","cut"]];
+
+function decode(key, src, cb){
+  if (CACHE[key]) { cb(CACHE[key]); return; }
+  var img = new Image();
+  img.onload = function(){
+    var c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    var g = c.getContext("2d"); g.drawImage(img, 0, 0);
+    CACHE[key] = g.getImageData(0, 0, img.width, img.height);
+    cb(CACHE[key]);
+  };
+  img.src = "data:image/png;base64," + src;
+}
+
+function draw(c, key, src){
+  decode(key, src, function(d){
+    c.width = d.width * Z; c.height = d.height * Z;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    for (var y = 0; y < d.height; y++){
+      for (var x = 0; x < d.width; x++){
+        var o = (y * d.width + x) * 4;
+        if (d.data[o + 3] < 8) continue;
+        g.fillStyle = "rgb(" + d.data[o] + "," + d.data[o+1] + "," + d.data[o+2] + ")";
+        g.fillRect(x * Z, y * Z, Z, Z);
+      }
+    }
+  });
+}
+
+function el(tag, cls, text){
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function build(){
+  var host = document.getElementById("groups");
+  host.textContent = "";
+  ROWS.forEach(function(r){
+    var h = el("h2", null, r.name || r.key);
+    if (r.module) h.appendChild(el("small", null, r.module));
+    if (r.does) h.appendChild(el("span", "does", r.does));
+    h.appendChild(el("small", null, r.takes.length + " takes"));
+    host.appendChild(h);
+
+    var row = el("div", "row");
+    // No card tile for an unassigned pool row -- there is no card to compare
+    // against until one of these is installed on one.
+    if (r.card || r.key !== "pool"){
+      var now = el("div", "now");
+      now.appendChild(el("div", "cap", "on the card today"));
+      if (r.card){
+        var cc = document.createElement("canvas");
+        now.appendChild(cc);
+        draw(cc, "card_" + r.key, r.card);
+      } else {
+        now.appendChild(el("div", "noshot", "no shot — run  -- cardshot"));
+      }
+      row.appendChild(now);
+    }
+
+    r.takes.forEach(function(t){
+      var box = el("div", "item");
+      box.dataset.key = t.id;
+      box.dataset.card = r.key;
+      var c = document.createElement("canvas");
+      box.appendChild(c);
+      box.appendChild(el("div", "nm", "take " + t.n));
+      var v = el("div", "verdict");
+      KINDS.forEach(function(kd){
+        var b = el("button", kd[0], kd[1]);
+        b.setAttribute("aria-pressed", "false");
+        b.onclick = function(){
+          if (V[t.id] === kd[1]) delete V[t.id]; else V[t.id] = kd[1];
+          paint();
+        };
+        v.appendChild(b);
+      });
+      box.appendChild(v);
+      if (t.prompt) box.appendChild(el("div", "pr", t.prompt));
+      row.appendChild(box);
+      draw(c, t.id, t.img);
+    });
+    host.appendChild(row);
+  });
+  paint();
+}
+
+function paint(){
+  var n = {keep:0, store:0, cut:0}, total = 0, out = [];
+  document.querySelectorAll(".item[data-key]").forEach(function(box){
+    total++;
+    var v = V[box.dataset.key];
+    box.classList.toggle("keep", v === "keep");
+    box.classList.toggle("bank", v === "store");
+    // A cut take is deleted from disk, so it leaves the page rather than
+    // sitting here greyed out asking to be looked at again.
+    box.classList.toggle("gone", v === "cut");
+    box.querySelectorAll(".verdict button").forEach(function(b){
+      b.setAttribute("aria-pressed", v === b.textContent ? "true" : "false");
+    });
+    if (v){ n[v]++; out.push({id: box.dataset.key, card: box.dataset.card, verdict: v}); }
+  });
+  document.getElementById("tally").textContent =
+    n.keep + " keep · " + n.store + " store · " + n.cut + " cut · " +
+    (total - n.keep - n.store - n.cut) + " left";
+  document.getElementById("json").value = out.length ? JSON.stringify(out, null, 1) : "";
+}
+
+document.querySelectorAll("[data-z]").forEach(function(b){
+  b.onclick = function(){
+    Z = +b.dataset.z;
+    document.querySelectorAll("[data-z]").forEach(function(o){
+      o.setAttribute("aria-pressed", o === b ? "true" : "false");
+    });
+    build();
+  };
+});
+document.getElementById("prompts").onclick = function(){
+  var on = this.getAttribute("aria-pressed") !== "true";
+  this.setAttribute("aria-pressed", on ? "true" : "false");
+  document.body.classList.toggle("showpr", on);
+};
+document.getElementById("reset").onclick = function(){ V = {}; paint(); };
+document.getElementById("copy").onclick = function(){
+  var t = document.getElementById("json");
+  t.select();
+  if (navigator.clipboard) navigator.clipboard.writeText(t.value);
+  this.textContent = "copied";
+  var self = this;
+  setTimeout(function(){ self.textContent = "copy"; }, 1200);
+};
+
+build();
+</script>

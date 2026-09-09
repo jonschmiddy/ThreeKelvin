@@ -2,7 +2,7 @@ class_name MaterialTable
 
 ## Everything a system can hand you that is not a module.
 ##
-## DRAFT 1, 64 items, authored 2026-08-27. `docs/briefs/MATERIALS_NOTE.md` is
+## DRAFT 1, 68 items, authored 2026-08-27 (two artifacts added 2026-09-04). `docs/briefs/MATERIALS_NOTE.md` is
 ## the contract
 ## this is built to and is worth reading before editing: materials are becoming a
 ## second ITEM CLASS in the existing spatial hold -- tiers, shaped cells, sold at
@@ -28,9 +28,9 @@ class_name MaterialTable
 ## Precursor pieces sit in `wreck` because the lore says fragments come off deep
 ## wrecks and nowhere else.
 ##
-##     tier    artifact 4 · common 16 · contraband 8 · epic 9 · exotic 10 · legendary 5 · rare 13
-##     table   event 20 · fauna 8 · fight 7 · mining 2 · wreck 22 · named 6
-##     cells   1x1 41 · 2x1 14 · 2x2 4 · 3x1 4 · 4x1 2
+##     tier    artifact 7 · common 16 · contraband 8 · epic 9 · exotic 10 · legendary 5 · rare 13
+##     table   event 20 · fauna 8 · fight 7 · mining 2 · named 7 · wreck 24
+##     cells   1x1 42 · 2x1 14 · 2x2 6 · 3x1 4 · 4x1 2
 ##
 ## WHAT LEAVING COSTS THE TABLES, because it is a real thinning at the top and
 ## not only tidiness: `event` loses its only ARTIFACT and `wreck` both of its
@@ -320,5 +320,18 @@ static func all() -> Array[Dictionary]:
 		{id = &"counting_core", name = "COUNTING CORE", tier = &"artifact", cells = "1x1",
 			value = 190, drops = NAMED,
 			text = "Warm after all this time, and still counting down. The number is smaller than it was when you picked it up."},
+		# THE FIRST TWO MATERIALS WITH A PICTURE, and the first artifacts that are
+		# not 1x1. Both were drawn as module art and were too good to spend on a
+		# plate you bolt on and stop looking at -- a thing you CARRY and decide
+		# whether to keep four cells clear for is the better job for them.
+		#
+		# 2x2 at artifact value is the whole point: four cells is a quarter of a
+		# small hold, so carrying one out is a decision rather than a pickup.
+		{id = &"singing_tine", name = "SINGING TINE", tier = &"artifact", cells = "2x2",
+			value = 210, drops = &"wreck",
+			text = "One tine in a cradle, and it has not stopped since it was found. Set it on the deck and the plates take it up. Nobody has heard it stop."},
+		{id = &"caged_sphere", name = "CAGED SPHERE", tier = &"artifact", cells = "2x2",
+			value = 240, drops = &"wreck",
+			text = "The cage was built around it, not for it. It has never touched the arms and has never drifted off the middle, through every burn you have made."},
 	]
 	return _all

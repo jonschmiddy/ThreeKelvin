@@ -245,13 +245,30 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 	for a in m.affixes:
 		box.add_child(UITheme.body("%s: %s" % [a.name, a.text], Color("#d4b98f"), 10))
 
+	# COUNTED, NOT REPEATED. `resolved_cards()` hands back one entry per copy the
+	# Grant Count Law awards, and this printed a hardcoded "×1" for each of them
+	# -- so a module granting two of one card listed that card twice, identically,
+	# directly under a header already saying "grants 2". Three statements of the
+	# same fact, and the only one that was wrong was the ×1.
+	#
+	# Grouped on what the row actually SHOWS rather than on card identity: two
+	# cards that print the same line are the same line, and a player counting
+	# copies on a shelf cannot see any difference the display does not draw.
+	var counts: Dictionary = {}
+	var order: Array[String] = []
 	for c in m.resolved_cards():
-		var line := "×1  %s · %dnrg%s · %s" % [
+		var line := "%s · %dnrg%s · %s" % [
 			c.name, c.energy,
 			"" if c.heat == 0 else " · %dheat" % c.heat,
 			c.describe(),
 		]
-		box.add_child(UITheme.body(line, UITheme.CHILL, 10))
+		if not counts.has(line):
+			counts[line] = 0
+			order.append(line)
+		counts[line] = int(counts[line]) + 1
+	for line in order:
+		box.add_child(UITheme.body("×%d  %s" % [int(counts[line]), line],
+			UITheme.CHILL, 10))
 
 	# Install-time deck delta, at the point of choice.
 	#
@@ -818,6 +835,38 @@ static func module_readout(m: ModuleData, width: float = 0.0) -> PanelContainer:
 ## Saying "none, and B/A/S each add one more" turns the same blank into the
 ## ladder explaining itself — which is the one moment a player is looking
 ## straight at the thing an upgrade would change.
+## WHAT A SET CHIP SAYS ON HOVER. Both tiers, always, each marked with whether
+## it is running.
+##
+## BOTH, because a set bonus does not replace the one below it -- `has_set(id, 3)`
+## and `has_set(id, 5)` are independent thresholds, so a ship at five is running
+## Standard Issue AND Full Broadside. Naming only the higher one hid a bonus that
+## was still applying; naming only the lower one hid the thing being worked
+## toward. There are exactly two, so there is no reason to show one.
+##
+## THE HULL'S SHARE IS NAMED. `Run.manufacturer_count` includes the hull, so a
+## player who fitted one part and sees two pips is owed the reason in the same
+## breath as the count.
+static func set_tip(id: StringName, have: int, fitted: int) -> String:
+	var m: ManufacturerData = DB.manufacturers.get(id)
+	if m == null:
+		return ""
+	var head := "%s · %d toward the set" % [DB.short_name(m.name).to_upper(), have]
+	if have > fitted:
+		head += " (the hull alone)" if fitted == 0 			else " (%d fitted, +1 hull)" % fitted
+	var out: PackedStringArray = [head, ""]
+	for tier in [3, 5]:
+		var nm := m.set3_name if tier == 3 else m.set5_name
+		var tx := m.set3_text if tier == 3 else m.set5_text
+		# "ON" against a count of what is still owed. A tick and a cross would
+		# say less: "2 MORE" is the number the player acts on.
+		var lead := "ON    " if have >= tier else "%d MORE" % (tier - have)
+		out.append("%s  %d+ %s" % [lead, tier, nm])
+		out.append("        %s" % tx)
+	return "
+".join(out)
+
+
 static func perk_tip(h: HullData) -> String:
 	if h == null:
 		return ""
@@ -868,6 +917,65 @@ static func _perk_line(id: StringName) -> String:
 ## could not say at all. The manufacturer's own is on every hull they build, at
 ## every grade, and survives swapping chassis inside the same manufacturer; the
 ## grade's are exactly what the upgrade bought, and are lost dropping back down.
+## THE SET-BONUS PANEL a chip shows on hover.
+##
+## Built the way `perk_readout` is, and for the reasons written on it: NO PLATE
+## OF ITS OWN, because Godot already wraps this in the tooltip's own panel and a
+## PanelContainer here is two plates stacked; and every body string goes through
+## `tip()`, because an autowrapping Label measures its height off a width it has
+## not been given yet and the panel comes out three times too tall.
+##
+## STATE IS COLOUR, NOT A COLUMN. The first version padded "ON" and "2 MORE" into
+## an aligned gutter, which made a seven-line block of ragged monospace out of
+## two sentences. A live bonus is EMBER like a perk; a locked one is QUOTE, with
+## what it still costs on the right of its own row.
+static func set_readout(id: StringName, have: int, fitted: int) -> VBoxContainer:
+	var m: ManufacturerData = DB.manufacturers.get(id)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if m == null:
+		return box
+
+	# "MANUFACTURER SET BONUS", in full. The panel names a company on the next
+	# line and lists two tiers under it, and "SET BONUS" alone left the reader to
+	# infer what the set was OF -- which is the one word this project is strict
+	# about.
+	box.add_child(UITheme.body("MANUFACTURER SET BONUS", UITheme.COLD,
+		UITheme.FS_SMALL))
+	box.add_child(UITheme.hsep())
+	box.add_child(UITheme.body(m.name.to_upper(), m.colour, UITheme.FS_SMALL))
+	# WHERE THE COUNT COMES FROM, in the one line under the name. The pips read
+	# off the set total and the hull is part of it, so a player who fitted one
+	# part and sees two pips would otherwise have to work that out.
+	var from := "%d fitted" % fitted
+	if have > fitted:
+		from = "the hull" if fitted == 0 else "%d fitted + the hull" % fitted
+	box.add_child(UITheme.body("%d of 5 · %s" % [have, from],
+		UITheme.COLD, UITheme.FS_SMALL))
+
+	# TYPED, or nothing downstream can be inferred: an untyped array literal
+	# yields Variant and `have >= tier` then has no type to give `on`.
+	for tier: int in [3, 5]:
+		var on: bool = have >= tier
+		box.add_child(UITheme.hsep())
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 10)
+		var nm := UITheme.body("%d+  %s" % [tier,
+			(m.set3_name if tier == 3 else m.set5_name).to_upper()],
+			UITheme.EMBER if on else UITheme.QUOTE, UITheme.FS_SMALL)
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(nm)
+		if not on:
+			head.add_child(UITheme.body("%d MORE" % (tier - have),
+				UITheme.COLD, UITheme.FS_SMALL))
+		box.add_child(head)
+		box.add_child(pad(UITheme.body(
+			tip(m.set3_text if tier == 3 else m.set5_text),
+			UITheme.COLD if on else UITheme.QUOTE, UITheme.FS_SMALL), 8, 0))
+	return box
+
+
 static func perk_readout(h: HullData) -> VBoxContainer:
 	# NO PLATE OF ITS OWN, and that is the whole of looking like the other
 	# tooltips. Godot wraps whatever `_make_custom_tooltip` returns in a

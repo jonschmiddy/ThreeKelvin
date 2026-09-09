@@ -32,6 +32,17 @@ extends HoldItem
 ## The line it says when you look at it.
 @export var text: String = ""
 
+## Its picture, or null while it has none.
+##
+## THE SAME SHAPE `ModuleData.sprite` USES, and for the same reason: the icon
+## draws art when there is art and the authored container when there is not, so
+## a material without a picture is a crate rather than a hole. `MaterialIcon`'s
+## own note argues a material should read as cargo rather than as its contents,
+## and that argument still holds for the forty rows of deck plate and coil stock
+## -- what it did not anticipate is an ARTIFACT, which is the one tier where the
+## object itself is the reason you are carrying it.
+@export var sprite: Texture2D = null
+
 
 ## Build one from its catalogue row.
 ##
@@ -49,6 +60,9 @@ static func of(row: Dictionary) -> MaterialData:
 	m.value = int(row.get("value", 0))
 	m.text = String(row.get("text", ""))
 	m.size = parse_cells(String(row.get("cells", "1x1")))
+	# BY CONVENTION FROM THE ID, exactly as modules and hulls resolve theirs.
+	# Built here rather than authored in the row so a new picture is a file drop.
+	m.sprite = DB.material_sprite(m.id)
 	return m
 
 

@@ -47,6 +47,12 @@ const WARMUP_FRAMES := 4
 ## many move together: at 30Hz under one per cent of the field shifts per
 ## repaint and it reads as drift, while at the 1.2Hz this screen briefly ran
 ## at, a quarter of the galaxy stepped at once.
+##
+## 30Hz was briefly suspected of causing a judder in the spinning galaxy and set
+## to 0.0 to test it. It was not the cause -- the project's 2D pixel snapping was
+## -- and pushing every frame spends 10.1ms of a 16.6ms budget on the backdrop
+## for nothing. Left at 30Hz. See ShipView._blit_sprite for what the snapping was
+## there to fix and how that is done locally now.
 const SKY_STEP := 1.0 / 30.0
 ## The galaxy's edge, as a fraction of half the screen's short side. Just over
 ## one, so the outer arms run off the top and bottom rather than sitting in the

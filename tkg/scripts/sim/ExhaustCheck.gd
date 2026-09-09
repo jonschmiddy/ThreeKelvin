@@ -48,36 +48,55 @@ func run(tree: SceneTree) -> void:
 	# broken.
 	print("")
 	var rigged := 0
+	var plumes := 0
+	var behind := 0
 	for h in DB.hull_frames:
-		if h.exhaust == null:
+		if not h.has_exhaust():
 			print("hull '%s' has no exhaust" % h.name)
 			bad += 1
 			continue
 		var key := DB.hull_art_name(h.weight, h.tier)
-		var want: Vector2i
-		if DB.HULL_EXHAUST.has(key):
-			want = (DB.HULL_EXHAUST[key] as Dictionary).at
+		var listed := DB.HULL_EXHAUST.has(key)
+		if listed:
 			rigged += 1
-		else:
-			want = DB.hull_exhaust_at(h.weight, h.tier, h.exhaust_id)
-		if h.exhaust_offset != want:
-			print("hull '%s' (%s) offset %s, expected %s"
-				% [h.name, key, h.exhaust_offset, want])
-			bad += 1
-		# A plume hanging off the canvas is cut off by ShipView._paste(), which
-		# is silent. The rigging bench warns about it; so does this.
-		var tex := h.exhaust
-		if tex != null:
-			var fw := tex.get_width() / DB.EXHAUST_FRAMES
-			var sw := h.sprite.get_width() if h.sprite != null else 0
-			var sh := h.sprite.get_height() if h.sprite != null else 0
-			if h.exhaust_offset.x < 0 or h.exhaust_offset.y < 0 \
-					or (sw > 0 and h.exhaust_offset.x + fw > sw) \
-					or (sh > 0 and h.exhaust_offset.y + tex.get_height() > sh):
-				print("hull '%s' plume %dx%d at %s overhangs its %dx%d canvas"
-					% [h.name, fw, tex.get_height(), h.exhaust_offset, sw, sh])
+			# EVERY entry, not just the first. A hull can carry three, and a check
+			# that looked only at the first would pass a ship whose other two were
+			# hanging off the canvas.
+			var want: Array = DB.HULL_EXHAUST[key]
+			if h.thrusters.size() != want.size():
+				print("hull '%s' (%s) carries %d plumes, rigged for %d" % [h.name, key, h.thrusters.size(), want.size()])
 				bad += 1
-	print("%d of %d hull frames rigged by hand" % [rigged, DB.hull_frames.size()])
+		elif h.thrusters.size() != 1:
+			print("hull '%s' is unrigged, should fall back to one plume, has %d" % [h.name, h.thrusters.size()])
+			bad += 1
+		var sw := h.sprite.get_width() if h.sprite != null else 0
+		var sh := h.sprite.get_height() if h.sprite != null else 0
+		for i in h.thrusters.size():
+			var t: Dictionary = h.thrusters[i]
+			plumes += 1
+			if bool(t.get("back", false)):
+				behind += 1
+			var tex: Texture2D = t.get("tex")
+			if tex == null:
+				print("hull '%s' plume %d has no texture" % [h.name, i])
+				bad += 1
+				continue
+			var at: Vector2i = t.at
+			if not listed:
+				var want_at := DB.hull_exhaust_at(h.weight, h.tier, int(t.id))
+				if at != want_at:
+					print("hull '%s' unrigged plume at %s, expected %s" % [h.name, at, want_at])
+					bad += 1
+			# A plume hanging off the canvas is cut off by ShipView._paste(), which is
+			# silent. The rigging bench warns about it; so does this.
+			var fw := tex.get_width() / DB.EXHAUST_FRAMES
+			var over := at.x < 0 or at.y < 0
+			over = over or (sw > 0 and at.x + fw > sw)
+			over = over or (sh > 0 and at.y + tex.get_height() > sh)
+			if over:
+				print("hull '%s' plume %d (%dx%d) at %s overhangs its %dx%d canvas" % [h.name, i, fw, tex.get_height(), at, sw, sh])
+				bad += 1
+	print("%d of %d hull frames rigged by hand, %d plumes (%d behind the hull)" % [rigged, DB.hull_frames.size(), plumes, behind])
 
 	print("\n%s" % ("OK" if bad == 0 else "%d PROBLEM(S)" % bad))
 	tree.quit(0 if bad == 0 else 1)
