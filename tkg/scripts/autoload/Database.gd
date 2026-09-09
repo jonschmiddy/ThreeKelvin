@@ -1601,22 +1601,22 @@ const HULL_MOUNTS := {
 	"hull_light_c": {
 		weapon = [Vector2(220, 27), Vector2(220, 67)],
 		system = [Vector2(148, 27), Vector2(148, 67)],
-		utility = [Vector2(118, 48), Vector2(184, 48)],
+		utility = [Vector2(108, 48), Vector2(184, 48)],
 	},
 	"hull_light_b": {
-		weapon = [Vector2(196, 30), Vector2(197, 77)],
-		system = [Vector2(171, 38), Vector2(171, 64)],
-		utility = [Vector2(128, 51), Vector2(209, 51)],
+		weapon = [Vector2(204, 30), Vector2(204, 77)],
+		system = [Vector2(164, 30), Vector2(164, 73)],
+		utility = [Vector2(114, 51), Vector2(204, 51)],
 	},
 	"hull_light_a": {
 		weapon = [Vector2(212, 34), Vector2(212, 73), Vector2(162, 79)],
-		system = [Vector2(167, 53), Vector2(212, 53)],
-		utility = [Vector2(122, 64), Vector2(122, 41)],
+		system = [Vector2(175, 53), Vector2(212, 53)],
+		utility = [Vector2(129, 68), Vector2(129, 28)],
 	},
 	"hull_light_s": {
-		weapon = [Vector2(203, 38), Vector2(171, 75), Vector2(156, 30)],
-		system = [Vector2(128, 38), Vector2(128, 70), Vector2(97, 55)],
-		utility = [Vector2(183, 55), Vector2(236, 55)],
+		weapon = [Vector2(195, 38), Vector2(171, 75), Vector2(160, 30)],
+		system = [Vector2(128, 38), Vector2(128, 71), Vector2(95, 55)],
+		utility = [Vector2(171, 55), Vector2(235, 55)],
 	},
 	"hull_medium_c": {
 		weapon = [Vector2(268, 37), Vector2(268, 87), Vector2(188, 87)],
@@ -1629,13 +1629,13 @@ const HULL_MOUNTS := {
 		utility = [Vector2(206, 71), Vector2(156, 71)],
 	},
 	"hull_medium_a": {
-		weapon = [Vector2(271, 50), Vector2(175, 28), Vector2(271, 89), Vector2(220, 94)],
+		weapon = [Vector2(271, 50), Vector2(174, 33), Vector2(271, 89), Vector2(220, 94)],
 		system = [Vector2(111, 67), Vector2(149, 67)],
 		utility = [Vector2(238, 67), Vector2(197, 67)],
 	},
 	"hull_medium_s": {
 		weapon = [Vector2(277, 64), Vector2(277, 91), Vector2(241, 58), Vector2(241, 96)],
-		system = [Vector2(108, 77), Vector2(179, 77), Vector2(257, 77)],
+		system = [Vector2(108, 77), Vector2(179, 77), Vector2(219, 77)],
 		utility = [Vector2(152, 48), Vector2(142, 77)],
 	},
 	"hull_heavy_c": {
@@ -1644,7 +1644,7 @@ const HULL_MOUNTS := {
 		utility = [Vector2(200, 60)],
 	},
 	"hull_heavy_b": {
-		weapon = [Vector2(283, 60), Vector2(343, 109), Vector2(304, 119), Vector2(258, 133)],
+		weapon = [Vector2(283, 63), Vector2(329, 107), Vector2(249, 126), Vector2(162, 126)],
 		system = [Vector2(132, 83), Vector2(174, 91)],
 		utility = [Vector2(249, 53)],
 	},
