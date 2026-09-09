@@ -174,6 +174,17 @@ var _lifted_mount: int = -1
 var _padl: Control
 var _panel: Control
 var _storage: HoldGrid
+## The dock, and the line above it. Both hidden unless `Run.pad` has something
+## on it, which outside the visit where you bought a ship is never.
+var _dock: PadStrip
+var _dockhead: Label
+var _dockbox: ScrollContainer
+
+## HOW MANY ROWS OF DOCK ARE ON SCREEN AT ONCE, the rest scrolled to.
+##
+## Two, because two is what is left. The hold panel runs to the bottom of a
+## 540-tall window on a heavy, and this sits under it.
+const DOCK_ROWS := 2
 var _attrs: AttrBlock
 var _mounts: VBoxContainer
 var _reactor: Label
@@ -500,6 +511,35 @@ func _build() -> void:
 	_storage = HoldGrid.new()
 	_storage.dropped.connect(_on_hold_drop)
 	holdcol.add_child(_storage)
+
+	# --- THE DOCK, UNDER THE HOLD.
+	#
+	# Under and not beside, because the two are the same rectangle seen twice:
+	# the strip takes the hold's own column count, so a part that will not fit
+	# up there is directly above the empty cells it needs. Beside them, at half
+	# the width, the comparison stops being a comparison.
+	_dockhead = UITheme.body("", UITheme.LEAVE, UITheme.FS_SMALL)
+	holdcol.add_child(_dockhead)
+	# --- BOUNDED, AND THEREFORE SCROLLED.
+	#
+	# The first version put the strip straight into the column and it ran off the
+	# bottom of the window: a heavy moving into a light strands about seven
+	# things, which wraps to four rows at the hold's width, and there are two
+	# rows of screen left under the grid. The panel had no more to give and the
+	# strip does not get to take it.
+	#
+	# The CELL stays the hold's, because the whole point of the plate is that it
+	# is the same object you are about to drag two inches upward -- shrinking it
+	# would have bought the rows back by making the two grids stop matching.
+	# Height is what gets capped instead, and the overflow scrolls.
+	var dockbox := ScrollContainer.new()
+	dockbox.custom_minimum_size = Vector2(0, DOCK_ROWS * (PadStrip.CELL
+		+ PadStrip.GAP) - PadStrip.GAP)
+	dockbox.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_dock = PadStrip.new()
+	dockbox.add_child(_dock)
+	_dockbox = dockbox
+	holdcol.add_child(dockbox)
 
 	midrow.add_child(holdcol)
 
@@ -1177,7 +1217,30 @@ func _refresh() -> void:
 	# Cells, not parts. "6 of 12" counted parts against a capacity in parts, and
 	# neither half of that survives a grid: the hold holds as many things as
 	# their shapes allow, so the honest number is how much ROOM is gone.
-	_hold.text = "STORAGE — %d of %d cells" % [Run.cargo_used(), Run.cargo_slots()]
+	# CELLS AND CARDS. Cells, not parts, because the hold holds as many things as
+	# their shapes allow -- "6 of 12" counted parts against a capacity in parts
+	# and neither half of that survives a grid.
+	#
+	# And the DECK, because that is the number this screen is really about.
+	# `deck_size()` sums `grant_count()` over what is bolted on and the hull
+	# contributes nothing, so every card you will be dealt comes from the
+	# arrangement in front of you -- and after a hull swap unbolts the lot, the
+	# honest reading of an untouched ship is zero.
+	_hold.text = "STORAGE — %d of %d cells · DECK %d" % [Run.cargo_used(),
+		Run.cargo_slots(), Run.deck_size()]
+
+	# HIDDEN WHEN EMPTY, both of them. `hidden` rather than a zero-height strip:
+	# the reset in every artifact and screen in this game gives `[hidden]` a
+	# display rule, and a container with an invisible child still spends the
+	# separation above it.
+	var docked_items := Run.pad.size()
+	_dockhead.visible = docked_items > 0
+	_dockbox.visible = docked_items > 0
+	if docked_items > 0:
+		_dockhead.text = "ON THE PAD — %d thing%s with nowhere to go" % [
+			docked_items, "" if docked_items == 1 else "s"]
+		_dock.cols = maxi(1, Run.hold_grid().x)
+		_dock.refresh()
 
 	_refresh_loadout()
 
@@ -1443,9 +1506,23 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	# `_lifted` counts as from the ship: it left `installed` when you picked it
 	# up, and this is the branch that decides whether to say so in the log.
 	var from_ship := Run.installed.has(m) or m == _lifted
-	if Run.cargo.has(m):
+	# OFF THE DOCK IS A THIRD ORIGIN. It is neither a move within the hold nor a
+	# part coming off the hull: the item is in `Run.pad`, which is not `cargo`,
+	# so `take_from_hold` would not find it and `place_in_hold` would leave it
+	# in two places at once.
+	var from_pad := Run.pad.has(m)
+	if from_pad:
+		Run.pad.erase(m)
+	elif Run.cargo.has(m):
 		Run.take_from_hold(m)
 	if not Run.place_in_hold(m, at):
+		# BACK ON THE DOCK, and before the general restore below: a refused drop
+		# must cost nothing, and for a pad item "nothing" means it is still on
+		# the pad rather than gone from both lists.
+		if from_pad:
+			Run.pad.append(m)
+			_refresh()
+			return
 		# Put it back exactly where it was. A refused move must cost nothing —
 		# the alternative is a part that vanishes because the arithmetic said no
 		# after it had already been lifted.

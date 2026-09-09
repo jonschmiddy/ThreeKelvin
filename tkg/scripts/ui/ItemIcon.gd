@@ -129,6 +129,15 @@ func _gui_input(e: InputEvent) -> void:
 	# finds the entry gone and does nothing.
 	if mb.button_index == MOUSE_BUTTON_LEFT \
 			and (mb.shift_pressed or mb.double_click):
+		# THE PAD ANSWERS THE SAME GESTURE, and has to: it is a list of things
+		# that must ALL be stowed or sold before the ship can leave, so it is the
+		# one place in the game where you will be moving six objects in a row.
+		# Making that six drags, when the bag beside it takes clicks, would be the
+		# same job done worse on the screen that needs it most.
+		if origin == &"pad":
+			accept_event()
+			Run.pad_to_hold(m)
+			return
 		if origin != &"bag":
 			return
 		accept_event()

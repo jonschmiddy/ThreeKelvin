@@ -20,6 +20,7 @@ func run() -> void:
 		_fill(w)
 	_shapes()
 	_swaps()
+	_moving_day()
 	_legible()
 	_card_law()
 	_no_twins()
@@ -223,6 +224,82 @@ func _swaps() -> void:
 	var other: ModuleData = Run.cargo[1] if Run.cargo[1] != m else Run.cargo[0]
 	_ok("a cell already claimed is refused",
 		other == m or not Run.can_place(m, other.hold_at))
+
+
+## MOVING SHIP CONSERVES OBJECTS.
+##
+## THE ONE PROPERTY THE WHOLE PAD EXISTS FOR. `transfer_to_hull` used to destroy
+## whatever would not fit -- it had to, because `cargo` may only contain things
+## that sit at a real cell, and there is no such cell for the thirteenth item in
+## a twelve-cell hold. The pad is the nowhere those things go instead, and the
+## claim being made is arithmetic: NOTHING LEAVES. Everything fitted plus
+## everything carried, before, equals everything in the hold plus everything on
+## the dock, after.
+##
+## Run onto a LIGHT from a HEAVY on purpose. That is the shrinking direction --
+## 30 cells down to 12, and every mount count falling -- so it is the case where
+## the old code deleted the most and the only one where a conservation check can
+## fail. A swap into a bigger frame conserves objects trivially and would prove
+## nothing.
+func _moving_day() -> void:
+	Rng.reseed(1234, 0)
+	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+	for i in 6:
+		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
+	var before: Array[HoldItem] = []
+	before.append_array(Run.installed)
+	before.append_array(Run.cargo)
+	var deck_before := Run.deck_size()
+	if not _ok("moving day: a heavy with a loadout and a hold",
+			Run.installed.size() >= 3 and Run.cargo.size() >= 3):
+		return
+
+	var light: HullData = null
+	for f in DB.hull_frames:
+		if (f as HullData).weight == HullData.Weight.LIGHT:
+			light = f
+			break
+	if not _ok("moving day: a light frame exists to move into", light != null):
+		return
+	Run.transfer_to_hull(light)
+
+	var after: Array[HoldItem] = []
+	after.append_array(Run.cargo)
+	after.append_array(Run.pad)
+	# THE OVERFLOW HAS TO ACTUALLY HAPPEN, or every assertion under this is being
+	# made about a move that fitted comfortably and the probe is green for the
+	# wrong reason. This is the fixture failing loudly rather than the property
+	# passing vacuously: 30 cells of heavy going into 12 cells of light MUST
+	# strand something, and if it ever stops doing so the case is gone and this
+	# test needs rewriting, not deleting.
+	_ok("moving day: the move really did overflow (%d on the pad)" % Run.pad.size(),
+		not Run.pad.is_empty())
+	_ok("moving day: nothing is destroyed by the move",
+		after.size() == before.size())
+	var missing := 0
+	for m in before:
+		if not after.has(m):
+			missing += 1
+	_ok("moving day: every object you owned is still yours", missing == 0)
+
+	# THE HOLD ITSELF IS STILL LEGAL. The pad is allowed to be over-full; the
+	# grid is not, and the move packs into it directly rather than through
+	# `repack_hold` -- so the invariant has to be re-checked on the far side of
+	# a code path that does its own placing.
+	var g := Run.hold_grid()
+	_in_bounds("moving day", g)
+	_no_overlap("moving day", g)
+	_ok("moving day: the hold did not overflow its own grid",
+		Run.cargo_used() <= g.x * g.y)
+
+	# AND THE SHIP IS BARE, which is the design and not a bug. Every card in the
+	# game comes off a fitted module, so a swap is a deck wipe -- and the station
+	# must therefore refuse to let it leave until the deck is rebuilt.
+	_ok("moving day: everything came off the frame", Run.installed.is_empty())
+	_ok("moving day: the deck went with it",
+		deck_before > 0 and Run.deck_size() == 0)
+	_ok("moving day: the dock will not let you fly",
+		not Run.ready_to_fly().is_empty())
 
 
 ## NO TWO CARDS ARE THE SAME CARD.

@@ -58,6 +58,20 @@ var galaxy_title: String = ""
 var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
+
+## WHAT CAME OFF THE OLD SHIP AND WILL NOT FIT THE NEW ONE.
+##
+## `cargo` has an invariant that HoldTest enforces on every run: every item in
+## it sits at a real cell, inside the grid, overlapping nothing. That is why the
+## old `transfer_to_hull` DESTROYED the overflow when you bought a smaller ship
+## -- deleting it was the only way to keep thirteen things out of a twelve-cell
+## hold. The cargo was never the problem; having nowhere to put it was.
+##
+## So this is the nowhere. The pad is the dock you are standing on: things off
+## the old frame that have not found a cell yet. It is not `cargo`, so the
+## invariant is untouched, and it is not lost, so nothing is deleted behind your
+## back. You cannot undock while it has anything on it.
+var pad: Array[HoldItem] = []
 var credits: int = 40
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
 var fuel: int = 150:
@@ -347,6 +361,7 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	ship_name = ""
 	heat = 0
 	heat_cap_bonus = 0
+	pad.clear()
 	credits = 40
 	# STILL SCALED TO GALAXY DEPTH, though the reason narrowed. It went in when
 	# RIM was derived and the disc was 1.75x wider, which it no longer is -- but
@@ -555,6 +570,11 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 	if cell == -Vector2i.ONE or not can_place(m, cell):
 		return false
 	m.hold_at = cell
+	# OFF THE PAD ON THE WAY IN. Stowing something is exactly how a thing stops
+	# being stranded, and without this line a pad item that found a cell would be
+	# in BOTH lists -- counted twice by the Exchange, and holding the door shut
+	# for ever because `ready_to_fly` would still see it on the dock.
+	pad.erase(m)
 	if not cargo.has(m):
 		cargo.append(m)
 	Sig.ship_changed.emit()
@@ -579,8 +599,16 @@ func ledger() -> Dictionary:
 
 
 ## Take a part out, releasing its cells.
+## Take a thing out of your possession, wherever it was being kept.
+##
+## BOTH LISTS, and that is what makes the pad cheap. This is the one door every
+## disposal goes through -- selling at the Exchange, scrapping on the refit
+## screen, jettisoning out the hatch -- so teaching it about `pad` is the whole
+## of teaching those three. The alternative was a `sell_from_pad` beside every
+## one of them, which is three chances to forget the second list.
 func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
+	pad.erase(m)
 	m.hold_at = -Vector2i.ONE
 
 ## The container for a hull you just killed, or a fresh one.
@@ -700,7 +728,14 @@ func take_item(m: HoldItem) -> bool:
 ## and quietly routing it to the floor instead would be the screen lying about
 ## its own contents.
 func put_in(n: MapGen.MapNode, h: MapGen.Jetsam, m: HoldItem) -> bool:
-	if m == null or n == null or h == null or not cargo.has(m):
+	# EITHER LIST. `take_from_hold` below already erases from both, but this
+	# guard did not -- so the hatch REFUSED a thing on the pad and refused it
+	# silently, which mattered in the two cases where the hatch is the only exit
+	# there is: contraband at a station that will not bid on it, and a pad that
+	# came back from a save while you were nowhere near a station at all.
+	if m == null or n == null or h == null:
+		return false
+	if not cargo.has(m) and not pad.has(m):
 		return false
 	take_from_hold(m)
 	m.hold_at = -Vector2i.ONE
@@ -810,8 +845,15 @@ func repack_hold() -> void:
 			continue
 		m.hold_at = cell
 		cargo.append(m)
+	# ONTO THE PAD, NOT OVERBOARD. This used to be the second place in the file
+	# that destroyed cargo to keep the grid invariant, and the loader reaches it
+	# -- so a save whose hull no longer matched its hold quietly lost crates on
+	# load. Now they come back on the dock, where you can see them.
 	for m in lost:
-		log_line("No room for %s in the new hold. Left behind." % m.name, &"them")
+		pad.append(m)
+	if not lost.is_empty():
+		log_line("%d thing%s would not fit the hold. On the pad." % [lost.size(),
+			"" if lost.size() == 1 else "s"], &"them")
 
 ## First cell the part fits in, scanning rows then columns, or (-1,-1).
 ##
@@ -2135,49 +2177,116 @@ func scrap_module(m: ModuleData) -> void:
 	log_line("Scrapped %s for %d credits." % [m.name, v], &"good")
 	Sig.ship_changed.emit()
 
+## Move into a new frame. EVERYTHING COMES OFF, and you re-rig it yourself.
+##
+## THE OLD VERSION GUESSED, AND GUESSED WITH THE WRONG NUMBER. It shed the
+## lowest `scrap_value` part of any slot the new hull had fewer mounts for --
+## a decent proxy for "least valuable object" and a bad one for "least wanted
+## part", because this is a deckbuilder. A common Coolant Flush granting the
+## card your whole engine turns on outranks a rare you never draw, and
+## `scrap_value` cannot know that. Nothing can, except you.
+##
+## It also squeezed you twice. The shed loop packed parts against the OLD grid,
+## then the swap happened, then `repack_hold` ran against the NEW one -- so a
+## part could be stowed successfully and destroyed eight lines later, printing
+## two different "left behind" lines for one object.
+##
+## Both go away by doing less: unbolt the lot, set the frame, pack ONCE against
+## the grid you are actually going to fly. What will not fit goes on the `pad`,
+## which is a place, not a wastebasket.
+##
+## YOUR DECK IS NOW EMPTY, and that is not a side effect -- it is the decision.
+## `deck_size()` sums `grant_count()` over `installed` and the hull contributes
+## nothing, so a swap is a deck wipe and re-rigging is how you rebuild it. The
+## station will not let you undock until you have a deck again; see `ready_to_fly`.
 func transfer_to_hull(h: HullData) -> void:
-	# Shed anything that no longer fits, cheapest first.
-	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
-		var cap: int = h.slots_for(s)
-		while slots_used(s) > cap:
-			var worst: ModuleData = null
-			for x in installed:
-				if x.slot == s and (worst == null or x.scrap_value < worst.scrap_value):
-					worst = x
-			if worst == null:
-				break
-			installed.erase(worst)
-			worst.mount = -1
-			# The new hull's hold may be a different shape, and this runs BEFORE
-			# the swap, so a part placed now is placed against the old grid.
-			# Re-packed below once `hull` is the new one.
-			if not place_in_hold(worst):
-				log_line("No room for %s. It was left behind." % worst.name, &"them")
+	# EVERY FITTED PART COMES OFF, including the ones that would still fit. A
+	# frame with different mounts and a different hand size probably wants a
+	# different build, and half-carrying an arrangement over is how you end up
+	# with a ship nobody chose.
+	var loose: Array[HoldItem] = []
+	for m in installed:
+		m.mount = -1
+		loose.append(m)
+	installed.clear()
+
 	var ratio := float(hp) / float(max_hp())
 	hull = h
 	hp = maxi(6, int(round(h.max_hull * ratio)))
-	# ...and its own HOLD SHAPE. A heavy's 4x10 becoming a light's 4x5 leaves
-	# every part below the fifth row outside the grid entirely, so the hold is
-	# re-seated for the same reason the mounts below are.
-	repack_hold()
-	# The new hull has its own hardpoint count, so a part mounted on weapon 3 of a
-	# heavy can be pointing at a mount a light does not have. Re-seated in the
-	# order they were carried, which loses the arrangement you chose — that is
-	# honest: it is a different ship, and the mounts are places on it.
-	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
-		for m in installed:
-			if m.slot == s:
-				m.mount = -1
-		for m in installed:
-			if m.slot == s:
-				m.mount = free_mount(s)
+
+	# ONE PACK, AGAINST THE NEW GRID. `cargo` is emptied into the same pile as
+	# the parts that just came off, so a crate and a gun compete for the same
+	# cells on equal terms -- which is what they do, and what the two-stage
+	# version could not express.
+	var pile: Array[HoldItem] = []
+	pile.append_array(cargo)
+	pile.append_array(loose)
+	pile.append_array(pad)
+	cargo.clear()
+	pad.clear()
+	# Biggest first, the same order `repack_hold` uses: a 4x1 spine placed last
+	# has nowhere to go in a grid a dozen 1x1 fittings have already speckled.
+	pile.sort_custom(func(a: HoldItem, b: HoldItem) -> bool:
+		return a.cells() > b.cells())
+	for m in pile:
+		m.hold_at = -Vector2i.ONE
+	for m in pile:
+		var cell := find_hold_slot(m)
+		if cell == -Vector2i.ONE:
+			pad.append(m)
+			continue
+		m.hold_at = cell
+		cargo.append(m)
+
 	found_hull = null
 	var said: Array[String] = []
 	for pid in h.perks():
 		said.append(DB.perk_text(pid))
 	log_line("Transferred to %s. %s" % [h.display_name(), " ".join(said)], &"big")
+	if not pad.is_empty():
+		log_line("%d thing%s will not fit. They are on the pad." % [pad.size(),
+			"" if pad.size() == 1 else "s"], &"them")
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
+
+
+## Carry one thing off the pad and into the hold. False if there is no room.
+func pad_to_hold(m: HoldItem) -> bool:
+	if not pad.has(m):
+		return false
+	var cell := find_hold_slot(m)
+	if cell == -Vector2i.ONE:
+		return false
+	pad.erase(m)
+	m.hold_at = cell
+	cargo.append(m)
+	Sig.ship_changed.emit()
+	return true
+
+
+## Whether this ship can leave the dock.
+##
+## TWO CONDITIONS, AND THE SECOND ONE IS NEW. An empty pad is obvious -- you
+## cannot fly away from crates on the ground. The deck is the one a hull swap
+## introduced: `_top_up_deck` fills spare mounts until a deck is playable and it
+## runs in `start_new_run` ONLY, so nothing rescues a ship that undocks bare.
+## Before this, `transfer_to_hull` re-mounted everything automatically and the
+## case could not arise; now it can, and the next fight would open with a hand
+## of nothing.
+##
+## The floor is the HAND, not some authored minimum: a deck no bigger than the
+## hand is not a deck, you simply hold all of it. That is the same reasoning
+## `_top_up_deck` uses to pick its own target, one line apart.
+func ready_to_fly() -> Array[String]:
+	var why: Array[String] = []
+	if not pad.is_empty():
+		why.append("%d thing%s still on the pad" % [pad.size(),
+			"" if pad.size() == 1 else "s"])
+	if deck_size() < hand_size():
+		why.append("deck of %d is smaller than a hand of %d"
+			% [deck_size(), hand_size()])
+	return why
+
 
 # -------------------------------------------------------------------------- map
 

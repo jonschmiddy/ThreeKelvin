@@ -140,6 +140,22 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 				break
 		print("  hold %dx%d, %d items" % [Run.hull.hold_grid.x,
 			Run.hull.hold_grid.y, Run.cargo.size()])
+	# `-- shipshot light moved` photographs the screen the MOMENT AFTER A HULL
+	# SWAP, which is the one state the dock exists for and the only one no
+	# amount of clicking reaches quickly: you have to find a yard with a smaller
+	# frame on the blocks and be carrying enough to overflow it.
+	#
+	# Built by flying a HEAVY and moving into whatever this shot was asked for,
+	# so the squeeze is real arithmetic and not a hand-placed fixture -- 30 cells
+	# of loadout and hold going into a light's 12 strands about half of it.
+	if "moved" in OS.get_cmdline_user_args():
+		var target := Run.hull
+		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+		for i in 6:
+			Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
+		Run.transfer_to_hull(target)
+		print("  moved: %d stowed, %d on the pad, deck %d" % [Run.cargo.size(),
+			Run.pad.size(), Run.deck_size()])
 	# `name=Bad Penny` photographs a NAMED ship, which is the state the masthead
 	# rearranges for -- the pilot's name takes the big line and the frame's own
 	# drops beside the chassis. A shot of an unnamed one cannot show that.

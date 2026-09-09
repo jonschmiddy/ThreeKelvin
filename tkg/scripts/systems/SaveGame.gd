@@ -199,7 +199,10 @@ const PATH := "user://run.save"
 ## alongside the index and would still restore correctly -- the map would be
 ## intact -- but the run would name itself after a different galaxy than the one
 ## it is, on the one screen that exists to tell you where you are.
-const VERSION := 26
+# 27: `pad` joins the file. Overflow from a hull swap is state now rather than
+# a deletion, so a save taken mid-move has to carry it or the move eats it --
+# which is the bug the pad exists to fix.
+const VERSION := 27
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -273,6 +276,9 @@ static func _snapshot() -> Dictionary:
 	var cargo: Array = []
 	for m in Run.cargo:
 		cargo.append(_item_to(m))
+	var pad: Array = []
+	for m in Run.pad:
+		pad.append(_item_to(m))
 	var nodes: Array = []
 	for n in Run.map:
 		nodes.append(_node_to(n))
@@ -301,6 +307,7 @@ static func _snapshot() -> Dictionary:
 		ship_name = Run.ship_name,
 		installed = installed,
 		cargo = cargo,
+		pad = pad,
 		found_hull = _hull_to(Run.found_hull) if Run.found_hull != null else null,
 
 		hp = Run.hp,
@@ -404,6 +411,12 @@ static func load_into_run() -> bool:
 		if m != null:
 			cargo.append(m)
 	Run.cargo = cargo
+	# EMPTIED HERE, not where the saved list is read. The loader overwrites the
+	# live run field by field rather than resetting it, so a pad left over from
+	# the run you were playing a moment ago would survive into this one -- and
+	# `repack_hold` below APPENDS to it, so the clear has to happen before that
+	# rather than after.
+	Run.pad.clear()
 	# Anything that came back without a cell — a pre-grid save, or a part whose
 	# position no longer fits the hull it was loaded onto — gets one now. Done
 	# AFTER the assignment because repack_hold reads Run.cargo, and after the
@@ -415,6 +428,17 @@ static func load_into_run() -> bool:
 			break
 	if unplaced:
 		Run.repack_hold()
+	# THE PAD, AFTER THE REPACK. `repack_hold` appends to it, so reading the
+	# saved list first and assigning after would throw away anything the repack
+	# had just put there. A file written before v27 has no key and loads with an
+	# empty dock, which is what it meant.
+	var padded: Array[HoldItem] = []
+	for e in d.get("pad", []):
+		var pm := _item_from(e)
+		if pm != null:
+			padded.append(pm)
+	Run.pad.append_array(padded)
+
 	var fh: Variant = d.get("found_hull", null)
 	Run.found_hull = _hull_from(fh) if typeof(fh) == TYPE_DICTIONARY else null
 

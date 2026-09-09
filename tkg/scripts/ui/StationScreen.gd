@@ -21,6 +21,9 @@ var _header: RichTextLabel
 ## none, because it looks correct. One flag per berth, however many that is, and
 ## `_flag_scale` shrinks them until they fit.
 var _flagrow: HBoxContainer
+## The door. Held as a member because whether it opens is run state -- see
+## `_refresh_undock` -- and the rail that builds it is built once.
+var _undock: Button
 var _trade: Label
 ## What kind of place this is, in its own words. Fills the column under the
 ## services with something worth reading rather than with nothing.
@@ -642,6 +645,7 @@ func _berth_cell() -> Control:
 	# and come back from; this is the door, so it wears the same ink BUY does.
 	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
 	out.custom_minimum_size = Vector2(RAIL_W, 20)
+	_undock = out
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
@@ -847,6 +851,38 @@ func _refresh() -> void:
 	_refresh_stock(n)
 	_refresh_hold(n)
 	_refresh_bench(n)
+	_refresh_undock()
+
+
+## Whether the door opens, and if not, what is holding it.
+##
+## THE GATE IS ON UNDOCKING AND NOWHERE ELSE, and that placement is the whole
+## design rather than the obvious spot. The first instinct is to stop the JUMP
+## -- but `has_legal_jump()` loops `can_jump_to`, and `check_stranded()` ends
+## the run the moment that returns false for every system. A pad that blocked
+## jumps would not stop you leaving; it would kill you for buying a ship.
+##
+## Gating the door instead is both safe and sufficient: the Yard is the only
+## place in the game that hands you a hull, so a loaded pad cannot reach the
+## star chart if it cannot get off the station.
+##
+## THE REASON IS ON THE BUTTON. A disabled control with no explanation is the
+## worst version of this -- you are standing on a screen with five decks and no
+## idea which one owes you something. `ready_to_fly` returns the reasons rather
+## than a boolean for exactly this line.
+func _refresh_undock() -> void:
+	if _undock == null:
+		return
+	var why := Run.ready_to_fly()
+	_undock.disabled = not why.is_empty()
+	if why.is_empty():
+		_undock.text = "UNDOCK"
+		_undock.tooltip_text = ""
+		return
+	_undock.text = "CANNOT UNDOCK"
+	_undock.tooltip_text = Widgets.tip("%s.
+Stow it in the hold on the SHIP page, or sell it at the Exchange."
+		% "; ".join(why).capitalize())
 
 
 ## The banner, the trade line, and the two gauges on the hull panel.
@@ -932,9 +968,18 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 		# YOURS, the one ship on this page that is not for sale. Same for the
 		# perks: `_hull_column` prints each hull's own now, so the two lists sit
 		# under the two ships instead of the offer's list sitting under yours.
+		# THE SUBTRACTION IS SHOWN, not just its answer. `271 - 180 = 91` is the
+		# whole argument for trading up, and a yard that printed only the 91
+		# would be asking you to trust it about the number that matters most.
+		var ask := Market.hull_price(n, h)
+		var part_ex := Market.hull_bid(n, Run.hull)
+		var price: int = maxi(0, ask - part_ex)
+		var sums := UITheme.body("%d − %d TRADE-IN" % [ask, part_ex],
+			UITheme.COLD, UITheme.FS_SMALL)
+		offer.add_child(sums)
+
 		var pay := HBoxContainer.new()
 		pay.add_theme_constant_override("separation", 11)
-		var price := Market.hull_price(n, h)
 		var cr := UITheme.body("%d CR" % price, UITheme.EMBER, UITheme.FS_HEAD)
 		cr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		pay.add_child(cr)
@@ -944,19 +989,37 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 		pay.add_child(take)
 		offer.add_child(pay)
 
-		# WHAT THE SWAP WOULD COST YOU IN PARTS, under both columns rather than
-		# in one of them: it is a fact about the pair, not about either ship.
-		var shed := 0
-		for sl in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
-				ModuleData.Slot.UTILITY]:
-			shed += maxi(0, Run.slots_used(sl) - h.slots_for(sl))
-		if shed > 0:
-			var warn := UITheme.body(
-				"%d fitted part%s would come off. Anything the hold cannot take is left behind."
-					% [shed, "" if shed == 1 else "s"],
-				UITheme.LEAVE, UITheme.FS_SMALL)
-			warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_hull_offer.add_child(warn)
+		# WHAT THE SWAP COSTS YOU BESIDES MONEY, under both columns rather than in
+		# one of them: it is a fact about the pair, not about either ship.
+		#
+		# THIS USED TO COUNT SHED PARTS AND IT WAS THE WRONG COUNT. The old
+		# `transfer_to_hull` unbolted only what the new mount count could not
+		# take; it now unbolts EVERYTHING, so the honest warning is not "two
+		# parts come off" -- it is "your deck goes to zero and here is how much
+		# room you will have to rebuild it in".
+		#
+		# The cell arithmetic is done here rather than guessed, because "8 cells
+		# smaller" and "everything fits anyway" are different warnings and the
+		# difference is exactly what a player wants to know before paying.
+		var stowing := 0
+		for m in Run.installed:
+			stowing += m.cells()
+		for m in Run.cargo:
+			stowing += m.cells()
+		for m in Run.pad:
+			stowing += m.cells()
+		var room: int = h.hold_grid.x * h.hold_grid.y
+		var lines: Array[String] = ["Everything unbolts. You re-rig on the SHIP page."]
+		if stowing > room:
+			lines.append("%d cells of gear, %d cells of hold — the rest waits on the pad, and you cannot undock until it is stowed or sold."
+				% [stowing, room])
+		else:
+			lines.append("%d cells of gear into %d cells of hold. It all fits."
+				% [stowing, room])
+		var warn := UITheme.body(" ".join(lines),
+			UITheme.LEAVE if stowing > room else UITheme.COLD, UITheme.FS_SMALL)
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_hull_offer.add_child(warn)
 
 	Widgets.clear(_services)
 	var missing := Run.max_hp() - Run.hp
@@ -1534,7 +1597,18 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 ## page where you already know what you are carrying.
 func _refresh_hold(n: MapGen.MapNode) -> void:
 	Widgets.clear(_hold)
-	if Run.cargo.is_empty():
+	# THE PAD IS LISTED HERE TOO, and it has to be: this deck is the only place
+	# in the game that pays for anything, and the pad is a list of things you
+	# must clear before the ship will leave. A dock you could not sell from
+	# would leave the hatch as the only exit -- throwing a rare part away to
+	# undock, while standing in front of somebody who would have bought it.
+	#
+	# Appended rather than merged, so the things you are already carrying stay
+	# in the order you arranged them and the strays sit together at the end.
+	var aboard: Array[HoldItem] = []
+	aboard.append_array(Run.cargo)
+	aboard.append_array(Run.pad)
+	if aboard.is_empty():
 		_hold.add_child(UITheme.body("Hold empty.", UITheme.COLD, UITheme.FS_SMALL))
 		return
 
@@ -1542,9 +1616,9 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 	# Selling the thing you are looking at removes it from the hold, and an index
 	# left pointing at it would open an empty panel on the one screen where
 	# something just happened.
-	if _hold_pick >= Run.cargo.size():
+	if _hold_pick >= aboard.size():
 		_hold_pick = 0
-	var item: HoldItem = Run.cargo[_hold_pick]
+	var item: HoldItem = aboard[_hold_pick]
 	var mod := item as ModuleData
 	var mat := item as MaterialData
 	var price: int = Market.material_price(n, mat.id) if mat != null \
@@ -1614,7 +1688,14 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 
 	# --- BOTTOM BAND: everything aboard, across the full width.
 	_hold.add_child(UITheme.hsep())
-	_hold.add_child(UITheme.body("HOLD", UITheme.COLD, UITheme.FS_SMALL))
+	# THE HEADING COUNTS THE STRAYS, in the red the rest of the game reserves for
+	# something being lost. It is the one line on this deck that explains why the
+	# door downstairs is shut.
+	if Run.pad.is_empty():
+		_hold.add_child(UITheme.body("HOLD", UITheme.COLD, UITheme.FS_SMALL))
+	else:
+		_hold.add_child(UITheme.body("HOLD — %d ON THE PAD, NOT STOWED"
+			% Run.pad.size(), UITheme.LEAVE, UITheme.FS_SMALL))
 	# SCROLLED, WHERE THE SHELF IS NOT. A shop stocks at most five things and its
 	# list can never outgrow the band; a hold is twenty cells and routinely
 	# carries more rows than fit. Without this the last one is simply cut off by
@@ -1625,8 +1706,8 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 	var sc := Widgets.scroller(rest, 60)
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_hold.add_child(sc)
-	for i in Run.cargo.size():
-		var it: HoldItem = Run.cargo[i]
+	for i in aboard.size():
+		var it: HoldItem = aboard[i]
 		var m2 := it as MaterialData
 		var p2: int = Market.material_price(n, m2.id) if m2 != null \
 			else Market.bid(n, it as ModuleData)
@@ -1781,7 +1862,13 @@ func _on_action(action: String, thing: Variant) -> void:
 			Sig.ship_changed.emit()
 		"take_hull":
 			var h := thing as HullData
-			var price2 := Market.hull_price(n, h)
+			# THE NET, NOT THE ASK. The yard takes your frame in part exchange,
+			# so what leaves your account is the difference -- and it is worked
+			# out from the same two calls the panel printed, so the number you
+			# agreed to is the number you pay. Computed BEFORE `take_option`,
+			# because `Run.hull` is about to stop being the ship being valued.
+			var price2: int = maxi(0, Market.hull_price(n, h)
+				- Market.hull_bid(n, Run.hull))
 			if Run.credits < price2:
 				return
 			# One rack, one hull. Same race as the shelf above, and the same
