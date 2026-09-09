@@ -2055,14 +2055,27 @@ func at_tier(frame: HullData, tier: int) -> HullData:
 ## at the top. Widening the pool with perks that work is the fix, and until
 ## there are some, this is the honest arrangement rather than a varied one
 ## built out of a perk that does nothing.
+##
+## NO `heat_sink`, AND THE FOUR LADDERS IT WAS IN GOT A SUBSTITUTE RATHER THAN A
+## GAP. Heat capacity is what a thermal module is for; a frame that hands you
+## two points of it for free is competing with the parts you bolt to it. The
+## replacement sits at the SAME INDEX the old perk did, because the index is the
+## grade -- 0 is B, 1 is A, 2 is S -- and dropping an entry would have made an
+## S-tier solari, probate, verity or calyx confer nothing over an A.
+##
+## Each pick is the one that reads as the manufacturer rather than the one that
+## balances flattest: an overspec reactor for the foundry whose tagline is that
+## the line between reactor and weapon is philosophy, a salvage rack for the
+## combine that invoices other people's disasters, baffled vents for the atelier
+## that makes things properly, deep tanks for the company that grows them.
 const TIER_PERKS := {
 	&"korvan":  [&"salvage_rack", &"deep_tanks", &"overspec_reactor"],
-	&"solari":  [&"salvage_rack", &"heat_sink", &"baffled_vents"],
-	&"probate": [&"deep_tanks", &"heat_sink", &"overspec_reactor"],
+	&"solari":  [&"salvage_rack", &"overspec_reactor", &"baffled_vents"],
+	&"probate": [&"deep_tanks", &"salvage_rack", &"overspec_reactor"],
 	&"redline": [&"deep_tanks", &"baffled_vents", &"quick_hands"],
 	&"cygnet":  [&"salvage_rack", &"deep_tanks", &"baffled_vents"],
-	&"verity":  [&"deep_tanks", &"heat_sink", &"quick_hands"],
-	&"calyx":   [&"salvage_rack", &"heat_sink", &"quick_hands"],
+	&"verity":  [&"deep_tanks", &"baffled_vents", &"quick_hands"],
+	&"calyx":   [&"salvage_rack", &"deep_tanks", &"quick_hands"],
 }
 
 ## The perks a grade confers on a hull of this manufacturer. Empty at C.
@@ -2094,7 +2107,6 @@ func _seed_perks() -> void:
 		# number that already exists and is already consumed somewhere, which is
 		# the property `cheap_parts` turned out not to have.
 		&"deep_tanks": {name = "Deep Tanks", text = "Every jump costs 10% less fuel."},
-		&"heat_sink": {name = "Heat Sink", text = "+2 heat capacity."},
 		&"quick_hands": {name = "Quick Hands", text = "+1 card a turn."},
 		&"cheap_parts": {name = "Cheap Parts", text = "Station repairs cost half."},
 	}
@@ -2148,9 +2160,6 @@ func perk_text(id: StringName) -> String:
 # the next piece of work and not this one.
 
 const RECIPES: Array[Dictionary] = [
-	{id = &"braid", name = "COOLANT BRAID", kind = &"heat_cap", amount = 3, dev = 3,
-		credits = 25, mats = {&"exotic": 1},
-		text = "Organic capillary loop. +3 heat cap, permanently."},
 	{id = &"analysis", name = "RELIC ANALYSIS", kind = &"artifact", amount = 1, dev = 3,
 		credits = 40, mats = {&"relic": 1},
 		text = "Have the fragment read. Fabricates a precursor module into the hold."},

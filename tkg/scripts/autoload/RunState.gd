@@ -1121,9 +1121,12 @@ func max_hp(bare: bool = false) -> int:
 	return maxi(1, n)
 
 func heat_cap(bare: bool = false) -> int:
+	# `heat_cap_bonus` SURVIVES A DEAD SETTER. Nothing raises it any more -- the
+	# yard's coolant service and the fabricator's braid recipe were the only two
+	# and both are gone -- but it is a SAVED field, so deleting it is a save-shape
+	# change and a version bump to retire a value that reads 0. It stays until
+	# something else wants it.
 	var n := hull.heat_cap + heat_cap_bonus
-	if hull.has_perk(&"heat_sink"):
-		n += 2
 	if not bare:
 		for m in installed:
 			n += m.heat_cap + m.affix_int(&"heat_cap")
@@ -1970,8 +1973,8 @@ func harvest_pulsar() -> void:
 	# pulsar leaves behind"). Flying the beam is the game's most deliberate
 	# trade and it paid out in a category name.
 	#
-	# `&"exotic"` is still dropped by fauna, so `COOLANT BRAID` -- which asks for
-	# it by ID and not by tier -- is unaffected.
+	# `&"exotic"` is still dropped by fauna, so any recipe asking for it by ID
+	# rather than by tier is unaffected.
 	add_material(PULSAR_DROP, gain_exotic)
 	heat += gain_heat
 	log_line("Beam sweep. The tank fills in eleven seconds.", &"good")

@@ -44,14 +44,16 @@ static func can_make(n: MapGen.MapNode, r: Dictionary) -> bool:
 			return false
 	return _useful(r)
 
-## Refuses a job that would do nothing. A COOLANT BRAID is always useful, but the
+## Refuses a job that would do nothing. A RELIC ANALYSIS is always useful, but the
 ## repair and fuel kinds are not — a patch on a full hull is not a purchase the
 ## player meant to make, and letting it through would spend a material on a no-op
 ## that nothing in the interface would explain afterwards.
 ##
 ## The repair and fuel kinds have no recipe behind them today: both were dev-0
 ## recipes whose real cost was alloy, and a station sells REPAIR and REFUEL at
-## every development level, so retiring alloy retired them. The handlers stay
+## every development level, so retiring alloy retired them. `heat_cap` went the
+## same way for a different reason — heat capacity is a thermal module's job, so
+## COOLANT BRAID and the yard's coolant service both came out. The handlers stay
 ## because a recipe is meant to be a dictionary entry against an effect the game
 ## already applies — deleting the effect is what would make the next one code.
 static func _useful(r: Dictionary) -> bool:
@@ -91,14 +93,6 @@ static func _apply(n: MapGen.MapNode, r: Dictionary) -> String:
 		&"fuel":
 			Run.fuel += int(r.amount)
 			return "Cracked feedstock for volatiles. +%d fuel." % int(r.amount)
-		&"heat_cap":
-			# No emit here. `add_heat_cap()` announces itself — see its header,
-			# "THE MUTATION OWNS THE SIGNAL". These two lines were left behind
-			# when the direct field write became a mutator call, so every
-			# fabrication fired both signals twice and every listener rebuilt
-			# twice for one recipe.
-			Run.add_heat_cap(int(r.amount))
-			return "Coolant braid laid in. Heat cap +%d." % int(r.amount)
 		&"artifact":
 			# Precursor tech is unbranded by definition, so it is rolled the way
 			# a fauna or core drop is rather than being pulled from a manufacturer's
