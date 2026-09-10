@@ -140,6 +140,25 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 				break
 		print("  hold %dx%d, %d items" % [Run.hull.hold_grid.x,
 			Run.hull.hold_grid.y, Run.cargo.size()])
+	# `-- shipshot medium stock` packs the hold with MODULES rather than crates.
+	# `cargo` fills it with materials, which draw as boxes; this is the other
+	# half of what a hold holds, and the half whose plates carry a rarity edge, a
+	# manufacturer stripe and a silhouette.
+	if "stock" in OS.get_cmdline_user_args():
+		var tries := 0
+		while not Run.hold_full() and tries < 40:
+			tries += 1
+			Run.place_in_hold(LootGen.roll_module(3 + (tries % 5), &"", true))
+		print("  stock: %d modules, %d of %d cells" % [Run.cargo.size(),
+			Run.cargo_used(), Run.cargo_slots()])
+
+	# `-- shipshot medium dross` photographs a ship WITH SOMETHING WRONG WITH IT,
+	# which is the state the malfunction block on the loadout panel exists for
+	# and one no fresh run is ever in.
+	if "dross" in OS.get_cmdline_user_args():
+		Run.add_dross(3)
+		print("  dross: %d in the deck" % Run.dross_count())
+
 	# `-- shipshot light moved` photographs the screen the MOMENT AFTER A HULL
 	# SWAP, which is the one state the dock exists for and the only one no
 	# amount of clicking reaches quickly: you have to find a yard with a smaller

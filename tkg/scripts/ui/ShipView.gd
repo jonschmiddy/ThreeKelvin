@@ -395,6 +395,23 @@ func canvas_height() -> float:
 ## half the screen -- so a box at the control's own edges says nothing about
 ## what is being pointed at.
 ##
+## The opaque pixels, in CANVAS coordinates and with the bob taken out.
+##
+## `ship_rect` answers the same question in the CONTROL's coordinates, which is
+## what anything drawing a box over the ship wants. A caller that is deciding
+## how to scale and place the canvas itself needs the other frame of reference:
+## a hull occupies about a third of its sheet, so "how big is this ship" and
+## "how big is this sheet" differ by a factor that changes per hull.
+func ink_rect() -> Rect2i:
+	if _img == null:
+		return Rect2i(0, 0, _w, _h)
+	var r := _img.get_used_rect()
+	if r.size.x <= 0 or r.size.y <= 0:
+		return Rect2i(0, 0, _w, _h)
+	r.position.y -= _bob_off
+	return r
+
+
 ## Measured off the opaque pixels, so it follows whatever art is loaded and
 ## whatever is bolted to it, and the bob is taken back out so a box drawn here
 ## does not twitch several times a second.
@@ -509,6 +526,18 @@ func crop(view_width: int, view_height: int) -> void:
 	expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	custom_minimum_size = Vector2(view_width, view_height)
 	clip_contents = self_clip
+	refresh()
+
+## A view of a SPECIFIC build, rather than of a hull or of the run.
+##
+## `setup_preview` shows a hull bare and `local()` shows the ship you are
+## flying. Between them sits the one case the transfer screen needs: a hull that
+## is nobody's current ship but is still wearing its parts -- the frame you have
+## just traded in. `ShipBuild.fitted_out` composes it; this is how it gets here.
+func setup_build(b: ShipBuild, k: int = 1) -> void:
+	_fixed = b
+	_k = maxi(1, k)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	refresh()
 
 func setup_preview(h: HullData, view_height: int = 0, k: int = 1) -> void:

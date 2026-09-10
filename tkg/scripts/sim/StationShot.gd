@@ -110,7 +110,27 @@ func run(tree: SceneTree) -> void:
 		print("  full: hold %d · shelf %d · hull on the blocks"
 			% [Run.cargo.size(), here.shop.size()])
 
-	Router.show_station()
+	# `-- stationshot full moving` photographs MOVING DAY: the state one click
+	# after TAKE IT, with both ships drawn and the leftovers still on the old
+	# one. Reached by actually buying the hull rather than by posing the screen,
+	# so what the shot shows is what the flow produces.
+	if "moving" in OS.get_cmdline_user_args():
+		var offer: HullData = here.shop_hull
+		if offer == null:
+			offer = LootGen.roll_hull(7)
+		Run.transfer_to_hull(offer)
+		print("  moving: %d stowed, %d still aboard the %s" % [Run.cargo.size(),
+			Run.pad.size(), Run.old_hull.name if Run.old_hull != null else "?"])
+		Router.show_transfer()
+	else:
+		Router.show_station()
+
+	# `-- stationshot full purge` opens the fault picker, which is a modal and so
+	# unreachable by any flag that only chooses a deck.
+	if "purge" in OS.get_cmdline_user_args():
+		var scr := Router.current as StationScreen
+		if scr != null:
+			scr._open_purge()
 
 	# Thirty frames rather than one. The screen builds four panels, and a shot
 	# taken on the frame after `show_station` catches half of them unsized --

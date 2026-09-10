@@ -64,6 +64,21 @@ var _focus: ModuleData = null
 var _last_bob: int = -999
 var _passive: bool = false
 
+## THE SHIP THIS IS DRAWING MOUNTS FOR, when it is not the one you are flying.
+##
+## Null means `Run.hull`, which is every use of this widget but one. The
+## transfer screen draws the frame you are LEAVING with its guns still on it --
+## and by then `Run.hull` is the new ship and `Run.installed` is empty, so a
+## widget that can only ask `Run` cannot draw it.
+##
+## Six references were all it took. `refresh` needed a hull, a mount count and
+## an occupant; `_can_drop_data` needed a resident and a hold. Everything else
+## in this file already works off `_spots`, which is why generalising it was
+## worth doing here and was not worth doing to `HoldGrid`.
+var ship: HullData = null
+## What is bolted to `ship`. Read instead of `Run.installed` in foreign mode.
+var fitted: Array = []
+
 ## How many fitted parts the last redraw actually put on the hull.
 ##
 ## Written by `_draw` and read by `-- fittest`. The bug it exists for was the
@@ -109,21 +124,36 @@ func passive() -> void:
 ## Recompute where every mount is. Cheap, and called whenever the ship changes.
 func refresh() -> void:
 	_spots.clear()
-	if _view == null or Run.hull == null:
+	var h: HullData = ship if ship != null else Run.hull
+	if _view == null or h == null:
 		queue_redraw()
 		return
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
 			ModuleData.Slot.UTILITY]:
-		var n := Run.slots_for(slot)
-		var pts := Run.hull.mounts_along(slot, n)
+		# THE HULL'S OWN COUNT IN FOREIGN MODE. `Run.slots_for` adds whatever
+		# the ship you are FLYING has earned; asked about a frame you are
+		# walking away from it would answer for the wrong one.
+		var n: int = h.slots_for(slot) if ship != null else Run.slots_for(slot)
+		var pts := h.mounts_along(slot, n)
 		for i in pts.size():
 			_spots.append({
 				slot = slot,
 				index = i,
 				at = _view.canvas_to_local(pts[i]),
-				held = Run.module_at(slot, i),
+				held = _held(slot, i),
 			})
 	queue_redraw()
+
+
+## Whatever is on hardpoint `i` of `slot`, on whichever ship this is drawing.
+func _held(slot: ModuleData.Slot, i: int) -> ModuleData:
+	if ship == null:
+		return Run.module_at(slot, i)
+	for raw in fitted:
+		var m := raw as ModuleData
+		if m != null and m.slot == slot and m.mount == i:
+			return m
+	return null
 
 func _process(delta: float) -> void:
 	if _view == null:
@@ -459,6 +489,12 @@ func _get_drag_data(at: Vector2) -> Variant:
 	# ship still wore it meant the mount you were dragging OUT of stayed full,
 	# so it did not ping, and moving a gun one hardpoint along was a fight with
 	# a slot that already looked occupied — by the thing you were holding.
+	# `lifted` IS LIVE-SHIP BOOKKEEPING. It takes the part out of `Run.installed`
+	# so the mount stops reading as full while the thing that filled it is in
+	# your hand -- which is meaningless for a foreign hull, where the part is
+	# not in `Run.installed` to begin with.
+	if ship != null:
+		return {module = m, origin = &"oldhull"}
 	lifted.emit(m)
 	return {module = m, origin = &"hull"}
 
@@ -467,6 +503,12 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 	# bolt to a hull. `dragged_module` is the refusal.
 	var m := Widgets.dragged_module(data)
 	if m == null:
+		return false
+	# NOTHING GETS BOLTED TO A SHIP YOU ARE ABANDONING. The old frame on the
+	# transfer screen is a source: you strip it, you do not rearrange it, and a
+	# hardpoint that accepted a drop there would be offering to fit a gun to a
+	# hull that is about to stop being yours.
+	if ship != null:
 		return false
 	if _lit != m:
 		_lit = m
@@ -514,6 +556,20 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_MOUSE_EXIT or what == NOTIFICATION_DRAG_END:
 		_hover = Vector2.INF
 		_unlight()
+		# AND REPAINT WHETHER OR NOT ANYTHING WAS LIT. `_unlight` returns early
+		# when `_lit` is null, which is exactly the case here: pointing at a hull
+		# with empty hands raises the hover HINTS, and those are drawn off
+		# `_hover` rather than off `_lit`. So the clear above happened and
+		# nothing asked for a frame -- and `_process` only queues one while
+		# `_animating()`, which the clear had just made false.
+		#
+		# It went unseen for as long as every ship wearing this widget was a
+		# LIVE one: the idle bob steps a few times a second and `_process`
+		# refreshes on it, so the stale hints were wiped within a frame or two by
+		# an animation that had nothing to do with them. The transfer screen
+		# draws two FIXED builds, neither of which bobs, and the hardpoints
+		# stayed up until something else happened to touch the screen.
+		queue_redraw()
 	if what == NOTIFICATION_DRAG_END:
 		# After any drop has been processed, which is what makes this the place
 		# to notice that a lifted part is now in neither the hull nor the hold.

@@ -311,11 +311,14 @@ static func field(chars: int = 20) -> LineEdit:
 	return e
 
 
-static func header(text: String) -> Label:
+## A section's name. `size` is a parameter because Silkscreen is an 8px face and
+## the only legal larger size is 16 -- there is no in-between rung to reach for,
+## so a panel that wants a heading with real weight has to say so.
+static func header(text: String, size: int = FS_SMALL) -> Label:
 	var l := Label.new()
 	l.text = text.to_upper()
 	l.add_theme_color_override("font_color", COLD)
-	l.add_theme_font_size_override("font_size", FS_SMALL)
+	l.add_theme_font_size_override("font_size", size)
 	return l
 
 static func body(text: String, colour: Color = CHILL, size: int = FS_BODY) -> Label:

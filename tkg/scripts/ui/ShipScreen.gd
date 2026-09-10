@@ -1281,10 +1281,65 @@ func _focus_part(m: ModuleData, slot: MarginContainer = null,
 		NUDGE if on else 0.0, 0.12)
 	slot.set_meta(&"nudge", tw)
 
+## What is WRONG with the ship, at the top of the column where it cannot be
+## scrolled past.
+##
+## THE DECK HAD A SECRET IN IT. A malfunction is a card dealt into your hand in
+## combat and it comes off no module -- so this panel, the one place in the game
+## that answers "what is in my deck and where did it come from", was silent
+## about it. The only mention anywhere was a repair line on the Yard's service
+## list, which means you learned your ship had a blown coupling by being offered
+## the bill for one, at a station, after whatever fight put it there.
+##
+## FIRST, NOT LAST. It was written at the foot of the panel, under three slot
+## groups and a dozen card faces, which on a full loadout is below the fold --
+## and a warning you have to scroll to is a warning for somebody who already
+## knows to look. It is the exception on a page of things you chose; it goes
+## where the eye lands.
+##
+## Drawn as the CARDS THEMSELVES for the same reason the modules below are: it
+## is a card you will be holding, and a grey line of text describing one is a
+## worse picture of it than the card.
+func _dross_block() -> void:
+	if Run.dross_count() <= 0:
+		return
+	_fitted.add_child(UITheme.body("MALFUNCTIONS — %d IN YOUR DECK"
+		% Run.dross_count(), UITheme.LEAVE, UITheme.FS_SMALL))
+	var tally: Dictionary = {}
+	for id in Run.dross:
+		tally[id] = int(tally.get(id, 0)) + 1
+	var mrow := HBoxContainer.new()
+	mrow.add_theme_constant_override("separation", 4)
+	for id in tally:
+		var card := DB.malfunction(id)
+		if card == null:
+			continue
+		var cv := CardView.new()
+		cv.setup(card, true, 1)
+		# THE POINTER REACHES IT, so `CardView._make_custom_tooltip` can answer
+		# with the keyword readout -- a malfunction is exactly the card whose
+		# text a player has never read before.
+		cv.mouse_filter = Control.MOUSE_FILTER_STOP
+		cv.tooltip_text = " "
+		mrow.add_child(cv)
+		var many: int = tally[id]
+		if many > 1:
+			var x := UITheme.body("x%d" % many, UITheme.LEAVE, UITheme.FS_SMALL)
+			x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			mrow.add_child(x)
+	_fitted.add_child(mrow)
+	# NO CAPTION UNDER IT. It said where to get one cleared, which is a thing the
+	# station says on the deck that does it -- printed here it was two lines of
+	# grey explaining a card that is already showing you its own rules text.
+	_fitted.add_child(UITheme.hsep())
+
+
 func _refresh_loadout() -> void:
 	if _fitted == null:
 		return
 	Widgets.clear(_fitted)
+
+	_dross_block()
 
 	var fitted := 0
 	var mounts := 0
@@ -1341,8 +1396,12 @@ func _refresh_loadout() -> void:
 	if fitted == 0:
 		_fitted.add_child(UITheme.body("Nothing bolted on yet.",
 			UITheme.COLD, UITheme.FS_SMALL))
-	_fithead.text = "INSTALLED — %d of %d mounts · %d card%s" % [
-		fitted, mounts, cards, "" if cards == 1 else "s"]
+
+	_fithead.text = "INSTALLED — %d of %d mounts · %d card%s%s" % [
+		fitted, mounts, cards, "" if cards == 1 else "s",
+		"" if Run.dross_count() == 0
+		else " · %d MALFUNCTION%s" % [Run.dross_count(),
+			"" if Run.dross_count() == 1 else "S"]]
 
 ## The hardpoint tally, mirroring the chassis select's.
 ##

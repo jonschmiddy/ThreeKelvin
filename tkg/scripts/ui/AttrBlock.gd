@@ -112,6 +112,26 @@ func _build_row(a: Dictionary) -> Control:
 	row.add_child(num)
 	_values.append(num)
 
+	# AN OPTIONAL CHANGE COLUMN, for a block that is being read against another
+	# ship rather than on its own.
+	#
+	# AS A SIGNED NUMBER AND NOT AS PAINTED CELLS. The shipyard tried the cell
+	# version once: your value as the floor, the offer's as the fill, one block
+	# instead of two. It was compact and unreadable, because the base cells take
+	# the MANUFACTURER's accent -- so wherever that accent is itself red, four
+	# gauges on which the new frame was BETTER came out red, under a legend
+	# saying that red meant loss.
+	# `+3` cannot be misread by anybody, colourblind or otherwise, and the colour
+	# is then free to reinforce rather than to carry.
+	var d := int(a.get("delta", 0))
+	if a.has("delta"):
+		var mark := "" if d == 0 else ("+%d" % d if d > 0 else str(d))
+		var dl := UITheme.body(mark,
+			UITheme.GOOD if d > 0 else (LOSS if d < 0 else UITheme.QUOTE),
+			UITheme.FS_SMALL)
+		dl.custom_minimum_size = Vector2(20, 0)
+		row.add_child(dl)
+
 	# What the attribute actually gets checked for, on hover. Six labelled rows
 	# say what the axes ARE; only the tooltip can say why you would want one.
 	row.tooltip_text = Widgets.tip(_hint(a))

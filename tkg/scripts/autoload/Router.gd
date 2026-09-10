@@ -276,6 +276,18 @@ func show_ship() -> void:
 	_swap(s)
 	s.setup()
 
+## Moving day, after a hull swap that left something on the dock.
+##
+## NO HUD, and that is deliberate: the bar's SECTOR and STARCHART tabs are ways
+## off this screen, and there is no off it -- the ship cannot leave with crates
+## on the ground, so offering the exits and then refusing them is worse than not
+## offering them. `chrome = false` is the same argument the chassis select makes.
+func show_transfer() -> void:
+	Audio.music_state(&"ship")
+	var s := TransferScreen.new()
+	_swap(s, false)
+	s.setup()
+
 func show_game_over() -> void:
 	Audio.music_state(&"gameover")
 	var s := GameOverScreen.new()

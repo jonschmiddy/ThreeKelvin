@@ -21,6 +21,7 @@ func run() -> void:
 	_shapes()
 	_swaps()
 	_moving_day()
+	_changed_your_mind()
 	_legible()
 	_card_law()
 	_no_twins()
@@ -226,21 +227,21 @@ func _swaps() -> void:
 		other == m or not Run.can_place(m, other.hold_at))
 
 
-## MOVING SHIP CONSERVES OBJECTS.
+## MOVING SHIP CONSERVES OBJECTS, AND MOVES NOTHING BY ITSELF.
 ##
 ## THE ONE PROPERTY THE WHOLE PAD EXISTS FOR. `transfer_to_hull` used to destroy
 ## whatever would not fit -- it had to, because `cargo` may only contain things
 ## that sit at a real cell, and there is no such cell for the thirteenth item in
-## a twelve-cell hold. The pad is the nowhere those things go instead, and the
-## claim being made is arithmetic: NOTHING LEAVES. Everything fitted plus
-## everything carried, before, equals everything in the hold plus everything on
-## the dock, after.
+## a twelve-cell hold. The claim being made is arithmetic: NOTHING LEAVES.
 ##
-## Run onto a LIGHT from a HEAVY on purpose. That is the shrinking direction --
-## 30 cells down to 12, and every mount count falling -- so it is the case where
-## the old code deleted the most and the only one where a conservation check can
-## fail. A swap into a bigger frame conserves objects trivially and would prove
-## nothing.
+## AND NOTHING ARRIVES EITHER. The swap now moves nothing at all: the old frame
+## keeps its guns on their hardpoints and its crates in their cells, and every
+## crossing is a hand moving one thing. So the assertions below are about the
+## SHAPE of the state a swap leaves behind, which the transfer screen draws --
+## a gun still remembering a mount is a gun that screen puts back on the hull.
+##
+## Run onto a LIGHT from a HEAVY on purpose: every mount count falls and the
+## hold halves, which is the case where the old code deleted the most.
 func _moving_day() -> void:
 	Rng.reseed(1234, 0)
 	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
@@ -249,9 +250,10 @@ func _moving_day() -> void:
 	var before: Array[HoldItem] = []
 	before.append_array(Run.installed)
 	before.append_array(Run.cargo)
+	var was_fitted := Run.installed.size()
 	var deck_before := Run.deck_size()
 	if not _ok("moving day: a heavy with a loadout and a hold",
-			Run.installed.size() >= 3 and Run.cargo.size() >= 3):
+			was_fitted >= 3 and Run.cargo.size() >= 3):
 		return
 
 	var light: HullData = null
@@ -263,43 +265,160 @@ func _moving_day() -> void:
 		return
 	Run.transfer_to_hull(light)
 
-	var after: Array[HoldItem] = []
-	after.append_array(Run.cargo)
-	after.append_array(Run.pad)
-	# THE OVERFLOW HAS TO ACTUALLY HAPPEN, or every assertion under this is being
-	# made about a move that fitted comfortably and the probe is green for the
-	# wrong reason. This is the fixture failing loudly rather than the property
-	# passing vacuously: 30 cells of heavy going into 12 cells of light MUST
-	# strand something, and if it ever stops doing so the case is gone and this
-	# test needs rewriting, not deleting.
-	_ok("moving day: the move really did overflow (%d on the pad)" % Run.pad.size(),
-		not Run.pad.is_empty())
 	_ok("moving day: nothing is destroyed by the move",
-		after.size() == before.size())
+		Run.pad.size() == before.size())
 	var missing := 0
 	for m in before:
-		if not after.has(m):
+		if not Run.pad.has(m):
 			missing += 1
 	_ok("moving day: every object you owned is still yours", missing == 0)
 
-	# THE HOLD ITSELF IS STILL LEGAL. The pad is allowed to be over-full; the
-	# grid is not, and the move packs into it directly rather than through
-	# `repack_hold` -- so the invariant has to be re-checked on the far side of
-	# a code path that does its own placing.
-	var g := Run.hold_grid()
-	_in_bounds("moving day", g)
-	_no_overlap("moving day", g)
-	_ok("moving day: the hold did not overflow its own grid",
-		Run.cargo_used() <= g.x * g.y)
-
-	# AND THE SHIP IS BARE, which is the design and not a bug. Every card in the
-	# game comes off a fitted module, so a swap is a deck wipe -- and the station
-	# must therefore refuse to let it leave until the deck is rebuilt.
-	_ok("moving day: everything came off the frame", Run.installed.is_empty())
+	# THE NEW SHIP IS EMPTY UNTIL A HAND FILLS IT. Anything else and the screen
+	# that draws this would be reporting a decision it did not make.
+	_ok("moving day: the new frame arrives bare", Run.installed.is_empty())
+	_ok("moving day: and with an empty hold", Run.cargo.is_empty())
 	_ok("moving day: the deck went with it",
 		deck_before > 0 and Run.deck_size() == 0)
 	_ok("moving day: the dock will not let you fly",
 		not Run.ready_to_fly().is_empty())
+	_ok("moving day: the old frame is remembered",
+		Run.old_hull != null and Run.old_hull.weight == HullData.Weight.HEAVY)
+
+	# WHERE EVERYTHING WAS, still. A gun keeps its hardpoint and a crate keeps
+	# its cell -- that is what lets the left-hand side of the transfer screen be
+	# the ship you have been flying rather than an inventory of it.
+	var mounted := 0
+	var stowed := 0
+	for raw in Run.pad:
+		var mod := raw as ModuleData
+		if mod != null and mod.mount >= 0:
+			mounted += 1
+		elif raw.hold_at.x >= 0:
+			stowed += 1
+	_ok("moving day: the guns remember their hardpoints (%d)" % mounted,
+		mounted == was_fitted)
+	_ok("moving day: the crates remember their cells (%d)" % stowed,
+		stowed == before.size() - was_fitted)
+
+	# --- AND THE TWO WAYS ACROSS BOTH WORK.
+	var gun: ModuleData = null
+	for raw in Run.pad:
+		var mod := raw as ModuleData
+		if mod != null and mod.mount >= 0 and Run.can_power(mod) 				and Run.slots_for(mod.slot) > 0:
+			gun = mod
+			break
+	if gun != null:
+		var slot := gun.slot
+		_ok("moving day: a gun goes mount to mount without being put down",
+			Run.pad_to_mount(gun, slot, 0) and Run.installed.has(gun)
+			and not Run.pad.has(gun))
+
+	var crate: HoldItem = null
+	for raw in Run.pad:
+		var mod2 := raw as ModuleData
+		if mod2 == null or mod2.mount < 0:
+			crate = raw
+			break
+	if crate != null:
+		var ok_stow := Run.pad_to_hold(crate)
+		_ok("moving day: a crate crosses into the new hold",
+			ok_stow and Run.cargo.has(crate) and not Run.pad.has(crate))
+
+	# STOWING A GUN TAKES IT OFF THE HARDPOINT IT REMEMBERS. Without this the
+	# old ship would go on drawing a part that is sitting in the new hold.
+	var spare: ModuleData = null
+	for raw in Run.pad:
+		var mod3 := raw as ModuleData
+		if mod3 != null and mod3.mount >= 0:
+			spare = mod3
+			break
+	if spare != null and Run.pad_to_hold(spare):
+		_ok("moving day: a stowed gun stops claiming a hardpoint",
+			spare.mount < 0)
+
+	var g := Run.hold_grid()
+	_in_bounds("moving day", g)
+	_no_overlap("moving day", g)
+
+
+## CALLING OFF A MOVE PUTS THE SHIP BACK EXACTLY.
+##
+## The purchase was final by design for about a day. What makes reversing it
+## cheap is that a swap no longer MOVES anything -- so an undo is a snapshot
+## going back over a state nothing has happened to, and the thing worth
+## asserting is that it really is exact: the same frame, the same hull points,
+## the same guns on the same hardpoints, the same crates in the same cells, and
+## the money back.
+##
+## Checked AFTER carrying something across, because restoring an untouched move
+## is the easy half. A gun that has been bolted to the new ship has had its
+## `mount` overwritten with an index on a different hull, and that is precisely
+## what the snapshot is for.
+func _changed_your_mind() -> void:
+	Rng.reseed(4321, 0)
+	Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+	for i in 4:
+		Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
+	var frame := Run.hull
+	var hp_was := Run.hp
+	# ENOUGH IN THE ACCOUNT TO ACTUALLY PAY. `add_credits` floors at zero, so a
+	# fresh run charged 250 goes to 0 rather than into debt -- and the refund
+	# then lands it on 250 instead of where it started. That is the probe being
+	# wrong and not the game: the TAKE IT button is disabled below the asking
+	# price, so a purchase you cannot afford never happens.
+	Run.add_credits(1000)
+	var purse := Run.credits
+	var was: Dictionary = {}
+	for m in Run.installed:
+		was[m] = [m.mount, m.hold_at]
+	for m in Run.cargo:
+		var mod := m as ModuleData
+		was[m] = [mod.mount if mod != null else -1, m.hold_at]
+	var owned := was.size()
+	if not _ok("back out: a ship worth keeping", owned >= 5):
+		return
+
+	var light: HullData = null
+	for f in DB.hull_frames:
+		if (f as HullData).weight == HullData.Weight.LIGHT:
+			light = f
+			break
+	Run.transfer_to_hull(light, 250, null)
+	Run.add_credits(-250)
+	_ok("back out: the offer can be refused", Run.can_abandon_move())
+
+	# CARRY SOMETHING FIRST, so the undo has real work to do.
+	var moved := 0
+	for raw in Run.pad.duplicate():
+		var mod2 := raw as ModuleData
+		if mod2 == null or mod2.mount < 0:
+			continue
+		for i in Run.slots_for(mod2.slot):
+			if Run.pad_to_mount(mod2, mod2.slot, i):
+				moved += 1
+				break
+		if moved > 0:
+			break
+	_ok("back out: something crossed before the change of heart", moved > 0)
+
+	Run.abandon_move()
+	_ok("back out: you are flying the old frame again", Run.hull == frame)
+	_ok("back out: with the hull points you had", Run.hp == hp_was)
+	_ok("back out: and the credits back", Run.credits == purse)
+	_ok("back out: the dock is empty", Run.pad.is_empty()
+		and Run.old_hull == null and not Run.can_abandon_move())
+	_ok("back out: nothing was lost",
+		Run.installed.size() + Run.cargo.size() == owned)
+
+	var wrong := 0
+	for m in Run.installed:
+		if not was.has(m) or int((was[m] as Array)[0]) != m.mount:
+			wrong += 1
+	for m in Run.cargo:
+		if not was.has(m) or (was[m] as Array)[1] != m.hold_at:
+			wrong += 1
+	_ok("back out: every part is where it was", wrong == 0)
+	_ok("back out: and the ship can fly", Run.ready_to_fly().is_empty())
 
 
 ## NO TWO CARDS ARE THE SAME CARD.
