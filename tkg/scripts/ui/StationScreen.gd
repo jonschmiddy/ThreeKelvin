@@ -24,29 +24,71 @@ var _flagrow: HBoxContainer
 ## The door. Held as a member because whether it opens is run state -- see
 ## `_refresh_undock` -- and the rail that builds it is built once.
 var _undock: Button
+var _bench: VBoxContainer
+## The Exchange: your hold, and the two places you can carry things to.
+var _hold_grid: HoldGrid
+var _hold_head: Label
+var _sell_desk: TradeCounter
+var _sell_note: Label
+## The Promenade: the till across the front of the shop.
+var _till: TradeCounter
+## The room the two of them stand in.
+var _shop: ShopScene
+var _till_note: Label
+var _hull_offer: VBoxContainer
+## The service list, a GRID of two so seven short rows are four lines.
+## The yard's machines, standing in the hangar's front bay.
+var _rigs: HBoxContainer
+## How wide one machine's slot in the bay is.
+const RIG_W := 92
+## What is posted at this station and what you can close here. Above the shelf,
+## because it is the part of a station that is about WHERE YOU GO NEXT.
+var _work: VBoxContainer
+## The station in section, the frame it slides inside, and the ride.
+var _spine: StationSpine
+var _building: Control
+var _lift: Tween
 ## The fault picker, while it is open. Null the rest of the time.
 var _purge_prompt: Control
 ## The deal, in the shipyard's heading row: the sum in words, the number that
 ## leaves your account, and the button that does it.
-var _yard_sum: Label
+var _yard_ask: Label
+var _yard_trade: Label
 var _yard_price: Label
 var _yard_take: Button
-var _trade: Label
+## The berth, and the four things standing in or over it.
+var _scene: YardScene
+var _scene_ship: ShipView
+## Your own ship, standing in the left berth with its parts on it.
+var _mine_view: ShipView
+var _scene_hit: Control
+var _scene_slab: Control
+var _scene_hint: Label
 ## What kind of place this is, in its own words. Fills the column under the
 ## services with something worth reading rather than with nothing.
-## The ship in the rail, and the scale that makes it fit. See `_fit_berth`.
-var _berth_art: ShipView
-## The name over the rail's picture, refreshed when the ship changes.
-var _berth_name: Label
-var _hull_offer: VBoxContainer
-## The service list, a GRID of two so seven short rows are four lines.
-var _services: GridContainer
-## What is posted at this station and what you can close here. Above the shelf,
-## because it is the part of a station that is about WHERE YOU GO NEXT.
-var _work: VBoxContainer
-var _hold: VBoxContainer
-var _bench: VBoxContainer
+## The count line under each deck name, refreshed with everything else.
+var _deck_note: Dictionary = {}
 
+var _pages: Dictionary = {}
+var _tabs: Dictionary = {}
+var _tab: StringName = &"services"
+## Which tabs this station actually has. An unbranded desk posts no work and a
+## station with no laboratory builds nothing.
+var _tabs_on: Dictionary = {}
+## How tall the hull portrait is. Enough for a heavy at 2x without the panel
+## growing past the service column beside it.
+## Sized off the deepest hull plus the bob, at 1x. See ShipScreen for why the
+## magnification came down. 140 rows of heavy canvas and the bob's four: the
+## heavy grew from 100 rows when the hull art was redrawn, and this number is
+## derived from it rather than chosen, so it moves whenever that does.
+##
+## WITH SIX ROWS OF SLACK, matching ShipScreen. The bare derivation is 144 -- the
+## heavy's 140-row canvas plus the bob's four -- and at exactly 144 this sits on
+## a knife edge: `ShipView._resize_canvas` sets `clip_contents` when the canvas
+## is TALLER than the view, so any hull one row deeper, or one call asking for a
+## bob of three, starts clipping the ship's top and bottom rows as it bobs. Rows
+## winking in and out at the edges of a moving sprite is not a loud failure; it
+## reads as the ship shimmering.
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build()
@@ -104,7 +146,7 @@ const TABS := [
 ## which is where UNDOCK belongs.
 const DECKS := [
 	[&"stock", "PROMENADE", "THE SHELF"],
-	[&"services", "YARD", "REPAIRS"],
+	[&"services", "SHIPYARD", "REPAIRS"],
 	[&"hold", "EXCHANGE", "YOUR HOLD"],
 	[&"work", "HIRING HALL", "WORK POSTED"],
 	[&"bench", "LABORATORY", "FABRICATOR"],
@@ -112,17 +154,6 @@ const DECKS := [
 ## How wide the section is. Wide enough for "HIRING HALL" plus a count at
 ## FS_SMALL without either wrapping, which is what sets it -- not a round number.
 const RAIL_W := 156
-
-## WHAT `MapGen` CAN ACTUALLY PRODUCE TODAY: `_roll_axes` wants at most 3, on
-## 35% of cities and 60% of capitals, so three is common rather than rare. This
-## rail no longer depends on the number -- it builds one flag per berth and steps
-## the scale down until they fit -- but it is worth writing down what the number
-## is, so the next person to raise it can check the arithmetic in `_flag_scale`
-## rather than discover it on a screenshot.
-##
-## MEASURED, at FLAG_GAP: 3 fit at scale 3 (131 of 156) and 4 at scale 2 (125).
-## Five need scale 1, which is a 13x22 flag and not worth flying.
-const MAX_BERTHS := 3
 ## Air between two flags.
 const FLAG_GAP := 7
 ## How big the berth flags fly, in pixels per banner unit, biggest first.
@@ -150,73 +181,6 @@ static func _flag_scale(count: int) -> float:
 ## How tall one deck cell is. Two lines of FS_SMALL plus the padding that keeps
 ## the highlight from touching the text.
 const DECK_H := 44
-## How tall the ship's picture stands in the rail.
-##
-## MEASURED AGAINST THE CANVAS. `ShipView` composites your build onto a 324x112
-## canvas at 1x, and this box was 44 -- so the rail showed a horizontal slice
-## through the middle of the ship and cut the masts off the top and the fins off
-## the bottom.
-##
-## 84 RATHER THAN THE FULL 112, because the rail has five deck cells, a flag and
-## an UNDOCK button to fit as well, and 112 pushed the button off the bottom of
-## the screen. The ship sits centred in its canvas with margin above and below,
-## so 84 still shows every row that has anything drawn in it -- what it trims is
-## the canvas, not the ship.
-##
-## THE WIDTH CANNOT BE HONOURED THE SAME WAY and that is worth writing down: 324
-## will not go into a 156 rail, and the only ways to make it would be a
-## fractional downscale -- which is the one thing this game's art may never do --
-## or moving the ship off the rail entirely. So the picture is a true 1x with its
-## nose and tail cropped, which is what looking into a berth is actually like.
-## How deep the berth's picture is.
-##
-## 76, up from 56. The binding constraint on how big your ship can be drawn here
-## is the rail's WIDTH -- a heavy is 296 art pixels of ink and a half of that is
-## 148 -- and height was the one that ran out first at 56, dropping mediums to a
-## quarter for want of three rows. Vertical is the cheap direction in a rail with
-## five decks and a button in it.
-const BERTH_H := 76
-
-## How much of the rail's width the picture may use.
-##
-## The panel's own padding used to take 22 of 156 and the picture got 134, which
-## is four pixels short of every heavy in the game at a half. Two pixels of pad
-## instead of six buys those four and then some: 148 is exactly a heavy, and the
-## border still reads as a border.
-const BERTH_W := RAIL_W - 8
-## The count line under each deck name, refreshed with everything else.
-var _deck_note: Dictionary = {}
-
-var _pages: Dictionary = {}
-var _tabs: Dictionary = {}
-var _tab: StringName = &"services"
-## Which tabs this station actually has. An unbranded desk posts no work and a
-## station with no laboratory builds nothing.
-var _tabs_on: Dictionary = {}
-## How wide the service column is. A price belongs beside the thing it prices.
-const SERVICE_W := 420
-## How tall the hull portrait is. Enough for a heavy at 2x without the panel
-## growing past the service column beside it.
-## Sized off the deepest hull plus the bob, at 1x. See ShipScreen for why the
-## magnification came down. 140 rows of heavy canvas and the bob's four: the
-## heavy grew from 100 rows when the hull art was redrawn, and this number is
-## derived from it rather than chosen, so it moves whenever that does.
-##
-## WITH SIX ROWS OF SLACK, matching ShipScreen. The bare derivation is 144 -- the
-## heavy's 140-row canvas plus the bob's four -- and at exactly 144 this sits on
-## a knife edge: `ShipView._resize_canvas` sets `clip_contents` when the canvas
-## is TALLER than the view, so any hull one row deeper, or one call asking for a
-## bob of three, starts clipping the ship's top and bottom rows as it bobs. Rows
-## winking in and out at the edges of a moving sprite is not a loud failure; it
-## reads as the ship shimmering.
-const HULL_H := 150
-## And how wide the window onto it is. A cap, not a measurement: it bounds the
-## control's minimum so the row cannot overflow the way it did when a doubled
-## 474-wide hull sat beside 420 of services. At 1x the widest hull is 392 -- the
-## heavy's full sheet, exhaust pad included -- so the cap keeps a little slack
-## and the portrait is centred in it. It was 380 against a 324-wide heavy, which
-## would now crop the nose off rather than bound the row.
-const HULL_W := 400
 ## How wide the station's name line is allowed to be before it wraps. Bounded on
 ## purpose — see the note in _build().
 const HEADER_W := 560
@@ -319,11 +283,54 @@ func _build() -> void:
 	# and the manufacturers are named all over this screen anyway -- on every part
 	# on the shelf, and in the trade clause at the top of the page.
 	rail.add_child(UITheme.hsep())
+
+	# --- THE DECKS ARE FLOORS OF ONE BUILDING.
+	#
+	# They were five buttons in a column, which tells you which page you are on.
+	# A cutaway tells you where you are STANDING, costs the same vertical, and is
+	# the only one of the two that makes the station a place. The cells sit OVER
+	# the drawing with their plates taken off, so the room shows through and the
+	# labels stay on top of it.
+	#
+	# The berth that used to close this column is gone. It drew your own ship at
+	# the bottom of a rail whose whole subject is the station you are standing
+	# in, and it was the second place on the screen the hull appeared. What it
+	# was using is ninety pixels, and the floors have them now: five rooms at
+	# sixty-odd rows each instead of five slivers at forty-six.
+	# A LIFT SHAFT: the window clips, and the building inside it is TALLER than
+	# the window and slides. Picking a deck moves the station, not a highlight.
+	#
+	# The overflow is deliberately small -- see `FLOOR_H`. A building that
+	# scrolled far enough to hide a floor would be a navigation bar you cannot
+	# navigate with: every deck has to stay clickable at every scroll position,
+	# so the travel is forty pixels and the worst-clipped floor still shows half
+	# of itself.
+	var shaft := Control.new()
+	shaft.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	shaft.clip_contents = true
+	shaft.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# SIZED IN A CALLBACK WITH A GUARD, not by anchors. An early version ran the
+	# sizing before the shaft had a size and got five floors sharing zero height
+	# -- three rendered and two vanished. The guard is the whole fix: nothing is
+	# sized until the shaft has been.
+	_building = Control.new()
+	_building.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shaft.add_child(_building)
+	_spine = StationSpine.new()
+	_spine.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_building.add_child(_spine)
+	var cells := VBoxContainer.new()
+	cells.add_theme_constant_override("separation", 0)
+	cells.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_building.add_child(cells)
+	shaft.resized.connect(_size_building)
+	rail.add_child(shaft)
+
 	for entry in DECKS:
 		var id: StringName = entry[0]
 		var cell := _deck_cell(id, String(entry[1]), String(entry[2]))
 		_tabs[id] = cell
-		rail.add_child(cell)
+		cells.add_child(cell)
 	# The berth is the bottom of the section, and UNDOCK lives in it.
 	#
 	# It used to sit in the tab row, grouped left, because pinned to the right of
@@ -331,10 +338,16 @@ func _build() -> void:
 	# screenshot it came back sliced in half. In a fixed-width rail that failure
 	# cannot happen: the column is RAIL_W whatever the window does, so the button
 	# can go where it belongs instead of where it is safe.
-	var pusher := Control.new()
-	pusher.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	rail.add_child(pusher)
-	rail.add_child(_berth_cell())
+	# NO SPACER. There was one here, pushing UNDOCK to the floor of a column
+	# whose other children were all fixed height. The building expands now, so
+	# the button is already at the bottom -- and an expanding spacer beside an
+	# expanding building is two things splitting the slack down the middle,
+	# which is exactly what it did: the station got 178 pixels of 362 and read
+	# as a cutaway that had been cropped.
+	# THE WAY OUT, and nothing else. `_berth_cell` used to hand back a panel with
+	# your ship in it and this button under it; the panel is gone and the button
+	# is not, because leaving is still a thing you do from here.
+	rail.add_child(_undock_cell())
 
 	# --- the pages, all built, one visible
 	var body_col := VBoxContainer.new()
@@ -436,195 +449,398 @@ func _flat_panel(child: Control) -> PanelContainer:
 	return p
 
 
+## THE YARD: one hangar, with the ship for sale in the berth and the yard's own
+## machines standing in the bay in front of it.
+##
+## THE SERVICES USED TO BE A TABLE ON TOP OF THE PICTURE. A panel of four rows --
+## label, price, a stripe and some pips -- sitting over a drawn hangar, so the
+## deck said where you were and a spreadsheet said what you could do there. They
+## are `ServiceRig`s now: a welding cart, an overhaul gantry, a fuel bowser and a
+## fault post, standing on a floor `YardScene` grew for them. Same four actions,
+## same four prices, no table.
+##
+## The panel is gone rather than emptied, so the hangar gets its hundred and
+## fifteen pixels back and the bay has somewhere to be.
 func _page_services() -> Control:
+	# NO HEADING, AND NO PANEL AROUND IT EITHER.
+	#
+	# The word SHIPYARD sat over a rule above a drawn hangar with two ships in
+	# it, which is a caption on a photograph of a room you are standing in. The
+	# deck rail already says SHIPYARD and the picture already says so; thirty
+	# pixels of the only deck that can use them went to saying it a third time.
+	#
+	# THE DEAL WENT WITH IT, into the bay under the ship it is the price of. It
+	# was up in the heading row so it could never be the thing the hover hid --
+	# but the bay is not hidden by anything, and a price under the hull it buys
+	# needs no explaining at all.
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 8)
-
-	# THE SAME HEADING TREATMENT THE SHIPYARD GETS, and at the same weight.
-	#
-	# `Widgets.section` sets a title at FS_SMALL over an `hsep` with six pixels
-	# of separation either side -- which is right for a subheading inside a
-	# panel and undersized for the two headings that ARE the page. At 16 they
-	# stop being captions and start being the names of the things below them,
-	# and the six-pixel gaps come out because the rule already separates them.
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	# BANDED AND CENTRED, the same as the shipyard's. A 16px label dropped
-	# straight into a VBox sits on its own ascender line, and the two panels then
-	# put their headings at two different heights above two identical rules.
-	# One band, one alignment, and both read as the same thing.
-	box.add_child(_heading("services"))
-	box.add_child(UITheme.hsep())
-	# TWO COLUMNS. A service is a short label and a price, and across the full
-	# 740 the row was nine tenths empty -- seven of them stacked took half the
-	# page and pushed the shipyard's gauges off the bottom of it. Paired, the
-	# same seven are four rows and the panel is half the height for no loss.
-	_services = GridContainer.new()
-	_services.columns = 2
-	_services.add_theme_constant_override("h_separation", 8)
-	_services.add_theme_constant_override("v_separation", 5)
-	box.add_child(_services)
-	# TIGHT ABOVE THE HEADING. `panel_with` already gives 12 of content margin and
-	# `pad` was adding six more on top of it, so SERVICES sat eighteen pixels down
-	# from a border it is the first thing inside. Two, and the page gets the
-	# difference back where the shipyard needs it.
-	# NO SECOND PAD. `panel_with` already gives twelve of content margin all
-	# round; the `pad` on top of it was six more, and the two together put the
-	# heading eighteen pixels inside a border it is the first thing after.
-	col.add_child(_flat_panel(box))
-
-	# SHIPYARD, not ON THE BLOCKS. The berth is a place, and the deck rail names
-	# the other four for what they are; this one was named for what is standing
-	# in it, which is empty most of the time.
-	# THE HEADING ROW CARRIES THE DEAL.
-	#
-	# The price and the button used to sit at the FOOT of the offer's column,
-	# under seven gauges and three perk lines -- which put the one control on the
-	# panel wherever the longest column happened to end, and left the bottom
-	# third of the page empty underneath it. A price belongs beside the heading
-	# of the thing being priced, where it is in the same glance as the word
-	# SHIPYARD and cannot move.
-	var yardbox := VBoxContainer.new()
-	yardbox.add_theme_constant_override("separation", 2)
-	var yband := _heading("shipyard")
-	var yhead := yband.get_node("Row") as HBoxContainer
-	var yspacer := Control.new()
-	yspacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	yspacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	yhead.add_child(yspacer)
-	# THE SUM IN WORDS, then the answer. `168 - 43 TRADE-IN` was arithmetic with
-	# no nouns in it: the reader has to work out that 43 is what their own ship
-	# is worth and that the difference is what leaves their account. Naming both
-	# halves costs one line and removes the puzzle.
-	_yard_sum = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_yard_sum.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_yard_sum.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	yhead.add_child(_yard_sum)
-	_yard_price = UITheme.body("", UITheme.EMBER, UITheme.FS_HEAD)
-	_yard_price.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	yhead.add_child(_yard_price)
-	_yard_take = _commit_button("TAKE IT", func() -> void: pass)
-	_yard_take.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	yhead.add_child(_yard_take)
-	yardbox.add_child(yband)
-	yardbox.add_child(UITheme.hsep())
-
+	col.add_theme_constant_override("separation", 0)
 	_hull_offer = VBoxContainer.new()
-	_hull_offer.add_theme_constant_override("separation", 4)
-	# THE OFFER TAKES THE PANEL'S SLACK AND CENTRES IN IT. The heading row is
-	# pinned to the top and the ship is one band of content -- without this the
-	# band sits directly under the rule with a third of a panel of nothing
-	# beneath it, which reads as a page that stopped halfway.
 	_hull_offer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_hull_offer.alignment = BoxContainer.ALIGNMENT_CENTER
-	yardbox.add_child(_hull_offer)
-	var yw := _flat_panel(yardbox)
+	_hull_offer.add_theme_constant_override("separation", 0)
+	var yw := _flat_panel(_hull_offer)
 	yw.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(yw)
 	return col
 
 
-## A ship drawn at HALF, the same exception the berth in the rail makes.
+## THE BERTH, WITH THE SHIP STANDING IN IT.
 ##
-## `ShipView` draws at whole multiples only, so its smallest is 1x -- and two
-## ships at 1x are 648 pixels of a 740-wide page before either has a gauge
-## beside it. A half is the one fraction that is clean on pixel art: every 2x2
-## block becomes one, uniformly. The wrapper clips; the view must not clip
-## itself, or it would cut the canvas before the scale is applied.
-## A ship at FULL SIZE, centred on the metal rather than on the sheet.
+## FULL BLEED, AND THE NUMBERS ARRIVE WHEN YOU POINT AT THE SHIP. The Yard is
+## the only deck in the game whose content is a SINGLE OBJECT -- the Promenade
+## has a card fan, the Exchange a packed grid, the Hall a list of contracts --
+## and that is the whole reason it can carry a scene. There is nothing here for
+## a backdrop to sit behind and obscure.
 ##
-## IT WAS DRAWN AT A HALF and that was the wrong economy. The half exists on the
-## rail because a thumbnail there has 134 pixels to live in; this panel has 300
-## a side and was spending them on air -- two ships at a half came to 120 across
-## in a 300 column, and the modules bolted to yours were five pixels long and
-## invisible, which read as a ship with nothing on it.
-##
-## Ink, not canvas: a 324x112 sheet holds 241x106 of actual hull, so measuring
-## the sheet would have said 1x does not fit when it does. See `ShipView.ink_rect`.
-func _ship_half(h: HullData, box_w: int, kitted: bool = false) -> Control:
-	var wrap := Control.new()
-	wrap.custom_minimum_size = Vector2(box_w, SHIP_BOX_H)
-	wrap.clip_contents = true
-	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+## The price and TAKE IT stay up in the heading row, so the deal is never the
+## thing that is hidden: what the hover reveals is the ARGUMENT for the deal,
+## and what it hides while your hands are still is the room the ship is in.
+func _offer_column(h: HullData) -> Control:
+	var n: MapGen.MapNode = Run.node_at()
+	var box := Control.new()
+	box.clip_contents = true
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.custom_minimum_size = Vector2(0, SCENE_H)
+
+	_scene = YardScene.new()
+	_scene.dev = int(n.development)
+	_scene.manufacturer = n.manufacturer
+	_scene.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.add_child(_scene)
+
+	# --- THE SHIP, AT 1x, STANDING ON THE CRADLE.
+	#
+	# Not centred in the panel. A hull floating at the vertical middle of a room
+	# that has a floor in it reads as hovering, and the entire reason to draw a
+	# berth is that the ship is IN one -- so it is placed off `cradle_y` and its
+	# own ink, which is the only measurement that knows where its belly is.
+	#
+	# NULL IS A REAL ANSWER. Not every yard has a hull on the blocks, and the
+	# hangar is the deck now rather than the offer's backdrop -- so an empty
+	# berth is an empty berth with the machines still in it.
+	# --- YOUR OWN SHIP, IN THE LEFT BERTH, WEARING EVERYTHING YOU FITTED.
+	#
+	# THE THING BEING TRADED IN WAS NEVER ON THE DECK. The yard drew the hull for
+	# sale and reduced your own ship to a clause -- "less 25 for your Emberwright"
+	# -- which is the half of the deal you actually own. Both ships stand in the
+	# hangar now and the part exchange is a picture instead of a sentence.
+	#
+	# `ShipBuild.fitted_out` plus a `MountPoints` in display mode is the pair the
+	# refit and moving-day screens already use: the view blits the hull and the
+	# mounts put the guns on it. Nothing here is new machinery, only a second
+	# place that needed it.
+	if Run.hull != null:
+		var mine := ShipView.new()
+		mine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mine.self_clip = false
+		mine.setup_build(ShipBuild.fitted_out(Run.hull, Run.installed))
+		mine.custom_minimum_size = Vector2(float(mine._w), float(mine._h))
+		box.add_child(mine)
+		_mine_view = mine
+		# THE MOUNTS ARE A CHILD OF THE VIEW, never a sibling. `attach` anchors
+		# them to their parent, so parenting them to the ship makes every
+		# coordinate they draw the ship's own -- one place reasons about the bob,
+		# the magnification and the centring.
+		#
+		# PASSIVE, WHICH IS THE WHOLE POINT. This is a PICTURE of your ship, not
+		# a place to change it -- the same call the combat view makes for the
+		# same reason. Without it the hull answered the pointer: hardpoints lit
+		# up, fitted parts highlighted, and you could drag a gun off your own
+		# ship in a shop that has nowhere to put it. `passive` stops all three
+		# and hides the empty mounts as well, since a ring round a hardpoint is
+		# an invitation to do something this deck cannot do.
+		#
+		# It also drops the `ship`/`fitted` override that was here: that pair is
+		# for showing SOMEBODY ELSE'S hull, and this is your own, which is what
+		# `MountPoints` reads by default.
+		var mpts := MountPoints.new()
+		mine.add_child(mpts)
+		mpts.attach(mine)
+		mpts.passive()
+
+		var mine_name := VBoxContainer.new()
+		mine_name.add_theme_constant_override("separation", 1)
+		mine_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mine_name.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+		mine_name.offset_left = 10
+		mine_name.offset_top = -34 - YardScene.BAY_H
+		mine_name.offset_bottom = -6 - YardScene.BAY_H
+		# `Run.display_name`, NOT `hull.name`. A ship you have named flies as its
+		# chassis everywhere that forgets this -- the exact bug RunState's own
+		# header records against the combat plate, arriving again on the one deck
+		# where your ship stands next to somebody else's for comparison. Anything
+		# that shows the player's ship TO the player calls that function.
+		mine_name.add_child(UITheme.body(Run.display_name().to_upper(),
+			DB.manufacturer_colour(Run.hull.manufacturer), UITheme.FS_HEAD))
+		mine_name.add_child(UITheme.body("YOURS", UITheme.QUOTE, UITheme.FS_SMALL))
+		box.add_child(mine_name)
+
+	if h == null:
+		_scene_ship = null
+		_scene_hit = null
+		_scene_slab = null
+		_scene_hint = null
+		var bare := UITheme.body("NOTHING ON THE BLOCKS",
+			UITheme.COLD, UITheme.FS_SMALL)
+		bare.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bare.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+		bare.offset_left = -220
+		bare.offset_right = -10
+		bare.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		bare.offset_top = -26 - YardScene.BAY_H
+		bare.offset_bottom = -8 - YardScene.BAY_H
+		box.add_child(bare)
+		_add_rigs(box)
+		return box
+
 	var v := ShipView.new()
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.self_clip = false
-	# YOUR SHIP WEARS ITS GUNS; THE ONE ON THE BLOCKS DOES NOT.
+	v.setup_preview(h, 0, 1)
+	box.add_child(v)
+	_scene_ship = v
+
+	# THE HOVER TARGET IS THE SHIP'S INK, not its canvas. A hull sprite carries a
+	# lot of transparent margin -- a 324x112 sheet holds 241x106 of hull -- so a
+	# target the size of the sheet would fire from forty pixels of empty air.
+	var hit := Control.new()
+	hit.mouse_filter = Control.MOUSE_FILTER_STOP
+	hit.mouse_entered.connect(_on_ship_hover.bind(true))
+	hit.mouse_exited.connect(_on_ship_hover.bind(false))
+	box.add_child(hit)
+	_scene_hit = hit
+
+	# --- WHAT IT IS, always. Bottom left, out of the berth.
+	var name_col := VBoxContainer.new()
+	name_col.add_theme_constant_override("separation", 1)
+	name_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# UNDER ITS OWN BERTH, which is the right-hand one -- your ship's name is
+	# under the left. And above the bay, not on the deck edge: the machines took
+	# the bottom hundred pixels, and a hull's name across a fuel bowser is
+	# neither a name nor a bowser.
+	name_col.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	name_col.alignment = BoxContainer.ALIGNMENT_END
+	name_col.offset_left = -260
+	name_col.offset_right = -10
+	name_col.offset_top = -34 - YardScene.BAY_H
+	name_col.offset_bottom = -6 - YardScene.BAY_H
+	name_col.add_child(UITheme.body(h.name.to_upper(),
+		DB.manufacturer_colour(h.manufacturer), UITheme.FS_HEAD))
+	# NOT "POINT AT THE SHIP". The deck has two hulls standing in it now and the
+	# one thing a label under this one has to say is which of them you can buy.
+	# How to read it is discoverable; which is which is not.
+	_scene_hint = UITheme.body("FOR SALE", UITheme.QUOTE, UITheme.FS_SMALL)
+	name_col.add_child(_scene_hint)
+	box.add_child(name_col)
+
+	# --- THE DEAL, IN THE BAY UNDER THE SHIP IT BUYS.
 	#
-	# Both were drawn bare, which made the comparison a lie in one direction: a
-	# stripped hull beside a stripped hull says the two ships are equivalent
-	# objects, when one of them is a frame you have spent a run building on and
-	# the other is a shell. It is also the single fact this page most needs to
-	# carry -- everything you own stays yours, and the thing being sold is the
-	# frame under it.
-	if kitted:
-		v.setup_build(ShipBuild.fitted_out(h, Run.installed))
-	else:
-		v.setup_preview(h, 0, 1)
-	wrap.add_child(v)
+	# It was a row across the top of the deck, above a rule, beside the word
+	# SHIPYARD -- put there so the hover could never hide it. The bay is not
+	# hidden by anything either, and down here the price is under the hull it is
+	# the price OF, opposite the machines that work on the one you flew in.
+	var deal := VBoxContainer.new()
+	deal.add_theme_constant_override("separation", 3)
+	deal.alignment = BoxContainer.ALIGNMENT_CENTER
+	deal.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	deal.anchor_left = 0.58
+	deal.offset_left = 0
+	deal.offset_right = -12
+	deal.offset_top = -YardScene.BAY_H + 12
+	deal.offset_bottom = -12
+	# THE SUM AS A RECEIPT, not as a sentence.
+	#
+	# It read "LESS 25 FOR YOUR IRONSIDE CUTTER", which was written when your own
+	# ship appeared nowhere on this deck and the line had to say WHICH ship was
+	# worth 25. It is standing in the left berth with its name under it now, so
+	# the sentence spends most of itself repeating the picture -- and "less 43
+	# for your Ironside Cutter" is an awkward thing to read besides.
+	#
+	# TWO ROWS AND A COLUMN OF FIGURES. A price you are subtracting from another
+	# price is a sum, and a sum wants its numbers under each other; a right-
+	# aligned line of prose cannot line up a column and a grid does it for free.
+	var ledger := GridContainer.new()
+	ledger.columns = 2
+	ledger.add_theme_constant_override("h_separation", 12)
+	ledger.add_theme_constant_override("v_separation", 1)
+	ledger.size_flags_horizontal = Control.SIZE_SHRINK_END
+	ledger.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for row in [["ASKING", true], ["YOUR SHIP", false]]:
+		var cap := UITheme.body(String(row[0]), UITheme.QUOTE, UITheme.FS_SMALL)
+		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ledger.add_child(cap)
+		var val := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		val.custom_minimum_size = Vector2(52, 0)
+		val.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ledger.add_child(val)
+		if bool(row[1]):
+			_yard_ask = val
+		else:
+			_yard_trade = val
+	deal.add_child(ledger)
+	var buy := HBoxContainer.new()
+	buy.add_theme_constant_override("separation", 10)
+	buy.alignment = BoxContainer.ALIGNMENT_END
+	_yard_price = UITheme.body("", UITheme.EMBER, UITheme.FS_HEAD)
+	_yard_price.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_yard_price.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	buy.add_child(_yard_price)
+	_yard_take = _commit_button("TAKE IT", func() -> void: pass)
+	_yard_take.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	buy.add_child(_yard_take)
+	deal.add_child(buy)
+	box.add_child(deal)
+
+	# --- AND THE ARGUMENT, on the right, only while you are pointing.
+	_scene_slab = _offer_slab(h)
+	# OVER YOUR OWN SHIP, NOT OVER THE ONE YOU ARE POINTING AT.
+	#
+	# It was anchored top right, which is the corner the ship for sale now stands
+	# in -- so pointing at a hull to read about it hid the hull. The slab has to
+	# overlap SOMETHING; the free wall above the berths is a couple of hundred
+	# pixels and the panel is more than that. The one it can afford to cover is
+	# the ship whose numbers are already on it: every figure here is a delta
+	# against your own frame, so the Long Way's contribution to this panel is the
+	# arithmetic, not the silhouette.
+	_scene_slab.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_scene_slab.offset_left = 8
+	_scene_slab.offset_right = SLAB_W + 8
+	_scene_slab.offset_top = 8
+	# AND ITS HEIGHT COMES FROM ITS CONTENT, in `_place_scene_ship`.
+	#
+	# `set_anchors_and_offsets_preset` writes the control's CURRENT rect into the
+	# offsets, so `offset_bottom` kept whatever height the panel happened to have
+	# when the preset ran -- 293 for 189 of content, which is a hundred pixels of
+	# nothing under the last perk line. The minimum is not knowable until the
+	# panel is in the tree, so the one place that already runs after layout owns
+	# it. Same family as the `set_anchors_preset` trap that collapsed the
+	# transfer screen into its own top third.
+	_scene_slab.visible = false
+	box.add_child(_scene_slab)
+
+	_add_rigs(box)
+	box.resized.connect(_place_scene_ship)
+	_place_scene_ship.call_deferred()
+	return box
+
+
+## Stand both ships on their cradles and put the hover target on the offer's
+## metal.
+func _place_scene_ship() -> void:
+	if _scene == null:
+		return
+	if _scene_slab != null and is_instance_valid(_scene_slab):
+		_scene_slab.offset_bottom = _scene_slab.offset_top 			+ _scene_slab.get_combined_minimum_size().y
+	_stand(_mine_view, 0)
+	var at := _stand(_scene_ship, 1)
+	if _scene_hit != null and _scene_ship != null 			and is_instance_valid(_scene_ship):
+		var ink := _scene_ship.ink_rect()
+		_scene_hit.position = Vector2(at.x + float(ink.position.x),
+			at.y + float(ink.position.y)).round()
+		_scene_hit.size = Vector2(float(maxi(1, ink.size.x)),
+			float(maxi(1, ink.size.y)))
+
+
+## Put one ship down in berth `i`, and report where its canvas landed.
+##
+## THE INK IS WHAT GETS PLACED, NEVER THE CANVAS. A hull sheet carries a lot of
+## transparent margin -- a 324x112 holds 241x106 of actual ship -- so centring
+## the canvas puts a ship visibly off its own cradle, by however much margin
+## happens to be on one side.
+func _stand(v: ShipView, berth: int) -> Vector2:
+	if v == null or not is_instance_valid(v):
+		return Vector2.ZERO
 	var ink := v.ink_rect()
-	var mid := Vector2(float(ink.position.x) + float(ink.size.x) * 0.5,
-		float(ink.position.y) + float(ink.size.y) * 0.5)
-	v.position = (Vector2(float(box_w), float(SHIP_BOX_H)) * 0.5 - mid).round()
-	return wrap
+	var iw := float(maxi(1, ink.size.x))
+	var ih := float(maxi(1, ink.size.y))
+	var at := Vector2(
+		_scene.size.x * YardScene.berth_x(berth) - iw * 0.5 - float(ink.position.x),
+		_scene.cradle_y() - ih - float(ink.position.y) - 2.0)
+	v.position = at.round()
+	return v.position
 
 
-## THE SHIP FOR SALE, and every number on it read against the one you fly.
+## Pointing at the ship swaps the hint for the numbers.
+func _on_ship_hover(on: bool) -> void:
+	if _scene_slab != null:
+		_scene_slab.visible = on
+
+
+## The gauges, the mounts and the perks, on a slab dark enough to read over art.
 ##
-## ONE COLUMN, NOT TWO. The yard drew both hulls side by side with a full gauge
-## block each -- fourteen bars to answer one question, and the ship on the left
-## was the same ship the rail draws at the bottom of every deck, eighty pixels
-## away. What a buyer wants is not two readouts to diff by eye; it is the offer,
-## and how much better or worse it is. So the comparison moved INTO the block as
-## a signed column: `+3` beside a bar says the thing two bars side by side were
-## being asked to imply.
-##
-## Your own ship is not gone from the screen. It is in the rail, where it is on
-## the other four decks.
-func _offer_column(h: HullData) -> VBoxContainer:
-	# THE SHIP BESIDE THE NUMBERS, not above them.
-	#
-	# Stacked, the hull was centred across 700 pixels over a block of text that
-	# starts at the left margin -- so the two did not line up on any edge, and
-	# the right half of the panel below the ship was empty. Side by side each
-	# takes about half the width and the panel has no dead quarter in it.
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
-	var art := _ship_half(h, OFFER_W, false)
-	art.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(art)
-
+## ONE BLOCK WITH A SIGNED CHANGE COLUMN, not two blocks to diff by eye. The
+## first version of this comparison painted your value as the floor and the
+## offer as the fill: compact, and unreadable, because the base cells take the
+## manufacturer accent -- so wherever that accent is itself red, four gauges on
+## which the new frame was BETTER came out red under a legend saying red meant
+## loss. A signed number cannot be misread by anybody.
+func _offer_slab(h: HullData) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
-	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(col)
-	col.add_child(UITheme.body(h.name.to_upper(),
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# --- WHAT IT IS, AND WHAT THE PLUSES AND MINUSES ARE AGAINST.
+	#
+	# THE DELTAS NEVER SAID WHAT THEY WERE MEASURED FROM. Every gauge carries a
+	# "+1" or a "-2" and the panel simply assumed you knew those were against the
+	# ship you flew in on. It is standing in the next berth with its name on it,
+	# so naming it here closes the loop for one line.
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(UITheme.body(h.name.to_upper(),
 		DB.manufacturer_colour(h.manufacturer), UITheme.FS_HEAD))
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(gap)
+	var against := UITheme.body("AGAINST %s" % Run.display_name().to_upper(),
+		UITheme.QUOTE, UITheme.FS_SMALL)
+	against.size_flags_vertical = Control.SIZE_SHRINK_END
+	head.add_child(against)
+	col.add_child(head)
 
 	var hand := h.hand_size - Run.hull.hand_size
 	col.add_child(UITheme.body("%s · %s TIER · HAND %d%s" % [
 		HullData.weight_name(h.weight).to_upper(), h.tier_letter(), h.hand_size,
-		"" if hand == 0 else (" (%+d)" % hand)],
-		UITheme.COLD, UITheme.FS_SMALL))
+		"" if hand == 0 else (" (%+d)" % hand)], UITheme.COLD, UITheme.FS_SMALL))
+	col.add_child(UITheme.hsep())
 
-	# BOTH SIDES BARE, which is what makes the comparison honest.
-	# `transfer_to_hull` carries nothing over by itself -- you move your own kit
-	# across on the next screen -- so what a swap actually changes is the FRAME,
-	# and the frame is what both of these numbers describe.
+	# BOTH SIDES BARE, which is what makes the comparison honest: nothing is
+	# carried over by the swap itself, so what it changes is the FRAME.
 	var mine := Run.hull_attributes(Run.hull)
 	var theirs := Run.hull_attributes(h)
 	for i in mini(theirs.size(), mine.size()):
 		theirs[i]["delta"] = int(theirs[i].value) - int(mine[i].value)
-	var attrs := AttrBlock.new()
-	attrs.setup(theirs, DB.manufacturer_colour(h.manufacturer))
-	col.add_child(attrs)
 
-	# AND THE HARDPOINTS, which is the part of a swap that can cost you a fitting:
-	# a frame with fewer mounts of a slot is a frame some of your kit has nowhere
-	# to go on, and the transfer screen will make you deal with that.
+	# --- SEVEN GAUGES IN TWO COLUMNS, NOT SEVEN STACKED ROWS.
+	#
+	# THE SLAB WAS TALLER THAN THE SHIP IT DESCRIBED. Stacked, the seven
+	# attributes plus the perks made a column near three hundred pixels deep,
+	# anchored over the berth -- so pointing at a hull to learn about it COVERED
+	# the hull. Paired, the same seven are four rows, and the whole panel fits in
+	# the band of empty wall above the ships where it hides nothing at all.
+	var half := int(ceilf(float(theirs.size()) * 0.5))
+	var pair := HBoxContainer.new()
+	pair.add_theme_constant_override("separation", 22)
+	pair.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for side in 2:
+		var part: Array[Dictionary] = []
+		for i in theirs.size():
+			if (i < half) == (side == 0):
+				part.append(theirs[i])
+		if part.is_empty():
+			continue
+		var blk := AttrBlock.new()
+		blk.setup(part, DB.manufacturer_colour(h.manufacturer))
+		pair.add_child(blk)
+	col.add_child(pair)
+
 	var mounts := HBoxContainer.new()
-	mounts.add_theme_constant_override("separation", 9)
+	mounts.add_theme_constant_override("separation", 7)
+	mounts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mounts.add_child(UITheme.body("MOUNTS", UITheme.COLD, UITheme.FS_SMALL))
 	for sl in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
 			ModuleData.Slot.UTILITY]:
@@ -635,26 +851,66 @@ func _offer_column(h: HullData) -> VBoxContainer:
 			UITheme.CHILL if d >= 0 else UITheme.LEAVE, UITheme.FS_SMALL))
 	col.add_child(mounts)
 
-	# AND WHAT THE FRAME ITSELF DOES, which is the one thing on this comparison
-	# that no gauge can show: a perk is a rule, not a number, and two hulls with
-	# identical bars can play nothing alike because of these two lines.
+	# THE PERKS GET THE WHOLE WIDTH NOW, which is most of what was wrong with
+	# them: at 230 pixels "SALVAGE RACK: SCRAPPING MODULES PAYS +40%" broke after
+	# PAYS and left "+40%." alone on a line of its own.
 	for pid in h.perks():
 		var pk := UITheme.body(DB.perk_text(pid), UITheme.EMBER, UITheme.FS_SMALL)
 		pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		pk.custom_minimum_size = Vector2(SLAB_W - 22, 0)
+		pk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		col.add_child(pk)
-	var wrap := VBoxContainer.new()
-	wrap.add_child(row)
-	return wrap
+
+	# --- AND THE SLAB ITSELF.
+	#
+	# OPAQUE, WHICH IT SHOULD ALWAYS HAVE BEEN. It sat at 86% so the scene could
+	# show through, and what showed through was a hull -- grey plating behind
+	# grey figures, which is the one background text cannot be read on. Nothing
+	# is gained by seeing a ship through its own numbers.
+	#
+	# FRAMED IN THE SELLER'S COLOUR, so the panel belongs to the ship it is
+	# describing rather than to the screen it is floating on. The same mark the
+	# name above it wears.
+	var slab := PanelContainer.new()
+	slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mark := DB.manufacturer_colour(h.manufacturer)
+	slab.add_theme_stylebox_override("panel",
+		UITheme.flat(Color(0.031, 0.043, 0.066, 0.98),
+			Color(mark.r, mark.g, mark.b, 0.55), 0, 8, 11))
+	slab.add_child(col)
+	slab.custom_minimum_size = Vector2(SLAB_W, 0)
+	return slab
 
 
 ## A label, a gauge and a figure, on the row height everything else uses.
 func _page_work() -> Control:
 	var box := Widgets.section("work")
+
+	# --- THE WORK IS PINNED TO A BOARD.
+	#
+	# THE FURNITURE IS UNDER THE CONTENT, the same move the Promenade's shelf
+	# makes. A contract is not a row in a table -- it is a notice somebody walked
+	# up and pinned there, and the difference between those two things is a
+	# frame, a pin and a shadow. The rows do not change at all; the board
+	# measures itself off them.
+	var stack := Control.new()
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var board := PostingBoard.new()
+	board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(board)
+
 	_work = VBoxContainer.new()
-	_work.add_theme_constant_override("separation", 5)
-	var sc := Widgets.scroller(_work, 90)
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(sc)
+	_work.add_theme_constant_override("separation", 9)
+	_work.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# INSIDE THE FRAME, with room for a pin above the first notice.
+	_work.offset_left = PostingBoard.FRAME_W + 6.0
+	_work.offset_right = -(PostingBoard.FRAME_W + 6.0)
+	_work.offset_top = PostingBoard.FRAME_W + 9.0
+	_work.offset_bottom = -(PostingBoard.FRAME_W + 6.0)
+	stack.add_child(_work)
+	board.watch(_work)
+	box.add_child(stack)
 	return Widgets.panel_with(Widgets.pad(box))
 
 
@@ -686,23 +942,6 @@ const PICK_W := 256
 ## How tall the block between the name and the price stands, whatever is in it.
 ## See where it is built for the arithmetic.
 const DESC_H := 86
-## Card art is 93x60 in CardView's window and the inspect view is an exact 2x of
-## it. Same number here, for the same reason: those are the only two scales this
-## art has, and anything between them lands the frame on half-pixels.
-const ART_K := 2
-## How tall a row in the list beside it stands. The module sprite is the tallest
-## thing in it -- a BULK part is 31 art pixels -- plus a little air.
-const SHELF_ROW_H := 38
-
-## WHAT IS OPEN ON THE SHELF: an index into `n.shop`.
-##
-## AN INDEX RATHER THAN THE ModuleData, because the shop list is rebuilt from the
-## node on every refresh and a reference would point at the copy from the last
-## one.
-var _pick: int = 0
-## Which item in the hold is open. Same idea as `_pick`, its own field because
-## the two lists are different lists.
-var _hold_pick: int = 0
 var _shelf: VBoxContainer
 
 
@@ -711,39 +950,229 @@ func _page_stock() -> Control:
 	# already names itself in 16px, was a title for a page with one thing on it
 	# -- and it cost thirty pixels off the top of the only band that is short of
 	# them. The word moved down to the list it actually labels.
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
-	# A COLUMN, not a row. The deck reads in two bands now: what you are looking
-	# at across the top, and everything else you could look at along the bottom.
-	# See `mocks 06 · Cards Underneath`, with its two halves swapped -- the part
-	# on the left, the cards it grants on the right, and the shelf given the full
-	# width underneath where four prices line up in one glance.
+	# --- THE WHOLE DECK IS ONE ROOM, and the shop is two things standing in it.
+	#
+	# The rack was against one wall and the till against the other with a hole
+	# between them -- two pieces of furniture floating on a panel. `ShopScene`
+	# draws the floor they stand on, the wall behind them and the window over
+	# them, which is the same move `YardScene` makes for the berth. Everything
+	# below is laid out ON it, bottom-aligned, so both pieces sit on one floor.
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 5)
+	var stack := Control.new()
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shop = ShopScene.new()
+	_shop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(_shop)
+
+	var box := HBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.add_theme_constant_override("separation", 14)
+
 	_shelf = VBoxContainer.new()
 	_shelf.add_theme_constant_override("separation", 8)
 	_shelf.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# ITS OWN WIDTH, AND NO MORE -- exactly what the Exchange's hold does. The
+	# rack is a fixed object now rather than something poured into the column, so
+	# a column that claimed a share of the deck would leave a band of nothing
+	# between the shelf and the till. What is left over goes to the till, which
+	# is a room and can use it.
+	_shelf.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	box.add_child(_shelf)
-	return Widgets.panel_with(Widgets.pad(box))
+
+	# --- AND THE TILL YOU CARRY IT TO.
+	#
+	# A SHELF IS NOT A SHOP UNTIL THERE IS SOMEWHERE TO PAY. The stock was
+	# objects standing on boards and the way to buy one was to click the little
+	# price card under it -- three hundred credits gone on a single click, with
+	# nothing carried anywhere, which is exactly the gesture this game threw out
+	# of the hold when right-click-to-jettison was cut.
+	#
+	# THE SAME COUNTER THE EXCHANGE HAS, turned around. See `TradeCounter.Side`:
+	# one is where a market pays you and the other is where it charges you, and
+	# they are the two sides of one spread that `MarketTest` proves cannot be
+	# farmed. Carrying a part off the shelf to the till is the same gesture as
+	# carrying one out of your hold to the counter, which is the point -- a
+	# station should have one way of doing business, not one per deck.
+	# THE FLOOR BETWEEN THEM. With the rack shrunk to its own size the till took
+	# every pixel that was left, so the place you PAY was half again the size of
+	# the shop you were paying for -- which is the wrong way round. Both are
+	# objects against opposite walls now and the slack is the space between them,
+	# which is what a room is.
+	var floorspace := Control.new()
+	floorspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	floorspace.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(floorspace)
+
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 6)
+	# WIDE ENOUGH TO BE A ROOM AND NO WIDER: the counter needs a back wall to
+	# stand against and somewhere to stack the day's takings, and that is about
+	# this much.
+	right.custom_minimum_size = Vector2(300, 0)
+	right.size_flags_horizontal = Control.SIZE_SHRINK_END
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# AIR ABOVE IT, the same as the rack has, so the counter STANDS on the floor
+	# `ShopScene` drew rather than hanging from the top of the deck.
+	var air2 := Control.new()
+	air2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	air2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right.add_child(air2)
+	_till = TradeCounter.new()
+	_till.side = TradeCounter.Side.CHARGES
+	# NO ROOM OF ITS OWN ANY MORE. `TradeCounter` builds a back wall and stacks
+	# crates against it when it is given the height, and it was given the height
+	# here -- so the deck had a room inside a room, in two different greys. It
+	# gets exactly a desk now and stands in the one `ShopScene` draws.
+	_till.custom_minimum_size = Vector2(0, TradeCounter.DESK_H)
+	_till.size_flags_vertical = Control.SIZE_SHRINK_END
+	_till.took.connect(_on_till)
+	right.add_child(_till)
+	box.add_child(right)
+
+	stack.add_child(box)
+	outer.add_child(stack)
+	# THE NOTE IS OUTSIDE THE ROOM, under it. Inside the right-hand column it sat
+	# below the till, which pushed the counter off the floor and left the two
+	# pieces of furniture standing at two different heights.
+	_till_note = UITheme.body("", UITheme.QUOTE, UITheme.FS_SMALL)
+	_till_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	outer.add_child(_till_note)
+	return Widgets.panel_with(Widgets.pad(outer))
 
 
-## The hold, with a buyer standing in front of it.
+## A part was carried off the shelf to the till.
+##
+## THE TILL HAS ALREADY SAID YES. `TradeCounter.refusal` checked the price, the
+## credits and the room before it let go, so this is the purchase and not a
+## second opinion about it -- `_on_action` re-checks anyway, because it is also
+## the thing that races the other players for the slot.
+func _on_till(item: HoldItem) -> void:
+	var m := item as ModuleData
+	if m == null:
+		return
+	_on_action("buy", m)
+
+
+## THE EXCHANGE: your hold, and a buyer standing in front of it.
+##
+## ONE COUNTER AND ONE PRICE. There was a scrap chute beside this, paying a
+## lower flat rate for the same part, and it made a module into two prices in
+## two places -- which is a second currency wearing a verb's clothes even when
+## both of them pay credits. A market is somewhere you sell things. What this
+## place will bear is the only number on the deck.
+##
+## DRAGGING IS THE CONFIRMATION. Carrying a thing across the deck is the
+## deliberation, which is the same argument that let the refit screen's hatch
+## destroy a part without asking -- and it is why the counter needs no button:
+## the hardpoints are on the SHIP page, and this is where things become money.
+##
+## And the hold is the REAL grid, not a list of its contents. It is the thing
+## you pack, it already drags, and every part on it already answers a hover with
+## its own readout and cards.
 func _page_hold() -> Control:
-	# NO SECTION HEADING AND NO SCROLLER, the same as the Promenade: the thing
-	# open across the top names itself in 16px, and the list underneath is pinned
-	# to the bottom of a fixed panel rather than scrolling inside one.
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
-	_hold = VBoxContainer.new()
-	_hold.add_theme_constant_override("separation", 8)
-	_hold.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(_hold)
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 14)
+
+	var left := VBoxContainer.new()
+	left.add_theme_constant_override("separation", 4)
+	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_hold_head = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	left.add_child(_hold_head)
+	_hold_grid = HoldGrid.new()
+	# ITS OWN SIZE, ALWAYS. The grid draws a frame round the cells it holds, and
+	# letting a container stretch it drew that frame out past the last column --
+	# a four-wide hold in a six-wide box, which is a lie about how much room you
+	# have.
+	_hold_grid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_hold_grid.dropped.connect(_on_hold_move)
+	left.add_child(_hold_grid)
+	var slack := Control.new()
+	slack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	slack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(slack)
+	box.add_child(left)
+
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override("separation", 10)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	right.add_child(UITheme.body("THE COUNTER", UITheme.COLD, UITheme.FS_SMALL))
+	_sell_desk = TradeCounter.new()
+	# IT TAKES THE WHOLE DECK NOW. With the chute gone the counter is the only
+	# thing on this side, and a 76px slab floating over a column of nothing read
+	# as a widget rather than as furniture. Grown, it is a service desk you walk
+	# up to -- and the scale on it is drawn off the height, so it stands taller
+	# with the counter instead of stretching.
+	_sell_desk.custom_minimum_size = Vector2(0, 120)
+	_sell_desk.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_sell_desk.took.connect(_on_counter)
+	right.add_child(_sell_desk)
+	_sell_note = UITheme.body("Carry something here to be paid for it.",
+		UITheme.QUOTE, UITheme.FS_SMALL)
+	_sell_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	right.add_child(_sell_note)
+	box.add_child(right)
 	return Widgets.panel_with(Widgets.pad(box))
+
+
+## A part moved inside the hold. The grid reports; this owns the change.
+func _on_hold_move(payload: Dictionary, at: Vector2i) -> void:
+	var m: HoldItem = payload.get("module")
+	if m == null:
+		return
+	var was := m.hold_at
+	if Run.cargo.has(m):
+		Run.take_from_hold(m)
+	if not Run.place_in_hold(m, at) and was.x >= 0:
+		# A REFUSED MOVE COSTS NOTHING. The same rule the refit screen keeps:
+		# picking a thing up is not a decision to put it somewhere worse.
+		Run.place_in_hold(m, was)
+	_refresh()
+
+
+## Something was carried to the counter.
+func _on_counter(item: HoldItem) -> void:
+	var paid := TradeCounter.offer(item)
+	if paid <= 0:
+		return
+	Run.take_from_hold(item)
+	Run.add_credits(paid)
+	Run.node_at().trades += 1
+	Audio.play(&"shop_sell", 0.06)
+	Run.log_line("Sold %s for %d credits." % [item.name, paid], &"good")
+	_refresh()
 
 
 func _page_bench() -> Control:
 	var box := Widgets.section("fabricator")
+
+	# --- THE RECIPES ARE LOADED INTO A MACHINE.
+	#
+	# A recipe is a job you put INTO something, and what makes that read is a
+	# hopper it goes in at, a body it happens in and a chute it comes out of. The
+	# rows are untouched; `Fabricator` draws a bay behind each of them.
+	var stack := Control.new()
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rig := FabricatorCase.new()
+	rig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(rig)
+
 	_bench = VBoxContainer.new()
-	_bench.add_theme_constant_override("separation", 5)
-	box.add_child(_bench)
+	_bench.add_theme_constant_override("separation", 11)
+	_bench.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# CLEAR OF THE HOPPER AND THE CHUTE, so the jobs sit in the body of the
+	# machine rather than over its mouth.
+	_bench.offset_left = FabricatorCase.CASE_W + 7.0
+	_bench.offset_right = -(FabricatorCase.CASE_W + 7.0)
+	_bench.offset_top = FabricatorCase.HOPPER_H + 9.0
+	_bench.offset_bottom = -(FabricatorCase.CHUTE_H + 9.0)
+	stack.add_child(_bench)
+	rig.watch(_bench)
+	box.add_child(stack)
 	return Widgets.panel_with(Widgets.pad(box))
 
 
@@ -760,14 +1189,28 @@ func _page_bench() -> Control:
 func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(RAIL_W, DECK_H)
+	b.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(func() -> void: _show_tab(id))
+	# NO PLATE OF ITS OWN, IN ANY STATE. The room behind it is the plate now --
+	# `StationSpine` lights the floor you are standing on, which is the same
+	# statement the pressed style used to make and a better one, because it is
+	# made of somewhere rather than of a rectangle. A hover still needs to say
+	# something, so it says it in the faintest wash the theme has.
+	for st in ["normal", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(st, UITheme.empty())
+	b.add_theme_stylebox_override("hover",
+		UITheme.flat(Color(0.85, 0.90, 1.0, 0.05), Color(0, 0, 0, 0), 0, 0, 0))
 
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.offset_left = 9
-	box.offset_top = 6
 	box.offset_right = -7
+	# CENTRED, NOT TOP-ALIGNED. The cells are floors of a building that moves
+	# now, so whichever end of the rail is clipped loses the top or bottom of a
+	# room -- and a label pinned six pixels from the ceiling is the first thing
+	# to go. Centred, the clip takes air off a room and leaves the name.
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_theme_constant_override("separation", 1)
 
@@ -785,165 +1228,26 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	return b
 
 
-## The bottom of the section: your own berth, your ship in it, and the way out.
-func _berth_cell() -> Control:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 3)
-	# THE SHIP'S OWN NAME, not the words YOUR SHIP.
-	#
-	# "Your ship" is true of it on every screen and says nothing; the thing you
-	# actually want off a rail you are scrolling past is WHICH ship, and after
-	# the renaming work that is a name you chose. It falls back to the frame's
-	# own when you have not named it, which is what the masthead does.
-	#
-	# In the manufacturer's colour, so the rail's bottom cell agrees with the
-	# banner at the top of it about who built what you are flying.
-	_berth_name = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
-	_berth_name.clip_text = true
-	box.add_child(_berth_name)
-
-	# A LIVE ShipView, not the hull's bare sprite.
-	#
-	# The sprite is the frame as it left the yard. This is the one picture of
-	# your ship on the station screen, and you spend the whole screen changing
-	# what is bolted to it -- so a picture that could not show a single fitted
-	# part was showing you somebody else's ship. A ShipView with no `_fixed` and
-	# no peer follows YOUR build and repaints on ship_changed, so buying
-	# something on the Promenade and fitting it is visible from here.
-	#
-	# magnify then crop, in that order: magnify re-fits the width to whatever the
-	# composited canvas turns out to be, and crop then holds it to the rail. See
-	# ShipView.magnify, whose own note records this pair.
-	# FITTED TO THE BOX, which means a fractional scale, which this game normally
-	# forbids. It is a deliberate exception and the alternative was worse.
-	#
-	# ShipView composites onto a 324x112 canvas and draws at whole multiples only,
-	# so its smallest size is 1x -- and 324 will not go into the 134 the rail
-	# leaves. At 1x the cell showed a horizontal slice through the ship's middle
-	# with the nose and tail cut off, which is not a picture of your ship.
-	#
-	# So the view is built at its full canvas size and the CONTROL is halved. A
-	# half is the one fraction that is clean on pixel art -- see BERTH_K -- and
-	# this is a thumbnail in a rail, not art you read. The rule it bends exists to
-	# stop the game's ART being resampled; nothing here is resampled twice or
-	# shipped as an asset.
-	_berth_art = ShipView.new()
-	_berth_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# The WRAPPER clips, not the view: a view that clips itself would cut the
-	# canvas before the scale is applied.
-	_berth_art.self_clip = false
-	# THE GUNS ARE A LAYER, NOT PART OF THE SHIP SPRITE.
-	#
-	# `ShipView.refresh` blits the hull sprite and stops -- its own header says
-	# so: "the modules are their own sprites". So a bare ShipView draws a bare
-	# hull however much is bolted on, and this cell showed an empty frame for as
-	# long as it has existed. The refit screen only looks right because it has a
-	# `MountPoints` over its view; this is the same layer, in the display-only
-	# mode the sector strip uses -- no drop targets, no empty hardpoint rings, no
-	# tractor beam. Just a ship with its guns on it.
-	var berth_pts := MountPoints.new()
-	_berth_art.add_child(berth_pts)
-	berth_pts.attach(_berth_art)
-	berth_pts.passive()
-	var berth_box := Control.new()
-	berth_box.custom_minimum_size = Vector2(BERTH_W, BERTH_H)
-	berth_box.clip_contents = true
-	berth_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	berth_box.add_child(_berth_art)
-	box.add_child(berth_box)
-	# Re-placed whenever the ship changes: the scale is fixed but the canvas is
-	# not, and a hull swap moves where the centre of it is.
-	Sig.ship_changed.connect(_fit_berth)
-	_fit_berth()
-
-	var wrap := Widgets.panel_with(Widgets.pad(box, 2, 5))
-	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck cell is somewhere you go
-	# and come back from; this is the door, so it wears the same ink BUY does.
+## The bottom of the rail: the way out, and nothing else.
+##
+## This used to draw your own ship in a berth above the button. It went for two
+## reasons -- the rail is a cutaway of the STATION now and a picture of your hull
+## is not a floor of it, and the hull was already on screen on the Yard whenever
+## there was anything to compare it against.
+func _undock_cell() -> Control:
+	# THE ONE THING ON THE RAIL THAT LEAVES. Every deck above it is somewhere you
+	# go and come back from; this is the door, so it wears the same ink BUY does.
 	var out := _commit_button("UNDOCK", func() -> void: Router.show_sector())
-	out.custom_minimum_size = Vector2(RAIL_W, 20)
+	out.custom_minimum_size = Vector2(RAIL_W, 22)
+	# SHRINK, NOT EXPAND. `_commit_button` hands back a control that takes the
+	# slack -- which is right where it is one of two things in a row and wrong
+	# here, because the other thing in this column is the STATION. The two of
+	# them split the rail down the middle and the building got 178 pixels of a
+	# 347-pixel column, which looked like the cutaway had been cropped when what
+	# had happened is that a button was as tall as five floors.
+	out.size_flags_vertical = Control.SIZE_SHRINK_END
 	_undock = out
-
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 4)
-	col.add_child(wrap)
-	col.add_child(out)
-	return col
-
-
-## Place the berth's ship, halved.
-##
-## EXACTLY 0.5, not a ratio worked out from the box. A half is the one fraction
-## that is clean for pixel art: every 2x2 block becomes one pixel, uniformly,
-## with nothing dropped unevenly the way 0.41 would drop it. Fitting to the box
-## instead gave whatever number the canvas happened to make and a different one
-## per hull.
-##
-## THE CANVAS OVERFLOWS AND THAT IS FINE. 324 halves to 162 against the 134 the
-## rail leaves -- but the canvas is mostly margin, and the SHIP inside it is
-## about 168 at 1x and so 84 here. What the crop takes is empty canvas on either
-## side; the ship sits whole in the middle of it.
-const BERTH_K := 0.5
-
-## Every scale the berth is allowed to draw at, largest first.
-##
-## Whole-block reductions only: 1x, then 2x2 into one pixel, then 4x4 into one.
-## The biggest frames are 392 art pixels across and the rail leaves 134, so
-## without the last rung there is no scale on this list that fits them.
-const BERTH_STEPS: Array[float] = [1.0, 0.5, 0.25]
-
-func _fit_berth() -> void:
-	if _berth_name != null and Run.hull != null:
-		_berth_name.text = (Run.ship_name if Run.ship_name != ""
-			else Run.hull.name).to_upper()
-		_berth_name.add_theme_color_override("font_color",
-			DB.manufacturer_colour(Run.hull.manufacturer))
-	if _berth_art == null or not is_instance_valid(_berth_art):
-		return
-	# Read off the view's own canvas rather than from a constant: `_w` is the
-	# procedural 240 until a sprite is composited and whatever the sprite is
-	# after, so a number written here would be right for one hull and wrong for
-	# the next.
-	var cw := float(_berth_art._w)
-	var ch := float(_berth_art._h)
-	if cw <= 0.0 or ch <= 0.0:
-		return
-	# MEASURED ON THE SHIP, NOT ON THE SHEET, and at the largest clean step that
-	# actually fits.
-	#
-	# A flat half was right for most of the range and wrong for the top of it:
-	# hull sheets run to 392x140 and the rail leaves 134x56, so the biggest
-	# frames were cut fourteen to thirty pixels at each end. Centred, but a ship
-	# with its nose and its engines missing does not read as centred.
-	#
-	# Two changes fix it together. A QUARTER IS AS CLEAN AS A HALF -- 2x2 into
-	# one pixel, 4x4 into one, both uniform -- so the ladder is a real ladder and
-	# not a fractional fit; `_flag_scale` does the same for the banners. And the
-	# fit is measured on the INK: a 324x112 sheet holds 241x106 of actual hull,
-	# and scaling to the sheet spends the rail on empty pixels. Ten of the twelve
-	# sheet sizes clear the box at a half once the margin is discounted.
-	# CROP FIRST, MEASURE SECOND. `ink_rect` reads the composited image, and
-	# `crop` is what composites it -- asking before it has run gets the
-	# full-canvas fallback, so the very first layout centred the SHEET and left
-	# the ship sitting right of middle with a hole beside it. It corrected itself
-	# the next time the ship changed, which is why it looked intermittent.
-	_berth_art.crop(int(cw), int(ch))
-	var ink := _berth_art.ink_rect()
-	var iw := float(maxi(1, ink.size.x))
-	var ih := float(maxi(1, ink.size.y))
-	var box := Vector2(float(BERTH_W), float(BERTH_H))
-	var k := BERTH_STEPS[BERTH_STEPS.size() - 1]
-	for step in BERTH_STEPS:
-		if iw * step <= box.x and ih * step <= box.y:
-			k = step
-			break
-	# THE CANVAS STAYS WHOLE AND THE WRAPPER CLIPS THE MARGIN. Cropping the view
-	# to the ink would re-centre the SHEET in a smaller control and cut the ship
-	# instead of the emptiness -- `crop` sizes the control, and the texture is
-	# drawn centred inside whatever it is given.
-	_berth_art.scale = Vector2(k, k)
-	var ink_mid := Vector2(float(ink.position.x) + iw * 0.5,
-		float(ink.position.y) + ih * 0.5)
-	_berth_art.position = (box * 0.5 - ink_mid * k).round()
+	return out
 
 
 func _show_tab(id: StringName) -> void:
@@ -952,6 +1256,7 @@ func _show_tab(id: StringName) -> void:
 	_tab = id
 	for key in _pages:
 		(_pages[key] as Control).visible = key == id
+	_light_floor()
 	for key in _tabs:
 		var b: Button = _tabs[key]
 		var on: bool = key == id
@@ -959,17 +1264,26 @@ func _show_tab(id: StringName) -> void:
 		# The deck's own labels carry the colour, not the button's font, because
 		# a Button's font colour cannot reach Labels parented inside it.
 		var title := b.get_meta(&"title", null) as Label
+		# NO PLATE ON EITHER STATE ANY MORE.
+		#
+		# The active cell used to paint a brown bevel and the inactive ones used
+		# to REMOVE the override and fall back to the theme's Button plate. Both
+		# of those are opaque rectangles over the top of a drawing of a room, so
+		# between them they hid the entire cutaway -- the rail looked exactly as
+		# it always had and the spine appeared not to be rendering at all.
+		#
+		# `StationSpine` says which floor you are on by turning its lights on,
+		# which is the same statement made out of somewhere instead of out of a
+		# rectangle. The labels still carry the colour.
+		b.add_theme_stylebox_override("normal", UITheme.empty())
+		b.add_theme_stylebox_override("disabled", UITheme.empty())
 		if on:
-			b.add_theme_stylebox_override("normal", UITheme.bevel(Color("#4a2a0c"), 3, 5))
-			b.add_theme_stylebox_override("disabled", UITheme.bevel(Color("#4a2a0c"), 3, 5))
 			if title != null:
 				title.add_theme_color_override("font_color", UITheme.HOT)
 			if _deck_note.has(key):
 				(_deck_note[key] as Label).add_theme_color_override(
 					"font_color", UITheme.EMBER)
 		else:
-			b.remove_theme_stylebox_override("normal")
-			b.remove_theme_stylebox_override("disabled")
 			if title != null:
 				title.add_theme_color_override("font_color", UITheme.CHILL)
 			if _deck_note.has(key):
@@ -1042,6 +1356,45 @@ func _service(label: String, price_text: String, action: Callable,
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(p)
 	return b
+
+
+## THE YARD'S MACHINES, along the bay in front of the berth.
+##
+## INSIDE THE SCENE, not above it. They are the reason `YardScene` has a front
+## bay at all, and putting them anywhere else would be the old table again with
+## better pictures on it. Anchored to the bottom and given the bay's exact depth,
+## so every rig stands on the line the cradle's posts come down to.
+func _add_rigs(box: Control) -> void:
+	_rigs = HBoxContainer.new()
+	_rigs.alignment = BoxContainer.ALIGNMENT_CENTER
+	_rigs.add_theme_constant_override("separation", 8)
+	_rigs.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	# ON YOUR SIDE OF THE BAY, under YOUR ship.
+	#
+	# They were centred across the whole floor, which put a fuel bowser as near
+	# to the hull for sale as to the one it would be fuelling. Every one of these
+	# machines acts on the ship in the LEFT berth, and standing them under it is
+	# the entire argument for taking them out of a table in the first place.
+	_rigs.anchor_right = 0.55
+	_rigs.offset_top = -YardScene.BAY_H
+	_rigs.offset_left = 10
+	_rigs.offset_right = 0
+	box.add_child(_rigs)
+
+
+## One machine in the bay.
+func _rig(kind: int, label: String, price: int, action: Callable,
+		live: bool, gauge: Vector2i = Vector2i.ZERO) -> ServiceRig:
+	var r := ServiceRig.new()
+	r.kind = kind
+	r.label = label
+	r.price = price
+	r.gauge = gauge
+	r.disabled = not live
+	r.custom_minimum_size = Vector2(RIG_W, YardScene.BAY_H)
+	r.pressed.connect(action)
+	_rigs.add_child(r)
+	return r
 
 
 ## The stripe, the glyph and the gauge preview on one service row.
@@ -1197,6 +1550,86 @@ func _close_purge() -> void:
 	_purge_prompt.queue_free()
 	_purge_prompt = null
 	_refresh()
+
+
+## Give the building its height, once the shaft has one.
+##
+## IT FILLS THE SHAFT. An earlier version made it taller and slid the whole
+## station when you picked a floor, which was the wrong object to move: the
+## building is not what travels in a building. Sliding it also meant a floor was
+## always partly out of frame, and this rail is the navigation for the screen.
+func _size_building() -> void:
+	if _building == null:
+		return
+	var shaft := _building.get_parent() as Control
+	if shaft == null or shaft.size.y <= 0.0:
+		return
+	_building.position = Vector2.ZERO
+	_building.size = shaft.size
+
+
+## Send the car to a floor.
+##
+## THE CAR MOVES AND THE STATION DOES NOT. It is a lit frame one floor tall, and
+## it travels THROUGH the rooms between where it was and where it is going --
+## so picking the Laboratory from the Promenade takes it down past the Yard, the
+## Exchange and the Hall, brightening each as it passes and letting it go again.
+## That is the whole of the elevator, and it is why `StationSpine.car` is a float
+## rather than an index.
+##
+## `ride` is false on arrival at the station and on a resize: a car that travels
+## because a panel got wider is a bug you can watch happen.
+func _ride_to(index: int, ride: bool = true) -> void:
+	if _spine == null or index < 0:
+		return
+	if _lift != null and _lift.is_valid():
+		_lift.kill()
+	if not ride or _spine.car < 0.0:
+		_car_step(float(index))
+		return
+	# LONG ENOUGH TO BE A JOURNEY, and scaled by how far it is going: two floors
+	# should take longer than one, because in a building they do.
+	var span := absf(float(index) - _spine.car)
+	var secs := clampf(0.16 + 0.10 * span, 0.18, 0.55)
+	_lift = create_tween()
+	_lift.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_lift.tween_method(_car_step, _spine.car, float(index), secs)
+
+
+## One frame of the ride.
+func _car_step(at: float) -> void:
+	if _spine == null:
+		return
+	_spine.car = at
+	_spine.queue_redraw()
+
+
+## Tell the cutaway which rooms it has and which one you are in.
+##
+## THE FLOORS ARE THE DECKS THAT EXIST, not always five. An outpost has no
+## Laboratory, and a spine that drew one would be a picture of a building with a
+## room you cannot get to -- so the list comes from the tabs that are actually
+## enabled, in rail order.
+func _light_floor() -> void:
+	if _spine == null:
+		return
+	var live: Array[StringName] = []
+	for entry in DECKS:
+		var id: StringName = entry[0]
+		if _tabs_on.get(id, true):
+			live.append(id)
+	var was := _spine.active
+	_spine.floors = live
+	_spine.active = live.find(_tab)
+	_size_building()
+	# RIDE ONLY WHEN THE FLOOR ACTUALLY CHANGED, and never on the first one.
+	# `_light_floor` runs on every refresh -- a car that sets off each time a
+	# price ticks is a car nobody believes in, and one that travels on arrival at
+	# the station is answering a journey the player did not make.
+	_ride_to(_spine.active, was >= 0 and was != _spine.active)
+	_spine.manufacturer = Run.node_at().manufacturer if not Run.map.is_empty() \
+		else &""
+	_spine.queue_redraw()
 
 
 ## Roll what is on the shelf, ONCE per system per run.
@@ -1370,7 +1803,6 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 		_flagrow.add_child(fl)
 
 
-
 ## Repair, refuelling, purges -- and the ship on the pad beside your own.
 ##
 ## WORK ONLY. Everything on the top panel is something the station DOES to the
@@ -1390,23 +1822,22 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	Widgets.clear(_hull_offer)
 	var h: HullData = n.shop_hull
 	var up := h != null and not n.taken.has(MapGen.OPTION_SHOP_HULL)
-	_yard_take.visible = up
-	_yard_price.visible = up
-	_yard_sum.visible = up
-	if not up:
-		# A LINE RATHER THAN A BLANK PANEL. Not every yard has a ship, and an
-		# empty half-page reads as a screen that failed to load -- "no hull here"
-		# is a real answer to the question you came to this deck with.
-		_hull_offer.add_child(UITheme.body(
-			"Nothing on the blocks. This yard does repairs.",
-			UITheme.COLD, UITheme.FS_SMALL))
-	else:
+	# THE HANGAR IS BUILT EITHER WAY.
+	#
+	# It used to be built only when there was a ship for sale, which was fine
+	# while the deck was a panel of services over a picture -- an empty yard just
+	# lost the picture. The machines live IN the picture now, so a yard with
+	# nothing on the blocks would have lost its repairs with its hull. `_offer`
+	# takes null and leaves the berth empty.
+	_hull_offer.add_child(_offer_column(h if up else null))
+	if up:
 		var ask := Market.hull_price(n, h)
 		var part_ex := Market.hull_bid(n, Run.hull)
 		var price: int = maxi(0, ask - part_ex)
-		_yard_sum.text = "%d ASKING
-LESS %d FOR YOUR %s" % [ask, part_ex,
-			Run.hull.name.to_upper()]
+		_yard_ask.text = "%d" % ask
+		# SIGNED, because it is the one number on the deck that comes OFF the
+		# other one, and a column of bare figures cannot say which way a row goes.
+		_yard_trade.text = "-%d" % part_ex
 		_yard_price.text = "%d CR" % price
 		_yard_take.disabled = Run.credits < price
 		# REBOUND EVERY REFRESH, because the hull on the blocks is not the same
@@ -1416,57 +1847,56 @@ LESS %d FOR YOUR %s" % [ask, part_ex,
 			_yard_take.pressed.disconnect(c.callable)
 		_yard_take.pressed.connect(_on_action.bind("take_hull", h))
 
-		_hull_offer.add_child(_offer_column(h))
-
-	Widgets.clear(_services)
+	# --- AND THE MACHINES IN THE BAY.
+	#
+	# The same four services the panel above the picture used to list, standing
+	# on the yard's own floor as things. A rig knows three things -- what it does,
+	# what it costs, and whether the yard will do it -- which is exactly what a
+	# row knew, minus the row.
+	if _rigs == null:
+		return
+	Widgets.clear(_rigs)
 	var missing := Run.max_hp() - Run.hp
-
-	# THE PIPS ARE THE HULL BAR AT THE TOP OF THE SCREEN, at the same eight-cell
-	# resolution the HUD uses -- so "+8" is shown in the shape you already read
-	# your hull in rather than as a number you have to place.
 	var full_hp := maxi(1, Run.max_hp())
+
+	# THE GAUGE IS THE HULL BAR AT THE TOP OF THE SCREEN, at the same ten-cell
+	# resolution -- so "+8" is shown in the shape you already read your hull in
+	# rather than as a number you have to place. Painted on the machine's own
+	# face, which is where a machine puts a gauge.
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
-	var repair := _service("HULL REPAIR +%d" % eight, "%d cr" % eight_cost,
-		_repair.bind(eight), UITheme.GOOD, &"repair",
+	var weld := _rig(ServiceRig.Kind.WELD, "PATCH +%d" % eight,
+		eight_cost if missing > 0 else -1, _repair.bind(eight),
+		missing > 0 and Run.credits >= eight_cost,
 		Vector2i(int(round(float(eight) * 10.0 / float(full_hp))), 10))
-	_set_service_enabled(repair, missing > 0 and Run.credits >= eight_cost)
-	repair.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
-	_services.add_child(repair)
+	weld.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
 
 	var full_cost := Market.repair_price(n, missing)
-	var full := _service("FULL HULL REPAIR", "%d cr" % full_cost,
-		_repair.bind(missing), UITheme.GOOD, &"repair",
+	var gantry := _rig(ServiceRig.Kind.GANTRY, "OVERHAUL",
+		full_cost if missing > 0 else -1, _repair.bind(missing),
+		missing > 0 and Run.credits >= full_cost,
 		Vector2i(int(round(float(missing) * 10.0 / float(full_hp))), 10))
-	_set_service_enabled(full, missing > 0 and Run.credits >= full_cost)
-	_services.add_child(full)
+	gantry.tooltip_text = Widgets.tip("Every point of it, in one go.")
 
 	var refuel_cost := Market.refuel_price(n)
-	var refuel := _service("REFUEL +%d" % Market.REFUEL_UNITS,
-		"%d cr" % refuel_cost, _refuel, UITheme.CHILL, &"fuel")
-	_set_service_enabled(refuel, Run.credits >= refuel_cost)
-	_services.add_child(refuel)
+	var bowser := _rig(ServiceRig.Kind.BOWSER, "REFUEL +%d" % Market.REFUEL_UNITS,
+		refuel_cost, _refuel, Run.credits >= refuel_cost)
+	bowser.tooltip_text = Widgets.tip("A tankful. Fuel is what a jump costs -- see the starchart's reach ring.")
 
-	# SYSTEM REPAIR: ONE ROW, AND A PICKER BEHIND IT.
+	# THE FAULT POST IS ONLY IN THE BAY WHEN THERE ARE FAULTS.
 	#
 	# It was one row per distinct malfunction, which was right about the CHOICE
-	# and wrong about where to put it. Four things wrong with your ship made four
-	# service rows and pushed repair and refuelling off the top of a panel that
-	# only ever has room for four -- so the more you needed the yard, the less of
-	# it you could see. A picker moves the list to a place that can be as long as
-	# the list is, and leaves the deck showing what the deck is for.
-	#
-	# The row still says HOW MANY, because that is the part you need before you
-	# decide to open anything.
-	var purge_cost := Market.purge_price(n)
+	# and wrong about where to put it: four things wrong with your ship made four
+	# service rows and pushed repair and refuelling off a panel that only ever had
+	# room for four. A picker moves the list somewhere that can be as long as the
+	# list is, and the machine says HOW MANY -- which is the part you need before
+	# you decide to open anything.
 	var dross_n := Run.dross_count()
 	if dross_n > 0:
-		var pb := _service("SYSTEM REPAIR — %d FAULT%s" % [dross_n,
-			"" if dross_n == 1 else "S"], "%d cr" % purge_cost,
-			_open_purge, UITheme.LEAVE, &"purge")
-		pb.tooltip_text = Widgets.tip("Choose which one comes out. Each costs the same and clears exactly one.")
-		_set_service_enabled(pb, Run.credits >= purge_cost)
-		_services.add_child(pb)
+		var purge_cost := Market.purge_price(n)
+		var post := _rig(ServiceRig.Kind.POST, "FAULTS %d" % dross_n,
+			purge_cost, _open_purge, Run.credits >= purge_cost)
+		post.tooltip_text = Widgets.tip("Choose which one comes out. Each costs the same and clears exactly one.")
 
 	# NO +2 HEAT CAP, AND NO SELLING MATERIALS HERE.
 	#
@@ -1477,8 +1907,6 @@ LESS %d FOR YOUR %s" % [ask, part_ex,
 	#
 	# And selling an exotic was a row here AND a row on the Exchange, which is the
 	# deck that exists to answer "what will you give me for what I am carrying".
-	# The Exchange prices materials with the same `Market.material_price` this
-	# used, so nothing about the trade changed except where it is done.
 
 
 ## The shelf: a chassis if one is for sale, then whatever parts are left on it.
@@ -1663,31 +2091,6 @@ func _commit_button(text: String, action: Callable) -> Button:
 	b.add_theme_color_override("font_pressed_color", UITheme.VOID)
 	b.add_theme_color_override("font_disabled_color", UITheme.COLD.darkened(0.3))
 	return b
-
-
-## WHAT IT COSTS AND WHAT YOU CAN DO, in a column of its own.
-##
-## THIRD COLUMN, NOT THE FOOT OF THE FIRST. The price used to sit under the
-## description, which put it a long way down the page and made its y depend on
-## how much the part had to say -- so the whole column had to be padded to a
-## fixed height to stop the button moving as you clicked along the shelf.
-##
-## Beside the cards it is level with them, always in the same place, and it fills
-## the two hundred pixels that were empty to the right of a two-card fan. The
-## page now reads left to right as three answers: what it IS, what it GIVES you,
-## what it COSTS.
-func _money_column(price: int, buttons: Array) -> VBoxContainer:
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 8)
-	col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	col.add_child(UITheme.body("%d CR" % price, UITheme.EMBER, UITheme.FS_HEAD))
-	for b in buttons:
-		var btn := b as Button
-		btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		col.add_child(btn)
-	return col
-
-
 ## WHAT IT PUTS IN YOUR DECK, as the cards themselves.
 ##
 ## THE REAL CARD FACE, not the illustration lifted out of it. Cropping `Z_ART`
@@ -1718,195 +2121,13 @@ func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
 		v.tooltip_text = " "
 		fan.add_child(v)
 	return deck
-
-
-## THE HULL, WHICH HAS NO CARDS. A frame is the one thing on the shelf that puts
-## nothing in your deck, so the cards column has nothing to show and the picture
-## of the ship takes that job instead.
-##
-## SIZED TO A HULL rather than to the card window. It used to reserve 186x120 --
-## `Z_ART` doubled -- which is the shape of a card illustration and not of a
-## ship: hull sprites run about 392x140, so the box held sixty pixels of ship
-## above and below sixty pixels of nothing, and the tiles underneath were pushed
-## off the bottom of the panel.
-const HULL_ART_H := 72
-## As wide as the Yard's right-hand column has to spare. The shelf's own column
-## sized this before hulls moved here, which was a coincidence rather than a
-## reason.
-const HULL_ART_W := 300
-## Your own ship, shown small above the offer so the two can be compared. Half
-## the offer's height: it is the reference, not the subject.
-const HULL_MINI_H := 34
-## How tall each ship stands in the shipyard comparison, and how wide its column
-## is. The canvas is 324x112 at 1x, so a half is 162x56 -- two of those plus the
-## gap is 340 of the 740 the page has, which leaves the gauges beside them room
-## to be full width.
-## How deep the shipyard's two portraits are.
-##
-## The tallest hull in the game is 110 art pixels of ink and they are drawn at
-## 1x, so this is that plus a little air. It was 50, which was right when they
-## were halved.
-const SHIP_BOX_H := 118
-## How wide the offer's portrait box is.
-##
-## The widest hull in the game is 296 art pixels of ink and it is drawn at 1x,
-## so this is that plus air -- and it leaves the other half of a 740 panel for
-## the gauges, which is the point of putting them side by side.
-const OFFER_W := 340
-
-func _hull_art(h: HullData) -> Control:
-	var frame := PanelContainer.new()
-	frame.add_theme_stylebox_override("panel",
-		UITheme.flat(Color("#0a0f17"), UITheme.EMBER, 0, 4, 4))
-	var art := TextureRect.new()
-	art.texture = h.sprite
-	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	art.custom_minimum_size = Vector2(HULL_ART_W, HULL_ART_H)
-	frame.add_child(art)
-	return frame
-
-
-## Open a different part on the shelf. See `_shelf_row`, which takes the setter
-## as a Callable so one row builder serves both the Promenade and the Exchange.
-func _pick_shelf(i: int) -> void:
-	_pick = i
-	_refresh_stock(Run.node_at())
-
-
-## One part on the shelf, as a line in the list along the bottom.
-##
-## STILL A BUTTON, because clicking it is how you open a part -- but styled as a
-## row rather than as a box. The chrome is what made the tiles read as buttons:
-## four bordered boxes under BUY, all the same weight, so the one that spends
-## your credits looked like one of four. This has no border at rest and lights
-## its whole line under the pointer, which is what a list does.
-const ROW_TALL := 34
-## The inset from the row's edge to its contents. The thumbnail is sized against
-## ROW_TALL MINUS TWICE THIS, and getting that wrong is what let a 2x2 part hang
-## out of its own box: the picture asked for `ROW_TALL - 6` = 26 of height inside
-## a row that only had 20 to give, the HBox took its minimum from the picture,
-## and the whole row grew past the button drawn around it.
-const ROW_PAD := 6
-
-
-func _shelf_row(thing: Variant, price: int, pick: int, open: bool,
-		on_pick: Callable) -> Button:
-	var b := Widgets.button("", on_pick.bind(pick))
-	b.custom_minimum_size = Vector2(0, ROW_TALL)
-	# CLIPPED, as a backstop rather than as the plan. The arithmetic above should
-	# keep every picture inside the box; this makes a future sprite of some shape
-	# nobody thought of lose its edge instead of drawing over the row above it.
-	b.clip_contents = true
-	# EACH ONE IN ITS OWN BOX. Bare lines with nothing round them ran together --
-	# four parts reading as one block of text with prices in it, and no edge to
-	# say where one thing stopped and the next began. A hairline and a gap is
-	# enough; this is still a list and not the wall of tiles it was before.
-	#
-	# THE OPEN ONE IS LIT, and it is in the list rather than removed from it.
-	# Pulling it out made the list shorter every time you clicked, so rows moved
-	# under the cursor and the thing you had just chosen was the one thing you
-	# could no longer see in context. Lit, the list never changes length and the
-	# selection has somewhere to be.
-	b.add_theme_stylebox_override("normal",
-		UITheme.flat(UITheme.PANEL2 if open else Color("#0b1017"),
-			UITheme.EMBER if open else UITheme.LINE, 0, 0, 0))
-	b.add_theme_stylebox_override("hover",
-		UITheme.flat(UITheme.PANEL2, UITheme.EMBER if open else UITheme.COLD,
-			0, 0, 0))
-	b.add_theme_stylebox_override("pressed",
-		UITheme.flat(UITheme.PANEL2, UITheme.EMBER, 0, 0, 0))
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT,
-		Control.PRESET_MODE_MINSIZE, ROW_PAD)
-	# EVERY CHILD IGNORES THE MOUSE. They are laid out inside a Button, and a
-	# Label that answers the pointer eats the click meant for the row under it --
-	# the same trap the deck cells in the rail hit.
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(row)
-
-	# THREE KINDS OF THING GO DOWN THIS LIST. The Promenade only ever shows hulls
-	# and modules, but the Exchange shows the hold -- which also carries
-	# MATERIALS, and a material is neither. Casting to both and reading `.name`
-	# off whichever was not null threw the moment an exotic reached the row.
-	var h := thing as HullData
-	var m := thing as ModuleData
-	var mat := thing as MaterialData
-	var nm_text: String = h.name if h != null else (m.name if m != null
-		else (mat.name if mat != null else "?"))
-	# Each kind grades itself in its own vocabulary: a hull has a tier letter and
-	# says so on its own line, a module has a rarity, a material has a tier band.
-	var nm_ink: Color = UITheme.ICE
-	if m != null:
-		nm_ink = ModuleData.rarity_ink(m.rarity)
-	elif mat != null:
-		nm_ink = UITheme.tier_colour(mat.tier)
-	var thumb := TextureRect.new()
-	thumb.texture = h.sprite if h != null else (m.sprite if m != null
-		else (mat.sprite if mat != null else null))
-	thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	thumb.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	thumb.custom_minimum_size = Vector2(46, ROW_TALL - ROW_PAD * 2)
-	thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(thumb)
-
-	# Graded here too, so the shelf reads as a shelf: four names in four inks and
-	# you know which one is worth opening before you open it.
-	var nm := UITheme.body(nm_text.to_upper(), nm_ink, UITheme.FS_SMALL)
-	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(nm)
-
-	# THE FLAG, NOT THE NAME. Every row printed "KORVAN HEAVY WORKS" in Korvan's
-	# orange next to a name in its grade's colour, so a shelf of four parts was
-	# eight coloured words and the eye had nowhere to rest. The flag says the same
-	# thing in thirteen pixels and says it as a MARK, which is what allegiance
-	# should be -- the name is already on the part you have open.
-	#
-	# Leftmost, so the flags line up in a column: whose yard stocked what is a
-	# thing you scan down, not a thing you read across.
-	var flag: Control = null
-	if m != null:
-		var mk: ManufacturerData = DB.manufacturers.get(m.manufacturer)
-		if mk != null:
-			var fl := ChassisSelect.Banner.new()
-			# SCALE 1. The banner's emblem is centred 11 units down and its hem is
-			# cut 6 up from the bottom, so the whole flag needs 22 units of height
-			# to draw intact -- which at any larger scale is taller than a list
-			# row has, and would be a flag with its emblem below the cut.
-			fl.s = 1.0
-			fl.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W, 0)
-			fl.manufacturer = m.manufacturer
-			fl.mark = mk.colour
-			fl.field = mk.field
-			flag = fl
-	if flag == null:
-		# A hull, or a part nobody made. The column still has to exist or the
-		# names below it would not line up with the names above.
-		flag = Control.new()
-		flag.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W, 0)
-	flag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(flag)
-
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(gap)
-
-	var cr := UITheme.body("%d CR" % price, UITheme.EMBER, UITheme.FS_SMALL)
-	cr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(cr)
-	# The flag leads the row. Built last because it needs the part in hand, moved
-	# first because a column of marks is only scannable if it is a column.
-	row.move_child(flag, 0)
-	return b
-
-
+## How deep the berth is. The panel gives it everything under the heading; this
+## is the floor under that, so the scene never collapses on a short page.
+const SCENE_H := 250
+## The details slab. WIDE AND SHORT rather than narrow and tall: two columns of
+## gauges fit in the band of empty wall above the two berths, where a single
+## column could only fit by lying across the ship it was describing.
+const SLAB_W := 470
 func _refresh_stock(n: MapGen.MapNode) -> void:
 	Widgets.clear(_shelf)
 
@@ -1924,73 +2145,80 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 		var m: ModuleData = n.shop[i]
 		on_offer.append({pick = i, thing = m, price = Market.ask(n, m)})
 
+	# WHAT THE TILL IS FOR, said once under it rather than on every ticket. It
+	# also carries the one fact a price cannot: a part bought here goes into the
+	# HOLD, not onto the ship, so a full hold is a reason you cannot shop.
+	if _till_note != null:
+		_till_note.text = ("Shelves bare." if on_offer.is_empty()
+			else "Carry a part down to the till to buy it. It goes into your hold%s"
+				% (", and your hold is full." if Run.hold_full() else "."))
+	if _till != null:
+		_till.visible = not on_offer.is_empty()
+	# THE ROOM KNOWS WHERE IT IS. Same two fields the berth takes: development
+	# sets how many lamps hang over the shop, and whoever holds the station tints
+	# its plating. A Solari promenade and a Cygnet one are the same hall in two
+	# liveries.
+	if _shop != null:
+		_shop.dev = int(n.development)
+		_shop.manufacturer = n.manufacturer
+		_shop.queue_redraw()
+
 	if on_offer.is_empty():
 		_shelf.add_child(UITheme.body(
 			"Shelves bare. Nothing restocks — what was brought here is gone.",
 			UITheme.COLD, UITheme.FS_SMALL))
 		return
 
-	# THE OPEN PART SURVIVES A PURCHASE, or falls to whatever is still here.
-	# Buying the thing you are looking at removes it from the offer, and a
-	# selection left pointing at it would open an empty panel on the one screen
-	# where something just happened.
-	var found := -1
-	for i in on_offer.size():
-		if int(on_offer[i].pick) == _pick:
-			found = i
-			break
-	if found < 0:
-		found = 0
-		_pick = int(on_offer[0].pick)
-	var open: Dictionary = on_offer[found]
-
-	# --- TOP BAND: what it IS on the left, what it puts in your deck on the right.
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 16)
-	# THE TOP BAND TAKES THE SLACK, so the list underneath is pinned to the bottom
-	# of the panel and never moves.
+	# NO OPEN PART, NO CARD FAN, NO BUY COLUMN.
 	#
-	# It used to be as tall as whatever was open, and the open part is not a fixed
-	# height: a 2x2 plate is 88 where a 2x1 is 44, and a part with two affixes and
-	# a flavour line is forty pixels taller than one with neither. So clicking
-	# down the shelf jogged the whole list up and down under the cursor -- and the
-	# list is the thing you are aiming at.
-	top.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_shelf.add_child(top)
-
-	var mod := open.thing as ModuleData
-	var left := _part_column(mod)
-	top.add_child(left)
-
-
-	top.add_child(_card_fan(mod, "ADDS TO YOUR DECK"))
-	var buy := _commit_button("BUY", _on_action.bind("buy", open.thing))
-	buy.disabled = Run.credits < int(open.price)
-	top.add_child(_money_column(int(open.price), [buy]))
-
-	# --- BOTTOM BAND: everything else on the shelf, across the full width.
+	# THE SHELF ANSWERS ALL THREE NOW. The top band existed because a list of
+	# names cannot tell you what a part is -- so one of them was opened at a time,
+	# blown up on the left with its cards beside it and a price with a button. The
+	# stock is OBJECTS on a shelf now, and pointing at one gets you the identical
+	# readout and the identical cards from `ModuleIcon` without displacing
+	# anything. A panel that shows you one part at a time, above a shelf showing
+	# you all of them, is a worse version of the shelf.
 	#
-	# A RULE ABOVE IT, because this is a change of subject rather than another
-	# column of the same one -- above the line is the thing you are considering,
-	# below it is what else there is.
-	_shelf.add_child(UITheme.hsep())
-	# STOCK, not THE REST OF THE SHELF. The open part is in this list too now, so
-	# "the rest" stopped being true -- and a list you can see your own selection
-	# in is a list you can navigate without losing your place in it.
-	_shelf.add_child(UITheme.body("STOCK", UITheme.COLD, UITheme.FS_SMALL))
-	# A LIST, one part to a line, across the full width.
+	# What went with it is the whole top half of the deck, which the shelf takes:
+	# boards down the full height instead of one board and a readout.
+
+	# --- AND THE STOCK IS STANDING ON A SHELF.
 	#
-	# It was a row of tiles and they read as a second set of buttons competing
-	# with BUY -- four boxed things of equal weight under the one boxed thing
-	# that actually spends your money. A list is a list: names down the left,
-	# prices down the right, and the only column you have to scan to compare four
-	# parts is the one with the numbers in it.
-	var rest := VBoxContainer.new()
-	rest.add_theme_constant_override("separation", 5)
-	_shelf.add_child(rest)
-	for row in on_offer:
-		rest.add_child(_shelf_row(row.thing, int(row.price), int(row.pick),
-			int(row.pick) == _pick, _pick_shelf))
+	# IT WAS A LIST OF ROWS. A rack drawn under that list was better than a
+	# picture behind it and was still a table of names -- what is actually on a
+	# shelf is THINGS, at the size and shape they are. A four-cell rail takes
+	# four cells of board and a fitting takes one, so the shelf says what you are
+	# buying before you have read a word of it.
+	#
+	# The hover comes free: `ModuleIcon` already answers with the part's readout
+	# and every card it grants, which is the same panel the refit screen uses.
+	# THE AIR ABOVE IT IS THE ROOM. An expanding spacer first, so the rack is
+	# pushed down and STANDS ON THE DECK rather than hanging from the top of the
+	# panel. Furniture sits on a floor; only a sign hangs.
+	var air := Control.new()
+	air.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	air.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shelf.add_child(air)
+
+	var shelf := ShelfDisplay.new()
+	# ITS OWN SIZE. It filled the whole deck for a while and drew boards all the
+	# way down it, which is a warehouse aisle rather than a shop -- see `BOARDS`
+	# and `RACK_W`. The empty boards that say "a shop with two things in it" are
+	# still there; there are just three of them instead of nine.
+	shelf.custom_minimum_size = Vector2(ShelfDisplay.RACK_W,
+		ShelfDisplay.rack_height())
+	shelf.size_flags_vertical = Control.SIZE_SHRINK_END
+	shelf.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	# NOTHING TO CONNECT. Pointing at a part tells you everything about it and
+	# dragging it to the till buys it; the shelf has no button on it at all, so
+	# the gesture that reads and the gesture that spends cannot be confused.
+	_shelf.add_child(shelf)
+	# LAID OUT ON `resized`, because the wrap depends on how wide the deck is and
+	# the deck has no width until the frame it is built in has been laid out.
+	# `stock` refuses to run against a width of zero rather than putting the
+	# whole shop on one board.
+	shelf.resized.connect(func() -> void: shelf.stock(on_offer))
+	shelf.stock(on_offer)
 
 
 ## What you brought, priced at what this place will pay for it.
@@ -2006,132 +2234,21 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 ## buttons. Four of those is more text than the Promenade ever showed, on the one
 ## page where you already know what you are carrying.
 func _refresh_hold(n: MapGen.MapNode) -> void:
-	Widgets.clear(_hold)
-	# THE PAD IS LISTED HERE TOO, and it has to be: this deck is the only place
-	# in the game that pays for anything, and the pad is a list of things you
-	# must clear before the ship will leave. A dock you could not sell from
-	# would leave the hatch as the only exit -- throwing a rare part away to
-	# undock, while standing in front of somebody who would have bought it.
-	#
-	# Appended rather than merged, so the things you are already carrying stay
-	# in the order you arranged them and the strays sit together at the end.
-	var aboard: Array[HoldItem] = []
-	aboard.append_array(Run.cargo)
-	aboard.append_array(Run.pad)
-	if aboard.is_empty():
-		_hold.add_child(UITheme.body("Hold empty.", UITheme.COLD, UITheme.FS_SMALL))
+	if _hold_grid == null:
 		return
+	_hold_grid.refresh()
+	var stray := Run.pad.size()
+	_hold_head.text = "YOUR HOLD — %d of %d cells%s" % [Run.cargo_used(),
+		Run.cargo_slots(),
+		"" if stray == 0 else " · %d ON THE PAD" % stray]
 
-	# THE OPEN ITEM SURVIVES A SALE, or falls to whatever is still aboard.
-	# Selling the thing you are looking at removes it from the hold, and an index
-	# left pointing at it would open an empty panel on the one screen where
-	# something just happened.
-	if _hold_pick >= aboard.size():
-		_hold_pick = 0
-	var item: HoldItem = aboard[_hold_pick]
-	var mod := item as ModuleData
-	var mat := item as MaterialData
-	var price: int = Market.material_price(n, mat.id) if mat != null \
-		else Market.bid(n, mod)
-
-	# NO EXPAND ON THE TOP BAND HERE, unlike the Promenade. There the band takes
-	# the slack so the short list is pinned to the bottom; here the SCROLLER
-	# takes it, because the list is the part that can outgrow the page. Two
-	# expanding children would split the space and give the scroller half a panel
-	# whether it needed one or not.
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 16)
-	_hold.add_child(top)
-
-	var left: VBoxContainer
-	if mod != null:
-		left = _part_column(mod)
-	else:
-		# A MATERIAL IS NOT A PART, and the panel says so by being shorter rather
-		# than by filling the same shape with blanks. It has no slot, no affixes
-		# and no cards -- what it has is a tier, a size and a sentence about where
-		# it comes from, and that is the whole of it.
-		left = VBoxContainer.new()
-		left.add_theme_constant_override("separation", 4)
-		left.custom_minimum_size = Vector2(PICK_W, 0)
-		left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		left.add_child(UITheme.body(mat.name.to_upper(),
-			UITheme.tier_colour(mat.tier), UITheme.FS_HEAD))
-		left.add_child(UITheme.body("%d×%d · %s" % [mat.size.x, mat.size.y,
-			String(mat.tier).to_upper()], UITheme.COLD, UITheme.FS_SMALL))
-		var blurb := UITheme.body(mat.text, UITheme.QUOTE, UITheme.FS_SMALL)
-		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		blurb.custom_minimum_size = Vector2(PICK_W, DESC_H)
-		left.add_child(blurb)
-	top.add_child(left)
-
-	# --- WHAT IT IS WORTH AND WHAT YOU CAN DO, in the same third column the
-	# Promenade prices things in.
-	#
-	# INSTALL first, because the reason to carry a part is to bolt it on, and the
-	# other two are what you do once you have decided not to.
-	var acts: Array = []
-	if mod != null:
-		# SWAP IN when every mount of that slot is taken, which is the same
-		# question `Widgets.module_row` asks -- a button that says INSTALL and
-		# then quietly displaces something is a button that lied.
-		var full := Run.slots_used(mod.slot) >= Run.slots_for(mod.slot)
-		acts.append(_commit_button("SWAP IN" if full else "INSTALL",
-			_on_action.bind("install", mod)))
-	# A MATERIAL SELLS THROUGH ITS OWN PATH. `_sell_material` spends one of that
-	# id out of the hold and pays the flat price. This is the only place in the
-	# game that sells a material now -- the Yard used to carry a row per material
-	# as well, which is the same trade offered twice on two decks.
-	var sell := Widgets.button("SELL", _sell_material.bind(mat.id) if mat != null
-		else _on_action.bind("sell", item))
-	# A MARKET THAT WILL NOT PAY SAYS SO ON THE BUTTON. `Market.bid` returns 0
-	# for contraband where contraband does not trade, and a SELL that silently
-	# does nothing is worse than one that is visibly refused.
-	sell.disabled = price <= 0
-	acts.append(sell)
-	if mod != null:
-		acts.append(Widgets.button("SCRAP", _on_action.bind("scrap", mod)))
-
-	if mod != null:
-		top.add_child(_card_fan(mod, "IN YOUR DECK"))
-	top.add_child(_money_column(price, acts))
-
-	# --- BOTTOM BAND: everything aboard, across the full width.
-	_hold.add_child(UITheme.hsep())
-	# THE HEADING COUNTS THE STRAYS, in the red the rest of the game reserves for
-	# something being lost. It is the one line on this deck that explains why the
-	# door downstairs is shut.
-	if Run.pad.is_empty():
-		_hold.add_child(UITheme.body("HOLD", UITheme.COLD, UITheme.FS_SMALL))
-	else:
-		_hold.add_child(UITheme.body("HOLD — %d ON THE PAD, NOT STOWED"
-			% Run.pad.size(), UITheme.LEAVE, UITheme.FS_SMALL))
-	# SCROLLED, WHERE THE SHELF IS NOT. A shop stocks at most five things and its
-	# list can never outgrow the band; a hold is twenty cells and routinely
-	# carries more rows than fit. Without this the last one is simply cut off by
-	# the panel edge, which is the failure that hides cargo rather than showing
-	# it -- the same class of bug as the crash this deck had an hour ago.
-	var rest := VBoxContainer.new()
-	rest.add_theme_constant_override("separation", 5)
-	var sc := Widgets.scroller(rest, 60)
-	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_hold.add_child(sc)
-	for i in aboard.size():
-		var it: HoldItem = aboard[i]
-		var m2 := it as MaterialData
-		var p2: int = Market.material_price(n, m2.id) if m2 != null \
-			else Market.bid(n, it as ModuleData)
-		rest.add_child(_shelf_row(it, p2, i, i == _hold_pick, _pick_hold))
-
-
-## Open a different thing in the hold. Its own function because `_shelf_row`
-## takes the setter as a Callable -- the Promenade sets `_pick` and this sets
-## `_hold_pick`, and a row cannot know which list it is in.
-func _pick_hold(i: int) -> void:
-	_hold_pick = i
-	_refresh_hold(Run.node_at())
-
-
+	# WHAT THE COUNTER IS PAYING TODAY, said once rather than on every row. A
+	# market's rate is a property of the PLACE -- see `Market.bid` and its
+	# saturation note -- so it belongs on the counter and not repeated beside
+	# each thing standing near it.
+	_sell_note.text = "Carry something here to be paid for it. %s" % (
+		"This market has taken a lot today; it is paying less than it was."
+		if n.trades >= 3 else "Prices are what this place will bear.")
 ## The recipes this place can support, and the tab that hides when it cannot.
 
 
@@ -2209,15 +2326,6 @@ func _purge(which: StringName) -> void:
 	Run.add_credits(-cost)
 	Audio.play(&"svc_purge", 0.05)
 	Run.log_line("%s cleared." % card.name, &"good")
-
-func _sell_material(id: StringName) -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if not Run.spend_material(id, 1):
-		return
-	var paid := Market.material_price(n, id)
-	Run.add_credits(paid)
-	Run.log_line("Sold 1 %s for %d credits."
-		% [str(MaterialTable.by_id(id).get("name", id)).to_lower(), paid], &"good")
 
 func _fabricate(r: Dictionary) -> void:
 	var line := Fabricator.make(Run.node_at(), r)
@@ -2300,12 +2408,6 @@ func _on_action(action: String, thing: Variant) -> void:
 			# ship with no guns on it and a decision to make about that.
 			Router.show_transfer()
 			return
-		"install":
-			Audio.act(&"module_install")
-			Run.install_module(thing as ModuleData)
-		"scrap":
-			Audio.act(&"module_scrap")
-			Run.scrap_module(thing as ModuleData)
 	_refresh()
 
 

@@ -114,6 +114,23 @@ func run(tree: SceneTree) -> void:
 	# after TAKE IT, with both ships drawn and the leftovers still on the old
 	# one. Reached by actually buying the hull rather than by posing the screen,
 	# so what the shot shows is what the flow produces.
+	# `-- stationshot full ship=BLUEBIRD` flies a NAMED ship.
+	#
+	# A custom name is the one piece of state no fixture reached, and it is
+	# exactly the state that catches a screen printing `hull.name` where it
+	# should print `Run.display_name()` -- which the Shipyard's own berth label
+	# was doing until this flag showed it.
+	#
+	# SET BEFORE THE SCREEN IS BUILT. Parsed after `show_station` the first time,
+	# which proved nothing at all: the deck had already drawn itself off the old
+	# value and no refresh had been asked for.
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("ship="):
+			continue
+		Run.ship_name = (a as String).substr(5).strip_edges()
+		print("  flying the %s (a %s)" % [Run.display_name(), Run.hull.name])
+		break
+
 	if "moving" in OS.get_cmdline_user_args():
 		var offer: HullData = here.shop_hull
 		if offer == null:
@@ -124,6 +141,58 @@ func run(tree: SceneTree) -> void:
 		Router.show_transfer()
 	else:
 		Router.show_station()
+
+	# `-- stationshot full deck=hold` photographs a deck other than the one the
+	# screen opens on. The rail is a lift and clicking it is the only way in, so
+	# without this every shot of this screen was the SERVICES deck and the other
+	# four could only be looked at by playing to them.
+	#
+	#   deck=services  deck=work  deck=stock  deck=hold  deck=bench
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("deck="):
+			continue
+		var deck := StringName((a as String).substr(5).strip_edges())
+		var scr0 := Router.current as StationScreen
+		if scr0 == null:
+			break
+		# NAMED, not indexed. `TABS` is ordered for reading and the rail draws it
+		# in a DIFFERENT order again, so a number here would mean neither.
+		var known := false
+		for row in StationScreen.TABS:
+			if row[0] == deck:
+				known = true
+				break
+		if not known:
+			print("[station] no deck '%s' -- staying on the one it opened" % deck)
+			break
+		scr0._show_tab(deck)
+		print("  deck: %s" % deck)
+		break
+
+	# `-- stationshot full hover` shows the Yard's details slab, which otherwise
+	# only appears while a real pointer is over the ship -- and a pushed event
+	# never moves the OS cursor.
+	if "hover" in OS.get_cmdline_user_args():
+		var yard := Router.current as StationScreen
+		if yard != null:
+			yard._on_ship_hover(true)
+			# THE SLAB'S OWN HEIGHT, printed rather than eyeballed.
+			#
+			# It sat at 293 for 189 of content -- a hundred pixels of nothing
+			# under the last perk -- because `set_anchors_and_offsets_preset`
+			# writes the CURRENT rect into the offsets and nothing had corrected
+			# `offset_bottom` since. A screenshot shows you a panel looks empty;
+			# only this says by how much, and against what it should be.
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			if yard._scene_slab != null:
+				var need: Vector2 = yard._scene_slab.get_combined_minimum_size()
+				print("  slab %.0fx%.0f (min %.0fx%.0f)" % [
+					yard._scene_slab.size.x, yard._scene_slab.size.y,
+					need.x, need.y])
+				if yard._scene_slab.size.y > need.y + 1.0:
+					print("    <-- %.0f taller than its content"
+						% (yard._scene_slab.size.y - need.y))
 
 	# `-- stationshot full purge` opens the fault picker, which is a modal and so
 	# unreachable by any flag that only chooses a deck.

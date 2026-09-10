@@ -36,6 +36,7 @@ func run() -> void:
 	# from a synthetic place and a synthetic part.
 	Run.start_new_run()
 	_check_invariant()
+	_one_price()
 	_print_goods()
 	_print_services()
 	print("=== %s (%d violations) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
@@ -108,6 +109,123 @@ func _check_invariant() -> void:
 											bid, ask, worst, perk])
 	print("  %d price comparisons, worst melt/ask %.3f at %s" % [
 		checked, worst_ratio, worst])
+
+## THE COUNTER QUOTES THE MARKET, AND THERE IS NO SECOND PRICE.
+##
+## The Exchange used to have two places to carry a part to: a counter paying the
+## local bid, and a chute paying `Market.melt` -- a flat rate that is deliberately
+## NOT a function of where you are. Two prices for one object in one room is a
+## second currency however it settles up, so the chute is gone and this is the
+## guard that keeps it gone.
+##
+## THE TEST IS THAT THE QUOTE MOVES WITH THE PLACE. Asserting the number equals
+## `Market.bid` would pass just as happily if someone wired the flat rate in and
+## the two happened to coincide for the part being checked. Saturating the market
+## separates them by construction: a bid falls as a station takes more, and a
+## melt price cannot move at all -- so a counter whose quote does not drop is
+## quoting something other than what this place will bear.
+##
+## `offer()` reads `Run.node_at()` rather than taking a node, which is why this
+## runs against the live run instead of the synthetic places above.
+func _one_price() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		fails += 1
+		print("  NO NODE       the run has nowhere to be, so nothing can be sold")
+		return
+	n.trades = 0
+
+	var part := (DB.modules[&"kh20"] as ModuleData).duplicate(true) as ModuleData
+	var quoted := TradeCounter.offer(part)
+	var bid := Market.bid(n, part)
+	if quoted != bid:
+		fails += 1
+		print("  NOT THE BID   counter %d, market %d" % [quoted, bid])
+
+	# A crate is priced by its own table, and that table is also in credits.
+	var rows := MaterialTable.all()
+	if not rows.is_empty():
+		var crate := MaterialData.of(rows[0])
+		var mq := TradeCounter.offer(crate)
+		var mp := Market.material_price(n, crate.id)
+		if mq != mp:
+			fails += 1
+			print("  NOT THE RATE  counter %d, table %d for %s" % [mq, mp, crate.id])
+
+	# --- AND NOW MOVE THE MARKET UNDER IT.
+	var melt_before := Market.melt(part)
+	n.trades = 12
+	var after := TradeCounter.offer(part)
+	var melt_after := Market.melt(part)
+	if after >= quoted:
+		fails += 1
+		print("  FLAT RATE     %d before %d sales, %d after -- the quote did not move"
+			% [quoted, n.trades, after])
+	if melt_before != melt_after:
+		fails += 1
+		print("  MELT MOVED    %d then %d, so it is no longer a floor" % [
+			melt_before, melt_after])
+	n.trades = 0
+
+	# Nothing in hand is not a price of zero credits, it is no quote at all.
+	if TradeCounter.offer(null) != 0:
+		fails += 1
+		print("  EMPTY HANDS   the counter priced nothing at %d" % TradeCounter.offer(null))
+	print("  one price: bid %d, %d after a busy day, melt held at %d" % [
+		quoted, after, melt_before])
+
+	# --- AND THE OTHER SIDE OF THE SAME DESK.
+	#
+	# The Promenade's till charges rather than pays. It is the same class with
+	# `Side.CHARGES` set, and the thing that makes that safe rather than a second
+	# currency is the spread: what the shop asks is always more than what it
+	# bids, which the exhaustive sweep above proves for every place in the game
+	# and this re-checks at the counter the player actually touches.
+	var till := TradeCounter.offer(part, TradeCounter.Side.CHARGES)
+	var ask := Market.ask(n, part)
+	if till != ask:
+		fails += 1
+		print("  NOT THE ASK   till %d, market %d" % [till, ask])
+	if till <= TradeCounter.offer(part, TradeCounter.Side.PAYS):
+		fails += 1
+		print("  NO SPREAD     till charges %d and pays %d -- buy it back for free"
+			% [till, TradeCounter.offer(part, TradeCounter.Side.PAYS)])
+
+	# --- AND IT SAYS WHY IT IS REFUSING, rather than going quietly dark.
+	var purse := Run.credits
+	Run.credits = maxi(0, till - 40)
+	var short := TradeCounter.refusal(TradeCounter.Side.CHARGES, part)
+	if not short.begins_with("NEED"):
+		fails += 1
+		print("  NO REASON     %d credits against a %d part said '%s'" % [
+			Run.credits, till, short])
+	Run.credits = till + 1000
+	if TradeCounter.refusal(TradeCounter.Side.CHARGES, part) != "":
+		fails += 1
+		print("  REFUSED RICH  the till would not sell to someone who can pay")
+	Run.credits = purse
+	print("  the other side: asks %d, pays %d, and says '%s' when you are short" % [
+		till, quoted, short])
+
+	# --- AND EACH DESK TAKES ONLY FROM ITS OWN SIDE OF THE SHOP.
+	#
+	# THIS ONE IS A MONEY BUG IF IT SLIPS, and a silent one. The two counters are
+	# told apart by where the thing was picked up -- `origin` on the drag payload
+	# -- so a till that accepted a part out of your hold would charge you for
+	# something you already own, and an Exchange counter that accepted one off
+	# the shelf would pay you for the shop's own stock.
+	var till_desk := TradeCounter.new()
+	till_desk.side = TradeCounter.Side.CHARGES
+	var pay_desk := TradeCounter.new()
+	if not till_desk._accepts(TradeCounter.FROM_SHELF) or till_desk._accepts(&"cargo"):
+		fails += 1
+		print("  TILL TAKES ALL     it would charge you for your own cargo")
+	if pay_desk._accepts(TradeCounter.FROM_SHELF) or not pay_desk._accepts(&"cargo"):
+		fails += 1
+		print("  COUNTER BUYS STOCK it would pay you for the shop's own shelf")
+	till_desk.free()
+	pay_desk.free()
+
 
 ## What a Rare Korvan weapon costs and fetches in each kind of place. One row per
 ## place, because the question a trade route asks is "where", not "what".

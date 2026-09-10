@@ -2340,7 +2340,10 @@ func abandon_move() -> void:
 	var n: MapGen.MapNode = _undo_move.get("node", null)
 	if n != null:
 		n.taken.erase(MapGen.OPTION_SHOP_HULL)
-	log_line("Changed your mind. Still flying the %s." % hull.name, &"them")
+	# `display_name`, because this is the player's own ship being named back to
+	# them -- a named ship that backs out of a purchase should not be told it is
+	# still flying its chassis.
+	log_line("Changed your mind. Still flying the %s." % display_name(), &"them")
 	old_hull = null
 	_undo_move.clear()
 	Sig.ship_changed.emit()
