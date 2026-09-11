@@ -12,38 +12,39 @@ extends Control
 ## come back from a save as a discount.
 
 var _header: RichTextLabel
-## Whose yard this is. Null on a station nobody holds.
-## The berths this station is held by, flown at the head of the rail.
-##
-## BUILT FROM THE NODE, not a fixed set of slots. It was two banners, then three,
-## and each time the count went up the extra berth was dropped in silence -- a
-## screen that shows two of three manufacturers is worse than one that shows
-## none, because it looks correct. One flag per berth, however many that is, and
-## `_flag_scale` shrinks them until they fit.
-var _flagrow: HBoxContainer
 ## The door. Held as a member because whether it opens is run state -- see
 ## `_refresh_undock` -- and the rail that builds it is built once.
 var _undock: Button
 var _bench: VBoxContainer
 ## The Exchange: your hold, and the two places you can carry things to.
 var _hold_grid: HoldGrid
-var _hold_head: Label
 var _sell_desk: TradeCounter
 var _sell_note: Label
 ## The Promenade: the till across the front of the shop.
 var _till: TradeCounter
 ## The room the two of them stand in.
 var _shop: ShopScene
+## The rooms the other three decks happen in.
+var _exchange: ExchangeScene
+## The Hiring Hall's board, which is the whole of that deck.
+var _board: PostingBoard
+var _lab: LabScene
+## Pointing at your own ship in the Shipyard, and the slab that answers it.
+var _mine_hit: Control
+var _mine_slab: Control
 var _till_note: Label
 var _hull_offer: VBoxContainer
 ## The service list, a GRID of two so seven short rows are four lines.
 ## The yard's machines, standing in the hangar's front bay.
-var _rigs: HBoxContainer
+var _rigs: Control
 ## How wide one machine's slot in the bay is.
-const RIG_W := 92
+const RIG_W := 74
+## How far apart the machines stand, centre to centre, under your ship. Four of
+## them at this pitch are about as wide as a medium hull, which is the point.
+const RIG_PITCH := 80.0
 ## What is posted at this station and what you can close here. Above the shelf,
 ## because it is the part of a station that is about WHERE YOU GO NEXT.
-var _work: VBoxContainer
+var _work: Container
 ## The station in section, the frame it slides inside, and the ride.
 var _spine: StationSpine
 var _building: Control
@@ -148,46 +149,15 @@ const DECKS := [
 	[&"stock", "PROMENADE", "THE SHELF"],
 	[&"services", "SHIPYARD", "REPAIRS"],
 	[&"hold", "EXCHANGE", "YOUR HOLD"],
-	[&"work", "HIRING HALL", "WORK POSTED"],
+	[&"work", "HIRING BOARD", "WORK POSTED"],
 	[&"bench", "LABORATORY", "FABRICATOR"],
 ]
-## How wide the section is. Wide enough for "HIRING HALL" plus a count at
+## How wide the section is. Wide enough for "HIRING BOARD" plus a count at
 ## FS_SMALL without either wrapping, which is what sets it -- not a round number.
 const RAIL_W := 156
-## Air between two flags.
-const FLAG_GAP := 7
-## How big the berth flags fly, in pixels per banner unit, biggest first.
-##
-## `Banner.S` is 3 and that is the size on a chassis card; this is the head of
-## the screen, so it starts at 4 and steps down only when it has to.
-##
-## WHOLE NUMBERS ONLY. The banner draws its hem and emblem at multiples of this,
-## so a fractional scale puts the whole flag on half-pixels -- 3.5 would fit
-## three at 45.5 wide and would be the wrong answer.
-const FLAG_STEPS: Array[float] = [4.0, 3.0, 2.0, 1.0]
-
-
-## The biggest whole scale at which `count` flags fit the rail side by side.
-##
-## MEASURED, not chosen: three at 4 come to 170 against a 156 rail, which is why
-## the constant could not simply be one number. Three at 3 come to 131.
-static func _flag_scale(count: int) -> float:
-	var n := maxi(1, count)
-	for k in FLAG_STEPS:
-		var wide := float(n) * float(ChassisSelect.Banner.UNITS_W) * k 			+ float(n - 1) * float(FLAG_GAP)
-		if wide <= float(RAIL_W):
-			return k
-	return FLAG_STEPS[FLAG_STEPS.size() - 1]
 ## How tall one deck cell is. Two lines of FS_SMALL plus the padding that keeps
 ## the highlight from touching the text.
 const DECK_H := 44
-## How wide the station's name line is allowed to be before it wraps. Bounded on
-## purpose — see the note in _build().
-const HEADER_W := 560
-## How deep the band holding that line is. The line is centred in it, so this is
-## the whole of the air between the HUD and the first panel -- one number rather
-## than a margin above and a separation below that have to be kept in step.
-const HEADER_BAND := 34
 ## The air above a heading's LABEL BOX, and below it.
 ##
 ## TWO NUMBERS, ONE PIXEL APART, AND THAT PIXEL IS THE WHOLE POINT. Centring the
@@ -246,7 +216,7 @@ func _build() -> void:
 	#
 	# A fixed width and wrapping is the only combination that is neither.
 	_header.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_header.custom_minimum_size = Vector2(HEADER_W, 0)
+	_header.custom_minimum_size = Vector2(RAIL_W, 0)
 	_header.scroll_active = false
 	_header.add_theme_stylebox_override("normal", UITheme.empty())
 
@@ -275,10 +245,13 @@ func _build() -> void:
 	rail.custom_minimum_size = Vector2(RAIL_W, 0)
 	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	_flagrow = HBoxContainer.new()
-	_flagrow.add_theme_constant_override("separation", FLAG_GAP)
-	_flagrow.alignment = BoxContainer.ALIGNMENT_CENTER
-	rail.add_child(_flagrow)
+	# THE STATION'S PARTICULARS, WHERE THE BANNERS WERE.
+	#
+	# The head of the rail held the manufacturers' banners, and the particulars sat
+	# in a band across the top of the deck. The banners are in the rooms now --
+	# hung in the hangar, pinned to the board, over the till -- so the facts about
+	# the place move up here, one to a line, and the deck gets its band back.
+	rail.add_child(_header)
 	# NO NAMES UNDER THEM. A flag that has to be captioned is a flag that failed,
 	# and the manufacturers are named all over this screen anyway -- on every part
 	# on the shelf, and in the trade clause at the top of the page.
@@ -366,11 +339,9 @@ func _build() -> void:
 	# height and pins to the top of whatever is left -- so the sentence sat low
 	# against the panel below and the gap read as a hole under the bar rather
 	# than as margin around a line.
-	var headband := CenterContainer.new()
-	headband.custom_minimum_size = Vector2(0, HEADER_BAND)
-	headband.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	headband.add_child(_header)
-	body_col.add_child(headband)
+	# NO HEADBAND. The station's particulars sat here in a band across the top of
+	# the deck; they head the rail now, where the banners were, and every deck is
+	# that much taller for it.
 	# NO PLACE BLURB HERE AT ALL. It lived in the Yard's right-hand column, where
 	# a sentence about megafauna and salvage read as something the repair shop was
 	# telling you, and moving it to the top of the page only made it wrong on five
@@ -508,6 +479,10 @@ func _offer_column(h: HullData) -> Control:
 	_scene.manufacturer = n.manufacturer
 	_scene.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.add_child(_scene)
+	_mine_view = null
+	_mine_hit = null
+	_mine_slab = null
+	_hang_banners(_scene, n, _scene.banner_spots())
 
 	# --- THE SHIP, AT 1x, STANDING ON THE CRADLE.
 	#
@@ -558,6 +533,15 @@ func _offer_column(h: HullData) -> Control:
 		mine.add_child(mpts)
 		mpts.attach(mine)
 		mpts.passive()
+		# YOUR SHIP ANSWERS A HOVER TOO, with the same slab the hull for sale
+		# gets. Over its INK, not its sheet, and added before the machines so a
+		# rig standing under the hull still takes its own clicks.
+		var mhit := Control.new()
+		mhit.mouse_filter = Control.MOUSE_FILTER_STOP
+		mhit.mouse_entered.connect(_on_mine_hover.bind(true))
+		mhit.mouse_exited.connect(_on_mine_hover.bind(false))
+		box.add_child(mhit)
+		_mine_hit = mhit
 
 		var mine_name := VBoxContainer.new()
 		mine_name.add_theme_constant_override("separation", 1)
@@ -592,6 +576,12 @@ func _offer_column(h: HullData) -> Control:
 		bare.offset_bottom = -8 - YardScene.BAY_H
 		box.add_child(bare)
 		_add_rigs(box)
+		_add_mine_slab(box, null)
+		# PLACED EVEN WITH NOTHING ON THE BLOCKS. This path used to return before
+		# anything was positioned, which was harmless while it only held a label;
+		# your ship and its machines are in it now.
+		box.resized.connect(_place_scene_ship)
+		_place_scene_ship.call_deferred()
 		return box
 
 	var v := ShipView.new()
@@ -694,33 +684,15 @@ func _offer_column(h: HullData) -> Control:
 	box.add_child(deal)
 
 	# --- AND THE ARGUMENT, on the right, only while you are pointing.
-	_scene_slab = _offer_slab(h)
-	# OVER YOUR OWN SHIP, NOT OVER THE ONE YOU ARE POINTING AT.
-	#
-	# It was anchored top right, which is the corner the ship for sale now stands
-	# in -- so pointing at a hull to read about it hid the hull. The slab has to
-	# overlap SOMETHING; the free wall above the berths is a couple of hundred
-	# pixels and the panel is more than that. The one it can afford to cover is
-	# the ship whose numbers are already on it: every figure here is a delta
-	# against your own frame, so the Long Way's contribution to this panel is the
-	# arithmetic, not the silhouette.
-	_scene_slab.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	_scene_slab.offset_left = 8
-	_scene_slab.offset_right = SLAB_W + 8
-	_scene_slab.offset_top = 8
-	# AND ITS HEIGHT COMES FROM ITS CONTENT, in `_place_scene_ship`.
-	#
-	# `set_anchors_and_offsets_preset` writes the control's CURRENT rect into the
-	# offsets, so `offset_bottom` kept whatever height the panel happened to have
-	# when the preset ran -- 293 for 189 of content, which is a hundred pixels of
-	# nothing under the last perk line. The minimum is not knowable until the
-	# panel is in the tree, so the one place that already runs after layout owns
-	# it. Same family as the `set_anchors_preset` trap that collapsed the
-	# transfer screen into its own top third.
+	_scene_slab = _offer_slab(h, Run.hull, h.name.to_upper())
+	# DIRECTLY ABOVE THE SHIP IT DESCRIBES, placed by `_float_slab` once the ship
+	# has been stood on its cradle and its ink is known.
+	_scene_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	_scene_slab.visible = false
 	box.add_child(_scene_slab)
 
 	_add_rigs(box)
+	_add_mine_slab(box, h)
 	box.resized.connect(_place_scene_ship)
 	_place_scene_ship.call_deferred()
 	return box
@@ -731,16 +703,13 @@ func _offer_column(h: HullData) -> Control:
 func _place_scene_ship() -> void:
 	if _scene == null:
 		return
-	if _scene_slab != null and is_instance_valid(_scene_slab):
-		_scene_slab.offset_bottom = _scene_slab.offset_top 			+ _scene_slab.get_combined_minimum_size().y
-	_stand(_mine_view, 0)
+	var mine_at := _stand(_mine_view, 0)
 	var at := _stand(_scene_ship, 1)
-	if _scene_hit != null and _scene_ship != null 			and is_instance_valid(_scene_ship):
-		var ink := _scene_ship.ink_rect()
-		_scene_hit.position = Vector2(at.x + float(ink.position.x),
-			at.y + float(ink.position.y)).round()
-		_scene_hit.size = Vector2(float(maxi(1, ink.size.x)),
-			float(maxi(1, ink.size.y)))
+	_cover_ink(_scene_hit, _scene_ship, at)
+	_cover_ink(_mine_hit, _mine_view, mine_at)
+	_float_slab(_scene_slab, _scene_ship, at)
+	_float_slab(_mine_slab, _mine_view, mine_at)
+	_place_rigs()
 
 
 ## Put one ship down in berth `i`, and report where its canvas landed.
@@ -776,33 +745,38 @@ func _on_ship_hover(on: bool) -> void:
 ## manufacturer accent -- so wherever that accent is itself red, four gauges on
 ## which the new frame was BETTER came out red under a legend saying red meant
 ## loss. A signed number cannot be misread by anybody.
-func _offer_slab(h: HullData) -> Control:
+func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mark := DB.manufacturer_colour(h.manufacturer)
 
 	# --- WHAT IT IS, AND WHAT THE PLUSES AND MINUSES ARE AGAINST.
 	#
-	# THE DELTAS NEVER SAID WHAT THEY WERE MEASURED FROM. Every gauge carries a
-	# "+1" or a "-2" and the panel simply assumed you knew those were against the
-	# ship you flew in on. It is standing in the next berth with its name on it,
-	# so naming it here closes the loop for one line.
+	# ONE SLAB FOR EITHER SHIP. Pointing at the hull for sale reads its figures
+	# against yours; pointing at yours reads them against the hull for sale. The
+	# same panel both ways round, so the comparison is symmetrical and there is
+	# one thing to learn. `against` is null when the yard has nothing on the
+	# blocks, and then there is simply nothing to subtract.
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.add_child(UITheme.body(h.name.to_upper(),
-		DB.manufacturer_colour(h.manufacturer), UITheme.FS_HEAD))
+	head.add_child(UITheme.body(title, mark, UITheme.FS_HEAD))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	head.add_child(gap)
-	var against := UITheme.body("AGAINST %s" % Run.display_name().to_upper(),
-		UITheme.QUOTE, UITheme.FS_SMALL)
-	against.size_flags_vertical = Control.SIZE_SHRINK_END
-	head.add_child(against)
+	if against != null:
+		# `display_name` when the other ship is YOURS, so a named ship is never
+		# compared against its own chassis.
+		var other := Run.display_name() if against == Run.hull else against.name
+		var vs := UITheme.body("AGAINST %s" % other.to_upper(),
+			UITheme.QUOTE, UITheme.FS_SMALL)
+		vs.size_flags_vertical = Control.SIZE_SHRINK_END
+		head.add_child(vs)
 	col.add_child(head)
 
-	var hand := h.hand_size - Run.hull.hand_size
+	var hand := 0 if against == null else h.hand_size - against.hand_size
 	col.add_child(UITheme.body("%s · %s TIER · HAND %d%s" % [
 		HullData.weight_name(h.weight).to_upper(), h.tier_letter(), h.hand_size,
 		"" if hand == 0 else (" (%+d)" % hand)], UITheme.COLD, UITheme.FS_SMALL))
@@ -810,18 +784,14 @@ func _offer_slab(h: HullData) -> Control:
 
 	# BOTH SIDES BARE, which is what makes the comparison honest: nothing is
 	# carried over by the swap itself, so what it changes is the FRAME.
-	var mine := Run.hull_attributes(Run.hull)
 	var theirs := Run.hull_attributes(h)
-	for i in mini(theirs.size(), mine.size()):
-		theirs[i]["delta"] = int(theirs[i].value) - int(mine[i].value)
+	if against != null:
+		var base := Run.hull_attributes(against)
+		for i in mini(theirs.size(), base.size()):
+			theirs[i]["delta"] = int(theirs[i].value) - int(base[i].value)
 
-	# --- SEVEN GAUGES IN TWO COLUMNS, NOT SEVEN STACKED ROWS.
-	#
-	# THE SLAB WAS TALLER THAN THE SHIP IT DESCRIBED. Stacked, the seven
-	# attributes plus the perks made a column near three hundred pixels deep,
-	# anchored over the berth -- so pointing at a hull to learn about it COVERED
-	# the hull. Paired, the same seven are four rows, and the whole panel fits in
-	# the band of empty wall above the ships where it hides nothing at all.
+	# --- SEVEN GAUGES IN TWO COLUMNS, so the slab fits in the band of wall above
+	# the berths instead of lying across the ship it describes.
 	var half := int(ceilf(float(theirs.size()) * 0.5))
 	var pair := HBoxContainer.new()
 	pair.add_theme_constant_override("separation", 22)
@@ -834,7 +804,7 @@ func _offer_slab(h: HullData) -> Control:
 		if part.is_empty():
 			continue
 		var blk := AttrBlock.new()
-		blk.setup(part, DB.manufacturer_colour(h.manufacturer))
+		blk.setup(part, mark)
 		pair.add_child(blk)
 	col.add_child(pair)
 
@@ -844,16 +814,13 @@ func _offer_slab(h: HullData) -> Control:
 	mounts.add_child(UITheme.body("MOUNTS", UITheme.COLD, UITheme.FS_SMALL))
 	for sl in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
 			ModuleData.Slot.UTILITY]:
-		var d := h.slots_for(sl) - Run.hull.slots_for(sl)
+		var d := 0 if against == null else h.slots_for(sl) - against.slots_for(sl)
 		mounts.add_child(UITheme.body("%s %d%s" % [
 			ModuleData.slot_name(sl).to_upper().substr(0, 3), h.slots_for(sl),
 			"" if d == 0 else (" (%+d)" % d)],
 			UITheme.CHILL if d >= 0 else UITheme.LEAVE, UITheme.FS_SMALL))
 	col.add_child(mounts)
 
-	# THE PERKS GET THE WHOLE WIDTH NOW, which is most of what was wrong with
-	# them: at 230 pixels "SALVAGE RACK: SCRAPPING MODULES PAYS +40%" broke after
-	# PAYS and left "+40%." alone on a line of its own.
 	for pid in h.perks():
 		var pk := UITheme.body(DB.perk_text(pid), UITheme.EMBER, UITheme.FS_SMALL)
 		pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -861,19 +828,11 @@ func _offer_slab(h: HullData) -> Control:
 		pk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		col.add_child(pk)
 
-	# --- AND THE SLAB ITSELF.
-	#
-	# OPAQUE, WHICH IT SHOULD ALWAYS HAVE BEEN. It sat at 86% so the scene could
-	# show through, and what showed through was a hull -- grey plating behind
-	# grey figures, which is the one background text cannot be read on. Nothing
-	# is gained by seeing a ship through its own numbers.
-	#
-	# FRAMED IN THE SELLER'S COLOUR, so the panel belongs to the ship it is
-	# describing rather than to the screen it is floating on. The same mark the
-	# name above it wears.
+	# OPAQUE, and FRAMED IN THE COLOUR OF THE SHIP IT DESCRIBES. It sat at 86%
+	# once, and what showed through was a hull -- grey plating behind grey
+	# figures, the one background text cannot be read on.
 	var slab := PanelContainer.new()
 	slab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var mark := DB.manufacturer_colour(h.manufacturer)
 	slab.add_theme_stylebox_override("panel",
 		UITheme.flat(Color(0.031, 0.043, 0.066, 0.98),
 			Color(mark.r, mark.g, mark.b, 0.55), 0, 8, 11))
@@ -884,34 +843,39 @@ func _offer_slab(h: HullData) -> Control:
 
 ## A label, a gauge and a figure, on the row height everything else uses.
 func _page_work() -> Control:
-	var box := Widgets.section("work")
-
-	# --- THE WORK IS PINNED TO A BOARD.
+	# --- THE WHOLE DECK IS THE BOARD.
 	#
-	# THE FURNITURE IS UNDER THE CONTENT, the same move the Promenade's shelf
-	# makes. A contract is not a row in a table -- it is a notice somebody walked
-	# up and pinned there, and the difference between those two things is a
-	# frame, a pin and a shadow. The rows do not change at all; the board
-	# measures itself off them.
+	# It was a board hung on a hall's wall, with a door and a terminal and benches
+	# round it -- a room with a noticeboard in it. A hiring hall IS its board: the
+	# paper is what you came for, and the paper is also how the rest of the
+	# station's life shows. So the cork runs edge to edge in a wooden frame, the
+	# work is pinned down the left wherever there was room, and the right is
+	# the town's own -- see `PostingBoard`.
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var board := PostingBoard.new()
-	board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	stack.add_child(board)
+	_board = PostingBoard.new()
+	_board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(_board)
 
-	_work = VBoxContainer.new()
-	_work.add_theme_constant_override("separation", 9)
-	_work.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# INSIDE THE FRAME, with room for a pin above the first notice.
-	_work.offset_left = PostingBoard.FRAME_W + 6.0
-	_work.offset_right = -(PostingBoard.FRAME_W + 6.0)
-	_work.offset_top = PostingBoard.FRAME_W + 9.0
-	_work.offset_bottom = -(PostingBoard.FRAME_W + 6.0)
+	# THE WORK, down the left of the board, in one straight column. The notices
+	# hung at staggered offsets for a pass, to look pinned by hand, and a stagger
+	# reads as crooked -- a notice is something to read, and a column is how.
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 13)
+	_work = column
+	_work.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_work.anchor_right = PostingBoard.NOTICE_SHARE
+	_work.offset_left = PostingBoard.FRAME_W + 8.0
+	_work.offset_right = 0.0
+	_work.offset_top = PostingBoard.FRAME_W + 10.0
+	_work.offset_bottom = -(PostingBoard.FRAME_W + 8.0)
 	stack.add_child(_work)
-	board.watch(_work)
-	box.add_child(stack)
-	return Widgets.panel_with(Widgets.pad(box))
+	_board.watch(_work)
+	# AND THE PINS, OVER THE NOTICES. A control draws under its children and a pin
+	# goes THROUGH the paper, so the pins are a layer of their own on top.
+	stack.add_child(_board.make_pins())
+	return Widgets.panel_with(Widgets.pad(stack))
 
 
 ## THE PROMENADE: one part shown large, the rest as a list beside it.
@@ -1072,50 +1036,85 @@ func _on_till(item: HoldItem) -> void:
 ## you pack, it already drags, and every part on it already answers a hover with
 ## its own readout and cards.
 func _page_hold() -> Control:
+	# --- THE DECK IS A LOADING DOCK, and your hold is standing on it.
+	#
+	# `ExchangeScene` draws the dock -- the shutter, the crane, the painted bay --
+	# and a cargo cage round the grid, off the grid's own rect. The grid itself is
+	# untouched: it is still the real, packable hold, it still takes every drop
+	# and answers every hover. It stands in a frame on a floor now instead of
+	# floating at the top of a column under a caption.
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 5)
+	var stack := Control.new()
+	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_exchange = ExchangeScene.new()
+	_exchange.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(_exchange)
+
 	var box := HBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.add_theme_constant_override("separation", 14)
 
 	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 4)
+	left.add_theme_constant_override("separation", 0)
 	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_hold_head = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	left.add_child(_hold_head)
+	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	# AIR ABOVE IT, so the cage STANDS on the dock rather than hanging from the
+	# top of the deck.
+	var air := Control.new()
+	air.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	air.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.add_child(air)
+	# PADDED BY EXACTLY THE CAGE'S OWN FRAME, so the cage is always drawn in the
+	# margin and never across a cell -- and a little more at the top for the
+	# lifting eye, and at the foot so the skid sits on the deck.
+	var cage := MarginContainer.new()
+	cage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cage.add_theme_constant_override("margin_left", int(ExchangeScene.CAGE_SIDE) + 8)
+	cage.add_theme_constant_override("margin_right", int(ExchangeScene.CAGE_SIDE))
+	cage.add_theme_constant_override("margin_top", int(ExchangeScene.CAGE_TOP) + 6)
+	cage.add_theme_constant_override("margin_bottom", int(ExchangeScene.CAGE_FOOT) + 6)
 	_hold_grid = HoldGrid.new()
-	# ITS OWN SIZE, ALWAYS. The grid draws a frame round the cells it holds, and
-	# letting a container stretch it drew that frame out past the last column --
-	# a four-wide hold in a six-wide box, which is a lie about how much room you
-	# have.
 	_hold_grid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_hold_grid.dropped.connect(_on_hold_move)
-	left.add_child(_hold_grid)
-	var slack := Control.new()
-	slack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	slack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_child(slack)
+	cage.add_child(_hold_grid)
+	left.add_child(cage)
 	box.add_child(left)
+	_exchange.watch_hold(_hold_grid)
+
+	var floorspace := Control.new()
+	floorspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	floorspace.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(floorspace)
 
 	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 10)
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 0)
+	right.custom_minimum_size = Vector2(300, 0)
+	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-
-	right.add_child(UITheme.body("THE COUNTER", UITheme.COLD, UITheme.FS_SMALL))
+	var air2 := Control.new()
+	air2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	air2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right.add_child(air2)
 	_sell_desk = TradeCounter.new()
-	# IT TAKES THE WHOLE DECK NOW. With the chute gone the counter is the only
-	# thing on this side, and a 76px slab floating over a column of nothing read
-	# as a widget rather than as furniture. Grown, it is a service desk you walk
-	# up to -- and the scale on it is drawn off the height, so it stands taller
-	# with the counter instead of stretching.
-	_sell_desk.custom_minimum_size = Vector2(0, 120)
-	_sell_desk.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# A DESK IN THE DOCK, NOT A ROOM OF ITS OWN. Given the whole column,
+	# `TradeCounter` draws its own back wall and stacks crates against it -- a
+	# room inside the room, in a second grey. Thirty-four pixels over the desk is
+	# the height that keeps the scale standing on it and stops short of a wall.
+	_sell_desk.custom_minimum_size = Vector2(0, TradeCounter.DESK_H + 34)
+	_sell_desk.size_flags_vertical = Control.SIZE_SHRINK_END
 	_sell_desk.took.connect(_on_counter)
 	right.add_child(_sell_desk)
+	box.add_child(right)
+
+	stack.add_child(box)
+	outer.add_child(stack)
 	_sell_note = UITheme.body("Carry something here to be paid for it.",
 		UITheme.QUOTE, UITheme.FS_SMALL)
 	_sell_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	right.add_child(_sell_note)
-	box.add_child(right)
-	return Widgets.panel_with(Widgets.pad(box))
+	outer.add_child(_sell_note)
+	return Widgets.panel_with(Widgets.pad(outer))
 
 
 ## A part moved inside the hold. The grid reports; this owns the change.
@@ -1147,33 +1146,50 @@ func _on_counter(item: HoldItem) -> void:
 
 
 func _page_bench() -> Control:
-	var box := Widgets.section("fabricator")
-
-	# --- THE RECIPES ARE LOADED INTO A MACHINE.
+	# --- A LAB, WITH THE FABRICATOR STANDING IN IT.
 	#
-	# A recipe is a job you put INTO something, and what makes that read is a
-	# hopper it goes in at, a body it happens in and a chute it comes out of. The
-	# rows are untouched; `Fabricator` draws a bay behind each of them.
+	# The machine used to be the whole deck, so one recipe sat in a casing four
+	# hundred pixels deep. `LabScene` draws the room -- the tanks, the pipework,
+	# the floor -- and the machine stands in the middle of it on its own feet. The
+	# recipe rows and the bays behind them are unchanged.
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lab = LabScene.new()
+	_lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(_lab)
+
+	# Where the machine stands. The case and its recipe list are both inside it,
+	# so `FabricatorCase.watch` measures bays between siblings as it always did.
+	var machine := Control.new()
+	machine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	machine.anchor_left = LabScene.MACHINE_L
+	machine.anchor_right = LabScene.MACHINE_R
+	# ANCHORED TO THE FLOOR at a fixed height -- see `LabScene.MACHINE_H` for
+	# why the machine no longer runs to the ceiling.
+	machine.anchor_top = 1.0
+	machine.anchor_bottom = 1.0
+	machine.offset_left = 0.0
+	machine.offset_right = 0.0
+	machine.offset_top = -(LabScene.MACHINE_H + LabScene.MACHINE_FOOT)
+	machine.offset_bottom = -LabScene.MACHINE_FOOT
+	stack.add_child(machine)
+
 	var rig := FabricatorCase.new()
 	rig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	stack.add_child(rig)
+	machine.add_child(rig)
 
 	_bench = VBoxContainer.new()
 	_bench.add_theme_constant_override("separation", 11)
 	_bench.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# CLEAR OF THE HOPPER AND THE CHUTE, so the jobs sit in the body of the
-	# machine rather than over its mouth.
+	# BEHIND THE GLASS: clear of the hood's header above and its bench below.
 	_bench.offset_left = FabricatorCase.CASE_W + 7.0
 	_bench.offset_right = -(FabricatorCase.CASE_W + 7.0)
-	_bench.offset_top = FabricatorCase.HOPPER_H + 9.0
-	_bench.offset_bottom = -(FabricatorCase.CHUTE_H + 9.0)
-	stack.add_child(_bench)
+	_bench.offset_top = FabricatorCase.HOOD_H + 9.0
+	_bench.offset_bottom = -(FabricatorCase.BASE_H + 9.0)
+	machine.add_child(_bench)
 	rig.watch(_bench)
-	box.add_child(stack)
-	return Widgets.panel_with(Widgets.pad(box))
+	return Widgets.panel_with(Widgets.pad(stack))
 
 
 ## Show one page. The lit stylebox is the HUD's, so an active tab looks the same
@@ -1365,20 +1381,12 @@ func _service(label: String, price_text: String, action: Callable,
 ## better pictures on it. Anchored to the bottom and given the bay's exact depth,
 ## so every rig stands on the line the cradle's posts come down to.
 func _add_rigs(box: Control) -> void:
-	_rigs = HBoxContainer.new()
-	_rigs.alignment = BoxContainer.ALIGNMENT_CENTER
-	_rigs.add_theme_constant_override("separation", 8)
-	_rigs.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	# ON YOUR SIDE OF THE BAY, under YOUR ship.
-	#
-	# They were centred across the whole floor, which put a fuel bowser as near
-	# to the hull for sale as to the one it would be fuelling. Every one of these
-	# machines acts on the ship in the LEFT berth, and standing them under it is
-	# the entire argument for taking them out of a table in the first place.
-	_rigs.anchor_right = 0.55
-	_rigs.offset_top = -YardScene.BAY_H
-	_rigs.offset_left = 10
-	_rigs.offset_right = 0
+	# A PLAIN LAYER, NOT A ROW. The machines are stood where they work -- under
+	# the ship, reaching up to it -- by `_place_rigs`, which knows where the hull
+	# ended up. A box container would put them wherever a box puts things.
+	_rigs = Control.new()
+	_rigs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rigs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.add_child(_rigs)
 
 
@@ -1391,7 +1399,7 @@ func _rig(kind: int, label: String, price: int, action: Callable,
 	r.price = price
 	r.gauge = gauge
 	r.disabled = not live
-	r.custom_minimum_size = Vector2(RIG_W, YardScene.BAY_H)
+	r.size = Vector2(RIG_W, YardScene.BAY_H)
 	r.pressed.connect(action)
 	_rigs.add_child(r)
 	return r
@@ -1758,49 +1766,30 @@ Stow it in the hold on the SHIP page, or sell it at the Exchange."
 
 
 func _refresh_header(n: MapGen.MapNode) -> void:
+	# ONE FACT TO A LINE, at the head of the rail.
+	#
+	# It was a sentence across the top of the deck -- "city station · high security
+	# · danger 5 · glut solari/cygnet" -- which is four separate facts wearing
+	# punctuation. Stacked in the rail's head they read as what they are, and the
+	# place's name gets to be a title.
 	var note := ""
 	match n.region:
-		MapGen.Region.COSMOPOLITAN: note = " · stock from many manufacturers, strict inspections"
-		MapGen.Region.LAWLESS: note = " · fenced goods, no questions"
+		MapGen.Region.COSMOPOLITAN: note = "stock from many manufacturers, strict inspections"
+		MapGen.Region.LAWLESS: note = "fenced goods, no questions"
 	_header.clear()
-	# Named by what the place is, not by the derived region label — "Frontier
-	# station" says less than "Settlement station, moderate security".
-	_header.append_text("[color=#%s]%s station[/color] · %s security · danger %d[color=#%s]%s[/color]" % [
-		UITheme.ICE.to_html(false), MapGen.development_name(n.development),
-		MapGen.security_name(n.security).to_lower(), n.danger,
-		UITheme.COLD.to_html(false), note])
-
-	# The clause that used to be its own label at the right-hand edge. Amber,
-	# because it is the only part of this line you can act on.
+	_header.append_text("[font_size=%d][color=#%s]%s STATION[/color][/font_size]\n" % [
+		UITheme.FS_HEAD, UITheme.ICE.to_html(false),
+		MapGen.development_name(n.development).to_upper()])
+	_header.append_text("[color=#%s]%s SECURITY\nDANGER %d[/color]" % [
+		UITheme.CHILL.to_html(false),
+		MapGen.security_name(n.security).to_upper(), n.danger])
 	var tl := Market.trade_line(n)
 	if tl != "":
-		_header.append_text("[color=#%s] · %s[/color]"
-			% [Color("#d99b29").to_html(false), tl])
-
-	# HIDDEN, not blanked, on a station nobody holds. An empty flag is a
-	# manufacturer with no mark rather than an absence of manufacturers, and
-	# lawless space having no berth is a fact worth reading off the screen.
-	Widgets.clear(_flagrow)
-	var fk := _flag_scale(n.berths.size())
-	for mid in n.berths:
-		var mk: ManufacturerData = DB.manufacturers.get(mid)
-		# SKIPPED, not blanked. An empty flag is a manufacturer with no mark
-		# rather than an absence of manufacturers, and lawless space having no
-		# berth is a fact worth reading off the screen -- as an empty rail head.
-		if mk == null:
-			continue
-		var fl := ChassisSelect.Banner.new()
-		# ITS OWN MINIMUM DEPTH, which the class does not set. `Banner` fixes only
-		# its width and fills whatever height it is given, and the hem is cut from
-		# the bottom edge -- so given less it would be a flag stopping mid-emblem.
-		fl.s = fk
-		fl.custom_minimum_size = Vector2(
-			float(ChassisSelect.Banner.UNITS_W) * fk,
-			float(ChassisSelect.Banner.UNITS_H) * fk)
-		fl.manufacturer = mid
-		fl.mark = mk.colour
-		fl.field = mk.field
-		_flagrow.add_child(fl)
+		_header.append_text("\n[color=#%s]%s[/color]"
+			% [Color("#d99b29").to_html(false), tl.to_upper()])
+	if note != "":
+		_header.append_text("\n[color=#%s]%s[/color]"
+			% [UITheme.COLD.to_html(false), note.to_upper()])
 
 
 ## Repair, refuelling, purges -- and the ship on the pad beside your own.
@@ -1872,7 +1861,8 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	weld.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
 
 	var full_cost := Market.repair_price(n, missing)
-	var gantry := _rig(ServiceRig.Kind.GANTRY, "OVERHAUL",
+	var gantry := _rig(ServiceRig.Kind.GANTRY,
+		"REPAIR +%d" % missing if missing > 0 else "REPAIR",
 		full_cost if missing > 0 else -1, _repair.bind(missing),
 		missing > 0 and Run.credits >= full_cost,
 		Vector2i(int(round(float(missing) * 10.0 / float(full_hp))), 10))
@@ -1883,20 +1873,23 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 		refuel_cost, _refuel, Run.credits >= refuel_cost)
 	bowser.tooltip_text = Widgets.tip("A tankful. Fuel is what a jump costs -- see the starchart's reach ring.")
 
-	# THE FAULT POST IS ONLY IN THE BAY WHEN THERE ARE FAULTS.
+	# THE FAULT POST STANDS IN THE BAY WHETHER OR NOT ANYTHING IS WRONG.
 	#
-	# It was one row per distinct malfunction, which was right about the CHOICE
-	# and wrong about where to put it: four things wrong with your ship made four
-	# service rows and pushed repair and refuelling off a panel that only ever had
-	# room for four. A picker moves the list somewhere that can be as long as the
-	# list is, and the machine says HOW MANY -- which is the part you need before
-	# you decide to open anything.
+	# It used to appear only with a fault to fix, so the bay changed shape between
+	# visits and the machine you looked for was sometimes simply not there. A post
+	# that reads NO FAULTS is an answer; an empty patch of floor is a question.
+	# With faults it opens the picker -- one row per distinct malfunction was right
+	# about the CHOICE and wrong about where to put it, so the list lives somewhere
+	# that can be as long as the list is.
 	var dross_n := Run.dross_count()
-	if dross_n > 0:
-		var purge_cost := Market.purge_price(n)
-		var post := _rig(ServiceRig.Kind.POST, "FAULTS %d" % dross_n,
-			purge_cost, _open_purge, Run.credits >= purge_cost)
-		post.tooltip_text = Widgets.tip("Choose which one comes out. Each costs the same and clears exactly one.")
+	var purge_cost := Market.purge_price(n)
+	var post := _rig(ServiceRig.Kind.POST,
+		"FAULTS %d" % dross_n if dross_n > 0 else "NO FAULTS",
+		purge_cost if dross_n > 0 else -1, _open_purge,
+		dross_n > 0 and Run.credits >= purge_cost)
+	post.tooltip_text = Widgets.tip(
+		"Choose which one comes out. Each costs the same and clears exactly one."
+		if dross_n > 0 else "Nothing is wrong with the ship's systems.")
 
 	# NO +2 HEAT CAP, AND NO SELLING MATERIALS HERE.
 	#
@@ -2162,6 +2155,7 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 		_shop.dev = int(n.development)
 		_shop.manufacturer = n.manufacturer
 		_shop.queue_redraw()
+		_hang_banners(_shop, n, _shop.banner_spots())
 
 	if on_offer.is_empty():
 		_shelf.add_child(UITheme.body(
@@ -2234,13 +2228,16 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 ## buttons. Four of those is more text than the Promenade ever showed, on the one
 ## page where you already know what you are carrying.
 func _refresh_hold(n: MapGen.MapNode) -> void:
+	_dress_room(_exchange, n)
 	if _hold_grid == null:
 		return
 	_hold_grid.refresh()
 	var stray := Run.pad.size()
-	_hold_head.text = "YOUR HOLD — %d of %d cells%s" % [Run.cargo_used(),
-		Run.cargo_slots(),
-		"" if stray == 0 else " · %d ON THE PAD" % stray]
+	# THE CAGE CARRIES THE NAME NOW, stencilled on its plate. Short enough for a
+	# narrow hold's plate: "of 20 cells" and a count on the pad ran past the frame.
+	_exchange.hold_label = "YOUR HOLD  %d/%d%s" % [Run.cargo_used(), Run.cargo_slots(),
+		"" if stray == 0 else "  +%d ON PAD" % stray]
+	_exchange.queue_redraw()
 
 	# WHAT THE COUNTER IS PAYING TODAY, said once rather than on every row. A
 	# market's rate is a property of the PLACE -- see `Market.bid` and its
@@ -2253,6 +2250,7 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 
 
 func _refresh_bench(n: MapGen.MapNode) -> void:
+	_dress_room(_lab, n)
 	Widgets.clear(_bench)
 	var recipes := Fabricator.available(n)
 	# The TAB goes, not the page. A page that hides itself leaves a lit tab
@@ -2420,6 +2418,9 @@ func _on_action(action: String, thing: Variant) -> void:
 
 
 func _refresh_work(n: MapGen.MapNode) -> void:
+	if _board != null:
+		_board.posts = _board_posts(n)
+		_board.queue_redraw()
 	Widgets.clear(_work)
 	var offers := Contracts.board(n)
 	var ready := Run.deliverable_at(n)
@@ -2443,12 +2444,18 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 			"OFFLOAD %d HEAT" % (job as ContractData).amount))
 
 	if not mine.is_empty():
-		_work.add_child(UITheme.body("SIGNED, ELSEWHERE", UITheme.COLD, UITheme.FS_SMALL))
+		# ONE CARD, NOT A HEADING AND A LIST. On a board every child is a notice
+		# somebody pinned up, and a loose heading with its rows under it would
+		# have been pinned as separate scraps and tilted apart.
+		var card := VBoxContainer.new()
+		card.add_theme_constant_override("separation", 2)
+		card.add_child(UITheme.body("SIGNED, ELSEWHERE", UITheme.COLD, UITheme.FS_SMALL))
 		for job in mine:
 			var c: ContractData = job
 			var row := UITheme.body("· %s" % c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL)
 			row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			_work.add_child(row)
+			card.add_child(row)
+		_work.add_child(Widgets.panel_with(Widgets.pad(card, 6, 4)))
 
 	for job in offers:
 		var c2: ContractData = job
@@ -2541,3 +2548,206 @@ func _deliver_row(c: ContractData, label: String) -> Control:
 		_refresh()))
 	return Widgets.panel_with(Widgets.pad(row, 6, 4))
 
+
+## Put a pointer target exactly over a ship's metal.
+##
+## THE INK, NOT THE CANVAS: a hull sheet carries a lot of transparent margin, and
+## a target the size of the sheet would fire from forty pixels of empty air.
+func _cover_ink(hit: Control, v: ShipView, at: Vector2) -> void:
+	if hit == null or not is_instance_valid(hit) or v == null or not is_instance_valid(v):
+		return
+	var ink := v.ink_rect()
+	hit.position = Vector2(at.x + float(ink.position.x),
+		at.y + float(ink.position.y)).round()
+	hit.size = Vector2(float(maxi(1, ink.size.x)), float(maxi(1, ink.size.y)))
+
+
+## Your own ship's figures, on the same slab the hull for sale gets, floated
+## directly above your ship by `_float_slab`.
+func _add_mine_slab(box: Control, against: HullData) -> void:
+	if Run.hull == null:
+		return
+	_mine_slab = _offer_slab(Run.hull, against, Run.display_name().to_upper())
+	_mine_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_mine_slab.visible = false
+	box.add_child(_mine_slab)
+
+
+## Pointing at your own ship swaps in its figures.
+func _on_mine_hover(on: bool) -> void:
+	if _mine_slab != null and is_instance_valid(_mine_slab):
+		_mine_slab.visible = on
+
+
+## Stand the yard's machines under YOUR ship and hand each one the hull to reach.
+##
+## THE MACHINES WORK ON THE SHIP, SO THEY TOUCH IT. They stood in an evenly spaced
+## row across the bay like four buttons that happened to be drawn as machines --
+## a welding cart nowhere near a weld. Each one now stands under the hull in the
+## left berth and is given that hull's rect in its own coordinates, so the arm,
+## the jack, the hose and the cable each reach the ship they work on. Spaced off
+## the berth's centre rather than packed into a box, so the row is as wide as the
+## ship it is working on.
+func _place_rigs() -> void:
+	if _rigs == null or not is_instance_valid(_rigs) or _scene == null:
+		return
+	var kids := _rigs.get_children()
+	if kids.is_empty():
+		return
+	var berth := _scene.size.x * YardScene.berth_x(0)
+	var span := float(kids.size() - 1) * RIG_PITCH
+	var ship := Rect2()
+	if _mine_view != null and is_instance_valid(_mine_view):
+		var ink := _mine_view.ink_rect()
+		ship = Rect2(_mine_view.position + Vector2(ink.position), Vector2(ink.size))
+	for i in kids.size():
+		var r := kids[i] as ServiceRig
+		if r == null:
+			continue
+		var cx := berth - span * 0.5 + float(i) * RIG_PITCH
+		r.position = Vector2(cx - float(RIG_W) * 0.5, _scene.deck_y()).round()
+		r.size = Vector2(RIG_W, YardScene.BAY_H)
+		if ship.size.x > 0.0:
+			r.hull = Rect2(ship.position - r.position, ship.size)
+		else:
+			r.hull = Rect2()
+		r.queue_redraw()
+
+
+## Tell a room where it is: how built-up the station is and who holds it.
+##
+## THE SAME TWO FIELDS FOR EVERY ROOM, which is what lets every deck be the same
+## station -- lamps by development, livery on the trim by manufacturer.
+func _dress_room(room: StationRoom, n: MapGen.MapNode) -> void:
+	if room == null or not is_instance_valid(room) or n == null:
+		return
+	room.dev = int(n.development)
+	room.manufacturer = n.manufacturer
+	room.queue_redraw()
+	_hang_banners(room, n, room.banner_spots())
+
+
+## A ship's figures, directly above the ship.
+##
+## ABOVE THE SHIP YOU ARE POINTING AT, which is where the eye already is. It used
+## to be parked over the OTHER ship, on the reasoning that it must not cover the
+## one you are reading about -- but the band of wall over the berths is tall
+## enough to hold it without covering either. Centred on the hull's ink, kept
+## inside the hangar, and sized to its own content: all four offsets written here,
+## because a preset writes the control's current rect into them.
+func _float_slab(slab: Control, v: ShipView, at: Vector2) -> void:
+	if slab == null or not is_instance_valid(slab):
+		return
+	if v == null or not is_instance_valid(v) or _scene == null:
+		return
+	var ink := v.ink_rect()
+	var need := slab.get_combined_minimum_size()
+	var mid := at.x + float(ink.position.x) + float(ink.size.x) * 0.5
+	var x := clampf(mid - need.x * 0.5, 8.0, maxf(8.0, _scene.size.x - need.x - 8.0))
+	var y := maxf(4.0, at.y + float(ink.position.y) - need.y - 8.0)
+	slab.offset_left = roundf(x)
+	slab.offset_top = roundf(y)
+	slab.offset_right = slab.offset_left + need.x
+	slab.offset_bottom = slab.offset_top + need.y
+
+
+## How a hung banner is sized, the gap between two, and the rod they hang from.
+##
+## LONG AND NARROW. Its own width units at `BANNER_K`, but `BANNER_LEN` tall
+## rather than its own height: the rail's flag blown up to the same proportions
+## read as a sign on a wall, where a hung length of it reads as colours. The
+## emblem sits at the top and the manufacturer's hem at the foot, so the length
+## between is plain field -- which is what a real hanging banner is.
+const BANNER_K := 2.0
+const BANNER_LEN := 148.0
+const BANNER_GAP := 6.0
+const BANNER_ROD := Color("#3d5273")
+
+
+## Hang the station's manufacturer banners in a room.
+##
+## THE BANNERS LEFT THE RAIL AND WENT INTO THE ROOMS. At the head of the rail they
+## were two flags over a list; in the rooms they are what a manufacturer actually
+## does to a station it holds -- its colours hung in the hangar, pinned on the
+## board, over the till. Still real `ChassisSelect.Banner`s rather than pictures of
+## them, so pointing at one still gets the manufacturer's readout.
+##
+## Children of the ROOM, so they draw over its walls and under everything that
+## stands in it. Each spot is a horizontal anchor fraction and a top; the whole set
+## hangs side by side from a rod, centred on it.
+func _hang_banners(room: Control, n: MapGen.MapNode, spots: Array) -> void:
+	if room == null or not is_instance_valid(room):
+		return
+	for kid in room.get_children():
+		if kid.has_meta(&"station_banner"):
+			room.remove_child(kid)
+			kid.queue_free()
+	if n == null or spots.is_empty():
+		return
+	var marks: Array[StringName] = []
+	for mid in n.berths:
+		if DB.manufacturers.has(mid):
+			marks.append(mid)
+	if marks.is_empty():
+		return
+	var bw := float(ChassisSelect.Banner.UNITS_W) * BANNER_K
+	var bh := BANNER_LEN
+	var span := float(marks.size()) * bw + float(marks.size() - 1) * BANNER_GAP
+	for spot: Vector2 in spots:
+		var bar := ColorRect.new()
+		bar.color = BANNER_ROD
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.set_meta(&"station_banner", true)
+		_anchor_at(bar, spot.x, -span * 0.5 - 6.0, spot.y - 4.0, span + 12.0, 3.0)
+		room.add_child(bar)
+		for i in marks.size():
+			var mid2 := marks[i]
+			var mk: ManufacturerData = DB.manufacturers.get(mid2)
+			var fl := ChassisSelect.Banner.new()
+			fl.s = BANNER_K
+			fl.custom_minimum_size = Vector2(bw, bh)
+			fl.manufacturer = mid2
+			fl.mark = mk.colour
+			fl.field = mk.field
+			fl.set_meta(&"station_banner", true)
+			_anchor_at(fl, spot.x, -span * 0.5 + float(i) * (bw + BANNER_GAP), spot.y, bw, bh)
+			room.add_child(fl)
+
+
+## Pin a control to a horizontal fraction of its parent, at a fixed size.
+func _anchor_at(c: Control, frac_x: float, dx: float, top: float, w: float, h: float) -> void:
+	c.anchor_left = frac_x
+	c.anchor_right = frac_x
+	c.anchor_top = 0.0
+	c.anchor_bottom = 0.0
+	c.offset_left = roundf(dx)
+	c.offset_right = roundf(dx) + w
+	c.offset_top = top
+	c.offset_bottom = top + h
+
+
+## Which manufacturers have a notice of their own up on the Hiring Board.
+##
+## WHOEVER HOLDS THE STATION, first, because a notice is how a place says who runs
+## it. Then the place itself: lawless space gets Redline's flyer, since Redline is
+## never at the address on its invoices and a lawless board is exactly where it
+## would turn up; a cosmopolitan station gets a couple of visitors, picked off the
+## station's own index so the same station always carries the same ones. Three at
+## most -- the board has three places to put them.
+func _board_posts(n: MapGen.MapNode) -> Array[StringName]:
+	var out: Array[StringName] = []
+	if n == null:
+		return out
+	for mid in n.berths:
+		if DB.manufacturers.has(mid) and out.size() < 3:
+			out.append(mid)
+	match n.region:
+		MapGen.Region.LAWLESS:
+			if not out.has(&"redline") and out.size() < 3:
+				out.append(&"redline")
+		MapGen.Region.COSMOPOLITAN:
+			for k: int in [3, 5]:
+				var mid2: StringName = DB.STARTABLE[(n.index * k + k) % DB.STARTABLE.size()]
+				if not out.has(mid2) and out.size() < 3:
+					out.append(mid2)
+	return out

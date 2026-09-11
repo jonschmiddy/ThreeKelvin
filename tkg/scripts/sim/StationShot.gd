@@ -131,6 +131,21 @@ func run(tree: SceneTree) -> void:
 		print("  flying the %s (a %s)" % [Run.display_name(), Run.hull.name])
 		break
 
+	# `-- stationshot full nofaults` clears every malfunction, so the Shipyard's
+	# fault post is drawn reading NO FAULTS. `full` always rolls at least one,
+	# which left that label reachable by no fixture at all.
+	if "nofaults" in OS.get_cmdline_user_args():
+		Run.dross = []
+		print("  nofaults: %d faults aboard" % Run.dross_count())
+
+	# `-- stationshot full noyard` clears the blocks, so the Shipyard is drawn
+	# with nothing for sale. `full` guarantees a hull, which is right for almost
+	# every shot and made this path -- your ship and its machines with an empty
+	# berth beside them -- unreachable by any fixture.
+	if "noyard" in OS.get_cmdline_user_args():
+		here.shop_hull = null
+		print("  noyard: nothing on the blocks")
+
 	if "moving" in OS.get_cmdline_user_args():
 		var offer: HullData = here.shop_hull
 		if offer == null:
@@ -193,6 +208,13 @@ func run(tree: SceneTree) -> void:
 				if yard._scene_slab.size.y > need.y + 1.0:
 					print("    <-- %.0f taller than its content"
 						% (yard._scene_slab.size.y - need.y))
+
+	# `-- stationshot full hovermine` shows YOUR ship's slab in the Shipyard,
+	# which a pushed event cannot reach any more than it can the other one.
+	if "hovermine" in OS.get_cmdline_user_args():
+		var yard2 := Router.current as StationScreen
+		if yard2 != null:
+			yard2._on_mine_hover(true)
 
 	# `-- stationshot full purge` opens the fault picker, which is a modal and so
 	# unreachable by any flag that only chooses a deck.
