@@ -58,6 +58,42 @@ var galaxy_title: String = ""
 var hp: int = 35
 var heat: int = 0
 var heat_cap_bonus: int = 0
+
+## WHAT CAME OFF THE OLD SHIP AND WILL NOT FIT THE NEW ONE.
+##
+## `cargo` has an invariant that HoldTest enforces on every run: every item in
+## it sits at a real cell, inside the grid, overlapping nothing. That is why the
+## old `transfer_to_hull` DESTROYED the overflow when you bought a smaller ship
+## -- deleting it was the only way to keep thirteen things out of a twelve-cell
+## hold. The cargo was never the problem; having nowhere to put it was.
+##
+## So this is the nowhere. The pad is the dock you are standing on: things off
+## the old frame that have not found a cell yet. It is not `cargo`, so the
+## invariant is untouched, and it is not lost, so nothing is deleted behind your
+## back. You cannot undock while it has anything on it.
+var pad: Array[HoldItem] = []
+
+## THE FRAME YOU ARE MOVING OUT OF, kept only until the move is finished.
+##
+## The transfer screen draws BOTH ships, and the left-hand one has to be a real
+## hull or it cannot be drawn: it needs a sprite to show and a `hold_grid` to
+## lay the leftovers out in. The purchase is final the moment it is made -- this
+## is not a way back, it is the loading dock, and it is cleared the moment the
+## pad empties.
+var old_hull: HullData = null
+
+## EVERYTHING NEEDED TO PUT THE OLD SHIP BACK, while a move is still in progress.
+##
+## The purchase was going to be final and is not. What changed my mind about the
+## cost of reversing it is that `transfer_to_hull` no longer MOVES anything --
+## the old frame keeps its guns and its crates exactly where they were -- so
+## "undo" is not a reconstruction, it is putting a snapshot back over a state
+## nothing has happened to yet.
+##
+## Cleared when the move commits, so it only ever describes a decision still
+## being made. Not saved: quitting mid-move and reloading leaves you on the new
+## ship with your things on the pad, which is a finished purchase.
+var _undo_move: Dictionary = {}
 var credits: int = 40
 ## FUEL AND DROSS ANNOUNCE THEMSELVES. See the note below.
 var fuel: int = 150:
@@ -347,6 +383,9 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	ship_name = ""
 	heat = 0
 	heat_cap_bonus = 0
+	pad.clear()
+	old_hull = null
+	_undo_move.clear()
 	credits = 40
 	# STILL SCALED TO GALAXY DEPTH, though the reason narrowed. It went in when
 	# RIM was derived and the disc was 1.75x wider, which it no longer is -- but
@@ -555,6 +594,11 @@ func place_in_hold(m: HoldItem, at: Vector2i = -Vector2i.ONE) -> bool:
 	if cell == -Vector2i.ONE or not can_place(m, cell):
 		return false
 	m.hold_at = cell
+	# OFF THE PAD ON THE WAY IN. Stowing something is exactly how a thing stops
+	# being stranded, and without this line a pad item that found a cell would be
+	# in BOTH lists -- counted twice by the Exchange, and holding the door shut
+	# for ever because `ready_to_fly` would still see it on the dock.
+	pad.erase(m)
 	if not cargo.has(m):
 		cargo.append(m)
 	Sig.ship_changed.emit()
@@ -579,8 +623,16 @@ func ledger() -> Dictionary:
 
 
 ## Take a part out, releasing its cells.
+## Take a thing out of your possession, wherever it was being kept.
+##
+## BOTH LISTS, and that is what makes the pad cheap. This is the one door every
+## disposal goes through -- selling at the Exchange, scrapping on the refit
+## screen, jettisoning out the hatch -- so teaching it about `pad` is the whole
+## of teaching those three. The alternative was a `sell_from_pad` beside every
+## one of them, which is three chances to forget the second list.
 func take_from_hold(m: HoldItem) -> void:
 	cargo.erase(m)
+	pad.erase(m)
 	m.hold_at = -Vector2i.ONE
 
 ## The container for a hull you just killed, or a fresh one.
@@ -700,7 +752,14 @@ func take_item(m: HoldItem) -> bool:
 ## and quietly routing it to the floor instead would be the screen lying about
 ## its own contents.
 func put_in(n: MapGen.MapNode, h: MapGen.Jetsam, m: HoldItem) -> bool:
-	if m == null or n == null or h == null or not cargo.has(m):
+	# EITHER LIST. `take_from_hold` below already erases from both, but this
+	# guard did not -- so the hatch REFUSED a thing on the pad and refused it
+	# silently, which mattered in the two cases where the hatch is the only exit
+	# there is: contraband at a station that will not bid on it, and a pad that
+	# came back from a save while you were nowhere near a station at all.
+	if m == null or n == null or h == null:
+		return false
+	if not cargo.has(m) and not pad.has(m):
 		return false
 	take_from_hold(m)
 	m.hold_at = -Vector2i.ONE
@@ -810,8 +869,15 @@ func repack_hold() -> void:
 			continue
 		m.hold_at = cell
 		cargo.append(m)
+	# ONTO THE PAD, NOT OVERBOARD. This used to be the second place in the file
+	# that destroyed cargo to keep the grid invariant, and the loader reaches it
+	# -- so a save whose hull no longer matched its hold quietly lost crates on
+	# load. Now they come back on the dock, where you can see them.
 	for m in lost:
-		log_line("No room for %s in the new hold. Left behind." % m.name, &"them")
+		pad.append(m)
+	if not lost.is_empty():
+		log_line("%d thing%s would not fit the hold. On the pad." % [lost.size(),
+			"" if lost.size() == 1 else "s"], &"them")
 
 ## First cell the part fits in, scanning rows then columns, or (-1,-1).
 ##
@@ -1121,9 +1187,12 @@ func max_hp(bare: bool = false) -> int:
 	return maxi(1, n)
 
 func heat_cap(bare: bool = false) -> int:
+	# `heat_cap_bonus` SURVIVES A DEAD SETTER. Nothing raises it any more -- the
+	# yard's coolant service and the fabricator's braid recipe were the only two
+	# and both are gone -- but it is a SAVED field, so deleting it is a save-shape
+	# change and a version bump to retire a value that reads 0. It stays until
+	# something else wants it.
 	var n := hull.heat_cap + heat_cap_bonus
-	if hull.has_perk(&"heat_sink"):
-		n += 2
 	if not bare:
 		for m in installed:
 			n += m.heat_cap + m.affix_int(&"heat_cap")
@@ -1970,8 +2039,8 @@ func harvest_pulsar() -> void:
 	# pulsar leaves behind"). Flying the beam is the game's most deliberate
 	# trade and it paid out in a category name.
 	#
-	# `&"exotic"` is still dropped by fauna, so `COOLANT BRAID` -- which asks for
-	# it by ID and not by tier -- is unaffected.
+	# `&"exotic"` is still dropped by fauna, so any recipe asking for it by ID
+	# rather than by tier is unaffected.
 	add_material(PULSAR_DROP, gain_exotic)
 	heat += gain_heat
 	log_line("Beam sweep. The tank fills in eleven seconds.", &"good")
@@ -2132,49 +2201,224 @@ func scrap_module(m: ModuleData) -> void:
 	log_line("Scrapped %s for %d credits." % [m.name, v], &"good")
 	Sig.ship_changed.emit()
 
-func transfer_to_hull(h: HullData) -> void:
-	# Shed anything that no longer fits, cheapest first.
-	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
-		var cap: int = h.slots_for(s)
-		while slots_used(s) > cap:
-			var worst: ModuleData = null
-			for x in installed:
-				if x.slot == s and (worst == null or x.scrap_value < worst.scrap_value):
-					worst = x
-			if worst == null:
-				break
-			installed.erase(worst)
-			worst.mount = -1
-			# The new hull's hold may be a different shape, and this runs BEFORE
-			# the swap, so a part placed now is placed against the old grid.
-			# Re-packed below once `hull` is the new one.
-			if not place_in_hold(worst):
-				log_line("No room for %s. It was left behind." % worst.name, &"them")
+## Move into a new frame. EVERYTHING COMES OFF, and you re-rig it yourself.
+##
+## THE OLD VERSION GUESSED, AND GUESSED WITH THE WRONG NUMBER. It shed the
+## lowest `scrap_value` part of any slot the new hull had fewer mounts for --
+## a decent proxy for "least valuable object" and a bad one for "least wanted
+## part", because this is a deckbuilder. A common Coolant Flush granting the
+## card your whole engine turns on outranks a rare you never draw, and
+## `scrap_value` cannot know that. Nothing can, except you.
+##
+## It also squeezed you twice. The shed loop packed parts against the OLD grid,
+## then the swap happened, then `repack_hold` ran against the NEW one -- so a
+## part could be stowed successfully and destroyed eight lines later, printing
+## two different "left behind" lines for one object.
+##
+## Both go away by doing less: unbolt the lot, set the frame, pack ONCE against
+## the grid you are actually going to fly. What will not fit goes on the `pad`,
+## which is a place, not a wastebasket.
+##
+## YOUR DECK IS NOW EMPTY, and that is not a side effect -- it is the decision.
+## `deck_size()` sums `grant_count()` over `installed` and the hull contributes
+## nothing, so a swap is a deck wipe and re-rigging is how you rebuild it. The
+## station will not let you undock until you have a deck again; see `ready_to_fly`.
+func transfer_to_hull(h: HullData, paid: int = 0,
+		node: MapGen.MapNode = null) -> void:
+	# THE OLD SHIP KEEPS EVERYTHING UNTIL YOU MOVE IT.
+	#
+	# An earlier version emptied the frame here and packed as much as would fit
+	# into the new hold automatically, leaving the remainder stranded. That is
+	# the same arithmetic and the wrong STORY: it decided for you, and then the
+	# screen could only show you what it had decided. Nothing moves now unless a
+	# hand moves it, so the transfer screen can draw the old ship still wearing
+	# its guns and the new one genuinely empty.
+	#
+	# `mount` and `hold_at` are both PRESERVED, which is what makes that picture
+	# possible -- a gun remembers its hardpoint and a crate remembers its cell,
+	# so the left-hand side of that screen is the ship you have been flying and
+	# not an inventory of it.
+	old_hull = hull
+	# THE WAY BACK, TAKEN BEFORE ANYTHING MOVES. Every part's hardpoint and every
+	# crate's cell, plus the frame and the hull points they belonged to -- which
+	# is the whole of what a swap disturbs, because a swap disturbs nothing else.
+	var places: Dictionary = {}
+	for m in installed:
+		places[m] = [m.mount, m.hold_at]
+	for m in cargo:
+		# A CRATE HAS NO MOUNT. `HoldItem` is the common base and `mount` is a
+		# module's -- reading it off a MaterialData is a hard error, and it
+		# aborted the swap halfway through, leaving a ship that had been paid
+		# for and a hold that had not moved.
+		var mod := m as ModuleData
+		places[m] = [mod.mount if mod != null else -1, m.hold_at]
+	_undo_move = {
+		hull = hull,
+		hp = hp,
+		paid = paid,
+		node = node,
+		places = places,
+	}
+
+	pad.clear()
+	pad.append_array(installed)
+	pad.append_array(cargo)
+	installed.clear()
+	cargo.clear()
+
 	var ratio := float(hp) / float(max_hp())
 	hull = h
 	hp = maxi(6, int(round(h.max_hull * ratio)))
-	# ...and its own HOLD SHAPE. A heavy's 4x10 becoming a light's 4x5 leaves
-	# every part below the fifth row outside the grid entirely, so the hold is
-	# re-seated for the same reason the mounts below are.
-	repack_hold()
-	# The new hull has its own hardpoint count, so a part mounted on weapon 3 of a
-	# heavy can be pointing at a mount a light does not have. Re-seated in the
-	# order they were carried, which loses the arrangement you chose — that is
-	# honest: it is a different ship, and the mounts are places on it.
-	for s in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
-		for m in installed:
-			if m.slot == s:
-				m.mount = -1
-		for m in installed:
-			if m.slot == s:
-				m.mount = free_mount(s)
+
 	found_hull = null
 	var said: Array[String] = []
 	for pid in h.perks():
 		said.append(DB.perk_text(pid))
 	log_line("Transferred to %s. %s" % [h.display_name(), " ".join(said)], &"big")
+	if not pad.is_empty():
+		log_line("%d thing%s still aboard the %s." % [pad.size(),
+			"" if pad.size() == 1 else "s", old_hull.name], &"them")
 	Sig.ship_changed.emit()
 	Sig.resources_changed.emit()
+
+
+## Whether the move can still be called off.
+func can_abandon_move() -> bool:
+	return not _undo_move.is_empty() and old_hull != null
+
+
+## Put the old ship back and forget the whole thing.
+##
+## RESTORES WHAT STILL EXISTS, and deliberately not more. You can sell a gun or
+## throw one out of the hatch while the move is in progress, and those are real
+## decisions that happened -- a back-out that resurrected them would be an undo
+## of things you did rather than of the purchase you are cancelling. So the
+## credits from a sale stay yours and the part stays gone; what comes back is
+## every object still in your possession, in the place it was in.
+##
+## THE HULL GOES BACK ON THE BLOCKS. `take_option` claimed it over the network
+## as well as locally, and there is no release on the other side of that -- so
+## in a party this frees the rack for you and the peer who was refused while you
+## were deciding is not told. That is the honest limit of this: single player it
+## is exact, in co-op it can leave one stale refusal. The alternative was
+## keeping the money and the claim for a ship you did not take, which is worse
+## in every seat.
+func abandon_move() -> void:
+	if not can_abandon_move():
+		return
+	var places: Dictionary = _undo_move.get("places", {})
+	var mine: Array[HoldItem] = []
+	mine.append_array(pad)
+	mine.append_array(installed)
+	mine.append_array(cargo)
+
+	installed.clear()
+	cargo.clear()
+	pad.clear()
+	for it in mine:
+		if not places.has(it):
+			# Something acquired DURING the move, which cannot happen today --
+			# nothing on that screen adds -- and would otherwise vanish here.
+			# Put it in the hold of the ship being restored, or on the pad.
+			pad.append(it)
+			continue
+		var was: Array = places[it]
+		var mod := it as ModuleData
+		if mod != null and int(was[0]) >= 0:
+			mod.mount = int(was[0])
+			mod.hold_at = -Vector2i.ONE
+			installed.append(mod)
+			continue
+		it.hold_at = was[1]
+		if mod != null:
+			mod.mount = -1
+		cargo.append(it)
+
+	hull = _undo_move.get("hull", hull)
+	hp = int(_undo_move.get("hp", hp))
+	add_credits(int(_undo_move.get("paid", 0)))
+	var n: MapGen.MapNode = _undo_move.get("node", null)
+	if n != null:
+		n.taken.erase(MapGen.OPTION_SHOP_HULL)
+	# `display_name`, because this is the player's own ship being named back to
+	# them -- a named ship that backs out of a purchase should not be told it is
+	# still flying its chassis.
+	log_line("Changed your mind. Still flying the %s." % display_name(), &"them")
+	old_hull = null
+	_undo_move.clear()
+	Sig.ship_changed.emit()
+	Sig.resources_changed.emit()
+	Sig.map_changed.emit()
+
+
+## Bolt something from the old ship straight onto a hardpoint of the new one.
+##
+## THE SHORTEST PATH IS A DIRECT ONE. Routing this through the hold -- stow,
+## then fit -- would refuse the move whenever the hold happened to be full,
+## which has nothing to do with whether the hardpoint is free. A gun going from
+## one ship's mount to another ship's mount never needs to be put down.
+func pad_to_mount(m: ModuleData, slot: ModuleData.Slot, index: int) -> bool:
+	if m == null or not pad.has(m) or m.slot != slot:
+		return false
+	if not can_power(m):
+		return false
+	if module_at(slot, index) != null:
+		return false
+	if index < 0 or index >= slots_for(slot):
+		return false
+	pad.erase(m)
+	m.hold_at = -Vector2i.ONE
+	m.mount = index
+	installed.append(m)
+	Sig.ship_changed.emit()
+	return true
+
+
+
+## Carry one thing off the pad and into the hold. False if there is no room.
+func pad_to_hold(m: HoldItem) -> bool:
+	if not pad.has(m):
+		return false
+	var cell := find_hold_slot(m)
+	if cell == -Vector2i.ONE:
+		return false
+	pad.erase(m)
+	m.hold_at = cell
+	# AND IT IS NOT ON A HARDPOINT ANY MORE. A part on the pad still remembers
+	# the mount it was bolted to on the old ship -- that is what draws it there
+	# -- so stowing one without clearing that would leave a gun in the hold
+	# claiming to be fitted, and the old ship still wearing it.
+	var mod := m as ModuleData
+	if mod != null:
+		mod.mount = -1
+	cargo.append(m)
+	Sig.ship_changed.emit()
+	return true
+
+
+## Whether this ship can leave the dock.
+##
+## TWO CONDITIONS, AND THE SECOND ONE IS NEW. An empty pad is obvious -- you
+## cannot fly away from crates on the ground. The deck is the one a hull swap
+## introduced: `_top_up_deck` fills spare mounts until a deck is playable and it
+## runs in `start_new_run` ONLY, so nothing rescues a ship that undocks bare.
+## Before this, `transfer_to_hull` re-mounted everything automatically and the
+## case could not arise; now it can, and the next fight would open with a hand
+## of nothing.
+##
+## The floor is the HAND, not some authored minimum: a deck no bigger than the
+## hand is not a deck, you simply hold all of it. That is the same reasoning
+## `_top_up_deck` uses to pick its own target, one line apart.
+func ready_to_fly() -> Array[String]:
+	var why: Array[String] = []
+	if not pad.is_empty():
+		why.append("%d thing%s still on the pad" % [pad.size(),
+			"" if pad.size() == 1 else "s"])
+	if deck_size() < hand_size():
+		why.append("deck of %d is smaller than a hand of %d"
+			% [deck_size(), hand_size()])
+	return why
+
 
 # -------------------------------------------------------------------------- map
 

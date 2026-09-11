@@ -179,6 +179,23 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "Leaving a run draws nothing without a ship"
+# QUIT and SAVE & QUIT clear the hull and then swap to the title screen, and the
+# screen they leave is still in the tree for the rest of that frame. The
+# starchart redrew there once with no ship and logged hundreds of errors that no
+# player ever saw, because the frame is never shown. The same leak allowance as
+# stowtest, for the same reason: it builds real screens.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot quittest 120 --headless --path "$PROJECT" -- quittest; then
+	if grep -qE '^quittest: PASS' "$LOG_DIR/quittest.log"; then
+		ok "quit"
+	else
+		bad "a screen drew after the run it belonged to was gone"
+		grep -E '^  FAIL|^quittest' "$LOG_DIR/quittest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
 step "The hold never overlaps itself"
 # Invisible in the data, which is the whole reason it is here. Two parts sharing
 # a cell still add up to a sensible "17 of 28", still save and load, still sell

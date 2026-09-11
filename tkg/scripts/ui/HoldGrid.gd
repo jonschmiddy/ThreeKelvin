@@ -136,6 +136,16 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	# THE CELLS' OWN EXTENT, NOT THE CONTROL'S.
+	#
+	# The frame and the lattice were drawn to `size`, which is whatever the
+	# container hands the grid -- and a container hands it more than its cells
+	# whenever something above it in the same column is wider. The refit
+	# screen's storage header, the cell count with the jettison hatch beside it,
+	# is about 214 pixels against a five-wide hold's 200, so the frame and every
+	# row line ran fourteen pixels past the last column. Drawn to the cells, the
+	# grid is the size of the hold on every screen, whatever column it is in.
+	var extent := Vector2(_cols * (CELL + GAP) - GAP, _rows * (CELL + GAP) - GAP)
 	for y in _rows:
 		for x in _cols:
 			var r := Rect2(_origin(Vector2i(x, y)), Vector2(CELL, CELL))
@@ -147,11 +157,11 @@ func _draw() -> void:
 	# separate tiles.
 	for x in range(1, _cols):
 		var px := float(x * CELL)
-		draw_line(Vector2(px, 0.0), Vector2(px, size.y), UITheme.LINE, 1.0)
+		draw_line(Vector2(px, 0.0), Vector2(px, extent.y), UITheme.LINE, 1.0)
 	for y in range(1, _rows):
 		var py := float(y * CELL)
-		draw_line(Vector2(0.0, py), Vector2(size.x, py), UITheme.LINE, 1.0)
-	draw_rect(Rect2(Vector2.ZERO, size), UITheme.LINE, false, EDGE)
+		draw_line(Vector2(0.0, py), Vector2(extent.x, py), UITheme.LINE, 1.0)
+	draw_rect(Rect2(Vector2.ZERO, extent), UITheme.LINE, false, EDGE)
 	if _beam.is_empty():
 		return
 	# The same pulse the hardpoints use, for the same reason: the hold and the

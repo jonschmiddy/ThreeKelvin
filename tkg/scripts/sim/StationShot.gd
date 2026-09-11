@@ -91,7 +91,137 @@ func run(tree: SceneTree) -> void:
 
 	Run.hp = maxi(1, Run.max_hp() - 12)
 	Run.add_dross(3)
-	Router.show_station()
+
+	# `full` PHOTOGRAPHS THE BUSY CASE, the same one `-- station full` plays.
+	#
+	# Without it the Yard's hull is a 75% roll and the shelf is whatever the node
+	# happened to stock -- so one shot in four of the shipyard is a picture of
+	# the empty-berth line, and a shot of a full shelf is luck. The odds are
+	# balance and are left alone; this forces the state, exactly as the playable
+	# flag does.
+	if "full" in OS.get_cmdline_user_args():
+		while not Run.hold_full() and Run.cargo.size() < 40:
+			Run.stow(LootGen.roll_module(5, &"", true))
+		Run.add_credits(900)
+		here.stocked = true
+		for i in 5:
+			here.shop.append(LootGen.roll_module(5 + i, &"", true))
+		here.shop_hull = LootGen.roll_hull(7)
+		print("  full: hold %d · shelf %d · hull on the blocks"
+			% [Run.cargo.size(), here.shop.size()])
+
+	# `-- stationshot full moving` photographs MOVING DAY: the state one click
+	# after TAKE IT, with both ships drawn and the leftovers still on the old
+	# one. Reached by actually buying the hull rather than by posing the screen,
+	# so what the shot shows is what the flow produces.
+	# `-- stationshot full ship=BLUEBIRD` flies a NAMED ship.
+	#
+	# A custom name is the one piece of state no fixture reached, and it is
+	# exactly the state that catches a screen printing `hull.name` where it
+	# should print `Run.display_name()` -- which the Shipyard's own berth label
+	# was doing until this flag showed it.
+	#
+	# SET BEFORE THE SCREEN IS BUILT. Parsed after `show_station` the first time,
+	# which proved nothing at all: the deck had already drawn itself off the old
+	# value and no refresh had been asked for.
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("ship="):
+			continue
+		Run.ship_name = (a as String).substr(5).strip_edges()
+		print("  flying the %s (a %s)" % [Run.display_name(), Run.hull.name])
+		break
+
+	# `-- stationshot full nofaults` clears every malfunction, so the Shipyard's
+	# fault post is drawn reading NO FAULTS. `full` always rolls at least one,
+	# which left that label reachable by no fixture at all.
+	if "nofaults" in OS.get_cmdline_user_args():
+		Run.dross = []
+		print("  nofaults: %d faults aboard" % Run.dross_count())
+
+	# `-- stationshot full noyard` clears the blocks, so the Shipyard is drawn
+	# with nothing for sale. `full` guarantees a hull, which is right for almost
+	# every shot and made this path -- your ship and its machines with an empty
+	# berth beside them -- unreachable by any fixture.
+	if "noyard" in OS.get_cmdline_user_args():
+		here.shop_hull = null
+		print("  noyard: nothing on the blocks")
+
+	if "moving" in OS.get_cmdline_user_args():
+		var offer: HullData = here.shop_hull
+		if offer == null:
+			offer = LootGen.roll_hull(7)
+		Run.transfer_to_hull(offer)
+		print("  moving: %d stowed, %d still aboard the %s" % [Run.cargo.size(),
+			Run.pad.size(), Run.old_hull.name if Run.old_hull != null else "?"])
+		Router.show_transfer()
+	else:
+		Router.show_station()
+
+	# `-- stationshot full deck=hold` photographs a deck other than the one the
+	# screen opens on. The rail is a lift and clicking it is the only way in, so
+	# without this every shot of this screen was the SERVICES deck and the other
+	# four could only be looked at by playing to them.
+	#
+	#   deck=services  deck=work  deck=stock  deck=hold  deck=bench
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("deck="):
+			continue
+		var deck := StringName((a as String).substr(5).strip_edges())
+		var scr0 := Router.current as StationScreen
+		if scr0 == null:
+			break
+		# NAMED, not indexed. `TABS` is ordered for reading and the rail draws it
+		# in a DIFFERENT order again, so a number here would mean neither.
+		var known := false
+		for row in StationScreen.TABS:
+			if row[0] == deck:
+				known = true
+				break
+		if not known:
+			print("[station] no deck '%s' -- staying on the one it opened" % deck)
+			break
+		scr0._show_tab(deck)
+		print("  deck: %s" % deck)
+		break
+
+	# `-- stationshot full hover` shows the Yard's details slab, which otherwise
+	# only appears while a real pointer is over the ship -- and a pushed event
+	# never moves the OS cursor.
+	if "hover" in OS.get_cmdline_user_args():
+		var yard := Router.current as StationScreen
+		if yard != null:
+			yard._on_ship_hover(true)
+			# THE SLAB'S OWN HEIGHT, printed rather than eyeballed.
+			#
+			# It sat at 293 for 189 of content -- a hundred pixels of nothing
+			# under the last perk -- because `set_anchors_and_offsets_preset`
+			# writes the CURRENT rect into the offsets and nothing had corrected
+			# `offset_bottom` since. A screenshot shows you a panel looks empty;
+			# only this says by how much, and against what it should be.
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			if yard._scene_slab != null:
+				var need: Vector2 = yard._scene_slab.get_combined_minimum_size()
+				print("  slab %.0fx%.0f (min %.0fx%.0f)" % [
+					yard._scene_slab.size.x, yard._scene_slab.size.y,
+					need.x, need.y])
+				if yard._scene_slab.size.y > need.y + 1.0:
+					print("    <-- %.0f taller than its content"
+						% (yard._scene_slab.size.y - need.y))
+
+	# `-- stationshot full hovermine` shows YOUR ship's slab in the Shipyard,
+	# which a pushed event cannot reach any more than it can the other one.
+	if "hovermine" in OS.get_cmdline_user_args():
+		var yard2 := Router.current as StationScreen
+		if yard2 != null:
+			yard2._on_mine_hover(true)
+
+	# `-- stationshot full purge` opens the fault picker, which is a modal and so
+	# unreachable by any flag that only chooses a deck.
+	if "purge" in OS.get_cmdline_user_args():
+		var scr := Router.current as StationScreen
+		if scr != null:
+			scr._open_purge()
 
 	# Thirty frames rather than one. The screen builds four panels, and a shot
 	# taken on the frame after `show_station` catches half of them unsized --

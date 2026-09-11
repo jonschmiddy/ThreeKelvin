@@ -205,6 +205,41 @@ def gear(w, h):
     return _emit(w, h, c)
 
 
+def poly(w, h):
+    """A FILLED regular twelve-sided polygon. Solids, shards, cut stone.
+
+    The only scaffold that is solid through the middle, and it exists because
+    nothing else here could donate that. `ring` is an annulus and `gear` has
+    spokes, so both hand the generator a hole to build a mechanism around --
+    asked for a black dodecahedron against `gear`, it drew a spiked wheel with a
+    lamp in the hub, twice.
+
+    Twelve sides at forty pixels is close enough to a circle that the FACE COUNT
+    is not what the silhouette donates. What it donates is `solid, convex, no
+    opening`, which is exactly what the other eleven shapes cannot say.
+    """
+    c = set()
+    import math
+    cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+    r = min(w, h) / 2.0 - 2.0
+    pts = [(cx + r * math.cos(math.pi * 2 * i / 12.0 + math.pi / 12.0),
+            cy + r * math.sin(math.pi * 2 * i / 12.0 + math.pi / 12.0))
+           for i in range(12)]
+    for y in range(h):
+        xs = []
+        for i in range(12):
+            x0, y0 = pts[i]
+            x1, y1 = pts[(i + 1) % 12]
+            if (y0 <= y < y1) or (y1 <= y < y0):
+                xs.append(x0 + (y - y0) * (x1 - x0) / (y1 - y0))
+        xs.sort()
+        for i in range(0, len(xs) - 1, 2):
+            for x in range(int(math.ceil(xs[i])), int(math.floor(xs[i + 1])) + 1):
+                if 0 <= x < w:
+                    c.add((x, y))
+    return _emit(w, h, c)
+
+
 def rail(w, h):
     """A solid beam lying level. Rails, tracks, girders, spines.
 
@@ -230,7 +265,7 @@ def rail(w, h):
 SHAPES = {
     "comb": comb, "ring": ring, "barrel": barrel, "upright": upright,
     "slab": slab, "cross": cross, "frame": frame, "bracket": bracket,
-    "ell": ell, "gear": gear, "rail": rail,
+    "ell": ell, "gear": gear, "rail": rail, "poly": poly,
 }
 
 ## Which scaffold each module that still has no art is generated against, and
@@ -240,7 +275,15 @@ SHAPES = {
 ASSIGN = {
     # 1x1 -> 20x20 box, scaffold at 40x40
     "brass": ("barrel", 20, 20), "coldsights": ("comb", 20, 20),
-    "ejector": ("rail", 20, 20), "gunnery": ("gear", 20, 20),
+    # REDRAWN, all three, after the card art made the old ones read wrong: the
+    # ejector was a missile and the chute an angled pod, which are both ordnance
+    # on a pair of parts whose cards are about throwing things away. The chute
+    # ended up with the round outward-opening door that was generated for the
+    # ejector -- "a hatch that only opens outward" is exactly that picture -- and
+    # the ejector took the square bay door instead.
+    "ejector": ("slab", 20, 20), "scuttle": ("ring", 20, 20),
+    "oracle": ("poly", 20, 20),
+    "gunnery": ("gear", 20, 20),
     "weldkit": ("upright", 20, 20),
     # 2x1 -> 40x20 box, scaffold at 80x40
     "blowout": ("slab", 40, 20), "board": ("frame", 40, 20),

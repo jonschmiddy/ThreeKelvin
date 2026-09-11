@@ -488,7 +488,12 @@ func _ready() -> void:
 		Router.show_starchart()
 		return
 
-	if "cargo" in OS.get_cmdline_user_args():
+	# NOT WHEN IT IS A SHOT'S ARGUMENT. `-- shipshot heavy cargo` matched this
+	# first, the same way `chartshot quest` once matched `quest` above, and opened
+	# a playable game where the photograph should have been -- which from outside
+	# looks exactly like a shot that hangs.
+	if "cargo" in OS.get_cmdline_user_args() \
+			and not "shipshot" in OS.get_cmdline_user_args():
 		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
 		var shapes := ["2x2", "4x1", "3x1", "2x1", "1x1"]
 		var tiers: Array[StringName] = [&"legendary", &"exotic", &"contraband",
@@ -708,6 +713,13 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# Leaving a run from the pause menu, and whether the screen left behind draws
+	# once more with no ship:  godot --headless --path . -- quittest
+	if "quittest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/QuitTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	# Parts crossing between the hold and the hull, dragged with real events:
 	#   godot --path . -- fittest
 	# NOT headless — it drives Viewport's own drag machine, and headless has no
@@ -863,6 +875,15 @@ func _ready() -> void:
 		here.danger = 5
 		# Something in the hold to sell, something to scrap, and enough of every
 		# material to light up the fabricator and the material rows.
+		#
+		# `full` PACKS THE HOLD UNTIL NOTHING MORE FITS and guarantees a hull on
+		# the blocks. Every one of these five decks behaves differently when it is
+		# busy -- the Exchange scrolls, the Yard offers, the Promenade fills its
+		# list -- and the three-item hold this flag used to build showed none of
+		# that. `hold_full()` is the honest test: it asks whether ONE CELL is
+		# free, so the loop stops where the packer actually stops rather than at a
+		# count somebody guessed.
+		var deep := "full" in OS.get_cmdline_user_args()
 		for i in 3:
 			Run.stow(LootGen.roll_module(4 + i, &"", true))
 		# STRAIGHT INTO THE HOLD, because this is the debug seed and its whole
@@ -870,6 +891,16 @@ func _ready() -> void:
 		# floating in the sector for you to go and fetch.
 		for seeded in [&"exotic", &"exotic", &"relic"]:
 			Run.stow(MaterialData.of(MaterialTable.by_id(seeded)))
+		if deep:
+			# A BOUND ON THE LOOP AS WELL AS A TEST. `stow` can refuse a part that
+			# does not fit while a smaller one still would, so `hold_full` alone
+			# is not guaranteed to flip -- a 2x2 bouncing off a hold with four
+			# separate single cells left would spin here forever.
+			for i in 40:
+				if Run.hold_full():
+					break
+				Run.stow(LootGen.roll_module(3 + (i % 5), &"", true))
+			Run.add_credits(900)
 		# FOUR OF THE BERTH'S OWN PARTS BOLTED ON.
 		#
 		# A fresh run counts two toward a set -- the hull and one starter module --
@@ -895,6 +926,18 @@ func _ready() -> void:
 
 		Run.hp = maxi(1, Run.max_hp() - 12)
 		Run.add_dross(3)
+		if deep:
+			# The Yard's own roll is 75% at a city, so `-- station full` would
+			# still show an empty berth one visit in four. Forced here rather
+			# than by raising the odds, because the odds are balance and this is
+			# a debug seed.
+			var here2: MapGen.MapNode = Run.node_at()
+			here2.stocked = true
+			for i in 5:
+				here2.shop.append(LootGen.roll_module(5 + i, &"", true))
+			here2.shop_hull = LootGen.roll_hull(7)
+			print("[station] full: hold %d items, shelf %d, hull on the blocks"
+				% [Run.cargo.size(), here2.shop.size()])
 		Router.show_station()
 	elif "salvage" in OS.get_cmdline_user_args():
 		# `-- salvage 8` opens the sector with eight parts in the hold.

@@ -673,6 +673,63 @@ static func ability_row(at: String, title: String, text: String, accent: Color,
 	row.add_child(what)
 	return row
 
+## WHO HOLDS THIS BERTH, on hovering their flag.
+##
+## A BANNER IS THE ONE MARK IN THIS GAME THAT CARRIES NO WORDS. It is a colour
+## and a hem, and a player who has not yet learned that the teal one is Cygnet
+## is looking at a decoration. Every other identifier on these screens says its
+## own name; this one could only be looked up on the chassis screen, which you
+## see once at the start of a run and never again.
+##
+## Built like `perk_readout` and for the same reasons: no plate of its own, the
+## strings wrapped by `tip()` rather than by a label, and the manufacturer's own
+## colour on the name alone. The set bonuses come last and carry a live count
+## when there is a run to count -- at a station the flag is a BERTH, so what you
+## want to know standing under it is who they are and how close their kit is to
+## paying out on your ship.
+static func manufacturer_readout(id: StringName) -> VBoxContainer:
+	var m: ManufacturerData = DB.manufacturers.get(id)
+	if m == null:
+		return null
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 1)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	box.add_child(UITheme.body(m.name.to_upper(), m.colour, UITheme.FS_SMALL))
+	if m.tagline != "":
+		box.add_child(UITheme.body(tip(m.tagline), UITheme.QUOTE, UITheme.FS_SMALL))
+	if m.identity != "":
+		box.add_child(UITheme.hsep())
+		box.add_child(UITheme.body(tip(m.identity), UITheme.COLD, UITheme.FS_SMALL))
+
+	# THE BACKSTORY IS NOT IN HERE. It is three or four sentences of prose per
+	# manufacturer -- `ChassisSelect` gives it a column to itself and still had
+	# to be trimmed to fit. Wrapped at TOOLTIP_WRAP it would be a fourteen-line
+	# panel hanging off a flag, and a tooltip that has to be READ is one nobody
+	# reads. What is here is the identity line, which is the same paragraph's
+	# job done in one sentence.
+	box.add_child(UITheme.hsep())
+	# MINUS ONE MEANS "NO RUN TO COUNT". `ChassisSelect` flies these flags before
+	# `start_new_run`, where a tracker reading 0 / 3 would be a progress bar on a
+	# ship that does not exist yet.
+	var have := Run.manufacturer_count(id) if Run.hull != null else -1
+	for tier in [3, 5]:
+		var nm: String = m.set3_name if tier == 3 else m.set5_name
+		var tx: String = m.set3_text if tier == 3 else m.set5_text
+		if nm == "":
+			continue
+		var lit: bool = have >= tier
+		var head := "%d+ PARTS — %s" % [tier, nm.to_upper()]
+		if have >= 0:
+			head = "%d/%d — %s" % [mini(have, tier), tier, nm.to_upper()]
+		box.add_child(UITheme.body(head, m.colour if lit else UITheme.COLD,
+			UITheme.FS_SMALL))
+		var what := UITheme.body(tip(tx),
+			UITheme.COLD if lit else UITheme.QUOTE, UITheme.FS_SMALL)
+		box.add_child(what)
+	return box
+
+
 ## The three ability rows for a manufacturer, given a live set count and the
 ## hull's own perk. Built as a list so a caller can drop them into whatever
 ## container it has.

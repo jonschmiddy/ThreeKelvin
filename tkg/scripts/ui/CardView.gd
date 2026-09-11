@@ -267,7 +267,20 @@ func _draw() -> void:
 	# two channels never share an encoding, so a colourblind player reads type
 	# off the silhouettes and the manufacturer off the mark, and both survive a 96px
 	# thumbnail.
-	if not dim:
+	if dim:
+		# A MALFUNCTION GETS A BANNER TOO -- in its own ink, and with no mark on
+		# it. Leaving the left edge BARE was one of the four junk signals, and it
+		# was the one signal made of an ABSENCE: in a fan every other card had a
+		# coloured column down its side and this had a hole where one should be,
+		# which reads as a card that failed to finish drawing rather than as a
+		# card that belongs to nobody.
+		#
+		# The other three still carry the weight -- the #1a1418 frame, the grey
+		# MALFUNCTION type line, and a keyword underlined without being useful --
+		# and this now says the same thing in the positive: every card has a
+		# column, and the colour of yours is the colour this game paints damage.
+		_junk_banner()
+	else:
 		_banner()
 
 	# The real cost, malfunction or not. card-design dashes the corner only on
@@ -334,6 +347,45 @@ func _draw() -> void:
 ## survives with no colour at all — Korvan ends square because decoration is for
 ## people whose guns jam; Redline ends torn because salvage does not finish
 ## edges; Verity ends in a swallowtail because it can afford to.
+## The malfunction's own banner: a field and a cut, and no emblem.
+##
+## NO MARK, because there is nobody to mark it with. A malfunction is not built
+## by anyone -- it is what a fight did to your ship -- so a manufacturer emblem
+## would be inventing an allegiance for a thing that has none. The field and the
+## cut are enough to make it a column rather than a gap.
+func _junk_banner() -> void:
+	var s := float(_s)
+	var b := _z(Z_BANNER)
+	var mark := UITheme.LEAVE
+	# Dark enough to sit behind the frame rather than shout from it: this is a
+	# card you would rather not be holding, and it must not out-draw the ones
+	# you chose.
+	draw_rect(b, mark.lerp(UITheme.VOID, 0.62), true)
+	_cut(b, mark)
+
+	# THE MARK: A BREAK, on the line the manufacturer emblems sit on.
+	#
+	# Two bars offset with a gap between them, which is the same figure the
+	# station's SYSTEM REPAIR row wears -- the thing that is wrong, and the thing
+	# that fixes it, drawn once. It goes at the emblem's own height so a fan of
+	# eight lines up along the top whatever is in it.
+	var cx := b.position.x + b.size.x * 0.5
+	var cy := (Z_ENERGY.position.y + Z_ENERGY.size.y * 0.5) * s
+	draw_rect(Rect2(cx - 4.0 * s, cy - 4.0 * s, 4.0 * s, 2.0 * s), mark)
+	draw_rect(Rect2(cx, cy + 2.0 * s, 4.0 * s, 2.0 * s), mark)
+	draw_rect(Rect2(cx - 1.0 * s, cy - 1.0 * s, 2.0 * s, 3.0 * s), mark)
+
+	# AND THE SAME OUTLINE EVERY OTHER BANNER GETS, last and in four filled
+	# rects. `_banner` carries the full reasoning for both: an unfilled
+	# draw_rect straddles the boundary and rounds inward on one side, and a
+	# frame drawn before its contents is not a frame.
+	var edge := mark.darkened(0.3)
+	draw_rect(Rect2(b.position.x, b.position.y, s, b.size.y), edge, true)
+	draw_rect(Rect2(b.end.x - s, b.position.y, s, b.size.y), edge, true)
+	draw_rect(Rect2(b.position.x, b.position.y, b.size.x, s), edge, true)
+	draw_rect(Rect2(b.position.x, b.end.y - s, b.size.x, s), edge, true)
+
+
 func _banner() -> void:
 	var s := float(_s)
 	var manufacturer: ManufacturerData = DB.manufacturers.get(card.manufacturer)

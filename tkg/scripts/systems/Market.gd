@@ -232,9 +232,6 @@ static func refuel_price(n: MapGen.MapNode) -> int:
 static func purge_price(n: MapGen.MapNode) -> int:
 	return maxi(1, int(round(15.0 * service_index(n))))
 
-static func coolant_price(n: MapGen.MapNode) -> int:
-	return maxi(1, int(round(30.0 * service_index(n))))
-
 ## A flyable hull on the pad. Goods, not work, so it reads off the goods index —
 ## and off the manufacturer who built it, exactly like a module does.
 static func hull_price(n: MapGen.MapNode, h: HullData) -> int:
@@ -244,6 +241,36 @@ static func hull_price(n: MapGen.MapNode, h: HullData) -> int:
 	# yard wants for it.
 	var base := float(80 + h.tier * 70)
 	return maxi(1, int(round(base * ask_index(n) * demand(n, h.manufacturer))))
+
+## WHAT THE YARD WILL GIVE YOU FOR THE FRAME YOU FLEW IN ON.
+##
+## THE HULL WAS THE ONLY OBJECT IN THE GAME WITH NO EXIT. A module has `bid` and
+## `melt`, a material has `material_price`, and a hull had `hull_price` and
+## nothing facing the other way -- so swapping ships was a PURCHASE, at full
+## asking price, with the most expensive thing you owned deleted to make room
+## for it. That made every upgrade a wall you saved at rather than a ladder you
+## climbed, and it made downgrading -- sell the heavy, fly a light, spend the
+## difference on parts -- not a play at all.
+##
+## Priced off `hull_price` rather than off its own ladder, so the two can never
+## drift: this is the same frame seen from the other side of the counter, and
+## the discount between them is the yard's margin.
+##
+## CONDITION IS THE SECOND TERM, and it is what stops the obvious exploit. If a
+## trade-in paid flat, the move would be to fly a hull into the ground, take the
+## full price for the wreck, and repeat -- so what it pays tracks `hp/max_hp`,
+## floored well above zero because even a burnt-out frame is worth its metal.
+static func hull_bid(n: MapGen.MapNode, h: HullData) -> int:
+	if h == null:
+		return 0
+	# The same SPREAD every other sale in this file uses. A hull is not a special
+	# case of trading; it is the largest ordinary one.
+	var condition := 1.0
+	if Run.hull == h:
+		condition = clampf(float(Run.hp) / float(maxi(1, Run.max_hp())),
+			0.45, 1.0)
+	return maxi(1, int(round(float(hull_price(n, h)) * SPREAD * condition)))
+
 
 # ------------------------------------------------------------------- readouts
 

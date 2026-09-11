@@ -140,6 +140,41 @@ func _shot(tree: SceneTree, weight_name: String) -> void:
 				break
 		print("  hold %dx%d, %d items" % [Run.hull.hold_grid.x,
 			Run.hull.hold_grid.y, Run.cargo.size()])
+	# `-- shipshot medium stock` packs the hold with MODULES rather than crates.
+	# `cargo` fills it with materials, which draw as boxes; this is the other
+	# half of what a hold holds, and the half whose plates carry a rarity edge, a
+	# manufacturer stripe and a silhouette.
+	if "stock" in OS.get_cmdline_user_args():
+		var tries := 0
+		while not Run.hold_full() and tries < 40:
+			tries += 1
+			Run.place_in_hold(LootGen.roll_module(3 + (tries % 5), &"", true))
+		print("  stock: %d modules, %d of %d cells" % [Run.cargo.size(),
+			Run.cargo_used(), Run.cargo_slots()])
+
+	# `-- shipshot medium dross` photographs a ship WITH SOMETHING WRONG WITH IT,
+	# which is the state the malfunction block on the loadout panel exists for
+	# and one no fresh run is ever in.
+	if "dross" in OS.get_cmdline_user_args():
+		Run.add_dross(3)
+		print("  dross: %d in the deck" % Run.dross_count())
+
+	# `-- shipshot light moved` photographs the screen the MOMENT AFTER A HULL
+	# SWAP, which is the one state the dock exists for and the only one no
+	# amount of clicking reaches quickly: you have to find a yard with a smaller
+	# frame on the blocks and be carrying enough to overflow it.
+	#
+	# Built by flying a HEAVY and moving into whatever this shot was asked for,
+	# so the squeeze is real arithmetic and not a hand-placed fixture -- 30 cells
+	# of loadout and hold going into a light's 12 strands about half of it.
+	if "moved" in OS.get_cmdline_user_args():
+		var target := Run.hull
+		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
+		for i in 6:
+			Run.place_in_hold(LootGen.roll_module(3 + i, &"", true))
+		Run.transfer_to_hull(target)
+		print("  moved: %d stowed, %d on the pad, deck %d" % [Run.cargo.size(),
+			Run.pad.size(), Run.deck_size()])
 	# `name=Bad Penny` photographs a NAMED ship, which is the state the masthead
 	# rearranges for -- the pilot's name takes the big line and the frame's own
 	# drops beside the chassis. A shot of an unnamed one cannot show that.

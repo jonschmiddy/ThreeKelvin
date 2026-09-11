@@ -78,18 +78,54 @@ static func local() -> ShipBuild:
 		return b
 	b.tier = b.hull.tier
 	for m in Run.installed:
-		b.parts.append({
-			"slot": int(m.slot),
-			"mount": maxi(m.mount, 0),
-			"manufacturer": m.manufacturer,
-			"id": m.id,
-		})
+		b.parts.append(part_entry(m))
 	b.hp = Run.hp
 	b.max_hp = maxi(1, Run.max_hp())
 	b.heat = Run.heat
 	b.heat_cap = maxi(1, Run.heat_cap())
 	b.dead = Run.dead
 	return b
+
+
+## A hull with a GIVEN set of parts on it, rather than the ones you are flying.
+##
+## THE SHIP YOU ARE LEAVING IS NOT `Run.hull` ANY MORE. The moment a swap is
+## paid for, `Run.hull` is the new frame and `Run.installed` is empty -- but the
+## transfer screen has to draw the old one still wearing its guns, because that
+## is the ship you are stripping. `local()` cannot answer that and `showroom()`
+## answers it bare.
+##
+## Cold and undamaged like a showroom hull, deliberately: the heat and the
+## scorch marks belong to a ship that is being flown, and this one is parked.
+static func fitted_out(h: HullData, parts_on: Array) -> ShipBuild:
+	var b := showroom(h)
+	if h == null:
+		return b
+	for raw in parts_on:
+		var m := raw as ModuleData
+		# A crate has no mount and no slot. The pad carries both kinds, and
+		# asking a lump of ore which hardpoint it is on would draw a gun.
+		if m == null or m.mount < 0:
+			continue
+		b.parts.append(part_entry(m))
+	return b
+
+
+## ONE PLACE THAT KNOWS WHAT A PART LOOKS LIKE ON THE WIRE.
+##
+## It was written twice the moment there were two ways to build a ship, and two
+## copies of a SERIALISED shape is exactly the drift `version_guard.py` exists
+## to catch -- `parts` goes over the wire in co-op, so a key added to one copy
+## and not the other is a peer drawing a different ship from the same message.
+## The guard caught the second copy on the day it was written, which is the
+## system working.
+static func part_entry(m: ModuleData) -> Dictionary:
+	return {
+		"slot": int(m.slot),
+		"mount": maxi(m.mount, 0),
+		"manufacturer": m.manufacturer,
+		"id": m.id,
+	}
 
 
 ## A hull nobody owns yet: bare, cold and undamaged.

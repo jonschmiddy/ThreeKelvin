@@ -27,8 +27,17 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 ## record reached from it run before any run exists, and the HUD reads ship
 ## state — it bails on a null hull, but an empty bar above a title screen is a
 ## bug that looks like a decision.
+##
+## THE SCREEN BEING LEFT IS HIDDEN, not just queued. `queue_free` leaves it in
+## the tree for the rest of the frame, and whatever redraws it there -- hiding
+## the HUD for the title screen grows the content area and resizes it -- draws
+## it against state that has already moved on. QUIT and SAVE & QUIT clear the
+## hull before this runs, so the starchart drew once more with no ship and
+## logged hundreds of errors for a frame no one ever saw. A hidden control is
+## never drawn. `-- quittest` guards it.
 func _swap(screen: Control, chrome: bool = true) -> void:
 	if current != null:
+		current.hide()
 		current.queue_free()
 	current = screen
 	content.add_child(screen)
@@ -304,6 +313,18 @@ func show_ship() -> void:
 	Audio.music_state(&"ship")
 	var s := ShipScreen.new()
 	_swap(s)
+	s.setup()
+
+## Moving day, after a hull swap that left something on the dock.
+##
+## NO HUD, and that is deliberate: the bar's SECTOR and STARCHART tabs are ways
+## off this screen, and there is no off it -- the ship cannot leave with crates
+## on the ground, so offering the exits and then refusing them is worse than not
+## offering them. `chrome = false` is the same argument the chassis select makes.
+func show_transfer() -> void:
+	Audio.music_state(&"ship")
+	var s := TransferScreen.new()
+	_swap(s, false)
 	s.setup()
 
 func show_game_over() -> void:

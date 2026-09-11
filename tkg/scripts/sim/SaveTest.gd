@@ -114,6 +114,11 @@ func fingerprint() -> Dictionary:
 				return String(x)))],
 		installed = mods.call(Run.installed),
 		cargo = mods.call(Run.cargo),
+		# THE PAD, WHICH IS NOT CARGO. It holds what came off a frame with
+		# nowhere to go, and it is the newest thing in the file -- so it is
+		# exactly the field a round-trip is worth running against. Fixtured
+		# below, because an empty pad compares equal to a pad the writer forgot.
+		pad = mods.call(Run.pad),
 		econ = [Run.hp, Run.heat, Run.heat_cap_bonus, Run.credits,
 			Run.fuel, Run.dross_count(), Run.whale_boon],
 		# Every material, not just the one that used to be a field. Written as a
@@ -163,7 +168,7 @@ func _materials() -> String:
 func _quotes() -> String:
 	var n: MapGen.MapNode = Run.node_at()
 	var parts: PackedStringArray = ["repair=%.4f" % Market.repair_rate(n),
-		"refuel=%d" % Market.refuel_price(n), "coolant=%d" % Market.coolant_price(n)]
+		"refuel=%d" % Market.refuel_price(n)]
 	for m in n.shop:
 		parts.append("ask:%s=%d" % [m.id, Market.ask(n, m)])
 	# PARTS QUOTE, MATERIALS PRICE. `bid` and `melt` are a module's two numbers
@@ -218,6 +223,20 @@ func run() -> void:
 	Run.hp = maxi(1, Run.hp - 9)
 	Run.heat = 5
 	Run.heat_cap_bonus = 2
+	# TWO THINGS ON THE DOCK. `pad` is populated by a hull swap that overflowed,
+	# and no probe in this file buys a hull -- so without a fixture the round
+	# trip would be checking that an empty array survives being written as an
+	# empty array. Placed by hand rather than through `transfer_to_hull` for the
+	# same reason the materials above are: a probe wants the STATE, not the
+	# journey that usually produces it.
+	for stranded in [&"plate", &"coolant"]:
+		var sm := (DB.modules[stranded] as ModuleData).duplicate(true) as ModuleData
+		sm.hold_at = -Vector2i.ONE
+		Run.pad.append(sm)
+	# LOUD IF THE FIXTURE STOPS FIXTURING. Both ids are read straight out of the
+	# catalogue with no `has` guard, so a rename fails here rather than seeding
+	# nothing and leaving the probe comparing an empty array to an empty array.
+	assert(Run.pad.size() == 2)
 	Run.credits += 37
 	# All three materials, not just the one that used to be a bare field. A
 	# ledger keyed by StringName and reloaded from JSON's String keys is exactly

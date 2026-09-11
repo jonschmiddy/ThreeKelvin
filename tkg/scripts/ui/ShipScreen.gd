@@ -174,6 +174,17 @@ var _lifted_mount: int = -1
 var _padl: Control
 var _panel: Control
 var _storage: HoldGrid
+## The dock, and the line above it. Both hidden unless `Run.pad` has something
+## on it, which outside the visit where you bought a ship is never.
+var _dock: PadStrip
+var _dockhead: Label
+var _dockbox: ScrollContainer
+
+## HOW MANY ROWS OF DOCK ARE ON SCREEN AT ONCE, the rest scrolled to.
+##
+## Two, because two is what is left. The hold panel runs to the bottom of a
+## 540-tall window on a heavy, and this sits under it.
+const DOCK_ROWS := 2
 var _attrs: AttrBlock
 var _mounts: VBoxContainer
 var _reactor: Label
@@ -500,6 +511,35 @@ func _build() -> void:
 	_storage = HoldGrid.new()
 	_storage.dropped.connect(_on_hold_drop)
 	holdcol.add_child(_storage)
+
+	# --- THE DOCK, UNDER THE HOLD.
+	#
+	# Under and not beside, because the two are the same rectangle seen twice:
+	# the strip takes the hold's own column count, so a part that will not fit
+	# up there is directly above the empty cells it needs. Beside them, at half
+	# the width, the comparison stops being a comparison.
+	_dockhead = UITheme.body("", UITheme.LEAVE, UITheme.FS_SMALL)
+	holdcol.add_child(_dockhead)
+	# --- BOUNDED, AND THEREFORE SCROLLED.
+	#
+	# The first version put the strip straight into the column and it ran off the
+	# bottom of the window: a heavy moving into a light strands about seven
+	# things, which wraps to four rows at the hold's width, and there are two
+	# rows of screen left under the grid. The panel had no more to give and the
+	# strip does not get to take it.
+	#
+	# The CELL stays the hold's, because the whole point of the plate is that it
+	# is the same object you are about to drag two inches upward -- shrinking it
+	# would have bought the rows back by making the two grids stop matching.
+	# Height is what gets capped instead, and the overflow scrolls.
+	var dockbox := ScrollContainer.new()
+	dockbox.custom_minimum_size = Vector2(0, DOCK_ROWS * (PadStrip.CELL
+		+ PadStrip.GAP) - PadStrip.GAP)
+	dockbox.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_dock = PadStrip.new()
+	dockbox.add_child(_dock)
+	_dockbox = dockbox
+	holdcol.add_child(dockbox)
 
 	midrow.add_child(holdcol)
 
@@ -1177,7 +1217,30 @@ func _refresh() -> void:
 	# Cells, not parts. "6 of 12" counted parts against a capacity in parts, and
 	# neither half of that survives a grid: the hold holds as many things as
 	# their shapes allow, so the honest number is how much ROOM is gone.
-	_hold.text = "STORAGE — %d of %d cells" % [Run.cargo_used(), Run.cargo_slots()]
+	# CELLS AND CARDS. Cells, not parts, because the hold holds as many things as
+	# their shapes allow -- "6 of 12" counted parts against a capacity in parts
+	# and neither half of that survives a grid.
+	#
+	# And the DECK, because that is the number this screen is really about.
+	# `deck_size()` sums `grant_count()` over what is bolted on and the hull
+	# contributes nothing, so every card you will be dealt comes from the
+	# arrangement in front of you -- and after a hull swap unbolts the lot, the
+	# honest reading of an untouched ship is zero.
+	_hold.text = "STORAGE — %d of %d cells · DECK %d" % [Run.cargo_used(),
+		Run.cargo_slots(), Run.deck_size()]
+
+	# HIDDEN WHEN EMPTY, both of them. `hidden` rather than a zero-height strip:
+	# the reset in every artifact and screen in this game gives `[hidden]` a
+	# display rule, and a container with an invisible child still spends the
+	# separation above it.
+	var docked_items := Run.pad.size()
+	_dockhead.visible = docked_items > 0
+	_dockbox.visible = docked_items > 0
+	if docked_items > 0:
+		_dockhead.text = "ON THE PAD — %d thing%s with nowhere to go" % [
+			docked_items, "" if docked_items == 1 else "s"]
+		_dock.cols = maxi(1, Run.hold_grid().x)
+		_dock.refresh()
 
 	_refresh_loadout()
 
@@ -1218,10 +1281,65 @@ func _focus_part(m: ModuleData, slot: MarginContainer = null,
 		NUDGE if on else 0.0, 0.12)
 	slot.set_meta(&"nudge", tw)
 
+## What is WRONG with the ship, at the top of the column where it cannot be
+## scrolled past.
+##
+## THE DECK HAD A SECRET IN IT. A malfunction is a card dealt into your hand in
+## combat and it comes off no module -- so this panel, the one place in the game
+## that answers "what is in my deck and where did it come from", was silent
+## about it. The only mention anywhere was a repair line on the Yard's service
+## list, which means you learned your ship had a blown coupling by being offered
+## the bill for one, at a station, after whatever fight put it there.
+##
+## FIRST, NOT LAST. It was written at the foot of the panel, under three slot
+## groups and a dozen card faces, which on a full loadout is below the fold --
+## and a warning you have to scroll to is a warning for somebody who already
+## knows to look. It is the exception on a page of things you chose; it goes
+## where the eye lands.
+##
+## Drawn as the CARDS THEMSELVES for the same reason the modules below are: it
+## is a card you will be holding, and a grey line of text describing one is a
+## worse picture of it than the card.
+func _dross_block() -> void:
+	if Run.dross_count() <= 0:
+		return
+	_fitted.add_child(UITheme.body("MALFUNCTIONS — %d IN YOUR DECK"
+		% Run.dross_count(), UITheme.LEAVE, UITheme.FS_SMALL))
+	var tally: Dictionary = {}
+	for id in Run.dross:
+		tally[id] = int(tally.get(id, 0)) + 1
+	var mrow := HBoxContainer.new()
+	mrow.add_theme_constant_override("separation", 4)
+	for id in tally:
+		var card := DB.malfunction(id)
+		if card == null:
+			continue
+		var cv := CardView.new()
+		cv.setup(card, true, 1)
+		# THE POINTER REACHES IT, so `CardView._make_custom_tooltip` can answer
+		# with the keyword readout -- a malfunction is exactly the card whose
+		# text a player has never read before.
+		cv.mouse_filter = Control.MOUSE_FILTER_STOP
+		cv.tooltip_text = " "
+		mrow.add_child(cv)
+		var many: int = tally[id]
+		if many > 1:
+			var x := UITheme.body("x%d" % many, UITheme.LEAVE, UITheme.FS_SMALL)
+			x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			mrow.add_child(x)
+	_fitted.add_child(mrow)
+	# NO CAPTION UNDER IT. It said where to get one cleared, which is a thing the
+	# station says on the deck that does it -- printed here it was two lines of
+	# grey explaining a card that is already showing you its own rules text.
+	_fitted.add_child(UITheme.hsep())
+
+
 func _refresh_loadout() -> void:
 	if _fitted == null:
 		return
 	Widgets.clear(_fitted)
+
+	_dross_block()
 
 	var fitted := 0
 	var mounts := 0
@@ -1278,8 +1396,12 @@ func _refresh_loadout() -> void:
 	if fitted == 0:
 		_fitted.add_child(UITheme.body("Nothing bolted on yet.",
 			UITheme.COLD, UITheme.FS_SMALL))
-	_fithead.text = "INSTALLED — %d of %d mounts · %d card%s" % [
-		fitted, mounts, cards, "" if cards == 1 else "s"]
+
+	_fithead.text = "INSTALLED — %d of %d mounts · %d card%s%s" % [
+		fitted, mounts, cards, "" if cards == 1 else "s",
+		"" if Run.dross_count() == 0
+		else " · %d MALFUNCTION%s" % [Run.dross_count(),
+			"" if Run.dross_count() == 1 else "S"]]
 
 ## The hardpoint tally, mirroring the chassis select's.
 ##
@@ -1443,9 +1565,23 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	# `_lifted` counts as from the ship: it left `installed` when you picked it
 	# up, and this is the branch that decides whether to say so in the log.
 	var from_ship := Run.installed.has(m) or m == _lifted
-	if Run.cargo.has(m):
+	# OFF THE DOCK IS A THIRD ORIGIN. It is neither a move within the hold nor a
+	# part coming off the hull: the item is in `Run.pad`, which is not `cargo`,
+	# so `take_from_hold` would not find it and `place_in_hold` would leave it
+	# in two places at once.
+	var from_pad := Run.pad.has(m)
+	if from_pad:
+		Run.pad.erase(m)
+	elif Run.cargo.has(m):
 		Run.take_from_hold(m)
 	if not Run.place_in_hold(m, at):
+		# BACK ON THE DOCK, and before the general restore below: a refused drop
+		# must cost nothing, and for a pad item "nothing" means it is still on
+		# the pad rather than gone from both lists.
+		if from_pad:
+			Run.pad.append(m)
+			_refresh()
+			return
 		# Put it back exactly where it was. A refused move must cost nothing —
 		# the alternative is a part that vanishes because the arithmetic said no
 		# after it had already been lifted.
