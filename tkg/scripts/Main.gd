@@ -459,7 +459,12 @@ func _ready() -> void:
 		Router.show_starchart()
 		return
 
-	if "cargo" in OS.get_cmdline_user_args():
+	# NOT WHEN IT IS A SHOT'S ARGUMENT. `-- shipshot heavy cargo` matched this
+	# first, the same way `chartshot quest` once matched `quest` above, and opened
+	# a playable game where the photograph should have been -- which from outside
+	# looks exactly like a shot that hangs.
+	if "cargo" in OS.get_cmdline_user_args() \
+			and not "shipshot" in OS.get_cmdline_user_args():
 		Run.start_new_run(&"korvan", int(HullData.Weight.HEAVY))
 		var shapes := ["2x2", "4x1", "3x1", "2x1", "1x1"]
 		var tiers: Array[StringName] = [&"legendary", &"exotic", &"contraband",

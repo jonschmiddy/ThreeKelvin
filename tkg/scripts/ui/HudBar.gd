@@ -66,10 +66,6 @@ var _heat: BoxGauge
 var _heat_text: Label
 var _scrap: HBoxContainer
 var _fuel: HBoxContainer
-var _materials: HBoxContainer
-## Which materials the row currently holds a readout for. Rebuilt only when this
-## changes; a count moving is a text update.
-var _mat_ids: Array = []
 
 func _ready() -> void:
 	add_theme_stylebox_override("panel", UITheme.bevel(UITheme.PANEL, 5, 6))
@@ -321,20 +317,13 @@ func _build() -> void:
 	_scrap = Widgets.stat("credits", "")
 	_scrap.add_theme_constant_override("separation", STAT_GAP)
 	econ.add_child(_hintable(_scrap))
-	# Materials are the one part of this bar whose CHILD COUNT is not fixed —
-	# one readout per material held, none for a material you have none of,
-	# because the bar is narrow and empty counters cost the space the ones that
-	# matter are read in.
-	#
-	# So they get their own container and their own rebuild, and it fires only
-	# when the SET of materials changes rather than when a count does. That keeps
-	# the thing this class exists to guarantee: the tabs and the gauges are never
-	# rebuilt, whatever the economy is doing.
-	_materials = HBoxContainer.new()
-	_materials.add_theme_constant_override("separation", ECON_GAP)
-	econ.add_child(_materials)
+	# NO CARGO UP HERE. Materials had a readout each, by name, and three pickups
+	# of common salvage pushed FUEL off the end of the bar -- to say what the
+	# storage grid already shows crate by crate. Sat beside CREDITS they also read
+	# as a second currency, and there is only one: materials are cargo, sold for
+	# credits at the Exchange.
 	# Fuel joins the group rather than sitting behind a rule of its own. It IS a
-	# different kind of thing -- credits and materials are cargo, fuel is the
+	# different kind of thing -- credits are money, fuel is the
 	# clock -- but ECON_GAP already says "separate readout", and a vertical bar
 	# at the very end of the row was drawing a compartment with one thing in it.
 	#
@@ -471,7 +460,6 @@ func refresh() -> void:
 	_value(_scrap, str(Run.credits))
 	# One sentence, in one place. See `CreditChit.WHAT_MONEY_IS`.
 	_hint(_scrap, CreditChit.WHAT_MONEY_IS)
-	_refresh_materials()
 	_value(_fuel, str(Run.fuel))
 	_hint(_fuel, "Fuel burns on every jump, priced by how far it is.\nRun dry between stations and the run ends adrift.")
 
@@ -503,32 +491,6 @@ func _hint(c: Control, text: String) -> void:
 		var cc := child as Control
 		if cc != null:
 			cc.tooltip_text = Widgets.tip(text)
-
-## One readout per material held. Rebuilt only when the SET changes — picking up
-## a material you had none of, or spending the last of one. A count going from 3
-## to 2 is a text write, which is the common case by a wide margin.
-func _refresh_materials() -> void:
-	var stock := Run.material_stock()
-	var ids: Array = []
-	for s in stock:
-		ids.append(s.id)
-	if ids != _mat_ids:
-		_mat_ids = ids
-		Widgets.clear(_materials)
-		for s in stock:
-			var tier := StringName(MaterialTable.by_id(s.id).get("tier", &"common"))
-			var row := Widgets.stat(str(s.name).to_lower(), str(s.count),
-				UITheme.tier_colour(tier))
-			row.add_theme_constant_override("separation", STAT_GAP)
-			row.name = "mat_" + String(s.id)
-			_materials.add_child(_hintable(row))
-	for s in stock:
-		var row2 := _materials.get_node_or_null("mat_" + String(s.id)) as HBoxContainer
-		if row2 == null:
-			continue
-		_value(row2, str(s.count))
-		var d := MaterialTable.by_id(s.id)
-		_hint(row2, "%s\n%s" % [str(s.name), str(d.get("text", ""))])
 
 func _value(row: HBoxContainer, text: String) -> void:
 	var v := row.get_node_or_null("Value") as Label
