@@ -345,7 +345,7 @@ func _build_party() -> void:
 	actions.add_child(Widgets.button("NOT READY" if ready else "READY",
 		func() -> void: Net.set_ready(not ready)))
 	if Net.is_host():
-		actions.add_child(Widgets.button("LAUNCH DIVE", func() -> void:
+		actions.add_child(Widgets.cta("LAUNCH DIVE", func() -> void:
 			if not Net.launch_dive():
 				_status.text = Net.last_error()))
 	_body.add_child(actions)

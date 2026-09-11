@@ -136,6 +136,11 @@ everything in it is rendered with obsessive care.
 - Melancholy comes from composition: small ship, vast frame, negative space, sparse
   animation with strong impact effects.
 - Palette constants live in `UITheme`. Use them; never hardcode colours.
+- **One hot button per panel.** `Widgets.cta()` puts the panel's primary action on the
+  warm `CtaButton` plate — JUMP on the chart, END TURN in a fight, CONTINUE out of a
+  result, LAUNCH, UNDOCK. Everything a player merely *may* do stays on the grey
+  `Widgets.button()`. Two per panel and the heat means nothing; pressed and disabled
+  states deliberately fall through to the base Button theme (see `UITheme.build()`).
 
 Sprites are currently generated procedurally in `scripts/ui/ShipView.gd` and
 `EnemyArt.gd` (side-view — which is now **correct by ruling** rather than a leftover; the
