@@ -278,3 +278,9 @@ const BERTH_HALF := 0.21
 ## Where berth `i` is across, as a fraction. 0 is yours, 1 is the one for sale.
 static func berth_x(i: int) -> float:
 	return BERTH_SALE if i == 1 else BERTH_MINE
+
+
+## Where the station's banners hang in the hangar: under the gantry rail, a set
+## either side of the window, over both berths.
+func banner_spots() -> Array:
+	return [Vector2(0.40, 30.0), Vector2(0.60, 30.0)]
