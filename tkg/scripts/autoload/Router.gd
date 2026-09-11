@@ -27,8 +27,17 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 ## record reached from it run before any run exists, and the HUD reads ship
 ## state — it bails on a null hull, but an empty bar above a title screen is a
 ## bug that looks like a decision.
+##
+## THE SCREEN BEING LEFT IS HIDDEN, not just queued. `queue_free` leaves it in
+## the tree for the rest of the frame, and whatever redraws it there -- hiding
+## the HUD for the title screen grows the content area and resizes it -- draws
+## it against state that has already moved on. QUIT and SAVE & QUIT clear the
+## hull before this runs, so the starchart drew once more with no ship and
+## logged hundreds of errors for a frame no one ever saw. A hidden control is
+## never drawn. `-- quittest` guards it.
 func _swap(screen: Control, chrome: bool = true) -> void:
 	if current != null:
+		current.hide()
 		current.queue_free()
 	current = screen
 	content.add_child(screen)

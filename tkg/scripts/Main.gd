@@ -678,6 +678,13 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# Leaving a run from the pause menu, and whether the screen left behind draws
+	# once more with no ship:  godot --headless --path . -- quittest
+	if "quittest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/QuitTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	# Parts crossing between the hold and the hull, dragged with real events:
 	#   godot --path . -- fittest
 	# NOT headless — it drives Viewport's own drag machine, and headless has no
