@@ -149,14 +149,35 @@ static func pixel_font() -> FontFile:
 ## the line for something they never have to read at all.
 const QUOTE := Color("#5a6470")
 
+## How solid a panel is over the sky behind it.
+##
+## NOT QUITE OPAQUE, and that is the whole of what makes the sky worth drawing.
+## `SpaceLayer` puts a world behind every screen that is not an interior, and a
+## panel filled with solid PANEL covers all of it — the refit bay and the
+## archive are rectangles that between them leave a few pixels of gutter, so a
+## sky behind them was a sky nobody would ever see.
+##
+## Held high on purpose. This is depth, not a window: the stars must never
+## compete with the text in front of them, and a player reading a module's stats
+## should not be aware they are doing it against a planet. What survives at this
+## alpha is the value shift where the sky is bright, which is enough to say the
+## panel is IN a place.
+##
+## One number, here, because it is the dial the whole effect lives on and it
+## wants arguing with in one place rather than finding in eleven. Note that the
+## theme is only half of it: `Widgets.panel_with` overrides the stylebox, so the
+## screens built from it read the alpha from there. Changing this alone moves
+## nothing on the refit bay — measured, at 0.25, on a screen that did not budge.
+const PANEL_A := 0.88
+
 static func build() -> Theme:
 	var t := Theme.new()
 	t.default_font = pixel_font()
 	t.default_font_size = FS_BODY
 
 	# Panels
-	t.set_stylebox("panel", "PanelContainer", bevel(PANEL))
-	t.set_stylebox("panel", "Panel", bevel(PANEL))
+	t.set_stylebox("panel", "PanelContainer", bevel(Color(PANEL, PANEL_A)))
+	t.set_stylebox("panel", "Panel", bevel(Color(PANEL, PANEL_A)))
 
 	# Buttons
 	var normal := bevel(PANEL2, 3, 5)

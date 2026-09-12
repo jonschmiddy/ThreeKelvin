@@ -6,6 +6,10 @@ var content: Control
 var hud: HudBar
 var current: Control
 var combat: Combat
+## The sky, behind whatever screen is open. See SpaceLayer: it lives here rather
+## than in a screen so that swapping screens changes what is in front of the
+## world instead of replacing the world.
+var sky: SpaceLayer
 ## Whether the ship is tied up at a station rather than flying the system.
 ##
 ## Not on Run and not a Sig signal: it is a fact about which side of the airlock
@@ -19,6 +23,11 @@ var docked: bool = false
 func register(content_holder: Control, hud_bar: HudBar) -> void:
 	content = content_holder
 	hud = hud_bar
+	# FIRST CHILD, so every screen added after it draws in front. `_swap` frees
+	# `current` and never this, so the sky outlives the screens the way the
+	# place outlives the thing you happen to be looking at.
+	sky = SpaceLayer.new()
+	content.add_child(sky)
 	Sig.jumped.connect(_on_jumped)
 	Sig.run_started.connect(_on_run_started)
 	Sig.run_ended.connect(_on_run_ended)
@@ -43,8 +52,42 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	content.add_child(screen)
 	if hud != null:
 		hud.visible = chrome
+	_refresh_sky()
 	Sig.screen_changed.emit()
 	_autosave()
+
+
+## Which screens the sky belongs behind.
+##
+## Every exclusion here is for its own reason, so this is a list and not a rule.
+##
+## The STATION is an interior and its cutaway says so: a starfield on a deck
+## would contradict the one conceit that screen is built on.
+##
+## The LAUNCHER and the STARCHART are not excluded for being wrong — they
+## already draw a galaxy of their own, and two skies is one more than anywhere
+## has.
+##
+## THE SECTOR is the interesting one, because it is the screen this layer was
+## lifted out of. `EncounterView` paints a region-tinted wash in its own `_draw`
+## and its backdrop draws ON TOP of that wash, so the two are one composition
+## rather than two layers that happen to be stacked. Moving half of it up here
+## would put the wash over the sky and lose the thing it was built to do. It
+## keeps its own pair, this one stands down behind it, and nothing bakes twice.
+## Unifying them means moving the wash as well, which is a change to the best
+## screen in the game and does not belong in the same step as giving nine bare
+## screens a sky for the first time.
+##
+## Everything else is somewhere in space, which is the entire point of the layer.
+func _refresh_sky() -> void:
+	if sky == null:
+		return
+	var interior := current is StationScreen
+	var has_own := current is LauncherScreen or current is StarchartScreen \
+		or current is SectorScreen
+	sky.set_active(not interior and not has_own)
+	if Run.map.size() > 0:
+		sky.setup(Run.node_at())
 
 ## The one place the run is written to disk.
 ##

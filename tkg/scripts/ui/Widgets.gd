@@ -521,9 +521,18 @@ static func pad(child: Control = null, h: int = 8, v: int = 6) -> MarginContaine
 		m.add_child(child)
 	return m
 
+## The big rectangles the information screens are built out of.
+##
+## THE ALPHA IS LOAD-BEARING, and it is here rather than in the theme because
+## this override is what the theme's own panel stylebox never gets to answer.
+## The refit bay, the hold, both galleries and the archive all come through this
+## function, and while the fill was solid they covered every pixel of the sky
+## `SpaceLayer` draws behind them. See UITheme.PANEL_A for why the number is
+## high.
 static func panel_with(child: Control) -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 12, 12))
+	p.add_theme_stylebox_override("panel",
+		UITheme.flat(Color(UITheme.PANEL, UITheme.PANEL_A), UITheme.LINE, 0, 12, 12))
 	p.add_child(child)
 	return p
 

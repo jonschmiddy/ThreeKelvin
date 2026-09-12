@@ -658,6 +658,14 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
+	# Beside stationshot for the same two reasons, and a third: it walks the
+	# Router, so it must run after `register` has given it a content node to
+	# swap screens into.
+	if "skyshot" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/SkyShot.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "convoy" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/ConvoyTest.gd").new()
 		_convoy_test.run(get_tree())
