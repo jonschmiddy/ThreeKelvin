@@ -445,8 +445,60 @@ func _stop(cue: StringName) -> void:
 	if not _running.get(cue, false):
 		return
 	_running[cue] = false
+	_idle_since[cue] = Time.get_ticks_msec()
 	for stem: StringName in _stems[cue]:
 		(_stems[cue][stem] as AudioStreamPlayer).stop()
+
+
+## How long a silent cue is kept loaded before its streams are let go.
+##
+## STOPPING A CUE WAS NEVER RELEASING IT. `_ensure_loaded` loads on first use
+## and nothing ever undid it, so a session that visited the title, the chart,
+## the ship, a station, a sector, an event, a fight and a boss ended up holding
+## every one of those cues decoded in memory at once -- the whole set is 154 MB
+## of Ogg and the per-cue figures run to 17 MB. The README calls download size
+## "the one number in the project that is getting uncomfortable"; this is the
+## half of that number a player actually pays, mid-run, on the machine they are
+## playing on.
+##
+## THE DELAY IS THE WHOLE DESIGN. Releasing the moment a cue goes silent would
+## make walking chart -> ship -> chart reload a cue twice in ten seconds, and
+## loading eight stems is a hitch you would feel. Forty-five seconds is longer
+## than any round trip through the menus and far shorter than a run.
+const RELEASE_AFTER_MS := 45000
+var _idle_since: Dictionary = {}    ## cue -> msec when it last went silent
+
+
+## Let go of anything that has been silent long enough. Never the current cue,
+## whatever its gain is doing: a cue mid-crossfade is still the answer to "what
+## is playing", and freeing it would cut the fade it is in the middle of.
+func _release_idle() -> void:
+	var now := Time.get_ticks_msec()
+	for cue: StringName in _stems.keys():
+		if cue == _cue or _running.get(cue, false):
+			continue
+		if now - int(_idle_since.get(cue, now)) < RELEASE_AFTER_MS:
+			continue
+		for stem: StringName in _stems[cue]:
+			var p: AudioStreamPlayer = _stems[cue][stem]
+			# The stream is what holds the memory; drop it before the node so
+			# the resource's last reference goes with the player rather than
+			# waiting on whatever else happens to be holding the node.
+			p.stream = null
+			p.queue_free()
+		_stems.erase(cue)
+		_gain.erase(cue)
+		_gain_target.erase(cue)
+		_running.erase(cue)
+		_idle_since.erase(cue)
+
+
+## How many cues are loaded right now. For `-- audiotest`; nothing in the game
+## asks.
+func resident() -> Array:
+	var out := _stems.keys()
+	out.sort()
+	return out
 
 ## What the bed answers to, recomputed every frame because all three of its
 ## inputs move without telling anyone.
@@ -493,6 +545,9 @@ func _process(delta: float) -> void:
 			var v: float = at * float(BEDS[name])
 			p.volume_db = OFF_DB if v <= 0.001 else linear_to_db(v)
 	if not _enabled or _stems.is_empty():
+		return
+	_release_idle()
+	if _stems.is_empty():
 		return
 	for cue: StringName in _stems:
 		var g: float = _gain[cue]
