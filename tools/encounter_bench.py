@@ -78,7 +78,7 @@ def parse(src):
 		t = tier(hi)
 		bm = re.search(r'body = "(.*?)",\n', blk, re.S)
 		gates = [g for g in ["needs_star", "needs_giant", "needs_pulsar",
-			"needs_fauna", "needs_berth", "regions", "max_security", "placed"]
+			"needs_nebula", "needs_fauna", "needs_berth", "regions", "max_security", "placed"]
 			if re.search(r"\b%s\b" % g, blk)]
 		star = re.search(r"needs_star = MapGen\.Star\.([A-Z]+)", blk)
 		if star:
