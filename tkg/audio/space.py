@@ -108,14 +108,14 @@ AREAS = {
     "deep": [(0.00, [-12, -5, 0, 3, 7]), (0.44, [-6, 0, 3, 8, 12]),
              (0.74, [-12, -9, -2, 0, 3])],
     # driving cues change four times as often
-    "drive": [(0.00, [0, 3, 7, 10]), (0.14, [8, 12, 15, 19]),
-              (0.28, [5, 8, 12, 15]), (0.42, [0, 3, 7, 12]),
-              (0.56, [10, 13, 17, 20]), (0.70, [8, 12, 15, 18]),
-              (0.84, [0, 6, 7, 12])],
+    # FOUR CHANGES, NOT SEVEN. A chord every nine seconds under a pulse is the
+    # harmony competing with the rhythm for the ear's attention; at four the
+    # pulse is what moves and the harmony is what it moves over.
+    "drive": [(0.00, [0, 3, 7, 10]), (0.26, [8, 12, 15, 19]),
+              (0.52, [5, 8, 12, 15]), (0.78, [0, 3, 7, 12])],
     # a second driving progression, so the two fight cues do not share one
-    "drive2": [(0.00, [0, 6, 7, 13]), (0.16, [5, 8, 12, 18]),
-               (0.34, [0, 3, 10, 15]), (0.50, [8, 11, 15, 20]),
-               (0.66, [6, 10, 13, 18]), (0.82, [0, 7, 12, 15])],
+    "drive2": [(0.00, [0, 6, 7, 13]), (0.28, [5, 8, 12, 18]),
+               (0.56, [0, 3, 10, 15]), (0.80, [8, 11, 15, 20])],
     # stacked fourths: no thirds at all, so it reads modern rather than modal
     "quartal": [(0.00, [0, 5, 10, 15, 22]), (0.36, [7, 12, 17, 22, 26]),
                 (0.62, [2, 7, 12, 19, 24]), (0.82, [0, 5, 12, 17, 19])],
@@ -324,7 +324,10 @@ def v_pedal(n, root, dark, drive, areas=None, total=0.0, form=None):
         y += a * w * v
     y += lp(synth.saw(root, n), root * 2.1, order=3) * 0.24 * w
 
-    if areas and total > 0:
+    # NO BASS MELODY IN A DRIVING CUE. The pulse is already the bass, and two
+    # independent low lines is two things to follow where there should be one.
+    # The still and drifting cues keep it: there, nothing else is moving.
+    if areas and total > 0 and not drive:
         for iv, at, ln in bass_line(areas, total, form):
             f = root * 2 ** (iv / 12.0)
             # NOT BELOW 35 Hz. On the deepest cue the contour asked for two
@@ -419,9 +422,10 @@ def v_pulse(n, root, areas, total, bpm, dark):
         ch = area_at(areas, ((bar * spb * 4) / total) % 1.0)
         iv = ch[bar % len(ch)]
         f = root * 2 ** (iv / 12.0)
-        if beat % 2 == 1:
-            f *= 2.0                      # offbeats an octave up, always
-        accent = 1.0 if beat == 0 else (0.72 if beat == 4 else 0.42)
+        # ONE PITCH, NO OCTAVE JUMP. Alternating octave on the offbeat made the
+        # ostinato read as two interleaved lines rather than one, which is most
+        # of what "chaotic" was. A pulse you can follow is one line.
+        accent = 1.0 if beat == 0 else (0.62 if beat == 4 else 0.26)
         m = int(step * 0.92 * SR)
         t = np.arange(m) / SR
         v = synth.saw(f, m) * 0.8 + np.sin(2 * np.pi * f * 0.5 * t) * 0.5
@@ -471,7 +475,8 @@ def v_metal(n, density, total, seed, on_grid, bpm):
     a drum."""
     r = np.random.RandomState(seed)
     y = np.zeros(n)
-    count = max(3, int((10 if on_grid else 5) * density))
+    # Sparse on a grid: ringing inharmonic metal over a pulse is mud.
+    count = max(2, int((3 if on_grid else 5) * density))
     for i in range(count):
         if on_grid:
             at = i * (60.0 / bpm) * 4.0 * 2
@@ -578,13 +583,16 @@ def v_theme(n, root, areas, form, total, drive):
     if notes is None:
         return np.zeros(n)
     y = np.zeros(n)
-    spots = ([0.08, 0.30, 0.52, 0.74] if drive else [0.16, 0.46, 0.72])
+    spots = ([0.14, 0.58] if drive else [0.16, 0.46, 0.72])
     for sp in spots:
         base = sp * total
         for iv, off, dur in notes:
             ch = area_at(areas, ((base + off) / total) % 1.0)
-            for k, v in enumerate(voicing(iv, ch, 2)):
-                amp = 0.115 if k == 0 else 0.062 / k
+            # SINGLE NOTE IN A FIGHT. A chord-voiced theme over a pulse is three
+            # more moving parts; one line over a beat is a tune you can hear.
+            want = 0 if drive else 2
+            for k, v in enumerate(voicing(iv, ch, want)):
+                amp = 0.125 if k == 0 else 0.062 / k
                 place(y, v_sing(root * 2 ** (v / 12.0), dur, amp), base + off)
     return hp(y, 55.0, order=2)
 
