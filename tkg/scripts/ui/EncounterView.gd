@@ -638,12 +638,55 @@ class AreaView extends Control:
 		Color("#ffa63c"), Color("#ffdca0"), Color("#fff6e2")]
 	var _ink: Color = Color("#0b0f16")
 
+	## Seconds since this view appeared, and the beacon's ring position derived
+	## from it. Two names for one clock because they are read at different
+	## scales: strobes want seconds, the transmission wants where it is in a
+	## cycle.
+	var _clock: float = 0.0
+	var _phase: float = 0.0
+	## Seconds a ring takes to travel one step outward. Slow: this is the
+	## background of the background, and a beacon that pulsed at a readable
+	## rate would be competing with the thing you came here to look at.
+	const RING_S := 1.9
+	## Redraws a second. NOT the frame rate. The whole of the motion here is two
+	## strobes and five walking rings, and at twelve steps a second a strobe
+	## still snaps and a ring still glides -- while the picture underneath it,
+	## which is a few hundred rects of station, is repainted a fifth as often as
+	## it would be otherwise. `SpaceBackdrop` makes the same trade.
+	const REDRAW_HZ := 12.0
+	var _since_draw: float = 0.0
+
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Off until `setup` has seen a node and decided this place moves. A
+		# default-on `_process` would tick on every sector in the game waiting
+		# to be told it had nothing to do.
+		set_process(false)
 
 	func setup(n: MapGen.MapNode) -> void:
 		node = n
+		set_process(SHOW_PLACES and _moves())
 		queue_redraw()
+
+	## Whether this place has anything on it that moves. Only two do, so every
+	## other sector pays nothing at all for this: a wreck is a wreck, and a
+	## `_process` on it would be a timer running to redraw an identical picture.
+	func _moves() -> bool:
+		if node == null:
+			return false
+		if node.type == MapGen.NodeType.STATION:
+			return true
+		return (node.type == MapGen.NodeType.SYSTEM
+			and not OptionTable.system_has_tag(node, &"fight")
+			and not OptionTable.system_has_tag(node, &"salvage"))
+
+	func _process(delta: float) -> void:
+		_clock += delta
+		_phase = fposmod(_clock / RING_S, 5.0)
+		_since_draw += delta
+		if _since_draw >= 1.0 / REDRAW_HZ:
+			_since_draw = 0.0
+			queue_redraw()
 
 	## The sector pictures are OFF while their real art is drawn.
 	##
@@ -788,8 +831,28 @@ class AreaView extends Control:
 		_window(c + Vector2(-3, -30), Vector2(6, 3))
 		# Navigation strobes: the one cold light on it, so it does not read as
 		# a furnace.
-		draw_rect(Rect2(c + Vector2(-64, -2), Vector2(3, 3)), Color("#8ec8e6"), true)
-		draw_rect(Rect2(c + Vector2(61, -2), Vector2(3, 3)), Color("#8ec8e6"), true)
+		#
+		# THEY STROBE, and out of phase with each other. A navigation light is
+		# the one thing on a station that genuinely blinks, so it is the one
+		# thing here that earns an animation -- the windows stay lit, because a
+		# window going dark is somebody walking about and this game has no
+		# people in it you can see. Long dark, short bright, two different
+		# periods: in step they would be a heartbeat, and a heartbeat is a
+		# rhythm the sector does not have.
+		var dark := Color("#2b4759")
+		draw_rect(Rect2(c + Vector2(-64, -2), Vector2(3, 3)),
+			dark.lerp(Color("#8ec8e6"), _strobe(2.3, 0.0)), true)
+		draw_rect(Rect2(c + Vector2(61, -2), Vector2(3, 3)),
+			dark.lerp(Color("#8ec8e6"), _strobe(3.1, 1.4)), true)
+
+	## One strobe: dark most of the period, then a short bright flash.
+	##
+	## Deliberately not a sine. A sine spends half its time near full and reads
+	## as a pulsing glow; a light that is off and then briefly on reads as a
+	## machine signalling, which is what this is.
+	func _strobe(period: float, offset: float) -> float:
+		var u := fposmod(_clock + offset, period) / period
+		return clampf(1.0 - u * 7.0, 0.0, 1.0)
 
 	## A wreck: the same construction with the light taken out of it and a hole
 	## through the middle. Nothing here emits, which is the whole point — the
@@ -837,10 +900,22 @@ class AreaView extends Control:
 	## are the message leaving; they thin as they go, which is the only depth
 	## cue available for something that has no surface.
 	func _beacon(c: Vector2, tint: Color) -> void:
+		# THE RINGS GO OUTWARD, because the rings are the thing it is doing. A
+		# beacon drawn as five fixed circles is a diagram of a transmission; the
+		# same five walking outward and dissolving is a transmission. It costs
+		# one modulo and it is the difference between a picture of a place and a
+		# place -- and this setting's cheapest horror, per lore.md, is a system
+		# that is empty and still talking.
+		#
+		# Five rings on one cycle, so a ring leaves the buoy exactly as the
+		# outermost reaches the edge and fades into the void. Nothing appears or
+		# vanishes; the colour ramp was already taking them to the background
+		# colour at the far end, so the loop hides itself.
 		for i in 5:
-			var rr := 26.0 + float(i) * 15.0
-			var col := tint.lerp(Color("#070a10"), 0.18 + float(i) * 0.17)
-			var step: int = 2 + i
+			var k := fposmod(float(i) + _phase, 5.0)
+			var rr := 26.0 + k * 15.0
+			var col := tint.lerp(Color("#070a10"), 0.18 + k * 0.17)
+			var step: int = 2 + int(k)
 			var n := int(rr * 2.4)
 			for j in n:
 				var a := TAU * float(j) / float(n)
@@ -852,10 +927,17 @@ class AreaView extends Control:
 		_body(c + Vector2(-4, -34), Vector2(8, 62), _grey, 0.5)
 		_body(c + Vector2(-16, -44), Vector2(32, 12), _grey, 0.7)
 		_body(c + Vector2(-11, 24), Vector2(22, 7), _grey, 0.4)
+		# The lamp answers the rings: brightest in the moment a new one leaves
+		# it, so the two read as one machine doing one thing rather than a lit
+		# box standing in front of some circles.
+		var fire := 1.0 - clampf(fposmod(_phase, 1.0) * 3.2, 0.0, 1.0)
 		draw_rect(Rect2(c + Vector2(-6, -50), Vector2(12, 6)), _ink, true)
-		draw_rect(Rect2(c + Vector2(-5, -49), Vector2(10, 4)), _heat[2], true)
-		draw_rect(Rect2(c + Vector2(-5, -49), Vector2(10, 2)), _heat[4], true)
-		draw_rect(Rect2(c + Vector2(-3, -49), Vector2(6, 1)), _heat[5], true)
+		draw_rect(Rect2(c + Vector2(-5, -49), Vector2(10, 4)),
+			_heat[1].lerp(_heat[2], fire), true)
+		draw_rect(Rect2(c + Vector2(-5, -49), Vector2(10, 2)),
+			_heat[3].lerp(_heat[4], fire), true)
+		draw_rect(Rect2(c + Vector2(-3, -49), Vector2(6, 1)),
+			_heat[4].lerp(_heat[5], fire), true)
 
 	## The Custodian's hole. A disc seen nearly edge-on, brightest where it is
 	## about to fall in, with the shadow left as a shadow.
