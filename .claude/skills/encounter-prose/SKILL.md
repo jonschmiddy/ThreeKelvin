@@ -94,9 +94,10 @@ embedded mode, with these project overrides:
   only a run of three or more that could merge.
 - Humanizer's no-invention rule does not apply; invented detail is the job. The
   commission's rule still does: the prose must match the code.
-- Dashes (humanizer §8) are NOT RULED for player-facing prose. The live table has em
-  dashes in 47 strings across 35 encounters and " -- " in 3. Flag heavy use; remove
-  none until Jon rules.
+- Dashes (humanizer §8) are RULED, 2026-09-10: removed from sentences in every
+  player-facing string. They stay where a dash separates a field in an all-caps
+  heading (STORAGE, REACTOR, STILL ABOARD), marks an empty value, or lays out a
+  column in an archive document.
 - "quietly" is on humanizer's word list and in the commission's own style example.
   Weak alone; flag it only with company.
 
@@ -131,7 +132,10 @@ Prose:
 - Cut detail that does no work. No institutional abstraction ("its funding
   stopped" becomes "the people who put it there stopped answering").
 - Nothing alive without the fauna gate.
-- Long chains of "and" clauses are fine; the benchmarks use them.
+- ~~Long chains of "and" clauses are fine; the benchmarks use them.~~ AMENDED
+  2026-09-12, see §3c. This line, passed into a brief with nothing on the other
+  side of it, is what produced 19-word sentences at 0.75 "and" each. Break the
+  chains; the benchmarks are not the standard for reading level.
 
 Mechanics to prose:
 
@@ -152,6 +156,45 @@ Mechanics to prose:
 Check attributes are `hull`, `thrust`, `maneuver`, `thermal`, `sensors`, `stealth`
 (`SkillCheck.value_of`). The commission's §4 list is wrong: `salvage` does not exist
 and silently scores 0.
+
+## 3c. Plain language (ruled 2026-09-12)
+
+Jon read the batch that had just landed and said: "The language of these is kind
+of dense, hard to read. Almost verbose in a way that no real human would write,"
+and "I do not want people to need a PhD or college-level education to play this
+game." This ruling is binding and it OUTRANKS the four benchmark encounters,
+which measure among the densest in the table.
+
+Measured with `python tools/prose_grade.py`, which prints a Flesch-Kincaid grade
+per encounter, worst first:
+
+| cohort | grade | words a sentence |
+|---|---|---|
+| the original 47 | 7.1 | 17.5 |
+| batches 01 to 06 | 6.0 | 16.8 |
+| the 42 written in one day | 7.1 | 19.0 |
+
+The target for anything written or revised from now on:
+
+- **Grade 5.0 or under**, about ten words a sentence, and no sentence over 22
+  words. The tool exits non-zero on anything over.
+- **Break the clause chains.** The 42 got to grade 7 with 0.75 "and" per
+  sentence and fewer commas than either older cohort: long unpunctuated chains.
+  The brief that produced them said "long chains of and clauses are fine" with
+  nothing on the other side of it, which is how it happened.
+- **Nothing that exists to sound wise.** The tic is a short general truth used as
+  a capper: "Nobody carries a tank away", "Nothing on the list is unreasonable on
+  its own." End on a concrete fact about this ship, this rock, this crew. This is
+  the same fault the humanizer skill calls a saying that sounds deep, wearing a
+  plainer costume.
+- **Ship scale.** A grapple lifts, a cutter cuts, a pump moves fuel, a dish
+  reads, thrust pushes. People talk on the channel, fly, pay, refuse and argue.
+  Nobody carries, boards on foot, or does anything with hands, including the
+  crews who were here before you: a wreck is "stripped of what a grapple could
+  lift", never "of everything two people could carry".
+
+Plain does not mean thin. Every fact, name and number the dense version carried
+survives the rewrite; what goes is the clause chain and the closing aphorism.
 
 ## 4. The report
 
