@@ -87,25 +87,25 @@ const CUES := {
 	## mistakes that produced them.
 	&"first_light": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
 	&"shells": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
 	&"warm": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
 	&"home": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
@@ -123,25 +123,25 @@ const CUES := {
 	],
 	&"core": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
 	&"fauna": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
 	&"theme": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
 	&"business": [   ## drift
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"motion", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
@@ -449,12 +449,39 @@ func _ensure_loaded(cue: StringName) -> void:
 ## Every stem of a cue starts in the same frame, so they share a mix cycle and
 ## stay sample-locked. They are all exactly the same length, so they also loop
 ## together and cannot drift apart over a long session.
+## When the soundtrack started, in msec. Everything plays against this clock.
+var _music_t0: int = 0
+
+
+## A CUE RESUMES WHERE IT WOULD HAVE BEEN, rather than starting again.
+##
+## This used to be a bare `play()`, which begins at the top of the loop. Ship,
+## starchart and sector are three different cues, so walking between them
+## restarted the music every single time -- the most common thing a player does
+## in this game was also the one thing guaranteed to interrupt it.
+##
+## Every stem is a seamless loop, so there is nothing special about the start of
+## one. Playing from `elapsed % length` puts a cue where it would be if it had
+## never stopped, and because ALL cues are measured against ONE clock they stay
+## in phase with each other as well -- switching screens now reads as the same
+## piece changing colour rather than as a new track beginning.
+##
+## All six stems of a cue share a length, so they stay locked to each other.
 func _start(cue: StringName) -> void:
 	if _running.get(cue, false):
 		return
 	_running[cue] = true
+	if _music_t0 == 0:
+		_music_t0 = Time.get_ticks_msec()
+	var elapsed := float(Time.get_ticks_msec() - _music_t0) / 1000.0
 	for stem: StringName in _stems[cue]:
-		(_stems[cue][stem] as AudioStreamPlayer).play()
+		var p: AudioStreamPlayer = _stems[cue][stem]
+		var at := 0.0
+		if p.stream != null:
+			var len := p.stream.get_length()
+			if len > 0.0:
+				at = fposmod(elapsed, len)
+		p.play(at)
 
 ## A cue that has finished fading out is left holding eight or nine Ogg streams
 ## decoding into silence. Stop it. Coming back restarts it from bar 1, which is

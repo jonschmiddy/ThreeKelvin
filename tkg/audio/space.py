@@ -216,7 +216,7 @@ PULSE_OF = {"burn": "tresillo", "boss": "tresillo"}
 
 FAMILY_STEMS = {
     "still": ["pedal", "organ", "breath", "metal", "theme", "upper"],
-    "drift": ["pedal", "organ", "breath", "metal", "theme", "upper"],
+    "drift": ["pedal", "organ", "motion", "metal", "theme", "upper"],
     "drive": ["pedal", "organ", "pulse", "metal", "theme", "stab"],
 }
 
@@ -493,6 +493,51 @@ def v_stab(n, root, areas, total, bpm, dark):
     return hp(y, 90.0, order=2)
 
 
+def v_motion(n, root, areas, total, shimmer):
+    """MOVEMENT WITHOUT A BEAT, for the cues that are not fights.
+
+    Jon: "it's also WAYYYY too droney." It was: the drifting cues had a held
+    pedal, a held organ, a noise bed, five struck metals and three statements of
+    the theme across ninety-six seconds, and nothing else. Almost all of the
+    running time was sustain.
+
+    This replaces the noise bed on those cues -- filtered noise being the single
+    most drone-ish thing in the mix -- with a slow arpeggio through whatever
+    chord is sounding. One note every 1.3 seconds, climbing the area and falling
+    back, plucked and left to ring.
+
+    IT IS NOT A PULSE. The rate is steady so it never becomes something to
+    track, but there is no accent pattern and no bar, so it reads as a place
+    with something happening in it rather than as a rhythm. The fights keep
+    their ostinato; this is the other half of the same idea at a tenth of the
+    speed.
+    """
+    step = 1.30
+    y = np.zeros(n)
+    at = 0.0
+    k = 0
+    while at < total + WRAP_S:
+        ch = area_at(areas, (at / total) % 1.0)
+        # up the chord and back down, so the line has a shape rather than
+        # cycling in one direction forever
+        span = len(ch) * 2 - 2 if len(ch) > 1 else 1
+        idx = k % span
+        if idx >= len(ch):
+            idx = span - idx
+        f = root * 2 ** ((ch[idx] + 12) / 12.0)
+        dur = step * 2.6
+        m = int(dur * SR)
+        t = np.arange(m) / SR
+        v = np.sin(2 * np.pi * f * t)
+        v += 0.34 * np.sin(4 * np.pi * f * t)
+        v += 0.14 * np.sin(6 * np.pi * f * t)
+        v = lp(v, 2600.0, order=2) * np.exp(-t / (dur * 0.30))
+        place(y, v, at, 0.055 * (0.7 + 0.5 * shimmer))
+        at += step
+        k += 1
+    return hp(y, 90.0, order=2)
+
+
 def v_metal(n, density, total, seed, on_grid, bpm):
     """Struck, tuned to nothing. In a driving cue the strikes land ON the bar,
     which turns the same sound from weather into percussion without it becoming
@@ -607,7 +652,7 @@ def v_theme(n, root, areas, form, total, drive):
     if notes is None:
         return np.zeros(n)
     y = np.zeros(n)
-    spots = ([0.14, 0.58] if drive else [0.16, 0.46, 0.72])
+    spots = ([0.14, 0.58] if drive else [0.10, 0.33, 0.56, 0.79])
     for sp in spots:
         base = sp * total
         for iv, off, dur in notes:
@@ -662,6 +707,8 @@ def stem(cue, name):
         y = v_organ(n, root, areas, dark, total, drive)
     elif name == "breath":
         y = v_breath(n, dark)
+    elif name == "motion":
+        y = v_motion(n, root, areas, total, shimmer)
     elif name == "pulse":
         y = v_pulse(n, root, areas, total, bpm, dark, PULSE_OF.get(cue, "tresillo"))
     elif name == "stab":
