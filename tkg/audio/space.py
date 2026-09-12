@@ -210,6 +210,14 @@ FAMILY_STEMS = {
 ## clashes nothing would catch.
 THEME_OCTAVES = 2
 
+## The theme's envelope. Jon: "less of a swelling synth, something punchier."
+## ATTACK_S is the whole difference -- 6 ms arrives, 900 ms swells -- and the
+## drop to SUSTAIN over DECAY_S is what makes it read as struck rather than
+## faded up.
+ATTACK_S = 0.006
+DECAY_S = 0.22
+SUSTAIN = 0.46
+
 HEAVY = (7, 4, 1.85, 4.0)
 THEME_CUT = 4200.0
 
@@ -299,7 +307,8 @@ def v_organ(n, root, areas, dark, total, drive):
                 v += (a / (i + 1.4)) * np.sin(2 * np.pi * f * h * t + h * 0.4 + i)
         v /= 3.2
         v = lp(v, 300.0 + 1500.0 * bright, order=2)
-        up, down = (0.10, 0.16) if drive else (0.34, 0.30)
+        # The organ opens faster than it did as well, for the same reason.
+        up, down = (0.08, 0.14) if drive else (0.18, 0.26)
         place(y, v * env_shape(seg, up, down), start, 0.40)
     return y
 
@@ -422,9 +431,18 @@ def v_sing(f, dur, amp):
     y = fold(y, k)
     y = np.tanh(y * drive) / np.tanh(drive)
     y = crush(y, bits, decim, THEME_CUT)
-    attack = min(0.9, dur * 0.22)
-    env = np.clip(t / attack, 0, 1) * np.exp(
-        -np.clip(t - dur * 0.42, 0, None) / (dur * 0.34))
+    # PUNCH, NOT SWELL. This was a 0.9-second fade-in on every note, which is a
+    # swell by construction -- and it also threw away the transient the heavy
+    # grit exists to produce, because there was nothing at the front of the note
+    # loud enough to hear it on.
+    #
+    # Four parts now, and the first two are the punch: an attack of 6 ms, a fast
+    # drop to a sustain, the sustain, then the release. A note arrives and then
+    # settles, which is what every struck or plucked thing does and what no pad
+    # does.
+    env = np.clip(t / ATTACK_S, 0.0, 1.0)
+    env = env * (SUSTAIN + (1.0 - SUSTAIN) * np.exp(-t / DECAY_S))
+    env = env * np.exp(-np.clip(t - dur * 0.42, 0, None) / (dur * 0.34))
     return amp * y * env
 
 
