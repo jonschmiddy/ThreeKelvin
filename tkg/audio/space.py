@@ -199,6 +199,21 @@ CUES = {
 }
 ## Stems per family. Driving cues trade breath and upper for a pulse and stabs:
 ## wind is what a place has when nothing is happening.
+## Which pattern each driving cue uses.
+##
+## BOTH FIGHTS ARE THREE-THREE-TWO, chosen by Jon out of five. The gaps inside
+## the bar are uneven, so it swings; the bar itself repeats exactly, so it never
+## becomes something to track. That combination is the whole answer to four
+## rounds of "too complicated to follow" and one round of "math rock".
+##
+## The two fights stay apart by everything else: 132 against 138, different
+## harmonic progressions, different melodic contours, and boss half a step
+## darker. Giving them different beats as well was an option and the wrong one
+## -- a beat is the thing the player locks into, and locking into a different
+## one because a bigger enemy arrived is a worse moment than a familiar groove
+## getting meaner.
+PULSE_OF = {"burn": "tresillo", "boss": "tresillo"}
+
 FAMILY_STEMS = {
     "still": ["pedal", "organ", "breath", "metal", "theme", "upper"],
     "drift": ["pedal", "organ", "breath", "metal", "theme", "upper"],
@@ -388,53 +403,61 @@ def v_breath(n, dark):
     return y
 
 
-def v_pulse(n, root, areas, total, bpm, dark):
-    """THE RIFF. It repeats, which is the entire point.
+## PULSE PATTERNS, on a sixteen-slot bar. A number is how hard that slot is
+## struck; a dot is a rest. Every one of them repeats every bar, and every one
+## sits on the root -- the two things that took four rounds to learn.
+##
+## They are deliberately different KINDS of feel rather than variations on one:
+## a plain four, a swung three-three-two, a straight eighth line, a driving
+## sixteenth line, and a half-time that leaves most of the bar empty.
+PULSE_PATTERNS = {
+    #            1               2               3               4
+    "four":     [9, 0, 0, 0, 6, 0, 0, 0, 8, 0, 0, 0, 6, 0, 0, 0],
+    "tresillo": [9, 0, 0, 6, 0, 0, 7, 0, 8, 0, 0, 5, 0, 0, 6, 0],
+    "eighths":  [9, 0, 2, 0, 6, 0, 2, 0, 8, 0, 2, 0, 6, 0, 3, 0],
+    "sixteen":  [9, 2, 3, 2, 6, 2, 3, 2, 8, 2, 3, 2, 6, 2, 4, 3],
+    "half":     [9, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 3, 0],
+}
 
-    Jon: "it's still too all over the place... like math rock. I just want some
-    sci fi to jam to while I fight."
 
-    That was accurate and the cause was one line: the pulse took its pitch from
-    `ch[bar % len(ch)]`, so the bass played a NEW NOTE EVERY BAR, walking
-    through sixteen of them across sixteen bars without repeating. That is a
-    sequence. A groove is repetition, and there was none.
+def v_pulse(n, root, areas, total, bpm, dark, pattern="tresillo"):
+    """THE RIFF. It repeats, it stays on the root, and its shape is a table.
 
-    THE RIFF IS PINNED TO THE ROOT, and the rule that makes that safe is this
-    file's own: every harmonic area contains 0. So the root is consonant with
-    every chord that will ever move above it, and the riff can repeat for as
-    long as the fight lasts without ever needing to know what the harmony is
-    doing. The organ moves; the floor does not.
+    The pitch is pinned to the root because every harmonic area in this file
+    contains a 0, so the riff is consonant with whatever moves above it and can
+    repeat for the length of a fight without knowing what the harmony is doing.
+    That rule was written for the pedal and turns out to be what makes a groove
+    possible at all.
 
-    Two bars, and the second differs from the first by one note:
-
-        bar 1:  X  x  x  x  X  x  x  x      root throughout
-        bar 2:  X  x  x  x  X  x  x  ^      last eighth lifts an octave
-
-    That lift is the only event in the pattern and it arrives every two bars,
-    which is slow enough to become expected and the thing that makes it a loop
-    you can settle into rather than a line you have to track.
+    What is left is the pattern, and that is now a sixteen-slot table rather
+    than arithmetic on the bar number. Arithmetic is how the first version
+    became a 3-against-8 polyrhythm and how the second walked its pitch through
+    sixteen notes without repeating: both of those were emergent, and neither
+    was anything anybody chose. A table cannot surprise you.
     """
+    pat = PULSE_PATTERNS[pattern]
     spb = 60.0 / bpm
-    step = spb * 0.5
+    step = spb * 0.25                      # a sixteenth
     y = np.zeros(n)
     i = 0
     at = 0.0
     while at < total + WRAP_S:
-        beat = i % 8
-        bar = i // 8
-        lift = (bar % 2 == 1) and beat == 7
-        f = root * (2.0 if lift else 1.0)
-        accent = 1.0 if beat == 0 else (0.60 if beat == 4 else 0.24)
-        if lift:
-            accent = 0.52
-        m = int(step * 0.92 * SR)
-        t = np.arange(m) / SR
-        v = synth.saw(f, m) * 0.8 + np.sin(2 * np.pi * f * 0.5 * t) * 0.5
-        cut = (2400.0 if beat in (0, 4) else 1250.0) * (1.0 - 0.22 * dark)
-        v = lp(v, cut, order=3)
-        v = np.tanh(v * 2.4) / np.tanh(2.4)
-        v *= np.exp(-t / (step * 0.45))
-        place(y, v, at, 0.27 * accent)
+        slot = i % 16
+        hit = pat[slot]
+        if hit:
+            # The one octave lift, on the last struck slot of every second bar.
+            bar = i // 16
+            lift = bar % 2 == 1 and slot >= 12
+            f = root * (2.0 if lift else 1.0)
+            accent = hit / 9.0
+            m = int(spb * 0.46 * SR)
+            t = np.arange(m) / SR
+            v = synth.saw(f, m) * 0.8 + np.sin(2 * np.pi * f * 0.5 * t) * 0.5
+            cut = (2400.0 if hit >= 8 else 1250.0) * (1.0 - 0.22 * dark)
+            v = lp(v, cut, order=3)
+            v = np.tanh(v * 2.4) / np.tanh(2.4)
+            v *= np.exp(-t / (spb * 0.30))
+            place(y, v, at, 0.30 * accent)
         at += step
         i += 1
     return hp(y, 40.0, order=2)
@@ -640,7 +663,7 @@ def stem(cue, name):
     elif name == "breath":
         y = v_breath(n, dark)
     elif name == "pulse":
-        y = v_pulse(n, root, areas, total, bpm, dark)
+        y = v_pulse(n, root, areas, total, bpm, dark, PULSE_OF.get(cue, "tresillo"))
     elif name == "stab":
         y = v_stab(n, root, areas, total, bpm, dark)
     elif name == "metal":
