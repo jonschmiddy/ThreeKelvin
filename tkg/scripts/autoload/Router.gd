@@ -53,8 +53,65 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	if hud != null:
 		hud.visible = chrome
 	_refresh_sky()
+	_fade_in(screen)
 	Sig.screen_changed.emit()
 	_autosave()
+
+
+## How long a screen takes to arrive. Short enough that nobody waiting to click
+## something is made to wait for it, long enough to read as a change of place
+## rather than as a repaint.
+const FADE_S := 0.13
+
+## The incoming screen arrives; it does not appear.
+##
+## THE OUTGOING SCREEN IS NOT CROSSFADED, and that is deliberate rather than
+## lazy. It is hidden and freed on the same frame it always was, because the
+## reason it is hidden is that drawing it again draws a run that has already
+## moved on -- QUIT clears the hull before this runs, and the starchart drew
+## once more with no ship and logged hundreds of errors for a frame nobody saw.
+## Holding it on screen to fade it out would put those frames back. `-- quittest`
+## is the test that found that and it still has to pass.
+##
+## So only the arriving half animates, and it works because of what is now
+## BEHIND it: the sky belongs to the Router, so it does not blink between
+## screens. The content fades up over a world that was already there, which is
+## the whole reason this reads as continuity rather than as a dissolve.
+##
+## Modulate rather than a colour rect over the top: a rect would need to be
+## above the HUD to cover it and below the cursor to not, and the ordering
+## problem is not worth a fade.
+func _fade_in(screen: Control) -> void:
+	if screen == null or not _animating():
+		return
+	screen.modulate.a = 0.0
+	var tw := screen.create_tween()
+	tw.tween_property(screen, "modulate:a", 1.0, FADE_S) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+## Whether anything should animate at all.
+##
+## Three cases, and the third is the one that is easy to miss. The SIM boots the
+## whole project and swaps hundreds of screens with nobody watching, so a tween
+## per swap is pure cost. HEADLESS has no frames to show it in.
+##
+## And every `-- ...shot` TOOL runs windowed, on purpose -- the dummy display
+## server never emits `frame_post_draw` -- so without this line the fade caught
+## all of them: they wait a fixed handful of frames and then photograph, which
+## after this change means photographing a screen at whatever opacity it had got
+## to. Every picture the project judges its own layout from would have come out
+## dim, and the tools predate the fade so none of them knows to wait.
+##
+## Matched by suffix rather than by a list, because the list is nine long today
+## and the next one would be added without anybody thinking about this.
+func _animating() -> bool:
+	if "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless":
+		return false
+	for a in OS.get_cmdline_user_args():
+		if (a as String).ends_with("shot"):
+			return false
+	return true
 
 
 ## Which screens the sky belongs behind.

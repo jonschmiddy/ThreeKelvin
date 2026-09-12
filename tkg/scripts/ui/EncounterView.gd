@@ -656,7 +656,21 @@ class AreaView extends Control:
 	## bodies, the six-stop ramps, the dither -- is the vocabulary the real
 	## sprites will be checked against, and START already proves the screen
 	## reads fine with nothing in it.
-	const SHOW_PLACES := false
+	##
+	## ON, 2026-09-12, by Jon, asked directly and answered "turn it on now,
+	## commission art later". THE WORRY ABOVE STILL STANDS and is the reason this
+	## note has a date on it: the way this ends badly is not that it looks wrong,
+	## it is that it looks fine for a year. Art for these five is commissioned
+	## work, gated on a brief, and until that lands the sector is showing a
+	## sketch of the place rather than the place.
+	##
+	## What changed since the switch went in is the argument, not the art. The
+	## sector was empty sky beside your ship, and a system you fly to and find
+	## nothing in reads as a screen that has not finished loading rather than as
+	## a place with nothing in it. EnemyArt is the precedent in the other
+	## direction: it draws every enemy in the game procedurally and nobody has
+	## ever called it a placeholder.
+	const SHOW_PLACES := true
 
 	func _draw() -> void:
 		if node == null or not SHOW_PLACES:
