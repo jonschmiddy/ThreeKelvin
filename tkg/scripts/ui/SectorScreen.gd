@@ -446,7 +446,7 @@ func _build_salvage_rail() -> PanelContainer:
 			Run.salvage_hushed_bag = _bag_here()
 			_refresh())
 	stow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	stow.tooltip_text = Widgets.tip("Closes this panel. Anything already in your hold stays there; anything still loose stays in this system until you take it or you jump.")
+	stow.tooltip_text = Widgets.tip("Closes this panel. Anything already in your hold stays there; anything still loose stays in this system for the rest of the run.")
 	_salvage_actions.add_child(stow)
 	# THE JETTISON BUTTON IS GONE, and it was wrong twice over.
 	#
@@ -795,7 +795,7 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 		var claim := Widgets.button("REWARD", _open_prize)
 		claim.custom_minimum_size = EncounterDrawer.BTN
 		claim.disabled = left <= 0
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam; open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		head.add_child(claim)
 	var out := Widgets.button("CONTINUE", func() -> void:
@@ -814,7 +814,7 @@ func _drawer_result(n: MapGen.MapNode) -> void:
 	out.custom_minimum_size = EncounterDrawer.BTN
 	if waiting:
 		out.disabled = true
-		out.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go -- what you leave stays in this system, but you should at least know it is there.")
+		out.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go. What you leave stays in this system, but you should at least know it is there.")
 	head.add_child(out)
 	_drawer.add_child(head)
 	# NAME THE BAND. The prose is written in fiction and deliberately never says
@@ -890,12 +890,20 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	if _res_checked:
 		_res_band = SkillCheck.roll(c.check)
 		call = SkillCheck.pick_outcome(c, _res_band)
-	# BEFORE THE COST, NOT AFTER IT. A gate you pay to attempt is part of what
-	# the option cost you, and a bill that started counting after the toll was
-	# taken would show a botched sixty-credit gamble as costing nothing.
+	# THE LEDGER OPENS BEFORE THE CHOICE RUNS. A gate you pay to attempt is part
+	# of what the option cost you, and a bill that started counting after the
+	# toll was taken would show a botched sixty-credit gamble as costing nothing.
+	#
+	# AND THE SCREEN DOES NOT TAKE THE MONEY. `cost_credits` is the price this
+	# row DISPLAYS and the affordability gate above refuses on; every priced
+	# choice in the table already spends it inside its own effect. Deducting it
+	# here as well charged the player twice -- the deep dock's thirty-credit
+	# tank cost sixty, and at exactly thirty credits the gate let the click
+	# through and `add_credits` floored the second charge at zero, so the price
+	# was everything you had. `Policy` never applied this deduction, so the
+	# simulator has always priced these options at one charge and the win rate
+	# in the gate was measured against that.
 	var was := Run.ledger()
-	if c.has("cost_credits"):
-		Run.add_credits(-int(c.cost_credits))
 	var res: Dictionary = call.call() if call.is_valid() else {}
 	if typeof(res) != TYPE_DICTIONARY:
 		res = {}
