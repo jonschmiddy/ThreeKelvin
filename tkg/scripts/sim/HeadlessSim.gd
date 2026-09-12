@@ -100,6 +100,14 @@ var hellbender_fights := 0
 var hellbender_kills := 0
 var hellbender_escapes := 0
 var derelicts_eaten := 0
+## THE FOOD SUPPLY, which is the thing §9a asks about and nothing measured.
+## `derelicts eaten` is a product of two numbers -- how often it moves, and how
+## much of the chart is edible -- and tuning the wrong one of those is exactly
+## the trap §9a names. So both are counted.
+var hellbender_moves_total := 0
+var arrived_stripped := 0
+var food_systems := 0
+var all_systems := 0
 
 ## Per galaxy kind: name -> {runs, wins, jumps, kills, systems}.
 ##
@@ -238,6 +246,10 @@ func _reset() -> void:
 	hellbender_kills = 0
 	hellbender_escapes = 0
 	derelicts_eaten = 0
+	hellbender_moves_total = 0
+	arrived_stripped = 0
+	food_systems = 0
+	all_systems = 0
 
 ## `index` exists so that `-- sim seed=N` gives every run its own reproducible
 ## seed rather than playing one run a thousand times. A sim that reports "40% of
@@ -382,13 +394,27 @@ func _play_one(manufacturer: StringName = &"", w: int = -1, index: int = 0) -> v
 		var jf := Run.fuel
 		var jc := Run.credits
 		Run.jump_to(pick)
+		# ARRIVING SOMEWHERE ALREADY STRIPPED is the only way the hellbender's
+		# appetite actually costs the player anything. A wreck it ate in a system
+		# nobody was ever going to fly to is a number, not a loss, and §9a's
+		# worry is "salvage the party does not get".
+		if Run.node_at() != null and (Run.node_at() as MapGen.MapNode).eaten:
+			arrived_stripped += 1
 		fuel_spent_jumping += maxi(0, jf - Run.fuel)
 
 	if jumped_hot:
 		runs_ambushed += 1
 	for n in Run.map:
-		if (n as MapGen.MapNode).eaten:
+		var mn := n as MapGen.MapNode
+		if mn.eaten:
 			derelicts_eaten += 1
+		# What SHARE of the chart the hellbender could have eaten, asked the
+		# same way it asks. `system_has_tag` rolls an unvisited system's options
+		# to answer, which is why this runs at the end of a run and not during.
+		all_systems += 1
+		if OptionTable.system_has_tag(mn, &"salvage"):
+			food_systems += 1
+	hellbender_moves_total += Run.hellbender_moves
 	total_jumps += Run.jumps
 	total_kills += Run.kills
 	total_danger += Run.node_at().danger
@@ -556,6 +582,13 @@ func _report() -> void:
 	print("hellbender: met %d · engaged %d · killed %d · watched it escape %d · derelicts eaten %.2f/run" % [
 		hellbender_met, hellbender_fights, hellbender_kills, hellbender_escapes,
 		float(derelicts_eaten) / maxi(1, runs)])
+	print("  arrived somewhere already stripped %d times (%.2f a run, %.1f%% of arrivals)" % [
+		arrived_stripped, float(arrived_stripped) / maxi(1, runs),
+		100.0 * arrived_stripped / maxi(1, total_jumps)])
+	print("  it moved %.1f times a run · %.1f%% of systems were edible · it ate on %.0f%% of moves" % [
+		float(hellbender_moves_total) / maxi(1, runs),
+		100.0 * food_systems / maxi(1, all_systems),
+		100.0 * derelicts_eaten / maxi(1, hellbender_moves_total)])
 	print("ambushes %d (%.2f per run) · runs jumped at least once %d (%.1f%%)" % [
 		ambushes, float(ambushes) / maxi(1, runs), runs_ambushed,
 		100.0 * runs_ambushed / maxi(1, runs)])

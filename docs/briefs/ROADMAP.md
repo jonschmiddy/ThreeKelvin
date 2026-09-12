@@ -376,6 +376,39 @@ counts as food. Price it against the 10% the old bag implied.
 `dead_hull`'s share of it is an artefact of that. At thirty options the number
 moves on its own, and tuning against the thin table would bake the artefact in.
 
+### ▸ MEASURED 2026-09-12, and the lever should NOT be pulled
+
+The content landed, the block lifted, and the re-measure says **§9a was worrying
+about the wrong number.** Across 900 runs on the finished 130-option table:
+
+| | |
+|---|---|
+| derelicts eaten | **3.2–3.5 a run** (was 4.36; the table's growth moved it, as predicted) |
+| hellbender moves | 3.5 a run |
+| systems that are edible | **52.6%** |
+| it ate on | 90% of its moves |
+| **arrived somewhere already stripped** | **0.04 a run — 0.3% of arrivals** |
+
+The last row is the one that matters. §9a's stated worry is *"every derelict it
+reaches first is salvage the party does not get"* — but the party was never going
+to get those. The hellbender eats ~3.5 of ~190 systems; the player visits ~14.
+In 900 runs the two collided **31 times**. Its appetite is a number on a report,
+not a cost anyone pays.
+
+So **do not touch the feed rate, the stride, or `dead_hull`'s weight.** All three
+would tune a quantity that does not reach the player, and the last one carries
+§9a's own named trap.
+
+**The real finding is the opposite problem.** The hellbender is barely in the
+game: **met in 2.3% of runs, engaged 4 times in 400, and killed 0 times in 900.**
+It is designed as pressure and a chase — "the hull you took off it is a debt it
+pays back slowly" — and almost nobody meets it, nobody finishes it. The open
+question is not how much it eats. It is whether a rival that 97% of runs never
+see is carrying its weight, and that is a design question for Jon, not a dial.
+
+The `-- sim` report now prints all five numbers above, so this is re-checkable
+rather than re-derivable.
+
 ---
 
 ## 3. WHAT THE S-PHASES FOUND
