@@ -1,34 +1,30 @@
 extends Node
 ## Music and sound.
 ##
-## Music is vertical, not horizontal. A cue is not one file: it is eight or
-## nine stems that all start on the same sample, and `intensity` decides how
-## many of them you can hear. Nothing restarts when a fight begins — the
-## arrangement opens up. That is why the transition costs nothing, never loses
-## the beat, and cannot land you in the wrong bar.
+## Music is vertical, not horizontal. A cue is not one file: it is six stems
+## that all start on the same sample, and `intensity` decides how many of them
+## you can hear. Nothing restarts when a fight begins -- the arrangement opens
+## up. That is why the transition costs nothing and cannot land you in the
+## wrong place.
 ##
-## All eight cues are tempo-locked on purpose. Every one is 142 BPM or exactly
-## half at 71, so any bar line in any cue lands on a bar line in any other and
-## a crossfade never needs a tempo match. All eight are rendered as seamless
-## loops — no fade, reverb tail wrapped back over the head — so they can run
-## indefinitely.
+## THE SECOND EDITION, 2026-09-12. The first soundtrack was thirteen cues built
+## from one whistled five-note phrase, tempo-locked at 142 BPM, each cue doing
+## one thing to the motif. Jon played the finished game and called it hollow,
+## sickly, a slow funeral, not musical at all. The fault was the FORM rather
+## than the details: a four-bar loop with a tune over it is a song, and this
+## game wanted a score.
 ##
-## They are also one piece of music. Every cue is the same whistled five-note
-## motif, and each does exactly one thing to it. Five recolour it in place:
-## "Dead Sector" flattens the 2nd, "Hard Burn" halves its note values and
-## builds the engine out of it, "Warm Ship" finally gives it the fifth it
-## never reaches, "Poisoned Ground" gives it that fifth a semitone flat.
+## So there is no tempo now, and no bar lines. Every cue is a low F pedal that
+## never moves, harmony that changes about once a minute above it, texture that
+## opens over twenty seconds, and one five-note theme that arrives three times a
+## loop as an event rather than a layer. Cues differ by how dark they are, which
+## harmonic areas they use, and whether the theme states its aching form or its
+## answer. Crossfading between two of them still works because they share the
+## pedal -- the same trick the old set used, for the same reason.
 ##
-## The last three develop it instead of recolouring it, because five cues of
-## one tonic is a lot of F. "Nine Shells" transposes it around the minor-third
-## cycle; "Ship's Business" runs it through a circle of fifths and is the
-## first music here with a cadence in it; "Five Ways Home" varies it five ways
-## and turns it major. Between them they are the first cues in the game to
-## change key at all.
-##
-## Composition lives in `docs/audio/THEME_NOTES.md` and `docs/audio/DREAD_NOTES.md`;
-## the forms themselves in `audio/motif.py`; the render and encode pipeline in
-## `audio/README.md`.
+## The rulings that shape it, and the mistakes that produced them, are in
+## `audio/space.py`. The old composition notes in `docs/audio/` describe the
+## first edition and are kept as its record.
 
 const MUSIC_DIR := "res://assets/audio/music/%s/%s.ogg"
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
@@ -57,93 +53,105 @@ const TRACKS := {}
 const WHOLE := &"song"
 
 const CUES := {
-	## Three rungs, not five. It used to climb to "contact" and "combat" on
-	## `lead` and `perc`, but combat moved to `burn` and bosses to `boss` — the
-	## crossfade between two cues over the shared F pedal reads as the place
-	## turning, which is worth more than the same cue getting louder. STATES has
-	## asked for this one at rung 2 and rung 0 ever since, so the top two rungs
-	## were stems nothing could reach. `arrange.py` still renders them for the
-	## concert master; `build.py`'s UNSHIPPED keeps them out of the download.
-	&"theme": [
-		[&"whistle", &"pad"],       ## 0  menu, title, the run is over
-		[&"bass", &"fx"],           ## 1  idle: chart, refit, station
-		[&"arp", &"bell"],          ## 2  out in a sector
+	## SIX STEMS AND FOUR RUNGS, THE SAME IN EVERY CUE.
+	##
+	## The first soundtrack gave every cue its own vocabulary -- whistle, arp,
+	## bell, reed, harp, stamp, whale -- which was thirteen private languages and
+	## meant the ladder meant something different in each one. The second edition
+	## is one palette, so a rung is the same idea everywhere: rung 0 is the place,
+	## rung 1 is the place noticing you, rung 2 is the theme, rung 3 is the theme
+	## opening up.
+	##
+	##   pedal   the floor, a low F that never moves
+	##   organ   the harmony above it, changing once a minute
+	##   breath  wind over a hull
+	##   metal   struck, tuned to nothing
+	##   theme   the five notes, heavy grit
+	##   upper   the theme doubled and harmonised, plus shimmer
+	##
+	## Every stem is a 96-second seamless loop and they are all the same length,
+	## so they stay locked together however long the game is left open. See
+	## `tkg/audio/space.py`, which renders them and carries the rulings.
+	##
+	## `play_cue` clamps to the cue's own rungs, so STATES asking for rung 4 on a
+	## four-rung cue is supported and lands on rung 3.
+	&"first_light": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
-	&"dread": [
-		[&"sub", &"fx"],            ## 0  something is wrong here
-		[&"drone", &"pad"],         ## 1  deep, and it is not safe
-		[&"motif", &"pulse"],       ## 2  being hunted
-		[&"bowed", &"metal"],       ## 3  it has found you
-		[&"cluster"],               ## 4  tritone: the kill state
-	],
-	&"burn": [
-		[&"pad", &"fx"],            ## 0  something is out there
-		[&"sub", &"motif"],         ## 1  it has seen you
-		[&"riff", &"arp"],          ## 2  weapons free
-		[&"perc", &"bell"],         ## 3  the fight proper
-		[&"stab"],                  ## 4  all of it
+	&"shells": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 	&"warm": [
-		[&"pad", &"fx"],            ## 0  docked, lights low
-		[&"glass", &"sub"],         ## 1  inside the ship: refit, deck
-		[&"motif", &"arp"],         ## 2  station, services open
-		[&"bell"],                  ## 3  spare rung, for events at a station
-		[&"lead"],                  ## 4  the motif, answered
-	],
-	&"boss": [
-		[&"sub", &"fx"],            ## 0  the ground is wrong
-		[&"drone", &"pad"],         ## 1  tritone pedal
-		[&"motif", &"pulse"],       ## 2  the theme, untouched, over it
-		[&"bowed", &"metal"],       ## 3  as far as a deep-space fight gets
-		[&"shadow"],                ## 4  bosses only: both mutations at once
-	],
-	## The last three cues are single-state screens — there is no fight to
-	## escalate — so they get three fat rungs instead of five thin ones. The
-	## ladder is for combat; spending stems on a ladder nothing climbs just
-	## costs download size. play_cue() clamps to the table, so a short cue is
-	## a supported cue and not a special case.
-	&"shells": [
-		[&"pad", &"fx"],            ## 0  the void, planing
-		[&"motif", &"harp"],        ## 1  chart: the tune and its figuration
-		[&"reed", &"bell"],         ## 2  full
-	],
-	&"business": [
-		[&"strings", &"fx"],        ## 0  a quartet, waiting
-		[&"bass", &"motif"],        ## 1  the period
-		[&"hammer", &"reed"],       ## 2  full: keyboard and wind
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 	&"home": [
-		[&"strings", &"fx"],        ## 0  the theme, bare
-		[&"whistle", &"hammer"],    ## 1  the variations proper
-		[&"reed", &"glass"],        ## 2  full
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
-	## The album pass added five cues.  Same three-fat-rungs shape as the
-	## other single-state screens.
-	&"first_light": [
-		[&"strings", &"fx"],        ## 0  the floor: cold pad, nothing yet
-		[&"hammer", &"glass"],      ## 1  the figure gathering
-		[&"whistle", &"reed"],      ## 2  full: the climb and the grand turn
+	&"theme": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
+	],
+	&"business": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 	&"perpetuity": [
-		[&"pedal", &"fx"],          ## 0  the reading room, lights on
-		[&"harmony", &"arps"],      ## 1  the ground and its filework
-		[&"descant", &"stamp"],     ## 2  full: the descant over the ledger
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 	&"core": [
-		[&"pedal", &"fx"],          ## 0  the last warm place, far off
-		[&"loop", &"ost"],          ## 1  the tick and the hammer eighths
-		[&"theme", &"perc"],        ## 2  the theme reaching for C
-		[&"answers"],               ## 3  the unresolved answer, held
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 	&"fauna": [
-		[&"water", &"fx"],          ## 0  the deep, breathing
-		[&"arps", &"pulse"],        ## 1  movement below
-		[&"song", &"whale"],        ## 2  full: the song and the answer
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
+	],
+	&"burn": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
+	],
+	&"dread": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
+	],
+	&"boss": [
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 	&"nofault": [
-		[&"pedal", &"fx"],          ## 0  the finding, in silence
-		[&"filing", &"toll"],       ## 1  the lament sequence and the bell
-		[&"chorale", &"stamp"],     ## 2  full: the chorale over the stamps
+		[&"pedal", &"organ"],
+		[&"breath", &"metal"],
+		[&"theme"],
+		[&"upper"],
 	],
 }
 

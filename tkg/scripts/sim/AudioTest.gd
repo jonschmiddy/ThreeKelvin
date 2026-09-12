@@ -35,13 +35,24 @@ func run(tree: SceneTree) -> void:
 			% loaded.size(), loaded.size() == 4):
 		return _finish()
 
-	# THE CROSSFADE HAS TO FINISH FIRST, and the first version of this test did
-	# not wait for it. A cue whose gain is still falling is still running, and
-	# `_release_idle` skips a running cue on purpose -- freeing one mid-fade
-	# would cut the fade it is in the middle of. So the cue that had only just
-	# been left was reported as a leak when it was doing exactly the right
-	# thing. Real seconds, because CROSSFADE is in them.
-	await tree.create_timer(Audio.CROSSFADE + 0.5).timeout
+	# WAIT FOR THE CROSSFADE TO FINISH, DO NOT TIME IT. A cue whose gain is
+	# still falling is still running, and `_release_idle` skips a running cue on
+	# purpose -- freeing one mid-fade would cut the fade it is in. So a cue only
+	# just left reads as a leak when it is doing exactly the right thing.
+	#
+	# This was `create_timer(CROSSFADE + 0.5)`, which is the same mistake
+	# `quittest` made: a fixed wait is a race with whatever else the frame is
+	# doing. It passed until the second-edition cues landed, which are six
+	# 96-second stems each and slow enough to load that the margin vanished.
+	# Waiting on the thing actually being waited for cannot go stale.
+	for i in 600:
+		var busy := false
+		for c: StringName in Audio.resident():
+			if c != Audio._cue and Audio._running.get(c, false):
+				busy = true
+		if not busy:
+			break
+		await tree.process_frame
 
 	# THE CLOCK IS MOVED, NOT WAITED OUT. The threshold is 45 seconds and a test
 	# that slept for it is a test nobody runs. `_idle_since` is the only input

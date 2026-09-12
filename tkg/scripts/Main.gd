@@ -666,6 +666,11 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
+	if "placesheet" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/PlaceSheet.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	# Windowed for a different reason than the shots: `Audio` switches itself
 	# off headless, so the subject of this test only exists with a window.
 	if "audiotest" in OS.get_cmdline_user_args():
