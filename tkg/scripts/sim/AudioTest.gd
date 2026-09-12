@@ -45,14 +45,24 @@ func run(tree: SceneTree) -> void:
 	# doing. It passed until the second-edition cues landed, which are six
 	# 96-second stems each and slow enough to load that the margin vanished.
 	# Waiting on the thing actually being waited for cannot go stale.
-	for i in 600:
+	# AND THE BOUND IS A FAILURE, NOT A SHRUG. At 600 frames this passed, then
+	# failed once, then passed again -- because the second-edition cues are six
+	# 96-second streams and loading four of them can stall long enough to eat
+	# the budget. A loop that runs out and carries on silently turns a timing
+	# problem into a wrong answer about the thing being tested, which is how a
+	# flaky check is worse than no check.
+	var settled := false
+	for i in 3600:
 		var busy := false
 		for c: StringName in Audio.resident():
 			if c != Audio._cue and Audio._running.get(c, false):
 				busy = true
 		if not busy:
+			settled = true
 			break
 		await tree.process_frame
+	if not _ok("the crossfades finish in reasonable time", settled):
+		return _finish()
 
 	# THE CLOCK IS MOVED, NOT WAITED OUT. The threshold is 45 seconds and a test
 	# that slept for it is a test nobody runs. `_idle_since` is the only input

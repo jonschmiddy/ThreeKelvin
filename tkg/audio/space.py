@@ -112,19 +112,67 @@ AREAS = {
               (0.28, [5, 8, 12, 15]), (0.42, [0, 3, 7, 12]),
               (0.56, [10, 13, 17, 20]), (0.70, [8, 12, 15, 18]),
               (0.84, [0, 6, 7, 12])],
+    # a second driving progression, so the two fight cues do not share one
+    "drive2": [(0.00, [0, 6, 7, 13]), (0.16, [5, 8, 12, 18]),
+               (0.34, [0, 3, 10, 15]), (0.50, [8, 11, 15, 20]),
+               (0.66, [6, 10, 13, 18]), (0.82, [0, 7, 12, 15])],
+    # stacked fourths: no thirds at all, so it reads modern rather than modal
+    "quartal": [(0.00, [0, 5, 10, 15, 22]), (0.36, [7, 12, 17, 22, 26]),
+                (0.62, [2, 7, 12, 19, 24]), (0.82, [0, 5, 12, 17, 19])],
+    # major sevenths: the brightest set, and the only one with a leading tone
+    "bright": [(0.00, [0, 4, 7, 11, 16]), (0.40, [5, 9, 12, 16, 21]),
+               (0.70, [7, 11, 14, 18, 23])],
+    # the flat second. The darkest colour available without a tritone.
+    "phryg": [(0.00, [0, 1, 7, 12, 13]), (0.32, [8, 12, 13, 20, 15]),
+              (0.60, [1, 5, 8, 13, 17]), (0.84, [0, 3, 7, 12, 13])],
+    # two chords, a very long time each. The stillest progression here.
+    "vast": [(0.00, [0, 7, 12, 19, 24]), (0.52, [3, 10, 15, 22, 27])],
+    # a slow descent: each area a step below the last
+    "sink": [(0.00, [0, 3, 7, 12, 15]), (0.26, [10, 15, 19, 22, 27]),
+             (0.52, [8, 12, 15, 20, 24]), (0.78, [7, 10, 14, 19, 22])],
+    # suspended: fourths and ninths over the root, never resolving
+    "susp": [(0.00, [0, 5, 7, 14, 17]), (0.38, [10, 14, 17, 22, 24]),
+             (0.68, [5, 12, 14, 19, 21])],
 }
 ## Which area sets contain a flat sixth (8 semitones) above the root.
 HAS_FLAT6 = {k: any(8 in ch for _, ch in v) for k, v in AREAS.items()}
 
-## The theme as intervals from the root: up a fifth, up a semitone to the flat
-## sixth, back, down to the minor third.
-THEME = [(0, 0.0, 3.2), (7, 3.0, 4.5), (8, 7.2, 4.5), (7, 11.4, 3.4),
-         (3, 14.4, 6.0)]
-ANSWER = [(0, 0.0, 3.2), (7, 3.0, 4.5), (7, 7.4, 3.0), (3, 10.2, 4.0),
-          (0, 14.0, 8.0)]
-## Combat states it short and hard, in half the time.
-URGENT = [(0, 0.0, 1.1), (7, 1.0, 1.4), (8, 2.2, 1.4), (7, 3.4, 1.1),
-          (3, 4.4, 2.2)]
+## THE THEME, AND ITS FAMILY. One shape thirteen times is one tune thirteen
+## times. These are all recognisably the same idea -- they open on the root,
+## they reach, they come back down -- but no two cues state the same contour,
+## which is what a soundtrack does and a transposed loop does not.
+##
+## Intervals from the root, an offset in seconds, and a length in seconds.
+THEMES = {
+    # the original: up a fifth, lean on the flat sixth, give up, settle
+    "ask": [(0, 0.0, 3.2), (7, 3.0, 4.5), (8, 7.2, 4.5), (7, 11.4, 3.4),
+            (3, 14.4, 6.0)],
+    # the same with the ache removed, and it comes home
+    "answer": [(0, 0.0, 3.2), (7, 3.0, 4.5), (7, 7.4, 3.0), (3, 10.2, 4.0),
+               (0, 14.0, 8.0)],
+    # inverted: everything that rose now falls
+    "invert": [(12, 0.0, 3.4), (5, 3.2, 4.2), (4, 7.0, 4.2), (5, 11.0, 3.2),
+               (9, 14.0, 6.0)],
+    # climbing fourths, no third anywhere: the least settled of them
+    "climb": [(0, 0.0, 2.6), (5, 2.4, 3.2), (10, 5.4, 4.0), (15, 9.2, 5.0),
+              (12, 14.0, 6.0)],
+    # two octave leaps. The widest, for the cue with the most room
+    "wide": [(0, 0.0, 3.0), (12, 2.8, 5.0), (7, 7.6, 3.2), (19, 10.6, 5.4),
+             (12, 15.8, 6.0)],
+    # a turn around the third, then away. The most vocal shape here
+    "turn": [(3, 0.0, 2.4), (5, 2.2, 2.4), (3, 4.4, 3.0), (7, 7.2, 4.4),
+             (0, 11.4, 7.0)],
+    # a descent that lands on the root, four notes, nothing wasted
+    "fall": [(15, 0.0, 3.6), (12, 3.4, 3.6), (7, 6.8, 4.4), (0, 11.0, 8.0)],
+    # two notes. For the cue that should barely have a theme at all
+    "frag": [(0, 0.0, 4.0), (7, 4.4, 8.0)],
+    # short and hard, for the driving family
+    "urgent": [(0, 0.0, 1.1), (7, 1.0, 1.4), (8, 2.2, 1.4), (7, 3.4, 1.1),
+               (3, 4.4, 2.2)],
+    # a second urgent shape so the two fight cues do not share one
+    "urgent2": [(12, 0.0, 1.0), (7, 0.9, 1.2), (10, 2.0, 1.2), (3, 3.1, 1.0),
+                (0, 4.1, 2.4)],
+}
 
 ## cue -> root, area set, family, dark, theme form, metal, shimmer, loop
 ## seconds, and beats a minute for the driving ones.
@@ -133,20 +181,21 @@ URGENT = [(0, 0.0, 1.1), (7, 1.0, 1.4), (8, 2.2, 1.4), (7, 3.4, 1.1),
 ## business->dread, and that swap only reads as the place turning if both sides
 ## share a pedal. Everything else is free, and now sits in five other keys.
 CUES = {
-    "first_light": ("F2",  "open",  "drift", 0.7, "answer", 0.7, 0.9, 96.0, 0),
-    "shells":      ("C2",  "home",  "drift", 1.2, "theme",  0.8, 0.7, 96.0, 0),
-    "warm":        ("Ab1", "open",  "drift", 0.6, "answer", 0.5, 0.6, 96.0, 0),
-    "home":        ("Ab1", "open",  "drift", 0.5, "answer", 0.4, 0.7, 96.0, 0),
-    "perpetuity":  ("Bb1", "home",  "still", 1.1, "answer", 0.3, 0.4, 96.0, 0),
-    "nofault":     ("Db2", "deep",  "still", 1.9, "answer", 0.3, 0.3, 96.0, 0),
-    "core":        ("F1",  "deep",  "drift", 1.0, "theme",  1.1, 1.0, 96.0, 0),
-    "fauna":       ("Eb2", "open",  "drift", 1.0, "theme",  0.9, 0.8, 96.0, 0),
-    # the five on F
-    "theme":       ("F2",  "home",  "drift", 1.5, "theme",  1.0, 0.6, 96.0, 0),
-    "business":    ("F2",  "home",  "drift", 1.3, "theme",  1.2, 0.5, 96.0, 0),
-    "dread":       ("F2",  "cold",  "still", 2.0, None,     1.4, 0.3, 96.0, 0),
-    "burn":        ("F2",  "drive", "drive", 1.5, "urgent", 1.6, 0.5, 64.0, 132),
-    "boss":        ("F2",  "drive", "drive", 2.0, "urgent", 1.8, 0.4, 64.0, 138),
+    # cue: root, areas, family, dark, theme shape, metal, shimmer, loop, bpm
+    "first_light": ("F2",  "open",    "drift", 0.7, "climb",  0.7, 0.9, 96.0, 0),
+    "shells":      ("C2",  "quartal", "drift", 1.2, "wide",   0.8, 0.7, 96.0, 0),
+    "warm":        ("Ab1", "susp",    "drift", 0.6, "turn",   0.5, 0.6, 96.0, 0),
+    "home":        ("Ab1", "bright",  "drift", 0.5, "answer", 0.4, 0.7, 96.0, 0),
+    "perpetuity":  ("Bb1", "vast",    "still", 1.1, "frag",   0.3, 0.4, 96.0, 0),
+    "nofault":     ("Db2", "sink",    "still", 1.9, "fall",   0.3, 0.3, 96.0, 0),
+    "core":        ("F1",  "deep",    "drift", 1.0, "invert", 1.1, 1.0, 96.0, 0),
+    "fauna":       ("Eb2", "susp",    "drift", 1.0, "climb",  0.9, 0.8, 96.0, 0),
+    # the five that crossfade into each other keep F
+    "theme":       ("F2",  "home",    "drift", 1.5, "ask",    1.0, 0.6, 96.0, 0),
+    "business":    ("F2",  "phryg",   "drift", 1.3, "turn",   1.2, 0.5, 96.0, 0),
+    "dread":       ("F2",  "cold",    "still", 2.0, None,     1.4, 0.3, 96.0, 0),
+    "burn":        ("F2",  "drive",   "drive", 1.5, "urgent", 1.6, 0.5, 64.0, 132),
+    "boss":        ("F2",  "drive2",  "drive", 2.0, "urgent2", 1.8, 0.4, 64.0, 138),
 }
 ## Stems per family. Driving cues trade breath and upper for a pulse and stabs:
 ## wind is what a place has when nothing is happening.
@@ -155,6 +204,11 @@ FAMILY_STEMS = {
     "drift": ["pedal", "organ", "breath", "metal", "theme", "upper"],
     "drive": ["pedal", "organ", "pulse", "metal", "theme", "stab"],
 }
+
+## The theme sounds this many octaves above the organ. Named, because the
+## voicing rule depends on it and a silent change here would reintroduce
+## clashes nothing would catch.
+THEME_OCTAVES = 2
 
 HEAVY = (7, 4, 1.85, 4.0)
 THEME_CUT = 4200.0
@@ -374,35 +428,89 @@ def v_sing(f, dur, amp):
     return amp * y * env
 
 
+def area_at(areas, frac):
+    ch = areas[0][1]
+    for at, c in areas:
+        if frac >= at:
+            ch = c
+    return ch
+
+
+def clashes(semi, ch):
+    """Is this absolute pitch a semitone from anything the organ is holding?"""
+    return any(abs(semi - c) == 1 for c in ch)
+
+
+def voicing(iv, ch, want=2):
+    """The melody note plus chord tones below it, as absolute pitches.
+
+    A single note over a pad is always thinner than the pad, which is what made
+    the lead sound small however much grit went on it. Each theme note is voiced
+    with up to two tones taken from the area sounding underneath it -- taken
+    from the area, never stacked by fixed interval, because a fixed third and
+    fifth collides the moment the melody leaves the chord.
+
+    JUDGED IN ABSOLUTE PITCH. The theme plays octaves above the organ, so a
+    semitone in pitch CLASS between them is a major seventh spread over two
+    octaves, which is a colour rather than a fault. Only a semitone in the same
+    register is a clash.
+
+    TWO THINGS THIS GETS RIGHT THAT EARLIER VERSIONS DID NOT. There is no
+    unchecked fallback: if fewer than `want` safe tones exist the voicing is
+    simply smaller, where stacking blind octaves to fill the quota put the
+    clashes back in through the side door. And if the MELODY note itself would
+    collide, the whole voicing moves up an octave rather than the melody being
+    bent -- the tune is not negotiable, its register is.
+    """
+    base = THEME_OCTAVES * 12
+    while clashes(base + iv, ch) and base < (THEME_OCTAVES + 2) * 12:
+        base += 12
+    out = [base + iv]
+    for c in sorted({c for c in ch if c < iv}, reverse=True):
+        if len(out) - 1 >= want:
+            break
+        semi = base + c
+        if any(abs(semi - o) == 1 for o in out) or clashes(semi, ch):
+            continue
+        out.append(semi)
+    return out
+
+
 def _forms(form):
-    return {"theme": THEME, "answer": ANSWER, "urgent": URGENT}.get(form)
+    return THEMES.get(form)
 
-
-def v_theme(n, root, form, total, drive):
+def v_theme(n, root, areas, form, total, drive):
+    """The theme, voiced as chords. Driving cues state it more often, because a
+    fight is not contemplative."""
     notes = _forms(form)
     if notes is None:
         return np.zeros(n)
     y = np.zeros(n)
-    # Driving cues state it more often, because a fight is not contemplative.
     spots = ([0.08, 0.30, 0.52, 0.74] if drive else [0.16, 0.46, 0.72])
-    for s in spots:
-        base = s * total
+    for sp in spots:
+        base = sp * total
         for iv, off, dur in notes:
-            place(y, v_sing(root * 4 * 2 ** (iv / 12.0), dur, 0.115), base + off)
-    return hp(y, 60.0, order=2)
+            ch = area_at(areas, ((base + off) / total) % 1.0)
+            for k, v in enumerate(voicing(iv, ch, 2)):
+                amp = 0.115 if k == 0 else 0.062 / k
+                place(y, v_sing(root * 2 ** (v / 12.0), dur, amp), base + off)
+    return hp(y, 55.0, order=2)
 
 
-def v_upper(n, root, form, total, shimmer):
+def v_upper(n, root, areas, form, total, shimmer):
+    """The same an octave up, voiced as a chord of its own."""
     notes = _forms(form)
     if notes is None:
         return np.zeros(n)
     y = np.zeros(n)
-    for s in (0.16, 0.46, 0.72):
-        base = s * total
+    for sp in (0.16, 0.46, 0.72):
+        base = sp * total
         for iv, off, dur in notes:
-            f = root * 4 * 2 ** (iv / 12.0)
-            place(y, v_sing(f * 2.0, dur, 0.036 * shimmer), base + off)
-            place(y, v_sing(f * 2 ** (-4 / 12.0), dur, 0.045), base + off)
+            ch = area_at(areas, ((base + off) / total) % 1.0)
+            for k, v in enumerate(voicing(iv, ch, 2)):
+                f = root * 2 ** ((v + 12) / 12.0)
+                place(y, v_sing(f, dur, (0.036 if k == 0 else 0.020) * shimmer),
+                      base + off)
     return hp(y, 120.0, order=2)
 
 
@@ -414,10 +522,12 @@ def stem(cue, name):
     areas = AREAS[area_k]
     drive = family == "drive"
     # The flat sixth may only sound where the harmony holds one.
-    if form == "theme" and not HAS_FLAT6[area_k]:
+    # THE FLAT SIXTH ONLY WHERE THE HARMONY HOLDS ONE. A shape containing an 8
+    # over a set that has none puts the melody a semitone from the chord, which
+    # is the fault that made an earlier version unlistenable. Swapped
+    # automatically rather than left to me to remember.
+    if form and any(iv == 8 for iv, _, _ in THEMES[form]) and not HAS_FLAT6[area_k]:
         form = "answer"
-    if form == "urgent" and not HAS_FLAT6[area_k]:
-        form = "urgent"
     n = int((total + WRAP_S + 2.0) * SR)
     seed = abs(hash(cue)) % 100000
     np.random.seed(seed)
@@ -435,9 +545,9 @@ def stem(cue, name):
     elif name == "metal":
         y = v_metal(n, density, total, seed, drive, bpm or 120)
     elif name == "theme":
-        y = v_theme(n, root, form, total, drive)
+        y = v_theme(n, root, areas, form, total, drive)
     elif name == "upper":
-        y = v_upper(n, root, form, total, shimmer)
+        y = v_upper(n, root, areas, form, total, shimmer)
     else:
         raise ValueError(name)
 
