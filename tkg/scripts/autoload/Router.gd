@@ -82,7 +82,7 @@ const FADE_S := 0.13
 ## above the HUD to cover it and below the cursor to not, and the ordering
 ## problem is not worth a fade.
 func _fade_in(screen: Control) -> void:
-	if screen == null or not _animating():
+	if screen == null or not animating():
 		return
 	screen.modulate.a = 0.0
 	var tw := screen.create_tween()
@@ -105,7 +105,7 @@ func _fade_in(screen: Control) -> void:
 ##
 ## Matched by suffix rather than by a list, because the list is nine long today
 ## and the next one would be added without anybody thinking about this.
-func _animating() -> bool:
+func animating() -> bool:
 	if "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless":
 		return false
 	for a in OS.get_cmdline_user_args():

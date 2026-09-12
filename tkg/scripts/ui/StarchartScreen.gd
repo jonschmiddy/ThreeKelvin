@@ -575,6 +575,44 @@ func _on_node_picked(index: int) -> void:
 	_selected = index
 	_refresh()
 
+## How long the readings take to resolve. A sensor return, not a transition:
+## noticeably slower than the screen fade, because the screen is arriving and
+## this is a dish finishing its work.
+const SETTLE_S := 0.22
+## Which system the panel last resolved for, so pointing at the same one twice
+## does not make it think again.
+var _settled_on: int = -2
+
+
+## The facts about a system resolve; the system's NAME does not.
+##
+## A destination panel that faded in whole would be a panel that flickers every
+## time the chart refreshes, and `_refresh` runs on far more than a new
+## selection. So this fades the ROWS only -- CONTAINS, the star, the danger, the
+## fuel -- and only when the selection actually changed.
+##
+## The split is the point rather than an optimisation. The name and the blurb
+## are what the chart already knew: you pointed at a place and it is called
+## something. The rows are what the dish went and got. Snapping the identity and
+## resolving the readings is how the instrument would behave, and it is as far
+## as this goes -- the numbers themselves do not count up, because a count-up is
+## a lie about a value that was known all at once.
+##
+## Modulate carries to children added after the tween starts, which is what
+## makes this a single line at the top of a rebuild rather than a callback at
+## the end of one.
+func _settle() -> void:
+	if _rows == null or not Router.animating():
+		return
+	if _selected == _settled_on:
+		return
+	_settled_on = _selected
+	_rows.modulate.a = 0.0
+	var tw := _rows.create_tween()
+	tw.tween_property(_rows, "modulate:a", 1.0, SETTLE_S) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
 func _refresh() -> void:
 	var here: MapGen.MapNode = Run.node_at()
 
@@ -597,6 +635,7 @@ func _refresh() -> void:
 	_chart.set_state(_selected)
 
 	_clear(_rows)
+	_settle()
 
 	if _selected < 0:
 		_fill_neighbours(here)
