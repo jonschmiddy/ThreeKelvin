@@ -437,7 +437,7 @@ const PRIMER_LEGEND: Array[String] = [
 	"A system's colour is its star: pale is ordinary, red and blue are rarer.",
 	"You fly as far as THRUSTER REACH and see as far as SENSOR RANGE. Past your sight a jump is priced and then refused: NOT SCANNED.",
 	"Each row shows danger, then fuel. Full danger beside empty fuel is a cheap trip somewhere awful.",
-	"Danger climbs in five named steps -- EASY, ROUGH, HARD, BRUTAL, LETHAL -- and what a system is willing to offer you climbs with it.",
+	"Danger climbs in five named steps (EASY, ROUGH, HARD, BRUTAL, LETHAL), and what a system is willing to offer you climbs with it.",
 ]
 
 
@@ -468,7 +468,7 @@ func _primer_cost() -> Array[String]:
 	elif reach <= 0.85:
 		out.append("A tight disc. Everything is close, and a tank goes further here than it looks.")
 	if dens >= 1.15:
-		out.append("It is thick with systems -- there will be more places to stop than you can afford to.")
+		out.append("It is thick with systems. There will be more places to stop than you can afford to.")
 	elif dens <= 0.80:
 		out.append("It is thin of systems. Expect stretches with nothing in them.")
 	# THE ANISOTROPY, AND IT RUNS THE OTHER WAY FROM THE BRIEF.

@@ -354,7 +354,7 @@ static func module_row(m: ModuleData, ctx: ModuleContext, price: int,
 ## made a part into a second currency.
 static func _scrap_button(m: ModuleData, on_action: Callable) -> Button:
 	var b := _btn("SCRAP +%d" % Run.scrap_value_of(m), on_action.bind("scrap", m))
-	b.tooltip_text = tip("Break it down where you stand. The floor under every part — no station and no route needed.")
+	b.tooltip_text = tip("Break it down where you stand. The floor under every part: no station and no route needed.")
 	return b
 
 static func hull_row(h: HullData, label: String, price: int,

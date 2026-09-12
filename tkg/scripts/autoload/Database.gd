@@ -194,13 +194,13 @@ func _seed_manufacturers() -> void:
 ## an allegiance before they can evaluate a single number, and this is what they
 ## are actually choosing between.
 const BACKSTORY := {
-	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon — they inherited the jigs and kept stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
+	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon. They inherited the jigs and kept stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
 	&"solari": "A guild of thermal engineers who lost an argument about safety margins and left to prove they were right. Solari hulls are rated for temperatures their crews are not. The company line is that heat is only waste if you fail to aim it.",
-	&"probate": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock — it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
+	&"probate": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock; it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
 	&"redline": "Chop shops with a trademark. Redline registers no serials, honours no warranty, and has never once been found at the address on its invoices. What they sell is speed and the absence of a record, and both are exactly as legal as your inspector is thorough.",
-	&"verity": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Verity does not scale, does not discount, and does not replace what it sold you — it repairs it, at a price, forever. Owning one is less a purchase than an arrangement.",
+	&"verity": "Fewer than four hundred hulls in two centuries, each one commissioned, each one signed. Verity does not scale, does not discount, and does not replace what it sold you. It repairs it, at a price, forever.",
 	&"cygnet": "Drone architects who solved autonomy and then spent forty years not discussing it. A Cygnet ship is a hangar with an engine, somewhere for the swarm to return to. Pilots report the drones anticipate them. The literature does not address this.",
-	&"calyx": "Clinical, corporate and entirely organic — Calyx hulls are cultured to a specification and then trimmed. They heal. They adapt. Every contract has a clause about feeding one something it was not rated for, and no customer has seen the results.",
+	&"calyx": "Clinical, corporate and entirely organic: Calyx hulls are cultured to a specification and then trimmed. They heal and adapt. Every contract has a clause about feeding one something it was not rated for, and no customer has seen the results.",
 }
 
 ## SIXTEEN MALFUNCTIONS, out of three keywords.
@@ -438,7 +438,7 @@ func _seed_modules() -> void:
 	# and a plain one beside it out of the shared vocabulary. It is what stops a
 	# starter weapon being two copies of the same verb.
 	_module(&"kh20", "KH-20 Chatterbox", &"korvan", W, C0,
-		"Autocannon. Cheap, kinetic, relentless.",
+		"Autocannon. Cheap rounds, and a lot of them.",
 		[{name = "Suppressing Fire", energy = 1, heat = 0, damage = 3, hits = 2, salvo = 2},
 			&"slug"])
 	_module(&"km4", "KM-4 Mass Driver", &"korvan", W, C0,
@@ -461,7 +461,7 @@ func _seed_modules() -> void:
 		## Bore sighting is what you do to a gun this size before you fire it.
 		[{name = "Bore Sight", energy = 1, lock_on = 4, copies = 1}])
 	_module(&"kh88", "KH-88 Jackhammer", &"korvan", W, C2,
-		"Rotary cannon. Volume as a philosophy.",
+		"Rotary cannon. It aims by volume.",
 		[{name = "Full Auto", energy = 2, damage = 2, hits = 5, salvo = 1}, &"feed"])
 	_module(&"widow", "Widowmaker Siege Driver", &"korvan", W, C3,
 		"Two turns of silence, then nothing left.",
@@ -496,7 +496,7 @@ func _seed_modules() -> void:
 	# Ballistics, the middle rung. Between the Chatterbox's 6/10 and the
 	# Jackhammer's 10/15, and cheaper than either to fire twice in a turn.
 	_module(&"kh40", "KH-40 Ripsaw", &"korvan", W, C1,
-		"Three barrels, one trigger, no subtlety.",
+		"Three barrels on one trigger, and no subtlety.",
 		[{name = "Ripple Fire", energy = 1, damage = 3, hits = 3, salvo = 2}, &"feed"])
 	# The top of the KH line, and the payoff for the whole salvo spine: 20 cold,
 	# 40 once anything has already fired. Three energy and one copy, so it is a
@@ -907,7 +907,7 @@ func _seed_modules() -> void:
 		[{name = "Foreknowledge", energy = 0, lock_on = 10, draw = 2},
 			{name = "Auspice", energy = 1, damage = 8, lock_on = 6}])
 	_module(&"ejector", "Ejector Rail", &"", U, C0,
-		"A rail, a hatch, and the dark.",
+		"A rail and a hatch onto the dark.",
 		[{name = "Overside", energy = 0, discard = 2, heal = 2}, &"scuttle"])
 
 	# --- Reactor capacity: the parts that let you run the other parts
@@ -2324,7 +2324,7 @@ Next shipment as scheduled.")
 
 	_doc(&"broker_ledger", "DAY BOOK, THIRD QUARTER", "a yard broker, name torn off",
 		"no year given", &"", 0,
-		"Hull plate, sixteen sheets — took the lot, paid over. Reactor coil, one, tested — turned it away, it is scrap with a certificate.
+		"Hull plate, sixteen sheets, took the lot, paid over. Reactor coil, one, tested, turned it away, it is scrap with a certificate.
 
 The Cygnet berth came round again about banked thermal. Four times the yard rate, and they still will not say where it goes.
 
@@ -2453,11 +2453,11 @@ Every contract carries the clause. This is the first time the clause has been op
 
 Mass is wrong. Not distributed for thrust, not distributed for spin, not distributed for anything I would put a crew inside. Distributed for something.
 
-Nine bays. Seven open onto compartments. Two open onto the frame — sealed on both faces, no hatch, no service run, no reason. Machined to the same tolerance as the rest.
+Nine bays. Seven open onto compartments. Two open onto the frame: sealed on both faces, no hatch, no service run, no reason. Machined to the same tolerance as the rest.
 
 I am paid by the hulk and not by the hour so I will say this once: whoever built this was not bad at it.
 
-Recommend strip and cut. Nothing here is worth preserving except the question.")
+Recommend strip and cut. Nothing here is worth preserving.")
 
 	_doc(&"solari_memo", "INTERNAL, THERMAL APPLICATIONS", "a section head, Solari Foundry",
 		"foundry year 812", &"solari", 6,
@@ -2482,9 +2482,7 @@ Berth 14 — vacant
 
 A second column has been added in a different hand, in pencil, against every name including the vacancy. The column is unlabelled. The entries are temperatures.
 
-They descend down the page in the order the berths are numbered.
-
-The vacancy has a temperature.")
+They descend down the page in the order the berths are numbered.")
 
 	_doc(&"custodian_note", "STATEMENT, TAKEN AT A STATION", "taken down by a station clerk",
 		"undated, marked NOT FOR FILING", &"", 7,

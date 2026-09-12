@@ -156,7 +156,7 @@ const MINIBOSS_BREAKS_AT := 0.35
 static func escape_intent() -> IntentData:
 	var i := IntentData.new()
 	i.name = "ESCAPE BURN"
-	i.text = "Spooling a blind jump — finish it now or lose it"
+	i.text = "Spooling a blind jump: finish it now or lose it"
 	i.telegraph = true
 	i.escape = true
 	return i
@@ -417,7 +417,7 @@ func end_turn() -> void:
 		var burn := Run.heat - Run.heat_cap()
 		if Run.has_set(&"solari", 5):
 			burn = int(ceil(burn / 2.0))
-		_log("⚠ OVERHEAT — %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
+		_log("⚠ OVERHEAT: %d hull burned (%d/%d)." % [burn, Run.heat, Run.heat_cap()], &"heat")
 		Sig.overheated.emit(burn)
 		Run.take_hull_damage(burn, "Your reactor cooked the hull from the inside.")
 		if Run.dead:
@@ -490,7 +490,7 @@ func _act_one(e: EnemyState) -> void:
 		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 		Run.hellbender_breaks_off(e.hp)
 		_finish(&"broke_off",
-			"A blind jump, furnace-bright. It is gone — hurt, hot, and mending. No salvage.")
+			"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
 		return
 	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
@@ -1298,7 +1298,7 @@ func _on_fight_changed(at: int) -> void:
 		# it and written its hull back; this machine only has to stop fighting.
 		if f.broke:
 			_finish(&"broke_off",
-				"A blind jump, furnace-bright. It is gone — hurt, hot, and mending. No salvage.")
+				"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
 			return
 		# The host decides the fight is won, not this machine. Everyone still in
 		# it when the last hull came apart is paid, which is the ruling: winning

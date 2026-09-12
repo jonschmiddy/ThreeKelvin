@@ -41,7 +41,7 @@ const TIER_BLURB: Array[String] = [
 ]
 
 const WEIGHT_BLURB: Array[String] = [
-	"Thin plate and the smallest hold, but it draws the biggest hand and can actually dodge.",
+	"Thin plate and the smallest hold, but it draws the biggest hand and can dodge.",
 	"The middle of every axis, with no standout strength and no glaring weakness.",
 	"The most plate and the biggest hold, and it cannot dodge or turn to save itself.",
 ]

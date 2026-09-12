@@ -239,7 +239,7 @@ func _add_dev_toggle() -> void:
 	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
 		box.add_theme_stylebox_override(st, UITheme.empty())
 	_paint_dev_toggle(box)
-	box.tooltip_text = Widgets.tip("Card gallery, the whole star chart, and any hull grade at launch.\nNot the game — do not judge pacing or difficulty with this on.")
+	box.tooltip_text = Widgets.tip("Card gallery, the whole star chart, and any hull grade at launch.\nNot the game: do not judge pacing or difficulty with this on.")
 	box.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	box.grow_vertical = Control.GROW_DIRECTION_BEGIN

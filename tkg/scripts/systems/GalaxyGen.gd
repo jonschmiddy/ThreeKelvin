@@ -86,7 +86,7 @@ const KINDS := [
 		squash = 0.64, density = 1.00, reach = 1.05, core_share = 0.4, core_pow = 2.0, halo_pow = 0.88,
 		spread = 2.4, chaos = 0.18, ring = 0.0, bulge = 0.22, dust = 1.3,
 		tail = false, gas = 1.25,
-		blurb = "No grand design — just scattered, patchy spurs of star formation. It has been making stars in fits and starts for as long as anyone has watched.",
+		blurb = "No grand design: scattered, patchy spurs of star formation. It has been making stars in fits and starts for as long as anyone has watched.",
 	},
 	{
 		name = "Anemic Spiral", arms = 2, twist = 8.0, bar = 0.0,

@@ -271,7 +271,7 @@ func _host_box() -> Control:
 		_host(t)))
 	box.add_child(addr)
 	var note := ("Direct opens port %d on this machine. The address above is"
-		+ " this machine on the local network — friends in the house can use it"
+		+ " this machine on the local network; friends in the house can use it"
 		+ " as it stands. Anyone outside needs your public address typed over"
 		+ " it, and the port forwarded here.") % DirectTransport.DEFAULT_PORT
 	var note_label := UITheme.body(note, UITheme.QUOTE, UITheme.FS_SMALL)
@@ -394,7 +394,7 @@ func _code_box() -> Control:
 	var note := UITheme.body(
 		"Send this to your friends. They paste it into FLY TOGETHER > JOIN."
 		+ " Dashes and capitals do not matter, and there is no letter O or I"
-		+ " in it — anything that looks like one is a zero or a one.",
+		+ " in it: anything that looks like one is a zero or a one.",
 		UITheme.QUOTE, UITheme.FS_SMALL)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(note)

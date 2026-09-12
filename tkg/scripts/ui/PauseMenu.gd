@@ -78,7 +78,7 @@ func setup() -> void:
 
 	if fighting:
 		var warn := UITheme.body(
-			"A fight is never saved. You resume at this system, before it — "
+			"A fight is never saved. You resume at this system, before it, "
 			+ "with the hull you arrived with, and this contact still waiting.",
 			UITheme.COLD, UITheme.FS_SMALL)
 		warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

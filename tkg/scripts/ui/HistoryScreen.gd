@@ -76,7 +76,7 @@ func _empty() -> Control:
 	var a := UITheme.body("No runs on record.", UITheme.CHILL, UITheme.FS_BODY)
 	a.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(a)
-	var b := UITheme.body("Every run that ends is logged here — won, lost or abandoned.",
+	var b := UITheme.body("Every run that ends is logged here: won, lost or abandoned.",
 		UITheme.COLD, UITheme.FS_SMALL)
 	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(b)

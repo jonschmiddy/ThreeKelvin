@@ -821,7 +821,7 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 			"ENGAGE THE HELLBENDER"]
 	match n.type:
 		MapGen.NodeType.STATION:
-			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel — all of it out of the same pocket.", "DOCK"]
+			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel, all of it out of the same pocket.", "DOCK"]
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:
 				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", "PLOT NEXT JUMP"]
@@ -843,7 +843,7 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 			if n.cleared:
 				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",
 					"PLOT NEXT JUMP"]
-			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy and its beam will cook you through the hull. Close enough to scoop is close enough to die.",
+			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy, and anywhere close enough to scoop it, the beam will cook you through the hull.",
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
 			return ["Open space, and the reactor holding. The core is a long way in from here.", "PLOT NEXT JUMP"]

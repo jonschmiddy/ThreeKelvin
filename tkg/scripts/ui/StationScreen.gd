@@ -1871,7 +1871,7 @@ func _refresh_services(n: MapGen.MapNode) -> void:
 	var refuel_cost := Market.refuel_price(n)
 	var bowser := _rig(ServiceRig.Kind.BOWSER, "REFUEL +%d" % Market.REFUEL_UNITS,
 		refuel_cost, _refuel, Run.credits >= refuel_cost)
-	bowser.tooltip_text = Widgets.tip("A tankful. Fuel is what a jump costs -- see the starchart's reach ring.")
+	bowser.tooltip_text = Widgets.tip("A tankful. Fuel is what a jump costs (see the starchart's reach ring).")
 
 	# THE FAULT POST STANDS IN THE BAY WHETHER OR NOT ANYTHING IS WRONG.
 	#
@@ -2159,7 +2159,7 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 
 	if on_offer.is_empty():
 		_shelf.add_child(UITheme.body(
-			"Shelves bare. Nothing restocks — what was brought here is gone.",
+			"Shelves bare. Nothing restocks; what was brought here is gone.",
 			UITheme.COLD, UITheme.FS_SMALL))
 		return
 

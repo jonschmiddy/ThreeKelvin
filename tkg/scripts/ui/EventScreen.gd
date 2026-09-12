@@ -170,14 +170,14 @@ func _choose(index: int) -> void:
 		# because a button that disappears moves CONTINUE out from under your
 		# hand at the moment you reach for it.
 		claim.disabled = left <= 0
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam -- open SECTOR LOOT and it is still there."
+		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam; open SECTOR LOOT and it is still there."
 			if left > 0 else "You have taken everything this left you.")
 		row.add_child(claim)
 	_go = Widgets.button("CONTINUE", _continue)
 	# HELD UNTIL YOU HAVE LOOKED, and only while there is something to look at.
 	if left > 0:
 		_go.disabled = true
-		_go.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go -- what you leave stays in this system, but you should at least know it is there.")
+		_go.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go. What you leave stays in this system, but you should at least know it is there.")
 	row.add_child(_go)
 	_result.add_child(row)
 

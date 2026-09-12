@@ -422,7 +422,7 @@ func refresh() -> void:
 	# bar that follows you everywhere is only true where you happen to be
 	# standing — and a figure that silently changes meaning is worse than no
 	# figure. The station screen quotes it where it applies.
-	var hull_note := "Your hull is the ship itself — this is your health.\nAt zero the run ends. Stations weld it back on, for credits."
+	var hull_note := "Your hull is the ship itself. This is your health.\nAt zero the run ends. Stations weld it back on, for credits."
 	_hull.set_hull(Run.hp, Run.max_hp())
 	_hint(_hull_label, hull_note)
 	_hull.tooltip_text = Widgets.tip(hull_note)
@@ -443,10 +443,10 @@ func refresh() -> void:
 	# its own", which stopped being true the moment the end-of-turn shed was
 	# deleted. Learned once from the gauge and true of every vent card you
 	# own -- which is why the card face does not reprint it.
-	var heat_note := "Weapons and systems run hot — heat is what they leave behind.\nPast %d it burns 1 hull a point at end of turn. Your vent cards shed %d more than they print." % [
+	var heat_note := "Weapons and systems run hot. Heat is what they leave behind.\nPast %d it burns 1 hull a point at end of turn. Your vent cards shed %d more than they print." % [
 		Run.heat_cap(), shed]
 	if over > 0:
-		heat_note = "Weapons and systems run hot — heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Your vent cards shed %d more than they print." % [
+		heat_note = "Weapons and systems run hot. Heat is what they leave behind.\n%d over the cap: %d hull at end of turn. Your vent cards shed %d more than they print." % [
 			over, over, shed]
 	_heat.setup(BoxGauge.Mode.HEAT, Run.heat_cap(), Run.heat)
 	_heat.tooltip_text = Widgets.tip(heat_note)

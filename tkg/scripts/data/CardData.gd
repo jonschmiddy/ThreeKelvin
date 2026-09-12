@@ -349,7 +349,7 @@ func keywords() -> Array:
 	if negate_next:
 		out.append(["Negate", "Cancels the next attack against you outright, whatever its size."])
 	if salvo > 0:
-		out.append(["Salvo", "Adds this to every hit — but only if you have already attacked this turn."])
+		out.append(["Salvo", "Adds this to every hit, but only if you have already attacked this turn."])
 	if charge_turns > 0:
 		out.append(["Charge", "Fires on its own after this many turns instead of when you play it."])
 	if adapt > 0:
@@ -368,7 +368,7 @@ func keywords() -> Array:
 	if drone_damage > 0 or drone_brace > 0:
 		out.append(["Drone", "Keeps fighting after the card is gone. It stays out until the fight ends."])
 	if fused:
-		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it works — it just costs you a card."])
+		out.append(["Fused", "It is not discarded at the end of your turn. Discarding it works; it just costs you a card."])
 	if hand_damage > 0:
 		out.append(["Corrode", "Damage at the end of your turn, for as long as it is still in your hand."])
 	if hand_heat > 0:
@@ -376,7 +376,7 @@ func keywords() -> Array:
 	if decommission > 0 or self_decommission:
 		out.append(["Decommission", "Off the books for the rest of this fight. It does not come back when the deck reshuffles."])
 	if discard > 0 or discard_hand:
-		out.append(["Discard", "Straight to the discard pile — and back in the deck when that pile reshuffles."])
+		out.append(["Discard", "Straight to the discard pile, and back in the deck when that pile reshuffles."])
 	if evoke > 0:
 		out.append(["Evoke", "Adds this much for each drone you have out."])
 	if credit_cost > 0:

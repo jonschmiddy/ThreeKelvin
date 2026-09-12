@@ -202,7 +202,7 @@ const _LINES := {
 			"There is a contact at {PLACE}. Remove it. There is no second part to this.",
 		],
 		ContractData.Kind.HEAT: [
-			"Standing order. Dock at any of our berths carrying {N} heat and we will take it off you at the posted rate.",
+			"Standing order. Dock at any of our yards carrying {N} heat and we will take it off you at the posted rate.",
 		],
 	},
 	&"solari": {
@@ -215,7 +215,7 @@ const _LINES := {
 			"Contact at {PLACE}. Aim something at it. Heat is only waste if you fail to aim it.",
 		],
 		ContractData.Kind.HEAT: [
-			"Come in hot. {N} on the hull, any Foundry berth, and do not vent on the approach like a coward.",
+			"Come in hot. {N} on the hull, any Foundry yard, and do not vent on the approach like a coward.",
 		],
 	},
 	&"probate": {
@@ -228,7 +228,7 @@ const _LINES := {
 			"Contact at {PLACE}. It becomes salvage when it stops moving. Make it salvage.",
 		],
 		ContractData.Kind.HEAT: [
-			"Thermal, {N} units, delivered to any Combine berth. Weighed on arrival. Paid on the weight.",
+			"Thermal, {N} units, delivered to any Combine yard. Weighed on arrival. Paid on the weight.",
 		],
 	},
 	&"redline": {
@@ -265,7 +265,7 @@ const _LINES := {
 			"The contact at {PLACE} is destroying units faster than they return. Resolve it.",
 		],
 		ContractData.Kind.HEAT: [
-			"Deliver {N}. Any berth. No party will be present and none is required to be.",
+			"Deliver {N}. Any yard. No party will be present and none is required to be.",
 		],
 	},
 	&"calyx": {
@@ -277,7 +277,7 @@ const _LINES := {
 			"Something at {PLACE} is eating our specimens. Every contract has a clause about that.",
 		],
 		ContractData.Kind.HEAT: [
-			"{N} units of thermal, any Calyx berth. The cultures take it better than the vaults do.",
+			"{N} units of thermal, any Calyx yard. The cultures take it better than the vaults do.",
 		],
 	},
 }

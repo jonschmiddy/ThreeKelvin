@@ -1856,7 +1856,7 @@ func attributes() -> Array[Dictionary]:
 					int(round((THRUST_REACH_MAX - 1.0) * 100.0))]},
 		{key = &"maneuver", label = ATTR_LABEL[&"maneuver"], short = ATTR_SHORT[&"maneuver"],
 			value = attr_maneuver(), base = attr_maneuver(true),
-			text = "Threading debris, evading a lock, choosing how a fight opens.",
+			text = "Threading debris, evading a lock, breaking contact.",
 			# HALF A PIP IS DODGE and half is initiative, and only the dodge half
 			# does anything: Combat rolls `randf() < Run.dodge()` for the enemy
 			# to miss, and NOTHING reads initiative. So the honest number is the
@@ -2161,7 +2161,7 @@ func install_module(m: ModuleData) -> void:
 		dim.mount = -1
 		if not place_in_hold(dim):
 			log_line("No room for %s. It was left behind." % dim.name, &"them")
-		log_line("Shut down %s — the reactor cannot carry both." % dim.name, &"sys")
+		log_line("Shut down %s. The reactor cannot carry both." % dim.name, &"sys")
 	take_from_hold(m)
 	m.mount = free_mount(m.slot)
 	installed.append(m)

@@ -109,10 +109,10 @@ func status_line() -> String:
 	if state == State.CLOSED:
 		return "Closed."
 	if state == State.READY:
-		return "Ready to deliver at any %s berth." % who
+		return "Ready to deliver at any %s yard." % who
 	if kind == Kind.HEAT:
-		return "Dock at any %s berth carrying %d heat." % [who, amount]
-	return _where() if state == State.OFFERED else "Open — %s" % _where()
+		return "Dock at any %s yard carrying %d heat." % [who, amount]
+	return _where() if state == State.OFFERED else "Open: %s" % _where()
 
 
 func _where() -> String:

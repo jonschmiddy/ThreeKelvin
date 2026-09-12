@@ -218,7 +218,7 @@ func _open_first() -> void:
 	# than the documents in it do.
 	Widgets.clear(_page)
 	var empty := UITheme.body(
-		"Nothing recovered yet.\n\nPeople leave paperwork. Strip a wreck, fly a pulsar, finish a fight — whatever is still readable comes back with you.",
+		"Nothing recovered yet.\n\nPeople leave paperwork. Strip a wreck, fly a pulsar or finish a fight, and whatever is still readable comes back with you.",
 		UITheme.QUOTE, UITheme.FS_SMALL)
 	empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_page.add_child(empty)

@@ -112,7 +112,7 @@ func _refresh() -> void:
 			_refresh())
 	Widgets.paint_toggle(fps_btn, "FRAME COUNTER", fps_on)
 	fps_btn.tooltip_text = Widgets.tip(
-		"Frames per second, bottom right. Costs nothing and decides nothing — it is for saying \"the chart felt slow\" with a number attached.")
+		"Frames per second, bottom right. Costs nothing and decides nothing. It is for saying \"the chart felt slow\" with a number attached.")
 	_fps_row.add_child(fps_btn)
 
 	Widgets.clear(_screen_row)

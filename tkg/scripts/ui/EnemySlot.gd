@@ -315,7 +315,7 @@ func set_salvage(left: int) -> void:
 		_hp.text = "SALVAGE"
 		_hp.add_theme_color_override("font_color", UITheme.TRACTOR)
 		tooltip_text = Widgets.tip(
-			"%s\n\nDead in the water and still loaded — %d aboard. Open it."
+			"%s\n\nDead in the water and still loaded: %d aboard. Open it."
 			% [_name.text, left])
 	elif opened.is_valid():
 		_hp.text = "STRIPPED"
