@@ -194,8 +194,8 @@ CUES = {
     "theme":       ("F2",  "home",    "drift", 1.5, "ask",    1.0, 0.6, 96.0, 0),
     "business":    ("F2",  "phryg",   "drift", 1.3, "turn",   1.2, 0.5, 96.0, 0),
     "dread":       ("F2",  "cold",    "still", 2.0, None,     1.4, 0.3, 96.0, 0),
-    "burn":        ("F2",  "drive",   "drive", 1.5, "urgent", 1.6, 0.5, 64.0, 132),
-    "boss":        ("F2",  "drive2",  "drive", 2.0, "urgent2", 1.8, 0.4, 64.0, 138),
+    "burn":        ("F2",  "drive",   "drive", 1.5, "ask",    1.6, 0.5, 64.0, 132),
+    "boss":        ("F2",  "drive2",  "drive", 2.0, "fall",   1.8, 0.4, 64.0, 138),
 }
 ## Stems per family. Driving cues trade breath and upper for a pulse and stabs:
 ## wind is what a place has when nothing is happening.
@@ -389,25 +389,30 @@ def v_breath(n, dark):
 
 
 def v_pulse(n, root, areas, total, bpm, dark):
-    """THE ENGINE, and it has to be followable.
+    """THE RIFF. It repeats, which is the entire point.
 
-    The first version rested on every third eighth against an eight-step bar,
-    which is a 3-against-8 polyrhythm: the pattern does not repeat for
-    twenty-four eighths, three whole bars. On top of that the pitch changed
-    every two eighths and every eighth but the downbeat dropped an octave.
-    Jon's verdict was that the beat was too complicated to follow, and it was --
-    by construction rather than by accident.
+    Jon: "it's still too all over the place... like math rock. I just want some
+    sci fi to jam to while I fight."
 
-    It is now the plainest thing that still drives:
+    That was accurate and the cause was one line: the pulse took its pitch from
+    `ch[bar % len(ch)]`, so the bass played a NEW NOTE EVERY BAR, walking
+    through sixteen of them across sixteen bars without repeating. That is a
+    sequence. A groove is repetition, and there was none.
 
-        1  2  3  4  5  6  7  8
-        X  x  x  x  X  x  x  x      every eighth, accent on 1 and 5
-        lo hi lo hi lo hi lo hi     one octave alternation, the same every bar
-        one pitch per bar, taken from the area
+    THE RIFF IS PINNED TO THE ROOT, and the rule that makes that safe is this
+    file's own: every harmonic area contains 0. So the root is consonant with
+    every chord that will ever move above it, and the riff can repeat for as
+    long as the fight lasts without ever needing to know what the harmony is
+    doing. The organ moves; the floor does not.
 
-    Nothing here takes more than a bar to learn, which is the whole point of a
-    pulse. No kit anywhere: the accents are a louder note and a brighter filter,
-    which is DREAD_NOTES' pulse-not-groove ruling kept intact.
+    Two bars, and the second differs from the first by one note:
+
+        bar 1:  X  x  x  x  X  x  x  x      root throughout
+        bar 2:  X  x  x  x  X  x  x  ^      last eighth lifts an octave
+
+    That lift is the only event in the pattern and it arrives every two bars,
+    which is slow enough to become expected and the thing that makes it a loop
+    you can settle into rather than a line you have to track.
     """
     spb = 60.0 / bpm
     step = spb * 0.5
@@ -415,25 +420,21 @@ def v_pulse(n, root, areas, total, bpm, dark):
     i = 0
     at = 0.0
     while at < total + WRAP_S:
-        bar = i // 8
         beat = i % 8
-        # ONE PITCH PER BAR. The harmony still moves; it moves at the bar line
-        # rather than twice a beat, so the ear can hold on to it.
-        ch = area_at(areas, ((bar * spb * 4) / total) % 1.0)
-        iv = ch[bar % len(ch)]
-        f = root * 2 ** (iv / 12.0)
-        # ONE PITCH, NO OCTAVE JUMP. Alternating octave on the offbeat made the
-        # ostinato read as two interleaved lines rather than one, which is most
-        # of what "chaotic" was. A pulse you can follow is one line.
-        accent = 1.0 if beat == 0 else (0.62 if beat == 4 else 0.26)
+        bar = i // 8
+        lift = (bar % 2 == 1) and beat == 7
+        f = root * (2.0 if lift else 1.0)
+        accent = 1.0 if beat == 0 else (0.60 if beat == 4 else 0.24)
+        if lift:
+            accent = 0.52
         m = int(step * 0.92 * SR)
         t = np.arange(m) / SR
         v = synth.saw(f, m) * 0.8 + np.sin(2 * np.pi * f * 0.5 * t) * 0.5
-        cut = (2600.0 if beat in (0, 4) else 1300.0) * (1.0 - 0.22 * dark)
+        cut = (2400.0 if beat in (0, 4) else 1250.0) * (1.0 - 0.22 * dark)
         v = lp(v, cut, order=3)
         v = np.tanh(v * 2.4) / np.tanh(2.4)
         v *= np.exp(-t / (step * 0.45))
-        place(y, v, at, 0.26 * accent)
+        place(y, v, at, 0.27 * accent)
         at += step
         i += 1
     return hp(y, 40.0, order=2)
