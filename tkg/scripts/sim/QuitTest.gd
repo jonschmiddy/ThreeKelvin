@@ -28,12 +28,21 @@ func run(tree: SceneTree) -> void:
 	Rng.reseed(4471, 0)
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	Router.show_starchart()
-	for i in 3:
+	# WAIT FOR THE CHART, DO NOT COUNT FRAMES AT IT. This was `for i in 3`, and
+	# three frames is usually enough for the screen to build and usually is not a
+	# test: it passed seven runs in a row and failed the eighth on the same
+	# build. A bounded wait on the thing actually being looked for is the same
+	# check without the race.
+	var chart: StarchartScreen.MapChart = null
+	for i in 60:
+		chart = first(Router.current, _is_chart) as StarchartScreen.MapChart
+		if chart != null:
+			break
 		await tree.process_frame
-	var chart := first(Router.current, _is_chart) as StarchartScreen.MapChart
 	if not _ok("the starchart is up with its systems showing",
 			chart != null and chart.show_icons):
-		return _finish()
+		await _finish()
+		return
 
 	# PROVE A DRAW CAN BE SEEN FIRST. A headless run that never drew would pass
 	# the real assertion below by counting nothing, which is the failure this
@@ -44,7 +53,8 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	if not _ok("and it draws in this harness, so a draw after leaving would show",
 			_draws > 0):
-		return _finish()
+		await _finish()
+		return
 
 	# What QUIT and SAVE & QUIT both do, in their order.
 	Run.hull = null
@@ -53,7 +63,7 @@ func run(tree: SceneTree) -> void:
 		await tree.process_frame
 	_ok("the title screen is up", Router.current is LauncherScreen)
 	_ok("and the chart left behind never drew without a ship", _blind == 0)
-	_finish()
+	await _finish()
 
 
 func _on_draw() -> void:
