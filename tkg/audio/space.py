@@ -386,38 +386,50 @@ def v_breath(n, dark):
 
 
 def v_pulse(n, root, areas, total, bpm, dark):
-    """THE ENGINE. A low ostinato on the eighth, following the harmony, with a
-    filter that reopens on every downbeat. No kit anywhere -- the rhythm is
-    carried by pitch and by the filter, which is how this idiom has always done
-    it and what keeps DREAD_NOTES' pulse-not-groove ruling intact.
+    """THE ENGINE, and it has to be followable.
 
-    Two notes in three is a rest. A continuous line is a texture; a line with
-    holes in it is a pulse."""
+    The first version rested on every third eighth against an eight-step bar,
+    which is a 3-against-8 polyrhythm: the pattern does not repeat for
+    twenty-four eighths, three whole bars. On top of that the pitch changed
+    every two eighths and every eighth but the downbeat dropped an octave.
+    Jon's verdict was that the beat was too complicated to follow, and it was --
+    by construction rather than by accident.
+
+    It is now the plainest thing that still drives:
+
+        1  2  3  4  5  6  7  8
+        X  x  x  x  X  x  x  x      every eighth, accent on 1 and 5
+        lo hi lo hi lo hi lo hi     one octave alternation, the same every bar
+        one pitch per bar, taken from the area
+
+    Nothing here takes more than a bar to learn, which is the whole point of a
+    pulse. No kit anywhere: the accents are a louder note and a brighter filter,
+    which is DREAD_NOTES' pulse-not-groove ruling kept intact.
+    """
     spb = 60.0 / bpm
-    y = np.zeros(n)
     step = spb * 0.5
+    y = np.zeros(n)
     i = 0
     at = 0.0
     while at < total + WRAP_S:
-        frac = (at / total) % 1.0
-        ch = areas[0][1]
-        for a_at, a_ch in areas:
-            if frac >= a_at:
-                ch = a_ch
-        # a rest every third eighth, and the downbeat always sounds
-        if i % 8 == 0 or i % 3 != 2:
-            iv = ch[(i // 2) % len(ch)]
-            f = root * 2 ** (iv / 12.0)
-            if i % 8 != 0:
-                f *= 0.5
-            m = int(step * 0.92 * SR)
-            t = np.arange(m) / SR
-            v = synth.saw(f, m) * 0.8 + np.sin(2 * np.pi * f * 0.5 * t) * 0.5
-            cut = 900.0 + (2400.0 if i % 8 == 0 else 900.0) * np.exp(-t / 0.09).mean()
-            v = lp(v, cut * (1.0 - 0.22 * dark), order=3)
-            v = np.tanh(v * 2.4) / np.tanh(2.4)
-            v *= np.exp(-t / (step * 0.40))
-            place(y, v, at, 0.30 if i % 8 == 0 else 0.19)
+        bar = i // 8
+        beat = i % 8
+        # ONE PITCH PER BAR. The harmony still moves; it moves at the bar line
+        # rather than twice a beat, so the ear can hold on to it.
+        ch = area_at(areas, ((bar * spb * 4) / total) % 1.0)
+        iv = ch[bar % len(ch)]
+        f = root * 2 ** (iv / 12.0)
+        if beat % 2 == 1:
+            f *= 2.0                      # offbeats an octave up, always
+        accent = 1.0 if beat == 0 else (0.72 if beat == 4 else 0.42)
+        m = int(step * 0.92 * SR)
+        t = np.arange(m) / SR
+        v = synth.saw(f, m) * 0.8 + np.sin(2 * np.pi * f * 0.5 * t) * 0.5
+        cut = (2600.0 if beat in (0, 4) else 1300.0) * (1.0 - 0.22 * dark)
+        v = lp(v, cut, order=3)
+        v = np.tanh(v * 2.4) / np.tanh(2.4)
+        v *= np.exp(-t / (step * 0.45))
+        place(y, v, at, 0.26 * accent)
         at += step
         i += 1
     return hp(y, 40.0, order=2)
@@ -432,7 +444,7 @@ def v_stab(n, root, areas, total, bpm, dark):
     at = 0.0
     k = 0
     while at < total + WRAP_S:
-        if k % 2 == 0:
+        if k % 4 == 0:
             frac = (at / total) % 1.0
             ch = areas[0][1]
             for a_at, a_ch in areas:
