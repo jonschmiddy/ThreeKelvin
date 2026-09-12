@@ -9,6 +9,14 @@ dissolving. §1 is the state of the world; §2 is what is next.*
 all landed; the galaxy table lost its two ring kinds and gained four shapes
 (SaveGame 26). What is left before the tune gate reopens is **L**.*
 
+***Updated 2026-09-11**, against `main` at `04cc9ba`. **The batches 01 to 06
+package landed: the table is 88, not 47**, the linter reports it clean, and
+`-- artcheck` PASSes with nothing left undrawn. §1, §2, §4, §7, §9 and §10 are
+corrected against the code; §4 gains a table of what the commission still owes;
+§2 gains the day's 200-run reading, which is a reading and not a target. Three
+items in §10 were fixed by other work and are struck through rather than
+dropped.*
+
 This is the index. Every other file in this bundle is linked from here.
 
 ---
@@ -28,7 +36,7 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 | `batch-03.md` | twenty more, aimed at the coverage gaps | draft |
 | `encounter-prototype.html` | playable feel-test: 10 systems, 29 options | tool |
 | `LIVE_CARD_NUMBERS.md` | live card faces and the targeting line | ⬜ unblocked |
-| `ENCOUNTER_PROSE.md` | all 47 encounters, their gates, and the rules for writing them | ✅ reference |
+| `ENCOUNTER_PROSE.md` | the prose fields, their gates, and the rules for writing them | ✅ reference · **counts read a 47-row table; it is 88** |
 | `GALAXY_SCALE.md` | map scale, declared shape, the chart primer | §1–§4 ✅ · §3 **void** · §5 ✅ |
 | `HEAT_REWORK.md` | dissipation amplifies venting | ✅ landed (§3 reverted) |
 | `SIM_INSTRUMENT_FIX.md` | the strand counter measured the wrong set | ✅ **done, and it was right** |
@@ -38,12 +46,32 @@ All of it now lives in `docs/briefs/`, committed at `f7cf04e`.
 
 ## 1. STATE OF THE WORLD
 
-**Repo:** `main` at `76001d1`, two commits ahead of `origin`. `SaveGame VERSION
-24`, `PROTOCOL 8`, `validate.sh` passing.
+**Repo:** ~~`main` at `76001d1`, two commits ahead of `origin`, `SaveGame VERSION
+24`~~ **`main` at `04cc9ba`, level with `origin/main`. `SaveGame VERSION 27`**,
+`PROTOCOL 8`. *`validate.sh` is not re-asserted here: this pass was written with
+other sessions mid-edit in the scripts tree, so the gate was deliberately not
+run. The three checks that were run are named below.*
+
+**The three commits of 2026-09-11**, all pushed:
+
+| | what it did |
+| --- | --- |
+| `855b566` | the prose pass: about 1,300 player-facing strings read against the AI-prose patterns, 139 changed, and two lying tooltips corrected |
+| `38208fd` | **41 encounters land, 47 → 88.** Six sky gates and the ungated lethal eight. Every ruling the linter held is cleared, fifteen of them |
+| `04cc9ba` | a priced option is charged once. `SectorScreen._take` was deducting `cost_credits` a second time on seven options |
+
+**What was run to write this update**, and what it said:
+
+```
+python tools/encounter_lint.py --strict     88 encounters checked · clean
+godot --headless --path tkg -- optiontest   88 options, 52 distinct ids over
+                                            200 systems · every assertion ok
+godot --headless --path tkg -- artcheck     43 modules · 76 cards · PASS
+```
 
 **⚠ `VERSION` MOVES OFTEN AND THE DISCARD IS THE MIGRATION.** It has gone 14 → 24
-since this file was written; `SaveGame.gd`'s own header carries a line per bump
-and is the place to read them. The two that matter to anyone reading this for
+→ **27** since this file was written; `SaveGame.gd`'s own header carries a line
+per bump and is the place to read them. The two that matter to anyone reading this for
 context: **21–22** renamed the container class twice (`hoards` → `flotsam` →
 `jetsam`) and **24** deleted the material ledger. A mismatch refuses the load, so
 every one of those is a discarded save rather than a migration path.
@@ -85,8 +113,9 @@ measurements were taken on the wrong kind before this was noticed.
 
 ## 2. WHAT IS NEXT
 
-**Phase 9.** E is done, the pool is 44 deep, and the loop is finally worth
-measuring. `SaveGame` is at **26**.
+**Phase 9.** E is done, ~~the pool is 44 deep~~ **the pool is 88 as of
+2026-09-11**, and the loop is finally worth measuring. `SaveGame` is at ~~26~~
+**27**.
 
 ### ▸ RULING — win rate is not a gate until every system is in
 
@@ -152,9 +181,12 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
    a node type, and this is the number that moved most. Is a run with three
    fights in it the game we want? That is a design question, not a bug — but the
    combat system is a lot of machinery to exercise three times.
+   **AMENDED 2026-09-11: it is 2.9 now**, and the batch is why. See the reading
+   below; the question got sharper rather than answered.
 2. **`credits: -1 net at stations per run`.** The economy is almost exactly flat
    at the one place designed to move it. Worth knowing whether that is the
-   intent.
+   intent. **AMENDED 2026-09-11: `+8` net**, so the counter has started moving.
+   Still worth knowing whether that is the intent.
 3. **§9a, the hellbender's food** — 3.79/run now, down from 4.36 but still well
    above the 2.24 the old type bag produced.
 4. **Sector difficulty** — `GALAXY_SCALE.md` §6, parked since phase 8.
@@ -179,6 +211,7 @@ measured — three consecutive runs of one build gave 20%, 13%, 16%.
 | 8a-2 | Collapse `NodeType` to START/SYSTEM/STATION/PULSAR/CORE | ✅ `SaveGame` 17 |
 | 8b | The arrival screen — a system renders its whole list | ✅ all nine rulings |
 | — | Content — batch 04, thirty options | ✅ pool is **47** |
+| — | Content: **batches 01 to 06**, forty-one encounters | ✅ 2026-09-11 · pool is **88** · linter clean |
 | 9 | **Tune** — see the baseline below | §8, `GALAXY_SCALE.md` §6 |
 | — | **Materials become items** — hold cells, selling, jettison, the shim deleted | ✅ `SaveGame` 24 |
 | — | **Placement** — unblocks the five held options | ✅ landed · quests carry a chart marker |
@@ -280,6 +313,43 @@ to do with overheating. Also `credits: −4 net at stations per run` and **zero
 fuel bought across 2.5 station visits**, which predates all of this and means
 the sim barely exercises the counter that materials exist to be carried to.
 
+### What the batch cost in the numbers, measured 2026-09-11
+
+Seed 1000, 200 runs, `110f508` before against `04cc9ba` after:
+
+| | before | after |
+| --- | --- | --- |
+| wins | 17 (9%) | 10 (5%) |
+| avg jumps | 16.1 | 15.6 |
+| avg kills | 3.5 | 2.9 |
+| fights per system | 0.40 | 0.33 |
+| looted per run | 8.9 | 7.8 |
+| station credits per run | +4 | +8 |
+| hull deaths | 71 | 55 |
+| reactor deaths | 26 | 40 |
+| heat on arrival | 0.14 | 0.18 |
+| stranded | 0.0% | 0.0% |
+
+**The win rate did not move.** This document's own rule is that a 200-run
+reading is worth about ±4 points, and four points is the whole of the
+difference. Nine to five reads like a collapse and is not one. The rows to read
+instead are the two that moved past the noise: **hull deaths 71 → 55 while
+reactor deaths 26 → 40**, and fight density 0.40 → 0.33.
+
+**Neither was authored, and both fall out of the batch.** Thirty-four of the
+forty-one new encounters charge heat, so arrival signature goes 0.14 → 0.18 and
+ships that used to be shot apart now cook instead. And **not one of the
+forty-one carries a `fight` tag or a `fight = true` outcome**. The rows that can
+start a fight are the same six they were at 47, sitting in a table that nearly
+doubled. The fight-density drop is arithmetic, not a lever anybody turned. It is
+§9a's problem in the other direction: a constant written in the table's shape
+rather than decided.
+
+**Reading, not a target.** The ruling above holds and this is not a reason to
+change anything. Note also that `04cc9ba`'s own fix cannot be in this delta:
+`Policy` never applied the second deduction, so the simulator has always priced
+those options at one charge. Everything between these two columns is the batch.
+
 ---
 
 ### §9a — the hellbender's food supply, first thing to price in phase 9
@@ -347,12 +417,34 @@ every step of the night.
 | S0–S3 | docs, instrument, re-measure, fuel ruling | ✅ done; **S3 dissolved** |
 | 6–8 | **E** — the encounter rebuild | ✅ |
 | — | Content — batch 04, reviewed | ✅ pool **42** |
+| — | Content: batches 01 to 06 | ✅ 2026-09-11 · pool **88** |
 | — | **Materials as items** | ✅ 2026-08-30 |
 | — | Placement · star features | ✅ |
 | 10 | **G §5** — chart primer | ✅ |
 | 11–12 | **L** | ✅ |
 | 9 | Tune — **moved to last**, see the ruling | ⬜ **blocked, see below** |
-| — | **Eighty encounters** — 47 → 127 | ⬜ `ENCOUNTER_COMMISSION.md` |
+| — | **Eighty encounters** — ~~47 → 127~~ 47 → **130** | ◧ **41 of 80 in** · `ENCOUNTER_COMMISSION.md` |
+
+### What the commission still owes, read off the table 2026-09-11
+
+**§3a is done and then some.** It asked for 30 sky-gated and 33 arrived: RED 6,
+BLUE 6, nebula 5, gas giant 5, fauna 5, pulsar 6. **§3b's eight ungated LETHAL
+are in.** Nothing of §3c has been written.
+
+| § | slot | planned | landed | left |
+| --- | --- | --- | --- | --- |
+| 3a | sky gates | 30 | **33** | 0 |
+| 3b | ungated depth | 30 | 8 | **22** |
+| 3c | `fight` | 12 | 0 | **12** |
+| 3c | `hazard`, EASY to ROUGH | 8 | 0 | **8** |
+
+Forty-two slots left. The total is **130 rather than 127** because 3a overran by
+three, and that is the only reason the older figure in §7 was wrong.
+
+**Sixteen of the forty-one new encounters are hazard-tagged and none of them
+counts against 3c**, because the commission's own rule is that a slot satisfies
+one line only. Two hazard rows still reach the EASY band, so §3c's complaint
+that "the rim should still be able to hurt you" is exactly as true as it was.
 
 ---
 
@@ -422,8 +514,11 @@ means farming the sectors between.
 
 §9a says to price the hellbender's food supply first, and warns: *"Do not tune
 this before content lands. The table is seven options deep and `dead_hull`'s
-share of it is an artefact of that."* The table is 47 now and
-`ENCOUNTER_COMMISSION.md` takes it to **127**. The hellbender eats systems
+share of it is an artefact of that."* ~~The table is 47 now and
+`ENCOUNTER_COMMISSION.md` takes it to **127**.~~ **AMENDED 2026-09-11: the table
+is 88, and the commission's remaining forty-two take it to 130.** The argument is
+unchanged and the block is now most of the way through, not at the start of it.
+The hellbender eats systems
 offering a `salvage` option, so its food supply is a function of the table's
 size and shape — tuning it against 47 would bake in an artefact of a table about
 to nearly triple.
@@ -464,8 +559,12 @@ sometimes you get unlucky and that is the genre.
 - **Win rate is deliberately de-prioritised.** Ascension-style difficulty levels
   are planned, so a generous level 1 is the design. *That does not extend to a 0%
   kind, which is a broken loop* — and there are none now.
-- **No PixelLab generation without explicit approval.** 39 modules and 73 cards
-  undrawn, 8 sprites awaiting a verdict.
+- **No PixelLab generation without explicit approval.** ~~39 modules and 73 cards
+  undrawn, 8 sprites awaiting a verdict.~~ **AMENDED 2026-09-11: there is nothing
+  left undrawn.** `-- artcheck` PASSes: **43 modules drawn, 0 still procedural;
+  76 cards drawn, 0 still on glyphs**, every module sprite inside a cell of its
+  box and every illustration the size the 92x60 window wants. The rule stands;
+  it now guards new work rather than a backlog.
 - **The word is "manufacturer".** `validate.sh` enforces it — and as of `f7cf04e`
   the docs half of that guard **actually runs**; it had been failing open on a
   stray `\n` for as long as it had existed.
@@ -474,22 +573,57 @@ sometimes you get unlucky and that is the genre.
 
 ## 10. Known drift to fix in passing
 
-- **`design-doc.md`:116-118** describes affixes as modifying card behaviour, with
-  three examples now impossible by design. *Nothing automated watches semantic
-  claims.*
-- **`GalaxyGen.gd` header** claims galaxy shape cannot move a jump or a fuel cost.
-  It can, and `reach` now does so more than ever: with a fixed jump radius, a
-  galaxy authored large is one that takes more hops to cross.
-- **`tkg/art/ui/ShipViewer.dc.html`:158** still shows an "Overbored" affix chip.
+*Checked item by item on 2026-09-11. Three were fixed by other work and are
+struck through rather than dropped, because the list is also a record of what
+kind of thing rots here.*
+
 - **"Pip" means two unrelated things** — the heat indicator on a card face, and a
-  step on the 1–10 attribute ladder.
+  step on the 1–10 attribute ladder. **Still true:** `CardData.gd`:116-131 uses
+  it for the charge track and the negative heat pip, `RunState.gd` uses it for
+  the attribute ladder for about a hundred lines.
+- **`ENCOUNTER_COMMISSION.md` §4 lists check attributes that do not exist.** It
+  says `sensors`, `thermal`, `stealth`, `thrust`, `hull`, **`salvage`**, and
+  `salvage` is a tag, not an attribute. `SkillCheck.value_of` matches exactly six
+  names and the sixth is **`maneuver`**, which the brief omits. Anyone writing to
+  the brief writes a check that silently reads 0 and is therefore always failed
+  by the full shortfall. The corrected list is carried in the `encounter-prose`
+  skill; the brief itself has not been edited.
+- **`ENCOUNTER_COMMISSION.md` §5 says the linter reports "35 rulings and 15
+  review items on the existing 47".** `38208fd` cleared all of them and the table
+  is 88. `python tools/encounter_lint.py --strict` now prints `88 encounters
+  checked` and `clean`.
+- **`ENCOUNTER_PROSE.md`'s header says 47 encounters**, generated 2026-08-31. Its
+  rules are still right; its counts are a snapshot of a table that has since
+  nearly doubled. The file says so itself: *"if it disagrees with the code, the
+  code moved."*
 - **The starchart's 48,000-rect ceiling.** Dragging costs ~25 ms. Getting under it
   means drawing the star field as one thing, which risks the deliberate "rotate
   THEN round" pixel-snapping. Not urgent.
 - **`Policy.choose_jump` does not plan.** It picks from what is reachable this
   instant, which is why the simulator could not measure live sight at all. Any
   future question about *routing* needs a policy that looks more than one hop
-  ahead.
+  ahead. **Still true:** it builds its list from `Run.in_range_of` and picks.
+
+### Cleared, checked 2026-09-11
+
+- ~~**`design-doc.md`:116-118** describes affixes as modifying card behaviour,
+  with three examples now impossible by design.~~ The bullet now reads *"and
+  never in card behaviour"* and carries its own **REVERSED 2026-08-25** note
+  explaining why: affixes wrote into card fields, and `describe()` grew rules
+  text out of the bottom of a 93x39 box.
+- ~~**`GalaxyGen.gd` header** claims galaxy shape cannot move a jump or a fuel
+  cost.~~ Corrected in the header itself, in the strongest terms it had: *"THAT
+  SEPARATION WAS NEVER TRUE, and this note is what replaced the claim."* It names
+  `ring_count()` and `hop_distance()` as the two places that read `squash`.
+- ~~**`tkg/art/ui/ShipViewer.dc.html`:158** still shows an "Overbored" affix
+  chip.~~ Gone. The word survives only in `CardData.gd` and `SaveGame.gd`
+  comments, where it is an example rather than a claim about a screen.
+- ~~**`tools/encounter_bench.py` does not know `needs_nebula`.**~~ Fixed in
+  `38208fd`; the gate is in its list and ten cards had been drawing with no gate
+  on them.
+- ~~**`tools/encounter_lint.py` reads a claimed hull as an empty branch.**~~
+  Fixed in `38208fd`; rule 6 counts `find_hull` as a payout, which it is, and the
+  largest one in the table.
 
 ---
 
