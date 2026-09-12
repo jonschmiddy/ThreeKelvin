@@ -215,6 +215,44 @@ var _last_cargo: int = -1
 var _hot: bool = false
 var _running: Dictionary = {}       ## cue -> bool, are its players rolling
 
+# ---------------- the bed ----------------
+## Three loops that are not music and never stop: see `tkg/audio/ambience.py`.
+##
+## Thirteen cues and sixty effects, and until this there was no room tone, so
+## every gap between cues read as the audio having stopped rather than as deep
+## space. The bed is the thing you notice only when it goes.
+##
+## IT IS NOT A CUE and deliberately does not go through the cue machinery. A cue
+## is a composition with a bar line, a rung ladder and a crossfade that has to
+## land on a beat. These are continuous, seamless on their own length, and their
+## levels answer to the ship and the place rather than to a screen.
+const AMBIENCE_DIR := "res://assets/audio/ambience/%s.ogg"
+## name -> the level it sits at when it is fully up, as linear gain. All three
+## are quiet by construction; these trim them against each other.
+const BEDS := {
+	&"reactor": 1.0,
+	&"hull": 0.85,
+	&"radio": 0.7,
+}
+## How fast a bed finds its new level. Much slower than a cue crossfade: nothing
+## about the bed should ever read as an event, and a reactor that answered heat
+## quickly would be a gauge you listen to instead of a ship you are in.
+const BED_FADE := 3.5
+## What the reactor does with heat. At rest it is nearly gone; at the cap it is
+## the loudest thing in the room that is not a gun.
+const REACTOR_COLD := 0.35
+const REACTOR_HOT := 1.0
+## Below this the radio has nobody on it.
+##
+## The ladder is UNCLAIMED, OUTPOST, SETTLEMENT, CITY, CAPITAL, so this is the
+## top two. Named rather than written as 3, because the number means nothing and
+## the name is the ruling: a settlement is people, a city is enough people to
+## generate traffic you would overhear.
+const RADIO_MIN_DEV := MapGen.Development.CITY
+var _beds: Dictionary = {}          ## name -> AudioStreamPlayer
+var _bed_at: Dictionary = {}        ## name -> float, current gain
+var _bed_to: Dictionary = {}        ## name -> float, wanted gain
+
 func _ready() -> void:
 	# The balance sim boots the whole project so the autoloads exist. It runs
 	# hundreds of combats with no window and no audio device, and loading 36 MB
@@ -229,7 +267,34 @@ func _ready() -> void:
 		p.bus = &"SFX"
 		add_child(p)
 		_sfx.append(p)
+	_start_beds()
 	_connect_signals()
+
+
+## The bed starts once and rolls for the session.
+##
+## ON THE MUSIC BUS, not SFX. It is scenery rather than feedback, so a player
+## who turns effects down to hear the score should not lose the room with them,
+## and one who turns music off should get silence rather than a ship humming
+## under nothing. 333 KB for all three, so they load up front: this is the one
+## corner of the audio budget where laziness buys nothing.
+func _start_beds() -> void:
+	for name: StringName in BEDS:
+		var path := AMBIENCE_DIR % name
+		if not ResourceLoader.exists(path):
+			continue
+		var st: AudioStream = load(path)
+		if st is AudioStreamOggVorbis:
+			(st as AudioStreamOggVorbis).loop = true
+		var p := AudioStreamPlayer.new()
+		p.stream = st
+		p.bus = &"Music"
+		p.volume_db = OFF_DB
+		add_child(p)
+		p.play()
+		_beds[name] = p
+		_bed_at[name] = 0.0
+		_bed_to[name] = 0.0
 
 ## Systems emit on Sig and never reach across scenes, so this is where the
 ## whole game's sound wiring lives — one place to read, one place to retune.
@@ -383,7 +448,50 @@ func _stop(cue: StringName) -> void:
 	for stem: StringName in _stems[cue]:
 		(_stems[cue][stem] as AudioStreamPlayer).stop()
 
+## What the bed answers to, recomputed every frame because all three of its
+## inputs move without telling anyone.
+##
+## THE REACTOR IS YOUR SHIP, so it is up whenever you have one and it rides
+## heat. That is the one coupling in here that is doing real work: the game is
+## named for a temperature, heat is the number every decision is priced in, and
+## making the room louder as you cook is the cheapest honest way to say so.
+##
+## THE HULL IS ALSO YOUR SHIP, flat, always, no inputs. Metal does not care.
+##
+## THE RADIO IS OTHER PEOPLE, and it is the only one that can be absent. It
+## needs somewhere settled to be coming from, and it is gone at a station --
+## docked, you are inside the thing the radio is about, and the decks have
+## their own room. Out deep there is nobody, which is the point: the bed thins
+## and then stops, so the silence at the bottom of the chart is a place rather
+## than a bug.
+func _bed_targets() -> void:
+	var flying := Run.hull != null
+	_bed_to[&"hull"] = 1.0 if flying else 0.0
+
+	var heat := 0.0
+	if flying:
+		var cap := float(Run.heat_cap())
+		if cap > 0.0:
+			heat = clampf(float(Run.heat) / cap, 0.0, 1.0)
+	_bed_to[&"reactor"] = lerpf(REACTOR_COLD, REACTOR_HOT, heat) if flying else 0.0
+
+	var talk := 0.0
+	if flying and not Router.docked and Run.map.size() > 0:
+		var n: MapGen.MapNode = Run.node_at()
+		if n != null and n.development >= RADIO_MIN_DEV:
+			talk = 1.0
+	_bed_to[&"radio"] = talk
+
+
 func _process(delta: float) -> void:
+	if _enabled and not _beds.is_empty():
+		_bed_targets()
+		for name: StringName in _beds:
+			var at: float = move_toward(_bed_at[name], _bed_to[name], delta / BED_FADE)
+			_bed_at[name] = at
+			var p: AudioStreamPlayer = _beds[name]
+			var v: float = at * float(BEDS[name])
+			p.volume_db = OFF_DB if v <= 0.001 else linear_to_db(v)
 	if not _enabled or _stems.is_empty():
 		return
 	for cue: StringName in _stems:
