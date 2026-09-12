@@ -53,105 +53,115 @@ const TRACKS := {}
 const WHOLE := &"song"
 
 const CUES := {
-	## SIX STEMS AND FOUR RUNGS, THE SAME IN EVERY CUE.
+	## THREE FAMILIES, NOT ONE FORM, and the family is why a rung means what it
+	## means.
 	##
-	## The first soundtrack gave every cue its own vocabulary -- whistle, arp,
-	## bell, reed, harp, stamp, whale -- which was thirteen private languages and
-	## meant the ladder meant something different in each one. The second edition
-	## is one palette, so a rung is the same idea everywhere: rung 0 is the place,
-	## rung 1 is the place noticing you, rung 2 is the theme, rung 3 is the theme
-	## opening up.
+	## The first pass at this edition gave all thirteen cues the same six voices
+	## and varied five numbers between them. Jon's verdict was "these all sound
+	## the same", and he was right: that is variation by dial rather than by
+	## composition. He also said the combat cue did not feel like combat, which is
+	## the same fault from the other end -- "no tempo, no bar lines" is correct
+	## for a starchart and wrong for a fight.
 	##
-	##   pedal   the floor, a low F that never moves
-	##   organ   the harmony above it, changing once a minute
-	##   breath  wind over a hull
-	##   metal   struck, tuned to nothing
-	##   theme   the five notes, heavy grit
-	##   upper   the theme doubled and harmonised, plus shimmer
+	##   STILL    drone, almost no events. The archive, the end of a run.
+	##   DRIFT    drone plus the theme as an event. Chart, sector, station.
+	##   DRIVE    an ostinato with a pulse in it, harmony moving four times as
+	##            fast, strikes landing ON the bar. Combat and bosses.
 	##
-	## Every stem is a 96-second seamless loop and they are all the same length,
-	## so they stay locked together however long the game is left open. See
-	## `tkg/audio/space.py`, which renders them and carries the rulings.
+	## DRIVE IS NOT A DRUM KIT. DREAD_NOTES rules that rhythm is a pulse and not
+	## a groove, and there is no kick, snare or backbeat anywhere: what drives is
+	## a low ostinato and filtered stabs, with pitch and the filter doing the work
+	## a kit would do.
 	##
-	## `play_cue` clamps to the cue's own rungs, so STATES asking for rung 4 on a
-	## four-rung cue is supported and lands on rung 3.
-	&"first_light": [
+	## The rungs read the same way in every family even though the stems differ:
+	## rung 0 is the place, rung 1 is the place noticing you, rung 2 is the theme,
+	## rung 3 is the cue at full. `play_cue` clamps, so STATES asking for rung 4
+	## lands on rung 3.
+	##
+	## THEY ARE NOT ALL IN F any more. One pedal for thirteen cues was most of why
+	## they blurred. The five that crossfade through DEEP -- theme, dread, burn,
+	## boss, business -- still share F, because a shared pedal is what makes that
+	## swap read as the place turning. The other eight are in five other keys.
+	##
+	## Rendered by `tkg/audio/space.py`, which carries the rulings and the
+	## mistakes that produced them.
+	&"first_light": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"shells": [
+	&"shells": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"warm": [
+	&"warm": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"home": [
+	&"home": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"theme": [
+	&"perpetuity": [   ## still
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"business": [
+	&"nofault": [   ## still
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"perpetuity": [
+	&"core": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"core": [
+	&"fauna": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"fauna": [
+	&"theme": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"burn": [
+	&"business": [   ## drift
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"dread": [
+	&"dread": [   ## still
 		[&"pedal", &"organ"],
 		[&"breath", &"metal"],
 		[&"theme"],
 		[&"upper"],
 	],
-	&"boss": [
+	&"burn": [   ## drive
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"pulse", &"metal"],
 		[&"theme"],
-		[&"upper"],
+		[&"stab"],
 	],
-	&"nofault": [
+	&"boss": [   ## drive
 		[&"pedal", &"organ"],
-		[&"breath", &"metal"],
+		[&"pulse", &"metal"],
 		[&"theme"],
-		[&"upper"],
+		[&"stab"],
 	],
 }
 
