@@ -208,7 +208,16 @@ FAMILY_STEMS = {
 ## The theme sounds this many octaves above the organ. Named, because the
 ## voicing rule depends on it and a silent change here would reintroduce
 ## clashes nothing would catch.
-THEME_OCTAVES = 2
+## AN OCTAVE LOWER THAN IT WAS. At 2 the theme played two octaves above the
+## pedal -- F4 and up on an F2 cue, with the upper stem another octave above
+## that again -- and Jon's word for it was "too high pitched". At 1 it sits an
+## octave over the root, in the register a lead actually lives in, and close
+## enough to the organ that the voicing rule has real work to do.
+##
+## The clash rule may still raise a voicing by an octave when the melody would
+## land a semitone from something the organ is holding, so this is a floor
+## rather than a fixed register.
+THEME_OCTAVES = 1
 
 ## The theme's envelope. Jon: "less of a swelling synth, something punchier."
 ## ATTACK_S is the whole difference -- 6 ms arrives, 900 ms swells -- and the
@@ -269,19 +278,72 @@ def env_shape(n, up, down):
 
 # ------------------------------------------------------------------- voices
 
-def v_pedal(n, root, dark, drive):
-    """The floor in three parts: depth, the note, and the body between 90 and
-    180 Hz that sines have none of. Driving cues get a tighter, drier floor --
-    a long swelling pedal under a fast ostinato is mud."""
+def bass_line(areas, total, form):
+    """A slow melody for the bottom of the mix.
+
+    THE DRONE SINGS THE THEME, TWO OCTAVES DOWN AND FOUR TIMES SLOWER. That is
+    augmentation, and it is the oldest way to make a bass line belong to a piece
+    rather than merely support it: the shape is already the cue's own, so the
+    floor is melodic without introducing a second idea to compete with the
+    first.
+
+    Every note is taken from the area sounding under it, so the bass cannot
+    argue with the harmony. Where the contour asks for a degree the area does
+    not contain, the nearest tone it does contain is used instead -- the shape
+    survives, the collision does not.
+    """
+    notes = THEMES.get(form) or THEMES["answer"]
+    span = max(off + dur for _, off, dur in notes)
+    out = []
+    for iv, off, dur in notes:
+        at = (off / span) * total
+        ln = (dur / span) * total
+        ch = area_at(areas, (at / total) % 1.0)
+        low = sorted(ch)[:3] or [0]
+        pick = min(low, key=lambda c: abs(((c - iv) % 12 + 6) % 12 - 6))
+        out.append((pick - 12, at, ln))
+    return out
+
+
+def v_pedal(n, root, dark, drive, areas=None, total=0.0, form=None):
+    """The floor in three parts -- depth, the note, and the body between 90 and
+    180 Hz that sines have none of -- plus, now, a melody.
+
+    THE SUSTAINED ROOT STAYS UNDERNEATH IT. It is quieter than it was, but it
+    never stops, because it is the anchor that makes a crossfade between two
+    cues read as the place turning rather than as the music changing. A bass
+    that only moves would take that with it.
+    """
     t = np.arange(n) / SR
     w = 1.0 + 0.30 * dark
     y = np.zeros(n)
-    for mult, a in ((0.25, 0.30), (0.5, 0.72), (1.0, 0.88)):
+    for mult, a in ((0.25, 0.26), (0.5, 0.52), (1.0, 0.58)):
         f = root * mult
         v = np.sin(2 * np.pi * f * t)
         v += np.sin(2 * np.pi * (f * 2.0 + 0.06) * t) * 0.34
         y += a * w * v
-    y += lp(synth.saw(root, n), root * 2.1, order=3) * 0.34 * w
+    y += lp(synth.saw(root, n), root * 2.1, order=3) * 0.24 * w
+
+    if areas and total > 0:
+        for iv, at, ln in bass_line(areas, total, form):
+            f = root * 2 ** (iv / 12.0)
+            # NOT BELOW 35 Hz. On the deepest cue the contour asked for two
+            # octaves under an F1 root, which is 11 Hz: inaudible on anything,
+            # removed by the high-pass a moment later, and until then just
+            # excursion the mix pays for. Raised by octaves until it is a note.
+            while f < 35.0:
+                f *= 2.0
+            m = int(min(ln * 1.25, total) * SR)
+            tt = np.arange(m) / SR
+            v = np.sin(2 * np.pi * f * tt) * 1.0
+            v += np.sin(2 * np.pi * f * 2 * tt) * 0.42
+            v += lp(synth.saw(f * 2, m), 220.0, order=3) * 0.5
+            v = np.tanh(v * 1.7) / np.tanh(1.7)
+            # struck, like the theme, not faded up
+            env = np.clip(tt / 0.02, 0, 1) * (0.5 + 0.5 * np.exp(-tt / 0.5))
+            env *= np.exp(-np.clip(tt - ln * 0.55, 0, None) / (ln * 0.34))
+            place(y, v * env, at, 0.42 * w)
+
     if not drive:
         y *= 1.0 + 0.06 * np.sin(2 * np.pi * t / 23.0)
     return hp(y, 19.0, order=2)
@@ -481,7 +543,7 @@ def voicing(iv, ch, want=2):
     bent -- the tune is not negotiable, its register is.
     """
     base = THEME_OCTAVES * 12
-    while clashes(base + iv, ch) and base < (THEME_OCTAVES + 2) * 12:
+    while clashes(base + iv, ch) and base < (THEME_OCTAVES + 1) * 12:
         base += 12
     out = [base + iv]
     for c in sorted({c for c in ch if c < iv}, reverse=True):
@@ -551,7 +613,7 @@ def stem(cue, name):
     np.random.seed(seed)
 
     if name == "pedal":
-        y = v_pedal(n, root, dark, drive)
+        y = v_pedal(n, root, dark, drive, areas, total, form)
     elif name == "organ":
         y = v_organ(n, root, areas, dark, total, drive)
     elif name == "breath":
