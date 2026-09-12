@@ -931,8 +931,35 @@ func _take(n: MapGen.MapNode, i: int, j: int) -> void:
 	if Run.dead:
 		Router.show_game_over()
 		return
+	# A FIGHT YOU CHOSE DOES NOT NEED A PANEL IN FRONT OF IT. The result panel
+	# earns its click when there is something to read: which way a roll went,
+	# and what the branch cost. A choice with no check that starts a fight and
+	# moves nothing has neither, so it was one sentence and a button that said
+	# THEY ARE FIRING -- two clicks to start a fight the player had already
+	# asked for.
+	#
+	# ONLY THE UNCHECKED ONES. A botched check is exactly the case where the
+	# panel is the point: the prose is how you learn the roll turned on you, so
+	# `customs_cordon` and the rest still stop to say so. The line is logged
+	# either way, so nothing written for the moment is lost.
+	if not _res_checked and bool(res.get("fight", false)) \
+			and Run.ledger() == was and not _pays_anything(res):
+		var said := String(res.get("text", ""))
+		if said != "":
+			Run.log_line(said, &"them")
+		Router.start_ambush()
+		return
 	_dstate = Drawer.RESULT
 	_refresh()
+
+
+## Whether an outcome handed over any of the things the result panel exists to
+## show. The ledger covers credits, fuel, heat and hull; this covers the rest.
+func _pays_anything(res: Dictionary) -> bool:
+	for k in ["module", "material", "material_id", "archive_recover", "place"]:
+		if res.has(k):
+			return true
+	return false
 
 func _on_action() -> void:
 	var n: MapGen.MapNode = Run.node_at()
