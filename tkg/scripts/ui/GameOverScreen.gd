@@ -8,10 +8,14 @@ func setup() -> void:
 	add_child(centre)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
-	box.custom_minimum_size = Vector2(560, 0)
+	box.custom_minimum_size = Vector2(330, 0)
 
+	# The two endings do not get the same colour. Reaching the core is the one
+	# thing in this game that goes right; a run ending is the other outcome and
+	# it should say so before the sentence under it is read. BAD rather than a
+	# literal, so it moves with the palette like everything else.
 	var title := UITheme.body("THE CORE" if Run.won else "RUN ENDED",
-		UITheme.ICE, 22)
+		UITheme.ICE if Run.won else UITheme.BAD, 22)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 

@@ -370,7 +370,10 @@ func _connect_signals() -> void:
 	Sig.damage_dealt.connect(_on_damage)
 	Sig.charge_fired.connect(func(_n: String) -> void: play(&"charge_fire"))
 	Sig.overheated.connect(func(_b: int) -> void: play(&"overheat"))
-	Sig.combat_started.connect(func(_n: String) -> void: play(&"combat_start"))
+	# NO STING WHEN A FIGHT STARTS. The music already tells you: combat moves the
+	# cue to Hard Burn, which is 160 BPM of sixteenths against everything else in
+	# the soundtrack. A sting on top of that is the score saying the same thing
+	# twice, half a second apart, and the second one is louder.
 	Sig.combat_ended.connect(_on_combat_ended)
 	Sig.jumped.connect(func(_i: int) -> void: play(&"jump"))
 	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
@@ -978,11 +981,13 @@ func _on_combat_ended(result: StringName, _summary: String) -> void:
 func _on_run_ended(won: bool, _reason: String) -> void:
 	if won:
 		play(&"victory", 0.0)
-	else:
-		# DREAD_NOTES §5: the mutation as a two-second sting — F to Gb on one
-		# low bowed note. The semitone is the whole idea of the dread cue, so
-		# dying sounds like the thing that has been following you all run.
-		play(&"death_sting", 0.0)
+	# AND NOTHING WHEN YOU DIE. There was a two-second sting here, F to Gb on a
+	# low bowed note, and the reasoning was sound: the semitone is the whole idea
+	# of the dread cue, so dying sounded like the thing that had been following
+	# you all run. What it actually did was announce the ending over the top of a
+	# cue written to BE the ending -- "No Fault" is a line that falls three times
+	# and does not come back up, and it does not need help. Silence, and then the
+	# music that is already the answer.
 
 # ---------------- volume ----------------
 

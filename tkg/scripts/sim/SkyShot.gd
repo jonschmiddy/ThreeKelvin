@@ -29,7 +29,14 @@ const SHOTS := [
 	[&"history", &"show_history"],
 	[&"station", &"show_station"],
 	[&"chart", &"show_starchart"],
+	## The end of a run, which is otherwise only reachable by dying and so was
+	## the one screen in the game nobody could photograph on purpose.
+	[&"gameover", &"show_game_over"],
 ]
+
+## A real one, and one of the longer ones, because the panel autowraps and a
+## width that flatters a short sentence is not a width.
+const DEATH := "A survey frame let go at the wrong moment and took the forward hold with it. You were still counting the hours to the next station."
 
 
 func run(tree: SceneTree) -> void:
@@ -43,6 +50,7 @@ func run(tree: SceneTree) -> void:
 	Router.show_sector()
 	await tree.process_frame
 
+	Run.death_reason = DEATH
 	for row in SHOTS:
 		var name := String(row[0])
 		var call := String(row[1])
