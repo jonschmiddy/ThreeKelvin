@@ -27,12 +27,31 @@ func run(tree: SceneTree) -> void:
 		return _finish()
 
 	# Four cues, so the set is unambiguously more than one.
+	#
+	# WHAT IS ASSERTED IS THAT THESE FOUR ARE RESIDENT, NOT THAT FOUR ARE. The
+	# check used to be `resident().size() == 4`, and it passed for a year by
+	# coincidence: whatever cue STATES gives the menu is already loaded when this
+	# runs, and the menu happened to point at a cue in this very list -- first
+	# "first_light", then "warm". The moment the title moved to "theme", which is
+	# not in the list, five were resident and a correct mixer failed its own
+	# test.
+	#
+	# A test that silently depends on an unrelated table is worse than no test,
+	# because it reports the wrong subsystem. So the baseline is recorded and
+	# what is checked is that playing four cues makes those four resident.
+	var before := Audio.resident().size()
+	var asked: Array[StringName] = [&"first_light", &"shells", &"warm", &"burn"]
 	for pair in [[&"first_light", 2], [&"shells", 2], [&"warm", 1], [&"burn", 4]]:
 		Audio.play_cue(pair[0], pair[1])
 		await tree.process_frame
 	var loaded := Audio.resident()
-	if not _ok("playing four cues loads four, and they stay while warm (%d)"
-			% loaded.size(), loaded.size() == 4):
+	var missing: Array[StringName] = []
+	for c: StringName in asked:
+		if not loaded.has(c):
+			missing.append(c)
+	if not _ok("playing four cues loads four, and they stay while warm "
+			+ "(%d resident, %d before)" % [loaded.size(), before],
+			missing.is_empty()):
 		return _finish()
 
 	# WAIT FOR THE CROSSFADE TO FINISH, DO NOT TIME IT. A cue whose gain is
@@ -45,23 +64,37 @@ func run(tree: SceneTree) -> void:
 	# doing. It passed until the second-edition cues landed, which are six
 	# 96-second stems each and slow enough to load that the margin vanished.
 	# Waiting on the thing actually being waited for cannot go stale.
-	# AND THE BOUND IS A FAILURE, NOT A SHRUG. At 600 frames this passed, then
-	# failed once, then passed again -- because the second-edition cues are six
-	# 96-second streams and loading four of them can stall long enough to eat
-	# the budget. A loop that runs out and carries on silently turns a timing
-	# problem into a wrong answer about the thing being tested, which is how a
-	# flaky check is worse than no check.
+	# AND THE BOUND IS A FAILURE, NOT A SHRUG. A loop that runs out and carries
+	# on silently turns a timing problem into a wrong answer about the thing
+	# being tested, which is how a flaky check is worse than no check.
+	#
+	# THE BOUND IS WALL CLOCK, NOT FRAMES, AND THAT IS THE WHOLE FIX. It was 600
+	# frames, then 3600, and it still failed about one run in three once the
+	# title cue grew a sixth stem. Both numbers were the wrong UNIT rather than
+	# the wrong size: this is checking that a 2.2-second crossfade finishes, and
+	# a frame count only measures time if frames take a predictable while. These
+	# frames do not -- they are stalling on exactly the stream loading that makes
+	# the crossfade slow, so the budget shrank precisely when the thing it
+	# measures got harder. Thirty seconds is thirteen crossfades and cannot be
+	# eaten by a slow frame.
 	var settled := false
-	for i in 3600:
-		var busy := false
+	var began := Time.get_ticks_msec()
+	var stuck: Array[StringName] = []
+	while Time.get_ticks_msec() - began < 30000:
+		stuck.clear()
 		for c: StringName in Audio.resident():
 			if c != Audio._cue and Audio._running.get(c, false):
-				busy = true
-		if not busy:
+				stuck.append(c)
+		if stuck.is_empty():
 			settled = true
 			break
 		await tree.process_frame
-	if not _ok("the crossfades finish in reasonable time", settled):
+	# NAME WHAT DID NOT SETTLE. A timeout that says only "it did not finish"
+	# sends you looking at the timeout; one that names the cue sends you to the
+	# cue. That distinction cost an hour.
+	if not _ok("the crossfades finish in reasonable time"
+			+ ("" if settled else " -- still running: %s, current is %s"
+				% [stuck, Audio._cue]), settled):
 		return _finish()
 
 	# THE CLOCK IS MOVED, NOT WAITED OUT. The threshold is 45 seconds and a test

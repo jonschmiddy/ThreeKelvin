@@ -169,10 +169,28 @@ const CUES := {
 ## table that decides what it sounds like, so retuning the whole game's music
 ## pacing is a one-file edit.
 const STATES := {
-	## "First Light" on the title screen: the album's opener is the game's
-	## opener.  "Five Ways Home" keeps the gameover-adjacent duties it was
-	## written for and stays reachable if a screen asks.
-	&"menu":     [&"first_light", 2],
+	## THE TITLE AND THE SECTOR ARE THE SAME PIECE AT TWO DENSITIES, and that is
+	## the point rather than an economy. "The Long Way Home" is the best thing in
+	## the soundtrack and it spent a while as the sector cue only, for a reason
+	## that does not survive being said out loud: F minor is REQUIRED of the DEEP
+	## crossfade group, this piece was already in F minor, so it got filed where
+	## the constraint was. That is an engineering convenience deciding where the
+	## best material goes, which is backwards -- the title screen has no key
+	## requirement at all.
+	##
+	## The title takes rung 3, the whole arrangement, because it is the one place
+	## somebody sits and listens rather than plays. The sector takes rung 2, the
+	## same piece without its counter-line. So arriving in a sector is the title
+	## screen finishing its sentence more quietly, which is a thing a soundtrack
+	## can do exactly once and only if it plans to.
+	##
+	## The cost, and it is real: this is now the most-heard music in the game by
+	## a wide margin. If it wears out, that is the failure to watch for, and the
+	## fix is one line here -- "warm" took this slot before and can take it back.
+	##
+	## "Five Ways Home" keeps the gameover-adjacent duties it was written for
+	## and stays reachable if a screen asks.
+	&"menu":     [&"theme", 3],
 	&"chart":    [&"shells", 2],
 	&"ship":     [&"warm", 1],
 	&"station":  [&"warm", 2],
@@ -600,8 +618,23 @@ func _process(delta: float) -> void:
 		if not is_equal_approx(g, t):
 			g = move_toward(g, t, delta / CROSSFADE)
 			_gain[cue] = g
-			if g <= 0.0:
-				_stop(cue)
+		# SILENT AND STAYING SILENT MEANS STOP, WHETHER OR NOT IT WAS MOVING.
+		# This used to live inside the branch above, so a cue was only ever
+		# stopped on the frame its fade actually arrived at zero. A cue that was
+		# left ALREADY at zero never got that frame: gain and target both 0 are
+		# equal, the branch is skipped, `_stop` is never reached, and `_running`
+		# stays true for the rest of the session. Its players keep decoding Ogg
+		# into silence and `_release_idle` skips it *because* it is running --
+		# so the leak this whole file guards against was reachable by the most
+		# ordinary action there is.
+		#
+		# It happens whenever a cue is crossfaded away from before its fade-in
+		# has moved: boot to the title and leave within about two seconds, which
+		# a player does every single run. It hid because `audiotest` played a
+		# list that always happened to contain whatever cue the menu used, so
+		# the stuck cue was re-taken as current before anything looked at it.
+		if g <= 0.0 and t <= 0.0:
+			_stop(cue)
 		if not _running.get(cue, false):
 			continue
 		for stem: StringName in _stems[cue]:
