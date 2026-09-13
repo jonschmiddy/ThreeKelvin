@@ -208,6 +208,14 @@ const STATES := {
 	## "Five Ways Home" keeps the gameover-adjacent duties it was written for
 	## and stays reachable if a screen asks.
 	&"menu":     [&"theme", 3],
+	## THE TITLE, THE LOBBY AND SHIP SELECTION ARE ONE MUSICAL PLACE. Everything
+	## before you launch is the same moment, so it is the same piece at the same
+	## rung and crossing between those screens does not touch the music at all.
+	&"lobby":    [&"theme", 3],
+	## The archive reached from the launcher is a PLACE: you are not standing in
+	## a sector with a panel open, you are sitting with the records. Reached
+	## mid-run it is a panel and changes nothing, which is why there are two.
+	&"records":  [&"perpetuity", 2],
 	&"chart":    [&"shells", 2],
 	&"ship":     [&"warm", 1],
 	&"station":  [&"warm", 2],
@@ -398,16 +406,91 @@ func _connect_signals() -> void:
 
 ## Router calls this on every screen change. Unknown states are ignored rather
 ## than silencing the music, so a new screen is never a silent screen.
+## A PANEL IS NOT A PLACE, AND ONLY A PLACE CHOOSES THE MUSIC.
+##
+## The ship, the star chart and the archive are things you OPEN while standing
+## somewhere. The sector, the station, a fight, the title are where you ARE.
+## Every one of them was naming a cue, so walking sector, ship, chart, archive
+## changed the music four times in four clicks -- and no arrangement of fades
+## makes that acceptable, because the problem is not how the music changes, it
+## is that it changes at all. Opening your inventory is not an event in the
+## fiction and should not be one in the score.
+##
+## So a panel asks for nothing. Whatever the place put on keeps playing, at the
+## rung the place chose, and the panel does not even move the ladder -- Jon's
+## words were "I don't really want the music to change when I change panels. At
+## all." The STATES entry for a panel survives as a FALLBACK for the case where
+## a panel is opened with nothing playing at all, which is how the archive
+## sounds when it is reached from the lobby on a cold boot.
+const PANEL: Array[StringName] = [&"ship", &"chart", &"archive"]
+
 func music_state(state: StringName) -> void:
 	if not _enabled or not STATES.has(state):
+		return
+	if state in PANEL and _cue != &"":
 		return
 	var entry: Array = STATES[state]
 	var cue: StringName = entry[0]
 	var level: int = entry[1]
-	if DEEP.has(cue) and state in DEEP_STATES and _danger() >= DREAD_DANGER:
+	if state == &"sector":
+		cue = _sector_cue()
+		if cue == &"dread":
+			level = mini(level, DEEP_MAX)
+	elif DEEP.has(cue) and state in DEEP_STATES and _danger() >= DREAD_DANGER:
 		cue = DEEP[cue]
 		level = mini(level, DEEP_MAX)
 	play_cue(cue, level)
+
+## WHAT A SECTOR SOUNDS LIKE IS A FACT ABOUT THE SECTOR.
+##
+## Every cue used to be chosen by which SCREEN you were looking at, which is why
+## opening a panel changed the music and why six of the thirteen written cues
+## were unreachable: STATES only named seven places and there are thirteen
+## pieces. The map already knows far more than seven things about where you are.
+##
+## In order, because the first that applies wins:
+##
+##   DANGER. Past DREAD_DANGER the soundtrack admits it, which is the ruling the
+##   DEEP table already carried and the only one that outranks geography.
+##
+##   FAUNA. A migration route is the one thing in this game that is alive and
+##   indifferent to you, and `fauna` is a property of the node rather than of an
+##   encounter -- so the music belongs to the place, like everything else here.
+##
+##   DEPTH. Otherwise the galaxy itself: four bands across fifteen layers, from
+##   the edge you left to the core you are heading into. The innermost band
+##   starts at DEEP_FROM, so it lines up with the boundary the map generator
+##   already uses rather than inventing a second one.
+##
+##     0      First Light    the widest arch in the set, written as an opener,
+##                            and now literally the first thing a run plays
+##     1-3    Home           the only arch that comes home to the note it left
+##     4-6    Shells         a map of somewhere you have not been
+##     7-10   The Long Way Home
+##     11-14  Core           the further in you go, the lower it gets
+func _sector_cue() -> StringName:
+	if Run.map.is_empty():
+		return &"theme"
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		return &"theme"
+	if n.danger >= DREAD_DANGER:
+		return &"dread"
+	if n.fauna:
+		return &"fauna"
+	for band: Array in SECTOR_BANDS:
+		if n.layer >= int(band[0]):
+			return band[1]
+	return &"first_light"
+
+## The depth bands, as data rather than as an if-chain, so `audiotest` can read
+## them. Deepest first; the first whose floor the layer reaches wins.
+const SECTOR_BANDS: Array = [
+	[MapGen.DEEP_FROM, &"core"], [7, &"theme"], [4, &"shells"], [1, &"home"],
+	[0, &"first_light"],
+]
+## The two sector cues that are not about depth at all.
+const SECTOR_SPECIAL: Array[StringName] = [&"dread", &"fauna"]
 
 func _danger() -> int:
 	# Screens can change before a run exists (menu, first boot), and node_at()

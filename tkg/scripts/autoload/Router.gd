@@ -179,7 +179,7 @@ func _autosave() -> void:
 ## The party, before a dive. Runs with no run loaded, like the launcher, so it
 ## takes no HUD — the bar reads ship state and there is no ship yet.
 func show_lobby() -> void:
-	Audio.music_state(&"menu")
+	Audio.music_state(&"lobby")
 	_swap(LobbyScreen.new(), false)
 	(current as LobbyScreen).setup()
 
@@ -242,7 +242,9 @@ func new_run(seed_value: int = 0) -> void:
 	show_chassis_select()
 
 func show_chassis_select() -> void:
-	Audio.music_state(&"ship")
+	# Choosing a hull is still "before you launch", so it is the title music --
+	# named rather than inherited, because this screen is also reachable cold.
+	Audio.music_state(&"lobby")
 	var s := ChassisSelect.new()
 	_swap(s)
 	s.setup()
@@ -286,7 +288,9 @@ func show_party() -> void:
 ## screen, because the archive is readable out of a run as well as in one — what
 ## you have read survives the ship. See Archive.
 func show_archive(from_launcher: bool = false) -> void:
-	Audio.music_state(&"archive")
+	# From the launcher the archive is somewhere you went; from inside a run it
+	# is a panel you opened, and a panel never touches the music.
+	Audio.music_state(&"records" if from_launcher else &"archive")
 	var s := ArchiveScreen.new()
 	_swap(s, not from_launcher)
 	s.setup(show_launcher if from_launcher else show_sector)

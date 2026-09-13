@@ -112,57 +112,90 @@ func run(tree: SceneTree) -> void:
 
 	# TWO CUES IN TWO KEYS MUST NEVER SOUND AT ONCE.
 	#
-	# This is the rule the third edition needs and the second edition did not:
-	# thirteen cues on one pedal could be crossfaded in any combination, and
-	# thirteen independent pieces in nine keys cannot. Walking ship, sector,
-	# chart, archive used to put B flat major over F minor over G minor over E
-	# flat, two at a time, and Jon heard it immediately.
+	# The rule the third edition needs and the second edition did not: thirteen
+	# cues on one pedal could be crossfaded in any combination, and thirteen
+	# independent pieces in nine keys cannot. Walking ship, sector, chart,
+	# archive used to put B flat major over F minor over G minor over E flat,
+	# two at a time, and Jon heard it immediately.
 	#
-	# Measured rather than asserted: step the mixer through the whole switch and
-	# record the largest product of two different cues' gains. Any frame where
-	# both are up is a frame where two keys are sounding.
+	# STEPPED, NOT WAITED. The first version of these checks awaited real frames
+	# and took so long the run never reached its own verdict -- which is the same
+	# mistake the idle clock above already solved. A fade is a function of
+	# elapsed time and nothing else, so advancing the mixer by hand is the same
+	# measurement at none of the cost.
 	Audio.play_cue(&"theme", 2)
-	for i in 40:
-		await tree.process_frame
+	_settle()
 	Audio.play_cue(&"shells", 2)
 	var worst := 0.0
-	for i in 400:
-		var t: float = float(Audio._gain.get(&"theme", 0.0))
-		var sh: float = float(Audio._gain.get(&"shells", 0.0))
-		worst = maxf(worst, minf(t, sh))
-		if sh > 0.99:
+	for i in 200:
+		worst = maxf(worst, minf(float(Audio._gain.get(&"theme", 0.0)),
+				float(Audio._gain.get(&"shells", 0.0))))
+		if float(Audio._gain.get(&"shells", 0.0)) > 0.99:
 			break
-		await tree.process_frame
+		Audio._process(0.05)
 	_ok("an unrelated cue waits for silence (overlap %.3f)" % worst, worst < 0.02)
 
 	# And the opposite, because the DEEP swap depends on the overlap EXISTING:
 	# theme and dread are both on F, and holding both is what makes deep space
-	# read as the place turning rather than as the music cutting.
-	#
-	# Back to theme first and wait for it to be fully up. The obvious version of
-	# this test went straight from shells to dread and measured no overlap -- but
-	# shells is in G and dread is in F, so the mixer was right and the test was
+	# read as the place turning rather than as the music cutting. The obvious
+	# version of this went straight from shells to dread and measured nothing --
+	# G to F is correctly unrelated, so the mixer was right and the test was
 	# asking the wrong question.
 	Audio.play_cue(&"theme", 2)
-	for i in 600:
-		if float(Audio._gain.get(&"theme", 0.0)) > 0.99:
-			break
-		await tree.process_frame
+	_settle()
 	Audio.play_cue(&"dread", 2)
 	var together := 0.0
-	for i in 600:
-		var t2: float = float(Audio._gain.get(&"theme", 0.0))
-		var dr: float = float(Audio._gain.get(&"dread", 0.0))
-		together = maxf(together, minf(t2, dr))
-		if dr > 0.99:
+	for i in 200:
+		together = maxf(together, minf(float(Audio._gain.get(&"theme", 0.0)),
+				float(Audio._gain.get(&"dread", 0.0))))
+		if float(Audio._gain.get(&"dread", 0.0)) > 0.99:
 			break
-		await tree.process_frame
+		Audio._process(0.05)
 	_ok("a cue sharing a root still crossfades (overlap %.3f)" % together,
 			together > 0.2)
-	# The players went with them. A dictionary that forgot a cue while its eight
-	# AudioStreamPlayers stayed children of the singleton would report a fix it
-	# had not made.
+
+	# A PANEL CHANGES NOTHING AT ALL. The ship, the chart and the archive are
+	# things you open while standing somewhere; the place owns the music and they
+	# do not get a say. This walk used to change the cue four times in four
+	# clicks.
+	Audio.music_state(&"sector")
+	_settle()
+	var held := Audio._cue
+	var moved: Array[StringName] = []
+	for panel: StringName in [&"ship", &"chart", &"archive", &"ship"]:
+		Audio.music_state(panel)
+		Audio._process(0.05)
+		if Audio._cue != held:
+			moved.append(panel)
+	_ok("panels do not change the cue (held %s, moved by %s)" % [held, moved],
+			moved.is_empty() and held != &"")
+
+	# EVERY CUE MUST BE REACHABLE BY PLAYING THE GAME.
 	#
+	# Jon: "All the music you made should be used in the game." Six of the
+	# thirteen had quietly become unreachable -- STATES named seven places and
+	# there are thirteen pieces, so the rest were shipped and never played. That
+	# is easy to do again with one edit and impossible to notice by ear, because
+	# nothing sounds wrong; something is simply never heard.
+	var named: Dictionary = {}
+	for state: StringName in Audio.STATES:
+		if state in Audio.PANEL:
+			continue
+		var c: StringName = (Audio.STATES[state] as Array)[0]
+		named[c] = true
+		if Audio.DEEP.has(c):
+			named[Audio.DEEP[c]] = true
+	for band: Array in Audio.SECTOR_BANDS:
+		named[band[1]] = true
+	for c: StringName in Audio.SECTOR_SPECIAL:
+		named[c] = true
+	var orphans: Array[StringName] = []
+	for c: StringName in Audio.CUES:
+		if not named.has(c):
+			orphans.append(c)
+	_ok("every cue is reachable in play (%d cues, orphans %s)"
+			% [Audio.CUES.size(), orphans], orphans.is_empty())
+
 	# Counted against what SHOULD be on the bus rather than a round number: the
 	# stems of whatever is still resident, plus the three ambience beds, which
 	# also sit on Music and are meant to outlive every cue.
@@ -180,6 +213,16 @@ func run(tree: SceneTree) -> void:
 	_ok("no orphan music players left behind (%d on the bus, %d accounted for)"
 		% [players, want], players == want)
 	_finish()
+
+
+## Advance the mixer until whatever was asked for is fully up, without waiting
+## for real frames. Bounded, because a loop that cannot end is worse than a
+## check that fails.
+func _settle(n: int = 400) -> void:
+	for i in n:
+		if Audio._pending == &"" and float(Audio._gain.get(Audio._cue, 0.0)) > 0.99:
+			return
+		Audio._process(0.05)
 
 
 func _finish() -> void:
