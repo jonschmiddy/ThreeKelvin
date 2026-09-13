@@ -168,6 +168,23 @@ const CUES := {
 ## Where a screen sits on the ladder. Router names the state; this is the only
 ## table that decides what it sounds like, so retuning the whole game's music
 ## pacing is a one-file edit.
+## The root each cue is written on. The mixer needs this for one decision only:
+## whether two cues may be heard AT THE SAME TIME.
+##
+## The second edition put thirteen cues on one pedal, so any cue could be
+## crossfaded into any other and the overlap was consonant by construction. The
+## third edition is thirteen independent pieces in nine keys at thirteen tempos,
+## and nothing was done about the crossfade -- so walking ship, sector, chart,
+## archive played B flat major over F minor over G minor over E flat, two at a
+## time, for 2.2 seconds each. Jon's verdict was that it REALLY was not working,
+## and it was not: that is four bitonal collisions in four screen changes.
+const ROOT := {
+	&"first_light": &"C", &"theme": &"F", &"shells": &"G", &"warm": &"Bb",
+	&"home": &"D", &"core": &"A", &"fauna": &"E", &"business": &"F",
+	&"dread": &"F", &"perpetuity": &"Eb", &"nofault": &"B",
+	&"burn": &"F", &"boss": &"F",
+}
+
 const STATES := {
 	## THE TITLE AND THE SECTOR ARE THE SAME PIECE AT TWO DENSITIES, and that is
 	## the point rather than an economy. "The Long Way Home" is the best thing in
@@ -225,7 +242,11 @@ const DEEP_MAX := 3
 const DREAD_DANGER := 8
 
 const FADE := 1.4          ## seconds to bring a layer in or out
-const CROSSFADE := 2.2     ## seconds to swap cues
+const CROSSFADE := 2.2     ## seconds to swap cues that share a root
+## Seconds to fade out, and then in, when the two cues do NOT share a root.
+## They never sound together, so there is no overlap to be dissonant. Faster
+## than a crossfade because a gap you are waiting through is worse than a cut.
+const SWITCH := 0.8
 const OFF_DB := -60.0      ## a stem that is "off" is silent, not stopped
 const SFX_VOICES := 14
 ## Fraction of heat capacity that counts as "running hot".
@@ -250,6 +271,8 @@ var _last_credits: int = -1
 var _last_cargo: int = -1
 var _hot: bool = false
 var _running: Dictionary = {}       ## cue -> bool, are its players rolling
+var _pending: StringName = &""      ## cue waiting for silence before it starts
+var _rate: float = CROSSFADE        ## seconds the current swap takes
 
 # ---------------- the bed ----------------
 ## Three loops that are not music and never stop: see `tkg/audio/ambience.py`.
@@ -404,19 +427,42 @@ func play_cue(cue: StringName, level: int) -> void:
 	# title and does not need to know the piece is not layered.
 	_intensity = clampi(level, 0, _layers(cue).size() - 1)
 	if _cue == cue:
+		_pending = &""
 		_apply_layers()
 		return
+
+	# TWO CUES MAY ONLY SOUND TOGETHER IF THEY SHARE A ROOT.
+	#
+	# Where they do -- the DEEP group, all on F -- the overlap is the whole
+	# point: the swap is meant to read as the PLACE TURNING rather than as the
+	# music changing, and it only does that because the harmony holds under it.
+	#
+	# Where they do not, they are simply two pieces in two keys at two tempos,
+	# and playing them at once for two seconds is a collision, not a transition.
+	# So an unrelated cue waits for silence: everything fades out, and the new
+	# one starts when nothing else is sounding. It costs about 1.6 seconds and
+	# reads as the music changing because the place did, which is true.
+	var related: bool = _cue == &"" or ROOT.get(cue, &"?") == ROOT.get(_cue, &"!")
 	_cue = cue
 	_ensure_loaded(cue)
-	_start(cue)
-	for c: StringName in _stems:
-		_gain_target[c] = 1.0 if c == cue else 0.0
+	if related:
+		_pending = &""
+		_rate = CROSSFADE
+		_start(cue, false)
+		for c: StringName in _stems:
+			_gain_target[c] = 1.0 if c == cue else 0.0
+	else:
+		_pending = cue
+		_rate = SWITCH
+		for c: StringName in _stems:
+			_gain_target[c] = 0.0
 	_apply_layers()
 
 func stop_music() -> void:
 	for c: StringName in _stems:
 		_gain_target[c] = 0.0
 	_cue = &""
+	_pending = &""
 
 ## Per-stem target volume: audible if the cue is running and the stem's rung
 ## has been reached, silent otherwise. Actual movement happens in _process.
@@ -463,6 +509,17 @@ func _ensure_loaded(cue: StringName) -> void:
 	_gain[cue] = 0.0
 	_gain_target[cue] = 0.0
 	_running[cue] = false
+	# A CUE IS IDLE FROM THE MOMENT IT IS LOADED, NOT FROM THE MOMENT IT STOPS.
+	#
+	# `_idle_since` was only ever written by `_stop`, which meant a cue that was
+	# loaded and then never started had no entry at all -- and `_release_idle`
+	# reads a missing entry as `now`, so the age is always zero and it can never be
+	# let go. Nothing could reach that state until unrelated cue changes began
+	# deferring: ask for three different cues inside three frames and the first
+	# two are loaded, superseded before they ever sound, and resident for the
+	# rest of the session. audiotest caught it on the first run, which is the
+	# entire reason that test exists.
+	_idle_since[cue] = Time.get_ticks_msec()
 
 ## Every stem of a cue starts in the same frame, so they share a mix cycle and
 ## stay sample-locked. They are all exactly the same length, so they also loop
@@ -485,7 +542,22 @@ var _music_t0: int = 0
 ## piece changing colour rather than as a new track beginning.
 ##
 ## All six stems of a cue share a length, so they stay locked to each other.
-func _start(cue: StringName) -> void:
+## A CUE THAT IS ARRIVING ON ITS OWN STARTS AT ITS BEGINNING.
+##
+## The paragraph above was written for the second edition and its first line is
+## now false. "There is nothing special about the start of one" was true of a
+## texture: a pedal with events over it sounds the same wherever you join it.
+## Every cue is a written piece now, with an opening statement, an answer, a
+## section that goes somewhere else and a return -- so joining at a clock
+## position means you almost never hear the idea stated, and you frequently
+## arrive in the middle of the B section, which is the one part written to sound
+## like being a long way from home.
+##
+## So the phase resume is kept for exactly the case it was invented for: a DEEP
+## swap between two cues that share a root, where holding position is what makes
+## the pair read as one place turning rather than two pieces. Everything else
+## starts at bar one.
+func _start(cue: StringName, from_top: bool = true) -> void:
 	if _running.get(cue, false):
 		return
 	_running[cue] = true
@@ -495,7 +567,7 @@ func _start(cue: StringName) -> void:
 	for stem: StringName in _stems[cue]:
 		var p: AudioStreamPlayer = _stems[cue][stem]
 		var at := 0.0
-		if p.stream != null:
+		if not from_top and p.stream != null:
 			var len := p.stream.get_length()
 			if len > 0.0:
 				at = fposmod(elapsed, len)
@@ -612,11 +684,26 @@ func _process(delta: float) -> void:
 	_release_idle()
 	if _stems.is_empty():
 		return
+	# A CUE WAITING FOR SILENCE GETS IT, AND THEN STARTS FROM THE TOP. Promoted
+	# here rather than in play_cue because only this loop knows when the last
+	# gain actually reached zero -- and starting the new piece a frame early is
+	# the whole fault this exists to avoid.
+	if _pending != &"":
+		var quiet := true
+		for cue: StringName in _stems:
+			if cue != _pending and _gain[cue] > 0.001:
+				quiet = false
+		if quiet:
+			var up := _pending
+			_pending = &""
+			_start(up, true)
+			_gain_target[up] = 1.0
+
 	for cue: StringName in _stems:
 		var g: float = _gain[cue]
 		var t: float = _gain_target[cue]
 		if not is_equal_approx(g, t):
-			g = move_toward(g, t, delta / CROSSFADE)
+			g = move_toward(g, t, delta / maxf(_rate, 0.05))
 			_gain[cue] = g
 		# SILENT AND STAYING SILENT MEANS STOP, WHETHER OR NOT IT WAS MOVING.
 		# This used to live inside the branch above, so a cue was only ever

@@ -109,6 +109,56 @@ func run(tree: SceneTree) -> void:
 	var after := Audio.resident()
 	_ok("the silent ones are released (%s)" % str(after), after.size() == 1)
 	_ok("and the one still playing is kept", after.has(&"burn"))
+
+	# TWO CUES IN TWO KEYS MUST NEVER SOUND AT ONCE.
+	#
+	# This is the rule the third edition needs and the second edition did not:
+	# thirteen cues on one pedal could be crossfaded in any combination, and
+	# thirteen independent pieces in nine keys cannot. Walking ship, sector,
+	# chart, archive used to put B flat major over F minor over G minor over E
+	# flat, two at a time, and Jon heard it immediately.
+	#
+	# Measured rather than asserted: step the mixer through the whole switch and
+	# record the largest product of two different cues' gains. Any frame where
+	# both are up is a frame where two keys are sounding.
+	Audio.play_cue(&"theme", 2)
+	for i in 40:
+		await tree.process_frame
+	Audio.play_cue(&"shells", 2)
+	var worst := 0.0
+	for i in 400:
+		var t: float = float(Audio._gain.get(&"theme", 0.0))
+		var sh: float = float(Audio._gain.get(&"shells", 0.0))
+		worst = maxf(worst, minf(t, sh))
+		if sh > 0.99:
+			break
+		await tree.process_frame
+	_ok("an unrelated cue waits for silence (overlap %.3f)" % worst, worst < 0.02)
+
+	# And the opposite, because the DEEP swap depends on the overlap EXISTING:
+	# theme and dread are both on F, and holding both is what makes deep space
+	# read as the place turning rather than as the music cutting.
+	#
+	# Back to theme first and wait for it to be fully up. The obvious version of
+	# this test went straight from shells to dread and measured no overlap -- but
+	# shells is in G and dread is in F, so the mixer was right and the test was
+	# asking the wrong question.
+	Audio.play_cue(&"theme", 2)
+	for i in 600:
+		if float(Audio._gain.get(&"theme", 0.0)) > 0.99:
+			break
+		await tree.process_frame
+	Audio.play_cue(&"dread", 2)
+	var together := 0.0
+	for i in 600:
+		var t2: float = float(Audio._gain.get(&"theme", 0.0))
+		var dr: float = float(Audio._gain.get(&"dread", 0.0))
+		together = maxf(together, minf(t2, dr))
+		if dr > 0.99:
+			break
+		await tree.process_frame
+	_ok("a cue sharing a root still crossfades (overlap %.3f)" % together,
+			together > 0.2)
 	# The players went with them. A dictionary that forgot a cue while its eight
 	# AudioStreamPlayers stayed children of the singleton would report a fix it
 	# had not made.
@@ -116,6 +166,10 @@ func run(tree: SceneTree) -> void:
 	# Counted against what SHOULD be on the bus rather than a round number: the
 	# stems of whatever is still resident, plus the three ambience beds, which
 	# also sit on Music and are meant to outlive every cue.
+	# Recounted here rather than reusing the list from the release check: the
+	# overlap checks above load cues of their own, and counting against a stale
+	# snapshot reports a leak that is only bookkeeping.
+	after = Audio.resident()
 	var want := Audio._beds.size()
 	for cue: StringName in after:
 		want += (Audio._stems[cue] as Dictionary).size()
