@@ -197,13 +197,14 @@ func run(tree: SceneTree) -> void:
 			% [Audio.CUES.size(), orphans], orphans.is_empty())
 
 	# Counted against what SHOULD be on the bus rather than a round number: the
-	# stems of whatever is still resident, plus the three ambience beds, which
-	# also sit on Music and are meant to outlive every cue.
+	# stems of whatever is still resident, and nothing else. There were three
+	# ambience beds sitting here too, outliving every cue; they are gone, so the
+	# only long-lived thing on the Music bus now is a cue's own stems.
 	# Recounted here rather than reusing the list from the release check: the
 	# overlap checks above load cues of their own, and counting against a stale
 	# snapshot reports a leak that is only bookkeeping.
 	after = Audio.resident()
-	var want := Audio._beds.size()
+	var want := 0
 	for cue: StringName in after:
 		want += (Audio._stems[cue] as Dictionary).size()
 	var players := 0

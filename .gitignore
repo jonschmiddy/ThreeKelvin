@@ -42,3 +42,14 @@ tools/out/*
 # that made it. Left in the ignore, one `git clean` deletes art that cost real
 # generations and cannot be reproduced without the prompt log.
 !tools/out/bank/
+
+# Third-party agent skills, installed per-machine by `npx skills add`. They are
+# somebody else's code with full agent permissions, they are not part of the
+# game, and whoever clones this should decide for themselves which ones to run.
+#
+# Three paths, because one install writes to all of them: the skill itself, a
+# symlink for Claude Code, and a lockfile. Ignoring only the first left the
+# other two showing up as untracked.
+.agents/
+.claude/skills/sound-effects/
+skills-lock.json

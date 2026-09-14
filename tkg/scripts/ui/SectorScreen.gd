@@ -303,7 +303,24 @@ func setup(c: Combat = null) -> void:
 		_approached_at = Run.at
 		var art := _view.ship_view()
 		if art != null:
-			art.arrive()
+			# THE DRIVE, ONCE, HERE. This is the only place in the game that
+			# means "you have just entered a system": the guard above fires once
+			# per node and never during a fight, which is exactly the condition
+			# the sound wants. Beside `arrive()` rather than inside it, because
+			# ShipView.arrive() also flies in convoy hulls and enemies, and four
+			# ships arriving must not be four thrusters.
+			#
+			# THE CLIP IS THE ONE FOR THE PATTERN THE FLAME DREW, at the
+			# weight of the hull drawing it. arrive() picks how the engines
+			# give out this time and hands back the clip cut from that row, so
+			# its coughs are the ones on screen and its size is your ship's.
+			# Picking the sound here instead -- or letting Audio's round-robin
+			# pick it -- would be fifteen ways to be wrong.
+			#
+			# No pitch variance either, for the same reason: a pitch shift is a
+			# time shift, and it would slide them apart. The three weights are
+			# pitch-shifted, but in the render, before the flame was cut in.
+			Audio.play(art.arrive(), 0.0)
 
 func fighting() -> bool:
 	return combat != null and combat.enemy != null
