@@ -288,7 +288,7 @@ func _build() -> void:
 	_neigh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_neigh_scroll.add_child(_neigh)
 	right.add_child(_neigh_scroll)
-	_jump = Widgets.button("JUMP", _on_jump)
+	_jump = Widgets.cta("JUMP", _on_jump)
 	_jump.custom_minimum_size = Vector2(0, 24)
 	right.add_child(_jump)
 
