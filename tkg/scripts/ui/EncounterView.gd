@@ -591,19 +591,66 @@ func self_anchor() -> Vector2:
 func ship_view() -> ShipView:
 	return _ship
 
+## Your own hull's jump column. Returns the flare so the caller can hang off
+## `peaked`, which is the frame the ship is meant to change hands on.
+## Whether the chosen style takes the hull apart rather than hiding it.
+func ship_flare_melts() -> bool:
+	return _ship_slot != null and _ship_slot.flare.melts()
+
+func ship_pulse() -> JumpFx:
+	return _ship_slot.pulse() if _ship_slot != null else null
+
 func enemy_view(i: int = 0) -> EnemyArt:
 	var sl := slot(i)
 	return sl.art if sl != null else null
 
+## HOW FAR THE SKY CARRIES ON PAST THIS VIEW.
+##
+## The arena stops where the drawer band starts, and for as long as the drawer
+## was always up that was invisible. It is not invisible during an arrival: the
+## drawer is parked below the floor, and the bottom of the screen was a flat
+## dark strip with the starfield ending at a hard horizontal seam.
+##
+## So the SKY bleeds past this control and the CONTENTS do not. `_row` -- the
+## ship, the convoy, the place, the enemies -- is untouched, which is the whole
+## point: growing the view instead would drop the hull half the band's height
+## and then lift it again when the drawer arrived.
+##
+## The drawer draws over it, and always could: `UITheme.PANEL_A` is 0.88 and its
+## own comment calls it "the panel-over-sky alpha". There has simply never been
+## any sky under it before.
+var _bleed: float = 0.0
+
+## THE VIEW GROWS AND ITS CONTENTS DO NOT, which is the only order that works.
+##
+## Extending the backdrop alone does nothing: this control sets
+## `clip_contents` in `_ready` -- the fly-in starts the hull hundreds of pixels
+## off its left edge and something has to stop that drawing over the rail -- so
+## a child reaching past the bottom is cut off at exactly the seam being fixed.
+##
+## So the CLIP has to move, which means the view itself has to be taller. `_row`
+## is then held up by the same amount, because it carries the ship, the convoy,
+## the place and the enemies, and every one of them is centred in its height.
+func set_bleed(px: float) -> void:
+	var want := maxf(px, 0.0)
+	if is_equal_approx(_bleed, want):
+		return
+	_bleed = want
+	offset_bottom = want
+	if _row != null:
+		_row.offset_bottom = -want
+	queue_redraw()
+
 func _draw() -> void:
 	# The void is never flat black: a wash tinted by region gives each place a
 	# colour signature for free, which is the cheapest richness available.
-	draw_rect(Rect2(Vector2.ZERO, size), Color("#070a10"), true)
+	var h := size.y
+	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, h)), Color("#070a10"), true)
 	var steps := 5
 	for i in steps:
 		var f := float(i) / float(steps)
 		var band := Rect2(Vector2(size.x * (0.45 + f * 0.14), 0),
-			Vector2(size.x, size.y))
+			Vector2(size.x, h))
 		draw_rect(band, Color(_tint.r, _tint.g, _tint.b, 0.10), true)
 
 	# The stars used to be drawn here, from one fixed seed, which is why every
@@ -1132,6 +1179,63 @@ class ShipSlot extends Control:
 		mounts.attach(art)
 		mounts.passive()
 		art.add_child(mounts)
+
+		# THE COLUMN YOU LEAVE ON. The convoy slots have had one of these since
+		# they were written; your own ship never did, because your own ship
+		# never left while you were watching.
+		#
+		# IN A BOX THE SIZE OF THE HULL, not of the slot. JumpFlare.MAX_W is 20
+		# and its own comment reasons that against a 208px slot holding a 124px
+		# hull: a beam that wide is "plainly a thing the ship came out of".
+		# Across this slot — most of half the arena — twenty pixels is a rule
+		# somebody drew, not a column. So the box is sized to the art, and added
+		# last so the flash is in front of the hull rather than behind it.
+		_flare_box = Control.new()
+		_flare_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_flare_box)
+		# `JumpFx`, not `JumpFlare`: twenty looks on one clock. See that file --
+		# every style peaks on the same frame, so choosing between them cannot
+		# move the frame the ship changes hands on. The convoy slots keep the
+		# original column; a hull popping into a slot is a different event from
+		# the one you are flying.
+		flare = JumpFx.new()
+		flare.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_flare_box.add_child(flare)
+
+	var flare: JumpFx
+	var _flare_box: Control
+
+	## Fire the column over the hull, wherever the hull has got to. Returns it so
+	## the caller can hang off `peaked` — the frame the ship changes hands, which
+	## is what that signal was built for.
+	##
+	## Re-measured at play time rather than at build time, because the departure
+	## leans the hull twenty pixels right before this fires and a beam that
+	## arrives where the ship was is a beam that missed.
+	## THE COLUMN TRAVELS WITH THE SHIP. Placed once at play time it stayed where
+	## the hull had been while the hull kept accelerating out of it -- by the peak
+	## the ship had outrun its own flare by most of a hull length. Two lines a
+	## frame, and only while the thing is on screen.
+	func _process(_d: float) -> void:
+		if flare.visible:
+			_aim()
+		else:
+			set_process(false)
+
+	func _aim() -> void:
+		var b := art.hull_rect()
+		_flare_box.position = art.position + b.position
+		_flare_box.size = b.size
+
+	func pulse() -> JumpFx:
+		# THE HULL, NOT THE SLOT. `art` is most of half the arena and the ship is
+		# centred inside it, so sizing the column to the control drew rings wider
+		# than the ship is long and put every beam somewhere the ship was not.
+		_aim()
+		flare.centre = 0.5
+		flare.play(0.0)
+		set_process(true)
+		return flare
 
 	## Your hull refuses attacks, same rule the drop path uses.
 	func aimable(c: CardData) -> bool:

@@ -410,6 +410,78 @@ func show_game_over() -> void:
 func jump_to(index: int) -> void:
 	Run.jump_to(index)
 
+# ---------------- the jump, as a journey ----------------
+## A MAILBOX, NOT A MODE, and the distinction is the whole safety of this.
+##
+## A jump used to be one frame: press the button, the fuel is gone and you are
+## there. It is a sequence now — the ship revs and leaves the OLD system, and
+## only then does anything get spent — so something has to carry "you committed
+## to a jump" across a screen swap.
+##
+## These are written once and READ ONCE. The screen that takes a message owns
+## it from then on, and if that screen dies before it commits, the jump is
+## simply cancelled with nothing spent. A persistent flag would be a mode, and a
+## mode is a thing that can be left switched on.
+##
+## NOT ON `Run`, for the same reason `docked` is not: it is a fact about which
+## side of a transition you are on, it must not be saved, and a departure that
+## has not committed is indistinguishable from being parked where you already
+## were. That is what makes a quit mid-departure safe without a save version.
+var _post_depart: int = -1
+var _post_arrive: bool = false
+var _post_skipped: bool = false
+
+## The player has committed to a jump. Nothing is spent yet.
+func begin_jump(index: int) -> void:
+	if index < 0 or index >= Run.map.size():
+		return
+	# The chart's button is already disabled on this, but state can move between
+	# the paint and the press — and a departure played over a jump that then
+	# silently no-ops leaves a screen with no ship in it and no drawer.
+	if not Run.can_jump_to(Run.map[index]):
+		return
+	# No animation, no journey. The sim, the headless harnesses and every shot
+	# tool take the instant path they have always taken.
+	if not animating():
+		jump_to(index)
+		return
+	_post_depart = index
+	show_sector()
+
+## Read-and-clear: which jump this sector is departing on, or -1.
+func take_depart() -> int:
+	var i := _post_depart
+	_post_depart = -1
+	return i
+
+## Read-and-clear: [flew_in_here, was_skipped].
+func take_arrival() -> Array:
+	var out := [_post_arrive, _post_skipped]
+	_post_arrive = false
+	_post_skipped = false
+	return out
+
+## The ship is gone. Everything past here is the path that already worked.
+func commit_jump(index: int, skipped: bool = false) -> void:
+	# THE SAME THREE CONDITIONS `_autosave` REFUSES ON, and for the same reason.
+	# `_swap` hides and queue_frees the outgoing screen, and queue_free leaves it
+	# in the tree for the rest of the frame — so a flare that peaks after QUIT
+	# has cleared the hull would run a jump against a run that has ended. That is
+	# the quittest bug wearing new clothes.
+	if Run.hull == null or Run.map.is_empty() or Run.dead:
+		return
+	var before := Run.jumps
+	_post_arrive = true
+	_post_skipped = skipped
+	Run.jump_to(index)
+	# `Run.jump_to` returns in silence on a target it will not take. If it did,
+	# nothing swapped the screen and the departing sector is still up with its
+	# ship hidden behind a flare that has already finished.
+	if Run.jumps == before:
+		_post_arrive = false
+		_post_skipped = false
+		show_sector()
+
 func _on_jumped(_index: int) -> void:
 	resolve_current_node()
 

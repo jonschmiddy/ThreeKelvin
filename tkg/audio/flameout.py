@@ -168,6 +168,30 @@ WEIGHTS = (
 TILT_HZ = 180.0
 ## Where the tilt pivots. Below it is the engine's body, above it the flames.
 
+## LEAVING, which is the approach run backwards in every respect that matters.
+##
+## Straight out of ShipView: the lean lasts DEPART_MS and the flare peaks 0.17 s
+## after it, so the clip covers both and hands the bang over to `jump` -- the
+## flare's own sfx, which Sig.jumped already fires on exactly that frame. One
+## pulse, already wired, already in the game's vocabulary.
+DEPART_S = 0.90
+DEPART_TAIL_S = 0.25
+## The drive spooling: it starts well below its running speed and comes up past
+## it. The approach's rotor SLOWS as it starves; this is that gesture inverted,
+## and inverting it is the whole reason it reads as power rather than as a fade.
+SPOOL_FROM = 0.62
+SPOOL_TO = 1.12
+## And it comes up from almost nothing. Jon asked for the arrival's engines to
+## swell as the ship gets into frame; a departure is the same idea with the ship
+## already there, so the swell is all of it.
+SPOOL_QUIET_DB = -22.0
+## And the whole spool sits a shade under the arrivals. Not a judgement about
+## how loud leaving should be -- it is headroom. A rev is one continuous swell
+## with no gate cut into it, so its crest factor is lower than a flameout's and
+## at the arrivals' own level two of the three ran 0.7 and 1.4 dB into the
+## ceiling. The ladder between the weights is untouched; all three move together.
+DEPART_A_TRIM = -1.6
+
 ## Where to start reading the roar. It opens a little under its own steady
 ## level -- measured at -7 dBFS over the first half second against -5 after --
 ## and an arrival is a ship already at speed, not one lighting up.
@@ -389,6 +413,58 @@ def check_weights():
                          % (mine, got))
 
 
+def spool(src, rate0=1.0, tilt_db=0.0, a_db=-34.0, drive=0.0):
+    """The drive coming up, at one weight class.
+
+    The same source, the same ladder and the same levelling as the arrival, so
+    the ship leaving sounds like the ship that arrived rather than like a second
+    ship somebody bought in. Only the gesture is reversed.
+    """
+    total = DEPART_S + DEPART_TAIL_S
+    n = int(total * SR)
+    t = np.arange(n) / SR
+    e = np.clip(t / DEPART_S, 0.0, 1.0)
+
+    # Rate rises, so the pitch rises with it. Eased so most of the change
+    # happens late: a drive spends a while turning over before it bites.
+    rate = rate0 * (SPOOL_FROM + (SPOOL_TO - SPOOL_FROM) * e ** 2.2)
+    pos = np.cumsum(rate) % src.shape[1]
+    idx = np.arange(src.shape[1])
+    y = np.vstack([np.interp(pos, idx, src[c]) for c in (0, 1)])
+
+    if abs(tilt_db) > 0.01:
+        g = 10.0 ** (tilt_db / 20.0)
+        lo = np.vstack([lp(y[c], TILT_HZ, order=2) for c in (0, 1)])
+        y = lo * g + (y - lo) / g
+
+    # The filter OPENS across the spool, the mirror of the arrival closing it.
+    y = y * e + np.vstack([lp(y[c], CLOSE_HZ, order=2)
+                           for c in (0, 1)]) * (1.0 - e) * 1.25
+
+    if drive > 0.0:
+        k = 1.0 + drive
+        y = np.tanh(y * k) / np.tanh(k)
+
+    # The swell, and then it is simply gone -- the flare takes the ship on the
+    # frame after this ends, so there is nothing to decay into.
+    q = 10.0 ** (SPOOL_QUIET_DB / 20.0)
+    y *= q + (1.0 - q) * e ** 1.6
+    y *= np.clip((total - t) / DEPART_TAIL_S, 0.0, 1.0) ** 0.6
+
+    y *= 10.0 ** (a_db / 20.0) / max(a_weighted(y), 1e-12)
+    ceil = 10.0 ** (LEVEL_PEAK_DB / 20.0)
+    m = float(np.abs(y).max())
+    if m > ceil:
+        print("    ceiling clipped %.1f dB off this one -- lower its a_db"
+              % (20.0 * np.log10(m / ceil)))
+        y *= ceil / m
+    k = max(int(0.002 * SR), 1)
+    a = (1.0 - np.cos(np.linspace(0.0, np.pi, k))) / 2.0
+    y[:, :k] *= a
+    y[:, -k:] *= a[::-1]
+    return y
+
+
 def write_gd(rows):
     """Put the table into ShipView.gd, between its own markers."""
     check_weights()
@@ -422,6 +498,11 @@ def write_gd(rows):
                    % (", ".join('&"thruster_arrive_%s_%s"' % (w, n)
                                 for n in NAMES), w.upper()))
     out.append("]")
+    out.append("## And the drive coming UP, one per weight. No pattern here:")
+    out.append("## nothing is gated, so there is nothing to stay in step with.")
+    out.append("const DEPART_SFX: Array[StringName] = [%s]"
+               % ", ".join('&"thruster_depart_%s"' % w
+                           for w, _r, _t, _a, _d in WEIGHTS))
     out.append(TAIL)
     body = "\n".join(out)
 
@@ -454,6 +535,16 @@ def render():
                   "%5.0f KB   ms: %s"
                   % (weight, name, r[0][1], r[-1][1], len(r) - 1,
                      st.shape[1] / SR, kb, lens))
+    for weight, rate, tilt, a_db, drive in WEIGHTS:
+        st = spool(src, rate0=rate, tilt_db=tilt,
+                   a_db=a_db + DEPART_A_TRIM, drive=drive)
+        path = os.path.join(SFX, "thruster_depart_%s.wav" % weight)
+        synth.write_wav(path, st)
+        kb = os.path.getsize(path) / 1024.0
+        total += kb
+        print("  %-6s depart  spool %.2fx -> %.2fx  %4.2fs %5.0f KB"
+              % (weight, rate * SPOOL_FROM, rate * SPOOL_TO,
+                 st.shape[1] / SR, kb))
     print("  %d clips, %.1f MB of wav (QOA on import, so roughly a third of "
           "that ships)" % (len(WEIGHTS) * len(NAMES), total / 1024.0))
     return rows

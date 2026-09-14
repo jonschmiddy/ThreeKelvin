@@ -602,6 +602,13 @@ func _ready() -> void:
 		_convoy_test.run(get_tree())
 		return
 
+	# The jump sequence, frame by frame. NOT `jumpshot`: `Router.animating()` is
+	# false for anything ending in "shot" and the tweens are the whole subject.
+	if "jumpcine" in OS.get_cmdline_user_args():
+		_convoy_test = load("res://scripts/sim/JumpCine.gd").new()
+		_convoy_test.run(get_tree())
+		return
+
 	if "sectorshot" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/SectorShot.gd").new()
 		_convoy_test.run(get_tree())

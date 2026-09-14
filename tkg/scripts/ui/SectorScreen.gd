@@ -176,6 +176,8 @@ var _hail_button: Button
 var _flee_button: Button
 var _log: LogPanel
 var _quiet_wrap: PanelContainer
+## The clipping box the drawer slides inside. See `_build_quiet_strip`.
+var _quiet_holder: Control
 var _quiet_text: Label
 var _action: Button
 ## How tall the drawer is, and therefore how tall the viewport is not.
@@ -299,8 +301,33 @@ func setup(c: Combat = null) -> void:
 	#
 	# Static because the screen is not: the flag has to outlive the thing that
 	# sets it, in the same way the chart's view memory does.
-	if not fighting() and _approached_at != Run.at:
+	#
+	# AND SOMETIMES IT IS A WHOLE JOURNEY. `Router.begin_jump` spends nothing;
+	# it hands this screen a departure to play on the system you are LEAVING,
+	# and the jump is committed at the flare's peak, when the ship is gone. So
+	# the two halves of a jump are two screens, and the seam between them is a
+	# frame with nothing on it.
+	_depart_to = Router.take_depart()
+	var handoff := Router.take_arrival()
+	# An ambush builds its own copy of this screen, so the arrival message has
+	# to be CONSUMED AND DISCARDED there rather than left for the next screen to
+	# find and play over a fight that has already started.
+	var flew_in: bool = bool(handoff[0]) and not fighting()
+	if fighting():
+		flew_in = false
+	var skipped: bool = bool(handoff[1])
+
+	if _depart_to >= 0:
+		_begin_depart()
+	elif not fighting() and _approached_at != Run.at:
 		_approached_at = Run.at
+		# NOT ONLY AFTER A JUMP. The first system of a run is arrived at too --
+		# the ship has always flown in there, it just did it in silence with no
+		# idea where it had got to. `flew_in` is still read, because it is what
+		# tells an ambush's screen to discard the message rather than play it.
+		if Router.animating() and not skipped:
+			_begin_arrive()
+			return
 		var art := _view.ship_view()
 		if art != null:
 			# THE DRIVE, ONCE, HERE. This is the only place in the game that
@@ -325,6 +352,209 @@ func setup(c: Combat = null) -> void:
 func fighting() -> bool:
 	return combat != null and combat.enemy != null
 
+# ------------------------------------------------------- the jump, as a journey
+
+## How long the drive is up before the flare takes the ship. Straight out of
+## `ShipView.DEPART_MS`; the lead is there so the Router's own 0.13 s fade has
+## landed before anything moves.
+const DEPART_LEAD := 0.10
+## When the column fires. Deliberately BEFORE the hull stops
+## accelerating -- ShipView.DEPART_MS runs on past this, so the ship is still
+## gaining speed on the frame it is taken.
+const REV_S := 0.90
+## The system announcing itself. IN, HOLD, OUT — and the OUT overlaps the ship
+## coming in, which is where the second the sequence used to waste went.
+const CARD_IN := 0.50
+const CARD_HOLD := 1.80
+const CARD_OUT := 0.60
+const CARD_TOTAL := CARD_IN + CARD_HOLD + CARD_OUT
+## When the boards light up, as a fraction of the approach.
+##
+## A SECOND BEFORE THE SHIP STOPS, which is not the same as the beats bleeding
+## into each other. The approach's last second and a half is unpowered drift --
+## nothing is happening in it, it is the ship losing its speed -- so the boards
+## coming up through it reads as the system answering while you coast in, not as
+## two animations talking over each other. 0.78 of 4.5 s is one second early.
+const DRAWER_AT := 0.78
+const DRAWER_RISE := 0.28
+## How much of the sky the drawer lets through. A shade under PANEL_A, because
+## this panel is the one that covers the most of it.
+const DRAWER_A := 0.80
+
+enum Phase { NONE, DEPART, COMMITTING, ARRIVE }
+var _phase: Phase = Phase.NONE
+## The jump this screen owns, or -1. TAKEN from Router and cleared there, so
+## Router holds no mode: if this screen dies before it commits, the jump is
+## simply cancelled and nothing was spent.
+var _depart_to: int = -1
+var _card: Control = null
+## Held so a skip can kill it. A tween left running after the thing it animates
+## has been jumped past is the sequence happening twice.
+var _cine: Tween = null
+
+## Engines up, lean, and go.
+func _begin_depart() -> void:
+	_phase = Phase.DEPART
+	_shut_drawer()
+	var art := _view.ship_view()
+	if art == null:
+		_commit(false)
+		return
+	_cine = create_tween()
+	_cine.tween_interval(DEPART_LEAD)
+	# The style decides whether the hull is dismantled or merely hidden, so the
+	# view is told before it starts rather than being corrected mid-run.
+	var hyper := _view.ship_flare_melts()
+	_cine.tween_callback(func() -> void: Audio.play(art.depart(hyper), 0.0))
+	_cine.tween_interval(REV_S)
+	_cine.tween_callback(_pulse_out)
+
+func _pulse_out() -> void:
+	var f := _view.ship_pulse()
+	if f == null:
+		_commit(false)
+		return
+	# THE PEAK, NOT THE END. The flash is at its widest here and JumpFlare was
+	# built so the hull changes hands behind the brightest frame — which is
+	# exactly the screen swap that needs hiding. It also lands the `jump` sfx
+	# that Sig.jumped already fires on the right frame, for nothing.
+	f.peaked.connect(func() -> void:
+		var art := _view.ship_view()
+		if art != null:
+			art.visible = false
+		_commit(false), CONNECT_ONE_SHOT)
+
+## Spend it. Nothing in this object is valid after this line.
+func _commit(skipped: bool) -> void:
+	# THE SCREEN HAS TO STILL BE THE SCREEN. `_swap` hides the outgoing screen on
+	# the frame it frees it, and queue_free leaves it in the tree for the rest of
+	# that frame — so a flare peaking after QUIT has cleared the hull would run a
+	# jump against a run that has ended. That is the quittest bug, in a new place.
+	if _phase != Phase.DEPART or not is_visible_in_tree():
+		return
+	_phase = Phase.COMMITTING
+	var to := _depart_to
+	_depart_to = -1
+	# AND NOT THE CONVOY'S BANG. `Sig.jumped` plays `jump` -- written for a
+	# convoy hull popping into a slot, three or four at a time, throttled. Under
+	# your own flare, at the front of the mix, it is a crack rather than an
+	# event, and the drive spooling up has already said the ship is leaving.
+	# Suppressed rather than unwired, because the convoy still wants it.
+	Audio.suppress(&"jump", 600)
+	Router.commit_jump(to, skipped)
+
+## The system announcing itself, then the ship arriving into it.
+func _begin_arrive() -> void:
+	_phase = Phase.ARRIVE
+	_shut_drawer()
+	var art := _view.ship_view()
+	if art == null:
+		_phase = Phase.NONE
+		_open_drawer(true)
+		return
+	# THE DELAY IS WHAT KEEPS THE SHIP OFF SCREEN. `_tick_arrival` measures its
+	# span and puts the hull at -span on its FIRST tick, and only then honours
+	# the delay — "held off screen rather than parked at rest". Calling arrive()
+	# later instead would leave the ship sitting at its mooring through the card.
+	var clip := art.arrive(2, CARD_TOTAL)
+	_card = _build_name_card(Run.node_at())
+	add_child(_card)
+
+	_cine = create_tween()
+	_cine.tween_property(_card, "modulate:a", 1.0, CARD_IN).from(0.0)
+	# HOLD, THEN FADE, AND THEY ARE NOT THE SAME STEP. `parallel()` joins the
+	# tweener BEFORE it, so writing the fade as `tween_interval(HOLD)` followed
+	# by `parallel().tween_property(out)` ran the fade during the hold -- the
+	# card was gone in 0.8 s of a beat that was supposed to last 1.4. Chained,
+	# it is read for as long as it says it is.
+	_cine.tween_interval(CARD_HOLD)
+	_cine.tween_property(_card, "modulate:a", 0.0, CARD_OUT)
+	_cine.tween_callback(func() -> void:
+		# The drive starts with the SHIP, not with the call. arrive() handed the
+		# clip back immediately but its delay is real time.
+		Audio.play(clip, 0.0)
+		_drop_card())
+	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
+	_cine.tween_callback(func() -> void: _open_drawer(false))
+	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * (1.0 - DRAWER_AT))
+	_cine.tween_callback(func() -> void: _phase = Phase.NONE)
+
+## Park the drawer below the floor. Not `visible = false`: the band still has to
+## measure, or the arena grows into it and shrinks again when it slides back.
+func _shut_drawer() -> void:
+	if _quiet_holder != null and _quiet_wrap != null:
+		_quiet_wrap.position.y = maxf(_quiet_holder.size.y, DRAWER_H)
+
+func _open_drawer(at_once: bool) -> void:
+	if _quiet_wrap == null:
+		return
+	if at_once:
+		_quiet_wrap.position.y = 0.0
+		return
+	create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT) \
+		.tween_property(_quiet_wrap, "position:y", 0.0, DRAWER_RISE)
+
+func _drop_card() -> void:
+	if _card != null:
+		_card.queue_free()
+		_card = null
+
+## The system announcing itself, once, over empty space.
+##
+## THE DETAIL LINE LIVES HERE AND NOWHERE ELSE, and this does not reverse THE
+## NAME, AND NOTHING ELSE above. That ruling is about the corner you stand in
+## for as long as you are here, and the corner still carries the name alone.
+## This is the arrival, and it is gone before you can act on anything.
+##
+## ICE and COLD. A heading in this game is cold; EMBER, FLARE and HOT are heat,
+## and a system name in them would read as a warning about the system.
+func _build_name_card(n: MapGen.MapNode) -> Control:
+	var wrap := CenterContainer.new()
+	wrap.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wrap.add_child(col)
+	var name_l := UITheme.body(MapGen.star_name(n), UITheme.ICE, UITheme.FS_PLACE)
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(name_l)
+	# WHERE YOU ARE, except the one time the answer is WHEN you are. A run opens
+	# on a system like any other and the class line under it -- OUTPOST,
+	# LAWLESS, whatever the generator rolled -- is true and says nothing. This
+	# is the only frame in a run that can say the thing every roguelike is about
+	# and never gets to state, so it states it.
+	var under := "YOUR JOURNEY BEGINS HERE" if Run.jumps == 0 		else MapGen.place_line(n)
+	var line := UITheme.body(under, UITheme.COLD, UITheme.FS_SMALL)
+	line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(line)
+	return wrap
+
+## Straight to the end of whatever is playing.
+##
+## NOT A COURTESY. Seven seconds times sixty-odd jumps is minutes of a run spent
+## watching a transition, and the twentieth time you see it matters more than
+## the first. It has to work from the first frame of the departure.
+func _skip() -> void:
+	if _cine != null and _cine.is_valid():
+		_cine.kill()
+	_cine = null
+	if _phase == Phase.DEPART:
+		# Somebody clicking through a departure wants to BE at the next system,
+		# so the skip is carried across the commit and the arrival does not play
+		# either.
+		_commit(true)
+		return
+	_phase = Phase.NONE
+	_drop_card()
+	var art := _view.ship_view()
+	if art != null:
+		art.visible = true
+		art.park()
+		art.refresh()
+	_open_drawer(true)
+	_refresh()
+
 # ---------------------------------------------------------------------- build
 
 func _build() -> void:
@@ -347,6 +577,10 @@ func _build() -> void:
 	_view = EncounterView.new()
 	_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_view)
+	# The arena's height is the drawer band's leftovers, so the gap under it
+	# changes whenever the band does — a bookend's drawer, a fight's hand, a
+	# cinematic's parked one. Asked again every time the view is re-laid out.
+	_view.resized.connect(_sync_bleed)
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
 
@@ -359,23 +593,27 @@ func _build() -> void:
 	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.add_child(col)
-	# THE NAME, AND NOTHING ELSE.
+	# THE NAME, AND NOT EVEN THAT, WHICH FINISHES AN ARGUMENT THIS CORNER HAS
+	# BEEN LOSING BY DEGREES.
 	#
-	# This corner carried an eyebrow reading SECTOR, the name, a class line, and
-	# a paragraph of description -- four things, three of which the screen was
-	# already answering. SECTOR is which tab is lit. The class line and the
-	# blurb describe a place whose contents are the drawer along the bottom and
-	# whatever is floating in the middle, and both are things you can see.
+	# It carried an eyebrow reading SECTOR, the name, a class line, and a
+	# paragraph of description. Three went because the screen already answered
+	# them: SECTOR is which tab is lit, and the class line and the blurb
+	# describe a place whose contents are the drawer along the bottom and
+	# whatever is floating in the middle. The name survived as "the one fact
+	# nothing else on screen carries".
 	#
-	# What is left is the one fact nothing else on screen carries: where you
-	# are. Bigger, because it is now the only thing there and a heading sized to
-	# sit above three other lines reads as a label without them.
+	# It is not that fact any more. ARRIVING SAYS IT NOW -- the system announces
+	# itself across the middle of an empty frame as you fly in, which is a
+	# better place to be told where you are than a label you stopped reading
+	# after the first system. See `_build_name_card`. What is left in the corner
+	# is nothing, and an empty corner is the point: melancholy comes from
+	# composition, and the frame is doing that work.
 	#
-	# `_sub` and `_blurb` are BUILT AND NOT ADDED, following the note below
-	# about `_hull` and `_facts`: the refresh writes to them every frame and
-	# would have to grow a null check for each one otherwise.
+	# `_title`, `_sub` and `_blurb` are all BUILT AND NOT ADDED now, following
+	# the note below about `_hull` and `_facts`: the refresh writes to them every
+	# frame and would have to grow a null check for each one otherwise.
 	_title = UITheme.body("", UITheme.ICE, UITheme.FS_PLACE)
-	col.add_child(_title)
 	_sub = UITheme.body("", UITheme.THEM, UITheme.FS_SMALL)
 	_blurb = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -598,15 +836,75 @@ func _build_self_plate() -> void:
 ## What there is to do here, when nothing is shooting. Occupies the same band as
 ## the enemy intent strip does in a fight, so the screen keeps one shape whether
 ## the sector is quiet or not.
-func _build_quiet_strip() -> PanelContainer:
+## A PLAIN CONTROL BETWEEN THE PANEL AND THE COLUMN, so the drawer has a
+## position of its own to slide in on. A container child's position belongs to
+## the container — it is rewritten on the next sort — and this panel is a direct
+## child of the root VBox, so tweening its `position.y` would hold until the
+## next layout pass and then snap back. `EnemySlot` records the same trap and
+## reaches for the same answer; `ShipView` needs none of it because its slot is
+## not a container.
+##
+## SIZED, NOT ANCHORED. A full-rect preset would tie the panel's position to the
+## holder's edges, and Godot recomputes an anchored control's position whenever
+## its parent resizes — which the holder does on its first layout pass, a frame
+## after the reveal has already put the drawer below the floor.
+func _build_quiet_strip() -> Control:
 	# `arena` above expands, so pinning this pins the viewport at the remainder
 	# without either of them having to know about the split.
 	_drawer = VBoxContainer.new()
 	_drawer.add_theme_constant_override("separation", 3)
 	_quiet_wrap = Widgets.panel_with(_drawer)
 	_quiet_wrap.custom_minimum_size = Vector2(0, DRAWER_H)
-	_quiet_wrap.size_flags_vertical = Control.SIZE_SHRINK_END
-	return _quiet_wrap
+
+	_quiet_holder = Control.new()
+	_quiet_holder.clip_contents = true
+	_quiet_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_quiet_holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_quiet_holder.size_flags_vertical = Control.SIZE_SHRINK_END
+	_quiet_holder.custom_minimum_size = Vector2(0, DRAWER_H)
+	_quiet_holder.add_child(_quiet_wrap)
+	# THE PANEL STILL DRIVES THE LAYOUT. Drawer content taller than DRAWER_H
+	# grows the band and shrinks the arena today, and a holder pinned at
+	# DRAWER_H would silently clip it instead. So the holder asks for whatever
+	# the panel asks for, and the panel fills the holder.
+	_quiet_holder.resized.connect(_sync_drawer_box)
+	_quiet_wrap.minimum_size_changed.connect(_sync_drawer_box)
+	return _quiet_holder
+
+## Keep the holder the size of the drawer and the drawer the width of the
+## holder. GUARDED AGAINST ITS OWN ECHO: writing the holder's minimum resizes
+## the holder, which calls this again.
+##
+## `position.y` is deliberately not touched here. It belongs to the reveal, and
+## a layout pass that quietly put it back to zero would be the reveal never
+## happening for a reason nobody could see.
+func _sync_drawer_box() -> void:
+	if _quiet_wrap == null or _quiet_holder == null:
+		return
+	var h := _quiet_wrap.get_combined_minimum_size().y
+	if not is_equal_approx(_quiet_holder.custom_minimum_size.y, h):
+		_quiet_holder.custom_minimum_size = Vector2(0, h)
+	var want := Vector2(_quiet_holder.size.x, h)
+	if not _quiet_wrap.size.is_equal_approx(want):
+		_quiet_wrap.size = want
+	_sync_bleed()
+
+## Carry the sky down to the bottom of the screen.
+##
+## The arena stops at the drawer band and the band was a flat dark strip with a
+## hard seam across it -- fine while the drawer was always up, and the first
+## thing you see during an arrival, when it is parked below the floor. The view
+## paints past itself now; see `EncounterView.set_bleed`.
+func _sync_bleed() -> void:
+	if _view == null:
+		return
+	# MEASURED FROM THE VIEW'S PARENT, not from the view. The view's own bottom
+	# edge is what the bleed MOVES, so asking it how far it has to reach is a
+	# question whose answer changes the question.
+	var slot := _view.get_parent() as Control
+	if slot == null:
+		return
+	_view.set_bleed(get_global_rect().end.y - slot.get_global_rect().end.y)
 
 
 # -------------------------------------------------------------------- drawer
@@ -665,8 +963,14 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.
+	_sync_drawer_box()
+	# AND IT KEEPS ITS ALPHA. `Widgets.panel_with` builds this panel at
+	# UITheme.PANEL_A -- "the panel-over-sky alpha" -- and this override was
+	# handing back an OPAQUE colour, which undid it every refresh. Nobody
+	# noticed while there was no sky under the drawer to see.
 	_quiet_wrap.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 6 if bookend else 12, 12))
+		UITheme.flat(Color(UITheme.PANEL, DRAWER_A), UITheme.LINE,
+			0, 6 if bookend else 12, 12))
 
 
 ## A place with exactly one thing to do: a station, a pulsar, the core.
@@ -1565,12 +1869,21 @@ func _build_overlay() -> void:
 func _refresh() -> void:
 	if Run.hull == null:
 		return
+	# `Run.jump_to` emits `resources_changed` BEFORE `jumped`, so there is one
+	# synchronous refresh on the DEPARTING screen already holding the new
+	# `Run.at` -- it would repaint the backdrop to the system it is leaving for,
+	# for one frame, on the frame the flare is brightest. Harmless until now
+	# because that refresh used to land on the starchart.
+	if _phase == Phase.COMMITTING:
+		return
 	var n: MapGen.MapNode = Run.node_at()
 	var at_war := fighting()
 	_view.set_place(n)
 
 	_hand_wrap.visible = at_war
-	_quiet_wrap.visible = not at_war
+	# THE HOLDER, not the panel. The panel stays visible and keeps driving the
+	# band's height; the holder is what collapses it during a fight.
+	_quiet_holder.visible = not at_war
 	# A HULL BAR IS A COMBAT READOUT. Out of a fight the top bar already carries
 	# the number and nothing is taking it off you, so a second copy floating
 	# under the ship is a gauge for a thing that is not happening.
@@ -2271,6 +2584,18 @@ func _end_aim(played: bool) -> void:
 ## Cancel comes free from this -- releasing over nothing is releasing over
 ## AIM_NONE, which resolves nothing and puts the card back.
 func _input(e: InputEvent) -> void:
+	# THE SKIP, AND IT HAS TO BE FIRST. `_unhandled_input` would be too late --
+	# the drawer's own buttons and the HUD tabs get the click before it. ESCAPE
+	# is deliberately let through so the pause menu is always reachable, and TAB
+	# is deliberately eaten: Main owns it and swaps screens with it, and a
+	# mid-departure Tab would walk off with an uncommitted jump.
+	if _phase == Phase.DEPART or _phase == Phase.ARRIVE:
+		var sb := e as InputEventMouseButton
+		var sk := e as InputEventKey
+		if (sb != null and sb.pressed) or (sk != null and sk.pressed 				and not sk.echo and sk.keycode != KEY_ESCAPE):
+			get_viewport().set_input_as_handled()
+			_skip()
+		return
 	if _grab_view == null and _aim_view == null:
 		return
 	var mm := e as InputEventMouseMotion

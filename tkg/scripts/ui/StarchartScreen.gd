@@ -1233,7 +1233,10 @@ func _on_chart_cleared() -> void:
 
 func _on_jump() -> void:
 	if _selected >= 0:
-		Router.jump_to(_selected)
+		# `begin_jump`, not `jump_to`: it hands the sector a departure to play
+		# and spends nothing until the ship is gone. Falls through to the old
+		# instant path wherever animation is off.
+		Router.begin_jump(_selected)
 
 
 ## A node glyph. Shape carries the type, tint carries the region — so the chart

@@ -131,11 +131,67 @@ const FLAMEOUT_SFX := [
 	[&"thruster_arrive_medium_a", &"thruster_arrive_medium_b", &"thruster_arrive_medium_c", &"thruster_arrive_medium_d", &"thruster_arrive_medium_e"],  ## MEDIUM
 	[&"thruster_arrive_heavy_a", &"thruster_arrive_heavy_b", &"thruster_arrive_heavy_c", &"thruster_arrive_heavy_d", &"thruster_arrive_heavy_e"],  ## HEAVY
 ]
+## And the drive coming UP, one per weight. No pattern here:
+## nothing is gated, so there is nothing to stay in step with.
+const DEPART_SFX: Array[StringName] = [&"thruster_depart_light", &"thruster_depart_medium", &"thruster_depart_heavy"]
 ## -- end of the generated table.
 var _arrive_at: int = -1
 ## Which of FLAMEOUTS this approach is flying. Chosen in `arrive()` and handed
 ## back to the caller, because the sound has to be the clip for THIS row.
 var _flameout: int = 0
+
+## LEAVING. The engines come up, the hull leans into them, and the flare takes
+## it — the vanish is not here, it belongs to `ShipSlot.pulse()` the same way
+## `ConvoySlot.jump_out()`'s does.
+##
+## HOW FAR IT GETS, and it is measured rather than chosen.
+##
+## The first version was a twenty-pixel lean, on the reasoning that a hull
+## driven any real distance would draw across the AreaView on the far side of
+## the arena -- true, and the wrong conclusion. `ShipSlot` biases this control
+## to 68% of its slot precisely so there is empty space on the ship's right,
+## and the run is the whole of that space: measured on the first tick, from the
+## hull's nose to the slot's edge, less a margin. Nothing to collide with,
+## because the room was already there and empty.
+##
+## `hull_rect()` is what makes it measurable. This control is most of half the
+## arena and the ship is centred inside it, so "where does the nose end" is not
+## `size.x` and never was.
+const DEPART_EDGE := 12.0
+## AND THEN SOME. The room inside the slot is about ninety pixels, which on a
+## four-hundred-pixel hull is a nudge rather than a departure. The overrun is
+## the rest, and it is affordable because of WHEN it happens: ease-in cubic
+## puts most of the travel in the last fifth of the run, which is the fifth the
+## flare is already firing over and the frame before the hull is taken. The
+## nose crosses into the neighbouring space for about a sixth of a second,
+## under a column of light, and then there is no ship to overlap anything.
+const DEPART_OVER := 150.0
+## AND IT IS STILL ACCELERATING WHEN IT GOES. This runs past the rev and into
+## the flare: `SectorScreen` fires the column at REV_S and the hull hides at
+## that column's peak, which lands about here. A ship that stops dead and then
+## flashes has parked and been deleted; one still gaining speed has left.
+const DEPART_MS := 1080.0
+var _depart_at: int = -1
+var _depart_span: float = -1.0
+
+## HYPERDRIVE. A different way of leaving, and the only one that touches the
+## hull instead of drawing over it: the ship is eaten from the outside in until
+## nothing is left but a line of light along its own centre, and then the line
+## goes. Everything else in `JumpFx` is an overlay and leaves the ship alone.
+##
+## It runs longer than an ordinary departure because there is more of it -- rev,
+## then collapse, then the run -- and it ends off the right of the screen rather
+## than at the edge of the slot, because a beam of light is not something that
+## has to make room for the scenery.
+const HYPER_MS := 1560.0
+## Where the hull starts going to light, and where what is left of it runs.
+const HYPER_MELT := 0.56
+const HYPER_ZIP := 0.70
+## The light the ship turns into. Same cold white the columns are drawn in.
+const HYPER_CORE := Color("#e4f2ff")
+var _hyper: bool = false
+## 0 is a ship, 1 is a line where a ship was.
+var _melt: float = -1.0
 var _arrive_dx: int = 0
 var _arrive_bob: int = 2
 ## How far left of its resting place the ship starts, in screen pixels. Measured
@@ -199,6 +255,8 @@ func _process(_delta: float) -> void:
 	var t := float(Time.get_ticks_msec()) / 1000.0
 	var dirty := false
 	if _arrive_at >= 0 and _tick_arrival():
+		dirty = true
+	if _depart_at >= 0 and _tick_departure():
 		dirty = true
 	if _bob_amp > 0:
 		var off := int(round(sin(t * TAU * _bob_hz) * float(_bob_amp)))
@@ -669,12 +727,7 @@ func _tick_arrival() -> bool:
 
 	var e := float(Time.get_ticks_msec() - _arrive_at) / ARRIVE_MS
 	if e >= 1.0:
-		_arrive_at = -1
-		_arrive_dx = 0
-		_arrive_span = 0
-		position.x = 0.0
-		_burning = false
-		_bob_amp = _arrive_bob
+		park()
 		return true
 
 	var dirty := false
@@ -690,6 +743,123 @@ func _tick_arrival() -> bool:
 		dirty = true
 	return dirty
 
+## Engines up, and lean. Returns the clip for this hull's weight, on the same
+## contract `arrive()` uses: the view knows which drive it is, the caller knows
+## whether a sound belongs here, and four hulls leaving must not be four
+## thrusters.
+func depart(hyper: bool = false) -> StringName:
+	park()                      ## whatever the approach still owns, it stops owning
+	_bob_amp = 0                ## rigid under power. A ship bobbing as it revs is idling.
+	_bob_off = 0
+	_burning = true
+	_hyper = hyper
+	_melt = -1.0
+	_depart_at = Time.get_ticks_msec()
+	_depart_span = -1.0
+	set_process(true)
+	refresh()
+	var hull := _hull()
+	var w := int(hull.weight) if hull != null else int(HullData.Weight.MEDIUM)
+	return DEPART_SFX[w]
+
+## Ease-IN cubic, the exact mirror of the approach's ease-out. The approach
+## arrives with speed and gives it all up to the drift; this gives up nothing
+## and takes it all.
+##
+## Driven from `_process` rather than from a Tween for the reason `position.x`
+## is commented as reserved: it is owned here, in one place, under one rule.
+func _tick_departure() -> bool:
+	# Measured on the first tick that has a real layout, the same way the
+	# approach measures its own span and for the same reason: when `depart()`
+	# is called the containers have not sorted yet.
+	if _depart_span < 0.0:
+		if size.x <= 0.0:
+			return false
+		var room := size.x
+		var slot := get_parent() as Control
+		if slot != null:
+			room = slot.size.x - position.x
+		var clear := maxf(room - hull_rect().end.x - DEPART_EDGE, 0.0)
+		_depart_span = clear + DEPART_OVER
+	var span := _depart_span
+	var e := float(Time.get_ticks_msec() - _depart_at) 		/ (HYPER_MS if _hyper else DEPART_MS)
+	if e >= 1.0:
+		_depart_at = -1
+		return false
+	if _hyper:
+		# THE SHIP DOES NOT MOVE, and that is the whole difference between this
+		# and every other departure here. The others accelerate away and the
+		# flare catches them; this one holds station, revs, and collapses on the
+		# spot. What leaves is the beam, and the beam is not the hull -- it is
+		# drawn by `JumpFx`, which is why nothing here has to travel.
+		var melt := clampf((e - HYPER_MELT) / (HYPER_ZIP - HYPER_MELT), 0.0, 1.0)
+		if not is_equal_approx(_melt, melt):
+			_melt = melt
+			# AND WHAT IS BOLTED TO IT. `MountPoints` is a child node, drawn
+			# after this canvas and not through it, so a hull collapsing to a
+			# line left its modules hanging in the air at full size -- chunks
+			# of ship floating where the ship had been. They are part of the
+			# ship; they leave with it.
+			_hide_fittings(true)
+			# AND WHEN THERE IS NOTHING LEFT, THERE IS NOTHING LEFT. The line
+			# this canvas draws is the hull's last pixel row, and it was
+			# outliving the ship by half a second -- the hull hides at the
+			# flare's peak, and the beam departs long before that, so a second
+			# beam sat where the ship had been while the real one ran off. The
+			# ship is gone the moment it has finished becoming light.
+			if melt >= 1.0:
+				visible = false
+			refresh()
+		return false
+	var dx := int(round(pow(e, 3.0) * span))
+	return _shift(dx)
+
+## Children are the fitted modules, added by whichever slot built this view.
+func _hide_fittings(gone: bool) -> void:
+	for c in get_children():
+		var ctrl := c as Control
+		if ctrl != null:
+			ctrl.visible = not gone
+
+func _shift(dx: int) -> bool:
+	if dx == int(position.x):
+		return false
+	position.x = float(dx)
+	return true
+
+## Where the hull actually is inside this control, in local coordinates.
+##
+## The control is as big as the layout gave it -- most of half the arena on the
+## sector screen -- and `STRETCH_KEEP_CENTERED` puts the canvas in the middle of
+## that at its native size. So anything that wants to aim at the SHIP rather
+## than at the box it lives in has to ask, and the first thing that did aimed at
+## the box: a jump flare sized to the slot drew a ring with a radius bigger than
+## the hull is long.
+func hull_rect() -> Rect2:
+	var t := Vector2(float(_w * _k), float(_h * _k))
+	return Rect2((size - t) * 0.5, t)
+
+## At rest, wherever that was decided.
+##
+## ONE END STATE, THREE CALLERS: the approach finishing, a departure beginning,
+## and the player clicking through the whole thing. It was the tail of
+## `_tick_arrival` and only the first of those could reach it, so a skip had to
+## reproduce six assignments from memory and a departure had to undo them.
+##
+## Safe on a view that never left. `_arrive_bob` is 2 unless somebody asked for
+## less, and everything else here is already where this puts it.
+func park() -> void:
+	_arrive_at = -1
+	_arrive_dx = 0
+	_arrive_span = 0
+	_depart_at = -1
+	_hyper = false
+	_melt = -1.0
+	_hide_fittings(false)
+	position.x = 0.0
+	_burning = false
+	_bob_amp = _arrive_bob
+
 ## Engines guttering out rather than switching off. The whole answer is in the
 ## row: the flame is lit while the approach is inside one of its spans, and the
 ## first span is the clean burn. No formula, because the sound was cut from
@@ -699,6 +869,40 @@ func _flame_lit(e: float) -> bool:
 		if e >= span.x and e < span.y:
 			return true
 	return false
+
+## The hull, or what is left of it.
+##
+## ROWS DROPPED, NEVER SCALED. Only the rows within `half` of the sprite's own
+## centre line survive, and `half` falls to one -- so the ship is eaten from the
+## outside in and every surviving pixel is still exactly where it was authored.
+## Squashing the sprite instead would resample a pixel face, which the art
+## direction forbids outright and which would look like a bug rather than an
+## effect.
+func _paste_hull(img: Image, dy: int, blend: bool) -> void:
+	if _melt < 0.0:
+		_paste(img, 0, dy, blend)
+		return
+	var w := img.get_width()
+	var h := img.get_height()
+	var cy := h / 2
+	var e := 1.0 - pow(1.0 - _melt, 2.0)
+	var half := int(round(float(cy) * (1.0 - e)))
+	if half > 0:
+		var top := maxi(0, cy - half)
+		var rows := mini(h - top, half * 2)
+		if rows > 0:
+			var r := Rect2i(0, top, w, rows)
+			var at := Vector2i(0, dy + top)
+			if blend:
+				_img.blend_rect(img, r, at)
+			else:
+				_img.blit_rect(img, r, at)
+	# What it is turning into. Opaque, and thickening as the hull thins, so the
+	# two hand over rather than one fading out under the other.
+	var lh := maxi(1, int(round(1.0 + 3.0 * e)))
+	var y := dy + cy - lh / 2
+	if y >= 0 and y + lh <= _img.get_height():
+		_img.fill_rect(Rect2i(0, y, w, lh), HYPER_CORE)
 
 ## Copy `img` at (dx, dy), clipping whatever falls off the left edge.
 ##
@@ -785,7 +989,7 @@ func _blit_sprite() -> void:
 	# through the flame behind it. Onto an empty canvas the two are the same and
 	# blit is cheaper, so the unlayered case keeps it.
 	var behind := _blit_exhaust(dy, true)
-	_paste(img, 0, dy, behind > 0)
+	_paste_hull(img, dy, behind > 0)
 	_blit_exhaust(dy, false)
 
 ## The canvas follows whatever is being drawn into it. Cheap to call every
@@ -823,6 +1027,11 @@ func _resize_canvas(w: int, h: int) -> void:
 func _blit_exhaust(dy: int, back: bool) -> int:
 	var hull := _hull()
 	if not _burning:
+		return 0
+	# The drive is the last thing to go, but it does go: a plume at full size
+	# hanging off a line of light is the one part of the ship that refused to
+	# dematerialise.
+	if _melt > 0.45:
 		return 0
 	var n := 0
 	for t in hull.thrusters:
