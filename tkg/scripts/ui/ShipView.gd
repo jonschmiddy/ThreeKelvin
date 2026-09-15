@@ -93,6 +93,12 @@ var _burning: bool = false
 ## second and a half does not. Most of it is the unpowered drift, which is the
 ## part worth having.
 const ARRIVE_MS := 4500.0
+## THE DRIVE IS HEARD BEFORE THE SHIP IS SEEN. Jon: "reverse warp... pause ..
+## thruster sound ... ship enters". Every arrival clip opens with this long a
+## swell of the drive before the approach starts, and every caller that plays one
+## holds the ship this long first, so the flame and the sound still share a clock.
+## `audio/flameout.py` reads this line.
+const ARRIVE_LEAD_S := 0.80
 ## The engines do not snap off. They burn clean, then STUTTER — flashes that
 ## shrink at intervals that grow — and the ship coasts the rest dark. A hard cut
 ## read as a switch being thrown.
@@ -174,24 +180,45 @@ const DEPART_MS := 1080.0
 var _depart_at: int = -1
 var _depart_span: float = -1.0
 
-## HYPERDRIVE. A different way of leaving, and the only one that touches the
-## hull instead of drawing over it: the ship is eaten from the outside in until
-## nothing is left but a line of light along its own centre, and then the line
-## goes. Everything else in `JumpFx` is an overlay and leaves the ship alone.
+## HYPERDRIVE. The one departure that touches the hull instead of drawing over
+## it: the ship holds station, shudders under a charge, and is eaten from the
+## outside in until nothing is left but a line of light along its own centre.
 ##
-## It runs longer than an ordinary departure because there is more of it -- rev,
-## then collapse, then the run -- and it ends off the right of the screen rather
-## than at the edge of the slot, because a beam of light is not something that
-## has to make room for the scenery.
-const HYPER_MS := 1560.0
-## Where the hull starts going to light, and where what is left of it runs.
-const HYPER_MELT := 0.56
-const HYPER_ZIP := 0.70
+## THIS CLASS KEEPS NO CLOCK FOR IT. It did -- a melt driven off its own timer
+## here, while `JumpFx` ran the beam off its own life -- and two clocks that
+## have to agree are two clocks that eventually will not, which is the lesson
+## the flameout table was built on. The choreography lives in `JumpFx` alone;
+## `ShipSlot` pushes the melt and the shake in every frame, and this renders
+## what it is told.
+##
 ## The light the ship turns into. Same cold white the columns are drawn in.
 const HYPER_CORE := Color("#e4f2ff")
-var _hyper: bool = false
-## 0 is a ship, 1 is a line where a ship was.
+## 0 is a ship, 1 is a line where a ship was, -1 is not melting at all.
 var _melt: float = -1.0
+## Whole pixels of shudder, pushed in by `set_shake`. Moved on the Control, not
+## inside the canvas: once a departure has taken the bob's headroom away the
+## canvas is exactly as tall as the sprite, so shaking inside it clips the hull.
+const SHAKE_HZ := 30.0
+var _shake: float = 0.0
+var _shake_step: int = -1
+## The spool look on the hull, from `JumpFx`; see set_spool.
+var _spool_look: StringName = &"none"
+var _spool: float = 0.0
+var _spool_t: float = 0.0
+## THE HULL'S OWN EXTENT, in canvas pixels: where the sprite is actually opaque.
+## The canvas is wider than the ship -- it carries empty columns at the stern for
+## the exhaust art to sit in -- so anything sized to the canvas reaches past the
+## tail. Jon, on the first hyperdrive: "the horizontal bar shouldn't be longer
+## than the ship". It was, by exactly that padding.
+var _body_px := Rect2i()
+## Cached per source texture: bounds do not move with wear, and a pass over every
+## pixel of the sprite on each bob step would be the waste `worn_cached` exists
+## to avoid.
+static var _body_cache: Dictionary = {}
+## The middle of the hull's body in image rows, from `_body_middle`; -1 until a
+## sprite has been drawn. Cached per source texture for the same reason.
+var _body_mid: float = -1.0
+static var _mid_cache: Dictionary = {}
 var _arrive_dx: int = 0
 var _arrive_bob: int = 2
 ## How far left of its resting place the ship starts, in screen pixels. Measured
@@ -258,6 +285,18 @@ func _process(_delta: float) -> void:
 		dirty = true
 	if _depart_at >= 0 and _tick_departure():
 		dirty = true
+	# THE SHUDDER. Stepped at SHAKE_HZ rather than every frame -- a hull moving
+	# sixty times a second smears, one moving thirty times trembles -- and in
+	# whole pixels, like everything else this draws.
+	if _shake > 0.0:
+		var step := int(t * SHAKE_HZ)
+		if step != _shake_step:
+			_shake_step = step
+			var jit := int(round(_shake))
+			position = Vector2(randi_range(-jit, jit), randi_range(-jit, jit))
+	elif _shake_step >= 0:
+		_shake_step = -1
+		position = Vector2.ZERO
 	if _bob_amp > 0:
 		var off := int(round(sin(t * TAU * _bob_hz) * float(_bob_amp)))
 		if off != _bob_off:
@@ -751,10 +790,14 @@ func depart(hyper: bool = false) -> StringName:
 	park()                      ## whatever the approach still owns, it stops owning
 	_bob_amp = 0                ## rigid under power. A ship bobbing as it revs is idling.
 	_bob_off = 0
-	_burning = true
-	_hyper = hyper
+	# NO PLUMES UNDER A HYPERDRIVE. A jump drive is not a thruster, and a ship
+	# holding station with its engines lit reads as idling rather than charging.
+	# The ordinary departures still burn: they are thrusters, and they move.
+	_burning = not hyper
 	_melt = -1.0
-	_depart_at = Time.get_ticks_msec()
+	# A hyperdrive does not move the hull, so there is nothing to tick: its melt
+	# and shudder are pushed in from `JumpFx`, on that clock. See set_melt.
+	_depart_at = -1 if hyper else Time.get_ticks_msec()
 	_depart_span = -1.0
 	set_process(true)
 	refresh()
@@ -782,37 +825,186 @@ func _tick_departure() -> bool:
 		var clear := maxf(room - hull_rect().end.x - DEPART_EDGE, 0.0)
 		_depart_span = clear + DEPART_OVER
 	var span := _depart_span
-	var e := float(Time.get_ticks_msec() - _depart_at) 		/ (HYPER_MS if _hyper else DEPART_MS)
+	var e := float(Time.get_ticks_msec() - _depart_at) / DEPART_MS
 	if e >= 1.0:
 		_depart_at = -1
 		return false
-	if _hyper:
-		# THE SHIP DOES NOT MOVE, and that is the whole difference between this
-		# and every other departure here. The others accelerate away and the
-		# flare catches them; this one holds station, revs, and collapses on the
-		# spot. What leaves is the beam, and the beam is not the hull -- it is
-		# drawn by `JumpFx`, which is why nothing here has to travel.
-		var melt := clampf((e - HYPER_MELT) / (HYPER_ZIP - HYPER_MELT), 0.0, 1.0)
-		if not is_equal_approx(_melt, melt):
-			_melt = melt
-			# AND WHAT IS BOLTED TO IT. `MountPoints` is a child node, drawn
-			# after this canvas and not through it, so a hull collapsing to a
-			# line left its modules hanging in the air at full size -- chunks
-			# of ship floating where the ship had been. They are part of the
-			# ship; they leave with it.
-			_hide_fittings(true)
-			# AND WHEN THERE IS NOTHING LEFT, THERE IS NOTHING LEFT. The line
-			# this canvas draws is the hull's last pixel row, and it was
-			# outliving the ship by half a second -- the hull hides at the
-			# flare's peak, and the beam departs long before that, so a second
-			# beam sat where the ship had been while the real one ran off. The
-			# ship is gone the moment it has finished becoming light.
-			if melt >= 1.0:
-				visible = false
-			refresh()
-		return false
 	var dx := int(round(pow(e, 3.0) * span))
 	return _shift(dx)
+
+## How far the hull has gone to light, pushed in every frame by `ShipSlot` from
+## the flare's own clock. See the HYPERDRIVE note.
+func set_melt(v: float) -> void:
+	if v < 0.0:
+		return
+	var m := clampf(v, 0.0, 1.0)
+	if is_equal_approx(_melt, m):
+		return
+	_melt = m
+	# AND WHAT IS BOLTED TO IT. `MountPoints` is a child node, drawn after this
+	# canvas and not through it, so a hull collapsing to a line once left its
+	# modules hanging in the air at full size. They leave with the ship.
+	_hide_fittings(m > 0.0)
+	# AND WHEN THERE IS NOTHING LEFT, THERE IS NOTHING LEFT. The line this
+	# canvas draws is the hull's last pixel row, and it once outlived the ship
+	# by half a second while the real beam ran off.
+	visible = m < 1.0
+	refresh()
+
+## The shudder of a drive charging, in whole pixels.
+func set_shake(px: float) -> void:
+	_shake = maxf(px, 0.0)
+	set_process(true)
+
+## THE HULL AS THE SPOOL STARTS: one look of `JumpFx.SPOOLS`, at `amount`, pushed
+## in every frame from the flare's clock by `ShipSlot`, the way the melt is.
+##
+## On the hull's own pixels and nowhere else, in whole pixels and cold light --
+## the rules the melt and the beam keep. Nothing is scaled, and nothing warm is
+## drawn: EMBER, FLARE and HOT mean heat.
+func set_spool(look: StringName, amount: float, secs: float) -> void:
+	var a := clampf(amount, 0.0, 1.0)
+	if look == &"none" or a <= 0.0:
+		_lace_off()
+		if _spool > 0.0:
+			_spool = 0.0
+			refresh()
+		return
+	if look == &"interlace":
+		_lace_on(a, secs)
+		return
+	_spool_look = look
+	_spool = a
+	_spool_t = secs
+	refresh()
+
+## INTERLACE IS A SHADER, NOT A PASS OVER THE HULL IMAGE, because Jon wants the
+## modules to slip with the hull and the modules are not in that image --
+## `MountPoints` draws them in its own `_draw()`. The material goes on this view
+## and the children draw through it, so one set of rows moves the whole ship.
+## See shaders/interlace.gdshader.
+const INTERLACE_SHADER := preload("res://shaders/interlace.gdshader")
+## Which rows slip is picked afresh this many times a second.
+const INTERLACE_HZ := 12.0
+var _lace: ShaderMaterial = null
+
+func _lace_on(a: float, secs: float) -> void:
+	if _lace == null:
+		_lace = ShaderMaterial.new()
+		_lace.shader = INTERLACE_SHADER
+	if material != _lace:
+		material = _lace
+		for c in get_children():
+			var ci := c as CanvasItem
+			if ci != null:
+				ci.use_parent_material = true
+	# It stays off until the charge has some weight, then builds with it.
+	_lace.set_shader_parameter("rows", JumpFx.interlace_rows * smoothstep(0.35, 1.0, a))
+	_lace.set_shader_parameter("seed", floorf(secs * INTERLACE_HZ))
+
+func _lace_off() -> void:
+	if _lace == null or material != _lace:
+		return
+	material = null
+	for c in get_children():
+		var ci := c as CanvasItem
+		if ci != null:
+			ci.use_parent_material = false
+
+func _clear_at(img: Image, x: int, y: int) -> bool:
+	return x < 0 or y < 0 or x >= img.get_width() or y >= img.get_height() or img.get_pixel(x, y).a <= 0.0
+
+func _noise(x: int, y: int, n: int) -> float:
+	return fposmod(sin(float(x) * 12.9898 + float(y) * 78.233 + float(n) * 37.719) * 43758.5453, 1.0)
+
+## A copy of the hull with the current spool look drawn onto its pixels.
+func _spooled(img: Image) -> Image:
+	var out := img.duplicate() as Image
+	var r := _body_px if _body_px.size.x > 0 else Rect2i(0, 0, img.get_width(), img.get_height())
+	var x0 := r.position.x
+	var x1 := r.end.x
+	var y0 := r.position.y
+	var y1 := r.end.y
+	var w := float(maxi(x1 - x0, 1))
+	var a := _spool
+	var t := _spool_t
+	var core := Color("#e4f2ff")
+	var cold := Color("#9fd0e4")
+	match _spool_look:
+		&"frost":
+			# A cold tint washing over the plating from the stern to the nose.
+			var front := x0 + int(w * clampf(t / 1.2, 0.0, 1.0))
+			for y in range(y0, y1):
+				for x in range(x0, mini(x1, front)):
+					var c: Color = img.get_pixel(x, y)
+					if c.a > 0.0:
+						out.set_pixel(x, y, Color(c.lerp(cold, 0.45 * a), c.a))
+		&"scan":
+			# A narrow band of light running along the hull, stern to nose, again and again.
+			var sx := float(x0) + fposmod(t * w / 0.9, w)
+			for y in range(y0, y1):
+				for x in range(maxi(x0, int(sx) - 2), mini(x1, int(sx) + 3)):
+					var c: Color = img.get_pixel(x, y)
+					if c.a > 0.0:
+						var k := clampf(0.75 * a * (1.0 - absf(float(x) - sx) / 3.0), 0.0, 1.0)
+						out.set_pixel(x, y, Color(c.lerp(core, k), c.a))
+		&"rim":
+			# The hull's own outline lighting up.
+			for y in range(y0, y1):
+				for x in range(x0, x1):
+					var c: Color = img.get_pixel(x, y)
+					if c.a <= 0.0:
+						continue
+					if _clear_at(img, x - 1, y) or _clear_at(img, x + 1, y) or _clear_at(img, x, y - 1) or _clear_at(img, x, y + 1):
+						out.set_pixel(x, y, Color(c.lerp(cold, 0.85 * a), c.a))
+		&"static":
+			# Single points of the plating flickering, more of them as it builds.
+			var n := int(t * 18.0)
+			var p := 0.015 + 0.06 * a
+			for y in range(y0, y1):
+				for x in range(x0, x1):
+					var c: Color = img.get_pixel(x, y)
+					if c.a > 0.0 and _noise(x, y, n) < p:
+						out.set_pixel(x, y, Color(c.lerp(core, 0.8), c.a))
+		&"pulse":
+			# The whole hull brightening on the seam's own pulse.
+			var k := 0.35 * a * JumpFx.pulse_at(t)
+			for y in range(y0, y1):
+				for x in range(x0, x1):
+					var c: Color = img.get_pixel(x, y)
+					if c.a > 0.0:
+						out.set_pixel(x, y, Color(c.lerp(cold, k), c.a))
+		&"bands":
+			# Bright bands flowing through the plating toward the nose.
+			for x in range(x0, x1):
+				var b := pow(maxf(sin(float(x - x0) * 0.16 - t * 10.0), 0.0), 6.0)
+				if b < 0.02:
+					continue
+				for y in range(y0, y1):
+					var c: Color = img.get_pixel(x, y)
+					if c.a > 0.0:
+						out.set_pixel(x, y, Color(c.lerp(core, 0.55 * a * b), c.a))
+		&"ghost":
+			# A one-pixel echo of the silhouette, cyan above and violet below.
+			var hi := Color(JumpFx.ION_HI, 0.7 * a)
+			var lo := Color(JumpFx.ION_LO, 0.7 * a)
+			for y in range(y0, y1):
+				for x in range(x0, x1):
+					if img.get_pixel(x, y).a <= 0.0:
+						continue
+					if y - 1 >= 0 and img.get_pixel(x, y - 1).a <= 0.0:
+						out.set_pixel(x, y - 1, hi)
+					if y + 1 < img.get_height() and img.get_pixel(x, y + 1).a <= 0.0:
+						out.set_pixel(x, y + 1, lo)
+		&"drain":
+			# The hull darkening, as if the charge were pulling the light out of it.
+			for y in range(y0, y1):
+				for x in range(x0, x1):
+					var c: Color = img.get_pixel(x, y)
+					if c.a > 0.0:
+						out.set_pixel(x, y, Color(c.darkened(0.45 * a), c.a))
+	# `interlace` is not here: it is the shader, so the modules slip too. See _lace_on.
+	return out
 
 ## Children are the fitted modules, added by whichever slot built this view.
 func _hide_fittings(gone: bool) -> void:
@@ -839,6 +1031,61 @@ func hull_rect() -> Rect2:
 	var t := Vector2(float(_w * _k), float(_h * _k))
 	return Rect2((size - t) * 0.5, t)
 
+## The part of `hull_rect()` that is actually ship: the same box, narrowed to the
+## sprite's opaque columns, and MOVED so its middle is the middle of the HULL.
+##
+## It used to keep the canvas's own centre row, and the line sat there -- which is
+## the middle of the picture, not of the ship. A heavy's masts and spires stretch
+## the picture upward, so the beam ran along its top rail, 28 px above the body
+## it was meant to split ("It sits slightly above the middle of the hull"). The
+## middle is now `_body_mid`, and the melt collapses onto the same row, so the
+## beam still comes out of the line the hull goes to.
+func hull_body() -> Rect2:
+	var r := hull_rect()
+	if _body_px.size.x <= 0:
+		return r
+	var shift := 0.0
+	if _body_mid >= 0.0:
+		shift = (float(_bob_amp + _bob_off) + _body_mid - float(_h) * 0.5) * float(_k)
+	return Rect2(r.position.x + float(_body_px.position.x), r.position.y + shift,
+		float(_body_px.size.x), r.size.y)
+
+## THE MIDDLE OF THE HULL, NOT OF ITS PICTURE: the centre of the rows that span at
+## least half the widest row, in image rows. Masts, antennae and thin fins are
+## narrow, so they fall out; the body is what is left. Measured on the Korvan set,
+## it put the line 28 px lower on the heavy and 6 px lower on the medium, which is
+## where the recorded frames said each was off.
+func _body_middle(img: Image) -> float:
+	var used := img.get_used_rect()
+	var spans := PackedInt32Array()
+	spans.resize(img.get_height())
+	var widest := 0
+	for y in range(used.position.y, used.end.y):
+		var x0 := -1
+		for x in range(used.position.x, used.end.x):
+			if img.get_pixel(x, y).a > 0.0:
+				x0 = x
+				break
+		if x0 < 0:
+			continue
+		var x1 := x0
+		for x in range(used.end.x - 1, x0, -1):
+			if img.get_pixel(x, y).a > 0.0:
+				x1 = x
+				break
+		spans[y] = x1 - x0 + 1
+		widest = maxi(widest, spans[y])
+	var top := -1
+	var bot := -1
+	for y in range(used.position.y, used.end.y):
+		if widest > 0 and spans[y] * 2 >= widest:
+			if top < 0:
+				top = y
+			bot = y + 1
+	if top < 0:
+		return float(img.get_height()) * 0.5
+	return (float(top) + float(bot)) * 0.5
+
 ## At rest, wherever that was decided.
 ##
 ## ONE END STATE, THREE CALLERS: the approach finishing, a departure beginning,
@@ -853,10 +1100,13 @@ func park() -> void:
 	_arrive_dx = 0
 	_arrive_span = 0
 	_depart_at = -1
-	_hyper = false
 	_melt = -1.0
 	_hide_fittings(false)
-	position.x = 0.0
+	position = Vector2.ZERO
+	_shake = 0.0
+	_shake_step = -1
+	_spool = 0.0
+	_lace_off()
 	_burning = false
 	_bob_amp = _arrive_bob
 
@@ -879,17 +1129,20 @@ func _flame_lit(e: float) -> bool:
 ## direction forbids outright and which would look like a bug rather than an
 ## effect.
 func _paste_hull(img: Image, dy: int, blend: bool) -> void:
-	if _melt < 0.0:
-		_paste(img, 0, dy, blend)
+	if _melt <= 0.0:
+		_paste(_spooled(img) if _spool > 0.0 else img, 0, dy, blend)
 		return
 	var w := img.get_width()
 	var h := img.get_height()
-	var cy := h / 2
+	# Onto the middle of the HULL, the row the beam is aimed at -- see hull_body.
+	# Eaten from both sides until the farther edge is gone too.
+	var cy := int(round(_body_mid)) if _body_mid >= 0.0 else h / 2
 	var e := 1.0 - pow(1.0 - _melt, 2.0)
-	var half := int(round(float(cy) * (1.0 - e)))
+	var reach := maxi(cy, h - cy)
+	var half := int(round(float(reach) * (1.0 - e)))
 	if half > 0:
 		var top := maxi(0, cy - half)
-		var rows := mini(h - top, half * 2)
+		var rows := mini(h, cy + half) - top
 		if rows > 0:
 			var r := Rect2i(0, top, w, rows)
 			var at := Vector2i(0, dy + top)
@@ -897,12 +1150,11 @@ func _paste_hull(img: Image, dy: int, blend: bool) -> void:
 				_img.blend_rect(img, r, at)
 			else:
 				_img.blit_rect(img, r, at)
-	# What it is turning into. Opaque, and thickening as the hull thins, so the
-	# two hand over rather than one fading out under the other.
-	var lh := maxi(1, int(round(1.0 + 3.0 * e)))
-	var y := dy + cy - lh / 2
-	if y >= 0 and y + lh <= _img.get_height():
-		_img.fill_rect(Rect2i(0, y, w, lh), HYPER_CORE)
+	# NO LINE OF ITS OWN HERE ANY MORE. This canvas used to paint a solid white
+	# row along the centre as the hull thinned -- which is the same line that
+	# once outlived the ship by half a second, and which stamped a flat white bar
+	# under whatever look `JumpFx.bar` gives the beam. The beam is drawn over the
+	# whole body through the snap, so it carries the handover on its own.
 
 ## Copy `img` at (dx, dy), clipping whatever falls off the left edge.
 ##
@@ -957,6 +1209,12 @@ func _blit_sprite() -> void:
 	if img.get_format() != Image.FORMAT_RGBA8:
 		img = img.duplicate() as Image
 		img.convert(Image.FORMAT_RGBA8)
+	if not _body_cache.has(src):
+		_body_cache[src] = img.get_used_rect()
+	_body_px = _body_cache[src]
+	if not _mid_cache.has(src):
+		_mid_cache[src] = _body_middle(img)
+	_body_mid = _mid_cache[src]
 	# Headroom above and below so the bob has somewhere to travel without the
 	# sprite being clipped at the extremes of its own canvas.
 	# ONE ROW OF PADDING WHEN THE PARITY IS WRONG, and this is the whole reason

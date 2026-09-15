@@ -1217,13 +1217,22 @@ class ShipSlot extends Control:
 	## the ship had outrun its own flare by most of a hull length. Two lines a
 	## frame, and only while the thing is on screen.
 	func _process(_d: float) -> void:
-		if flare.visible:
-			_aim()
-		else:
+		if not flare.visible:
 			set_process(false)
+			return
+		# ONE CLOCK. A hyperdrive's charge, snap and run live in `JumpFx` alone,
+		# and the hull is told where it is on that clock every frame rather than
+		# keeping a second one that would have to agree with it.
+		if flare.melts():
+			art.set_melt(flare.melt_amount())
+			art.set_shake(flare.shake_amount())
+			art.set_spool(flare.spool_look(), flare.spool_amount(), flare.charge_secs())
+		_aim()
 
 	func _aim() -> void:
-		var b := art.hull_rect()
+		# THE BODY, NOT THE CANVAS. The canvas carries empty columns at the stern
+		# for the exhaust art, so a box sized to it put every beam past the tail.
+		var b := art.hull_body()
 		_flare_box.position = art.position + b.position
 		_flare_box.size = b.size
 

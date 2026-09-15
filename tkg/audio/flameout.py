@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import subprocess
 import sys
 
@@ -87,6 +88,23 @@ TAIL = "## -- end of the generated table."
 ## STRAIGHT OUT OF ShipView.gd. The clock the whole pattern is measured in, and
 ## the one number the two ends still have to agree on by hand.
 ARRIVE_S = 4.5
+## How quiet the drive's lead-in starts, before it swells to the clean burn.
+LEAD_QUIET_DB = -15.0
+
+
+def arrive_lead_s() -> float:
+    """ShipView.ARRIVE_LEAD_S: the drive heard before the ship moves. Read, not copied.
+
+    Jon: "reverse warp... pause .. thruster sound ... ship enters". Every caller
+    holds the ship this long after starting the clip, so the clip opens with this
+    much drive and the gate is cut this much later -- the coughs stay on the flame.
+    """
+    src = io.open(SHIPVIEW, encoding="utf-8").read()
+    m = re.search(r"^const ARRIVE_LEAD_S := (\d+(?:\.\d+)?)\s*$", src, re.M)
+    if m is None:
+        raise SystemExit("ShipView.gd no longer declares ARRIVE_LEAD_S as a plain number -- "
+                         "the arrival clips open with it, so fix it there")
+    return float(m.group(1))
 
 ## Five ways to die. Enough that two arrivals running are unlikely to match,
 ## few enough that the set still reads as one drive behaving one way rather
@@ -327,10 +345,15 @@ def cut(src, spans, rate0=1.0, tilt_db=0.0, a_db=-34.0, drive=0.0):
     """
     fade = float(spans[0][1])
     out = float(spans[-1][1])
-    total = out * ARRIVE_S + TAIL_S
+    # THE LEAD-IN: the drive is up before the ship moves, so the approach -- and
+    # every cough cut into it -- starts `lead` into the clip. e holds at 0 through
+    # it, which the first span already covers: the engine is simply burning.
+    lead = arrive_lead_s()
+    ln = int(lead * SR)
+    total = lead + out * ARRIVE_S + TAIL_S
     n = int(total * SR)
     t = np.arange(n) / SR
-    e = np.clip(t / ARRIVE_S, 0.0, 1.0)
+    e = np.clip((t - lead) / ARRIVE_S, 0.0, 1.0)
     fall = np.clip((e - fade) / max(out - fade, 1e-6), 0.0, 1.0)
 
     # READ SLOWER AS IT DIES. The read position is the running sum of the rate,
@@ -377,7 +400,15 @@ def cut(src, spans, rate0=1.0, tilt_db=0.0, a_db=-34.0, drive=0.0):
     gate = gate * np.clip((total - t) / 0.9, 0.0, 1.0)
     y = y * gate
 
-    y *= 10.0 ** (a_db / 20.0) / max(a_weighted(y), 1e-12)
+    # And it swells in across the lead, from LEAD_QUIET_DB, as the ship closes
+    # from off screen.
+    if ln > 0:
+        u = np.linspace(0.0, 1.0, ln)
+        y[:, :ln] *= 10.0 ** (LEAD_QUIET_DB * (1.0 - u) / 20.0)
+
+    # LEVELLED ON THE APPROACH ALONE, so a quieter lead-in cannot raise the burn:
+    # the part after the lead is the clip that was already on the ladder.
+    y *= 10.0 ** (a_db / 20.0) / max(a_weighted(y[:, ln:]), 1e-12)
     # A CHECK, NOT A STAGE. If this ever fires it has quietly moved one clip
     # relative to the other fourteen, so it says so rather than doing it in
     # silence -- which is exactly how the level ladder above went wrong.
@@ -510,6 +541,12 @@ def write_gd(rows):
     if HEAD not in s or TAIL not in s:
         raise SystemExit("ShipView.gd has lost its markers; put them back "
                          "before running this")
+    # IN THE FILE'S OWN LINE ENDINGS. The table was joined with "\n" and written
+    # back untranslated, so a CRLF ShipView.gd came out with an LF island in the
+    # middle of it -- invisible to git, which normalises on commit, and visible to
+    # every tool that reads the working copy.
+    if "\r\n" in s:
+        body = body.replace("\n", "\r\n")
     start = s.index(HEAD)
     end = s.index(TAIL) + len(TAIL)
     io.open(SHIPVIEW, "w", encoding="utf-8",

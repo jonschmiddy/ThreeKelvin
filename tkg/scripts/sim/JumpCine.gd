@@ -113,15 +113,16 @@ func _demo(tree: SceneTree) -> void:
 		# that is most of what these are being compared on.
 		art.depart(sc._view.ship_flare_melts())
 		var t0 := 0.0
-		while t0 < SectorScreen.REV_S:
+		while t0 < (JumpFx.HYPER_REV if sc._view.ship_flare_melts() else SectorScreen.REV_S):
 			await tree.process_frame
 			t0 += tree.root.get_process_delta_time()
 		var fx := sc._view.ship_pulse()
+		var step := (fx.life() + 0.1) / float(DEMO_FRAMES) if fx.melts() else DEMO_STEP
 		# The hull goes at the peak, exactly as it does in play.
 		fx.peaked.connect(func() -> void: art.visible = false, CONNECT_ONE_SHOT)
 		var t := 0.0
 		for f in DEMO_FRAMES:
-			while t < float(f) * DEMO_STEP:
+			while t < float(f) * step:
 				await tree.process_frame
 				t += tree.root.get_process_delta_time()
 			await RenderingServer.frame_post_draw
@@ -142,13 +143,340 @@ func _demo(tree: SceneTree) -> void:
 	tree.quit()
 
 
+## The hyperdrive as a film, for reviewing it WITH its sound:
+##   godot --path . -- jumpcine film
+##
+## Frames of the real departure, cropped around the hull and the spark, each
+## logged with the moment it was taken, plus the offsets the two clips start
+## at. A muxer lays the clips under the frames and makes one file to watch. A
+## strip of stills is not a review of a sound, and a sound on its own is not a
+## review of whether it lands on the picture.
+const FILM_FPS := 30.0
+
+func _film(tree: SceneTree) -> void:
+	var sc := Router.current as SectorScreen
+	sc._skip()
+	for _s in 6:
+		await tree.process_frame
+	var art := sc._view.ship_view()
+	art.visible = true
+	art.park()
+	art.refresh()
+	await tree.process_frame
+	var shot0 := tree.root.get_texture().get_image()
+	var box := Rect2(art.get_global_rect().position + art.hull_rect().position,
+		art.hull_rect().size)
+	# The hull and everything thrown off its nose: the spark lands HYPER_DEST
+	# of a hull past centre and throws out to 1.15 hull-heights.
+	var reach := box.size.y * 1.2
+	var x0 := clampi(int(box.position.x) - 24, 0, shot0.get_width() - 2)
+	var x1 := clampi(int(box.position.x + box.size.x * (0.5 + JumpFx.HYPER_DEST) + reach) + 16,
+		x0 + 2, shot0.get_width())
+	var y0 := clampi(int(box.get_center().y - reach) - 8, 0, shot0.get_height() - 2)
+	var y1 := clampi(int(box.get_center().y + reach) + 8, y0 + 2, shot0.get_height())
+	# EVEN, because H.264 will not take an odd dimension.
+	var crop := Rect2i(x0, y0, (x1 - x0) / 2 * 2, (y1 - y0) / 2 * 2)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://film"))
+
+	var log := PackedStringArray()
+	var hyper := sc._view.ship_flare_melts()
+	var rev := JumpFx.HYPER_REV if hyper else SectorScreen.REV_S
+	var total := rev + (JumpFx.LONG_LIFE if hyper else JumpFx.LIFE) + 0.35
+	var dclip := art.depart(hyper)
+	# The film plays what the game plays, which for a hyperdrive is no roar.
+	log.append("depart 0.0000 %s" % ("-" if hyper else String(dclip)))
+	var pulsed := false
+	var t := 0.0
+	var f := 0
+	while t < total:
+		if not pulsed and t >= rev:
+			pulsed = true
+			var fx := sc._view.ship_pulse()
+			fx.peaked.connect(func() -> void: art.visible = false, CONNECT_ONE_SHOT)
+			log.append("pulse %.4f %s" % [t, "hyperjump" if fx.melts() else "-"])
+		await RenderingServer.frame_post_draw
+		if t >= float(f) / FILM_FPS:
+			tree.root.get_texture().get_image().get_region(crop).save_png(
+				"user://film/f_%03d.png" % f)
+			log.append("frame %d %.4f" % [f, t])
+			f += 1
+		await tree.process_frame
+		t += tree.root.get_process_delta_time()
+	log.append("crop %d %d %d %d" % [crop.position.x, crop.position.y,
+		crop.size.x, crop.size.y])
+	var fa := FileAccess.open("user://film/log.txt", FileAccess.WRITE)
+	fa.store_string(String.chr(10).join(log))
+	fa.close()
+	print("  film: %d frames over %.2f s, crop %s -> %s"
+		% [f, t, crop, ProjectSettings.globalize_path("user://film")])
+	tree.quit()
+
+
+## Every ending, as a strip, straight out of the game:
+##   godot --path . -- jumpcine endings
+##
+## Only the part that differs is photographed. Each run SEEKS the flare to the
+## middle of the snap rather than sitting through the charge twenty times, so a
+## strip is the hull going, the beam running, and the ending.
+const END_FRAMES := 32
+const END_STEP := 0.030
+
+func _endings(tree: SceneTree) -> void:
+	var sc := Router.current as SectorScreen
+	sc._skip()
+	for _s in 6:
+		await tree.process_frame
+	var keep_style := JumpFx.style
+	var keep_end := JumpFx.ending
+	JumpFx.style = JumpFx.STYLES.find(&"hyperdrive")
+	var art := sc._view.ship_view()
+	art.visible = true
+	art.park()
+	art.refresh()
+	await tree.process_frame
+	var shot0 := tree.root.get_texture().get_image()
+	var body := art.hull_body()
+	var gx := art.get_global_rect().position.x + body.position.x
+	var gy := art.get_global_rect().position.y + body.position.y + body.size.y * 0.5
+	var x0 := clampi(int(gx) - 12, 0, shot0.get_width() - 2)
+	var x1 := clampi(int(gx + body.size.x * (0.5 + JumpFx.HYPER_DEST)) + 96, x0 + 2, shot0.get_width())
+	var y0 := clampi(int(gy) - 64, 0, shot0.get_height() - 130)
+	var crop := Rect2i(x0, y0, (x1 - x0) / 2 * 2, 128)
+	print("  endings crop %s, %d frames at %.0f ms" % [crop, END_FRAMES, END_STEP * 1000.0])
+	for i in JumpFx.ENDINGS.size():
+		JumpFx.ending = i
+		art.visible = true
+		art.park()
+		art.refresh()
+		await tree.process_frame
+		art.depart(true)
+		var fx := sc._view.ship_pulse()
+		fx.seek(JumpFx.CHARGE_S + JumpFx.SNAP_S * 0.5)
+		var strip: Image = null
+		var t := 0.0
+		for f in END_FRAMES:
+			while t < float(f) * END_STEP:
+				await tree.process_frame
+				t += tree.root.get_process_delta_time()
+			await RenderingServer.frame_post_draw
+			var shot := tree.root.get_texture().get_image()
+			if strip == null:
+				strip = Image.create(crop.size.x * END_FRAMES, crop.size.y, false, shot.get_format())
+			strip.blit_rect(shot, crop, Vector2i(f * crop.size.x, 0))
+		var out := "user://ending_%02d_%s.png" % [i, JumpFx.ENDINGS[i]]
+		strip.save_png(out)
+		print("  %2d  %-10s -> %s" % [i, JumpFx.ENDINGS[i], ProjectSettings.globalize_path(out)])
+		while fx.visible:
+			await tree.process_frame
+	JumpFx.style = keep_style
+	JumpFx.ending = keep_end
+	tree.quit()
+
+
+## Every bar look, as a strip, straight out of the game:
+##   godot --path . -- jumpcine bars
+##
+## From partway into the charge -- seeked there, so the whole charge is not sat
+## through twelve times -- to the end of the run, which is everywhere the bar is
+## on screen: growing on the hull, full at the snap, and running off.
+const BAR_FRAMES := 44
+const BAR_STEP := 0.040
+
+func _bars(tree: SceneTree) -> void:
+	var sc := Router.current as SectorScreen
+	sc._skip()
+	for _s in 6:
+		await tree.process_frame
+	var keep_style := JumpFx.style
+	var keep_bar := JumpFx.bar
+	JumpFx.style = JumpFx.STYLES.find(&"hyperdrive")
+	var art := sc._view.ship_view()
+	art.visible = true
+	art.park()
+	art.refresh()
+	await tree.process_frame
+	var shot0 := tree.root.get_texture().get_image()
+	var body := art.hull_body()
+	var gx := art.get_global_rect().position.x + body.position.x
+	var gy := art.get_global_rect().position.y + body.position.y + body.size.y * 0.5
+	var x0 := clampi(int(gx) - 10, 0, shot0.get_width() - 2)
+	var x1 := clampi(int(gx + body.size.x * (0.5 + JumpFx.HYPER_DEST)) + 20, x0 + 2, shot0.get_width())
+	var y0 := clampi(int(gy) - 64, 0, shot0.get_height() - 130)
+	var crop := Rect2i(x0, y0, (x1 - x0) / 2 * 2, 128)
+	print("  bars crop %s, %d frames at %.0f ms" % [crop, BAR_FRAMES, BAR_STEP * 1000.0])
+	for i in JumpFx.BARS.size():
+		JumpFx.bar = i
+		art.visible = true
+		art.park()
+		art.refresh()
+		await tree.process_frame
+		art.depart(true)
+		var fx := sc._view.ship_pulse()
+		fx.seek(JumpFx.CHARGE_S * 0.55)
+		var strip: Image = null
+		var t := 0.0
+		for f in BAR_FRAMES:
+			while t < float(f) * BAR_STEP:
+				await tree.process_frame
+				t += tree.root.get_process_delta_time()
+			await RenderingServer.frame_post_draw
+			var shot := tree.root.get_texture().get_image()
+			if strip == null:
+				strip = Image.create(crop.size.x * BAR_FRAMES, crop.size.y, false, shot.get_format())
+			strip.blit_rect(shot, crop, Vector2i(f * crop.size.x, 0))
+		var out := "user://bar_%02d_%s.png" % [i, JumpFx.BARS[i]]
+		strip.save_png(out)
+		print("  %2d  %-10s -> %s" % [i, JumpFx.BARS[i], ProjectSettings.globalize_path(out)])
+		while fx.visible:
+			await tree.process_frame
+	JumpFx.style = keep_style
+	JumpFx.bar = keep_bar
+	tree.quit()
+
+
+## EVERY SPOOL LOOK, as a strip of frames: the hull through the whole charge.
+##   godot --path . -- jumpcine spools
+##
+## The same harness as `bars`, started at the top of the charge instead of partway
+## in, since the looks are what the hull does as the spool STARTS. Forty frames
+## across CHARGE_S, cropped to the hull and nothing past it.
+const SPOOL_FRAMES := 40
+const SPOOL_STEP := 0.095
+
+## `rows`, when given, films only `interlace`, once at each of those strengths:
+##   godot --path . -- jumpcine interlace
+func _spools(tree: SceneTree, rows: Array = []) -> void:
+	var sc := Router.current as SectorScreen
+	sc._skip()
+	for _s in 6:
+		await tree.process_frame
+	var keep_style := JumpFx.style
+	var keep_spool := JumpFx.spool
+	var keep_rows := JumpFx.interlace_rows
+	JumpFx.style = JumpFx.STYLES.find(&"hyperdrive")
+	var art := sc._view.ship_view()
+	art.visible = true
+	art.park()
+	art.refresh()
+	await tree.process_frame
+	var shot0 := tree.root.get_texture().get_image()
+	var body := art.hull_body()
+	var gx := art.get_global_rect().position.x + body.position.x
+	var gy := art.get_global_rect().position.y + body.position.y + body.size.y * 0.5
+	var x0 := clampi(int(gx) - 16, 0, shot0.get_width() - 2)
+	var x1 := clampi(int(gx + body.size.x) + 16, x0 + 2, shot0.get_width())
+	var y0 := clampi(int(gy) - 56, 0, shot0.get_height() - 114)
+	var crop := Rect2i(x0, y0, (x1 - x0) / 2 * 2, 112)
+	print("  spools crop %s, %d frames at %.0f ms" % [crop, SPOOL_FRAMES, SPOOL_STEP * 1000.0])
+	var runs: Array = []
+	if rows.is_empty():
+		for i in JumpFx.SPOOLS.size():
+			runs.append([i, 1.0, "user://spool_%02d_%s.png" % [i, JumpFx.SPOOLS[i]]])
+	else:
+		var lace := JumpFx.SPOOLS.find(&"interlace")
+		for r in rows:
+			runs.append([lace, float(r), "user://interlace_%d.png" % int(round(float(r) * 100.0))])
+	for run: Array in runs:
+		JumpFx.spool = run[0]
+		JumpFx.interlace_rows = run[1]
+		art.visible = true
+		art.park()
+		art.refresh()
+		await tree.process_frame
+		art.depart(true)
+		var fx := sc._view.ship_pulse()
+		var strip: Image = null
+		var t := 0.0
+		var slow := 0
+		for f in SPOOL_FRAMES:
+			while t < float(f) * SPOOL_STEP:
+				await tree.process_frame
+				var dt := tree.root.get_process_delta_time()
+				if dt > 1.0 / 30.0:
+					slow += 1
+				t += dt
+			await RenderingServer.frame_post_draw
+			var shot := tree.root.get_texture().get_image()
+			if strip == null:
+				strip = Image.create(crop.size.x * SPOOL_FRAMES, crop.size.y, false, shot.get_format())
+			strip.blit_rect(shot, crop, Vector2i(f * crop.size.x, 0))
+		var out: String = run[2]
+		strip.save_png(out)
+		print("  %-10s rows %.2f -> %s  (%d frames slower than 30 fps)"
+			% [JumpFx.SPOOLS[run[0]], run[1], ProjectSettings.globalize_path(out), slow])
+		while fx.visible:
+			await tree.process_frame
+	JumpFx.style = keep_style
+	JumpFx.spool = keep_spool
+	JumpFx.interlace_rows = keep_rows
+	tree.quit()
+
+
+## THE WHOLE JUMP, as a film with its sound:
+##   godot --path . -- jumpcine whole
+##
+## Everything between pressing JUMP and the drawer settling, through the real
+## Router path -- `begin_jump`, the departure, the commit, the swap, the name
+## card, the approach, the drawer -- captured full-frame. Every effect that
+## actually plays is taped by `Audio` with the moment it played, so the muxer
+## lays the real sounds under the frames: which arrival clip was drawn, whether
+## the screen-change tick fired, none of it assumed.
+const WHOLE_FPS := 30.0
+const WHOLE_TAIL := 1.2
+
+func _whole(tree: SceneTree, to: int) -> void:
+	var sc := Router.current as SectorScreen
+	sc._skip()
+	for _s in 20:
+		await tree.process_frame
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://whole"))
+	var total := (SectorScreen.DEPART_LEAD + JumpFx.HYPER_REV
+		+ JumpFx.LONG_LIFE * JumpFx.LONG_PEAK + SectorScreen.CARD_TOTAL
+		+ ShipView.ARRIVE_MS / 1000.0 + WHOLE_TAIL)
+	var log := PackedStringArray()
+	log.append("route %s -> %s" % [MapGen.star_name(Run.node_at()), MapGen.star_name(Run.map[to])])
+	Audio.tape.clear()
+	Audio.taping = true
+	var t0 := Time.get_ticks_msec()
+	Router.begin_jump(to)
+	var f := 0
+	var t := 0.0
+	while t < total:
+		await RenderingServer.frame_post_draw
+		t = float(Time.get_ticks_msec() - t0) / 1000.0
+		if t >= float(f) / WHOLE_FPS:
+			tree.root.get_texture().get_image().save_png("user://whole/f_%04d.png" % f)
+			log.append("frame %d %.4f" % [f, t])
+			f += 1
+		await tree.process_frame
+	Audio.taping = false
+	for e in Audio.tape:
+		log.append("sfx %s %.4f %.2f %.4f" % [e[0], float(int(e[1]) - t0) / 1000.0,
+			float(e[2]), float(e[3])])
+	var fa := FileAccess.open("user://whole/log.txt", FileAccess.WRITE)
+	fa.store_string(String.chr(10).join(log))
+	fa.close()
+	print("  whole: %d frames over %.2f s, %d sounds -> %s"
+		% [f, t, Audio.tape.size(), ProjectSettings.globalize_path("user://whole")])
+	tree.quit()
+
+
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	Rng.forced = 4242
 	for a in OS.get_cmdline_user_args():
 		if (a as String).begins_with("seed="):
 			Rng.forced = int((a as String).substr(5))
-	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# weight=heavy or weight=light to photograph another hull; medium by default.
+	# The warp line sat above the middle of a heavy, which a medium-only harness
+	# could never show.
+	var weight := int(HullData.Weight.MEDIUM)
+	for a in OS.get_cmdline_user_args():
+		if a == "weight=heavy":
+			weight = int(HullData.Weight.HEAVY)
+		elif a == "weight=light":
+			weight = int(HullData.Weight.LIGHT)
+	Run.start_new_run(&"korvan", weight)
 
 	# Somewhere to go. The first node that is a plain SYSTEM and in range, so
 	# the drawer photographed is the full one rather than a bookend's.
@@ -168,6 +496,24 @@ func run(tree: SceneTree) -> void:
 		await tree.process_frame
 	if "demo" in OS.get_cmdline_user_args():
 		await _demo(tree)
+		return
+	if "film" in OS.get_cmdline_user_args():
+		await _film(tree)
+		return
+	if "endings" in OS.get_cmdline_user_args():
+		await _endings(tree)
+		return
+	if "bars" in OS.get_cmdline_user_args():
+		await _bars(tree)
+		return
+	if "interlace" in OS.get_cmdline_user_args():
+		await _spools(tree, [1.0, 0.35, 0.20, 0.10])
+		return
+	if "spools" in OS.get_cmdline_user_args():
+		await _spools(tree)
+		return
+	if "whole" in OS.get_cmdline_user_args():
+		await _whole(tree, to)
 		return
 	print("jumpcine: %s -> %s"
 		% [MapGen.star_name(Run.node_at()), MapGen.star_name(Run.map[to])])

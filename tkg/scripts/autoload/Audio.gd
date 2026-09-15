@@ -273,6 +273,13 @@ var _sfx: Array[AudioStreamPlayer] = []
 var _sfx_next: int = 0
 var _cache: Dictionary = {}
 var _variants: Dictionary = {}  ## name -> [name, name_2, ...] round robins
+## FOR THE HARNESSES. While `taping` is on, every effect that actually plays --
+## after rate limits and suppression have had their say, so nothing that was
+## dropped -- is appended as [name, msec, db, pitch]. A film can then lay the
+## sounds the game really made under its frames, rather than the ones the
+## harness expected it to make. Off in play; nothing reads it but a harness.
+var taping: bool = false
+var tape: Array = []
 var _last: Dictionary = {}          ## sfx name -> msec, for rate limiting
 var _enabled: bool = true
 var _last_credits: int = -1
@@ -761,6 +768,13 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	if not _enabled:
 		return
 	var now := Time.get_ticks_msec()
+	# SUPPRESSION IS NOT A RATE LIMIT, and it was only ever read as one. `suppress`
+	# writes a moment in the future into `_last`, and that was checked solely when
+	# the caller passed a limit -- so `Sig.jumped`, which plays `jump` with none,
+	# went straight through, and the convoy crack played on every jump it had been
+	# silenced for. The sound tape in `jumpcine whole` is what caught it.
+	if int(_last.get(name, 0)) > now:
+		return
 	if limit_ms > 0 and now - int(_last.get(name, -limit_ms)) < limit_ms:
 		return
 	_last[name] = now
@@ -792,6 +806,8 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	p.stream = stream
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
 	p.volume_db = db
+	if taping:
+		tape.append([pick, Time.get_ticks_msec(), db, p.pitch_scale])
 	p.play()
 
 ## Hold a name's tongue for a moment. The resource watcher plays loot_drop

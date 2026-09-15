@@ -347,7 +347,9 @@ func setup(c: Combat = null) -> void:
 			# No pitch variance either, for the same reason: a pitch shift is a
 			# time shift, and it would slide them apart. The three weights are
 			# pitch-shifted, but in the render, before the flame was cut in.
-			Audio.play(art.arrive(), 0.0)
+			# The ship waits out the drive's lead-in here too, or the clip's coughs
+			# would land ARRIVE_LEAD_S after the flame's.
+			Audio.play(art.arrive(2, ShipView.ARRIVE_LEAD_S), 0.0)
 
 func fighting() -> bool:
 	return combat != null and combat.enemy != null
@@ -368,6 +370,17 @@ const CARD_IN := 0.50
 const CARD_HOLD := 1.80
 const CARD_OUT := 0.60
 const CARD_TOTAL := CARD_IN + CARD_HOLD + CARD_OUT
+## The jump's warp in reverse, ending on the frame the drive starts and the ship
+## comes in, so leaving and arriving are one event heard both ways. Jon: "let's
+## have the warp sound in reverse when the transition to the new sector happens.
+## right before the thruster sound cuts on". `audio/hyperjump.py` reads this and
+## cuts the clip to exactly this long, so its end is the drive's start. It is the
+## whole length of the warp, doppler over basswarp: 1.48 s.
+const WARP_IN_S := 1.48
+## And a breath between it and the ship: the warp ends this long before the drive
+## starts. Jon: "little more delay between the warp and the ship coming into
+## frame", then "i like the .5!!!".
+const ARRIVAL_GAP_S := 0.50
 ## When the boards light up, as a fraction of the approach.
 ##
 ## A SECOND BEFORE THE SHIP STOPS, which is not the same as the beats bleeding
@@ -405,8 +418,13 @@ func _begin_depart() -> void:
 	# The style decides whether the hull is dismantled or merely hidden, so the
 	# view is told before it starts rather than being corrected mid-run.
 	var hyper := _view.ship_flare_melts()
-	_cine.tween_callback(func() -> void: Audio.play(art.depart(hyper), 0.0))
-	_cine.tween_interval(REV_S)
+	_cine.tween_callback(func() -> void:
+		var clip := art.depart(hyper)
+		# And no thruster roar with no thruster lit. The charge's own whine is the
+		# drive for a hyperdrive; the roar belongs to departures that burn.
+		if not hyper:
+			Audio.play(clip, 0.0))
+	_cine.tween_interval(JumpFx.HYPER_REV if hyper else REV_S)
 	_cine.tween_callback(_pulse_out)
 
 func _pulse_out() -> void:
@@ -414,6 +432,13 @@ func _pulse_out() -> void:
 	if f == null:
 		_commit(false)
 		return
+	# THE SOUND STARTS WITH THE CHARGE, on the frame the flare does, because it
+	# was placed on the flare's own clock: `audio/hyperjump.py` reads JumpFx's
+	# timings, so the build tops out as the hull goes and the warp starts as the
+	# dot leaves. No pitch variance, for the reason the arrival drive has none --
+	# a pitch shift is a time shift.
+	if f.melts():
+		Audio.play(&"hyperjump", 0.0)
 	# THE PEAK, NOT THE END. The flash is at its widest here and JumpFlare was
 	# built so the hull changes hands behind the brightest frame — which is
 	# exactly the screen swap that needs hiding. It also lands the `jump` sfx
@@ -441,6 +466,9 @@ func _commit(skipped: bool) -> void:
 	# event, and the drive spooling up has already said the ship is leaving.
 	# Suppressed rather than unwired, because the convoy still wants it.
 	Audio.suppress(&"jump", 600)
+	# And not the tab click either. The commit swaps the screen, the swap fires
+	# screen_changed, and that plays a UI tick in the middle of a cinematic.
+	Audio.suppress(&"ui_tab", 600)
 	Router.commit_jump(to, skipped)
 
 ## The system announcing itself, then the ship arriving into it.
@@ -456,7 +484,9 @@ func _begin_arrive() -> void:
 	# span and puts the hull at -span on its FIRST tick, and only then honours
 	# the delay — "held off screen rather than parked at rest". Calling arrive()
 	# later instead would leave the ship sitting at its mooring through the card.
-	var clip := art.arrive(2, CARD_TOTAL)
+	# And the drive's lead-in on top: the ship moves ARRIVE_LEAD_S after its sound
+	# starts. See ShipView.ARRIVE_LEAD_S.
+	var clip := art.arrive(2, CARD_TOTAL + ShipView.ARRIVE_LEAD_S)
 	_card = _build_name_card(Run.node_at())
 	add_child(_card)
 
@@ -467,14 +497,26 @@ func _begin_arrive() -> void:
 	# by `parallel().tween_property(out)` ran the fade during the hold -- the
 	# card was gone in 0.8 s of a beat that was supposed to last 1.4. Chained,
 	# it is read for as long as it says it is.
-	_cine.tween_interval(CARD_HOLD)
+	# The reversed warp has to END ARRIVAL_GAP_S before the drive starts, so it
+	# starts inside the hold. The hold is split around it rather than a timer left
+	# running, so a skip that kills this tween silences it too.
+	var warp_lead := clampf(WARP_IN_S + ARRIVAL_GAP_S - CARD_OUT, 0.0, CARD_HOLD)
+	_cine.tween_interval(CARD_HOLD - warp_lead)
+	# NOT IN THE FIRST SECTOR. The run starts there, so nothing warped in to be
+	# heard arriving. Jon: "No reverse warp sound in first sector." The hold is
+	# split the same way either way, so the card keeps its timing.
+	_cine.tween_callback(func() -> void:
+		if Run.jumps > 0:
+			Audio.play(&"hyperjump_in", 0.0))
+	_cine.tween_interval(warp_lead)
 	_cine.tween_property(_card, "modulate:a", 0.0, CARD_OUT)
 	_cine.tween_callback(func() -> void:
-		# The drive starts with the SHIP, not with the call. arrive() handed the
-		# clip back immediately but its delay is real time.
+		# The drive starts ARRIVE_LEAD_S before the SHIP, not with the call: arrive()
+		# was given the card and the lead as its delay, and the clip opens with the
+		# lead, so the flame's coughs still land on the sound's.
 		Audio.play(clip, 0.0)
 		_drop_card())
-	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
+	_cine.tween_interval(ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
 	_cine.tween_callback(func() -> void: _open_drawer(false))
 	_cine.tween_interval(ShipView.ARRIVE_MS / 1000.0 * (1.0 - DRAWER_AT))
 	_cine.tween_callback(func() -> void: _phase = Phase.NONE)
