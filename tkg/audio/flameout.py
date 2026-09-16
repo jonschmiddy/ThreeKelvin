@@ -1,4 +1,4 @@
-"""The drive, and the five ways it gives out on arrival.
+"""The drive, and the eight ways it gives out on arrival.
 
     py -3.14 flameout.py
 
@@ -30,11 +30,11 @@ held its level. Ask for the loop, not for the steadiness.
 
 `audio/samples/` is gitignored -- the same rule the CC0 instrument libraries
 follow, and for the same reason: source audio is a build input, the rendered
-result is what ships. So a fresh checkout has the five clips in assets/ and can
+result is what ships. So a fresh checkout has the rendered clips in assets/ and can
 play them; only RE-rendering needs the source put back.
 
 ------------------------------------------------------------------------------
-WHY THE FIVE PATTERNS EXIST, which is the older half of this file.
+WHY THE PATTERNS EXIST AT ALL, which is the older half of this file.
 
 The engines guttering out on arrival was one fixed pattern: burn clean to 42% of
 the approach, blink six times on a falling duty cycle, coast the rest dark. Good
@@ -47,7 +47,7 @@ see. Randomising either end alone slides them apart, and a flame lighting 40 ms
 after its own sound reads as broken rather than as varied -- worse than the
 metronome it was meant to fix.
 
-So neither end improvises. This file generates five patterns, writes them into
+So neither end improvises. This file generates eight patterns, writes them into
 ShipView.gd as a table, and cuts one clip per row from that same table. The
 flame reads row i; the clip for row i was made from row i. They cannot drift,
 because there is nothing for them to drift from.
@@ -62,10 +62,10 @@ window is the clean burn. That makes the rule at both ends "lit if e falls
 inside a span", with no special case for the head and none for the tail.
 
 WHAT STAYS FIXED. Every pattern burns clean for roughly the first two seconds,
-coughs with shrinking flashes at growing intervals, and leaves a second and a
-half of dark unpowered drift at the end, which is the part of the approach worth
-having. What varies is when the burn gives out, how many coughs it takes to die,
-and where they fall.
+coughs its way out, and leaves a second and a half of dark unpowered drift at the
+end, which is the part of the approach worth having. Everything else varies: when
+the burn gives out, how many coughs it takes to die, where they fall, and whether
+the drive catches on the way down and buys itself one more flash.
 """
 from __future__ import annotations
 
@@ -111,24 +111,36 @@ def arrive_lead_s() -> float:
                          "the arrival clips open with it, so fix it there")
     return float(m.group(1))
 
-## Five ways to die. Enough that two arrivals running are unlikely to match,
-## few enough that the set still reads as one drive behaving one way rather
-## than as five different engines.
-NAMES = ("a", "b", "c", "d", "e")
+## Eight ways to die. It was five, and Jon asked for the flameout to be "kinda
+## chaotic as it's flaming out and different each time" -- five patterns means one
+## arrival in five repeats the last one. Eight is still few enough that the set
+## reads as one drive behaving one way rather than as eight different engines, and
+## each one is rougher than the old five were; see `one`.
+NAMES = ("a", "b", "c", "d", "e", "f", "g", "h")
 
 ## Where the clean burn can give out, and where the last cough can land. Both
 ## brackets sit around the numbers the fixed version used (0.42 and 0.66), so
 ## the average arrival is the one that was already approved.
-FADE = (0.385, 0.470)
-OUT = (0.580, 0.715)
+FADE = (0.345, 0.500)
+OUT = (0.560, 0.760)
 ## The first cough and the first gap after it, in progress. 0.036 of a 4.5 s
 ## approach is 162 ms -- long enough to read as the engine still trying.
-ON_0 = (0.030, 0.042)
-GAP_0 = (0.008, 0.016)
+ON_0 = (0.024, 0.050)
+GAP_0 = (0.006, 0.020)
 ## And how they run down. Flashes shrink, gaps grow; that asymmetry is what
 ## starving sounds like, and reversing either one sounds like starting up.
-ON_DECAY = (0.68, 0.86)
-GAP_GROW = (1.05, 1.35)
+ON_DECAY = (0.62, 0.92)
+GAP_GROW = (1.02, 1.45)
+## AND NEITHER IS A RAMP. On top of the decay every flash and every gap takes its
+## own draw, so the run-down is ragged rather than a curve with numbers on it.
+ON_JITTER = (0.70, 1.35)
+GAP_JITTER = (0.65, 1.50)
+## How often the drive CATCHES instead: a flash longer than the one before it and
+## a longer dark after it, which is what an engine trying to restart sounds like.
+## Rare enough to be an event; at a quarter, most patterns get one or two.
+RELIGHT_P = 0.22
+RELIGHT_ON = (1.40, 2.60)
+RELIGHT_GAP = (1.40, 2.20)
 ## A flash shorter than this is under two frames on screen: a flicker rather
 ## than the engine catching. Below it the drive is simply out.
 MIN_ON = 0.006
@@ -188,9 +200,9 @@ MIN_COUGHS = 4
 ## 0.2 to 2.1 dB. The rule here is that the ceiling is a check and the fix is the
 ## level, so the level moved. Lowering medium alone would have bent the ladder.
 WEIGHTS = (
-    ("light", 1.300, -3.0, -34.8, 0.0),
-    ("medium", 1.000, 0.0, -32.2, 0.0),
-    ("heavy", 0.850, +4.0, -29.6, 2.5),
+    ("light", 1.300, -3.0, -35.1, 0.0),
+    ("medium", 1.000, 0.0, -32.5, 0.0),
+    ("heavy", 0.850, +4.0, -29.9, 2.5),
 )
 ## Where the tilt pivots. Below it is the engine's body, above it the flames.
 TILT_HZ = 180.0
@@ -294,8 +306,14 @@ def one(rs):
     while at + on <= ceiling and on >= MIN_ON:
         spans.append((at, at + on))
         at += on + gap
-        on *= _u(rs, ON_DECAY)
-        gap *= _u(rs, GAP_GROW)
+        if float(rs.rand()) < RELIGHT_P:
+            # The drive catches: this flash outlives the last one, and pays for it
+            # with a longer dark.
+            on *= _u(rs, RELIGHT_ON)
+            gap *= _u(rs, RELIGHT_GAP)
+        else:
+            on *= _u(rs, ON_DECAY) * _u(rs, ON_JITTER)
+            gap *= _u(rs, GAP_GROW) * _u(rs, GAP_JITTER)
     if len(spans) - 1 < MIN_COUGHS:
         return None
     return [(round(a, 4), round(b, 4)) for a, b in spans]
@@ -305,7 +323,7 @@ def build():
     """Five patterns, each from its own seed, rejecting the feeble ones.
 
     Seeded rather than random so that re-running this does not quietly hand the
-    game five different sounds -- the table in ShipView and the clips in sfx/
+    game a different set of sounds -- the table in ShipView and the clips in sfx/
     are checked in together and have to keep matching across a rebuild.
     """
     rows = []

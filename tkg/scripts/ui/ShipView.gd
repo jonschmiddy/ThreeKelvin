@@ -117,11 +117,14 @@ const ARRIVE_LEAD_S := 0.80
 ## re-running flameout.py slides the picture off the sound, which
 ## is the one thing this must never do.
 const FLAMEOUTS := [
-	[Vector2(0.0000, 0.4218), Vector2(0.4218, 0.4584), Vector2(0.4676, 0.4944), Vector2(0.5058, 0.5254), Vector2(0.5375, 0.5517), Vector2(0.5652, 0.5765), Vector2(0.5936, 0.6021)],
-	[Vector2(0.0000, 0.4014), Vector2(0.4014, 0.4379), Vector2(0.4466, 0.4778), Vector2(0.4886, 0.5150), Vector2(0.5280, 0.5496), Vector2(0.5651, 0.5821), Vector2(0.6024, 0.6160)],
-	[Vector2(0.0000, 0.4044), Vector2(0.4044, 0.4459), Vector2(0.4544, 0.4890), Vector2(0.5002, 0.5251), Vector2(0.5370, 0.5565), Vector2(0.5723, 0.5865), Vector2(0.6064, 0.6180), Vector2(0.6436, 0.6530)],
-	[Vector2(0.0000, 0.4343), Vector2(0.4343, 0.4646), Vector2(0.4786, 0.5028), Vector2(0.5188, 0.5361), Vector2(0.5557, 0.5695)],
-	[Vector2(0.0000, 0.3936), Vector2(0.3936, 0.4300), Vector2(0.4406, 0.4677), Vector2(0.4791, 0.4992), Vector2(0.5142, 0.5302), Vector2(0.5479, 0.5609), Vector2(0.5836, 0.5942), Vector2(0.6219, 0.6295), Vector2(0.6614, 0.6677)],
+	[Vector2(0.0000, 0.4121), Vector2(0.4121, 0.4503), Vector2(0.4584, 0.4853), Vector2(0.4926, 0.5504), Vector2(0.5649, 0.5989)],
+	[Vector2(0.0000, 0.3749), Vector2(0.3749, 0.4130), Vector2(0.4203, 0.4608), Vector2(0.4725, 0.5134), Vector2(0.5262, 0.5601), Vector2(0.5747, 0.5966), Vector2(0.6189, 0.6438)],
+	[Vector2(0.0000, 0.3805), Vector2(0.3805, 0.4293), Vector2(0.4361, 0.4732), Vector2(0.4811, 0.5110), Vector2(0.5250, 0.5447), Vector2(0.5573, 0.5722), Vector2(0.5842, 0.6014), Vector2(0.6247, 0.6339), Vector2(0.6694, 0.6760)],
+	[Vector2(0.0000, 0.4349), Vector2(0.4349, 0.4595), Vector2(0.4761, 0.4906), Vector2(0.5161, 0.5281), Vector2(0.5572, 0.5676)],
+	[Vector2(0.0000, 0.3608), Vector2(0.3608, 0.3986), Vector2(0.4092, 0.4316), Vector2(0.4495, 0.4721), Vector2(0.4993, 0.5404), Vector2(0.5953, 0.6569)],
+	[Vector2(0.0000, 0.3650), Vector2(0.3650, 0.3998), Vector2(0.4143, 0.4805), Vector2(0.5022, 0.5473), Vector2(0.5772, 0.6044)],
+	[Vector2(0.0000, 0.3952), Vector2(0.3952, 0.4194), Vector2(0.4374, 0.4522), Vector2(0.4693, 0.4996), Vector2(0.5339, 0.5573)],
+	[Vector2(0.0000, 0.4628), Vector2(0.4628, 0.5016), Vector2(0.5157, 0.5506), Vector2(0.5727, 0.5991), Vector2(0.6274, 0.6423)],
 ]
 ## The clips cut from those rows: one ROW of this per hull
 ## weight, indexed by HullData.Weight, and one COLUMN per
@@ -133,9 +136,9 @@ const FLAMEOUTS := [
 ## random, which is exactly the desynchronisation this table
 ## exists to prevent.
 const FLAMEOUT_SFX := [
-	[&"thruster_arrive_light_a", &"thruster_arrive_light_b", &"thruster_arrive_light_c", &"thruster_arrive_light_d", &"thruster_arrive_light_e"],  ## LIGHT
-	[&"thruster_arrive_medium_a", &"thruster_arrive_medium_b", &"thruster_arrive_medium_c", &"thruster_arrive_medium_d", &"thruster_arrive_medium_e"],  ## MEDIUM
-	[&"thruster_arrive_heavy_a", &"thruster_arrive_heavy_b", &"thruster_arrive_heavy_c", &"thruster_arrive_heavy_d", &"thruster_arrive_heavy_e"],  ## HEAVY
+	[&"thruster_arrive_light_a", &"thruster_arrive_light_b", &"thruster_arrive_light_c", &"thruster_arrive_light_d", &"thruster_arrive_light_e", &"thruster_arrive_light_f", &"thruster_arrive_light_g", &"thruster_arrive_light_h"],  ## LIGHT
+	[&"thruster_arrive_medium_a", &"thruster_arrive_medium_b", &"thruster_arrive_medium_c", &"thruster_arrive_medium_d", &"thruster_arrive_medium_e", &"thruster_arrive_medium_f", &"thruster_arrive_medium_g", &"thruster_arrive_medium_h"],  ## MEDIUM
+	[&"thruster_arrive_heavy_a", &"thruster_arrive_heavy_b", &"thruster_arrive_heavy_c", &"thruster_arrive_heavy_d", &"thruster_arrive_heavy_e", &"thruster_arrive_heavy_f", &"thruster_arrive_heavy_g", &"thruster_arrive_heavy_h"],  ## HEAVY
 ]
 ## And the drive coming UP, one per weight. No pattern here:
 ## nothing is gated, so there is nothing to stay in step with.
