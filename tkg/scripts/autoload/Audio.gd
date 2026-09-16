@@ -271,6 +271,11 @@ var _cue: StringName = &""
 var _intensity: int = 0
 var _sfx: Array[AudioStreamPlayer] = []
 var _sfx_next: int = 0
+## One per voice, or null. A hush fades a voice out over a moment rather than
+## stopping it dead, so the fade has to be KILLABLE: the round robin will come
+## back to that voice long before a run is over, and a tween still dragging its
+## volume down would take the next sound with it. See `hush` and `play`.
+var _fade: Array[Tween] = []
 var _cache: Dictionary = {}
 var _variants: Dictionary = {}  ## name -> [name, name_2, ...] round robins
 ## FOR THE HARNESSES. While `taping` is on, every effect that actually plays --
@@ -319,6 +324,7 @@ func _ready() -> void:
 		p.bus = &"SFX"
 		add_child(p)
 		_sfx.append(p)
+		_fade.append(null)
 	_connect_signals()
 
 
@@ -802,10 +808,21 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	# Round-robin the pool. Fourteen voices is more than the game ever asks
 	# for at once; stealing the oldest is the right failure if it ever does.
 	var p := _sfx[_sfx_next]
+	# WHATEVER THIS VOICE WAS DOING, IT IS NOT DOING IT NOW. A hush left a tween
+	# pulling this player's volume toward silence; reusing it without killing
+	# that would start the new sound and fade it out underneath itself.
+	if _fade[_sfx_next] != null and _fade[_sfx_next].is_valid():
+		_fade[_sfx_next].kill()
+	_fade[_sfx_next] = null
 	_sfx_next = (_sfx_next + 1) % _sfx.size()
 	p.stream = stream
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
 	p.volume_db = db
+	# WHAT THIS VOICE IS CARRYING, so `hush` can find it again. The pick, not the
+	# name asked for -- a round robin plays `thruster_arrive_c` when the caller
+	# said `thruster_arrive`, and a hush naming either has to land.
+	p.set_meta(&"cue", pick)
+	p.set_meta(&"asked", name)
 	if taping:
 		tape.append([pick, Time.get_ticks_msec(), db, p.pitch_scale])
 	p.play()
@@ -816,6 +833,40 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 ## sound for the same change. The screen calls this before it speaks.
 func suppress(name: StringName, ms: int = 400) -> void:
 	_last[name] = Time.get_ticks_msec() + ms
+
+
+## Cut sounds that are still in the air, because what they were describing is
+## over.
+##
+## THE OTHER HALF OF `suppress`, which only ever worked on a sound that had not
+## started. Skipping the jump killed the tween that had the rest of the sequence
+## in it and left everything ALREADY PLAYING to run on -- a 5.7-second warp over
+## a sector that had finished arriving.
+##
+## FADED, NOT STOPPED. A stream cut between samples clicks, and on a hyperdrive
+## at full level the click is louder than the sound it interrupted. 120 ms is
+## under a frame and a half of the sequence being skipped and still long enough
+## to land on zero.
+##
+## A name matches whether it was the one asked for or the take the round robin
+## chose, so a caller hushes `thruster_arrive` without knowing which of the eight
+## it got.
+func hush(names: Array[StringName], fade_ms: int = 120) -> void:
+	if not _enabled:
+		return
+	for i in _sfx.size():
+		var p := _sfx[i]
+		if not p.playing:
+			continue
+		if not (names.has(p.get_meta(&"cue", &"")) \
+				or names.has(p.get_meta(&"asked", &""))):
+			continue
+		if _fade[i] != null and _fade[i].is_valid():
+			continue                      ## already on its way out
+		var t := create_tween()
+		t.tween_property(p, "volume_db", p.volume_db - 40.0, fade_ms / 1000.0)
+		t.tween_callback(p.stop)
+		_fade[i] = t
 
 func click() -> void:   play(&"ui_click", 0.05)
 func hover() -> void:   play(&"ui_hover", 0.09, 40)

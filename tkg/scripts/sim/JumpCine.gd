@@ -461,6 +461,68 @@ func _whole(tree: SceneTree, to: int) -> void:
 	tree.quit()
 
 
+## THE SKIP HAS TO TAKE THE SOUND WITH IT:
+##   godot --path . -- jumpcine hush
+##
+## A real jump, skipped on the frame the warp is loudest, and then a question
+## the sound tape cannot answer: what is STILL PLAYING? `Audio.tape` records
+## what started, so a five-second warp running on over a sector that has already
+## arrived leaves no mark in it at all -- which is how this shipped.
+##
+## The voices are read directly rather than through an accessor. A harness
+## reaching into the thing it is checking is the point of a harness; adding a
+## public "what are you playing" to the mixer to serve one test would be a worse
+## trade than this line.
+const HUSH_WAIT := 4.0
+const HUSH_SETTLE := 0.45
+
+func _voices_on() -> PackedStringArray:
+	var on := PackedStringArray()
+	for p in Audio._sfx:
+		if p.playing:
+			on.append(String(p.get_meta(&"cue", &"?")))
+	return on
+
+func _hush(tree: SceneTree, to: int) -> void:
+	var sc := Router.current as SectorScreen
+	sc._skip()
+	for _s in 20:
+		await tree.process_frame
+
+	Router.begin_jump(to)
+	# WAIT FOR THE WARP ITSELF, not for a number of seconds. The charge is timed
+	# off JumpFx and the clip off the charge; a fixed delay here would be a third
+	# copy of that arithmetic, and the first one to drift would fail this test
+	# for the wrong reason.
+	var t0 := Time.get_ticks_msec()
+	var heard := false
+	while float(Time.get_ticks_msec() - t0) / 1000.0 < HUSH_WAIT:
+		await tree.process_frame
+		if _voices_on().has("hyperjump"):
+			heard = true
+			break
+	if not heard:
+		print("  hush: FAIL -- the warp never played, so nothing was tested")
+		tree.quit(1)
+		return
+	var at := float(Time.get_ticks_msec() - t0) / 1000.0
+	print("  hush: warp sounding at %.2f s, skipping" % at)
+
+	var live := Router.current as SectorScreen
+	if live != null:
+		live._skip()
+	var t1 := Time.get_ticks_msec()
+	while float(Time.get_ticks_msec() - t1) / 1000.0 < HUSH_SETTLE:
+		await tree.process_frame
+	var still := _voices_on()
+	if still.is_empty():
+		print("  hush: PASS -- nothing sounding %.2f s after the skip" % HUSH_SETTLE)
+		tree.quit()
+	else:
+		print("  hush: FAIL -- still playing %s" % ", ".join(still))
+		tree.quit(1)
+
+
 func run(tree: SceneTree) -> void:
 	await tree.process_frame
 	Rng.forced = 4242
@@ -511,6 +573,9 @@ func run(tree: SceneTree) -> void:
 		return
 	if "spools" in OS.get_cmdline_user_args():
 		await _spools(tree)
+		return
+	if "hush" in OS.get_cmdline_user_args():
+		await _hush(tree, to)
 		return
 	if "whole" in OS.get_cmdline_user_args():
 		await _whole(tree, to)

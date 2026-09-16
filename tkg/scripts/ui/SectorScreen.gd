@@ -329,7 +329,16 @@ func setup(c: Combat = null) -> void:
 			_begin_arrive()
 			return
 		var art := _view.ship_view()
-		if art != null:
+		if art != null and skipped:
+			# CLICKED THROUGH, SO ALREADY THERE. A skip carried across the commit
+			# means the player wants to BE at the next system -- not to watch the
+			# half of the sequence that survived the screen swap. This used to
+			# fall into the call below and fly the ship in with its thruster at
+			# full level, which is a jump animation being skipped into a jump
+			# animation. `-- jumpcine hush` is what says so.
+			art.park()
+			art.refresh()
+		elif art != null:
 			# THE DRIVE, ONCE, HERE. This is the only place in the game that
 			# means "you have just entered a system": the guard above fires once
 			# per node and never during a fight, which is exactly the condition
@@ -404,10 +413,17 @@ var _card: Control = null
 ## Held so a skip can kill it. A tween left running after the thing it animates
 ## has been jumped past is the sequence happening twice.
 var _cine: Tween = null
+## WHAT THIS SEQUENCE HAS PUT IN THE AIR. Killing `_cine` stops the sounds that
+## have not started; these are the ones that have. The warp is 5.7 seconds long
+## and the ripple 1.5, so without this a skip leaves the jump still sounding
+## over a sector that has already settled -- and only these, because a skip is
+## not a reason to silence a fight or the music under it.
+var _cine_sfx: Array[StringName] = []
 
 ## Engines up, lean, and go.
 func _begin_depart() -> void:
 	_phase = Phase.DEPART
+	_cine_sfx.clear()
 	_shut_drawer()
 	var art := _view.ship_view()
 	if art == null:
@@ -423,6 +439,7 @@ func _begin_depart() -> void:
 		# And no thruster roar with no thruster lit. The charge's own whine is the
 		# drive for a hyperdrive; the roar belongs to departures that burn.
 		if not hyper:
+			_cine_sfx.append(clip)
 			Audio.play(clip, 0.0))
 	_cine.tween_interval(JumpFx.HYPER_REV if hyper else REV_S)
 	_cine.tween_callback(_pulse_out)
@@ -438,6 +455,7 @@ func _pulse_out() -> void:
 	# dot leaves. No pitch variance, for the reason the arrival drive has none --
 	# a pitch shift is a time shift.
 	if f.melts():
+		_cine_sfx.append(&"hyperjump")
 		Audio.play(&"hyperjump", 0.0)
 	# THE PEAK, NOT THE END. The flash is at its widest here and JumpFlare was
 	# built so the hull changes hands behind the brightest frame — which is
@@ -474,6 +492,7 @@ func _commit(skipped: bool) -> void:
 ## The system announcing itself, then the ship arriving into it.
 func _begin_arrive() -> void:
 	_phase = Phase.ARRIVE
+	_cine_sfx.clear()
 	_shut_drawer()
 	var art := _view.ship_view()
 	if art == null:
@@ -507,6 +526,7 @@ func _begin_arrive() -> void:
 	# split the same way either way, so the card keeps its timing.
 	_cine.tween_callback(func() -> void:
 		if Run.jumps > 0:
+			_cine_sfx.append(&"hyperjump_in")
 			Audio.play(&"hyperjump_in", 0.0))
 	_cine.tween_interval(warp_lead)
 	_cine.tween_property(_card, "modulate:a", 0.0, CARD_OUT)
@@ -514,6 +534,7 @@ func _begin_arrive() -> void:
 		# The drive starts ARRIVE_LEAD_S before the SHIP, not with the call: arrive()
 		# was given the card and the lead as its delay, and the clip opens with the
 		# lead, so the flame's coughs still land on the sound's.
+		_cine_sfx.append(clip)
 		Audio.play(clip, 0.0)
 		_drop_card())
 	_cine.tween_interval(ShipView.ARRIVE_LEAD_S + ShipView.ARRIVE_MS / 1000.0 * DRAWER_AT)
@@ -581,6 +602,12 @@ func _skip() -> void:
 	if _cine != null and _cine.is_valid():
 		_cine.kill()
 	_cine = null
+	# THE TWEEN WAS ONLY HALF OF IT. Killing it stops what has not been played;
+	# what is already sounding has to be cut, or the click that skips the jump
+	# is followed by five more seconds of it.
+	if not _cine_sfx.is_empty():
+		Audio.hush(_cine_sfx)
+		_cine_sfx.clear()
 	if _phase == Phase.DEPART:
 		# Somebody clicking through a departure wants to BE at the next system,
 		# so the skip is carried across the commit and the arrival does not play
