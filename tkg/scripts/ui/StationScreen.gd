@@ -565,19 +565,12 @@ func _offer_column(h: HullData) -> Control:
 		_scene_hit = null
 		_scene_slab = null
 		_scene_hint = null
-		var bare := UITheme.body("NOTHING ON THE BLOCKS",
-			UITheme.COLD, UITheme.FS_SMALL)
-		bare.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		bare.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-		bare.offset_left = -220
-		bare.offset_right = -10
-		bare.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		bare.offset_top = -26 - YardScene.BAY_H
-		bare.offset_bottom = -8 - YardScene.BAY_H
-		box.add_child(bare)
+		# NO CAPTION ON AN EMPTY CRADLE. An empty cradle is already the
+		# statement; a line of grey text naming the absence is the screen
+		# explaining its own picture.
 		_add_rigs(box)
 		_add_mine_slab(box, null)
-		# PLACED EVEN WITH NOTHING ON THE BLOCKS. This path used to return before
+		# PLACED EVEN WITH AN EMPTY CRADLE. This path used to return before
 		# anything was positioned, which was harmless while it only held a label;
 		# your ship and its machines are in it now.
 		box.resized.connect(_place_scene_ship)
@@ -823,9 +816,15 @@ func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 
 	for pid in h.perks():
 		var pk := UITheme.body(DB.perk_text(pid), UITheme.EMBER, UITheme.FS_SMALL)
-		pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		pk.custom_minimum_size = Vector2(SLAB_W - 22, 0)
 		pk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# WRAPPED ONLY IF IT NEEDS WRAPPING. An autowrap width is the narrowest a
+		# Label may be, not the widest -- so setting it on every perk made the
+		# slab 448 wide to carry one short line, which is the empty half of the
+		# box. Measured before autowrap is switched on, because with it on the
+		# minimum is the number just written rather than the text.
+		if pk.get_minimum_size().x > float(SLAB_W - 22):
+			pk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			pk.custom_minimum_size = Vector2(SLAB_W - 22, 0)
 		col.add_child(pk)
 
 	# OPAQUE, and FRAMED IN THE COLOUR OF THE SHIP IT DESCRIBES. It sat at 86%
@@ -837,7 +836,6 @@ func _offer_slab(h: HullData, against: HullData, title: String) -> Control:
 		UITheme.flat(Color(0.031, 0.043, 0.066, 0.98),
 			Color(mark.r, mark.g, mark.b, 0.55), 0, 8, 11))
 	slab.add_child(col)
-	slab.custom_minimum_size = Vector2(SLAB_W, 0)
 	return slab
 
 
@@ -1310,11 +1308,24 @@ func _show_tab(id: StringName) -> void:
 ## Turn a tab on or off for this station, and get off it if you are standing on
 ## one that just went away.
 func _enable_tab(id: StringName, on: bool) -> void:
+	var was: bool = _tabs_on.get(id, true)
 	_tabs_on[id] = on
 	if _tabs.has(id):
 		(_tabs[id] as Button).visible = on
 	if not on and _tab == id:
 		_show_tab(&"services")
+	elif was != on:
+		# THE CUTAWAY HAS TO HEAR ABOUT IT TOO. Hiding the cell is half the job:
+		# `StationSpine` divides the shaft by the floors it was last told about,
+		# so a rail showing three decks behind a building drawn in fifths puts
+		# every room -- and the car -- off its own label. Only `_show_tab` used
+		# to say so, which is why it corrected itself the moment you clicked
+		# anything and looked fine in every screenshot that clicked first.
+		#
+		# NOT A RIDE. The deck set settles on arrival; a car that travels because
+		# a station turned out to have no laboratory is answering a journey
+		# nobody made. See `_ride_to`.
+		_light_floor(false)
 
 
 ## One service, as a ROW rather than as a wide button with centred text.
@@ -1618,7 +1629,7 @@ func _car_step(at: float) -> void:
 ## Laboratory, and a spine that drew one would be a picture of a building with a
 ## room you cannot get to -- so the list comes from the tabs that are actually
 ## enabled, in rail order.
-func _light_floor() -> void:
+func _light_floor(ride: bool = true) -> void:
 	if _spine == null:
 		return
 	var live: Array[StringName] = []
@@ -1634,7 +1645,7 @@ func _light_floor() -> void:
 	# `_light_floor` runs on every refresh -- a car that sets off each time a
 	# price ticks is a car nobody believes in, and one that travels on arrival at
 	# the station is answering a journey the player did not make.
-	_ride_to(_spine.active, was >= 0 and was != _spine.active)
+	_ride_to(_spine.active, ride and was >= 0 and was != _spine.active)
 	_spine.manufacturer = Run.node_at().manufacturer if not Run.map.is_empty() \
 		else &""
 	_spine.queue_redraw()
@@ -2117,9 +2128,13 @@ func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
 ## How deep the berth is. The panel gives it everything under the heading; this
 ## is the floor under that, so the scene never collapses on a short page.
 const SCENE_H := 250
-## The details slab. WIDE AND SHORT rather than narrow and tall: two columns of
-## gauges fit in the band of empty wall above the two berths, where a single
-## column could only fit by lying across the ship it was describing.
+## The details slab's WIDEST, not its width. Wide and short rather than narrow
+## and tall -- two columns of gauges fit in the band of empty wall above the two
+## berths, where a single column could only fit by lying across the ship it was
+## describing. It is a ceiling because it was read as a floor for a while and
+## the slab came out 470 wide whatever was in it, with the right third empty on
+## every hull whose perk fits on one line. Only a perk long enough to need
+## wrapping ever reaches it now.
 const SLAB_W := 470
 func _refresh_stock(n: MapGen.MapNode) -> void:
 	Widgets.clear(_shelf)

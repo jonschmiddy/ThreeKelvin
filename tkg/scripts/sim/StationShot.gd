@@ -215,6 +215,17 @@ func run(tree: SceneTree) -> void:
 		var yard2 := Router.current as StationScreen
 		if yard2 != null:
 			yard2._on_mine_hover(true)
+			# MEASURED, for the reason the other one is, and the WIDTH as well as
+			# the height: with nothing on the blocks this slab has no "AGAINST
+			# <SHIP>" in its head row, so it is the narrowest the panel ever has
+			# cause to be and the first place spare width shows.
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			if yard2._mine_slab != null:
+				var mn: Vector2 = yard2._mine_slab.get_combined_minimum_size()
+				print("  mine slab %.0fx%.0f (min %.0fx%.0f)" % [
+					yard2._mine_slab.size.x, yard2._mine_slab.size.y,
+					mn.x, mn.y])
 
 	# `-- stationshot full purge` opens the fault picker, which is a modal and so
 	# unreachable by any flag that only chooses a deck.
