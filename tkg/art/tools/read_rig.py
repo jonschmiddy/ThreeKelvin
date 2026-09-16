@@ -7,6 +7,11 @@ that matches "the one saved last".
 
     python read_rig.py            summarise the newest
     python read_rig.py --all      list every export with its age
+    python read_rig.py C:/some/dir   look somewhere else as well
+
+A browser save does not always land in Downloads -- "save as" and a moved
+default both put it on the Desktop -- so both are searched, newest wins, and a
+directory named on the command line joins the search rather than replacing it.
 """
 import glob
 import io
@@ -15,13 +20,16 @@ import os
 import sys
 import time
 
-DL = 'C:/Users/Jon/Downloads'
+HOME = os.path.expanduser('~')
+DIRS = [os.path.join(HOME, 'Downloads'), os.path.join(HOME, 'Desktop')]
 SLOTS = ('weapon', 'system', 'utility')
 
 
-def exports():
-    found = glob.glob(os.path.join(DL, 'rigging*.json'))
-    return sorted(found, key=os.path.getmtime, reverse=True)
+def exports(extra=()):
+    found = []
+    for d in list(extra) + DIRS:
+        found += glob.glob(os.path.join(d, 'rigging*.json'))
+    return sorted(set(found), key=os.path.getmtime, reverse=True)
 
 
 def age(sec):
@@ -34,22 +42,26 @@ def age(sec):
 
 
 def main(argv):
-    found = exports()
+    extra = [a for a in argv if not a.startswith('-')]
+    found = exports(extra)
     if not found:
-        print('no rigging export in %s yet' % DL)
+        print('no rigging export yet in:')
+        for d in extra + DIRS:
+            print('  ' + d)
         return 1
 
     if '--all' in argv:
-        print('%-28s %-12s %s' % ('file', 'saved', 'size'))
+        print('%-28s %-12s %-8s %s' % ('file', 'saved', 'size', 'where'))
         for f in found:
-            print('%-28s %-12s %d B'
+            print('%-28s %-12s %-8s %s'
                   % (os.path.basename(f), age(os.path.getmtime(f)),
-                     os.path.getsize(f)))
+                     '%d B' % os.path.getsize(f), os.path.dirname(f)))
         print()
 
     newest = found[0]
-    print('newest: %s  (%s)' % (os.path.basename(newest),
-                                age(os.path.getmtime(newest))))
+    print('newest: %s  (%s)  in %s'
+          % (os.path.basename(newest), age(os.path.getmtime(newest)),
+             os.path.dirname(newest)))
     if len(found) > 1:
         print('        %d older export%s ignored'
               % (len(found) - 1, '' if len(found) == 2 else 's'))

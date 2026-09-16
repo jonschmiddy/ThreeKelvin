@@ -1600,8 +1600,8 @@ func apply_hull_lines(h: HullData) -> void:
 const HULL_MOUNTS := {
 	"hull_light_c": {
 		weapon = [Vector2(220, 27), Vector2(220, 67)],
-		system = [Vector2(148, 27), Vector2(148, 67)],
-		utility = [Vector2(108, 48), Vector2(184, 48)],
+		system = [Vector2(144, 48), Vector2(185, 48)],
+		utility = [Vector2(108, 48), Vector2(227, 48)],
 	},
 	"hull_light_b": {
 		weapon = [Vector2(204, 30), Vector2(204, 77)],

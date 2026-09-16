@@ -236,7 +236,8 @@ thing &sect;4 specifies and the sprites do not yet carry.</p>
 (function(){
 "use strict";
 var D = __DATA__;
-var KEY = "tk.rig.v3";   // padded hulls; v2 coordinates are 76px out
+var KEY = "tk.rig.v4";   // seeds thrusters; a v3 record has none and
+                         // a cached hull is never re-seeded
 var SLOTS = ["weapon","system","utility"];
 
 var st = {hull:0, zoom:3, pad:140, sel:null, anim:true, nums:true, frame:0,
@@ -256,7 +257,8 @@ function E(){
       weapon: h.seed.weapon.map(function(p){return p.slice();}),
       system: h.seed.system.map(function(p){return p.slice();}),
       utility:h.seed.utility.map(function(p){return p.slice();}),
-      exs: []};
+      exs: (h.seed.exs||[]).map(function(t){
+        return {id:t.id, x:t.x, y:t.y, back:t.back}; })};
   }
   // v2 held a single `ex`; carry one forward rather than dropping it.
   var e = edit[h.name];
@@ -577,7 +579,7 @@ function state(){
     var e = edit[h.name];
     var used = !!e;
     e = e || {weapon:h.seed.weapon, system:h.seed.system,
-              utility:h.seed.utility, exs:[]};
+              utility:h.seed.utility, exs:h.seed.exs||[]};
     o.hulls[h.name] = {
       canvas: [h.w, h.h],
       edited: used,

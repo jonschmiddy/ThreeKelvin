@@ -16,10 +16,13 @@ numbers would be quietly wrong for Probate, which trades a weapon for a utility.
 So the counts are PARSED from Database.gd, and this file fails loudly if the
 shape it expects has moved rather than guessing.
 
-WHAT IT SEEDS FROM. Mounts open on `DB.HULL_LINES` run through the real
-`mounts_along()`, so a manufacturer whose lines are already measured opens on the status
-quo. A manufacturer with art but no lines yet opens with its mounts spread evenly down
-the middle -- something to drag, rather than nothing.
+WHAT IT SEEDS FROM, in order: `DB.HULL_MOUNTS` if that hull has been rigged,
+because that is what ships and reopening the bench must not lose it; else
+`DB.HULL_LINES` run through the real `mounts_along()`, the measured fallback;
+else an even spread down the middle -- something to drag, rather than nothing.
+A hull that has gained a slot since it was rigged keeps its own points and gets
+the seed's position for the extra one. Thrusters seed from `DB.HULL_EXHAUST`
+the same way, and for the same reason.
 
 The page saves through the `downloads` capability; read the result back with
 `art/tools/read_rig.py`.
@@ -128,6 +131,54 @@ def hull_lines(src):
     return out
 
 
+def hull_mounts(src):
+    """The hand-placed mounts, by hull art name -- what actually ships.
+
+    The bench used to open on HULL_LINES alone, which is the measured FALLBACK.
+    On a manufacturer that has already been rigged that is the wrong state to
+    open on: the 89 placed points would not appear, and a save would quietly
+    replace a hand rig with a line spread.
+    """
+    i = src.find('const HULL_MOUNTS')
+    if i < 0:
+        return {}
+    blk = src[i:src.index('\n}\n', i)]
+    out = {}
+    for m in re.finditer(r'"(hull_\w+)": \{(.*?)\n\t\},', blk, re.S):
+        e = {}
+        for slot in SLOTS:
+            pts = re.search(slot + r' = \[(.*?)\],', m.group(2), re.S)
+            e[slot] = ([[int(a), int(b)] for a, b in
+                        re.findall(r'Vector2\((-?\d+), (-?\d+)\)', pts.group(1))]
+                       if pts else [])
+        out[m.group(1)] = e
+    return out
+
+
+def hull_exhaust(src):
+    """The placed thrusters, by hull art name -- what actually ships.
+
+    Same trap as HULL_MOUNTS, one table over: the bench opened with an empty
+    plume list on every hull, so an export said "no thrusters anywhere" and
+    writing that back would have deleted all 25 placed strips. `id` here is the
+    EXHAUST id; the page indexes its own list, so collect() converts.
+    """
+    i = src.find('const HULL_EXHAUST')
+    if i < 0:
+        return {}
+    blk = src[i:src.index('\n}\n', i)]
+    out = {}
+    for m in re.finditer(r'"(hull_\w+)": \[(.*?)\n\t\],', blk, re.S):
+        got = []
+        for e in re.finditer(
+                r'\{id = (\d+), at = Vector2i\((-?\d+), (-?\d+)\)'
+                r'(?:, back = (true|false))?\}', m.group(2)):
+            got.append(dict(id=int(e.group(1)), x=int(e.group(2)),
+                            y=int(e.group(3)), back=e.group(4) == 'true'))
+        out[m.group(1)] = got
+    return out
+
+
 def mounts_along(line, n):
     """HullData.mounts_along(), used once to seed the editor."""
     if n <= 0 or not line:
@@ -161,6 +212,8 @@ def collect(manufacturer):
     src = gd()
     base, tier, mk = weight_base(src), tier_delta(src), manufacturer_delta(src, manufacturer)
     lines = hull_lines(src)
+    placed = hull_mounts(src)
+    plumes = hull_exhaust(src)
     folder = os.path.join(SPRITES, 'hulls', manufacturer)
     if not os.path.isdir(folder):
         raise SystemExit('no hull art for "%s" -- expected %s' % (manufacturer, folder))
@@ -184,9 +237,23 @@ def collect(manufacturer):
                 seed = {'weapon': spread(w, h, need['weapon'], 0.30),
                         'system': spread(w, h, need['system'], 0.72),
                         'utility': spread(w, h, need['utility'], 0.50)}
+            # THE PLACED RIG WINS WHERE THERE IS ONE, and only the slots it is
+            # short of fall back to the seed above -- a hull that gained a mount
+            # since it was rigged opens with its own points plus one to drag.
+            rig = placed.get(name)
+            source = 'measured' if ln else 'spread'
+            if rig and any(rig[s] for s in SLOTS):
+                source = 'placed'
+                for s in SLOTS:
+                    pts = [list(p) for p in rig[s]][:need[s]]
+                    if len(pts) < need[s]:
+                        pts += seed[s][len(pts):need[s]]
+                        source = 'placed+'
+                    seed[s] = pts
+            seed['exs'] = plumes.get(name, [])
             hulls.append(dict(name=name, weight=weight, cls=cls.upper(),
                               w=w, h=h, img=b64(png), need=need, seed=seed,
-                              measured=bool(ln)))
+                              measured=bool(ln), source=source))
     if not hulls:
         raise SystemExit('"%s" has a folder but no hull_*_*.png in it' % manufacturer)
 
@@ -202,6 +269,19 @@ def collect(manufacturer):
         exhausts.append(dict(id=i, fw=fw, h=hh, sw=ww, img=b64(p),
                              tw=int(round(fw * k)), th=int(round(hh * k)),
                              tsw=int(round(ww * k))))
+    # The page addresses a strip by its POSITION in this list, not by its
+    # exhaust id -- `D.exhausts[t.id]` -- so a seed carrying the id straight
+    # from the table would draw the wrong plume, or none.
+    at = {e['id']: i for i, e in enumerate(exhausts)}
+    for h in hulls:
+        kept = []
+        for t in h['seed']['exs']:
+            if t['id'] not in at:
+                print('  %s: exhaust_%d is placed but has no art, dropped'
+                      % (h['name'], t['id']))
+                continue
+            kept.append(dict(t, id=at[t['id']]))
+        h['seed']['exs'] = kept
     return hulls, exhausts, mk
 
 
@@ -224,9 +304,10 @@ def build(manufacturer, out_path):
         raise SystemExit('PAGE SCRIPT DOES NOT PARSE\n' + r.stderr)
 
     seeded = sum(len(h['seed'][s]) for h in hulls for s in SLOTS)
+    plumed = sum(len(h['seed']['exs']) for h in hulls)
     unmeasured = [h['name'] for h in hulls if not h['measured']]
-    print('%s: %d hulls, %d mounts, %d thrusters -> %s (%.0f KB)'
-          % (manufacturer, len(hulls), seeded, len(exhausts), out_path,
+    print('%s: %d hulls, %d mounts, %d plumes placed, %d strips -> %s (%.0f KB)'
+          % (manufacturer, len(hulls), seeded, plumed, len(exhausts), out_path,
              len(html) / 1024.0))
     if any(mk.values()):
         print('  manufacturer slot delta: %s'
