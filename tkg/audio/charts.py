@@ -12,7 +12,7 @@ HOW THESE STAY DIFFERENT FROM ONE ANOTHER, given that Jon chose thirteen
 independent pieces over a suite:
 
     cue           key             BPM   voice          shape
-    first_light   C minor          72   Octave Stack   28 bars, the widest arch
+    first_light   C minor          72   Warm           28 bars, the widest arch
     shells        G minor          68   Wavefold       wide leaps, floating
     warm          B flat major     64   Drawbar        stepwise, settled, no leaps
     home          D minor          70   Warm           an arch that comes home
@@ -62,7 +62,7 @@ def first_light(Piece, rich):
          (17, 72, 4), (14, 76, 4),
          (20, 80, 4), (15, 84, 4),
          (0, 88, 4), (12, 92, 4), (7, 96, 4), (10, 100, 4), (0, 104, 8)]
-    return Piece("C2", 72, "drift", "octave_stack", [rich(c) for c in ch], m,
+    return Piece("C2", 72, "drift", "warm", [rich(c) for c in ch], m,
                  "the widest arch: it has to promise the game goes somewhere")
 
 

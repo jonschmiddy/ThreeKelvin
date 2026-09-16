@@ -1,4 +1,12 @@
-"""The seven lead voices Jon kept, out of twenty auditioned.
+"""Eighteen lead voices: the seven Jon kept out of twenty auditioned, ten more
+written when the seven turned out to be seven shades of one instrument, and a
+piano, which he asked for by name and which nothing here had.
+
+THE SEVEN ARE ALL THE SAME KIND OF THING. Every one is a set of exact partials
+held flat for the length of the note, which is what an organ pipe is -- so they
+could differ in colour and never in what was playing them. Jon, on First Light
+through the warmest of them: "it still sounds like a funeral procession organ."
+The ten below have ONSETS: struck, plucked, blown, bowed. See "the ten".
 
     Warm          410 Hz    travel, the long exposure
     Drawbar       651 Hz    station, settled space
@@ -40,7 +48,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import signal
 
-from synth import SR, bp, lp
+from synth import SR, bp, hp, lp
 
 GRIT = (7, 4, 1.85, 4.0)     ## bits, decimation, fold, drive -- see space.v_sing
 GRIT_CUT = 4600.0
@@ -211,6 +219,224 @@ def four_bit(f, dur, f0=None):
     return quant(y, 4, 8, 8000.0) * env(t, dur, atk=0.004, rel=0.08)
 
 
+# ------------------------------------------------------------------- the ten
+#
+# JON: "it still sounds like a funeral procession organ." All seven above are
+# SUSTAINED HARMONIC STACKS -- a set of exact partials held flat for the length
+# of the note -- and that is the definition of an organ pipe, so the seven could
+# only ever differ in colour, never in what kind of thing was playing. Six of the
+# ten below are STRUCK or PLUCKED and three are BLOWN or BOWED; the note has an
+# onset and a life, which is the thing no filter setting on a held stack can buy.
+#
+# The sustain-not-decay rule above still holds where it was aimed -- a slow tune
+# made of short struck events is a row of dots rather than a line -- so nothing
+# here decays inside the first second of a long note. First Light holds notes for
+# up to 6.7 seconds; a marimba's 0.4 s ring under one of those is a rest with a
+# click at the front of it, and the rings here are scaled to the note they are
+# in rather than fixed.
+#
+# DETERMINISTIC NOISE. Four of these want noise -- a bow's rosin, a flute's
+# chiff, a plucked string's excitation. They seed off the note's own frequency
+# rather than the global RNG, so the same note is the same sound in every render
+# and a re-run of the album is byte-identical.
+
+
+def _noise(f, n):
+    """The same hiss every time this note is played."""
+    return np.random.RandomState(int(f * 100.0) % 2147483647).standard_normal(n)
+
+
+def _hit(t, dur, ring, atk=0.004, hold=0.0):
+    """A struck envelope that is scaled to the note it is in.
+
+    `ring` is the decay in seconds at a 1-second note and grows with the square
+    root of the length -- so a 4-second note rings about twice as long rather
+    than the same 0.4 s with three and a half seconds of silence behind it. The
+    tail is still cut to the note, or one long ring would run into the next.
+    """
+    k = ring * max(dur, 0.25) ** 0.5
+    e = np.clip(t / atk, 0, 1) * np.exp(-np.clip(t - hold, 0, None) / k)
+    return e * np.clip((dur - t) / min(0.12, dur * 0.25), 0, 1)
+
+
+def glass(f, dur, f0=None):
+    """FM, at a ratio that is not a whole number, so the partials it makes do not
+    land on the harmonic series. That is the whole of a bell: inharmonic metal
+    with a bright strike that leaves before the body does."""
+    n, t, ph = phase(f, dur, f0)
+    e = _hit(t, dur, 1.5, atk=0.002)
+    idx = 5.2 * np.exp(-t / (0.22 * max(dur, 0.4) ** 0.5))
+    y = np.sin(ph + idx * np.sin(1.4142 * ph)) * e
+    y = y + 0.22 * np.sin(2.76 * ph) * _hit(t, dur, 0.55, atk=0.001)
+    return lp(y, 7000.0, order=2)
+
+
+def pluck(f, dur, f0=None):
+    """A real string, by the oldest trick there is: fill a delay one period long
+    with noise and feed it back through a loss. The noise becomes a pitch because
+    only the frequencies that fit the delay survive, and the high partials die
+    first because the loss is a filter -- which is exactly what a string does."""
+    n, t, ph = phase(f, dur, f0)
+    d = max(int(round(SR / f)), 4)
+    x = np.zeros(n)
+    x[:d] = _noise(f, d) * np.hanning(d) ** 0.4
+    # The feedback IS the string. Longer notes need a slower loss or they die
+    # inside the beat; the cap keeps it short of ringing forever.
+    g = min(0.9996 - 0.30 / (f * max(dur, 0.5)), 0.99985)
+    a = np.zeros(d + 2)
+    a[0], a[d], a[d + 1] = 1.0, -g * 0.5, -g * 0.5
+    y = signal.lfilter([1.0], a, x)
+    return y * np.clip((dur - t) / min(0.20, dur * 0.3), 0, 1)
+
+
+def breath(f, dur, f0=None):
+    """A flute: a nearly pure tone with air around it, and the air arrives FIRST.
+    The chiff before the pitch is most of what tells an ear that somebody blew
+    this rather than that a circuit was switched on."""
+    n, t, ph = phase(f, dur, f0)
+    e = np.clip(t / 0.06, 0, 1) ** 0.8
+    e = e * np.clip((dur - t) / min(0.18, dur * 0.3), 0, 1)
+    air = bp(_noise(f, n), f * 0.8, f * 2.6, order=2)
+    chiff = np.exp(-t / 0.055) * 0.85
+    y = (np.sin(ph) + 0.16 * np.sin(2.0 * ph) + 0.05 * np.sin(3.0 * ph)) * e
+    return y + air * (0.16 * e + chiff) * 0.9
+
+
+def reed(f, dur, f0=None):
+    """A pulse whose width narrows across the note. A square is hollow and a
+    narrow pulse is nasal, so the note starts woody and grows a reed as it goes
+    -- one parameter, and no filter anywhere."""
+    n, t, ph = phase(f, dur, f0)
+    e = env(t, dur, atk=0.035, rel=0.20)
+    duty = 0.50 - 0.34 * np.clip(t / max(dur * 0.45, 0.12), 0, 1)
+    y = np.where((ph / (2.0 * np.pi)) % 1.0 < duty, 1.0, -1.0)
+    y = lp(y, 4200.0, order=2) - lp(y, 120.0, order=1)
+    return y * e
+
+
+def marimba(f, dur, f0=None):
+    """Struck wood. A marimba's bar is carved until its first overtone is two
+    octaves above the fundamental, which is why it reads as WOOD and not as a
+    bell -- the 4:1 is the whole signature, and the knock of the mallet under it
+    is the other half."""
+    n, t, ph = phase(f, dur, f0)
+    y = (np.sin(ph) * _hit(t, dur, 1.1)
+         + 0.42 * np.sin(4.0 * ph) * _hit(t, dur, 0.30, atk=0.001)
+         + 0.16 * np.sin(9.2 * ph) * _hit(t, dur, 0.12, atk=0.001))
+    knock = lp(_noise(f + 1.0, n), 1800.0, order=2) * np.exp(-t / 0.012) * 0.5
+    return y + knock
+
+
+def formant(f, dur, f0=None):
+    """A saw through three resonances, moving from an open vowel to a closed one.
+    Formants are what make a sound read as a MOUTH, and a mouth is the one
+    timbre nobody mistakes for a pipe organ."""
+    n, t, ph = phase(f, dur, f0)
+    src = harm(ph, SAW) / 2.3
+    e = env(t, dur, atk=0.08, rel=0.30)
+    r = np.clip(t / max(dur * 0.6, 0.2), 0, 1)
+    y = np.zeros(n)
+    # ah (730, 1090, 2440) travelling to oo (300, 870, 2240). Crossfaded pairs
+    # rather than a moving filter, the same trick `sweep` uses and for the same
+    # reason: partials that stay in phase, and no Python loop per note.
+    for (lo, hi, amp) in ((730.0, 300.0, 1.00), (1090.0, 870.0, 0.55),
+                          (2440.0, 2240.0, 0.22)):
+        a = bp(src, lo * 0.86, lo * 1.16, order=2)
+        b = bp(src, hi * 0.86, hi * 1.16, order=2)
+        y += amp * (a * (1.0 - r) + b * r)
+    return y * e
+
+
+def tine(f, dur, f0=None):
+    """An electric piano: a metal tine under a pickup. FM at a high whole-number
+    ratio makes the bark of the hammer, the sine under it is the tine itself, and
+    the bark is gone in a tenth of a second while the tine rings on."""
+    n, t, ph = phase(f, dur, f0)
+    bark = 3.4 * np.exp(-t / 0.055)
+    y = np.sin(ph + bark * np.sin(14.0 * ph)) * _hit(t, dur, 1.35, atk=0.003)
+    y += 0.30 * np.sin(2.0 * ph) * _hit(t, dur, 0.70, atk=0.002)
+    return lp(y, 6500.0, order=2)
+
+
+def bowed(f, dur, f0=None):
+    """Sustained, like the seven -- and not an organ, because a bow SCRAPES. The
+    rosin noise at the start and the swell into the note are the two things a
+    pipe cannot do: a pipe speaks at full pressure and holds there."""
+    n, t, ph = phase(f, dur, f0)
+    e = np.clip(t / min(0.22, max(dur * 0.30, 0.06)), 0, 1) ** 1.3
+    e = e * (0.88 + 0.12 * np.clip(t / 1.2, 0, 1))
+    e = e * np.clip((dur - t) / min(0.28, dur * 0.35), 0, 1) ** 1.2
+    body = harm(ph, SAW) / 2.3
+    body = bp(body, f * 0.5, 3600.0, order=2) + 0.35 * lp(body, 900.0, order=2)
+    rosin = bp(_noise(f + 2.0, n), 1400.0, 5200.0, order=2)
+    rosin = rosin * (np.exp(-t / 0.10) * 0.55 + 0.05)
+    return (body + rosin) * e
+
+
+def music_box(f, dur, f0=None):
+    """A comb tine plucked by a pin: tiny, bright, and gone. Almost no
+    fundamental -- the bar is too short to carry one -- so the pitch is heard in
+    the partials, which is why a music box sounds an octave higher than it is."""
+    n, t, ph = phase(f, dur, f0)
+    y = (0.35 * np.sin(ph) * _hit(t, dur, 0.55)
+         + 1.00 * np.sin(2.0 * ph) * _hit(t, dur, 0.40, atk=0.001)
+         + 0.55 * np.sin(3.93 * ph) * _hit(t, dur, 0.22, atk=0.001)
+         + 0.28 * np.sin(9.5 * ph) * _hit(t, dur, 0.09, atk=0.001)
+         + 0.12 * np.sin(16.4 * ph) * _hit(t, dur, 0.05, atk=0.001))
+    pin = hp(_noise(f + 3.0, n), 3000.0, order=2) * np.exp(-t / 0.006) * 0.30
+    return y + pin
+
+
+def shimmer(f, dur, f0=None):
+    """The note, and the note an octave up arriving a moment later on the other
+    side. Two channels carrying different things at an exact 2:1 -- the widest
+    voice in either list, and the only one whose colour changes because of where
+    it is rather than what it is."""
+    n, t, ph = phase(f, dur, f0)
+    e = env(t, dur, atk=0.10, rel=0.40)
+    low = (np.sin(ph) + 0.30 * np.sin(2.0 * ph) + 0.10 * np.sin(3.0 * ph)) * e
+    up = np.sin(2.0 * ph) + 0.35 * np.sin(4.0 * ph)
+    # The octave fades IN, so the note opens plain and blooms. A shimmer that is
+    # there from the first sample is just a brighter note.
+    bloom = np.clip((t - 0.12) / max(dur * 0.55, 0.3), 0, 1) ** 1.4
+    up = up * e * bloom * 0.45
+    d = int(0.021 * SR)
+    l = low + np.concatenate([np.zeros(d), up[:-d]]) if n > d else low + up
+    r = low * 0.85 + up
+    return np.vstack([lp(l, 5200.0, order=2), lp(r, 6400.0, order=2)])
+
+
+
+def piano(f, dur, f0=None):
+    """A struck steel string. The one voice here that is a real instrument
+    rather than a synthesizer setting.
+
+    INHARMONICITY IS THE WHOLE THING. A stiff string's nth partial sits at
+    n*f*sqrt(1 + B*n^2) rather than at n*f -- sharp, and further sharp the
+    higher it goes -- which is why a piano's top octave is TUNED sharp to match
+    and why a perfectly harmonic stack does not sound like one. B is small; at
+    0.0004 the twelfth partial lands about a tenth of a semitone high, which is
+    inaudible as pitch and audible as wood.
+
+    The partials also die at different rates, fast ones first. That is a real
+    string losing its high frequencies to the bridge, and it is what makes the
+    note change colour as it rings instead of just getting quieter.
+    """
+    n, t, ph = phase(f, dur, f0)
+    B = 0.0004
+    y = np.zeros(n)
+    for k in range(1, 13):
+        stretch = (1.0 + B * k * k) ** 0.5
+        amp = 1.0 / (k ** 1.35)
+        ring = 1.55 / (1.0 + 0.40 * (k - 1))
+        y += amp * np.sin(k * stretch * ph) * _hit(t, dur, ring, atk=0.002)
+    # The hammer, and the thud of the key bed under it. Both are noise, and
+    # both are gone before the first partial has decayed at all.
+    ham = lp(_noise(f, n), 3800.0, order=2) * np.exp(-t / 0.007) * 0.40
+    ham += lp(_noise(f + 5.0, n), 260.0, order=2) * np.exp(-t / 0.020) * 0.25
+    return lp(y / 3.1 + ham, 9500.0, order=2)
+
+
 VOICES = {
     "warm": warm,
     "drawbar": drawbar,
@@ -219,4 +445,15 @@ VOICES = {
     "sub_drive": sub_drive,
     "wavefold": wavefold,
     "four_bit": four_bit,
+    "glass": glass,
+    "pluck": pluck,
+    "breath": breath,
+    "reed": reed,
+    "marimba": marimba,
+    "formant": formant,
+    "tine": tine,
+    "bowed": bowed,
+    "music_box": music_box,
+    "shimmer": shimmer,
+    "piano": piano,
 }
