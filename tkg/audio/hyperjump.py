@@ -48,12 +48,13 @@ TIMING, all read out of JumpFx.gd:
                like at any ("i just don't like the warp sound"). Its onset, not
                its peak, is what is placed.
 
-AND BACKWARDS, ON ARRIVAL. Jon: "let's have the warp sound in reverse when the
-transition to the new sector happens. right before the thruster sound cuts on
-and the ship enters the new sector". So the same warp, at the same level
-it plays in the jump, is written reversed to hyperjump_in.wav, cut to exactly
-SectorScreen.WARP_IN_S -- read from there -- so the swell builds to the warp's
-own onset and that lands on the frame the arrival drive starts.
+AND THE ARRIVAL HAS ONE TOO. Jon asked first for the warp reversed as the next
+sector opens, "right before the thruster sound cuts on and the ship enters", and
+then for that reversal to be replaced: "can we replace that reversed sound with
+ripple" -- another take from the same batch, a low warp distortion that ripples
+and snaps shut, which it now does as the ship comes in. It is written to
+hyperjump_in.wav, cut to exactly SectorScreen.WARP_IN_S -- read from there, and
+its END is the fixed point, since it lands ARRIVAL_GAP_S before the drive starts.
 
 LEVEL. The warp's loudest second sits WARP_REL_DB over turbine's, A-weighted, so
 it is the climax rather than a tail; the whole clip's loudest second sits
@@ -91,6 +92,7 @@ RETIRED = ("hyperjump_2.wav", "hyperjump_2.wav.import")
 TURBINE = "hyperjump_turbine.mp3"
 BASSWARP = "hyperjump_basswarp.mp3"
 DOPPLER = "hyperjump_doppler.mp3"
+RIPPLE = "hyperjump_ripple.mp3"
 NEED = ("CHARGE_S", "SNAP_S", "ZIP_S", "SPARK_S")
 
 ## The whole clip's loudest second over the medium arrival's, A-weighted.
@@ -99,6 +101,11 @@ LOUD_REL = 3.0
 WARP_REL_DB = 2.0
 ## basswarp under doppler in the warp, after both are set to equal loudness.
 BASS_REL_DB = -6.0
+## The arrival's own sound against the medium arrival drive, loudest second to
+## loudest second. It announces the ship rather than covering it -- and 2.5 dB
+## under, not level, because ripple is deep and at level its peaks ran exactly
+## that far over the ceiling. Lowered here rather than left to the check.
+ARRIVE_IN_REL_DB = -2.5
 ## Lower the warp by playing it slower, if that is ever wanted again. Jon's pair
 ## plays as generated.
 WARP_SEMITONES = 0
@@ -137,9 +144,14 @@ def warp_in_seconds() -> float:
     return float(m.group(1))
 
 
-def reversed_warp(w, seconds) -> np.ndarray:
-    """`w` backwards, exactly `seconds` long, ending on what was its onset."""
-    r = w[::-1].copy()
+def fit_tail(w, seconds) -> np.ndarray:
+    """`w` cut to exactly `seconds`, keeping its END: what plays last is what it ends on.
+
+    The arrival clip's end is the fixed point -- it lands ARRIVAL_GAP_S before the
+    drive starts -- so a long take loses its head and a short one gets silence in
+    front of it.
+    """
+    r = w.copy()
     n = int(round(seconds * SR))
     if len(r) >= n:
         r = r[len(r) - n:].copy()
@@ -334,21 +346,27 @@ def main() -> int:
         print("  " + line)
     print("  hyperjump.wav  %.2f s long, peak %.1f dBFS, loudest second %+.1f dB over the arrival"
           % (len(y) / SR, 20.0 * np.log10(float(np.abs(y).max())), loudest_second(y) - loudest_second(arr)))
-    # The same warp, at the level it has in the jump, backwards for the arrival.
+    # THE ARRIVAL HAS ITS OWN SOUND, not the warp backwards. Jon: "instead of the
+    # warp sound being reversed on the arrival... can we replace that reversed
+    # sound with ripple" -- a low warp distortion that ripples and snaps shut,
+    # which it now does as the ship comes in.
     ceil = 10.0 ** (flameout.LEVEL_PEAK_DB / 20.0)
+    raw_in = decode(RIPPLE)
+    rip, _on, _pk = warp_from(raw_in, 0.0, len(raw_in) / SR)
+    rip = gain_to(rip, loudest_second(arr) + ARRIVE_IN_REL_DB)
     secs = warp_in_seconds()
-    if secs < len(warp) / SR - 0.01:
-        print("  note: WARP_IN_S %.2f is shorter than the %.2f s warp, so the start of its swell is trimmed"
-              % (secs, len(warp) / SR))
-    back = reversed_warp(warp, secs)
+    if abs(secs - len(rip) / SR) > 0.02:
+        print("  note: SectorScreen.WARP_IN_S is %.2f s and ripple is %.2f s -- set it to %.2f, "
+              "or its start is cut" % (secs, len(rip) / SR, len(rip) / SR))
+    back = fit_tail(rip, secs)
     bpk = float(np.abs(back).max())
     if bpk > ceil:
-        print("  CEILING: hyperjump_in peaks %.1f dB over -- lower WARP_REL_DB, do not let a limiter"
+        print("  CEILING: hyperjump_in peaks %.1f dB over -- lower ARRIVE_IN_REL_DB, do not let a limiter"
               % (20.0 * np.log10(bpk / ceil)))
         back *= ceil / bpk
     sf.write(OUT_IN, back, SR, subtype="PCM_16")
-    print("  hyperjump_in.wav  %.2f s (SectorScreen.WARP_IN_S; the warp is %.2f s), peak %.1f dBFS"
-          % (len(back) / SR, len(warp) / SR, 20.0 * np.log10(float(np.abs(back).max()))))
+    print("  hyperjump_in.wav  %.2f s of ripple (SectorScreen.WARP_IN_S; the take is %.2f s), peak %.1f dBFS"
+          % (len(back) / SR, len(rip) / SR, 20.0 * np.log10(float(np.abs(back).max()))))
 
     for name in RETIRED:
         path = os.path.join(SFX, name)
