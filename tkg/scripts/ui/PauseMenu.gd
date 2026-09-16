@@ -40,10 +40,6 @@ func setup() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(title)
 
-	var sub := UITheme.body("three degrees above absolute zero", UITheme.COLD, UITheme.FS_SMALL)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(sub)
-
 	col.add_child(UITheme.hsep())
 
 	col.add_child(Widgets.button("RESUME", func() -> void: resume_requested.emit()))

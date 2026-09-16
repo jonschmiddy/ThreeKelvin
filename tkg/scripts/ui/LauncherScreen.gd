@@ -13,8 +13,6 @@ extends Control
 ## system and the hull so the button is a decision rather than a guess. Loading
 ## consumes the file — see SaveGame.
 
-const SUBTITLE := "three degrees above absolute zero"
-
 ## Radians per second. A full turn takes about fifty minutes, which is the
 ## point: the galaxy should never appear to be spinning, only to have moved
 ## while you were reading. Anything fast enough to watch turns a backdrop into
@@ -63,8 +61,8 @@ const SKY_FILL := 1.12
 ## crisp at integer multiples — 8, 16, 24, 32, 48. 48 is a size, not a number
 ## picked for how it looked; 44 would render soft.
 const TITLE_SIZE := 48
-## The menu, and the tagline with it. One size for everything that is not the
-## title, so the corner reads as two things rather than four.
+## One size for everything that is not the title, so the corner reads as two
+## things rather than four.
 const MENU_SIZE := UITheme.FS_HEAD
 
 ## Left side bearing, in pixels, for text at MENU_SIZE against text at
@@ -148,15 +146,14 @@ func setup() -> void:
 	row.add_child(wide)
 
 	col.add_child(_line("THREE KELVIN", UITheme.ICE, TITLE_SIZE))
-	col.add_child(_indent(_line(SUBTITLE, UITheme.COLD, MENU_SIZE)))
 
 	var push := Control.new()
 	push.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	push.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(push)
 
-	# Everything at MENU_SIZE shares one indent, so the menu block and the
-	# tagline line up with each other as well as with the title.
+	# The menu carries the MENU_SIZE indent, so it lines up under the title
+	# rather than four pixels left of it. See BEARING_FIX.
 	var menu := VBoxContainer.new()
 	menu.add_theme_constant_override("separation", 2)
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
