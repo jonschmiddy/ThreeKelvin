@@ -1,0 +1,662 @@
+[
+ {
+  "id": "lounge",
+  "g": "Cozy",
+  "name": "Space lounge",
+  "desc": "Electric piano, soft mallet, fretless bass",
+  "s": {
+   "tune": 43,
+   "middle": 43,
+   "echo": 47,
+   "chords": 24,
+   "extra": 48,
+   "bass": 79,
+   "drums": 125
+  }
+ },
+ {
+  "id": "clean",
+  "g": "Cozy",
+  "name": "Clean and bright",
+  "desc": "Pure sine and triangle, acoustic drums",
+  "s": {
+   "tune": 108,
+   "middle": 109,
+   "echo": 47,
+   "chords": 24,
+   "extra": 107,
+   "bass": 87,
+   "drums": 123
+  }
+ },
+ {
+  "id": "cozychip",
+  "g": "Cozy",
+  "name": "Cozy chip",
+  "desc": "Soft console lead, 4-bit twinkle, brushes",
+  "s": {
+   "tune": 10,
+   "middle": 10,
+   "echo": 47,
+   "chords": 24,
+   "extra": 111,
+   "bass": 87,
+   "drums": 124
+  }
+ },
+ {
+  "id": "rain",
+  "g": "Cozy",
+  "name": "Rainy window",
+  "desc": "Mellow triangle and electric piano, dusty drums",
+  "s": {
+   "tune": 109,
+   "middle": 43,
+   "echo": 20,
+   "chords": 24,
+   "extra": 48,
+   "bass": 87,
+   "drums": 125
+  }
+ },
+ {
+  "id": "campfire",
+  "g": "Cozy",
+  "name": "Campfire",
+  "desc": "Plucked harp and marimba, fretless bass",
+  "s": {
+   "tune": 46,
+   "middle": 46,
+   "echo": 47,
+   "chords": 25,
+   "extra": 16,
+   "bass": 79,
+   "drums": 124
+  }
+ },
+ {
+  "id": "sunday",
+  "g": "Cozy",
+  "name": "Sunday morning",
+  "desc": "Round sine lead, music box sparkle, room drums",
+  "s": {
+   "tune": 108,
+   "middle": 43,
+   "echo": 18,
+   "chords": 24,
+   "extra": 48,
+   "bass": 87,
+   "drums": 123
+  }
+ },
+ {
+  "id": "village",
+  "g": "Cozy",
+  "name": "Village square",
+  "desc": "Marimba melody, console lead, 4-bit twinkle",
+  "s": {
+   "tune": 16,
+   "middle": 10,
+   "echo": 47,
+   "chords": 24,
+   "extra": 111,
+   "bass": 79,
+   "drums": 124
+  }
+ },
+ {
+  "id": "handheld",
+  "g": "Retro",
+  "name": "Retro handheld",
+  "desc": "8-bit pulse and wave channel, tight drums",
+  "s": {
+   "tune": 114,
+   "middle": 115,
+   "echo": 37,
+   "chords": 24,
+   "extra": 111,
+   "bass": 85,
+   "drums": 126
+  }
+ },
+ {
+  "id": "pocket",
+  "g": "Retro",
+  "name": "Pocket adventure",
+  "desc": "Nasal chip lead and 8-bit answers, crunchy bass",
+  "s": {
+   "tune": 37,
+   "middle": 114,
+   "echo": 47,
+   "chords": 24,
+   "extra": 111,
+   "bass": 85,
+   "drums": 126
+  }
+ },
+ {
+  "id": "arcade",
+  "g": "Retro",
+  "name": "Arcade dusk",
+  "desc": "Square lead over a glass choir, drum machine",
+  "s": {
+   "tune": 9,
+   "middle": 10,
+   "echo": 20,
+   "chords": 50,
+   "extra": 107,
+   "bass": 87,
+   "drums": 121
+  }
+ },
+ {
+  "id": "wave",
+  "g": "Retro",
+  "name": "Wave channel",
+  "desc": "Stepped console wave over a deep pad",
+  "s": {
+   "tune": 115,
+   "middle": 115,
+   "echo": 55,
+   "chords": 26,
+   "extra": 111,
+   "bass": 85,
+   "drums": 126
+  }
+ },
+ {
+  "id": "cart",
+  "g": "Retro",
+  "name": "Crunchy cartridge",
+  "desc": "Gritty square and 4-bit saw, 808 drums",
+  "s": {
+   "tune": 113,
+   "middle": 112,
+   "echo": 37,
+   "chords": 24,
+   "extra": 111,
+   "bass": 85,
+   "drums": 122
+  }
+ },
+ {
+  "id": "musicbox",
+  "g": "Dreamy",
+  "name": "Music box night",
+  "desc": "Tiny bells and harp over a frozen choir",
+  "s": {
+   "tune": 18,
+   "middle": 46,
+   "echo": 20,
+   "chords": 25,
+   "extra": 48,
+   "bass": 86,
+   "drums": 124
+  }
+ },
+ {
+  "id": "glass",
+  "g": "Dreamy",
+  "name": "Glass and choir",
+  "desc": "Glassy leads, sonar pings, choir pad",
+  "s": {
+   "tune": 2,
+   "middle": 101,
+   "echo": 20,
+   "chords": 50,
+   "extra": 55,
+   "bass": 86,
+   "drums": 124
+  }
+ },
+ {
+  "id": "analog",
+  "g": "Dreamy",
+  "name": "Warm analog",
+  "desc": "Poly synth lead, marimba, lo-fi drums",
+  "s": {
+   "tune": 110,
+   "middle": 110,
+   "echo": 20,
+   "chords": 24,
+   "extra": 16,
+   "bass": 79,
+   "drums": 125
+  }
+ },
+ {
+  "id": "aurora",
+  "g": "Dreamy",
+  "name": "Aurora",
+  "desc": "Hollow fifths and low glass, music box shimmer",
+  "s": {
+   "tune": 33,
+   "middle": 101,
+   "echo": 20,
+   "chords": 50,
+   "extra": 18,
+   "bass": 86,
+   "drums": 124
+  }
+ },
+ {
+  "id": "starmap",
+  "g": "Dreamy",
+  "name": "Star map",
+  "desc": "Music box and sine over crystal plucks, no drums",
+  "s": {
+   "tune": 18,
+   "middle": 108,
+   "echo": 55,
+   "chords": 25,
+   "extra": 17,
+   "bass": 86,
+   "drums": 0
+  }
+ },
+ {
+  "id": "synthwave",
+  "g": "Dreamy",
+  "name": "Soft synthwave",
+  "desc": "Clean saw and poly synth, drum machine",
+  "s": {
+   "tune": 105,
+   "middle": 110,
+   "echo": 20,
+   "chords": 24,
+   "extra": 107,
+   "bass": 79,
+   "drums": 121
+  }
+ },
+ {
+  "id": "choir",
+  "g": "Dreamy",
+  "name": "Floating choir",
+  "desc": "Synth voices and viola over a choir",
+  "s": {
+   "tune": 14,
+   "middle": 95,
+   "echo": 20,
+   "chords": 25,
+   "extra": 55,
+   "bass": 88,
+   "drums": 124
+  }
+ },
+ {
+  "id": "lander",
+  "g": "Retro space",
+  "name": "Lander",
+  "desc": "8-bit pulse and wave channel over a deep pad",
+  "s": {
+   "tune": 114,
+   "middle": 115,
+   "echo": 55,
+   "chords": 26,
+   "extra": 111,
+   "bass": 85,
+   "drums": 126
+  }
+ },
+ {
+  "id": "vector",
+  "g": "Retro space",
+  "name": "Vector arcade",
+  "desc": "Chip lead over a glass choir, drum machine",
+  "s": {
+   "tune": 9,
+   "middle": 10,
+   "echo": 20,
+   "chords": 50,
+   "extra": 107,
+   "bass": 85,
+   "drums": 121
+  }
+ },
+ {
+  "id": "cassette",
+  "g": "Retro space",
+  "name": "Cassette sci-fi",
+  "desc": "Console wave answered by a viola, dusty tape drums",
+  "s": {
+   "tune": 115,
+   "middle": 95,
+   "echo": 20,
+   "chords": 24,
+   "extra": 111,
+   "bass": 86,
+   "drums": 125
+  }
+ },
+ {
+  "id": "raygun",
+  "g": "Retro space",
+  "name": "Ray gun",
+  "desc": "Octave and wavetable chips over a frozen choir",
+  "s": {
+   "tune": 39,
+   "middle": 38,
+   "echo": 55,
+   "chords": 25,
+   "extra": 111,
+   "bass": 84,
+   "drums": 122
+  }
+ },
+ {
+  "id": "moonbase",
+  "g": "Retro space",
+  "name": "Moonbase",
+  "desc": "Clean saw and console wave, cinematic drums",
+  "s": {
+   "tune": 105,
+   "middle": 115,
+   "echo": 47,
+   "chords": 26,
+   "extra": 17,
+   "bass": 86,
+   "drums": 129
+  }
+ },
+ {
+  "id": "pixneb",
+  "g": "Retro space",
+  "name": "Pixel nebula",
+  "desc": "4-bit triangle and music box over a glass choir",
+  "s": {
+   "tune": 111,
+   "middle": 18,
+   "echo": 20,
+   "chords": 50,
+   "extra": 107,
+   "bass": 88,
+   "drums": 124
+  }
+ },
+ {
+  "id": "siglost",
+  "g": "Retro space",
+  "name": "Signal lost",
+  "desc": "Broken transmission and crushed voice, tape drums",
+  "s": {
+   "tune": 28,
+   "middle": 116,
+   "echo": 37,
+   "chords": 26,
+   "extra": 111,
+   "bass": 85,
+   "drums": 125
+  }
+ },
+ {
+  "id": "rocket",
+  "g": "Retro space",
+  "name": "Retro rocket",
+  "desc": "8-bit pulse and talkbox over a warm pad, 808 bass",
+  "s": {
+   "tune": 114,
+   "middle": 40,
+   "echo": 55,
+   "chords": 24,
+   "extra": 106,
+   "bass": 77,
+   "drums": 121
+  }
+ },
+ {
+  "id": "orbitchip",
+  "g": "Retro space",
+  "name": "Orbit chip",
+  "desc": "Console lead answered by a sub whistle, tight drums",
+  "s": {
+   "tune": 10,
+   "middle": 104,
+   "echo": 47,
+   "chords": 25,
+   "extra": 111,
+   "bass": 86,
+   "drums": 126
+  }
+ },
+ {
+  "id": "scanner",
+  "g": "Retro space",
+  "name": "Vintage scanner",
+  "desc": "Sonar pings over an 8-bit line and a glass choir",
+  "s": {
+   "tune": 55,
+   "middle": 114,
+   "echo": 20,
+   "chords": 50,
+   "extra": 111,
+   "bass": 85,
+   "drums": 122
+  }
+ },
+ {
+  "id": "deepspace",
+  "g": "Space",
+  "name": "Deep space",
+  "desc": "Sub whistle and low glass over a dark pad, no drums",
+  "s": {
+   "tune": 104,
+   "middle": 101,
+   "echo": 55,
+   "chords": 26,
+   "extra": 26,
+   "bass": 86,
+   "drums": 0
+  }
+ },
+ {
+  "id": "orbital",
+  "g": "Space",
+  "name": "Orbital drift",
+  "desc": "Hollow fifths and glass over a choir, cinematic drums",
+  "s": {
+   "tune": 33,
+   "middle": 2,
+   "echo": 20,
+   "chords": 50,
+   "extra": 55,
+   "bass": 88,
+   "drums": 129
+  }
+ },
+ {
+  "id": "distress",
+  "g": "Space",
+  "name": "Distress signal",
+  "desc": "Broken transmission and talkbox, tight drums",
+  "s": {
+   "tune": 28,
+   "middle": 40,
+   "echo": 55,
+   "chords": 26,
+   "extra": 111,
+   "bass": 85,
+   "drums": 126
+  }
+ },
+ {
+  "id": "vacuum",
+  "g": "Space",
+  "name": "Cold vacuum",
+  "desc": "Glass leads, frozen choir, crystal plucks, no drums",
+  "s": {
+   "tune": 2,
+   "middle": 101,
+   "echo": 20,
+   "chords": 25,
+   "extra": 17,
+   "bass": 86,
+   "drums": 0
+  }
+ },
+ {
+  "id": "nebula",
+  "g": "Space",
+  "name": "Nebula",
+  "desc": "Harp and music box over a glass choir, brushes",
+  "s": {
+   "tune": 46,
+   "middle": 18,
+   "echo": 20,
+   "chords": 50,
+   "extra": 17,
+   "bass": 88,
+   "drums": 124
+  }
+ },
+ {
+  "id": "beacon",
+  "g": "Space",
+  "name": "Beacon",
+  "desc": "Sonar pings answering a sub whistle, cinematic drums",
+  "s": {
+   "tune": 55,
+   "middle": 104,
+   "echo": 47,
+   "chords": 24,
+   "extra": 55,
+   "bass": 86,
+   "drums": 129
+  }
+ },
+ {
+  "id": "hullhum",
+  "g": "Space",
+  "name": "Hull hum",
+  "desc": "Low glass and viola over a deep pad, 808 bass",
+  "s": {
+   "tune": 101,
+   "middle": 95,
+   "echo": 37,
+   "chords": 26,
+   "extra": 111,
+   "bass": 77,
+   "drums": 122
+  }
+ },
+ {
+  "id": "starfield",
+  "g": "Space",
+  "name": "Star field",
+  "desc": "Crystal plucks and sine over a frozen choir, no drums",
+  "s": {
+   "tune": 17,
+   "middle": 108,
+   "echo": 47,
+   "chords": 25,
+   "extra": 18,
+   "bass": 86,
+   "drums": 0
+  }
+ },
+ {
+  "id": "voidchoir",
+  "g": "Space",
+  "name": "Void choir",
+  "desc": "Synth voices and glass choir, space cello bass",
+  "s": {
+   "tune": 14,
+   "middle": 50,
+   "echo": 20,
+   "chords": 25,
+   "extra": 55,
+   "bass": 88,
+   "drums": 0
+  }
+ },
+ {
+  "id": "iondrive",
+  "g": "Space",
+  "name": "Ion drive",
+  "desc": "Crushed voice and sub whistle over a wobble bass",
+  "s": {
+   "tune": 116,
+   "middle": 104,
+   "echo": 55,
+   "chords": 26,
+   "extra": 111,
+   "bass": 84,
+   "drums": 126
+  }
+ },
+ {
+  "id": "lonely",
+  "g": "Deep",
+  "name": "Deep and lonely",
+  "desc": "Low whistle and viola over a deep pad",
+  "s": {
+   "tune": 104,
+   "middle": 95,
+   "echo": 20,
+   "chords": 26,
+   "extra": 55,
+   "bass": 86,
+   "drums": 124
+  }
+ },
+ {
+  "id": "night",
+  "g": "Deep",
+  "name": "Night shift",
+  "desc": "Dark square and electric piano, room drums",
+  "s": {
+   "tune": 36,
+   "middle": 43,
+   "echo": 20,
+   "chords": 26,
+   "extra": 48,
+   "bass": 88,
+   "drums": 123
+  }
+ },
+ {
+  "id": "cold",
+  "g": "Deep",
+  "name": "Cold signal",
+  "desc": "Sub whistle and low glass, sonar pings",
+  "s": {
+   "tune": 104,
+   "middle": 101,
+   "echo": 55,
+   "chords": 50,
+   "extra": 55,
+   "bass": 86,
+   "drums": 126
+  }
+ },
+ {
+  "id": "ghost",
+  "g": "Deep",
+  "name": "Bitcrushed ghost",
+  "desc": "Crushed voice and viola, dusty drums",
+  "s": {
+   "tune": 116,
+   "middle": 95,
+   "echo": 20,
+   "chords": 26,
+   "extra": 111,
+   "bass": 86,
+   "drums": 125
+  }
+ },
+ {
+  "id": "station",
+  "g": "Deep",
+  "name": "Empty station",
+  "desc": "Deep pluck and sub whistle, no drums",
+  "s": {
+   "tune": 102,
+   "middle": 104,
+   "echo": 20,
+   "chords": 26,
+   "extra": 55,
+   "bass": 86,
+   "drums": 0
+  }
+ }
+]

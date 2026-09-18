@@ -92,6 +92,12 @@ var _tabs_on: Dictionary = {}
 ## reads as the ship shimmering.
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# THE ROOM YOU ARE STANDING IN. Docked is the one place in this game with
+	# other people in it, and the bed is the only thing that says so -- the
+	# screen itself is panels and prices. It is not a cue: it runs on its own
+	# player on the Music bus and fades in over a second and a half, because a
+	# room does not arrive on a beat. `_exit_tree` takes it away again.
+	Audio.room(&"amb_station")
 	_build()
 	Sig.resources_changed.connect(_refresh)
 	Sig.ship_changed.connect(_refresh)
@@ -2766,3 +2772,11 @@ func _board_posts(n: MapGen.MapNode) -> Array[StringName]:
 				if not out.has(mid2) and out.size() < 3:
 					out.append(mid2)
 	return out
+
+
+## Leaving the station takes the station with it. `_exit_tree` rather than a
+## call from whatever navigated away: the screen is freed on every route out of
+## here -- the chart, the ship, a quit -- and one of those would eventually be
+## missed.
+func _exit_tree() -> void:
+	Audio.room(&"")

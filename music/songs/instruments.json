@@ -1,0 +1,350 @@
+[
+ {
+  "number": 2,
+  "name": "Hollow Glass",
+  "group": 0,
+  "description": "Rounded triangle tone with a faint shimmer above."
+ },
+ {
+  "number": 4,
+  "name": "Warm Square",
+  "group": 0,
+  "description": "Muffled square wave with a low saw underneath."
+ },
+ {
+  "number": 7,
+  "name": "Juno Mono",
+  "group": 0,
+  "description": "Punchy analog mono lead with a quick filter blip."
+ },
+ {
+  "number": 33,
+  "name": "Quiet Fifths",
+  "group": 0,
+  "description": "Pure sine with a soft fifth ringing above it."
+ },
+ {
+  "number": 36,
+  "name": "Dusk Square",
+  "group": 0,
+  "description": "Dark square with a soft pluck at the start of each note."
+ },
+ {
+  "number": 9,
+  "name": "Chip Pulse",
+  "group": 1,
+  "description": "Plain square wave, like an old console."
+ },
+ {
+  "number": 10,
+  "name": "Arcade Triangle",
+  "group": 1,
+  "description": "Soft console triangle with a quick vibrato."
+ },
+ {
+  "number": 14,
+  "name": "Robot Choir",
+  "group": 1,
+  "description": "Vowel-like synth voice, vocoder flavored."
+ },
+ {
+  "number": 37,
+  "name": "Pocket Chip",
+  "group": 1,
+  "description": "Thin, nasal pulse like a handheld console."
+ },
+ {
+  "number": 38,
+  "name": "Wavetable Chip",
+  "group": 1,
+  "description": "Crunchy, stepped console wave."
+ },
+ {
+  "number": 39,
+  "name": "Octave Chip",
+  "group": 1,
+  "description": "Square doubled an octave up for a bright arcade sound."
+ },
+ {
+  "number": 40,
+  "name": "Talkbox",
+  "group": 1,
+  "description": "Saw through a moving vowel filter, a little \"wah\" on every note."
+ },
+ {
+  "number": 16,
+  "name": "Space Marimba",
+  "group": 2,
+  "description": "Woody, soft mallet tone."
+ },
+ {
+  "number": 17,
+  "name": "Crystal Pluck",
+  "group": 2,
+  "description": "Bright plucked synth with bouncing echoes."
+ },
+ {
+  "number": 18,
+  "name": "Star Music Box",
+  "group": 2,
+  "description": "Tiny, high, metallic music box."
+ },
+ {
+  "number": 20,
+  "name": "Distant Chime",
+  "group": 2,
+  "description": "Soft chime that rings for ages."
+ },
+ {
+  "number": 43,
+  "name": "Electric Piano",
+  "group": 2,
+  "description": "Soft, round FM electric piano."
+ },
+ {
+  "number": 46,
+  "name": "Space Harp",
+  "group": 2,
+  "description": "Clean, ringing harp strings."
+ },
+ {
+  "number": 47,
+  "name": "Tiny Bell",
+  "group": 2,
+  "description": "Small, high bell with bouncing echoes."
+ },
+ {
+  "number": 48,
+  "name": "Soft Mallet",
+  "group": 2,
+  "description": "Muted wooden mallet, very gentle."
+ },
+ {
+  "number": 24,
+  "name": "Warm Analog Pad",
+  "group": 3,
+  "description": "Classic analog pad that slowly opens up."
+ },
+ {
+  "number": 25,
+  "name": "Frozen Choir",
+  "group": 3,
+  "description": "Hollow, choir-like synth voices."
+ },
+ {
+  "number": 26,
+  "name": "Low Orbit",
+  "group": 3,
+  "description": "Deep, round sine with a sub underneath."
+ },
+ {
+  "number": 50,
+  "name": "Choir of Glass",
+  "group": 3,
+  "description": "Glassy voices over a hollow low tone."
+ },
+ {
+  "number": 28,
+  "name": "Broken Transmission",
+  "group": 4,
+  "description": "Stuttering, fast-warbling square."
+ },
+ {
+  "number": 55,
+  "name": "Sonar Ping",
+  "group": 4,
+  "description": "Deep sonar blip that echoes into the dark."
+ },
+ {
+  "number": 86,
+  "name": "Warm Tape Sub",
+  "group": 5,
+  "description": "Deep sub pushed through tape-style saturation, so it is felt and heard."
+ },
+ {
+  "number": 87,
+  "name": "Soft Felt",
+  "group": 5,
+  "description": "Muffled, gentle, almost like a felt piano played low."
+ },
+ {
+  "number": 79,
+  "name": "Fretless",
+  "group": 5,
+  "description": "Singing, sliding bass with a vocal \"mwah\" on each note."
+ },
+ {
+  "number": 80,
+  "name": "Tuba Synth",
+  "group": 5,
+  "description": "Soft brass bass that swells into each note."
+ },
+ {
+  "number": 88,
+  "name": "Space Cello Bass",
+  "group": 5,
+  "description": "Bowed synth bass with a slow, gentle vibrato."
+ },
+ {
+  "number": 77,
+  "name": "808 Boom",
+  "group": 5,
+  "description": "Deep hip-hop style boom: a thump that drops in pitch and rings out, lightly saturated."
+ },
+ {
+  "number": 84,
+  "name": "Wobble",
+  "group": 5,
+  "description": "Filter that throbs a few times per second. Big and unsettled."
+ },
+ {
+  "number": 85,
+  "name": "Crushed Chip",
+  "group": 5,
+  "description": "Low square wave crunched down to a few steps, like a broken console."
+ },
+ {
+  "number": 95,
+  "name": "Viola Voice",
+  "group": 7,
+  "description": "Hollow, reedy and singing, a little higher and softer."
+ },
+ {
+  "number": 101,
+  "name": "Low Glass",
+  "group": 7,
+  "description": "Glassy tone over a soft sub, a little bell-like."
+ },
+ {
+  "number": 102,
+  "name": "Deep Pluck",
+  "group": 7,
+  "description": "Plucked, like a melodic bass guitar that rings out."
+ },
+ {
+  "number": 104,
+  "name": "Sub Whistle",
+  "group": 7,
+  "description": "Pure low sine with gentle saturation so it carries."
+ },
+ {
+  "number": 105,
+  "name": "Clean Saw",
+  "group": 8,
+  "description": "A plain, bright saw with the edge taken off. No wobble."
+ },
+ {
+  "number": 106,
+  "name": "Clean Square",
+  "group": 8,
+  "description": "A smooth, hollow square wave."
+ },
+ {
+  "number": 107,
+  "name": "Soft Pulse",
+  "group": 8,
+  "description": "A narrow pulse wave, nasal but clean."
+ },
+ {
+  "number": 108,
+  "name": "Round Sine",
+  "group": 8,
+  "description": "A pure sine with a soft octave above it. Very clean."
+ },
+ {
+  "number": 109,
+  "name": "Mellow Triangle",
+  "group": 8,
+  "description": "Warm and gentle, like a quiet flute synth."
+ },
+ {
+  "number": 110,
+  "name": "Poly Synth",
+  "group": 8,
+  "description": "A classic warm analog synth with a soft filter bloom."
+ },
+ {
+  "number": 111,
+  "name": "4-bit Triangle",
+  "group": 8,
+  "description": "The old console triangle channel: stepped and soft."
+ },
+ {
+  "number": 112,
+  "name": "4-bit Saw",
+  "group": 8,
+  "description": "A saw crunched down to a handful of steps."
+ },
+ {
+  "number": 113,
+  "name": "Crunchy Square",
+  "group": 8,
+  "description": "A gritty, lo-fi square."
+ },
+ {
+  "number": 114,
+  "name": "8-bit Pulse",
+  "group": 8,
+  "description": "Handheld-console pulse with a quick chip vibrato."
+ },
+ {
+  "number": 115,
+  "name": "Wave Channel",
+  "group": 8,
+  "description": "A stepped custom wave, like a Game Boy wave channel."
+ },
+ {
+  "number": 116,
+  "name": "Bitcrushed Voice",
+  "group": 8,
+  "description": "A hollow voice crushed into a lo-fi robot tone."
+ },
+ {
+  "number": 121,
+  "name": "909 Kit",
+  "group": 6,
+  "description": "Classic drum machine: tight thumping kick, snappy snare, crisp hats, clap."
+ },
+ {
+  "number": 122,
+  "name": "808 Kit",
+  "group": 6,
+  "description": "Deep booming kick, round snare, metallic hats, the famous clap and rim."
+ },
+ {
+  "number": 123,
+  "name": "Acoustic Room",
+  "group": 6,
+  "description": "Closest to a real drummer: a round kick with beater, a snare with wires, ringing hats, in a room."
+ },
+ {
+  "number": 124,
+  "name": "Brushes",
+  "group": 6,
+  "description": "Jazz brushes: a soft kick, a swishing snare, whispered hats. Very gentle."
+ },
+ {
+  "number": 125,
+  "name": "Lo-fi Tape",
+  "group": 6,
+  "description": "Dusty, warm, slightly crunchy drums, like an old cassette of a drum break."
+ },
+ {
+  "number": 126,
+  "name": "Minimal Tech",
+  "group": 6,
+  "description": "Short, precise and dry: a tight kick, clicky rims, tiny hats."
+ },
+ {
+  "number": 127,
+  "name": "Trap Kit",
+  "group": 6,
+  "description": "A long, heavy 808 boom, a sharp snare and clap, very crisp hats."
+ },
+ {
+  "number": 129,
+  "name": "Cinematic",
+  "group": 6,
+  "description": "Huge and dangerous: a deep boom, a snare with a long tail, a taiko-like drum."
+ }
+]

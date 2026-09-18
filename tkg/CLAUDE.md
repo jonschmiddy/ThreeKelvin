@@ -24,7 +24,8 @@ split.
 | `docs/building-a-manufacturer.md` | **Before writing a manufacturer's parts.** The sequence, the four gates to run, the six audit questions, and the traps that cost time on the first two manufacturers |
 | `docs/catalogue.md` | **Before writing a module or a card.** The Grant Count Law, the Card Rarity Law, the reactor ladder, the shared library, and the six gates that stop a duplicate, a card named after a keyword, or a frame that launches without a deck |
 | `docs/art/ART_CONTRACT.md` | Before generating any art |
-| `audio/README.md` | Before touching sound |
+| `audio/README.md` | Before touching a sound effect |
+| `../music/CLAUDE.md` | **Before touching the music.** The lab HTML is the source; the oggs and the JSON are outputs. Run `music/tools/check_cue.mjs` and `check_lab.mjs` after any music change — `validate.sh` runs both |
 
 ---
 

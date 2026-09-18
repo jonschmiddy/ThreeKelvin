@@ -1,5 +1,25 @@
 # Audio
 
+> **THE MUSIC IS NOT HERE ANY MORE.** It was rewritten from scratch outside the
+> repo and now lives in [`../../music/`](../../music/), where a single
+> self-contained browser page — `music/lab/tk_music_lab.html` — is the source
+> of every note, instrument, effect and arrangement across seventeen cues. The
+> oggs under `assets/audio/music/` are rendered *from* that page and the JSON
+> under `music/songs/` is dumped *from* it, so neither is worth editing: they
+> cannot be wrong on their own, only stale. **Read
+> [`music/CLAUDE.md`](../../music/CLAUDE.md) before changing anything musical**,
+> and run `check_cue.mjs` and `check_lab.mjs` afterwards — `validate.sh` runs
+> both.
+>
+> WHAT IS STILL TRUE HERE: the sound effects, the synth engine they share, and
+> the ambience work. `first_light.py` also stays — the lab's First Light is a
+> verbatim port of it, so if this file changes, the port is re-done rather than
+> the copy edited.
+>
+> The Python cue builders below are kept because they are what the ported cues
+> were built from, and because `build.py sfx` still runs. They no longer feed
+> the game's music.
+
 Everything the game hears is generated here by pure Python — numpy and scipy
 only, no DAW. Eight music cues, twenty-four sound effects, one synth engine
 shared between them, and one whistled five-note phrase under all of it.

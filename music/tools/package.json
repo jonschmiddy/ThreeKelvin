@@ -1,0 +1,13 @@
+{
+  "name": "three-kelvin-music-checks",
+  "private": true,
+  "type": "module",
+  "description": "Checks for the Three Kelvin music: musical rules per cue, and a smoke test of the lab page.",
+  "scripts": {
+    "check": "node check_cue.mjs && node check_lab.mjs"
+  },
+  "dependencies": {
+    "jsdom": "^24.0.0",
+    "node-web-audio-api": "^0.21.0"
+  }
+}

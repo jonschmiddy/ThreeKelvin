@@ -529,6 +529,41 @@ else
 	ok "python absent, skipped"
 fi
 
+step "The music lab still holds together"
+# THE LAB IS THE SOURCE OF THE MUSIC, so it gets checked like source.
+#
+# `music/lab/tk_music_lab.html` is the one file every cue lives in -- the notes,
+# the instruments, the effects, the arrangement. The oggs under
+# `assets/audio/music/` are RENDERED from it and the JSON under `music/songs/`
+# is DUMPED from it, so neither is worth checking: they cannot be wrong on their
+# own, only stale.
+#
+# `check_cue.mjs` fails on exactly two things, a held note grinding against its
+# chord and a cue playing a pitch it has sworn off, and prints everything else
+# as a note -- off-chord strong beats and repeated notes are usually deliberate.
+# `check_lab.mjs` drives the page headless: tabs, transport, scrubbing,
+# settings lines, and no errors on the console.
+#
+# SKIPPED RATHER THAN FAILED when node or the dependencies are absent, the same
+# bargain the Python check above makes. The tools need `npm install` in
+# `music/tools` once per machine, and a fresh clone has not done it.
+if command -v node >/dev/null 2>&1 && [ -d music/tools/node_modules ]; then
+	if (cd music/tools && node check_cue.mjs) >"$LOG_DIR/cues.log" 2>&1; then
+		ok "every cue follows its own musical rules ($(grep -c 'BPM,' "$LOG_DIR/cues.log") cues)"
+	else
+		bad "a cue broke a musical rule"
+		sed 's/^/        /' "$LOG_DIR/cues.log" | tail -20
+	fi
+	if (cd music/tools && node check_lab.mjs) >"$LOG_DIR/lab.log" 2>&1; then
+		ok "the lab page plays, seeks and settles"
+	else
+		bad "the music lab is broken"
+		sed 's/^/        /' "$LOG_DIR/lab.log" | tail -20
+	fi
+else
+	ok "node or music/tools/node_modules absent, skipped"
+fi
+
 step "A shape that changed took its version with it"
 # THE GUARD THE VOCABULARY PASS NEEDED AND DID NOT HAVE. That pass renamed keys
 # in three persistence surfaces and raised none of the numbers guarding them.

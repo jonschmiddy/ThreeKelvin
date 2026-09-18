@@ -1,0 +1,13 @@
+{
+  "name": "three-kelvin-music-render",
+  "private": true,
+  "type": "module",
+  "description": "Render the Three Kelvin music cues to WAV, straight from the music lab page.",
+  "scripts": {
+    "render:all": "for id in title fl coldstart longway qo slipstream cutsignal; do node render_wav.mjs $id; done"
+  },
+  "dependencies": {
+    "jsdom": "^24.0.0",
+    "node-web-audio-api": "^0.21.0"
+  }
+}

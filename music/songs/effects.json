@@ -1,0 +1,311 @@
+{
+ "perPart": {
+  "rev": {
+   "label": "Reverb",
+   "opts": [
+    [
+     "dry",
+     "Dry"
+    ],
+    [
+     "normal",
+     "Normal"
+    ],
+    [
+     "wet",
+     "Wet"
+    ],
+    [
+     "huge",
+     "Huge"
+    ]
+   ]
+  },
+  "dly": {
+   "label": "Delay",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "normal",
+     "Normal"
+    ],
+    [
+     "long",
+     "Long"
+    ]
+   ]
+  },
+  "vol": {
+   "label": "Volume",
+   "opts": [
+    [
+     "quiet",
+     "Quiet"
+    ],
+    [
+     "normal",
+     "Normal"
+    ],
+    [
+     "loud",
+     "Loud"
+    ]
+   ]
+  }
+ },
+ "global": [
+  {
+   "id": "space",
+   "label": "Space",
+   "opts": [
+    [
+     "room",
+     "Small room"
+    ],
+    [
+     "hall",
+     "Hall"
+    ],
+    [
+     "space",
+     "Deep space"
+    ]
+   ]
+  },
+  {
+   "id": "amount",
+   "label": "Reverb amount",
+   "opts": [
+    [
+     "less",
+     "Less"
+    ],
+    [
+     "normal",
+     "Normal"
+    ],
+    [
+     "more",
+     "More"
+    ]
+   ]
+  },
+  {
+   "id": "tone",
+   "label": "Tone",
+   "opts": [
+    [
+     "dark",
+     "Dark"
+    ],
+    [
+     "normal",
+     "Normal"
+    ],
+    [
+     "bright",
+     "Bright"
+    ]
+   ]
+  },
+  {
+   "id": "warmth",
+   "label": "Warmth",
+   "opts": [
+    [
+     "clean",
+     "Clean"
+    ],
+    [
+     "warm",
+     "Warm tape"
+    ],
+    [
+     "crunchy",
+     "Crunchy"
+    ]
+   ]
+  },
+  {
+   "id": "wobble",
+   "label": "Tape wobble",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "gentle",
+     "Gentle"
+    ],
+    [
+     "seasick",
+     "Seasick"
+    ]
+   ]
+  },
+  {
+   "id": "lofi",
+   "label": "Lo-fi",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "radio",
+     "Old radio"
+    ],
+    [
+     "console",
+     "Old console"
+    ],
+    [
+     "wall",
+     "Behind a wall"
+    ],
+    [
+     "laptop",
+     "Laptop speaker"
+    ]
+   ]
+  },
+  {
+   "id": "crackle",
+   "label": "Vinyl crackle",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "light",
+     "Light"
+    ],
+    [
+     "dusty",
+     "Dusty"
+    ]
+   ]
+  },
+  {
+   "id": "hiss",
+   "label": "Tape hiss",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "soft",
+     "Soft"
+    ],
+    [
+     "loud",
+     "Loud"
+    ]
+   ]
+  },
+  {
+   "id": "flutter",
+   "label": "Flutter",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "worn",
+     "Worn tape"
+    ],
+    [
+     "broken",
+     "Broken tape"
+    ]
+   ]
+  },
+  {
+   "id": "drops",
+   "label": "Dropouts",
+   "opts": [
+    [
+     "off",
+     "Off"
+    ],
+    [
+     "rare",
+     "Now and then"
+    ],
+    [
+     "often",
+     "Often"
+    ]
+   ]
+  },
+  {
+   "id": "width",
+   "label": "Width",
+   "opts": [
+    [
+     "stereo",
+     "Stereo"
+    ],
+    [
+     "narrow",
+     "Narrow"
+    ],
+    [
+     "mono",
+     "Mono"
+    ]
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "id": "tune",
+   "label": "Tune",
+   "hint": "Main melody, start and end",
+   "def": 2
+  },
+  {
+   "id": "middle",
+   "label": "Middle melody",
+   "hint": "The slow section",
+   "def": 14
+  },
+  {
+   "id": "echo",
+   "label": "Echo",
+   "hint": "Answers long notes",
+   "def": 20
+  },
+  {
+   "id": "chords",
+   "label": "Chords",
+   "hint": "Holds the harmony",
+   "def": 24
+  },
+  {
+   "id": "extra",
+   "label": "Extra",
+   "hint": "Drone or repeating figure",
+   "def": 0
+  },
+  {
+   "id": "bass",
+   "label": "Bass",
+   "hint": "Low notes under the chords",
+   "def": 86
+  },
+  {
+   "id": "drums",
+   "label": "Drums",
+   "hint": "The beat",
+   "def": 0
+  }
+ ]
+}

@@ -53,3 +53,11 @@ tools/out/*
 .agents/
 .claude/skills/sound-effects/
 skills-lock.json
+
+# The music lab's check tools and renderer pull jsdom and a Web Audio
+# implementation so they can run the lab page headless. Installed per machine
+# with `npm install` in each folder; nothing here is a source of truth.
+music/tools/node_modules/
+music/engine/node_modules/
+music/tools/package-lock.json
+music/engine/package-lock.json

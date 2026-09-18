@@ -1,6 +1,6 @@
 extends Harness
 
-## The music system lets go of what it is not playing.
+## The music picks the right cue, loops without a gap, and leaves nothing behind.
 ##
 ##   godot --path . -- audiotest
 ##
@@ -9,11 +9,13 @@ extends Harness
 ## subject of this test does not exist there: it would pass by measuring
 ## nothing, which is the failure this project keeps finding in its own checks.
 ##
-## What it guards is a leak rather than a crash. `_ensure_loaded` loaded a cue
-## on first use and nothing ever released it, so a session that touched the
-## title, the chart, a station, a sector and a fight held all of them decoded at
-## once -- and the per-cue figures run to 17 MB. Nothing about that is visible:
-## the game sounds correct the whole time it is happening.
+## WHAT IT GUARDED BEFORE, AND WHY THAT IS GONE. The previous edition built a
+## cue out of six stems and loaded them on first use, and nothing released them
+## -- a session that touched five places held all five decoded, at 17 MB each.
+## That whole mechanism has been replaced by seventeen finished cues, one file
+## apiece, played on two voices. There is no cache to leak, so the leak test is
+## replaced rather than kept: what can go wrong now is picking the wrong cue,
+## repeating one, stranding a voice, or a loop that does not come round.
 
 var _tree: SceneTree
 
@@ -23,207 +25,208 @@ func run(tree: SceneTree) -> void:
 	await tree.process_frame
 
 	if not _ok("audio is enabled, so there is something here to measure",
-			Audio.resident() != null and Audio._enabled):
+			Audio._enabled):
 		return _finish()
 
-	# Four cues, so the set is unambiguously more than one.
+	# ---- the table itself, before anything plays
 	#
-	# WHAT IS ASSERTED IS THAT THESE FOUR ARE RESIDENT, NOT THAT FOUR ARE. The
-	# check used to be `resident().size() == 4`, and it passed for a year by
-	# coincidence: whatever cue STATES gives the menu is already loaded when this
-	# runs, and the menu happened to point at a cue in this very list -- first
-	# "first_light", then "warm". The moment the title moved to "theme", which is
-	# not in the list, five were resident and a correct mixer failed its own
-	# test.
-	#
-	# A test that silently depends on an unrelated table is worse than no test,
-	# because it reports the wrong subsystem. So the baseline is recorded and
-	# what is checked is that playing four cues makes those four resident.
-	var before := Audio.resident().size()
-	var asked: Array[StringName] = [&"first_light", &"shells", &"warm", &"burn"]
-	for pair in [[&"first_light", 2], [&"shells", 2], [&"warm", 1], [&"burn", 4]]:
-		Audio.play_cue(pair[0], pair[1])
-		await tree.process_frame
-	var loaded := Audio.resident()
-	var missing: Array[StringName] = []
-	for c: StringName in asked:
-		if not loaded.has(c):
-			missing.append(c)
-	if not _ok("playing four cues loads four, and they stay while warm "
-			+ "(%d resident, %d before)" % [loaded.size(), before],
-			missing.is_empty()):
-		return _finish()
-
-	# WAIT FOR THE CROSSFADE TO FINISH, DO NOT TIME IT. A cue whose gain is
-	# still falling is still running, and `_release_idle` skips a running cue on
-	# purpose -- freeing one mid-fade would cut the fade it is in. So a cue only
-	# just left reads as a leak when it is doing exactly the right thing.
-	#
-	# This was `create_timer(CROSSFADE + 0.5)`, which is the same mistake
-	# `quittest` made: a fixed wait is a race with whatever else the frame is
-	# doing. It passed until the second-edition cues landed, which are six
-	# 96-second stems each and slow enough to load that the margin vanished.
-	# Waiting on the thing actually being waited for cannot go stale.
-	# AND THE BOUND IS A FAILURE, NOT A SHRUG. A loop that runs out and carries
-	# on silently turns a timing problem into a wrong answer about the thing
-	# being tested, which is how a flaky check is worse than no check.
-	#
-	# THE BOUND IS WALL CLOCK, NOT FRAMES, AND THAT IS THE WHOLE FIX. It was 600
-	# frames, then 3600, and it still failed about one run in three once the
-	# title cue grew a sixth stem. Both numbers were the wrong UNIT rather than
-	# the wrong size: this is checking that a 2.2-second crossfade finishes, and
-	# a frame count only measures time if frames take a predictable while. These
-	# frames do not -- they are stalling on exactly the stream loading that makes
-	# the crossfade slow, so the budget shrank precisely when the thing it
-	# measures got harder. Thirty seconds is thirteen crossfades and cannot be
-	# eaten by a slow frame.
-	var settled := false
-	var began := Time.get_ticks_msec()
-	var stuck: Array[StringName] = []
-	while Time.get_ticks_msec() - began < 30000:
-		stuck.clear()
-		for c: StringName in Audio.resident():
-			if c != Audio._cue and Audio._running.get(c, false):
-				stuck.append(c)
-		if stuck.is_empty():
-			settled = true
-			break
-		await tree.process_frame
-	# NAME WHAT DID NOT SETTLE. A timeout that says only "it did not finish"
-	# sends you looking at the timeout; one that names the cue sends you to the
-	# cue. That distinction cost an hour.
-	if not _ok("the crossfades finish in reasonable time"
-			+ ("" if settled else " -- still running: %s, current is %s"
-				% [stuck, Audio._cue]), settled):
-		return _finish()
-
-	# THE CLOCK IS MOVED, NOT WAITED OUT. The threshold is 45 seconds and a test
-	# that slept for it is a test nobody runs. `_idle_since` is the only input
-	# to the decision, so winding it back is the same measurement.
-	var back := Audio.RELEASE_AFTER_MS + 1000
-	for cue: StringName in Audio._idle_since.keys():
-		Audio._idle_since[cue] = int(Audio._idle_since[cue]) - back
-	for i in 6:
-		await tree.process_frame
-
-	var after := Audio.resident()
-	_ok("the silent ones are released (%s)" % str(after), after.size() == 1)
-	_ok("and the one still playing is kept", after.has(&"burn"))
-
-	# TWO CUES IN TWO KEYS MUST NEVER SOUND AT ONCE.
-	#
-	# The rule the third edition needs and the second edition did not: thirteen
-	# cues on one pedal could be crossfaded in any combination, and thirteen
-	# independent pieces in nine keys cannot. Walking ship, sector, chart,
-	# archive used to put B flat major over F minor over G minor over E flat,
-	# two at a time, and Jon heard it immediately.
-	#
-	# STEPPED, NOT WAITED. The first version of these checks awaited real frames
-	# and took so long the run never reached its own verdict -- which is the same
-	# mistake the idle clock above already solved. A fade is a function of
-	# elapsed time and nothing else, so advancing the mixer by hand is the same
-	# measurement at none of the cost.
-	Audio.play_cue(&"theme", 2)
-	_settle()
-	Audio.play_cue(&"shells", 2)
-	var worst := 0.0
-	for i in 200:
-		worst = maxf(worst, minf(float(Audio._gain.get(&"theme", 0.0)),
-				float(Audio._gain.get(&"shells", 0.0))))
-		if float(Audio._gain.get(&"shells", 0.0)) > 0.99:
-			break
-		Audio._process(0.05)
-	_ok("an unrelated cue waits for silence (overlap %.3f)" % worst, worst < 0.02)
-
-	# And the opposite, because the DEEP swap depends on the overlap EXISTING:
-	# theme and dread are both on F, and holding both is what makes deep space
-	# read as the place turning rather than as the music cutting. The obvious
-	# version of this went straight from shells to dread and measured nothing --
-	# G to F is correctly unrelated, so the mixer was right and the test was
-	# asking the wrong question.
-	Audio.play_cue(&"theme", 2)
-	_settle()
-	Audio.play_cue(&"dread", 2)
-	var together := 0.0
-	for i in 200:
-		together = maxf(together, minf(float(Audio._gain.get(&"theme", 0.0)),
-				float(Audio._gain.get(&"dread", 0.0))))
-		if float(Audio._gain.get(&"dread", 0.0)) > 0.99:
-			break
-		Audio._process(0.05)
-	_ok("a cue sharing a root still crossfades (overlap %.3f)" % together,
-			together > 0.2)
-
-	# A PANEL CHANGES NOTHING AT ALL. The ship, the chart and the archive are
-	# things you open while standing somewhere; the place owns the music and they
-	# do not get a say. This walk used to change the cue four times in four
-	# clicks.
-	Audio.music_state(&"sector")
-	_settle()
-	var held := Audio._cue
-	var moved: Array[StringName] = []
-	for panel: StringName in [&"ship", &"chart", &"archive", &"ship"]:
-		Audio.music_state(panel)
-		Audio._process(0.05)
-		if Audio._cue != held:
-			moved.append(panel)
-	_ok("panels do not change the cue (held %s, moved by %s)" % [held, moved],
-			moved.is_empty() and held != &"")
-
-	# EVERY CUE MUST BE REACHABLE BY PLAYING THE GAME.
-	#
-	# Jon: "All the music you made should be used in the game." Six of the
-	# thirteen had quietly become unreachable -- STATES named seven places and
-	# there are thirteen pieces, so the rest were shipped and never played. That
-	# is easy to do again with one edit and impossible to notice by ear, because
-	# nothing sounds wrong; something is simply never heard.
-	var named: Dictionary = {}
-	for state: StringName in Audio.STATES:
-		if state in Audio.PANEL:
-			continue
-		var c: StringName = (Audio.STATES[state] as Array)[0]
-		named[c] = true
-		if Audio.DEEP.has(c):
-			named[Audio.DEEP[c]] = true
-	for band: Array in Audio.SECTOR_BANDS:
-		named[band[1]] = true
-	for c: StringName in Audio.SECTOR_SPECIAL:
-		named[c] = true
-	var orphans: Array[StringName] = []
-	for c: StringName in Audio.CUES:
+	# EVERY CUE THE GAME SHIPS IS REACHABLE. Six of the thirteen cues in the old
+	# edition were unreachable for a year because the table that chose them
+	# named seven places and there were thirteen pieces. Seventeen files is a
+	# lot of work to leave unplayed, so this counts them rather than trusting.
+	var named: Dictionary = {Audio.TITLE_CUE: true, Audio.BOSS_CUE: true}
+	for tier: StringName in Audio.RUN_CUES:
+		for c: StringName in Audio.RUN_CUES[tier]:
+			named[c] = true
+	for tier: StringName in Audio.FIGHT_CUES:
+		named[Audio.FIGHT_CUES[tier]] = true
+	var on_disk := _cues_on_disk()
+	var unplayed: Array = []
+	for c: StringName in on_disk:
 		if not named.has(c):
-			orphans.append(c)
-	_ok("every cue is reachable in play (%d cues, orphans %s)"
-			% [Audio.CUES.size(), orphans], orphans.is_empty())
+			unplayed.append(c)
+	_ok("every cue on disk is reachable in play (%d cues, orphans %s)"
+			% [on_disk.size(), unplayed], unplayed.is_empty())
 
-	# Counted against what SHOULD be on the bus rather than a round number: the
-	# stems of whatever is still resident, and nothing else. There were three
-	# ambience beds sitting here too, outliving every cue; they are gone, so the
-	# only long-lived thing on the Music bus now is a cue's own stems.
-	# Recounted here rather than reusing the list from the release check: the
-	# overlap checks above load cues of their own, and counting against a stale
-	# snapshot reports a leak that is only bookkeeping.
-	after = Audio.resident()
-	var want := 0
-	for cue: StringName in after:
-		want += (Audio._stems[cue] as Dictionary).size()
+	var missing: Array = []
+	for c: StringName in named:
+		if not on_disk.has(c):
+			missing.append(c)
+	_ok("and every cue the table names exists (%d named, missing %s)"
+			% [named.size(), missing], missing.is_empty())
+
+	# ---- the tier ladder
+	#
+	# READ AS A TABLE, not by driving a run. The layer bands are the whole
+	# decision and they are arithmetic, so they can be checked directly.
+	_ok("five tiers over %d layers, %d apiece"
+			% [MapGen.LAYERS, Audio.TIER_SPAN],
+			Audio.TIERS.size() * Audio.TIER_SPAN == MapGen.LAYERS)
+
+	var ladder: Array[StringName] = []
+	for layer in MapGen.LAYERS:
+		ladder.append(Audio.TIERS[clampi(layer / Audio.TIER_SPAN, 0,
+				Audio.TIERS.size() - 1)])
+	_ok("layer 0 opens on EASY and the last layer is LETHAL (%s .. %s)"
+			% [ladder[0], ladder[ladder.size() - 1]],
+			ladder[0] == &"EASY" and ladder[ladder.size() - 1] == &"LETHAL")
+
+	# THE LADDER ONLY EVER CLIMBS. The whole argument for keying on layer rather
+	# than danger is that a tier describes a journey, so a band that stepped
+	# backwards would be the one thing this must not do.
+	var climbs := true
+	for i in range(1, ladder.size()):
+		if Audio.TIERS.find(ladder[i]) < Audio.TIERS.find(ladder[i - 1]):
+			climbs = false
+	_ok("and it never steps back down (%s)"
+			% [" ".join(ladder.map(func(t: StringName) -> String:
+					return str(t).substr(0, 1)))], climbs)
+
+	# ---- playing, swapping, and not repeating
+	Audio.play_cue(Audio.TITLE_CUE)
+	await _settle()
+	_ok("the title plays (%s, voice %d)" % [Audio.cue(), Audio._now],
+			Audio.cue() == Audio.TITLE_CUE and Audio._now >= 0)
+
+	var first_voice := Audio._now
+	Audio.play_cue(Audio.FIGHT_CUES[&"LETHAL"])
+	await _settle()
+	_ok("a different cue takes the other voice (%s, voice %d)"
+			% [Audio.cue(), Audio._now],
+			Audio.cue() == Audio.FIGHT_CUES[&"LETHAL"]
+			and Audio._now != first_voice)
+
+	# ASKING FOR WHAT IS ALREADY ON DOES NOTHING. Router calls `music_state` on
+	# every screen change, so this is the common case by a wide margin: if it
+	# restarted the cue, walking to the station and back would reset the music.
+	var held := Audio.cue()
+	var voice := Audio._now
+	Audio.play_cue(held)
+	await _settle()
+	_ok("asking again for the cue already playing changes nothing (%s)" % held,
+			Audio.cue() == held and Audio._now == voice)
+
+	# A TIER'S RUN CUES ALTERNATE. With two cues in most tiers, picking at
+	# random without this would play the same piece twice in a row one time in
+	# two, which is what makes a small set sound smaller than it is.
+	var repeats := 0
+	var prev := &""
+	for _i in 12:
+		var pick: StringName = Audio._pick(&"HARD", Audio.RUN_CUES[&"HARD"])
+		if pick == prev:
+			repeats += 1
+		prev = pick
+	_ok("a tier never plays the same run cue twice running (%d repeats in 12)"
+			% repeats, repeats == 0)
+
+	# ---- the loop
+	#
+	# THE ONE THING GODOT CANNOT DO FOR US. Its ogg import says where to jump
+	# back TO and not where to loop FROM, and every cue carries six seconds of
+	# reverb tail past its last bar -- so stream looping would play that tail
+	# before every downbeat. `_relay` loops instead, and the tail rings over the
+	# new head, which is what it was printed for.
+	var loops_ok := true
+	var no_loop: Array = []
+	for c: StringName in named:
+		if Audio._loop_of(c) <= 0.0:
+			loops_ok = false
+			no_loop.append(c)
+	_ok("every cue knows its loop point (%s)"
+			% ("all %d" % named.size() if loops_ok else str(no_loop)), loops_ok)
+
+	var streamed := true
+	for i in Audio._mv.size():
+		var st: AudioStream = (Audio._mv[i] as AudioStreamPlayer).stream
+		if st is AudioStreamOggVorbis and (st as AudioStreamOggVorbis).loop:
+			streamed = false
+	_ok("and no cue is left to the stream's own looping", streamed)
+
+	# The relay itself, driven rather than waited for: a cue is two minutes long
+	# and this test is not going to sit through one.
+	var before_voice := Audio._now
+	var carried: AudioStream = (Audio._mv[Audio._now] as AudioStreamPlayer).stream
+	Audio._relay()
+	await tree.process_frame
+	_ok("the loop hands the cue to the other voice (%d -> %d)"
+			% [before_voice, Audio._now], Audio._now != before_voice)
+	_ok("and the new voice carries the same cue",
+			(Audio._mv[Audio._now] as AudioStreamPlayer).stream == carried
+			and (Audio._mv[Audio._now] as AudioStreamPlayer).playing)
+
+	# ---- stopping
+	Audio.stop_music()
+	await _settle()
+	_ok("stopping clears the cue (%s)" % [Audio.cue()], Audio.cue() == &"")
+
+	# NOTHING LEFT ON THE BUS. Two voices is the whole music system; a third
+	# player on Music means something built one and lost it. The room tone has
+	# its own player on this bus deliberately and is excluded by name.
 	var players := 0
 	for c in Audio.get_children():
+		if c == Audio._room:
+			continue
 		if c is AudioStreamPlayer and (c as AudioStreamPlayer).bus == &"Music":
 			players += 1
-	_ok("no orphan music players left behind (%d on the bus, %d accounted for)"
-		% [players, want], players == want)
+	_ok("exactly two music voices exist (%d on the bus)" % players,
+			players == Audio._mv.size() and players == 2)
+
+	# ---- the score sits back while there is a room at all
+	#
+	# DRIVEN, NOT WAITED FOR. `_rduck` eases over 1.6 seconds of real time, so
+	# this walks the same `move_toward` the process loop does rather than sitting
+	# through it.
+	Audio.room(&"amb_station")
+	var r := 1.0
+	for _i in 400:
+		r = move_toward(r, Audio.ROOM_DUCK if Audio._room_now != &"" else 1.0,
+				0.016 / Audio.ROOM_DUCK_S)
+	_ok("docked, the music steps back to %.0f%% (%.2f)"
+			% [Audio.ROOM_DUCK * 100.0, r],
+			is_equal_approx(r, Audio.ROOM_DUCK))
+	Audio.room(&"")
+	for _i in 400:
+		r = move_toward(r, Audio.ROOM_DUCK if Audio._room_now != &"" else 1.0,
+				0.016 / Audio.ROOM_DUCK_S)
+	_ok("and comes back up on leaving (%.2f)" % r, is_equal_approx(r, 1.0))
+
+	# ---- the room ducks the score while somebody is talking
+	Audio._load_speech(&"amb_station")
+	_ok("the station bed says when it is talking (%d windows over %.0f s)"
+			% [Audio._speech.size(), Audio._room_loop],
+			Audio._speech.size() == 6 and Audio._room_loop > 1.0)
+	var first: Array = Audio._speech[0] as Array
+	var mid: float = (float(first[0]) + float(first[1])) * 0.5
+	_ok("mid-announcement the music is asked to step aside (%.1f s)" % mid,
+			Audio._talking_at(mid))
+	_ok("and between them it is not (%.1f s)" % (float(first[1]) + 5.0),
+			not Audio._talking_at(float(first[1]) + 5.0))
+	# THE ONE THAT WOULD HAVE SHIPPED BROKEN. A looping stream's playhead keeps
+	# counting past the end, so without the modulo the second pass through the
+	# loop never ducks again -- and that is the pass a player actually hears.
+	_ok("and it still ducks on the second time round (%.1f s)"
+			% (Audio._room_loop + mid), Audio._talking_at(Audio._room_loop + mid))
 	_finish()
 
 
-## Advance the mixer until whatever was asked for is fully up, without waiting
-## for real frames. Bounded, because a loop that cannot end is worse than a
-## check that fails.
-func _settle(n: int = 400) -> void:
-	for i in n:
-		if Audio._pending == &"" and float(Audio._gain.get(Audio._cue, 0.0)) > 0.99:
-			return
-		Audio._process(0.05)
+## The cue files that actually shipped, read off the loop sidecar rather than
+## the directory: a stray ogg in that folder is not a cue, and the sidecar is
+## what the game reads at runtime anyway.
+func _cues_on_disk() -> Dictionary:
+	var out: Dictionary = {}
+	Audio._loop_of(&"")                       ## forces the sidecar to load
+	for c: StringName in Audio._loops:
+		if c != &"":
+			out[c] = true
+	return out
+
+
+## Advance far enough that a crossfade has finished, without waiting for real
+## seconds. Bounded, because a loop that cannot end is worse than a failing
+## check.
+func _settle(n: int = 200) -> void:
+	for _i in n:
+		await _tree.process_frame
 
 
 func _finish() -> void:
