@@ -253,6 +253,40 @@ static func _take_sound(m: HoldItem) -> StringName:
 ## the flat loot_drop / scrap_gain a frame later; this sound IS that sound,
 ## better informed, so theirs are held. Down four and rate-limited, because a
 ## fast hand emptying a bag fires this several times a second.
+## WHAT A WRECK HAD IN IT, HEARD AS IT RESOLVES.
+##
+## The rarity ladder is the clearest sound design in this game -- 0.12 s for a
+## common and 2.20 s for an artifact, eighteen times the length -- and it only
+## ever played when you dragged something into the hold. That is the moment you
+## DECIDE about a thing, not the moment you find it. Now the sweep tells you
+## what is in a pile while it is still opening it, which is what the ladder was
+## built to do.
+##
+## STAGGERED BY ARRIVAL, not played on top of each other. A wreck with eight
+## things in it would otherwise fire eight overlapping sounds inside half a
+## second; the sweep already reveals them in order, so the sound follows the
+## picture and lands one at a time.
+##
+## QUIETER THAN TAKING, because finding is the smaller event of the two: you
+## will hear this on every wreck you open and the take only on what you keep.
+## And no `loot_drop` underneath -- the resource watcher is not involved in a
+## reveal, nothing has moved yet.
+const REVEAL_DB := -9.0
+const REVEAL_GAP := 0.055
+
+func _on_revealed(m: HoldItem, index: int) -> void:
+	if m == null:
+		return
+	var wait := REVEAL_GAP * float(maxi(index - 1, 0))
+	if wait > 0.0:
+		await get_tree().create_timer(wait).timeout
+		if not is_inside_tree():
+			return
+	# `limit_ms` 0: the stagger already spaces these, and a rate limit here
+	# would silently drop the tail of a full wreck.
+	Audio.play(_take_sound(m), 0.04, 0, REVEAL_DB)
+
+
 func _take_fx(m: HoldItem) -> void:
 	Audio.suppress(&"loot_drop")
 	Audio.suppress(&"scrap_gain")
@@ -381,6 +415,7 @@ func _build_loose() -> Control:
 	# The hold has to redraw too, not just the container, which is why this is
 	# the view's refresh rather than the grid's own.
 	_loose.picked.connect(func(_m: HoldItem) -> void: refresh())
+	_loose.revealed.connect(_on_revealed)
 	# INTO THE CONTAINER ON SCREEN. See `RunState.put_in`: with a wreck open,
 	# dropping something in must put it in that hull rather than on the floor,
 	# or the screen is lying about what it is showing.

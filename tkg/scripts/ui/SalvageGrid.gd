@@ -30,6 +30,18 @@ extends Control
 ## jettison lands in one.
 
 signal picked(item: HoldItem)
+## ONE THING RESOLVING OUT OF THE SWEEP, on the frame it does.
+##
+## The rarity ladder used to sound only when you dragged something into the
+## hold, which is the moment you DECIDE about a thing rather than the moment you
+## find it. Finding is what the sweep is for -- the whole point of an eighteen
+## to one length ratio between a common and an artifact is to tell you what is
+## in a wreck before you have read a word of it.
+##
+## A signal rather than a call into Audio from here: this grid draws a
+## container and has no business knowing which sound a rarity maps to. The view
+## that opened it already does -- see `TransferView._take_sound`.
+signal revealed(item: HoldItem, index: int)
 
 ## Called with something of yours dropped in here. The GRID does not know which
 ## container it is drawing -- `TransferView` does -- so putting the thing away is
@@ -177,6 +189,7 @@ func _apply_scan() -> void:
 		if m == null or _lit.has(m):
 			continue
 		_lit[m] = true
+		revealed.emit(m, _lit.size())
 		# SEEDED BY HOW MANY HAVE ALREADY ARRIVED, so no two in one sweep
 		# resolve the same way and the same pile resolves the same way twice.
 		# Random would do neither: a container that glitched differently every
