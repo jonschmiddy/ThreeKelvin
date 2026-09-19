@@ -18,19 +18,29 @@ cue, not the end of the file, which is why Loop End has to be set by hand.
 | `fl.wav` | EASY | run | 71 | 42 | 141.972 s | 6260965 |
 | `coldstart.wav` | EASY | run | 71 | 40 | 135.211 s | 5962805 |
 | `longway.wav` | EASY | run | 71 | 32 | 108.169 s | 4770253 |
+| `driftplane.wav` | EASY | run | 68 | 34 | 120.000 s | 5292000 |
 | `closequarters.wav` | EASY | fight | 100 | 32 | 76.800 s | 3386880 |
+| `ghostfreight.wav` | ROUGH | run | 88 | 30 | 81.818 s | 3608174 |
+| `salvage.wav` | ROUGH | run | 82 | 36 | 105.366 s | 4646641 |
 | `cutsignal.wav` | ROUGH | run | 96 | 30 | 75.000 s | 3307500 |
 | `qo.wav` | ROUGH | run | 71 | 40 | 135.211 s | 5962805 |
 | `slipstream.wav` | ROUGH | fight | 104 | 40 | 92.308 s | 4070783 |
 | `redline.wav` | HARD | run | 116 | 40 | 82.759 s | 3649672 |
 | `deadweight.wav` | HARD | run | 60 | 32 | 128.000 s | 5644800 |
+| `coldiron.wav` | HARD | run | 92 | 32 | 83.478 s | 3681380 |
+| `thinice.wav` | HARD | run | 104 | 32 | 73.846 s | 3256609 |
 | `hairline.wav` | HARD | fight | 108 | 38 | 84.444 s | 3723980 |
 | `nothingleft.wav` | BRUTAL | run | 52 | 32 | 147.692 s | 6513217 |
 | `wrongship.wav` | BRUTAL | run | 71 | 36 | 121.690 s | 5366529 |
+| `countdown.wav` | BRUTAL | run | 100 | 28 | 67.200 s | 2963520 |
+| `attrition.wav` | BRUTAL | run | 92 | 36 | 93.913 s | 4141563 |
 | `overpressure.wav` | BRUTAL | fight | 84 | 32 | 91.429 s | 4032019 |
 | `eventhorizon.wav` | LETHAL | run | 46 | 28 | 146.087 s | 6442437 |
 | `noair.wav` | LETHAL | run | 96 | 28 | 70.000 s | 3087000 |
+| `sealed.wav` | LETHAL | run | 54 | 30 | 133.333 s | 5879985 |
+| `aftermath.wav` | LETHAL | run | 56 | 30 | 128.571 s | 5669981 |
 | `laststand.wav` | LETHAL | fight | 132 | 66 | 120.000 s | 5292000 |
+| `lightsout.wav` | DEATH | death | 48 | 14 | 70.000 s | 3087000 |
 
 If you'd rather not set loop points by hand, re-render with `TAIL = 0` in
 `engine/render_wav.mjs` and let the whole file loop. You lose the tail across the seam, which is

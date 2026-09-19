@@ -15,7 +15,7 @@ It's a single self-contained page: open it in a browser, no build step, no serve
 
 ```bash
 cd music/tools && npm install      # once per machine
-node check_cue.mjs                 # the musical rules, all seventeen cues
+node check_cue.mjs                 # the musical rules, every cue in loops.json
 node check_lab.mjs                 # the page itself: tabs, transport, scrubbing, settings
 ```
 
@@ -34,8 +34,10 @@ Search for these strings to land in the right place:
 | The sound presets | `const PRESETS = [` |
 | Per-part effects (reverb, delay, volume) | `const FX = {` |
 | Effects on everything (space, warmth, lo-fi…) | `const GFX = [` and `applyGlobalFx` |
-| The four standalone songs | `const LADDER = [` |
-| Their instrument palettes and tempos | `LADDER_SETUPS` and `LADDER_BPM` |
+| The standalone songs (24 of them) | `const LADDER = [` |
+| Their palettes, tempos, grooves | `LADDER_SETUPS`, `LADDER_BPM`, `LADDER_GROOVE` |
+| Per-cue build and sub defaults | `LADDER_ARCH`, `LADDER_BASS` |
+| The drum patterns | `const GROOVES = {` |
 | Quiet Orbit | `function buildQuietOrbit` |
 | First Light (ported from the repo) | `function buildFirstLight` |
 | The title menu | `THEMES[0] = {name:'Three Kelvin'` |
@@ -132,6 +134,14 @@ Each melodic line is an array of bar strings. One string is one bar of four beat
   is not urgent — but `check_cue.mjs` reads the LAB, so it is green while the
   audio is not. **When the renderer is fixed, re-render this cue first** and the
   two come back into line.
+
+- **Handoffs arrive from a copy of this folder that is not the repo.** The
+  second one came back with bar 24 of Nothing Left undone and `check_cue.mjs`
+  checking seven cues again -- both fixed here after the first handoff, both
+  reverted by copying the next one over the top. So a handoff is MERGED, not
+  copied: diff the lab, the checker and this file against the repo before
+  anything lands, and carry the repo's changes forward. The checker now reads
+  its cue list from `loops.json`, which removes one of the two ways back.
 
 - **Saved settings live in the browser.** The lab remembers each cue's switches in
   localStorage under `tk-lab5-<cue>`. If you change a switch's options, old saved values are

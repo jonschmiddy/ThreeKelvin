@@ -3,7 +3,7 @@
 > **THE MUSIC IS NOT HERE ANY MORE.** It was rewritten from scratch outside the
 > repo and now lives in [`../../music/`](../../music/), where a single
 > self-contained browser page — `music/lab/tk_music_lab.html` — is the source
-> of every note, instrument, effect and arrangement across seventeen cues. The
+> of every note, instrument, effect and arrangement across twenty-seven cues. The
 > oggs under `assets/audio/music/` are rendered *from* that page and the JSON
 > under `music/songs/` is dumped *from* it, so neither is worth editing: they
 > cannot be wrong on their own, only stale. **Read

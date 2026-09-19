@@ -12,7 +12,7 @@ extends Harness
 ## WHAT IT GUARDED BEFORE, AND WHY THAT IS GONE. The previous edition built a
 ## cue out of six stems and loaded them on first use, and nothing released them
 ## -- a session that touched five places held all five decoded, at 17 MB each.
-## That whole mechanism has been replaced by seventeen finished cues, one file
+## That whole mechanism has been replaced by finished cues, one file
 ## apiece, played on two voices. There is no cache to leak, so the leak test is
 ## replaced rather than kept: what can go wrong now is picking the wrong cue,
 ## repeating one, stranding a voice, or a loop that does not come round.
@@ -32,9 +32,10 @@ func run(tree: SceneTree) -> void:
 	#
 	# EVERY CUE THE GAME SHIPS IS REACHABLE. Six of the thirteen cues in the old
 	# edition were unreachable for a year because the table that chose them
-	# named seven places and there were thirteen pieces. Seventeen files is a
-	# lot of work to leave unplayed, so this counts them rather than trusting.
-	var named: Dictionary = {Audio.TITLE_CUE: true, Audio.BOSS_CUE: true}
+	# named seven places and there were thirteen pieces. Twenty-seven files is
+	# a lot of work to leave unplayed, so this counts them rather than trusting.
+	var named: Dictionary = {Audio.TITLE_CUE: true, Audio.BOSS_CUE: true,
+			Audio.DEATH_CUE: true}
 	for tier: StringName in Audio.RUN_CUES:
 		for c: StringName in Audio.RUN_CUES[tier]:
 			named[c] = true
@@ -153,6 +154,24 @@ func run(tree: SceneTree) -> void:
 	_ok("and the new voice carries the same cue",
 			(Audio._mv[Audio._now] as AudioStreamPlayer).stream == carried
 			and (Audio._mv[Audio._now] as AudioStreamPlayer).playing)
+
+	# ---- the one cue that must NOT loop
+	#
+	# Lights Out is fifty seconds of music and twenty of written silence. Relayed
+	# like every other cue, a death would restart its own elegy every seventy
+	# seconds for as long as the game-over screen sat there. So it is sought past
+	# its loop point and the loop watcher is run by hand, and it has to leave it
+	# alone.
+	Audio.music_state(&"gameover")
+	await _settle()
+	_ok("a death plays Lights Out (%s)" % Audio.cue(),
+			Audio.cue() == Audio.DEATH_CUE)
+	var dv := Audio._now
+	(Audio._mv[dv] as AudioStreamPlayer).seek(Audio._loop_of(Audio.DEATH_CUE) + 0.5)
+	Audio._process(0.016)
+	await tree.process_frame
+	_ok("and it runs out rather than looping (voice %d stays %d)" % [dv, Audio._now],
+			Audio._now == dv)
 
 	# ---- stopping
 	Audio.stop_music()

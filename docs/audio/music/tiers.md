@@ -1,40 +1,51 @@
 # Which cue plays when
 
-Seventeen cues: a title theme, and for each tier a set of run cues plus one fight cue.
+Twenty-seven cues: a title theme, four run cues and one fight cue for each of five tiers, and a
+death cue.
 
 | Game state | Cues |
 |---|---|
 | Title screen | Title menu |
-| EASY run | First Light, Cold Start, Long Way Round |
+| EASY run | First Light, Cold Start, Long Way Round, Drift Plane |
 | EASY fight | Close Quarters |
-| ROUGH run | Cut Signal, Quiet Orbit |
+| ROUGH run | Ghost Freight, Salvage, Cut Signal, Quiet Orbit |
 | ROUGH fight | Slipstream |
-| HARD run | Red Line, Dead Weight |
+| HARD run | Red Line, Dead Weight, Cold Iron, Thin Ice |
 | HARD fight | Hairline |
-| BRUTAL run | Nothing Left, Wrong Ship |
+| BRUTAL run | Nothing Left, Wrong Ship, Countdown, Attrition |
 | BRUTAL fight | Overpressure |
-| LETHAL run | Event Horizon, No Air |
+| LETHAL run | Event Horizon, No Air, Sealed, Aftermath |
 | LETHAL fight / boss | Last Stand |
-| Death, or back to the menu | fade out |
+| Death | Lights Out, then silence |
 
 Pick randomly among a tier's run cues without repeating the last one. Switch to that tier's fight
 cue when a fight starts and back when it ends; a 2 to 3 second crossfade covers the tempo change.
 
-## How the tiers escalate
+**Lights Out is not a loop.** It is 70 seconds: 50 of music and 20 of literal silence at the end.
+Play it once from zero on death and let it run out, or fade it during the silence. Do not loop it.
 
-The difference between tiers is not volume. Measured across the set:
+## Ordering within a tier
+
+If you'd rather escalate inside a tier than shuffle, safest to most uneasy:
+
+- **EASY:** Long Way Round → Drift Plane → Cold Start → First Light
+- **ROUGH:** Quiet Orbit → Salvage → Ghost Freight → Cut Signal
+- **HARD:** Dead Weight → Cold Iron → Thin Ice → Red Line
+- **BRUTAL:** Nothing Left → Wrong Ship → Attrition → Countdown
+- **LETHAL:** Sealed → Aftermath → No Air → Event Horizon
+
+## How the tiers escalate
 
 | | EASY | ROUGH | HARD | BRUTAL | LETHAL |
 |---|---|---|---|---|---|
-| Tempo range | 71–100 | 71–104 | 60–116 | 52–100 | 46–132 |
-| Peak notes per section | 58–161 | 96–166 | 57–165 | 76–162 | 31–165 |
-| Deep hits per cue | 0–377 | 5–419 | 46–429 | 5–179 | 0–613 |
-| Harmony | major, resolves | minor, keeps turning | unstable, chromatic | clusters and pedals | one chord, or none at all |
+| Tempo range | 68–100 | 71–104 | 60–116 | 52–100 | 46–132 |
+| Harmony | major, resolves | minor, keeps turning | unstable, chromatic | clusters and pedals | one chord, or none |
+| Deep hits per cue | 0–377 | 5–419 | 46–429 | 5–198 | 0–613 |
+| Quietest cue | Long Way Round | Ghost Freight | Thin Ice (in its gaps) | Nothing Left | Sealed |
 
-Two things worth noticing. Tempo stops being the signal above HARD: BRUTAL and LETHAL contain the
-slowest cues in the game (52 and 46 BPM) alongside the fastest (132). And the run cues get emptier
-as the tiers climb while the fight cues get denser, so the contrast between running and fighting
-widens the further in you get.
+Two things worth knowing. Tempo stops being the signal above HARD: the slowest cues in the game
+are in BRUTAL and LETHAL. And the run cues get emptier as the tiers climb while the fight cues get
+denser, so the gap between running and fighting widens the further in you get.
 
 ## The fights
 

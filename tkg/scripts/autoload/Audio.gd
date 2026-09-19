@@ -74,10 +74,17 @@ var _hot: bool = false
 var _room: AudioStreamPlayer = null
 var _room_now: StringName = &""
 var _room_fade: Tween = null
-## MEASURED, NOT CHOSEN. The file is levelled to peak −1.0 dB and −22 dB RMS
-## against the ambiences that were auditioned, so the player does not need to
-## correct it — this is a small safety margin and nothing more.
-const ROOM_DB := -3.0
+## MEASURED, NOT CHOSEN. The file is levelled to peak −1.0 dB so the ogg keeps
+## its resolution, and this puts back what that normalise took off.
+##
+## −14.0 SINCE THE BENCH, and it was −3. Jon mixed the station on a page that
+## plays at the game's own gain, and the faders came down 6 to 16 dB: a
+## quieter station, asked for by ear. The build lifts the file back to the
+## ceiling, so the drop has to be restored here or it is silently undone. The
+## bench's master is −18.7 dB (the old build gain −15.7, plus −3); the new
+## build's gain is −4.75, so the player makes up the rest: −18.7 + 4.75.
+## RE-DERIVE THIS after any change to station.py's MIXDB -- it moves the gain.
+const ROOM_DB := -14.0
 const ROOM_FADE := 1.6     ## seconds, because a room does not arrive on a beat
 
 ## THE SCORE STEPS ASIDE WHILE SOMEBODY IS TALKING. The announcements are baked
@@ -113,7 +120,15 @@ var _duck: float = 1.0     ## 1 is unducked; multiplies every music stem
 ## -14 -- so this is the one that gave, since MUSIC_DB is right everywhere else
 ## and this is right in exactly one place. -3 dB instead of -6: the score still
 ## steps back for the room, by half as much.
-const ROOM_DUCK := 0.71    ## -3 dB, while any room tone is playing
+##
+## AND THEN ALL THE WAY. Jon mixed the station on the bench with the music at
+## −40 and no duck, and asked: "What about no music in the stations?" So a
+## docked station is its own room and nothing else. The cue does NOT stop: it
+## keeps its place, silent, and comes back up over the same 1.6 s on leaving,
+## so undocking resumes the run's music mid-phrase rather than restarting it.
+## The announcement duck above still runs and now has nothing to act on --
+## left in place, because a room tone somewhere else may want music under it.
+const ROOM_DUCK := 0.0     ## silent, while any room tone is playing
 const ROOM_DUCK_S := 1.6   ## and it arrives with the room, not before it
 var _rduck: float = 1.0
 
@@ -208,7 +223,7 @@ func _connect_signals() -> void:
 # ---------------- music ----------------
 ##
 ## ONE FILE PER CUE, NOT A STACK OF STEMS. The edition before this built
-## intensity by adding rungs to a piece already playing; seventeen finished cues
+## intensity by adding rungs to a piece already playing; finished cues
 ## arrived instead, each arranged end to end, so intensity is now a different
 ## PIECE rather than more of the same one. Everything a rung ladder needed --
 ## CUES, STATES, DEEP, TRACKS, the stem mixer -- went with it. git has it.
@@ -219,12 +234,17 @@ func _connect_signals() -> void:
 
 ## WHICH CUE, BY TIER AND BY WHETHER YOU ARE FIGHTING. Straight out of
 ## `docs/audio/music/tiers.md`, which is the handoff's own table.
+##
+## FOUR RUN CUES A TIER NOW, up from two or three. The second handoff added ten
+## cues and they all land here; the fight cues did not change. With four, "not
+## the same one twice running" stops being strict alternation and becomes a real
+## shuffle with the one repeat that matters ruled out.
 const RUN_CUES := {
-	&"EASY":   [&"fl", &"coldstart", &"longway"],
-	&"ROUGH":  [&"cutsignal", &"qo"],
-	&"HARD":   [&"redline", &"deadweight"],
-	&"BRUTAL": [&"nothingleft", &"wrongship"],
-	&"LETHAL": [&"eventhorizon", &"noair"],
+	&"EASY":   [&"fl", &"coldstart", &"longway", &"driftplane"],
+	&"ROUGH":  [&"ghostfreight", &"salvage", &"cutsignal", &"qo"],
+	&"HARD":   [&"redline", &"deadweight", &"coldiron", &"thinice"],
+	&"BRUTAL": [&"nothingleft", &"wrongship", &"countdown", &"attrition"],
+	&"LETHAL": [&"eventhorizon", &"noair", &"sealed", &"aftermath"],
 }
 const FIGHT_CUES := {
 	&"EASY": &"closequarters", &"ROUGH": &"slipstream", &"HARD": &"hairline",
@@ -234,6 +254,12 @@ const TITLE_CUE := &"title"
 ## The boss gets the boss cue whatever the depth. `tiers.md` gives Last Stand to
 ## LETHAL's fight AND to the boss, and a boss met early is still a boss.
 const BOSS_CUE := &"laststand"
+## THE ONE CUE THAT DOES NOT LOOP. Lights Out is fifty seconds of music and then
+## twenty of written silence, and `tiers.md` is plain about it: play it once from
+## zero and let it run out. Looped, a death would restart its own elegy every
+## seventy seconds for as long as the game-over screen sat there.
+const DEATH_CUE := &"lightsout"
+const ONE_SHOT: Array[StringName] = [DEATH_CUE]
 
 ## HOW DEEP YOU ARE, IN FIVE STEPS. `MapGen.LAYERS` is 15 and there are five
 ## tiers, so three layers each and no remainder. Layer is the right signal
@@ -282,10 +308,10 @@ func music_state(state: StringName) -> void:
 		&"menu", &"lobby":
 			play_cue(TITLE_CUE)
 		&"gameover":
-			# `tiers.md` says death fades out. Until the lab has a game-over cue
-			# there is nothing to put here, and silence after a death is not the
-			# worst thing a soundtrack can do.
-			stop_music()
+			# Lights Out, once, and then silence. This was a fade to nothing until
+			# the lab wrote a death cue; the silence is still there, just written
+			# into the last twenty seconds of the file instead of left to chance.
+			play_cue(DEATH_CUE)
 		&"boss":
 			play_cue(BOSS_CUE)
 		&"combat":
@@ -533,7 +559,9 @@ func _process(delta: float) -> void:
 		var g := float(p.get_meta(&"g", 0.0)) * _duck * _rduck
 		p.volume_db = OFF_DB if g <= 0.0005 else linear_to_db(g)
 	# The loop point, watched on the voice that currently carries the cue.
-	if _now >= 0 and _cue != &"" and _loop_of(_cue) > 0.0:
+	# The death cue is exempt: it plays once and is allowed to run out.
+	var loops := _cue != &"" and not _cue in ONE_SHOT and _loop_of(_cue) > 0.0
+	if _now >= 0 and loops:
 		var cur: AudioStreamPlayer = _mv[_now]
 		if cur.playing and cur.get_playback_position() >= _loop_of(_cue):
 			_relay()

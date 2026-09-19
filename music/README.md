@@ -10,7 +10,7 @@ no samples, no libraries, no licensing to worry about.
 
 ```
 lab/tk_music_lab.html      the music lab: one self-contained page, no build step, no network
-audio/*.ogg                the seventeen cues as loops, ready to ship
+audio/*.ogg                all 27 cues as loops, ready to ship
 audio/loops.json           tempo, bar count and exact loop point for every cue
 engine/render_wav.mjs      re-render any cue to WAV after you change it
 tools/check_cue.mjs        check a cue against the musical rules
@@ -29,28 +29,38 @@ integration/tiers.md       which cue plays when
 
 ## The cues
 
-Seventeen: a title theme, and for each of five difficulty tiers a set of run cues plus one fight cue.
-LETHAL's fight is the boss.
+Twenty-seven: a title theme, four run cues and one fight cue for each of five difficulty tiers,
+and a death cue. LETHAL's fight is the boss. Lights Out does not loop.
 
 | Cue | Tier | Role | Key | Tempo | Length | Character |
 |---|---|---|---|---|---|---|
 | Title menu | menu | run | B major, suspended | 72 | 1:20 | Big, empty and lonely. Almost no melody. |
-| First Light | EASY | run | F minor to F major | 71 | 2:22 | The lobby piece from the repo, ported note for note. Minor turning to major. |
+| First Light | EASY | run | F minor to F major | 71 | 2:22 | The repo score, ported note for note. |
 | Cold Start | EASY | run | B flat major | 71 | 2:15 | Verse and chorus, brushed drums. The warmest cue. |
-| Long Way Round | EASY | run | D major | 71 | 1:48 | No climax and no drums, ever. A plateau that walks away. |
+| Long Way Round | EASY | run | D major | 71 | 1:48 | No climax and no drums, ever. |
+| Drift Plane | EASY | run | C major | 68 | 2:00 | A call and an answer passed between the two voices. |
 | Close Quarters | EASY | fight | A dorian | 100 | 1:17 | A scuffle you expect to win: it resolves and lands home. |
-| Cut Signal | ROUGH | run | C sharp minor with a tritone | 96 | 1:15 | Fragments of unequal length, two dead stops, a stumbling beat. |
-| Quiet Orbit | ROUGH | run | F Aeolian | 71 | 2:15 | The repo phrase played backwards. Half-time drums at the peak only. |
+| Ghost Freight | ROUGH | run | B minor | 88 | 1:22 | Harmony turns every three bars, the tune every four. |
+| Salvage | ROUGH | run | A minor | 82 | 1:45 | A ground bass: the same four chords all the way down. |
+| Cut Signal | ROUGH | run | C sharp minor with a tritone | 96 | 1:15 | Fragments of unequal length and two dead stops. |
+| Quiet Orbit | ROUGH | run | F Aeolian | 71 | 2:15 | The repo phrase played backwards. |
 | Slipstream | ROUGH | fight | E minor | 104 | 1:32 | Relentless, and the floor drops out of the middle. |
 | Red Line | HARD | run | G minor | 116 | 1:23 | Danger by speed. Sixteenths almost all the way through. |
 | Dead Weight | HARD | run | C minor | 60 | 2:08 | Danger by weight. Half the tempo of anything else. |
-| Hairline | HARD | fight | A minor | 108 | 1:24 | Danger by instability: a Neapolitan and a diminished chord pulling the key apart. |
+| Cold Iron | HARD | run | F sharp minor | 92 | 1:23 | One hammered figure that never lets up. |
+| Thin Ice | HARD | run | C minor | 104 | 1:14 | Brittle: short stabs, and the gaps do the work. |
+| Hairline | HARD | fight | A minor | 108 | 1:24 | The key comes apart underneath you. |
 | Nothing Left | BRUTAL | run | E flat minor | 52 | 2:28 | Abandonment. Three notes in the first eight bars. |
-| Wrong Ship | BRUTAL | run | D minor over a pedal | 71 | 2:02 | The bass never leaves D while the chords slide a half step against it. |
-| Overpressure | BRUTAL | fight | F sharp, rising clusters | 84 | 1:31 | No pulse at all. One cluster per section, climbing a half step each time. |
-| Event Horizon | LETHAL | run | B flat minor, one chord | 46 | 2:26 | One chord for the whole cue, with a hit that closes from eight bars apart to every bar. |
-| No Air | LETHAL | run | stacked fifths | 96 | 1:10 | Stacked fifths, no bass, nothing below the middle of the keyboard. |
-| Last Stand | LETHAL | fight | D minor | 132 | 2:00 | The boss. Three waves, a phase break, then sections that shorten to the end. |
+| Wrong Ship | BRUTAL | run | D minor over a pedal | 71 | 2:02 | The bass never moves while the chords slide against it. |
+| Countdown | BRUTAL | run | A minor | 100 | 1:07 | A timer: sections shorten and the ping closes in. |
+| Attrition | BRUTAL | run | F minor | 92 | 1:34 | The same two bars eighteen times, heavier each pass. |
+| Overpressure | BRUTAL | fight | F sharp, rising clusters | 84 | 1:31 | No pulse at all, only rising pressure. |
+| Event Horizon | LETHAL | run | B flat minor, one chord | 46 | 2:26 | The hit closes from eight bars apart to every bar. |
+| No Air | LETHAL | run | stacked fifths | 96 | 1:10 | No sub, nothing below the middle of the keyboard. |
+| Sealed | LETHAL | run | G sharp minor | 54 | 2:13 | Almost nothing, very slowly, in an enormous room. |
+| Aftermath | LETHAL | run | B minor | 56 | 2:09 | A beacon nobody will answer. |
+| Last Stand | LETHAL | fight | D minor | 132 | 2:00 | The boss: three waves, a phase break, then it tightens. |
+| Lights Out | DEATH | death | D minor, then no key | 48 | 1:10 | Falls, stops, and ends in twenty seconds of silence. Not a loop. |
 
 Every cue loops seamlessly: the last bar leads back into the first, and no cue ends on a
 cadence, so a loop point is never a full stop.

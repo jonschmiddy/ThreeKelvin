@@ -9,7 +9,8 @@
   "bars": 24,
   "loop_seconds": 80.0,
   "loop_end_samples": 3528000,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "fl.wav",
@@ -21,7 +22,8 @@
   "bars": 42,
   "loop_seconds": 141.972,
   "loop_end_samples": 6260965,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "coldstart.wav",
@@ -33,7 +35,8 @@
   "bars": 40,
   "loop_seconds": 135.211,
   "loop_end_samples": 5962805,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "longway.wav",
@@ -45,7 +48,21 @@
   "bars": 32,
   "loop_seconds": 108.169,
   "loop_end_samples": 4770253,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "driftplane.wav",
+  "ogg": "driftplane.ogg",
+  "cue": "Drift Plane",
+  "tier": "EASY",
+  "role": "run",
+  "bpm": 68.0,
+  "bars": 34,
+  "loop_seconds": 120.0,
+  "loop_end_samples": 5292000,
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "closequarters.wav",
@@ -57,7 +74,34 @@
   "bars": 32,
   "loop_seconds": 76.8,
   "loop_end_samples": 3386880,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "ghostfreight.wav",
+  "ogg": "ghostfreight.ogg",
+  "cue": "Ghost Freight",
+  "tier": "ROUGH",
+  "role": "run",
+  "bpm": 88.0,
+  "bars": 30,
+  "loop_seconds": 81.818,
+  "loop_end_samples": 3608174,
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "salvage.wav",
+  "ogg": "salvage.ogg",
+  "cue": "Salvage",
+  "tier": "ROUGH",
+  "role": "run",
+  "bpm": 82.0,
+  "bars": 36,
+  "loop_seconds": 105.366,
+  "loop_end_samples": 4646641,
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "cutsignal.wav",
@@ -69,7 +113,8 @@
   "bars": 30,
   "loop_seconds": 75.0,
   "loop_end_samples": 3307500,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "qo.wav",
@@ -81,7 +126,8 @@
   "bars": 40,
   "loop_seconds": 135.211,
   "loop_end_samples": 5962805,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "slipstream.wav",
@@ -93,7 +139,8 @@
   "bars": 40,
   "loop_seconds": 92.308,
   "loop_end_samples": 4070783,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "redline.wav",
@@ -105,7 +152,8 @@
   "bars": 40,
   "loop_seconds": 82.759,
   "loop_end_samples": 3649672,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "deadweight.wav",
@@ -117,7 +165,34 @@
   "bars": 32,
   "loop_seconds": 128.0,
   "loop_end_samples": 5644800,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "coldiron.wav",
+  "ogg": "coldiron.ogg",
+  "cue": "Cold Iron",
+  "tier": "HARD",
+  "role": "run",
+  "bpm": 92.0,
+  "bars": 32,
+  "loop_seconds": 83.478,
+  "loop_end_samples": 3681380,
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "thinice.wav",
+  "ogg": "thinice.ogg",
+  "cue": "Thin Ice",
+  "tier": "HARD",
+  "role": "run",
+  "bpm": 104.0,
+  "bars": 32,
+  "loop_seconds": 73.846,
+  "loop_end_samples": 3256609,
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "hairline.wav",
@@ -129,7 +204,8 @@
   "bars": 38,
   "loop_seconds": 84.444,
   "loop_end_samples": 3723980,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "nothingleft.wav",
@@ -141,7 +217,8 @@
   "bars": 32,
   "loop_seconds": 147.692,
   "loop_end_samples": 6513217,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "wrongship.wav",
@@ -153,7 +230,34 @@
   "bars": 36,
   "loop_seconds": 121.69,
   "loop_end_samples": 5366529,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "countdown.wav",
+  "ogg": "countdown.ogg",
+  "cue": "Countdown",
+  "tier": "BRUTAL",
+  "role": "run",
+  "bpm": 100.0,
+  "bars": 28,
+  "loop_seconds": 67.2,
+  "loop_end_samples": 2963520,
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "attrition.wav",
+  "ogg": "attrition.ogg",
+  "cue": "Attrition",
+  "tier": "BRUTAL",
+  "role": "run",
+  "bpm": 92.0,
+  "bars": 36,
+  "loop_seconds": 93.913,
+  "loop_end_samples": 4141563,
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "overpressure.wav",
@@ -165,7 +269,8 @@
   "bars": 32,
   "loop_seconds": 91.429,
   "loop_end_samples": 4032019,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "eventhorizon.wav",
@@ -177,7 +282,8 @@
   "bars": 28,
   "loop_seconds": 146.087,
   "loop_end_samples": 6442437,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "noair.wav",
@@ -189,7 +295,34 @@
   "bars": 28,
   "loop_seconds": 70.0,
   "loop_end_samples": 3087000,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "sealed.wav",
+  "ogg": "sealed.ogg",
+  "cue": "Sealed",
+  "tier": "LETHAL",
+  "role": "run",
+  "bpm": 54.0,
+  "bars": 30,
+  "loop_seconds": 133.333,
+  "loop_end_samples": 5879985,
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "aftermath.wav",
+  "ogg": "aftermath.ogg",
+  "cue": "Aftermath",
+  "tier": "LETHAL",
+  "role": "run",
+  "bpm": 56.0,
+  "bars": 30,
+  "loop_seconds": 128.571,
+  "loop_end_samples": 5669981,
+  "sample_rate": 44100,
+  "loops": true
  },
  {
   "file": "laststand.wav",
@@ -201,6 +334,20 @@
   "bars": 66,
   "loop_seconds": 120.0,
   "loop_end_samples": 5292000,
-  "sample_rate": 44100
+  "sample_rate": 44100,
+  "loops": true
+ },
+ {
+  "file": "lightsout.wav",
+  "ogg": "lightsout.ogg",
+  "cue": "Lights Out",
+  "tier": "DEATH",
+  "role": "death",
+  "bpm": 48.0,
+  "bars": 14,
+  "loop_seconds": 70.0,
+  "loop_end_samples": 3087000,
+  "sample_rate": 44100,
+  "loops": false
  }
 ]

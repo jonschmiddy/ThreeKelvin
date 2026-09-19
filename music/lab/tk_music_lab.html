@@ -1553,6 +1553,7 @@ function buildStandalone(th){
     if (b && BARS[b] === BARS[b - 1]) continue;
     let e2 = b; while (e2 + 1 < total && BARS[e2 + 1] === BARS[b]) e2++;
     const ch = CH[BARS[b]], len = (e2 - b + 1) * 4 - .05;
+    if (!ch || !ch.length) continue;                 // 'none' means silence: nothing is printed at all
     const name = PH.find(([n, l]) => b >= start[n] && b < start[n] + l)[0], g = gi(name);
     ev.chords.push([b * 4, len, M(ch[0]), .5 * g, true]);
     ch.slice(1).forEach(n => ev.chords.push([b * 4, len, M(n), .5 * g, false]));
@@ -1561,7 +1562,8 @@ function buildStandalone(th){
   if (o.arp) for (const name in c.figures){
     const [div, lift] = c.figures[name], len = PH.find(p => p[0] === name)[1];
     for (let k = 0; k < len; k++){
-      const b = start[name] + k, v = CH[BARS[b]].slice(1), steps = 4 / div;
+      const b = start[name] + k, v = (CH[BARS[b]] || []).slice(1), steps = 4 / div;
+      if (!v.length) continue;
       for (let j = 0; j < steps; j++)
         ev.extra.push([b * 4 + j * div, div * 1.4, M(v[[0, 2, 1, 2][j % 4] % v.length]) + lift + (j % 8 >= 4 ? 12 : 0),
                        (div <= .25 ? .34 : .46) * gi(name)]);
@@ -2254,6 +2256,184 @@ const LADDER = [
    bells:[['Push',28,'D7',2],['Wave',16,'A6',2],['Rally',8,'D7',2],['Rally',24,'F7',2]],
    booms:[['Hold',0],['Push',0],['Wave',0],['Hold 2',0],['Push 2',0],['Closer',0],['Tighter',0],['Rally',0],['Rally',16],['Stop',0],['Stop',4]]},
 
+  // A second EASY cue: a call and an answer, passed between the two voices. The most conversational
+  // thing in the set, and the only cue where the second voice leads for a whole section.
+  {id:'driftplane', name:'Drift Plane', tier:'EASY', bpm:68, key:'C major, call and answer',
+   form:[['Open',6],['Call',8],['Answer',8],['Together',8],['Rest',4]],
+   arch:[-8, -5, -4, -2, -7],
+   groove:{'Answer':'brush', 'Together':'brush'},
+   chords:{I:['C2','G2','C3','E3'], IV:['F1','C3','F3','A3'], vi:['A1','E3','A3','C4'], V:['G1','D3','G3','B3'], ii:['D2','A2','D3','F3']},
+   bars:{'Open':'I I vi vi IV V', 'Call':'I I IV IV vi vi ii V', 'Answer':'I V vi IV I V IV V',
+         'Together':'I I IV IV vi V I V', 'Rest':'I IV V I'},
+   figures:{'Call':[2,0], 'Answer':[1,0], 'Together':[.5,0], 'Rest':[2,0]},
+   lines:{'Open':{notes:['','E5:2 G5:2','','A5:4','','D5:2 G5:2'], amp:.8},
+          'Call':{notes:['G5:2 E5:2','C6:4','A5:2 F5:2','C6:4','E5:2 A5:2','C6:4','F5:2 A5:2','D5:2 G5:2'], amp:.85},
+          'Answer':{notes:['E5:4','D5:2 B4:2','C5:2 E5:2','A4:2 F5:2','G5:4','B4:2 D5:2','C5:2 A5:2','G5:2 D5:2'], amp:.85, second:true},
+          'Together':{notes:['C6:2 G5:2','E6:4','A5:2 F5:2','C6:2 A5:2','E6:2 C6:2','D6:2 B5:2','G5:2 C6:2','D6:2 G5:2'], amp:.95, second:true},
+          'Rest':{notes:['E5:2 C5:2','A4:2 F5:2','G4:2 D5:2','C5:4'], amp:.7}},
+   bells:[['Open',8,'C6',2],['Together',16,'G6',2],['Rest',12,'C5',4]], booms:[['Together',0]]},
+
+  // A second ROUGH cue: the harmony turns every three bars while the tune turns every four, so the
+  // two never line up until the end. Nothing is dissonant; it just will not settle.
+  {id:'ghostfreight', name:'Ghost Freight', tier:'ROUGH', bpm:88, key:'B minor, out of step with itself',
+   form:[['Adrift',6],['Signal',9],['Closer',9],['Away',6]],
+   arch:[-7, -4, -2, -6],
+   groove:{'Signal':'pulse', 'Closer':'half'},
+   chords:{i:['B1','F#2','B2','D3'], VI:['G1','D3','G3','B3'], VII:['A1','E3','A3','C#4'], iv:['E2','B2','E3','G3']},
+   bars:{'Adrift':'i i VI VI VII VII', 'Signal':'i VI VII i VI VII i VI VII',
+         'Closer':'i VI VII i VI VII iv iv i', 'Away':'i VI VII iv i i'},
+   figures:{'Signal':[1,0], 'Closer':[.5,0], 'Away':[2,0]},
+   lines:{'Adrift':{notes:['B4:4','','D5:2 G5:2','','A4:2 E5:2',''], amp:.8},
+          'Signal':{notes:['F#5:2 B5:2','D5:4','E5:2 A5:2','B4:4','D5:2 G5:2','C#5:2 A4:2','F#5:2 D5:2','G5:4','E5:2 A5:2'], amp:.88, second:true},
+          'Closer':{notes:['B5:2 F#5:2','G5:4','A5:2 E5:2','D5:2 B4:2','G5:2 D5:2','A5:4','E5:2 B4:2','G5:2 E5:2','F#5:2 B4:2'], amp:.95, second:true},
+          'Away':{notes:['D5:2 B4:2','G4:4','A4:2 E5:2','B4:2 G4:2','F#4:4','B4:4'], amp:.7}},
+   bells:[['Adrift',8,'B6',2],['Closer',16,'F#6',2],['Away',16,'B5',4]], booms:[['Signal',0],['Closer',0]]},
+
+  // A second HARD cue: mid-tempo and heavy, built on one hammered figure that never lets up.
+  // Between Red Line's speed and Dead Weight's slowness, this one is just relentless.
+  {id:'coldiron', name:'Cold Iron', tier:'HARD', bpm:92, key:'F sharp minor, hammered',
+   form:[['Grind',8],['Heave',8],['Grind 2',8],['Snap',4],['Out',4]],
+   arch:[-5, -3, -1, 0, -7],
+   groove:{'Grind':'half', 'Heave':'pound', 'Grind 2':'pound', 'Snap':'quake', 'Out':'half'},
+   chords:{i:['F#1','C#3','F#3','A3'], VI:['D2','A2','D3','F#3'], iv:['B1','F#2','B2','D3'], v:['C#2','G#2','C#3','E3'], VII:['E2','B2','E3','G#3']},
+   bars:{'Grind':'i i i i VI VI iv iv', 'Heave':'i i VII VII VI VI iv v', 'Grind 2':'i i i i VI VI v v',
+         'Snap':'iv iv v v', 'Out':'i VI iv i'},
+   figures:{'Grind':[1,0], 'Heave':[.5,0], 'Grind 2':[.5,0], 'Snap':[.25,12], 'Out':[1,0]},
+   lines:{'Grind':{notes:['F#4:1 F#4:1 A4:2','F#4:2 C#5:2','F#4:1 F#4:1 A4:2','C#5:4','D5:2 A4:2','F#5:2 D5:2','B4:2 F#5:2','D5:2 B4:2'], amp:.88, second:true},
+          'Heave':{notes:['F#5:1 F#5:1 A5:2','C#5:2 F#5:2','E5:2 B4:2','G#5:2 E5:2','D5:2 A5:2','F#5:2 D5:2','B4:2 F#5:2','C#5:2 G#5:2'], amp:.92, second:true},
+          'Grind 2':{notes:['F#5:1 F#5:1 A5:2','F#5:2 C#6:2','A5:1 A5:1 C#6:2','F#5:4','D6:2 A5:2','F#6:2 D6:2','C#6:2 G#5:2','E6:2 C#6:2'], amp:1, second:true},
+          'Snap':{notes:['B5:2 F#5:2','D6:2 B5:2','C#6:2 G#5:2','E6:4'], amp:.9},
+          'Out':{notes:['F#5:2 A5:2','D5:2 A4:2','B4:2 F#4:2','F#4:4'], amp:.7}},
+   bells:[['Heave',28,'F#6',2],['Grind 2',16,'C#7',2]],
+   booms:[['Grind',0],['Heave',0],['Grind 2',0],['Grind 2',16],['Snap',0],['Out',0]]},
+
+  // A second BRUTAL cue: a timer. The sections get shorter, the ping gets closer together, and the
+  // bass walks down a half step every section. It is counting, and it is not counting up.
+  {id:'countdown', name:'Countdown', tier:'BRUTAL', bpm:100, key:'A minor, counting down',
+   form:[['Ten',8],['Five',8],['Three',6],['One',4],['Zero',2]],
+   arch:[-6, -4, -2, 0, -8],
+   groove:{'Five':'tick', 'Three':'half', 'One':'pound', 'Zero':'quake'},
+   chords:{i:['A1','E3','A3','C4'], vii:['Ab1','Eb3','Ab3','B3'], VII:['G1','D3','G3','B3'], VI:['F1','C3','F3','A3'], v:['E2','B2','E3','G3']},
+   bars:{'Ten':'i i i i vii vii VII VII', 'Five':'i i vii vii VII VII VI VI', 'Three':'i vii VII VI v v',
+         'One':'i vii VI v', 'Zero':'i i'},
+   figures:{'Ten':[2,0], 'Five':[1,0], 'Three':[.5,0], 'One':[.25,0], 'Zero':[.5,-12]},
+   lines:{'Ten':{notes:['A4:4','','C5:4','','Ab4:4','','B4:4',''], amp:.82},
+          'Five':{notes:['E5:4','A4:4','Eb5:2 B4:2','Ab4:4','D5:2 G4:2','B4:4','C5:2 F5:2','A4:4'], amp:.88, second:true},
+          'Three':{notes:['A5:2 E5:2','Ab5:2 Eb5:2','G5:2 D5:2','F5:2 C5:2','E5:2 B4:2','G5:2 E5:2'], amp:.95, second:true},
+          'One':{notes:['A5:1 C6:1 E6:2','Ab5:2 Eb6:2','F5:2 C6:2','E5:2 B5:2'], amp:1, second:true},
+          'Zero':{notes:['E5:2 A4:2','A3:4'], amp:.75}},
+   bells:[['Ten',16,'A6',2],['Five',24,'E6',2],['Three',12,'C6',2],['One',8,'A6',2],['Zero',0,'A5',4]],
+   booms:[['Ten',0],['Five',0],['Three',0],['One',0],['One',8],['Zero',0],['Zero',4]]},
+
+  // A second LETHAL cue: almost nothing happens, very slowly, in an enormous room. Where Nothing
+  // Left is empty and Event Horizon is closing in, this one is simply sealed shut.
+  {id:'sealed', name:'Sealed', tier:'LETHAL', bpm:54, key:'G sharp minor, shut',
+   form:[['Seal',8],['Wait',8],['Listen',8],['Nothing',6]],
+   arch:[-8, -6, -3, -10],
+   groove:{},
+   chords:{i:['G#1','D#3','G#3','B3'], iv:['C#2','G#2','C#3','E3'], VI:['E2','B2','E3','G#3'], v:['D#2','A#2','D#3','F#3']},
+   bars:{'Seal':'i i i i i i iv iv', 'Wait':'i i VI VI iv iv i i', 'Listen':'i VI iv v i VI iv i', 'Nothing':'i i iv iv i i'},
+   figures:{'Listen':[2,0]},
+   lines:{'Seal':{notes:['D#5:4','','','','B4:4','','G#4:4',''], amp:.78},
+          'Wait':{notes:['G#5:4','','B4:4','E5:4','','C#5:4','','G#4:4'], amp:.85, second:true},
+          'Listen':{notes:['D#5:4','B4:4','E5:2 G#5:2','A#4:4','G#5:2 D#5:2','B5:4','C#5:2 G#5:2','G#4:4'], amp:.92, second:true},
+          'Nothing':{notes:['B4:4','','G#4:4','','D#4:4',''], amp:.62}},
+   bells:[['Seal',4,'G#6',4],['Listen',16,'D#6',4],['Nothing',16,'G#5',4]],
+   booms:[['Seal',0],['Wait',0],['Listen',0],['Nothing',0]]},
+
+  // A fourth ROUGH cue: a ground bass. The same four chords walk down over and over for the whole
+  // cue and never change; everything that happens, happens on top of them.
+  {id:'salvage', name:'Salvage', tier:'ROUGH', bpm:82, key:'A minor, the same four chords all the way down',
+   form:[['Ground',8],['Turn',8],['Turn 2',8],['Fray',8],['Last',4]],
+   arch:[-7, -5, -3, -1, -7],
+   groove:{'Turn':'pulse', 'Turn 2':'half', 'Fray':'broken', 'Last':'half'},
+   chords:{i:['A1','E3','A3','C4'], VII:['G1','D3','G3','B3'], VI:['F1','C3','F3','A3'], v:['E2','B2','E3','G3']},
+   bars:{'Ground':'i i VII VII VI VI v v', 'Turn':'i i VII VII VI VI v v', 'Turn 2':'i i VII VII VI VI v v',
+         'Fray':'i i VII VII VI VI v v', 'Last':'i VII VI i'},
+   figures:{'Turn':[1,0], 'Turn 2':[.5,0], 'Fray':[.25,0], 'Last':[1,0]},
+   lines:{'Ground':{notes:['A4:4','','B4:2 G4:2','','C5:4','','B4:2 E5:2',''], amp:.8},
+          'Turn':{notes:['E5:2 A4:2','C5:4','D5:2 G4:2','B4:4','A4:2 F5:2','C5:4','B4:2 E5:2','G4:2 B4:2'], amp:.85, second:true},
+          'Turn 2':{notes:['A5:2 E5:2','C6:4','G5:2 D5:2','B5:4','F5:2 C6:2','A5:4','E5:2 B5:2','G5:2 E5:2'], amp:.92, second:true},
+          'Fray':{notes:['E6:1 C6:1 A5:2','E5:2 A5:2','D6:1 B5:1 G5:2','D5:2 G5:2','C6:1 A5:1 F5:2','C5:2 F5:2','B5:1 G5:1 E5:2','E5:2 B4:2'], amp:1, second:true},
+          'Last':{notes:['A5:2 E5:2','G5:2 D5:2','F5:2 C5:2','A4:4'], amp:.72}},
+   bells:[['Ground',8,'A6',2],['Fray',16,'E6',2],['Last',12,'A5',4]], booms:[['Turn',0],['Fray',0],['Last',0]]},
+
+  // A fourth HARD cue: brittle. Everything is short and stops dead, and the gaps are as loud as
+  // the notes. Where Cold Iron hammers, this one flinches.
+  {id:'thinice', name:'Thin Ice', tier:'HARD', bpm:104, key:'C minor, stop and start',
+   form:[['Step',6],['Crack',8],['Step 2',6],['Crack 2',8],['Through',4]],
+   arch:[-6, -3, -4, -1, -7],
+   groove:{'Step':'tick', 'Crack':'broken', 'Step 2':'tick', 'Crack 2':'drive', 'Through':'quake'},
+   chords:{i:['C2','G2','C3','Eb3'], VI:['Ab1','Eb3','Ab3','C4'], iv:['F1','C3','F3','Ab3'], v:['G1','D3','G3','Bb3'], VII:['Bb1','F2','Bb2','D3']},
+   bars:{'Step':'i i VI VI iv v', 'Crack':'i i VII VII VI VI iv v', 'Step 2':'i i iv iv VI v',
+         'Crack 2':'i VII VI iv i VII iv v', 'Through':'iv v i i'},
+   figures:{'Crack':[.5,0], 'Crack 2':[.25,0], 'Through':[.25,12]},
+   lines:{'Step':{notes:['C5:1 Eb5:1 r:2','G4:1 C5:1 r:2','Ab4:1 C5:1 r:2','Eb5:2 r:2','F5:1 C5:1 r:2','G4:2 D5:2'], amp:.85},
+          'Crack':{notes:['C5:1 G5:1 Eb5:1 r:1','C5:2 G4:2','Bb4:1 F5:1 r:2','D5:2 Bb4:2','Ab4:1 Eb5:1 r:2','C5:2 Ab4:2','F5:1 C5:1 r:2','D5:2 G5:2'], amp:.92, second:true},
+          'Step 2':{notes:['Eb5:1 C5:1 r:2','G5:1 Eb5:1 r:2','F5:1 Ab5:1 r:2','C5:2 F5:2','Ab5:1 Eb5:1 r:2','G5:2 D5:2'], amp:.85},
+          'Crack 2':{notes:['C6:1 G5:1 Eb5:1 r:1','Bb5:2 F5:2','Ab5:2 Eb5:2','F5:2 C6:2','Eb5:1 C5:1 G5:2','D5:2 Bb5:2','C6:2 Ab5:2','G5:2 D6:2'], amp:1, second:true},
+          'Through':{notes:['F5:2 C5:2','G5:2 D5:2','C5:2 Eb5:2','C5:4'], amp:.75}},
+   bells:[['Crack',28,'C7',2],['Crack 2',16,'G6',2]],
+   booms:[['Step',0],['Crack',0],['Crack 2',0],['Crack 2',16],['Through',0]]},
+
+  // A fourth BRUTAL cue: attrition. One two-bar figure, over and over, eighteen times, getting
+  // heavier and never developing. It does not build to anything; it just keeps happening.
+  {id:'attrition', name:'Attrition', tier:'BRUTAL', bpm:92, key:'F minor, the same two bars again',
+   form:[['Turn',8],['Turn 2',8],['Turn 3',8],['Turn 4',8],['Off',4]],
+   arch:[-6, -4, -2, 0, -8],
+   groove:{'Turn':'half', 'Turn 2':'pound', 'Turn 3':'pound', 'Turn 4':'pound', 'Off':'quake'},
+   chords:{i:['F1','C3','F3','Ab3'], bII:['Gb1','Db3','Gb3','Bb3'], iv:['Bb1','F2','Bb2','Db3'], v:['C2','G2','C3','Eb3']},
+   bars:{'Turn':'i i bII bII i i bII bII', 'Turn 2':'i i bII bII i i bII bII', 'Turn 3':'i i bII bII iv iv v v',
+         'Turn 4':'i i bII bII iv iv v v', 'Off':'i bII i i'},
+   figures:{'Turn':[1,0], 'Turn 2':[.5,0], 'Turn 3':[.5,0], 'Turn 4':[.25,0], 'Off':[1,-12]},
+   lines:{'Turn':{notes:['F4:2 Ab4:2','C5:4','Gb4:2 Bb4:2','Db5:4','F4:2 Ab4:2','C5:4','Gb4:2 Bb4:2','Db5:4'], amp:.85, second:true},
+          'Turn 2':{notes:['F5:2 Ab5:2','C5:4','Gb5:2 Bb5:2','Db5:4','F5:2 Ab5:2','C5:4','Gb5:2 Bb5:2','Db5:4'], amp:.9, second:true},
+          'Turn 3':{notes:['F5:2 C6:2','Ab5:4','Gb5:2 Db6:2','Bb5:4','Bb5:2 F5:2','Db6:4','C6:2 G5:2','Eb6:4'], amp:.95, second:true},
+          'Turn 4':{notes:['F5:1 Ab5:1 C6:2','F5:4','Gb5:1 Bb5:1 Db6:2','Gb5:4','Bb5:1 Db6:1 F6:2','Bb5:4','C6:1 Eb6:1 G6:2','C6:4'], amp:1, second:true},
+          'Off':{notes:['F5:2 C5:2','Gb4:4','F4:2 Ab4:2','F4:4'], amp:.7}},
+   bells:[['Turn 2',16,'F6',2],['Turn 4',16,'C7',2]],
+   booms:[['Turn',0],['Turn 2',0],['Turn 3',0],['Turn 4',0],['Turn 4',16],['Off',0]]},
+
+  // A fourth LETHAL cue: a beacon still running after whatever happened has happened. One high
+  // ping every bar, everything else decaying around it, and the sub drops out for good halfway.
+  {id:'aftermath', name:'Aftermath', tier:'LETHAL', bpm:56, key:'B minor, a beacon nobody will answer',
+   form:[['Signal',8],['Drift',8],['Quiet',8],['Still',6]],
+   arch:[-7, -5, -2, -9],
+   groove:{'Drift':'tick'},
+   chords:{i:['B1','F#2','B2','D3'], VI:['G1','D3','G3','B3'], iv:['E2','B2','E3','G3'], VII:['A1','E3','A3','C#4']},
+   bars:{'Signal':'i i i i VI VI i i', 'Drift':'i i VI VI iv iv VII VII',
+         'Quiet':'i VI iv VII i VI iv i', 'Still':'i i VI VI i i'},
+   figures:{'Quiet':[2,0]},
+   lines:{'Signal':{notes:['F#5:4','','D5:4','','B4:4','','D5:2 F#5:2',''], amp:.8},
+          'Drift':{notes:['B5:4','F#5:4','D5:2 G5:2','B4:4','E5:2 B5:2','G5:4','C#6:2 A5:2','E5:4'], amp:.88, second:true},
+          'Quiet':{notes:['F#5:2 B5:2','D5:4','B4:2 E5:2','A4:2 C#5:2','F#5:4','G5:2 D5:2','E5:2 B4:2','B4:4'], amp:.95, second:true},
+          'Still':{notes:['D5:4','','B4:4','G4:4','','F#4:4'], amp:.62}},
+   bells:[['Signal',0,'B6',2],['Signal',16,'B6',2],['Drift',0,'B6',2],['Drift',16,'B6',2],['Quiet',0,'B6',2],['Quiet',16,'F#6',2],['Still',0,'B6',2],['Still',16,'B5',4]],
+   booms:[['Signal',0],['Quiet',0],['Still',0]]},
+
+  // ---- DEATH ----
+  // Twelve bars at 48: a minute, and almost all of it is space. One falling third, said twice,
+  // then a chord with a fourth in it that never resolves, then a hollow fifth with no third at all
+  // so there is nothing left to tell you whether it was major or minor. No figuration, no pattern,
+  // one soft hit at the moment it happens.
+  {id:'lightsout', name:'Lights Out', tier:'DEATH', bpm:48, key:'D minor, then no key at all',
+   form:[['Fall',4],['Empty',4],['Gone',2],['Silence',4]],
+   arch:[-7, -10, -13, -40],
+   groove:{},
+   chords:{i:['D2','A2','D3','F3'], VI:['Bb1','F2','Bb2','D3'], iv:['G1','D3','G3','Bb3'],
+           sus:['D1','A2','D3','G3'],
+           // the last four bars: B flat over a D in the bass, then plain D minor, then the same
+           // two again, thinner each time. The third stays in, so it stays sad instead of blank.
+           VI6:['D2','Bb2','D3','F3'], none:[]},
+   bars:{'Fall':'i i VI VI', 'Empty':'iv iv sus sus', 'Gone':'VI6 i', 'Silence':'none none none none'},
+   figures:{},
+   lines:{'Fall':{notes:['F5:4','','D5:4',''], amp:.85},
+          'Empty':{notes:['','Bb4:4','','G4:4'], amp:.7, second:true},
+          'Gone':{notes:['F4:4','D4:4'], amp:.6, second:true},
+          'Silence':{notes:[], amp:0}},
+   bells:[['Fall',0,'D6',4],['Gone',4,'D5',6]],
+   booms:[['Fall',0]]},
+
   // ---- ROUGH ----
   // Flat out from the first bar, with the floor dropped out of the middle. The quiet part is the scary part.
   {id:'slipstream', name:'Slipstream', tier:'ROUGH', role:'fight', bpm:104, key:'E minor, no let-up',
@@ -2301,11 +2481,11 @@ const LADDER_TWEAKS = [
   {id:'groove', label:'Drums',            opts:[['hits','Deep hits only'],['pattern','Pattern'],['off','No drums']]},
 ];
 const LADDER_TWEAK_DEFAULT = {bpm:'own', arch:'arch', arp:'on', second:'on', bells:'on', boom:'on', bass:'on', groove:'hits'};
-const LADDER_BPM = {eventhorizon:'own', noair:'own', laststand:'own', closequarters:'own', coldstart:71, longway:71, slipstream:'own', cutsignal:'own', redline:'own', hairline:'own', deadweight:'own',
+const LADDER_BPM = {salvage:'own', thinice:'own', attrition:'own', aftermath:'own', driftplane:'own', ghostfreight:'own', coldiron:'own', countdown:'own', sealed:'own', lightsout:'own', eventhorizon:'own', noair:'own', laststand:'own', closequarters:'own', coldstart:71, longway:71, slipstream:'own', cutsignal:'own', redline:'own', hairline:'own', deadweight:'own',
                     overpressure:84, nothingleft:'own', wrongship:71};   // locked in
 const LADDER_ARCH = {wrongship:'flat'};   // locked in: it holds one level all the way through
 const LADDER_BASS = {noair:'off'};        // No Air has no bottom end: that is the whole cue
-const LADDER_GROOVE = {eventhorizon:'hits', noair:'pattern', laststand:'pattern', closequarters:'pattern', coldstart:'pattern', longway:'hits', slipstream:'pattern', cutsignal:'pattern',
+const LADDER_GROOVE = {salvage:'pattern', thinice:'pattern', attrition:'pattern', aftermath:'pattern', driftplane:'pattern', ghostfreight:'pattern', coldiron:'pattern', countdown:'pattern', sealed:'hits', lightsout:'hits', eventhorizon:'hits', noair:'pattern', laststand:'pattern', closequarters:'pattern', coldstart:'pattern', longway:'hits', slipstream:'pattern', cutsignal:'pattern',
                        redline:'pattern', hairline:'pattern', deadweight:'pattern',
                        overpressure:'pattern', nothingleft:'pattern', wrongship:'hits'};   // locked in
 const LADDER_SETUPS = {   // locked in
@@ -2322,6 +2502,16 @@ const LADDER_SETUPS = {   // locked in
   eventhorizon:{tune:104, middle:101, echo:20, chords:26, extra:26,  bass:77, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'wet'}, extra:{rev:'wet', dly:'off'}, drums:{rev:'huge'}}},
   noair:      {tune:2, middle:17, echo:18, chords:50, extra:107, bass:86, drums:126, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{vol:'quiet', dly:'off'}, drums:{vol:'quiet'}}},   // locked in
   laststand:  {tune:113, middle:115, echo:20, chords:50, extra:26, bass:86, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},   // locked in
+  driftplane: {tune:104, middle:115, echo:20, chords:50, extra:26, bass:86, drums:129, fx:{tune:{vol:'quiet', rev:'wet'}, middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},   // locked in
+  ghostfreight:{tune:2, middle:101, echo:20, chords:50, extra:111, bass:86, drums:125, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'wet'}, extra:{vol:'quiet', dly:'off'}, drums:{vol:'quiet'}}},   // locked in
+  coldiron:   {tune:113, middle:95, echo:37, chords:26, extra:112, bass:85, drums:126, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},   // locked in
+  countdown:  {tune:116, middle:104, echo:55, chords:26, extra:107, bass:85, drums:122, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},   // locked in
+  sealed:     {tune:2, middle:101, echo:20, chords:50, extra:26, bass:86, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet', dly:'off'}, bass:{vol:'quiet'}, drums:{rev:'huge', vol:'quiet'}}},   // locked in
+  lightsout:  {tune:104, middle:95,  echo:20, chords:50, extra:26,  bass:86, drums:129, fx:{middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet', dly:'off'}, drums:{rev:'huge'}}},
+  salvage:    {tune:113, middle:101, echo:20, chords:50, extra:111, bass:86, drums:125, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'wet'}, extra:{vol:'quiet', dly:'off'}, drums:{vol:'quiet'}}},   // locked in
+  thinice:    {tune:17, middle:112, echo:47, chords:26, extra:107, bass:85, drums:126, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},   // locked in
+  attrition:  {tune:113, middle:116, echo:37, chords:26, extra:112, bass:77, drums:127, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{vol:'quiet'}, extra:{vol:'quiet', dly:'off'}}},   // locked in
+  aftermath:  {tune:104, middle:95, echo:55, chords:50, extra:26, bass:86, drums:129, fx:{tune:{vol:'quiet'}, middle:{vol:'quiet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet', dly:'off'}, bass:{vol:'quiet'}, drums:{rev:'huge', vol:'quiet'}}},   // locked in
   cutsignal:  {tune:116, middle:115, echo:20, chords:50, extra:26,  bass:86, drums:129, fx:{middle:{vol:'quiet', rev:'wet'}, echo:{vol:'quiet', dly:'long'}, chords:{rev:'huge'}, extra:{rev:'wet'}, drums:{rev:'huge', vol:'quiet'}}},
 };
 function applyTweaksLadder(){
@@ -2338,8 +2528,8 @@ const SONGS = [
   {id:'fl',    tab:'First Light (EASY)', apply: () => applyTweaksFL(),    tweaks: FL_TWEAKS,    defaults: FL_TWEAK_DEFAULT,    setup: FL_SETUP_ROW,    gfx: FL_GFX},
   // every other cue, grouped by tier in ladder order. Quiet Orbit is hand-written, so it is
   // slotted into its tier by hand; the rest come from LADDER.
-  ...['EASY', 'ROUGH', 'HARD', 'BRUTAL', 'LETHAL'].flatMap(tier => [
-    ...LADDER.filter(c => c.tier === tier && c.role !== 'fight').map(c => ({id: c.id, tab: `${c.name} (${tier})`, apply: () => applyTweaksLadder(),
+  ...['EASY', 'ROUGH', 'HARD', 'BRUTAL', 'LETHAL', 'DEATH'].flatMap(tier => [
+    ...LADDER.filter(c => c.tier === tier && c.role !== 'fight').map(c => ({id: c.id, tab: tier === 'DEATH' ? `${c.name} (death)` : `${c.name} (${tier})`, apply: () => applyTweaksLadder(),
       tweaks: LADDER_TWEAKS, defaults: {...LADDER_TWEAK_DEFAULT, bpm: LADDER_BPM[c.id], groove: LADDER_GROOVE[c.id], arch: LADDER_ARCH[c.id] || 'arch', bass: LADDER_BASS[c.id] || 'on'}, setup: LADDER_SETUPS[c.id], gfx: QO_GFX})),
     ...(tier === 'ROUGH' ? [{id:'qo', tab:'Quiet Orbit (ROUGH)', apply: () => applyTweaksQO(), tweaks: QO_TWEAKS,
                              defaults: QO_TWEAK_DEFAULT, setup: QO_SETUP_ROW, gfx: QO_GFX}] : []),

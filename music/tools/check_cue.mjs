@@ -15,30 +15,15 @@ import { JSDOM } from 'jsdom';
 import fs from 'fs';
 
 const LAB = new URL('../lab/tk_music_lab.html', import.meta.url);
-// ALL SEVENTEEN, not the seven this list used to hold. The other ten play,
-// render and pass when named explicitly -- they were simply never added here,
-// so `check_cue.mjs` with no arguments silently checked 7 of 17 while its own
-// header said "default: every cue". A check that quietly covers 41% of the
-// material is worse than one that says it is partial.
-const ALL = [
-  'title',
-  'fl',
-  'coldstart',
-  'longway',
-  'closequarters',
-  'cutsignal',
-  'qo',
-  'slipstream',
-  'redline',
-  'deadweight',
-  'hairline',
-  'nothingleft',
-  'wrongship',
-  'overpressure',
-  'eventhorizon',
-  'noair',
-  'laststand',
-];
+// EVERY CUE THE GAME SHIPS, read from the sidecar the renderer writes, not typed
+// out. This list was hardcoded twice and went stale both times: seven names while
+// seventeen cues shipped, and the ten it skipped hid a held half step in Nothing
+// Left. The game's own loops.json is the list of what actually ships, so it is
+// the list checked. A missing sidecar falls back to the original seven.
+const LOOPS = new URL('../../tkg/assets/audio/music/loops.json', import.meta.url);
+const ALL = fs.existsSync(LOOPS)
+  ? JSON.parse(fs.readFileSync(LOOPS, 'utf8')).map(r => r.ogg.replace(/\.ogg$/, ''))
+  : ['title', 'fl', 'coldstart', 'longway', 'qo', 'slipstream', 'cutsignal'];
 const ids = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 const NO_FIFTH = ['qo'];   // Quiet Orbit's own rule: no C, no E natural anywhere.
                            // First Light is not in this list: its written lines do reach the fifth,
