@@ -1,168 +1,72 @@
 class_name SettingsMenu
 extends Control
 
-## Settings overlay, reached from the escape menu.
+## Settings in a drawer of its own, for the title screen.
 ##
-## Options show what they will do before you pick them, and the current one is
-## marked — a settings screen that makes you toggle blind to find out is worse
-## than no settings screen.
+## In a run, Settings is not this: it swaps into the escape drawer in place of
+## the menu (PauseMenu.show_settings). The title screen has no escape drawer to
+## borrow, so this is the same drawer -- same width, same edge, same backdrop,
+## same motion -- holding the same SettingsPanel.
 
 signal closed
 
-## Discrete steps rather than a slider: the theme has no slider styling, and a
-## pixel UI reads a marked step better than a grabber it cannot draw crisply.
-const VOLUME_STEPS: Array[float] = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
-
-var _volume_rows: VBoxContainer
-var _mode_rows: VBoxContainer
-var _screen_row: HBoxContainer
-var _scale_row: HBoxContainer
-var _blurb: Label
-var _fps_row: HBoxContainer
+var _drawer: Control
+var _mat: ShaderMaterial
+var _closing := false
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var scrim := ColorRect.new()
-	scrim.color = Color(UITheme.VOID, 0.9)
 	scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mat = ShaderMaterial.new()
+	_mat.shader = PauseMenu.BACKDROP
+	scrim.material = _mat
 	add_child(scrim)
 
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	var drawer := PanelContainer.new()
+	drawer.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+	drawer.offset_right = PauseMenu.DRAWER_W
+	var face := UITheme.flat(UITheme.PANEL, Color(0, 0, 0, 0), 0, 0, 0)
+	face.border_width_right = 1
+	face.border_color = UITheme.BEVEL_HI
+	face.shadow_color = Color(0, 0, 0, 0.35)
+	face.shadow_size = 12
+	drawer.add_theme_stylebox_override("panel", face)
+	add_child(drawer)
+	_drawer = drawer
 
-	var pad := Widgets.pad(null, 20, 16)
+	var pad := Widgets.pad(null, PauseMenu.SIDE, 20)
+	drawer.add_child(pad)
+	var panel := SettingsPanel.new()
+	panel.build()
+	panel.back_requested.connect(func() -> void: closed.emit())
+	pad.add_child(panel)
 
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 5)
-	col.custom_minimum_size = Vector2(300, 0)
-	pad.add_child(col)
-	center.add_child(Widgets.panel_with(pad))
+	if Router.animating():
+		drawer.position.x = -PauseMenu.DRAWER_W - 16.0
+		_mat.set_shader_parameter(&"amount", 0.0)
+		var tw := create_tween().set_parallel(true)
+		tw.tween_property(drawer, "position:x", 0.0, PauseMenu.OPEN_S) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		tw.tween_method(func(v: float) -> void: _mat.set_shader_parameter(&"amount", v),
+			0.0, 1.0, PauseMenu.BACKDROP_S).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
-	var title := UITheme.body("DISPLAY", UITheme.ICE, UITheme.FS_HEAD)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(title)
-	col.add_child(UITheme.hsep())
-
-	_mode_rows = VBoxContainer.new()
-	_mode_rows.add_theme_constant_override("separation", 3)
-	col.add_child(_mode_rows)
-
-	_blurb = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_blurb.custom_minimum_size = Vector2(300, 0)
-	col.add_child(_blurb)
-
-	col.add_child(UITheme.hsep())
-	col.add_child(UITheme.body("MONITOR", UITheme.COLD, UITheme.FS_SMALL))
-	_screen_row = HBoxContainer.new()
-	_screen_row.add_theme_constant_override("separation", 4)
-	col.add_child(_screen_row)
-
-	col.add_child(UITheme.hsep())
-	col.add_child(UITheme.body("WINDOW SIZE", UITheme.COLD, UITheme.FS_SMALL))
-	_scale_row = HBoxContainer.new()
-	_scale_row.add_theme_constant_override("separation", 4)
-	col.add_child(_scale_row)
-
-	col.add_child(UITheme.hsep())
-	# THE FRAME COUNTER, under DISPLAY because that is what it measures. Rebuilt
-	# through `_refresh` like every other row here, so the box redraws itself
-	# from the flag rather than from what this closure thinks it set.
-	_fps_row = HBoxContainer.new()
-	col.add_child(_fps_row)
-
-	col.add_child(UITheme.hsep())
-	var audio_title := UITheme.body("AUDIO", UITheme.ICE, UITheme.FS_HEAD)
-	audio_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(audio_title)
-	col.add_child(UITheme.hsep())
-	_volume_rows = VBoxContainer.new()
-	_volume_rows.add_theme_constant_override("separation", 3)
-	col.add_child(_volume_rows)
-
-	col.add_child(UITheme.hsep())
-	col.add_child(Widgets.button("BACK", func() -> void:
-		Audio.back()
-		closed.emit()))
-
-	_refresh()
-
-func _refresh() -> void:
-	Widgets.clear(_mode_rows)
-	for m in [DisplaySettings.Mode.WINDOWED, DisplaySettings.Mode.BORDERLESS,
-			DisplaySettings.Mode.FULLSCREEN]:
-		var picked: bool = DisplaySettings.mode == m
-		var b := Widgets.button(("> " if picked else "  ") + DisplaySettings.mode_name(m),
-			func() -> void:
-				DisplaySettings.set_mode(m)
-				_refresh())
-		b.tooltip_text = Widgets.tip(DisplaySettings.mode_blurb(m))
-		b.disabled = picked
-		_mode_rows.add_child(b)
-	_blurb.text = DisplaySettings.mode_blurb(DisplaySettings.mode)
-
-	Widgets.clear(_fps_row)
-	var fps_on := DisplaySettings.fps_meter
-	var fps_btn := Widgets.button("",
-		func() -> void:
-			DisplaySettings.set_fps_meter(not DisplaySettings.fps_meter)
-			_refresh())
-	Widgets.paint_toggle(fps_btn, "FRAME COUNTER", fps_on)
-	fps_btn.tooltip_text = Widgets.tip(
-		"Frames per second, bottom right. Costs nothing and decides nothing. It is for saying \"the chart felt slow\" with a number attached.")
-	_fps_row.add_child(fps_btn)
-
-	Widgets.clear(_screen_row)
-	var count := DisplayServer.get_screen_count()
-	if count <= 1:
-		_screen_row.add_child(UITheme.body("only one monitor detected",
-			UITheme.COLD, UITheme.FS_SMALL))
-	else:
-		for i in count:
-			var picked_screen: bool = DisplaySettings.safe_screen() == i
-			var sb := Widgets.button(("> " if picked_screen else "  ") + DisplaySettings.screen_label(i),
-				func() -> void:
-					DisplaySettings.set_screen(i)
-					_refresh())
-			sb.disabled = picked_screen
-			sb.tooltip_text = Widgets.tip("Move the game to this monitor. * marks your primary.")
-			_screen_row.add_child(sb)
-
-	Widgets.clear(_scale_row)
-	var top := DisplaySettings.max_window_scale()
-	for s in range(1, top + 1):
-		var size := DisplaySettings.BASE * s
-		var b2 := Widgets.button("%dx  %d/%d" % [s, size.x, size.y],
-			func() -> void:
-				DisplaySettings.set_scale(s)
-				_refresh())
-		b2.disabled = DisplaySettings.mode == DisplaySettings.Mode.WINDOWED \
-			and DisplaySettings.window_scale == s
-		_scale_row.add_child(b2)
-	# On a 1080p screen 2x is exactly the screen height, so the only windowed
-	# size that keeps its title bar is 1x. Say so rather than hiding the option.
-	if top == 1:
-		_scale_row.add_child(UITheme.body("larger sizes need borderless",
-			UITheme.COLD, UITheme.FS_SMALL))
-
-	Widgets.clear(_volume_rows)
-	for bus: StringName in [&"Master", &"Music", &"SFX"]:
-		_volume_rows.add_child(UITheme.body(String(bus).to_upper(),
-			UITheme.COLD, UITheme.FS_SMALL))
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 4)
-		_volume_rows.add_child(row)
-		var now: float = Audio.volume_of(bus)
-		for step: float in VOLUME_STEPS:
-			var vb := Widgets.button("%d" % roundi(step * 100.0), func() -> void:
-				Audio.set_volume(bus, step)
-				# You should hear what you just picked. Music answers for
-				# itself; the other two need something to answer with.
-				if bus != &"Music" and step > 0.0:
-					Audio.confirm()
-				_refresh())
-			vb.disabled = is_equal_approx(snappedf(now, 0.2), step)
-			row.add_child(vb)
+## Out the way it came, as the escape drawer leaves. Whoever opened it calls
+## this instead of freeing it.
+func close() -> void:
+	if _closing:
+		return
+	_closing = true
+	if not Router.animating():
+		queue_free()
+		return
+	var from := _mat.get_shader_parameter(&"amount") as float
+	var tw := create_tween().set_parallel(true)
+	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tw.tween_property(_drawer, "position:x", -PauseMenu.DRAWER_W - 16.0, PauseMenu.CLOSE_S)
+	tw.tween_method(func(v: float) -> void: _mat.set_shader_parameter(&"amount", v),
+		from, 0.0, PauseMenu.CLOSE_S)
+	tw.chain().tween_callback(queue_free)

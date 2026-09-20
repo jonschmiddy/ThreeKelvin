@@ -33,6 +33,83 @@ static var screen: int = -1          ## -1 means "not chosen yet"; resolves to p
 ## them the game's secrets.
 static var fps_meter: bool = false
 
+## THE VIEW KICKS WHEN YOU ARE HIT. Off is a real setting, not a nicety: shake
+## is the single display effect people most often cannot play with, and a
+## turn-based game has no excuse for making anyone put it down.
+static var screen_shake: bool = true
+
+## WHAT THE SCREEN DOES TO THE PICTURE. All of it is one shader over the
+## finished frame (GameShell); these are the knobs a player sees.
+enum Look { FLAT, SCANLINES, CRT_GENTLE, CRT, CRT_ARCADE }
+## 0 off, 1 deuteranopia, 2 protanopia, 3 tritanopia. Not a simulation: the
+## colour difference those eyes cannot see is pushed into brightness and blue.
+static var colour_help: int = 0
+static var high_contrast: bool = false
+## -1 darker, 0 as made, +1 brighter. Steps rather than a slider, like volume.
+static var brightness: int = 0
+## ON BY DEFAULT, at Jon's call: the gentle tube is how the game is meant to
+## look, and FLAT is the option for anyone who does not want it.
+static var screen_look: Look = Look.CRT_GENTLE
+## Off turns every animation in the game off at the source: `Router.animating`
+## is what every screen asks before it moves anything.
+static var reduced_motion: bool = false
+## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
+static var frame_cap: int = 0
+
+static func look_name(l: Look) -> String:
+	match l:
+		Look.SCANLINES: return "LINES"
+		Look.CRT_GENTLE: return "CRT"
+		Look.CRT: return "CRT+"
+		Look.CRT_ARCADE: return "ARCADE"
+		_: return "FLAT"
+
+static func colour_help_name(i: int) -> String:
+	match i:
+		1: return "RED-GREEN"
+		2: return "RED-GREEN 2"
+		3: return "BLUE-YELLOW"
+		_: return "OFF"
+
+static func gamma_value() -> float:
+	match brightness:
+		-1: return 0.85
+		1: return 1.2
+		_: return 1.0
+
+static func set_colour_help(i: int) -> void:
+	colour_help = clampi(i, 0, 3)
+	GameShell.refresh()
+	save()
+
+static func set_high_contrast(on: bool) -> void:
+	high_contrast = on
+	GameShell.refresh()
+	save()
+
+static func set_brightness(step: int) -> void:
+	brightness = clampi(step, -1, 1)
+	GameShell.refresh()
+	save()
+
+static func set_look(l: Look) -> void:
+	screen_look = l
+	GameShell.refresh()
+	save()
+
+static func set_reduced_motion(on: bool) -> void:
+	reduced_motion = on
+	save()
+
+static func set_frame_cap(fps: int) -> void:
+	frame_cap = fps
+	Engine.max_fps = fps
+	save()
+
+static func set_screen_shake(on: bool) -> void:
+	screen_shake = on
+	save()
+
 static func mode_name(m: Mode) -> String:
 	match m:
 		Mode.WINDOWED: return "WINDOWED"
@@ -82,7 +159,16 @@ static func apply() -> void:
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
 			DisplayServer.window_set_position(origin)
-			DisplayServer.window_set_size(extent)
+			# ONE PIXEL TALLER THAN THE SCREEN, and that pixel is the whole point.
+			# A borderless window sized EXACTLY to the screen is what Windows
+			# calls a fullscreen optimization: it hands the display over on every
+			# focus change, which is the black flash when you click out to
+			# another monitor and back. A window a pixel past the bottom edge is
+			# an ordinary window to the compositor and still covers everything.
+			#
+			# TALLER, NOT SHORTER: the viewport scales by whole numbers, so a
+			# window one pixel SHORT of 1080 would drop the game from 2x to 1x.
+			DisplayServer.window_set_size(extent + Vector2i(0, 1))
 		Mode.FULLSCREEN:
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 			# The window has to be on the target screen before going exclusive,
@@ -129,6 +215,13 @@ static func save() -> void:
 	cfg.set_value("display", "window_scale", window_scale)
 	cfg.set_value("display", "screen", safe_screen())
 	cfg.set_value("display", "fps_meter", fps_meter)
+	cfg.set_value("display", "screen_shake", screen_shake)
+	cfg.set_value("display", "colour_help", colour_help)
+	cfg.set_value("display", "high_contrast", high_contrast)
+	cfg.set_value("display", "brightness", brightness)
+	cfg.set_value("display", "screen_look", int(screen_look))
+	cfg.set_value("display", "reduced_motion", reduced_motion)
+	cfg.set_value("display", "frame_cap", frame_cap)
 	cfg.save(PATH)
 
 static func load_and_apply() -> void:
@@ -138,4 +231,12 @@ static func load_and_apply() -> void:
 		window_scale = int(cfg.get_value("display", "window_scale", 1))
 		screen = int(cfg.get_value("display", "screen", -1))
 	fps_meter = bool(cfg.get_value("display", "fps_meter", false))
+	screen_shake = bool(cfg.get_value("display", "screen_shake", true))
+	colour_help = int(cfg.get_value("display", "colour_help", 0))
+	high_contrast = bool(cfg.get_value("display", "high_contrast", false))
+	brightness = int(cfg.get_value("display", "brightness", 0))
+	screen_look = cfg.get_value("display", "screen_look", int(Look.CRT_GENTLE)) as Look
+	reduced_motion = bool(cfg.get_value("display", "reduced_motion", false))
+	frame_cap = int(cfg.get_value("display", "frame_cap", 0))
+	Engine.max_fps = frame_cap
 	apply()

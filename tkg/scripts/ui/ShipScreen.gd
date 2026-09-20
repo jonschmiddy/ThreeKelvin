@@ -1033,6 +1033,9 @@ func _flip_pointed() -> bool:
 	if m == null:
 		return false
 	m.flipped = not m.flipped
+	# F on a mounted part is the same gesture as R in the hold, so it makes
+	# the same sound (Jon asked).
+	Audio.play(&"hold_turn", 0.10)
 	_mountpts.refresh()
 	return true
 
@@ -1048,6 +1051,9 @@ func _turn_carried() -> bool:
 	if m == null:
 		return false
 	m.turned = not m.turned
+	# The turn sound for a part in the hand too, not only one in the hold:
+	# turning while carrying is the common case and it was silent.
+	Audio.play(&"hold_turn", 0.10)
 	if ItemIcon.carried != null and is_instance_valid(ItemIcon.carried):
 		ItemIcon.carried.fit_footprint()
 		ItemIcon.carried.spin()

@@ -202,7 +202,9 @@ const PATH := "user://run.save"
 # 27: `pad` joins the file. Overflow from a hull swap is state now rather than
 # a deletion, so a save taken mid-move has to carry it or the move eats it --
 # which is the bug the pad exists to fix.
-const VERSION := 27
+## 28: `fight`, the fight a run was saved out of (see mark_fight). A save from
+## 27 has no way to say whether it was written mid-fight, so it is not read.
+const VERSION := 28
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -263,6 +265,22 @@ static func save() -> void:
 	# a save you can read in a text editor is worth more during development than
 	# fourteen digits nothing consults.
 	f.store_string(JSON.stringify(_snapshot(), "", true, true))
+	f.close()
+
+## SAVE & EXIT MID-FIGHT. The run on disk stays the one from before the fight
+## -- combat is outside the save, and a half-fought state cannot be rebuilt --
+## and this writes down which fight it was, so CONTINUE starts it again from its
+## first turn (Jon: "the game should just restart the fight from the beginning").
+## Read back by `load_into_run` into `Router.fight_on_resume`.
+static func mark_fight(fight: Dictionary) -> void:
+	var d := _read()
+	if d.is_empty() or fight.is_empty():
+		return
+	d["fight"] = fight
+	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(d, "", true, true))
 	f.close()
 
 static func clear() -> void:
@@ -376,6 +394,10 @@ static func load_into_run() -> bool:
 	# false having already left a hull, an economy and an empty map behind, and
 	# the launcher this failure routes to autosaved that and indexed map[at].
 	var saved_map: Variant = d.get("map", [])
+	# The fight this run was saved out of, if any. Always assigned, so a stale
+	# one from an earlier load can never restart a fight this save never had.
+	var fight: Variant = d.get("fight", {})
+	Router.fight_on_resume = fight if typeof(fight) == TYPE_DICTIONARY else {}
 	if typeof(saved_map) != TYPE_ARRAY or (saved_map as Array).is_empty():
 		clear()
 		return false

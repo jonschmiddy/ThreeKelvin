@@ -1529,10 +1529,11 @@ class ConvoySlot extends Control:
 			# materialising in place and holding still would read as a menu.
 			art.arrive(1, 0.0), CONNECT_ONE_SHOT)
 		flare.play(delay)
-		# Throttled. A convoy arriving is three or four of these a fraction of a
-		# second apart, and the same sample four times over reads as a stutter
-		# rather than as four ships.
-		Audio.play(&"jump", 0.10, 140)
+		# THE PLAYER'S OWN ARRIVAL SOUND, since the sound pass cut `jump`
+		# ("Just use the jump out sound"). Throttled harder than the old bang:
+		# these run seconds rather than a fraction of one, and a convoy of four
+		# arriving together is one arrival to the ear, not four stacked.
+		Audio.play(&"hyperjump_in", 0.10, 900)
 
 	## And left. Same flash, opposite side of it.
 	func jump_out() -> void:
@@ -1542,7 +1543,7 @@ class ConvoySlot extends Control:
 			queue_redraw(), CONNECT_ONE_SHOT)
 		flare.finished.connect(queue_free, CONNECT_ONE_SHOT)
 		flare.play(0.0)
-		Audio.play(&"jump", 0.10, 140)
+		Audio.play(&"hyperjump", 0.10, 900)
 		queue_redraw()
 
 	func leaving() -> bool:

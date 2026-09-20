@@ -494,6 +494,9 @@ func _get_drag_data(at: Vector2) -> Variant:
 	# your hand -- which is meaningless for a foreign hull, where the part is
 	# not in `Run.installed` to begin with.
 	if ship != null:
+		# The live hull's lift plays in the screen's `_on_lift`; a foreign hull
+		# has no such handler, so its lift sounds here.
+		Audio.play(&"hold_lift", 0.08)
 		return {module = m, origin = &"oldhull"}
 	lifted.emit(m)
 	return {module = m, origin = &"hull"}

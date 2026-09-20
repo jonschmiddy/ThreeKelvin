@@ -22,6 +22,17 @@ var _tree: SceneTree
 
 func run(tree: SceneTree) -> void:
 	_tree = tree
+	# DEAF TO THE DESK. This runs in a real window, and a window that takes a
+	# key takes TAB -- which cycles ship, sector and chart, and every one of
+	# those asks for run music. A keystroke meant for another program swapped
+	# the cue under the test and failed it at random, one run in three while
+	# anyone was typing. The test drives Audio directly; it wants no input.
+	tree.root.gui_disable_input = true
+	var main := tree.current_scene
+	if main != null:
+		main.set_process_input(false)
+		main.set_process_unhandled_input(false)
+		main.set_process_unhandled_key_input(false)
 	await tree.process_frame
 
 	if not _ok("audio is enabled, so there is something here to measure",
@@ -173,6 +184,55 @@ func run(tree: SceneTree) -> void:
 	_ok("and it runs out rather than looping (voice %d stays %d)" % [dv, Audio._now],
 			Audio._now == dv)
 
+	# ---- the cues that hang off a signal rather than off a screen
+	#
+	# WINNING IS QUIET NOW, and that is a decision rather than a gap. The tape is
+	# what proves it: the wiring cannot be read for it, since `_connect_signals`
+	# is never reached on a headless run.
+	Audio.taping = true
+	Audio.tape.clear()
+	Sig.combat_ended.emit(&"victory", "")
+	await tree.process_frame
+	var played: Array = []
+	for row in Audio.tape:
+		played.append(str((row as Array)[0]))
+	_ok("winning a fight plays no sting (%s)" % [played], played.is_empty())
+	Audio.taping = false
+	Audio.tape.clear()
+
+	# ---- opening a wreck
+	#
+	# THE TOP OF THE LADDER RINGS AND THE REST DOES NOT. Read through the real
+	# view rather than off the wiring: a wreck with a common and a legendary in
+	# it, swept, and the tape says which of them was heard.
+	Rng.reseed(4242, 0)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var node: MapGen.MapNode = Run.node_at()
+	node.jetsam.clear()
+	node.taken.clear()
+	Run.cargo.clear()
+	var wreck := Run.new_wreck(node, DB.enemies[&"cutter"])
+	for want in [ModuleData.Rarity.COMMON, ModuleData.Rarity.LEGENDARY]:
+		for _i in 400:
+			var m := LootGen.roll_module(5)
+			if m != null and m.rarity == want:
+				wreck.items.append(m)
+				break
+	var view := TransferView.new()
+	tree.root.add_child(view)
+	Audio.taping = true
+	Audio.tape.clear()
+	view.setup(wreck, node, func() -> void: pass, true)
+	await _settle(400)
+	var heard: Array = []
+	for row in Audio.tape:
+		heard.append(str((row as Array)[0]))
+	_ok("a wreck opening rings a legendary (%s)" % [heard], heard.has("take_legendary"))
+	_ok("and says nothing for the common beside it", not heard.has("take_common"))
+	Audio.taping = false
+	Audio.tape.clear()
+	view.queue_free()
+
 	# ---- stopping
 	Audio.stop_music()
 	await _settle()
@@ -198,16 +258,29 @@ func run(tree: SceneTree) -> void:
 	Audio.room(&"amb_station")
 	var r := 1.0
 	for _i in 400:
-		r = move_toward(r, Audio.ROOM_DUCK if Audio._room_now != &"" else 1.0,
+		r = move_toward(r, float(Audio.ROOM_DUCKS.get(Audio._room_now, 1.0)),
 				0.016 / Audio.ROOM_DUCK_S)
 	_ok("docked, the music steps back to %.0f%% (%.2f)"
 			% [Audio.ROOM_DUCK * 100.0, r],
 			is_equal_approx(r, Audio.ROOM_DUCK))
+	# OPEN SPACE IS UNDER THE SCORE, NOT INSTEAD OF IT. Undocking into the
+	# sector swaps rooms rather than clearing one, so this is the path a
+	# player actually takes out of a station -- and the music has to return.
+	Audio.room(&"amb_blue")
+	for _i in 400:
+		r = move_toward(r, float(Audio.ROOM_DUCKS.get(Audio._room_now, 1.0)),
+				0.016 / Audio.ROOM_DUCK_S)
+	_ok("and comes back up at a star (%.2f, room %s)" % [r, Audio._room_now],
+			is_equal_approx(r, 1.0) and Audio._room_now == &"amb_blue")
+	_ok("a star room has its own level, under the station's (%.1f vs %.1f dB)"
+			% [Audio.ROOM_LEVELS[&"amb_blue"], Audio.ROOM_LEVELS[&"amb_station"]],
+			ResourceLoader.exists(Audio.ROOM_PATH % "amb_blue")
+			and float(Audio.ROOM_LEVELS[&"amb_blue"]) < float(Audio.ROOM_LEVELS[&"amb_station"]))
 	Audio.room(&"")
 	for _i in 400:
-		r = move_toward(r, Audio.ROOM_DUCK if Audio._room_now != &"" else 1.0,
+		r = move_toward(r, float(Audio.ROOM_DUCKS.get(Audio._room_now, 1.0)),
 				0.016 / Audio.ROOM_DUCK_S)
-	_ok("and comes back up on leaving (%.2f)" % r, is_equal_approx(r, 1.0))
+	_ok("and with no room at all (%.2f)" % r, is_equal_approx(r, 1.0))
 
 	# ---- the room ducks the score while somebody is talking
 	Audio._load_speech(&"amb_station")

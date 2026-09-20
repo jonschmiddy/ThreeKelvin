@@ -166,7 +166,8 @@ func _build() -> void:
 	tgap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tgap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	top.add_child(tgap)
-	var go := Widgets.button("LAUNCH", func() -> void: launched.emit())
+	# Silent: launching is the start of the game, not a UI click (Jon).
+	var go := Widgets.button("LAUNCH", func() -> void: launched.emit(), false)
 	go.custom_minimum_size = Vector2(96, 0)
 	go.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(go)

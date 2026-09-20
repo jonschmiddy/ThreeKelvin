@@ -428,6 +428,21 @@ func run_version_test() -> void:
 	print("=== VERSION GATES ===")
 	var fails_before := fails
 
+	# SAVE & EXIT MID-FIGHT: the fight is noted on the save and comes back on
+	# load, so CONTINUE can start it over. And a save without one brings none.
+	Run.start_new_run(&"korvan", 1)
+	SaveGame.save()
+	var fight := {ids = ["raider", "raider"], clears = true, share = true}
+	SaveGame.mark_fight(fight)
+	Router.fight_on_resume = {}
+	SaveGame.load_into_run()
+	check("a fight saved out of comes back on load", str(fight.ids),
+		str(Router.fight_on_resume.get("ids", [])))
+	SaveGame.save()
+	SaveGame.load_into_run()
+	check("and an ordinary save brings no fight with it", true, Router.fight_on_resume.is_empty())
+	Router.fight_on_resume = {}
+
 	# A save one version behind must not load, whatever is inside it.
 	var stale := {"version": SaveGame.VERSION - 1, "hp": 99}
 	var f := FileAccess.open(SaveGame.PATH, FileAccess.WRITE)

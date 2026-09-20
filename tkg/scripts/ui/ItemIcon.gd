@@ -214,6 +214,9 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	# the air -- nothing is committed until it lands. `can_place` already skips
 	# the item being placed, so the cells it is vacating light as free.
 	visible = false
+	# Out of the hold and into the hand, the same lift a part makes coming
+	# off the hull. Every screen with a hold picks up through here.
+	Audio.play(&"hold_lift", 0.08)
 	picked_up.emit(self)
 	# `module` is the payload key, and it is the wrong word now that cargo is two
 	# kinds of thing. It is kept because every drop site in the game reads it,

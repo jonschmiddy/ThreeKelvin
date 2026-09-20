@@ -85,6 +85,18 @@ var _room_fade: Tween = null
 ## build's gain is −4.75, so the player makes up the rest: −18.7 + 4.75.
 ## RE-DERIVE THIS after any change to station.py's MIXDB -- it moves the gain.
 const ROOM_DB := -14.0
+## EACH ROOM AT ITS OWN LEVEL. The station is a place you stand in with the
+## music gone; open space plays UNDER the score, so it sits well below it --
+## about 10 dB under a cue's average once both are through the Music bus.
+## −27 is that arithmetic (file −13.1 dB RMS, target −40), not an audition:
+## Jon has not heard it in the game yet.
+##
+## THE STAR ROOMS land at the same loudness as open space (-40 dBFS RMS once
+## played), each from its own file's measured RMS -- star_rooms.py prints the
+## number. They are open space with a particular star outside: under the score.
+## No entry for open space any more: ordinary systems have no room at all.
+const ROOM_LEVELS: Dictionary = {&"amb_station": ROOM_DB,
+		&"amb_blue": -19.3, &"amb_red": -24.8, &"amb_pulsar": -22.5}
 const ROOM_FADE := 1.6     ## seconds, because a room does not arrive on a beat
 
 ## THE SCORE STEPS ASIDE WHILE SOMEBODY IS TALKING. The announcements are baked
@@ -128,7 +140,11 @@ var _duck: float = 1.0     ## 1 is unducked; multiplies every music stem
 ## so undocking resumes the run's music mid-phrase rather than restarting it.
 ## The announcement duck above still runs and now has nothing to act on --
 ## left in place, because a room tone somewhere else may want music under it.
-const ROOM_DUCK := 0.0     ## silent, while any room tone is playing
+const ROOM_DUCK := 0.0     ## silent, while docked
+## WHICH ROOMS PUSH THE SCORE ASIDE. Only the station: open space is the
+## sound UNDER the music, not instead of it, and a room missing from here
+## leaves the music alone.
+const ROOM_DUCKS: Dictionary = {&"amb_station": ROOM_DUCK}
 const ROOM_DUCK_S := 1.6   ## and it arrives with the room, not before it
 var _rduck: float = 1.0
 
@@ -183,14 +199,21 @@ func _ready() -> void:
 func _connect_signals() -> void:
 	Sig.card_played.connect(_on_card_played)
 	Sig.damage_dealt.connect(_on_damage)
-	Sig.charge_fired.connect(func(_n: String) -> void: play(&"charge_fire"))
+	# THE RELEASE of a charged card is a heavy shot, because that is what it is.
+	# It used to play `charge_fire` here and the heavy shot on PLAY -- a gunshot
+	# at the one moment nothing fires. Jon: "there should be a charging sound
+	# and a release sound. separate." The charging half is in _on_card_played.
+	Sig.charge_fired.connect(func(_n: String) -> void: play(&"shot_heavy", 0.05))
 	Sig.overheated.connect(func(_b: int) -> void: play(&"overheat"))
 	# NO STING WHEN A FIGHT STARTS. The music already tells you: combat moves the
 	# cue to Hard Burn, which is 160 BPM of sixteenths against everything else in
 	# the soundtrack. A sting on top of that is the score saying the same thing
 	# twice, half a second apart, and the second one is louder.
 	Sig.combat_ended.connect(_on_combat_ended)
-	Sig.jumped.connect(func(_i: int) -> void: play(&"jump"))
+	# NO SOUND ON Sig.jumped. It played `jump`, the convoy's bang, and the
+	# player's own departure had to suppress it under the drive and the flare
+	# -- which play their own. Jon cut `jump` in the sound pass: "Just use the
+	# jump out sound." The convoy plays `hyperjump` itself (EncounterView).
 	Sig.enemy_destroyed.connect(_on_enemy_destroyed)
 	# Paperwork: the ledger stamps with the institutions' bare fifth, same
 	# figure the score's stamp lanes carry.
@@ -201,9 +224,11 @@ func _connect_signals() -> void:
 	# Every screen change is the same pressure door -- _swap() is the one
 	# chokepoint, so the sound is right by construction, like the resource
 	# poll. limit_ms soaks the double-swap paths (flee already stings, and
-	# some routes swap twice on the way somewhere).
+	# some routes swap twice on the way somewhere) -- 60 ms, not the 350 it
+	# was: a double swap lands within a frame or two, and 350 swallowed real
+	# clicks when you tabbed quickly ("sometimes doesn't happen").
 	Sig.screen_changed.connect(func() -> void:
-		play(&"ui_tab", 0.04, 350))
+		play(&"ui_tab", 0.04, 60))
 	# ship_changed used to play module_install for EVERYTHING -- a sale
 	# sounded like an installation. The desk actions now carry their own
 	# sounds at the UI call sites (StationScreen/SectorScreen _on_action),
@@ -419,7 +444,8 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	_room.volume_db = OFF_DB
 	_room.play()
 	_room_fade = create_tween()
-	_room_fade.tween_property(_room, ^"volume_db", ROOM_DB, fade_s)
+	_room_fade.tween_property(_room, ^"volume_db",
+			float(ROOM_LEVELS.get(name, ROOM_DB)), fade_s)
 
 
 ## WHEN THE ROOM IS TALKING, IF IT IS. A room with no sidecar simply never
@@ -552,7 +578,7 @@ func _process(delta: float) -> void:
 			delta / (DUCK_IN if duck_to < _duck else DUCK_OUT))
 	# The room itself, on the same clock as the room's own fade so the music
 	# steps back as the station arrives rather than a beat after it.
-	var room_to: float = ROOM_DUCK if _room_now != &"" else 1.0
+	var room_to: float = float(ROOM_DUCKS.get(_room_now, 1.0))
 	_rduck = move_toward(_rduck, room_to, delta / ROOM_DUCK_S)
 	for i in _mv.size():
 		var p: AudioStreamPlayer = _mv[i]
@@ -637,7 +663,11 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	var vars: Array = _variants.get(name, [])
 	if vars.is_empty() and not _variants.has(name):
 		vars = [name]
-		for i in range(2, 5):
+		# UP TO _16, it was _4 then _8. Merging the kill pools made
+		# explosion_small five takes, then the autocannon kept nine, and a
+		# scan that stops short drops the rest without a word. Numbers only:
+		# thrusters use letters.
+		for i in range(2, 17):
 			var vn := StringName("%s_%d" % [name, i])
 			if ResourceLoader.exists(SFX_PATH % vn):
 				vars.append(vn)
@@ -717,7 +747,10 @@ func hush(names: Array[StringName], fade_ms: int = 120) -> void:
 func click() -> void:   play(&"ui_click", 0.05)
 func hover() -> void:   play(&"ui_hover", 0.09, 40)
 func back() -> void:    play(&"ui_back", 0.03)
-func confirm() -> void: play(&"ui_confirm", 0.02)
+## The volume check in Settings is its only caller, so it plays a sound the
+## game already makes: you hear how loud effects are, not a stinger heard
+## nowhere else. ui_confirm was cut after twenty takes missed (sound pass).
+func confirm() -> void: play(&"ui_click", 0.02)
 func denied() -> void:  play(&"ui_denied", 0.03)
 
 # ---------------- signal handlers ----------------
@@ -731,7 +764,7 @@ func _on_card_played(c: CardData) -> void:
 		# What the card mechanically IS picks the family; the files carry
 		# round robins so no two shots are the exact same take.
 		if c.charge_turns > 0:
-			play(&"shot_heavy", 0.05)          # banked ordnance landing
+			play(&"charge_up", 0.04)           # it starts charging; it fires later
 		elif c.hits >= 2:
 			play(&"shot_auto", 0.06)           # autocannon burst
 		elif c.heat > 0 or c.damage_equals_heat or c.heat_scale > 0:
@@ -742,6 +775,15 @@ func _on_card_played(c: CardData) -> void:
 		play(&"vent", 0.05)
 	elif c.block > 0 or c.brace > 0 or c.brace_from_heat:
 		play(&"shield_block", 0.06)
+	# EMERGENCY REPAIR IS THE STATION'S REPAIR, at Jon's ask: the same welding
+	# out here as at the berth, because it is the same job done worse.
+	elif c.heal > 0 or c.heal_scale > 0:
+		play(&"svc_repair", 0.06)
+	# LOCK ON is not an attack -- it is the sights closing on one -- so it gets
+	# the reticle rather than a gun. Played after the family above, not instead
+	# of it: a card that shoots AND locks on is a shot first.
+	if c.lock_on > 0:
+		play(&"lock_on", 0.05, 120)
 
 ## Heat is a second health bar you can choose to spend, and going over costs
 ## hull, which costs scrap. The warning is edge-triggered on the way up only:
@@ -781,9 +823,12 @@ func _on_enemy_destroyed(who: int) -> void:
 		t = Router.combat.enemies[who].template
 	if t != null and t.fauna:
 		play(&"fauna_falls", 0.04, 400)
-	elif t != null and (t.boss or t.miniboss):
-		play(&"explosion_boss", 0.03, 400)
 	else:
+		# ONE POOL FOR EVERY KILL. Jon: "kill and boss kill can be
+		# consolidated." The three boss takes joined the two ordinary ones as
+		# round robins of explosion_small, so a boss is not louder or longer
+		# than anything else it dies alongside -- and there are five takes
+		# rotating instead of two.
 		play(&"explosion_small", 0.09, 160)
 
 func _on_damage(_amount: int, to_player: bool, _who: int) -> void:
@@ -795,21 +840,30 @@ func _on_damage(_amount: int, to_player: bool, _who: int) -> void:
 		play(&"impact_enemy", 0.08, 90)
 
 func _on_combat_ended(result: StringName, _summary: String) -> void:
+	# NO STING FOR WINNING. There was one -- Jon cut it outright: "I just don't
+	# want the victory sound at all." The kill, the wreck opening and the rarity
+	# ladder under it are the reward; a fanfare over them was the game
+	# applauding itself.
 	match result:
-		&"victory", &"won", &"pacified": play(&"victory", 0.0)
 		&"fled": play(&"ui_tab", 0.03)
 		_: pass          ## death is handled by run_ended, so it is not doubled
 
-func _on_run_ended(won: bool, _reason: String) -> void:
-	if won:
-		play(&"victory", 0.0)
-	# AND NOTHING WHEN YOU DIE. There was a two-second sting here, F to Gb on a
-	# low bowed note, and the reasoning was sound: the semitone is the whole idea
-	# of the dread cue, so dying sounded like the thing that had been following
-	# you all run. What it actually did was announce the ending over the top of a
-	# cue written to BE the ending -- "No Fault" is a line that falls three times
-	# and does not come back up, and it does not need help. Silence, and then the
-	# music that is already the answer.
+## NOTHING EITHER WAY AT THE END OF A RUN.
+##
+## WINNING had a sting until Jon cut it: "I just don't want the victory sound at
+## all." The kill, the wreck opening and the rarity ladder under it are the
+## reward, and a fanfare over them was the game applauding itself.
+##
+## DYING had one too, once: a two-second sting, F to Gb on a low bowed note. The
+## reasoning was sound -- the semitone is the whole idea of the dread cue, so
+## dying sounded like the thing that had been following you all run. What it
+## actually did was announce the ending over the top of a cue written to BE the
+## ending: "No Fault" is a line that falls three times and does not come back up,
+## and it does not need help. Silence, and then the music that is already the
+## answer.
+func _on_run_ended(_won: bool, _reason: String) -> void:
+	pass
+
 
 # ---------------- volume ----------------
 

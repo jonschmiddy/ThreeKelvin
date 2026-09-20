@@ -399,7 +399,7 @@ static func hull_row(h: HullData, label: String, price: int,
 		buttons.add_child(_btn("LEAVE IT", on_action.bind("leave_hull", h)))
 	return panel
 
-static func _btn(text: String, action: Callable) -> Button:
+static func _btn(text: String, action: Callable, click: bool = true) -> Button:
 	var b := Button.new()
 	b.text = text
 	# THE CURSOR READS THIS. `CURSOR_POINTING_HAND` is what the closed reticle
@@ -411,7 +411,8 @@ static func _btn(text: String, action: Callable) -> Button:
 	# Sound before action. Every button in the game is built here, so this is
 	# the one place the interface needs wiring — and the action is usually a
 	# screen swap, so the click has to be queued before the tree changes.
-	b.pressed.connect(Audio.click)
+	if click:
+		b.pressed.connect(Audio.click)
 	b.mouse_entered.connect(Audio.hover)
 	b.pressed.connect(action)
 	# A disabled button never emits `pressed`, so clicking one is completely
@@ -423,8 +424,10 @@ static func _btn(text: String, action: Callable) -> Button:
 			Audio.denied())
 	return b
 
-static func button(text: String, action: Callable) -> Button:
-	return _btn(text, action)
+## `click` false for a button whose action already makes its own sound, so the
+## two do not stack: the HUD's page tabs, which the screen change answers.
+static func button(text: String, action: Callable, click: bool = true) -> Button:
+	return _btn(text, action, click)
 
 ## Label + value readout used in the HUD and unit panels.
 static func stat(key: String, value: String, value_colour: Color = UITheme.ICE) -> HBoxContainer:

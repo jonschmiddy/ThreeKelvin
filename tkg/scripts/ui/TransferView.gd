@@ -217,6 +217,14 @@ func _can_drop_data(at: Vector2, data: Variant) -> bool:
 ## payout -- so every tier shares one dry handling layer and rarity only
 ## adds a small ring: common is hands, rare rings once, EPIC and up
 ## shimmer quietly, and credits are coins because they are coins.
+## The grade of a thing, whichever kind of thing it is.
+static func _rarity_of(m: HoldItem) -> ModuleData.Rarity:
+	if m is ModuleData:
+		return (m as ModuleData).rarity
+	if m is MaterialData:
+		return UITheme.tier_rarity((m as MaterialData).tier)
+	return ModuleData.Rarity.COMMON
+
 static func _take_sound(m: HoldItem) -> StringName:
 	if m is CreditChit:
 		return &"take_credits"
@@ -271,11 +279,20 @@ static func _take_sound(m: HoldItem) -> StringName:
 ## will hear this on every wreck you open and the take only on what you keep.
 ## And no `loot_drop` underneath -- the resource watcher is not involved in a
 ## reveal, nothing has moved yet.
-const REVEAL_DB := -9.0
+## Four down from the take, which is the level the ladder was judged at.
+const REVEAL_DB := -4.0
+
+## THE TOP OF THE LADDER ONLY. Every rung used to ring as the sweep found it,
+## and the low ones did not read as anything -- a common is 0.12 s of dry tick
+## and a wreck is mostly commons, so the sound said "something appeared" over
+## and over and meant nothing. Jon: "maybe we only do the sound for legendaries
+## and artifacts." The sweep is quiet now until it finds something worth
+## stopping for, and then it is unmistakable: 1.2 s, 1.6 s, 2.2 s.
+const REVEAL_FLOOR := ModuleData.Rarity.LEGENDARY
 const REVEAL_GAP := 0.055
 
 func _on_revealed(m: HoldItem, index: int) -> void:
-	if m == null:
+	if m == null or _rarity_of(m) < REVEAL_FLOOR:
 		return
 	var wait := REVEAL_GAP * float(maxi(index - 1, 0))
 	if wait > 0.0:
@@ -287,10 +304,15 @@ func _on_revealed(m: HoldItem, index: int) -> void:
 	Audio.play(_take_sound(m), 0.04, 0, REVEAL_DB)
 
 
-func _take_fx(m: HoldItem) -> void:
+## THE RARITY LADDER IS FOR FINDING, NOT FOR PACKING. It played twice -- once
+## as the sweep revealed a thing and again when you dragged it into the hold --
+## so a legendary announced itself on the way in as well as on the way out of
+## the dark. Jon: "only when it is found the first time, not when you put it in
+## your hull." Taking now sounds like what it is: a thing stowed.
+func _take_fx(_m: HoldItem) -> void:
 	Audio.suppress(&"loot_drop")
 	Audio.suppress(&"scrap_gain")
-	Audio.play(_take_sound(m), 0.05, 70, -4.0)
+	Audio.play(&"hold_stow", 0.06)
 
 func _drop_data(at: Vector2, data: Variant) -> void:
 	var where := _side_of(at, data)
@@ -352,6 +374,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if m == null:
 		return
 	m.turned = not m.turned
+	Audio.play(&"hold_turn", 0.10)
 	# The plate in your hand has to change shape too, or you are aiming a 4x1
 	# while holding a picture of a 1x4.
 	if ItemIcon.carried != null and is_instance_valid(ItemIcon.carried):

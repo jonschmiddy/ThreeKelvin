@@ -116,6 +116,11 @@ func sync(cards: Array, playable: Callable, choosing: bool = false,
 				# that — it moves the card up, not forward.
 				if e:
 					v.move_to_front()
+					# A sound on pointing at a card (the cards page plays it
+					# too). Not while carried -- the hand re-hovers a card
+					# as it follows the pointer.
+					if not v.held:
+						Audio.play(&"card_hover", 0.08, 45)
 				else:
 					_restack(_views)
 				card_hovered.emit(v, e))

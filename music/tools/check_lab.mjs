@@ -51,7 +51,7 @@ try {
   w.eval(src
     .replace('function voice(s, p, t, dur, m, prev, vel){',
              'function voice(s, p, t, dur, m, prev, vel){ window.__notes.push([t, p.name]); return;')
-    .replace('buildUI();\n', 'buildUI(); window.__lab = {state, currentBeat, get loop(){return LOOP_BEATS}};'));
+    .replace(/buildUI\(\);\r?\n/, 'buildUI(); window.__lab = {state, currentBeat, get loop(){return LOOP_BEATS}};'));
 } catch (e) { threw = String(e.stack || e); }
 w.__notes = notes;
 

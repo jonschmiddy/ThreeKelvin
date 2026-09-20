@@ -421,7 +421,8 @@ func _confirm_new_run() -> void:
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.add_child(Widgets.button("LAUNCH", _launch))
+	# Silent, like the hull pick's LAUNCH: starting the game is not a UI click.
+	row.add_child(Widgets.button("LAUNCH", _launch, false))
 	row.add_child(_leave_button("NOT YET", _close_popup))
 	col.add_child(row)
 
@@ -673,7 +674,17 @@ func _open_settings() -> void:
 	_settings = SettingsMenu.new()
 	add_child(_settings)
 	_settings.setup()
-	_settings.closed.connect(func() -> void:
-		if _settings != null:
-			_settings.queue_free()
-			_settings = null)
+	_settings.closed.connect(func() -> void: close_settings())
+
+## Esc closes the Settings drawer, and only it -- the launcher itself is the
+## menu, so Esc has nothing else to do here. True when there was one to close.
+func close_settings(sound: bool = true) -> bool:
+	if _settings == null:
+		return false
+	# The drawer is leaving, so it sounds like the drawer leaving -- the escape
+	# menu's close, not a UI back (Jon). Guarded on the file like Main's.
+	if sound and ResourceLoader.exists(Audio.SFX_PATH % &"menu_close"):
+		Audio.play(&"menu_close", 0.03, 120)
+	_settings.close()
+	_settings = null
+	return true

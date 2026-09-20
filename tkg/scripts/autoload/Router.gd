@@ -45,11 +45,21 @@ func register(content_holder: Control, hud_bar: HudBar) -> void:
 ## logged hundreds of errors for a frame no one ever saw. A hidden control is
 ## never drawn. `-- quittest` guards it.
 func _swap(screen: Control, chrome: bool = true) -> void:
+	# THE PAGE SOUND IS FOR MOVING BETWEEN PAGES, not for arriving in the game.
+	# Jon: no click "when starting the game", nor "when launching the ship for
+	# the first time". So booting, and every swap to or from the title or the
+	# lobby, is silent; `screen_changed` below still fires for everything else
+	# that listens to it.
+	if current == null or is_front_door(current) or is_front_door(screen):
+		Audio.suppress(&"ui_tab", 100)
 	if current != null:
 		current.hide()
 		current.queue_free()
 	current = screen
 	content.add_child(screen)
+	var room: Variant = _room_for(screen)
+	if room != null:
+		Audio.room(room)
 	if hud != null:
 		hud.visible = chrome
 	_refresh_sky()
@@ -57,6 +67,11 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	Sig.screen_changed.emit()
 	_autosave()
 
+
+## The screens before a run is under way: the title, the party lobby, and the
+## hull pick. Leaving the hull pick is launching, and that was still clicking.
+func is_front_door(s: Control) -> bool:
+	return s is LauncherScreen or s is LobbyScreen or s is ChassisSelect
 
 ## How long a screen takes to arrive. Short enough that nobody waiting to click
 ## something is made to wait for it, long enough to read as a change of place
@@ -106,6 +121,11 @@ func _fade_in(screen: Control) -> void:
 ## Matched by suffix rather than by a list, because the list is nine long today
 ## and the next one would be added without anybody thinking about this.
 func animating() -> bool:
+	# REDUCED MOTION IS ANSWERED HERE, once, for the whole game: every screen
+	# already asks this before it moves anything, so the setting needs no new
+	# check anywhere else.
+	if DisplaySettings.reduced_motion:
+		return false
 	if "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless":
 		return false
 	for a in OS.get_cmdline_user_args():
@@ -178,6 +198,49 @@ func _autosave() -> void:
 
 ## The party, before a dive. Runs with no run loaded, like the launcher, so it
 ## takes no HUD — the bar reads ship state and there is no ship yet.
+## THE ROOM YOU ARE IN, decided here because this is the one place every
+## screen change passes. It used to be the station's own business -- on in
+## `setup`, off in `_exit_tree` -- and that could not survive a second room:
+## `_exit_tree` runs at the end of the frame, AFTER the next screen has
+## started, so leaving a station for the sector would have switched open space
+## on and then straight back off.
+##
+## null means NO CHANGE, and it is what the panels return. The ship, the
+## cards, the chart and the rest are opened from wherever you are, so they
+## keep that place's room -- the same rule `music_state` applies to the score.
+func _room_for(screen: Control) -> Variant:
+	if screen is StationScreen:
+		return &"amb_station"
+	if screen is SectorScreen:
+		return _star_room()
+	if screen is ShipScreen or screen is CardGalleryScreen \
+			or screen is ModuleGalleryScreen or screen is TransferScreen \
+			or screen is StarchartScreen or screen is ArchiveScreen \
+			or screen is HistoryScreen:
+		return null
+	return &""
+
+
+## OPEN SPACE, OR THE STAR OUTSIDE. Pulsars, red and blue hypergiants each have
+## a room of their own -- Jon's picks from the sound pass, layered -- and every
+## other system is plain open space. Read off the same fields `star_kind` reads,
+## so what you hear and what the chart calls the star cannot disagree.
+## PLAIN SPACE IS SILENT. It had a room of its own -- three bought loops end to
+## end under the score -- and Jon cut it: "too distracting". A hypergiant or a
+## pulsar still sounds like one, because there the noise is the POINT; ordinary
+## systems are just quiet, and the music has the floor.
+func _star_room() -> StringName:
+	var n: MapGen.MapNode = Run.here()
+	if n == null:
+		return &""
+	if n.type == MapGen.NodeType.PULSAR:
+		return &"amb_pulsar"
+	match n.star:
+		MapGen.Star.RED: return &"amb_red"
+		MapGen.Star.BLUE: return &"amb_blue"
+	return &""
+
+
 func show_lobby() -> void:
 	Audio.music_state(&"lobby")
 	_swap(LobbyScreen.new(), false)
@@ -270,7 +333,21 @@ func continue_run() -> void:
 ## not ask for, and the node stays uncleared either way, so nothing is skipped
 ## for free — flying on forfeits the loot.
 func resume_here() -> void:
+	var f := fight_on_resume
+	fight_on_resume = {}
 	show_sector()
+	# EXCEPT A FIGHT YOU SAVED OUT OF. SAVE & EXIT mid-fight leaves the save from
+	# before it on disk and notes which fight it was (SaveGame.mark_fight); that
+	# one starts again from its first turn, same enemies, as you went in.
+	var ids: Array = f.get("ids", [])
+	if ids.is_empty() or not DB.enemies.has(StringName(ids[0])):
+		return
+	var extras: Array = []
+	for i in range(1, ids.size()):
+		if DB.enemies.has(StringName(ids[i])):
+			extras.append(DB.enemies[StringName(ids[i])])
+	start_combat(DB.enemies[StringName(ids[0])], extras,
+		bool(f.get("clears", true)), bool(f.get("share", true)))
 
 ## Everybody you are flying with, with the numbers the convoy strip has no room
 ## for. `back` is where LEAVE returns to, so the HUD can be reached from three
@@ -334,6 +411,14 @@ func _show_starchart() -> void:
 func show_sector() -> void:
 	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
 	# this flag inside the refresh that signal triggers.
+	# UNDOCKING IS NOT A PAGE CHANGE either: leaving the berth is the ship
+	# moving, and the thrusters say so.
+	if docked:
+		Audio.suppress(&"ui_tab", 200)
+		# The clamps letting go, the other half of `play_dock`. Guarded on the
+		# file: silent until a take is picked.
+		if ResourceLoader.exists(Audio.SFX_PATH % &"station_undock"):
+			Audio.play(&"station_undock", 0.03)
 	docked = false
 	Audio.music_state(&"sector")
 	var s := SectorScreen.new()
@@ -446,6 +531,11 @@ func begin_jump(index: int) -> void:
 		jump_to(index)
 		return
 	_post_depart = index
+	# NOT A PAGE CHANGE. Leaving the chart here is the first frame of the jump --
+	# the ship revs and goes -- and the tab click on top of it reads as a
+	# misfire (Jon). SectorScreen suppresses the same sound again at the commit,
+	# for the swap on the far side.
+	Audio.suppress(&"ui_tab", 200)
 	show_sector()
 
 ## Read-and-clear: which jump this sector is departing on, or -1.
@@ -640,9 +730,16 @@ func _roll_foes(n: MapGen.MapNode) -> Array[StringName]:
 
 ## Dock. Reached from the sector, not on arrival.
 func show_station() -> void:
+	# ARRIVING, OR JUST COMING BACK TO THE DESK? Docking is a thing the ship
+	# does once; walking back to the station from the chart or the ship screen
+	# is a page change. Only the first plays the clamps, and only the first
+	# swallows the page sound -- the rest are ordinary tabs (Jon).
+	var arriving := not docked
 	docked = true
 	Audio.music_state(&"station")
-	play_dock()
+	if arriving:
+		Audio.suppress(&"ui_tab", 200)
+		play_dock()
 	var s := StationScreen.new()
 	_swap(s)
 	s.setup()
@@ -864,6 +961,11 @@ func start_combat(template: EnemyTemplate, extras: Array = [],
 		extras = []
 		for i in forced - 1:
 			extras.append(DB.enemies[Rng.pick(Rng.foe, pool0)])
+	# Written down so SAVE & EXIT can restart exactly this fight.
+	var ids: Array = [String(template.id)]
+	for e in extras:
+		ids.append(String((e as EnemyTemplate).id))
+	current_fight = {ids = ids, clears = clears_node, share = share}
 	# Built, then offered to the party, then opened. `plan()` produces the hull
 	# numbers the host is told, so danger scaling and the pack split stay in
 	# `Combat._spawn` rather than being worked out a second time in the session
@@ -952,11 +1054,17 @@ func start_ambush() -> void:
 	var pool := DB.fight_pool(Run.node_at().danger, false)
 	start_combat(DB.enemies[Rng.pick(Rng.foe, pool)], [], false, false)
 
+## The fight a loaded save was left in (see resume_here), and the one in
+## progress now, as SaveGame.mark_fight writes it.
+var fight_on_resume: Dictionary = {}
+var current_fight: Dictionary = {}
+
 func in_combat() -> bool:
 	return combat != null and not combat.finished
 
 func after_combat(_c: Combat) -> void:
 	combat = null
+	current_fight = {}
 	# An ambush is spent whatever happened to it — killed, pacified or shaken
 	# off. Left on the node it would fire again the next time you flew in here,
 	# and the heat that attracted it is not the heat you are carrying now.

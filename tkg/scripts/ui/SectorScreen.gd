@@ -478,12 +478,6 @@ func _commit(skipped: bool) -> void:
 	_phase = Phase.COMMITTING
 	var to := _depart_to
 	_depart_to = -1
-	# AND NOT THE CONVOY'S BANG. `Sig.jumped` plays `jump` -- written for a
-	# convoy hull popping into a slot, three or four at a time, throttled. Under
-	# your own flare, at the front of the mix, it is a crack rather than an
-	# event, and the drive spooling up has already said the ship is leaving.
-	# Suppressed rather than unwired, because the convoy still wants it.
-	Audio.suppress(&"jump", 600)
 	# And not the tab click either. The commit swaps the screen, the swap fires
 	# screen_changed, and that plays a UI tick in the middle of a cinematic.
 	Audio.suppress(&"ui_tab", 600)

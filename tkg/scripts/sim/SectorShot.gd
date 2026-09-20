@@ -331,7 +331,11 @@ func run(tree: SceneTree) -> void:
 		if sa == null or sa.combat == null:
 			tree.quit()
 			return
-		var xf := tree.root.get_final_transform()
+		# IDENTITY, AND KEPT FOR THE NAME. The events below are pushed into the
+		# game's own SubViewport now (GameShell.input_target), which is the space
+		# a Control's global_position is already in -- there is nothing to
+		# convert. It was the window transform back when they went to the root.
+		var xf := Transform2D.IDENTITY
 
 		# --- SIDEWAYS IS A REORDER ---------------------------------------
 		var first := sa.combat.hand[0]
@@ -821,17 +825,17 @@ func _find(want_group: bool) -> int:
 	return -1
 
 
-## One mouse event in WINDOW space. Motion when `move`, otherwise a left button
-## at `down`. See `FitTest._win`: a Control's `global_position` is in the design
-## space the game is presented at 2x from, and an event fed straight from one to
-## the other lands half a screen away.
+## One mouse event, in the game's own 960x540 space. Motion when `move`,
+## otherwise a left button at `down`. It goes into the SubViewport the game
+## draws in, so a Control's `global_position` needs no conversion -- see
+## `GameShell.input_target`.
 func _shove(tree: SceneTree, at: Vector2, down: bool, move: bool) -> void:
 	if move:
 		var mm := InputEventMouseMotion.new()
 		mm.position = at
 		mm.global_position = at
 		mm.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
-		tree.root.push_input(mm)
+		GameShell.input_target(tree).push_input(mm)
 	else:
 		var mb := InputEventMouseButton.new()
 		mb.button_index = MOUSE_BUTTON_LEFT
@@ -839,5 +843,5 @@ func _shove(tree: SceneTree, at: Vector2, down: bool, move: bool) -> void:
 		mb.position = at
 		mb.global_position = at
 		mb.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
-		tree.root.push_input(mb)
+		GameShell.input_target(tree).push_input(mb)
 	await tree.process_frame

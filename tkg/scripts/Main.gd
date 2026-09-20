@@ -288,6 +288,12 @@ func _ready() -> void:
 
 	DisplaySettings.load_and_apply()
 	DevMode.load_settings()
+	# `-- btn=N` draws every button in the game in one of the styles under
+	# review. Read before the theme is built, which is the only moment it can
+	# be read at.
+	for a_btn in OS.get_cmdline_user_args():
+		if (a_btn as String).begins_with("btn="):
+			UITheme.button_style = clampi(int((a_btn as String).substr(4)), 0, 5) as UITheme.ButtonStyle
 	theme = UITheme.build()
 
 	var margin := Widgets.pad(null, 8, 7)
@@ -313,6 +319,12 @@ func _ready() -> void:
 	add_child(FpsMeter.new())
 
 	Router.register(content, hud)
+	# THE VIEW KICKS WHEN YOUR HULL IS HIT. Connected here rather than in Audio
+	# because it is a picture, not a sound, and because it moves the whole
+	# viewport -- see `_kick`.
+	Sig.damage_dealt.connect(func(amount: int, to_player: bool, _who: int) -> void:
+		if to_player:
+			_kick(amount))
 
 	# Real galaxy data for the sensor-ladder study:
 	#   godot --headless --path . -- sensordump
@@ -371,7 +383,7 @@ func _ready() -> void:
 	var skip_launcher := "nolauncher" in argv or "cards" in argv or "fight" in argv \
 		or "charttest" in argv or "ship" in argv or "station" in argv \
 		or "salvage" in argv or "party" in argv or "archive" in argv \
-		or "quest" in argv or "parts" in argv
+		or "quest" in argv or "parts" in argv or "gameover" in argv
 	# The party screen, before a dive:  godot --path . -- lobby
 	# Its own branch rather than a member of skip_launcher, because it must NOT
 	# start a run. A lobby's whole job is to agree on the seed the run is going
@@ -991,6 +1003,48 @@ func _ready() -> void:
 	# report from somebody who cannot run the project. Deliberately generic: it
 	# photographs whatever the flags above put up, so it never needs a case
 	# adding for a new screen.
+	# `-- menu` opens the escape menu over whatever the flags put up, so `-- ship
+	# menu shot` photographs it in place;
+	if "menu" in OS.get_cmdline_user_args():
+		toggle_menu()
+	# `-- look=crt` (flat, lines, crt, crt+, arcade) and `-- cvd=1..3` put a
+	# display option on for one run, for shots and for looking at it without
+	# clicking through the menu. They do not save.
+	for a0 in OS.get_cmdline_user_args():
+		if (a0 as String).begins_with("look="):
+			var want := (a0 as String).substr(5).to_upper()
+			var names := ["FLAT", "LINES", "CRT", "CRT+", "ARCADE"]
+			DisplaySettings.screen_look = maxi(names.find(want), 0) as DisplaySettings.Look
+		if (a0 as String).begins_with("edge="):
+			GameShell._edge_style = clampi(int((a0 as String).substr(5)), 0, 7)
+		if (a0 as String).begins_with("cvd="):
+			DisplaySettings.colour_help = clampi(int((a0 as String).substr(4)), 0, 3)
+	GameShell.refresh()
+
+	# `-- keytest`: does the keyboard still reach the game now that it lives in
+	# a SubViewport? Sends ESC, then TAB, and says what happened. The one thing
+	# the shell restructure could break silently.
+	if "keytest" in OS.get_cmdline_user_args():
+		_key_test.call_deferred()
+
+	# `-- gameover`: the run-ended panel, for looking at it without dying.
+	if "gameover" in OS.get_cmdline_user_args():
+		Run.death_reason = "Hull integrity lost. The cold gets in fast."
+		Router.show_game_over.call_deferred()
+
+	# `-- salvage`: a wreck at this system with one COMMON module in it, opened.
+	# For listening to the reveal -- the rarity ladder's quietest rung is the one
+	# that gets reported missing, and reaching one in play means fighting until
+	# a cutter drops one.
+	if "salvage" in OS.get_cmdline_user_args():
+		_open_test_salvage.call_deferred()
+
+	# `-- settings`, the same for the Settings drawer; `-- confirm` for the
+	# escape menu's "abandon this run?" step.
+	if "settings" in OS.get_cmdline_user_args():
+		_open_settings()
+	if "confirm" in OS.get_cmdline_user_args() and _menu != null:
+		_menu.confirm(true)
 	if _wants_shot():
 		_shoot()
 
@@ -1145,6 +1199,25 @@ func _print_attribute_table() -> void:
 		print("%-18s %s" % [h.name, row2])
 
 var _menu: PauseMenu = null
+
+## The escape menu and Settings live on their own layer, above the game's. The
+## menu's backdrop is a screen shader, and it can only blur what is drawn BEFORE
+## it -- on the base layer, `top_level` controls (the ship screen's perk labels)
+## draw after everything else, so they stayed sharp through the pause. On a
+## higher layer the whole game is finished before the menu reads it. Settings
+## shares the layer so it still opens on top of the menu.
+##
+## A CanvasLayer is not a Control, so the theme set on this node does not reach
+## through it: whatever goes on the layer is handed `theme` by hand, or it draws
+## in Godot's default font.
+var _overlay: CanvasLayer = null
+
+func _overlay_layer() -> CanvasLayer:
+	if _overlay == null:
+		_overlay = CanvasLayer.new()
+		_overlay.layer = 10
+		add_child(_overlay)
+	return _overlay
 var _settings: SettingsMenu = null
 
 ## The game shipped with no way to exit — no quit action, no input map entries.
@@ -1236,11 +1309,77 @@ func _cursor_wants_shut() -> bool:
 
 
 func _process(delta: float) -> void:
+	_shake_step(delta)
 	if _cursor_tex.is_empty():
 		return
 	var want := float(CURSOR_FRAMES - 1) if _cursor_wants_shut() else 0.0
 	_cursor_at = move_toward(_cursor_at, want, delta * CURSOR_SPEED)
 	_show_cursor(int(round(_cursor_at)))
+
+
+## SCREEN SHAKE, and it is the viewport that moves rather than any one node.
+##
+## `canvas_transform` shifts everything drawn in the base canvas together -- the
+## ship, the enemy, the drawer, the HUD -- so nothing can drift out of step with
+## anything else. The escape menu is on its own CanvasLayer and is deliberately
+## not shaken: a menu that wobbles while you read it is a different feeling
+## entirely.
+##
+## WHOLE PIXELS ONLY. Everything in this game is drawn on a 960x540 grid, and a
+## half-pixel offset resamples every sprite on screen -- the one thing the
+## integer window scaling exists to prevent.
+const SHAKE_S := 0.22
+const SHAKE_HZ := 34.0
+const SHAKE_MAX := 4.0
+var _shake: float = 0.0            ## seconds left
+var _shake_px: float = 0.0         ## amplitude this kick started at
+
+## Hit for `amount`: a nick is one pixel, a big hit is four.
+func _key_test() -> void:
+	for _i in 20:
+		await get_tree().process_frame
+	var was := Router.current
+	_press(KEY_ESCAPE)
+	await get_tree().process_frame
+	print("[keytest] ESC opened the menu: %s" % [_menu != null])
+	_press(KEY_ESCAPE)
+	await get_tree().process_frame
+	print("[keytest] ESC closed it again: %s" % [_menu == null])
+	_press(KEY_TAB)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	print("[keytest] TAB changed the page: %s (%s -> %s)" % [
+		Router.current != was, was, Router.current])
+	get_tree().quit()
+
+func _press(code: Key) -> void:
+	var down := InputEventKey.new()
+	down.keycode = code
+	down.pressed = true
+	Input.parse_input_event(down)
+	var up := InputEventKey.new()
+	up.keycode = code
+	up.pressed = false
+	Input.parse_input_event(up)
+
+func _kick(amount: int) -> void:
+	if not DisplaySettings.screen_shake or not Router.animating():
+		return
+	_shake_px = clampf(1.0 + float(amount) / 6.0, 1.0, SHAKE_MAX)
+	_shake = SHAKE_S
+
+func _shake_step(delta: float) -> void:
+	if _shake <= 0.0:
+		return
+	_shake = maxf(0.0, _shake - delta)
+	var amp := _shake_px * (_shake / SHAKE_S)
+	var t := (SHAKE_S - _shake) * SHAKE_HZ * TAU
+	var at := Vector2(roundf(sin(t) * amp), roundf(cos(t * 0.7) * amp * 0.6))
+	if _shake <= 0.0:
+		at = Vector2.ZERO
+	var tr := get_viewport().canvas_transform
+	tr.origin = at
+	get_viewport().canvas_transform = tr
 
 
 func _input(event: InputEvent) -> void:
@@ -1261,6 +1400,11 @@ func _input(event: InputEvent) -> void:
 	if k.keycode != KEY_TAB:
 		return
 	get_viewport().set_input_as_handled()
+	# ONLY INSIDE A RUN. Tab on the hull pick walked into the ship screen with no
+	# ship ("LOL"), and the title and the lobby have no run either. Not under
+	# the escape menu either: the page behind it would change while you read it.
+	if Run.hull == null or Router.is_front_door(Router.current) or _menu != null:
+		return
 	# SHIP, SECTOR, STARCHART, round. The three screens a run is actually played
 	# on, in the order you move between them: what you are carrying, where you
 	# are, where you are going.
@@ -1281,32 +1425,77 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if k == null or not k.pressed or k.echo:
 		return
 	if k.keycode == KEY_ESCAPE:
-		if _settings != null:
-			_close_settings()
+		if _menu != null and _menu.in_settings():
+			_menu.hide_settings()
 		elif Router.current is LauncherScreen:
-			pass   ## nothing to pause: the launcher IS the menu
+			# Nothing to pause: the launcher IS the menu. Its Settings drawer is
+			# the one thing Esc can close there.
+			(Router.current as LauncherScreen).close_settings()
 		else:
 			toggle_menu()
 	elif k.keycode == KEY_F11:
 		DisplaySettings.toggle_fullscreen()
 
+## The drawer's own sounds. Guarded on the file, so the menu is simply silent
+## until one has been picked rather than warning "missing sfx" on every Esc.
+## `-- salvage`. ONE OF EVERY RUNG, in order, so the whole rarity ladder is
+## heard in a single sweep rather than waiting on the loot table to drop a
+## common. Materials fill the tiers no module in the pool carries.
+func _open_test_salvage() -> void:
+	var sector := Router.current as SectorScreen
+	var n: MapGen.MapNode = Run.node_at()
+	if sector == null or n == null:
+		return
+	var wreck := Run.new_wreck(n, DB.enemies[&"cutter"])
+	var want: Array = [ModuleData.Rarity.COMMON, ModuleData.Rarity.RARE,
+		ModuleData.Rarity.EPIC, ModuleData.Rarity.LEGENDARY]
+	for r in want:
+		for i in 400:
+			var m := LootGen.roll_module(5)
+			if m != null and m.rarity == r:
+				wreck.items.append(m)
+				break
+	# EXOTIC and ARTIFACT come off the material table, which is where those
+	# tiers actually live.
+	for tier: StringName in [&"exotic", &"artifact"]:
+		for row in MaterialTable.all():
+			if StringName((row as Dictionary).get("tier", &"")) == tier:
+				wreck.items.append(MaterialData.of(row))
+				break
+	wreck.items.append(CreditChit.of(120))
+	print("[salvage] %s: %s" % [wreck.label,
+		", ".join(wreck.items.map(func(m: HoldItem) -> String: return m.name))])
+	sector._open_jetsam(wreck, "SALVAGE")
+
+func _menu_sound(id: StringName) -> void:
+	if ResourceLoader.exists(Audio.SFX_PATH % id):
+		Audio.play(id, 0.03, 120)
+
 ## Opens the escape menu, or closes it if it is already up.
-func toggle_menu() -> void:
+## `animate` false when leaving the run: the drawer does not slide out over a
+## title screen that has already replaced the game behind it.
+func toggle_menu(animate: bool = true) -> void:
 	if _menu != null:
-		_menu.queue_free()
+		if animate:
+			_menu.close()
+			_menu_sound(&"menu_close")
+		else:
+			_menu.queue_free()
 		_menu = null
 		return
+	_menu_sound(&"menu_open")
 	_menu = PauseMenu.new()
-	add_child(_menu)
+	_menu.theme = theme
+	_overlay_layer().add_child(_menu)
 	_menu.setup()
-	_menu.resume_requested.connect(toggle_menu)
+	_menu.resume_requested.connect(func() -> void: toggle_menu())
 	# Abandoning is an ENDING, so it goes into the record — the same one
 	# Router.new_run() writes when you start over on top of a live run. Recorded
 	# here rather than left for later because the run is over the moment this is
 	# pressed, and a player who abandons and then closes the game would otherwise
 	# have it vanish from the flight record entirely.
 	_menu.quit_requested.connect(func() -> void:
-		toggle_menu()
+		toggle_menu(false)
 		RunHistory.record(RunHistory.Outcome.ABANDONED, "Abandoned mid-run.")
 		SaveGame.clear()
 		# No ship any more, which is the state the game boots in and the state
@@ -1314,10 +1503,6 @@ func toggle_menu() -> void:
 		# abandonment a second time, since its guard is a live hull.
 		Run.hull = null
 		Router.show_launcher())
-	_menu.new_run_requested.connect(func() -> void:
-		toggle_menu()
-		Router.new_run())
-	_menu.settings_requested.connect(_open_settings)
 	# The autosave has already written a screen swap, but state moves after one
 	# — a station's purchases and repairs all land on a screen that was saved
 	# when it opened — so the explicit write is what makes SAVE & QUIT mean it.
@@ -1334,7 +1519,9 @@ func toggle_menu() -> void:
 		# loader cannot reconstruct.
 		if not Router.in_combat():
 			SaveGame.save()
-		toggle_menu()
+		else:
+			SaveGame.mark_fight(Router.current_fight)
+		toggle_menu(false)
 		# The run is on disk now, so the copy in memory is finished with. Letting
 		# it stay live would be actively dangerous: the title screen rolls its
 		# own Run.galaxy for the backdrop, and any later autosave would then
@@ -1344,16 +1531,22 @@ func toggle_menu() -> void:
 		Router.combat = null
 		Router.show_launcher())
 
+## `-- settings` for shots: Settings inside the escape drawer, as the player
+## reaches it. (The title screen opens its own; see LauncherScreen.)
 func _open_settings() -> void:
+	if _menu != null:
+		_menu.show_settings()
+		return
 	if _settings != null:
 		return
 	_settings = SettingsMenu.new()
-	add_child(_settings)
+	_settings.theme = theme
+	_overlay_layer().add_child(_settings)
 	_settings.setup()
 	_settings.closed.connect(_close_settings)
 
 func _close_settings() -> void:
 	if _settings == null:
 		return
-	_settings.queue_free()
+	_settings.close()
 	_settings = null

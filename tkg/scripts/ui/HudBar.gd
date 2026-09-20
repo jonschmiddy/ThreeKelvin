@@ -520,8 +520,11 @@ func _divider() -> Control:
 	d.add_theme_stylebox_override("panel", UITheme.flat(UITheme.LINE, Color(0, 0, 0, 0), 0, 0, 0))
 	return d
 
+## No button click: a tab changes the page, and the page change has its own
+## sound. Both at once was a double click on every tab (Jon: "the ui click
+## shouldn't happen too when you select ship sector starchart...").
 func _tab(label: String, action: Callable) -> Button:
-	return Widgets.button(label, action)
+	return Widgets.button(label, action, false)
 
 ## `lock` is empty when the tab is available, and otherwise says WHY it is not.
 ## A greyed control that cannot explain itself reads as a bug; one that says

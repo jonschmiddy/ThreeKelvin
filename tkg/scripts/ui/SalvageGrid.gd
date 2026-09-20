@@ -83,7 +83,11 @@ var _beam: Rect2i = Rect2i()
 ## it was decoration laid over a container that was simply there. At this rate
 ## opening a wreck TAKES a moment: you read the top row while the bottom is
 ## still dark, and you start deciding before you have seen everything.
-const SCAN_CELLS_PER_SEC := 1.05
+## SLOWER AGAIN, at Jon's ask ("much slower"): 0.7 cells a second, so a
+## six-row container takes about eight and a half seconds and a two-row one
+## just under three. The rarity ladder plays under it, one thing at a time, and
+## at this rate each one is heard on its own.
+const SCAN_CELLS_PER_SEC := 0.7
 
 ## HOW LONG A THING TAKES TO SETTLE, measured in ROWS OF SWEEP rather than in
 ## seconds.

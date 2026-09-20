@@ -179,16 +179,40 @@ static func build() -> Theme:
 	t.set_stylebox("panel", "PanelContainer", bevel(Color(PANEL, PANEL_A)))
 	t.set_stylebox("panel", "Panel", bevel(Color(PANEL, PANEL_A)))
 
-	# Buttons
-	var normal := bevel(PANEL2, 3, 5)
-	var hover := bevel(Color("#243244"), 3, 5)
-	var pressed := bevel_in(Color("#4a2a0c"), 3, 5)
-	var disabled := bevel_in(PANEL, 3, 5)
+	# Buttons. See `button_style`: the shape of every button in the game.
+	var normal: StyleBox = bevel(PANEL2, 3, 5)
+	var hover: StyleBox = bevel(Color("#243244"), 3, 5)
+	var pressed: StyleBox = bevel_in(Color("#4a2a0c"), 3, 5)
+	var disabled: StyleBox = bevel_in(PANEL, 3, 5)
+	match button_style:
+		ButtonStyle.SOFT:
+			normal = _bevel_box(PANEL2, Color("#2a3644"), Color("#0b0f16"), 3, 5)
+			hover = _bevel_box(Color("#243244"), Color("#33465c"), Color("#0b0f16"), 3, 5)
+		ButtonStyle.FLAT:
+			normal = flat(PANEL2, LINE, 0, 3, 5)
+			hover = flat(Color("#243244"), BEVEL_HI, 0, 3, 5)
+			pressed = flat(Color("#4a2a0c"), EMBER, 0, 3, 5)
+			disabled = flat(PANEL, LINE, 0, 3, 5)
+		ButtonStyle.OUTLINE:
+			normal = flat(Color(0, 0, 0, 0), LINE, 0, 3, 5)
+			hover = flat(Color(PANEL2, 0.9), CHILL, 0, 3, 5)
+			pressed = flat(Color("#4a2a0c"), EMBER, 0, 3, 5)
+			disabled = flat(Color(0, 0, 0, 0), Color(LINE, 0.5), 0, 3, 5)
+		ButtonStyle.CUT:
+			normal = _cut(PANEL2, LINE)
+			hover = _cut(Color("#243244"), CHILL)
+			pressed = _cut(Color("#4a2a0c"), EMBER)
+			disabled = _cut(PANEL, Color(LINE, 0.5))
+		ButtonStyle.UNDERLINE:
+			normal = _rule(Color(0, 0, 0, 0), LINE)
+			hover = _rule(Color(0, 0, 0, 0), FLARE)
+			pressed = _rule(Color("#2a1c0c"), EMBER)
+			disabled = _rule(Color(0, 0, 0, 0), Color(LINE, 0.5))
 	t.set_stylebox("normal", "Button", normal)
 	t.set_stylebox("hover", "Button", hover)
 	t.set_stylebox("pressed", "Button", pressed)
 	t.set_stylebox("disabled", "Button", disabled)
-	t.set_stylebox("focus", "Button", bevel(PANEL2, 3, 5))
+	t.set_stylebox("focus", "Button", normal)
 	t.set_color("font_color", "Button", ICE)
 	t.set_color("font_hover_color", "Button", FLARE)
 	t.set_color("font_pressed_color", "Button", HOT)
@@ -253,6 +277,35 @@ static func build() -> Theme:
 
 ## Raised surface: 1px light top-left, 1px dark bottom-right, drawn as a 9-slice
 ## so it never stretches. 1px here is 2 real pixels at the 2x viewport scale.
+## THE SHAPE OF EVERY BUTTON IN THE GAME.
+##
+## PLATE is what it has always been, since the first commit that built this
+## theme: a raised plate lit from the top left, one pixel of BEVEL_HI along the
+## top and left and near-black down the other two. It reads as hardware, and it
+## is the loudest thing about a row of seven HUD tabs.
+##
+## The rest are the alternatives Jon asked to see. Pick with `-- btn=N`; the
+## number is this enum's order.
+enum ButtonStyle { PLATE, SOFT, FLAT, OUTLINE, CUT, UNDERLINE }
+static var button_style: ButtonStyle = ButtonStyle.PLATE
+
+## A plate with its corners cut, like the drawer's chips.
+static func _cut(bg: Color, edge: Color) -> StyleBoxFlat:
+	var sb := flat(bg, edge, 3, 3, 5)
+	sb.corner_detail = 1
+	sb.corner_radius_top_left = 4
+	sb.corner_radius_bottom_right = 4
+	sb.corner_radius_top_right = 0
+	sb.corner_radius_bottom_left = 0
+	return sb
+
+## No box at all: a rule under the word, the way a tab strip marks itself.
+static func _rule(bg: Color, edge: Color) -> StyleBoxFlat:
+	var sb := flat(bg, Color(0, 0, 0, 0), 0, 3, 5)
+	sb.border_color = edge
+	sb.border_width_bottom = 1
+	return sb
+
 static func bevel(bg: Color, pad_v: int = 4, pad_h: int = 6) -> StyleBoxTexture:
 	return _bevel_box(bg, BEVEL_HI, BEVEL_LO, pad_v, pad_h)
 

@@ -38,7 +38,9 @@ const dom = new JSDOM(html.replace(/<link[^>]*>/g, '').replace(/<script>[\s\S]*<
 const w = dom.window;
 w.requestAnimationFrame = () => 0;
 w.HTMLElement.prototype.scrollIntoView = () => {};
-w.eval(src.replace('buildUI();\n',
+// \r?: a Windows checkout (core.autocrlf) has CRLF, and a literal '\n' match
+// silently injected nothing -- `lab` came back undefined.
+w.eval(src.replace(/buildUI\(\);\r?\n/,
   'buildUI(); window.__lab = {THEMES, buildTheme, slotEvents, midi, switchSong};'));
 const lab = w.__lab;
 

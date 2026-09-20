@@ -784,8 +784,13 @@ func _carry(from: Vector2, onto: Control, local: Vector2) -> bool:
 	return live
 
 
+## THE GAME'S OWN SPACE, unchanged. This used to convert to window coordinates
+## because the event was pushed at the root viewport and Godot's stretch had
+## scaled everything; now the event is pushed into the SubViewport the game
+## draws in (see GameShell.input_target), where a Control's global_position is
+## already the right number.
 func _win(p: Vector2) -> Vector2:
-	return _tree.root.get_final_transform() * p
+	return p
 
 
 func _move(to: Vector2, mask: int) -> void:
@@ -796,7 +801,7 @@ func _move(to: Vector2, mask: int) -> void:
 	e.velocity = Vector2.ZERO
 	e.button_mask = mask
 	_at = to
-	_tree.root.push_input(e)
+	GameShell.input_target(_tree).push_input(e)
 	await _tree.process_frame
 
 
@@ -808,7 +813,7 @@ func _press(at: Vector2, down: bool) -> void:
 	e.global_position = e.position
 	e.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
 	_at = at
-	_tree.root.push_input(e)
+	GameShell.input_target(_tree).push_input(e)
 	await _tree.process_frame
 
 

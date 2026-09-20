@@ -187,6 +187,18 @@ func run(tree: SceneTree) -> void:
 			tag = "_region"
 		for i in 40:
 			await RenderingServer.frame_post_draw
+	# Where the chart sits in the picture, for anything drawn over it later.
+	var sc := Router.current as StarchartScreen
+	if sc != null and sc._chart != null:
+		print("chart rect ", sc._chart.get_global_rect())
+	# `cursor`: a pointer parked mid-chart, so the reticle is in the picture.
+	# A shot has no mouse, and the reticle only draws where one is.
+	if "cursor" in OS.get_cmdline_user_args() and sc != null and sc._chart != null 			and sc._chart._cross != null:
+		sc._chart._cursor = (sc._chart.size * Vector2(0.55, 0.45)).floor()
+		sc._chart._cross.queue_redraw()
+		tag += "_cursor"
+		for i in 3:
+			await RenderingServer.frame_post_draw
 	var path := "user://chart%s.png" % tag
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))

@@ -92,12 +92,9 @@ var _tabs_on: Dictionary = {}
 ## reads as the ship shimmering.
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# THE ROOM YOU ARE STANDING IN. Docked is the one place in this game with
-	# other people in it, and the bed is the only thing that says so -- the
-	# screen itself is panels and prices. It is not a cue: it runs on its own
-	# player on the Music bus and fades in over a second and a half, because a
-	# room does not arrive on a beat. `_exit_tree` takes it away again.
-	Audio.room(&"amb_station")
+	# THE ROOM YOU ARE STANDING IN is chosen by Router._swap now, which is the
+	# one place that sees every screen change -- see `_room_for` for why the
+	# station could not keep doing it itself once open space had a room too.
 	_build()
 	Sig.resources_changed.connect(_refresh)
 	Sig.ship_changed.connect(_refresh)
@@ -1616,9 +1613,21 @@ func _ride_to(index: int, ride: bool = true) -> void:
 	# should take longer than one, because in a building they do.
 	var span := absf(float(index) - _spine.car)
 	var secs := clampf(0.16 + 0.10 * span, 0.18, 0.55)
+	# THE CAR SETS OFF WITH A SOUND, and only when it actually travels: arrival
+	# and resizes snap it (above) and stay silent. Throttled, because clicking
+	# down the floor list fast restarts the ride each time.
+	Audio.play(&"station_lift", 0.05, 150)
 	_lift = create_tween()
 	_lift.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_lift.tween_method(_car_step, _spine.car, float(index), secs)
+	# THE SOUND LASTS EXACTLY AS LONG AS THE RIDE. Jon: "calculate how long it
+	# takes for the elevator animation ... that should be how long the sound
+	# lasts." A ride is 0.18-0.55 s by distance, so the file is longer than any
+	# ride and is faded out on the frame the car stops. (It replaced an arrival
+	# ding: "not a ding".) A ride cut short by a new pick is killed above and
+	# never finishes; the new ride's own sound carries on instead.
+	_lift.finished.connect(func() -> void:
+		Audio.hush([&"station_lift"] as Array[StringName], 60))
 
 
 ## One frame of the ride.
@@ -2773,10 +2782,3 @@ func _board_posts(n: MapGen.MapNode) -> Array[StringName]:
 					out.append(mid2)
 	return out
 
-
-## Leaving the station takes the station with it. `_exit_tree` rather than a
-## call from whatever navigated away: the screen is freed on every route out of
-## here -- the chart, the ship, a quit -- and one of those would eventually be
-## missed.
-func _exit_tree() -> void:
-	Audio.room(&"")

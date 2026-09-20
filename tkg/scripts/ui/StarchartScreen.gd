@@ -572,6 +572,10 @@ func _anywhere_to_go() -> bool:
 	return Run.has_legal_jump()
 
 func _on_node_picked(index: int) -> void:
+	# The chart is drawn rather than built of buttons, so picking a system made
+	# no sound at all. Guarded on the file: silent until one is picked.
+	if index != _selected and ResourceLoader.exists(Audio.SFX_PATH % &"chart_select"):
+		Audio.play(&"chart_select", 0.04, 60)
 	_selected = index
 	_refresh()
 
@@ -1673,6 +1677,40 @@ class Halo extends Control:
 			chart.draw_halo_layer(self)
 
 
+## The reticle: a faint dashed line across the whole chart on each axis,
+## through the cursor, with a brighter notch where each meets the frame so the
+## position reads off the edge. Jon's pick from twelve: "dashed with edge
+## marks". Behind the parent like the sky layers, so it runs under the systems
+## and their tooltips rather than striking through them.
+class Crosshair extends Control:
+	var chart: MapChart
+
+	## Dash and gap in pixels. The pattern is anchored to the chart's corner,
+	## not the cursor, so the dashes hold still and only the line moves.
+	const DASH := 2.0
+	const GAP := 3.0
+	const NOTCH := 4.0
+
+	func _draw() -> void:
+		if chart == null or chart._cursor.x < 0.0:
+			return
+		var c := chart._cursor.floor()
+		var line := Color(UITheme.ICE, MapChart.CROSS_ALPHA)
+		var x := 0.0
+		while x < size.x:
+			draw_rect(Rect2(x, c.y, minf(DASH, size.x - x), 1.0), line)
+			x += DASH + GAP
+		var y := 0.0
+		while y < size.y:
+			draw_rect(Rect2(c.x, y, 1.0, minf(DASH, size.y - y)), line)
+			y += DASH + GAP
+		var notch := Color(UITheme.ICE, MapChart.NOTCH_ALPHA)
+		draw_rect(Rect2(0.0, c.y, NOTCH, 1.0), notch)
+		draw_rect(Rect2(size.x - NOTCH, c.y, NOTCH, 1.0), notch)
+		draw_rect(Rect2(c.x, 0.0, 1.0, NOTCH), notch)
+		draw_rect(Rect2(c.x, size.y - NOTCH, 1.0, NOTCH), notch)
+
+
 class MapChart extends Control:
 	## The galaxy from above. Layers are rings: you start on the rim and work in,
 	## and the core burns at the centre. Presentation only — MapGen still
@@ -1867,6 +1905,71 @@ class MapChart extends Control:
 	## chart is a field of near-identical points, and a tooltip that snaps
 	## between them reads as flicker.
 	var _hover_t: float = 0.0
+
+	# ---- the instrument: reticle, scan and zoom tick. The navigated chart only
+	# (`remembers_view`): the launcher's backdrop is the same class and must stay
+	# silent and bare.
+	## One wheel notch. A magnification LEVEL is a power of this, so the tick
+	## lands once per notch, and a glide (LOCAL REGION) that crosses nine levels
+	## runs nine ticks off quickly.
+	const ZOOM_STEP := 1.12
+	## Faint: the reticle is felt more than seen. Dashed, so a little higher
+	## than a solid line would be for the same presence.
+	const CROSS_ALPHA := 0.12
+	## The notches where the reticle meets the frame: the one bright part.
+	const NOTCH_ALPHA := 0.45
+	## The scan is TICKS, not a loop ("should be a ticking"): one every this many
+	## pixels of pointer travel, so a slow drift clicks slowly and a sweep
+	## rattles -- the sound is the distance, the way a click wheel's is.
+	const SCAN_STEP := 26.0
+	## And no faster than this, or a flick becomes a buzz.
+	const SCAN_LIMIT_MS := 38
+	var _cross: Crosshair = null
+	## Where the pointer is, in chart space; x < 0 when it is off the chart.
+	var _cursor := Vector2(-1.0, -1.0)
+	var _scan_px := 0.0
+	var _tick_level := 0
+	## No tick until this moment: opening the chart restores or frames the view
+	## in one step, and nobody zoomed.
+	var _tick_from := 0
+	## Checked once: a chart opened before the tick file exists must not warn
+	## "missing sfx" on every notch.
+	var _has_tick := false
+	var _has_scan := false
+
+	func _ready() -> void:
+		if not remembers_view:
+			return
+		_cross = Crosshair.new()
+		_cross.chart = self
+		_cross.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_cross.show_behind_parent = true
+		add_child(_cross)
+		_tick_level = _zoom_level()
+		_tick_from = Time.get_ticks_msec() + 400
+		_has_tick = ResourceLoader.exists(Audio.SFX_PATH % &"chart_tick")
+		_has_scan = ResourceLoader.exists(Audio.SFX_PATH % &"chart_scan")
+
+	func _zoom_level() -> int:
+		return roundi(log(maxf(zoom, 0.0001)) / log(ZOOM_STEP))
+
+	## Once a frame, from `_process`, so every way the zoom moves -- wheel,
+	## glide, framing -- ticks, the same argument as the view memory there.
+	func _instrument(_delta: float) -> void:
+		if not remembers_view:
+			return
+		var level := _zoom_level()
+		if level != _tick_level:
+			if _has_tick and Time.get_ticks_msec() >= _tick_from:
+				Audio.play(&"chart_tick", 0.03, 28)
+			_tick_level = level
+		# One tick a frame at most, so a hitch cannot queue a burst; the
+		# remainder carries, so slow travel still adds up to a tick.
+		if _scan_px >= SCAN_STEP:
+			_scan_px = fmod(_scan_px, SCAN_STEP)
+			if _has_scan:
+				Audio.play(&"chart_scan", 0.08, SCAN_LIMIT_MS)
 
 	## The galaxy lives on its own canvas. Godot keeps each CanvasItem draw list
 	## until that item asks to redraw, so putting the star field on a separate
@@ -2293,6 +2396,7 @@ class MapChart extends Control:
 
 	func _process(delta: float) -> void:
 		_walk_view(delta)
+		_instrument(delta)
 		# RECORDED HERE RATHER THAN AT EVERY MUTATION. Zoom and pan are moved by
 		# the wheel, by a drag, by `glide_to`'s animation and by both framing
 		# helpers; hooking all of them would leave one out. Reading the result
@@ -2352,6 +2456,9 @@ class MapChart extends Control:
 	var _restored := false
 
 	func _notification(what: int) -> void:
+		if what == NOTIFICATION_MOUSE_EXIT and _cross != null:
+			_cursor = Vector2(-1.0, -1.0)
+			_cross.queue_redraw()
 		if what == NOTIFICATION_RESIZED and remembers_view and not _restored \
 				and size.x > 0.0:
 			# THE FIRST MOMENT `size` IS REAL, which is what the old build-time
@@ -2573,10 +2680,10 @@ class MapChart extends Control:
 			match mb.button_index:
 				MOUSE_BUTTON_WHEEL_UP:
 					if mb.pressed:
-						_zoom_at(mb.position, 1.12)
+						_zoom_at(mb.position, ZOOM_STEP)
 				MOUSE_BUTTON_WHEEL_DOWN:
 					if mb.pressed:
-						_zoom_at(mb.position, 1.0 / 1.12)
+						_zoom_at(mb.position, 1.0 / ZOOM_STEP)
 				MOUSE_BUTTON_LEFT:
 					if mb.pressed:
 						var hit := _node_at(mb.position)
@@ -2602,6 +2709,10 @@ class MapChart extends Control:
 					_drag_from = mb.position
 		elif event is InputEventMouseMotion:
 			var mm := event as InputEventMouseMotion
+			if _cross != null:
+				_cursor = mm.position
+				_cross.queue_redraw()
+				_scan_px += mm.relative.length()
 			if _dragging:
 				# The sky follows the movement the galaxy ACTUALLY made, not the
 				# movement the mouse asked for. Adding the raw delta to both let
@@ -2703,7 +2814,17 @@ class MapChart extends Control:
 		var ex := _radius() * DISC * zoom
 		return Vector2(ex + size.x * PAN_SLACK, ex * _squash() + size.y * PAN_SLACK)
 
+	## No pan limit. For a view nobody drags that must put the ship in the middle
+	## wherever it is: the escape menu's inset is 132 px tall, so the limit's
+	## half-a-view of slack is 66 px, and a ship on the rim sat on the frame edge.
+	var free_pan := false
+	## The distance bar. Off in the escape menu's inset, where the corner it
+	## claims is where the galaxy and sector names sit.
+	var show_scale := true
+
 	func _clamp_pan() -> void:
+		if free_pan:
+			return
 		var lim := _pan_limit()
 		pan.x = clampf(pan.x, -lim.x, lim.x)
 		pan.y = clampf(pan.y, -lim.y, lim.y)
@@ -2866,7 +2987,8 @@ class MapChart extends Control:
 		elif _neb_hot != "":
 			_draw_neb_tip()
 
-		_draw_scale()
+		if show_scale:
+			_draw_scale()
 
 	## HOW FAR IS THAT, in light years.
 	##

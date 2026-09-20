@@ -227,6 +227,56 @@ the F→G♭ semitone on one low bowed note from `DREAD_NOTES.md` §5.
 SFX ship as **WAV**, not Ogg: a UI click has to be instant, and the whole set is
 2.8 MB — smaller than a single music stem.
 
+### The sound pass, 2026-09-19
+
+Jon went through every sound in the game on one page, next to the ElevenLabs
+takes bought for each. What changed in `assets/audio/sfx/`:
+
+* **Swapped for bought takes**, level-matched by loudest A-weighted second to
+  the files they replaced: `fauna_falls` (three takes, played as round robins
+  `_2`/`_3`), `shop_buy`, `take_credits`. These are NOT made by `sfx.py` or
+  `sfx2.py` any more — copying those generators' output over them undoes the
+  pass.
+* **Cut**: `combat_start`, `death_sting`, `svc_coolant`, `weapon_ballistic`,
+  `weapon_energy` (nothing played them), `jump`, `explosion_boss` (its three
+  takes are `explosion_small_3`..`_5` now: "kill and boss kill can be
+  consolidated"), `station_lift_ding`, and `ui_confirm`. The volume check in
+  Settings was its only caller, so `Audio.confirm()` plays `ui_click`: you hear
+  a sound the game really makes. Twenty bought takes missed first. The convoy now plays
+  `hyperjump` / `hyperjump_in` — "Just use the jump out sound." The generators
+  still build all six; they go no further than `out/sfx/`.
+* **Open space has a room**: `ambience/amb_space.ogg`, the three looping takes
+  end to end and crossfaded in a circle. It plays under the music, and
+  `Router._room_for` decides which room a screen is in.
+* The **redos** took nineteen rounds, and the lessons are the useful part:
+  - **Name the starship thing, not a household object.** Rounds three and four
+    asked for kettles and rivet guns because the crowd lesson ("name something
+    a microphone has recorded") was applied to sounds that have no recording.
+  - **Pick a direction from reference games first.** Jon's are FTL, Slay the
+    Spire, ARC Raiders, Mass Effect and Halo, and his choice was gritty plus
+    punchy.
+  - **Describe how the sound is built** (what hits first, the body, the end),
+    three to ten different ideas a sound, never one prompt at three prompt
+    influences.
+  - **Know where a sound plays before rolling for it.** `ui_confirm` sounded
+    like a name for a "yes" chime. It was the volume check, and no chime was
+    ever going to be right there.
+  - **Level a new sound against its neighbours.** Charging and the elevator
+    had no game file and were auditioned at -20 dB, ten dB hot, which is most
+    of why they read "insanely intense" for three rounds.
+* **New hooks.** A charge card plays `charge_up` when played (the heavy shot
+  plays on release, not on play); the station elevator plays `station_lift`
+  as the car sets off and fades it on the frame it stops ("not a ding"), so it
+  lasts exactly as long as the ride; pointing at a card in the hand plays
+  `card_hover` (the hand only, and not while carried).
+* **Round robins go to `_16`.** `Audio.play` stopped scanning at `_4`, then
+  `_8`; the autocannon keeps nine takes (`shot_auto` .. `shot_auto_9`).
+* **Three sounds are sequences, not round robins**: `charge_up` and
+  `svc_refuel` are each two picked takes joined end to end, at Jon's ask ("both
+  sounds for each should happen sequentially"), and `overheat` is three: "hiss
+  lead ... into heavy ... into game hit".
+* **The red hypergiant is the furnace alone** ("not the groan").
+
 ## Sizes
 
 | | Before | After |

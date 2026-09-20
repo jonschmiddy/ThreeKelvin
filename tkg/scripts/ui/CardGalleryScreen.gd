@@ -277,6 +277,10 @@ func _on_hover(v: CardView, entered: bool) -> void:
 		return
 	if _hot != null and _hot != v:
 		_hot.modulate.a = 1.0
+	# The hand's card-hover sound, here too (Jon asked). Only on a NEW card:
+	# the lifted copy can re-send `entered` for the card already out.
+	if _hot != v:
+		Audio.play(&"card_hover", 0.08, 45)
 	_hot = v
 	Widgets.clear(_overlay)
 	# The card in the grid goes invisible while its lifted copy is out, or the
