@@ -734,6 +734,15 @@ func _ready() -> void:
 		_fit_test.run(get_tree())
 		return
 
+	# A click through the curved glass lands where the picture says it does:
+	#   godot --path . -- warptest
+	# Same shape as fittest and for the same two reasons: a real window, and a
+	# member to hold the coroutine alive.
+	if "warptest" in OS.get_cmdline_user_args():
+		_fit_test = load("res://scripts/sim/WarpTest.gd").new()
+		_fit_test.run(get_tree())
+		return
+
 	if "charttest" in OS.get_cmdline_user_args():
 		# Held in a member, not called on a throwaway. ChartTest.run() awaits,
 		# and a RefCounted nothing holds a reference to is freed the moment the
@@ -1015,6 +1024,21 @@ func _ready() -> void:
 			var want := (a0 as String).substr(5).to_upper()
 			var names := ["FLAT", "LINES", "CRT", "CRT+", "ARCADE"]
 			DisplaySettings.screen_look = maxi(names.find(want), 0) as DisplaySettings.Look
+		if (a0 as String).begins_with("arrow="):
+			TransferView.Arrow.mode = clampi(int((a0 as String).substr(6)), 0, 3)
+		if (a0 as String).begins_with("phase="):
+			TransferView.Arrow.freeze = float((a0 as String).substr(6))
+		if (a0 as String).begins_with("salv="):
+			TransferView.style = clampi(int((a0 as String).substr(5)), 0,
+					TransferView.SKINS.size() - 1)
+		# `-- ptr=960,540` pretends the pointer is there, so a shot tool can
+		# photograph the nudge at a chosen place on the glass.
+		if (a0 as String).begins_with("ptr="):
+			var xy := (a0 as String).substr(4).split(",")
+			if xy.size() == 2 and GameShell.instance != null:
+				GameShell.instance._pointer = Vector2(float(xy[0]), float(xy[1]))
+		if (a0 as String).begins_with("vig="):
+			GameShell._vig_override = clampf(float((a0 as String).substr(4)), 0.0, 1.0)
 		if (a0 as String).begins_with("edge="):
 			GameShell._edge_style = clampi(int((a0 as String).substr(5)), 0, 7)
 		if (a0 as String).begins_with("cvd="):

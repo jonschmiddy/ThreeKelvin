@@ -27,6 +27,20 @@ extends Node
 ## first edition and are kept as its record.
 
 const SFX_PATH := "res://assets/audio/sfx/%s.wav"
+## ROOM TONE IS PCM WHERE IT LOOPS, and ogg where it is too long to be.
+##
+## Vorbis has no neighbour for its first and last windows, so it reconstructs
+## the very edges of a file wrongly -- inaudible in a cue that ends, and on a
+## LOOP it is a click, once a lap, forever. Jon heard it through four rounds of
+## me fixing the source and the encoder putting it back. Measured on one build:
+## the wav reads x0.4 against the loudest surprise in the lap, the ogg of that
+## same wav x53, and still x28 at the encoder's best quality with the length
+## unchanged -- so it is the lapped transform, not padding.
+##
+## The four short rooms are PCM: about 5 MB, and the fault cannot exist. The
+## station is six minutes and stays ogg, where its seam is one moment in a
+## crowd rather than every few seconds under a hum.
+const ROOM_WAV := "res://assets/audio/ambience/%s.wav"
 const ROOM_PATH := "res://assets/audio/ambience/%s.ogg"
 
 const OFF_DB := -60.0      ## silent, but still a running player
@@ -37,6 +51,15 @@ const HEAT_WARN_AT := 0.8
 var master_volume: float = 0.9
 var music_volume: float = 0.7
 var sfx_volume: float = 0.9
+## ROOM TONE HAS ITS OWN FADER. It used to ride the Music bus -- scenery rather
+## than feedback, so it did not belong with the effects -- but that tied the
+## reactor, the station and the hypergiants to the score, and a player who
+## wants the music down usually does not mean the room with it.
+##
+## It starts at what Music starts at, so every room is exactly as loud today as
+## it was when its level was set: those numbers were tuned by ear through this
+## bus at 0.7, and moving the default would quietly retune all five of them.
+var ambient_volume: float = 0.7
 
 ## THE TWO MUSIC VOICES, and everything the cue system now needs. One carries
 ## what is playing, the other is free for the next cue or the next lap.
@@ -85,18 +108,75 @@ var _room_fade: Tween = null
 ## build's gain is −4.75, so the player makes up the rest: −18.7 + 4.75.
 ## RE-DERIVE THIS after any change to station.py's MIXDB -- it moves the gain.
 const ROOM_DB := -14.0
-## EACH ROOM AT ITS OWN LEVEL. The station is a place you stand in with the
-## music gone; open space plays UNDER the score, so it sits well below it --
-## about 10 dB under a cue's average once both are through the Music bus.
-## −27 is that arithmetic (file −13.1 dB RMS, target −40), not an audition:
-## Jon has not heard it in the game yet.
+## EACH ROOM AT ITS OWN LEVEL, all of them set by ear and none by arithmetic.
 ##
-## THE STAR ROOMS land at the same loudness as open space (-40 dBFS RMS once
-## played), each from its own file's measured RMS -- star_rooms.py prints the
-## number. They are open space with a particular star outside: under the score.
-## No entry for open space any more: ordinary systems have no room at all.
-const ROOM_LEVELS: Dictionary = {&"amb_station": ROOM_DB,
-		&"amb_blue": -19.3, &"amb_red": -24.8, &"amb_pulsar": -22.5}
+## OPEN SPACE is the bed: your own reactor and nothing else, under the score.
+## THE THREE STARS are things outside making a noise, a few dB over it. THE
+## STATION is neither -- the only room mixed by hand on a bench, and the only
+## one the score steps aside for (ROOM_DUCKS), which is how it reads loud while
+## measuring quiet.
+##
+## IN LUFS, NOT RMS, because RMS was wrong about one of them. Jon: "let's have
+## blue hypergiant be a tad bit quieter ... the high pitched makes it seem
+## louder for some reason." An ear is far more sensitive at 3 kHz than at 60 Hz,
+## and the blue room is all top while the others are all bottom: measured by
+## ITU-R BS.1770 (`scratchpad/lufs.py`) it was 6.2 dB louder than red and pulsar
+## at the same RMS, while those two agreed to 0.2 dB. So the whole family is
+## levelled in LUFS now and the RMS column is only there to be read.
+##
+## THE NUMBERS ARE NOT COMPARABLE BY EYE and must not be edited as if they
+## were: each is `target - the file's own measurement`, so a quiet file takes a
+## bigger number for the same loudness. Rebuild a room and BOTH its numbers move
+## -- the scripts that build them print the pair.
+##
+##   room      secs   file rms   file LUFS   level      plays at
+##   space      5.75     -15.7      -12.0     -14.3    -30.0 rms / -26.3 LUFS
+##   blue       7.75     -15.6      -10.2     -14.5    -30.1 rms / -24.7 LUFS
+##   red        7.75     -12.7      -13.4      -9.2    -21.9 rms / -22.6 LUFS
+##   pulsar     5.00     -13.5      -14.3      -8.5    -22.0 rms / -22.8 LUFS
+##   station  360.00     -30.3      -26.5     -15.4    -45.7 rms / -41.9 LUFS
+##
+## THE STATION MEASURES QUIETER THAN IT DID AND IS NOT. Its announcements left
+## the file -- the game deals them now -- so the loud seconds left the average
+## with them. The hum, the air, the deck and the crowd are untouched and the
+## level is untouched, which is what keeps the announcements sitting exactly
+## where they sat when they were baked in.
+##
+## THE STATION CAME BACK DOWN 4 dB. It went up to -40 rms on Jon's own number,
+## and what that actually raised was the REVERB on the announcements: "there is
+## sooo much echo now with the PA system". The echo is baked into the bed, so
+## the bed is the only dial there is -- a room whose tail is its loudest
+## feature gets quiet before it gets dry.
+##
+## AND THE BLUE ONE HAS ITS TAKES UN-FADED FIRST. Every bought loop tapers,
+## even one bought as a loop: its three takes run 8 to 10 dB under themselves in
+## their first and last second, so the sum was quiet at both ends. Rotating the
+## lap moved that dip instead of fixing it -- into the middle, where the two
+## quiet ends landed side by side and dug a 3 dB hole once a lap, which Jon went
+## on hearing and calling the seam. The fade now comes off each take at the
+## source, and the lap holds within 1.6 dB of itself the whole way round.
+##
+## THE LENGTHS ARE NOT ROUND ANY MORE, and that is the seam being fixed rather
+## than a mistake. Every one of these loops is FOLDED: the end crossfaded over
+## the beginning, so the lap finishes in the sound it starts with. Jon heard
+## what a plain fold does to tonal material -- "still a dip in volume at the
+## seam" -- and he was right: equal power only holds the level when the two ends
+## are uncorrelated, and open space is a hum whose ends correlate at +0.85, so
+## they partly cancel. `scratchpad/seamless.py` folds, measures the result in
+## 20 ms windows and puts the difference back, which fixes a dip and a bump with
+## the same arithmetic. The pulsar is folded by exactly ONE BEAT rather than a
+## quarter second, so its grid still closes: five passes in five seconds.
+const ROOM_LEVELS: Dictionary = {&"amb_space": -14.3, &"amb_blue": -14.5,
+		&"amb_red": -9.2, &"amb_pulsar": -8.5, &"amb_station": -15.4}
+## [file rms, file LUFS] as the build scripts measured them, and what each is
+## meant to land at. The test re-does the arithmetic, because the mistake this
+## table invites is editing one number by eye.
+const ROOM_FILE_DB: Dictionary = {
+		&"amb_space": [-15.7, -12.0], &"amb_blue": [-15.6, -10.2],
+		&"amb_red": [-12.7, -13.4], &"amb_pulsar": [-13.5, -14.3],
+		&"amb_station": [-30.3, -26.5]}
+const ROOM_TARGET: Dictionary = {&"amb_space": -26.3, &"amb_blue": -24.7,
+		&"amb_red": -22.6, &"amb_pulsar": -22.8, &"amb_station": -41.9}
 const ROOM_FADE := 1.6     ## seconds, because a room does not arrive on a beat
 
 ## THE SCORE STEPS ASIDE WHILE SOMEBODY IS TALKING. The announcements are baked
@@ -111,8 +191,14 @@ const ROOM_FADE := 1.6     ## seconds, because a room does not arrive on a beat
 const DUCK_DB := -9.0      ## how far the music drops under an announcement
 const DUCK_IN := 0.35      ## seconds down: quick, or the first words are lost
 const DUCK_OUT := 1.20     ## and slow back up, so it is not a pumping effect
-var _speech: Array = []    ## [[start, end], ...] seconds into the room loop
-var _room_loop: float = 0.0
+## THE STATION'S OWN VOICE. The lines it can say, the ones it has not said yet,
+## and how long until the next.
+const PA_GAP := Vector2(34.0, 68.0)    ## seconds of quiet between lines
+const PA_FIRST := Vector2(6.0, 16.0)   ## and before the first one, after docking
+var _pa: AudioStreamPlayer = null
+var _pa_lines: Array = []
+var _pa_bag: Array[int] = []
+var _pa_next: float = 0.0
 var _duck: float = 1.0     ## 1 is unducked; multiplies every music stem
 
 ## AND THE SCORE SITS BACK WHENEVER THERE IS A ROOM AT ALL. A docked station is
@@ -424,21 +510,30 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 		_room_fade = create_tween()
 		_room_fade.tween_property(_room, ^"volume_db", OFF_DB, fade_s)
 		_room_fade.tween_callback(_room.stop)
-		_speech = []
+		_load_pa(&"")
 		return
-	var stream: AudioStream = load(ROOM_PATH % name)
+	var path := ROOM_WAV % name
+	if not ResourceLoader.exists(path):
+		path = ROOM_PATH % name
+	var stream: AudioStream = load(path)
 	if stream == null:
 		push_warning("Audio: missing room tone %s" % name)
 		_room_now = &""
 		return
 	# Seamless on its own length, so tell the stream that rather than letting it
-	# stop at ninety seconds and leave the station silent for the rest of a dock.
+	# stop at the end of the file and leave the place silent for the rest of a
+	# visit. Both kinds need telling, and they ask for it differently.
 	if stream is AudioStreamOggVorbis:
 		(stream as AudioStreamOggVorbis).loop = true
-	_load_speech(name)
+	elif stream is AudioStreamWAV:
+		var w := stream as AudioStreamWAV
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_begin = 0
+		w.loop_end = roundi(w.get_length() * float(w.mix_rate))
+	_load_pa(name)
 	if _room == null:
 		_room = AudioStreamPlayer.new()
-		_room.bus = &"Music"
+		_room.bus = &"Ambient"
 		add_child(_room)
 	_room.stream = stream
 	_room.volume_db = OFF_DB
@@ -448,46 +543,72 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 			float(ROOM_LEVELS.get(name, ROOM_DB)), fade_s)
 
 
-## WHEN THE ROOM IS TALKING, IF IT IS. A room with no sidecar simply never
-## ducks, which is the right answer for one that has nobody in it.
-func _load_speech(name: StringName) -> void:
-	_speech = []
-	_room_loop = 0.0
+## THE STATION DEALS ITS OWN LINES NOW.
+##
+## Six announcements used to be baked into the six-minute bed at fixed offsets,
+## which meant every dock heard the same six of the sixteen, in the same order,
+## at the same moments. Jon: "Can we randomize the PA speech? I don't want it to
+## be in the same order every time." Nothing at runtime can shuffle a mixdown,
+## so `station.py --split` renders the bed with the PA silent and writes all
+## sixteen lines as their own files, each at exactly the amplitude it had in the
+## bed. The balance is the same arithmetic; only the order is free.
+##
+## The sidecar changed meaning with it: it used to say WHEN the bed talks, and
+## now it says WHAT there is to say.
+func _load_pa(name: StringName) -> void:
+	_pa_lines = []
+	_pa_bag = []
+	_pa_next = 0.0
 	var path := "res://assets/audio/ambience/%s.json" % name
 	if not FileAccess.file_exists(path):
 		return
-	var txt := FileAccess.get_file_as_string(path)
-	var data: Variant = JSON.parse_string(txt)
-	if typeof(data) != TYPE_DICTIONARY:
-		push_warning("Audio: %s is not readable" % path)
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(data) != TYPE_ARRAY:
+		push_warning("Audio: %s is not a list of lines" % path)
 		return
-	_room_loop = float((data as Dictionary).get("loop", 0.0))
-	_speech = (data as Dictionary).get("speech", [])
+	_pa_lines = data as Array
+	# NOT IMMEDIATELY. Arriving at a station and being talked at on the same
+	# frame reads as a cutscene; the first line lands once you are standing there.
+	_pa_next = randf_range(PA_FIRST.x, PA_FIRST.y)
 
 
-## Is the bed mid-sentence right now?
+## The next line, and never the same one twice until every one has been heard.
 ##
+## A BAG, NOT A ROLL. Sixteen lines drawn at random repeat about one dock in
+## eight -- and a repeat inside a minute is the one thing that says "this is a
+## short list" louder than the old fixed order did.
+func _deal_pa() -> void:
+	if _pa_lines.is_empty():
+		return
+	if _pa_bag.is_empty():
+		for i in _pa_lines.size():
+			_pa_bag.append(i)
+		_pa_bag.shuffle()
+	var idx: int = _pa_bag.pop_back()
+	var row := _pa_lines[idx] as Dictionary
+	var stream: AudioStream = load("res://assets/audio/ambience/%s.ogg"
+			% String(row.get("name", "")))
+	if stream == null:
+		return
+	if _pa == null:
+		_pa = AudioStreamPlayer.new()
+		# THE SAME BUS AND THE SAME LEVEL AS THE BED IT CAME OUT OF, so the
+		# announcement sits where it always sat against the crowd.
+		_pa.bus = &"Ambient"
+		add_child(_pa)
+	_pa.stream = stream
+	_pa.volume_db = float(ROOM_LEVELS.get(&"amb_station", ROOM_DB))
+	_pa.play()
+	_pa_next = float(row.get("secs", 10.0)) + randf_range(PA_GAP.x, PA_GAP.y)
+
+
+## Is the station mid-sentence right now? The music steps aside for it, and
+## that is the whole reason this is asked every frame.
 func _room_talking() -> bool:
-	if _room == null or not _room.playing:
-		return false
-	return _talking_at(_room.get_playback_position())
+	return _pa != null and _pa.playing
 
 
-## Split out from `_room_talking` ONLY so it can be tested. The playhead is the
-## one input here and it cannot be set from a harness, so the decision lives in
-## a function that takes a time and the reading lives in the caller.
-func _talking_at(t: float) -> bool:
-	if _speech.is_empty() or _room_loop <= 0.0:
-		return false
-	# MODULO THE LOOP, because `get_playback_position` keeps counting past the
-	# end on a looping stream — second time round it reads 361 seconds and every
-	# window is behind it forever, so the music would never duck again.
-	var at: float = fmod(t, _room_loop)
-	for w: Variant in _speech:
-		var pair := w as Array
-		if pair.size() == 2 and at >= float(pair[0]) and at <= float(pair[1]):
-			return true
-	return false
+
 
 
 func stop_music() -> void:
@@ -573,6 +694,15 @@ func _process(delta: float) -> void:
 	# scheduling six timers against a loop and immune to a missed edge: tab away
 	# mid-sentence and come back and the duck is simply correct, where a timer
 	# would be stuck down until the next announcement let it up.
+	# THE STATION'S CLOCK. It only runs while its room is the one playing, so
+	# leaving the station stops the talking with it rather than letting a line
+	# arrive over open space.
+	if _room_now == &"amb_station" and not _pa_lines.is_empty():
+		_pa_next -= delta
+		if _pa_next <= 0.0:
+			_deal_pa()
+	elif _pa != null and _pa.playing:
+		_pa.stop()
 	var duck_to: float = db_to_linear(DUCK_DB) if _room_talking() else 1.0
 	_duck = move_toward(_duck, duck_to,
 			delta / (DUCK_IN if duck_to < _duck else DUCK_OUT))
@@ -873,6 +1003,7 @@ func set_volume(bus: StringName, value: float) -> void:
 		&"Master": master_volume = value
 		&"Music": music_volume = value
 		&"SFX": sfx_volume = value
+		&"Ambient": ambient_volume = value
 	_apply_volumes()
 	save_settings()
 
@@ -880,10 +1011,12 @@ func volume_of(bus: StringName) -> float:
 	match bus:
 		&"Music": return music_volume
 		&"SFX": return sfx_volume
+		&"Ambient": return ambient_volume
 		_: return master_volume
 
 func _apply_volumes() -> void:
-	for pair in [[&"Master", master_volume], [&"Music", music_volume], [&"SFX", sfx_volume]]:
+	for pair in [[&"Master", master_volume], [&"Music", music_volume], [&"SFX", sfx_volume],
+			[&"Ambient", ambient_volume]]:
 		var idx := AudioServer.get_bus_index(pair[0])
 		if idx < 0:
 			continue
@@ -900,6 +1033,7 @@ func save_settings() -> void:
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
+	cfg.set_value("audio", "ambient", ambient_volume)
 	cfg.save(DisplaySettings.PATH)
 
 func load_settings() -> void:
@@ -908,4 +1042,5 @@ func load_settings() -> void:
 		master_volume = float(cfg.get_value("audio", "master", master_volume))
 		music_volume = float(cfg.get_value("audio", "music", music_volume))
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
+		ambient_volume = float(cfg.get_value("audio", "ambient", ambient_volume))
 	_apply_volumes()

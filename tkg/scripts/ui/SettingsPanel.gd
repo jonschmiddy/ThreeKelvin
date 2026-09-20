@@ -210,6 +210,11 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_reduced_motion(i == 1)
 			_refresh()))
+	_body.add_child(_row_chips("CLICK TO SKIP JUMP", ["OFF", "ON"],
+		1 if DisplaySettings.skip_jump else 0,
+		func(i: int) -> void:
+			DisplaySettings.set_skip_jump(i == 1)
+			_refresh()))
 	_body.add_child(_row_chips("SCREEN SHAKE", ["ON", "OFF"],
 		0 if DisplaySettings.screen_shake else 1,
 		func(i: int) -> void:
@@ -224,9 +229,10 @@ func _page_motion() -> void:
 
 func _page_sound() -> void:
 	_body.add_child(Section.new(&"audio", "AUDIO"))
-	for bus: StringName in [&"Master", &"Music", &"SFX"]:
+	for bus: StringName in [&"Master", &"Music", &"SFX", &"Ambient"]:
 		var v: float = Audio.volume_of(bus)
-		var label := {&"Master": "MASTER", &"Music": "MUSIC", &"SFX": "EFFECTS"}[bus] as String
+		var label := {&"Master": "MASTER", &"Music": "MUSIC", &"SFX": "EFFECTS",
+				&"Ambient": "AMBIENT"}[bus] as String
 		_body.add_child(_line(label, "OFF" if v < 0.1 else "%d%%" % roundi(v * 100.0)))
 		var gauge := VolumeGauge.new()
 		gauge.bus = bus
@@ -331,9 +337,10 @@ class VolumeGauge extends Control:
 			var v := 0.0 if slot < 0 else SettingsPanel.VOLUME_STEPS[slot]
 			Audio.click()
 			Audio.set_volume(bus, v)
-			# You should hear what you just picked. Music answers for itself;
-			# the other two need something to answer with.
-			if bus != &"Music" and v > 0.0:
+			# You should hear what you just picked. Music and the room answer for
+			# themselves -- both are already playing while you drag the fader --
+			# so only Master and Effects need something to answer with.
+			if bus != &"Music" and bus != &"Ambient" and v > 0.0:
 				Audio.confirm()
 			accept_event()
 			changed.emit()

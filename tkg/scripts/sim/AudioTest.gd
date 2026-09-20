@@ -239,16 +239,23 @@ func run(tree: SceneTree) -> void:
 	_ok("stopping clears the cue (%s)" % [Audio.cue()], Audio.cue() == &"")
 
 	# NOTHING LEFT ON THE BUS. Two voices is the whole music system; a third
-	# player on Music means something built one and lost it. The room tone has
-	# its own player on this bus deliberately and is excluded by name.
+	# player on Music means something built one and lost it. Room tone used to
+	# be excluded here by name; it has its own bus now, so the count excludes it
+	# by itself -- which is the stronger check, and the next one says why.
 	var players := 0
 	for c in Audio.get_children():
-		if c == Audio._room:
-			continue
 		if c is AudioStreamPlayer and (c as AudioStreamPlayer).bus == &"Music":
 			players += 1
 	_ok("exactly two music voices exist (%d on the bus)" % players,
 			players == Audio._mv.size() and players == 2)
+
+	# AND THE ROOM IS NOT ONE OF THEM. Jon: "the system sounds are tied to
+	# music" -- turning the score down took the reactor with it. Four faders
+	# now, and the room answers to the fourth.
+	Audio.room(&"amb_station")
+	_ok("room tone plays on its own bus (%s)" % Audio._room.bus,
+			Audio._room != null and Audio._room.bus == &"Ambient"
+			and AudioServer.get_bus_index(&"Ambient") >= 0)
 
 	# ---- the score sits back while there is a room at all
 	#
@@ -272,32 +279,74 @@ func run(tree: SceneTree) -> void:
 				0.016 / Audio.ROOM_DUCK_S)
 	_ok("and comes back up at a star (%.2f, room %s)" % [r, Audio._room_now],
 			is_equal_approx(r, 1.0) and Audio._room_now == &"amb_blue")
-	_ok("a star room has its own level, under the station's (%.1f vs %.1f dB)"
-			% [Audio.ROOM_LEVELS[&"amb_blue"], Audio.ROOM_LEVELS[&"amb_station"]],
-			ResourceLoader.exists(Audio.ROOM_PATH % "amb_blue")
-			and float(Audio.ROOM_LEVELS[&"amb_blue"]) < float(Audio.ROOM_LEVELS[&"amb_station"]))
+	# EVERY ROOM LANDS WHERE IT IS MEANT TO, IN LUFS. The levels are derived --
+	# target minus the file's own measurement -- never chosen, so the mistake the
+	# table invites is editing one by eye. It re-does the arithmetic instead.
+	#
+	# IN LUFS AND NOT RMS because RMS was wrong about the blue room: Jon heard it
+	# as louder than the other two stars while it measured the same, and the
+	# broadcast measure agrees with him by 6.2 dB. Checking in RMS would read the
+	# correction as the fault.
+	var off: Array = []
+	for nm: StringName in Audio.ROOM_TARGET:
+		var got: float = float((Audio.ROOM_FILE_DB[nm] as Array)[1]) 				+ float(Audio.ROOM_LEVELS[nm])
+		if absf(got - float(Audio.ROOM_TARGET[nm])) > 0.15:
+			off.append("%s %.1f wanted %.1f" % [nm, got, Audio.ROOM_TARGET[nm]])
+	_ok("every room plays where it is meant to%s"
+			% ("" if off.is_empty() else " -- " + ", ".join(off)), off.is_empty())
+
+	# AND THE SHAPE HOLDS: an empty system is your own reactor, a star is
+	# something outside making a noise, and the station is its own case.
+	var bed: float = float(Audio.ROOM_TARGET[&"amb_space"])
+	var quiet_star: float = minf(minf(float(Audio.ROOM_TARGET[&"amb_blue"]),
+			float(Audio.ROOM_TARGET[&"amb_red"])), float(Audio.ROOM_TARGET[&"amb_pulsar"]))
+	_ok("open space sits under every star (%.1f vs %.1f LUFS)" % [bed, quiet_star],
+			bed < quiet_star and float(Audio.ROOM_TARGET[&"amb_station"]) < bed)
 	Audio.room(&"")
 	for _i in 400:
 		r = move_toward(r, float(Audio.ROOM_DUCKS.get(Audio._room_now, 1.0)),
 				0.016 / Audio.ROOM_DUCK_S)
 	_ok("and with no room at all (%.2f)" % r, is_equal_approx(r, 1.0))
 
-	# ---- the room ducks the score while somebody is talking
-	Audio._load_speech(&"amb_station")
-	_ok("the station bed says when it is talking (%d windows over %.0f s)"
-			% [Audio._speech.size(), Audio._room_loop],
-			Audio._speech.size() == 6 and Audio._room_loop > 1.0)
-	var first: Array = Audio._speech[0] as Array
-	var mid: float = (float(first[0]) + float(first[1])) * 0.5
-	_ok("mid-announcement the music is asked to step aside (%.1f s)" % mid,
-			Audio._talking_at(mid))
-	_ok("and between them it is not (%.1f s)" % (float(first[1]) + 5.0),
-			not Audio._talking_at(float(first[1]) + 5.0))
-	# THE ONE THAT WOULD HAVE SHIPPED BROKEN. A looping stream's playhead keeps
-	# counting past the end, so without the modulo the second pass through the
-	# loop never ducks again -- and that is the pass a player actually hears.
-	_ok("and it still ducks on the second time round (%.1f s)"
-			% (Audio._room_loop + mid), Audio._talking_at(Audio._room_loop + mid))
+	# ---- the station talks, in a different order every time
+	#
+	# THE OLD CHECKS WERE ABOUT A TIMETABLE. Six announcements were baked into
+	# the bed at fixed offsets and the music ducked by comparing the playhead
+	# against a table of windows. Jon asked for the order to stop repeating, so
+	# the lines came out of the mixdown and the bed no longer says anything: the
+	# game deals them. What has to be true changed with it.
+	Audio._load_pa(&"amb_station")
+	var lines: int = Audio._pa_lines.size()
+	var absent: Array = []
+	for row: Variant in Audio._pa_lines:
+		var nm := String((row as Dictionary).get("name", ""))
+		if not ResourceLoader.exists("res://assets/audio/ambience/%s.ogg" % nm):
+			absent.append(nm)
+	_ok("the station has %d lines and every one is on disk %s" % [lines, absent],
+			lines >= 8 and absent.is_empty())
+
+	# EVERY LINE BEFORE ANY REPEAT. A bag, not a roll: sixteen lines drawn at
+	# random would repeat about one dock in eight, and a repeat inside a minute
+	# says "short list" louder than the fixed order ever did.
+	var seen: Dictionary = {}
+	var repeat := -1
+	for i in lines:
+		Audio._deal_pa()
+		var nm := Audio._pa.stream.resource_path if Audio._pa != null else ""
+		if seen.has(nm) and repeat < 0:
+			repeat = i
+		seen[nm] = true
+	_ok("it says all %d before it says any of them twice (%d distinct, first repeat %s)"
+			% [lines, seen.size(), "none" if repeat < 0 else str(repeat)],
+			seen.size() == lines and repeat < 0)
+
+	# AND THE MUSIC STEPS ASIDE FOR IT, which is the whole reason the game needs
+	# to know a line is playing at all.
+	_ok("while a line is playing the score is asked to step aside",
+			Audio._room_talking())
+	Audio._pa.stop()
+	_ok("and when it stops, it is not", not Audio._room_talking())
+
 	_finish()
 
 

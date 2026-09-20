@@ -126,8 +126,17 @@ vec2 sharp_uv(vec2 uv) {
 	return (base + f) / tex_size;
 }
 
+// HOW FAR THE GLASS HAS BEEN NUDGED, in UV. Nothing artistic: the container
+// this shader runs on is moved a fraction of a pixel-row each frame so that
+// GODOT'S OWN input transform maps the pointer to the bent pixel -- that is
+// what makes the highlight and the click agree. Adding the same nudge back
+// here cancels it, so the picture does not move while the rect under it does.
+uniform vec2 uv_shift = vec2(0.0);
+
 void fragment() {
-	vec2 uv = UV;
+	// The picture's own coordinates: the rect's, with the nudge taken out.
+	vec2 uv_still = UV + uv_shift;
+	vec2 uv = uv_still;
 	float edge = 1.0;
 	float rim = 1.0;      // 0 at the very edge of the glass, 1 well inside it
 	if (curve > 0.0) {
@@ -188,10 +197,17 @@ void fragment() {
 		c *= m;
 	}
 	if (vignette > 0.0) {
-		vec2 d = (UV - 0.5) * 2.0;
+		vec2 d = (uv_still - 0.5) * 2.0;
 		c *= 1.0 - vignette * pow(clamp(length(d) * 0.72, 0.0, 1.0), 1.6);
 	}
 	c *= gain;
+	// AND THE HIGHLIGHTS ROLL OFF RATHER THAN FLATTEN. Giving back everything
+	// the tube took means a gain above 2 on the arcade setting, and a straight
+	// multiply would clamp every bright pixel to white -- the picture would
+	// measure as bright as the flat one and read as blown out. A soft knee over
+	// the top sixth keeps them apart, and leaves everything below it untouched.
+	vec3 over = max(c - 0.85, vec3(0.0));
+	c = min(c, vec3(0.85)) + (1.0 - 0.85) * (1.0 - exp(-over / (1.0 - 0.85)));
 	// The glass meeting the frame: a shade under it, and the thin catch of
 	// light on the last pixel of the curve.
 	if (rim_shadow > 0.0) {
@@ -206,7 +222,7 @@ void fragment() {
 		// How far in from the window's own frame this pixel is, rounded at the
 		// corners to the same radius as the glass, so plastic and glass share a
 		// shape.
-		vec2 win_px = min(UV, 1.0 - UV) * tex_size * out_scale;
+		vec2 win_px = min(uv_still, 1.0 - uv_still) * tex_size * out_scale;
 		float r = max(corner_radius, 1.0);
 		vec2 corner = max(vec2(r) - win_px, vec2(0.0));
 		float wd = min(min(win_px.x, win_px.y), r - length(corner));
@@ -214,7 +230,7 @@ void fragment() {
 		if (plastic > 0.0) {
 			// Lit from the top left: the top and left faces catch, the bottom
 			// and right fall away.
-			float lit = clamp((UV.x + UV.y) * 0.5, 0.0, 1.0);
+			float lit = clamp((uv_still.x + uv_still.y) * 0.5, 0.0, 1.0);
 			vec3 face = mix(vec3(0.055, 0.060, 0.070), vec3(0.020, 0.022, 0.028), lit);
 			// A brighter lip where the plastic meets the glass, and the shadow
 			// the moulding casts onto the picture just inside it.

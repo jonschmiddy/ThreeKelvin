@@ -1611,8 +1611,18 @@ func _ride_to(index: int, ride: bool = true) -> void:
 		return
 	# LONG ENOUGH TO BE A JOURNEY, and scaled by how far it is going: two floors
 	# should take longer than one, because in a building they do.
+	#
+	# FOUND BY BRACKETING IT. A second longer read as a wait; half the original
+	# was "WAY too fast" -- a one-floor hop at 0.13 s is barely a movement and
+	# was nearly all landing. Then: "maybe slightly slower than where it was".
+	# So a THIRD longer than the original, which is 0.34 s for one floor where
+	# the original was 0.26 and the fast one 0.13.
+	#
+	# Both wrong answers left something behind: the long one found the tick
+	# buried at 0.46 s in the fan take, and the fast one made the fade a
+	# fraction of the ride instead of a constant.
 	var span := absf(float(index) - _spine.car)
-	var secs := clampf(0.16 + 0.10 * span, 0.18, 0.55)
+	var secs := clampf(0.21 + 0.13 * span, 0.24, 0.72)
 	# THE CAR SETS OFF WITH A SOUND, and only when it actually travels: arrival
 	# and resizes snap it (above) and stay silent. Throttled, because clicking
 	# down the floor list fast restarts the ride each time.
@@ -1622,12 +1632,27 @@ func _ride_to(index: int, ride: bool = true) -> void:
 	_lift.tween_method(_car_step, _spine.car, float(index), secs)
 	# THE SOUND LASTS EXACTLY AS LONG AS THE RIDE. Jon: "calculate how long it
 	# takes for the elevator animation ... that should be how long the sound
-	# lasts." A ride is 0.18-0.55 s by distance, so the file is longer than any
-	# ride and is faded out on the frame the car stops. (It replaced an arrival
-	# ding: "not a ding".) A ride cut short by a new pick is killed above and
-	# never finishes; the new ride's own sound carries on instead.
+	# lasts." A ride is 0.24-0.72 s by distance, so the file is longer than any
+	# ride and is faded out on the frame the car stops. A ride cut short by a
+	# new pick is killed above and never finishes; the new ride's own sound
+	# carries on instead.
+	#
+	# AND THE FADE IS A FRACTION OF THE RIDE, NOT A CONSTANT. It is 60 ms at
+	# every length that matters here, so at this pace it changes nothing -- it
+	# is kept because it is the correct shape: a sound that is mostly its own
+	# fade never lands, which is what a flat 60 ms did to a 0.13 s ride when the
+	# lift was briefly twice this speed.
+	#
+	# AND THE CAR ARRIVES WITH A SOUND OF ITS OWN: "a ca chunk where the
+	# animation ends". It cannot be the tail of the ride -- the ride is cut to
+	# however far the car travels, so a chunk baked into the file would land
+	# wherever the fade did, which is to say never on the stop. Its own sound,
+	# played on the frame the tween finishes, lands every time. Two dB under the
+	# ride, because the first pass at it was four dB over and "too loud".
+	var fade := int(clampf(secs * 250.0, 25.0, 60.0))
 	_lift.finished.connect(func() -> void:
-		Audio.hush([&"station_lift"] as Array[StringName], 60))
+		Audio.hush([&"station_lift"] as Array[StringName], fade)
+		Audio.play(&"station_lift_stop"))
 
 
 ## One frame of the ride.

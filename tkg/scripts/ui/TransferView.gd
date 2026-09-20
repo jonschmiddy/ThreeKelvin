@@ -31,9 +31,72 @@ const PAD := 24
 ##
 ## Six rows fits a heavy hull's five with a row spare, and is the most a pile
 ## shows before it scrolls instead of growing.
+## TEN WAYS TO DRESS THIS, while Jon judges them: `-- salvage salv=N`.
+##
+## What is wrong with 0, which is how it has always looked: it is one slab. The
+## panel is fixed at six rows however little is in it, so a wreck with four
+## parts leaves half the popup empty; both grids sit on the same field, so
+## nothing says which side is YOURS; and the heading, the two column labels and
+## the button are four things at four weights with no order between them.
+##
+## Every option below is a real screenshot of the real screen, not a mock.
+##
+## JON PICKED TWO AND THEY ARE ONE NOW: "terminal / Readout" and "chamfer /
+## Chamfered case", which is skin 10 -- the cut case, the readout heading, a
+## well around each grid, and the arrow he asked to see moving between them.
+## The other nine stay for `-- salvage salv=N`, the way GameShell keeps the
+## edge treatments it was judged on: a table of what was tried is cheaper to
+## keep than to reconstruct.
+static var style: int = 10
+## rows      6 keeps the old fixed height, 0 fits the grid to what is in it
+## box       the popup's edge: flat, cut (chamfered), double (a frame in a frame)
+## head      row (title and button in one line), rule (a hairline under it),
+##           band (a strip across the top, button moved to a footer),
+##           term (a readout marker and a scanline)
+## side      plain, plate (each grid in its own well), crate (the far side as an
+##           opened container), tab (the label as a plate on the well's edge)
+## gutter    nothing, an arrow showing which way things come, or a hairline
+## ticks     registration marks at the popup's corners
+const SKINS: Array[Dictionary] = [
+	{"name": "now", "rows": 6, "gap": 40, "pad": [16, 18], "box": "flat",
+		"head": "row", "side": "plain", "gutter": "", "ticks": false},
+	{"name": "tight", "rows": 0, "gap": 28, "pad": [14, 16], "box": "flat",
+		"head": "row", "side": "plain", "gutter": "", "ticks": false},
+	{"name": "plates", "rows": 0, "gap": 22, "pad": [16, 18], "box": "flat",
+		"head": "row", "side": "plate", "gutter": "", "ticks": false},
+	{"name": "chamfer", "rows": 0, "gap": 22, "pad": [16, 20], "box": "cut",
+		"head": "rule", "side": "plate", "gutter": "", "ticks": false},
+	{"name": "manifest", "rows": 0, "gap": 28, "pad": [0, 0], "box": "flat",
+		"head": "band", "side": "plain", "gutter": "", "ticks": false},
+	{"name": "arrow", "rows": 0, "gap": 10, "pad": [16, 18], "box": "flat",
+		"head": "row", "side": "plate", "gutter": "arrow", "ticks": false},
+	{"name": "crate", "rows": 0, "gap": 22, "pad": [16, 18], "box": "flat",
+		"head": "rule", "side": "crate", "gutter": "", "ticks": false},
+	{"name": "terminal", "rows": 0, "gap": 26, "pad": [16, 20], "box": "flat",
+		"head": "term", "side": "plain", "gutter": "rule", "ticks": false},
+	{"name": "tabs", "rows": 0, "gap": 22, "pad": [16, 18], "box": "flat",
+		"head": "rule", "side": "tab", "gutter": "", "ticks": false},
+	{"name": "ticks", "rows": 0, "gap": 22, "pad": [18, 22], "box": "double",
+		"head": "rule", "side": "plate", "gutter": "", "ticks": true},
+	## JON'S PICK, and it is two of the ten put together: the chamfered case
+	## from 3 and the readout heading from 7, with the arrow from 5 between the
+	## wells -- "I do like the idea of an arrow... something maybe animated?"
+	{"name": "readout", "rows": 0, "gap": 12, "pad": [16, 20], "box": "cut",
+		"head": "term", "side": "plate", "gutter": "arrow", "ticks": false},
+]
+
+static func skin() -> Dictionary:
+	return SKINS[clampi(style, 0, SKINS.size() - 1)]
+
 const PANEL_ROWS := 6
 
-## Room kept for a scrollbar whether or not there is one.
+## HOW DEEP A PILE GETS TO BE BEFORE IT SCROLLS. Jon: "let's not have the
+## scroll wheel, unless it's bigger than 4x3" -- so three rows are simply shown,
+## and the bar arrives with the fourth. Fifteen parts across the far grid's five
+## columns, which is more than a wreck has ever held.
+const FIT_ROWS := 3
+
+## Room kept for a scrollbar, WHERE THERE IS ONE.
 ##
 ## Godot gives a ScrollContainer its bar out of the child's width, so the frame
 ## has to be wider than the grid by this much or the grid loses a column the
@@ -48,6 +111,12 @@ var _title: Label
 ## direction: "OUT HERE" was a placeholder from when there was one bag per
 ## system and it read as a compass rather than as a thing.
 var _loose_label: Label
+## Kept so a fitted popup can grow the far grid once it knows what is in it.
+var _loose_scroll: ScrollContainer = null
+## A full-width heading band takes the popup's padding, so the body wears it.
+var _inset_body: bool = false
+## The far grid is measured when a container arrives and never again.
+var _sized: bool = false
 var _node: MapGen.MapNode = null
 ## WHICH container. A system holds several -- one per hull you killed, plus its
 ## own floor -- and this screen is a view of exactly one of them at a time.
@@ -69,6 +138,8 @@ func setup(h: MapGen.Jetsam, n: MapGen.MapNode, on_close: Callable,
 		animate: bool = true, title: String = "") -> void:
 	_node = n
 	_jetsam = h
+	# A NEW CONTAINER GETS A NEW MEASUREMENT, and nothing else does.
+	_sized = false
 	_on_close = on_close
 	# WHAT IT IS, THEN WHOSE. The heading was the ship's name and the column
 	# said SALVAGE, which read as a screen about the Rustjaw Cutter that
@@ -126,40 +197,57 @@ func _init() -> void:
 	# are what answer a drop -- and anything that misses them falls through to
 	# the backdrop, which is this view's own catch-all. A STOP frame would eat
 	# exactly the drops that are currently reaching it.
+	var sk := skin()
+	var pad: Array = sk["pad"]
 	var popup := PanelContainer.new()
 	popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	popup.add_theme_stylebox_override("panel",
-		UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, 16, 18))
+	match sk["box"]:
+		"cut":
+			popup.add_theme_stylebox_override("panel", _cut_box(int(pad[0]), int(pad[1])))
+		"double":
+			popup.add_theme_stylebox_override("panel",
+				UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0, int(pad[0]), int(pad[1])))
+		_:
+			popup.add_theme_stylebox_override("panel",
+				UITheme.flat(UITheme.PANEL2, UITheme.LINE, 0,
+					maxi(int(pad[0]), 1), maxi(int(pad[1]), 1)))
 	centre.add_child(popup)
+	if bool(sk["ticks"]):
+		var marks := Ticks.new()
+		marks.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		marks.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		popup.add_child(marks)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 12)
 	popup.add_child(col)
 
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 10)
-	col.add_child(head)
 	_title = UITheme.body("", UITheme.ICE, UITheme.FS_HEAD)
-	head.add_child(_title)
+	var done := Widgets.button("DONE", func() -> void:
+		if _on_close.is_valid():
+			_on_close.call())
+	_head_of(col, sk, done)
 	# NO RUNNING TOTAL. "2 LEFT" and "PICKED CLEAN" were counting something you
 	# are looking at: the grid on the right IS the answer, and a number beside
 	# the name only competes with it. An empty container says it is empty by
 	# being empty.
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(sp)
-	head.add_child(Widgets.button("DONE", func() -> void:
-		if _on_close.is_valid():
-			_on_close.call()))
 
 	# NO CENTRING LAYER ANY MORE. The popup is the size of what is in it and
 	# the popup is centred, so a second centring inside it was two answers to
 	# one question -- and it was what made the grids sit in the corner of a
 	# window-sized panel when this was full screen.
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 40)
+	row.add_theme_constant_override("separation", int(sk["gap"]))
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	col.add_child(row)
+	var body_into: Node = col
+	if _inset_body:
+		var m := MarginContainer.new()
+		for side in ["left", "right", "bottom"]:
+			m.add_theme_constant_override("margin_" + side, 18)
+		m.add_theme_constant_override("margin_top", 4)
+		col.add_child(m)
+		body_into = m
+	body_into.add_child(row)
 
 	# LISTEN TO THE MODEL, NOT TO EACH THING THAT CHANGES IT.
 	#
@@ -185,9 +273,18 @@ func _init() -> void:
 	# answer everywhere or it is not a convention.
 	# The hold's width is the hull's; the container's is its own constant. Both
 	# are known before anything is in them, which is the point.
-	row.add_child(_side("YOUR HOLD", _build_hold(), Run.hold_grid().x))
+	row.add_child(_side("YOUR HOLD", _build_hold(), Run.hold_grid().x, false))
+	if sk["gutter"] != "":
+		row.add_child(_gutter(String(sk["gutter"])))
 	# Empty, because the container names itself on refresh. See `_loose_label`.
-	row.add_child(_side("", _build_loose(), SalvageGrid.COLS))
+	row.add_child(_side("", _build_loose(), SalvageGrid.COLS, true))
+	if String(sk["head"]) == "band":
+		# The button leaves the heading and becomes the way out, at the bottom
+		# right, where a dialog puts it.
+		var foot := HBoxContainer.new()
+		foot.alignment = BoxContainer.ALIGNMENT_END
+		foot.add_child(done)
+		body_into.get_parent().add_child(foot) if body_into != col else col.add_child(foot)
 
 
 ## THE SCREEN ITSELF CATCHES ANYTHING THE GRIDS DID NOT.
@@ -393,13 +490,38 @@ func _on_ship_changed() -> void:
 		refresh()
 
 
-func _side(label: String, body: Control, cols: int) -> Control:
+func _side(label: String, body: Control, cols: int, far: bool) -> Control:
+	var sk := skin()
+	var kind := String(sk["side"])
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	var l := UITheme.body(label, UITheme.COLD, UITheme.FS_SMALL)
 	if label == "":
 		_loose_label = l
-	box.add_child(l)
+	if kind == "crate" and far:
+		# AN OPENED CONTAINER. A stripe along the top edge and the name on it,
+		# so the far side reads as a thing that was shut a moment ago and the
+		# near side reads as your ship.
+		var lid := HBoxContainer.new()
+		lid.add_theme_constant_override("separation", 8)
+		var st := Stripe.new()
+		st.custom_minimum_size = Vector2(26, 10)
+		st.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		lid.add_child(st)
+		lid.add_child(l)
+		box.add_child(lid)
+	elif kind == "tab":
+		# The label on a plate that sits ON the well's edge, the way a tag sits
+		# on a crate rather than floating above it.
+		var tab := PanelContainer.new()
+		tab.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		tab.add_theme_stylebox_override("panel",
+			UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 3, 8))
+		tab.add_child(l)
+		box.add_theme_constant_override("separation", 0)
+		box.add_child(tab)
+	else:
+		box.add_child(l)
 	# A CAP, not a fill. Both grids are exactly as big as their contents need,
 	# and a scroll only appears when a pile outgrows the screen -- which is the
 	# rare case, and the one where a fixed box would hide the last row.
@@ -409,12 +531,278 @@ func _side(label: String, body: Control, cols: int) -> Control:
 	# already got that wrong once and clipped both grids to two rows -- so
 	# setting it and never touching it again is what makes the popup one shape.
 	# Nothing about the contents may reach this number.
-	scroll.custom_minimum_size = Vector2(cols * HoldGrid.CELL + BAR,
-		PANEL_ROWS * HoldGrid.CELL)
+	var rows: int = int(sk["rows"])
+	var fitted := rows <= 0
+	if fitted:
+		# FIT, AND THE FAR SIDE IS MEASURED IN `refresh`. The hold's shape is
+		# known here; what is out there is not, because a container is handed to
+		# this screen after it is built.
+		rows = maxi(Run.hold_grid().y, 2) if not far else FIT_ROWS
+		# THE HOLD NEVER SCROLLS. It is exactly the hull's own grid and the box
+		# is exactly that tall, so a bar there could only ever be furniture --
+		# and reserving room for one cost a column's worth of width for nothing.
+		# SHOW_NEVER, not DISABLED. Disabled does not mean "no bar", it means the
+		# container stops being a viewport: it takes its size from the child and
+		# the popup grows to however deep the pile is. The test caught that at
+		# twenty-two rows tall.
+		if not far:
+			scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	scroll.custom_minimum_size = Vector2(
+		cols * HoldGrid.CELL + (0 if fitted and not far else BAR),
+		rows * HoldGrid.CELL)
 	scroll.size_flags_vertical = Control.SIZE_FILL
 	scroll.add_child(body)
-	box.add_child(scroll)
+	if far:
+		_loose_scroll = scroll
+	if String(sk["side"]) in ["plate", "crate", "tab"]:
+		# A WELL, not a field: the grid sits in something darker than the popup,
+		# so each side is an object with an edge rather than an area of slab.
+		var well := PanelContainer.new()
+		well.add_theme_stylebox_override("panel",
+			UITheme.flat(UITheme.VOID, UITheme.LINE, 0, 8, 8))
+		well.add_child(scroll)
+		box.add_child(well)
+	else:
+		box.add_child(scroll)
 	return box
+
+
+## The heading, in four arrangements.
+func _head_of(col: VBoxContainer, sk: Dictionary, done: Button) -> void:
+	match String(sk["head"]):
+		"band":
+			# A STRIP ACROSS THE TOP, the way a manifest is headed: the popup's
+			# own padding goes to nothing and the band fills the width, so the
+			# title is a header rather than a floating word.
+			var band := PanelContainer.new()
+			band.add_theme_stylebox_override("panel",
+				UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 10, 18))
+			var inner := HBoxContainer.new()
+			inner.add_theme_constant_override("separation", 10)
+			inner.add_child(_title)
+			band.add_child(inner)
+			col.add_child(band)
+			# The band reaches the popup's edge, so the popup has no padding of
+			# its own and everything BELOW the band is inset instead. An empty
+			# spacer was the first attempt and it only added a hole.
+			_inset_body = true
+		"term":
+			var h := HBoxContainer.new()
+			h.add_theme_constant_override("separation", 8)
+			var dot := Stripe.new()
+			dot.custom_minimum_size = Vector2(8, 8)
+			dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			h.add_child(dot)
+			h.add_child(_title)
+			var sp := Control.new()
+			sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			h.add_child(sp)
+			h.add_child(done)
+			col.add_child(h)
+			var sc := Scan.new()
+			sc.custom_minimum_size = Vector2(0, 5)
+			col.add_child(sc)
+		"rule":
+			var h2 := HBoxContainer.new()
+			h2.add_theme_constant_override("separation", 10)
+			h2.add_child(_title)
+			var sp2 := Control.new()
+			sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			h2.add_child(sp2)
+			h2.add_child(done)
+			col.add_child(h2)
+			col.add_child(UITheme.hsep())
+		_:
+			var h3 := HBoxContainer.new()
+			h3.add_theme_constant_override("separation", 10)
+			h3.add_child(_title)
+			var sp3 := Control.new()
+			sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			h3.add_child(sp3)
+			h3.add_child(done)
+			col.add_child(h3)
+
+
+func _gutter(kind: String) -> Control:
+	if kind == "arrow":
+		var a := Arrow.new()
+		a.custom_minimum_size = Vector2(46, 0)
+		a.size_flags_vertical = Control.SIZE_FILL
+		return a
+	var v := VSeparator.new()
+	v.add_theme_stylebox_override("separator",
+		UITheme.flat(UITheme.LINE, Color(0, 0, 0, 0), 0, 0, 0))
+	return v
+
+
+## A chamfered popup, the shape the escape drawer's plates already use.
+func _cut_box(pad_v: int, pad_h: int) -> StyleBoxFlat:
+	var b := StyleBoxFlat.new()
+	b.bg_color = UITheme.PANEL2
+	b.border_color = UITheme.LINE
+	b.set_border_width_all(1)
+	b.corner_radius_top_left = 10
+	b.corner_radius_bottom_right = 10
+	b.corner_detail = 1
+	b.content_margin_top = pad_v
+	b.content_margin_bottom = pad_v
+	b.content_margin_left = pad_h
+	b.content_margin_right = pad_h
+	return b
+
+
+## WHICH WAY THINGS COME, and it moves.
+##
+## Every take on this screen is right to left, and the drag along it is the one
+## gesture the screen has -- so the arrow is instruction, not decoration. Four
+## ways of saying it, picked with `-- salvage salv=10 arrow=N`:
+##
+##   0 MARCH    three chevrons lighting in turn, right to left, like a conveyor
+##   1 DRIFT    the group slides left and fades, over and over
+##   2 SWEEP    a line runs from the far grid to your hold, with a head on it
+##   3 BREATHE  all three brighten and dim together, going nowhere
+##
+## IT HOLDS STILL WHEN MOTION IS OFF. `reduced_motion` is a setting somebody
+## turned on for a reason, and an animation in the middle of the screen is
+## exactly what it is for; frozen, it is still an arrow and still says which way.
+## `-- phase=F` freezes it anywhere for a shot.
+class Arrow extends Control:
+	const CYCLE := 1.6           ## seconds for one pass, unhurried on purpose
+	## HOW MANY FRAMES THE PASS HAS. Jon: "more pixelated and the animation more
+	## choppy" -- so it does not slide, it STEPS: eight positions in 1.6 s, five
+	## a second, which is about what a sprite sheet of this era would hold. A
+	## continuous tween is the one thing that gives pixel art away as not being
+	## drawn, and the whole screen is 960x540.
+	const STEPS := 8
+	## And the fading is stepped too, for the same reason: four levels, not a
+	## smooth ramp.
+	const FADES := 4
+	## The chevrons are built from blocks rather than lines, at this size.
+	const BLOCK := 2.0
+	## DRIFT, which is Jon's pick of the four: "drift is good".
+	static var mode: int = 1
+	static var freeze: float = -1.0
+	var _t: float = 0.0
+
+	func _ready() -> void:
+		set_process(true)
+
+	func _process(delta: float) -> void:
+		# STILL UNDER A SHOT TOOL, for the same reason everything else is: a
+		# harness that photographs this screen would catch the arrow wherever it
+		# happened to be, and a test that changes every run is not a test.
+		if freeze >= 0.0 or DisplaySettings.reduced_motion or not Router.animating():
+			return
+		_t = fmod(_t + delta / CYCLE, 1.0)
+		queue_redraw()
+
+	func _phase() -> float:
+		if freeze >= 0.0:
+			return _step(fmod(freeze, 1.0))
+		if DisplaySettings.reduced_motion or not Router.animating():
+			return 0.0
+		return _step(_t)
+
+	## The phase, on the frame grid. Everything downstream is drawn from this,
+	## so nothing in the arrow can move by less than one frame's worth.
+	func _step(t: float) -> float:
+		return floorf(t * float(STEPS)) / float(STEPS)
+
+	func _draw() -> void:
+		var p := _phase()
+		var mid := size.y * 0.5
+		var w := 13.0
+		var base := UITheme.COLD
+		match mode:
+			1:
+				# The group slides left and fades out, and a new one starts as
+				# the old one goes: one gesture, repeated, rather than a loop.
+				for k in 2:
+					var q: float = fmod(p + float(k) * 0.5, 1.0)
+					# Whole blocks of travel, so a step is a step and not a blur.
+					var x := size.x * 0.5 + 16.0 - floorf(q * 34.0 / BLOCK) * BLOCK
+					var c := base
+					c.a = 0.7 * sin(q * PI)
+					_chevron(x, mid, w, c)
+			2:
+				# A line crossing the gutter with a head on it: the travel, drawn
+				# rather than implied.
+				var c2 := base
+				c2.a = 0.22
+				draw_line(Vector2(size.x, mid), Vector2(0.0, mid), c2, 1.0)
+				var x2 := size.x * (1.0 - p)
+				var g := base
+				g.a = 0.75
+				_chevron(x2, mid, w * 0.8, g)
+			3:
+				# Nothing travels. The three simply come up and go down, which is
+				# the quietest way to be noticed.
+				for i in 3:
+					var c3 := base
+					c3.a = (0.25 + 0.4 * (0.5 + 0.5 * sin(p * TAU))) * pow(0.62, float(i))
+					_chevron(size.x * 0.5 + 14.0 - float(i) * 13.0, mid, w, c3)
+			_:
+				# MARCH. Each chevron has its turn at the front, in the order a
+				# thing would pass them -- the far one first.
+				for i in 3:
+					var lead: float = fmod(p * 3.0 - float(i), 3.0)
+					var c4 := base
+					c4.a = 0.2 + 0.55 * clampf(1.0 - lead, 0.0, 1.0)
+					_chevron(size.x * 0.5 + 14.0 - float(i) * 13.0, mid, w, c4)
+
+	## BLOCKS, NOT LINES. `draw_line` puts a smooth anti-aliased diagonal on a
+	## screen where everything else is on a pixel grid, which is exactly what
+	## makes it look like it was pasted on. This walks the two arms of the
+	## chevron laying down whole blocks on whole coordinates instead.
+	func _chevron(x: float, y: float, w: float, c: Color) -> void:
+		# Quantised alpha, so the fade steps with the motion.
+		c.a = floorf(c.a * float(FADES) + 0.5) / float(FADES)
+		if c.a <= 0.0:
+			return
+		var bx := floorf(x / BLOCK) * BLOCK
+		var by := floorf(y / BLOCK) * BLOCK
+		# THE POINT IS ON THE LEFT, because left is where the parts go. The first
+		# block version had the vertex on the right and drew the arms backwards,
+		# so the arrow pointed at the wreck: an instruction to put things back.
+		var arm := int(w / BLOCK)
+		for i in arm + 1:
+			var d := float(i) * BLOCK
+			draw_rect(Rect2(bx - w + d, by - d, BLOCK, BLOCK), c)
+			draw_rect(Rect2(bx - w + d, by + d, BLOCK, BLOCK), c)
+
+
+## A short hazard bar: the mark on the lid of something that was sealed.
+class Stripe extends Control:
+	func _draw() -> void:
+		var step := 4.0
+		var x := -size.y
+		while x < size.x:
+			draw_line(Vector2(x, size.y), Vector2(x + size.y, 0.0),
+				UITheme.EMBER, 2.0)
+			x += step * 2.0
+
+
+## One scanline under a readout heading.
+class Scan extends Control:
+	func _draw() -> void:
+		var c := UITheme.LINE
+		draw_line(Vector2(0, 1), Vector2(size.x, 1), c, 1.0)
+		c.a = 0.5
+		draw_line(Vector2(0, 4), Vector2(size.x, 4), c, 1.0)
+
+
+## Registration marks, the corners of a frame rather than a whole border.
+class Ticks extends Control:
+	func _draw() -> void:
+		var c := UITheme.CHILL
+		c.a = 0.5
+		var n := 12.0
+		for p in [[Vector2.ZERO, Vector2(1, 1)], [Vector2(size.x, 0), Vector2(-1, 1)],
+				[Vector2(0, size.y), Vector2(1, -1)], [size, Vector2(-1, -1)]]:
+			var o: Vector2 = p[0]
+			var d: Vector2 = p[1]
+			draw_line(o, o + Vector2(d.x * n, 0), c, 1.0)
+			draw_line(o, o + Vector2(0, d.y * n), c, 1.0)
 
 
 func _build_hold() -> Control:
@@ -484,6 +872,30 @@ func refresh() -> void:
 			showing_spent[showing.size()] = true
 		showing.append(_jetsam.items[i])
 	_loose.setup(showing, showing_spent, 5)
+	# A FITTED POPUP LEARNS THE FAR SIDE HERE, AND ONLY ONCE.
+	#
+	# The screen is built before it is handed a container, so the only place
+	# that knows how deep the pile is is this one. But the ruling this file
+	# already made stands: a window that moves while you are working in it is
+	# worse than one that is occasionally too big -- and a size that followed
+	# the contents would shrink under your hand as you emptied the wreck. The
+	# test caught exactly that, which is what it was written for.
+	#
+	# So: measured when the container arrives, fixed for as long as it is open.
+	# Two rows minimum so an emptied wreck is still a place, six maximum so a
+	# windfall scrolls rather than growing off the screen.
+	if _loose_scroll != null and int(skin()["rows"]) <= 0 and not _sized:
+		_sized = true
+		var deep := ceili(showing.size() / float(SalvageGrid.COLS))
+		var need := clampi(deep, 2, FIT_ROWS)
+		_loose_scroll.custom_minimum_size.y = need * HoldGrid.CELL
+		# AND THE BAR IS ONLY THERE WHEN IT IS DOING SOMETHING. Godot takes a
+		# scrollbar out of the child's width, so a box that reserves one is a
+		# column narrower for ever -- which is why this reserves nothing until a
+		# pile is actually deeper than it can show.
+		var over := deep > FIT_ROWS
+		_loose_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO 			if over else ScrollContainer.SCROLL_MODE_SHOW_NEVER
+		_loose_scroll.custom_minimum_size.x = SalvageGrid.COLS * HoldGrid.CELL 			+ (BAR if over else 0)
 	_loose_label.text = _jetsam.label if _jetsam != null else "SECTOR LOOT"
 
 

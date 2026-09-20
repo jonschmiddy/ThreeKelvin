@@ -53,6 +53,14 @@ static var screen_look: Look = Look.CRT_GENTLE
 ## Off turns every animation in the game off at the source: `Router.animating`
 ## is what every screen asks before it moves anything.
 static var reduced_motion: bool = false
+## WHETHER A CLICK CUTS THE JUMP SHORT.
+##
+## OFF, and that is the interesting default. The jump is seven seconds of
+## departure, transit and arrival that the run has been building to, and a
+## player who is holding the mouse while it plays -- which is everybody, they
+## just clicked JUMP -- skips it by accident and never sees it again. So the
+## skip is there for the player who has seen it enough, and they have to say so.
+static var skip_jump: bool = false
 ## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
 static var frame_cap: int = 0
 
@@ -96,6 +104,11 @@ static func set_look(l: Look) -> void:
 	screen_look = l
 	GameShell.refresh()
 	save()
+
+static func set_skip_jump(on: bool) -> void:
+	skip_jump = on
+	save()
+
 
 static func set_reduced_motion(on: bool) -> void:
 	reduced_motion = on
@@ -221,6 +234,7 @@ static func save() -> void:
 	cfg.set_value("display", "brightness", brightness)
 	cfg.set_value("display", "screen_look", int(screen_look))
 	cfg.set_value("display", "reduced_motion", reduced_motion)
+	cfg.set_value("display", "skip_jump", skip_jump)
 	cfg.set_value("display", "frame_cap", frame_cap)
 	cfg.save(PATH)
 
@@ -237,6 +251,7 @@ static func load_and_apply() -> void:
 	brightness = int(cfg.get_value("display", "brightness", 0))
 	screen_look = cfg.get_value("display", "screen_look", int(Look.CRT_GENTLE)) as Look
 	reduced_motion = bool(cfg.get_value("display", "reduced_motion", false))
+	skip_jump = bool(cfg.get_value("display", "skip_jump", false))
 	frame_cap = int(cfg.get_value("display", "frame_cap", 0))
 	Engine.max_fps = frame_cap
 	apply()

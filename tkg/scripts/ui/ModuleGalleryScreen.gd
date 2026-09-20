@@ -236,6 +236,20 @@ func _fill(col: VBoxContainer) -> int:
 			icon.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 			icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			icon.mouse_filter = Control.MOUSE_FILTER_PASS
+			# THE SAME TICK THE HOLD AND THE HULL MAKE, and a lift with it. A
+			# page of parts you can point at should answer the pointer the way
+			# every other one does -- the installed rows slide left under it, so
+			# these rise.
+			#
+			# `position`, not a container property: an HFlowContainer decides
+			# where its children go and rewrites anything it owns on the next
+			# sort, but it leaves an offset applied AFTER that alone. Two pixels,
+			# because the plates are drawn at 2x and one game pixel is the
+			# smallest move that is a move.
+			icon.mouse_entered.connect(func() -> void:
+				Audio.hover()
+				_raise(icon, true))
+			icon.mouse_exited.connect(_raise.bind(icon, false))
 			flow.add_child(icon)
 	if groups.is_empty():
 		col.add_child(UITheme.body("NOTHING MATCHES", UITheme.COLD, UITheme.FS_SMALL))
@@ -302,3 +316,25 @@ func _on_filter(_state: Dictionary) -> void:
 	_count.text = "%d of %d modules · %d cards" % [_shown, DB.modules.size(), n]
 
 
+## UP TWO PIXELS AND BACK, on a tween rather than a jump.
+##
+## SHORT, because a hover is not an event -- 0.09 s is long enough to read as a
+## movement and short enough that running the pointer along a row does not leave
+## a wave behind it. Killed on re-entry so a fast sweep cannot stack tweens on
+## one plate.
+const LIFT_PX := 2.0
+const LIFT_S := 0.09
+
+func _raise(icon: Control, up: bool) -> void:
+	if not is_instance_valid(icon):
+		return
+	var running: Variant = icon.get_meta(&"lift", null)
+	if running is Tween and (running as Tween).is_valid():
+		(running as Tween).kill()
+	if not Router.animating():
+		icon.position.y = -LIFT_PX if up else 0.0
+		return
+	var t := icon.create_tween()
+	t.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(icon, "position:y", -LIFT_PX if up else 0.0, LIFT_S)
+	icon.set_meta(&"lift", t)

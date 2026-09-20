@@ -360,6 +360,7 @@ func setup(c: Combat = null) -> void:
 			# would land ARRIVE_LEAD_S after the flame's.
 			Audio.play(art.arrive(2, ShipView.ARRIVE_LEAD_S), 0.0)
 
+
 func fighting() -> bool:
 	return combat != null and combat.enemy != null
 
@@ -711,6 +712,7 @@ func _build() -> void:
 ## And _preview went because the targets now say it themselves: a valid drop
 ## lights up and paints the number it would do. These four stay alive as
 ## orphans so the refresh code that writes to them does not have to change.
+
 func _build_orphans() -> void:
 	_enemy_name = UITheme.body("", UITheme.THEM, UITheme.FS_BODY)
 	_enemy_bar = ProgressBar.new()
@@ -1076,8 +1078,8 @@ func _drawer_simple(line: String, label: String) -> void:
 	# because a system's options are the rows above it. Wiring the jump to it
 	# would make PLOT NEXT JUMP dock you.
 	if label != "PLOT NEXT JUMP":
-		var jump := Widgets.button("PLOT NEXT JUMP",
-			func() -> void: Router.show_starchart())
+		# NO CLICK ON THIS ONE, and see `_plot_next_jump` for why.
+		var jump := Widgets.button("PLOT NEXT JUMP", _plot_next_jump, false)
 		jump.custom_minimum_size = EncounterDrawer.BTN
 		jump.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(jump)
@@ -1360,7 +1362,7 @@ func _on_action() -> void:
 			Router.show_station()
 		# The rows are the options now, so the button under them only ever leaves.
 		MapGen.NodeType.SYSTEM:
-			Router.show_starchart()
+			_plot_next_jump()
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
 				Router.show_starchart()
@@ -1378,6 +1380,22 @@ func _on_action() -> void:
 				Router.engage_here()
 		_:
 			Router.show_starchart()
+
+## ONE SOUND FOR IT, AND IT IS THE PAGE TURNING.
+##
+## This started as the opposite ruling -- "Clicking plot next jump should not
+## activate the tab_click sound effect" -- which silenced the page and left the
+## click. Hearing it, Jon corrected it the other way: "let's not have the
+## ui_click sound, just the page tab sound." That is the better half to keep.
+## The click is the sound of a BUTTON, and there are a dozen of them on this
+## screen; the page turn is the sound of the thing that actually happened.
+##
+## So the button is built with its click off (`Widgets.button`'s third
+## argument) and `ui_tab` is left alone to play from `_swap`, where every
+## screen change plays it.
+func _plot_next_jump() -> void:
+	Router.show_starchart()
+
 
 ## Reads the place, not the node type: "a hab ring, lights on" tells you where
 ## you are in a way that "STATION" never will.
@@ -2352,6 +2370,11 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 		return
 	_transfer = TransferView.new()
 	add_child(_transfer)
+	# GETTING INTO IT IS A SOUND. Jon: "There should also be a sound for
+	# clicking into a wrecked ship for salvage." `menu_open` is the game's own
+	# word for a panel arriving over what you were looking at, which is exactly
+	# what this is; the scan sweep and the rarity ladder follow it.
+	Audio.play(&"menu_open")
 	_transfer.setup(h, n, _close_transfer, true, title)
 
 
@@ -2652,12 +2675,23 @@ func _input(e: InputEvent) -> void:
 	# is deliberately let through so the pause menu is always reachable, and TAB
 	# is deliberately eaten: Main owns it and swaps screens with it, and a
 	# mid-departure Tab would walk off with an uncommitted jump.
+	# THE SKIP IS OFF BY DEFAULT NOW, and it is a setting: MOTION > SKIP THE
+	# JUMP. A player mid-jump is holding the mouse -- they just clicked JUMP --
+	# so a click-anywhere skip is something you do by accident the first time
+	# and then never see the animation again. Whoever has seen it enough says
+	# so once.
+	#
+	# THE EVENT IS STILL EATEN EITHER WAY. Everything behind this is a drawer
+	# button or a HUD tab belonging to a system the ship is leaving or has not
+	# arrived at, and clicking one mid-jump is how an uncommitted jump walks
+	# off. ESCAPE is let through so the pause menu is always reachable.
 	if _phase == Phase.DEPART or _phase == Phase.ARRIVE:
 		var sb := e as InputEventMouseButton
 		var sk := e as InputEventKey
 		if (sb != null and sb.pressed) or (sk != null and sk.pressed 				and not sk.echo and sk.keycode != KEY_ESCAPE):
 			get_viewport().set_input_as_handled()
-			_skip()
+			if DisplaySettings.skip_jump:
+				_skip()
 		return
 	if _grab_view == null and _aim_view == null:
 		return

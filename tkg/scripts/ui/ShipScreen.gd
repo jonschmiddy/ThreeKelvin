@@ -1382,7 +1382,12 @@ func _refresh_loadout() -> void:
 			slot.add_theme_constant_override("margin_left", 0)
 			slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			slot.add_child(ro)
-			ro.mouse_entered.connect(_focus_part.bind(m, slot, true))
+			# A TICK WHEN IT MOVES. The row slides left under the pointer, and
+			# Jon asked for the sound the rest of the interface makes when
+			# something answers a hover.
+			ro.mouse_entered.connect(func() -> void:
+				Audio.hover()
+				_focus_part(m, slot, true))
 			ro.mouse_exited.connect(_focus_part.bind(null, slot, false))
 			row.add_child(slot)
 			for c in m.resolved_cards():

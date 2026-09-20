@@ -225,10 +225,15 @@ func _room_for(screen: Control) -> Variant:
 ## a room of their own -- Jon's picks from the sound pass, layered -- and every
 ## other system is plain open space. Read off the same fields `star_kind` reads,
 ## so what you hear and what the chart calls the star cannot disagree.
-## PLAIN SPACE IS SILENT. It had a room of its own -- three bought loops end to
-## end under the score -- and Jon cut it: "too distracting". A hypergiant or a
-## pulsar still sounds like one, because there the noise is the POINT; ordinary
-## systems are just quiet, and the music has the floor.
+## AND PLAIN SPACE IS THE REACTOR. Its first room was space tone -- the noise
+## outside the hull -- and Jon cut it for being distracting. What replaced it
+## points the other way: "just like a reactor hum", the ship's own plant, which
+## is the one sound that should be there in a system with nothing in it.
+##
+## THIS LINE HAS BEEN LOST ONCE ALREADY. I reverted this whole file to strip
+## some timing prints out of it and took the room with them, and the symptom
+## was Jon asking why open space had gone quiet again. Revert a hunk, never a
+## file, when the file has other work in it.
 func _star_room() -> StringName:
 	var n: MapGen.MapNode = Run.here()
 	if n == null:
@@ -238,7 +243,7 @@ func _star_room() -> StringName:
 	match n.star:
 		MapGen.Star.RED: return &"amb_red"
 		MapGen.Star.BLUE: return &"amb_blue"
-	return &""
+	return &"amb_space"
 
 
 func show_lobby() -> void:
@@ -419,6 +424,15 @@ func show_sector() -> void:
 		# file: silent until a take is picked.
 		if ResourceLoader.exists(Audio.SFX_PATH % &"station_undock"):
 			Audio.play(&"station_undock", 0.03)
+		# AND YOU DO NOT FLY IN TO A SYSTEM YOU ARE ALREADY IN.
+		#
+		# The approach plays once per node, latched on `_approached_at`, and a
+		# station node never sets that latch: arriving at one docks you straight
+		# away, so the sector screen is not built until you leave. Undocking was
+		# therefore its FIRST sight of the node and flew the ship in from off
+		# screen -- Jon: "You are already in the sector." Setting the latch here
+		# says what is true, that this system has been arrived at.
+		SectorScreen._approached_at = Run.at
 	docked = false
 	Audio.music_state(&"sector")
 	var s := SectorScreen.new()

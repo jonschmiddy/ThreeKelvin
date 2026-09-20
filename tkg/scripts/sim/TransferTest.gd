@@ -195,6 +195,13 @@ func run(tree: SceneTree) -> void:
 	# emptying it shrank it, and a scrollbar appearing made it wider -- a window
 	# that moves while you are working in it. Three states, one size: as it
 	# stands, stuffed past scrolling, and stripped bare.
+	#
+	# THE SIX-ROW FLOOR IS GONE AND THE RULING IS NOT. The popup used to be six
+	# rows tall whatever was in it, which is how it never moved; Jon asked for
+	# the dead space back and the skin he picked fits the grid to the pile
+	# instead. So the measurement now happens ONCE, when the container arrives,
+	# and the two checks below are what actually matters -- they caught this
+	# exactly when the first version measured on every refresh.
 	var frame := _view._loose.get_parent() as Control
 	await _tree.process_frame
 	var shape_now := frame.size
@@ -214,8 +221,9 @@ func run(tree: SceneTree) -> void:
 	await _tree.process_frame
 	_ok("emptying it does not resize it either (%s vs %s)"
 		% [frame.size, shape_now], frame.size == shape_now)
-	_ok("and it is six rows tall (%s)" % frame.size,
-		int(frame.size.y) == TransferView.PANEL_ROWS * HoldGrid.CELL)
+	var rows := int(frame.size.y) / HoldGrid.CELL
+	_ok("and it is between two and six rows, fitted when it opened (%d rows)"
+		% rows, rows >= 2 and rows <= TransferView.PANEL_ROWS)
 
 	_finish()
 
