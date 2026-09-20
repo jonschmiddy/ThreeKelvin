@@ -2370,11 +2370,12 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 		return
 	_transfer = TransferView.new()
 	add_child(_transfer)
-	# GETTING INTO IT IS A SOUND. Jon: "There should also be a sound for
-	# clicking into a wrecked ship for salvage." `menu_open` is the game's own
-	# word for a panel arriving over what you were looking at, which is exactly
-	# what this is; the scan sweep and the rarity ladder follow it.
-	Audio.play(&"menu_open")
+	# GETTING INTO IT IS A SOUND OF ITS OWN. `menu_open` stood in here for a
+	# while and it was honestly what the moment is -- a panel arriving over what
+	# you were looking at -- but it is a UI sound and this is not a UI moment:
+	# you are getting INTO something. A hatch on a dead ship giving way, over
+	# before the scan sweep starts and the rarity ladder begins ringing.
+	Audio.play(&"wreck_open")
 	_transfer.setup(h, n, _close_transfer, true, title)
 
 
