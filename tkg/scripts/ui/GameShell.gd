@@ -232,6 +232,81 @@ func _process(_delta: float) -> void:
 	_nudge()
 
 
+## SWITCH THE SET OFF, then go.
+##
+## Jon asked for it and a tube is the one thing this shell already is, so the
+## whole effect is one uniform: the picture folds to a line, the line closes to
+## a dot, the dot burns out. Three quarters of a second, which is about what a
+## real set took and is short enough that nobody quitting in a hurry is made to
+## watch it.
+##
+## IT RUNS EVEN WITH THE CURVE OFF, because it is not the curve -- a flat
+## screen still had a beam. It is skipped when motion is reduced and when there
+## is no shell at all, and in both of those it quits at once.
+##
+## THE QUIT IS GUARANTEED. `await` on a tween that never finishes would leave
+## the window open for ever, so the timer runs the quit whether or not the
+## picture got there.
+## THREE SECONDS, AND THE TIME IS SPENT ON THE LINE. Jon: "make it last a
+## while." Stretching the fold would only look slow; what lasts is the bright
+## bar the picture folds into, which sits and drains for well over a second
+## before the line closes. That is the beat the sound was cut for -- the whine
+## runs the whole length of the hold.
+const OFF_S := 3.0
+## Where the line becomes a dot, in seconds. The shader's own 0.50 of the way
+## through; kept here because the sound has to land on it.
+const CLOSE_S := 0.50 * OFF_S
+## AND THEN A BLACK SECOND, before the window goes. Jon asked for it, and it is
+## the part that makes the rest read as a set rather than as an animation: a
+## picture ending is a thing you watch finish, and a window vanishing on the
+## same frame as the last of the light turns the whole sequence into a
+## transition. The dot is gone well before this; what is held is nothing at all.
+const BLACK_S := 1.0
+
+static func shut_down(tree: SceneTree) -> void:
+	if instance == null or DisplaySettings.reduced_motion:
+		tree.quit()
+		return
+	instance._fade_out(tree)
+
+
+func _fade_out(tree: SceneTree) -> void:
+	set_process(false)          # the nudge stops; the rect holds still to die
+	Audio.play(&"power_off")
+	# The music and the room slow down with the picture, and are still slowing
+	# when the hole cuts them. Ending on the bend rather than on a fade is what
+	# makes the cut sound like power going rather than like a mix stopping.
+	Audio.power_down(CLOSE_S - 0.06)
+	# THE HOLE, and it does half the work. The click in `power_off` lands where
+	# the line becomes a dot; everything else in the game is cut a moment
+	# BEFORE it, so it lands in silence rather than over a mix. It is what film
+	# does and it is the one thing no sound file can carry, because the thing
+	# being silenced is the rest of the game.
+	tree.create_timer(CLOSE_S - 0.06).timeout.connect(func() -> void:
+		# 40 ms, not SWAP's 2.5 s. The hole is only a hole if the mix is
+		# actually gone when the click lands; a swap-length fade left the music
+		# audible -- and still bending -- for two and a half seconds after it.
+		# Not a hard stop either: a mix cut mid-sample is its own click, and
+		# this one would land in the silence the ending needs.
+		Audio.stop_music(0.04)
+		Audio.room(&"", 0.04))
+	var t := create_tween()
+	t.tween_method(func(v: float) -> void:
+		if _mat != null:
+			_mat.set_shader_parameter(&"power_off", v), 0.0, 1.0, OFF_S) 		.set_trans(Tween.TRANS_LINEAR)
+	t.tween_interval(BLACK_S)
+	t.tween_callback(tree.quit)
+	# And a floor under it, in case the tween is killed with the tree.
+	tree.create_timer(OFF_S + BLACK_S + 0.4).timeout.connect(tree.quit)
+
+
+## Hold the set part-way off, for a shot. `-- off=0.5`.
+func hold_off(v: float) -> void:
+	set_process(false)
+	if _mat != null:
+		_mat.set_shader_parameter(&"power_off", clampf(v, 0.0, 1.0))
+
+
 ## WHERE THE PICTURE IS, in window pixels. A harness asking "which window pixel
 ## shows this game pixel" needs the rect the glass is drawn in, and should not
 ## have to go looking for a node to find it.

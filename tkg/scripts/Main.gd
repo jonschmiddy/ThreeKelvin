@@ -1026,6 +1026,11 @@ func _ready() -> void:
 			DisplaySettings.screen_look = maxi(names.find(want), 0) as DisplaySettings.Look
 		if (a0 as String).begins_with("phase="):
 			TransferView.Arrow.freeze = float((a0 as String).substr(6))
+		# `-- off=0.5` freezes the set halfway through switching off, for
+		# photographing a moment nobody can pause in play.
+		if (a0 as String).begins_with("off="):
+			if GameShell.instance != null:
+				GameShell.instance.hold_off(float((a0 as String).substr(4)))
 		# `-- ptr=960,540` pretends the pointer is there, so a shot tool can
 		# photograph the nudge at a chosen place on the glass.
 		if (a0 as String).begins_with("ptr="):

@@ -193,7 +193,8 @@ func setup() -> void:
 
 	# Red on hover, alone among the five. Everything else on this screen leads
 	# somewhere you can come back from.
-	var quit := _option("QUIT", func() -> void: get_tree().quit())
+	# THE SET GOES OFF BEFORE THE WINDOW DOES. See GameShell.shut_down.
+	var quit := _option("QUIT", func() -> void: GameShell.shut_down(get_tree()))
 	quit.add_theme_color_override("font_hover_color", UITheme.LEAVE)
 	quit.add_theme_color_override("font_pressed_color", Color("#f08872"))
 	menu.add_child(quit)

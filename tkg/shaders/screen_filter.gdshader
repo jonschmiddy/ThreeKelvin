@@ -133,10 +133,49 @@ vec2 sharp_uv(vec2 uv) {
 // here cancels it, so the picture does not move while the rect under it does.
 uniform vec2 uv_shift = vec2(0.0);
 
+// THE SET BEING SWITCHED OFF. 0 is on, 1 is a dark screen, and the way through
+// is the one every cathode tube did: the picture collapses to a bright line as
+// the vertical deflection dies, the line closes to a dot as the horizontal
+// follows it, and the dot burns down through the phosphor. Three movements, in
+// that order, because a tube cannot do them any other way.
+uniform float power_off : hint_range(0.0, 1.0) = 0.0;
+
 void fragment() {
 	// The picture's own coordinates: the rect's, with the nudge taken out.
 	vec2 uv_still = UV + uv_shift;
 	vec2 uv = uv_still;
+	// THE COLLAPSE HAPPENS BEFORE THE GLASS, not after. The beam is what is
+	// dying; the curve it is drawn through does not change while it does.
+	float dead = 0.0;
+	float flare = 0.0;
+	if (power_off > 0.0) {
+		// FOUR MOVEMENTS NOW, NOT THREE. Jon: "make it last a while." The thing
+		// that lasts is the LINE -- the picture folds to it quickly, and then
+		// the set sits there with a bright bar across the middle draining while
+		// the whine runs, and only then does the line close. Stretching the
+		// fold itself would just look slow; holding the line is what buys the
+		// time, because a held line is a picture of something still happening.
+		float v = clamp(power_off / 0.10, 0.0, 1.0);          // height goes
+		float hold = clamp((power_off - 0.10) / 0.34, 0.0, 1.0); // the bar drains
+		float h = clamp((power_off - 0.44) / 0.06, 0.0, 1.0); // then width
+		// AND THE DOT SHRINKS AS IT GOES OUT, the way a spot of phosphor does:
+		// it does not sit at one size and then vanish.
+		float fade = clamp((power_off - 0.52) / 0.48, 0.0, 1.0);
+		float shrink = 1.0 - 0.55 * fade;
+		// The bar thins by a bit under half across the hold. NOT to nothing:
+		// a line that closes during the hold steals the close's own moment.
+		float bar = 1.0 - 0.45 * hold;
+		vec2 span = vec2(mix(1.0, 0.004 * shrink, h * h),
+			mix(1.0, 0.0035 * shrink * bar, v * v));
+		vec2 d = (uv - 0.5) / max(span, vec2(1e-5));
+		dead = (abs(d.x) > 0.5 || abs(d.y) > 0.5) ? 1.0 : 0.0;
+		uv = d + 0.5;
+		uv_still = uv;
+		// The light has to go somewhere as the picture folds into it -- and
+		// then leaks away again while the bar sits, so the close has somewhere
+		// to come back up from.
+		flare = v * 1.9 * (1.0 - 0.5 * hold) + h * 2.4;
+	}
 	float edge = 1.0;
 	float rim = 1.0;      // 0 at the very edge of the glass, 1 well inside it
 	if (curve > 0.0) {
@@ -201,6 +240,30 @@ void fragment() {
 		c *= 1.0 - vignette * pow(clamp(length(d) * 0.72, 0.0, 1.0), 1.6);
 	}
 	c *= gain;
+	if (power_off > 0.0) {
+		// Brighter as it folds, then the phosphor going out. The last third is
+		// the afterglow: a tube does not stop, it fades.
+		float burn = clamp((power_off - 0.52) / 0.48, 0.0, 1.0);
+		// A PHOSPHOR DOES NOT FADE IN A STRAIGHT LINE. Squared, the dot sat at
+		// full brightness for a second and then disappeared, which reads as
+		// switching off twice.
+		c = c * (1.0 + flare);
+		// THE BEAM IS LIGHT, NOT PICTURE. Folded down to a dot, what is left
+		// is the gun still firing at one spot -- so the last of it goes white
+		// rather than whatever colour happened to be in the middle of the
+		// frame. Without this the dot is as dark as the pixel it landed on.
+		// The white of the beam: up with the fold, DOWN across the hold as the
+		// bar drains, then hard up again as the line closes to the dot. The
+		// dip is what makes the close read as an event rather than as more of
+		// the same -- a bar that only ever got brighter would have nowhere to
+		// go at the end.
+		float core = 0.3 * clamp(power_off / 0.10, 0.0, 1.0)
+				* (1.0 - 0.55 * clamp((power_off - 0.10) / 0.34, 0.0, 1.0))
+			+ 0.85 * clamp((power_off - 0.44) / 0.06, 0.0, 1.0);
+		c += vec3(0.95, 0.93, 0.88) * core;
+		c *= pow(1.0 - burn, 2.2);
+		c = mix(c, vec3(0.0), dead);
+	}
 	// AND THE HIGHLIGHTS ROLL OFF RATHER THAN FLATTEN. Giving back everything
 	// the tube took means a gain above 2 on the arcade setting, and a straight
 	// multiply would clamp every bright pixel to white -- the picture would

@@ -611,12 +611,48 @@ func _room_talking() -> bool:
 
 
 
-func stop_music() -> void:
+## THE FADE IS AN ARGUMENT BECAUSE THE QUIT NEEDS A DIFFERENT ONE. Everywhere
+## else this is one cue leaving as another arrives, and SWAP's two and a half
+## seconds is right for that. At the shutdown it is not a swap at all -- it is
+## the power going -- and Jon heard the difference: "after the snap lands the
+## music should stop. it continues for a bit afterward." It was still playing,
+## and still bending down in pitch, for 2.5 s after the click.
+func stop_music(secs: float = SWAP) -> void:
 	if not _enabled:
 		return
 	_cue = &""
 	for i in _mv.size():
-		_ramp(i, 0.0, SWAP)
+		_ramp(i, 0.0, secs)
+
+
+## THE SET TAKES THE SOUND DOWN WITH IT. Jon: "the music should maybe warp down
+## in pitch as the tv closes? like it's being shut down."
+##
+## A FADE IS A MIXER; A PITCH DROP IS A MACHINE. Turning the volume down says
+## somebody moved a fader. Bending the pitch down says the thing PLAYING it is
+## losing speed, which is the only reading that matches a picture folding into a
+## line -- and it is what tape and a film projector actually do when the power
+## goes, which is where the ear learned it.
+##
+## EVERY VOICE, INCLUDING THE ROOM. If the music slows and the reactor hum does
+## not, the hum becomes the one thing in the mix that is not dying, and it reads
+## as a music effect rather than as the set going off.
+##
+## ONE WAY ONLY. Nothing restores this, because the only caller is the quit and
+## the process is about to end. A harness that wants the game afterwards should
+## not be calling it.
+func power_down(secs: float, to: float = 0.30) -> void:
+	if not _enabled:
+		return
+	var t := create_tween().set_parallel(true)
+	for p: AudioStreamPlayer in _mv:
+		# EASE_IN, so it holds pitch for a moment and then goes. Linear from the
+		# first frame sounds like a tape being scrubbed; a machine coasts down.
+		t.tween_property(p, ^"pitch_scale", to, secs) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if _room != null:
+		t.tween_property(_room, ^"pitch_scale", to, secs) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
 ## ---------------- the two voices ----------------
 ##
