@@ -112,11 +112,40 @@ func plate_id() -> StringName:
 ## tinting. So the plate ships as `<id>_wall.png` flat and `<id>_trim.png`
 ## through `_tint`, and the orange lands on the joints and the courses where it
 ## belongs.
+## The plate, resolved OUTSIDE a draw call and remembered.
+##
+## A TEXTURE FIRST TOUCHED INSIDE `_draw` RENDERS WHITE. Resolving one there
+## hands the renderer a resource whose GPU side is not ready for the commands
+## being recorded, and the sampler falls back to white -- every texture, every
+## size, `draw_texture` and `draw_texture_rect` alike, while `draw_rect` on the
+## same item draws correctly. A room draws about twice in its life, so it keeps
+## that white for good. Rect-drawn rooms never hit it, which is why it waited
+## for the first plate to appear.
+##
+## Keyed on the id so a deck that changes development level reloads rather than
+## keeping the plate it was born with; `dev` is set after `_ready`, so loading
+## there would cache the wrong one.
+var _plate_key: StringName = &""
+var _plate_wall: Texture2D = null
+var _plate_trim: Texture2D = null
+
+
+func _load_plate(id: StringName) -> void:
+	_plate_key = id
+	_plate_wall = DB.station_sprite(id, &"wall")
+	_plate_trim = DB.station_sprite(id, &"trim")
+	queue_redraw()
+
+
 func _blit_plate() -> bool:
 	var id := plate_id()
 	if id == &"":
 		return false
-	var wall: Texture2D = DB.station_sprite(id, &"wall")
+	if _plate_key != id:
+		# Deferred, so the load lands between frames rather than inside this one.
+		_load_plate.call_deferred(id)
+		return false
+	var wall: Texture2D = _plate_wall
 	if wall == null:
 		return false
 	# Stretched to the room, NOT centred, because a room is a fitted surface
@@ -125,7 +154,7 @@ func _blit_plate() -> bool:
 	# where a texture is not drawn at 1:1, and it is why a plate is authored at
 	# the size the panel actually is rather than cropped to its ink.
 	draw_texture_rect(wall, Rect2(Vector2.ZERO, size), false)
-	var trim: Texture2D = DB.station_sprite(id, &"trim")
+	var trim: Texture2D = _plate_trim
 	if trim != null:
 		draw_texture_rect(trim, Rect2(Vector2.ZERO, size), false, _tint(EDGE))
 	return true
