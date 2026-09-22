@@ -91,12 +91,61 @@ func _scatter(i: int, span: float) -> float:
 	return fmod(float(i) * 2654435761.0 / 65536.0, span)
 
 
+## Which plate this room wants, or `&""` for none.
+##
+## KEYED ON DEVELOPMENT, NOT ON THE DECK. The decks differ by what STANDS in the
+## room, not by the room -- which is the whole reason `StationRoom` exists -- so
+## one plate per development level serves all four of them and the lamp count
+## the plate is drawn with matches `_lamps()`.
+func plate_id() -> StringName:
+	match dev:
+		MapGen.Development.OUTPOST: return &"room_outpost"
+		MapGen.Development.SETTLEMENT: return &"room_settlement"
+		MapGen.Development.CAPITAL: return &"room_capital"
+		_: return &"room_city"
+
+
+## The room as two generated layers, or `false` if either is missing.
+##
+## TWO LAYERS BECAUSE THE LIVERY TINTS TRIM ONLY, which is `_tint`'s finding
+## above: a wall lerped toward a manufacturer colour desaturates instead of
+## tinting. So the plate ships as `<id>_wall.png` flat and `<id>_trim.png`
+## through `_tint`, and the orange lands on the joints and the courses where it
+## belongs.
+func _blit_plate() -> bool:
+	var id := plate_id()
+	if id == &"":
+		return false
+	var wall: Texture2D = DB.station_sprite(id, &"wall")
+	if wall == null:
+		return false
+	# Stretched to the room, NOT centred, because a room is a fitted surface
+	# rather than an object standing in one -- the wall has to reach both edges
+	# whatever width the rail leaves. This is the one place in the art direction
+	# where a texture is not drawn at 1:1, and it is why a plate is authored at
+	# the size the panel actually is rather than cropped to its ink.
+	draw_texture_rect(wall, Rect2(Vector2.ZERO, size), false)
+	var trim: Texture2D = DB.station_sprite(id, &"trim")
+	if trim != null:
+		draw_texture_rect(trim, Rect2(Vector2.ZERO, size), false, _tint(EDGE))
+	return true
+
+
 func _draw() -> void:
 	var w := size.x
 	var h := size.y
 	if w <= 60.0 or h <= 120.0:
 		return
 	var floor_y := h - floor_h()
+	if _blit_plate():
+		# The furniture still goes in the room. A plate is the ROOM -- walls,
+		# floor, lamps and the light they put down -- and what stands in it is
+		# per-deck and often live: the Exchange's cage is measured off the hold
+		# grid every redraw, and the service rigs reach for whatever hull is
+		# parked. Those cannot be baked and are not meant to be.
+		_dress_wall(w, h, floor_y)
+		_dress_floor(w, h, floor_y)
+		return
 
 	# --- THE BACK WALL, AND IT IS THE DARKEST THING IN THE ROOM.
 	#

@@ -762,29 +762,73 @@ class AreaView extends Control:
 	## ever called it a placeholder.
 	const SHOW_PLACES := true
 
-	func _draw() -> void:
-		if node == null or not SHOW_PLACES:
-			return
-		var c := (size * 0.5).round()
-		var tint := MapGen.star_colour(node)
+	## WHICH PICTURE THIS SECTOR IS, as a name.
+	##
+	## Named rather than typed, because the picture does not follow `NodeType`: a
+	## SYSTEM is a battlefield, a derelict or a beacon depending on its option
+	## tags, and a battlefield is two pictures depending on whether it is cleared.
+	## Splitting this out means the sprite and the drawing are chosen by the same
+	## line, so they can never disagree about what this sector is. Empty means
+	## nothing is drawn here at all.
+	func _place_name() -> StringName:
+		if node == null:
+			return &""
 		match node.type:
-			MapGen.NodeType.STATION: _station(c)
+			MapGen.NodeType.STATION:
+				return &"station"
 			# READ WHAT IS HERE. The three types this replaced each had their own
 			# picture, and the picture is still worth having -- it just comes off
 			# the options now instead of a label chosen before anything rolled.
 			MapGen.NodeType.SYSTEM:
 				if OptionTable.system_has_tag(node, &"fight"):
-					_battlefield(c)
-				elif OptionTable.system_has_tag(node, &"salvage"):
-					_derelict(c)
-				else:
-					_beacon(c, tint)
-			MapGen.NodeType.CORE: _core(c)
-			MapGen.NodeType.PULSAR: _pulsar(c)
+					return &"battlefield_cleared" if node.cleared else &"battlefield"
+				if OptionTable.system_has_tag(node, &"salvage"):
+					return &"derelict"
+				return &"beacon"
+			MapGen.NodeType.CORE:
+				return &"core"
+			MapGen.NodeType.PULSAR:
+				return &"pulsar"
+			# Where you start is empty space. Drawing a marker here would put an
+			# object in the one sector that is meant to have nothing in it.
 			MapGen.NodeType.START:
-				# Where you start is empty space. Drawing a marker here would put
-				# an object in the one sector that is meant to have nothing in it.
-				pass
+				return &""
+		return &"unknown"
+
+	func _draw() -> void:
+		if node == null or not SHOW_PLACES:
+			return
+		var c := (size * 0.5).round()
+		var tint := MapGen.star_colour(node)
+		var what := _place_name()
+		if what == &"":
+			return
+		# ONE DOOR, and the moving parts stay on this side of it. The two places
+		# that animate do so as OVERLAYS -- the station's two navigation strobes
+		# and the beacon's five walking rings -- so they are drawn after the
+		# picture whether the picture was generated or drawn. That keeps the
+		# asset set at one still frame per place: a sprite inherits the motion,
+		# and nothing has to be authored at the 12 Hz this repaints at.
+		var tex: Texture2D = DB.place_sprite(what)
+		if tex != null:
+			# The beacon's rings go BEHIND the buoy; everything else that moves
+			# goes in front. See `_beacon_rings`.
+			if what == &"beacon":
+				_beacon_rings(c, tint)
+			# Centred and unscaled, on whole pixels. Everything in this game is
+			# drawn on a 960x540 grid and a half-pixel offset resamples it.
+			draw_texture(tex, (c - tex.get_size() * 0.5).round())
+			match what:
+				&"station": _station_lights(c)
+				&"beacon": _beacon_lamp(c)
+			return
+		match what:
+			&"station": _station(c)
+			&"battlefield", &"battlefield_cleared": _battlefield(c)
+			&"derelict": _derelict(c)
+			&"beacon": _beacon(c, tint)
+			&"core": _core(c)
+			&"pulsar": _pulsar(c)
 			_:
 				draw_rect(Rect2(c - Vector2(6, 6), Vector2(12, 12)), tint, true)
 
@@ -876,16 +920,24 @@ class AreaView extends Control:
 		for i in 5:
 			_window(c + Vector2(-30 + i * 15, -6), Vector2(5, 3))
 		_window(c + Vector2(-3, -30), Vector2(6, 3))
-		# Navigation strobes: the one cold light on it, so it does not read as
-		# a furnace.
-		#
-		# THEY STROBE, and out of phase with each other. A navigation light is
-		# the one thing on a station that genuinely blinks, so it is the one
-		# thing here that earns an animation -- the windows stay lit, because a
-		# window going dark is somebody walking about and this game has no
-		# people in it you can see. Long dark, short bright, two different
-		# periods: in step they would be a heartbeat, and a heartbeat is a
-		# rhythm the sector does not have.
+		_station_lights(c)
+
+	## Navigation strobes: the one cold light on it, so it does not read as a
+	## furnace.
+	##
+	## THEY STROBE, and out of phase with each other. A navigation light is the
+	## one thing on a station that genuinely blinks, so it is the one thing here
+	## that earns an animation -- the windows stay lit, because a window going
+	## dark is somebody walking about and this game has no people in it you can
+	## see. Long dark, short bright, two different periods: in step they would be
+	## a heartbeat, and a heartbeat is a rhythm the sector does not have.
+	##
+	## SEPARATE SO A SPRITE CAN KEEP IT. This is the only moving part of the
+	## station, and it is two three-pixel squares -- so the generated plate is a
+	## still station with its lights off, and these go on top of it exactly as
+	## they go on top of the drawing. Baking them into the art would cost a frame
+	## set for six pixels.
+	func _station_lights(c: Vector2) -> void:
 		var dark := Color("#2b4759")
 		draw_rect(Rect2(c + Vector2(-64, -2), Vector2(3, 3)),
 			dark.lerp(Color("#8ec8e6"), _strobe(2.3, 0.0)), true)
@@ -947,6 +999,20 @@ class AreaView extends Control:
 	## are the message leaving; they thin as they go, which is the only depth
 	## cue available for something that has no surface.
 	func _beacon(c: Vector2, tint: Color) -> void:
+		_beacon_rings(c, tint)
+		# The buoy itself. Small — most of the picture is the thing it is doing.
+		_body(c + Vector2(-4, -34), Vector2(8, 62), _grey, 0.5)
+		_body(c + Vector2(-16, -44), Vector2(32, 12), _grey, 0.7)
+		_body(c + Vector2(-11, 24), Vector2(22, 7), _grey, 0.4)
+		_beacon_lamp(c)
+
+	## The rings, which are the thing the beacon is DOING.
+	##
+	## SPLIT FROM THE LAMP BECAUSE THE BUOY SITS BETWEEN THEM. Rings go down
+	## first and the lamp goes on top, so a generated buoy has to land in the
+	## middle of the sandwich -- an overlay drawn wholly after the sprite would
+	## paint the transmission over the transmitter.
+	func _beacon_rings(c: Vector2, tint: Color) -> void:
 		# THE RINGS GO OUTWARD, because the rings are the thing it is doing. A
 		# beacon drawn as five fixed circles is a diagram of a transmission; the
 		# same five walking outward and dissolving is a transmission. It costs
@@ -970,10 +1036,9 @@ class AreaView extends Control:
 					continue
 				draw_rect(Rect2(c + Vector2(cos(a) * rr, sin(a) * rr * 0.62),
 					Vector2(2, 2)), col, true)
-		# The buoy itself. Small — most of the picture is the thing it is doing.
-		_body(c + Vector2(-4, -34), Vector2(8, 62), _grey, 0.5)
-		_body(c + Vector2(-16, -44), Vector2(32, 12), _grey, 0.7)
-		_body(c + Vector2(-11, 24), Vector2(22, 7), _grey, 0.4)
+
+	## The lamp, which answers the rings. Drawn over the buoy, generated or not.
+	func _beacon_lamp(c: Vector2) -> void:
 		# The lamp answers the rings: brightest in the moment a new one leaves
 		# it, so the two read as one machine doing one thing rather than a lit
 		# box standing in front of some circles.

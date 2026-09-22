@@ -380,6 +380,27 @@ if run_godot mounts 120 --headless --path "$PROJECT" -- mounts; then
 	fi
 fi
 
+step "No sprite is the wrong size for the box it sits in"
+# THE SIZE MISTAKE IS THE INVISIBLE ONE. Everything else about a sprite is
+# visible the moment you look at it; a module eight pixels too wide, or a card
+# illustration that is 92x61, is not — it draws, it reads, and it is quietly
+# wrong on one screen nobody opened. This check has existed since the module
+# batch and was never in the gate, which meant 119 assets were vouched for by a
+# command somebody had to remember to type.
+#
+# IT PASSES WITH ART MISSING, on purpose. Enemies and sector places are still
+# drawn procedurally and that is the designed fallback, so what is counted is
+# coverage and what FAILS is a file that exists and does not fit.
+if run_godot artcheck 120 --headless --path "$PROJECT" -- artcheck; then
+	if grep -qE '^artcheck: PASS' "$LOG_DIR/artcheck.log"; then
+		ok "artcheck"
+	else
+		bad "a sprite does not fit the box it is drawn in"
+		grep -E '^  FAIL|OVERHANGS|UNDERSIZED|TOO BIG|^artcheck' "$LOG_DIR/artcheck.log" \
+			| head -n 20 | sed 's/^/        /'
+	fi
+fi
+
 step "A part can be moved between the hold and the hull"
 # THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
 # here, so it went eight failures deep without anybody hearing -- six of them a

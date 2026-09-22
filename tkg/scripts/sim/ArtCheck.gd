@@ -129,14 +129,111 @@ func run() -> void:
 				(src.flavour if src != null else "").replace("
 ", " ")])
 
+	var e := _enemies()
+	var p := _places()
+
 	print("\n  modules  %d drawn, %d still procedural" % [mods.size() - m_missing,
 		m_missing])
 	print("  cards    %d drawn, %d still on glyphs (art window %dx%d)"
 		% [cards.size() - c_missing, c_missing, int(want_card.x), int(want_card.y)])
+	print("  enemies  %d drawn, %d still procedural (canvas %dx%d)"
+		% [e["drawn"], e["missing"], ENEMY_CANVAS.x, ENEMY_CANVAS.y])
+	print("  places   %d drawn, %d still procedural" % [p["drawn"], p["missing"]])
 	_ok("every module sprite that exists sits within a cell of its box", m_wrong == 0)
 	_ok("every card illustration that exists is the size the window wants",
 		c_wrong == 0)
+	_ok("every enemy sprite that exists fits its canvas", int(e["wrong"]) == 0)
+	_ok("every sector place sprite that exists fits its arena", int(p["wrong"]) == 0)
 	verdict("artcheck")
+
+
+## ---------------- the three families that are still drawn ----------------
+##
+## Same philosophy as the two above and it is worth restating, because these
+## three start at zero: MISSING IS NOT A FAILURE. Every one of them has a
+## procedural drawing behind it that is the designed fallback, so what is
+## counted is coverage and what is FAILED is a file that exists and is the wrong
+## size -- the one mistake that cannot be seen from a filename.
+##
+## THIS IS ALSO THE SEAM'S OWN GATE. The screens these appear on are not
+## reproducible frame to frame -- the station strobes, the beacon's rings and the
+## enemy bob all move on wall-clock time, and two runs of identical code differ
+## by tens of thousands of pixels -- so "the picture did not change" cannot be
+## tested by comparing shots. What CAN be tested is that with no files on disk
+## every loader answers null and every drawing site therefore takes the path it
+## always took. That is what the counts below are for.
+
+## The enemy canvas, from `EnemyArt`. A sprite has to fit inside it; it does not
+## have to fill it, and it never will -- a hull is about 150x40 in a 240x120
+## frame, and the Control crops to the ink afterwards.
+const ENEMY_CANVAS := Vector2i(240, 120)
+
+## The sector arena, in game pixels, at its narrowest. The row splits its width
+## between the ship slot and the place, and `EncounterView` records the arena as
+## 378 rows; 460 is the measured slot width in `docs/briefs/ART_SIZES.md`. A
+## place wider than this cannot be seen whole, which is a fault in the art.
+const PLACE_ARENA := Vector2i(460, 378)
+
+
+func _enemies() -> Dictionary:
+	var drawn := 0
+	var missing := 0
+	var wrong := 0
+	var ids: Array = DB.enemies.keys()
+	ids.sort()
+	var shown := false
+	for raw in ids:
+		var id: StringName = raw
+		var t = DB.enemies[id]
+		var tex: Texture2D = DB.enemy_sprite(id)
+		if tex == null:
+			missing += 1
+			continue
+		drawn += 1
+		var w := tex.get_width()
+		var h := tex.get_height()
+		var note := "ok"
+		if w > ENEMY_CANVAS.x or h > ENEMY_CANVAS.y:
+			note = "TOO BIG for the %dx%d canvas" % [ENEMY_CANVAS.x, ENEMY_CANVAS.y]
+			wrong += 1
+		if not shown:
+			print("\n=== ENEMIES (%d kinds) ===" % ids.size())
+			shown = true
+		print("  %-14s %-10s %-9s %s" % [id, t.art if t != null else "-",
+			"%dx%d" % [w, h], note])
+	return {"drawn": drawn, "missing": missing, "wrong": wrong}
+
+
+## The pictures a sector can show. Named rather than derived from `NodeType`,
+## because the picture does not follow the type -- see
+## `EncounterView.AreaView._place_name`, which is the one line that decides.
+## START is not here on purpose: empty space is the picture.
+const PLACES: Array[StringName] = [&"station", &"derelict", &"battlefield",
+	&"battlefield_cleared", &"beacon", &"core", &"pulsar"]
+
+
+func _places() -> Dictionary:
+	var drawn := 0
+	var missing := 0
+	var wrong := 0
+	var shown := false
+	for name in PLACES:
+		var tex: Texture2D = DB.place_sprite(name)
+		if tex == null:
+			missing += 1
+			continue
+		drawn += 1
+		var w := tex.get_width()
+		var h := tex.get_height()
+		var note := "ok"
+		if w > PLACE_ARENA.x or h > PLACE_ARENA.y:
+			note = "TOO BIG for the %dx%d arena" % [PLACE_ARENA.x, PLACE_ARENA.y]
+			wrong += 1
+		if not shown:
+			print("\n=== SECTOR PLACES (%d) ===" % PLACES.size())
+			shown = true
+		print("  %-22s %-9s %s" % [name, "%dx%d" % [w, h], note])
+	return {"drawn": drawn, "missing": missing, "wrong": wrong}
 
 
 ## THE BOX A FITTED PART OCCUPIES, in art pixels, at the refit screen's own

@@ -88,6 +88,53 @@ func px(x: int, y: int, w: int, h: int, c: Color) -> void:
 			if xx >= 0 and xx < W and yy >= 0 and yy < H:
 				_img.set_pixel(xx, yy, c)
 
+## Put a generated ship on the canvas. False if there is no sprite, which is the
+## caller's cue to draw one instead.
+##
+## CENTRED, NEVER SCALED. The canvas is a fixed 240x120 and a sprite is authored
+## to its own ink, so the two are not the same size and never will be --
+## `ArtCheck` asks only that the art fits. Centring is the one placement that
+## does not need a per-ship anchor table, and it matches how the texture is
+## presented (`STRETCH_KEEP_CENTERED`), so a sprite lands where the drawing it
+## replaces already was. Resampling is refused outright: the whole art direction
+## rests on nearest-neighbour crispness.
+##
+## THE BOUNDS COME FROM THE SPRITE'S OWN INK, not from its canvas. Everything
+## that reads `used_rect()` -- the aim reticle's brackets, the Control's minimum
+## size -- wants the ship, and a file with transparent margin would hand them the
+## margin as well. `get_used_rect()` is honest here in a way it is not for the
+## drawn path, because nothing has been painted behind it yet.
+func _blit_sprite(tex: Texture2D) -> bool:
+	if tex == null:
+		return false
+	var src := tex.get_image()
+	if src == null:
+		return false
+	if src.is_compressed():
+		src = src.duplicate()
+		if src.decompress() != OK:
+			push_warning("EnemyArt: could not decompress sprite; drew instead")
+			return false
+	if src.get_format() != Image.FORMAT_RGBA8:
+		src = src.duplicate()
+		src.convert(Image.FORMAT_RGBA8)
+	var ink := src.get_used_rect()
+	if ink.size == Vector2i.ZERO:
+		return false
+	# Oversized art is refused rather than squeezed, and says so once. A ship
+	# that does not fit is a failed asset, not one to resample -- the same rule
+	# `pixeltools.fit` applies to every module.
+	if ink.size.x > W or ink.size.y > H:
+		push_warning("EnemyArt: sprite ink is %dx%d, canvas is %dx%d; drew instead"
+			% [ink.size.x, ink.size.y, W, H])
+		return false
+	var at := Vector2i((W - ink.size.x) / 2, (H - ink.size.y) / 2)
+	_img.blend_rect(src, ink, at)
+	if _track:
+		var r := Rect2i(at, ink.size)
+		_bounds = r if _bounds.size == Vector2i.ZERO else _bounds.merge(r)
+	return true
+
 func dither(x: int, y: int, w: int, h: int, c: Color, density: float) -> void:
 	var thresholds := [0.0, 0.5, 0.75, 0.25]
 	for j in h:
@@ -243,7 +290,13 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
 	# roughly how hurt it is and how big it is, so the redraw is skipped unless
 	# one of those four actually moved. Skipping is safe for the layout too:
 	# _used and custom_minimum_size are left from the draw that still matches.
-	var sig := "%s|%d|%d|%d" % [e.template.art, int(telegraphing),
+	#
+	# THE ID IS IN THE SIGNATURE, NOT JUST THE ART KEY. Three kinds draw as
+	# `cutter` and three as `hulk`, so keying the cache on `art` alone meant two
+	# different ships in the same fight could hold each other's picture. It never
+	# showed while they were literally the same pixels; the moment one of them
+	# has a sprite and the other does not, it would.
+	var sig := "%s|%s|%d|%d|%d" % [e.template.id, e.template.art, int(telegraphing),
 		int(wounded * 20.0), int(e.max_hp > 60)]
 	if sig == _sig:
 		return
@@ -260,11 +313,29 @@ func set_enemy(e: Combat.EnemyState, telegraphing: bool) -> void:
 	# share the arena.
 	_bounds = Rect2i()
 	_track = true
-	match e.template.art:
-		&"cutter": _draw_cutter(wounded)
-		&"hulk": _draw_hulk(wounded, telegraphing)
-		&"hellbender": _draw_hellbender(wounded, telegraphing)
-		_: _draw_fauna(wounded, e.max_hp > 60)
+	# ONE DOOR: the ship's own sprite if it has one, the drawing if it does not.
+	# The same shape `ModuleIcon.draw_body` uses, and for the same reason -- there
+	# is no third state where an enemy vanishes because its file has not been
+	# generated yet.
+	#
+	# THE DAMAGE AND THE TELEGRAPH STAY DRAWN EITHER WAY. `_wound`, the dark
+	# blend and the two telegraph glows are painted OVER the hull, so a sprite
+	# inherits all of them for nothing. That is what keeps the asset set at nine
+	# files rather than nine times four wound bands times two telegraphs.
+	if not _blit_sprite(DB.enemy_sprite(e.template.id)):
+		match e.template.art:
+			&"cutter": _draw_cutter(wounded)
+			&"hulk": _draw_hulk(wounded, telegraphing)
+			&"hellbender": _draw_hellbender(wounded, telegraphing)
+			# EXPLICIT, THOUGH IT IS ALSO WHAT THE FALLBACK DID. The `_:` case
+			# silently turned any unmatched key into a fauna, which is how the
+			# Custodian came to be a salvage barge without anyone noticing. Named
+			# here, a typo'd or new key lands in the fallback below and says so.
+			&"whale": _draw_fauna(wounded, e.max_hp > 60)
+			_:
+				push_warning("EnemyArt: no drawing for art key '%s' (%s); drew fauna"
+					% [e.template.art, e.template.id])
+				_draw_fauna(wounded, e.max_hp > 60)
 	_track = false
 	_used = _bounds if _bounds.size != Vector2i.ZERO else Rect2i(0, 0, W, H)
 

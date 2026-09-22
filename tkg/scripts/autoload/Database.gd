@@ -1544,6 +1544,74 @@ func card_art(key: StringName) -> Texture2D:
 		return null
 	return load(path) as Texture2D
 
+## ---------------- the three families that are still drawn ----------------
+##
+## Sector places, the station and every enemy are painted procedurally, and that
+## was a decision rather than a gap: the compositions were settled in rectangles
+## so that a prompt could describe a picture already checked. `StationSpine`:
+## "If art lands it replaces the body of `_draw`; if it never does, this is the
+## rail."
+##
+## These three are the door that art comes through. Same shape as
+## `module_sprite` and for the same reasons -- guarded, null on miss, one folder
+## keyed on the id the data already uses. Every caller keeps its procedural body
+## underneath, so a family can land one file at a time and a missing file is a
+## drawn picture rather than a hole.
+
+## AN ENEMY'S PICTURE, or null while it has none.
+##
+## KEYED ON `id`, NOT ON `art`, AND THE DIFFERENCE IS THE WHOLE POINT. Nine
+## enemy kinds share four drawings today: `art` names the procedural BRANCH, so
+## the Corsair Lancer and the Vex Marauder both draw as `cutter`, and the game's
+## boss draws as a salvage barge. `id` is already unique per kind.
+##
+## Keying the sprite on `id` therefore opens nine slots without touching the
+## data, and -- this is the part that matters -- WITHOUT CHANGING WHAT IS DRAWN
+## TODAY. Had `art` been split instead, five enemies would have got a new key
+## the moment the data changed, `EnemyArt`'s match would have missed on all five,
+## and its `_:` fallback would have quietly turned the boss into a fauna before
+## a single sprite existed. The fallback has to keep drawing exactly what it
+## draws now, or the seam is a regression wearing a plan's clothes.
+func enemy_sprite(id: StringName) -> Texture2D:
+	if id == &"":
+		return null
+	var path := "res://art/sprites/enemies/%s.png" % id
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+## A SECTOR PLACE'S PICTURE, or null while it has none.
+##
+## Keyed on a name rather than on `MapGen.NodeType`, because the picture does not
+## follow the type: a SYSTEM draws a battlefield, a derelict or a beacon
+## depending on its option tags, and a battlefield draws two ways depending on
+## whether it is cleared. `EncounterView.AreaView` decides which name it wants
+## and asks for it; the enum never reaches this function.
+func place_sprite(name: StringName) -> Texture2D:
+	if name == &"":
+		return null
+	var path := "res://art/sprites/places/%s.png" % name
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+## A STATION PLATE, or null while it has none.
+##
+## TWO LAYERS PER PLATE, WHICH IS WHY THIS TAKES A LAYER ARGUMENT. Livery tints
+## the TRIM and never the walls -- `StationRoom._tint` records why: out of a
+## colour as dark as `#0d141d` a lerp does not tint a wall, it desaturates it,
+## and the shop's wall came out a neutral warm grey at every weight tried. So a
+## plate ships as `<id>_wall.png` and `<id>_trim.png`, the wall is drawn flat and
+## only the trim is tinted. A baked one-layer room would lose the livery
+## entirely, which is the one thing the station has that says whose it is.
+func station_sprite(id: StringName, layer: StringName = &"wall") -> Texture2D:
+	if id == &"" or layer == &"":
+		return null
+	var path := "res://art/sprites/station/%s_%s.png" % [id, layer]
+	if not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
 ## The art file for a weight and class, without the extension. One place the
 ## naming convention is written, so the sprite and its measured lines cannot
 ## disagree about which hull they describe.
