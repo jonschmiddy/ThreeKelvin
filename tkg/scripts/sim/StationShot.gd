@@ -45,6 +45,19 @@ func run(tree: SceneTree) -> void:
 		if not want.is_empty():
 			berths = want
 	var berth: StringName = berths[0] if not berths.is_empty() else &"none"
+	# `view=<id>` and `door=<id>`: what the shop's window and door show, instead
+	# of whatever this run's seed picks. For judging a view IN its window, which
+	# is the only place a view is ever seen.
+	for a3 in OS.get_cmdline_user_args():
+		var s3 := a3 as String
+		if s3.begins_with("view="):
+			StationRoom.forced_views[&"window"] = StringName(s3.substr(5))
+		elif s3.begins_with("door="):
+			StationRoom.forced_views[&"door"] = StringName(s3.substr(5))
+		elif s3.begins_with("layout="):
+			ShopScene.forced_layout = int(s3.substr(7))
+		elif s3.begins_with("backdrop="):
+			StationRoom.forced_views[&"backdrop"] = StringName(s3.substr(9))
 
 	Run.start_new_run(&"korvan" if berths.is_empty() else berths[0], 1)
 
@@ -104,11 +117,34 @@ func run(tree: SceneTree) -> void:
 			Run.stow(LootGen.roll_module(5, &"", true))
 		Run.add_credits(900)
 		here.stocked = true
-		for i in 5:
-			here.shop.append(LootGen.roll_module(5 + i, &"", true))
+		# THE SHELF THE GAME WOULD STOCK, at its ceiling: sixteen cells of parts
+		# and no more columns than the rack has, the rule
+		# `StationScreen._stock_up` uses. `full` photographs the busy case, so it
+		# takes the top of the band rather than rolling one. Five parts
+		# regardless was a shelf no station has.
+		var cells := StationScreen.SHOP_CELLS
+		var cols := StationScreen.SHOP_COLS
+		var spins := 0
+		while cells > 0 and cols > 0 and spins < 16:
+			spins += 1
+			var part := LootGen.roll_module(5 + spins, &"", true)
+			var took := maxi(1, part.size.x) * maxi(1, part.size.y)
+			if took > cells or maxi(1, part.size.x) > cols:
+				continue
+			cells -= took
+			cols -= maxi(1, part.size.x)
+			here.shop.append(part)
 		here.shop_hull = LootGen.roll_hull(7)
 		print("  full: hold %d · shelf %d · hull on the blocks"
 			% [Run.cargo.size(), here.shop.size()])
+	# `stock=N` cuts the shelf to N parts. `full` stocks five, which is a
+	# Cosmopolitan hub's shelf; every other station stocks three, and the rack
+	# sizes itself to its stock -- so the ordinary shop needs asking for.
+	for a4 in OS.get_cmdline_user_args():
+		if (a4 as String).begins_with("stock="):
+			var keep := int((a4 as String).substr(6))
+			while here.shop.size() > keep:
+				here.shop.pop_back()
 
 	# `-- stationshot full moving` photographs MOVING DAY: the state one click
 	# after TAKE IT, with both ships drawn and the leftovers still on the old
@@ -257,4 +293,18 @@ func run(tree: SceneTree) -> void:
 	var path := "user://station_%s.png" % berth
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
+
+	# `frames=N`: N more shots a twelfth of a second apart, for the layers that
+	# move. A still cannot show that a walker walks or that the near lane is
+	# faster than the far one, and those are the whole point of them.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("frames="):
+			var n := int(a.trim_prefix("frames="))
+			for f in n:
+				var until := Time.get_ticks_msec() + 83
+				while Time.get_ticks_msec() < until:
+					await RenderingServer.frame_post_draw
+				var fp := "user://station_%s_f%02d.png" % [berth, f]
+				tree.root.get_texture().get_image().save_png(fp)
+			print("wrote %d frames" % n)
 	tree.quit()

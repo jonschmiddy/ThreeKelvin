@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crowd Brief</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#edeff2; --panel:#fff; --ink:#121821; --dim:#57616d;
+    --line:#d4d9df; --hot:#9c5710; --cool:#0c7690; --good:#2e7d3c;
+    --bad:#a8362b; --sunk:#f4f6f8;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --disp:"Barlow Condensed",sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+      --line:#232e3a; --hot:#e0913c; --cool:#5adcff; --good:#7fd48a;
+      --bad:#e0685c; --sunk:#10151c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+    --line:#232e3a; --hot:#e0913c; --cool:#5adcff; --good:#7fd48a;
+    --bad:#e0685c; --sunk:#10151c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:400 14px/1.62 var(--mono);padding:34px 16px 80px}
+  .wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+  h1{font:700 clamp(26px,5vw,42px)/1 var(--disp);text-transform:uppercase;
+     letter-spacing:.03em;margin:0}
+  .lede{color:var(--dim);max-width:68ch;margin:0}
+  .lede b{color:var(--ink);font-weight:500}
+  .card{background:var(--panel);border:1px solid var(--line)}
+  .card > h2{font:700 15px/1 var(--disp);text-transform:uppercase;
+    letter-spacing:.1em;color:var(--hot);margin:0;padding:14px 16px 0;
+    display:flex;align-items:baseline;gap:9px}
+  .card > h2 .q{color:var(--dim);font-size:12px;letter-spacing:.06em}
+  .body{padding:11px 16px 16px;display:flex;flex-direction:column;gap:12px}
+  .body p{margin:0;color:var(--dim)}
+  .body p b{color:var(--ink);font-weight:500}
+  .opts{display:flex;flex-direction:column;gap:9px}
+  .opt{display:flex;gap:11px;align-items:flex-start;padding:11px 12px;
+    background:var(--sunk);border:1px solid var(--line)}
+  .opt.rec{border-color:var(--hot)}
+  .k{display:inline-flex;align-items:center;justify-content:center;
+    width:23px;height:23px;border:1px solid var(--hot);color:var(--hot);
+    font:700 13px/1 var(--disp);flex:none;margin-top:1px}
+  .opt .t{flex:1}
+  .opt .t b{display:block;color:var(--ink);font-weight:500;margin-bottom:2px}
+  .opt .t span{color:var(--dim);font-size:12.5px;line-height:1.55;display:block}
+  .tag{display:inline-block;font-size:11px;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--hot);margin-left:6px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;
+        font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:6px 10px 6px 0;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500;font-size:11px;text-transform:uppercase;
+     letter-spacing:.06em}
+  td.n{text-align:right;padding-right:16px}
+  .was{color:var(--bad)} .now{color:var(--good)}
+  .scroll{overflow-x:auto}
+  .foot{border-left:3px solid var(--hot);padding:14px 16px}
+  .foot p{margin:0 0 8px} .foot p:last-child{margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Crowd Brief</h1>
+  <p class="lede">Hundreds of people on the concourse. The credits are not the
+  problem &mdash; <b>9,016 left, refilling 17 Oct</b>. The problem is that a
+  walker currently costs <b>five generations and eight judgement calls</b>, and
+  three hundred of those is a month of afternoons. Three decisions below; reply
+  with letters.</p>
+
+  <div class="card">
+    <h2>What a walker costs</h2>
+    <div class="body">
+      <div class="scroll"><table>
+        <tr><th>step</th><th>today</th><th>if a template walks</th></tr>
+        <tr><td>create the character</td><td class="n">1</td><td class="n">1</td></tr>
+        <tr><td>animate the walk</td><td class="n was">4</td><td class="n now">1</td></tr>
+        <tr><td>find the lap, trim, halve, install</td><td class="n">by hand</td><td class="n now">one command</td></tr>
+        <tr><td><b>per character</b></td><td class="n was"><b>5</b></td><td class="n now"><b>2</b></td></tr>
+        <tr><td><b>a cast of 150</b></td><td class="n was"><b>750</b></td><td class="n now"><b>300</b></td></tr>
+      </table></div>
+      <p>Template animations cost <b>1 generation</b>, custom prompts cost 4.
+      There are about eighteen walk templates and <b>only two were ever
+      tested</b> &mdash; <span style="color:var(--ink)">walking-6-frames</span>
+      was cut for a short stride, <span style="color:var(--ink)">walking-8-frames</span>
+      narrowly lost to a custom prompt. The other sixteen are unmeasured, and
+      each carries its own stride.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>1 &middot; The walk engine <span class="q">what animates every character</span></h2>
+    <div class="body">
+      <div class="opts">
+        <div class="opt rec">
+          <span class="k">A</span>
+          <span class="t"><b>Survey the templates once, then reuse the winner<span class="tag">recommended</span></b>
+          <span>Eighteen generations on one existing dock hand, measuring stride
+          and loop seam on each. The winner becomes the house walk and every
+          character after costs 2 instead of 5. If none is good enough, I have
+          spent 18 and we fall back to B knowing why.</span></span>
+        </div>
+        <div class="opt">
+          <span class="k">B</span>
+          <span class="t"><b>Custom prompt per character</b>
+          <span>What we did today. Best quality measured so far, and it lets a
+          slug slither and a drone hover &mdash; no template can do those. 4
+          generations each, and the lap length is a surprise every time.</span></span>
+        </div>
+        <div class="opt">
+          <span class="k">C</span>
+          <span class="t"><b>Templates for the humans, custom for the weird ones</b>
+          <span>Almost certainly where this ends up. Picking it now just means
+          running the survey and not pretending a template will make a slug
+          move.</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2 &middot; Twelve to sixteen frames <span class="q">you asked for it; here is what it costs</span></h2>
+    <div class="body">
+      <p>Frames are driven by <b>distance</b>, not time, so the frame rate is
+      pace &times; frames &divide; stride. Above about five a second the eye
+      fuses the errors and that is what jitter is &mdash; you caught it before
+      any measurement did. At today's <b>30&nbsp;px/s</b> the ceiling is
+      <b>8&ndash;10 frames</b>. Sixteen is not a generation problem; it is a
+      speed problem.</p>
+      <div class="scroll"><table>
+        <tr><th>walk pace</th><th>frames under 5/sec</th><th>reads as</th></tr>
+        <tr><td>30 px/s &mdash; today</td><td class="n">8&ndash;10</td><td>brisk for a background</td></tr>
+        <tr><td>25 px/s</td><td class="n">10&ndash;12</td><td>unhurried</td></tr>
+        <tr><td>20 px/s</td><td class="n">13&ndash;15</td><td>ambling a concourse</td></tr>
+      </table></div>
+      <div class="opts">
+        <div class="opt rec">
+          <span class="k">A</span>
+          <span class="t"><b>Slow the crowd to 20 px/s and keep 12&ndash;16 frames<span class="tag">recommended</span></b>
+          <span>Costs nothing, no regeneration, and background people ambling
+          suits the room better than marching. This is the only way to get the
+          frame count you asked for.</span></span>
+        </div>
+        <div class="opt">
+          <span class="k">B</span>
+          <span class="t"><b>Keep 30 px/s and accept 5&ndash;8 frames</b>
+          <span>What is installed now. Proven; you approved this motion once
+          already.</span></span>
+        </div>
+        <div class="opt">
+          <span class="k">C</span>
+          <span class="t"><b>Pace per character</b>
+          <span>A drone has no planted foot, so nothing fuses &mdash; it can
+          hover at 16 frames and any speed. Humans stay slow, oddities move how
+          they like.</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3 &middot; Where the variety comes from <span class="q">100s of people, not 100s of generations</span></h2>
+    <div class="body">
+      <p>At <b>40&nbsp;px</b>, behind glass, in a dim room, a clown and a
+      dockhand are the same six pixels of colour. The repo already argues the
+      alternative &mdash; <span style="color:var(--ink)">"a palette job, not a
+      generation job: the ship is already the one that was chosen"</span>. One
+      body in four palettes reads as four people, for nothing.</p>
+      <div class="opts">
+        <div class="opt">
+          <span class="k">A</span>
+          <span class="t"><b>Generate every character at every size</b>
+          <span>150 people &times; 3 rungs. Honest, and most of it lands where
+          nobody can see it.</span></span>
+        </div>
+        <div class="opt rec">
+          <span class="k">B</span>
+          <span class="t"><b>Spend the variety where it reads<span class="tag">recommended</span></b>
+          <span><b>80px</b> gets the whole cast. <b>60px</b> gets a subset.
+          <b>40px</b> gets six generic bodies. Then multiply every rung by
+          palette swaps.</span></span>
+        </div>
+        <div class="opt">
+          <span class="k">C</span>
+          <span class="t"><b>One rung only &mdash; 80px</b>
+          <span>Put walk lines only where an 80px person fits and drop the far
+          rungs. Fewest moving parts; costs the depth you built the lines
+          for.</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The cast, if B</h2>
+    <div class="body">
+      <div class="scroll"><table>
+        <tr><th>who</th><th>bodies</th><th>palettes</th><th>reads as</th><th>gens</th></tr>
+        <tr><td>dock and cargo crew</td><td class="n">10</td><td class="n">4</td><td class="n">40</td><td class="n">20</td></tr>
+        <tr><td>civilians &mdash; coats, packs, kids, elderly</td><td class="n">12</td><td class="n">4</td><td class="n">48</td><td class="n">24</td></tr>
+        <tr><td>crew in hard suits and pressure gear</td><td class="n">8</td><td class="n">3</td><td class="n">24</td><td class="n">16</td></tr>
+        <tr><td>station staff &mdash; medics, security, engineers</td><td class="n">8</td><td class="n">3</td><td class="n">24</td><td class="n">16</td></tr>
+        <tr><td><b>rare and strange</b> &mdash; aliens, a slug, drones,<br>robots, something in a tank, a clown</td><td class="n">16</td><td class="n">1</td><td class="n">16</td><td class="n was">64</td></tr>
+        <tr><td>60px subset</td><td class="n">14</td><td class="n">4</td><td class="n">56</td><td class="n">28</td></tr>
+        <tr><td>40px generics</td><td class="n">6</td><td class="n">4</td><td class="n">24</td><td class="n">12</td></tr>
+        <tr><td><b>total</b></td><td class="n"><b>74</b></td><td></td><td class="n now"><b>232</b></td><td class="n"><b>180</b></td></tr>
+      </table></div>
+      <p>Plus the eighteen-generation template survey. <b>About 200 of 9,016</b>
+      &mdash; roughly what the exhaust library cost. The weird ones are the
+      expensive row because no template moves them and they will need re-rolls;
+      everything else the repo says lands first take when the parts are
+      named.</p>
+    </div>
+  </div>
+
+  <div class="card foot">
+    <h2>Two things I would fix first</h2>
+    <div class="body" style="padding-top:11px">
+      <p><b>None of the walker work is committed.</b> Every tool, every strip,
+      the whole findings section of the workflow doc &mdash; 75 files, all
+      untracked. A campaign this size should not start on top of that.</p>
+      <p><b>The handbook still forbids this.</b> <span style="color:var(--ink)">docs/handbook.md</span>
+      and <span style="color:var(--ink)">ART_CONTRACT.md</span> both say never to
+      use <span style="color:var(--ink)">create_character</span>, with no people
+      exception &mdash; only the uncommitted workflow doc knows better. Any
+      future session reading the handbook first will refuse to do this
+      work.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

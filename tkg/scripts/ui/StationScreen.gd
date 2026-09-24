@@ -908,6 +908,10 @@ const PICK_W := 256
 ## See where it is built for the arithmetic.
 const DESC_H := 86
 var _shelf: VBoxContainer
+## The shop's furniture row: the box, the floor between, the till's column, and
+## the second floor strip. Kept so `_arrange_shop` can stand them in a different
+## order at each station.
+var _shop_row: Array = []
 
 
 func _page_stock() -> Control:
@@ -975,7 +979,9 @@ func _page_stock() -> Control:
 	# WIDE ENOUGH TO BE A ROOM AND NO WIDER: the counter needs a back wall to
 	# stand against and somewhere to stack the day's takings, and that is about
 	# this much.
-	right.custom_minimum_size = Vector2(300, 0)
+	# A LITTLE TILL. It was 300 and took most of the right side of the floor;
+	# a kiosk this size leaves the window and the deck showing round it.
+	right.custom_minimum_size = Vector2(180, 0)
 	right.size_flags_horizontal = Control.SIZE_SHRINK_END
 	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	# AIR ABOVE IT, the same as the rack has, so the counter STANDS on the floor
@@ -986,6 +992,7 @@ func _page_stock() -> Control:
 	right.add_child(air2)
 	_till = TradeCounter.new()
 	_till.side = TradeCounter.Side.CHARGES
+	_till.art = DB.station_sprite(&"shop", &"counter")
 	# NO ROOM OF ITS OWN ANY MORE. `TradeCounter` builds a back wall and stacks
 	# crates against it when it is given the height, and it was given the height
 	# here -- so the deck had a room inside a room, in two different greys. It
@@ -995,8 +1002,18 @@ func _page_stock() -> Control:
 	_till.took.connect(_on_till)
 	right.add_child(_till)
 	box.add_child(right)
+	# A SECOND STRIP OF FLOOR, for the layouts that stand the till in the middle
+	# of the room rather than against a wall. Hidden otherwise. See `_arrange_shop`.
+	var floor2 := Control.new()
+	floor2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	floor2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(floor2)
+	_shop_row = [box, floorspace, right, floor2]
 
 	stack.add_child(box)
+	# The room's foreground goes on LAST, over the rack and the till, because it
+	# is the one layer that hangs in front of the furniture. See `foreground`.
+	stack.add_child(_shop.foreground())
 	outer.add_child(stack)
 	# THE NOTE IS OUTSIDE THE ROOM, under it. Inside the right-hand column it sat
 	# below the till, which pushed the counter off the floor and left the two
@@ -1110,6 +1127,7 @@ func _page_hold() -> Control:
 	box.add_child(right)
 
 	stack.add_child(box)
+	stack.add_child(_exchange.foreground())
 	outer.add_child(stack)
 	_sell_note = UITheme.body("Carry something here to be paid for it.",
 		UITheme.QUOTE, UITheme.FS_SMALL)
@@ -1175,6 +1193,7 @@ func _page_bench() -> Control:
 	machine.offset_top = -(LabScene.MACHINE_H + LabScene.MACHINE_FOOT)
 	machine.offset_bottom = -LabScene.MACHINE_FOOT
 	stack.add_child(machine)
+	stack.add_child(_lab.foreground())
 
 	var rig := FabricatorCase.new()
 	rig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1702,6 +1721,27 @@ func _light_floor(ride: bool = true) -> void:
 ##
 ## Nothing is priced here any more. Market prices a part from the place it is
 ## standing in, so the shelf holds parts and not price tags.
+## THE TWO LIMITS ON A SHOP, and they are not the same limit.
+##
+## `SHOP_CELLS` is the most stock a shop can carry, counted as the parts' own
+## area. A shelf is four cells across and two high and the rack has two of them,
+## so a full rack is sixteen cells and that is the ceiling.
+##
+## `SHOP_COLS` is what the rack can physically stand. PARTS DO NOT STACK -- they
+## stand side by side on a board -- so a 1x1 fitting occupies a whole one-wide
+## column and leaves the cell above it empty. Eight columns is the rack, and it
+## binds long before the cell ceiling does: eight 1x1 fittings fill the rack
+## having spent only eight of the sixteen cells.
+##
+## A shop rolls its fill in COLUMNS, half a rack to a full one, because columns
+## are the thing you can see: a rack with two bare columns reads as a thin shop,
+## whereas the same stock rolled on cells fills the rack anyway and only changes
+## how tall the parts on it happen to be. Depth is not in here. Depth is
+## rarity, below.
+const SHOP_CELLS := 16
+const SHOP_COLS := ShelfDisplay.SHELF_COLS * 2
+
+
 func _stock_up() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	if n.stocked:
@@ -1712,19 +1752,41 @@ func _stock_up() -> void:
 	# same rule, now expressed so that four ships docking in four different
 	# orders see one shelf instead of four. See Rng.derive().
 	var r := Rng.derive(&"shop", n.index)
-	var count := 5 if n.region == MapGen.Region.COSMOPOLITAN else 3
-	for i in count:
+	# UP TO SIXTEEN CELLS OF STOCK, counted as the parts' own area, and never
+	# more columns than the rack has. A hub used to carry five parts, which is
+	# depth expressed as QUANTITY -- more of the same rather than better. What a
+	# deep station has that a rim one does not is RARITY, and that is the axis
+	# below.
+	var cells_left := SHOP_CELLS
+	var cols_left := r.randi_range(SHOP_COLS - 3, SHOP_COLS)
+	var tries := 0
+	while cells_left > 0 and cols_left > 0 and tries < 16:
+		tries += 1
 		var force := &""
 		if n.region == MapGen.Region.TERRITORY:
 			force = n.manufacturer
 		elif n.region == MapGen.Region.COSMOPOLITAN:
 			# Cosmopolitan hubs carry multiple manufacturers side by side.
 			force = Rng.pick(r, DB.manufacturers.keys())
-		var danger := n.danger + 3 if n.region == MapGen.Region.LAWLESS else maxi(1, n.danger - 2)
+		# DEPTH IS THE RARITY. `n.danger` is set from the ring, so it already says
+		# how deep this is; the shop used to knock two off it, which flattened the
+		# ladder and left "deeper" meaning only "more items". Lawless space still
+		# runs hotter than the ring it sits in.
+		var danger := n.danger + 3 if n.region == MapGen.Region.LAWLESS else n.danger
 		var m := LootGen.roll_module(danger, force, n.region == MapGen.Region.LAWLESS, r)
 		# Legitimate markets do not move Legendary and above.
 		if n.region == MapGen.Region.COSMOPOLITAN and m.rarity > ModuleData.Rarity.EPIC:
 			m.rarity = ModuleData.Rarity.EPIC
+		# A part that will not fit what is left is put back: the shelf is a shelf,
+		# not a bag, and a four-cell rail simply does not go in two cells. Its
+		# WIDTH is checked separately, because that is the space it takes up on a
+		# board whether or not it is tall enough to use the cells above it.
+		var cells := maxi(1, m.size.x) * maxi(1, m.size.y)
+		var cols := maxi(1, m.size.x)
+		if cells > cells_left or cols > cols_left:
+			continue
+		cells_left -= cells
+		cols_left -= cols
 		n.shop.append(m)
 	# WHETHER THIS YARD HAS A HULL ON THE BLOCKS, by how built-up the place is.
 	#
@@ -2209,6 +2271,8 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 	if _shop != null:
 		_shop.dev = int(n.development)
 		_shop.manufacturer = n.manufacturer
+		_shop.place_seed = _place_seed(n)
+		_arrange_shop(_shop_layout(n))
 		_shop.queue_redraw()
 		_hang_banners(_shop, n, _shop.banner_spots())
 
@@ -2255,7 +2319,7 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 	# and `RACK_W`. The empty boards that say "a shop with two things in it" are
 	# still there; there are just three of them instead of nine.
 	shelf.custom_minimum_size = Vector2(ShelfDisplay.RACK_W,
-		ShelfDisplay.rack_height())
+		ShelfDisplay.rack_height(ShelfDisplay.boards_for(on_offer)))
 	shelf.size_flags_vertical = Control.SIZE_SHRINK_END
 	shelf.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	# NOTHING TO CONNECT. Pointing at a part tells you everything about it and
@@ -2669,6 +2733,48 @@ func _place_rigs() -> void:
 		r.queue_redraw()
 
 
+## Which of the shop's layouts this station has. See `ShopScene.layout`.
+func _shop_layout(n: MapGen.MapNode) -> int:
+	if ShopScene.forced_layout >= 0:
+		return ShopScene.forced_layout
+	return absi(hash([Run.galaxy_seed, n.index, &"layout"])) % ShopScene.LAYOUTS
+
+
+## Stand the shop's furniture in this station's order, and tell the room, so the
+## windows and the door go where the furniture is not.
+##
+## THE ROW IS REORDERED, NOT REBUILT: the rack, the till and the floor keep every
+## connection they have, and only their places in the row change.
+func _arrange_shop(layout: int) -> void:
+	if _shop_row.size() < 4 or _shop == null:
+		return
+	var box: HBoxContainer = _shop_row[0]
+	var fl: Control = _shop_row[1]
+	var till: Control = _shop_row[2]
+	var fl2: Control = _shop_row[3]
+	# Ten layouts, still four ways of standing the furniture: the wall is what
+	# tells them apart, and `ShopScene` says which arrangement each one uses.
+	var order: Array
+	var arrangement := ShopScene.order_of(layout)
+	match arrangement:
+		1: order = [till, fl, _shelf, fl2]
+		2: order = [_shelf, fl, till, fl2]
+		3: order = [fl2, till, fl, _shelf]
+		_: order = [_shelf, fl, till, fl2]
+	# The till stands against a wall in A and B, and mid-floor in C and D.
+	fl2.visible = arrangement >= 2
+	for i in order.size():
+		box.move_child(order[i], i)
+	_shop.layout = layout
+
+
+## Which station this is, as one number: the run's galaxy and the node's place
+## in it. What a room's views, walkers and cables are picked from, so the same
+## station looks the same every visit and the next one along does not.
+func _place_seed(n: MapGen.MapNode) -> int:
+	return absi(hash([Run.galaxy_seed, n.index]))
+
+
 ## Tell a room where it is: how built-up the station is and who holds it.
 ##
 ## THE SAME TWO FIELDS FOR EVERY ROOM, which is what lets every deck be the same
@@ -2678,6 +2784,7 @@ func _dress_room(room: StationRoom, n: MapGen.MapNode) -> void:
 		return
 	room.dev = int(n.development)
 	room.manufacturer = n.manufacturer
+	room.place_seed = _place_seed(n)
 	room.queue_redraw()
 	_hang_banners(room, n, room.banner_spots())
 

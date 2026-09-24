@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Station Backdrops Round Three</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --void:#0a0e15; --sunk:#0d131c; --panel:#111823; --cold:#7286a0; --dim:#4a5a6d;
+  --ice:#c9d7e6; --hot:#ff9a2e; --go:#5fe0a8; --bad:#ff7a68; --line:#1d2734; --cyan:#6fd3e0;
+  --display:"Barlow Condensed",Oswald,"Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--void);color:var(--ice);font-family:var(--body);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.mast{padding:26px 16px 10px}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--cold);margin:0 0 8px}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,5vw,48px);line-height:.95;margin:0}
+.lede{max-width:78ch;color:var(--cold);margin:10px 0 0}
+.lede b{color:var(--ice);font-weight:500}
+kbd{font-family:var(--mono);font-size:11px;background:var(--panel);color:var(--ice);border:1px solid var(--line);border-bottom-width:2px;border-radius:3px;padding:0 5px}
+.bar{position:sticky;top:0;z-index:20;background:var(--void);border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:8px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{font-family:var(--mono);font-size:12px;color:var(--ice);background:var(--panel);
+  border:1px solid var(--line);border-radius:3px;padding:5px 9px;cursor:pointer}
+button:hover{border-color:var(--dim)}
+button:focus-visible{outline:2px solid var(--cyan);outline-offset:1px}
+button.on{background:var(--cyan);color:#06141a;border-color:var(--cyan)}
+button.go{background:var(--go);color:#06140e;border-color:var(--go)}
+.sp{flex:1}
+.say{font-family:var(--mono);font-size:11.5px;color:var(--go);min-height:1.2em}
+.tally{font-family:var(--mono);font-size:11.5px;color:var(--cold)}
+.tally b{color:var(--go);font-weight:500}
+.tally i{color:var(--bad);font-style:normal}
+.grid{display:grid;gap:14px;padding:14px 16px 60px;grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
+.card{background:var(--sunk);border:1px solid var(--line);display:flex;flex-direction:column}
+.card.keep{border-color:var(--go)}
+.card.cut{border-color:#2a1c1c;opacity:.4}
+.shot{background:#05070b;overflow:hidden;cursor:zoom-in;display:block;width:100%;border:0;padding:0}
+.shot img{display:block;width:100%;height:auto;image-rendering:pixelated}
+.meta{display:flex;gap:8px;align-items:center;padding:7px 9px;border-top:1px solid var(--line)}
+.nm{font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+.sub{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.card.keep .nm{color:var(--go)}
+.card.cut .nm{color:var(--bad)}
+.vote{display:flex;gap:4px;margin-left:auto}
+.vote button{padding:3px 8px}
+.vote .k.on{background:var(--go);color:#06140e;border-color:var(--go)}
+.vote .c.on{background:var(--bad);color:#1a0806;border-color:var(--bad)}
+.lb{position:fixed;inset:0;z-index:40;background:rgba(5,7,11,.96);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:14px}
+.lb.open{display:flex}
+.lbwrap{overflow:auto;max-width:100%;max-height:calc(100vh - 120px);background:#05070b;border:1px solid var(--line)}
+.lb canvas,.lb img{display:block;image-rendering:pixelated}
+.lbbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+.lbname{font-family:var(--display);font-size:22px;letter-spacing:.04em;text-transform:uppercase}
+.note{padding:0 16px;color:var(--dim);font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+<div class="mast">
+  <p class="eyebrow">Three Kelvin &middot; station art</p>
+  <h1>Rooms and Backdrops</h1>
+  <p class="lede">Forty takes, one per idea. A <b>room</b> is the shop's own wall and floor, generated together so they
+  match, already cut to the panel's 740&times;431 with the join on the floor line. A <b>backdrop</b> is the place on the
+  other side of the glass &mdash; you only ever see it through the openings, so the lightbox has an
+  <b>in the wall</b> view that shows just that. Keep what you want, cut the rest; the picks are saved as you go.</p>
+</div>
+<div class="bar">
+  <button id="t_room" class="on">Rooms</button>
+  <button id="t_bd">Backdrops</button>
+  <button id="t_all">Both</button>
+  <span class="sp"></span>
+  <span class="tally" id="tally"></span>
+  <button id="undecided">only undecided</button>
+  <button id="save" class="go">Save picks</button>
+  <button id="copy">Copy</button>
+  <span class="say" id="say"></span>
+</div>
+<p class="note">In the lightbox: <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move, <kbd>K</kbd> keep, <kbd>X</kbd> cut,
+<kbd>W</kbd> in the wall, <kbd>Esc</kbd> out.</p>
+<div class="grid" id="grid"></div>
+
+<div class="lb" id="lb" role="dialog" aria-label="full size">
+  <div class="lbbar"><span class="lbname" id="lbname"></span></div>
+  <div class="lbwrap" id="lbwrap"></div>
+  <div class="lbbar">
+    <button id="lb_prev">&larr; prev</button>
+    <button id="lb_keep">keep</button>
+    <button id="lb_cut">cut</button>
+    <button id="lb_next">next &rarr;</button>
+    <button id="lb_wall">in the wall</button>
+    <button id="lb_2x">2&times;</button>
+    <button id="lb_close">close</button>
+  </div>
+</div>
+
+<script>
+var D = {"rooms": [], "backdrops": [{"kind": "bd", "key": "bd_airlocks", "name": "airlocks", "src": "art/bd_airlocks.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_algae", "name": "algae", "src": "art/bd_algae.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_antenna", "name": "antenna", "src": "art/bd_antenna.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_archive", "name": "archive", "src": "art/bd_archive.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_bathhouse", "name": "bathhouse", "src": "art/bd_bathhouse.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_brewery", "name": "brewery", "src": "art/bd_brewery.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_burned", "name": "burned", "src": "art/bd_burned.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_capsule", "name": "capsule", "src": "art/bd_capsule.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_clinic", "name": "clinic", "src": "art/bd_clinic.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_drydock", "name": "drydock", "src": "art/bd_drydock.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_foundry", "name": "foundry", "src": "art/bd_foundry.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_frozen", "name": "frozen", "src": "art/bd_frozen.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_fungus", "name": "fungus", "src": "art/bd_fungus.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_galley", "name": "galley", "src": "art/bd_galley.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_garden", "name": "garden", "src": "art/bd_garden.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_gates", "name": "gates", "src": "art/bd_gates.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_greenhouse", "name": "greenhouse", "src": "art/bd_greenhouse.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_gym", "name": "gym", "src": "art/bd_gym.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_hatchery", "name": "hatchery", "src": "art/bd_hatchery.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_lifts", "name": "lifts", "src": "art/bd_lifts.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_lockers", "name": "lockers", "src": "art/bd_lockers.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_lockup", "name": "lockup", "src": "art/bd_lockup.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_market", "name": "market", "src": "art/bd_market.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_outfitters", "name": "outfitters", "src": "art/bd_outfitters.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_pipes", "name": "pipes", "src": "art/bd_pipes.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_ports", "name": "ports", "src": "art/bd_ports.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_reactor", "name": "reactor", "src": "art/bd_reactor.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_refinery", "name": "refinery", "src": "art/bd_refinery.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_scaffold", "name": "scaffold", "src": "art/bd_scaffold.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_scrap", "name": "scrap", "src": "art/bd_scrap.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_servers", "name": "servers", "src": "art/bd_servers.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_shanty", "name": "shanty", "src": "art/bd_shanty.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_shops", "name": "shops", "src": "art/bd_shops.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_shrine", "name": "shrine", "src": "art/bd_shrine.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_sorting", "name": "sorting", "src": "art/bd_sorting.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_tanks", "name": "tanks", "src": "art/bd_tanks.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_tenement", "name": "tenement", "src": "art/bd_tenement.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_textile", "name": "textile", "src": "art/bd_textile.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_waste", "name": "waste", "src": "art/bd_waste.png", "w": 800, "h": 400}, {"kind": "bd", "key": "bd_water", "name": "water", "src": "art/bd_water.png", "w": 800, "h": 400}], "panel": [740, 431], "floor_y": 353, "openings": [[411, 108, 307, 183], [26, 108, 228, 110], [290, 203, 56, 150]], "wall": "art/room_wall.png"};
+var ITEMS = D.rooms.concat(D.backdrops);
+var IMG = {};
+ITEMS.forEach(function(it){ var im = new Image(); im.src = it.src; IMG[it.key] = im; });
+var WALL = new Image(); WALL.src = D.wall;
+
+// PICKS ARE PER VIEWER and live in this browser: the page is a judging sheet,
+// not a record anybody else reads. Save writes them out as a file.
+var picks = {};
+try { picks = JSON.parse(localStorage.getItem("tk_room_review") || "{}"); } catch(e){ picks = {}; }
+function store(){ try { localStorage.setItem("tk_room_review", JSON.stringify(picks)); } catch(e){} }
+function say(m){ document.getElementById("say").textContent = m;
+  clearTimeout(say._t); say._t = setTimeout(function(){ document.getElementById("say").textContent = ""; }, 2600); }
+
+var tab = "room", onlyNew = false;
+function shown(){
+  return ITEMS.filter(function(it){
+    if(tab !== "all" && it.kind !== tab) return false;
+    if(onlyNew && picks[it.key]) return false;
+    return true; });
+}
+function tally(){
+  var k = 0, c = 0;
+  ITEMS.forEach(function(it){ if(picks[it.key] === "keep") k++; else if(picks[it.key] === "cut") c++; });
+  document.getElementById("tally").innerHTML = "<b>" + k + " kept</b> &middot; <i>" + c + " cut</i> &middot; "
+    + (ITEMS.length - k - c) + " undecided";
+}
+function vote(key, v){
+  if(picks[key] === v) delete picks[key]; else picks[key] = v;
+  store(); tally(); paint(key);
+  if(onlyNew) render();
+}
+function paint(key){
+  var card = document.querySelector('[data-card="' + key + '"]'); if(!card) return;
+  card.className = "card" + (picks[key] ? " " + picks[key] : "");
+  card.querySelector(".k").className = "k" + (picks[key] === "keep" ? " on" : "");
+  card.querySelector(".c").className = "c" + (picks[key] === "cut" ? " on" : "");
+}
+function render(){
+  var host = document.getElementById("grid"); host.innerHTML = "";
+  shown().forEach(function(it){
+    var card = document.createElement("div"); card.setAttribute("data-card", it.key);
+    var b = document.createElement("button"); b.className = "shot"; b.title = "full size";
+    var im = document.createElement("img"); im.src = it.src; im.alt = it.name; im.loading = "lazy";
+    b.appendChild(im); b.addEventListener("click", function(){ open(it.key); });
+    var meta = document.createElement("div"); meta.className = "meta";
+    meta.innerHTML = '<span class="nm">' + it.name + '</span><span class="sub">' + it.w + "×" + it.h + "</span>";
+    var v = document.createElement("div"); v.className = "vote";
+    var k = document.createElement("button"); k.textContent = "keep"; k.className = "k";
+    var c = document.createElement("button"); c.textContent = "cut"; c.className = "c";
+    k.addEventListener("click", function(){ vote(it.key, "keep"); });
+    c.addEventListener("click", function(){ vote(it.key, "cut"); });
+    v.appendChild(k); v.appendChild(c); meta.appendChild(v);
+    card.appendChild(b); card.appendChild(meta); host.appendChild(card);
+    paint(it.key); });
+  tally();
+}
+
+// --- FULL SIZE, and for a backdrop the only view that counts.
+var cur = null, wallView = false, big = false;
+function itemOf(key){ for(var i = 0; i < ITEMS.length; i++) if(ITEMS[i].key === key) return ITEMS[i]; return null; }
+function open(key){ cur = key; wallView = false; document.getElementById("lb").classList.add("open"); drawLb(); }
+function close(){ document.getElementById("lb").classList.remove("open"); cur = null; }
+function step(d){
+  var list = shown(); if(!list.length) return;
+  var i = 0; for(var j = 0; j < list.length; j++) if(list[j].key === cur) i = j;
+  cur = list[(i + d + list.length) % list.length].key; drawLb();
+}
+function drawLb(){
+  var it = itemOf(cur); if(!it) return;
+  document.getElementById("lbname").textContent = it.name + "  ·  " + it.kind;
+  document.getElementById("lb_wall").style.display = it.kind === "bd" ? "" : "none";
+  document.getElementById("lb_wall").className = wallView ? "on" : "";
+  document.getElementById("lb_2x").className = big ? "on" : "";
+  document.getElementById("lb_keep").className = picks[it.key] === "keep" ? "go" : "";
+  document.getElementById("lb_cut").className = picks[it.key] === "cut" ? "on" : "";
+  var host = document.getElementById("lbwrap"); host.innerHTML = "";
+  var k = big ? 2 : 1;
+  if(it.kind === "bd" && wallView){
+    // THE WALL, THE OPENINGS, AND THIS VIEW BEHIND THEM -- placed the way
+    // `StationRoom` places a backdrop: centred on the wall, standing on the
+    // floor line. The frames here are plain edges, not the game's bezels; what
+    // is being judged is which part of the picture lands in the holes.
+    var cv = document.createElement("canvas"); cv.width = D.panel[0] * k; cv.height = D.panel[1] * k;
+    var g = cv.getContext("2d"); g.imageSmoothingEnabled = false; g.scale(k, k);
+    g.drawImage(WALL, 0, 0);
+    var bx = Math.round((D.panel[0] - it.w) / 2), by = D.floor_y - it.h;
+    D.openings.forEach(function(o){
+      g.drawImage(IMG[it.key], o[0] - bx, o[1] - by, o[2], o[3], o[0], o[1], o[2], o[3]);
+      g.strokeStyle = "#202d3d"; g.lineWidth = 2;
+      g.strokeRect(o[0] - 1, o[1] - 1, o[2] + 2, o[3] + 2);
+      g.strokeStyle = "rgba(111,211,224,.35)"; g.lineWidth = 1;
+      g.strokeRect(o[0] + .5, o[1] + .5, o[2] - 1, o[3] - 1); });
+    host.appendChild(cv);
+  } else {
+    var im = document.createElement("img"); im.src = it.src; im.alt = it.name;
+    im.width = it.w * k; im.height = it.h * k; host.appendChild(im);
+  }
+}
+document.getElementById("lb_prev").addEventListener("click", function(){ step(-1); });
+document.getElementById("lb_next").addEventListener("click", function(){ step(1); });
+document.getElementById("lb_keep").addEventListener("click", function(){ vote(cur, "keep"); drawLb(); });
+document.getElementById("lb_cut").addEventListener("click", function(){ vote(cur, "cut"); drawLb(); });
+document.getElementById("lb_wall").addEventListener("click", function(){ wallView = !wallView; drawLb(); });
+document.getElementById("lb_2x").addEventListener("click", function(){ big = !big; drawLb(); });
+document.getElementById("lb_close").addEventListener("click", close);
+document.getElementById("lb").addEventListener("click", function(e){ if(e.target === this) close(); });
+document.addEventListener("keydown", function(e){
+  if(!cur) return;
+  if(e.key === "Escape") close();
+  else if(e.key === "ArrowLeft") step(-1);
+  else if(e.key === "ArrowRight") step(1);
+  else if(e.key === "k" || e.key === "K"){ vote(cur, "keep"); drawLb(); }
+  else if(e.key === "x" || e.key === "X" || e.key === "c" || e.key === "C"){ vote(cur, "cut"); drawLb(); }
+  else if(e.key === "w" || e.key === "W"){ wallView = !wallView; drawLb(); }
+  else return;
+  e.preventDefault(); });
+
+function tabTo(t){
+  tab = t;
+  ["room", "bd", "all"].forEach(function(n){
+    document.getElementById("t_" + n).className = n === t ? "on" : ""; });
+  render();
+}
+document.getElementById("t_room").addEventListener("click", function(){ // OPEN ON WHAT THE BATCH ACTUALLY HAS: a sheet of backdrops alone should not
+// open on an empty Rooms tab.
+tabTo(D.rooms.length ? "room" : "bd"); });
+document.getElementById("t_bd").addEventListener("click", function(){ tabTo("bd"); });
+document.getElementById("t_all").addEventListener("click", function(){ tabTo("all"); });
+document.getElementById("undecided").addEventListener("click", function(){
+  onlyNew = !onlyNew; this.className = onlyNew ? "on" : ""; render(); });
+
+function payload(){
+  var keep = [], cut = [];
+  ITEMS.forEach(function(it){
+    if(picks[it.key] === "keep") keep.push(it.key);
+    else if(picks[it.key] === "cut") cut.push(it.key); });
+  return JSON.stringify({format:"three-kelvin/room-picks/1", keep:keep, cut:cut}, null, 2);
+}
+document.getElementById("save").addEventListener("click", async function(){
+  var text = payload();
+  var dl = await claude.use("downloads");
+  if(!dl){ await navigator.clipboard.writeText(text); say("no download here — copied instead"); return; }
+  try { await dl.save({filename:"room-picks.json", data:text}); say("saved room-picks.json"); }
+  catch(e){ say("not saved"); }
+});
+document.getElementById("copy").addEventListener("click", async function(){
+  try { await navigator.clipboard.writeText(payload()); say("copied"); } catch(e){ say("could not copy"); }
+});
+tabTo("room");
+</script>
+</body>
+</html>

@@ -72,6 +72,11 @@ var module: ModuleData
 ## SPRITE path was wrong -- `fill_part` takes its scale from the box, so a part
 ## without art filled the plate and the same part with art floated in it.
 var plate_scale: float = HOLD_K
+## THE PART AND NOTHING ELSE: no rarity ground, no border. For a part standing
+## on something in the world -- a shop shelf -- where a boxed plate reads as an
+## inventory slot stuck to the furniture. Whoever sets it says the rarity some
+## other way; the shelf does it with a light under each part.
+var bare := false
 ## Where a drag from here would be taking it FROM. The drop target needs to know
 ## whether this is a refit or an install.
 
@@ -152,6 +157,12 @@ func _hint() -> String:
 ## measure themselves off `size`. Every existing use is a 44x44 cell and is
 ## unchanged by this; the glyph was already centre-relative.
 func _draw() -> void:
+	if bare and module != null:
+		var mf: ManufacturerData = DB.manufacturers.get(module.manufacturer)
+		draw_body(self, module, Rect2(Vector2.ZERO, size),
+			mf.colour if mf != null else UITheme.COLD, Vector2i.ZERO, false,
+			plate_scale)
+		return
 	draw_plate(self, module, Rect2(Vector2.ZERO, size), Vector2i.ZERO,
 		false, plate_scale)
 

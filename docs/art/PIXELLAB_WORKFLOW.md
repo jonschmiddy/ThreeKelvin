@@ -5,11 +5,78 @@ this file is the mechanics.
 
 ---
 
-## ⚠️ Do not use `create_character`
+## ⚠️ Do not use `create_character` — for SHIPS
 
 `create_character` and `animate_character` are a **skeleton-rigged humanoid/quadruped
 pipeline** — walk cycles, 8-direction character turnarounds, body proportions. Ships are
 not characters. Using it will produce something with legs.
+
+### But it is exactly right for PEOPLE
+
+The station's concourse walkers are the first actual humans in this game, and for them
+this pipeline is the cheapest thing in the toolbox by an order of magnitude:
+
+| | cost | what you get |
+|---|---|---|
+| `create_character` mode=standard | **1 gen** | the figure, 4 or 8 directions, `view="side"` |
+| `animate_character` template=`walking-6-frames` | **1 gen/direction** | a whole walk cycle |
+| `create_image_pro` | 20–40 gen | *one frame*, and you invent the cycle yourself |
+
+The first dock hand cost **2 generations, zero re-rolls, first take** — against measured
+rates of 1-in-11 for card art and 14-from-62 for ship hulls. Naming the parts did the
+work: *a padded slate-blue jacket, a faded orange hi-vis tabard over it, dark work
+trousers, heavy boots, a canvas satchel strap across the chest, hood down.*
+
+**Standard mode returns a bigger canvas than you ask for.** Asked for 80px, got a
+112×112 sheet with an 85px person in it. Anything that places a figure by its feet must
+crop to the ink first, or it hovers by whatever the padding happened to be.
+
+**Crop every frame of an animation to ONE box, never to its own ink.** Arms and legs
+swing, so a six-frame walk's own bounding boxes ran 28–51px wide; cropping each to
+itself slides the body sideways by the difference every frame. Take the union, and
+anchor it on the FEET — the contact point has to be the same pixel in every frame or the
+whole person bobs through the floor. Anchored, the head rises and falls instead, which
+is what a walk does.
+
+**A walk cycle carries its own stride, and it cannot be guessed.** See
+`tools/walk_stride.py`. How far a sprite strides is a fact about the art — not about the
+frame count, the figure's height, or the template's name. Move the body further than the
+legs say and the planted foot skates; move it less and it moonwalks. Measured by
+following the boot that reaches the bottom row (the one in the air stops short): while
+it is planted, its position inside the sprite slides back by exactly as far as the body
+goes forward.
+
+  * `walking-6-frames` on an 85px figure: **6.25px/frame, 37.5px/cycle.**
+  * That is **0.44 × the figure's height**; a real walk is about 0.75, so it reads as
+    quick little steps. The template's stride is its own, and worth measuring before
+    committing to one — there are ~45 of them at 1 generation each.
+
+**JUDGE AN ANIMATION PER SECOND, NOT PER FRAME.** This is the finding that
+cost the most to reach and it invalidates every per-frame score above if you
+forget it.
+
+The frame is driven by DISTANCE, so a small stride means a fast animation at
+the same walking pace. An 8-frame cycle striding 9.00px plays 3.3 frames a
+second at 30px/s; a 12-frame cycle striding 4.75px plays 6.3. Below about four
+a second the eye separates irregularities into events and reads footsteps;
+above about five they fuse, and fused is what "jitter" means.
+
+Jon saw it before any measurement did -- the 8-frame looked clean and the
+12-frame jittered, although the 12 had FEWER faulty frames (3 of 12 against
+4 of 8) and the errors were the same size in both (79% and 73% of the stride).
+
+  * **The fix costs nothing: halve the cycle.** Every other frame doubles the
+    stride and halves the frame rate. The 12-frame at 6.3/s became a 6-frame
+    at 3.4/s -- same drawing, no longer jittering, zero generations.
+  * **Normalise every score by frame rate before comparing cycles.** A
+    per-frame number flatters whichever cycle has fewer frames: the halved
+    version's head score "fell" from 56% to 48%, but it compares poses two
+    apart, and per SECOND its identity churn dropped from 2.81 to 1.82.
+  * `walker_install.py` prints the band for every strip it builds.
+
+Do NOT measure the stride from the outer edges of the ground rows. Both boots sit in
+those rows and swap roles, which gives an answer about 2× too small and plausible enough
+to ship.
 
 The right tools for this project:
 

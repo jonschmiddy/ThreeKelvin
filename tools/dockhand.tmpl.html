@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The First Dock Hand</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+    --line:#232e3a; --hot:#e0913c; --cool:#5adcff;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --disp:"Barlow Condensed",sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#edeff2; --panel:#fff; --ink:#121821; --dim:#57616d;
+      --line:#d4d9df; --hot:#9c5710; --cool:#0c7690;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#edeff2; --panel:#fff; --ink:#121821; --dim:#57616d;
+    --line:#d4d9df; --hot:#9c5710; --cool:#0c7690;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:400 14px/1.65 var(--mono);padding:32px 16px 70px}
+  .wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+  h1{font:700 clamp(24px,5vw,40px)/1 var(--disp);text-transform:uppercase;
+     letter-spacing:.03em;margin:0;text-wrap:balance}
+  h2{font:700 15px/1 var(--disp);text-transform:uppercase;letter-spacing:.11em;
+     color:var(--hot);margin:0 0 9px}
+  p{margin:0;color:var(--dim);max-width:70ch}
+  p b{color:var(--ink);font-weight:500}
+  .nums{display:flex;gap:26px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+  .nums div span{display:block;color:var(--dim);font-size:10.5px;
+                 letter-spacing:.09em;text-transform:uppercase}
+  .nums div b{font:700 24px/1.2 var(--disp);color:var(--cool)}
+  .card{background:var(--panel);border:1px solid var(--line);padding:12px}
+  .shot{background:#05070a;border:1px solid var(--line);overflow:auto;padding:0}
+  canvas{display:block;image-rendering:pixelated}
+  .cap{font-size:11px;color:var(--dim);padding:7px 10px;border-top:1px solid var(--line)}
+  .cap b{color:var(--ink);font-weight:500}
+  .side{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .side .shot{display:flex;flex-direction:column;align-items:stretch}
+  .side canvas{margin:0 auto}
+  .note{border-left:3px solid var(--hot);padding:13px 16px}
+  .note p + p{margin-top:8px}
+  code{color:var(--hot);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The First Dock Hand</h1>
+  <p><b>The sliding was arithmetic, not art.</b> I advanced them 11px a frame
+  against a sprite that strides 6.25, so the planted boot skated nearly 5px
+  every frame. Both rows below are measured off their own pixels and neither
+  slides. <b>The stride below is the one number still open</b> &mdash; it is a
+  fact about the art, and the optimiser only pins it to about a pixel.</p>
+
+  <div class="nums">
+    <div><span>generations, all in</span><b>5</b></div>
+    <div><span>frame</span><b>52&times;87px</b></div>
+    <div><span>colours</span><b>33</b></div>
+    <div><span>walk</span><b>8 frames</b></div>
+    <div><span>strides</span><b>76px</b></div>
+    <div><span>that is</span><b>0.87&times; its height</b></div>
+    <div><span>your line asked for</span><b>80px</b></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font:700 13px/1 var(--disp);text-transform:uppercase;letter-spacing:.1em;min-width:86px">cycle</b>
+      <button id="flip" style="font:500 12px/1 var(--mono);color:var(--hot);background:var(--panel);border:1px solid var(--hot);padding:7px 11px;cursor:pointer">8 frames</button>
+      <span id="gliden" class="muted" style="font-size:11px"></span>
+      <span id="flipn" class="muted" style="font-size:11px"></span>
+    </div>
+    <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font:700 13px/1 var(--disp);text-transform:uppercase;letter-spacing:.1em;min-width:86px">pace</b>
+      <input type="range" id="spd" min="1" max="90" step="1" value="34" style="width:200px">
+      <span id="spdn" class="k" style="color:var(--cool);font-size:12px"></span>
+    </div>
+    <div class="cap" style="border:0;padding:0 0 10px">How fast they cross the
+      concourse. <b>This cannot cause skating</b> &mdash; the legs are driven by
+      distance, so a faster walker just takes its steps sooner.</div>
+    <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font:700 13px/1 var(--disp);text-transform:uppercase;letter-spacing:.1em;min-width:86px">stride</b>
+      <input type="range" id="adv" min="100" max="1600" step="25" value="950" style="width:200px">
+      <span id="advn" class="k" style="color:var(--cool);font-size:12px"></span>
+      <button id="reset" style="font:500 11px/1 var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:6px 9px;cursor:pointer">back to measured</button>
+    </div>
+    <div class="cap" style="border:0;padding:0 0 10px">How far the body travels
+      per frame of the cycle. <b>This is the one that stops the skating</b>, and
+      it is a fact about the sprite rather than a taste. <span id="cap8"></span></div>
+    <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font:700 13px/1 var(--disp);text-transform:uppercase;letter-spacing:.1em;min-width:86px">fine</b>
+      <input type="range" id="fine" min="0" max="100" step="1" value="50" style="width:260px">
+      <span id="finen" class="k" style="color:var(--hot);font-size:13px"></span>
+    </div>
+    <div class="cap" style="border:0;padding:0 0 10px">The same number at
+      <b>0.01px a notch</b>, across the band the measurement and your eye both
+      landed in. <span id="finer" style="opacity:.75"></span></div>
+    <div class="shot"><canvas id="mill" width="800" height="240"></canvas></div>
+    <div class="cap">The walker is <b>pinned</b> and the deck scrolls under it
+      at the pace you set. <b>If the stride is right, a boot sticks to one plank
+      for its whole step</b> and the planks slide past it. Too big and the boot
+      drags backwards; too small and it creeps forward. The
+      <span style="color:var(--hot)">orange tick</span> is where the planted
+      boot first touched &mdash; watch whether it stays under the boot.</div>
+  </div>
+
+  <div class="card">
+    <div class="shot"><canvas id="two" width="800" height="400"></canvas></div>
+    <div class="cap">1&times;, the size the room draws &mdash; on your
+      <code>vending</code> line at y335.</div>
+  </div>
+
+  <div class="side">
+    <div class="shot">
+      <canvas id="old" width="220" height="220"></canvas>
+      <div class="cap"><b>Before</b> &mdash; nine rectangles at 80px</div>
+    </div>
+    <div class="shot">
+      <canvas id="new" width="220" height="220"></canvas>
+      <div class="cap"><b>After</b> &mdash; generated, 2&times;, at the cycle
+        and pace set above</div>
+    </div>
+  </div>
+
+  <div class="card note">
+    <h2>what the two generations taught</h2>
+    <p><b>The repo's workflow doc says never to use <code>create_character</code></b>
+    &mdash; but that warning is about ships, which are not characters. For
+    people it is exactly right: a skeleton-rigged humanoid walk pipeline, and
+    it cost <b>one</b> generation, not the 20&ndash;40 that <code>create_image_pro</code>
+    would have.</p>
+    <p><b>Standard mode returns a bigger canvas than you ask for.</b> I asked
+    for 80px and got a 112&times;112 sheet with an 85px person in it. The room
+    places a walker by its feet, so 27px of unmeasured padding is how a figure
+    ends up hovering &mdash; it is cropped to its own ink before anything uses
+    it.</p>
+    <p><b>Naming parts worked again.</b> The jacket, the tabard, the satchel
+    strap and the boots all arrived; nothing had to be re-rolled.</p>
+    <p><b>A walk cycle carries its own speed, and it cannot be guessed.</b>
+    How far a sprite strides is a fact about the art &mdash; not about the frame
+    count, the figure's height or the template's name. Move the body further
+    than the legs say and the planted foot skates; move it less and the
+    character moonwalks. It is measured from the pixels now
+    (<code>tools/walk_stride.py</code>) and carried beside the sprite, so no
+    future walker can be given a number somebody picked.</p>
+    <p><b>The six-frame template was rolled first and cut.</b> It strides
+    37.5px for an 85px person &mdash; 0.44 of its own height, against a real
+    walk's 0.75 &mdash; so even with the arithmetic right it read as quick
+    little steps. The eight-frame one covers 0.87 and walks. One generation
+    each; the loser cost one and settled the question.</p>
+  </div>
+</div>
+<script>
+var STRIP8 = "/*SKEL*/", STRIP16 = "/*C12*/", BDSRC = "/*BD*/";
+// ONE WALK. `walking-6-frames` was rolled first and cut: it strides 0.44 of
+// the figure's height where a person's is about 0.75, so even with the
+// arithmetic right it read as quick little steps. The eight-frame template
+// covers 0.87 and walks. One generation each; the loser cost one generation
+// and settled the question.
+//
+// MEASURED, THEN PUT ON A DIAL. Three ways of measuring this gave 7.0, 8.67
+// and 9.5 px a frame, and the best of them only reaches 0.42 sole overlap --
+// because the foot RESHAPES as it rolls through the step, so no single advance
+// aligns it perfectly and the measurement cannot be sharper than about a pixel.
+//
+// A pixel is exactly the size of the error that shows. So the number starts at
+// what the optimiser says and there is a slider on it: Jon can see sliding and
+// the arithmetic cannot.
+// TWO CYCLES OFF ONE CHARACTER, both striding the same 76px -- the difference
+// is only how finely that distance is cut up. Flip between them on the same
+// treadmill at the same pace, which is the only way to see whether more frames
+// helped. The measurement says they did not: the head holds 51% frame to frame
+// at eight and 43% at sixteen, where a posed sprite holds ninety-odd.
+// THE TWO CORRECTED CYCLES. The first pair on this page were the raw
+// generator output and both were faulty in ways nothing downstream could fix:
+// the template's loop did not close (seam 14% against a 26% median, a hitch
+// every cycle) and the sixteen-frame run was not sixteen frames long -- the
+// pose returns at 13, so four frames of a SECOND cycle were spliced on the end.
+//
+// Both of these are cut to their true cycle and have one palette locked across
+// every frame, which is what stops the paint drifting shade to shade.
+// `base` is what the sprite MEASURES; `adv` is what is being tried. The fine
+// band is drawn around base, so re-measuring never depends on where the slider
+// happens to be sitting.
+var WALKS = [
+  {label: "skeleton, 8f", n: 8, w: 52, h: 86, adv: 9.00, base: 9.00, head: 52,
+   note: "posed onto the skeleton rather than redrawn"},
+  {label: "custom, 12f", n: 12, w: 45, h: 87, adv: 4.75, base: 4.75, head: 55,
+   note: "one true cycle, loops clean"}
+];
+var CUR = 0, WALK = WALKS[0];
+// SMOOTH OR STEPPED, because which one wins depends on how big a step is.
+//
+// Continuous motion against a discrete animation slides the planted boot by up
+// to one frame's travel. Stepping the body to the frame grid removes that
+// completely, and pays for it by moving the whole figure in jumps. At eight
+// frames the jump was 10px and Jon called it worse than the slide. At sixteen
+// it is 4.75px, which is a different bargain -- so it is a switch, not a
+// decision baked in.
+//
+// The treadmill never showed this: a pinned walker has no body motion to step,
+// so the error appears there as planks flowing under a still boot, which reads
+// as the deck moving. The backdrop is where it shows.
+// THE BODY MOVES IN STEPS. There is no setting, because only one value works.
+//
+// I offered a slider that shared the error between a hopping body and a
+// creeping boot, on the theory that two small faults beat one big one. That
+// was wrong, and measuring it says so plainly -- counting how many times the
+// drawn position moves WITHIN a single animation frame, which is exactly the
+// foot jitter Jon saw in the room:
+//
+//     glide   0%      0 moves in 30s   <- clean
+//     glide  10%    100
+//     glide  25%    241
+//     glide  50%    490
+//     glide 100%    991
+//
+// It is not a trade at all. Any glide above zero puts the body on a different
+// clock from its own legs, and the planted boot is dragged 1px at a time,
+// hundreds of times a minute. Zero is not one end of a range worth exploring;
+// it is the answer, and everything else is the bug.
+//
+// The cost is honest and small: the body advances one stride (4.76px) per
+// frame instead of continuously. That was intolerable at 10px, which is why
+// the slider got built -- but the stride is less than half that now, and the
+// hop went with it.
+var GLIDE = 0;
+// The line Jon drew on this picture: feet at y=335, a person 80px tall.
+var LINE_Y = 335, LINE_TALL = 80;
+
+var sp8 = new Image(), sp16 = new Image(), bdi = new Image(), ready = 0;
+function go(){ if(++ready === 3) start(); }
+sp8.onload = go; sp16.onload = go; bdi.onload = go;
+sp8.src = STRIP8; sp16.src = STRIP16; bdi.src = BDSRC;
+WALKS[0].img = sp8; WALKS[1].img = sp16;
+
+// THE OLD FIGURE, kept verbatim so the comparison is honest -- this is the
+// code that drew the walkers Jon called awful, at the same height.
+function rects(g, cx, feet, tall, apart){
+  var head = Math.max(3, Math.round(tall * 0.16));
+  var chest = Math.max(5, Math.round(tall * 0.30));
+  var torso = Math.round(tall * 0.34);
+  var legs = tall - head - 1 - torso;
+  var top = feet - tall, sx = cx - Math.floor(chest / 2);
+  var hx = cx - Math.floor(head / 2);
+  g.fillStyle = "#070a10";
+  g.fillRect(hx + 1, top, head - 2, 1);
+  g.fillRect(hx, top + 1, head, head - 1);
+  var ny = top + head;
+  g.fillRect(cx - 1, ny, 2, 1);
+  var ty = ny + 1;
+  g.fillRect(sx, ty, chest, Math.ceil(torso / 2));
+  g.fillRect(sx + 1, ty + Math.ceil(torso / 2), chest - 2, Math.floor(torso / 2));
+  var arm = Math.round(torso * 0.95), sw = apart ? 1 : 0;
+  g.fillRect(sx - 1, ty + 1 + sw, 1, arm);
+  g.fillRect(sx + chest, ty + 2 - sw, 1, arm);
+  var ly = ty + torso, lw = Math.max(1, Math.floor(chest * 0.25));
+  if(apart){ g.fillRect(sx, ly, lw, legs); g.fillRect(sx + chest - lw, ly, lw, legs); }
+  else g.fillRect(cx - lw, ly, lw * 2, legs);
+  g.fillStyle = "rgba(255,196,124,0.55)";
+  g.fillRect(hx + 1, top, head - 2, 1);
+  g.fillRect(sx + chest - 1, ty, 1, Math.ceil(torso / 2));
+}
+
+// SCALED BY A WHOLE NUMBER OR NOT AT ALL. The sprite is 85px and the line asks
+// for 80; drawing it at 80 would resample every pixel. It is drawn at its own
+// height with its FEET on the line, which is the thing that has to be right --
+// a person five pixels taller than planned is a person, a resampled one is
+// mush. The ladder exists so this stays true across the set.
+//
+// THE FRAME COMES OFF THE DISTANCE WALKED, not off the clock. A slow walker
+// steps slowly and a fast one steps quickly, with no separate animation timer
+// to drift out of step with where the person actually is.
+// SMOOTH, AND THE SLIDE IS THE PRICE OF TOO FEW FRAMES.
+//
+// Continuous body motion against a discrete animation means the planted boot
+// creeps forward for a whole frame and then snaps back -- 9.8px of it here.
+// Quantising the body to the frame grid kills that dead (0.0px), but trades it
+// for the entire figure hopping 10px at a time, and Jon's verdict on that was
+// that it was WORSE: a whole body jumping is far more visible than a foot
+// creeping.
+//
+// Both artefacts are the same 10px, so neither is fixable by choosing between
+// them. The fault is that one frame covers 10px of ground at all -- an 87px
+// figure striding 80px in eight frames. More frames is the only real answer,
+// and the number drops as fast as the count rises: sixteen frames halves it.
+function put(g, x, feet, run, flip){
+  var W = WALK;
+  var steps = Math.floor(run / W.adv);
+  var f = steps % W.n;
+  // Stepped: paint the walker where it was at the START of this frame, so the
+  // boot holds still for the frame's whole duration. The logical position is
+  // untouched -- pace still means what it says.
+  var frac = run - steps * W.adv;            // how far into this frame
+  var back = frac * (1 - GLIDE) * (flip ? -1 : 1);
+  var dx = Math.round(x - back - W.w / 2), dy = Math.round(feet - W.h);
+  if(flip){
+    g.save();
+    g.translate(dx + W.w, dy);
+    g.scale(-1, 1);
+    g.drawImage(W.img, f * W.w, 0, W.w, W.h, 0, 0, W.w, W.h);
+    g.restore();
+  } else {
+    g.drawImage(W.img, f * W.w, 0, W.w, W.h, dx, dy, W.w, W.h);
+  }
+}
+
+// THE SAME SPACING AND SPEED THE ROOM USES: a pause between passes so a lane
+// is never a conveyor belt, and speed scaled off the person's height.
+// PACE IS A CHOICE, STRIDE IS A MEASUREMENT, and they are different numbers.
+//
+// Pace is px per second across the deck -- how brisk the concourse feels, and
+// entirely a design call. Stride is px per frame of the cycle -- how far the
+// art says the body moves while the legs do their thing, and it is fixed by
+// the sprite.
+//
+// The frame is picked from DISTANCE, so the two stay honest with each other:
+// wind the pace up and the walker takes its steps sooner, feet still planted.
+// Only a wrong stride can skate.
+var SPREAD = [1.0, 0.88, 1.12, 0.94];   // nobody walks at exactly the same pace
+var PACE = 34;
+// DISTANCE IS ACCUMULATED, NOT RECOMPUTED. Position used to be
+// `x0 + t * PACE`, which is a function of the CURRENT pace applied to ALL the
+// time that has passed -- so the moment the pace changed, every walker
+// teleported to where it would have been if it had always walked at the new
+// speed. Jon: "when i change the pace the characters reset their location
+// randomaly."
+//
+// One accumulator instead, advanced by however far was walked THIS frame.
+// Changing the pace changes the rate from here on and leaves the distance
+// already covered alone, which is what walking is.
+var DIST = 0, lastT = null;
+var WALKERS = [
+  {x0: 40,  flip: false},
+  {x0: 300, flip: true},
+  {x0: 520, flip: false},
+  {x0: 700, flip: true}
+];
+function draw(t){
+  // A frame's worth of walking, clamped: a backgrounded tab hands back a gap
+  // of many seconds, and letting that through would fling everyone across the
+  // deck the moment you looked at the page again.
+  var dt = (lastT === null) ? 0 : Math.min(0.25, t - lastT);
+  lastT = t;
+  DIST += dt * PACE;
+
+  var g = document.getElementById("two").getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(bdi, 0, 0);
+  WALKERS.forEach(function(p, i){
+    var run = (p.x0 + DIST * SPREAD[i]) % (800 + 120);
+    var x = p.flip ? (920 - run) : (run - 60);
+    put(g, x, LINE_Y, run, p.flip);
+  });
+  // The line itself, so its height can be checked against the figure on it.
+  g.strokeStyle = "rgba(90,220,255,0.55)";
+  g.setLineDash([4, 4]);
+  g.beginPath(); g.moveTo(0, LINE_Y + 0.5); g.lineTo(800, LINE_Y + 0.5); g.stroke();
+  g.setLineDash([]);
+
+  mill(t);
+  // THE CLOSE-UPS RUN OFF THE SAME CLOCK AS EVERYTHING ELSE. They were on a
+  // fixed nine frames a second of their own, so they carried on at one speed
+  // while the treadmill above them changed pace, changed stride and changed
+  // cycle -- showing something the page was no longer doing. Driven by DIST
+  // they answer to every dial, which is the only way a comparison is honest.
+  var fq = Math.floor(DIST / WALK.adv) % WALK.n;
+
+  var o = document.getElementById("old").getContext("2d");
+  o.imageSmoothingEnabled = false;
+  o.setTransform(2, 0, 0, 2, 0, 0);
+  o.fillStyle = "#0e141c"; o.fillRect(0, 0, 110, 110);
+  // The old figure had two frames, so it steps on alternate frames of this one.
+  rects(o, 55, 98, LINE_TALL, fq % 2 === 0);
+
+  var n = document.getElementById("new").getContext("2d");
+  n.imageSmoothingEnabled = false;
+  n.setTransform(2, 0, 0, 2, 0, 0);
+  n.fillStyle = "#0e141c"; n.fillRect(0, 0, 110, 110);
+  n.drawImage(WALK.img, fq * WALK.w, 0, WALK.w, WALK.h,
+              Math.round(55 - WALK.w / 2), 98 - WALK.h, WALK.w, WALK.h);
+}
+// THE DIAL MOVES BOTH ROWS, each by its own frame count -- what is being set
+// is the STRIDE of the cycle, and a six-frame cycle covers it in six steps
+// where an eight-frame one takes eight.
+function setPace(v){
+  PACE = v;
+  var el = document.getElementById("spdn");
+  if(!el) return;
+  // What that pace means in the room: how long to cross an 800px concourse,
+  // and how many steps a second the legs are taking to do it.
+  var cross = 800 / v;
+  var stepsPerSec = v / (WALK.adv * WALK.n) * 2;
+  el.textContent = v + " px/s  ·  crosses in " + cross.toFixed(1) +
+    "s  ·  " + stepsPerSec.toFixed(1) + " steps/s";
+}
+// THE FINE BAND, AROUND WHAT THE SPRITE MEASURES. Both the optimiser and Jon
+// landed on the same width of uncertainty -- it reported "4.75 to 5.00 fits
+// nearly as well" and he read it as 4.00 to 5.00 by eye. Neither can do better,
+// because the sole reshapes as it rolls and no advance aligns it exactly.
+//
+// So the fine slider spans that band and nothing wider: 0.84 to 1.05 of the
+// measured stride, which for this cycle is 3.99 to 4.99 -- almost exactly the
+// window he named, and it scales with whichever cycle is loaded.
+function fineLo(){ return WALK.base * 0.84; }
+function fineHi(){ return WALK.base * 1.05; }
+function setAdv(v, fromFine){
+  WALK.adv = v;
+  var el = document.getElementById("advn");
+  if(el) el.textContent = v.toFixed(2) + " px/frame";
+  var fn = document.getElementById("finen");
+  if(fn) fn.textContent = v.toFixed(2) + " px/frame";
+  var fr = document.getElementById("finer");
+  if(fr) fr.textContent = "band " + fineLo().toFixed(2) + " to " +
+    fineHi().toFixed(2) + ", measured " + WALK.base.toFixed(2);
+  // Keep the fine slider under the pointer, unless it is the one moving.
+  if(!fromFine){
+    var f = document.getElementById("fine");
+    if(f){
+      var t = (v - fineLo()) / (fineHi() - fineLo());
+      f.value = String(Math.max(0, Math.min(100, Math.round(t * 100))));
+    }
+  }
+  setPace(PACE);
+  var cap = document.getElementById("cap8");
+  if(!cap) return;
+  var cyc = v * WALK.n, ratio = cyc / WALK.h;
+  cap.innerHTML = "strides <b>" + cyc.toFixed(0) + "px</b>, " +
+    ratio.toFixed(2) + "&times; its height" +
+    (ratio < 0.15 ? " &mdash; barely moving, the legs do the walking"
+     : ratio < 0.5 ? " &mdash; short, quick little steps"
+     : ratio > 1.05 ? " &mdash; long, bounding" : " &mdash; about right");
+}
+// THE TREADMILL. Sliding is hard to see against a static picture and trivial
+// to see against a moving floor, which is why animators build the check this
+// way round: pin the character, scroll the ground under it at the travel
+// speed, and a correct stride makes a boot lock to one plank for the whole
+// stance phase.
+//
+// It shares the dials, so nulling it here nulls the room.
+// WHERE THE LEADING BOOT IS IN EACH FRAME, read off the strip itself rather
+// than guessed. For a walker facing right the front foot is the rightmost
+// thing touching the deck, so the bottom two rows give it directly.
+var FRONT = null, PLANT = -1;
+function readFeet(){
+  var c = document.createElement("canvas");
+  c.width = WALK.w * WALK.n; c.height = WALK.h;
+  var g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(WALK.img, 0, 0);
+  var d;
+  try { d = g.getImageData(0, 0, c.width, c.height).data; }
+  catch(e){ return; }                       // tainted canvas: fall back to nothing
+  FRONT = [];
+  for(var f = 0; f < WALK.n; f++){
+    var lead = -1;
+    for(var y = WALK.h - 2; y < WALK.h; y++)
+      for(var x = 0; x < WALK.w; x++)
+        if(d[((y * c.width) + f * WALK.w + x) * 4 + 3] >= 40 && x > lead) lead = x;
+    FRONT.push(lead);
+  }
+  // The step begins at the frame where that boot is furthest forward: that is
+  // the moment it lands, and from there it must not move again until it lifts.
+  var best = 0;
+  for(var i = 1; i < FRONT.length; i++) if(FRONT[i] > FRONT[best]) best = i;
+  PLANT = best;
+}
+var CONTACT = null, CONTACTF = -1;
+function mill(t){
+  var cv = document.getElementById("mill");
+  if(!cv) return;
+  var g = cv.getContext("2d");
+  var W = 800, H = 240;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.fillStyle = "#0b1017"; g.fillRect(0, 0, W, H);
+
+  var floor = H - 40;
+  // PLANKS AT A KNOWN PITCH, scrolling at exactly the travel speed. Twenty
+  // pixels, so a boot that drifts one plank has drifted 20px and there is no
+  // arguing about it.
+  // THE DECK CARRIES THE GLIDE, because the walker cannot.
+  //
+  // On a treadmill the sprite is pinned, so `glide` -- which moves the BODY --
+  // had no effect here at all. The deck always scrolled smoothly, which is the
+  // room at glide 100 and nothing else. Jon tuned on an instrument that could
+  // not show him the one control causing what he was seeing: smooth body
+  // motion creeps the drawn position 1px at a time between frame changes, 179
+  // times in six seconds, and drags the planted boot along with it.
+  //
+  // Relative motion is all that matters, so moving the deck the way the room
+  // moves the body makes this an honest preview: at glide 0 the planks step
+  // with the frames and a boot locks to one absolutely; at 100 they flow and
+  // the boot creeps, exactly as it does in the room.
+  var qstep = Math.floor(DIST / WALK.adv) * WALK.adv;
+  var QD = qstep + (DIST - qstep) * GLIDE;
+  var off = QD % 40;
+  // THE TICK STEPS WITH THE FRAMES, because the boot does.
+  //
+  // It was gliding along at the deck's own smooth rate while the boot it is
+  // measuring only moves when the frame changes -- so the two were being
+  // compared on different clocks, and the mismatch looked like drift whether
+  // or not any drift was there. Sampled on the frame grid, the tick and the
+  // boot move at the same moments, and anything left between them is real.
+  var QSTEP = qstep;
+  for(var x = -40; x < W + 40; x += 40){
+    g.fillStyle = "#151d28";
+    g.fillRect(Math.round(x - off), floor, 20, 40);
+    g.fillStyle = "#1d2735";
+    g.fillRect(Math.round(x - off + 20), floor, 20, 40);
+  }
+  g.fillStyle = "#2b3746"; g.fillRect(0, floor, W, 1);
+
+  // The frame the walker is on, from the distance covered -- the same rule the
+  // room uses, so this is not a separate animation.
+  var f = Math.floor(DIST / WALK.adv) % WALK.n;
+  var cx = Math.round(W / 2);
+
+  var left = cx - Math.round(WALK.w / 2);
+  g.drawImage(WALK.img, f * WALK.w, 0, WALK.w, WALK.h,
+              left, floor - WALK.h, WALK.w, WALK.h);
+
+  // THE TICK GOES UNDER THE FRONT BOOT, at the deck spot it came down on, and
+  // then stays with the deck. It marked the body's centre before, which moves
+  // by definition -- so it showed the walker advancing rather than whether the
+  // boot was holding still, which is the only question here.
+  if(FRONT){
+    if(f !== CONTACTF){
+      CONTACTF = f;
+      if(f === PLANT) CONTACT = QSTEP + FRONT[f]; // where that boot landed
+    }
+    if(CONTACT !== null){
+      var tx = left + (CONTACT - QSTEP);
+      if(tx > -20 && tx < W + 20){
+        g.fillStyle = "#e0913c";
+        g.fillRect(Math.round(tx) - 1, floor, 3, 9);
+        g.fillRect(Math.round(tx) - 4, floor + 9, 9, 2);
+      }
+    }
+  }
+}
+
+function useWalk(i){
+  CUR = i;
+  WALK = WALKS[i];
+  readFeet();
+  CONTACT = null; CONTACTF = -1;
+  var b = document.getElementById("flip");
+  if(b) b.textContent = WALK.label;
+  var n = document.getElementById("flipn");
+  if(n) n.innerHTML = WALK.note + " &middot; " + WALK.adv.toFixed(2) +
+    "px a frame &middot; head holds <b style='color:var(--cool)'>" +
+    WALK.head + "%</b>";
+  var sl = document.getElementById("adv");
+  if(sl) sl.value = String(Math.round(WALK.adv * 100));
+  setAdv(WALK.adv);
+  // A different cycle means a different stride, so the two costs change too.
+  var gn = document.getElementById("gliden");
+  if(gn) gn.innerHTML = "body steps " + WALK.adv.toFixed(2) +
+    "px a frame &middot; planted boot does not move";
+}
+function start(){
+  var fb = document.getElementById("flip");
+  if(fb) fb.addEventListener("click", function(){ useWalk(1 - CUR); });
+  var fi = document.getElementById("fine");
+  if(fi) fi.addEventListener("input", function(){
+    var t = parseInt(fi.value, 10) / 100;
+    var v = fineLo() + t * (fineHi() - fineLo());
+    // Snapped to the hundredth, so the readout and the value are the same
+    // number -- a slider that reports 4.75 and applies 4.7513 is a liar.
+    v = Math.round(v * 100) / 100;
+    setAdv(v, true);
+    var sl2 = document.getElementById("adv");
+    if(sl2) sl2.value = String(Math.round(v * 100));
+  });
+  var gn0 = document.getElementById("gliden");
+  if(gn0) gn0.innerHTML = "body steps " + WALK.adv.toFixed(2) +
+    "px a frame &middot; planted boot does not move";
+  var sl = document.getElementById("adv");
+  if(sl){
+    sl.addEventListener("input", function(){
+      setAdv(parseInt(sl.value, 10) / 100); });
+    document.getElementById("reset").addEventListener("click", function(){
+      sl.value = String(Math.round(WALK.adv * 100)); setAdv(WALK.adv); });
+  }
+  var sp = document.getElementById("spd");
+  if(sp) sp.addEventListener("input", function(){
+    setPace(parseInt(sp.value, 10)); });
+  useWalk(CUR);
+  var t0 = null;
+  function loop(ts){
+    if(t0 === null) t0 = ts;
+    draw((ts - t0) / 1000);
+    requestAnimationFrame(loop);
+  }
+  if(window.matchMedia &&
+     window.matchMedia("(prefers-reduced-motion: reduce)").matches) draw(0.4);
+  else requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

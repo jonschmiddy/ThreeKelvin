@@ -37,17 +37,29 @@ extends Control
 ## objects. A 1x1 fitting is 40 across and a 2x2 is 80, which is a thing you
 ## point at rather than a thing you squint at.
 const CELL := HoldGrid.CELL
+## ONE CELL ON THE SHELF: THE SPRITE'S OWN 1x, 20 A CELL -- half the hold's 40.
+##
+## The paragraph above is why it was 40, and it was overruled by looking: seen on
+## the rack at both sizes, Jon kept 1x. A part at its own pixel size is the
+## finest-detailed thing on the wall, so it reads as the goods rather than as
+## furniture, and the rack it needs is half the height. The cost is the one the
+## paragraph names -- a part is bigger in your hold than it was on the shelf.
+const SHELF_CELL := 20
 ## Air above a board's items, so nothing touches the shelf above it.
 const HEAD := 7
 ## How thick a board is, and the frame around the whole unit.
 const PLANK := 5
-const POST_W := 13
+## THE UPRIGHT, AND IT IS FURNITURE, NOT SHELF. At 13 with 7 of air inside it,
+## the frame spent 40 of the rack's 132 pixels on itself and the goods read as
+## lost in it. Eight and four is the same pillar with its two flat middle
+## columns dropped: the shelf space is 92 either way, so the rack is 116.
+const POST_W := 8
 const CAP_H := 9
 const PLINTH_H := 11
 ## Where the price ticket sits on the board's front lip.
 const TICKET_H := 5
 ## How tall a price tag is. Enough for an 8px face with a punched hole beside it.
-const TAG_H := 15
+const TAG_H := 9
 ## Air between two things standing side by side on the same board.
 const GAP := 10.0
 ## How far apart the boards are, floor to floor.
@@ -56,7 +68,7 @@ const GAP := 10.0
 ## two cells -- plus its ticket and a little headroom. Fixed rather than measured
 ## off the stock, because a shelf's boards are where the shelf's boards are: they
 ## do not move up when a shop happens to be selling small things.
-const PITCH := CELL * 2 + PLANK + TICKET_H + HEAD + 6
+const PITCH := SHELF_CELL * 2 + PLANK + TICKET_H + HEAD + 6
 
 ## HOW BIG THE UNIT IS, rather than how big the deck is.
 ##
@@ -67,14 +79,82 @@ const PITCH := CELL * 2 + PLANK + TICKET_H + HEAD + 6
 ## still looks like a shop with two parts in it because the empty boards are
 ## still there. Three of them, which is a shelf; nine was a wall.
 const BOARDS := 3
-## Wide enough for the longest part in the catalogue -- a four-cell spine is 160
-## -- plus the two posts and a little air either side of it.
-const RACK_W := 280
+## EACH BOARD IS A 4 x 2 STRIP OF CELLS -- Jon's spec. Four cells across, and
+## two high so a 2x2 part stands on it; parts snap to the columns the way they
+## snap to the hold's grid, side by side and never stacked. The longest part in
+## the catalogue, a four-cell rail, fills a board on its own.
+const SHELF_COLS := 4
+## AIR BETWEEN PARTS, and a fixed amount of it. Flush read as one lump; spread
+## evenly across the board left three parts marooned. Four pixels, packed from
+## the left post.
+const PART_GAP := 4
+## Air inside each post. See POST_W: it came down with the upright.
+const SHELF_PAD := 4
+## The break between one cell's light and the next, so the strip can be counted.
+##
+## Two pixels, which is one at game scale -- the gap has to survive the shrink
+## without eating the light either side of it. The art's own bays under the
+## board run at a pitch of its own and are NOT what this lines up with: those
+## are how the rack was built, this is how big the part on it is.
+const PIP_GAP := 2
+## The board's usable width: six cells and the five gaps a full board needs.
+const SHELF_INNER := SHELF_COLS * SHELF_CELL + (SHELF_COLS - 1) * PART_GAP
+const RACK_W := SHELF_INNER + POST_W * 2 + SHELF_PAD * 2
 
 ## The height that many boards need. Derived rather than typed, so the unit and
 ## the boards inside it can never disagree about how tall it is.
-static func rack_height() -> float:
-	return float(CAP_H + 6 + PITCH * BOARDS + PLINTH_H)
+static func rack_height(boards: int = BOARDS) -> float:
+	return float(CAP_H + 6 + PITCH * boards + PLINTH_H)
+
+
+## Two boards, or three when two will not hold this stock.
+##
+## TWO OR THREE SHELVES TALL. Twelve cells hold an ordinary station's three
+## parts nearly always; a hub's five can need eighteen, so a hub gets the tall
+## rack. Asked of `_pack`, the same packing `stock` lays out with, so the rack
+## and what stands on it cannot disagree.
+static func boards_for(rows: Array) -> int:
+	return 2 if _pack(rows, 2)[1] == 0 else BOARDS
+
+
+## The stock on `count` boards, as `[boards, spilled]`: each board an Array of
+## entries in stock order, and how many parts found no room.
+##
+## WIDEST FIRST, ONTO THE BOARD WITH THE MOST ROOM LEFT. Widest-first is what
+## stops a long rail being stranded by small parts ahead of it; most-room-first
+## spreads the stock across the boards instead of filling the top one, which is
+## what a shopkeeper does and what a delivery nobody unpacked does not.
+static func _pack(rows: Array, count: int) -> Array:
+	var items: Array = []
+	for i in rows.size():
+		var m := rows[i].thing as ModuleData
+		if m != null:
+			items.append([i, clampi(m.size.x, 1, SHELF_COLS), rows[i]])
+	items.sort_custom(func(a1, b1): return a1[1] > b1[1])
+	var boards: Array = []
+	var free: Array[int] = []
+	for b in count:
+		boards.append([])
+		free.append(SHELF_COLS)
+	var spilled := 0
+	for it in items:
+		var best := -1
+		for b in count:
+			if free[b] >= it[1] and (best < 0 or free[b] > free[best]):
+				best = b
+		if best < 0:
+			spilled += 1
+			continue
+		boards[best].append(it)
+		free[best] -= it[1]
+	var out: Array = []
+	for b in boards:
+		b.sort_custom(func(a2, b2): return a2[0] < b2[0])
+		var line: Array = []
+		for it in b:
+			line.append(it[2])
+		out.append(line)
+	return [out, spilled]
 
 const POST := Color("#2c3d52")
 const EDGE := Color("#465c78")
@@ -85,9 +165,33 @@ const SHADE := Color("#070a10")
 ## Every board's top edge, in local coordinates. Filled by `stock`, read by
 ## `_draw`, so the boards are always under the things standing on them.
 var _boards: Array[float] = []
+## One light per part on the board under it, in the part's rarity colour:
+## `[Rect2, Color]`. What the boxed plate's border and ground used to say, said
+## by the shelf instead -- a shop lights its better stock.
+var _pips: Array = []
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## The rack as art, or null for the drawn one.
+##
+## RESOLVED OUTSIDE `_draw`, deferred: a texture first touched inside a draw
+## call renders white for good -- `StationRoom._plate_key` has the long version.
+## The art is authored to `RACK_W` x `rack_height()` with its boards on the
+## heights `stock` stands parts on, so the parts land on them without asking.
+var _art2: Texture2D = null
+var _art3: Texture2D = null
+
+
+func _ready() -> void:
+	_load_art.call_deferred()
+
+
+func _load_art() -> void:
+	_art2 = DB.station_sprite(&"shop", &"shelf2")
+	_art3 = DB.station_sprite(&"shop", &"shelf3")
+	queue_redraw()
 
 
 ## Stand a shelf's worth of parts up.
@@ -98,6 +202,7 @@ func _init() -> void:
 func stock(rows: Array) -> void:
 	Widgets.clear(self)
 	_boards.clear()
+	_pips.clear()
 	var w := size.x
 	var h := size.y
 	if w <= 40.0 or h <= 40.0:
@@ -133,69 +238,44 @@ func stock(rows: Array) -> void:
 	# anybody has put it away, not what a shop looks like. A shopkeeper spreads
 	# the stock out, so the wrap takes whichever comes first: the board is full
 	# ACROSS, or it has its share of the goods.
-	var inner := w - float(POST_W * 2 + 10)
-	# HOW MANY GO ON ONE BOARD.
-	#
-	# SPREAD, BUT NOT ONE PER BOARD. Dividing the stock over every board is right
-	# when there is stock to divide; with three parts and four boards it put one
-	# thing on each and the rack read as a column of single objects rather than
-	# as a shop. So the spread is over as many boards as will hold PAIRS, capped
-	# by how many boards there are -- three parts fill two boards and five fill
-	# three, which looks like somebody stood them up rather than dealt them out.
-	var boards_used := clampi(int(ceilf(float(rows.size()) * 0.5)), 1, count)
-	var share := maxi(1, int(ceilf(float(rows.size()) / float(boards_used))))
-	var shelves: Array = []
-	var line: Array = []
-	var used := 0.0
-	for entry in rows:
-		var m := entry.thing as ModuleData
-		if m == null:
-			continue
-		# THE WIDER OF THE TWO, because the price hangs under the part and a
-		# cheap fitting can carry a number broader than itself. Wrapping on the
-		# part alone put two of those side by side and let their cards touch.
-		var iw := _reserve(m, entry)
-		if not line.is_empty() and (used + iw > inner or line.size() >= share):
-			shelves.append(line)
-			line = []
-			used = 0.0
-		line.append(entry)
-		used += iw + GAP
-	if not line.is_empty():
-		shelves.append(line)
-
+	var shelves: Array = _pack(rows, count)[0]
 	for i in shelves.size():
-		if i >= _boards.size():
-			# More stock than boards. Nothing is dropped silently: the unit is as
-			# tall as the deck and the deck is as tall as it is, so this is a real
-			# limit and the shelf says so rather than stacking parts on nothing.
-			break
 		var base: float = _boards[i]
-		var x := float(POST_W + 5)
-		for entry in shelves[i]:
+		# From the left post, a `PART_GAP` between each pair.
+		var line: Array = shelves[i]
+		var step := float(PART_GAP)
+		var x := float(POST_W + SHELF_PAD)
+		for entry in line:
 			var m2 := entry.thing as ModuleData
-			var iw2 := float(maxi(1, m2.size.x) * CELL)
-			var ih2 := float(maxi(1, m2.size.y) * CELL)
-			# The part sits in the MIDDLE of what was reserved for it, so that
-			# when the tag is the wider of the two the overhang is even and the
-			# card still reads as belonging to the thing above it.
-			var keep := _reserve(m2, entry)
+			var cw := clampi(m2.size.x, 1, SHELF_COLS)
+			var iw2 := float(cw * SHELF_CELL)
+			var ih2 := float(maxi(1, m2.size.y) * SHELF_CELL)
 			var slot := _slot(m2, entry, iw2, ih2)
 			add_child(slot)
-			slot.position = Vector2(x + (keep - iw2) * 0.5, base - ih2)
+			slot.position = Vector2(x, base - ih2)
 			slot.size = Vector2(iw2, ih2)
-			x += keep + GAP
+			# ON THE BOARD'S LIGHT STRIP, ONE SEGMENT PER CELL: the edge under a
+			# rare part glows its colour, broken where its cells are. Three rows
+			# so it covers the strip on the middle board too, which the art puts
+			# a pixel higher than `base`.
+			#
+			# IT COUNTS, it does not just measure. As one unbroken rect it was
+			# only a LENGTH, and a length is read against the part standing on
+			# it rather than against the grid -- so a 3x1 and a 2x1 looked like
+			# the same thing at two sizes. Segmented, the strip says three and
+			# says two, and you can count it without knowing the cell pitch.
+			# ONE BLOCK IS ONE CELL, at the cell pitch -- not the part's width
+			# divided by its cells. Dividing gave a block of 18.67px for a 3x1
+			# against 19px for a 2x1, which lands on half pixels at 2x and
+			# makes the segments ragged and unequal. A block of SHELF_CELL less
+			# the break is a whole number for every size there is.
+			var lit := float(SHELF_CELL - PIP_GAP)
+			for c in cw:
+				_pips.append([Rect2(slot.position.x + float(c * SHELF_CELL),
+					base + 3.0, lit, 3.0),
+					ModuleData.rarity_colour(m2.rarity)])
+			x += iw2 + step
 	queue_redraw()
-
-
-## How much board one item eats, part and price together.
-##
-## ONE ANSWER, ASKED TWICE. The wrap needs it to decide where a board ends and
-## the placement needs it to know where the next thing starts, and the two
-## disagreeing is how a shelf loses its last item off the right-hand post.
-func _reserve(m: ModuleData, entry: Dictionary) -> float:
-	return maxf(float(maxi(1, m.size.x) * CELL),
-		PriceTag.width_for("%d CR" % int(entry.price)))
 
 
 ## One part on a board: the icon, and the pointer business around it.
@@ -214,7 +294,10 @@ func _slot(m: ModuleData, entry: Dictionary, iw: float, ih: float) -> Control:
 	icon.custom_minimum_size = Vector2.ZERO
 	icon.position = Vector2.ZERO
 	icon.size = Vector2(iw, ih)
-	icon.plate_scale = float(CELL) / float(HoldGrid.CELL) * ModuleIcon.HOLD_K
+	icon.plate_scale = float(SHELF_CELL) / float(HoldGrid.CELL) * ModuleIcon.HOLD_K
+	# On the authored rack a part STANDS on the board rather than sitting in a
+	# box on it; its rarity goes on the light under it instead. See `_pips`.
+	icon.bare = DB.station_sprite(&"shop", &"shelf2") != null
 	box.add_child(icon)
 
 	# THE PRICE ON THE BOARD, under the thing it is the price of. A shop puts the
@@ -231,14 +314,17 @@ func _slot(m: ModuleData, entry: Dictionary, iw: float, ih: float) -> Control:
 	# of the two is wider, so the overhang lands in air and never on a neighbour.
 	var price := int(entry.price)
 	var tag := PriceTag.new()
-	tag.text = "%d CR" % price
+	# A BARE NUMBER. A paper tag on a shop shelf is a price without saying so,
+	# and " CR" made every tag wider than the 1x part above it. The till still
+	# says "236 CR", which is where the money actually moves.
+	tag.text = "%d" % price
 	# A PRICE YOU CANNOT PAY IS STILL THE PRICE. The card greys rather than
 	# vanishing: what a thing costs is the reason you are not buying it, and a
 	# shelf that went blank on the parts you cannot afford would be hiding its
 	# own answer.
 	tag.afford = Run.credits >= price
 	var tw := tag.wants()
-	tag.position = Vector2((iw - tw) * 0.5, ih + float(PLANK) - 1.0)
+	tag.position = Vector2(floorf((iw - tw) * 0.5), ih + float(PLANK) + 1.0)
 	tag.size = Vector2(tw, float(TAG_H))
 	box.add_child(tag)
 	return box
@@ -248,6 +334,20 @@ func _draw() -> void:
 	var w := size.x
 	var h := size.y
 	if w <= 20.0 or h <= 20.0:
+		return
+	var art: Texture2D = _art2 if _boards.size() <= 2 else _art3
+	if art != null:
+		# Stood on the floor: anchored at the foot, so a unit given a few pixels
+		# more than it needs keeps its plinth on the deck.
+		draw_texture(art, Vector2(0.0, h - float(art.get_height())))
+		for pip in _pips:
+			var pr: Rect2 = pip[0]
+			var pc: Color = pip[1]
+			# A glow up the back panel behind the part, then the lit strip itself.
+			for k in 4:
+				draw_rect(Rect2(pr.position.x, pr.position.y - 4.0 - float(k) * 2.0,
+					pr.size.x, 2.0), Color(pc.r, pc.g, pc.b, 0.10 - 0.022 * float(k)))
+			draw_rect(pr, pc)
 		return
 
 	# --- THE BACK PANEL. Two posts and some boards are a diagram of a shelf;
@@ -318,18 +418,23 @@ func _draw() -> void:
 ##
 ## Drawn rather than loaded, like everything else standing in this station.
 class PriceTag extends Control:
-	## The card, and the same card once you cannot afford what is on it.
+	## A PRICE STAMPED ON A CARD, in digits three pixels wide.
+	##
+	## A tag has to fit under its part, and a part on a 1x shelf can be one cell,
+	## twenty pixels. The game's pixel font sets "236" wider than that, so the
+	## digits are drawn here, 3x5 each with a pixel between: three digits in
+	## fifteen, four in nineteen. It reads as a price gun's stamp, which is what a
+	## shop tag is.
 	const CARD := Color("#c2ae86")
 	const CARD_DIM := Color("#6e6858")
 	const INK := Color("#241d14")
 	const INK_DIM := Color("#3f3a30")
-	const HOLE := Color("#100c08")
 	const STRING := Color("#8d7c5c")
-
-	## How far in from the left the card's point reaches back to.
-	const NOSE := 9.0
-	## Air either side of the number.
-	const PAD := 5.0
+	const GLYPHS := {
+		"0": "111101101101111", "1": "010110010010111", "2": "111001111100111",
+		"3": "111001111001111", "4": "101101111001001", "5": "111100111001111",
+		"6": "111100111101111", "7": "111001001001001", "8": "111101111101111",
+		"9": "111101111001111"}
 
 	var text: String = ""
 	var afford: bool = true
@@ -337,18 +442,10 @@ class PriceTag extends Control:
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	## How wide a tag needs to be for a given number.
-	##
-	## MEASURED, NOT GUESSED. "9 CR" and "236 CR" are not the same width, and a
-	## fixed card sized for the longest price in the game would leave every cheap
-	## fitting under a mostly empty piece of card.
-	##
-	## STATIC, because the shelf has to know how wide a tag will be BEFORE it
-	## decides where the thing above it stands -- see the reservation in `stock`.
+	## How wide a tag needs to be for a given number: four pixels a digit and a
+	## one-pixel margin each side. STATIC, so the shelf can ask before it places.
 	static func width_for(t: String) -> float:
-		var f := UITheme.pixel_font()
-		return NOSE + PAD * 2.0 + f.get_string_size(t,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		return float(t.length() * 4 + 1)
 
 	func wants() -> float:
 		return width_for(text)
@@ -356,44 +453,19 @@ class PriceTag extends Control:
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y
-		if w <= NOSE + 6.0 or h < 9.0:
+		if w < 5.0 or h < 7.0:
 			return
 		var card := CARD if afford else CARD_DIM
 		var ink := INK if afford else INK_DIM
-		var mid := h * 0.5
-
-		# --- THE STRING, up over the board's lip. Two pixels of it, which is all
-		# there is room for and all it needs: the tag stops looking printed on.
-		draw_rect(Rect2(NOSE - 1.0, -3.0, 1.0, 4.0),
-			Color(STRING.r, STRING.g, STRING.b, 0.85))
-
-		# --- THE SHADOW IT CASTS, down and right. The same trick the posting
-		# board's notices use, and the reason the card sits ON the shelf rather
-		# than in it.
-		draw_rect(Rect2(2.0, 2.0, w - 1.0, h - 1.0), Color(0.03, 0.04, 0.06, 0.5))
-
-		# --- THE CARD. A rectangle for the body, and a point stepped one row at a
-		# time for the nose -- nothing here can trust a slope to land on the pixel
-		# grid, which is the same reason the shelf's brackets are three rectangles
-		# instead of a diagonal.
-		draw_rect(Rect2(NOSE, 0.0, w - NOSE, h), card)
-		var row := 0.0
-		while row < h:
-			# Distance from the point, as a fraction of half the card's height.
-			var away: float = absf(row + 0.5 - mid) / mid
-			var x0 := NOSE * away
-			draw_rect(Rect2(floorf(x0), row, NOSE - floorf(x0) + 1.0, 1.0), card)
-			row += 1.0
-		# A lit top edge and a dark underside, so the card has a thickness.
-		draw_rect(Rect2(NOSE, 0.0, w - NOSE, 1.0), card.lightened(0.3))
-		draw_rect(Rect2(NOSE, h - 1.0, w - NOSE, 1.0), card.darkened(0.35))
-
-		# --- THE PUNCHED HOLE, in the narrow part where a hole actually goes.
-		draw_rect(Rect2(NOSE - 2.0, mid - 1.5, 3.0, 3.0), HOLE)
-
-		# --- AND THE NUMBER, in ink on the card.
-		var f := UITheme.pixel_font()
-		var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1,
-			UITheme.FS_SMALL).x
-		draw_string(f, Vector2(NOSE + PAD + (w - NOSE - PAD * 2.0 - tw) * 0.5,
-			mid + 3.5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, ink)
+		# The string up to the board's lip, and the shadow the card casts.
+		draw_rect(Rect2(floorf(w * 0.5), -2.0, 1.0, 2.0), Color(STRING.r, STRING.g, STRING.b, 0.85))
+		draw_rect(Rect2(1.0, 1.0, w, h), Color(0.03, 0.04, 0.06, 0.5))
+		draw_rect(Rect2(0.0, 0.0, w, h), card)
+		draw_rect(Rect2(0.0, 0.0, w, 1.0), card.lightened(0.3))
+		var x := 1.0
+		for ch in text:
+			var g: String = GLYPHS.get(ch, "")
+			for k in g.length():
+				if g[k] == "1":
+					draw_rect(Rect2(x + float(k % 3), 2.0 + float(k / 3), 1.0, 1.0), ink)
+			x += 4.0

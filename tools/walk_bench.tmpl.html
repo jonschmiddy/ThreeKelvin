@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walk Lines</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#141a22; --ink:#e4eaf2; --dim:#78848f;
+    --line:#212b36; --hot:#e0913c; --cool:#5adcff; --good:#7fd48a; --bad:#ff7a68;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#eef0f3; --panel:#fff; --ink:#131820; --dim:#5a646f;
+      --line:#d5dade; --hot:#a85f14; --cool:#0d7f9e; --good:#2e7d3c; --bad:#b5382c;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eef0f3; --panel:#fff; --ink:#131820; --dim:#5a646f;
+    --line:#d5dade; --hot:#a85f14; --cool:#0d7f9e; --good:#2e7d3c; --bad:#b5382c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:400 14px/1.6 var(--mono);padding:22px 16px 60px}
+  .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  h1{font:700 clamp(22px,4vw,34px)/1 "Barlow Condensed",sans-serif;
+     text-transform:uppercase;letter-spacing:.04em;margin:0}
+  p{margin:0;color:var(--dim);max-width:76ch}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  button{font:500 12px/1 var(--mono);color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);padding:7px 10px;cursor:pointer}
+  button:hover{border-color:var(--hot)}
+  button.on{border-color:var(--hot);color:var(--hot)}
+  button:focus-visible,canvas:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+  .now{font:700 16px/1 "Barlow Condensed",sans-serif;text-transform:uppercase;
+       letter-spacing:.08em;color:var(--hot);min-width:120px}
+  .cols{display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 260px}
+  @media (max-width:860px){.cols{grid-template-columns:1fr}}
+  .stage{background:#05070a;border:1px solid var(--line);padding:8px;overflow:auto}
+  canvas{display:block;image-rendering:pixelated;cursor:crosshair}
+  .side{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);padding:10px}
+  .card h2{font:700 12px/1 "Barlow Condensed",sans-serif;text-transform:uppercase;
+    letter-spacing:.1em;color:var(--hot);margin:0 0 8px}
+  .row{display:flex;gap:7px;align-items:center;margin:5px 0;font-size:12px}
+  .row label{color:var(--dim);min-width:16px}
+  input[type=range]{accent-color:var(--hot)}
+  .muted{color:var(--dim);font-size:11px}
+  .strip{display:flex;gap:4px;flex-wrap:wrap}
+  .strip button{padding:4px 6px;font-size:11px}
+  .strip button.done{border-color:var(--good);color:var(--good)}
+  .k{font-variant-numeric:tabular-nums}
+  table{border-collapse:collapse;width:100%;font-size:11px}
+  td{padding:2px 4px;border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Walk Lines</h1>
+  <p><b>People are drawn as blocks</b> &mdash; exactly as tall as the line
+  says and nothing else, so the eye compares them against the doorways and
+  railings behind them instead of reading a figure. The colour beside each line
+  says which <b>rung</b> that height snaps to (57, 80, or 57 doubled to 114) and
+  how far it has to move: <span style="color:var(--good)">green under 5%</span>,
+  <span style="color:var(--hot)">amber under 12%</span>,
+  <span style="color:var(--bad)">red beyond</span>. A red line needs its own
+  drawing; nudge it toward a rung and it comes free.</p>
+  <p><b>Click the picture where a floor is.</b> That puts a line there and
+  stands people on it. Drag the line to move it, drag the handle at the top of
+  the tick to say how tall a person is standing there &mdash; that height is
+  also the depth, so a shorter line's people automatically walk slower and wash
+  out into the air. <b>Arrow keys</b> nudge the selected line,
+  <b>Delete</b> removes it. Work is kept in this browser; <b>save</b> puts
+  <code>walk-lines.json</code> in your downloads.</p>
+
+  <div class="bar">
+    <button id="prev">&larr;</button>
+    <span class="now" id="now"></span>
+    <button id="next">&rarr;</button>
+    <button id="zoom">2&times;</button>
+    <button id="play" class="on">people on</button>
+    <button id="blocks" class="on">blocks</button>
+    <button id="clear">clear this one</button>
+    <button id="save">save</button>
+    <button id="copy">copy</button>
+    <span class="muted" id="progress"></span>
+    <span class="muted" id="says"></span>
+  </div>
+  <textarea id="out" style="display:none;width:100%;height:120px;background:var(--panel);
+    color:var(--ink);border:1px solid var(--line);font:400 11px/1.5 var(--mono)"></textarea>
+
+  <div class="cols">
+    <div class="stage"><canvas id="cv" tabindex="0" aria-label="the backdrop, click to place a walking line"></canvas></div>
+    <div class="side">
+      <div class="card">
+        <h2>lines on this picture</h2>
+        <div id="list"></div>
+        <div class="muted" id="none">None yet. Click where the floor is.</div>
+      </div>
+      <div class="card">
+        <h2>what a line means</h2>
+        <table id="explain"></table>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>every backdrop</h2>
+    <div class="strip" id="strip"></div>
+  </div>
+</div>
+<script>
+var D = /*DATA*/;
+var FIG = {};
+/*FIGURE*/
+
+// ---------------------------------------------------------------- state
+// KEYED BY BACKDROP, never by room. Any room may draw any backdrop, so a line
+// set against a room would be wrong the moment that room showed another
+// picture. Same reasoning as the backdrop's placement and its scale.
+var KEY = "tk-walk-lines-1";
+var LINES = {}, idx = 0, zoom = 2, playing = true, sel = -1, BLOCKS = true;
+// THE LADDER THE HEIGHTS ARE BEING NORMALISED TO. Pixel art survives being
+// DOUBLED and nothing else, so one sprite drawn at 57 also serves 114 -- two
+// drawings covering three levels. These are the rungs; the list below says
+// how far each line sits from its nearest one.
+var RUNGS = [57, 80, 114];
+function nearestRung(t){
+  var best = RUNGS[0], bd = 1e9;
+  RUNGS.forEach(function(r){
+    var d = Math.abs(r - t) / t;
+    if(d < bd){ bd = d; best = r; }
+  });
+  return {rung: best, off: (best - t) / t};
+}
+try { LINES = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e){ LINES = {}; }
+if(D.seed) Object.keys(D.seed).forEach(function(k){
+  if(!LINES[k]) LINES[k] = D.seed[k].map(function(l){ return {y:l.y, tall:l.tall}; }); });
+
+function bd(){ return D.backdrops[idx]; }
+function lines(){ var b = bd(); if(!LINES[b.id]) LINES[b.id] = []; return LINES[b.id]; }
+function store(){ try { localStorage.setItem(KEY, JSON.stringify(LINES)); } catch(e){} }
+
+var IMG = {};
+D.backdrops.forEach(function(b){
+  var im = new Image();
+  im.onload = function(){ if(b === bd()) fit(); draw(); };
+  im.src = b.src;
+  IMG[b.id] = im;
+});
+
+// ---------------------------------------------------------------- canvas
+var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+ctx.imageSmoothingEnabled = false;
+function fit(){
+  var b = bd();
+  cv.width = b.size[0] * zoom;
+  cv.height = b.size[1] * zoom;
+}
+// A PERSON IS DRAWN AT PICTURE SCALE AND THEN THE WHOLE CANVAS IS ZOOMED, so
+// what you judge at 2x is exactly what the room draws at 1x, magnified -- and
+// never a person drawn at twice the size, which is a different picture.
+function draw(){
+  var b = bd(), im = IMG[b.id];
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(zoom, 0, 0, zoom, 0, 0);
+  if(im && im.width) ctx.drawImage(im, 0, 0);
+  else { ctx.fillStyle = "#11161d"; ctx.fillRect(0, 0, b.size[0], b.size[1]); }
+
+  var ls = lines();
+  if(playing){
+    stepCrowd(ls);
+    ls.forEach(function(ln, i){ crowd(ln, i, ls); });
+  }
+  ls.forEach(function(ln, i){ guide(ln, i, i === sel); });
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+// The line itself, and a tick as tall as a person standing on it: the two
+// numbers a line carries, both visible.
+function guide(ln, i, on){
+  var w = bd().size[0];
+  ctx.lineWidth = 1 / zoom;
+  ctx.strokeStyle = on ? "#e0913c" : "rgba(90,220,255,0.7)";
+  ctx.setLineDash([4 / zoom, 4 / zoom]);
+  ctx.beginPath();
+  ctx.moveTo(0, ln.y + 0.5); ctx.lineTo(w, ln.y + 0.5); ctx.stroke();
+  ctx.setLineDash([]);
+  var tx = 10 + i * 9 + 0.5;
+  ctx.beginPath();
+  ctx.moveTo(tx, ln.y); ctx.lineTo(tx, ln.y - ln.tall);
+  ctx.moveTo(tx - 3, ln.y - ln.tall + 0.5); ctx.lineTo(tx + 3, ln.y - ln.tall + 0.5);
+  ctx.stroke();
+  // The grab handle for the height, drawn solid so it is obviously a thing to
+  // take hold of rather than a decoration on the tick.
+  ctx.fillStyle = on ? "#e0913c" : "rgba(90,220,255,0.7)";
+  ctx.fillRect(tx - 2, ln.y - ln.tall - 2, 4, 4);
+}
+
+// DISTANCE IS ACCUMULATED, NOT RECOMPUTED FROM THE CLOCK. Position was
+// `t * speed`, and speed comes from how tall the line's people are -- so every
+// drag of the height slider teleported the whole lane to wherever it would
+// have been if it had always been that size. Dragging a slider should change
+// what happens NEXT, never rewrite what already happened.
+var DIST = {}, LASTT = null;
+function stepCrowd(ls){
+  var t = Date.now() / 1000;
+  // Clamped: a tab left in the background hands back a gap of many seconds.
+  var dt = (LASTT === null) ? 0 : Math.min(0.25, t - LASTT);
+  LASTT = t;
+  var b = bd();
+  ls.forEach(function(ln, i){
+    var n = 3 + Math.floor(FIG.hash1(seedOf(b) + i * 3.3) * 4);
+    for(var k = 0; k < n; k++){
+      var h0 = FIG.hash1(seedOf(b) + i * 5.9 + k * 2.3);
+      var speed = 14 * (0.8 + 0.4 * h0) * ((ln.tall | 0) / 30);
+      var span = b.size[0] + 40;
+      var cycle = span + 80 + FIG.hash1(h0 * 31.1) * 260;
+      var key = b.id + ":" + i + ":" + k;
+      if(DIST[key] === undefined) DIST[key] = FIG.hash1(h0 * 17.3) * 997;
+      DIST[key] = (DIST[key] + dt * speed) % cycle;
+    }
+  });
+}
+function seedOf(b){
+  return FIG.hash1(b.id.length * 3.7 + b.id.charCodeAt(0) * 1.9) * 53;
+}
+
+// The same walkers the room draws, on this line. `figure()` is lifted out of
+// the room bench by the builder rather than copied, so the people here cannot
+// drift away from the people there.
+function crowd(ln, i, ls){
+  var b = bd(), near = 0;
+  ls.forEach(function(l){ near = Math.max(near, l.tall | 0); });
+  var depth = near > 0 ? (ln.tall | 0) / near : 1;
+  var haze = Math.max(0, Math.min(0.45, (1 - depth) * 0.7));
+  var sd = seedOf(b);
+  var n = 3 + Math.floor(FIG.hash1(sd + i * 3.3) * 4);
+  for(var k = 0; k < n; k++){
+    var h0 = FIG.hash1(sd + i * 5.9 + k * 2.3);
+    var span = b.size[0] + 40;
+    var run = DIST[b.id + ":" + i + ":" + k];
+    if(run === undefined || run > span) continue;
+    var right = FIG.hash1(h0 * 47.7) > 0.5;
+    var x = right ? (-20 + run) : (b.size[0] + 20 - run);
+    // AS BLOCKS, TO JUDGE HEIGHT RATHER THAN DRAWING. A figure has a head, a
+    // stride and a swinging arm, and all three argue with the one question
+    // being asked here: is this person the right size for this picture. A
+    // plain block is exactly `tall` high and nothing else, so the eye compares
+    // it against the doorways and railings behind it instead of reading it.
+    if(BLOCKS){
+      var t = ln.tall | 0, w = Math.max(2, Math.round(t * 0.32));
+      ctx.fillStyle = "rgba(" + Math.round((0.05 + 0.30 * haze) * 255) + "," +
+        Math.round((0.06 + 0.36 * haze) * 255) + "," +
+        Math.round((0.10 + 0.46 * haze) * 255) + ",0.92)";
+      ctx.fillRect(Math.round(x - w / 2), Math.round(ln.y) - t, w, t);
+      // A lighter cap, so the top edge -- the thing being judged -- is legible
+      // against a dark backdrop.
+      ctx.fillStyle = "rgba(90,220,255,0.75)";
+      ctx.fillRect(Math.round(x - w / 2), Math.round(ln.y) - t, w, 1);
+    } else {
+      FIG.figure(ctx, Math.round(x), Math.round(ln.y), ln.tall | 0, h0, run, haze);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- editing
+function at(ev){
+  var r = cv.getBoundingClientRect();
+  return {x: (ev.clientX - r.left) / zoom, y: (ev.clientY - r.top) / zoom};
+}
+// WHAT IS UNDER THE POINTER: a height handle first, then a line, then nothing.
+// The handle wins because it is the smaller target and sits on top of its own
+// line -- the other order makes it unclickable.
+function pick(p){
+  var ls = lines();
+  for(var i = 0; i < ls.length; i++){
+    var tx = 10 + i * 9;
+    if(Math.abs(p.x - tx) < 5 && Math.abs(p.y - (ls[i].y - ls[i].tall)) < 5)
+      return {i: i, mode: "tall"};
+  }
+  // SIX PICTURE PIXELS, not four. A horizontal line one pixel high is a hard
+  // thing to hit, and a miss does not do nothing -- it ADDS a line, which is
+  // the worst possible failure for a near-miss. Six is still tight enough that
+  // two lines 12px apart stay separable, which is closer than any of them are.
+  for(var j = 0; j < ls.length; j++)
+    if(Math.abs(p.y - ls[j].y) < 6) return {i: j, mode: "move"};
+  return null;
+}
+var drag = null;
+cv.addEventListener("mousedown", function(ev){
+  cv.focus();
+  var p = at(ev), hit = pick(p), ls = lines();
+  if(hit){ sel = hit.i; drag = {mode: hit.mode, i: hit.i}; }
+  else {
+    // A NEW LINE IS BORN THE SIZE OF THE LAST ONE. The first line on a picture
+    // takes a fifth of its height, which is about a person against a shopfront
+    // -- a starting point to drag from rather than a number to invent.
+    var tall = ls.length ? ls[ls.length - 1].tall
+                         : Math.max(10, Math.round(bd().size[1] * 0.2));
+    ls.push({y: Math.round(p.y), tall: tall});
+    sel = ls.length - 1;
+    drag = {mode: "move", i: sel};
+    say("line " + ls.length + " added at y " + Math.round(p.y));
+  }
+  store(); ui(); draw();
+});
+window.addEventListener("mousemove", function(ev){
+  if(!drag) return;
+  var p = at(ev), ln = lines()[drag.i];
+  if(!ln) return;
+  if(drag.mode === "move") ln.y = Math.max(0, Math.min(bd().size[1], Math.round(p.y)));
+  else ln.tall = Math.max(6, Math.min(bd().size[1], Math.round(ln.y - p.y)));
+  store(); ui(); draw();
+});
+window.addEventListener("mouseup", function(){ drag = null; });
+
+cv.addEventListener("keydown", function(ev){
+  var ls = lines(), ln = ls[sel];
+  if(!ln) return;
+  var step = ev.shiftKey ? 10 : 1;
+  if(ev.key === "ArrowUp"){ ln.y -= step; }
+  else if(ev.key === "ArrowDown"){ ln.y += step; }
+  else if(ev.key === "ArrowLeft"){ ln.tall = Math.max(6, ln.tall - step); }
+  else if(ev.key === "ArrowRight"){ ln.tall += step; }
+  else if(ev.key === "Delete" || ev.key === "Backspace"){ ls.splice(sel, 1); sel = -1; }
+  else return;
+  ev.preventDefault();
+  store(); ui(); draw();
+});
+
+// ---------------------------------------------------------------- panels
+function ui(){
+  var b = bd(), ls = lines();
+  document.getElementById("now").textContent = b.id;
+  document.getElementById("none").hidden = ls.length > 0;
+  var host = document.getElementById("list");
+  host.innerHTML = "";
+  ls.forEach(function(ln, i){
+    var row = document.createElement("div");
+    row.className = "row";
+    // AND WHERE THIS HEIGHT LANDS ON THE LADDER, because that is the whole
+    // reason to be adjusting it: a line within a few percent of a rung costs
+    // nothing, and one a long way off needs its own drawing.
+    var nr = nearestRung(ln.tall);
+    var pct = Math.round(nr.off * 100);
+    var col = Math.abs(pct) <= 5 ? "var(--good)"
+            : Math.abs(pct) <= 12 ? "var(--hot)" : "var(--bad)";
+    row.innerHTML = "<label>" + (i + 1) + "</label>" +
+      "<span class='k' style='min-width:96px'>y " + ln.y +
+      " &middot; " + ln.tall + "px</span>" +
+      "<span class='k' style='color:" + col + ";min-width:74px;font-size:11px'>" +
+      nr.rung + "px " + (pct > 0 ? "+" : "") + pct + "%</span>";
+    var del = document.createElement("button");
+    del.textContent = "×";
+    del.addEventListener("click", function(){
+      ls.splice(i, 1); if(sel >= ls.length) sel = -1; store(); ui(); draw(); });
+    var take = document.createElement("button");
+    take.textContent = "pick";
+    take.className = i === sel ? "on" : "";
+    take.addEventListener("click", function(){ sel = i; ui(); draw(); });
+    row.appendChild(take); row.appendChild(del);
+    host.appendChild(row);
+  });
+
+  // WHAT THE NUMBERS MEAN, spelled out, because depth is derived rather than
+  // typed: the tallest line is the near one and everything else is measured
+  // against it. Without this the second slider looks like it only sets size.
+  var near = 0;
+  ls.forEach(function(l){ near = Math.max(near, l.tall | 0); });
+  var ex = document.getElementById("explain");
+  ex.innerHTML = ls.length
+    ? ls.map(function(l, i){
+        var d = near ? (l.tall | 0) / near : 1;
+        return "<tr><td>line " + (i + 1) + "</td><td>" +
+          (d > 0.99 ? "nearest" : Math.round(1 / d * 10) / 10 + "&times; further off") +
+          "</td><td>" + Math.round(14 * (l.tall / 30)) + "px/s</td></tr>";
+      }).join("")
+    : "<tr><td class='muted'>place a line to see this</td></tr>";
+
+  var done = D.backdrops.filter(function(x){
+    return LINES[x.id] && LINES[x.id].length; }).length;
+  document.getElementById("progress").textContent =
+    done + " of " + D.backdrops.length + " done";
+  var strip = document.getElementById("strip");
+  strip.innerHTML = "";
+  D.backdrops.forEach(function(x, i){
+    var btn = document.createElement("button");
+    btn.textContent = x.id;
+    btn.className = (LINES[x.id] && LINES[x.id].length) ? "done" : "";
+    if(i === idx) btn.style.borderColor = "var(--hot)";
+    btn.addEventListener("click", function(){ go(i); });
+    strip.appendChild(btn);
+  });
+}
+function go(i){
+  idx = (i + D.backdrops.length) % D.backdrops.length;
+  sel = -1; fit(); ui(); draw();
+}
+document.getElementById("prev").addEventListener("click", function(){ go(idx - 1); });
+document.getElementById("next").addEventListener("click", function(){ go(idx + 1); });
+document.getElementById("zoom").addEventListener("click", function(e){
+  zoom = zoom === 2 ? 1 : 2;
+  e.currentTarget.textContent = zoom + "×";
+  fit(); draw();
+});
+document.getElementById("play").addEventListener("click", function(e){
+  playing = !playing;
+  e.currentTarget.className = playing ? "on" : "";
+  e.currentTarget.textContent = playing ? "people on" : "people off";
+});
+document.getElementById("blocks").addEventListener("click", function(e){
+  BLOCKS = !BLOCKS;
+  e.currentTarget.textContent = BLOCKS ? "blocks" : "figures";
+  e.currentTarget.className = BLOCKS ? "on" : "";
+  draw();
+});
+document.getElementById("clear").addEventListener("click", function(){
+  LINES[bd().id] = []; sel = -1; store(); ui(); draw();
+});
+// SAVING GOES THROUGH THE VIEWER, NOT THROUGH A LINK. A published page has no
+// download permission of its own -- an <a download> or a blob URL simply does
+// nothing for the viewer, silently. The `downloads` capability is what hands
+// someone a file, and if it is not granted the button hides itself rather than
+// sitting there pretending.
+var dl = null;
+(function(){
+  function off(){
+    var b = document.getElementById("save");
+    if(b) b.style.display = "none";
+    say("file saving isn't available here — use copy instead");
+  }
+  if(!window.claude || typeof window.claude.use !== "function"){ off(); return; }
+  window.claude.use("downloads").then(function(ns){ if(ns) dl = ns; else off(); }, off);
+})();
+function payload(){
+  var out = {format: "three-kelvin/walk-lines/1", lines: {}};
+  Object.keys(LINES).forEach(function(k){
+    if(LINES[k] && LINES[k].length) out.lines[k] = LINES[k];
+  });
+  return JSON.stringify(out, null, 1);
+}
+function say(m){
+  var s = document.getElementById("says");
+  if(!s) return;
+  s.textContent = m;
+  if(m) setTimeout(function(){ if(s.textContent === m) s.textContent = ""; }, 4000);
+}
+document.getElementById("save").addEventListener("click", function(){
+  if(!dl) return;
+  var n = Object.keys(LINES).filter(function(k){ return LINES[k].length; }).length;
+  dl.save({filename: "walk-lines.json", data: payload()}).then(function(){
+    say("saved " + n + " backdrop" + (n === 1 ? "" : "s") +
+        " — tell me and I'll install them"); },
+    function(err){
+      say("not saved" + (err && err.code ? " (" + err.code + ")" : "") +
+          " — try copy instead"); });
+});
+// COPY IS THE WAY OUT WHEN SAVING IS NOT GRANTED, and it needs no permission.
+document.getElementById("copy").addEventListener("click", function(){
+  var t = payload(), ta = document.getElementById("out");
+  ta.style.display = "block"; ta.value = t; ta.select();
+  if(navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(function(){ say("copied"); },
+      function(){ say("selected — copy it with Ctrl+C"); });
+  else say("selected — copy it with Ctrl+C");
+});
+
+fit(); ui(); draw();
+(function loop(){ if(playing) draw(); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>

@@ -79,6 +79,11 @@ const DESK_H := 96.0
 
 ## What is being carried over the desk right now, and why it is being refused.
 ## `_why` empty while something is over it means the counter will take it.
+## The counter as art, or null for the drawn desk. Set by the screen, which
+## loads it outside any draw call. Authored with its desk top `DESK_H` above its
+## foot and its props standing ABOVE that, drawn over whatever is behind the
+## control -- a till is a desk with things on it, and the things are the till.
+var art: Texture2D = null
 var _over: HoldItem = null
 var _why: String = ""
 
@@ -207,6 +212,10 @@ func _draw() -> void:
 	var dy := _desk_top()
 	var carrying := _over != null
 	var ok := carrying and _why == ""
+
+	if art != null:
+		_draw_art(w, dy, carrying, ok)
+		return
 
 	# --- THE ROOM BEHIND THE DESK, when there is room for one.
 	#
@@ -350,6 +359,36 @@ func _draw() -> void:
 		draw_rect(Rect2(0.0, h - 2.0, w, 2.0), ink2)
 		draw_rect(Rect2(0.0, dy, 2.0, h - dy), ink2)
 		draw_rect(Rect2(w - 2.0, dy, 2.0, h - dy), ink2)
+
+
+## The authored counter, with only the live parts drawn over it: the price on
+## its screen, and the lit edge when something is held over the desk.
+func _draw_art(w: float, dy: float, carrying: bool, ok: bool) -> void:
+	var aw := float(art.get_width())
+	var ax := floorf((w - aw) * 0.5)
+	draw_texture(art, Vector2(ax, dy - (float(art.get_height()) - DESK_H)))
+	# The art's screen is where this window always was: 132 wide, centred, 19
+	# below the desk top. The art is drawn to it, not the other way round.
+	var bw := minf(aw - 40.0, 132.0)
+	var win := Rect2(ax + (aw - bw) * 0.5, dy + TOP_H + 8.0, bw, 22.0)
+	var f := UITheme.pixel_font()
+	var text := "- - -"
+	var ink := Color(0.44, 0.83, 0.88, 0.45)
+	if carrying:
+		text = "%d CR" % offer(_over, side) if ok else _why
+		ink = LIVE if ok else UITheme.LEAVE
+	var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+		UITheme.FS_SMALL).x
+	draw_string(f, Vector2(win.position.x + (win.size.x - tw) * 0.5,
+		win.position.y + 15.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+		UITheme.FS_SMALL, ink)
+	if carrying:
+		var desk := Rect2(ax, dy, aw, DESK_H)
+		var ink2 := LIVE if ok else UITheme.LEAVE
+		draw_rect(Rect2(desk.position.x, desk.position.y, desk.size.x, 2.0), ink2)
+		draw_rect(Rect2(desk.position.x, desk.end.y - 2.0, desk.size.x, 2.0), ink2)
+		draw_rect(Rect2(desk.position.x, desk.position.y, 2.0, desk.size.y), ink2)
+		draw_rect(Rect2(desk.end.x - 2.0, desk.position.y, 2.0, desk.size.y), ink2)
 
 
 ## What the counter is currently quoting, for the screen's own readout. -1 when

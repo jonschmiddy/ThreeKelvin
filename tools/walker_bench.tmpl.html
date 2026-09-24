@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dock Hand Rungs</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#edeff2; --panel:#fff; --ink:#121821; --dim:#57616d;
+    --line:#d4d9df; --hot:#9c5710; --cool:#0c7690; --good:#2e7d3c;
+    --bad:#a8362b;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --disp:"Barlow Condensed",sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+      --line:#232e3a; --hot:#e0913c; --cool:#5adcff; --good:#7fd48a;
+      --bad:#e0685c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+    --line:#232e3a; --hot:#e0913c; --cool:#5adcff; --good:#7fd48a;
+    --bad:#e0685c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:400 14px/1.6 var(--mono);padding:30px 16px 70px}
+  .wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+  h1{font:700 clamp(24px,5vw,40px)/1 var(--disp);text-transform:uppercase;
+     letter-spacing:.03em;margin:0}
+  p{margin:0;color:var(--dim);max-width:70ch}
+  p b{color:var(--ink);font-weight:500}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  button{font:500 12px/1 var(--mono);color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);padding:7px 11px;cursor:pointer}
+  button.on{border-color:var(--hot);color:var(--hot)}
+  button:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+  .card{background:var(--panel);border:1px solid var(--line)}
+  .card h2{font:700 15px/1 var(--disp);text-transform:uppercase;
+    letter-spacing:.1em;color:var(--hot);margin:0;padding:11px 13px 0;
+    display:flex;align-items:center;gap:9px}
+  .pick{display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border:1px solid var(--hot);color:var(--hot);
+    font:700 13px/1 var(--disp);letter-spacing:0;flex:none}
+  .nums{display:flex;gap:16px;flex-wrap:wrap;padding:7px 13px 10px;
+        font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .nums b{color:var(--cool);font-weight:500}
+  .nums .win b{color:var(--good)}
+  .nums .lose b{color:var(--bad)}
+  .shot{background:#05070a;border-top:1px solid var(--line);overflow-x:auto}
+  canvas{display:block;image-rendering:pixelated}
+  .note{border-left:3px solid var(--hot);padding:13px 16px}
+  .note p{margin:0 0 7px;max-width:none}
+  .note p:last-child{margin:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Dock Hand Rungs</h1>
+  <p>Each cycle on the <b>/*DECK*/</b> deck at <b>1&times;</b>, the size the
+  room draws, walking at <b>/*PACE*/&nbsp;px/s</b> and standing on the walk
+  line nearest its own height. Every one moves
+  at its own measured stride with the body stepped &mdash; the only setting
+  where the planted boot does not creep. <b>The numbers are underneath; the
+  answer is on the screen.</b></p>
+
+  <div class="bar">
+    <button id="zoom">2&times;</button>
+    <button id="slow">half speed</button>
+    <button id="lines">show lines</button>
+    <button id="pace">pace: <b id="paceN">/*PACE*/</b> px/s</button>
+  </div>
+
+  <div id="rows"></div>
+
+  <div class="card note">
+    <h2>what to look for</h2>
+    <div class="nums" style="display:block;line-height:1.65">
+      <p><b>The feet.</b> Does a boot hold the deck while it is down, or shuffle
+      under him? That is the fault no post-processing has ever removed &mdash;
+      and <b>boot misses by</b> is the number that predicts it: how far the
+      planted boot travels against how far it should. Under 25% reads clean,
+      above it reads as a skate. Calibrated on the four you called by eye.</p>
+      <p><b>The pace of the steps.</b> Under about 5 a second the eye reads
+      footsteps; over it, a shimmer. That number, not the count of faulty
+      frames, is what decided the last round.</p>
+      <p><b>Whether he is the right size for the line.</b> The percentage says
+      how far over the rung each one stands &mdash; pixel art cannot be scaled
+      by anything but whole numbers, so this is the only chance to fix it.</p>
+    </div>
+  </div>
+</div>
+<script>
+var BD = "/*BD*/";
+var W = "/*WALKERS*/";
+var PACE = /*PACE*/, ZOOM = 1, SLOW = 1, LINES = 0;
+var CW = 800, CH = 400;
+
+var bdi = new Image(), ready = 0;
+function go(){ if(++ready === W.length + 1) start(); }
+bdi.onload = go; bdi.onerror = go; bdi.src = BD;
+W.forEach(function(k){
+  k.img = new Image(); k.img.onload = go; k.img.onerror = go; k.img.src = k.src;
+});
+
+// Four a row, spread so they never march in step -- walkers in lockstep read
+// as one animation repeated, which flatters a bad cycle.
+var SPREAD = [1.0, 0.88, 1.12, 0.94], X0 = [40, 300, 520, 700];
+
+function build(){
+  var host = document.getElementById("rows");
+  host.innerHTML = "";
+  W.forEach(function(k){
+    var c = document.createElement("div");
+    c.className = "card";
+    var fps = PACE / k.adv;
+    var fpsCls = (fps <= 5.5 && fps >= 3.2) ? "win" : "lose";
+    var fitCls = Math.abs(k.over) <= 2 ? "win" : (Math.abs(k.over) <= 8 ? "" : "lose");
+    c.innerHTML =
+      "<h2><span class='pick'>" + k.pick + "</span>" + k.name +
+        " &mdash; " + k.h + "px, " + k.n + " frames</h2>" +
+      "<div class='nums'>" +
+      "<span>stride <b>" + k.adv.toFixed(2) + "px</b>/frame</span>" +
+      "<span>cycle <b>" + k.cycle.toFixed(1) + "px</b></span>" +
+      "<span>stride <b>" + (k.cycle / k.h).toFixed(2) + "&times;</b> height</span>" +
+      "<span class='" + fpsCls + "'>plays <b>" + fps.toFixed(1) +
+        "</b>/sec</span>" +
+      "<span>foot wanders <b>" + k.foot + "</b></span>" +
+      "<span class='" + (k.skate > 25 ? "lose" : "win") + "'>boot misses by <b>" +
+        k.skate + "%" + (k.skate > 25 ? "  SKATES" : "") + "</b></span>" +
+      "<span class='" + fitCls + "'>on the " + k.rung + "px line <b>" +
+        (k.over > 0 ? "+" : "") + k.over + "%</b></span>" +
+      "</div>" +
+      "<div class='shot'><canvas id='" + k.id + "'></canvas></div>";
+    host.appendChild(c);
+  });
+  W.forEach(fit);
+}
+function fit(k){
+  var cv = document.getElementById(k.id);
+  if(!cv) return;
+  cv.width = CW * ZOOM;
+  cv.height = CH * ZOOM;
+}
+
+var DIST = 0, last = null;
+function draw(t){
+  var dt = (last === null) ? 0 : Math.min(0.25, t - last);
+  last = t;
+  DIST += dt * PACE * SLOW;
+  W.forEach(function(k){
+    var cv = document.getElementById(k.id);
+    if(!cv) return;
+    var g = cv.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, cv.width, cv.height);
+    g.imageSmoothingEnabled = false;
+    g.setTransform(ZOOM, 0, 0, ZOOM, 0, 0);
+    // A picture that failed to load has no pixels, and drawImage throws on it
+    // -- which aborts the rest of the frame and looks exactly like a stuck page.
+    if(bdi.width) g.drawImage(bdi, 0, 0);
+    if(LINES){
+      g.strokeStyle = "#e0913c"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, k.y + 0.5); g.lineTo(CW, k.y + 0.5); g.stroke();
+    }
+    if(k.img.width) for(var i = 0; i < 4; i++){
+      var run = (X0[i] + DIST * SPREAD[i]) % 920;
+      // THE BODY IS PAINTED WHERE IT WAS AT THE START OF ITS FRAME, so the
+      // planted boot does not creep. Any smoothing at all moves the drawn
+      // position hundreds of times a minute between frame changes.
+      var steps = Math.floor(run / k.adv), f = ((steps % k.n) + k.n) % k.n;
+      var flip = i % 2 === 1;
+      var x = flip ? (920 - run) : (run - 60);
+      var frac = run - steps * k.adv;
+      var dx = Math.round(x - frac * (flip ? -1 : 1) - k.w / 2);
+      var dy = Math.round(k.y - k.h);
+      if(flip){
+        g.save();
+        g.translate(dx + k.w, dy);
+        g.scale(-1, 1);
+        g.drawImage(k.img, f * k.w, 0, k.w, k.h, 0, 0, k.w, k.h);
+        g.restore();
+      } else {
+        g.drawImage(k.img, f * k.w, 0, k.w, k.h, dx, dy, k.w, k.h);
+      }
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  });
+}
+function start(){
+  build();
+  document.getElementById("zoom").addEventListener("click", function(e){
+    ZOOM = ZOOM === 1 ? 2 : 1;
+    e.currentTarget.textContent = ZOOM + "×";
+    e.currentTarget.className = ZOOM === 2 ? "on" : "";
+    W.forEach(fit);
+  });
+  document.getElementById("slow").addEventListener("click", function(e){
+    SLOW = SLOW === 1 ? 0.35 : 1;
+    e.currentTarget.textContent = SLOW === 1 ? "half speed" : "full speed";
+    e.currentTarget.className = SLOW === 1 ? "" : "on";
+  });
+  document.getElementById("lines").addEventListener("click", function(e){
+    LINES = LINES ? 0 : 1;
+    e.currentTarget.className = LINES ? "on" : "";
+  });
+  // THE WHOLE COMPARISON TURNS ON THIS. Frames advance by distance, so the
+  // same strip plays at a different rate at a different walking pace: a
+  // template's eight frames look stepped at 20 px/s and correct at 30, and a
+  // thirteen-frame custom cycle is the other way round. Baking one pace into
+  // the page would have answered the question by assumption.
+  document.getElementById("pace").addEventListener("click", function(e){
+    PACE = PACE === 20 ? 30 : 20;
+    document.getElementById("paceN").textContent = PACE;
+    e.currentTarget.className = PACE === 30 ? "on" : "";
+    build();
+  });
+  var t0 = null;
+  function loop(ts){
+    if(t0 === null) t0 = ts;
+    draw((ts - t0) / 1000);
+    requestAnimationFrame(loop);
+  }
+  if(window.matchMedia &&
+     window.matchMedia("(prefers-reduced-motion: reduce)").matches) draw(1);
+  else requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

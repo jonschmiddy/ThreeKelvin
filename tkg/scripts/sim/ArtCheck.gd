@@ -139,12 +139,60 @@ func run() -> void:
 	print("  enemies  %d drawn, %d still procedural (canvas %dx%d)"
 		% [e["drawn"], e["missing"], ENEMY_CANVAS.x, ENEMY_CANVAS.y])
 	print("  places   %d drawn, %d still procedural" % [p["drawn"], p["missing"]])
+	var lay := _layouts()
 	_ok("every module sprite that exists sits within a cell of its box", m_wrong == 0)
 	_ok("every card illustration that exists is the size the window wants",
 		c_wrong == 0)
 	_ok("every enemy sprite that exists fits its canvas", int(e["wrong"]) == 0)
 	_ok("every sector place sprite that exists fits its arena", int(p["wrong"]) == 0)
+	_ok("every shop layout's openings sit on the wall and clear of each other",
+		int(lay["bad"]) == 0)
 	verdict("artcheck")
+
+
+## THE SHOP WALL, TEN WAYS. A layout is numbers in a table, and the mistakes it
+## invites are the ones a filename cannot show: a window hanging off the deck,
+## two openings overlapping into one ragged hole, a skin named that has no art.
+##
+## A DROPPED CUT IS NOT A FAILURE -- `cuts_of` drops what will not fit and the
+## wall simply stays solid there, the same way a missing sprite is counted and
+## not failed on everywhere else in this file. What fails is a cut that IS
+## drawn and is wrong.
+func _layouts() -> Dictionary:
+	var panel := ShopScene.FIT_WALL.x
+	var floor_y := ShopScene.FIT_FLOOR_Y
+	var bad := 0
+	var drawn := 0
+	var dropped := 0
+	print("\n=== SHOP LAYOUTS (%d) ===" % ShopScene.LAYOUTS)
+	if ShopScene.LAYOUTS != ShopScene.ARRANGEMENTS.size():
+		bad += 1
+		print("  LAYOUTS says %d but the table holds %d -- the screen would pick"
+			% [ShopScene.LAYOUTS, ShopScene.ARRANGEMENTS.size()]
+			+ " a layout that is not there, or never pick the last ones")
+	for i in mini(ShopScene.LAYOUTS, ShopScene.ARRANGEMENTS.size()):
+		var want: int = ShopScene.ARRANGEMENTS[i].cuts.size()
+		var cuts := ShopScene.cuts_of(i, panel, floor_y)
+		drawn += cuts.size()
+		dropped += want - cuts.size()
+		var notes: Array[String] = []
+		for a in cuts.size():
+			var ra: Rect2 = cuts[a].rect
+			if ra.position.x < 8.0 or ra.end.x > panel - 8.0 or ra.end.y > floor_y:
+				notes.append("%s off the wall" % cuts[a].get("skin", cuts[a].kind))
+			for b in range(a + 1, cuts.size()):
+				if ra.intersection(cuts[b].rect).has_area():
+					notes.append("%s overlaps %s"
+						% [cuts[a].get("skin", cuts[a].kind),
+							cuts[b].get("skin", cuts[b].kind)])
+		if not notes.is_empty():
+			bad += 1
+		print("  %d  order %d  %d cuts%s  %s"
+			% [i, ShopScene.order_of(i), cuts.size(),
+				"" if want == cuts.size() else " (%d dropped)" % (want - cuts.size()),
+				"ok" if notes.is_empty() else ", ".join(notes)])
+	print("  %d openings across %d layouts, %d dropped" % [drawn, ShopScene.LAYOUTS, dropped])
+	return {"bad": bad, "drawn": drawn, "dropped": dropped}
 
 
 ## ---------------- the three families that are still drawn ----------------

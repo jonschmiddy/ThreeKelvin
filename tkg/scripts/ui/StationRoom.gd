@@ -93,16 +93,13 @@ func _scatter(i: int, span: float) -> float:
 
 ## Which plate this room wants, or `&""` for none.
 ##
-## KEYED ON DEVELOPMENT, NOT ON THE DECK. The decks differ by what STANDS in the
-## room, not by the room -- which is the whole reason `StationRoom` exists -- so
-## one plate per development level serves all four of them and the lamp count
-## the plate is drawn with matches `_lamps()`.
+## KEYED ON THE DECK, NOT ON DEVELOPMENT, because the plate is a BACKDROP and
+## carries no lamps. The lamp count is what development changes, and lamps are
+## drawn over the plate from `_lamps()` -- so one plate serves an outpost and a
+## capital alike, and the twelve this used to need are three. Decks override
+## this; the base is the plain room.
 func plate_id() -> StringName:
-	match dev:
-		MapGen.Development.OUTPOST: return &"room_outpost"
-		MapGen.Development.SETTLEMENT: return &"room_settlement"
-		MapGen.Development.CAPITAL: return &"room_capital"
-		_: return &"room_city"
+	return &"room"
 
 
 ## The room as two generated layers, or `false` if either is missing.
@@ -112,7 +109,8 @@ func plate_id() -> StringName:
 ## tinting. So the plate ships as `<id>_wall.png` flat and `<id>_trim.png`
 ## through `_tint`, and the orange lands on the joints and the courses where it
 ## belongs.
-## The plate, resolved OUTSIDE a draw call and remembered.
+##
+## RESOLVED OUTSIDE A DRAW CALL AND REMEMBERED.
 ##
 ## A TEXTURE FIRST TOUCHED INSIDE `_draw` RENDERS WHITE. Resolving one there
 ## hands the renderer a resource whose GPU side is not ready for the commands
@@ -128,22 +126,107 @@ func plate_id() -> StringName:
 var _plate_key: StringName = &""
 var _plate_wall: Texture2D = null
 var _plate_trim: Texture2D = null
+## The lamp, as art rather than rectangles. Shared by every deck and every
+## development level: what changes is how many are hung and what colour the
+## light is, and both of those are the room's to decide.
+var _lamp_hood: Texture2D = null
+var _lamp_cone: Texture2D = null
+var _lamp_pool: Texture2D = null
 
 
-func _load_plate(id: StringName) -> void:
-	_plate_key = id
+func _load_plate(key: StringName) -> void:
+	_plate_key = key
+	var id := plate_id()
 	_plate_wall = DB.station_sprite(id, &"wall")
 	_plate_trim = DB.station_sprite(id, &"trim")
+	_lamp_hood = DB.station_sprite(&"lamp", &"hood")
+	_lamp_cone = DB.station_sprite(&"lamp", &"cone")
+	_lamp_pool = DB.station_sprite(&"lamp", &"pool")
+	# ONE WINDOW STYLE PER STATION, off its seed: somebody built this place and
+	# they had a way of making windows. The chamfer is the plain one.
+	var style: StringName = WINDOW_STYLES[absi(hash([place_seed, &"style"])) % WINDOW_STYLES.size()]
+	_box_window = _bezel(&"window" if style == &"chamfer" else StringName("window_%s" % style),
+		true, 18.0 if style == &"chamfer" else 24.0)
+	if _box_window == null:
+		_box_window = _bezel(&"window", true)
+	_ports = DB.station_sprite(&"frame", &"ports")
+	_backdrop = null
+	var bd: StringName = forced_views.get(&"backdrop", &"")
+	if bd == &"" and not BACKDROPS.is_empty():
+		bd = BACKDROPS[absi(hash([place_seed, &"backdrop"])) % BACKDROPS.size()]
+	if bd != &"":
+		_backdrop = DB.station_sprite(&"backdrop", bd)
+	_box_door = _bezel(&"door", false)
+	_load_views()
 	queue_redraw()
+	if _fore != null:
+		_fore.queue_redraw()
+
+
+## What the plate cache is keyed on. The seed is in it because the views are:
+## a room that moves to a new station has to pick again, not keep the last one.
+func _plate_cache_key() -> StringName:
+	var id := plate_id()
+	if id == &"":
+		return &""
+	return StringName("%s:%d:%d" % [id, place_seed,
+		openings(size.x, size.y, size.y - floor_h()).size()])
+
+
+## The lamps as sprites, or `false` if there is no art and rectangles it is.
+##
+## THE COUNT AND THE POSITIONS STAY THE ROOM'S. Art supplies the fixture and the
+## shape of the light; `_lamps()` says how many and `w * (i + 0.5) / n` says
+## where, so an outpost still reads as two lamps and a capital as six off one
+## plate. The glow is drawn through `_light()`, which is how the Laboratory gets
+## cold light out of the same cone everything else lights warm.
+## The lamps as rectangles: the fallback, and what the room has always drawn.
+##
+## THE LIGHT LANDS ON THE FLOOR. A lamp that glows and lights nothing is a
+## sticker; the pool underneath is the half that makes the room have a source,
+## and it is drawn later, after the plating it falls on.
+func _lamp_rects(w: float, _floor_y: float) -> void:
+	var n := _lamps()
+	var glow := _light()
+	for i in n:
+		var lx := w * (float(i) + 0.5) / float(n)
+		draw_rect(Rect2(lx - 1.0, 0.0, 2.0, 9.0), _tint(EDGE))
+		draw_rect(Rect2(lx - 7.0, 9.0, 14.0, 4.0), _tint(EDGE))
+		draw_rect(Rect2(lx - 5.0, 12.0, 10.0, 2.0), Color(glow.r, glow.g, glow.b, 0.85))
+
+
+func _draw_lamp_art(w: float, floor_y: float) -> bool:
+	if _lamp_hood == null:
+		return false
+	var n := _lamps()
+	var glow := _light()
+	var hood := Vector2(_lamp_hood.get_size())
+	for i in n:
+		var lx := w * (float(i) + 0.5) / float(n)
+		var drop := hood.y
+		if _lamp_cone != null:
+			# Widening to the floor, and drawn BEFORE the fixture so the hood
+			# sits in front of its own light rather than under it.
+			var cw := maxf(46.0, w / float(n) * 0.72)
+			draw_texture_rect(_lamp_cone,
+				Rect2(lx - cw * 0.5, drop, cw, maxf(1.0, floor_y - drop)),
+				false, Color(glow.r, glow.g, glow.b, 0.62))
+		draw_texture(_lamp_hood, Vector2(lx - hood.x * 0.5, 0.0).round())
+		if _lamp_pool != null:
+			var pw := maxf(60.0, w / float(n) * 0.92)
+			draw_texture_rect(_lamp_pool,
+				Rect2(lx - pw * 0.5, floor_y, pw, floor_h()),
+				false, Color(glow.r, glow.g, glow.b, 0.75))
+	return true
 
 
 func _blit_plate() -> bool:
-	var id := plate_id()
-	if id == &"":
+	var key := _plate_cache_key()
+	if key == &"":
 		return false
-	if _plate_key != id:
+	if _plate_key != key:
 		# Deferred, so the load lands between frames rather than inside this one.
-		_load_plate.call_deferred(id)
+		_load_plate.call_deferred(key)
 		return false
 	var wall: Texture2D = _plate_wall
 	if wall == null:
@@ -167,13 +250,20 @@ func _draw() -> void:
 		return
 	var floor_y := h - floor_h()
 	if _blit_plate():
-		# The furniture still goes in the room. A plate is the ROOM -- walls,
-		# floor, lamps and the light they put down -- and what stands in it is
-		# per-deck and often live: the Exchange's cage is measured off the hold
-		# grid every redraw, and the service rigs reach for whatever hull is
-		# parked. Those cannot be baked and are not meant to be.
+		# A plate is the ROOM AS A BACKDROP -- walls, deck, and nothing that
+		# varies. The lamps go on over it because their COUNT is development and
+		# their COLOUR is the deck, and the furniture goes on over that because
+		# it is per-deck and often live: the Exchange's cage is measured off the
+		# hold grid every redraw, and the service rigs reach for whatever hull
+		# is parked. None of those can be baked and none of them are meant to be.
+		_draw_openings(w, h, floor_y)
 		_dress_wall(w, h, floor_y)
+		# NO LAMPS ON THE ART PATH. The generated hood and its drawn cone and
+		# pool read as stickers over a room that is otherwise made, and were
+		# cut. `_draw_lamp_art` stays for when lighting comes back as art that
+		# belongs; the drawn fallback room below still hangs its own.
 		_dress_floor(w, h, floor_y)
+		_draw_haze(w, h, floor_y)
 		return
 
 	# --- THE BACK WALL, AND IT IS THE DARKEST THING IN THE ROOM.
@@ -196,17 +286,7 @@ func _draw() -> void:
 
 	_dress_wall(w, h, floor_y)
 
-	# --- THE LAMPS, hung on stems from the ceiling.
-	#
-	# THE LIGHT LANDS ON THE FLOOR. A lamp that glows and lights nothing is a
-	# sticker; the pool underneath is the half that makes the room have a source.
-	var n := _lamps()
-	var glow := _light()
-	for i in n:
-		var lx := w * (float(i) + 0.5) / float(n)
-		draw_rect(Rect2(lx - 1.0, 0.0, 2.0, 9.0), _tint(EDGE))
-		draw_rect(Rect2(lx - 7.0, 9.0, 14.0, 4.0), _tint(EDGE))
-		draw_rect(Rect2(lx - 5.0, 12.0, 10.0, 2.0), Color(glow.r, glow.g, glow.b, 0.85))
+	_lamp_rects(w, floor_y)
 
 	# --- THE FLOOR.
 	#
@@ -242,14 +322,17 @@ func _draw() -> void:
 
 	# --- AND THE LIGHT THE LAMPS PUT ON IT, last of all so the plating shows
 	# THROUGH it. A pool is light on a floor, not a shape lying on one.
-	for i in n:
-		var px := w * (float(i) + 0.5) / float(n)
+	var pool_n := _lamps()
+	var pool_glow := _light()
+	for i in pool_n:
+		var px := w * (float(i) + 0.5) / float(pool_n)
 		var step := 0
 		while step < 6:
 			var spread := 16.0 + float(step) * 14.0
 			draw_rect(Rect2(px - spread, floor_y + float(step) * 13.0,
 				spread * 2.0, 13.0),
-				Color(glow.r, glow.g, glow.b, 0.075 - 0.011 * float(step)))
+				Color(pool_glow.r, pool_glow.g, pool_glow.b,
+					0.075 - 0.011 * float(step)))
 			step += 1
 
 
@@ -277,6 +360,504 @@ func _dress_floor(_w: float, _h: float, _floor_y: float) -> void:
 	pass
 
 
+# ------------------------------------------------------------------ the layers
+#
+# A ROOM IN DEPTH, NOT A ROOM ON A PANEL. The back wall opens -- a window onto
+# the concourse outside, a door onto a corridor -- and what is seen through each
+# opening is a generated view of somewhere else on the station, with people
+# walking past in it. In front of the whole deck, furniture included, hang dark
+# cables. Nothing here moves the camera, so the depth comes from what a still
+# picture can do: overlap, far things hazier than near ones, a dark frame in
+# front, and near things moving faster than far ones.
+#
+# ALL OF IT IS THE PLATE PATH'S. A deck with no art keeps the rectangles it had.
+
+## Which station this is, as a number: picks the views, the walkers and the
+## cables, so a station looks the same every visit and different from the next.
+var place_seed: int = 0
+
+## What can be seen through each kind of opening. Checked against the files when
+## the plate loads, so an id with no art drops out of the pool rather than
+## drawing a hole.
+const VIEWS := {
+	&"window": [&"prom_a", &"prom_d", &"shops_b", &"arcade_a",
+		&"arcade_b", &"gallery_c", &"lounge_a", &"lounge_b", &"mess_a",
+		&"mess_b", &"mess_c", &"garden_b", &"garden_c", &"obs_a", &"obs_b"],
+	&"door": [&"hall_a", &"hall_b", &"hall_c"],
+}
+
+## A view is somewhere else, seen through glass: a touch colder than it was
+## drawn. The heavy lifting -- getting it to sit BEHIND the room's own light --
+## is done once at install, by `room_plate.py view`, which fits each view's
+## midtones and leaves its lit signs alone.
+const VIEW_GLASS := Color(0.90, 0.94, 1.0)
+## How often the moving layers redraw. The sector view's rate, for the same
+## reason: pixel art moving at 60 Hz reads as sliding, at 12 as animated.
+const LAYER_HZ := 12.0
+
+## A view to show instead of the seed's pick, by kind. For `stationshot view=`,
+## which photographs a named view in its real window; nothing in play sets it.
+static var forced_views := {}
+
+var _views: Array = []
+var _box_window: StyleBoxTexture = null
+## ONE PLACE BEHIND THE WHOLE WALL, when there is one: every opening shows the
+## part of it behind that hole, instead of each opening picking its own view.
+## Placed by `_draw_openings` so its walkway meets this room's floor.
+##
+## EVERY ONE IS 800x400, AND THAT IS NOT A STYLE CHOICE. `_bd_pos` centres the
+## picture on the wall and stands it on the floor line, so on the 740x431 panel
+## it sits at (-30, -47) -- past both sides and over the top. The set this
+## replaced was 808 wide but only 286 to 352 tall, which left between 1 and 67
+## pixels of bare wall above it, and an opening dragged high showed the gap.
+## Drawing those smaller to widen the view only uncovered more wall. Any
+## backdrop added here has to reach as far.
+const BACKDROPS: Array[StringName] = [&"arches", &"archive", &"arrivals",
+	&"atrium", &"bazaar", &"capsule", &"cargo", &"concourse", &"farm", &"food",
+	&"freightlift", &"fuel", &"galley", &"garden", &"hab", &"halfbuilt",
+	&"lifts", &"lockers", &"nightatrium", &"nightwatch", &"parcel", &"ports",
+	&"rigging", &"scrap", &"servers", &"sorting", &"tanks", &"vending",
+	&"vitrine"]
+var _backdrop: Texture2D = null
+var _bd_pos := Vector2.ZERO
+
+## WALKERS ARE OFF. The drawn silhouettes read as people painted into the view,
+## and the people are going to be pixel-art characters walking across as their
+## own layer on top. `_walkers` stays as the place that layer goes.
+const WALKERS := false
+
+## The porthole plate: one sprite, three holes, a single view behind it.
+var _ports: Texture2D = null
+
+## The shapes a station's windows come in. See `room_plate.py window_styles`.
+const WINDOW_STYLES: Array[StringName] = [&"chamfer", &"round", &"octa"]
+var _box_door: StyleBoxTexture = null
+var _fore: Control = null
+var _clock := 0.0
+var _since := 0.0
+
+
+## Where this deck's back wall opens, as `{rect, kind}` with kind `&"window"` or
+## `&"door"`. Empty is a blind wall. A deck places these round its own furniture;
+## the room knows nothing about what stands in front of it.
+func openings(_w: float, _h: float, _floor_y: float) -> Array:
+	return []
+
+
+func _load_views() -> void:
+	_views.clear()
+	var taken := {}
+	var list := openings(size.x, size.y, size.y - floor_h())
+	for i in list.size():
+		var kind: StringName = list[i].kind
+		# A porthole plate looks onto the same kinds of place a window does.
+		var pool_kind: StringName = &"window" if kind == &"ports" else kind
+		var want: StringName = forced_views.get(kind, &"")
+		if want != &"" and DB.station_sprite(&"view", want) != null:
+			_views.append(DB.station_sprite(&"view", want))
+			continue
+		var pool: Array = []
+		for v in VIEWS.get(pool_kind, []):
+			if not taken.has(v) and DB.station_sprite(&"view", v) != null:
+				pool.append(v)
+		if pool.is_empty():
+			_views.append(null)
+			continue
+		var pick: StringName = pool[absi(hash([place_seed, i])) % pool.size()]
+		taken[pick] = true
+		_views.append(DB.station_sprite(&"view", pick))
+
+
+func _process(delta: float) -> void:
+	if not WALKERS or _views.is_empty() or not is_visible_in_tree():
+		return
+	_clock += delta
+	_since += delta
+	if _since >= 1.0 / LAYER_HZ:
+		_since = 0.0
+		queue_redraw()
+
+
+func _draw_openings(w: float, h: float, floor_y: float) -> void:
+	var list := openings(w, h, floor_y)
+	if _backdrop != null:
+		# FIXED TO THE WALL: centred across it, standing on the floor. It is the
+		# place outside, so where the openings are changes what you see of it,
+		# never where it is. (Centring it on the openings made it slide whenever
+		# a window moved.) The walkway is at the foot of the picture, so a door
+		# opens onto it at deck level.
+		var bs := Vector2(_backdrop.get_size())
+		_bd_pos = Vector2(roundf((w - bs.x) * 0.5), floor_y - bs.y)
+	for i in list.size():
+		var r: Rect2 = list[i].rect
+		var tex: Texture2D = _views[i] if i < _views.size() else null
+		if list[i].kind == &"door":
+			_door(r, tex, i)
+		elif list[i].kind == &"ports" and _ports != null:
+			_porthole_plate(r, tex)
+		elif list[i].kind == &"open":
+			_shaped_opening(r, tex, list[i].get("skin", &""))
+		else:
+			_pane(r, tex, i)
+
+
+## A HOLE THAT IS NOT A RECTANGLE. An arch, a canopy, a torn breach: the sprite
+## carries the frame, and the station shows through the shape cut in it.
+##
+## THE SPRITE CANNOT TELL US WHERE THE HOLE IS. Both the hole and the air around
+## the frame are transparent in it, so filling "everywhere the sprite is clear"
+## paints promenade in a square all round the opening -- which is exactly what
+## the bench did until the hole was measured out separately. `opening_holes.json`
+## holds the inside as spans of [y, x, width]; we fill those and nothing else,
+## then lay the sprite over the top.
+func _shaped_opening(r: Rect2, tex: Texture2D, skin: StringName) -> void:
+	var art: Texture2D = DB.station_sprite(&"opening", skin)
+	var runs: Array = _hole_runs(skin)
+	if art == null or runs.is_empty():
+		# No sprite, or a plate with no hole in it: fall back to a plain pane
+		# rather than drawing a rectangle of raw promenade on the wall.
+		_pane(r, tex, 0)
+		return
+	for run in runs:
+		var span := Rect2(r.position + Vector2(run[1], run[0]), Vector2(run[2], 1.0))
+		draw_rect(span, DEEP)
+		if _backdrop == null:
+			continue
+		var src := Rect2(span.position - _bd_pos, span.size).intersection(
+			Rect2(Vector2.ZERO, Vector2(_backdrop.get_size())))
+		if src.has_area():
+			draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
+				src, VIEW_GLASS)
+	draw_texture(art, r.position.round())
+
+
+## The measured insides, read once and kept. Missing file or bad skin gives an
+## empty list, which `_shaped_opening` treats as "draw a plain pane instead".
+static var _holes: Dictionary = {}
+static var _holes_read := false
+const HOLES_PATH := "res://art/sprites/station/opening_holes.json"
+
+
+static func _hole_runs(skin: StringName) -> Array:
+	if not _holes_read:
+		_holes_read = true
+		if FileAccess.file_exists(HOLES_PATH):
+			var parsed: Variant = JSON.parse_string(
+				FileAccess.get_file_as_string(HOLES_PATH))
+			if parsed is Dictionary:
+				_holes = parsed
+	var entry: Variant = _holes.get(String(skin), null)
+	if entry is Dictionary and entry.has("runs"):
+		return entry["runs"]
+	return []
+
+
+## The size a shaped opening wants, so a layout can place it without hardcoding
+## numbers that would silently disagree with the art.
+static func opening_size(skin: StringName) -> Vector2:
+	_hole_runs(skin)
+	var entry: Variant = _holes.get(String(skin), null)
+	if entry is Dictionary:
+		return Vector2(float(entry.get("w", 0)), float(entry.get("h", 0)))
+	return Vector2.ZERO
+
+
+## Three portholes in one plate over one view. The view is drawn across the
+## whole opening and the plate covers everything but the holes, glass and all.
+func _porthole_plate(r: Rect2, tex: Texture2D) -> void:
+	_blit_view(r, tex, false)
+	var ps := Vector2(_ports.get_size())
+	draw_texture(_ports, (r.get_center() - ps * 0.5).round())
+
+
+## A view cropped into its opening at 1:1 -- never scaled, because a view is
+## pixel art like everything else here. `bottom` pins its foot to the opening's
+## foot, which a corridor needs and a concourse does not.
+func _blit_view(r: Rect2, tex: Texture2D, bottom: bool) -> void:
+	draw_rect(r, DEEP)
+	if _backdrop != null:
+		var src := Rect2(r.position - _bd_pos, r.size).intersection(
+			Rect2(Vector2.ZERO, Vector2(_backdrop.get_size())))
+		if src.has_area():
+			draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
+				src, VIEW_GLASS)
+		return
+	if tex == null:
+		return
+	var ts := Vector2(tex.get_size())
+	var src := Rect2(floorf((ts.x - r.size.x) * 0.5),
+		(ts.y - r.size.y) if bottom else floorf((ts.y - r.size.y) * 0.5),
+		r.size.x, r.size.y)
+	var dst := r
+	if src.position.x < 0.0:
+		dst.position.x -= src.position.x
+		dst.size.x = ts.x
+		src.position.x = 0.0
+		src.size.x = ts.x
+	if src.position.y < 0.0:
+		dst.position.y -= src.position.y
+		dst.size.y = ts.y
+		src.position.y = 0.0
+		src.size.y = ts.y
+	draw_texture_rect_region(tex, dst, src, VIEW_GLASS)
+
+
+## A window onto the concourse: the view, people walking past in it, the glass,
+## and a frame in the station's livery.
+func _pane(r: Rect2, tex: Texture2D, i: int) -> void:
+	_blit_view(r, tex, false)
+	if tex != null and WALKERS:
+		_walkers(r, i)
+	# The glass: a cold cast and two streaks of reflection. The streaks are what
+	# make it glass rather than a hole -- without them the concourse is a poster.
+	draw_rect(r, Color(0.35, 0.50, 0.72, 0.08))
+	var y := 0.0
+	while y < r.size.y:
+		var d := r.position.x + r.size.x * 0.18 + y * 0.6
+		_clip(Rect2(d, r.position.y + y, 12.0, 1.0), r, Color(0.8, 0.9, 1.0, 0.06))
+		_clip(Rect2(d + 30.0, r.position.y + y, 4.0, 1.0), r, Color(0.8, 0.9, 1.0, 0.05))
+		y += 1.0
+	_frame(r, true)
+
+
+## A door onto a corridor. No glass -- it is open -- so the corridor's own light
+## reaches the threshold, and a hazard stripe says where the room stops.
+func _door(r: Rect2, tex: Texture2D, _i: int) -> void:
+	_blit_view(r, tex, true)
+	# Darker toward the top: a doorway is lit from the floor strips, not the sky.
+	var bands := 8
+	for b in bands:
+		var bh := r.size.y * 0.5 / float(bands)
+		draw_rect(Rect2(r.position.x, r.position.y + bh * float(b), r.size.x, bh),
+			Color(DEEP.r, DEEP.g, DEEP.b, 0.45 * (1.0 - float(b) / float(bands))))
+	# THE BLAST DOORS, OPEN: a leaf slid back into each jamb. A hole in a wall is
+	# a hole; a hole with its doors pulled aside is a door someone can close.
+	for side in [r.position.x, r.end.x - 6.0]:
+		var sxf: float = side
+		draw_rect(Rect2(sxf, r.position.y, 6.0, r.size.y), PLATE)
+		draw_rect(Rect2(sxf + (5.0 if sxf > r.position.x else 0.0), r.position.y,
+			1.0, r.size.y), DEEP)
+		draw_rect(Rect2(sxf + 2.0, r.position.y, 1.0, r.size.y),
+			Color(STAR.r, STAR.g, STAR.b, 0.10))
+		draw_rect(Rect2(sxf + 2.0, r.position.y + roundf(r.size.y * 0.45), 2.0, 2.0),
+			Color(0.44, 0.83, 0.88, 0.85))
+	_frame(r, false)
+	var sx := r.position.x
+	while sx < r.end.x:
+		draw_rect(Rect2(sx, r.end.y - 3.0, 4.0, 3.0), Color(LAMP.r, LAMP.g, LAMP.b, 0.55))
+		sx += 8.0
+
+
+## An opening's frame: the authored bezel, nine-sliced round the opening.
+##
+## THE BEZEL IS A SPRITE, NOT RECTANGLES -- `room_plate.py frames` records why.
+## The livery goes on a light bar in its head, which is the one place on a frame
+## a manufacturer would put a colour; with no bezel art the old drawn frame stays
+## as the fallback.
+func _frame(r: Rect2, sill: bool) -> void:
+	var box: StyleBoxTexture = _box_window if sill else _box_door
+	if box != null:
+		var outer := r.grow(12.0)
+		if not sill:
+			outer.size.y -= 12.0
+		draw_style_box(box, outer)
+		var m: ManufacturerData = DB.manufacturers.get(manufacturer)
+		var badge: Color = m.colour if m != null else LAMP
+		var bw := roundf(minf(48.0, r.size.x * 0.34) * 0.5) * 2.0
+		draw_rect(Rect2(roundf(r.get_center().x - bw * 0.5), r.position.y - 8.0, bw, 2.0),
+			Color(badge.r, badge.g, badge.b, 0.85))
+		return
+	var t := 5.0
+	var outer2 := r.grow(t)
+	if not sill:
+		outer2.size.y -= t
+	draw_rect(Rect2(outer2.position, Vector2(outer2.size.x, t)), PLATE)
+	draw_rect(Rect2(outer2.position.x, r.position.y, t, r.size.y), PLATE)
+	draw_rect(Rect2(r.end.x, r.position.y, t, r.size.y), PLATE)
+	draw_rect(Rect2(outer2.position.x, outer2.position.y, outer2.size.x, 1.0),
+		Color(STAR.r, STAR.g, STAR.b, 0.16))
+	draw_rect(r.grow(1.0), _tint(EDGE), false, 1.0)
+	if sill:
+		draw_rect(Rect2(outer2.position.x, r.end.y, outer2.size.x, t), PLATE)
+		draw_rect(Rect2(outer2.position.x, r.end.y, outer2.size.x, 1.0),
+			Color(LAMP.r, LAMP.g, LAMP.b, 0.30))
+		draw_rect(Rect2(outer2.position.x, r.end.y + t, outer2.size.x, 2.0),
+			Color(DEEP.r, DEEP.g, DEEP.b, 0.6))
+
+
+## A bezel sprite as a nine-slice, or null with no art. Built at load rather than
+## in `_draw`, for the white-texture reason on `_plate_key`.
+func _bezel(id: StringName, sill: bool, margin: float = 18.0) -> StyleBoxTexture:
+	var tex := DB.station_sprite(&"frame", id)
+	if tex == null:
+		return null
+	var sb := StyleBoxTexture.new()
+	sb.texture = tex
+	sb.draw_center = false
+	sb.texture_margin_left = margin
+	sb.texture_margin_right = margin
+	sb.texture_margin_top = margin
+	sb.texture_margin_bottom = margin if sill else 0.0
+	# TILED, not stretched: a stretched edge smears its rivets.
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	return sb
+
+
+## People walking past on the far side of the glass, in three lanes.
+##
+## DEPTH BY SPEED AND HAZE. The near lane is lowest, tallest, darkest and
+## fastest; the far lane is higher, smaller, paler and slower. On a picture that
+## never pans, that difference in speed is the whole of the parallax.
+##
+## A FUNCTION OF THE CLOCK, not a list of walkers that step: each one's place is
+## computed from the time and its own seed, so there is no state to keep in step
+## and a room that was hidden picks up exactly where the clock says.
+func _walkers(r: Rect2, i: int) -> void:
+	# far, mid, near: feet as a fraction down the pane, height, speed, haze
+	var lanes := [[0.72, 16.0, 5.0, 0.30], [0.84, 22.0, 9.0, 0.15],
+		[0.98, 30.0, 14.0, 0.0]]
+	for lane in lanes.size():
+		var spec: Array = lanes[lane]
+		var n := 1 + absi(hash([place_seed, i, lane])) % 3
+		for k in n:
+			var s := absi(hash([place_seed, i, lane, k]))
+			var speed: float = spec[2] * (0.8 + 0.4 * float(s % 100) / 100.0)
+			var span := r.size.x + 40.0
+			# A pause between passes, so the lanes are never a conveyor belt.
+			var cycle := span + 80.0 + float((s >> 7) % 260)
+			var run := fmod(_clock * speed + float((s >> 3) % 997), cycle)
+			if run > span:
+				continue
+			var right := (s >> 11) % 2 == 0
+			var x := (r.position.x - 20.0 + run) if right else (r.end.x + 20.0 - run)
+			var feet := r.position.y + r.size.y * float(spec[0])
+			var haze: float = spec[3]
+			var ink := Color(0.03, 0.04, 0.07).lerp(Color(0.30, 0.38, 0.50), haze)
+			_figure(Vector2(roundf(x), roundf(feet)), spec[1], s, run, ink, r)
+
+
+## One walker, feet at `at`, `tall` pixels high, clipped to the pane.
+func _figure(at: Vector2, tall: float, s: int, run: float, ink: Color, clip: Rect2) -> void:
+	# A PERSON, NOT A POST. The first cut was a block with a head the same width
+	# and read as a row of bollards. What says "person" at twenty pixels is the
+	# head narrower than the shoulders, a gap for the neck, a waist narrower than
+	# the chest, and arms and legs that swing.
+	var head := maxf(3.0, roundf(tall * 0.16))
+	var chest := maxf(5.0, roundf(tall * 0.30)) + float(s % 2) * 2.0
+	var torso := roundf(tall * 0.34)
+	var legs := tall - head - 1.0 - torso
+	var top := at.y - tall
+	var cx := at.x
+	var sx := cx - floorf(chest * 0.5)
+	# Two frames of stride off the distance walked, so a slow walker steps slowly.
+	var apart := int(run / maxf(2.0, tall * 0.3)) % 2 == 0
+	# Head, corners knocked off so it is round rather than a tile.
+	var hx := cx - floorf(head * 0.5)
+	_clip(Rect2(hx + 1.0, top, head - 2.0, 1.0), clip, ink)
+	_clip(Rect2(hx, top + 1.0, head, head - 1.0), clip, ink)
+	# Neck, then shoulders full width, tapering to the waist.
+	var ny := top + head
+	_clip(Rect2(cx - 1.0, ny, 2.0, 1.0), clip, ink)
+	var ty := ny + 1.0
+	_clip(Rect2(sx, ty, chest, ceilf(torso * 0.5)), clip, ink)
+	_clip(Rect2(sx + 1.0, ty + ceilf(torso * 0.5), chest - 2.0, floorf(torso * 0.5)), clip, ink)
+	# Arms: hanging past the waist, one forward and one back in the stride frame.
+	var arm := roundf(torso * 0.95)
+	var swing := 1.0 if apart else 0.0
+	_clip(Rect2(sx - 1.0, ty + 1.0 + swing, 1.0, arm), clip, ink)
+	_clip(Rect2(sx + chest, ty + 1.0 + (1.0 - swing), 1.0, arm), clip, ink)
+	# Legs: apart, then passing.
+	var ly := ty + torso
+	var lw := maxf(1.0, floorf(chest * 0.25))
+	if apart:
+		_clip(Rect2(sx + 1.0 - 1.0, ly, lw, legs), clip, ink)
+		_clip(Rect2(sx + chest - 1.0 - lw + 1.0, ly, lw, legs), clip, ink)
+	else:
+		_clip(Rect2(cx - lw, ly, lw * 2.0, legs), clip, ink)
+	# A RIM OF LAMPLIGHT down one side and over the head. A silhouette only reads
+	# against something lit, and half these views have dark reflective floors --
+	# the rim is what keeps a walker there when the floor behind it goes black.
+	var rim := Color(LAMP.r, LAMP.g, LAMP.b, 0.55 * (1.0 - ink.b))
+	var edge := sx + chest - 1.0 if (s >> 5) % 2 == 0 else sx
+	_clip(Rect2(hx + 1.0, top, head - 2.0, 1.0), clip, rim)
+	_clip(Rect2(edge, ty, 1.0, ceilf(torso * 0.5)), clip, rim)
+	# Some carry something: a crate on the shoulder, or a lit datapad.
+	match s % 7:
+		0: _clip(Rect2(sx - 1.0, ty - 3.0, chest * 0.6, 3.0), clip, ink)
+		1: _clip(Rect2(sx + chest + 1.0, ty + 3.0, 1.0, 1.0), clip,
+			Color(0.45, 0.85, 0.95, 0.9))
+
+
+## A rect cut to a clip rect -- what keeps a walker inside the glass.
+func _clip(rr: Rect2, clip: Rect2, c: Color) -> void:
+	var cut := rr.intersection(clip)
+	if cut.has_area():
+		draw_rect(cut, c)
+
+
+## A low cold haze over the foot of the wall and the deck: the air in the room.
+## Drawn last, so it lies over the light pools as well -- haze is lit too.
+func _draw_haze(w: float, h: float, floor_y: float) -> void:
+	var top := floor_y - 90.0
+	var steps := 14
+	var bh := (h - top) / float(steps)
+	for b in steps:
+		var a := 0.12 * minf(1.0, float(b + 1) / float(steps) * 1.4)
+		draw_rect(Rect2(0.0, top + bh * float(b), w, bh + 1.0),
+			Color(0.27, 0.35, 0.47, a))
+
+
+## The layer IN FRONT of the deck, furniture and all, as its own node.
+##
+## ITS OWN NODE BECAUSE THE FURNITURE IS. A deck's rack, till and cage are
+## children of the screen stacked over this room, and nothing this room draws can
+## reach above them. So the screen adds this after the furniture, and it draws
+## the cables that make the whole deck sit behind something.
+func foreground() -> Control:
+	if _fore == null:
+		var f := _Fore.new()
+		f.room = self
+		f.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fore = f
+	return _fore
+
+
+class _Fore extends Control:
+	var room: StationRoom
+
+	func _draw() -> void:
+		if room != null and is_instance_valid(room):
+			room._draw_fore(self)
+
+
+## Cables slung across the top of the deck, near black, with a faint warm rim
+## underneath from the lamps. Two or three, placed by the seed.
+func _draw_fore(c: Control) -> void:
+	if _plate_wall == null:
+		return
+	var w := c.size.x
+	if w < 120.0:
+		return
+	var dark := Color(0.016, 0.02, 0.03)
+	var rim := Color(LAMP.r, LAMP.g, LAMP.b, 0.22)
+	var n := 2 + absi(hash([place_seed, &"cables"])) % 2
+	for k in n:
+		var s := absi(hash([place_seed, &"cable", k]))
+		var x0 := float(s % int(w * 0.5)) - 40.0
+		var x1 := x0 + w * (0.45 + float((s >> 5) % 40) / 100.0)
+		var sag := 18.0 + float((s >> 9) % 40)
+		var y0 := float((s >> 13) % 18)
+		var x := x0
+		while x < x1:
+			var t := (x - x0) / (x1 - x0)
+			var y := roundf(y0 + 4.0 * sag * t * (1.0 - t))
+			c.draw_rect(Rect2(x, y, 2.0, 3.0), dark)
+			c.draw_rect(Rect2(x, y + 3.0, 2.0, 1.0), rim)
+			x += 2.0
+
+
 # ------------------------------------------------------------ shared furniture
 
 
@@ -295,32 +876,65 @@ func _crate(r: Rect2) -> void:
 ## and a frame with a lit sill and mullions.
 ##
 ## The hull arc is the one mark that says you are ON something rather than
-## looking at a poster.
+## looking at a poster -- so it is drawn as hull: solid, lit along its rim, with
+## a row of lit ports along it. As a translucent band it read as a gradient.
 func _window(sky: Rect2) -> void:
 	draw_rect(sky, DEEP)
 	# Stars. Fixed positions, three brightnesses, and none of them on the frame --
-	# a star touching a mullion looks like a dead pixel.
+	# a star touching a mullion looks like a dead pixel. Every ninth is a bright
+	# one drawn as a cross, and a few run warm or blue, because a field of
+	# identical dots is the look of a loop rather than a sky.
 	for i in 46:
-		var sx := sky.position.x + 3.0 + _scatter(i * 7 + 1, sky.size.x - 6.0)
-		var sy := sky.position.y + 3.0 + _scatter(i * 13 + 5, sky.size.y - 6.0)
+		var sx := floorf(sky.position.x + 4.0 + _scatter(i * 7 + 1, sky.size.x - 8.0))
+		var sy := floorf(sky.position.y + 4.0 + _scatter(i * 13 + 5, sky.size.y - 8.0))
 		var mag := 0.25 + 0.75 * (float(i % 5) / 4.0)
-		draw_rect(Rect2(floorf(sx), floorf(sy), 1.0, 1.0),
-			Color(STAR.r, STAR.g, STAR.b, mag))
+		var tone := STAR
+		if i % 11 == 3:
+			tone = Color(0.98, 0.80, 0.60)
+		elif i % 13 == 5:
+			tone = Color(0.62, 0.78, 1.0)
+		draw_rect(Rect2(sx, sy, 1.0, 1.0), Color(tone.r, tone.g, tone.b, mag))
+		if i % 9 == 4:
+			var arm := Color(tone.r, tone.g, tone.b, 0.35)
+			draw_rect(Rect2(sx - 1.0, sy, 1.0, 1.0), arm)
+			draw_rect(Rect2(sx + 1.0, sy, 1.0, 1.0), arm)
+			draw_rect(Rect2(sx, sy - 1.0, 1.0, 1.0), arm)
+			draw_rect(Rect2(sx, sy + 1.0, 1.0, 1.0), arm)
+	var hull := Color("#141c27")
 	var arc := 0.0
 	while arc < sky.size.x:
-		var bow := sky.size.y * 0.30 * sin(PI * arc / sky.size.x)
-		draw_rect(Rect2(sky.position.x + arc, sky.end.y - bow, 2.0, bow),
-			Color(EDGE.r, EDGE.g, EDGE.b, 0.75))
+		var bow := roundf(sky.size.y * 0.30 * sin(PI * arc / sky.size.x))
+		if bow > 0.0:
+			var top := sky.end.y - bow
+			draw_rect(Rect2(sky.position.x + arc, top, 2.0, bow), hull)
+			draw_rect(Rect2(sky.position.x + arc, top, 2.0, 1.0),
+				Color(STAR.r, STAR.g, STAR.b, 0.30))
+			# Ports: lit windows in a row just under the rim, some dark.
+			if int(arc) % 10 == 4 and bow > 6.0 and _scatter(int(arc), 5.0) > 1.2:
+				draw_rect(Rect2(sky.position.x + arc, top + 3.0, 2.0, 1.0),
+					Color(LAMP.r, LAMP.g, LAMP.b, 0.75))
 		arc += 2.0
+	if _box_window != null:
+		# Mullions as posts of the same steel as the bezel, bevelled like it.
+		var mx := sky.position.x + 116.0
+		while mx < sky.end.x - 20.0:
+			draw_rect(Rect2(mx - 3.0, sky.position.y, 8.0, sky.size.y), Color("#151e2a"))
+			draw_rect(Rect2(mx - 3.0, sky.position.y, 2.0, sky.size.y), Color("#3a4c64"))
+			draw_rect(Rect2(mx + 3.0, sky.position.y, 2.0, sky.size.y), Color("#0d131c"))
+			draw_rect(Rect2(mx - 1.0, sky.position.y + roundf(sky.size.y * 0.5) - 1.0,
+				2.0, 2.0), Color("#687c96"))
+			mx += 116.0
+		_frame(sky, true)
+		return
 	draw_rect(sky, _tint(EDGE), false, 2.0)
 	draw_rect(Rect2(sky.position.x, sky.end.y - 1.0, sky.size.x, 3.0),
 		Color(LAMP.r, LAMP.g, LAMP.b, 0.22))
-	var mx := sky.position.x + 116.0
-	while mx < sky.end.x - 20.0:
-		draw_rect(Rect2(mx, sky.position.y, 3.0, sky.size.y), _tint(PLATE))
-		draw_rect(Rect2(mx, sky.position.y, 1.0, sky.size.y),
+	var mx2 := sky.position.x + 116.0
+	while mx2 < sky.end.x - 20.0:
+		draw_rect(Rect2(mx2, sky.position.y, 3.0, sky.size.y), _tint(PLATE))
+		draw_rect(Rect2(mx2, sky.position.y, 1.0, sky.size.y),
 			Color(EDGE.r, EDGE.g, EDGE.b, 0.6))
-		mx += 116.0
+		mx2 += 116.0
 
 
 ## A run of conduit across the whole wall on brackets, because a station is
