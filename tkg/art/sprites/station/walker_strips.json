@@ -45,6 +45,29 @@
    6.25
   ]
  },
+ "cargo3": {
+  "advance": 5.0,
+  "colours": 20,
+  "colours_before": 75,
+  "cycle": 55.0,
+  "deck_contacts": 2,
+  "feet_level": true,
+  "file": "walker_cargo3.png",
+  "fit": 0.443,
+  "foot_wander": 1,
+  "fps": 4.0,
+  "frame_h": 78,
+  "frame_w": 46,
+  "frames": 11,
+  "lap": 11,
+  "pace": 20,
+  "skate": 0.275,
+  "warn": null,
+  "within_3pct": [
+   4.75,
+   5.75
+  ]
+ },
  "dock60h": {
   "advance": 8.75,
   "colours": 20,
@@ -114,6 +137,29 @@
   "within_3pct": [
    2.75,
    4.0
+  ]
+ },
+ "elder2": {
+  "advance": 3.5,
+  "colours": 20,
+  "colours_before": 42,
+  "cycle": 21.0,
+  "deck_contacts": 3,
+  "feet_level": true,
+  "file": "walker_elder2.png",
+  "fit": 0.387,
+  "foot_wander": 0,
+  "fps": 5.71,
+  "frame_h": 76,
+  "frame_w": 35,
+  "frames": 6,
+  "lap": 12,
+  "pace": 20,
+  "skate": 0.357,
+  "warn": "1 frames put more than two things on the deck ([1, 2, 1, 2, 3, 2]) -- something other than a boot is touching the floor, and the body is anchored to it",
+  "within_3pct": [
+   2.75,
+   4.5
   ]
  },
  "guard": {
@@ -275,6 +321,29 @@
   "within_3pct": [
    4.75,
    5.25
+  ]
+ },
+ "suit3": {
+  "advance": 5.0,
+  "colours": 20,
+  "colours_before": 21,
+  "cycle": 55.0,
+  "deck_contacts": 2,
+  "feet_level": true,
+  "file": "walker_suit3.png",
+  "fit": 0.527,
+  "foot_wander": 2,
+  "fps": 4.0,
+  "frame_h": 86,
+  "frame_w": 44,
+  "frames": 11,
+  "lap": 11,
+  "pace": 20,
+  "skate": 0.433,
+  "warn": null,
+  "within_3pct": [
+   4.0,
+   5.5
   ]
  },
  "t_crouchwalk": {
