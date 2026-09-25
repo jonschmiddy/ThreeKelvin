@@ -52,6 +52,15 @@
   .nums .lose b{color:var(--bad)}
   .shot{background:#05070a;border-top:1px solid var(--line);overflow-x:auto}
   canvas{display:block;image-rendering:pixelated}
+  .verdict{display:flex;gap:8px;align-items:center;padding:0 13px 12px}
+  .verdict button{padding:6px 14px}
+  .verdict button.keep.on{border-color:var(--good);color:var(--good)}
+  .verdict button.retry.on{border-color:var(--bad);color:var(--bad)}
+  .tally{position:sticky;bottom:0;background:var(--panel);
+    border:1px solid var(--hot);padding:13px 16px;
+    display:flex;flex-direction:column;gap:9px}
+  .tally code{display:block;background:var(--sunk,rgba(127,127,127,.12));
+    padding:9px 11px;font-size:12px;word-break:break-word;color:var(--ink)}
   .note{border-left:3px solid var(--hot);padding:13px 16px}
   .note p{margin:0 0 7px;max-width:none}
   .note p:last-child{margin:0}
@@ -74,7 +83,22 @@
     <button id="pace">pace: <b id="paceN">/*PACE*/</b> px/s</button>
   </div>
 
+  <div class="card">
+    <h2>the deck, everyone at once</h2>
+    <div class="shot"><canvas id="all"></canvas></div>
+  </div>
+
   <div id="rows"></div>
+
+  <div class="card tally">
+    <h2 style="padding:0">what to do with them</h2>
+    <div class="nums" style="padding:0">Click <b style="color:var(--good)">keep</b>
+      or <b style="color:var(--bad)">retry</b> on each one, then paste this line
+      back to me.</div>
+    <code id="tallyline">nothing marked yet</code>
+    <div><button id="copy">copy the line</button>
+      <button id="clear">clear all marks</button></div>
+  </div>
 
   <div class="card note">
     <h2>what to look for</h2>
@@ -134,11 +158,63 @@ function build(){
       "<span class='" + fitCls + "'>on the " + k.rung + "px line <b>" +
         (k.over > 0 ? "+" : "") + k.over + "%</b></span>" +
       "</div>" +
-      "<div class='shot'><canvas id='" + k.id + "'></canvas></div>";
+      "<div class='shot'><canvas id='" + k.id + "'></canvas></div>" +
+      "<div class='verdict'><button class='keep' data-n='" + k.name +
+        "' data-v='keep'>keep</button><button class='retry' data-n='" +
+        k.name + "' data-v='retry'>retry</button></div>";
     host.appendChild(c);
+    c.querySelectorAll(".verdict button").forEach(function(b){
+      b.addEventListener("click", function(){ mark(b.dataset.n, b.dataset.v); });
+    });
   });
   W.forEach(fit);
 }
+// EVERYONE ON ONE DECK. Each walker keeps its OWN stride and its own frame
+// clock -- that is the whole point of the view. A crowd where everybody steps
+// on the same beat reads as one animation copied, which is exactly the fault
+// this page exists to catch.
+function drawAll(){
+  var cv = document.getElementById("all");
+  if(!cv) return;
+  cv.width = CW * ZOOM; cv.height = CH * ZOOM;
+  var g = cv.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, cv.width, cv.height);
+  g.imageSmoothingEnabled = false;
+  g.setTransform(ZOOM, 0, 0, ZOOM, 0, 0);
+  if(bdi.width) g.drawImage(bdi, 0, 0);
+  W.forEach(function(k, i){
+    if(!k.img.width) return;
+    // spread the starts right around the loop so they are never in a line,
+    // and send alternate walkers the other way
+    var run = (k.x0 + DIST * k.sp) % 980;
+    var flip = i % 2 === 1;
+    // A WALKER'S FRAME IS DRIVEN BY DISTANCE, A FLYER'S BY TIME. Tying a
+    // drone's rotors to its travel would make them speed up and slow down
+    // with it, which is the one thing nothing without feet should do.
+    var f, frac;
+    if(k.fly){
+      f = Math.floor(DIST / PACE * k.flyfps) % k.n;
+      frac = 0;
+    } else {
+      var steps = Math.floor(run / k.adv);
+      f = ((steps % k.n) + k.n) % k.n;
+      frac = run - steps * k.adv;
+    }
+    var x = flip ? (980 - run) : (run - 80);
+    var dx = Math.round(x - frac * (flip ? -1 : 1) - k.w / 2);
+    var dy = Math.round(k.y - k.h - (k.fly ? k.alt : 0));
+    if(flip){
+      g.save(); g.translate(dx + k.w, dy); g.scale(-1, 1);
+      g.drawImage(k.img, f * k.w, 0, k.w, k.h, 0, 0, k.w, k.h);
+      g.restore();
+    } else {
+      g.drawImage(k.img, f * k.w, 0, k.w, k.h, dx, dy, k.w, k.h);
+    }
+  });
+  g.setTransform(1, 0, 0, 1, 0, 0);
+}
+
 function fit(k){
   var cv = document.getElementById(k.id);
   if(!cv) return;
@@ -146,11 +222,48 @@ function fit(k){
   cv.height = CH * ZOOM;
 }
 
+// WHAT JON DECIDED, kept per viewer in the browser so a reload does not throw
+// away half an hour of judging. Wrapped because storage can be blocked or
+// cleared and the page must render either way.
+var VERDICT = {};
+try { VERDICT = JSON.parse(localStorage.getItem("walkverdict") || "{}"); }
+catch (e) { VERDICT = {}; }
+
+function mark(name, v){
+  VERDICT[name] = (VERDICT[name] === v) ? null : v;
+  if(!VERDICT[name]) delete VERDICT[name];
+  try { localStorage.setItem("walkverdict", JSON.stringify(VERDICT)); }
+  catch (e) {}
+  paint();
+}
+
+// Only the button classes and the one line of text are touched here. The cards
+// are NOT rebuilt: this page repaints its canvases thirty times a second, and
+// anything that rebuilds a button between mousedown and mouseup makes the
+// click impossible to land.
+function paint(){
+  document.querySelectorAll(".verdict button").forEach(function(b){
+    b.className = b.dataset.v + (VERDICT[b.dataset.n] === b.dataset.v ? " on" : "");
+  });
+  var keep = [], retry = [];
+  W.forEach(function(k){
+    if(VERDICT[k.name] === "keep") keep.push(k.name);
+    if(VERDICT[k.name] === "retry") retry.push(k.name);
+  });
+  var line = "";
+  if(keep.length) line += "keep: " + keep.join(", ");
+  if(retry.length) line += (line ? "   |   " : "") + "retry: " + retry.join(", ");
+  var un = W.length - keep.length - retry.length;
+  if(un) line += (line ? "   |   " : "") + un + " still unmarked";
+  document.getElementById("tallyline").textContent = line || "nothing marked yet";
+}
+
 var DIST = 0, last = null;
 function draw(t){
   var dt = (last === null) ? 0 : Math.min(0.25, t - last);
   last = t;
   DIST += dt * PACE * SLOW;
+  drawAll();
   W.forEach(function(k){
     var cv = document.getElementById(k.id);
     if(!cv) return;
@@ -171,12 +284,22 @@ function draw(t){
       // THE BODY IS PAINTED WHERE IT WAS AT THE START OF ITS FRAME, so the
       // planted boot does not creep. Any smoothing at all moves the drawn
       // position hundreds of times a minute between frame changes.
-      var steps = Math.floor(run / k.adv), f = ((steps % k.n) + k.n) % k.n;
+      // A WALKER'S FRAME IS DRIVEN BY DISTANCE, A FLYER'S BY TIME. Tying a
+      // drone's rotors to its travel would make them speed up and slow down
+      // with it, which is the one thing nothing without feet should do.
+      var f, frac;
+      if(k.fly){
+        f = Math.floor(DIST / PACE * k.flyfps) % k.n;
+        frac = 0;
+      } else {
+        var steps = Math.floor(run / k.adv);
+        f = ((steps % k.n) + k.n) % k.n;
+        frac = run - steps * k.adv;
+      }
       var flip = i % 2 === 1;
       var x = flip ? (920 - run) : (run - 60);
-      var frac = run - steps * k.adv;
-      var dx = Math.round(x - frac * (flip ? -1 : 1) - k.w / 2);
-      var dy = Math.round(k.y - k.h);
+        var dx = Math.round(x - frac * (flip ? -1 : 1) - k.w / 2);
+      var dy = Math.round(k.y - k.h - (k.fly ? k.alt : 0));
       if(flip){
         g.save();
         g.translate(dx + k.w, dy);
@@ -191,12 +314,34 @@ function draw(t){
   });
 }
 function start(){
+  // A start offset and a slightly different walking speed each, so nobody
+  // marches in step with anybody else.
+  W.forEach(function(k, i){
+    k.x0 = 40 + i * 121;
+    k.sp = 0.82 + ((i * 7) % 5) * 0.09;
+    // Drones ride above head height, at staggered altitudes so they do not
+    // line up into a row.
+    k.alt = k.fly ? 96 + ((i * 5) % 4) * 26 : 0;
+  });
   build();
+  paint();
+  document.getElementById("copy").addEventListener("click", function(e){
+    var t = document.getElementById("tallyline").textContent;
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+    e.currentTarget.textContent = "copied";
+    setTimeout(function(){ e.currentTarget.textContent = "copy the line"; }, 1400);
+  });
+  document.getElementById("clear").addEventListener("click", function(){
+    VERDICT = {};
+    try { localStorage.removeItem("walkverdict"); } catch (e) {}
+    paint();
+  });
   document.getElementById("zoom").addEventListener("click", function(e){
     ZOOM = ZOOM === 1 ? 2 : 1;
     e.currentTarget.textContent = ZOOM + "×";
     e.currentTarget.className = ZOOM === 2 ? "on" : "";
     W.forEach(fit);
+    drawAll();
   });
   document.getElementById("slow").addEventListener("click", function(e){
     SLOW = SLOW === 1 ? 0.35 : 1;
