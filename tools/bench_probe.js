@@ -130,9 +130,17 @@ items.forEach((o) => {
   let n = 0;
   if (lit && lit._img) { const d = lit._img.data; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0) n++; }
   const painted = PAINTED.slice(before).some((p) => String(p.src).indexOf(o.id) >= 0);
-  if (listed && !painted) bad++;
+  // A PROP WITH NO ART IS NOT A DARK PROP. Prop sprites only exist in a
+  // --stage folder, so a build without one has no images to light and every
+  // listed prop looks like it "stays dark". That made the probe fail for as
+  // long as the scratch folder it was last built from has been gone. Only a
+  // prop that HAS art and still is not painted is a fault.
+  if (listed && !painted && im && im.width) bad++;
   console.log(o.id.padEnd(18) + (listed ? 'yes' : 'NO ').padEnd(13) +
-    String(n).padStart(6) + '      ' + (painted ? 'yes' : (listed ? 'NO  <-- stays dark' : '-')));
+    String(n).padStart(6) + '      ' +
+    (painted ? 'yes'
+      : (!im || !im.width) ? '-   (no art staged)'
+      : listed ? 'NO  <-- stays dark' : '-'));
 });
 console.log('\ndrawPropGlass painted ' + glassDraws + ' lit face(s)');
 

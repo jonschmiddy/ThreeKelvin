@@ -23,6 +23,7 @@ the composition is the thing worth keeping.
     python tools/room_plate.py init  <shot.png> <out.png> [--lab]
     python tools/room_plate.py plate <gen.png>  <out.png> [--lab]
     python tools/room_plate.py trim  <out.png> [--lab] [--deck stock|hold|bench]
+    python tools/room_plate.py level <plate.png> <out.png> <first floor row>
 """
 
 import glob
@@ -1441,6 +1442,104 @@ def cmd_trim(dst: str, lab: bool, deck: str) -> None:
     print("trim  %s  %dx%d  %d lit px  (deck=%s)" % (dst, pw, ph, n, deck))
 
 
+def _row_energy(a):
+    """How different each row is from the next, averaged across the width."""
+    import numpy as np
+    d = np.abs(a[1:, :, :3].astype(int) - a[:-1, :, :3].astype(int)).mean(axis=(1, 2))
+    return np.concatenate([d, [1e9]])
+
+
+def _pick_rows(e, n, lo, hi):
+    """The n flattest rows in [lo, hi), kept apart where the wall allows."""
+    order = sorted(range(lo, hi), key=lambda y: e[y] + e[y - 1])
+    for gap in (4, 2, 1):
+        got = []
+        for y in order:
+            if all(abs(y - g) >= gap for g in got):
+                got.append(y)
+            if len(got) == n:
+                return got
+    # A wall with fewer flat rows than it needs: repeat the flattest again.
+    return (order * (n // max(1, len(order)) + 1))[:n]
+
+
+def _extend_floor(f, n_out):
+    """More deck below the bottom row, in the floor's own perspective.
+
+    Every row of a receding floor is the row above it seen closer: the same
+    lines, spread wider about the vanishing point. So the vanishing point is
+    FOUND -- the (x, horizon) that best predicts the bottom row from one 24
+    rows up -- and the new rows are the bottom row spread by the same rule.
+    Plank edges run on straight, and grain follows the boards.
+    """
+    import numpy as np
+    n_in, w = f.shape[0], f.shape[1]
+    if n_out <= n_in:
+        return f[:n_out]
+    lum = f[:, :, :3].astype(float) @ [0.299, 0.587, 0.114]
+    r1, r2 = n_in - 25, n_in - 1
+    xs = np.arange(w)
+    best = None
+    for yh in range(-900, -4, 8):
+        for xv in range(0, w, 10):
+            src = np.clip(np.round(xv + (xs - xv) * (r1 - yh) / (r2 - yh)), 0, w - 1).astype(int)
+            loss = np.abs(lum[r1][src] - lum[r2]).mean()
+            if best is None or loss < best[0]:
+                best = (loss, yh, xv)
+    _, yh, xv = best
+    out = [f]
+    last = f[r2]
+    for y in range(n_in, n_out):
+        src = np.clip(np.round(xv + (xs - xv) * (r2 - yh) / (y - yh)), 0, w - 1).astype(int)
+        out.append(last[src][None])
+    print("      floor extended %d rows; vanishing point x %d, horizon %d rows above the deck"
+          % (n_out - n_in, xv, -yh))
+    return np.concatenate(out, axis=0)
+
+
+def cmd_level(src: str, dst: str, corner: int, target: int = 353) -> None:
+    """Move a plate's wall/floor corner to the room's floor line. No stretch.
+
+    A PLATE WHOSE WALL PICTURE DREW ITS OWN FLOOR meets the deck high: reactor
+    at 315, crate at 329, while props, doors and walkers all stand on 353. So
+    every room's corner is put on one row.
+
+    Down (corner too high): the wall needs more rows, and they are the wall's
+    FLATTEST rows repeated -- rows equal to their neighbours, inside a plain
+    panel, where one more is invisible -- and the nearest deck rows come off
+    the bottom. Up (corner too low): the flattest wall rows come out, and the
+    deck is carried on in its own perspective (`_extend_floor`).
+    `corner` is the first row of floor, measured by eye: the shadow line at
+    the join belongs to the wall.
+    """
+    import numpy as np
+    w, h, rows = pixeltools.decode(src)
+    a = np.frombuffer(b"".join(bytes(r) for r in rows), np.uint8).reshape(h, w, 4)
+    floor_n = h - target
+    wall = a[:corner]
+    if corner < target:
+        e = _row_energy(wall)
+        extra = {}
+        for y in _pick_rows(e, target - corner, 2, corner - 8):
+            extra[y] = extra.get(y, 0) + 1
+        wall = np.concatenate([np.repeat(wall[y:y + 1], 1 + extra.get(y, 0), axis=0)
+                               for y in range(corner)], axis=0)
+        floor = a[corner:corner + floor_n]
+    elif corner > target:
+        e = _row_energy(wall)
+        drop = set(_pick_rows(e, corner - target, 2, corner - 8))
+        wall = wall[[y for y in range(corner) if y not in drop]]
+        floor = _extend_floor(a[corner:], floor_n)
+    else:
+        floor = a[corner:]
+    out = np.concatenate([wall, floor], axis=0)
+    assert out.shape[0] == h, out.shape
+    pixeltools.encode(dst, w, h, [bytes(r) for r in out.reshape(h, -1)])
+    print("level %s  corner %d -> %d  (%s %d wall rows)" % (
+        os.path.basename(dst), corner, target,
+        "repeated" if corner < target else "removed", abs(target - corner)))
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     lab = "--lab" in a
@@ -1479,6 +1578,8 @@ if __name__ == "__main__":
         cmd_backdrop(a[1], a[2])
     elif a[0] == "despeckle":
         cmd_despeckle(a[1])
+    elif a[0] == "level":
+        cmd_level(a[1], a[2], int(a[3]))
     elif a[0] == "compose":
         cmd_compose(a[1], a[2])
     elif a[0] == "unsmear":

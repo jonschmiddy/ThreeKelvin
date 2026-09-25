@@ -400,9 +400,16 @@ const VIEWS := {
 ## is done once at install, by `room_plate.py view`, which fits each view's
 ## midtones and leaves its lit signs alone.
 const VIEW_GLASS := Color(0.90, 0.94, 1.0)
-## How often the moving layers redraw. The sector view's rate, for the same
-## reason: pixel art moving at 60 Hz reads as sliding, at 12 as animated.
-const LAYER_HZ := 12.0
+## How often the moving layers redraw: 30, as the room bench does.
+##
+## It was 12, the sector view's rate, on the grounds that pixel art moving at
+## 60 Hz reads as sliding. That does not apply here: a walker's body only moves
+## when its pose changes (planted feet, Jon's pick), and poses change 4 to 13
+## times a second -- so at 12 Hz every pose was held for 83 or 167 ms at
+## random, and the fastest walker skipped poses outright. At 30 the holds are
+## even and nothing is skipped. Walkers, drones and the drawn figures are the
+## only things on this clock.
+const LAYER_HZ := 30.0
 
 ## A view to show instead of the seed's pick, by kind. For `stationshot view=`,
 ## which photographs a named view in its real window; nothing in play sets it.
@@ -421,12 +428,13 @@ var _box_window: StyleBoxTexture = null
 ## pixels of bare wall above it, and an opening dragged high showed the gap.
 ## Drawing those smaller to widen the view only uncovered more wall. Any
 ## backdrop added here has to reach as far.
+## concourse, galley, scrap and tanks are cut (Jon, 2026-09-23 on the bench,
+## 2026-09-25 for the game). Their files are still in the repo; nothing picks them.
 const BACKDROPS: Array[StringName] = [&"arches", &"archive", &"arrivals",
-	&"atrium", &"bazaar", &"capsule", &"cargo", &"concourse", &"farm", &"food",
-	&"freightlift", &"fuel", &"galley", &"garden", &"hab", &"halfbuilt",
+	&"atrium", &"bazaar", &"capsule", &"cargo", &"farm", &"food",
+	&"freightlift", &"fuel", &"garden", &"hab", &"halfbuilt",
 	&"lifts", &"lockers", &"nightatrium", &"nightwatch", &"parcel", &"ports",
-	&"rigging", &"scrap", &"servers", &"sorting", &"tanks", &"vending",
-	&"vitrine"]
+	&"rigging", &"servers", &"sorting", &"vending", &"vitrine"]
 var _backdrop: Texture2D = null
 var _bd_pos := Vector2.ZERO
 
@@ -449,11 +457,19 @@ const STRIPS_PATH := "res://art/sprites/station/walker_strips.json"
 
 ## The pace the concourse walks at, and it is NOT a free number. A walker's
 ## frame is chosen by the distance it has covered, so this sets how fast the
-## legs move as well as how fast the body crosses: at 30 a fifty-pixel cycle
-## could not carry more than eight frames before the step rate fused into a
-## shimmer, and at 20 the same cycle carries thirteen to sixteen. Every cycle
-## in `walker_strips.json` was measured and judged against this number.
-const WALK_PACE := 20.0
+## legs move as well as how fast the body crosses.
+##
+## 40, ON JON'S CALL, AND IT BREAKS THE RULE THE CYCLES WERE CUT TO. At 20 a
+## thirteen-frame cycle plays about 4.7 frames a second, inside the band where
+## the eye separates steps; at 40 the same cycle plays 9.5, which is half again
+## past the 6.3 he once rejected outright as jitter. Every cycle in
+## `walker_strips.json` was measured and judged at 20.
+##
+## It is here at 40 anyway because his eye has overruled that arithmetic six
+## times running -- five quality gates and a drone bob depth, every one of them
+## fitted to his earlier verdicts and broken by his next one. A number nobody
+## has watched is worth less than a look.
+const WALK_PACE := 40.0
 
 ## How far above its walk line a drone rides. A flyer touches nothing, so
 ## unlike a walker -- whose feet ARE the placement -- there is nothing in the
@@ -519,7 +535,11 @@ func _process(delta: float) -> void:
 		return
 	_clock += delta
 	_since += delta
-	if _since >= 1.0 / LAYER_HZ:
+	# HALF A FRAME OF SLACK. `_since` counts whole frames, and two 60 Hz frames
+	# sum to a hair under 1/30 often enough that the gate waited a third one --
+	# measured, the room redrew anywhere from 10 to 12 times a second at a
+	# nominal 12. With the slack it fires on the frame nearest the period.
+	if _since >= 1.0 / LAYER_HZ - 0.5 * delta:
 		_since = 0.0
 		queue_redraw()
 
@@ -801,8 +821,13 @@ func _pick_strip(tall: float, s: int, flying: bool) -> String:
 			best = String(nm)
 		if d <= tall / 6.0:
 			near.append(String(nm))
+	# NOTHING NEAR, NOBODY DRAWN. Every sprite is 74-87px, so a 60px or 40px
+	# line used to get the nearest one anyway -- a 74px curlyB on all nineteen
+	# far lines, and on eight backdrops everyone was curlyB. A far line keeps
+	# the drawn figures until sprites that size exist, as the bench does. A
+	# drone has no line height to match, so it still takes the nearest.
 	if near.is_empty():
-		return best
+		return best if (flying or bestd <= tall * 0.2) else ""
 	near.sort()
 	return near[s % near.size()]
 
@@ -819,15 +844,26 @@ func _build_cast(bd: StringName) -> void:
 	var rows: Array = lines
 	if rows.is_empty():
 		return
+	# HOW FAR OFF A LINE IS, FROM HOW TALL ITS PEOPLE ARE -- the bench's rule.
+	# Half the height of the nearest line is twice as far away: half the speed,
+	# and washed toward the colour of the air.
+	var near_tall := 0.0
+	for row in rows:
+		near_tall = maxf(near_tall, float(row.get("tall", 80)))
 	for li in rows.size():
 		var row: Dictionary = rows[li]
 		var tall := float(row.get("tall", 80))
 		var feet := float(row.get("y", 0))
+		var depth := tall / near_tall if near_tall > 0.0 else 1.0
 		# One or two to a line. More and a concourse reads as a queue.
 		var n := 1 + absi(hash([place_seed, bd, li])) % 2
 		for k in n:
 			var s := absi(hash([place_seed, bd, li, k]))
-			_spawn(_pick_strip(tall, s, false), feet, s, false)
+			var nm := _pick_strip(tall, s, false)
+			if nm == "":
+				_spawn_figure(tall, feet, s, depth)
+			else:
+				_spawn(nm, feet, s, false, depth)
 	# A drone or two over the nearest line, riding above head height.
 	var low := 0.0
 	for row in rows:
@@ -837,7 +873,20 @@ func _build_cast(bd: StringName) -> void:
 		_spawn(_pick_strip(36.0, s, true), low - FLY_ALT, s, true)
 
 
-func _spawn(nm: String, feet: float, s: int, flying: bool) -> void:
+## A drawn person, for a line no sprite is the right height for.
+func _spawn_figure(tall: float, feet: float, s: int, depth: float) -> void:
+	var haze := clampf((1.0 - depth) * 0.7, 0.0, 0.45)
+	_cast.append({
+		"figure": true, "tall": tall, "feet": feet, "seed": s,
+		"fw": ceilf(tall * 0.5), "fly": false,
+		"ink": Color(0.03, 0.04, 0.07).lerp(Color(0.30, 0.38, 0.50), haze),
+		"speed": WALK_PACE * (0.85 + 0.3 * float(s % 100) / 100.0) * depth,
+		"flip": (s >> 11) % 2 == 0,
+		"phase": float((s >> 3) % 1499),
+	})
+
+
+func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0) -> void:
 	if nm == "" or not _strips.has(nm):
 		return
 	var m: Dictionary = _strips[nm]
@@ -860,7 +909,7 @@ func _spawn(nm: String, feet: float, s: int, flying: bool) -> void:
 		"fps": float(m.get("fps", 10.0)),
 		# Each one within a fifth of the room's pace, so the concourse is never
 		# a conveyor belt of people in lockstep.
-		"speed": WALK_PACE * (0.85 + 0.3 * float(s % 100) / 100.0),
+		"speed": WALK_PACE * (0.85 + 0.3 * float(s % 100) / 100.0) * depth,
 		"flip": (s >> 11) % 2 == 0,
 		"phase": float((s >> 3) % 1499),
 	})
@@ -872,6 +921,27 @@ func _spawn(nm: String, feet: float, s: int, flying: bool) -> void:
 func _draw_cast(clip: Rect2) -> void:
 	if _backdrop == null or _cast.is_empty():
 		return
+	# ONCE PER REDRAW, NOT ONCE PER ROW. A shaped hole calls this for every
+	# 1px run it is cut into, and every call used to work out every walker
+	# again from the same clock. The poses are the same for the whole redraw.
+	if _posed_at != _clock:
+		_pose_cast()
+	for p in _posed:
+		var w: Dictionary = p[0]
+		if bool(w.get("figure", false)):
+			_figure(Vector2(p[1], p[2]), float(w["tall"]), int(w["seed"]), p[4],
+				w["ink"], clip)
+		else:
+			_blit_walker(w, p[1], p[2], p[3], clip)
+
+
+var _posed: Array = []
+var _posed_at := -1.0
+
+
+func _pose_cast() -> void:
+	_posed_at = _clock
+	_posed.clear()
 	var bw := float(_backdrop.get_size().x)
 	for w in _cast:
 		var fw: float = w["fw"]
@@ -879,6 +949,13 @@ func _draw_cast(clip: Rect2) -> void:
 		var run := fmod(_clock * float(w["speed"]) + float(w["phase"]), span)
 		var f := 0
 		var at := run
+		if bool(w.get("figure", false)):
+			# Feet at the centre, walking the same span as a sprite would.
+			var fx := _bd_pos.x - fw * 0.5 + run
+			if bool(w["flip"]):
+				fx = _bd_pos.x + bw + fw * 0.5 - run
+			_posed.append([w, roundf(fx), roundf(_bd_pos.y + float(w["feet"])), 0, run])
+			continue
 		if bool(w["fly"]):
 			# A flyer's frames run on a CLOCK. It touches nothing, so tying its
 			# rotors to its travel would have them speed up and slow down with
@@ -898,8 +975,8 @@ func _draw_cast(clip: Rect2) -> void:
 		var x := _bd_pos.x - fw + at
 		if bool(w["flip"]):
 			x = _bd_pos.x + bw - at
-		_blit_walker(w, roundf(x),
-			roundf(_bd_pos.y + float(w["feet"]) - float(w["fh"])), f, clip)
+		_posed.append([w, roundf(x),
+			roundf(_bd_pos.y + float(w["feet"]) - float(w["fh"])), f, run])
 
 
 func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> void:

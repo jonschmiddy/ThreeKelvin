@@ -37,6 +37,15 @@ button.on{background:var(--cyan);color:#06141a;border-color:var(--cyan)}
 button.go{background:var(--go);color:#06140e;border-color:var(--go)}
 button.warn{border-color:var(--bad);color:var(--bad)}
 .tab{min-width:36px}
+/* WHICH STATIONS GET THIS ROOM. Its own line under the toolbar: the layout's
+   five toggles on the left, and how full each level's pool is on the right. */
+.levels{flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;color:var(--cold)}
+.levels .lbl{letter-spacing:.08em;text-transform:uppercase;font-size:10.5px;margin-right:2px}
+.levels .gap{flex:1}
+.levels .pool{padding:2px 7px;border:1px solid var(--line);border-radius:3px;font-variant-numeric:tabular-nums}
+.levels .pool.short{border-color:var(--amber, #d97b29);color:var(--amber, #d97b29)}
+.levels .pool.full{border-color:var(--go);color:var(--go)}
+.tab .lv{margin-left:6px;opacity:.7;font-size:10.5px;letter-spacing:.06em}
 .sp{flex:1}
 .say{font-family:var(--mono);font-size:11.5px;color:var(--go)}
 .main{display:grid;grid-template-columns:minmax(0,1fr) 680px;gap:16px;padding:14px 18px 40px;align-items:start}
@@ -103,13 +112,6 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
   <button id="align" class="on" title="snap to the edges and centres of other pieces">align</button>
   <button id="flipx" title="mirror the selected piece left to right (H)">flip &#8646;</button>
   <button id="flipy" title="mirror the selected piece top to bottom (V)">flip &#8645;</button>
-  <select id="lamps" title="how many lamps the station hangs over this room">
-    <option value="0">2 lamps &middot; outpost</option>
-    <option value="1">3 lamps &middot; settlement</option>
-    <option value="2" selected>4 lamps &middot; city</option>
-    <option value="3">6 lamps &middot; capital</option>
-    <option value="-1">lamps off</option>
-  </select>
   <button id="full" title="turn the lighting off while you arrange (L)">fullbright</button>
   <button id="warn" title="hide the dashed boxes round items the checker objects to (W)">hide warnings</button>
   <button id="panel" title="give the wall the whole window">hide panel</button>
@@ -119,6 +121,7 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
   <button id="save" class="go">save &middot; room-layouts.json</button>
   <button id="copy">copy instead</button>
   <span class="say" id="say" role="status" aria-live="polite"></span>
+  <div class="levels" id="levels" role="group" aria-label="which stations use this layout"></div>
   <!-- A STALE PAGE LOOKS EXACTLY LIKE A BROKEN ONE. Chasing "the vending
        machines still aren't lit" cost an hour because there was no way to tell
        whether the page on screen was the page just published. -->
@@ -316,8 +319,17 @@ function load(){ try{ var s = localStorage.getItem(KEY); if(s) state = JSON.pars
       if(dead) lost[(o.skin || o.id || o.type)] = (lost[(o.skin || o.id || o.type)] || 0) + 1;
       return !dead;
     });
-    if(l.backdrop && l.backdrop.id && !BD[l.backdrop.id] && D.backdrops.length)
-      l.backdrop.id = D.backdrops[0].id;
+    // AN ORPHANED LAYOUT MUST NOT LAND ON A SCRATCH BACKDROP. `D.backdrops[0]`
+    // is whatever `--stage` put at the front, which is a candidate being
+    // reviewed, not a picture anybody chose. When 28 installed backdrops went
+    // missing in one rebuild every saved layout snapped to a staged starfield,
+    // so every window looked through the wall onto empty black -- which reads
+    // as the room having gone see-through rather than as art having gone
+    // missing. Fall back to the first INSTALLED backdrop instead.
+    if(l.backdrop && l.backdrop.id && !BD[l.backdrop.id] && D.backdrops.length){
+      var settled = D.backdrops.filter(function(b){ return !b.label; });
+      l.backdrop.id = (settled[0] || D.backdrops[0]).id;
+    }
     if(l.room && l.room.wall && l.room.wall !== "current" && !WALLS[l.room.wall])
       l.room.wall = "current";
   });
@@ -763,6 +775,12 @@ var WALKAT = [], WALKT = null;
 // Each walker keeps its own distance instead, advanced by however far it went
 // THIS frame. Changing a line's height changes the rate from here on and
 // leaves the ground already covered alone.
+// The concourse's walking pace, read out of StationRoom.gd at build time so
+// the bench and the room cannot drift apart.
+var PACE = D.pace || 40;
+// HOW MUCH OF A STEP THE BODY GLIDES. 0 is the planted-boot model the game
+// uses today. Jon picks by eye; see sprite().
+var WALK_K = 0;
 var WALKD = {};
 function stepWalkers(bd){
   WALKAT = [];
@@ -791,8 +809,13 @@ function stepWalkers(bd){
     var haze = Math.max(0, Math.min(0.45, (1 - depth) * 0.7));
     for(var k = 0; k < n; k++){
       var h0 = hash1(sd + lane * 5.9 + k * 2.3);
-      // Speed scales with size, or a distant lane looks like it is running.
-      var speed = 14 * (0.8 + 0.4 * h0) * (ht / 30);
+      // THE SAME NUMBER THE GAME USES, not a second one that happens to look
+      // similar. This was `14 * (ht / 30)`, which put the near lane at about
+      // 37 -- close enough to 40 that the bench and the room would have
+      // disagreed quietly for ever, and a walker's FRAME is chosen by the
+      // distance it covers, so a pace that differs is a step rate that
+      // differs. `WALK_PACE` in StationRoom.gd is the one source.
+      var speed = PACE * (0.85 + 0.3 * h0) * depth;
       var span = bd.w + 40;
       // A pause between passes, so a lane is never a conveyor belt.
       var cycle = span + 80 + hash1(h0 * 31.1) * 260;
@@ -807,10 +830,16 @@ function stepWalkers(bd){
       var right = hash1(h0 * 47.7) > 0.5;
       WALKAT.push({
         x: Math.round(right ? (bd.x - 20 + run) : (bd.x + bd.w + 20 - run)),
+        // AND UNROUNDED, for the sprites. sprite() takes the part of a step
+        // already walked back off this; doing that to a number that was
+        // already rounded brought the rounding back, so a body meant to hold
+        // still for a pose twitched 1px -- half the time BACKWARDS -- eight
+        // to twelve times a second. That was the "really jittery".
+        xr: right ? (bd.x - 20 + run) : (bd.x + bd.w + 20 - run),
         y: Math.round(toCanvasY(bd, ln.y)),
         h: Math.max(4, Math.round(ht * bd.k)),
         s: h0, run: run, haze: haze, right: right,
-        strip: stripFor(Math.max(4, Math.round(ht * bd.k)))
+        strip: stripFor(Math.max(4, Math.round(ht * bd.k)), Math.floor(h0 * 9973))
       });
     }
   }
@@ -820,7 +849,7 @@ function stepWalkers(bd){
 function walkers(bd){
   for(var i = 0; i < WALKAT.length; i++){
     var p = WALKAT[i];
-    if(p.strip) sprite(p.strip, p.x, p.y, p.run, p.right);
+    if(p.strip) sprite(p.strip, p.xr, p.y, p.run, p.right);
     else figure(p.x, p.y, p.h, p.s, p.run, p.haze);
   }
 }
@@ -835,19 +864,35 @@ Object.keys(D.walkers || {}).forEach(function(k){
   var m = D.walkers[k];
   img("walker_" + k, m.src);
 });
-function stripFor(tall){
-  var best = null, bd = 1e9;
+// WHO WALKS HERE IS THE SAME RULE AS THE GAME'S _pick_strip: every strip
+// within a sixth of the line's height is in the pool, and the walker's own
+// seed picks one. Taking only the closest put the same person on a line over
+// and over -- a queue of clones, where the game shows a crowd.
+function stripFor(tall, seed){
+  var best = null, bd = 1e9, near = [];
   Object.keys(D.walkers || {}).forEach(function(k){
     var m = D.walkers[k], d = Math.abs(m.frame_h - tall);
+    // A FLYER IS NOT A SHORT WALKER. The index holds drones as well as people
+    // now, and a drone has no stride: `advance` is null and its frames run on
+    // a clock instead. They are 31-46px, and a 40px walk line accepts 32-48,
+    // so seven of them matched one -- and `Math.floor(run / null)` is
+    // Infinity, `Infinity % frames` is NaN, and drawImage RETURNS SILENTLY on
+    // a non-finite source. The walker did not draw wrong, it vanished, which
+    // is what "the walking is kinda glitchy" looked like.
+    if(m.by_time) return;
     // A PICTURE THAT FAILED TO LOAD IS STILL AN OBJECT. Testing that the
     // Image exists passes for one whose file 404ed, and drawImage on it
     // THROWS -- which aborts the whole frame, so the room stops repainting and
     // the tabs stop responding. It reads as the bench being stuck on a layout,
     // not as a missing file. Width is the only honest test.
     var im = IMG["walker_" + k];
-    if(d < bd && d <= tall * 0.2 && im && im.width){ bd = d; best = k; }
+    if(!(im && im.width)) return;
+    if(d < bd && d <= tall * 0.2){ bd = d; best = k; }
+    if(d <= tall / 6) near.push(k);
   });
-  return best;
+  if(!near.length) return best;
+  near.sort();
+  return near[(seed | 0) % near.length];
 }
 // ONE WALKER DRAWN FROM A STRIP. The body is painted where it was at the START
 // of its frame: a planted boot cannot move, and anything smoother puts the
@@ -856,9 +901,17 @@ function stripFor(tall){
 function sprite(key, cx, feet, run, right){
   var m = D.walkers[key], im = IMG["walker_" + key];
   if(!m || !im || !im.width) return;          // never hand drawImage a dud
+  // AND NEVER HAND IT A NaN EITHER. A strip with no stride divides to
+  // Infinity here and the frame index comes out NaN; drawImage takes that
+  // without complaint and draws nothing, so the fault looks like flicker
+  // rather than like bad data. Belt and braces behind stripFor's filter.
+  if(!(m.advance > 0)) return;
   var steps = Math.floor(run / m.advance), f = steps % m.frames;
   var frac = run - steps * m.advance;
-  var dx = Math.round(cx - frac * (right ? 1 : -1) - m.frame_w / 2);
+  // WALK_K: 0 holds the body for the whole pose (planted boot never moves,
+  // body steps), 1 glides it (body smooth, planted boot creeps a step and
+  // snaps back), between splits the step between the two.
+  var dx = Math.round(cx - frac * (1 - WALK_K) * (right ? 1 : -1) - m.frame_w / 2);
   var dy = Math.round(feet - m.frame_h);
   if(right){
     ctx.drawImage(im, f * m.frame_w, 0, m.frame_w, m.frame_h,
@@ -957,6 +1010,10 @@ function drawOpening(o, bd){
   ctx.fillStyle = "#080c12"; ctx.fillRect(r.x, r.y, r.w, r.h);
   if(bd && bd.img){ ctx.save(); ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip();
     view(ctx, bd, 0, 0);
+    // THE CROWD SHOWS THROUGH EVERY KIND OF OPENING, as it does in the game.
+    // Only shaped holes drew it, so a room with a plain window or a door
+    // showed an empty concourse the game would have filled.
+    walkers(bd);
     ctx.fillStyle = "rgba(0,14,40,0.07)"; ctx.fillRect(r.x, r.y, r.w, r.h);
     ctx.restore(); }
   if(o.type === "ports"){ var ob = outer(o); ctx.drawImage(IMG.ports, ob.x, ob.y); return; }
@@ -1056,6 +1113,10 @@ function drawFurniture(o){
     // then pixel-doubled onto the wall at 2x, so the tags scale with the parts.
     var n = o.boards === 3 ? "3" : "2", sk = skinOf(o);
     var art = sk && SKIN.shelf[sk][n] ? IMG["skin_shelf_" + sk + "_" + n] : IMG["shelf" + n], k = state.shelfK || 2;
+    // NOT UNTIL THE PICTURE HAS ARRIVED. A rack drawn first makes a 0x0
+    // scratch canvas, and drawImage on that throws -- the "occluder pass
+    // failed" in the console on every load. Its arrival redraws anyway.
+    if(!art || !art.width) return;
     var off = document.createElement("canvas"); off.width = art.width; off.height = art.height;
     var main = ctx; ctx = off.getContext("2d"); ctx.imageSmoothingEnabled = false;
     ctx.drawImage(art, 0, 0);
@@ -1593,7 +1654,7 @@ function lampArt(o){
 // It costs one gradient per band per lamp, which is why there are 22 bands and
 // not one per row: 350 gradients a frame is what made this stutter when the
 // flicker loop is running.
-var BANDS = 22;
+var BEAM_BANDS = 22;   // unused now; `BANDS` is the depth bands (wall, floor, near)
 
 // WHERE A FIXTURE'S LIGHT COMES FROM IS IN THE FIXTURE. Guessing "the middle,
 // as wide as the housing" gets a cage right and everything else wrong: a
@@ -2888,7 +2949,11 @@ function draw(quiet){
     if(Date.now() - firstAsk < 4000) return;
   }
   drawRoom(lay);
-  lay.items.forEach(function(o){
+  // ONLY OPENINGS. drawOpening paints anything it is handed as a see-through
+  // window in a bezel, so the filter is what keeps a crate a crate -- wrapping
+  // this loop in guard() once dropped it, and every prop, lamp and rack in the
+  // room came out framed with the backdrop showing through.
+  lay.items.forEach(function(o){ if(!isOpening(o)) return;
     guard("opening " + (o.skin || o.type), function(){ drawOpening(o, bd); }); });
   // A RACK CAN GO AGAINST THE WALL OR STAND IN FRONT, so furniture reads the
   // same band as props do rather than being nailed to the floor pass. Its
@@ -2968,7 +3033,7 @@ function draw(quiet){
   // The wall is painted; the panels only need rebuilding when something a
   // person did changed them.
   if(!quiet) ui();
-  else stamp();          // the readout still has to follow the room
+  else buildStamp();     // the readout still has to follow the room
 }
 
 // ---------------------------------------------------------------- checks
@@ -3029,6 +3094,11 @@ function ui(){
   var tabs = document.getElementById("tabs"); tabs.innerHTML = "";
   state.layouts.forEach(function(l, i){ var b = document.createElement("button"); b.className = "tab" + (i === state.cur ? " on" : "");
     b.textContent = l.name; b.setAttribute("aria-pressed", String(i === state.cur));
+    // Which levels it serves, as initials, so the pool reads off the tab bar.
+    var lvs = (l.levels || []).map(function(n){
+      for(var k = 0; k < DEV_LEVELS.length; k++) if(DEV_LEVELS[k][0] === n) return DEV_LEVELS[k][1];
+      return ""; }).join("");
+    if(lvs){ var sp = document.createElement("span"); sp.className = "lv"; sp.textContent = lvs; b.appendChild(sp); }
     // THE SWITCH HAPPENS FIRST AND CANNOT BE PREVENTED. This was one line --
     // set the tab, save, redraw -- and any of the three throwing left the page
     // on the old layout with no way off it. `save` writes to localStorage,
@@ -3038,6 +3108,7 @@ function ui(){
       state.cur = i; sel = -1;
       guard("saving", save);
       guard("drawing layout " + i, draw);
+      guard("levels", levelsUI);
       // And if drawing threw, at least put the tab highlight where it belongs
       // so the page does not look frozen while it is merely missing a frame.
       try {
@@ -3048,7 +3119,8 @@ function ui(){
     });
     b.addEventListener("dblclick", function(){ var n = prompt("Name this layout", l.name); if(n){ l.name = n.slice(0, 12); save(); draw(); } });
     tabs.appendChild(b); });
-  stamp();
+  buildStamp();
+  guard("levels", levelsUI);
   var lay0 = L(); if(!lay0.room) lay0.room = {wall:"current", floor:"current"};
   // PICK BY LOOKING. A room or a backdrop was a line in a dropdown, which means
   // reading twenty names to find the one you want and one click each way to see
@@ -3477,7 +3549,7 @@ function gallery(){
 // the save, and the install deletes the file. Restorable until then.
 // THE LIGHTING PANE. The fixture grid is built from whatever lamp art is
 // installed, the same way the stock grids are built from the props.
-// THE STAMP SAYS WHAT THE PAGE THINKS IT IS DOING, not just which build it is.
+// THE BUILD STAMP (never plain `stamp`: that is the rack's price card, and a second function of the same name silently replaced it, so every tag drew nothing) SAYS WHAT THE PAGE THINKS IT IS DOING, not just which build it is.
 //
 // The console is clean and the room is drawing, so nothing is throwing -- and
 // four fixes have now gone out against exceptions that were never there. What
@@ -3485,7 +3557,7 @@ function gallery(){
 // which one it believes is showing. If the tab bar has one button, or `cur`
 // does not move when a tab is clicked, that is a different fault from the one
 // I have been chasing, and a glance settles which.
-function stamp(){
+function buildStamp(){
   var b = document.getElementById("build");
   if(!b) return;
   // Called once at load, before `state` is read back, and again from every
@@ -3496,7 +3568,7 @@ function stamp(){
   b.textContent = "build __BUILD__ · " + n + " layouts · on " +
     (state ? state.cur : "?") + " · " + drawn + " tabs";
 }
-stamp();
+buildStamp();
 function lightUI(){
   var L2 = light(), grid = document.getElementById("lampgrid");
   if(!grid) return;
@@ -3778,8 +3850,26 @@ document.addEventListener("keydown", function(ev){
 });
 
 // ---------------------------------------------------------------- toolbar
-function fit(){ cv.style.width = (W * zoom) + "px"; cv.style.height = (H * zoom) + "px";
+// WHOLE SCREEN PIXELS PER ART PIXEL, not whole CSS pixels. With Windows set
+// to 125%, a 2x CSS zoom is 2.5 device pixels an art pixel: columns alternate
+// 2 and 3 wide, and a walking sprite's columns change width as it moves -- a
+// shimmer that looks like bad animation and is only the zoom. So the size is
+// worked out in device pixels and rounded DOWN to a whole multiple, then
+// handed back to CSS. At 100% nothing changes.
+function fit(){
+  var dpr = window.devicePixelRatio || 1;
+  var dev = Math.max(1, Math.floor(zoom * dpr + 0.01));
+  cv.style.width = (W * dev / dpr) + "px"; cv.style.height = (H * dev / dpr) + "px";
   document.getElementById("zoom").textContent = "zoom " + zoom + "×"; }
+// Dragging the window to a screen with a different scale changes the ratio.
+(function watchDpr(){
+  if(!window.matchMedia) return;
+  try {
+    var mq = window.matchMedia("(resolution: " + (window.devicePixelRatio || 1) + "dppx)");
+    var on = function(){ fit(); watchDpr(); };
+    if(mq.addEventListener) mq.addEventListener("change", on, {once: true});
+  } catch(err){}
+})();
 document.getElementById("shelfk").addEventListener("click", function(e){
   state.shelfK = (state.shelfK || 2) === 1 ? 2 : 1; save();
   e.currentTarget.textContent = "shelf " + state.shelfK + "\u00d7"; e.currentTarget.className = state.shelfK === 2 ? "on" : ""; draw(); });
@@ -3807,8 +3897,38 @@ function flip(axis){
 }
 document.getElementById("flipx").addEventListener("click", function(){ flip("fx"); });
 document.getElementById("flipy").addEventListener("click", function(){ flip("fy"); });
-document.getElementById("lamps").addEventListener("change", function(e){
-  state.lampi = parseInt(e.currentTarget.value, 10); save(); draw(); });
+// DEVELOPMENT LEVELS -- named DEV_LEVELS because `LEVELS` is the light map's
+// band count, and reusing that name once blacked out every room. A station picks its room from the layouts tagged with
+// its level, three a level (Jon, 2026-09-25). A layout can serve several.
+var DEV_LEVELS = [["unclaimed", "U"], ["outpost", "O"], ["settlement", "S"], ["city", "C"], ["capital", "K"]];
+var PER_LEVEL = 3;
+function levelsUI(){
+  var host = document.getElementById("levels"); if(!host || !state) return;
+  var lay = L(), mine = lay.levels || [];
+  host.innerHTML = "";
+  var lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = "this layout is for";
+  host.appendChild(lbl);
+  DEV_LEVELS.forEach(function(lv){
+    var b = document.createElement("button"), on = mine.indexOf(lv[0]) >= 0;
+    b.textContent = lv[0]; b.className = on ? "on" : "";
+    b.setAttribute("aria-pressed", String(on));
+    b.addEventListener("click", function(){
+      var l = L(), cur = (l.levels || []).slice(), at = cur.indexOf(lv[0]);
+      if(at >= 0) cur.splice(at, 1); else cur.push(lv[0]);
+      l.levels = DEV_LEVELS.map(function(x){ return x[0]; }).filter(function(n){ return cur.indexOf(n) >= 0; });
+      save(); ui(); });
+    host.appendChild(b);
+  });
+  var g = document.createElement("span"); g.className = "gap"; host.appendChild(g);
+  DEV_LEVELS.forEach(function(lv){
+    var n = state.layouts.filter(function(l){ return (l.levels || []).indexOf(lv[0]) >= 0; }).length;
+    var c = document.createElement("span");
+    c.className = "pool " + (n >= PER_LEVEL ? "full" : "short");
+    c.textContent = lv[0] + " " + n + "/" + PER_LEVEL;
+    c.title = n >= PER_LEVEL ? "enough layouts for " + lv[0] : lv[0] + " needs " + (PER_LEVEL - n) + " more";
+    host.appendChild(c);
+  });
+}
 function setFull(v){
   fullbright = v;
   var b = document.getElementById("full");
@@ -3859,6 +3979,7 @@ document.getElementById("bdauto").addEventListener("click", function(){
   if(b && state.bdPos) delete state.bdPos[b.id];
   bdMove = false; save(); draw(); });
 document.getElementById("addL").addEventListener("click", function(){ var c = clone(L());
+  c.levels = [];   // a copy starts untagged, or it would pad every pool it came from
   c.name = String.fromCharCode(65 + state.layouts.length); state.layouts.push(c); state.cur = state.layouts.length - 1; sel = -1; save(); draw(); });
 var delArm = false;
 document.getElementById("delL").addEventListener("click", function(e){
@@ -3890,7 +4011,7 @@ function exportState(){
       walls:Object.keys(state.cut.walls), floors:Object.keys(state.cut.floors), stock:Object.keys(state.cut.stock),
       skins:Object.keys(state.cut.skins)},
     layouts: state.layouts.map(function(l){ var bd = backdrop(l);
-      return {name:l.name, room:l.room || {wall:"current", floor:"current"}, backdrop:{id:bd ? bd.id : l.backdrop.id, x:bd ? bd.x : 0, y:bd ? bd.y : 0, placed:!!(bd && bdPos(bd.id))},
+      return {name:l.name, levels:l.levels || [], room:l.room || {wall:"current", floor:"current"}, backdrop:{id:bd ? bd.id : l.backdrop.id, x:bd ? bd.x : 0, y:bd ? bd.y : 0, placed:!!(bd && bdPos(bd.id))},
         items:l.items.map(function(o){ var r = rectOf(o), e = {type:o.type, x:r.x, y:r.y};
           if(o.type === "window") e.style = o.style;
           if(o.type === "window" || o.type === "door" || o.type === "ports"){ e.w = r.w; e.h = r.h; }
@@ -3903,14 +4024,31 @@ function exportState(){
 // A REDRAW LOOP THAT ONLY RUNS WHEN IT HAS TO. Steady light is a still
 // picture; a failing tube is not. Starting the loop unconditionally meant the
 // bench repainted the whole wall sixty times a second to show nothing moving.
-var flickRAF = 0, flickLast = 0;
+var flickRAF = 0;
 // FLICK_MS is declared up with the faults, which are written in frames of it.
-function flickLoop(){
+// ON A GRID OF 30ths OF A SECOND, not "33ms since the last one". That test
+// threw away whatever the frame overshot by, and against a 60Hz refresh it
+// missed by a fraction often enough that the repaints came 33, 33, 50, 33 --
+// every walker's step held one repaint longer at random. Slotting the
+// refresh's own timestamp into fixed thirtieths gives every other refresh on
+// a 60Hz screen, evenly. The quarter-slot offset keeps a refresh that lands
+// exactly on a boundary from flipping between two slots. FLICK_MS itself is
+// untouched, so the lamp faults written in frames of it time out as before.
+var flickSlot = -1;
+// THE NEXT FRAME IS BOOKED BEFORE THIS ONE DRAWS. draw() ends by calling
+// flickCheck(), which starts a loop whenever none is booked -- and this used
+// to clear its booking, draw, and only then book again. So every repaint
+// started one extra loop. They piled up at thirty a second: 458 callbacks a
+// refresh after half a minute, 16,823 after ten, the page's main thread 95%
+// busy and the room down to 25 frames a second. "Super laggy", and only once
+// the bench had been open a while -- which is why a short check never saw it.
+// Booked first, a draw that throws also no longer stops the room for good.
+function flickLoop(ts){
   flickRAF = 0;
   if(!anyFlicker()) return;
-  var t = Date.now();
-  if(t - flickLast >= FLICK_MS){ flickLast = t; draw(true); }
   flickRAF = requestAnimationFrame(flickLoop);
+  var slot = Math.floor((ts || performance.now()) * 30 / 1000 + 0.25);
+  if(slot !== flickSlot){ flickSlot = slot; draw(true); }
 }
 function anyFlicker(){
   if(!state) return false;

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Room Moving</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#edeff2; --panel:#fff; --ink:#121821; --dim:#57616d;
+    --line:#d4d9df; --hot:#9c5710; --good:#2e7d3c;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --disp:"Barlow Condensed",sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+      --line:#232e3a; --hot:#e0913c; --good:#7fd48a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0d12; --panel:#151b24; --ink:#e6ecf3; --dim:#7a8693;
+    --line:#232e3a; --hot:#e0913c; --good:#7fd48a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:400 14px/1.6 var(--mono);padding:30px 16px 70px}
+  .wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+  h1{font:700 clamp(25px,5vw,40px)/1 var(--disp);text-transform:uppercase;
+     letter-spacing:.03em;margin:0}
+  p{margin:0;color:var(--dim);max-width:70ch}
+  p b{color:var(--ink);font-weight:500}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  button{font:500 12px/1 var(--mono);color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);padding:7px 11px;cursor:pointer}
+  button.on{border-color:var(--hot);color:var(--hot)}
+  button:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+  .card{background:var(--panel);border:1px solid var(--line)}
+  .card h2{font:700 15px/1 var(--disp);text-transform:uppercase;
+    letter-spacing:.1em;color:var(--hot);margin:0;padding:12px 14px 10px}
+  .shot{background:#05070a;border-top:1px solid var(--line);overflow:auto}
+  canvas{display:block;image-rendering:pixelated;max-width:100%;height:auto}
+  .zoomed canvas{max-width:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>The Room Moving</h1>
+  <p><b>/*LABEL*/</b> as the game actually renders it, <b>/*N*/ frames</b> a
+  twelfth of a second apart. <b>A still cannot show that a walker walks</b>,
+  which is why every check on the crowd until now has been a single frame of a
+  thing whose entire job is to move.</p>
+
+  <div class="bar">
+    <button id="play" class="on">pause</button>
+    <button id="slow">half speed</button>
+    <button id="zoom">2&times;</button>
+    <button id="crop">just the window</button>
+    <span id="stamp" style="color:var(--dim);font-size:11px"></span>
+  </div>
+
+  <div class="card">
+    <h2>the deck</h2>
+    <div class="shot" id="shot"><canvas id="cv"></canvas></div>
+  </div>
+</div>
+<script>
+var FRAMES = "/*FRAMES*/";
+var CROP = "/*CROP*/";
+var imgs = [], ready = 0, i = 0, playing = true, slow = false, zoom = 1,
+    cropped = false, last = 0;
+
+FRAMES.forEach(function(src, k){
+  var im = new Image();
+  im.onload = function(){ if(++ready === FRAMES.length) start(); };
+  im.onerror = function(){ if(++ready === FRAMES.length) start(); };
+  im.src = src;
+  imgs[k] = im;
+});
+
+function fit(){
+  var cv = document.getElementById("cv");
+  var a = imgs[0];
+  if(!a || !a.width) return;
+  var w = cropped && CROP ? CROP[2] : a.width;
+  var h = cropped && CROP ? CROP[3] : a.height;
+  cv.width = w * zoom;
+  cv.height = h * zoom;
+  document.getElementById("shot").className = "shot" + (zoom > 1 ? " zoomed" : "");
+}
+
+function paint(){
+  var cv = document.getElementById("cv");
+  var g = cv.getContext("2d");
+  var im = imgs[i];
+  if(!im || !im.width) return;
+  g.imageSmoothingEnabled = false;
+  g.setTransform(zoom, 0, 0, zoom, 0, 0);
+  if(cropped && CROP){
+    g.drawImage(im, CROP[0], CROP[1], CROP[2], CROP[3], 0, 0, CROP[2], CROP[3]);
+  } else {
+    g.drawImage(im, 0, 0);
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  document.getElementById("stamp").textContent =
+    "frame " + (i + 1) + " of " + imgs.length;
+}
+
+function loop(t){
+  requestAnimationFrame(loop);
+  if(!playing) return;
+  // The frames were captured a twelfth of a second apart, so that is the only
+  // rate at which this plays back what the game actually did.
+  var step = slow ? 167 : 83;
+  if(t - last < step) return;
+  last = t;
+  i = (i + 1) % imgs.length;
+  paint();
+}
+
+function start(){
+  fit();
+  paint();
+  document.getElementById("play").addEventListener("click", function(e){
+    playing = !playing;
+    e.currentTarget.textContent = playing ? "pause" : "play";
+    e.currentTarget.className = playing ? "on" : "";
+  });
+  document.getElementById("slow").addEventListener("click", function(e){
+    slow = !slow;
+    e.currentTarget.textContent = slow ? "full speed" : "half speed";
+    e.currentTarget.className = slow ? "on" : "";
+  });
+  document.getElementById("zoom").addEventListener("click", function(e){
+    zoom = zoom === 1 ? 2 : 1;
+    e.currentTarget.textContent = zoom + "×";
+    e.currentTarget.className = zoom === 2 ? "on" : "";
+    fit(); paint();
+  });
+  var cb = document.getElementById("crop");
+  if(!CROP){ cb.disabled = true; cb.style.opacity = 0.4; }
+  cb.addEventListener("click", function(e){
+    cropped = !cropped;
+    e.currentTarget.textContent = cropped ? "the whole deck" : "just the window";
+    e.currentTarget.className = cropped ? "on" : "";
+    fit(); paint();
+  });
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

@@ -34,11 +34,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 import pixeltools  # noqa: E402
 
+# THE BENCH'S OWN ART LIVES IN THE REPO. Plates, props, lamp fixtures, racks,
+# tills, doors and opening cuts that are not installed in the game yet used to
+# exist only in a scratch folder passed as `--stage`; when that folder was lost
+# the bench rebuilt without them and every saved layout lost its walls. So
+# `tools/room_stage/` is the default stage. `--stage DIR` still overrides it,
+# for judging new candidates.
+DEFAULT_STAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "room_stage")
+if "--stage" not in sys.argv and os.path.isdir(DEFAULT_STAGE):
+    sys.argv += ["--stage", DEFAULT_STAGE]
+
 # WHAT JON CUT, kept here rather than in the page's own cut list so it stays
 # cut across a rebuild. The bench's Cut panel is a working state -- it has a
 # restore button beside every row and it lives in the browser; this is the
 # verdict. Anything named here never reaches the page at all.
-CUT_BACKDROPS = ["concourse", "galley", "scrap", "tanks"]
+CUT_BACKDROPS = ["concourse", "galley", "scrap", "tanks",
+                 # the 2026-09-23 distance trial, cut on the bench 09-25
+                 "wide_steel", "wide_market", "wide_atrium",
+                 "far_market", "far_hab", "far_concourse"]
 CUT_ROOMS = ["hex_a", "hex_b", "lab_a", "lab_b", "pipes_a", "quilt_a",
              "ribbed_a", "ribbed_b", "rust_a", "rust_b", "slab"]
 CUT_OPENINGS = ["angled", "breach", "canopy", "cracked", "double", "grid",
@@ -73,13 +86,28 @@ def _apply_cuts(data):
     # it is read, which happens before any of this, so a cut backdrop would
     # still be published beside the page and fetched by nobody. Keep only what
     # the page can still name.
+    # EVERY `art/...` ANYWHERE IN THE DATA, not three hand-listed places.
+    #
+    # This used to name backdrops, walls and opening skins, and `data["wall"]`
+    # -- the room's own back wall -- was in none of them while `room_wall.png`
+    # matched the `room_` prefix below. So the wall pruned itself: the page
+    # asked for a picture that was never published, the backdrop showed through
+    # everything, and a broken image aborts the rest of the canvas frame, which
+    # is why the props grew borders and the walkers stuttered. One missing file
+    # looked like four separate faults.
     keep = set()
-    for b in data["backdrops"]:
-        keep.add(b.get("src", ""))
-    for w in data["walls"]:
-        keep.add(w.get("src", ""))
-    for v in data["skins"]["opening"].values():
-        keep.add(v.get("src", ""))
+
+    def _collect(node):
+        if isinstance(node, dict):
+            for v in node.values():
+                _collect(v)
+        elif isinstance(node, list):
+            for v in node:
+                _collect(v)
+        elif isinstance(node, str) and node.startswith("art/"):
+            keep.add(node)
+
+    _collect(data)
     pruned = 0
     for ref in list(ASSETS):
         base = os.path.basename(ref)
@@ -116,6 +144,16 @@ def _check_glow_keys(html, data):
         raise SystemExit("room_bench: PROP_GLOW is gone from the template")
     keys = _re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\s*:", m.group(1))
     have = set(p["id"] for p in data.get("props", []))
+    # PROPS ONLY EXIST IN A --stage FOLDER, so with no stage there are none to
+    # key against and every name looks wrong. The check is for a MISSPELLED
+    # key, not for a build that was never given props: firing here made the
+    # bench unbuildable the moment the scratch folder it was last built from
+    # went away, which is exactly what happened.
+    if not have:
+        if "--stage" in sys.argv:
+            raise SystemExit("room_bench: --stage given but it holds no prop_*.png")
+        print("  lit props: none (no --stage folder, so nothing to key)")
+        return
     bad = [k for k in keys if k not in have]
     if bad:
         raise SystemExit(
@@ -391,6 +429,23 @@ def _walk():
     if not os.path.exists(WALK_JSON):
         return {}
     return json.load(io.open(WALK_JSON, encoding="utf-8"))
+
+
+ROOM_GD = os.path.abspath(os.path.join(HERE, "..", "tkg", "scripts", "ui",
+                                       "StationRoom.gd"))
+
+
+def _pace():
+    """The room's own WALK_PACE, read out of the game rather than restated.
+
+    The bench had its own formula that put the near lane at about 37 while the
+    room walked at 40. Nobody would ever have noticed, and a walker's FRAME is
+    chosen by the distance it covers -- so two paces are two step rates, and
+    the bench would have been judging an animation the game never plays.
+    """
+    m = re.search(r"const WALK_PACE := ([0-9.]+)",
+                  io.open(ROOM_GD, encoding="utf-8").read())
+    return float(m.group(1)) if m else 40.0
 
 
 WALKERS_JSON = os.path.join(STATION, "walker_strips.json")
@@ -816,6 +871,7 @@ def main():
         # LIGHT, and the bench tints them, which is how one pair of sprites
         # lights a warm promenade and a cold lab.
         "lampskins": lampskins,
+        "pace": _pace(),
         "walk": _walk(),
         "walkers": _walkers(),
         "backdrops": backdrops,
@@ -889,6 +945,39 @@ def main():
             return 1
     elif os.path.exists(probe):
         print("  probe: skipped -- no pixel dump at %s" % pix)
+    # EVERY PICTURE THE PAGE ASKS FOR MUST BE ONE THAT GETS PUBLISHED.
+    #
+    # A reference with no file behind it does not look like a missing file. The
+    # image simply never loads, whatever was meant to be under it shows
+    # through, and `drawImage` on a zero-width source THROWS -- which aborts
+    # the rest of that frame. (This gate went in while Jon was reporting every
+    # item framed and see-through. That was NOT the missing wall: the draw
+    # loop had lost its isOpening() filter and painted every prop as a window.
+    # The gate is still right; the story it was first filed under was not.)
+    import re as _re2
+    missing = sorted(set(_re2.findall(r'"(art/[^"]+)"', html)) - set(ASSETS))
+    if missing:
+        raise SystemExit(
+            "room_bench: the page references %d file(s) that would not be "
+            "published beside it: %s" % (len(missing), ", ".join(missing)))
+
+    # ONE NAME, ONE FUNCTION. The page is a single script, so a second
+    # top-level `function stamp()` does not fail -- it silently REPLACES the
+    # first. The build readout did exactly that to the rack's price card, and
+    # every price tag on every rack drew nothing, with no error anywhere.
+    # Column-0 declarations only: a helper nested inside a function is local.
+    tops = _re2.findall(r"(?m)^function\s+([A-Za-z_$][\w$]*)\s*\(", html)
+    # AND VARIABLES. A second top-level `var LEVELS` (the development levels)
+    # overwrote the light map's `var LEVELS = 6`; its band step became NaN and
+    # every room drew black, again with no error.
+    tops += [n for decl in _re2.findall(r"(?m)^var\s+(.+)$", html)
+             for n in _re2.findall(r"(?:^|,)\s*([A-Za-z_$][\w$]*)\s*(?==|,|;|$)", decl)]
+    twice = sorted(set(n for n in tops if tops.count(n) > 1))
+    if twice:
+        raise SystemExit(
+            "room_bench: the page declares %s more than once; the last one "
+            "silently replaces the others" % ", ".join(twice))
+
     if ASSETS:
         # The publish step needs {published path: file on disk}; write it out
         # rather than making whoever publishes it reconstruct the list.
@@ -899,4 +988,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # THE RETURN VALUE WAS BEING THROWN AWAY. `main()` returns 1 when a check
+    # fails and nothing looked at it, so a build could print FAILED and still
+    # exit 0 -- which is a gate that reports rather than gates.
+    sys.exit(main() or 0)

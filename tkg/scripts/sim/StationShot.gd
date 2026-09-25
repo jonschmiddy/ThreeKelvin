@@ -294,6 +294,48 @@ func run(tree: SceneTree) -> void:
 	tree.root.get_texture().get_image().save_png(path)
 	print("wrote ", ProjectSettings.globalize_path(path))
 
+	# `layerhz=S`: time every redraw of the station's rooms for S seconds and
+	# print how evenly they land. A frame capture a twelfth of a second apart
+	# cannot show a 30 Hz layer holding a walker's pose for 83 ms here and 167
+	# there -- which is exactly what the walkers did at the old 12 Hz gate.
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("layerhz="):
+			var secs := float(a.trim_prefix("layerhz="))
+			var stamps: Array[int] = []
+			var rooms: Array[Node] = tree.root.find_children("*", "StationRoom", true, false)
+			var cast_n := 0
+			var figures := 0
+			for r in rooms:
+				print("  room %s: visible %s, views %d, strips %d, walk lines %d, backdrop %s" % [
+					r.get_class() if r.get_script() == null else r.name, r.is_visible_in_tree(),
+					r._views.size(), r._strips.size(), r._walk_lines.size(), r._backdrop])
+				(r as CanvasItem).draw.connect(func(): stamps.append(Time.get_ticks_usec()))
+				for w in r._cast:
+					cast_n += 1
+					if bool(w.get("figure", false)):
+						figures += 1
+			var until := Time.get_ticks_msec() + int(secs * 1000.0)
+			var fps_sum := 0.0
+			var fps_n := 0
+			while Time.get_ticks_msec() < until:
+				await RenderingServer.frame_post_draw
+				fps_sum += Engine.get_frames_per_second()
+				fps_n += 1
+			var gaps := {}
+			for i in range(1, stamps.size()):
+				var g := roundi(float(stamps[i] - stamps[i - 1]) / 1000.0)
+				if g > 0:
+					gaps[g] = int(gaps.get(g, 0)) + 1
+			var keys := gaps.keys()
+			keys.sort()
+			var hist := PackedStringArray()
+			for k in keys:
+				hist.append("%dms x%d" % [k, gaps[k]])
+			print("  layer: %d room(s), %d in the cast (%d drawn figures), %.1f redraws/s, %.0f fps" % [
+				rooms.size(), cast_n, figures, float(stamps.size()) / secs,
+				fps_sum / maxf(1.0, float(fps_n))])
+			print("  layer gaps: ", ", ".join(hist))
+
 	# `frames=N`: N more shots a twelfth of a second apart, for the layers that
 	# move. A still cannot show that a walker walks or that the near lane is
 	# faster than the far one, and those are the whole point of them.

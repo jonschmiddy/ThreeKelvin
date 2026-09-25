@@ -57,7 +57,7 @@ ALPHA = 40
 # was always capable of it and the speed was the constraint. It also reads
 # better: these are people crossing a concourse in the middle distance, not
 # marching.
-WALK_PACE = 20
+WALK_PACE = 40
 
 
 def lock_palette(strip, cw, ch, n, keep=20):
