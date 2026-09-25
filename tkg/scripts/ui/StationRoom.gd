@@ -150,12 +150,21 @@ func _load_plate(key: StringName) -> void:
 	if _box_window == null:
 		_box_window = _bezel(&"window", true)
 	_ports = DB.station_sprite(&"frame", &"ports")
+	# Every opening frame this station might cut, resolved here rather than in
+	# the draw call that needs it. Fifteen small textures; the room is built
+	# about twice in its life.
+	_opening_art.clear()
+	for skin in _hole_runs_keys():
+		var a := DB.station_sprite(&"opening", skin)
+		if a != null:
+			_opening_art[skin] = a
 	_backdrop = null
 	var bd: StringName = forced_views.get(&"backdrop", &"")
 	if bd == &"" and not BACKDROPS.is_empty():
 		bd = BACKDROPS[absi(hash([place_seed, &"backdrop"])) % BACKDROPS.size()]
 	if bd != &"":
 		_backdrop = DB.station_sprite(&"backdrop", bd)
+	_build_cast(bd)
 	_box_door = _bezel(&"door", false)
 	_load_views()
 	queue_redraw()
@@ -421,10 +430,47 @@ const BACKDROPS: Array[StringName] = [&"arches", &"archive", &"arrivals",
 var _backdrop: Texture2D = null
 var _bd_pos := Vector2.ZERO
 
-## WALKERS ARE OFF. The drawn silhouettes read as people painted into the view,
-## and the people are going to be pixel-art characters walking across as their
-## own layer on top. `_walkers` stays as the place that layer goes.
-const WALKERS := false
+## PEOPLE ON THE CONCOURSE, as pixel-art sprites on the backdrop.
+##
+## THEY BELONG TO THE BACKDROP, NOT TO A WINDOW. Each one stands on a walk line
+## measured for that particular backdrop and moves in the picture's own
+## coordinates, so two openings onto the same stretch of concourse show the
+## same person in the same place. The procedural figures this replaces were
+## drawn per pane in lanes, which meant two windows side by side showed two
+## unrelated crowds of the same three silhouettes.
+##
+## A FUNCTION OF THE CLOCK, not a list that steps: each walker's position comes
+## from the time and its own seed, so nothing has to be kept in step and a room
+## that was hidden picks up wherever the clock says it should be.
+const WALKERS := true
+
+const WALK_LINES_PATH := "res://art/sprites/station/backdrop_walk.json"
+const STRIPS_PATH := "res://art/sprites/station/walker_strips.json"
+
+## The pace the concourse walks at, and it is NOT a free number. A walker's
+## frame is chosen by the distance it has covered, so this sets how fast the
+## legs move as well as how fast the body crosses: at 30 a fifty-pixel cycle
+## could not carry more than eight frames before the step rate fused into a
+## shimmer, and at 20 the same cycle carries thirteen to sixteen. Every cycle
+## in `walker_strips.json` was measured and judged against this number.
+const WALK_PACE := 20.0
+
+## How far above its walk line a drone rides. A flyer touches nothing, so
+## unlike a walker -- whose feet ARE the placement -- there is nothing in the
+## art to say where it belongs.
+const FLY_ALT := 96.0
+
+static var _walk_lines: Dictionary = {}
+static var _strips: Dictionary = {}
+static var _walk_read := false
+
+## Who is on the concourse behind this room. Built once when the backdrop is
+## chosen, not every frame.
+var _cast: Array = []
+
+## The opening frames, keyed by skin. See `_shaped_opening` for why these are
+## resolved here and not where they are drawn.
+var _opening_art: Dictionary = {}
 
 ## The porthole plate: one sprite, three holes, a single view behind it.
 var _ports: Texture2D = null
@@ -511,7 +557,13 @@ func _draw_openings(w: float, h: float, floor_y: float) -> void:
 ## holds the inside as spans of [y, x, width]; we fill those and nothing else,
 ## then lay the sprite over the top.
 func _shaped_opening(r: Rect2, tex: Texture2D, skin: StringName) -> void:
-	var art: Texture2D = DB.station_sprite(&"opening", skin)
+	# FROM THE CACHE, NEVER `load()` HERE. Resolving a texture inside a draw
+	# call hands the renderer a resource whose GPU side is not ready and it
+	# samples opaque white for good -- the warning at the top of this file,
+	# broken nine hundred lines below where it is written. Every opening frame
+	# in the game rendered as a solid white rectangle because of this one line,
+	# and it was invisible in the bench because the bench never ran this path.
+	var art: Texture2D = _opening_art.get(skin, null)
 	var runs: Array = _hole_runs(skin)
 	if art == null or runs.is_empty():
 		# No sprite, or a plate with no hole in it: fall back to a plain pane
@@ -528,6 +580,7 @@ func _shaped_opening(r: Rect2, tex: Texture2D, skin: StringName) -> void:
 		if src.has_area():
 			draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
 				src, VIEW_GLASS)
+		_draw_cast(span)
 	draw_texture(art, r.position.round())
 
 
@@ -550,6 +603,16 @@ static func _hole_runs(skin: StringName) -> Array:
 	if entry is Dictionary and entry.has("runs"):
 		return entry["runs"]
 	return []
+
+
+## Every skin `opening_holes.json` knows about, which is every frame the art
+## ships. Reading it through `_hole_runs` first makes sure the file is parsed.
+static func _hole_runs_keys() -> Array:
+	_hole_runs(&"")
+	var out: Array = []
+	for k in _holes.keys():
+		out.append(StringName(k))
+	return out
 
 
 ## The size a shaped opening wants, so a layout can place it without hardcoding
@@ -581,6 +644,7 @@ func _blit_view(r: Rect2, tex: Texture2D, bottom: bool) -> void:
 		if src.has_area():
 			draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
 				src, VIEW_GLASS)
+		_draw_cast(r)
 		return
 	if tex == null:
 		return
@@ -606,7 +670,7 @@ func _blit_view(r: Rect2, tex: Texture2D, bottom: bool) -> void:
 ## and a frame in the station's livery.
 func _pane(r: Rect2, tex: Texture2D, i: int) -> void:
 	_blit_view(r, tex, false)
-	if tex != null and WALKERS:
+	if tex != null and WALKERS and _cast.is_empty():
 		_walkers(r, i)
 	# The glass: a cold cast and two streaks of reflection. The streaks are what
 	# make it glass rather than a hole -- without them the concourse is a poster.
@@ -702,6 +766,166 @@ func _bezel(id: StringName, sill: bool, margin: float = 18.0) -> StyleBoxTexture
 	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
 	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
 	return sb
+
+
+static func _read_walk() -> void:
+	if _walk_read:
+		return
+	_walk_read = true
+	if FileAccess.file_exists(WALK_LINES_PATH):
+		var a: Variant = JSON.parse_string(FileAccess.get_file_as_string(WALK_LINES_PATH))
+		if a is Dictionary:
+			_walk_lines = a
+	if FileAccess.file_exists(STRIPS_PATH):
+		var b: Variant = JSON.parse_string(FileAccess.get_file_as_string(STRIPS_PATH))
+		if b is Dictionary:
+			_strips = b
+
+
+## Pick a sprite for a rung. NOT simply the nearest by height, which would hand
+## every 80px line the same one walker for ever. Anything within a sixth of the
+## rung is close enough -- the cast measures 74-87px against an 80px line by
+## design, because people are not all one height -- so the seed chooses among
+## those and the nearest is only the fallback.
+func _pick_strip(tall: float, s: int, flying: bool) -> String:
+	var near: Array[String] = []
+	var best := ""
+	var bestd := 1.0e9
+	for nm in _strips.keys():
+		var m: Dictionary = _strips[nm]
+		if bool(m.get("by_time", false)) != flying:
+			continue
+		var d: float = absf(float(m.get("frame_h", 0)) - tall)
+		if d < bestd:
+			bestd = d
+			best = String(nm)
+		if d <= tall / 6.0:
+			near.append(String(nm))
+	if near.is_empty():
+		return best
+	near.sort()
+	return near[s % near.size()]
+
+
+## Everyone walking behind this room, and the drones over them.
+func _build_cast(bd: StringName) -> void:
+	_cast.clear()
+	_read_walk()
+	if _strips.is_empty():
+		return
+	var lines: Variant = _walk_lines.get(String(bd), null)
+	if not (lines is Array):
+		return
+	var rows: Array = lines
+	if rows.is_empty():
+		return
+	for li in rows.size():
+		var row: Dictionary = rows[li]
+		var tall := float(row.get("tall", 80))
+		var feet := float(row.get("y", 0))
+		# One or two to a line. More and a concourse reads as a queue.
+		var n := 1 + absi(hash([place_seed, bd, li])) % 2
+		for k in n:
+			var s := absi(hash([place_seed, bd, li, k]))
+			_spawn(_pick_strip(tall, s, false), feet, s, false)
+	# A drone or two over the nearest line, riding above head height.
+	var low := 0.0
+	for row in rows:
+		low = maxf(low, float(row.get("y", 0)))
+	for k in 1 + absi(hash([place_seed, bd, &"fly"])) % 2:
+		var s := absi(hash([place_seed, bd, &"fly", k]))
+		_spawn(_pick_strip(36.0, s, true), low - FLY_ALT, s, true)
+
+
+func _spawn(nm: String, feet: float, s: int, flying: bool) -> void:
+	if nm == "" or not _strips.has(nm):
+		return
+	var m: Dictionary = _strips[nm]
+	var path := "res://art/sprites/station/" + String(m.get("file", "walker_%s.png" % nm))
+	if not ResourceLoader.exists(path):
+		return
+	var tex := load(path) as Texture2D
+	if tex == null:
+		return
+	var fw := float(m.get("frame_w", 0))
+	var fh := float(m.get("frame_h", 0))
+	if fw <= 0.0 or fh <= 0.0:
+		return
+	var adv_v: Variant = m.get("advance", null)
+	_cast.append({
+		"tex": tex, "fw": fw, "fh": fh, "feet": feet,
+		"frames": maxi(1, int(m.get("frames", 1))),
+		"adv": float(adv_v) if adv_v != null else 0.0,
+		"fly": flying,
+		"fps": float(m.get("fps", 10.0)),
+		# Each one within a fifth of the room's pace, so the concourse is never
+		# a conveyor belt of people in lockstep.
+		"speed": WALK_PACE * (0.85 + 0.3 * float(s % 100) / 100.0),
+		"flip": (s >> 11) % 2 == 0,
+		"phase": float((s >> 3) % 1499),
+	})
+
+
+## Draw the concourse's people into whatever part of the backdrop is showing.
+## `clip` is in canvas space; a walker outside it is simply not drawn, which is
+## how somebody passes behind the wall between two windows.
+func _draw_cast(clip: Rect2) -> void:
+	if _backdrop == null or _cast.is_empty():
+		return
+	var bw := float(_backdrop.get_size().x)
+	for w in _cast:
+		var fw: float = w["fw"]
+		var span := bw + fw * 2.0
+		var run := fmod(_clock * float(w["speed"]) + float(w["phase"]), span)
+		var f := 0
+		var at := run
+		if bool(w["fly"]):
+			# A flyer's frames run on a CLOCK. It touches nothing, so tying its
+			# rotors to its travel would have them speed up and slow down with
+			# it -- the one thing a hovering thing must not do.
+			f = int(_clock * float(w["fps"])) % int(w["frames"])
+		else:
+			var adv: float = w["adv"]
+			if adv <= 0.0:
+				continue
+			# THE BODY IS DRAWN WHERE IT WAS AT THE START OF ITS FRAME. Sliding
+			# it smoothly between frame changes drags the planted boot a pixel
+			# at a time, hundreds of times a minute, and that is what reads as
+			# skating however well the stride was measured.
+			var steps := floorf(run / adv)
+			f = int(steps) % int(w["frames"])
+			at = steps * adv
+		var x := _bd_pos.x - fw + at
+		if bool(w["flip"]):
+			x = _bd_pos.x + bw - at
+		_blit_walker(w, roundf(x),
+			roundf(_bd_pos.y + float(w["feet"]) - float(w["fh"])), f, clip)
+
+
+func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> void:
+	var fw: float = w["fw"]
+	var fh: float = w["fh"]
+	var dst := Rect2(Vector2(x, y), Vector2(fw, fh))
+	var cut := dst.intersection(clip)
+	if not cut.has_area():
+		return
+	# Which columns of the frame the visible slice shows. Mirrored, the visible
+	# LEFT edge comes from the frame's RIGHT, so the offset is taken from the
+	# far side instead.
+	var flip: bool = w["flip"]
+	var off := (dst.end.x - cut.end.x) if flip else (cut.position.x - dst.position.x)
+	var src := Rect2(Vector2(float(f) * fw + off, cut.position.y - dst.position.y),
+		cut.size)
+	var tex: Texture2D = w["tex"]
+	if not flip:
+		draw_texture_rect_region(tex, cut, src, VIEW_GLASS)
+		return
+	# Mirrored about the slice's right edge: local x 0 lands on cut.end.x and
+	# runs back to cut.position.x, so the frame reads right to left.
+	draw_set_transform(Vector2(cut.end.x, 0.0), 0.0, Vector2(-1.0, 1.0))
+	draw_texture_rect_region(tex, Rect2(Vector2(0.0, cut.position.y), cut.size),
+		src, VIEW_GLASS)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## People walking past on the far side of the glass, in three lanes.
