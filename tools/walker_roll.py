@@ -198,6 +198,16 @@ def roll(name, urls, dry=False):
     # How far the planted boot misses its own stride is the only measure that
     # has agreed with every call Jon has made.
     row["shaky"] = skate > 0.25
+
+    # A CYCLE THIS SHORT IS NOT A WALK, and saying so is not a matter of taste.
+    # A person's stride is about 0.75 of their height; the shortest Jon has
+    # ever accepted is 0.28, on a shuffling elder. The clown "cone" came back
+    # with a 5px cycle on a 73px figure -- 0.07 -- which made the optimiser
+    # report a 1px advance and the room play it at 20 frames a second. That is
+    # the generator handing back a figure marking time, not a take to judge.
+    ratio = m2["cycle"] / float(m2["frame_h"]) if m2["frame_h"] else 0
+    row["ratio"] = ratio
+    row["broken"] = ratio < 0.20
     return row, m2
 
 
@@ -228,7 +238,8 @@ def main(argv):
                  row["cycle"], row.get("advance", 0), row["fps"],
                  row.get("foot", "-"), 100 * row.get("skate", 0),
                  100 * row.get("band", 0),
-                 "  SKATES" if row.get("shaky") else "",
+                 "  NOT A WALK" if row.get("broken") else
+                 ("  SKATES" if row.get("shaky") else ""),
                  "  OUT OF BAND" if not row["in_band"] else ""))
 
     if not dry:
