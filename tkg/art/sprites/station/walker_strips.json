@@ -68,6 +68,29 @@
    5.5
   ]
  },
+ "curlyB": {
+  "advance": 6.0,
+  "colours": 20,
+  "colours_before": 234,
+  "cycle": 96.0,
+  "deck_contacts": 2,
+  "feet_level": true,
+  "file": "walker_curlyB.png",
+  "fit": 0.508,
+  "foot_wander": 4,
+  "fps": 3.33,
+  "frame_h": 74,
+  "frame_w": 53,
+  "frames": 16,
+  "lap": 16,
+  "pace": 20,
+  "skate": 0.364,
+  "warn": null,
+  "within_3pct": [
+   5.5,
+   6.25
+  ]
+ },
  "deckhand": {
   "advance": 4.75,
   "colours": 20,
@@ -258,11 +281,11 @@
   "bob_px": 2,
   "by_time": true,
   "colours": 20,
-  "colours_before": 109,
+  "colours_before": 102,
   "cycle": null,
   "file": "walker_flyer_d4.png",
   "fps": 10.0,
-  "frame_h": 34,
+  "frame_h": 37,
   "frame_w": 62,
   "frames": 12
  },
@@ -294,14 +317,14 @@
  },
  "flyer_d7": {
   "advance": null,
-  "bob_px": 6,
+  "bob_px": 5,
   "by_time": true,
   "colours": 20,
-  "colours_before": 40,
+  "colours_before": 36,
   "cycle": null,
   "file": "walker_flyer_d7.png",
   "fps": 10.0,
-  "frame_h": 38,
+  "frame_h": 36,
   "frame_w": 62,
   "frames": 12
  },
@@ -561,27 +584,27 @@
    6.25
   ]
  },
- "porterB": {
-  "advance": 4.25,
+ "porterC": {
+  "advance": 5.0,
   "colours": 20,
-  "colours_before": 67,
-  "cycle": 68.0,
+  "colours_before": 66,
+  "cycle": 80.0,
   "deck_contacts": 2,
   "feet_level": true,
-  "file": "walker_porterB.png",
-  "fit": 0.589,
-  "foot_wander": 2,
-  "fps": 4.71,
-  "frame_h": 83,
-  "frame_w": 48,
+  "file": "walker_porterC.png",
+  "fit": 0.547,
+  "foot_wander": 5,
+  "fps": 4.0,
+  "frame_h": 76,
+  "frame_w": 44,
   "frames": 16,
   "lap": 16,
   "pace": 20,
-  "skate": 0.281,
+  "skate": 0.5,
   "warn": null,
   "within_3pct": [
    3.75,
-   4.25
+   5.0
   ]
  },
  "shawls": {

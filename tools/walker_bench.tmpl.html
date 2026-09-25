@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dock Hand Rungs</title>
+<title>Station Concourse</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root{
@@ -55,7 +55,8 @@
   .verdict{display:flex;gap:8px;align-items:center;padding:0 13px 12px}
   .verdict button{padding:6px 14px}
   .verdict button.keep.on{border-color:var(--good);color:var(--good)}
-  .verdict button.retry.on{border-color:var(--bad);color:var(--bad)}
+  .verdict button.redo.on{border-color:var(--hot);color:var(--hot)}
+  .verdict button.cut.on{border-color:var(--bad);color:var(--bad)}
   .tally{position:sticky;bottom:0;background:var(--panel);
     border:1px solid var(--hot);padding:13px 16px;
     display:flex;flex-direction:column;gap:9px}
@@ -68,13 +69,13 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Dock Hand Rungs</h1>
-  <p>Each cycle on the <b>/*DECK*/</b> deck at <b>1&times;</b>, the size the
-  room draws, walking at <b>/*PACE*/&nbsp;px/s</b> and standing on the walk
-  line nearest its own height. Every one moves
-  at its own measured stride with the body stepped &mdash; the only setting
-  where the planted boot does not creep. <b>The numbers are underneath; the
-  answer is on the screen.</b></p>
+  <h1>Station Concourse</h1>
+  <p>The <b>/*DECK*/</b> deck at <b>1&times;</b> &mdash; the size the room
+  draws &mdash; at <b>/*PACE*/&nbsp;px/s</b>. Everyone walks at their own
+  measured stride with the body stepped, on the line nearest their own height;
+  the drones run on a clock instead, because nothing without feet should
+  change speed with its travel. <b>The numbers are underneath; the answer is
+  on the screen.</b></p>
 
   <div class="bar">
     <button id="zoom">2&times;</button>
@@ -88,13 +89,18 @@
     <div class="shot"><canvas id="all"></canvas></div>
   </div>
 
+  <div class="bar">
+    <button id="split">show them one at a time</button>
+  </div>
+
   <div id="rows"></div>
 
   <div class="card tally">
     <h2 style="padding:0">what to do with them</h2>
-    <div class="nums" style="padding:0">Click <b style="color:var(--good)">keep</b>
-      or <b style="color:var(--bad)">retry</b> on each one, then paste this line
-      back to me.</div>
+    <div class="nums" style="padding:0"><b style="color:var(--good)">keep</b> it,
+      <b style="color:var(--hot)">redo</b> the walk on the same body, or
+      <b style="color:var(--bad)">cut</b> the character for good. Then paste
+      this line back to me.</div>
     <code id="tallyline">nothing marked yet</code>
     <div><button id="copy">copy the line</button>
       <button id="clear">clear all marks</button></div>
@@ -159,9 +165,11 @@ function build(){
         (k.over > 0 ? "+" : "") + k.over + "%</b></span>" +
       "</div>" +
       "<div class='shot'><canvas id='" + k.id + "'></canvas></div>" +
-      "<div class='verdict'><button class='keep' data-n='" + k.name +
-        "' data-v='keep'>keep</button><button class='retry' data-n='" +
-        k.name + "' data-v='retry'>retry</button></div>";
+      "<div class='verdict'>" +
+        "<button class='keep' data-n='" + k.name + "' data-v='keep'>keep</button>" +
+        "<button class='redo' data-n='" + k.name + "' data-v='redo'>redo</button>" +
+        "<button class='cut'  data-n='" + k.name + "' data-v='cut'>cut</button>" +
+      "</div>";
     host.appendChild(c);
     c.querySelectorAll(".verdict button").forEach(function(b){
       b.addEventListener("click", function(){ mark(b.dataset.n, b.dataset.v); });
@@ -245,15 +253,18 @@ function paint(){
   document.querySelectorAll(".verdict button").forEach(function(b){
     b.className = b.dataset.v + (VERDICT[b.dataset.n] === b.dataset.v ? " on" : "");
   });
-  var keep = [], retry = [];
+  var keep = [], redo = [], cut = [];
   W.forEach(function(k){
-    if(VERDICT[k.name] === "keep") keep.push(k.name);
-    if(VERDICT[k.name] === "retry") retry.push(k.name);
+    var v = VERDICT[k.name];
+    if(v === "keep") keep.push(k.name);
+    if(v === "redo") redo.push(k.name);
+    if(v === "cut")  cut.push(k.name);
   });
   var line = "";
   if(keep.length) line += "keep: " + keep.join(", ");
-  if(retry.length) line += (line ? "   |   " : "") + "retry: " + retry.join(", ");
-  var un = W.length - keep.length - retry.length;
+  if(redo.length) line += (line ? "   |   " : "") + "redo: " + redo.join(", ");
+  if(cut.length)  line += (line ? "   |   " : "") + "cut: " + cut.join(", ");
+  var un = W.length - keep.length - redo.length - cut.length;
   if(un) line += (line ? "   |   " : "") + un + " still unmarked";
   document.getElementById("tallyline").textContent = line || "nothing marked yet";
 }
@@ -264,7 +275,12 @@ function draw(t){
   last = t;
   DIST += dt * PACE * SLOW;
   drawAll();
+  // THIRTY-EIGHT CANVASES AT THIRTY FRAMES A SECOND IS NOT A PAGE, IT IS A
+  // FAN. The single pane is one canvas however many walkers are on it; the
+  // per-walker rows are one each, so they are only drawn while visible.
+  if(document.getElementById("rows").hidden) return;
   W.forEach(function(k){
+    if(k.off) return;
     var cv = document.getElementById(k.id);
     if(!cv) return;
     var g = cv.getContext("2d");
@@ -324,6 +340,37 @@ function start(){
     k.alt = k.fly ? 96 + ((i * 5) % 4) * 26 : 0;
   });
   build();
+  // A big set opens on the crowd alone; a small one opens with its rows out,
+  // because a five-walker batch is there to be judged row by row.
+  var rows = document.getElementById("rows");
+  rows.hidden = W.length > 12;
+  var sp = document.getElementById("split");
+  sp.textContent = rows.hidden ? "show them one at a time" : "hide the single rows";
+  sp.className = rows.hidden ? "" : "on";
+  sp.addEventListener("click", function(e){
+    rows.hidden = !rows.hidden;
+    e.currentTarget.textContent = rows.hidden ? "show them one at a time"
+                                              : "hide the single rows";
+    e.currentTarget.className = rows.hidden ? "" : "on";
+    if(!rows.hidden) W.forEach(fit);
+  });
+
+  // Rows off screen are not drawn. With the whole cast up that is 38 canvases
+  // asking for a repaint thirty times a second, and a page that melts a laptop
+  // is a page nobody finishes judging.
+  if(window.IntersectionObserver){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        var k = W.filter(function(q){ return q.id === e.target.id; })[0];
+        if(k) k.off = !e.isIntersecting;
+      });
+    }, {rootMargin: "200px"});
+    W.forEach(function(k){
+      var cv = document.getElementById(k.id);
+      if(cv) io.observe(cv);
+    });
+  }
+
   paint();
   document.getElementById("copy").addEventListener("click", function(e){
     var t = document.getElementById("tallyline").textContent;
