@@ -1,0 +1,526 @@
+{
+ "ships": {
+  "armedtrader": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "armsfolded": {
+   "verdict": "unjudged"
+  },
+  "asteroidtow": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "barnook": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "bigdish": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "booms": {
+   "verdict": "unjudged"
+  },
+  "boomtanker": {
+   "verdict": "unjudged"
+  },
+  "bored": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "bowser": {
+   "verdict": "unjudged"
+  },
+  "boxtruss": {
+   "verdict": "unjudged"
+  },
+  "brokenring": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "cagedstar": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "canopy": {
+   "verdict": "unjudged"
+  },
+  "cargolifter": {
+   "verdict": "unjudged"
+  },
+  "carrier": {
+   "verdict": "unjudged"
+  },
+  "catamaran": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "cl_drums": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "cl_stack": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "cl_tree": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "coiled": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "courier": {
+   "verdict": "unjudged"
+  },
+  "courier2": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "cranearm": {
+   "verdict": "unjudged"
+  },
+  "cyclone": {
+   "verdict": "unjudged"
+  },
+  "dc_comb": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "dc_rails": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "dc_ring": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "decks": {
+   "verdict": "unjudged"
+  },
+  "dishship": {
+   "verdict": "unjudged"
+  },
+  "dropship": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "enginebar": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "familytrader": {
+   "verdict": "unjudged"
+  },
+  "ferry": {
+   "verdict": "unjudged"
+  },
+  "filigree": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "finstack": {
+   "verdict": "unjudged"
+  },
+  "flatdeck": {
+   "verdict": "unjudged"
+  },
+  "fm_domes": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "fm_trays": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "fm_tubes": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "forked": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "fractal": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "gn_barnacle": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "gn_patched": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "gn_ring": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "gp_barrel": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "gp_coil": {
+   "verdict": "cut",
+   "flip": true
+  },
+  "gp_recoil": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "gunboat": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "gyro": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "helix": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "hl_column": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "hl_four": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "hl_stack": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "honeycomb": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "hp_cross": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "hp_pods": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "hp_wards": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "lattice": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "legger": {
+   "verdict": "unjudged"
+  },
+  "lightfreighter": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "liner": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "livestock": {
+   "verdict": "unjudged"
+  },
+  "longpylon": {
+   "verdict": "unjudged"
+  },
+  "lrshuttle": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "marketrunner": {
+   "verdict": "unjudged"
+  },
+  "mastbridge": {
+   "verdict": "unjudged"
+  },
+  "mk_arcade": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "mk_awning": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "mk_stalls": {
+   "verdict": "cut",
+   "flip": true
+  },
+  "mkt_dome": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "mkt_slung": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "mn_bore": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "mn_head": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "mn_saw": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "modulepush": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "orbitarms": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "oretender": {
+   "verdict": "unjudged"
+  },
+  "organpipes": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "parcelpod": {
+   "verdict": "unjudged"
+  },
+  "podring8": {
+   "verdict": "unjudged"
+  },
+  "pr_cells": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "pr_drum": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "pr_racks": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "pusher": {
+   "verdict": "unjudged"
+  },
+  "quills": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "rf_kiln": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rf_pipes": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "rf_towers": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rg_hulk": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "rg_raft": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rg_ribs": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "ringdrive": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "ringspine": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "rl_double": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "rl_ring": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "rl_spokes": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rly_dishes": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "rly_masts": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rly_petals": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rockship": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "rs_funnel": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rs_hoop": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "rs_net": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "saucer": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "scales": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "science": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "scoop": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "scraprunner": {
+   "verdict": "unjudged"
+  },
+  "sl_fan": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "sl_spar": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "sl_two": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "solarsail": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "spheres": {
+   "verdict": "unjudged"
+  },
+  "spires": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "swarm": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "tetra": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "tf_barrels": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "tf_pyramid": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "tf_row": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "thicket": {
+   "verdict": "keep",
+   "flip": true
+  },
+  "tp_bell": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "tp_spires": {
+   "verdict": "keep",
+   "flip": false
+  },
+  "tp_window": {
+   "verdict": "cut",
+   "flip": false
+  },
+  "tworings": {
+   "verdict": "unjudged"
+  },
+  "waterhauler": {
+   "verdict": "unjudged"
+  },
+  "workshop": {
+   "verdict": "unjudged"
+  }
+ },
+ "megafauna": {
+  "bell": {
+   "verdict": "keep"
+  },
+  "calf_wound": {
+   "verdict": "keep"
+  },
+  "discs": {
+   "verdict": "keep"
+  },
+  "fan": {
+   "verdict": "keep"
+  },
+  "lev_seg": {
+   "verdict": "keep"
+  },
+  "lev_spine": {
+   "verdict": "keep"
+  },
+  "lev_throat": {
+   "verdict": "keep"
+  }
+ },
+ "places": {
+  "core": {
+   "verdict": "keep"
+  },
+  "derelict": {
+   "verdict": "keep"
+  },
+  "derelict_station": {
+   "verdict": "keep"
+  },
+  "pulsar_a": {
+   "verdict": "keep"
+  },
+  "pulsar_b": {
+   "verdict": "keep"
+  },
+  "pulsar_c": {
+   "verdict": "keep"
+  },
+  "station_stack": {
+   "verdict": "keep"
+  },
+  "station_wheel": {
+   "verdict": "keep"
+  }
+ }
+}
