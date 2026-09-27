@@ -117,6 +117,15 @@ static func boards_for(rows: Array) -> int:
 	return 2 if _pack(rows, 2)[1] == 0 else BOARDS
 
 
+## Whether these parts all stand on `count` boards, packed the way `stock`
+## packs them. What the shop's stock roll asks before it takes a part.
+static func stands_on(mods: Array, count: int) -> bool:
+	var rows: Array = []
+	for m in mods:
+		rows.append({thing = m})
+	return _pack(rows, count)[1] == 0
+
+
 ## The stock on `count` boards, as `[boards, spilled]`: each board an Array of
 ## entries in stock order, and how many parts found no room.
 ##
@@ -165,6 +174,21 @@ const SHADE := Color("#070a10")
 ## Every board's top edge, in local coordinates. Filled by `stock`, read by
 ## `_draw`, so the boards are always under the things standing on them.
 var _boards: Array[float] = []
+
+## A SHOP ROOM'S OWN RACK, when the room has one: the level's rack art and the
+## rows its boards are on, which a style may move (`rack_boards.json` -- three
+## level racks were recut so their tags clear a drawer). Set before `stock`.
+## The node stands at the art's own size and the screen scales it by two, so
+## the rack and everything on it are pixel-doubled together, as the bench
+## draws them.
+var art_override: Texture2D = null
+var board_rows: Array = []
+## THE MARKS ARE DRAWN OVER THE ROOM'S LIGHT instead of here: the rarity lights
+## and the price tags. See `ShopLight.Glow` and `draw_lit_marks`.
+var lit_elsewhere := false
+## Each price tag's top-left, number and whether it is affordable, for
+## `draw_lit_marks`.
+var _tags: Array = []
 ## One light per part on the board under it, in the part's rarity colour:
 ## `[Rect2, Color]`. What the boxed plate's border and ground used to say, said
 ## by the shelf instead -- a shop lights its better stock.
@@ -203,6 +227,7 @@ func stock(rows: Array) -> void:
 	Widgets.clear(self)
 	_boards.clear()
 	_pips.clear()
+	_tags.clear()
 	var w := size.x
 	var h := size.y
 	if w <= 40.0 or h <= 40.0:
@@ -222,9 +247,15 @@ func stock(rows: Array) -> void:
 	# unit squeezed below its own size should lose boards rather than draw them
 	# through its own plinth.
 	var count := clampi(int(usable / float(PITCH)), 1, BOARDS)
-	for i in count:
-		_boards.append(float(CAP_H + 6) + float(PITCH) * float(i + 1)
-			- float(PLANK + TICKET_H + HEAD) - 2.0)
+	if not board_rows.is_empty():
+		# A ROOM'S RACK HAS THE BOARDS IT WAS DRAWN WITH, and exactly that many.
+		count = board_rows.size()
+		for by in board_rows:
+			_boards.append(float(by))
+	else:
+		for i in count:
+			_boards.append(float(CAP_H + 6) + float(PITCH) * float(i + 1)
+				- float(PLANK + TICKET_H + HEAD) - 2.0)
 
 	# --- AND THE STOCK STANDS ON THEM, wrapped left to right.
 	#
@@ -254,6 +285,11 @@ func stock(rows: Array) -> void:
 			add_child(slot)
 			slot.position = Vector2(x, base - ih2)
 			slot.size = Vector2(iw2, ih2)
+			for kid in slot.get_children():
+				if kid is PriceTag:
+					var tg: PriceTag = kid
+					_tags.append([slot.position + tg.position, tg.text, tg.afford])
+					tg.visible = not lit_elsewhere
 			# ON THE BOARD'S LIGHT STRIP, ONE SEGMENT PER CELL: the edge under a
 			# rare part glows its colour, broken where its cells are. Three rows
 			# so it covers the strip on the middle board too, which the art puts
@@ -335,6 +371,15 @@ func _draw() -> void:
 	var h := size.y
 	if w <= 20.0 or h <= 20.0:
 		return
+	if art_override != null:
+		# A ROOM'S RACK, as the bench draws it (`stockShelf`): the art, and one
+		# lit block per cell under each part -- no glow up the back panel,
+		# which the bench never drew.
+		draw_texture(art_override, Vector2(0.0, h - float(art_override.get_height())))
+		if not lit_elsewhere:
+			for pip in _pips:
+				draw_rect(pip[0], pip[1])
+		return
 	var art: Texture2D = _art2 if _boards.size() <= 2 else _art3
 	if art != null:
 		# Stood on the floor: anchored at the foot, so a unit given a few pixels
@@ -408,6 +453,19 @@ func _draw() -> void:
 			Color(SHADE.r, SHADE.g, SHADE.b, 0.75))
 
 
+## The rarity lights and price tags, drawn onto another layer -- the one over
+## the room's light -- exactly where this rack would draw them.
+func draw_lit_marks(c: CanvasItem) -> void:
+	if not is_visible_in_tree():
+		return
+	c.draw_set_transform(position, rotation, scale)
+	for pip in _pips:
+		c.draw_rect(pip[0], pip[1])
+	for t in _tags:
+		PriceTag.paint(c, t[0], t[1], t[2], float(TAG_H))
+	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 ## One price, as a card on a string.
 ##
 ## IT WAS A LABEL, and a label is a number floating on a shelf. What a shop puts
@@ -430,6 +488,9 @@ class PriceTag extends Control:
 	const INK := Color("#241d14")
 	const INK_DIM := Color("#3f3a30")
 	const STRING := Color("#8d7c5c")
+	## The card's lit top edge and its shadow, as the bench's `stamp` has them.
+	const LIP := Color("#dccaa3")
+	const SHADOW := Color(8.0 / 255.0, 10.0 / 255.0, 14.0 / 255.0, 0.5)
 	const GLYPHS := {
 		"0": "111101101101111", "1": "010110010010111", "2": "111001111100111",
 		"3": "111001111001111", "4": "101101111001001", "5": "111100111001111",
@@ -451,21 +512,27 @@ class PriceTag extends Control:
 		return width_for(text)
 
 	func _draw() -> void:
-		var w := size.x
-		var h := size.y
+		paint(self, Vector2.ZERO, text, afford, size.y)
+
+	## A tag at `at`, onto any canvas: this one's own, or the layer the shop
+	## draws its marks on over the light. Drawn as the bench's `stamp` draws it.
+	static func paint(ci: CanvasItem, at: Vector2, t: String, can: bool, h: float) -> void:
+		var w := width_for(t)
 		if w < 5.0 or h < 7.0:
 			return
-		var card := CARD if afford else CARD_DIM
-		var ink := INK if afford else INK_DIM
+		var card := CARD if can else CARD_DIM
+		var ink := INK if can else INK_DIM
 		# The string up to the board's lip, and the shadow the card casts.
-		draw_rect(Rect2(floorf(w * 0.5), -2.0, 1.0, 2.0), Color(STRING.r, STRING.g, STRING.b, 0.85))
-		draw_rect(Rect2(1.0, 1.0, w, h), Color(0.03, 0.04, 0.06, 0.5))
-		draw_rect(Rect2(0.0, 0.0, w, h), card)
-		draw_rect(Rect2(0.0, 0.0, w, 1.0), card.lightened(0.3))
+		ci.draw_rect(Rect2(at + Vector2(floorf(w * 0.5), -2.0), Vector2(1.0, 2.0)),
+			Color(STRING.r, STRING.g, STRING.b, 0.85))
+		ci.draw_rect(Rect2(at + Vector2(1.0, 1.0), Vector2(w, h)), SHADOW)
+		ci.draw_rect(Rect2(at, Vector2(w, h)), card)
+		ci.draw_rect(Rect2(at, Vector2(w, 1.0)), LIP if can else card.lightened(0.3))
 		var x := 1.0
-		for ch in text:
+		for ch in t:
 			var g: String = GLYPHS.get(ch, "")
 			for k in g.length():
 				if g[k] == "1":
-					draw_rect(Rect2(x + float(k % 3), 2.0 + float(k / 3), 1.0, 1.0), ink)
+					ci.draw_rect(Rect2(at + Vector2(x + float(k % 3), 2.0 + float(k / 3)),
+						Vector2.ONE), ink)
 			x += 4.0

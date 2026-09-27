@@ -136,6 +136,8 @@ godot --headless --path . --import             # REQUIRED after any new class_na
 | `-- mounts` | **replacing a hull sprite.** In the gate, so this is a backstop rather than a thing to remember. The dorsal/ventral/flank lines are measured per sprite by `art/tools/anchors.py`, so a swapped hull aims its guns at empty space with nothing thrown and nothing logged. Checks all 89 mounts against the sprite's own opaque pixels |
 | `-- convoy [N\|solo\|chart\|flare]` | touching the convoy strip. `solo` is the control: the party cell must cost the solo game nothing |
 | `-- charttest` / `-- sky` | touching the chart's star cache / `SpaceBackdrop`. Both need a window |
+| `python tools/room_install.py` | **the room bench exported new shop rooms** (`tools/room_stage/room-layouts.json`). Bakes Jon's layouts, their art at drawn size and each room's light into `art/sprites/station/rooms/`; needs numpy and Pillow. The gate runs `--check`, which fails when the export has moved on and the install has not |
+| `-- stationshot full deck=stock room=<slug> buy` | touching the shop: `ShopScene`, `ShopLight`, the rack or the counter. Buys a part the way a player does, off the doubled rack onto the level counter. `roomshot=<png> people=0 motes=0 steady` photographs the room alone at 1:1, to diff against the bench's render of it. Needs a window |
 
 **Getting somewhere fast.** Every one is a flag rather than a menu item, because each
 skips part of the run the balance depends on.

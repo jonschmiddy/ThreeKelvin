@@ -789,6 +789,11 @@ def _gd_arrangements(path=None):
     pattern across it either stops at the first `}` or swallows the lot.
     """
     src = io.open(path or SHOP_GD, encoding="utf-8").read()
+    # GONE FROM THE GAME since Jon's fifteen rooms were installed (2026-09-27):
+    # the shop draws `rooms.json` now (tools/room_install.py), and this table
+    # only ever seeded a bench that had no level layouts to open on.
+    if "const ARRANGEMENTS" not in src:
+        return []
     # Past the `=`, or the first bracket found is the one in `Array[Dictionary]`
     # and the table read as the single word "Dictionary".
     i = src.index("=", src.index("const ARRANGEMENTS"))

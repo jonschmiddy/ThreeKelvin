@@ -401,6 +401,31 @@ if run_godot artcheck 120 --headless --path "$PROJECT" -- artcheck; then
 	fi
 fi
 
+step "The shop rooms are the ones Jon laid out"
+# THE ROOMS ARE BAKED, SO THEY CAN GO STALE. `tools/room_install.py` turns the
+# room bench's export into the pictures, layouts and light the game draws, and
+# nothing about the game notices when the export moves on without it -- the
+# old rooms keep drawing, looking exactly as right as they did. `--check`
+# compares the export with the one the install recorded and confirms every file
+# the rooms name is there. It needs no numpy; installing does.
+RIPY=""
+for candidate in python3 python; do
+	if "$candidate" -c "" >/dev/null 2>&1; then
+		RIPY="$candidate"
+		break
+	fi
+done
+if [ -n "$RIPY" ]; then
+	if "$RIPY" tools/room_install.py --check >"$LOG_DIR/rooms.log" 2>&1; then
+		ok "$(tail -n 1 "$LOG_DIR/rooms.log")"
+	else
+		bad "the game's shop rooms are not the room bench's export"
+		sed 's/^/        /' "$LOG_DIR/rooms.log" | head -n 6
+	fi
+else
+	ok "python absent, skipped"
+fi
+
 step "A part can be moved between the hold and the hull"
 # THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
 # here, so it went eight failures deep without anybody hearing -- six of them a

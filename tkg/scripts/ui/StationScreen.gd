@@ -907,11 +907,9 @@ const PICK_W := 256
 ## How tall the block between the name and the price stands, whatever is in it.
 ## See where it is built for the arithmetic.
 const DESC_H := 86
-var _shelf: VBoxContainer
-## The shop's furniture row: the box, the floor between, the till's column, and
-## the second floor strip. Kept so `_arrange_shop` can stand them in a different
-## order at each station.
-var _shop_row: Array = []
+## What stands in the shop: the rack, placed where the station's room puts it.
+## The counter is `_till`, beside it in the same stack.
+var _shelf: Control
 
 
 func _page_stock() -> Control:
@@ -919,13 +917,14 @@ func _page_stock() -> Control:
 	# already names itself in 16px, was a title for a page with one thing on it
 	# -- and it cost thirty pixels off the top of the only band that is short of
 	# them. The word moved down to the list it actually labels.
-	# --- THE WHOLE DECK IS ONE ROOM, and the shop is two things standing in it.
+	# --- THE WHOLE DECK IS ONE ROOM, and it is one of Jon's fifteen.
 	#
-	# The rack was against one wall and the till against the other with a hole
-	# between them -- two pieces of furniture floating on a panel. `ShopScene`
-	# draws the floor they stand on, the wall behind them and the window over
-	# them, which is the same move `YardScene` makes for the berth. Everything
-	# below is laid out ON it, bottom-aligned, so both pieces sit on one floor.
+	# The rack and the counter used to stand in a row the screen laid out, in
+	# one of four orders, on a wall `ShopScene` drew round them. The room is his
+	# layout now (see `ShopScene`): the rack and the counter stand exactly where
+	# he put them, and the room is drawn in layers around them -- the wall and
+	# what is seen through it behind, the lamps, the light and the glow in
+	# front. Nothing here places anything by itself.
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 5)
 	var stack := Control.new()
@@ -935,20 +934,12 @@ func _page_stock() -> Control:
 	_shop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_shop)
 
-	var box := HBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.add_theme_constant_override("separation", 14)
-
-	_shelf = VBoxContainer.new()
-	_shelf.add_theme_constant_override("separation", 8)
-	_shelf.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# ITS OWN WIDTH, AND NO MORE -- exactly what the Exchange's hold does. The
-	# rack is a fixed object now rather than something poured into the column, so
-	# a column that claimed a share of the deck would leave a band of nothing
-	# between the shelf and the till. What is left over goes to the till, which
-	# is a room and can use it.
-	_shelf.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	box.add_child(_shelf)
+	# The rack stands in a holder of its own, which `_refresh_stock` empties
+	# and restocks; the counter is built once.
+	_shelf = Control.new()
+	_shelf.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_shelf.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(_shelf)
 
 	# --- AND THE TILL YOU CARRY IT TO.
 	#
@@ -964,56 +955,24 @@ func _page_stock() -> Control:
 	# farmed. Carrying a part off the shelf to the till is the same gesture as
 	# carrying one out of your hold to the counter, which is the point -- a
 	# station should have one way of doing business, not one per deck.
-	# THE FLOOR BETWEEN THEM. With the rack shrunk to its own size the till took
-	# every pixel that was left, so the place you PAY was half again the size of
-	# the shop you were paying for -- which is the wrong way round. Both are
-	# objects against opposite walls now and the slack is the space between them,
-	# which is what a room is.
-	var floorspace := Control.new()
-	floorspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	floorspace.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(floorspace)
-
-	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 6)
-	# WIDE ENOUGH TO BE A ROOM AND NO WIDER: the counter needs a back wall to
-	# stand against and somewhere to stack the day's takings, and that is about
-	# this much.
-	# A LITTLE TILL. It was 300 and took most of the right side of the floor;
-	# a kiosk this size leaves the window and the deck showing round it.
-	right.custom_minimum_size = Vector2(180, 0)
-	right.size_flags_horizontal = Control.SIZE_SHRINK_END
-	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# AIR ABOVE IT, the same as the rack has, so the counter STANDS on the floor
-	# `ShopScene` drew rather than hanging from the top of the deck.
-	var air2 := Control.new()
-	air2.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	air2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right.add_child(air2)
 	_till = TradeCounter.new()
 	_till.side = TradeCounter.Side.CHARGES
-	_till.art = DB.station_sprite(&"shop", &"counter")
-	# NO ROOM OF ITS OWN ANY MORE. `TradeCounter` builds a back wall and stacks
-	# crates against it when it is given the height, and it was given the height
-	# here -- so the deck had a room inside a room, in two different greys. It
-	# gets exactly a desk now and stands in the one `ShopScene` draws.
-	_till.custom_minimum_size = Vector2(0, TradeCounter.DESK_H)
-	_till.size_flags_vertical = Control.SIZE_SHRINK_END
+	_till.fitted = true
+	_till.lit_elsewhere = ShopScene.lit_marks
 	_till.took.connect(_on_till)
-	right.add_child(_till)
-	box.add_child(right)
-	# A SECOND STRIP OF FLOOR, for the layouts that stand the till in the middle
-	# of the room rather than against a wall. Hidden otherwise. See `_arrange_shop`.
-	var floor2 := Control.new()
-	floor2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	floor2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(floor2)
-	_shop_row = [box, floorspace, right, floor2]
+	stack.add_child(_till)
+	_shop.till_node = _till
 
-	stack.add_child(box)
-	# The room's foreground goes on LAST, over the rack and the till, because it
-	# is the one layer that hangs in front of the furniture. See `foreground`.
-	stack.add_child(_shop.foreground())
+	# THE ROOM'S OWN LAYERS go on last, over the rack and the counter: what
+	# stands in front of them and the lamps, the light over all of it, and the
+	# glow -- dust, lamp glass, lit panels, the prices -- over the light.
+	# No foreground cables: the shop wears no livery (see `ShopScene`).
+	for layer in [_shop.front_layer(), _shop.light_layer(), _shop.glow_layer()]:
+		var c: Control = layer
+		c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		stack.add_child(c)
+	# A room's art arrives when it is first drawn; the furniture is placed then.
+	_shop.room_loaded.connect(_place_shop_furniture)
 	outer.add_child(stack)
 	# THE NOTE IS OUTSIDE THE ROOM, under it. Inside the right-hand column it sat
 	# below the till, which pushed the counter off the floor and left the two
@@ -1785,6 +1744,16 @@ func _stock_up() -> void:
 		var cols := maxi(1, m.size.x)
 		if cells > cells_left or cols > cols_left:
 			continue
+		# AND IT HAS TO STAND ON TWO BOARDS. Eight columns is two boards of four
+		# only if the parts divide that way: two three-wide parts and a two-wide
+		# one are eight columns that no two boards hold. The rack used to grow a
+		# third board for that; a shop room's rack is the two-board one Jon
+		# placed, so a part that would not stand on it is put back like one that
+		# does not fit the cells.
+		var trial: Array = n.shop.duplicate()
+		trial.append(m)
+		if not ShelfDisplay.stands_on(trial, 2):
+			continue
 		cells_left -= cells
 		cols_left -= cols
 		n.shop.append(m)
@@ -2262,25 +2231,43 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 		_till_note.text = ("Shelves bare." if on_offer.is_empty()
 			else "Carry a part down to the till to buy it. It goes into your hold%s"
 				% (", and your hold is full." if Run.hold_full() else "."))
-	if _till != null:
-		_till.visible = not on_offer.is_empty()
-	# THE ROOM KNOWS WHERE IT IS. Same two fields the berth takes: development
-	# sets how many lamps hang over the shop, and whoever holds the station tints
-	# its plating. A Solari promenade and a Cygnet one are the same hall in two
-	# liveries.
+	# THE ROOM KNOWS WHERE IT IS: how built-up the station is picks which of
+	# its level's three rooms this shop is, and the station itself picks the
+	# backdrop behind the wall. A bare shelf keeps its rack and its counter --
+	# they are the room's furniture, and an empty rack is how a shop says it is
+	# out of stock.
 	if _shop != null:
 		_shop.dev = int(n.development)
 		_shop.manufacturer = n.manufacturer
 		_shop.place_seed = _place_seed(n)
-		_arrange_shop(_shop_layout(n))
+		_shop.set_room(ShopScene.room_for(_shop.dev, _shop.place_seed))
 		_shop.queue_redraw()
 		_hang_banners(_shop, n, _shop.banner_spots())
+	_shop_offer = on_offer
+	_place_shop_furniture()
 
-	if on_offer.is_empty():
-		_shelf.add_child(UITheme.body(
-			"Shelves bare. Nothing restocks; what was brought here is gone.",
-			UITheme.COLD, UITheme.FS_SMALL))
+
+## What is on offer at this station, kept so the rack can be restocked when
+## the room's art arrives after the stock does.
+var _shop_offer: Array = []
+
+
+## The rack and the counter, where this station's room stands them, and the
+## stock on the rack. Again whenever the room's art arrives.
+func _place_shop_furniture() -> void:
+	if _shelf == null or _shop == null or _till == null:
 		return
+	_till.art = _shop.till_art()
+	var tr := _shop.till_rect()
+	_till.position = tr.position
+	_till.size = tr.size
+	_till.visible = _till.art != null
+	_till.queue_redraw()
+	Widgets.clear(_shelf)
+	var art := _shop.rack_art()
+	if art == null:
+		return
+	var on_offer := _shop_offer
 
 	# NO OPEN PART, NO CARD FAN, NO BUY COLUMN.
 	#
@@ -2305,32 +2292,23 @@ func _refresh_stock(n: MapGen.MapNode) -> void:
 	#
 	# The hover comes free: `ModuleIcon` already answers with the part's readout
 	# and every card it grants, which is the same panel the refit screen uses.
-	# THE AIR ABOVE IT IS THE ROOM. An expanding spacer first, so the rack is
-	# pushed down and STANDS ON THE DECK rather than hanging from the top of the
-	# panel. Furniture sits on a floor; only a sign hangs.
-	var air := Control.new()
-	air.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	air.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_shelf.add_child(air)
-
 	var shelf := ShelfDisplay.new()
-	# ITS OWN SIZE. It filled the whole deck for a while and drew boards all the
-	# way down it, which is a warehouse aisle rather than a shop -- see `BOARDS`
-	# and `RACK_W`. The empty boards that say "a shop with two things in it" are
-	# still there; there are just three of them instead of nine.
-	shelf.custom_minimum_size = Vector2(ShelfDisplay.RACK_W,
-		ShelfDisplay.rack_height(ShelfDisplay.boards_for(on_offer)))
-	shelf.size_flags_vertical = Control.SIZE_SHRINK_END
-	shelf.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	# THE ROOM'S RACK, AT ITS OWN SIZE AND SCALED BY TWO. The bench draws the
+	# rack and its stock at 1x and doubles the lot, so the parts stand at the
+	# hold's 40px cell and the tags double with them; a node scaled by two is
+	# that, pixel for pixel. Its boards are the rows the rack was cut with.
+	shelf.art_override = art
+	shelf.board_rows = _shop.rack_boards()
+	shelf.lit_elsewhere = ShopScene.lit_marks
+	var rr := _shop.rack_rect()
+	shelf.position = rr.position
+	shelf.size = Vector2(art.get_size())
+	shelf.scale = Vector2(2.0, 2.0)
 	# NOTHING TO CONNECT. Pointing at a part tells you everything about it and
 	# dragging it to the till buys it; the shelf has no button on it at all, so
 	# the gesture that reads and the gesture that spends cannot be confused.
 	_shelf.add_child(shelf)
-	# LAID OUT ON `resized`, because the wrap depends on how wide the deck is and
-	# the deck has no width until the frame it is built in has been laid out.
-	# `stock` refuses to run against a width of zero rather than putting the
-	# whole shop on one board.
-	shelf.resized.connect(func() -> void: shelf.stock(on_offer))
+	_shop.shelf_node = shelf
 	shelf.stock(on_offer)
 
 
@@ -2463,7 +2441,10 @@ func _on_action(action: String, thing: Variant) -> void:
 			# Before the money, not after. Buying into a full hold used to take
 			# the credits, erase the part off the shelf and then log "left
 			# behind" â€” the module was gone from both places and paid for.
-			if Run.hold_full():
+			# FOR THIS PART'S SHAPE, not one free cell: a wide part into a hold
+			# with a single gap passed a `hold_full` test and was then paid for
+			# and lost when `stow` found nowhere to put it.
+			if not Run.has_room_for(m):
 				Run.log_line("The hold is full. Nowhere to put it.", &"them")
 				return
 			# One shelf, four buyers. ASK, and pay only if you won â€” a purchase
@@ -2731,41 +2712,6 @@ func _place_rigs() -> void:
 		else:
 			r.hull = Rect2()
 		r.queue_redraw()
-
-
-## Which of the shop's layouts this station has. See `ShopScene.layout`.
-func _shop_layout(n: MapGen.MapNode) -> int:
-	if ShopScene.forced_layout >= 0:
-		return ShopScene.forced_layout
-	return absi(hash([Run.galaxy_seed, n.index, &"layout"])) % ShopScene.LAYOUTS
-
-
-## Stand the shop's furniture in this station's order, and tell the room, so the
-## windows and the door go where the furniture is not.
-##
-## THE ROW IS REORDERED, NOT REBUILT: the rack, the till and the floor keep every
-## connection they have, and only their places in the row change.
-func _arrange_shop(layout: int) -> void:
-	if _shop_row.size() < 4 or _shop == null:
-		return
-	var box: HBoxContainer = _shop_row[0]
-	var fl: Control = _shop_row[1]
-	var till: Control = _shop_row[2]
-	var fl2: Control = _shop_row[3]
-	# Ten layouts, still four ways of standing the furniture: the wall is what
-	# tells them apart, and `ShopScene` says which arrangement each one uses.
-	var order: Array
-	var arrangement := ShopScene.order_of(layout)
-	match arrangement:
-		1: order = [till, fl, _shelf, fl2]
-		2: order = [_shelf, fl, till, fl2]
-		3: order = [fl2, till, fl, _shelf]
-		_: order = [_shelf, fl, till, fl2]
-	# The till stands against a wall in A and B, and mid-floor in C and D.
-	fl2.visible = arrangement >= 2
-	for i in order.size():
-		box.move_child(order[i], i)
-	_shop.layout = layout
 
 
 ## Which station this is, as one number: the run's galaxy and the node's place

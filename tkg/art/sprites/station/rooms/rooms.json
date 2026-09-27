@@ -1,0 +1,2652 @@
+{
+ "format": "three-kelvin/shop-rooms/1",
+ "source": "tools/room_stage/room-layouts.json",
+ "source_sha1": "fa9f237023e928ac4047353b6eadfabec4768819",
+ "panel": [
+  740,
+  431
+ ],
+ "floor_y": 353,
+ "gk": 2,
+ "light_size": [
+  370,
+  216
+ ],
+ "light_scales": [
+  [
+   8.0,
+   8.0,
+   8.0,
+   8.0
+  ],
+  [
+   8.0,
+   32.0,
+   1.0,
+   1.0
+  ]
+ ],
+ "bezel": 12,
+ "constants": {
+  "levels": 6,
+  "soft": 1.5,
+  "amb_col": [
+   0.7,
+   0.78,
+   1.0
+  ],
+  "bayer": [
+   0,
+   8,
+   2,
+   10,
+   12,
+   4,
+   14,
+   6,
+   3,
+   11,
+   1,
+   9,
+   15,
+   7,
+   13,
+   5
+  ],
+  "reflect_alpha": 0.3
+ },
+ "levels": {
+  "unclaimed": [
+   "unclaimed_scrap",
+   "unclaimed_closet",
+   "unclaimed_plywood"
+  ],
+  "outpost": [
+   "outpost_prefab",
+   "outpost_corrugated",
+   "outpost_modular"
+  ],
+  "settlement": [
+   "settlement_quilt",
+   "settlement_timber",
+   "settlement_render"
+  ],
+  "city": [
+   "city_chevron",
+   "city_ribbed",
+   "city_panels"
+  ],
+  "capital": [
+   "capital_alloy",
+   "capital_stone",
+   "capital_fluted"
+  ]
+ },
+ "tones": {
+  "capital_bank6a": [
+   0.688537,
+   0.858958,
+   1.0
+  ],
+  "capital_boutique9b": [
+   0.854881,
+   0.884473,
+   1.0
+  ],
+  "capital_embassy8a": [
+   1.0,
+   0.777968,
+   0.742023
+  ],
+  "capital_plaza2b": [
+   0.787559,
+   0.928175,
+   1.0
+  ],
+  "capital_skygarden2a": [
+   0.5621,
+   0.879677,
+   1.0
+  ],
+  "city_bar11a": [
+   1.0,
+   0.844749,
+   0.88359
+  ],
+  "city_electronics11a": [
+   1.0,
+   0.934542,
+   1.0
+  ],
+  "city_gates8a": [
+   0.152476,
+   0.899378,
+   1.0
+  ],
+  "city_hotel11a": [
+   0.847264,
+   1.0,
+   1.0
+  ],
+  "city_nightmarket11a": [
+   1.0,
+   0.899073,
+   0.791273
+  ],
+  "outpost_canteen11a": [
+   1.0,
+   0.735202,
+   0.656204
+  ],
+  "outpost_galley8a": [
+   0.767928,
+   0.853618,
+   1.0
+  ],
+  "outpost_hydro": [
+   0.660872,
+   0.901947,
+   1.0
+  ],
+  "outpost_junk8a": [
+   0.65795,
+   0.820501,
+   1.0
+  ],
+  "outpost_shack11a": [
+   1.0,
+   0.810958,
+   0.60521
+  ],
+  "outpost_vending": [
+   0.880665,
+   1.0,
+   0.930057
+  ],
+  "settlement_bathhouse16u": [
+   1.0,
+   0.912112,
+   0.521897
+  ],
+  "settlement_cobbler16u": [
+   1.0,
+   0.64186,
+   0.718212
+  ],
+  "settlement_homes9a": [
+   1.0,
+   0.833171,
+   0.491686
+  ],
+  "settlement_noodle10a": [
+   1.0,
+   0.802289,
+   0.573281
+  ],
+  "settlement_pharmacy10a": [
+   1.0,
+   0.779454,
+   0.461478
+  ],
+  "settlement_supply11a": [
+   1.0,
+   1.0,
+   0.690647
+  ],
+  "unclaimed_foodcounter14u": [
+   1.0,
+   0.601692,
+   0.934227
+  ],
+  "unclaimed_gutted14u": [
+   0.77998,
+   0.826268,
+   1.0
+  ],
+  "unclaimed_habs15u": [
+   0.246014,
+   0.716722,
+   1.0
+  ],
+  "unclaimed_habtrash14u": [
+   0.77085,
+   0.462617,
+   1.0
+  ],
+  "unclaimed_market15u": [
+   1.0,
+   0.743981,
+   0.753405
+  ],
+  "unclaimed_pawn15u": [
+   1.0,
+   0.817343,
+   1.0
+  ],
+  "unclaimed_trashdoors15u": [
+   0.823266,
+   0.660219,
+   1.0
+  ]
+ },
+ "rooms": [
+  {
+   "name": "unclaimed · scrap",
+   "slug": "unclaimed_scrap",
+   "level": "unclaimed",
+   "plate": "plate_unclaimed_scrap.png",
+   "backdrop": "unclaimed_trashdoors15u",
+   "air": {
+    "people": 1,
+    "motes": 400
+   },
+   "openings": [
+    {
+     "type": "window",
+     "x": 48,
+     "y": 117,
+     "w": 106,
+     "h": 128,
+     "frame": "frame_window.png",
+     "margin": 18
+    },
+    {
+     "type": "door",
+     "x": 282,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_shutter_a.png",
+     "ax": 270,
+     "ay": 151
+    },
+    {
+     "type": "window",
+     "x": 404,
+     "y": 117,
+     "w": 106,
+     "h": 128,
+     "frame": "frame_window.png",
+     "margin": 18
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_bulb.png",
+     "glass": "lampglass_bulb_ffd6a8_100.png",
+     "x": 96,
+     "y": -3,
+     "flick": 0,
+     "rate": 0,
+     "px": 96,
+     "py": -3,
+     "pow": 1,
+     "col": "#ffd6a8"
+    },
+    {
+     "art": "lamp_bulb.png",
+     "glass": "lampglass_bulb_ffd6a8_100.png",
+     "x": 608,
+     "y": 0,
+     "flick": 3,
+     "rate": 0,
+     "px": 608,
+     "py": 0,
+     "pow": 1,
+     "col": "#ffd6a8"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_unclaimed_fairylights.png",
+     "x": 166,
+     "y": 49
+    },
+    {
+     "art": "propglass_junction.png",
+     "x": 212,
+     "y": 190
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_pipes_a_fx.png",
+     "x": 0,
+     "y": 0,
+     "w": 192,
+     "h": 36
+    },
+    {
+     "art": "prop_vent_b.png",
+     "x": 248,
+     "y": 0,
+     "w": 52,
+     "h": 50
+    },
+    {
+     "art": "prop_unclaimed_fairylights.png",
+     "x": 166,
+     "y": 49,
+     "w": 240,
+     "h": 56
+    },
+    {
+     "art": "prop_junction.png",
+     "x": 212,
+     "y": 190,
+     "w": 44,
+     "h": 48
+    },
+    {
+     "art": "prop_unclaimed_danglewire.png",
+     "x": 324,
+     "y": 0,
+     "w": 12,
+     "h": 78
+    },
+    {
+     "art": "prop_unclaimed_trashbags_s150.png",
+     "x": 364,
+     "y": 289,
+     "w": 123,
+     "h": 78
+    },
+    {
+     "art": "prop_pipe_a.png",
+     "x": 426,
+     "y": 0,
+     "w": 312,
+     "h": 64
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_unclaimed_drip.png",
+     "x": 470,
+     "y": 355,
+     "w": 52,
+     "h": 62
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_wire_b.png",
+    "x": 492,
+    "y": 113,
+    "w": 232,
+    "h": 304,
+    "k": 2,
+    "boards": [
+     59,
+     122
+    ]
+   },
+   "till": {
+    "art": "till_unclaimed_s125.png",
+    "x": 28,
+    "y": 289,
+    "w": 220.0,
+    "h": 127.5
+   },
+   "light": {
+    "amb": 0.3,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_unclaimed_scrap.lmap",
+    "flick_lamp": 1
+   }
+  },
+  {
+   "name": "unclaimed · closet",
+   "slug": "unclaimed_closet",
+   "level": "unclaimed",
+   "plate": "plate_unclaimed_closet2b.png",
+   "backdrop": "unclaimed_gutted14u",
+   "air": {
+    "people": 1,
+    "motes": 400
+   },
+   "openings": [
+    {
+     "type": "open",
+     "skin": "arch",
+     "x": 246,
+     "y": 94,
+     "w": 240,
+     "h": 300,
+     "fx": false,
+     "fy": false
+    },
+    {
+     "type": "window",
+     "x": 548,
+     "y": 158,
+     "w": 164,
+     "h": 120,
+     "frame": "frame_window.png",
+     "margin": 18
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_bulb.png",
+     "glass": "lampglass_bulb_ffedde_100.png",
+     "x": 110,
+     "y": 0,
+     "flick": 1,
+     "rate": 0,
+     "px": 110,
+     "py": 0,
+     "pow": 1,
+     "col": "#ffedde"
+    },
+    {
+     "art": "lamp_bulb.png",
+     "glass": "lampglass_bulb_ffedde_100.png",
+     "x": 504,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 504,
+     "py": 0,
+     "pow": 1,
+     "col": "#ffedde"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_junction.png",
+     "x": 477,
+     "y": 154
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_extinguisher_fx.png",
+     "x": 487,
+     "y": 210,
+     "w": 34,
+     "h": 80
+    },
+    {
+     "art": "prop_pipe_a_fx.png",
+     "x": 0,
+     "y": -8,
+     "w": 312,
+     "h": 64
+    },
+    {
+     "art": "prop_junction.png",
+     "x": 477,
+     "y": 154,
+     "w": 44,
+     "h": 48
+    },
+    {
+     "art": "prop_pipes_a.png",
+     "x": 548,
+     "y": 0,
+     "w": 192,
+     "h": 36
+    },
+    {
+     "art": "prop_vent_b.png",
+     "x": 408,
+     "y": 6,
+     "w": 52,
+     "h": 50
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_tarpcrates.png",
+     "x": 184,
+     "y": 371,
+     "w": 76,
+     "h": 48
+    },
+    {
+     "haze": true
+    },
+    {
+     "art": "prop_bin_a.png",
+     "x": 674,
+     "y": 360,
+     "w": 44,
+     "h": 68
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_crate_b.png",
+    "x": 12,
+    "y": 91,
+    "w": 232,
+    "h": 304,
+    "k": 2,
+    "boards": [
+     59,
+     122
+    ]
+   },
+   "till": {
+    "art": "till_unclaimed_s125.png",
+    "x": 426,
+    "y": 296,
+    "w": 220.0,
+    "h": 127.5
+   },
+   "light": {
+    "amb": 0.3,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_unclaimed_closet.lmap",
+    "flick_lamp": 0
+   }
+  },
+  {
+   "name": "unclaimed · plywood",
+   "slug": "unclaimed_plywood",
+   "level": "unclaimed",
+   "plate": "plate_unclaimed_plywood5a.png",
+   "backdrop": "unclaimed_market15u",
+   "air": {
+    "people": 1,
+    "motes": 400
+   },
+   "openings": [
+    {
+     "type": "door",
+     "x": 36,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_shutter_b.png",
+     "ax": 24,
+     "ay": 151
+    },
+    {
+     "type": "open",
+     "skin": "shutter",
+     "x": 424,
+     "y": 70,
+     "w": 280,
+     "h": 240,
+     "fx": false,
+     "fy": false
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_bulb.png",
+     "glass": "lampglass_bulb_ffd6a8_100.png",
+     "x": 222,
+     "y": 0,
+     "flick": 3,
+     "rate": 0,
+     "px": 222,
+     "py": 0,
+     "pow": 1,
+     "col": "#ffd6a8"
+    },
+    {
+     "art": "lamp_bulb.png",
+     "glass": "lampglass_bulb_ffd6a8_100.png",
+     "x": 554,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 554,
+     "py": 0,
+     "pow": 1,
+     "col": "#ffd6a8"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_junction.png",
+     "x": 366,
+     "y": 126
+    },
+    {
+     "art": "propglass_caglamp.png",
+     "x": 706,
+     "y": 128
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_vent_a.png",
+     "x": 38,
+     "y": 32,
+     "w": 52,
+     "h": 54
+    },
+    {
+     "art": "prop_pipe_a.png",
+     "x": 428,
+     "y": 0,
+     "w": 312,
+     "h": 64
+    },
+    {
+     "art": "prop_unclaimed_danglewire.png",
+     "x": 370,
+     "y": 0,
+     "w": 12,
+     "h": 78
+    },
+    {
+     "art": "prop_junction.png",
+     "x": 366,
+     "y": 126,
+     "w": 44,
+     "h": 48
+    },
+    {
+     "art": "prop_caglamp.png",
+     "x": 706,
+     "y": 128,
+     "w": 32,
+     "h": 62
+    },
+    {
+     "art": "prop_unclaimed_crt_s150_fx.png",
+     "x": 640,
+     "y": 322,
+     "w": 90,
+     "h": 87
+    },
+    {
+     "art": "prop_outpost_hardhats_s125.png",
+     "x": 348,
+     "y": 210,
+     "w": 80,
+     "h": 48
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_mopbucket_s127.png",
+     "x": 310,
+     "y": 273,
+     "w": 38,
+     "h": 110
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "till",
+    "rack"
+   ],
+   "rack": {
+    "art": "rack_wire_b.png",
+    "x": 108,
+    "y": 70,
+    "w": 232,
+    "h": 304,
+    "k": 2,
+    "boards": [
+     59,
+     122
+    ]
+   },
+   "till": {
+    "art": "till_unclaimed_s125.png",
+    "x": 410,
+    "y": 289,
+    "w": 220.0,
+    "h": 127.5
+   },
+   "light": {
+    "amb": 0.28,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_unclaimed_plywood.lmap",
+    "flick_lamp": 0
+   }
+  },
+  {
+   "name": "outpost · prefab",
+   "slug": "outpost_prefab",
+   "level": "outpost",
+   "plate": "plate_outpost_prefab.png",
+   "backdrop": "outpost_canteen11a",
+   "air": {
+    "people": 1,
+    "motes": 280
+   },
+   "openings": [
+    {
+     "type": "door",
+     "x": 252,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_slide_a.png",
+     "ax": 240,
+     "ay": 151
+    },
+    {
+     "type": "window",
+     "x": 482,
+     "y": 110,
+     "w": 204,
+     "h": 150,
+     "frame": "frame_window.png",
+     "margin": 18
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_emergency.png",
+     "glass": "lampglass_emergency_faf6ff_100.png",
+     "x": 257,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 257,
+     "py": 0,
+     "pow": 0.5,
+     "col": "#faf6ff"
+    },
+    {
+     "art": "lamp_worklight_fx.png",
+     "glass": "lampglass_worklight_e8eef8_100_fx.png",
+     "x": 0,
+     "y": 48,
+     "flick": 0,
+     "rate": 0,
+     "px": 0,
+     "py": 48,
+     "pow": 1,
+     "col": "#e8eef8"
+    },
+    {
+     "art": "lamp_worklight.png",
+     "glass": "lampglass_worklight_e8eef8_100.png",
+     "x": 684,
+     "y": 56,
+     "flick": 0,
+     "rate": 0,
+     "px": 684,
+     "py": 56,
+     "pow": 1,
+     "col": "#e8eef8"
+    }
+   ],
+   "glass": [],
+   "back": [
+    {
+     "art": "prop_outpost_lockers.png",
+     "x": 358,
+     "y": 204,
+     "w": 96,
+     "h": 152
+    },
+    {
+     "art": "prop_firstaid.png",
+     "x": 348,
+     "y": 145,
+     "w": 44,
+     "h": 48
+    },
+    {
+     "art": "prop_outpost_coffee.png",
+     "x": 334,
+     "y": 81,
+     "w": 72,
+     "h": 50
+    },
+    {
+     "art": "prop_pipes_a_fx.png",
+     "x": 0,
+     "y": 0,
+     "w": 192,
+     "h": 36
+    },
+    {
+     "art": "prop_vent_b.png",
+     "x": 344,
+     "y": 0,
+     "w": 52,
+     "h": 50
+    },
+    {
+     "art": "prop_pipe_a.png",
+     "x": 428,
+     "y": -7,
+     "w": 312,
+     "h": 64
+    },
+    {
+     "art": "prop_toolchest.png",
+     "x": 604,
+     "y": 322,
+     "w": 62,
+     "h": 48
+    },
+    {
+     "art": "prop_watercooler_s125.png",
+     "x": 671,
+     "y": 228,
+     "w": 55,
+     "h": 128
+    }
+   ],
+   "front": [
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_outpost.png",
+    "x": 0,
+    "y": 106,
+    "w": 232,
+    "h": 308,
+    "k": 2,
+    "boards": [
+     59,
+     122
+    ]
+   },
+   "till": {
+    "art": "till_outpost.png",
+    "x": 392,
+    "y": 329,
+    "w": 174,
+    "h": 94
+   },
+   "light": {
+    "amb": 0.31,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_outpost_prefab.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "outpost · corrugated",
+   "slug": "outpost_corrugated",
+   "level": "outpost",
+   "plate": "plate_outpost_corrugated.png",
+   "backdrop": "outpost_hydro",
+   "air": {
+    "people": 1,
+    "motes": 280
+   },
+   "openings": [
+    {
+     "type": "door",
+     "x": 24,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_blast_a.png",
+     "ax": 12,
+     "ay": 151
+    },
+    {
+     "type": "open",
+     "skin": "shutter",
+     "x": 424,
+     "y": 70,
+     "w": 280,
+     "h": 240,
+     "fx": false,
+     "fy": false
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_flood.png",
+     "glass": "lampglass_flood_e8eef8_100.png",
+     "x": 184,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 184,
+     "py": 0,
+     "pow": 1,
+     "col": "#e8eef8"
+    },
+    {
+     "art": "lamp_flood.png",
+     "glass": "lampglass_flood_e8eef8_100.png",
+     "x": 564,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 564,
+     "py": 0,
+     "pow": 1,
+     "col": "#e8eef8"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_caglamp.png",
+     "x": 708,
+     "y": 80
+    },
+    {
+     "art": "propglass_caglamp_fx.png",
+     "x": 0,
+     "y": 80
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_outpost_clipboards.png",
+     "x": 346,
+     "y": 124,
+     "w": 76,
+     "h": 40
+    },
+    {
+     "art": "prop_outpost_hardhats_s125.png",
+     "x": 348,
+     "y": 204,
+     "w": 80,
+     "h": 48
+    },
+    {
+     "art": "prop_caglamp.png",
+     "x": 708,
+     "y": 80,
+     "w": 32,
+     "h": 62
+    },
+    {
+     "art": "prop_vent_a.png",
+     "x": 272,
+     "y": 0,
+     "w": 52,
+     "h": 54
+    },
+    {
+     "art": "prop_pipe_a.png",
+     "x": 428,
+     "y": 0,
+     "w": 312,
+     "h": 64
+    },
+    {
+     "art": "prop_outpost_sacks_s150.png",
+     "x": 620,
+     "y": 326,
+     "w": 102,
+     "h": 84
+    },
+    {
+     "art": "prop_caglamp_fx.png",
+     "x": 0,
+     "y": 80,
+     "w": 32,
+     "h": 62
+    },
+    {
+     "art": "prop_hangplant_a.png",
+     "x": 38,
+     "y": 0,
+     "w": 54,
+     "h": 106
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_stepladder_s150.png",
+     "x": 328,
+     "y": 252,
+     "w": 42,
+     "h": 135
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_outpost.png",
+    "x": 108,
+    "y": 72,
+    "w": 232,
+    "h": 308,
+    "k": 2,
+    "boards": [
+     59,
+     122
+    ]
+   },
+   "till": {
+    "art": "till_outpost_s125.png",
+    "x": 388,
+    "y": 304,
+    "w": 217.5,
+    "h": 117.5
+   },
+   "light": {
+    "amb": 0.25,
+    "shadowk": 0.35,
+    "dither": false,
+    "file": "light_outpost_corrugated.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "outpost · modular",
+   "slug": "outpost_modular",
+   "level": "outpost",
+   "plate": "plate_outpost_modular7a.png",
+   "backdrop": "outpost_galley8a",
+   "air": {
+    "people": 1,
+    "motes": 280
+   },
+   "openings": [
+    {
+     "type": "window",
+     "x": 40,
+     "y": 128,
+     "w": 190,
+     "h": 150,
+     "frame": "frame_window_round.png",
+     "margin": 24
+    },
+    {
+     "type": "door",
+     "x": 392,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_blast_a.png",
+     "ax": 380,
+     "ay": 151
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_emergency.png",
+     "glass": "lampglass_emergency_e8ecff_100.png",
+     "x": 408,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 408,
+     "py": 0,
+     "pow": 0.5,
+     "col": "#e8ecff"
+    },
+    {
+     "art": "lamp_bulkhead.png",
+     "glass": "lampglass_bulkhead_e8eef8_100.png",
+     "x": 156,
+     "y": 46,
+     "flick": 0,
+     "rate": 0,
+     "px": 156,
+     "py": 46,
+     "pow": 1,
+     "col": "#e8eef8"
+    },
+    {
+     "art": "lamp_bulkhead.png",
+     "glass": "lampglass_bulkhead_e8eef8_100.png",
+     "x": 532,
+     "y": 46,
+     "flick": 0,
+     "rate": 0,
+     "px": 532,
+     "py": 46,
+     "pow": 1,
+     "col": "#e8eef8"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_junction.png",
+     "x": 284,
+     "y": 90
+    },
+    {
+     "art": "propglass_unclaimed_candles_s126.png",
+     "x": 454,
+     "y": 326
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_junction.png",
+     "x": 284,
+     "y": 90,
+     "w": 44,
+     "h": 48
+    },
+    {
+     "art": "prop_extinguisher.png",
+     "x": 328,
+     "y": 188,
+     "w": 34,
+     "h": 80
+    },
+    {
+     "art": "prop_watercooler_s125.png",
+     "x": 265,
+     "y": 228,
+     "w": 55,
+     "h": 128
+    },
+    {
+     "art": "prop_pipe_a_fx.png",
+     "x": 0,
+     "y": 0,
+     "w": 312,
+     "h": 64
+    },
+    {
+     "art": "prop_pipes_a.png",
+     "x": 548,
+     "y": 0,
+     "w": 192,
+     "h": 36
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_unclaimed_candles_s126.png",
+     "x": 454,
+     "y": 326,
+     "w": 58,
+     "h": 88
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "till",
+    "rack"
+   ],
+   "rack": {
+    "art": "rack_outpost.png",
+    "x": 496,
+    "y": 106,
+    "w": 232,
+    "h": 308,
+    "k": 2,
+    "boards": [
+     59,
+     122
+    ]
+   },
+   "till": {
+    "art": "till_outpost_s125.png",
+    "x": 28,
+    "y": 302,
+    "w": 217.5,
+    "h": 117.5
+   },
+   "light": {
+    "amb": 0.31,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_outpost_modular.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "settlement · quilt",
+   "slug": "settlement_quilt",
+   "level": "settlement",
+   "plate": "plate_settlement_quilt.png",
+   "backdrop": "settlement_bathhouse16u",
+   "air": {
+    "people": 1,
+    "motes": 200
+   },
+   "openings": [
+    {
+     "type": "open",
+     "skin": "arch",
+     "x": 230,
+     "y": 96,
+     "w": 240,
+     "h": 300,
+     "fx": false,
+     "fy": false
+    },
+    {
+     "type": "window",
+     "x": 552,
+     "y": 88,
+     "w": 94,
+     "h": 140,
+     "frame": "frame_window.png",
+     "margin": 18
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_lantern.png",
+     "glass": "lampglass_lantern_ffc27a_100.png",
+     "x": 122,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 122,
+     "py": 0,
+     "pow": 1.28,
+     "col": "#ffc27a"
+    },
+    {
+     "art": "lamp_lantern.png",
+     "glass": "lampglass_lantern_ffc27a_100.png",
+     "x": 526,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 526,
+     "py": 0,
+     "pow": 1.28,
+     "col": "#ffc27a"
+    }
+   ],
+   "glass": [],
+   "back": [
+    {
+     "art": "prop_settlement_herbs.png",
+     "x": 463,
+     "y": 116,
+     "w": 70,
+     "h": 50
+    },
+    {
+     "art": "prop_settlement_sign.png",
+     "x": 470,
+     "y": 182,
+     "w": 56,
+     "h": 42
+    },
+    {
+     "art": "prop_clock.png",
+     "x": 324,
+     "y": 40,
+     "w": 52,
+     "h": 52
+    },
+    {
+     "art": "prop_plant_b_s126.png",
+     "x": 660,
+     "y": 302,
+     "w": 68,
+     "h": 95
+    },
+    {
+     "art": "prop_settlement_drying.png",
+     "x": 180,
+     "y": -2,
+     "w": 84,
+     "h": 70
+    },
+    {
+     "art": "prop_settlement_bunting.png",
+     "x": 429,
+     "y": 0,
+     "w": 210,
+     "h": 44
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_settlement_cat_s125.png",
+     "x": 43,
+     "y": 372,
+     "w": 85,
+     "h": 50
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_settlement.png",
+    "x": 12,
+    "y": 104,
+    "w": 232,
+    "h": 296,
+    "k": 2,
+    "boards": [
+     59,
+     119
+    ]
+   },
+   "till": {
+    "art": "till_settlement.png",
+    "x": 440,
+    "y": 264,
+    "w": 220,
+    "h": 150
+   },
+   "light": {
+    "amb": 0.35,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_settlement_quilt.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "settlement · timber",
+   "slug": "settlement_timber",
+   "level": "settlement",
+   "plate": "plate_settlement_timber.png",
+   "backdrop": "settlement_noodle10a",
+   "air": {
+    "people": 1,
+    "motes": 200
+   },
+   "openings": [
+    {
+     "type": "open",
+     "skin": "vitrine",
+     "x": 6,
+     "y": 72,
+     "w": 240,
+     "h": 200,
+     "fx": false,
+     "fy": false
+    },
+    {
+     "type": "door",
+     "x": 356,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_slide_b.png",
+     "ax": 344,
+     "ay": 151
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_paper.png",
+     "glass": "lampglass_paper_ffc27a_100.png",
+     "x": 118,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 118,
+     "py": 0,
+     "pow": 1.28,
+     "col": "#ffc27a"
+    },
+    {
+     "art": "lamp_paper.png",
+     "glass": "lampglass_paper_ffc27a_100.png",
+     "x": 596,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 596,
+     "py": 0,
+     "pow": 1.28,
+     "col": "#ffc27a"
+    }
+   ],
+   "glass": [],
+   "back": [
+    {
+     "art": "prop_jarshelf.png",
+     "x": 254,
+     "y": 130,
+     "w": 84,
+     "h": 44
+    },
+    {
+     "art": "prop_settlement_herbs.png",
+     "x": 260,
+     "y": 196,
+     "w": 70,
+     "h": 50
+    },
+    {
+     "art": "prop_clock.png",
+     "x": 436,
+     "y": 84,
+     "w": 52,
+     "h": 52
+    },
+    {
+     "art": "prop_settlement_sign.png",
+     "x": 434,
+     "y": 174,
+     "w": 56,
+     "h": 42
+    },
+    {
+     "art": "prop_settlement_baskets_s126.png",
+     "x": 433,
+     "y": 318,
+     "w": 68,
+     "h": 72
+    },
+    {
+     "art": "prop_settlement_cat.png",
+     "x": 260,
+     "y": 333,
+     "w": 68,
+     "h": 40
+    },
+    {
+     "art": "prop_settlement_bunting.png",
+     "x": 214,
+     "y": 0,
+     "w": 210,
+     "h": 44
+    },
+    {
+     "art": "prop_settlement_drying.png",
+     "x": 480,
+     "y": -2,
+     "w": 84,
+     "h": 70
+    }
+   ],
+   "front": [
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "till",
+    "rack"
+   ],
+   "rack": {
+    "art": "rack_settlement.png",
+    "x": 501,
+    "y": 120,
+    "w": 232,
+    "h": 296,
+    "k": 2,
+    "boards": [
+     59,
+     119
+    ]
+   },
+   "till": {
+    "art": "till_settlement.png",
+    "x": 24,
+    "y": 268,
+    "w": 220,
+    "h": 150
+   },
+   "light": {
+    "amb": 0.35,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_settlement_timber.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "settlement · render",
+   "slug": "settlement_render",
+   "level": "settlement",
+   "plate": "plate_settlement_render2b.png",
+   "backdrop": "settlement_homes9a",
+   "air": {
+    "people": 1,
+    "motes": 200
+   },
+   "openings": [
+    {
+     "type": "door",
+     "x": 36,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_shutter_b.png",
+     "ax": 24,
+     "ay": 151
+    },
+    {
+     "type": "window",
+     "x": 458,
+     "y": 106,
+     "w": 250,
+     "h": 150,
+     "frame": "frame_window_round.png",
+     "margin": 24
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_globe.png",
+     "glass": "lampglass_globe_ffc27a_100.png",
+     "x": 204,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 204,
+     "py": 0,
+     "pow": 1.28,
+     "col": "#ffc27a"
+    },
+    {
+     "art": "lamp_globe.png",
+     "glass": "lampglass_globe_ffc27a_100.png",
+     "x": 557,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 557,
+     "py": 0,
+     "pow": 1.28,
+     "col": "#ffc27a"
+    }
+   ],
+   "glass": [],
+   "back": [
+    {
+     "art": "prop_settlement_frames.png",
+     "x": 351,
+     "y": 78,
+     "w": 86,
+     "h": 32
+    },
+    {
+     "art": "prop_settlement_herbs.png",
+     "x": 359,
+     "y": 140,
+     "w": 70,
+     "h": 50
+    },
+    {
+     "art": "prop_settlement_sign.png",
+     "x": 366,
+     "y": 204,
+     "w": 56,
+     "h": 42
+    },
+    {
+     "art": "prop_settlement_cat.png",
+     "x": 378,
+     "y": 313,
+     "w": 68,
+     "h": 40
+    },
+    {
+     "art": "prop_settlement_drying.png",
+     "x": 22,
+     "y": 0,
+     "w": 84,
+     "h": 70
+    },
+    {
+     "art": "prop_settlement_bunting.png",
+     "x": 284,
+     "y": 0,
+     "w": 210,
+     "h": 44
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_settlement_grain_s150.png",
+     "x": 284,
+     "y": 330,
+     "w": 75,
+     "h": 87
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_settlement.png",
+    "x": 108,
+    "y": 120,
+    "w": 232,
+    "h": 296,
+    "k": 2,
+    "boards": [
+     59,
+     119
+    ]
+   },
+   "till": {
+    "art": "till_settlement.png",
+    "x": 466,
+    "y": 278,
+    "w": 220,
+    "h": 150
+   },
+   "light": {
+    "amb": 0.35,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_settlement_render.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "city · chevron",
+   "slug": "city_chevron",
+   "level": "city",
+   "plate": "plate_city_chevron.png",
+   "backdrop": "city_bar11a",
+   "air": {
+    "people": 1,
+    "motes": 120
+   },
+   "openings": [
+    {
+     "type": "door",
+     "x": 34,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_slide_a.png",
+     "ax": 22,
+     "ay": 151
+    },
+    {
+     "type": "open",
+     "skin": "vitrine",
+     "x": 450,
+     "y": 82,
+     "w": 240,
+     "h": 200,
+     "fx": false,
+     "fy": false
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_lightbar.png",
+     "glass": "lampglass_lightbar_7fe3ff_100.png",
+     "x": 171,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 171,
+     "py": 0,
+     "pow": 1.6,
+     "col": "#7fe3ff"
+    },
+    {
+     "art": "lamp_lightbar.png",
+     "glass": "lampglass_lightbar_7fe3ff_100.png",
+     "x": 513,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 513,
+     "py": 0,
+     "pow": 1.6,
+     "col": "#7fe3ff"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_vend_a_s150.png",
+     "x": 344,
+     "y": 173
+    },
+    {
+     "art": "propglass_city_neon_s150.png",
+     "x": 361,
+     "y": 95
+    },
+    {
+     "art": "propglass_city_lanterns.png",
+     "x": 296,
+     "y": 0
+    },
+    {
+     "art": "propglass_city_ledtray.png",
+     "x": 110,
+     "y": 74
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_vend_a_s150.png",
+     "x": 344,
+     "y": 173,
+     "w": 96,
+     "h": 183
+    },
+    {
+     "art": "prop_city_neon_s150.png",
+     "x": 361,
+     "y": 95,
+     "w": 63,
+     "h": 87
+    },
+    {
+     "art": "prop_city_bamboo_s126.png",
+     "x": 680,
+     "y": 211,
+     "w": 58,
+     "h": 145
+    },
+    {
+     "art": "prop_city_lanterns.png",
+     "x": 296,
+     "y": 0,
+     "w": 208,
+     "h": 52
+    },
+    {
+     "art": "prop_city_camera_fx.png",
+     "x": 24,
+     "y": 60,
+     "w": 38,
+     "h": 32
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_city_ledtray.png",
+     "x": 110,
+     "y": 74,
+     "w": 228,
+     "h": 40
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_city.png",
+    "x": 108,
+    "y": 86,
+    "w": 232,
+    "h": 320,
+    "k": 2,
+    "boards": [
+     59,
+     117
+    ]
+   },
+   "till": {
+    "art": "till_city_s125.png",
+    "x": 456,
+    "y": 315,
+    "w": 220.0,
+    "h": 105.0
+   },
+   "light": {
+    "amb": 0.46,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_city_chevron.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "city · ribbed",
+   "slug": "city_ribbed",
+   "level": "city",
+   "plate": "plate_city_ribbed.png",
+   "backdrop": "city_nightmarket11a",
+   "air": {
+    "people": 1,
+    "motes": 120
+   },
+   "openings": [
+    {
+     "type": "window",
+     "x": 22,
+     "y": 138,
+     "w": 196,
+     "h": 150,
+     "frame": "frame_window_round.png",
+     "margin": 24
+    },
+    {
+     "type": "door",
+     "x": 310,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_slide_b.png",
+     "ax": 298,
+     "ay": 151
+    },
+    {
+     "type": "window",
+     "x": 394,
+     "y": 120,
+     "w": 96,
+     "h": 128,
+     "frame": "frame_window_round.png",
+     "margin": 24
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_panel.png",
+     "glass": "lampglass_panel_7fe3ff_100.png",
+     "x": 97,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 97,
+     "py": 0,
+     "pow": 1.6,
+     "col": "#7fe3ff"
+    },
+    {
+     "art": "lamp_panel.png",
+     "glass": "lampglass_panel_7fe3ff_100.png",
+     "x": 577,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 577,
+     "py": 0,
+     "pow": 1.6,
+     "col": "#7fe3ff"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_city_koi.png",
+     "x": 242,
+     "y": 130
+    },
+    {
+     "art": "propglass_city_atm_s150.png",
+     "x": 242,
+     "y": 221
+    },
+    {
+     "art": "propglass_city_ledtray.png",
+     "x": 506,
+     "y": 84
+    },
+    {
+     "art": "propglass_city_lanterns.png",
+     "x": 272,
+     "y": 2
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_city_koi.png",
+     "x": 242,
+     "y": 130,
+     "w": 42,
+     "h": 64
+    },
+    {
+     "art": "prop_city_stools_s125.png",
+     "x": 405,
+     "y": 315,
+     "w": 75,
+     "h": 70
+    },
+    {
+     "art": "prop_city_lanterns.png",
+     "x": 272,
+     "y": 2,
+     "w": 208,
+     "h": 52
+    },
+    {
+     "art": "prop_city_camera.png",
+     "x": 696,
+     "y": 40,
+     "w": 38,
+     "h": 32
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_city_atm_s150.png",
+     "x": 242,
+     "y": 221,
+     "w": 42,
+     "h": 132
+    },
+    {
+     "art": "prop_city_ledtray.png",
+     "x": 506,
+     "y": 84,
+     "w": 228,
+     "h": 40
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "till",
+    "rack"
+   ],
+   "rack": {
+    "art": "rack_city.png",
+    "x": 504,
+    "y": 96,
+    "w": 232,
+    "h": 320,
+    "k": 2,
+    "boards": [
+     59,
+     117
+    ]
+   },
+   "till": {
+    "art": "till_city_s125.png",
+    "x": 53,
+    "y": 326,
+    "w": 220.0,
+    "h": 105.0
+   },
+   "light": {
+    "amb": 0.46,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_city_ribbed.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "city · panels",
+   "slug": "city_panels",
+   "level": "city",
+   "plate": "plate_city_panels2a.png",
+   "backdrop": "city_electronics11a",
+   "air": {
+    "people": 1,
+    "motes": 120
+   },
+   "openings": [
+    {
+     "type": "window",
+     "x": 46,
+     "y": 120,
+     "w": 236,
+     "h": 150,
+     "frame": "frame_window.png",
+     "margin": 18
+    },
+    {
+     "type": "door",
+     "x": 398,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_airlock_b.png",
+     "ax": 386,
+     "ay": 151
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_lightbar.png",
+     "glass": "lampglass_lightbar_7fe3ff_100.png",
+     "x": 113,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 113,
+     "py": 0,
+     "pow": 1.6,
+     "col": "#7fe3ff"
+    },
+    {
+     "art": "lamp_lightbar.png",
+     "glass": "lampglass_lightbar_7fe3ff_100.png",
+     "x": 553,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 553,
+     "py": 0,
+     "pow": 1.6,
+     "col": "#7fe3ff"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_city_lightbox.png",
+     "x": 316,
+     "y": 150
+    },
+    {
+     "art": "propglass_city_neonbowl.png",
+     "x": 310,
+     "y": 226
+    },
+    {
+     "art": "propglass_city_lanterns.png",
+     "x": 282,
+     "y": 0
+    },
+    {
+     "art": "propglass_city_ledtray.png",
+     "x": 496,
+     "y": 64
+    },
+    {
+     "art": "propglass_screen_a.png",
+     "x": 384,
+     "y": 89
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_city_bamboo_s126.png",
+     "x": 0,
+     "y": 211,
+     "w": 58,
+     "h": 145
+    },
+    {
+     "art": "prop_city_lightbox.png",
+     "x": 316,
+     "y": 150,
+     "w": 36,
+     "h": 64
+    },
+    {
+     "art": "prop_city_neonbowl.png",
+     "x": 310,
+     "y": 226,
+     "w": 50,
+     "h": 60
+    },
+    {
+     "art": "prop_city_lanterns.png",
+     "x": 282,
+     "y": 0,
+     "w": 208,
+     "h": 52
+    },
+    {
+     "art": "prop_screen_a.png",
+     "x": 384,
+     "y": 89,
+     "w": 80,
+     "h": 50
+    },
+    {
+     "art": "prop_city_camera_fx.png",
+     "x": 0,
+     "y": 36,
+     "w": 38,
+     "h": 32
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_city_ledtray.png",
+     "x": 496,
+     "y": 64,
+     "w": 228,
+     "h": 40
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "till",
+    "rack"
+   ],
+   "rack": {
+    "art": "rack_city.png",
+    "x": 494,
+    "y": 76,
+    "w": 232,
+    "h": 320,
+    "k": 2,
+    "boards": [
+     59,
+     117
+    ]
+   },
+   "till": {
+    "art": "till_city_s125.png",
+    "x": 74,
+    "y": 301,
+    "w": 220.0,
+    "h": 105.0
+   },
+   "light": {
+    "amb": 0.46,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_city_panels.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "capital · alloy",
+   "slug": "capital_alloy",
+   "level": "capital",
+   "plate": "plate_capital_alloy.png",
+   "backdrop": "capital_plaza2b",
+   "air": {
+    "people": 1,
+    "motes": 60
+   },
+   "openings": [
+    {
+     "type": "open",
+     "skin": "arch",
+     "x": 246,
+     "y": 94,
+     "w": 240,
+     "h": 300,
+     "fx": false,
+     "fy": false
+    },
+    {
+     "type": "window",
+     "x": 494,
+     "y": 120,
+     "w": 112,
+     "h": 102,
+     "frame": "frame_window_octa.png",
+     "margin": 24
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_enamel.png",
+     "glass": "lampglass_enamel_fffefa_100.png",
+     "x": 72,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 72,
+     "py": 0,
+     "pow": 3,
+     "col": "#fffefa"
+    },
+    {
+     "art": "lamp_enamel.png",
+     "glass": "lampglass_enamel_fffefa_100.png",
+     "x": 600,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 600,
+     "py": 0,
+     "pow": 3,
+     "col": "#fffefa"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_capital_chandelier.png",
+     "x": 337,
+     "y": 0
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_capital_mirror.png",
+     "x": 654,
+     "y": 118,
+     "w": 44,
+     "h": 80
+    },
+    {
+     "art": "prop_capital_fern_s125.png",
+     "x": 646,
+     "y": 229,
+     "w": 60,
+     "h": 135
+    },
+    {
+     "art": "prop_capital_chandelier.png",
+     "x": 337,
+     "y": 0,
+     "w": 58,
+     "h": 82
+    },
+    {
+     "art": "prop_capital_planet.png",
+     "x": 138,
+     "y": 22,
+     "w": 68,
+     "h": 68
+    },
+    {
+     "art": "prop_capital_painting.png",
+     "x": 507,
+     "y": 28,
+     "w": 86,
+     "h": 68
+    },
+    {
+     "art": "prop_capital_starchart.png",
+     "x": 174,
+     "y": 108,
+     "w": 64,
+     "h": 68
+    },
+    {
+     "art": "prop_capital_bust.png",
+     "x": 490,
+     "y": 258,
+     "w": 34,
+     "h": 106
+    },
+    {
+     "art": "prop_capital_bench_s150.png",
+     "x": 69,
+     "y": 391,
+     "w": 126,
+     "h": 39
+    }
+   ],
+   "front": [
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_capital.png",
+    "x": 22,
+    "y": 67,
+    "w": 232,
+    "h": 324,
+    "k": 2,
+    "boards": [
+     59,
+     117
+    ]
+   },
+   "till": {
+    "art": "till_capital.png",
+    "x": 470,
+    "y": 293,
+    "w": 176,
+    "h": 120
+   },
+   "light": {
+    "amb": 0.62,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_capital_alloy.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "capital · stone",
+   "slug": "capital_stone",
+   "level": "capital",
+   "plate": "plate_capital_stone.png",
+   "backdrop": "capital_bank6a",
+   "air": {
+    "people": 1,
+    "motes": 60
+   },
+   "openings": [
+    {
+     "type": "open",
+     "skin": "vitrine",
+     "x": 14,
+     "y": 86,
+     "w": 240,
+     "h": 200,
+     "fx": false,
+     "fy": false
+    },
+    {
+     "type": "door",
+     "x": 346,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_airlock_b.png",
+     "ax": 334,
+     "ay": 151
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_enamel.png",
+     "glass": "lampglass_enamel_fff1dc_100.png",
+     "x": 104,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 104,
+     "py": 0,
+     "pow": 2,
+     "col": "#fff1dc"
+    },
+    {
+     "art": "lamp_enamel.png",
+     "glass": "lampglass_enamel_fff1dc_100.png",
+     "x": 582,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 582,
+     "py": 0,
+     "pow": 2,
+     "col": "#fff1dc"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_capital_sconce.png",
+     "x": 264,
+     "y": 124
+    },
+    {
+     "art": "propglass_capital_chandelier.png",
+     "x": 345,
+     "y": 0
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_capital_mirror.png",
+     "x": 254,
+     "y": 18,
+     "w": 44,
+     "h": 80
+    },
+    {
+     "art": "prop_capital_sconce.png",
+     "x": 264,
+     "y": 124,
+     "w": 48,
+     "h": 60
+    },
+    {
+     "art": "prop_capital_bust_s150.png",
+     "x": 262,
+     "y": 197,
+     "w": 51,
+     "h": 159
+    },
+    {
+     "art": "prop_capital_banner.png",
+     "x": 426,
+     "y": 12,
+     "w": 62,
+     "h": 92
+    },
+    {
+     "art": "prop_capital_clock_s150.png",
+     "x": 426,
+     "y": 155,
+     "w": 60,
+     "h": 201
+    },
+    {
+     "art": "prop_capital_chandelier.png",
+     "x": 345,
+     "y": 0,
+     "w": 58,
+     "h": 82
+    }
+   ],
+   "front": [
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "till",
+    "rack"
+   ],
+   "rack": {
+    "art": "rack_capital.png",
+    "x": 496,
+    "y": 86,
+    "w": 232,
+    "h": 324,
+    "k": 2,
+    "boards": [
+     59,
+     117
+    ]
+   },
+   "till": {
+    "art": "till_capital_s125.png",
+    "x": 24,
+    "y": 270,
+    "w": 220.0,
+    "h": 150.0
+   },
+   "light": {
+    "amb": 0.62,
+    "shadowk": 0.55,
+    "dither": false,
+    "file": "light_capital_stone.lmap",
+    "flick_lamp": -1
+   }
+  },
+  {
+   "name": "capital · fluted",
+   "slug": "capital_fluted",
+   "level": "capital",
+   "plate": "plate_capital_fluted2a.png",
+   "backdrop": "capital_embassy8a",
+   "air": {
+    "people": 1,
+    "motes": 25
+   },
+   "openings": [
+    {
+     "type": "open",
+     "skin": "slot",
+     "x": 276,
+     "y": 28,
+     "w": 120,
+     "h": 312,
+     "fx": false,
+     "fy": false
+    },
+    {
+     "type": "door",
+     "x": 620,
+     "y": 163,
+     "w": 56,
+     "h": 190,
+     "art": "door_blast_b.png",
+     "ax": 608,
+     "ay": 151
+    }
+   ],
+   "lamps": [
+    {
+     "art": "lamp_globe.png",
+     "glass": "lampglass_globe_dde6ff_100.png",
+     "x": 56,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 56,
+     "py": 0,
+     "pow": 3,
+     "col": "#dde6ff"
+    },
+    {
+     "art": "lamp_globe.png",
+     "glass": "lampglass_globe_dde6ff_100.png",
+     "x": 638,
+     "y": 0,
+     "flick": 0,
+     "rate": 0,
+     "px": 638,
+     "py": 0,
+     "pow": 1.5,
+     "col": "#dde6ff"
+    }
+   ],
+   "glass": [
+    {
+     "art": "propglass_capital_chandelier.png",
+     "x": 423,
+     "y": -3
+    },
+    {
+     "art": "propglass_capital_sconce.png",
+     "x": 184,
+     "y": 0
+    }
+   ],
+   "back": [
+    {
+     "art": "prop_capital_chandelier.png",
+     "x": 423,
+     "y": -3,
+     "w": 58,
+     "h": 82
+    },
+    {
+     "art": "prop_capital_sconce.png",
+     "x": 184,
+     "y": 0,
+     "w": 48,
+     "h": 60
+    },
+    {
+     "art": "prop_capital_painting.png",
+     "x": 407,
+     "y": 102,
+     "w": 86,
+     "h": 68
+    },
+    {
+     "art": "prop_capital_starchart.png",
+     "x": 420,
+     "y": 210,
+     "w": 64,
+     "h": 68
+    },
+    {
+     "art": "prop_capital_planet.png",
+     "x": 504,
+     "y": 176,
+     "w": 68,
+     "h": 68
+    },
+    {
+     "art": "prop_capital_banner.png",
+     "x": 504,
+     "y": 10,
+     "w": 62,
+     "h": 92
+    },
+    {
+     "art": "prop_capital_mirror.png",
+     "x": 692,
+     "y": 150,
+     "w": 44,
+     "h": 80
+    },
+    {
+     "art": "prop_capital_vase.png",
+     "x": 363,
+     "y": 304,
+     "w": 44,
+     "h": 118
+    },
+    {
+     "art": "prop_capital_fern.png",
+     "x": 678,
+     "y": 305,
+     "w": 48,
+     "h": 108
+    }
+   ],
+   "front": [
+    {
+     "art": "prop_capital_ropes.png",
+     "x": 166,
+     "y": 358,
+     "w": 84,
+     "h": 64
+    },
+    {
+     "art": "prop_tree.png",
+     "x": 244,
+     "y": 272,
+     "w": 46,
+     "h": 104
+    },
+    {
+     "haze": true
+    }
+   ],
+   "furniture": [
+    "rack",
+    "till"
+   ],
+   "rack": {
+    "art": "rack_capital.png",
+    "x": 12,
+    "y": 82,
+    "w": 232,
+    "h": 324,
+    "k": 2,
+    "boards": [
+     59,
+     117
+    ]
+   },
+   "till": {
+    "art": "till_capital.png",
+    "x": 416,
+    "y": 293,
+    "w": 176,
+    "h": 120
+   },
+   "light": {
+    "amb": 0.1,
+    "shadowk": 1,
+    "dither": false,
+    "file": "light_capital_fluted.lmap",
+    "flick_lamp": -1
+   }
+  }
+ ]
+}

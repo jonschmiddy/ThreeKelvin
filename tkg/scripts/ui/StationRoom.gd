@@ -159,12 +159,14 @@ func _load_plate(key: StringName) -> void:
 		if a != null:
 			_opening_art[skin] = a
 	_backdrop = null
+	_bd_id = &""
 	var bd: StringName = forced_views.get(&"backdrop", &"")
 	var pool: Array = BACKDROPS.get(dev, BACKDROPS[MapGen.Development.CITY])
 	if bd == &"" and not pool.is_empty():
 		bd = pool[absi(hash([place_seed, &"backdrop"])) % pool.size()]
 	if bd != &"":
 		_backdrop = DB.station_sprite(&"backdrop", bd)
+		_bd_id = bd
 	_reflect = REFLECTIVE.has(bd)
 	_bd_drop = float(_drops().get(String(bd), 0))
 	_build_cast(bd)
@@ -462,7 +464,13 @@ const BACKDROPS := {
 const REFLECTIVE: Array[StringName] = [&"outpost_hydro", &"outpost_vending"]
 
 var _backdrop: Texture2D = null
+## Which backdrop that is, by id: what `_load_plate` drew from the pool.
+var _bd_id: StringName = &""
 var _bd_pos := Vector2.ZERO
+## WHAT THE CONCOURSE IS SEEN THROUGH: `VIEW_GLASS`, a touch colder than drawn.
+## The shop turns it off -- its rooms are the bench's, which never cooled the
+## view, and its openings carry their own glaze.
+var _view_tint := VIEW_GLASS
 ## How far this station's backdrop sits below the default, from DROPS_PATH.
 var _bd_drop := 0.0
 const DROPS_PATH := "res://art/sprites/station/backdrop_drops.json"
@@ -712,7 +720,7 @@ func _blit_backdrop(dst: Rect2) -> void:
 	var src := Rect2(dst.position - _bd_pos, dst.size).intersection(Rect2(Vector2.ZERO, bs))
 	if src.has_area():
 		draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
-			src, VIEW_GLASS)
+			src, _view_tint)
 	if dst.position.y < _bd_pos.y:
 		var x0 := maxf(dst.position.x, _bd_pos.x)
 		var x1 := minf(dst.end.x, _bd_pos.x + bs.x)
@@ -720,7 +728,7 @@ func _blit_backdrop(dst: Rect2) -> void:
 		if x1 > x0 and y1 > dst.position.y:
 			draw_texture_rect_region(_backdrop,
 				Rect2(Vector2(x0, dst.position.y), Vector2(x1 - x0, y1 - dst.position.y)),
-				Rect2(Vector2(x0 - _bd_pos.x, 0.0), Vector2(x1 - x0, 1.0)), VIEW_GLASS)
+				Rect2(Vector2(x0 - _bd_pos.x, 0.0), Vector2(x1 - x0, 1.0)), _view_tint)
 
 
 ## A view cropped into its opening at 1:1 -- never scaled, because a view is
@@ -1087,13 +1095,13 @@ func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> voi
 		cut.size / k)
 	var tex: Texture2D = w["tex"]
 	if not flip:
-		draw_texture_rect_region(tex, cut, src, VIEW_GLASS)
+		draw_texture_rect_region(tex, cut, src, _view_tint)
 		return
 	# Mirrored about the slice's right edge: local x 0 lands on cut.end.x and
 	# runs back to cut.position.x, so the frame reads right to left.
 	draw_set_transform(Vector2(cut.end.x, 0.0), 0.0, Vector2(-1.0, 1.0))
 	draw_texture_rect_region(tex, Rect2(Vector2(0.0, cut.position.y), cut.size),
-		src, VIEW_GLASS)
+		src, _view_tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
@@ -1116,7 +1124,7 @@ func _blit_reflection(w: Dictionary, x: float, y: float, f: int, clip: Rect2) ->
 	var row0 := feet + fh - cut.end.y
 	var k: float = w.get("k", 1.0)
 	var src := Rect2(Vector2(float(f) * fw / k + off / k, row0 / k), cut.size / k)
-	var tint := Color(VIEW_GLASS.r, VIEW_GLASS.g, VIEW_GLASS.b, VIEW_GLASS.a * REFLECT_ALPHA)
+	var tint := Color(_view_tint.r, _view_tint.g, _view_tint.b, _view_tint.a * REFLECT_ALPHA)
 	var ox := cut.end.x if flip else 0.0
 	var lx := 0.0 if flip else cut.position.x
 	draw_set_transform(Vector2(ox, feet + fh), 0.0, Vector2(-1.0 if flip else 1.0, -1.0))

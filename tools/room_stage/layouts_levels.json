@@ -102,14 +102,16 @@
     "x": 492,
     "y": 113,
     "boards": 2,
-    "skin": "wire_b"
+    "skin": "wire_b",
+    "layer": "wall"
    },
    {
     "type": "till",
     "x": 28,
     "y": 289,
     "skin": "unclaimed",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "window",
@@ -182,7 +184,8 @@
     "x": 12,
     "y": 91,
     "boards": 2,
-    "skin": "crate_b"
+    "skin": "crate_b",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -275,7 +278,8 @@
     "x": 426,
     "y": 296,
     "skin": "unclaimed",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    }
   ]
  },
@@ -326,7 +330,8 @@
     "x": 410,
     "y": 289,
     "skin": "unclaimed",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -398,7 +403,8 @@
     "x": 108,
     "y": 70,
     "boards": 2,
-    "skin": "wire_b"
+    "skin": "wire_b",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -451,7 +457,8 @@
     "x": 0,
     "y": 106,
     "boards": 2,
-    "skin": "outpost"
+    "skin": "outpost",
+    "layer": "wall"
    },
    {
     "type": "door",
@@ -554,7 +561,8 @@
     "type": "till",
     "x": 392,
     "y": 329,
-    "skin": "outpost"
+    "skin": "outpost",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -607,7 +615,8 @@
     "x": 108,
     "y": 72,
     "boards": 2,
-    "skin": "outpost"
+    "skin": "outpost",
+    "layer": "wall"
    },
    {
     "type": "open",
@@ -620,7 +629,8 @@
     "x": 388,
     "y": 304,
     "skin": "outpost",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -752,7 +762,8 @@
     "x": 28,
     "y": 302,
     "skin": "outpost",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -781,7 +792,8 @@
     "x": 496,
     "y": 106,
     "boards": 2,
-    "skin": "outpost"
+    "skin": "outpost",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -879,7 +891,8 @@
     "x": 12,
     "y": 104,
     "boards": 2,
-    "skin": "settlement"
+    "skin": "settlement",
+    "layer": "wall"
    },
    {
     "type": "open",
@@ -899,7 +912,8 @@
     "type": "till",
     "x": 440,
     "y": 264,
-    "skin": "settlement"
+    "skin": "settlement",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1012,7 +1026,8 @@
     "type": "till",
     "x": 24,
     "y": 268,
-    "skin": "settlement"
+    "skin": "settlement",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1055,7 +1070,8 @@
     "x": 501,
     "y": 120,
     "boards": 2,
-    "skin": "settlement"
+    "skin": "settlement",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1149,7 +1165,8 @@
     "x": 108,
     "y": 120,
     "boards": 2,
-    "skin": "settlement"
+    "skin": "settlement",
+    "layer": "wall"
    },
    {
     "type": "window",
@@ -1163,7 +1180,8 @@
     "type": "till",
     "x": 466,
     "y": 278,
-    "skin": "settlement"
+    "skin": "settlement",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1278,7 +1296,8 @@
     "x": 108,
     "y": 86,
     "boards": 2,
-    "skin": "city"
+    "skin": "city",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1307,7 +1326,8 @@
     "x": 456,
     "y": 315,
     "skin": "city",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1402,7 +1422,8 @@
     "x": 53,
     "y": 326,
     "skin": "city",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1440,7 +1461,8 @@
     "x": 504,
     "y": 96,
     "boards": 2,
-    "skin": "city"
+    "skin": "city",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1534,7 +1556,8 @@
     "x": 74,
     "y": 301,
     "skin": "city",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1571,7 +1594,8 @@
     "x": 494,
     "y": 76,
     "boards": 2,
-    "skin": "city"
+    "skin": "city",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1735,7 +1759,8 @@
     "x": 22,
     "y": 67,
     "boards": 2,
-    "skin": "capital"
+    "skin": "capital",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1748,7 +1773,8 @@
     "type": "till",
     "x": 470,
     "y": 293,
-    "skin": "capital"
+    "skin": "capital",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1799,7 +1825,8 @@
     "x": 24,
     "y": 270,
     "skin": "capital",
-    "scale": 1.25
+    "scale": 1.25,
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1851,7 +1878,8 @@
     "x": 496,
     "y": 86,
     "boards": 2,
-    "skin": "capital"
+    "skin": "capital",
+    "layer": "wall"
    },
    {
     "type": "prop",
@@ -1916,7 +1944,8 @@
     "x": 12,
     "y": 82,
     "boards": 2,
-    "skin": "capital"
+    "skin": "capital",
+    "layer": "wall"
    },
    {
     "type": "open",
@@ -1936,7 +1965,8 @@
     "type": "till",
     "x": 416,
     "y": 293,
-    "skin": "capital"
+    "skin": "capital",
+    "layer": "wall"
    },
    {
     "type": "prop",

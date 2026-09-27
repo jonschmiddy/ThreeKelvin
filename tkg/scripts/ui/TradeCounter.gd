@@ -84,6 +84,14 @@ const DESK_H := 96.0
 ## foot and its props standing ABOVE that, drawn over whatever is behind the
 ## control -- a till is a desk with things on it, and the things are the till.
 var art: Texture2D = null
+## A SHOP ROOM'S COUNTER: the level's own art, drawn 1:1 over the whole of this
+## control, which the screen sizes to it. The whole counter takes the drop --
+## a level counter has no fixed desk line to measure from -- and it carries its
+## own register, so nothing is drawn on it until something is held over it.
+var fitted := false
+## The quote and the lit edge are drawn over the room's light instead of here.
+## See `draw_lit_marks`.
+var lit_elsewhere := false
 var _over: HoldItem = null
 var _why: String = ""
 
@@ -126,7 +134,10 @@ static func refusal(at: int, m: HoldItem) -> String:
 			return "NOT FOR SALE"
 		if Run.credits < price:
 			return "NEED %d MORE" % (price - Run.credits)
-		if Run.hold_full():
+		# ROOM FOR THIS PART, not for any one cell. `hold_full` asks about a
+		# single cell, so a 2x2 into a hold with one gap was quoted, paid for,
+		# and then had nowhere to go -- the credits gone and the part with them.
+		if not Run.has_room_for(m):
 			return "NO ROOM"
 		return ""
 	# Zero on the paying side is contraband in policed space, which the Exchange
@@ -184,6 +195,8 @@ func _drop_data(_at: Vector2, data: Variant) -> void:
 
 ## Where the desk's top surface is. Everything above it is the room.
 func _desk_top() -> float:
+	if fitted:
+		return 0.0
 	return maxf(0.0, size.y - DESK_H)
 
 
@@ -213,6 +226,12 @@ func _draw() -> void:
 	var carrying := _over != null
 	var ok := carrying and _why == ""
 
+	if fitted:
+		if art != null:
+			draw_texture(art, Vector2.ZERO)
+		if not lit_elsewhere:
+			_paint_quote(self, Vector2.ZERO)
+		return
 	if art != null:
 		_draw_art(w, dy, carrying, ok)
 		return
@@ -389,6 +408,36 @@ func _draw_art(w: float, dy: float, carrying: bool, ok: bool) -> void:
 		draw_rect(Rect2(desk.position.x, desk.end.y - 2.0, desk.size.x, 2.0), ink2)
 		draw_rect(Rect2(desk.position.x, desk.position.y, 2.0, desk.size.y), ink2)
 		draw_rect(Rect2(desk.end.x - 2.0, desk.position.y, 2.0, desk.size.y), ink2)
+
+
+## A LEVEL COUNTER'S QUOTE: while something is held over it, the price on a
+## small screen across the middle of its front, and its edge lit green for yes
+## or red for no. Nothing at rest -- the art carries its own register.
+func _paint_quote(c: CanvasItem, at: Vector2) -> void:
+	if _over == null:
+		return
+	var ok := _why == ""
+	var ink := LIVE if ok else UITheme.LEAVE
+	var f := UITheme.pixel_font()
+	var text := "%d CR" % offer(_over, side) if ok else _why
+	var tw := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var box := Rect2(at + Vector2(floorf((size.x - tw) * 0.5) - 6.0, floorf(size.y * 0.55) - 11.0),
+		Vector2(tw + 12.0, 22.0))
+	c.draw_rect(box, GLASS)
+	c.draw_rect(box, EDGE, false, 1.0)
+	c.draw_string(f, box.position + Vector2(6.0, 15.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1,
+		UITheme.FS_SMALL, ink)
+	var r := Rect2(at, size)
+	c.draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 2.0), ink)
+	c.draw_rect(Rect2(r.position.x, r.end.y - 2.0, r.size.x, 2.0), ink)
+	c.draw_rect(Rect2(r.position.x, r.position.y, 2.0, r.size.y), ink)
+	c.draw_rect(Rect2(r.end.x - 2.0, r.position.y, 2.0, r.size.y), ink)
+
+
+## The quote, onto the layer over the room's light, where this counter stands.
+func draw_lit_marks(c: CanvasItem) -> void:
+	if fitted and is_visible_in_tree():
+		_paint_quote(c, position)
 
 
 ## What the counter is currently quoting, for the screen's own readout. -1 when

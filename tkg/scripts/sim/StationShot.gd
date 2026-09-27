@@ -54,8 +54,22 @@ func run(tree: SceneTree) -> void:
 			StationRoom.forced_views[&"window"] = StringName(s3.substr(5))
 		elif s3.begins_with("door="):
 			StationRoom.forced_views[&"door"] = StringName(s3.substr(5))
-		elif s3.begins_with("layout="):
-			ShopScene.forced_layout = int(s3.substr(7))
+		elif s3.begins_with("room="):
+			# One of the fifteen by slug (`capital_stone`), whatever the level
+			# and seed would pick. `dev=` still sets the station's level.
+			ShopScene.forced_room = s3.substr(5)
+		elif s3 == "lights=off":
+			ShopScene.fullbright = true
+		elif s3 == "people=0":
+			ShopScene.no_people = true
+		elif s3 == "motes=0":
+			ShopScene.no_motes = true
+		elif s3 == "steady":
+			ShopScene.steady = true
+		elif s3 == "marks=bench":
+			ShopScene.lit_marks = false
+		elif s3.begins_with("clock="):
+			ShopScene.pin_clock_ms = float(s3.substr(6))
 		elif s3.begins_with("backdrop="):
 			StationRoom.forced_views[&"backdrop"] = StringName(s3.substr(9))
 
@@ -279,6 +293,13 @@ func run(tree: SceneTree) -> void:
 		if scr != null:
 			scr._open_purge()
 
+	# A ROOM SHOT IS OF THE ROOM, NOT OF WHERE THE MOUSE HAPPENS TO BE. The real
+	# pointer is wherever it was left on the desk, and over a part on the rack
+	# it opens that part's tooltip across the shot.
+	for a7 in OS.get_cmdline_user_args():
+		if (a7 as String).begins_with("roomshot=") and Router.current != null:
+			Router.current.get_viewport().gui_disable_input = true
+
 	# Thirty frames rather than one. The screen builds four panels, and a shot
 	# taken on the frame after `show_station` catches half of them unsized --
 	# the same reason `fittest` waits two frames before it samples a redraw.
@@ -296,6 +317,107 @@ func run(tree: SceneTree) -> void:
 		print("  hud row wants %.0f of %.0f%s" % [need, have,
 			"  <-- CLIPPED by %.0f" % (need - have) if need > have else ""])
 
+	# `-- stationshot full deck=stock buy` BUYS A PART THE WAY A PLAYER DOES:
+	# a real pick-up off the rack, handed to the counter, and the run checked
+	# after. The rack is scaled by two and the counter stands where the room
+	# puts it, and neither is anything `fittest` reaches. The drop is handed to
+	# the counter directly for the reason `FitTest._carry` gives: Godot follows
+	# the OS cursor once a drag is live, and warping the real mouse is not a
+	# thing a test should do to the machine running it.
+	if "buy" in OS.get_cmdline_user_args():
+		# ROOM IN THE HOLD. `full` fills it, which is the case the counter
+		# rightly refuses ("NO ROOM") -- this is about the purchase, so it
+		# makes space the way a player would, by dumping something. First, so
+		# the shelf it redraws is the one the part is picked off.
+		var scr7 := Router.current as StationScreen
+		var icon: ModuleIcon = null
+		var pick7: HoldItem = null
+		if scr7 != null and scr7._shelf != null:
+			for c7 in scr7._shelf.find_children("*", "ModuleIcon", true, false):
+				pick7 = (c7 as ModuleIcon).held_item()
+				break
+		# Room for THIS part: a wide one needs more than a single free cell.
+		while pick7 != null and not Run.has_room_for(pick7) and not Run.cargo.is_empty():
+			Run.cargo.pop_back()
+		Sig.ship_changed.emit()
+		for i8 in 6:
+			await tree.process_frame
+		if scr7 != null and scr7._shelf != null:
+			for c8 in scr7._shelf.find_children("*", "ModuleIcon", true, false):
+				if (c8 as ModuleIcon).held_item() == pick7:
+					icon = c8 as ModuleIcon
+					break
+		if icon == null or scr7._till == null:
+			print("buy: FAIL -- no part on the rack, or no counter")
+		else:
+			# `Run.stow` puts a part in the hold, or on the pad beside it when no
+			# gap in the hold is its shape; either is bought.
+			var had := Run.cargo.size() + Run.pad.size()
+			var cash := Run.credits
+			var part: HoldItem = icon.held_item()
+			var target := GameShell.input_target(tree)
+			var at := icon.get_global_rect().get_center()
+			var mv := InputEventMouseMotion.new()
+			mv.position = at
+			mv.global_position = at
+			target.push_input(mv)
+			await tree.process_frame
+			var dn := InputEventMouseButton.new()
+			dn.button_index = MOUSE_BUTTON_LEFT
+			dn.pressed = true
+			dn.position = at
+			dn.global_position = at
+			dn.button_mask = MOUSE_BUTTON_MASK_LEFT
+			target.push_input(dn)
+			await tree.process_frame
+			var mv2 := InputEventMouseMotion.new()
+			mv2.position = at + Vector2(10.0, -10.0)
+			mv2.global_position = mv2.position
+			mv2.relative = Vector2(10.0, -10.0)
+			mv2.button_mask = MOUSE_BUTTON_MASK_LEFT
+			target.push_input(mv2)
+			await tree.process_frame
+			var data: Variant = target.gui_get_drag_data()
+			var live := target.gui_is_dragging() and typeof(data) == TYPE_DICTIONARY
+			var took := false
+			if live:
+				var local := scr7._till.size * 0.5
+				if scr7._till._can_drop_data(local, data):
+					scr7._till._drop_data(local, data)
+					took = true
+			var up := InputEventMouseButton.new()
+			up.button_index = MOUSE_BUTTON_LEFT
+			up.pressed = false
+			up.position = mv2.position
+			up.global_position = mv2.position
+			target.push_input(up)
+			for i7 in 12:
+				await tree.process_frame
+			var now_have := Run.cargo.size() + Run.pad.size()
+			var ok := live and took and now_have == had + 1 and Run.credits < cash \
+				and (Run.cargo.has(part) or Run.pad.has(part))
+			print("buy: %s -- drag %s, counter %s, carried %d -> %d, credits %d -> %d" % [
+				"PASS" if ok else "FAIL", "live" if live else "never started",
+				"took it" if took else "refused (%s)" % scr7._till._why, had,
+				now_have, cash, Run.credits])
+
+	# `roomshot=<path>`: the shop's room alone, at the game's own 1:1, out of the
+	# 960x540 frame -- the picture to put beside the bench's render of the same
+	# room. The window shot is the frame scaled to the window through the tube,
+	# which is right for judging the game and useless for a pixel diff.
+	for a6 in OS.get_cmdline_user_args():
+		if not (a6 as String).begins_with("roomshot="):
+			continue
+		var scr6 := Router.current as StationScreen
+		if scr6 == null or scr6._shop == null:
+			print("  roomshot: no shop on screen")
+			break
+		var box := Rect2i(scr6._shop.get_global_rect())
+		var frame := scr6._shop.get_viewport().get_texture().get_image()
+		var out := frame.get_region(box)
+		out.save_png((a6 as String).substr(9))
+		print("  roomshot %s: room %s at %s, backdrop %s" % [(a6 as String).substr(9),
+			scr6._shop.room.get("slug", "?"), box, scr6._shop._bd_id])
 	print("  %s · %s" % ["no berth" if berth == &"none"
 		else DB.manufacturer_name(berth) + " berth",
 		MapGen.development_name(here.development)])

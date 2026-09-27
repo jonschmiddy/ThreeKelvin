@@ -4336,6 +4336,10 @@ function exportState(){
           if(o.skin) e.skin = o.skin;
           if(o.scale && o.scale !== 1) e.scale = o.scale;
           if(o.type === "prop"){ e.id = o.id; e.layer = layer(o); }
+          // THE RACK'S AND THE COUNTER'S BAND LEAVE TOO. Only a prop's did, so
+          // furniture Jon put on the wall -- where it casts no shadow and sits
+          // in none -- arrived in the game on the floor, blocking the light.
+          if(o.type === "shelf" || o.type === "till") e.layer = layer(o);
           // WHICH WAY IT FACES, and for a lamp what it burns like: the
           // installer puts these in the game, so they have to leave the bench.
           if(o.fx) e.fx = true;

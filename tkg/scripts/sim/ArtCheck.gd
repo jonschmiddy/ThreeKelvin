@@ -139,60 +139,86 @@ func run() -> void:
 	print("  enemies  %d drawn, %d still procedural (canvas %dx%d)"
 		% [e["drawn"], e["missing"], ENEMY_CANVAS.x, ENEMY_CANVAS.y])
 	print("  places   %d drawn, %d still procedural" % [p["drawn"], p["missing"]])
-	var lay := _layouts()
+	var lay := _shop_rooms()
 	_ok("every module sprite that exists sits within a cell of its box", m_wrong == 0)
 	_ok("every card illustration that exists is the size the window wants",
 		c_wrong == 0)
 	_ok("every enemy sprite that exists fits its canvas", int(e["wrong"]) == 0)
 	_ok("every sector place sprite that exists fits its arena", int(p["wrong"]) == 0)
-	_ok("every shop layout's openings sit on the wall and clear of each other",
-		int(lay["bad"]) == 0)
+	_ok("every shop room is installed whole: its pictures load, its light reads, "
+		+ "every level has one", int(lay["bad"]) == 0)
 	verdict("artcheck")
 
 
-## THE SHOP WALL, TEN WAYS. A layout is numbers in a table, and the mistakes it
-## invites are the ones a filename cannot show: a window hanging off the deck,
-## two openings overlapping into one ragged hole, a skin named that has no art.
-##
-## A DROPPED CUT IS NOT A FAILURE -- `cuts_of` drops what will not fit and the
-## wall simply stays solid there, the same way a missing sprite is counted and
-## not failed on everywhere else in this file. What fails is a cut that IS
-## drawn and is wrong.
-func _layouts() -> Dictionary:
-	var panel := ShopScene.FIT_WALL.x
-	var floor_y := ShopScene.FIT_FLOOR_Y
+## THE SHOP ROOMS AS INSTALLED. Jon's fifteen rooms are data -- `rooms.json`
+## and the pictures beside it, written by `tools/room_install.py` -- and the
+## mistakes that data invites are the silent ones: a picture the game cannot
+## load draws nothing, a light file of the wrong size lights nothing, a level
+## with no room gets a shop with no walls. Each is counted here as a fault,
+## because unlike a module with no sprite there is no designed fallback.
+func _shop_rooms() -> Dictionary:
 	var bad := 0
-	var drawn := 0
-	var dropped := 0
-	print("\n=== SHOP LAYOUTS (%d) ===" % ShopScene.LAYOUTS)
-	if ShopScene.LAYOUTS != ShopScene.ARRANGEMENTS.size():
-		bad += 1
-		print("  LAYOUTS says %d but the table holds %d -- the screen would pick"
-			% [ShopScene.LAYOUTS, ShopScene.ARRANGEMENTS.size()]
-			+ " a layout that is not there, or never pick the last ones")
-	for i in mini(ShopScene.LAYOUTS, ShopScene.ARRANGEMENTS.size()):
-		var want: int = ShopScene.ARRANGEMENTS[i].cuts.size()
-		var cuts := ShopScene.cuts_of(i, panel, floor_y)
-		drawn += cuts.size()
-		dropped += want - cuts.size()
+	var d := ShopScene.doc()
+	var rooms: Array = d.get("rooms", [])
+	print("\n=== SHOP ROOMS (%d) ===" % rooms.size())
+	if rooms.is_empty():
+		print("  nothing installed -- run tools/room_install.py")
+		return {"bad": 1}
+	var levels: Dictionary = d.get("levels", {})
+	for dev in MapGen.Development.values():
+		var names: Array = levels.get(ShopScene.level_name(dev), [])
+		if names.is_empty():
+			bad += 1
+			print("  %s has no room" % ShopScene.level_name(dev))
+		# Every backdrop that level can draw has the colour its openings glow.
+		for bd in StationRoom.BACKDROPS.get(dev, []):
+			if not (d.get("tones", {}) as Dictionary).has(String(bd)):
+				bad += 1
+				print("  no glow colour for backdrop %s" % bd)
+	var ls: Array = d.get("light_size", [0, 0])
+	for r in rooms:
+		var room: Dictionary = r
 		var notes: Array[String] = []
-		for a in cuts.size():
-			var ra: Rect2 = cuts[a].rect
-			if ra.position.x < 8.0 or ra.end.x > panel - 8.0 or ra.end.y > floor_y:
-				notes.append("%s off the wall" % cuts[a].get("skin", cuts[a].kind))
-			for b in range(a + 1, cuts.size()):
-				if ra.intersection(cuts[b].rect).has_area():
-					notes.append("%s overlaps %s"
-						% [cuts[a].get("skin", cuts[a].kind),
-							cuts[b].get("skin", cuts[b].kind)])
+		var files: Array[String] = [String(room.plate), String(room.rack.art), String(room.till.art)]
+		for layer in ["back", "front"]:
+			for q in room.get(layer, []):
+				if (q as Dictionary).has("art"):
+					files.append(String(q.art))
+		for o in room.get("openings", []):
+			var od: Dictionary = o
+			if od.has("art"):
+				files.append(String(od.art))
+			if od.has("frame"):
+				files.append("../" + String(od.frame))
+			if String(od.type) == "open" and StationRoom._hole_runs(StringName(od.skin)).is_empty():
+				notes.append("opening %s has no hole" % od.skin)
+		for l in room.get("lamps", []):
+			files.append(String(l.art))
+			files.append(String(l.glass))
+		for g in room.get("glass", []):
+			files.append(String(g.art))
+		for f in files:
+			var path := ShopScene.ROOMS_DIR + f
+			if not ResourceLoader.exists(path) or load(path) == null:
+				notes.append("cannot load %s" % f)
+		var lf := ShopScene.ROOMS_DIR + String(room.light.file)
+		var img := Image.new()
+		if not FileAccess.file_exists(lf) or img.load_png_from_buffer(
+				FileAccess.get_file_as_bytes(lf)) != OK:
+			notes.append("no light")
+		elif img.get_width() != int(ls[0]) or img.get_height() != int(ls[1]) * 4:
+			notes.append("light is %dx%d" % [img.get_width(), img.get_height()])
+		for key in ["rack", "till"]:
+			var fr: Dictionary = room[key]
+			var box := Rect2(float(fr.x), float(fr.y), float(fr.w), float(fr.h))
+			if box.position.x < 0.0 or box.end.x > ShopScene.PANEL.x + 0.5 \
+					or box.end.y > ShopScene.PANEL.y + 0.5:
+				notes.append("%s off the room" % key)
 		if not notes.is_empty():
 			bad += 1
-		print("  %d  order %d  %d cuts%s  %s"
-			% [i, ShopScene.order_of(i), cuts.size(),
-				"" if want == cuts.size() else " (%d dropped)" % (want - cuts.size()),
-				"ok" if notes.is_empty() else ", ".join(notes)])
-	print("  %d openings across %d layouts, %d dropped" % [drawn, ShopScene.LAYOUTS, dropped])
-	return {"bad": bad, "drawn": drawn, "dropped": dropped}
+		print("  %-22s %d pictures  %s" % [room.slug, files.size(),
+			"ok" if notes.is_empty() else ", ".join(notes)])
+	return {"bad": bad}
 
 
 ## ---------------- the three families that are still drawn ----------------
