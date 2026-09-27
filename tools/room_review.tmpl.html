@@ -42,6 +42,10 @@ button.go{background:var(--go);color:#06140e;border-color:var(--go)}
 .card{background:var(--sunk);border:1px solid var(--line);display:flex;flex-direction:column}
 .card.keep{border-color:var(--go)}
 .card.cut{border-color:#2a1c1c;opacity:.4}
+.card.redo{border-color:#b98a2e}
+.card.redo .nm{color:#e0a64a}
+.vote .r.on{background:#b98a2e;border-color:#b98a2e;color:#1a1204}
+.lvl{grid-column:1/-1;font-family:var(--display);font-size:26px;letter-spacing:.04em;text-transform:uppercase;margin:14px 0 0;border-top:1px solid #1d2837;padding-top:10px}
 .shot{background:#05070b;overflow:hidden;cursor:zoom-in;display:block;width:100%;border:0;padding:0}
 .shot img{display:block;width:100%;height:auto;image-rendering:pixelated}
 .meta{display:flex;gap:8px;align-items:center;padding:7px 9px;border-top:1px solid var(--line)}
@@ -66,16 +70,17 @@ button.go{background:var(--go);color:#06140e;border-color:var(--go)}
 <body>
 <div class="mast">
   <p class="eyebrow">Three Kelvin &middot; station art</p>
-  <h1>Rooms and Backdrops</h1>
-  <p class="lede">Forty takes, one per idea. A <b>room</b> is the shop's own wall and floor, generated together so they
-  match, already cut to the panel's 740&times;431 with the join on the floor line. A <b>backdrop</b> is the place on the
-  other side of the glass &mdash; you only ever see it through the openings, so the lightbox has an
-  <b>in the wall</b> view that shows just that. Keep what you want, cut the rest; the picks are saved as you go.</p>
+  <h1>Rooms and Backdrops by Level</h1>
+  <p class="lede">Grouped by development level: the target is <b>3 rooms</b> and <b>5 backdrops</b> a level.
+  Every <b>room</b> is cut so its wall meets its floor on exactly row 353 &mdash; the lightbox ticks that row at both edges.
+  A <b>backdrop</b> is only ever seen through the openings, so the lightbox's <b>in the wall</b> view shows it behind
+  a room of the same level. <b>Keep</b> it, <b>cut</b> it, or <b>redo</b> it: the idea is right but this take is not,
+  and it goes into the next round. Picks are saved in this browser as you go.</p>
 </div>
 <div class="bar">
-  <button id="t_room" class="on">Rooms</button>
+  <button id="t_all">By level</button>
+  <button id="t_room">Rooms</button>
   <button id="t_bd">Backdrops</button>
-  <button id="t_all">Both</button>
   <span class="sp"></span>
   <span class="tally" id="tally"></span>
   <button id="undecided">only undecided</button>
@@ -83,7 +88,7 @@ button.go{background:var(--go);color:#06140e;border-color:var(--go)}
   <button id="copy">Copy</button>
   <span class="say" id="say"></span>
 </div>
-<p class="note">In the lightbox: <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move, <kbd>K</kbd> keep, <kbd>X</kbd> cut,
+<p class="note">In the lightbox: <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move, <kbd>K</kbd> keep, <kbd>X</kbd> cut, <kbd>R</kbd> redo,
 <kbd>W</kbd> in the wall, <kbd>Esc</kbd> out.</p>
 <div class="grid" id="grid"></div>
 
@@ -94,6 +99,7 @@ button.go{background:var(--go);color:#06140e;border-color:var(--go)}
     <button id="lb_prev">&larr; prev</button>
     <button id="lb_keep">keep</button>
     <button id="lb_cut">cut</button>
+    <button id="lb_redo">redo</button>
     <button id="lb_next">next &rarr;</button>
     <button id="lb_wall">in the wall</button>
     <button id="lb_2x">2&times;</button>
@@ -107,27 +113,35 @@ var ITEMS = D.rooms.concat(D.backdrops);
 var IMG = {};
 ITEMS.forEach(function(it){ var im = new Image(); im.src = it.src; IMG[it.key] = im; });
 var WALL = new Image(); WALL.src = D.wall;
+(D.mates || []).forEach(function(m){ var im = new Image(); im.src = m.src; IMG[m.key] = im; });
 
 // PICKS ARE PER VIEWER and live in this browser: the page is a judging sheet,
 // not a record anybody else reads. Save writes them out as a file.
 var picks = {};
-try { picks = JSON.parse(localStorage.getItem("tk_room_review") || "{}"); } catch(e){ picks = {}; }
-function store(){ try { localStorage.setItem("tk_room_review", JSON.stringify(picks)); } catch(e){} }
+var PKEY = "tk_level_review_r" + (D.round || "1");
+try { picks = JSON.parse(localStorage.getItem(PKEY) || "{}"); } catch(e){ picks = {}; }
+function store(){ try { localStorage.setItem(PKEY, JSON.stringify(picks)); } catch(e){} }
 function say(m){ document.getElementById("say").textContent = m;
   clearTimeout(say._t); say._t = setTimeout(function(){ document.getElementById("say").textContent = ""; }, 2600); }
 
 var tab = "room", onlyNew = false;
 function shown(){
-  return ITEMS.filter(function(it){
+  var list = ITEMS.filter(function(it){
     if(tab !== "all" && it.kind !== tab) return false;
     if(onlyNew && picks[it.key]) return false;
     return true; });
+  // BOTH: each level as one set -- its rooms, then its backdrops.
+  if(tab === "all" && D.levels) list.sort(function(a, b){
+    return (D.levels.indexOf(a.level) - D.levels.indexOf(b.level)) ||
+           ((a.kind === "room" ? 0 : 1) - (b.kind === "room" ? 0 : 1)) ||
+           (a.name < b.name ? -1 : a.name > b.name ? 1 : 0); });
+  return list;
 }
 function tally(){
-  var k = 0, c = 0;
-  ITEMS.forEach(function(it){ if(picks[it.key] === "keep") k++; else if(picks[it.key] === "cut") c++; });
-  document.getElementById("tally").innerHTML = "<b>" + k + " kept</b> &middot; <i>" + c + " cut</i> &middot; "
-    + (ITEMS.length - k - c) + " undecided";
+  var k = 0, c = 0, r = 0;
+  ITEMS.forEach(function(it){ if(picks[it.key] === "keep") k++; else if(picks[it.key] === "cut") c++; else if(picks[it.key] === "redo") r++; });
+  document.getElementById("tally").innerHTML = "<b>" + k + " kept</b> &middot; " + r + " redo &middot; <i>" + c + " cut</i> &middot; "
+    + (ITEMS.length - k - c - r) + " undecided";
 }
 function vote(key, v){
   if(picks[key] === v) delete picks[key]; else picks[key] = v;
@@ -139,10 +153,18 @@ function paint(key){
   card.className = "card" + (picks[key] ? " " + picks[key] : "");
   card.querySelector(".k").className = "k" + (picks[key] === "keep" ? " on" : "");
   card.querySelector(".c").className = "c" + (picks[key] === "cut" ? " on" : "");
+  card.querySelector(".r").className = "r" + (picks[key] === "redo" ? " on" : "");
 }
 function render(){
   var host = document.getElementById("grid"); host.innerHTML = "";
+  var lastLevel = null;
   shown().forEach(function(it){
+    // A HEADING PER LEVEL, so a level is judged as a set.
+    if(it.level !== lastLevel){
+      lastLevel = it.level;
+      var hd = document.createElement("div"); hd.className = "lvl"; hd.textContent = it.level;
+      host.appendChild(hd);
+    }
     var card = document.createElement("div"); card.setAttribute("data-card", it.key);
     var b = document.createElement("button"); b.className = "shot"; b.title = "full size";
     var im = document.createElement("img"); im.src = it.src; im.alt = it.name; im.loading = "lazy";
@@ -152,9 +174,11 @@ function render(){
     var v = document.createElement("div"); v.className = "vote";
     var k = document.createElement("button"); k.textContent = "keep"; k.className = "k";
     var c = document.createElement("button"); c.textContent = "cut"; c.className = "c";
+    var r = document.createElement("button"); r.textContent = "redo"; r.className = "r";
     k.addEventListener("click", function(){ vote(it.key, "keep"); });
     c.addEventListener("click", function(){ vote(it.key, "cut"); });
-    v.appendChild(k); v.appendChild(c); meta.appendChild(v);
+    r.addEventListener("click", function(){ vote(it.key, "redo"); });
+    v.appendChild(k); v.appendChild(r); v.appendChild(c); meta.appendChild(v);
     card.appendChild(b); card.appendChild(meta); host.appendChild(card);
     paint(it.key); });
   tally();
@@ -172,12 +196,13 @@ function step(d){
 }
 function drawLb(){
   var it = itemOf(cur); if(!it) return;
-  document.getElementById("lbname").textContent = it.name + "  ·  " + it.kind;
+  document.getElementById("lbname").textContent = it.name + "  ·  " + (it.kind === "bd" ? "backdrop" : "room");
   document.getElementById("lb_wall").style.display = it.kind === "bd" ? "" : "none";
   document.getElementById("lb_wall").className = wallView ? "on" : "";
   document.getElementById("lb_2x").className = big ? "on" : "";
   document.getElementById("lb_keep").className = picks[it.key] === "keep" ? "go" : "";
   document.getElementById("lb_cut").className = picks[it.key] === "cut" ? "on" : "";
+  document.getElementById("lb_redo").className = picks[it.key] === "redo" ? "on" : "";
   var host = document.getElementById("lbwrap"); host.innerHTML = "";
   var k = big ? 2 : 1;
   if(it.kind === "bd" && wallView){
@@ -187,7 +212,12 @@ function drawLb(){
     // is being judged is which part of the picture lands in the holes.
     var cv = document.createElement("canvas"); cv.width = D.panel[0] * k; cv.height = D.panel[1] * k;
     var g = cv.getContext("2d"); g.imageSmoothingEnabled = false; g.scale(k, k);
-    g.drawImage(WALL, 0, 0);
+    // BEHIND A ROOM OF ITS OWN LEVEL, the one it will be seen through --
+    // a kept one if there is one, else the first of that level.
+    var kept = (D.mates || []).filter(function(r){ return r.level === it.level; });
+    var mates = D.rooms.filter(function(r){ return r.level === it.level; });
+    var mate = kept[0] || mates.filter(function(r){ return picks[r.key] === "keep"; })[0] || mates[0];
+    g.drawImage(mate && IMG[mate.key].width ? IMG[mate.key] : WALL, 0, 0, D.panel[0], D.panel[1]);
     var bx = Math.round((D.panel[0] - it.w) / 2), by = D.floor_y - it.h;
     D.openings.forEach(function(o){
       g.drawImage(IMG[it.key], o[0] - bx, o[1] - by, o[2], o[3], o[0], o[1], o[2], o[3]);
@@ -196,6 +226,15 @@ function drawLb(){
       g.strokeStyle = "rgba(111,211,224,.35)"; g.lineWidth = 1;
       g.strokeRect(o[0] + .5, o[1] + .5, o[2] - 1, o[3] - 1); });
     host.appendChild(cv);
+  } else if(it.kind === "room"){
+    // THE FLOOR LINE, ticked at both edges and not drawn across, so the corner
+    // can be checked against it without the line hiding it.
+    var rc = document.createElement("canvas"); rc.width = it.w * k; rc.height = it.h * k;
+    var rg = rc.getContext("2d"); rg.imageSmoothingEnabled = false; rg.scale(k, k);
+    rg.drawImage(IMG[it.key], 0, 0);
+    rg.fillStyle = "#ff3df0";
+    rg.fillRect(0, D.floor_y, 18, 1); rg.fillRect(it.w - 18, D.floor_y, 18, 1);
+    host.appendChild(rc);
   } else {
     var im = document.createElement("img"); im.src = it.src; im.alt = it.name;
     im.width = it.w * k; im.height = it.h * k; host.appendChild(im);
@@ -205,6 +244,7 @@ document.getElementById("lb_prev").addEventListener("click", function(){ step(-1
 document.getElementById("lb_next").addEventListener("click", function(){ step(1); });
 document.getElementById("lb_keep").addEventListener("click", function(){ vote(cur, "keep"); drawLb(); });
 document.getElementById("lb_cut").addEventListener("click", function(){ vote(cur, "cut"); drawLb(); });
+document.getElementById("lb_redo").addEventListener("click", function(){ vote(cur, "redo"); drawLb(); });
 document.getElementById("lb_wall").addEventListener("click", function(){ wallView = !wallView; drawLb(); });
 document.getElementById("lb_2x").addEventListener("click", function(){ big = !big; drawLb(); });
 document.getElementById("lb_close").addEventListener("click", close);
@@ -216,6 +256,7 @@ document.addEventListener("keydown", function(e){
   else if(e.key === "ArrowRight") step(1);
   else if(e.key === "k" || e.key === "K"){ vote(cur, "keep"); drawLb(); }
   else if(e.key === "x" || e.key === "X" || e.key === "c" || e.key === "C"){ vote(cur, "cut"); drawLb(); }
+  else if(e.key === "r" || e.key === "R"){ vote(cur, "redo"); drawLb(); }
   else if(e.key === "w" || e.key === "W"){ wallView = !wallView; drawLb(); }
   else return;
   e.preventDefault(); });
@@ -235,15 +276,16 @@ document.getElementById("undecided").addEventListener("click", function(){
   onlyNew = !onlyNew; this.className = onlyNew ? "on" : ""; render(); });
 
 function payload(){
-  var keep = [], cut = [];
+  var keep = [], cut = [], redo = [];
   ITEMS.forEach(function(it){
     if(picks[it.key] === "keep") keep.push(it.key);
-    else if(picks[it.key] === "cut") cut.push(it.key); });
-  return JSON.stringify({format:"three-kelvin/room-picks/1", keep:keep, cut:cut}, null, 2);
+    else if(picks[it.key] === "cut") cut.push(it.key);
+    else if(picks[it.key] === "redo") redo.push(it.key); });
+  return JSON.stringify({format:"three-kelvin/room-picks/2", keep:keep, redo:redo, cut:cut}, null, 2);
 }
 document.getElementById("save").addEventListener("click", async function(){
   var text = payload();
-  var dl = await claude.use("downloads");
+  var dl = (window.claude && window.claude.use) ? await window.claude.use("downloads") : null;
   if(!dl){ await navigator.clipboard.writeText(text); say("no download here — copied instead"); return; }
   try { await dl.save({filename:"room-picks.json", data:text}); say("saved room-picks.json"); }
   catch(e){ say("not saved"); }
@@ -251,7 +293,7 @@ document.getElementById("save").addEventListener("click", async function(){
 document.getElementById("copy").addEventListener("click", async function(){
   try { await navigator.clipboard.writeText(payload()); say("copied"); } catch(e){ say("could not copy"); }
 });
-tabTo("room");
+tabTo(D.levels ? "all" : "room");
 </script>
 </body>
 </html>

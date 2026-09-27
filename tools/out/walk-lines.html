@@ -63,7 +63,7 @@
   <p><b>People are drawn as blocks</b> &mdash; exactly as tall as the line
   says and nothing else, so the eye compares them against the doorways and
   railings behind them instead of reading a figure. The colour beside each line
-  says which <b>rung</b> that height snaps to (57, 80, or 57 doubled to 114) and
+  says which <b>rung</b> that height snaps to (80 as drawn, or 160 doubled) and
   how far it has to move: <span style="color:var(--good)">green under 5%</span>,
   <span style="color:var(--hot)">amber under 12%</span>,
   <span style="color:var(--bad)">red beyond</span>. A red line needs its own
@@ -73,8 +73,8 @@
   the tick to say how tall a person is standing there &mdash; that height is
   also the depth, so a shorter line's people automatically walk slower and wash
   out into the air. <b>Arrow keys</b> nudge the selected line,
-  <b>Delete</b> removes it. Work is kept in this browser; <b>save</b> puts
-  <code>walk-lines.json</code> in your downloads.</p>
+  <b>Delete</b> removes it. Every change is saved as you go, straight to this page, where Claude
+  reads it to install; <b>save</b> and <b>copy</b> still hand you a file if you want one.</p>
 
   <div class="bar">
     <button id="prev">&larr;</button>
@@ -112,7 +112,7 @@
   </div>
 </div>
 <script>
-var D = {"backdrops": [{"deck": 58, "id": "arches", "size": [800, 400], "src": "art/backdrop_arches.png"}, {"deck": 56, "id": "archive", "size": [800, 400], "src": "art/backdrop_archive.png"}, {"deck": 40, "id": "arrivals", "size": [800, 400], "src": "art/backdrop_arrivals.png"}, {"deck": 18, "id": "atrium", "size": [800, 400], "src": "art/backdrop_atrium.png"}, {"deck": 92, "id": "bazaar", "size": [800, 400], "src": "art/backdrop_bazaar.png"}, {"deck": 66, "id": "capsule", "size": [800, 400], "src": "art/backdrop_capsule.png"}, {"deck": 20, "id": "cargo", "size": [800, 400], "src": "art/backdrop_cargo.png"}, {"deck": 46, "id": "farm", "size": [800, 400], "src": "art/backdrop_farm.png"}, {"deck": 76, "id": "food", "size": [800, 400], "src": "art/backdrop_food.png"}, {"deck": 84, "id": "freightlift", "size": [800, 400], "src": "art/backdrop_freightlift.png"}, {"deck": 48, "id": "fuel", "size": [800, 400], "src": "art/backdrop_fuel.png"}, {"deck": 172, "id": "garden", "size": [800, 400], "src": "art/backdrop_garden.png"}, {"deck": 46, "id": "hab", "size": [800, 400], "src": "art/backdrop_hab.png"}, {"deck": 62, "id": "halfbuilt", "size": [800, 400], "src": "art/backdrop_halfbuilt.png"}, {"deck": 86, "id": "lifts", "size": [800, 400], "src": "art/backdrop_lifts.png"}, {"deck": 46, "id": "lockers", "size": [800, 400], "src": "art/backdrop_lockers.png"}, {"deck": 78, "id": "nightatrium", "size": [800, 400], "src": "art/backdrop_nightatrium.png"}, {"deck": 26, "id": "nightwatch", "size": [800, 400], "src": "art/backdrop_nightwatch.png"}, {"deck": 32, "id": "parcel", "size": [800, 400], "src": "art/backdrop_parcel.png"}, {"deck": 108, "id": "ports", "size": [800, 400], "src": "art/backdrop_ports.png"}, {"deck": 30, "id": "rigging", "size": [800, 400], "src": "art/backdrop_rigging.png"}, {"deck": 54, "id": "servers", "size": [800, 400], "src": "art/backdrop_servers.png"}, {"deck": 58, "id": "sorting", "size": [800, 400], "src": "art/backdrop_sorting.png"}, {"deck": 60, "id": "vending", "size": [800, 400], "src": "art/backdrop_vending.png"}, {"deck": 142, "id": "vitrine", "size": [800, 400], "src": "art/backdrop_vitrine.png"}], "seed": {"arches": [{"tall": 80, "y": 342}], "archive": [{"tall": 80, "y": 344}, {"tall": 57, "y": 151}], "arrivals": [{"tall": 84, "y": 332}, {"tall": 62, "y": 307}], "atrium": [{"tall": 80, "y": 360}, {"tall": 48, "y": 344}], "bazaar": [{"tall": 80, "y": 308}, {"tall": 63, "y": 120}], "capsule": [{"tall": 57, "y": 336}], "cargo": [{"tall": 80, "y": 367}, {"tall": 59, "y": 351}], "farm": [{"tall": 80, "y": 354}], "food": [{"tall": 80, "y": 324}], "freightlift": [{"tall": 64, "y": 316}], "fuel": [{"tall": 70, "y": 337}], "garden": [{"tall": 57, "y": 299}, {"tall": 54, "y": 228}, {"tall": 53, "y": 160}], "hab": [{"tall": 65, "y": 354}], "halfbuilt": [{"tall": 71, "y": 338}], "lifts": [{"tall": 78, "y": 332}], "lockers": [{"tall": 105, "y": 356}], "nightatrium": [{"tall": 60, "y": 347}], "nightwatch": [{"tall": 80, "y": 338}], "parcel": [{"tall": 80, "y": 368}], "ports": [{"tall": 106, "y": 359}], "rigging": [{"tall": 80, "y": 370}], "servers": [{"tall": 80, "y": 346}], "sorting": [{"tall": 62, "y": 342}], "vending": [{"tall": 80, "y": 335}, {"tall": 62, "y": 109}, {"tall": 62, "y": 320}], "vitrine": [{"tall": 58, "y": 258}, {"tall": 50, "y": 159}, {"tall": 44, "y": 86}]}};
+var D = {"backdrops": [{"deck": 66, "drop": 67, "id": "capital_bank6a", "size": [800, 400], "src": "art/backdrop_capital_bank6a.png"}, {"deck": 56, "drop": 57, "id": "capital_boutique9b", "size": [800, 400], "src": "art/backdrop_capital_boutique9b.png"}, {"deck": 72, "drop": 69, "id": "capital_embassy8a", "size": [800, 400], "src": "art/backdrop_capital_embassy8a.png"}, {"deck": 68, "drop": 60, "id": "capital_plaza2b", "size": [800, 400], "src": "art/backdrop_capital_plaza2b.png"}, {"deck": 80, "drop": 82, "id": "capital_skygarden2a", "size": [800, 400], "src": "art/backdrop_capital_skygarden2a.png"}, {"deck": 56, "drop": 56, "id": "city_bar11a", "size": [800, 400], "src": "art/backdrop_city_bar11a.png"}, {"deck": 56, "drop": 58, "id": "city_electronics11a", "size": [800, 400], "src": "art/backdrop_city_electronics11a.png"}, {"deck": 62, "drop": 60, "id": "city_gates8a", "size": [800, 400], "src": "art/backdrop_city_gates8a.png"}, {"deck": 56, "drop": 55, "id": "city_hotel11a", "size": [800, 400], "src": "art/backdrop_city_hotel11a.png"}, {"deck": 58, "drop": 55, "id": "city_nightmarket11a", "size": [800, 400], "src": "art/backdrop_city_nightmarket11a.png"}, {"deck": 70, "drop": 73, "id": "outpost_canteen11a", "size": [800, 400], "src": "art/backdrop_outpost_canteen11a.png"}, {"deck": 54, "drop": 20, "id": "outpost_galley8a", "size": [800, 400], "src": "art/backdrop_outpost_galley8a.png"}, {"deck": 18, "drop": 18, "id": "outpost_hydro", "size": [800, 400], "src": "art/backdrop_outpost_hydro.png"}, {"deck": 70, "drop": 68, "id": "outpost_junk8a", "size": [800, 400], "src": "art/backdrop_outpost_junk8a.png"}, {"deck": 76, "drop": 73, "id": "outpost_shack11a", "size": [800, 400], "src": "art/backdrop_outpost_shack11a.png"}, {"deck": 54, "drop": 58, "id": "outpost_vending", "size": [800, 400], "src": "art/backdrop_outpost_vending.png"}, {"deck": 54, "drop": 55, "id": "settlement_bathhouse16u", "size": [800, 400], "src": "art/backdrop_settlement_bathhouse16u.png"}, {"deck": 94, "drop": 94, "id": "settlement_cobbler16u", "size": [800, 400], "src": "art/backdrop_settlement_cobbler16u.png"}, {"deck": 74, "drop": 77, "id": "settlement_homes9a", "size": [800, 400], "src": "art/backdrop_settlement_homes9a.png"}, {"deck": 70, "drop": 70, "id": "settlement_noodle10a", "size": [800, 400], "src": "art/backdrop_settlement_noodle10a.png"}, {"deck": 74, "drop": 72, "id": "settlement_pharmacy10a", "size": [800, 400], "src": "art/backdrop_settlement_pharmacy10a.png"}, {"deck": 74, "drop": 75, "id": "settlement_supply11a", "size": [800, 400], "src": "art/backdrop_settlement_supply11a.png"}, {"deck": 88, "drop": 86, "id": "unclaimed_foodcounter14u", "size": [800, 400], "src": "art/backdrop_unclaimed_foodcounter14u.png"}, {"deck": 68, "drop": 66, "id": "unclaimed_gutted14u", "size": [800, 400], "src": "art/backdrop_unclaimed_gutted14u.png"}, {"deck": 48, "drop": 48, "id": "unclaimed_habs15u", "size": [800, 400], "src": "art/backdrop_unclaimed_habs15u.png"}, {"deck": 60, "drop": 62, "id": "unclaimed_habtrash14u", "size": [800, 400], "src": "art/backdrop_unclaimed_habtrash14u.png"}, {"deck": 72, "drop": 75, "id": "unclaimed_market15u", "size": [800, 400], "src": "art/backdrop_unclaimed_market15u.png"}, {"deck": 66, "drop": 69, "id": "unclaimed_pawn15u", "size": [800, 400], "src": "art/backdrop_unclaimed_pawn15u.png"}, {"deck": 56, "drop": 59, "id": "unclaimed_trashdoors15u", "size": [800, 400], "src": "art/backdrop_unclaimed_trashdoors15u.png"}], "seed": {"capital_bank6a": [{"tall": 162, "y": 328}], "capital_boutique9b": [{"tall": 160, "y": 341}], "capital_embassy8a": [{"tall": 160, "y": 324}], "capital_plaza2b": [{"tall": 160, "y": 336}], "capital_skygarden2a": [{"tall": 160, "y": 315}], "city_bar11a": [{"tall": 160, "y": 339}], "city_electronics11a": [{"tall": 160, "y": 338}], "city_gates8a": [{"tall": 160, "y": 331}], "city_hotel11a": [{"tall": 160, "y": 340}], "city_nightmarket11a": [{"tall": 160, "y": 341}], "outpost_canteen11a": [{"tall": 160, "y": 324}], "outpost_galley8a": [{"tall": 160, "y": 366}], "outpost_hydro": [{"tall": 160, "y": 371}], "outpost_junk8a": [{"tall": 160, "y": 328}], "outpost_shack11a": [{"tall": 160, "y": 323}], "outpost_vending": [{"tall": 160, "y": 334}], "settlement_bathhouse16u": [{"tall": 160, "y": 342}], "settlement_cobbler16u": [{"tall": 160, "y": 303}], "settlement_homes9a": [{"tall": 160, "y": 320}], "settlement_noodle10a": [{"tall": 160, "y": 326}], "settlement_pharmacy10a": [{"tall": 160, "y": 325}], "settlement_supply11a": [{"tall": 160, "y": 323}], "unclaimed_foodcounter14u": [{"tall": 160, "y": 312}], "unclaimed_gutted14u": [{"tall": 160, "y": 331}], "unclaimed_habs15u": [{"tall": 160, "y": 350}], "unclaimed_habtrash14u": [{"tall": 160, "y": 331}], "unclaimed_market15u": [{"tall": 160, "y": 321}], "unclaimed_pawn15u": [{"tall": 160, "y": 328}], "unclaimed_trashdoors15u": [{"tall": 160, "y": 336}]}};
 var FIG = {};
 // LIFTED FROM room_bench.tmpl.html AT BUILD TIME. Do not edit here.
 function hash1(v){
@@ -172,7 +172,7 @@ var LINES = {}, idx = 0, zoom = 2, playing = true, sel = -1, BLOCKS = true;
 // DOUBLED and nothing else, so one sprite drawn at 57 also serves 114 -- two
 // drawings covering three levels. These are the rungs; the list below says
 // how far each line sits from its nearest one.
-var RUNGS = [57, 80, 114];
+var RUNGS = [80, 160];   // the walkers as drawn (74-87px) and doubled (Jon, 2026-09-25)
 function nearestRung(t){
   var best = RUNGS[0], bd = 1e9;
   RUNGS.forEach(function(r){
@@ -187,7 +187,32 @@ if(D.seed) Object.keys(D.seed).forEach(function(k){
 
 function bd(){ return D.backdrops[idx]; }
 function lines(){ var b = bd(); if(!LINES[b.id]) LINES[b.id] = []; return LINES[b.id]; }
-function store(){ try { localStorage.setItem(KEY, JSON.stringify(LINES)); } catch(e){} }
+function store(){
+  try { localStorage.setItem(KEY, JSON.stringify(LINES)); } catch(e){}
+  queueWalk(bd().id);
+}
+// THE STORE IS THE RECORD (2026-09-25): every change to a backdrop's lines is
+// written to the page's `walk` collection, one document per backdrop, once per
+// pause -- so Claude can read the work back and install it without a file
+// changing hands. Browser storage stays as this viewer's own backup.
+var WDB = null, wpend = {}, wtimer = {}, winfl = {};
+function queueWalk(id){
+  if(!WDB) return;
+  wpend[id] = true;
+  clearTimeout(wtimer[id]);
+  wtimer[id] = setTimeout(function(){ flushWalk(id); }, 500);
+}
+function flushWalk(id){
+  if(winfl[id]){ wtimer[id] = setTimeout(function(){ flushWalk(id); }, 200); return; }
+  if(!wpend[id]) return;
+  delete wpend[id]; winfl[id] = true;
+  var ls = (LINES[id] || []).map(function(l){ return {y: Math.round(l.y), tall: Math.round(l.tall)}; });
+  WDB.doc("walk/" + id).set({lines: ls}).then(function(){
+    winfl[id] = false; say("saved " + id.replace("_", " ") + ": " + ls.length + " line" + (ls.length === 1 ? "" : "s"));
+  }, function(e){
+    winfl[id] = false; say("not saved to the store" + (e && e.code ? " (" + e.code + ")" : ""));
+  });
+}
 
 var IMG = {};
 D.backdrops.forEach(function(b){
@@ -213,8 +238,21 @@ function draw(){
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, cv.width, cv.height);
   ctx.setTransform(zoom, 0, 0, zoom, 0, 0);
+  // RESIZING A CANVAS RESETS ITS CONTEXT, smoothing included, so the zoom button
+  // (which resizes it) left 2x blurred. Set every draw, not once.
+  ctx.imageSmoothingEnabled = false;
   if(im && im.width) ctx.drawImage(im, 0, 0);
   else { ctx.fillStyle = "#11161d"; ctx.fillRect(0, 0, b.size[0], b.size[1]); }
+
+  // THE ROOM'S FLOOR, where the heights page put it: everything below is
+  // behind the room's own deck, so a walk line down there is never seen.
+  var fy = b.size[1] - (b.drop || 0);
+  ctx.fillStyle = "rgba(5,7,10,0.55)";
+  ctx.fillRect(0, fy + 1, b.size[0], b.size[1] - fy);
+  ctx.fillStyle = "rgba(111,211,224,0.95)";
+  ctx.fillRect(0, fy, b.size[0], 1);
+  ctx.font = "8px monospace"; ctx.textBaseline = "top";
+  ctx.fillText("room floor", b.size[0] - 52, fy + 3);
 
   var ls = lines();
   if(playing){
@@ -481,6 +519,27 @@ var dl = null;
   }
   if(!window.claude || typeof window.claude.use !== "function"){ off(); return; }
   window.claude.use("downloads").then(function(ns){ if(ns) dl = ns; else off(); }, off);
+})();
+// Whatever is in the store when the page opens is where each backdrop starts;
+// another tab's edits arrive live. A backdrop with an edit of ours still in
+// flight keeps ours.
+(function(){
+  if(!window.claude || typeof window.claude.use !== "function") return;
+  window.claude.use("db").then(function(ns){
+    if(!ns) return;
+    WDB = ns;
+    WDB.collection("walk").onSnapshot(function(snap){
+      var n = 0;
+      snap.docs.forEach(function(d){
+        if(wpend[d.id] || winfl[d.id]) return;
+        var v = d.data() && d.data().lines;
+        if(Array.isArray(v)){ LINES[d.id] = v.map(function(l){ return {y: l.y, tall: l.tall}; }); n++; }
+      });
+      try { localStorage.setItem(KEY, JSON.stringify(LINES)); } catch(e){}
+      ui(); draw();
+      say(n + " backdrop" + (n === 1 ? "" : "s") + " loaded from the store");
+    }, function(e){ say("store stopped" + (e && e.code ? " (" + e.code + ")" : "")); });
+  }, function(){});
 })();
 function payload(){
   var out = {format: "three-kelvin/walk-lines/1", lines: {}};

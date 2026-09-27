@@ -127,26 +127,28 @@
   "frames": 6
  },
  "elder2": {
-  "advance": 3.5,
+  "advance": 4.75,
+  "advance_by_eye": true,
   "colours": 20,
-  "colours_before": 42,
-  "cycle": 21.0,
+  "colours_before": 47,
+  "cycle": 57.0,
   "deck_contacts": 3,
   "feet_level": true,
   "file": "walker_elder2.png",
-  "fit": 0.387,
-  "foot_wander": 0,
-  "fps": 5.71,
+  "fit": 0.575,
+  "foot_wander": 5,
+  "fps": 4.21,
   "frame_h": 76,
-  "frame_w": 35,
-  "frames": 6,
+  "frame_w": 37,
+  "frames": 12,
+  "gait": 0.5,
   "lap": 12,
   "pace": 20,
-  "skate": 0.357,
-  "warn": "1 frames put more than two things on the deck ([1, 2, 1, 2, 3, 2]) -- something other than a boot is touching the floor, and the body is anchored to it",
+  "skate": 0.673,
+  "warn": "2 frames put more than two things on the deck ([1, 2, 2, 2, 1, 1, 2, 2, 3, 3, 2, 1]) -- something other than a boot is touching the floor, and the body is anchored to it",
   "within_3pct": [
-   2.75,
-   4.5
+   3.0,
+   3.25
   ]
  },
  "engineer": {

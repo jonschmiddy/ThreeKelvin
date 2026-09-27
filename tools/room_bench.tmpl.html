@@ -114,6 +114,7 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
   <button id="flipy" title="mirror the selected piece top to bottom (V)">flip &#8645;</button>
   <button id="full" title="turn the lighting off while you arrange (L)">fullbright</button>
   <button id="warn" title="hide the dashed boxes round items the checker objects to (W)">hide warnings</button>
+  <button id="walkhide" aria-pressed="false" title="hide the backdrop's walk lines; the walkers stay (K)">hide walk lines</button>
   <button id="panel" title="give the wall the whole window">hide panel</button>
   <button id="undo" title="undo the last change (ctrl+Z)">undo</button>
   <button id="redo" title="redo it (ctrl+shift+Z)">redo</button>
@@ -132,6 +133,10 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
   <div class="stage" id="stage"><canvas id="cv" width="740" height="431" aria-label="the shop wall, editable"></canvas>
     <textarea id="out" aria-label="layouts as JSON"></textarea></div>
   <div class="side">
+    <!-- SELECTED FIRST (Jon, 2026-09-26): the options for the thing you just
+         clicked sat under the whole stock catalogue, so every size or depth
+         change meant scrolling past ninety props to reach them. -->
+    <div class="box"><h3>Selected</h3><div id="props" class="muted">Click something on the wall.</div></div>
     <div class="box"><h3>Stock</h3>
       <div id="propstock"></div>
     </div>
@@ -195,6 +200,7 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
       <div class="row"><label>walk lines</label>
         <button id="bdwalkadd">+ line</button>
         <button id="bdwalkauto">reset</button>
+        <button id="bdwalkhide" aria-pressed="false">hide lines</button>
         <span class="muted" id="bdwalkn" style="font-size:11px"></span></div>
       <div id="bdwalklist"></div>
       <div class="row"><label>view size</label><button id="bdsmaller">&minus;</button>
@@ -203,7 +209,6 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
       <div class="row"><button id="bdmove">move backdrop</button><button id="bdauto">auto-place</button></div>
       <div class="muted" id="bdnote"></div>
     </div>
-    <div class="box"><h3>Selected</h3><div id="props" class="muted">Click something on the wall.</div></div>
     <div class="box"><h3>Checks</h3><div id="checks"></div></div>
     <div class="box"><h3>Cut</h3><div id="cutbox" class="muted"></div></div>
     <div class="box"><h3>Keys</h3>
@@ -292,7 +297,78 @@ var PROP = {}; (D.props || []).forEach(function(p){ PROP[p.id] = p; img("prop_" 
 var state = null, sel = -1, zoom = 2, snap = true, bdMove = false, align = true, guides = [];
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function load(){ try{ var s = localStorage.getItem(KEY); if(s) state = JSON.parse(s); }catch(e){}
-  if(!state || !state.layouts || !state.layouts.length) state = {cur:0, layouts: clone(D.seed)};
+  if(!state || !state.layouts || !state.layouts.length) state = {cur:0, layouts: clone(D.seed), gen_v: D.gen_v, rackH: {}};
+  // A RACK KEEPS ITS FEET WHEN ITS PICTURE CHANGES HEIGHT (2026-09-26). A rack
+  // stands on its top-left corner here, so a style redrawn taller or shorter
+  // would push every saved one's feet up or down the deck. The page records
+  // each style's height, and when one changes, the saved racks of that style
+  // move by the difference -- before new layouts are merged in, so a room that
+  // was not edited still matches its new version. Heights are the picture's
+  // own rows, so the half-size view toggle is never mistaken for a redraw. The
+  // settlement hutch went 160 -> 163 -> 172 (squared) -> 148 (redrawn, quilted)
+  // in one day; a bench from before the record holds 172 if it had lifted the
+  // squared hutch, 163 otherwise.
+  if(!state.rackH) state.rackH = {settlement: state.hutchV === 1 ? 172 : 163};
+  Object.keys(SKIN.shelf || {}).forEach(function(sk){
+    var sd = SKIN.shelf[sk]["2"]; if(!sd || !sd.size) return;
+    var now = sd.size[1], was = state.rackH[sk];
+    if(was && was !== now) state.layouts.forEach(function(l){ (l.items || []).forEach(function(o){
+      if(o.type === "shelf" && o.skin === sk && o.boards !== 3 && typeof o.y === "number")
+        o.y += (was - now) * (state.shelfK || 2); }); });
+    state.rackH[sk] = now;
+  });
+  // A DOOR STANDS ON THE FLOOR, whatever height its art is now. The doors
+  // were raised 34px for doubled people (2026-09-25); a saved door kept the
+  // old top, which would push its foot through the deck.
+  state.layouts.forEach(function(l){ (l.items || []).forEach(function(o){
+    if(o.type === "door" && skinOf(o)) o.y = FLOOR - size(o)[1]; }); });
+  // NEW FIT-OUTS ARRIVE ONCE PER VERSION. A saved bench keeps every tab it
+  // has; a generated layout it already holds (by name) is REPLACED by the new
+  // version -- a new version exists because Jon asked for a change to them --
+  // and one it lacks is added after the rest. The version is stamped, so
+  // nothing is touched again until the layouts are regenerated.
+  //
+  // BUT NOT OVER JON'S EDITS (2026-09-26). A tab he has moved things in since
+  // it was seeded is his now: it is kept exactly as it is and the new version
+  // goes in beside it as "<name> (new)". Whether it was edited is read off a
+  // signature of what it was given -- recorded here at each seeding, and for a
+  // bench seeded before that, taken from the previous generation (gen_prev).
+  // A room the new generation did not change is left alone either way.
+  if(D.gen && D.gen.length && state.gen_v !== D.gen_v){
+    if(!state.genSig) state.genSig = {};
+    var prevSig = {}; (D.gen_prev || []).forEach(function(l){ prevSig[l.name] = genSig(l); });
+    var kept = [], both = [];
+    D.gen.forEach(function(l){
+      var at = -1; state.layouts.forEach(function(x, i){ if(x.name === l.name) at = i; });
+      var fresh = clone(l), now = genSig(l);
+      var was = state.genSig[l.name] || prevSig[l.name] || null;
+      // HIS WORK IN A "(new)" COPY, TAKEN AS IT STANDS (2026-09-26). He kept
+      // "outpost · prefab (new)", deleted the old tab and worked in the copy;
+      // the next generation took his room as it was. Pushed under the plain
+      // name it would have sat beside his copy as a second, identical tab --
+      // so the copy gets its name back instead.
+      var nw = -1; state.layouts.forEach(function(x, i){ if(x.name === l.name + " (new)") nw = i; });
+      if(at < 0 && nw >= 0 && genSig(state.layouts[nw]) === now) state.layouts[nw].name = l.name;
+      else if(at < 0) state.layouts.push(fresh);
+      else if(was !== null && now === was){ /* unchanged by this generation */ }
+      else if(was !== null && genSig(state.layouts[at]) !== was && genSig(state.layouts[at]) !== now){
+        fresh.name = l.name + " (new)";
+        // A "(new)" COPY HE HAS WORKED IN IS HIS AS WELL. It was seeded as
+        // `was`; if it no longer is, it is not written over -- both his tabs
+        // stay and he is told the newer version was not added.
+        if(nw >= 0 && genSig(state.layouts[nw]) !== was) both.push(l.name);
+        else { if(nw >= 0) state.layouts[nw] = fresh; else state.layouts.splice(at + 1, 0, fresh);
+               kept.push(l.name); }
+      }
+      else state.layouts[at] = fresh;
+      state.genSig[l.name] = now;
+    });
+    state.gen_v = D.gen_v;
+    var msgs = [];
+    if(kept.length) msgs.push("kept your edits to " + kept.join(", ") + " -- the new version of each is beside it, marked (new)");
+    if(both.length) msgs.push("left " + both.join(", ") + " alone: you have edited both it and its (new) copy, so the newer version was not added");
+    if(msgs.length) GENMSG = msgs.join("; ");
+  }
   if(!state.cut) state.cut = {props:{}, backdrops:{}};
   ["walls", "floors", "stock", "skins"].forEach(function(k){ if(!state.cut[k]) state.cut[k] = {}; });
   // A CUT FOR SOMETHING NO LONGER IN THE STOCK IS DONE: the file is gone, so the
@@ -326,12 +402,23 @@ function load(){ try{ var s = localStorage.getItem(KEY); if(s) state = JSON.pars
     // so every window looked through the wall onto empty black -- which reads
     // as the room having gone see-through rather than as art having gone
     // missing. Fall back to the first INSTALLED backdrop instead.
+    // THE OLD SET WAS RETIRED WHOLE (2026-09-25): every backdrop and wall a
+    // saved layout named is gone at once. Land it on something from its OWN
+    // development level when it is tagged with one, so a capital layout does
+    // not wake up in a squat.
+    var own = function(list){
+      var lv = (l.levels || [])[0];
+      var hit = lv ? list.filter(function(x){ return levelOfId(x.id) === lv; })[0] : null;
+      return hit || null;
+    };
     if(l.backdrop && l.backdrop.id && !BD[l.backdrop.id] && D.backdrops.length){
       var settled = D.backdrops.filter(function(b){ return !b.label; });
-      l.backdrop.id = (settled[0] || D.backdrops[0]).id;
+      l.backdrop.id = (own(D.backdrops) || settled[0] || D.backdrops[0]).id;
     }
-    if(l.room && l.room.wall && l.room.wall !== "current" && !WALLS[l.room.wall])
-      l.room.wall = "current";
+    if(l.room && l.room.wall && l.room.wall !== "current" && !WALLS[l.room.wall]){
+      var w = own(D.walls || []);
+      l.room.wall = w ? w.id : "current";
+    }
   });
   // THE FAULT LIST WENT FROM NINE TO FIVE, and a saved fault is an INDEX into
   // it -- so without this every lamp set to `striking` (7) would come back
@@ -388,7 +475,19 @@ function load(){ try{ var s = localStorage.getItem(KEY); if(s) state = JSON.pars
     save();
   }
 }
-var LOSTMSG = "";
+var LOSTMSG = "", GENMSG = "";
+// WHAT A GENERATED ROOM WAS GIVEN, as one string: its wall and, per item, the
+// fields that placing or styling it changes. Two rooms with the same string are
+// the same arrangement; anything Jon moves, adds, removes, restyles or resizes
+// changes it.
+function genSig(l){
+  return JSON.stringify([(l.room || {}).wall || "", (l.items || []).map(function(o){
+    return [o.type, Math.round(o.x || 0), Math.round(o.y || 0), o.skin || "", o.id || "",
+            o.scale || 1, !!o.fx, !!o.fy, Math.round(o.w || 0), Math.round(o.h || 0),
+            o.boards || 0, o.col || "", o.pow === undefined ? "" : o.pow,
+            o.reach === undefined ? "" : o.reach, o.flick || 0];
+  })]);
+}
 function isCut(kind, id){ return !!(state.cut && state.cut[kind] && state.cut[kind][id]); }
 // UNDO IS A STACK OF STATES, NOT A LIST OF ACTIONS. Every change already
 // funnels through `save()`, so the whole arrangement can be snapshotted there
@@ -449,12 +548,18 @@ function size(o){
     var n1 = o.boards === 3 ? "3" : "2", sk1 = skinOf(o), k = state.shelfK || 2;
     var s = sk1 && SKIN.shelf[sk1][n1] ? SKIN.shelf[sk1][n1].size : D.shelves[n1].size;
     return [s[0] * k, s[1] * k]; }
-  if(o.type === "till"){ return [D.till.size[0], D.till.size[1]]; }
+  // A TILL OR A DOOR MAY BE HALVED: both are pixel-doubled art, so half is
+  // lossless (the walkers are 1x; Jon asked what a smaller room looks like).
+  // A TILL STYLE TOO, from its own art (2026-09-26): the level counters are
+  // not 180x128, and stretching one to the standard box is a non-integer
+  // scale -- pixels of two different sizes on the same counter.
+  if(o.type === "till"){ var kt = o.scale || 1, ts = skinOf(o) ? SKIN.till[o.skin].size : D.till.size;
+    return [ts[0] * kt, ts[1] * kt]; }
   if(o.type === "lamp"){ var la = lampArt(o); return la && la.width ? [la.width, la.height]
     : [D.lamp ? D.lamp.hood.size[0] : 31, D.lamp ? D.lamp.hood.size[1] : 30]; }
   if(o.type === "prop"){ var p = PROP[o.id], kp = o.scale || 1;
     return p ? [Math.round(p.size[0] * kp), Math.round(p.size[1] * kp)] : [20, 20]; }
-  if(o.type === "door" && skinOf(o)){ var ds = SKIN.door[o.skin].size; return [ds[0] - 24, ds[1] - 12]; }
+  if(o.type === "door" && skinOf(o)){ var ds = SKIN.door[o.skin].size, kd = o.scale || 1; return [(ds[0] - 24) * kd, (ds[1] - 12) * kd]; }
   if(o.type === "open"){ var os = (SKIN.opening[o.skin] || {size:[100, 100]}).size, k2 = o.scale || 1;
     return [Math.round(os[0] * k2), Math.round(os[1] * k2)]; }
   return [o.w, o.h];
@@ -533,6 +638,9 @@ function backdrop(lay){
     // where a window opened high will find it -- and the checks already say so
     // by name rather than the room quietly hiding it.
     y = FLOOR - bh;
+    // DROPPED BY ITS OWN HEIGHT, set on the heights page and read by the game
+    // from the same `backdrop_drops.json`.
+    y += Math.round((b.drop || 0) * k);
   }
   // `deck` IS WHERE THIS PICTURE'S OWN FLOOR IS DRAWN, in pixels up from the
   // bottom of the file. Measured per backdrop and carried in the data -- it is
@@ -702,6 +810,7 @@ function walkLines(bd){
 // what a lane is -- everything else (speed, how washed out, how many) follows
 // from them.
 function walkUI(bid){
+  hideWalkLabel();
   var host = document.getElementById("bdwalklist");
   if(!host) return;
   var bd = backdrop(L());
@@ -815,7 +924,14 @@ function stepWalkers(bd){
       // disagreed quietly for ever, and a walker's FRAME is chosen by the
       // distance it covers, so a pace that differs is a step rate that
       // differs. `WALK_PACE` in StationRoom.gd is the one source.
-      var speed = PACE * (0.85 + 0.3 * h0) * depth;
+      // A DOUBLED WALKER WALKS DOUBLE THE PIXELS, so its steps keep the rate a
+      // 1x walker's do -- StationRoom multiplies its pace by the same k.
+      var tallpx = Math.max(4, Math.round(ht * bd.k));
+      var pick = stripFor(tallpx, Math.floor(h0 * 9973));
+      var ks = (pick && tallpx >= D.walkers[pick].frame_h * 1.5) ? 2 : 1;
+      // Times the walker's own gait, as StationRoom does: 1 unless set.
+      var gait = (pick && D.walkers[pick].gait) || 1;
+      var speed = PACE * gait * (0.85 + 0.3 * h0) * depth * ks;
       var span = bd.w + 40;
       // A pause between passes, so a lane is never a conveyor belt.
       var cycle = span + 80 + hash1(h0 * 31.1) * 260;
@@ -839,7 +955,7 @@ function stepWalkers(bd){
         y: Math.round(toCanvasY(bd, ln.y)),
         h: Math.max(4, Math.round(ht * bd.k)),
         s: h0, run: run, haze: haze, right: right,
-        strip: stripFor(Math.max(4, Math.round(ht * bd.k)), Math.floor(h0 * 9973))
+        strip: pick, s: ks
       });
     }
   }
@@ -847,9 +963,15 @@ function stepWalkers(bd){
 // AND THE DRAWING IS JUST DRAWING. Called once per opening, inside its clip,
 // so the same crowd appears through every window onto the same concourse.
 function walkers(bd){
+  // A POLISHED FLOOR GIVES EACH WALKER BACK, upside down under their feet.
+  // Which floors are polished is `StationRoom.REFLECTIVE`, read by the build.
+  // Drawn first, so a walker crossing another's reflection stands on it.
+  if((D.reflect || []).indexOf(bd.id) >= 0)
+    for(var j = 0; j < WALKAT.length; j++)
+      if(WALKAT[j].strip) reflection(WALKAT[j].strip, WALKAT[j].xr, WALKAT[j].y, WALKAT[j].run, WALKAT[j].right, WALKAT[j].s);
   for(var i = 0; i < WALKAT.length; i++){
     var p = WALKAT[i];
-    if(p.strip) sprite(p.strip, p.xr, p.y, p.run, p.right);
+    if(p.strip) sprite(p.strip, p.xr, p.y, p.run, p.right, p.s);
     else figure(p.x, p.y, p.h, p.s, p.run, p.haze);
   }
 }
@@ -871,7 +993,12 @@ Object.keys(D.walkers || {}).forEach(function(k){
 function stripFor(tall, seed){
   var best = null, bd = 1e9, near = [];
   Object.keys(D.walkers || {}).forEach(function(k){
-    var m = D.walkers[k], d = Math.abs(m.frame_h - tall);
+    // AT ITS OWN SIZE OR EXACTLY DOUBLED. The room and every backdrop are
+    // pixel art with each pixel drawn 2x2; a walker drawn 1:1 beside them is
+    // half their pixel size and, at 75-87px, half a door tall (Jon: "the scale
+    // of people are so tiny"). Doubling is the one resize pixel art survives,
+    // so a line twice a strip's height takes that strip at 2x.
+    var m = D.walkers[k], ks = tall >= m.frame_h * 1.5 ? 2 : 1, d = Math.abs(m.frame_h * ks - tall);
     // A FLYER IS NOT A SHORT WALKER. The index holds drones as well as people
     // now, and a drone has no stride: `advance` is null and its frames run on
     // a clock instead. They are 31-46px, and a 40px walk line accepts 32-48,
@@ -898,32 +1025,53 @@ function stripFor(tall, seed){
 // of its frame: a planted boot cannot move, and anything smoother puts the
 // body on a different clock from its own legs -- measured at hundreds of
 // one-pixel shifts a minute, which is what reads as the feet jittering.
-function sprite(key, cx, feet, run, right){
+function sprite(key, cx, feet, run, right, k){
   var m = D.walkers[key], im = IMG["walker_" + key];
+  k = k || 1;
   if(!m || !im || !im.width) return;          // never hand drawImage a dud
   // AND NEVER HAND IT A NaN EITHER. A strip with no stride divides to
   // Infinity here and the frame index comes out NaN; drawImage takes that
   // without complaint and draws nothing, so the fault looks like flicker
   // rather than like bad data. Belt and braces behind stripFor's filter.
   if(!(m.advance > 0)) return;
-  var steps = Math.floor(run / m.advance), f = steps % m.frames;
-  var frac = run - steps * m.advance;
+  var adv = m.advance * k, fw = m.frame_w * k, fh = m.frame_h * k;
+  var steps = Math.floor(run / adv), f = steps % m.frames;
+  var frac = run - steps * adv;
   // WALK_K: 0 holds the body for the whole pose (planted boot never moves,
   // body steps), 1 glides it (body smooth, planted boot creeps a step and
   // snaps back), between splits the step between the two.
-  var dx = Math.round(cx - frac * (1 - WALK_K) * (right ? 1 : -1) - m.frame_w / 2);
-  var dy = Math.round(feet - m.frame_h);
+  var dx = Math.round(cx - frac * (1 - WALK_K) * (right ? 1 : -1) - fw / 2);
+  var dy = Math.round(feet - fh);
   if(right){
     ctx.drawImage(im, f * m.frame_w, 0, m.frame_w, m.frame_h,
-                  dx, dy, m.frame_w, m.frame_h);
+                  dx, dy, fw, fh);
   } else {
     ctx.save();
-    ctx.translate(dx + m.frame_w, dy);
+    ctx.translate(dx + fw, dy);
     ctx.scale(-1, 1);
     ctx.drawImage(im, f * m.frame_w, 0, m.frame_w, m.frame_h,
-                  0, 0, m.frame_w, m.frame_h);
+                  0, 0, fw, fh);
     ctx.restore();
   }
+}
+
+// THE SAME FRAME UPSIDE DOWN, its feet on the walker's feet and its head at
+// the bottom, faint -- REFLECT_ALPHA is the game's number (StationRoom.gd).
+var REFLECT_ALPHA = 0.3;
+function reflection(key, cx, feet, run, right, k){
+  var m = D.walkers[key], im = IMG["walker_" + key];
+  if(!m || !im || !im.width || !(m.advance > 0)) return;
+  k = k || 1;
+  var adv = m.advance * k, fw = m.frame_w * k, fh = m.frame_h * k;
+  var steps = Math.floor(run / adv), f = steps % m.frames;
+  var frac = run - steps * adv;
+  var dx = Math.round(cx - frac * (1 - WALK_K) * (right ? 1 : -1) - fw / 2);
+  ctx.save();
+  ctx.globalAlpha *= REFLECT_ALPHA;
+  ctx.translate(right ? dx : dx + fw, Math.round(feet) + fh);
+  ctx.scale(right ? 1 : -1, -1);
+  ctx.drawImage(im, f * m.frame_w, 0, m.frame_w, m.frame_h, 0, 0, fw, fh);
+  ctx.restore();
 }
 
 // ONE WALKER. A PERSON, NOT A POST: what says "person" at twenty pixels is the
@@ -1020,7 +1168,8 @@ function drawOpening(o, bd){
   if(o.type === "door"){
     for(var b = 0; b < 8; b++){ var bh = r.h * 0.5 / 8;
       ctx.fillStyle = "rgba(8,12,18," + (0.45 * (1 - b / 8)) + ")"; ctx.fillRect(r.x, r.y + bh * b, r.w, bh); }
-    if(skinOf(o)){ ctx.drawImage(IMG["skin_door_" + o.skin], r.x - 12, r.y - 12); badge(r, o); return; }
+    if(skinOf(o)){ var kd2 = o.scale || 1, dsz = SKIN.door[o.skin].size;
+      ctx.drawImage(IMG["skin_door_" + o.skin], r.x - 12 * kd2, r.y - 12 * kd2, dsz[0] * kd2, dsz[1] * kd2); badge(r, o); return; }
     [r.x, r.x + r.w - 6].forEach(function(sx){ ctx.fillStyle = "#151e2a"; ctx.fillRect(sx, r.y, 6, r.h);
       ctx.fillStyle = "#080c12"; ctx.fillRect(sx + (sx > r.x ? 5 : 0), r.y, 1, r.h);
       ctx.fillStyle = "rgba(111,211,224,0.85)"; ctx.fillRect(sx + 2, r.y + Math.round(r.h * 0.45), 2, 2); });
@@ -1068,7 +1217,10 @@ function stamp(t, x, y){
     for(var k = 0; k < g.length; k++) if(g[k] === "1") ctx.fillRect(x + 1 + c * 4 + k % 3, y + 2 + Math.floor(k / 3), 1, 1); }
 }
 function stockShelf(o, r, idx){
-  var boards = D.shelves[o.boards === 3 ? "3" : "2"].boards, n = boards.length, CELL = 20, COLS = 4;
+  // A STYLE MAY CARRY ITS OWN BOARD ROWS: three level racks were recut so the
+  // tags under the lower board clear a drawer or a base, which moved it.
+  var nb = o.boards === 3 ? "3" : "2", sb = skinOf(o) && SKIN.shelf[o.skin] && SKIN.shelf[o.skin][nb];
+  var boards = (sb && sb.boards) || D.shelves[nb].boards, n = boards.length, CELL = 20, COLS = 4;
   // The break between one cell's light and the next, as ShelfDisplay.PIP_GAP.
   // Two pixels, so it survives the shrink to game scale with light either side.
   var PIP_GAP = 2;
@@ -1124,7 +1276,8 @@ function drawFurniture(o){
     ctx = main; ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, off.width, off.height, r.x, r.y, off.width * k, off.height * k);
   }
-  else { ctx.drawImage(skinOf(o) ? IMG["skin_till_" + o.skin] : IMG.till, r.x, r.y);
+  else { ctx.drawImage(skinOf(o) ? IMG["skin_till_" + o.skin] : IMG.till, r.x, r.y, r.w, r.h);
+    if(skinOf(o)) return;   // a styled counter carries its own register
     ctx.fillStyle = "rgba(111,211,224,0.45)"; ctx.font = "9px monospace"; ctx.textAlign = "center";
     ctx.fillText("- - -", r.x + r.w/2, r.y + (r.h - D.till.desk) + 34); }
 }
@@ -2226,6 +2379,24 @@ function buildLightMap(){
     var g = PROP_GLOW[o.id];
     if(!g) return;
     var im = IMG["prop_" + o.id];
+    // A STRING OF LIGHTS IS MANY LAMPS, not one panel. Lit as a panel, the
+    // fairy lights threw one flat band of haze the width of the string -- at
+    // 0.8 a rectangle, at 0.3 nothing -- when what a string of bulbs does is
+    // put a small pool under every bulb. So each bulb is found and lit.
+    if(STRING_GLOW[o.id]){
+      var spots = litSpots(im);
+      if(!spots || !spots.length) return;
+      var rs = rectOf(o), ks = rs.w / Math.max(1, im.width);
+      var fs = flickerAt(propFlick(o), 3, t, o);
+      if(fs <= 0.004) return;
+      var reachS = ((L2.rad || 280) * STRING_GLOW[o.id]) / GK;
+      spots.forEach(function(sp){
+        var sx = o.fx ? im.width - sp.cx : sp.cx;
+        addLight((rs.x + sx * ks) / GK, (rs.y + sp.cy * ks) / GK, 0, reachS,
+                 g * fs, sp.r, sp.g, sp.b, true);
+      });
+      return;
+    }
     var lf = litFace(im);
     if(!lf) return;
     var r = rectOf(o), k = r.w / Math.max(1, im.width);
@@ -2286,8 +2457,24 @@ var OPEN_REACH = 0.50;
 var PROP_GLOW = {
   vend_a: 0.62, vend_b: 0.62,
   screen_a: 0.26, screen_b: 0.26,
-  caglamp: 0.55, junction: 0.16
+  caglamp: 0.55, junction: 0.16,
+  // THE LEVEL DECOR THAT BURNS (2026-09-26), pitched against the six before it.
+  // a neon sign or a lightbox is a lit panel a little under a vending
+  // machine's; candles, fairy lights and a bare bulb on a wire are small warm
+  // points; a chandelier is a lamp in all but name.
+  unclaimed_candles: 0.35, unclaimed_fairylights: 0.55, unclaimed_danglewire: 0.5,
+  outpost_radio: 0.14,
+  city_neon: 0.40, city_neonbowl: 0.40, city_lightbox: 0.45, city_koi: 0.35,
+  city_arcade: 0.40, city_atm: 0.20, city_figures: 0.30, city_lanterns: 0.8,
+  city_ledtray: 0.30,
+  capital_sconce: 0.45, capital_chandelier: 0.55
 };
+// STRINGS OF LIGHTS: lit bulb by bulb (see litSpots), each bulb this share of
+// the room's lamp reach. Their PROP_GLOW is per bulb. Set by eye against the
+// same rooms with the strings dark (2026-09-26, "can we have the string lights
+// emit light?"): tighter pools than this vanish, because light can only raise a
+// wall to the colour it is painted and these walls are painted dark.
+var STRING_GLOW = {unclaimed_fairylights: 0.26, city_lanterns: 0.30, unclaimed_danglewire: 0.22};
 // `clock` was on this list and comes off it. Under the test above 72% of it
 // counts as lit, because a clock face is a big pale disc -- so the whole clock
 // glowed like a lamp. A station clock is painted, not backlit.
@@ -2363,6 +2550,47 @@ function litKeep(d, W2, H2, key){
 }
 
 var LITFACE = {};
+// THE BULBS OF A STRING, one spot each. The same lit-pixel test as litFace,
+// split into its blobs -- but a bulb is a few pixels, so none of the size and
+// fill rules litKeep uses to throw out specks apply here: every blob of four
+// or more lit pixels on a prop listed in STRING_GLOW is a bulb.
+var LITSPOTS = {};
+function litSpots(im){
+  if(!im || !im.width) return null;
+  var key = im.src || "";
+  if(LITSPOTS[key] !== undefined) return LITSPOTS[key];
+  var out = [];
+  try {
+    var c = document.createElement("canvas");
+    c.width = im.width; c.height = im.height;
+    var g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.drawImage(im, 0, 0);
+    var d = g.getImageData(0, 0, im.width, im.height).data, W3 = im.width, n3 = W3 * im.height;
+    var on = new Uint8Array(n3), seen = new Uint8Array(n3);
+    for(var i = 0; i < n3; i++){ var o4 = i << 2; if(d[o4 + 3] >= 40 && isLitPx(d[o4], d[o4 + 1], d[o4 + 2])) on[i] = 1; }
+    for(var s0 = 0; s0 < n3; s0++){
+      if(!on[s0] || seen[s0]) continue;
+      var stack = [s0], n = 0, sx = 0, sy = 0, sr = 0, sg = 0, sb = 0;
+      seen[s0] = 1;
+      while(stack.length){
+        var q = stack.pop(), qx = q % W3, qy = (q / W3) | 0, qo = q << 2;
+        n++; sx += qx; sy += qy; sr += d[qo]; sg += d[qo + 1]; sb += d[qo + 2];
+        [q - 1, q + 1, q - W3, q + W3].forEach(function(v, j){
+          if(v < 0 || v >= n3 || seen[v] || !on[v]) return;
+          if(j === 0 && qx === 0) return;
+          if(j === 1 && qx === W3 - 1) return;
+          seen[v] = 1; stack.push(v);
+        });
+      }
+      if(n < 4) continue;
+      var mx = Math.max(sr, sg, sb) / n || 1;
+      out.push({cx: sx / n + 0.5, cy: sy / n + 0.5, n: n, r: (sr / n) / mx, g: (sg / n) / mx, b: (sb / n) / mx});
+    }
+  } catch(e){ out = []; }
+  LITSPOTS[key] = out;
+  return out;
+}
 function litFace(im){
   if(!im || !im.width) return null;
   var key = im.src || "";
@@ -2708,7 +2936,10 @@ function applyLight(){
 function drawLampBodies(){
   lampItems().forEach(function(o){
     var r = rectOf(o), hood = lampArt(o);
-    if(hood && hood.width) ctx.drawImage(hood, Math.round(r.x), Math.round(r.y));
+    // FLIPPED LIKE ANYTHING ELSE: a lamp that hangs off a bracket should be
+    // able to face the other way (Jon). Its glass below goes through the same
+    // mirror, so the lit part stays on the fixture.
+    if(hood && hood.width) mirrored(o, r, function(){ ctx.drawImage(hood, Math.round(r.x), Math.round(r.y)); });
   });
 }
 
@@ -2762,7 +2993,7 @@ function drawLampGlass(){
     var st = lampStates(hood, lampCol(o), lampGlass(o));
     if(!st || !st.glass) return;
     ctx.globalAlpha = Math.min(1, f);
-    ctx.drawImage(st.glass, Math.round(r.x), Math.round(r.y));
+    mirrored(o, r, function(){ ctx.drawImage(st.glass, Math.round(r.x), Math.round(r.y)); });
     ctx.globalAlpha = 1;
   });
 }
@@ -3009,7 +3240,8 @@ function draw(quiet){
   // Each carries a tick as tall as a person on it, which is the other half of
   // what the line says.
   var bdp = document.getElementById("bdpane");
-  if(bd && bdp && !bdp.hidden){
+  // HIDEABLE (Jon, 2026-09-26): the lines sit over the picture being judged.
+  if(bd && bdp && !bdp.hidden && !state.hideWalk){
     var lines = walkLines(bd), drawn = !!bdWalk(bd.id);
     ctx.setLineDash([4, 4]);
     lines = lines.map(function(l){
@@ -3192,11 +3424,11 @@ function ui(){
     document.getElementById("bdbigger").onclick = function(){ setScale(1); };
   }
   stepper("bdprev", "bdnext", "bdnow",
-    D.backdrops.map(function(b){ return {id:b.id, kind:"backdrops"}; }),
+    levelFirst(D.backdrops).map(function(b){ return {id:b.id, kind:"backdrops"}; }),
     L().backdrop.id, function(id){ pickBackdrop(id); });
-  picker("wallgrid", [{id:"current", src:D.wall}].concat((D.walls || []).map(function(x){ return {id:x.id, src:x.src}; })),
+  picker("wallgrid", [{id:"current", src:D.wall}].concat(levelFirst(D.walls || []).map(function(x){ return {id:x.id, src:x.src}; })),
     lay0.room.wall, "walls", function(id){ L().room.wall = id; save(); draw(); });
-  picker("bdgrid", D.backdrops.map(function(b){ return {id:b.id, src:b.src}; }),
+  picker("bdgrid", levelFirst(D.backdrops).map(function(b){ return {id:b.id, src:b.src}; }),
     L().backdrop.id, "backdrops", function(id){ pickBackdrop(id); });
 
   var lay = L();
@@ -3296,9 +3528,12 @@ function props(force){
     "[ and ] do the same.</div>";
   else h += "<div class='row'><label>order</label><button id='p_back'>&minus; behind</button>" +
     "<button id='p_fwd'>in front +</button></div>";
-  if(o.type === "open" || o.type === "prop") h += "<div class='row'><label>size</label><button id='p_smaller'>&minus;</button>" +
+  // A COUNTER TOO (Jon, 2026-09-26: "why are some of the tills so much
+  // smaller"): styles are drawn at their own size, so the size has to be
+  // settable here, not only in the layout file.
+  if(o.type === "open" || o.type === "prop" || o.type === "till") h += "<div class='row'><label>size</label><button id='p_smaller'>&minus;</button>" +
     "<span class='now'>" + Math.round((o.scale || 1) * 100) + "%</span><button id='p_bigger'>+</button></div>" +
-    "<div class='muted' style='font-size:11px'>Halves and doubles stay crisp; the steps between them do not.</div>";
+    "<div class='muted' style='font-size:11px'>100%, 150% and 200% keep every pixel whole; 75% and 125% blur it.</div>";
   // A PROP STANDS ON THE FLOOR, so growing it about its middle would sink it
   // through the deck. It grows upward from where its feet are instead.
   if(o.type === "shelf") h += "<div class='row'><button id='p_boards'>shelves " + (o.boards === 3 ? 3 : 2) + "</button></div>";
@@ -3337,8 +3572,9 @@ function props(force){
     // Grow about the middle, so a piece you have placed does not walk away --
     // except a prop, which keeps its feet where they are.
     o.x = Math.round(o.x - (now[0] - was[0]) / 2);
-    if(o.type === "prop" && o.y !== undefined && o.y !== null) o.y = Math.round(o.y - (now[1] - was[1]));
-    else if(o.type !== "prop") o.y = Math.round(o.y - (now[1] - was[1]) / 2);
+    var stands = o.type === "prop" || o.type === "till";
+    if(stands && o.y !== undefined && o.y !== null) o.y = Math.round(o.y - (now[1] - was[1]));
+    else if(!stands) o.y = Math.round(o.y - (now[1] - was[1]) / 2);
     save(); draw();
   }
   var rt = document.getElementById("p_rate");
@@ -3445,6 +3681,34 @@ try { stockTab = Number(localStorage.getItem("tk_bench_tab")) || 0; } catch(e){}
 var ROOMPANE = document.getElementById("roompane");
 var BDPANE = document.getElementById("bdpane");
 var LIGHTPANE = document.getElementById("lightpane");
+// PUT A STYLE ON A PIECE ALREADY ON THE WALL, if it is the kind the style is
+// for. Its feet stay on the floor: a counter, rack or door that changes height
+// grows upward, not into the deck. Returns false when there is nothing of that
+// kind selected, and the caller adds a new piece instead.
+function restyle(o, kind, c){
+  if(!o) return false;
+  var bottom = rectOf(o).y + size(o)[1];
+  if(kind === "window"){
+    if(o.type !== "window" || c.add.indexOf("window:") !== 0) return false;
+    o.style = c.add.split(":")[1];
+    return true;
+  }
+  if(kind === "opening"){
+    if(o.type !== "open" || c.add.indexOf("open:") !== 0) return false;
+    o.skin = c.add.split(":")[1];
+    return true;
+  }
+  if(kind !== o.type || ["till", "shelf", "door"].indexOf(kind) < 0) return false;
+  if(c.skin) o.skin = c.skin; else delete o.skin;
+  if(kind === "door"){
+    var z = size(o);
+    if(skinOf(o)){ o.w = z[0]; o.h = z[1]; }
+    o.y = FLOOR - (skinOf(o) ? z[1] : o.h);
+  } else if(o.y !== undefined && o.y !== null){
+    o.y = Math.round(bottom - size(o)[1]);
+  }
+  return true;
+}
 function gallery(){
   var host = document.getElementById("propstock"), names = {floor:"Floor props", wall:"Wall props", near:"Near silhouettes"};
   host.innerHTML = "";
@@ -3494,6 +3758,15 @@ function gallery(){
       var im = document.createElement("img"); im.alt = ""; im.loading = "lazy"; im.src = c.src;
       b.appendChild(im);
       b.addEventListener("click", function(){
+        // A STYLE RESTYLES WHAT IS SELECTED (Jon, 2026-09-26: "no matter what i
+        // select it's still the same standard till"). Picking a style used to
+        // ADD a new piece in the middle of the room and style that one, so the
+        // till you had clicked never changed -- the new one landed behind
+        // whatever stood mid-floor. With a piece of the same kind selected, the
+        // style goes onto it, standing where it stood; with none, a new one is
+        // added as before.
+        var cur = L().items[sel];
+        if(restyle(cur, t, c)){ save(); props(true); draw(); return; }
         add(c.add);
         if(c.skin){
           var o = L().items[sel]; o.skin = c.skin;
@@ -3506,7 +3779,11 @@ function gallery(){
       cell.appendChild(b); cell.appendChild(x); cell.appendChild(cap); grid.appendChild(cell); });
     g.appendChild(grid); shelfGroup(pair[1], g); });
   ["floor", "wall", "near"].forEach(function(lay){
-    var ps = (D.props || []).filter(function(p){ return p.layer === lay && !isCut("props", p.id); }); if(!ps.length) return;
+    var LVORD = ["", "unclaimed", "outpost", "settlement", "city", "capital"];
+    var ps = (D.props || []).filter(function(p){ return p.layer === lay && !isCut("props", p.id); })
+      .map(function(p, i){ return [LVORD.indexOf(levelOfId(p.id)), i, p]; })
+      .sort(function(a, b){ return a[0] - b[0] || a[1] - b[1]; }).map(function(t){ return t[2]; });
+    if(!ps.length) return;
     var g = document.createElement("div"); g.className = "pgroup";
     g.innerHTML = "<h4>" + names[lay] + "</h4>"; var grid = document.createElement("div"); grid.className = "pgrid";
     ps.forEach(function(p){
@@ -3830,6 +4107,7 @@ document.addEventListener("keydown", function(ev){
   if((ev.key === "d" || ev.key === "D") && o){ dup(); return; }
   if(ev.key === "l" || ev.key === "L"){ setFull(!fullbright); return; }
   if(ev.key === "w" || ev.key === "W"){ setWarn(!nowarn); return; }
+  if(ev.key === "k" || ev.key === "K"){ toggleWalk(); return; }
   if((ev.key === "h" || ev.key === "H") && o){ flip("fx"); return; }
   if((ev.key === "v" || ev.key === "V") && o){ flip("fy"); return; }
   if((ev.ctrlKey || ev.metaKey) && (ev.key === "z" || ev.key === "Z")){
@@ -3902,6 +4180,23 @@ document.getElementById("flipy").addEventListener("click", function(){ flip("fy"
 // its level, three a level (Jon, 2026-09-25). A layout can serve several.
 var DEV_LEVELS = [["unclaimed", "U"], ["outpost", "O"], ["settlement", "S"], ["city", "C"], ["capital", "K"]];
 var PER_LEVEL = 3;
+// Rooms and backdrops are named `<level>_<name>`; anything else has no level.
+// Its own list, not DEV_LEVELS: the saved-layout repair calls this while the
+// page is still loading, before the `var DEV_LEVELS = [...]` below has run.
+function levelOfId(id){
+  var p = String(id).split("_")[0];
+  return ["unclaimed", "outpost", "settlement", "city", "capital"].indexOf(p) >= 0 ? p : "";
+}
+// THE LAYOUT'S OWN LEVEL FIRST in every picker, in DEV_LEVELS order, then the
+// rest. The order is part of the picker's signature, so tagging a layout with
+// another level re-sorts the grid rather than leaving it stale.
+function levelFirst(list){
+  var mine = (state && L() && L().levels) || [];
+  var rank = function(x){ var i = mine.indexOf(levelOfId(x.id)); return i < 0 ? mine.length : i; };
+  return list.map(function(x, i){ return [rank(x), i, x]; })
+             .sort(function(a, b){ return a[0] - b[0] || a[1] - b[1]; })
+             .map(function(t){ return t[2]; });
+}
 function levelsUI(){
   var host = document.getElementById("levels"); if(!host || !state) return;
   var lay = L(), mine = lay.levels || [];
@@ -3974,6 +4269,25 @@ document.getElementById("bdwalkauto").addEventListener("click", function(){
   var bid = L().backdrop.id;
   if(state.bdWalk) delete state.bdWalk[bid];
   save(); draw(); walkUI(bid); });
+// Two switches, one setting: the toolbar's is always on screen, the backdrop
+// tab's sits beside the lines it hides.
+function hideWalkLabel(){
+  var b = document.getElementById("bdwalkhide");
+  if(b){
+    b.textContent = state.hideWalk ? "show lines" : "hide lines";
+    b.setAttribute("aria-pressed", String(!!state.hideWalk));
+  }
+  var t = document.getElementById("walkhide");
+  if(t){
+    t.className = state.hideWalk ? "on" : "";
+    t.textContent = state.hideWalk ? "walk lines hidden" : "hide walk lines";
+    t.setAttribute("aria-pressed", String(!!state.hideWalk));
+  }
+}
+function toggleWalk(){ state.hideWalk = !state.hideWalk; hideWalkLabel(); save(); draw(); }
+document.getElementById("bdwalkhide").addEventListener("click", toggleWalk);
+document.getElementById("walkhide").addEventListener("click", toggleWalk);
+hideWalkLabel();
 document.getElementById("bdauto").addEventListener("click", function(){
   var b = backdrop(L());
   if(b && state.bdPos) delete state.bdPos[b.id];
@@ -4011,7 +4325,10 @@ function exportState(){
       walls:Object.keys(state.cut.walls), floors:Object.keys(state.cut.floors), stock:Object.keys(state.cut.stock),
       skins:Object.keys(state.cut.skins)},
     layouts: state.layouts.map(function(l){ var bd = backdrop(l);
-      return {name:l.name, levels:l.levels || [], room:l.room || {wall:"current", floor:"current"}, backdrop:{id:bd ? bd.id : l.backdrop.id, x:bd ? bd.x : 0, y:bd ? bd.y : 0, placed:!!(bd && bdPos(bd.id))},
+      // THE ROOM'S OWN LIGHT AND AIR GO WITH IT. They were never exported, so
+      // the ambient that makes an unclaimed room darker than a capital one --
+      // set per layout -- stopped at the bench.
+      return {name:l.name, levels:l.levels || [], room:l.room || {wall:"current", floor:"current"}, light:l.light, air:l.air, backdrop:{id:bd ? bd.id : l.backdrop.id, x:bd ? bd.x : 0, y:bd ? bd.y : 0, placed:!!(bd && bdPos(bd.id))},
         items:l.items.map(function(o){ var r = rectOf(o), e = {type:o.type, x:r.x, y:r.y};
           if(o.type === "window") e.style = o.style;
           if(o.type === "window" || o.type === "door" || o.type === "ports"){ e.w = r.w; e.h = r.h; }
@@ -4019,6 +4336,17 @@ function exportState(){
           if(o.skin) e.skin = o.skin;
           if(o.scale && o.scale !== 1) e.scale = o.scale;
           if(o.type === "prop"){ e.id = o.id; e.layer = layer(o); }
+          // WHICH WAY IT FACES, and for a lamp what it burns like: the
+          // installer puts these in the game, so they have to leave the bench.
+          if(o.fx) e.fx = true;
+          if(o.fy) e.fy = true;
+          if(o.type === "lamp"){
+            if(o.col) e.col = o.col;
+            if(o.pow !== undefined) e.pow = o.pow;
+            if(o.reach !== undefined) e.reach = o.reach;
+            if(o.glass !== undefined) e.glass = o.glass;
+            if(lampFlick(o)) e.flick = lampFlick(o);
+          }
           return e; })}; })};
 }
 // A REDRAW LOOP THAT ONLY RUNS WHEN IT HAS TO. Steady light is a still
@@ -4070,6 +4398,7 @@ function flickCheck(){
 }
 // The load happens before the page exists, so the notice waits for it.
 function sayLost(){
+  if(GENMSG){ say(GENMSG); GENMSG = ""; }
   if(!LOSTMSG) return;
   say("dropped, the art is gone: " + LOSTMSG);
   LOSTMSG = "";

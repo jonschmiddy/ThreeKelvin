@@ -24,6 +24,8 @@ the composition is the thing worth keeping.
     python tools/room_plate.py plate <gen.png>  <out.png> [--lab]
     python tools/room_plate.py trim  <out.png> [--lab] [--deck stock|hold|bench]
     python tools/room_plate.py level <plate.png> <out.png> <first floor row>
+    python tools/room_plate.py seat  <gen.png> <out.png> [first floor row at 1x]
+    python tools/room_plate.py unletter <in.png> <out.png> x,y,w,h [x,y,w,h ...]
 """
 
 import glob
@@ -1540,6 +1542,113 @@ def cmd_level(src: str, dst: str, corner: int, target: int = 353) -> None:
         "repeated" if corner < target else "removed", abs(target - corner)))
 
 
+def _seam_guess(w, h, rows):
+    """Where a one-picture room probably turns from wall to floor: the biggest
+    step in row brightness between 55% and 92% of the way down. A GUESS -- a
+    baseboard or a painted light pool can win it -- so every corner is checked
+    by eye before it is used."""
+    means = [sum(_lum(r[x * 4], r[x * 4 + 1], r[x * 4 + 2]) for x in range(w)) / w for r in rows]
+    best, at = -1.0, int(h * 0.8)
+    for y in range(int(h * 0.55), int(h * 0.92)):
+        d = abs((means[y] + means[y + 1]) - (means[y - 2] + means[y - 1]))
+        if d > best:
+            best, at = d, y
+    return at
+
+
+def _unlight(part, w):
+    """The generator's own light pool divided out of one band (see flatten)."""
+    ph = len(part)
+    if ph < 8:
+        return part
+    lum = [[_lum(r[x * 4], r[x * 4 + 1], r[x * 4 + 2]) for x in range(w)] for r in part]
+    blur = _box_blur_lum(lum, w, ph, max(8, min(w, ph) // 4))
+    mean = sum(sum(r) for r in lum) / float(w * ph)
+    for y in range(ph):
+        for x in range(w):
+            g = min(2.0, max(0.5, mean / max(1.0, blur[y][x])))
+            o = x * 4
+            for i in range(3):
+                part[y][o + i] = max(0, min(255, int(round(part[y][o + i] * g))))
+    return part
+
+
+def cmd_seat(src: str, dst: str, corner: int = -1, target: int = 353) -> None:
+    """One generated room, its own corner put on the floor line. Crop only.
+
+    EVERY ROOM MEETS THE FLOOR ON THE SAME ROW (Jon, 2026-09-25), so any
+    backdrop can stand behind any room and the walkers stay on its floor.
+
+    The room is generated TALL -- 372x300, wall and floor in one picture, which
+    is what keeps them cohesive -- and doubled, so there is room above and below
+    the corner to crop 740x431 with the corner's first floor row landing on
+    exactly `target`. That needs the corner between 59% and 87% of the way down;
+    outside that the take is refused rather than filled or stretched.
+
+    The light pool the generator paints is divided out of the wall and the floor
+    separately, and the whole plate pulled into the room's value range -- the
+    treatment every kept plate had. `corner` is the first row of floor at 1x;
+    leave it out for a guess, which must then be checked by eye.
+    """
+    w, h, rows = pixeltools.decode(src)
+    pw, ph = PANEL
+    if corner < 0:
+        corner = _seam_guess(w, h, rows)
+        print("      corner guessed at %d -- CHECK IT BY EYE" % corner)
+    top = 2 * corner - target
+    # UP TO 3 ROWS SHORT AT THE BOTTOM IS ALLOWED, and those rows repeat the
+    # last one: the corner stays exact, and the bottom edge of the deck is
+    # under the rack and the till. More than that is a smear, so it refuses.
+    short = max(0, 2 * corner + (ph - target) - 2 * h)
+    if top < 0 or short > 3:
+        raise SystemExit("seat: corner %d of %d leaves no room to crop %dx%d with "
+                         "it on row %d (needs %d..%d)" % (
+                             corner, h, pw, ph, target,
+                             (target + 1) // 2, h - (ph - target + 1) // 2))
+    rows = [bytearray(r) for r in rows]
+    rows = _unlight(rows[:corner], w) + _unlight(rows[corner:], w)
+    _fit_value(rows, w, h, _lum(*WALL) * 1.1)
+    dw, dh, big = _double(w, h, rows)
+    x0 = (dw - pw) // 2
+    out = [bytearray(big[min(y, dh - 1)][x0 * 4:(x0 + pw) * 4]) for y in range(top, top + ph)]
+    if short:
+        print("      bottom %d row(s) repeat the last one (corner kept exact)" % short)
+    pixeltools.encode(dst, pw, ph, out)
+    print("seat  %s  corner %d -> row %d  (%dx%d from %dx%d, %s)"
+          % (os.path.basename(dst), corner, target, pw, ph, dw, dh,
+             "nothing filled" if not short else "%d bottom row(s) repeated" % short))
+
+
+def cmd_unletter(src: str, dst: str, boxes: list) -> None:
+    """Lettering painted out of a generated backdrop, sign by sign.
+
+    THE GENERATOR WRITES NONSENSE WORDS ("PRICE PICLE", "SALLEOM"), and a word
+    is the one thing in a far-off view the eye tries to read, so it reads as
+    wrong. The sign stays; only its letters go. A sign with a backing plate
+    (its commonest colour fills a third of the box or more) gets its letters
+    in the plate's colour -- a clean plate. Lettering glowing straight on the
+    wall becomes a block of its own average glow: a lit sign too far off to
+    read. `boxes` are x,y,w,h in the picture's own pixels.
+    """
+    from collections import Counter
+    w, h, rows = pixeltools.decode(src)
+    rows = [bytearray(r) for r in rows]
+    for (bx, by, bw, bh) in boxes:
+        px = [(x, y) for y in range(max(0, by), min(h, by + bh)) for x in range(max(0, bx), min(w, bx + bw))]
+        if not px:
+            continue
+        cols = [tuple(rows[y][x * 4:x * 4 + 3]) for x, y in px]
+        mode, n = Counter(cols).most_common(1)[0]
+        if n >= 0.35 * len(cols):
+            fill = mode
+        else:
+            fill = tuple(int(round(sum(c[i] for c in cols) / len(cols))) for i in range(3))
+        for x, y in px:
+            rows[y][x * 4:x * 4 + 3] = bytes(fill)
+    pixeltools.encode(dst, w, h, rows)
+    print("unletter  %s  %d sign(s)" % (os.path.basename(dst), len(boxes)))
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     lab = "--lab" in a
@@ -1578,6 +1687,10 @@ if __name__ == "__main__":
         cmd_backdrop(a[1], a[2])
     elif a[0] == "despeckle":
         cmd_despeckle(a[1])
+    elif a[0] == "unletter":
+        cmd_unletter(a[1], a[2], [tuple(int(v) for v in b.split(",")) for b in a[3:]])
+    elif a[0] == "seat":
+        cmd_seat(a[1], a[2], int(a[3]) if len(a) > 3 else -1)
     elif a[0] == "level":
         cmd_level(a[1], a[2], int(a[3]))
     elif a[0] == "compose":

@@ -28,6 +28,14 @@ STATION = os.path.join(TKG, "art", "sprites", "station")
 TEMPLATE = os.path.join(HERE, "room_review.tmpl.html")
 
 PANEL = (740, 431)
+# The development levels, in order. A take named `plate_<level>_<x>` or
+# `bd_<level>_<x>` is filed under its level; anything else under "other".
+LEVELS = ["unclaimed", "outpost", "settlement", "city", "capital"]
+
+
+def level_of(name):
+    head = name.split("_")[0]
+    return head if head in LEVELS else "other"
 FLOOR_Y = 353
 # The openings of the shop's first layout, as `room_bench.seed_layouts` builds
 # them: the big window, the band over the rack, and the door.
@@ -72,12 +80,27 @@ def main():
         if f.startswith("plate_") and f.endswith(".png"):
             w, h = png_size(path)
             rooms.append({"kind": "room", "key": "plate_" + f[6:-4], "name": f[6:-4],
-                          "src": b64(path), "w": w, "h": h})
+                          "level": level_of(f[6:-4]), "src": b64(path), "w": w, "h": h})
         elif f.startswith("bd_") and f.endswith(".png"):
             w, h = png_size(path)
             backdrops.append({"kind": "bd", "key": "bd_" + f[3:-4], "name": f[3:-4],
-                              "src": b64(path), "w": w, "h": h})
+                              "level": level_of(f[3:-4]), "src": b64(path), "w": w, "h": h})
+    # `--mates DIR`: rooms ALREADY KEPT, not up for a vote. A new backdrop is
+    # shown in the wall behind one of these, the room it will really be seen
+    # through, rather than behind a take that may itself be cut.
+    mates = []
+    if "--mates" in sys.argv:
+        md = sys.argv[sys.argv.index("--mates") + 1]
+        for f in sorted(os.listdir(md)):
+            if f.startswith("plate_") and f.endswith(".png"):
+                mates.append({"key": "mate_" + f[6:-4], "level": level_of(f[6:-4]),
+                              "src": b64(os.path.join(md, f), "mate_" + f)})
+    rnd = sys.argv[sys.argv.index("--round") + 1] if "--round" in sys.argv else "1"
+    order = LEVELS + ["other"]
+    rooms.sort(key=lambda r: (order.index(r["level"]), r["name"]))
+    backdrops.sort(key=lambda r: (order.index(r["level"]), r["name"]))
     data = {"rooms": rooms, "backdrops": backdrops, "panel": PANEL, "floor_y": FLOOR_Y,
+            "levels": order, "mates": mates, "round": rnd,
             "openings": OPENINGS, "wall": b64(os.path.join(STATION, "room_wall.png"))}
     html = io.open(TEMPLATE, encoding="utf-8").read()
     html = html.replace("__DATA__", json.dumps(data))

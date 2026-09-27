@@ -1,0 +1,2429 @@
+[
+ {
+  "name": "unclaimed · closet",
+  "levels": [
+   "unclaimed"
+  ],
+  "room": {
+   "wall": "unclaimed_closet2b",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "unclaimed_gutted14u",
+   "auto": true
+  },
+  "items": [
+   {
+    "type": "shelf",
+    "x": 12,
+    "y": 91,
+    "boards": 2,
+    "skin": "crate_b"
+   },
+   {
+    "type": "prop",
+    "x": 674,
+    "y": 360,
+    "id": "bin_a",
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "x": 487,
+    "y": 210,
+    "id": "extinguisher",
+    "layer": "wall",
+    "fx": true
+   },
+   {
+    "type": "open",
+    "x": 246,
+    "y": 94,
+    "skin": "arch"
+   },
+   {
+    "type": "window",
+    "x": 548,
+    "y": 158,
+    "style": "chamfer",
+    "w": 164,
+    "h": 120
+   },
+   {
+    "type": "prop",
+    "x": 0,
+    "y": -8,
+    "id": "pipe_a",
+    "layer": "wall",
+    "fx": true
+   },
+   {
+    "type": "lamp",
+    "x": 110,
+    "y": 0,
+    "skin": "bulb",
+    "col": "#ffedde",
+    "pow": 1,
+    "reach": 800,
+    "glass": 1,
+    "flick": 1
+   },
+   {
+    "type": "lamp",
+    "x": 504,
+    "y": 0,
+    "skin": "bulb",
+    "col": "#ffedde",
+    "pow": 1,
+    "reach": 800,
+    "glass": 1
+   },
+   {
+    "type": "prop",
+    "x": 477,
+    "y": 154,
+    "id": "junction",
+    "layer": "floor"
+   },
+   {
+    "type": "till",
+    "x": 486,
+    "y": 303
+   },
+   {
+    "type": "prop",
+    "x": 184,
+    "y": 371,
+    "id": "tarpcrates",
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "x": 548,
+    "y": 0,
+    "id": "pipes_a",
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 408,
+    "y": 6,
+    "id": "vent_b",
+    "layer": "wall"
+   }
+  ]
+ },
+ {
+  "name": "unclaimed · scrap",
+  "levels": [
+   "unclaimed"
+  ],
+  "room": {
+   "wall": "unclaimed_scrap",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "unclaimed_habtrash14u",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.3,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 140
+  },
+  "items": [
+   {
+    "type": "window",
+    "style": "chamfer",
+    "x": 40,
+    "y": 150,
+    "w": 170,
+    "h": 110
+   },
+   {
+    "type": "door",
+    "skin": "shutter_a",
+    "x": 300,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 500,
+    "y": 66,
+    "boards": 2,
+    "skin": "unclaimed"
+   },
+   {
+    "type": "till",
+    "x": 54,
+    "y": 347,
+    "skin": "unclaimed"
+   },
+   {
+    "type": "prop",
+    "id": "pipes_a",
+    "x": 0,
+    "y": 6,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "valves",
+    "x": 196,
+    "y": 12,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "vent_b",
+    "x": 420,
+    "y": 8,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_fairylights",
+    "x": 196,
+    "y": 52,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_boarded",
+    "x": 226,
+    "y": 124,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "junction",
+    "x": 234,
+    "y": 198,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "notices",
+    "x": 392,
+    "y": 128,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_danglewire",
+    "x": 474,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_drip",
+    "x": 232,
+    "y": 362,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_trashbags",
+    "x": 372,
+    "y": 376,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_candles",
+    "x": 446,
+    "y": 356,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_tyres",
+    "x": 616,
+    "y": 366,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "barrels",
+    "x": 684,
+    "y": 368,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "cage",
+    "x": 114,
+    "y": 0,
+    "col": "#ff9a3c",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true,
+    "flick": 1
+   },
+   {
+    "type": "lamp",
+    "skin": "bulb",
+    "x": 380,
+    "y": 0,
+    "col": "#ffd6a8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true,
+    "flick": 3
+   }
+  ]
+ },
+ {
+  "name": "unclaimed · plywood",
+  "levels": [
+   "unclaimed"
+  ],
+  "room": {
+   "wall": "unclaimed_plywood5a",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "unclaimed_market15u",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.28,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 140
+  },
+  "items": [
+   {
+    "type": "door",
+    "skin": "shutter_b",
+    "x": 36,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 118,
+    "y": 66,
+    "boards": 2,
+    "skin": "unclaimed"
+   },
+   {
+    "type": "open",
+    "skin": "shutter",
+    "x": 424,
+    "y": 70
+   },
+   {
+    "type": "till",
+    "x": 494,
+    "y": 347,
+    "skin": "unclaimed"
+   },
+   {
+    "type": "prop",
+    "id": "vent_a",
+    "x": 38,
+    "y": 34,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "pipe_a",
+    "x": 392,
+    "y": 0,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_danglewire",
+    "x": 370,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_boarded",
+    "x": 356,
+    "y": 214,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "junction",
+    "x": 366,
+    "y": 126,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "caglamp",
+    "x": 706,
+    "y": 128,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "mopbucket",
+    "x": 106,
+    "y": 342,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_mattress",
+    "x": 238,
+    "y": 402,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "tarpcrates",
+    "x": 354,
+    "y": 378,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_tyres",
+    "x": 432,
+    "y": 366,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "unclaimed_crt",
+    "x": 650,
+    "y": 370,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "bulb",
+    "x": 222,
+    "y": 0,
+    "col": "#ffd6a8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true,
+    "flick": 2
+   },
+   {
+    "type": "lamp",
+    "skin": "cage",
+    "x": 552,
+    "y": 0,
+    "col": "#ff9a3c",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "outpost · prefab",
+  "levels": [
+   "outpost"
+  ],
+  "room": {
+   "wall": "outpost_prefab",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "outpost_canteen11a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.31,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 90
+  },
+  "items": [
+   {
+    "type": "shelf",
+    "x": 14,
+    "y": 80,
+    "boards": 2,
+    "skin": "outpost"
+   },
+   {
+    "type": "door",
+    "skin": "slide_a",
+    "x": 300,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "open",
+    "skin": "bay",
+    "x": 440,
+    "y": 80
+   },
+   {
+    "type": "till",
+    "x": 500,
+    "y": 349,
+    "skin": "outpost"
+   },
+   {
+    "type": "prop",
+    "id": "pipes_a",
+    "x": 0,
+    "y": 4,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "valves",
+    "x": 232,
+    "y": 10,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "vent_a",
+    "x": 386,
+    "y": 6,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_coffee",
+    "x": 372,
+    "y": 92,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "firstaid",
+    "x": 244,
+    "y": 150,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "extinguisher",
+    "x": 250,
+    "y": 220,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_radio",
+    "x": 380,
+    "y": 160,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_hardhats",
+    "x": 374,
+    "y": 236,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_plans",
+    "x": 0,
+    "y": 356,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_tanks",
+    "x": 234,
+    "y": 352,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "toolchest",
+    "x": 374,
+    "y": 380,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_hazbin",
+    "x": 440,
+    "y": 368,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_lockers",
+    "x": 660,
+    "y": 324,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "worklight",
+    "x": 112,
+    "y": 0,
+    "col": "#e8eef8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "emergency",
+    "x": 305,
+    "y": 0,
+    "col": "#ff4a3a",
+    "pow": 0.5,
+    "reach": 260,
+    "glass": 0.8,
+    "placed": true,
+    "flick": 4
+   },
+   {
+    "type": "lamp",
+    "skin": "bulkhead",
+    "x": 558,
+    "y": 0,
+    "col": "#e8eef8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "outpost · corrugated",
+  "levels": [
+   "outpost"
+  ],
+  "room": {
+   "wall": "outpost_corrugated",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "outpost_hydro",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.31,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 90
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "slot",
+    "x": 40,
+    "y": 30
+   },
+   {
+    "type": "shelf",
+    "x": 188,
+    "y": 80,
+    "boards": 2,
+    "skin": "outpost"
+   },
+   {
+    "type": "door",
+    "skin": "blast_a",
+    "x": 620,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "till",
+    "x": 438,
+    "y": 349,
+    "skin": "outpost"
+   },
+   {
+    "type": "prop",
+    "id": "pipe_a",
+    "x": 196,
+    "y": 0,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "vent_b",
+    "x": 548,
+    "y": 6,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "pegboard",
+    "x": 440,
+    "y": 84,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_clipboards",
+    "x": 436,
+    "y": 150,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_hardhats",
+    "x": 528,
+    "y": 66,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_coffee",
+    "x": 526,
+    "y": 116,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "junction",
+    "x": 540,
+    "y": 186,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "extinguisher",
+    "x": 700,
+    "y": 196,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "fan",
+    "x": 0,
+    "y": 366,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_sacks",
+    "x": 156,
+    "y": 374,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "stepladder",
+    "x": 424,
+    "y": 330,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_plans",
+    "x": 560,
+    "y": 356,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "flood",
+    "x": 267,
+    "y": 0,
+    "col": "#e8eef8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "cage",
+    "x": 506,
+    "y": 0,
+    "col": "#e8eef8",
+    "pow": 1.0,
+    "reach": 750,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "beacon",
+    "x": 634,
+    "y": 0,
+    "col": "#ff9a3c",
+    "pow": 0.6,
+    "reach": 300,
+    "glass": 0.9,
+    "placed": true,
+    "flick": 2
+   }
+  ]
+ },
+ {
+  "name": "outpost · modular",
+  "levels": [
+   "outpost"
+  ],
+  "room": {
+   "wall": "outpost_modular7a",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "outpost_galley8a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.31,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 90
+  },
+  "items": [
+   {
+    "type": "door",
+    "skin": "airlock_a",
+    "x": 40,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "open",
+    "skin": "bay",
+    "x": 180,
+    "y": 80
+   },
+   {
+    "type": "shelf",
+    "x": 496,
+    "y": 80,
+    "boards": 2,
+    "skin": "outpost"
+   },
+   {
+    "type": "till",
+    "x": 236,
+    "y": 349,
+    "skin": "outpost"
+   },
+   {
+    "type": "prop",
+    "id": "pipes_a",
+    "x": 96,
+    "y": 4,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "valves",
+    "x": 300,
+    "y": 10,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "vent_a",
+    "x": 470,
+    "y": 6,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_coffee",
+    "x": 104,
+    "y": 86,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_radio",
+    "x": 124,
+    "y": 144,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "firstaid",
+    "x": 120,
+    "y": 212,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "extinguisher",
+    "x": 461,
+    "y": 200,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "cabledrum",
+    "x": 112,
+    "y": 372,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_hazbin",
+    "x": 178,
+    "y": 368,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_lockers",
+    "x": 402,
+    "y": 324,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "outpost_tanks",
+    "x": 684,
+    "y": 354,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "bulkhead",
+    "x": 128,
+    "y": 0,
+    "col": "#e8eef8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "emergency",
+    "x": 45,
+    "y": 0,
+    "col": "#ff4a3a",
+    "pow": 0.5,
+    "reach": 240,
+    "glass": 0.8,
+    "placed": true,
+    "flick": 4
+   },
+   {
+    "type": "lamp",
+    "skin": "worklight",
+    "x": 584,
+    "y": 0,
+    "col": "#e8eef8",
+    "pow": 1.0,
+    "reach": 800,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "settlement · quilt",
+  "levels": [
+   "settlement"
+  ],
+  "room": {
+   "wall": "settlement_quilt",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "settlement_bathhouse16u",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.33,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 70
+  },
+  "items": [
+   {
+    "type": "shelf",
+    "x": 14,
+    "y": 110,
+    "boards": 2,
+    "skin": "settlement"
+   },
+   {
+    "type": "open",
+    "skin": "arch",
+    "x": 270,
+    "y": 94
+   },
+   {
+    "type": "window",
+    "style": "chamfer",
+    "x": 556,
+    "y": 150,
+    "w": 160,
+    "h": 120
+   },
+   {
+    "type": "till",
+    "x": 566,
+    "y": 331,
+    "skin": "settlement"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_bunting",
+    "x": 20,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_bunting",
+    "x": 516,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_herbs",
+    "x": 60,
+    "y": 58,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_frames",
+    "x": 586,
+    "y": 96,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_sign",
+    "x": 514,
+    "y": 110,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "clock",
+    "x": 682,
+    "y": 36,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_cat",
+    "x": 120,
+    "y": 390,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_grain",
+    "x": 204,
+    "y": 370,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_baskets",
+    "x": 506,
+    "y": 370,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "plant_b",
+    "x": 684,
+    "y": 354,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "lantern",
+    "x": 118,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "paper",
+    "x": 374,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "lantern",
+    "x": 628,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "settlement · timber",
+  "levels": [
+   "settlement"
+  ],
+  "room": {
+   "wall": "settlement_timber",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "settlement_noodle10a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.33,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 70
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "vitrine",
+    "x": 30,
+    "y": 80
+   },
+   {
+    "type": "till",
+    "x": 76,
+    "y": 331,
+    "skin": "settlement"
+   },
+   {
+    "type": "door",
+    "skin": "slide_b",
+    "x": 380,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 494,
+    "y": 110,
+    "boards": 2,
+    "skin": "settlement"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_bunting",
+    "x": 44,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_drying",
+    "x": 292,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "jarshelf",
+    "x": 280,
+    "y": 120,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_herbs",
+    "x": 286,
+    "y": 190,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "clock",
+    "x": 382,
+    "y": 70,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_sign",
+    "x": 448,
+    "y": 150,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_baskets",
+    "x": 0,
+    "y": 372,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_cat",
+    "x": 226,
+    "y": 390,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_teatable",
+    "x": 300,
+    "y": 372,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "plant_a",
+    "x": 452,
+    "y": 350,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "paper",
+    "x": 134,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "globe",
+    "x": 390,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "paper",
+    "x": 594,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "settlement · render",
+  "levels": [
+   "settlement"
+  ],
+  "room": {
+   "wall": "settlement_render2b",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "settlement_homes9a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.33,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 70
+  },
+  "items": [
+   {
+    "type": "door",
+    "skin": "shutter_b",
+    "x": 40,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 150,
+    "y": 110,
+    "boards": 2,
+    "skin": "settlement"
+   },
+   {
+    "type": "window",
+    "style": "chamfer",
+    "x": 470,
+    "y": 120,
+    "w": 200,
+    "h": 140
+   },
+   {
+    "type": "till",
+    "x": 500,
+    "y": 331,
+    "skin": "settlement"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_drying",
+    "x": 30,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_bunting",
+    "x": 330,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "jarshelf",
+    "x": 528,
+    "y": 60,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_herbs",
+    "x": 388,
+    "y": 138,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "clock",
+    "x": 398,
+    "y": 214,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_sign",
+    "x": 684,
+    "y": 160,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "plant_b",
+    "x": 110,
+    "y": 354,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_cat",
+    "x": 236,
+    "y": 390,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_grain",
+    "x": 392,
+    "y": 370,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "settlement_teatable",
+    "x": 446,
+    "y": 372,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "chairtable",
+    "x": 660,
+    "y": 390,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "paper",
+    "x": 54,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 650,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "globe",
+    "x": 246,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "lantern",
+    "x": 558,
+    "y": 0,
+    "col": "#ffc27a",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "city · chevron",
+  "levels": [
+   "city"
+  ],
+  "room": {
+   "wall": "city_chevron",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "city_bar11a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.46,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 50
+  },
+  "items": [
+   {
+    "type": "shelf",
+    "x": 14,
+    "y": 86,
+    "boards": 2,
+    "skin": "city"
+   },
+   {
+    "type": "door",
+    "skin": "slide_a",
+    "x": 300,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "open",
+    "skin": "vitrine",
+    "x": 454,
+    "y": 80
+   },
+   {
+    "type": "till",
+    "x": 498,
+    "y": 355,
+    "skin": "city"
+   },
+   {
+    "type": "prop",
+    "id": "city_ledtray",
+    "x": 12,
+    "y": 4,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "vent_b",
+    "x": 306,
+    "y": 8,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_lanterns",
+    "x": 470,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "city_posters",
+    "x": 286,
+    "y": 70,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_camera",
+    "x": 396,
+    "y": 76,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_lightbox",
+    "x": 250,
+    "y": 160,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_neon",
+    "x": 384,
+    "y": 150,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_neonbowl",
+    "x": 386,
+    "y": 222,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_koi",
+    "x": 698,
+    "y": 120,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_stools",
+    "x": 226,
+    "y": 372,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "vend_a",
+    "x": 376,
+    "y": 309,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_palm",
+    "x": 440,
+    "y": 330,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_bamboo",
+    "x": 690,
+    "y": 314,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "lightbar",
+    "x": 77,
+    "y": 0,
+    "col": "#7fe3ff",
+    "pow": 1.35,
+    "reach": 950,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "lightbar",
+    "x": 277,
+    "y": 0,
+    "col": "#7fe3ff",
+    "pow": 1.0,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "panel",
+    "x": 541,
+    "y": 0,
+    "col": "#ff7ad9",
+    "pow": 1.35,
+    "reach": 950,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "city · ribbed",
+  "levels": [
+   "city"
+  ],
+  "room": {
+   "wall": "city_ribbed",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "city_nightmarket11a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.46,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 50
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "clerestory",
+    "x": 20,
+    "y": 48
+   },
+   {
+    "type": "door",
+    "skin": "slide_b",
+    "x": 440,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 508,
+    "y": 86,
+    "boards": 2,
+    "skin": "city"
+   },
+   {
+    "type": "till",
+    "x": 150,
+    "y": 355,
+    "skin": "city"
+   },
+   {
+    "type": "prop",
+    "id": "city_lanterns",
+    "x": 40,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "city_ledtray",
+    "x": 470,
+    "y": 4,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "city_posters",
+    "x": 36,
+    "y": 168,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "screen_a",
+    "x": 214,
+    "y": 172,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_neon",
+    "x": 318,
+    "y": 178,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_lightbox",
+    "x": 376,
+    "y": 166,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_koi",
+    "x": 130,
+    "y": 244,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_figures",
+    "x": 214,
+    "y": 240,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_neonbowl",
+    "x": 318,
+    "y": 250,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_arcade",
+    "x": 38,
+    "y": 333,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_palm",
+    "x": 96,
+    "y": 330,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_atm",
+    "x": 316,
+    "y": 342,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_stools",
+    "x": 350,
+    "y": 374,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "panel",
+    "x": 87,
+    "y": 0,
+    "col": "#7fe3ff",
+    "pow": 1.35,
+    "reach": 950,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "panel",
+    "x": 297,
+    "y": 0,
+    "col": "#ff7ad9",
+    "pow": 1.2,
+    "reach": 850,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "lightbar",
+    "x": 567,
+    "y": 0,
+    "col": "#7fe3ff",
+    "pow": 1.35,
+    "reach": 950,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "city · panels",
+  "levels": [
+   "city"
+  ],
+  "room": {
+   "wall": "city_panels2a",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "city_electronics11a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.46,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 50
+  },
+  "items": [
+   {
+    "type": "door",
+    "skin": "airlock_b",
+    "x": 40,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 130,
+    "y": 86,
+    "boards": 2,
+    "skin": "city"
+   },
+   {
+    "type": "open",
+    "skin": "vitrine",
+    "x": 462,
+    "y": 80
+   },
+   {
+    "type": "till",
+    "x": 502,
+    "y": 355,
+    "skin": "city"
+   },
+   {
+    "type": "prop",
+    "id": "city_ledtray",
+    "x": 130,
+    "y": 4,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "vent_a",
+    "x": 400,
+    "y": 10,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_lanterns",
+    "x": 476,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "city_camera",
+    "x": 60,
+    "y": 108,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_neon",
+    "x": 384,
+    "y": 104,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "screen_b",
+    "x": 372,
+    "y": 196,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_neonbowl",
+    "x": 392,
+    "y": 250,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_lightbox",
+    "x": 704,
+    "y": 140,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "city_palm",
+    "x": 108,
+    "y": 330,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "vend_b",
+    "x": 378,
+    "y": 309,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_stools",
+    "x": 438,
+    "y": 374,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "city_bamboo",
+    "x": 690,
+    "y": 314,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "spot",
+    "x": 56,
+    "y": 0,
+    "col": "#b8e6ff",
+    "pow": 0.9,
+    "reach": 500,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "lightbar",
+    "x": 193,
+    "y": 0,
+    "col": "#7fe3ff",
+    "pow": 1.35,
+    "reach": 950,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "lightbar",
+    "x": 367,
+    "y": 0,
+    "col": "#7fe3ff",
+    "pow": 0.9,
+    "reach": 650,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "panel",
+    "x": 549,
+    "y": 0,
+    "col": "#ff7ad9",
+    "pow": 1.35,
+    "reach": 950,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "capital · alloy",
+  "levels": [
+   "capital"
+  ],
+  "room": {
+   "wall": "capital_alloy",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "capital_plaza2b",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.54,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 25
+  },
+  "items": [
+   {
+    "type": "shelf",
+    "x": 14,
+    "y": 78,
+    "boards": 2,
+    "skin": "capital"
+   },
+   {
+    "type": "open",
+    "skin": "arch",
+    "x": 270,
+    "y": 94
+   },
+   {
+    "type": "window",
+    "style": "chamfer",
+    "x": 560,
+    "y": 150,
+    "w": 160,
+    "h": 120
+   },
+   {
+    "type": "till",
+    "x": 564,
+    "y": 325,
+    "skin": "capital"
+   },
+   {
+    "type": "prop",
+    "id": "capital_chandelier",
+    "x": 361,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "capital_planet",
+    "x": 150,
+    "y": 6,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_painting",
+    "x": 597,
+    "y": 44,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_ropes",
+    "x": 160,
+    "y": 364,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "capital_vase",
+    "x": 514,
+    "y": 310,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "dome",
+    "x": 36,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.35,
+    "reach": 1000,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "ring",
+    "x": 518,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.15,
+    "reach": 850,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "dome",
+    "x": 616,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.35,
+    "reach": 1000,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "capital · stone",
+  "levels": [
+   "capital"
+  ],
+  "room": {
+   "wall": "capital_stone",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "capital_bank6a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.54,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 25
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "vitrine",
+    "x": 24,
+    "y": 80
+   },
+   {
+    "type": "till",
+    "x": 66,
+    "y": 325,
+    "skin": "capital"
+   },
+   {
+    "type": "door",
+    "skin": "airlock_b",
+    "x": 340,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "shelf",
+    "x": 494,
+    "y": 78,
+    "boards": 2,
+    "skin": "capital"
+   },
+   {
+    "type": "prop",
+    "id": "capital_chandelier",
+    "x": 115,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "capital_planet",
+    "x": 334,
+    "y": 70,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_mirror",
+    "x": 274,
+    "y": 130,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_starchart",
+    "x": 264,
+    "y": 222,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_banner",
+    "x": 420,
+    "y": 56,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_sconce",
+    "x": 426,
+    "y": 196,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "plant_b",
+    "x": 0,
+    "y": 354,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "capital_clock",
+    "x": 228,
+    "y": 297,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "capital_bust",
+    "x": 282,
+    "y": 322,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "capital_bench",
+    "x": 410,
+    "y": 402,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "ring",
+    "x": 238,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 0.9,
+    "reach": 650,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "enamel",
+    "x": 340,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.15,
+    "reach": 850,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "dome",
+    "x": 576,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.35,
+    "reach": 1000,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ },
+ {
+  "name": "capital · fluted",
+  "levels": [
+   "capital"
+  ],
+  "room": {
+   "wall": "capital_fluted2a",
+   "floor": "current"
+  },
+  "backdrop": {
+   "id": "capital_embassy8a",
+   "auto": true
+  },
+  "light": {
+   "amb": 0.54,
+   "shadowk": 0.55,
+   "dither": true,
+   "shadows": true,
+   "contact": true
+  },
+  "air": {
+   "people": 1,
+   "motes": 25
+  },
+  "items": [
+   {
+    "type": "shelf",
+    "x": 14,
+    "y": 78,
+    "boards": 2,
+    "skin": "capital"
+   },
+   {
+    "type": "open",
+    "skin": "slot",
+    "x": 300,
+    "y": 30
+   },
+   {
+    "type": "door",
+    "skin": "blast_b",
+    "x": 620,
+    "y": 163,
+    "w": 56,
+    "h": 190
+   },
+   {
+    "type": "till",
+    "x": 440,
+    "y": 325,
+    "skin": "capital"
+   },
+   {
+    "type": "prop",
+    "id": "capital_chandelier",
+    "x": 488,
+    "y": 0,
+    "layer": "near"
+   },
+   {
+    "type": "prop",
+    "id": "capital_sconce",
+    "x": 250,
+    "y": 150,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_painting",
+    "x": 470,
+    "y": 110,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_starchart",
+    "x": 424,
+    "y": 196,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_planet",
+    "x": 504,
+    "y": 196,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_banner",
+    "x": 617,
+    "y": 40,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_mirror",
+    "x": 692,
+    "y": 150,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "id": "capital_ropes",
+    "x": 160,
+    "y": 364,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "tree",
+    "x": 252,
+    "y": 324,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "capital_vase",
+    "x": 396,
+    "y": 312,
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "id": "capital_fern",
+    "x": 692,
+    "y": 322,
+    "layer": "floor"
+   },
+   {
+    "type": "lamp",
+    "skin": "globe",
+    "x": 110,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.35,
+    "reach": 1000,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "ring",
+    "x": 348,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.15,
+    "reach": 850,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "globe",
+    "x": 520,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 0.9,
+    "reach": 700,
+    "glass": 1.0,
+    "placed": true
+   },
+   {
+    "type": "lamp",
+    "skin": "enamel",
+    "x": 618,
+    "y": 0,
+    "col": "#fff1dc",
+    "pow": 1.15,
+    "reach": 850,
+    "glass": 1.0,
+    "placed": true
+   }
+  ]
+ }
+]

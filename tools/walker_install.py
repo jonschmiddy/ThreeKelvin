@@ -318,6 +318,17 @@ def main():
     meta["skate"] = round(skate, 3)
     print("  planted boot misses its stride by %.0f%% (under 25%% reads clean)"
           % (100 * skate))
+    # A GAIT IS JON'S CALL, NOT A MEASUREMENT, so a reinstall keeps it. It
+    # scales this one walker's pace: the elder at 0.5 because at the room's
+    # pace his 3.5px step played 11 frames a second -- "walks a little too
+    # fast". Absent means 1.
+    if "gait" in idx.get(name, {}):
+        meta["gait"] = idx[name]["gait"]
+    # So is a stride Jon set by eye in the stride editor: the elder's measured
+    # 3.5 was half the truth, and he set 4.75 on the 12-frame cycle.
+    if idx.get(name, {}).get("advance_by_eye"):
+        meta["advance"] = idx[name]["advance"]
+        meta["advance_by_eye"] = True
     idx[name] = meta
     io.open(INDEX, "w", encoding="utf-8", newline="\n").write(
         json.dumps(idx, indent=1, sort_keys=True))

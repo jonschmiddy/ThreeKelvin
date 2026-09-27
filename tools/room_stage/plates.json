@@ -1,0 +1,152 @@
+{
+ "capital_alloy": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 228,
+  "floor_row": 353,
+  "level": "capital",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "capital_fluted2a": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 247,
+  "floor_row": 353,
+  "level": "capital",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "capital_stone": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 237,
+  "floor_row": 353,
+  "level": "capital",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "city_chevron": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 196,
+  "floor_row": 353,
+  "level": "city",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "city_panels2a": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 233,
+  "floor_row": 353,
+  "level": "city",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "city_ribbed": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 232,
+  "floor_row": 353,
+  "level": "city",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "outpost_corrugated": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 234,
+  "floor_row": 353,
+  "level": "outpost",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "outpost_modular7a": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 226,
+  "floor_row": 353,
+  "level": "outpost",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "outpost_prefab": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 233,
+  "floor_row": 353,
+  "level": "outpost",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "settlement_quilt": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 246,
+  "floor_row": 353,
+  "level": "settlement",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "settlement_render2b": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 221,
+  "floor_row": 353,
+  "level": "settlement",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "settlement_timber": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 238,
+  "floor_row": 353,
+  "level": "settlement",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "unclaimed_closet2b": {
+  "bottom_rows_repeated": 2,
+  "corner_src": 262,
+  "floor_row": 353,
+  "level": "unclaimed",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "unclaimed_plywood5a": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 243,
+  "floor_row": 353,
+  "level": "unclaimed",
+  "size": [
+   740,
+   431
+  ]
+ },
+ "unclaimed_scrap": {
+  "bottom_rows_repeated": 0,
+  "corner_src": 244,
+  "floor_row": 353,
+  "level": "unclaimed",
+  "size": [
+   740,
+   431
+  ]
+ }
+}

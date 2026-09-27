@@ -89,8 +89,12 @@ const ARRANGEMENTS: Array[Dictionary] = [
 
 ## A door is 56 wide and runs to the deck, because a door that stops short of
 ## the floor is a hatch. Its head sits under the sky band.
+##
+## 190, NOT 150, since the concourse's people were doubled to 150-174px
+## (2026-09-25): a door shorter than the people walking past it reads wrong.
+## The bench's door art was raised the same 34px.
 const DOOR_W := 56.0
-const DOOR_H := 150.0
+const DOOR_H := 190.0
 
 ## THE WALL THE NUMBERS ABOVE WERE DRAWN AGAINST, measured off the live layout
 ## rather than assumed -- the shop panel is 740x431 with its floor line at 353.

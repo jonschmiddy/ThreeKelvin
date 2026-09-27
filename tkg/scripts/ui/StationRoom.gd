@@ -160,10 +160,13 @@ func _load_plate(key: StringName) -> void:
 			_opening_art[skin] = a
 	_backdrop = null
 	var bd: StringName = forced_views.get(&"backdrop", &"")
-	if bd == &"" and not BACKDROPS.is_empty():
-		bd = BACKDROPS[absi(hash([place_seed, &"backdrop"])) % BACKDROPS.size()]
+	var pool: Array = BACKDROPS.get(dev, BACKDROPS[MapGen.Development.CITY])
+	if bd == &"" and not pool.is_empty():
+		bd = pool[absi(hash([place_seed, &"backdrop"])) % pool.size()]
 	if bd != &"":
 		_backdrop = DB.station_sprite(&"backdrop", bd)
+	_reflect = REFLECTIVE.has(bd)
+	_bd_drop = float(_drops().get(String(bd), 0))
 	_build_cast(bd)
 	_box_door = _bezel(&"door", false)
 	_load_views()
@@ -178,7 +181,9 @@ func _plate_cache_key() -> StringName:
 	var id := plate_id()
 	if id == &"":
 		return &""
-	return StringName("%s:%d:%d" % [id, place_seed,
+	# DEV IS IN IT because the backdrop pool is chosen by development level: a
+	# room re-dressed for another level with the same seed must re-pick.
+	return StringName("%s:%d:%d:%d" % [id, place_seed, dev,
 		openings(size.x, size.y, size.y - floor_h()).size()])
 
 
@@ -428,15 +433,59 @@ var _box_window: StyleBoxTexture = null
 ## pixels of bare wall above it, and an opening dragged high showed the gap.
 ## Drawing those smaller to widen the view only uncovered more wall. Any
 ## backdrop added here has to reach as far.
-## concourse, galley, scrap and tanks are cut (Jon, 2026-09-23 on the bench,
-## 2026-09-25 for the game). Their files are still in the repo; nothing picks them.
-const BACKDROPS: Array[StringName] = [&"arches", &"archive", &"arrivals",
-	&"atrium", &"bazaar", &"capsule", &"cargo", &"farm", &"food",
-	&"freightlift", &"fuel", &"garden", &"hab", &"halfbuilt",
-	&"lifts", &"lockers", &"nightatrium", &"nightwatch", &"parcel", &"ports",
-	&"rigging", &"servers", &"sorting", &"vending", &"vitrine"]
+## ONE POOL PER DEVELOPMENT LEVEL (Jon, 2026-09-25). The promenade behind the
+## wall is part of how a station says how built-up it is, so a squat never
+## looks out on a capital atrium. Each is `backdrop_<level>_<name>.png`; the
+## first set of 25 (arches, archive ... vitrine) is retired, files kept, and
+## `room_bench.py` fails its build if this and its VIEWS ever disagree.
+const BACKDROPS := {
+	MapGen.Development.UNCLAIMED: [&"unclaimed_foodcounter14u",
+		&"unclaimed_gutted14u", &"unclaimed_habs15u", &"unclaimed_habtrash14u",
+		&"unclaimed_market15u", &"unclaimed_pawn15u",
+		&"unclaimed_trashdoors15u"],
+	MapGen.Development.OUTPOST: [&"outpost_canteen11a", &"outpost_galley8a",
+		&"outpost_hydro", &"outpost_junk8a", &"outpost_shack11a",
+		&"outpost_vending"],
+	MapGen.Development.SETTLEMENT: [&"settlement_bathhouse16u",
+		&"settlement_cobbler16u", &"settlement_homes9a",
+		&"settlement_noodle10a", &"settlement_pharmacy10a",
+		&"settlement_supply11a"],
+	MapGen.Development.CITY: [&"city_bar11a", &"city_electronics11a",
+		&"city_gates8a", &"city_hotel11a", &"city_nightmarket11a"],
+	MapGen.Development.CAPITAL: [&"capital_bank6a", &"capital_boutique9b",
+		&"capital_embassy8a", &"capital_plaza2b", &"capital_skygarden2a"],
+}
+## FLOORS THAT SHOW A REFLECTION: the walkers on these are drawn a second
+## time, upside down under their feet and faint (Jon, 2026-09-25). Only the
+## backdrops whose floor was generated polished; a reflection on grating
+## would be a lie about the floor.
+const REFLECTIVE: Array[StringName] = [&"outpost_hydro", &"outpost_vending"]
+
 var _backdrop: Texture2D = null
 var _bd_pos := Vector2.ZERO
+## How far this station's backdrop sits below the default, from DROPS_PATH.
+var _bd_drop := 0.0
+const DROPS_PATH := "res://art/sprites/station/backdrop_drops.json"
+static var _drop_table: Dictionary = {}
+static var _drops_read := false
+
+
+## backdrop id -> px moved down, read once. A missing file or entry is 0.
+static func _drops() -> Dictionary:
+	if not _drops_read:
+		_drops_read = true
+		if FileAccess.file_exists(DROPS_PATH):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DROPS_PATH))
+			if parsed is Dictionary:
+				_drop_table = parsed
+	return _drop_table
+
+
+## This station's backdrop is in REFLECTIVE: its walkers get a reflection.
+var _reflect := false
+## How strongly the floor gives a walker back. A third reads as polish; more
+## reads as a second person standing on their head.
+const REFLECT_ALPHA := 0.3
 
 ## PEOPLE ON THE CONCOURSE, as pixel-art sprites on the backdrop.
 ##
@@ -553,7 +602,11 @@ func _draw_openings(w: float, h: float, floor_y: float) -> void:
 		# a window moved.) The walkway is at the foot of the picture, so a door
 		# opens onto it at deck level.
 		var bs := Vector2(_backdrop.get_size())
-		_bd_pos = Vector2(roundf((w - bs.x) * 0.5), floor_y - bs.y)
+		# DROPPED BY ITS OWN HEIGHT: how far down this picture sits so its floor
+		# meets the room's, set by eye per backdrop on the heights page (Jon,
+		# 2026-09-25) and kept in `backdrop_drops.json`. 0 is the old placement,
+		# bottom edge on the floor line.
+		_bd_pos = Vector2(roundf((w - bs.x) * 0.5), floor_y - bs.y + _bd_drop)
 	for i in list.size():
 		var r: Rect2 = list[i].rect
 		var tex: Texture2D = _views[i] if i < _views.size() else null
@@ -595,11 +648,7 @@ func _shaped_opening(r: Rect2, tex: Texture2D, skin: StringName) -> void:
 		draw_rect(span, DEEP)
 		if _backdrop == null:
 			continue
-		var src := Rect2(span.position - _bd_pos, span.size).intersection(
-			Rect2(Vector2.ZERO, Vector2(_backdrop.get_size())))
-		if src.has_area():
-			draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
-				src, VIEW_GLASS)
+		_blit_backdrop(span)
 		_draw_cast(span)
 	draw_texture(art, r.position.round())
 
@@ -653,17 +702,34 @@ func _porthole_plate(r: Rect2, tex: Texture2D) -> void:
 	draw_texture(_ports, (r.get_center() - ps * 0.5).round())
 
 
+## The backdrop, in whatever part of `dst` it covers -- and above its top edge,
+## its top row stretched up to the ceiling. A dropped picture no longer reaches
+## the top of the wall, and the top of these views is deckhead or girder, so the
+## row carries; the heights page and the bench draw it the same way, so what
+## was judged there is what the room shows.
+func _blit_backdrop(dst: Rect2) -> void:
+	var bs := Vector2(_backdrop.get_size())
+	var src := Rect2(dst.position - _bd_pos, dst.size).intersection(Rect2(Vector2.ZERO, bs))
+	if src.has_area():
+		draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
+			src, VIEW_GLASS)
+	if dst.position.y < _bd_pos.y:
+		var x0 := maxf(dst.position.x, _bd_pos.x)
+		var x1 := minf(dst.end.x, _bd_pos.x + bs.x)
+		var y1 := minf(dst.end.y, _bd_pos.y)
+		if x1 > x0 and y1 > dst.position.y:
+			draw_texture_rect_region(_backdrop,
+				Rect2(Vector2(x0, dst.position.y), Vector2(x1 - x0, y1 - dst.position.y)),
+				Rect2(Vector2(x0 - _bd_pos.x, 0.0), Vector2(x1 - x0, 1.0)), VIEW_GLASS)
+
+
 ## A view cropped into its opening at 1:1 -- never scaled, because a view is
 ## pixel art like everything else here. `bottom` pins its foot to the opening's
 ## foot, which a corridor needs and a concourse does not.
 func _blit_view(r: Rect2, tex: Texture2D, bottom: bool) -> void:
 	draw_rect(r, DEEP)
 	if _backdrop != null:
-		var src := Rect2(r.position - _bd_pos, r.size).intersection(
-			Rect2(Vector2.ZERO, Vector2(_backdrop.get_size())))
-		if src.has_area():
-			draw_texture_rect_region(_backdrop, Rect2(src.position + _bd_pos, src.size),
-				src, VIEW_GLASS)
+		_blit_backdrop(r)
 		_draw_cast(r)
 		return
 	if tex == null:
@@ -815,7 +881,7 @@ func _pick_strip(tall: float, s: int, flying: bool) -> String:
 		var m: Dictionary = _strips[nm]
 		if bool(m.get("by_time", false)) != flying:
 			continue
-		var d: float = absf(float(m.get("frame_h", 0)) - tall)
+		var d: float = absf(float(m.get("frame_h", 0)) * float(_strip_k(m, tall)) - tall)
 		if d < bestd:
 			bestd = d
 			best = String(nm)
@@ -863,14 +929,18 @@ func _build_cast(bd: StringName) -> void:
 			if nm == "":
 				_spawn_figure(tall, feet, s, depth)
 			else:
-				_spawn(nm, feet, s, false, depth)
+				_spawn(nm, feet, s, false, depth, tall)
 	# A drone or two over the nearest line, riding above head height.
 	var low := 0.0
 	for row in rows:
 		low = maxf(low, float(row.get("y", 0)))
+	# A DOUBLED CONCOURSE HAS DOUBLED DRONES, riding twice as high: the scene's
+	# scale is its nearest line against the ~80px the cast is drawn at.
+	var sk := 2.0 if near_tall >= 120.0 else 1.0
 	for k in 1 + absi(hash([place_seed, bd, &"fly"])) % 2:
 		var s := absi(hash([place_seed, bd, &"fly", k]))
-		_spawn(_pick_strip(36.0, s, true), low - FLY_ALT, s, true)
+		var dn := _pick_strip(36.0 * sk, s, true)
+		_spawn(dn, low - FLY_ALT * sk, s, true, 1.0, 36.0 * sk)
 
 
 ## A drawn person, for a line no sprite is the right height for.
@@ -886,7 +956,16 @@ func _spawn_figure(tall: float, feet: float, s: int, depth: float) -> void:
 	})
 
 
-func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0) -> void:
+## AT ITS OWN SIZE OR EXACTLY DOUBLED. The room and every backdrop are pixel
+## art drawn 2x2; the walkers are 1:1, so on a line twice a strip's height the
+## strip is drawn at 2x -- the one resize pixel art survives (Jon, 2026-09-25:
+## "the scale of people are so tiny compared to the door and the room").
+static func _strip_k(m: Dictionary, tall: float) -> int:
+	var fh := float(m.get("frame_h", 0))
+	return 2 if fh > 0.0 and tall >= fh * 1.5 else 1
+
+
+func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0, tall := 0.0) -> void:
 	if nm == "" or not _strips.has(nm):
 		return
 	var m: Dictionary = _strips[nm]
@@ -901,15 +980,20 @@ func _spawn(nm: String, feet: float, s: int, flying: bool, depth := 1.0) -> void
 	if fw <= 0.0 or fh <= 0.0:
 		return
 	var adv_v: Variant = m.get("advance", null)
+	# Doubled: the frame, its stride AND the pace, so a big walker takes the
+	# same number of steps a second as a small one rather than half.
+	var k := float(_strip_k(m, tall))
 	_cast.append({
-		"tex": tex, "fw": fw, "fh": fh, "feet": feet,
+		"tex": tex, "fw": fw * k, "fh": fh * k, "feet": feet, "k": k,
 		"frames": maxi(1, int(m.get("frames", 1))),
-		"adv": float(adv_v) if adv_v != null else 0.0,
+		"adv": (float(adv_v) if adv_v != null else 0.0) * k,
 		"fly": flying,
 		"fps": float(m.get("fps", 10.0)),
 		# Each one within a fifth of the room's pace, so the concourse is never
-		# a conveyor belt of people in lockstep.
-		"speed": WALK_PACE * (0.85 + 0.3 * float(s % 100) / 100.0) * depth,
+		# a conveyor belt of people in lockstep -- times its own gait, since an
+		# elder with a stick does not keep up with a porter.
+		"speed": WALK_PACE * float(m.get("gait", 1.0))
+				* (0.85 + 0.3 * float(s % 100) / 100.0) * depth * k,
 		"flip": (s >> 11) % 2 == 0,
 		"phase": float((s >> 3) % 1499),
 	})
@@ -926,6 +1010,11 @@ func _draw_cast(clip: Rect2) -> void:
 	# again from the same clock. The poses are the same for the whole redraw.
 	if _posed_at != _clock:
 		_pose_cast()
+	# REFLECTIONS FIRST, so a walker crossing another's reflection stands on it.
+	if _reflect:
+		for p in _posed:
+			if not bool(p[0].get("figure", false)):
+				_blit_reflection(p[0], p[1], p[2], p[3], clip)
 	for p in _posed:
 		var w: Dictionary = p[0]
 		if bool(w.get("figure", false)):
@@ -991,8 +1080,11 @@ func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> voi
 	# far side instead.
 	var flip: bool = w["flip"]
 	var off := (dst.end.x - cut.end.x) if flip else (cut.position.x - dst.position.x)
-	var src := Rect2(Vector2(float(f) * fw + off, cut.position.y - dst.position.y),
-		cut.size)
+	# The slice is measured on screen; the frame is read in the strip's own
+	# pixels, which a doubled walker has half as many of.
+	var k: float = w.get("k", 1.0)
+	var src := Rect2(Vector2(float(f) * fw / k + off / k, (cut.position.y - dst.position.y) / k),
+		cut.size / k)
 	var tex: Texture2D = w["tex"]
 	if not flip:
 		draw_texture_rect_region(tex, cut, src, VIEW_GLASS)
@@ -1002,6 +1094,33 @@ func _blit_walker(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> voi
 	draw_set_transform(Vector2(cut.end.x, 0.0), 0.0, Vector2(-1.0, 1.0))
 	draw_texture_rect_region(tex, Rect2(Vector2(0.0, cut.position.y), cut.size),
 		src, VIEW_GLASS)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The same frame upside down, head at the bottom, its feet on the walker's
+## feet -- what a polished floor gives back. Drawn through a transform that
+## flips both axes as needed, so the clip slice maps onto the right rows and
+## columns of the frame whichever way the walker faces.
+func _blit_reflection(w: Dictionary, x: float, y: float, f: int, clip: Rect2) -> void:
+	var fw: float = w["fw"]
+	var fh: float = w["fh"]
+	var feet := y + fh
+	var dst := Rect2(Vector2(x, feet), Vector2(fw, fh))
+	var cut := dst.intersection(clip)
+	if not cut.has_area():
+		return
+	var flip: bool = w["flip"]
+	var off := (dst.end.x - cut.end.x) if flip else (cut.position.x - dst.position.x)
+	# Upside down about the reflection's bottom edge: frame row r lands on
+	# screen row (feet + fh - r), so the visible slice is rows from here.
+	var row0 := feet + fh - cut.end.y
+	var k: float = w.get("k", 1.0)
+	var src := Rect2(Vector2(float(f) * fw / k + off / k, row0 / k), cut.size / k)
+	var tint := Color(VIEW_GLASS.r, VIEW_GLASS.g, VIEW_GLASS.b, VIEW_GLASS.a * REFLECT_ALPHA)
+	var ox := cut.end.x if flip else 0.0
+	var lx := 0.0 if flip else cut.position.x
+	draw_set_transform(Vector2(ox, feet + fh), 0.0, Vector2(-1.0 if flip else 1.0, -1.0))
+	draw_texture_rect_region(w["tex"], Rect2(Vector2(lx, row0), cut.size), src, tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

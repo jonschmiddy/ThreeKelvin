@@ -67,6 +67,15 @@ func run(tree: SceneTree) -> void:
 	var here: MapGen.MapNode = Run.node_at()
 	here.type = MapGen.NodeType.STATION
 	here.development = MapGen.Development.CITY
+	# `dev=<level>` (unclaimed, outpost, settlement, city, capital): photograph a
+	# station at that level -- the backdrop is drawn from its level's pool.
+	for a5 in OS.get_cmdline_user_args():
+		if (a5 as String).begins_with("dev="):
+			var lv := (a5 as String).substr(4).to_upper()
+			if MapGen.Development.has(lv):
+				here.development = MapGen.Development[lv]
+			else:
+				print("  no development level '%s' -- CITY" % lv)
 	here.security = 4
 	# Two statements rather than a ternary: `berths` is typed, and an untyped
 	# empty array will not assign to it.

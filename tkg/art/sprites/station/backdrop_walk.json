@@ -45,6 +45,60 @@
    "y": 120
   }
  ],
+ "capital_bank6a": [
+  {
+   "tall": 162,
+   "y": 328
+  }
+ ],
+ "capital_boutique9b": [
+  {
+   "tall": 160,
+   "y": 341
+  }
+ ],
+ "capital_boutiques2a": [
+  {
+   "tall": 160,
+   "y": 312
+  }
+ ],
+ "capital_embassy6a": [
+  {
+   "tall": 160,
+   "y": 288
+  }
+ ],
+ "capital_embassy8a": [
+  {
+   "tall": 160,
+   "y": 324
+  }
+ ],
+ "capital_observation2b": [
+  {
+   "tall": 160,
+   "y": 323
+  }
+ ],
+ "capital_plaza2b": [
+  {
+   "tall": 160,
+   "y": 336
+  }
+ ],
+ "capital_skygarden2a": [
+  {
+   "tall": 160,
+   "y": 315
+  }
+ ],
+ "capital_skygarden2b": [
+  {
+   "tall": 160,
+   "y": 317
+  }
+ ],
  "capsule": [
   {
    "tall": 60,
@@ -59,6 +113,84 @@
   {
    "tall": 60,
    "y": 351
+  }
+ ],
+ "city_arrivals2a": [
+  {
+   "tall": 160,
+   "y": 310
+  }
+ ],
+ "city_arrivals2b": [
+  {
+   "tall": 160,
+   "y": 328
+  }
+ ],
+ "city_bar11a": [
+  {
+   "tall": 160,
+   "y": 339
+  }
+ ],
+ "city_concourse2b": [
+  {
+   "tall": 160,
+   "y": 310
+  }
+ ],
+ "city_electronics11a": [
+  {
+   "tall": 160,
+   "y": 338
+  }
+ ],
+ "city_gates8a": [
+  {
+   "tall": 160,
+   "y": 331
+  }
+ ],
+ "city_hotel11a": [
+  {
+   "tall": 160,
+   "y": 340
+  }
+ ],
+ "city_lifttubes2a": [
+  {
+   "tall": 160,
+   "y": 333
+  }
+ ],
+ "city_nightmarket11a": [
+  {
+   "tall": 160,
+   "y": 341
+  }
+ ],
+ "city_nightmarket2b": [
+  {
+   "tall": 160,
+   "y": 322
+  }
+ ],
+ "city_transit2a": [
+  {
+   "tall": 160,
+   "y": 312
+  }
+ ],
+ "city_transit2b": [
+  {
+   "tall": 160,
+   "y": 332
+  }
+ ],
+ "city_vitrine2a": [
+  {
+   "tall": 160,
+   "y": 275
   }
  ],
  "farm": [
@@ -135,6 +267,84 @@
    "y": 338
   }
  ],
+ "outpost_canteen11a": [
+  {
+   "tall": 160,
+   "y": 324
+  }
+ ],
+ "outpost_cargo2a": [
+  {
+   "tall": 160,
+   "y": 344
+  }
+ ],
+ "outpost_cargo2b": [
+  {
+   "tall": 160,
+   "y": 302
+  }
+ ],
+ "outpost_galley8a": [
+  {
+   "tall": 160,
+   "y": 366
+  }
+ ],
+ "outpost_hydro": [
+  {
+   "tall": 160,
+   "y": 371
+  }
+ ],
+ "outpost_junk8a": [
+  {
+   "tall": 160,
+   "y": 328
+  }
+ ],
+ "outpost_lifts2a": [
+  {
+   "tall": 160,
+   "y": 315
+  }
+ ],
+ "outpost_lifts2b": [
+  {
+   "tall": 160,
+   "y": 346
+  }
+ ],
+ "outpost_mess": [
+  {
+   "tall": 160,
+   "y": 332
+  }
+ ],
+ "outpost_shack11a": [
+  {
+   "tall": 160,
+   "y": 323
+  }
+ ],
+ "outpost_supply2a": [
+  {
+   "tall": 160,
+   "y": 287
+  }
+ ],
+ "outpost_supply2b": [
+  {
+   "tall": 160,
+   "y": 307
+  }
+ ],
+ "outpost_vending": [
+  {
+   "tall": 160,
+   "y": 334
+  }
+ ],
  "parcel": [
   {
    "tall": 80,
@@ -159,10 +369,184 @@
    "y": 346
   }
  ],
+ "settlement_bathhouse16u": [
+  {
+   "tall": 160,
+   "y": 342
+  }
+ ],
+ "settlement_cobbler16u": [
+  {
+   "tall": 160,
+   "y": 303
+  }
+ ],
+ "settlement_food": [
+  {
+   "tall": 160,
+   "y": 281
+  }
+ ],
+ "settlement_garden2a": [
+  {
+   "tall": 160,
+   "y": 323
+  }
+ ],
+ "settlement_garden2b": [
+  {
+   "tall": 160,
+   "y": 321
+  }
+ ],
+ "settlement_hab2a": [
+  {
+   "tall": 160,
+   "y": 364
+  }
+ ],
+ "settlement_homes9a": [
+  {
+   "tall": 160,
+   "y": 320
+  }
+ ],
+ "settlement_market10a": [
+  {
+   "tall": 160,
+   "y": 326
+  }
+ ],
+ "settlement_market2a": [
+  {
+   "tall": 160,
+   "y": 288
+  }
+ ],
+ "settlement_noodle10a": [
+  {
+   "tall": 160,
+   "y": 326
+  }
+ ],
+ "settlement_pharmacy10a": [
+  {
+   "tall": 160,
+   "y": 325
+  }
+ ],
+ "settlement_supply11a": [
+  {
+   "tall": 160,
+   "y": 323
+  }
+ ],
+ "settlement_teahouse2b": [
+  {
+   "tall": 160,
+   "y": 324
+  }
+ ],
+ "settlement_workshop2b": [
+  {
+   "tall": 160,
+   "y": 307
+  }
+ ],
  "sorting": [
   {
    "tall": 60,
    "y": 342
+  }
+ ],
+ "unclaimed_dump2a": [
+  {
+   "tall": 160,
+   "y": 362
+  }
+ ],
+ "unclaimed_dump2b": [
+  {
+   "tall": 160,
+   "y": 362
+  }
+ ],
+ "unclaimed_foodcounter14u": [
+  {
+   "tall": 160,
+   "y": 312
+  }
+ ],
+ "unclaimed_gutted14u": [
+  {
+   "tall": 160,
+   "y": 331
+  }
+ ],
+ "unclaimed_habs15u": [
+  {
+   "tall": 160,
+   "y": 350
+  }
+ ],
+ "unclaimed_habtrash14u": [
+  {
+   "tall": 160,
+   "y": 331
+  }
+ ],
+ "unclaimed_market15u": [
+  {
+   "tall": 160,
+   "y": 321
+  }
+ ],
+ "unclaimed_pawn15u": [
+  {
+   "tall": 160,
+   "y": 328
+  }
+ ],
+ "unclaimed_pumps2a": [
+  {
+   "tall": 160,
+   "y": 358
+  }
+ ],
+ "unclaimed_pumps2b": [
+  {
+   "tall": 160,
+   "y": 311
+  }
+ ],
+ "unclaimed_shanty": [
+  {
+   "tall": 160,
+   "y": 343
+  }
+ ],
+ "unclaimed_squat": [
+  {
+   "tall": 160,
+   "y": 339
+  }
+ ],
+ "unclaimed_strip2a": [
+  {
+   "tall": 160,
+   "y": 313
+  }
+ ],
+ "unclaimed_strip2b": [
+  {
+   "tall": 160,
+   "y": 320
+  }
+ ],
+ "unclaimed_trashdoors15u": [
+  {
+   "tall": 160,
+   "y": 336
   }
  ],
  "vending": [

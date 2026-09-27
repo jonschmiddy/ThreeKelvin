@@ -92,6 +92,11 @@ def main():
     if "--out" in sys.argv:
         out_path = sys.argv[sys.argv.index("--out") + 1]
     dk = decks()
+    # WHERE THE ROOM'S FLOOR LANDS ON EACH PICTURE, from the height Jon set on
+    # the heights page: a picture dropped D pixels has the room's floor line
+    # D pixels up from its bottom edge. Below that the room's own floor covers it.
+    dpath = os.path.join(STATION, "backdrop_drops.json")
+    drops = json.load(io.open(dpath, encoding="utf-8")) if os.path.exists(dpath) else {}
     wp = os.path.join(STATION, "backdrop_walk.json")
     drawn = json.load(io.open(wp, encoding="utf-8")) if os.path.exists(wp) else {}
     backdrops, seed = [], {}
@@ -105,7 +110,7 @@ def main():
         ASSETS["art/" + f] = os.path.abspath(path)
         size = png_size(path)
         backdrops.append({"id": bid, "src": "art/" + f, "size": size,
-                          "deck": dk.get(bid, 0)})
+                          "deck": dk.get(bid, 0), "drop": drops.get(bid, 0)})
         # THE LINES ALREADY DRAWN WIN OVER THE GUESS. `backdrop_walk.json` is
         # the work, kept in the repo; the deck is only what to open on for a
         # picture nobody has touched. Seeding from the guess when the real

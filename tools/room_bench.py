@@ -51,9 +51,37 @@ if "--stage" not in sys.argv and os.path.isdir(DEFAULT_STAGE):
 CUT_BACKDROPS = ["concourse", "galley", "scrap", "tanks",
                  # the 2026-09-23 distance trial, cut on the bench 09-25
                  "wide_steel", "wide_market", "wide_atrium",
-                 "far_market", "far_hab", "far_concourse"]
+                 "far_market", "far_hab", "far_concourse",
+                 # RETIRED 2026-09-25 for the per-level set (backdrop_<level>_<name>):
+                 # the files stay in the repo, nothing offers them.
+                 "arches", "archive", "arrivals", "atrium", "bazaar",
+                 "capsule", "cargo", "farm", "food", "freightlift", "fuel",
+                 "garden", "hab", "halfbuilt", "lifts", "lockers",
+                 "nightatrium", "nightwatch", "parcel", "ports", "rigging",
+                 "servers", "sorting", "vending", "vitrine",
+                 # 2026-09-25, late: cut once walkers were drawn on it
+                 "settlement_garden2a", "settlement_market10a",
+                 # RETIRED 2026-09-25 (evening): seen from too far off for the
+                 # doubled walkers -- their doors came out a third of a person tall.
+                 "capital_boutiques2a", "capital_embassy6a",
+                 "capital_observation2b", "capital_skygarden2b",
+                 "city_arrivals2a", "city_arrivals2b", "city_concourse2b",
+                 "city_lifttubes2a", "city_nightmarket2b", "city_transit2a",
+                 "city_transit2b", "city_vitrine2a", "outpost_cargo2a",
+                 "outpost_cargo2b", "outpost_lifts2a", "outpost_lifts2b",
+                 "outpost_mess", "outpost_supply2a", "outpost_supply2b",
+                 "settlement_food", "settlement_garden2b", "settlement_hab2a",
+                 "settlement_market2a", "settlement_teahouse2b",
+                 "settlement_workshop2b", "unclaimed_dump2a",
+                 "unclaimed_dump2b", "unclaimed_pumps2a", "unclaimed_pumps2b",
+                 "unclaimed_shanty", "unclaimed_squat", "unclaimed_strip2a",
+                 "unclaimed_strip2b"]
 CUT_ROOMS = ["hex_a", "hex_b", "lab_a", "lab_b", "pipes_a", "quilt_a",
-             "ribbed_a", "ribbed_b", "rust_a", "rust_b", "slab"]
+             "ribbed_a", "ribbed_b", "rust_a", "rust_b", "slab",
+             # RETIRED 2026-09-25 for the per-level plates (plate_<level>_<name>)
+             "brick", "crate", "foil", "ice", "mesh", "pipes_b", "quilt_b",
+             "reactor", "scaffold_a", "scaffold_b", "tarp", "wood_a",
+             "wood_b"]
 CUT_OPENINGS = ["angled", "breach", "canopy", "cracked", "double", "grid",
                 "rail", "roundbig"]
 
@@ -435,6 +463,94 @@ ROOM_GD = os.path.abspath(os.path.join(HERE, "..", "tkg", "scripts", "ui",
                                        "StationRoom.gd"))
 
 
+def _reflective():
+    """The backdrops whose floor gives walkers back: `StationRoom.REFLECTIVE`.
+
+    Read out of the game like WALK_PACE, so the bench never shows a reflection
+    the room will not draw, or misses one it will.
+    """
+    src = io.open(ROOM_GD, encoding="utf-8").read()
+    m = re.search(r"const REFLECTIVE: Array\[StringName\] = \[(.*?)\]", src, re.S)
+    return re.findall(r'&"(\w+)"', m.group(1)) if m else []
+
+
+DEV = ["unclaimed", "outpost", "settlement", "city", "capital"]
+
+
+def _check_levels(data):
+    """THE PER-LEVEL SET, held to what it was cut for.
+
+    Every room is one picture cropped so its wall meets its floor on row 353 of
+    a 740x431 plate -- that is what lets any backdrop stand behind any room
+    without the walkers floating or sinking -- and `plates.json` records the
+    corner each was seated from. A plate that is not in the record, or not that
+    size, fails the build. So does a level short of 3 rooms or 5 backdrops, and
+    any drift between VIEWS here and the game's per-level pools.
+
+    Only on the default stage: `--stage DIR` is for judging candidates, which
+    are not in the record yet.
+    """
+    stage = sys.argv[sys.argv.index("--stage") + 1] if "--stage" in sys.argv else ""
+    if os.path.abspath(stage) != os.path.abspath(DEFAULT_STAGE):
+        print("  levels: skipped -- not the default stage")
+        return
+    bad = []
+    pj = os.path.join(DEFAULT_STAGE, "plates.json")
+    plates = json.load(io.open(pj, encoding="utf-8")) if os.path.exists(pj) else {}
+    walls = dict((w["id"], w) for w in data["walls"])
+    for wid, w in sorted(walls.items()):
+        e = plates.get(wid)
+        if e is None:
+            bad.append("room %s is not in plates.json" % wid)
+            continue
+        if e.get("floor_row") != 353:
+            bad.append("room %s has its floor on %s, not 353" % (wid, e.get("floor_row")))
+        if tuple(w["size"]) != (740, 431):
+            bad.append("room %s is %dx%d, not 740x431" % ((wid,) + tuple(w["size"])))
+        if e.get("level") != wid.split("_")[0]:
+            bad.append("room %s is recorded for %s" % (wid, e.get("level")))
+    for wid in plates:
+        if wid not in walls:
+            bad.append("plates.json names %s, which the bench does not offer" % wid)
+    bds = dict((b["id"], b) for b in data["backdrops"])
+    for v in VIEWS:
+        if v not in bds:
+            bad.append("backdrop %s is in VIEWS but not installed" % v)
+        elif not bds[v].get("deck"):
+            bad.append("backdrop %s has no deck height" % v)
+        elif v not in _drops():
+            bad.append("backdrop %s has no height in backdrop_drops.json" % v)
+    for b in bds:
+        if b not in VIEWS:
+            bad.append("backdrop %s is offered but not in VIEWS" % b)
+    for lv in DEV:
+        nr = sum(1 for w in walls if w.split("_")[0] == lv)
+        nb = sum(1 for v in VIEWS if v.split("_")[0] == lv)
+        if nr < 3:
+            bad.append("%s has %d rooms, needs 3" % (lv, nr))
+        if nb < 5:
+            bad.append("%s has %d backdrops, needs 5" % (lv, nb))
+    # THE GAME'S POOLS: every id under the level it is named for, and the same
+    # set as VIEWS.
+    src = io.open(ROOM_GD, encoding="utf-8").read()
+    game = set()
+    for lv, body in re.findall(r"MapGen\.Development\.(\w+): \[(.*?)\]", src, re.S):
+        for n in re.findall(r'&"(\w+)"', body):
+            game.add(n)
+            if n.split("_")[0] != lv.lower():
+                bad.append("StationRoom pools %s under %s" % (n, lv))
+    if game != set(VIEWS):
+        bad.append("StationRoom.BACKDROPS and VIEWS differ: %s"
+                   % ", ".join(sorted(game ^ set(VIEWS))))
+    for r in data.get("reflect", []):
+        if r not in VIEWS:
+            bad.append("REFLECTIVE names %s, which is not a backdrop" % r)
+    if bad:
+        raise SystemExit("room_bench: the per-level set is off --\n  " + "\n  ".join(bad))
+    print("  levels: %d rooms, %d backdrops, every floor on 353"
+          % (len(walls), len(VIEWS)))
+
+
 def _pace():
     """The room's own WALK_PACE, read out of the game rather than restated.
 
@@ -489,6 +605,8 @@ def _check_walk(walk, backdrops):
     size = dict((b["id"], b["size"]) for b in backdrops)
     bad = []
     for bid, lines in sorted(walk.items()):
+        if bid in CUT_BACKDROPS:
+            continue   # retired: its lines stay on file in case it comes back
         if bid not in size:
             bad.append("%s has lines but is not a backdrop here" % bid)
             continue
@@ -512,6 +630,36 @@ def _check_walk(walk, backdrops):
 
 
 DECKS_JSON = os.path.join(STATION, "backdrop_decks.json")
+
+
+LAYOUTS_JSON = os.path.join(HERE, "room_stage", "layouts_levels.json")
+# THE GENERATION BEFORE THIS ONE, so a bench that holds it can tell which of its
+# rooms Jon has edited since (see `load()` in the page). Needed only for a bench
+# seeded before the page recorded what it was given (levels-5); after that the
+# page keeps its own record.
+PREV_LAYOUTS_JSON = os.path.join(HERE, "room_stage", "layouts_levels_prev.json")
+
+
+def _level_layouts():
+    """The fifteen per-level layouts `room_compose.py` wrote, or none."""
+    if not os.path.exists(LAYOUTS_JSON):
+        return []
+    return json.load(io.open(LAYOUTS_JSON, encoding="utf-8"))
+
+
+DROPS_JSON = os.path.join(STATION, "backdrop_drops.json")
+
+
+def _drops():
+    """How far down each backdrop sits so its floor meets the room's.
+
+    Set by eye on the heights page, one number per picture, and read by the
+    game from the same file -- so the bench places a backdrop exactly where
+    the room will.
+    """
+    if not os.path.exists(DROPS_JSON):
+        return {}
+    return json.load(io.open(DROPS_JSON, encoding="utf-8"))
 
 
 def _decks():
@@ -561,16 +709,28 @@ RACK_W = png_size("shop_shelf2.png")[0]
 # gap the frame encloses now, which took grid from 9348 to 42176 pixels of
 # view. `strip` stays out and is dropped at build time -- nothing in it is
 # enclosed at all, so it can only ever be a frame with wall behind it.
-ROOMS = ["brick", "crate", "foil", "ice", "pipes_b", "reactor",
-         "scaffold_a", "scaffold_b", "wood_a", "wood_b"]
-# The far-distance set that replaced the first twenty-six, all 800x400 so the
-# picture reaches past the top and sides of the wall. Keep this in step with
-# `StationRoom.BACKDROPS`; the bench draws from the same installed files.
-VIEWS = ["arches", "archive", "arrivals", "atrium", "bazaar", "capsule",
-         "cargo", "concourse", "farm", "food", "freightlift", "fuel", "galley",
-         "garden", "hab", "halfbuilt", "lifts", "lockers", "nightatrium",
-         "nightwatch", "parcel", "ports", "rigging", "scrap", "servers",
-         "sorting", "tanks", "vending", "vitrine"]
+ROOMS = [
+    "unclaimed_scrap", "unclaimed_closet2b", "unclaimed_plywood5a",
+    "outpost_prefab", "outpost_corrugated", "outpost_modular7a",
+    "settlement_quilt", "settlement_timber", "settlement_render2b",
+    "city_chevron", "city_ribbed", "city_panels2a", "capital_alloy",
+    "capital_stone", "capital_fluted2a"
+]
+# THE PER-LEVEL SET (Jon, 2026-09-25): every backdrop named for the development
+# level it belongs to, `<level>_<name>`. Keep this in step with
+# `StationRoom.BACKDROPS`, which pools them by level; the bench draws from the
+# same installed files.
+VIEWS = [
+    "unclaimed_foodcounter14u", "unclaimed_gutted14u", "unclaimed_habs15u",
+    "unclaimed_habtrash14u", "unclaimed_market15u", "unclaimed_pawn15u",
+    "unclaimed_trashdoors15u", "outpost_canteen11a", "outpost_galley8a",
+    "outpost_hydro", "outpost_junk8a", "outpost_shack11a", "outpost_vending",
+    "settlement_bathhouse16u", "settlement_cobbler16u", "settlement_homes9a",
+    "settlement_noodle10a", "settlement_pharmacy10a", "settlement_supply11a",
+    "city_bar11a", "city_electronics11a", "city_gates8a", "city_hotel11a",
+    "city_nightmarket11a", "capital_bank6a", "capital_boutique9b",
+    "capital_embassy8a", "capital_plaza2b", "capital_skygarden2a"
+]
 # name -> size at wall scale, so a layout can be composed by arithmetic rather
 # than by eye.
 HOLES_JSON = os.path.join(STATION, "opening_holes.json")
@@ -727,6 +887,7 @@ def main():
     if "--out" in sys.argv:
         out_path = sys.argv[sys.argv.index("--out") + 1]
     DECKS = _decks()
+    DROPS = _drops()
     backdrops = []
     for f in sorted(os.listdir(STATION)):
         if f.startswith("backdrop_") and f.endswith(".png"):
@@ -736,6 +897,7 @@ def main():
             # 284 to 352 down against the 353 above the floor.
             backdrops.append({"id": f[9:-4], "src": b64(f), "scale": 1,
                               "size": png_size(f), "deck": DECKS.get(f[9:-4], 0),
+                              "drop": DROPS.get(f[9:-4], 0),
                               "label": f[9:-4] + " (wall-size)"})
     # The single views (`view_*`) are not offered: tried behind the whole wall,
     # every one read as too close, and only the wall-size promenade was kept.
@@ -770,6 +932,13 @@ def main():
                 head = f.read(24)
             return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
 
+        # A RACK STYLE MAY STAND ITS STOCK ON BOARDS OF ITS OWN (2026-09-26):
+        # three level racks were recut to leave their tags room under the
+        # lower board, which moved it (tools/furniture_seat.py, ROOM FOR THE
+        # TAGS). The rows are written beside the art.
+        rack_boards = {}
+        if os.path.exists(os.path.join(stage, "rack_boards.json")):
+            rack_boards = json.load(io.open(os.path.join(stage, "rack_boards.json"), encoding="utf-8"))
         for f in sorted(os.listdir(stage)):
             path = os.path.join(stage, f)
             if f.startswith("bd_") and f.endswith(".png"):
@@ -783,6 +952,8 @@ def main():
                 # STYLES: the same rack, till or door in another look, aligned to
                 # the same boards, screen and opening as the standard one.
                 skins["shelf"].setdefault(f[6:-4], {})[f[4]] = {"src": sb64(path), "size": ssize(path)}
+                if f[4] == "2" and f[6:-4] in rack_boards:
+                    skins["shelf"][f[6:-4]]["2"]["boards"] = rack_boards[f[6:-4]]
             elif f.startswith("till_") and f.endswith(".png"):
                 skins["till"][f[5:-4]] = {"src": sb64(path), "size": ssize(path)}
             elif f.startswith("door_") and f.endswith(".png"):
@@ -872,10 +1043,31 @@ def main():
         # lights a warm promenade and a cold lab.
         "lampskins": lampskins,
         "pace": _pace(),
+        "reflect": _reflective(),
         "walk": _walk(),
         "walkers": _walkers(),
         "backdrops": backdrops,
-        "seed": seed_layouts(backdrops[0]["id"] if backdrops else "current"),
+        "seed": _level_layouts() or seed_layouts(backdrops[0]["id"] if backdrops else "current"),
+        # THE PER-LEVEL FIT-OUTS (tools/layout_gen.py): one per room, added to a
+        # saved bench once -- see `load()` in the page -- rather than replacing
+        # whatever tabs are already there.
+        "gen": _level_layouts(),
+        # 2: no hex opening; 3: doors 190 tall; 4: one way in, one window at most;
+        # 5: packed like Jon's closet, level racks, counters and decor (room_compose.py)
+        # 6: head-on racks, bigger props, one fixture per room; edited rooms kept
+        # 7: counters redrawn at the standard size, no longer scaled
+        # 8: laid out the way Jon laid out his three unclaimed rooms (his are
+        #    taken verbatim); only the openings he likes
+        # 9: his outposts taken verbatim too, and what they showed carried to
+        #    the rest -- dither off, tall things back to the wall
+        # 10: the settlement hutch squared and 18px taller; its racks lifted
+        # 11: the hutch redrawn as the quilted rack; racks keep their feet
+        # 12: his settlements verbatim; city and capital carry what they showed
+        # 13: his city verbatim; capital cases up 10px
+        # 14: all fifteen his, his capital last
+        "gen_v": "levels-14",
+        "gen_prev": (json.load(io.open(PREV_LAYOUTS_JSON, encoding="utf-8"))
+                     if os.path.exists(PREV_LAYOUTS_JSON) else []),
     }
     html = io.open(TEMPLATE, encoding="utf-8").read()
     _apply_cuts(data)
@@ -888,6 +1080,7 @@ def main():
     _check_glow_keys(html, data)
     _check_flicker(html)
     _check_stage_shadows()
+    _check_levels(data)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     io.open(out_path, "w", encoding="utf-8", newline="\n").write(html)
     print("room bench  %s  %d KB  %d backdrops, %d seed layouts"
