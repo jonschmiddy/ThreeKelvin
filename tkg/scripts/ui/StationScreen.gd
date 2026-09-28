@@ -16,6 +16,8 @@ var _header: RichTextLabel
 ## `_refresh_undock` -- and the rail that builds it is built once.
 var _undock: Button
 var _bench: VBoxContainer
+## The recipes' holder on the lab's screen, which the power-on's scan opens.
+var _bench_clip: Control
 ## The Exchange: your hold, and the two places you can carry things to.
 var _hold_grid: HoldGrid
 var _sell_desk: TradeCounter
@@ -1114,12 +1116,14 @@ func _on_counter(item: HoldItem) -> void:
 
 
 func _page_bench() -> Control:
-	# --- A LAB, WITH THE FABRICATOR STANDING IN IT.
+	# --- ONE OF JON'S FIVE LABS, WITH THE RECIPES ON ITS SCREEN.
 	#
-	# The machine used to be the whole deck, so one recipe sat in a casing four
-	# hundred pixels deep. `LabScene` draws the room -- the tanks, the pipework,
-	# the floor -- and the machine stands in the middle of it on its own feet. The
-	# recipe rows and the bays behind them are unchanged.
+	# The deck was a room drawn in code with the fabricator standing in it as a
+	# fume hood, the recipes behind its glass. It is a painted lab per development
+	# level now (`LabScene`), and the recipes stand where the prototype drew them:
+	# on the lab's own big screen, in `LabScene.win_rect`. Three layers: the lab,
+	# lit and running; the rows, in a holder the power-on's scan opens; and what
+	# the big screen does, over the rows.
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1127,37 +1131,20 @@ func _page_bench() -> Control:
 	_lab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_lab)
 
-	# Where the machine stands. The case and its recipe list are both inside it,
-	# so `FabricatorCase.watch` measures bays between siblings as it always did.
-	var machine := Control.new()
-	machine.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	machine.anchor_left = LabScene.MACHINE_L
-	machine.anchor_right = LabScene.MACHINE_R
-	# ANCHORED TO THE FLOOR at a fixed height -- see `LabScene.MACHINE_H` for
-	# why the machine no longer runs to the ceiling.
-	machine.anchor_top = 1.0
-	machine.anchor_bottom = 1.0
-	machine.offset_left = 0.0
-	machine.offset_right = 0.0
-	machine.offset_top = -(LabScene.MACHINE_H + LabScene.MACHINE_FOOT)
-	machine.offset_bottom = -LabScene.MACHINE_FOOT
-	stack.add_child(machine)
-	stack.add_child(_lab.foreground())
-
-	var rig := FabricatorCase.new()
-	rig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	machine.add_child(rig)
-
+	# THE ROWS' HOLDER CLIPS, so the scan can bring them up a line at a time. It
+	# is placed at the screen once the station's level is known (`_refresh_bench`).
+	_bench_clip = Control.new()
+	_bench_clip.clip_contents = true
+	_bench_clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(_bench_clip)
 	_bench = VBoxContainer.new()
-	_bench.add_theme_constant_override("separation", 11)
-	_bench.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# BEHIND THE GLASS: clear of the hood's header above and its bench below.
-	_bench.offset_left = FabricatorCase.CASE_W + 7.0
-	_bench.offset_right = -(FabricatorCase.CASE_W + 7.0)
-	_bench.offset_top = FabricatorCase.HOOD_H + 9.0
-	_bench.offset_bottom = -(FabricatorCase.BASE_H + 9.0)
-	machine.add_child(_bench)
-	rig.watch(_bench)
+	_bench.add_theme_constant_override("separation", 4)
+	_bench_clip.add_child(_bench)
+	_lab.rows_clip = _bench_clip
+
+	var glass := _lab.fx_layer()
+	glass.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(glass)
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
@@ -1242,6 +1229,10 @@ func _show_tab(id: StringName) -> void:
 	for key in _pages:
 		(_pages[key] as Control).visible = key == id
 	_light_floor()
+	# THE LAB POWERS ON the first time you step onto its deck here: the lamps
+	# strike, the room fades up and the screen scans the recipes on.
+	if id == &"bench" and _lab != null:
+		_lab.power_on()
 	for key in _tabs:
 		var b: Button = _tabs[key]
 		var on: bool = key == id
@@ -2339,6 +2330,15 @@ func _refresh_hold(n: MapGen.MapNode) -> void:
 
 func _refresh_bench(n: MapGen.MapNode) -> void:
 	_dress_room(_lab, n)
+	_lab.load_level()
+	# ON THE LAB'S SCREEN. The holder is the screen's window; the rows keep its
+	# full height whatever the scan has opened, so they do not re-flow as it goes.
+	var win := _lab.win_rect()
+	_bench_clip.position = win.position
+	_bench_clip.size = win.size
+	_bench.position = Vector2.ZERO
+	_bench.custom_minimum_size = Vector2(win.size.x, 0.0)
+	_bench.size = Vector2(win.size.x, win.size.y)
 	Widgets.clear(_bench)
 	var recipes := Fabricator.available(n)
 	# The TAB goes, not the page. A page that hides itself leaves a lit tab
@@ -2355,22 +2355,23 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 		var row := VBoxContainer.new()
 		row.add_theme_constant_override("separation", 2)
 
+		# TWO LINES, NAME AND MAKE THEN THE COST: the settlement's screen is two
+		# hundred pixels wide, and one line of all three did not fit it.
 		var head := HBoxContainer.new()
 		head.add_theme_constant_override("separation", 8)
-		head.add_child(UITheme.body(str(r.name).to_upper(),
-			UITheme.ICE if can else UITheme.COLD, UITheme.FS_BODY))
-		var sp := Control.new()
-		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		head.add_child(sp)
-		# THE COST IN AMBER WHEN YOU CAN PAY IT, grey when you cannot -- the same
-		# read as a BUY button greying out, said in the one place the answer is.
-		head.add_child(UITheme.body(Fabricator.cost_line(n, r).to_upper(),
-			UITheme.EMBER if can else UITheme.QUOTE, UITheme.FS_SMALL))
+		var name_l := UITheme.body(str(r.name).to_upper(),
+			UITheme.ICE if can else UITheme.COLD, UITheme.FS_BODY)
+		name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.add_child(name_l)
 		var b := _commit_button("MAKE", _fabricate.bind(r))
 		b.disabled = not can
 		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		head.add_child(b)
 		row.add_child(head)
+		# THE COST IN AMBER WHEN YOU CAN PAY IT, grey when you cannot -- the same
+		# read as a BUY button greying out, said in the one place the answer is.
+		row.add_child(UITheme.body(Fabricator.cost_line(n, r).to_upper(),
+			UITheme.EMBER if can else UITheme.QUOTE, UITheme.FS_SMALL))
 
 		var what := UITheme.body(str(r.text), UITheme.COLD, UITheme.FS_SMALL)
 		what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

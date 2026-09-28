@@ -426,6 +426,24 @@ else
 	ok "python absent, skipped"
 fi
 
+step "The laboratories are the ones Jon passed"
+# THE LABS ARE BAKED TOO. `tools/lab_install.py` turns the five pictures on the
+# lab stage and their settings (`tools/room_stage/lab/`) into the pictures,
+# light pools and emitter maps `LabScene` draws, and the old labs would keep
+# drawing if the stage moved on without it. `--check` compares the stage -- and
+# the installer itself -- with what the install recorded, and confirms every
+# file is there. It needs no numpy; installing does.
+if [ -n "$RIPY" ]; then
+	if "$RIPY" tools/lab_install.py --check >"$LOG_DIR/labs.log" 2>&1; then
+		ok "$(tail -n 1 "$LOG_DIR/labs.log")"
+	else
+		bad "the game's laboratories are not the lab stage's"
+		sed 's/^/        /' "$LOG_DIR/labs.log" | head -n 6
+	fi
+else
+	ok "python absent, skipped"
+fi
+
 step "A part can be moved between the hold and the hull"
 # THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
 # here, so it went eight failures deep without anybody hearing -- six of them a

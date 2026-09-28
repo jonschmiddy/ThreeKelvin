@@ -1,0 +1,645 @@
+{
+ "_about": "Written by tools/lab_install.py from tools/room_stage/lab -- do not edit; edit the stage and re-install.",
+ "sources": {
+  "final/capital.png": "8726039860f9b4243ac4cff2763cb6603b058002efdd781c5bea53cb8d1cb646",
+  "final/city.png": "403049f922ab93afe09a7b6e1328927e3346ed8d60823581600976960089f54f",
+  "final/outpost.png": "0a020893916ebbd1324a10a2686a4ebf960e3b1e42fdf081644d6c933e86d77a",
+  "final/settlement.png": "c45936c48d4ab2a2dba7c9ea11f2d028cb67250bbedc90cb60ef130c8947d925",
+  "final/unclaimed.png": "61622e7da9f62993ad1f638132168c75d54b426c6c86d4eaeb021f615fa3134c",
+  "lab_install.py": "3ea69409453695ed07bf100a38326d56a0a2cbabbf713c65367b0c6caeac2487",
+  "labs.json": "3aaece901f4b50620fe0fc752126f4f85cad95c8c07b966b18b229c2686e3d1a"
+ },
+ "mask": {
+  "tank": 1,
+  "flask": 2,
+  "monitor": 4,
+  "glass": 8
+ },
+ "labs": {
+  "unclaimed": {
+   "picture": "lab_unclaimed.png",
+   "light": "lab_unclaimed_light.lmap",
+   "own": "lab_unclaimed_own.lmap",
+   "bands": 1,
+   "scale": 2.0,
+   "amb": 0.18,
+   "ambc": [
+    1,
+    0.8,
+    0.6
+   ],
+   "lights": [
+    {
+     "id": "bulb",
+     "c": [
+      1,
+      0.74,
+      0.46
+     ],
+     "p": 1.3
+    },
+    {
+     "id": "screen",
+     "c": [
+      0.55,
+      0.8,
+      0.7
+     ],
+     "p": 0.12
+    }
+   ],
+   "owners": [
+    "bulb"
+   ],
+   "win": [
+    172,
+    112,
+    412,
+    150
+   ],
+   "boot": {
+    "reveal": [
+     2.2,
+     2.8
+    ],
+    "room": [
+     0.9,
+     1.7
+    ]
+   },
+   "screen": {
+    "glass": [
+     158,
+     100,
+     595,
+     273
+    ],
+    "tint": [
+     170,
+     210,
+     150
+    ],
+    "fx": "failing",
+    "every": 4.5,
+    "dur": 0.3,
+    "bands": 3,
+    "shift": 6,
+    "tall": 5,
+    "snow": 2,
+    "jolt": true,
+    "tear": true,
+    "bulbSeed": 1.3,
+    "sag": 0.55,
+    "flash": 0.6,
+    "joltPx": 2,
+    "sagEvery": 10
+   }
+  },
+  "outpost": {
+   "picture": "lab_outpost.png",
+   "light": "lab_outpost_light.lmap",
+   "own": "lab_outpost_own.lmap",
+   "bands": 2,
+   "scale": 2.0,
+   "amb": 0.16,
+   "ambc": [
+    0.7,
+    0.8,
+    1
+   ],
+   "lights": [
+    {
+     "id": "lampL",
+     "c": [
+      0.82,
+      0.9,
+      1
+     ],
+     "p": 1
+    },
+    {
+     "id": "lampR",
+     "c": [
+      0.82,
+      0.9,
+      1
+     ],
+     "p": 1
+    },
+    {
+     "id": "status",
+     "c": [
+      1,
+      0.7,
+      0.35
+     ],
+     "p": 0.8
+    },
+    {
+     "id": "screen",
+     "c": [
+      0.6,
+      0.75,
+      1
+     ],
+     "p": 0.14
+    }
+   ],
+   "owners": [
+    "status"
+   ],
+   "win": [
+    250,
+    128,
+    262,
+    154
+   ],
+   "boot": {
+    "reveal": [
+     2.3,
+     2.9
+    ],
+    "room": [
+     1.2,
+     1.9
+    ]
+   },
+   "screen": {
+    "glass": [
+     240,
+     118,
+     515,
+     293
+    ],
+    "tint": [
+     150,
+     200,
+     255
+    ],
+    "fx": "signal",
+    "every": 2.6
+   }
+  },
+  "settlement": {
+   "picture": "lab_settlement.png",
+   "light": "lab_settlement_light.lmap",
+   "own": "lab_settlement_own.lmap",
+   "bands": 2,
+   "scale": 2.0,
+   "amb": 0.15,
+   "ambc": [
+    1,
+    0.82,
+    0.62
+   ],
+   "lights": [
+    {
+     "id": "l1",
+     "c": [
+      1,
+      0.74,
+      0.46
+     ],
+     "p": 1.05
+    },
+    {
+     "id": "l2",
+     "c": [
+      1,
+      0.74,
+      0.46
+     ],
+     "p": 1.05
+    },
+    {
+     "id": "l3",
+     "c": [
+      1,
+      0.74,
+      0.46
+     ],
+     "p": 1.05
+    }
+   ],
+   "owners": [
+    "l1",
+    "l2",
+    "l3"
+   ],
+   "win": [
+    266,
+    136,
+    218,
+    118
+   ],
+   "boot": {
+    "reveal": [
+     2.3,
+     2.9
+    ],
+    "room": [
+     1.3,
+     2
+    ]
+   },
+   "screen": {
+    "glass": [
+     258,
+     134,
+     487,
+     257
+    ],
+    "tint": [
+     255,
+     200,
+     140
+    ],
+    "fx": "signal",
+    "every": 14
+   }
+  },
+  "city": {
+   "picture": "lab_city.png",
+   "light": "lab_city_light.lmap",
+   "own": "lab_city_own.lmap",
+   "bands": 4,
+   "scale": 2.0,
+   "amb": 0.24,
+   "ambc": [
+    0.62,
+    0.72,
+    1
+   ],
+   "lights": [
+    {
+     "id": "strip",
+     "c": [
+      0.45,
+      1,
+      1
+     ],
+     "p": 1.05
+    },
+    {
+     "id": "floor",
+     "c": [
+      0.45,
+      1,
+      1
+     ],
+     "p": 0.28
+    },
+    {
+     "id": "tubeL",
+     "c": [
+      0.82,
+      0.9,
+      1
+     ],
+     "p": 0.9
+    },
+    {
+     "id": "tubeR",
+     "c": [
+      0.82,
+      0.9,
+      1
+     ],
+     "p": 0.9
+    },
+    {
+     "id": "monL",
+     "c": [
+      0.45,
+      1,
+      1
+     ],
+     "p": 0.5
+    },
+    {
+     "id": "monR",
+     "c": [
+      0.45,
+      1,
+      1
+     ],
+     "p": 0.55
+    },
+    {
+     "id": "meter",
+     "c": [
+      0.45,
+      1,
+      1
+     ],
+     "p": 0.45
+    }
+   ],
+   "owners": [
+    "monL",
+    "monR",
+    "meter",
+    "dev",
+    "hood"
+   ],
+   "win": [
+    236,
+    144,
+    268,
+    142
+   ],
+   "boot": {
+    "reveal": [
+     2.3,
+     2.9
+    ],
+    "room": [
+     1.5,
+     2.3
+    ]
+   },
+   "screen": {
+    "glass": [
+     236,
+     144,
+     503,
+     285
+    ],
+    "tint": [
+     90,
+     230,
+     240
+    ],
+    "fx": "sweep"
+   },
+   "anim": {
+    "owner": "monR",
+    "scr": [
+     321,
+     139,
+     19,
+     13
+    ],
+    "screen": [
+     149,
+     246,
+     250
+    ],
+    "mode": "helix"
+   }
+  },
+  "capital": {
+   "picture": "lab_capital.png",
+   "light": "lab_capital_light.lmap",
+   "own": "lab_capital_own.lmap",
+   "bands": 3,
+   "scale": 2.0,
+   "amb": 0.2,
+   "ambc": [
+    0.7,
+    0.78,
+    1
+   ],
+   "lights": [
+    {
+     "id": "bar",
+     "c": [
+      0.97,
+      0.97,
+      1
+     ],
+     "p": 1.3
+    },
+    {
+     "id": "halo",
+     "c": [
+      1,
+      0.9,
+      0.7
+     ],
+     "p": 0.6
+    },
+    {
+     "id": "tankL",
+     "c": [
+      0.35,
+      1,
+      0.85
+     ],
+     "p": 0.8
+    },
+    {
+     "id": "tankR",
+     "c": [
+      0.35,
+      1,
+      0.85
+     ],
+     "p": 0.8
+    },
+    {
+     "id": "screen",
+     "c": [
+      0.6,
+      0.8,
+      0.9
+     ],
+     "p": 0.3
+    },
+    {
+     "id": "monK",
+     "c": [
+      0.5,
+      1,
+      0.85
+     ],
+     "p": 0.25
+    }
+   ],
+   "owners": [
+    "bar",
+    "tankL",
+    "tankR",
+    "glass"
+   ],
+   "win": [
+    164,
+    74,
+    410,
+    184
+   ],
+   "boot": {
+    "reveal": [
+     2.3,
+     2.9
+    ],
+    "room": [
+     1.2,
+     2
+    ]
+   },
+   "screen": {
+    "glass": [
+     150,
+     62,
+     589,
+     289
+    ],
+    "tint": [
+     190,
+     240,
+     235
+    ],
+    "gold": [
+     250,
+     215,
+     140
+    ],
+    "fx": "rim",
+    "every": 7,
+    "run": 3.2,
+    "tail": 14,
+    "glassCols": [
+     [
+      13,
+      20,
+      28
+     ]
+    ]
+   },
+   "anim": {
+    "owner": "monK",
+    "scr": [
+     194,
+     154,
+     18,
+     10
+    ],
+    "screen": [
+     33,
+     31,
+     33
+    ],
+    "mode": "readout",
+    "dark": true
+   },
+   "bubbles": {
+    "owners": [
+     "tankL",
+     "tankL",
+     "tankR",
+     "tankR"
+    ],
+    "liquid": [
+     [
+      19,
+      121,
+      116
+     ],
+     [
+      22,
+      106,
+      109
+     ],
+     [
+      22,
+      91,
+      104
+     ]
+    ],
+    "tanks": [
+     [
+      9,
+      24,
+      93,
+      156
+     ],
+     [
+      45,
+      58,
+      93,
+      156
+     ],
+     [
+      341,
+      355,
+      93,
+      156
+     ],
+     [
+      376,
+      390,
+      93,
+      156
+     ]
+    ]
+   },
+   "fizz": [
+    {
+     "box": [
+      116,
+      128,
+      159,
+      165
+     ],
+     "liquid": [
+      [
+       32,
+       208,
+       148
+      ]
+     ],
+     "n": 3
+    },
+    {
+     "box": [
+      175,
+      187,
+      159,
+      165
+     ],
+     "liquid": [
+      [
+       23,
+       160,
+       151
+      ]
+     ],
+     "n": 3
+    },
+    {
+     "box": [
+      320,
+      326,
+      161,
+      165
+     ],
+     "liquid": [
+      [
+       23,
+       160,
+       151
+      ]
+     ],
+     "n": 1
+    },
+    {
+     "box": [
+      99,
+      107,
+      161,
+      165
+     ],
+     "liquid": [
+      [
+       43,
+       130,
+       178
+      ]
+     ],
+     "n": 1
+    }
+   ]
+  }
+ }
+}

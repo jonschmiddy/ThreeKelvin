@@ -70,6 +70,10 @@ func run(tree: SceneTree) -> void:
 			ShopScene.lit_marks = false
 		elif s3.begins_with("clock="):
 			ShopScene.pin_clock_ms = float(s3.substr(6))
+		elif s3.begins_with("labclock="):
+			# The Laboratory held this many seconds after it powered on: `6`
+			# is settled, under three is the power-on itself.
+			LabScene.pin_clock = float(s3.substr(9))
 		elif s3.begins_with("backdrop="):
 			StationRoom.forced_views[&"backdrop"] = StringName(s3.substr(9))
 
@@ -253,6 +257,12 @@ func run(tree: SceneTree) -> void:
 		if not known:
 			print("[station] no deck '%s' -- staying on the one it opened" % deck)
 			break
+		# A LAB BELOW A CITY HAS NO RECIPE YET (`Fabricator.available`), so its
+		# deck is closed -- and the lab is Jon's picture all the same. The shot
+		# opens it anyway, empty, so every level's lab can be looked at.
+		if deck == &"bench" and not scr0._tabs_on.get(&"bench", true):
+			scr0._enable_tab(&"bench", true)
+			print("  deck: bench has no recipe at this level -- opened for the shot")
 		scr0._show_tab(deck)
 		print("  deck: %s" % deck)
 		break
@@ -592,6 +602,13 @@ func run(tree: SceneTree) -> void:
 		if not (a6 as String).begins_with("roomshot="):
 			continue
 		var scr6 := Router.current as StationScreen
+		# THE LABORATORY is a picture, not a room: its 740x431 from its top-left.
+		if scr6 != null and scr6._lab != null and scr6._lab.is_visible_in_tree():
+			var lb := Rect2i(Vector2i(scr6._lab.get_global_rect().position), Vector2i(LabScene.PANEL))
+			var lframe := scr6._lab.get_viewport().get_texture().get_image()
+			lframe.get_region(lb).save_png((a6 as String).substr(9))
+			print("  roomshot %s: lab %s at %s" % [(a6 as String).substr(9), scr6._lab._level, lb])
+			break
 		# THE ROOM ON SCREEN: the Exchange's when that deck is up, else the shop's.
 		var room6: ShopScene = null
 		if scr6 != null:
