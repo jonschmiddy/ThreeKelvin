@@ -107,6 +107,7 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
   <button id="clear" title="remove everything from this layout">clear all</button>
   <span class="sp"></span>
   <button id="shelfk" title="the rack and its parts at 1x or 2x">shelf 1&times;</button>
+  <button id="holdsz" title="preview the hold of a heavy, medium or light hull" hidden>hold: heavy</button>
   <button id="zoom">zoom 2&times;</button>
   <button id="snap" class="on">snap 2px</button>
   <button id="align" class="on" title="snap to the edges and centres of other pieces">align</button>
@@ -224,7 +225,11 @@ textarea{width:100%;height:140px;font-family:var(--mono);font-size:11px;color:va
 <script>
 var D = __DATA__;
 var W = D.panel[0], H = D.panel[1], FLOOR = D.floor_y, T = 12;
-var KEY = "tk-room-bench-v1";
+// ONE BENCH PER DECK (2026-09-27): the shop's rooms and the Exchange's are
+// different rooms with different furniture, so each bench keeps its own saved
+// state and neither can overwrite the other's tabs.
+var KEY = D.key || "tk-room-bench-v1";
+var DECK = D.deck || "shop";
 var cv = document.getElementById("cv"), ctx = cv.getContext("2d");
 
 // ---------------------------------------------------------------- images
@@ -275,7 +280,8 @@ img("door", D.door.src); img("ports", D.ports.src);
 if(D.lamp) for(var lk in D.lamp) img("lamp_" + lk, D.lamp[lk].src);
 if(D.lampskins) for(var ls in D.lampskins) img("lampskin_" + ls, D.lampskins[ls].src);
 img("shelf2", D.shelves["2"].src); img("shelf3", D.shelves["3"].src); img("till", D.till.src);
-D.backdrops.forEach(function(b){ img("bd_" + b.id, b.src); });
+D.backdrops.forEach(function(b){ img("bd_" + b.id, b.src); if(b.body) img("bdbody_" + b.id, b.body); });
+if(D.hook) img("hook", D.hook.src);
 var BD = {}; D.backdrops.forEach(function(b){ BD[b.id] = b; });
 var WALLS = {}, FLOORS = {};
 (D.walls || []).forEach(function(w){ WALLS[w.id] = w; img("wall_" + w.id, w.src); });
@@ -288,9 +294,20 @@ if(!SKIN.opening) SKIN.opening = {};
 Object.keys(SKIN.shelf).forEach(function(id){ Object.keys(SKIN.shelf[id]).forEach(function(n){
   img("skin_shelf_" + id + "_" + n, SKIN.shelf[id][n].src); }); });
 Object.keys(SKIN.till).forEach(function(id){ img("skin_till_" + id, SKIN.till[id].src); });
+if(!SKIN.hold) SKIN.hold = {};
+Object.keys(SKIN.hold).forEach(function(id){ ["s", "m", "l"].forEach(function(z){
+  if(SKIN.hold[id][z]) img("skin_hold_" + id + "_" + z, SKIN.hold[id][z].src); }); });
 Object.keys(SKIN.door).forEach(function(id){ img("skin_door_" + id, SKIN.door[id].src); });
 Object.keys(SKIN.opening).forEach(function(id){ img("skin_opening_" + id, SKIN.opening[id].src); });
 function skinOf(o){ return o.skin && SKIN[o.type] && SKIN[o.type][o.skin] ? o.skin : null; }
+// FURNITURE IS WHAT A DECK DOES ITS BUSINESS AT: the shop's rack and counter,
+// the Exchange's hold and counter. It stands in a band like a prop and is drawn
+// as one unit, whatever kind it is.
+function isFurniture(o){ return o.type === "shelf" || o.type === "till" || o.type === "hold"; }
+// THE HOLD AT ONE OF ITS THREE SIZES. A hull's hold is 4x3, 5x4 or 6x5 cells,
+// and a room is laid out round the heavy one, the biggest frame there is; a
+// lighter hull's frame stands on the same spot, centred, feet on the same floor.
+function holdSize(){ return state.holdSize || "l"; }
 var PROP = {}; (D.props || []).forEach(function(p){ PROP[p.id] = p; img("prop_" + p.id, p.src); });
 
 // ---------------------------------------------------------------- state
@@ -391,6 +408,7 @@ function load(){ try{ var s = localStorage.getItem(KEY); if(s) state = JSON.pars
               || (o.type === "prop" && !PROP[o.id])
               || (o.type === "shelf" && o.skin && !SKIN.shelf[o.skin])
               || (o.type === "till" && o.skin && !SKIN.till[o.skin])
+              || (o.type === "hold" && (!o.skin || !SKIN.hold[o.skin]))
               || (o.type === "lamp" && o.skin && !D.lampskins[o.skin]);
       if(dead) lost[(o.skin || o.id || o.type)] = (lost[(o.skin || o.id || o.type)] || 0) + 1;
       return !dead;
@@ -553,6 +571,8 @@ function size(o){
   // A TILL STYLE TOO, from its own art (2026-09-26): the level counters are
   // not 180x128, and stretching one to the standard box is a non-integer
   // scale -- pixels of two different sizes on the same counter.
+  if(o.type === "hold"){ var hl = SKIN.hold[o.skin] && SKIN.hold[o.skin].l;
+    return hl ? [hl.size[0] * 2, hl.size[1] * 2] : [240, 200]; }
   if(o.type === "till"){ var kt = o.scale || 1, ts = skinOf(o) ? SKIN.till[o.skin].size : D.till.size;
     return [ts[0] * kt, ts[1] * kt]; }
   if(o.type === "lamp"){ var la = lampArt(o); return la && la.width ? [la.width, la.height]
@@ -568,7 +588,7 @@ function rectOf(o){
   var s = size(o);
   // Furniture and props stand on the floor until moved: no `y` means "on the
   // floor", so a layout saved before they could move still loads.
-  if(o.type === "shelf" || o.type === "till" || o.type === "prop")
+  if(isFurniture(o) || o.type === "prop")
     return {x:o.x, y:(o.y === undefined || o.y === null) ? H - s[1] : o.y, w:s[0], h:s[1]};
   return {x:o.x, y:o.y, w:s[0], h:s[1]};
 }
@@ -645,9 +665,87 @@ function backdrop(lay){
   // `deck` IS WHERE THIS PICTURE'S OWN FLOOR IS DRAWN, in pixels up from the
   // bottom of the file. Measured per backdrop and carried in the data -- it is
   // what anything standing in the view has to stand on.
-  return {img: IMG["bd_" + b.id], x:x, y:y, w:bw, h:bh, id:b.id, k:k,
+  return {img: b.body ? skyPicture(b, lay) : IMG["bd_" + b.id], x:x, y:y, w:bw, h:bh, id:b.id, k:k,
           ih: b.size[1],
           deck: y + bh - (b.deck || 0) * k};
+}
+// THE EXCHANGE'S SKY, BUILT LIVE. Outside its windows is the station's own sky,
+// and the game draws that sky's world where the room frames it -- in its
+// biggest opening the hold does not stand across (`SpaceBackdrop.frame_in`,
+// `room_install.sky_frame`). So the bench is handed the stars and the world
+// apart, and puts the world by the same rule, from the layout as it stands:
+// move a window and the world moves with it, as it will in the game.
+var SKYC = {};
+function skyFrame(lay){
+  // What stands across the view: the hold, and the counter -- the Exchange's
+  // machine is drawn big enough to stand in front of the door's end
+  // (`room_install.sky_frame`).
+  var blockers = [], best = null, bestSeen = 0;
+  lay.items.forEach(function(o){ if(o.type === "hold" || o.type === "till") blockers.push(rectOf(o)); });
+  lay.items.forEach(function(o){
+    if(!isOpening(o)) return;
+    var r = rectOf(o);
+    if(o.type === "open"){
+      var runs = (SKIN.opening[o.skin] || {}).runs, k = o.scale || 1;
+      if(!runs || !runs.length) return;
+      var hx0 = Infinity, hx1 = -Infinity, hy0 = Infinity, hy1 = -Infinity;
+      runs.forEach(function(q){ hx0 = Math.min(hx0, q[1]); hx1 = Math.max(hx1, q[1] + q[2]);
+        hy0 = Math.min(hy0, q[0]); hy1 = Math.max(hy1, q[0] + 1); });
+      r = {x: r.x + hx0 * k, y: r.y + hy0 * k, w: (hx1 - hx0) * k, h: (hy1 - hy0) * k};
+    }
+    var x0 = Math.max(0, r.x), y0 = Math.max(0, r.y);
+    var x1 = Math.min(W, r.x + r.w), y1 = Math.min(FLOOR, r.y + r.h);
+    if(x1 <= x0 || y1 <= y0) return;
+    var spans = [[x0, x1]];
+    blockers.forEach(function(b){
+      if(b.y >= y1 || b.y + b.h <= y0) return;
+      var cut = [];
+      spans.forEach(function(sp){
+        if(b.x + b.w <= sp[0] || b.x >= sp[1]){ cut.push(sp); return; }
+        if(b.x > sp[0]) cut.push([sp[0], b.x]);
+        if(b.x + b.w < sp[1]) cut.push([b.x + b.w, sp[1]]);
+      });
+      spans = cut;
+    });
+    if(!spans.length) return;
+    var wide = spans[0];
+    spans.forEach(function(sp){ if(sp[1] - sp[0] > wide[1] - wide[0]) wide = sp; });
+    x0 = wide[0]; x1 = wide[1];
+    // Too small to show a world through -- not "mostly hidden".
+    if(x1 - x0 < 48 || y1 - y0 < 40) return;
+    var seen = (x1 - x0) * (y1 - y0);
+    if(seen > bestSeen){ best = [x0, y0, x1 - x0, y1 - y0]; bestSeen = seen; }
+  });
+  return best;
+}
+function skyPicture(b, lay){
+  var stars = IMG["bd_" + b.id], body = IMG["bdbody_" + b.id];
+  if(!stars || !stars.width || !body || !body.width) return stars;
+  var fr = skyFrame(lay), key = b.id + ":" + (fr ? fr.join(",") : "-");
+  if(SKYC[key]) return SKYC[key];
+  var c = document.createElement("canvas");
+  c.width = stars.width; c.height = stars.height;
+  var g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(stars, 0, 0);
+  // Whole and centred when it fits; its upper limb rising into the lower part
+  // of the window when it does not -- `SpaceBackdrop._paint_body`. The LIMB:
+  // the picture has a margin of halo and ring round the disc, and placing the
+  // picture's edge put the planet below a door's gap.
+  var bw = body.width, bh = body.height, x, y;
+  if(fr){
+    x = Math.floor(fr[0] + fr[2] / 2 - bw * 0.5);
+    y = b.disc_r * 2 <= fr[3] * 0.8 ? Math.floor(fr[1] + fr[3] / 2 - bh * 0.5)
+      : Math.floor(fr[1] + fr[3] * 0.4) - b.disc_top;
+  } else {
+    x = Math.floor(c.width * b.body_at[0] - bw * 0.5);
+    y = Math.floor(c.height * b.body_at[1] - bh * 0.5);
+  }
+  g.drawImage(body, x, y);
+  // The tone is cached by `src`; each framing is its own picture.
+  c.src = "sky:" + key;
+  SKYC[key] = c;
+  return c;
 }
 // THE VIEW RUNS OUT BEFORE THE WALL DOES. A backdrop is 284 to 352 pixels tall
 // and the wall is 431, and it is placed with its walkway on the floor line --
@@ -1258,7 +1356,41 @@ function stockShelf(o, r, idx){
       x += pw + step; });
   });
 }
+// THE HOLD: its frame at the size being previewed, and the hold's cells in
+// the frame's middle where the game puts them -- dark squares 40px a side
+// with the grid's own line colour between them.
+function drawHold(o){
+  var r = rectOf(o), sk = SKIN.hold[o.skin]; if(!sk) return;
+  var z = sk[holdSize()] ? holdSize() : "l", e = sk[z], im = IMG["skin_hold_" + o.skin + "_" + z];
+  if(!im || !im.width) return;
+  var w = e.size[0] * 2, h = e.size[1] * 2;
+  var x = r.x + Math.round((r.w - w) / 2), y = r.y + r.h - h;
+  ctx.drawImage(im, 0, 0, im.width, im.height, x, y, w, h);
+  hangHold(x, y + (e.hook_y || 0) * 2, w);
+  var op = e.opening, gx = x + op[0] * 2, gy = y + op[1] * 2, gw = op[2] * 2, gh = op[3] * 2;
+  ctx.fillStyle = "#0b1017"; ctx.fillRect(gx, gy, gw, gh);
+  ctx.fillStyle = "#22303f";
+  for(var cx = 40; cx < gw; cx += 40) ctx.fillRect(gx + cx, gy, 1, gh);
+  for(var cy = 40; cy < gh; cy += 40) ctx.fillRect(gx, gy + cy, gw, 1);
+  ctx.strokeStyle = "#22303f"; ctx.lineWidth = 1; ctx.strokeRect(gx + 0.5, gy + 0.5, gw - 1, gh - 1);
+}
+// THE HOLD HANGS FROM A WIRE (Jon, 2026-09-27: "a box that is suspended by a
+// wire (like the original generated design)"): a crane hook over the frame's
+// top middle, caught on it by `into` pixels, and the hook picture's own top
+// rows of rope repeated up to the ceiling. `ExchangeScene._hang` draws it the
+// same way.
+function hangHold(x, y, w){
+  var hk = D.hook, im = hk && IMG["hook"];
+  if(!im || !im.width) return;
+  var hx = x + Math.round((w - im.width) / 2), hy = y + hk.into - im.height;
+  for(var ry = hy; ry > 0; ry -= hk.rope){
+    var hgt = Math.min(hk.rope, ry);
+    ctx.drawImage(im, 0, hk.rope - hgt, im.width, hgt, hx, ry - hgt, im.width, hgt);
+  }
+  ctx.drawImage(im, hx, hy);
+}
 function drawFurniture(o){
+  if(o.type === "hold"){ drawHold(o); return; }
   var r = rectOf(o);
   if(o.type === "shelf"){
     // THE RACK AND ITS PARTS AS ONE UNIT: drawn at 1x into a scratch canvas,
@@ -2064,7 +2196,7 @@ function occluderAlpha(withLamps, standingOnly){
       lay.items.forEach(function(o){
         if(band(o) !== b) return;
         if(o.type === "prop") drawProp(o);
-        else if(o.type === "shelf" || o.type === "till") drawFurniture(o); });
+        else if(isFurniture(o)) drawFurniture(o); });
     });
     // A LAMP MUST NOT SHADOW ITSELF. Its hood sits right on top of the bulb,
     // so with the fixtures in the grid every one of the 720 rays stopped within
@@ -2775,7 +2907,7 @@ var MASKSIG = null;
 function maskSignature(){
   var sig = "";
   L().items.forEach(function(o){
-    if(isOpening(o) || o.type === "prop" || o.type === "shelf" || o.type === "till" || o.type === "lamp")
+    if(isOpening(o) || o.type === "prop" || isFurniture(o) || o.type === "lamp")
       // W AND H BELONG IN HERE. Without them a resized window kept the mask it
       // had at its old size -- the exempt patch stayed where the window used to
       // be, which reads as a shadow stuck on the wall until you move it.
@@ -2854,6 +2986,67 @@ function featherMask(){
   }
 }
 
+// THE EXCHANGE'S VIEW IS NOT THE ROOM'S TO LIGHT, PIXEL FOR PIXEL. A shop's
+// window hands over to the room across a few pixels (`featherMask`), and the
+// lamps' overbright is added all the way across that band: on a lit concourse
+// that is glass catching the light, on black space a flat grey ring round the
+// door's edges and round everything standing in front of it (Jon, 2026-09-27:
+// "why is there a weird outline ?"). So the Exchange's view is exactly the
+// pixels where space shows -- the holes, less everything drawn over them in
+// the order `draw` draws it, the hold at the size being previewed -- and
+// nothing is handed over. `room_install.view_masks` bakes the same for the game.
+var VMASK = null, VSIG = null;
+function buildViewMask(){
+  if(DECK !== "exchange"){ VMASK = null; return; }
+  var sig = maskSignature() + "|" + holdSize() + "|" + (IMG.hook && IMG.hook.width ? 1 : 0);
+  if(VMASK && sig === VSIG) return;
+  var c = document.createElement("canvas"); c.width = W; c.height = H;
+  var main = ctx; ctx = c.getContext("2d"); ctx.imageSmoothingEnabled = false;
+  try {
+    L().items.forEach(function(o){
+      if(!isOpening(o)) return;
+      var r = rectOf(o);
+      ctx.globalCompositeOperation = "source-over"; ctx.fillStyle = "#fff";
+      if(o.type === "open"){
+        var runs = (SKIN.opening[o.skin] || {}).runs, k = o.scale || 1, im = IMG["skin_opening_" + o.skin];
+        if(!runs) return;
+        mirrored(o, r, function(){
+          for(var q = 0; q < runs.length; q++)
+            ctx.fillRect(r.x + runs[q][1] * k, r.y + runs[q][0] * k, runs[q][2] * k, k);
+        });
+        ctx.globalCompositeOperation = "destination-out";
+        if(im && im.width) mirrored(o, r, function(){
+          ctx.drawImage(im, 0, 0, im.width, im.height, r.x, r.y, r.w, r.h); });
+        return;
+      }
+      ctx.fillRect(r.x, r.y, r.w, r.h);
+      ctx.globalCompositeOperation = "destination-out";
+      if(o.type === "door" && skinOf(o)){ var kd = o.scale || 1, dz = SKIN.door[o.skin].size;
+        ctx.drawImage(IMG["skin_door_" + o.skin], r.x - 12 * kd, r.y - 12 * kd, dz[0] * kd, dz[1] * kd); }
+      else if(o.type === "window"){ var f = D.frames[o.style] || D.frames.chamfer;
+        nine(IMG["frame_" + (D.frames[o.style] ? o.style : "chamfer")], f.margin, r.x - T, r.y - T, r.w + 2*T, r.h + 2*T, true); }
+    });
+    ctx.globalCompositeOperation = "destination-out";
+    ["wall", "floor", "near"].forEach(function(b){
+      L().items.forEach(function(o){ if(band(o) !== b) return;
+        if(o.type === "prop") drawProp(o);
+        else if(isFurniture(o)) drawFurniture(o); });
+    });
+    drawLampBodies();
+  } finally { ctx = main; ctx.imageSmoothingEnabled = false; }
+  // A CANVAS THAT CANNOT BE READ (the build's check draws on a stub) leaves
+  // the soft mask in charge, as `applyLight` leaves the room unlit.
+  var img = null;
+  try { img = c.getContext("2d").getImageData(0, 0, W, H); } catch(e){}
+  if(!img || !img.data){ VMASK = null; VSIG = null; return; }
+  var d = img.data;
+  VMASK = new Uint8Array(W * H);
+  for(var i = 0, n = W * H; i < n; i++) VMASK[i] = d[(i << 2) + 3] > 127 ? 1 : 0;
+  // NOT KEPT UNTIL EVERY PICTURE IS HERE: one that arrives later would stand
+  // in front of a view that still counted it as open, lit by nothing.
+  VSIG = ready(L()) ? sig : null;
+}
+
 function applyLight(){
   var L2 = light();
   var amb = L2.amb === undefined ? 0.30 : L2.amb;
@@ -2867,8 +3060,9 @@ function applyLight(){
       var o = (y * W + x) << 2;
       var gi = base + ((x / GK) | 0);
       // seen through the wall: not this room's, but handed over across a few
-      // pixels rather than at a line
-      var ex = LSOFT[gi];
+      // pixels rather than at a line -- except the Exchange's space, which is
+      // not handed over at all (`buildViewMask`)
+      var ex = VMASK ? VMASK[y * W + x] : LSOFT[gi];
       if(ex >= 0.995) continue;
       var lr = LR[gi], lg = LG[gi], lb = LB[gi];
       // INTENSITY IS THE BRIGHTEST CHANNEL; the ratios are this pixel's light
@@ -3077,7 +3271,7 @@ function layer(o){
 }
 // The same answer for anything that stands in the room, furniture included.
 function band(o){
-  if(o.type !== "prop" && o.type !== "shelf" && o.type !== "till") return null;
+  if(o.type !== "prop" && !isFurniture(o)) return null;
   return layer(o);
 }
 // Moves the selected item one step through the draw order and keeps the
@@ -3130,6 +3324,8 @@ function needs(lay){
     else if(o.type === "door") ks.push(o.skin ? "skin_door_" + o.skin : "door");
     else if(o.type === "ports") ks.push("ports");
     else if(o.type === "till") ks.push(o.skin ? "skin_till_" + o.skin : "till");
+    else if(o.type === "hold"){ var hk = SKIN.hold[o.skin]; if(hk)
+      ks.push("skin_hold_" + o.skin + "_" + (hk[holdSize()] ? holdSize() : "l")); }
     else if(o.type === "shelf"){ var n = o.boards === 3 ? "3" : "2";
       ks.push(o.skin ? "skin_shelf_" + o.skin + "_" + n : "shelf" + n); }
     else if(o.type === "prop") ks.push("prop_" + o.id);
@@ -3191,21 +3387,22 @@ function draw(quiet){
   // default is "floor", which is where it used to be pinned.
   lay.items.forEach(function(o){ if(band(o) !== "wall") return;
     if(o.type === "prop") drawProp(o);
-    else if(o.type === "shelf" || o.type === "till") drawFurniture(o); });
+    else if(isFurniture(o)) drawFurniture(o); });
   var top = FLOOR - 90;
   for(var b = 0; b < 14; b++){ var bh = (H - top) / 14, a = 0.12 * Math.min(1, (b + 1) / 14 * 1.4);
     ctx.fillStyle = "rgba(69,89,120," + a + ")"; ctx.fillRect(0, top + bh * b, W, bh + 1); }
   lay.items.forEach(function(o){ if(band(o) !== "floor") return;
-    if(o.type === "shelf" || o.type === "till") drawFurniture(o);
+    if(isFurniture(o)) drawFurniture(o);
     else if(o.type === "prop") drawProp(o); });
   lay.items.forEach(function(o){ if(band(o) !== "near") return;
     if(o.type === "prop") drawProp(o);
-    else if(o.type === "shelf" || o.type === "till") drawFurniture(o); });
+    else if(isFurniture(o)) drawFurniture(o); });
   // EVERYTHING IN THE ROOM IS LIT TOGETHER. A rack lit by a different rule
   // from the wall behind it is a rack standing in a photograph of a room.
   drawLampBodies();
   if(!fullbright){
     buildLightMask();
+    buildViewMask();
     buildLightMap();
     applyLight();
   }
@@ -3294,8 +3491,13 @@ function problems(){
   lay.items.forEach(function(o, i){ if(o.skin && isCut("skins", o.type + ":" + o.skin)) note(i, o.type + " " + (i + 1) + " uses a cut style (" + o.skin + ")"); });
   if(isCut("backdrops", lay.backdrop.id)) msgs.push("the backdrop " + lay.backdrop.id + " is cut — pick another");
   lay.items.forEach(function(o, i){ if(o.type === "prop" && isCut("props", o.id)) note(i, "prop " + (i + 1) + " (" + o.id + ") is cut — remove it"); });
-  if(!lay.items.some(function(o){ return o.type === "shelf"; })) msgs.push("no shelf: the stock has nowhere to stand");
-  if(!lay.items.some(function(o){ return o.type === "till"; })) msgs.push("no till: nothing can be bought");
+  if(DECK === "exchange"){
+    if(!lay.items.some(function(o){ return o.type === "hold"; })) msgs.push("no hold: there is nothing to sell from");
+    if(!lay.items.some(function(o){ return o.type === "till"; })) msgs.push("no counter: nothing can be sold");
+  } else {
+    if(!lay.items.some(function(o){ return o.type === "shelf"; })) msgs.push("no shelf: the stock has nowhere to stand");
+    if(!lay.items.some(function(o){ return o.type === "till"; })) msgs.push("no till: nothing can be bought");
+  }
   return {msgs: msgs, items: items};
 }
 
@@ -3639,6 +3841,7 @@ function add(spec){
   else if(t === "open"){ var os = (SKIN.opening[parts[1]] || {size:[100, 100]}).size;
     o = {type:"open", skin:parts[1], x:q(W/2 - os[0]/2), y:q(170 - os[1]/2)}; }
   else if(t === "shelf") o = {type:"shelf", boards:Number(parts[1]), x:q(W/2 - 140)};
+  else if(t === "hold") o = {type:"hold", x:q(W/2 - 180), layer:"wall"};
   else if(t === "prop"){ var p = PROP[parts[1]], pw = p ? p.size[0] : 20, ph = p ? p.size[1] : 20;
     o = {type:"prop", id:parts[1], x:q(W/2 - pw/2)};
     if(p && p.layer === "wall") o.y = q(170 - ph/2);
@@ -3662,7 +3865,7 @@ function move(o, dx, dy){
 }
 function toFloor(o){
   if(o.type === "door") o.y = FLOOR - o.h;
-  else if(o.type === "shelf" || o.type === "till" || o.type === "prop") delete o.y;
+  else if(isFurniture(o) || o.type === "prop") delete o.y;
 }
 function resize(o, dw, dh){
   if(!(o.type === "window" || o.type === "door") || (o.type === "door" && skinOf(o))) return;
@@ -3698,7 +3901,7 @@ function restyle(o, kind, c){
     o.skin = c.add.split(":")[1];
     return true;
   }
-  if(kind !== o.type || ["till", "shelf", "door"].indexOf(kind) < 0) return false;
+  if(kind !== o.type || ["till", "shelf", "door", "hold"].indexOf(kind) < 0) return false;
   if(c.skin) o.skin = c.skin; else delete o.skin;
   if(kind === "door"){
     var z = size(o);
@@ -3736,7 +3939,7 @@ function gallery(){
     till: [["till", "standard", D.till.src]],
     shelf: [["shelf:2", "standard", D.shelves["2"].src]]
   };
-  [["window", "Windows"], ["opening", "Openings"], ["door", "Doors"], ["till", "Tills"], ["shelf", "Racks"]].forEach(function(pair){
+  [["window", "Windows"], ["opening", "Openings"], ["door", "Doors"], ["till", "Tills"], ["shelf", "Racks"], ["hold", "Holds"]].forEach(function(pair){
     var t = pair[0], cells = [];
     (BUILTIN[t] || []).forEach(function(bi){
       if(bi[2] && !isCut("stock", bi[0]))
@@ -3745,7 +3948,7 @@ function gallery(){
       if(isCut("skins", t + ":" + id)) return;
       cells.push({add:t === "shelf" ? "shelf:2" : t === "opening" ? "open:" + id : t,
         cap:id.replace(/_/g, " "),
-        src:t === "shelf" ? SKIN.shelf[id]["2"].src : SKIN[t][id].src,
+        src:t === "shelf" ? SKIN.shelf[id]["2"].src : t === "hold" ? SKIN.hold[id].l.src : SKIN[t][id].src,
         kind:"skins", id:t + ":" + id, skin:t === "opening" ? null : id}); });
     if(!cells.length) return;
     var g = document.createElement("div"); g.className = "pgroup styles";
@@ -4148,6 +4351,14 @@ function fit(){
     if(mq.addEventListener) mq.addEventListener("change", on, {once: true});
   } catch(err){}
 })();
+// THE HOLD'S SIZE IS THE HULL'S, so it is a way of looking, not a setting of
+// the room: cycle heavy, medium, light to see each frame on the same spot.
+(function(){ var b = document.getElementById("holdsz"), names = {l:"heavy", m:"medium", s:"light"};
+  if(!Object.keys(SKIN.hold).length) return;
+  b.hidden = false; b.textContent = "hold: " + names[holdSize()];
+  b.addEventListener("click", function(){
+    state.holdSize = {l:"m", m:"s", s:"l"}[holdSize()];
+    b.textContent = "hold: " + names[holdSize()]; save(); draw(); }); })();
 document.getElementById("shelfk").addEventListener("click", function(e){
   state.shelfK = (state.shelfK || 2) === 1 ? 2 : 1; save();
   e.currentTarget.textContent = "shelf " + state.shelfK + "\u00d7"; e.currentTarget.className = state.shelfK === 2 ? "on" : ""; draw(); });
@@ -4339,7 +4550,7 @@ function exportState(){
           // THE RACK'S AND THE COUNTER'S BAND LEAVE TOO. Only a prop's did, so
           // furniture Jon put on the wall -- where it casts no shadow and sits
           // in none -- arrived in the game on the floor, blocking the light.
-          if(o.type === "shelf" || o.type === "till") e.layer = layer(o);
+          if(isFurniture(o)) e.layer = layer(o);
           // WHICH WAY IT FACES, and for a lamp what it burns like: the
           // installer puts these in the game, so they have to leave the bench.
           if(o.fx) e.fx = true;

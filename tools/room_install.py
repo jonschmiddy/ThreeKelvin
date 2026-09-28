@@ -22,6 +22,7 @@ leaves the export leaves the game:
                     neighbour rule, so the game draws every sprite 1:1 and can
                     never resample one differently
   light_<room>.lmap the room's light, worked out here once (see LIGHT)
+  view_<room>.lmap  an Exchange room's view, pixel for pixel (see THE VIEW)
 
 LIGHT. The bench lights a room per pixel: every lamp casts rays against what is
 standing on the deck, each opening glows the colour of the place behind it,
@@ -51,6 +52,32 @@ are read out of it rather than restated, so the two cannot drift.
 A light file (`.lmap`) is a PNG: four GW x GH bands stacked top to bottom,
 the high then low bytes of (S.r, S.g, S.b, O) and of (F, U, B, X) as 16-bit
 fixed point over the ranges in `SCALES`, which rooms.json repeats.
+
+THE EXCHANGE IS A SECOND DECK IN THE SAME FILE (2026-09-27), under
+`decks.exchange`: one room per level, laid out on the Exchange's own bench
+(`room_bench.py --deck exchange`). Its source is Jon's export of that bench,
+`room_stage/exchange-layouts.json`, and until he has made one, the drafts
+`exchange_compose.py` wrote. Its rooms are the shop's with two differences:
+
+  hold      where the rack was. A hold is three frames, one per hull size
+            (`room_stage/exchange/`, fitted by `cage_fit.py`); the room is
+            laid out round the heavy one and a lighter hull's frame stands on
+            the same spot, centred, feet on the same floor. For the light it is
+            solid, frame and grid, because in the game the grid fills it
+  sky_frame the window the station's world is framed in (`sky_frame`): the
+            view is the station's own sky, which the game draws itself
+  view      exactly where that sky shows (`view_masks`), which the light
+            leaves alone
+
+THE VIEW. A shop's window hands over to the room across a few pixels -- the
+exemption is feathered (`feather`) -- and the lamps' overbright is added all
+the way across that band. On a lit concourse it reads as the glass catching
+the light. On black space it is a flat grey ring round every edge of the view
+and round everything standing in front of it (Jon, 2026-09-27: "why is there
+a weird outline ?"). So an Exchange room carries its view pixel for pixel:
+its holes less everything the game draws over them, one mask per hold size
+because the frame that hangs is the hull's. The shader uses it in place of
+the feathered one and hands nothing over.
 """
 
 import hashlib
@@ -78,6 +105,9 @@ STAGE = os.path.join(HERE, "room_stage")
 EXPORT = os.path.join(STAGE, "room-layouts.json")
 BENCH = os.path.join(HERE, "room_bench.tmpl.html")
 OUT = os.path.join(STATION, "rooms")
+EXCHANGE_STAGE = os.path.join(STAGE, "exchange")
+EXCHANGE_EXPORT = os.path.join(STAGE, "exchange-layouts.json")
+EXCHANGE_DRAFTS = os.path.join(STAGE, "exchange_levels.json")
 ROOMS_JSON = os.path.join(OUT, "rooms.json")
 
 W, H, FLOOR = 740, 431, 353
@@ -410,15 +440,58 @@ class Stage:
                 self.racks[f[6:-4]] = p
             elif f.startswith("plate_"):
                 self.plates[f[6:-4]] = p
+        # THE HOLDS, per level and hull size, as `cage_fit.py` fitted them.
+        self.holds = {}
+        hb = os.path.join(EXCHANGE_STAGE, "hold_boxes.json")
+        if os.path.exists(hb):
+            for level, sizes in json.load(io.open(hb, encoding="utf-8")).items():
+                self.holds[level] = dict((z, {"path": os.path.join(EXCHANGE_STAGE, e["file"]),
+                                              "size": e["size"], "opening": e["opening"]})
+                                         for z, e in sizes.items() if z in ("s", "m", "l"))
         bj = os.path.join(STAGE, "rack_boards.json")
         self.boards = json.load(io.open(bj, encoding="utf-8")) if os.path.exists(bj) else {}
         self.holes = json.load(io.open(os.path.join(STATION, "opening_holes.json"), encoding="utf-8"))
+        # AN OPENING STILL ON THE STAGE -- the Exchange's hangar doors -- has
+        # its hole beside it as a mask (`hole_<name>.png`), measured into runs
+        # exactly as the bench measures it (`room_bench.hole_runs`).
+        for f in sorted(os.listdir(STAGE)):
+            if f.startswith("hole_") and f.endswith(".png"):
+                name = f[5:-4]
+                sprite = os.path.join(STAGE, "open_%s.png" % name)
+                if not os.path.exists(sprite):
+                    continue
+                m = load(os.path.join(STAGE, f))[..., 3] > 40
+                runs = []
+                for y in range(m.shape[0]):
+                    x, row = 0, m[y]
+                    while x < m.shape[1]:
+                        if row[x]:
+                            x0 = x
+                            while x < m.shape[1] and row[x]:
+                                x += 1
+                            runs.append([y, x0, x - x0])
+                        else:
+                            x += 1
+                sw, sh = Image.open(sprite).size
+                self.holes[name] = {"w": sw, "h": sh, "runs": runs}
         self._img = {}
 
     def img(self, path):
         if path not in self._img:
-            self._img[path] = load(path)
+            if path.startswith("hold:"):
+                self._img[path] = self.solid_hold(path[5:])
+            else:
+                self._img[path] = load(path)
         return self._img[path]
+
+    def solid_hold(self, level):
+        """The heavy frame with its opening filled, as the bench draws it into
+        the light: the grid stands in the opening, so nothing shows through."""
+        e = self.holds[level]["l"]
+        a = load(e["path"]).copy()
+        x, y, w, h = e["opening"]
+        a[y:y + h, x:x + w] = (11, 16, 23, 255)
+        return a
 
     def opening(self, skin):
         p = os.path.join(STAGE, "open_%s.png" % skin)
@@ -436,7 +509,7 @@ class Stage:
 # ---------------------------------------------------------------- geometry
 
 def band(o, stage):
-    if o["type"] not in ("prop", "shelf", "till"):
+    if o["type"] not in ("prop", "shelf", "till", "hold"):
         return None
     if o.get("layer") in ("wall", "floor", "near"):
         return o["layer"]
@@ -456,6 +529,8 @@ def item_art(o, stage, light):
     if t == "till":
         return stage.tills[o["skin"]] if o.get("skin") in stage.tills \
             else os.path.join(STATION, "shop_counter.png")
+    if t == "hold":
+        return "hold:" + o["skin"]
     if t == "lamp":
         return stage.lamp(o, light)[0]
     if t == "door" and o.get("skin") in stage.doors:
@@ -477,6 +552,10 @@ def rect_of(o, stage, light):
         a = stage.img(item_art(o, stage, light))
         k = o.get("scale") or 1
         w, h = a.shape[1] * k, a.shape[0] * k
+    elif t == "hold":
+        if o.get("skin") not in stage.holds:
+            raise SystemExit("room_install: a hold of style %s, which the stage lacks" % o.get("skin"))
+        w, h = [v * 2 for v in stage.holds[o["skin"]]["l"]["size"]]
     elif t == "lamp":
         a = stage.img(item_art(o, stage, light))
         w, h = a.shape[1], a.shape[0]
@@ -495,7 +574,7 @@ def rect_of(o, stage, light):
     else:
         w, h = o["w"], o["h"]
     y = o.get("y")
-    if y is None and t in ("shelf", "till", "prop"):
+    if y is None and t in ("shelf", "till", "prop", "hold"):
         y = H - h
     return {"x": o["x"], "y": y, "w": w, "h": h}
 
@@ -889,7 +968,197 @@ def write_light(path, pieces):
     Image.fromarray(light_image(pieces), "RGBA").save(path, "PNG", optimize=True)
 
 
-def room_entry(room, stage, baker):
+# ------------------------------------------------------------------ the view
+
+# One channel of a view file each, in this order: `ExchangeScene.VIEW_SIZES`.
+VIEW_SIZES = ("s", "m", "l")
+
+
+def _lay(seen, a, x, y):
+    """Draw a picture over the view, 1:1 with its top left at (x, y): what
+    shows of the view behind each pixel is (1 - alpha) of what did."""
+    x, y = int(math.floor(x + 0.5)), int(math.floor(y + 0.5))
+    h, w = a.shape[:2]
+    x0, y0, x1, y1 = max(0, x), max(0, y), min(W, x + w), min(H, y + h)
+    if x1 > x0 and y1 > y0:
+        seen[y0:y1, x0:x1] *= 1.0 - a[y0 - y:y1 - y, x0 - x:x1 - x, 3] / 255.0
+
+
+def _nine_over(seen, im, m, x, y, w, h, bottom):
+    """A window's frame, as `ShopScene._nine` draws it: corners at their own
+    size, edges tiled from the start, the middle open."""
+    s = im.shape[1]
+    e = s - 2 * m
+    if e <= 0:
+        return
+
+    def part(sx, sy, sw, sh, dx, dy):
+        _lay(seen, im[sy:sy + sh, sx:sx + sw], dx, dy)
+
+    def tile_h(sy, dy):
+        t = 0
+        while t < w - 2 * m:
+            c = min(e, w - 2 * m - t)
+            part(m, sy, c, m, x + m + t, dy)
+            t += e
+
+    def tile_v(sx, dx, y0, y1):
+        t = y0
+        while t < y1:
+            c = min(e, y1 - t)
+            part(sx, m, m, c, dx, t)
+            t += e
+
+    part(0, 0, m, m, x, y)
+    part(s - m, 0, m, m, x + w - m, y)
+    tile_h(0, y)
+    yb = y + h - m if bottom else y + h
+    tile_v(0, x, y + m, yb)
+    tile_v(s - m, x + w - m, y + m, yb)
+    if bottom:
+        part(0, s - m, m, m, x, y + h - m)
+        part(s - m, s - m, m, m, x + w - m, y + h - m)
+        tile_h(s - m, y + h - m)
+
+
+def _fill(seen, x, y, w, h, v):
+    seen[max(0, y):max(0, min(H, y + h)), max(0, x):max(0, min(W, x + w))] = v
+
+
+def view_masks(e, stage, pics):
+    """Where an Exchange room's space shows, for each size of hold: 255 where
+    it does, one channel per size in `VIEW_SIZES` order. Worked out from the
+    room's own entry and the pictures the game draws, in the game's order --
+    `ShopScene._draw`: every opening's view and then its frame, then what
+    stands behind the furniture, the hold's frame (its middle solid: the grid
+    stands in it) with the hook and rope it hangs from, the counter, what
+    stands in front, the lamps. The haze is air and hides nothing."""
+    base = np.zeros((H, W), np.float64)
+    for o in e["openings"]:
+        x, y, w, h = int(o["x"]), int(o["y"]), int(o["w"]), int(o["h"])
+        if o["type"] == "open":
+            runs = o["runs"] if "runs" in o else stage.holes[o["skin"]]["runs"]
+            for ry, rx, rw in runs:
+                if o.get("fx"):
+                    rx = w - rx - rw
+                if o.get("fy"):
+                    ry = h - ry - 1
+                _fill(base, x + rx, y + ry, rw, 1, 1.0)
+            art = pics(o["art"]) if "art" in o else stage.img(stage.opening(o["skin"]))
+            if o.get("fx"):
+                art = art[:, ::-1]
+            if o.get("fy"):
+                art = art[::-1]
+            _lay(base, art, x, y)
+        elif o["type"] == "door":
+            _fill(base, x, y, w, h, 1.0)
+            _lay(base, pics(o["art"]), o["ax"], o["ay"])
+        else:
+            _fill(base, x, y, w, h, 1.0)
+            _nine_over(base, load(os.path.join(STATION, o["frame"])), int(o["margin"]),
+                       x - T, y - T, w + 2 * T, h + 2 * T, True)
+    for p in e["back"]:
+        if "art" in p:
+            _lay(base, pics(p["art"]), p["x"], p["y"])
+    out = np.zeros((H, W, 3), np.uint8)
+    hold = e["hold"]
+    for c, z in enumerate(VIEW_SIZES):
+        seen = base.copy()
+        f = hold["frames"].get(z) or hold["frames"]["l"]
+        # `ExchangeScene.frame_rect`: on the heavy frame's spot, centred, its
+        # foot on the same floor
+        fx = hold["x"] + int(math.floor((hold["w"] - f["w"]) / 2.0 + 0.5))
+        fy = hold["y"] + hold["h"] - f["h"]
+        _lay(seen, pics(f["art"]), fx, fy)
+        ox, oy, ow, oh = f["opening"]
+        _fill(seen, fx + ox, fy + oy, ow, oh, 0.0)
+        hk = hold.get("hook")
+        if hk:
+            im = pics(hk["art"])
+            ih, iw = im.shape[:2]
+            ax = fx + int(math.floor((f["w"] - iw) / 2.0 + 0.5))
+            ay = fy + f.get("hook_y", 0) + hk["into"] - ih
+            ry = ay
+            while ry > 0:
+                hgt = min(hk["rope"], ry)
+                _lay(seen, im[hk["rope"] - hgt:hk["rope"]], ax, ry - hgt)
+                ry -= hk["rope"]
+            _lay(seen, im, ax, ay)
+        _lay(seen, pics(e["till"]["art"]), e["till"]["x"], e["till"]["y"])
+        for p in e["front"]:
+            if "art" in p:
+                _lay(seen, pics(p["art"]), p["x"], p["y"])
+        for l in e["lamps"]:
+            _lay(seen, pics(l["art"]), l["x"], l["y"])
+        out[..., c] = np.where(seen * 255.0 > 127.0, 255, 0).astype(np.uint8)
+    return out
+
+
+def sky_frame(room, stage, light):
+    """Where the room frames its station's world: the biggest opening the hold
+    does not cover, as [x, y, w, h] in room pixels (`SpaceBackdrop.frame_in`).
+
+    WHY. The Exchange's view is the station's own sky, and the counter and the
+    floor cover the bottom third of the wall, which is where most skies put
+    their world: of 60 station skies behind the five draft rooms, 8 showed any
+    of it through a window. So the world is drawn where a window is.
+
+    An opening sprite counts only its hole. An opening the heavy hold's frame
+    stands across counts only for the part beside it, and is passed over when
+    that is too small to show a world through (under 48 x 40). It used to be
+    passed over at under half of itself, which was right for a window and threw
+    away the Exchange's hangar door: the hold stands in front of its left end
+    and the 230 pixels beside it are the biggest view in the room. None at all
+    gives no frame, and the world stays where the sky puts it."""
+    # WHAT STANDS ACROSS THE VIEW: the hold, and the counter -- the Exchange's
+    # machine is drawn big enough to stand in front of the door's end
+    blockers = []
+    for o in room["items"]:
+        if o["type"] in ("hold", "till"):
+            q = rect_of(o, stage, light)
+            blockers.append((q["x"], q["y"], q["w"], q["h"]))
+    best, best_seen = None, 0
+    for o in room["items"]:
+        if not is_opening(o):
+            continue
+        r = rect_of(o, stage, light)
+        if o["type"] == "open":
+            runs, k = stage.holes[o["skin"]]["runs"], o.get("scale") or 1
+            hx0, hx1 = min(q[1] for q in runs), max(q[1] + q[2] for q in runs)
+            hy0, hy1 = min(q[0] for q in runs), max(q[0] for q in runs) + 1
+            r = {"x": r["x"] + hx0 * k, "y": r["y"] + hy0 * k,
+                 "w": (hx1 - hx0) * k, "h": (hy1 - hy0) * k}
+        x0, y0 = max(0, r["x"]), max(0, r["y"])
+        x1, y1 = min(W, r["x"] + r["w"]), min(FLOOR, r["y"] + r["h"])
+        if x1 <= x0 or y1 <= y0:
+            continue
+        # the spans of it that nothing stands across, and the widest of them
+        spans = [(x0, x1)]
+        for bx, by, bw, bh in blockers:
+            if by >= y1 or by + bh <= y0:
+                continue
+            cut = []
+            for s0, s1 in spans:
+                if bx + bw <= s0 or bx >= s1:
+                    cut.append((s0, s1))
+                    continue
+                if bx > s0:
+                    cut.append((s0, bx))
+                if bx + bw < s1:
+                    cut.append((bx + bw, s1))
+            spans = cut
+        if not spans:
+            continue
+        x0, x1 = max(spans, key=lambda v: v[1] - v[0])
+        if x1 - x0 < 48 or y1 - y0 < 40:
+            continue
+        seen = (x1 - x0) * (y1 - y0)
+        if seen > best_seen:
+            best, best_seen = [x0, y0, x1 - x0, y1 - y0], seen
+    return best
+
+
+def room_entry(room, stage, baker, deck="shop"):
     light = room["light"]
     level = room["levels"][0] if room.get("levels") else room["name"].split(" · ")[0]
     sl = slug(room["name"])
@@ -910,9 +1179,17 @@ def room_entry(room, stage, baker):
         if o["type"] == "open":
             if (o.get("scale") or 1) != 1:
                 raise SystemExit("room_install: %s scales an opening" % room["name"])
-            e["openings"].append({"type": "open", "skin": o["skin"], "x": r["x"], "y": r["y"],
-                                  "w": r["w"], "h": r["h"], "fx": bool(o.get("fx")),
-                                  "fy": bool(o.get("fy"))})
+            entry = {"type": "open", "skin": o["skin"], "x": r["x"], "y": r["y"],
+                     "w": r["w"], "h": r["h"], "fx": bool(o.get("fx")), "fy": bool(o.get("fy"))}
+            # AN OPENING THE GAME HAS NEVER SHIPPED -- the Exchange's hangar
+            # doors, still on the stage -- travels with the room: its picture
+            # baked beside the others and its hole written into the entry, so
+            # the rooms folder stays the whole of what the game needs.
+            if os.path.exists(os.path.join(STAGE, "open_%s.png" % o["skin"])) and \
+                    not os.path.exists(os.path.join(STATION, "opening_%s.png" % o["skin"])):
+                entry["art"] = baker.put("opening_%s.png" % o["skin"], stage.img(stage.opening(o["skin"])))
+                entry["runs"] = stage.holes[o["skin"]]["runs"]
+            e["openings"].append(entry)
         elif o["type"] == "door":
             if not o.get("skin") or o["skin"] not in stage.doors:
                 raise SystemExit("room_install: %s has a door with no style" % room["name"])
@@ -958,9 +1235,36 @@ def room_entry(room, stage, baker):
                 ahead.append(haze)
             continue
         r = rect_of(o, stage, light)
-        if o["type"] in ("shelf", "till"):
+        if o["type"] in ("shelf", "till", "hold"):
             if o["type"] in furniture:
                 raise SystemExit("room_install: %s has two of %s" % (room["name"], o["type"]))
+            if o["type"] == "hold":
+                # ALL THREE FRAMES, at the size they are drawn. Which one
+                # stands is the hull's business, decided in the game.
+                frames = {}
+                for z, fe in sorted(stage.holds[o["skin"]].items()):
+                    fa = load(fe["path"])
+                    fw, fh = fe["size"][0] * 2, fe["size"][1] * 2
+                    art = baker.sprite("hold_%s_%s" % (o["skin"], z), fa, fw, fh)
+                    ox, oy, ow, oh = fe["opening"]
+                    # where a crane hook catches it: the first opaque row down
+                    # its middle (`room_bench._hook_row`)
+                    mid = fa[:, fa.shape[1] // 2, 3] > 40
+                    hook_y = int(np.argmax(mid)) * 2 if mid.any() else 0
+                    frames[z] = {"art": art, "w": fw, "h": fh,
+                                 "opening": [ox * 2, oy * 2, ow * 2, oh * 2], "hook_y": hook_y}
+                furniture["hold"] = {"x": r["x"], "y": r["y"], "w": r["w"], "h": r["h"],
+                                     "style": o["skin"], "frames": frames}
+                # THE WIRE IT HANGS FROM: the hook, and the rows of rope at its
+                # top that are repeated up to the ceiling (`exchange_art.py`)
+                hook = os.path.join(EXCHANGE_STAGE, "hook.png")
+                if os.path.exists(hook):
+                    hj = json.load(io.open(os.path.join(EXCHANGE_STAGE, "hook.json"), encoding="utf-8"))
+                    furniture["hold"]["hook"] = {"art": baker.put("hook_exchange.png", load(hook)),
+                                                 "rope": hj["rope"], "into": hj["into"]}
+                e["furniture"].append("hold")
+                ahead.append(r)
+                continue
             a = stage.img(item_art(o, stage, light))
             if o["type"] == "shelf":
                 sk = o.get("skin") or "standard"
@@ -989,14 +1293,21 @@ def room_entry(room, stage, baker):
                 gl = baker.sprite("propglass_%s" % o["id"], lp, r["w"], r["h"],
                                   o.get("fx"), o.get("fy"))
                 e["glass"].append({"art": gl, "x": r["x"], "y": r["y"]})
-    if set(furniture) != {"shelf", "till"}:
-        raise SystemExit("room_install: %s needs one rack and one counter" % room["name"])
-    e["rack"], e["till"] = furniture["shelf"], furniture["till"]
-    # THE RACK AND THE COUNTER ARE TWO NODES SIDE BY SIDE, drawn in whatever
+    goods = "hold" if deck == "exchange" else "shelf"
+    if set(furniture) != {goods, "till"}:
+        raise SystemExit("room_install: %s needs one %s and one counter"
+                         % (room["name"], "hold" if goods == "hold" else "rack"))
+    e["till"] = furniture["till"]
+    if goods == "hold":
+        e["hold"] = furniture["hold"]
+        e["sky_frame"] = sky_frame(room, stage, light)
+    else:
+        e["rack"] = furniture["shelf"]
+    # THE GOODS AND THE COUNTER ARE TWO NODES SIDE BY SIDE, drawn in whatever
     # order the screen adds them, so they must not overlap.
-    if hits(e["rack"], e["till"]):
-        raise SystemExit("room_install: %s stands its rack and counter on each other"
-                         % room["name"])
+    if hits(e["hold" if goods == "hold" else "rack"], e["till"]):
+        raise SystemExit("room_install: %s stands its %s and counter on each other"
+                         % (room["name"], "hold" if goods == "hold" else "rack"))
     pieces = build_light(room, stage, None)
     lamps = [o for o in room["items"] if o["type"] == "lamp"]
     for i, o in enumerate(lamps):
@@ -1023,7 +1334,61 @@ def room_entry(room, stage, baker):
     e["light"] = {"amb": light.get("amb", 0.30), "shadowk": light.get("shadowk", 0.55),
                   "dither": bool(light.get("dither", True)), "file": lf,
                   "flick_lamp": f_lamp}
+    if goods == "hold":
+        # THE VIEW, PIXEL FOR PIXEL (see the module docstring). A PNG under
+        # the light's own extension for the light's reason: it is data.
+        vf = "view_%s.lmap" % sl
+        Image.fromarray(view_masks(e, stage, lambda n: baker.written[n]), "RGB").save(
+            os.path.join(OUT, vf), "PNG", optimize=True)
+        e["light"]["view"] = vf
     return e, pieces
+
+
+def exchange_source():
+    """Jon's export of the Exchange bench if he has made one, else the drafts."""
+    path = EXCHANGE_EXPORT if os.path.exists(EXCHANGE_EXPORT) else EXCHANGE_DRAFTS
+    return path, io.open(path, encoding="utf-8").read()
+
+
+def install_exchange(stage, baker):
+    """The Exchange's rooms, and the colour each level's sky glows."""
+    path, src = exchange_source()
+    data = json.loads(src)
+    rooms = data if isinstance(data, list) else data["layouts"]
+    if isinstance(data, dict) and (data.get("panel") != [W, H] or data.get("floor_y") != FLOOR):
+        raise SystemExit("room_install: the Exchange export is for a %s room with its floor on %s"
+                         % (data.get("panel"), data.get("floor_y")))
+    entries, levels = [], dict((lv, []) for lv in LEVELS_ORDER)
+    for room in rooms:
+        # "(new)" IS THE BENCH'S BOOKKEEPING, not the room's name: it marks a
+        # fresh draft laid beside a tab Jon had already worked in, and his
+        # first export was all five of those. The room is the level's Exchange
+        # either way, and keeps the name (and the files) it was installed under.
+        room = dict(room, name=re.sub(r"\s*\(new\)$", "", room["name"]))
+        e, _ = room_entry(room, stage, baker, "exchange")
+        if e["level"] not in levels:
+            raise SystemExit("room_install: %s is for no level the game has" % room["name"])
+        levels[e["level"]].append(e["slug"])
+        entries.append(e)
+        print("  %-24s %2d openings, %2d behind the furniture, %d in front, %d lamps, "
+              "world framed in %s" % (room["name"].replace(" · ", " / "), len(e["openings"]),
+                                      len([q for q in e["back"] if "art" in q]),
+                                      len([q for q in e["front"] if "art" in q]),
+                                      len(e["lamps"]), e["sky_frame"]))
+    short = [lv for lv, v in levels.items() if not v]
+    if short:
+        raise SystemExit("room_install: no Exchange room for %s" % ", ".join(short))
+    # THE SKY'S GLOW is the colour of the level's sky on the bench. The game's
+    # sky is the station's own and varies, but every one is the same dark
+    # field with a world in it, and the openings glow it at a few percent.
+    tones = {}
+    for lv in LEVELS_ORDER:
+        sp = os.path.join(EXCHANGE_STAGE, "sky_%s.png" % lv)
+        if os.path.exists(sp):
+            tones["space_" + lv] = [round(v, 6) for v in backdrop_tone(load(sp))]
+    return {"source": os.path.relpath(path, REPO).replace("\\", "/"),
+            "source_sha1": hashlib.sha1(src.encode("utf-8")).hexdigest(),
+            "levels": levels, "rooms": entries}, tones
 
 
 def main_install():
@@ -1062,6 +1427,7 @@ def main_install():
     short = [lv for lv, v in levels.items() if not v]
     if short:
         raise SystemExit("room_install: no room for %s" % ", ".join(short))
+    exchange, ex_tones = install_exchange(stage, baker)
     # THE OPENING GLOW'S COLOUR, for every backdrop the game can draw. The
     # pools are read out of StationRoom.gd, which is what picks one.
     gd = io.open(os.path.join(TKG, "scripts", "ui", "StationRoom.gd"), encoding="utf-8").read()
@@ -1071,6 +1437,7 @@ def main_install():
     for bid in sorted(set(re.findall(r'&"(\w+)"', blk))):
         tones[bid] = [round(v, 6) for v in
                       backdrop_tone(load(os.path.join(STATION, "backdrop_%s.png" % bid)))]
+    tones.update(ex_tones)
     doc = {
         "format": "three-kelvin/shop-rooms/1",
         "source": "tools/room_stage/room-layouts.json",
@@ -1083,6 +1450,7 @@ def main_install():
         "levels": levels,
         "tones": tones,
         "rooms": entries,
+        "decks": {"exchange": exchange},
     }
     with io.open(ROOMS_JSON, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(doc, indent=1, ensure_ascii=False) + "\n")
@@ -1113,10 +1481,30 @@ def main_check():
         names += [l["art"] for l in e["lamps"]] + [l["glass"] for l in e["lamps"]]
         names += [g["art"] for g in e["glass"]]
         missing += [n for n in names if not os.path.exists(os.path.join(OUT, n))]
+    ex = doc.get("decks", {}).get("exchange")
+    if ex is None:
+        raise SystemExit("room_install --check: no Exchange rooms installed")
+    path, src = exchange_source()
+    if ex.get("source") != os.path.relpath(path, REPO).replace("\\", "/") or \
+            ex.get("source_sha1") != hashlib.sha1(src.encode("utf-8")).hexdigest():
+        raise SystemExit("room_install --check: the Exchange's rooms changed since the install; "
+                         "run tools/room_install.py")
+    for e in ex["rooms"]:
+        names = [e["plate"], e["light"]["file"], e["light"].get("view", "view_%s.lmap" % e["slug"]),
+                 e["till"]["art"]]
+        names += [f["art"] for f in e["hold"]["frames"].values()]
+        if "hook" in e["hold"]:
+            names.append(e["hold"]["hook"]["art"])
+        names += [p["art"] for p in e["back"] + e["front"] if "art" in p]
+        names += [o["art"] for o in e["openings"] if "art" in o]
+        names += [l["art"] for l in e["lamps"]] + [l["glass"] for l in e["lamps"]]
+        names += [g["art"] for g in e["glass"]]
+        missing += [n for n in names if not os.path.exists(os.path.join(OUT, n))]
     if missing:
         raise SystemExit("room_install --check: %d file(s) missing: %s"
                          % (len(missing), ", ".join(sorted(set(missing))[:8])))
-    print("room_install --check: %d rooms, installed from the current export" % len(doc["rooms"]))
+    print("room_install --check: %d shop rooms and %d Exchange rooms, installed from the "
+          "current sources" % (len(doc["rooms"]), len(ex["rooms"])))
 
 
 if __name__ == "__main__":

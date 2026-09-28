@@ -1,0 +1,532 @@
+[
+ {
+  "name": "unclaimed · exchange",
+  "levels": [
+   "unclaimed"
+  ],
+  "room": {
+   "wall": "unclaimed_scrap",
+   "floor": "current"
+  },
+  "light": {
+   "amb": 0.3,
+   "shadowk": 0.55,
+   "dither": false,
+   "shadows": true,
+   "contact": true,
+   "glass": 0.62,
+   "power": 1.4,
+   "rad": 280
+  },
+  "air": {
+   "people": 0,
+   "motes": 400
+  },
+  "backdrop": {
+   "id": "space_unclaimed",
+   "auto": true
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "hangar_unclaimed",
+    "x": 120,
+    "y": 27
+   },
+   {
+    "type": "hold",
+    "skin": "unclaimed",
+    "x": 8,
+    "y": 83,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 0,
+    "y": 0,
+    "id": "pipes_a",
+    "layer": "wall",
+    "fx": true
+   },
+   {
+    "type": "lamp",
+    "x": 96,
+    "y": -3,
+    "skin": "bulb",
+    "col": "#ffd6a8",
+    "pow": 1,
+    "reach": 800,
+    "glass": 1
+   },
+   {
+    "type": "prop",
+    "x": 426,
+    "y": 0,
+    "id": "pipe_a",
+    "layer": "wall"
+   },
+   {
+    "type": "lamp",
+    "x": 608,
+    "y": 0,
+    "skin": "bulb",
+    "col": "#ffd6a8",
+    "pow": 1,
+    "reach": 800,
+    "glass": 1,
+    "flick": 3
+   },
+   {
+    "type": "prop",
+    "x": 470,
+    "y": 355,
+    "id": "unclaimed_drip",
+    "layer": "wall"
+   },
+   {
+    "type": "till",
+    "skin": "exchange_unclaimed",
+    "x": 623,
+    "y": 347,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 511,
+    "y": 336,
+    "id": "unclaimed_scrappallet",
+    "layer": "floor"
+   }
+  ]
+ },
+ {
+  "name": "outpost · exchange",
+  "levels": [
+   "outpost"
+  ],
+  "room": {
+   "wall": "outpost_prefab",
+   "floor": "current"
+  },
+  "light": {
+   "amb": 0.31,
+   "shadowk": 0.55,
+   "dither": false,
+   "shadows": true,
+   "contact": true,
+   "glass": 0.62,
+   "power": 1.4,
+   "rad": 280
+  },
+  "air": {
+   "people": 0,
+   "motes": 280
+  },
+  "backdrop": {
+   "id": "space_outpost",
+   "auto": true
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "hangar_outpost",
+    "x": 112,
+    "y": 53
+   },
+   {
+    "type": "hold",
+    "skin": "outpost",
+    "x": 8,
+    "y": 62,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 0,
+    "y": 0,
+    "id": "pipes_a",
+    "layer": "wall",
+    "fx": true
+   },
+   {
+    "type": "prop",
+    "x": 344,
+    "y": 0,
+    "id": "vent_b",
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 428,
+    "y": -7,
+    "id": "pipe_a",
+    "layer": "wall"
+   },
+   {
+    "type": "lamp",
+    "x": 257,
+    "y": 0,
+    "skin": "emergency",
+    "col": "#faf6ff",
+    "pow": 0.5,
+    "reach": 900,
+    "glass": 1
+   },
+   {
+    "type": "lamp",
+    "x": 0,
+    "y": 48,
+    "skin": "worklight",
+    "fx": true,
+    "col": "#e8eef8",
+    "pow": 1,
+    "reach": 800,
+    "glass": 1
+   },
+   {
+    "type": "lamp",
+    "x": 684,
+    "y": 56,
+    "skin": "worklight",
+    "col": "#e8eef8",
+    "pow": 1,
+    "reach": 800,
+    "glass": 1
+   },
+   {
+    "type": "prop",
+    "x": 671,
+    "y": 228,
+    "scale": 1.25,
+    "id": "watercooler",
+    "layer": "wall"
+   },
+   {
+    "type": "till",
+    "skin": "exchange_outpost",
+    "x": 618,
+    "y": 321,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 522,
+    "y": 311,
+    "id": "outpost_platformscale",
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "x": 394,
+    "y": 343,
+    "id": "outpost_palletjack",
+    "layer": "floor"
+   }
+  ]
+ },
+ {
+  "name": "settlement · exchange",
+  "levels": [
+   "settlement"
+  ],
+  "room": {
+   "wall": "settlement_quilt",
+   "floor": "current"
+  },
+  "light": {
+   "amb": 0.35,
+   "shadowk": 0.55,
+   "dither": false,
+   "shadows": true,
+   "contact": true,
+   "glass": 0.62,
+   "power": 1.4,
+   "rad": 280
+  },
+  "air": {
+   "people": 0,
+   "motes": 200
+  },
+  "backdrop": {
+   "id": "space_settlement",
+   "auto": true
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "hangar_settlement",
+    "x": 107,
+    "y": 79
+   },
+   {
+    "type": "hold",
+    "skin": "settlement",
+    "x": 8,
+    "y": 52,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 180,
+    "y": -2,
+    "id": "settlement_drying",
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 429,
+    "y": 0,
+    "id": "settlement_bunting",
+    "layer": "wall"
+   },
+   {
+    "type": "lamp",
+    "x": 122,
+    "y": 0,
+    "skin": "lantern",
+    "col": "#ffc27a",
+    "pow": 1.28,
+    "reach": 700,
+    "glass": 1
+   },
+   {
+    "type": "lamp",
+    "x": 526,
+    "y": 0,
+    "skin": "lantern",
+    "col": "#ffc27a",
+    "pow": 1.28,
+    "reach": 700,
+    "glass": 1
+   },
+   {
+    "type": "till",
+    "skin": "exchange_settlement",
+    "x": 602,
+    "y": 313,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 506,
+    "y": 332,
+    "id": "settlement_cargodrums",
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "x": 444,
+    "y": 314,
+    "id": "settlement_handtruck",
+    "layer": "floor"
+   }
+  ]
+ },
+ {
+  "name": "city · exchange",
+  "levels": [
+   "city"
+  ],
+  "room": {
+   "wall": "city_chevron",
+   "floor": "current"
+  },
+  "light": {
+   "amb": 0.46,
+   "shadowk": 0.55,
+   "dither": false,
+   "shadows": true,
+   "contact": true,
+   "glass": 0.62,
+   "power": 1.4,
+   "rad": 280
+  },
+  "air": {
+   "people": 0,
+   "motes": 120
+  },
+  "backdrop": {
+   "id": "space_city",
+   "auto": true
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "hangar_city",
+    "x": 106,
+    "y": 35
+   },
+   {
+    "type": "hold",
+    "skin": "city",
+    "x": 8,
+    "y": 58,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 680,
+    "y": 211,
+    "scale": 1.25,
+    "id": "city_bamboo",
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 296,
+    "y": 0,
+    "id": "city_lanterns",
+    "layer": "wall"
+   },
+   {
+    "type": "lamp",
+    "x": 171,
+    "y": 0,
+    "skin": "lightbar",
+    "col": "#7fe3ff",
+    "pow": 1.6,
+    "reach": 950,
+    "glass": 1
+   },
+   {
+    "type": "lamp",
+    "x": 513,
+    "y": 0,
+    "skin": "lightbar",
+    "col": "#7fe3ff",
+    "pow": 1.6,
+    "reach": 950,
+    "glass": 1
+   },
+   {
+    "type": "till",
+    "skin": "exchange_city",
+    "x": 630,
+    "y": 326,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 542,
+    "y": 300,
+    "id": "city_chromescale",
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "x": 446,
+    "y": 308,
+    "id": "city_cargocrates",
+    "layer": "floor"
+   }
+  ]
+ },
+ {
+  "name": "capital · exchange",
+  "levels": [
+   "capital"
+  ],
+  "room": {
+   "wall": "capital_alloy",
+   "floor": "current"
+  },
+  "light": {
+   "amb": 0.62,
+   "shadowk": 0.55,
+   "dither": false,
+   "shadows": true,
+   "contact": true,
+   "glass": 0.62,
+   "power": 1.4,
+   "rad": 280,
+   "skin": "enamel"
+  },
+  "air": {
+   "people": 0,
+   "motes": 60
+  },
+  "backdrop": {
+   "id": "space_capital",
+   "auto": true
+  },
+  "items": [
+   {
+    "type": "open",
+    "skin": "hangar_capital",
+    "x": 109,
+    "y": 35
+   },
+   {
+    "type": "hold",
+    "skin": "capital",
+    "x": 8,
+    "y": 75,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 654,
+    "y": 118,
+    "id": "capital_mirror",
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 646,
+    "y": 229,
+    "scale": 1.25,
+    "id": "capital_fern",
+    "layer": "wall"
+   },
+   {
+    "type": "lamp",
+    "x": 72,
+    "y": 0,
+    "skin": "enamel",
+    "col": "#fffefa",
+    "pow": 3,
+    "reach": 900,
+    "glass": 1
+   },
+   {
+    "type": "lamp",
+    "x": 600,
+    "y": 0,
+    "skin": "enamel",
+    "col": "#fffefa",
+    "pow": 3,
+    "reach": 900,
+    "glass": 1
+   },
+   {
+    "type": "prop",
+    "x": 69,
+    "y": 391,
+    "scale": 1.5,
+    "id": "capital_bench",
+    "layer": "wall"
+   },
+   {
+    "type": "till",
+    "skin": "exchange_capital",
+    "x": 598,
+    "y": 326,
+    "layer": "wall"
+   },
+   {
+    "type": "prop",
+    "x": 510,
+    "y": 285,
+    "id": "capital_marblescale",
+    "layer": "floor"
+   },
+   {
+    "type": "prop",
+    "x": 398,
+    "y": 301,
+    "id": "capital_luggagetrolley",
+    "layer": "floor"
+   }
+  ]
+ }
+]

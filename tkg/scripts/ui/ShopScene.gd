@@ -107,6 +107,25 @@ static func room_for(dev: int, seed: int) -> Dictionary:
 	return {}
 
 
+## A room of another deck installed beside the shop's (`decks.<deck>` in
+## rooms.json), for this station's level, off its seed -- the Exchange's.
+static func deck_room_for(deck: String, dev: int, seed: int) -> Dictionary:
+	var d: Dictionary = (doc().get("decks", {}) as Dictionary).get(deck, {})
+	var rooms: Array = d.get("rooms", [])
+	if forced_room != "":
+		for r in rooms:
+			if String((r as Dictionary).get("slug", "")) == forced_room:
+				return r
+	var names: Array = (d.get("levels", {}) as Dictionary).get(level_name(dev), [])
+	if names.is_empty():
+		return {}
+	var want: String = names[absi(hash([seed, StringName(deck)])) % names.size()]
+	for r in rooms:
+		if String((r as Dictionary).get("slug", "")) == want:
+			return r
+	return {}
+
+
 ## This station's room, set by the screen through `set_room`.
 var room: Dictionary = {}
 
@@ -211,6 +230,7 @@ signal room_loaded
 func _load_plate(key: StringName) -> void:
 	_load_room()
 	super(key)
+	_choose_view()
 	_tone = _tone_of(_bd_id)
 	_setup_light()
 	for n in [_lamps_node, _glow_node]:
@@ -221,7 +241,7 @@ func _load_plate(key: StringName) -> void:
 
 func _load_room() -> void:
 	_tex.clear()
-	var files: Array[String] = [String(room.get("plate", ""))]
+	var files: Array[String] = [_plate_name()]
 	for key in ["rack", "till"]:
 		files.append(String((room.get(key, {}) as Dictionary).get("art", "")))
 	for band in ["back", "front"]:
@@ -295,7 +315,7 @@ func _draw() -> void:
 		return
 	if pin_clock_ms >= 0.0:
 		_clock = pin_clock_ms / 1000.0
-	var plate: Texture2D = _tex.get(String(room.get("plate", "")), null)
+	var plate: Texture2D = _tex.get(_plate_name(), null)
 	if plate == null:
 		return
 	# `drawRoom`: the plate is the whole room at its size.
@@ -314,7 +334,25 @@ func _draw() -> void:
 			"door": _door_hole(d)
 			"window": _window_hole(d)
 	_draw_list(self, room.get("back", []))
+	_draw_furniture()
 	_frame_light()
+
+
+## The picture the room stands on. The Exchange's is the station's shop's.
+func _plate_name() -> String:
+	return String(room.get("plate", ""))
+
+
+## Furniture the room draws itself, between what stands behind the live
+## furniture and what stands in front of it. The shop's is all live.
+func _draw_furniture() -> void:
+	pass
+
+
+## What is seen through the openings, once the base room has picked a
+## concourse. The shop keeps the concourse.
+func _choose_view() -> void:
+	pass
 
 
 ## A run of the bench's draw order onto one canvas: sprites where they stand,
@@ -363,7 +401,9 @@ func _view_span(span: Rect2) -> void:
 func _open_hole(d: Dictionary) -> void:
 	var skin := StringName(d.skin)
 	var r := Rect2(float(d.x), float(d.y), float(d.w), float(d.h))
-	var runs: Array = _hole_runs(skin)
+	# A room may carry an opening of its own -- the Exchange's hangar doors --
+	# with its picture beside the room's others and its hole in the entry.
+	var runs: Array = d.runs if d.has("runs") else _hole_runs(skin)
 	var fx := bool(d.get("fx", false))
 	var fy := bool(d.get("fy", false))
 	for run in runs:
@@ -375,7 +415,8 @@ func _open_hole(d: Dictionary) -> void:
 		if fy:
 			ry = r.size.y - ry - 1.0
 		_view_span(Rect2(r.position + Vector2(rx, ry), Vector2(rw, 1.0)))
-	var art: Texture2D = _opening_art.get(skin, null)
+	var art: Texture2D = _tex.get(String(d.art), null) if d.has("art") \
+		else _opening_art.get(skin, null)
 	if art == null:
 		return
 	if fx or fy:

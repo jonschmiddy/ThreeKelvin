@@ -1,0 +1,7 @@
+{
+ "unclaimed": {"seed": 67, "body_at": [0.7083, 1.3488], "disc_top": 12, "disc_r": 256},
+ "outpost": {"seed": 83, "body_at": [0.6662, 1.2154], "disc_top": 12, "disc_r": 256},
+ "settlement": {"seed": 51, "body_at": [0.6461, 1.2856], "disc_top": 12, "disc_r": 256},
+ "city": {"seed": 75, "body_at": [0.4205, 1.1998], "disc_top": 12, "disc_r": 256},
+ "capital": {"seed": 43, "body_at": [0.1511, 0.9239], "disc_top": 9, "disc_r": 117}
+}

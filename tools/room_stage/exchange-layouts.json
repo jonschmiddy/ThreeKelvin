@@ -1,0 +1,467 @@
+{
+ "format": "three-kelvin/room-layouts/1",
+ "panel": [
+  740,
+  431
+ ],
+ "floor_y": 353,
+ "view_scale": {},
+ "view_pos": {},
+ "view_people": {},
+ "view_walk": {},
+ "shelf_scale": 2,
+ "cut": {
+  "backdrops": [],
+  "props": [],
+  "walls": [],
+  "floors": [],
+  "stock": [],
+  "skins": []
+ },
+ "layouts": [
+  {
+   "name": "unclaimed · exchange (new)",
+   "levels": [
+    "unclaimed"
+   ],
+   "room": {
+    "wall": "unclaimed_scrap",
+    "floor": "current"
+   },
+   "light": {
+    "amb": 0.3,
+    "shadowk": 0.55,
+    "dither": false,
+    "shadows": true,
+    "contact": true,
+    "glass": 0.62,
+    "power": 1.4,
+    "rad": 280
+   },
+   "air": {
+    "people": 0,
+    "motes": 400
+   },
+   "backdrop": {
+    "id": "space_unclaimed",
+    "x": 0,
+    "y": 0,
+    "placed": false
+   },
+   "items": [
+    {
+     "type": "open",
+     "x": 120,
+     "y": 32,
+     "skin": "hangar_unclaimed"
+    },
+    {
+     "type": "hold",
+     "x": -10,
+     "y": 121,
+     "skin": "unclaimed",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 0,
+     "y": 0,
+     "id": "pipes_a",
+     "layer": "wall",
+     "fx": true
+    },
+    {
+     "type": "lamp",
+     "x": 96,
+     "y": -3,
+     "skin": "bulb",
+     "col": "#ffd6a8",
+     "pow": 1,
+     "reach": 800,
+     "glass": 1
+    },
+    {
+     "type": "prop",
+     "x": 426,
+     "y": 0,
+     "id": "pipe_a",
+     "layer": "wall"
+    },
+    {
+     "type": "lamp",
+     "x": 608,
+     "y": 0,
+     "skin": "bulb",
+     "col": "#ffd6a8",
+     "pow": 1,
+     "reach": 800,
+     "glass": 1,
+     "flick": 3
+    },
+    {
+     "type": "till",
+     "x": 480,
+     "y": 268,
+     "skin": "exchange_unclaimed",
+     "scale": 2,
+     "layer": "wall"
+    }
+   ]
+  },
+  {
+   "name": "outpost · exchange (new)",
+   "levels": [
+    "outpost"
+   ],
+   "room": {
+    "wall": "outpost_prefab",
+    "floor": "current"
+   },
+   "light": {
+    "amb": 0.31,
+    "shadowk": 0.55,
+    "dither": false,
+    "shadows": true,
+    "contact": true,
+    "glass": 0.62,
+    "power": 1.4,
+    "rad": 280
+   },
+   "air": {
+    "people": 0,
+    "motes": 280
+   },
+   "backdrop": {
+    "id": "space_outpost",
+    "x": 0,
+    "y": 0,
+    "placed": false
+   },
+   "items": [
+    {
+     "type": "open",
+     "x": 112,
+     "y": 53,
+     "skin": "hangar_outpost"
+    },
+    {
+     "type": "hold",
+     "x": -26,
+     "y": 126,
+     "skin": "outpost",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 0,
+     "y": 0,
+     "id": "pipes_a",
+     "layer": "wall",
+     "fx": true
+    },
+    {
+     "type": "prop",
+     "x": 344,
+     "y": 0,
+     "id": "vent_b",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 428,
+     "y": -7,
+     "id": "pipe_a",
+     "layer": "wall"
+    },
+    {
+     "type": "lamp",
+     "x": 257,
+     "y": 0,
+     "skin": "emergency",
+     "col": "#faf6ff",
+     "pow": 0.5,
+     "reach": 900,
+     "glass": 1
+    },
+    {
+     "type": "lamp",
+     "x": 0,
+     "y": 48,
+     "skin": "worklight",
+     "fx": true,
+     "col": "#e8eef8",
+     "pow": 1,
+     "reach": 800,
+     "glass": 1
+    },
+    {
+     "type": "lamp",
+     "x": 684,
+     "y": 56,
+     "skin": "worklight",
+     "col": "#e8eef8",
+     "pow": 1,
+     "reach": 800,
+     "glass": 1
+    },
+    {
+     "type": "till",
+     "x": 462,
+     "y": 214,
+     "skin": "exchange_outpost",
+     "scale": 2,
+     "layer": "wall"
+    }
+   ]
+  },
+  {
+   "name": "settlement · exchange (new)",
+   "levels": [
+    "settlement"
+   ],
+   "room": {
+    "wall": "settlement_quilt",
+    "floor": "current"
+   },
+   "light": {
+    "amb": 0.35,
+    "shadowk": 0.55,
+    "dither": false,
+    "shadows": true,
+    "contact": true,
+    "glass": 0.62,
+    "power": 1.4,
+    "rad": 280
+   },
+   "air": {
+    "people": 0,
+    "motes": 200
+   },
+   "backdrop": {
+    "id": "space_settlement",
+    "x": 0,
+    "y": 0,
+    "placed": false
+   },
+   "items": [
+    {
+     "type": "open",
+     "x": 107,
+     "y": 79,
+     "skin": "hangar_settlement"
+    },
+    {
+     "type": "hold",
+     "x": -20,
+     "y": 79,
+     "skin": "settlement",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 274,
+     "y": -4,
+     "id": "settlement_drying",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 392,
+     "y": 0,
+     "id": "settlement_bunting",
+     "layer": "wall"
+    },
+    {
+     "type": "lamp",
+     "x": 95,
+     "y": 0,
+     "skin": "lantern",
+     "col": "#ffc27a",
+     "pow": 1.28,
+     "reach": 700,
+     "glass": 1
+    },
+    {
+     "type": "lamp",
+     "x": 621,
+     "y": 0,
+     "skin": "lantern",
+     "col": "#ffc27a",
+     "pow": 1.28,
+     "reach": 700,
+     "glass": 1
+    },
+    {
+     "type": "till",
+     "x": 454,
+     "y": 216,
+     "skin": "exchange_settlement",
+     "scale": 2,
+     "layer": "wall"
+    }
+   ]
+  },
+  {
+   "name": "city · exchange (new)",
+   "levels": [
+    "city"
+   ],
+   "room": {
+    "wall": "city_chevron",
+    "floor": "current"
+   },
+   "light": {
+    "amb": 0.46,
+    "shadowk": 0.55,
+    "dither": false,
+    "shadows": true,
+    "contact": true,
+    "glass": 0.62,
+    "power": 1.4,
+    "rad": 280
+   },
+   "air": {
+    "people": 0,
+    "motes": 120
+   },
+   "backdrop": {
+    "id": "space_city",
+    "x": 0,
+    "y": 0,
+    "placed": false
+   },
+   "items": [
+    {
+     "type": "open",
+     "x": 112,
+     "y": 18,
+     "skin": "hangar_city"
+    },
+    {
+     "type": "hold",
+     "x": -12,
+     "y": 128,
+     "skin": "city",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 260,
+     "y": 0,
+     "id": "city_lanterns",
+     "layer": "wall"
+    },
+    {
+     "type": "lamp",
+     "x": 65,
+     "y": 0,
+     "skin": "lightbar",
+     "col": "#7fe3ff",
+     "pow": 1.6,
+     "reach": 950,
+     "glass": 1
+    },
+    {
+     "type": "lamp",
+     "x": 570,
+     "y": 0,
+     "skin": "lightbar",
+     "fx": true,
+     "col": "#7fe3ff",
+     "pow": 1.6,
+     "reach": 950,
+     "glass": 1
+    },
+    {
+     "type": "till",
+     "x": 496,
+     "y": 218,
+     "skin": "exchange_city",
+     "scale": 2,
+     "layer": "wall"
+    }
+   ]
+  },
+  {
+   "name": "capital · exchange (new)",
+   "levels": [
+    "capital"
+   ],
+   "room": {
+    "wall": "capital_alloy",
+    "floor": "current"
+   },
+   "light": {
+    "amb": 0.62,
+    "shadowk": 0.55,
+    "dither": false,
+    "shadows": true,
+    "contact": true,
+    "glass": 0.62,
+    "power": 1.4,
+    "rad": 280,
+    "skin": "enamel"
+   },
+   "air": {
+    "people": 0,
+    "motes": 60
+   },
+   "backdrop": {
+    "id": "space_capital",
+    "x": 0,
+    "y": 0,
+    "placed": false
+   },
+   "items": [
+    {
+     "type": "open",
+     "x": 109,
+     "y": 35,
+     "skin": "hangar_capital"
+    },
+    {
+     "type": "hold",
+     "x": 30,
+     "y": 104,
+     "skin": "capital",
+     "layer": "wall"
+    },
+    {
+     "type": "prop",
+     "x": 654,
+     "y": 118,
+     "id": "capital_mirror",
+     "layer": "wall"
+    },
+    {
+     "type": "lamp",
+     "x": 79,
+     "y": 0,
+     "skin": "enamel",
+     "col": "#fffefa",
+     "pow": 3,
+     "reach": 900,
+     "glass": 1
+    },
+    {
+     "type": "lamp",
+     "x": 601,
+     "y": 0,
+     "skin": "enamel",
+     "col": "#fffefa",
+     "pow": 3,
+     "reach": 900,
+     "glass": 1
+    },
+    {
+     "type": "till",
+     "x": 454,
+     "y": 236,
+     "skin": "exchange_capital",
+     "scale": 2,
+     "layer": "wall"
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,212 @@
+{
+ "unclaimed": {
+  "take": "U2 frame on U1 pallet",
+  "s": {
+   "file": "hold_unclaimed_s.png",
+   "size": [
+    150,
+    115
+   ],
+   "opening": [
+    35,
+    27,
+    80,
+    60
+   ]
+  },
+  "m": {
+   "file": "hold_unclaimed_m.png",
+   "size": [
+    170,
+    135
+   ],
+   "opening": [
+    35,
+    27,
+    100,
+    80
+   ]
+  },
+  "l": {
+   "file": "hold_unclaimed_l.png",
+   "size": [
+    190,
+    155
+   ],
+   "opening": [
+    35,
+    27,
+    120,
+    100
+   ]
+  }
+ },
+ "outpost": {
+  "take": "O1; the ground slab under its skid taken off to hang",
+  "s": {
+   "file": "hold_outpost_s.png",
+   "size": [
+    152,
+    124
+   ],
+   "opening": [
+    36,
+    25,
+    80,
+    60
+   ]
+  },
+  "m": {
+   "file": "hold_outpost_m.png",
+   "size": [
+    172,
+    144
+   ],
+   "opening": [
+    36,
+    25,
+    100,
+    80
+   ]
+  },
+  "l": {
+   "file": "hold_outpost_l.png",
+   "size": [
+    192,
+    164
+   ],
+   "opening": [
+    36,
+    25,
+    120,
+    100
+   ]
+  }
+ },
+ "settlement": {
+  "take": "S7, legs off to hang from the crane (17 rows)",
+  "s": {
+   "file": "hold_settlement_s.png",
+   "size": [
+    149,
+    134
+   ],
+   "opening": [
+    36,
+    34,
+    80,
+    60
+   ]
+  },
+  "m": {
+   "file": "hold_settlement_m.png",
+   "size": [
+    169,
+    154
+   ],
+   "opening": [
+    36,
+    34,
+    100,
+    80
+   ]
+  },
+  "l": {
+   "file": "hold_settlement_l.png",
+   "size": [
+    189,
+    174
+   ],
+   "opening": [
+    36,
+    34,
+    120,
+    100
+   ]
+  }
+ },
+ "city": {
+  "take": "C1; the shadow under it taken off to hang",
+  "s": {
+   "file": "hold_city_s.png",
+   "size": [
+    143,
+    122
+   ],
+   "opening": [
+    32,
+    32,
+    80,
+    60
+   ]
+  },
+  "m": {
+   "file": "hold_city_m.png",
+   "size": [
+    163,
+    142
+   ],
+   "opening": [
+    32,
+    32,
+    100,
+    80
+   ]
+  },
+  "l": {
+   "file": "hold_city_l.png",
+   "size": [
+    183,
+    162
+   ],
+   "opening": [
+    32,
+    32,
+    120,
+    100
+   ]
+  }
+ },
+ "capital": {
+  "take": "K3, the capital redo (2026-09-27): a hanging alloy box, no columns",
+  "s": {
+   "file": "hold_capital_s.png",
+   "size": [
+    148,
+    132
+   ],
+   "opening": [
+    34,
+    36,
+    80,
+    60
+   ]
+  },
+  "m": {
+   "file": "hold_capital_m.png",
+   "size": [
+    168,
+    152
+   ],
+   "opening": [
+    34,
+    36,
+    100,
+    80
+   ]
+  },
+  "l": {
+   "file": "hold_capital_l.png",
+   "size": [
+    188,
+    172
+   ],
+   "opening": [
+    34,
+    36,
+    120,
+    100
+   ]
+  }
+ }
+}

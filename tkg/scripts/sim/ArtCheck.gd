@@ -145,8 +145,8 @@ func run() -> void:
 		c_wrong == 0)
 	_ok("every enemy sprite that exists fits its canvas", int(e["wrong"]) == 0)
 	_ok("every sector place sprite that exists fits its arena", int(p["wrong"]) == 0)
-	_ok("every shop room is installed whole: its pictures load, its light reads, "
-		+ "every level has one", int(lay["bad"]) == 0)
+	_ok("every shop and Exchange room is installed whole: its pictures load, its light "
+		+ "reads, every level has one", int(lay["bad"]) == 0)
 	verdict("artcheck")
 
 
@@ -177,48 +177,120 @@ func _shop_rooms() -> Dictionary:
 				print("  no glow colour for backdrop %s" % bd)
 	var ls: Array = d.get("light_size", [0, 0])
 	for r in rooms:
-		var room: Dictionary = r
-		var notes: Array[String] = []
-		var files: Array[String] = [String(room.plate), String(room.rack.art), String(room.till.art)]
-		for layer in ["back", "front"]:
-			for q in room.get(layer, []):
-				if (q as Dictionary).has("art"):
-					files.append(String(q.art))
-		for o in room.get("openings", []):
-			var od: Dictionary = o
-			if od.has("art"):
-				files.append(String(od.art))
-			if od.has("frame"):
-				files.append("../" + String(od.frame))
-			if String(od.type) == "open" and StationRoom._hole_runs(StringName(od.skin)).is_empty():
-				notes.append("opening %s has no hole" % od.skin)
-		for l in room.get("lamps", []):
-			files.append(String(l.art))
-			files.append(String(l.glass))
-		for g in room.get("glass", []):
-			files.append(String(g.art))
-		for f in files:
-			var path := ShopScene.ROOMS_DIR + f
-			if not ResourceLoader.exists(path) or load(path) == null:
-				notes.append("cannot load %s" % f)
-		var lf := ShopScene.ROOMS_DIR + String(room.light.file)
-		var img := Image.new()
-		if not FileAccess.file_exists(lf) or img.load_png_from_buffer(
-				FileAccess.get_file_as_bytes(lf)) != OK:
-			notes.append("no light")
-		elif img.get_width() != int(ls[0]) or img.get_height() != int(ls[1]) * 4:
-			notes.append("light is %dx%d" % [img.get_width(), img.get_height()])
-		for key in ["rack", "till"]:
-			var fr: Dictionary = room[key]
-			var box := Rect2(float(fr.x), float(fr.y), float(fr.w), float(fr.h))
-			if box.position.x < 0.0 or box.end.x > ShopScene.PANEL.x + 0.5 \
-					or box.end.y > ShopScene.PANEL.y + 0.5:
-				notes.append("%s off the room" % key)
-		if not notes.is_empty():
+		bad += _room_faults(r, ls)
+	# THE EXCHANGE, the second deck in the same file: one room per level, a hold
+	# of three frames where the rack was, and its level's sky's glow colour.
+	var ex: Dictionary = (d.get("decks", {}) as Dictionary).get("exchange", {})
+	var ex_rooms: Array = ex.get("rooms", [])
+	print("\n=== EXCHANGE ROOMS (%d) ===" % ex_rooms.size())
+	for dev in MapGen.Development.values():
+		var lv := ShopScene.level_name(dev)
+		if ((ex.get("levels", {}) as Dictionary).get(lv, []) as Array).is_empty():
 			bad += 1
-		print("  %-22s %d pictures  %s" % [room.slug, files.size(),
-			"ok" if notes.is_empty() else ", ".join(notes)])
+			print("  %s has no Exchange" % lv)
+		if not (d.get("tones", {}) as Dictionary).has("space_" + lv):
+			bad += 1
+			print("  no glow colour for space_%s" % lv)
+	for r in ex_rooms:
+		bad += _room_faults(r, ls)
 	return {"bad": bad}
+
+
+## One installed room's faults, printed; 1 if it has any. A shop room has a
+## rack and an Exchange a hold, and both have a counter.
+func _room_faults(r: Dictionary, ls: Array) -> int:
+	var room: Dictionary = r
+	var notes: Array[String] = []
+	var files: Array[String] = [String(room.plate), String(room.till.art)]
+	if room.has("rack"):
+		files.append(String(room.rack.art))
+	for f in (room.get("hold", {}) as Dictionary).get("frames", {}).values():
+		files.append(String((f as Dictionary).art))
+	if room.has("hold") and ((room.hold as Dictionary).get("frames", {}) as Dictionary).size() != 3:
+		notes.append("the hold has %d frames" % ((room.hold as Dictionary).get("frames", {}) as Dictionary).size())
+	for layer in ["back", "front"]:
+		for q in room.get(layer, []):
+			if (q as Dictionary).has("art"):
+				files.append(String(q.art))
+	for o in room.get("openings", []):
+		var od: Dictionary = o
+		if od.has("art"):
+			files.append(String(od.art))
+		if od.has("frame"):
+			files.append("../" + String(od.frame))
+		if String(od.type) == "open" and not od.has("runs") 				and StationRoom._hole_runs(StringName(od.skin)).is_empty():
+			notes.append("opening %s has no hole" % od.skin)
+	for l in room.get("lamps", []):
+		files.append(String(l.art))
+		files.append(String(l.glass))
+	for g in room.get("glass", []):
+		files.append(String(g.art))
+	for f in files:
+		var path := ShopScene.ROOMS_DIR + f
+		if not ResourceLoader.exists(path) or load(path) == null:
+			notes.append("cannot load %s" % f)
+	var lf := ShopScene.ROOMS_DIR + String(room.light.file)
+	var img := Image.new()
+	if not FileAccess.file_exists(lf) or img.load_png_from_buffer(
+			FileAccess.get_file_as_bytes(lf)) != OK:
+		notes.append("no light")
+	elif img.get_width() != int(ls[0]) or img.get_height() != int(ls[1]) * 4:
+		notes.append("light is %dx%d" % [img.get_width(), img.get_height()])
+	# THE EXCHANGE'S VIEW, pixel for pixel (`room_install.view_masks`): the
+	# room's size, with space showing for every size of hold. A missing or blank
+	# one lights the view like the room, which is the grey ring round it back.
+	if room.has("hold"):
+		var vf := ShopScene.ROOMS_DIR + String((room.light as Dictionary).get("view", ""))
+		var vi := Image.new()
+		if not FileAccess.file_exists(vf) or vi.load_png_from_buffer(
+				FileAccess.get_file_as_bytes(vf)) != OK:
+			notes.append("no view")
+		elif vi.get_size() != Vector2i(ShopScene.PANEL):
+			notes.append("view is %dx%d" % [vi.get_width(), vi.get_height()])
+		else:
+			vi.convert(Image.FORMAT_RGB8)
+			var px := vi.get_data()
+			var seen := [false, false, false]
+			for i in range(0, px.size(), 3):
+				for c in 3:
+					if px[i + c] > 127:
+						seen[c] = true
+				if seen[0] and seen[1] and seen[2]:
+					break
+			for c in 3:
+				if not seen[c]:
+					notes.append("no view for a %s hold" % ExchangeScene.VIEW_SIZES[c])
+	for key in ["rack", "hold", "till"]:
+		if not room.has(key):
+			continue
+		var fr: Dictionary = room[key]
+		# A HOLD IS JUDGED BY WHAT IS DRAWN, at each of its sizes: the frame's
+		# painted pixels, and the grid standing in its opening. Its box is the
+		# heavy frame's picture, clear margins and all, and Jon hangs his with
+		# those margins past the wall's edge -- four of his five Exchanges,
+		# every painted pixel inside (2026-09-27).
+		if key == "hold":
+			var panel := Rect2(Vector2.ZERO, ShopScene.PANEL).grow(0.5)
+			for z in (fr.get("frames", {}) as Dictionary):
+				var f: Dictionary = (fr.frames as Dictionary)[z]
+				var at := ExchangeScene.frame_at(fr, String(z))
+				var op: Array = f.opening
+				if not panel.encloses(Rect2(at.position + Vector2(float(op[0]), float(op[1])),
+						Vector2(float(op[2]), float(op[3])))):
+					notes.append("the %s hold's grid off the room" % z)
+				var path := ShopScene.ROOMS_DIR + String(f.art)
+				if ResourceLoader.exists(path):
+					var used := (load(path) as Texture2D).get_image().get_used_rect()
+					if not panel.encloses(Rect2(at.position + Vector2(used.position), Vector2(used.size))):
+						notes.append("the %s frame off the room" % z)
+			continue
+		var box := Rect2(float(fr.x), float(fr.y), float(fr.w), float(fr.h))
+		if box.position.x < 0.0 or box.end.x > ShopScene.PANEL.x + 0.5 \
+				or box.end.y > ShopScene.PANEL.y + 0.5:
+			notes.append("%s off the room" % key)
+	print("  %-22s %d pictures  %s" % [room.slug, files.size(),
+		"ok" if notes.is_empty() else ", ".join(notes)])
+	return 0 if notes.is_empty() else 1
 
 
 ## ---------------- the three families that are still drawn ----------------

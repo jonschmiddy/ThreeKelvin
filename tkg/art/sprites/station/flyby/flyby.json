@@ -1,0 +1,481 @@
+{
+ "source": "tools/flyby_ships.py",
+ "ships": [
+  {
+   "name": "armedtrader",
+   "facing": -1,
+   "near": "armedtrader_near.png",
+   "near_size": [
+    62,
+    28
+   ],
+   "far": "armedtrader_far.png",
+   "far_size": [
+    47,
+    20
+   ]
+  },
+  {
+   "name": "asteroidtow",
+   "facing": -1,
+   "near": "asteroidtow_near.png",
+   "near_size": [
+    74,
+    25
+   ],
+   "far": "asteroidtow_far.png",
+   "far_size": [
+    55,
+    19
+   ]
+  },
+  {
+   "name": "barnook",
+   "facing": -1,
+   "near": "barnook_near.png",
+   "near_size": [
+    64,
+    21
+   ],
+   "far": "barnook_far.png",
+   "far_size": [
+    48,
+    15
+   ]
+  },
+  {
+   "name": "bigdish",
+   "facing": -1,
+   "near": "bigdish_near.png",
+   "near_size": [
+    64,
+    31
+   ],
+   "far": "bigdish_far.png",
+   "far_size": [
+    48,
+    23
+   ]
+  },
+  {
+   "name": "bored",
+   "facing": -1,
+   "near": "bored_near.png",
+   "near_size": [
+    70,
+    18
+   ],
+   "far": "bored_far.png",
+   "far_size": [
+    53,
+    13
+   ]
+  },
+  {
+   "name": "catamaran",
+   "facing": -1,
+   "near": "catamaran_near.png",
+   "near_size": [
+    68,
+    12
+   ],
+   "far": "catamaran_far.png",
+   "far_size": [
+    50,
+    9
+   ]
+  },
+  {
+   "name": "cl_drums",
+   "facing": -1,
+   "near": "cl_drums_near.png",
+   "near_size": [
+    73,
+    21
+   ],
+   "far": "cl_drums_far.png",
+   "far_size": [
+    55,
+    16
+   ]
+  },
+  {
+   "name": "cl_stack",
+   "facing": -1,
+   "near": "cl_stack_near.png",
+   "near_size": [
+    72,
+    30
+   ],
+   "far": "cl_stack_far.png",
+   "far_size": [
+    54,
+    22
+   ]
+  },
+  {
+   "name": "cl_tree",
+   "facing": -1,
+   "near": "cl_tree_near.png",
+   "near_size": [
+    64,
+    22
+   ],
+   "far": "cl_tree_far.png",
+   "far_size": [
+    48,
+    16
+   ]
+  },
+  {
+   "name": "courier2",
+   "facing": -1,
+   "near": "courier2_near.png",
+   "near_size": [
+    58,
+    14
+   ],
+   "far": "courier2_far.png",
+   "far_size": [
+    44,
+    11
+   ]
+  },
+  {
+   "name": "dropship",
+   "facing": -1,
+   "near": "dropship_near.png",
+   "near_size": [
+    62,
+    19
+   ],
+   "far": "dropship_far.png",
+   "far_size": [
+    46,
+    14
+   ]
+  },
+  {
+   "name": "fm_domes",
+   "facing": -1,
+   "near": "fm_domes_near.png",
+   "near_size": [
+    72,
+    23
+   ],
+   "far": "fm_domes_far.png",
+   "far_size": [
+    54,
+    18
+   ]
+  },
+  {
+   "name": "forked",
+   "facing": -1,
+   "near": "forked_near.png",
+   "near_size": [
+    58,
+    19
+   ],
+   "far": "forked_far.png",
+   "far_size": [
+    43,
+    14
+   ]
+  },
+  {
+   "name": "gunboat",
+   "facing": -1,
+   "near": "gunboat_near.png",
+   "near_size": [
+    53,
+    14
+   ],
+   "far": "gunboat_far.png",
+   "far_size": [
+    39,
+    10
+   ]
+  },
+  {
+   "name": "hp_pods",
+   "facing": -1,
+   "near": "hp_pods_near.png",
+   "near_size": [
+    71,
+    15
+   ],
+   "far": "hp_pods_far.png",
+   "far_size": [
+    53,
+    11
+   ]
+  },
+  {
+   "name": "hp_wards",
+   "facing": -1,
+   "near": "hp_wards_near.png",
+   "near_size": [
+    74,
+    18
+   ],
+   "far": "hp_wards_far.png",
+   "far_size": [
+    56,
+    14
+   ]
+  },
+  {
+   "name": "lattice",
+   "facing": -1,
+   "near": "lattice_near.png",
+   "near_size": [
+    76,
+    9
+   ],
+   "far": "lattice_far.png",
+   "far_size": [
+    57,
+    7
+   ]
+  },
+  {
+   "name": "lightfreighter",
+   "facing": -1,
+   "near": "lightfreighter_near.png",
+   "near_size": [
+    66,
+    26
+   ],
+   "far": "lightfreighter_far.png",
+   "far_size": [
+    49,
+    20
+   ]
+  },
+  {
+   "name": "liner",
+   "facing": -1,
+   "near": "liner_near.png",
+   "near_size": [
+    80,
+    21
+   ],
+   "far": "liner_far.png",
+   "far_size": [
+    60,
+    16
+   ]
+  },
+  {
+   "name": "lrshuttle",
+   "facing": -1,
+   "near": "lrshuttle_near.png",
+   "near_size": [
+    64,
+    15
+   ],
+   "far": "lrshuttle_far.png",
+   "far_size": [
+    48,
+    12
+   ]
+  },
+  {
+   "name": "mk_arcade",
+   "facing": -1,
+   "near": "mk_arcade_near.png",
+   "near_size": [
+    66,
+    28
+   ],
+   "far": "mk_arcade_far.png",
+   "far_size": [
+    50,
+    21
+   ]
+  },
+  {
+   "name": "mk_awning",
+   "facing": -1,
+   "near": "mk_awning_near.png",
+   "near_size": [
+    71,
+    23
+   ],
+   "far": "mk_awning_far.png",
+   "far_size": [
+    54,
+    17
+   ]
+  },
+  {
+   "name": "mkt_dome",
+   "facing": -1,
+   "near": "mkt_dome_near.png",
+   "near_size": [
+    60,
+    28
+   ],
+   "far": "mkt_dome_far.png",
+   "far_size": [
+    45,
+    21
+   ]
+  },
+  {
+   "name": "mkt_slung",
+   "facing": -1,
+   "near": "mkt_slung_near.png",
+   "near_size": [
+    69,
+    20
+   ],
+   "far": "mkt_slung_far.png",
+   "far_size": [
+    52,
+    15
+   ]
+  },
+  {
+   "name": "modulepush",
+   "facing": -1,
+   "near": "modulepush_near.png",
+   "near_size": [
+    68,
+    22
+   ],
+   "far": "modulepush_far.png",
+   "far_size": [
+    51,
+    16
+   ]
+  },
+  {
+   "name": "orbitarms",
+   "facing": -1,
+   "near": "orbitarms_near.png",
+   "near_size": [
+    60,
+    16
+   ],
+   "far": "orbitarms_far.png",
+   "far_size": [
+    45,
+    12
+   ]
+  },
+  {
+   "name": "pr_drum",
+   "facing": -1,
+   "near": "pr_drum_near.png",
+   "near_size": [
+    65,
+    24
+   ],
+   "far": "pr_drum_far.png",
+   "far_size": [
+    49,
+    18
+   ]
+  },
+  {
+   "name": "rf_pipes",
+   "facing": -1,
+   "near": "rf_pipes_near.png",
+   "near_size": [
+    68,
+    23
+   ],
+   "far": "rf_pipes_far.png",
+   "far_size": [
+    51,
+    16
+   ]
+  },
+  {
+   "name": "ringdrive",
+   "facing": -1,
+   "near": "ringdrive_near.png",
+   "near_size": [
+    65,
+    28
+   ],
+   "far": "ringdrive_far.png",
+   "far_size": [
+    49,
+    21
+   ]
+  },
+  {
+   "name": "ringspine",
+   "facing": -1,
+   "near": "ringspine_near.png",
+   "near_size": [
+    75,
+    26
+   ],
+   "far": "ringspine_far.png",
+   "far_size": [
+    56,
+    20
+   ]
+  },
+  {
+   "name": "rl_double",
+   "facing": -1,
+   "near": "rl_double_near.png",
+   "near_size": [
+    72,
+    15
+   ],
+   "far": "rl_double_far.png",
+   "far_size": [
+    54,
+    11
+   ]
+  },
+  {
+   "name": "rly_dishes",
+   "facing": -1,
+   "near": "rly_dishes_near.png",
+   "near_size": [
+    68,
+    25
+   ],
+   "far": "rly_dishes_far.png",
+   "far_size": [
+    51,
+    19
+   ]
+  },
+  {
+   "name": "science",
+   "facing": -1,
+   "near": "science_near.png",
+   "near_size": [
+    61,
+    16
+   ],
+   "far": "science_far.png",
+   "far_size": [
+    46,
+    12
+   ]
+  },
+  {
+   "name": "scoop",
+   "facing": -1,
+   "near": "scoop_near.png",
+   "near_size": [
+    70,
+    20
+   ],
+   "far": "scoop_far.png",
+   "far_size": [
+    52,
+    15
+   ]
+  }
+ ]
+}

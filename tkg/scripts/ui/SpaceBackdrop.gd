@@ -106,6 +106,22 @@ var _has_sun: bool = true
 var _body: ImageTexture
 var _body_px: int = 3     ## integer upscale; pixel art is never scaled by a fraction
 var _body_at: Vector2 = Vector2(0.5, 0.5)   ## centre, as a fraction of the view
+## WHERE THE WORLD IS FRAMED, when something other than the sector draws this
+## sky. The Exchange hangs it behind a room whose counter and floor cover the
+## bottom third of the view, which is where most worlds sit: of 60 station
+## skies behind its five rooms, 8 showed any of their world through a window
+## (2026-09-27). Given a rect in view pixels, the world is drawn there instead:
+## whole and centred when it fits, its upper limb rising into the lower part of
+## the rect when it does not.
+##
+## THE LIMB, NOT THE PICTURE'S EDGE. The baked world carries a margin of halo,
+## ring and moon round its disc, a fifth of its height on a big one, so placing
+## the picture's top put the planet itself below a hangar door's sixty-pixel gap
+## entirely. What is placed is the disc: `_disc_top` down the picture, `_disc_r`
+## across.
+var frame_in: Rect2 = Rect2()
+var _disc_top := 0.0
+var _disc_r := 0.0
 ## The system whose sky this is, and the view height its world was baked for.
 ##
 ## Both exist because of when setup() is called. The sector screen tells this
@@ -433,6 +449,8 @@ func _bake_world(n: MapGen.MapNode) -> void:
 				img.set_pixel(px, py, col)
 
 	_body = ImageTexture.create_from_image(img)
+	_disc_top = float((cy - rr) * _body_px)
+	_disc_r = float(rr * _body_px)
 
 ## Where the gaps in a ring are. A solid band reads as a plate; the gaps are the
 ## whole reason a ring looks like billions of separate rocks.
@@ -657,6 +675,12 @@ func _paint_body() -> void:
 		return
 	var dim := Vector2(_body.get_width(), _body.get_height()) * float(_body_px)
 	var at := (size * _body_at - dim * 0.5).floor()
+	if frame_in.has_area():
+		at.x = floorf(frame_in.get_center().x - dim.x * 0.5)
+		if _disc_r * 2.0 <= frame_in.size.y * 0.8:
+			at.y = floorf(frame_in.get_center().y - dim.y * 0.5)
+		else:
+			at.y = floorf(frame_in.position.y + frame_in.size.y * 0.4) - _disc_top
 	draw_texture_rect(_body, Rect2(at, dim), false)
 
 ## Rock, in three depths, along a belt rather than scattered evenly. A field

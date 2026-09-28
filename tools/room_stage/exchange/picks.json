@@ -1,0 +1,237 @@
+{
+ "doors": {
+  "unclaimed": {
+   "take": "takes/door_u3.png",
+   "top": 46,
+   "leaf": [
+    21,
+    90
+   ],
+   "bar": [
+    126,
+    131
+   ],
+   "gap_top": 131,
+   "gap": [
+    18,
+    90
+   ],
+   "floor": 140,
+   "grow": {
+    "cols": [
+     [
+      28,
+      40
+     ],
+     [
+      70,
+      82
+     ]
+    ],
+    "times": 6,
+    "rows": [
+     48,
+     63
+    ],
+    "rtimes": 2
+   }
+  },
+  "outpost": {
+   "take": "takes/door_o1.png",
+   "top": 38,
+   "leaf": [
+    29,
+    82
+   ],
+   "bar": [
+    120,
+    131
+   ],
+   "bar_x": [
+    22,
+    91
+   ],
+   "gap_top": 131,
+   "gap": [
+    28,
+    84
+   ],
+   "floor": 147,
+   "grow": {
+    "cols": [
+     [
+      36,
+      48
+     ],
+     [
+      64,
+      76
+     ]
+    ],
+    "times": 7,
+    "rows": [
+     40,
+     82
+    ],
+    "rtimes": 0
+   }
+  },
+  "settlement": {
+   "take": "takes/door_s3.png",
+   "top": 34,
+   "leaf": [
+    23,
+    89
+   ],
+   "bar": [
+    124,
+    129
+   ],
+   "gap_top": 129,
+   "gap": [
+    21,
+    91
+   ],
+   "floor": 149,
+   "grow": {
+    "stretch": [
+     42,
+     84,
+     210
+    ]
+   }
+  },
+  "city": {
+   "take": "takes/door_c3.png",
+   "top": 41,
+   "leaf": [
+    26,
+    87
+   ],
+   "bar": [
+    122,
+    128
+   ],
+   "bar_x": [
+    22,
+    89
+   ],
+   "gap_top": 128,
+   "gap": [
+    19,
+    93
+   ],
+   "floor": 140,
+   "grow": {
+    "cols": [
+     [
+      38,
+      50
+     ],
+     [
+      52,
+      64
+     ]
+    ],
+    "times": 7,
+    "rows": [
+     62,
+     87
+    ],
+    "rtimes": 1
+   }
+  },
+  "capital": {
+   "take": "takes/door_k3.png",
+   "top": 29,
+   "leaf": [
+    25,
+    87
+   ],
+   "bar": [
+    121,
+    127
+   ],
+   "bar_x": [
+    22,
+    89
+   ],
+   "gap_top": 127,
+   "gap": [
+    25,
+    87
+   ],
+   "floor": 135,
+   "grow": {
+    "cols": [
+     [
+      34,
+      46
+     ],
+     [
+      66,
+      78
+     ]
+    ],
+    "times": 7,
+    "rows": [
+     42,
+     63
+    ],
+    "rtimes": 2
+   }
+  }
+ },
+ "machines": {
+  "unclaimed": "takes/mach_u1.png",
+  "outpost": "takes/mach_o1.png",
+  "settlement": "takes/mach_s2.png",
+  "city": {
+   "take": "takes/mach_c2.png",
+   "mouth": {
+    "box": [
+     58,
+     62,
+     116,
+     88
+    ],
+    "sample": [
+     70,
+     65
+    ]
+   }
+  },
+  "capital": "takes/mach_k4.png"
+ },
+ "props": {
+  "settlement_cargodrums": "takes/prop_drums.png",
+  "settlement_handtruck": {
+   "take": "takes/prop_truck2.png",
+   "clear_light_below": 51
+  }
+ },
+ "hook": {
+  "take": "takes/hook_1.png",
+  "rope": 2,
+  "into": 1,
+  "crop_top": 16,
+  "rig": {
+   "centre": [
+    17.5,
+    63.0
+   ],
+   "radii": [
+    3.6,
+    6.4
+   ],
+   "ring_in_front": [
+    18,
+    54,
+    24,
+    61
+   ],
+   "plate_y": 69,
+   "drop": 3
+  }
+ }
+}

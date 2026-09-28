@@ -190,6 +190,20 @@ func run(tree: SceneTree) -> void:
 		print("  flying the %s (a %s)" % [Run.display_name(), Run.hull.name])
 		break
 
+	# `-- stationshot full deck=hold hold=6x5` gives the ship a hold of another
+	# size, so the Exchange stands that hull's frame. The test ship's is 5x4,
+	# which photographed the medium frame only, and every room is laid out round
+	# three. What no longer fits goes on the pad, as a hull swap puts it.
+	for a in OS.get_cmdline_user_args():
+		if not (a as String).begins_with("hold="):
+			continue
+		var wh := (a as String).substr(5).split("x")
+		Run.hull.hold_grid = Vector2i(int(wh[0]), int(wh[1]))
+		Run.repack_hold()
+		print("  hold: %dx%d, %d aboard, %d on the pad" % [Run.hold_grid().x,
+			Run.hold_grid().y, Run.cargo.size(), Run.pad.size()])
+		break
+
 	# `-- stationshot full nofaults` clears every malfunction, so the Shipyard's
 	# fault post is drawn reading NO FAULTS. `full` always rolls at least one,
 	# which left that label reachable by no fixture at all.
@@ -292,6 +306,45 @@ func run(tree: SceneTree) -> void:
 		var scr := Router.current as StationScreen
 		if scr != null:
 			scr._open_purge()
+
+	# `-- stationshot full deck=hold flyby` holds the Exchange's clock at the
+	# first moment a ship is crossing the window its world is framed in, so a
+	# pass can be photographed on purpose rather than waited for. `flyby=N`
+	# takes the Nth such moment instead.
+	for a10 in OS.get_cmdline_user_args():
+		if not ((a10 as String) == "flyby" or (a10 as String).begins_with("flyby=")):
+			continue
+		var want10 := int((a10 as String).substr(6)) if (a10 as String).begins_with("flyby=") else 1
+		var scr10 := Router.current as StationScreen
+		if scr10 == null or scr10._exchange == null:
+			print("  flyby: no Exchange on screen")
+			break
+		var ex10: ExchangeScene = scr10._exchange
+		var fr10: Variant = ex10.room.get("sky_frame", null)
+		if not (fr10 is Array):
+			print("  flyby: this room frames no window")
+			break
+		var win10 := Rect2(float(fr10[0]), float(fr10[1]), float(fr10[2]), float(fr10[3]))
+		var seen10 := 0
+		var was_in := false
+		for step10 in 2400:
+			ex10._clock = float(step10) * 0.25
+			ex10._pose_cast()
+			var now_in := false
+			for p10 in ex10._posed:
+				var r10 := Rect2(p10[1], Vector2((p10[0] as Texture2D).get_size()))
+				if win10.encloses(r10):
+					now_in = true
+			if now_in and not was_in:
+				seen10 += 1
+				if seen10 == want10:
+					ShopScene.pin_clock_ms = ex10._clock * 1000.0
+					print("  flyby: pass %d in the window at %.2fs" % [seen10, ex10._clock])
+					break
+			was_in = now_in
+		if seen10 < want10:
+			print("  flyby: only %d passes through the window in ten minutes" % seen10)
+		break
 
 	# A ROOM SHOT IS OF THE ROOM, NOT OF WHERE THE MOUSE HAPPENS TO BE. The real
 	# pointer is wherever it was left on the desk, and over a part on the rack
@@ -401,6 +454,136 @@ func run(tree: SceneTree) -> void:
 				"took it" if took else "refused (%s)" % scr7._till._why, had,
 				now_have, cash, Run.credits])
 
+	# `-- stationshot full deck=hold sell` SELLS A PART THE WAY A PLAYER DOES: a
+	# real pick-up out of the hold, which stands in the Exchange's frame, handed
+	# to the counter that pays, and the run checked after. The same drag the buy
+	# test makes, the other way across the room.
+	if "sell" in OS.get_cmdline_user_args():
+		var scr8 := Router.current as StationScreen
+		var icon8: Control = null
+		var part8: HoldItem = null
+		if scr8 != null and scr8._hold_grid != null:
+			for c9 in scr8._hold_grid.get_children():
+				if not c9.has_method("held_item"):
+					continue
+				var m9: HoldItem = c9.held_item()
+				if m9 != null and TradeCounter.refusal(TradeCounter.Side.PAYS, m9) == "":
+					icon8 = c9 as Control
+					part8 = m9
+					break
+		if icon8 == null or scr8._sell_desk == null:
+			print("sell: FAIL -- nothing in the hold the counter will take, or no counter")
+		else:
+			var had8 := Run.cargo.size()
+			var cash8 := Run.credits
+			var target8 := GameShell.input_target(tree)
+			var at8 := icon8.get_global_rect().get_center()
+			var mv8 := InputEventMouseMotion.new()
+			mv8.position = at8
+			mv8.global_position = at8
+			target8.push_input(mv8)
+			await tree.process_frame
+			var dn8 := InputEventMouseButton.new()
+			dn8.button_index = MOUSE_BUTTON_LEFT
+			dn8.pressed = true
+			dn8.position = at8
+			dn8.global_position = at8
+			dn8.button_mask = MOUSE_BUTTON_MASK_LEFT
+			target8.push_input(dn8)
+			await tree.process_frame
+			var mv9 := InputEventMouseMotion.new()
+			mv9.position = at8 + Vector2(10.0, -10.0)
+			mv9.global_position = mv9.position
+			mv9.relative = Vector2(10.0, -10.0)
+			mv9.button_mask = MOUSE_BUTTON_MASK_LEFT
+			target8.push_input(mv9)
+			await tree.process_frame
+			var data8: Variant = target8.gui_get_drag_data()
+			var live8 := target8.gui_is_dragging() and typeof(data8) == TYPE_DICTIONARY
+			var took8 := false
+			if live8:
+				var local8 := scr8._sell_desk.size * 0.5
+				if scr8._sell_desk._can_drop_data(local8, data8):
+					scr8._sell_desk._drop_data(local8, data8)
+					took8 = true
+			var up8 := InputEventMouseButton.new()
+			up8.button_index = MOUSE_BUTTON_LEFT
+			up8.pressed = false
+			up8.position = mv9.position
+			up8.global_position = mv9.position
+			target8.push_input(up8)
+			for i9 in 12:
+				await tree.process_frame
+			var ok8 := live8 and took8 and Run.cargo.size() == had8 - 1 \
+				and not Run.cargo.has(part8) and Run.credits > cash8
+			print("sell: %s -- drag %s, counter %s, hold %d -> %d, credits %d -> %d" % [
+				"PASS" if ok8 else "FAIL", "live" if live8 else "never started",
+				"took it" if took8 else "refused (%s)" % scr8._sell_desk._why, had8,
+				Run.cargo.size(), cash8, Run.credits])
+
+	# `skyview=<path>`: THIS STATION'S SKY at backdrop size, 800x400 -- the
+	# planet it orbits and its stars, as the sector draws them -- for the
+	# Exchange's bench to hang behind its windows. `skyseed=N` borrows node
+	# index N for the roll, so five levels can show five different skies
+	# without moving the station anywhere. `skyseed=3,9,14` rolls several in one
+	# run, each to the path with `{seed}` replaced; `skysize=740x431` draws the
+	# sky at the size of the room's wall, the way the Exchange hangs it, and
+	# `skyframe=x,y,w,h` frames its world in that rect of it, as the Exchange
+	# frames it in the room's biggest window. `skyparts` also writes the sky
+	# without its world (`<path>` with `_stars` before `.png`) and the world
+	# alone at the size it is drawn (`_body`), for the bench to frame live.
+	for a9 in OS.get_cmdline_user_args():
+		if not (a9 as String).begins_with("skyview="):
+			continue
+		var node9: MapGen.MapNode = Run.node_at()
+		var was_index := node9.index
+		var seeds9: Array = [was_index]
+		var size9 := Vector2i(800, 400)
+		var frame9 := Rect2()
+		for a10 in OS.get_cmdline_user_args():
+			if (a10 as String).begins_with("skyseed="):
+				seeds9 = Array((a10 as String).substr(8).split(",")).map(func(v): return int(v))
+			if (a10 as String).begins_with("skysize="):
+				var wh9 := (a10 as String).substr(8).split("x")
+				size9 = Vector2i(int(wh9[0]), int(wh9[1]))
+			if (a10 as String).begins_with("skyframe="):
+				var fr9 := (a10 as String).substr(9).split(",")
+				frame9 = Rect2(float(fr9[0]), float(fr9[1]), float(fr9[2]), float(fr9[3]))
+		for seed9 in seeds9:
+			node9.index = seed9
+			var vp := SubViewport.new()
+			vp.size = size9
+			vp.transparent_bg = false
+			vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+			var sky := SpaceBackdrop.new()
+			sky.size = Vector2(size9)
+			sky.frame_in = frame9
+			vp.add_child(sky)
+			tree.root.add_child(vp)
+			sky.setup(node9)
+			for i9 in 6:
+				await RenderingServer.frame_post_draw
+			var path9 := (a9 as String).substr(8).replace("{seed}", str(seed9))
+			vp.get_texture().get_image().save_png(path9)
+			print("  skyview %s (index %d)" % [path9, seed9])
+			if "skyparts" in OS.get_cmdline_user_args() and sky._body != null:
+				var body9: Image = sky._body.get_image()
+				body9.resize(body9.get_width() * sky._body_px, body9.get_height() * sky._body_px,
+					Image.INTERPOLATE_NEAREST)
+				body9.save_png(path9.replace(".png", "_body.png"))
+				sky._body = null
+				sky.queue_redraw()
+				vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+				for i10 in 4:
+					await RenderingServer.frame_post_draw
+				vp.get_texture().get_image().save_png(path9.replace(".png", "_stars.png"))
+				print("  skyparts: body %dx%d at %.4f,%.4f of the view, disc top %d, radius %d" % [
+					body9.get_width(), body9.get_height(), sky._body_at.x, sky._body_at.y,
+					int(sky._disc_top), int(sky._disc_r)])
+			vp.queue_free()
+		node9.index = was_index
+		break
+
 	# `roomshot=<path>`: the shop's room alone, at the game's own 1:1, out of the
 	# 960x540 frame -- the picture to put beside the bench's render of the same
 	# room. The window shot is the frame scaled to the window through the tube,
@@ -409,15 +592,61 @@ func run(tree: SceneTree) -> void:
 		if not (a6 as String).begins_with("roomshot="):
 			continue
 		var scr6 := Router.current as StationScreen
-		if scr6 == null or scr6._shop == null:
-			print("  roomshot: no shop on screen")
+		# THE ROOM ON SCREEN: the Exchange's when that deck is up, else the shop's.
+		var room6: ShopScene = null
+		if scr6 != null:
+			room6 = scr6._shop
+			if scr6._exchange != null and scr6._exchange.is_visible_in_tree():
+				room6 = scr6._exchange
+		if room6 == null:
+			print("  roomshot: no room on screen")
 			break
-		var box := Rect2i(scr6._shop.get_global_rect())
-		var frame := scr6._shop.get_viewport().get_texture().get_image()
+		var box := Rect2i(room6.get_global_rect())
+		var frame := room6.get_viewport().get_texture().get_image()
 		var out := frame.get_region(box)
 		out.save_png((a6 as String).substr(9))
 		print("  roomshot %s: room %s at %s, backdrop %s" % [(a6 as String).substr(9),
-			scr6._shop.room.get("slug", "?"), box, scr6._shop._bd_id])
+			room6.room.get("slug", "?"), box, room6._bd_id])
+	# `roomclip=<dir>`: the room on screen as a run of frames, `clipframes=N`
+	# of them (90) `clipms=M` apart (66, fifteen a second), starting `clipfrom=`
+	# milliseconds before the clock the shot was held at (2000) -- a pass by a
+	# window, to be judged moving. Speed can only be judged in motion.
+	for a11 in OS.get_cmdline_user_args():
+		if not (a11 as String).begins_with("roomclip="):
+			continue
+		var scr11 := Router.current as StationScreen
+		var room11: ShopScene = null
+		if scr11 != null:
+			room11 = scr11._shop
+			if scr11._exchange != null and scr11._exchange.is_visible_in_tree():
+				room11 = scr11._exchange
+		if room11 == null:
+			print("  roomclip: no room on screen")
+			break
+		var frames11 := 90
+		var step11 := 66.0
+		var back11 := 2000.0
+		for b11 in OS.get_cmdline_user_args():
+			if (b11 as String).begins_with("clipframes="):
+				frames11 = int((b11 as String).substr(11))
+			elif (b11 as String).begins_with("clipms="):
+				step11 = float((b11 as String).substr(7))
+			elif (b11 as String).begins_with("clipfrom="):
+				back11 = float((b11 as String).substr(9))
+		var t11 := maxf(0.0, ShopScene.pin_clock_ms - back11) if ShopScene.pin_clock_ms >= 0.0 else 0.0
+		var dir11 := (a11 as String).substr(9)
+		DirAccess.make_dir_recursive_absolute(dir11)
+		var box11 := Rect2i(room11.get_global_rect())
+		for i11 in frames11:
+			ShopScene.pin_clock_ms = t11 + float(i11) * step11
+			room11.queue_redraw()
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var img11 := room11.get_viewport().get_texture().get_image().get_region(box11)
+			img11.save_png("%s/frame_%03d.png" % [dir11, i11])
+		print("  roomclip: %d frames from %.2fs to %s" % [frames11, t11 / 1000.0, dir11])
+		break
+
 	print("  %s · %s" % ["no berth" if berth == &"none"
 		else DB.manufacturer_name(berth) + " berth",
 		MapGen.development_name(here.development)])

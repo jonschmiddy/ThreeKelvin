@@ -1013,13 +1013,14 @@ func _on_till(item: HoldItem) -> void:
 ## you pack, it already drags, and every part on it already answers a hover with
 ## its own readout and cards.
 func _page_hold() -> Control:
-	# --- THE DECK IS A LOADING DOCK, and your hold is standing on it.
+	# --- THE DECK IS ONE ROOM, and it is one of Jon's five.
 	#
-	# `ExchangeScene` draws the dock -- the shutter, the crane, the painted bay --
-	# and a cargo cage round the grid, off the grid's own rect. The grid itself is
-	# untouched: it is still the real, packable hold, it still takes every drop
-	# and answers every hover. It stands in a frame on a floor now instead of
-	# floating at the top of a column under a caption.
+	# It was a loading dock `ExchangeScene` drew round the grid -- a shutter, a
+	# crane, a painted bay and a cage off the grid's own rect -- with the counter
+	# in a column of its own. It is the shop's room turned to face the other way
+	# now (see `ExchangeScene`): the hold stands in its frame where he stood it,
+	# the counter where he stood it, and the room is drawn in layers round both,
+	# exactly as the Promenade's is. Nothing here places anything by itself.
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 5)
 	var stack := Control.new()
@@ -1029,70 +1030,59 @@ func _page_hold() -> Control:
 	_exchange.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_exchange)
 
-	var box := HBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.add_theme_constant_override("separation", 14)
-
-	var left := VBoxContainer.new()
-	left.add_theme_constant_override("separation", 0)
-	left.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	# AIR ABOVE IT, so the cage STANDS on the dock rather than hanging from the
-	# top of the deck.
-	var air := Control.new()
-	air.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	air.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	left.add_child(air)
-	# PADDED BY EXACTLY THE CAGE'S OWN FRAME, so the cage is always drawn in the
-	# margin and never across a cell -- and a little more at the top for the
-	# lifting eye, and at the foot so the skid sits on the deck.
-	var cage := MarginContainer.new()
-	cage.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cage.add_theme_constant_override("margin_left", int(ExchangeScene.CAGE_SIDE) + 8)
-	cage.add_theme_constant_override("margin_right", int(ExchangeScene.CAGE_SIDE))
-	cage.add_theme_constant_override("margin_top", int(ExchangeScene.CAGE_TOP) + 6)
-	cage.add_theme_constant_override("margin_bottom", int(ExchangeScene.CAGE_FOOT) + 6)
+	# THE HOLD IS THE REAL GRID, untouched: it is still the thing you pack, it
+	# still takes every drop and answers every hover. It stands in the frame's
+	# opening, which was fitted to it cell for cell.
 	_hold_grid = HoldGrid.new()
-	_hold_grid.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_hold_grid.dropped.connect(_on_hold_move)
-	cage.add_child(_hold_grid)
-	left.add_child(cage)
-	box.add_child(left)
-	_exchange.watch_hold(_hold_grid)
+	stack.add_child(_hold_grid)
 
-	var floorspace := Control.new()
-	floorspace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	floorspace.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(floorspace)
-
-	var right := VBoxContainer.new()
-	right.add_theme_constant_override("separation", 0)
-	right.custom_minimum_size = Vector2(300, 0)
-	right.size_flags_horizontal = Control.SIZE_SHRINK_END
-	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var air2 := Control.new()
-	air2.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	air2.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	right.add_child(air2)
+	# THE SAME COUNTER THE SHOP HAS, on the side that pays. See `TradeCounter.Side`.
 	_sell_desk = TradeCounter.new()
-	# A DESK IN THE DOCK, NOT A ROOM OF ITS OWN. Given the whole column,
-	# `TradeCounter` draws its own back wall and stacks crates against it -- a
-	# room inside the room, in a second grey. Thirty-four pixels over the desk is
-	# the height that keeps the scale standing on it and stops short of a wall.
-	_sell_desk.custom_minimum_size = Vector2(0, TradeCounter.DESK_H + 34)
-	_sell_desk.size_flags_vertical = Control.SIZE_SHRINK_END
+	_sell_desk.side = TradeCounter.Side.PAYS
+	_sell_desk.fitted = true
+	_sell_desk.lit_elsewhere = ShopScene.lit_marks
 	_sell_desk.took.connect(_on_counter)
-	right.add_child(_sell_desk)
-	box.add_child(right)
+	stack.add_child(_sell_desk)
+	_exchange.till_node = _sell_desk
 
-	stack.add_child(box)
-	stack.add_child(_exchange.foreground())
+	# The room's own layers over the hold and the counter, as the shop's are.
+	for layer in [_exchange.front_layer(), _exchange.light_layer(), _exchange.glow_layer()]:
+		var c: Control = layer
+		c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		stack.add_child(c)
+	_exchange.room_loaded.connect(_place_exchange_furniture)
 	outer.add_child(stack)
-	_sell_note = UITheme.body("Carry something here to be paid for it.",
+	_sell_note = UITheme.body("Carry something to the counter to be paid for it.",
 		UITheme.QUOTE, UITheme.FS_SMALL)
 	_sell_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	outer.add_child(_sell_note)
 	return Widgets.panel_with(Widgets.pad(outer))
+
+
+## The hold and the counter, where this station's Exchange stands them. Again
+## whenever the room's art arrives, and whenever the hull -- and so the frame --
+## may have changed.
+func _place_exchange_furniture() -> void:
+	if _exchange == null or _hold_grid == null or _sell_desk == null:
+		return
+	_sell_desk.art = _exchange.till_art()
+	var tr := _exchange.till_rect()
+	_sell_desk.position = tr.position
+	_sell_desk.size = tr.size
+	_sell_desk.visible = _sell_desk.art != null
+	_sell_desk.queue_redraw()
+	var grid := Run.hold_grid()
+	_exchange.fit_hold(grid)
+	var cells := Vector2(grid) * float(HoldGrid.CELL)
+	var op := _exchange.hold_opening()
+	# NO ROOM INSTALLED IS STILL A HOLD YOU CAN SELL FROM: it stands where the
+	# heavy frame would, in the open.
+	var at := Vector2(24.0, 60.0)
+	if op.has_area():
+		at = op.position + ((op.size - cells) * 0.5).floor()
+	_hold_grid.position = at
+	_hold_grid.size = cells
 
 
 ## A part moved inside the hold. The grid reports; this owns the change.
@@ -2326,23 +2316,24 @@ func _place_shop_furniture() -> void:
 ## page where you already know what you are carrying.
 func _refresh_hold(n: MapGen.MapNode) -> void:
 	_dress_room(_exchange, n)
+	if _exchange != null:
+		_exchange.sky_node = n
+		_exchange.set_room(ExchangeScene.exchange_room_for(_exchange.dev, _exchange.place_seed))
 	if _hold_grid == null:
 		return
 	_hold_grid.refresh()
+	_place_exchange_furniture()
 	var stray := Run.pad.size()
-	# THE CAGE CARRIES THE NAME NOW, stencilled on its plate. Short enough for a
-	# narrow hold's plate: "of 20 cells" and a count on the pad ran past the frame.
-	_exchange.hold_label = "YOUR HOLD  %d/%d%s" % [Run.cargo_used(), Run.cargo_slots(),
-		"" if stray == 0 else "  +%d ON PAD" % stray]
-	_exchange.queue_redraw()
 
-	# WHAT THE COUNTER IS PAYING TODAY, said once rather than on every row. A
-	# market's rate is a property of the PLACE -- see `Market.bid` and its
-	# saturation note -- so it belongs on the counter and not repeated beside
-	# each thing standing near it.
-	_sell_note.text = "Carry something here to be paid for it. %s" % (
+	# HOW FULL THE HOLD IS, and what the counter is paying today, said once under
+	# the room. The count was stencilled on the old cage's plate; the frames are
+	# Jon's pictures now and have no plate in common. A market's rate is a
+	# property of the PLACE -- see `Market.bid` and its saturation note -- so it
+	# belongs here and not repeated beside each thing standing near it.
+	_sell_note.text = "Hold %d/%d%s. Carry something to the counter to be paid for it. %s" % [
+		Run.cargo_used(), Run.cargo_slots(), "" if stray == 0 else ", %d on the pad" % stray,
 		"This market has taken a lot today; it is paying less than it was."
-		if n.trades >= 3 else "Prices are what this place will bear.")
+		if n.trades >= 3 else "Prices are what this place will bear."]
 ## The recipes this place can support, and the tab that hides when it cannot.
 
 

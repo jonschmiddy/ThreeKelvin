@@ -693,7 +693,8 @@ def hole_runs(path):
 
 
 def png_size(name):
-    with open(os.path.join(STATION, name), "rb") as f:
+    """A picture's size; a bare name is looked for in the station art."""
+    with open(name if os.path.isabs(name) else os.path.join(STATION, name), "rb") as f:
         head = f.read(24)
     return int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
 
@@ -887,8 +888,98 @@ def seed_layouts(first_backdrop):
                     "items": items})
     return lay
 
+# THE EXCHANGE'S BENCH (2026-09-27, `--deck exchange`). The same page and the
+# same stock -- plates, openings, doors, lamps, props, counters -- with the
+# hold in place of the rack, space in place of the concourse, and its own
+# saved state, so neither bench can overwrite the other's rooms. What only the
+# Exchange has lives in `room_stage/exchange/`:
+#   hold_<level>_<s|m|l>.png + hold_boxes.json   the hold frames, fitted round
+#                                                 each hull's hold (cage_fit.py)
+#   sky_<level>_stars.png, sky_<level>_body.png   a station's sky, as the game
+#   + sky_parts.json                              draws it, one per level: its
+#                                                 stars, and its world apart,
+#                                                 which the page frames live
+#
+# NOTHING BUT SKY OUTSIDE. A station arm was generated for each level to
+# stand across it and Jon cut all five (2026-09-27): "a disembodied space
+# station arm doesn't make sense". What passes the windows in the game is
+# ships, flying by now and then.
+EXCHANGE_STAGE = os.path.join(HERE, "room_stage", "exchange")
+EXCHANGE_LAYOUTS = os.path.join(HERE, "room_stage", "exchange_levels.json")
+
+
+def _hook_row(path):
+    """Where a crane hook catches a hold frame: the first opaque row down the
+    frame's middle column, in the frame's own pixels. A frame's picture has
+    air above its top beam, and hanging the hook from the picture's edge left
+    it in the air above the frame."""
+    w, h, rows = pixeltools.decode(path)
+    x = w // 2
+    for y in range(h):
+        if rows[y][x * 4 + 3] > 40:
+            return y
+    return 0
+
+
+def _deck():
+    return sys.argv[sys.argv.index("--deck") + 1] if "--deck" in sys.argv else "shop"
+
+
+def _exchange_data(data):
+    """Turn the shop's bench data into the Exchange's."""
+    boxes = json.load(io.open(os.path.join(EXCHANGE_STAGE, "hold_boxes.json"), encoding="utf-8"))
+    data["skins"]["hold"] = {}
+    for level, sizes in boxes.items():
+        entry = {}
+        for z in ("s", "m", "l"):
+            e = sizes[z]
+            entry[z] = {"src": _ref(os.path.join(EXCHANGE_STAGE, e["file"]), e["file"]),
+                        "size": e["size"], "opening": e["opening"],
+                        "hook_y": _hook_row(os.path.join(EXCHANGE_STAGE, e["file"]))}
+        data["skins"]["hold"][level] = entry
+    data["backdrops"] = []
+    parts = json.load(io.open(os.path.join(EXCHANGE_STAGE, "sky_parts.json"), encoding="utf-8"))
+    for level in DEV:
+        f, fb = "sky_%s_stars.png" % level, "sky_%s_body.png" % level
+        path, pb = os.path.join(EXCHANGE_STAGE, f), os.path.join(EXCHANGE_STAGE, fb)
+        if os.path.exists(path) and os.path.exists(pb) and level in parts:
+            w, h = png_size(path)
+            # THE SKY COVERS THE WALL FROM THE TOP DOWN. A backdrop's bottom
+            # sits on the floor line and a doorway runs below it; space has no
+            # floor, so the picture is dropped until its top meets the ceiling.
+            data["backdrops"].append({"id": "space_" + level, "src": _ref(path, f), "scale": 1,
+                                      "size": [w, h], "deck": 0, "drop": h - 353,
+                                      "body": _ref(pb, fb), "body_at": parts[level]["body_at"],
+                                      "disc_top": parts[level]["disc_top"],
+                                      "disc_r": parts[level]["disc_r"],
+                                      "label": "space, " + level})
+    # the crane hook the hold hangs from, and the rows of rope at its top
+    hook = os.path.join(EXCHANGE_STAGE, "hook.png")
+    if os.path.exists(hook):
+        data["hook"] = dict(json.load(io.open(os.path.join(EXCHANGE_STAGE, "hook.json"), encoding="utf-8")),
+                            src=_ref(hook, "hook_exchange.png"))
+    lays = json.load(io.open(EXCHANGE_LAYOUTS, encoding="utf-8")) if os.path.exists(EXCHANGE_LAYOUTS) else []
+    data["seed"] = lays
+    data["gen"] = lays
+    # 1: drafted from each level's first shop room -- the rack became the hold
+    # 2: the loading dock -- the hold, a hangar door, the machine (2026-09-27).
+    # 3: the door the main thing, the hold hung from a crane hook through a
+    #    shackle, and the capital's hold a plain alloy box (2026-09-27).
+    # 4: the deck clear but for the selling bench, drawn at twice its size.
+    #    The drafts as last published are the previous generation, so a tab
+    #    Jon worked in keeps his work and gets the new draft beside it as "(new)".
+    prev = os.path.join(HERE, "room_stage", "exchange_levels_3.json")
+    data["gen_prev"] = json.load(io.open(prev, encoding="utf-8")) if os.path.exists(prev) else []
+    data["gen_v"] = "exchange-4"
+    data["key"] = "tk-room-bench-exchange-v1"
+    data["deck"] = "exchange"
+    return data
+
+
 def main():
-    out_path = os.path.join(HERE, "out", "room-bench.html")
+    deck = _deck()
+    out_path = os.path.join(HERE, "out", "room-bench.html" if deck == "shop"
+                            else "%s-bench.html" % deck)
     if "--out" in sys.argv:
         out_path = sys.argv[sys.argv.index("--out") + 1]
     DECKS = _decks()
@@ -1074,18 +1165,32 @@ def main():
         "gen_prev": (json.load(io.open(PREV_LAYOUTS_JSON, encoding="utf-8"))
                      if os.path.exists(PREV_LAYOUTS_JSON) else []),
     }
+    if deck == "exchange":
+        data = _exchange_data(data)
+        # ONLY WHAT THIS PAGE NAMES IS PUBLISHED BESIDE IT: the concourse's
+        # pictures were read on the way in and are not the Exchange's.
+        named = set(re.findall(r'"(art/[^"]+)"', json.dumps(data)))
+        for ref in list(ASSETS):
+            if ref not in named:
+                del ASSETS[ref]
     html = io.open(TEMPLATE, encoding="utf-8").read()
-    _apply_cuts(data)
+    if deck != "shop":
+        name = "The %s Bench" % deck.capitalize()
+        html = html.replace("<title>The Room Bench</title>", "<title>%s</title>" % name)                    .replace("<h1>The Room Bench</h1>", "<h1>%s</h1>" % name)
+    if deck == "shop":
+        _apply_cuts(data)
     html = html.replace("__DATA__", json.dumps(data))
     # A STALE PAGE LOOKS EXACTLY LIKE A BROKEN ONE, and there was no way to
     # tell them apart from a screenshot. Every build gets a stamp the page
     # prints in its toolbar.
     html = html.replace("__BUILD__", _stamp())
-    _check_walk(data.get("walk", {}), data["backdrops"])
+    if deck == "shop":
+        _check_walk(data.get("walk", {}), data["backdrops"])
     _check_glow_keys(html, data)
     _check_flicker(html)
     _check_stage_shadows()
-    _check_levels(data)
+    if deck == "shop":
+        _check_levels(data)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     io.open(out_path, "w", encoding="utf-8", newline="\n").write(html)
     print("room bench  %s  %d KB  %d backdrops, %d seed layouts"
@@ -1179,7 +1284,8 @@ def main():
     if ASSETS:
         # The publish step needs {published path: file on disk}; write it out
         # rather than making whoever publishes it reconstruct the list.
-        man = os.path.join(os.path.dirname(out_path), "assets.json")
+        man = os.path.join(os.path.dirname(out_path),
+                           "assets.json" if deck == "shop" else "assets-%s.json" % deck)
         io.open(man, "w", encoding="utf-8").write(
             json.dumps(ASSETS, indent=1, sort_keys=True))
         print("  %d files beside it, listed in %s" % (len(ASSETS), man))

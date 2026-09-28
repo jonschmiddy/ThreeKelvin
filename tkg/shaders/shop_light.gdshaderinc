@@ -31,6 +31,16 @@ uniform float levels = 6.0;
 uniform float soft = 1.5;
 // Screen pixels per light-map cell.
 uniform int gk = 2;
+// THE EXCHANGE'S VIEW, PIXEL FOR PIXEL: 1 wherever its space shows through the
+// room, one channel per hold size (s, m, l) because the frame that hangs in
+// front of it is the hull's, and `view_k` picks the channel; -1 is a room
+// without one, which hands its windows over softly (`b.w`). See
+// `room_install.view_masks`. Space is not handed over at all: a softened band
+// of lamplight is glass catching the light on a lit concourse and a flat grey
+// ring on black space -- round the door's edges and round everything standing
+// in front of it (Jon, 2026-09-27: "why is there a weird outline ?").
+uniform sampler2D view_mask : filter_nearest, repeat_disable;
+uniform int view_k = -1;
 
 const float BAYER[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0,
 	3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
@@ -53,6 +63,10 @@ void shop_light(vec2 uv, out vec3 m, out vec3 add) {
 	m = vec3(1.0);
 	add = vec3(0.0);
 	float ex = b.w;
+	if (view_k >= 0) {
+		vec4 v = texelFetch(view_mask, p, 0);
+		ex = (view_k == 0 ? v.r : (view_k == 1 ? v.g : v.b)) > 0.5 ? 1.0 : 0.0;
+	}
 	// Seen through the wall: not this room's to light.
 	if (ex >= 0.995) {
 		return;
