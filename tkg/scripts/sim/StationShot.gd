@@ -70,6 +70,10 @@ func run(tree: SceneTree) -> void:
 			ShopScene.lit_marks = false
 		elif s3.begins_with("clock="):
 			ShopScene.pin_clock_ms = float(s3.substr(6))
+		elif s3.begins_with("labshots="):
+			# The lab's now-and-then sounds this far apart, for a test: `labshots=4,6`.
+			var ab := s3.substr(9).split(",")
+			LabScene.shot_every = Vector2(float(ab[0]), float(ab[1]))
 		elif s3.begins_with("labclock="):
 			# The Laboratory held this many seconds after it powered on: `6`
 			# is settled, under three is the power-on itself.
@@ -265,6 +269,41 @@ func run(tree: SceneTree) -> void:
 			print("  deck: bench has no recipe at this level -- opened for the shot")
 		scr0._show_tab(deck)
 		print("  deck: %s" % deck)
+		break
+
+	# `labtape=<path>`: the Laboratory's power-on as the game plays it, heard rather
+	# than seen -- every sound Audio really plays in the 4.5 s after the lab powers
+	# on, as [name, seconds after power-on], written to <path> as json. The lab's
+	# clock has to run for it (no labclock=); what it hears is POWER_ON_SOUNDS
+	# through Audio.play, rate limits and all. Needs a window: without one Audio
+	# is off and the tape stays empty.
+	for a12 in OS.get_cmdline_user_args():
+		if not (a12 as String).begins_with("labtape="):
+			continue
+		var scr12 := Router.current as StationScreen
+		if scr12 == null or scr12._lab == null or not scr12._lab.is_visible_in_tree():
+			print("  labtape: no lab on screen")
+			break
+		var lab12 := scr12._lab
+		Audio.tape.clear()
+		Audio.taping = true
+		# `labtapes=S` records S seconds, for the ambience after the power-on.
+		var secs12 := 4.5
+		for b12 in OS.get_cmdline_user_args():
+			if (b12 as String).begins_with("labtapes="):
+				secs12 = float((b12 as String).substr(9))
+		await tree.create_timer(secs12).timeout
+		Audio.taping = false
+		# When the lab powered on, in the tape's milliseconds: its clock has run
+		# in real time since, so that far back from now.
+		var boot12 := float(Time.get_ticks_msec()) - (lab12._lab_clock - lab12._boot_at) * 1000.0
+		var heard12 := []
+		for e12 in Audio.tape:
+			heard12.append([String(e12[0]), snappedf((float(e12[1]) - boot12) / 1000.0, 0.001), float(e12[2]), float(e12[3])])
+		var f12 := FileAccess.open((a12 as String).substr(8), FileAccess.WRITE)
+		f12.store_string(JSON.stringify({"lab": lab12._level, "heard": heard12}))
+		f12.close()
+		print("  labtape %s: lab %s, %d sounds" % [(a12 as String).substr(8), lab12._level, heard12.size()])
 		break
 
 	# `-- stationshot full hover` shows the Yard's details slab, which otherwise

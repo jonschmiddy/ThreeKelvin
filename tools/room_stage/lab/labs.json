@@ -200,13 +200,14 @@
   ],
   "boot": {
    "reveal": [
-    2.3,
-    2.9
+    2.7,
+    3.3
    ],
    "room": [
     1.2,
     1.9
-   ]
+   ],
+   "_why": "Jon, 2026-09-28: the screen waits for the status light ('a bit more breathing room'): it holds at 1.7 s, the terminal clicks at 2.1, the rows scan in from 2.7 (were 2.3), its glass glowing from 2.4 (LabScene)."
   },
   "screen": {
    "glass": [
@@ -328,13 +329,14 @@
   ],
   "boot": {
    "reveal": [
-    2.3,
-    2.9
+    2.75,
+    3.35
    ],
    "room": [
     1.3,
     2
-   ]
+   ],
+   "_why": "Jon, 2026-09-28: 'the tv turn on when the screen coming on #10 is done' and then 'more of a delay between the click and the tv turning on': take 10's snap is 2.32 s, the rows and the static from 2.75 (were 2.3)."
   },
   "screen": {
    "glass": [
@@ -541,13 +543,14 @@
   ],
   "boot": {
    "reveal": [
-    2.3,
-    2.9
+    2.9,
+    3.5
    ],
    "room": [
     1.5,
     2.3
-   ]
+   ],
+   "_why": "Jon, 2026-09-28: 'space the city sounds out a bit': hood 0.3, tubes 1.0 and 1.6, helix monitor 2.3, the rows and the screen's sound from 2.9 (were 2.3)."
   },
   "screen": {
    "glass": [
@@ -799,13 +802,14 @@
   ],
   "boot": {
    "reveal": [
-    2.3,
-    2.9
+    3.3,
+    3.9
    ],
    "room": [
     1.2,
     2
-   ]
+   ],
+   "_why": "Jon, 2026-09-28: 'the tanks start even later ... more of a delay between the tanks coming up and the monitor popping on and the glass coming on': tanks 1.5, monitor 2.2, glass 3.0, the rows scanning in on it from 3.3 (were 2.3)."
   },
   "screen": {
    "glass": [

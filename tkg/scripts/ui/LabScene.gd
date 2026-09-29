@@ -26,7 +26,7 @@ extends StationRoom
 ## ON A 30 HZ CLOCK, like the shop, because the prototype drew at 30 and every
 ## fault was shaped for that rate. Each lab powers on from black the first time
 ## you step onto the deck at a station: the lamps strike, the room fades up,
-## the screen scans the recipes on.
+## the screen scans the recipes on -- each with its sound (`POWER_ON_SOUNDS`).
 ##
 ## Drawn at 1:1 at the top-left, like the shop's rooms: every lab is the
 ## 740x431 wall they were laid out on.
@@ -43,6 +43,57 @@ const MASK_TANK := 1
 const MASK_FLASK := 2
 const MASK_MONITOR := 4
 const MASK_GLASS := 8
+
+## THE POWER-ON, HEARD: each lab's sounds, seconds after power-on, as Jon passed
+## them on the audition page (Lab Sounds, 2026-09-28) -- a flicker on each of
+## the bulb's flashes, a click before the screen it wakes, the static on the
+## frame the rows start to scan in. Each name is one wav in `assets/audio/sfx/`
+## with its layers already mixed and a static already cut to length, so it
+## plays at 0 dB and no pitch wander. The times meet the lights in `_weights`
+## and the rows' `boot.reveal` in labs.json: move one and move the other.
+const POWER_ON_SOUNDS := {
+	"unclaimed": [[0.3, &"lab_unclaimed_bulb"], [0.6, &"lab_unclaimed_bulb"],
+		[1.0, &"lab_unclaimed_bulb"], [1.1, &"lab_unclaimed_bulb"],
+		[1.2, &"lab_unclaimed_bulb"], [1.6, &"lab_unclaimed_screen"],
+		[2.2, &"lab_unclaimed_static"]],
+	"outpost": [[0.35, &"lab_outpost_lamp"], [0.8, &"lab_outpost_lamp"],
+		[1.12, &"lab_outpost_status"], [1.36, &"lab_outpost_status"],
+		[1.6, &"lab_outpost_status"], [2.1, &"lab_outpost_screen"],
+		[2.7, &"lab_outpost_static"]],
+	"settlement": [[0.3, &"lab_settlement_lamp"], [0.75, &"lab_settlement_lamp"],
+		[1.2, &"lab_settlement_lamp"], [1.7, &"lab_settlement_screen"],
+		[2.75, &"lab_settlement_static"]],
+	"city": [[0.3, &"lab_city_hood"], [1.0, &"lab_city_tube"], [1.6, &"lab_city_tube"],
+		[2.3, &"lab_monitor_pop"], [2.9, &"lab_city_screen"]],
+	"capital": [[0.3, &"lab_capital_bar"], [1.5, &"lab_capital_tanks"],
+		[2.2, &"lab_monitor_pop"], [3.0, &"lab_capital_glass"]],
+}
+
+## THE LAB AFTER ITS POWER-ON, HEARD (Jon: "They're dead silent after the
+## monitor turns on. Let's make em feel real."): a bed that loops, from
+## `assets/audio/ambience/`; now and then one of its sounds, dropped in at
+## random; and on each flash of a light that already stutters (`watch`, the
+## light and the power-on seconds before it starts), its flicker -- the city's
+## two ticks in turn. Every level is baked into its file, as Jon set it on the
+## audition page, and all of it plays on the Ambient bus beside the station's
+## own crowd and PA, which carry on underneath.
+const AMBIENCE := {
+	"unclaimed": {"bed": &"lab_unclaimed", "shots": [&"lab_unclaimed_sheet_rattle"],
+		"watch": ["bulb", 3.0], "flicker": [&"lab_unclaimed_flicker"]},
+	"outpost": {"bed": &"lab_outpost", "shots": [&"lab_outpost_vent_gust"],
+		"watch": ["lampR", 5.0], "flicker": [&"lab_outpost_flicker"]},
+	"settlement": {"bed": &"lab_settlement", "shots": [&"lab_settlement_shelf_creak"],
+		"watch": ["l3", 5.0], "flicker": [&"lab_settlement_flicker"]},
+	"city": {"bed": &"lab_city", "shots": [&"lab_city_drive_seek", &"lab_city_relay_click"],
+		"watch": ["tubeR", 5.0], "flicker": [&"lab_city_flicker_a", &"lab_city_flicker_b"]},
+	"capital": {"bed": &"lab_capital",
+		"shots": [&"lab_capital_big_bubble", &"lab_capital_data_chirp", &"lab_capital_valve_hiss"]},
+}
+const AMB_VOICES := 6
+## Seconds between one now-and-then sound and the next, at random in this
+## range. The audition ran 8 to 16 so Jon could hear them; a lab you stand in
+## spaces them out. `stationshot labshots=a,b` shortens it for a test.
+static var shot_every := Vector2(15.0, 30.0)
 
 ## The small monitors' inks (ink, mid, pale): on a lit screen, and on a dark one.
 const LIGHTPAL := [Color("#18687e"), Color("#4a9eb0"), Color("#76c8d6")]
@@ -87,6 +138,25 @@ var _lab_clock := 0.0
 var _tick_n := -1
 var _boot_at := 0.0
 var _powered := false
+## The next of this power-on's sounds to play, and whether any may still be in
+## the air.
+var _heard := 0
+var _voiced := false
+## The ambience: its bed and a few voices for the rest, all on the Ambient bus.
+## None of it in the balance sim or a headless run, which have no audio.
+var _bed: AudioStreamPlayer = null
+var _bed_gain := 0.0
+var _bed_fade: Tween = null
+var _voices: Array[AudioStreamPlayer] = []
+var _amb_fade: Array = []
+var _amb_next := 0
+var _amb_cache: Dictionary = {}
+var _amb_on := false
+var _shot_at := 0.0
+var _last_shot := -1
+var _lit_was := 1.0
+var _flick_n := 0
+var _amb_quiet := "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless"
 ## This tick: the time, the time since power-on, and the room's own power-on.
 var _now := 0.0
 var _tb := 1000.0
@@ -181,6 +251,7 @@ func load_level() -> void:
 	_mat.set_shader_parameter(&"fullbright", ShopScene.fullbright)
 	_glass.setup()
 	_tick_n = -1
+	_amb_setup()
 
 
 ## A data picture off disk, not imported: its colours are numbers.
@@ -204,12 +275,17 @@ func power_on() -> void:
 	_powered = true
 	_boot_at = floorf(_lab_clock * HZ) / HZ
 	_tick_n = -1
+	_heard = 0
 
 
 func _process(delta: float) -> void:
 	if lab.is_empty() or not is_visible_in_tree():
+		_hush()
+		_amb_hush()
 		return
 	_lab_clock += delta
+	_sound()
+	_ambience(delta)
 	var fr := int(floorf(_lab_clock * HZ))
 	if fr == _tick_n:
 		return
@@ -221,6 +297,162 @@ func _process(delta: float) -> void:
 	_tick(t)
 
 
+## The power-on's sounds that are due, each once, the moment its time comes: on
+## the lab's own clock, so a sound meets the frame its light moves on. Never on
+## a pinned clock -- a photograph has no sound.
+func _sound() -> void:
+	if not _powered or pin_clock >= 0.0:
+		return
+	var plan: Array = POWER_ON_SOUNDS.get(_level, [])
+	var tb := _lab_clock - _boot_at
+	while _heard < plan.size() and float(plan[_heard][0]) <= tb:
+		Audio.play(plan[_heard][1], 0.0)
+		_heard += 1
+		_voiced = true
+
+
+## LEAVING THE DECK MID POWER-ON TAKES ITS SOUNDS WITH IT. The lab's clock stops
+## while it is hidden, so what was already in the air would ring on over
+## another deck with nothing on screen making it; `Audio.hush` fades it.
+func _hush() -> void:
+	if not _voiced:
+		return
+	_voiced = false
+	var names: Array[StringName] = []
+	for e in POWER_ON_SOUNDS.get(_level, []):
+		if not names.has(e[1]):
+			names.append(e[1])
+	Audio.hush(names)
+
+
+## This level's bed, ready to loop; the players made once, on first use.
+func _amb_setup() -> void:
+	if _amb_quiet:
+		return
+	if _bed == null:
+		_bed = AudioStreamPlayer.new()
+		_bed.bus = &"Ambient"
+		_bed.volume_db = -60.0
+		add_child(_bed)
+		for i in AMB_VOICES:
+			var p := AudioStreamPlayer.new()
+			p.bus = &"Ambient"
+			add_child(p)
+			_voices.append(p)
+			_amb_fade.append(null)
+	_bed.stop()
+	_amb_on = false
+	_bed.stream = null
+	var a: Dictionary = AMBIENCE.get(_level, {})
+	if not a.has("bed"):
+		return
+	var stream: AudioStream = load("res://assets/audio/ambience/%s.wav" % a["bed"])
+	if stream is AudioStreamWAV:
+		# SEAMLESS ON ITS OWN LENGTH, as the station's rooms are (`Audio.room`):
+		# a wav, because ogg clicks at a loop's seam.
+		var w := stream as AudioStreamWAV
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_begin = 0
+		w.loop_end = roundi(w.get_length() * float(w.mix_rate))
+	_bed.stream = stream
+
+
+## THE BED RISES WITH THE POWER-ON, silent to 0.3 s and full by 3.0, as the
+## lights come up; coming back to a lab already on, it rises over half a
+## second. It loops for as long as the lab is on screen. Now and then one of
+## the lab's sounds drops in, never the same one twice running.
+func _ambience(delta: float) -> void:
+	if _amb_quiet or not _powered or pin_clock >= 0.0 or _bed == null or _bed.stream == null:
+		return
+	var tb := _lab_clock - _boot_at
+	if not _amb_on:
+		_amb_on = true
+		if _bed_fade != null and _bed_fade.is_valid():
+			_bed_fade.kill()
+		_bed_gain = 0.0
+		_bed.volume_db = -60.0
+		_bed.play()
+		_taped(StringName(AMBIENCE[_level]["bed"]))
+		_shot_at = _lab_clock + maxf(0.0, 3.0 - tb) + randf_range(shot_every.x, shot_every.y)
+	if tb < 3.0:
+		_bed_gain = clampf((tb - 0.3) / 2.7, 0.0, 1.0)
+	else:
+		_bed_gain = minf(1.0, _bed_gain + delta * 2.0)
+	_bed.volume_db = linear_to_db(maxf(_bed_gain, 0.001))
+	if _lab_clock >= _shot_at:
+		var shots: Array = AMBIENCE[_level].get("shots", [])
+		if not shots.is_empty():
+			var k := randi() % shots.size()
+			if shots.size() > 1 and k == _last_shot:
+				k = (k + 1) % shots.size()
+			_last_shot = k
+			_amb_play(shots[k])
+		_shot_at = _lab_clock + randf_range(shot_every.x, shot_every.y)
+
+
+## A FLICKER HEARD: the lab's stuttering light coming back on, once the
+## power-on is past, plays its flicker on that frame.
+func _flicker(ws: Dictionary, tb: float) -> void:
+	if _amb_quiet or not _powered or pin_clock >= 0.0:
+		return
+	var a: Dictionary = AMBIENCE.get(_level, {})
+	if not a.has("watch"):
+		return
+	var v: Variant = ws.get(String(a["watch"][0]), 1.0)
+	var x := float(v[0]) * float(v[1]) if v is Array else float(v)
+	if tb > float(a["watch"][1]) and _lit_was < 0.5 and x >= 0.5:
+		var fl: Array = a["flicker"]
+		_amb_play(fl[_flick_n % fl.size()])
+		_flick_n += 1
+	_lit_was = x
+
+
+## One of the lab's own sounds, on the next voice; at 0 dB, its level baked.
+func _amb_play(name: StringName) -> void:
+	if _voices.is_empty():
+		return
+	var stream: AudioStream = _amb_cache.get(name)
+	if stream == null:
+		stream = load("res://assets/audio/sfx/%s.wav" % name)
+		if stream == null:
+			push_warning("lab: missing sound %s" % name)
+			return
+		_amb_cache[name] = stream
+	var i := _amb_next
+	_amb_next = (_amb_next + 1) % _voices.size()
+	if _amb_fade[i] != null and (_amb_fade[i] as Tween).is_valid():
+		(_amb_fade[i] as Tween).kill()
+	_amb_fade[i] = null
+	_voices[i].stream = stream
+	_voices[i].volume_db = 0.0
+	_voices[i].play()
+	_taped(name)
+
+
+## FOR THE HARNESS: what the lab plays of its own, on the tape Audio keeps.
+func _taped(name: StringName) -> void:
+	if Audio.taping:
+		Audio.tape.append([name, Time.get_ticks_msec(), 0.0, 1.0])
+
+
+## LEAVING THE DECK TAKES THE ROOM'S SOUND WITH IT, faded rather than cut: the
+## bed over a third of a second, anything else in the air over an eighth.
+func _amb_hush() -> void:
+	if not _amb_on:
+		return
+	_amb_on = false
+	if _bed != null and _bed.playing:
+		_bed_fade = create_tween()
+		_bed_fade.tween_property(_bed, ^"volume_db", -60.0, 0.3)
+		_bed_fade.tween_callback(_bed.stop)
+	for i in _voices.size():
+		if _voices[i].playing:
+			var t := create_tween()
+			t.tween_property(_voices[i], ^"volume_db", -40.0, 0.12)
+			t.tween_callback(_voices[i].stop)
+			_amb_fade[i] = t
+
+
 func _tick(t: float) -> void:
 	var tb := t - _boot_at
 	var boot: Dictionary = lab.get("boot", {})
@@ -228,6 +460,7 @@ func _tick(t: float) -> void:
 	_room = _smooth(float(rm[0]), float(rm[1]), tb)
 	# A WEIGHT IS [steady, breathing] -- see `lab_light.gdshader`.
 	var ws := _weights(t, tb)
+	_flicker(ws, tb)
 	var steady := {}
 	var breath := {}
 	_w.clear()
@@ -299,7 +532,11 @@ func _weights(t: float, tb: float) -> Dictionary:
 		"unclaimed":
 			# A DEN UNDER ONE BAD BULB: it strikes, then flutters, and every few
 			# seconds it is gone for a frame.
-			var on := 0.0 if tb < 0.25 else (_strikes(tb, 0.25, 0.95, 7.7) if tb < 1.2 else 1.0)
+			# FIVE FLASHES, TO JON'S RHYTHM ("1 .. 2... 3 4 5"): 0.3, 0.6, 1.0, 1.1
+			# and 1.2 s, two frames each, the last holding on, a flicker sounding on
+			# each. It struck at random, nine times, before.
+			var n := roundi(tb * HZ)
+			var on := 1.0 if n >= 36 else (1.0 if n in [9, 10, 18, 19, 30, 31, 33, 34] else (0.04 if n >= 9 else 0.0))
 			return {"bulb": [on, (_loose(t, 1.3) if tb > 3.0 else 1.0) * _flutter(t, 0.4)],
 				"screen": _smooth(1.9, 2.4, tb)}
 		"outpost":
@@ -308,30 +545,37 @@ func _weights(t: float, tb: float) -> Dictionary:
 			var sm := 1.0 if tb < 1.7 else 0.75 + 0.25 * sin(t * 6.283 / 2.6)
 			return {"lampL": [_clunk(tb, 0.35), _flutter(t, 1.1)],
 				"lampR": [_clunk(tb, 0.8), _starter(t, 2.2) if tb > 5.0 else 1.0],
-				"status": [st, sm], "screen": _smooth(2.0, 2.5, tb)}
+				"status": [st, sm],
+				# its screen waits for the status light (Jon: "a bit more breathing
+				# room"): the light holds at 1.7, the glass glows from 2.4 s
+				"screen": _smooth(2.4, 2.9, tb)}
 		"settlement":
 			# THREE LAMPS WARMING UP, swaying as they come on.
 			return {"l1": [_warm(tb, 0.3), _sway(t, tb, 0.3, 3.1)],
 				"l2": [_warm(tb, 0.75), _sway(t, tb, 0.75, 5.3)],
 				"l3": [_warm(tb, 1.2), _sway(t, tb, 1.2, 8.7) * (_loose(t, 4.4) if tb > 5.0 else 1.0)]}
 		"city":
-			# THE HOOD STRIKES, the tubes stutter on in turn, the monitors pop.
+			# THE HOOD STRIKES, the tubes stutter on in turn, the monitors pop --
+			# spaced out (Jon: "space the city sounds out a bit"): the tubes at 1.0
+			# and 1.6, the helix monitor at 2.3 with its neighbours round it.
 			var hood := _strikes(tb, 0.3, 0.55, 1.3)
 			var br := 0.9 + 0.1 * sin(t * 6.283 / 4.5)
 			return {"strip": [hood, br], "floor": [hood, br], "hood": [hood, br],
-				"tubeL": _strikes(tb, 0.85, 0.45, 2.7),
-				"tubeR": [_strikes(tb, 1.2, 0.6, 4.1), _starter(t, 2.0) if tb > 5.0 else 1.0],
-				"monL": [_pop_on(tb, 1.75), 0.8 + 0.2 * sin(t * 5.0)],
-				"monR": [_pop_on(tb, 1.9), 0.95 + 0.05 * sin(t * 3.3)],
-				"meter": _pop_on(tb, 1.8),
-				"dev": _pop_on(tb, 2.0) * (1.0 if fmod(t, 1.4) < 1.0 else 0.2)}
+				"tubeL": _strikes(tb, 1.0, 0.45, 2.7),
+				"tubeR": [_strikes(tb, 1.6, 0.6, 4.1), _starter(t, 2.0) if tb > 5.0 else 1.0],
+				"monL": [_pop_on(tb, 2.15), 0.8 + 0.2 * sin(t * 5.0)],
+				"monR": [_pop_on(tb, 2.3), 0.95 + 0.05 * sin(t * 3.3)],
+				"meter": _pop_on(tb, 2.2),
+				"dev": _pop_on(tb, 2.4) * (1.0 if fmod(t, 1.4) < 1.0 else 0.2)}
 		"capital":
-			# THE GOLD BAR STRIKES, the tanks come up teal, the glass comes on.
-			var tank := [_smooth(0.8, 1.6, tb), 0.9 + 0.1 * sin(t * 6.283 / 3.7)]
+			# THE GOLD BAR STRIKES, the tanks come up teal, the glass comes on --
+			# each waiting for the last (Jon: "the tanks start even later ... more
+			# of a delay"): tanks from 1.5 s, the monitor at 2.2, the glass from 3.0.
+			var tank := [_smooth(1.5, 2.3, tb), 0.9 + 0.1 * sin(t * 6.283 / 3.7)]
 			var bar := [_strikes(tb, 0.3, 0.6, 3.3), 0.96 + 0.04 * sin(t * 6.283 / 5.0)]
-			return {"bar": bar, "halo": bar, "glass": [1.15 * _smooth(2.0, 2.5, tb), 1.0],
-				"tankL": tank, "tankR": tank, "screen": _smooth(2.0, 2.5, tb),
-				"monK": [_pop_on(tb, 1.9), 0.95 + 0.05 * sin(t * 2.3)]}
+			return {"bar": bar, "halo": bar, "glass": [1.15 * _smooth(3.0, 3.5, tb), 1.0],
+				"tankL": tank, "tankR": tank, "screen": _smooth(3.0, 3.5, tb),
+				"monK": [_pop_on(tb, 2.2), 0.95 + 0.05 * sin(t * 2.3)]}
 	return {}
 
 
