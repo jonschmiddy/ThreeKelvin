@@ -36,14 +36,6 @@ var _mine_hit: Control
 var _mine_slab: Control
 var _till_note: Label
 var _hull_offer: VBoxContainer
-## The service list, a GRID of two so seven short rows are four lines.
-## The yard's machines, standing in the hangar's front bay.
-var _rigs: Control
-## How wide one machine's slot in the bay is.
-const RIG_W := 74
-## How far apart the machines stand, centre to centre, under your ship. Four of
-## them at this pitch are about as wide as a medium hull, which is the point.
-const RIG_PITCH := 80.0
 ## What is posted at this station and what you can close here. Above the shelf,
 ## because it is the part of a station that is about WHERE YOU GO NEXT.
 var _work: Container
@@ -53,20 +45,19 @@ var _building: Control
 var _lift: Tween
 ## The fault picker, while it is open. Null the rest of the time.
 var _purge_prompt: Control
-## The deal, in the shipyard's heading row: the sum in words, the number that
-## leaves your account, and the button that does it.
-var _yard_ask: Label
-var _yard_trade: Label
-var _yard_price: Label
-var _yard_take: Button
-## The berth, and the four things standing in or over it.
+## The Shipyard: Jon's hall for this level, the ships on their stands, the
+## services on drones over yours and the deal on a TV (`YardScene`). Built once
+## per visit and kept: a purchase moves the drones, it does not rebuild the yard.
 var _scene: YardScene
+## What the ships on the blocks are, so a refresh knows whether to stand them again.
+var _yard_ships_key := ""
+## The hull the TV's deal is for.
+var _yard_hull: HullData = null
 var _scene_ship: ShipView
 ## Your own ship, standing in the left berth with its parts on it.
 var _mine_view: ShipView
 var _scene_hit: Control
 var _scene_slab: Control
-var _scene_hint: Label
 ## What kind of place this is, in its own words. Fills the column under the
 ## services with something worth reading rather than with nothing.
 ## The count line under each deck name, refreshed with everything else.
@@ -425,308 +416,156 @@ func _flat_panel(child: Control) -> PanelContainer:
 	return p
 
 
-## THE YARD: one hangar, with the ship for sale in the berth and the yard's own
-## machines standing in the bay in front of it.
+## THE YARD: one hall per development level, your ship and the one for sale on
+## their stands, and the four services flying over yours on the station's drones.
 ##
-## THE SERVICES USED TO BE A TABLE ON TOP OF THE PICTURE. A panel of four rows --
-## label, price, a stripe and some pips -- sitting over a drawn hangar, so the
-## deck said where you were and a spreadsheet said what you could do there. They
-## are `ServiceRig`s now: a welding cart, an overhaul gantry, a fuel bowser and a
-## fault post, standing on a floor `YardScene` grew for them. Same four actions,
-## same four prices, no table.
-##
-## The panel is gone rather than emptied, so the hangar gets its hundred and
-## fifteen pixels back and the bay has somewhere to be.
+## THE SERVICES USED TO BE A TABLE ON TOP OF THE PICTURE, and then four machines
+## standing on its floor (`ServiceRig`), which Jon found "feel weird". They are
+## drones now, as on the Yard Drones page he judged the Yard on: each carries its
+## offer on a screen of its level's make, a click buys, and a drone with nothing
+## left to do after a sale says so and flies off. Same four actions, same four
+## prices. `YardScene` draws all of it; this deck only feeds it the offers and
+## does the buying.
 func _page_services() -> Control:
 	# NO HEADING, AND NO PANEL AROUND IT EITHER.
 	#
 	# The word SHIPYARD sat over a rule above a drawn hangar with two ships in
 	# it, which is a caption on a photograph of a room you are standing in. The
-	# deck rail already says SHIPYARD and the picture already says so; thirty
-	# pixels of the only deck that can use them went to saying it a third time.
+	# deck rail already says SHIPYARD and the picture already says so.
 	#
-	# THE DEAL WENT WITH IT, into the bay under the ship it is the price of. It
-	# was up in the heading row so it could never be the thing the hover hid --
-	# but the bay is not hidden by anything, and a price under the hull it buys
-	# needs no explaining at all.
+	# THE YARD IS 766 x 482, the size the Yard Drones page was drawn at and every
+	# number in it is in: seven pixels either side of it and one under it are
+	# what this panel keeps of the twelve it used to, so the hall Jon passed lands
+	# pixel for pixel.
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 0)
 	_hull_offer = VBoxContainer.new()
 	_hull_offer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_hull_offer.add_theme_constant_override("separation", 0)
-	var yw := _flat_panel(_hull_offer)
+	var yw := PanelContainer.new()
+	var sb := UITheme.flat(UITheme.PANEL, UITheme.LINE, 0, 0, 7)
+	sb.content_margin_bottom = 1
+	yw.add_theme_stylebox_override("panel", sb)
+	yw.add_child(_hull_offer)
 	yw.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	col.add_child(yw)
 	return col
 
 
-## THE BERTH, WITH THE SHIP STANDING IN IT.
-##
-## FULL BLEED, AND THE NUMBERS ARRIVE WHEN YOU POINT AT THE SHIP. The Yard is
-## the only deck in the game whose content is a SINGLE OBJECT -- the Promenade
-## has a card fan, the Exchange a packed grid, the Hall a list of contracts --
-## and that is the whole reason it can carry a scene. There is nothing here for
-## a backdrop to sit behind and obscure.
-##
-## The price and TAKE IT stay up in the heading row, so the deal is never the
-## thing that is hidden: what the hover reveals is the ARGUMENT for the deal,
-## and what it hides while your hands are still is the room the ship is in.
-func _offer_column(h: HullData) -> Control:
-	var n: MapGen.MapNode = Run.node_at()
+## THE YARD, built once for this station: the hall, and the layer the pointer
+## targets and the ships' figures sit in over it.
+func _yard_box(n: MapGen.MapNode) -> Control:
 	var box := Control.new()
 	box.clip_contents = true
 	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.custom_minimum_size = Vector2(0, SCENE_H)
-
+	box.custom_minimum_size = Vector2(YardScene.W, YardScene.H)
 	_scene = YardScene.new()
 	_scene.dev = int(n.development)
 	_scene.manufacturer = n.manufacturer
-	_scene.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_scene.position = Vector2.ZERO
+	_scene.size = Vector2(YardScene.W, YardScene.H)
 	box.add_child(_scene)
+	_scene.setup()
+	_scene.service.connect(_on_yard_service)
+	_scene.take.connect(_on_yard_take)
+	_yard_ships_key = ""
+	# The deck may already be the one on screen: the yard is built on the first
+	# refresh, after the station opened on it.
+	if _tab == &"services":
+		_scene.power_on()
+	return box
+
+
+## THE SHIPS, stood again only when they changed: your hull and what is fitted
+## to it, and whatever is on the blocks.
+##
+## BOTH SHIPS STAND IN THE HALL NOW, on the level's own stands, with their names
+## over them the way the Yard Drones page wrote them -- yours amber, the one for
+## sale ice, and what each one is under it. Pointing at either still brings up
+## its figures against the other.
+func _yard_ships(h: HullData) -> void:
+	var key := "%s|%s|%s" % [Run.display_name(), str(Run.hull.get_instance_id()) if Run.hull != null else "",
+		str(h.get_instance_id()) if h != null else "none"]
+	if Run.hull != null:
+		for m in Run.installed:
+			key += "|" + str(m)
+	if key == _yard_ships_key:
+		return
+	_yard_ships_key = key
+	var box := _scene.get_parent() as Control
+	for c: Control in [_mine_hit, _mine_slab, _scene_hit, _scene_slab]:
+		if c != null and is_instance_valid(c):
+			c.queue_free()
 	_mine_view = null
 	_mine_hit = null
 	_mine_slab = null
-	_hang_banners(_scene, n, _scene.banner_spots())
-
-	# --- THE SHIP, AT 1x, STANDING ON THE CRADLE.
-	#
-	# Not centred in the panel. A hull floating at the vertical middle of a room
-	# that has a floor in it reads as hovering, and the entire reason to draw a
-	# berth is that the ship is IN one -- so it is placed off `cradle_y` and its
-	# own ink, which is the only measurement that knows where its belly is.
-	#
-	# NULL IS A REAL ANSWER. Not every yard has a hull on the blocks, and the
-	# hangar is the deck now rather than the offer's backdrop -- so an empty
-	# berth is an empty berth with the machines still in it.
-	# --- YOUR OWN SHIP, IN THE LEFT BERTH, WEARING EVERYTHING YOU FITTED.
-	#
-	# THE THING BEING TRADED IN WAS NEVER ON THE DECK. The yard drew the hull for
-	# sale and reduced your own ship to a clause -- "less 25 for your Emberwright"
-	# -- which is the half of the deal you actually own. Both ships stand in the
-	# hangar now and the part exchange is a picture instead of a sentence.
-	#
-	# `ShipBuild.fitted_out` plus a `MountPoints` in display mode is the pair the
-	# refit and moving-day screens already use: the view blits the hull and the
-	# mounts put the guns on it. Nothing here is new machinery, only a second
-	# place that needed it.
+	_scene_ship = null
+	_scene_hit = null
+	_scene_slab = null
 	if Run.hull != null:
+		# `ShipBuild.fitted_out` plus a `MountPoints` in display mode is the pair the
+		# refit and moving-day screens already use: the view blits the hull and the
+		# mounts put the guns on it. PASSIVE: a picture of your ship, not a place
+		# to change it.
 		var mine := ShipView.new()
 		mine.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mine.self_clip = false
 		mine.setup_build(ShipBuild.fitted_out(Run.hull, Run.installed))
-		mine.custom_minimum_size = Vector2(float(mine._w), float(mine._h))
-		box.add_child(mine)
-		_mine_view = mine
-		# THE MOUNTS ARE A CHILD OF THE VIEW, never a sibling. `attach` anchors
-		# them to their parent, so parenting them to the ship makes every
-		# coordinate they draw the ship's own -- one place reasons about the bob,
-		# the magnification and the centring.
-		#
-		# PASSIVE, WHICH IS THE WHOLE POINT. This is a PICTURE of your ship, not
-		# a place to change it -- the same call the combat view makes for the
-		# same reason. Without it the hull answered the pointer: hardpoints lit
-		# up, fitted parts highlighted, and you could drag a gun off your own
-		# ship in a shop that has nowhere to put it. `passive` stops all three
-		# and hides the empty mounts as well, since a ring round a hardpoint is
-		# an invitation to do something this deck cannot do.
-		#
-		# It also drops the `ship`/`fitted` override that was here: that pair is
-		# for showing SOMEBODY ELSE'S hull, and this is your own, which is what
-		# `MountPoints` reads by default.
 		var mpts := MountPoints.new()
 		mine.add_child(mpts)
 		mpts.attach(mine)
 		mpts.passive()
-		# YOUR SHIP ANSWERS A HOVER TOO, with the same slab the hull for sale
-		# gets. Over its INK, not its sheet, and added before the machines so a
-		# rig standing under the hull still takes its own clicks.
+		_mine_view = mine
+	if h != null:
+		var v := ShipView.new()
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.self_clip = false
+		v.setup_preview(h, 0, 1)
+		_scene_ship = v
+	# `Run.display_name`, NOT `hull.name`: a ship you have named flies as its name.
+	_scene.set_ships(_mine_view, Run.display_name().to_upper() if Run.hull != null else "",
+		_scene_ship, h.name.to_upper() if h != null else "")
+	# THE HOVER TARGETS ARE THE SHIPS' INK, not their canvases, and over the hall.
+	if _mine_view != null:
 		var mhit := Control.new()
 		mhit.mouse_filter = Control.MOUSE_FILTER_STOP
 		mhit.mouse_entered.connect(_on_mine_hover.bind(true))
 		mhit.mouse_exited.connect(_on_mine_hover.bind(false))
 		box.add_child(mhit)
 		_mine_hit = mhit
-
-		var mine_name := VBoxContainer.new()
-		mine_name.add_theme_constant_override("separation", 1)
-		mine_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		mine_name.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-		mine_name.offset_left = 10
-		mine_name.offset_top = -34 - YardScene.BAY_H
-		mine_name.offset_bottom = -6 - YardScene.BAY_H
-		# `Run.display_name`, NOT `hull.name`. A ship you have named flies as its
-		# chassis everywhere that forgets this -- the exact bug RunState's own
-		# header records against the combat plate, arriving again on the one deck
-		# where your ship stands next to somebody else's for comparison. Anything
-		# that shows the player's ship TO the player calls that function.
-		mine_name.add_child(UITheme.body(Run.display_name().to_upper(),
-			DB.manufacturer_colour(Run.hull.manufacturer), UITheme.FS_HEAD))
-		mine_name.add_child(UITheme.body("YOURS", UITheme.QUOTE, UITheme.FS_SMALL))
-		box.add_child(mine_name)
-
-	if h == null:
-		_scene_ship = null
-		_scene_hit = null
-		_scene_slab = null
-		_scene_hint = null
-		# NO CAPTION ON AN EMPTY CRADLE. An empty cradle is already the
-		# statement; a line of grey text naming the absence is the screen
-		# explaining its own picture.
-		_add_rigs(box)
-		_add_mine_slab(box, null)
-		# PLACED EVEN WITH AN EMPTY CRADLE. This path used to return before
-		# anything was positioned, which was harmless while it only held a label;
-		# your ship and its machines are in it now.
-		box.resized.connect(_place_scene_ship)
-		_place_scene_ship.call_deferred()
-		return box
-
-	var v := ShipView.new()
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.self_clip = false
-	v.setup_preview(h, 0, 1)
-	box.add_child(v)
-	_scene_ship = v
-
-	# THE HOVER TARGET IS THE SHIP'S INK, not its canvas. A hull sprite carries a
-	# lot of transparent margin -- a 324x112 sheet holds 241x106 of hull -- so a
-	# target the size of the sheet would fire from forty pixels of empty air.
-	var hit := Control.new()
-	hit.mouse_filter = Control.MOUSE_FILTER_STOP
-	hit.mouse_entered.connect(_on_ship_hover.bind(true))
-	hit.mouse_exited.connect(_on_ship_hover.bind(false))
-	box.add_child(hit)
-	_scene_hit = hit
-
-	# --- WHAT IT IS, always. Bottom left, out of the berth.
-	var name_col := VBoxContainer.new()
-	name_col.add_theme_constant_override("separation", 1)
-	name_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# UNDER ITS OWN BERTH, which is the right-hand one -- your ship's name is
-	# under the left. And above the bay, not on the deck edge: the machines took
-	# the bottom hundred pixels, and a hull's name across a fuel bowser is
-	# neither a name nor a bowser.
-	name_col.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	name_col.alignment = BoxContainer.ALIGNMENT_END
-	name_col.offset_left = -260
-	name_col.offset_right = -10
-	name_col.offset_top = -34 - YardScene.BAY_H
-	name_col.offset_bottom = -6 - YardScene.BAY_H
-	name_col.add_child(UITheme.body(h.name.to_upper(),
-		DB.manufacturer_colour(h.manufacturer), UITheme.FS_HEAD))
-	# NOT "POINT AT THE SHIP". The deck has two hulls standing in it now and the
-	# one thing a label under this one has to say is which of them you can buy.
-	# How to read it is discoverable; which is which is not.
-	_scene_hint = UITheme.body("FOR SALE", UITheme.QUOTE, UITheme.FS_SMALL)
-	name_col.add_child(_scene_hint)
-	box.add_child(name_col)
-
-	# --- THE DEAL, IN THE BAY UNDER THE SHIP IT BUYS.
-	#
-	# It was a row across the top of the deck, above a rule, beside the word
-	# SHIPYARD -- put there so the hover could never hide it. The bay is not
-	# hidden by anything either, and down here the price is under the hull it is
-	# the price OF, opposite the machines that work on the one you flew in.
-	var deal := VBoxContainer.new()
-	deal.add_theme_constant_override("separation", 3)
-	deal.alignment = BoxContainer.ALIGNMENT_CENTER
-	deal.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	deal.anchor_left = 0.58
-	deal.offset_left = 0
-	deal.offset_right = -12
-	deal.offset_top = -YardScene.BAY_H + 12
-	deal.offset_bottom = -12
-	# THE SUM AS A RECEIPT, not as a sentence.
-	#
-	# It read "LESS 25 FOR YOUR IRONSIDE CUTTER", which was written when your own
-	# ship appeared nowhere on this deck and the line had to say WHICH ship was
-	# worth 25. It is standing in the left berth with its name under it now, so
-	# the sentence spends most of itself repeating the picture -- and "less 43
-	# for your Ironside Cutter" is an awkward thing to read besides.
-	#
-	# TWO ROWS AND A COLUMN OF FIGURES. A price you are subtracting from another
-	# price is a sum, and a sum wants its numbers under each other; a right-
-	# aligned line of prose cannot line up a column and a grid does it for free.
-	var ledger := GridContainer.new()
-	ledger.columns = 2
-	ledger.add_theme_constant_override("h_separation", 12)
-	ledger.add_theme_constant_override("v_separation", 1)
-	ledger.size_flags_horizontal = Control.SIZE_SHRINK_END
-	ledger.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for row in [["ASKING", true], ["YOUR SHIP", false]]:
-		var cap := UITheme.body(String(row[0]), UITheme.QUOTE, UITheme.FS_SMALL)
-		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ledger.add_child(cap)
-		var val := UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		val.custom_minimum_size = Vector2(52, 0)
-		val.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ledger.add_child(val)
-		if bool(row[1]):
-			_yard_ask = val
-		else:
-			_yard_trade = val
-	deal.add_child(ledger)
-	var buy := HBoxContainer.new()
-	buy.add_theme_constant_override("separation", 10)
-	buy.alignment = BoxContainer.ALIGNMENT_END
-	_yard_price = UITheme.body("", UITheme.EMBER, UITheme.FS_HEAD)
-	_yard_price.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_yard_price.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	buy.add_child(_yard_price)
-	_yard_take = _commit_button("TAKE IT", func() -> void: pass)
-	_yard_take.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	buy.add_child(_yard_take)
-	deal.add_child(buy)
-	box.add_child(deal)
-
-	# --- AND THE ARGUMENT, on the right, only while you are pointing.
-	_scene_slab = _offer_slab(h, Run.hull, h.name.to_upper())
-	# DIRECTLY ABOVE THE SHIP IT DESCRIBES, placed by `_float_slab` once the ship
-	# has been stood on its cradle and its ink is known.
-	_scene_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_scene_slab.visible = false
-	box.add_child(_scene_slab)
-
-	_add_rigs(box)
+	if h != null:
+		var hit := Control.new()
+		hit.mouse_filter = Control.MOUSE_FILTER_STOP
+		hit.mouse_entered.connect(_on_ship_hover.bind(true))
+		hit.mouse_exited.connect(_on_ship_hover.bind(false))
+		box.add_child(hit)
+		_scene_hit = hit
+		_scene_slab = _offer_slab(h, Run.hull, h.name.to_upper())
+		_scene_slab.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		_scene_slab.visible = false
+		box.add_child(_scene_slab)
 	_add_mine_slab(box, h)
-	box.resized.connect(_place_scene_ship)
 	_place_scene_ship.call_deferred()
-	return box
 
 
-## Stand both ships on their cradles and put the hover target on the offer's
-## metal.
+## Put the pointer targets on the ships' metal and float their figures over them.
 func _place_scene_ship() -> void:
 	if _scene == null:
 		return
-	var mine_at := _stand(_mine_view, 0)
-	var at := _stand(_scene_ship, 1)
-	_cover_ink(_scene_hit, _scene_ship, at)
-	_cover_ink(_mine_hit, _mine_view, mine_at)
-	_float_slab(_scene_slab, _scene_ship, at)
-	_float_slab(_mine_slab, _mine_view, mine_at)
-	_place_rigs()
-
-
-## Put one ship down in berth `i`, and report where its canvas landed.
-##
-## THE INK IS WHAT GETS PLACED, NEVER THE CANVAS. A hull sheet carries a lot of
-## transparent margin -- a 324x112 holds 241x106 of actual ship -- so centring
-## the canvas puts a ship visibly off its own cradle, by however much margin
-## happens to be on one side.
-func _stand(v: ShipView, berth: int) -> Vector2:
-	if v == null or not is_instance_valid(v):
-		return Vector2.ZERO
-	var ink := v.ink_rect()
-	var iw := float(maxi(1, ink.size.x))
-	var ih := float(maxi(1, ink.size.y))
-	var at := Vector2(
-		_scene.size.x * YardScene.berth_x(berth) - iw * 0.5 - float(ink.position.x),
-		_scene.cradle_y() - ih - float(ink.position.y) - 2.0)
-	v.position = at.round()
-	return v.position
+	var views: Array = [_mine_view, _scene_ship]
+	var hits: Array = [_mine_hit, _scene_hit]
+	var slabs: Array = [_mine_slab, _scene_slab]
+	for i in 2:
+		var P: Dictionary = _scene.placed[i]
+		var v: ShipView = views[i]
+		if P.is_empty() or v == null or not is_instance_valid(v):
+			continue
+		var hit: Control = hits[i]
+		if hit != null and is_instance_valid(hit):
+			hit.position = Vector2(float(P["x0"]), float(P["top"]))
+			hit.size = Vector2(float(P["w"]), float(P["h"]))
+		_float_slab(slabs[i], v, v.position)
 
 
 ## Pointing at the ship swaps the hint for the numbers.
@@ -1233,6 +1072,10 @@ func _show_tab(id: StringName) -> void:
 	# strike, the room fades up and the screen scans the recipes on.
 	if id == &"bench" and _lab != null:
 		_lab.power_on()
+	# THE YARD'S TV POWERS ON the first time you step onto the deck, and the
+	# drones fly in after it.
+	if id == &"services" and _scene != null and is_instance_valid(_scene):
+		_scene.power_on()
 	for key in _tabs:
 		var b: Button = _tabs[key]
 		var on: bool = key == id
@@ -1288,152 +1131,6 @@ func _enable_tab(id: StringName, on: bool) -> void:
 		# a station turned out to have no laboratory is answering a journey
 		# nobody made. See `_ride_to`.
 		_light_floor(false)
-
-
-## One service, as a ROW rather than as a wide button with centred text.
-##
-## A price belongs at the right edge of the row it prices, in a column with the
-## other prices, so the eye reads a list of costs down one line. Centring the
-## whole string put every price at a different x and turned five services into
-## five unrelated sentences.
-##
-## The price is a child of the Button, anchored right and passing its mouse
-## through — so the whole row is still one click target and the text is still
-## two columns. Godot has no two-column Button; this is the cheapest thing that
-## behaves like one.
-## One thing the station will do to your ship, as a row you press.
-##
-## IT WAS A LABEL AND A NUMBER IN A BOX, four times over -- a price list, and it
-## read like one. Nothing on it said what KIND of thing you were buying, or what
-## the money would actually move, so the only way to tell the hull repair from
-## the refuelling was to read both.
-##
-## Three things fix that without adding a word. A STRIPE down the left in the
-## ink of what it touches -- green for the hull, blue for the tank, red for what
-## is wrong with you -- so the four rows sort by colour before they are read. A
-## GLYPH beside it, drawn rather than written, for the same reason the cards
-## carry silhouettes. And, where the service moves a gauge you can already see
-## at the top of the screen, PIPS: eight white cells appended to your hull bar
-## is the answer to "what does +8 mean" given in the same shape the HUD gives it.
-func _service(label: String, price_text: String, action: Callable,
-		tone: Color = UITheme.CHILL, glyph: StringName = &"",
-		pips: Vector2i = Vector2i.ZERO) -> Button:
-	var b := Widgets.button("      " + label, action)
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.custom_minimum_size = Vector2(0, ROW_H)
-	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	# ONE CHILD FOR ALL THE DRAWING. A stripe, a glyph and a row of pips as three
-	# nodes is three more things for the layout to have opinions about; as one
-	# `_draw` over the button's own rect they are just marks in known places.
-	var art := Control.new()
-	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	art.name = "Art"
-	art.draw.connect(_draw_service.bind(art, tone, glyph, pips))
-	b.add_child(art)
-
-	var p := UITheme.body(price_text, UITheme.ICE, UITheme.FS_SMALL)
-	p.name = "Price"
-	p.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-	p.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	p.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	# NARROWER RESERVE, now that the row is half the page. 120 was most of a
-	# two-column row and the label ran under the price.
-	p.offset_left = -78
-	p.offset_right = -8
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(p)
-	return b
-
-
-## THE YARD'S MACHINES, along the bay in front of the berth.
-##
-## INSIDE THE SCENE, not above it. They are the reason `YardScene` has a front
-## bay at all, and putting them anywhere else would be the old table again with
-## better pictures on it. Anchored to the bottom and given the bay's exact depth,
-## so every rig stands on the line the cradle's posts come down to.
-func _add_rigs(box: Control) -> void:
-	# A PLAIN LAYER, NOT A ROW. The machines are stood where they work -- under
-	# the ship, reaching up to it -- by `_place_rigs`, which knows where the hull
-	# ended up. A box container would put them wherever a box puts things.
-	_rigs = Control.new()
-	_rigs.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_rigs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.add_child(_rigs)
-
-
-## One machine in the bay.
-func _rig(kind: int, label: String, price: int, action: Callable,
-		live: bool, gauge: Vector2i = Vector2i.ZERO) -> ServiceRig:
-	var r := ServiceRig.new()
-	r.kind = kind
-	r.label = label
-	r.price = price
-	r.gauge = gauge
-	r.disabled = not live
-	r.size = Vector2(RIG_W, YardScene.BAY_H)
-	r.pressed.connect(action)
-	_rigs.add_child(r)
-	return r
-
-
-## The stripe, the glyph and the gauge preview on one service row.
-##
-## Everything is in whole pixels off the row's own height, so the marks sit on
-## the same baseline whatever `ROW_H` becomes.
-func _draw_service(c: Control, tone: Color, glyph: StringName,
-		pips: Vector2i) -> void:
-	var h := c.size.y
-	var mid := floorf(h * 0.5)
-	# THE STRIPE, full height and hard against the edge: it is the row's
-	# category, not a decoration on it.
-	c.draw_rect(Rect2(0.0, 0.0, 3.0, h), tone)
-
-	# THE GLYPH, in a 10x10 box starting six pixels in. Drawn from rectangles
-	# rather than loaded, because three marks at ten pixels is less work than an
-	# asset pipeline for three marks at ten pixels -- and it inherits the tone,
-	# so a row is one colour rather than a colour and a picture.
-	var gx := 8.0
-	var gy := mid - 5.0
-	match glyph:
-		&"repair":
-			# A plate over a crack: a bar, and a bar across it.
-			c.draw_rect(Rect2(gx, gy + 3.0, 10.0, 4.0), tone)
-			c.draw_rect(Rect2(gx + 3.0, gy, 4.0, 10.0), tone)
-		&"fuel":
-			# A drum: a body, a band, and a spout.
-			c.draw_rect(Rect2(gx + 1.0, gy + 1.0, 8.0, 9.0), tone)
-			c.draw_rect(Rect2(gx + 1.0, gy + 4.0, 8.0, 2.0), UITheme.VOID)
-			c.draw_rect(Rect2(gx + 3.0, gy - 1.0, 4.0, 2.0), tone)
-		&"purge":
-			# A break: two bars offset, with the gap between them the point.
-			c.draw_rect(Rect2(gx, gy + 1.0, 4.0, 3.0), tone)
-			c.draw_rect(Rect2(gx + 6.0, gy + 6.0, 4.0, 3.0), tone)
-			c.draw_rect(Rect2(gx + 3.0, gy + 4.0, 4.0, 2.0), tone)
-
-	# THE PIPS, right of the label and left of the price. `pips.x` of them are
-	# what you are buying and light up; the rest are the room it goes into.
-	if pips.y > 0:
-		var cell := 4.0
-		var gap := 1.0
-		var n: int = mini(pips.y, 16)
-		var w := float(n) * (cell + gap) - gap
-		var x := c.size.x - 88.0 - w
-		for i in n:
-			var lit := i < pips.x
-			c.draw_rect(Rect2(x + float(i) * (cell + gap), mid - 2.0,
-				cell, 4.0), tone if lit else tone.lerp(UITheme.VOID, 0.72))
-
-
-## Grey the price with the row. A disabled Button dims its own text through the
-## theme; a child Label is not its text and stays bright, which reads as a price
-## you can pay on a row you cannot press.
-func _set_service_enabled(b: Button, on: bool) -> void:
-	b.disabled = not on
-	var p := b.get_node_or_null("Price") as Label
-	if p != null:
-		p.modulate = Color(1, 1, 1, 1.0 if on else 0.30)
 
 
 ## WHICH FAULT COMES OUT, chosen from the cards themselves.
@@ -1870,99 +1567,57 @@ func _refresh_header(n: MapGen.MapNode) -> void:
 
 
 func _refresh_services(n: MapGen.MapNode) -> void:
-	# --- the shipyard: your frame beside the one for sale.
-	Widgets.clear(_hull_offer)
 	var h: HullData = n.shop_hull
 	var up := h != null and not n.taken.has(MapGen.OPTION_SHOP_HULL)
-	# THE HANGAR IS BUILT EITHER WAY.
+	# THE YARD IS BUILT ONCE, and a refresh only tells it what changed: a
+	# purchase is a drone dipping to the hull and flying off when its job is
+	# done, and a rebuilt yard would have taken the drones, the TV and everyone
+	# on the floor back to the start.
+	if _scene == null or not is_instance_valid(_scene):
+		Widgets.clear(_hull_offer)
+		_hull_offer.add_child(_yard_box(n))
+	_yard_ships(h if up else null)
+	_yard_hull = h if up else null
+
+	# --- THE DEAL, ON THE TV AT THE BOTTOM RIGHT.
 	#
-	# It used to be built only when there was a ship for sale, which was fine
-	# while the deck was a panel of services over a picture -- an empty yard just
-	# lost the picture. The machines live IN the picture now, so a yard with
-	# nothing on the blocks would have lost its repairs with its hull. `_offer`
-	# takes null and leaves the berth empty.
-	_hull_offer.add_child(_offer_column(h if up else null))
+	# A RECEIPT, as it was: what they ask, what your ship is worth to them, and
+	# the difference that leaves your account, over TAKE IT.
 	if up:
 		var ask := Market.hull_price(n, h)
 		var part_ex := Market.hull_bid(n, Run.hull)
 		var price: int = maxi(0, ask - part_ex)
-		_yard_ask.text = "%d" % ask
-		# SIGNED, because it is the one number on the deck that comes OFF the
-		# other one, and a column of bare figures cannot say which way a row goes.
-		_yard_trade.text = "-%d" % part_ex
-		_yard_price.text = "%d CR" % price
-		_yard_take.disabled = Run.credits < price
-		# REBOUND EVERY REFRESH, because the hull on the blocks is not the same
-		# object between visits and a Callable bound to the last one would buy a
-		# ship that is not there.
-		for c in _yard_take.pressed.get_connections():
-			_yard_take.pressed.disconnect(c.callable)
-		_yard_take.pressed.connect(_on_action.bind("take_hull", h))
+		_scene.set_deal({"ask": ask, "trade": part_ex, "price": price, "ok": Run.credits >= price})
+	else:
+		_scene.set_deal({})
 
-	# --- AND THE MACHINES IN THE BAY.
+	# --- AND THE FOUR SERVICES, EACH ON A DRONE OVER YOUR SHIP.
 	#
-	# The same four services the panel above the picture used to list, standing
-	# on the yard's own floor as things. A rig knows three things -- what it does,
-	# what it costs, and whether the yard will do it -- which is exactly what a
-	# row knew, minus the row.
-	if _rigs == null:
-		return
-	Widgets.clear(_rigs)
+	# The same four the machines in the bay sold, at the same prices: a drone
+	# carries what it will do and what it costs, and when there is nothing left
+	# for it to do its screen says why and it flies off. REFUEL never goes,
+	# because a tank has no top here; FAULTS opens the picker.
 	var missing := Run.max_hp() - Run.hp
-	var full_hp := maxi(1, Run.max_hp())
-
-	# THE GAUGE IS THE HULL BAR AT THE TOP OF THE SCREEN, at the same ten-cell
-	# resolution -- so "+8" is shown in the shape you already read your hull in
-	# rather than as a number you have to place. Painted on the machine's own
-	# face, which is where a machine puts a gauge.
 	var eight := mini(8, maxi(1, missing))
 	var eight_cost := Market.repair_price(n, eight)
-	var weld := _rig(ServiceRig.Kind.WELD, "PATCH +%d" % eight,
-		eight_cost if missing > 0 else -1, _repair.bind(eight),
-		missing > 0 and Run.credits >= eight_cost,
-		Vector2i(int(round(float(eight) * 10.0 / float(full_hp))), 10))
-	weld.tooltip_text = Widgets.tip("%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n))
-
 	var full_cost := Market.repair_price(n, missing)
-	var gantry := _rig(ServiceRig.Kind.GANTRY,
-		"REPAIR +%d" % missing if missing > 0 else "REPAIR",
-		full_cost if missing > 0 else -1, _repair.bind(missing),
-		missing > 0 and Run.credits >= full_cost,
-		Vector2i(int(round(float(missing) * 10.0 / float(full_hp))), 10))
-	gantry.tooltip_text = Widgets.tip("Every point of it, in one go.")
-
 	var refuel_cost := Market.refuel_price(n)
-	var bowser := _rig(ServiceRig.Kind.BOWSER, "REFUEL +%d" % Market.REFUEL_UNITS,
-		refuel_cost, _refuel, Run.credits >= refuel_cost)
-	bowser.tooltip_text = Widgets.tip("A tankful. Fuel is what a jump costs (see the starchart's reach ring).")
-
-	# THE FAULT POST STANDS IN THE BAY WHETHER OR NOT ANYTHING IS WRONG.
-	#
-	# It used to appear only with a fault to fix, so the bay changed shape between
-	# visits and the machine you looked for was sometimes simply not there. A post
-	# that reads NO FAULTS is an answer; an empty patch of floor is a question.
-	# With faults it opens the picker -- one row per distinct malfunction was right
-	# about the CHOICE and wrong about where to put it, so the list lives somewhere
-	# that can be as long as the list is.
 	var dross_n := Run.dross_count()
 	var purge_cost := Market.purge_price(n)
-	var post := _rig(ServiceRig.Kind.POST,
-		"FAULTS %d" % dross_n if dross_n > 0 else "NO FAULTS",
-		purge_cost if dross_n > 0 else -1, _open_purge,
-		dross_n > 0 and Run.credits >= purge_cost)
-	post.tooltip_text = Widgets.tip(
-		"Choose which one comes out. Each costs the same and clears exactly one."
-		if dross_n > 0 else "Nothing is wrong with the ship's systems.")
+	var offers: Array = [
+		{"label": "PATCH +%d" % eight, "cost": eight_cost, "done": "" if missing > 0 else "HULL FULL",
+			"tip": "%.1f credits a point here. Work is dear on the frontier and cheap in a capital." % Market.repair_rate(n)},
+		{"label": "REPAIR +%d" % missing, "cost": full_cost, "done": "" if missing > 0 else "HULL FULL",
+			"tip": "Every point of it, in one go."},
+		{"label": "REFUEL +%d" % Market.REFUEL_UNITS, "cost": refuel_cost, "done": "",
+			"tip": "A tankful. Fuel is what a jump costs (see the starchart's reach ring)."},
+		{"label": "FAULTS %d" % dross_n, "cost": purge_cost, "done": "" if dross_n > 0 else "NO FAULTS",
+			"tip": "Choose which one comes out. Each costs the same and clears exactly one."},
+	]
+	for o: Dictionary in offers:
+		o["ok"] = Run.credits >= int(o["cost"])
+	_scene.set_offers(offers)
 
-	# NO +2 HEAT CAP, AND NO SELLING MATERIALS HERE.
-	#
-	# Heat capacity is what a thermal module is FOR. Buying two points of it off a
-	# counter for credits made the whole thermal ladder optional -- there is no
-	# reason to fit a heat sink, or to want one on a shelf, if the yard will sell
-	# you the same number without a hardpoint.
-	#
-	# And selling an exotic was a row here AND a row on the Exchange, which is the
-	# deck that exists to answer "what will you give me for what I am carrying".
 
 
 ## The shelf: a chassis if one is for sale, then whatever parts are left on it.
@@ -2179,7 +1834,6 @@ func _card_fan(mod: ModuleData, heading: String) -> VBoxContainer:
 	return deck
 ## How deep the berth is. The panel gives it everything under the heading; this
 ## is the floor under that, so the scene never collapses on a short page.
-const SCENE_H := 250
 ## The details slab's WIDEST, not its width. Wide and short rather than narrow
 ## and tall -- two columns of gauges fit in the band of empty wall above the two
 ## berths, where a single column could only fit by lying across the ship it was
@@ -2378,13 +2032,48 @@ func _refresh_bench(n: MapGen.MapNode) -> void:
 		row.add_child(what)
 		_bench.add_child(Widgets.panel_with(Widgets.pad(row, 8, 6)))
 
+## A drone was pointed at and clicked: do what it sells, and tell the yard it
+## happened, so the drone can dip to the hull and do the work.
+func _on_yard_service(i: int) -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	var missing := Run.max_hp() - Run.hp
+	match i:
+		0, 1:
+			if missing <= 0:
+				return
+			var amount := mini(8, missing) if i == 0 else missing
+			if Run.credits < Market.repair_price(n, amount):
+				return
+			_scene.serving(i)
+			_repair(amount)
+			_scene.served(i, "+%d HULL" % amount)
+		2:
+			if Run.credits < Market.refuel_price(n):
+				return
+			_scene.serving(2)
+			_refuel()
+			_scene.served(2, "+%d FUEL" % Market.REFUEL_UNITS)
+		3:
+			# THE FAULTS DRONE OPENS THE PICKER, as the fault post did: which one
+			# comes out is the decision, and a card is the only way to see it.
+			_open_purge()
+			return
+	_refresh()
+
+
+## TAKE IT, on the TV.
+func _on_yard_take() -> void:
+	if _yard_hull != null:
+		_on_action("take_hull", _yard_hull)
+
+
 func _repair(amount: int) -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	var cost := Market.repair_price(n, amount)
 	if Run.credits < cost:
 		return
 	Run.add_credits(-cost)
-	Audio.play(&"svc_repair", 0.05)
+	# No sound of its own: the drone that does it is heard doing it.
 	var healed := Run.heal(amount)
 	Run.log_line("Repaired %d hull for %d credits." % [healed, cost], &"good")
 
@@ -2397,7 +2086,6 @@ func _refuel() -> void:
 	# copy of the write-then-remember-to-emit shape that three of today's bugs
 	# came out of.
 	Run.fuel += Market.REFUEL_UNITS
-	Audio.play(&"svc_refuel", 0.04)
 	Run.log_line("Refuelled.", &"good")
 
 ## One malfunction, named, and only one. `clear_dross` removes a single entry,
@@ -2408,11 +2096,14 @@ func _purge(which: StringName) -> void:
 	if Run.credits < cost or Run.dross_count() <= 0:
 		return
 	var card := DB.malfunction(which)
+	if _scene != null and is_instance_valid(_scene):
+		_scene.serving(3)
 	if not Run.clear_dross(which):
 		return
 	Run.add_credits(-cost)
-	Audio.play(&"svc_purge", 0.05)
 	Run.log_line("%s cleared." % card.name, &"good")
+	if _scene != null and is_instance_valid(_scene):
+		_scene.served(3, "FIXED")
 
 func _fabricate(r: Dictionary) -> void:
 	var line := Fabricator.make(Run.node_at(), r)
@@ -2641,19 +2332,6 @@ func _deliver_row(c: ContractData, label: String) -> Control:
 	return Widgets.panel_with(Widgets.pad(row, 6, 4))
 
 
-## Put a pointer target exactly over a ship's metal.
-##
-## THE INK, NOT THE CANVAS: a hull sheet carries a lot of transparent margin, and
-## a target the size of the sheet would fire from forty pixels of empty air.
-func _cover_ink(hit: Control, v: ShipView, at: Vector2) -> void:
-	if hit == null or not is_instance_valid(hit) or v == null or not is_instance_valid(v):
-		return
-	var ink := v.ink_rect()
-	hit.position = Vector2(at.x + float(ink.position.x),
-		at.y + float(ink.position.y)).round()
-	hit.size = Vector2(float(maxi(1, ink.size.x)), float(maxi(1, ink.size.y)))
-
-
 ## Your own ship's figures, on the same slab the hull for sale gets, floated
 ## directly above your ship by `_float_slab`.
 func _add_mine_slab(box: Control, against: HullData) -> void:
@@ -2669,41 +2347,6 @@ func _add_mine_slab(box: Control, against: HullData) -> void:
 func _on_mine_hover(on: bool) -> void:
 	if _mine_slab != null and is_instance_valid(_mine_slab):
 		_mine_slab.visible = on
-
-
-## Stand the yard's machines under YOUR ship and hand each one the hull to reach.
-##
-## THE MACHINES WORK ON THE SHIP, SO THEY TOUCH IT. They stood in an evenly spaced
-## row across the bay like four buttons that happened to be drawn as machines --
-## a welding cart nowhere near a weld. Each one now stands under the hull in the
-## left berth and is given that hull's rect in its own coordinates, so the arm,
-## the jack, the hose and the cable each reach the ship they work on. Spaced off
-## the berth's centre rather than packed into a box, so the row is as wide as the
-## ship it is working on.
-func _place_rigs() -> void:
-	if _rigs == null or not is_instance_valid(_rigs) or _scene == null:
-		return
-	var kids := _rigs.get_children()
-	if kids.is_empty():
-		return
-	var berth := _scene.size.x * YardScene.berth_x(0)
-	var span := float(kids.size() - 1) * RIG_PITCH
-	var ship := Rect2()
-	if _mine_view != null and is_instance_valid(_mine_view):
-		var ink := _mine_view.ink_rect()
-		ship = Rect2(_mine_view.position + Vector2(ink.position), Vector2(ink.size))
-	for i in kids.size():
-		var r := kids[i] as ServiceRig
-		if r == null:
-			continue
-		var cx := berth - span * 0.5 + float(i) * RIG_PITCH
-		r.position = Vector2(cx - float(RIG_W) * 0.5, _scene.deck_y()).round()
-		r.size = Vector2(RIG_W, YardScene.BAY_H)
-		if ship.size.x > 0.0:
-			r.hull = Rect2(ship.position - r.position, ship.size)
-		else:
-			r.hull = Rect2()
-		r.queue_redraw()
 
 
 ## Which station this is, as one number: the run's galaxy and the node's place

@@ -444,6 +444,24 @@ else
 	ok "python absent, skipped"
 fi
 
+step "The yard is the one Jon passed"
+# THE SHIPYARD IS BAKED TOO. `tools/yard_install.py` turns the five halls on the
+# yard stage and everything the Yard Drones page drew (`tools/room_stage/yard/`)
+# into the pictures, light maps and measurements `YardScene` draws, and the old
+# yard would keep drawing if the stage moved on without it. `--check` compares
+# the stage -- and the installer itself -- with what the install recorded, and
+# confirms every file is there. It needs no numpy; installing does.
+if [ -n "$RIPY" ]; then
+	if "$RIPY" tools/yard_install.py --check >"$LOG_DIR/yard.log" 2>&1; then
+		ok "$(tail -n 1 "$LOG_DIR/yard.log")"
+	else
+		bad "the game's yard is not the yard stage's"
+		sed 's/^/        /' "$LOG_DIR/yard.log" | head -n 6
+	fi
+else
+	ok "python absent, skipped"
+fi
+
 step "A part can be moved between the hold and the hull"
 # THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
 # here, so it went eight failures deep without anybody hearing -- six of them a

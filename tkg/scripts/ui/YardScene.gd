@@ -1,286 +1,1128 @@
 class_name YardScene
 extends Control
 
-## The berth the ship for sale is standing in, drawn rather than loaded.
+## The Shipyard: one of Jon's five painted halls, lit and running, with your ship
+## and the one for sale on their stands, the yard's four services flying over
+## yours on drones, and the deal on a TV at the bottom right.
 ##
-## A PLACEHOLDER THAT IS ALSO THE FALLBACK. The plan is a generated plate behind
-## this panel, and the plan is not the thing to find the layout with: how tall
-## the gantry sits, where the cradle puts the hull, whether a details slab can
-## live over the top right, and how dark the middle has to be for a mid-grey
-## ship to read on it -- all of that is answerable with rectangles, and every
-## one of those answers is a constraint the art has to meet. Settling them here
-## means the prompt describes a composition we have already checked instead of
-## one we are hoping for.
+## IT WAS A HANGAR DRAWN IN CODE, with the services standing in a bay as four
+## machines. It is the Yard Drones page now -- the artifact Jon built this with,
+## note by note, and passed at v46 -- and `tools/yard_install.py` installed its
+## halls, pictures and light (`art/sprites/station/yard/`) with every lamp's
+## pool worked out ahead of time. What happens here is the part that moves, and
+## every piece of it names the function on the page it ports.
 ##
-## It follows the same rule `ShipView` does: sprite when there is one, drawn when
-## there is not. If the art never lands this is what the Yard looks like, and
-## that is a deliberately survivable outcome rather than a hole.
+## LAYERS, BACK TO FRONT, as the page drew its frame:
 ##
-## EVERY BERTH IS AN INTERIOR, and not only because it looks better. An open
-## drydock puts a STARFIELD BEHIND THE SHIP -- and the hull is a mid-grey
-## silhouette full of internal detail, against high-contrast points scattered
-## over exactly the area it occupies. A back wall is a ground you can read a ship
-## against; a floor is what makes it look parked rather than adrift. Space still
-## gets in, through one window, which is a cue and not a texture.
+##   the hall      the painted hall, lit per pixel (`yard_light.gdshader`)
+##   the wall      what lives in the wall: the city's tenants and lift cars
+##   the back      what stands on the floor behind the ships, each with its
+##                 shadow and its reflection, in depth order
+##   the ships     their stands' shadows, their reflections, the stands, and
+##                 the two hulls (`ShipView`s, lit as the page lit a hull)
+##   the front     what stands on the floor in front of the ships
+##   the TV's foot its shadow and reflection
+##   over          what the light does not reach in the frame: the welder's
+##                 arc, dust in the cones, the ships' names, sparks, flyers,
+##                 the deal TV, the drones and their screens
+##
+## ON A 30 HZ CLOCK, like the labs and the page, which drew at 30.
+##
+## 766 x 482, the deck's size at 1x: the page was drawn at it, and every number
+## in `yard.json` is in its pixels.
 
-## How built-up this berth is, from `MapGen.Development`. The ladder is the same
-## composition made better or worse: rock and one lamp at an outpost, a machined
-## hall with six at a capital. It is the axis that already sets prices and stock,
-## so the picture is saying something true rather than decorating.
+signal service(i: int)
+signal take()
+
+const W := 766
+const H := 482
+const DIR := YardLight.DIR
+const DOC := DIR + "yard.json"
+const HZ := 30.0
+## The hull's own tint as the page blitted it.
+const HULL_TINT := Color(1.02, 1.02, 1.04)
+## The names over the ships, as Jon passed them ("needs more contrast for
+## lighter text"): yours amber, the one for sale ice, and what each is under it.
+const NAME_MINE := Color("#ffb444")
+const NAME_SALE := Color("#dce9f7")
+const NAME_SUB := Color("#d6dee9")
+const NAME_OUT := Color("#05070b")
+
+## The clock held at this many seconds after the TV powered on, for
+## `stationshot yardclock=`: a yard caught at a known moment. Below zero it runs.
+static var pin_clock := -1.0
+## The drawn picture only, unlit, for the harness to set against Jon's halls.
+static var fullbright := false
+## The hall and the ships only, lit, for the harness to set against the page's.
+static var bare := false
+
+static var _doc: Dictionary = {}
+static var _doc_read := false
+
+
+## yard.json, read once.
+static func doc() -> Dictionary:
+	if not _doc_read:
+		_doc_read = true
+		if FileAccess.file_exists(DOC):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DOC))
+			if parsed is Dictionary:
+				_doc = parsed
+	return _doc
+
+
+## How built-up this station is, from `MapGen.Development`: which hall.
 var dev: int = MapGen.Development.CITY
-## Whoever holds the berth. Tints the plating the way `ShipView` tints a hull --
-## a pigment shift, never a light, and never on the lamps themselves.
 var manufacturer: StringName = &""
+var level := ""
+var light: YardLight = null
+## The level's installed entry, and the page's dials.
+var lv: Dictionary = {}
+var dial: Dictionary = {}
 
-## THE WALL IS DARKER THAN IT LOOKS IT SHOULD BE, on purpose.
-##
-## The first pass used #141c26 and the hangar came out as a mid-grey room with a
-## mid-grey ship in it -- the hull stopped being the brightest thing in frame and
-## the silhouette went soft. These are the values that put a lit ship against a
-## dark room rather than two greys against each other, and every one of them is
-## a number the generated plate will have to hit as well.
-const WALL := Color("#0d141d")
-const PLATE := Color("#151e2a")
-const EDGE := Color("#202d3d")
-const DEEP := Color("#080c12")
-const LAMP := Color("#d97b29")
+var _mats: Dictionary = {}
+var _hall_rect: TextureRect
+var _wall: Control
+var _back: Control
+var _shipl: Control
+var _ships: Control
+var _front: Control
+var _foot: Control
+var _over: Control
+var _p_wall: YardPaint
+var _p_back: YardPaint
+var _p_ship: YardPaint
+var _p_front: YardPaint
+var _p_foot: YardPaint
+var _p_over: YardPaint
 
-## How deep the service bay across the front of the hangar is.
-##
-## THE RIGS STAND IN IT AND THE SHIP DOES NOT. The berth's cradle is pushed back
-## by exactly this much -- see `cradle_y` -- so a fuel bowser is never parked in
-## front of the hull somebody is deciding whether to buy. It is also why the
-## services stopped being a table above the picture: a yard's machines belong on
-## a yard's floor, and there was no floor for them to stand on until there was a
-## bay.
-const BAY_H := 104.0
+var _clock := 0.0
+var _tick_n := -1
+## When the TV powered on, on this clock.
+var _tp := 0.0
+var _powered := false
+## This tick's time, and the time since the last tick.
+var _t := 0.0
+var _dt := 0.0
+var _quiet := "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless"
+## The harness asked for a tick now, on its held clock.
+var _force := false
+var _times: Array[int] = []
+## For the harness: time each tick (`yardtime` on the command line).
+var _timing := OS.get_cmdline_user_args().has("yardtime")
+
+# --- the ships
+var _mine: ShipView = null
+var _sale: ShipView = null
+var _mine_name := ""
+var _sale_name := ""
+## Where each ship stands: [mine, sale], each {x0, top, w, h, bottom, ink,
+## supports: [{tex, img, x, y}]} in the hall's pixels, or {} for none.
+var placed: Array = [{}, {}]
+var _ship_img: Image = null
+var _ship_tex: ImageTexture = null
+var _bay_vp: SubViewport = null
+var _bay_ready := false
+## Each hull's top row per column, for the drones' work on it.
+var hull_top := PackedInt32Array()
+var hull_bot := PackedInt32Array()
+
+var _font: Font
+## The yard's working parts: the drones, the deal TV, and everyone on the floor.
+var drones: YardDrones = null
+var deal_tv: YardDeal = null
+var life: YardLife = null
+var sound: YardSound = null
+## The first tick, when the yard's rare events start their clocks.
+var _t0 := -1.0
+var _next_ev := 0.0
+var _last_ev := ""
+var _next_fly := 0.0
+var _next_small := 0.0
+## The welder's arc on what is round it, and the copy of the screen it reads.
+var _weld_copy: BackBufferCopy
+var _weld_fx: ColorRect
+var _weld_mat: ShaderMaterial
+var _tex_cache: Dictionary = {}
+var _img_cache: Dictionary = {}
+## For the harness: events to fire at seconds after power-on, [[key, s], ...].
+static var fire_at: Array = []
+
 
 func _init() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	clip_contents = true
+	custom_minimum_size = Vector2(W, H)
+	_font = UITheme.pixel_font()
 
 
-## How many work lights this berth runs to. One at an outpost, six at a capital.
-func _lamps() -> int:
-	match dev:
-		MapGen.Development.OUTPOST: return 1
-		MapGen.Development.SETTLEMENT: return 2
-		MapGen.Development.CAPITAL: return 6
-		_: return 4
-
-
-## The plating, pigment-shifted toward whoever holds the station.
-##
-## 0.12, the same weight `ShipView` uses on a hull, and kept OFF the lamps for
-## the same reason: paint is a property of the object and light is not. A Solari
-## yard and a Cygnet yard are the same hangar in two liveries.
-func _tint(c: Color) -> Color:
-	var m: ManufacturerData = DB.manufacturers.get(manufacturer)
-	return c if m == null else c.lerp(m.colour, 0.12)
-
-
-## How thick the deck band along the bottom is. One answer, because `_draw`,
-## `cradle_y` and `deck_y` all need it, and three copies of it is how a ship ends
-## up standing four pixels under its own cradle.
-func _floor_h() -> float:
-	if dev <= MapGen.Development.OUTPOST:
-		return 10.0
-	return 20.0 if dev >= MapGen.Development.CAPITAL else 15.0
-
-
-## The line the service rigs stand on -- the back edge of the front bay, which is
-## also where the cradle's posts come down.
-func deck_y() -> float:
-	return size.y - _floor_h() - BAY_H
-
-
-func _draw() -> void:
-	var w := size.x
-	var h := size.y
-	if w <= 4.0 or h <= 4.0:
+## Build the level this yard is at. Called once `dev` is set.
+func setup() -> void:
+	level = ShopScene.level_name(dev)
+	var d := doc()
+	dial = d.get("dial", {})
+	lv = ((d.get("levels", {}) as Dictionary).get(level, {}) as Dictionary)
+	light = YardLight.new()
+	if lv.is_empty() or not light.load_level(level, lv, float(dial.get("dark", 10))):
+		push_warning("yard: no %s hall installed -- run tools/yard_install.py" % level)
 		return
-	var rough: bool = dev <= MapGen.Development.OUTPOST
-	var wall := _tint(WALL)
-	var plate := _tint(PLATE)
-	var edge := _tint(EDGE)
-
-	# --- THE BACK WALL, and it is the darkest thing in frame across the middle.
-	# The ship sits centre-left and is the brightest object; everything behind it
-	# is graded down toward the centre so the silhouette has somewhere to read.
-	draw_rect(Rect2(0.0, 0.0, w, h), DEEP)
-	draw_rect(Rect2(0.0, 0.0, w, h), wall)
-	# DARKEST WHERE THE SHIP GOES. Not a vignette for its own sake: the hull is
-	# placed centre-left and low, so that is the rectangle that has to be black.
-	var mid := Rect2(w * 0.02, h * 0.20, w * 0.96, h * 0.66)
-	draw_rect(mid, DEEP.lerp(wall, 0.18))
-
-	# Wall seams, further apart and rougher the poorer the berth.
-	var seam := 26.0 if rough else 18.0
-	var y := h * 0.20
-	while y < h * 0.78:
-		draw_rect(Rect2(w * 0.02, y, w * 0.96, 1.0), wall.lerp(edge, 0.22))
-		y += seam
-
-	# --- THE CEILING, and the gantry rail under it.
-	var roof_h: float = 12.0 if rough else (22.0 if dev >= MapGen.Development.CAPITAL else 17.0)
-	draw_rect(Rect2(0.0, 0.0, w, roof_h), plate)
-	draw_rect(Rect2(0.0, roof_h, w, 2.0), edge)
-	if not rough:
-		# A HEAVY RAIL, because a hangar with a roof has something running along
-		# it. The outpost has no rail: what it has is scaffolding, below.
-		draw_rect(Rect2(0.0, roof_h + 5.0, w, 4.0), plate)
-		draw_rect(Rect2(0.0, roof_h + 5.0, w, 1.0), edge)
-		# The hoist trolley, parked off to one side rather than over the berth.
-		draw_rect(Rect2(w * 0.78, roof_h + 3.0, 26.0, 9.0), plate)
-		draw_rect(Rect2(w * 0.78, roof_h + 3.0, 26.0, 1.0), edge)
-
-	# --- THE COLUMNS. Two at an outpost, four at a capital, and they are what
-	# the lamps are bolted to.
-	var cols: Array[float] = [0.07, 0.90]
-	if dev >= MapGen.Development.CITY:
-		cols = [0.05, 0.30, 0.72, 0.93]
-	var col_w: float = 5.0 if rough else 7.0
-	for cx in cols:
-		var x := w * cx
-		draw_rect(Rect2(x, roof_h, col_w, h - roof_h), plate)
-		draw_rect(Rect2(x, roof_h, 1.0, h - roof_h), edge)
-
-	# --- THE LAMPS, and they are the only warm thing in the picture.
-	#
-	# The game allows exactly one source of warmth in frame and it is normally
-	# the reactor. Here it is the yard's own lights, which is what keeps the ship
-	# cold metal standing in somebody else's light rather than glowing on its own.
-	var lamps := _lamps()
-	for i in lamps:
-		var cx: float = cols[i % cols.size()]
-		var lx := w * cx + col_w * 0.5
-		var ly := h * (0.34 + 0.16 * float(i / cols.size()))
-		draw_rect(Rect2(lx - 4.0, ly, 8.0, 3.0), LAMP)
-		# The spill, as three widening bands rather than a gradient: a blur is
-		# not a thing this renderer does and a hard falloff is what pixel art
-		# reads as light anyway.
-		for step in 3:
-			var a := 0.16 - 0.05 * float(step)
-			var sw := 10.0 + 12.0 * float(step + 1)
-			draw_rect(Rect2(lx - sw * 0.5, ly + 3.0 + 4.0 * float(step),
-				sw, 4.0), Color(LAMP.r, LAMP.g, LAMP.b, a))
-
-	# --- THE FLOOR AND THE CRADLE. The cradle is the thing the ship stands in,
-	# so its top edge is where the hull's belly goes -- see `cradle_y`.
-	var floor_h := _floor_h()
-	var cy := deck_y()
-
-	# --- THE FRONT BAY, between the cradle line and the deck edge.
-	#
-	# The floor the service rigs stand on. Lighter than the wall behind it, the
-	# way every surface in this station has had to learn to be, and marked off
-	# with a painted line because that is what a working bay has: a boundary you
-	# do not park a ship over.
-	draw_rect(Rect2(0.0, cy, w, h - cy), wall.lerp(plate, 0.55))
-	draw_rect(Rect2(0.0, cy, w, 1.0), edge)
-	if not rough:
-		# Hazard paint along the back edge of the bay. Short dashes rather than a
-		# solid rule: a painted line on a deck is worn, and the yard's own lamp
-		# colour is already the one warm thing in the room.
-		var hx := 8.0
-		while hx < w - 8.0:
-			draw_rect(Rect2(hx, cy + 3.0, 9.0, 2.0), Color(LAMP.r, LAMP.g, LAMP.b, 0.42))
-			hx += 18.0
-		# Bay plating, running the other way from the deck's so the two surfaces
-		# read as two surfaces.
-		var by := cy + 16.0
-		while by < h - floor_h - 4.0:
-			draw_rect(Rect2(0.0, by, w, 1.0), wall.lerp(edge, 0.45))
-			by += 22.0
-
-	# --- AND THE DECK EDGE ITSELF, seen almost end-on at the very bottom.
-	draw_rect(Rect2(0.0, h - floor_h, w, floor_h), plate)
-	draw_rect(Rect2(0.0, h - floor_h, w, 1.0), edge)
-	if not rough:
-		# Deck plating, drawn as seams so the floor has a scale to it.
-		var fx := 0.0
-		while fx < w:
-			draw_rect(Rect2(fx, h - floor_h, 1.0, floor_h), wall.lerp(edge, 0.5))
-			fx += 34.0
-	# TALLER THAN THE HULL COVERS. The first version was a seven-pixel plinth
-	# with the ship standing straight on it, so the hull hid all of it and the
-	# ship read as parked on the floor rather than held in a cradle. The arms now
-	# rise past the belly, and `cradle_y` lifts the ship clear of the deck.
-	# ONE PER BERTH. Two cradles rather than one long plinth, because two ships
-	# standing on a single slab read as cargo on a shelf; two cradles read as two
-	# berths, which is what the deck is.
-	for b: float in [BERTH_MINE, BERTH_SALE]:
-		var left := w * (b - BERTH_HALF)
-		var span := w * BERTH_HALF * 2.0
-		draw_rect(Rect2(left, cy - 9.0, span, 9.0), plate)
-		draw_rect(Rect2(left, cy - 9.0, span, 1.0), edge)
-		for off: float in [0.04, 0.15]:
-			for arm: float in [b - BERTH_HALF + off, b + BERTH_HALF - off]:
-				draw_rect(Rect2(w * arm, cy - 34.0, 6.0, 34.0), plate)
-				draw_rect(Rect2(w * arm, cy - 34.0, 1.0, 34.0), edge)
-				# The pad the hull actually rests on, one shade up so it reads as
-				# a separate part rather than as the top of the post.
-				draw_rect(Rect2(w * arm - 3.0, cy - 36.0, 12.0, 3.0), edge)
-
-	# --- ONE WINDOW, high on the right, and it is the whole of the space cue.
-	#
-	# A wall of stars would be a texture across the only area the ship occupies.
-	# A single port says the same thing about where you are and stays out of the
-	# way. Far LEFT and high, because the details slab lands top right and the
-	# one bright thing in the room must not spend its life underneath it.
-	# BETWEEN THE TWO BERTHS. It was far left and high, which was out of the way
-	# of one ship; with a hull standing in both, the gap down the middle is the
-	# only piece of wall nothing is parked against.
-	var win := Rect2(w * 0.5 - 20.0, roof_h + 14.0, 40.0, 28.0)
-	draw_rect(win, DEEP)
-	draw_rect(win, edge, false, 1.0)
-	for s in [Vector2(0.22, 0.30), Vector2(0.61, 0.18), Vector2(0.44, 0.66),
-			Vector2(0.78, 0.52)]:
-		draw_rect(Rect2(win.position.x + win.size.x * s.x,
-			win.position.y + win.size.y * s.y, 1.0, 1.0),
-			Color(0.62, 0.70, 0.80, 0.75))
-
-	# --- AND THE SCAFFOLDING, at the poor end only. An outpost has no gantry; it
-	# has poles somebody welded across the mouth of a hole.
-	if rough:
-		draw_rect(Rect2(w * 0.07, h * 0.36, w * 0.78, 3.0), plate)
-		draw_rect(Rect2(w * 0.24, h * 0.36, 4.0, h * 0.22), plate)
-		draw_rect(Rect2(w * 0.55, h * 0.36, 4.0, h * 0.16), plate)
+	_mats = {
+		YardPaint.HALL: light.material(0),
+		YardPaint.FLOOR: light.material(1),
+		YardPaint.SHIP: light.material(2),
+		YardPaint.MIRROR: light.material(3),
+	}
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_mats[YardPaint.ADD] = add
+	light.set_fullbright(fullbright)
+	_hall_rect = TextureRect.new()
+	_hall_rect.texture = light.hall
+	_hall_rect.stretch_mode = TextureRect.STRETCH_KEEP
+	_hall_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_hall_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hall_rect.material = _mats[YardPaint.HALL]
+	_hall_rect.size = Vector2(W, H)
+	add_child(_hall_rect)
+	_wall = _layer("Wall")
+	_back = _layer("Back")
+	_shipl = _layer("ShipBack")
+	_ships = _layer("Ships")
+	_front = _layer("Front")
+	_foot = _layer("Foot")
+	_over = _layer("Over")
+	_p_wall = YardPaint.new(_wall.get_canvas_item(), _mats)
+	_p_back = YardPaint.new(_back.get_canvas_item(), _mats)
+	_p_ship = YardPaint.new(_shipl.get_canvas_item(), _mats)
+	_p_front = YardPaint.new(_front.get_canvas_item(), _mats)
+	_p_foot = YardPaint.new(_foot.get_canvas_item(), _mats)
+	_p_over = YardPaint.new(_over.get_canvas_item(), _mats)
+	# the welder's arc lays the frame back brighter round the torch: it reads the
+	# screen, so it goes after the floor and before what the light does not reach
+	_weld_copy = BackBufferCopy.new()
+	_weld_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	_weld_copy.visible = false
+	add_child(_weld_copy)
+	move_child(_weld_copy, _over.get_index())
+	_weld_fx = ColorRect.new()
+	_weld_fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_weld_fx.size = Vector2(33, 33)
+	_weld_mat = ShaderMaterial.new()
+	_weld_mat.shader = preload("res://shaders/yard_weld.gdshader")
+	_weld_fx.material = _weld_mat
+	_weld_fx.visible = false
+	add_child(_weld_fx)
+	move_child(_weld_fx, _over.get_index())
+	_ship_img = Image.create(W, H, false, Image.FORMAT_RGBA8)
+	_ship_tex = ImageTexture.create_from_image(_ship_img)
+	light.set_ship_map(_ship_tex)
+	drones = YardDrones.new(self)
+	deal_tv = YardDeal.new(self)
+	life = YardLife.new(self)
+	if not _quiet:
+		sound = YardSound.new()
+		sound.scene = self
+		add_child(sound)
+	_show(false)
 
 
-## Where the cradle's top edge is, in this control's own coordinates.
-##
-## The screen stands the ship on it rather than centring it in the panel: a hull
-## floating at the vertical middle of a room with a floor in it looks like it is
-## hovering, and the whole reason to draw a berth is that the ship is IN one.
-func cradle_y() -> float:
-	# The PADS, not the plinth: 36 up from the cradle line is where the posts
-	# end and the hull begins, so a ship standing here has daylight under it.
-	# Off `deck_y` rather than off the bottom of the control, because the front
-	# bay takes the near hundred pixels now and the berth sits behind it.
-	return deck_y() - 36.0
+func _layer(n: String) -> Control:
+	var c := Control.new()
+	c.name = n
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.size = Vector2(W, H)
+	c.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(c)
+	return c
 
 
-## TWO BERTHS, AND WHICH IS WHICH IS THE WHOLE POINT.
-##
-## The yard used to draw one cradle with the ship for sale standing in it, and
-## your own ship -- the thing you are trading in, the reason there is a part
-## exchange at all -- appeared nowhere on the deck. It was a number in a
-## sentence: "less 25 for your Emberwright". Both ships stand in the hangar now,
-## yours on the LEFT wearing everything you have bolted to it and the offer on
-## the RIGHT wearing nothing, which is the deal drawn rather than described.
-##
-## Fractions of the width, so the berths hold whatever the deck is.
-const BERTH_MINE := 0.26
-const BERTH_SALE := 0.74
-## How far a cradle reaches either side of its berth's centre.
-const BERTH_HALF := 0.21
-
-## Where berth `i` is across, as a fraction. 0 is yours, 1 is the one for sale.
-static func berth_x(i: int) -> float:
-	return BERTH_SALE if i == 1 else BERTH_MINE
+## Nothing is shown until the floor lamps are baked: a floor with no lamps on it
+## for a frame reads as the power failing.
+func _show(on: bool) -> void:
+	for c in get_children():
+		if c is CanvasItem and c != _weld_fx and c != _weld_copy:
+			(c as CanvasItem).visible = on
 
 
-## Where the station's banners hang in the hangar: under the gantry rail, a set
-## either side of the window, over both berths.
-func banner_spots() -> Array:
-	return [Vector2(0.40, 30.0), Vector2(0.60, 30.0)]
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		for p: YardPaint in [_p_wall, _p_back, _p_ship, _p_front, _p_foot, _p_over]:
+			if p != null:
+				p.release()
+		if life != null:
+			life.release()
+	elif what == NOTIFICATION_MOUSE_EXIT:
+		_pointer(Vector2(-100, -100))
+
+
+# ------------------------------------------------------------------ the ships
+
+## Stand the two ships: yours in the left berth, the one for sale (or nobody) in
+## the right, each on a pair of the level's stands (the page's `buildFloor`).
+## The views are this scene's from here on; the caller keeps its references.
+func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: String) -> void:
+	for v: ShipView in [_mine, _sale]:
+		if v != null and is_instance_valid(v) and v != mine and v != sale:
+			v.queue_free()
+	_mine = mine
+	_sale = sale
+	_mine_name = mine_name
+	_sale_name = sale_name
+	if light == null or lv.is_empty():
+		return
+	var berths: Array = doc().get("berths", [190, 585])
+	var views: Array = [mine, sale]
+	for i in 2:
+		var v: ShipView = views[i]
+		placed[i] = {}
+		if v == null:
+			continue
+		if v.get_parent() != _ships:
+			if v.get_parent() != null:
+				v.get_parent().remove_child(v)
+			_ships.add_child(v)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.material = _mats[YardPaint.SHIP]
+		v.self_modulate = HULL_TINT
+		_parent_material(v)
+		placed[i] = _stand(v, float(berths[i]))
+	if life != null:
+		life.has_welder = sale != null
+	if bare:
+		for i in 2:
+			var Q: Dictionary = placed[i]
+			if not Q.is_empty():
+				var sup := []
+				for s2: Dictionary in Q["supports"]:
+					sup.append([s2["x"], s2["y"], (s2["img"] as Image).get_size()])
+				print("  yard ship %d: x0 %d top %d w %d h %d ink %s canvas %s supports %s" % [i, Q["x0"], Q["top"], Q["w"], Q["h"], Q["ink"], (Q["img"] as Image).get_size(), sup])
+	_bake_ships()
+
+
+## Everything a view draws takes its light: the mounts on it too.
+func _parent_material(n: Node) -> void:
+	for c in n.get_children():
+		if c is CanvasItem:
+			(c as CanvasItem).use_parent_material = true
+		_parent_material(c)
+
+
+## One ship on its stands (the page's `buildFloor`, stands in pairs): each stand
+## under a flat stretch near a quarter and three quarters of the hull, its
+## column made to reach the hull there, and the hull let down into their saddles.
+func _stand(v: ShipView, cx: float) -> Dictionary:
+	var img := v.canvas()
+	if img == null:
+		return {}
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img = img.duplicate() as Image
+		img.convert(Image.FORMAT_RGBA8)
+	var ink := _ink(img)
+	if ink.size.x <= 0:
+		return {}
+	var iw := ink.size.x
+	var ih := ink.size.y
+	var x0 := int(floorf(cx - float(iw) / 2.0 + 0.5))
+	var under := PackedInt32Array()
+	under.resize(iw)
+	var inked: Array[int] = []
+	for x in iw:
+		under[x] = -1
+		for y in range(ih - 1, -1, -1):
+			if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
+				under[x] = y
+				break
+		if under[x] >= 0:
+			inked.append(under[x])
+	inked.sort()
+	var belly: int = inked[inked.size() / 2] if not inked.is_empty() else ih - 1
+	var floor_y := int(dial.get("ships", 310))
+	var st: Dictionary = ((doc().get("art", {}) as Dictionary).get("stands", {}) as Dictionary).get(level, {})
+	var si := _stand_image(st)
+	var supports: Array = []
+	var top := floor_y - ih
+	if si != null:
+		var hw := int(floorf(float(si.get_width()) * 0.4 + 0.5))
+		var picks: Array = []
+		for f: float in [0.26, 0.74]:
+			var best: Dictionary = {}
+			for px in range(int(floorf(float(iw) * (f - 0.1) + 0.5)), int(floorf(float(iw) * (f + 0.1) + 0.5)) + 1):
+				var lo := 1000000000
+				var hi := -1
+				var ok := true
+				for x in range(px - hw, px + hw + 1):
+					if x < 0 or x >= iw or under[x] < 0:
+						ok = false
+						break
+					lo = mini(lo, under[x])
+					hi = maxi(hi, under[x])
+				if not ok:
+					continue
+				var score := float(hi - lo) + 0.05 * absf(float(px) - float(iw) * f)
+				if best.is_empty() or score < float(best["score"]):
+					best = {"px": px, "c": hi, "score": score}
+			if best.is_empty():
+				best = {"px": int(floorf(float(iw) * f + 0.5)), "c": belly}
+			picks.append(best)
+		var cmax := maxi(int(picks[0]["c"]), int(picks[1]["c"]))
+		var base := int(dial.get("columns", 60))
+		top = floor_y - base - cmax - 1 + int(st.get("seat", 0))
+		for p: Dictionary in picks:
+			var J := _sized(si, st, base + cmax - int(p["c"]))
+			supports.append({"img": J, "tex": ImageTexture.create_from_image(J),
+				"x": x0 + int(p["px"]) - int(floorf(float(J.get_width()) / 2.0 + 0.5)), "y": floor_y - J.get_height()})
+	v.position = Vector2(x0 - ink.position.x, top - ink.position.y)
+	v.size = Vector2(img.get_width(), img.get_height())
+	return {"x": cx, "x0": x0, "top": top, "w": iw, "h": ih, "bottom": top + belly + 1, "ink": ink,
+		"img": img, "supports": supports, "floor": floor_y}
+
+
+## The opaque box of a picture, by the page's measure (alpha from 128).
+static func _ink(img: Image) -> Rect2i:
+	var x0 := img.get_width()
+	var y0 := img.get_height()
+	var x1 := -1
+	var y1 := -1
+	for y in img.get_height():
+		for x in img.get_width():
+			if img.get_pixel(x, y).a8 >= 128:
+				x0 = mini(x0, x)
+				x1 = maxi(x1, x)
+				y0 = mini(y0, y)
+				y1 = maxi(y1, y)
+	if x1 < 0:
+		return Rect2i()
+	return Rect2i(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
+
+
+var _stand_cache: Dictionary = {}
+
+
+func _stand_image(st: Dictionary) -> Image:
+	var name := String(st.get("picture", ""))
+	if name == "":
+		return null
+	if not _stand_cache.has(name):
+		var t := load(DIR + name) as Texture2D
+		var img: Image = t.get_image() if t != null else null
+		if img != null and img.get_format() != Image.FORMAT_RGBA8:
+			img.convert(Image.FORMAT_RGBA8)
+		_stand_cache[name] = img
+	return _stand_cache[name]
+
+
+## A stand made `h` tall: a repeated row to grow it, or rows taken out of its
+## middle where the rows either side of the cut match best to shorten it (the
+## page's `sized`, `stretch` and `shorten`).
+func _sized(si: Image, st: Dictionary, h: int) -> Image:
+	var w := si.get_width()
+	var sh := si.get_height()
+	if h >= sh:
+		var row := int(st.get("row", int(floorf(float(sh) * 0.6))))
+		var extra := h - sh
+		var out := Image.create(w, h, false, Image.FORMAT_RGBA8)
+		for y in h:
+			var sy := y if y <= row else (row if y <= row + extra else y - extra)
+			out.blit_rect(si, Rect2i(0, sy, w, 1), Vector2i(0, y))
+		return out
+	var n := sh - h
+	var cut: Array = st.get("cut", [0, sh])
+	if level == "outpost" and int(dial.get("columns", 60)) < 53 and st.has("cut_low"):
+		cut = st["cut_low"]
+	var lo := int(cut[0])
+	var hi := int(cut[1])
+	var data := si.get_data()
+	var best_a := -1
+	var best_t := 0
+	var a := maxi(1, lo)
+	while a + n <= mini(sh - 1, hi):
+		var t := 0
+		var r1 := (a - 1) * w * 4
+		var r2 := (a + n) * w * 4
+		for i in w * 4:
+			t += absi(int(data[r1 + i]) - int(data[r2 + i]))
+		if best_a < 0 or t < best_t:
+			best_a = a
+			best_t = t
+		a += 1
+	if best_a < 0:
+		best_a = maxi(1, int(floorf(float(lo + hi - n) / 2.0 + 0.5)))
+	var out2 := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out2.blit_rect(si, Rect2i(0, 0, w, best_a), Vector2i.ZERO)
+	out2.blit_rect(si, Rect2i(0, best_a + n, w, sh - best_a - n), Vector2i(0, best_a))
+	return out2
+
+
+## The ships' masks and their bellies (`ship_map`), and the floor lamps baked
+## round them. The page's `bakeShips`: hulls and stands in the depth buffer, the
+## floor lamps' pools with the ships' shadows in them, and a hull darker toward
+## its belly in three steps.
+func _bake_ships() -> void:
+	_ship_img.fill(Color(0, 0, 0, 0))
+	for P: Dictionary in placed:
+		if P.is_empty():
+			continue
+		for s: Dictionary in P["supports"]:
+			var J: Image = s["img"]
+			for y in J.get_height():
+				for x in J.get_width():
+					if J.get_pixel(x, y).a8 >= 128:
+						var X := int(s["x"]) + x
+						var Y := int(s["y"]) + y
+						if X >= 0 and X < W and Y >= 0 and Y < H:
+							_ship_img.set_pixel(X, Y, Color8(0, 255, 0, 255))
+	for P: Dictionary in placed:
+		if P.is_empty():
+			continue
+		var img: Image = P["img"]
+		var ink: Rect2i = P["ink"]
+		for y in ink.size.y:
+			for x in ink.size.x:
+				if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
+					var X2 := int(P["x0"]) + x
+					var Y2 := int(P["top"]) + y
+					if X2 >= 0 and X2 < W and Y2 >= 0 and Y2 < H:
+						_ship_img.set_pixel(X2, Y2, Color8(255, 0, 0, 255))
+	# a hull lit from above: toward its belly it falls into its own shade
+	hull_top.resize(W)
+	hull_bot.resize(W)
+	for x in W:
+		var top := -1
+		var bot := -1
+		for y in H:
+			if _ship_img.get_pixel(x, y).r8 == 255:
+				if top < 0:
+					top = y
+				bot = y
+		hull_top[x] = top
+		hull_bot[x] = bot
+		if top < 0 or bot - top < 6:
+			continue
+		for y in range(top, bot + 1):
+			var c := _ship_img.get_pixel(x, y)
+			if c.r8 != 255:
+				continue
+			var u := float(y - top) / float(bot - top)
+			var k := floorf(clampf((u - 0.5) / 0.5, 0.0, 1.0) * 3.0 + 0.5) / 3.0
+			c.b8 = clampi(int(floorf((1.0 - 0.45 * k) * 255.0 + 0.5)), 1, 255)
+			_ship_img.set_pixel(x, y, c)
+	_ship_tex.update(_ship_img)
+	_bake_bay()
+
+
+## The floor lamps' pools, baked on the GPU into the half grid the page used,
+## then read back for what asks the light off the GPU.
+func _bake_bay() -> void:
+	_bay_ready = false
+	if _quiet:
+		light.set_bay(null)
+		_bay_ready = true
+		_show(true)
+		return
+	if _bay_vp != null and is_instance_valid(_bay_vp):
+		_bay_vp.queue_free()
+	var cam: Dictionary = doc().get("cam", {})
+	var vx := float(cam.get("vx", 383))
+	var hy := float(cam.get("hy", 30))
+	var f := float(cam.get("f", 500))
+	var ch := float(cam.get("ch", 300))
+	var zs := ch * f / maxf(0.5, float(dial.get("ships", 310)) - hy)
+	var zsf := f / zs
+	var u0 := 1e9
+	var u1 := -1e9
+	var h0 := 1e9
+	var h1 := -1e9
+	var any := false
+	for y in H:
+		for x in W:
+			var c := _ship_img.get_pixel(x, y)
+			if c.r8 == 255 or c.g8 == 255:
+				any = true
+				var u := (float(x) - vx) / zsf
+				var h := ch - (float(y) - hy) / zsf
+				u0 = minf(u0, u)
+				u1 = maxf(u1, u)
+				h0 = minf(h0, h)
+				h1 = maxf(h1, h)
+	var vp := SubViewport.new()
+	vp.size = Vector2i(384, 242)
+	vp.transparent_bg = false
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var r := ColorRect.new()
+	r.size = Vector2(384, 242)
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://shaders/yard_bay.gdshader")
+	var fx: Array = lv.get("floorX", [])
+	var fl := PackedFloat32Array()
+	fl.resize(12)
+	for i in mini(12, fx.size()):
+		fl[i] = float(fx[i])
+	var rows: Array = lv.get("floor", [])
+	var rv := PackedVector2Array()
+	rv.resize(4)
+	for i in mini(4, rows.size()):
+		rv[i] = Vector2(float(rows[i][0]), float(rows[i][1]))
+	m.set_shader_parameter(&"mask", _ship_tex)
+	m.set_shader_parameter(&"floorx", fl)
+	m.set_shader_parameter(&"nfloor", mini(12, fx.size()))
+	m.set_shader_parameter(&"rows", rv)
+	m.set_shader_parameter(&"nrows", mini(4, rows.size()))
+	m.set_shader_parameter(&"vx", vx)
+	m.set_shader_parameter(&"hy", hy)
+	m.set_shader_parameter(&"f", f)
+	m.set_shader_parameter(&"ch", ch)
+	m.set_shader_parameter(&"wallrow", float(doc().get("wallrow", 207)))
+	m.set_shader_parameter(&"bayr", float((doc().get("bay", {}) as Dictionary).get("r", 115)))
+	m.set_shader_parameter(&"lamph", float((doc().get("bay", {}) as Dictionary).get("lamph", 330)))
+	m.set_shader_parameter(&"zs", zs)
+	m.set_shader_parameter(&"zsf", zsf)
+	m.set_shader_parameter(&"bounds", Vector4(u0, u1, h0, h1))
+	m.set_shader_parameter(&"ships", any)
+	m.set_shader_parameter(&"scale", YardLight.BSCALE)
+	r.material = m
+	vp.add_child(r)
+	add_child(vp)
+	_bay_vp = vp
+	_read_bay(vp)
+
+
+func _read_bay(vp: SubViewport) -> void:
+	await RenderingServer.frame_post_draw
+	if not is_instance_valid(vp) or vp != _bay_vp:
+		return
+	var img := vp.get_texture().get_image()
+	light.set_bay(img)
+	vp.queue_free()
+	_bay_vp = null
+	_bay_ready = true
+	_show(true)
+
+
+# ------------------------------------------------------------------ the clock
+
+## For the harness: hold the clock at `s` seconds after power-on and draw that
+## tick now.
+func step_to(s: float) -> void:
+	pin_clock = s
+	_force = true
+
+
+## Power the TV on: the first time the deck is shown at a station. The drones
+## fly in after it.
+func power_on() -> void:
+	if _powered or light == null or lv.is_empty():
+		return
+	_powered = true
+	_tp = floorf(_clock * HZ) / HZ
+	_tick_n = -1
+	var rv: Array = (deal_tv.T.get("reveal", [2.7, 3.3]) as Array)
+	drones.bring(_tp, float(rv[1]))
+	if sound != null:
+		sound.power_on(_tp)
+
+
+func _process(delta: float) -> void:
+	if light == null or lv.is_empty() or not is_visible_in_tree():
+		return
+	_clock += delta
+	var fr := int(floorf(_clock * HZ))
+	if fr == _tick_n and not _force:
+		return
+	_force = false
+	var t := float(fr) / HZ
+	if pin_clock >= 0.0:
+		t = _tp + pin_clock
+		if _tick_n < 0:
+			print("  yard: held at %.4f s (%.2f after power-on)" % [t, pin_clock])
+	_dt = clampf(t - _t, 0.0, 0.1) if _tick_n >= 0 else 0.0
+	_tick_n = fr
+	_t = t
+	if _timing:
+		var u0 := Time.get_ticks_usec()
+		_tick(t)
+		_times.append(Time.get_ticks_usec() - u0)
+		if _times.size() == 90:
+			var slow := _times.find(_times.max())
+			_times.sort()
+			print("  yard tick: median %.2f ms, 90th %.2f ms, max %.2f ms (tick %d) over 90 ticks, the game at %d fps" % [_times[45] / 1000.0, _times[81] / 1000.0, _times[89] / 1000.0, slow, Engine.get_frames_per_second()])
+			_times.clear()
+		return
+	_tick(t)
+
+
+## One frame of the yard (the page's `paint`): who is where and what is lit,
+## then every layer drawn afresh, then this tick's light to the shader.
+func _tick(t: float) -> void:
+	light.set_origin(get_global_transform().origin)
+	_events(t)
+	light.weigh(t)
+	if sound != null:
+		sound.tick(t, t - _tp)
+	life.tick(t, _dt)
+	light.dyn.clear()
+	var tb := t - _tp
+	if bare:
+		light.feed()
+		_draw_ships()
+		_p_over.begin()
+		_p_over.use(YardPaint.PLAIN)
+		_names(_p_over)
+		_p_over.end()
+		return
+	deal_tv.light_up(t, tb)
+	life.light_up(t)
+	light.feed()
+	_p_wall.begin()
+	life.draw_wall(_p_wall, t, _dt)
+	_p_wall.end()
+	_p_back.begin()
+	_p_front.begin()
+	life.draw_floor(_p_back, _p_front)
+	_p_back.end()
+	_p_front.end()
+	_draw_ships()
+	_p_foot.begin()
+	deal_tv.draw_ground(_p_foot)
+	_p_foot.end()
+	_draw_weld(t)
+	var P := _p_over
+	P.begin()
+	life.draw_dust(P, t, _dt)
+	P.use(YardPaint.PLAIN)
+	_names(P)
+	life.draw_air(P, t, _dt)
+	deal_tv.draw(P, t, tb)
+	drones.draw(P, t)
+	life.draw_glyphs(P)
+	drones.draw_marks(P, t, _dt)
+	P.end()
+
+
+## The yard's rare events, one at a time every minute or so, and the flyers and
+## small drones on their own clocks (the page's `life`); unclaimed's bad bulb
+## pops now and then. Nothing starts on a held clock.
+func _events(t: float) -> void:
+	if _t0 < 0.0:
+		_t0 = t
+		_next_ev = t + 35.0 + randf() * 25.0
+		_next_fly = t + 6.0 + randf() * 8.0
+		_next_small = t + 3.0 + randf() * 5.0
+		light.pop_next = t + 7.0 if light.pop_k >= 0 else 1e9
+	for e: Array in fire_at:
+		if e.size() < 3 and t - _tp >= float(e[1]):
+			e.append(true)
+			fire(String(e[0]), t)
+	if pin_clock >= 0.0:
+		return
+	if t >= _next_fly:
+		life.send_flyer(t)
+		_next_fly = t + 18.0 + randf() * 22.0
+	if t >= _next_ev:
+		var keys: Array = EVENTS.filter(func(k: String) -> bool: return k != _last_ev)
+		for n in 8:
+			var k: String = keys[randi() % keys.size()]
+			if fire(k, t):
+				_last_ev = k
+				break
+		_next_ev = t + 45.0 + randf() * 45.0
+	if t >= _next_small:
+		life.send_small(t)
+		_next_small = t + 8.0 + randf() * 9.0
+	if light.pop_k >= 0 and t >= light.pop_next:
+		life.pop_bulb(t)
+
+
+## The rare events Jon kept (the page's E1-E6, E10-E15, E17-E20; E7, E8, E9, E16
+## and E21 were cut).
+const EVENTS := ["E1", "E2", "E3", "E4", "E5", "E6", "E10", "E11", "E12", "E13", "E14", "E15", "E17", "E18", "E19", "E20"]
+
+
+## Start one now; false when nothing is free for it.
+func fire(k: String, t: float) -> bool:
+	match k:
+		"E1": return drones.doze(t)
+		"E2": return life.forgot(t)
+		"E3": return life.late(t)
+		"E4": return light.flicker(t)
+		"E5": return drones.bump(t)
+		"E6": return drones.joke(t)
+		"E10": return life.send_bot(t)
+		"E11": return life.send_cat(t)
+		"E12": return life.cat_ride(t)
+		"E13": return life.paper_plane(t)
+		"E14": return life.hatch_peek(t)
+		"E15": return life.shuffle(t)
+		"E17": return life.balloon(t)
+		"E18": return drones.sneeze(t)
+		"E19": return life.crash(t)
+		"E20": return life.cat_chase(t)
+		"D1": return life.send_flyer(t)
+		"D2": return life.send_small(t)
+		"POP":
+			life.pop_bulb(t)
+			return true
+	return false
+
+
+## The welder's arc on the frame round the torch (the page's `weldLight`).
+func _draw_weld(t: float) -> void:
+	var on: bool = life.weld_now["on"]
+	_weld_copy.visible = on
+	_weld_fx.visible = on
+	if not on:
+		return
+	var ax := float(life.weld_now["x"])
+	var ay := float(life.weld_now["y"])
+	_weld_fx.position = Vector2(ax - 16.0, ay - 16.0)
+	_weld_mat.set_shader_parameter(&"origin", get_global_transform().origin)
+	_weld_mat.set_shader_parameter(&"arc", Vector2(ax, ay))
+	_weld_mat.set_shader_parameter(&"fl", 0.55 + 0.45 * YardLight.hash1(floorf(t * 22.0) * 1.37))
+
+
+## The ships' stands and reflections, under the hulls (the page's baked frame):
+## each stand's contact shadow, each hull's and stand's reflection, the stands.
+func _draw_ships() -> void:
+	var P := _p_ship
+	P.begin()
+	P.use(YardPaint.PLAIN)
+	for S: Dictionary in placed:
+		if S.is_empty():
+			continue
+		for s: Dictionary in S["supports"]:
+			var J: Image = s["img"]
+			shade(P, float(s["x"]) + float(J.get_width()) / 2.0, float(S["floor"]), float(J.get_width()) * 0.55, 4.0, 0.55)
+	P.use(YardPaint.MIRROR)
+	var tint := Color(0.8, 0.8, 0.82)
+	for i in 2:
+		var S: Dictionary = placed[i]
+		if S.is_empty():
+			continue
+		var v: ShipView = _mine if i == 0 else _sale
+		var ink: Rect2i = S["ink"]
+		var fl := float(S["floor"])
+		P.mirror(v.texture, Rect2(ink.position, ink.size), float(S["x0"]), 2.0 * fl - (float(S["top"]) + float(S["h"]) - 1.0), 0.22 * 0.7, tint, false)
+		for s: Dictionary in S["supports"]:
+			var t2: Texture2D = s["tex"]
+			P.mirror(t2, Rect2(Vector2.ZERO, t2.get_size()), float(s["x"]), fl, 0.22, tint, false)
+	P.use(YardPaint.SHIP)
+	for S: Dictionary in placed:
+		if S.is_empty():
+			continue
+		for s: Dictionary in S["supports"]:
+			P.tex(s["tex"], Vector2(float(s["x"]), float(s["y"])))
+	P.end()
+
+
+## The ships' names, over each hull, as the page drew them: 24 and 16 pixel
+## Silkscreen, a dark outline and a drop under them.
+func _names(P: YardPaint) -> void:
+	for i in 2:
+		var S: Dictionary = placed[i]
+		if S.is_empty():
+			continue
+		var x := floorf(float(S["x0"]) + 4.0 + 0.5)
+		var y := floorf(float(S["top"]) - 12.0 + 0.5)
+		var nm := _mine_name if i == 0 else _sale_name
+		_outlined(P, nm, Vector2(x, y - 4.0), 24, NAME_MINE if i == 0 else NAME_SALE)
+		_outlined(P, "YOURS" if i == 0 else "FOR SALE", Vector2(x, y + 11.0), 16, NAME_SUB)
+
+
+const _OUTLINE := [Vector2(-1, -1), Vector2(0, -1), Vector2(1, -1), Vector2(-1, 0), Vector2(1, 0),
+	Vector2(-1, 1), Vector2(0, 1), Vector2(1, 1), Vector2(2, 2), Vector2(1, 2), Vector2(2, 1)]
+
+
+func _outlined(P: YardPaint, s: String, at: Vector2, size: int, c: Color) -> void:
+	for d: Vector2 in _OUTLINE:
+		P.text(_font, at + d, s, size, NAME_OUT)
+	P.text(_font, at, s, size, c)
+
+
+# ------------------------------------------------------------------ the services and the deal
+
+var offers: Array = []
+var deal: Dictionary = {}
+
+
+## What each drone sells now: [{label, cost, ok, done, tip}] for PATCH, REPAIR,
+## REFUEL and FAULTS; `done` is why it has nothing to do ("" while it has).
+func set_offers(o: Array) -> void:
+	offers = o
+	if drones != null:
+		drones.offers_changed(_t)
+
+
+## A service is about to go through (before the money moves).
+func serving(i: int) -> void:
+	if drones != null:
+		drones.serving(i)
+
+
+## A service went through: the drone that sold it does the work.
+func served(i: int, text: String) -> void:
+	if drones != null:
+		drones.served(i, text, _t)
+
+
+## The TV's deal: {ask, trade, price, ok}, or {} with nothing on the blocks.
+func set_deal(d: Dictionary) -> void:
+	deal = d
+
+
+# ------------------------------------------------------------------ shadows
+
+var _shade_cache: Dictionary = {}
+
+
+## A contact shadow on the floor (the page's `shade` / `_shadow` / `shadeZ`): an
+## ellipse darkened in three dithered steps, as a picture of black laid over it.
+func shade(P: YardPaint, cx: float, cy: float, rx: float, ry: float, k: float) -> void:
+	var y0 := int(maxf(0.0, floorf(cy - ry)))
+	var y1 := int(minf(float(H - 1), floorf(cy + ry)))
+	var x0 := int(maxf(0.0, floorf(cx - rx)))
+	var x1 := int(minf(float(W - 1), floorf(cx + rx)))
+	if x1 < x0 or y1 < y0:
+		return
+	var key := "%s|%s|%s|%s|%s|%d|%d|%d|%d|%d" % [cx - floorf(cx), cy - floorf(cy), rx, ry, k, x0 - int(floorf(cx)), y0 - int(floorf(cy)), (x0 + y0) & 1, x1 - x0, y1 - y0]
+	var t: ImageTexture = _shade_cache.get(key)
+	if t == null:
+		var img := Image.create(x1 - x0 + 1, y1 - y0 + 1, false, Image.FORMAT_RGBA8)
+		for y in range(y0, y1 + 1):
+			for x in range(x0, x1 + 1):
+				var dd := pow((float(x) - cx) / rx, 2.0) + pow((float(y) - cy) / ry, 2.0)
+				if dd > 1.0:
+					continue
+				var q := 1.0 - k * (1.0 if dd < 0.55 else (0.6 if dd < 0.8 else 0.3)) * (1.0 if ((x + y) % 2 == 0 or dd < 0.55) else 0.7)
+				img.set_pixel(x - x0, y - y0, Color(0, 0, 0, 1.0 - q))
+		t = ImageTexture.create_from_image(img)
+		_shade_cache[key] = t
+	P.tex(t, Vector2(x0, y0))
+
+
+# ------------------------------------------------------------------ the pointer
+
+func _gui_input(e: InputEvent) -> void:
+	var mm := e as InputEventMouseMotion
+	if mm != null:
+		_pointer(mm.position)
+		return
+	var mb := e as InputEventMouseButton
+	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		_click(mb.position)
+
+
+## What the pointer is on: a drone that will sell lights its glass; TAKE IT
+## lights once the deal is on the glass.
+func _pointer(p: Vector2) -> void:
+	if drones == null:
+		return
+	var i := drones.hit(p)
+	drones.hover = i
+	deal_tv.hover_take = i < 0 and deal_tv.on_take(p) and deal_tv.reveal >= 1.0 and bool(deal.get("ok", false))
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if (i >= 0 or deal_tv.hover_take) else Control.CURSOR_ARROW
+
+
+func _click(p: Vector2) -> void:
+	if drones == null:
+		return
+	var i := drones.hit(p)
+	if i >= 0:
+		# a click wakes a dozing drone with a jolt, whether or not it can sell
+		drones.wake(i, _t)
+		var o: Dictionary = offers[i] if i < offers.size() else {}
+		if bool(o.get("ok", false)) and String(o.get("done", "")) == "":
+			service.emit(i)
+		accept_event()
+		return
+	if deal_tv.on_take(p) and deal_tv.reveal >= 1.0 and bool(deal.get("ok", false)):
+		accept_event()
+		take.emit()
+
+
+func _get_tooltip(at: Vector2) -> String:
+	if drones == null:
+		return ""
+	var i := drones.hit(at)
+	if i >= 0 and i < offers.size():
+		return Widgets.tip(String((offers[i] as Dictionary).get("tip", "")))
+	return ""
+
+
+# ------------------------------------------------------------------ helpers
+
+func now() -> float:
+	return _t
+
+
+func font() -> Font:
+	return _font
+
+
+## The row the drones take their light from: just under the hulls' feet.
+func shiprow() -> int:
+	return mini(H - 1, int(dial.get("ships", 310)) + 10)
+
+
+## The top of your hull at a column: where a drone's work lands.
+func top_at(x: float) -> float:
+	var c := clampi(int(floorf(x + 0.5)), 0, W - 1)
+	if hull_top.size() == W and hull_top[c] >= 0:
+		return float(hull_top[c])
+	var m: Dictionary = placed[0]
+	return float(m.get("top", 200))
+
+
+## Is a pixel under a ship or a stand?
+func covered(x: int, y: int) -> bool:
+	if _ship_img == null:
+		return false
+	var c := _ship_img.get_pixel(x, y)
+	return c.r8 > 0 or c.g8 > 0
+
+
+## An installed picture of the yard's, loaded once.
+func tex(name: String) -> Texture2D:
+	if name == "":
+		return null
+	if not _tex_cache.has(name):
+		_tex_cache[name] = load(DIR + name) as Texture2D
+	return _tex_cache[name]
+
+
+## One of the station's own pictures (the flyers).
+func tex_abs(name: String) -> Texture2D:
+	if name == "":
+		return null
+	var key := "abs:" + name
+	if not _tex_cache.has(key):
+		_tex_cache[key] = load("res://art/sprites/station/" + name) as Texture2D
+	return _tex_cache[key]
+
+
+## An installed picture's pixels, for what reads them.
+func img(name: String) -> Image:
+	if name == "":
+		return null
+	if not _img_cache.has(name):
+		var t := tex(name)
+		var im: Image = t.get_image() if t != null else null
+		if im != null and im.get_format() != Image.FORMAT_RGBA8:
+			im.convert(Image.FORMAT_RGBA8)
+		_img_cache[name] = im
+	return _img_cache[name]
+
+
+static func cell(x: float, y: float) -> Vector2:
+	return Vector2(YardLight.cell_x(x), YardLight.cell_y(y))
+
+
+## The light on a picture as the page cached its lit copies: in 48ths, then
+## to the byte its multiply used.
+static func quant(M: Color) -> Color:
+	return Color(floorf(floorf(clampf(M.r, 0.0, 1.0) * 48.0 + 0.5) / 48.0 * 255.0 + 0.5) / 255.0,
+		floorf(floorf(clampf(M.g, 0.0, 1.0) * 48.0 + 0.5) / 48.0 * 255.0 + 0.5) / 255.0,
+		floorf(floorf(clampf(M.b, 0.0, 1.0) * 48.0 + 0.5) / 48.0 * 255.0 + 0.5) / 255.0)
+
+
+## A colour in the light (the page's `mHex`).
+static func lit(c: Color, M: Color) -> Color:
+	return Color8(int(floorf(float(c.r8) * M.r + 0.5)), int(floorf(float(c.g8) * M.g + 0.5)), int(floorf(float(c.b8) * M.b + 0.5)), c.a8)
+
+
+static func _grey(f: float) -> float:
+	return floorf(255.0 * clampf(f, 0.0, 1.0) + 0.5) / 255.0
+
+
+## A picture in the light, lit from above: toward its bottom it falls into its
+## own shade in steps, and whatever hangs over it shades its top (the page's
+## `litCopy` with a `shade`).
+func draw_shaded(P: YardPaint, t: Texture2D, src: Rect2, at: Vector2, M: Color, from: float, k: float, steps: int, cast: Array) -> void:
+	if t == null:
+		return
+	P.use(YardPaint.PLAIN)
+	var sw := int(src.size.x)
+	var sh := int(src.size.y)
+	var y0 := int(floorf(float(sh) * from + 0.5))
+	var bands: Array = [[0, y0, 1.0]]
+	for j in range(1, steps + 1):
+		var ya := y0 + int(floorf(float(sh - y0) * float(j - 1) / float(steps) + 0.5))
+		var yb := y0 + int(floorf(float(sh - y0) * float(j) / float(steps) + 0.5))
+		bands.append([ya, yb, _grey(1.0 - k * float(j) / float(steps))])
+	# the cast along the top, softer at its ends and in a band under it
+	var cuts: Array = []
+	if not cast.is_empty():
+		var cx := float(cast[0])
+		var cw := int(cast[1])
+		var chh := int(cast[2])
+		var ck := float(cast[3])
+		var x0 := int(floorf(cx - float(cw) / 2.0 + 0.5))
+		cuts = [[0, chh, [[x0 - 4, x0, _grey(1.0 - ck / 2.0)], [x0, x0 + cw, _grey(1.0 - ck)], [x0 + cw, x0 + cw + 4, _grey(1.0 - ck / 2.0)]]],
+			[chh, chh + 2, [[x0, x0 + cw, _grey(1.0 - ck / 2.0)]]]]
+	for b: Array in bands:
+		var ya2 := int(b[0])
+		var yb2 := mini(int(b[1]), sh)
+		if yb2 <= ya2:
+			continue
+		# split the band's rows where the cast rows begin and end
+		var edges: Array[int] = [ya2, yb2]
+		for c: Array in cuts:
+			for e: int in [int(c[0]), int(c[1])]:
+				if e > ya2 and e < yb2:
+					edges.append(e)
+		edges.sort()
+		for n in edges.size() - 1:
+			var ra := edges[n]
+			var rb := edges[n + 1]
+			if rb <= ra:
+				continue
+			var cols: Array = [[0, sw, 1.0]]
+			for c2: Array in cuts:
+				if ra >= int(c2[0]) and ra < int(c2[1]):
+					cols = _split(sw, c2[2])
+			for cc: Array in cols:
+				var xa := maxi(0, int(cc[0]))
+				var xb := mini(sw, int(cc[1]))
+				if xb <= xa:
+					continue
+				var f := float(b[2]) * float(cc[2])
+				P.tex(t, at + Vector2(xa, ra), Rect2(src.position.x + float(xa), src.position.y + float(ra), float(xb - xa), float(rb - ra)),
+					Color(M.r * f, M.g * f, M.b * f))
+
+
+## A row split into runs by the cast's columns: [[x0, x1, factor], ...].
+static func _split(w: int, cols: Array) -> Array:
+	var out: Array = []
+	var x := 0
+	for c: Array in cols:
+		var a := clampi(int(c[0]), 0, w)
+		var b := clampi(int(c[1]), 0, w)
+		if a > x:
+			out.append([x, a, 1.0])
+		if b > a:
+			out.append([a, b, float(c[2])])
+		x = maxi(x, b)
+	if x < w:
+		out.append([x, w, 1.0])
+	return out
+
+
+# ------------------------------------------------------------------ sound
+
+func sound_arrive(x: float) -> void:
+	if sound != null:
+		sound.arrive(x)
+
+
+func sound_leave(x: float) -> void:
+	if sound != null:
+		sound.leave(x)
+
+
+func sound_work(i: int, x: float) -> void:
+	if sound != null:
+		sound.work(i, x)
+
+
+func flick_sound(key: String, strong: bool = false) -> void:
+	if sound != null:
+		sound.flick(key, strong)

@@ -942,7 +942,9 @@ func _on_card_played(c: CardData) -> void:
 	elif c.block > 0 or c.brace > 0 or c.brace_from_heat:
 		play(&"shield_block", 0.06)
 	# EMERGENCY REPAIR IS THE STATION'S REPAIR, at Jon's ask: the same welding
-	# out here as at the berth, because it is the same job done worse.
+	# out here as at the berth, because it is the same job done worse. The
+	# berth's repair is the Yard's drones at work now (`yard_repair_*`, quiet
+	# and distant); this keeps the welding the berth used to play.
 	elif c.heal > 0 or c.heal_scale > 0:
 		play(&"svc_repair", 0.06)
 	# LOCK ON is not an attack -- it is the sights closing on one -- so it gets

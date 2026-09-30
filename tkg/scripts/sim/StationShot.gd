@@ -80,6 +80,21 @@ func run(tree: SceneTree) -> void:
 			LabScene.pin_clock = float(s3.substr(9))
 		elif s3.begins_with("backdrop="):
 			StationRoom.forced_views[&"backdrop"] = StringName(s3.substr(9))
+		elif s3.begins_with("yardclock="):
+			# The Shipyard held this many seconds after its TV powered on: under
+			# four is the power-on and the drones flying in, six is settled.
+			YardScene.pin_clock = float(s3.substr(10))
+		elif s3.begins_with("yardev="):
+			# Rare events fired at seconds after power-on: `yardev=E11:1,E14:3.5`.
+			for ev in s3.substr(7).split(","):
+				var kv := ev.split(":")
+				YardScene.fire_at.append([kv[0], float(kv[1]) if kv.size() > 1 else 0.0])
+		elif s3 == "yard=bare":
+			# The hall and the ships alone, lit: set against the page's own.
+			YardScene.bare = true
+		elif s3 == "yard=painted":
+			# The yard as painted, no light: set against Jon's pictures.
+			YardScene.fullbright = true
 
 	Run.start_new_run(&"korvan" if berths.is_empty() else berths[0], 1)
 
@@ -166,6 +181,13 @@ func run(tree: SceneTree) -> void:
 			cols -= maxi(1, part.size.x)
 			here.shop.append(part)
 		here.shop_hull = LootGen.roll_hull(7)
+		# `yardhull=medium:2`: a Korvan frame of that weight at that grade on the
+		# blocks -- the Yard Drones page stood a grade-A medium there.
+		for ah in OS.get_cmdline_user_args():
+			if (ah as String).begins_with("yardhull="):
+				var wt := (ah as String).substr(9).split(":")
+				var weights := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
+				here.shop_hull = DB.at_tier(DB.hull_for(&"korvan", weights.get(wt[0], HullData.Weight.MEDIUM)), int(wt[1]) if wt.size() > 1 else 2)
 		print("  full: hold %d · shelf %d · hull on the blocks"
 			% [Run.cargo.size(), here.shop.size()])
 	# `stock=N` cuts the shelf to N parts. `full` stocks five, which is a
@@ -304,6 +326,49 @@ func run(tree: SceneTree) -> void:
 		f12.store_string(JSON.stringify({"lab": lab12._level, "heard": heard12}))
 		f12.close()
 		print("  labtape %s: lab %s, %d sounds" % [(a12 as String).substr(8), lab12._level, heard12.size()])
+		break
+
+	# `yardtape=<path>`: the Shipyard heard -- every sound the game plays for
+	# `yardtapes=S` seconds (12) after its TV powers on, as [name, seconds after
+	# power-on], on the yard's own running clock (no `yardclock=`). The TV's
+	# power-on, the bed, the drones flying in and at work (`yardbuy=I:S` buys as
+	# a click does), the welder, the now-and-then, a light's flicker. Needs a
+	# window: without one there is no sound.
+	for a14 in OS.get_cmdline_user_args():
+		if not (a14 as String).begins_with("yardtape="):
+			continue
+		var scr14 := Router.current as StationScreen
+		if scr14 == null or scr14._scene == null or not scr14._scene.is_visible_in_tree():
+			print("  yardtape: no yard on screen")
+			break
+		var yard14 := scr14._scene
+		var secs14 := 12.0
+		var buys14: Array = []
+		for b14 in OS.get_cmdline_user_args():
+			if (b14 as String).begins_with("yardtapes="):
+				secs14 = float((b14 as String).substr(10))
+			elif (b14 as String).begins_with("yardbuy="):
+				for pair in (b14 as String).substr(8).split(","):
+					var kv14 := pair.split(":")
+					buys14.append([int(kv14[0]), float(kv14[1]), false])
+		Audio.tape.clear()
+		Audio.taping = true
+		var boot14 := float(Time.get_ticks_msec()) - (yard14._clock - yard14._tp) * 1000.0
+		while (float(Time.get_ticks_msec()) - boot14) / 1000.0 < secs14:
+			var now14 := (float(Time.get_ticks_msec()) - boot14) / 1000.0
+			for bb14: Array in buys14:
+				if not bb14[2] and now14 >= float(bb14[1]):
+					bb14[2] = true
+					scr14._on_yard_service(int(bb14[0]))
+			await RenderingServer.frame_post_draw
+		Audio.taping = false
+		var heard14 := []
+		for e14 in Audio.tape:
+			heard14.append([String(e14[0]), snappedf((float(e14[1]) - boot14) / 1000.0, 0.001)])
+		var f14 := FileAccess.open((a14 as String).substr(9), FileAccess.WRITE)
+		f14.store_string(JSON.stringify({"yard": yard14.level, "heard": heard14}))
+		f14.close()
+		print("  yardtape %s: yard %s, %d sounds" % [(a14 as String).substr(9), yard14.level, heard14.size()])
 		break
 
 	# `-- stationshot full hover` shows the Yard's details slab, which otherwise
@@ -641,6 +706,13 @@ func run(tree: SceneTree) -> void:
 		if not (a6 as String).begins_with("roomshot="):
 			continue
 		var scr6 := Router.current as StationScreen
+		# THE SHIPYARD is a picture too: its 766x482 from its top-left.
+		if scr6 != null and scr6._scene != null and scr6._scene.is_visible_in_tree():
+			var yb := Rect2i(Vector2i(scr6._scene.get_global_rect().position), Vector2i(YardScene.W, YardScene.H))
+			var yframe := scr6._scene.get_viewport().get_texture().get_image()
+			yframe.get_region(yb).save_png((a6 as String).substr(9))
+			print("  roomshot %s: yard %s at %s" % [(a6 as String).substr(9), scr6._scene.level, yb])
+			break
 		# THE LABORATORY is a picture, not a room: its 740x431 from its top-left.
 		if scr6 != null and scr6._lab != null and scr6._lab.is_visible_in_tree():
 			var lb := Rect2i(Vector2i(scr6._lab.get_global_rect().position), Vector2i(LabScene.PANEL))
@@ -701,6 +773,53 @@ func run(tree: SceneTree) -> void:
 			var img11 := room11.get_viewport().get_texture().get_image().get_region(box11)
 			img11.save_png("%s/frame_%03d.png" % [dir11, i11])
 		print("  roomclip: %d frames from %.2fs to %s" % [frames11, t11 / 1000.0, dir11])
+		break
+
+	# `yardclip=<dir>`: the Shipyard as a run of frames on its own clock,
+	# `clipframes=N` (90) `clipms=M` apart (66), from `clipfrom=S` seconds after
+	# its TV powered on (0) -- the power-on, the drones flying in, anything
+	# `yardev=` fires. `yardbuy=I:S` buys service I at S seconds, as a click does.
+	for a13 in OS.get_cmdline_user_args():
+		if not (a13 as String).begins_with("yardclip="):
+			continue
+		var scr13 := Router.current as StationScreen
+		if scr13 == null or scr13._scene == null or not scr13._scene.is_visible_in_tree():
+			print("  yardclip: no yard on screen")
+			break
+		var frames13 := 90
+		var step13 := 66.0
+		var from13 := 0.0
+		var buys13: Array = []
+		for b13 in OS.get_cmdline_user_args():
+			if (b13 as String).begins_with("clipframes="):
+				frames13 = int((b13 as String).substr(11))
+			elif (b13 as String).begins_with("clipms="):
+				step13 = float((b13 as String).substr(7))
+			elif (b13 as String).begins_with("clipfrom="):
+				from13 = float((b13 as String).substr(9))
+			elif (b13 as String).begins_with("yardbuy="):
+				for pair in (b13 as String).substr(8).split(","):
+					var kv13 := pair.split(":")
+					buys13.append([int(kv13[0]), float(kv13[1]), false])
+		var dir13 := (a13 as String).substr(9)
+		DirAccess.make_dir_recursive_absolute(dir13)
+		var yard13 := scr13._scene
+		var box13 := Rect2i(Vector2i(yard13.get_global_rect().position), Vector2i(YardScene.W, YardScene.H))
+		for i13 in frames13:
+			var s13 := from13 + float(i13) * step13 / 1000.0
+			for bb: Array in buys13:
+				if not bb[2] and s13 >= float(bb[1]):
+					bb[2] = true
+					var hp13 := Run.hp
+					var cr13 := Run.credits
+					scr13._on_yard_service(int(bb[0]))
+					print("  yardbuy %d at %.2fs: hull %d -> %d of %d, credits %d -> %d" % [int(bb[0]), s13, hp13, Run.hp, Run.max_hp(), cr13, Run.credits])
+			yard13.step_to(s13)
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var img13 := yard13.get_viewport().get_texture().get_image().get_region(box13)
+			img13.save_png("%s/frame_%03d.png" % [dir13, i13])
+		print("  yardclip: %d frames from %.2fs to %s" % [frames13, from13, dir13])
 		break
 
 	print("  %s · %s" % ["no berth" if berth == &"none"
