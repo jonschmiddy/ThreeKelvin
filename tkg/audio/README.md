@@ -47,6 +47,7 @@ About four minutes for the lot. `audio/out/` holds the WAV intermediates
 
 | File | What it is |
 |---|---|
+| `board_jingles.py` | The Hiring Board commercials' jingles, scored to each commercial's picture; the chosen arrangement goes straight to `assets/audio/sfx/board_ad_*.wav`. |
 | `synth.py` | The engine. Instruments, envelopes, filters, reverb, delay, the `Track` mixer, and the master bus. |
 | `motif.py` | The source motif and every transformation the scores apply to it. No tempo, no octave, no dependencies — just the phrase. |
 | `arrange.py` | Score for **"Slow Drift"** — main theme, F minor, 142 BPM, 72 bars. |

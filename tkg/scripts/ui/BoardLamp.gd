@@ -65,6 +65,35 @@ const STRIKE := 0.55
 const GAP := 0.32
 const BAYER := [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
+## THE TUBES, HEARD, with the sounds Jon passed for the same level's lab (Lab
+## Sounds, 2026-09-28) -- AND HEARD AS THEY ARE SEEN (Jon: "Cant we just have
+## the sounds match how the lights look for the hiring board?"). The sound
+## follows the board's light, not a timetable: every flash you see as the tubes
+## strike, and every stutter after, is a flicker; the lamp's clunk-and-hum
+## plays once, on the frame the board settles fully lit. Two tubes striking in
+## turn used to be two clunks 0.3 s apart over a board that just looked
+## flickery. A screen has no tubes: its backlight catches with the lab's monitor
+## pop and the level's display swelling up. Every level is baked into its file,
+## so each plays at 0 dB.
+const STRIKE_SOUND := [&"lab_unclaimed_bulb", &"lab_outpost_lamp", &"lab_settlement_lamp"]
+const FLICKER_SOUND := [[&"lab_unclaimed_flicker"], [&"lab_outpost_flicker"], [&"lab_settlement_flicker"]]
+const SCREEN_SOUND := [[], [], [], [&"lab_monitor_pop", &"lab_city_screen"], [&"lab_monitor_pop", &"lab_capital_glass"]]
+## A screen's power-on sounds, [seconds after it, name], and how many have played.
+var _plan: Array = []
+var _heard := 0
+var _voiced := false
+## The board's light last frame, whether the clunk for this power-on has
+## played, and how many flickers have.
+var _lvl_was := 1.0
+var _settled := true
+var _flick_n := 0
+## How far the board's light has to jump in a frame to be seen as a flash.
+const FLASH := 0.25
+var _flick_at := -10.0
+var _boot_pending := false
+## The least time between two flickers heard: one stutter is several flashes.
+const FLICK_GAP := 0.12
+
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_add = Control.new()
@@ -81,7 +110,62 @@ func _init() -> void:
 ## docking -- have them already lit.
 func power_on(settled: bool = false) -> void:
 	_boot_at = _now() - (60.0 if settled else 0.0)
+	# the clock starts on the first frame the board is SEEN: the deck is built
+	# a few frames before it shows, and a strike heard before then lands late
+	_boot_pending = not settled
+	_plan = []
+	if dev >= 3:
+		var ss: Array = SCREEN_SOUND[clampi(dev, 0, SCREEN_SOUND.size() - 1)]
+		for i in ss.size():
+			_plan.append([WAIT + float(i) * 0.1, ss[i]])
+	# back on a deck already lit this docking: nothing left to strike
+	_heard = _plan.size() if settled else 0
+	_settled = settled
+	_lvl_was = 1.0 if settled else 0.0
 	queue_redraw()
+
+
+## The sounds the light makes this frame. A screen's are on its timetable,
+## which its backlight's flash keeps; a board's follow its light: a flicker on
+## each flash, the clunk once when it holds steady.
+func _sound() -> void:
+	var u := _now() - _boot_at
+	while _heard < _plan.size() and float(_plan[_heard][0]) <= u:
+		Audio.play(_plan[_heard][1], 0.0)
+		_heard += 1
+		_voiced = true
+	if dev >= 3:
+		return
+	var lvl := level()
+	var jump := lvl - _lvl_was >= FLASH and _now() - _flick_at >= FLICK_GAP
+	if not _settled and lvl >= 0.999 and u >= WAIT + float(int(_bars()["n"]) - 1) * GAP + STRIKE:
+		# held steady at last: the lamp's clunk and hum, once
+		_settled = true
+		Audio.play(STRIKE_SOUND[clampi(dev, 0, 2)], 0.0)
+		_voiced = true
+	elif jump:
+		# a flash: the tubes striking, or a stutter coming back on
+		_flick_at = _now()
+		var fl: Array = FLICKER_SOUND[clampi(dev, 0, 2)]
+		Audio.play(fl[_flick_n % fl.size()], 0.0)
+		_flick_n += 1
+		_voiced = true
+	_lvl_was = lvl
+
+
+## LEAVING THE DECK MID POWER-ON TAKES ITS SOUNDS WITH IT, as the lab's do.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree() and _voiced:
+		_voiced = false
+		var names: Array[StringName] = []
+		for e in _plan:
+			if not names.has(e[1]):
+				names.append(e[1])
+		if dev < 3:
+			names.append(STRIKE_SOUND[clampi(dev, 0, 2)])
+			for f in FLICKER_SOUND[clampi(dev, 0, 2)]:
+				names.append(f)
+		Audio.hush(names)
 
 
 static func _now() -> float:
@@ -90,6 +174,10 @@ static func _now() -> float:
 
 func _process(_dt: float) -> void:
 	if is_visible_in_tree():
+		if _boot_pending:
+			_boot_pending = false
+			_boot_at = _now()
+		_sound()
 		queue_redraw()
 		_add.queue_redraw()
 

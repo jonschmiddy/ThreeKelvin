@@ -371,6 +371,8 @@ func run(tree: SceneTree) -> void:
 				settled = scr2._lab._boot_heard
 			elif deck1 == &"services" and scr2._scene != null:
 				settled = scr2._scene._clock - scr2._scene._tp >= YardScene.SETTLED
+			elif deck1 == &"work" and scr2._board_lamp != null:
+				settled = scr2._board_lamp._settled and scr2._board_lamp._now() - scr2._board_lamp._boot_at > 5.0
 			print("  revisit: %s after %s -- %s" % [deck1, leg, "settled, not powered on again" if settled else "powered on again"])
 
 	# `labtape=<path>`: the Laboratory's power-on as the game plays it, heard rather
@@ -406,6 +408,144 @@ func run(tree: SceneTree) -> void:
 		f12.store_string(JSON.stringify({"lab": lab12._level, "heard": heard12}))
 		f12.close()
 		print("  labtape %s: lab %s, %d sounds" % [(a12 as String).substr(8), lab12._level, heard12.size()])
+		break
+
+	# `boardav=<dir>`: the Hiring Board seen AND heard, as a player gets it: the
+	# station picked by `avseed=N`, powered on from dark, for `avsecs=S` (24)
+	# seconds -- every frame of the board, with when it was drawn
+	# (`frames.json`), and everything the game played on its master bus
+	# (`audio.wav`), music and station included. On a screen, a popup is
+	# clicked shut 2.5 s after it opens, as a player would. Needs a window.
+	for a23 in OS.get_cmdline_user_args():
+		if not (a23 as String).begins_with("boardav="):
+			continue
+		var scr23 := Router.current as StationScreen
+		if scr23 == null or scr23._board_lamp == null or not scr23._board_lamp.is_visible_in_tree():
+			print("  boardav: no board on screen")
+			break
+		var bd23 := scr23._board
+		var lamp23 := scr23._board_lamp
+		var dir23 := (a23 as String).substr(8)
+		DirAccess.make_dir_recursive_absolute(dir23)
+		var secs23 := 24.0
+		for b23 in OS.get_cmdline_user_args():
+			if (b23 as String).begins_with("avsecs="):
+				secs23 = float((b23 as String).substr(7))
+			elif (b23 as String).begins_with("avseed="):
+				bd23.station_seed = int((b23 as String).substr(7))
+		await tree.process_frame
+		# A CAPTURE, NOT A RECORD: AudioEffectRecord hands back silence here (4.7,
+		# WASAPI, added at run time) though the master bus meters -6 dB. The
+		# capture's ring buffer is drained every frame instead, into `pcm23`.
+		var cap23 := AudioEffectCapture.new()
+		cap23.buffer_length = 2.0
+		AudioServer.add_bus_effect(0, cap23)
+		await tree.create_timer(0.3).timeout
+		cap23.clear_buffer()
+		var pcm23 := PackedVector2Array()
+		var t23 := Time.get_ticks_msec()
+		lamp23.power_on(false)
+		bd23._pop_at = -1.0
+		bd23._pop_next = PostingBoard._t() + PostingBoard.POP_FIRST
+		var times23 := []
+		var clicked23 := false
+		var i23 := 0
+		while float(Time.get_ticks_msec() - t23) / 1000.0 < secs23:
+			await RenderingServer.frame_post_draw
+			var box23 := Rect2i(lamp23.get_global_rect())
+			lamp23.get_viewport().get_texture().get_image().get_region(box23).save_png("%s/frame_%04d.png" % [dir23, i23])
+			times23.append(float(Time.get_ticks_msec() - t23) / 1000.0)
+			pcm23.append_array(cap23.get_buffer(cap23.get_frames_available()))
+			if i23 % 20 == 0 and "avmeter" in OS.get_cmdline_user_args():
+				var playing23 := 0
+				for p23 in Audio._sfx:
+					if (p23 as AudioStreamPlayer).playing:
+						playing23 += 1
+				print("  boardav meter %.2fs: master %.1f dB, %d sfx playing" % [times23[-1], AudioServer.get_bus_peak_volume_left_db(0, 0), playing23])
+			i23 += 1
+			if not clicked23 and bd23._pop_at >= 0.0 and PostingBoard._t() - bd23._pop_at > 2.5 and bd23.pop_x.has_area():
+				clicked23 = true
+				var at23 := bd23.get_global_transform() * bd23.pop_x.get_center()
+				var target23 := GameShell.input_target(tree)
+				for pressed in [true, false]:
+					var mb23 := InputEventMouseButton.new()
+					mb23.button_index = MOUSE_BUTTON_LEFT
+					mb23.pressed = pressed
+					mb23.position = at23
+					mb23.global_position = at23
+					target23.push_input(mb23)
+		pcm23.append_array(cap23.get_buffer(cap23.get_frames_available()))
+		AudioServer.remove_bus_effect(0, AudioServer.get_bus_effect_count(0) - 1)
+		# ONE BLOCK PER SPEAKER PAIR: on a 7.1 output the master bus is four stereo
+		# pairs, and the capture is handed each pair's 512-frame mix block in turn
+		# (front, centre, rear, side). The front pair is what plays on stereo; keep
+		# it, drop the rest, or the sound runs four times too long.
+		var pairs23 := int(AudioServer.get_speaker_mode()) + 1
+		if pairs23 > 1:
+			var front23 := PackedVector2Array()
+			var blk23 := 512
+			var at23b := 0
+			while at23b < pcm23.size():
+				front23.append_array(pcm23.slice(at23b, mini(at23b + blk23, pcm23.size())))
+				at23b += blk23 * pairs23
+			pcm23 = front23
+		# 16-bit stereo PCM at the mix rate, as a plain RIFF wav
+		var rate23 := int(AudioServer.get_mix_rate())
+		var data23 := PackedByteArray()
+		data23.resize(pcm23.size() * 4)
+		for k23 in pcm23.size():
+			data23.encode_s16(k23 * 4, int(clampf(pcm23[k23].x, -1.0, 1.0) * 32767.0))
+			data23.encode_s16(k23 * 4 + 2, int(clampf(pcm23[k23].y, -1.0, 1.0) * 32767.0))
+		var w23 := FileAccess.open("%s/audio.wav" % dir23, FileAccess.WRITE)
+		w23.store_buffer("RIFF".to_ascii_buffer())
+		w23.store_32(36 + data23.size())
+		w23.store_buffer("WAVEfmt ".to_ascii_buffer())
+		w23.store_32(16)
+		w23.store_16(1)
+		w23.store_16(2)
+		w23.store_32(rate23)
+		w23.store_32(rate23 * 4)
+		w23.store_16(4)
+		w23.store_16(16)
+		w23.store_buffer("data".to_ascii_buffer())
+		w23.store_32(data23.size())
+		w23.store_buffer(data23)
+		w23.close()
+		var f23 := FileAccess.open("%s/frames.json" % dir23, FileAccess.WRITE)
+		f23.store_string(JSON.stringify(times23))
+		f23.close()
+		print("  boardav: dev %d seed %d, %d frames over %.1f s, %.1f s of sound at %d Hz" % [lamp23.dev, bd23.station_seed, i23,
+			times23[-1] if not times23.is_empty() else 0.0, float(pcm23.size()) / float(rate23), rate23])
+		break
+
+	# `boardtape=<path>`: the Hiring Board heard -- every sound the game plays for
+	# `boardtapes=S` seconds (12) after its lights power on, as [name, seconds
+	# after power-on]: the tubes striking, their flickers, a screen's power-on,
+	# popups and commercials. Needs a window.
+	for a22 in OS.get_cmdline_user_args():
+		if not (a22 as String).begins_with("boardtape="):
+			continue
+		var scr22 := Router.current as StationScreen
+		if scr22 == null or scr22._board_lamp == null or not scr22._board_lamp.is_visible_in_tree():
+			print("  boardtape: no board on screen")
+			break
+		var lamp22 := scr22._board_lamp
+		Audio.tape.clear()
+		Audio.taping = true
+		var secs22 := 12.0
+		for b22 in OS.get_cmdline_user_args():
+			if (b22 as String).begins_with("boardtapes="):
+				secs22 = float((b22 as String).substr(11))
+		await tree.create_timer(secs22).timeout
+		Audio.taping = false
+		var boot22 := lamp22._boot_at * 1000.0
+		var heard22 := []
+		for e22 in Audio.tape:
+			heard22.append([String(e22[0]), snappedf((float(e22[1]) - boot22) / 1000.0, 0.001)])
+		var f22 := FileAccess.open((a22 as String).substr(10), FileAccess.WRITE)
+		f22.store_string(JSON.stringify({"dev": lamp22.dev, "heard": heard22}))
+		f22.close()
+		print("  boardtape: dev %d, %s" % [lamp22.dev, heard22])
 		break
 
 	# `yardtape=<path>`: the Shipyard heard -- every sound the game plays for
@@ -928,6 +1068,72 @@ func run(tree: SceneTree) -> void:
 			var img16 := lamp16.get_viewport().get_texture().get_image().get_region(box16)
 			img16.save_png("%s/frame_%03d.png" % [dir16, i16])
 		print("  boardclip: %d frames of %s to %s" % [frames16, box16, dir16])
+		break
+
+	# `boardtab=<i>`: on a screen, click tab i (0 ALL, 1 HAULAGE, 2 BOUNTY, 3 HEAT)
+	# as a player does, and print each tab's count and how many notices show.
+	for a20 in OS.get_cmdline_user_args():
+		if not (a20 as String).begins_with("boardtab="):
+			continue
+		var scr20 := Router.current as StationScreen
+		var bd20: PostingBoard = scr20._board if scr20 != null else null
+		if bd20 == null or not bd20.screen():
+			print("  boardtab: no screen on this board")
+			break
+		await tree.process_frame
+		await RenderingServer.frame_post_draw
+		var i20 := int((a20 as String).substr(9))
+		print("  boardtab: counts %s, %d notices before" % [bd20.tab_counts, scr20._work.get_child_count()])
+		var at20 := bd20.get_global_transform() * bd20._tab_rects[i20].get_center()
+		var target20 := GameShell.input_target(tree)
+		for pressed in [true, false]:
+			var mb20 := InputEventMouseButton.new()
+			mb20.button_index = MOUSE_BUTTON_LEFT
+			mb20.pressed = pressed
+			mb20.position = at20
+			mb20.global_position = at20
+			target20.push_input(mb20)
+			await tree.process_frame
+		await tree.process_frame
+		print("  boardtab: picked %s, tab is %d, %d notices after" % [PostingBoard.TABS[i20], bd20.tab, scr20._work.get_child_count()])
+		# `tabshot=<png>`: and photograph the board after
+		for b20 in OS.get_cmdline_user_args():
+			if (b20 as String).begins_with("tabshot="):
+				scr20._board_lamp.power_on(true)
+				await RenderingServer.frame_post_draw
+				await RenderingServer.frame_post_draw
+				var box20 := Rect2i(scr20._board_lamp.get_global_rect())
+				scr20._board_lamp.get_viewport().get_texture().get_image().get_region(box20).save_png((b20 as String).substr(8))
+		break
+
+	# `reelclip=<dir>`: each of the screen's commercials alone, from its first
+	# moment to its last, a frame every 33 ms, in `<dir>/<i>/`, cropped to it.
+	for a21 in OS.get_cmdline_user_args():
+		if not (a21 as String).begins_with("reelclip="):
+			continue
+		var scr21 := Router.current as StationScreen
+		if scr21 == null or scr21._board == null or not scr21._board.screen():
+			print("  reelclip: no screen on this board")
+			break
+		for c21 in scr21._work.get_children():
+			(c21 as CanvasItem).visible = false
+		scr21._board_lamp.power_on(true)
+		var bd21 := scr21._board
+		var dir21 := (a21 as String).substr(9)
+		for ci in BoardCommercial.count():
+			DirAccess.make_dir_recursive_absolute("%s/%d" % [dir21, ci])
+			bd21.reel = ci
+			bd21.reel_from = PostingBoard._t()
+			var f21 := 0
+			while PostingBoard._t() - bd21.reel_from < BoardCommercial.LENGTH:
+				await RenderingServer.frame_post_draw
+				var o := bd21.get_global_transform() * Vector2(PostingBoard.FRAME_W + 8.0, PostingBoard.FRAME_W + 8.0)
+				bd21.get_viewport().get_texture().get_image().get_region(Rect2i(Vector2i(o), Vector2i(107, 170))).save_png(
+					"%s/%d/frame_%03d.png" % [dir21, ci, f21])
+				f21 += 1
+				await tree.create_timer(0.033).timeout
+			print("  reelclip: %s, %d frames" % [BoardCommercial.NAMES[ci], f21])
+		bd21.reel = -1
 		break
 
 	# `boardpool=<dir>`: every piece in this level's pool, laid out in rows with

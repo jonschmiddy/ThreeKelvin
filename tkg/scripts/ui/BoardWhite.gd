@@ -163,7 +163,7 @@ static func draw(b: PostingBoard, i: int) -> void:
 				if k > 0:
 					b.draw_line(prev.round(), pt.round(), RED, 2.0)
 				prev = pt
-			b._hand("J+M", hc + Vector2(-12, 2), RED, sd + 1.0)
+			b._hand("J+A", hc + Vector2(-12, 2), RED, sd + 1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +341,7 @@ const MORE := [
 	{"k": "sign", "t": "GET WELL TIK", "names": ["", "MAX", "", "", "KEVIN"], "c": BLUE},
 
 	# -- hearts
-	{"k": "heart", "t": "R+T", "c": RED, "sc": 1.4, "arrow": true},
+	{"k": "heart", "t": "J+A", "c": RED, "sc": 1.4, "arrow": true},
 	{"k": "heart", "t": "DOCK 5", "c": BLUE, "sc": 2.2, "arrow": false},
 
 	# -- faces

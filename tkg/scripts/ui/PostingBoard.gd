@@ -73,6 +73,17 @@ const WHITE := Color("#e2e6e8")
 ## closes itself. Popups never cover the work: nothing moves over what you can
 ## click.
 const HEADER := 22.0
+## THE TABS FILTER THE WORK (Jon: only what can be pressed may look as if it
+## can). Each is a contract kind -- -1 for all of them -- and `tab_counts` is
+## how many of each are on offer here, set by `StationScreen`. Picking one
+## sends `tab_picked`; `StationScreen` lists only that kind.
+const TABS := ["ALL", "HAULAGE", "BOUNTY", "HEAT"]
+const TAB_KINDS := [-1, ContractData.Kind.FETCH, ContractData.Kind.HUNT, ContractData.Kind.HEAT]
+signal tab_picked(i: int)
+var tab := 0
+var tab_counts: Array[int] = [0, 0, 0, 0]
+var _tab_rects: Array[Rect2] = []
+var _tab_hover := -1
 const AD_EVERY := 6.0
 ## A POPUP STAYS UP UNTIL YOU SHUT IT (Jon: "the popups should stay up until
 ## you click on them"), by its X or its button; the next one comes POP_EVERY
@@ -88,6 +99,7 @@ var station_seed := 0:
 	set(v):
 		if v != station_seed:
 			station_seed = v
+			tab = 0
 			_orders.clear()
 			_laid.clear()
 			_ticker_cache = ""
@@ -367,10 +379,39 @@ func _scatter_draw(w: float, h: float) -> void:
 				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## A COMMERCIAL'S JINGLE, once, as it plays (Jon: "Can we just do little jingles
+## for the ads?"): each of BoardCommercial's, in its order, and how far into
+## the commercial it starts, as he set them on Hiring Board, Heard. Composed on
+## the game's own synth; levelled for a screen across the hall.
+const JINGLES: Array[StringName] = [&"board_ad_hull_wax", &"board_ad_star_taxi", &"board_ad_noodles",
+	&"board_ad_drone", &"board_ad_coolant", &"board_ad_lucky_spin"]
+const JINGLE_AT := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+## The ad turn whose jingle has played, so each commercial plays it once.
+var _jingled := -1
+
+
+## LEAVING THE DECK TAKES THE JINGLE WITH IT: it is the screen's sound, and the
+## screen is gone.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and not is_visible_in_tree() and screen():
+		Audio.hush(JINGLES)
+
+
 func _process(_dt: float) -> void:
 	# the ads turn over, the cursor blinks, the popups come and go
 	if screen() and is_visible_in_tree():
 		queue_redraw()
+		var turn := int(_t() / AD_EVERY)
+		if turn % 3 == 2 and turn != _jingled and gallery_from < 0 and reel < 0:
+			var ci := _nth(BoardCommercial.count(), 8, turn / 3)
+			var into := fposmod(_t(), AD_EVERY) - float(JINGLE_AT[ci])
+			if into >= 0.0:
+				_jingled = turn
+				# SCORED TO THE PICTURE, so it starts on the commercial's first
+				# frame or not at all: come in partway through one and it stays
+				# quiet rather than play out of step
+				if into < 0.1:
+					Audio.play(JINGLES[ci], 0.0)
 
 
 static func _t() -> float:
@@ -413,7 +454,19 @@ func _free_slots(h: float) -> Array[Rect2]:
 	return out
 
 
+## FOR THE HARNESS (`reelclip=`): one commercial alone, running from `reel_from`
+## on the real clock, so it can be filmed and heard against its sting.
+var reel := -1
+var reel_from := 0.0
+
+
 func _fill(w: float, h: float) -> void:
+	if reel >= 0:
+		var rs := Vector2(107, 170)
+		draw_set_transform(Vector2(FRAME_W + 8.0, FRAME_W + 8.0), 0.0, Vector2.ONE)
+		BoardCommercial.draw(self, rs, reel, minf(_t() - reel_from, BoardCommercial.LENGTH - 0.01))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
 	if gallery_from >= 0:
 		_gallery_draw(w, h)
 		return
@@ -620,36 +673,44 @@ func _app_bar(w: float) -> void:
 	draw_rect(Rect2(e, e, w - e * 2.0, HEADER), Color("#0a2a44"))
 	draw_rect(Rect2(e, e + HEADER - 1.0, w - e * 2.0, 1.0), Color("#3ec8e0"))
 	_text("STATION LISTINGS", e + 8.0, e + 14.0, UITheme.FS_SMALL, Color("#c8f0ff"))
+	# the search box, kept for the look of the thing (Jon: "you can keep the
+	# search box")
 	var sx := e + 126.0
-	draw_rect(Rect2(sx, e + 4.0, 150.0, 13.0), Color("#061426"))
-	draw_rect(Rect2(sx, e + 4.0, 150.0, 13.0), Color("#3ec8e0"), false, 1.0)
+	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), Color("#061426"))
+	draw_rect(Rect2(sx, e + 4.0, 120.0, 13.0), Color("#3ec8e0"), false, 1.0)
 	_text("SEARCH WORK", sx + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#4a7a96"))
 	if int(_t() * 2.0) % 2 == 0:
 		draw_rect(Rect2(sx + 76.0, e + 7.0, 1.0, 8.0), Color("#c8f0ff"))
-	var tx := sx + 166.0
-	var first := true
-	for tab: String in ["ALL", "HAULAGE", "SALVAGE", "HEAT", "BOUNTY"]:
-		var tw := float(tab.length()) * 6.0 + 8.0
-		if first:
-			draw_rect(Rect2(tx - 4.0, e + 4.0, tw, 13.0), Color("#3ec8e0"))
-			_text(tab, tx, e + 14.0, UITheme.FS_SMALL, Color("#061426"))
+	# the tabs: real ones, each with how many it holds
+	_tab_rects.clear()
+	var tx := sx + 132.0
+	for i in TABS.size():
+		var label := "%s %d" % [TABS[i], tab_counts[i] if i < tab_counts.size() else 0]
+		var tr := Rect2(tx, e + 4.0, float(label.length()) * 6.0 + 10.0, 13.0)
+		_tab_rects.append(tr)
+		if i == tab:
+			draw_rect(tr, Color("#3ec8e0"))
+			_text(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL, Color("#061426"))
 		else:
-			_text(tab, tx, e + 14.0, UITheme.FS_SMALL, Color("#7fb8d4"))
-		tx += tw + 6.0
-		first = false
+			var hot := i == _tab_hover
+			draw_rect(tr, Color("#12405e") if hot else Color("#0c2a40"))
+			draw_rect(tr, Color("#3ec8e0") if hot else Color("#2c6a88"), false, 1.0)
+			var empty := i < tab_counts.size() and tab_counts[i] == 0
+			_text(label, tr.position.x + 5.0, e + 14.0, UITheme.FS_SMALL,
+				Color("#3e6a84") if empty else Color("#a8dcf0"))
+		tx += tr.size.x + 6.0
+	# the avatar and the bell, kept (Jon: "you can keep the bell and avatar,
+	# they're good"), and who is on
 	var rx := w - e - 8.0
-	# an avatar
 	draw_rect(Rect2(rx - 14.0, e + 3.0, 14.0, 15.0), Color("#c86a3a"))
 	draw_rect(Rect2(rx - 10.0, e + 5.0, 6.0, 6.0), Color("#f0d0a8"))
 	draw_rect(Rect2(rx - 12.0, e + 12.0, 10.0, 6.0), Color("#f0d0a8"))
-	# the bell, and how many things it wants you to see
 	var bx := rx - 34.0
 	draw_rect(Rect2(bx, e + 6.0, 9.0, 8.0), Color("#c8f0ff"))
 	draw_rect(Rect2(bx - 1.0, e + 13.0, 11.0, 2.0), Color("#c8f0ff"))
 	draw_rect(Rect2(bx + 3.0, e + 15.0, 3.0, 2.0), Color("#c8f0ff"))
 	draw_rect(Rect2(bx + 6.0, e + 2.0, 9.0, 9.0), Color("#e03a3a"))
 	_text("%d" % (3 + int(_t() / 11.0) % 7), bx + 8.0, e + 10.0, UITheme.FS_SMALL, Color.WHITE)
-	# who is on
 	var on := 40 + int(_t() / 5.0) % 9
 	draw_rect(Rect2(bx - 74.0, e + 9.0, 4.0, 4.0), Color("#46e07a"))
 	_text("%d ONLINE" % on, bx - 66.0, e + 14.0, UITheme.FS_SMALL, Color("#7fb8d4"))
@@ -706,6 +767,9 @@ func _side(col: Rect2) -> void:
 	if _pop_at < 0.0 and _t() >= _pop_next:
 		_pop_at = _t()
 		_pops += 1
+		# Jon's picks on Hiring Board, Heard: a soft chime chord to open, a
+		# muffled pop to shut
+		Audio.play(&"board_popup_open", 0.0)
 	if _pop_at >= 0.0:
 		var n := _pops % 3
 		var pw := minf(176.0, col.size.x - 8.0)
@@ -912,11 +976,30 @@ var _pop_next := -1.0
 var _pops := 0
 
 
+func _tab_at(at: Vector2) -> int:
+	if not screen():
+		return -1
+	for i in _tab_rects.size():
+		if _tab_rects[i].grow(1.0).has_point(at):
+			return i
+	return -1
+
+
 func _gui_input(event: InputEvent) -> void:
 	var mb := event as InputEventMouseButton
+	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and _tab_at(mb.position) >= 0:
+		var i := _tab_at(mb.position)
+		accept_event()
+		Audio.click()
+		if i != tab:
+			tab = i
+			queue_redraw()
+			tab_picked.emit(i)
+		return
 	if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT and _on_pop(mb.position):
 		_pop_at = -1.0
 		_pop_next = _t() + POP_EVERY
+		Audio.play(&"board_popup_close", 0.0)
 		pop_x = Rect2()
 		pop_btn = Rect2()
 		mouse_default_cursor_shape = Control.CURSOR_ARROW
@@ -926,8 +1009,12 @@ func _gui_input(event: InputEvent) -> void:
 	var mm := event as InputEventMouseMotion
 	if mm != null:
 		# the pointer closes over the X, as over any button
+		var over := _tab_at(mm.position)
+		if over != _tab_hover:
+			_tab_hover = over
+			queue_redraw()
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND \
-			if _on_pop(mm.position) else Control.CURSOR_ARROW
+			if _on_pop(mm.position) or over >= 0 else Control.CURSOR_ARROW
 
 
 func watch(l: Control) -> void:
@@ -988,7 +1075,7 @@ func _draw() -> void:
 
 	# --- ON A SCREEN, the marketplace's app bar across the top and its side
 	# column. (On a board the town's paper is scattered with the rest, above.)
-	if screen() and gallery_from < 0:
+	if screen() and gallery_from < 0 and reel < 0:
 		_app_bar(w)
 		_side(Rect2(w * NOTICE_SHARE + 8.0, FRAME_W + HEADER + 6.0,
 			w * (1.0 - NOTICE_SHARE) - FRAME_W - 16.0, h - FRAME_W * 2.0 - HEADER - TICKER - 14.0))

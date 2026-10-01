@@ -699,6 +699,7 @@ func _page_work() -> Control:
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_board = PostingBoard.new()
+	_board.tab_picked.connect(func(_i: int) -> void: _refresh())
 	_board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stack.add_child(_board)
 
@@ -2270,9 +2271,27 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 			card.add_child(row)
 		_work.add_child(_note(PostingBoard.INDEX, card))
 
+	# On a screen the tabs count the work by kind and show only the one picked;
+	# your own deliveries stay up whichever is.
+	var counts: Array[int] = [0, 0, 0, 0]
+	for job in offers:
+		var c3: ContractData = job
+		if Run.holds_contract(c3):
+			continue
+		counts[0] += 1
+		var at := PostingBoard.TAB_KINDS.find(int(c3.kind))
+		if at > 0:
+			counts[at] += 1
+	if _board != null:
+		_board.tab_counts = counts
+	var only := -1
+	if _on_screen() and _board != null:
+		only = int(PostingBoard.TAB_KINDS[_board.tab])
 	for job in offers:
 		var c2: ContractData = job
 		if Run.holds_contract(c2):
+			continue
+		if only >= 0 and int(c2.kind) != only:
 			continue
 		_work.add_child(_offer_row(c2))
 
