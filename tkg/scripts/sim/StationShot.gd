@@ -518,6 +518,93 @@ func run(tree: SceneTree) -> void:
 			times23[-1] if not times23.is_empty() else 0.0, float(pcm23.size()) / float(rate23), rate23])
 		break
 
+	# `boardpieces=<dir>`: every piece of the Hiring Board's art at this level,
+	# each drawn alone on the bare board, unlit, and cropped to itself (with its
+	# shadow and pin) as `<kind>_<n>.png`, plus `pieces.json` listing them and
+	# the bare board itself (`board.png`). For the review page.
+	for a24 in OS.get_cmdline_user_args():
+		if not (a24 as String).begins_with("boardpieces="):
+			continue
+		var scr24 := Router.current as StationScreen
+		if scr24 == null or scr24._board == null:
+			print("  boardpieces: no board on screen")
+			break
+		var bd24 := scr24._board
+		var dir24 := (a24 as String).substr(12)
+		DirAccess.make_dir_recursive_absolute(dir24)
+		for c24 in scr24._work.get_children():
+			(c24 as CanvasItem).visible = false
+		var list24 := []
+		var kind24 := String(PostingBoard.KINDS[bd24.dev]["kind"])
+		if kind24 == "cork":
+			for j in BoardCork.count():
+				list24.append(["cork_%03d" % j, BoardCork.size_of(j), func(o: Vector2) -> void:
+					bd24.draw_set_transform(o, 0.0, Vector2.ONE)
+					BoardCork.draw(bd24, j)
+					bd24.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)])
+		if kind24 == "white":
+			for j in BoardWhite.count():
+				list24.append(["white_%03d" % j, BoardWhite.size_of(j), func(o: Vector2) -> void:
+					bd24.draw_set_transform(o, 0.0, Vector2.ONE)
+					BoardWhite.draw(bd24, j)
+					bd24.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)])
+		if kind24 == "cork" or kind24 == "white":
+			list24.append(["town_wanted", Vector2(136, 170), func(o: Vector2) -> void: bd24._sheet(o, Vector2(136, 170), 0.0, bd24._wanted, 0.5)])
+			list24.append(["town_news", Vector2(122, 106), func(o: Vector2) -> void: bd24._sheet(o, Vector2(122, 106), 0.0, bd24._news, 0.88)])
+			list24.append(["town_flyer", Vector2(110, 96), func(o: Vector2) -> void: bd24._sheet(o, Vector2(110, 96), 0.0, bd24._flyer, 0.88)])
+			list24.append(["town_rota", Vector2(100, 58), func(o: Vector2) -> void: bd24._sheet(o, Vector2(100, 58), 0.0, bd24._card, 0.88)])
+			for mid in PostingBoard.POSTS.keys():
+				if DB.manufacturers.has(mid):
+					list24.append(["post_%s" % mid, Vector2(118, 96), func(o: Vector2) -> void: bd24._sheet(o, Vector2(118, 96), 0.0, bd24._post.bind(mid), 0.86)])
+		if kind24 == "lcd":
+			for j in BoardScreen.ADS.size():
+				list24.append(["ad_%03d" % j, Vector2(104, 170), func(o: Vector2) -> void: bd24._sheet(o, Vector2(104, 170), 0.0, bd24._ad.bind(j), 0.5)])
+			for j in BoardScreen.STRIPS.size():
+				list24.append(["strip_%03d" % j, Vector2(248, 30), func(o: Vector2) -> void:
+					var S: Dictionary = BoardScreen.STRIPS[j]
+					var strip := Rect2(o, Vector2(248, 30))
+					bd24.draw_rect(strip, S["bg"])
+					bd24._centre_at(String(S["t"]), strip.position.x, strip.position.y + 13.0, strip.size.x, UITheme.FS_SMALL, S["ink"])
+					bd24._centre_at(String(S["s"]), strip.position.x, strip.position.y + 25.0, strip.size.x, UITheme.FS_SMALL, Color(S["ink"]).darkened(0.25))
+					bd24.draw_rect(Rect2(strip.end.x - 16.0, strip.position.y + 2.0, 14.0, 9.0), Color(0, 0, 0, 0.35))
+					bd24._text("AD", strip.end.x - 14.0, strip.position.y + 9.0, UITheme.FS_SMALL, Color(1, 1, 1, 0.85))])
+			for j in BoardScreen.POPUPS.size():
+				list24.append(["popup_%03d" % j, Vector2(176, 88), func(o: Vector2) -> void: bd24._popup(BoardScreen.POPUPS[j], Rect2(o, Vector2(176, 88)), 1.0)])
+			list24.append(["screen_featured", Vector2(136, 170), func(o: Vector2) -> void: bd24._sheet(o, Vector2(136, 170), 0.0, bd24._featured, 0.5)])
+			for mid in PostingBoard.POSTS.keys():
+				if DB.manufacturers.has(mid):
+					list24.append(["sponsored_%s" % mid, Vector2(118, 96), func(o: Vector2) -> void: bd24._sheet(o, Vector2(118, 96), 0.0, bd24._sponsored.bind(mid), 0.86)])
+		# the bare board, lit as the game lights it
+		scr24._board_lamp.power_on(true)
+		bd24.piece = func() -> void: pass
+		bd24.queue_redraw()
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var box24 := Rect2i(scr24._board_lamp.get_global_rect())
+		scr24._board_lamp.get_viewport().get_texture().get_image().get_region(box24).save_png("%s/board.png" % dir24)
+		# the pieces, unlit, so each is seen as drawn
+		scr24._board_lamp.visible = false
+		var out24 := []
+		for e in list24:
+			var sz24: Vector2 = e[1]
+			var o24 := ((bd24.size - sz24) * 0.5).floor()
+			var paint24: Callable = e[2]
+			bd24.piece = func() -> void: paint24.call(o24)
+			bd24.queue_redraw()
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var g24 := bd24.get_global_transform() * (o24 - Vector2(8, 8))
+			var r24 := Rect2i(Vector2i(g24), Vector2i(sz24 + Vector2(18, 20)))
+			bd24.get_viewport().get_texture().get_image().get_region(r24).save_png("%s/%s.png" % [dir24, e[0]])
+			out24.append({"id": e[0], "w": r24.size.x, "h": r24.size.y})
+		bd24.piece = Callable()
+		scr24._board_lamp.visible = true
+		var f24 := FileAccess.open("%s/pieces.json" % dir24, FileAccess.WRITE)
+		f24.store_string(JSON.stringify(out24))
+		f24.close()
+		print("  boardpieces: %d pieces of %s to %s" % [out24.size(), kind24, dir24])
+		break
+
 	# `boardtape=<path>`: the Hiring Board heard -- every sound the game plays for
 	# `boardtapes=S` seconds (12) after its lights power on, as [name, seconds
 	# after power-on]: the tubes striking, their flickers, a screen's power-on,

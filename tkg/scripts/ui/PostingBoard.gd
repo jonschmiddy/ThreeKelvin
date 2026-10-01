@@ -454,6 +454,11 @@ func _free_slots(h: float) -> Array[Rect2]:
 	return out
 
 
+## FOR THE HARNESS (`boardpieces=`): one piece of art alone, drawn by this
+## callable in place of everything else on the board.
+var piece := Callable()
+
+
 ## FOR THE HARNESS (`reelclip=`): one commercial alone, running from `reel_from`
 ## on the real clock, so it can be filmed and heard against its sting.
 var reel := -1
@@ -461,6 +466,9 @@ var reel_from := 0.0
 
 
 func _fill(w: float, h: float) -> void:
+	if piece.is_valid():
+		piece.call()
+		return
 	if reel >= 0:
 		var rs := Vector2(107, 170)
 		draw_set_transform(Vector2(FRAME_W + 8.0, FRAME_W + 8.0), 0.0, Vector2.ONE)
@@ -1075,7 +1083,7 @@ func _draw() -> void:
 
 	# --- ON A SCREEN, the marketplace's app bar across the top and its side
 	# column. (On a board the town's paper is scattered with the rest, above.)
-	if screen() and gallery_from < 0 and reel < 0:
+	if screen() and gallery_from < 0 and reel < 0 and not piece.is_valid():
 		_app_bar(w)
 		_side(Rect2(w * NOTICE_SHARE + 8.0, FRAME_W + HEADER + 6.0,
 			w * (1.0 - NOTICE_SHARE) - FRAME_W - 16.0, h - FRAME_W * 2.0 - HEADER - TICKER - 14.0))
