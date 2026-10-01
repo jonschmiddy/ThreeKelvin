@@ -6,10 +6,13 @@ render_mode unshaded;
 // (a row of them per depth, out of the picture above) either reaches a patch of
 // floor or a hull is in the way: from the patch, look at the lamp from five
 // points across it -- so a shadow's edge is soft -- and see whether the line
-// passes through a hull (a slab 45 deep either side of the ships' depth) or a
-// stand (8 deep). Worked on the page's half grid, one fragment per cell, and
-// written as 16-bit fixed point in R and G; `yard_light.gdshader` eases it up
-// to the picture.
+// passes through a hull (a slab 45 deep either side of the ships' depth).
+// Worked on the page's half grid, one fragment per cell, and written as 16-bit
+// fixed point in R and G; `yard_light.gdshader` eases it up to the picture.
+//
+// THE STANDS THROW NONE. Each stand's lamp shadow fell differently at every
+// spot, and Jon: "all of the stands should have the same shadow." They all get
+// one picture instead (`YardScene._draw_ships`).
 
 uniform sampler2D mask : filter_nearest, repeat_disable;
 uniform float floorx[12];
@@ -52,23 +55,19 @@ float pool_v(float u0, float z0, float x, float y) {
 }
 
 bool hit_at(float up, float zp, float ul, float zl) {
-	for (int m = 0; m < 2; m++) {
-		float T = m == 0 ? 45.0 : 8.0;
-		for (int j = -1; j <= 1; j++) {
-			float zk = zs + float(j) * T;
-			float s = (zk - zp) / (zl - zp);
-			if (!(s > 0.0 && s < 1.0)) {
-				continue;
-			}
-			float u = up + s * (ul - up);
-			float h = s * lamph;
-			int xm = int(floor(vx + u * zsf + 0.5));
-			int ym = int(floor(hy + (ch - h) * zsf + 0.5));
-			if (xm >= 0 && xm < 766 && ym >= 0 && ym < 482) {
-				vec4 k = texelFetch(mask, ivec2(xm, ym), 0);
-				if ((m == 0 ? k.r : k.g) > 0.5) {
-					return true;
-				}
+	for (int j = -1; j <= 1; j++) {
+		float zk = zs + float(j) * 45.0;
+		float s = (zk - zp) / (zl - zp);
+		if (!(s > 0.0 && s < 1.0)) {
+			continue;
+		}
+		float u = up + s * (ul - up);
+		float h = s * lamph;
+		int xm = int(floor(vx + u * zsf + 0.5));
+		int ym = int(floor(hy + (ch - h) * zsf + 0.5));
+		if (xm >= 0 && xm < 766 && ym >= 0 && ym < 482) {
+			if (texelFetch(mask, ivec2(xm, ym), 0).r > 0.5) {
+				return true;
 			}
 		}
 	}

@@ -55,6 +55,8 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	if current != null:
 		current.hide()
 		current.queue_free()
+	# a dock open over the station goes with it
+	dock = null
 	current = screen
 	content.add_child(screen)
 	var room: Variant = _room_for(screen)
@@ -494,11 +496,65 @@ func show_ship() -> void:
 ## off this screen, and there is no off it -- the ship cannot leave with crates
 ## on the ground, so offering the exits and then refusing them is worse than not
 ## offering them. `chrome = false` is the same argument the chassis select makes.
+##
+## OVER THE STATION, NOT INSTEAD OF IT. The dock swapped the station out, and
+## with the station gone the sky came back: you moved aboard in open space, the
+## system's moon behind you, as if you had undocked. It opens over the Shipyard
+## now, dimmed behind it, and closing it leaves you standing in the same yard
+## (Jon: yes). Anything else that opens it -- a tool, a screen that is not the
+## station -- still gets the page of its own.
 func show_transfer() -> void:
 	Audio.music_state(&"ship")
 	var s := TransferScreen.new()
+	if current is StationScreen and is_instance_valid(current):
+		_open_dock(current as StationScreen, s)
+		return
 	_swap(s, false)
 	s.setup()
+
+
+## The dock over the station, while it is open. It is the station's own child,
+## so anything that frees the station frees the dock with it.
+var dock: Control = null
+
+## How much of the station shows through: enough to know where you are standing.
+const DOCK_DIM := 0.86
+
+
+func _open_dock(station: StationScreen, s: TransferScreen) -> void:
+	var layer := Control.new()
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(UITheme.VOID, DOCK_DIM)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(dim)
+	layer.add_child(s)
+	station.add_child(layer)
+	s.setup()
+	dock = layer
+	if hud != null:
+		hud.visible = false
+	_fade_in(layer)
+	Sig.screen_changed.emit()
+	_autosave()
+
+
+## Close the dock and hand the station back, brought up to date with the ship
+## you are now standing beside.
+func _close_dock() -> void:
+	var station := current as StationScreen
+	if is_instance_valid(dock):
+		dock.queue_free()
+	dock = null
+	if hud != null:
+		hud.visible = true
+	Audio.music_state(&"station")
+	if station != null:
+		station._refresh()
+	Sig.screen_changed.emit()
+	_autosave()
 
 func show_game_over() -> void:
 	Audio.music_state(&"gameover")
@@ -744,6 +800,11 @@ func _roll_foes(n: MapGen.MapNode) -> Array[StringName]:
 
 ## Dock. Reached from the sector, not on arrival.
 func show_station() -> void:
+	# BACK FROM THE DOCK: it was open over this station, so the station is
+	# still here -- close it and stand in the same yard.
+	if dock != null and is_instance_valid(dock) and current is StationScreen:
+		_close_dock()
+		return
 	# ARRIVING, OR JUST COMING BACK TO THE DESK? Docking is a thing the ship
 	# does once; walking back to the station from the chart or the ship screen
 	# is a page change. Only the first plays the clamps, and only the first

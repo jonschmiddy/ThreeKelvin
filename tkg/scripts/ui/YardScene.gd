@@ -286,6 +286,8 @@ func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: Str
 		v.self_modulate = HULL_TINT
 		_parent_material(v)
 		placed[i] = _stand(v, float(berths[i]))
+		if not placed[i].is_empty():
+			placed[i]["view"] = v
 	if life != null:
 		life.has_welder = sale != null
 	if bare:
@@ -297,6 +299,82 @@ func set_ships(mine: ShipView, mine_name: String, sale: ShipView, sale_name: Str
 					sup.append([s2["x"], s2["y"], (s2["img"] as Image).get_size()])
 				print("  yard ship %d: x0 %d top %d w %d h %d ink %s canvas %s supports %s" % [i, Q["x0"], Q["top"], Q["w"], Q["h"], Q["ink"], (Q["img"] as Image).get_size(), sup])
 	_bake_ships()
+	for i in 2:
+		_capture_fitted(i)
+
+
+## THE MODULES ARE IN THE REFLECTION. A fitted part is not in the hull's
+## picture -- `MountPoints` draws it over the hull -- so the floor gave back a
+## bare hull under a ship with guns on it, and the floor lamps threw its shadow
+## without them. Jon: "Do modules show up in the reflections?" They did not.
+## So a copy of the ship, mounts and all, is photographed off screen once each
+## time the ships are stood, and that picture is what the floor reflects and
+## what the lamps' shadows are cut from. Two frames, then read back.
+const FIT_PAD := 24
+var _fit_vp: Array = [null, null]
+
+
+func _capture_fitted(i: int) -> void:
+	var S: Dictionary = placed[i]
+	if S.is_empty() or _quiet:
+		return
+	var v: ShipView = S["view"]
+	var fitted: MountPoints = null
+	for c in v.get_children():
+		if c is MountPoints:
+			fitted = c
+	if fitted == null or v._fixed == null:
+		return
+	var canvas: Image = S["img"]
+	var vp := SubViewport.new()
+	vp.transparent_bg = true
+	vp.disable_3d = true
+	vp.size = Vector2i(canvas.get_width() + 2 * FIT_PAD, canvas.get_height() + 2 * FIT_PAD)
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var copy := ShipView.new()
+	copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	copy.self_clip = false
+	copy.setup_build(v._fixed)
+	vp.add_child(copy)
+	copy.position = Vector2(FIT_PAD, FIT_PAD)
+	copy.size = Vector2(canvas.get_width(), canvas.get_height())
+	var mounts := MountPoints.new()
+	mounts.ship = fitted.ship
+	mounts.fitted = fitted.fitted
+	copy.add_child(mounts)
+	mounts.attach(copy)
+	mounts.passive()
+	mounts.refresh()
+	add_child(vp)
+	_fit_vp[i] = vp
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	if not is_instance_valid(vp) or _fit_vp[i] != vp:
+		return
+	_fit_vp[i] = null
+	var got := vp.get_texture().get_image()
+	vp.queue_free()
+	if placed[i].get("view") != v or got == null:
+		return
+	if got.get_format() != Image.FORMAT_RGBA8:
+		got.convert(Image.FORMAT_RGBA8)
+	var ink := _ink(got)
+	if ink.size.x <= 0:
+		return
+	placed[i]["fitted"] = got
+	placed[i]["fitted_ink"] = ink
+	placed[i]["fitted_tex"] = ImageTexture.create_from_image(got)
+	_bake_ships()
+
+
+## Where a ship's picture sits in the yard: its canvas's corner, or the
+## photograph's (FIT_PAD up and to the left of it) once there is one.
+func _fitted_origin(P: Dictionary) -> Vector2i:
+	var ink: Rect2i = P["ink"]
+	var corner := Vector2i(int(P["x0"]) - ink.position.x, int(P["top"]) - ink.position.y)
+	if P.has("fitted"):
+		corner -= Vector2i(FIT_PAD, FIT_PAD)
+	return corner
 
 
 ## Everything a view draws takes its light: the mounts on it too.
@@ -342,11 +420,20 @@ func _stand(v: ShipView, cx: float) -> Dictionary:
 	var supports: Array = []
 	var top := floor_y - ih
 	if si != null:
+		# THE STANDS ARE PICKED AS A PAIR. Each still wants a flat stretch near a
+		# quarter of the hull (the page's rule), but the page picked them one at
+		# a time, and a part bolted under one quarter -- a fin, a pod, a gun --
+		# let one column down onto it and left the other reaching up to the
+		# belly. Jon: "Why are the stands two different heights." So the two are
+		# chosen together, over a wider stretch, and a pair that meets the hull
+		# at the same row wins over a flatter pair that does not -- but never
+		# closer than 40% of the hull apart, and each moves off its quarter only
+		# when that buys a real match (a row of height is worth 25 px of travel).
 		var hw := int(floorf(float(si.get_width()) * 0.4 + 0.5))
-		var picks: Array = []
-		for f: float in [0.26, 0.74]:
-			var best: Dictionary = {}
-			for px in range(int(floorf(float(iw) * (f - 0.1) + 0.5)), int(floorf(float(iw) * (f + 0.1) + 0.5)) + 1):
+		var spots: Array = [[], []]
+		for k in 2:
+			var f: float = [0.26, 0.74][k]
+			for px in range(int(floorf(float(iw) * (f - 0.16) + 0.5)), int(floorf(float(iw) * (f + 0.16) + 0.5)) + 1):
 				var lo := 1000000000
 				var hi := -1
 				var ok := true
@@ -356,19 +443,36 @@ func _stand(v: ShipView, cx: float) -> Dictionary:
 						break
 					lo = mini(lo, under[x])
 					hi = maxi(hi, under[x])
-				if not ok:
+				if ok:
+					spots[k].append({"px": px, "c": hi, "score": float(hi - lo) + 0.12 * absf(float(px) - float(iw) * f)})
+		var picks: Array = []
+		var best := 1e9
+		for A: Dictionary in spots[0]:
+			for B: Dictionary in spots[1]:
+				if float(B["px"]) - float(A["px"]) < float(iw) * 0.4:
 					continue
-				var score := float(hi - lo) + 0.05 * absf(float(px) - float(iw) * f)
-				if best.is_empty() or score < float(best["score"]):
-					best = {"px": px, "c": hi, "score": score}
-			if best.is_empty():
-				best = {"px": int(floorf(float(iw) * f + 0.5)), "c": belly}
-			picks.append(best)
+				var sc := float(A["score"]) + float(B["score"]) + 3.0 * absf(float(A["c"]) - float(B["c"]))
+				if sc < best:
+					best = sc
+					picks = [A, B]
+		if picks.is_empty():
+			for k2 in 2:
+				var f2: float = [0.26, 0.74][k2]
+				var one: Dictionary = {"px": int(floorf(float(iw) * f2 + 0.5)), "c": belly}
+				for C: Dictionary in spots[k2]:
+					if float(C["score"]) < float(one.get("score", 1e9)):
+						one = C
+				picks.append(one)
 		var cmax := maxi(int(picks[0]["c"]), int(picks[1]["c"]))
+		var cmin := mini(int(picks[0]["c"]), int(picks[1]["c"]))
 		var base := int(dial.get("columns", 60))
 		top = floor_y - base - cmax - 1 + int(st.get("seat", 0))
+		# BOTH THE SAME HEIGHT, ALWAYS. Where no level pair exists -- a fin hangs
+		# under one quarter of a light and nowhere is flat -- both stands reach
+		# the higher meeting point, and the one by the lower part stands up
+		# behind it to the belly: its saddle hidden, never short of the hull.
 		for p: Dictionary in picks:
-			var J := _sized(si, st, base + cmax - int(p["c"]))
+			var J := _sized(si, st, base + cmax - cmin)
 			supports.append({"img": J, "tex": ImageTexture.create_from_image(J),
 				"x": x0 + int(p["px"]) - int(floorf(float(J.get_width()) / 2.0 + 0.5)), "y": floor_y - J.get_height()})
 	v.position = Vector2(x0 - ink.position.x, top - ink.position.y)
@@ -474,13 +578,15 @@ func _bake_ships() -> void:
 	for P: Dictionary in placed:
 		if P.is_empty():
 			continue
-		var img: Image = P["img"]
-		var ink: Rect2i = P["ink"]
+		# the ship as photographed with its modules on, once that is in
+		var img: Image = P.get("fitted", P["img"])
+		var ink: Rect2i = P.get("fitted_ink", P["ink"])
+		var at := _fitted_origin(P)
 		for y in ink.size.y:
 			for x in ink.size.x:
 				if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
-					var X2 := int(P["x0"]) + x
-					var Y2 := int(P["top"]) + y
+					var X2 := at.x + ink.position.x + x
+					var Y2 := at.y + ink.position.y + y
 					if X2 >= 0 and X2 < W and Y2 >= 0 and Y2 < H:
 						_ship_img.set_pixel(X2, Y2, Color8(255, 0, 0, 255))
 	# a hull lit from above: toward its belly it falls into its own shade
@@ -535,8 +641,7 @@ func _bake_bay() -> void:
 	var any := false
 	for y in H:
 		for x in W:
-			var c := _ship_img.get_pixel(x, y)
-			if c.r8 == 255 or c.g8 == 255:
+			if _ship_img.get_pixel(x, y).r8 == 255:
 				any = true
 				var u := (float(x) - vx) / zsf
 				var h := ch - (float(y) - hy) / zsf
@@ -781,17 +886,29 @@ func _draw_weld(t: float) -> void:
 
 
 ## The ships' stands and reflections, under the hulls (the page's baked frame):
-## each stand's contact shadow, each hull's and stand's reflection, the stands.
+## each stand's shadow, each hull's reflection, the stands.
 func _draw_ships() -> void:
 	var P := _p_ship
 	P.begin()
 	P.use(YardPaint.PLAIN)
+	# EVERY STAND THE SAME SHADOW. Jon: "all of the stands should have the same
+	# shadow. so it doesn't look like they're floating." Each stand also stood
+	# in the floor lamps and threw its own shadow there, different at every
+	# spot, so no two matched; the lamps now pass the stands by (only a hull
+	# throws a lamp shadow, `yard_bay.gdshader`). Every stand gets the shadow
+	# Jon passed under the unclaimed yard's stands ("that shadow checks out"),
+	# one picture measured off that render: the contact at the foot's sides and
+	# the lamps' shadow in front, deepest two rows down and gone before the
+	# hazard stripe four rows down -- "why is there a shadow on the hazard lines
+	# in front of the stand?" A dark band hard under the foot read as floating
+	# four times before, as did the stands' reflections (they have none now).
+	var sh: Dictionary = (doc().get("art", {}) as Dictionary).get("stand_shadow", {})
+	var shadow := tex(String(sh.get("picture", "")))
 	for S: Dictionary in placed:
-		if S.is_empty():
+		if S.is_empty() or shadow == null:
 			continue
 		for s: Dictionary in S["supports"]:
-			var J: Image = s["img"]
-			shade(P, float(s["x"]) + float(J.get_width()) / 2.0, float(S["floor"]), float(J.get_width()) * 0.55, 4.0, 0.55)
+			P.tex(shadow, Vector2(float(s["x"]) + float(sh.get("x", 0)), float(S["floor"]) + float(sh.get("y", 0))))
 	P.use(YardPaint.MIRROR)
 	var tint := Color(0.8, 0.8, 0.82)
 	for i in 2:
@@ -799,12 +916,15 @@ func _draw_ships() -> void:
 		if S.is_empty():
 			continue
 		var v: ShipView = _mine if i == 0 else _sale
-		var ink: Rect2i = S["ink"]
 		var fl := float(S["floor"])
-		P.mirror(v.texture, Rect2(ink.position, ink.size), float(S["x0"]), 2.0 * fl - (float(S["top"]) + float(S["h"]) - 1.0), 0.22 * 0.7, tint, false)
-		for s: Dictionary in S["supports"]:
-			var t2: Texture2D = s["tex"]
-			P.mirror(t2, Rect2(Vector2.ZERO, t2.get_size()), float(s["x"]), fl, 0.22, tint, false)
+		# the photograph with the modules on, once there is one
+		var t: Texture2D = S.get("fitted_tex", v.texture)
+		var ink: Rect2i = S.get("fitted_ink", S["ink"])
+		var at := _fitted_origin(S)
+		var x := float(at.x + ink.position.x)
+		var bottom := float(at.y + ink.position.y + ink.size.y - 1)
+		P.mirror(t, Rect2(ink.position, ink.size), x, 2.0 * fl - bottom, 0.22 * 0.7, tint, false)
+
 	P.use(YardPaint.SHIP)
 	for S: Dictionary in placed:
 		if S.is_empty():
@@ -814,18 +934,21 @@ func _draw_ships() -> void:
 	P.end()
 
 
-## The ships' names, over each hull, as the page drew them: 24 and 16 pixel
-## Silkscreen, a dark outline and a drop under them.
+## The ships' names, over each hull: Silkscreen with a dark outline and a drop
+## under it. The page drew them at 24 and 16 pixels; in the game, where the
+## whole yard is shown at twice its size, Jon: "The text for the ships are too
+## big." So 16 and 8, the next sizes down that keep the font on whole pixels,
+## the name's baseline 11 rows over the hull and YOURS / FOR SALE 2 rows over.
 func _names(P: YardPaint) -> void:
 	for i in 2:
 		var S: Dictionary = placed[i]
 		if S.is_empty():
 			continue
-		var x := floorf(float(S["x0"]) + 4.0 + 0.5)
-		var y := floorf(float(S["top"]) - 12.0 + 0.5)
+		var x := floorf(float(S["x0"]) + 3.0 + 0.5)
+		var y := floorf(float(S["top"]) + 0.5)
 		var nm := _mine_name if i == 0 else _sale_name
-		_outlined(P, nm, Vector2(x, y - 4.0), 24, NAME_MINE if i == 0 else NAME_SALE)
-		_outlined(P, "YOURS" if i == 0 else "FOR SALE", Vector2(x, y + 11.0), 16, NAME_SUB)
+		_outlined(P, nm, Vector2(x, y - 11.0), 16, NAME_MINE if i == 0 else NAME_SALE)
+		_outlined(P, "YOURS" if i == 0 else "FOR SALE", Vector2(x, y - 2.0), 8, NAME_SUB)
 
 
 const _OUTLINE := [Vector2(-1, -1), Vector2(0, -1), Vector2(1, -1), Vector2(-1, 0), Vector2(1, 0),

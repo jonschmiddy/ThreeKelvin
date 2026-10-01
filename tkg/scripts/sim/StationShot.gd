@@ -148,6 +148,42 @@ func run(tree: SceneTree) -> void:
 		print("  %d %s parts fitted · set count %d" % [fitted,
 			DB.short_name(DB.manufacturer_name(berth)), Run.manufacturer_count(berth)])
 
+	# `fit=full`: every hardpoint the hull has, filled with its own manufacturer's
+	# parts, to see how a fitted hull reads -- `manufacturer=korvan` for the
+	# manufacturer whose parts are all drawn. `fit=full:heavy:3` refits the
+	# chassis first, at that weight and grade. Couplings go on first, since a
+	# part that raises the reactor makes room for the rest; then the smallest
+	# draw, different parts before repeats, and only what the reactor will run:
+	# a ship a player could fly.
+	for a8 in OS.get_cmdline_user_args():
+		if not (a8 as String).begins_with("fit=full"):
+			continue
+		var fw := (a8 as String).split(":")
+		if fw.size() > 1:
+			var weights8 := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
+			Run.fit_chassis(Run.hull.manufacturer, weights8.get(fw[1], HullData.Weight.MEDIUM),
+				int(fw[2]) if fw.size() > 2 else 0)
+		var own: Array[ModuleData] = []
+		for mid8 in DB.modules:
+			var m8: ModuleData = DB.modules[mid8]
+			if m8.manufacturer == Run.hull.manufacturer:
+				own.append(m8)
+		own.sort_custom(func(x: ModuleData, y: ModuleData) -> bool:
+			if x.reactor != y.reactor:
+				return x.reactor > y.reactor
+			return x.cells() < y.cells())
+		for pass8 in 2:
+			for m9: ModuleData in own:
+				if pass8 == 0 and Run.installed.any(func(on: ModuleData) -> bool: return on.id == m9.id):
+					continue
+				if Run.slots_used(m9.slot) < Run.slots_for(m9.slot) and Run.can_power(m9):
+					Run.install_module(m9.duplicate(true) as ModuleData)
+		var mounts8 := 0
+		for s8: ModuleData.Slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+			mounts8 += Run.slots_for(s8)
+		print("  fit=full: %s, %d of %d mounts fitted, drawing %d" % [Run.hull.name, Run.installed.size(), mounts8, Run.power_draw()])
+		break
+
 	Run.hp = maxi(1, Run.max_hp() - 12)
 	Run.add_dross(3)
 
@@ -256,6 +292,8 @@ func run(tree: SceneTree) -> void:
 		Run.transfer_to_hull(offer)
 		print("  moving: %d stowed, %d still aboard the %s" % [Run.cargo.size(),
 			Run.pad.size(), Run.old_hull.name if Run.old_hull != null else "?"])
+		# the dock opens over the station, as it does in play
+		Router.show_station()
 		Router.show_transfer()
 	else:
 		Router.show_station()
@@ -711,7 +749,12 @@ func run(tree: SceneTree) -> void:
 			var yb := Rect2i(Vector2i(scr6._scene.get_global_rect().position), Vector2i(YardScene.W, YardScene.H))
 			var yframe := scr6._scene.get_viewport().get_texture().get_image()
 			yframe.get_region(yb).save_png((a6 as String).substr(9))
-			print("  roomshot %s: yard %s at %s" % [(a6 as String).substr(9), scr6._scene.level, yb])
+			# and where each stand stands, its picture's left edge, to crop by
+			var xs6: Array = []
+			for P6: Dictionary in scr6._scene.placed:
+				for s6: Dictionary in P6.get("supports", []):
+					xs6.append(int(s6["x"]))
+			print("  roomshot %s: yard %s at %s, stands at %s" % [(a6 as String).substr(9), scr6._scene.level, yb, xs6])
 			break
 		# THE LABORATORY is a picture, not a room: its 740x431 from its top-left.
 		if scr6 != null and scr6._lab != null and scr6._lab.is_visible_in_tree():
@@ -778,7 +821,9 @@ func run(tree: SceneTree) -> void:
 	# `yardclip=<dir>`: the Shipyard as a run of frames on its own clock,
 	# `clipframes=N` (90) `clipms=M` apart (66), from `clipfrom=S` seconds after
 	# its TV powered on (0) -- the power-on, the drones flying in, anything
-	# `yardev=` fires. `yardbuy=I:S` buys service I at S seconds, as a click does.
+	# `yardev=` fires. `yardbuy=I:S` buys service I at S seconds, as a click does;
+	# `yardbuy=take:S` presses TAKE IT, and the clip goes on with the dock open
+	# over the yard; `yardbuy=backout:S` presses the dock's BACK OUT.
 	for a13 in OS.get_cmdline_user_args():
 		if not (a13 as String).begins_with("yardclip="):
 			continue
@@ -800,7 +845,8 @@ func run(tree: SceneTree) -> void:
 			elif (b13 as String).begins_with("yardbuy="):
 				for pair in (b13 as String).substr(8).split(","):
 					var kv13 := pair.split(":")
-					buys13.append([int(kv13[0]), float(kv13[1]), false])
+					var key13 := {"take": -1, "backout": -2}
+					buys13.append([int(key13.get(kv13[0], int(kv13[0]) if kv13[0].is_valid_int() else -9)), float(kv13[1]), false])
 		var dir13 := (a13 as String).substr(9)
 		DirAccess.make_dir_recursive_absolute(dir13)
 		var yard13 := scr13._scene
@@ -812,11 +858,34 @@ func run(tree: SceneTree) -> void:
 					bb[2] = true
 					var hp13 := Run.hp
 					var cr13 := Run.credits
+					if int(bb[0]) == -2:
+						var ts13: TransferScreen = null
+						if Router.dock != null:
+							for c13 in Router.dock.get_children():
+								if c13 is TransferScreen:
+									ts13 = c13
+						if ts13 != null:
+							ts13._back_out()
+						print("  yardbuy backout at %.2fs: %s, hull %s, credits %d -> %d" % [s13,
+							"backed out" if ts13 != null else "no dock open", Run.hull.name, cr13, Run.credits])
+						continue
+					if int(bb[0]) < 0:
+						var was13 := Run.hull.name
+						var u13 := Time.get_ticks_usec()
+						scr13._on_yard_take()
+						print("  yardbuy take at %.2fs: hull %s -> %s, credits %d -> %d, %.1f ms" % [s13, was13, Run.hull.name, cr13, Run.credits, (Time.get_ticks_usec() - u13) / 1000.0])
+						continue
 					scr13._on_yard_service(int(bb[0]))
 					print("  yardbuy %d at %.2fs: hull %d -> %d of %d, credits %d -> %d" % [int(bb[0]), s13, hp13, Run.hp, Run.max_hp(), cr13, Run.credits])
-			yard13.step_to(s13)
+			if is_instance_valid(yard13):
+				yard13.step_to(s13)
 			await RenderingServer.frame_post_draw
 			await RenderingServer.frame_post_draw
+			if not is_instance_valid(yard13):
+				# the station went, and the yard with it
+				print("  yardclip: the yard closed at %.2fs" % s13)
+				frames13 = i13
+				break
 			var img13 := yard13.get_viewport().get_texture().get_image().get_region(box13)
 			img13.save_png("%s/frame_%03d.png" % [dir13, i13])
 		print("  yardclip: %d frames from %.2fs to %s" % [frames13, from13, dir13])

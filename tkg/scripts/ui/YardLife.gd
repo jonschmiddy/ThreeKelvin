@@ -26,6 +26,11 @@ const SHIP_ROW := 330.0
 const MECHS := ["mech_gen_1", "mech_gen_2", "mech_legs_1", "mech_legs_2", "mech_kneel_2"]
 const LIFT := Vector2(560, 318)
 const DESK := {"cx": 52.0, "feet": 336.0}
+## Which way the console stands. The first console was mirrored to turn its
+## keyboard to the tech; take 9 of Jon's ten has its front on the right as
+## drawn (its cable hangs from its back, on the left), so it stands as drawn --
+## mirrored, "lol the cart is facing the wrong way".
+const CONSOLE_FLIP := false
 const ENG := Vector2(194, 436)
 const BENCH := Vector2(412, 262)
 const FKL := {"lane": 412.0, "stackX": 432.0}
@@ -85,6 +90,8 @@ var _car_burn_tex: Array = []
 var _car_burn_img: Array = []
 var _shaft_tex: ImageTexture = null
 var _console_img: Image = null
+## The middle of the console's screen, in its picture, unflipped.
+var _screen_mid := Vector2(15.5, 9.0)
 var _bot_img: Image = null
 var _crew_img: Dictionary = {}
 var last_forgot: Dictionary = {}
@@ -116,6 +123,15 @@ func _init(s: YardScene) -> void:
 			"sp": 0.35 + 1.0 * b, "tw": YardLight.hash1(float(k) * 3.7) < 0.3})
 	var con: Dictionary = (art.get("life", {}) as Dictionary).get("console", {})
 	_console_img = scene.img(String(con.get("picture", "")))
+	# the screen's glow sits on the screen the console has, wherever its
+	# picture puts it (take 9 of Jon's ten has it three rows higher than the
+	# first console did)
+	var scr0: Array = con.get("screen", [])
+	if not scr0.is_empty():
+		var sum := Vector2.ZERO
+		for q: Array in scr0:
+			sum += Vector2(float(q[0]), float(q[1]))
+		_screen_mid = sum / float(scr0.size())
 	var bot: Dictionary = (art.get("life", {}) as Dictionary).get("bot", {})
 	_bot_img = scene.img(String(bot.get("picture", "")))
 	if bool(scene.light.doc.get("people", false)):
@@ -507,25 +523,25 @@ func _desk(t: float) -> void:
 	var TF := sprite("tech_strip", int(floorf(t * 8.0)) % ntech if typing else 0)
 	var T0 := sprite("tech_strip", 0)
 	var cw := float(C["w"])
-	var con_left := floorf(float(DESK["cx"]) - (cw - 1.0 - float(C["cx"])) + 0.5)
+	var con_left := floorf(float(DESK["cx"]) - _con_col(float(C["cx"]), cw) + 0.5)
 	var tx := con_left + (cw - 1.0) - 3.0 - 9.0 + float(T0["cx"])
 	var feet := float(DESK["feet"])
 	var left := con_left + shake
 	var top := feet - float(C["foot"])
 	var k0 := 0.82 + 0.18 * YardLight.hash1(floorf(t * 9.0) * 0.71)
 	var row := int(floorf(fmod(t * 6.0, 12.0)))
-	CONSOLE = {"x": left + (cw - 1.0) - 15.5, "y": top + 9.0, "k": k0, "blue": blue}
+	CONSOLE = {"x": left + _con_col(_screen_mid.x, cw), "y": top + _screen_mid.y, "k": k0, "blue": blue}
 	var scr: Array = ((art.get("life", {}) as Dictionary).get("console", {}) as Dictionary).get("screen", [])
 	var img := _console_img
 	item(feet, feet < SHIP_ROW, func(P: YardPaint) -> void:
-		put(P, C, float(DESK["cx"]) + shake, feet, {"flip": true})
+		put(P, C, float(DESK["cx"]) + shake, feet, {"flip": CONSOLE_FLIP})
 		# the screen: flickers as lines come and go, a brighter line scrolling
 		# down it; or, crashed, blue
 		P.use(YardPaint.PLAIN)
 		for q: Array in scr:
 			var x := int(q[0])
 			var y := int(q[1])
-			var X := left + (cw - 1.0) - float(x)
+			var X := left + _con_col(float(x), cw)
 			var Y := top + float(y)
 			var c: Color
 			if blue:
@@ -540,6 +556,11 @@ func _desk(t: float) -> void:
 		put(P, TF, tx + lean, feet))
 	if cu > 0.35 and cu < 1.2:
 		GLYPH.append([floorf(tx + 0.5) + 1.0, feet - float(TF["foot"]) + float(TF["top"]) - 9.0])
+
+
+## A column of the console's picture, as it stands (`CONSOLE_FLIP`).
+static func _con_col(x: float, w: float) -> float:
+	return w - 1.0 - x if CONSOLE_FLIP else x
 
 
 ## M3: a mechanic at work on a machine on the front floor (one of Jon's five,

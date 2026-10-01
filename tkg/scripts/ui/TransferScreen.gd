@@ -28,6 +28,10 @@ extends Control
 ## for no reason but symmetry with a widget that is not on this page.
 const SHIP_K := 1.0
 const SHIP_H := 132
+## Rows of air round the taller ship in the two ship boxes.
+const SHIP_AIR := 8.0
+## Each portrait's box, view and drawn ship, so the two boxes can share a height.
+var _portraits: Array = []
 const COL_W := 300
 
 var _oldmounts: Label
@@ -67,9 +71,17 @@ func setup() -> void:
 	page.add_theme_constant_override("separation", 6)
 	frame.add_child(page)
 
-	page.add_child(UITheme.body("MOVING ABOARD", UITheme.COLD, UITheme.FS_SMALL))
-	page.add_child(UITheme.body(Run.hull.display_name().to_upper(),
-		DB.manufacturer_colour(Run.hull.manufacturer), UITheme.FS_HEAD))
+	# ONE LINE OF HEADING, so the holds have the room. It was two, the ship's name
+	# again in the heading's size over the panel that already says it, and a
+	# heavy's hold came up 44 px short and scrolled. Jon: "can we bring up the
+	# top panel a bit... or lift the text a bit so there is room for the whole
+	# hold? I don't like the scroll bar."
+	var heading := HBoxContainer.new()
+	heading.add_theme_constant_override("separation", 8)
+	heading.add_child(UITheme.body("MOVING ABOARD", UITheme.COLD, UITheme.FS_SMALL))
+	heading.add_child(UITheme.body(Run.hull.display_name().to_upper(),
+		DB.manufacturer_colour(Run.hull.manufacturer), UITheme.FS_SMALL))
+	page.add_child(heading)
 	page.add_child(UITheme.hsep())
 
 	# --- THE TWO HOLDS, FACING.
@@ -96,20 +108,29 @@ func setup() -> void:
 ACROSS", UITheme.COLD, UITheme.FS_SMALL)
 	carry.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mid.add_child(carry)
-	# R IS NOT A KEY ANYBODY FINDS. The refit screen has the same gesture and
-	# says so on its own hold; this is the screen where it matters most -- you
-	# are packing a smaller hold than the one you came out of -- so it is worth
-	# a line under the arrow rather than a thing you have to already know.
-	var turn := UITheme.body("R TURNS
-F FLIPS", UITheme.QUOTE, UITheme.FS_SMALL)
-	turn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mid.add_child(turn)
+	# NO KEY HINT UNDER IT. R still turns and F still flips what you carry, as on
+	# the refit screen, but the arrow says only what to do. Jon: "you can remove
+	# R turns F flips from the text in the middle. Just carry across is fine."
 	pair.add_child(mid)
 
 	_newhead = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	_new = HoldGrid.new()
 	_new.dropped.connect(_on_drop)
 	pair.add_child(_column(Run.hull, "YOUR NEW SHIP", _newhead, _new, false))
+	# BOTH SHIP BOXES ONE HEIGHT, the taller ship's and a little air. They were
+	# a fixed 132, or a heavy's whole 140-row picture, most of it empty above
+	# and below the ship: room the holds need. And one height for both is what
+	# keeps the two holds starting on one line, to be read across.
+	var tall := 0.0
+	for pv: Array in _portraits:
+		var drawn: Rect2i = pv[2]
+		var sv: ShipView = pv[1]
+		tall = maxf(tall, float(drawn.size.y * sv._k))
+	for pv2: Array in _portraits:
+		var box: Control = pv2[0]
+		var view: ShipView = pv2[1]
+		box.custom_minimum_size.y = tall + SHIP_AIR
+		view.custom_minimum_size.y = tall + SHIP_AIR
 
 	# --- WHAT TO DO ABOUT THE REST.
 	page.add_child(UITheme.hsep())
@@ -266,8 +287,45 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 	# the centring are reasoned about. The refit screen has always done it this
 	# way; a stack was a second set of numbers to keep in step, and it was
 	# already out of step with the column's real width.
-	v.custom_minimum_size = Vector2(float(v._w), float(v._h))
+	# THE PICTURE CLAIMS THE SHIP, NOT ITS CANVAS. A heavy's canvas is 392 wide
+	# and the ship is 296 of it, and the panel took the whole canvas as its
+	# width, so two heavies ran the dock off the screen and CAST OFF with it.
+	# Jon: "can't we just make the panels skinnier? There is a lot of dead
+	# space on the left and right of the ships." The view claims the ship's
+	# width and a little air (an even amount less than the canvas, so the
+	# canvas, drawn whole and centred over it, stays on whole pixels).
+	var ink := v.ink_rect()
+	var cw := float(v._w * v._k)
+	var claim := float(ink.size.x * v._k) + 8.0
+	if int(cw - claim) % 2 != 0:
+		claim += 1.0
+	v.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	v.custom_minimum_size = Vector2(minf(cw, claim), float(v._h * v._k))
 	holder.add_child(v)
+	# CENTRED ON THE SHIP, NOT ON ITS PICTURE. The holder centres the canvas, and
+	# a hull is in the middle of its canvas neither way: across, the picture is
+	# wider than the ship on one side; down, masts and spires stretch it up, so
+	# the body sat low -- 5 px on a medium, 18 on a heavy. Jon: "can the ships be
+	# centered vertically in their respective boxes?", then "The heavy is not
+	# centered in the box. It's off to the right." Across, the middle is the
+	# ship's own extent, nose to tail; down, the middle of its MASS, where a
+	# mast weighs what its few pixels weigh. Measured once here so a part bolted
+	# on later does not make the hull jump. Each time the holder places the view
+	# it moves by that much, but never so far that the ship leaves its box.
+	var mid := _mass_middle(v._img) - float(v._bob_off)
+	var across := v.ship_offset_x()
+	_portraits.append([holder, v, ink])
+	holder.sort_children.connect(func() -> void:
+		var k := float(v._k)
+		var lift := floorf((float(v._h) * 0.5 - mid) * k + 0.5)
+		var oy := v.position.y + floorf((v.size.y - float(v._h) * k) * 0.5)
+		var top := oy + float(ink.position.y) * k
+		var bot := oy + float(ink.end.y) * k
+		v.position.y += clampf(lift, -top, holder.size.y - bot)
+		var ox := v.position.x + floorf((v.size.x - float(v._w) * k) * 0.5)
+		var left := ox + float(ink.position.x) * k
+		var right := ox + float(ink.end.x) * k
+		v.position.x += clampf(floorf(0.5 - across), -left, holder.size.x - right))
 
 	var pts := MountPoints.new()
 	if foreign:
@@ -289,6 +347,25 @@ func _portrait(h: HullData, foreign: bool) -> Control:
 	else:
 		_newpts = pts
 	return holder
+
+
+## The row a ship's weight centres on: the mean row of its opaque pixels. A
+## mast or an aerial is a few pixels and moves it a few; the hull is most of
+## them.
+static func _mass_middle(img: Image) -> float:
+	if img == null:
+		return 0.0
+	var w := img.get_width()
+	var data := img.get_data()
+	var total := 0.0
+	var n := 0
+	for y in img.get_height():
+		var row := y * w * 4
+		for x in w:
+			if data[row + x * 4 + 3] >= 128:
+				total += float(y)
+				n += 1
+	return total / float(n) if n > 0 else float(img.get_height()) * 0.5
 
 
 ## The arrow, drawn rather than typed.

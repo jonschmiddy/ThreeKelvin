@@ -645,6 +645,11 @@ def install_art(doc, written):
 		li.update(ink(rgba(os.path.join(OUT, li["picture"]))))
 		art["lifts"][lv] = li
 
+	# THE STANDS' SHADOW: one picture, the same under every stand at every level.
+	sh = dict(doc["stand_shadow"])
+	sh["picture"] = put(sh["picture"], "stand_shadow.png")
+	art["stand_shadow"] = sh
+
 	# THE FLOOR'S LIFE: each picture or strip, measured.
 	STRIPS = {"welder_strip": 9, "tech_strip": 9, "grind_strip": 9, "cat_walk": 8, "cat_sit": 8, "cat_lick": 12,
 	          "mech_gen_1": 2, "mech_gen_2": 2, "mech_legs_1": 2, "mech_legs_2": 2, "mech_kneel_2": 1}
@@ -760,6 +765,10 @@ def install_art(doc, written):
 
 
 # ------------------------------------------------------------------ the TVs
+
+# How many more rows the price and TAKE IT stand apart than the page had them.
+DEAL_GAP = 5
+
 
 def install_tvs(doc, written):
 	"""Each level's deal TV, its glass split the way the page split it: the glass
@@ -953,8 +962,20 @@ def install_tvs(doc, written):
 			lights.append(out)
 		ent["lights"] = lights
 		oy = TOY + int(math.floor((TH - 56) / 2)) - 6
-		ent["rows_y"] = oy
-		ent["take"] = [TOX + TW - 6 - 44, oy + 45, 44, 17]
+		# AIR BETWEEN THE PRICE AND TAKE IT. Jon (2026-09-30): "give a bit of
+		# vertical space between the 93 CR and the TAKE it box" -- they stood
+		# three rows apart. A TV's `deal.up` first lifts the whole deal (the
+		# unclaimed's: "Can we raise the text here?"); then the gap opens from
+		# both sides, the rows up and TAKE IT down, so the deal stays as centred
+		# in its glass as the page had it -- TAKE IT drops only as far as the
+		# glass allows, two rows kept clear under it, and the rows rise for the
+		# rest.
+		deal = D0.get("deal", {})
+		oy -= int(deal.get("up", 0))
+		room = GH - (oy + 45 + 17) - 2
+		down = max(0, min(DEAL_GAP - DEAL_GAP // 2, room))
+		ent["rows_y"] = oy - (DEAL_GAP - down)
+		ent["take"] = [TOX + TW - 6 - 44, oy + 45 + down, 44, 17]
 		ent["spill"] = e["spill"]
 		tvs[lv] = ent
 	return tvs

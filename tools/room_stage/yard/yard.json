@@ -29,6 +29,12 @@
   190,
   585
  ],
+ "stand_shadow": {
+  "picture": "stands/shadow.png",
+  "x": -20,
+  "y": -4,
+  "_why": "Every stand's shadow, one picture (2026-09-30). Jon: \"all of the stands should have the same shadow. so it doesn't look like they're floating.\" Each stand used to stand in the floor lamps too and throw its own shadow, different at every spot, so no two matched. Now only the hulls throw lamp shadows, and every stand gets the shadow Jon passed under the unclaimed stands at x 145 and 240 (\"that shadow checks out\"), measured off that render: the contact at the foot's sides and the lamps' shadow in front, stopped short of the hazard stripe four rows down (Jon: \"why is there a shadow on the hazard lines in front of the stand?\"). x and y put its top left corner from the stand picture's left edge and the floor row."
+ },
  "task": {
   "x": 194,
   "y": 430,
@@ -51,12 +57,13 @@
    },
    "stand": {
     "picture": "stands/unclaimed.png",
-    "seat": 12,
+    "seat": 3,
     "row": 52,
     "cut": [
      30,
-     64
-    ]
+     67
+    ],
+    "_why": "Jon picked take 12 of the fresh stands (2026-09-30), made the way the other levels' stands were: the original unclaimed prompt, seeded from the outpost stand at strength 130 (job 09e99e30), after \"they need to be flat on instead of corner on\". Seat 3 rests the hull on the stone slab's top face; the column (rows 30-67) is where the stand is shortened, row 52 where it grows."
    },
    "light": {
     "dustN": 170,
@@ -918,6 +925,10 @@
      "flash": 0.6,
      "joltPx": 2,
      "sagEvery": 10
+    },
+    "deal": {
+     "up": 8,
+     "_why": "Jon (2026-09-30), on this TV: \"Can we raise the text here? And give a bit of vertical space between the 93 CR and the TAKE it box?\", then \"the light bulb can go partially over the text, that's not big of a deal\". The deal rises 8 rows, which leaves room under TAKE IT for the gap."
     }
    },
    "spill": [
