@@ -866,6 +866,132 @@ func run(tree: SceneTree) -> void:
 		print("  roomclip: %d frames from %.2fs to %s" % [frames11, t11 / 1000.0, dir11])
 		break
 
+	# `boardpop`: on a city's or a capital's screen, wait for a popup, click its
+	# X as a player does, and print whether it shut.
+	# `boardpopbtn` clicks the popup's own button instead, which shuts it too.
+	var btn17 := "boardpopbtn" in OS.get_cmdline_user_args()
+	if "boardpop" in OS.get_cmdline_user_args() or btn17:
+		var scr17 := Router.current as StationScreen
+		var bd17: PostingBoard = scr17._board if scr17 != null else null
+		if bd17 == null or not bd17.screen():
+			print("  boardpop: no screen on this board")
+		else:
+			var waited := 0.0
+			while not bd17.pop_x.has_area() and waited < 25.0:
+				await tree.create_timer(0.1).timeout
+				waited += 0.1
+			if not bd17.pop_x.has_area():
+				print("  boardpop: no popup came")
+			else:
+				# it stays up until it is shut: wait a while, then look
+				await tree.create_timer(6.0).timeout
+				print("  boardpop: after 6s untouched it is %s" % ["still up" if bd17.pop_x.has_area() else "GONE"])
+				var at17 := bd17.get_global_transform() * (bd17.pop_btn if btn17 else bd17.pop_x).get_center()
+				var target17 := GameShell.input_target(tree)
+				for pressed in [true, false]:
+					var mb17 := InputEventMouseButton.new()
+					mb17.button_index = MOUSE_BUTTON_LEFT
+					mb17.pressed = pressed
+					mb17.position = at17
+					mb17.global_position = at17
+					target17.push_input(mb17)
+					await tree.process_frame
+				await tree.process_frame
+				print("  boardpop: popup opened after %.1fs; after a click on its %s it is %s" % [waited, "button" if btn17 else "X",
+					"shut" if not bd17.pop_x.has_area() else "STILL OPEN"])
+
+	# `boardclip=<dir>`: the Hiring Board as the game shows it -- the board, its
+	# notices and its lamp -- a frame every `clipms=M` (33) for `clipframes=N`
+	# (90) on the real clock its lamp keeps, from the moment the deck opened, so
+	# the power-on is in it.
+	for a16 in OS.get_cmdline_user_args():
+		if not (a16 as String).begins_with("boardclip="):
+			continue
+		var scr16 := Router.current as StationScreen
+		if scr16 == null or scr16._board_lamp == null or not scr16._board_lamp.is_visible_in_tree():
+			print("  boardclip: no board on screen")
+			break
+		var frames16 := 90
+		var step16 := 33.0
+		for b16 in OS.get_cmdline_user_args():
+			if (b16 as String).begins_with("clipframes="):
+				frames16 = int((b16 as String).substr(11))
+			elif (b16 as String).begins_with("clipms="):
+				step16 = float((b16 as String).substr(7))
+		var dir16 := (a16 as String).substr(10)
+		DirAccess.make_dir_recursive_absolute(dir16)
+		var lamp16 := scr16._board_lamp
+		var box16 := Rect2i(lamp16.get_global_rect())
+		for i16 in frames16:
+			await tree.create_timer(step16 / 1000.0).timeout
+			await RenderingServer.frame_post_draw
+			var img16 := lamp16.get_viewport().get_texture().get_image().get_region(box16)
+			img16.save_png("%s/frame_%03d.png" % [dir16, i16])
+		print("  boardclip: %d frames of %s to %s" % [frames16, box16, dir16])
+		break
+
+	# `boardpool=<dir>`: every piece in this level's pool, laid out in rows with
+	# its number, page after page (`pool_01.png` and on), the work taken down so
+	# nothing hides them -- for checking new pieces one by one.
+	for a19 in OS.get_cmdline_user_args():
+		if not (a19 as String).begins_with("boardpool="):
+			continue
+		var scr19 := Router.current as StationScreen
+		if scr19 == null or scr19._board == null or scr19._board_lamp == null:
+			print("  boardpool: no board on screen")
+			break
+		var dir19 := (a19 as String).substr(10)
+		DirAccess.make_dir_recursive_absolute(dir19)
+		for c19 in scr19._work.get_children():
+			(c19 as CanvasItem).visible = false
+		scr19._board_lamp.power_on(true)
+		var bd19 := scr19._board
+		bd19.gallery_from = 0
+		var page19 := 0
+		while bd19.gallery_from < bd19.gallery_count():
+			bd19.queue_redraw()
+			await tree.process_frame
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			page19 += 1
+			var box19 := Rect2i(scr19._board_lamp.get_global_rect())
+			scr19._board_lamp.get_viewport().get_texture().get_image().get_region(box19).save_png(
+				"%s/pool_%02d.png" % [dir19, page19])
+			if bd19.gallery_shown <= 0:
+				print("  boardpool: piece %d does not fit on a page" % bd19.gallery_from)
+				break
+			bd19.gallery_from += bd19.gallery_shown
+		print("  boardpool: %d pieces on %d pages to %s" % [bd19.gallery_count(), page19, dir19])
+		break
+
+	# `boardseeds=<dir>`: the Hiring Board as `seedcount=N` (12) different
+	# stations would show it -- its pieces and where they land are keyed to the
+	# station's number -- settled, one still each, `seed_001.png` and on.
+	for a18 in OS.get_cmdline_user_args():
+		if not (a18 as String).begins_with("boardseeds="):
+			continue
+		var scr18 := Router.current as StationScreen
+		if scr18 == null or scr18._board == null or scr18._board_lamp == null:
+			print("  boardseeds: no board on screen")
+			break
+		var count18 := 12
+		for b18 in OS.get_cmdline_user_args():
+			if (b18 as String).begins_with("seedcount="):
+				count18 = int((b18 as String).substr(10))
+		var dir18 := (a18 as String).substr(11)
+		DirAccess.make_dir_recursive_absolute(dir18)
+		scr18._board_lamp.power_on(true)
+		for s18 in range(1, count18 + 1):
+			scr18._board.station_seed = s18
+			await tree.process_frame
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var box18 := Rect2i(scr18._board_lamp.get_global_rect())
+			scr18._board_lamp.get_viewport().get_texture().get_image().get_region(box18).save_png(
+				"%s/seed_%03d.png" % [dir18, s18])
+		print("  boardseeds: %d boards to %s" % [count18, dir18])
+		break
+
 	# `railclip=<dir>`: the elevator (`StationSpine`) as the game shows it, a
 	# frame every `clipms=M` (33) for `clipframes=N` (90), on the real clock its
 	# pictures play on -- to set against the frames `tools/room_stage/rail/`

@@ -30,6 +30,8 @@ var _shop: ShopScene
 var _exchange: ExchangeScene
 ## The Hiring Hall's board, which is the whole of that deck.
 var _board: PostingBoard
+## The lamp over the board, the room it leaves dim, and its power-on.
+var _board_lamp: BoardLamp
 var _lab: LabScene
 ## Pointing at your own ship in the Shipyard, and the slab that answers it.
 var _mine_hit: Control
@@ -703,8 +705,11 @@ func _page_work() -> Control:
 	# THE WORK, down the left of the board, in one straight column. The notices
 	# hung at staggered offsets for a pass, to look pinned by hand, and a stagger
 	# reads as crooked -- a notice is something to read, and a column is how.
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 13)
+	# SQUARE NOTES, THREE TO A ROW (Jon: "Can you put the quests in a square
+	# note?"): a flow that wraps, each contract its own square of paper.
+	var column := HFlowContainer.new()
+	column.add_theme_constant_override("h_separation", NOTE_GAP)
+	column.add_theme_constant_override("v_separation", NOTE_GAP + 2)
 	_work = column
 	_work.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_work.anchor_right = PostingBoard.NOTICE_SHARE
@@ -717,6 +722,10 @@ func _page_work() -> Control:
 	# AND THE PINS, OVER THE NOTICES. A control draws under its children and a pin
 	# goes THROUGH the paper, so the pins are a layer of their own on top.
 	stack.add_child(_board.make_pins())
+	# AND THE LAMP, OVER ALL OF IT: it lights the paper as much as the cork.
+	_board_lamp = BoardLamp.new()
+	_board_lamp.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stack.add_child(_board_lamp)
 	return Widgets.panel_with(Widgets.pad(stack))
 
 
@@ -1071,6 +1080,8 @@ func _power_deck(id: StringName) -> void:
 		_lab.power_on(settled)
 	elif id == &"services" and _scene != null and is_instance_valid(_scene):
 		_scene.power_on(settled)
+	elif id == &"work" and _board_lamp != null:
+		_board_lamp.power_on(settled)
 	else:
 		return
 	Router.powered[id] = true
@@ -2215,7 +2226,14 @@ func _on_action(action: String, thing: Variant) -> void:
 func _refresh_work(n: MapGen.MapNode) -> void:
 	if _board != null:
 		_board.posts = _board_posts(n)
+		_board.dev = int(n.development)
+		_board.station_seed = hash([n.layer, n.row, n.index])
 		_board.queue_redraw()
+	if _board_lamp != null:
+		_board_lamp.dev = int(n.development)
+	if _work != null:
+		_work.offset_top = PostingBoard.FRAME_W + 10.0 + (PostingBoard.HEADER if _on_screen() else 0.0)
+		_work.offset_bottom = -(PostingBoard.FRAME_W + 8.0 + (PostingBoard.TICKER if _on_screen() else 0.0))
 	Widgets.clear(_work)
 	var offers := Contracts.board(n)
 	var ready := Run.deliverable_at(n)
@@ -2243,14 +2261,14 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 		# somebody pinned up, and a loose heading with its rows under it would
 		# have been pinned as separate scraps and tilted apart.
 		var card := VBoxContainer.new()
-		card.add_theme_constant_override("separation", 2)
-		card.add_child(UITheme.body("SIGNED, ELSEWHERE", UITheme.COLD, UITheme.FS_SMALL))
+		card.add_theme_constant_override("separation", 3)
+		card.add_child(UITheme.body("SIGNED, ELSEWHERE", _ink(&"head"), UITheme.FS_SMALL))
 		for job in mine:
 			var c: ContractData = job
-			var row := UITheme.body("· %s" % c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL)
+			var row := UITheme.body("· %s" % c.status_line(), _ink(&"ink"), UITheme.FS_SMALL)
 			row.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			card.add_child(row)
-		_work.add_child(Widgets.panel_with(Widgets.pad(card, 6, 4)))
+		_work.add_child(_note(PostingBoard.INDEX, card))
 
 	for job in offers:
 		var c2: ContractData = job
@@ -2276,72 +2294,180 @@ func _open_elsewhere(n: MapGen.MapNode) -> Array:
 	return out
 
 
+## A contract's note: a square of paper, this wide and at least this tall.
+const NOTE := 136.0
+const NOTE_GAP := 8
+const NOTE_PAPER := Color("#e6dab0")
+const NOTE_STICKY := Color("#f0d878")
+
+
+## One square of paper with `body` written on it -- or, in a city or a
+## capital, where the board is a screen, one square panel shown on it.
+func _note(paper: Color, body: Control) -> Control:
+	var pc := PanelContainer.new()
+	pc.custom_minimum_size = Vector2(NOTE, NOTE)
+	if _on_screen():
+		var edge := Color("#3ec8e0") if paper != NOTE_STICKY else Color("#f0c040")
+		pc.add_theme_stylebox_override("panel", UITheme.flat(Color("#0c2034"), edge, 0, 7, 8))
+	else:
+		pc.add_theme_stylebox_override("panel", UITheme.flat(paper, paper.darkened(0.28), 0, 7, 8))
+	pc.add_child(body)
+	return pc
+
+
+## Whether the board here is a screen (a city's or a capital's).
+func _on_screen() -> bool:
+	return _board != null and _board.screen()
+
+
+## The note's inks: on paper, the board's; on a screen, light.
+func _ink(which: StringName) -> Color:
+	if _on_screen():
+		match which:
+			&"pay": return UITheme.EMBER
+			&"soft": return UITheme.QUOTE
+			&"head": return Color("#7fd4ff")
+			_: return UITheme.CHILL
+	match which:
+		&"pay": return PostingBoard.RED
+		&"soft": return PostingBoard.INK_SOFT
+		&"head": return PostingBoard.BLUE
+		_: return PostingBoard.INK
+
+
+## A manufacturer's name in its colour: as it is on a screen, darkened to read on
+## paper.
+func _manufacturer_ink(m: StringName, dark: float) -> Color:
+	var c := DB.manufacturer_colour(m)
+	return c if _on_screen() else c.darkened(dark)
+
+
 func _offer_row(c: ContractData) -> Control:
+	if _on_screen():
+		return _listing(c)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
+	box.add_theme_constant_override("separation", 3)
 
 	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 7)
-	# THE FLAG, beside the name rather than instead of it. On the shelf a part's
-	# manufacturer is a mark and the name is redundant, but a contract is written
+	top.add_theme_constant_override("separation", 5)
+	# THE FLAG, beside the name rather than instead of it. A contract is written
 	# in that manufacturer's own voice -- you are being asked for something BY
-	# somebody, and the somebody is half the row.
+	# somebody, and the somebody is half the note.
 	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
 	if mk != null:
 		var fl := ChassisSelect.Banner.new()
 		# Scale 1: the banner needs 22 units of height to draw its hem and emblem
-		# intact, and a row of text is about that.
+		# intact, and two lines of text are about that.
 		fl.s = 1.0
 		fl.custom_minimum_size = Vector2(ChassisSelect.Banner.UNITS_W, 0)
 		fl.manufacturer = c.manufacturer
 		fl.mark = mk.colour
 		fl.field = mk.field
 		top.add_child(fl)
-	top.add_child(UITheme.body(DB.manufacturer_name(c.manufacturer).to_upper(),
-		DB.manufacturer_colour(c.manufacturer), UITheme.FS_SMALL))
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(sp)
-	# THE PAY IN EMBER AT HEAD SIZE. It is the reason to read the row, and it was
-	# the same eight-pixel grey as the place name under it.
-	top.add_child(UITheme.body("%d CR" % c.pay, UITheme.EMBER, UITheme.FS_HEAD))
+	var who := VBoxContainer.new()
+	who.add_theme_constant_override("separation", 1)
+	# the manufacturer's colour, darkened to read on paper
+	var name_l := UITheme.body(DB.manufacturer_name(c.manufacturer).to_upper(),
+		_manufacturer_ink(c.manufacturer, 0.45), UITheme.FS_SMALL)
+	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	name_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	who.add_child(name_l)
+	# THE PAY, the reason to read the note, large and in the board's red ink.
+	who.add_child(UITheme.body("%d CR" % c.pay, _ink(&"pay"), UITheme.FS_HEAD))
+	who.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(who)
 	box.add_child(top)
 
-	# The ask, in the manufacturer's own voice. The largest thing in the row, because it
-	# is the only part a player reads twice.
+	# The ask, in the manufacturer's own voice: the part a player reads twice.
+	var ask := UITheme.body(c.text, _ink(&"ink"), UITheme.FS_SMALL)
+	ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(ask)
+	var sp := Control.new()
+	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sp)
+
+	var where := UITheme.body(c.status_line(), _ink(&"soft"), UITheme.FS_SMALL)
+	where.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(where)
+	box.add_child(_sign_button(c))
+	return _note(NOTE_PAPER, box)
+
+
+## A contract as a marketplace listing, on a city's or a capital's screen:
+## the manufacturer's emblem for its photo, the pay for its price, the ask for
+## its description, where it is, and SIGN for "message seller".
+func _listing(c: ContractData) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	var mk: ManufacturerData = DB.manufacturers.get(c.manufacturer)
+	var photo := Control.new()
+	photo.custom_minimum_size = Vector2(0, 40)
+	photo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mid := c.manufacturer
+	photo.draw.connect(func() -> void:
+		var field := mk.field if mk != null else Color("#203040")
+		photo.draw_rect(Rect2(Vector2.ZERO, photo.size), field)
+		if mk != null:
+			CardView.draw_emblem(photo, mid, Vector2(photo.size.x * 0.5, 20.0), 1.4, mk.colour, mk.field)
+		photo.draw_string(UITheme.pixel_font(), Vector2(4.0, photo.size.y - 4.0),
+			DB.manufacturer_name(mid).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1,
+			UITheme.FS_SMALL, Color(1, 1, 1, 0.85)))
+	box.add_child(photo)
+	box.add_child(UITheme.body("%d CR" % c.pay, UITheme.EMBER, UITheme.FS_HEAD))
 	var ask := UITheme.body(c.text, UITheme.CHILL, UITheme.FS_SMALL)
 	ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(ask)
+	var sp := Control.new()
+	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sp)
+	var where := UITheme.body(c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL)
+	where.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(where)
+	# how many are watching it and when it went up: the same for the same job
+	var hh := absi(hash(c.text))
+	box.add_child(UITheme.body("%d WATCHING, %dH AGO" % [2 + hh % 11, 1 + (hh / 11) % 20],
+		Color("#4a7a96"), UITheme.FS_SMALL))
+	box.add_child(_sign_button(c))
+	return _note(NOTE_PAPER, box)
 
-	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 6)
-	foot.add_child(UITheme.body(c.status_line(), UITheme.QUOTE, UITheme.FS_SMALL))
-	var sp2 := Control.new()
-	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(sp2)
+
+## SIGN, big enough to read as the one thing on a note you can press (Jon: "can
+## the sign buttons be a bit bigger? I wanna make sure that the user still
+## understands what can and cannot be clicked"). Nothing else on the board
+## looks like a button.
+func _sign_button(c: ContractData) -> Button:
 	var take := Widgets.button("SIGN", func() -> void:
 		Run.take_contract(c)
 		_refresh())
 	take.tooltip_text = Widgets.tip("Nothing here expires. Sign it and forget it, or never sign it at all.")
-	foot.add_child(take)
-	box.add_child(foot)
-	return Widgets.panel_with(Widgets.pad(box, 6, 4))
+	take.add_theme_font_size_override("font_size", UITheme.FS_HEAD)
+	take.custom_minimum_size = Vector2(72, 26)
+	take.size_flags_horizontal = Control.SIZE_SHRINK_END
+	return take
 
 
+## Work done and ready to hand in: a yellow sticky note, because it is the one
+## thing on the board waiting for you.
 func _deliver_row(c: ContractData, label: String) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	var what := UITheme.body("%s · %d cr" % [
-		DB.manufacturer_name(c.manufacturer).to_upper(), c.pay],
-		DB.manufacturer_colour(c.manufacturer), UITheme.FS_SMALL)
-	row.add_child(what)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	var who := UITheme.body(DB.manufacturer_name(c.manufacturer).to_upper(),
+		_manufacturer_ink(c.manufacturer, 0.5), UITheme.FS_SMALL)
+	who.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(who)
+	box.add_child(UITheme.body("%d CR" % c.pay, _ink(&"pay"), UITheme.FS_HEAD))
+	var said := UITheme.body("READY TO HAND IN.", _ink(&"ink"), UITheme.FS_SMALL)
+	said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(said)
 	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(sp)
-	row.add_child(Widgets.button(label, func() -> void:
+	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(sp)
+	var go := Widgets.button(label, func() -> void:
 		Run.deliver_contract(c)
-		_refresh()))
-	return Widgets.panel_with(Widgets.pad(row, 6, 4))
+		_refresh())
+	go.size_flags_horizontal = Control.SIZE_SHRINK_END
+	box.add_child(go)
+	return _note(NOTE_STICKY, box)
 
 
 ## Your own ship's figures, on the same slab the hull for sale gets, floated
