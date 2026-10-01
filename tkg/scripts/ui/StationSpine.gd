@@ -13,10 +13,9 @@ extends Control
 ## thing. Nothing here is drawn from outside, there is no starfield, and the
 ## hull walls run down both edges of every floor to say so.
 ##
-## Drawn rather than loaded, for the same reason `YardScene` is: it is the
-## placeholder AND the fallback, and settling the composition in rectangles is
-## what lets a prompt describe a picture we have already checked. If art lands it
-## replaces the body of `_draw`; if it never does, this is the rail.
+## The rooms were drawn rather than loaded, as the placeholder AND the fallback;
+## the art has landed (`_draw_picture`), and a deck without a picture still gets
+## its room in rectangles.
 
 ## Which floors are showing, top to bottom -- outposts do not have every deck, so
 ## this is not always five. Ids from `StationScreen.DECKS`.
@@ -52,8 +51,87 @@ const HULL_W := 6.0
 ## The deck plate between one floor and the next.
 const DECK_T := 3.0
 
+## THE FLOORS ARE PICTURES NOW (Jon, 2026-10-01: "Can we have these animated
+## and colored when on the respective floor? ... When the floor is not active
+## ... the colors are muted a lot and not animated"). One per deck, the same at
+## every station, installed by `tools/rail_install.py`: the floor the car is on
+## plays its frames in full colour, every other floor stands muted and still,
+## and as the car passes a floor fades from one to the other. A deck with no
+## picture keeps the rooms drawn below.
+const RAIL_DIR := "res://art/sprites/station/rail/"
+## A picture's size; a floor shows the window of it that fits.
+const PIC := Vector2(144.0, 128.0)
+## deck -> {tex, muted, ms, seq, cols, top}. Read once, never inside `_draw`.
+static var _rail: Dictionary = {}
+static var _rail_read := false
+## The frame each lit floor last drew, so it redraws only when one changes.
+var _drawn := ""
+
+
+static func _read_rail() -> void:
+	if _rail_read:
+		return
+	_rail_read = true
+	var path := RAIL_DIR + "rail.json"
+	if not FileAccess.file_exists(path):
+		return
+	var doc: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not doc is Dictionary:
+		return
+	for k: String in (doc as Dictionary).keys():
+		var tex := load(RAIL_DIR + k + ".png") as Texture2D
+		var muted := load(RAIL_DIR + k + "_muted.png") as Texture2D
+		if tex == null or muted == null:
+			continue
+		var d: Dictionary = doc[k]
+		_rail[StringName(k)] = {"tex": tex, "muted": muted, "ms": float(d["ms"]),
+			"seq": d["seq"], "cols": int(d["cols"]), "top": float(d["top"])}
+
+
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_read_rail()
+
+
+## Redraw when a lit floor's picture has moved on a frame, and not otherwise.
+func _process(_dt: float) -> void:
+	var key := _frames_now()
+	if key != _drawn:
+		queue_redraw()
+
+
+func _frames_now() -> String:
+	if car < 0.0 or _rail.is_empty():
+		return ""
+	var t := Time.get_ticks_msec()
+	var key := ""
+	for i in floors.size():
+		if absf(car - float(i)) < 1.0 and _rail.has(floors[i]):
+			var art: Dictionary = _rail[floors[i]]
+			key += "%d:%d:%.2f," % [i, int(float(t) / float(art["ms"])), car]
+	return key
+
+
+## One floor's picture in its room: the window of it that fits, its foot on the
+## floor, muted, and the live frame over that as bright as the car makes it.
+func _draw_picture(art: Dictionary, room: Rect2, glow: float) -> void:
+	var sw := minf(room.size.x, PIC.x)
+	var sh := minf(room.size.y, PIC.y)
+	var top := clampf(float(art["top"]), 0.0, PIC.y - sh)
+	var sx := floorf((PIC.x - sw) * 0.5)
+	var dst := Rect2(roundf(room.position.x + (room.size.x - sw) * 0.5),
+		roundf(room.end.y - sh), sw, sh)
+	if room.size.y > sh:
+		draw_rect(Rect2(room.position, Vector2(room.size.x, room.size.y - sh)), DEEP)
+	draw_texture_rect_region(art["muted"], dst, Rect2(sx, top, sw, sh))
+	if glow <= 0.0:
+		return
+	var seq: Array = art["seq"]
+	var f := int(seq[int(float(Time.get_ticks_msec()) / float(art["ms"])) % seq.size()])
+	var cols := int(art["cols"])
+	draw_texture_rect_region(art["tex"], dst,
+		Rect2(float(f % cols) * PIC.x + sx, float(f / cols) * PIC.y + top, sw, sh),
+		Color(1.0, 1.0, 1.0, glow))
 
 
 func _tint(c: Color) -> Color:
@@ -71,6 +149,7 @@ func _draw() -> void:
 	var edge := _tint(EDGE)
 	var fh := h / float(floors.size())
 
+	_drawn = _frames_now()
 	draw_rect(Rect2(0.0, 0.0, w, h), DEEP)
 	for i in floors.size():
 		var top := fh * float(i)
@@ -81,6 +160,11 @@ func _draw() -> void:
 			glow = clampf(1.0 - absf(car - float(i)), 0.0, 1.0)
 		var lit: bool = glow > 0.45
 		var room := Rect2(HULL_W, top, w - HULL_W * 2.0, fh - DECK_T)
+		if _rail.has(floors[i]):
+			_draw_picture(_rail[floors[i]], room, glow)
+			draw_rect(Rect2(0.0, top + fh - DECK_T, w, DECK_T), plate)
+			draw_rect(Rect2(0.0, top + fh - DECK_T, w, 1.0), edge)
+			continue
 
 		# THE ROOM YOU ARE IN IS THE LIT ONE, and it is lit rather than merely
 		# brighter: a warm floor among cold ones reads as somewhere with people

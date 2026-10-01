@@ -153,11 +153,13 @@ func _taped(name: StringName) -> void:
 		Audio.tape.append([name, Time.get_ticks_msec(), 0.0, 1.0])
 
 
-func power_on(tp: float) -> void:
+## `settled`: the power-on was heard earlier this docking, so none of it again.
+func power_on(tp: float, settled: bool = false) -> void:
 	_tp = tp
 	_powered = true
-	_heard = 0
-	_shot_at = tp + randf_range(shot_every.x, shot_every.y)
+	_heard = POWER_ON_SOUNDS.get(scene.level, []).size() if settled else 0
+	# the now-and-then counts from now, not from a power-on long past
+	_shot_at = tp + (YardScene.SETTLED if settled else 0.0) + randf_range(shot_every.x, shot_every.y)
 
 
 ## Each tick of the yard's clock: the TV's power-on sounds that are due, the

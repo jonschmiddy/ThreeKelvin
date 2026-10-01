@@ -14,7 +14,8 @@ extends RefCounted
 ## a welder's white for a repair, fuel coming down, a scan down the hull for a
 ## fault. When there is nothing left for it to do its screen says why ("HULL
 ## FULL", "NO FAULTS") and it flies off; on paper, at an unclaimed station, what
-## it offered is scribbled out in red first.
+## it offered is scribbled out in red first. One with nothing to do when you
+## dock never comes; REFUEL always does.
 ##
 ## WHAT THEY CARRY is the level's (Jon, 2026-09-29): paper scraps at an
 ## unclaimed station, chunky casings at an outpost or settlement, riveted
@@ -65,18 +66,47 @@ func _init(s: YardScene) -> void:
 		D.append({"i": i, "hx": 0.0, "hy": 0.0, "mode": "wait", "t0": 0.0, "x": 0.0, "y": -100.0, "doneAt": -1.0})
 
 
-## Where each drone hovers: over your ship, spaced by the widest screen.
-func homes() -> Array:
+## Where each of `n` drones hovers: over your ship, spaced by the widest
+## screen, the row centred on the ship however many came.
+func homes(n: int = 4) -> Array:
 	var span := 0.0
 	for sc: Dictionary in screens:
 		span = maxf(span, float(sc.get("w", 80)))
 	span += 8.0
-	var x0 := 200.0 - span * 1.5
+	var x0 := 200.0 - span * float(n - 1) * 0.5
 	var dh := float(scene.dial.get("drones", 50))
 	var out := []
-	for i in 4:
+	for i in n:
 		out.append([floorf(x0 + span * float(i) + 0.5), dh + (16.0 if i % 2 == 1 else 0.0)])
 	return out
+
+
+## The drones that came, laid out over the ship in their order.
+func _layout() -> void:
+	var here: Array = []
+	for d: Dictionary in D:
+		if not d.get("away", false):
+			here.append(d)
+	var H := homes(here.size())
+	for k in here.size():
+		(here[k] as Dictionary)["hx"] = float(H[k][0])
+		(here[k] as Dictionary)["hy"] = float(H[k][1])
+
+
+var _entry_done := false
+
+
+## NOTHING TO SELL, NOT SENT (Jon: "if your hull is 100% or you have no faults
+## when you enter a space station, these don't show up, just the refuel"). The
+## first offers of a docking decide who comes: a drone whose job is already
+## done stays away, and the rest close up over the ship. One that runs out of
+## work later, by a sale, still tells you why and flies off.
+func _stay_away() -> void:
+	for d: Dictionary in D:
+		if String(offer(int(d["i"])).get("done", "")) != "":
+			d["away"] = true
+			d["mode"] = "gone"
+	_layout()
 
 
 static func bob(i: int, t: float) -> float:
@@ -87,18 +117,21 @@ static func sway(i: int, t: float) -> float:
 	return floorf(sin((t + float(PH[i]) * 1.7) * TAU / 4.3) + 0.5)
 
 
-## Fly them in, after the TV: the page's `bring`.
-func bring(t: float, reveal_end: float) -> void:
-	var H := homes()
+## Fly them in, after the TV: the page's `bring`. `settled`: they flew in
+## earlier this docking, so they are home and their arrival is not heard again.
+func bring(t: float, reveal_end: float, settled: bool = false) -> void:
 	var t1 := t + reveal_end + 0.4
+	_layout()
 	for i in 4:
 		var d: Dictionary = D[i]
-		d["hx"] = float(H[i][0])
-		d["hy"] = float(H[i][1])
+		if d.get("away", false):
+			continue
 		d["mode"] = "arrive"
 		d["t0"] = t1 + float(i) * 0.42 + (0.16 * (YardLight.hash1(float(i) * 7.3 + t) - 0.5) if i > 0 else 0.0)
 		for k in ["flew", "flash", "last", "doze", "bump", "joke", "sneeze", "say", "r"]:
 			d.erase(k)
+		if settled:
+			d["flew"] = true
 		d["doneAt"] = -1.0
 	FX.clear()
 
@@ -213,9 +246,12 @@ var _served_i := -1
 
 
 ## The new offers are in: whichever drone has nothing left to do tells you, and
-## goes (the page's check after a sale). Only a sale sends them: a drone that
-## came with nothing to sell -- HULL FULL, NO FAULTS -- hovers until one does.
+## goes (the page's check after a sale). The first offers of a docking only
+## decide who comes at all (`_stay_away`).
 func offers_changed(t: float) -> void:
+	if not _entry_done and not scene.offers.is_empty():
+		_entry_done = true
+		_stay_away()
 	if _served_i < 0:
 		return
 	for e: Dictionary in D:

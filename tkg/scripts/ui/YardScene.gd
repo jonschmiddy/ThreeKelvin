@@ -101,6 +101,9 @@ var _tick_n := -1
 ## When the TV powered on, on this clock.
 var _tp := 0.0
 var _powered := false
+## How long ago a yard already on this docking powered on: the TV's reveal and
+## the drones' arrival long over.
+const SETTLED := 60.0
 ## This tick's time, and the time since the last tick.
 var _t := 0.0
 var _dt := 0.0
@@ -478,7 +481,7 @@ func _stand(v: ShipView, cx: float) -> Dictionary:
 	v.position = Vector2(x0 - ink.position.x, top - ink.position.y)
 	v.size = Vector2(img.get_width(), img.get_height())
 	return {"x": cx, "x0": x0, "top": top, "w": iw, "h": ih, "bottom": top + belly + 1, "ink": ink,
-		"img": img, "supports": supports, "floor": floor_y}
+		"img": img, "supports": supports, "floor": floor_y, "under": under}
 
 
 ## The opaque box of a picture, by the page's measure (alpha from 128).
@@ -714,17 +717,19 @@ func step_to(s: float) -> void:
 
 
 ## Power the TV on: the first time the deck is shown at a station. The drones
-## fly in after it.
-func power_on() -> void:
+## fly in after it. `settled` comes back to a yard already on this docking
+## (`Router.powered`): the TV long on, the drones at their screens, nothing of
+## the power-on heard again.
+func power_on(settled: bool = false) -> void:
 	if _powered or light == null or lv.is_empty():
 		return
 	_powered = true
-	_tp = floorf(_clock * HZ) / HZ
+	_tp = floorf(_clock * HZ) / HZ - (SETTLED if settled else 0.0)
 	_tick_n = -1
 	var rv: Array = (deal_tv.T.get("reveal", [2.7, 3.3]) as Array)
-	drones.bring(_tp, float(rv[1]))
+	drones.bring(_tp, float(rv[1]), settled)
 	if sound != null:
-		sound.power_on(_tp)
+		sound.power_on(_tp, settled)
 
 
 func _process(delta: float) -> void:

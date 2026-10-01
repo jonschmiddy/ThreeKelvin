@@ -462,6 +462,21 @@ else
 	ok "python absent, skipped"
 fi
 
+step "The elevator's pictures are the ones Jon picked"
+# `tools/rail_install.py` copies the floor pictures on the rail stage
+# (`tools/room_stage/rail/`) into the game, where `StationSpine` draws them.
+# `--check` compares the two byte for byte. Plain python.
+if [ -n "$RIPY" ]; then
+	if "$RIPY" tools/rail_install.py --check >"$LOG_DIR/rail.log" 2>&1; then
+		ok "$(tail -n 1 "$LOG_DIR/rail.log")"
+	else
+		bad "the game's elevator pictures are not the rail stage's"
+		sed 's/^/        /' "$LOG_DIR/rail.log" | head -n 6
+	fi
+else
+	ok "python absent, skipped"
+fi
+
 step "A part can be moved between the hold and the hull"
 # THE GATE'S BLIND SPOT, CLOSED. This has existed for a long time and never ran
 # here, so it went eight failures deep without anybody hearing -- six of them a

@@ -327,6 +327,9 @@ func _draw() -> void:
 		_bd_pos = Vector2(floorf((PANEL.x - bs.x) * 0.5 + 0.5),
 			float(doc().get("floor_y", 353)) - bs.y + floorf(_bd_drop + 0.5))
 	_pose_cast()
+	if view_only and _backdrop != null:
+		_view_span(Rect2(Vector2.ZERO, PANEL))
+		return
 	for o in room.get("openings", []):
 		var d: Dictionary = o
 		match String(d.type):

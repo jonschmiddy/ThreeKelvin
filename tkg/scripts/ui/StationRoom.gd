@@ -265,6 +265,14 @@ func _draw() -> void:
 	if w <= 60.0 or h <= 120.0:
 		return
 	var floor_y := h - floor_h()
+	if view_only and _backdrop != null:
+		var bs0 := Vector2(_backdrop.get_size())
+		_bd_pos = Vector2(roundf((w - bs0.x) * 0.5), floor_y - bs0.y + _bd_drop)
+		var all0 := Rect2(Vector2.ZERO, Vector2(w, h))
+		draw_rect(all0, DEEP)
+		_blit_backdrop(all0)
+		_draw_cast(all0)
+		return
 	if _blit_plate():
 		# A plate is the ROOM AS A BACKDROP -- walls, deck, and nothing that
 		# varies. The lamps go on over it because their COUNT is development and
@@ -421,6 +429,11 @@ const LAYER_HZ := 30.0
 ## A view to show instead of the seed's pick, by kind. For `stationshot view=`,
 ## which photographs a named view in its real window; nothing in play sets it.
 static var forced_views := {}
+
+## The place outside and its walkers with no room round them, for
+## `stationshot roomview`: the elevator's Promenade picture is filmed from it.
+## Nothing in play sets it.
+static var view_only := false
 
 var _views: Array = []
 var _box_window: StyleBoxTexture = null

@@ -142,6 +142,11 @@ var _powered := false
 ## the air.
 var _heard := 0
 var _voiced := false
+## The power-on was heard earlier this docking: none of its sounds again.
+var _boot_heard := false
+## How long ago a lab already on this docking powered on: its power-on well
+## over, its bed past the rise.
+const SETTLED := 60.0
 ## The ambience: its bed and a few voices for the rest, all on the Ambient bus.
 ## None of it in the balance sim or a headless run, which have no audio.
 var _bed: AudioStreamPlayer = null
@@ -269,13 +274,16 @@ static func _read(name: String) -> Image:
 
 
 ## Power the lab on from black: the first time the deck is shown at a station.
-func power_on() -> void:
+## `settled` comes back to a lab already on this docking (`Router.powered`): its
+## power-on long over, none of its sounds to play, the bed in at once.
+func power_on(settled: bool = false) -> void:
 	if _powered:
 		return
 	_powered = true
-	_boot_at = floorf(_lab_clock * HZ) / HZ
+	_boot_at = floorf(_lab_clock * HZ) / HZ - (SETTLED if settled else 0.0)
 	_tick_n = -1
 	_heard = 0
+	_boot_heard = settled
 
 
 func _process(delta: float) -> void:
@@ -301,7 +309,7 @@ func _process(delta: float) -> void:
 ## the lab's own clock, so a sound meets the frame its light moves on. Never on
 ## a pinned clock -- a photograph has no sound.
 func _sound() -> void:
-	if not _powered or pin_clock >= 0.0:
+	if not _powered or pin_clock >= 0.0 or _boot_heard:
 		return
 	var plan: Array = POWER_ON_SOUNDS.get(_level, [])
 	var tb := _lab_clock - _boot_at

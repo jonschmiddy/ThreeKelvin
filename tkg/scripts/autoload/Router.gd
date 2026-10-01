@@ -18,7 +18,20 @@ var sky: SpaceLayer
 ## show_sector(). The HUD reads it to decide whether its second tab says SECTOR
 ## or STATION, so that walking to SHIP from the berth and back does not make you
 ## re-dock to return.
-var docked: bool = false
+##
+## Leaving the berth ends the docking, and with it every deck's power-on.
+var docked: bool = false:
+	set(v):
+		if not v:
+			powered.clear()
+		docked = v
+
+## THE DECKS THAT HAVE POWERED ON THIS DOCKING, by deck id. Jon: once a station's
+## or a lab's power-on has played, it should not play again because you went to
+## the star chart and came back. Coming back builds a new StationScreen, so the
+## scenes cannot remember it themselves; undocking clears it, and the next
+## docking powers them on again.
+var powered := {}
 
 func register(content_holder: Control, hud_bar: HudBar) -> void:
 	content = content_holder

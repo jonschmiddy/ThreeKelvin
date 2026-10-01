@@ -1280,6 +1280,10 @@ const CURSOR_HOT := Vector2(16, 16)
 ## Frames per second of travel. Nine hundredths of a second end to end, which is
 ## fast enough to feel like a response and slow enough to see happen.
 const CURSOR_SPEED := 34.0
+## Every shape the reticle stands in for: the two of hovering, and the four a
+## drag can ask for.
+const CURSOR_SHAPES := [Input.CURSOR_ARROW, Input.CURSOR_POINTING_HAND,
+	Input.CURSOR_FORBIDDEN, Input.CURSOR_CAN_DROP, Input.CURSOR_DRAG, Input.CURSOR_MOVE]
 
 var _cursor_tex: Array[ImageTexture] = []
 ## Where the animation currently is, 0 open to 3 closed. Fractional between.
@@ -1309,7 +1313,14 @@ func _show_cursor(f: int) -> void:
 	# its end state and leave the animation running behind it. Holding both to
 	# the current frame means the swap is invisible and this is the only thing
 	# deciding what the cursor looks like.
-	for shape in [Input.CURSOR_ARROW, Input.CURSOR_POINTING_HAND]:
+	#
+	# AND EVERY SHAPE A DRAG WEARS. Picking up a part hands the pointer to
+	# Godot's drag, which shows FORBIDDEN over whatever will not take it and
+	# CAN_DROP over whatever will -- the system's red X on the Promenade and
+	# its plain arrow over the hold, because neither had the reticle (Jon:
+	# "kinda bad"). Where a part can go is shown by the thing it would go
+	# into; the pointer stays ours, held shut for as long as you carry it.
+	for shape in CURSOR_SHAPES:
 		Input.set_custom_mouse_cursor(_cursor_tex[f],
 			shape as Input.CursorShape, CURSOR_HOT)
 

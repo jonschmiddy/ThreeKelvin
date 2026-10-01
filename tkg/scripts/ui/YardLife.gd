@@ -84,6 +84,8 @@ var MOTHS: Array = []
 var STARS: Array = []
 var LIFE: Array = []
 var LIFTCARS: Array = []
+## How far the welder's lift stands risen this tick (`_lift_rise`).
+var lift_rise := 0.0
 var _car_tex: Array = []
 var _car_img: Array = []
 var _car_burn_tex: Array = []
@@ -463,6 +465,48 @@ func _lift_sprite() -> Dictionary:
 		"x0": L["x0"], "x1": L["x1"], "top": L["top"], "foot": L["foot"], "cx": L["cx"], "deck": L.get("deck", 10)}
 
 
+## THE SCISSORS OF EACH LIFT, as rows of its picture: the band that stacks
+## when the lift goes up. Platform above it, chassis below.
+const LIFT_BAND := {"unclaimed": [11, 25], "outpost": [13, 21], "settlement": [14, 23],
+	"city": [12, 25], "capital": [16, 26]}
+## How far under the belly the torch works, and the most a lift will rise.
+const WELD_GAP := 2.0
+const LIFT_MAX := 120.0
+
+
+## HOW FAR THE LIFT GOES UP to put the torch under the hull for sale (Jon: "why
+## is he so low below the ship?"). The lift was one picture at one height, and
+## a hull standing tall left him welding the air. The belly is measured per
+## column (`YardScene._stand`), so the lift rises until his working torch is
+## WELD_GAP under it; a hull lower than his reach leaves the lift down.
+func _lift_rise(LS: Dictionary, wx: float) -> float:
+	var S: Dictionary = scene.placed[1] if scene.placed.size() > 1 else {}
+	if S.is_empty() or not S.has("under"):
+		return 0.0
+	var F := sprite("welder_strip", 0)
+	if F.is_empty():
+		return 0.0
+	var tip: Array = F["tip"]
+	var wb := LIFT.y - float(LS["foot"]) + float(LS["deck"])
+	var tx := int(floorf(wx - float(F["cx"]) + float(tip[0]) + 0.5))
+	var ty := wb - float(F["foot"]) + float(tip[1])
+	var under: PackedInt32Array = S["under"]
+	var c := tx - int(S["x0"])
+	var belly := -1
+	# the belly at the torch, or the nearest column of hull beside it
+	for dc in 12:
+		for cc in [c - dc, c + dc]:
+			if cc >= 0 and cc < under.size() and under[cc] >= 0:
+				belly = under[cc]
+				break
+		if belly >= 0:
+			break
+	if belly < 0:
+		return 0.0
+	var want := float(int(S["top"]) + belly) + WELD_GAP
+	return clampf(floorf(ty - want), 0.0, LIFT_MAX)
+
+
 func _welder(t: float) -> void:
 	weld_now = {"on": false, "x": 0.0, "y": 0.0}
 	var LS := _lift_sprite()
@@ -471,12 +515,52 @@ func _welder(t: float) -> void:
 	var P0 := weld_pose(t)
 	var F := sprite("welder_strip", int(P0["f"]))
 	var wx := LIFT.x - 4.0
-	var wb := LIFT.y - float(LS["foot"]) + float(LS["deck"])
+	var rise := _lift_rise(LS, wx)
+	lift_rise = rise
+	var wb := LIFT.y - float(LS["foot"]) + float(LS["deck"]) - rise
 	var tip: Array = F["tip"]
 	weld_now = {"on": bool(P0["on"]), "x": floorf(wx - float(F["cx"]) + float(tip[0]) + 0.5), "y": wb - float(F["foot"]) + float(tip[1])}
 	item(LIFT.y, LIFT.y < SHIP_ROW, func(P: YardPaint) -> void:
 		put(P, F, wx, wb, {"floor": LIFT.y, "shadow": false, "mirror": false})
-		put(P, LS, LIFT.x, LIFT.y, {"k": 0.5}))
+		_put_lift(P, LS, rise))
+
+
+## The lift, risen: its chassis and scissors where they stand, more scissors
+## stacked on them for every row it has gone up, and the platform on top --
+## each with its reflection in the floor, as `put` gives the whole picture.
+func _put_lift(P: YardPaint, LS: Dictionary, rise: float) -> void:
+	if rise <= 0.0:
+		put(P, LS, LIFT.x, LIFT.y, {"k": 0.5})
+		return
+	var band: Array = LIFT_BAND.get(level, [int(LS["deck"]) + 1, int(LS["foot"]) - 6])
+	var b0 := float(band[0])
+	var b1 := float(band[1])
+	var w := float(LS["w"])
+	var low := LS.duplicate()
+	low["src"] = Rect2(0, b0, w, float(LS["h"]) - b0)
+	low["h"] = float(LS["h"]) - b0
+	low["foot"] = float(LS["foot"]) - b0
+	put(P, low, LIFT.x, LIFT.y, {"k": 0.5})
+	var left := floorf(LIFT.x - float(LS["cx"]) + 0.5)
+	var top := LIFT.y - float(LS["foot"])
+	var fl := LIFT.y
+	var pieces: Array = []
+	var bh := b1 - b0
+	var y := top + b0
+	var left_rows := rise
+	while left_rows > 0.0:
+		var hh := minf(bh, left_rows)
+		y -= hh
+		pieces.append([Rect2(0, b1 - hh, w, hh), y])
+		left_rows -= hh
+	pieces.append([Rect2(0, 0, w, b0), top - rise])
+	for pc: Array in pieces:
+		var src: Rect2 = pc[0]
+		var py: float = pc[1]
+		P.use(YardPaint.MIRROR)
+		P.mirror(LS["tex"], src, left, 2.0 * fl + 1.0 - (py + src.size.y - 1.0), 0.2, TINT, false)
+		P.use(YardPaint.FLOOR, YardScene.cell(LIFT.x, fl))
+		P.tex(LS["tex"], Vector2(left, py), src, Color.WHITE, false)
 
 
 func _sparks(t: float, dt: float) -> void:
@@ -497,7 +581,7 @@ func _sparks(t: float, dt: float) -> void:
 		if not LS.is_empty():
 			var L0 := LIFT.x - float(LS["cx"]) + float(LS["x0"]) - 1.0
 			var L1 := LIFT.x - float(LS["cx"]) + float(LS["x1"]) + 1.0
-			var deck := LIFT.y - float(LS["foot"]) + float(LS["deck"])
+			var deck := LIFT.y - float(LS["foot"]) + float(LS["deck"]) - lift_rise
 			var stop := deck if float(s["x"]) >= L0 and float(s["x"]) <= L1 else LIFT.y + 1.0
 			if float(s["y"]) >= stop and float(s["vy"]) > 0.0:
 				s["y"] = stop
@@ -1549,6 +1633,10 @@ func tick(t: float, dt: float) -> void:
 	_shuffle_step(t)
 	_crew(t)
 	_welder(t)
+	# THE WELDER'S SPARKS RAIN DOWN, as on the page. `_sparks` was ported and
+	# never called, so the arc lit the hull with nothing falling from it (Jon:
+	# "can we have the sparks?").
+	_sparks(t, dt)
 	_desk(t)
 	_engine(t)
 	_bench(t)

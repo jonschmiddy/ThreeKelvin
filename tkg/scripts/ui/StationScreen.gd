@@ -473,7 +473,7 @@ func _yard_box(n: MapGen.MapNode) -> Control:
 	# The deck may already be the one on screen: the yard is built on the first
 	# refresh, after the station opened on it.
 	if _tab == &"services":
-		_scene.power_on()
+		_power_deck(&"services")
 	return box
 
 
@@ -1025,7 +1025,7 @@ func _deck_cell(id: StringName, deck: String, what: String) -> Button:
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_theme_constant_override("separation", 1)
 
-	var title := UITheme.body(deck, UITheme.CHILL, UITheme.FS_BODY)
+	var title := UITheme.body(deck, UITheme.CHILL, UITheme.FS_HEAD)
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(title)
 	var note := UITheme.body(what, UITheme.COLD, UITheme.FS_SMALL)
@@ -1061,6 +1061,21 @@ func _undock_cell() -> Control:
 	return out
 
 
+## A DECK POWERS ON ONCE A DOCKING. Jon: once a station's or a lab's power-on
+## has played, going to the star chart and back must not play it again. Coming
+## back builds this screen afresh, so `Router.powered` remembers which decks are
+## on; those come up settled, quiet and already running. Undocking clears it.
+func _power_deck(id: StringName) -> void:
+	var settled: bool = Router.powered.has(id)
+	if id == &"bench" and _lab != null:
+		_lab.power_on(settled)
+	elif id == &"services" and _scene != null and is_instance_valid(_scene):
+		_scene.power_on(settled)
+	else:
+		return
+	Router.powered[id] = true
+
+
 func _show_tab(id: StringName) -> void:
 	if not _pages.has(id) or not _tabs_on.get(id, true):
 		return
@@ -1069,13 +1084,10 @@ func _show_tab(id: StringName) -> void:
 		(_pages[key] as Control).visible = key == id
 	_light_floor()
 	# THE LAB POWERS ON the first time you step onto its deck here: the lamps
-	# strike, the room fades up and the screen scans the recipes on.
-	if id == &"bench" and _lab != null:
-		_lab.power_on()
-	# THE YARD'S TV POWERS ON the first time you step onto the deck, and the
-	# drones fly in after it.
-	if id == &"services" and _scene != null and is_instance_valid(_scene):
-		_scene.power_on()
+	# strike, the room fades up and the screen scans the recipes on. THE YARD'S
+	# TV POWERS ON the first time you step onto the deck, and the drones fly in
+	# after it.
+	_power_deck(id)
 	for key in _tabs:
 		var b: Button = _tabs[key]
 		var on: bool = key == id

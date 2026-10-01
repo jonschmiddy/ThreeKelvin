@@ -78,6 +78,9 @@ func run(tree: SceneTree) -> void:
 			# The Laboratory held this many seconds after it powered on: `6`
 			# is settled, under three is the power-on itself.
 			LabScene.pin_clock = float(s3.substr(9))
+		elif s3 == "roomview":
+			# The room's backdrop and its walkers alone, no room round them.
+			StationRoom.view_only = true
 		elif s3.begins_with("backdrop="):
 			StationRoom.forced_views[&"backdrop"] = StringName(s3.substr(9))
 		elif s3.begins_with("yardclock="):
@@ -276,6 +279,11 @@ func run(tree: SceneTree) -> void:
 	if "nofaults" in OS.get_cmdline_user_args():
 		Run.dross = []
 		print("  nofaults: %d faults aboard" % Run.dross_count())
+	# `hullfull` docks with the hull whole, so PATCH and REPAIR have nothing to
+	# sell and their drones stay away (`YardDrones._stay_away`).
+	if "hullfull" in OS.get_cmdline_user_args():
+		Run.hp = Run.max_hp()
+		print("  hullfull: hull %d of %d" % [Run.hp, Run.max_hp()])
 
 	# `-- stationshot full noyard` clears the blocks, so the Shipyard is drawn
 	# with nothing for sale. `full` guarantees a hull, which is right for almost
@@ -330,6 +338,40 @@ func run(tree: SceneTree) -> void:
 		scr0._show_tab(deck)
 		print("  deck: %s" % deck)
 		break
+
+	# `revisit`: A DECK POWERS ON ONCE A DOCKING. Let the deck power on, go to the
+	# star chart and back the way the HUD does, open the same deck again, and
+	# print whether it came back settled (already on, nothing replayed) or powered
+	# on a second time. Then undock and dock, where it must power on afresh
+	# (`revisit=chart` stops after the chart, to photograph the deck come back).
+	var cmd := OS.get_cmdline_user_args()
+	if cmd.has("revisit") or cmd.has("revisit=chart"):
+		var scr1 := Router.current as StationScreen
+		var deck1: StringName = scr1._tab if scr1 != null else &""
+		await tree.create_timer(1.5).timeout
+		var legs := ["chart and back"] if cmd.has("revisit=chart") else ["chart and back", "undock and dock"]
+		for leg: String in legs:
+			if leg == "chart and back":
+				Router.show_starchart()
+			else:
+				Router.show_sector()
+			await tree.create_timer(0.5).timeout
+			Router.show_station()
+			await tree.process_frame
+			var scr2 := Router.current as StationScreen
+			if scr2 == null:
+				print("  revisit: no station after %s" % leg)
+				break
+			if deck1 == &"bench" and not scr2._tabs_on.get(&"bench", true):
+				scr2._enable_tab(&"bench", true)
+			scr2._show_tab(deck1)
+			await tree.create_timer(0.5).timeout
+			var settled := false
+			if deck1 == &"bench" and scr2._lab != null:
+				settled = scr2._lab._boot_heard
+			elif deck1 == &"services" and scr2._scene != null:
+				settled = scr2._scene._clock - scr2._scene._tp >= YardScene.SETTLED
+			print("  revisit: %s after %s -- %s" % [deck1, leg, "settled, not powered on again" if settled else "powered on again"])
 
 	# `labtape=<path>`: the Laboratory's power-on as the game plays it, heard rather
 	# than seen -- every sound Audio really plays in the 4.5 s after the lab powers
@@ -807,6 +849,12 @@ func run(tree: SceneTree) -> void:
 		var t11 := maxf(0.0, ShopScene.pin_clock_ms - back11) if ShopScene.pin_clock_ms >= 0.0 else 0.0
 		var dir11 := (a11 as String).substr(9)
 		DirAccess.make_dir_recursive_absolute(dir11)
+		if StationRoom.view_only:
+			# `roomview`: nothing of the room over its backdrop, so what is
+			# filmed is the place outside and the people walking it.
+			for c11 in room11.get_children() + room11.get_parent().get_children():
+				if c11 is CanvasItem and c11 != room11:
+					(c11 as CanvasItem).visible = false
 		var box11 := Rect2i(room11.get_global_rect())
 		for i11 in frames11:
 			ShopScene.pin_clock_ms = t11 + float(i11) * step11
@@ -816,6 +864,70 @@ func run(tree: SceneTree) -> void:
 			var img11 := room11.get_viewport().get_texture().get_image().get_region(box11)
 			img11.save_png("%s/frame_%03d.png" % [dir11, i11])
 		print("  roomclip: %d frames from %.2fs to %s" % [frames11, t11 / 1000.0, dir11])
+		break
+
+	# `railclip=<dir>`: the elevator (`StationSpine`) as the game shows it, a
+	# frame every `clipms=M` (33) for `clipframes=N` (90), on the real clock its
+	# pictures play on -- to set against the frames `tools/room_stage/rail/`
+	# holds. Each file is named for the milliseconds it was taken at.
+	for a15 in OS.get_cmdline_user_args():
+		if not (a15 as String).begins_with("railclip="):
+			continue
+		var scr15 := Router.current as StationScreen
+		if scr15 == null or scr15._spine == null:
+			print("  railclip: no elevator on screen")
+			break
+		var frames15 := 90
+		var step15 := 33.0
+		for b15 in OS.get_cmdline_user_args():
+			if (b15 as String).begins_with("clipframes="):
+				frames15 = int((b15 as String).substr(11))
+			elif (b15 as String).begins_with("clipms="):
+				step15 = float((b15 as String).substr(7))
+		var dir15 := (a15 as String).substr(9)
+		DirAccess.make_dir_recursive_absolute(dir15)
+		var sp15 := scr15._spine
+		var box15 := Rect2i(sp15.get_global_rect())
+		for i15 in frames15:
+			await tree.create_timer(step15 / 1000.0).timeout
+			await RenderingServer.frame_post_draw
+			var img15 := sp15.get_viewport().get_texture().get_image().get_region(box15)
+			img15.save_png("%s/frame_%03d_%d.png" % [dir15, i15, Time.get_ticks_msec()])
+		print("  railclip: %d frames of %s to %s" % [frames15, box15, dir15])
+		break
+
+	# `labclip=<dir>`: the Laboratory as a run of frames on its own clock,
+	# `clipframes=N` (90) `clipms=M` apart (66), from `clipfrom=S` seconds after
+	# it powered on (6, settled) -- its lights, its monitor, its glass, as the
+	# game moves them. The lab's 740x431 alone, like `roomshot=`.
+	for a14 in OS.get_cmdline_user_args():
+		if not (a14 as String).begins_with("labclip="):
+			continue
+		var scr14 := Router.current as StationScreen
+		if scr14 == null or scr14._lab == null or not scr14._lab.is_visible_in_tree():
+			print("  labclip: no lab on screen")
+			break
+		var frames14 := 90
+		var step14 := 66.0
+		var from14 := 6.0
+		for b14 in OS.get_cmdline_user_args():
+			if (b14 as String).begins_with("clipframes="):
+				frames14 = int((b14 as String).substr(11))
+			elif (b14 as String).begins_with("clipms="):
+				step14 = float((b14 as String).substr(7))
+			elif (b14 as String).begins_with("clipfrom="):
+				from14 = float((b14 as String).substr(9))
+		var dir14 := (a14 as String).substr(8)
+		DirAccess.make_dir_recursive_absolute(dir14)
+		var lab14 := scr14._lab
+		var box14 := Rect2i(Vector2i(lab14.get_global_rect().position), Vector2i(LabScene.PANEL))
+		for i14 in frames14:
+			LabScene.pin_clock = from14 + float(i14) * step14 / 1000.0
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var img14 := lab14.get_viewport().get_texture().get_image().get_region(box14)
+			img14.save_png("%s/frame_%03d.png" % [dir14, i14])
+		print("  labclip: %d frames from %.2fs to %s" % [frames14, from14, dir14])
 		break
 
 	# `yardclip=<dir>`: the Shipyard as a run of frames on its own clock,
