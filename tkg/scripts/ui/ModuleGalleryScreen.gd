@@ -328,7 +328,8 @@ const LIFT_S := 0.09
 func _raise(icon: Control, up: bool) -> void:
 	if not is_instance_valid(icon):
 		return
-	var running: Variant = icon.get_meta(&"lift", null)
+	# has_meta first: Godot reads a null default as no default and complains.
+	var running: Variant = icon.get_meta(&"lift") if icon.has_meta(&"lift") else null
 	if running is Tween and (running as Tween).is_valid():
 		(running as Tween).kill()
 	if not Router.animating():
