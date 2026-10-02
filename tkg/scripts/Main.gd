@@ -218,6 +218,12 @@ func _ready() -> void:
 	#   godot --headless --path . -- maptest
 	# Does the option roller obey its own rules -- positional, gated, in plan:
 	#   godot --headless --path . -- optiontest
+	# Does the system map's layout keep its promises:
+	#   godot --headless --path . -- systemtest
+	if "systemtest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/SystemTest.gd").new().run()
+		get_tree().quit()
+		return
 	if "optiontest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/OptionTest.gd").new().run()
 		get_tree().quit()
@@ -633,6 +639,26 @@ func _ready() -> void:
 
 	# Every exhaust strip loaded and measured:  godot --headless --path . -- exhaust
 	# Headless on purpose: a plume that fails to load is invisible, not loud.
+	# Any contact sheet under scripts/sim/, by its file name:  -- sheet=<Name> [its own args]
+	# The renderer ports' comparison sheets use it, so a new one needs no edit here.
+	# Needs a window when the sheet draws a shader.
+	for a_sh in OS.get_cmdline_user_args():
+		if (a_sh as String).begins_with("sheet="):
+			add_child(load("res://scripts/sim/%s.gd" % (a_sh as String).substr(6)).new())
+			return
+	# Every kind of world, as the GPU paints it, on one sheet:  -- planetsheet=<png>
+	# Needs a window. Same seeds and light as the approved gallery page.
+	for a_ps in OS.get_cmdline_user_args():
+		if (a_ps as String).begins_with("planetsheet="):
+			add_child(load("res://scripts/sim/PlanetSheet.gd").new())
+			return
+	# Four real systems as JSON, for laying out the system map:  -- systemdump=<path>
+	for a_sd in OS.get_cmdline_user_args():
+		if (a_sd as String).begins_with("systemdump="):
+			_convoy_test = load("res://scripts/sim/SystemDump.gd").new()
+			_convoy_test.run(get_tree())
+			return
+
 	if "encdump" in OS.get_cmdline_user_args():
 		_convoy_test = load("res://scripts/sim/EncDump.gd").new()
 		_convoy_test.run(get_tree())
@@ -1440,16 +1466,23 @@ func _input(event: InputEvent) -> void:
 	# the escape menu either: the page behind it would change while you read it.
 	if Run.hull == null or Router.is_front_door(Router.current) or _menu != null:
 		return
-	# SHIP, SECTOR, STARCHART, round. The three screens a run is actually played
-	# on, in the order you move between them: what you are carrying, where you
-	# are, where you are going.
+	# SHIP, LOCAL, SECTOR, STARCHART, round. The screens a run is actually
+	# played on, in the order you move between them: what you are carrying,
+	# where you are side on, the sector round you, where you are going. LOCAL
+	# is the station while docked, as its tab is (Jon: "include local in the
+	# tabbable pages list").
 	#
 	# Each `show_` refuses on its own terms -- `show_ship` during a fight, the
 	# chart with nothing to jump to -- so a refused step simply leaves you where
 	# you were rather than needing a guard here.
 	if Router.current is ShipScreen:
-		Router.show_sector()
-	elif Router.current is SectorScreen:
+		if Router.docked:
+			Router.show_station()
+		else:
+			Router.show_local()
+	elif Router.current is SectorScreen or Router.current is StationScreen:
+		Router.show_system()
+	elif Router.current is SystemMapScreen:
 		Router.show_starchart()
 	else:
 		Router.show_ship()

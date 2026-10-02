@@ -151,21 +151,34 @@ func setup(n: MapGen.MapNode) -> void:
 
 	_light = Vector2(-1.0, -0.55) if r.randf() < 0.5 else Vector2(1.0, -0.55)
 	_light = _light.normalized()
-	var spectral := r.randf()
-	if spectral > 0.75:
-		_star_tint = Color("#ffffff")
-		_star_edge = Color("#8fb4d6")
-	elif spectral > 0.40:
-		_star_tint = Color("#f6f2e4")
-		_star_edge = Color("#b2a486")
-	else:
-		_star_tint = Color("#dff0ff")
-		_star_edge = Color("#6f9fc8")
+	# THE NODE'S OWN STAR, the one the system map draws. This used to roll a
+	# colour of its own, so a red giant's system could show a white sun here and
+	# a red one on the map. The draw is kept so everything after it rolls as it
+	# always did.
+	r.randf()
+	match n.star:
+		MapGen.Star.RED:
+			_star_tint = Color("#ffc29a")
+			_star_edge = Color("#c8603c")
+		MapGen.Star.BLUE:
+			_star_tint = Color("#eaf4ff")
+			_star_edge = Color("#6f9fe0")
+		_:
+			_star_tint = Color("#f6f2e4")
+			_star_edge = Color("#b2a486")
 	_dust = MapGen.star_colour(n)
 	_accent = _dust
 	if n.manufacturer != &"":
 		_accent = DB.manufacturer_colour(n.manufacturer)
 	_kind = _pick(n, r)
+	# AND ITS OWN GAS GIANT. The map has one if and only if the node does, so the
+	# side-on view agrees: a giant where the map has one, never where it has none.
+	# The places whose subject is something else keep it.
+	if n.type != MapGen.NodeType.PULSAR and n.type != MapGen.NodeType.CORE and n.type != MapGen.NodeType.START:
+		if n.gas_giant and _kind != Kind.GIANT:
+			_kind = Kind.GIANT
+		elif not n.gas_giant and _kind == Kind.GIANT:
+			_kind = Kind.PLANET
 	_has_sun = _kind != Kind.STAR and _kind != Kind.CORE
 	# Empty sky shows more stars because nothing is washing them out, and a
 	# nebula shows fewer because you are looking through gas.

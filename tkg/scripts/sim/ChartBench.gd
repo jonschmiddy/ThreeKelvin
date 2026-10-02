@@ -1,6 +1,6 @@
 extends RefCounted
 
-## What the star chart costs, still and while dragging:
+## What the star chart costs, still, dragged and zoomed:
 ##   godot --path . -- chartbench
 ##
 ## NEEDS A WINDOW, like every other measurement of drawing in this project:
@@ -10,14 +10,22 @@ extends RefCounted
 ## IT EXISTS BECAUSE "IT FEELS LAGGY" IS NOT A NUMBER. The chart holds 60fps
 ## standing still and drops while the galaxy is dragged, which points at
 ## `_repaint_galaxy` — the one thing a drag does that resting does not. This
-## times the two states against each other so a fix can be shown to have worked
+## times the states against each other so a fix can be shown to have worked
 ## rather than argued to have.
 ##
 ## Measured in FRAME TIME rather than fps, because fps is a rate and the thing
 ## being fixed is a cost: 60fps to 40fps sounds like a third gone and is
 ## actually 8ms of work added to a 16ms budget.
+##
+## FRAME TIME ALONE CAN HIDE THE COST. When the driver holds the swap to the
+## display, a frame that costs 3ms and one that costs 15ms both read 16.67, so
+## each sample also prints what the chart's layers spent in GDScript drawing
+## (`MapChart.prof`) and what the GPU spent on the game's frame.
 
 const FRAMES := 240
+
+var _gpu_rid := RID()
+var _measuring := false
 
 
 func run(tree: SceneTree) -> void:
@@ -27,6 +35,18 @@ func run(tree: SceneTree) -> void:
 	# precisely 60fps and the difference was -0.00ms.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
+	# NOTHING FROM THE KEYBOARD OR THE MOUSE, while it measures. The window takes
+	# focus when it opens, and this bench holds one chart for some five hundred
+	# frames: a Tab from whoever is at the machine cycles to the ship screen, a
+	# click on a HUD tab swaps the screen, and either frees the chart under the
+	# next nudge -- the "previously freed" crash at the drag sample. Nothing in
+	# the chart or the router frees it on its own; one Tab sent to a bench-like
+	# run did it every time, and with input off here it did not.
+	tree.root.gui_disable_input = true
+	StarchartScreen.MapChart.prof = true
+	if GameShell.instance != null:
+		_gpu_rid = GameShell.instance.view.get_viewport_rid()
+		RenderingServer.viewport_set_measure_render_time(_gpu_rid, true)
 	# Rng.forced, NOT Rng.reseed -- see ChartFilter, which already learned this.
 	# start_new_run rolls its own master seed, so a reseed before it changes
 	# nothing and every run of this bench drew a DIFFERENT galaxy: 157, 244, 332
@@ -42,6 +62,20 @@ func run(tree: SceneTree) -> void:
 	# THE TITLE SCREEN FIRST, because it draws the same galaxy and is where the
 	# worst frame rate was reported. It is also the screen a player sees before
 	# anything else, so a slow one is the game's first impression.
+	#
+	# Its galaxy is rolled off the global generator, once a process, so it is
+	# seeded here or the title would be a different galaxy -- and a different
+	# number -- every run of the bench.
+	#
+	# AND THE RUN'S GALAXY IS PUT BACK AFTER. The launcher writes its own into
+	# `Run.galaxy` (it expects no run to be live), so every chart sample after
+	# it used to measure the TITLE's galaxy at the chart's size: 70k primitives
+	# one run, 100k the next, from the same seed.
+	var run_galaxy: Dictionary = Run.galaxy.duplicate(true)
+	var run_kind: int = Run.galaxy_kind
+	var run_seed: int = Run.galaxy_seed
+	LauncherScreen._sky_kind = -1
+	seed(4242)
 	Router.show_launcher()
 	# WARMED BY THE CLOCK, NOT BY A FRAME COUNT. `_build_stars()` costs 350-420ms
 	# for a galaxy it has not seen, and the launcher builds its own; sixty frames
@@ -51,8 +85,11 @@ func run(tree: SceneTree) -> void:
 	var warm := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - warm < 2000:
 		await RenderingServer.frame_post_draw
-	var title := await _sample(tree, null, false, "title")
+	var title := await _sample(tree, null, "", "title")
 
+	Run.galaxy = run_galaxy
+	Run.galaxy_kind = run_kind
+	Run.galaxy_seed = run_seed
 	Router.show_starchart()
 	for i in 60:
 		await RenderingServer.frame_post_draw
@@ -61,29 +98,37 @@ func run(tree: SceneTree) -> void:
 		print("no chart")
 		tree.quit()
 		return
+	_watch(chart)
 
-	var still := await _sample(tree, chart, false, "still")
-	var dragged := await _sample(tree, chart, true, "drag")
+	_measuring = true
+	var still := await _sample(tree, chart, "", "still")
+	var dragged := await _sample(tree, chart, "drag", "drag")
+	var zoomed := await _sample(tree, chart, "zoom", "zoom")
+	_measuring = false
 
 	print("\n=== CHART ===")
 	print("  %d systems on the map" % Run.map.size())
-	print("  title    %.2f ms/frame  (%.0f fps)" % [title, 1000.0 / maxf(0.01, title)])
-	print("  still    %.2f ms/frame  (%.0f fps)" % [still, 1000.0 / maxf(0.01, still)])
-	print("  dragging %.2f ms/frame  (%.0f fps)" % [dragged, 1000.0 / maxf(0.01, dragged)])
-	print("  the drag costs %.2f ms a frame" % [dragged - still])
+	for row in [["title", title], ["still", still], ["dragging", dragged],
+			["zooming", zoomed]]:
+		var ms: float = row[1]
+		print("  %-9s %.2f ms/frame  (%.0f fps)" % [row[0], ms, 1000.0 / maxf(0.01, ms)])
+	print("  the drag costs %.2f ms a frame, the zoom %.2f" % [dragged - still, zoomed - still])
 
-	# AND A LOOK AT IT, because a frame time is not a picture. The backdrop is
-	# slid rather than repainted now, so the two things that could go wrong are
-	# invisible to a stopwatch: the sky landing at the wrong offset, and the
-	# trailing edge running out of stars mid-drag.
+	# AND A LOOK AT IT, because a frame time is not a picture. The two things
+	# that can go wrong while the view moves are invisible to a stopwatch: the
+	# sky landing at the wrong offset, and the trailing edge running out of stars
+	# mid-drag. `-- sheet=ChartSheet` is the pixel-exact version of this.
 	Router.show_launcher()
 	for i in 30:
 		await RenderingServer.frame_post_draw
-	tree.root.get_texture().get_image().save_png("user://bench_title.png")
+	_save(tree, "user://bench_title.png")
+	Run.galaxy = run_galaxy
+	Run.galaxy_kind = run_kind
+	Run.galaxy_seed = run_seed
 	Router.show_starchart()
 	for i in 30:
 		await RenderingServer.frame_post_draw
-	tree.root.get_texture().get_image().save_png("user://bench_chart.png")
+	_save(tree, "user://bench_chart.png")
 	# A NEW chart: showing the launcher freed the one measured above, and
 	# reusing that reference is a use-after-free the engine catches for you.
 	chart = (Router.current as StarchartScreen)._chart
@@ -91,9 +136,24 @@ func run(tree: SceneTree) -> void:
 	for i in 90:
 		_nudge(chart, 0)
 		await RenderingServer.frame_post_draw
-	tree.root.get_texture().get_image().save_png("user://bench_drag.png")
+	_save(tree, "user://bench_drag.png")
 	print("  shots: " + ProjectSettings.globalize_path("user://"))
 	tree.quit()
+
+
+## Says out loud if the measured chart leaves the tree while it is being
+## measured, and what took its place. A chart freed under the bench is a
+## use-after-free at the next nudge, and the screen that replaced it is the
+## whole of the diagnosis.
+func _watch(chart: Node) -> void:
+	chart.tree_exiting.connect(func() -> void:
+		if _measuring:
+			print("  !! the measured chart left the tree mid-sample; Router.current is %s"
+				% Router.current))
+
+
+func _save(tree: SceneTree, path: String) -> void:
+	tree.root.get_texture().get_image().save_png(path)
 
 
 ## Mean frame time over FRAMES, optionally moving the view every frame.
@@ -101,33 +161,64 @@ func run(tree: SceneTree) -> void:
 ## The first frames of either state are discarded: the first drag frame pays for
 ## whatever the still state had cached, and counting it measures the transition
 ## rather than the state.
-func _sample(tree: SceneTree, chart: Node, drag: bool, label := "") -> float:
+func _sample(tree: SceneTree, chart: Node, move: String, label := "") -> float:
 	for i in 20:
-		if drag and chart != null:
-			_nudge(chart, i)
-		await RenderingServer.frame_post_draw
+		if not await _step(chart, move, i):
+			return -1.0
+	StarchartScreen.MapChart.prof_us.clear()
+	var gpu := 0.0
 	var t0 := Time.get_ticks_usec()
 	for i in FRAMES:
-		if drag and chart != null:
-			_nudge(chart, i)
-		await RenderingServer.frame_post_draw
+		if not await _step(chart, move, i):
+			return -1.0
+		if _gpu_rid.is_valid():
+			gpu += RenderingServer.viewport_get_measured_render_time_gpu(_gpu_rid)
 	var t1 := Time.get_ticks_usec()
-	# WHAT THE FRAME SUBMITTED, not just how long it took. The star field is
+	# WHAT THE FRAME SUBMITTED, not just how long it took. The star field was
 	# ~48,000 individual `draw_rect` calls, and a canvas item's command list is
 	# re-submitted EVERY frame whether or not `_draw` rebuilt it -- so skipping
-	# the repaint (which is what the slide does) removes the GDScript loop and
-	# leaves the submission. That is the floor this screen cannot get under
-	# without drawing the field as one thing instead of 48,000 things.
-	print("      [%s] %d draw calls, %.0fk primitives a frame" % [
+	# the repaint removes the GDScript loop and leaves the submission. Drawing
+	# the field as one mesh is what took that away.
+	print("      [%s] %d draw calls, %.0fk primitives a frame, GPU %.2f ms" % [
 		label,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
-		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0])
+		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0,
+		gpu / float(FRAMES)])
+	var parts := []
+	for k in ["backdrop", "deep", "halo", "anim", "chart", "push"]:
+		var us := int(StarchartScreen.MapChart.prof_us.get(k, 0))
+		parts.append("%s %.2f" % [k, float(us) / float(FRAMES) / 1000.0])
+	print("      [%s] GDScript drawing, ms a frame: %s" % [label, ", ".join(parts)])
 	return float(t1 - t0) / float(FRAMES) / 1000.0
+
+
+## One frame of the state: a drag nudge, a zoom step, or nothing. False when the
+## chart is gone, which ends the sample rather than touching a freed object.
+func _step(chart: Node, move: String, i: int) -> bool:
+	if move != "":
+		if not is_instance_valid(chart):
+			print("      the chart was freed mid-sample; stopping this sample")
+			return false
+		if move == "drag":
+			_nudge(chart, i)
+		else:
+			_zoom(chart, i)
+	await RenderingServer.frame_post_draw
+	return true
 
 
 ## One frame of a drag, as `_gui_input` would produce it.
 func _nudge(chart: Node, i: int) -> void:
 	var d := 3.0 if (i / 30) % 2 == 0 else -3.0
+	var before: Vector2 = chart.pan
 	chart.pan += Vector2(d, d * 0.4)
 	chart._clamp_pan()
+	chart.sky_pan += chart.pan - before
 	chart._repaint_galaxy()
+
+
+## One frame of a wheel held down, about the middle of the chart: in for half a
+## second, out for half a second, so the zoom stays inside its range.
+func _zoom(chart: Node, i: int) -> void:
+	var f := 1.03 if (i / 30) % 2 == 0 else 1.0 / 1.03
+	chart._zoom_at(chart.size * 0.5, f)

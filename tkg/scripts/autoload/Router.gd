@@ -176,7 +176,7 @@ func _refresh_sky() -> void:
 		return
 	var interior := current is StationScreen
 	var has_own := current is LauncherScreen or current is StarchartScreen \
-		or current is SectorScreen
+		or current is SectorScreen or current is SystemMapScreen
 	sky.set_active(not interior and not has_own)
 	if Run.map.size() > 0:
 		sky.setup(Run.node_at())
@@ -226,7 +226,7 @@ func _autosave() -> void:
 func _room_for(screen: Control) -> Variant:
 	if screen is StationScreen:
 		return &"amb_station"
-	if screen is SectorScreen:
+	if screen is SectorScreen or screen is SystemMapScreen:
 		return _star_room()
 	if screen is ShipScreen or screen is CardGalleryScreen \
 			or screen is ModuleGalleryScreen or screen is TransferScreen \
@@ -331,7 +331,9 @@ func show_chassis_select() -> void:
 	var s := ChassisSelect.new()
 	_swap(s)
 	s.setup()
-	s.launched.connect(show_sector)
+	# A NEW RUN OPENS ON LOCAL, your ship side on (Jon: "when you start the game,
+	# you start in the local view"); the sector map is a tab away
+	s.launched.connect(show_local)
 
 ## Resume the suspend save. Falls back to the launcher rather than to a new run:
 ## a player who pressed CONTINUE did not ask to start over, and silently rolling
@@ -424,11 +426,59 @@ func _show_starchart() -> void:
 	_swap(s)
 	s.setup()
 
+## WHERE YOU ARE: the system map (Jon: "a system map like Starfield's"), or the
+## side-on view while a fight is on or a jump is leaving. Every caller that
+## means "back to the place" comes through here -- UNDOCK, the HUD tab, the
+## galleries' BACK, the end of a fight -- so they all land on the map.
+func show_sector() -> void:
+	# A HELLBENDER AT ANCHOR is the one thing this system offers until it is
+	# dealt with; the map would let you walk round it.
+	var held := Run.hellbender_alive() and Run.hellbender_at == Run.at
+	if in_combat() or _post_depart >= 0 or held:
+		show_local()
+	else:
+		_undock()
+		show_system()
+
+
+## The system map. The ship warps in at the edge on arrival; coming back to a
+## system you are already in, it is where you left it. A VIEW, NOT A MOVE: from
+## the berth it shows the system without undocking, and LOCAL (reading
+## STATION) goes back.
+func show_system() -> void:
+	if Run.dead:
+		show_game_over()
+		return
+	if in_combat() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
+		show_local()
+		return
+	# The map plays its own arrival, so the side-on approach is spent here.
+	var arrived: bool = take_arrival()[0]
+	if arrived:
+		SectorScreen._approached_at = Run.at
+	Audio.music_state(&"sector")
+	var s := SystemMapScreen.new()
+	_swap(s)
+	s.show_system(Run.node_at(), 0.0, arrived)
+
+
+## Leaving the berth, by whichever door.
+func _undock() -> void:
+	if docked:
+		Audio.suppress(&"ui_tab", 200)
+		if ResourceLoader.exists(Audio.SFX_PATH % &"station_undock"):
+			Audio.play(&"station_undock", 0.03)
+		SectorScreen._approached_at = Run.at
+	docked = false
+
+
+## LOCAL: the side-on view of the system, where the jump leaves from and every
+## fight is fought.
 ## Where you are. Always available, including after the run ends.
 ## No combat guard here. after_combat() routes here from inside the fight, so a
 ## "are we in combat" check would swallow the very transition that ends it — the
 ## HUD disables the SECTOR tab during a fight, which is where that belongs.
-func show_sector() -> void:
+func show_local() -> void:
 	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
 	# this flag inside the refresh that signal triggers.
 	# UNDOCKING IS NOT A PAGE CHANGE either: leaving the berth is the ship
@@ -619,7 +669,7 @@ func begin_jump(index: int) -> void:
 	# misfire (Jon). SectorScreen suppresses the same sound again at the commit,
 	# for the swap on the far side.
 	Audio.suppress(&"ui_tab", 200)
-	show_sector()
+	show_local()
 
 ## Read-and-clear: which jump this sector is departing on, or -1.
 func take_depart() -> int:
@@ -709,7 +759,7 @@ func resolve_current_node() -> void:
 	# by design. See the CORE note below.
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		Run.log_line("The Hellbender rides at anchor here, holds glowing with everything it has taken. It is between you and the rest of the system.", &"big")
-		show_sector()
+		show_local()
 		return
 
 	match n.type:

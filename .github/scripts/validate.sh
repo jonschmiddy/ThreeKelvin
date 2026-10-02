@@ -315,6 +315,21 @@ if run_godot optiontest 180 --headless --path "$PROJECT" -- optiontest; then
 	fi
 fi
 
+step "Every system lays out its map with every option on a body"
+# SystemLayout is derived and never saved, so what it gets wrong is wrong
+# silently: an option with no body is an encounter nobody can click, an
+# unstable layout moves a planet between a save and a load, and an orbit run
+# through a body draws one world on top of another.
+if run_godot systemtest 180 --headless --path "$PROJECT" -- systemtest; then
+	if grep -qE '^systemtest: PASS' "$LOG_DIR/systemtest.log"; then
+		ok "every system lays out cleanly"
+	else
+		bad "a system laid out wrong"
+		grep -E '^  FAIL|^systemtest' "$LOG_DIR/systemtest.log" \
+			| head -n 12 | sed 's/^/        /'
+	fi
+fi
+
 step "A destination name fits the height the panel reserves for it"
 # The right-hand panel is as tall as its content and the chart shares a row with
 # it, so a name that wraps one line further than the panel reserves moves the

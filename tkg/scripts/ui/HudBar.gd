@@ -45,6 +45,10 @@ var _built: bool = false
 
 var _tab_ship: Button
 var _tab_sector: Button
+## The sector map (Jon: "rename system to sector"). `_tab_sector` is LOCAL beside it: the side-on view, which
+## reads COMBAT in a fight and STATION at a berth (Jon: "local would become
+## combat and station").
+var _tab_system: Button
 var _tab_chart: Button
 var _tab_cards: Button
 var _tab_parts: Button
@@ -183,6 +187,8 @@ func _build() -> void:
 	_row.add_child(_tab_sector)
 	_tab_sector.custom_minimum_size = Vector2(
 		_tab_sector.get_combined_minimum_size().x, 0)
+	_tab_system = _tab("SECTOR", func() -> void: Router.show_system())
+	_row.add_child(_tab_system)
 	_tab_chart = _tab("STARCHART", func() -> void: Router.show_starchart())
 	_row.add_child(_tab_chart)
 	# The archive joined the nav rather than sitting off at the right-hand end
@@ -388,8 +394,8 @@ func refresh() -> void:
 	elif Router.docked:
 		_tab_sector.text = "STATION"
 	else:
-		_tab_sector.text = "SECTOR"
-	var here_hint := "What is around you."
+		_tab_sector.text = "LOCAL"
+	var here_hint := "Your ship, side on, where you are."
 	if fighting:
 		here_hint = "The fight you are in."
 	elif Router.docked:
@@ -397,6 +403,8 @@ func refresh() -> void:
 	_state(_tab_sector,
 		Router.current is SectorScreen or Router.current is StationScreen or fighting,
 		choose_lock, here_hint)
+	_state(_tab_system, Router.current is SystemMapScreen, lock,
+		"The star, what goes round it, and everything out here that wants you.")
 	_state(_tab_chart, Router.current is StarchartScreen, lock, "Where to go next.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")
@@ -470,7 +478,7 @@ func _go_here() -> void:
 	if Router.docked:
 		Router.show_station()
 	else:
-		Router.show_sector()
+		Router.show_local()
 
 ## Make a readout able to receive the hover that shows a tooltip. Label defaults
 ## to MOUSE_FILTER_IGNORE, so setting tooltip_text alone is silently a no-op —

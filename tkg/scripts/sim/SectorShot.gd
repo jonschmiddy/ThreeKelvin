@@ -188,7 +188,7 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var font := ThemeDB.fallback_font
 		var worst := 0.0
-		for word in ["PLOT NEXT JUMP", "SECTOR LOOT - 12", "DOCK", "SUMMARY",
+		for word in ["SCAN SECTOR", "SECTOR LOOT - 12", "DOCK", "SUMMARY",
 				"HARVEST", "DECIDE LATER"]:
 			var w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1,
 				UITheme.FS_SMALL).x

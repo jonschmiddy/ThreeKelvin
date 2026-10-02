@@ -543,6 +543,16 @@ func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 			float(ROOM_LEVELS.get(name, ROOM_DB)), fade_s)
 
 
+## Where the room tone `name` is in its loop, in seconds, as heard: the
+## player's position plus the time since the last mix, less the output latency.
+## -1 if that room is not the one playing. The system map keeps the pulsar's
+## beam on the passes of `amb_pulsar` with it.
+func room_clock(name: StringName) -> float:
+	if _room == null or not _room.playing or _room_now != name:
+		return -1.0
+	return _room.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
+
+
 ## THE STATION DEALS ITS OWN LINES NOW.
 ##
 ## Six announcements used to be baked into the six-minute bed at fixed offsets,

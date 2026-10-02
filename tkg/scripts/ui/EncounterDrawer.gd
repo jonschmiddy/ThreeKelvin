@@ -39,9 +39,14 @@ class_name EncounterDrawer
 ##
 ## Narrower than either, and then narrower again. They were sized to fill a row
 ## that had nothing else in it; with three abreast they only need to hold their
-## own words. 104 fits "PLOT NEXT JUMP" and "SECTOR LOOT - 12" at FS_SMALL with
+## own words. 104 fits TO_SECTOR and "SECTOR LOOT - 12" at FS_SMALL with
 ## the stylebox's own padding either side and nothing spare.
 const BTN := Vector2(94, 20)
+
+## LOCAL'S WAY OUT, to the sector map (Jon: "PLOT NEXT JUMP ... should become
+## VIEW SECTOR ... or something cool like that"). The jump itself is plotted
+## from the map, as the chart is reached from there.
+const TO_SECTOR := "SCAN SECTOR"
 
 ## One encounter, as a plate you click into.
 ##
@@ -267,7 +272,7 @@ static func head(text: String, on_jump: Callable, loose: int = 0,
 		row.add_child(loot)
 	# NO CLICK: the page turn is this button's sound. See
 	# SectorScreen._plot_next_jump.
-	var b := Widgets.button("PLOT NEXT JUMP", on_jump, false)
+	var b := Widgets.button(TO_SECTOR, on_jump, false)
 	b.custom_minimum_size = BTN
 	row.add_child(b)
 	return row
@@ -826,7 +831,7 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 			return ["A hab ring turns slowly, lights on. They will trade, repair and refuel, all of it out of the same pocket.", "DOCK"]
 		MapGen.NodeType.SYSTEM:
 			if n.eaten:
-				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", "PLOT NEXT JUMP"]
+				return ["Cut open along the spine, and the cuts are fresh. The Hellbender fed here first.", TO_SECTOR]
 			# THE LIST SAYS WHAT IS HERE; this line only says where you are. It
 			# used to name a button -- LOOK -- because a system opened one thing
 			# at a time, and the button is now every row below.
@@ -839,27 +844,27 @@ static func quiet_lines(n: MapGen.MapNode) -> Array:
 				# only ever means you took it all -- and in a setting whose premise
 				# is extraction from a universe running down, that is not a
 				# completion tick. A small subtraction, which is also simply true.
-				return ["Nothing else here wants anything from you.", "PLOT NEXT JUMP"]
-			return ["The lane is quiet and the board is not.", "PLOT NEXT JUMP"]
+				return ["Nothing else here wants anything from you.", TO_SECTOR]
+			return ["The lane is quiet and the board is not.", TO_SECTOR]
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
 				return ["The beam still sweeps. Nothing left aboard can hold any more of it.",
-					"PLOT NEXT JUMP"]
+					TO_SECTOR]
 			return ["A neutron star, turning eleven times a second. Its wind is the densest fuel in the galaxy, and anywhere close enough to scoop it, the beam will cook you through the hull.",
 				"FLY THE BEAM"]
 		MapGen.NodeType.START:
-			return ["Open space, and the reactor holding. The core is a long way in from here.", "PLOT NEXT JUMP"]
+			return ["Open space, and the reactor holding. The core is a long way in from here.", TO_SECTOR]
 		# The core, waiting. Arriving here no longer opens the fight, so this is
 		# what the screen says while the party gathers and somebody decides to
 		# commit — the line above the button has to name what pressing it does.
 		MapGen.NodeType.CORE:
 			if n.cleared:
-				return ["The light is behind you.", "PLOT NEXT JUMP"]
+				return ["The light is behind you.", TO_SECTOR]
 			if n.fled:
-				return ["You broke off. It is still between you and the light.", "PLOT NEXT JUMP"]
+				return ["You broke off. It is still between you and the light.", TO_SECTOR]
 			return ["The core fills the viewport. Something is still guarding it.", "ENGAGE"]
 		_:
-			return ["", "PLOT NEXT JUMP"]
+			return ["", TO_SECTOR]
 
 ## The intent strip is gone.
 ##

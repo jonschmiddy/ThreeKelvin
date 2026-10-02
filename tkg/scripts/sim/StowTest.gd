@@ -42,7 +42,7 @@ func run(tree: SceneTree) -> void:
 	# trigger is incidental.
 	Run.found_hull = DB.hull_frames[0]
 
-	Router.show_sector()
+	Router.show_local()
 	await tree.process_frame
 	var rail := _rail()
 	if not _ok("the rail opens with a hull on offer", rail != null and rail.visible):
@@ -70,7 +70,7 @@ func run(tree: SceneTree) -> void:
 		return _finish()
 	var hauls_before := Run.hauls
 	Run.at = to
-	Router.show_sector()
+	Router.show_local()
 	await tree.process_frame
 	_ok("and it is STILL shut on the next screen", not _rail_visible())
 	_ok("without anything having been added to the hold",
@@ -86,7 +86,7 @@ func run(tree: SceneTree) -> void:
 	# so arriving somewhere new with something loose in it has to speak up.
 	# A fresh haul is what un-hushes it, so the count has to move.
 	Run.stow(LootGen.roll_module(4))
-	Router.show_sector()
+	Router.show_local()
 	await tree.process_frame
 	_ok("a fresh haul opens it again", _rail_visible())
 
@@ -119,7 +119,37 @@ func run(tree: SceneTree) -> void:
 	_ok("so the hold is untouched by looking at it",
 		Run.cargo.size() == before and before > 0)
 
+	# THE SAME RULE ON THE SYSTEM MAP, which is where arriving lands you now and
+	# so where a player meets the offer. Its panel is rebuilt on every visit,
+	# the way the sector screen was, which is the case this file exists for.
+	Rng.reseed(8899, 0)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	Run.found_hull = DB.hull_frames[0]
+	Router.show_sector()
+	await _map_ready()
+	_ok("arriving lands on the system map", Router.current is SystemMapScreen)
+	var later := _find_button(Router.current, "DECIDE LATER")
+	_ok("the map's panel offers the hull", later != null)
+	if later != null:
+		later.pressed.emit()
+		await tree.process_frame
+		_ok("pressing DECIDE LATER there shuts it",
+			_find_button(Router.current, "DECIDE LATER") == null)
+		var to2 := _somewhere_else()
+		Run.at = to2
+		Router.show_sector()
+		await _map_ready()
+		_ok("and it is STILL shut on the next system's map",
+			_find_button(Router.current, "DECIDE LATER") == null)
+		_ok("with the offer still standing", Run.found_hull != null)
+
 	_finish()
+
+
+## The map fills its panel once the system is shown, which is a frame or two.
+func _map_ready() -> void:
+	for _i in 4:
+		await _tree.process_frame
 
 
 ## Print the verdict and end the process. EVERY EXIT GOES THROUGH HERE.

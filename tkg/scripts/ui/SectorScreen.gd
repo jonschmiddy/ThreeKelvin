@@ -1077,9 +1077,9 @@ func _drawer_simple(line: String, label: String) -> void:
 	# station, harvest a pulsar -- and only happens to be the chart at a system
 	# because a system's options are the rows above it. Wiring the jump to it
 	# would make PLOT NEXT JUMP dock you.
-	if label != "PLOT NEXT JUMP":
+	if label != EncounterDrawer.TO_SECTOR:
 		# NO CLICK ON THIS ONE, and see `_plot_next_jump` for why.
-		var jump := Widgets.button("PLOT NEXT JUMP", _plot_next_jump, false)
+		var jump := Widgets.button(EncounterDrawer.TO_SECTOR, _plot_next_jump, false)
 		jump.custom_minimum_size = EncounterDrawer.BTN
 		jump.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(jump)
@@ -1090,7 +1090,7 @@ func _drawer_simple(line: String, label: String) -> void:
 func _drawer_list(n: MapGen.MapNode) -> void:
 	var left := EncounterDrawer.untaken(n)
 	if n.options.is_empty():
-		_drawer_simple("Nothing else here wants anything from you.", "PLOT NEXT JUMP")
+		_drawer_simple("Nothing else here wants anything from you.", EncounterDrawer.TO_SECTOR)
 		return
 	# THE HEADING COUNTS THE LIVE ONES; THE ROW SHOWS THEM ALL. A system you
 	# have finished still has four cards in it, each wearing what it came to,
@@ -1130,7 +1130,7 @@ func _drawer_option(n: MapGen.MapNode) -> void:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	head.add_child(t)
-	var jb := Widgets.button("PLOT NEXT JUMP", _on_action)
+	var jb := Widgets.button(EncounterDrawer.TO_SECTOR, _on_action)
 	jb.custom_minimum_size = Vector2(148, 17)
 	head.add_child(jb)
 	_drawer.add_child(head)
@@ -1241,111 +1241,43 @@ func _take_choice(i: int, j: int) -> void:
 
 
 func _take(n: MapGen.MapNode, i: int, j: int) -> void:
-	var opt := OptionTable.by_id(n.options[i])
-	var choices: Array = opt.get("choices", [])
-	if j < 0 or j >= choices.size():
+	# THE RULES ARE `OptionResolve.take`'s: the system map's panel takes a choice
+	# through the same function, so the two screens cannot resolve an option two
+	# ways. This keeps only what is the drawer's -- the row held shut while the
+	# party answers, the result panel's fields, where the screen goes next.
+	var choices: Array = OptionTable.by_id(n.options[i]).get("choices", [])
+	if j < 0 or j >= choices.size() or not OptionResolve.affordable(choices[j]):
 		return
-	var c: Dictionary = choices[j]
-	if c.has("cost_credits") and Run.credits < int(c.cost_credits):
-		return
-	if c.has("needs_material") and Run.material(StringName(c.needs_material)) < 1:
-		return
-	_res_checked = c.has("check")
-	_res_stay = bool(c.get("stay", false))
-	# ASK THE PARTY FIRST -- the same door the wreck path uses. An option two
-	# ships can race for is arbitrated through `Run.take_option` before
-	# anything is rolled or paid: assume you won and both players pocket the
-	# payout, and the flag agreeing afterwards does not take it back. Walking
-	# away (`stay`) consumes nothing, so it does not ask. `_taking` holds the
-	# row shut while the answer is in the air.
-	if not _res_stay:
+	var stay := bool((choices[j] as Dictionary).get("stay", false))
+	if not stay:
 		if _taking:
 			return
 		_taking = true
-		var won_it: bool = await Run.take_option(n, MapGen.OPTION_SITE + i)
-		_taking = false
-		if not won_it:
-			var who := Net.taker_name(n.index, MapGen.OPTION_SITE + i)
+	var out: Dictionary = await OptionResolve.take(n, i, j)
+	_taking = false
+	if not out.ok:
+		if out.why == "too_late":
+			var who: String = out.get("who", "")
 			Run.log_line("Too late.%s" % (" %s got there first." % who.to_upper()
 				if who != "" else ""), &"them")
 			_refresh()
-			return
-	_res_band = SkillCheck.Band.MET
-	_res_odds = SkillCheck.odds_line(c.get("check", {}))
-	var call: Callable = c.get("effect", Callable())
-	if _res_checked:
-		_res_band = SkillCheck.roll(c.check)
-		call = SkillCheck.pick_outcome(c, _res_band)
-	# THE LEDGER OPENS BEFORE THE CHOICE RUNS. A gate you pay to attempt is part
-	# of what the option cost you, and a bill that started counting after the
-	# toll was taken would show a botched sixty-credit gamble as costing nothing.
-	#
-	# AND THE SCREEN DOES NOT TAKE THE MONEY. `cost_credits` is the price this
-	# row DISPLAYS and the affordability gate above refuses on; every priced
-	# choice in the table already spends it inside its own effect. Deducting it
-	# here as well charged the player twice -- the deep dock's thirty-credit
-	# tank cost sixty, and at exactly thirty credits the gate let the click
-	# through and `add_credits` floored the second charge at zero, so the price
-	# was everything you had. `Policy` never applied this deduction, so the
-	# simulator has always priced these options at one charge and the win rate
-	# in the gate was measured against that.
-	var was := Run.ledger()
-	var res: Dictionary = call.call() if call.is_valid() else {}
-	if typeof(res) != TYPE_DICTIONARY:
-		res = {}
-	_res = res
-	# AND AFTER `pay`, WHICH CAN STILL MOVE THE LEDGER. It does not cash
-	# materials out any more -- they are crates in a container -- but it is the
-	# one call that turns a payload into what the payload promised, so the books
-	# close on the far side of it or they close early.
-	OptionTable.pay(res, n)
-	_res_bill = EncounterDrawer.bill_rows(was, Run.ledger())
+		return
+	_res_checked = out.checked
+	_res_stay = out.stay
+	_res_band = out.band
+	_res_odds = out.odds
+	_res = out.res
+	_res_bill = out.bill
 	_res_seen = false
-	# SPENT NOW, NOT ON CONTINUE. The result is already applied -- credits moved,
-	# hull taken, a module in the hold -- so a player who closed the game on the
-	# result screen must not come back to an option they have already been paid
-	# for. `option_resolved` is the same bookkeeping the old path used.
-	#
-	# UNLESS NOTHING HAPPENED. A `stay` choice is walking away — no roll, no
-	# cost, no payout — and marking the card RESOLVED for it spent an encounter
-	# on the act of declining it. Declining leaves the thing exactly as found:
-	# the card stays live and you can come back with a fuller tank or a change
-	# of heart. Only a choice that DID something gets to close the door.
-	if not _res_stay:
-		Router.option_resolved(i, SkillCheck.band_result(_res_band) \
-			if _res_checked else MapGen.R_DONE)
-	if Run.dead:
+	if out.dead:
 		Router.show_game_over()
 		return
-	# A FIGHT YOU CHOSE DOES NOT NEED A PANEL IN FRONT OF IT. The result panel
-	# earns its click when there is something to read: which way a roll went,
-	# and what the branch cost. A choice with no check that starts a fight and
-	# moves nothing has neither, so it was one sentence and a button that said
-	# THEY ARE FIRING -- two clicks to start a fight the player had already
-	# asked for.
-	#
-	# ONLY THE UNCHECKED ONES. A botched check is exactly the case where the
-	# panel is the point: the prose is how you learn the roll turned on you, so
-	# `customs_cordon` and the rest still stop to say so. The line is logged
-	# either way, so nothing written for the moment is lost.
-	if not _res_checked and bool(res.get("fight", false)) \
-			and Run.ledger() == was and not _pays_anything(res):
-		var said := String(res.get("text", ""))
-		if said != "":
-			Run.log_line(said, &"them")
+	if out.fight_now:
 		Router.start_ambush()
 		return
 	_dstate = Drawer.RESULT
 	_refresh()
 
-
-## Whether an outcome handed over any of the things the result panel exists to
-## show. The ledger covers credits, fuel, heat and hull; this covers the rest.
-func _pays_anything(res: Dictionary) -> bool:
-	for k in ["module", "material", "material_id", "archive_recover", "place"]:
-		if res.has(k):
-			return true
-	return false
 
 func _on_action() -> void:
 	var n: MapGen.MapNode = Run.node_at()
@@ -1365,7 +1297,7 @@ func _on_action() -> void:
 			_plot_next_jump()
 		MapGen.NodeType.PULSAR:
 			if n.cleared:
-				Router.show_starchart()
+				Router.show_system()
 			else:
 				Router.harvest_pulsar()
 		# A contact you have not fought yet. For FIGHT that is a resumed run —
@@ -1375,11 +1307,11 @@ func _on_action() -> void:
 		# Router.resolve_current_node().
 		MapGen.NodeType.CORE:
 			if n.cleared or n.fled:
-				Router.show_starchart()
+				Router.show_system()
 			else:
 				Router.engage_here()
 		_:
-			Router.show_starchart()
+			Router.show_system()
 
 ## ONE SOUND FOR IT, AND IT IS THE PAGE TURNING.
 ##
@@ -1394,7 +1326,7 @@ func _on_action() -> void:
 ## argument) and `ui_tab` is left alone to play from `_swap`, where every
 ## screen change plays it.
 func _plot_next_jump() -> void:
-	Router.show_starchart()
+	Router.show_system()
 
 
 ## Reads the place, not the node type: "a hab ring, lights on" tells you where
