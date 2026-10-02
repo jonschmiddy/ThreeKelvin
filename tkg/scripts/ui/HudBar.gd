@@ -404,7 +404,7 @@ func refresh() -> void:
 		Router.current is SectorScreen or Router.current is StationScreen or fighting,
 		choose_lock, here_hint)
 	_state(_tab_system, Router.current is SystemMapScreen, lock,
-		"The star, what goes round it, and everything out here that wants you.")
+		"The star, what goes around it, and everything out here that wants you.")
 	_state(_tab_chart, Router.current is StarchartScreen, lock, "Where to go next.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")

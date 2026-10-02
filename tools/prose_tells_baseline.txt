@@ -1,8 +1,4 @@
 # Tells that predate prose_tells.py. `--strict` ignores these and
 # fails on anything new. Whether to fix them is a ruling, not a lint.
 # Re-record with --baseline after a real fix.
-systems/MaterialTable.gd states-the-point They hold a perfect charge, which is what an honest cell never quite does.
-systems/OptionTable.gd states-the-point They also give you a case of the company's rations, which is what they have plen
-systems/OptionTable.gd summing-closer That is the whole of what it was left here for.
-systems/OptionTable.gd summing-closer This is the only job it ever had.
-ui/HudBar.gd round The star, what goes round it, and everything out here that wants you.
+

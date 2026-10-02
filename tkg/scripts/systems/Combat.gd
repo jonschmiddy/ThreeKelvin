@@ -490,7 +490,7 @@ func _act_one(e: EnemyState) -> void:
 		_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 		Run.hellbender_breaks_off(e.hp)
 		_finish(&"broke_off",
-			"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
+			"It jumps blind and burning. It is hurt and hot, and it will mend. No salvage.")
 		return
 	_log("◂ %s: %s" % [e.template.name, I.name], &"them")
 	if I.block > 0:
@@ -1298,7 +1298,7 @@ func _on_fight_changed(at: int) -> void:
 		# it and written its hull back; this machine only has to stop fighting.
 		if f.broke:
 			_finish(&"broke_off",
-				"A blind jump, furnace-bright. It is gone: hurt, hot, and mending. No salvage.")
+				"It jumps blind and burning. It is hurt and hot, and it will mend. No salvage.")
 			return
 		# The host decides the fight is won, not this machine. Everyone still in
 		# it when the last hull came apart is paid, which is the ruling: winning
