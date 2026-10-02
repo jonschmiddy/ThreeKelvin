@@ -742,6 +742,34 @@ else
 	warn "no python for the encounter linter"
 fi
 
+step "The prose reads plainly, and does not explain itself"
+
+# Two tools, one question each. `prose_grade.py` holds the encounters to the
+# reading level ruled 2026-09-12 (grade 5, no sentence over 22 words); every
+# encounter met it when this step was added, so it needs no baseline.
+# `prose_tells.py` reads EVERY player-facing string for the tells the
+# encounter-prose skill lists -- "It is not X. It is Y." past one an encounter,
+# "which is the point", a summing-up closer, a dash, "round", hands in an
+# encounter -- and is BASELINED like the linter above: what predates it is a
+# ruling for Jon, not a lint failure. Its REVIEW list never fails the gate.
+if [ -n "$PY" ]; then
+	if "$PY" tools/prose_grade.py >/tmp/prosegrade.$$ 2>&1; then
+		ok "prose grade: $(tail -n 1 /tmp/prosegrade.$$)"
+	else
+		tail -n 1 /tmp/prosegrade.$$ | sed 's/^/        /'
+		bad "prose grade: encounters over the reading-level target (python tools/prose_grade.py)"
+	fi
+	if "$PY" tools/prose_tells.py --strict --quiet >/tmp/prosetells.$$ 2>&1; then
+		ok "prose tells: no new findings"
+	else
+		grep -A1 "NEW " /tmp/prosetells.$$ | head -20 | sed 's/^/      /'
+		bad "prose tells: new findings (see above; python tools/prose_tells.py)"
+	fi
+	rm -f /tmp/prosegrade.$$ /tmp/prosetells.$$
+else
+	warn "no python for the prose checks"
+fi
+
 step "One word for the thing: manufacturer"
 # A VOCABULARY RULING WITH NOTHING CHECKING IT DECAYS BACK. This project spent
 # months with four words for one concept -- house, maker, man, manufacturer --
