@@ -579,7 +579,8 @@ func _notification(what: int) -> void:
 		released.emit()
 	elif what == NOTIFICATION_DRAG_BEGIN:
 		var data: Variant = get_viewport().gui_get_drag_data()
-		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).has("module"):
+		# Cargo rides the same "module" key, and a material has no mount to light.
+		if typeof(data) == TYPE_DICTIONARY and (data as Dictionary).get("module") is ModuleData:
 			light((data as Dictionary).module)
 
 ## Follow the pointer over the hull, so `_draw` can say what is bolted on.
