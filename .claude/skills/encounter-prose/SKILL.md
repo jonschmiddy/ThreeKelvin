@@ -113,6 +113,13 @@ What the live 47 already carry (measured 2026-09-10), so expect these in new dra
 Do not edit the existing 47 in this pass (commission §6). These are for recognising
 the same moves in new work.
 
+`python tools/prose_tells.py` finds the mechanical ones in every player-facing
+string, not only encounters: the reframe past one an encounter, the narrator
+stating the point, summing-up closers, dashes, "round", hands in an encounter.
+The gate fails only on findings not in `tools/prose_tells_baseline.txt`. Its
+REVIEW list (cappers, runs of verbless fragments, soft words, reframes under the
+ceiling) is for reading, never for failing. Run it on a batch before the report.
+
 ## 3b. Jon's audit rulings (batches 01 to 06)
 
 From `HANDOFF-encounters-batches-01-06.md` §6, written after Jon corrected every

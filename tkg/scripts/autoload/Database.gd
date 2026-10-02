@@ -194,7 +194,7 @@ func _seed_manufacturers() -> void:
 ## an allegiance before they can evaluate a single number, and this is what they
 ## are actually choosing between.
 const BACKSTORY := {
-	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon. They inherited the jigs and kept stamping parts for a war that ended two centuries ago. Nothing they build is clever. Everything they build still works.",
+	&"korvan": "Tooled to a navy specification that outlived the navy. Korvan never designed a weapon. They inherited the jigs and kept stamping parts for a war that ended two centuries ago. Their parts are heavy and plain. Most of them still work.",
 	&"solari": "A guild of thermal engineers who lost an argument about safety margins and left to prove they were right. Solari hulls are rated for temperatures their crews are not. The company line is that heat is only waste if you fail to aim it.",
 	&"probate": "Nine breaker yards that stopped competing and started invoicing. The Combine does not prospect, explore, or build from raw stock; it follows other people's disasters and files the paperwork first. Their hulls are made of ships that had names.",
 	&"redline": "Chop shops with a trademark. Redline registers no serials, honours no warranty, and has never once been found at the address on its invoices. What they sell is speed and the absence of a record, and both are exactly as legal as your inspector is thorough.",

@@ -1,0 +1,4 @@
+# Tells that predate prose_tells.py. `--strict` ignores these and
+# fails on anything new. Whether to fix them is a ruling, not a lint.
+# Re-record with --baseline after a real fix.
+

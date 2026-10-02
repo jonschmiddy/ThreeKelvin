@@ -163,7 +163,7 @@ const KINDS := [
 		squash = 0.84, density = 0.60, reach = 0.76, core_share = 0.78, core_pow = 3.5, halo_pow = 1.85,
 		spread = 0.0, chaos = 0.20, ring = 0.0, bulge = 0.44, dust = 1.9,
 		tail = false, gas = 1.75,
-		blurb = "Small, and burning through what it has at a rate it cannot keep up. Everything this galaxy will ever make, it is making now.",
+		blurb = "Small, and burning through what it has at a rate it cannot keep up. It is making stars faster than its gas can last.",
 	},
 	{
 		name = "Dwarf Spheroidal", arms = 0, twist = 0.0, bar = 0.0,
