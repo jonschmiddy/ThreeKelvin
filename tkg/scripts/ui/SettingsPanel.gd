@@ -26,6 +26,10 @@ signal back_requested
 const VOLUME_STEPS: Array[float] = [0.2, 0.4, 0.6, 0.8, 1.0]
 
 var _body: VBoxContainer
+var _scroll: ScrollContainer
+## CONTROLS, the key bindings. Last, because it is the longest section and the
+## one visited least; `show_keys` scrolls to it.
+var keys_page: KeyBindings
 
 func _init() -> void:
 	add_theme_constant_override("separation", 6)
@@ -45,6 +49,7 @@ func build() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
+	_scroll = scroll
 	# ROOM FOR THE BAR. A ScrollContainer draws its scrollbar over the right
 	# edge of its content, so every value on the right -- 1920 x 1080, OFF, the
 	# last chip in a row -- sat under it (Jon).
@@ -75,6 +80,36 @@ func _refresh() -> void:
 	_page_motion()
 	_body.add_child(_gap(8))
 	_page_sound()
+	_body.add_child(_gap(8))
+	_page_keys()
+
+## CONTROLS: every key a player can move. The rows are their own widget
+## (KeyBindings) because a key changing rebuilds only them.
+func _page_keys() -> void:
+	_body.add_child(Section.new(&"keys", "CONTROLS"))
+	keys_page = KeyBindings.new()
+	_body.add_child(keys_page)
+	# THE MOUSE'S OWN, which are not keys and cannot be moved: listed so they are
+	# known (Jon: "You can add this control to the controls settings")
+	_body.add_child(_gap(4))
+	_body.add_child(UITheme.body("MOUSE (FIXED)", UITheme.CHILL, UITheme.FS_SMALL))
+	for line: String in ["SECTOR MAP: RIGHT-CLICK THE SELECTED PLACE TO ZOOM ONTO IT", "RIGHT-CLICK AGAIN, OR ON EMPTY SPACE, TO ZOOM OUT"]:
+		var l := UITheme.body(line, UITheme.COLD, UITheme.FS_SMALL)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_body.add_child(l)
+
+## Scroll so CONTROLS is at the top, for `-- settings=controls`; `at_end`
+## scrolls to the bottom instead, where RESET ALL is.
+func show_keys(at_end: bool = false) -> void:
+	if _scroll == null or keys_page == null:
+		return
+	if at_end:
+		_scroll.scroll_vertical = int(_body.size.y)
+		return
+	# The section head sits just above the rows; aim for it, not the first row.
+	var head := keys_page.get_index() - 1
+	var target: Control = _body.get_child(head) as Control if head >= 0 else keys_page
+	_scroll.scroll_vertical = int(target.position.y)
 
 func _page_screen() -> void:
 	_body.add_child(Section.new(&"display", "DISPLAY"))

@@ -119,6 +119,14 @@ func setup() -> void:
 	col.add_child(_exits)
 	_show_exits()
 
+	# THE BACKDROP'S AMOUNT IS ALWAYS SET, animated or not. It used to be set
+	# only on the animated way in, so a menu opened under REDUCED MOTION had
+	# none -- and `close` reads it. Turn reduced motion back off with the menu
+	# open and the close animated: it read null, the cast to float threw, and
+	# `close` stopped halfway with the menu still up and swallowing every click
+	# while Main thought it was gone (Jon: "makes the escape menu lock up").
+	mat.set_shader_parameter(&"amount", 1.0)
+
 	# In from the edge, with the game breaking up behind. Not under a shot tool
 	# or the sim: a menu that is still arriving would be photographed half off
 	# the screen.
@@ -242,7 +250,10 @@ func close() -> void:
 	if not Router.animating():
 		queue_free()
 		return
-	var from := _mat.get_shader_parameter(&"amount") as float
+	# Read without a cast: an unset parameter is null, and `null as float`
+	# throws, which is how this hung once (see `setup`).
+	var raw: Variant = _mat.get_shader_parameter(&"amount")
+	var from: float = 1.0 if raw == null else float(raw)
 	var tw := create_tween().set_parallel(true)
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tw.tween_property(_drawer, "position:x", -DRAWER_W - 16.0, CLOSE_S)
@@ -380,12 +391,21 @@ func _gap(h: int) -> Control:
 ## reticle on the centre then marks empty space beside you.
 class InsetMarks extends Control:
 	var chart: StarchartScreen.MapChart
+	var _at := Vector2.INF
+
+	## The galaxy turns (`MapChart.turn`), and the ship with it, so the
+	## reticle follows: redrawn when the ship has moved a pixel.
+	func _process(_delta: float) -> void:
+		var here: MapGen.MapNode = Run.node_at()
+		if chart != null and here != null and chart._screen_pos(here).floor() != _at:
+			queue_redraw()
 
 	func _draw() -> void:
 		var here: MapGen.MapNode = Run.node_at()
 		if chart == null or here == null:
 			return
 		var c := chart._screen_pos(here).floor()
+		_at = c
 		var col := Color(UITheme.ICE, 0.25)
 		var x := 0.0
 		while x < size.x:

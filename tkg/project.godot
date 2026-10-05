@@ -16,6 +16,7 @@ Run="*res://scripts/autoload/RunState.gd"
 Router="*res://scripts/autoload/Router.gd"
 Net="*res://scripts/net/NetSession.gd"
 Audio="*res://scripts/autoload/Audio.gd"
+Keys="*res://scripts/autoload/Keys.gd"
 
 [display]
 window/size/viewport_width=960

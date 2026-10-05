@@ -141,12 +141,19 @@ func animating() -> bool:
 	# check anywhere else.
 	if DisplaySettings.reduced_motion:
 		return false
+	# `-- menutest` turns the animations ON headless: the menu hang it guards
+	# only happened on the animated way out, which headless never took.
+	if animate_in_harness:
+		return true
 	if "sim" in OS.get_cmdline_user_args() or DisplayServer.get_name() == "headless":
 		return false
 	for a in OS.get_cmdline_user_args():
 		if (a as String).ends_with("shot"):
 			return false
 	return true
+
+## Set only by `-- menutest`, which needs the animated paths headless.
+var animate_in_harness := false
 
 
 ## Which screens the sky belongs behind.

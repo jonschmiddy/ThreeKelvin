@@ -670,7 +670,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_close_rename()
 		get_viewport().set_input_as_handled()
 		return
-	if k.keycode == KEY_Z:
+	# Z, F and R are bindings (`Keys`); Escape is not.
+	if k.is_action_pressed(&"ship_zoom"):
 		_set_zoom(not _zoomed)
 		get_viewport().set_input_as_handled()
 		return
@@ -681,11 +682,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# F FLIPS WHAT YOU ARE POINTING AT, on the hull only. R turns a part in
 	# the hold and F mirrors one on the ship: two verbs, two places, and
 	# neither reaches into the other's.
-	if k.keycode == KEY_F:
+	if k.is_action_pressed(&"part_flip"):
 		if _flip_pointed():
 			get_viewport().set_input_as_handled()
 		return
-	if k.keycode != KEY_R:
+	if not k.is_action_pressed(&"hold_turn"):
 		return
 	if _turn_carried() or _turn_in_hold(_storage.get_global_mouse_position()):
 		get_viewport().set_input_as_handled()

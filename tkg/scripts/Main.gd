@@ -750,6 +750,20 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# Key bindings, rebound through Settings and pressed on real screens, in a
+	# settings file of its own:  godot --headless --path . -- bindtest
+	if "bindtest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/BindTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
+	# The escape menu after reduced motion and skip jump change under it, with
+	# the animations on:  godot --headless --path . -- menutest
+	if "menutest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/MenuTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	# Parts crossing between the hold and the hull, dragged with real events:
 	#   godot --path . -- fittest
 	# NOT headless — it drives Viewport's own drag machine, and headless has no
@@ -1093,6 +1107,14 @@ func _ready() -> void:
 	# escape menu's "abandon this run?" step.
 	if "settings" in OS.get_cmdline_user_args():
 		_open_settings()
+	# `-- settings=controls` opens it scrolled to CONTROLS, the key bindings;
+	# `bindshot=listen|clash|reset` puts a row in the state worth photographing
+	# (waiting for a key, a clash with its SWAP, the RESET ALL question).
+	for a_k in OS.get_cmdline_user_args():
+		if a_k == "settings=controls" or (a_k as String).begins_with("bindshot="):
+			_open_settings()
+			_show_keys.call_deferred()
+			break
 	if "confirm" in OS.get_cmdline_user_args() and _menu != null:
 		_menu.confirm(true)
 	if _wants_shot():
@@ -1458,7 +1480,15 @@ func _input(event: InputEvent) -> void:
 	var k := event as InputEventKey
 	if k == null or not k.pressed or k.echo:
 		return
-	if k.keycode != KEY_TAB:
+	# NEXT SCREEN is a binding now (`Keys`), Tab out of the box. A bare Tab is
+	# still eaten when nothing else has it, for the focus walk above; and a
+	# letter bound here is left to a text field that has focus, or renaming
+	# the ship would change the page halfway through a word.
+	if not k.is_action_pressed(&"next_screen"):
+		if k.keycode == KEY_TAB and Keys.clashes(&"next_screen", KEY_TAB).is_empty():
+			get_viewport().set_input_as_handled()
+		return
+	if k.keycode != KEY_TAB and get_viewport().gui_get_focus_owner() is LineEdit:
 		return
 	get_viewport().set_input_as_handled()
 	# ONLY INSIDE A RUN. Tab on the hull pick walked into the ship screen with no
@@ -1501,7 +1531,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			(Router.current as LauncherScreen).close_settings()
 		else:
 			toggle_menu()
-	elif k.keycode == KEY_F11:
+	elif k.is_action_pressed(&"fullscreen"):
+		# A binding (`Keys`), F11 out of the box. Escape above is not: it is
+		# the way back from everything and is never moved.
 		DisplaySettings.toggle_fullscreen()
 
 ## The drawer's own sounds. Guarded on the file, so the menu is simply silent
@@ -1601,6 +1633,44 @@ func toggle_menu(animate: bool = true) -> void:
 
 ## `-- settings` for shots: Settings inside the escape drawer, as the player
 ## reaches it. (The title screen opens its own; see LauncherScreen.)
+## For `-- settings=controls`: the open Settings, scrolled to its key bindings
+## and, with `bindshot=`, holding a state a shot can show. Waits for the drawer
+## to lay out, since the scroll is measured off where the rows landed.
+func _show_keys() -> void:
+	for i in 3:
+		await get_tree().process_frame
+	var panel: SettingsPanel = _find_settings_panel(self)
+	if panel == null:
+		return
+	var page := panel.keys_page
+	# A shot changes keys only in a file of its own, never the player's.
+	var scratch := "user://bindshot.cfg"
+	Keys.path = scratch
+	for a in OS.get_cmdline_user_args():
+		match a:
+			"bindshot=listen":
+				page.listen(&"ship_thrust", 1)
+			"bindshot=clash":
+				page.listen(&"ship_thrust", 0)
+				page.offer(KEY_S)
+			"bindshot=reset":
+				# One key moved, so a RESET shows on its row, then the question.
+				page.listen(&"ship_thrust", 1)
+				page.offer(KEY_SPACE)
+				page.ask_reset_all()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
+	await get_tree().process_frame
+	panel.show_keys("bindshot=reset" in OS.get_cmdline_user_args())
+
+func _find_settings_panel(n: Node) -> SettingsPanel:
+	if n is SettingsPanel:
+		return n
+	for c in n.get_children():
+		var found := _find_settings_panel(c)
+		if found != null:
+			return found
+	return null
+
 func _open_settings() -> void:
 	if _menu != null:
 		_menu.show_settings()

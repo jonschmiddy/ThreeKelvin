@@ -525,11 +525,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	# in the HOLD, which is a packing move; F mirrors one on the HULL, which is
 	# about which way the gun points. The refit screen splits them exactly this
 	# way and a player who learns it there should not have to learn it twice.
-	if k.keycode == KEY_F:
+	# Both are bindings (`Keys`), F and R out of the box.
+	if k.is_action_pressed(&"part_flip"):
 		if _flip_pointed():
 			get_viewport().set_input_as_handled()
 		return
-	if k.keycode != KEY_R:
+	if not k.is_action_pressed(&"hold_turn"):
 		return
 	if _turn_carried() or _turn_in_new_hold():
 		get_viewport().set_input_as_handled()

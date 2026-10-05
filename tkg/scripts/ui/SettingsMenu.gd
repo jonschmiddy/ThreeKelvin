@@ -45,6 +45,9 @@ func setup() -> void:
 	panel.back_requested.connect(func() -> void: closed.emit())
 	pad.add_child(panel)
 
+	# Always set, as in PauseMenu.setup: `close` reads it, and a drawer opened
+	# under reduced motion and closed after it was turned off read null.
+	_mat.set_shader_parameter(&"amount", 1.0)
 	if Router.animating():
 		drawer.position.x = -PauseMenu.DRAWER_W - 16.0
 		_mat.set_shader_parameter(&"amount", 0.0)
@@ -63,7 +66,8 @@ func close() -> void:
 	if not Router.animating():
 		queue_free()
 		return
-	var from := _mat.get_shader_parameter(&"amount") as float
+	var raw: Variant = _mat.get_shader_parameter(&"amount")
+	var from: float = 1.0 if raw == null else float(raw)
 	var tw := create_tween().set_parallel(true)
 	tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tw.tween_property(_drawer, "position:x", -PauseMenu.DRAWER_W - 16.0, PauseMenu.CLOSE_S)

@@ -38,6 +38,8 @@ const ICONS := {
 	&"look": ["..###..", ".####.#", "#####..", "#####.#", "#####..", ".####.#", "..###.."],
 	# Motion: a thing and the ghosts of where it was.
 	&"motion": ["#.#.###", "#.#.###", "#.#.###", ".......", "#.#.###", "#.#.###", "#.#.###"],
+	# Controls: a keyboard -- a row of keys, a staggered row, a space bar.
+	&"keys": ["#######", "#.#.#.#", "#######", "##.#.##", "#######", "#.....#", "#######"],
 }
 
 ## One icon at `at`, every pixel 2x2, for anything that wants the set's marks.

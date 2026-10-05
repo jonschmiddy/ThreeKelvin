@@ -57,6 +57,9 @@ var _mat: ShaderMaterial
 ## WHERE THE UNNUDGED RECT SITS. `_fit` owns it; `_nudge` moves the rect off it
 ## every frame and back.
 var _home: Vector2 = Vector2.ZERO
+## What draws the picture through the glass: the game's frame, at `_home`,
+## always. The container that takes input moves under the pointer; this does not.
+var _glass: TextureRect = null
 ## A harness has no real pointer, so it can say where to pretend one is.
 var _pointer: Vector2 = Vector2(-1, -1)
 ## How far the straight transform is from the bent one, in game px: the error
@@ -89,7 +92,13 @@ func _ready() -> void:
 	# The shader does its own sampling and wants the real texels either side of
 	# an edge, so the container hands it a linear tap rather than a snapped one.
 	_frame.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	_frame.material = _mat
+	# THE CONTAINER IS FOR INPUT ONLY NOW, AND IS NOT SEEN. `_nudge` slides it
+	# under the pointer so hover and clicks land where the bent picture says;
+	# when it also DREW the picture, sliding it dragged the glass's own edge in
+	# with it -- a sliver of backdrop down one side and across the top whenever
+	# the pointer went near a corner (Jon: "the crt edge pulls inward on the
+	# sides and top"). The picture is drawn by `_glass`, which never moves.
+	_frame.self_modulate = Color(1, 1, 1, 0)
 	add_child(_frame)
 
 	view = SubViewport.new()
@@ -109,6 +118,14 @@ func _ready() -> void:
 	view.gui_embed_subwindows = true
 	_frame.add_child(view)
 	view.add_child(GAME.instantiate())
+	_glass = TextureRect.new()
+	_glass.texture = view.get_texture()
+	_glass.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_glass.stretch_mode = TextureRect.STRETCH_SCALE
+	_glass.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_glass.material = _mat
+	add_child(_glass)
 	get_tree().get_root().size_changed.connect(_fit)
 	_fit()
 	refresh()
@@ -179,14 +196,11 @@ func _shell_shot(path: String) -> void:
 ## rest: hover, clicks, drags, tooltips, everything, from the one transform it
 ## already trusts.
 ##
-## THE PICTURE MUST NOT MOVE WITH IT, so the shader is handed the same nudge in
-## UV and samples that much further along. The rect under the image shifts; the
-## image does not.
-##
-## WHAT IT COSTS is a sliver at one edge, however far the nudge went, showing
-## the backdrop instead of the picture. It is bounded by the bend itself -- 21
-## window px on the default look, about one per cent of the width -- and it
-## lands where the tube is already dark, inside the 3% the overscan throws away.
+## THE PICTURE MUST NOT MOVE WITH IT, so the container is not what is seen:
+## `_glass` draws the same frame through the shader from a rect that stays at
+## `_home`. (It used to be the container itself, handed the nudge back in UV;
+## that kept the picture still but slid the glass's edge in at one side and the
+## top, up to 6% of the frame, whenever the pointer neared a corner.)
 func _nudge() -> void:
 	if _frame == null or view == null:
 		return
@@ -224,7 +238,6 @@ func _nudge() -> void:
 	# of aim, which is the precision the snap already worked to.
 	delta = (delta / k).round() * k
 	_frame.position = _home + delta
-	_mat.set_shader_parameter(&"uv_shift", delta / _frame.size)
 	_slip = (straight - bent).length()
 
 
@@ -375,6 +388,9 @@ func _fit() -> void:
 	_frame.size = px
 	_home = ((win - px) * 0.5).floor()
 	_frame.position = _home
+	if _glass != null:
+		_glass.size = px
+		_glass.position = _home
 	if _mat != null:
 		_mat.set_shader_parameter(&"out_scale", float(k))
 	refresh()

@@ -386,7 +386,8 @@ func _side_of(at: Vector2, data: Variant) -> int:
 ## having there, and not worth two ways to do it here while this screen is young.
 func _unhandled_key_input(event: InputEvent) -> void:
 	var k := event as InputEventKey
-	if k == null or not k.pressed or k.echo or k.keycode != KEY_R:
+	# TURN PART, a binding (`Keys`); R out of the box.
+	if k == null or not k.is_action_pressed(&"hold_turn"):
 		return
 	var carried: Variant = get_viewport().gui_get_drag_data()
 	if typeof(carried) != TYPE_DICTIONARY \

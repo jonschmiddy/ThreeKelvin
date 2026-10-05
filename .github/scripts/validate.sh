@@ -196,6 +196,40 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "Key bindings rebind, fire, persist and clash"
+# Every key the game listens for is a binding (`Keys`), and a wrong default
+# moves a key with nobody deciding to. Rebinds through Settings with real key
+# events, presses the result on the ship screen, the star chart and Main's Tab,
+# reloads the settings file, and checks the clash rules. In a scratch file, so
+# the player's own settings are never touched. The same leak allowance as
+# quittest: it builds real screens.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot bindtest 120 --headless --path "$PROJECT" -- bindtest; then
+	if grep -qE '^bindtest: PASS' "$LOG_DIR/bindtest.log"; then
+		ok "keys"
+	else
+		bad "a key binding did not do what it said"
+		grep -E '^  FAIL|^bindtest' "$LOG_DIR/bindtest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
+step "The escape menu still answers after the motion settings change"
+# A menu opened under REDUCED MOTION and closed after it was turned off threw
+# on the animated way out and stayed up, swallowing every click. Headless never
+# animates, so this harness turns the animations on (`Router.animate_in_harness`)
+# and walks the menu through each change. Same leak allowance as quittest.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+		run_godot menutest 120 --headless --path "$PROJECT" -- menutest; then
+	if grep -qE '^menutest: PASS' "$LOG_DIR/menutest.log"; then
+		ok "menu"
+	else
+		bad "the escape menu stopped answering"
+		grep -E '^  FAIL|^menutest' "$LOG_DIR/menutest.log" | head -n 20 \
+			| sed 's/^/        /'
+	fi
+fi
+
 step "The hold never overlaps itself"
 # Invisible in the data, which is the whole reason it is here. Two parts sharing
 # a cell still add up to a sensible "17 of 28", still save and load, still sell

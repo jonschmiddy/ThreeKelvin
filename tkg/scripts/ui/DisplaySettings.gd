@@ -254,4 +254,10 @@ static func load_and_apply() -> void:
 	skip_jump = bool(cfg.get_value("display", "skip_jump", false))
 	frame_cap = int(cfg.get_value("display", "frame_cap", 0))
 	Engine.max_fps = frame_cap
+	# `-- keepwindow` leaves the window where the command line put it
+	# (`--windowed --position x,y`), for a shot taken while somebody is playing
+	# on the monitor the saved mode would cover. Godot strips its own flags from
+	# what a script can read, so the run has to say so itself.
+	if "keepwindow" in OS.get_cmdline_user_args():
+		return
 	apply()

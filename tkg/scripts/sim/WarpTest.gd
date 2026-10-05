@@ -75,6 +75,15 @@ func run(tree: SceneTree) -> void:
 				% [DisplaySettings.look_name(look as DisplaySettings.Look), worst,
 					worst_at.x * 100.0, worst_at.y * 100.0],
 				lost == 0 and worst <= WANT)
+		# THE GLASS STAYS PUT. The input rect slides under a corner pointer; the
+		# picture, and so the tube's edge, must not (Jon: "the crt edge pulls
+		# inward on the sides and top").
+		shell._pointer = shell._home + Vector2(4, 4)
+		shell._nudge()
+		_ok("%s: the glass holds still with the pointer in a corner (input moved %s)"
+				% [DisplaySettings.look_name(look as DisplaySettings.Look),
+					shell.frame_rect().position - shell._home],
+				shell._glass.position == shell._home and shell._glass.size == shell.frame_rect().size)
 	# WHAT THIS CANNOT SEE, and two attempts are the evidence rather than an
 	# excuse. Which control is HOVERED does not follow input events: pushed ones
 	# leave `gui_get_hovered_control()` null even after the engine's own
