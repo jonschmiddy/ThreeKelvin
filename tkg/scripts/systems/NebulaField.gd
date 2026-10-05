@@ -156,7 +156,63 @@ class Cloud extends RefCounted:
 				return true
 		return false
 
+## WHERE ON A SPIRAL A CLOUD GOES.
+##
+## RIDGE is how it always was: the centre on an arm's ridge at a rolled radius,
+## nudged along it, and the cloud as big as it was rolled whatever the arm is
+## doing there. FIT keeps the roll for everything but the centre, then looks at
+## `FIT_TRIES` places on the arms and takes the one where the most of the cloud
+## -- its lobes as drawn, a shell's ring and not its empty middle -- lies inside
+## the arm band (`arm_share`).
+##
+## FIT, because RIDGE hung clouds off the arms (Jon, 2026-10-04: "Nebula hanging
+## off the edge of a galaxy spiral is weird... right?"). A ridge point is the
+## middle of the arm only at that one radius; the arm winds past it, so a shell
+## two tenths of the disc across centred on it lies half in the dark gap.
+## Gas sits in the arms: that is where the density wave piles it up, and where
+## the massive stars that become remnants are born. Ellipticals, lenticulars
+## and anything without arms keep the old placement; so does the cloud put in
+## over the core, which sits in the bulge on purpose.
+##
+## Measured by `-- sheet=GalaxyDump nebulae`, 120 pinned seeds a kind, share of
+## each cloud inside its arm, RIDGE then FIT: Grand-Design 46% to 87% (212 of
+## 368 clouds more out than in, to none), Barred 32% to 79%, Starburst 46% to
+## 87%, Interacting Pair 68% to 96%, Anemic 14% to 64% (its one cloud is a
+## forced remnant and its arms are the thinnest). Pulsars per galaxy did not
+## move on any kind: a remnant's pulsar is the nearest system within 0.14-0.20
+## of its centre, and on an arm there is always one. Flyable everywhere either
+## way, maptest's 120 at 4.87 jumps both.
+enum Placement { RIDGE, FIT }
+static var placement := Placement.FIT
+
+## How many places FIT tries for a cloud, all hashed from the run's seed.
+const FIT_TRIES := 40
+## How much of a cloud FIT wants inside the arm before it stops shrinking it,
+## how much smaller each step makes it, and the smallest it may get.
+const FIT_INSIDE := 0.75
+const FIT_SHRINK := 0.85
+const FIT_SMALLEST := 0.4
+## Where the arms stop counting. They run to the rim in `shape_angle`, but the
+## chart thins its stars and dims them past about seven tenths of the disc, and
+## FIT -- looking for where the arm is widest -- hung a shell out there in the
+## faint outer disc on its first try. Past this a cloud is not in an arm.
+const FIT_EDGE := 0.78
+
+static var _cache: Array = []
+static var _cache_key := 0
+
+## Every cloud in this run's galaxy. Worked out once a galaxy and then handed
+## back, because `at()` asks for every system and FIT is not free; the key is
+## everything the placement reads, so a galaxy rolled again, tilted or turned
+## gets new clouds.
 static func clouds() -> Array:
+	var key := [Run.galaxy_seed, Run.galaxy_spin, Run.galaxy, int(placement)].hash()
+	if key != _cache_key or _cache.is_empty():
+		_cache = _build()
+		_cache_key = key
+	return _cache.duplicate()
+
+static func _build() -> Array:
 	var g: Dictionary = Run.galaxy
 	var gas: float = float(g.get("gas", 1.0))
 	# A galaxy that has stopped forming stars gets none at all, rather than a
@@ -294,23 +350,107 @@ static func clouds() -> Array:
 		if c.hollow > 0.0:
 			c.lobes.append(Vector2.ZERO)
 			c.lobe_r.append(c.radius)
-			out.append(c)
-			continue
-		# Otherwise three of them, offset and unequal. One circle reads as a
-		# bubble; three overlapping read as a shape, and where two meet the gas
-		# comes out brighter for free.
-		for l in 3:
-			rng = (rng * 1103515245 + 12345) & 0x7fffffff
-			var b1 := float((rng >> 13) % 10000) / 10000.0
-			rng = (rng * 1103515245 + 12345) & 0x7fffffff
-			var b2 := float((rng >> 13) % 10000) / 10000.0
-			rng = (rng * 1103515245 + 12345) & 0x7fffffff
-			var b3 := float((rng >> 13) % 10000) / 10000.0
-			c.lobes.append(Vector2((b1 - 0.5) * c.radius * 1.1,
-				(b2 - 0.5) * c.radius * 0.8))
-			c.lobe_r.append(c.radius * (0.45 + b3 * 0.5))
+		else:
+			# Otherwise three of them, offset and unequal. One circle reads as a
+			# bubble; three overlapping read as a shape, and where two meet the
+			# gas comes out brighter for free.
+			for l in 3:
+				rng = (rng * 1103515245 + 12345) & 0x7fffffff
+				var b1 := float((rng >> 13) % 10000) / 10000.0
+				rng = (rng * 1103515245 + 12345) & 0x7fffffff
+				var b2 := float((rng >> 13) % 10000) / 10000.0
+				rng = (rng * 1103515245 + 12345) & 0x7fffffff
+				var b3 := float((rng >> 13) % 10000) / 10000.0
+				c.lobes.append(Vector2((b1 - 0.5) * c.radius * 1.1,
+					(b2 - 0.5) * c.radius * 0.8))
+				c.lobe_r.append(c.radius * (0.45 + b3 * 0.5))
+		# Placed last, once its shape is known, so FIT can measure the shape it
+		# is placing. Hashed rather than drawn from `rng`, so every cloud after
+		# this one rolls exactly what it rolled before.
+		if spiral and k != 1 and placement == Placement.FIT:
+			_fit(c, k, arms)
 		out.append(c)
 	return out
+
+## FIT: the best of `FIT_TRIES` places on the arms for `c`, its shape already
+## rolled. The first try is where RIDGE would have put it, so a cloud that
+## already sat in its arm stays there.
+##
+## A CLOUD WIDER THAN THE ARM IS MADE SMALLER. A tight two-armed spiral's arm is
+## about a tenth of the disc across and a landmark shell is up to six tenths,
+## so no place keeps it in; measured over 10 seeds the best place still left a
+## third of the Grand-Design's clouds half out. So when the best place keeps
+## under `FIT_INSIDE` of it in, the cloud shrinks a step (`FIT_SHRINK`, down to
+## `FIT_SMALLEST` of what it rolled) and looks again: a big cloud still gets to
+## be the biggest one the arm can hold.
+static func _fit(c: Cloud, k: int, arms: int) -> void:
+	var scale := 1.0
+	while true:
+		_fit_place(c, k, arms)
+		if arm_share(c) >= FIT_INSIDE or scale * FIT_SHRINK < FIT_SMALLEST - 0.001:
+			return
+		scale *= FIT_SHRINK
+		c.radius *= FIT_SHRINK
+		for l in c.lobes.size():
+			c.lobes[l] *= FIT_SHRINK
+			c.lobe_r[l] *= FIT_SHRINK
+
+## FIT's places: the best of `FIT_TRIES` for the cloud as it now is.
+static func _fit_place(c: Cloud, k: int, arms: int) -> void:
+	var best := c.pos
+	var best_share := arm_share(c)
+	var salt := Run.galaxy_seed % 100003
+	var sq := float(Run.galaxy.get("squash", 0.62))
+	for t in range(1, FIT_TRIES):
+		if best_share >= 0.98:
+			break
+		var f1 := MapGen._frac(MapGen._hash2(k * 977 + t, salt, 4241))
+		var f2 := MapGen._frac(MapGen._hash2(k * 977 + t, salt, 4243))
+		var rn := R_MIN + f1 * R_SPAN
+		# Within the middle half of the arm's band, on any arm.
+		var along := (f2 - 0.5) * MapGen.arm_half_width(rn)
+		var ang := MapGen.shape_angle(rn, (k + t) % arms, along)
+		c.pos = Vector2(cos(ang), sin(ang) * sq) * rn
+		var share := arm_share(c)
+		if share > best_share + 0.001:
+			best_share = share
+			best = c.pos
+	c.pos = best
+
+## How much of a cloud lies inside a spiral arm's band, 0 to 1: its lobes as
+## drawn (`EXTENT` of each), a shell's ring without its empty middle, sampled
+## evenly by area. The band is the chart's own arm: within
+## `MapGen.arm_half_width` of a ridge (`MapGen.shape_angle`), measured round the
+## un-tilted disc, and inside `FIT_EDGE`. 1.0 for a galaxy without arms.
+static func arm_share(c: Cloud) -> float:
+	var g: Dictionary = Run.galaxy
+	var arms := int(g.get("arms", 0))
+	if arms <= 0:
+		return 1.0
+	var sq := maxf(0.05, float(g.get("squash", 0.62)))
+	var inside := 0
+	var total := 0
+	for l in c.lobes.size():
+		var big_r := c.lobe_r[l] * EXTENT
+		var h := c.hollow
+		for i in 4:
+			var rr := big_r * sqrt(h * h + (1.0 - h * h) * (float(i) + 0.5) / 4.0)
+			var n_ang := 4 + i * 4
+			for j in n_ang:
+				var th := (float(j) + 0.5 * float(i % 2)) * TAU / float(n_ang)
+				var p := c.pos + c.lobes[l] + Vector2(cos(th), sin(th)) * rr
+				var q := Vector2(p.x, p.y / sq)
+				var rn := q.length()
+				total += 1
+				if rn > FIT_EDGE:
+					continue
+				var a := atan2(q.y, q.x)
+				var hw := MapGen.arm_half_width(rn)
+				for arm in arms:
+					if absf(wrapf(MapGen.shape_angle(rn, arm, 0.0) - a, -PI, PI)) <= hw:
+						inside += 1
+						break
+	return float(inside) / float(maxi(1, total))
 
 ## Which cloud a point sits inside, or null. Uses the drawn ellipse, since that
 ## is the shape both the chart and the player see.

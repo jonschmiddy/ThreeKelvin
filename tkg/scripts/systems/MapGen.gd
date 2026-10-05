@@ -582,6 +582,23 @@ class MapNode extends RefCounted:
 	##
 	## One of `MapGen.RESULTS`. Absent means an option nobody has touched.
 	var results: Dictionary = {}
+	## WHAT THE SYSTEM MAP'S CARDS SAY BESIDES THE STAMP, by option index, so it
+	## survives a reload (Jon: "left alone should survive a reload").
+	##
+	## `left` is a walk-away: the first line of what leaving said. Walking away
+	## spends nothing -- the option is exactly as you found it and still takes --
+	## but the card says LEFT ALONE, STILL OPEN, so you can see you looked.
+	## Taking it later removes the entry.
+	##
+	## `said` is a taken option's line, as [what moved, first line of the
+	## outcome]: "FUEL -16" and "You put sixteen units across." The band is in
+	## `results`; this is only the words.
+	##
+	## YOURS ALONE IN A PARTY. Written only where you choose
+	## (`OptionResolve.take`) and never claimed or synced, so a partner walking
+	## away from something does not change your card. `results` is the same.
+	var left: Dictionary = {}
+	var said: Dictionary = {}
 	## What followed your heat trail in, rolled once on arrival. Stored on the
 	## node for the same reason `foes` is: an ambush that re-rolled on resume
 	## would be a hostile you could refuse by quitting and coming back cold,
@@ -899,12 +916,18 @@ static func generate(canvas: Rect2) -> Array:
 			nodes.append(n)
 
 	_layout(nodes, canvas)
-	for n in nodes:
-		# REACH IS APPLIED HERE, once, on the finished position. It scales how
-		# far apart systems sit, and `fuel_cost_to` prices raw distance, so this
-		# is the dial that makes a galaxy expensive or cheap to cross -- the
-		# half of the old `squash` leak that was worth keeping, now authored.
-		(n as MapNode).gal = galaxy_pos(n) * float(Run.galaxy.get("reach", 1.0))
+	# REACH IS APPLIED HERE, once, on the finished position. It scales how
+	# far apart systems sit, and `fuel_cost_to` prices raw distance, so this
+	# is the dial that makes a galaxy expensive or cheap to cross -- the
+	# half of the old `squash` leak that was worth keeping, now authored.
+	var reach := float(Run.galaxy.get("reach", 1.0))
+	if placement == Placement.PULL:
+		for n in nodes:
+			(n as MapNode).gal = galaxy_pos(n) * reach
+	else:
+		var at := spread_positions(nodes)
+		for i in nodes.size():
+			(nodes[i] as MapNode).gal = at[i] * reach
 	for n in nodes:
 		var nn: MapNode = n
 		var cloud := NebulaField.at(nn.gal)
@@ -1111,6 +1134,84 @@ static func _hash2(i: int, j: int, salt: int) -> int:
 static func _frac(h: int) -> float:
 	return float(h % 10000) / 10000.0
 
+## HOW HARD SYSTEMS ARE DRAWN ONTO THE ARMS, as the two numbers `galaxy_pos`
+## uses: the share of the angle to the nearest arm a system moves by, and the
+## most it may move, in neighbour widths. Read only under `Placement.PULL`,
+## which is no longer the default (see `placement` below). The game never
+## assigns these, so the defaults ARE the values PULL ships with; `-- sheet=GalaxyDump pulls` sets them to
+## preview other strengths and measure what they do to flyability.
+##
+## 0.9 and 3.0, "stronger" (Jon, 2026-10-03: "lots of systems on arms... very
+## little in the dark areas between them"; he picked it over today's 0.75 / 2.0
+## and a strongest 1.0 / 4.5). Measured over 120 pinned seeds: no galaxy without
+## a route to its core, 5.53 jumps to it against 4.95, the Grand-Design's widest
+## gap on ring 8 105 degrees against 76. Strongest stranded 6 of 120 and would
+## need generation to guarantee a route first. Saves keep their positions, so
+## only new runs are laid out this way.
+static var arm_pull := 0.9
+static var arm_pull_cap := 3.0
+
+## HOW A RING'S SYSTEMS ARE SET ROUND IT.
+##
+## PULL is `galaxy_pos`: an even ring, each system then dragged toward the
+## nearest arm by up to `arm_pull_cap` neighbour widths. SPREAD is
+## `spread_positions`: the ring's systems laid out by how bright the galaxy is
+## round that ring, then pushed apart wherever two sit too close.
+##
+## SPREAD, because PULL piles them up (Jon, 2026-10-04: "WAYYYY TOO MANY systems
+## in one spot, and then nothing anywhere"). A pull of three neighbour widths
+## does not move one system onto an arm, it moves a whole run of a ring onto the
+## same arm crossing: every system within three steps lands within a step of the
+## ridge, four to eight deep, and the stretch of arm either side of the crossing
+## is left with nothing. Even spacing along the ring was arithmetic under the old
+## cap of 0.6 and the pull broke it on purpose; SPREAD keeps "more on the arms"
+## and puts the evenness back along them.
+##
+## Measured by `-- sheet=GalaxyDump spread`, every kind forced onto the same 120
+## pinned seeds, PULL then SPREAD. Nearest neighbour on the chart, 5th
+## percentile, in ring gaps: 0.10-0.16 on every spiral under PULL (half their
+## systems within 0.3 of another), 0.55-0.60 under SPREAD (none). Share of
+## systems on an arm against the share of the ring that is arm, Grand-Design:
+## 83% on 35% under PULL, 73% on 35% under SPREAD -- the arms still hold three
+## systems in four. The widest hole inside an arm: 1.44 ring gaps to 1.22, and
+## on the Irregular, whose PULL piled everything onto three arms, 6.6 to 1.5.
+## Flyable everywhere either way (0 of 120 natural, 0 of 120 for each of the 17
+## kinds), and the dive to the core got shorter, 5.53 jumps to 4.87: the dark
+## between the arms is no longer emptied into the piles. Ellipticals change
+## only where the push-apart moved a crowded pair.
+##
+## Both stay selectable. Saves keep their positions (`MapNode.gal`, saved whole),
+## so only new runs change and the save version does not move.
+enum Placement { PULL, SPREAD }
+static var placement := Placement.SPREAD
+
+## SPREAD: the share of each ring's systems laid out as if the galaxy had no
+## arms. The rest follow the arms. A floor of zero would leave the dark between
+## the arms empty, which is a wall to a ship with a fixed jump radius. 0.15 and
+## 0.05 draw nearly the same chart, because the arms fill to `spread_gap` first
+## and their surplus goes back to the ring either way; 0.25 put 71% of the
+## Grand-Design's systems on its arms against 76% (10 seeds).
+static var arm_floor := 0.15
+
+## SPREAD: how close two systems may sit on the chart, in ring gaps (`RING_GAP`,
+## the distance between neighbouring rings). Measured on the chart as drawn --
+## squashed -- because overlapping on screen is the fault.
+static var spread_gap := 0.6
+
+## SPREAD: how wide an arm is for the systems, as a share of the chart's arm.
+static var arm_width := 1.0
+
+## The gap between neighbouring rings before the light bends them inward: the
+## unit `spread_gap` is counted in.
+const RING_GAP := (RIM - CORE) / (LAYERS - 2.0)
+
+## How many times SPREAD pushes crowded systems apart. Most galaxies are clear
+## in under ten; the rest stop here and keep what they have.
+const SPREAD_PASSES := 40
+
+## How finely a ring's brightness is sampled for SPREAD, in steps round it.
+const SPREAD_BINS := 360
+
 ## Where a system sits, in units of the disc radius. The map owns this because
 ## links and fuel costs are derived from it - two copies would mean pricing a
 ## jump for a position nobody draws.
@@ -1176,10 +1277,9 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 	# guarantees a ring has an exit. Until it does, staying well below 4 is not
 	# a preference, it is the margin.
 	#
-	# 2.0 chosen for how it LOOKS. It buys the lanes and almost no detour --
-	# routing barely moves, 6.2 against 6.1 -- and that is the right trade here,
-	# because run length is meant to be handled by sector difficulty rather than
-	# by walls.
+	# 2.0 was chosen for how it LOOKS: it bought the lanes and almost no detour.
+	# It is 3.0 now (`arm_pull_cap`, above), for the same reason, more so: the
+	# arms should read as where the systems are.
 	if int(g.arms) > 0:
 		var arms := maxi(1, int(g.arms))
 		var best := 0.0
@@ -1189,9 +1289,241 @@ static func galaxy_pos(n: MapNode) -> Vector2:
 			if absf(d) < closest:
 				closest = absf(d)
 				best = d
-		a += clampf(best * 0.75, -astep * 2.0, astep * 2.0)
+		a += clampf(best * arm_pull, -astep * arm_pull_cap, astep * arm_pull_cap)
 
 	return Vector2(cos(a), sin(a) * float(g.squash)) * r
+
+## Every system's position under SPREAD, in the order of `nodes`, in units of the
+## disc radius (before `reach`, as `galaxy_pos`).
+##
+## TWO STEPS. First each ring is laid out on its own: its radius and its count
+## are the ring's, as they always were (the rings decide danger, routing and
+## fuel), but the angles come from the galaxy's brightness round that ring -- the
+## k-th system sits where the brightness, added up from a starting angle, reaches
+## k of N. Where the arms cross the ring the systems come close together, in the
+## dark between they space out, and nowhere do two land on one spot, because the
+## k-th and (k+1)-th are always a slot of brightness apart. A galaxy without arms
+## has even brightness and comes out the even ring it always had.
+##
+## Then the whole galaxy is pushed apart: any two systems closer on the chart
+## than `spread_gap` ring gaps, on one ring or on two, are moved round their
+## rings until they are not. That is what stops a narrow arm stacking a ring's
+## systems inside a glyph of each other, and what staggers neighbouring rings
+## where the tilt brings them close.
+##
+## Hashed, never rolled, like `galaxy_pos`: it draws nothing from `Rng.world`,
+## so changing it moves no other roll in the run.
+static func spread_positions(nodes: Array) -> PackedVector2Array:
+	var g := Run.galaxy
+	var sq := float(g.squash)
+	var arms := int(g.arms)
+	var salt := (Run.galaxy_seed % 100003) * 31
+	var count := nodes.size()
+	var rad := PackedFloat32Array()
+	var ang := PackedFloat32Array()
+	rad.resize(count)
+	ang.resize(count)
+	var rings: Dictionary = {}
+	for i in count:
+		var n: MapNode = nodes[i]
+		if n.type == NodeType.CORE:
+			continue
+		if not rings.has(n.layer):
+			rings[n.layer] = []
+		(rings[n.layer] as Array).append(i)
+
+	for layer in rings:
+		var members: Array = rings[layer]
+		var rows := members.size()
+		var rn := ring_radius(layer)
+		# The same offsets `galaxy_pos` uses, so an armless galaxy is placed
+		# exactly as it was: alternate rings half a step round, a turn per ring,
+		# and a wobble per system that never reaches a neighbour's slot.
+		var half: float = 0.5 if layer % 2 == 1 else 0.0
+		var astep := TAU / float(rows)
+		var rot := (_frac(_hash2(layer, 7, 307 + salt)) - 0.5) * astep * 0.55
+		var base := rot + Run.galaxy_spin
+		var cdf := PackedFloat32Array()
+		if arms > 0:
+			cdf = _arm_cdf(rn, base, rows)
+		for i in members:
+			var n: MapNode = nodes[i]
+			var jr := _frac(_hash2(n.index, n.layer, 101 + salt)) - 0.5
+			var ja := _frac(_hash2(n.index, n.layer, 211 + salt)) - 0.5
+			rad[i] = rn + jr * 0.026
+			var slot := (float(n.row) + half + ja * 0.42) / float(rows)
+			if arms > 0:
+				ang[i] = base + _invert_cdf(cdf, fposmod(slot, 1.0)) * TAU
+			else:
+				ang[i] = base + slot * TAU
+
+	# Pushed apart. Each crowded pair is separated ALONG ITS RINGS: the part of
+	# the gap that is across the rings cannot change, so the part along them is
+	# made up to `spread_gap`, half by each system, in proportion to how far a
+	# step round its ring moves it on the chart.
+	var dmin := spread_gap * RING_GAP
+	var px := PackedVector2Array()
+	px.resize(count)
+	var push := PackedFloat32Array()
+	push.resize(count)
+	# How far a radian round its ring moves each system on the chart.
+	var pace := PackedFloat32Array()
+	pace.resize(count)
+	for _pass in SPREAD_PASSES:
+		var grid: Dictionary = {}
+		for i in count:
+			px[i] = Vector2(cos(ang[i]), sin(ang[i]) * sq) * rad[i]
+			pace[i] = maxf(0.001, rad[i] * Vector2(-sin(ang[i]), cos(ang[i]) * sq).length())
+			push[i] = 0.0
+			if (nodes[i] as MapNode).type == NodeType.CORE:
+				continue
+			var key := Vector2i(floori(px[i].x / dmin), floori(px[i].y / dmin))
+			if not grid.has(key):
+				grid[key] = []
+			(grid[key] as Array).append(i)
+		var crowded := 0
+		for key in grid:
+			for i in grid[key]:
+				for dx in range(-1, 2):
+					for dy in range(-1, 2):
+						var near: Variant = grid.get(key + Vector2i(dx, dy))
+						if near == null:
+							continue
+						for j in near:
+							if j <= i:
+								continue
+							var sep: Vector2 = px[i] - px[j]
+							var d := sep.length()
+							if d >= dmin:
+								continue
+							crowded += 1
+							var mid := ang[j] + wrapf(ang[i] - ang[j], -PI, PI) * 0.5
+							var along_dir := Vector2(-sin(mid), cos(mid) * sq).normalized()
+							var along := sep.dot(along_dir)
+							var across2 := maxf(0.0, d * d - along * along)
+							var need := (sqrt(maxf(0.0, dmin * dmin - across2)) - absf(along)) * 0.5
+							var s := signf(along)
+							if s == 0.0:
+								s = 1.0
+							push[i] += s * need / pace[i]
+							push[j] -= s * need / pace[j]
+		if crowded == 0:
+			break
+		for i in count:
+			ang[i] += push[i] * 0.8
+
+	var out := PackedVector2Array()
+	out.resize(count)
+	for i in count:
+		if (nodes[i] as MapNode).type == NodeType.CORE:
+			out[i] = Vector2.ZERO
+		else:
+			out[i] = Vector2(cos(ang[i]), sin(ang[i]) * sq) * rad[i]
+	return out
+
+## How bright the galaxy is round the ring at `rn`, added up from angle `base`
+## in `SPREAD_BINS` steps: element m is the share of the ring's systems that
+## belong before step m, so it runs 0 to 1.
+##
+## THE ARMS AS THE CHART PAINTS THEM. The chart's arm stars sit off the ridge
+## (`shape_angle`) by an even spread of `(0.55 + 0.9 r) * spread / 2` either
+## side, a third of them 2.6 times wider, inside the bar 0.22 of that, and
+## `chaos` scatters them a further `2 * chaos`. Each is drawn here as a bell of
+## the same width, so the systems are thick where the stars are.
+## `arm_floor` of the ring is spread evenly on top.
+##
+## AND NO STEP HOLDS MORE THAN FITS IN IT. A step round the ring is so long on
+## the chart (shorter at the ends of the ellipse, where the tilt foreshortens
+## it), and `rows` systems each wanting `spread_gap` ring gaps of it can only
+## put so many there. Brightness past that is handed to the rest of the ring in
+## proportion to what it already has, which carries a narrow arm's surplus out
+## along its own flanks first. That is what makes a crowded arm come out evenly
+## spaced rather than packed: without it the narrow arms asked the push-apart
+## below to open up whole runs of a ring, and forty passes did not finish.
+static func _arm_cdf(rn: float, base: float, rows: int) -> PackedFloat32Array:
+	var g := Run.galaxy
+	var arms := maxi(1, int(g.arms))
+	var hw := arm_half_width(rn)
+	var scatter := float(g.chaos) * float(g.chaos) * 16.0 / 12.0
+	var s1 := sqrt(hw * hw * arm_width * arm_width / 3.0 + scatter) + 0.04
+	var ridge := PackedFloat32Array()
+	for arm in arms:
+		ridge.append(shape_angle(rn, arm, 0.0))
+	var w := PackedFloat32Array()
+	w.resize(SPREAD_BINS)
+	var total := 0.0
+	for m in SPREAD_BINS:
+		var th := base + (float(m) + 0.5) * TAU / float(SPREAD_BINS)
+		var v := 0.0
+		for arm in arms:
+			var d := wrapf(th - ridge[arm], -PI, PI)
+			v += exp(-0.5 * d * d / (s1 * s1))
+			# A wide arm reaches round the back of the ring as well.
+			if s1 > 0.8:
+				var e1 := d - TAU
+				var e2 := d + TAU
+				v += exp(-0.5 * e1 * e1 / (s1 * s1)) + exp(-0.5 * e2 * e2 / (s1 * s1))
+		w[m] = v
+		total += v
+	var floor_share := clampf(arm_floor, 0.0, 1.0)
+	var share := PackedFloat32Array()
+	var cap := PackedFloat32Array()
+	share.resize(SPREAD_BINS)
+	cap.resize(SPREAD_BINS)
+	var sq := float(g.squash)
+	var bin := TAU / float(SPREAD_BINS)
+	var room := float(rows) * spread_gap * RING_GAP
+	for m in SPREAD_BINS:
+		share[m] = floor_share / float(SPREAD_BINS) + (1.0 - floor_share) * w[m] / maxf(total, 0.000001)
+		var th := base + (float(m) + 0.5) * bin
+		cap[m] = bin * rn * Vector2(sin(th), cos(th) * sq).length() / maxf(room, 0.000001)
+	# Water-filled: clip to the cap, hand the excess to the bins still under it.
+	for _round in 12:
+		var excess := 0.0
+		var free := 0.0
+		for m in SPREAD_BINS:
+			if share[m] > cap[m]:
+				excess += share[m] - cap[m]
+				share[m] = cap[m]
+			elif share[m] < cap[m]:
+				free += share[m]
+		if excess <= 0.000001 or free <= 0.0:
+			break
+		for m in SPREAD_BINS:
+			if share[m] < cap[m]:
+				share[m] += excess * share[m] / free
+	var cdf := PackedFloat32Array()
+	cdf.resize(SPREAD_BINS + 1)
+	cdf[0] = 0.0
+	for m in SPREAD_BINS:
+		cdf[m + 1] = cdf[m] + share[m]
+	# Normalised, in case the ring cannot hold its systems at the gap at all
+	# (then the clip took more than it could give back, and the ring is spread
+	# as evenly as the caps allow).
+	var sum := cdf[SPREAD_BINS]
+	for m in SPREAD_BINS + 1:
+		cdf[m] /= maxf(sum, 0.000001)
+	return cdf
+
+## How far either side of an arm's ridge the arm reaches at `rn`, in radians
+## round the disc: the half-width the chart spreads its arm stars over
+## (`(0.55 + 0.9 r) * spread / 2`, 0.22 of that inside the bar). SPREAD's arms,
+## FIT's clouds and GalaxyDump's "on an arm" all read this one.
+static func arm_half_width(rn: float) -> float:
+	var g := Run.galaxy
+	var hw := 0.5 * (0.55 + 0.9 * rn) * float(g.spread)
+	var bar: float = g.bar
+	if bar > 0.0 and rn < bar:
+		hw *= 0.22
+	return hw
+
+## Where `cdf` reaches `u`, as a fraction of the way round (0 to 1).
+static func _invert_cdf(cdf: PackedFloat32Array, u: float) -> float:
+	var hi := cdf.bsearch(u, true)
+	var m := clampi(hi - 1, 0, SPREAD_BINS - 1)
+	var span := cdf[m + 1] - cdf[m]
+	var f := 0.0 if span <= 0.0 else clampf((u - cdf[m]) / span, 0.0, 1.0)
+	return (float(m) + f) / float(SPREAD_BINS)
 
 ## How far apart two systems are, as the chart draws them, in disc radii.
 ## How far apart two systems are, for pricing a jump.
