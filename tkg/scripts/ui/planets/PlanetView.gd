@@ -8,6 +8,7 @@ extends Node2D
 ## A broken world is not drawn here -- see `ShatteredView`.
 
 const SHADER := preload("res://shaders/planet.gdshader")
+const RING_SHADER := preload("res://shaders/planet_ring.gdshader")
 
 var spec: Dictionary = {}
 var _disc: ColorRect
@@ -16,8 +17,18 @@ var _ring_back: _Ring
 var _ring_front: _Ring
 var _light: Vector3 = Vector3(-0.83, -0.31, 0.47)
 var _cell := 1
+var _seed := 0
+## The painted rings, far half and near half (`planet_ring.gdshader`).
+var _band_back: ColorRect
+var _band_front: ColorRect
 ## Harness switch: off, small worlds are drawn plain, for comparing.
 static var no_rich := false
+## WHICH RINGS (`Rings.Look`): ICY, Jon's pick of three (2026-10-03, "A is the
+## best rings") -- a broad bright ring with ringlets and a clear gap, painted per
+## pixel by `planet_ring.gdshader` with its shadow on the world. DUSTY and DARK
+## were the other two; DOTS is the ring as it was, half a ring of dots. Set
+## before a world is drawn (`set_world`); the harnesses take `ring=A|B|C|DOTS`.
+static var ring_style := Rings.Look.ICY
 
 
 ## Half a ring of dust, drawn point by point as the mockup drew it: four bands,
@@ -60,6 +71,7 @@ func _init() -> void:
 	_ring_back = _Ring.new()
 	_ring_back.view = self
 	add_child(_ring_back)
+	_band_back = _band(false)
 	_disc = ColorRect.new()
 	_disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mat = ShaderMaterial.new()
@@ -70,6 +82,20 @@ func _init() -> void:
 	_ring_front.view = self
 	_ring_front.near = true
 	add_child(_ring_front)
+	_band_front = _band(true)
+
+
+func _band(near: bool) -> ColorRect:
+	var c := ColorRect.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var m := ShaderMaterial.new()
+	m.shader = RING_SHADER
+	m.set_shader_parameter("near", near)
+	m.set_shader_parameter("ramps", Worlds.ramp_texture())
+	c.material = m
+	c.visible = false
+	add_child(c)
+	return c
 
 
 ## Which world, from its seed, at what radius in game pixels.
@@ -81,11 +107,13 @@ func set_cell(c: int) -> void:
 	_set_rich()
 	_ring_back.block = c
 	_ring_front.block = c
+	_set_rings()
 
 
 func set_world(world: StringName, seed: int, r: float, spec_override: Dictionary = {}) -> void:
 	spec = Worlds.spec(world, seed, r)
 	spec.merge(spec_override, true)
+	_seed = seed
 	var W: Dictionary = Worlds.WORLD[world]
 	var G := Worlds.half_size(world, r)
 	_disc.position = Vector2(-G, -G)
@@ -141,6 +169,45 @@ func set_world(world: StringName, seed: int, r: float, spec_override: Dictionary
 	_ring_back.queue_redraw()
 	_ring_front.queue_redraw()
 	_set_rich()
+	_set_rings()
+
+
+## THE PAINTED RINGS, when a look other than the dots is picked: the world's
+## strip built for this size (`Rings.build`), handed to both halves and to the
+## world for its shadow. The dots stand down.
+func _set_rings() -> void:
+	if spec.is_empty():
+		return
+	var on: bool = ring_style != Rings.Look.DOTS and spec.get("ring", false)
+	_ring_back.visible = not on
+	_ring_front.visible = not on
+	_band_back.visible = on
+	_band_front.visible = on
+	_mat.set_shader_parameter("ring_mode", 1 if on else 0)
+	if not on:
+		return
+	var r: float = spec.r
+	var R := Rings.build(ring_style, spec.world, _seed, float(_cell) / r)
+	_mat.set_shader_parameter("ring_prof", R.tex)
+	_mat.set_shader_parameter("ring_in", R.rin)
+	_mat.set_shader_parameter("ring_out", R.rout)
+	_mat.set_shader_parameter("ring_cast", R.cast)
+	var hw := int(ceil(float(R.rout) * r)) + 2 * _cell
+	var hh := int(ceil(float(R.rout) * r * 0.28)) + 2 * _cell
+	for c: ColorRect in [_band_back, _band_front]:
+		c.position = Vector2(-hw, -hh)
+		c.size = Vector2(2 * hw + 1, 2 * hh + 1)
+		var m := c.material as ShaderMaterial
+		m.set_shader_parameter("prof", R.tex)
+		m.set_shader_parameter("rin", R.rin)
+		m.set_shader_parameter("rout", R.rout)
+		m.set_shader_parameter("ramp_a", R.ramp_a)
+		m.set_shader_parameter("ramp_b", R.ramp_b)
+		m.set_shader_parameter("dark_shadow", R.dark_shadow)
+		m.set_shader_parameter("cell", _cell)
+		m.set_shader_parameter("r", r)
+		m.set_shader_parameter("half_w", hw)
+		m.set_shader_parameter("half_h", hh)
 
 
 ## Where the light comes from (screen x, y down, z toward you), what time it
@@ -168,8 +235,17 @@ func step(t: float, light: Vector3, k_light: float = 1.0, star_at: Vector2 = Vec
 	_mat.set_shader_parameter("bolts", bop)
 	_mat.set_shader_parameter("n_bolts", bo.size())
 	if spec.get("ring", false):
-		_ring_back.queue_redraw()
-		_ring_front.queue_redraw()
+		if _band_back.visible:
+			for c: ColorRect in [_band_back, _band_front]:
+				var m := c.material as ShaderMaterial
+				m.set_shader_parameter("light", _light)
+				m.set_shader_parameter("k_light", k_light)
+				m.set_shader_parameter("centre", position)
+				m.set_shader_parameter("star_at", star_at)
+				m.set_shader_parameter("star_r", star_r)
+		else:
+			_ring_back.queue_redraw()
+			_ring_front.queue_redraw()
 
 
 ## Richer the fewer blocks across it is: full at 4 blocks of radius, gone by 9.

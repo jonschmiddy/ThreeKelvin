@@ -26,6 +26,8 @@ func _ready() -> void:
 	bg.color = Color("#070a12")
 	bg.size = Vector2(960, 540)
 	add_child(bg)
+	# `ring=A|B|C`: the painted rings Jon is choosing between, not the dots
+	PlanetView.ring_style = Rings.look_from_args()
 	var views: Array[Node2D] = []
 	for i in Worlds.WORLD_ORDER.size():
 		var w: StringName = Worlds.WORLD_ORDER[i]

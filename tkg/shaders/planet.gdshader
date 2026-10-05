@@ -44,6 +44,14 @@ uniform float time = 0.0;
 uniform float cloud_rate = 0.02;
 uniform float bands = 8.0;
 uniform bool ring = false;
+// THE RINGS' SHADOW: 0, the dots' fixed two bands; 1, read off the world's own
+// strip (`Rings.gd`), the same rings `planet_ring.gdshader` draws, so every
+// ringlet and gap shows in the shadow too. `ring_cast`: how dark it falls.
+uniform int ring_mode = 0;
+uniform sampler2D ring_prof : filter_linear, repeat_disable;
+uniform float ring_in = 1.5;
+uniform float ring_out = 2.2;
+uniform float ring_cast = 0.8;
 uniform vec4 craters[9];
 uniform int n_craters = 0;
 uniform vec2 spot = vec2(0.0);
@@ -443,9 +451,23 @@ void fragment() {
 		float rs = 1.0;
 		vec3 RN = vec3(0.0, 0.96, -0.28);
 		float rdl = dot(L, RN);
-		if (ring && abs(rdl) > 1e-3) {
+		if (ring && abs(rdl) > 1e-3 && ring_mode == 0) {
 			float sR = -dot(nv, RN) / rdl;
 			if (sR > 0.0) { float rho = length(nv + sR * L); if (rho > 1.5 && rho < 2.2) rs = (rho > 1.82 && rho < 1.88) ? 0.75 : 0.35; }
+		} else if (ring && abs(rdl) > 1e-3) {
+			// four points across the pixel, so a gap thinner than it still lightens it
+			float cov = 0.0;
+			for (int i = 0; i < 4; i++) {
+				float ax = x + (i == 0 || i == 2 ? -0.25 : 0.25) * float(cell), ay = y + (i < 2 ? -0.25 : 0.25) * float(cell);
+				float q2 = min(1.0, (ax * ax + ay * ay) / (r * r));
+				vec3 sv = vec3(ax / r, ay / r, sqrt(1.0 - q2));
+				float sR = -dot(sv, RN) / rdl;
+				if (sR > 0.0) {
+					float rho = length(sv + sR * L);
+					if (rho > ring_in && rho < ring_out) cov += texture(ring_prof, vec2((rho - ring_in) / (ring_out - ring_in), 0.5)).r;
+				}
+			}
+			rs = 1.0 - ring_cast * cov * 0.25;
 		}
 		float shade = 0.1 + 0.9 * lam * rs * k_light;
 		if (rich > 0.0) {
