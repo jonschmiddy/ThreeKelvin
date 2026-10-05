@@ -152,6 +152,16 @@ func _build() -> void:
 		_all_btn = Widgets.button("SHOW ALL SYSTEMS", _on_toggle_all)
 		_all_btn.custom_minimum_size = Vector2(140, 14)
 		strip.add_child(_all_btn)
+
+	# A new galaxy, right here, under the same ship -- for looking at what the
+	# generator rolls (`Run.dev_regenerate_galaxy`). Not in a co-op session:
+	# the galaxy is the party's.
+		var regen := Widgets.button("REGENERATE GALAXY", _on_regenerate)
+		regen.custom_minimum_size = Vector2(150, 14)
+		if Net.is_networked():
+			regen.disabled = true
+			regen.tooltip_text = "Not in a co-op session: the galaxy belongs to the whole party."
+		strip.add_child(regen)
 	root.add_child(strip)
 
 	# --- chart | destination
@@ -1189,7 +1199,8 @@ func _paint_region() -> void:
 ## anything focused has had first refusal.
 func _unhandled_key_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
-	if k == null or not k.pressed or k.echo or k.keycode != KEY_L:
+	# LOCAL REGION is a binding (`Keys`), L out of the box.
+	if k == null or not k.is_action_pressed(&"chart_region"):
 		return
 	_on_region()
 	accept_event()
@@ -1206,6 +1217,15 @@ func _on_region() -> void:
 	var here: MapGen.MapNode = Run.node_at()
 	if here != null:
 		_chart.frame_region(here)
+
+func _on_regenerate() -> void:
+	if not Run.dev_regenerate_galaxy():
+		return
+	Router._autosave()
+	# the screen made again, from scratch, on the new galaxy: its sky baked
+	# anew, its view framed on the new start
+	Router.show_starchart()
+
 
 func _on_toggle_all() -> void:
 	_show_all = not _show_all
@@ -1447,8 +1467,8 @@ class Glyph extends Control:
 	## on at this size.
 	##
 	## The middle is left EMPTY rather than drawn dark, and that is deliberate:
-	## the glyph sits exactly on the galaxy centre, where the live layer is
-	## turning a real accretion disc around a real shadow. Leaving the shadow
+	## the glyph sits exactly on the galaxy centre, where the sky is
+	## turning a real accretion disc around a real shadow (`ChartSky`). Leaving the shadow
 	## transparent means the marker frames the animation instead of covering it.
 	##
 	## The disc runs hot and the lensed arcs run cold, and that split is doing
@@ -1472,7 +1492,7 @@ class Glyph extends Control:
 
 	## An open ring with a beam tick either side.
 	##
-	## The middle is deliberately EMPTY. The live layer flashes the actual
+	## The middle is deliberately EMPTY. The flashes layer lights the actual
 	## neutron star at this exact point, and the first version of this glyph was
 	## a solid cross that sat on top of it — so the one node type with its own
 	## animation was the one node type whose animation you could not see. The
@@ -1531,7 +1551,7 @@ class Glyph extends Control:
 			_: return _EVENT
 
 	static func draw_glyph(ci: CanvasItem, o: Vector2, t: MapGen.NodeType,
-			tint_in: Color, here: bool, selected: bool) -> void:
+			tint_in: Color, here: bool, selected: bool, band: Color = Color("#fff6e2")) -> void:
 		# Region colours sit quietly behind sprites; as a glyph on a dark chart
 		# they need lifting or the icon reads as a smudge. The ramp is built
 		# from the tint every call rather than stored, because the tint is the
@@ -1549,7 +1569,7 @@ class Glyph extends Control:
 			"+": tint_in.darkened(0.22),
 			"-": tint_in.darkened(0.52),
 			"*": UITheme.HOT,
-			"@": Color("#fff6e2"),
+			"@": band,
 			":": UITheme.EMBER,
 			"=": Color("#8ec8e6"),
 			"~": Color("#3a6b8c"),
@@ -1565,8 +1585,44 @@ class Glyph extends Control:
 				ci.draw_rect(Rect2(o + Vector2(x, y), Vector2.ONE),
 					ramp.get(ch, ramp["#"]) as Color, true)
 
-		# Corner brackets, not a box. A box is a tile by another name, and the
-		# tile is what we just removed.
+		draw_brackets(ci, o, here, selected)
+
+
+	## A dark rim one pixel round a glyph, so it stands off the sky behind it.
+	## The chart's galaxy is bright and busy now (Jon: "the systems icons just
+	## fade into the starchart"), and a glyph laid straight on an arm or the
+	## bulge loses its edge; a rim of the void round it gives it back. Only
+	## its four sides, never the corners: a rim on all eight filled in between
+	## a star's spikes and read as a heavy outline ("these are kinda too thick
+	## you know in the border", Jon). Worked out once per glyph, from its own
+	## pixels; how dark it is depends on the sky under it (`MapChart._UNDER`).
+	static var _halo_cache: Dictionary = {}
+
+	static func draw_halo(ci: CanvasItem, o: Vector2, t: MapGen.NodeType, col: Color) -> void:
+		var pts: PackedVector2Array = _halo_cache.get(t, PackedVector2Array())
+		if pts.is_empty():
+			var art := art_for(t)
+			var on := {}
+			for y in art.size():
+				var row: String = art[y]
+				for x in row.length():
+					if row[x] != ".":
+						on[Vector2i(x, y)] = true
+			var rim := {}
+			for c: Vector2i in on:
+				for dq: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var q := c + dq
+					if not on.has(q):
+						rim[q] = true
+			for q: Vector2i in rim:
+				pts.append(Vector2(q))
+			_halo_cache[t] = pts
+		for q in pts:
+			ci.draw_rect(Rect2(o + q, Vector2.ONE), col, true)
+
+	## Corner brackets, not a box. A box is a tile by another name, and the
+	## tile is what we just removed.
+	static func draw_brackets(ci: CanvasItem, o: Vector2, here: bool, selected: bool) -> void:
 		if here or selected:
 			var c := UITheme.FLARE if here else UITheme.ICE
 			var n := 4.0
@@ -1585,148 +1641,30 @@ class Glyph extends Control:
 					Vector2(1, n * d.y)), c, true)
 
 
-## THE SKY IS DRAWN BY THE GPU. Each of the four sky layers below is ONE mesh
-## of empty quads, made once, and a canvas_item shader that puts every quad on
-## its pixel from uniforms (`shaders/chart_*.gdshader`). Moving the view or the
-## clock sets uniforms; nothing is repainted. A layer's canvas is redrawn only
-## when its MESH changes -- a new galaxy, a new chart size.
-##
-## It used to be the other way round: every star a `draw_rect`, every layer
-## repainted in GDScript whenever the view moved, and the whole field
-## resubmitted every frame regardless -- 29ms a dragged frame and 48ms a zoomed
-## one on an RTX 3070. The pictures are the same pixels; `-- sheet=ChartSheet`
-## photographs them, and was diffed before and after the move.
+## THE SKY IS `ChartSky`: the galaxy in the sector map's style, at the sector
+## map's angle, in 2x2 blocks on the galaxy's own palette, turning (Jon's pick
+## of the mockups). It replaced four layers -- the static stars, the deep
+## field, the live core and the halo -- that drew the old chart's look.
 
 
-## One mesh through one material: the whole of a sky layer's picture as a single
-## draw. The deep field's distant galaxies sit on one of these, under the flat
-## black their layer paints.
-class SkyMesh extends Node2D:
-	var mesh: ArrayMesh = null
-
-	func _draw() -> void:
-		if mesh != null:
-			draw_mesh(mesh, null)
-
-
-## The moving parts: stars catching the light, the density wave, the orbiting
-## core, the accretion disc and the pulsars (`chart_anim.gdshader`), and the
-## gamma-ray bursts (`Bursts`, below).
-##
-## A canvas of its own because it moves while the galaxy under it holds still.
-## It used to repaint every frame in GDScript, 6ms standing still and 12ms
-## dragged; now a "repaint" is the clock and the view handed to the shader.
-class SkyAnim extends Control:
+## What flashes over the sky: the pulsars, each on its own beat, and the
+## gamma-ray bursts. Single pixels at the chart's own size, over the 2x2 sky
+## and under the systems. Redrawn while one is lit, and once after.
+class Flashes extends Node2D:
 	var chart: MapChart
-	var mesh: ArrayMesh = null
+	var _was := false
 
-	## Seconds between updates of the clock; zero is every frame.
-	##
-	## Zero is right for the CHART. It was capped to thirty while the backdrop
-	## moved at sixty, which is invisible when the view is still and obvious the
-	## moment you drag — the core stepped along half a beat behind the galaxy
-	## around it.
-	##
-	## The launcher sets it to a thirtieth. That was a budget when every update
-	## was twelve thousand particles in GDScript, and it costs nothing now; it is
-	## kept because the title screen's core has always moved at that rate and a
-	## change of rate is a change of look.
-	var interval: float = 0.0
-	var _t: float = 0.0
-
-	func _process(delta: float) -> void:
-		if interval <= 0.0:
-			_tick()
-			return
-		_t += delta
-		if _t < interval:
-			return
-		_t = 0.0
-		_tick()
-
-	func _tick() -> void:
-		if chart != null:
-			chart._queue_push(MapChart.PUSH_ANIM)
-
-	func _draw() -> void:
-		if chart != null and mesh != null:
-			var t0 := Time.get_ticks_usec()
-			draw_mesh(mesh, null)
-			if MapChart.prof:
-				MapChart.prof_add("anim", Time.get_ticks_usec() - t0)
-
-
-## Gamma-ray bursts, the one live thing still drawn in GDScript: three rare
-## channels, a few dozen pixels while one is lit and nothing the rest of the
-## time. Redrawn only while a burst is lit (and once after, to clear it).
-class Bursts extends Node2D:
-	var chart: MapChart
-	var t: float = 0.0
-
-	func _draw() -> void:
-		if chart == null or chart._star_pos.is_empty():
-			return
-		chart._draw_bursts(self, t, chart.size * 0.5 + chart.pan, chart.size.x,
-			chart.size.y)
-
-
-## The galaxy: every star, gas block and dust pixel `_build_stars` laid down,
-## through `chart_stars.gdshader`.
-## A Node2D RATHER THAN A CONTROL. This layer used to be MOVED every frame of a
-## drag instead of being repainted, and moving a Control repaints it; the slide
-## is a uniform now, but nothing here wants Control anyway -- the shader is told
-## MAPCHART's `size`, never this node's.
-class Backdrop extends Node2D:
-	var chart: MapChart
-	var mesh: ArrayMesh = null
-
-	func _draw() -> void:
+	func _process(_delta: float) -> void:
 		if chart == null:
 			return
-		var t0 := Time.get_ticks_usec()
-		# The first draw can come before any push has: build the galaxy here, as
-		# the old repaint did, so the chart never opens on an empty sky.
-		chart._ensure_gpu()
-		if mesh != null:
-			draw_mesh(mesh, null)
-		if MapChart.prof:
-			MapChart.prof_add("backdrop", Time.get_ticks_usec() - t0)
-
-
-## Everything behind our galaxy: the flat black, and the distant galaxies
-## (`chart_deep.gdshader`, on the child `stars`).
-##
-## Split onto its own canvas so it can be held STILL while the galaxy turns.
-## Those are other galaxies, millions of light years past this one — they have
-## no reason to share its rotation, and a title screen that swings them around
-## with the arms reads as a picture being spun rather than a galaxy turning.
-class DeepField extends Control:
-	var chart: MapChart
-	var stars: SkyMesh = null
+		var lit := chart._flash_lit(MapChart.clock())
+		if lit or _was:
+			queue_redraw()
+		_was = lit
 
 	func _draw() -> void:
 		if chart != null:
-			var t0 := Time.get_ticks_usec()
-			draw_rect(Rect2(Vector2.ZERO, chart.size), Color("#070a10"), true)
-			if MapChart.prof:
-				MapChart.prof_add("deep", Time.get_ticks_usec() - t0)
-
-
-## The parallax star layers, over the galaxy and also fixed
-## (`chart_halo.gdshader`).
-##
-## Twenty-two depths of foreground stars: the sky our galaxy is being seen
-## THROUGH, not part of its disc. Same argument as DeepField — they stay put.
-class Halo extends Control:
-	var chart: MapChart
-	var mesh: ArrayMesh = null
-
-	func _draw() -> void:
-		if mesh != null:
-			var t0 := Time.get_ticks_usec()
-			draw_mesh(mesh, null)
-			if MapChart.prof:
-				MapChart.prof_add("halo", Time.get_ticks_usec() - t0)
+			chart._draw_flashes(self, MapChart.clock())
 
 
 ## The reticle: a faint dashed line across the whole chart on each axis,
@@ -1737,30 +1675,56 @@ class Halo extends Control:
 class Crosshair extends Control:
 	var chart: MapChart
 
-	## Dash and gap in pixels. The pattern is anchored to the chart's corner,
-	## not the cursor, so the dashes hold still and only the line moves.
+	## THE SECTOR MAP'S CURSOR, ON THE CHART ("angle the cursor of the
+	## starchart to match the sector view", Jon): the two lines run along the
+	## plane's own diagonals, so on screen they lean at its slant (TILT, the
+	## sector map's and now the chart's), with a ring the size of a small world
+	## lying flat on the plane under the cursor -- `sysmap/SectorCursor`'s
+	## dash, notch, ring and strengths. The dashes count columns from the
+	## frame's edge, so they hold still and only the lines move; nothing is
+	## drawn across the black hole's shadow.
 	const DASH := 2.0
 	const GAP := 3.0
 	const NOTCH := 4.0
+	const CROSS_ALPHA := 0.4
+	const NOTCH_ALPHA := 0.8
+	const RING_ALPHA := 0.6
+	const RING_R := 9.0
 
 	func _draw() -> void:
 		if chart == null or chart._cursor.x < 0.0:
 			return
 		var c := chart._cursor.floor()
-		var line := Color(UITheme.ICE, MapChart.CROSS_ALPHA)
-		var x := 0.0
-		while x < size.x:
-			draw_rect(Rect2(x, c.y, minf(DASH, size.x - x), 1.0), line)
-			x += DASH + GAP
-		var y := 0.0
-		while y < size.y:
-			draw_rect(Rect2(c.x, y, 1.0, minf(DASH, size.y - y)), line)
-			y += DASH + GAP
-		var notch := Color(UITheme.ICE, MapChart.NOTCH_ALPHA)
-		draw_rect(Rect2(0.0, c.y, NOTCH, 1.0), notch)
-		draw_rect(Rect2(size.x - NOTCH, c.y, NOTCH, 1.0), notch)
-		draw_rect(Rect2(c.x, 0.0, 1.0, NOTCH), notch)
-		draw_rect(Rect2(c.x, size.y - NOTCH, 1.0, NOTCH), notch)
+		var line := Color(UITheme.ICE, CROSS_ALPHA)
+		var notch := Color(UITheme.ICE, NOTCH_ALPHA)
+		var tilt := ChartSky.TILT
+		var hc := chart.centre_px()
+		var hr := chart._hole_px() + 1.0
+		var hr2 := hr * hr if hr > 1.0 else -1.0
+		for slope: float in [tilt, -tilt]:
+			# one pixel a column, so the line steps; the dash pattern counts
+			# columns from the frame's edge, so it holds still
+			var x := 0.0
+			while x < size.x:
+				if fmod(x, DASH + GAP) < DASH:
+					var y := floorf(c.y + (x - c.x) * slope)
+					if y >= 0.0 and y < size.y and Vector2(x, y).distance_squared_to(hc) > hr2:
+						draw_rect(Rect2(x, y, 1.0, 1.0), line)
+				x += 1.0
+			# a notch where the line meets each side of the frame
+			for side: float in [0.0, size.x - NOTCH]:
+				var y2 := floorf(c.y + (side - c.x) * slope)
+				if y2 >= 0.0 and y2 < size.y:
+					for k in int(NOTCH):
+						draw_rect(Rect2(side + k, floorf(c.y + (side + k - c.x) * slope), 1.0, 1.0), notch)
+		# the ring, flat on the plane: a circle seen at the plane's tilt
+		var ring := Color(UITheme.ICE, RING_ALPHA)
+		var n := 40
+		for i in n:
+			var a := float(i) / n * TAU
+			var q := (c + Vector2(cos(a) * RING_R, sin(a) * RING_R * tilt)).floor()
+			if q.distance_squared_to(hc) > hr2:
+				draw_rect(Rect2(q, Vector2.ONE), ring)
 
 
 class MapChart extends Control:
@@ -1770,8 +1734,9 @@ class MapChart extends Control:
 
 	signal node_picked(index: int)
 
-	## THE SKY'S CLOCK, in seconds. A capture harness sets `clock_override` to
-	## photograph the live layer at a chosen moment, so a picture taken before a
+	## THE SKY'S CLOCK, in seconds: the galaxy's turn, its gas, the swirl and
+	## the flashes all run on it. A capture harness sets `clock_override` to
+	## photograph the sky at a chosen moment, so a picture taken before a
 	## change and one taken after it can be compared at the same instant. Off
 	## (negative) in the game.
 	static var clock_override: float = -1.0
@@ -1822,13 +1787,13 @@ class MapChart extends Control:
 	func _settle_walk() -> void:
 		if _walk == Vector2.ZERO:
 			return
-		if _walk.y < 0.0 and not Input.is_key_pressed(KEY_W):
+		if _walk.y < 0.0 and not Keys.held(&"chart_up"):
 			_walk.y = 0.0
-		if _walk.y > 0.0 and not Input.is_key_pressed(KEY_S):
+		if _walk.y > 0.0 and not Keys.held(&"chart_down"):
 			_walk.y = 0.0
-		if _walk.x < 0.0 and not Input.is_key_pressed(KEY_A):
+		if _walk.x < 0.0 and not Keys.held(&"chart_left"):
 			_walk.x = 0.0
-		if _walk.x > 0.0 and not Input.is_key_pressed(KEY_D):
+		if _walk.x > 0.0 and not Keys.held(&"chart_right"):
 			_walk.x = 0.0
 
 
@@ -1918,6 +1883,24 @@ class MapChart extends Control:
 	## When false the chart draws the galaxy and nothing else — no systems, no
 	## routes, no trail, no tooltip.
 	var show_icons: bool = true
+	## What the chart's marks stand on over the bright sky: the void, a rim of
+	## it round every glyph and dot, and a softer one under routes and rings.
+	## Drawn in a key colour (pure green) that `chart_marks.gdshader` turns into
+	## the void, part see-through and only where the sky under it is bright --
+	## over dark sky, where a mark already reads, it is not there at all (a
+	## solid rim everywhere was "kinda too thick", Jon).
+	const _UNDER := Color(0.0, 1.0, 0.0, 0.65)
+	const _UNDER_SOFT := Color(0.0, 1.0, 0.0, 0.45)
+	const MARKS_SH := preload("res://shaders/chart_marks.gdshader")
+
+	## Whether the run's systems are this galaxy's. The title screen draws a
+	## galaxy of its own over whatever map a finished run left behind, so it
+	## says no, and the sky does not take its innermost ring from that map.
+	var run_galaxy: bool = true
+	## Whether WASD pans it. Off where the chart is only a backdrop, as behind
+	## the title menu (Jon: "WASD and the Arrows should not work in the title
+	## menu").
+	var keys: bool = true
 	## Debug: ignore the visited/reachable filter and draw every system.
 	##
 	## RESTORED, dev-only, and the reason it came out is worth keeping: it
@@ -2009,6 +1992,10 @@ class MapChart extends Control:
 	var _has_scan := false
 
 	func _ready() -> void:
+		# the marks' dark rims, strong only over bright sky (`_UNDER`)
+		var mm := ShaderMaterial.new()
+		mm.shader = MARKS_SH
+		material = mm
 		if not remembers_view:
 			return
 		_cross = Crosshair.new()
@@ -2042,23 +2029,10 @@ class MapChart extends Control:
 			if _has_scan:
 				Audio.play(&"chart_scan", 0.08, SCAN_LIMIT_MS)
 
-	## The galaxy lives on its own canvas. Godot keeps each CanvasItem draw list
-	## until that item asks to redraw, so putting the star field on a separate
-	## layer means hovering a system repaints two hundred glyphs rather than the
-	## whole galaxy.
-	var _backdrop: Backdrop
-	var _anim: SkyAnim
-	var _bursts: Bursts
-	## Static sky, either side of the galaxy: distant galaxies underneath,
-	## parallax star layers on top. Neither turns. See set_sky_rotation.
-	var _deep: DeepField
-	var _halo: Halo
-	## Each layer's shader, and so its uniforms. One set per chart: the
-	## launcher's galaxy and the chart's are drawn at different views.
-	var _mat_stars: ShaderMaterial
-	var _mat_deep: ShaderMaterial
-	var _mat_halo: ShaderMaterial
-	var _mat_anim: ShaderMaterial
+	## The sky, behind everything the chart draws itself (`ChartSky`), and the
+	## flashes over it.
+	var _sky: ChartSky
+	var _flash: Flashes
 	## Screen positions are pure functions of the node and the transform, and
 	## they are wanted for every system on every redraw AND on every mouse
 	## motion, so they are worth remembering.
@@ -2081,15 +2055,13 @@ class MapChart extends Control:
 	## was the earlier attempt and it visibly dimmed the galaxy — this leaves
 	## every bright star, the arms, the core and the lanes exactly as they are.
 	var _star_dim: PackedByteArray = PackedByteArray()
-	## How many static stars the cleared core swallowed. The live layer draws
-	## exactly this many back, which is the only way to guarantee the orbiting
-	## stars match the density of the field they sit inside — guessing a count
-	## meant the core was visibly thinner or denser than its surroundings, and
-	## the gap moved every time a galaxy rolled a different concentration.
+	## How many stars the build put in the core's list rather than the field's
+	## (`_own_at`). The sky reads both lists alike (`ChartSky`); the split is an
+	## old live layer's, kept because it decides which random numbers each star
+	## draws, and so what the galaxy looks like.
 	var _core_skipped: int = 0
-	## The stars the cleared core swallowed: their radius and their colour, kept
-	## so the live layer can put THOSE STARS back in orbit rather than a separate
-	## population standing in for them.
+	## The core's stars: their radius and their colour, kept as the stars
+	## themselves rather than a separate population standing in for them.
 	##
 	## A stand-in can match a count and still be obviously wrong. On an edge-on
 	## galaxy the disc is a bright blue-white lane straight through the middle,
@@ -2110,20 +2082,11 @@ class MapChart extends Control:
 	## one arc. Keeping the angle fixes both. The arms now run continuously into
 	## the core and wind as it turns, which is what a galaxy does.
 	var _core_ang: PackedFloat32Array = PackedFloat32Array()
-	## The orbiting core, precomputed. Radius, starting angle, angular speed and
-	## colour are all fixed for the life of a galaxy — only the angle advances —
-	## so deriving them per particle per frame was paying for the same three
-	## hashes, a square root and a colour decision seven thousand times, sixty
-	## times a second. All that is left in the frame is an add, a sin, a cos and
-	## a rect.
-	var _orb_r: PackedFloat32Array = PackedFloat32Array()
-	var _orb_a: PackedFloat32Array = PackedFloat32Array()
-	var _orb_w: PackedFloat32Array = PackedFloat32Array()
-	var _orb_col: PackedColorArray = PackedColorArray()
-	var _orb_size: PackedByteArray = PackedByteArray()
-	## Whether this particle's orbit can ever cross a dark lobe. Decided once
-	## from its radius, because its radius never changes. See the orbit draw.
-	var _orb_dark: PackedByteArray = PackedByteArray()
+	## The globular clusters: each one's centre in drawn space, and the range of
+	## `_star_pos` its stars were appended as (start, end, start, end...). The sky
+	## turns a cluster as one ball round its centre (`chart_galaxy_stars`).
+	var _glob_c: PackedVector2Array = PackedVector2Array()
+	var _glob_i: PackedInt32Array = PackedInt32Array()
 	var _star_key: String = ""
 
 	## Everything above that _build_stars derives, by name.
@@ -2140,12 +2103,9 @@ class MapChart extends Control:
 	const SKY_FIELDS: Array[String] = [
 		"_star_pos", "_star_col", "_star_big", "_star_dim",
 		"_core_skipped", "_core_rad", "_core_col", "_core_size", "_core_ang",
-		"_orb_r", "_orb_a", "_orb_w", "_orb_col", "_orb_size", "_orb_dark",
-		"_dark_c", "_dark_r", "_dark_orb_c", "_dark_orb_r",
+		"_glob_c", "_glob_i",
+		"_dark_c", "_dark_r",
 		"_neb_pos", "_neb_top", "_neb_name", "_pulsar",
-		"_disc_r", "_disc_a", "_disc_om", "_disc_rad", "_disc_b", "_disc_bp",
-		"_disc_c1", "_disc_c2",
-		"_wv_pos", "_wv_ph", "_wv_col",
 	]
 
 	## The built sky, shared by every MapChart this process makes.
@@ -2164,12 +2124,6 @@ class MapChart extends Control:
 	## Dark clouds in drawn galaxy space, as flat lobes. See _extinct.
 	var _dark_c: PackedVector2Array = PackedVector2Array()
 	var _dark_r: PackedFloat32Array = PackedFloat32Array()
-	## Just the lobes that reach into the region the live layer orbits material
-	## through. Almost always empty, and when it is, the per-frame test in the
-	## orbit loop costs nothing for the whole galaxy. See `extinct` in
-	## chart_anim.gdshader.
-	var _dark_orb_c: PackedVector2Array = PackedVector2Array()
-	var _dark_orb_r: PackedFloat32Array = PackedFloat32Array()
 
 	## Nebulae, clusters and remnants live in the same packed arrays as the
 	## stars: built once per galaxy, a rect apiece at repaint, exactly like
@@ -2194,59 +2148,18 @@ class MapChart extends Control:
 	## added since uses it.
 	var _rng: int = 0
 
-	## Four canvases, in paint order: the deep field, the galaxy, the live core,
-	## the halo. All four sit behind the parent's own _draw, which is where the
-	## systems go.
-	##
-	## The split is partly the old performance argument — Godot keeps a
-	## CanvasItem's draw list until that item asks to redraw, so highlighting a
-	## system repaints two hundred glyphs rather than forty-eight thousand stars
-	## — and partly a rotation argument. Only the middle two are OUR galaxy. The
-	## launcher turns those and leaves the other two alone, which it can only do
-	## if they are separate canvases.
+	## Behind the parent's own _draw, which is where the systems go: the sky,
+	## then the flashes. Godot keeps each CanvasItem's draw list until it asks to
+	## redraw, so hovering a system repaints the glyphs, not the galaxy.
 	func _make_backdrop() -> void:
-		_make_materials()
-		_deep = DeepField.new()
-		_deep.chart = self
-		_deep.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# A Control draws itself BEFORE its children, so without this the sky is
-		# painted over the systems it is supposed to sit behind.
-		_deep.show_behind_parent = true
-		add_child(_deep)
-		# The distant galaxies, over the flat black their layer paints.
-		_deep.stars = SkyMesh.new()
-		_deep.stars.material = _mat_deep
-		_deep.add_child(_deep.stars)
-
-		_backdrop = Backdrop.new()
-		_backdrop.chart = self
-		_backdrop.material = _mat_stars
-		_backdrop.show_behind_parent = true
-		add_child(_backdrop)
-
-		# Added after the backdrop and also behind the parent, so it layers over
-		# the static sky but under the systems — a twinkle must never sit on top
-		# of a station you are trying to read.
-		_anim = SkyAnim.new()
-		_anim.chart = self
-		_anim.material = _mat_anim
-		_anim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_anim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_anim.show_behind_parent = true
-		add_child(_anim)
-		# A child, so it turns with the live layer and draws over it.
-		_bursts = Bursts.new()
-		_bursts.chart = self
-		_anim.add_child(_bursts)
-
-		_halo = Halo.new()
-		_halo.chart = self
-		_halo.material = _mat_halo
-		_halo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		_halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_halo.show_behind_parent = true
-		add_child(_halo)
+		_sky = ChartSky.new()
+		_sky.chart = self
+		_sky.show_behind_parent = true
+		add_child(_sky)
+		_flash = Flashes.new()
+		_flash.chart = self
+		_flash.show_behind_parent = true
+		add_child(_flash)
 
 	## Build the star field NOW, rather than on demand inside the first draw.
 	##
@@ -2264,80 +2177,20 @@ class MapChart extends Control:
 		_build_stars()
 		_ensure_gpu()
 
-	## How often the live core repaints. See SkyAnim.interval.
+	## How often the sky's own motion -- the turn, the gas, the swirl -- is
+	## handed to it. 0 is every frame, which the chart wants; the title screen
+	## asks for a thirtieth (`LauncherScreen`), which is all a background needs.
 	func set_anim_interval(seconds: float) -> void:
-		if _anim != null:
-			_anim.interval = seconds
+		if _sky != null:
+			_sky.interval = seconds
 
-	## Turn OUR galaxy, and nothing else. The deep field and the halo keep still.
-	##
-	## The pivot comes from THIS control's size, not from each layer's. The
-	## layers are anchored full-rect, so their size is resolved by the layout
-	## pass — which means that in the frame after someone assigns a new size
-	## here, `layer.size` is still the old one. Pivoting on a stale size turns
-	## the galaxy about a point that is not its centre, which walks its edges
-	## across the view instead of spinning it in place.
-	## THE STAR FIELD TURNS IN DATA, NOT BY TRANSFORM.
-	##
-	## This is the whole reason the launcher looked like it was tearing. Rotating
-	## a CanvasItem full of 1x1 rects makes the rasteriser resample them onto the
-	## pixel grid — and the galaxy rounds each star to an integer pixel BEFORE
-	## the transform, so what gets rotated is a grid. A grid resampled onto a
-	## grid at a shallow angle is moiré: long strips of vertical and horizontal
-	## lines that crawl as the angle changes.
-	##
-	## Rotating the positions first and rounding afterwards inverts that. The
-	## source positions are scattered floats, so where each star lands is
-	## decorrelated from its neighbours, and every star still ends up on an exact
-	## pixel — crisp, which the transform could never be.
-	##
-	## The animated layer keeps the transform. It is a few hundred sparse points
-	## and the core, far too thin to form a pattern, and it repaints every frame
-	## anyway — so it gets the free version and lands on the same angle.
+	## An extra turn of the galaxy, on top of its own (`turn`). The title screen
+	## used to turn its galaxy with this; it turns by itself now, and a harness
+	## can still set an angle to photograph.
 	func set_sky_rotation(r: float) -> void:
 		sky_angle = r
-		if _anim != null:
-			_anim.pivot_offset = size * 0.5
-			_anim.rotation = r
-		if _backdrop == null:
-			return
-		_backdrop.rotation = 0.0
-		# EVERY frame the angle moves, and batching this is a trap I already fell
-		# into. Waiting for half a pixel of rim movement repainted about once a
-		# second — and because a repaint moves every star that crossed a boundary
-		# SINCE THE LAST ONE, they all stepped together. One synchronised jump a
-		# second is chop; the same total movement spread over sixty frames is a
-		# few hundred stars shifting a pixel each, which reads as drift.
-		#
-		# A star cannot move less than a pixel, so this is as smooth as pixel art
-		# gets. What it buys is that the steps are UNCORRELATED in time as well
-		# as in space.
-		# Exact, not is_equal_approx. Its tolerance scales with magnitude — near a
-		# full turn it is about 6e-5 — while one frame of this rotation is 3.5e-5,
-		# so an approximate test would silently drop frames and reintroduce the
-		# stepping in a form much harder to see in the code.
-		if sky_angle == _drawn_angle:
-			return
-		_drawn_angle = sky_angle
-		_queue_push(PUSH_STARS)
+		_repaint_galaxy()
 
-	## How far the backdrop may slide before it has to be repainted.
-	##
-	## The layer is grown by this much on every side, so stars within this
-	## distance of the screen edge are already drawn and slide INTO view rather
-	## than popping in. MapChart sets `clip_contents`, so the overdraw never
-	## escapes the chart's own rect.
-	##
-	## Bigger means fewer repaints and more stars per repaint.
-	## Over what fraction of the disc radius the foreground field thins out.
-	##
-	## The galaxy is meant to be seen through a sky that gets out of its way --
-	## dim foreground stars scattered over the arms compete with the arms. Doing
-	## that with a radius test draws a circle instead, so the transition is spread
-	## over the outer third of it.
-	##
-	## Small enough and it is a rim again; large enough and the foreground thins
-	## so far out that the galaxy sits in a permanent clearing.
 	## How far past "the rim is in the middle of the view" a drag may go, as a
 	## fraction of the view.
 	##
@@ -2349,151 +2202,33 @@ class MapChart extends Control:
 	## lost rather than like looking away.
 	const PAN_SLACK := 0.5
 
-	const DISC_FEATHER := 0.34
-
-	const SKY_MARGIN := 224.0
-
-	## The view the backdrop was last actually PAINTED at.
-	##
-	## `pan` enters the galaxy's placement exactly once, as `size * 0.5 + pan`
-	## (`chart_stars.gdshader`'s `origin` plus `slide`) -- so a
-	## pan is a rigid translation of that layer and nothing else, and every star
-	## is `.round()`-snapped on the way out. Moving the canvas by a whole number
-	## of pixels is therefore not an approximation of the repaint, it IS the same
-	## image. Zoom is not like this: it scales the field and grows the brush, so
-	## a zoom always repaints.
-	##
-	## Measured with `-- chartbench`: the repaint was 16.6ms of a 38ms dragged
-	## frame, for a result identical to sliding it.
 	## Whether each ring is drawn. Owned by the screen's corner toggles.
 	var show_sight := true
 	var show_reach := true
 
-	var _sky_pan := Vector2.ZERO
-	var _sky_zoom := -1.0
-
-	## The view the two STATIC sky layers were last drawn at.
-	##
-	## Separate from `_sky_pan` above, which is the backdrop's slide basis: this
-	## pair is a staleness check, that one is an offset. INF so the first repaint
-	## always happens.
-	var _view_pan := Vector2(INF, INF)
-	var _view_sky := Vector2(INF, INF)
-	var _view_zoom := -1.0
-
-	## The galaxy's rotation, in radians, applied to star positions at draw time.
+	## An extra angle on the galaxy's turn, radians. See set_sky_rotation.
 	var sky_angle: float = 0.0
-	var _drawn_angle: float = 0.0
+	## The turn the systems were last drawn at. They are redrawn when the turn
+	## has carried the furthest of them half a pixel (`_process`), so a chart
+	## standing still costs nothing until something on it has visibly moved.
+	var _drawn_turn: float = 0.0
 
 	## Anything that moves the galaxy on screen, as opposed to merely changing
-	## what is highlighted.
-	## All four sky canvases, not just the galaxy: the deep field and the halo are
-	## both derived from `size` and `sky_pan`, so a resize or a drag makes them
-	## as stale as the arms. Leaving either out means dragging the chart slides
-	## the galaxy across a deep field that stayed where it was.
+	## what is highlighted: the systems are redrawn, and the sky is handed the
+	## new view at the end of the frame, so a glide that moves the view after
+	## everything else has run still lands on the frame it belongs to.
 	func _repaint_galaxy() -> void:
 		_polar_cache.clear()
-		# _anim IS IN THIS LIST, and leaving it out is what made the core lag.
-		#
-		# It queues its own redraw from _process, which is enough while the
-		# view is still and wrong the moment the view MOVES: that redraw is
-		# asked for before the thing that moves the view has moved it, so the
-		# core draws with the pan from the frame before. Measured, not
-		# guessed -- `ANIM f=N` printed exactly what `BACK f=N-1` had.
-		#
-		# One frame is enough to see because the backdrop carries a HOLE where
-		# the core goes: the hole arrives on time and the core does not, so
-		# what you see is an empty socket travelling ahead of its contents,
-		# closing the instant the motion stops.
-		# _deep IS IN THIS LIST, and taking it out was a REGRESSION I shipped.
-		# The deep field looked view-independent two levels up, but the loop at
-		# the bottom (`_push_deep` and its shader now) positions every distant
-		# galaxy at `size * 0.5 + sky_pan * parallax`, and reads `pan` and `zoom`
-		# besides.
-		# Frozen, the depth layers stop separating as the view moves and the
-		# whole field collapses into one flat furthest layer -- which is exactly
-		# what it looked like.
-		#
-		# I MISSED IT WITH A REGEX: `pan` cannot match `sky_pan`, because an
-		# underscore is a word character. Grep for the substring here, or read
-		# the call tree to the bottom. Two levels of delegation is enough to hide
-		# a dependency from a one-level check.
-		#
-		# _halo is here for the same reason, despite its class comment saying it
-		# "stays put". That comment
-		# is about ROTATION -- the halo does not turn with the arms -- and it is
-		# not about the pan: `_push_halo` reads both `pan` and `zoom`, and the
-		# whole point of the parallax is that those layers slide against the
-		# galaxy as the view moves. Dropping it from here froze the foreground
-		# sky mid-drag. It is only 2.4ms that is free here, not 7.5ms.
-		#
-		# _deep DOES restage when the window resizes, since it is drawn to
-		# `size` -- that is what `_repaint_sky` below is for, and why the resize
-		# notification calls that instead of this.
-		# A REPAINT OF A SKY LAYER IS NOW A PUSH OF ITS UNIFORMS (`_queue_push`),
-		# made at the end of the frame, and costs microseconds. The rules for WHEN
-		# each layer is pushed are the rules for when it used to be repainted,
-		# kept exactly, because the picture depends on them: see below.
-		#
-		# THE BACKDROP SLIDES WHEN IT CAN. A pan does nothing to it but move it
-		# -- see `_sky_pan`. It is REBASED (placed afresh from the new view, every
-		# star rounded again) only for what a slide cannot express: a change of
-		# zoom, or drifting past the margin. Rebasing on every pan would round
-		# each star against a fractional pan and shift a few of them a pixel
-		# against their neighbours mid-drag, which the slide never did.
-		if _backdrop != null:
-			var slide := (pan - _sky_pan).round()
-			# Exact, not is_equal_approx: its tolerance scales with magnitude,
-			# and at high zoom that is wide enough to swallow a real step. Same
-			# argument as set_sky_rotation's.
-			var far := absf(slide.x) > SKY_MARGIN or absf(slide.y) > SKY_MARGIN
-			if _sky_zoom == zoom and not far:
-				_slide = slide
-			else:
-				_sky_pan = pan
-				_sky_zoom = zoom
-				_slide = Vector2.ZERO
-			_queue_push(PUSH_STARS)
-		# _halo AND _deep ONLY WHEN THE VIEW MOVED. Both read `pan`, `zoom` and
-		# `sky_pan` and nothing else -- no clock, no hover, no selection -- while
-		# `_repaint_galaxy` is called for all of those other reasons as well.
-		# Redrawing them on a frame where the view stood still costs about 8ms to
-		# produce a pixel-identical result.
-		#
-		# That is nearly the whole title screen. The launcher turns the galaxy,
-		# which repaints the backdrop through `set_sky_rotation`, and the view
-		# itself never moves at all -- so before this, the deep field and the
-		# halo were being rebuilt sixty times a second for a picture that could
-		# not change. Measured with `-- chartbench`: 44ms a frame, which is the
-		# 22fps the title screen was reported at.
-		if pan != _view_pan or zoom != _view_zoom or sky_pan != _view_sky:
-			_view_pan = pan
-			_view_zoom = zoom
-			_view_sky = sky_pan
-			_queue_push(PUSH_VIEW)
-		if _anim != null:
-			_queue_push(PUSH_ANIM)
+		_drawn_turn = turn()
+		if _sky != null:
+			_sky.queue_push()
+			_sky.queue_redraw()
 		queue_redraw()
 
-	## How far the galaxy has slid since it was last rebased, in whole pixels.
-	## `chart_stars.gdshader` adds it to every star.
-	var _slide := Vector2.ZERO
-
-	## Everything, plus the backdrop's slide basis.
-	##
-	## For when the SCREEN changes rather than the view: the backdrop's offset is
-	## measured from `size * 0.5`, which a resize moves, so no slide is valid any
-	## more and the layer has to be repainted outright.
+	## The same, for when the SCREEN changes rather than the view: the sky's
+	## viewport is sized to the chart.
 	func _repaint_sky() -> void:
-		# -1.0 is a zoom nothing matches, which forces the repaint branch. The
-		# static layers are sized to `size` too, so they are stale as well.
-		_sky_zoom = -1.0
-		_view_zoom = -1.0
 		_repaint_galaxy()
-		# The flat black is painted to `size`; it is the one sky canvas a resize
-		# has to repaint rather than re-uniform.
-		if _deep != null:
-			_deep.queue_redraw()
 
 	func _process(delta: float) -> void:
 		_walk_view(delta)
@@ -2506,6 +2241,13 @@ class MapChart extends Control:
 			StarchartScreen._view_zoom = zoom
 			StarchartScreen._view_pan = pan
 			StarchartScreen._view_map = Run.map.size()
+		# THE GALAXY TURNS, and every system with it: redrawn once the turn has
+		# carried the furthest of them half a pixel, which zoomed out is about
+		# once a second and zoomed right in is every frame.
+		var tn := turn()
+		if absf(angle_difference(_drawn_turn, tn)) * _radius() * DISC * zoom >= 0.5:
+			_drawn_turn = tn
+			queue_redraw()
 		var target: float = 1.0 if hovered >= 0 else 0.0
 		if is_equal_approx(_hover_t, target):
 			return
@@ -2596,49 +2338,15 @@ class MapChart extends Control:
 				and StarchartScreen._view_map == Run.map.size():
 			_go_to(StarchartScreen._view_zoom, StarchartScreen._view_pan, false)
 
-	## The event horizon's shadow, and the region around it that the ANIMATED
-	## layer owns outright. The backdrop leaves that annulus empty so the stars
-	## in it can orbit — a moving star drawn over a static one at the same
-	## radius is the contradiction that made drifting gas look wrong.
+	## The event horizon's shadow at build time, in drawn pixels: nothing is
+	## placed inside it. (The hole the chart DRAWS is bigger: `ChartSky.hole_r`.)
 	func _shadow_r() -> float:
 		return _radius() * float(Run.galaxy.get("hole", 0.034))
 
-	## How far the black hole's neighbourhood extends — the region the LIVE
-	## layer owns outright, where nothing static is drawn and everything orbits.
-	## Sized to hold the accretion disc plus enough room outside it for the
-	## speed gradient to be visible before it hands over to the static field.
-	## How fast anything at radius `r` goes round, for EVERYTHING in the core:
-	## the accretion disc and the orbiting stars both ask this.
-	##
-	## They used to compute their own, from different bases normalised against
-	## different radii, which meant the speed jumped at the boundary between
-	## them — matter at the disc's outer edge and stars just beyond it were
-	## moving at unrelated rates, and that discontinuity is what reads as things
-	## sliding past each other for no reason.
-	##
-	## Keplerian in the middle, faded smoothly to a genuine standstill by the
-	## time it reaches the edge of the core. So the black hole spins fast, the
-	## disc churns, the stars beyond it turn slowly, and somewhere out there the
-	## motion reaches zero and the live layer becomes the static galaxy without
-	## a seam to find.
-	## Takes sh and clear rather than fetching them, and that is not tidiness —
-	## it is the difference between 19fps and playable. This runs once per
-	## particle, ten thousand times a frame, and each fetch was a _radius()
-	## computation plus a dictionary lookup into the rolled galaxy. Hoisting two
-	## values out of the inner loop cost about 40ms a frame.
-	## How much of the local star population is in motion at radius `r`: 1 right
-	## against the hole, easing to 0 by the edge of the core.
-	##
-	## This is the single rule the core now follows. The cached field keeps a
-	## star with probability (1 - motion) and the live layer keeps one with
-	## probability motion, so the two always sum to the same density AND a star
-	## is only ever static where the motion has genuinely stopped. Before this
-	## the handover was a fixed band, which left stationary stars sitting behind
-	## orbiting ones close in — the thing that gave it away.
-	func _motion_at(r: float, clear: float) -> float:
-		var fade: float = clampf(1.0 - r / maxf(1.0, clear), 0.0, 1.0)
-		return fade * fade * (3.0 - 2.0 * fade)
-
+	## The star field is built in two lists, the core's and the rest, split at
+	## this radius by `_own_at`: an old live layer's ownership rule, kept because
+	## the split decides which random numbers each star draws. The sky reads
+	## both lists the same way (`ChartSky`).
 	## Which layer OWNS the stars at this radius — a different question from how
 	## fast they are going, and it needs a different curve.
 	##
@@ -2667,11 +2375,6 @@ class MapChart extends Control:
 			return 1.0
 		var f: float = (1.0 - x) / 0.28
 		return f * f * (3.0 - 2.0 * f)
-
-	func _orbital_omega(r: float, sh: float, clear: float) -> float:
-		var q: float = sh / maxf(r, sh * 0.6)
-		var kep: float = 0.19 * q * sqrt(q)
-		return kep * _motion_at(r, clear)
 
 	func _core_clear() -> float:
 		# Never smaller than the disc needs: a galaxy that rolled a large hole
@@ -2737,20 +2440,132 @@ class MapChart extends Control:
 			out[hovered] = true
 		return out
 
-	## Screen point to galaxy space — the coordinates NebulaField and MapGen.gal
-	## both speak, where 1.0 is the disc radius.
+	## THE CHART'S ONE PROJECTION, the sector map's angle with the galaxy turned.
+	##
+	## Positions stay in the galaxy's own coordinates: `MapNode.gal`, which
+	## MapGen prices jumps by (`hop_distance` measures in the disc's own plane,
+	## `gal.y / squash`), and which NebulaField speaks. The chart shows that
+	## plane tipped to the sector map's 0.38 and turned by the galaxy's angle:
+	##   in the plane     d  = (gal.x, gal.y / squash) * radius
+	##   turned           d' = d turned back by `turn()`
+	##   on the screen    centre + (d'.x, d'.y * eff) * zoom
+	## `eff` is how flat the disc looks from there (`ChartSky.eff_of`). The
+	## systems, the routes, the rings, the trail, YOU, the party, the Hellbender,
+	## the markers, the tooltips, the pulsars and the bursts all go through
+	## `_proj`; a click comes back through `_to_galaxy`, its inverse, so what is
+	## drawn and what can be pointed at never disagree. The sky turns by the same
+	## angle (`ChartSky`), so a system stays on the arm it was placed on.
+
+	## The galaxy's angle now: one turn every `ChartSky.TURN_MINUTES`, from the
+	## chart's clock, plus any extra turn a caller set. View only: nothing in the
+	## run moves.
+	func turn() -> float:
+		return fposmod(ChartSky.OMEGA * clock() + sky_angle, TAU)
+
+	## The galaxy's centre on the screen, on a whole pixel: the sky's blocks are
+	## anchored to it and the systems are drawn from it.
+	func centre_px() -> Vector2:
+		return (size * 0.5 + pan).floor()
+
+	## How flat the chart's plane is drawn -- its systems, routes and rings:
+	## always the sector map's own (TILT), so the chart's geometry matches the
+	## sector map's orbits whatever the galaxy ("increase the angle of the
+	## starchart to match the sector", Jon). A disc galaxy's light lies in the
+	## same plane; a ball keeps its own roundness (`_sky_eff`).
+	func _eff() -> float:
+		return ChartSky.TILT
+
+	## How flat the sky draws this galaxy's light, and so its named clouds
+	## (`ChartSky.eff_of`): TILT for every galaxy with a disc.
+	func _sky_eff() -> float:
+		return ChartSky.eff_of(Run.galaxy)
+
+	## `_proj` at the sky's own flatness, for what the sky draws (its clouds).
+	func _proj_sky(g: Vector2, ang: float) -> Vector2:
+		_proj_frame(ang)
+		var d := Vector2(g.x, g.y * _pk_isq) * _pk_scale
+		return Vector2(d.x * _pk_cos + d.y * _pk_sin, (d.y * _pk_cos - d.x * _pk_sin) * _sky_eff())
+
+	## A point of the galaxy, at the galaxy angle `ang`, as screen pixels from
+	## `centre_px()`.
+	func _proj(g: Vector2, ang: float) -> Vector2:
+		_proj_frame(ang)
+		var d := Vector2(g.x, g.y * _pk_isq) * _pk_scale
+		return Vector2(d.x * _pk_cos + d.y * _pk_sin, (d.y * _pk_cos - d.x * _pk_sin) * _pk_eff)
+
+	## What `_proj` needs, worked out once for each view and angle rather than
+	## for each of the hundreds of points a redraw projects.
+	var _pk_key := Vector4(NAN, NAN, NAN, NAN)
+	var _pk_gal := ""
+	var _pk_scale := 1.0
+	var _pk_isq := 1.0
+	var _pk_eff := 1.0
+	var _pk_cos := 1.0
+	var _pk_sin := 0.0
+
+	func _proj_frame(ang: float) -> void:
+		var k := Vector4(ang, zoom, size.x, size.y)
+		var gk: String = _star_key
+		if k == _pk_key and gk == _pk_gal:
+			return
+		_pk_key = k
+		_pk_gal = gk
+		_pk_scale = _radius() * DISC * zoom
+		_pk_isq = 1.0 / _squash()
+		_pk_eff = _eff()
+		_pk_cos = cos(ang)
+		_pk_sin = sin(ang)
+
+	## The same at zoom 1, for framing: where a point sits before the zoom.
+	func _proj_unit(g: Vector2) -> Vector2:
+		return _proj(g, _drawn_turn) / maxf(zoom, 0.0001)
+
+	## A screen point back into the galaxy's own coordinates, where 1.0 is the
+	## disc radius: the inverse of `_proj`, at the angle the systems are drawn.
 	func _to_galaxy(p: Vector2) -> Vector2:
-		var r := _radius() * DISC
-		if r <= 0.0 or zoom <= 0.0:
+		var d := _to_plane(p)
+		return Vector2(d.x, d.y * _squash())
+
+	## A screen point into the disc's own plane (gal units, y not squashed).
+	func _to_plane(p: Vector2, e: float = -1.0) -> Vector2:
+		var r := _radius() * DISC * zoom
+		if r <= 0.0:
 			return Vector2.ZERO
-		return (p - size * 0.5 - pan) / zoom / r
+		var q := (p - centre_px()) / r
+		q.y /= _eff() if e < 0.0 else e
+		var c := cos(_drawn_turn)
+		var s := sin(_drawn_turn)
+		return Vector2(q.x * c - q.y * s, q.x * s + q.y * c)
 
 	func _screen_pos(n: MapGen.MapNode) -> Vector2:
-		var p: Vector2 = _polar_cache.get(n.index, Vector2.INF)
-		if p == Vector2.INF:
-			p = _polar(n)
-			_polar_cache[n.index] = p
-		return size * 0.5 + pan + p * zoom
+		return centre_px() + _proj(n.gal, _drawn_turn)
+
+	## A point of a cloud, `o` galaxy units from its centre, on the screen. The
+	## sky keeps a cloud's own shape about its centre (`chart_bake_splat`), only
+	## flattened to `flat`, so its outline does the same.
+	func _cloud_pt(cl: NebulaField.Cloud, o: Vector2) -> Vector2:
+		var e := _sky_eff()
+		var f := maxf(0.3, e / 0.82)
+		var sq := _squash()
+		var plane := Vector2(cl.pos.x + o.x, cl.pos.y / sq + o.y * f / e)
+		return centre_px() + _proj_sky(Vector2(plane.x, plane.y * sq), _drawn_turn)
+
+	## The cloud under a screen point, by the outline `_cloud_pt` draws:
+	## NebulaField.at's rule, asked in each cloud's own shape.
+	func _cloud_at(p: Vector2) -> NebulaField.Cloud:
+		var plane := _to_plane(p, _sky_eff())
+		var e := _sky_eff()
+		var f := maxf(0.3, e / 0.82)
+		var sq := _squash()
+		var best: NebulaField.Cloud = null
+		var closest := INF
+		for raw in NebulaField.clouds():
+			var cl: NebulaField.Cloud = raw
+			var o := Vector2(plane.x - cl.pos.x, (plane.y - cl.pos.y / sq) * e / f)
+			if cl.holds(cl.pos + o, NebulaField.EXTENT) and o.length() < closest:
+				closest = o.length()
+				best = cl
+		return best
 
 	## WASD, HELD. Read as a state rather than acted on per press, so two keys
 	## move diagonally and letting one go leaves the other running.
@@ -2759,15 +2574,23 @@ class MapChart extends Control:
 	## field, a shortcut on a button -- has already had it.
 	func _unhandled_key_input(e: InputEvent) -> void:
 		var k := e as InputEventKey
-		if k == null or k.echo:
+		if k == null or k.echo or not keys:
 			return
+		# The four PAN keys are bindings (`Keys`), WASD and the arrows out of the box.
 		var dir := Vector2.ZERO
-		match k.keycode:
-			KEY_W: dir = Vector2.UP
-			KEY_S: dir = Vector2.DOWN
-			KEY_A: dir = Vector2.LEFT
-			KEY_D: dir = Vector2.RIGHT
-			_: return
+		var action := &""
+		for pair: Array in [[&"chart_up", Vector2.UP], [&"chart_down", Vector2.DOWN],
+				[&"chart_left", Vector2.LEFT], [&"chart_right", Vector2.RIGHT]]:
+			if k.is_action(pair[0]):
+				action = pair[0]
+				dir = pair[1]
+				break
+		if action == &"":
+			return
+		# A direction with two keys keeps going while the other is still down.
+		if not k.pressed and Keys.held(action):
+			accept_event()
+			return
 		# Accumulated rather than assigned: holding W and A is up AND left, and
 		# releasing A must leave W running.
 		_walk += dir if k.pressed else -dir
@@ -2846,7 +2669,7 @@ class MapChart extends Control:
 					# The same extent the boundary is drawn at, so pointing
 					# inside the ring always answers and pointing outside it
 					# never does.
-					cloud = NebulaField.at(_to_galaxy(mm.position))
+					cloud = _cloud_at(mm.position)
 				var cname := "" if cloud == null else cloud.name
 				if h != hovered or cname != _neb_hot:
 					hovered = h
@@ -2890,7 +2713,7 @@ class MapChart extends Control:
 	## How far the galaxy centre may travel from the middle of the frame. Past
 	## this you are looking at unpainted space — a hard black rectangle with a
 	## visible edge, which reads as the end of a texture rather than the end of
-	## anything. The halo is sized (below) to cover exactly this much.
+	## anything.
 	func _pan_limit() -> Vector2:
 		# THE RIM MAY BE PUSHED TO THE EDGE OF THE VIEW, NOT ONLY TO ITS MIDDLE.
 		#
@@ -2913,7 +2736,7 @@ class MapChart extends Control:
 		# The `maxf` is gone rather than relaxed: `ex + half` is already at least
 		# half a view, so the floor it provided is built in.
 		var ex := _radius() * DISC * zoom
-		return Vector2(ex + size.x * PAN_SLACK, ex * _squash() + size.y * PAN_SLACK)
+		return Vector2(ex + size.x * PAN_SLACK, ex * _eff() + size.y * PAN_SLACK)
 
 	## No pan limit. For a view nobody drags that must put the ship in the middle
 	## wherever it is: the escape menu's inset is 132 px tall, so the limit's
@@ -2975,6 +2798,9 @@ class MapChart extends Control:
 	func _draw_chart() -> void:
 		if Run.map.is_empty():
 			return
+		var hr := _hole_px()
+		_hole_c = centre_px()
+		_hole_rr = (hr + 1.0) * (hr + 1.0) if hr > 0.0 else 0.0
 
 		var here: MapGen.MapNode = Run.node_at()
 		var hp := _screen_pos(here)
@@ -3038,6 +2864,7 @@ class MapChart extends Control:
 				for i in range(1, Run.trail.size()):
 					var a := _screen_pos(Run.map[Run.trail[i - 1]])
 					var b := _screen_pos(Run.map[Run.trail[i]])
+					draw_line(a, b, _UNDER_SOFT, 3.0)
 					draw_line(a, b, Color(0.86, 0.91, 0.97, 0.85), 1.0)
 
 		# Pointing at a candidate deliberately shows NOTHING beyond it. Its own
@@ -3081,7 +2908,30 @@ class MapChart extends Control:
 			# back through -- they are simply not on the dish this minute.
 			if not node2.sensed and node2.index != here.index:
 				tint = tint.darkened(0.45)
-			if tiny:
+			# THE CORE IS ITS BLACK HOLE, AND MARKED ON IT ("the core icon should
+			# be in the center of the black part of the black hole AND the
+			# selection reticle should be there too", Jon): its glyph on the
+			# shadow, the brackets and YOU with it, no name. Its band in the
+			# flare's amber, not the near-white that read as a second, smaller
+			# hole inside the black ("I don't like the white outline on the
+			# center of the black hole").
+			# (the core is always on the chart's list -- it is where the run
+			# ends and can always be jumped toward -- but its icon shows only
+			# when it is in your sensors, as any system's would: "have the black
+			# hole icon only show up when you're in range of it", Jon. The hole
+			# itself is sky and always there.)
+			if node2.type == MapGen.NodeType.CORE and not (show_all or node2.index == here.index
+					or node2.index == selected or node2.visited
+					or MapGen.hop_distance(here, node2) <= Run.sense_radius()):
+				continue
+			if node2.type == MapGen.NodeType.CORE:
+				# (the middle of the black you see: the near side of the disc
+				# covers the shadow's lower part, so that is above the hole's
+				# own centre)
+				p = (_screen_pos(node2) - Vector2(6, 6 + _hole_px() * 0.38)).round()
+				Glyph.draw_glyph(self, p, node2.type, tint.lightened(0.12),
+					node2.index == here.index, node2.index == selected, UITheme.FLARE)
+			elif tiny:
 				var lit: bool = node2.index == here.index \
 					or node2.index == selected or node2.index == hovered
 				# Systems you can actually go to hold their colour; the rest of
@@ -3091,14 +2941,23 @@ class MapChart extends Control:
 				# the far ones keep some colour; the reachable ones get a pixel
 				# of extra weight instead of the rest being crushed.
 				var d: float = 3.0 if (lit or near) else 2.0
-				draw_rect(Rect2(p + Vector2(6, 6) - Vector2(d, d) * 0.5,
-					Vector2(d, d)), tint if near else tint.darkened(0.35), true)
+				var at := p + Vector2(6, 6) - Vector2(d, d) * 0.5
+				# on a rim of the void a pixel out on its four sides (not its
+				# corners), so it stands off the arms and the bulge
+				draw_rect(Rect2(at - Vector2(1, 0), Vector2(d + 2.0, d)), _UNDER, true)
+				draw_rect(Rect2(at - Vector2(0, 1), Vector2(d, d + 2.0)), _UNDER, true)
+				draw_rect(Rect2(at, Vector2(d, d)),
+					tint.lightened(0.15) if near else tint.darkened(0.35), true)
 			else:
-				Glyph.draw_glyph(self, p, node2.type, tint,
+				var near2: bool = node2.index == here.index or node2.index == selected \
+					or node2.index == hovered or reach.has(node2)
+				Glyph.draw_halo(self, p, node2.type, _UNDER)
+				Glyph.draw_glyph(self, p, node2.type,
+					tint.lightened(0.12) if near2 else tint.darkened(0.2),
 					node2.index == here.index, node2.index == selected)
 			if node2.index == here.index:
 				_draw_you(p, tiny)
-			elif node2.index == hovered or node2.index == selected:
+			elif (node2.index == hovered or node2.index == selected) and node2.type != MapGen.NodeType.CORE:
 				draw_string(UITheme.pixel_font(), p + Vector2(-40, 30),
 					MapGen.star_name(node2), HORIZONTAL_ALIGNMENT_CENTER, 92, 8,
 					UITheme.ICE if node2.index == hovered else UITheme.COLD)
@@ -3259,7 +3118,7 @@ class MapChart extends Control:
 			var mn: MapGen.MapNode = node
 			if MapGen.hop_distance(here, mn) > span:
 				continue
-			var p := _polar(mn)
+			var p := _proj_unit(mn.gal)
 			lo = lo.min(p)
 			hi = hi.max(p)
 			n += 1
@@ -3267,7 +3126,7 @@ class MapChart extends Control:
 			# Nothing near you but you. Centre on the ship at a readable zoom
 		# rather than dividing by a span of nothing.
 			var solo := clampf(2.0, ZOOM_MIN, ZOOM_MAX)
-			_go_to(solo, -_polar(here) * solo, animate)
+			_go_to(solo, -_proj_unit(here.gal) * solo, animate)
 			return
 		var box := (hi - lo).max(Vector2.ONE)
 		# A margin, or the outermost system sits on the frame edge with its name
@@ -3283,11 +3142,10 @@ class MapChart extends Control:
 	## chart, only the question of whether the move is watched.
 	## Frame the ship at a given zoom. The screenshot harnesses both need
 	## exactly this and were each poking zoom, pan, `_clamp_pan` and
-	## `_repaint_sky` by hand -- and a zoom invalidates the backdrop's slide
-	## basis outright, so the sky must be repainted rather than slid, which is
-	## the part a caller doing it by hand forgets.
+	## `_repaint_sky` by hand, which is the part a caller doing it by hand
+	## forgets.
 	func center_on_ship(z: float) -> void:
-		_go_to(z, -_polar(Run.node_at()) * z, false)
+		_go_to(z, -_proj_unit(Run.node_at().gal) * z, false)
 
 	func _go_to(z: float, p: Vector2, animate: bool) -> void:
 		if animate:
@@ -3335,7 +3193,6 @@ class MapChart extends Control:
 		if _neb_hot == "":
 			return
 		var r_max := _radius() * DISC
-		var c := size * 0.5 + pan
 		for raw in NebulaField.clouds():
 			var cl: NebulaField.Cloud = raw
 			if cl.name != _neb_hot:
@@ -3369,7 +3226,7 @@ class MapChart extends Control:
 							break
 					if buried:
 						continue
-					var q := c + pn * r_max * zoom
+					var q := _cloud_pt(cl, pn - cl.pos)
 					if q.x < 0.0 or q.y < 0.0 or q.x > size.x or q.y > size.y:
 						continue
 					draw_rect(Rect2(q.round(), Vector2.ONE), col, true)
@@ -3457,7 +3314,9 @@ class MapChart extends Control:
 		if r <= 0.0:
 			return
 		var rx := r * _radius() * DISC * zoom
-		var ry := rx * _squash()
+		# Flattened as the disc is (`_proj`): the reach is a circle in the disc's
+		# plane, and a circle turns into itself, so the ring never turns.
+		var ry := rx * _eff()
 		# Under about six pixels it is a smudge on the ship rather than a ring,
 		# and at that size the dotted lines already say everything it would.
 		if rx < 6.0:
@@ -3469,8 +3328,25 @@ class MapChart extends Control:
 			if i % period >= on:
 				continue
 			var a := TAU * float(i) / float(steps)
-			draw_rect(Rect2((c + Vector2(cos(a) * rx, sin(a) * ry)).round(),
-				Vector2.ONE), col, true)
+			var q := (c + Vector2(cos(a) * rx, sin(a) * ry)).round()
+			if _in_hole(q):
+				continue
+			_under_dot(q)
+			draw_rect(Rect2(q, Vector2.ONE), col, true)
+
+	## The black hole's shadow on the screen, its radius (0 when there is no
+	## sky to draw one), and whether a point is in it: the chart's dotted marks
+	## -- routes, the sensor and reach rings -- stop at its edge rather than
+	## run across it as a dashed seam.
+	func _hole_px() -> float:
+		return _sky.hole_px() if _sky != null else 0.0
+
+	## (worked out once a draw, `_draw_chart`, not once a dot)
+	var _hole_c := Vector2.ZERO
+	var _hole_rr := 0.0
+
+	func _in_hole(q: Vector2) -> bool:
+		return _hole_rr > 0.0 and q.distance_squared_to(_hole_c) < _hole_rr
 
 	## A dashed run between two points, in whole pixels. draw_dashed_line exists
 	## but works in continuous space, so its gaps land on fractions of a pixel
@@ -3483,10 +3359,21 @@ class MapChart extends Control:
 		var step := (b - a) / span
 		var i := 2.0
 		while i < span - 2.0:
-			# Two on, three off.
+			# Two on, three off, each on a soft square of the void, so a route
+			# still reads where it crosses the bright bulge or an arm.
 			if int(i) % 5 < 2:
-				draw_rect(Rect2((a + step * i).round(), Vector2.ONE), col, true)
+				var q := (a + step * i).round()
+				if _in_hole(q):
+					i += 1.0
+					continue
+				_under_dot(q)
+				draw_rect(Rect2(q, Vector2.ONE), col, true)
 			i += 1.0
+
+	## The soft rim under one pixel of a route or ring: its four sides only.
+	func _under_dot(q: Vector2) -> void:
+		draw_rect(Rect2(q - Vector2(1, 0), Vector2(3, 1)), _UNDER_SOFT, true)
+		draw_rect(Rect2(q - Vector2(0, 1), Vector2(1, 3)), _UNDER_SOFT, true)
 
 	## What this system is, at the cursor. Zoomed out every system is a two-pixel
 	## dot, so without this the chart is unreadable — you can see the shape of the
@@ -3565,11 +3452,9 @@ class MapChart extends Control:
 		draw_string(f, tx + Vector2(0, 36), l4, HORIZONTAL_ALIGNMENT_LEFT, -1, 8,
 			Color(0.541, 0.416, 0.227, a))
 
-	## A stable hash for a tile of the deep field. The far field has to be built
-	## from position, not from a running sequence: a sequence re-rolls every star
-	## the moment anything about the field changes, which is what made the sky
-	## crawl when you zoomed. `chart_sky.gdshaderinc` has the same hash, bit for
-	## bit; the bursts still ask this one.
+	## A stable hash, from position rather than a running sequence, so the same
+	## inputs always give the same answer: the gamma-ray bursts are timed and
+	## placed with it (and `-- sheet=ChartSheet` finds them with it).
 	func _hash2(i: int, j: int, salt: int) -> int:
 		var h := (i * 374761393 + j * 668265263 + salt * 144665) & 0x7fffffff
 		h = (h ^ (h >> 13)) & 0x7fffffff
@@ -3579,194 +3464,6 @@ class MapChart extends Control:
 	func _frac(h: int) -> float:
 		return float(h % 10000) / 10000.0
 
-	## The deep field is tiled by position and hashed from the tile coordinates,
-	## which made it identical in every run: seeding the galaxy's own layers was
-	## not enough, because none of the sky outside the disc came from those
-	## seeds. Folding the run seed into the salt gives each run its own universe
-	## while keeping a tile's contents fixed for as long as you look at it.
-	func _sky(salt: int) -> int:
-		return salt + (Run.galaxy_seed % 100003) * 31
-
-	## Other galaxies, very far away. Field stars alone say "we are somewhere in
-	## a galaxy"; these say "and it is one of many", which is the loneliness the
-	## whole game is about. Drawn first so our own disc passes in front of them.
-	##
-	## Parallax is deliberate, and in shells: one layer of anything reads as a
-	## backdrop; layers moving at different speeds read as distance. Seven
-	## shells, on their own spread of depths, for the same reason as the halo's
-	## stars: three put every galaxy at one of three speeds and they moved in
-	## obvious groups. The deep one is tiled tight and keeps nearly every tile --
-	## it is what makes the back of the sky busy rather than sparse -- while the
-	## near one holds a handful of big, close galaxies that swing properly when
-	## you drag. Without that near shell the deep field has no top end.
-	##
-	## SET UP HERE, DRAWN BY `chart_deep.gdshader`, which builds every pixel of
-	## every object from its tile's hash. What this hands it is the old loop's
-	## own numbers for each shell: where the shell sits (`sky_pan` times its
-	## parallax), which tiles are in view, and how big, bright and dense its
-	## objects are. It reads `pan`, `zoom`, `sky_pan` and `size` and nothing
-	## else, which is why `_repaint_galaxy` pushes it only when one of those moved.
-	const DEEP_SHELLS := 7
-	## Quad slots per tile: the most pixels one distant object can have, a
-	## nebula's 150 + 200 at full brightness.
-	const DEEP_PER_TILE := 350
-	## Uniform array sizes in `chart_deep.gdshader` and `chart_halo.gdshader`.
-	## Room for more shells and depths than are drawn.
-	const DEEP_MAX := 16
-	const HALO_MAX := 48
-	var _deep_slots := -1
-	var _halo_slots := -1
-
-	func _push_deep() -> void:
-		if _mat_deep == null or size.x <= 0.0 or size.y <= 0.0:
-			return
-		var lay_c := PackedVector4Array()
-		var lay_r := PackedVector4Array()
-		var lay_s := PackedVector4Array()
-		var lay_k := PackedVector4Array()
-		var first := 0
-		for k in DEEP_SHELLS:
-			var f := float(k) / 6.0
-			var cell: float = lerpf(150.0, 700.0, f)
-			var parallax: float = lerpf(0.09, 0.58, f) * FAR_PARALLAX
-			var bright: float = lerpf(0.5, 1.0, f)
-			var c := size * 0.5 + sky_pan * parallax
-			var i0 := int(floor(-c.x / cell)) - 1
-			var i1 := int(floor((size.x - c.x) / cell)) + 1
-			var j0 := int(floor(-c.y / cell)) - 1
-			var j1 := int(floor((size.y - c.y) / cell)) + 1
-			# Enough tiles for any pan: i1 - i0 + 1 is at most floor(w / cell) + 4.
-			var nx := int(floor(size.x / cell)) + 4
-			var ny := int(floor(size.y / cell)) + 4
-			lay_c.append(Vector4(c.x, c.y, cell, 1.0 - bright))
-			lay_r.append(Vector4(i0, j0, i1, j1))
-			lay_s.append(Vector4(first, nx, ny, _sky(3 + k * 53)))
-			lay_k.append(Vector4(lerpf(1.5, 9.0, f), lerpf(3.5, 20.0, f), bright,
-				_milli(lerpf(0.92, 0.6, f))))
-			first += nx * ny
-		# Padded to the shader's array size. Packed arrays are values, so each
-		# is resized by name rather than through a loop variable.
-		lay_c.resize(DEEP_MAX)
-		lay_r.resize(DEEP_MAX)
-		lay_s.resize(DEEP_MAX)
-		lay_k.resize(DEEP_MAX)
-		var slots := first * DEEP_PER_TILE
-		if slots != _deep_slots:
-			_deep_slots = slots
-			_deep.stars.mesh = _quads(slots)
-			_deep.stars.queue_redraw()
-		var m := _mat_deep
-		m.set_shader_parameter("lay_c", lay_c)
-		m.set_shader_parameter("lay_r", lay_r)
-		m.set_shader_parameter("lay_s", lay_s)
-		m.set_shader_parameter("lay_k", lay_k)
-		m.set_shader_parameter("layers", DEEP_SHELLS)
-		m.set_shader_parameter("slots", slots)
-		m.set_shader_parameter("here", size * 0.5 + pan)
-		m.set_shader_parameter("guard", _radius() * DISC * 0.95 * zoom)
-		m.set_shader_parameter("r_s", _shadow_r() * zoom * 1.05)
-		m.set_shader_parameter("size", size)
-
-	## The highest roll in thousandths, m, for which `float(m) / 1000.0 <= x`.
-	##
-	## A tile's roll is an integer m read as m / 1000, and the old loop compared
-	## that with a threshold in double precision. The shader compares the
-	## integer with this instead, which settles every tie the way the double
-	## did; a float divide on the GPU can come out a bit high and tip one.
-	static func _milli(x: float) -> int:
-		var m := clampi(int(floor(x * 1000.0)) + 1, 0, 1000)
-		while m >= 0 and float(m) / 1000.0 > x:
-			m -= 1
-		return m
-
-	## Six palettes for the deep field. Everything out there used to be the same
-	## cold blue-grey, which is most of why a sky full of objects read as one
-	## object repeated. Bright, mid and dim for each.
-	const _FAR_PALETTES := [
-		[Color("#6d7f96"), Color("#2f3d4e"), Color("#161e2a")],
-		[Color("#a3856a"), Color("#4b3c30"), Color("#241d18")],
-		[Color("#5e9b93"), Color("#2b4a47"), Color("#152726")],
-		[Color("#8a6fa8"), Color("#403353"), Color("#211a2b")],
-		[Color("#a86f78"), Color("#4e343a"), Color("#28191d")],
-		[Color("#9fb4cc"), Color("#3d5064"), Color("#1b2534")],
-	]
-
-	## Field stars, in depths at different parallax rates. Without these the
-	## galaxy is a blob in a box: the arms fade out and the corners go flat
-	## black, which reads as the edge of a texture rather than the edge of a
-	## galaxy. Tiled by position so a star stays put, and unbounded by
-	## construction so there is no edge to pan off.
-	## Twenty-two depths of field stars rather than two.
-	##
-	## Two layers meant every star moved at one of two speeds, and the eye finds
-	## that instantly — you do not see depth, you see two sheets of glass sliding
-	## over each other. With twenty-two, no two neighbouring stars are quite
-	## agreeing about how fast they should move, which is what parallax actually
-	## looks like.
-	##
-	## Each layer is correspondingly sparser (cell size scales with the square
-	## root of the count) so the total star density and the total tile work are
-	## about what they were with two.
-	##
-	## Set up here, drawn by `chart_halo.gdshader`, one quad slot per tile in
-	## view. Fixed under zoom, for the same reason as the distant galaxies: a
-	## field of single pixels cannot be rescaled without shimmering.
-	const DEPTHS := 22
-
-	func _push_halo() -> void:
-		# The dark clouds it is thinned behind come out of the galaxy build.
-		if _mat_halo == null or not _ensure_gpu():
-			return
-		var hl_c := PackedVector4Array()
-		var hl_r := PackedVector4Array()
-		var hl_s := PackedVector4Array()
-		var hl_b := PackedFloat32Array()
-		var first := 0
-		for k in DEPTHS:
-			var f := float(k) / float(DEPTHS - 1)
-			# Nearer layers are brighter and slightly denser: distance is carried
-			# by speed, brightness and count together, not by speed alone.
-			var parallax: float = lerpf(0.05, 0.62, f) * PARALLAX
-			var cell: float = lerpf(62.0, 44.0, f)
-			var bright: float = lerpf(0.42, 1.0, f)
-			var c := size * 0.5 + sky_pan * parallax
-			var i0 := int(floor(-c.x / cell)) - 1
-			var i1 := int(floor((size.x - c.x) / cell)) + 1
-			var j0 := int(floor(-c.y / cell)) - 1
-			var j1 := int(floor((size.y - c.y) / cell)) + 1
-			var nx := int(floor(size.x / cell)) + 4
-			var ny := int(floor(size.y / cell)) + 4
-			hl_c.append(Vector4(c.x, c.y, cell, 1.0 - bright))
-			hl_r.append(Vector4(i0, j0, i1, j1))
-			hl_s.append(Vector4(first, nx, ny, _sky(5 + k * 37)))
-			hl_b.append(bright)
-			first += nx * ny
-		hl_c.resize(HALO_MAX)
-		hl_r.resize(HALO_MAX)
-		hl_s.resize(HALO_MAX)
-		hl_b.resize(HALO_MAX)
-		if first != _halo_slots:
-			_halo_slots = first
-			_halo.mesh = _quads(first)
-			_halo.queue_redraw()
-		var m := _mat_halo
-		m.set_shader_parameter("hl_c", hl_c)
-		m.set_shader_parameter("hl_r", hl_r)
-		m.set_shader_parameter("hl_s", hl_s)
-		m.set_shader_parameter("hl_b", hl_b)
-		m.set_shader_parameter("layers", DEPTHS)
-		m.set_shader_parameter("slots", first)
-		m.set_shader_parameter("here", size * 0.5 + pan)
-		m.set_shader_parameter("r_s", _shadow_r() * zoom * 1.05)
-		# TIMES DISC, which it was missing once. `_polar` places a system at
-		# `gal * _radius() * DISC`, and `_pan_limit` bounds the view by
-		# `_radius() * DISC * zoom`. Without the DISC factor of 2.05 the thinned
-		# region was less than half the galaxy's drawn extent, so its edge fell
-		# INSIDE the systems and read as a hard ring drawn across the disc.
-		m.set_shader_parameter("disc", _radius() * DISC * zoom * 1.1)
-		m.set_shader_parameter("core_px", _core_clear() * zoom)
-		m.set_shader_parameter("zoom", zoom)
-		m.set_shader_parameter("size", size)
 
 	## Where the rest of the party is.
 	##
@@ -3797,7 +3494,7 @@ class MapChart extends Control:
 			# and deep means over the core, which is the brightest thing on the
 			# chart. Unbacked, the one marker that matters most was the only one
 			# you could not see.
-			_diamond(c, 6.0, UITheme.VOID)
+			_diamond(c, 6.0, _UNDER)
 			_diamond(c, 5.0, UITheme.GOOD)
 			# Stacked when two ships are in the same system, which is the whole
 			# point of flying together and would otherwise print one name on top
@@ -3823,7 +3520,7 @@ class MapChart extends Control:
 				or Run.hellbender_at >= Run.map.size():
 			return
 		var c := _screen_pos(Run.map[Run.hellbender_at])
-		_diamond(c, 7.0, UITheme.VOID)
+		_diamond(c, 7.0, _UNDER)
 		_diamond(c, 6.0, UITheme.EMBER)
 		var at_text := c + Vector2(-46, -14)
 		draw_string(UITheme.pixel_font(), at_text + Vector2(1, 1), "THE HELLBENDER",
@@ -3901,7 +3598,7 @@ class MapChart extends Control:
 			# Backed in ink first, for the reason the party diamond is: the deep
 			# systems sit over the core, which is the brightest thing here.
 			var box := Rect2(c - Vector2(7, 7), Vector2(14, 14))
-			draw_rect(box.grow(1.0), UITheme.VOID, false, 3.0)
+			draw_rect(box.grow(1.0), _UNDER, false, 3.0)
 			draw_rect(box, gold, false, 1.0)
 			draw_string(UITheme.pixel_font(), c + Vector2(-46, -13), said,
 				HORIZONTAL_ALIGNMENT_CENTER, 92, 8, gold)
@@ -3931,7 +3628,7 @@ class MapChart extends Control:
 			var col := DB.manufacturer_colour(job.manufacturer)
 			# Backed in ink for the reason the party diamond is: the deep systems
 			# sit over the core, which is the brightest thing on the chart.
-			draw_arc(c, 9.0, 0.0, TAU, 20, UITheme.VOID, 3.0)
+			draw_arc(c, 9.0, 0.0, TAU, 20, _UNDER, 3.0)
 			draw_arc(c, 9.0, 0.0, TAU, 20, col, 1.0)
 			# A second, tighter ring for a hunt, so the two kinds are told apart
 			# without a label. Fetch is an open circle; hunt has something in it.
@@ -3957,7 +3654,7 @@ class MapChart extends Control:
 			var hcol := DB.manufacturer_colour(manufacturer)
 			for st in _work_berths[manufacturer]:
 				var p := _screen_pos(st)
-				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), UITheme.VOID, false, 3.0)
+				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), _UNDER, false, 3.0)
 				draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), hcol, false, 1.0)
 				draw_rect(Rect2(p - Vector2(2, 2), Vector2(4, 4)), hcol, true)
 
@@ -4007,10 +3704,16 @@ class MapChart extends Control:
 					[Vector2(w, w), Vector2(-1, -1)]]:
 				var k: Vector2 = o + corner[0]
 				var dd: Vector2 = corner[1]
-				draw_rect(Rect2(k + Vector2(0, -1 if dd.y < 0 else 0),
-					Vector2(b * dd.x, 1)), UITheme.FLARE, true)
-				draw_rect(Rect2(k + Vector2(-1 if dd.x < 0 else 0, 0),
-					Vector2(1, b * dd.y)), UITheme.FLARE, true)
+				var h := Rect2(k + Vector2(0, -1 if dd.y < 0 else 0), Vector2(b * dd.x, 1)).abs()
+				var v := Rect2(k + Vector2(-1 if dd.x < 0 else 0, 0), Vector2(1, b * dd.y)).abs()
+				draw_rect(h.grow(1.0), _UNDER, true)
+				draw_rect(v.grow(1.0), _UNDER, true)
+				draw_rect(h, UITheme.FLARE, true)
+				draw_rect(v, UITheme.FLARE, true)
+		# the label on a rim of the void, so it reads over the bulge too
+		for off: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+			draw_string(UITheme.pixel_font(), p + Vector2(-14, 30) + off, "YOU",
+				HORIZONTAL_ALIGNMENT_CENTER, 40, 8, _UNDER)
 		draw_string(UITheme.pixel_font(), p + Vector2(-14, 30), "YOU",
 			HORIZONTAL_ALIGNMENT_CENTER, 40, 8, UITheme.FLARE)
 
@@ -4029,15 +3732,13 @@ class MapChart extends Control:
 		# A new run means a new sky, and every entry for the old one is unreachable.
 		if galaxy != _sky_galaxy:
 			_sky_cache.clear()
-			_gpu_cache.clear()
+			ChartSky.drop_others()
 			_sky_galaxy = galaxy
 		if _sky_cache.has(key):
 			_restore_sky(_sky_cache[key])
 			_star_key = key
 			return
 		_star_key = key
-		# Orbits are rebuilt with the field; _build_orbits is called at the end,
-		# once _core_skipped has been counted.
 		_star_pos = PackedVector2Array()
 		_star_col = PackedColorArray()
 		_star_big = PackedByteArray()
@@ -4056,8 +3757,6 @@ class MapChart extends Control:
 		# anything is placed, because everything placed has to ask.
 		_dark_c = PackedVector2Array()
 		_dark_r = PackedFloat32Array()
-		_dark_orb_c = PackedVector2Array()
-		_dark_orb_r = PackedFloat32Array()
 		for raw_dark in NebulaField.clouds():
 			var dc: NebulaField.Cloud = raw_dark
 			if dc.kind != NebulaField.Kind.DARK:
@@ -4067,14 +3766,6 @@ class MapChart extends Control:
 				var drad: float = dc.lobe_r[l] * r_max
 				_dark_c.append(dcen)
 				_dark_r.append(drad)
-				# Does this lobe reach into the turning region? Usually not —
-				# clouds sit out in the disc and the live layer only owns the
-				# middle. But NebulaField deliberately places one cloud at 0.05
-				# to 0.21 of the disc so the black hole has gas within reach,
-				# and when THAT one rolls dark it lands squarely in the orbits.
-				if dcen.length() - drad < _core_clear():
-					_dark_orb_c.append(dcen)
-					_dark_orb_r.append(drad)
 		# Nothing static is drawn inside the cleared core — not the arms, not the
 		# dust, not the tidal tail, not the bulge. The hole itself is empty, and
 		# the annulus around it belongs to the live layer, which orbits stars
@@ -4310,21 +4001,10 @@ class MapChart extends Control:
 			_star_big.append(0)
 			_star_dim.append(0)
 
-		_build_orbits()
-		_build_disc()
-		# The accretion ring is NOT built here. It used to be, and the live layer
-		# drew a churning one at the same radius on top of it — so the bright
-		# ring you actually saw was the static copy underneath, and no amount of
-		# animation above it could make it move. The live layer owns the ring
-		# outright now, exactly as it owns the orbiting stars.
-
 		# --- the halo and the wreckage, last, so they sit on top of the disc they
 		# are in front of.
 		_build_clusters(r_max)
 		_build_remnants(r_max)
-		# Last: the wave samples the finished field, and clusters and
-		# remnants both append to it.
-		_build_wave()
 
 		_sky_cache[_star_key] = _snapshot_sky()
 
@@ -4929,6 +4609,8 @@ class MapChart extends Control:
 	## projection is a circle however flattened the disc in front of it is.
 	func _build_clusters(r_max: float) -> void:
 		_seed_rng(60613)
+		_glob_c = PackedVector2Array()
+		_glob_i = PackedInt32Array()
 		var count := 11 + int(_rnd() * 9.0)
 		for k in count:
 			# Concentrated toward the middle but reaching well past the rim. The
@@ -4938,6 +4620,8 @@ class MapChart extends Control:
 			var centre := Vector2(cos(a), sin(a)) * rr
 			var rad: float = r_max * (0.008 + _rnd() * 0.014)
 			var n := 44 + int(_rnd() * 56.0)
+			_glob_c.append(centre)
+			_glob_i.append(_star_pos.size())
 			for m in n:
 				# pow 2.6 is what makes it a cluster and not a smudge: nearly
 				# all of it inside a fifth of the radius, a scattering outside.
@@ -4965,6 +4649,7 @@ class MapChart extends Control:
 				_star_col.append(col)
 				_star_big.append(0)
 				_star_dim.append(1 if t <= 0.5 else 0)
+			_glob_i.append(_star_pos.size())
 
 	## The flashing star at each pulsar.
 	##
@@ -4975,7 +4660,7 @@ class MapChart extends Control:
 	## Ringing the system with a second, smaller shell of its own put two shock
 	## fronts on the chart for one explosion.
 	##
-	## So all that is left is the star itself, which the live layer flashes.
+	## So all that is left is the star itself, which `Flashes` lights.
 	func _build_remnants(r_max: float) -> void:
 		_pulsar = PackedVector2Array()
 		if not Run.map.is_empty():
@@ -5000,294 +4685,39 @@ class MapChart extends Control:
 			if cloud.kind == NebulaField.Kind.REMNANT:
 				_pulsar.append(cloud.pos * r_max)
 
-	## Lay out the orbiting core. Runs with the rest of the build, because it
-	## depends on how many stars the cleared region swallowed and that number is
-	## only known once the field has been built.
-	## The accretion disc, laid out once.
-	##
-	## Every one of these was recomputed sixty times a second for five thousand
-	## two hundred particles, and none of it changes: the hashes are fixed per
-	## index, the radius is a pow of a hash, the angular velocity is a function
-	## of that radius, and the radial light profile is an exp of it. That is
-	## three GDScript calls plus a pow and an exp per particle per frame —
-	## around thirty thousand function calls a frame — to arrive at exactly the
-	## numbers of the frame before.
-	##
-	## What actually varies with time is the ANGLE, and what follows from it. So
-	## the disc is laid out here and the draw does trigonometry and nothing else.
-	var _disc_r: PackedFloat32Array = PackedFloat32Array()
-	var _disc_a: PackedFloat32Array = PackedFloat32Array()
-	var _disc_om: PackedFloat32Array = PackedFloat32Array()
-	var _disc_rad: PackedFloat32Array = PackedFloat32Array()
-	var _disc_b: PackedFloat32Array = PackedFloat32Array()
-	## Phase offsets, so each particle breathes and churns out of step.
-	var _disc_bp: PackedFloat32Array = PackedFloat32Array()
-	var _disc_c1: PackedFloat32Array = PackedFloat32Array()
-	var _disc_c2: PackedFloat32Array = PackedFloat32Array()
+	## THE FLASHES: is anything lit at `t`? A pulsar on its beat, or a burst.
+	func _flash_lit(t: float) -> bool:
+		if _burst_lit(t):
+			return true
+		for i in _pulsar.size():
+			var period := 1.1 + float(i) * 0.43
+			if fmod(t, period) / period <= 0.16:
+				return true
+		return false
 
-	## The density wave's sample set, laid out once.
-	##
-	## The wave walks a fixed stride through the star field, so it visits the
-	## same indices every frame and asked the same questions about each of them
-	## every frame: an atan2 for the angle, a length for the radius, a colour
-	## chosen from that radius, and an extinction lookup. None of it moves. Only
-	## the phase advances.
-	##
-	## So the samples are resolved here down to a position, a phase offset and a
-	## finished colour, and the draw is one sine and a rect.
-	var _wv_pos: PackedVector2Array = PackedVector2Array()
-	var _wv_ph: PackedFloat32Array = PackedFloat32Array()
-	var _wv_col: PackedColorArray = PackedColorArray()
-
-	func _build_wave() -> void:
-		_wv_pos = PackedVector2Array()
-		_wv_ph = PackedFloat32Array()
-		_wv_col = PackedColorArray()
-		var r_max: float = maxf(1.0, _radius() * DISC)
-		var lit_step := maxi(1, _star_pos.size() / 2600)
-		for i in range(0, _star_pos.size(), lit_step):
-			# STARS only. _star_pos holds the nebula wash as well — gas and
-			# stars share the array because they share the cache — and this
-			# sampling took whatever it landed on. So the wave swept through the
-			# clouds lighting the gas a few blocks at a time, which on a DARK
-			# nebula is a contradiction in terms: the one kind of cloud whose
-			# entire definition is that it does not emit was the one visibly
-			# shimmering. Size 2 is the gas block, the same convention the
-			# orbiting material uses.
-			if _star_big[i] == 2:
+	## The pulsars, each on its own beat so they never fall into step: a pixel
+	## that flashes and fades, with a pixel either side at the peak (a pulsar is
+	## a lighthouse). Then the bursts. On `Flashes`, over the sky.
+	func _draw_flashes(ci: CanvasItem, t: float) -> void:
+		var r_max := _radius() * DISC
+		if r_max <= 0.0:
+			return
+		var c := centre_px()
+		var ang := turn()
+		for i in _pulsar.size():
+			var period := 1.1 + float(i) * 0.43
+			var ph := fmod(t, period) / period
+			if ph > 0.16:
 				continue
-			var sp := _star_pos[i]
-			var ang := atan2(sp.y, sp.x)
-			var rn: float = sp.length() / r_max
-			var col := Color("#43566d")
-			if rn < 0.32:
-				col = Color("#8a6134")
-			elif rn < 0.62:
-				col = Color("#5f7590")
-			# A star behind dust does not brighten to full when the wave reaches
-			# it. The static field dims these where it places them, but the wave
-			# OVERWRITES the colour rather than scaling it, so without this every
-			# pass threw that dimming away and lit the survivors inside a dark
-			# cloud as though nothing were in front of them.
-			if not _dark_r.is_empty():
-				var wex := _extinct(sp)
-				if wex > 0.02:
-					col = col.darkened(wex * 0.85)
-			_wv_pos.append(sp)
-			# Two-armed, and wound: the wave lags with radius exactly as the arms
-			# do, so it travels along them rather than sweeping across them.
-			_wv_ph.append(ang * 2.0 - rn * 5.0)
-			_wv_col.append(col)
-
-	func _build_disc() -> void:
-		_disc_r = PackedFloat32Array()
-		_disc_a = PackedFloat32Array()
-		_disc_om = PackedFloat32Array()
-		_disc_rad = PackedFloat32Array()
-		_disc_b = PackedFloat32Array()
-		_disc_bp = PackedFloat32Array()
-		_disc_c1 = PackedFloat32Array()
-		_disc_c2 = PackedFloat32Array()
-		var sh := _shadow_r()
-		var clear := _core_clear()
-		var d_in := sh * 1.02
-		var d_out := sh * 3.6
-		var span := d_out - d_in
-		for i in 5200:
-			var dv := _frac(_hash2(i, 3, 8675))
-			var da := _frac(_hash2(i, 5, 8675))
-			var db := _frac(_hash2(i, 11, 8675))
-			var x: float = pow(dv, 0.72)
-			var dr: float = d_in + x * span
-			var off: float = (x - 0.16) / 0.34
-			_disc_r.append(dr)
-			_disc_a.append(da * TAU)
-			_disc_om.append(_orbital_omega(dr, sh, clear))
-			_disc_rad.append(exp(-off * off))
-			_disc_b.append(db)
-			_disc_bp.append(da * 19.0)
-			_disc_c1.append(dv * 11.0)
-			_disc_c2.append(dv * 23.0)
-
-	func _build_orbits() -> void:
-		_orb_r = PackedFloat32Array()
-		_orb_a = PackedFloat32Array()
-		_orb_w = PackedFloat32Array()
-		_orb_col = PackedColorArray()
-		_orb_size = PackedByteArray()
-		_orb_dark = PackedByteArray()
-
-		var sh := _shadow_r()
-		var clear := _core_clear()
-		var sq_o := _squash()
-		# One in N when the core swallowed more than the frame can carry. Taking
-		# a slice keeps the radial spread and the colour mix of the whole set;
-		# taking the first N would have kept whichever layer happened to be built
-		# first and lost the others entirely.
-		var total := _core_rad.size()
-		if total == 0:
-			return
-		var stride := maxi(1, int(ceil(float(total) / 7000.0)))
-		var i := 0
-		while i < total:
-			# (the walk below is by index; the angle now comes from the star
-			# itself, so a strided walk can no longer bias the angular spread)
-			var orad: float = _core_rad[i]
-			# Nothing may start inside the hole; where it goes from there is
-			# checked per frame, since that depends on its orbit.
-			if orad > sh * 0.5:
-				_orb_r.append(orad)
-				_orb_a.append(_core_ang[i])
-				_orb_w.append(_orbital_omega(orad, sh, clear))
-				_orb_col.append(_core_col[i])
-				_orb_size.append(_core_size[i])
-				# The path this traces is an ellipse between orad*sq and orad,
-				# so a dark lobe can only ever be in the way if its own radial
-				# band overlaps that. Almost none do.
-				var can_dark := 0
-				for k in _dark_orb_r.size():
-					var dl: float = _dark_orb_c[k].length()
-					if orad >= dl - _dark_orb_r[k] and orad * sq_o <= dl + _dark_orb_r[k]:
-						can_dark = 1
-						break
-				_orb_dark.append(can_dark)
-			i += stride
-
-	## The living part of the sky, laid out for `chart_anim.gdshader`: two RGBA
-	## float texels per particle, in the order the old per-frame loop drew them
-	## (twinkle, wave, orbits, disc, pulsars), so where two land on one pixel the
-	## same one wins. Built once per galaxy and cached with it; everything in it
-	## comes from arrays `_build_stars` already made, so nothing new is decided
-	## here.
-	const ANIM_TEX_W := 2048
-	## How long the orbits run on one rebase. See `_anim_rebase`.
-	const ANIM_REBASE_S := 64.0
-
-	func _anim_layout() -> Dictionary:
-		var n := _star_pos.size()
-		# Stars catching the light: only a slice of the field is considered.
-		var step := maxi(1, n / 420)
-		var n_tw := (n + step - 1) / step if n > 0 else 0
-		var n_wv := _wv_ph.size()
-		var n_orb := _orb_r.size()
-		var n_disc := _disc_r.size()
-		var n_puls := _pulsar.size()
-		var total := n_tw + n_wv + n_orb + n_disc + n_puls
-		var rows := maxi(1, ceili(float(total * 2) / float(ANIM_TEX_W)))
-		var d := PackedFloat32Array()
-		d.resize(ANIM_TEX_W * rows * 4)
-		var e := 0
-		for i in range(0, n, step):
-			var o := e * 8
-			d[o] = _star_pos[i].x
-			d[o + 1] = _star_pos[i].y
-			d[o + 2] = float((i * 2654435761) % 6283) * 0.001
-			e += 1
-		for i in n_wv:
-			var o := e * 8
-			d[o] = _wv_pos[i].x
-			d[o + 1] = _wv_pos[i].y
-			d[o + 2] = _wv_ph[i]
-			_put_colour(d, o + 4, _wv_col[i])
-			e += 1
-		for i in n_orb:
-			var o := e * 8
-			d[o] = _orb_r[i]
-			d[o + 1] = _orb_a[i]
-			d[o + 2] = _orb_w[i]
-			d[o + 3] = float(_orb_size[i]) + 4.0 * float(_orb_dark[i])
-			_put_colour(d, o + 4, _orb_col[i])
-			e += 1
-		for i in n_disc:
-			var o := e * 8
-			d[o] = _disc_r[i]
-			d[o + 1] = _disc_a[i]
-			d[o + 2] = _disc_om[i]
-			d[o + 3] = _disc_rad[i]
-			d[o + 4] = _disc_b[i]
-			d[o + 5] = _disc_bp[i]
-			d[o + 6] = _disc_c1[i]
-			d[o + 7] = _disc_c2[i]
-			e += 1
-		for i in n_puls:
-			var o := e * 8
-			d[o] = _pulsar[i].x
-			d[o + 1] = _pulsar[i].y
-			# Each at its own rate, so they never fall into step.
-			d[o + 2] = 1.1 + float(i) * 0.43
-			e += 1
-		return {"data": d, "rows": rows, "n_tw": n_tw, "n_wv": n_wv,
-			"n_orb": n_orb, "n_disc": n_disc, "n_puls": n_puls,
-			"quads": n_tw + n_wv + n_orb + n_disc + n_puls * 3}
-
-	func _put_colour(d: PackedFloat32Array, o: int, c: Color) -> void:
-		d[o] = c.r
-		d[o + 1] = c.g
-		d[o + 2] = c.b
-		d[o + 3] = c.a
-
-	## THE ORBITS, RESTATED FROM NOW.
-	##
-	## An orbiting particle is at `angle - t * rate`, and the old loop worked
-	## that out in double precision every frame. A GPU float holding an hour of
-	## seconds times a rate is out by a fraction of a pixel; so every
-	## ANIM_REBASE_S this works the angles out HERE, in double precision, at the
-	## current moment, folded into one turn, and the shader adds only the
-	## seconds since (`tau`, under a minute). About ten thousand angles, 0.8ms, once a
-	## minute, against twelve thousand particles in GDScript every frame before.
-	func _anim_rebase(t: float) -> void:
-		_anim_T = t
-		var lay := _anim_lay
-		var base: PackedFloat32Array = lay.data
-		var d := base.duplicate()
-		var e0: int = lay.n_tw + lay.n_wv
-		var e1: int = e0 + lay.n_orb + lay.n_disc
-		for e in range(e0, e1):
-			var o := e * 8
-			d[o + 1] = fposmod(base[o + 1] - t * base[o + 2], TAU)
-		for k in int(lay.n_puls):
-			d[(e1 + k) * 8 + 3] = fmod(t, 1.1 + float(k) * 0.43)
-		var img := Image.create_from_data(ANIM_TEX_W, lay.rows, false,
-			Image.FORMAT_RGBAF, d.to_byte_array())
-		if _anim_tex == null:
-			_anim_tex = ImageTexture.create_from_image(img)
-			_mat_anim.set_shader_parameter("data", _anim_tex)
-		else:
-			_anim_tex.update(img)
-
-	## The clock and the view, handed to the live layer. What a repaint of it
-	## used to be.
-	func _push_anim() -> void:
-		if _mat_anim == null or not _ensure_gpu() or _anim_lay.is_empty() \
-				or _star_pos.is_empty():
-			return
-		var t := clock()
-		if is_nan(_anim_T) or absf(t - _anim_T) > ANIM_REBASE_S:
-			_anim_rebase(t)
-		var m := _mat_anim
-		m.set_shader_parameter("centre", size * 0.5 + pan)
-		m.set_shader_parameter("size", size)
-		m.set_shader_parameter("zoom", zoom)
-		# Each global rate's phase, folded to one turn here in double precision.
-		m.set_shader_parameter("tw", fposmod(t * 0.15, TAU))
-		m.set_shader_parameter("twv", fposmod(t * 0.085, TAU))
-		m.set_shader_parameter("u55", fposmod(t * 0.55, TAU))
-		m.set_shader_parameter("u31", fposmod(t * 0.31, TAU))
-		m.set_shader_parameter("u42", fposmod(t * 0.42, TAU))
-		m.set_shader_parameter("tau", t - _anim_T)
-		# The shadow, in drawn pixels. A star is behind the hole when it is
-		# inside this, and that depends on where it has orbited to.
-		var hole_px := _shadow_r() * zoom
-		m.set_shader_parameter("hole_sq", hole_px * hole_px)
-		m.set_shader_parameter("hole_px", hole_px)
-		# Same block size the static wash uses, so orbiting gas and still gas
-		# are the same material.
-		m.set_shader_parameter("gk", clampf(round(zoom * 0.75), 1.0, 2.0))
-		var lit := _burst_lit(t)
-		if lit or _burst_was:
-			_bursts.t = t
-			_bursts.queue_redraw()
-		_burst_was = lit
+			var env := 1.0 - ph / 0.16
+			var q := (c + _proj(_pulsar[i] / r_max, ang)).round()
+			if q.x < 1.0 or q.y < 0.0 or q.x > size.x - 1.0 or q.y > size.y:
+				continue
+			ci.draw_rect(Rect2(q, Vector2.ONE), Color("#e6fbff") if env > 0.45 else Color("#6fb2c4"), true)
+			if env > 0.55:
+				ci.draw_rect(Rect2(q + Vector2(1, 0), Vector2.ONE), Color("#8fd2e0"), true)
+				ci.draw_rect(Rect2(q - Vector2(1, 0), Vector2.ONE), Color("#8fd2e0"), true)
+		_draw_bursts(ci, t, c, size.x, size.y)
 
 	## Whether any of the three burst channels is lit at `t`: the first half of
 	## `_draw_bursts`, so the burst canvas is redrawn only while there is one.
@@ -5337,9 +4767,10 @@ class MapChart extends Control:
 				# In our own galaxy: on top of a real star, so it belongs to the
 				# thing it is happening in.
 				var si := int(_frac(_hash2(idx, slot, 149)) * float(_star_pos.size()))
-				where = c + _star_pos[clampi(si, 0, _star_pos.size() - 1)] * zoom
+				var sp := _star_pos[clampi(si, 0, _star_pos.size() - 1)]
+				where = c + _proj(sp / (_radius() * DISC), turn())
 			else:
-				# Out in the deep field, and it parallaxes with it.
+				# Out in the sky behind, and it parallaxes with it.
 				where = size * 0.5 + sky_pan * 0.12 + Vector2(
 					_frac(_hash2(idx, slot, 163)) * w,
 					_frac(_hash2(idx, slot, 181)) * h) - Vector2(w, h) * 0.5 + size * 0.5
@@ -5365,156 +4796,22 @@ class MapChart extends Control:
 				ci.draw_rect(Rect2(where + Vector2(k, -k), Vector2.ONE), d2, true)
 				ci.draw_rect(Rect2(where + Vector2(-k, -k), Vector2.ONE), d2, true)
 
-	## The galaxy's view, handed to `chart_stars.gdshader`. What a repaint of
-	## the backdrop used to be, at the cost of six uniforms.
-	func _push_backdrop() -> void:
-		if _mat_stars == null or not _ensure_gpu():
-			return
-		var m := _mat_stars
-		# `_sky_pan`, NOT `pan`: the layer is placed from the view it was last
-		# rebased at and then slid by whole pixels -- see `_repaint_galaxy`.
-		m.set_shader_parameter("origin", size * 0.5 + _sky_pan)
-		m.set_shader_parameter("slide", _slide)
-		m.set_shader_parameter("zoom", zoom)
-		# Rotate, THEN round -- see set_sky_rotation for why that order is the
-		# entire difference between a galaxy and a moiré pattern. Not turned,
-		# the identity, which the shader's arithmetic passes through exactly.
-		var turn := Vector2.RIGHT
-		if not is_zero_approx(sky_angle):
-			turn = Vector2(cos(sky_angle), sin(sky_angle))
-		m.set_shader_parameter("rot", turn)
-		# Gas is the one thing out here that is not made of points, so it is the
-		# one thing whose brush grows with the zoom. Magnify a fixed cloud of
-		# samples and they separate, which is right for stars and wrong for a
-		# nebula, which thinned into pink confetti the moment you leaned in. At
-		# 2.6 the blocks were the largest objects on screen and read as tiles,
-		# so it is halved and capped at two.
-		m.set_shader_parameter("gas_px", clampf(round(zoom * 0.75), 1.0, 2.0))
-		# The cull box is MapChart's, GROWN BY THE SLIDE MARGIN: a star within
-		# SKY_MARGIN of the edge is off screen now and on screen after the next
-		# slide, and the old repaint kept exactly those.
-		m.set_shader_parameter("cull", Vector4(-SKY_MARGIN, -SKY_MARGIN,
-			size.x + SKY_MARGIN, size.y + SKY_MARGIN))
-
-	# ---- the GPU's side of the sky: data, meshes and when the uniforms move.
-
-	const STARS_SHADER := preload("res://shaders/chart_stars.gdshader")
-	const DEEP_SHADER := preload("res://shaders/chart_deep.gdshader")
-	const HALO_SHADER := preload("res://shaders/chart_halo.gdshader")
-	const ANIM_SHADER := preload("res://shaders/chart_anim.gdshader")
-	## Texels per row of the star data textures.
+	## Texels per row of the star data textures (`ChartSky` places the stars
+	## from them).
 	const SKY_TEX_W := 2048
 
-	## What `_flush_push` has to hand over: the galaxy's view, the deep field
-	## and halo's view, the live layer's clock and view.
-	const PUSH_STARS := 1
-	const PUSH_VIEW := 2
-	const PUSH_ANIM := 4
-	const PUSH_ALL := 7
-
-	## The galaxy's textures and the live layer's layout, by `_star_key`. Shared
-	## by every chart in the process like `_sky_cache`, and dropped with it.
-	static var _gpu_cache: Dictionary = {}
 	## Meshes of n empty quads, by n. They hold nothing but their vertex count,
 	## so every chart can share them.
 	static var _quad_meshes: Dictionary = {}
 
-	## Which galaxy this chart's layers were last given.
-	var _gpu_key: String = ""
-	## The live layer's layout (see `_anim_layout`), its texture, and the moment
-	## its orbits were last rebased. NAN until the first.
-	var _anim_lay: Dictionary = {}
-	var _anim_tex: ImageTexture = null
-	var _anim_T: float = NAN
-	var _burst_was := false
-	var _push_due := 0
-
-	## A layer's uniforms change at the moment its picture would have been
-	## repainted, and are handed over once, at the end of the frame -- when the
-	## repaint used to happen. So a chart laid out three times in a frame builds
-	## its galaxy once, at the size it ends up, and everything is read as it
-	## stands when the frame is drawn.
-	func _queue_push(what: int) -> void:
-		if _push_due == 0:
-			_flush_push.call_deferred()
-		_push_due |= what
-
-	func _flush_push() -> void:
-		var what := _push_due
-		_push_due = 0
-		if not is_inside_tree():
-			return
-		var t0 := Time.get_ticks_usec()
-		if what & PUSH_STARS:
-			_push_backdrop()
-		if what & PUSH_VIEW:
-			_push_deep()
-			_push_halo()
-		if what & PUSH_ANIM:
-			_push_anim()
-		if prof:
-			prof_add("push", Time.get_ticks_usec() - t0)
-
-	## Build the galaxy if it is not built, and hand its data to the layers if
-	## they do not have it. False while the chart has no size, when there is
-	## nothing to build it at.
+	## Build the galaxy if it is not built, and hand it to the sky. False while
+	## the chart has no size, when there is nothing to build it at.
 	func _ensure_gpu() -> bool:
-		if size.x <= 0.0 or size.y <= 0.0 or _backdrop == null:
+		if size.x <= 0.0 or size.y <= 0.0 or _sky == null:
 			return false
 		_build_stars()
-		if _gpu_key == _star_key:
-			return true
-		_gpu_key = _star_key
-		var g: Dictionary = _gpu_cache.get(_star_key, {})
-		if g.is_empty():
-			# Straight from the packed arrays, which are already the bytes a
-			# float texture wants: no loop over the stars.
-			g = {
-				"pos": _data_tex(_star_pos.to_byte_array(), _star_pos.size(), 8,
-					Image.FORMAT_RGF),
-				"col": _data_tex(_star_col.to_byte_array(), _star_col.size(), 16,
-					Image.FORMAT_RGBAF),
-				"big": _data_tex(_star_big.duplicate(), _star_big.size(), 1,
-					Image.FORMAT_R8),
-				"anim": _anim_layout(),
-			}
-			_gpu_cache[_star_key] = g
-		var n := _star_pos.size()
-		_mat_stars.set_shader_parameter("star_pos", g.pos)
-		_mat_stars.set_shader_parameter("star_col", g.col)
-		_mat_stars.set_shader_parameter("star_big", g.big)
-		_mat_stars.set_shader_parameter("tex_w", SKY_TEX_W)
-		_mat_stars.set_shader_parameter("count", n)
-		_backdrop.mesh = _quads(n)
-		_backdrop.queue_redraw()
-
-		_anim_lay = g.anim
-		_anim_T = NAN
-		_anim_tex = null
-		var ma := _mat_anim
-		ma.set_shader_parameter("tex_w", ANIM_TEX_W)
-		for k in ["n_tw", "n_wv", "n_orb", "n_disc", "n_puls"]:
-			ma.set_shader_parameter(k, _anim_lay[k])
-		ma.set_shader_parameter("dark", _lobes(_dark_orb_c, _dark_orb_r))
-		ma.set_shader_parameter("n_dark", mini(_dark_orb_r.size(), 32))
-		_anim.mesh = _quads(int(_anim_lay.quads))
-		_anim.queue_redraw()
-
-		_mat_halo.set_shader_parameter("dark", _lobes(_dark_c, _dark_r))
-		_mat_halo.set_shader_parameter("n_dark", mini(_dark_r.size(), 32))
-		_queue_push(PUSH_ALL)
+		_sky.setup(self)
 		return true
-
-	## Dark lobes as the shaders take them: centre and radius, 32 at most. A
-	## galaxy rolls nine clouds of three lobes at the very most.
-	func _lobes(c: PackedVector2Array, r: PackedFloat32Array) -> PackedVector4Array:
-		if r.size() > 32:
-			push_warning("chart: %d dark lobes, the shaders take 32" % r.size())
-		var out := PackedVector4Array()
-		for i in mini(r.size(), 32):
-			out.append(Vector4(c[i].x, c[i].y, r[i], 0.0))
-		out.resize(32)
-		return out
 
 	## A float texture of `n` items from their raw bytes, SKY_TEX_W to a row.
 	static func _data_tex(bytes: PackedByteArray, n: int, per: int,
@@ -5546,39 +4843,3 @@ class MapChart extends Control:
 		_quad_meshes[n] = m
 		return m
 
-	## The four layers' materials, and the colours that never change.
-	func _make_materials() -> void:
-		_mat_stars = ShaderMaterial.new()
-		_mat_stars.shader = STARS_SHADER
-		_mat_deep = ShaderMaterial.new()
-		_mat_deep.shader = DEEP_SHADER
-		var pal := PackedVector4Array()
-		for p in _FAR_PALETTES:
-			for c: Color in p:
-				pal.append(Vector4(c.r, c.g, c.b, c.a))
-		_mat_deep.set_shader_parameter("pal", pal)
-		_mat_halo = ShaderMaterial.new()
-		_mat_halo.shader = HALO_SHADER
-		# A tile holds a star when its roll is at least 0.34: the lowest roll in
-		# thousandths that the old `w < 0.34` let through. See `_milli`.
-		var em := 0
-		while float(em) / 1000.0 < 0.34:
-			em += 1
-		_mat_halo.set_shader_parameter("empty_m", em)
-		_mat_halo.set_shader_parameter("feather", DISC_FEATHER)
-		for pair in [["col_dim", "#121a26"], ["col_mid", "#33445a"], ["col_hi", "#6f8399"]]:
-			var c := Color(pair[1])
-			_mat_halo.set_shader_parameter(pair[0], Vector4(c.r, c.g, c.b, c.a))
-		_mat_anim = ShaderMaterial.new()
-		_mat_anim.shader = ANIM_SHADER
-		var ap := PackedVector4Array()
-		# Twinkle, dim to bright; the accretion disc's ramp from its coolest to
-		# white, after the reference photograph's colour bar; the pulsar's
-		# flash, its fade, and the pixel either side of it.
-		for h in ["#8fa3ba", "#c9d8ea", "#f2f7ff",
-				"#3a1206", "#66200b", "#9c3a12", "#d2661c", "#f89b2c", "#ffd070",
-				"#fff2cd", "#ffffff",
-				"#e6fbff", "#6fb2c4", "#8fd2e0"]:
-			var c := Color(h)
-			ap.append(Vector4(c.r, c.g, c.b, c.a))
-		_mat_anim.set_shader_parameter("pal", ap)

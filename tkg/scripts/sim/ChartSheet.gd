@@ -6,16 +6,15 @@ extends Node
 ## FOR PROVING A CHANGE TO THE CHART'S DRAWING CHANGED NOTHING YOU CAN SEE. Run it
 ## before the change and after, into two folders, and diff the folders. Every
 ## state is reached the same way both times -- the same seed, the same zooms,
-## the same drag a frame at a time -- and the live layer is held on a chosen
-## moment through `MapChart.clock_override`, so even the orbiting core and the
-## twinkle are compared at the same instant.
+## the same drag a frame at a time -- and the sky's clock is held on a chosen
+## moment through `MapChart.clock_override`, so even the galaxy's turn, the gas
+## and the swirl round the hole are compared at the same instant.
 ##
 ## The states: the chart as it opens; a ladder of zooms on the core from the
 ## minimum to the maximum; the ship framed; the wheel in and out about a point
-## off centre (which pivots the sky); drags that stay inside the backdrop's slide
-## margin, cross it, move by fractions of a pixel, and run at a zoom where gas is
-## drawn in blocks; the core at several moments (one of them 59 seconds after
-## the live layer last restated its orbits, where its clock is least exact), a
+## off centre (which pivots the sky); drags short, long, by fractions of a pixel,
+## zoomed in and at the minimum (the old sky's slide margin set their lengths);
+## the core at several moments, the galaxy turned to each of them, a
 ## pulsar's flash and a gamma-ray burst in each of the places one can happen; a
 ## system pointed at, one selected and a cloud pointed at, which are the chart's
 ## own drawing rather than the sky's; the escape menu's inset; and the title
@@ -114,8 +113,8 @@ func _run() -> void:
 		MC.clock_override = bursts["deep"]
 		await _shot("c55_burst_in_deep_field")
 	print("CHARTSHEET bursts at %s" % [bursts])
-	# The core again, then 59 seconds on: the live layer's furthest reach from
-	# its last rebase, where the GPU's clock is least exact.
+	# The core again, then 59 seconds on: the turn, the climb toward the hole
+	# and the swirl all moved on.
 	_chart._go_to(3.0, Vector2.ZERO, false)
 	MC.clock_override = 123.456
 	await _shot("c56_core_t123_again")
@@ -145,7 +144,9 @@ func _run() -> void:
 	var clouds := NebulaField.clouds()
 	if not clouds.is_empty():
 		var cl: NebulaField.Cloud = clouds[0]
-		_chart._go_to(1.0, -cl.pos * _chart._radius() * StarchartScreen.MapChart.DISC, false)
+		# Through the chart's projection, so the cloud is in the middle however
+		# the galaxy has turned.
+		_chart._go_to(1.0, -_chart._proj_unit(cl.pos), false)
 		_chart._neb_hot = cl.name
 		_chart._neb_hot_emit = cl.emission
 		_chart._neb_hot_kind = cl.label()

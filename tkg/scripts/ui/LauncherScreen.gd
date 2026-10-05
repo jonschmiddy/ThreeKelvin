@@ -13,17 +13,6 @@ extends Control
 ## system and the hull so the button is a decision rather than a guess. Loading
 ## consumes the file — see SaveGame.
 
-## Radians per second. A full turn takes about fifty minutes, which is the
-## point: the galaxy should never appear to be spinning, only to have moved
-## while you were reading. Anything fast enough to watch turns a backdrop into
-## an animation, and this screen is mostly looked past rather than at.
-##
-## Negative because Godot's y axis points down, so a positive angle turns
-## clockwise on screen. Which way a galaxy turns is a look decision, not a
-## physical one — the arms are drawn with a fixed handedness, and this is the
-## direction that suits them.
-const SPIN := -0.0021
-
 ## Frames to let the sky settle before it starts turning.
 ##
 ## Belt and braces next to warm_sky(), which already moves the expensive galaxy
@@ -33,25 +22,6 @@ const SPIN := -0.0021
 ## show partway through.
 const WARMUP_FRAMES := 4
 
-## How often the turn is pushed to the sky, in seconds.
-##
-## MEASURED, not guessed: a full repaint of the field is 10.1ms for 24,000
-## stars, so doing it every frame spends sixty per cent of a 16.6ms budget on
-## the backdrop alone. At 30Hz it is half that, with peak frames still inside
-## the budget.
-##
-## The other end of this is what chop actually is. A repaint moves every star
-## that crossed a pixel boundary since the LAST one, so the interval decides how
-## many move together: at 30Hz under one per cent of the field shifts per
-## repaint and it reads as drift, while at the 1.2Hz this screen briefly ran
-## at, a quarter of the galaxy stepped at once.
-##
-## 30Hz was briefly suspected of causing a judder in the spinning galaxy and set
-## to 0.0 to test it. It was not the cause -- the project's 2D pixel snapping was
-## -- and pushing every frame spends 10.1ms of a 16.6ms budget on the backdrop
-## for nothing. Left at 30Hz. See ShipView._blit_sprite for what the snapping was
-## there to fix and how that is done locally now.
-const SKY_STEP := 1.0 / 30.0
 ## The galaxy's edge, as a fraction of half the screen's short side. Just over
 ## one, so the outer arms run off the top and bottom rather than sitting in the
 ## middle of a lot of empty space — there is no route to plan here, so the
@@ -95,7 +65,6 @@ const POPUP_INSET_V := 96
 var _dev_box: Button = null
 var _seed_field: LineEdit = null
 var _sky: StarchartScreen.MapChart = null
-var _spin: float = 0.0
 ## Whether the sky has been given its real size yet.
 ##
 ## setup() runs before the layout pass has assigned this screen a size, so the
@@ -106,7 +75,6 @@ var _spin: float = 0.0
 ## forever, which is exactly the shape of a race.
 var _fitted: bool = false
 var _warmup: int = WARMUP_FRAMES
-var _since: float = 0.0
 
 func setup() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -220,6 +188,20 @@ func setup() -> void:
 ## Every other screen rebuilds off Sig.dev_mode_changed instead, which is where
 ## that responsibility belongs: the HUD outlives screen swaps and had to listen
 ## anyway, and a screen built AFTER the toggle reads the flag correctly for free.
+## THE ARROW KEYS DO NOTHING HERE (Jon: "WASD and the Arrows should not work in
+## the title menu"). Left alone, Godot walks the keyboard focus round the menu's
+## buttons with them; the menu is clicked. A typed seed keeps its caret.
+func _input(e: InputEvent) -> void:
+	var k := e as InputEventKey
+	if k == null:
+		return
+	if k.keycode not in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
+		return
+	if get_viewport().gui_get_focus_owner() is LineEdit:
+		return
+	get_viewport().set_input_as_handled()
+
+
 func _add_dev_toggle() -> void:
 	# Built through Widgets.button so it gets the click and hover sounds, which
 	# means the action has to be supplied at construction — it connects `pressed`
@@ -541,6 +523,8 @@ func _make_sky() -> void:
 	_roll_sky_galaxy()
 	_sky = StarchartScreen.MapChart.new()
 	_sky.show_icons = false
+	_sky.run_galaxy = false
+	_sky.keys = false
 	# THE TEAR. MapChart clips to its own rect so the galaxy cannot spill out of
 	# the chart panel, and that clip is AXIS-ALIGNED — so a rotating child gets
 	# cut along a vertical and a horizontal line. On the chart the clip is the
@@ -586,7 +570,6 @@ func _fit_sky() -> void:
 	# After the size, because the framing is derived from it — and against the
 	# screen rather than the square, which is deliberately larger than the view.
 	_sky.frame_to(size, SKY_FILL)
-	_sky.set_sky_rotation(_spin)
 	# Pay for the galaxy here, with nothing on screen and nothing turning,
 	# instead of inside the first frame that paints it.
 	_sky.warm_sky()
@@ -596,7 +579,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_fit_sky()
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if _sky == null or not _fitted:
 		return
 	if not _sky.visible:
@@ -608,23 +591,8 @@ func _process(delta: float) -> void:
 		return
 	if _warmup > 0:
 		_warmup -= 1
-		return
-	# Wrapped rather than accumulated. A float that only ever grows loses
-	# precision in the low bits, and this one is added to every frame for as long
-	# as the title screen is up — which, on a game people leave running, is
-	# indefinitely.
-	# The angle advances every frame; only the PUSH to the sky is throttled, so
-	# the rotation stays exactly in step with wall-clock time however often it is
-	# drawn. Accumulating on the drawn frames instead would make the galaxy's
-	# speed a function of the frame rate.
-	_spin = fmod(_spin + delta * SPIN, TAU)
-	_since += delta
-	if _since < SKY_STEP:
-		return
-	_since = 0.0
-	# Turns the galaxy's own two layers. The deep field and the halo are separate
-	# canvases and stay where they are — other galaxies do not orbit ours.
-	_sky.set_sky_rotation(_spin)
+	# The galaxy turns by itself now, as the chart's does (`MapChart.turn`): one
+	# turn every half hour, the whole disc at once, faster only round the hole.
 
 ## A galaxy for the title screen, rolled once per process and kept.
 ##

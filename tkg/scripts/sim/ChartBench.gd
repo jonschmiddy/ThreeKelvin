@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## What the star chart costs, still, dragged and zoomed:
-##   godot --path . -- chartbench
+##   godot --path . -- chartbench [depthlook=N]
 ##
 ## NEEDS A WINDOW, like every other measurement of drawing in this project:
 ## under `--headless` the dummy display server never emits `frame_post_draw` and
@@ -29,6 +29,19 @@ var _measuring := false
 
 
 func run(tree: SceneTree) -> void:
+	# `depthlook=N`: the sky's depth in look N (`ChartSky.depth_look`)
+	for arg in OS.get_cmdline_user_args():
+		if (arg as String).begins_with("depthlook="):
+			ChartSky.depth_look = int((arg as String).substr(10))
+		elif (arg as String).begins_with("neblook="):
+			ChartSky.nebula_look = int((arg as String).substr(8))
+		elif (arg as String) == "billow":
+			ChartSky.gas_billow = true
+			DisplaySettings.reduced_motion = false
+		elif (arg as String).begins_with("gas="):
+			ChartSky.gas_look = int((arg as String).substr(4))
+		elif (arg as String).begins_with("volume="):
+			ChartSky.volume_look = int((arg as String).substr(7))
 	await tree.process_frame
 	# VSYNC OFF, or every reading is 16.67ms and the bench measures the monitor.
 	# The first version did exactly that: still and dragging both came back at
@@ -85,7 +98,8 @@ func run(tree: SceneTree) -> void:
 	var warm := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - warm < 2000:
 		await RenderingServer.frame_post_draw
-	var title := await _sample(tree, null, "", "title")
+	var ls := Router.current as LauncherScreen
+	var title := await _sample(tree, null, "", "title", _sky_rid(ls._sky if ls != null else null))
 
 	Run.galaxy = run_galaxy
 	Run.galaxy_kind = run_kind
@@ -101,9 +115,17 @@ func run(tree: SceneTree) -> void:
 	_watch(chart)
 
 	_measuring = true
-	var still := await _sample(tree, chart, "", "still")
-	var dragged := await _sample(tree, chart, "drag", "drag")
-	var zoomed := await _sample(tree, chart, "zoom", "zoom")
+	var sky := _sky_rid(chart)
+	var still := await _sample(tree, chart, "", "still", sky)
+	var dragged := await _sample(tree, chart, "drag", "drag", sky)
+	var zoomed := await _sample(tree, chart, "zoom", "zoom", sky)
+	# AND STILL AT EVERY DEPTH. The sky works every block out afresh each
+	# frame (`ChartSky`), and deep in it does more: finer gas, the climb
+	# toward the hole drawn twice, the swirl, the extra stars.
+	var depths := []
+	for z: float in [1.0, 2.9, 6.0]:
+		chart._go_to(z, Vector2.ZERO, false)
+		depths.append([z, await _sample(tree, chart, "", "still at %.1f" % z, sky)])
 	_measuring = false
 
 	print("\n=== CHART ===")
@@ -113,6 +135,8 @@ func run(tree: SceneTree) -> void:
 		var ms: float = row[1]
 		print("  %-9s %.2f ms/frame  (%.0f fps)" % [row[0], ms, 1000.0 / maxf(0.01, ms)])
 	print("  the drag costs %.2f ms a frame, the zoom %.2f" % [dragged - still, zoomed - still])
+	for d in depths:
+		print("  still at zoom %.1f: %.2f ms/frame" % [d[0], d[1]])
 
 	# AND A LOOK AT IT, because a frame time is not a picture. The two things
 	# that can go wrong while the view moves are invisible to a stopwatch: the
@@ -161,31 +185,47 @@ func _save(tree: SceneTree, path: String) -> void:
 ## The first frames of either state are discarded: the first drag frame pays for
 ## whatever the still state had cached, and counting it measures the transition
 ## rather than the state.
-func _sample(tree: SceneTree, chart: Node, move: String, label := "") -> float:
+## The chart's sky draws into a viewport of its own (`ChartSky`), whose GPU
+## time the game's viewport does not include: measured beside it.
+func _sky_rid(chart: Node) -> RID:
+	if chart == null or not is_instance_valid(chart):
+		return RID()
+	var sky: ChartSky = chart.get("_sky")
+	if sky == null or sky._vp == null:
+		return RID()
+	var rid := sky._vp.get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(rid, true)
+	return rid
+
+
+func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid := RID()) -> float:
 	for i in 20:
 		if not await _step(chart, move, i):
 			return -1.0
 	StarchartScreen.MapChart.prof_us.clear()
 	var gpu := 0.0
+	var gpu_sky := 0.0
 	var t0 := Time.get_ticks_usec()
 	for i in FRAMES:
 		if not await _step(chart, move, i):
 			return -1.0
 		if _gpu_rid.is_valid():
 			gpu += RenderingServer.viewport_get_measured_render_time_gpu(_gpu_rid)
+		if sky_rid.is_valid():
+			gpu_sky += RenderingServer.viewport_get_measured_render_time_gpu(sky_rid)
 	var t1 := Time.get_ticks_usec()
 	# WHAT THE FRAME SUBMITTED, not just how long it took. The star field was
 	# ~48,000 individual `draw_rect` calls, and a canvas item's command list is
 	# re-submitted EVERY frame whether or not `_draw` rebuilt it -- so skipping
 	# the repaint removes the GDScript loop and leaves the submission. Drawing
 	# the field as one mesh is what took that away.
-	print("      [%s] %d draw calls, %.0fk primitives a frame, GPU %.2f ms" % [
+	print("      [%s] %d draw calls, %.0fk primitives a frame, GPU %.2f ms (the sky's own viewport %.2f ms)" % [
 		label,
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 		Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0,
-		gpu / float(FRAMES)])
+		gpu / float(FRAMES), gpu_sky / float(FRAMES)])
 	var parts := []
-	for k in ["backdrop", "deep", "halo", "anim", "chart", "push"]:
+	for k in ["sky", "chart", "push"]:
 		var us := int(StarchartScreen.MapChart.prof_us.get(k, 0))
 		parts.append("%s %.2f" % [k, float(us) / float(FRAMES) / 1000.0])
 	print("      [%s] GDScript drawing, ms a frame: %s" % [label, ", ".join(parts)])

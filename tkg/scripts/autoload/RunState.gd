@@ -434,6 +434,41 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	Sig.ship_changed.emit()
 	log_line("Reactor cold-started. The core is twenty jumps coreward, at least.", &"big")
 
+## DEVELOPER MODE ONLY: a new galaxy under the same ship, right now ("can I get
+## a button up here to regenerate the galaxy right there?", Jon) -- for looking
+## at what the generator rolls without starting a run each time. A new seed
+## (never the one in use, and not a forced test seed), a new kind, its map as a
+## new run's would be, the ship at the new start system. The ship, its hull,
+## cargo, credits, fuel and standing are kept; contracts are dropped, because
+## they name systems of the old map. Not in a co-op session, where the galaxy
+## belongs to the whole party (the button says so). Returns whether it did.
+func dev_regenerate_galaxy() -> bool:
+	if Net.is_networked():
+		return false
+	var old := galaxy_seed
+	galaxy_seed = randi() & 0x7FFFFFFF
+	while galaxy_seed == old or galaxy_seed == 0:
+		galaxy_seed = randi() & 0x7FFFFFFF
+	Rng.reseed(galaxy_seed, Net.seat())
+	galaxy_kind = Rng.world.randi() % GalaxyGen.count()
+	galaxy = GalaxyGen.roll(galaxy_kind)
+	galaxy_spin = Rng.world.randf() * TAU
+	galaxy_name = GalaxyGen.roll_name()
+	galaxy_title = GalaxyGen.roll_title()
+	map = MapGen.generate(MAP_CANVAS)
+	contracts.clear()
+	_undo_move = {}
+	_spawn_hellbender()
+	at = 0
+	trail = PackedInt32Array([0])
+	_range_cache.clear()
+	chart_from(node_at())
+	Sig.resources_changed.emit()
+	Sig.ship_changed.emit()
+	log_line("A new galaxy rolled under the ship: %s." % galaxy_name, &"big")
+	return true
+
+
 ## Put a manufacturer's chassis and starting kit under the player, at full hull.
 ##
 ## Separate from start_new_run because the chassis select calls it once per
