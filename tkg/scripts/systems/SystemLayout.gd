@@ -32,7 +32,11 @@ extends RefCounted
 ## and the black hole) to `HI`; periods follow Kepler, the square of the period
 ## going as the cube of the orbit, so the inner bodies go round faster.
 
-const HI := 300.0
+## THREE TIMES THE OLD SPREAD (Jon: "can the solar system also be a bit more
+## zoomed out? with further away orbits?" -- "even 3x would be good"), so there is
+## room to fly between worlds. The first orbit still sits just clear of the star;
+## the rest are spaced by ratio out to here. The map opens zoomed out to fit it.
+const HI := 900.0
 const ROMAN := ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
 
 ## The star's look: a sun, a red hypergiant, a blue hypergiant, a pulsar, the
@@ -92,11 +96,24 @@ class Body extends RefCounted:
 	## The dent it makes in the fabric: how deep, and how wide.
 	var mass: float = 0.0
 	var well_w: float = 10.0
+	## Its ring: let go inside it slow enough and you are on its orbit
+	## (`ShipFlight`). Worlds only; 0 for everything else.
+	var soi: float = 0.0
 
 	## Where it is at time `t`, on the plane: x across, z toward the viewer.
+	## Its footprint on the plane: where it is at time t, x across, z toward the viewer.
 	func pos(t: float) -> Vector2:
-		var a := phase + t / period * TAU
-		return Vector2(cos(a), sin(a)) * orbit
+		var p := point3(t)
+		return Vector2(p.x, p.z)
+
+	## Where it is at time t, as the flight's (x, 0, z): every world is on the
+	## plane (Jon: "we can get rid of planets with tilted orbits, it doesn't
+	## work on a flat plane for this game").
+	func point3(t: float) -> Vector3:
+		return orbit_point(phase + t / period * TAU)
+
+	func orbit_point(a: float) -> Vector3:
+		return Vector3(cos(a) * orbit, 0.0, sin(a) * orbit)
 
 
 var star: StarKind = StarKind.ORDINARY
@@ -261,22 +278,37 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 			&"derelict":
 				b.mass = 0.8
 				b.well_w = 8.0
-	# ORBITS, spread out from just past the star, each at least as far from the
+	# ORBITS, spread out from clear of the star, each at least as far from the
 	# last as the two bodies on them are wide. The mockup spread them evenly and
 	# sized the bodies afterwards, so a ringed giant beside a large world could
 	# overlap it -- by 24 px at worst, measured by `-- systemtest`.
+	# The first orbit is far enough out that a world at the front of it, seen at
+	# the map's slant, sits clear of the star's disc (Jon: "the first planet of a
+	# system is always SUPER CLOSE to the sun"). Each body then takes its own
+	# slot between there and `HI`, spaced by ratio as real systems are, and
+	# lands anywhere in it, so the first is not always on the inner edge.
 	var lo := L.star_r + (62.0 if L.star == StarKind.RED else (84.0 if L.star == StarKind.CORE else 46.0))
+	lo = maxf(lo, (L.star_r + CLEAR) / SLANT)
+	# OUT IN PROPORTION TO THE WIDER SYSTEM (Jon: "planets don't have to be so
+	# hella close to their star"): the first orbit was set when the system
+	# reached 300; at 900 it sat at a ninth of it. Now a quarter and more (more
+	# again round a red giant or the core), and every world's ring kept clear of
+	# the star's close-orbit ring
+	lo = maxf(lo, HI * (0.32 if L.star == StarKind.RED or L.star == StarKind.CORE else 0.27))
+	var star_ring := (150.0 if L.star == StarKind.CORE else L.star_r + 44.0) + 35.0
 	var sysname := MapGen.star_name(n)
 	var short := " ".join(sysname.split(" ").slice(0, 2))
 	var last := -INF
 	var last_reach := 0.0
 	for i in L.bodies.size():
 		var b := L.bodies[i]
-		var f := 0.0 if L.bodies.size() == 1 else float(i) / float(L.bodies.size() - 1)
-		var want_at := lo + f * (HI - lo) + (R.randf() - 0.5) * 10.0
+		var f := (float(i) + 0.5 + (R.randf() - 0.5) * 0.7) / float(L.bodies.size())
+		var want_at := lo * pow(HI / lo, f)
 		var reach := reach_of(b)
 		if i > 0:
 			want_at = maxf(want_at, last + last_reach + reach + GAP)
+		if b.world != &"":
+			want_at = maxf(want_at, star_ring + soi_of(b) + RING_GAP)
 		b.orbit = want_at
 		b.period = 800.0 * pow(b.orbit / 100.0, 1.5) * (0.95 + R.randf() * 0.1)
 		b.phase = R.randf() * TAU
@@ -284,7 +316,28 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 		last = b.orbit
 		last_reach = reach
 	L.edge = maxf(HI, last + last_reach) + 30.0
+	# EACH WORLD'S RING, sized by how much it weighs (giants biggest, small rocks
+	# least) and spread for the wider system; nothing else has one
+	for b in L.bodies:
+		if b.world != &"":
+			b.soi = soi_of(b)
 	return L
+
+
+## A world's ring, by how much it weighs (giants biggest, small rocks least).
+static func soi_of(b: Body) -> float:
+	return (24.0 + b.mass * 2.4) * 1.6
+
+
+## The least space between a world's ring and the star's close-orbit ring.
+const RING_GAP := 24.0
+
+
+## The map's slant (`SystemView.TILT`): an orbit's near side is this much of its
+## radius below the star on screen.
+const SLANT := 0.38
+## How far a world's centre keeps from the star's edge when it passes in front.
+const CLEAR := 22.0
 
 
 ## The clear space neighbouring orbits must leave between their bodies.

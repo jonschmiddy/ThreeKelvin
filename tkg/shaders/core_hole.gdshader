@@ -16,9 +16,19 @@ render_mode unshaded, blend_premul_alpha;
 // r^-1.5, so the inner edge whips round and the outside drifts), the whole
 // disc breathing and flaring. The streaks are the mockup's table, looked up
 // at its own steps (half a pixel of radius, 1024 angles), so they have the
-// same grain. A thin photon ring edges the shadow, hidden behind the near
-// band of disc; the eaten star seen BEHIND the hole is drawn where its light
-// is bent to.
+// same grain. The photon ring edges the shadow, hidden behind the near band of
+// disc; the eaten star seen BEHIND the hole is drawn where its light is bent
+// to.
+//
+// THE PHOTON RING IS LIGHT, NOT A STROKE, as on the chart (`chart_hole`): it
+// was one cream band added at 70%, as thick at the sides as over the top
+// ("that plain bright solid white arc ... isn't good looking", Jon). It is the
+// disc's own hot inner edge bent round the hole: its brightness and colour are
+// the disc's there, streaked and turning with it, brighter on the side the disc
+// is brighter, thickest over the top where the far side is lensed up and
+// thinning down the sides, stepping down on its outer edge in the palette's
+// steps, and laid over what is there at 85% rather than added, so only its
+// hottest spots reach white.
 //
 // The dots -- the clumps spiralling in, the eaten star's ribbon and the star
 // itself in front -- are placed on the CPU each frame (`CoreView`), hidden
@@ -143,8 +153,27 @@ void fragment() {
 	if (kind == 2) val = disc(r, a) * (inner ? 0.75 : 1.0);
 	int code = C_SPACE;
 	bool done = false;
-	// the photon ring, hidden behind the part of the disc that crosses in front
-	if (d > rh - 0.7 * kz && d <= rh + 0.5 * kz && !front && val < 0.5) { code = 7; done = true; }
+	bool over = false;
+	// the photon ring, hidden behind the part of the disc that crosses in front:
+	// up is 1 over the top of the hole, 0 at its sides
+	float up = clamp(-v / max(d, 1e-3), -1.0, 1.0);
+	float rw = max(0.5 * kz, rh * 0.06) * (0.3 + 1.2 * max(0.0, up));
+	float rwi = max(0.5 * kz, rh * 0.04);
+	if (d > rh - rwi && d <= rh + rw && !front && up > -0.2 && val < 0.5) {
+		// the disc's hot inner edge, seen round the hole: the far side over the
+		// top, so the angle is the screen's own
+		float ar = atan(v, u);
+		// (the core's disc runs hotter at its inner edge than the chart's: scaled so
+		// white is the streaks' peaks, not the band)
+		float vr = 0.62 * disc(rin * 1.04, ar) * (0.75 + 0.55 * max(0.0, up));
+		vr *= 1.0 - 0.55 * smoothstep(rh, rh + rw + 0.5 * kz, d);
+		float th = (BAYER[((p.y / max(cell, 1)) & 3) * 4 + ((p.x / max(cell, 1)) & 3)] / 16.0 - 0.5) * 0.9;
+		int kq = int(floor(vr * 7.0 + th));
+		// white only where the disc is hottest
+		code = vr > 1.15 ? 7 : clamp(kq, 2, 6);
+		over = true;
+		done = true;
+	}
 	if (!done && kind == 1 && val < 0.06) { code = C_HOLE; done = true; }
 	if (!done) {
 		float f = kind == 2 ? 1.0 - (r - rin) / (rout - rin) : 0.0;
@@ -162,13 +191,19 @@ void fragment() {
 		}
 	}
 	int dot_c = int(floor(texelFetch(dots, p, 0).r * 255.0 + 0.5));
-	if (dot_c > 0) code = dot_c - 1;
+	if (dot_c > 0) {
+		code = dot_c - 1;
+		over = false;
+	}
 
 	if (raw) {
 		vec3 c = code == C_HOLE ? vec3(0.0) : (code == C_SPACE ? SPACE : PAL[code]);
 		COLOR = vec4(c / 255.0, 1.0);
 	} else if (code == C_HOLE) {
 		COLOR = vec4(0.0, 0.0, 0.0, 1.0);
+	} else if (over) {
+		// the ring laid over what is there at 85% (premultiplied)
+		COLOR = vec4(PAL[code] / 255.0 * 0.85, 0.85);
 	} else {
 		// the gas, added at 70% (truncated, as the mockup's integer maths)
 		vec3 add = code == C_SPACE ? vec3(0.0) : floor(PAL[code] * 0.7);

@@ -378,6 +378,50 @@ static func result_stamp(r: StringName) -> Array:
 	return ["RESOLVED", UITheme.CHILL]
 
 
+## WHAT ONE OPTION CAME TO, for the system map's cards, its beacons and its
+## event page, read off what the run already records and nothing else:
+##   open   nobody has touched it
+##   left   you walked away from it (`MapNode.left`, saved); still open, and
+##          still takeable
+##   band   you took it: `word` is its band, SUCCESS / PARTIAL / BOTCHED, or
+##          RESOLVED when there was no check (or no result was recorded)
+##   gone   a rival in its set was taken (`results` R_GONE); `by` says which,
+##          and `by_who` names the partner if it was theirs
+##   who    a partner claimed it (`Net.taker_name`), `who` their name
+## A partner's claim used to stamp RESOLVED, as if you had done it.
+static func option_state(n: MapGen.MapNode, i: int) -> Dictionary:
+	var oid := MapGen.OPTION_SITE + i
+	var r := StringName(n.results.get(i, &""))
+	if r == MapGen.R_GONE:
+		var out := {"kind": &"gone", "word": "UNAVAILABLE", "ink": UITheme.CHILL, "by": "", "by_who": ""}
+		var g := StringName(OptionTable.by_id(n.options[i]).get("group", &""))
+		for j in n.options.size():
+			if j == i or StringName(OptionTable.by_id(n.options[j]).get("group", &"")) != g:
+				continue
+			if n.taken.has(MapGen.OPTION_SITE + j) and StringName(n.results.get(j, &"")) != MapGen.R_GONE:
+				out.by = String(OptionTable.by_id(n.options[j]).get("title", ""))
+				out.by_who = Net.taker_name(n.index, MapGen.OPTION_SITE + j)
+		return out
+	if n.taken.has(oid):
+		var who := Net.taker_name(n.index, oid)
+		if who != "":
+			return {"kind": &"who", "word": who.to_upper() + " TOOK IT", "ink": UITheme.THEM, "who": who}
+		var m := result_stamp(r if r != &"" else MapGen.R_DONE)
+		return {"kind": &"band", "word": m[0], "ink": m[1]}
+	if n.left.has(i):
+		return {"kind": &"left", "word": "LEFT ALONE", "ink": UITheme.CHILL}
+	return {"kind": &"open", "word": "", "ink": UITheme.ICE}
+
+
+## The ledger rows that moved, as one line: "FUEL -16 · HULL -3", or "".
+static func moved_line(bill: Array) -> String:
+	var bits: Array = []
+	for r in bill:
+		if String(r.text) != "—":
+			bits.append("%s %s" % [r.name, r.text])
+	return " · ".join(bits)
+
+
 ## `result` empty means an option nobody has touched. Anything else is a card
 ## that stays on the row with the word across it and does not answer a click.
 static func option_card(i: int, opt: Dictionary, on_open: Callable,

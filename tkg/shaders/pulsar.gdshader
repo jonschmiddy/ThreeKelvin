@@ -251,6 +251,11 @@ void fragment() {
 			float v = I * (1.0 / (1.0 + (d / r0) * (d / r0)) - base);
 			if (v >= 0.004) L += (d < 2.2 ? WHITE : (d < 5.0 ? ICE : CYAN)) * v;
 		}
+		// THE HALO that carries its size (Jon: "the planet looks bigger than the
+		// pulsar itself"): the neutron star stays a brilliant point, its light a
+		// wide glow round it, brighter as it flashes
+		float h = 0.42 * (1.0 + flash * 1.5) * exp(-d / 13.0) * (1.0 - smoothstep(40.0, 64.0, d));
+		if (h >= 0.01) L += (d < 9.0 ? ICE : CYAN) * h;
 	}
 
 	// light to pixels, as the page: a soft shoulder, a little ordered dither, the

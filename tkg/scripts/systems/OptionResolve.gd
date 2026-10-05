@@ -98,6 +98,7 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	# act of declining it. Declining leaves the thing exactly as found.
 	if not out.stay:
 		Router.option_resolved(i, SkillCheck.band_result(out.band) if out.checked else MapGen.R_DONE)
+	_remember(n, i, out)
 	out.dead = Run.dead
 	# A FIGHT YOU CHOSE DOES NOT NEED A PANEL IN FRONT OF IT. The result panel
 	# earns its click when there is something to read: which way a roll went,
@@ -108,7 +109,20 @@ static func take(n: MapGen.MapNode, i: int, j: int) -> Dictionary:
 	out.fight_now = not out.dead and not out.checked and bool((res as Dictionary).get("fight", false)) \
 		and Run.ledger() == was and not pays_anything(res)
 	if out.fight_now:
-		var said := String((res as Dictionary).get("text", ""))
-		if said != "":
-			Run.log_line(said, &"them")
+		var line := String((res as Dictionary).get("text", ""))
+		if line != "":
+			Run.log_line(line, &"them")
 	return out
+
+
+## The walk-away or the outcome, onto the node for the system map's cards
+## (`MapNode.left` and `MapNode.said`), where the save keeps them. Yours alone:
+## nothing here is claimed or sent to the party.
+static func _remember(n: MapGen.MapNode, i: int, out: Dictionary) -> void:
+	var line := EncounterDrawer.first_sentence(String((out.res as Dictionary).get("text", "")))
+	if out.stay:
+		n.left[i] = line
+		return
+	# TAKEN NOW, SO NO LONGER LEFT ALONE
+	n.left.erase(i)
+	n.said[i] = [EncounterDrawer.moved_line(out.bill), line]

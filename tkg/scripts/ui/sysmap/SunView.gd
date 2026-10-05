@@ -126,12 +126,14 @@ func setup(kind: String, system_index: int, star_r: float) -> void:
 	m.set_shader_parameter("flick", 1.0)
 
 
-## THE MAP'S ZOOM, 1 to 4: the star drawn k times bigger -- its radius, its
+## THE MAP'S ZOOM, 0.1 to 4: the star drawn k times its size -- its radius, its
 ## cells, its plumes and flares, its glow and the box round it -- by its own
-## shader, in single game pixels; the same rolled star, nothing re-rolled.
+## shader, in single game pixels; the same rolled star, nothing re-rolled. Below
+## 1 since the system grew three times wider and opens zoomed out to show it all
+## (`SystemView.star_k` keeps it a few pixels of disc at the least).
 ## Cheap enough to call every frame while the zoom eases.
 func set_zoom(k: float) -> void:
-	k = clampf(k, 1.0, 4.0)
+	k = clampf(k, 0.1, 4.0)
 	if k == _k:
 		return
 	_k = k
@@ -141,7 +143,9 @@ func set_zoom(k: float) -> void:
 ## The box the star is drawn in, the mockup's 420x300 grown by k to whole game
 ## pixels round the star's centre (which stays at this node's position).
 func _zoom_box() -> void:
-	var h := Vector2(ceilf(CX * _k - 0.001), ceilf(CY * _k - 0.001))
+	# EVEN, so the box's corner is on the map's block grid with the star's centre
+	# on it (an odd one put the disc half a pixel off, and it shimmered)
+	var h := Vector2(ceilf(CX * _k / 2.0 - 0.001), ceilf(CY * _k / 2.0 - 0.001)) * 2.0
 	_rect.position = -h
 	_rect.size = h * 2.0
 	_mat.set_shader_parameter("zoom", _k)

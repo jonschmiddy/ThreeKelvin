@@ -98,7 +98,25 @@ func fingerprint() -> Dictionary:
 			# `ambush_rolled` re-rolls it on the next redraw until something
 			# bites, which is worse.
 			n.ambush_pending, n.ambush_rolled])
+	# WHAT EACH SYSTEM'S CARDS SAY (VERSION 29): the bands, the walk-aways and
+	# the outcome lines, by option index. Sorted, because a dictionary rebuilt
+	# from two arrays need not hash in the order it was written.
+	var cards: Array = []
+	for e in Run.map:
+		var n: MapGen.MapNode = e
+		if n.results.is_empty() and n.left.is_empty() and n.said.is_empty():
+			continue
+		var bits: Array = []
+		for k in n.results:
+			bits.append("r%d=%s" % [int(k), String(n.results[k])])
+		for k in n.left:
+			bits.append("l%d=%s" % [int(k), String(n.left[k])])
+		for k in n.said:
+			bits.append("s%d=%s" % [int(k), "|".join(Array(n.said[k]))])
+		bits.sort()
+		cards.append("%d:%s" % [n.index, ";".join(bits)])
 	return {
+		cards = cards,
 		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
 		# loader does not call `at_tier`, so nothing regrants them on the way
 		# back in — an S-tier ship that lost all three would come back with
@@ -339,6 +357,24 @@ func run() -> void:
 			nd.taken.append(MapGen.OPTION_WHOLE)
 			break
 
+	# A SYSTEM HALF WORKED THROUGH, as its cards show it: option 0 taken with a
+	# band and a line of what came of it, option 1 walked away from. Written the
+	# way `OptionResolve.take` writes them. Without a fixture both maps are empty
+	# everywhere and round-trip to empty whatever the save does.
+	var card_node := -1
+	for e in Run.map:
+		var nc: MapGen.MapNode = e
+		if nc.type == MapGen.NodeType.SYSTEM and not nc.cleared and nc.options.size() >= 2:
+			card_node = nc.index
+			nc.taken.append(MapGen.OPTION_SITE)
+			nc.results[0] = MapGen.R_SUCCESS
+			OptionResolve._remember(nc, 0, {"stay": false, "res": {"text": "You put sixteen units across. Nobody aboard sounds surprised."},
+				"bill": EncounterDrawer.bill_rows({"fuel": 40}, {"fuel": 24})})
+			OptionResolve._remember(nc, 1, {"stay": true, "res": {"text": "You let it tumble on. The transponder is still going."}, "bill": []})
+			break
+	if card_node < 0:
+		print("  FAIL: no system to hold the card fixture"); fails += 1
+
 	var before := fingerprint()
 	var jumps_before := Run.jumps
 
@@ -399,6 +435,19 @@ func run() -> void:
 				check("node[%d]" % i, a[i], b[i])
 		else:
 			check(k, before[k], after[k])
+
+	# AND THE CARDS READ IT BACK: the walk-away is still LEFT ALONE after the
+	# reload (Jon: "left alone should survive a reload"), the taken one keeps its
+	# band and its line, and taking the walked-away one afterwards clears it.
+	if card_node >= 0:
+		var nl: MapGen.MapNode = Run.map[card_node]
+		check("card 1 after reload", "left", String(EncounterDrawer.option_state(nl, 1).kind))
+		check("card 0 after reload", "band SUCCESS", "%s %s" % [EncounterDrawer.option_state(nl, 0).kind, EncounterDrawer.option_state(nl, 0).word])
+		check("card 0's line after reload", "FUEL -16|You put sixteen units across.", "|".join(Array(nl.said.get(0, []))))
+		OptionResolve._remember(nl, 1, {"stay": false, "res": {"text": "Taken after all."}, "bill": []})
+		nl.taken.append(MapGen.OPTION_SITE + 1)
+		check("card 1 once taken", "band", String(EncounterDrawer.option_state(nl, 1).kind))
+		check("card 1 no longer left alone", false, nl.left.has(1))
 
 	# Galaxy params must come back with their ORIGINAL TYPES, not as the floats
 	# JSON would hand back. `arms` is a loop count.

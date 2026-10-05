@@ -30,6 +30,13 @@ uniform float margin = 0.0;
 // the beam's angle on screen, and whether it points across the screen at all
 uniform float beam_angle = 0.0;
 uniform bool beam_on = false;
+// ROUND A PULSAR THE GAS IS ITS REMNANT, NOT FAR SKY (Jon: "zooming and panning
+// causes issues with the gas cloud around the pulsar"): it is read about the
+// pulsar where it stands now, zoomed with the map (`shell_k` times as large as
+// baked, the bake made with the pulsar at `bake_star`), while the far sky behind
+// it slides by the parallax and does not zoom
+uniform float shell_k = 1.0;
+uniform vec2 bake_star = vec2(480.0, 270.0);
 
 const vec3 VOID = vec3(7.0, 10.0, 18.0) / 255.0;
 
@@ -64,6 +71,17 @@ void fragment() {
 	vec3 c = bs.rgb;
 	float dk = bs.a;
 	vec4 g = texelFetch(gas, tp, 0);
+	if (pulsar) {
+		// the shell, about the pulsar and zoomed: read between the baked pixels
+		vec2 q = bake_star + (px + 0.5 - star_at) / max(shell_k, 1e-3) + margin - 0.5;
+		vec2 qi = floor(q), qf = q - qi;
+		ivec2 gs = textureSize(gas, 0);
+		ivec2 q0 = clamp(ivec2(qi), ivec2(0), gs - 1), q1 = clamp(ivec2(qi) + 1, ivec2(0), gs - 1);
+		vec4 a0 = mix(texelFetch(gas, q0, 0), texelFetch(gas, ivec2(q1.x, q0.y), 0), qf.x);
+		vec4 a1 = mix(texelFetch(gas, ivec2(q0.x, q1.y), 0), texelFetch(gas, q1, 0), qf.x);
+		g = mix(a0, a1, qf.y);
+		if (q.x < 0.0 || q.y < 0.0 || q.x > float(gs.x - 1) || q.y > float(gs.y - 1)) g = vec4(0.0);
+	}
 	vec2 b = px - mod(px, 2.0);
 	float m = 1.0 + 0.24 * sin(b.x * 0.011 + time * 0.22) * sin(b.y * 0.017 - time * 0.16)
 		+ 0.12 * sin(b.x * 0.029 - time * 0.31) * cos(b.y * 0.025 + time * 0.27);

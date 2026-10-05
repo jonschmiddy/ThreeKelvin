@@ -204,7 +204,18 @@ const PATH := "user://run.save"
 # which is the bug the pad exists to fix.
 ## 28: `fight`, the fight a run was saved out of (see mark_fight). A save from
 ## 27 has no way to say whether it was written mid-fight, so it is not read.
-const VERSION := 28
+## 29: A SYSTEM REMEMBERS WHAT ITS CARDS SAY. The sector map lists every event
+## as a card, and a card you walked away from reads LEFT ALONE, STILL OPEN (Jon:
+## "left alone should survive a reload"); a card you took reads its band and a
+## line of what came of it, "FUEL -16 · You put sixteen units across." Neither
+## is in `taken` or `results` -- walking away spends nothing, and `results` is
+## only the band -- so each node carries two more maps, `left` (option index to
+## the first line of leaving) and `said` (option index to what moved and the
+## first line of the outcome). Written as parallel arrays for the reason 23
+## gives: JSON keys are strings. A 28 save would load with every walk-away
+## forgotten and every card's line gone, quietly; a 28 build handed this save
+## would drop them the same way. Refusing the mismatch is the migration.
+const VERSION := 29
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -817,6 +828,19 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 	for k in n.results:
 		res_at.append(int(k))
 		res_of.append(String(n.results[k]))
+	# WHAT THE CARDS SAY, the same way (VERSION 29): a walk-away's line, and a
+	# taken option's moved ledger and line. Short strings, and only on the few
+	# options anybody touched.
+	var left_at: Array = []
+	var left_of: Array = []
+	for k in n.left:
+		left_at.append(int(k))
+		left_of.append(String(n.left[k]))
+	var said_at: Array = []
+	var said_of: Array = []
+	for k in n.said:
+		said_at.append(int(k))
+		said_of.append(Array(n.said[k]).map(func(x: Variant) -> String: return String(x)))
 	var jetsam: Array = []
 	for raw in n.jetsam:
 		var h: MapGen.Jetsam = raw
@@ -849,6 +873,8 @@ static func _node_to(n: MapGen.MapNode) -> Dictionary:
 		bag = bag, bagged = n.bagged, jetsam = jetsam,
 		options = _names(n.options),
 		results_at = res_at, results_of = res_of,
+		left_at = left_at, left_of = left_of,
+		said_at = said_at, said_of = said_of,
 	}
 
 static func _node_from(e: Variant) -> MapGen.MapNode:
@@ -941,6 +967,16 @@ static func _node_from(e: Variant) -> MapGen.MapNode:
 	var res_of: Array = d.get("results_of", [])
 	for ri in mini(res_at.size(), res_of.size()):
 		n.results[int(res_at[ri])] = StringName(res_of[ri])
+	var left_at: Array = d.get("left_at", [])
+	var left_of: Array = d.get("left_of", [])
+	for li in mini(left_at.size(), left_of.size()):
+		n.left[int(left_at[li])] = String(left_of[li])
+	var said_at: Array = d.get("said_at", [])
+	var said_of: Array = d.get("said_of", [])
+	for si in mini(said_at.size(), said_of.size()):
+		var pair: Array = said_of[si] if typeof(said_of[si]) == TYPE_ARRAY else []
+		if pair.size() >= 2:
+			n.said[int(said_at[si])] = [String(pair[0]), String(pair[1])]
 	for raw in d.get("jetsam", []):
 		var row: Dictionary = raw
 		var h := MapGen.Jetsam.new()

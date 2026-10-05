@@ -44,6 +44,43 @@ const PALS := [
 	[Vector3(0.9, 0.3, 0.3), Vector3(0.3, 0.5, 0.9)],
 ]
 const PULSAR_PAL := [Vector3(0.22, 0.42, 1.0), Vector3(0.56, 0.3, 0.95)]
+
+
+## THE SKY BY WHERE THE SYSTEM IS (Jon: "Maybe we can have the sectors that are
+## in a nebula have all the clouds, and the sectors that aren't in a nebula have
+## something more simple"). Inside a cloud the gas is the cloud's own, in its
+## kind's colours, as the star chart paints it; outside one the sky is clear --
+## stars, a faint distant band of the galaxy, a little thin dust. A pulsar and
+## the core keep their own skies.
+static func look_for(n: MapGen.MapNode, kind: String) -> Dictionary:
+	if kind == "PULSAR":
+		return {"pal": PULSAR_PAL, "thick": 1.6 if n.in_nebula else 1.0, "band": 0.0, "dust": 1.0, "nebula": true}
+	if kind == "CORE":
+		return {"pal": PALS[n.index % 4], "thick": 1.6 if n.in_nebula else 1.0, "band": 0.0, "dust": 1.0, "nebula": true}
+	var cloud = NebulaField.at(n.gal) if n.in_nebula else null
+	if cloud == null:
+		# CLEAR SKY: the gas all but gone, a faint band of the galaxy, sparse dust
+		return {"pal": [Vector3(0.42, 0.46, 0.62), Vector3(0.58, 0.5, 0.62)], "thick": 0.18, "band": 1.0, "dust": 0.35, "nebula": false}
+	var c0: Color = cloud.base_colour()
+	var c1: Color = cloud.edge_colour()
+	var p0 := Vector3(c0.r, c0.g, c0.b)
+	# the second colour: the cloud's own edge, lifted to sit as gas beside it
+	var p1 := Vector3(c1.r, c1.g, c1.b).lerp(p0, 0.25) * 1.5
+	var thick := 1.6
+	var dust := 1.0
+	if cloud.kind == NebulaField.Kind.DARK:
+		# A DARK CLOUD lights nothing: dim violet gas, thick dust that hides
+		# what is behind it
+		p0 = Vector3(0.24, 0.2, 0.32)
+		p1 = Vector3(0.32, 0.26, 0.4)
+		thick = 0.7
+		dust = 1.6
+	elif cloud.kind == NebulaField.Kind.REFLECTION:
+		thick = 1.3
+	# and the cloud itself, for the sky seen from inside it (`sky_nebula`):
+	# its kind, its shape, its own colour
+	return {"pal": [p0, p1], "thick": thick, "band": 0.0, "dust": dust, "nebula": true, "cloud": cloud.label(),
+		"neb": int(cloud.kind), "shape": int(cloud.shape), "hue": Vector3(c0.r, c0.g, c0.b)}
 ## The star's own light, by kind.
 const STARCOL := {"ORDINARY": Vector3(1.0, 0.86, 0.62), "RED": Vector3(1.0, 0.5, 0.3), "BLUE": Vector3(0.6, 0.75, 1.0), "PULSAR": Vector3(0.62, 0.8, 1.0), "CORE": Vector3(1.0, 0.64, 0.36)}
 
@@ -95,7 +132,7 @@ static func smooth_k(a: float, b: float, x: float) -> float:
 ## Bake the sky of system `index` (its seed), with a star of `kind` at
 ## (`cx`, `cy`) and its outermost orbit at `edge`. `parent` hosts the
 ## one-shot viewport. Two frames, then both pictures are ready.
-func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, cx: float, cy: float, tilt: float) -> void:
+func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, cx: float, cy: float, tilt: float, look: Dictionary = {}) -> void:
 	var R := Worlds.XRng.new(float(index) * 7919.0 + 17.0)
 	var sd := float(index) * 0.731
 	var temp := func() -> Vector3:
@@ -156,15 +193,10 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 		add.call(x + 1, y, I * 0.32, c)
 		add.call(x, y - 1, I * 0.32, c)
 		add.call(x, y + 1, I * 0.32, c)
-		if k < roundi(12 * MORE):
-			var s := 1
-			while s < 4.0 + I * 4.0:
-				var f := I * 0.45 * exp(-float(s) / (1.5 + I * 1.5))
-				add.call(x + s, y, f, c)
-				add.call(x - s, y, f, c)
-				add.call(x, y + s, f, c)
-				add.call(x, y - s, f, c)
-				s += 1
+		# NO SPIKES on the brightest any more (Jon: "these stars in the sector
+		# view are weird"): a spiked star is a distant supernova now, and comes and
+		# goes (`SystemView._Nova`). Nothing here drew from R, so every other star
+		# is where it was.
 	# eight bits a channel, a 64th of a unit a step: the brightest star is under four
 	var bytes := PackedByteArray()
 	bytes.resize(BW * BH * 4)
@@ -177,7 +209,7 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 	var stars_tex := ImageTexture.create_from_image(stars)
 
 	# the rest is per pixel, on the GPU, once
-	var pal: Array = PULSAR_PAL if kind == "PULSAR" else PALS[index % 4]
+	var pal: Array = look.get("pal", PULSAR_PAL if kind == "PULSAR" else PALS[index % 4])
 	var vp := SubViewport.new()
 	vp.size = Vector2i(BW, BH)
 	vp.transparent_bg = true
@@ -193,7 +225,8 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 	m.set_shader_parameter("star_col", STARCOL.get(kind, STARCOL.ORDINARY))
 	m.set_shader_parameter("pal0", pal[0])
 	m.set_shader_parameter("pal1", pal[1])
-	m.set_shader_parameter("thick", 1.6 if in_nebula else 1.0)
+	m.set_shader_parameter("thick", float(look.get("thick", 1.6 if in_nebula else 1.0)))
+	m.set_shader_parameter("band", float(look.get("band", 0.0)))
 	m.set_shader_parameter("pulsar", kind == "PULSAR")
 	m.set_shader_parameter("edge", edge)
 	m.set_shader_parameter("tilt", tilt)
@@ -201,7 +234,7 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 	m.set_shader_parameter("bake_size", Vector2(BW, BH))
 	m.set_shader_parameter("margin", float(M))
 	m.set_shader_parameter("rays_k", 0.0 if no_rays else 1.0)
-	m.set_shader_parameter("dust_k", 0.0 if no_dust else 1.0)
+	m.set_shader_parameter("dust_k", 0.0 if no_dust else float(look.get("dust", 1.0)))
 	rect.material = m
 	vp.add_child(rect)
 	parent.add_child(vp)

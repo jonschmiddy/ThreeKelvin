@@ -15,6 +15,10 @@ extends RefCounted
 ## sky with grids of dots.
 
 const K := 16
+## and for a system inside a nebula, whose sky is the cloud seen from inside
+## (`sky_nebula.gdshader`): at sixteen its teals and roses fell between too few
+## colours and dithered into blue checks
+const K_NEBULA := 24
 
 ## The star painters' own colours (the mockup's `PALHEX`s).
 const SUN_PALETTE := [
@@ -110,10 +114,10 @@ static func median_cut(img: Image, k: int, box: Rect2i) -> PackedVector3Array:
 ## The palette for one system's picture `img`, its star at `star_at` with
 ## radius `star_r`, of `kind` ("ORDINARY", "RED", "BLUE", "PULSAR", "CORE").
 ## `y0`: the first row the map shows; above it is the HUD, not the system.
-static func build(img: Image, x0: int, star_at: Vector2, star_r: float, kind: String, y0: int = 0) -> PackedVector3Array:
+static func build(img: Image, x0: int, star_at: Vector2, star_r: float, kind: String, y0: int = 0, k: int = K) -> PackedVector3Array:
 	if img.get_format() != Image.FORMAT_RGBA8 and img.get_format() != Image.FORMAT_RGB8:
 		img.convert(Image.FORMAT_RGBA8)
-	var pal := median_cut(img, K, Rect2i(x0, y0, img.get_width() - x0, img.get_height() - y0))
+	var pal := median_cut(img, k, Rect2i(x0, y0, img.get_width() - x0, img.get_height() - y0))
 	var sr := maxf(40.0, star_r * 3.2)
 	pal.append_array(median_cut(img, maxi(6, K >> 2), Rect2i(int(star_at.x - sr), int(star_at.y - sr), int(sr * 2), int(sr * 2))))
 	var own: Array = PULSAR_PALETTE if kind == "PULSAR" else ([] if kind == "CORE" else SUN_PALETTE)

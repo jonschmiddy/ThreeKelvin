@@ -143,8 +143,11 @@ func set_gas(tex: Texture2D) -> void:
 func set_zoom(k: float) -> void:
 	zoom = maxf(k, 0.05)
 	# the box grows with the beams, centred on a whole pixel (the 1e-4 keeps
-	# zoom 1's own 480 x 320 from rounding up)
-	_half = Vector2i(ceili(BOX.x * 0.5 * zoom - 1e-4), ceili(BOX.y * 0.5 * zoom - 1e-4))
+	# zoom 1's own 480 x 320 from rounding up), and an even number of pixels
+	# each side: the map draws it in 2x2 blocks, and now that it grows with
+	# every frame of a zoom, a side an odd pixel long would set every block of
+	# it half a block over on alternate frames
+	_half = Vector2i(ceili(BOX.x * 0.25 * zoom - 1e-4) * 2, ceili(BOX.y * 0.25 * zoom - 1e-4) * 2)
 	_box.size = Vector2(_half * 2)
 	_place()
 	_mat.set_shader_parameter("zoom", zoom)

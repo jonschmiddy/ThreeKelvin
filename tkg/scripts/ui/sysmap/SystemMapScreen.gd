@@ -19,10 +19,15 @@ extends Control
 ## assumed, because the HUD had grown, and every planet's shadow came off it
 ## crooked (Jon: "the shadow of the planet being delayed").
 ##
-## Clicking a beacon flies your ship to its body in about a second and then
-## opens it; clicking a world or the star selects it; clicking empty space
-## selects the star (Jon: "when clicking on empty space, let's just have the star
-## selected").
+## FLOWN, NOT PARKED (Jon picked the arcade orbits, F, of six mocked): WASD flies
+## your ship (`ShipFlight`); a world's ring takes it into orbit when you let go
+## inside it slowly, and a place's events open only while you are in orbit of it
+## or alongside it. Click once to select a place (the panel shows it, the map
+## holds a reticle on it); click it again to fly there on a transfer orbit;
+## click empty space to go back to the sector's list (Jon: "click once on an
+## object to update the focus of the right panel. click again on an object ...
+## travels to that object"). A choice taken anywhere else flies you there first.
+## The arrows and a drag pan the view; [ and ] step the events.
 
 signal beacon_opened(body: int, beacon)
 signal selection_changed(body: int)
@@ -32,6 +37,7 @@ const SystemOverlayS := preload("res://scripts/ui/sysmap/SystemOverlay.gd")
 const SystemPanelS := preload("res://scripts/ui/sysmap/SystemPanel.gd")
 const KeyGlyphS := preload("res://scripts/ui/sysmap/KeyGlyph.gd")
 const SectorCursorS := preload("res://scripts/ui/sysmap/SectorCursor.gd")
+const ShipFlightS := preload("res://scripts/ui/sysmap/ShipFlight.gd")
 ## The chart's scan: a blip every this many pixels the cursor travels.
 const SCAN_STEP := 26.0
 const SCAN_LIMIT_MS := 38
@@ -40,10 +46,14 @@ const SCAN_LIMIT_MS := 38
 ## are at"). The wheel zooms in steps the chart's size about the cursor, eased;
 ## a drag pans; LOCATION zooms onto your ship and keeps it in the middle.
 const ZOOM_STEP := 1.12
-const ZOOM_LOCATION := 3.0
+const ZOOM_LOCATION := 2.0
+## THE ARROWS PAN at this many screen pixels a second, eased, the same at every zoom.
+const PAN_SPEED := 360.0
 const LOCATION_LABEL := "LOCATION"
-## The scale bar, in AU (80 of the plane's pixels to one), sized like the chart's.
-const BAR_STEPS := [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]
+## The scale bar, in AU (80 of the plane's pixels to one, kept when the system
+## grew three times wider: the worlds now read 2 to 12 AU, which is what a real
+## system's span is), sized like the chart's.
+const BAR_STEPS := [0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0]
 const BAR_MAX_PX := 140.0
 const BAR_PAD := 12.0
 const BAR_LABEL_H := 15.0
@@ -54,8 +64,9 @@ const KEY := [[&"fight", "FIGHT"], [&"hazard", "HAZARD"], [&"salvage", "SALVAGE"
 	[&"signal", "SIGNAL"], [&"contract", "CONTRACT"], [&"quest", "QUEST"], [&"dock", "DOCK"]]
 
 ## WHERE THE SHIP WAS LEFT, by system: coming back from a fight, a dock or the
-## ship screen puts it at the body it last flew to. Not saved -- a reload puts
-## it at the edge, which is where a ship that has just arrived would be.
+## ship screen puts it back -- in orbit where it was, or where it was flying.
+## Not saved -- a reload puts it at the edge, which is where a ship that has
+## just arrived would be.
 static var _parked := {}
 ## LOCATION is held for the session, across screens and systems, like the
 ## chart's LOCAL REGION: on, every arrival zooms onto your ship.
@@ -74,6 +85,12 @@ var _transfer: TransferView = null
 ## The option whose result is showing, for REWARD.
 var _res_opt := -1
 var _res_out: Dictionary = {}
+## Which choice made that result, and whether the ship flew to make it: the
+## result says YOU CHOSE and YOUR SHIP FLEW TO.
+var _res_choice := -1
+var _res_flew := false
+## The beacon the cursor is on, as [body, beacon], so its card lights while it is.
+var _lit: Array = []
 var _taking := false
 var _cursor: Node2D
 var _scan_px := 0.0
@@ -89,8 +106,34 @@ var _tick_from := 0
 var _loc_btn: Button
 ## LOCATION has reached the ship and now holds it exactly, rather than chasing.
 var _locked := false
+## whether a flight could start, last frame (`ShipFlight.can_fly`)
+var _could_fly := false
 ## LOCATION was let go of by its button or L: glide back out to the whole sector.
 var _homing := false
+## A CAMERA GLIDE (Jon: "You zoom in and then jolt to the player's location"):
+## the zoom and the point looked at, eased together on one curve from where they
+## are to where they are going -- {kind ("loc", "body", "home"), body, z0, z1,
+## f0 (the point looked at, in the map's zoom-1 pixels), t0, dur}; {} for none
+var _glide: Dictionary = {}
+## THE PLACE A RIGHT-CLICK ZOOMED ONTO, held in the middle as it moves (-1 the
+## star), or -9
+var _focus_body := -9
+const GLIDE_S := 0.75
+## how close a right-click zooms onto a place
+const ZOOM_FOCUS := 3.0
+## THE SHIP, flown; and the keys held for it, and the arrows held for the view.
+var flight
+var _wasd := {"w": false, "a": false, "s": false, "d": false}
+var _arrows := Vector2.ZERO
+var _pan_v := Vector2.ZERO
+## What the ship was in orbit of last frame, so the panel follows a change.
+var _was_at := -9
+## What LOCATION is holding: the ship, or the world it orbits.
+var _follow_key := ""
+## The zoom that shows the whole system, worked out for its edge and the frame.
+var zoom_min := 1.0
+## A harness holding keys has no keyboard to check them against.
+var harness_keys := false
 
 
 func _init() -> void:
@@ -118,7 +161,9 @@ func _init() -> void:
 	_frame.resized.connect(_place_map)
 	_frame.mouse_exited.connect(func() -> void:
 		_cursor.set("at", Vector2(-1, -1))
-		_cursor.queue_redraw())
+		_cursor.queue_redraw()
+		overlay.hover = {}
+		_light_from_map({}))
 	var wrap := Widgets.panel_with(_frame)
 	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_child(wrap)
@@ -200,25 +245,77 @@ func _place_map() -> void:
 
 ## `arrived`: the ship has just jumped in, so it warps in at the edge.
 func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> void:
+	_keep_ship()
 	view.t = t0
 	overlay.selected = -2
 	overlay.hover = {}
-	overlay.ship_park = -3 if arrived else int(_parked.get(n.index, -3))
-	overlay.ship_fly_t0 = -1.0
-	overlay.ship_warp_t = t0 if arrived else -100.0
+	overlay.flight = null
+	flight = null
 	# every visit opens on the whole sector, then zooms onto you if LOCATION is held
-	view.zoom = 1.0
 	view.pan = Vector2.ZERO
-	_zoom_to = ZOOM_LOCATION if _location_on else 1.0
 	_anchor = Vector2(-1, -1)
 	_locked = false
 	_homing = false
+	_glide = {}
+	_focus_body = -9
 	_tick_level = _zoom_level()
 	_tick_from = Time.get_ticks_msec() + 400
 	_fill_strip(n)
 	_place_map()
 	await view.show_system(n)
+	zoom_min = _fit_zoom()
+	view.zoom = zoom_min
+	view.home_zoom = zoom_min
+	_zoom_to = zoom_min
+	# THE SHIP: at the frame's edge as arrived (at the opening zoom), or back where
+	# it was left in this system
+	flight = ShipFlightS.new()
+	var ex := minf(view.layout.edge, (view.window.end.x - view.CX - 26.0) / zoom_min)
+	flight.setup(view.layout, Vector2(ex, -210.0), t0)
+	if not arrived:
+		_restore_ship(_parked.get(n.index, {}))
+	overlay.flight = flight
+	_was_at = flight.reached()
+	# LOCATION held: one glide onto the ship from the whole sector
+	if _location_on:
+		_glide_to("loc", -9, ZOOM_LOCATION)
 	panel.show_system()
+
+
+## THE ZOOM THAT SHOWS IT ALL: the system's edge with a margin, in the frame.
+func _fit_zoom() -> float:
+	var L: SystemLayout = view.layout
+	var fs := _frame.size if _frame.size.x > 10.0 else Vector2(655, 420)
+	return clampf(minf(fs.x / (2.0 * (L.edge + 20.0)), fs.y / (2.0 * (L.edge + 20.0) * view.TILT + 60.0)), 0.1, 1.0)
+
+
+## Where the ship is, kept for the session when the screen leaves this system.
+func _keep_ship() -> void:
+	if flight == null or view.node == null:
+		return
+	var at: int = flight.reached()
+	_parked[view.node.index] = {"at": at, "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
+
+
+func _restore_ship(d: Dictionary) -> void:
+	if d.is_empty():
+		flight.place_at(-3, view.t)
+		return
+	if int(d.at) >= -1:
+		flight.place_at(int(d.at), view.t)
+	elif StringName(d.mode) == &"free":
+		flight.mode = &"free"
+		flight.f.p = d.p
+		flight.f.v = Vector2.ZERO
+		flight.f.head = d.head
+		flight.ang = d.head
+	else:
+		flight.place_at(-3, view.t)
+
+
+func _exit_tree() -> void:
+	_keep_ship()
+	Audio.ship_thrust_off()
 
 
 ## The chart's strip, for this sector: how dangerous it is. What it is goes in
@@ -236,7 +333,176 @@ func _fill_strip(n: MapGen.MapNode) -> void:
 func _process(delta: float) -> void:
 	if not frozen:
 		view.t += delta
+	_step_ship(delta)
 	_step_camera(delta)
+	# THE BELT POINTED AT (or selected) brightens, eased in with the hover
+	var lit := -1
+	var lt := 0.0
+	if overlay.hover.get("kind", &"") == &"belt":
+		lit = int(overlay.hover.body)
+		lt = overlay._hover_t
+	elif overlay.selected >= 0 and view.layout != null and view.layout.bodies[overlay.selected].kind == &"belt":
+		lit = overlay.selected
+		lt = 0.7
+	view.belt_lit = lit
+	view.belt_t = lt
+
+
+## THE SHIP AND THE VIEW, a frame on: the arrows pan (eased), WASD flies, the
+## dotted line is run forward, and the panel follows the ship into an orbit.
+func _step_ship(delta: float) -> void:
+	if flight == null or view.layout == null:
+		return
+	_settle_keys()
+	var free := _transfer == null and is_visible_in_tree()
+	var target := -_arrows.normalized() * PAN_SPEED if free else Vector2.ZERO
+	_pan_v = _pan_v.lerp(target, 1.0 - exp(-delta * 10.0))
+	if _pan_v.length() > 1.0:
+		_let_go_of_view()
+		view.pan += _pan_v * delta
+	var keys: Dictionary = _wasd if free and not _taking else {"w": false, "a": false, "s": false, "d": false}
+	var level: float = flight.step(delta, view.t, keys)
+	flight.predict(view.t, keys)
+	Audio.ship_thrust(level)
+	# THE FLIGHT A SECOND CLICK WOULD FLY, drawn before you fly it
+	overlay.preview_to = overlay.selected if overlay.selected >= -1 else -9
+	# WHETHER A FLIGHT CAN START changed (settled into an orbit, or left one):
+	# FLY HERE and the choices say so
+	var cf: bool = flight.can_fly()
+	if cf != _could_fly:
+		_could_fly = cf
+		_refresh_panel()
+	var now: int = flight.reached()
+	if now != _was_at:
+		var was := _was_at
+		_was_at = now
+		if now >= -1 and not _taking:
+			# IN ORBIT: the panel opens that place, its events now open; heard
+			# even when it was already the one selected -- unless another place
+			# was picked on the way, which stays picked (its flight shows now)
+			if overlay.selected == now:
+				_sound(&"chart_select", 0.04, 60)
+			if overlay.selected >= -1 and overlay.selected != now:
+				_refresh_panel()
+			else:
+				select_body(now)
+		elif was >= -1 and panel.mode == &"list" and (panel.filter == was or (was == -1 and panel.filter == -2)):
+			panel.show_body(panel.filter)
+
+
+## THE KEYS ARE BINDINGS (`Keys`): the four that fly the ship, by the w/a/s/d
+## names `ShipFlight` and `-- sheet=FlightClip` read, and the four that pan the
+## view. WASD and the arrows out of the box.
+const FLY_KEYS := {&"ship_thrust": "w", &"ship_left": "a", &"ship_brake": "s", &"ship_right": "d"}
+const PAN_KEYS := {&"map_left": Vector2.LEFT, &"map_right": Vector2.RIGHT,
+	&"map_up": Vector2.UP, &"map_down": Vector2.DOWN}
+
+
+## A key's release can go missing (a shortcut, a lost window): held keys are
+## checked against the keyboard, and can only ever be let go here.
+func _settle_keys() -> void:
+	if harness_keys:
+		return
+	for a: StringName in FLY_KEYS:
+		if _wasd[FLY_KEYS[a]] and not Keys.held(a):
+			_wasd[FLY_KEYS[a]] = false
+	if _arrows.x < 0.0 and not Keys.held(&"map_left"):
+		_arrows.x = 0.0
+	if _arrows.x > 0.0 and not Keys.held(&"map_right"):
+		_arrows.x = 0.0
+	if _arrows.y < 0.0 and not Keys.held(&"map_up"):
+		_arrows.y = 0.0
+	if _arrows.y > 0.0 and not Keys.held(&"map_down"):
+		_arrows.y = 0.0
+
+
+## MOVING THE VIEW LETS GO OF LOCATION, as dragging the chart lets go of its
+## region; the zoom stays.
+func _let_go_of_view() -> void:
+	if _location_on:
+		_location_on = false
+		_locked = false
+		_paint_location()
+	_homing = false
+	_anchor = Vector2(-1, -1)
+	_glide = {}
+	_focus_body = -9
+
+
+## The point in the middle of the view, in the map's zoom-1 pixels from the star.
+func _look_at() -> Vector2:
+	return -view.pan / maxf(view.zoom, 0.0001)
+
+
+## Where a glide is going, this moment (the ship and the worlds move), in the
+## map's zoom-1 pixels from the star.
+func _glide_target(kind: String, body: int) -> Vector2:
+	var z: float = maxf(view.zoom, 0.0001)
+	match kind:
+		"loc":
+			var on_world: int = int(flight.rail.body) if flight != null and flight.mode == &"rail" and int(flight.rail.body) >= 0 else -9
+			return (overlay.place_rel(on_world) if on_world >= 0 else overlay.ship_rel()) / z
+		"body":
+			return overlay.place_rel(body) / z if body >= 0 else Vector2.ZERO
+	return Vector2.ZERO
+
+
+func _glide_to(kind: String, body: int, z1: float, dur: float = GLIDE_S) -> void:
+	_glide = {"kind": kind, "body": body, "z0": view.zoom, "z1": clampf(z1, zoom_min, view.ZOOM_MAX),
+		"f0": _look_at(), "t0": float(Time.get_ticks_msec()) / 1000.0, "dur": dur}
+	_zoom_to = float(_glide.z1)
+	_anchor = Vector2(-1, -1)
+	_homing = false
+	_locked = false
+
+
+## A glide a frame on: the zoom eased geometrically, the point looked at eased
+## toward where its target is now, both on the same curve; at the end, held.
+## Returns whether one is under way.
+func _step_glide() -> bool:
+	if _glide.is_empty():
+		return false
+	var u := clampf((float(Time.get_ticks_msec()) / 1000.0 - float(_glide.t0)) / float(_glide.dur), 0.0, 1.0)
+	var e := u * u * (3.0 - 2.0 * u)
+	var z0: float = _glide.z0
+	var z1: float = _glide.z1
+	var z := z0 * pow(z1 / z0, e)
+	view.zoom = z
+	var f: Vector2 = (_glide.f0 as Vector2).lerp(_glide_target(String(_glide.kind), int(_glide.body)), e)
+	view.pan = -f * z
+	_zoom_to = z1
+	if u >= 1.0:
+		match String(_glide.kind):
+			"loc":
+				_locked = true
+				var ow: int = int(flight.rail.body) if flight != null and flight.mode == &"rail" and int(flight.rail.body) >= 0 else -9
+				_follow_key = "w%d" % ow if ow >= 0 else "ship"
+			"body":
+				_focus_body = int(_glide.body)
+			"home":
+				view.pan = Vector2.ZERO
+		_glide = {}
+	return true
+
+
+## RIGHT-CLICK (Jon: "If you right-click a planet that is selected, it should
+## zoom the camera onto that planet. A second right-click zooms all the way
+## out"): onto the selected place, held there as it moves; again, or on empty
+## space, back out to the whole sector. A fixed control (a mouse button: the
+## rebindable keys are keys), listed in Settings > CONTROLS.
+func right_click(h: Dictionary) -> void:
+	var b: int = int(h.get("body", -9)) if not h.is_empty() else -9
+	if h.get("kind", &"") == &"star":
+		b = -1
+	if b >= -1 and b == overlay.selected and b != _focus_body:
+		if _location_on:
+			_location_on = false
+			_paint_location()
+		_glide_to("body", b, maxf(ZOOM_FOCUS, view.zoom))
+		_focus_body = -9
+	elif _focus_body >= -1 or b < -1 or b == _focus_body:
+		_focus_body = -9
+		_glide_to("home", -9, zoom_min)
 
 
 func _zoom_level() -> int:
@@ -248,9 +514,14 @@ func _zoom_level() -> int:
 func _step_camera(delta: float) -> void:
 	if view.layout == null:
 		return
+	if _step_glide():
+		_tick_zoom()
+		return
 	var c := Vector2(view.CX, view.CY)
 	var z: float = view.zoom
 	var a: Vector2 = c if _anchor.x < 0.0 or _homing else _anchor
+	if _focus_body >= -1:
+		a = c
 	if absf(z - _zoom_to) > 0.0005:
 		var nz := lerpf(z, _zoom_to, 1.0 - exp(-delta * 14.0))
 		if absf(nz - _zoom_to) < 0.002:
@@ -261,21 +532,40 @@ func _step_camera(delta: float) -> void:
 		view.zoom = nz
 	if _location_on:
 		# THE SHIP, worked out from its orbit at this moment and at this zoom:
-		# eased onto at first, then held exactly, so it does not shake
-		var target: Vector2 = -overlay.ship_rel()
+		# eased onto at first, then held exactly, so it does not shake; in orbit of
+		# a world, the WORLD, so the camera does not circle with the ship
+		var on_world: int = int(flight.rail.body) if flight != null and flight.mode == &"rail" and int(flight.rail.body) >= 0 else -9
+		var key := "w%d" % on_world if on_world >= 0 else "ship"
+		if key != _follow_key:
+			_follow_key = key
+			# ONTO THE WORLD (or back to the ship): glided across, not chased
+			if _locked:
+				_glide_to("loc", -9, view.zoom, 0.5)
+				_step_glide()
+				return
+			_locked = false
+		var target: Vector2 = -(overlay.place_rel(on_world) if on_world >= 0 else overlay.ship_rel())
 		if _locked:
 			view.pan = target
 		else:
 			view.pan = view.pan.lerp(target, 1.0 - exp(-delta * 8.0))
 			if view.pan.distance_to(target) < 0.5:
 				_locked = true
+	elif _focus_body >= -1:
+		# HELD ON THE PLACE A RIGHT-CLICK ZOOMED ONTO, as it goes round
+		view.pan = -_glide_target("body", _focus_body) * view.zoom
 	else:
 		if _homing:
 			view.pan = view.pan.lerp(Vector2.ZERO, 1.0 - exp(-delta * 8.0))
-			if view.pan.length() < 0.25 and absf(view.zoom - 1.0) < 0.002:
+			if view.pan.length() < 0.25 and absf(view.zoom - zoom_min) < 0.002:
 				view.pan = Vector2.ZERO
 				_homing = false
 		_clamp_pan()
+	_tick_zoom()
+
+
+## The zoom's tick, a level at a time.
+func _tick_zoom() -> void:
 	var level := _zoom_level()
 	if level != _tick_level:
 		if Time.get_ticks_msec() >= _tick_from:
@@ -295,7 +585,11 @@ func _clamp_pan() -> void:
 
 
 func _zoom_by(f: float, at: Vector2) -> void:
-	_zoom_to = clampf(_zoom_to * f, 1.0, view.ZOOM_MAX)
+	# a glide under way ends where it is, the wheel taking over
+	if not _glide.is_empty():
+		_glide = {}
+		_zoom_to = view.zoom
+	_zoom_to = clampf(_zoom_to * f, zoom_min, view.ZOOM_MAX)
 	_anchor = at
 	_homing = false
 
@@ -307,27 +601,55 @@ func _on_location() -> void:
 	_location_on = not _location_on
 	_paint_location()
 	_locked = false
+	_focus_body = -9
+	# ONE SMOOTH MOVE each way: zoom and the point looked at together
 	if _location_on:
-		_zoom_to = ZOOM_LOCATION
-		_homing = false
+		_glide_to("loc", -9, ZOOM_LOCATION)
 	else:
-		_zoom_to = 1.0
-		_anchor = Vector2(-1, -1)
-		_homing = true
+		_glide_to("home", -9, zoom_min)
 
 
 ## L FOR LOCATION, as on the star chart (`StarchartScreen._unhandled_key_input`).
+## WASD and the arrows are HELD (a state, not a press: two keys move diagonally
+## and letting one go leaves the other running), as on the star chart.
 func _unhandled_key_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
-	if k == null or not k.pressed or k.echo:
+	if k == null or k.echo:
 		return
 	if _transfer != null or not is_visible_in_tree():
 		return
-	if k.keycode == KEY_L:
+	# A direction with two keys keeps going while the other is still down.
+	for a: StringName in FLY_KEYS:
+		if k.is_action(a):
+			_wasd[FLY_KEYS[a]] = k.pressed or Keys.held(a)
+			accept_event()
+			return
+	var arrow := Vector2.ZERO
+	for a: StringName in PAN_KEYS:
+		if k.is_action(a):
+			if not k.pressed and Keys.held(a):
+				accept_event()
+				return
+			arrow = PAN_KEYS[a]
+			break
+	if arrow != Vector2.ZERO:
+		# THE ARROWS PAN THE VIEW (Jon: "can the arrow keys pan the view?")
+		if k.pressed:
+			_arrows = (_arrows + arrow).clamp(-Vector2.ONE, Vector2.ONE)
+		elif arrow.x != 0.0 and signf(_arrows.x) == arrow.x:
+			_arrows.x = 0.0
+		elif arrow.y != 0.0 and signf(_arrows.y) == arrow.y:
+			_arrows.y = 0.0
+		accept_event()
+		return
+	if not k.pressed:
+		return
+	if k.is_action_pressed(&"map_location"):
 		_on_location()
 		accept_event()
-	elif k.keycode == KEY_LEFT or k.keycode == KEY_RIGHT:
-		step_body(-1 if k.keycode == KEY_LEFT else 1)
+	elif k.is_action_pressed(&"event_prev") or k.is_action_pressed(&"event_next"):
+		# [ AND ] STEP THE EVENTS (the arrows pan now), as the panel's < and > do
+		panel.step(-1 if k.is_action_pressed(&"event_prev") else 1)
 		accept_event()
 
 
@@ -352,19 +674,15 @@ func _on_map_input(e: InputEvent) -> void:
 	if e is InputEventMouseMotion:
 		var mm := e as InputEventMouseMotion
 		if _dragging:
-			view.pan += mm.position - _drag_from
-			_drag_from = mm.position
 			if mm.position.distance_to(_press_at) > 3.0:
 				_drag_moved = true
-			# MOVING THE VIEW LETS GO OF LOCATION, as dragging the chart lets go
-			# of its region
-			if _drag_moved and _location_on:
-				_location_on = false
-				_locked = false
-				_paint_location()
-			_homing = false
-			_clamp_pan()
+			if _drag_moved:
+				view.pan += mm.position - _drag_from
+				_let_go_of_view()
+				_clamp_pan()
+			_drag_from = mm.position
 		overlay.hover = overlay.hit(_map_at(mm.position))
+		_light_from_map(overlay.hover)
 		# THE CHART'S SCAN: the cursor moves, and every so far it blips
 		_cursor.set("at", _map_at(mm.position))
 		_cursor.queue_redraw()
@@ -382,26 +700,22 @@ func _on_map_input(e: InputEvent) -> void:
 				if mb.pressed:
 					_zoom_by(1.0 / ZOOM_STEP, _map_at(mb.position))
 			MOUSE_BUTTON_LEFT:
+				# A PRESS THAT MOVES MORE THAN 3 PX IS A DRAG, and pans; one that does
+				# not is a click, decided when it lets go
 				if mb.pressed:
-					var h: Dictionary = overlay.hit(_map_at(mb.position))
-					if h.is_empty():
-						# empty space: a drag pans; a click selects the star
-						_dragging = true
-						_drag_from = mb.position
-						_press_at = mb.position
-						_drag_moved = false
-					elif h.kind == &"star":
-						select_body(-1)
-					elif h.kind == &"body":
-						select_body(h.body)
-					else:
-						open_beacon(h.body, h.beacon)
+					_dragging = true
+					_drag_from = mb.position
+					_press_at = mb.position
+					_drag_moved = false
 				else:
 					if _dragging and not _drag_moved:
-						select_body(-1)
+						tap(overlay.hit(_map_at(mb.position)))
 					_dragging = false
 			MOUSE_BUTTON_MIDDLE:
 				_dragging = mb.pressed
+			MOUSE_BUTTON_RIGHT:
+				if mb.pressed:
+					right_click(overlay.hit(_map_at(mb.position)))
 				_drag_from = mb.position
 				_press_at = mb.position
 				_drag_moved = true
@@ -409,6 +723,32 @@ func _on_map_input(e: InputEvent) -> void:
 
 
 # ---------------------------------------------------------------- panel calls
+## ONE CLICK SELECTS (the panel shows the place, the map holds a reticle on it);
+## A SECOND CLICK ON THE SELECTION FLIES THERE; empty space goes back to the list.
+## A beacon selects its world with its event open; clicked again, it flies.
+func tap(h: Dictionary) -> void:
+	if h.is_empty():
+		panel_back()
+		return
+	var body: int = h.body
+	var again: bool = overlay.selected == body and (h.kind != &"beacon" or panel.mode != &"list")
+	if again:
+		# A FLIGHT STARTS ONLY FROM AN ORBIT: on the way, or under thrust, a click
+		# selects and no more
+		if flight.orbit_body() != body and flight.can_fly():
+			fly_to_body(body)
+		return
+	if h.kind == &"beacon":
+		open_beacon(h.body, h.beacon)
+	else:
+		select_body(body)
+
+
+## Whether the ship is in orbit of (or alongside) place i: its events are open.
+func ship_reached(i: int) -> bool:
+	return flight != null and flight.reached() == i
+
+
 func select_body(i: int) -> void:
 	if i != overlay.selected:
 		_sound(&"chart_select", 0.04, 60)
@@ -417,8 +757,9 @@ func select_body(i: int) -> void:
 	panel.show_body(i)
 
 
-## Flies the ship to the beacon's body, then opens it. The pulsar's own beacon
-## (body -1) is on the star.
+## Opens a beacon in the panel: an encounter's page, or for DOCK, HARVEST and
+## the custodian the list narrowed to where it is, its card holding the button.
+## The pulsar's own beacon (body -1) is on the star.
 ## OPENS IT, AND ONLY THAT (Jon: "clicking on a beacon and immediately moving
 ## there is kinda disorienting"): the encounter comes up in the panel and its
 ## world is selected; the ship stays put until you choose something.
@@ -429,17 +770,56 @@ func open_beacon(body: int, bc) -> void:
 	panel.show_beacon(body, bc)
 
 
-## THE TRIP COMES WITH THE CHOICE: fly to `body` and then do `then`, or just do
-## it if the ship is already parked there. The map takes no clicks on the way.
+## THE TRIP COMES WITH THE CHOICE: into orbit of `body` (or alongside it) and then
+## do `then`, or just do it if the ship is already there. The map takes no
+## clicks on the way.
 func _go_then(body: int, then: Callable) -> void:
-	if overlay.ship_park == body and overlay.ship_fly_t0 < 0.0:
+	if flight.reached() == body:
 		then.call()
 		return
+	# ONLY OUT OF AN ORBIT (Jon: "You have to be IN AN ORBIT ... AND THEN CLICK
+	# to go to another planet"): anywhere else the panel says so and nothing flies
+	if not flight.can_fly():
+		return
 	_taking = true
-	_parked[view.node.index] = body
-	overlay.fly_to(body, func() -> void:
+	_fly(body, func() -> void:
 		_taking = false
 		then.call())
+
+
+## A flight. Heard on the thrust loop, as every burn is (`ShipFlight.step`): the
+## station's arrival flameout used to play here, and its gated sputter was the
+## ticking Jon heard as each flight ended ("still getting a ticking noise when
+## the thruster is activated or ends").
+func _fly(body: int, done: Callable) -> void:
+	# LANDING IS THE FLIGHT'S OWN BUSINESS: the callback decides what the panel
+	# shows (a choice's result, or the place), so the frame's own "arrived in
+	# orbit" must not open the place over it
+	# the flight drawn before it is the one flown: the preview's own choice
+	var prefer: Dictionary = overlay._pv_choice if overlay.preview_to == body else {}
+	var pl = flight.fly(body, view.t, func() -> void:
+		_was_at = flight.reached()
+		_sound(&"chart_select", 0.04, 60)
+		done.call(), prefer)
+	if pl == null:
+		# no manoeuvre would solve (the flight measure has never seen it): put the
+		# ship in orbit there rather than leave the choice hanging
+		flight.place_at(body, view.t)
+		_was_at = flight.reached()
+		done.call()
+		return
+	_was_at = -9
+
+
+## The panel drawn again as it stands (a place's list, or an event's page).
+func _refresh_panel() -> void:
+	if panel.mode == &"list":
+		if panel.filter == -2:
+			panel.show_system()
+		else:
+			panel.show_body(panel.filter)
+	elif panel.mode == &"event":
+		panel.open_page(panel.open_opt)
 
 
 ## Which body holds beacon `bc` (-1 the star, for the pulsar's own).
@@ -452,32 +832,58 @@ func _body_of_beacon(bc) -> int:
 	return -1
 
 
-## Your ship to body `i` (-1 the star), parked there; the panel stays on it.
+## Your ship into orbit of place `i` (-1 the star), or alongside it; the panel
+## stays on it and opens it there.
 func fly_to_body(i: int) -> void:
+	if _taking or not flight.can_fly():
+		return
 	_sound(&"chart_select", 0.04, 60)
 	overlay.selected = i
-	_parked[view.node.index] = i
-	overlay.fly_to(i, func() -> void:
-		if overlay.selected == i:
-			panel.show_body(i))
+	# ARRIVED: the place opens -- unless another was picked on the way, which
+	# stays picked, its flight drawn now the ship is in orbit
+	_fly(i, func() -> void:
+		if overlay.selected == i or overlay.selected < -1:
+			select_body(i)
+		else:
+			_refresh_panel())
 
 
-## The star and the bodies in orbit order, round and round: the panel's < and >
-## and the arrow keys.
-func step_body(d: int) -> void:
-	var n: int = view.layout.bodies.size()
-	var cur: int = overlay.selected if overlay.selected >= -1 else -1
-	var nxt := cur + d
-	if nxt >= n:
-		nxt = -1
-	elif nxt < -1:
-		nxt = n - 1
-	select_body(nxt)
+## Option k's page, as clicking its beacon opens it: the panel's < and >, NEXT
+## and CHOOSE AGAIN, and the arrow keys.
+func open_option(k: int) -> void:
+	for bi in view.layout.bodies.size():
+		for bc in view.layout.bodies[bi].beacons:
+			if bc.opt == k:
+				open_beacon(bi, bc)
+				return
+
+
+## A card pointed at in the panel lights its beacon on the map, as pointing at
+## the beacon would.
+func card_hover(body: int, bc, on: bool) -> void:
+	overlay.link_on = on
+	overlay.linked = bc
+	overlay.link_body = body
+
+
+## The cursor on a beacon lights its card, and its rivals grey, as pointing at
+## the card would. Only on a change, so the panel is not touched every frame.
+func _light_from_map(h: Dictionary) -> void:
+	var now: Array = [h.body, h.beacon] if h.get("kind", &"") == &"beacon" else []
+	if now == _lit:
+		return
+	if not _lit.is_empty():
+		panel.light(_lit[1], false)
+	_lit = now
+	if not _lit.is_empty():
+		panel.light(_lit[1], true)
 
 
 func panel_back() -> void:
 	_res_opt = -1
 	overlay.selected = -2
+	overlay.link_on = false
+	_lit = []
 	panel.show_system()
 
 
@@ -488,6 +894,8 @@ func take_choice(i: int, j: int) -> void:
 	var c: Dictionary = (OptionTable.by_id(n.options[i]).get("choices", []) as Array)[j]
 	if not OptionResolve.affordable(c):
 		return
+	_res_choice = j
+	_res_flew = false
 	# WALKING AWAY GOES NOWHERE; anything else, the ship flies there first
 	if bool(c.get("stay", false)):
 		_resolve(i, j)
@@ -497,6 +905,8 @@ func take_choice(i: int, j: int) -> void:
 		for bc in view.layout.bodies[bi].beacons:
 			if bc.opt == i:
 				body = bi
+		_res_flew = flight.reached() != body
+	overlay.link_on = false
 	_go_then(body, func() -> void: _resolve(i, j))
 
 

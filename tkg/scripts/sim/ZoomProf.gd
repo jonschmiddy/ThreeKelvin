@@ -46,12 +46,23 @@ func _ready() -> void:
 	RenderingServer.viewport_set_measure_render_time(_scr.view._scene.get_viewport_rid(), true)
 	await _run("still", func(_k: int) -> void: pass)
 	await _run("zooming", func(k: int) -> void:
-		_scr._zoom_to = 4.0 if (k / 40) % 2 == 0 else 1.0)
+		_scr._zoom_to = 4.0 if (k / 40) % 2 == 0 else _scr.zoom_min)
 	_scr._zoom_to = 2.5
 	for _i in 60:
 		await get_tree().process_frame
 	await _run("panning at 2.5x", func(k: int) -> void:
 		_scr.view.pan += Vector2(3.0 if (k / 60) % 2 == 0 else -3.0, 0.0))
+	# THE SHIP FLOWN, zoomed out: W held and a turn, so the flight steps and its
+	# dotted line is run forward every frame
+	_scr._zoom_to = _scr.zoom_min
+	_scr.view.pan = Vector2.ZERO
+	for _i in 60:
+		await get_tree().process_frame
+	_scr.harness_keys = true
+	await _run("flying (W held, the line run)", func(k: int) -> void:
+		_scr._wasd = {"w": true, "a": false, "s": false, "d": (k / 50) % 2 == 0})
+	_scr._wasd = {"w": false, "a": false, "s": false, "d": false}
+	await _run("coasting (the line run)", func(_k: int) -> void: pass)
 	get_tree().quit()
 
 

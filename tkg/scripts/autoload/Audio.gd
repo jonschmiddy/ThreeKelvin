@@ -1092,3 +1092,103 @@ func load_settings() -> void:
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
 		ambient_volume = float(cfg.get_value("audio", "ambient", ambient_volume))
 	_apply_volumes()
+
+
+# ---------------------------------------------------------------- the map's ship
+## YOUR SHIP ON THE SECTOR MAP, heard (Jon: "the ship should use the thruster
+## sounds when it moves? Maybe a bit quieter?"): the same drive LOCAL plays, this
+## much quieter, because it is a small thing on a big map and you hear it a lot.
+const SHIP_DB := -8.0
+## THE THRUST LOOP, held while a thrust key is: a second of the arrival clip's
+## clean burn (constant rate and level), its last 0.15 s folded over its head so
+## the seam is continuous, and PCM so no codec touches the join. Low-passed at
+## 1.2 kHz around its own period (the burn is all under 1 kHz; a tick 0.65 s in
+## clicked once a loop, Jon: "clicks in between the loops"). 44101 frames, the
+## last a copy of the first: the import loops at frames-1 (loop_end -1), so the
+## loop is exactly 44100 and the copy is only read as the interpolation partner.
+const SHIP_LOOP := &"ship_thrust_loop"
+var _ship_loop: AudioStreamPlayer = null
+var _ship_level := 0.0
+var _ship_depart: AudioStreamPlayer = null
+var _ship_arrive: AudioStreamPlayer = null
+
+
+## The loop's level, every frame the map runs: 0.7 thrusting, 0.45 braking, 0.32
+## turning or nudging an orbit, 0 for nothing. Fades in fast and out slower.
+func ship_thrust(level: float) -> void:
+	if not _enabled:
+		return
+	if _ship_loop == null:
+		# STARTED SILENT, the first time the map asks, and never restarted: a
+		# play() on a key press started the burn mid-swing, from silence -- a click
+		if not ResourceLoader.exists(SFX_PATH % SHIP_LOOP):
+			return
+		_ship_loop = AudioStreamPlayer.new()
+		_ship_loop.bus = &"SFX"
+		_ship_loop.stream = load(SFX_PATH % SHIP_LOOP)
+		_ship_loop.volume_db = -80.0
+		add_child(_ship_loop)
+		_ship_loop.play()
+	var dt := get_process_delta_time()
+	var tc := 0.03 if level > _ship_level else 0.08
+	_ship_level += (level - _ship_level) * (1.0 - exp(-dt / tc))
+	_ship_loop.volume_db = -80.0 if _ship_level < 0.002 else SHIP_DB + linear_to_db(_ship_level)
+
+
+## THE MAP LEFT: the burn faded out in a tenth of a second (a frame of
+## `ship_thrust(0)` only eases it, and no frame follows).
+func ship_thrust_off() -> void:
+	_ship_level = 0.0
+	if _ship_loop != null and _ship_loop.volume_db > -79.0:
+		create_tween().tween_property(_ship_loop, "volume_db", -80.0, 0.1)
+
+
+func _ship_player() -> AudioStreamPlayer:
+	var p := AudioStreamPlayer.new()
+	p.bus = &"SFX"
+	add_child(p)
+	return p
+
+
+## A FLIGHT, HEARD: the departure burn as it sets off, and an arrival flameout
+## (a row picked as `ShipView.arrive` picks one, the hull's weight picking the
+## clip) started at the point in it where its clean burn ends 0.08 s before the
+## ship settles, so the stutter plays over the settling. On a transfer orbit the
+## departure burn is short and the coast between is quiet; on the swoop the two
+## crossfade.
+func ship_flight(dur: float, conic: bool) -> void:
+	if not _enabled:
+		return
+	var w := int(Run.hull.weight) if Run.hull != null else int(HullData.Weight.MEDIUM)
+	var row := randi() % ShipView.FLAMEOUTS.size()
+	var dname: StringName = ShipView.DEPART_SFX[w]
+	var aname: StringName = (ShipView.FLAMEOUT_SFX[w] as Array)[row]
+	if _ship_depart == null:
+		_ship_depart = _ship_player()
+		_ship_arrive = _ship_player()
+	# the departure burn, then out
+	if ResourceLoader.exists(SFX_PATH % dname):
+		_ship_depart.stream = load(SFX_PATH % dname)
+		_ship_depart.volume_db = SHIP_DB
+		_ship_depart.play()
+		var tw := create_tween()
+		tw.tween_interval((0.18 if conic else 0.45) * dur)
+		tw.tween_property(_ship_depart, "volume_db", -80.0, 0.2 if conic else 0.3 * dur)
+	# the flameout, where its clean burn ends as the ship settles
+	if ResourceLoader.exists(SFX_PATH % aname):
+		var flame: float = ShipView.ARRIVE_LEAD_S + (ShipView.FLAMEOUTS[row][0] as Vector2).y * ShipView.ARRIVE_MS / 1000.0
+		var at := dur - 0.08 - flame
+		var from := 0.0
+		if at < 0.0:
+			from = -at
+			at = 0.0
+		_ship_arrive.stream = load(SFX_PATH % aname)
+		_ship_arrive.volume_db = -80.0
+		var up := (0.76 if conic else 0.3) * dur
+		var full := (0.84 if conic else 0.6) * dur
+		var tw2 := create_tween()
+		if at > 0.0:
+			tw2.tween_interval(at)
+		tw2.tween_callback(func() -> void: _ship_arrive.play(from))
+		tw2.tween_interval(maxf(0.0, up - at))
+		tw2.tween_property(_ship_arrive, "volume_db", SHIP_DB, maxf(0.05, full - maxf(up, at)))

@@ -26,6 +26,8 @@ uniform float x0 = 256.0;
 // harness switches, to see what each layer darkens
 uniform float rays_k = 1.0;
 uniform float dust_k = 1.0;
+// CLEAR SKY, outside a nebula: a faint band of the galaxy across it (0 none)
+uniform float band = 0.0;
 // THE BAKE IS BIGGER THAN THE MAP by this much on every side, so the sky has
 // somewhere to slide when the map pans; map coordinates are pixel - margin.
 uniform vec2 bake_size = vec2(960.0, 540.0);
@@ -92,7 +94,19 @@ void fragment() {
 		float dk = dust_clear * dust_at(b), back = dust_clear * dust_at(vec2(b.x - dv.x / d * 5.0, b.y - dv.y / d * 5.0 * 0.7));
 		float rim = max(0.0, dk - back);
 		vec3 rim_l = rim > 0.03 ? rim * (0.4 + 1.4 * near) * 0.45 * mix(vec3(1.0, 0.92, 0.84), star_col, 0.4) : vec3(0.0);
-		if (pulsar) Lb += gas_l + rim_l; else Gb += gas_l + rim_l;
+		// (round a pulsar the gas is its remnant shell, round the pulsar in the
+		// system and not far sky: it goes in the gas picture with the rest, which
+		// `sky.gdshader` carries and zooms with the pulsar)
+		Gb += gas_l + rim_l;
+		// THE GALAXY'S BAND, far off, in a clear sky: a soft glow along a line
+		// across the view, mottled, faint
+		if (band > 0.0) {
+			float ang = sd * 2.7;
+			vec2 nrm = vec2(-sin(ang), cos(ang));
+			float off = dot(b - vec2(480.0, 270.0), nrm) + (fbm2(vec2(b.x * 0.003 + sd, b.y * 0.003), 3) - 0.5) * 160.0;
+			float glow = exp(-pow(off / 150.0, 2.0)) * (0.55 + 0.45 * fbm2(vec2(b.x * 0.012 + 3.0 + sd, b.y * 0.012), 4));
+			Lb += band * 0.06 * glow * vec3(0.62, 0.62, 0.78);
+		}
 		// THE STAR'S OWN LIGHT ROUND IT is not baked: it rides the star as the map
 		// zooms and pans (`sky.gdshader`), and reads the dust from this bake's alpha.
 		// what lies behind the dust is dimmed by it

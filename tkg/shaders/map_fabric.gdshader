@@ -42,6 +42,8 @@ void vertex() {
 	float deep = min(1.0, d / 40.0);
 	COLOR = vec4(0.62, 0.64, 0.68, (0.06 + deep * 0.1) * fade * far);
 	sp = s;
+	// (not snapped: its short segments, each end snapped apart, stair-stepped
+	// the grid's long lines into wobbles; it is drawn in the half-size picture)
 	VERTEX = s;
 }
 
