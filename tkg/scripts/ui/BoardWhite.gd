@@ -231,7 +231,7 @@ const MORE := [
 	{"k": "graph", "t": "MORALE", "v": [0.9, 0.8, 0.85, 0.6, 0.5, 0.2, 0.08], "xl": "WEEK", "n": "UH OH", "c": RED},
 	{"k": "graph", "t": "SAVINGS", "v": [0.7, 0.66, 0.6, 0.52, 0.45, 0.3], "xl": "YEARS", "n": "", "c": GREEN},
 	{"k": "graph", "t": "COMPLAINTS", "v": [0.05, 0.15, 0.3, 0.45, 0.7, 0.95], "xl": "MONTHS", "n": "", "c": BLACK},
-	{"k": "graph", "t": "SKY HEAT", "v": [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3], "xl": "ALWAYS", "n": "SAD", "c": BLUE},
+	{"k": "graph", "t": "COFFEE POT", "v": [0.9, 0.5, 0.12, 0.92, 0.55, 0.1, 0.02], "xl": "SHIFT", "n": "WHO?", "c": BLUE},
 
 	# -- pie charts
 	{"k": "pie", "t": "MY PAY", "f": [0.5, 0.3, 0.2], "l": ["RENT", "FOOD", "FUN"]},
