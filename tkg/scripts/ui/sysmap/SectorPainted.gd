@@ -146,6 +146,12 @@ static func scene_ramps(v) -> Array:
 			# (all four: the rings are stepped in the sky, so the faintest no longer
 			# catches a long faint reach and sets the sky round the sun as a brown plate)
 			out.append(["HALO", HALO.get(v.kind, HALO.ORDINARY), SOFT])
+	# (B's form, the clouds built of sheets: their band edges are the domes' and
+	# lobes' own curves, so no checker along them -- on those edges it read as a saw)
+	if key in [&"emission", &"reflection", &"core"]:
+		for r: Array in out:
+			if String(r[0]) in ["GM", "GF", "GO", "DU"]:
+				r[2] = int(r[2]) & ~SOFT
 	return out
 
 
@@ -426,7 +432,7 @@ static func paint_cloud(v) -> void:
 	m.set_shader_parameter("p_light", PUFF_LIGHT.get(key, PUFF_LIGHT[&"emission"]))
 	# (how dense dust must be to stand as dust over the gas: the core's lanes only at
 	# their spines, B's thin arcs; wide, they cut its heart into dark plates)
-	m.set_shader_parameter("p_dust_tau", 0.82 if key == &"core" else 0.6)
+	m.set_shader_parameter("p_dust_tau", 0.9 if key == &"core" else 0.6)
 
 
 ## B'S FORM's numbers, by sky: each sheet's (amb, glow, light) -- how much a

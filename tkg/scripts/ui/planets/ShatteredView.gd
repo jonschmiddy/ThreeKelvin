@@ -135,6 +135,13 @@ func set_world(world: StringName, seed: int, r: float, _over: Dictionary = {}) -
 	m.set_shader_parameter("seed", spec.seed)
 
 
+## THE SMOOTH ZOOM (`PlanetView.set_live`): the pieces at radius `r`, round a
+## centre `off` px from this node's.
+func set_live(r: float, off: Vector2) -> void:
+	_mat.set_shader_parameter("r", r * SCALE)
+	_mat.set_shader_parameter("ctr_off", off)
+
+
 func step(t: float, light: Vector3, k_light: float = 1.0, star_at: Vector2 = Vector2(-9999, -9999), star_r: float = 0.0) -> void:
 	_t = t
 	_light = light.normalized()

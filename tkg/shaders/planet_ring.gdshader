@@ -21,6 +21,10 @@ render_mode unshaded, blend_premul_alpha;
 uniform sampler2D ramps : filter_nearest, repeat_disable;
 uniform sampler2D prof : filter_linear, repeat_disable;
 uniform int cell = 1;
+// THE LIVE CENTRE (the map's smooth zoom, `SystemView`): where the world's true
+// centre sits off the box's own (px, under a block either way), so the disc is drawn
+// round it while the box stays on the grid; the dither keeps the grid's
+uniform vec2 ctr_off = vec2(0.0);
 uniform float r = 8.0;
 uniform int half_w = 20;
 uniform int half_h = 8;
@@ -54,6 +58,8 @@ void fragment() {
 	vec2 S2 = vec2(float(2 * half_w + 1), float(2 * half_h + 1));
 	vec2 pix = floor(UV * S2) - vec2(float(half_w), float(half_h));
 	if (cell > 1) pix = floor(pix / float(cell)) * float(cell) + 0.5 * float(cell - 1);
+	vec2 gp = pix;
+	pix -= ctr_off;
 	// THE WORLD'S EDGE KEPT CLEAN (Jon: a "ragged right edge" at zoom 4). The far
 	// half shows round the world's limb, and in the world's own ramp: from its dark
 	// side the thick ring is the ramp's darkest step, the same colour as the dim
@@ -100,7 +106,7 @@ void fragment() {
 	}
 	float n = float(NS * NS);
 	float a = a_sum / n;
-	vec2 at = centre + pix;
+	vec2 at = centre + gp;
 	if (edge || a <= 0.0 || distance(at, star_at) < star_r) { COLOR = vec4(0.0); }
 	else {
 		float v = v_sum / a_sum;
@@ -108,10 +114,10 @@ void fragment() {
 		// checkerboard over every thin ring
 		float aq = a < 0.08 ? 0.0 : (a < 0.55 ? 0.5 : 1.0);
 		int ramp = d_sum / a_sum > 0.5 ? ramp_b : ramp_a;
-		vec3 col = rampc(ramp, int(floor(v * 6.0 + (bayer2(pix.x, pix.y) - 1.5) * 0.22)));
+		vec3 col = rampc(ramp, int(floor(v * 6.0 + (bayer2(gp.x, gp.y) - 1.5) * 0.22)));
 		if (painted) {
 			int cl = max(cell, 1);
-			bool chk = ((((int(pix.x) + 1000 * cl) / cl) + ((int(pix.y) + 1000 * cl) / cl)) & 1) == 1;
+			bool chk = ((((int(gp.x) + 1000 * cl) / cl) + ((int(gp.y) + 1000 * cl) / cl)) & 1) == 1;
 			int st = v < 0.38 ? 2 : (v < 0.7 ? 3 : 4);
 			if (lit_face < 0.5) st -= 1;
 			if (s_sum / a_sum > 0.5) st = 1;

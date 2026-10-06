@@ -27,7 +27,7 @@ uniform int u_trans[24];
 uniform vec2 vp_size = vec2(330.0, 220.0);
 uniform vec2 block0 = vec2(0.0);
 
-struct GB { int m; int band; int sid; int ang; bool edge; };
+struct GB { int m; int band; int sid; int ang; bool edge; int into; };
 
 // a modulo that wraps negative numbers (GLSL leaves % of a negative undefined)
 ivec2 pmod(ivec2 a, ivec2 s) {
@@ -45,8 +45,11 @@ GB fetchG(ivec2 b) {
 	// the band the memory holds, where it remembers this material here
 	ivec2 slot = pmod(b + ivec2(block0), size);
 	vec4 s = texelFetch(state, slot, 0);
+	r.into = 3;
 	if (int(s.r * 255.0 + 0.5) == r.m) {
 		r.band = clamp(int(s.g * 15.0 + 0.5), 0, n - 1);
+		// how far into its band the light is, in quarters (the band memory's)
+		r.into = int(floor(s.b * 255.0 + 0.5)) / 64;
 	}
 	r.sid = int(g.b * 255.0 + 0.5);
 	int a = int(g.a * 255.0 + 0.5);
@@ -63,7 +66,10 @@ bool same(GB a, GB b) { return a.m == b.m && a.band == b.band; }
 // the soft masses: the sky, the arms' gas, the bulge, the billows, a
 // reflection cloud's haze, the halo and an elliptical's ball (not the thin
 // lines -- a remnant's strands, a ring's rim -- nor the sparkles)
-bool massMat(int m) { return m == 0 || m == 1 || m == 3 || m == 5 || m == 8 || m == 10 || m == 17; }
+bool massMat(int m) { return m == 0 || m == 1 || m == 3 || m == 4 || m == 5 || m == 8 || m == 10 || m == 17; }
+// a block of open gas (sid 0) or of a dust lane (sid 250, one long shape): the
+// majority vote smooths both, so a lane's edge runs as a curve, not in teeth
+bool votable(int sid) { return sid == 0 || sid == 250; }
 // the billows (cool heaps are the arm's material, warm ones their own)
 bool heapMat(int m) { return m == 1 || m == 5; }
 
@@ -71,12 +77,13 @@ void fragment() {
 	ivec2 b = ivec2(floor(UV * vp_size));
 	GB c = fetchG(b);
 	GB n0 = fetchG(b + ivec2(1, 0)), n1 = fetchG(b + ivec2(-1, 0)), n2 = fetchG(b + ivec2(0, 1)), n3 = fetchG(b + ivec2(0, -1));
-	if (!isStar(c.m) && !isBolt(c.m) && same(n0, n1) && same(n1, n2) && same(n2, n3) && !same(c, n0) && !isStar(n0.m)) {
+	if (!isStar(c.m) && !isBolt(c.m) && c.sid != 251 && same(n0, n1) && same(n1, n2) && same(n2, n3) && !same(c, n0) && !isStar(n0.m)) {
 		c.m = n0.m;
 		c.band = n0.band;
 		c.sid = n0.sid;
 		c.edge = false;
-	} else if (massMat(c.m) && c.sid == 0) {
+		c.into = n0.into;
+	} else if (massMat(c.m) && votable(c.sid)) {
 		// SOFT CONNECTED MASSES (Jon, of the painted clouds: "harsh and
 		// disconnected" against B's "fluffy and full and connected"): in a mass
 		// of gas a block that three of its four neighbours outvote takes their
@@ -86,10 +93,12 @@ void fragment() {
 		for (int k = 0; k < 4; k++) {
 			GB a = k == 0 ? n0 : (k == 1 ? n1 : (k == 2 ? n2 : n3));
 			int votes = int(same(a, n0)) + int(same(a, n1)) + int(same(a, n2)) + int(same(a, n3));
-			if (votes >= 3 && !same(c, a) && massMat(a.m) && a.sid == 0) {
+			if (votes >= 3 && !same(c, a) && massMat(a.m) && votable(a.sid)) {
 				c.m = a.m;
 				c.band = a.band;
+				c.sid = a.sid;
 				c.edge = false;
+				c.into = a.into;
 				break;
 			}
 		}
@@ -114,7 +123,15 @@ void fragment() {
 			up = max(up, n3.band);
 		}
 		bool darkPair = (c.m == 0) || (c.band == 0 && (c.m == 1 || c.m == 4 || c.m == 9 || c.m == 11 || c.m == 5 || c.m == 10 || c.m == 17));
-		if (up > c.band && !darkPair && par) {
+		// ONLY WHERE THE LIGHT TRULY NEARS THE NEXT BAND (Jon: the checker seams
+		// "read as hard lines"): a 50% checker in the last quarter of a band beside
+		// the next one up, a sparse 25% in the quarter before it -- so the
+		// transition widens where the light rises slowly and all but goes where
+		// it steps, and never runs as a one-block zipper along every edge
+		int bi = (di.x & 1) + 2 * (di.y & 1);
+		float b2 = bi == 0 ? 0.125 : (bi == 3 ? 0.375 : (bi == 1 ? 0.625 : 0.875));
+		float pq = up > c.band ? (c.into >= 3 ? 0.5 : (c.into == 2 ? 0.25 : 0.0)) : 0.0;
+		if (!darkPair && b2 < pq) {
 			idx = u_idx[base + c.band + 1];
 		}
 	}

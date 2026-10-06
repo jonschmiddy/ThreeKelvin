@@ -16,6 +16,10 @@ render_mode unshaded, blend_premul_alpha;
 uniform sampler2D ramps : filter_nearest, repeat_disable;
 // worked out in cell x cell blocks of game pixels (Jon's B, for the whole map)
 uniform int cell = 1;
+// THE LIVE CENTRE (the map's smooth zoom, `SystemView`): where the world's true
+// centre sits off the box's own (px, under a block either way), so the disc is drawn
+// round it while the box stays on the grid; the dither keeps the grid's
+uniform vec2 ctr_off = vec2(0.0);
 uniform vec3 seeds[9];
 uniform int k_count = 9;
 uniform float r = 10.0;
@@ -59,7 +63,7 @@ float fbm3(vec3 p, int oct) {
 }
 vec3 rampc(int ramp, int k) { return texelFetch(ramps, ivec2(clamp(k, 0, 5), ramp), 0).rgb; }
 float bayer2(float x, float y) {
-	int ix = (int(x) + 999) & 1, iy = (int(y) + 999) & 1;
+	int ix = (int(x + ctr_off.x) + 999) & 1, iy = (int(y + ctr_off.y) + 999) & 1;
 	return iy == 0 ? (ix == 0 ? 0.0 : 2.0) : (ix == 0 ? 3.0 : 1.0);
 }
 vec3 ramp_at(int ramp, float v, float x, float y) { return rampc(ramp, int(floor(v * 6.0 + (painted ? 0.0 : (bayer2(x, y) - 1.5) * 0.22)))); }
@@ -73,6 +77,7 @@ void fragment() {
 	// each block sampled at its MIDDLE: at its corner the disc sat half a block
 	// up and left, and a small world came out lopsided
 	if (cell > 1) pix = floor(pix / float(cell)) * float(cell) + 0.5 * float(cell - 1);
+	pix -= ctr_off;
 	float x = pix.x, y = pix.y;
 	float ang = seed + time * spin * 0.6, ca = cos(ang), sa = sin(ang);
 	float flick = 0.92 + 0.06 * sin(time * 2.1) + 0.04 * sin(time * 4.7 + 1.0);

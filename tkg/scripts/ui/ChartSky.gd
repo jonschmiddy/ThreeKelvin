@@ -159,6 +159,8 @@ var _radiant_probe: Dictionary = {}
 ## The colour held (`chart_c_comp`'s `hyst`): where the blocks were anchored last frame.
 var _hold_b0 := Vector2(INF, INF)
 var _hold_z := -1.0
+## the view's pan last frame: the zoom hold lets go when it moves
+var _last_pan := Vector2(INF, INF)
 ## How near (sRGB, 0-1) a block's light may stay to its last colour and keep it.
 static var hyst := 0.035
 
@@ -1564,7 +1566,17 @@ func _push() -> void:
 	var zooming := _last_zoom > 0.0 and absf(log(chart.zoom / _last_zoom)) > 1e-7
 	_last_zoom = chart.zoom
 	var was_held := _since_zoom < 61
-	_since_zoom = 0 if zooming else mini(_since_zoom + 1, 999)
+	# THE HOLD LETS GO ON A PAN, NOT ON A CLOCK: let go a second after a zoom, the
+	# block grid went over from the screen's anchor to the galaxy centre's, and
+	# when the two differed by a pixel the whole picture jumped a pixel with
+	# nothing moving -- one of PAINTED's "weird pops" (5% of the frame's pixels on
+	# one frame). Held until the view is dragged, the jump lands inside a move.
+	var panned := chart.pan != _last_pan
+	_last_pan = chart.pan
+	if zooming:
+		_since_zoom = 0
+	elif panned or _since_zoom < 59:
+		_since_zoom = mini(_since_zoom + 1, 999)
 	var zw := 1.0 if _since_zoom < 60 else maxf(0.0, 1.0 - float(_since_zoom - 59) * 0.5)
 	var ccon := cpix + (exact - cpix) * zw
 	if zw > 0.0 and not was_held:
@@ -1572,6 +1584,19 @@ func _push() -> void:
 	# while held, the block grid stays where it was on the screen too: a grid
 	# that followed the centre's parity would shift the samples by a pixel
 	var anchor := _hold_c if zw > 0.0 else cpix
+	# PAINTED MOVES IN WHOLE BLOCKS. Its far sky (the little galaxies, the tiered
+	# stars, the wisps) slides by its own depth, far slower than the galaxy, and is
+	# drawn on the same grid of 2x2 blocks; a grid that followed the galaxy's
+	# centre pixel by pixel swapped parity on every pixel of a pan, and each far
+	# block hopped a pixel to and fro (0.0063 of the pixels flipping back on a
+	# slow pan at zoom 4). The galaxy is set on the even pixel nearest its centre
+	# instead, so a pan moves it a block at a time and the far sky only ever
+	# steps one way.
+	if painted and zw <= 0.0:
+		var even := (cpix / 2.0).floor() * 2.0
+		ccon += even - cpix
+		cpix = even
+		anchor = even
 	var vis := _visible_rect()
 	# The blocks are anchored to the galaxy's centre, so a pan by one pixel moves
 	# the picture by one pixel rather than redrawing every block; a block's

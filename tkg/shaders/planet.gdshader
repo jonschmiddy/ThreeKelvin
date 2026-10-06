@@ -28,6 +28,10 @@ render_mode unshaded, blend_premul_alpha;
 uniform sampler2D ramps : filter_nearest, repeat_disable;
 // worked out in cell x cell blocks of game pixels (Jon's B, for the whole map)
 uniform int cell = 1;
+// THE LIVE CENTRE (the map's smooth zoom, `SystemView`): where the world's true
+// centre sits off the box's own (px, under a block either way), so the disc is drawn
+// round it while the box stays on the grid; the dither keeps the grid's
+uniform vec2 ctr_off = vec2(0.0);
 // RICHER WHEN SMALL (Jon: "we could have small worlds just be richer"): 0 to 1,
 // full for a world a few blocks across. Bolder ground, a crisper day and night,
 // and a lit rim on its sunward edge, so it reads as a world and not a blob.
@@ -162,7 +166,7 @@ float worley3(vec3 p) {
 vec3 rampc(int ramp, int k) { return texelFetch(ramps, ivec2(clamp(k, 0, 5), ramp), 0).rgb; }
 float bayer2(float x, float y) {
 	int cl = max(cell, 1);
-	int ix = ((int(x) + 1000 * cl) / cl) & 1, iy = ((int(y) + 1000 * cl) / cl) & 1;
+	int ix = ((int(x + ctr_off.x) + 1000 * cl) / cl) & 1, iy = ((int(y + ctr_off.y) + 1000 * cl) / cl) & 1;
 	return iy == 0 ? (ix == 0 ? 0.0 : 2.0) : (ix == 0 ? 3.0 : 1.0);
 }
 vec3 ramp_at(int ramp, float v, float x, float y) {
@@ -191,7 +195,7 @@ vec3 p_mix(vec3 a, vec3 b, float t) { return p_unlab(mix(p_lab(a), p_lab(b), t))
 // the block's checker, riding the world itself
 bool p_chk(float x, float y) {
 	int cl = max(cell, 1);
-	return ((((int(x) + 1000 * cl) / cl) + ((int(y) + 1000 * cl) / cl)) & 1) == 1;
+	return ((((int(x + ctr_off.x) + 1000 * cl) / cl) + ((int(y + ctr_off.y) + 1000 * cl) / cl)) & 1) == 1;
 }
 // B's extended ramp for a world: 0 outline, 1 night, 2 dusk (both leaning to the
 // sky), 3..6 its own steps 1..4, 7 its brightest warmed by its star
@@ -464,6 +468,7 @@ void fragment() {
 	// each block sampled at its MIDDLE: at its corner the disc sat half a block
 	// up and left, and a small world came out lopsided
 	if (cell > 1) pix = floor(pix / float(cell)) * float(cell) + 0.5 * float(cell - 1);
+	pix -= ctr_off;
 	float x = pix.x, y = pix.y;
 	vec3 L = light;
 	vec3 HV = normalize(L + vec3(0.0, 0.0, 1.0));

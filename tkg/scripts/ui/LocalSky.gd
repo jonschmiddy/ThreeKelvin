@@ -603,7 +603,9 @@ func _step(delta: float) -> void:
 	var o := origin()
 	var vr := get_global_rect()
 	_far_mat.set_shader_parameter("wash", Vector2(vr.position.x, vr.size.x))
-	_far_mat.set_shader_parameter("u_skyPan", (cam / 2.0).round() * 2.0)
+	# (`chart_bg` slides a layer with its pan: the sky's pan is the world's
+	# travel on screen, against the camera's)
+	_far_mat.set_shader_parameter("u_skyPan", -(cam / 2.0).round() * 2.0)
 	_far_mat.set_shader_parameter("star_at", o)
 	_far_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
 	if _neb_mat != null:

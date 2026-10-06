@@ -427,6 +427,13 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mt.set_shader_parameter("block0", b0)
 	# a resized memory holds nothing of the old picture: start it afresh
 	mt.set_shader_parameter("reset", resized)
+	# THE MEMORY TURNS WITH THE GALAXY: the frame's turn, and the view to undo it in
+	var pd := wrapf(phi - float(g.get("_phi_prev", phi)), -PI, PI)
+	g["_phi_prev"] = phi
+	mt.set_shader_parameter("phi_d", pd if absf(pd) < 0.2 else 0.0)
+	mt.set_shader_parameter("origin", origin)
+	mt.set_shader_parameter("cpix", ccon)
+	mt.set_shader_parameter("zoom", z)
 	var mc := sky._m_comp
 	mc.set_shader_parameter("vp_size", vs)
 	mc.set_shader_parameter("block0", b0)

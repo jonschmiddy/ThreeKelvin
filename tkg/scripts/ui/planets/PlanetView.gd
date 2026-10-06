@@ -192,8 +192,10 @@ func _set_rings() -> void:
 	_mat.set_shader_parameter("ring_in", R.rin)
 	_mat.set_shader_parameter("ring_out", R.rout)
 	_mat.set_shader_parameter("ring_cast", R.cast)
-	var hw := int(ceil(float(R.rout) * r)) + 2 * _cell
-	var hh := int(ceil(float(R.rout) * r * 0.28)) + 2 * _cell
+	# (a little room past the outer edge: the smooth zoom draws the ring a pixel or
+	# two bigger than the size it was built for)
+	var hw := int(ceil(float(R.rout) * (r + 2.0))) + 2 * _cell + 2
+	var hh := int(ceil(float(R.rout) * (r + 2.0) * 0.28)) + 2 * _cell + 2
 	for c: ColorRect in [_band_back, _band_front]:
 		c.position = Vector2(-hw, -hh)
 		c.size = Vector2(2 * hw + 1, 2 * hh + 1)
@@ -208,6 +210,21 @@ func _set_rings() -> void:
 		m.set_shader_parameter("r", r)
 		m.set_shader_parameter("half_w", hw)
 		m.set_shader_parameter("half_h", hh)
+
+
+## THE SMOOTH ZOOM (`SystemView`, Jon: "the planets resize and jitter as you
+## zoom in"): the world drawn at radius `r` and round a centre `off` px from
+## this node's, both continuous, inside the box `set_world` sized for its held
+## radius. Its surface stays on the block grid; only its round edge and its
+## features move, a block at a time and never back.
+func set_live(r: float, off: Vector2) -> void:
+	_mat.set_shader_parameter("r", r)
+	_mat.set_shader_parameter("ctr_off", off)
+	if _band_back.visible:
+		for c: ColorRect in [_band_back, _band_front]:
+			var m := c.material as ShaderMaterial
+			m.set_shader_parameter("r", r)
+			m.set_shader_parameter("ctr_off", off)
 
 
 ## Where the light comes from (screen x, y down, z toward you), what time it

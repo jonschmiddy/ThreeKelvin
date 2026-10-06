@@ -768,13 +768,19 @@ void fragment() {
 			// teal close in, through violet, to H-alpha rose far out (the zones in
 			// the plane, so flattened as the plane is seen), its gas in shade keeping
 			// a dim violet light of its own, so nothing is black
-			vec2 dz = (b - star_at) * vec2(1.0, r_zsq);
+			// (the zones on the cloud itself, about where the sun stands on it at the
+			// opening -- they slide with the cloud's own share of a pan. Anchored to the
+			// sun's place on screen they swept across the slow gas as the map panned,
+			// and the cloud read as sliding the wrong way: Jon's "opposite")
+			vec2 sun_sky = cc_em;
+			vec2 dz = (sp - sun_sky) * vec2(1.0, r_zsq);
 			float xz = length(dz) / lt.LZ + (fine - 0.5) * r_zn;
+			float dS = length((sp - sun_sky) * vec2(1.0, 1.15)) / lt.LZ;
 			// (the OIII paled toward white close in, as A's near gas: a vivid teal there
 			// read as SIMPLIFIED's bubble)
 			vec3 o3A = mix(vec3(0.2, 0.95, 0.85), vec3(0.55, 0.78, 1.0), r_pastel) * r_o3;
 			vec3 emA = mix(mix(o3A, vec3(0.40, 0.22, 1.0), smoothstep(r_z0, r_z1, xz)), vec3(1.0, 0.2, 0.3), smoothstep(r_z1, r_z2, xz));
-			float FA = pow(r_d0 * r_d0 / (r_d0 * r_d0 + lt.dL * lt.dL), r_fp);
+			float FA = pow(r_d0 * r_d0 / (r_d0 * r_d0 + dS * dS), r_fp);
 			// (a volume: the gas along the whole ray, so thin places still glow; only
 			// the dust's lanes go dark)
 			float gv = sat(r_gbase + gB * r_gk);

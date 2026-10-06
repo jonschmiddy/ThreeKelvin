@@ -22,8 +22,10 @@ extends Node
 ##     a slow zoom: the zoom times `clipzoom` over the frames, the clock frozen
 ##   panclip=<dir> clipview=Z:X:Y [clipframes=61]
 ##     a slow pan, 12 view px over the frames, the clock frozen
-##   liveclip=<dir> clipview=Z:X:Y cliptime=T0:T1:N
+##   liveclip=<dir> clipview=Z:X:Y cliptime=T0:T1:N [turn=title] [clipwait=1]
 ##     the sky's own motion at one view, the clock stepped from T0 to T1
+##     (`turn=title` at the title's turning speed; `clipwait=1` a frame drawn a
+##     step, so a 20 s clip at 60 steps a second is the game's own frames)
 ##
 ## Writes <view>_full.png and <view>_sky.png (1x) and <view>_2x.png (sky, 2x).
 ## Prints the bake's time. Needs a window; leave it alone while it runs.
@@ -216,12 +218,17 @@ func _clip() -> void:
 	var z0 := float(cv[0])
 	var at := _pan_of(cv[1], cv[2] if cv.size() > 2 else "0", z0)
 	_chart.show_icons = false
+	# `turn=title`: the galaxy turning at the title screen's speed (once every
+	# five minutes), not the chart's (once every twelve hours)
+	if _arg("turn") == "title":
+		_chart.turn_speed = LauncherScreen.TITLE_TURN
 	if _arg("panclip") != "":
-		# a slow pan: 12 view px over the frames, as a drag would move it
+		# a slow pan: 12 view px over the frames (`panpx=`), as a drag would move it
+		var pp := float(_arg("panpx", "12"))
 		var n3 := int(_arg("clipframes", "61"))
 		for i in n3:
 			var before: Vector2 = _chart.pan
-			_chart.pan = -(at + Vector2(12.0 * float(i) / float(n3 - 1), 0.0)) * z0
+			_chart.pan = -(at + Vector2(pp * float(i) / float(n3 - 1), 0.0)) * z0
 			_chart.sky_pan += _chart.pan - before
 			_chart._repaint_galaxy()
 			await _frame_shot(dir, i)
@@ -243,7 +250,7 @@ func _clip() -> void:
 
 
 func _frame_shot(dir: String, i: int) -> void:
-	for _k in 3:
+	for _k in int(_arg("clipwait", "3")):
 		await RenderingServer.frame_post_draw
 	_crop().save_png(dir.path_join("f_%04d.png" % i))
 

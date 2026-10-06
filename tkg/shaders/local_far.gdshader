@@ -68,7 +68,7 @@ void fragment() {
 		vec3 c = void_lin + bgLight(sp, stars_seen) * expo;
 		if (band_w > 0.0) {
 			// (sliding with the mid stars' depth)
-			vec2 q = sp + u_skyPan * 0.10;
+			vec2 q = sp - u_skyPan * 0.10;
 			float d = dot(q, band_n) - band_off;
 			float w = exp(-d * d / (band_w * band_w));
 			float lump = 0.6 + 0.4 * kitFbm2(q / 260.0 + vec2(u_skySeed, 3.0), 3);

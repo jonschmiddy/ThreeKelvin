@@ -248,6 +248,22 @@ const HOLD_PX := 1.4
 var _kq := -1.0
 var _sky_z := -1.0
 var _rq := {}
+## THE SMOOTH ZOOM (Jon: "No matter the rendering style, it seems like the planets
+## resize and jitter as you zoom in"). While the zoom moves, each world is drawn at
+## its true radius and round its true centre, both continuous (`PlanetView.set_live`:
+## the box stays on the grid, the disc moves inside it), and so are the star, the
+## moons and the shadows; held sizes and the odd-size nudge made a slow zoom pop a
+## block of radius and shift a block now and then. Once the zoom has been still for
+## SETTLE_S, everything eases (SETTLE_EASE) back to the crisp held size on the grid.
+## Per world: [radius, centre].
+var _live := {}
+var _klive := -1.0
+var _zlast := -1.0
+var _zstill := 1.0
+const SETTLE_S := 0.18
+const LIVE_Q := 0.5
+static var _nosmooth := "nosmooth" in OS.get_cmdline_user_args()
+const SETTLE_EASE := 0.08
 var _beat_off := 0.0
 var _palette: ColorRect
 var _palette_mat: ShaderMaterial
@@ -304,6 +320,9 @@ func show_system(n: MapGen.MapNode) -> void:
 	_views.clear()
 	_rq.clear()
 	_kq = -1.0
+	_live.clear()
+	_klive = -1.0
+	_zlast = -1.0
 	_sky_z = -1.0
 	_rprobe = {}
 	_fields.clear()
@@ -473,6 +492,12 @@ func show_system(n: MapGen.MapNode) -> void:
 	_scene.add_child(_points)
 	for fi in range(4, _fields.size()):
 		_scene.add_child(_fields[fi])
+		if painted and _neb_mat != null:
+			# (PAINTED in a cloud: the nearest stars and motes as light added over the
+			# gas -- drawn over it as they are, the dim motes set as dark specks in it)
+			var am := CanvasItemMaterial.new()
+			am.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+			_fields[fi].material = am
 	# THE BELTS' DUST (C): a faint lit band under the rocks, so a belt reads as
 	# a band from afar
 	_belt_dust = ColorRect.new()
@@ -774,6 +799,8 @@ const STAR_FLOOR := 10.0
 func draw_r(b: SystemLayout.Body) -> float:
 	if b.world == &"":
 		return b.r * zoom
+	if _live.has(b.index):
+		return float(_live[b.index][0])
 	if _rq.has(b.index):
 		return _rq[b.index]
 	return _draw_r_raw(b)
@@ -797,9 +824,24 @@ static func _held(raw: float, held: float, least: float) -> float:
 func star_k() -> float:
 	if layout != null and layout.star == SystemLayout.StarKind.PULSAR:
 		return PULSAR_OPEN_K * zoom / maxf(home_zoom, 0.01)
+	if _klive > 0.0:
+		return _klive
 	if _kq > 0.0:
 		return _kq
 	return _star_k_raw()
+
+
+## The zoom has moved within SETTLE_S: draw everything at its true size and place.
+func zooming() -> bool:
+	return _zstill < SETTLE_S
+
+
+## Where world i's picture is centred now (its live centre, or its box's on the grid).
+func world_c(i: int) -> Vector2:
+	if _live.has(i):
+		return _live[i][1]
+	var b := layout.bodies[i]
+	return at[i] + Vector2.ONE * float(Worlds.half_size(b.world, draw_r(b)) % 2)
 
 
 ## A PULSAR GROWS EXACTLY AS THE MAP DOES (Jon: "Pulsars still act REALLY weird
@@ -1277,6 +1319,55 @@ func step() -> void:
 		if layout.star == SystemLayout.StarKind.CORE:
 			rk = maxf(rk, 1.0)
 		_kq = rk
+	# THE SMOOTH ZOOM: is the zoom moving; the star at its true size while it is
+	var dtz := clampf(get_process_delta_time(), 1.0 / 240.0, 0.1)
+	if _zlast < 0.0 or absf(zoom - _zlast) > 1e-7:
+		_zstill = 0.0 if _zlast >= 0.0 else 1.0
+	else:
+		_zstill += dtz
+	_zlast = zoom
+	var ez := 1.0 - exp(-dtz / SETTLE_EASE)
+	if layout.star_r > 0.0 and layout.star != SystemLayout.StarKind.PULSAR:
+		# (the star in whole blocks of radius even while the zoom moves, but the nearest
+		# block, not one held back: its limb between blocks flickered with its corona's
+		# own life)
+		var kt := maxf(roundf(layout.star_r * _star_k_raw() / 2.0) * 2.0, 2.0) / layout.star_r if zooming() else _kq
+		if layout.star == SystemLayout.StarKind.CORE:
+			kt = maxf(kt, 1.0)
+		if _klive < 0.0 or absf(_klive - kt) < 0.002 * kt:
+			_klive = kt
+		elif zooming():
+			_klive = kt
+		else:
+			_klive = lerpf(_klive, kt, ez)
+	# and each world's radius and centre
+	for i: int in _views:
+		var bw := layout.bodies[i]
+		var raw := _draw_r_raw(bw)
+		var held: float = _rq.get(i, raw)
+		var cbox: Vector2 = at[i] + Vector2.ONE * float(Worlds.half_size(bw.world, held) % 2)
+		var tr := raw if zooming() else held
+		var tc := screen(pos[i].x, pos[i].y) if zooming() else cbox
+		var lv: Array = _live.get(i, [])
+		if lv.is_empty():
+			lv = [tr, tc]
+		elif zooming():
+			# (a quarter of a block at a time: moved every frame by a sliver, the
+			# surface's fine detail flickered back and forth as it re-rasterised)
+			var lr0: float = lv[0]
+			var lc0: Vector2 = lv[1]
+			lv = [tr if absf(tr - lr0) >= LIVE_Q else lr0, tc if tc.distance_to(lc0) >= LIVE_Q else lc0]
+		else:
+			var lr: float = lv[0]
+			var lc: Vector2 = lv[1]
+			lr = tr if absf(lr - tr) < 0.02 else lerpf(lr, tr, ez)
+			lc = tc if lc.distance_to(tc) < 0.02 else lc.lerp(tc, ez)
+			lv = [lr, lc]
+		_live[i] = lv
+	# (a harness's `nosmooth`: the old held sizes and nudges, to measure against)
+	if _nosmooth:
+		_live.clear()
+		_klive = -1.0
 	_sky_mat.set_shader_parameter("time", pose(t, 4.0))
 	_sky_mat.set_shader_parameter("star_at", o)
 	# THE STAR'S LIGHT ON THE SKY held too, stepped 3% at a time: its rays and
@@ -1365,8 +1456,9 @@ func step() -> void:
 		var b := layout.bodies[i]
 		if b.world != &"" and bp.size() < SHADOW_CASTERS:
 			var rr := draw_r(b)
-			var hs := Worlds.half_size(b.world, rr)
-			var ca: Vector2 = at[i] + Vector2.ONE * float(hs % 2)
+			# (the shadow from the world's place on the grid: from its live centre it
+			# slid by slivers and its dithered edge flickered through a zoom)
+			var ca: Vector2 = at[i] + Vector2.ONE * float(Worlds.half_size(b.world, float(_rq.get(i, rr))) % 2)
 			bp.append(Vector4(ca.x, ca.y, rr, world_r(b) * zoom))
 			# its rings' shadow too (C), as wide as their outer edge
 			var vw: Node2D = _views.get(i)
@@ -1425,8 +1517,10 @@ func step() -> void:
 			core_placed = true
 		_worlds.move_child(v, -1)
 		# its box's corner on the grid too: an odd half-size moves it a unit
-		var hs := Worlds.half_size(layout.bodies[i].world, draw_r(layout.bodies[i]))
+		var hs := Worlds.half_size(layout.bodies[i].world, float(_rq.get(i, draw_r(layout.bodies[i]))))
 		v.position = at[i] + Vector2.ONE * float(hs % 2)
+		if _live.has(i) and v.has_method("set_live"):
+			v.call("set_live", float(_live[i][0]), (_live[i][1] as Vector2) - v.position)
 		var behind: bool = dep.call(i) < 0.0 and not core
 		# (lit as the showcase lit them: a world far out still bright on its day side)
 		var kl := (0.7 + 0.55 * light_at(p.x, p.y)) if legacy else (0.95 + 0.35 * light_at(p.x, p.y))
@@ -1453,7 +1547,7 @@ func step() -> void:
 			var msh := PackedVector4Array()
 			for mm: Dictionary in ml:
 				if int(mm.i) == i and msh.size() < 4:
-					var rel: Vector2 = (mm.c as Vector2) - v.position
+					var rel: Vector2 = (mm.c as Vector2) - world_c(i)
 					msh.append(Vector4(rel.x, rel.y, float(mm.z), float(mm.mrad)))
 			var nm := msh.size()
 			msh.resize(4)
@@ -2095,7 +2189,7 @@ class _Moons extends Node2D:
 			if moons <= 0:
 				continue
 			var r: float = view.draw_r(b)
-			var s: Vector2 = view.at[i] + Vector2.ONE * float(Worlds.half_size(b.world, r) % 2)
+			var s: Vector2 = view.world_c(i)
 			var r2 := (r + 1.0) * (r + 1.0)
 			var gap := gap_for(b, r, moons)
 			var slots := ring_slots(i, b, r, moons)
@@ -2202,7 +2296,7 @@ class _Moons extends Node2D:
 				continue
 			var r: float = view.draw_r(b)
 			# where the world's picture (and its rings) is centred, odd sizes and all
-			var s: Vector2 = view.at[i] + Vector2.ONE * float(Worlds.half_size(b.world, r) % 2)
+			var s: Vector2 = view.world_c(i)
 			var r2 := (r + 1.0) * (r + 1.0)
 			var gap := gap_for(b, r, moons)
 			# a ringed world: in its gaps, at its ring's own squash

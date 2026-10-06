@@ -20,8 +20,12 @@ uniform float u_skySeed = 0.0;
 const float BG_F_NEB = 0.02;
 const float BG_F_GAL = 0.05;
 
+// A layer's feature at q stands on screen at q + u_skyPan * f: it slides WITH
+// the galaxy as you pan, a fraction of its travel, nearer layers more. (Added
+// here instead, every style's far sky slid against the galaxy -- Jon: RADIANT's
+// "parallax is opposite", where the sky shows most.)
 vec2 bgAt(vec2 sp, float f) {
-	return sp + u_skyPan * f + vec2(u_skySeed * 37.0, u_skySeed * 11.0);
+	return sp - u_skyPan * f + vec2(u_skySeed * 37.0, u_skySeed * 11.0);
 }
 
 // a star of layer 0 (deep), 1 (mid) or 2 (near) at screen offset sp (block

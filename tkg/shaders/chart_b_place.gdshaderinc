@@ -699,6 +699,102 @@ bool darkAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 // the sky behind, at infinity (`chart_bg.gdshaderinc`), painted: far nebulae as
 // a dithered tint of the halo's navy and plum, far galaxies as little sprites
 // (a warm core, blue arms), three depths of stars sliding by depth as you pan
+// THE FAR SKY, PAINTED FULL BUT QUIET (Jon: the galaxies "kinda too simple and
+// space looks empty"). Little galaxies at two depths, each a 2-4 tone sprite of
+// one of four kinds -- a spiral's warm core and blue arms, a barred spiral, an
+// edge-on disc with its bulge, a round or oval elliptical in banded peach --
+// with a sparkle at its heart; faint wisps of far nebula in navy and plum; and
+// the stars in tiers, the near bright ones a plus and the rarest a four-point
+// sparkle. All of it slides by its depth as you pan (`chart_bg`'s `bgAt`) and is
+// marked (sid 251) so the paint pass's cleanups leave its single blocks alone.
+const int SID_FAR = 251;
+
+// a little galaxy of a tier at sp, or none (found: c.m != M_SKY)
+Cand farGalaxy(vec2 sp, float f, float cellPx, float prob, vec2 sizeR, int salt) {
+	vec2 q = bgAt(sp, f);
+	ivec2 c0 = ivec2(floor(q / cellPx));
+	Cand c = cand(M_SKY, 0.0, 0, 0.0);
+	for (int j = -1; j <= 1; j++) {
+		for (int i = -1; i <= 1; i++) {
+			ivec2 cc = c0 + ivec2(i, j);
+			vec3 h = kitHash3(cc + ivec2(salt * 131, salt * 17 + 5));
+			if (h.z > prob) {
+				continue;
+			}
+			vec3 g = kitHash3(cc + ivec2(salt * 7 + 77, 919));
+			// its middle on the block grid, so it stands crisp
+			vec2 ctr = (floor(((vec2(cc) + 0.2 + 0.6 * h.xy) * cellPx) / 2.0) + 0.5) * 2.0;
+			float size = mix(sizeR.x, sizeR.y, g.x * g.x);
+			vec2 d = q - ctr;
+			if (dot(d, d) > 4.0 * size * size) {
+				continue;
+			}
+			if (dot(d, d) < 1.0) {
+				// the sparkle at its heart
+				return cand(M_STARW, 0.75 + 0.2 * h.x, SID_FAR, 0.0);
+			}
+			int kind = int(g.y * 4.0);
+			float an = floor(g.z * 8.0) * 0.3927;
+			vec2 e = vec2(cos(an) * d.x + sin(an) * d.y, -sin(an) * d.x + cos(an) * d.y);
+			float tilt = 0.35 + 0.55 * fract(g.z * 13.7);
+			if (kind == 3) {
+				// an elliptical: an oval of banded peach on a plum glow
+				float r = length(vec2(e.x, e.y / (0.55 + 0.4 * fract(g.x * 7.1)))) / size;
+				if (r < 0.35) {
+					return cand(M_BULGE, 0.8, SID_FAR, 0.0);
+				}
+				if (r < 0.7) {
+					return cand(M_BALL, 0.7, SID_FAR, 0.0);
+				}
+				if (r < 1.05) {
+					return cand(M_BALL, 0.5, SID_FAR, 0.0);
+				}
+				if (r < 1.35) {
+					return cand(M_HALO, 0.7, SID_FAR, 0.0);
+				}
+				continue;
+			}
+			if (kind == 2) {
+				// edge on: a thin blue disc, its bulge warm across the middle
+				float r = length(vec2(e.x, e.y / 0.16)) / size;
+				if (r < 1.0) {
+					float rb = length(vec2(e.x, e.y / 0.5)) / size;
+					if (rb < 0.3) {
+						return cand(M_BULGE, 0.75, SID_FAR, 0.0);
+					}
+					return cand(M_ARM, r < 0.6 ? 0.55 : 0.36, SID_FAR, 0.0);
+				}
+				continue;
+			}
+			// a spiral, barred or not, seen tilted
+			vec2 t = vec2(e.x, e.y / tilt);
+			float r = length(t) / size;
+			if (r > 1.2) {
+				continue;
+			}
+			bool bar = kind == 1;
+			if (r < 0.25 || (bar && abs(t.x) < 0.55 * size && abs(t.y) < 0.14 * size)) {
+				return cand(M_BULGE, r < 0.15 ? 0.85 : 0.62, SID_FAR, 0.0);
+			}
+			float th = atan(t.y, t.x);
+			float arms = 0.5 + 0.5 * cos(2.0 * (th - 2.4 * log(max(r, 0.08))) + g.x * 9.0);
+			if (arms > 0.55 && r < 1.0 && (!bar || r > 0.45)) {
+				return cand(M_ARM, r < 0.6 ? 0.55 : 0.36, SID_FAR, 0.0);
+			}
+			if (r < 0.75) {
+				return cand(M_HALO, 0.7, SID_FAR, 0.0);
+			}
+		}
+	}
+	return c;
+}
+
+// a near star bright enough to draw as a sprite, at sp (its block centre)
+bool brightStar(vec2 sp, float above) {
+	vec4 s = bgStar(sp, 2);
+	return s.x > 0.5 && s.y > above;
+}
+
 Cand skyAt(Px P, float Ehalo) {
 	vec2 sp = u_vp_origin + (vec2(P.blk) + 0.5) * 2.0 - 0.5 * u_res;
 	float hl = Ehalo;
@@ -709,29 +805,48 @@ Cand skyAt(Px P, float Ehalo) {
 		if (nb.x > 0.2 && pat(P, min(nb.x, 0.6) * 0.75)) {
 			c = cand(M_SKY, 0.45, 0, 0.0);
 		}
+		// FAINT FAR WISPS: soft strands drawn through the far nebulae as a painter
+		// would brush them in, a navy step of the sky with a plum core
+		vec2 qw = bgAt(sp, BG_F_NEB) / 190.0;
+		float wv = 1.0 - abs(kitFbm2(vec2(qw.x * 0.7 + qw.y * 0.3, qw.y * 1.6) + vec2(5.3, 1.7), 2));
+		// (broken into lengths by a second noise, so they are wisps, not ribbons)
+		float gate = kitFbm2(qw * 2.3 + vec2(9.1, 4.4), 2);
+		if (nb.x > 0.08 && wv > 0.86 + 0.08 * smoothstep(0.1, -0.3, gate) && gate > -0.3) {
+			c = (wv > 0.975 && gate > 0.05) ? cand(M_HALO, 0.7, SID_FAR, 0.0) : cand(M_SKY, 0.8, 0, 0.0);
+		}
 	}
-	vec4 g = bgGalaxy(sp);
-	if (g.x > 0.45) {
-		return cand(g.z > 0.5 ? M_BILLOW : M_BALL, g.x > 0.8 ? 0.62 : 0.45, 0, 0.0);
+	// the little galaxies, near over far
+	Cand gn = farGalaxy(sp, 0.07, 150.0, 0.55, vec2(6.0, 15.0), 3);
+	if (gn.m != M_SKY) {
+		return gn;
 	}
-	if (g.z > 0.5 && g.y > 0.3) {
-		return cand(M_ARM, g.y > 0.6 ? 0.36 : 0.2, 0, 0.0);
-	}
-	if (g.x > 0.2 || g.y > 0.18) {
-		return cand(M_HALO, 0.5, 0, 0.0);
+	Cand gf = farGalaxy(sp, 0.035, 70.0, 0.45, vec2(2.5, 5.5), 11);
+	if (gf.m != M_SKY) {
+		return gf;
 	}
 	if (hl < 0.006) {
 		vec4 s2 = bgStar(sp, 2);
 		if (s2.x > 0.5) {
-			return cand(s2.z > 0.7 ? M_STAR : (s2.z < 0.3 ? M_STAR + 1 : M_ARM), 0.3 + 0.5 * s2.y * s2.y, 0, 0.0);
+			return cand(s2.z > 0.7 ? M_STAR : (s2.z < 0.3 ? M_STARW : M_ARM), 0.3 + 0.5 * s2.y * s2.y, SID_FAR, 0.0);
+		}
+		// THE NEAR STARS' SPRITES: a plus round the bright ones, and round the
+		// brightest a four-point sparkle, arms two blocks long
+		for (int k = 0; k < 4; k++) {
+			vec2 o = k == 0 ? vec2(2.0, 0.0) : (k == 1 ? vec2(-2.0, 0.0) : (k == 2 ? vec2(0.0, 2.0) : vec2(0.0, -2.0)));
+			if (brightStar(sp + o, 0.72)) {
+				return cand(M_STAR, 0.3, SID_FAR, 0.0);
+			}
+			if (brightStar(sp + 2.0 * o, 0.9)) {
+				return cand(M_STAR, 0.05, SID_FAR, 0.0);
+			}
 		}
 		vec4 s1 = bgStar(sp, 1);
 		if (s1.x > 0.5) {
-			return cand(M_ARM, 0.17 + 0.2 * s1.y, 0, 0.0);
+			return cand(s1.z > 0.75 ? M_STARW : M_ARM, s1.z > 0.75 ? 0.05 : 0.17 + 0.2 * s1.y, SID_FAR, 0.0);
 		}
 		vec4 s0 = bgStar(sp, 0);
 		if (s0.x > 0.5 && s0.y > 0.4) {
-			return cand(M_ARM, 0.17, 0, 0.0);
+			return cand(M_ARM, 0.17, SID_FAR, 0.0);
 		}
 	}
 	return c;

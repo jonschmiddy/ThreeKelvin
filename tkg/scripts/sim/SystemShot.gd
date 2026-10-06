@@ -599,7 +599,11 @@ func _ready() -> void:
 			var bods: Array = []
 			for i9 in scr.view.at.size():
 				var b9: SystemLayout.Body = scr.view.layout.bodies[i9]
-				bods.append([i9, b9.world != &"", scr.view.at[i9].x - w9.position.x, scr.view.at[i9].y - w9.position.y, scr.view.draw_r(b9)])
+				# (and the smooth zoom's measures: its drawn centre, its true centre and radius)
+				var wc9: Vector2 = scr.view.world_c(i9) - w9.position if b9.world != &"" else Vector2.ZERO
+				var ic9: Vector2 = scr.view.screen(scr.view.pos[i9].x, scr.view.pos[i9].y) - w9.position
+				bods.append([i9, b9.world != &"", scr.view.at[i9].x - w9.position.x, scr.view.at[i9].y - w9.position.y, scr.view.draw_r(b9),
+					wc9.x, wc9.y, ic9.x, ic9.y, scr.view._draw_r_raw(b9) if b9.world != &"" else 0.0])
 			var o9: Vector2 = scr.view.origin() - w9.position
 			# where each sky layer sits (its parallax offset): how far the stars slide
 			var par9: Array = [[scr.view.sky_off().x, scr.view.sky_off().y]]

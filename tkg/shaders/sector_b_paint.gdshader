@@ -75,10 +75,16 @@ void fragment() {
 	int e = c.e;
 	ivec2 di = b + ivec2(sky_blk);
 	bool odd = ((di.x + di.y) & 1) == 1;
-	// cleanup
-	if (!spark && n0.e == n1.e && n1.e == n2.e && n2.e == n3.e && n0.e != c.e && (u_gfl[n0.g] & 4) == 0) {
-		e = n0.e;
-		c = n0;
+	// cleanup: a lone block, and a one-block tooth or notch on a band's edge (three
+	// of the four round it agreeing), takes their colour: the teeth along a curved
+	// edge read as a saw, not a painted line (Jon: "harsh")
+	int agree = -1;
+	if (n0.e == n1.e && (n0.e == n2.e || n0.e == n3.e)) agree = 0;
+	else if (n2.e == n3.e && (n2.e == n0.e || n2.e == n1.e)) agree = 2;
+	Ent na = agree == 0 ? n0 : n2;
+	if (!spark && agree >= 0 && na.e != c.e && (u_gfl[na.g] & 4) == 0 && (na.g == c.g || (n0.e == n1.e && n1.e == n2.e && n2.e == n3.e))) {
+		e = na.e;
+		c = na;
 		fl = u_gfl[c.g];
 	} else if (!spark) {
 		int same = (n0.e == c.e ? 1 : 0) + (n1.e == c.e ? 1 : 0) + (n2.e == c.e ? 1 : 0) + (n3.e == c.e ? 1 : 0);
@@ -96,7 +102,10 @@ void fragment() {
 			for (int k = 0; k < 4; k++) {
 				Ent nb = pickN(k, n0, n1, n2, n3);
 				vec2 dd = k == 0 ? vec2(1.0, 0.0) : (k == 1 ? vec2(-1.0, 0.0) : (k == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0)));
-				bool edge = (nb.g != c.g && (u_gfl[nb.g] & 4) == 0) || (nb.g == c.g && nb.s <= c.s - 2);
+				// (a silhouette only where the cloud ends against the sky: a step inside
+				// one gas, or one gas against another, outlined, drew dark seams through
+				// it, and a lone odd block came out ringed light and dark)
+				bool edge = nb.g == 0 && c.g != 0;
 				if (edge) {
 					float d = dot(dd, toS);
 					dOut = min(dOut, d);
