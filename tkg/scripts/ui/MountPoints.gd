@@ -506,6 +506,29 @@ func drawn_rects() -> Array[Dictionary]:
 	return out
 
 
+## WHETHER A POINT IS ON SOMETHING THE CUTAWAY DREW: a lifted part, a tag, an
+## empty mount's ring or its words. A click there is not a click on the sky.
+func hit_drawn(p: Vector2) -> bool:
+	if explode <= 0.0:
+		return false
+	for d in drawn_rects():
+		if (d.rect as Rect2).grow(2.0).has_point(p):
+			return true
+	if tags:
+		for s in _spots:
+			if s.held == null and (s.at as Vector2).distance_to(p) <= (R + 3.0) * _mag():
+				return true
+	return false
+
+
+## THE CUTAWAY LIFTS PARTS OUT PAST THIS WIDGET'S OWN RECT (it is the hull's
+## canvas, and a part lifted clear of a heavy can stand beyond it), so a point
+## on anything it drew counts as inside: that is what lets the part be pressed
+## and dragged where it is drawn.
+func _has_point(p: Vector2) -> bool:
+	return Rect2(Vector2.ZERO, size).has_point(p) or hit_drawn(p)
+
+
 ## An EMPTY mount in the cutaway: a ring, and what it takes.
 func _empty_ring(s: Dictionary, k: float) -> void:
 	var a := clampf((explode - 0.5) / 0.5, 0.0, 1.0)

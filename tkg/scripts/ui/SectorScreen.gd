@@ -1062,6 +1062,19 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(t)
+	# THIS SYSTEM'S OWN PILE, beside the way to the map (Jon: "button on the
+	# bottom right next to SCAN SECTOR that opens the popup for the sector
+	# loot"), only while there is something on it, as the map's SECTOR LOOT is:
+	# a popup in the cutaway, the two-grid screen with your hold beside it
+	# anywhere else
+	var pile := Run.sector_jetsam(n, false)
+	var loose := Run.jetsam_left(n, pile) if pile != null else 0
+	if loose > 0:
+		var lb := Widgets.button("SECTOR LOOT · %d" % loose, _open_loose)
+		lb.name = "SectorLoot"
+		lb.custom_minimum_size = EncounterDrawer.BTN
+		lb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(lb)
 	# NO CLICK: the page turn is this button's sound. See `_plot_next_jump`.
 	var b := Widgets.button(EncounterDrawer.TO_SECTOR, _plot_next_jump, false)
 	b.custom_minimum_size = EncounterDrawer.BTN
@@ -1117,7 +1130,23 @@ func _on_action() -> void:
 ## argument) and `ui_tab` is left alone to play from `_swap`, where every
 ## screen change plays it.
 func _plot_next_jump() -> void:
+	if _cutaway != null:
+		_cutaway.close_now()
 	Router.show_system()
+
+
+## SECTOR LOOT on the bottom bar: over the cutaway, this system's pile in its
+## popup beside the button (drag to the hold or a ring); anywhere else, the
+## two-grid screen, your hold beside the pile.
+func _open_loose() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null:
+		return
+	var from := _drawer.find_child("SectorLoot", true, false) as Control
+	if _cutaway != null and from != null:
+		_cutaway.open_popup(Run.sector_jetsam(n, false), from.get_global_rect())
+	else:
+		_open_sector_loot()
 
 
 ## Reads the place, not the node type: "a hab ring, lights on" tells you where
@@ -2261,8 +2290,34 @@ func open_cutaway() -> CutawayView:
 		return null
 	_ship_outline.visible = false
 	_cutaway = CutawayView.open_over(self, _view.ship_view())
+	# ABOVE THE BOTTOM BAR, which stays: its SECTOR LOOT works from in here
+	if _quiet_holder != null and _quiet_holder.is_visible_in_tree():
+		_cutaway.offset_bottom = -maxf(0.0, get_global_rect().end.y - _quiet_holder.get_global_rect().position.y)
+	_cutaway.wreck_at = _wreck_under
 	_cutaway.closed.connect(func() -> void: _cutaway = null)
 	return _cutaway
+
+
+## THE WRECK DRAWN AT A POINT ON SCREEN, for the cutaway (Jon: "the wreck loot
+## can be just a popup after you click the wrecked ship"): `[jetsam, its art's
+## rect on screen]`, or `[]`. The wrecks are the slots `show_wrecks` built, in
+## the order it was handed them, so the slot under the point is the container.
+func _wreck_under(gp: Vector2) -> Array:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null or _view == null or fighting():
+		return []
+	var wrecks: Array = []
+	for raw in n.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			wrecks.append(raw)
+	var i := _view.target_at(gp)
+	if i < 0 or i >= wrecks.size() or i >= _view._made.size():
+		return []
+	var slot := _view._made[i] as EnemySlot
+	if slot == null:
+		return []
+	var r: Rect2 = slot.art.get_global_rect() if slot.art != null else slot.get_global_rect()
+	return [wrecks[i], r] if r.has_point(gp) else []
 
 
 ## The part a card came off, lit on the hull while the card is pointed at.

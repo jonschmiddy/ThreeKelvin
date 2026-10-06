@@ -8,11 +8,15 @@ extends Node
 ## A run at a system with a wreck you killed, parts in the hold and (unless
 ## `loot=no`) something loose in the system. Saves the game's picture every
 ## `every` frames through: the hover outline on your ship, the push-in (backdrop
-## breaking up), a part pointed at, a part carried (its rings pulsing), the drop
-## onto a mount, TAKE ALL on the wreck, the close; then the real escape menu over
-## the same scene (for the backdrop beside it), then a fight with a card pointed
-## at (its part lit on the hull). Prints the push-in scale, where the shelf sits,
-## and whether any lifted part or tag reaches into the shelf. Needs a window.
+## breaking up, the left panel sliding in), a fitted part pointed at and a
+## module in the hold pointed at (the card beside each), a part carried (its
+## rings pulsing), the drop onto a mount, the wreck clicked where LOCAL draws it
+## (its bay in a popup), a module in it pointed at, TAKE ALL, SECTOR LOOT on the
+## bottom bar (this system's pile in the popup) and a module in it pointed at,
+## the close; then the real escape menu over the same scene (for the backdrop
+## beside it), then a fight with a card pointed at (its part lit on the hull).
+## Prints the push-in scale, the left panel's size, and whether any lifted part
+## or tag reaches past the cutaway's foot. Needs a window.
 ## THE CUTAWAY'S CLOCK IS STEPPED 1/30 s A FRAME (`CutawayView.fixed_step`), so
 ## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
 ## however slowly the window drew them; nothing is saved before the hover.
@@ -105,46 +109,39 @@ func _run() -> void:
 		return
 	await _frames(40)
 	_still("02_open")
-	print("cutawayshot: push-in %dx%s, shelf top %.0f, hull %s" % [cut.k, " (panel on hover)" if cut.hover_panel else "", cut._shelf_top, Run.hull.display_name()])
+	print("cutawayshot: push-in %dx, left panel %dx%d, hull %s" % [cut.k, cut._hold_w, cut.size.y, Run.hull.display_name()])
 	_report_fit(cut)
 	print("cutawayshot: %s" % cut.fit_note)
-	# 2b. a shelf resting low (the heavy) rises to the pointer
-	if cut._shelf_rest > cut._shelf_top:
-		cut._shelf_up = true
-		await _frames(20)
-		_still("02b_shelf_raised")
-		cut._shelf_up = false
-		await _frames(20)
-	# 3. a fitted part pointed at
+	# 3. a fitted part pointed at: its card beside it
 	if not Run.installed.is_empty():
 		var pm: ModuleData = Run.installed[0]
-		# where a pointer on it would be (the heavy's panel docks away from it)
 		for sp in cut._mounts.spots():
 			if sp.held == pm:
-				cut._last_gp = cut._mounts.get_global_transform() * cut._mounts._part_at(sp)
-		cut._show(pm)
+				var r := cut._mounts.part_rect(pm, sp.slot, cut._mounts._part_at(sp), cut._mounts._mag())
+				cut._point(cut._mounts.get_global_transform() * r.get_center())
 		cut._mounts.focus(pm)
 	await _frames(12)
-	_still("03_part_pointed")
+	_still("03_hover_hull")
 	cut._mounts.focus(null)
-	# 4. a part from the hold carried: its rings pulse
-	var carried: ModuleData = null
-	for m in Run.cargo:
-		if m is ModuleData:
-			carried = m
+	cut._show(null)
+	# 4. a module in the hold pointed at: the same card
+	var in_hold: ModuleData = null
+	for c in cut._hold.get_children():
+		if c is ModuleIcon and (c as ModuleIcon).held_item() is ModuleData:
+			in_hold = (c as ModuleIcon).held_item()
+			cut._point((c as Control).get_global_rect().get_center())
 			break
+	await _frames(12)
+	_still("04_hover_hold")
+	cut._show(null)
+	# 5. a part from the hold carried: its rings pulse, no card
+	var carried: ModuleData = in_hold
 	if carried != null:
-		# (carrying: beside the panel it shows the part; on the heavy's rung the
-		# panel goes, so it cannot cover a ring)
-		if cut.hover_panel:
-			cut._show(null)
-		else:
-			cut._show(carried)
 		cut._mounts.light(carried)
 		await _frames(24)
-		_still("04_carrying")
+		_still("05_carrying")
 		cut._mounts.light(null)
-		# 5. dropped onto a mount of its kind: an empty one if there is one
+		# 6. dropped onto a mount of its kind: an empty one if there is one
 		var at := 0
 		for i in Run.slots_for(carried.slot):
 			if Run.module_at(carried.slot, i) == null:
@@ -152,23 +149,56 @@ func _run() -> void:
 				break
 		await cut._on_mount_drop({module = carried, origin = &"cargo"}, carried.slot, at)
 		await _frames(20)
-		_still("05_fitted")
-	# 6. TAKE ALL on the wreck
-	if cut._wreck != null:
-		await cut._take_all(cut._wreck)
+		_still("06_fitted")
+	# 7. THE WRECK, clicked where LOCAL draws it in the sky behind: its bay
+	var wreck_rect := Rect2()
+	var made: Array = sc._view._made
+	if not made.is_empty() and (made[0] as EnemySlot).art != null:
+		wreck_rect = (made[0] as EnemySlot).art.get_global_rect()
+	if wreck_rect.has_area():
+		cut._sky_click(wreck_rect.get_center())
+	await _frames(20)
+	_still("07_wreck_popup")
+	print("cutawayshot: the wreck's popup %s" % ("opened" if cut.popup_open() else "DID NOT OPEN"))
+	if cut.popup_open():
+		# 8. a module in it pointed at
+		for c in cut._pop_grid.get_children():
+			if c is ItemIcon and (c as ItemIcon).held_item() is ModuleData:
+				cut._point((c as Control).get_global_rect().get_center())
+				break
+		await _frames(12)
+		_still("08_hover_wreck")
+		cut._show(null)
+		# 9. TAKE ALL
+		await cut._take_all(cut._pop_jetsam)
 		await _frames(20)
-		_still("06_wreck_taken")
-	# 7. the close
+		_still("09_wreck_taken")
+	cut.close_popup()
+	# 10. SECTOR LOOT on the bottom bar: this system's pile in the same popup
+	sc._open_loose()
+	await _frames(20)
+	_still("10_loot_popup")
+	print("cutawayshot: the sector loot popup %s" % ("opened" if cut.popup_open() else "did not open (nothing loose here)"))
+	if cut.popup_open():
+		for c in cut._pop_grid.get_children():
+			if c is ItemIcon and (c as ItemIcon).held_item() is ModuleData:
+				cut._point((c as Control).get_global_rect().get_center())
+				break
+		await _frames(12)
+		_still("11_hover_loot")
+		cut._show(null)
+		cut.close_popup()
+	# 12. the close
 	cut.close()
 	await _frames(40)
-	_still("07_closed")
+	_still("12_closed")
 	# 8. THE ESCAPE MENU over the same scene, for its backdrop beside the cutaway's
 	if not "nopause" in _args:
 		var main := get_parent()
 		if main != null and main.has_method("toggle_menu"):
 			main.toggle_menu()
 			await _frames(40)
-			_still("08_pause_menu")
+			_still("13_pause_menu")
 			main.toggle_menu()
 			await _frames(20)
 	# 9. a fight: a card pointed at lights its part on the hull
@@ -186,17 +216,17 @@ func _run() -> void:
 				if cv.card != null and cv.card.source_id != &"":
 					fs._on_card_hovered(cv, true)
 					await _frames(16)
-					_still("09_fight_card_lights_part")
+					_still("14_fight_card_lights_part")
 					print("cutawayshot: pointed at %s (from %s)" % [cv.card.name, cv.card.source_id])
 					break
 	tree.quit()
 
 
-## Whether anything lifted reaches into the shelf or past the panel's edge.
+## Whether anything lifted reaches past the cutaway's foot (LOCAL's bottom bar).
 func _report_fit(cut: CutawayView) -> void:
 	var mp := cut._mounts
 	var g := mp.get_global_transform()
-	var top_y := cut.get_global_transform() * Vector2(0, cut._shelf_rest)
+	var top_y := cut.get_global_transform() * Vector2(0, cut.size.y)
 	var worst := -INF
 	var n := 0
 	for s in mp.spots():
@@ -207,5 +237,5 @@ func _report_fit(cut: CutawayView) -> void:
 		var bottom := (g * r.end).y
 		worst = maxf(worst, bottom)
 		n += 1
-	print("cutawayshot: %d parts lifted; lowest edge %.0f against the shelf at %.0f: %s" % [n, worst, top_y.y,
+	print("cutawayshot: %d parts lifted; lowest edge %.0f against the bottom bar at %.0f: %s" % [n, worst, top_y.y,
 		"clear" if worst <= top_y.y else "OVERLAPS"])
