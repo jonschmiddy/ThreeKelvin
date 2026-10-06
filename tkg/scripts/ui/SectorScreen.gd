@@ -202,41 +202,6 @@ var _action: Button
 ## decoupled now: this grows when the rails need it, and nothing else moves.
 const DRAWER_H := 190
 
-## What the drawer is showing.
-##
-## LIST -> OPTION -> RESULT -> LIST, and a fight is just a RESULT that happens on
-## another screen before landing back on LIST -- `after_combat` returns to the
-## sector, and a rebuilt drawer defaults here.
-##
-## THIS IS WHERE RULING 2 LIVES NOW. It said prose plus a check earns its own
-## screen, for pacing: prose you cannot avoid stops being read. The drawer does
-## that job without the swap -- the list gives one line, and the body only
-## appears once you have chosen to look. `EventScreen` is off the option path.
-enum Drawer { LIST, OPTION, RESULT }
-var _dstate: Drawer = Drawer.LIST
-## Which option the drawer has open, or -1.
-var _open: int = -1
-## The outcome being shown, and what the roll said about it.
-var _res: Dictionary = {}
-var _res_band: SkillCheck.Band = SkillCheck.Band.MET
-var _res_checked: bool = false
-## Whether the choice shown was a walk-away — see `stay` in OptionTable.
-var _res_stay: bool = false
-## What the roll was worth, READ BEFORE THE OUTCOME RAN. See
-## `SkillCheck.odds_line`: an outcome that takes hull changes what a HULL check
-## was worth, so asking afterwards prints the odds of a roll nobody made.
-var _res_odds: String = ""
-## The ledger either side of the resolution. `RunState.ledger`.
-var _res_bill: Array = []
-## Whether the REWARD door has been opened since this outcome resolved.
-##
-## CONTINUE waits on it. An outcome that pays you an object drops the object in
-## a container beside you and it stays in the system whether or not you look --
-## which is honest, and is also how a player walks away from a reward they never
-## knew they had, one keypress after being told they earned it. Being made to
-## open the crate is not a nag: it is the one moment the game can be sure you
-## saw the thing, and it costs a click you were going to make anyway.
-var _res_seen: bool = false
 ## Which node the approach animation has already played for.
 ##
 ## STATIC, because this screen is rebuilt every time you tab away and back, and
@@ -647,6 +612,9 @@ func _build() -> void:
 	_view.resized.connect(_sync_bleed)
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
+	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
+	# its own pixels; click it and it opens up (`CutawayView`)
+	_hook_cutaway()
 
 	var pad := Widgets.pad(null, 8, 6)
 	pad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -986,14 +954,16 @@ func _rebuild_drawer(n: MapGen.MapNode) -> void:
 		_drawer_simple("The Hellbender rides at anchor here, holds glowing with everything it has taken. Nothing else in this system is reachable past it.",
 			"ENGAGE THE HELLBENDER")
 		return
-	if n.type != MapGen.NodeType.SYSTEM:
-		var lines := EncounterDrawer.quiet_lines(n)
-		_drawer_simple(String(lines[0]), String(lines[1]))
+	# A SYSTEM OR A STATION: ONE LINE, AND THE WAY TO THE MAP. What is here, its
+	# pages and its choices, the floor's loot and the berth are all on the sector
+	# map (`SystemPanel`), and every one of them is taken where it stands -- you
+	# fly there first. LOCAL said all of it again in a drawer of its own, and a
+	# choice taken from here was one taken without going (Jon's LOCAL ruling).
+	if n.type == MapGen.NodeType.SYSTEM or n.type == MapGen.NodeType.STATION:
+		_drawer_here(n)
 		return
-	match _dstate:
-		Drawer.OPTION: _drawer_option(n)
-		Drawer.RESULT: _drawer_result(n)
-		_: _drawer_list(n)
+	var lines := EncounterDrawer.quiet_lines(n)
+	_drawer_simple(String(lines[0]), String(lines[1]))
 
 
 ## How tall the drawer is for this place.
@@ -1023,8 +993,9 @@ func _size_drawer(n: MapGen.MapNode) -> void:
 	# BOTCHED or UNAVAILABLE, so there is no air to collapse and the record of
 	# what you did there is the thing that would be hidden. The collapse was a
 	# fix for emptiness, and the emptiness is gone.
-	var bookend := n != null and not Run.dead \
-		and n.type != MapGen.NodeType.SYSTEM
+	# (and since LOCAL's drawer became one line, a system is one too: every
+	# place says a line and offers a button, and the sky gets the rest)
+	var bookend := n != null and not Run.dead
 	_quiet_wrap.custom_minimum_size = Vector2(0, 0 if bookend else DRAWER_H)
 	# The panel's own padding has to come down with it, or twelve above and
 	# twelve below is most of what is left.
@@ -1048,18 +1019,8 @@ func _drawer_simple(line: String, label: String) -> void:
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(t)
-	# A DOOR HERE TOO. This drawer is the START and the CORE -- places with one
-	# thing to do -- and it had no SECTOR LOOT button, so anything jettisoned in
-	# the first system went onto a floor with no way back to it. It did not
-	# vanish; there was nowhere to stand that could see it, which is worse,
-	# because the game looked like it had eaten the thing.
-	var n_here: MapGen.MapNode = Run.node_at()
-	var on_floor := Run.jetsam_left(n_here, Run.sector_jetsam(n_here, false))
-	var loot := Widgets.button("SECTOR LOOT", _open_sector_loot)
-	loot.custom_minimum_size = EncounterDrawer.BTN
-	loot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	loot.disabled = on_floor <= 0
-	row.add_child(loot)
+	# (NO SECTOR LOOT HERE ANY MORE: the floor's pile is on the sector map's
+	# panel, where it says SECTOR LOOT whenever there is something on it.)
 	var b := Widgets.button(label, _on_action)
 	b.custom_minimum_size = EncounterDrawer.BTN
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1086,197 +1047,27 @@ func _drawer_simple(line: String, label: String) -> void:
 	_drawer.add_child(row)
 
 
-## Everything this system still offers, one condensed line each.
-func _drawer_list(n: MapGen.MapNode) -> void:
-	var left := EncounterDrawer.untaken(n)
-	if n.options.is_empty():
-		_drawer_simple("Nothing else here wants anything from you.", EncounterDrawer.TO_SECTOR)
-		return
-	# THE HEADING COUNTS THE LIVE ONES; THE ROW SHOWS THEM ALL. A system you
-	# have finished still has four cards in it, each wearing what it came to,
-	# so the line above them is the only thing left to say the system is done.
-	# RULING 7 still holds: every system rolls two to four, so a count of zero
-	# only ever means you took it all.
-	var line := "NOTHING ELSE HERE WANTS ANYTHING FROM YOU"
-	if not left.is_empty():
-		line = "%d THING%s OUT HERE WANT%s SOMETHING FROM YOU" % [left.size(),
-			"" if left.size() == 1 else "S", "S" if left.size() == 1 else ""]
-	_drawer.add_child(EncounterDrawer.head(line, _on_action,
-		Run.jetsam_left(n, Run.sector_jetsam(n, false)), _open_sector_loot))
-	_drawer.add_child(EncounterDrawer.option_row(n, _open_option))
-
-
-## The drawer's top line, with the way out parked on its right.
-##
-## Departure is on screen in EVERY state, which is what RULING 9 rests on: no
-## option can pretend to be a wall while the exit is visible from inside it.
-func _drawer_option(n: MapGen.MapNode) -> void:
-	var opt: Dictionary = OptionTable.by_id(n.options[_open]) if _open >= 0 \
-		and _open < n.options.size() else {}
-	if opt.is_empty():
-		_dstate = Drawer.LIST
-		_drawer_list(n)
-		return
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 8)
-	var back := Widgets.button("<  BACK", func() -> void:
-		_dstate = Drawer.LIST
-		_open = -1
-		_refresh())
-	back.custom_minimum_size = Vector2(70, 17)
-	head.add_child(back)
-	var t := UITheme.body(String(opt.get("title", "")).to_upper(),
-		UITheme.HOT, UITheme.FS_SMALL)
+## WHAT IS HERE, IN ONE LINE, and the sector map to see it on.
+func _drawer_here(n: MapGen.MapNode) -> void:
+	var left := EncounterDrawer.untaken(n).size() if n.type == MapGen.NodeType.SYSTEM else 0
+	var line := "NOTHING ELSE HERE - SEE SECTOR"
+	if n.type == MapGen.NodeType.STATION:
+		line = "A STATION HERE - SEE SECTOR"
+	elif left > 0:
+		line = "%d THING%s HERE - SEE SECTOR" % [left, "" if left == 1 else "S"]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var t := UITheme.body(line, UITheme.COLD, UITheme.FS_SMALL)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	head.add_child(t)
-	var jb := Widgets.button(EncounterDrawer.TO_SECTOR, _on_action)
-	jb.custom_minimum_size = Vector2(148, 17)
-	head.add_child(jb)
-	_drawer.add_child(head)
-	# THE FULL BODY, and this is the only place it appears. The list showed one
-	# sentence of it; the rest is what looking buys.
-	var body := UITheme.body(String(opt.get("body", "")), UITheme.CHILL,
-		UITheme.FS_SMALL)
-	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_drawer.add_child(body)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 7)
-	var choices: Array = opt.get("choices", [])
-	for j in choices.size():
-		row.add_child(EncounterDrawer.choice_card(
-			n, _open, j, choices[j] as Dictionary, opt, _take_choice))
+	row.add_child(t)
+	# NO CLICK: the page turn is this button's sound. See `_plot_next_jump`.
+	var b := Widgets.button(EncounterDrawer.TO_SECTOR, _plot_next_jump, false)
+	b.custom_minimum_size = EncounterDrawer.BTN
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(b)
 	_drawer.add_child(row)
-
-
-## What happened, until you accept it.
-##
-## THE WAY OUT IS ON TOP, WHICH IS WHERE THE OPTION PAGE KEEPS ITS WAYS OUT.
-## `< BACK` and `PLOT NEXT JUMP` sit on that row a frame ago; REWARD and
-## CONTINUE were down in the far corner instead, so the one control you are
-## certain to press moved across the drawer between the two states.
-##
-## And the plate drops below it rather than filling the band, so it starts where
-## the option page's body starts instead of at the very top -- which is the
-## other half of why stepping between them felt like a different screen.
-func _drawer_result(n: MapGen.MapNode) -> void:
-	var opt: Dictionary = OptionTable.by_id(n.options[_open]) if _open >= 0 \
-		and _open < n.options.size() else {}
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 8)
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(sp)
-	var waiting := false
-	if OptionTable.pays_item(_res) and not Run.dead:
-		# GREYED WHEN THERE IS NOTHING BEHIND IT. It stays on the row after you
-		# have taken it, because one that vanishes moves CONTINUE out from under
-		# your hand. What it must not do is still look like a door.
-		var left := Run.jetsam_left(n, Run.sector_jetsam(n, false))
-		# AND ONLY WHILE THE DOOR STILL OPENS. Gating CONTINUE on a crate you
-		# cannot reach would be a locked room: if the container is somehow
-		# already empty, there is nothing to be shown and nothing to wait for.
-		waiting = left > 0 and not _res_seen
-		var claim := Widgets.button("REWARD", _open_prize)
-		claim.custom_minimum_size = EncounterDrawer.BTN
-		claim.disabled = left <= 0
-		claim.tooltip_text = Widgets.tip("Your hold on one side, what this left you on the other. Anything you do not take stays in this system as jetsam; open SECTOR LOOT and it is still there."
-			if left > 0 else "You have taken everything this left you.")
-		head.add_child(claim)
-	var out := Widgets.button("CONTINUE", func() -> void:
-		_dstate = Drawer.LIST
-		_open = -1
-		_res = {}
-		_refresh())
-	if Run.dead:
-		out = Widgets.button("SUMMARY", func() -> void: Router.show_game_over())
-	elif bool(_res.get("fight", false)):
-		# LIST -> FIGHT -> RESULT -> LIST. The fight is a screen of its own and
-		# then `after_combat` returns to the sector, where a rebuilt drawer
-		# defaults to LIST with this option already spent.
-		out = Widgets.button("THEY ARE FIRING", func() -> void:
-			Router.start_ambush())
-	out.custom_minimum_size = EncounterDrawer.BTN
-	if waiting:
-		out.disabled = true
-		out.tooltip_text = Widgets.tip("Something is waiting in REWARD. Open it before you go. What you leave stays in this system, but you should at least know it is there.")
-	head.add_child(out)
-	_drawer.add_child(head)
-	# NAME THE BAND. The prose is written in fiction and deliberately never says
-	# "you failed", so without this a PARTIAL and a BOTCHED are two paragraphs
-	# you cannot tell apart and the ladder never resolves where you can see it.
-	# `band_name` rather than the seal's word, because this is the one place MET
-	# and SCRAPED THROUGH are worth telling apart.
-	# LEFT ALONE, not RESOLVED, on a walk-away. The card is still live behind
-	# this screen — see `stay` in `_take` — and a header claiming resolution
-	# over a thing that was deliberately not resolved would be the screen
-	# arguing with the list it returns to.
-	_drawer.add_child(EncounterDrawer.outcome(opt,
-		SkillCheck.band_name(_res_band) if _res_checked \
-			else ("LEFT ALONE" if _res_stay else "RESOLVED"),
-		SkillCheck.band_colour(_res_band) if _res_checked else UITheme.CHILL,
-		_res_odds, String(_res.get("text", "")), _res_bill))
-
-
-
-## Which options this system still has.
-## Opening one option, handed to `EncounterDrawer.option_card` as a callable.
-##
-## The drawer's builders do not get to know about `Drawer.OPTION` or about
-## `_refresh`; they get to say "this row was clicked". This is the whole of what
-## they used to reach in for.
-func _open_option(i: int) -> void:
-	_open = i
-	_dstate = Drawer.OPTION
-	_refresh()
-
-
-## And taking one. `_take` wants the node as well, which the screen already has
-## and a static builder would have to be handed.
-func _take_choice(i: int, j: int) -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n != null:
-		_take(n, i, j)
-
-
-func _take(n: MapGen.MapNode, i: int, j: int) -> void:
-	# THE RULES ARE `OptionResolve.take`'s: the system map's panel takes a choice
-	# through the same function, so the two screens cannot resolve an option two
-	# ways. This keeps only what is the drawer's -- the row held shut while the
-	# party answers, the result panel's fields, where the screen goes next.
-	var choices: Array = OptionTable.by_id(n.options[i]).get("choices", [])
-	if j < 0 or j >= choices.size() or not OptionResolve.affordable(choices[j]):
-		return
-	var stay := bool((choices[j] as Dictionary).get("stay", false))
-	if not stay:
-		if _taking:
-			return
-		_taking = true
-	var out: Dictionary = await OptionResolve.take(n, i, j)
-	_taking = false
-	if not out.ok:
-		if out.why == "too_late":
-			var who: String = out.get("who", "")
-			Run.log_line("Too late.%s" % (" %s got there first." % who.to_upper()
-				if who != "" else ""), &"them")
-			_refresh()
-		return
-	_res_checked = out.checked
-	_res_stay = out.stay
-	_res_band = out.band
-	_res_odds = out.odds
-	_res = out.res
-	_res_bill = out.bill
-	_res_seen = false
-	if out.dead:
-		Router.show_game_over()
-		return
-	if out.fight_now:
-		Router.start_ambush()
-		return
-	_dstate = Drawer.RESULT
-	_refresh()
 
 
 func _on_action() -> void:
@@ -2311,26 +2102,6 @@ func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 	_transfer.setup(h, n, _close_transfer, true, title)
 
 
-## The same pile, through the door an event resolution just opened.
-##
-## PRIZE IS A MOMENT AND NOT A CONTAINER, which is the whole of this design and
-## the reason there is no third kind of pile. What an option pays lands on the
-## system's floor beside anything you have put down here -- one container per
-## system, so three events that all pay out pool into one -- and it is called a
-## prize for exactly as long as you are standing in the result. Walk away
-## without taking it and it is jetsam, reachable from SECTOR LOOT for the rest
-## of the run, because that is what it now is: junk left in a system.
-func _open_prize() -> void:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null:
-		return
-	# LOOKED AT IT. `_close_transfer` refreshes, so CONTINUE comes back live the
-	# moment the popup shuts -- whether or not anything came out of the crate.
-	# Taking it is your business; knowing it was there is the game's.
-	_res_seen = true
-	_open_jetsam(Run.sector_jetsam(n, false), "REWARD")
-
-
 ## The system's own pile, from the button beside PLOT NEXT JUMP.
 ##
 ## `false` so it is not created by being asked about: the floor exists once
@@ -2425,6 +2196,8 @@ func _on_card_picked(card: CardData) -> void:
 
 func _on_card_hovered(view: CardView, entered: bool) -> void:
 	_show_readout(view, entered)
+	# THE PART THAT GRANTS IT, LIT ON YOUR HULL (the cutaway's fight half)
+	_light_source(view.card if entered and view != null else null)
 	if not fighting() or not entered or combat.finished:
 		_preview.text = ""
 		return
@@ -2434,6 +2207,79 @@ func _on_card_hovered(view: CardView, entered: bool) -> void:
 
 func _on_slot_hovered(_index: int, _entered: bool) -> void:
 	pass
+
+
+# ------------------------------------------------------------------ the cutaway
+
+var _cutaway: CutawayView = null
+var _ship_outline: CutawayView.Outline = null
+
+
+func _hook_cutaway() -> void:
+	var art := _view.ship_view()
+	if art == null:
+		return
+	var slot := art.get_parent() as Control
+	_ship_outline = CutawayView.Outline.new()
+	_ship_outline.view = art
+	_ship_outline.visible = false
+	art.add_child(_ship_outline)
+	if slot == null:
+		return
+	slot.gui_input.connect(_on_own_ship_input)
+	slot.mouse_exited.connect(func() -> void:
+		_ship_outline.visible = false
+		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW)
+
+
+## Whether your ship can be opened up now: out of a fight, not mid-jump, alive.
+func cutaway_ready() -> bool:
+	return not fighting() and _phase == Phase.NONE and not Run.dead 		and _cutaway == null and Run.hull != null and _transfer == null
+
+
+func _on_own_ship_input(e: InputEvent) -> void:
+	var art := _view.ship_view()
+	var slot := art.get_parent() as Control
+	if not cutaway_ready():
+		_ship_outline.visible = false
+		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		return
+	var on := CutawayView.on_hull(art, art.get_local_mouse_position())
+	if on != _ship_outline.visible:
+		_ship_outline.visible = on
+		_ship_outline.queue_redraw()
+	slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if on else Control.CURSOR_ARROW
+	var mb := e as InputEventMouseButton
+	if on and mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+		slot.accept_event()
+		open_cutaway()
+
+
+## Open your ship up. Public for the harnesses (`sheet=CutawayShot`).
+func open_cutaway() -> CutawayView:
+	if not cutaway_ready():
+		return null
+	_ship_outline.visible = false
+	_cutaway = CutawayView.open_over(self, _view.ship_view())
+	_cutaway.closed.connect(func() -> void: _cutaway = null)
+	return _cutaway
+
+
+## The part a card came off, lit on the hull while the card is pointed at.
+func _light_source(c: CardData) -> void:
+	var art := _view.ship_view() if _view != null else null
+	if art == null:
+		return
+	var src: ModuleData = null
+	if c != null and fighting():
+		for m in Run.installed:
+			if m.id == c.source_id:
+				src = m
+				break
+	for ch in art.get_children():
+		if ch is MountPoints:
+			(ch as MountPoints).lit_part = src
+			(ch as MountPoints).queue_redraw()
 
 ## A card was pressed in the hand. Arm it: it lifts and stays, and from here the
 ## LINE does the aiming.

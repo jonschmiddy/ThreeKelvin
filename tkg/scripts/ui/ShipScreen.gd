@@ -1459,11 +1459,8 @@ func _on_lift(m: ModuleData) -> void:
 	if m == null or not Run.installed.has(m):
 		return
 	_lifted = m
-	_lifted_mount = m.mount
+	_lifted_mount = Run.lift_part(m)
 	Audio.play(&"hold_lift", 0.08)
-	Run.installed.erase(m)
-	m.mount = -1
-	Sig.ship_changed.emit()
 	_refresh()
 
 
@@ -1475,77 +1472,23 @@ func _on_release() -> void:
 	_lifted = null
 	if m == null or Run.installed.has(m) or Run.cargo.has(m):
 		return
-	m.mount = _lifted_mount
-	Run.installed.append(m)
-	Sig.ship_changed.emit()
+	Run.unlift_part(m, _lifted_mount)
 	_refresh()
 
 
 func _on_mount_drop(payload: Dictionary, slot: ModuleData.Slot, index: int) -> void:
-	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
-	# hull; a crate of ore has no slot to match and no power to draw. The cast
-	# yields null for a material and the null check below refuses it.
+	# THE RULE IS RUN'S (`RunState.fit_at_mount`): trade, fit, or refuse. This
+	# screen only says which part, which mount, and whether the part is in the hand.
 	var m: ModuleData = payload.get("module")
-	if m == null or m.slot != slot:
+	if m == null:
 		return
-	var resident := Run.module_at(slot, index)
-	if resident == m:
+	var r := Run.fit_at_mount(m, slot, index, _lifted_mount if m == _lifted else -1)
+	if r == Run.Refit.REFUSED:
 		return
-
-	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
-	# the hold — the same rule the rack had, and it matters more here, where the
-	# mounts are visibly different positions on the ship.
-	#
-	# `m == _lifted` is the same case: a part dragged off the hull is off the
-	# ship while you carry it, so `installed.has(m)` is false for exactly the
-	# move this branch exists for. Without it, sliding a gun from one hardpoint
-	# to an occupied one sent the resident to the hold instead of trading.
-	var was_fitted := Run.installed.has(m) or m == _lifted
-	if resident != null and was_fitted:
-		var there := _lifted_mount if m == _lifted else m.mount
-		m.mount = index
-		resident.mount = there
-		if m == _lifted:
-			Run.installed.append(m)
-			_lifted = null
-		Sig.ship_changed.emit()
-		Audio.act(&"module_install")
-		Run.log_line("Moved %s." % m.name, &"sys")
-		_refresh()
-		return
-
-	# The resident has nowhere to go but the hold, and if it will not fit there
-	# the move is refused BEFORE anything has been taken off the ship.
-	# `m` IS LEAVING. It is in the hold this instant and on the hull the next,
-	# so the cells it currently occupies are exactly where the resident is going.
-	# Without saying so, a full hold refused every swap -- including a part for
-	# one the same size, which is a move that cannot fail.
-	if resident != null and not Run.has_room_for(resident, m):
-		Run.log_line("No room in the hold for %s." % resident.name, &"them")
-		return
-
-	var was_at := m.hold_at
-	if Run.cargo.has(m):
-		Run.take_from_hold(m)
-	if resident != null:
-		Run.installed.erase(resident)
-		resident.mount = -1
-		if not Run.place_in_hold(resident):
-			# Cannot happen — has_room_for said yes a moment ago and nothing has
-			# taken cells since. Put everything back rather than trust that.
-			resident.mount = index
-			Run.installed.append(resident)
-			if was_at.x >= 0:
-				Run.place_in_hold(m, was_at)
-			Run.log_line("No room in the hold for %s." % resident.name, &"them")
-			return
-	Run.installed.erase(m)
-	m.mount = index
-	Run.installed.append(m)
-	_lifted = null
-	Sig.ship_changed.emit()
+	# (a fit always empties the hand; a trade only when it was the hand's part)
+	if r == Run.Refit.FITTED or m == _lifted:
+		_lifted = null
 	Audio.act(&"module_install")
-	Run.log_line("Fitted %s." % m.name, &"good")
 	_refresh()
 
 ## The only place `installed` and `cargo` move.
@@ -1573,40 +1516,14 @@ func _on_hold_drop(payload: Dictionary, at: Vector2i) -> void:
 	var m: HoldItem = payload.get("module")
 	if m == null:
 		return
-	var was_at := m.hold_at
-	# `_lifted` counts as from the ship: it left `installed` when you picked it
-	# up, and this is the branch that decides whether to say so in the log.
-	var from_ship := Run.installed.has(m) or m == _lifted
-	# OFF THE DOCK IS A THIRD ORIGIN. It is neither a move within the hold nor a
-	# part coming off the hull: the item is in `Run.pad`, which is not `cargo`,
-	# so `take_from_hold` would not find it and `place_in_hold` would leave it
-	# in two places at once.
-	var from_pad := Run.pad.has(m)
-	if from_pad:
-		Run.pad.erase(m)
-	elif Run.cargo.has(m):
-		Run.take_from_hold(m)
-	if not Run.place_in_hold(m, at):
-		# BACK ON THE DOCK, and before the general restore below: a refused drop
-		# must cost nothing, and for a pad item "nothing" means it is still on
-		# the pad rather than gone from both lists.
-		if from_pad:
-			Run.pad.append(m)
-			_refresh()
-			return
-		# Put it back exactly where it was. A refused move must cost nothing —
-		# the alternative is a part that vanishes because the arithmetic said no
-		# after it had already been lifted.
-		if not from_ship and was_at.x >= 0:
-			Run.place_in_hold(m, was_at)
+	# THE RULE IS RUN'S (`RunState.stow_at`): a refused drop costs nothing, and a
+	# part off the ship that will not fit stays in the hand for the release.
+	if not Run.stow_at(m, at, m == _lifted):
+		_refresh()
 		return
-	if from_ship:
-		Run.installed.erase(m)
-		m.mount = -1
+	if m == _lifted:
 		_lifted = null
-		Run.log_line("Stowed %s." % m.name, &"sys")
 	Audio.play(&"hold_stow", 0.08)
-	Sig.ship_changed.emit()
 	_refresh()
 
 

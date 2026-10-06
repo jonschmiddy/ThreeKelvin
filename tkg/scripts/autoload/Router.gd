@@ -340,7 +340,10 @@ func show_chassis_select() -> void:
 	s.setup()
 	# A NEW RUN OPENS ON LOCAL, your ship side on (Jon: "when you start the game,
 	# you start in the local view"); the sector map is a tab away
-	s.launched.connect(show_local)
+	s.launched.connect(func() -> void:
+		show_local()
+		# AND THE FIRST TIME, THE TOUR: LOCAL, SECTOR, STARCHART (`FirstRunIntro`)
+		FirstRunIntro.maybe_start())
 
 ## Resume the suspend save. Falls back to the launcher rather than to a new run:
 ## a player who pressed CONTINUE did not ask to start over, and silently rolling
@@ -1208,6 +1211,11 @@ func in_combat() -> bool:
 	return combat != null and not combat.finished
 
 func after_combat(_c: Combat) -> void:
+	# WON: STAY BY THE WRECKS (alpha blocker 4). The pay is in them, and the map
+	# would take you away from it the moment the last shot landed; LOCAL draws
+	# every wreck in the system, open to strip. Any other ending (fled, calmed,
+	# stood down) goes back to the map as before.
+	var won_here := _c != null and _c.result == &"victory"
 	combat = null
 	current_fight = {}
 	# An ambush is spent whatever happened to it — killed, pacified or shaken
@@ -1216,6 +1224,9 @@ func after_combat(_c: Combat) -> void:
 	Run.node_at().ambush_pending = false
 	if Run.dead or Run.won:
 		show_game_over()
+		return
+	if won_here:
+		show_local()
 		return
 	show_loot_or_map()
 

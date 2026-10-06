@@ -745,6 +745,13 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# The cutaway's moves, through its own handlers (`CutawayView`):
+	#   godot --headless --path . -- cutawaytest
+	if "cutawaytest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/CutawayTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	if "stowtest" in OS.get_cmdline_user_args():
 		_stow_test = load("res://scripts/sim/StowTest.gd").new()
 		_stow_test.run(get_tree())

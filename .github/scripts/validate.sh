@@ -281,6 +281,21 @@ if run_godot transfertest 120 --headless --path "$PROJECT" -- transfertest; then
 	fi
 fi
 
+step "The cutaway moves parts by the refit rule"
+# LOCAL's cutaway is a third place a part can be moved and loot claimed, beside
+# the refit screen and the map's SECTOR LOOT. It calls the same rule
+# (`lift_part`, `fit_at_mount`, `stow_at`) and the same claims (`take_item`,
+# `take_from_jetsam`), so the three cannot disagree; this drives its own drop
+# handlers and counts what its shelf draws, like the container check above.
+if run_godot cutawaytest 120 --headless --path "$PROJECT" -- cutawaytest; then
+	if grep -qE '^cutawaytest: PASS' "$LOG_DIR/cutawaytest.log"; then
+		ok "the cutaway"
+	else
+		bad "the cutaway moves parts or claims loot outside the refit rule"
+		grep -E '^  FAIL|^cutawaytest' "$LOG_DIR/cutawaytest.log" | head -n 20 | sed 's/^/        /'
+	fi
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`

@@ -46,18 +46,22 @@ extends Control
 ##     the edge -- and so do the hole's and the pulsar's;
 ##   * ALONGSIDE A BELT OR A WRECK: its rocks, or the hulk and its shards, close by.
 ## The near things are drawn in a picture of their own (`local_near`), in front
-## of the band and held under the same budget as the sky.
+## of the band and given the same play tone as the sky.
 ##
 ## THE CAMERA moves when the ship does: it follows the hull's approach and its
-## departure a little over half way (`CAM_FOLLOW`), and every layer slides by its own depth --
-## the far stars and galaxies least, the cloud more, the system's band most --
-## in whole 2x2 blocks. Otherwise it holds still: the motion is the gas, the
+## departure a little over half way (`CAM_FOLLOW`), and every layer slides by its
+## own depth -- the far stars and galaxies least, the system's star all but
+## still, then the cloud, the band's worlds, and the world it orbits most -- in
+## whole 2x2 blocks. Otherwise it holds still: the motion is the gas, the
 ## star and the weather.
 ##
 ## READABILITY FIRST. The fight is played across the middle of the view, so the
-## sky there is dimmed and its highlights pressed down a soft knee
-## (`local_grade.gdshader`, PLAY), whatever the system; the bright things --
-## the star, the hole, the lit heart of the cloud -- sit in the band above it.
+## sky there is made a soft backdrop -- its range pressed in toward a mid-tone,
+## its light and colour kept (`local_grade.gdshader`, PLAY), whatever the
+## system -- and nothing is drawn behind the ships or their words (shadows
+## round them were tried: Jon, "they're odd", "the text doesn't need a
+## shadow"); the bright things -- the star, the hole, the lit heart of the
+## cloud -- sit in the band above it.
 ## The weather is the map's own events, rarer (`WX_SLOW`), placed above the
 ## fight and never one that flashes; none at all with reduced motion.
 ##
@@ -111,21 +115,34 @@ const NEAR := preload("res://shaders/local_near.gdshader")
 ## slides for a pixel of the camera's (the far sky's own depths are in
 ## `chart_bg`: stars 0.04, 0.10, 0.20, galaxies 0.05)
 const CAM_FOLLOW := 0.6
-const F_CLOUD := 0.08
-const F_BAND := 0.16
+const F_CLOUD := 0.05
+const F_BAND := 0.12
+## THE LAYERS BY DISTANCE (Jon: "the sun moves a ton in the parallax ...
+## shouldn't it be more still since it's so distant?"): the far sky least -- its
+## galaxies and three depths of stars at SKY_K of `chart_bg`'s own depths, all
+## under 0.012 of the camera's travel -- then the system's star (the black hole,
+## the pulsar) all but still, then the cloud, the band's worlds, and the world
+## the ship orbits most of all. Each in whole 2x2 blocks; the camera eases in
+## and out, so a step never goes back.
+const SKY_K := 0.06
+const F_STAR := 0.015
 ## THE PLAY: the game frame below its top band is where the fight is played,
-## and the sky there is held under its budget (`local_grade`): dimmed from
-## PLAY.x down, wholly by PLAY.y (game px)
+## and the sky there is a soft backdrop (`local_grade`): its range pressed in
+## from PLAY.x down, wholly by PLAY.y (game px), its light kept
 const PLAY := Vector2(70.0, 140.0)
-## PAINTED's sky is painted after the budget on B's curated ramps, which pick
-## a step by where a block falls on them, so its puffed masses come out as
-## vivid as ever: the painted picture is dimmed again, evenly (its bands kept
-## apart), by this much below the top band -- or its spread behind the play
-## went over the budget, 0.053 against 0.04
-const PAINTED_DIM := 0.72
+## PAINTED's paint toned again behind the play: the light above the mid-tone
+## kept to this much of its distance (the sky's own tone keeps 0.55)
+const PAINTED_KEEP := 0.4
+## and RADIANT's lit volume, toned once
+const RADIANT_KEEP := 0.38
 ## the cloud's sky pixel at the star: high in its bake, so the view below the
 ## star stays inside the baked field
 const CC := Vector2(480.0, 150.0)
+## how many more colours LOCAL's cut of a cloud keeps than the map's: seen side on,
+## the lit rims of the masses facing the star and the glow's long fall into the
+## gas are much of the picture, and with the map's count they shared too few
+## steps (Jon: the masses "more backlit" on one arrival than another)
+const PAL_MORE := 6
 ## THE WEATHER: the map's medium events, this many times rarer
 const WX_SLOW := 2.5
 
@@ -150,6 +167,11 @@ var radiant := false
 ## the ship the camera follows (`EncounterView`), and the camera's travel now
 var cam_ship: Control = null
 var cam := Vector2.ZERO
+## the camera's real travel this frame (`cam` is held at rest for the frames the
+## palette is found from); what the foreground dust follows
+var cam_follow := Vector2.ZERO
+var _cam_rest := false
+var _t_saved := 0.0
 
 var _box: SubViewportContainer
 var _far: ColorRect
@@ -380,6 +402,13 @@ func _build() -> void:
 	_grade_mat = ShaderMaterial.new()
 	_grade_mat.shader = GRADE
 	_grade_mat.set_shader_parameter("ramp", PLAY)
+	# (PAINTED's ramps pick a step by brightness, so a smooth ease through them
+	# is one hard line across the sky: stepped there, dithered)
+	_grade_mat.set_shader_parameter("stepped", painted)
+	if radiant:
+		# (RADIANT's lit volume fills the play evenly, near as bright as the
+		# band above: its light pressed in harder)
+		_grade_mat.set_shader_parameter("keep_hi", RADIANT_KEEP)
 	grade.material = _grade_mat
 	_scene.add_child(grade)
 	far_group.append(grade)
@@ -403,6 +432,10 @@ func _build() -> void:
 			ch.reparent(svp, false)
 		_scene.move_child(_pt.tvp, 0)
 		_scene.move_child(_pt.rect, 1)
+		# (and its paint toned again after: B's curated ramps pick a step by
+		# where a block falls on them, so its puffed masses come out as vivid as
+		# ever whatever went in -- the same play tone, pressed harder, eased in
+		# smoothly, as nothing cuts it after)
 		var pcopy := BackBufferCopy.new()
 		pcopy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 		_scene.add_child(pcopy)
@@ -411,8 +444,7 @@ func _build() -> void:
 		var pgm := ShaderMaterial.new()
 		pgm.shader = GRADE
 		pgm.set_shader_parameter("ramp", PLAY)
-		pgm.set_shader_parameter("dim", PAINTED_DIM)
-		pgm.set_shader_parameter("cap", 1.0)
+		pgm.set_shader_parameter("keep_hi", PAINTED_KEEP)
 		pgrade.material = pgm
 		_scene.add_child(pgrade)
 		_scene.move_child(pgrade, 3)
@@ -571,8 +603,13 @@ func star_light() -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
-## the star on screen this frame, on the block grid
+## the star on screen this frame, on the block grid (its own, near-still layer)
 func origin() -> Vector2:
+	return _block_round(_sun - cam * F_STAR)
+
+
+## the band's centre this frame: where the worlds' orbits are laid out from
+func band_origin() -> Vector2:
 	return _block_round(_sun - cam * F_BAND)
 
 
@@ -642,17 +679,26 @@ func _step(delta: float) -> void:
 	var still := DisplaySettings.reduced_motion
 	if not still:
 		t += delta
+	# (the palette's own frames: the sky at its clock's start, see `_build_palette`)
+	if _cam_rest:
+		_t_saved += delta if not still else 0.0
+		t = 0.0
 	# THE CAMERA follows the ship's own travel: its approach and departure
 	var cx := 0.0
 	if cam_ship != null and is_instance_valid(cam_ship) and cam_ship.is_inside_tree():
 		cx = cam_ship.position.x * CAM_FOLLOW
 	cam = Vector2(roundf(cx), 0.0)
+	cam_follow = cam
+	# (while the palette is being found the sky is laid out at rest, behind a
+	# still of itself: see `_build_palette`)
+	if _cam_rest:
+		cam = Vector2.ZERO
 	var o := origin()
 	var vr := get_global_rect()
 	_far_mat.set_shader_parameter("wash", Vector2(vr.position.x, vr.size.x))
 	# (`chart_bg` slides a layer with its pan: the sky's pan is the world's
 	# travel on screen, against the camera's)
-	_far_mat.set_shader_parameter("u_skyPan", -(cam / 2.0).round() * 2.0)
+	_far_mat.set_shader_parameter("u_skyPan", -cam * SKY_K)
 	_far_mat.set_shader_parameter("star_at", o)
 	_far_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
 	if _neb_mat != null:
@@ -720,7 +766,7 @@ func _step_worlds(o: Vector2) -> void:
 			star_placed = true
 		_worlds.move_child(v, -1)
 		var b := layout.bodies[i]
-		var at := _block_round(o + Vector2(p.x, p.y * TILT) * _s)
+		var at := _block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s)
 		var hs := Worlds.half_size(b.world, _world_r(b))
 		v.position = at + Vector2.ONE * float(hs % 2)
 		var behind := p.y < 0.0 and layout.star != SystemLayout.StarKind.CORE and star != null
@@ -757,9 +803,38 @@ func _step_worlds(o: Vector2) -> void:
 
 ## The palette from the system's own first picture (`SystemView`'s, with the
 ## same reserved steps), once the cloud is in.
+##
+## FOUND FROM THE SKY AT REST (Jon, of an arrival: "the nebula on the left are more
+## backlit by the sun than the ones on the right" -- one arrival's sky set flatter
+## than another's): a palette cut from a frame early in the approach, with the
+## camera still out where the ship flies in from, was a palette of that frame --
+## other gas, the star elsewhere on it -- and the lit rims and the glow's reach
+## at rest fell between its colours (and a palette cut a second later was cut
+## from other gas). So for the two frames it takes, the sky is laid out at rest
+## and at its clock's start, behind a still of what was on screen, and the
+## palette is cut from that: the same palette however and whenever the ship
+## arrives.
 func _build_palette() -> void:
 	_palette_built = true
+	var freeze: TextureRect = null
+	if _box != null:
+		freeze = TextureRect.new()
+		freeze.texture = ImageTexture.create_from_image(_scene.get_texture().get_image())
+		freeze.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		freeze.position = _box.position
+		freeze.scale = Vector2(2, 2)
+		add_child(freeze)
+		_t_saved = t
+		_cam_rest = true
+		_step(0.0)
+		await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
+	if _cam_rest:
+		t = _t_saved
+	_cam_rest = false
+	if freeze != null:
+		freeze.queue_free()
 	if _scene == null or not is_inside_tree():
 		return
 	var img := _scene.get_texture().get_image()
@@ -791,12 +866,19 @@ func _build_palette() -> void:
 		for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
 			extra.append(deep * kq)
 	var pal: PackedVector3Array = SystemPaletteS.build(img, 0, Vector2(origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
-		SystemPaletteS.K_NEBULA if cloud else SystemPaletteS.K, extra, legacy or not cloud,
+		SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
 		not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
 	var arr := PackedVector3Array(pal)
 	arr.resize(72)
 	_palette_mat.set_shader_parameter("pal", arr)
 	_palette_mat.set_shader_parameter("pal_n", mini(72, pal.size()))
+	# (a harness's `palprint`: the palette found, to compare two arrivals)
+	if "palprint" in OS.get_cmdline_user_args():
+		var hx: Array = []
+		for c: Vector3 in pal:
+			hx.append(Color(c.x, c.y, c.z).to_html(false))
+		hx.sort()
+		print("  localsky palette (%d, cam %s): %s" % [pal.size(), cam_follow, ",".join(hx)])
 
 
 # ------------------------------------------------------------------ the weather
@@ -1062,9 +1144,6 @@ func _build_near() -> void:
 	_near_mat.shader = NEAR
 	_near_mat.set_shader_parameter("tex", _near_vp.get_texture())
 	_near_mat.set_shader_parameter("ramp", PLAY)
-	# (a little lower than the sky's: a world this close is the brightest thing
-	# behind the fight)
-	_near_mat.set_shader_parameter("dim", 0.45)
 	rect.material = _near_mat
 	_scene.add_child(rect)
 

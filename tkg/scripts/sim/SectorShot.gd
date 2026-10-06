@@ -188,7 +188,7 @@ func run(tree: SceneTree) -> void:
 			await RenderingServer.frame_post_draw
 		var font := ThemeDB.fallback_font
 		var worst := 0.0
-		for word in ["SCAN SECTOR", "SECTOR LOOT - 12", "DOCK", "SUMMARY",
+		for word in ["SCAN SECTOR", "SUMMARY",
 				"HARVEST", "DECIDE LATER"]:
 			var w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1,
 				UITheme.FS_SMALL).x
@@ -752,20 +752,12 @@ func run(tree: SceneTree) -> void:
 		_snap(tree, "user://sector_combat.png")
 		tree.quit()
 		return
-	var s0 := Router.current as SectorScreen
+	# (`open=` and `take=` are gone with LOCAL's option drawer: a system's
+	# options are taken on the sector map now -- `sheet=SystemShot` photographs
+	# and takes them there)
 	for a2 in OS.get_cmdline_user_args():
-		if (a2 as String).begins_with("open=") and s0 != null:
-			s0._open = int((a2 as String).substr(5))
-			s0._dstate = SectorScreen.Drawer.OPTION
-			s0._refresh()
-			tag += "_open"
-			for i4 in 20:
-				await RenderingServer.frame_post_draw
-		elif (a2 as String).begins_with("take=") and s0 != null:
-			s0._take(n, s0._open, int((a2 as String).substr(5)))
-			tag += "_result"
-			for i5 in 20:
-				await RenderingServer.frame_post_draw
+		if (a2 as String).begins_with("open=") or (a2 as String).begins_with("take="):
+			print("  %s: LOCAL no longer opens options; see sheet=SystemShot" % a2)
 	# EVERY CARD'S STATE. Two cards reading as lit in one frame would mean a
 	# hover entered and never left, and a still frame cannot tell that from the
 	# real cursor happening to rest on the window -- the shot runs windowed.
@@ -782,12 +774,9 @@ func run(tree: SceneTree) -> void:
 	# DID THE REWARD DOOR ACTUALLY GET SOMETHING? `pays_item` puts the button on
 	# the row and `jetsam_left` decides whether it is greyed, and the two
 	# disagreeing would look exactly like a payout that never happened.
-	var scR := Router.current as SectorScreen
 	var nR: MapGen.MapNode = Run.node_at()
-	if scR != null and nR != null:
-		print("  reward door: pays=%s left=%d"
-			% [OptionTable.pays_item(scR._res),
-				Run.jetsam_left(nR, Run.sector_jetsam(nR, false))])
+	if nR != null:
+		print("  sector loot left: %d" % Run.jetsam_left(nR, Run.sector_jetsam(nR, false)))
 	var sc2 := Router.current as SectorScreen
 	if sc2 != null:
 		print("  drawer band: %.0f  hand band: %.0f  (DRAWER_H %d)"

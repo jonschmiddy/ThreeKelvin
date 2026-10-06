@@ -2153,6 +2153,140 @@ func win() -> void:
 	won = true
 	Sig.run_ended.emit(true, "You cross into the light.")
 
+## THE REFIT RULE: the one place a hand moves a part between the hold, the dock
+## and the hardpoints. Every screen a part can be dragged on calls these --
+## `ShipScreen` today, LOCAL's cutaway next -- so a swap means the same thing
+## wherever it is made. (`install_module` above is the simulator's and the
+## salvage dialog's "fit this somewhere": it picks the mount and clears room
+## itself; these take the mount the player chose.)
+##
+## A part held in the hand is OFF the ship while it is carried: `lift_part`
+## takes it out of `installed`, and the caller remembers the mount it came from
+## (`lifted_from`) to hand back to `fit_at_mount`, `stow_at` or `unlift_part`.
+enum Refit { REFUSED, MOVED, FITTED }
+
+
+## Off the ship, into the hand. Returns the mount it came off (-1: not fitted).
+func lift_part(m: ModuleData) -> int:
+	if m == null or not installed.has(m):
+		return -1
+	var was := m.mount
+	installed.erase(m)
+	m.mount = -1
+	Sig.ship_changed.emit()
+	return was
+
+
+## A lifted part that never landed goes back exactly where it was: picking a
+## thing up is not a decision to get rid of it.
+func unlift_part(m: ModuleData, mount: int) -> void:
+	if m == null or installed.has(m) or cargo.has(m):
+		return
+	m.mount = mount
+	installed.append(m)
+	Sig.ship_changed.emit()
+
+
+## `m` dropped on hardpoint `index` of type `slot`. `lifted_from` is the mount it
+## was lifted off (it is in the hand, so not in `installed`), or -1.
+##
+## The mount is a PLACE, so `index` is carried through to the part rather than
+## derived from the order of `installed`.
+func fit_at_mount(m: ModuleData, slot: ModuleData.Slot, index: int, lifted_from: int = -1) -> Refit:
+	# STAYS a ModuleData, and that is the guard. A mount is a hardpoint on the
+	# hull; a crate of ore has no slot to match and no power to draw.
+	if m == null or m.slot != slot:
+		return Refit.REFUSED
+	var resident := module_at(slot, index)
+	if resident == m:
+		return Refit.REFUSED
+	# Two fitted parts trading mounts EXCHANGE places rather than sending one to
+	# the hold -- the mounts are visibly different positions on the ship.
+	#
+	# A lifted part counts as fitted: it is off the ship while you carry it, so
+	# `installed.has(m)` is false for exactly the move this branch exists for.
+	# Without it, sliding a gun from one hardpoint to an occupied one sent the
+	# resident to the hold instead of trading.
+	var lifted := lifted_from >= 0 and not installed.has(m)
+	var was_fitted := installed.has(m) or lifted
+	if resident != null and was_fitted:
+		var there := lifted_from if lifted else m.mount
+		m.mount = index
+		resident.mount = there
+		if lifted:
+			installed.append(m)
+		Sig.ship_changed.emit()
+		log_line("Moved %s." % m.name, &"sys")
+		return Refit.MOVED
+	# The resident has nowhere to go but the hold, and if it will not fit there
+	# the move is refused BEFORE anything has been taken off the ship.
+	# `m` IS LEAVING: it is in the hold this instant and on the hull the next, so
+	# the cells it occupies are exactly where the resident is going. Without
+	# saying so, a full hold refused every swap -- including a part for one the
+	# same size, which is a move that cannot fail.
+	if resident != null and not has_room_for(resident, m):
+		log_line("No room in the hold for %s." % resident.name, &"them")
+		return Refit.REFUSED
+	var was_at := m.hold_at
+	if cargo.has(m):
+		take_from_hold(m)
+	if resident != null:
+		installed.erase(resident)
+		resident.mount = -1
+		if not place_in_hold(resident):
+			# Cannot happen -- has_room_for said yes a moment ago and nothing has
+			# taken cells since. Put everything back rather than trust that.
+			resident.mount = index
+			installed.append(resident)
+			if was_at.x >= 0:
+				place_in_hold(m, was_at)
+			log_line("No room in the hold for %s." % resident.name, &"them")
+			return Refit.REFUSED
+	installed.erase(m)
+	m.mount = index
+	installed.append(m)
+	Sig.ship_changed.emit()
+	log_line("Fitted %s." % m.name, &"good")
+	return Refit.FITTED
+
+
+## A part (or any hold item) dropped onto CELL `at` of the hold: from the hold
+## itself, off the dock (`pad`), or off the ship (fitted, or `lifted` in the hand).
+## False, and nothing moved, when it does not fit there.
+##
+## Separate from `fit_at_mount` because the two answer different questions: a
+## hardpoint asks "does this slot type match"; the hold asks "does this shape fit
+## here", and the cell it fits at is information a mount has no use for.
+func stow_at(m: HoldItem, at: Vector2i, lifted: bool = false) -> bool:
+	if m == null:
+		return false
+	var was_at := m.hold_at
+	# (only a module can be on the ship; asked of a crate, the typed list complains)
+	var from_ship := (m is ModuleData and installed.has(m as ModuleData)) or lifted
+	# OFF THE DOCK IS A THIRD ORIGIN: the item is in `pad`, which is not `cargo`,
+	# so `take_from_hold` would not find it and `place_in_hold` would leave it in
+	# two places at once.
+	var from_pad := pad.has(m)
+	if from_pad:
+		pad.erase(m)
+	elif cargo.has(m):
+		take_from_hold(m)
+	if not place_in_hold(m, at):
+		# A refused drop costs nothing: back on the dock, or back exactly where it
+		# was in the hold (a part off the ship stays in the hand for its caller).
+		if from_pad:
+			pad.append(m)
+		elif not from_ship and was_at.x >= 0:
+			place_in_hold(m, was_at)
+		return false
+	if from_ship and m is ModuleData:
+		installed.erase(m as ModuleData)
+		(m as ModuleData).mount = -1
+		log_line("Stowed %s." % m.name, &"sys")
+	Sig.ship_changed.emit()
+	return true
+
+
 ## TWO BUDGETS, AND A PART HAS TO SATISFY BOTH.
 ##
 ## A mount of the right kind, and reactor capacity to run it. They fail

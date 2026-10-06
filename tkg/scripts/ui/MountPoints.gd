@@ -101,6 +101,36 @@ var hinted: int = 0
 ## Where the pointer is over the hull, or INF. Drives the hover highlight.
 var _hover: Vector2 = Vector2.INF
 
+## THE CUTAWAY (`CutawayView`): every fitted part lifted off its mount along a
+## dotted leader line to a labelled tag, and the empty mounts drawn as rings.
+## `lift` is each part's offset from its mount ("slot:index" -> art px, worked
+## out by the cutaway from the hull's silhouette), `explode` how far along it is
+## (0 on its mount: everywhere else this widget is used, nothing changes), and
+## `tag_side` which side of the part its name goes ("L", "R"). The part is
+## drawn, hit and picked up where it is lifted to, so a drag starts on what you
+## see.
+var lift: Dictionary = {}
+var tag_side: Dictionary = {}
+var explode: float = 0.0
+## Names on the lifted parts, and rings on the empty mounts, once they are out.
+var tags: bool = false
+## A card in the hand is pointed at: its part, lit (the fight's half of the
+## cutaway; ICE ring and a soft wash, pulsing). Null clears it.
+var lit_part: ModuleData = null
+
+
+static func spot_key(slot: int, index: int) -> String:
+	return "%d:%d" % [slot, index]
+
+
+## Where the part on spot `s` is drawn: its mount, or lifted off it.
+func _part_at(s: Dictionary) -> Vector2:
+	# (an empty mount is drawn where it is: its ping and its ring are the mount)
+	if explode <= 0.0 or lift.is_empty() or s.held == null:
+		return s.at
+	var o: Vector2 = lift.get(spot_key(int(s.slot), int(s.index)), Vector2.ZERO)
+	return (s.at as Vector2) + (o * explode * _mag()).round()
+
 func attach(v: ShipView) -> void:
 	_view = v
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -181,7 +211,7 @@ func _process(delta: float) -> void:
 ## pointer on the hull with empty hands puts hints up. One condition, so a third
 ## animation cannot be added and quietly not run.
 func _animating() -> bool:
-	return _lit != null or (not _passive and _hover.x < INF)
+	return _lit != null or lit_part != null or (not _passive and _hover.x < INF)
 
 ## One art pixel, in screen pixels. See ShipView.art_scale.
 ##
@@ -216,8 +246,12 @@ func _draw() -> void:
 	# and two answers at once is one too many.
 	var over := not _passive and _lit == null and _hover.x < INF
 	for spot in _spots:
-		var at: Vector2 = spot.at
+		var at: Vector2 = _part_at(spot)
 		var m: ModuleData = spot.held
+		if m != null and explode > 0.0 and at != (spot.at as Vector2):
+			_leader(spot.at, at, m, spot.slot as ModuleData.Slot, k)
+		if m == null and tags and explode > 0.5 and _lit == null:
+			_empty_ring(spot, k)
 		# WHAT IS THERE, FIRST AND ALWAYS. This used to draw the highlight
 		# INSTEAD of the part and skip to the next mount, so picking up any
 		# weapon blanked every other weapon on the ship for as long as you
@@ -246,6 +280,12 @@ func _draw() -> void:
 			# the silhouette and read as part of it.
 			if m == _focus:
 				draw_rect(r.grow(2.0), UITheme.ICE, false, 1.0)
+			if m == lit_part:
+				var pl := 0.5 + 0.5 * sin(_phase * 3.0)
+				draw_rect(r, Color(UITheme.HOT, 0.18 + 0.15 * pl))
+				draw_rect(r.grow(2.0), UITheme.HOT, false, 1.0)
+			if tags and explode > 0.85:
+				_tag(m, r, spot)
 			continue
 		# AN EMPTY HARDPOINT IS NOT DRAWN AT ALL. A ring on every unfilled
 		# mount put a row of orange circles across a ship that was finished —
@@ -380,6 +420,50 @@ func _fitted(m: ModuleData, slot: ModuleData.Slot, at: Vector2, k: float,
 func spots() -> Array[Dictionary]:
 	return _spots
 
+## THE CUTAWAY'S LEADER: dotted from the mount to where the part was lifted to,
+## with the mount itself a small square.
+func _leader(from: Vector2, at: Vector2, m: ModuleData, slot: ModuleData.Slot, k: float) -> void:
+	var r := part_rect(m, slot, at, k)
+	var to := Vector2(r.position.x + (r.size.y * 0.5 if slot == ModuleData.Slot.WEAPON else r.size.x * 0.5), r.get_center().y)
+	var c := Color(UITheme.HOT, 0.85 * clampf(explode, 0.0, 1.0))
+	var d := to - from
+	var n := int(d.length() / 2.0)
+	for i in range(0, n, 2):
+		var p := (from + d * (float(i) / maxf(float(n), 1.0))).floor()
+		draw_rect(Rect2(p, Vector2.ONE), c)
+	draw_rect(Rect2((from - Vector2(1, 1)).floor(), Vector2(3, 3)), Color(UITheme.HOT, c.a))
+
+
+## Its name beside it, on the side the cutaway chose.
+func _tag(m: ModuleData, r: Rect2, s: Dictionary) -> void:
+	var f := UITheme.pixel_font()
+	var txt := m.name.to_upper()
+	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var a := clampf((explode - 0.85) / 0.15, 0.0, 1.0)
+	var side := String(tag_side.get(spot_key(int(s.slot), int(s.index)), "R"))
+	var y := roundf(r.get_center().y + 3.0)
+	var x := r.end.x + 5.0 if side == "R" else r.position.x - 5.0 - w
+	draw_string(f, Vector2(roundf(x), y), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.ICE, a))
+
+
+## An EMPTY mount in the cutaway: a ring, and what it takes.
+func _empty_ring(s: Dictionary, k: float) -> void:
+	var a := clampf((explode - 0.5) / 0.5, 0.0, 1.0)
+	_ring(s.at, (R + 0.5) * k, Color(UITheme.ICE, 0.9 * a))
+	if explode < 0.85:
+		return
+	var f := UITheme.pixel_font()
+	var txt := "EMPTY " + ModuleData.slot_name(int(s.slot)).to_upper()
+	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	# where the cutaway found room for the words (sprite px off the ring's
+	# centre); no entry, no room: the ring alone
+	var off: Variant = tag_side.get("empty:" + spot_key(int(s.slot), int(s.index)))
+	if not off is Vector2:
+		return
+	var c: Vector2 = s.at + (off as Vector2) * k
+	draw_string(f, Vector2(roundf(c.x - w * 0.5), roundf(c.y + 3.0)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.COLD, a))
+
+
 func _ring(at: Vector2, r: float, col: Color) -> void:
 	draw_arc(at, r, 0.0, TAU, 18, col, maxf(1.0, _mag()))
 
@@ -408,7 +492,7 @@ func part_under(p: Vector2) -> ModuleData:
 		var m: ModuleData = _spots[i].held
 		if m == null:
 			continue
-		if part_rect(m, _spots[i].slot, _spots[i].at, k).grow(2.0).has_point(p):
+		if part_rect(m, _spots[i].slot, _part_at(_spots[i]), k).grow(2.0).has_point(p):
 			return m
 	return null
 
@@ -449,7 +533,7 @@ func spot_at(p: Vector2) -> int:
 	var k := _mag()
 	for i in _spots.size():
 		var m: ModuleData = _spots[i].held
-		if m != null and part_rect(m, _spots[i].slot, _spots[i].at, k).has_point(p):
+		if m != null and part_rect(m, _spots[i].slot, _part_at(_spots[i]), k).has_point(p):
 			return i
 	var best := -1
 	var best_d := (REACH * k) * (REACH * k)
@@ -484,7 +568,7 @@ func _get_drag_data(at: Vector2) -> Variant:
 	# gun you just grabbed rather than appearing centred on the pointer.
 	set_drag_preview(ModuleIcon.ghost_for(m, &"hull",
 		get_global_rect().position
-		+ part_rect(m, _spots[i].slot, _spots[i].at, _mag()).position))
+		+ part_rect(m, _spots[i].slot, _part_at(_spots[i]), _mag()).position))
 	# OFF THE SHIP THE MOMENT IT IS IN YOUR HAND. Carrying a part while the
 	# ship still wore it meant the mount you were dragging OUT of stayed full,
 	# so it did not ping, and moving a gun one hardpoint along was a fight with

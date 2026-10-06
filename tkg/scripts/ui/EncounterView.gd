@@ -60,6 +60,8 @@ var _tint: Color = Color("#16202c")
 ## What is actually out there: the system this is, seen side on, in the
 ## rendering style (`LocalSky`). Behind everything, including the gas.
 var backdrop: LocalSky
+## Dust drifting between the camera and the fight (`LocalDust`).
+var dust: LocalDust
 ## Tracers, sparks and debris. Added last so it draws over the ship and the
 ## enemies, and ignores the mouse so it can never eat a card drop.
 var fx: CombatFx
@@ -143,6 +145,14 @@ func _ready() -> void:
 	weather.visible = false
 	add_child(weather)
 	move_child(weather, 1)
+
+	# THE NEAREST LAYER: dust in front of the ships, kept off them and off the
+	# shots' band (`LocalDust`); under the shots themselves
+	dust = LocalDust.new()
+	dust.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dust.sky = backdrop
+	dust.view = self
+	add_child(dust)
 
 	fx = CombatFx.new()
 	fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

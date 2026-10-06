@@ -181,9 +181,18 @@ func _fly() -> void:
 	# then commit to, which is the whole point of the change and the reason a
 	# party can be at the boss together at all. So this presses ENGAGE, which is
 	# what `SectorScreen._on_action` does with the button the player sees.
+	await _tree.process_frame
 	if _boss:
-		await _tree.process_frame
 		Router.engage_here()
+	else:
+		# NO SYSTEM HOLDS A FIGHT ON ARRIVAL ANY MORE: its hostiles are an option
+		# you choose, and waiting for one to open by itself waited forever. So
+		# this opens the fight that option would, the same template on both
+		# machines (picked by the node, not by either ship's stream), shared and
+		# clearing the node as the old fight node did, which is what the bag and the
+		# consumed-system checks below were written against.
+		var pool := DB.fight_pool(Run.node_at().danger, false)
+		Router.start_combat(DB.enemies[pool[_at % pool.size()]], [], true, true)
 
 	var started := await _until(func() -> bool:
 		return Router.combat != null, 10.0)
