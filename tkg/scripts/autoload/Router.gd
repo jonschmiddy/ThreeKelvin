@@ -235,7 +235,11 @@ func _room_for(screen: Control) -> Variant:
 		return &"amb_station"
 	if screen is SectorScreen or screen is SystemMapScreen:
 		return _star_room()
-	if screen is ShipScreen or screen is CardGalleryScreen \
+	# (the refit page, reached only by the harnesses now, sounds like where your
+	# ship is: the berth or the system)
+	if screen is ShipScreen:
+		return &"amb_station" if docked else _star_room()
+	if screen is CardGalleryScreen \
 			or screen is ModuleGalleryScreen or screen is TransferScreen \
 			or screen is StarchartScreen or screen is ArchiveScreen \
 			or screen is HistoryScreen:
@@ -390,7 +394,7 @@ func show_party() -> void:
 	var here := current
 	var s := PartyScreen.new()
 	_swap(s)
-	s.setup(show_ship if here is ShipScreen else (
+	s.setup((show_station if docked else show_local) if here is ShipScreen else (
 		show_starchart if here is StarchartScreen else show_sector))
 
 ## Somebody else's paperwork. `from_launcher` sends LEAVE back to the title
@@ -548,7 +552,8 @@ func show_modules() -> void:
 ## screen that always exists mid-run.
 func back_to(here: Control) -> Callable:
 	if here is ShipScreen:
-		return show_ship
+		# (the refit page has no tab now: back to where your ship is)
+		return show_station if docked else show_local
 	if here is StarchartScreen:
 		return show_starchart
 	if here is StationScreen:

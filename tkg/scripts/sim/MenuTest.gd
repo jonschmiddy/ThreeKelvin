@@ -58,6 +58,10 @@ func run(tree: SceneTree) -> void:
 			await _drawer_case()
 			print("the rendering style")
 			await _style_case()
+			print("graphics LOW")
+			await _graphics_case()
+			print("SAVE MY LOGS")
+			await _logs_case()
 	DisplaySettings.reduced_motion = was_reduced
 	DisplaySettings.skip_jump = was_skip
 	Router.animate_in_harness = false
@@ -177,6 +181,94 @@ func _style_case() -> void:
 	else:
 		_ok("  Settings builds no STYLE row with one style built", row == null)
 	panel.queue_free()
+	await _tree.process_frame
+
+
+## GRAPHICS LOW from Settings (`DisplaySettings.set_graphics_low`): the row is
+## there beside STYLE, a press keeps it (written to a scratch settings file,
+## never the player's), the sky is told to rebuild, and turning it on lets
+## RADIANT's safety try again.
+func _graphics_case() -> void:
+	const SCRATCH := "user://gfxtest_settings.cfg"
+	var was_path := DisplaySettings.path
+	var was_low := DisplaySettings.graphics_low
+	var was_fell := ChartRadiant.fell_back
+	DisplaySettings.path = SCRATCH
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	var row := first(panel, func(n: Node) -> bool:
+		return n is Label and (n as Label).text == "GRAPHICS")
+	_ok("  Settings shows a GRAPHICS row", row != null)
+	var low_chip := first(panel, func(n: Node) -> bool:
+		return n is DrawerPlate and (n as DrawerPlate).title == "LOW") as DrawerPlate
+	_ok("  with a LOW chip that says what it does", low_chip != null and low_chip.tooltip_text != "")
+	var heard := [0]
+	var on_change := func() -> void: heard[0] += 1
+	Sig.render_style_changed.connect(on_change)
+	DisplaySettings.graphics_low = false
+	ChartRadiant.fell_back = true
+	if low_chip != null:
+		low_chip.pressed.emit()
+	await _tree.process_frame
+	Sig.render_style_changed.disconnect(on_change)
+	var saved := ConfigFile.new()
+	_ok("  pressing LOW turns it on", DisplaySettings.graphics_low)
+	_ok("  and keeps it, in the scratch file", saved.load(SCRATCH) == OK
+		and bool(saved.get_value("display", "graphics_low", false)))
+	_ok("  and the sky is told to rebuild", heard[0] >= 1)
+	_ok("  and RADIANT's safety may try again on LOW", not ChartRadiant.fell_back)
+	panel.queue_free()
+	await _tree.process_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.graphics_low = was_low
+	ChartRadiant.fell_back = was_fell
+
+
+## SAVE MY LOGS (`PlaytestLogs`): the button is in Settings, and the zip it
+## writes holds the named files and nothing else -- written to a scratch folder,
+## not the Desktop, with a scratch settings file; then removed.
+func _logs_case() -> void:
+	const SCRATCH := "user://logstest_settings.cfg"
+	var was_path := DisplaySettings.path
+	DisplaySettings.path = SCRATCH
+	DisplaySettings.save()
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	_ok("  Settings has SAVE MY LOGS", _plate(panel, "SAVE MY LOGS") != null)
+	panel.queue_free()
+	var dest := ProjectSettings.globalize_path("user://logstest")
+	PlaytestLogs.dest_override = dest
+	var r := PlaytestLogs.save_bundle()
+	PlaytestLogs.dest_override = ""
+	if _ok("  it writes a zip", r.get("ok", false) and FileAccess.file_exists(String(r.path))):
+		var zr := ZIPReader.new()
+		zr.open(String(r.path))
+		var names := zr.get_files()
+		var allowed := ["settings.cfg", "run.save", "history.json", "build.txt"]
+		var stray := []
+		for n in names:
+			# (the logs folder's own entry, which the packer writes for a nested name)
+			if not (n in allowed or n == "logs/" or (n.begins_with("logs/") and n.ends_with(".log"))):
+				stray.append(n)
+		_ok("  holding godot.log, the settings and the build", "logs/godot.log" in names
+			and "settings.cfg" in names and "build.txt" in names)
+		_ok("  and nothing else (%s)" % ", ".join(names), stray.is_empty())
+		var log := zr.read_file("logs/godot.log").get_string_from_utf8()
+		var home := OS.get_environment("USERPROFILE")
+		if home == "":
+			home = OS.get_environment("HOME")
+		_ok("  with the home folder taken out of the log", home == "" or not log.contains(home.replace("\\", "/")))
+		_ok("  and the build named", zr.read_file("build.txt").get_string_from_utf8().begins_with("Three Kelvin"))
+		zr.close()
+		DirAccess.remove_absolute(String(r.path))
+	DirAccess.remove_absolute(dest)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
 	await _tree.process_frame
 
 

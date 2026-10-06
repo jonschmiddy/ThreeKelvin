@@ -80,7 +80,13 @@ extends Node
 ##    break. The `&""` defaults exist so a malformed build cannot take the
 ##    sector screen down; here they turned a loud failure into a quiet wrong
 ##    one, which is the trade they make and the reason the number matters.
-const PROTOCOL: int = 8
+## 9: the hello carries the BUILD (`BuildInfo.stamp()`: version and commit, or
+##    "dev" from source), and two exported builds that differ refuse each other
+##    by name -- "Your friend is on build X; you're on Y." A code-only change
+##    between two builds (combat, flight, UI) left the protocol and the content
+##    tables alone, so they connected silently and disagreed later. A version 8
+##    partner sends a hello one argument short, which this one cannot read.
+const PROTOCOL: int = 9
 
 ## How long a contested option waits for the host to say who got it.
 ##
@@ -130,6 +136,8 @@ var _handshake_deadline: float = 0.0
 ## minutes into a dive. Never set from game code.
 var forced_protocol: int = 0
 var forced_fingerprint: int = 0
+## And which build this session claims to be (`-- nettest`); empty is the real one.
+var forced_build: String = ""
 
 ## Arrival order, kept by the host. Peer ids are random 32-bit numbers, not a
 ## count, so sorting a roster by id shuffles the party every time somebody
@@ -373,6 +381,11 @@ func everyone_ready() -> bool:
 	return true
 
 
+## Which build this session is (`BuildInfo.stamp()`), as the handshake says it.
+func local_build() -> String:
+	return forced_build if forced_build != "" else BuildInfo.stamp()
+
+
 func last_error() -> String:
 	return _error
 
@@ -496,12 +509,21 @@ func _process(_delta: float) -> void:
 # away before it has been told anything about the party.
 
 @rpc("any_peer", "call_remote", "reliable")
-func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: StringName) -> void:
+func _hello(protocol: int, fingerprint: int, player_name: String, hull_id: StringName, build: String) -> void:
 	if not is_host():
 		return
 	var who := multiplayer.get_remote_sender_id()
 	if protocol != PROTOCOL:
 		_turn_away(who, "Different game version. Host is protocol %d, you are %d." % [PROTOCOL, protocol])
+		return
+	# THE BUILD, before the content: two exports from different commits are the
+	# common case, and the content hash would only say "does not match". Only
+	# between two STAMPED builds -- a run from source says "dev" and is
+	# whatever commit its checkout is, so it is judged by protocol and content
+	# alone (Jon hosting from source for a friend on the export still works).
+	var mine := local_build()
+	if build != mine and build != "dev" and mine != "dev":
+		_turn_away(who, "Your friend is on build %s; you're on %s. Both need the same build." % [mine, build])
 		return
 	if fingerprint != _content_hash:
 		_turn_away(who, "Your content does not match the host's. Compare builds or mods.")
@@ -671,7 +693,7 @@ func _say_hello() -> void:
 		return
 	_said_hello = true
 	var speak := forced_protocol if forced_protocol != 0 else PROTOCOL
-	_hello.rpc_id(1, speak, _content_hash, _local_name, _local_hull)
+	_hello.rpc_id(1, speak, _content_hash, _local_name, _local_hull, local_build())
 
 
 func _on_connect_failed() -> void:

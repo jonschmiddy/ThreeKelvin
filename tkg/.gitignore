@@ -2,7 +2,8 @@
 .godot/
 .import/
 export.cfg
-export_presets.cfg
+# export_presets.cfg is committed: it holds no secrets (Godot keeps signing
+# passwords in .godot/export_credentials.cfg). See tools/export.sh.
 *.translation
 
 # Builds
@@ -43,3 +44,6 @@ audio/listener-env/
 audio/MOSS-Music/
 audio/musicgen-mlx/
 audio/musicgen-env/
+
+# Written by tools/export.sh for the length of an export, never committed
+build.json

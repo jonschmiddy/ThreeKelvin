@@ -808,7 +808,14 @@ const RENAME_W := 356
 func _open_rename() -> void:
 	if Run.hull == null or _rename != null:
 		return
+	_rename = rename_prompt(self, func() -> void:
+		_rename = null
+		_refresh())
 
+
+## THE PROMPT, over `host`, shared with LOCAL's cutaway (its pencil by the name).
+## `closed` is called once it has gone, set or cancelled. Returns the shade.
+static func rename_prompt(host: Control, closed: Callable) -> Control:
 	# The shade eats input, so the screen underneath cannot be clicked through,
 	# and a click on the dim margin closes -- the same dismissal every other
 	# prompt in the game uses.
@@ -816,12 +823,15 @@ func _open_rename() -> void:
 	shade.color = Color(0.02, 0.03, 0.05, 0.80)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	var close := func() -> void:
+		if is_instance_valid(shade):
+			shade.queue_free()
+		closed.call()
 	shade.gui_input.connect(func(e: InputEvent) -> void:
 		var mb := e as InputEventMouseButton
 		if mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			_close_rename())
-	add_child(shade)
-	_rename = shade
+			close.call())
+	host.add_child(shade)
 
 	var mid := CenterContainer.new()
 	mid.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -854,8 +864,8 @@ func _open_rename() -> void:
 		# masthead shows a blank line where a word should be and nothing on the
 		# screen says why.
 		Run.ship_name = field.text.strip_edges()
-		_close_rename()
-		_refresh()
+		Sig.ship_changed.emit()
+		close.call()
 	# ENTER SETS IT. The field is the only thing focused when this opens, so the
 	# key you would reach for has to be wired to the button you would click.
 	field.text_submitted.connect(func(_t: String) -> void: commit.call())
@@ -865,7 +875,7 @@ func _open_rename() -> void:
 	row.add_child(Widgets.button("SET", commit))
 	# The quiet half of the pair, in the ink the title screen leaves its
 	# back-out options in.
-	var cancel := Widgets.button("CANCEL", _close_rename)
+	var cancel := Widgets.button("CANCEL", close)
 	cancel.add_theme_color_override("font_color", UITheme.LEAVE)
 	cancel.add_theme_color_override("font_hover_color", UITheme.LEAVE.lightened(0.3))
 	cancel.add_theme_color_override("font_focus_color", UITheme.LEAVE)
@@ -878,6 +888,7 @@ func _open_rename() -> void:
 	card.mouse_filter = Control.MOUSE_FILTER_STOP
 	mid.add_child(card)
 	field.grab_focus()
+	return shade
 
 
 func _close_rename() -> void:
@@ -894,6 +905,82 @@ func _close_rename() -> void:
 ## box itself resizing: the box changes width whenever the perks change, and a
 ## right-aligned thing whose width moved has to be repositioned or it drifts
 ## off the edge.
+## THE HULL'S PERKS AND THE SET BONUSES THAT ARE LIVE, into `box` (cleared
+## first): a row of set chips, each its own hover, then the perks by name, one
+## tooltip for the lot (`PerkBox`). Shared with LOCAL's cutaway, whose left panel
+## shows the same; `right` aligns them to the right, as this screen's corner does;
+## `inline` runs the perks' names on as one wrapped line (the cutaway's narrow
+## panel) rather than one to a line.
+static func fill_perks(box: Control, right: bool, inline: bool = false) -> void:
+	Widgets.clear(box)
+	# --- WHAT YOU HAVE BECOME, above what the hull came with.
+	#
+	# The two belong in one corner because they are the same kind of fact:
+	# always-on effects you did not spend a card on. They are not the same
+	# ORIGIN, though -- a perk came with the frame and a set bonus was
+	# assembled -- so the chips read as marks and the perks as words.
+	#
+	# A set-bonus LADDER used to live on this screen and was removed on
+	# request; this is deliberately not that. The ladder showed how close a
+	# mixed loadout was to a bonus it did not have yet. These say only what
+	# is applying right now, which is the half nothing on this screen said.
+	var live := HBoxContainer.new()
+	live.add_theme_constant_override("separation", 3)
+	live.size_flags_horizontal = Control.SIZE_SHRINK_END if right else Control.SIZE_SHRINK_BEGIN
+	for mid in DB.manufacturers:
+		var have := Run.manufacturer_count(mid)
+		# ONE TOWARD THE SET IS ENOUGH TO APPEAR, and the hull counts as
+		# one. `manufacturer_count` includes it deliberately -- choosing a
+		# chassis is a build decision, and a Korvan frame really does put you
+		# one part from Standard Issue. (Briefly gated on FITTED parts instead,
+		# which made the chip disagree with the number the game uses; the count
+		# below names the hull's share instead of hiding it.)
+		var parts := 0
+		for inst in Run.installed:
+			if inst.manufacturer == mid:
+				parts += 1
+		if have < 1:
+			continue
+		var mk: ManufacturerData = DB.manufacturers[mid]
+		var chip := HudBar.SetChip.new()
+		chip.manufacturer = mid
+		chip.mark = mk.colour
+		chip.field = mk.field
+		# ITS OWN HOVER, unlike the perk labels beside it: a chip is one fact and
+		# has room to state itself -- `setup` gives it that, panel and all.
+		chip.mouse_filter = Control.MOUSE_FILTER_STOP
+		chip.setup(have, parts)
+		live.add_child(chip)
+	if live.get_child_count() > 0:
+		box.add_child(live)
+	var names: Array[String] = []
+	for pid in Run.hull.perks():
+		var pd: Dictionary = DB.hull_perks.get(pid, {})
+		if not pd.is_empty():
+			names.append(str(pd.name).to_upper())
+	if inline and not names.is_empty():
+		var one := UITheme.body(" · ".join(names), UITheme.EMBER, UITheme.FS_SMALL)
+		one.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		one.custom_minimum_size.x = 160
+		one.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(one)
+		names.clear()
+	for nm in names:
+		var lab := UITheme.body(nm, UITheme.EMBER,
+			UITheme.FS_SMALL)
+		lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
+		# IGNORE, so the hover falls through to the BOX: one tooltip for the whole
+		# corner, grouped by origin, rather than four hovers to read four perks.
+		lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(lab)
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	# THE TRIGGER, not the content. Godot only asks for a tooltip when this is
+	# non-empty, and PerkBox._make_custom_tooltip replaces it with a panel --
+	# but the full text is set so a failure to build the panel degrades to
+	# something readable instead of one word.
+	box.tooltip_text = Widgets.tip(Widgets.perk_tip(Run.hull))
+
+
 func _place_perks() -> void:
 	if _perkbox == null or _panel == null:
 		return
@@ -1030,18 +1117,29 @@ func _on_clip_input(event: InputEvent) -> void:
 func _flip_pointed() -> bool:
 	if _mountpts == null:
 		return false
-	var m := _mountpts.part_under(_mountpts.get_local_mouse_position())
+	return flip_at(_mountpts, _mountpts.get_local_mouse_position())
+
+
+## F, shared with LOCAL's cutaway: the fitted part at `at` (the mounts' own
+## coordinates) mirrored. Whether there was one.
+static func flip_at(mounts: MountPoints, at: Vector2) -> bool:
+	var m := mounts.part_under(at)
 	if m == null:
 		return false
 	m.flipped = not m.flipped
 	# F on a mounted part is the same gesture as R in the hold, so it makes
 	# the same sound (Jon asked).
 	Audio.play(&"hold_turn", 0.10)
-	_mountpts.refresh()
+	mounts.refresh()
 	return true
 
 func _turn_carried() -> bool:
-	var d: Variant = get_viewport().gui_get_drag_data()
+	return turn_carried(get_viewport())
+
+
+## R on the thing in the hand, shared with LOCAL's cutaway.
+static func turn_carried(vp: Viewport) -> bool:
+	var d: Variant = vp.gui_get_drag_data()
 	if typeof(d) != TYPE_DICTIONARY or not (d as Dictionary).has("module"):
 		return false
 	# A HoldItem, not a ModuleData. Turning is a packing move and a crate needs
@@ -1075,7 +1173,12 @@ func _turn_carried() -> bool:
 func _turn_in_hold(at: Vector2) -> bool:
 	if _storage == null:
 		return false
-	var icon := _storage.icon_at(at)
+	return turn_in_hold(_storage, at)
+
+
+## R on a part sitting in a hold grid, shared with LOCAL's cutaway: see above.
+static func turn_in_hold(grid: HoldGrid, at: Vector2) -> bool:
+	var icon := grid.icon_at(at)
 	if icon == null or icon.module == null:
 		return false
 	var m := icon.module
@@ -1092,8 +1195,8 @@ func _turn_in_hold(at: Vector2) -> bool:
 		Run.log_line("No room to turn %s." % m.name, &"them")
 		return true
 	Audio.play(&"hold_turn", 0.10)
-	_storage.refresh()
-	var now := _storage.icon_at(at)
+	grid.refresh()
+	var now := grid.icon_at(at)
 	if now != null:
 		now.spin()
 	return true
@@ -1143,75 +1246,7 @@ func _refresh() -> void:
 	# third Korvan part has to light the 3+ row the moment it lands.
 	# THE HULL'S OWN PERKS, manufacturer first then the grade's, in the corner.
 	if _perkbox != null:
-		Widgets.clear(_perkbox)
-		# --- WHAT YOU HAVE BECOME, above what the hull came with.
-		#
-		# The two belong in one corner because they are the same kind of fact:
-		# always-on effects you did not spend a card on. They are not the same
-		# ORIGIN, though -- a perk came with the frame and a set bonus was
-		# assembled -- so the chips read as marks and the perks as words.
-		#
-		# A set-bonus LADDER used to live on this screen and was removed on
-		# request; this is deliberately not that. The ladder showed how close a
-		# mixed loadout was to a bonus it did not have yet. These say only what
-		# is applying right now, which is the half nothing on this screen said.
-		var live := HBoxContainer.new()
-		live.add_theme_constant_override("separation", 3)
-		live.size_flags_horizontal = Control.SIZE_SHRINK_END
-		for mid in DB.manufacturers:
-			var have := Run.manufacturer_count(mid)
-			# ONE TOWARD THE SET IS ENOUGH TO APPEAR, and the hull counts as
-			# one. `manufacturer_count` includes it deliberately -- choosing a
-			# chassis is a build decision, and a Korvan frame really does put you
-			# one part from Standard Issue.
-			#
-			# This was briefly gated on FITTED parts instead, so a bare hull flew
-			# no mark. That made the chip disagree with the number the game
-			# actually uses, which is worse than the confusion it was meant to
-			# fix: a player on an empty Korvan hull IS one toward the set and
-			# should be able to see it. What was missing was never the chip, it
-			# was anything saying where the one came from -- so the count below
-			# names the hull's share instead of hiding it.
-			var parts := 0
-			for inst in Run.installed:
-				if inst.manufacturer == mid:
-					parts += 1
-			if have < 1:
-				continue
-			var mk: ManufacturerData = DB.manufacturers[mid]
-			var chip := HudBar.SetChip.new()
-			chip.manufacturer = mid
-			chip.mark = mk.colour
-			chip.field = mk.field
-			# ITS OWN HOVER, unlike the perk labels beside it. The perks share
-			# one tooltip because four names with no effects are unreadable
-			# apart; a chip is one fact and has room to state itself -- and
-			# `setup` is what gives it that, panel and all.
-			chip.mouse_filter = Control.MOUSE_FILTER_STOP
-			chip.setup(have, parts)
-			live.add_child(chip)
-		if live.get_child_count() > 0:
-			_perkbox.add_child(live)
-		for pid in Run.hull.perks():
-			var pd: Dictionary = DB.hull_perks.get(pid, {})
-			if pd.is_empty():
-				continue
-			var lab := UITheme.body(str(pd.name).to_upper(), UITheme.EMBER,
-				UITheme.FS_SMALL)
-			lab.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-			# IGNORE, so the hover falls through to the BOX. Each label used to
-			# carry its own tooltip, which meant four hovers to read four perks
-			# and no way to see them as one list -- and nothing on screen said
-			# which came from the manufacturer and which from the grade.
-			lab.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			_perkbox.add_child(lab)
-		# ONE TOOLTIP FOR THE WHOLE CORNER, grouped by origin.
-		_perkbox.mouse_filter = Control.MOUSE_FILTER_STOP
-		# THE TRIGGER, not the content. Godot only asks for a tooltip when this is
-		# non-empty, and PerkBox._make_custom_tooltip replaces it with a panel --
-		# but the full text is set rather than a placeholder so that a failure to
-		# build the panel degrades to something readable instead of one word.
-		_perkbox.tooltip_text = Widgets.tip(Widgets.perk_tip(Run.hull))
+		fill_perks(_perkbox, true)
 		_place_perks.call_deferred()
 
 	# --- the hardpoints are ON THE SHIP now, drawn over the view on the left.

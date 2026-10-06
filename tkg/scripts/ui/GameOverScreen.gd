@@ -44,7 +44,20 @@ func setup() -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(Widgets.button("NEW RUN", func(): Router.new_run()))
+	# SAVE MY LOGS, beside it: the end of a run is when a friend has something
+	# to send (`PlaytestLogs`). Says where the zip went, under the buttons.
+	var said := UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	said.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(Widgets.button("SAVE MY LOGS", func() -> void:
+		var r := PlaytestLogs.save_bundle()
+		if r.get("ok", false):
+			said.text = "Saved to your %s: %s. Drag it into the chat." % [r.where, String(r.path).get_file()]
+			PlaytestLogs.show_in_folder(String(r.path))
+		else:
+			said.text = String(r.error)))
 	box.add_child(row)
+	box.add_child(said)
 	# Its own panel rather than `panel_with`, whose 12 px all round was written
 	# for panels with a list in them.
 	var panel := PanelContainer.new()

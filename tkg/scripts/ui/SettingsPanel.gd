@@ -30,6 +30,8 @@ var _scroll: ScrollContainer
 ## CONTROLS, the key bindings. Last, because it is the longest section and the
 ## one visited least; `show_keys` scrolls to it.
 var keys_page: KeyBindings
+## What SAVE MY LOGS last did here (`PlaytestLogs.save_bundle`), for the line under it.
+var _last_logs: Dictionary = {}
 
 func _init() -> void:
 	add_theme_constant_override("separation", 6)
@@ -81,7 +83,31 @@ func _refresh() -> void:
 	_body.add_child(_gap(8))
 	_page_sound()
 	_body.add_child(_gap(8))
+	_page_playtest()
+	_body.add_child(_gap(8))
 	_page_keys()
+
+## PLAYTEST: SAVE MY LOGS (`PlaytestLogs`). One zip of this game's logs,
+## settings, suspended run and flight record, to the Desktop; then where it went
+## and a way to open that folder. Nothing is sent anywhere.
+func _page_playtest() -> void:
+	_body.add_child(Section.new(&"save", "PLAYTEST"))
+	_body.add_child(DrawerPlate.plate(&"save", "SAVE MY LOGS", "ONE ZIP, TO YOUR DESKTOP",
+		func() -> void:
+			_last_logs = PlaytestLogs.save_bundle()
+			if _last_logs.get("ok", false):
+				PlaytestLogs.show_in_folder(String(_last_logs.path))
+			_refresh()))
+	if not _last_logs.is_empty():
+		var said := ("Saved to your %s: %s. Drag it into the chat." % [_last_logs.where, String(_last_logs.path).get_file()]) 			if _last_logs.get("ok", false) else String(_last_logs.error)
+		var l := UITheme.body(said, UITheme.CHILL, UITheme.FS_SMALL)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_body.add_child(l)
+		if _last_logs.get("ok", false):
+			var srow := _chips()
+			srow.add_child(DrawerPlate.chip_for("SHOW IN FOLDER", false,
+				func() -> void: PlaytestLogs.show_in_folder(String(_last_logs.path))))
+			_body.add_child(srow)
 
 ## CONTROLS: every key a player can move. The rows are their own widget
 ## (KeyBindings) because a key changing rebuilds only them.
@@ -211,6 +237,29 @@ func _page_look() -> void:
 			strow.add_child(sb)
 		_body.add_child(strow)
 		_body.add_child(_gap(2))
+
+	# GRAPHICS, beside STYLE because it is the other half of how heavy the sky
+	# is: LOW is every style's cheaper path, applied at once and kept.
+	var gfx := HBoxContainer.new()
+	var gk := UITheme.body("GRAPHICS", UITheme.COLD, UITheme.FS_SMALL)
+	gk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gk.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	gfx.add_child(gk)
+	var gchips := _chips()
+	gchips.custom_minimum_size = Vector2(96, 0)
+	gchips.size_flags_horizontal = Control.SIZE_SHRINK_END
+	for low in [false, true]:
+		var gb := DrawerPlate.chip_for("LOW" if low else "HIGH", DisplaySettings.graphics_low == low,
+			func() -> void:
+				DisplaySettings.set_graphics_low(low)
+				_refresh())
+		gb.tooltip_text = Widgets.tip(
+			"A lighter sky in every style, for laptops and integrated graphics. The look stays; the gas moves a little less." if low
+			else "The full sky. RADIANT drops to SIMPLIFIED by itself if the machine can't keep up; try LOW first.")
+		gchips.add_child(gb)
+	gfx.add_child(gchips)
+	_body.add_child(gfx)
+	_body.add_child(_gap(2))
 
 	_body.add_child(_line("COLORBLINDNESS", DisplaySettings.colour_help_name(DisplaySettings.colour_help)))
 	var crow := _chips()

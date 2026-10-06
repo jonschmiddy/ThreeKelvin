@@ -115,15 +115,14 @@ func run(tree: SceneTree) -> void:
 	_ok("and the popup stops drawing it (%d), and says so" % _icons(_cut._pop_grid),
 		_icons(_cut._pop_grid) == 0 and _cut._pop_empty.visible)
 
-	# 6. a wreck's bay, as the click on the wreck opens it: a gun straight onto
-	# an empty mount
-	var wreck := Run.new_wreck(_node, DB.enemies[&"cutter"])
+	# 6. the pile again, with a gun in it: straight onto an empty mount
+	var wreck := pile
 	var prize := _module_of(w)
 	wreck.items.append(prize)
 	wreck.items.append(MaterialData.of(MaterialTable.all()[1]))
-	_cut.open_popup(wreck, Rect2(700, 120, 120, 60))
+	_cut.open_popup(wreck, BAR_BUTTON)
 	await _settle()
-	_ok("a wreck's bay opens in the popup, one popup at a time (%d drawn)" % _icons(_cut._pop_grid),
+	_ok("the pile opens in the popup, one popup at a time (%d drawn)" % _icons(_cut._pop_grid),
 		_cut._pop_jetsam == wreck and _icons(_cut._pop_grid) == 2 and _popups() == 1)
 	var empty := -1
 	for i in Run.slots_for(w):
@@ -133,15 +132,15 @@ func run(tree: SceneTree) -> void:
 	if empty >= 0:
 		await _cut._on_mount_drop({module = prize, origin = &"bag"}, w, empty)
 		await _settle()
-		_ok("a wreck's part dropped on an empty mount is fitted", Run.module_at(w, empty) == prize)
-		_ok("and claimed out of the wreck", Run.jetsam_left(_node, wreck) == 1)
+		_ok("a part from the pile dropped on an empty mount is fitted", Run.module_at(w, empty) == prize)
+		_ok("and claimed out of the pile", Run.jetsam_left(_node, wreck) == 1)
 
 	# 7. TAKE ALL
 	_cut._pop_take.pressed.emit()
 	for i in 4:
 		await _tree.process_frame
-	_ok("TAKE ALL empties the wreck into the hold", Run.jetsam_left(_node, wreck) == 0)
-	_ok("and the bay is drawn empty (%d)" % _icons(_cut._pop_grid), _icons(_cut._pop_grid) == 0)
+	_ok("TAKE ALL empties the pile into the hold", Run.jetsam_left(_node, wreck) == 0)
+	_ok("and the popup is drawn empty (%d)" % _icons(_cut._pop_grid), _icons(_cut._pop_grid) == 0)
 
 	# 7b. Esc shuts the popup first, then the cutaway
 	var esc := InputEventKey.new()
@@ -154,7 +153,7 @@ func run(tree: SceneTree) -> void:
 	# 7c. CLICKS: on the sky with a popup open, the popup alone shuts; on a tag
 	# or an empty mount's ring, nothing; a drag let go of over the sky puts the
 	# part back and shuts nothing
-	_cut.open_popup(wreck, Rect2(700, 120, 120, 60))
+	_cut.open_popup(wreck, BAR_BUTTON)
 	await _settle()
 	_cut._sky_click(_cut.get_global_rect().position + Vector2(_cut.size.x - 6, 6))
 	await _settle()
@@ -211,6 +210,38 @@ func run(tree: SceneTree) -> void:
 		_ok("a full hold refuses the swap and nothing moves",
 			Run.installed == before_fit and Run.cargo == before_hold and Run.module_at(w, rm) == resident)
 
+	# 8b. R TURNS A PART IN THE HOLD, F FLIPS ONE ON THE HULL (the refit
+	# screen's own calls), and the pencil opens the refit screen's own prompt
+	Run.cargo.clear()
+	var long := _module_of(w, Vector2i(2, 1))
+	if long == null:
+		long = _module_of(w, Vector2i(3, 1))
+	if long != null and Run.place_in_hold(long):
+		_cut._refresh()
+		await _settle()
+		var ic := _icon_for(_cut._hold, long)
+		var was_turned := long.turned
+		if ic != null:
+			ShipScreen.turn_in_hold(_cut._hold, ic.get_global_rect().get_center())
+		_ok("R turns a part in the cutaway's hold (%s)" % long.name, long.turned != was_turned and Run.cargo.has(long))
+	var fitted := Run.installed[0]
+	var was_flipped := fitted.flipped
+	for sp in _cut._mounts.spots():
+		if sp.held == fitted:
+			var pr := _cut._mounts.part_rect(fitted, sp.slot, _cut._mounts._part_at(sp), _cut._mounts._mag())
+			ShipScreen.flip_at(_cut._mounts, pr.get_center())
+	_ok("F mirrors a part on the cutaway's hull", fitted.flipped != was_flipped)
+	fitted.flipped = was_flipped
+	_cut.open_rename()
+	await _settle()
+	_ok("the pencil opens the refit screen's rename prompt over the cutaway", _cut._rename != null and is_instance_valid(_cut._rename))
+	var esc2 := InputEventKey.new()
+	esc2.keycode = KEY_ESCAPE
+	esc2.pressed = true
+	_cut._input(esc2)
+	await _settle()
+	_ok("Esc shuts the prompt and leaves the cutaway open", _cut._rename == null and _cut.is_open())
+
 	# 9. closing puts nothing in limbo
 	var n_before := Run.installed.size() + Run.cargo.size()
 	_cut._on_lift(Run.installed[0])
@@ -223,6 +254,19 @@ func run(tree: SceneTree) -> void:
 
 	# 10. the picture itself, on every hull
 	await _check_layouts()
+	# 11. the real LOCAL: a wreck in the sky behind is not opened from in here,
+	# and outside it opens its own screen; in a fight your ship is a dead button
+	await _check_local()
+	# 12. the MODULES page still builds its own popup through the one builder
+	var gm := _module_of(ModuleData.Slot.WEAPON)
+	var gi := ModuleIcon.new()
+	gi.setup(gm, &"gallery")
+	var gt := gi._make_custom_tooltip("") as Control
+	_ok("the MODULES page's icon builds its popup with ModuleIcon.tip_for",
+		gt != null and gt.has_meta(&"module") and gt.get_meta(&"module") == gm)
+	if gt != null:
+		gt.free()
+	gi.free()
 	_finish()
 
 
@@ -244,11 +288,13 @@ func _popups() -> int:
 ##  - the left panel (the ship's numbers, its hold, DONE) the
 ##    content area's full height, every hold cell and button in it on screen and
 ##    uncovered;
-##  - each popup (a wreck's bay, this system's pile) right of the left panel,
+##  - the popup (this system's pile) right of the left panel,
 ##    on screen, every cell and button in it too;
-##  - pointing at a module in each of the four places -- the hold, the hull, a
-##    wreck's bay, this system's pile -- puts THAT module in the card, which is
-##    clear of the left panel, of the thing pointed at and of the open popup;
+##  - pointing at a module in each place -- the hold, the hull, this system's
+##    pile -- shows the MODULES page's own popup for THAT module, clear of the
+##    left panel, of the thing pointed at and of the open popup, and nothing in
+##    here carries Godot's own tooltip as well;
+##  - a bob step carries every part, tag and label with the hull;
 ##  - and the heavy, the biggest ship, drawn at least as big as the medium.
 func _check_layouts() -> void:
 	var widths := {}
@@ -263,12 +309,11 @@ func _check_layouts() -> void:
 		# something in every place the pointer can find a module
 		var in_hold := _module_of(ModuleData.Slot.SYSTEM)
 		Run.place_in_hold(in_hold)
-		var wreck := Run.new_wreck(node, DB.enemies[&"cutter"])
-		var in_wreck := _module_of(ModuleData.Slot.UTILITY)
-		wreck.items.append(in_wreck)
-		wreck.items.append(MaterialData.of(MaterialTable.all()[2]))
 		var in_loot := _module_of(ModuleData.Slot.WEAPON)
 		Run.sector_jetsam(node, true).items.append(in_loot)
+		# and two malfunctions in the deck, so their line is there to be measured
+		var junk: Array[StringName] = [DB.MALFUNCTIONS[0][0], DB.MALFUNCTIONS[0][0]]
+		Run.dross = junk
 		# (LOCAL's content area between the HUD and its bottom bar: what the cutaway covers)
 		var host := Control.new()
 		host.size = Vector2(960, 459)
@@ -284,7 +329,7 @@ func _check_layouts() -> void:
 		var mp := cut._mounts
 		var to_cut := cut.get_global_transform().affine_inverse() * mp.get_global_transform()
 		var img := cut._ship.canvas()
-		var origin := cut._ship.canvas_to_local(Vector2.ZERO)
+		var origin := cut._ship.canvas_to_local(Vector2(0, -float(cut._ship._bob_amp + cut._ship._bob_off)))
 		var sc := cut._ship.art_scale()
 		var rects := mp.drawn_rects()
 		var words := 0
@@ -325,6 +370,25 @@ func _check_layouts() -> void:
 					bad_cells += 1
 		_ok("%s: all %d hold cells are on screen and in the left panel, %d px each (%d not)" % [wname, g2.x * g2.y, HoldGrid.CELL, bad_cells],
 			bad_cells == 0 and cut._hold.mouse_filter == Control.MOUSE_FILTER_STOP)
+		_ok("%s: the hold is above the attributes (Jon: hold on top)" % wname,
+			cut._hold.get_global_rect().end.y <= cut._attrs.get_global_rect().position.y)
+		# THE REFIT SCREEN'S PIECES, here now
+		_ok("%s: the mounts line carries the hand and the deck (%s)" % [wname, cut._mount_line.text.replace("
+", " / ")],
+			cut._mount_line.text.contains("A TURN") and cut._mount_line.text.contains("IN THE DECK"))
+		_ok("%s: the perks and set chips are in the left panel (%d pieces)" % [wname, cut._perks.get_child_count()],
+			cut._perks.get_child_count() > 0 and left.encloses(cut._perks.get_global_rect()))
+		_ok("%s: MALFUNCTIONS · 2 IN YOUR DECK is in it (%s)" % [wname, cut._dross.text],
+			cut._dross.is_visible_in_tree() and cut._dross.text.contains("2") and left.encloses(cut._dross.get_global_rect()))
+		cut._point(cut._dross.get_global_rect().get_center())
+		await _tree.process_frame
+		var dcard := cut._panel.get_global_rect()
+		_ok("%s: pointing at it shows the malfunction's card on the same plate, clear of the left panel" % wname,
+			cut._panel.visible and cut._panel_box.find_children("*", "CardView", true, false).size() == 1
+			and not dcard.intersects(left))
+		cut._show(null)
+		_ok("%s: the R and F keys are named at the foot (%s)" % [wname, cut._keys.text],
+			cut._keys.is_visible_in_tree() and left.encloses(cut._keys.get_global_rect()))
 		var dr := cut._done.get_global_rect()
 		_ok("%s: DONE · ESC is on screen at the foot of the left panel" % wname,
 			cut._done.is_visible_in_tree() and view.encloses(dr) and left.encloses(dr) and dr.end.y >= left.end.y - 40.0)
@@ -342,12 +406,8 @@ func _check_layouts() -> void:
 		await _point_gp(cut, wname, "hull", on_ship, ship_at)
 
 		# EACH POPUP over this hull, and a module in it pointed at
-		for which in ["wreck", "loose"]:
-			if which == "wreck":
-				# beside where LOCAL draws a wreck: the sky's right side
-				cut.open_popup(wreck, Rect2(cut.get_global_rect().position + Vector2(cut.size.x - 220, 150), Vector2(160, 80)))
-			else:
-				cut.open_popup(Run.sector_jetsam(node, false), BAR_BUTTON)
+		for which in ["loose"]:
+			cut.open_popup(Run.sector_jetsam(node, false), BAR_BUTTON)
 			await _settle()
 			var pop := cut._popup.get_global_rect() if cut._popup != null else Rect2()
 			var bad := 0
@@ -359,10 +419,34 @@ func _check_layouts() -> void:
 			var tr := cut._pop_take.get_global_rect()
 			_ok("%s: the %s popup is on screen, right of the left panel, every cell and TAKE ALL in it (%d cells off)" % [wname, which, bad],
 				cut.popup_open() and view.encloses(pop) and not pop.intersects(left) and bad == 0 and pop.encloses(tr) and _popups_of(cut) == 1)
-			var want: ModuleData = in_wreck if which == "wreck" else in_loot
+			var want: ModuleData = in_loot
 			await _point_at(cut, wname, which, want, _icon_for(cut._pop_grid, want))
+			_ok("%s: nothing in the hold or the popup carries Godot's own tooltip (one hover, one popup)" % wname,
+				_tipless(cut._hold) and _tipless(cut._pop_grid))
 			cut.close_popup()
 			await _settle()
+		_ok("%s: the hull's parts give no tooltip of their own in here" % wname,
+			ship_at != Vector2.ZERO and mp._get_tooltip(mp.get_global_transform().affine_inverse() * ship_at) == "")
+		# THE BOB: the hull stepped two pixels down, every part, tag and ring rides
+		# with it by exactly that, and a part is still found where it is drawn
+		var before := mp.drawn_rects()
+		cut._ship._bob_off += 2
+		mp._process(0.0)
+		var after := mp.drawn_rects()
+		var moved := before.size() == after.size() and not before.is_empty()
+		var want_d := Vector2(0, 2.0 * cut._ship.art_scale())
+		for i in mini(before.size(), after.size()):
+			if not ((after[i].rect as Rect2).position - (before[i].rect as Rect2).position).is_equal_approx(want_d):
+				moved = false
+		var hit_part := false
+		for d in after:
+			if d.kind == "part":
+				hit_part = mp.part_under((d.rect as Rect2).get_center()) != null
+				break
+		_ok("%s: a bob step moves every part, tag and label with the hull, and the parts are hit where drawn" % wname,
+			moved and hit_part)
+		cut._ship._bob_off -= 2
+		mp._process(0.0)
 		widths[wname] = float(cut._ship.ink_rect().size.x) * sc
 		# REAL CLICKS, through the viewport: anywhere on the left panel -- its
 		# empty foot included -- shuts nothing; one on the empty sky shuts it
@@ -399,9 +483,9 @@ func _point_gp(cut: CutawayView, wname: String, where: String, want: ModuleData,
 	var pop := cut._popup.get_global_rect() if cut._popup != null else Rect2()
 	if not item.has_area():
 		item = Rect2(gp - Vector2(4, 4), Vector2(8, 8))
-	_ok("%s: pointing at a module in the %s shows it, picture and cards, in the card (%s)" % [wname, where,
+	_ok("%s: pointing at a module in the %s shows the MODULES page's popup for it (%s)" % [wname, where,
 		cut._shown.name if cut._shown != null else "nothing"],
-		cut._shown == want and cut._panel.visible and _has_pic(cut, want) and _has_cards(cut))
+		cut._shown == want and cut._panel.visible and _is_tip_for(cut, want))
 	_ok("%s: and the card is on screen, clear of the left panel, the %s module%s" % [wname, where, " and the popup" if pop.has_area() else ""],
 		cut.get_global_rect().encloses(card) and not card.intersects(left) and not card.intersects(item)
 		and (not pop.has_area() or not card.intersects(pop)))
@@ -409,14 +493,21 @@ func _point_gp(cut: CutawayView, wname: String, where: String, want: ModuleData,
 
 
 ## A left click at a point on screen, pressed and let go, as the pointer would.
-func _click(gp: Vector2) -> void:
+## Pushed into the viewport `on` is drawn in -- the game's own, under Main's
+## screen effect, for a screen; the root for a bare host.
+func _click(gp: Vector2, on: Node = null) -> void:
+	var vp: Viewport = on.get_viewport() if on != null else _tree.root
+	# (headless, the window is 64 px square and a click past it goes nowhere)
+	if vp == _tree.root and _tree.root.size.x < 1000:
+		_tree.root.size = Vector2i(1920, 1080)
+		await _settle()
 	for down in [true, false]:
 		var mb := InputEventMouseButton.new()
 		mb.button_index = MOUSE_BUTTON_LEFT
 		mb.pressed = down
 		mb.position = gp
 		mb.global_position = gp
-		_tree.root.push_input(mb)
+		vp.push_input(mb)
 		await _tree.process_frame
 	await _settle()
 
@@ -438,15 +529,147 @@ func _icon_for(g: Control, m: HoldItem) -> Control:
 	return null
 
 
-func _has_pic(cut: CutawayView, m: ModuleData) -> bool:
-	for c in cut._panel_box.get_children():
-		if c is CutawayView.Pic and (c as CutawayView.Pic).m == m:
-			return true
-	return false
+## The card is `ModuleIcon.tip_for(m)` -- the builder the MODULES page's icons
+## call -- and shows every card the module grants.
+func _is_tip_for(cut: CutawayView, m: ModuleData) -> bool:
+	if cut._panel_box.get_child_count() != 1:
+		return false
+	var tip := cut._panel_box.get_child(0)
+	return tip.has_meta(&"module") and tip.get_meta(&"module") == m \
+		and tip.find_children("*", "CardView", true, false).size() == m.resolved_cards().size()
 
 
-func _has_cards(cut: CutawayView) -> bool:
-	return not cut._panel_box.find_children("*", "CardView", true, false).is_empty()
+## Whether a point is on the opened ship: its hull's pixels, a part, a tag, a
+## ring -- what a click keeps the cutaway open on.
+func _on_opened_ship(cut: CutawayView, gp: Vector2) -> bool:
+	var lp := cut._mounts.get_global_transform().affine_inverse() * gp
+	return cut._mounts.part_under(lp) != null or cut._mounts.hit_drawn(lp) or CutawayView.on_hull(cut._ship, lp)
+
+
+## A point on the wreck's own metal, on screen, and (with the cutaway open) not
+## on the opened ship; INF if none.
+func _wreck_point(slot: EnemySlot, cut: CutawayView) -> Vector2:
+	var view := slot.get_viewport().get_visible_rect()
+	var r := slot.art.get_global_rect() if slot.art != null else slot.get_global_rect()
+	for yy in range(int(r.position.y), int(r.end.y), 2):
+		for xx in range(int(r.end.x) - 1, int(r.position.x), -2):
+			var p := Vector2(xx, yy)
+			if not view.has_point(p) or not slot._on_hull(slot.get_global_transform().affine_inverse() * p):
+				continue
+			if cut != null and (_on_opened_ship(cut, p) or cut._hold_panel.get_global_rect().has_point(p) 					or not cut.get_global_rect().has_point(p)):
+				continue
+			return p
+	return Vector2.INF
+
+
+func _tipless(g: Control) -> bool:
+	if g == null:
+		return true
+	for c in g.get_children():
+		if c is ItemIcon and (c as Control).tooltip_text != "":
+			return false
+	return true
+
+
+## THE REAL LOCAL. A wreck you killed here, your ship, and the screen itself:
+##  - with the cutaway open, a click where the wreck is drawn opens nothing and
+##    shuts the cutaway (Jon: "You shouldn't be able to open a wreck when your
+##    ship is clicked on and in focus");
+##  - with it shut, the same click opens the wreck's own two-grid screen;
+##  - in a fight, a click on your ship opens nothing and asks for the thud a dead
+##    button makes (Jon: "the same thud sound when you try and click on a button
+##    that doesn't work"), with no outline on it.
+func _check_local() -> void:
+	Rng.reseed(4242, 0)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	var idx := -1
+	for n: MapGen.MapNode in Run.map:
+		if n.type == MapGen.NodeType.SYSTEM and not n.cleared:
+			idx = n.index
+			break
+	if idx < 0:
+		_ok("a system to stand in", false)
+		return
+	Run.at = idx
+	Run.map[idx].visited = true
+	SectorScreen._approached_at = idx
+	var node: MapGen.MapNode = Run.node_at()
+	var wreck := Run.new_wreck(node, DB.enemies[&"cutter"])
+	wreck.items.append(_module_of(ModuleData.Slot.UTILITY))
+	Router.show_local()
+	for i in 40:
+		await _tree.process_frame
+	var sc := Router.current as SectorScreen
+	if not _ok("LOCAL is up", sc != null):
+		return
+	var made: Array = sc._view._made
+	if not _ok("the wreck is drawn on LOCAL", not made.is_empty()):
+		return
+	var row_was := sc._view._row.get_global_rect()
+	var ship_was := sc._view.ship_view().get_global_rect()
+	# (animated, as in play: the push-in and the ease back out)
+	Router.animate_in_harness = true
+	var cut := sc.open_cutaway()
+	var t1 := Time.get_ticks_msec()
+	while cut.t < 1.0 and Time.get_ticks_msec() - t1 < 3000:
+		await _tree.process_frame
+	_ok("your ship opens up on LOCAL", cut != null and is_instance_valid(cut) and cut.is_open())
+	# YOUR SHIP IN THE ZOOMED SCENE IS THE ONE THE PARTS COME OFF: LOCAL's own
+	# hull and the cutaway's (undrawn) one at the same place and scale
+	var own := sc._view.ship_view()
+	var a0 := own.get_global_transform() * own.canvas_to_local(Vector2.ZERO)
+	var b0 := cut._ship.get_global_transform() * cut._ship.canvas_to_local(Vector2.ZERO)
+	var sa := own.art_scale() * own.get_global_transform().get_scale().x
+	var sb := cut._ship.art_scale() * cut._ship.get_global_transform().get_scale().x
+	_ok("LOCAL's own ship, zoomed, is where the parts come off (%s vs %s, %.2fx vs %.2fx)" % [a0, b0, sa, sb],
+		a0.distance_to(b0) <= 1.0 and is_equal_approx(sa, sb))
+	var slot := made[0] as EnemySlot
+	# THE SCENE ZOOMED WITH IT: the wreck is drawn bigger, round your ship
+	_ok("the wreck is zoomed with the scene (%.1fx)" % slot.get_global_transform().get_scale().x,
+		slot.get_global_transform().get_scale().x > 1.5)
+	# a point on the wreck's own metal, as the slot itself reads it, on screen
+	# and not covered by the opened ship; at 2x the wreck may be off the screen
+	var wreck_at := _wreck_point(slot, cut)
+	if wreck_at.x < INF:
+		await _click(wreck_at, sc)
+		_ok("with it open, a click on the wreck opens nothing and shuts the cutaway",
+			sc._transfer == null and (not is_instance_valid(cut) or not cut.is_open()))
+	else:
+		print("  --   (the wreck is off the screen at 2x: nothing of it to click)")
+		cut.close()
+	var t0 := Time.get_ticks_msec()
+	while is_instance_valid(cut) and Time.get_ticks_msec() - t0 < 3000:
+		await _tree.process_frame
+	await _settle()
+	Router.animate_in_harness = false
+	_ok("shut, the scene is back at its own size and place (row %s -> %s, ship %s -> %s)" % [row_was, sc._view._row.get_global_rect(), ship_was, sc._view.ship_view().get_global_rect()],
+		is_equal_approx(slot.get_global_transform().get_scale().x, 1.0) and sc._view._row.get_global_rect().is_equal_approx(row_was)
+		and sc._view.ship_view().get_global_rect().is_equal_approx(ship_was))
+	wreck_at = _wreck_point(slot, null)
+	await _click(wreck_at, sc)
+	_ok("with it shut, a click on the wreck opens its own screen (TransferView)", sc._transfer != null)
+	sc._close_transfer()
+	await _settle()
+	# a fight
+	Router.start_combat(DB.enemies[&"cutter"], [], false, false)
+	for i in 40:
+		await _tree.process_frame
+	var fs := Router.current as SectorScreen
+	if not _ok("a fight is up", fs != null and fs.fighting()):
+		return
+	var art := fs._view.ship_view()
+	var ink := Rect2(art.ink_rect())
+	var on := Vector2.INF
+	var c0 := art.canvas_to_local(Vector2(ink.get_center().x, ink.get_center().y - float(art._bob_amp)))
+	for rad in range(0, 200, 2):
+		for p in [c0 + Vector2(rad, 0), c0 - Vector2(rad, 0), c0 + Vector2(0, rad), c0 - Vector2(0, rad)]:
+			if on.x == INF and CutawayView.on_hull(art, p):
+				on = art.get_global_transform() * p
+	var was := fs.denied_clicks
+	await _click(on, fs)
+	_ok("in a fight, a click on your ship opens nothing and asks for the dead-button thud (%d)" % (fs.denied_clicks - was),
+		fs._cutaway == null and fs.denied_clicks == was + 1)
+	_ok("and it wears no outline", not fs._ship_outline.visible)
 
 
 func _opaque_in(img: Image, r: Rect2) -> bool:

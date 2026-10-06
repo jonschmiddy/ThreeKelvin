@@ -43,7 +43,6 @@ const MID_GAP := 24
 var _row: HBoxContainer
 var _built: bool = false
 
-var _tab_ship: Button
 var _tab_sector: Button
 ## The sector map (Jon: "rename system to sector"). `_tab_sector` is LOCAL beside it: the side-on view, which
 ## reads COMBAT in a fight and STATION at a berth (Jon: "local would become
@@ -160,10 +159,12 @@ func _build() -> void:
 
 	# --- LEFT: where you can go.
 	#
-	# Ship | Sector | Starchart | Archive. The page you are on is lit rather than
+	# Local | Sector | Starchart | Archive. The page you are on is lit rather than
 	# merely disabled, so the nav says where you are as well as where you can go.
-	_tab_ship = _tab("SHIP", func() -> void: Router.show_ship())
-	_row.add_child(_tab_ship)
+	# (NO SHIP TAB. Jon: "I guess you can also remove the SHIP tab on the left."
+	# Your ship opens where it is drawn -- click it on LOCAL, or in the
+	# Shipyard when docked -- and everything the refit page did is in that
+	# cutaway. `ShipScreen` stays for the harnesses that drive it.)
 	# ONE TAB, TWO NAMES. Docked, this reads STATION and goes to the station;
 	# flying, it reads SECTOR and goes to the sector. It is the same slot either
 	# way because it is the same idea -- "the place I am parked" -- and a second
@@ -376,7 +377,6 @@ func refresh() -> void:
 	var choose_lock := "Choose a chassis first." if choosing else ""
 	var lock := choose_lock if choosing else ("Locked during combat." if fighting else "")
 
-	_state(_tab_ship, Router.current is ShipScreen, lock, "Install and scrap modules.")
 	# Lit on the station screen as well as the sector: both are "here", and the
 	# name on the tab already says which of the three you are looking at. Combat
 	# happens in the sector, so it stays lit through a fight rather than greying

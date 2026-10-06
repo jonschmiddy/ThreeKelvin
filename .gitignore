@@ -61,3 +61,6 @@ music/tools/node_modules/
 music/engine/node_modules/
 music/tools/package-lock.json
 music/engine/package-lock.json
+
+# Exports (tkg/tools/export.sh): builds/<version>-<commit>/
+builds/

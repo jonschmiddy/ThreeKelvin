@@ -944,10 +944,15 @@ func _draw_ships() -> void:
 ## whole yard is shown at twice its size, Jon: "The text for the ships are too
 ## big." So 16 and 8, the next sizes down that keep the font on whole pixels,
 ## the name's baseline 11 rows over the hull and YOURS / FOR SALE 2 rows over.
+## Your ship's name over it off, while the cutaway has it zoomed in: at 2x the
+## sign stood over the parts lifted off the hull.
+var hide_mine_name := false
+
+
 func _names(P: YardPaint) -> void:
 	for i in 2:
 		var S: Dictionary = placed[i]
-		if S.is_empty():
+		if S.is_empty() or (i == 0 and hide_mine_name):
 			continue
 		var x := floorf(float(S["x0"]) + 3.0 + 0.5)
 		var y := floorf(float(S["top"]) + 0.5)

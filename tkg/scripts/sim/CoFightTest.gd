@@ -70,6 +70,8 @@ var _at: int = -1
 var _partner_shots: int = 0
 var _swings_at_me: int = 0
 var _seen_hit: int = 0
+## How the fight ended, for the cross-process comparison (`outcome`).
+var _outcome: String = ""
 
 
 func run(tree: SceneTree) -> void:
@@ -291,6 +293,11 @@ func _play(cb: Combat) -> void:
 
 	_ok("the fight ended rather than stalling", cb.finished)
 	print("  %s: %d turns, result %s — %s" % [_me, turns, cb.result, cb.summary])
+	# The fight's outcome as both machines must see it: how it ended, what it
+	# was, how big the party made it, and how many hands it paid.
+	var f1 := Net.fight_at(_at)
+	_outcome = "%s %s %d paid%d" % [cb.result, cb.enemies[0].template.id,
+		cb.enemies[0].max_hp, f1.paid if f1 != null else -1]
 	print("  %s was swung at %d times, took %d hull, and saw %d shots from the other ship"
 		% [_me, _swings_at_me, hp_before - Run.hp, _partner_shots])
 	_ok("the other ship's cards landed on this machine's copy of the enemy",
@@ -308,32 +315,60 @@ func _play(cb: Combat) -> void:
 		await _bag()
 
 
-## One kill, one bag, and one hand in it.
+## One kill, one set of wrecks, and one hand on each part.
 ##
 ## The third contested thing in the game, and the one the last playtest asked
-## for by name. Before this a shared kill paid each ship its own private roll —
-## which is duplication solved and distribution never attempted: one frigate paid
-## the party twice. It is checked from outside for the same reason the shelf is,
-## because neither process can see the other's hold.
+## for by name. Before the bag a shared kill paid each ship its own private
+## roll -- duplication solved and distribution never attempted: one frigate paid
+## the party twice. The bag became a WRECK per hull you killed (`Combat`,
+## `MapGen.Jetsam`), reached into with `Run.take_from_jetsam` / `take_item`;
+## what it guards did not change. It is checked from outside, because neither
+## process can see the other's hold.
 ##
-## Three claims, and they are not the same claim:
-##   the bag MATCHES on both machines — it belongs to the node, so it is rolled
-##     positionally and every ship is looking at one pile;
-##   nothing was paid privately — a hold with something already in it means the
-##     old per-ship roll is still running somewhere;
-##   and exactly ONE ship walks away with part zero.
+## Four claims, and they are not the same claim:
+##   the wrecks MATCH on both machines -- they belong to the system, so they are
+##     rolled positionally and every ship is looking at one pile (`wreck`);
+##   nothing was paid privately -- a hold with something already in it means a
+##     per-ship roll is still running somewhere;
+##   exactly ONE ship walks away with the part both reached for (`took`);
+##   and both machines agree WHO has it (`taker`), which is what the sector's
+##     "X took it" line and a later reach are built on.
 func _bag() -> void:
 	var n: MapGen.MapNode = Run.map[_at]
-	var ids := PackedStringArray()
-	for m in n.bag:
-		ids.append(String(m.id))
-	print("[cofight] bag %s" % ("-".join(ids) if ids.size() > 0 else "none"))
-	if not _ok("the kill left a bag at the node", n.bag.size() > 0):
+	var wrecks: Array = []
+	for raw in n.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			wrecks.append(raw)
+	var desc := PackedStringArray()
+	for raw in wrecks:
+		var h: MapGen.Jetsam = raw
+		var ids := PackedStringArray()
+		for m in h.items:
+			ids.append(_item_id(m))
+		desc.append("%s[%s]" % [h.art, ",".join(ids)])
+	print("[cofight] wreck %s" % ("|".join(desc) if desc.size() > 0 else "none"))
+	print("[cofight] outcome %s" % _outcome)
+	if not _ok("the kill left a wreck in the system", wrecks.size() > 0):
 		return
+	_ok("one wreck per hull killed", wrecks.size() == Router.combat.enemies.size())
 	_ok("and paid nothing straight into either hold", Run.cargo.is_empty())
-	# One entry per ship per drop. Both machines have to agree on that number or
-	# they are not looking at the same pile — see SharedFight.paid.
-	_ok("sized for the crew, not for one ship", n.bag.size() >= 2)
+	# The first module in the first wreck: the part both ships reach for.
+	var h0: MapGen.Jetsam = null
+	var at := -1
+	var parts := 0
+	for raw in wrecks:
+		var h: MapGen.Jetsam = raw
+		for i in h.items.size():
+			if h.items[i] is ModuleData:
+				parts += 1
+				if at < 0:
+					h0 = h
+					at = i
+	# One part per ship per drop. Both machines have to agree on that number or
+	# they are not looking at the same pile -- see SharedFight.paid.
+	_ok("sized for the crew, not for one ship (%d parts)" % parts, parts >= 2)
+	if not _ok("and there is a part to reach for", at >= 0):
+		return
 
 	# Both hands over the same part before either reaches, or this measures one
 	# ship looting alone and calls it a race.
@@ -342,18 +377,40 @@ func _bag() -> void:
 			if int(p.get("at", -1)) == _at:
 				return true
 		return false, PARTNER_TIMEOUT)
-	if not _ok("both ships are standing over the bag", both):
+	if not _ok("both ships are standing over the wreck", both):
 		return
 
-	var wanted: ModuleData = n.bag[0]
-	var got := await Run.take_from_bag(n, 0)
+	var wanted: ModuleData = h0.items[at]
+	var got := await Run.take_from_jetsam(n, h0, at)
 	# The loser's refusal has to arrive too, and it arrives as a push.
 	await _until(func() -> bool: return false, 1.5)
 	print("[cofight] took %s" % (String(wanted.id) if got else "none"))
 	_ok("a refused reach leaves the hold empty",
 		got == Run.cargo.has(wanted))
 	_ok("and a part somebody took is marked taken for everybody",
-		n.taken.has(MapGen.OPTION_BAG))
+		n.taken.has(h0.option(at)))
+	# By NAME off the claims table, which is the party's record and the same on
+	# every machine -- not "me" or "them", which flips between the two.
+	# (the host's table reaches the loser as a push, which can trail its own
+	# refusal: wait for it rather than print a table that has not arrived)
+	await _until(func() -> bool: return Net.who_took(n.index, h0.option(at)) != 0, 5.0)
+	print("[cofight] taker %s" % _claimant(n.index, h0.option(at)))
+
+
+## Who holds a claim, by name, as the party's claims table says.
+func _claimant(index: int, option: int) -> String:
+	var id := Net.who_took(index, option)
+	return Net.name_of(id) if id != 0 else "nobody"
+
+
+## What a wreck item is, for the cross-process comparison: a part by its id, the
+## money by its kind (each ship's purse is its own, so not the amount).
+func _item_id(m: Variant) -> String:
+	if m is ModuleData:
+		return String((m as ModuleData).id)
+	if m is CreditChit:
+		return "credits"
+	return "?"
 
 
 ## The roamer, end to end: clock, wire, blockade, fight, ending.
@@ -478,8 +535,16 @@ func _shop() -> void:
 	Run.at = here
 	Run.map[here].visited = true
 	Run.add_credits(100000)
-	Router.show_station()
+	# Docking without the screen: the station's decks are a windowed scene and
+	# cannot be stood up headless, and the shelf is what is under test, not the
+	# page drawn over it. So the shelf is stocked exactly as docking stocks it
+	# -- `StationScreen._stock_up`, positional off the station -- and bought
+	# from below.
+	Router.resolve_current_node()
 	await _tree.process_frame
+	var stocker := StationScreen.new()
+	stocker._stock_up()
+	stocker.free()
 
 	var n: MapGen.MapNode = Run.map[here]
 	if not _ok("the shelf has something on it", n.shop.size() > 0):
@@ -502,21 +567,27 @@ func _shop() -> void:
 	if not _ok("both ships are at the same station", both):
 		return
 
-	# Through the real screen, not through the primitive under it. The handler
-	# is where the ordering lives — ask the party, and pay only if you won.
-	var screen := Router.current as StationScreen
-	if not _ok("the station screen is up", screen != null):
-		return
+	# The purchase as every buyer makes it -- the screen's "buy" and the bot's
+	# `_buy` are this, in this order: room first, then ASK the party, and pay
+	# only if you won.
 	var before := Run.credits
 	var wanted: ModuleData = n.shop[0]
-	await screen._on_action("buy", wanted)
+	var price := Market.ask(n, wanted)
+	var got := false
+	if _ok("there is room for it", Run.has_room_for(wanted)):
+		if await Run.take_option(n, MapGen.OPTION_SHOP):
+			Run.add_credits(-price)
+			Run.stow(wanted)
+			got = true
 	await _until(func() -> bool: return false, 1.5)
 
-	var got := Run.cargo.has(wanted)
 	print("[cofight] bought %s" % (String(wanted.id) if got else "none"))
 	_ok("a refused purchase costs nothing", got or Run.credits == before)
+	_ok("and the winner paid the shelf's price", not got or Run.credits == before - price)
 	_ok("and a slot somebody took is marked taken for everybody",
 		n.taken.has(MapGen.OPTION_SHOP))
+	await _until(func() -> bool: return Net.who_took(n.index, MapGen.OPTION_SHOP) != 0, 5.0)
+	print("[cofight] buyer %s" % _claimant(n.index, MapGen.OPTION_SHOP))
 
 
 ## The first system of a kind, skipping the one you start on.

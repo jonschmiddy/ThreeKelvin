@@ -3,6 +3,14 @@ config_version=5
 
 [application]
 config/name="Three Kelvin"
+config/version="0.1.0-alpha.1"
+; EXPORTED BUILDS KEEP THEIR OWN FOLDER: %APPDATA%\ThreeKelvinAlpha on Windows,
+; ~/Library/Application Support/ThreeKelvinAlpha on a Mac -- saves, settings,
+; flight record and logs -- so an alpha build never reads or writes the dev
+; folder (Godot's app_userdata/Three Kelvin, which runs from source keep).
+; ".template" is a feature only export templates have.
+config/use_custom_user_dir.template=true
+config/custom_user_dir_name.template="ThreeKelvinAlpha"
 config/description="Chart coreward. Your modules are your deck."
 run/main_scene="res://scenes/Shell.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
@@ -31,6 +39,7 @@ window/stretch/scale_mode="integer"
 [rendering]
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.039, 0.055, 0.082, 1)
 
 [gui]

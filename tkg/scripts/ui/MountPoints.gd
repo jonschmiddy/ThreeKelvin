@@ -592,6 +592,8 @@ func part_under(p: Vector2) -> ModuleData:
 ## part to hang a `tooltip_text` on. Godot asks this per position and an empty
 ## string means no tooltip at all, which is exactly right over bare hull.
 func _get_tooltip(at: Vector2) -> String:
+	if not tooltips:
+		return ""
 	var i := spot_at(at)
 	_tip_for = _spots[i].held if i >= 0 else null
 	# THE NAME, NOT THE DESCRIPTION. Godot needs a non-empty string here to
@@ -599,6 +601,11 @@ func _get_tooltip(at: Vector2) -> String:
 	# `_make_custom_tooltip` -- which ignores it and builds from `_tip_for`,
 	# because a panel cannot be encoded in a string and back.
 	return String(_tip_for.name) if _tip_for != null else ""
+
+
+## Off in the cutaway, which shows its own popup beside the part (the MODULES
+## page's, `ModuleIcon.tip_for`); one hover, one popup.
+var tooltips := true
 
 
 ## What the last hover asked about. Set by `_get_tooltip`, which Godot always

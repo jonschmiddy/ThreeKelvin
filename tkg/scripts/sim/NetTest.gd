@@ -260,6 +260,15 @@ func _refusal_tests() -> void:
 		"Different game version. Host is protocol %d, you are 99." % NetSession.PROTOCOL)
 	await _one_refusal("different content", PORT_BASE + 2, 0, 0x5EEDBAD,
 		"Your content does not match the host's. Compare builds or mods.")
+	# Two exported builds from different commits, refused by name, and the
+	# message names both (PROTOCOL 9).
+	await _one_refusal("a different build", PORT_BASE + 30, 0, 0,
+		"Your friend is on build 0.1.0-alpha.1 · aaaaaaa; you're on 0.1.0-alpha.1 · bbbbbbb. Both need the same build.",
+		"0.1.0-alpha.1 · aaaaaaa", "0.1.0-alpha.1 · bbbbbbb")
+	# And a run from source joins an export: "dev" is judged by protocol and
+	# content alone.
+	await _one_join("a run from source joining an export", PORT_BASE + 31,
+		"0.1.0-alpha.1 · aaaaaaa", "dev")
 
 	# A code that parses but points at nothing. This is the common case in the
 	# real world — a host who never forwarded the port — and it must not look
@@ -281,8 +290,10 @@ func _refusal_tests() -> void:
 	await _teardown()
 
 
-func _one_refusal(what: String, port: int, protocol: int, fingerprint: int, want: String) -> void:
+func _one_refusal(what: String, port: int, protocol: int, fingerprint: int, want: String,
+		host_build: String = "", client_build: String = "") -> void:
 	var host := _make_peer("host")
+	host.forced_build = host_build
 	var t := DirectTransport.new()
 	t.port = port
 	t.advertise = "127.0.0.1"
@@ -295,12 +306,34 @@ func _one_refusal(what: String, port: int, protocol: int, fingerprint: int, want
 	var c := _make_peer("odd")
 	c.forced_protocol = protocol
 	c.forced_fingerprint = fingerprint
+	c.forced_build = client_build
 	c.join_party(code, "Odd", &"korvan", DirectTransport.new())
 	var refused := await _wait_until(func() -> bool: return c.state == NetSession.State.FAILED, 5.0)
 	ok("%s is refused" % what, refused)
 	check("%s is explained" % what, c.last_error(), want)
 	print("  %s: %s" % [what, c.last_error()])
 	check("%s leaves the party empty" % what, host.party_size(), 1)
+	await _teardown()
+
+
+## The other side of the build check: a pairing it must let through.
+func _one_join(what: String, port: int, host_build: String, client_build: String) -> void:
+	var host := _make_peer("host")
+	host.forced_build = host_build
+	var t := DirectTransport.new()
+	t.port = port
+	t.advertise = "127.0.0.1"
+	var code := host.host_party("Vela", &"redline", t)
+	if code.is_empty():
+		fails += 1
+		print("  FAIL could not host for '%s': %s" % [what, host.last_error()])
+		await _teardown()
+		return
+	var c := _make_peer("dev")
+	c.forced_build = client_build
+	c.join_party(code, "Dev", &"korvan", DirectTransport.new())
+	var joined := await _wait_until(func() -> bool: return c.state == NetSession.State.IN_PARTY, 5.0)
+	ok("%s is let in" % what, joined)
 	await _teardown()
 
 

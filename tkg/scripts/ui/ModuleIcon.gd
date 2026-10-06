@@ -124,7 +124,16 @@ func setup(m: ModuleData, from: StringName) -> void:
 func _make_custom_tooltip(_for_text: String) -> Object:
 	if module == null:
 		return null
+	return tip_for(module)
+
+
+## The popup itself, for anything that wants to show a module the way the
+## MODULES page does -- LOCAL's cutaway builds its hover card from this, so the
+## two cannot drift. Tagged with the module (`get_meta(&"module")`), which
+## draws nothing.
+static func tip_for(module: ModuleData) -> Control:
 	var row := HBoxContainer.new()
+	row.set_meta(&"module", module)
 	row.add_theme_constant_override("separation", 4)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(Widgets.module_readout(module))

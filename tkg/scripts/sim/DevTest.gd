@@ -205,7 +205,8 @@ func _screens(dev: bool) -> void:
 		_ok("the HUD builds CARDS and MODULES", tabs == 2)
 	else:
 		_ok("the HUD builds no CARDS or MODULES", tabs == 0)
-	_ok("and the rest of the bar", _buttons(hud, ["SHIP", "STARCHART"]) == 2)
+	_ok("and the rest of the bar", _buttons(hud, ["STARCHART", "ARCHIVE"]) == 2)
+	_ok("and no SHIP tab (your ship opens where it is drawn)", _buttons(hud, ["SHIP"]) == 0)
 	await _drop(hud)
 
 	var pick := ChassisSelect.new()

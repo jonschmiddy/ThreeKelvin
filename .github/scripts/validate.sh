@@ -286,8 +286,10 @@ step "The cutaway moves parts by the refit rule"
 # the refit screen and the map's SECTOR LOOT. It calls the same rule
 # (`lift_part`, `fit_at_mount`, `stow_at`) and the same claims (`take_item`,
 # `take_from_jetsam`), so the three cannot disagree; this drives its own drop
-# handlers and counts what its shelf draws, like the container check above.
-if run_godot cutawaytest 120 --headless --path "$PROJECT" -- cutawaytest; then
+# handlers and counts what it draws, like the container check above. It ends
+# on the real LOCAL (a wreck clicked through the cutaway, a fight), so it ends
+# with the same exit-time teardown reports as stowtest, allowed the same way.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot cutawaytest 180 --headless --path "$PROJECT" -- cutawaytest; then
 	if grep -qE '^cutawaytest: PASS' "$LOG_DIR/cutawaytest.log"; then
 		ok "the cutaway"
 	else

@@ -328,6 +328,9 @@ const MAP_CANVAS := Rect2(60, 50, 900, 430)
 ## A galaxy exists before any run does — screens can be built and asked to draw
 ## before start_new_run() has rolled one — so it is never an empty dictionary.
 func _ready() -> void:
+	# WHICH BUILD WROTE THIS LOG, first thing: every `godot.log` a friend sends
+	# says what they were playing (`BuildInfo`).
+	print("[build] %s" % BuildInfo.line())
 	# A dive that is already under way when this machine generates its map — and
 	# every claim made while it was generating it.
 	Sig.party_map_changed.connect(adopt_party_claims)
@@ -361,6 +364,10 @@ func start_new_run(manufacturer: StringName = &"", w: int = -1) -> void:
 	# exactly, and a co-op host sends this and nothing else to put four ships in
 	# one galaxy. See Rng.
 	galaxy_seed = Rng.roll_master()
+	# Into the log with the build, so a report names the run AND what ran it.
+	# Not for the balance sim, which starts hundreds.
+	if not "sim" in OS.get_cmdline_user_args():
+		print("[run] new run, seed %d, %s" % [galaxy_seed, BuildInfo.stamp()])
 	# ...and which ship in the party is drawing from it. One seed gives four
 	# machines one galaxy, which is the point; it must not also give them one
 	# hold. See Rng.seat.

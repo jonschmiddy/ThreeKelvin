@@ -8,7 +8,7 @@ extends Control
 ## it made a spatial decision read like a list. You pick a node, the panel tells
 ## you what is there, and one button commits.
 ##
-## Ship stats and cargo used to live here too. They belong to the SHIP screen —
+## Ship stats and cargo used to live here too. They belong to your ship (click it) —
 ## this one answers a single question: where next, and what will it cost.
 
 var _chart: MapChart

@@ -118,6 +118,11 @@ func setup() -> void:
 	_exits.add_theme_constant_override("separation", 4)
 	col.add_child(_exits)
 	_show_exits()
+	# Which build this is, at the very foot (`BuildInfo`): what a friend
+	# screenshots when something goes wrong mid-run.
+	var stamp := UITheme.body(BuildInfo.stamp(), UITheme.COLD, UITheme.FS_SMALL)
+	stamp.name = "BuildStamp"
+	col.add_child(stamp)
 
 	# THE BACKDROP'S AMOUNT IS ALWAYS SET, animated or not. It used to be set
 	# only on the animated way in, so a menu opened under REDUCED MOTION had

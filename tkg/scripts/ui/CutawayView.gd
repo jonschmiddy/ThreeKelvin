@@ -3,15 +3,16 @@ extends Control
 
 ## THE CUTAWAY (Jon: "THE CUTAWAY IS CLEANNNN."; scratchpad `local_role/cutaway`
 ## and notes section 4). On LOCAL, out of a fight, click your own ship: the
-## camera eases in on it, the sky behind breaks up the way it does behind the
-## escape menu (`pause_backdrop.gdshader`, Jon: "the same pixelated treatment"),
+## camera pushes in on it -- the scene itself, LOCAL's or the yard's, zoomed onto
+## your ship (Jon: "can we actually just zoom into the scene?"),
 ## every fitted part lifts off its mount on a dotted leader line to a labelled
 ## tag, empty mounts show as rings, and the LEFT PANEL slides in: the ship's
-## name and numbers, its hold and DONE. Point at a module anywhere -- the hold,
-## the hull, a popup -- and a card beside it shows the module large and its
-## cards. Click a wreck in the sky for its bay, or SECTOR LOOT on LOCAL's bottom
-## bar (left showing under the cutaway) for this system's own pile, each a
-## popup beside what opened it. Drag between the
+## name (and a pencil to rename it), its hold, its numbers, perks, set bonuses
+## and any malfunctions, the R and F keys, and DONE. Point at a module anywhere -- the hold,
+## the hull, the popup -- and the MODULES page's own popup for it shows beside
+## it. SECTOR LOOT on LOCAL's bottom bar (left showing under the cutaway) opens
+## this system's own pile in a popup beside it. A wreck is not opened from in
+## here: a click on it is a click on the sky. Drag between the
 ## hold, a popup and the rings on the hull. Close with a click on the ship or
 ## the sky -- anywhere that is not the ship, its parts, tags and rings, the left
 ## panel or a popup; with a popup open, that click shuts the popup first -- Esc
@@ -34,13 +35,34 @@ signal closed
 
 const EASE_S := 0.4
 const PANEL_W := 250
-const BACKDROP := preload("res://shaders/pause_backdrop.gdshader")
 ## The gap kept round the room the exploded ship must fit in, right of the left panel.
 const MARGIN := 8.0
 
 var _src: ShipView
-var _scrim: ColorRect
-var _mat: ShaderMaterial
+## IN THE SHIPYARD (Jon: "Couldn't clicking on your ship while in the shipyard
+## do this?" and "it can be zoomed in on the holders"): the yard's stands under
+## your ship, each `{tex, at}` with `at` its top-left in hull pixels from the
+## hull's ink corner (the yard seats them on the hull's underside; this draws
+## them where it did, at the push-in's scale). Set before the first frame.
+var stands: Array = []
+## Whether LOCAL's own picture of the ship is hidden while this is open. The
+## yard keeps its own (its stands and reflection are baked round it).
+var hide_src := true
+## THE SCENE ITSELF IS ZOOMED (Jon, in the yard: "can we actually just zoom into
+## the scene?", and then "LOCAL should zoom the real scene too"): the pictures
+## your ship is drawn in -- the yard; LOCAL's ships, dust and shots -- are
+## scaled with the push-in, 2x onto your ship in the same whole-pixel steps, and
+## carried so your ship in them lands where the parts are lifted from. Your ship
+## there IS the ship here: this view's own hull is not drawn, only the parts
+## lifted off it, their lines and tags. `sky` is LOCAL's sky, zoomed layer by
+## layer by its own depth (`LocalSky.set_zoom`). All put back on close.
+var scenes: Array[Control] = []
+var sky: LocalSky = null
+var _scene_was: Array = []
+var _scene_q: Array[Vector2] = []
+var _sky_fixed := Vector2.ZERO
+var _src_mounts: Array[MountPoints] = []
+var _stand_layer: StandLayer
 var _stage: Control
 var _ship: ShipView
 var _mounts: MountPoints
@@ -62,9 +84,6 @@ var _pop_scroll: ScrollContainer
 var _pop_take: Button
 var _pop_empty: Label
 var _pop_beside := Rect2()
-## Asked with a point on screen: the wreck drawn there in the sky behind, as
-## `[jetsam, its rect on screen]`, or `[]`. LOCAL sets it (it knows its wrecks).
-var wreck_at: Callable
 
 ## The push-in's scale, and where the exploded ship's art origin lands.
 var k: int = 2
@@ -81,7 +100,13 @@ var _goal := 1.0
 var _lifted: ModuleData = null
 var _lifted_mount := -1
 var _busy := false
-var _shown: HoldItem = null
+## What the card shows: a module, `&"dross"` for the malfunctions, or null.
+var _shown: Variant = null
+## The rename prompt (ShipScreen's own), while it is up.
+var _rename: Control = null
+var _perks: PerkBox
+var _dross: Label
+var _keys: Label
 var _say_until := 0
 ## What the push-in's scale was chosen from, for the harnesses.
 var fit_note := ""
@@ -109,6 +134,9 @@ static func open_over(host: Control, src: ShipView) -> CutawayView:
 func _init() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	# (after LOCAL's ship has stepped its bob this frame, so the copy below and
+	# the mounts that read it are never a frame behind it)
+	process_priority = 10
 
 
 func _ease(x: float) -> float:
@@ -116,28 +144,20 @@ func _ease(x: float) -> float:
 
 
 func _build() -> void:
-	# THE SKY, BROKEN UP AS IT IS BEHIND THE ESCAPE MENU: the shared shader, on a
-	# rect drawn before the ship, the left panel and the card, so it reads only what
-	# is behind them (the HUD is outside this rect and stays sharp)
-	_scrim = ColorRect.new()
-	_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_mat = ShaderMaterial.new()
-	_mat.shader = BACKDROP
-	_mat.set_shader_parameter(&"amount", 0.0)
-	_scrim.material = _mat
-	add_child(_scrim)
-
 	_stage = Control.new()
 	_stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_stage)
 	_ship = ShipView.new()
 	_ship.self_clip = false
 	_ship.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_stand_layer = StandLayer.new()
+	_stage.add_child(_stand_layer)
 	_stage.add_child(_ship)
 	_ship.zoom(1)
 	_mounts = MountPoints.new()
 	_mounts.attach(_ship)
+	_mounts.tooltips = false
+	_mounts.process_priority = 11
 	_ship.add_child(_mounts)
 	_mounts.dropped.connect(_on_mount_drop)
 	_mounts.lifted.connect(_on_lift)
@@ -157,6 +177,19 @@ func _measure() -> void:
 	if not is_inside_tree():
 		return
 	await get_tree().process_frame
+	# THE SHIP KEEPS ITS IDLE BOB (Jon: "the ship and modules should still be
+	# hovering slightly"), in art pixels, so at 2x it steps two screen pixels at a
+	# time; the lifted parts, their lines, tags and rings ride the mounts, which
+	# follow it. Where the scene itself is zoomed, LOCAL's own ship IS the ship,
+	# so this one takes its step from it, frame for frame (`_process`), rather
+	# than keeping a clock of its own a frame apart. None under reduced motion.
+	if _src != null and is_instance_valid(_src) and Router.animating() and _src._bob_amp > 0:
+		if scenes.is_empty():
+			_ship.bob(_src._bob_amp, _src._bob_hz)
+		else:
+			_ship._bob_amp = _src._bob_amp
+			_ship._bob_off = _src._bob_off
+			_ship.refresh()
 	_refresh()
 	# the left panel: as wide as the hold (or the ship's numbers), the whole height
 	_hold_w = ceilf(_hold_panel.get_combined_minimum_size().x)
@@ -166,9 +199,30 @@ func _measure() -> void:
 	# FROM LOCAL'S OWN HULL: its art origin on screen and its scale
 	if _src != null and is_instance_valid(_src):
 		var g := _src.get_global_transform()
-		_from = get_global_transform().affine_inverse() * (g * _src.canvas_to_local(Vector2.ZERO))
+		# (the canvas's corner with the bob taken out: this view's ship is placed by
+		# its control, and its own bob is added on top, as LOCAL's is)
+		var corner := _src.canvas_to_local(Vector2(0.0, -float(_src._bob_amp + _src._bob_off)))
+		_from = get_global_transform().affine_inverse() * (g * corner)
 		_from_s = _src.art_scale() * g.get_scale().x
-		_src.visible = false
+		var art0 := g * corner
+		if scenes.is_empty() and hide_src:
+			_src.visible = false
+		if not scenes.is_empty():
+			# where your ship's art origin sits in each picture, unzoomed
+			for sc: Control in scenes:
+				# (its offsets, not its position: LOCAL's row is anchored, and a
+				# position put back on an anchored control left it the wrong size)
+				_scene_was.append([sc.scale, sc.offset_left, sc.offset_top, sc.offset_right, sc.offset_bottom, sc.size])
+				_scene_q.append(sc.get_global_transform().affine_inverse() * art0)
+			if sky != null and is_instance_valid(sky):
+				_sky_fixed = sky.get_global_transform().affine_inverse() * art0
+			_ship.self_modulate.a = 0.0
+			_stand_layer.visible = false
+			# (its own parts come off it here: the yard's copies go while this is open)
+			for c in _src.get_children():
+				if c is MountPoints and (c as MountPoints).visible:
+					(c as MountPoints).visible = false
+					_src_mounts.append(c)
 	else:
 		_from = _target
 		_from_s = float(k)
@@ -201,6 +255,7 @@ func _choose_scale() -> void:
 			_room = room
 			_ship.zoom(k)
 			_ship.size = Vector2(_ship.canvas_width(), _ship.canvas_height())
+			_stand_layer.set_stands(_stand_rects(), k)
 			_mounts.refresh()
 			b = _layout(k, room)
 			_target = (room.get_center() - b.get_center() * float(k)).round()
@@ -222,6 +277,9 @@ func _choose_scale() -> void:
 func _layout(kk: int, room: Rect2) -> Rect2:
 	var img := _ship.canvas()
 	var h := Run.hull
+	# (the canvas carries the bob's headroom and its current step; the mounts are
+	# art px, so the hull is read with both taken out)
+	var dy := _ship._bob_amp + _ship._bob_off
 	var lift := {}
 	var sides := {}
 	_layout_ok = true
@@ -235,8 +293,9 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 	sat.resize((w + 1) * (ht + 1))
 	for y in ht:
 		var row := 0
+		var cy := y + dy
 		for x in w:
-			if img.get_pixel(x, y).a > 0.1:
+			if cy >= 0 and cy < ht and img.get_pixel(x, cy).a > 0.1:
 				row += 1
 			sat[(y + 1) * (w + 1) + x + 1] = sat[y * (w + 1) + x + 1] + row
 	var on_hull := func(r: Rect2) -> bool:
@@ -248,6 +307,7 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 			return false
 		return sat[y1 * (w + 1) + x1] - sat[y0 * (w + 1) + x1] - sat[y1 * (w + 1) + x0] + sat[y0 * (w + 1) + x0] > 0
 	var ink := Rect2(_ship.ink_rect())
+	ink.position.y -= float(_ship._bob_amp)
 	var rs := Rect2(ink.get_center() - room.size / (2.0 * kk), room.size / float(kk))
 	var bounds := ink
 	var f := UITheme.pixel_font()
@@ -270,6 +330,10 @@ func _layout(kk: int, room: Rect2) -> Rect2:
 				empties.append([slot, i, pts[i]])
 			else:
 				parts.append([slot, i, pts[i], m])
+	# the yard's stands: nothing lands on them either
+	for r: Rect2 in _stand_rects():
+		placed.append(r)
+		bounds = bounds.merge(r)
 	# the rings first: a part never lands on one
 	for e in empties:
 		var ring := Rect2((e[2] as Vector2) - Vector2.ONE * (MountPoints.R + 1.0), Vector2.ONE * (MountPoints.R + 1.0) * 2.0)
@@ -371,6 +435,9 @@ static func _sprite_box(r: Rect2, kk: int) -> Rect2:
 
 
 func _process(delta: float) -> void:
+	if not scenes.is_empty() and _ship._bob_amp > 0 and _src != null and is_instance_valid(_src) 			and _ship._bob_off != _src._bob_off:
+		_ship._bob_off = _src._bob_off
+		_ship.refresh()
 	if _goal != t:
 		var sp := (fixed_step if fixed_step > 0.0 else delta) / EASE_S
 		t = minf(_goal, t + sp) if _goal > t else maxf(_goal, t - sp)
@@ -380,8 +447,9 @@ func _process(delta: float) -> void:
 		if t <= 0.0 and _goal <= 0.0:
 			_finish_close()
 			return
-	if _say != null and _say.modulate.a > 0.0 and Time.get_ticks_msec() > _say_until:
-		_say.modulate.a = 0.0
+	if _say != null and _say.visible and Time.get_ticks_msec() > _say_until:
+		_say.visible = false
+		_keys.visible = true
 
 
 ## The camera, the backdrop, the parts and the left panel at progress `t`.
@@ -393,7 +461,23 @@ func _apply() -> void:
 	s = roundf(s * cw) / cw
 	_stage.scale = Vector2.ONE * (s / float(k))
 	_stage.position = _from.lerp(_target, e).round()
-	_mat.set_shader_parameter(&"amount", e)
+	if not scenes.is_empty() and _scene_was.size() == scenes.size() and _from_s > 0.0:
+		# the scene, scaled with the ship and moved so your ship in it lands where
+		# the parts are lifted from
+		var zs := s / _from_s
+		var to_g := get_global_transform() * _stage.position
+		for i in scenes.size():
+			var sc := scenes[i]
+			if not is_instance_valid(sc):
+				continue
+			var base: Vector2 = _scene_was[i][0]
+			sc.scale = base * zs
+			var to := (sc.get_parent() as CanvasItem).get_global_transform().affine_inverse() * to_g
+			sc.position = (to - _scene_q[i] * sc.scale).round()
+			# (and its own size, which a moved anchored control does not keep)
+			sc.size = _scene_was[i][5]
+		if sky != null and is_instance_valid(sky):
+			sky.set_zoom(zs, _sky_fixed, sky.get_global_transform().affine_inverse() * to_g)
 	var x := clampf((e - 0.35) / 0.65, 0.0, 1.0)
 	_mounts.explode = x
 	_mounts.tags = x > 0.0
@@ -401,6 +485,16 @@ func _apply() -> void:
 	_panel.modulate.a = x
 	_panel_vis()
 	_hold_panel.position.x = roundf(lerpf(-_hold_w, 0.0, e))
+
+
+## THE RENAME PROMPT, the refit screen's own (`ShipScreen.rename_prompt`), over
+## the cutaway; from the pencil by the name.
+func open_rename() -> void:
+	if _rename != null or Run.hull == null:
+		return
+	_rename = ShipScreen.rename_prompt(self, func() -> void:
+		_rename = null
+		_refresh())
 
 
 ## Shut at once, no ease: LOCAL is going away under it (SCAN SECTOR).
@@ -433,9 +527,65 @@ func close() -> void:
 		_finish_close()
 
 
+## The stands in art px (the space the mounts are in), each `[tex, rect]` as a
+## Rect2 with its texture in the layer; here only the rects.
+func _stand_rects() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	if stands.is_empty():
+		return out
+	var ink := Rect2(_ship.ink_rect())
+	ink.position.y -= float(_ship._bob_amp)
+	for st: Dictionary in stands:
+		var tex: Texture2D = st.tex
+		out.append(Rect2(ink.position + (st.at as Vector2), tex.get_size()))
+	return out
+
+
+## THE YARD'S STANDS, drawn under the hull at the push-in's scale.
+class StandLayer extends Control:
+	var _tex: Array = []
+	var _rects: Array[Rect2] = []
+	var _k := 1
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+	func set_stands(rects: Array[Rect2], kk: int) -> void:
+		var cut := get_parent().get_parent() as CutawayView
+		_tex.clear()
+		for st: Dictionary in cut.stands:
+			_tex.append(st.tex)
+		_rects = rects
+		_k = kk
+		queue_redraw()
+
+	func _draw() -> void:
+		var ship := get_parent().get_child(get_index() + 1) as ShipView
+		var o := ship.canvas_to_local(Vector2.ZERO) if ship != null else Vector2.ZERO
+		for i in mini(_tex.size(), _rects.size()):
+			var r: Rect2 = _rects[i]
+			draw_texture_rect(_tex[i], Rect2(o + r.position * float(_k), r.size * float(_k)), false)
+
+
 func _finish_close() -> void:
+	for i in scenes.size():
+		if is_instance_valid(scenes[i]) and i < _scene_was.size():
+			var w: Array = _scene_was[i]
+			scenes[i].scale = w[0]
+			scenes[i].offset_left = w[1]
+			scenes[i].offset_top = w[2]
+			scenes[i].offset_right = w[3]
+			scenes[i].offset_bottom = w[4]
+	if sky != null and is_instance_valid(sky):
+		sky.set_zoom(1.0, Vector2.ZERO, Vector2.ZERO)
+	for mp in _src_mounts:
+		if is_instance_valid(mp):
+			mp.visible = true
+	_src_mounts.clear()
 	if _src != null and is_instance_valid(_src):
-		_src.visible = true
+		if scenes.is_empty() and hide_src:
+			_src.visible = true
 	closed.emit()
 	queue_free()
 
@@ -444,15 +594,14 @@ func _finish_close() -> void:
 
 func _build_panel() -> void:
 	_panel = PanelContainer.new()
-	_panel.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.PANEL, 0.97), UITheme.LINE, 1, 10, 10))
+	# THE TOOLTIP'S OWN PLATE, the one Godot puts round the MODULES page's popup
+	_panel.add_theme_stylebox_override("panel", get_theme_stylebox(&"panel", &"TooltipPanel"))
 	# (the card is something to read, not to press: the pointer goes through it)
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.visible = false
 	add_child(_panel)
 	_panel_box = VBoxContainer.new()
-	_panel_box.add_theme_constant_override("separation", 4)
-	_panel_box.custom_minimum_size.x = PANEL_W - 20
+	_panel_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(_panel_box)
 
 
@@ -463,23 +612,52 @@ func _panel_vis() -> void:
 	_panel.visible = _panel.modulate.a > 0.01 and _shown != null and not _carrying()
 
 
+## The malfunctions in the deck, as cards, each with how many (the refit
+## screen's `_dross_block`, on the card's plate).
+func _dross_tip() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tally: Dictionary = {}
+	for id in Run.dross:
+		tally[id] = int(tally.get(id, 0)) + 1
+	for id in tally:
+		var card := DB.malfunction(id)
+		if card == null:
+			continue
+		var cv := CardView.new()
+		cv.setup(card, true, 1)
+		cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(cv)
+		if int(tally[id]) > 1:
+			var x := UITheme.body("x%d" % int(tally[id]), UITheme.LEAVE, UITheme.FS_SMALL)
+			x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(x)
+	return row
+
+
 func _carrying() -> bool:
 	var d: Variant = get_viewport().gui_get_drag_data() if is_inside_tree() else null
 	return typeof(d) == TYPE_DICTIONARY and (d as Dictionary).get("module") is HoldItem
 
 
-## THE CARD FOR WHAT IS POINTED AT (Jon: "hovering over the module shows the
-## modules + cards"), beside it: the module large, its name, manufacturer,
-## rarity, size and slot, its line, then its cards. `at` is where the pointed
-## thing is on screen; the card goes beside it, right of the left panel, off any
-## open popup, never on the thing itself. Null hides it.
-func _show(m: HoldItem, at: Rect2 = Rect2()) -> void:
-	if m != _shown or _panel_box.get_child_count() == 0:
+## THE CARD FOR WHAT IS POINTED AT: the MODULES page's own popup for it (Jon:
+## "Why don't we use the old module popup (the one that's on the module page)"),
+## built by the same function -- `ModuleIcon.tip_for` -- so the two cannot
+## drift; on the theme's tooltip plate, as Godot draws it there. Beside the
+## thing pointed at, right of the left panel, off any open popup, never on the
+## thing itself; placed once when what is pointed at changes, not every frame
+## (the hull bobs under it). Null hides it.
+func _show(m: Variant, at: Rect2 = Rect2()) -> void:
+	var fresh: bool = typeof(m) != typeof(_shown) or m != _shown
+	if fresh:
 		_shown = m
 		Widgets.clear(_panel_box)
-		if m != null:
-			_card(m)
-	if m != null and at.has_area():
+		if m is ModuleData:
+			_panel_box.add_child(ModuleIcon.tip_for(m as ModuleData))
+		elif typeof(m) == TYPE_STRING_NAME and m == &"dross":
+			_panel_box.add_child(_dross_tip())
+	if fresh and m != null and at.has_area():
 		var local := Rect2(get_global_transform().affine_inverse() * at.position, at.size)
 		_panel.reset_size()
 		_panel.size = _panel.get_combined_minimum_size()
@@ -487,86 +665,72 @@ func _show(m: HoldItem, at: Rect2 = Rect2()) -> void:
 	_panel_vis()
 
 
-func _card(m: HoldItem) -> void:
-	var mod := m as ModuleData
-	if mod != null:
-		# THE PART ITSELF FIRST, large: the hold's own plate, at the biggest whole
-		# multiple of its art pixels the card has room for
-		var pic := Pic.new()
-		pic.setup(mod, PANEL_W - 22.0, 84.0)
-		_panel_box.add_child(pic)
-	_panel_box.add_child(UITheme.body(m.name.to_upper(), UITheme.ICE, UITheme.FS_BODY))
-	if mod == null:
-		_panel_box.add_child(UITheme.body("%d X %d · CARGO" % [m.size.x, m.size.y], UITheme.COLD, UITheme.FS_SMALL))
-		return
-	_panel_box.add_child(UITheme.body("%s · %s · %d X %d · %s" % [
-		DB.manufacturer_name(mod.manufacturer).to_upper() if mod.manufacturer != &"" else "UNBRANDED",
-		ModuleData.rarity_name(mod.rarity), mod.size.x, mod.size.y,
-		ModuleData.slot_name(mod.slot).to_upper()], ModuleData.rarity_ink(mod.rarity), UITheme.FS_SMALL))
-	if mod.flavour != "":
-		var fl := UITheme.body(mod.flavour.to_upper(), UITheme.COLD, UITheme.FS_SMALL)
-		fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		fl.custom_minimum_size = Vector2(PANEL_W - 22, 0)
-		_panel_box.add_child(fl)
-	var cards := mod.resolved_cards()
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel_box.add_child(row)
-	var seen := {}
-	for c in cards:
-		if seen.has(c.name) or seen.size() >= 2:
-			continue
-		seen[c.name] = true
-		var v := CardView.new()
-		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(v)
-		v.setup(c, true, 1)
-	_panel_box.add_child(UITheme.body("GRANTS %d CARD%s · FITS A %s MOUNT" % [cards.size(),
-		"" if cards.size() == 1 else "S", ModuleData.slot_name(mod.slot).to_upper()], UITheme.CHILL, UITheme.FS_SMALL))
-
-
 # --------------------------------------------------------------- the left panel
 
 ## THE LEFT PANEL, the cutaway's only one (Jon, in turn: "Maybe we can have the
 ## hold in a panel to the left?", "The hold AND the stats can go in the left
-## panel maybe?", "maybe we don't need the bottom drawer?", "no right panel"):
-## the ship's name and numbers, the hold under them at the hold's own cell size
-## -- every row of every hull's hold on screen -- then DONE. The cutaway's full
+## panel maybe?", "maybe we don't need the bottom drawer?", "no right panel",
+## "the hold on top and the attributes on the bottom"): the ship's name, its
+## hold at the hold's own cell size -- every row of every hull's hold on screen
+## -- its numbers, then DONE. The cutaway's full
 ## height (it ends above LOCAL's bottom bar, whose SECTOR LOOT opens this
 ## system's own pile in a popup here); it slides in from the left with the
 ## push-in.
 func _build_left() -> void:
 	_hold_panel = PanelContainer.new()
 	_hold_panel.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.PANEL, 0.98), UITheme.LINE, 1, 10, 10))
+		UITheme.flat(Color(UITheme.PANEL, 0.98), UITheme.LINE, 1, 5, 10))
 	_hold_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_hold_panel)
 	var hc := VBoxContainer.new()
-	hc.add_theme_constant_override("separation", 3)
+	# (tight: the heavy's five rows of hold, its numbers, perks and keys all have
+	# to stand in the content area's height)
+	hc.add_theme_constant_override("separation", 1)
 	_hold_panel.add_child(hc)
+	# (Jon: "can we have the hold on top and the attributes on the bottom?")
+	# THE NAME AND ITS PENCIL, which opens the refit screen's own prompt
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 2)
+	hc.add_child(name_row)
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_BODY)
-	hc.add_child(_name)
+	name_row.add_child(_name)
+	var pencil := ShipScreen.NameEdit.new()
+	# (no taller than the name: the panel has no rows to spare on a heavy)
+	pencil.custom_minimum_size.y = 13.0
+	pencil.pressed.connect(open_rename)
+	name_row.add_child(pencil)
 	_class = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	hc.add_child(_class)
-	_attrs = AttrBlock.new()
-	_attrs.custom_minimum_size.x = 196
-	hc.add_child(_attrs)
-	_mount_line = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
-	hc.add_child(_mount_line)
-	hc.add_child(UITheme.hsep())
 	_hold_label = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
 	hc.add_child(_hold_label)
 	_hold = HoldGrid.new()
 	_hold.dropped.connect(_on_hold_drop)
 	hc.add_child(_hold)
+	hc.add_child(UITheme.hsep())
+	_attrs = AttrBlock.new()
+	_attrs.custom_minimum_size.x = 196
+	hc.add_child(_attrs)
+	_mount_line = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
+	hc.add_child(_mount_line)
+	# THE HULL'S PERKS AND THE LIVE SET BONUSES, as the refit screen shows them
+	# (the same builder, `ShipScreen.fill_perks`)
+	_perks = PerkBox.new()
+	_perks.add_theme_constant_override("separation", 1)
+	hc.add_child(_perks)
+	# THE DECK'S SECRET: malfunctions dealt into it, their cards on hover
+	_dross = UITheme.body("", UITheme.LEAVE, UITheme.FS_SMALL)
+	_dross.mouse_filter = Control.MOUSE_FILTER_STOP
+	hc.add_child(_dross)
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hc.add_child(sp)
+	# (the toast takes the key hint's line while it shows: one line, not two)
 	_say = UITheme.body("", UITheme.TRACTOR, UITheme.FS_SMALL)
-	_say.modulate.a = 0.0
+	_say.visible = false
 	hc.add_child(_say)
+	_keys = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
+	hc.add_child(_keys)
 	_done = Widgets.button("DONE · ESC", close)
 	_done.custom_minimum_size = Vector2(0, 22)
 	hc.add_child(_done)
@@ -574,10 +738,10 @@ func _build_left() -> void:
 
 # --------------------------------------------------------------- the popup
 
-## A CONTAINER, OPENED BESIDE WHAT OPENED IT (Jon: "the wreck loot can be just a
-## popup after you click the wrecked ship"): a wreck's bay, clicked on in the
-## sky behind the ship, or this system's own pile, from SECTOR LOOT on LOCAL's
-## bottom bar. Its title,
+## A CONTAINER, OPENED BESIDE WHAT OPENED IT: this system's own pile, from
+## SECTOR LOOT on LOCAL's bottom bar. (A wreck's bay was one too, for a round;
+## Jon: "Just keep the original popup" -- wrecks open LOCAL's two-grid screen,
+## from outside the cutaway.) Its title,
 ## its grid (four across, three rows shown before it scrolls), TAKE ALL and a
 ## close. Drag out of it to the hold or straight onto a ring; drag from the hold
 ## into it to put a thing down. One at a time.
@@ -705,6 +869,7 @@ func _refresh() -> void:
 	if Run.hull == null:
 		return
 	_hold.refresh()
+	_quiet(_hold)
 	var g := Run.hold_grid()
 	_hold_label.text = "HOLD · %d OF %d" % [Run.cargo_used(), g.x * g.y]
 	_name.text = Run.display_name().to_upper()
@@ -719,7 +884,13 @@ func _refresh() -> void:
 		fitted += Run.slots_used(slot)
 	for m in Run.installed:
 		cards += m.resolved_cards().size()
-	_mount_line.text = "MOUNTS %d OF %d · %d CARDS" % [fitted, mounts, cards]
+	_mount_line.text = "MOUNTS %d OF %d · %d CARDS\n%d CARDS A TURN · %d IN THE DECK" % [
+		fitted, mounts, cards, Run.hand_size(), Run.deck_size()]
+	_attrs.add_theme_constant_override("separation", 0)
+	ShipScreen.fill_perks(_perks, false, true)
+	_dross.text = "MALFUNCTIONS · %d IN YOUR DECK" % Run.dross_count()
+	_dross.visible = Run.dross_count() > 0
+	_keys.text = "%s TURNS · %s FLIPS" % [Keys.describe(&"hold_turn"), Keys.describe(&"part_flip")]
 	_fill_popup()
 	_layout(k, _room)
 	_mounts.refresh()
@@ -736,6 +907,16 @@ func _fill(g: SalvageGrid, h: MapGen.Jetsam) -> void:
 			if not n.taken.has(h.option(i)):
 				items.append(h.items[i])
 	g.setup(items, {}, 4)
+	_quiet(g)
+
+
+## NO GODOT TOOLTIP ON ANYTHING IN HERE: the card is the popup, and a hold
+## icon's own tooltip (the same popup, following the pointer) would be a second
+## one on top of it.
+func _quiet(g: Control) -> void:
+	for c in g.get_children():
+		if c is ItemIcon:
+			(c as Control).tooltip_text = ""
 
 
 func _on_ship_changed() -> void:
@@ -746,7 +927,8 @@ func _on_ship_changed() -> void:
 func _toast(s: String, bad: bool = false) -> void:
 	_say.text = s
 	_say.add_theme_color_override("font_color", UITheme.BAD if bad else UITheme.TRACTOR)
-	_say.modulate.a = 1.0
+	_say.visible = true
+	_keys.visible = false
 	_say_until = Time.get_ticks_msec() + 1800
 
 
@@ -852,6 +1034,24 @@ func _input(e: InputEvent) -> void:
 	if _goal <= 0.0:
 		return
 	var key := e as InputEventKey
+	if _rename != null:
+		# THE PROMPT HAS THE KEYS: letters go to its field, Esc shuts it
+		if key != null and key.pressed and key.keycode == KEY_ESCAPE:
+			get_viewport().set_input_as_handled()
+			_rename.queue_free()
+			_rename = null
+		return
+	if key != null and key.pressed and not key.echo and key.is_action_pressed(&"hold_turn"):
+		# R: the part in the hand, else the one under the pointer in the hold
+		if ShipScreen.turn_carried(get_viewport()) or ShipScreen.turn_in_hold(_hold, _hold.get_global_mouse_position()):
+			get_viewport().set_input_as_handled()
+			_quiet(_hold)
+		return
+	if key != null and key.pressed and not key.echo and key.is_action_pressed(&"part_flip"):
+		# F: the fitted part under the pointer, mirrored
+		if ShipScreen.flip_at(_mounts, _mounts.get_local_mouse_position()):
+			get_viewport().set_input_as_handled()
+		return
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
 		# a popup first, then the cutaway
 		get_viewport().set_input_as_handled()
@@ -898,6 +1098,9 @@ func _point(gp: Vector2) -> void:
 					at = Rect2(_mounts.get_global_transform() * r.position, r.size * _mounts.get_global_transform().get_scale())
 	if not m is ModuleData:
 		m = null
+	if m == null and _dross.is_visible_in_tree() and _dross.get_global_rect().has_point(gp):
+		_show(&"dross", _dross.get_global_rect())
+		return
 	_show(m, at)
 
 
@@ -920,42 +1123,15 @@ func _gui_input(e: InputEvent) -> void:
 		_sky_click(mb.global_position)
 
 
-## A click on the sky: a wreck there opens its bay; else an open popup shuts;
-## else the cutaway does.
-func _sky_click(gp: Vector2) -> void:
-	if wreck_at.is_valid():
-		var hit: Array = wreck_at.call(gp)
-		if hit.size() == 2:
-			open_popup(hit[0], hit[1])
-			return
+## A click on the sky -- anywhere not the ship, its parts, the left panel or a
+## popup, the wreck behind included (Jon: "You shouldn't be able to open a wreck
+## when your ship is clicked on and in focus"; its bay is LOCAL's own two-grid
+## screen, from outside the cutaway): an open popup shuts, else the cutaway.
+func _sky_click(_gp: Vector2) -> void:
 	if _popup != null:
 		close_popup()
 		return
 	close()
-
-
-## A module drawn large for the panel: `ModuleIcon.draw_plate`, the hold's own
-## picture of it, standing as it is authored, at 2, 3 or 4 screen px per art
-## px -- whichever is the largest that fits `w` x `h`.
-class Pic extends Control:
-	var m: ModuleData
-	var sc := ModuleIcon.HOLD_K
-
-	func setup(mod: ModuleData, w: float, h: float) -> void:
-		m = mod
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var f := Vector2(maxi(1, mod.size.x), maxi(1, mod.size.y))
-		for n: float in [4.0, 3.0, 2.0]:
-			var box := f * float(HoldGrid.CELL) * (n / ModuleIcon.HOLD_K)
-			sc = n
-			if box.x <= w and box.y <= h:
-				break
-		custom_minimum_size = f * float(HoldGrid.CELL) * (sc / ModuleIcon.HOLD_K)
-		size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-
-	func _draw() -> void:
-		ModuleIcon.draw_plate(self, m, Rect2(Vector2.ZERO, custom_minimum_size),
-			Vector2i(maxi(1, m.size.x), maxi(1, m.size.y)), false, sc)
 
 
 # --------------------------------------------------------------- the hover outline

@@ -268,6 +268,12 @@ func burn(on: bool = true) -> void:
 ## screen. Slicing is done once per texture, not once per view.
 static var _flame_cache: Dictionary = {}
 
+## FOR THE HARNESSES' FILMS: when set (>= 0), the clock every hull's bob, flame
+## and shudder run on, in seconds, advanced by the film one step a saved frame
+## -- so a window that drew at 8 a second still films a bob at its real rate.
+## -1 is the real clock, which is all play ever uses.
+static var shot_clock := -1.0
+
 ## Opt in. `amp` is in source pixels, so it is multiplied by the magnification
 ## like everything else.
 func bob(amp: int, hz: float = 0.3) -> void:
@@ -282,7 +288,7 @@ func _ready_anim() -> void:
 func _process(_delta: float) -> void:
 	if _hull() == null:
 		return
-	var t := float(Time.get_ticks_msec()) / 1000.0
+	var t := shot_clock if shot_clock >= 0.0 else float(Time.get_ticks_msec()) / 1000.0
 	var dirty := false
 	if _arrive_at >= 0 and _tick_arrival():
 		dirty = true

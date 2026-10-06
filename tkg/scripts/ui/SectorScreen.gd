@@ -2241,6 +2241,8 @@ func _on_slot_hovered(_index: int, _entered: bool) -> void:
 # ------------------------------------------------------------------ the cutaway
 
 var _cutaway: CutawayView = null
+## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
+var denied_clicks := 0
 var _ship_outline: CutawayView.Outline = null
 
 
@@ -2269,11 +2271,24 @@ func cutaway_ready() -> bool:
 func _on_own_ship_input(e: InputEvent) -> void:
 	var art := _view.ship_view()
 	var slot := art.get_parent() as Control
+	# where on the art the event is (the event's own point, not the mouse's: a
+	# harness pushes clicks without moving a pointer)
+	var mev := e as InputEventMouse
+	var at := (art.get_global_transform().affine_inverse() * (slot.get_global_transform() * mev.position)) 		if mev != null else art.get_local_mouse_position()
 	if not cutaway_ready():
+		# NOT PRESSABLE NOW -- a fight, an arrival, a screen up over LOCAL -- so it
+		# does not look it (no outline, no hand), and a click on it is the thud a
+		# button that cannot be pressed makes (Jon: "the same thud sound when you
+		# try and click on a button that doesn't work"). Not while a card is being
+		# aimed: then your hull is a target, and the click is the card's.
 		_ship_outline.visible = false
 		slot.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		var press := e as InputEventMouseButton
+		if press != null and press.pressed and press.button_index == MOUSE_BUTTON_LEFT 				and _aim_view == null and CutawayView.on_hull(art, at):
+			denied_clicks += 1
+			Audio.denied()
 		return
-	var on := CutawayView.on_hull(art, art.get_local_mouse_position())
+	var on := CutawayView.on_hull(art, at)
 	if on != _ship_outline.visible:
 		_ship_outline.visible = on
 		_ship_outline.queue_redraw()
@@ -2290,34 +2305,20 @@ func open_cutaway() -> CutawayView:
 		return null
 	_ship_outline.visible = false
 	_cutaway = CutawayView.open_over(self, _view.ship_view())
+	# THE SCENE ITSELF ZOOMS (Jon: "LOCAL should zoom the real scene too"): the
+	# ships (yours, the wrecks, a partner's), the dust and the shots with your
+	# ship, 2x; the sky layer by layer by its own depth
+	var near: Array[Control] = []
+	for c: Control in [_view._row, _view.dust, _view.fx]:
+		if c != null and is_instance_valid(c):
+			near.append(c)
+	_cutaway.scenes = near
+	_cutaway.sky = _view.backdrop
 	# ABOVE THE BOTTOM BAR, which stays: its SECTOR LOOT works from in here
 	if _quiet_holder != null and _quiet_holder.is_visible_in_tree():
 		_cutaway.offset_bottom = -maxf(0.0, get_global_rect().end.y - _quiet_holder.get_global_rect().position.y)
-	_cutaway.wreck_at = _wreck_under
 	_cutaway.closed.connect(func() -> void: _cutaway = null)
 	return _cutaway
-
-
-## THE WRECK DRAWN AT A POINT ON SCREEN, for the cutaway (Jon: "the wreck loot
-## can be just a popup after you click the wrecked ship"): `[jetsam, its art's
-## rect on screen]`, or `[]`. The wrecks are the slots `show_wrecks` built, in
-## the order it was handed them, so the slot under the point is the container.
-func _wreck_under(gp: Vector2) -> Array:
-	var n: MapGen.MapNode = Run.node_at()
-	if n == null or _view == null or fighting():
-		return []
-	var wrecks: Array = []
-	for raw in n.jetsam:
-		if (raw as MapGen.Jetsam).is_wreck():
-			wrecks.append(raw)
-	var i := _view.target_at(gp)
-	if i < 0 or i >= wrecks.size() or i >= _view._made.size():
-		return []
-	var slot := _view._made[i] as EnemySlot
-	if slot == null:
-		return []
-	var r: Rect2 = slot.art.get_global_rect() if slot.art != null else slot.get_global_rect()
-	return [wrecks[i], r] if r.has_point(gp) else []
 
 
 ## The part a card came off, lit on the hull while the card is pointed at.

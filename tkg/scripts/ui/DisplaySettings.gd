@@ -86,8 +86,8 @@ const DEFAULT_STYLE := &"simplified"
 const BUILT: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
 static var render_style: StringName = DEFAULT_STYLE
 ## GRAPHICS LOW: the cheaper path every style's renderer keeps (the chart's
-## fewer depth sheets and no billow march). The setting itself is not built
-## yet; the renderers read this so it is one switch away.
+## fewer depth sheets and no billow march, the sector map's one field read,
+## LOCAL at half rate). Settings' GRAPHICS row (`set_graphics_low`).
 static var graphics_low: bool = false
 ## A HARNESS'S `style=` / `graphics=` live in memory only: what the file held is
 ## kept here and is what save() writes back, so a shot taken at a setting never
@@ -136,9 +136,32 @@ static func set_render_style(s: StringName) -> bool:
 		return true
 	render_style = s
 	_harness_style = false  # the player chose it: it is theirs to keep
+	# CHOSEN AGAIN, IT IS TRIED AGAIN: RADIANT's safety (`ChartRadiant.fell_back`)
+	# held it off for the rest of the session, which was meant to last only
+	# "until the player chooses it again" -- and nothing ever let it go, so a
+	# player who picked RADIANT back (say, on LOW) got SIMPLIFIED under a
+	# setting that said RADIANT. The safety measures it afresh.
+	if s == &"radiant":
+		ChartRadiant.fell_back = false
 	save()
 	Sig.render_style_changed.emit()
 	return true
+
+
+## GRAPHICS LOW from Settings: kept, and applied at once -- the star chart, the
+## sector map and LOCAL rebuild on `Sig.render_style_changed` and read this as
+## they build (the chart also swaps its place pass live). Turning LOW ON lets
+## RADIANT try again if its safety had dropped it to SIMPLIFIED: what was too
+## heavy on HIGH may hold on LOW, and the safety measures the LOW path.
+static func set_graphics_low(on: bool) -> void:
+	if on == graphics_low and not _harness_low:
+		return
+	graphics_low = on
+	_harness_low = false  # the player chose it: it is theirs to keep
+	if on:
+		ChartRadiant.fell_back = false
+	save()
+	Sig.render_style_changed.emit()
 
 static func look_name(l: Look) -> String:
 	match l:

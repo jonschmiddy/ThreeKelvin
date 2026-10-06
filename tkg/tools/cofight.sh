@@ -122,17 +122,21 @@ case " $MODE " in
 	same "and both machines agree how its fight ended" "hellbenderfate"
 	FATE="$(grep -m1 '^\[cofight\] hellbenderfate ' "$OUT/host.log" | sed 's/^\[cofight\] hellbenderfate //')"
 	if [ "$FATE" = "dead" ]; then
-		same "the kill left both ships ONE bag" "bag"
+		same "the kill left both ships the same wrecks" "wreck"
 		one_of "and only one of them took the first part" "took"
+		same "and both agree who has it" "taker"
 	else
 		same "and the escape left the same hurt ship in the same place" "hellbenderafter"
 	fi
 ;;
 *)
-	same "so one kill leaves both ships ONE bag" "bag"
-	one_of "and only one of them can take a part out of it" "took"
+	same "both machines agree how the fight ended" "outcome"
+	same "so one kill leaves both ships the same wrecks" "wreck"
+	one_of "and only one of them can take a part out of them" "took"
+	same "and both agree who has it" "taker"
 	same "and one station shows both ships one shelf" "shelf"
 	one_of "but only one of them can buy the part off it" "bought"
+	same "and both agree who bought it" "buyer"
 ;; esac
 
 echo

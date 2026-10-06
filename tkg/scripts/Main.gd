@@ -1365,11 +1365,14 @@ var _cursor_shown: int = -1
 func _wear_cursor() -> void:
 	_cursor_tex.clear()
 	for i in CURSOR_FRAMES:
-		var img := Image.new()
-		if img.load(ProjectSettings.globalize_path(
-				"res://art/cursors/reticle_%d_2x.png" % i)) != OK:
+		# THROUGH THE IMPORTED TEXTURE, not the PNG on disk. An export has no
+		# loose PNG -- only the imported texture in the pack -- so loading the
+		# file by its globalized path failed there, silently, and friends got the
+		# system arrow. The textures import lossless, so their image is exact.
+		var tex := load("res://art/cursors/reticle_%d_2x.png" % i) as Texture2D
+		if tex == null:
 			return
-		_cursor_tex.append(ImageTexture.create_from_image(img))
+		_cursor_tex.append(ImageTexture.create_from_image(tex.get_image()))
 	_show_cursor(0)
 
 
@@ -1517,26 +1520,23 @@ func _input(event: InputEvent) -> void:
 	# the escape menu either: the page behind it would change while you read it.
 	if Run.hull == null or Router.is_front_door(Router.current) or _menu != null:
 		return
-	# SHIP, LOCAL, SECTOR, STARCHART, round. The screens a run is actually
-	# played on, in the order you move between them: what you are carrying,
-	# where you are side on, the sector round you, where you are going. LOCAL
-	# is the station while docked, as its tab is (Jon: "include local in the
-	# tabbable pages list").
+	# LOCAL, SECTOR, STARCHART, round. The screens a run is actually played on,
+	# in the order you move between them: where you are side on, the sector
+	# round you, where you are going. LOCAL is the station while docked, as its
+	# tab is (Jon: "include local in the tabbable pages list"). SHIP is gone from
+	# the round with its tab: your ship opens from LOCAL or the Shipyard.
 	#
 	# Each `show_` refuses on its own terms -- `show_ship` during a fight, the
 	# chart with nothing to jump to -- so a refused step simply leaves you where
 	# you were rather than needing a guard here.
-	if Router.current is ShipScreen:
-		if Router.docked:
-			Router.show_station()
-		else:
-			Router.show_local()
-	elif Router.current is SectorScreen or Router.current is StationScreen:
+	if Router.current is SectorScreen or Router.current is StationScreen:
 		Router.show_system()
 	elif Router.current is SystemMapScreen:
 		Router.show_starchart()
+	elif Router.docked:
+		Router.show_station()
 	else:
-		Router.show_ship()
+		Router.show_local()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

@@ -23,7 +23,9 @@ extends Node
 ## foreground dust and again without it, and what the dust covered of the ships'
 ## pictures and of every label and gauge printed -- the worst frame's share.
 ## `nodust` turns the dust off; `clipfull` films the whole view, ships and all;
-## `dustonly` films the dust alone over the view's plain wash.
+## `dustonly` films the dust alone over the view's plain wash. `fightat=N`
+## opens a fight on the clip's Nth frame (with `clipfull`, the screen change
+## from LOCAL into it is filmed).
 ## Needs a window.
 
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
@@ -199,6 +201,10 @@ func _run() -> void:
 						await RenderingServer.frame_post_draw
 				else:
 					await RenderingServer.frame_post_draw
+				# (`fightat=N`: a fight opens on the Nth frame, so the clip films the
+				# screen change from LOCAL into it -- a new view, a new sky)
+				if k == int(_arg("fightat", "-1")):
+					Router.start_combat(DB.enemies[&"cutter"], [], false)
 				gv.get_texture().get_image().get_region(arena).save_png("%s/f_%04d.png" % [clip, k])
 			print("wrote ", nf, " frames to ", clip)
 		for c in hid:

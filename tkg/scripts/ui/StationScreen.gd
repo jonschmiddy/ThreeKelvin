@@ -36,6 +36,14 @@ var _lab: LabScene
 ## Pointing at your own ship in the Shipyard, and the slab that answers it.
 var _mine_hit: Control
 var _mine_slab: Control
+## YOUR SHIP OPENED UP, in the yard (Jon: "Couldn't clicking on your ship while
+## in the shipyard do this?"): the same cutaway LOCAL opens, over the station,
+## the yard itself zoomed onto the ship on its stands. The refit a berth used
+## to send you to the SHIP page for (that page has no tab now).
+var _cutaway: CutawayView = null
+var _mine_outline: CutawayView.Outline = null
+## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
+var denied_clicks := 0
 var _till_note: Label
 var _hull_offer: VBoxContainer
 ## What is posted at this station and what you can close here. Above the shelf,
@@ -534,8 +542,13 @@ func _yard_ships(h: HullData) -> void:
 		mhit.mouse_filter = Control.MOUSE_FILTER_STOP
 		mhit.mouse_entered.connect(_on_mine_hover.bind(true))
 		mhit.mouse_exited.connect(_on_mine_hover.bind(false))
+		mhit.gui_input.connect(_on_mine_input)
 		box.add_child(mhit)
 		_mine_hit = mhit
+		_mine_outline = CutawayView.Outline.new()
+		_mine_outline.view = _mine_view
+		_mine_outline.visible = false
+		_mine_view.add_child(_mine_outline)
 	if h != null:
 		var hit := Control.new()
 		hit.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -858,7 +871,7 @@ func _on_till(item: HoldItem) -> void:
 ## DRAGGING IS THE CONFIRMATION. Carrying a thing across the deck is the
 ## deliberation, which is the same argument that let the refit screen's hatch
 ## destroy a part without asking -- and it is why the counter needs no button:
-## the hardpoints are on the SHIP page, and this is where things become money.
+## the hardpoints are on your ship (click it in the Shipyard), and this is where things become money.
 ##
 ## And the hold is the REAL grid, not a list of its contents. It is the thing
 ## you pack, it already drags, and every part on it already answers a hover with
@@ -1539,7 +1552,7 @@ func _refresh_undock() -> void:
 		return
 	_undock.text = "CANNOT UNDOCK"
 	_undock.tooltip_text = Widgets.tip("%s.
-Stow it in the hold on the SHIP page, or sell it at the Exchange."
+Click your ship in the Shipyard to stow it in the hold, or sell it at the Exchange."
 		% "; ".join(why).capitalize())
 
 
@@ -2297,7 +2310,7 @@ func _refresh_work(n: MapGen.MapNode) -> void:
 
 
 ## Everything open that this desk cannot pay for. Named rather than listed in
-## full: the ledger is the SHIP page's job, and a station is where you act.
+## full: the ledger is your ship's own job (click it), and a station is where you act.
 func _open_elsewhere(n: MapGen.MapNode) -> Array:
 	var out: Array = []
 	for c in Run.contracts:
@@ -2503,7 +2516,71 @@ func _add_mine_slab(box: Control, against: HullData) -> void:
 ## Pointing at your own ship swaps in its figures.
 func _on_mine_hover(on: bool) -> void:
 	if _mine_slab != null and is_instance_valid(_mine_slab):
-		_mine_slab.visible = on
+		_mine_slab.visible = on and _cutaway == null
+	if not on and _mine_outline != null and is_instance_valid(_mine_outline):
+		_mine_outline.visible = false
+		if _mine_hit != null and is_instance_valid(_mine_hit):
+			_mine_hit.mouse_default_cursor_shape = Control.CURSOR_ARROW
+
+
+## Whether your ship can be opened up here now: on the yard, nothing over it.
+func cutaway_ready() -> bool:
+	return Run.hull != null and _cutaway == null and _mine_view != null and is_instance_valid(_mine_view) 		and _mine_view.is_visible_in_tree() and (Router.dock == null or not is_instance_valid(Router.dock))
+
+
+## The pointer on your ship in the yard: the amber outline on its own pixels, and
+## a click opens it up -- or, when it cannot be, the thud a dead button makes.
+func _on_mine_input(e: InputEvent) -> void:
+	if _mine_view == null or not is_instance_valid(_mine_view):
+		return
+	var mev := e as InputEventMouse
+	if mev == null:
+		return
+	var at := _mine_view.get_global_transform().affine_inverse() * (_mine_hit.get_global_transform() * mev.position)
+	var on := CutawayView.on_hull(_mine_view, at)
+	var ready := cutaway_ready()
+	if _mine_outline != null and (on and ready) != _mine_outline.visible:
+		_mine_outline.visible = on and ready
+		_mine_outline.queue_redraw()
+	_mine_hit.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if on and ready else Control.CURSOR_ARROW
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT or not on:
+		return
+	_mine_hit.accept_event()
+	if not ready:
+		denied_clicks += 1
+		Audio.denied()
+		return
+	open_cutaway()
+
+
+## Open your ship up in the yard. Public for the harnesses.
+func open_cutaway() -> CutawayView:
+	if not cutaway_ready():
+		return null
+	if _mine_outline != null:
+		_mine_outline.visible = false
+	if _mine_slab != null and is_instance_valid(_mine_slab):
+		_mine_slab.visible = false
+	_cutaway = CutawayView.open_over(self, _mine_view)
+	# THE YARD ITSELF ZOOMS (Jon: "can we actually just zoom into the scene?"),
+	# without your ship's name sign, which would stand over the lifted parts
+	_cutaway.scenes = [_scene]
+	if _scene != null:
+		_scene.hide_mine_name = true
+		_scene.queue_redraw()
+	# THE STANDS COME WITH IT: where the yard seated them, from the hull's ink
+	var P: Dictionary = _scene.placed[0] if _scene != null else {}
+	if not P.is_empty():
+		var corner := _mine_view.position + Vector2((P["ink"] as Rect2i).position)
+		for sp: Dictionary in P["supports"]:
+			_cutaway.stands.append({tex = sp["tex"], at = Vector2(float(sp["x"]), float(sp["y"])) - corner})
+	_cutaway.closed.connect(func() -> void:
+		_cutaway = null
+		if _scene != null and is_instance_valid(_scene):
+			_scene.hide_mine_name = false
+			_scene.queue_redraw())
+	return _cutaway
 
 
 ## Which station this is, as one number: the run's galaxy and the node's place

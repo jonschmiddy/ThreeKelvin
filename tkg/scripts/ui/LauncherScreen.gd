@@ -103,6 +103,7 @@ func setup() -> void:
 	# has no workshop, so it has no switch for one. See DevMode.available.
 	if DevMode.available:
 		_add_dev_toggle()
+	_add_build_stamp()
 
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -212,6 +213,23 @@ func _input(e: InputEvent) -> void:
 	if get_viewport().gui_get_focus_owner() is LineEdit:
 		return
 	get_viewport().set_input_as_handled()
+
+
+## WHICH BUILD THIS IS, small in the corner where a build stamp goes
+## (`BuildInfo`): "0.1.0-alpha.1 · a1b2c3d" in an export, "dev" from source --
+## so a screenshot or a report says what was played. Above the developer switch
+## where that exists, which is only from source.
+func _add_build_stamp() -> void:
+	var l := UITheme.body(BuildInfo.stamp(), UITheme.COLD, UITheme.FS_SMALL)
+	l.name = "BuildStamp"
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	l.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	l.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	l.offset_right = -14
+	l.offset_bottom = -34 if DevMode.available else -10
+	add_child(l)
 
 
 func _add_dev_toggle() -> void:

@@ -1148,6 +1148,19 @@ func _victory() -> void:
 	# hull and leave the second as an empty box you still have to check.
 	var hands := maxi(1, shared.paid if (is_shared() and shared != null) else 1)
 	var pool := drops * hands
+	# POSITIONAL, as the bag was (`RunState.open_bag`): what is in a wreck
+	# belongs to the place, so every machine in the party rolls the identical
+	# contents without a byte crossing the wire, and only which parts are GONE
+	# travels. Off `Rng.loot` -- salted by seat -- the two ships' copies of one
+	# wreck held different parts under the same claim numbers, so a claim on
+	# slot 0 took a different part on each machine (`tools/cofight.sh` caught
+	# it). Keyed by the node and by how many wrecks it already holds, so a
+	# second fight at the same system is a second roll.
+	var wrecks_before := 0
+	for raw in node.jetsam:
+		if (raw as MapGen.Jetsam).is_wreck():
+			wrecks_before += 1
+	var r := Rng.derive(&"wreck", node.index * 64 + wrecks_before)
 	var made: Array = []
 	for e in enemies:
 		made.append(Run.new_wreck(node, (e as EnemyState).template))
@@ -1157,7 +1170,7 @@ func _victory() -> void:
 	for i in pool:
 		var h: MapGen.Jetsam = made[i % made.size()]
 		h.items.append(LootGen.roll_module(node.danger, force,
-			node.region == MapGen.Region.DEEP))
+			node.region == MapGen.Region.DEEP, r))
 	# THE MONEY IS IN THE FIRST HULL. It has to be somewhere you reach, and the
 	# alternative -- a chit in each -- turns one payout into a chore.
 	if purse > 0:

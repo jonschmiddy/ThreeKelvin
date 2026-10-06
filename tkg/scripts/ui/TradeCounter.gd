@@ -13,7 +13,7 @@ extends Control
 ## It also unties the knot a list of rows could not. Buying was a price you could
 ## click and selling was three buttons on every line -- install, sell, scrap --
 ## which is a spreadsheet. As PLACES they need no labels at all: the hardpoints
-## are on the SHIP page, and this is the counter.
+## are on your ship (click it, on LOCAL or in the Shipyard), and this is the counter.
 ##
 ## TWO SIDES, ONE PIECE OF FURNITURE. See `Side`. The Promenade's till charges
 ## you and the Exchange's counter pays you, and they are the same desk seen from

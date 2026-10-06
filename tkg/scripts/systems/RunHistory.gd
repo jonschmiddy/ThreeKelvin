@@ -17,7 +17,10 @@ const PATH := "user://history.json"
 ## Where the record is read and written. A harness points this at a scratch
 ## file, so a test can stand in a fresh profile without touching the player's.
 static var path: String = "user://harness_history.json" if TestRun.active() else PATH
-const VERSION := 1
+## 2: each record carries `build`. Version 1 records are still read: the change
+## only adds a key, and losing the record would re-lock every manufacturer.
+const VERSION := 2
+const READS := [1, 2]
 ## Old runs fall off the end. A file that grows forever eventually costs a
 ## visible pause on a screen whose whole job is to open instantly.
 const LIMIT := 200
@@ -85,6 +88,9 @@ static func record(outcome: Outcome, reason: String) -> void:
 		# The build, as the set-bonus system sees it: who you ended up flying.
 		manufacturers = _manufacturer_tally(),
 		system = MapGen.star_name(Run.node_at()),
+		# What it was flown on: "dev" from source, else version and commit
+		# (`BuildInfo`), so a record can be matched to the build that made it.
+		build = BuildInfo.stamp(),
 	}
 	var all := load_all()
 	all.append(entry)
@@ -141,7 +147,7 @@ static func load_all() -> Array:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return []
 	var d: Dictionary = parsed
-	if int(d.get("version", -1)) != VERSION:
+	if not int(d.get("version", -1)) in READS:
 		return []
 	var runs: Variant = d.get("runs", [])
 	return runs if typeof(runs) == TYPE_ARRAY else []

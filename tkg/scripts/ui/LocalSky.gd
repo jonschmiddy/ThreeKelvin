@@ -46,7 +46,8 @@ extends Control
 ##     the edge -- and so do the hole's and the pulsar's;
 ##   * ALONGSIDE A BELT OR A WRECK: its rocks, or the hulk and its shards, close by.
 ## The near things are drawn in a picture of their own (`local_near`), in front
-## of the band and given the same play tone as the sky.
+## of the band: solid bodies, their light pressed as the gas's is, their dark
+## never lifted.
 ##
 ## THE CAMERA moves when the ship does: it follows the hull's approach and its
 ## departure a little over half way (`CAM_FOLLOW`), and every layer slides by its
@@ -135,6 +136,10 @@ const PLAY := Vector2(70.0, 140.0)
 const PAINTED_KEEP := 0.4
 ## and RADIANT's lit volume, toned once
 const RADIANT_KEEP := 0.38
+## RADIANT's wash of the gas over a world close by (planet.gdshader's r_haze:
+## all over, more at the limb, the gas's brightness); the band's worlds keep the
+## shader's 0.22 / 0.45
+const NEAR_HAZE := Vector3(0.0, 0.1, 16.0)
 ## the cloud's sky pixel at the star: high in its bake, so the view below the
 ## star stays inside the baked field
 const CC := Vector2(480.0, 150.0)
@@ -205,9 +210,61 @@ var _dk := 1.0
 var _near_vp: SubViewport = null
 var _near_mat: ShaderMaterial = null
 var _near: Array = []
+## the picture the near layer is drawn onto (for the cutaway's zoom)
+var _near_rect: ColorRect = null
+
+## THE CUTAWAY'S ZOOM (`CutawayView`, Jon: "LOCAL should zoom the real scene
+## too"): the camera pushed in `zoom` times on the point `_zoom_fixed` (this
+## view's px), which it carries to `_zoom_to`. Each layer goes by its depth --
+## the world you orbit all the way with the ship, the band's worlds a little,
+## the star all but still; the far stars and the cloud are drawn on the screen's
+## own grid and hold. 1 is no zoom, which is all play outside the cutaway sees.
+var zoom := 1.0
+var _zoom_fixed := Vector2.ZERO
+var _zoom_to := Vector2.ZERO
+const Z_STAR := 0.04
+const Z_BAND := 0.15
+const Z_NEAR := 1.0
+
+
+func set_zoom(z: float, fixed: Vector2, to: Vector2) -> void:
+	zoom = z
+	_zoom_fixed = fixed
+	_zoom_to = to
+
+
+## A layer at depth `f` under the zoom: its scale, and where a point `p` of it
+## lands (on the sky's 2 px grid).
+func _zl(f: float) -> float:
+	return 1.0 + (zoom - 1.0) * f
+
+
+func _zp(p: Vector2, f: float) -> Vector2:
+	return _block_round(_zoom_fixed + (_zoom_to - _zoom_fixed) * f + (p - _zoom_fixed) * _zl(f))
+
+
+## A whole layer (a Node2D or a Control at the origin) put under the zoom.
+func _zlayer(n: CanvasItem, f: float) -> void:
+	if n == null or not is_instance_valid(n):
+		return
+	var at := _zp(Vector2.ZERO, f)
+	var sc := Vector2.ONE * _zl(f)
+	if n is Node2D:
+		(n as Node2D).position = at
+		(n as Node2D).scale = sc
+	elif n is Control:
+		(n as Control).position = at
+		(n as Control).scale = sc
 var _low_dt := 0.0
 ## the cloud's bake, kept for the next visit: key -> [field0, field1, field2]
 static var _baked := {}
+## Each system's cut palette this session, by `_key` (system, style, LOW), so a
+## new screen over a system already seen shows its finished sky at once.
+static var _pal_cache := {}
+const PAL_CACHE_MAX := 64
+## The most forced draws `_prime` spends finishing a sky (the cut waits for 8,
+## the bake for a handful more): a ceiling, not a cost.
+const PRIME_MAX := 48
 const BAKED_MAX := 3
 
 ## THE WEATHER's two slots, as the map's (`SkyWeather`): A one medium event, B
@@ -492,10 +549,58 @@ func _build() -> void:
 	_wx_setup()
 	_place_box()
 	_step(0.0)
+	# THE FIRST FRAME ANYBODY SEES IS THE FINISHED ONE (Jon, of the arrival:
+	# frames 0-2 smooth and unpaletted, then the cut; then of a hold that
+	# showed the dark wash first, "the black starfield AND THEN the nebula loads
+	# in looks bad"; and every later rebuild -- a new screen over the same
+	# system, a style or LOW change -- blinked the same way). So the sky is
+	# finished before it is shown: held clear while `_prime` drives the cloud's
+	# bake and the palette's cut through forced, unpresented draws, in this
+	# same frame, then shown. The palette is kept per system and style
+	# (`_pal_cache`), so a system already seen this session is cut once.
+	_box.modulate.a = 0.0 if _palette_mat != null else 1.0
+	var cached: Array = _pal_cache.get(_key, [])
+	if _palette_mat != null and not cached.is_empty():
+		_palette_mat.set_shader_parameter("pal", cached[0])
+		_palette_mat.set_shader_parameter("pal_n", cached[1])
+		_palette_built = true
+		_box.modulate.a = 1.0
 	if neb_on:
 		_bake_cloud(_gen)
 	else:
 		_ready_sky = true
+	_prime()
+
+
+## Finish the sky before it is first shown: forced draws (never presented)
+## until the cloud is baked and the palette cut, the coroutines that await a
+## drawn frame (`SkyBake.field`, `_build_palette`) running on each. A hitch of
+## a few renders on a system's first arrival -- behind the jump's flare -- and
+## none on a revisit, when both are cached. Not headless (nothing renders).
+func _prime() -> void:
+	if headless() or _scene == null:
+		_box.modulate.a = 1.0
+		return
+	# (set up before it is in the tree: finished on the way in, still unseen)
+	if not is_inside_tree():
+		if not tree_entered.is_connected(_prime):
+			tree_entered.connect(_prime, CONNECT_ONE_SHOT)
+		return
+	var gen := _gen
+	var t0 := Time.get_ticks_usec()
+	var draws := 0
+	_set_update(SubViewport.UPDATE_ALWAYS)
+	for i in PRIME_MAX:
+		if _ready_sky and (_palette_mat == null or _box.modulate.a > 0.0):
+			break
+		_step(0.0)
+		RenderingServer.force_draw(false, 0.0)
+		draws += 1
+		if gen != _gen or not is_inside_tree():
+			return
+	# (whatever happened, never leave the sky clear)
+	_box.modulate.a = 1.0
+	print_verbose("LocalSky primed %s in %d draws, %.0f ms" % [_key, draws, (Time.get_ticks_usec() - t0) / 1000.0])
 
 
 func _rect() -> ColorRect:
@@ -721,6 +826,8 @@ func _step(delta: float) -> void:
 	_step_star(o)
 	_step_worlds(o)
 	_step_near(o)
+	_zlayer(_worlds, Z_BAND)
+	_zlayer(_near_rect, Z_NEAR)
 	_wx_step(delta)
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
@@ -729,7 +836,8 @@ func _step(delta: float) -> void:
 func _step_star(o: Vector2) -> void:
 	if star == null:
 		return
-	star.position = o
+	star.position = _zp(o, Z_STAR)
+	star.scale = Vector2.ONE * _zl(Z_STAR)
 	_flare = 0.0
 	match layout.star:
 		SystemLayout.StarKind.PULSAR:
@@ -818,13 +926,17 @@ func _build_palette() -> void:
 	_palette_built = true
 	var freeze: TextureRect = null
 	if _box != null:
-		freeze = TextureRect.new()
-		freeze.texture = ImageTexture.create_from_image(_scene.get_texture().get_image())
-		freeze.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		freeze.position = _box.position
-		freeze.scale = Vector2(2, 2)
-		add_child(freeze)
+		# (a still over the sky while it is laid out at rest -- only when the sky
+		# is already showing; held clear, there is nothing to cover, and the still
+		# would be the unpaletted picture)
+		if _box.modulate.a > 0.0:
+			freeze = TextureRect.new()
+			freeze.texture = ImageTexture.create_from_image(_scene.get_texture().get_image())
+			freeze.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			freeze.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			freeze.position = _box.position
+			freeze.scale = Vector2(2, 2)
+			add_child(freeze)
 		_t_saved = t
 		_cam_rest = true
 		_step(0.0)
@@ -872,6 +984,13 @@ func _build_palette() -> void:
 	arr.resize(72)
 	_palette_mat.set_shader_parameter("pal", arr)
 	_palette_mat.set_shader_parameter("pal_n", mini(72, pal.size()))
+	_pal_cache[_key] = [arr, mini(72, pal.size())]
+	if _pal_cache.size() > PAL_CACHE_MAX:
+		_pal_cache.erase(_pal_cache.keys()[0])
+	# (and now it may be seen: the scene renders before the screen does, so the
+	# frame that shows it is already cut)
+	if _box != null:
+		_box.modulate.a = 1.0
 	# (a harness's `palprint`: the palette found, to compare two arrivals)
 	if "palprint" in OS.get_cmdline_user_args():
 		var hx: Array = []
@@ -1140,20 +1259,31 @@ func _build_near() -> void:
 		_near_vp = null
 		return
 	var rect := _rect()
+	_near_rect = rect
 	_near_mat = ShaderMaterial.new()
 	_near_mat.shader = NEAR
 	_near_mat.set_shader_parameter("tex", _near_vp.get_texture())
 	_near_mat.set_shader_parameter("ramp", PLAY)
+	# (solid: its light pressed as the gas's is, in the style's own measure,
+	# its dark never lifted)
+	_near_mat.set_shader_parameter("keep_lo", 1.0)
+	if radiant:
+		_near_mat.set_shader_parameter("keep_hi", RADIANT_KEEP)
 	rect.material = _near_mat
 	_scene.add_child(rect)
 
 
-## A near world dressed for the style, as the band's are.
+## A near world dressed for the style, as the band's are -- but in RADIANT
+## with next to none of the gas's wash over it (`NEAR_HAZE`): a band world
+## sits deep in the glowing cloud, whose light veils it, most at its limb; the
+## world the ship orbits is close, with little gas between, and veiled as the
+## band's are it read see-through.
 func _dress(v: Node) -> void:
 	if painted:
 		SectorPaintedS.paint_world(self, v)
 	if radiant:
 		_set_deep(v, "radiant", true)
+		_set_deep(v, "r_haze", NEAR_HAZE)
 
 
 func _step_near(o: Vector2) -> void:
