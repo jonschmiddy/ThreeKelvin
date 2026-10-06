@@ -41,6 +41,8 @@ var _mine_slab: Control
 ## the yard itself zoomed onto the ship on its stands. The refit a berth used
 ## to send you to the SHIP page for (that page has no tab now).
 var _cutaway: CutawayView = null
+## the elevator down the left, which the cutaway's panel takes the place of
+var _rail: Control = null
 var _mine_outline: CutawayView.Outline = null
 ## How many clicks on your ship were refused with the thud (for `-- cutawaytest`).
 var denied_clicks := 0
@@ -247,6 +249,7 @@ func _build() -> void:
 	#
 	# --- the section: the berths, five decks and a berth, down the left
 	var rail := VBoxContainer.new()
+	_rail = rail
 	rail.add_theme_constant_override("separation", 3)
 	rail.custom_minimum_size = Vector2(RAIL_W, 0)
 	rail.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -2564,10 +2567,14 @@ func open_cutaway() -> CutawayView:
 		_mine_slab.visible = false
 	_cutaway = CutawayView.open_over(self, _mine_view)
 	# THE YARD ITSELF ZOOMS (Jon: "can we actually just zoom into the scene?"),
-	# without your ship's name sign, which would stand over the lifted parts
+	# without your ship's name sign, which would stand over the lifted parts, or
+	# its floor reflection, a ghost of the ship under the blur
 	_cutaway.scenes = [_scene]
+	# (its panel takes the elevator's place: the elevator slides out first)
+	if _rail != null:
+		_cutaway.slide_out = [_rail]
 	if _scene != null:
-		_scene.hide_mine_name = true
+		_scene.hide_mine = true
 		_scene.queue_redraw()
 	# THE STANDS COME WITH IT: where the yard seated them, from the hull's ink
 	var P: Dictionary = _scene.placed[0] if _scene != null else {}
@@ -2578,7 +2585,7 @@ func open_cutaway() -> CutawayView:
 	_cutaway.closed.connect(func() -> void:
 		_cutaway = null
 		if _scene != null and is_instance_valid(_scene):
-			_scene.hide_mine_name = false
+			_scene.hide_mine = false
 			_scene.queue_redraw())
 	return _cutaway
 

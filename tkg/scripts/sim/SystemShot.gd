@@ -4,8 +4,9 @@ extends Node
 ##   godot --path . -- sheet=SystemShot out=<png> [seed=N] [node=I] [at=S] [hover=b|w|s] [select=I]
 ## `hover=b` points at the first beacon, `w` at the first world, `s` at the star;
 ## `select=I` selects body I (-1 the star) and shows it in the panel; `open=K`
-## opens the K-th beacon in the panel; `take=J` then takes its choice J and shows
-## the result. Needs a window.
+## opens the K-th beacon in the panel; `take=J` then takes its choice J (through
+## `OptionResolve`, as LOCAL's band does: the map no longer takes choices) and
+## shows its page stamped. Needs a window.
 ## The panel's states (the event list Jon picked, B with the stamp):
 ##   `takes=i:j,i:j`  takes option i's choice j, in order, before anything is
 ##                    shown -- walk-aways included -- so the list wears its stamps
@@ -326,7 +327,9 @@ func _ready() -> void:
 					scr.panel.show_beacon(bi, bc)
 					if take >= 0 and bc.opt >= 0:
 						scr.overlay.ship_park = bi
-						scr.take_choice(bc.opt, take)
+						var tr: Dictionary = await OptionResolve.take(scr.view.node, bc.opt, take)
+						print("  systemshot: took %d:%d ok %s" % [bc.opt, take, tr.get("ok")])
+						scr.panel.open_page(bc.opt)
 						for _w in 6:
 							await get_tree().process_frame
 				k += 1
@@ -441,13 +444,15 @@ func _ready() -> void:
 		for _i in 20:
 			await get_tree().process_frame
 		print("  systemshot: opened; ship park %d, flying %s (should be -3, false)" % [scr.overlay.ship_park, scr.overlay.ship_fly_t0 >= 0.0])
-		scr.take_choice(first.opt, 0)
+		scr.go_event(first.opt)
 		await get_tree().process_frame
-		print("  systemshot: chose; flying %s, result showing %s (should be true, false)" % [scr.overlay.ship_fly_t0 >= 0.0, scr._res_opt >= 0])
+		print("  systemshot: GO; flying %s (should be true)" % [scr.overlay.ship_fly_t0 >= 0.0])
 		var t0 := Time.get_ticks_msec()
-		while scr._res_opt < 0 and Time.get_ticks_msec() - t0 < 4000:
+		while not (Router.current is SectorScreen) and Time.get_ticks_msec() - t0 < 30000:
 			await get_tree().process_frame
-		print("  systemshot: after %.1f s: parked at %d (body %d), result showing %s" % [(Time.get_ticks_msec() - t0) / 1000.0, scr.overlay.ship_park, fb, scr._res_opt >= 0])
+		var lo := Router.current as SectorScreen
+		var ev = lo.get("_events") if lo != null else null
+		print("  systemshot: after %.1f s: on LOCAL %s, event band up %s on option %d (body %d)" % [(Time.get_ticks_msec() - t0) / 1000.0, lo != null, ev != null and ev.page == &"event", ev.opt if ev != null else -1, fb])
 	# THE FLOWN SHIP. `shipfree=x,z,vx,vz` puts it free on the plane, moving, so its
 	# dotted line shows; `keys=w,d` holds those keys and `run=S` runs the clock S
 	# seconds (with them held); `again=I` selects place I and clicks it again, and

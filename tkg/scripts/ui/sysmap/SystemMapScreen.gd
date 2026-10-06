@@ -82,13 +82,6 @@ var _box: SubViewportContainer
 var _vp: SubViewport
 var _strip: HBoxContainer
 var _transfer: TransferView = null
-## The option whose result is showing, for REWARD.
-var _res_opt := -1
-var _res_out: Dictionary = {}
-## Which choice made that result, and whether the ship flew to make it: the
-## result says YOU CHOSE and YOUR SHIP FLEW TO.
-var _res_choice := -1
-var _res_flew := false
 ## The beacon the cursor is on, as [body, beacon], so its card lights while it is.
 var _lit: Array = []
 var _taking := false
@@ -910,54 +903,43 @@ func _light_from_map(h: Dictionary) -> void:
 
 
 func panel_back() -> void:
-	_res_opt = -1
 	overlay.selected = -2
 	overlay.link_on = false
 	_lit = []
 	panel.show_system()
 
 
-func take_choice(i: int, j: int) -> void:
+## GO: an event is not taken here any more (Jon: events resolve on LOCAL,
+## `LocalEventDrawer`). The ship flies to where it stands, as a choice used to fly
+## it, then the view zooms down onto the ship and LOCAL comes up composed for
+## that place, the event lifting from the bottom of it.
+func go_event(i: int) -> void:
 	if _taking:
 		return
-	var n: MapGen.MapNode = view.node
-	var c: Dictionary = (OptionTable.by_id(n.options[i]).get("choices", []) as Array)[j]
-	if not OptionResolve.affordable(c):
-		return
-	_res_choice = j
-	_res_flew = false
-	# WALKING AWAY GOES NOWHERE; anything else, the ship flies there first
-	if bool(c.get("stay", false)):
-		_resolve(i, j)
-		return
-	var body := -1
-	for bi in view.layout.bodies.size():
-		for bc in view.layout.bodies[bi].beacons:
-			if bc.opt == i:
-				body = bi
-		_res_flew = flight.reached() != body
+	var body := LocalEventDrawer.body_of(view.node, i)
 	overlay.link_on = false
-	_go_then(body, func() -> void: _resolve(i, j))
+	if body < -1:
+		_zoom_down(i)
+		return
+	_go_then(body, func() -> void: _zoom_down(i))
 
 
-func _resolve(i: int, j: int) -> void:
-	var n: MapGen.MapNode = view.node
-	_taking = true
-	var out: Dictionary = await OptionResolve.take(n, i, j)
-	_taking = false
-	if not out.ok:
-		if out.why == "too_late":
-			panel.show_system()
-		return
-	if out.dead:
-		Router.show_game_over()
-		return
-	if out.fight_now:
-		Router.start_ambush()
-		return
-	_res_opt = i
-	_res_out = out
-	panel.show_result(i, out)
+## DOWN THE ZOOM LADDER (the one the first-run intro climbs): onto the ship, then
+## LOCAL. Reduced motion cuts.
+const ZOOM_DOWN_S := 0.7
+func _zoom_down(i: int) -> void:
+	LocalEventDrawer.request(view.node.index, i)
+	if Router.animating():
+		_taking = true
+		_glide_to("loc", -9, ZOOM_LOCATION * 2.0, ZOOM_DOWN_S)
+		await get_tree().create_timer(ZOOM_DOWN_S).timeout
+		_taking = false
+		if not is_inside_tree():
+			return
+	# (where the ship is, before LOCAL is built from it: the map otherwise writes
+	# it on its way out, after the new screen has already composed its sky)
+	_keep_ship()
+	Router.show_local()
 
 
 ## DOCK, HARVEST and the custodian: the same doors the sector's action button
@@ -1013,10 +995,6 @@ func open_sector_loot() -> void:
 	_open_jetsam(Run.sector_jetsam(view.node, false))
 
 
-func open_prize() -> void:
-	_open_jetsam(Run.sector_jetsam(view.node, false), "REWARD")
-
-
 func _open_jetsam(h: MapGen.Jetsam, title: String = "") -> void:
 	if _transfer != null or h == null:
 		return
@@ -1031,9 +1009,6 @@ func _close_transfer() -> void:
 		return
 	_transfer.queue_free()
 	_transfer = null
-	# REWARD greys once the pile is empty, so the result is drawn again.
-	if _res_opt >= 0:
-		panel.show_result(_res_opt, _res_out)
 
 
 ## THE SCALE BAR, the chart's (`MapChart._draw_scale`) in the bottom-right corner

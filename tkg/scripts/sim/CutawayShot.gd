@@ -305,6 +305,9 @@ func _yard() -> void:
 	if st == null or st._mine_view == null:
 		print("cutawayshot: the yard did not draw your ship")
 		return
+	if "yardstudy" in _args:
+		await _yard_study(st)
+		return
 	st._mine_outline.visible = true
 	st._mine_outline.queue_redraw()
 	await _frames(8)
@@ -338,6 +341,42 @@ func _yard() -> void:
 	await _frames(40)
 	_still("yard_05_closed")
 	print("cutawayshot: back in the yard: %s" % (Router.current is StationScreen and st._cutaway == null))
+
+
+## THE ZOOM, STUDIED (`yard yardstudy clip=<dir>`): the yard's clock held, the
+## blur off, the cutaway's own hull, parts and panel hidden, and every frame of
+## the push-in saved with the yard's transform on screen (`zoom.json`: scale and
+## the screen point of the yard's origin, per frame). Laid back over the first,
+## unzoomed frame, everything in the yard should map to itself; whatever does
+## not is drawn somewhere the zoom does not reach.
+func _yard_study(st: StationScreen) -> void:
+	st._scene.step_to(6.0)
+	CutawayView.harness_no_blur = true
+	# the game's own picture (before Main's screen effect bends it), and the
+	# yard's transform in it
+	var vp := st.get_viewport()
+	var rows: Array = []
+	var shoot := func(i: int, t: float) -> void:
+		var g := (st._scene as Control).get_global_transform_with_canvas()
+		vp.get_texture().get_image().save_png("%s/z_%04d.png" % [_dir, i])
+		rows.append({"i": i, "scale": g.get_scale().x, "origin": [g.origin.x, g.origin.y], "t": t})
+	st._mine_view.visible = false
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	shoot.call(0, 0.0)
+	st._mine_view.visible = true
+	var cut := st.open_cutaway()
+	await get_tree().process_frame
+	cut._stage.visible = false
+	cut._hold_panel.visible = false
+	for i in range(1, 24):
+		await RenderingServer.frame_post_draw
+		shoot.call(i, cut.t)
+	var f := FileAccess.open("%s/zoom.json" % _dir, FileAccess.WRITE)
+	f.store_string(JSON.stringify(rows))
+	f.close()
+	CutawayView.harness_no_blur = false
+	print("cutawayshot: yard study, %d frames" % rows.size())
 
 
 ## Whether anything lifted reaches past the cutaway's foot (LOCAL's bottom bar).

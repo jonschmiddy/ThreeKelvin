@@ -623,6 +623,25 @@ func _check_local() -> void:
 	var sb := cut._ship.art_scale() * cut._ship.get_global_transform().get_scale().x
 	_ok("LOCAL's own ship, zoomed, is where the parts come off (%s vs %s, %.2fx vs %.2fx)" % [a0, b0, sa, sb],
 		a0.distance_to(b0) <= 1.0 and is_equal_approx(sa, sb))
+	# THE ESC MENU'S BLUR OVER THE ZOOMED SCENE, and nothing of the cutaway's own
+	# under it: the scrim first, its shader the pause menu's, fully on; the HUD
+	# and the bottom bar outside it; the hull, its parts and the panel drawn after
+	# it; the scene's own ship gone, this view's hull drawn in its place
+	var scrim := cut._scrim
+	var bar_top := sc._quiet_holder.get_global_rect().position.y if sc._quiet_holder != null and sc._quiet_holder.is_visible_in_tree() else INF
+	_ok("the blur is the Esc menu's own shader, first under everything the cutaway draws, fully on (%.2f)" % float(cut._scrim_mat.get_shader_parameter(&"amount")),
+		cut.get_child(0) == scrim and cut._scrim_mat.shader == CutawayView.BACKDROP
+		and is_equal_approx(float(cut._scrim_mat.get_shader_parameter(&"amount")), 1.0))
+	_ok("it covers the scene, not the HUD above or LOCAL's bottom bar below",
+		scrim.get_global_rect().is_equal_approx(cut.get_global_rect()) and cut.get_global_rect().end.y <= bar_top + 0.5
+		and cut.get_global_rect().position.y >= sc.get_global_rect().position.y)
+	_ok("open, the left panel sits fully on screen at the cutaway's left edge (x %d)" % cut._hold_panel.position.x,
+		is_equal_approx(cut._hold_panel.position.x, 0.0) and cut.get_global_rect().encloses(cut._hold_panel.get_global_rect()))
+	_ok("the hull and its parts, the left panel and the card draw after it (crisp)",
+		cut._stage.get_index() > scrim.get_index() and cut._hold_panel.get_index() > scrim.get_index()
+		and cut._panel.get_index() > scrim.get_index())
+	_ok("the scene's own ship is hidden under it, and the cutaway's hull drawn crisp in its place",
+		not own.visible and cut._ship.visible and is_equal_approx(cut._ship.self_modulate.a, 1.0))
 	var slot := made[0] as EnemySlot
 	# THE SCENE ZOOMED WITH IT: the wreck is drawn bigger, round your ship
 	_ok("the wreck is zoomed with the scene (%.1fx)" % slot.get_global_transform().get_scale().x,
@@ -642,6 +661,7 @@ func _check_local() -> void:
 		await _tree.process_frame
 	await _settle()
 	Router.animate_in_harness = false
+	_ok("shut, the scene's own ship is back", own.visible)
 	_ok("shut, the scene is back at its own size and place (row %s -> %s, ship %s -> %s)" % [row_was, sc._view._row.get_global_rect(), ship_was, sc._view.ship_view().get_global_rect()],
 		is_equal_approx(slot.get_global_transform().get_scale().x, 1.0) and sc._view._row.get_global_rect().is_equal_approx(row_was)
 		and sc._view.ship_view().get_global_rect().is_equal_approx(ship_was))

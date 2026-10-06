@@ -34,6 +34,11 @@ extends Control
 signal closed
 
 const EASE_S := 0.4
+## THE ESCAPE MENU'S OWN BACKDROP (Jon: "the background should be pixelated and
+## blurred like what happens during the escape menu" -- "everything but the
+## modules and ship"): the shared shader, on a rect drawn before anything of
+## this view's, so it breaks up the zoomed scene behind and nothing in front.
+const BACKDROP := preload("res://shaders/pause_backdrop.gdshader")
 const PANEL_W := 250
 ## The gap kept round the room the exploded ship must fit in, right of the left panel.
 const MARGIN := 8.0
@@ -62,6 +67,15 @@ var _scene_was: Array = []
 var _scene_q: Array[Vector2] = []
 var _sky_fixed := Vector2.ZERO
 var _src_mounts: Array[MountPoints] = []
+## WHAT THE LEFT PANEL TAKES THE PLACE OF (the station's elevator, Jon: "The side
+## bar also going over the elevator is weird"): slid out to the left and faded
+## in the first half of the push-in, the panel sliding into the space it left in
+## the second; the other way round on close. Never both on screen at once.
+var slide_out: Array[Control] = []
+var _slide_was: Array = []
+var _scrim: ColorRect
+var _scrim_mat: ShaderMaterial
+var _src_hidden := false
 var _stand_layer: StandLayer
 var _stage: Control
 var _ship: ShipView
@@ -120,6 +134,9 @@ var _last_gp := Vector2.INF
 ## instead of the frame's real time, so a film at 30 a second shows the real
 ## 0.4 s however slowly the window drew. 0 is the real clock.
 static var fixed_step := 0.0
+## For the harness's study of the zoom (`sheet=CutawayShot yardstudy`): the
+## blur held off, so a frame can be laid back over the unzoomed picture.
+static var harness_no_blur := false
 
 
 ## Open over `host`, from LOCAL's own hull `src`.
@@ -144,6 +161,15 @@ func _ease(x: float) -> float:
 
 
 func _build() -> void:
+	_scrim = ColorRect.new()
+	_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scrim_mat = ShaderMaterial.new()
+	_scrim_mat.shader = BACKDROP
+	_scrim_mat.set_shader_parameter(&"amount", 0.0)
+	_scrim.material = _scrim_mat
+	add_child(_scrim)
+
 	_stage = Control.new()
 	_stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_stage)
@@ -216,8 +242,17 @@ func _measure() -> void:
 				_scene_q.append(sc.get_global_transform().affine_inverse() * art0)
 			if sky != null and is_instance_valid(sky):
 				_sky_fixed = sky.get_global_transform().affine_inverse() * art0
-			_ship.self_modulate.a = 0.0
 			_stand_layer.visible = false
+			for c: Control in slide_out:
+				_slide_was.append([c.position, c.modulate.a])
+			# THE SCENE'S OWN SHIP GOES, and this view's hull is drawn crisp in its
+			# place, over the blur, at its pixel and scale (its bob copied in
+			# `_process`, its engines' flame with it): one ship, never a blurred
+			# copy under a sharp one
+			_src.visible = false
+			_src_hidden = true
+			if _src._burning and not _ship._burning:
+				_ship.burn(true)
 			# (its own parts come off it here: the yard's copies go while this is open)
 			for c in _src.get_children():
 				if c is MountPoints and (c as MountPoints).visible:
@@ -476,6 +511,10 @@ func _apply() -> void:
 			sc.position = (to - _scene_q[i] * sc.scale).round()
 			# (and its own size, which a moved anchored control does not keep)
 			sc.size = _scene_was[i][5]
+			# (a picture lit in its own pixels -- the yard -- relit where it now is,
+			# this frame, not the next)
+			if sc.has_method(&"sync_light"):
+				sc.call(&"sync_light")
 		if sky != null and is_instance_valid(sky):
 			sky.set_zoom(zs, _sky_fixed, sky.get_global_transform().affine_inverse() * to_g)
 	var x := clampf((e - 0.35) / 0.65, 0.0, 1.0)
@@ -484,7 +523,20 @@ func _apply() -> void:
 	_mounts.queue_redraw()
 	_panel.modulate.a = x
 	_panel_vis()
-	_hold_panel.position.x = roundf(lerpf(-_hold_w, 0.0, e))
+	if slide_out.is_empty() or _slide_was.size() != slide_out.size():
+		_hold_panel.position.x = roundf(lerpf(-_hold_w, 0.0, e))
+	else:
+		# the elevator out in the first half, the panel in in the second
+		var go := clampf(e / 0.5, 0.0, 1.0)
+		for i in slide_out.size():
+			var c := slide_out[i]
+			if is_instance_valid(c):
+				var p0: Vector2 = _slide_was[i][0]
+				c.position.x = roundf(lerpf(p0.x, -c.size.x - 16.0, go))
+				c.modulate.a = float(_slide_was[i][1]) * (1.0 - go)
+		_hold_panel.position.x = roundf(lerpf(-_hold_w, 0.0, clampf((e - 0.5) / 0.5, 0.0, 1.0)))
+	# the Esc menu's curve: cubic ease-out, 0 to 1, on the push-in's own progress
+	_scrim_mat.set_shader_parameter(&"amount", 0.0 if harness_no_blur else 1.0 - pow(1.0 - clampf(t, 0.0, 1.0), 3.0))
 
 
 ## THE RENAME PROMPT, the refit screen's own (`ShipScreen.rename_prompt`), over
@@ -579,6 +631,16 @@ func _finish_close() -> void:
 			scenes[i].offset_bottom = w[4]
 	if sky != null and is_instance_valid(sky):
 		sky.set_zoom(1.0, Vector2.ZERO, Vector2.ZERO)
+	for i in mini(slide_out.size(), _slide_was.size()):
+		var c := slide_out[i]
+		if is_instance_valid(c):
+			c.position = _slide_was[i][0]
+			c.modulate.a = _slide_was[i][1]
+			if c.get_parent() is Container:
+				(c.get_parent() as Container).queue_sort()
+	if _src_hidden and _src != null and is_instance_valid(_src):
+		_src.visible = true
+	_src_hidden = false
 	for mp in _src_mounts:
 		if is_instance_valid(mp):
 			mp.visible = true

@@ -9,13 +9,15 @@ render_mode unshaded;
 
 uniform sampler2D screen : hint_screen_texture, filter_nearest;
 uniform vec2 origin = vec2(0.0);
+// how many canvas pixels a hall pixel is drawn at (the cutaway zooms the yard)
+uniform float zoom = 1.0;
 uniform vec2 arc = vec2(0.0);
 uniform float fl = 1.0;
 
 varying vec2 sp;
 
 void vertex() {
-	sp = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy - origin;
+	sp = ((MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy - origin) / zoom;
 }
 
 void fragment() {

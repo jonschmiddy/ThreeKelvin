@@ -233,9 +233,10 @@ func set_ship_map(tex: Texture2D) -> void:
 
 
 ## Where the hall is in the canvas, for every material.
-func set_origin(o: Vector2) -> void:
+func set_origin(o: Vector2, zoom: float = 1.0) -> void:
 	for m in mats:
 		m.set_shader_parameter(&"origin", o)
+		m.set_shader_parameter(&"zoom", zoom)
 
 
 func set_fullbright(on: bool) -> void:

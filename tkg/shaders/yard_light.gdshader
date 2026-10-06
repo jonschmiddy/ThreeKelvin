@@ -30,6 +30,8 @@ render_mode unshaded;
 
 uniform int mode = 0;
 uniform vec2 origin = vec2(0.0);
+// how many canvas pixels a hall pixel is drawn at (the cutaway zooms the yard)
+uniform float zoom = 1.0;
 // mode 1: the hall pixel whose light a picture standing on the floor takes
 instance uniform vec2 cell = vec2(0.0);
 // light_map: 766 x 964, (R, G, B, how much) high bytes above, low below
@@ -78,7 +80,7 @@ varying vec2 sp;
 varying vec4 vc;
 
 void vertex() {
-	sp = (MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy - origin;
+	sp = ((MODEL_MATRIX * vec4(VERTEX, 0.0, 1.0)).xy - origin) / zoom;
 	vc = COLOR;
 }
 

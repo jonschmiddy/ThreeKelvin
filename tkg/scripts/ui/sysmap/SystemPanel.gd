@@ -15,10 +15,10 @@ extends VBoxContainer
 ##          Clicking a world or the star on the map narrows the list to that
 ##          place, with its picture, its facts and FLY HERE on top; SHOW ALL
 ##          widens it again. There is no star page and no world page.
-##   EVENT  one encounter: its place, whether a choice flies you there, its
-##          text and its choices. Choosing keeps you on this page, which then
-##          shows what you chose and how it went, and NEXT EVENT at the foot.
-##          Walking away is a short LEFT ALONE: it is still open.
+##   EVENT  one encounter: its place, where you are, its one sentence and GO.
+##          GO flies you there and down into LOCAL, where the event's text, its
+##          choices and how it went come up (`LocalEventDrawer`) -- the one
+##          place a choice is taken. A walked-away one stays LEFT ALONE, open.
 ##
 ## THE PAIR IS SHOWN WHEN IT MATTERS (Jon: "hovering over an option would grey
 ## it out and would say WILL BE MADE UNAVAILABLE"). No divider and no warning
@@ -36,10 +36,10 @@ extends VBoxContainer
 ## and the right panel updates with info on the planet, the picture of the
 ## planet, and the choices. OR you click on the choices and that moves you to the
 ## planet's orbit"). A place's page is its picture, its facts, whether you are in
-## orbit of it, and every event there with its text and its choices. Until you
-## are there they are LOCKED -- dimmed, but still clickable: a click flies you
-## into orbit and takes the choice when you get there. The star's page is the
-## same, with its own picture and the worlds that go round it.
+## orbit of it, and every event there with its one sentence and GO; GO flies you
+## into orbit first if you are not there, then down into LOCAL to take it (the
+## choices moved there: events resolve on LOCAL). The star's page is the same,
+## with its own picture and the worlds that go round it.
 ##
 ## The screen owns the rules; this only builds what is shown and calls back.
 
@@ -64,7 +64,7 @@ var _box: VBoxContainer
 var _foot: HBoxContainer
 var _scroll: ScrollContainer
 var _portrait: Node2D = null
-## Which page is up: &"list", &"event" or &"result".
+## Which page is up: &"list" or &"event".
 var mode: StringName = &"list"
 ## The place the list is narrowed to: a body, -1 the star, -2 nowhere.
 var filter: int = -2
@@ -280,10 +280,10 @@ func _there_word(body: int) -> String:
 
 ## The line a locked page carries over its choices: a choice flies you there,
 ## but only out of an orbit (`ShipFlight.can_fly`).
-const LOCKED_LINE := "LOCKED UNTIL YOU ARE THERE · A CHOICE FLIES YOU THERE FIRST"
-const WAIT_LINE := "LOCKED UNTIL YOU ARE THERE · AVAILABLE ONCE YOU ARE IN AN ORBIT"
+const LOCKED_LINE := "GO FLIES YOU THERE, THEN DOWN TO IT"
+const WAIT_LINE := "GO ONCE YOU ARE IN AN ORBIT"
 ## on the way to it already
-const COMING_LINE := "LOCKED UNTIL YOU ARE THERE · AVAILABLE ON ARRIVAL"
+const COMING_LINE := "ON YOUR WAY THERE"
 
 
 func _can_go() -> bool:
@@ -485,24 +485,33 @@ func _pair_open(pair: Array) -> bool:
 	return _is_open(bc.opt)
 
 
-## ONE OPEN EVENT ON ITS PLACE'S PAGE: its tags, its title, its text and its
-## choices -- live while you are there, dimmed and LOCKED until you are (a
-## click still takes it, flying you there first).
+## ONE OPEN EVENT ON ITS PLACE'S PAGE: its tags, its title, its one sentence and
+## GO -- the event itself is taken on LOCAL (`LocalEventDrawer`), where GO takes
+## you (flying there first).
 func _place_event(body: int, i: int) -> void:
 	var n: MapGen.MapNode = screen.view.node
 	var o := OptionTable.by_id(n.options[i])
 	_gap(2)
 	_box.add_child(_rich(_tags_bb(o)))
 	_wrap(String(o.get("title", "")).to_upper(), EncounterDrawer.tag_colour(o).lerp(UITheme.ICE, 0.5), UITheme.FS_SMALL)
-	var here := _ship_at(body)
-	_blurb(String(o.get("body", "")), UITheme.CHILL if here else DIM)
-	var choices: Array = o.get("choices", [])
-	for j in choices.size():
-		var card := EncounterDrawer.choice_card(n, i, j, choices[j], o, func(ii: int, jj: int) -> void: screen.take_choice(ii, jj))
-		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		if not here:
-			card.modulate.a = LOCKED_A
-		_box.add_child(card)
+	_blurb(EncounterDrawer.first_sentence(String(o.get("body", ""))), UITheme.CHILL if _ship_at(body) else DIM)
+	_go_button(i)
+
+
+## GO, which flies you to the event (if you are not there) and down into LOCAL,
+## where it is taken. Pointed at, it says what taking the event would close.
+func _go_button(i: int) -> void:
+	var row := HBoxContainer.new()
+	row.add_child(_spacer())
+	var go := _small("GO", func() -> void: screen.go_event(i), not (_ship_at(_body_of_opt(i)) or _can_go()))
+	go.name = "Go"
+	var rivals := _rivals(i)
+	if not rivals.is_empty():
+		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
+		go.mouse_entered.connect(func() -> void: hover_choice(names))
+		go.mouse_exited.connect(func() -> void: hover_choice(""))
+	row.add_child(go)
+	_box.add_child(row)
 
 
 ## THE SECTOR'S PAGE, WHICH IS THE STAR'S: its picture, its name and class, the
@@ -717,11 +726,6 @@ func show_beacon(body: int, bc) -> void:
 	_event_page({})
 
 
-func show_result(i: int, out: Dictionary) -> void:
-	open_opt = i
-	_event_page(out)
-
-
 ## < and > and the arrow keys: the next encounter round the list.
 func step(d: int) -> void:
 	var encs := _encounters()
@@ -733,7 +737,7 @@ func step(d: int) -> void:
 
 func _event_page(out: Dictionary) -> void:
 	_clear()
-	mode = &"event" if out.is_empty() else &"result"
+	mode = &"event"
 	var v = screen.view
 	var n: MapGen.MapNode = v.node
 	var i := open_opt
@@ -751,9 +755,6 @@ func _event_page(out: Dictionary) -> void:
 	_box.add_child(_rich(_tags_bb(o)))
 	_name(String(o.get("title", "")).to_upper(), EncounterDrawer.tag_colour(o).lerp(UITheme.ICE, 0.5))
 	_class("%s  ·  %s" % [_place_name(body), _place_kind(body)])
-	if not out.is_empty():
-		_result(i, out)
-		return
 	var st := _state(i)
 	if st.kind == &"open" or st.kind == &"left":
 		# THE TRIP COMES WITH THE CHOICE, and says so before you make it
@@ -764,23 +765,9 @@ func _event_page(out: Dictionary) -> void:
 		if st.kind == &"left":
 			_blurb("You walked away from this. It is still open.", UITheme.CHILL)
 		_rule()
-		_blurb(String(o.get("body", "")), UITheme.CHILL)
+		# ONE SENTENCE: the event itself, and its choices, are on LOCAL
+		_blurb(EncounterDrawer.first_sentence(String(o.get("body", ""))), UITheme.CHILL)
 		_rule()
-		var rivals := _rivals(i)
-		var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
-		var choices: Array = o.get("choices", [])
-		for j in choices.size():
-			var c: Dictionary = choices[j]
-			var card := EncounterDrawer.choice_card(n, i, j, c, o, func(ii: int, jj: int) -> void: screen.take_choice(ii, jj))
-			card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			if not _ship_at(body):
-				card.modulate.a = LOCKED_A
-			_box.add_child(card)
-			# WHAT IT WOULD CLOSE, said only while you point at a choice that
-			# takes the event. Walking away closes nothing, so it says nothing.
-			if not rivals.is_empty() and not bool(c.get("stay", false)) and OptionResolve.affordable(c):
-				card.mouse_entered.connect(func() -> void: hover_choice(names))
-				card.mouse_exited.connect(func() -> void: hover_choice(""))
 		_conseq = _rich("")
 		_conseq.custom_minimum_size = Vector2(TEXT_W, 11)
 		_box.add_child(_conseq)
@@ -791,6 +778,16 @@ func _event_page(out: Dictionary) -> void:
 		_box.add_child(_rich(_card_line(i, st, o)))
 		_rule()
 		_blurb(String(o.get("body", "")), DIM)
+	# GO, the page's one action, at the foot where the panel's buttons are
+	if st.kind == &"open" or st.kind == &"left":
+		var go := _act("GO", func() -> void: screen.go_event(i))
+		go.name = "Go"
+		go.disabled = not (_ship_at(body) or _can_go())
+		var rivals := _rivals(i)
+		if not rivals.is_empty():
+			var names := ", ".join(rivals.map(func(j: int) -> String: return _title(j)))
+			go.mouse_entered.connect(func() -> void: hover_choice(names))
+			go.mouse_exited.connect(func() -> void: hover_choice(""))
 	_act("ALL EVENTS", func() -> void: screen.panel_back())
 
 
@@ -799,60 +796,6 @@ func hover_choice(names: String) -> void:
 	if _conseq == null:
 		return
 	_conseq.text = "" if names == "" else _c("WILL MAKE ", UITheme.WARN) + _c(names, DIM) + _c(" UNAVAILABLE", UITheme.WARN)
-
-
-# ---------------------------------------------------------------- RESULT
-## How it went, on the event's own page: what you chose, the band, the bet, the
-## trip, what it said and what it cost; then REWARD if it paid something, and
-## the next open event. Walking away is short: it is still open.
-func _result(i: int, out: Dictionary) -> void:
-	var v = screen.view
-	var n: MapGen.MapNode = v.node
-	var o := OptionTable.by_id(n.options[i])
-	var choices: Array = o.get("choices", [])
-	var j: int = screen._res_choice
-	if j >= 0 and j < choices.size():
-		_blurb("YOU CHOSE: " + String((choices[j] as Dictionary).get("label", "")).to_upper())
-	var said := String((out.res as Dictionary).get("text", ""))
-	if out.stay:
-		_name("LEFT ALONE", UITheme.CHILL)
-		_eyebrow("STILL OPEN. NOTHING WAS SPENT.", UITheme.ICE)
-		_blurb(said, UITheme.HOT)
-		_act("ALL EVENTS", func() -> void: screen.panel_back())
-		_act("CHOOSE AGAIN", func() -> void: screen.open_option(i))
-		return
-	var word := SkillCheck.band_name(out.band) if out.checked else "RESOLVED"
-	var ink: Color = SkillCheck.band_colour(out.band) if out.checked else UITheme.CHILL
-	_name(word, ink)
-	if out.checked:
-		_eyebrow(String(out.odds))
-	if screen._res_flew:
-		_eyebrow("YOUR SHIP FLEW %s FIRST" % ("ALONGSIDE" if _there_word(_body_of_opt(i)) == "ALONGSIDE" else "INTO ORBIT"), UITheme.FLARE)
-	_blurb(said, UITheme.HOT)
-	if not (out.bill as Array).is_empty():
-		_rule()
-		for r in out.bill:
-			_row(String(r.name), String(r.text), r.tone as Color)
-	if OptionTable.pays_item(out.res) and not Run.dead:
-		var left := Run.jetsam_left(n, Run.sector_jetsam(n, false))
-		var claim := _act("REWARD", func() -> void: screen.open_prize())
-		claim.disabled = left <= 0
-	var nx := _next_open(i)
-	if nx >= 0:
-		_act("NEXT: " + _title(nx), func() -> void: screen.open_option(nx))
-	else:
-		_act("ALL EVENTS", func() -> void: screen.panel_back())
-
-
-## The next encounter round the list still open after option i, or -1.
-func _next_open(i: int) -> int:
-	var encs := _encounters()
-	var at := encs.find(i)
-	for k in range(1, encs.size()):
-		var j: int = encs[posmod(at + k, encs.size())]
-		if _is_open(j):
-			return j
-	return -1
 
 
 # ---------------------------------------------------------------- the card itself

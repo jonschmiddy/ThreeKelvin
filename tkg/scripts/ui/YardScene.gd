@@ -146,6 +146,9 @@ var _next_small := 0.0
 var _weld_copy: BackBufferCopy
 var _weld_fx: ColorRect
 var _weld_mat: ShaderMaterial
+## where the light was last told the hall stands, and at what scale
+var _lit_at := Vector2(-1e9, -1e9)
+var _lit_k := 0.0
 var _tex_cache: Dictionary = {}
 var _img_cache: Dictionary = {}
 ## For the harness: events to fire at seconds after power-on, [[key, s], ...].
@@ -732,9 +735,31 @@ func power_on(settled: bool = false) -> void:
 		sound.power_on(_tp, settled)
 
 
+## WHERE THE HALL IS, AND HOW BIG: the light is worked out in the hall's
+## pixels, and the cutaway moves and scales the yard between ticks -- it calls
+## this straight after, so the lamps never lag the picture by a frame.
+func sync_light() -> void:
+	if light == null:
+		return
+	var gt := get_global_transform()
+	if gt.origin != _lit_at or gt.get_scale().x != _lit_k:
+		_lit_at = gt.origin
+		_lit_k = gt.get_scale().x
+		light.set_origin(_lit_at, _lit_k)
+		if _weld_mat != null:
+			_weld_mat.set_shader_parameter(&"origin", _lit_at)
+			_weld_mat.set_shader_parameter(&"zoom", _lit_k)
+
+
 func _process(delta: float) -> void:
 	if light == null or lv.is_empty() or not is_visible_in_tree():
 		return
+	# (a harness film steps every clock a fixed step a saved frame -- see
+	# `ShipView.shot_clock` -- or a window that drew at 8 a second films the
+	# crew and the forklift running)
+	if ShipView.shot_clock >= 0.0 and CutawayView.fixed_step > 0.0:
+		delta = CutawayView.fixed_step
+	sync_light()
 	_clock += delta
 	var fr := int(floorf(_clock * HZ))
 	if fr == _tick_n and not _force:
@@ -764,7 +789,7 @@ func _process(delta: float) -> void:
 ## One frame of the yard (the page's `paint`): who is where and what is lit,
 ## then every layer drawn afresh, then this tick's light to the shader.
 func _tick(t: float) -> void:
-	light.set_origin(get_global_transform().origin)
+	light.set_origin(get_global_transform().origin, get_global_transform().get_scale().x)
 	_events(t)
 	light.weigh(t)
 	if sound != null:
@@ -886,6 +911,7 @@ func _draw_weld(t: float) -> void:
 	var ay := float(life.weld_now["y"])
 	_weld_fx.position = Vector2(ax - 16.0, ay - 16.0)
 	_weld_mat.set_shader_parameter(&"origin", get_global_transform().origin)
+	_weld_mat.set_shader_parameter(&"zoom", get_global_transform().get_scale().x)
 	_weld_mat.set_shader_parameter(&"arc", Vector2(ax, ay))
 	_weld_mat.set_shader_parameter(&"fl", 0.55 + 0.45 * YardLight.hash1(floorf(t * 22.0) * 1.37))
 
@@ -918,7 +944,7 @@ func _draw_ships() -> void:
 	var tint := Color(0.8, 0.8, 0.82)
 	for i in 2:
 		var S: Dictionary = placed[i]
-		if S.is_empty():
+		if S.is_empty() or (i == 0 and hide_mine):
 			continue
 		var v: ShipView = _mine if i == 0 else _sale
 		var fl := float(S["floor"])
@@ -944,15 +970,17 @@ func _draw_ships() -> void:
 ## whole yard is shown at twice its size, Jon: "The text for the ships are too
 ## big." So 16 and 8, the next sizes down that keep the font on whole pixels,
 ## the name's baseline 11 rows over the hull and YOURS / FOR SALE 2 rows over.
-## Your ship's name over it off, while the cutaway has it zoomed in: at 2x the
-## sign stood over the parts lifted off the hull.
-var hide_mine_name := false
+## Your ship's name over it, and its reflection in the floor, off while the
+## cutaway has it zoomed in: at 2x the sign stood over the parts lifted off the
+## hull, and the reflection -- a photograph of the ship -- showed through the
+## blur as a second, ghostly ship under the real one.
+var hide_mine := false
 
 
 func _names(P: YardPaint) -> void:
 	for i in 2:
 		var S: Dictionary = placed[i]
-		if S.is_empty() or (i == 0 and hide_mine_name):
+		if S.is_empty() or (i == 0 and hide_mine):
 			continue
 		var x := floorf(float(S["x0"]) + 3.0 + 0.5)
 		var y := floorf(float(S["top"]) + 0.5)

@@ -140,6 +140,14 @@ func _ready() -> void:
 		_co_fight.run(get_tree())
 		return
 
+	# Every authored option opened and resolved through LOCAL's event band
+	# (`LocalEventDrawer`), the one place a choice is taken:
+	#   godot --headless --path . -- localeventtest
+	if "localeventtest" in OS.get_cmdline_user_args():
+		_co_fight = load("res://scripts/sim/LocalEventTest.gd").new()
+		_co_fight.run(get_tree())
+		return
+
 	# A ship in the party that nobody is sitting in front of:
 	#   godot --headless --path . -- bot join ABC-123
 	#   tools/bot.sh ABC-123

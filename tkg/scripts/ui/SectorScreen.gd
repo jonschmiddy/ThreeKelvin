@@ -170,6 +170,8 @@ var _exit_fail: String = ""
 var _pile_panel: PanelContainer = null
 ## The open container, or null. See `_open_jetsam`.
 var _transfer: TransferView = null
+## The event band (`LocalEventDrawer`): an event from the map resolves here.
+var _events: LocalEventDrawer = null
 var _discard_pile: PileView
 var _end_button: Button
 var _hail_button: Button
@@ -251,6 +253,10 @@ func setup(c: Combat = null) -> void:
 	# on its way past and read for its material.
 	Sig.card_played.connect(func(c: CardData) -> void: _last_played = c)
 
+	# THE EVENT THE MAP SENT YOU TO, lifting from the bottom of the view (before
+	# the first refresh, so the bar can offer OPEN IT)
+	_events = LocalEventDrawer.attach(self, fighting())
+	_events.changed.connect(_refresh)
 	_refresh()
 
 	# Fly in. Arriving somewhere should look like arriving somewhere — the ship
@@ -1055,6 +1061,10 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 		line = "A STATION HERE - SEE SECTOR"
 	elif left > 0:
 		line = "%d THING%s HERE - SEE SECTOR" % [left, "" if left == 1 else "S"]
+	# THE EVENT YOU CAME FOR, how it went and what is left (`LocalEventDrawer`)
+	var ev := LocalEventDrawer.bar_line(n)
+	if ev != "":
+		line = ev
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1067,6 +1077,13 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 	# loot"), only while there is something on it, as the map's SECTOR LOOT is:
 	# a popup in the cutaway, the two-grid screen with your hold beside it
 	# anywhere else
+	# OPEN IT: the event the band was dropped on (NOT NOW), or walked away from
+	if LocalEventDrawer.can_reopen(n) and _events != null and _events.page == &"":
+		var oi := Widgets.button("OPEN IT", func() -> void: _events.open(LocalEventDrawer.bar_option(n)))
+		oi.name = "OpenIt"
+		oi.custom_minimum_size = EncounterDrawer.BTN
+		oi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(oi)
 	var pile := Run.sector_jetsam(n, false)
 	var loose := Run.jetsam_left(n, pile) if pile != null else 0
 	if loose > 0:

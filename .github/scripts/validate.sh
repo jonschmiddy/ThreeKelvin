@@ -374,6 +374,20 @@ if run_godot maptest 180 --headless --path "$PROJECT" -- maptest; then
 	fi
 fi
 
+step "Every event opens and resolves on LOCAL"
+# The one place a choice is taken now: LOCAL's event band. Every authored
+# option is opened and every choice resolved through it, in all three layouts.
+if run_godot localeventtest 300 --headless --path "$PROJECT" -- localeventtest; then
+	if grep -qE '^localeventtest: PASS' "$LOG_DIR/localeventtest.log"; then
+		ok "every event resolves on LOCAL"
+	else
+		bad "an event failed to open or resolve on LOCAL"
+		grep -E 'FAIL|^localeventtest' "$LOG_DIR/localeventtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "localeventtest did not finish"
+fi
+
 step "The option table rolls a legal system every time"
 # Also never gated, and it is the only thing checking the content that landed
 # tonight: 42 options, unique ids, every rolled option admitted by its own gate,
