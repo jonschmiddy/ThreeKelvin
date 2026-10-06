@@ -46,6 +46,9 @@ uniform vec2 centre = vec2(0.0);
 // edges a step darker, a thin ring a checker over the sky (never half alpha), the
 // world's shadow a crisp dark wedge
 uniform bool painted = false;
+// RADIANT: the ring scatters the light -- bright on the sun's side, and lit from
+// behind it glows through its thin parts, a translucent veil of light
+uniform bool radiant = false;
 
 vec3 rampc(int ramp, int k) { return texelFetch(ramps, ivec2(clamp(k, 0, 5), ramp), 0).rgb; }
 float bayer2(float x, float y) {
@@ -97,7 +100,9 @@ void fragment() {
 		float v;
 		// (the sun's height only takes the edge off: a ring lit at a slant
 		// still has to read as a ring at the size the map draws it)
-		if (lit_face > 0.5) v = p.g * (0.1 + 0.9 * (0.55 + 0.45 * sun_up) * sh * min(1.0, k_light));
+		if (radiant && lit_face > 0.5) v = p.g * (0.1 + 0.78 * (0.6 + 0.4 * sun_up) * sh * min(1.25, k_light));
+		else if (radiant) v = p.g * (0.08 + 3.4 * o * (1.0 - o) * sh * k_light * (0.6 + 0.4 * sun_up)) + 0.22 * (1.0 - o) * sh * k_light;
+		else if (lit_face > 0.5) v = p.g * (0.1 + 0.9 * (0.55 + 0.45 * sun_up) * sh * min(1.0, k_light));
 		// lit from behind: through the thin parts, hardly at all through the thick
 		else v = p.g * (0.06 + 2.4 * o * (1.0 - o) * sh * k_light * (0.5 + 0.5 * sun_up));
 		a_sum += o;

@@ -121,6 +121,11 @@ uniform float halo_cut = 36.0;
 // colours, never dithered; a four-point sparkle on top. Its light on the sky is
 // the sky's own banded rings (the paint pass), so nothing faint is drawn here.
 uniform bool painted = false;
+// RADIANT (A's star): a ball of light -- deeper limb darkening, its bulk on the
+// ramp's gold and only its very middle on the cream (A: "so it reads as a burning
+// ball and not a pale biscuit"); its glow gathered wider round it, the light the
+// gas round it is lit by
+uniform bool radiant = false;
 
 const float BW = 420.0;
 const float BH = 300.0;
@@ -269,7 +274,7 @@ vec3 face_colour(float dx, float dy, float Rr, float t) {
 	float sp = floor(t * spin * Rq) / Rq, cs = cos(sp), sn = sin(sp);
 	float px = nx * cs + nz * sn, pz = -nx * sn + nz * cs, py = ny;
 	// limb darkening: the edge is cooler and dimmer
-	float I = 1.0 - limb * (1.0 - nz);
+	float I = radiant ? 0.1 + 0.88 * pow(nz, 0.75) : 1.0 - limb * (1.0 - nz);
 	if (gdark > 0.0) { float pole = abs(-dx * sin(eq_tilt) + dy * cos(eq_tilt)) / (R * (1.0 - oblate)); I *= 1.0 + gdark * (pole - 0.4); }
 	// granulation: small boiling cells; giant cells for the giants
 	if (gran > 0.0) { float g = fbm3(px * gran + t * 0.15, py * gran, pz * gran - t * 0.1); I *= 1.0 - gran_k + gran_k * 2.0 * g; }
@@ -295,9 +300,9 @@ vec3 face_colour(float dx, float dy, float Rr, float t) {
 
 // ---------------------------------------------------------------- what lies round it
 vec3 glow(float x, float y, float d, float t) {
-	float Rg = R * glow_r * c_breath;
+	float Rg = R * glow_r * c_breath * (radiant ? 1.35 : 1.0);
 	if (d < R * 0.8 || d > Rg) return vec3(0.0);
-	float v = glow_i * exp(-(d - R) / (R * glow_w * c_breath)) * (1.0 - d / Rg) * flick * (1.0 + (c_breath - 1.0) * 1.33);
+	float v = glow_i * exp(-(d - R) / (R * glow_w * c_breath * (radiant ? 1.3 : 1.0))) * (1.0 - d / Rg) * flick * (1.0 + (c_breath - 1.0) * 1.33);
 	if (shimmer > 0.0) { float ang = ang_of(y - CYB, x - CXB); v *= 1.0 - shimmer + shimmer * 2.0 * noise(cos(ang) * 3.0 + t * 0.4, sin(ang) * 3.0 + d * 0.05 - t * 0.7); }
 	return v > 0.004 ? glow_c * v : vec3(0.0);
 }

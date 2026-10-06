@@ -631,6 +631,8 @@ func show_system(n: MapGen.MapNode) -> void:
 	_set_deep(star, "px_scale", 2.0)
 	if painted:
 		_set_deep(star, "painted", true)
+	if radiant:
+		_set_deep(star, "radiant", true)
 	for i in layout.bodies.size():
 		var b := layout.bodies[i]
 		if b.world == &"":
@@ -2165,6 +2167,10 @@ class _Fabric extends Node2D:
 ## over it. The orbits spread with the world's size, so they never bunch.
 class _Moons extends Node2D:
 	var view
+
+	## RADIANT's gathered tone: linear light to an sRGB colour, never a flat white
+	static func _tone(c: Vector3) -> Color:
+		return Color(pow(1.0 - exp(-c.x * 1.15), 1.0 / 2.2), pow(1.0 - exp(-c.y * 1.15), 1.0 / 2.2), pow(1.0 - exp(-c.z * 1.15), 1.0 / 2.2))
 	## how deep each moon ("world:moon") sits in its world's shadow, eased
 	var _ecl := {}
 
@@ -2333,6 +2339,17 @@ class _Moons extends Node2D:
 			var mrad := clampf(0.35 + 0.42 * z, 0.5, 2.4)
 			# (PAINTED: the moon's own ramp, its night leaning to the sky; held poses)
 			var mk: Array = view._pt.get("moon", []) if view.painted else []
+			# (RADIANT: lit as its world is -- grey rock in the star's colour on its lit
+			# side, the gas's colour in its shade, through the same gathered tone)
+			var c_lit := Color(0.8, 0.83, 0.88)
+			var c_dark := Color(0.34, 0.37, 0.43)
+			var c_dot := Color(0.48, 0.52, 0.58)
+			if view.radiant:
+				var tn: Vector3 = view._tint
+				var nf: Vector3 = view.night_fill(view.pos[i])
+				c_lit = _tone(Vector3(0.42, 0.42, 0.44) * tn * 1.7 + Vector3(0.42, 0.42, 0.44) * nf * 9.0 * 0.5)
+				c_dark = _tone(Vector3(0.42, 0.42, 0.44) * nf * 9.0 * 0.7)
+				c_dot = c_dark.lerp(c_lit, 0.45)
 			for m in moons:
 				var a: float = view.pose(view.t) * (0.25 + m * 0.12) + m * 2.1
 				var mr: float = float(slots[m]) * r if not slots.is_empty() else orbit_r(r, m, gap)
@@ -2354,8 +2371,8 @@ class _Moons extends Node2D:
 						draw_rect(Rect2(q, Vector2(1, 1)), mk[2] if dim > 0.9 else mk[1])
 						draw_rect(Rect2(q + lp, Vector2(1, 1)), mk[6] if dim > 0.9 else mk[4])
 						continue
-					draw_rect(Rect2(q, Vector2(1, 1)), Color(0.48, 0.52, 0.58) * Color(dim, dim, dim))
-					draw_rect(Rect2(q + lp, Vector2(1, 1)), Color(0.82, 0.85, 0.9) * Color(dim, dim, dim))
+					draw_rect(Rect2(q, Vector2(1, 1)), c_dot * Color(dim, dim, dim))
+					draw_rect(Rect2(q + lp, Vector2(1, 1)), c_lit * Color(dim, dim, dim))
 				else:
 					# larger: a tiny disc, its star side lit
 					var cq := c.round() + Vector2(0.5, 0.5)
@@ -2364,5 +2381,5 @@ class _Moons extends Node2D:
 						draw_circle(cq + lit_dir * mrad * 0.35, mrad * 0.68, mk[5] if dim > 0.9 else mk[4])
 						draw_rect(Rect2((cq + lit_dir * mrad * 0.55).floor(), Vector2(1, 1)), mk[7])
 						continue
-					draw_circle(cq, mrad, Color(0.34, 0.37, 0.43) * Color(dim, dim, dim))
-					draw_circle(cq + lit_dir * mrad * 0.35, mrad * 0.68, Color(0.8, 0.83, 0.88) * Color(dim, dim, dim))
+					draw_circle(cq, mrad, c_dark * Color(dim, dim, dim))
+					draw_circle(cq + lit_dir * mrad * 0.35, mrad * 0.68, c_lit * Color(dim, dim, dim))

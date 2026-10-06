@@ -162,9 +162,9 @@ uniform bool radiant = false;
 // RADIANT's emission zones (A): teal to violet to rose, in light px; their squash
 // across the plane, the noise on them; the light's reach and fall; the glow's gain,
 // its power, the gas's gain and the shade's own violet
-uniform float r_z0 = 130.0;
-uniform float r_z1 = 330.0;
-uniform float r_z2 = 520.0;
+uniform float r_z0 = 90.0;
+uniform float r_z1 = 230.0;
+uniform float r_z2 = 400.0;
 uniform float r_zsq = 2.3;
 uniform float r_zn = 380.0;
 uniform float r_o3 = 0.78;
@@ -173,11 +173,14 @@ uniform float r_fp = 0.9;
 uniform float r_ek = 2.0;
 uniform float r_epow = 0.5;
 uniform float r_gk = 1.1;
-uniform float r_gbase = 0.3;
+uniform float r_gbase = 0.45;
+// how much of the cloud's dust RADIANT keeps (A: a veil, never pillars of black)
+uniform float r_dust = 0.16;
+uniform float r_zpow = 0.75;
 uniform float r_pastel = 0.5;
 // RADIANT's core: the haze of the galaxy's heart lit by the disc, filling the frame
 uniform float r_core_haze = 2.2;
-uniform float r_floor = 0.10;
+uniform float r_floor = 0.16;
 // each world: where it is drawn (screen px), its drawn radius, its true radius
 // at this zoom; its rings' outer edge in its radii (0: none)
 uniform vec4 r_bodies[24];
@@ -768,18 +771,21 @@ void fragment() {
 			// teal close in, through violet, to H-alpha rose far out (the zones in
 			// the plane, so flattened as the plane is seen), its gas in shade keeping
 			// a dim violet light of its own, so nothing is black
-			// (the zones on the cloud itself, about where the sun stands on it at the
-			// opening -- they slide with the cloud's own share of a pan. Anchored to the
-			// sun's place on screen they swept across the slow gas as the map panned,
-			// and the cloud read as sliding the wrong way: Jon's "opposite")
-			vec2 sun_sky = cc_em;
-			vec2 dz = (sp - sun_sky) * vec2(1.0, r_zsq);
-			float xz = length(dz) / lt.LZ + (fine - 0.5) * r_zn;
-			float dS = length((sp - sun_sky) * vec2(1.0, 1.15)) / lt.LZ;
+			// (the zones round the sun where it is, in light px, as SIMPLIFIED's own
+			// light and bubble are: anchored to the cloud instead, a view on a giant far
+			// from the sun came out all teal, where A's is rose)
+			// (they open out faster than the light's reach as the map closes in: A's
+			// zones are the gas's own, round the sun in the system, so a close view on
+			// a world near the sun is all its blue-violet, one far out all rose)
+			vec2 dz = (b - star_at) * vec2(1.0, r_zsq);
+			float LZz = pow(max(lzoom, 1e-3) / max(home_zoom, 1e-3), r_zpow) * lscale;
+			float xz = length(dz) / LZz + (fine - 0.5) * r_zn;
+			float dS = lt.dL;
 			// (the OIII paled toward white close in, as A's near gas: a vivid teal there
 			// read as SIMPLIFIED's bubble)
 			vec3 o3A = mix(vec3(0.2, 0.95, 0.85), vec3(0.55, 0.78, 1.0), r_pastel) * r_o3;
-			vec3 emA = mix(mix(o3A, vec3(0.40, 0.22, 1.0), smoothstep(r_z0, r_z1, xz)), vec3(1.0, 0.2, 0.3), smoothstep(r_z1, r_z2, xz));
+			// (the far rose leaning violet, as A's: pure H-alpha read brick red)
+			vec3 emA = mix(mix(o3A, vec3(0.40, 0.22, 1.0), smoothstep(r_z0, r_z1, xz)), vec3(1.0, 0.24, 0.42), smoothstep(r_z1, r_z2, xz));
 			float FA = pow(r_d0 * r_d0 / (r_d0 * r_d0 + dS * dS), r_fp);
 			// (a volume: the gas along the whole ray, so thin places still glow; only
 			// the dust's lanes go dark)
@@ -788,7 +794,12 @@ void fragment() {
 			// the corona: the near gas lit hard, gathered tight round the sun (A's is
 			// a thin warm glow; a wide pale disc read as a halo ring)
 			vec3 cor = vec3(1.0, 0.85, 0.65) * Jc * Jc * Jc * (0.2 + gv) * 0.30;
-			H = EA * Tr + cor + dustC * (1.0 - T) + rimC * rim;
+			// (A's cloud has no big dark pillars: its dust a light veil that reddens what
+			// is behind it, not a black wall)
+			float Ta = exp(-tau * 3.6 * r_dust);
+			vec3 TrA = exp(-tau * 3.6 * r_dust * vec3(0.62, 0.80, 1.0));
+			H = EA * TrA + cor + dustC * (1.0 - Ta) + rimC * rim * r_dust;
+			T = Ta;
 			trans = T * (1.0 - 0.97 * sat(gv * 4.0));
 		}
 		dens = body;

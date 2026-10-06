@@ -39,6 +39,12 @@ uniform float star_r = 0.0;
 uniform vec2 centre = vec2(0.0);
 // PAINTED (direction B): its steps flat, never dithered between
 uniform bool painted = false;
+// RADIANT (`planet.gdshader`'s): the rock lit, not shaded -- its own colour as an
+// albedo, the star's colour and a soft terminator, the gas's colour in its shade
+uniform bool radiant = false;
+uniform vec3 star_tint = vec3(1.0);
+uniform vec3 night_fill = vec3(0.0);
+uniform vec4 r_wk = vec4(1.7, 9.0, 7.0, 1.15);
 
 const int R_ROCK = 0;
 const int R_GLOW = 6;
@@ -62,6 +68,17 @@ float fbm3(vec3 p, int oct) {
 	return s / n;
 }
 vec3 rampc(int ramp, int k) { return texelFetch(ramps, ivec2(clamp(k, 0, 5), ramp), 0).rgb; }
+vec3 r_lit(int ramp, float v, vec3 n, vec3 L, float kl) {
+	float va = clamp(v * 0.85 + 0.1, 0.0, 0.999) * 6.0 - 0.5;
+	int vi = int(floor(va));
+	vec3 alb = pow(mix(rampc(ramp, vi), rampc(ramp, vi + 1), clamp(va - float(vi), 0.0, 1.0)), vec3(2.2));
+	float ld = dot(n, L);
+	float lamR = (max(ld, 0.0) * 0.85 + 0.15 * smoothstep(-0.12, 0.25, ld)) * kl;
+	vec3 c = alb * (star_tint * r_wk.x * lamR + night_fill * r_wk.y * (0.55 + 0.45 * max(n.z, 0.0)));
+	// (washed by the glowing cloud in front of it, as the worlds are)
+	c = c * 0.75 + night_fill * 16.0 * 0.25;
+	return pow(vec3(1.0) - exp(-c * r_wk.w), vec3(1.0 / 2.2));
+}
 float bayer2(float x, float y) {
 	int ix = (int(x + ctr_off.x) + 999) & 1, iy = (int(y + ctr_off.y) + 999) & 1;
 	return iy == 0 ? (ix == 0 ? 0.0 : 2.0) : (ix == 0 ? 3.0 : 1.0);
@@ -125,14 +142,14 @@ void fragment() {
 		vec3 nv = turn(hit_p, sa, ca);
 		float lam = max(0.0, dot(nv, light));
 		float v = 0.3 + fbm3(vec3(hit_p.x * 2.4 + seed, hit_p.y * 2.4, hit_p.z * 2.4), 4) * 0.5;
-		col = ramp_at(R_ROCK, min(0.999, v * (0.1 + 0.9 * lam * k_light)), x, y);
+		col = radiant ? r_lit(R_ROCK, v, nv, light, k_light) : ramp_at(R_ROCK, min(0.999, v * (0.1 + 0.9 * lam * k_light)), x, y);
 	} else if (hit_i >= 0) {
 		// the broken face: hottest toward the middle, cooling to crust at the rim
 		float rr = length(hit_p), grain = fbm3(vec3(hit_p.x * 6.0 + seed, hit_p.y * 6.0 + time * 0.08, hit_p.z * 6.0), 3);
 		if (rr > 0.88) {
 			vec3 sj = seeds[hit_face], si = seeds[hit_i];
 			vec3 fn = turn(-normalize(sj - si), sa, ca);
-			col = ramp_at(R_ROCK, min(0.999, (0.2 + grain * 0.3) * (0.25 + 0.75 * max(0.0, dot(fn, light)))), x, y);
+			col = radiant ? r_lit(R_ROCK, 0.2 + grain * 0.3, fn, light, k_light) : ramp_at(R_ROCK, min(0.999, (0.2 + grain * 0.3) * (0.25 + 0.75 * max(0.0, dot(fn, light)))), x, y);
 		} else {
 			col = ramp_at(R_GLOW, min(0.999, max(0.0, (1.02 - rr * cool) * flick + (grain - 0.5) * 0.5)), x, y);
 		}

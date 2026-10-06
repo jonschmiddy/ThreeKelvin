@@ -100,8 +100,22 @@ uniform float flare = 0.0;
 // (`p_bounce`), a lit rim on the day limb, and water's glint as a 1-2 block
 // sparkle; its own light (air, cities, fire) in flat steps, never dithered.
 uniform bool painted = false;
-// RADIANT (direction A): the air's forward scattering when the world is backlit
+// RADIANT (direction A, "light through gas"; Jon: "Why do the planets and stars
+// look the same between simplified, legacy and radiant?"): the world LIT, not
+// shaded -- its ground's own colour (the 34 kinds' surfaces, unchanged) taken as
+// an albedo and lit as a sphere by the star's real colour and direction, with a
+// soft wide terminator (the star is a disc, not a point; A's lightSurface), its
+// night side filled by the gas round it, the gas behind catching its limb, all
+// gathered through a tone curve (never a flat white). Its air a thicker shell
+// that scatters the starlight in the air's own colour, glowing all round the limb
+// when the world stands between you and the star. Weights: the star, the fill,
+// the limb's catch, the exposure (A's `wk`)
 uniform bool radiant = false;
+uniform vec4 r_wk = vec4(1.7, 9.0, 7.0, 1.15);
+// how far the light wraps round past the terminator; the cloud's wash over the
+// world (all over, more at the limb) and how bright that cloud is
+uniform float r_wrap = 0.22;
+uniform vec3 r_haze = vec3(0.22, 0.45, 16.0);
 // its moons: each one's place about this world (screen px: x right, y down, z
 // toward you) and its drawn radius, for the eclipse they cast on its face
 uniform vec4 moon_sh[4];
@@ -495,7 +509,17 @@ void fragment() {
 		float dd = sqrt(x * x + y * y);
 		vec2 nn = vec2(x, y) / dd;
 		// the air outside the edge: light, thinning with height, brightest on the sunward side
-		if (has_atm && d2 < pow(1.0 + (thick ? 4.5 : 1.6) / r, 2.0)) {
+		if (radiant && has_atm) {
+			// RADIANT: the air a shell a few percent of the radius deep (thicker for a
+			// thick air), lit on the star's side and, backlit, glowing all round
+			float th = thick ? 2.5 + 0.14 * r : 1.4 + 0.08 * r;
+			if (dd - r < th) {
+				float h = (dd - r) / th;
+				float lit = max(0.0, (dot(nn, L.xy) + 0.35) / 1.35);
+				float fwd = max(0.0, -L.z);
+				acc += atm * (0.12 + 0.75 * lit + 1.4 * fwd) * pow(1.0 - h, 1.6) * (thick ? 1.0 : 0.8) * k_light;
+			}
+		} else if (has_atm && d2 < pow(1.0 + (thick ? 4.5 : 1.6) / r, 2.0)) {
 			float lit = max(0.0, (dot(nn, L.xy) + 0.45) / 1.45), hgt = (dd - r) / (thick ? 4.5 : 1.6);
 			float a = (0.08 + lit * 0.55) * pow(1.0 - hgt, thick ? 1.4 : 0.6);
 			if (a > 0.03) acc += a * 0.95 * atm;
@@ -649,12 +673,36 @@ void fragment() {
 			else if (out2 && lamS < 0.0 && r > 9.0) col = p_bounce;
 			else col = p_ext(ramp, ci);
 		}
+		if (radiant && !painted && !unlit && !(has_emit && !cloud)) {
+			// RADIANT: the ground's colour as an albedo (linear), lit
+			// (between the ramp's steps, not dithered: the light carries the shading, and
+			// the palette's own dither steps it)
+			float va = clamp(vr * 0.85 + 0.1, 0.0, 0.999) * 6.0 - 0.5;
+			int vi = int(floor(va));
+			vec3 alb = pow(mix(rampc(ramp, vi), rampc(ramp, vi + 1), clamp(va - float(vi), 0.0, 1.0)), vec3(2.2));
+			float ld = dot(nv, L);
+			// (a very wide soft terminator: the light wraps well past the half-way line,
+			// as a ball of gas lit by a disc does)
+			float lamR = pow(clamp((ld + r_wrap) / (1.0 + r_wrap), 0.0, 1.0), 1.4) * rs * k_light * (1.0 + 0.15 * flare);
+			vec3 cR = alb * (star_tint * r_wk.x * lamR + night_fill * r_wk.y * (0.55 + 0.45 * nz));
+			cR += night_fill * r_wk.z * pow(1.0 - nz, 2.0) * (0.5 + dot(alb, vec3(0.333)));
+			// THE GAS IN FRONT OF IT: the world sits IN the glowing cloud, whose light
+			// washes over it, most at its limb where the line of sight runs through more
+			// gas, so it is softer and lower in contrast than a painted disc
+			float wash = r_haze.x + r_haze.y * pow(1.0 - nz, 1.5);
+			cR = cR * (1.0 - wash) + night_fill * r_haze.z * wash;
+			col = pow(vec3(1.0) - exp(-cR * r_wk.w), vec3(1.0 / 2.2));
+			// (in steps, dithered on the world's own grid: continuous, it fell between
+			// the palette's colours differently every frame of a zoom and shimmered)
+			col = floor(col * 20.0 + (bayer2(x, y) + 0.5) / 4.0) / 20.0;
+		}
 		base = vec4(col, 1.0);
 
 		// the air seen edge-on round the rim of the disc, lit where the sun is
-		if (has_atm) { float rim = pow(1.0 - nz, 2.2), ls = max(0.0, (dot(nv, L) + 0.3) / 1.3); if (rim * ls > 0.02) acc += rim * ls * (thick ? 0.9 : 0.55) * atm; }
-		// RADIANT: lit from behind, its air glows all round its limb (forward scattering)
-		if (radiant && has_atm && L.z < 0.0) { float rim = pow(1.0 - nz, 3.0); acc += rim * (-L.z) * 1.3 * atm; }
+		if (radiant && has_atm) {
+			float rim = pow(1.0 - nz, 2.0), ls = max(0.0, (dot(nv, L) + 0.4) / 1.4);
+			acc += rim * (ls * (thick ? 1.1 : 0.75) + max(0.0, -L.z) * 1.5) * atm * k_light;
+		} else if (has_atm) { float rim = pow(1.0 - nz, 2.2), ls = max(0.0, (dot(nv, L) + 0.3) / 1.3); if (rim * ls > 0.02) acc += rim * ls * (thick ? 0.9 : 0.55) * atm; }
 		// the jungle's veins of light
 		if (gv > 0.03) acc += gv * 2.4 * vec3(0.25, 1.0, 0.85);
 		// a diamond's glint: a small cross of light, gathered from its neighbours

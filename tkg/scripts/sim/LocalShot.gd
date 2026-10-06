@@ -8,12 +8,17 @@ extends Node
 ##       [sky=emission|reflection|planetary|remnant|dark|calm|pulsar|core] [node=I]
 ##       [combat [fire]] [approach] [wait=F] [out=<png>] [skyout=<png>]
 ##       [clip=<dir> clipframes=61 clipms=33] [stats=<json>] [bare=<png>] [reduced]
+##       [orbit=giant|world|star|edge|belt|derelict]
 ##
 ## `out=` is the whole screen, `skyout=` the backdrop alone (its own picture,
 ## one pixel a block), `clip=` that picture frame after frame for the flicker
 ## measure (`frames.py`), `stats=` what the backdrop puts behind the play (game
 ## y 140 to 330, where the ships, shots and numbers are): the
 ## mean, 95th centile and spread of its brightness there, and its brightest.
+## `orbit=` puts the ship where the sector map would have left it
+## (`SystemMapScreen._parked`): in orbit of a ringed giant (or any giant), of a
+## world, of the star close in, alongside a belt or a wreck, or free at the
+## system's edge; `giant` looks for a system of the sky with a ringed giant.
 ## Needs a window.
 
 const SkyWeatherS := preload("res://scripts/ui/sysmap/SkyWeather.gd")
@@ -41,13 +46,20 @@ func _run() -> void:
 		DisplaySettings.reduced_motion = true
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	var want := _arg("sky", "calm")
+	var orbit := _arg("orbit")
 	var idx := int(_arg("node", "-1"))
 	if idx < 0:
-		for n: MapGen.MapNode in Run.map:
-			if n.type == MapGen.NodeType.STATION or n.type == MapGen.NodeType.START:
-				continue
-			if String(SkyWeatherS.sky_of_node(n)) == want:
+		for pass_i in 2:
+			for n: MapGen.MapNode in Run.map:
+				if n.type == MapGen.NodeType.STATION or n.type == MapGen.NodeType.START:
+					continue
+				if String(SkyWeatherS.sky_of_node(n)) != want:
+					continue
+				if orbit != "" and orbit != "star" and orbit != "edge" and _body_for(SystemLayout.of(n), orbit, pass_i == 0) < 0:
+					continue
 				idx = n.index
+				break
+			if idx >= 0:
 				break
 	if idx < 0:
 		print("no system with a %s sky on seed %d" % [want, Rng.forced])
@@ -55,6 +67,21 @@ func _run() -> void:
 		return
 	Run.at = idx
 	var node: MapGen.MapNode = Run.node_at()
+	if orbit != "":
+		var Lo := SystemLayout.of(node)
+		var at := -9
+		var mode := &"rail"
+		match orbit:
+			"star":
+				at = -1
+			"edge":
+				mode = &"free"
+			_:
+				at = _body_for(Lo, orbit, true)
+				if at < 0:
+					at = _body_for(Lo, orbit, false)
+		SystemMapScreen._parked[idx] = {"at": at, "p": Vector2(Lo.edge * 1.02, -210.0), "v": Vector2.ZERO, "head": 0.0, "mode": mode}
+		print("  orbit %s: body %d" % [orbit, at])
 	print("  node %d %s: sky %s, star %d, nebula %s, giant %s" % [idx, MapGen.star_name(node),
 		SkyWeatherS.sky_of_node(node), SystemLayout.of(node).star, node.in_nebula, node.gas_giant])
 	if not "approach" in _args:
@@ -155,6 +182,27 @@ func _run() -> void:
 		for c in hid:
 			c.visible = true
 	tree.quit()
+
+
+## A body of the kind a situation asks for: a giant (a ringed one when `strict`),
+## any world, a belt or a wreck; -1 for none.
+func _body_for(Lo: SystemLayout, what: String, strict: bool) -> int:
+	for i in Lo.bodies.size():
+		var b := Lo.bodies[i]
+		match what:
+			"giant":
+				if b.kind == &"giant" and b.world != &"" and (not strict or bool(Worlds.spec(b.world, b.seed, 100.0).get("ring", false))):
+					return i
+			"world":
+				if b.kind == &"planet" and b.world != &"":
+					return i
+			"belt":
+				if b.kind == &"belt":
+					return i
+			"derelict":
+				if b.kind == &"derelict":
+					return i
+	return -1
 
 
 ## What the sky puts behind the play, in sRGB luma: mean, 95th and 99.5th

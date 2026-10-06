@@ -32,6 +32,22 @@ extends Control
 ##     cloud (`sky_nebula_legacy`) and the system's band, set to its palette
 ##     as the map's LEGACY is.
 ##
+## WHERE THE SHIP IS (Jon: "have LOCAL change depending on what you are orbiting
+## and how far from the star you are"), read from the sector map's own record of
+## it (`SystemMapScreen._parked`: what it is in orbit of, where it is on the
+## plane), or, with none, at the edge where a ship warps in:
+##   * ORBITING A WORLD: that world close and huge, rising from below behind the
+##     fight, its rings across it and its moons above, lit from the star; the
+##     star smaller beyond, at the world's own distance;
+##   * ORBITING THE STAR: the star large and blazing, cut by the top of the
+##     view, the worlds small along the band;
+##   * HOW FAR OUT: the star's size, and how far its light reaches into the gas,
+##     go with its nearness -- big and blazing close in, a small bright point at
+##     the edge -- and so do the hole's and the pulsar's;
+##   * ALONGSIDE A BELT OR A WRECK: its rocks, or the hulk and its shards, close by.
+## The near things are drawn in a picture of their own (`local_near`), in front
+## of the band and held under the same budget as the sky.
+##
 ## THE CAMERA moves when the ship does: it follows the hull's approach and its
 ## departure a little over half way (`CAM_FOLLOW`), and every layer slides by its own depth --
 ## the far stars and galaxies least, the cloud more, the system's band most --
@@ -78,6 +94,19 @@ const SUN_K := {"ORDINARY": 0.62, "RED": 0.44, "BLUE": 0.52}
 const PULSAR_K := 0.42
 const HOLE_K := 0.30
 const MIN_WORLD_R := 3.0
+## HOW FAR OUT THE SHIP IS: at REF_K of the way to the system's edge the star is
+## drawn at SUN_K; nearer bigger, further smaller, as (that distance over the
+## ship's)^SIZE_POW, held between these
+const REF_K := 0.45
+const SIZE_POW := 0.85
+const SIZE_LO := 0.4
+const SIZE_HI := 4.0
+## THE WORLD IT ORBITS: its radius on screen (a giant's, a planet's), and how far
+## it slides for a pixel of the camera's travel (it is near)
+const NEAR_GIANT_R := 175.0
+const NEAR_WORLD_R := 125.0
+const F_NEAR := 0.3
+const NEAR := preload("res://shaders/local_near.gdshader")
 ## THE CAMERA: how much of the ship's travel it follows, and how far each layer
 ## slides for a pixel of the camera's (the far sky's own depths are in
 ## `chart_bg`: stars 0.04, 0.10, 0.20, galaxies 0.05)
@@ -143,6 +172,17 @@ var _sd := 0.0
 var _tint := Vector3.ONE
 var _flare := 0.0
 var _low_skip := false
+## where the ship is: what it orbits (a body, -1 the star, -9 nothing), its
+## distance from the star (plane px) and that as the star's size factor
+var orbit_target := -9
+var orbit_d := 0.0
+var _dk := 1.0
+## the near things: their own picture, the world the ship orbits and its moons,
+## a belt's rocks, a wreck (each [node, screen position before parallax,
+## parallax, radius])
+var _near_vp: SubViewport = null
+var _near_mat: ShaderMaterial = null
+var _near: Array = []
 var _low_dt := 0.0
 ## the cloud's bake, kept for the next visit: key -> [field0, field1, field2]
 static var _baked := {}
@@ -242,6 +282,7 @@ func _build() -> void:
 	_sd = float(node.index % 97) * 0.731 + 3.0
 	_sun = Vector2(roundf(lerpf(SUN_X.x, SUN_X.y, SkyBakeS.hash2(node.index, 401)) / 2.0) * 2.0, HORIZON)
 	_s = SPAN / maxf(layout.edge + 20.0, 120.0)
+	_situate()
 	_tint = star_light()
 	# THE SKY AS THE MAP SEES IT (`SystemView.show_system`): the cloud the system
 	# sits in, by its kind; SIMPLIFIED's core a cloud of warm gas round the hole
@@ -327,7 +368,7 @@ func _build() -> void:
 		star.position = _sun
 		_scene.add_child(star)
 		star.call("setup", node.index, Rect2(0, 0, 960, 540))
-		star.call("set_zoom", PULSAR_K)
+		star.call("set_zoom", star_k())
 		(star.get("_web_mat") as ShaderMaterial).set_shader_parameter("web_on", legacy)
 		far_group.append(star)
 	# THE BUDGET over all of it
@@ -383,7 +424,7 @@ func _build() -> void:
 		star.position = _sun
 		_worlds.add_child(star)
 		star.call("setup")
-		star.set("hole_k", HOLE_K)
+		star.set("hole_k", star_k())
 	elif layout.star != SystemLayout.StarKind.PULSAR:
 		star = SunViewS.new()
 		star.position = _sun
@@ -400,9 +441,11 @@ func _build() -> void:
 		_set_deep(star, "px_scale", 2.0)
 		if painted:
 			_set_deep(star, "painted", true)
+		if radiant:
+			_set_deep(star, "radiant", true)
 	for i in layout.bodies.size():
 		var b := layout.bodies[i]
-		if b.world == &"":
+		if b.world == &"" or i == orbit_target:
 			continue
 		var v: Node2D = Worlds.view_for(b.world)
 		v.call("set_world", b.world, b.seed, _world_r(b))
@@ -413,6 +456,7 @@ func _build() -> void:
 			SectorPaintedS.paint_world(self, v)
 		if radiant:
 			_set_deep(v, "radiant", true)
+	_build_near()
 	_wx_setup()
 	_place_box()
 	_step(0.0)
@@ -513,11 +557,12 @@ static func _set_deep(n: Node, key: String, value: Variant) -> void:
 func star_k() -> float:
 	if layout == null:
 		return 1.0
+	var f := clampf(pow(_dk, SIZE_POW), SIZE_LO, SIZE_HI)
 	if layout.star == SystemLayout.StarKind.PULSAR:
-		return PULSAR_K
+		return PULSAR_K * f
 	if layout.star == SystemLayout.StarKind.CORE:
-		return HOLE_K
-	return float(SUN_K.get(kind, 0.6))
+		return HOLE_K * f
+	return float(SUN_K.get(kind, 0.6)) * f
 
 
 func star_light() -> Vector3:
@@ -574,6 +619,8 @@ func _process(delta: float) -> void:
 ## band memory with it).
 func _set_update(m: SubViewport.UpdateMode) -> void:
 	_scene.render_target_update_mode = m
+	if _near_vp != null:
+		_near_vp.render_target_update_mode = m
 	if not _pt.is_empty():
 		(_pt.tvp as SubViewport).render_target_update_mode = m
 		(_pt.svp as SubViewport).render_target_update_mode = m
@@ -614,16 +661,20 @@ func _step(delta: float) -> void:
 		_neb_mat.set_shader_parameter("low", gfx_low())
 		if not legacy:
 			_neb_mat.set_shader_parameter("star_at", Vector2(o))
-			_neb_mat.set_shader_parameter("zoom", 1.0)
-			_neb_mat.set_shader_parameter("lzoom", 1.0)
+			# (the star's light reaches as far into the gas as it is near: the map's
+			# zoom, which opens the light out, stands in for nearness)
+			var lz := clampf(pow(_dk, 0.8), 0.45, 2.4)
+			_neb_mat.set_shader_parameter("zoom", lz)
+			_neb_mat.set_shader_parameter("lzoom", lz)
 			_neb_mat.set_shader_parameter("home_zoom", 1.0)
 			_neb_mat.set_shader_parameter("lscale", 1.35)
 			_neb_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
-			_neb_mat.set_shader_parameter("hole_r", 116.0 * HOLE_K)
+			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k())
 	if painted:
 		SectorPaintedS.push(self)
 	_step_star(o)
 	_step_worlds(o)
+	_step_near(o)
 	_wx_step(delta)
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
@@ -905,6 +956,202 @@ func _pn_theta0(vc: Vector2) -> float:
 	if int(_sky_look.get("shape", 0)) == 1 or int(_sky_look.get("shape", 0)) == 2:
 		dd.y *= 1.5
 	return atan2(dd.y, dd.x)
+
+
+# ------------------------------------------------------------------ where the ship is
+
+## What the ship orbits and how far out it is, from the sector map's record of
+## it (`SystemMapScreen._parked`), or at the warp-in edge.
+func _situate() -> void:
+	var d: Dictionary = SystemMapScreen._parked.get(node.index, {})
+	orbit_target = -9
+	var p := Vector2(layout.edge, -210.0)
+	if not d.is_empty():
+		orbit_target = int(d.get("at", -9))
+		if orbit_target >= 0 and orbit_target < layout.bodies.size():
+			p = layout.bodies[orbit_target].pos(0.0)
+			if p.length() < 1.0:
+				p = Vector2(layout.bodies[orbit_target].orbit, 0.0)
+		elif orbit_target == -1:
+			p = Vector2(float(layout.star_r) + 71.0, 0.0)
+		elif StringName(d.get("mode", &"")) == &"free":
+			p = d.get("p", p)
+	if orbit_target < -1 or orbit_target >= layout.bodies.size():
+		orbit_target = -9
+	orbit_d = maxf(p.length(), float(layout.star_r) + 20.0)
+	_dk = REF_K * (layout.edge + 20.0) / orbit_d
+	# A BIG STAR rides up into the top of the view, cut by it, blazing
+	if layout.star != SystemLayout.StarKind.PULSAR:
+		var R := float(layout.star_r) * star_k() * (0.3 if layout.star == SystemLayout.StarKind.CORE else 1.0)
+		_sun.y = HORIZON - roundf(clampf(R - 20.0, 0.0, 36.0) / 2.0) * 2.0
+
+
+## The near things' own picture and what is in it.
+func _build_near() -> void:
+	_near.clear()
+	_near_vp = null
+	if orbit_target < 0:
+		return
+	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
+	_near_vp = SubViewport.new()
+	_near_vp.size = Vector2i(480, 270)
+	_near_vp.size_2d_override = Vector2i(960, 540)
+	_near_vp.size_2d_override_stretch = true
+	_near_vp.transparent_bg = true
+	_near_vp.disable_3d = true
+	_near_vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	_near_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_scene.add_child(_near_vp)
+	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
+	# opposite the star, across the view from it
+	var side := 1.0 if _sun.x < 480.0 else -1.0
+	if tgt.world != &"":
+		var giant := tgt.kind == &"giant"
+		var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
+		var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
+		var spec := Worlds.spec(tgt.world, tgt.seed, R)
+		var v: Node2D = Worlds.view_for(tgt.world)
+		v.call("set_world", tgt.world, tgt.seed, R)
+		v.call("set_cell", 2)
+		_near_vp.add_child(v)
+		_dress(v)
+		_near.append([v, at, F_NEAR, R])
+		# ITS MOONS, small above it
+		var nm := mini(int(spec.get("moons", 0)), 3)
+		for k in nm:
+			var hk := SkyBakeS.hash2(tgt.seed, 41 + k)
+			var a := -PI * (0.2 + 0.6 * (float(k) + hk) / float(maxi(nm, 1)))
+			var mr := roundf((5.0 + 6.0 * SkyBakeS.hash2(tgt.seed, 61 + k)) / 2.0) * 2.0
+			var mp := _block_round(at + Vector2(cos(a) * R * (1.3 + 0.3 * hk), sin(a) * R * (1.15 + 0.25 * hk)))
+			var mv := PlanetView.new()
+			mv.set_world(&"moon", tgt.seed + 17 * (k + 1), mr)
+			mv.set_cell(2)
+			_near_vp.add_child(mv)
+			_dress(mv)
+			_near.append([mv, mp, F_NEAR * 1.1, mr])
+	elif tgt.kind == &"belt":
+		# A BELT'S ROCKS, close by: a drifting band of them behind the fight, the
+		# nearer bigger
+		for k in 16:
+			var hx := SkyBakeS.hash2(node.index * 7 + k, 901)
+			var hy := SkyBakeS.hash2(node.index * 7 + k, 902)
+			var hz := SkyBakeS.hash2(node.index * 7 + k, 903)
+			var rr := roundf((4.0 + 18.0 * hz * hz) / 2.0) * 2.0
+			var rp := _block_round(Vector2(40.0 + 880.0 * hx, 150.0 + 0.12 * (880.0 * hx - 440.0) * side + 150.0 * (hy - 0.5)))
+			var rv := PlanetView.new()
+			rv.set_world(&"rock" if hz < 0.6 else &"iron", node.index * 13 + k, rr)
+			rv.set_cell(2)
+			_near_vp.add_child(rv)
+			_dress(rv)
+			_near.append([rv, rp, 0.25 + 0.3 * hz, rr])
+	elif tgt.kind == &"derelict":
+		# A WRECK: the hulk close by, broken, its shards round it
+		var w := _Wreck.new()
+		w.seed = node.index * 31 + orbit_target
+		w.light_from = Vector2(-side, -0.6)
+		_near_vp.add_child(w)
+		# (high, over the fight's band, toward the side away from the star: the
+		# shots fly through the middle at the ships' height)
+		_near.append([w, _block_round(Vector2(480.0 + side * 150.0, 118.0)), F_NEAR, 0.0])
+	if _near.is_empty():
+		_near_vp.queue_free()
+		_near_vp = null
+		return
+	var rect := _rect()
+	_near_mat = ShaderMaterial.new()
+	_near_mat.shader = NEAR
+	_near_mat.set_shader_parameter("tex", _near_vp.get_texture())
+	_near_mat.set_shader_parameter("ramp", PLAY)
+	# (a little lower than the sky's: a world this close is the brightest thing
+	# behind the fight)
+	_near_mat.set_shader_parameter("dim", 0.45)
+	rect.material = _near_mat
+	_scene.add_child(rect)
+
+
+## A near world dressed for the style, as the band's are.
+func _dress(v: Node) -> void:
+	if painted:
+		SectorPaintedS.paint_world(self, v)
+	if radiant:
+		_set_deep(v, "radiant", true)
+
+
+func _step_near(o: Vector2) -> void:
+	for e: Array in _near:
+		var n: Node2D = e[0]
+		var at: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
+		if n is PlanetView:
+			var pv := n as PlanetView
+			var hs := Worlds.half_size(StringName(pv.spec.get("world", &"rock")), float(e[3]))
+			n.position = at + Vector2.ONE * float(hs % 2)
+			# lit from the star, across the view
+			var L := Vector3(o.x - at.x, o.y - at.y, 140.0).normalized()
+			pv.step(t, L, 1.0)
+			var vm: ShaderMaterial = n.get("_mat")
+			if vm != null:
+				if not legacy:
+					vm.set_shader_parameter("star_tint", _tint)
+					vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
+				vm.set_shader_parameter("flare", _flare)
+				vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+		elif n.position != at:
+			n.position = at
+			n.queue_redraw()
+
+
+## A WRECK, close: a long broken hull in a few tones, lit along the edge that
+## faces the star, a crack through it and its shards adrift round it, every
+## piece in whole 2x2 blocks.
+class _Wreck extends Node2D:
+	var seed := 0
+	var light_from := Vector2(-1.0, -0.6)
+	const RAMP := [Color("#0c1219"), Color("#16202b"), Color("#22303f"), Color("#33455a"), Color("#465b73")]
+
+	func _h(k: int) -> float:
+		return SkyBakeS.hash2(seed, k)
+
+	func _draw() -> void:
+		var L := light_from.normalized()
+		var len := 210.0 + 60.0 * _h(1)
+		var thick := 30.0 + 10.0 * _h(2)
+		var tilt := (_h(3) - 0.5) * 0.3
+		var gap := (0.35 + 0.3 * _h(4)) * len - len * 0.5
+		var x := -len * 0.5
+		while x < len * 0.5:
+			var y := -thick * 0.5
+			while y < thick * 0.5:
+				var nx := x / (len * 0.5)
+				var taper := 1.0 - 0.35 * absf(nx) * absf(nx)
+				var inside := absf(y) < thick * 0.5 * taper and absf(x - gap) > 6.0 + 4.0 * sin(y * 0.4)
+				# decks: a notch every so often along the top edge
+				if inside and y < -thick * 0.5 * taper + 4.0 and fmod(absf(x) + 1000.0, 28.0) < 6.0:
+					inside = false
+				if inside:
+					var edge := absf(y) > thick * 0.5 * taper - 4.0
+					var lit := (y < 0.0) == (L.y < 0.0)
+					var shade := 2 + (1 if lit else -1) + (1 if edge and lit else 0)
+					if fmod(absf(x * 0.7 + y) + 1000.0, 22.0) < 2.0:
+						shade -= 1
+					var p := Vector2(x, y + x * tilt)
+					draw_rect(Rect2((p / 2.0).floor() * 2.0, Vector2(2, 2)), RAMP[clampi(shade, 0, 4)])
+				y += 2.0
+			x += 2.0
+		# the shards
+		for k in 7:
+			var a := _h(20 + k) * TAU
+			var dd := len * (0.35 + 0.3 * _h(30 + k))
+			var c := Vector2(cos(a) * dd, sin(a) * dd * 0.45)
+			var sz := 3.0 + 7.0 * _h(40 + k)
+			var yy := -sz
+			while yy < sz:
+				var xx := -sz * 1.6
+				while xx < sz * 1.6:
+					if absf(xx) / 1.6 + absf(yy) < sz:
+						var lit2 := (yy < 0.0) == (L.y < 0.0)
+						draw_rect(Rect2(((c + Vector2(xx, yy)) / 2.0).floor() * 2.0, Vector2(2, 2)), RAMP[3 if lit2 else 1])
+					xx += 2.0
+				yy += 2.0
 
 
 # ------------------------------------------------------------------ harness
