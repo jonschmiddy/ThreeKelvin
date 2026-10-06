@@ -4,7 +4,7 @@ extends Node
 ## `SectorScreen`):
 ##   godot --path . --windowed --position 3840,0 -- sheet=CutawayShot keepwindow
 ##       clip=<dir> [weight=light|medium|heavy] [loot=no] [style=...] [seed=N]
-##       [every=2] [nopause] [nofight]
+##       [every=1] [nopause] [nofight]
 ## A run at a system with a wreck you killed, parts in the hold and (unless
 ## `loot=no`) something loose in the system. Saves the game's picture every
 ## `every` frames through: the hover outline on your ship, the push-in (backdrop
@@ -13,10 +13,14 @@ extends Node
 ## the same scene (for the backdrop beside it), then a fight with a card pointed
 ## at (its part lit on the hull). Prints the push-in scale, where the shelf sits,
 ## and whether any lifted part or tag reaches into the shelf. Needs a window.
+## THE CUTAWAY'S CLOCK IS STEPPED 1/30 s A FRAME (`CutawayView.fixed_step`), so
+## the frames, encoded at 30 a second (every=1), show the real 0.4 s push-in
+## however slowly the window drew them; nothing is saved before the hover.
 
 var _args: PackedStringArray
 var _dir := ""
-var _every := 2
+var _every := 1
+var _rec := false
 var _k := 0
 var _tick := 0
 
@@ -37,7 +41,7 @@ func _frames(n: int) -> void:
 	for i in n:
 		await RenderingServer.frame_post_draw
 		_tick += 1
-		if _dir != "" and _tick % _every == 0:
+		if _rec and _dir != "" and _tick % _every == 0:
 			get_tree().root.get_texture().get_image().save_png("%s/f_%04d.png" % [_dir, _k])
 			_k += 1
 
@@ -55,7 +59,8 @@ func _run() -> void:
 	_dir = _arg("clip")
 	if _dir != "":
 		DirAccess.make_dir_recursive_absolute(_dir)
-	_every = int(_arg("every", "2"))
+	_every = int(_arg("every", "1"))
+	CutawayView.fixed_step = 1.0 / 30.0
 	Rng.forced = int(_arg("seed", "4242"))
 	var wt: int = {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)
 	Run.start_new_run(&"korvan", int(wt))
@@ -86,6 +91,7 @@ func _run() -> void:
 		tree.quit()
 		return
 	# 1. pointing at your own ship
+	_rec = true
 	sc._ship_outline.visible = true
 	sc._ship_outline.queue_redraw()
 	await _frames(8)
@@ -99,13 +105,25 @@ func _run() -> void:
 		return
 	await _frames(40)
 	_still("02_open")
-	print("cutawayshot: push-in %dx, shelf top %.0f, hull %s" % [cut.k, cut._shelf_top, Run.hull.display_name()])
+	print("cutawayshot: push-in %dx%s, shelf top %.0f, hull %s" % [cut.k, " (panel on hover)" if cut.hover_panel else "", cut._shelf_top, Run.hull.display_name()])
 	_report_fit(cut)
 	print("cutawayshot: %s" % cut.fit_note)
+	# 2b. a shelf resting low (the heavy) rises to the pointer
+	if cut._shelf_rest > cut._shelf_top:
+		cut._shelf_up = true
+		await _frames(20)
+		_still("02b_shelf_raised")
+		cut._shelf_up = false
+		await _frames(20)
 	# 3. a fitted part pointed at
 	if not Run.installed.is_empty():
-		cut._show(Run.installed[0])
-		cut._mounts.focus(Run.installed[0])
+		var pm: ModuleData = Run.installed[0]
+		# where a pointer on it would be (the heavy's panel docks away from it)
+		for sp in cut._mounts.spots():
+			if sp.held == pm:
+				cut._last_gp = cut._mounts.get_global_transform() * cut._mounts._part_at(sp)
+		cut._show(pm)
+		cut._mounts.focus(pm)
 	await _frames(12)
 	_still("03_part_pointed")
 	cut._mounts.focus(null)
@@ -116,7 +134,12 @@ func _run() -> void:
 			carried = m
 			break
 	if carried != null:
-		cut._show(carried)
+		# (carrying: beside the panel it shows the part; on the heavy's rung the
+		# panel goes, so it cannot cover a ring)
+		if cut.hover_panel:
+			cut._show(null)
+		else:
+			cut._show(carried)
 		cut._mounts.light(carried)
 		await _frames(24)
 		_still("04_carrying")
@@ -173,7 +196,7 @@ func _run() -> void:
 func _report_fit(cut: CutawayView) -> void:
 	var mp := cut._mounts
 	var g := mp.get_global_transform()
-	var top_y := cut.get_global_transform() * Vector2(0, cut._shelf_top)
+	var top_y := cut.get_global_transform() * Vector2(0, cut._shelf_rest)
 	var worst := -INF
 	var n := 0
 	for s in mp.spots():

@@ -106,7 +106,7 @@ var _hover: Vector2 = Vector2.INF
 ## `lift` is each part's offset from its mount ("slot:index" -> art px, worked
 ## out by the cutaway from the hull's silhouette), `explode` how far along it is
 ## (0 on its mount: everywhere else this widget is used, nothing changes), and
-## `tag_side` which side of the part its name goes ("L", "R"). The part is
+## `tag_side` which side of the part its name goes ("L", "R", "T", "B"). The part is
 ## drawn, hit and picked up where it is lifted to, so a drag starts on what you
 ## see.
 var lift: Dictionary = {}
@@ -440,10 +440,70 @@ func _tag(m: ModuleData, r: Rect2, s: Dictionary) -> void:
 	var txt := m.name.to_upper()
 	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 	var a := clampf((explode - 0.85) / 0.15, 0.0, 1.0)
-	var side := String(tag_side.get(spot_key(int(s.slot), int(s.index)), "R"))
-	var y := roundf(r.get_center().y + 3.0)
-	var x := r.end.x + 5.0 if side == "R" else r.position.x - 5.0 - w
-	draw_string(f, Vector2(roundf(x), y), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.ICE, a))
+	var box := tag_box(r, String(tag_side.get(spot_key(int(s.slot), int(s.index)), "R")), w)
+	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.ICE, a))
+
+
+## WHERE A TAG'S WORDS ARE, for a part drawn at `r` (this widget's px) and a
+## name `w` px wide: beside it ("L", "R") or centred over or under it ("T",
+## "B"). The one place this is worked out -- the cutaway lays its parts out
+## with it and `-- cutawaytest` checks what it returns -- so the layout, the
+## drawing and the test cannot disagree about where the words are.
+static func tag_box(r: Rect2, side: String, w: float) -> Rect2:
+	var f := UITheme.pixel_font()
+	var asc := f.get_ascent(UITheme.FS_SMALL)
+	var hgt := asc + f.get_descent(UITheme.FS_SMALL)
+	var x := r.end.x + 5.0
+	var base := roundf(r.get_center().y + 3.0)
+	match side:
+		"L":
+			x = r.position.x - 5.0 - w
+		"T":
+			x = r.get_center().x - w * 0.5
+			base = r.position.y - 3.0
+		"B":
+			x = r.get_center().x - w * 0.5
+			base = r.end.y + 3.0 + asc
+	return Rect2(Vector2(roundf(x), roundf(base) - asc), Vector2(w, hgt))
+
+
+## And an empty mount's words: centred `off` (art px) from the ring at `at`.
+static func label_box(at: Vector2, off: Vector2, w: float, k: float) -> Rect2:
+	var f := UITheme.pixel_font()
+	var asc := f.get_ascent(UITheme.FS_SMALL)
+	var c := at + off * k
+	return Rect2(Vector2(roundf(c.x - w * 0.5), roundf(c.y + 3.0) - asc), Vector2(w, asc + f.get_descent(UITheme.FS_SMALL)))
+
+
+static func empty_text(slot: int) -> String:
+	return "EMPTY " + ModuleData.slot_name(slot).to_upper()
+
+
+## EVERY WORD THE CUTAWAY HAS PUT ON SCREEN, and every part it lifted, as this
+## widget draws them: [{kind = "tag"|"label"|"part", rect, text}]. For
+## `-- cutawaytest`, which checks none of them sits on another or on the hull.
+func drawn_rects() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if explode <= 0.0:
+		return out
+	var k := _mag()
+	var f := UITheme.pixel_font()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if m != null:
+			var r := part_rect(m, s.slot, _part_at(s), k)
+			out.append({kind = "part", rect = r, text = m.name})
+			if tags and explode > 0.85:
+				var txt := m.name.to_upper()
+				var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+				out.append({kind = "tag", rect = tag_box(r, String(tag_side.get(spot_key(int(s.slot), int(s.index)), "R")), w), text = txt})
+		elif tags and explode > 0.85:
+			var off: Variant = tag_side.get("empty:" + spot_key(int(s.slot), int(s.index)))
+			if off is Vector2:
+				var txt := empty_text(int(s.slot))
+				var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+				out.append({kind = "label", rect = label_box(s.at, off, w, k), text = txt})
+	return out
 
 
 ## An EMPTY mount in the cutaway: a ring, and what it takes.
@@ -452,16 +512,16 @@ func _empty_ring(s: Dictionary, k: float) -> void:
 	_ring(s.at, (R + 0.5) * k, Color(UITheme.ICE, 0.9 * a))
 	if explode < 0.85:
 		return
-	var f := UITheme.pixel_font()
-	var txt := "EMPTY " + ModuleData.slot_name(int(s.slot)).to_upper()
-	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
-	# where the cutaway found room for the words (sprite px off the ring's
+	# where the cutaway found room for the words (art px off the ring's
 	# centre); no entry, no room: the ring alone
 	var off: Variant = tag_side.get("empty:" + spot_key(int(s.slot), int(s.index)))
 	if not off is Vector2:
 		return
-	var c: Vector2 = s.at + (off as Vector2) * k
-	draw_string(f, Vector2(roundf(c.x - w * 0.5), roundf(c.y + 3.0)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.COLD, a))
+	var f := UITheme.pixel_font()
+	var txt := empty_text(int(s.slot))
+	var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+	var box := label_box(s.at, off, w, k)
+	draw_string(f, box.position + Vector2(0, f.get_ascent(UITheme.FS_SMALL)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(UITheme.COLD, a))
 
 
 func _ring(at: Vector2, r: float, col: Color) -> void:

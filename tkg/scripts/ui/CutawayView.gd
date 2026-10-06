@@ -19,10 +19,12 @@ extends Control
 ## it gone in the other. Local only: nothing here is sent over the network
 ## beyond what those calls already send.
 ##
-## The hull is drawn here at the push-in's scale (2x when the lifted parts and
-## their tags fit above the shelf, else 1x -- a 960x540 game has no clean 1.5x),
-## and LOCAL's own hull is hidden while it is open, so the backdrop the shader
-## breaks up is the sky and everything in it but your ship.
+## The hull is drawn here at the push-in's scale (2x wherever the lifted parts
+## and their tags can be fitted round it above the shelf -- on the heavy by
+## showing the panel only on hover and resting the shelf a little low, see
+## `_choose_scale` -- else 1x: a 960x540 game has no clean 1.5x), and LOCAL's
+## own hull is hidden while it is open, so the backdrop the shader breaks up is
+## the sky and everything in it but your ship.
 
 signal closed
 
@@ -31,6 +33,8 @@ const PANEL_W := 250
 const BACKDROP := preload("res://shaders/pause_backdrop.gdshader")
 ## Above the shelf and left of the panel, the room the exploded ship must fit in.
 const MARGIN := 8.0
+## How far the shelf may rest below its own top: part of the hold's last row.
+const SINK := 30.0
 
 var _src: ShipView
 var _scrim: ColorRect
@@ -64,6 +68,11 @@ var _from := Vector2.ZERO
 var _from_s := 1.0
 var _shelf_top := 300.0
 var _shelf_h := 220.0
+## Where the shelf rests: its top, or lower by up to SINK when that is what lets
+## the ship be drawn at 2x (the heavy). It rises to its top while the pointer is
+## on it, so the whole hold is there to drop on, and sinks back when it leaves.
+var _shelf_rest := 300.0
+var _shelf_up := false
 ## 0 LOCAL .. 1 the cutaway, and where it is heading
 var t := 0.0
 var _goal := 1.0
@@ -75,6 +84,17 @@ var _wreck: MapGen.Jetsam = null
 var _say_until := 0
 ## What the push-in's scale was chosen from, for the harnesses.
 var fit_note := ""
+## The heavy's rung: the ship across the whole width and the panel shown only
+## while something is pointed at, docked away from the pointer, hidden in a drag.
+var hover_panel := false
+var _room := Rect2()
+var _layout_ok := true
+var _offs_cache := {}
+var _last_gp := Vector2.INF
+## For the harness's clips: the push-in's clock advances this much a frame
+## instead of the frame's real time, so a film at 30 a second shows the real
+## 0.4 s however slowly the window drew. 0 is the real clock.
+static var fixed_step := 0.0
 
 
 ## Open over `host`, from LOCAL's own hull `src`.
@@ -138,7 +158,9 @@ func _measure() -> void:
 		return
 	await get_tree().process_frame
 	var rows := Run.hold_grid().y
-	_shelf_h = maxf(196.0, float(rows * HoldGrid.CELL) + 40.0)
+	# (as tight as the hold allows: the heavy's hull is 268 px tall at 2x, and
+	# its five rows of hold leave 270 above the shelf at this, 262 at +40)
+	_shelf_h = maxf(196.0, float(rows * HoldGrid.CELL) + 32.0)
 	_shelf_top = size.y - _shelf_h
 	_shelf.position = Vector2(0, size.y)
 	_shelf.size = Vector2(size.x, _shelf_h)
@@ -163,176 +185,219 @@ func _measure() -> void:
 	Audio.play(&"hold_lift", 0.05)
 
 
-## THE PUSH-IN'S SCALE, PER HULL. 2x if the exploded ship -- its hull, every
-## part lifted clear of it and every tag -- fits above the shelf and left of the
-## panel; else 1x. (1.5x would double every other pixel on a 960x540 picture.)
+## THE PUSH-IN'S SCALE, PER HULL, tried in order until the exploded ship -- its
+## hull, every part lifted clear of it and every tag -- fits above the shelf:
+##   2x beside the panel (the light and the medium: what Jon saw);
+##   2x across the whole width, the panel shown only while something is pointed
+##   at (the heavy: its parts beside the hull, not above and below it -- 150 px
+##   of hull at 2x leaves no height for them over a 30-cell hold);
+##   the same with the shelf resting up to SINK lower, rising when pointed at
+##   (the heavy in the game: a 268 px hull over a five-row hold);
+##   1x beside the panel, last.
+## (1.5x would double every other pixel on a 960x540 picture.)
 func _choose_scale() -> void:
-	var room := Rect2(MARGIN, MARGIN, size.x - PANEL_W - MARGIN * 3.0, _shelf_top - MARGIN * 2.0)
+	var docked := Rect2(MARGIN, MARGIN, size.x - PANEL_W - MARGIN * 3.0, _shelf_top - MARGIN * 2.0)
+	var wide := Rect2(MARGIN, MARGIN, size.x - MARGIN * 2.0, _shelf_top - MARGIN * 2.0)
+	var sunk := Rect2(MARGIN, MARGIN, size.x - MARGIN * 2.0, _shelf_top + SINK - MARGIN * 2.0)
 	fit_note = ""
-	for kk in [2, 1]:
-		var b := _layout(kk)
-		fit_note += "%dx needs %dx%d of %dx%d; " % [kk, int(b.size.x * kk), int(b.size.y * kk), int(room.size.x), int(room.size.y)]
-		if kk == 1 or (b.size.x * kk <= room.size.x and b.size.y * kk <= room.size.y):
+	_shelf_rest = _shelf_top
+	var rungs := [[2, docked, false], [2, wide, true], [2, sunk, true], [1, docked, false]]
+	for i in rungs.size():
+		var kk: int = rungs[i][0]
+		var room: Rect2 = rungs[i][1]
+		var b := _layout(kk, room)
+		# (every part and word is inside the room by construction; a ring on the
+		# hull's very edge may stand a few px past it, into the margin, not more)
+		var fits := _layout_ok and b.size.x * kk <= room.size.x + MARGIN and b.size.y * kk <= room.size.y + MARGIN
+		fit_note += "%dx%s%s %s in %dx%d; " % [kk, " (panel on hover)" if rungs[i][2] else "",
+			" (shelf resting lower)" if room == sunk else "",
+			("fits, %dx%d" % [int(b.size.x * kk), int(b.size.y * kk)]) if fits else "does not fit",
+			int(room.size.x), int(room.size.y)]
+		if fits or i == rungs.size() - 1:
 			k = kk
+			_room = room
+			hover_panel = rungs[i][2]
 			_ship.zoom(k)
 			_ship.size = Vector2(_ship.canvas_width(), _ship.canvas_height())
 			_mounts.refresh()
-			_layout(k)
-			_target = (room.get_center() - b.get_center() * float(k)).round()
+			b = _layout(k, room)
+			# the frame the picture is centred in: the room, or on the sunk rung
+			# only as much of it as this ship needs, the shelf resting just below
+			var frame := room
+			if room == sunk:
+				var h := clampf(b.size.y * kk - MARGIN, wide.size.y, sunk.size.y)
+				frame = Rect2(room.position, Vector2(room.size.x, ceilf(h)))
+				_shelf_rest = frame.end.y + MARGIN
+			_target = (frame.get_center() - b.get_center() * float(k)).round()
+			_dock(false)
 			return
 
 
-## THE EXPLODED LAYOUT, in sprite pixels at scale `kk`: each fitted part lifted
-## straight up or down off its mount until it clears the hull's own silhouette
-## over every column it spans, its tag beside it, nothing overlapping. Written
-## into the mounts widget (`lift`, `tag_side`). Returns the whole picture's
-## bounds (hull, parts, tags), in sprite px.
-func _layout(kk: int) -> Rect2:
+## THE EXPLODED LAYOUT, in sprite pixels at scale `kk`, inside `room` (screen
+## px, the hull centred in it). Each fitted part goes to the NEAREST place --
+## straight out first, sideways costing a little more -- where it and its tag
+## are inside the room, off the hull's own pixels and clear of every part, tag
+## and ring already placed; its tag beside it (toward the hull's middle first)
+## or above or below it, which is what lets parts stack in narrow columns off a
+## heavy's nose and tail. Then each empty mount's words, near its ring, or none.
+## The boxes are the ones `MountPoints` draws (`tag_box`, `label_box`), so what
+## is kept apart here is what is on screen. Written into the mounts widget
+## (`lift`, `tag_side`); `_layout_ok` says whether everything found a place.
+## Returns the whole picture's bounds, in sprite px.
+func _layout(kk: int, room: Rect2) -> Rect2:
 	var img := _ship.canvas()
 	var h := Run.hull
 	var lift := {}
 	var sides := {}
+	_layout_ok = true
 	if img == null or h == null:
 		return Rect2(0, 0, 200, 80)
 	var w := img.get_width()
 	var ht := img.get_height()
-	var top := PackedInt32Array()
-	var bot := PackedInt32Array()
-	top.resize(w)
-	bot.resize(w)
-	for x in w:
-		top[x] = -1
-		bot[x] = -1
-		for y in ht:
+	# the hull's pixels as a summed-area table: "is anything of the hull in this
+	# rect" in four reads, whatever the rect's size
+	var sat := PackedInt32Array()
+	sat.resize((w + 1) * (ht + 1))
+	for y in ht:
+		var row := 0
+		for x in w:
 			if img.get_pixel(x, y).a > 0.1:
-				if top[x] < 0:
-					top[x] = y
-				bot[x] = y
+				row += 1
+			sat[(y + 1) * (w + 1) + x + 1] = sat[y * (w + 1) + x + 1] + row
+	var on_hull := func(r: Rect2) -> bool:
+		var x0 := clampi(int(floor(r.position.x)), 0, w)
+		var y0 := clampi(int(floor(r.position.y)), 0, ht)
+		var x1 := clampi(int(ceil(r.end.x)), 0, w)
+		var y1 := clampi(int(ceil(r.end.y)), 0, ht)
+		if x1 <= x0 or y1 <= y0:
+			return false
+		return sat[y1 * (w + 1) + x1] - sat[y0 * (w + 1) + x1] - sat[y1 * (w + 1) + x0] + sat[y0 * (w + 1) + x0] > 0
 	var ink := Rect2(_ship.ink_rect())
+	var rs := Rect2(ink.get_center() - room.size / (2.0 * kk), room.size / float(kk))
 	var bounds := ink
 	var f := UITheme.pixel_font()
 	var placed: Array[Rect2] = []
+	var free := func(r: Rect2, pad: float) -> bool:
+		if not rs.encloses(r) or on_hull.call(r.grow(pad)):
+			return false
+		for q in placed:
+			if r.grow(1.5).intersects(q):
+				return false
+		return true
+	var offs := _offsets(rs.size)
+	var parts: Array = []
 	var empties: Array = []
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
 		var pts := h.mounts_along(slot, Run.slots_for(slot))
 		for i in pts.size():
-			var pt: Vector2 = pts[i]
 			var m := Run.module_at(slot, i)
-			var key := MountPoints.spot_key(slot, i)
-			var cx := clampi(int(pt.x), 0, w - 1)
-			var up := top[cx] < 0 or (pt.y - float(top[cx])) <= (float(bot[cx]) - pt.y)
 			if m == null:
-				empties.append([slot, i, pt, up])
+				empties.append([slot, i, pts[i]])
+			else:
+				parts.append([slot, i, pts[i], m])
+	# the rings first: a part never lands on one
+	for e in empties:
+		var ring := Rect2((e[2] as Vector2) - Vector2.ONE * (MountPoints.R + 1.0), Vector2.ONE * (MountPoints.R + 1.0) * 2.0)
+		placed.append(ring)
+		bounds = bounds.merge(ring)
+	# the biggest parts first: they have the fewest places to go
+	parts.sort_custom(func(a: Array, c: Array) -> bool:
+		return _mounts.part_rect(a[3], a[0], a[2], 1.0).get_area() > _mounts.part_rect(c[3], c[0], c[2], 1.0).get_area())
+	for p in parts:
+		var slot: ModuleData.Slot = p[0]
+		var pt: Vector2 = p[2]
+		var m: ModuleData = p[3]
+		var key := MountPoints.spot_key(slot, int(p[1]))
+		var b := _mounts.part_rect(m, slot, pt, 1.0)
+		var tw := f.get_string_size(m.name.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		var order: Array[String] = []
+		order.append_array(["L", "R"] if pt.x > ink.get_center().x else ["R", "L"])
+		order.append_array(["T", "B"])
+		var found := false
+		for o in offs:
+			var pr := Rect2(b.position + o, b.size)
+			if not free.call(pr, 2.0):
 				continue
-			var b := _mounts.part_rect(m, slot, pt, 1.0)
-			var tmin := 9999
-			var bmax := -1
-			for x in range(maxi(0, int(b.position.x)), mini(w, int(ceil(b.end.x)))):
-				if top[x] >= 0:
-					tmin = mini(tmin, top[x])
-					bmax = maxi(bmax, bot[x])
-			if tmin == 9999:
-				tmin = int(ink.position.y)
-				bmax = int(ink.end.y)
-			var oy := (float(tmin) - 5.0) - b.end.y if up else (float(bmax) + 5.0) - b.position.y
-			var tw := f.get_string_size(m.name.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x / float(kk) + 4.0
-			var rect_of := func(sd: String, dx: float, dy: float) -> Rect2:
-				var r := Rect2(b.position + Vector2(dx, dy), b.size)
-				var tag := Rect2(Vector2(r.end.x + 2.0, r.get_center().y - 5.0 / kk), Vector2(tw, 10.0 / kk)) if sd == "R" 					else Rect2(Vector2(r.position.x - 2.0 - tw, r.get_center().y - 5.0 / kk), Vector2(tw, 10.0 / kk))
-				return r.merge(tag)
-			# (a tag hung sideways over a taller stretch of hull read as hull
-			# markings: the heavy's turret wore KH-20 CHATTERBOX)
-			var hits := func(r: Rect2) -> bool:
-				if _on_ink(r, top, bot, w):
-					return true
-				for q in placed:
-					if r.grow(2.0).intersects(q):
-						return true
-				return false
-			# THE NEAREST CLEAR PLACE: straight out first, then sliding along the hull
-			# a part's width (and its tag) either way, and only then further out --
-			# mounts bunched on one spine stacked into a tower and the ship never fit
-			# at 2x
-			var stepx := b.size.x + tw * 0.5 + 4.0
-			var dxs := [0.0, -stepx, stepx, -2.0 * stepx, 2.0 * stepx]
-			var side := "R"
-			var dx := 0.0
-			var found := false
-			for j in 40:
-				var dy := oy + (-2.0 if up else 2.0) * float(j)
-				for cand in dxs:
-					# (the tag toward the hull's middle first: one hung off the nose or the
-					# tail widened the whole picture past what fits at 2x)
-					for sd in (["L", "R"] if pt.x > ink.get_center().x else ["R", "L"]):
-						if not hits.call(rect_of.call(sd, cand, dy)):
-							side = sd
-							dx = cand
-							oy = dy
-							found = true
-							break
-					if found:
-						break
-				if found:
+			for sd in order:
+				var tag := _sprite_box(MountPoints.tag_box(_px(pr, kk), sd, tw), kk)
+				if not tag.intersects(pr) and free.call(tag, 1.0):
+					lift[key] = o
+					sides[key] = sd
+					placed.append(pr)
+					placed.append(tag)
+					bounds = bounds.merge(pr).merge(tag)
+					found = true
 					break
-			var fin: Rect2 = rect_of.call(side, dx, oy)
-			placed.append(fin)
-			bounds = bounds.merge(fin)
-			lift[key] = Vector2(dx, oy)
-			sides[key] = side
-	# THE EMPTY MOUNTS' WORDS, after every part is placed: off the hull, off every
-	# tag and part, away from the hull first, beside the ring next; a ring with no
-	# clear place for its words keeps the ring alone (an "EMPTY WEAPON" laid over
-	# the hull plating read as part of it)
-	var lh := 10.0 / kk
+			if found:
+				break
+		if not found:
+			# nowhere inside this room: straight up off the hull, and say so
+			_layout_ok = false
+			var o := Vector2(0, (ink.position.y - 5.0) - b.end.y)
+			lift[key] = o
+			sides[key] = order[0]
+			var pr := Rect2(b.position + o, b.size)
+			placed.append(pr)
+			bounds = bounds.merge(pr)
+	# THE EMPTY MOUNTS' WORDS, near the ring, off the hull and everything placed;
+	# a ring with no room for them keeps the ring alone (an "EMPTY WEAPON" laid
+	# over the hull plating read as part of it)
 	for e in empties:
 		var pt: Vector2 = e[2]
 		var key := MountPoints.spot_key(int(e[0]), int(e[1]))
-		var txt := "EMPTY " + ModuleData.slot_name(int(e[0])).to_upper()
-		var lw := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x / float(kk) + 2.0
-		var ring := Rect2(pt - Vector2.ONE * (MountPoints.R + 1.0), Vector2.ONE * (MountPoints.R + 1.0) * 2.0)
-		placed.append(ring)
-		bounds = bounds.merge(ring)
-		var vy := MountPoints.R + 2.0 + lh * 0.5
-		var hx := MountPoints.R + 3.0 + lw * 0.5
-		var away := -1.0 if bool(e[3]) else 1.0
-		var cands: Array[Vector2] = []
-		for j in 4:
-			cands.append(Vector2(0, away * (vy + 3.0 * j)))
-		cands.append(Vector2(hx, 0))
-		cands.append(Vector2(-hx, 0))
-		for j in 4:
-			cands.append(Vector2(0, -away * (vy + 3.0 * j)))
-		for c in cands:
-			var r := Rect2(pt + c - Vector2(lw, lh) * 0.5, Vector2(lw, lh))
-			if _on_ink(r, top, bot, w):
+		var lw := f.get_string_size(MountPoints.empty_text(int(e[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
+		for o in offs:
+			if absf(o.y) > MountPoints.R + 14.0 or absf(o.x) > lw / (2.0 * kk) + MountPoints.R + 6.0:
 				continue
-			var clash := false
-			for q in placed:
-				if q != ring and r.grow(1.0).intersects(q):
-					clash = true
-					break
-			if clash:
-				continue
-			sides["empty:" + key] = c
-			placed.append(r)
-			bounds = bounds.merge(r)
-			break
+			var r := _sprite_box(MountPoints.label_box(pt * kk, o, lw, kk), kk)
+			if free.call(r, 1.0):
+				sides["empty:" + key] = o
+				placed.append(r)
+				bounds = bounds.merge(r)
+				break
 	_mounts.lift = lift
 	_mounts.tag_side = sides
 	return bounds
 
 
-## Whether a rect (sprite px) lies over any of the hull's own pixels.
-func _on_ink(r: Rect2, top: PackedInt32Array, bot: PackedInt32Array, w: int) -> bool:
-	for x in range(maxi(0, int(floor(r.position.x)) - 1), mini(w, int(ceil(r.end.x)) + 1)):
-		if top[x] >= 0 and r.position.y - 1.0 < float(bot[x]) and r.end.y + 1.0 > float(top[x]):
-			return true
-	return false
+## Every offset from a mount inside a room this size, every 2 sprite px, nearest
+## first (sideways counts 1.3x, so straight out wins a tie). Sorted natively and
+## kept: the layout runs on every change to the ship.
+func _offsets(room: Vector2) -> Array[Vector2]:
+	var key := "%d:%d" % [int(room.x), int(room.y)]
+	if _offs_cache.has(key):
+		return _offs_cache[key]
+	var nx := int(room.x / 2.0)
+	var ny := int(room.y / 2.0)
+	var keys := PackedInt64Array()
+	var all: Array[Vector2] = []
+	for iy in range(-ny, ny + 1):
+		for ix in range(-nx, nx + 1):
+			var o := Vector2(ix * 2, iy * 2)
+			keys.append((int(Vector2(o.x * 1.3, o.y).length() * 16.0) << 24) | all.size())
+			all.append(o)
+	keys.sort()
+	var out: Array[Vector2] = []
+	out.resize(keys.size())
+	for i in keys.size():
+		out[i] = all[keys[i] & 0xFFFFFF]
+	_offs_cache[key] = out
+	return out
+
+
+## A sprite-px rect at scale `kk` in screen px (what the boxes are measured in),
+## and back.
+static func _px(r: Rect2, kk: int) -> Rect2:
+	return Rect2(r.position * kk, r.size * kk)
+
+
+static func _sprite_box(r: Rect2, kk: int) -> Rect2:
+	return Rect2(r.position / kk, r.size / kk)
 
 
 func _process(delta: float) -> void:
 	if _goal != t:
-		var sp := delta / EASE_S
+		var sp := (fixed_step if fixed_step > 0.0 else delta) / EASE_S
 		t = minf(_goal, t + sp) if _goal > t else maxf(_goal, t - sp)
 		if not Router.animating():
 			t = _goal
@@ -340,6 +405,13 @@ func _process(delta: float) -> void:
 		if t <= 0.0 and _goal <= 0.0:
 			_finish_close()
 			return
+	elif t >= 1.0 and _shelf.position.y != _shelf_at():
+		# the resting shelf rising to the pointer and sinking back: quick, in
+		# whole pixels, cut under reduced motion
+		var to := _shelf_at()
+		var step := 360.0 * (fixed_step if fixed_step > 0.0 else delta)
+		var y := move_toward(_shelf.position.y, to, maxf(step, 1.0))
+		_shelf.position.y = roundf(y) if Router.animating() else to
 	if _say != null and _say.visible and Time.get_ticks_msec() > _say_until:
 		_say.visible = false
 
@@ -359,8 +431,14 @@ func _apply() -> void:
 	_mounts.tags = x > 0.0
 	_mounts.queue_redraw()
 	_panel.modulate.a = x
-	_panel.visible = x > 0.01
-	_shelf.position.y = roundf(lerpf(size.y, _shelf_top, e))
+	_panel_vis()
+	_shelf.position.y = roundf(lerpf(size.y, _shelf_at(), e))
+
+
+## Where the shelf's top belongs now: its own top, or resting lower until the
+## pointer is on it.
+func _shelf_at() -> float:
+	return _shelf_top if _shelf_up else _shelf_rest
 
 
 func is_open() -> bool:
@@ -402,12 +480,36 @@ func _build_panel() -> void:
 	_panel.add_child(_panel_box)
 
 
+## Whether the panel shows: beside the ship, once it is out; on the heavy's
+## rung, only while something is pointed at and nothing is carried.
+func _panel_vis() -> void:
+	var out := _panel.modulate.a > 0.01
+	if hover_panel:
+		out = out and _shown != null and not _carrying()
+	_panel.visible = out
+
+
+func _carrying() -> bool:
+	var d: Variant = get_viewport().gui_get_drag_data() if is_inside_tree() else null
+	return typeof(d) == TYPE_DICTIONARY and (d as Dictionary).get("module") is HoldItem
+
+
+## The panel against the right edge, or (on the heavy's rung, pointing at
+## something on the right half) the left.
+func _dock(left: bool) -> void:
+	_panel.position = Vector2(MARGIN if left else size.x - PANEL_W - MARGIN, MARGIN)
+
+
 ## WHAT IS POINTED AT: a part's name, its manufacturer, rarity, size and slot, its line
 ## and its cards; or, pointing at nothing, the ship and how to use this.
 func _show(m: HoldItem) -> void:
+	if hover_panel and m != null and _last_gp.x < INF:
+		_dock(_last_gp.x > get_global_rect().get_center().x)
 	if m == _shown and _panel_box.get_child_count() > 0:
+		_panel_vis()
 		return
 	_shown = m
+	_panel_vis()
 	Widgets.clear(_panel_box)
 	if m == null:
 		_panel_box.add_child(UITheme.body(Run.display_name().to_upper(), UITheme.ICE, UITheme.FS_BODY))
@@ -453,7 +555,7 @@ func _show(m: HoldItem) -> void:
 func _build_shelf() -> void:
 	_shelf = PanelContainer.new()
 	_shelf.add_theme_stylebox_override("panel",
-		UITheme.flat(Color(UITheme.PANEL, 0.98), UITheme.LINE, 1, 14, 10))
+		UITheme.flat(Color(UITheme.PANEL, 0.98), UITheme.LINE, 1, 8, 10))
 	_shelf.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_shelf)
 	var row := HBoxContainer.new()
@@ -594,7 +696,7 @@ func _refresh() -> void:
 	_loot_empty.visible = left <= 0
 	_loot_grid.get_parent().visible = left > 0
 	_loot_take.disabled = left <= 0
-	_layout(k)
+	_layout(k, _room)
 	_mounts.refresh()
 	_show(null if _shown == null else _shown)
 
@@ -736,8 +838,18 @@ func _input(e: InputEvent) -> void:
 
 ## What is under the pointer, for the panel; while carrying, what is carried.
 func _point(gp: Vector2) -> void:
+	_last_gp = gp
+	if _shelf_rest > _shelf_top:
+		# up once the pointer reaches the resting shelf; down once it leaves the
+		# risen one (with or without something in hand)
+		var ly := (get_global_transform().affine_inverse() * gp).y
+		_shelf_up = ly >= (_shelf_top - 2.0 if _shelf_up else _shelf_rest)
 	var carried: Variant = get_viewport().gui_get_drag_data()
 	if typeof(carried) == TYPE_DICTIONARY and (carried as Dictionary).get("module") is HoldItem:
+		if hover_panel:
+			# (the rings say where it goes; the panel would cover some of them)
+			_panel_vis()
+			return
 		_show((carried as Dictionary).module)
 		return
 	var m: HoldItem = null
@@ -752,7 +864,7 @@ func _point(gp: Vector2) -> void:
 			for c in (g as Control).get_children():
 				if c is ItemIcon and (c as Control).get_global_rect().has_point(gp) and (c as Control).is_visible_in_tree():
 					m = (c as ItemIcon).held_item()
-	if m != null or not _panel.get_global_rect().has_point(gp):
+	if m != null or not _panel.visible or not _panel.get_global_rect().has_point(gp):
 		_show(m)
 
 

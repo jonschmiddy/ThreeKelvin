@@ -165,7 +165,89 @@ func run(tree: SceneTree) -> void:
 		await tree.process_frame
 	_ok("closing with a part in hand puts it back (%d -> %d)" % [n_before, Run.installed.size() + Run.cargo.size()],
 		Run.installed.size() + Run.cargo.size() == n_before)
+
+	# 10. the picture itself, on every hull
+	await _check_layouts()
 	_finish()
+
+
+## THE EXPLODED PICTURE, per hull: every word the cutaway draws clear of every
+## other word and of the hull's own pixels, every lifted part off the hull and
+## off every other part, all of it above the shelf, inside the view and (beside
+## the panel) left of it -- read off what `MountPoints` DRAWS, not off the
+## layout's own bookkeeping. And the heavy, the biggest ship, drawn at least as
+## big as the medium (it was 1x beside the medium's 2x).
+func _check_layouts() -> void:
+	var widths := {}
+	for pair in [["light", HullData.Weight.LIGHT], ["medium", HullData.Weight.MEDIUM], ["heavy", HullData.Weight.HEAVY]]:
+		var wname: String = pair[0]
+		Rng.reseed(4242, 0)
+		Run.start_new_run(&"korvan", int(pair[1]))
+		Run.node_at().jetsam.clear()
+		Run.place_in_hold(_module_of(ModuleData.Slot.WEAPON))
+		# (LOCAL's own content area under the HUD: what the cutaway opens over)
+		var host := Control.new()
+		host.size = Vector2(960, 491)
+		_tree.root.add_child(host)
+		var cut := CutawayView.open_over(host, null)
+		for i in 4:
+			await _tree.process_frame
+		var mp := cut._mounts
+		var to_cut := cut.get_global_transform().affine_inverse() * mp.get_global_transform()
+		var img := cut._ship.canvas()
+		var origin := cut._ship.canvas_to_local(Vector2.ZERO)
+		var sc := cut._ship.art_scale()
+		var rects := mp.drawn_rects()
+		var words := 0
+		var clash: Array[String] = []
+		var on_hull: Array[String] = []
+		var outside: Array[String] = []
+		# (the shelf where it rests: on the heavy, a little lower than its top)
+		var shelf := cut._shelf_rest
+		var right := cut._panel.position.x if not cut.hover_panel else cut.size.x
+		for i in rects.size():
+			var a: Dictionary = rects[i]
+			var ra: Rect2 = a.rect
+			if a.kind != "part":
+				words += 1
+			# on the hull: any opaque pixel of the canvas under it
+			var cr := Rect2((ra.position - origin) / sc, ra.size / sc)
+			if _opaque_in(img, cr):
+				on_hull.append("%s %s" % [a.kind, a.text])
+			var g := to_cut * ra
+			if g.end.y > shelf or g.position.x < 0.0 or g.position.y < 0.0 or g.end.x > right:
+				outside.append("%s %s (%d,%d %dx%d)" % [a.kind, a.text, g.position.x, g.position.y, g.size.x, g.size.y])
+			for j in range(i + 1, rects.size()):
+				var b: Dictionary = rects[j]
+				# (a part and its own tag touch by design only through the gap)
+				if ra.intersects(b.rect):
+					clash.append("%s %s / %s %s" % [a.kind, a.text, b.kind, b.text])
+		print("  ..   %s: %dx%s, shelf top %d resting at %d, %d parts and words; %s" % [wname, cut.k,
+			" (panel on hover)" if cut.hover_panel else "", cut._shelf_top, cut._shelf_rest, rects.size(), cut.fit_note])
+		_ok("%s: the shelf rests at most %d px below its top (%d)" % [wname, CutawayView.SINK, cut._shelf_rest - cut._shelf_top],
+			cut._shelf_rest - cut._shelf_top <= CutawayView.SINK)
+		_ok("%s: no word or part overlaps another (%s)" % [wname, ", ".join(clash) if not clash.is_empty() else "%d drawn" % rects.size()], clash.is_empty())
+		_ok("%s: no word or lifted part sits on the hull's pixels (%s)" % [wname, ", ".join(on_hull) if not on_hull.is_empty() else "%d words" % words], on_hull.is_empty())
+		_ok("%s: all of it above the shelf, inside the view%s (%s)" % [wname, "" if cut.hover_panel else " and left of the panel",
+			", ".join(outside) if not outside.is_empty() else "clear"], outside.is_empty())
+		var need := cut._shelf.get_combined_minimum_size().y
+		_ok("%s: the shelf's contents fit its height (%d of %d)" % [wname, int(need), int(cut._shelf_h)], need <= cut._shelf_h)
+		widths[wname] = float(cut._ship.ink_rect().size.x) * sc
+		cut.queue_free()
+		host.queue_free()
+		await _settle()
+	_ok("the heavy is drawn at least as big as the medium (%d px wide against %d)" % [int(widths.heavy), int(widths.medium)],
+		widths.heavy >= widths.medium)
+
+
+func _opaque_in(img: Image, r: Rect2) -> bool:
+	if img == null:
+		return false
+	for y in range(maxi(0, int(floor(r.position.y))), mini(img.get_height(), int(ceil(r.end.y)))):
+		for x in range(maxi(0, int(floor(r.position.x))), mini(img.get_width(), int(ceil(r.end.x)))):
+			if img.get_pixel(x, y).a > 0.1:
+				return true
+	return false
 
 
 func _finish() -> void:
