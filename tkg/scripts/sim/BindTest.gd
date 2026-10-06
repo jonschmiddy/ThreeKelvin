@@ -289,6 +289,13 @@ func _sector_map() -> void:
 	if dest >= 0:
 		Router.commit_jump(dest)
 	else:
+		# none in jump range (the galaxy's layout moves when generation does):
+		# put the ship at the first system that has events, and show it there
+		for raw in Run.map:
+			var m: MapGen.MapNode = raw
+			if m.type == MapGen.NodeType.SYSTEM and not m.options.is_empty():
+				Run.at = m.index
+				break
 		Router.show_system()
 	var t0 := Time.get_ticks_msec()
 	var up := false

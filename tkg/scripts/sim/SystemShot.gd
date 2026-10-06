@@ -14,6 +14,12 @@ extends Node
 ##   `hoverbeacon=K`  points at the K-th beacon on the map
 ##   `hoverchoice=J`  with `open=`, points at choice J on the event page
 ## `take=J` parks the ship at the event's world first, so the clock need not run.
+## THE WEATHER (`SkyWeather`), filmed with `wclip=<dir>` (see `_wclip`):
+##   `sky=<key>`      the first system whose sky is emission, reflection,
+##                    planetary, remnant, dark, calm, pulsar or core; `shape=0..3`
+##                    narrows a planetary one, `star=RED|BLUE|ORDINARY` a calm one
+##   `wlist`          the sky, its temperament, its favourite and its events
+##   `wprobe`         a mark at every point the weather's ported noise finds
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
 
@@ -31,6 +37,9 @@ func _ready() -> void:
 	## `zoom=Z` holds the map at that zoom (the opening zoom, the whole system, if
 	## not given); `loc` holds LOCATION on your ship
 	var zoom := -1.0
+	var sky_key := ""
+	var sky_shape := -1
+	var sky_star := ""
 	Rng.forced = 4242
 	for a in OS.get_cmdline_user_args():
 		var s := a as String
@@ -54,6 +63,14 @@ func _ready() -> void:
 			off = s.substr(4)
 		elif s.begins_with("take="):
 			take = int(s.substr(5))
+		elif s.begins_with("sky="):
+			sky_key = s.substr(4)
+		elif s.begins_with("shape="):
+			sky_shape = int(s.substr(6))
+		elif s.begins_with("star="):
+			sky_star = s.substr(5)
+		elif s == "wramp=0":
+			load("res://scripts/ui/sysmap/SystemView.gd").no_ramp = true
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	# `kinds`: the systems in each kind of nebula (`NebulaField.Kind`), with
 	# their star's kind, and quit -- to find one of each to photograph
@@ -72,6 +89,36 @@ func _ready() -> void:
 	var n: MapGen.MapNode = null
 	if idx >= 0:
 		n = Run.map[idx]
+	elif sky_key != "":
+		# `sky=<key>`: the first system whose sky is that, the busiest first (most
+		# options, so worlds, beacons and labels are on the map with the weather)
+		var SW = load("res://scripts/ui/sysmap/SkyWeather.gd")
+		var best := -1
+		for raw in Run.map:
+			var m: MapGen.MapNode = raw
+			if m.type != MapGen.NodeType.SYSTEM and m.type != MapGen.NodeType.PULSAR and m.type != MapGen.NodeType.CORE:
+				continue
+			OptionTable.ensure(m)
+			if String(SW.sky_of_node(m)) != sky_key:
+				continue
+			var L := SystemLayout.of(m)
+			if "belt" in OS.get_cmdline_user_args() and not L.bodies.any(func(bb: SystemLayout.Body) -> bool: return bb.kind == &"belt"):
+				continue
+			if sky_star != "" and ["ORDINARY", "RED", "BLUE", "PULSAR", "CORE"][L.star] != sky_star:
+				continue
+			if sky_shape >= 0:
+				var cl = NebulaField.at(m.gal) if m.in_nebula else null
+				if cl == null or int(cl.shape) != sky_shape:
+					continue
+			var score := m.options.size() * 10 + L.bodies.size()
+			if score > best:
+				best = score
+				n = m
+		if n == null:
+			print("  systemshot: no system with sky %s (shape %d, star %s) in this run" % [sky_key, sky_shape, sky_star])
+			get_tree().quit()
+			return
+		print("  systemshot: sky %s: system %d" % [sky_key, n.index])
 	elif "belt" in OS.get_cmdline_user_args():
 		# `belt`: the first system with an asteroid belt (for `hoverbelt`)
 		for raw in Run.map:
@@ -111,6 +158,41 @@ func _ready() -> void:
 	# option records it on `Run.node_at()`, so photographing a system the run is
 	# not at would stamp the wrong one
 	Run.at = n.index
+	# `nebkind=K`: the cloud this system sits in made kind K for the shot (no
+	# emission cloud rolls on seed 4242; the showcase re-kinded ESO 101, round
+	# BETA BRINE-4, node 142, the same way)
+	for a22 in OS.get_cmdline_user_args():
+		if (a22 as String).begins_with("nebkind="):
+			var cl22 = NebulaField.at(n.gal) if n.in_nebula else null
+			if cl22 != null:
+				cl22.kind = int((a22 as String).substr(8)) as NebulaField.Kind
+	# `rmotion`: reduced motion for the shot, in memory only (the gas held still,
+	# so two builds can be compared without their clocks)
+	if "rmotion" in OS.get_cmdline_user_args():
+		DisplaySettings.reduced_motion = true
+	# `bodies`: each body's index, kind, world and orbit, to aim `focus=` at
+	# `scanmoons`: every system's worlds with moons, ringed or not, and quit (to
+	# find a moon's eclipse to film)
+	if "scanmoons" in OS.get_cmdline_user_args():
+		for raw in Run.map:
+			var mn: MapGen.MapNode = raw
+			if mn.type != MapGen.NodeType.SYSTEM:
+				continue
+			var Lm := SystemLayout.of(mn)
+			for bi in Lm.bodies.size():
+				var bm: SystemLayout.Body = Lm.bodies[bi]
+				if bm.world == &"":
+					continue
+				var spm := Worlds.spec(bm.world, bm.seed, bm.r)
+				if int(spm.get("moons", 0)) > 0:
+					print("  systemshot: moons node %d body %d %s %s r %.1f moons %d ring %s" % [mn.index, bi, bm.kind, bm.world, bm.r, int(spm.moons), str(spm.get("ring", false))])
+		get_tree().quit()
+		return
+	if "bodies" in OS.get_cmdline_user_args():
+		var Lb := SystemLayout.of(n)
+		for bi in Lb.bodies.size():
+			var bb: SystemLayout.Body = Lb.bodies[bi]
+			print("  systemshot: body %d %s %s orbit %.0f r %.1f" % [bi, bb.kind, bb.world, bb.orbit, bb.r])
 	# WHERE MAIN PUTS IT: the content area, under the HUD.
 	var content := Control.new()
 	# MAIN'S THEME, which a plain Node between Main and the screen cut off:
@@ -132,7 +214,34 @@ func _ready() -> void:
 	var scr: Control = ScreenS.new()
 	content.add_child(scr)
 	scr.frozen = true
+	# FILMING THE WEATHER: the wall clocks the gas and the supernova read held
+	# from the start, so the palette (found from the first picture) and every
+	# frame after are the same run to run, and a clip differs from its baseline
+	# by the event alone
+	for a0 in OS.get_cmdline_user_args():
+		if (a0 as String).begins_with("wclip=") or (a0 as String).begins_with("wrun="):
+			scr.view.hclock = 1000.0
+		# a slow zoom or pan measures the camera alone: the gas held on its clock too
+		if (a0 as String).begins_with("zoomclip=") or (a0 as String).begins_with("panclip="):
+			scr.view.hclock = 1000.0
 	await scr.show_system(n, at)
+	# `fielddump=<dir>`: the cloud's bake (SIMPLIFIED's `SkyBake.field`), its two
+	# density pictures as PNGs, to see what the sun is lighting
+	for a23 in OS.get_cmdline_user_args():
+		if (a23 as String).begins_with("fielddump=") and scr.view._bake != null and scr.view._bake.field_img0 != null:
+			var fd := (a23 as String).substr(10)
+			DirAccess.make_dir_recursive_absolute(fd)
+			scr.view._bake.field_img0.save_png(fd.path_join("field0.png"))
+			scr.view._bake.field_img1.save_png(fd.path_join("field1.png"))
+			for chn in 4:
+				var ch: Image = scr.view._bake.field_img0.duplicate()
+				ch.convert(Image.FORMAT_RGBA8)
+				for y in ch.get_height():
+					for x in ch.get_width():
+						var c := ch.get_pixel(x, y)
+						var v: float = [c.r, c.g, c.b, c.a][chn]
+						ch.set_pixel(x, y, Color(v, v, v, 1.0))
+				ch.save_png(fd.path_join("t0_%s.png" % ["gas", "dust", "b", "a"][chn]))
 	# `blocks`: the worlds in 2x2 blocks too, like the suns (the whole map in B)
 	if "blocks" in OS.get_cmdline_user_args():
 		for v2 in scr.view._views.values():
@@ -146,6 +255,15 @@ func _ready() -> void:
 	scr.panel.show_system()
 	if zoom < 0.0:
 		zoom = scr.zoom_min
+	# FILMING THE WEATHER: the palette found at the opening zoom first, as the game
+	# finds it (set to another zoom straight away, the palette raced the zoom and
+	# was found at one or the other, so a clip and its baseline differed everywhere)
+	for a0 in OS.get_cmdline_user_args():
+		if (a0 as String).begins_with("wclip=") or (a0 as String).begins_with("wrun="):
+			while not scr.view._palette_built:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
 	scr._zoom_to = zoom
 	# `sunlook=C,S`: the sun in C x C blocks, every S-th colour (the red giant review)
 	for a2 in OS.get_cmdline_user_args():
@@ -181,13 +299,13 @@ func _ready() -> void:
 	# read back off the file (Jon: "left alone should survive a reload"). Any
 	# save already on disk is put back afterwards.
 	if "reload" in OS.get_cmdline_user_args():
-		var keep := FileAccess.get_file_as_bytes(SaveGame.PATH) if FileAccess.file_exists(SaveGame.PATH) else PackedByteArray()
+		var keep := FileAccess.get_file_as_bytes(SaveGame.path) if FileAccess.file_exists(SaveGame.path) else PackedByteArray()
 		SaveGame.save()
 		var loaded := SaveGame.load_into_run()
 		if keep.is_empty():
 			SaveGame.clear()
 		else:
-			var fk := FileAccess.open(SaveGame.PATH, FileAccess.WRITE)
+			var fk := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 			fk.store_buffer(keep)
 			fk.close()
 		n = Run.map[n.index]
@@ -415,7 +533,16 @@ func _ready() -> void:
 				z1 = float(s9.substr(4))
 			elif s9.begins_with("zframes="):
 				nz = int(s9.substr(8))
+		# `zrel`: `zfrom` and `zto` as times the opening zoom (the bible's slow zoom:
+		# zfrom=1 zto=1.1 zframes=60)
+		if "zrel" in OS.get_cmdline_user_args():
+			z0 *= scr.zoom_min
+			z1 *= scr.zoom_min
 		var wi := -9
+		# `zbody=I`: held on body I instead
+		for a24 in OS.get_cmdline_user_args():
+			if (a24 as String).begins_with("zbody="):
+				wi = int((a24 as String).substr(6))
 		if "zworld" in OS.get_cmdline_user_args():
 			for bi9 in scr.view.layout.bodies.size():
 				if scr.view.layout.bodies[bi9].world != &"":
@@ -427,6 +554,22 @@ func _ready() -> void:
 		# heard) holds still on the stopped clock and only the zoom changes it
 		if "zstill" in OS.get_cmdline_user_args():
 			Audio.room(&"", 0.01)
+			# and the weather and the far supernovae held off: only the camera moves
+			if scr.view._weather != null:
+				scr.view._weather.auto = false
+			if scr.view._nova != null:
+				scr.view._nova.auto = false
+		# `tstep=S`: the clock run on S seconds a frame (a moon sliding into its world's
+		# shadow, its shadow crossing the face), from the time the shot opened at
+		# (`tstart=S`: S seconds after it)
+		var tstep := 0.0
+		var tstart := 0.0
+		for a25 in OS.get_cmdline_user_args():
+			if (a25 as String).begins_with("tstep="):
+				tstep = float((a25 as String).substr(6))
+			elif (a25 as String).begins_with("tstart="):
+				tstart = float((a25 as String).substr(7))
+		var t_open: float = scr.view.t + tstart
 		# `zback`: the zoom run back from `zto` to `zfrom` after it
 		var zback := "zback" in OS.get_cmdline_user_args()
 		# `zhide=fabric,lines,belts,overlay`: those layers off, to find what flickers
@@ -446,6 +589,8 @@ func _ready() -> void:
 			scr._zoom_to = z
 			scr.view.zoom = z
 			scr.view.pan = -scr.overlay.place_rel(wi) if wi >= 0 else Vector2.ZERO
+			if tstep > 0.0:
+				scr.view.t = t_open + tstep * float(k9)
 			await RenderingServer.frame_post_draw
 			var img := get_viewport().get_texture().get_image()
 			var w9: Rect2 = scr.view.window
@@ -466,7 +611,11 @@ func _ready() -> void:
 			if scr.view.layout.star == SystemLayout.StarKind.PULSAR:
 				lay9 = {"pulsar": float(scr.view.star.get("zoom")), "shell": float(scr.view._sky_mat.get_shader_parameter("shell_k")),
 					"sky_z": scr.view._sky_z, "home": scr.view.home_zoom}
-			rows9.append({"zoom": z, "star": [o9.x, o9.y, scr.view.layout.star_r * scr.view.star_k()], "bodies": bods, "par": par9, "layers": lay9})
+			# the moons: where each is, how far toward you, how deep in its world's shadow
+			var mo9: Array = []
+			for mm9: Dictionary in scr.view._moons.positions(0.0):
+				mo9.append([int(mm9.i), (mm9.c as Vector2).x - w9.position.x, (mm9.c as Vector2).y - w9.position.y, float(mm9.z), float(mm9.ecl)])
+			rows9.append({"zoom": z, "star": [o9.x, o9.y, scr.view.layout.star_r * scr.view.star_k()], "bodies": bods, "par": par9, "layers": lay9, "moons": mo9})
 		var fz := FileAccess.open(zdir + "/frames.json", FileAccess.WRITE)
 		fz.store_string(JSON.stringify(rows9))
 		fz.close()
@@ -494,6 +643,11 @@ func _ready() -> void:
 		scr._location_on = false
 		if "zstill" in OS.get_cmdline_user_args():
 			Audio.room(&"", 0.01)
+			# and the weather and the far supernovae held off: only the camera moves
+			if scr.view._weather != null:
+				scr.view._weather.auto = false
+			if scr.view._nova != null:
+				scr.view._nova.auto = false
 		var origin13: Vector2 = scr._box.get_global_transform_with_canvas().origin
 		for k13 in pn + 1:
 			var u13 := float(k13) / float(pn)
@@ -618,36 +772,30 @@ func _ready() -> void:
 	if "cursor" in OS.get_cmdline_user_args():
 		scr._cursor.set("at", Vector2(scr.view.CX + 150, scr.view.CY + 60))
 		scr._cursor.queue_redraw()
-	# `wclip=<dir>` (`wframes=N`, `wat=x,y` in from the map window's top left):
-	# THE NEBULA'S WEATHER, one forced ten frames in, the window saved each
-	# frame, the weather stepped a 30th of a second a frame
+	# `wlist`: the sky's weather, as this system rolled it
+	if "wlist" in OS.get_cmdline_user_args() and scr.view._weather != null:
+		var W = scr.view._weather
+		print("  systemshot: weather: sky %s, temperament %s, favourite %s" % [W.sky, W.temper, W.fav])
+		for nm: StringName in W.TABLE[W.sky]:
+			var e: Array = W.TABLE[W.sky][nm]
+			print("  systemshot:   %-12s %-2s weight %.1f%s, lasts %.1f s, %s" % [nm, W.TIER_NAMES[int(e[0])], float(e[1]), " (favourite)" if nm == W.fav else "", float(e[2]), e[3]])
+		for nm2: StringName in W.SHARED:
+			print("  systemshot:   %-12s shared, here: %s" % [nm2, W.hosts(nm2)])
+	# `wclip=<dir>`: THE WEATHER, FILMED (see `_wclip`)
 	for a18 in OS.get_cmdline_user_args():
-		if not (a18 as String).begins_with("wclip="):
-			continue
-		var wdir := (a18 as String).substr(6)
-		DirAccess.make_dir_recursive_absolute(wdir)
-		var wn := 60
-		var wat := Vector2.INF
-		for a19 in OS.get_cmdline_user_args():
-			var s19 := a19 as String
-			if s19.begins_with("wframes="):
-				wn = int(s19.substr(8))
-			elif s19.begins_with("wat="):
-				var wq := s19.substr(4).split(",")
-				wat = scr.view.window.position + Vector2(float(wq[0]), float(wq[1]))
-		if scr.view._weather == null:
-			print("  systemshot: no weather here (not in a nebula)")
-			continue
-		scr.view._weather.step_s = 1.0 / 30.0
-		var origin18: Vector2 = scr._box.get_global_transform_with_canvas().origin
-		for k18 in wn:
-			if k18 == 10:
-				scr.view.weather_now(wat)
-			await RenderingServer.frame_post_draw
-			var img18 := get_viewport().get_texture().get_image()
-			var w18: Rect2 = scr.view.window
-			img18.get_region(Rect2i(Vector2i(origin18 + w18.position), Vector2i(w18.size))).save_png("%s/f_%04d.png" % [wdir, k18])
-		print("  systemshot: wclip %d frames, weather kind %d" % [wn, scr.view._weather.kind])
+		if (a18 as String).begins_with("wclip="):
+			await _wclip(scr, (a18 as String).substr(6))
+	# `wrun=S`: THE SCHEDULER AT WORK for S seconds on a fast clock (see `_wrun`)
+	for a20 in OS.get_cmdline_user_args():
+		if (a20 as String).begins_with("wrun="):
+			await _wrun(scr, float((a20 as String).substr(5)))
+	# `wprobe`: a mark at every point the weather's ported noise found (the
+	# cluster, the pillar tips, the stars, the rim, the strands, the band)
+	if "wprobe" in OS.get_cmdline_user_args() and scr.view._weather != null:
+		var pr := _Probe.new()
+		pr.pts = scr.view._weather.probe_points()
+		scr._vp.add_child(pr)
+		print("  systemshot: wprobe %d points" % pr.pts.size())
 	# `nova=S`: a distant supernova forced (at `novaat=x,y` in from the map
 	# window's top left, or anywhere clear), photographed S seconds into it
 	for a6 in OS.get_cmdline_user_args():
@@ -671,3 +819,276 @@ func _ready() -> void:
 		print("  systemshot: world %d %s at %s r %.1f plane %s soi %.0f" % [i, b.world, gp.round(), b.r * scr.view.zoom, b.pos(scr.view.t).round(), b.soi])
 	print("  systemshot: system %d (%s) to %s" % [n.index, MapGen.star_name(n), out])
 	get_tree().quit()
+
+
+## `wclip=<dir>`: THE WEATHER, FILMED. The map window saved each frame, the
+## weather stepped a 30th of a second a frame (`wfps=60`: a 60th), and with it
+## every clock that moves the picture -- the map's (the worlds, the stars'
+## twinkle, the pulsar's beat with its sound stopped), the gas's churn and the
+## supernova's -- so a clip and its baseline differ by the event alone.
+##   `wev=<name>`   that event, forced ten frames in, once the palette is a
+##                  second old; `wev=none` films the baseline; no `wev`, the
+##                  system's original weather (today's `wclip`)
+##   `wframes=N`    how many frames (for a named event: all of it and a second)
+##   `wat=x,y`      where, in from the map window's top left
+##   `wfreeze`      the clocks held still, only the event moves
+##   `wup=0`        today's version of an upgraded event
+##   `wreduce=N`    reduced motion switched on at frame N (the event should be
+##                  gone the frame after)
+## Writes `f_NNNN.png`, `peak.png` (the frame at the event's height) and
+## `meta.json`: for each frame the event's age and where the ship, the labels,
+## the worlds and the star are, in the saved picture's pixels.
+func _wclip(scr: Control, wdir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(wdir)
+	var view = scr.view
+	var W = view._weather
+	if W == null:
+		print("  systemshot: no weather here")
+		return
+	var wn := -1
+	var wat := Vector2.INF
+	var fps := 30.0
+	var ev_name := ""
+	var freeze := false
+	var reduce_at := -1
+	## `wstill=A`: the event held at age A (a still at that moment, 14 frames)
+	var still_at := -999.0
+	## `wzoom=Z`: the map zooms to Z over the clip, eased (in-system things grow,
+	## the far sky stays put)
+	var zoom_to := -1.0
+	for a19 in OS.get_cmdline_user_args():
+		var s19 := a19 as String
+		if s19.begins_with("wframes="):
+			wn = int(s19.substr(8))
+		elif s19.begins_with("wat="):
+			var wq := s19.substr(4).split(",")
+			wat = view.window.position + Vector2(float(wq[0]), float(wq[1]))
+		elif s19.begins_with("wfps="):
+			fps = float(s19.substr(5))
+		elif s19.begins_with("wev="):
+			ev_name = s19.substr(4)
+		elif s19 == "wfreeze":
+			freeze = true
+		elif s19 == "wup=0":
+			W.up = false
+		elif s19.begins_with("wreduce="):
+			reduce_at = int(s19.substr(8))
+		elif s19.begins_with("wstill="):
+			still_at = float(s19.substr(7))
+		elif s19.begins_with("wzoom="):
+			zoom_to = float(s19.substr(6))
+	if ev_name != "" and ev_name != "none" and not W.hosts(StringName(ev_name)):
+		print("  systemshot: " + W.force(StringName(ev_name)))
+		return
+	# the harness owns every clock now: no events of their own, nothing from
+	# the player's own settings, the pulsar's beat off the map clock alone
+	DisplaySettings.reduced_motion = false
+	W.auto = false
+	view._nova.auto = false
+	# (the ship was put here as if it had just warped in: no arrival bowshock
+	# over the first seconds of every clip)
+	W._bow_at = -1.0
+	var stp := 1.0 / fps
+	W.step_s = stp
+	scr.frozen = true
+	Audio.room(&"", 0.01)
+	# THE SCREEN ON THE HARNESS'S CLOCK TOO: no mouse or keys reach the map (the
+	# window is off to the side, where a pointer may pass), the camera held where
+	# it is, and the ship flown a fixed step a frame instead of the frame's own
+	scr.set_process(false)
+	scr.set_process_unhandled_key_input(false)
+	scr._frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scr.overlay.hover = {}
+	var z0: float = view.zoom
+	var pan0: Vector2 = view.pan
+	var zst := {"z": z0}
+	var hold_cam := func() -> void:
+		view.zoom = float(zst.z)
+		view.pan = pan0
+		scr._zoom_to = float(zst.z)
+		scr._step_ship(stp)
+	while not view._palette_built:
+		await get_tree().process_frame
+	# the palette a second old, as the weather waits for it
+	for _i in int(fps) + 2:
+		await RenderingServer.frame_post_draw
+		if not freeze:
+			view.t += stp
+			view.hclock += stp
+		hold_cam.call()
+	var origin: Vector2 = scr._box.get_global_transform_with_canvas().origin
+	var w: Rect2 = view.window
+	var rows: Array = []
+	var ev: Dictionary = {}
+	var peak_done := false
+	var total := wn
+	var k := 0
+	while true:
+		if k == 10:
+			if ev_name == "":
+				view.weather_now(wat)
+			elif ev_name != "none":
+				var err: String = W.force(StringName(ev_name), wat)
+				if err != "":
+					print("  systemshot: " + err)
+					break
+			for e: Dictionary in W.live():
+				if ev_name == "" or String(e.name) == ev_name:
+					ev = e
+			if still_at > -100.0:
+				W.hold_at = still_at
+				if total < 0:
+					total = 14
+			if total < 0:
+				total = 10 + (int((float(ev.pre) + float(ev.end) + 1.0) * fps) if not ev.is_empty() else int(fps * 4.0))
+			print("  systemshot: wclip %s at %s, pre %.2f, lasts %.2f" % [ev.get("name", ev_name), ev.get("at", "-"), float(ev.get("pre", 0.0)), float(ev.get("end", 0.0))])
+		if total < 0 and k > 10 + int(fps * 4.0):
+			break
+		if total >= 0 and k >= total:
+			break
+		if k == reduce_at:
+			DisplaySettings.reduced_motion = true
+		await RenderingServer.frame_post_draw
+		var img := get_viewport().get_texture().get_image().get_region(Rect2i(Vector2i(origin + w.position), Vector2i(w.size)))
+		img.save_png("%s/f_%04d.png" % [wdir, k])
+		var age = float(ev.age) if not ev.is_empty() else null
+		if not ev.is_empty() and not peak_done and float(ev.age) >= float(W.PEAK.get(StringName(ev.name), 0.0)):
+			img.save_png("%s/peak.png" % wdir)
+			peak_done = true
+		if k == reduce_at + 1 and reduce_at >= 0:
+			var still: int = W.live().size()
+			var wk := float(view._neb_mat.get_shader_parameter("w_k")) if view._neb_mat != null else 0.0
+			print("  systemshot: reduced motion at frame %d: %d events live the frame after, w_k %.2f" % [reduce_at, still, wk])
+		var worlds: Array = []
+		for i: int in view._views:
+			worlds.append([view.at[i].x - w.position.x, view.at[i].y - w.position.y, view.draw_r(view.layout.bodies[i])])
+		var labels: Array = []
+		for r: Rect2 in scr.overlay.label_rects:
+			labels.append([r.position.x - w.position.x, r.position.y - w.position.y, r.size.x, r.size.y])
+		var o: Vector2 = view.origin() - w.position
+		var fo: Vector2 = W.focus(ev) - w.position if not ev.is_empty() else Vector2(-1, -1)
+		rows.append({"f": k, "age": age, "focus": [fo.x, fo.y], "ship": [scr.overlay._ship_at.x - w.position.x, scr.overlay._ship_at.y - w.position.y],
+			"labels": labels, "worlds": worlds, "star": [o.x, o.y, view.layout.star_r * view.star_k()], "zoom": view.zoom})
+		if not freeze:
+			view.t += stp
+			view.hclock += stp
+		if zoom_to > 0.0 and k >= 10 and total > 10:
+			var zu := smoothstep(0.0, 1.0, float(k - 10) / float(total - 10))
+			zst.z = lerpf(z0, zoom_to, zu)
+		hold_cam.call()
+		k += 1
+	var f := FileAccess.open(wdir + "/meta.json", FileAccess.WRITE)
+	f.store_string(JSON.stringify({"fps": fps, "event": ev_name, "win": [w.position.x, w.position.y], "sky": String(W.sky),
+		"temper": String(W.temper), "system": view.node.index, "frames": rows}))
+	f.close()
+	print("  systemshot: wclip %d frames, sky %s" % [k, W.sky])
+
+
+## `wrun=S`: THE SCHEDULER AT WORK, as the game runs it -- its own picks, its own
+## placement against the real map, the supernova on its own clock too -- for S
+## seconds on a fixed step (`wfps=`, default 10 a second, so minutes take
+## seconds), the ship parked and no input (no idle pull unless `widle`). Prints
+## every start, the rate per tier a minute, how much of the time something is
+## live, and any moment two things overlap that should not: a showpiece with a
+## supernova or with a small event, or a supernova over a far-sky event.
+## `wrunshots=<dir>` saves the window every `wrunevery=` frames (default 10).
+func _wrun(scr: Control, secs: float) -> void:
+	var view = scr.view
+	var W = view._weather
+	if W == null:
+		print("  systemshot: no weather here")
+		return
+	var fps := 10.0
+	var shots := ""
+	var every := 10
+	for a21 in OS.get_cmdline_user_args():
+		var s21 := a21 as String
+		if s21.begins_with("wfps="):
+			fps = float(s21.substr(5))
+		elif s21.begins_with("wrunshots="):
+			shots = s21.substr(10)
+		elif s21.begins_with("wrunevery="):
+			every = int(s21.substr(10))
+	var idle := "widle" in OS.get_cmdline_user_args()
+	if shots != "":
+		DirAccess.make_dir_recursive_absolute(shots)
+	DisplaySettings.reduced_motion = false
+	W.log_on = true
+	W.log_starts = []
+	var stp := 1.0 / fps
+	W.step_s = stp
+	Audio.room(&"", 0.01)
+	scr.set_process(false)
+	scr.set_process_unhandled_key_input(false)
+	scr._frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scr.overlay.hover = {}
+	var z0: float = view.zoom
+	var pan0: Vector2 = view.pan
+	while not view._palette_built:
+		await get_tree().process_frame
+	var origin: Vector2 = scr._box.get_global_transform_with_canvas().origin
+	var w: Rect2 = view.window
+	var n := int(secs * fps)
+	var novas: Array = []
+	var was_nova := false
+	var busy := 0
+	var bad: Array = []
+	var t := 0.0
+	for k in n:
+		await RenderingServer.frame_post_draw
+		if shots != "" and k % every == 0:
+			var img := get_viewport().get_texture().get_image().get_region(Rect2i(Vector2i(origin + w.position), Vector2i(w.size)))
+			img.save_png("%s/r_%05d.png" % [shots, k / every])
+		view.t += stp
+		view.hclock += stp
+		t += stp
+		view.zoom = z0
+		view.pan = pan0
+		scr._zoom_to = z0
+		scr._step_ship(stp)
+		if not idle:
+			scr.last_input_t = Time.get_ticks_msec() / 1000.0
+		var nv: bool = not (view._nova._ev as Dictionary).is_empty()
+		if nv and not was_nova:
+			novas.append(snappedf(t, 0.1))
+		was_nova = nv
+		var a: Dictionary = W._a
+		var b: Dictionary = W._b
+		if not a.is_empty() or not b.is_empty():
+			busy += 1
+		var a_sp: bool = not a.is_empty() and int(a.tier) == W.SP
+		if a_sp and nv:
+			bad.append("%.1f showpiece %s under a supernova" % [t, a.name])
+		if a_sp and not b.is_empty():
+			bad.append("%.1f small %s under showpiece %s" % [t, b.name, a.name])
+		if nv and W.far_busy() and float(a.age) > 0.0 and k > 0:
+			bad.append("%.1f supernova over far-sky %s" % [t, a.name])
+	var per := {0: 0, 1: 0, 2: 0, 3: 0}
+	for e: Array in W.log_starts:
+		per[int(e[3])] += 1
+		print("  systemshot: wrun %6.1f s  %-12s slot %s %-2s lasts %.1f" % [float(e[0]), e[1], "B" if int(e[2]) == 1 else ("A" if int(e[2]) == 0 else "-"), W.TIER_NAMES[int(e[3])], float(e[4])])
+	var mins := t / 60.0
+	print("  systemshot: wrun sky %s temperament %s favourite %s: %.1f min, M %.2f/min, S %.2f/min, SP %d, R %d, supernovas %d %s; something live %.0f%% of the time" % [
+		W.sky, W.temper, W.fav, mins, per[1] / mins, per[0] / mins, per[2], per[3], novas.size(), novas, 100.0 * busy / maxf(1.0, float(n))])
+	# (deduplicated: one line a second at most)
+	var last := ""
+	var shown := 0
+	for s22: String in bad:
+		var key := s22.substr(s22.find(" "))
+		if key != last and shown < 20:
+			print("  systemshot: wrun OVERLAP " + s22)
+			shown += 1
+		last = key
+	print("  systemshot: wrun overlaps %d frames" % bad.size())
+
+
+## The weather's ported points, marked over the map (`wprobe`).
+class _Probe extends Node2D:
+	var pts: Array = []
+
+	func _draw() -> void:
+		for e: Array in pts:
+			var p: Vector2 = e[1]
+			var c := Color(1, 1, 0) if String(e[0]) in ["cc", "rim"] else Color(0, 1, 0.4)
+			draw_line(p - Vector2(4, 0), p + Vector2(4, 0), c)
+			draw_line(p - Vector2(0, 4), p + Vector2(0, 4), c)

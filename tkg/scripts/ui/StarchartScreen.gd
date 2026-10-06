@@ -324,7 +324,9 @@ func _build() -> void:
 	# handing the rings to the chart, and re-framing if the region was held.
 	_paint_rings()
 	_paint_region()
-	_chart.show_all = _show_all
+	# Only in developer mode: the toggle outlives the switch, and a reveal left
+	# on must not follow the player into the game with no button to undo it.
+	_chart.show_all = _show_all and DevMode.enabled
 	if _all_btn != null:
 		_all_btn.text = "SHOW KNOWN ONLY" if _show_all else "SHOW ALL SYSTEMS"
 	# The VIEW itself is restored by the chart on its first resize -- see
@@ -2156,10 +2158,12 @@ class MapChart extends Control:
 		_sky.chart = self
 		_sky.show_behind_parent = true
 		add_child(_sky)
-		_flash = Flashes.new()
-		_flash.chart = self
-		_flash.show_behind_parent = true
-		add_child(_flash)
+		# THE FLASHES ARE THE SKY'S NOW. Every rendering style draws the pulsars'
+		# beat and the supernovae in the sky itself, as gathered light with an
+		# envelope (`ChartSky`, the legacy style's events), so the old pixel
+		# strobes and gamma-ray bursts over it would be a second pulsar on every
+		# pulsar. The class stays, unused, for the harnesses that time it.
+		_flash = null
 
 	## Build the star field NOW, rather than on demand inside the first draw.
 	##
@@ -2390,7 +2394,13 @@ class MapChart extends Control:
 		# Twice the frame. Twenty-four rings inside one screen puts them about
 		# twenty pixels apart — closer than a system glyph is tall — so the chart
 		# is drawn large and navigated. Zoom out to ZOOM_MIN to see all of it.
-		return minf(size.x * 0.5 / DISC, size.y * 0.5 / (DISC * _squash())) * 1.9
+		#
+		# Fitted to the plane the chart is DRAWN in (TILT), not the galaxy's own
+		# squash: every galaxy lies at the sector map's angle now, so a squash fit
+		# only made the round ones small -- an elliptical at 0.92 came out 450 px a
+		# galaxy unit against a spiral's 622 (the showcase's audit). One scale
+		# for every kind.
+		return minf(size.x * 0.5 / DISC, size.y * 0.5 / (DISC * ChartSky.TILT)) * 1.9
 
 	## Ring by layer, angle by where MapGen put the node. No per-ring rotation:
 	## linked nodes stay angularly near, so a jump looks like a hop rather than a
@@ -2460,7 +2470,12 @@ class MapChart extends Control:
 	## chart's clock, plus any extra turn a caller set. View only: nothing in the
 	## run moves.
 	func turn() -> float:
-		return fposmod(ChartSky.OMEGA * clock() + sky_angle, TAU)
+		return fposmod(ChartSky.OMEGA * turn_speed * clock() + sky_angle, TAU)
+
+	## How many times faster than the chart's own turn this galaxy turns. 1 on
+	## the star chart; the title screen turns its galaxy faster (Jon, Oct 6: "we
+	## can have the galaxy rotate faster in the title menu").
+	var turn_speed: float = 1.0
 
 	## The galaxy's centre on the screen, on a whole pixel: the sky's blocks are
 	## anchored to it and the systems are drawn from it.

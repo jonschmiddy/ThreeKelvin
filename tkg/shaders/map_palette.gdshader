@@ -41,9 +41,17 @@ void fragment() {
 		float vv = dot(v, v);
 		float f = vv > 0.0 ? dot(c - A, v) / vv : 0.0;
 		f = clamp(f, 0.0, 0.5);
-		if (vv < 26.0 * 26.0 || max(A.r, max(A.g, A.b)) + max(S.r, max(S.g, S.b)) < 90.0) f = 0.0;
+		bool plain = vv < 26.0 * 26.0 || max(A.r, max(A.g, A.b)) + max(S.r, max(S.g, S.b)) < 90.0;
 		ivec2 q = ivec2(px) / cell;
 		float thr = (BAYER4[(q.y & 3) * 4 + (q.x & 3)] + 0.5) / 16.0;
-		COLOR = vec4((f > thr ? S : A) / 255.0, 1.0);
+		// THE PAIR IN ONE ORDER, whichever of the two is nearer (the lower palette
+		// entry first): a colour drifting from one to the other across the midpoint
+		// keeps every dither pixel it has already switched. Taken nearest-first,
+		// the pattern turned inside out at the midpoint, and every pixel of a slow
+		// fade went A, B, A, B -- a sky zoomed or lit by a moving sun shimmered
+		// (the dark cloud's sheets: 0.0055 of its pixels flipping back a frame)
+		float t = a < s ? f : 1.0 - f;
+		vec3 lo = a < s ? A : S, hi = a < s ? S : A;
+		COLOR = vec4((plain ? A : (t > thr ? hi : lo)) / 255.0, 1.0);
 	}
 }

@@ -17,6 +17,9 @@ enum Mode { WINDOWED, BORDERLESS, FULLSCREEN }
 
 const BASE := Vector2i(960, 540)
 const PATH := "user://settings.cfg"
+## Where these settings are read and written. A harness points this at a
+## scratch file, so a test never touches the player's own (see DevMode.path).
+static var path: String = PATH
 ## Room left for the title bar and taskbar when sizing a windowed window.
 const CHROME_ALLOWANCE := 96
 
@@ -63,6 +66,79 @@ static var reduced_motion: bool = false
 static var skip_jump: bool = false
 ## 0 is uncapped. The game is turn-based; a laptop should not run its fan for it.
 static var frame_cap: int = 0
+
+## HOW THE STAR CHART AND THE SECTOR MAP ARE RENDERED. Four styles, in the
+## order Settings lists them (Jon, 2026-10-05, after the "Rendered Again"
+## showcase and the port): LEGACY, the look from before the port ("I kind of
+## don't want to lose the BEFORE look"); SIMPLIFIED, the game's layered look
+## refined and set in motion (direction C, "Alive", THE DEFAULT for now);
+## PAINTED, every pixel placed by a pixel artist's hand (direction B, "for
+## aesthetics"); RADIANT, light through gas (direction A, "for photos
+## probably"). All of them share SIMPLIFIED's animations and its black hole
+## (`LegacyHole`, named before the rename).
+const STYLES: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+## The default, and what anything unknown or not built falls back to.
+const DEFAULT_STYLE := &"simplified"
+## Which styles have a renderer. A style not in here cannot be chosen, and
+## Settings builds no STYLE row at all until there are two to choose between
+## (only pressable things look pressable). Add a style here when its renderer
+## lands, and nowhere else.
+const BUILT: Array[StringName] = [&"legacy", &"simplified", &"painted", &"radiant"]
+static var render_style: StringName = DEFAULT_STYLE
+## GRAPHICS LOW: the cheaper path every style's renderer keeps (the chart's
+## fewer depth sheets and no billow march). The setting itself is not built
+## yet; the renderers read this so it is one switch away.
+static var graphics_low: bool = false
+## A HARNESS'S `style=` / `graphics=` live in memory only: what the file held is
+## kept here and is what save() writes back, so a shot taken at a setting never
+## changes the player's own settings.cfg (it did: apply() ends in save()).
+static var _harness_style := false
+static var _harness_low := false
+static var _file_style: StringName = DEFAULT_STYLE
+static var _file_low := false
+
+static func style_built(s: StringName) -> bool:
+	return BUILT.has(s)
+
+static func style_name(s: StringName) -> String:
+	match s:
+		&"legacy": return "LEGACY"
+		&"painted": return "PAINTED"
+		&"radiant": return "RADIANT"
+		_: return "SIMPLIFIED"
+
+## Built styles in Settings' order.
+static func built_styles() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for s in STYLES:
+		if style_built(s):
+			out.append(s)
+	return out
+
+## A saved or asked-for value, as a style that can be drawn: anything unknown or
+## not built yet is the default. (A file saved before the rename that says
+## "legacy" meant what is now SIMPLIFIED; LEGACY is not built, so it loads as
+## SIMPLIFIED, which is what that player had.)
+static func valid_style(v: Variant) -> StringName:
+	var s := StringName(str(v))
+	return s if style_built(s) else DEFAULT_STYLE
+
+## The style a settings file asks for, as one that can be drawn.
+static func style_in(cfg: ConfigFile) -> StringName:
+	return valid_style(cfg.get_value("display", "render_style", String(DEFAULT_STYLE)))
+
+## Choose a style. False, and nothing changes, for one that is not built. The
+## chart and the sector map rebuild on `Sig.render_style_changed`.
+static func set_render_style(s: StringName) -> bool:
+	if not style_built(s):
+		return false
+	if s == render_style:
+		return true
+	render_style = s
+	_harness_style = false  # the player chose it: it is theirs to keep
+	save()
+	Sig.render_style_changed.emit()
+	return true
 
 static func look_name(l: Look) -> String:
 	match l:
@@ -223,7 +299,7 @@ static func save() -> void:
 	# Load before writing. This used to save a fresh ConfigFile, which was
 	# harmless while display was the only section — and would have silently
 	# dropped the audio volumes every time the window was resized.
-	cfg.load(PATH)
+	cfg.load(path)
 	cfg.set_value("display", "mode", int(mode))
 	cfg.set_value("display", "window_scale", window_scale)
 	cfg.set_value("display", "screen", safe_screen())
@@ -236,11 +312,13 @@ static func save() -> void:
 	cfg.set_value("display", "reduced_motion", reduced_motion)
 	cfg.set_value("display", "skip_jump", skip_jump)
 	cfg.set_value("display", "frame_cap", frame_cap)
-	cfg.save(PATH)
+	cfg.set_value("display", "render_style", String(_file_style if _harness_style else render_style))
+	cfg.set_value("display", "graphics_low", _file_low if _harness_low else graphics_low)
+	cfg.save(path)
 
 static func load_and_apply() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(PATH) == OK:
+	if cfg.load(path) == OK:
 		mode = cfg.get_value("display", "mode", int(Mode.WINDOWED)) as Mode
 		window_scale = int(cfg.get_value("display", "window_scale", 1))
 		screen = int(cfg.get_value("display", "screen", -1))
@@ -253,7 +331,24 @@ static func load_and_apply() -> void:
 	reduced_motion = bool(cfg.get_value("display", "reduced_motion", false))
 	skip_jump = bool(cfg.get_value("display", "skip_jump", false))
 	frame_cap = int(cfg.get_value("display", "frame_cap", 0))
+	render_style = style_in(cfg)
+	graphics_low = bool(cfg.get_value("display", "graphics_low", false))
+	_file_style = render_style
+	_file_low = graphics_low
 	Engine.max_fps = frame_cap
+	# `-- style=painted` / `-- graphics=low`: a harness's shot in that style or at
+	# that setting, in memory only (nothing is saved). A style that is not built
+	# draws as LEGACY, and says so.
+	for a in OS.get_cmdline_user_args():
+		var arg := a as String
+		if arg.begins_with("style="):
+			_harness_style = true
+			render_style = valid_style(arg.substr(6))
+			if String(render_style) != arg.substr(6):
+				push_warning("style=%s is not built; drawing %s" % [arg.substr(6), style_name(DEFAULT_STYLE)])
+		elif arg.begins_with("graphics="):
+			_harness_low = true
+			graphics_low = arg.substr(9) == "low"
 	# `-- keepwindow` leaves the window where the command line put it
 	# (`--windowed --position x,y`), for a shot taken while somebody is playing
 	# on the monitor the saved mode would cover. Godot strips its own flags from

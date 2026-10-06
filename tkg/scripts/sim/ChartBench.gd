@@ -1,7 +1,7 @@
 extends RefCounted
 
 ## What the star chart costs, still, dragged and zoomed:
-##   godot --path . -- chartbench [depthlook=N]
+##   godot --path . -- chartbench [style=legacy] [graphics=low] [calm]
 ##
 ## NEEDS A WINDOW, like every other measurement of drawing in this project:
 ## under `--headless` the dummy display server never emits `frame_post_draw` and
@@ -29,19 +29,9 @@ var _measuring := false
 
 
 func run(tree: SceneTree) -> void:
-	# `depthlook=N`: the sky's depth in look N (`ChartSky.depth_look`)
-	for arg in OS.get_cmdline_user_args():
-		if (arg as String).begins_with("depthlook="):
-			ChartSky.depth_look = int((arg as String).substr(10))
-		elif (arg as String).begins_with("neblook="):
-			ChartSky.nebula_look = int((arg as String).substr(8))
-		elif (arg as String) == "billow":
-			ChartSky.gas_billow = true
-			DisplaySettings.reduced_motion = false
-		elif (arg as String).begins_with("gas="):
-			ChartSky.gas_look = int((arg as String).substr(4))
-		elif (arg as String).begins_with("volume="):
-			ChartSky.volume_look = int((arg as String).substr(7))
+	# `style=` and `graphics=low` are read by DisplaySettings; `calm` turns
+	# reduced motion on in memory (the events off)
+	DisplaySettings.reduced_motion = "calm" in OS.get_cmdline_user_args()
 	await tree.process_frame
 	# VSYNC OFF, or every reading is 16.67ms and the bench measures the monitor.
 	# The first version did exactly that: still and dragging both came back at
@@ -99,6 +89,14 @@ func run(tree: SceneTree) -> void:
 	while Time.get_ticks_msec() - warm < 2000:
 		await RenderingServer.frame_post_draw
 	var ls := Router.current as LauncherScreen
+	# and until the title's own galaxy is baked
+	while ls != null and ls._sky != null and not (ls._sky._sky as ChartSky).ready_to_draw() 			and Time.get_ticks_msec() - warm < 20000:
+		await RenderingServer.frame_post_draw
+	for i in 30:
+		await RenderingServer.frame_post_draw
+	if ls != null and ls._sky != null:
+		var tsky: ChartSky = ls._sky._sky
+		print("  title sky: key %s, baked %s, drawing %s, visible %s" % [tsky._key, tsky.ready_baked(), tsky.ready_to_draw(), ls._sky.visible])
 	var title := await _sample(tree, null, "", "title", _sky_rid(ls._sky if ls != null else null))
 
 	Run.galaxy = run_galaxy
@@ -187,18 +185,33 @@ func _save(tree: SceneTree, path: String) -> void:
 ## rather than the state.
 ## The chart's sky draws into a viewport of its own (`ChartSky`), whose GPU
 ## time the game's viewport does not include: measured beside it.
-func _sky_rid(chart: Node) -> RID:
+## (The simplified sky is three viewports -- stars, place, composite -- and
+## all three are counted; the painted sky a fourth, its band memory; the legacy
+## sky one, every pass inside it.)
+func _sky_rid(chart: Node) -> Array[RID]:
+	var out: Array[RID] = []
 	if chart == null or not is_instance_valid(chart):
-		return RID()
+		return out
 	var sky: ChartSky = chart.get("_sky")
-	if sky == null or sky._vp == null:
-		return RID()
-	var rid := sky._vp.get_viewport_rid()
-	RenderingServer.viewport_set_measure_render_time(rid, true)
-	return rid
+	if sky == null:
+		return out
+	var vps: Array = []
+	if sky._legacy != null:
+		if sky._legacy._vp == null:
+			return out
+		vps = [sky._legacy._vp]
+	elif sky._vp == null:
+		return out
+	else:
+		vps = [sky._svp, sky._pvp, sky._vp] + ([sky._tvp] if sky._tvp != null else [])
+	for vp: SubViewport in vps:
+		var rid := vp.get_viewport_rid()
+		RenderingServer.viewport_set_measure_render_time(rid, true)
+		out.append(rid)
+	return out
 
 
-func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid := RID()) -> float:
+func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid: Array[RID] = []) -> float:
 	for i in 20:
 		if not await _step(chart, move, i):
 			return -1.0
@@ -211,8 +224,8 @@ func _sample(tree: SceneTree, chart: Node, move: String, label := "", sky_rid :=
 			return -1.0
 		if _gpu_rid.is_valid():
 			gpu += RenderingServer.viewport_get_measured_render_time_gpu(_gpu_rid)
-		if sky_rid.is_valid():
-			gpu_sky += RenderingServer.viewport_get_measured_render_time_gpu(sky_rid)
+		for r in sky_rid:
+			gpu_sky += RenderingServer.viewport_get_measured_render_time_gpu(r)
 	var t1 := Time.get_ticks_usec()
 	# WHAT THE FRAME SUBMITTED, not just how long it took. The star field was
 	# ~48,000 individual `draw_rect` calls, and a canvas item's command list is

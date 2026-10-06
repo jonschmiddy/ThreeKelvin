@@ -68,7 +68,14 @@ func _ready() -> void:
 	_ok("the chart made again", now != null and now != old_screen)
 	if now != null:
 		var sky: ChartSky = now._chart._sky
-		_ok("its sky baked for the new galaxy", sky != null and sky._key.begins_with(ChartSky.galaxy_key()))
+		# (the legacy style keeps its key on its own renderer, `ChartLegacy`)
+		var key: String = "" if sky == null else (sky._legacy._key if sky._legacy != null else sky._key)
+		_ok("its sky keyed to the new galaxy", key.begins_with(ChartSky.galaxy_key()))
+		var t0 := Time.get_ticks_msec()
+		while sky != null and is_instance_valid(sky) and not sky.ready_to_draw() and Time.get_ticks_msec() - t0 < 10000:
+			await get_tree().process_frame
+		_ok("its sky baked and drawing (%d ms)" % (Time.get_ticks_msec() - t0),
+			sky != null and is_instance_valid(sky) and sky.ready_to_draw())
 	if out != "":
 		# (the new galaxy opens on its first-survey card, as any new galaxy
 		# does; put away for the picture, and the screen let fade in)
@@ -92,19 +99,19 @@ var _had_save := false
 
 
 func _keep_save() -> void:
-	_had_save = FileAccess.file_exists(SaveGame.PATH)
+	_had_save = FileAccess.file_exists(SaveGame.path)
 	if _had_save:
-		_kept = FileAccess.get_file_as_bytes(SaveGame.PATH)
+		_kept = FileAccess.get_file_as_bytes(SaveGame.path)
 
 
 func _restore_save() -> void:
 	if _had_save:
-		var f := FileAccess.open(SaveGame.PATH, FileAccess.WRITE)
+		var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 		if f != null:
 			f.store_buffer(_kept)
 			f.close()
-	elif FileAccess.file_exists(SaveGame.PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveGame.PATH))
+	elif FileAccess.file_exists(SaveGame.path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveGame.path))
 
 
 func _verdict() -> void:

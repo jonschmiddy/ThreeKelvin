@@ -21,7 +21,7 @@ render_mode unshaded, blend_mul;
 
 // x, y on the screen as drawn; its radius as drawn (the disc, held to a least
 // size); its true radius at this zoom (what the shadow's length goes by)
-uniform vec4 bodies[12];
+uniform vec4 bodies[24];
 uniform int n_bodies = 0;
 uniform vec2 star_at = vec2(622.0, 262.0);
 uniform float x0 = 264.0;
@@ -30,6 +30,13 @@ uniform float px_scale = 1.0;
 // how dark the core is, and how many steps the darkness comes in
 uniform float strength = 0.5;
 uniform float steps = 5.0;
+// A RINGED WORLD'S SHADOW CARRIES ITS RINGS' (C): the ring's outer edge in the
+// world's radii (0: no rings), its shadow fainter wings either side of the core
+uniform float rings[24];
+// PAINTED (direction B): two tones and nothing between, the umbra and a
+// penumbra half as dark, for the paint pass to set a step or two down the ramp
+// each falls on (its own checker where they meet)
+uniform bool painted = false;
 
 void fragment() {
 	vec2 px = (floor(SCREEN_UV / SCREEN_PIXEL_SIZE) + 0.5) * px_scale;
@@ -64,8 +71,15 @@ void fragment() {
 			// full as far as the disc's edge, then fading with distance
 			float along = s <= r ? 1.0 : pow(clamp(1.0 - (s - r) / (LEN - r), 0.0, 1.0), 1.25);
 			float dark = strength * across * along;
+			if (rings[i] > 0.0) {
+				float taper = clamp(s / LU, 0.0, 1.0);
+				float rw = r * rings[i] * (1.0 - 0.6 * taper);
+				float soft = 1.0 + r * (0.06 + 0.22 * taper);
+				float wing = (1.0 - smoothstep(rw - soft, rw + soft, w)) * (w > hu ? 1.0 : 0.0);
+				dark = max(dark, strength * 0.42 * wing * along);
+			}
 			// in the palette's steps
-			dark = floor(dark * steps + 0.5) / steps;
+			dark = painted ? (dark > strength * 0.7 ? 0.58 : (dark > strength * 0.2 ? 0.3 : 0.0)) : floor(dark * steps + 0.5) / steps;
 			k *= 1.0 - dark;
 		}
 	}

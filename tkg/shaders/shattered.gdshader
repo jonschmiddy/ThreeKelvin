@@ -33,6 +33,8 @@ uniform float k_light = 1.0;
 uniform vec2 star_at = vec2(-9999.0);
 uniform float star_r = 0.0;
 uniform vec2 centre = vec2(0.0);
+// PAINTED (direction B): its steps flat, never dithered between
+uniform bool painted = false;
 
 const int R_ROCK = 0;
 const int R_GLOW = 6;
@@ -60,7 +62,7 @@ float bayer2(float x, float y) {
 	int ix = (int(x) + 999) & 1, iy = (int(y) + 999) & 1;
 	return iy == 0 ? (ix == 0 ? 0.0 : 2.0) : (ix == 0 ? 3.0 : 1.0);
 }
-vec3 ramp_at(int ramp, float v, float x, float y) { return rampc(ramp, int(floor(v * 6.0 + (bayer2(x, y) - 1.5) * 0.22))); }
+vec3 ramp_at(int ramp, float v, float x, float y) { return rampc(ramp, int(floor(v * 6.0 + (painted ? 0.0 : (bayer2(x, y) - 1.5) * 0.22)))); }
 
 // the whole of it turns about the vertical
 vec3 turn(vec3 v, float s1, float c1) { return vec3(v.x * c1 + v.z * s1, v.y, -v.x * s1 + v.z * c1); }
@@ -134,7 +136,7 @@ void fragment() {
 	float d2 = (x * x + y * y) / (r * r);
 	float I = glow * flick * (1.5 * exp(-d2 / 0.02) + 0.55 * exp(-d2 / 0.14) + 0.16 * exp(-d2 / 0.7));
 	vec3 lc = d2 < 0.015 ? vec3(1.0, 0.97, 0.9) : glow_c;
-	float dth = (bayer2(x, y) + 0.5) / 4.0;
+	float dth = painted ? 0.5 : (bayer2(x, y) + 0.5) / 4.0;
 	vec3 q = max(vec3(0.0), floor((1.0 - exp(-1.6 * I * lc)) * 6.0 + dth - 0.5)) / 6.0;
 	vec2 at = centre + pix;
 	if (distance(at, star_at) < star_r) COLOR = vec4(0.0);

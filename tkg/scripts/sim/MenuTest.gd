@@ -56,6 +56,8 @@ func run(tree: SceneTree) -> void:
 				await _pause_case(c)
 			print("the title-style Settings drawer, reduced motion turned off")
 			await _drawer_case()
+			print("the rendering style")
+			await _style_case()
 	DisplaySettings.reduced_motion = was_reduced
 	DisplaySettings.skip_jump = was_skip
 	Router.animate_in_harness = false
@@ -118,6 +120,64 @@ func _drawer_case() -> void:
 	await _secs(0.5)
 	_ok("  BACK shuts it and it is gone",
 		_main.get("_settings") == null and not is_instance_valid(drawer))
+
+
+## THE RENDERING STYLE (`DisplaySettings.render_style`): SIMPLIFIED by default,
+## a style with no renderer cannot be chosen, a settings file naming one that is
+## unknown or not built loads as the default, the choice survives a save and a load,
+## and while only one style is built Settings builds no STYLE row at all. In a
+## scratch settings file: the player's is never read or written.
+func _style_case() -> void:
+	const SCRATCH := "user://styletest_settings.cfg"
+	var was_path := DisplaySettings.path
+	var was_style := DisplaySettings.render_style
+	DisplaySettings.path = SCRATCH
+	var fresh := ConfigFile.new()
+	_ok("  a fresh settings file is SIMPLIFIED", DisplaySettings.style_in(fresh) == &"simplified")
+	_ok("  SIMPLIFIED is built, LEGACY first in the list", DisplaySettings.style_built(&"simplified")
+		and DisplaySettings.STYLES[0] == &"legacy" and DisplaySettings.STYLES[1] == &"simplified")
+	var heard := [0]
+	var on_change := func() -> void: heard[0] += 1
+	Sig.render_style_changed.connect(on_change)
+	for s: StringName in DisplaySettings.STYLES:
+		if not DisplaySettings.style_built(s):
+			var before := DisplaySettings.render_style
+			_ok("  %s, not built, cannot be chosen" % s,
+				not DisplaySettings.set_render_style(s) and DisplaySettings.render_style == before)
+	_ok("  and choosing one said nothing", heard[0] == 0)
+	Sig.render_style_changed.disconnect(on_change)
+	for bad in ["sparkly", "legacy", "painted", "radiant", "", 7]:
+		if DisplaySettings.style_built(StringName(str(bad))):
+			continue
+		var cfg := ConfigFile.new()
+		cfg.set_value("display", "render_style", bad)
+		cfg.save(SCRATCH)
+		var back := ConfigFile.new()
+		back.load(SCRATCH)
+		_ok("  a saved %s loads as the default" % [JSON.stringify(bad)], DisplaySettings.style_in(back) == DisplaySettings.DEFAULT_STYLE)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.render_style = &"simplified"
+	DisplaySettings.save()
+	var saved := ConfigFile.new()
+	_ok("  SIMPLIFIED is saved and read back", saved.load(SCRATCH) == OK
+		and str(saved.get_value("display", "render_style", "")) == "simplified"
+		and DisplaySettings.style_in(saved) == &"simplified")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SCRATCH))
+	DisplaySettings.path = was_path
+	DisplaySettings.render_style = was_style
+	# no STYLE row while there is only one style to choose
+	var panel := SettingsPanel.new()
+	_tree.root.add_child(panel)
+	panel.build()
+	await _tree.process_frame
+	var row := first(panel, func(n: Node) -> bool:
+		return n is Label and (n as Label).text == "STYLE")
+	if DisplaySettings.built_styles().size() > 1:
+		_ok("  Settings shows a STYLE row (%d styles built)" % DisplaySettings.built_styles().size(), row != null)
+	else:
+		_ok("  Settings builds no STYLE row with one style built", row == null)
+	panel.queue_free()
+	await _tree.process_frame
 
 
 # ------------------------------------------------------------------- helpers

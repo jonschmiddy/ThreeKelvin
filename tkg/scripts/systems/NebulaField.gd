@@ -206,7 +206,7 @@ static var _cache_key := 0
 ## everything the placement reads, so a galaxy rolled again, tilted or turned
 ## gets new clouds.
 static func clouds() -> Array:
-	var key := [Run.galaxy_seed, Run.galaxy_spin, Run.galaxy, int(placement)].hash()
+	var key := [Run.galaxy_seed, Run.galaxy_spin, Run.galaxy, int(placement), keep_core].hash()
 	if key != _cache_key or _cache.is_empty():
 		_cache = _build()
 		_cache_key = key
@@ -272,6 +272,15 @@ static func _build() -> Array:
 			# Big enough to reach well past the hole, so what orbits is a cloud
 			# rather than a handful of stray blocks.
 			c.radius = 0.13 + a4 * 0.07
+		# THE SAME SIZE IN EVERY KIND. A spiral's landmark is shrunk to fit its
+		# arm (FIT, below: measured mean 0.13, p90 0.19 over 12 seeds), and a
+		# galaxy with no arms skipped that step, so its landmark kept the full
+		# 0.16-0.24 roll -- and a gas-poor ball rolls ONE cloud, the landmark, often
+		# a remnant at x1.25: a shell a quarter of the Merger Remnant and the Dwarf
+		# Spheroidal across (mean 0.24, p90 0.28). Shrunk here by FIT's typical
+		# step instead, before the lobes are built round it.
+		if not spiral and k == 0:
+			c.radius *= FIT_SHRINK * FIT_SHRINK * FIT_SHRINK
 		# Weighted toward the quiet kinds. This is a game about a cold universe
 		# with one warm thing in it, so the loud clouds stay in the minority.
 		# Rebalanced toward the two kinds a star DIED in. They are not just
@@ -369,8 +378,50 @@ static func _build() -> Array:
 		# this one rolls exactly what it rolled before.
 		if spiral and k != 1 and placement == Placement.FIT:
 			_fit(c, k, arms)
+		_keep_clear(c, g)
 		out.append(c)
 	return out
+
+
+## THE CORE IS KEPT CLEAR. A cloud on the bulge ran into the black hole's disc
+## and its glow, and with the billows round it nothing read as itself (Jon,
+## Oct 5, of a remnant over the core: "Nebulas collide into the black hole...
+## it's hard to tell what is what.... it's just messy right now"). Every cloud's
+## drawn extent (`EXTENT` of each lobe) is kept outside the bulge's visible
+## reach plus a margin (`core_keep`): one that would cross it is moved straight
+## out from the centre until it clears, and made smaller if that would put it
+## past the disc. The cloud placed in close on purpose (k == 1) now sits just
+## outside the bulge instead of on it.
+static func core_keep(g: Dictionary) -> float:
+	# (2.05: the chart's DISC, `StarchartScreen.MapChart.DISC`, bulge to plane units)
+	return 1.5 * float(g.get("bulge", 0.26)) / 2.05 + 0.04
+
+static var keep_core := true
+
+static func _keep_clear(c: Cloud, g: Dictionary) -> void:
+	if not keep_core:
+		return
+	var sq := maxf(0.05, float(g.get("squash", 0.62)))
+	var keep := core_keep(g)
+	for _step in 6:
+		# the cloud's nearest drawn point to the centre, in the un-tilted disc
+		var q0 := Vector2(c.pos.x, c.pos.y / sq)
+		var near := INF
+		for l in c.lobes.size():
+			var lq := Vector2(c.pos.x + c.lobes[l].x, (c.pos.y + c.lobes[l].y) / sq)
+			near = minf(near, lq.length() - c.lobe_r[l] * EXTENT)
+		if near >= keep:
+			return
+		var dir := q0.normalized() if q0.length() > 1e-4 else Vector2(1.0, 0.0)
+		q0 += dir * (keep - near + 0.005)
+		# past the disc's edge it is made smaller instead of pushed further
+		if q0.length() > 0.86:
+			q0 = dir * 0.86
+			c.radius *= FIT_SHRINK
+			for l in c.lobes.size():
+				c.lobes[l] *= FIT_SHRINK
+				c.lobe_r[l] *= FIT_SHRINK
+		c.pos = Vector2(q0.x, q0.y * sq)
 
 ## FIT: the best of `FIT_TRIES` places on the arms for `c`, its shape already
 ## rolled. The first try is where RIDGE would have put it, so a cloud that

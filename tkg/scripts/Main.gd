@@ -224,6 +224,13 @@ func _ready() -> void:
 		load("res://scripts/sim/SystemTest.gd").new().run()
 		get_tree().quit()
 		return
+	# Does the sector map's weather keep its schedule (one at a time, showpieces
+	# rare, nothing with reduced motion, every event able to fire):
+	#   godot --headless --path . -- weathertest
+	if "weathertest" in OS.get_cmdline_user_args():
+		load("res://scripts/sim/WeatherTest.gd").new().run()
+		get_tree().quit()
+		return
 	if "optiontest" in OS.get_cmdline_user_args():
 		load("res://scripts/sim/OptionTest.gd").new().run()
 		get_tree().quit()
@@ -761,6 +768,13 @@ func _ready() -> void:
 	# the animations on:  godot --headless --path . -- menutest
 	if "menutest" in OS.get_cmdline_user_args():
 		_stow_test = load("res://scripts/sim/MenuTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
+	# Developer mode in the editor and as released, from one settings file:
+	#   godot --headless --path . -- devtest [asrelease]
+	if "devtest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/DevTest.gd").new()
 		_stow_test.run(get_tree())
 		return
 

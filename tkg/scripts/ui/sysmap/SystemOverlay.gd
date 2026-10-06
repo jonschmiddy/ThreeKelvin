@@ -128,6 +128,13 @@ func _font() -> FontFile:
 ## that would overlap one already placed dropped. YOU is dropped too whenever a
 ## forecast or orbit label is near the ship.
 var _lq: Array = []
+## WHERE THE WORDS WENT last frame: the weather keeps its events off them
+## (`SkyWeather.clear_at`)
+var label_rects: Array = []
+## A FLASH NEAR THE SHIP (`SkyWeather` `nearstrike`): its place on screen, its
+## colour and how strong it is now ({} for none). The edge of the hull facing it
+## catches its light for a moment; the outline stays.
+var catch_light: Dictionary = {}
 
 
 func _label(at: Vector2, s: String, c: Color, prio: int, shadow: bool) -> void:
@@ -137,6 +144,7 @@ func _label(at: Vector2, s: String, c: Color, prio: int, shadow: bool) -> void:
 func _place_labels() -> void:
 	_lq.sort_custom(func(x: Array, y: Array) -> bool: return int(x[0]) > int(y[0]))
 	var placed: Array = []
+	label_rects = []
 	for e: Array in _lq:
 		var at: Vector2 = e[1]
 		var s: String = e[2]
@@ -155,6 +163,7 @@ func _place_labels() -> void:
 			placed.append(Rect2())
 			continue
 		placed.append(box)
+		label_rects.append(box)
 		if e[4]:
 			_text(at + Vector2(1, 1), s, Color(Color("#05070b"), (e[3] as Color).a))
 		_text(at, s, e[3])
@@ -990,10 +999,25 @@ func _draw_ship(t: float) -> void:
 		for v in range(-4, 5):
 			if not in_hull.call(u, v) and (in_hull.call(u - 1, v) or in_hull.call(u + 1, v) or in_hull.call(u, v - 1) or in_hull.call(u, v + 1)):
 				P.call(u, v, Color("#05070b"))
+	var cf: float = float(catch_light.get("f", 0.0))
+	var cdir := Vector2.ZERO
+	if cf > 0.0:
+		cdir = ((catch_light.at as Vector2) - x).normalized()
 	for u in range(-3, 7):
 		for v in range(-4, 5):
 			if in_hull.call(u, v):
-				P.call(u, v, Color.WHITE if u > 3 else (UITheme.CHILL if absi(v) >= 2 else UITheme.ICE))
+				var hc: Color = Color.WHITE if u > 3 else (UITheme.CHILL if absi(v) >= 2 else UITheme.ICE)
+				if cf > 0.0:
+					# the hull's edge facing the flash, lit toward its colour, never white
+					var nl := Vector2.ZERO
+					for o: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+						if not in_hull.call(u + o.x, v + o.y):
+							nl += Vector2(o)
+					if nl != Vector2.ZERO:
+						var ns := Vector2(nl.x * c - nl.y * s, nl.x * s + nl.y * c).normalized()
+						if ns.dot(cdir) > 0.5:
+							hc = hc.lerp(catch_light.col as Color, 0.5 * cf)
+				P.call(u, v, hc)
 	P.call(-4, -1, UITheme.HOT)
 	P.call(-4, 1, UITheme.HOT)
 	P.call(-5, -1, UITheme.FLARE if int(t * 20.0) % 2 == 1 else UITheme.HOT)

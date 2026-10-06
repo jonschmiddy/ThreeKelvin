@@ -134,6 +134,11 @@ var _follow_key := ""
 var zoom_min := 1.0
 ## A harness holding keys has no keyboard to check them against.
 var harness_keys := false
+## WHEN THE PLAYER LAST DID ANYTHING, and last zoomed (the wall clock, s): the
+## weather holds still for a zoom, and an idle player gets the next event sooner
+## (`SkyWeather`)
+var last_input_t := 0.0
+var last_zoom_t := -100.0
 
 
 func _init() -> void:
@@ -263,6 +268,7 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 	_fill_strip(n)
 	_place_map()
 	await view.show_system(n)
+	last_input_t = Time.get_ticks_msec() / 1000.0
 	zoom_min = _fit_zoom()
 	view.zoom = zoom_min
 	view.home_zoom = zoom_min
@@ -276,6 +282,12 @@ func show_system(n: MapGen.MapNode, t0: float = 0.0, arrived: bool = true) -> vo
 		_restore_ship(_parked.get(n.index, {}))
 	overlay.flight = flight
 	_was_at = flight.reached()
+	# THE WEATHER sees the ship, the labels and the panel; a fresh warp-in pushes
+	# a ring into the dust round the ship as the streak ends
+	if view._weather != null:
+		view._weather.screen = self
+		if arrived:
+			view._weather.arrive(flight.warp_t)
 	# LOCATION held: one glide onto the ship from the whole sector
 	if _location_on:
 		_glide_to("loc", -9, ZOOM_LOCATION)
@@ -313,9 +325,23 @@ func _restore_ship(d: Dictionary) -> void:
 		flight.place_at(-3, view.t)
 
 
+func _enter_tree() -> void:
+	if not Sig.render_style_changed.is_connected(_on_style):
+		Sig.render_style_changed.connect(_on_style)
+
+
 func _exit_tree() -> void:
 	_keep_ship()
 	Audio.ship_thrust_off()
+	if Sig.render_style_changed.is_connected(_on_style):
+		Sig.render_style_changed.disconnect(_on_style)
+
+
+## ANOTHER RENDERING STYLE (`DisplaySettings.render_style`): the system is drawn
+## again, its sky baked again in the new style, the ship where it was.
+func _on_style() -> void:
+	if view != null and view.node != null and is_inside_tree():
+		show_system(view.node, view.t, false)
 
 
 ## The chart's strip, for this sector: how dangerous it is. What it is goes in
@@ -448,6 +474,7 @@ func _glide_target(kind: String, body: int) -> Vector2:
 
 
 func _glide_to(kind: String, body: int, z1: float, dur: float = GLIDE_S) -> void:
+	last_zoom_t = Time.get_ticks_msec() / 1000.0
 	_glide = {"kind": kind, "body": body, "z0": view.zoom, "z1": clampf(z1, zoom_min, view.ZOOM_MAX),
 		"f0": _look_at(), "t0": float(Time.get_ticks_msec()) / 1000.0, "dur": dur}
 	_zoom_to = float(_glide.z1)
@@ -585,6 +612,7 @@ func _clamp_pan() -> void:
 
 
 func _zoom_by(f: float, at: Vector2) -> void:
+	last_zoom_t = Time.get_ticks_msec() / 1000.0
 	# a glide under way ends where it is, the wheel taking over
 	if not _glide.is_empty():
 		_glide = {}
@@ -616,6 +644,7 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
 	if k == null or k.echo:
 		return
+	last_input_t = Time.get_ticks_msec() / 1000.0
 	if _transfer != null or not is_visible_in_tree():
 		return
 	# A direction with two keys keeps going while the other is still down.
@@ -669,6 +698,7 @@ func _map_at(p: Vector2) -> Vector2:
 
 
 func _on_map_input(e: InputEvent) -> void:
+	last_input_t = Time.get_ticks_msec() / 1000.0
 	if _transfer != null or _taking:
 		return
 	if e is InputEventMouseMotion:

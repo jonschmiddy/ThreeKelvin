@@ -76,6 +76,20 @@ uniform float beam_w = 3.2;
 uniform float beam_spread = 0.16;
 uniform float beam_i = 1.5;
 
+// THE WEATHER (`SkyWeather`): Crab wisps rippling out in the cloud's plane; the
+// Vela jet whipping along the spin axis (the rolled jets fade out for it); a
+// magnetar's flare on a beat. Ages in seconds, strengths 0 for none.
+uniform float wisp_age = 0.0;
+uniform float wisp_k = 0.0;
+uniform float hose_age = 0.0;
+uniform float hose_k = 0.0;
+uniform float jets_fade = 1.0;
+uniform float mag_age = 0.0;
+uniform float mag_k = 0.0;
+// THE SHIP, in this box's pixels: the weather's light fades out round it (the
+// wisps and the firehose grow with the map and would sweep over it)
+uniform vec2 g_ship = vec2(-9999.0);
+
 // the map's zoom, and half the box this moment in game pixels (the box is
 // BOX x zoom, so its beams are never cut short at any zoom)
 uniform float zoom = 1.0;
@@ -111,6 +125,8 @@ float noise(float x, float y) {
 	float a = hash2(xi, yi), b = hash2(xi + 1.0, yi), c = hash2(xi, yi + 1.0), d = hash2(xi + 1.0, yi + 1.0);
 	return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
+float sm(float a, float b, float x) { float u = clamp((x - a) / (b - a), 0.0, 1.0); return u * u * (3.0 - 2.0 * u); }
+float env(float a, float r, float h, float f) { return sm(0.0, r, a) * (1.0 - sm(r + h, r + h + f, a)); }
 float fbm(float x, float y) {
 	return noise(x, y) * 0.5 + noise(x * 2.03 + 17.0, y * 2.03 + 9.0) * 0.25 + noise(x * 4.1 + 3.0, y * 4.1 + 31.0) * 0.125 + noise(x * 8.3 + 11.0, y * 8.3 + 5.0) * 0.0625;
 }
@@ -155,6 +171,7 @@ void fragment() {
 	float px = (x - box_half.x) / zoom, py = (y - box_half.y) / zoom;
 	vec3 L = SPACE;
 	vec3 pl = plane_at(px, py);
+	float gk = sm(30.0, 90.0, length(vec2(x, y) - g_ship));
 
 	// THE CLOUD: a soft doughnut of glowing gas, summed through its height
 	float span = gas_w * gas_tall * 1.6;
@@ -167,12 +184,52 @@ void fragment() {
 		}
 		if (dens >= 0.01) {
 			float sum = dens * cloud_at(pl.x, pl.y) * gas_i * (1.0 + 0.35 * pl.z) * (beat_glow ? 1.0 + 0.65 * exp(-beat_age / 0.22) : 1.0);
+			// the magnetar's flare blazes through the cloud
+			if (mag_k > 0.0 && mag_age >= 0.0) sum *= 1.0 + 1.6 * mag_k * exp(-mag_age / 0.2);
 			if (sum >= 0.01) L += (sum > 0.5 ? ICE : (sum > 0.22 ? CYAN : (sum > 0.1 ? BLUE : VIOLET))) * sum;
 		}
 	}
 
+	// WISPS: thin bright arcs rippling out from the pulsar in the cloud's own
+	// plane, one after another, brighter on the side leaning toward you
+	if (wisp_k > 0.0) {
+		for (int i = 0; i < 4; i++) {
+			float ai = wisp_age - 2.5 * float(i);
+			if (ai <= 0.0) continue;
+			float Ri = 0.4 * gas_r + 11.0 * ai;
+			float dw = pl.x - Ri;
+			// (gone once it has faded: zoomed in, a ring left to spread forever
+			// nudged the dither of the whole picture)
+			float fade = exp(-Ri / (1.2 * gas_r)) * env(ai, 1.0, 2.0, 4.0);
+			if (abs(dw) > 8.0 || fade < 0.05) continue;
+			L += gk * ICE * 1.2 * wisp_k * exp(-pow(dw / 2.2, 2.0)) * fade
+				* (0.6 + 0.4 * noise(cos(pl.y) * 6.0 + float(i) * 7.0, sin(pl.y) * 6.0)) * (1.0 + 0.5 * pl.z);
+		}
+	}
+
+	// THE FIREHOSE: a thin jet along the spin axis to twice its length, a kink
+	// running out along it so it whips, a bright knot riding the bend
+	if (hose_k > 0.0) {
+		float len = length(s_axis.xy), ux = s_axis.x / len, uy = s_axis.y / len;
+		float a0 = px * ux + py * uy, p0 = px * uy - py * ux;
+		float he = env(hose_age, 2.0, 7.0, 3.0) * hose_k;
+		for (int i = 0; i < 2; i++) {
+			float sg = i == 0 ? 1.0 : -1.0, along = sg * a0;
+			if (along < 3.0) continue;
+			float Lj = 75.0 * len * (1.0 + sm(0.0, 3.0, hose_age));
+			// (a whip slow enough, and a jet thick enough, that a block it crosses
+			// stays lit for more than a few frames)
+			float y = 0.12 * along * sin(0.08 * along - 1.4 * hose_age);
+			float d = abs(sg * p0 - y);
+			if (d > 10.0) continue;
+			float jet = exp(-pow(d / 2.0, 2.0)) * sm(3.0, 7.0, along) * exp(-along / Lj) * (1.0 - 0.5 * sm(50.0, 70.0, along));
+			float knot = exp(-(pow(along - 18.0 * hose_age, 2.0) + d * d) / 7.0) * 1.6;
+			L += (mix(VIOLET, ICE, 0.4) * jet + ICE * knot) * he * (sg * s_axis.z > 0.0 ? 1.0 : 0.6) * gk;
+		}
+	}
+
 	// JETS along the spin axis, wiggling, bright knots running outward
-	if (jets) {
+	if (jets && jets_fade > 0.0) {
 		float len = length(s_axis.xy), ux = s_axis.x / len, uy = s_axis.y / len;
 		float reach = 75.0 * len, a0 = px * ux + py * uy, p0 = px * uy - py * ux;
 		for (int i = 0; i < 2; i++) {
@@ -182,7 +239,7 @@ void fragment() {
 			float d = abs(sg * p0 - wig);
 			if (d > 3.0) continue;
 			float knots = 0.55 + 0.45 * sin(along * 0.32 - jet_ph2);
-			L += (d < 0.5 ? ICE : CYAN) * 1.4 * exp(-(d / 0.8) * (d / 0.8)) * knots * pow(1.0 - along / reach, 0.9) * (sg * s_axis.z > 0.0 ? 1.0 : 0.6);
+			L += (d < 0.5 ? ICE : CYAN) * 1.4 * exp(-(d / 0.8) * (d / 0.8)) * knots * pow(1.0 - along / reach, 0.9) * (sg * s_axis.z > 0.0 ? 1.0 : 0.6) * jets_fade;
 		}
 	}
 
@@ -244,7 +301,7 @@ void fragment() {
 
 	// THE STAR: a white-hot point in a soft glow that flares on each flash
 	{
-		float I = 1.0 + flash * 3.0 + glitch_k * 5.0;
+		float I = 1.0 + flash * 3.0 + glitch_k * 5.0 + (mag_k > 0.0 && mag_age >= 0.0 ? 4.0 * mag_k * exp(-mag_age / 0.12) : 0.0);
 		float R = 30.0, r0 = 1.9, base = 1.0 / (1.0 + (R / r0) * (R / r0));
 		float d = sqrt(px * px + py * py);
 		if (d <= R) {

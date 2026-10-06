@@ -22,6 +22,11 @@ extends Control
 ## show partway through.
 const WARMUP_FRAMES := 4
 
+## THE TITLE'S GALAXY TURNS FASTER than the chart's (once in 12 hours there):
+## once every five minutes, so the arms are seen to wheel behind the menu
+## (Jon, Oct 6). A multiple of `ChartSky.OMEGA`, as `MapChart.turn_speed`.
+const TITLE_TURN := ChartSky.TURN_MINUTES / 5.0
+
 ## The galaxy's edge, as a fraction of half the screen's short side. Just over
 ## one, so the outer arms run off the top and bottom rather than sitting in the
 ## middle of a lot of empty space — there is no route to plan here, so the
@@ -94,7 +99,10 @@ func setup() -> void:
 	holder.add_theme_constant_override("margin_bottom", 24)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(holder)
-	_add_dev_toggle()
+	# Not built at all where developer mode does not exist: an exported game
+	# has no workshop, so it has no switch for one. See DevMode.available.
+	if DevMode.available:
+		_add_dev_toggle()
 
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -169,6 +177,10 @@ func setup() -> void:
 
 ## The developer switch, small, in the corner where a build stamp goes.
 ##
+## Only where DevMode.available: from the editor, never in an exported game.
+## Nothing else is anchored to that corner, so a build without it leaves the
+## corner empty and moves nothing.
+##
 ## Not in the menu column: that column is the five things a player came here to
 ## do, and this is not one of them. A corner checkbox reads as a property OF the
 ## build rather than as a destination, which is what it is.
@@ -205,12 +217,10 @@ func _input(e: InputEvent) -> void:
 func _add_dev_toggle() -> void:
 	# Built through Widgets.button so it gets the click and hover sounds, which
 	# means the action has to be supplied at construction — it connects `pressed`
-	# immediately and a null Callable is an error. The lambda reaches the button
-	# through the member rather than through itself, since it cannot capture a
-	# local that does not exist yet.
-	_dev_box = Widgets.button("", func() -> void:
-		DevMode.toggle()
-		_paint_dev_toggle(_dev_box))
+	# immediately and a null Callable is an error. A named method rather than a
+	# lambda, so `-- devtest` can find what is wired to the switch: it reaches
+	# the button through the member, since the button does not exist yet.
+	_dev_box = Widgets.button("", _on_dev_toggle)
 	var box := _dev_box
 	box.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
 	box.alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -324,6 +334,11 @@ func _open_popup(inner: Control, compact: bool = false) -> void:
 	var frame := Widgets.panel_with(scroll)
 	frame.mouse_filter = Control.MOUSE_FILTER_STOP
 	pad.add_child(frame)
+
+## The corner switch, pressed. The only caller of DevMode.toggle in the game.
+func _on_dev_toggle() -> void:
+	DevMode.toggle()
+	_paint_dev_toggle(_dev_box)
 
 ## The box and its colour, for whichever state the flag is in now.
 static func _paint_dev_toggle(box: Button) -> void:
@@ -523,6 +538,7 @@ func _make_sky() -> void:
 	_roll_sky_galaxy()
 	_sky = StarchartScreen.MapChart.new()
 	_sky.show_icons = false
+	_sky.turn_speed = TITLE_TURN
 	_sky.run_galaxy = false
 	_sky.keys = false
 	# THE TEAR. MapChart clips to its own rect so the galaxy cannot spill out of
@@ -591,8 +607,8 @@ func _process(_delta: float) -> void:
 		return
 	if _warmup > 0:
 		_warmup -= 1
-	# The galaxy turns by itself now, as the chart's does (`MapChart.turn`): one
-	# turn every half hour, the whole disc at once, faster only round the hole.
+	# The galaxy turns by itself, as the chart's does (`MapChart.turn`), at
+	# TITLE_TURN times the chart's speed: once every five minutes.
 
 ## A galaxy for the title screen, rolled once per process and kept.
 ##
@@ -607,6 +623,7 @@ func _process(_delta: float) -> void:
 static var _sky_kind: int = -1
 static var _sky_seed: int = 0
 static var _sky_params: Dictionary = {}
+static var _sky_spin: float = 0.0
 
 func _roll_sky_galaxy() -> void:
 	if _sky_kind < 0:
@@ -620,12 +637,17 @@ func _roll_sky_galaxy() -> void:
 		var r := RandomNumberGenerator.new()
 		r.seed = _sky_seed
 		_sky_params = GalaxyGen.roll(_sky_kind, r)
+		# its own arm angle too: the sky's bake reads `Run.galaxy_spin`, and a
+		# title galaxy that kept the last run's spin drew its arms where that
+		# run's were while its stars sat on its own
+		_sky_spin = r.randf() * TAU
 	Run.galaxy_kind = _sky_kind
 	# Duplicated on the way out: the chart reads Run.galaxy freely and a shared
 	# reference would let it edit the copy every later launcher visit rebuilds
 	# from.
 	Run.galaxy = _sky_params.duplicate(true)
 	Run.galaxy_seed = _sky_seed
+	Run.galaxy_spin = _sky_spin
 
 ## Where the ship is and how it is doing — enough to recognise the run without
 ## loading it.

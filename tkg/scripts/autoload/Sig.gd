@@ -21,6 +21,9 @@ signal dev_mode_changed()
 ## the meter can appear and vanish without Main rebuilding, and without the
 ## settings menu holding a reference to a thing it does not own.
 signal fps_meter_changed(on: bool)
+## The rendering style was changed in Settings (`DisplaySettings.render_style`).
+## The star chart and the sector map rebuild their pictures on it.
+signal render_style_changed()
 ## A page was recovered out of a system. The archive tab counts, and the HUD
 ## shows the count, so both have to hear it — and it fires from the one door in
 ## Archive rather than from the three encounters that go through that door.

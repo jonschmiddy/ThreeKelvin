@@ -127,6 +127,8 @@ static var _cache := {}
 static var _clock := 0
 ## The clumps: phase, starting angle, how many seconds each takes to fall in.
 static var _clumps: Array[Vector3] = []
+## THE WEATHER'S FLARE (`SkyWeather` `flareecho`): added to the disc's breath.
+var breath_add := 0.0
 
 
 func _init() -> void:
@@ -421,7 +423,7 @@ func step(t: float) -> void:
 	var n := floori(t / 4.2)
 	var u := t / 4.2 - n
 	var flare := maxf(0.0, 1.0 - u * 5.0) * 0.75 if hash2(n, 77) > 0.35 else 0.0
-	var breath := 1.0 + 0.13 * sin(t * 1.3) + 0.08 * sin(t * 3.1 + 1.0) + flare
+	var breath := 1.0 + 0.13 * sin(t * 1.3) + 0.08 * sin(t * 3.1 + 1.0) + flare + breath_add
 	_hmat.set_shader_parameter("time", t)
 	_hmat.set_shader_parameter("breath", breath)
 	var ce := sqrt(1.0 - TILT * TILT)
@@ -434,6 +436,30 @@ func step(t: float) -> void:
 	_hmat.set_shader_parameter("star", star)
 	_hmat.set_shader_parameter("star_behind", behind)
 	_draw_dots(t, star, behind, r0, th, ce)
+
+
+## THE NEXT CLUMP TO GO OVER THE EDGE where the photon ring shows (over the
+## top), between `lo` and `hi` seconds from map time `t`: (seconds until, its
+## screen angle as the hole's shader reads it), or (-1, 0).
+func next_plunge(t: float, lo: float, hi: float) -> Vector2:
+	# a clump's radius meets the shadow's at about this share of its fall
+	var u_edge := 0.996
+	var best := Vector2(-1.0, 0.0)
+	for c in _clumps:
+		var n := ceilf((t + c.x) / c.z - u_edge)
+		var tp := (n + u_edge) * c.z - c.x
+		var dt := tp - t
+		if dt < lo:
+			dt += c.z
+		if dt > hi:
+			continue
+		var a := c.y + u_edge * u_edge * 14.0 + u_edge * 3.0
+		# over the top: the far side of the disc
+		if sin(a) >= -0.15:
+			continue
+		if best.x < 0.0 or dt < best.x:
+			best = Vector2(dt, atan2(sin(a) * TILT, cos(a)))
+	return best
 
 
 ## A point on the eaten star's tilted orbit: screen u, v and how far toward

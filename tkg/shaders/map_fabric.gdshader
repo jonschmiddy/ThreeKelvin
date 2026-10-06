@@ -23,6 +23,10 @@ uniform vec2 hole = vec2(18.0);
 // each world's clear disc on screen: x, y, radius
 uniform vec3 worlds[16];
 uniform int n_worlds = 0;
+// A GRAVITATIONAL WAVE (`SkyWeather` `gwave`, very rare): a chirp rolling
+// across the grid -- its direction on the plane (x, z), its clock, and its
+// height in plane units. Only the grid moves, never the worlds or the orbits.
+uniform vec4 gw = vec4(0.0);
 
 varying vec2 sp;
 
@@ -36,11 +40,24 @@ void vertex() {
 		d0 += w.z * w.w * w.w / (dx * dx + dz * dz + w.w * w.w);
 	}
 	float d = 45.0 * tanh(d0 / 45.0);
+	float gwa = 1.0;
+	if (gw.w > 0.0) {
+		float tau = gw.z - dot(vec2(x, z), gw.xy) / 160.0;
+		if (tau > 0.0 && tau < 3.4) {
+			float A = gw.w * smoothstep(0.0, 2.5, tau) * (1.0 - smoothstep(3.0, 3.4, tau));
+			// 0.5 Hz rising to 2 Hz, and held there for its last ripple
+			float tc = min(tau, 3.0);
+			float ph = 0.5 * tc + tc * tc * tc / 18.0 + 2.0 * max(tau - 3.0, 0.0);
+			float h = A * sin(6.2831853 * ph);
+			d += h;
+			gwa = 1.0 + 0.8 * abs(h) / max(gw.w, 1e-3);
+		}
+	}
 	vec2 s = origin + vec2(x, z * tilt + d * 2.2) * zoom;
 	float fade = max(0.0, 1.0 - pow(sqrt(r2) / edge, 2.0));
 	float far = 0.6 + 0.4 * (z + edge) / (2.0 * edge);
 	float deep = min(1.0, d / 40.0);
-	COLOR = vec4(0.62, 0.64, 0.68, (0.06 + deep * 0.1) * fade * far);
+	COLOR = vec4(0.62, 0.64, 0.68, (0.06 + deep * 0.1) * fade * far * gwa);
 	sp = s;
 	// (not snapped: its short segments, each end snapped apart, stair-stepped
 	// the grid's long lines into wobbles; it is drawn in the half-size picture)

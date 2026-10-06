@@ -25,6 +25,11 @@ extends RefCounted
 
 var fails: int = 0
 
+## The flight record the history checks write and clear. `RunHistory.path`
+## points here while they run: clearing the real one deleted the player's whole
+## record, and every unlock read from it, on every gate run.
+const HISTORY := "user://savetest_history.json"
+
 func check(what: String, a: Variant, b: Variant) -> void:
 	if str(a) != str(b):
 		fails += 1
@@ -494,17 +499,18 @@ func run_version_test() -> void:
 
 	# A save one version behind must not load, whatever is inside it.
 	var stale := {"version": SaveGame.VERSION - 1, "hp": 99}
-	var f := FileAccess.open(SaveGame.PATH, FileAccess.WRITE)
+	var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(stale))
 		f.close()
 	check("a save one version behind is refused", false, SaveGame.load_into_run())
 
 	# And a flight record written before the rename still unlocks.
+	RunHistory.path = HISTORY
 	RunHistory.clear()
 	var old := {"version": RunHistory.VERSION, "runs": [{
 		"outcome": int(RunHistory.Outcome.WON), "chassis_maker": "korvan"}]}
-	var g := FileAccess.open(RunHistory.PATH, FileAccess.WRITE)
+	var g := FileAccess.open(RunHistory.path, FileAccess.WRITE)
 	if g != null:
 		g.store_string(JSON.stringify(old))
 		g.close()
@@ -512,6 +518,7 @@ func run_version_test() -> void:
 	check("a pre-rename record still unlocks its manufacturer",
 		true, won.has(&"korvan"))
 	RunHistory.clear()
+	RunHistory.path = RunHistory.PATH
 
 	print("=== %s (%d mismatches) ===
 "
@@ -519,6 +526,7 @@ func run_version_test() -> void:
 
 func run_history_test() -> void:
 	print("=== HISTORY ===")
+	RunHistory.path = HISTORY
 	RunHistory.clear()
 	Run.start_new_run()
 	Run.jumps = 11
@@ -543,4 +551,5 @@ func run_history_test() -> void:
 	check("depth_text", true, RunHistory.depth_text(recent[1]).ends_with(
 		"/%d shells" % MapGen.LAYERS))
 	RunHistory.clear()
+	RunHistory.path = RunHistory.PATH
 	print("=== %s (%d total mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])

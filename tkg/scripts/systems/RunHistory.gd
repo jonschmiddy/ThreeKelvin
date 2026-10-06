@@ -14,6 +14,9 @@ extends RefCounted
 ## starting bonus would be the first crack in that.
 
 const PATH := "user://history.json"
+## Where the record is read and written. A harness points this at a scratch
+## file, so a test can stand in a fresh profile without touching the player's.
+static var path: String = "user://harness_history.json" if TestRun.active() else PATH
 const VERSION := 1
 ## Old runs fall off the end. A file that grows forever eventually costs a
 ## visible pause on a screen whose whole job is to open instantly.
@@ -114,10 +117,10 @@ static func _manufacturer_tally() -> Array:
 	return out
 
 static func _write(all: Array) -> void:
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_warning("RunHistory: could not open %s for writing (%d)" % [
-			PATH, FileAccess.get_open_error()])
+			path, FileAccess.get_open_error()])
 		return
 	f.store_string(JSON.stringify({version = VERSION, runs = all}))
 	f.close()
@@ -127,9 +130,9 @@ static func _write(all: Array) -> void:
 ## Oldest first. A version mismatch reads as no history rather than as an error:
 ## these are records, and losing them must never block a run from starting.
 static func load_all() -> Array:
-	if not FileAccess.file_exists(PATH):
+	if not FileAccess.file_exists(path):
 		return []
-	var f := FileAccess.open(PATH, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		return []
 	var raw := f.get_as_text()
@@ -150,8 +153,8 @@ static func recent() -> Array:
 	return all
 
 static func clear() -> void:
-	if FileAccess.file_exists(PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 # ------------------------------------------------------------------ aggregate
 

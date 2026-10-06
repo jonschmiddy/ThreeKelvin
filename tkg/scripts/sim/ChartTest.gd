@@ -65,8 +65,40 @@ func run(tree: SceneTree) -> void:
 	print("  %d fields, %d values compared" % [fields.size(), values])
 	print("  cache entries held: %d (a run is one galaxy, so this should be 1)"
 		% StarchartScreen.MapChart._sky_cache.size())
+	await _style_switch(tree, chart)
 	print("=== %s (%d mismatches) ===\n" % ["PASS" if fails == 0 else "FAIL", fails])
 	tree.quit()
+
+
+## Another style chosen with the chart open: the sky is made again in that
+## style's own renderer (PAINTED keeps a fourth pass, its band memory; LEGACY a
+## node of its own, `ChartLegacy`; RADIANT its own bakes and place pass) and back. In memory only: the settings file
+## is never written.
+func _style_switch(_tree: SceneTree, chart: Object) -> void:
+	var sky: ChartSky = chart.get("_sky")
+	if sky == null:
+		print("  STYLE: the chart has no sky")
+		fails += 1
+		return
+	var was := DisplaySettings.render_style
+	for st: StringName in [&"painted", &"legacy", &"radiant", was]:
+		DisplaySettings.render_style = st
+		Sig.render_style_changed.emit()
+		var t0 := Time.get_ticks_msec()
+		var drawn := false
+		var legacy := st == &"legacy"
+		while Time.get_ticks_msec() - t0 < 15000:
+			await RenderingServer.frame_post_draw
+			# the key is renewed at the next draw: wait for the new style to be drawing
+			var mine := (sky._legacy != null) == legacy and (legacy or (sky._key.ends_with("|painted") == (st == &"painted")
+				and sky._key.ends_with("|radiant") == (st == &"radiant")))
+			if mine and sky.ready_to_draw():
+				drawn = true
+				break
+		var own := (sky._tvp != null) == (st == &"painted") and (sky._legacy != null) == legacy 			and (not legacy or sky._vp == null) and sky._g_for().has("radiant") == (st == &"radiant")
+		print("  style %-10s drawn %s in %d ms, its own passes %s" % [st, drawn, Time.get_ticks_msec() - t0, own])
+		if not drawn or not own:
+			fails += 1
 
 func _open(tree: SceneTree, label: String) -> void:
 	var t0 := Time.get_ticks_usec()

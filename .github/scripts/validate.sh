@@ -230,6 +230,28 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "Developer mode exists only in the editor"
+# An exported game has no workshop: DevMode.available is the editor binary, so
+# a friend's install gets no switch, no CARDS tab, no tier row, no star chart
+# dev buttons and one manufacturer, whatever settings.cfg says. Both sides are
+# checked from one scratch settings file that says [dev] enabled=true, the
+# release side by forcing it and again by booting with `asrelease`, the flag
+# that turns developer mode off in the editor. Never the player's own files.
+for DEVRUN in devtest devtest_release; do
+	DEVARGS="devtest"
+	[ "$DEVRUN" = devtest_release ] && DEVARGS="devtest asrelease"
+	# shellcheck disable=SC2086
+	if run_godot "$DEVRUN" 120 --headless --path "$PROJECT" -- $DEVARGS; then
+		if grep -qE '^devtest: PASS' "$LOG_DIR/$DEVRUN.log"; then
+			ok "dev mode ($DEVARGS)"
+		else
+			bad "developer mode reached somewhere it should not ($DEVARGS)"
+			grep -E '^  FAIL|^devtest' "$LOG_DIR/$DEVRUN.log" | head -n 20 \
+				| sed 's/^/        /'
+		fi
+	fi
+done
+
 step "The hold never overlaps itself"
 # Invisible in the data, which is the whole reason it is here. Two parts sharing
 # a cell still add up to a sensible "17 of 28", still save and load, still sell
@@ -360,6 +382,22 @@ if run_godot systemtest 180 --headless --path "$PROJECT" -- systemtest; then
 	else
 		bad "a system laid out wrong"
 		grep -E '^  FAIL|^systemtest' "$LOG_DIR/systemtest.log" \
+			| head -n 12 | sed 's/^/        /'
+	fi
+fi
+
+step "The sector map's weather keeps its schedule"
+# The weather's scheduler alone (`SkyWeather`), two hours of every sky at every
+# temperament with no picture: one event at a time, showpieces rare, nothing
+# under a busy hold or with reduced motion, and every event in the table able
+# to fire -- a dead entry is weather nobody will ever see, and nothing else
+# would notice.
+if run_godot weathertest 180 --headless --path "$PROJECT" -- weathertest; then
+	if grep -qE '^weathertest: PASS' "$LOG_DIR/weathertest.log"; then
+		ok "the weather keeps its schedule"
+	else
+		bad "the weather's scheduler broke a rule"
+		grep -E '^  FAIL|^weathertest' "$LOG_DIR/weathertest.log" \
 			| head -n 12 | sed 's/^/        /'
 	fi
 fi

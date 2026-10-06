@@ -38,6 +38,10 @@ uniform float k_light = 1.0;
 uniform vec2 star_at = vec2(-9999.0);
 uniform float star_r = 0.0;
 uniform vec2 centre = vec2(0.0);
+// PAINTED (direction B): the profile set in three steps of the ring's ramp, its
+// edges a step darker, a thin ring a checker over the sky (never half alpha), the
+// world's shadow a crisp dark wedge
+uniform bool painted = false;
 
 vec3 rampc(int ramp, int k) { return texelFetch(ramps, ivec2(clamp(k, 0, 5), ramp), 0).rgb; }
 float bayer2(float x, float y) {
@@ -65,7 +69,7 @@ void fragment() {
 	float mu = dot(L, vec3(0.0, -sq, open));
 	float lit_face = mu > 0.0 ? 1.0 : 0.0;
 	float sun_up = sqrt(clamp(abs(mu) * 1.6, 0.0, 1.0));
-	float a_sum = 0.0, v_sum = 0.0, d_sum = 0.0;
+	float a_sum = 0.0, v_sum = 0.0, d_sum = 0.0, s_sum = 0.0;
 	const int NS = 4;
 	for (int j = 0; j < NS; j++) for (int i = 0; i < NS; i++) {
 		vec2 s = pix + (vec2(float(i), float(j)) + 0.5) / float(NS) * float(cell) - 0.5 * float(cell);
@@ -82,6 +86,7 @@ void fragment() {
 		float b = dot(P, L);
 		float miss = sqrt(max(0.0, dot(P, P) - b * b));
 		float sh = b < 0.0 ? smoothstep(0.96, 1.04, miss) : 1.0;
+		s_sum += o * (b < 0.0 && miss < 1.0 ? 1.0 : 0.0);
 		sh = mix(1.0 - dark_shadow, 1.0, sh);
 		float v;
 		// (the sun's height only takes the edge off: a ring lit at a slant
@@ -104,6 +109,15 @@ void fragment() {
 		float aq = a < 0.08 ? 0.0 : (a < 0.55 ? 0.5 : 1.0);
 		int ramp = d_sum / a_sum > 0.5 ? ramp_b : ramp_a;
 		vec3 col = rampc(ramp, int(floor(v * 6.0 + (bayer2(pix.x, pix.y) - 1.5) * 0.22)));
+		if (painted) {
+			int cl = max(cell, 1);
+			bool chk = ((((int(pix.x) + 1000 * cl) / cl) + ((int(pix.y) + 1000 * cl) / cl)) & 1) == 1;
+			int st = v < 0.38 ? 2 : (v < 0.7 ? 3 : 4);
+			if (lit_face < 0.5) st -= 1;
+			if (s_sum / a_sum > 0.5) st = 1;
+			col = rampc(ramp, st);
+			aq = a < 0.1 ? 0.0 : (a < 0.5 ? (chk ? 1.0 : 0.0) : 1.0);
+		}
 		COLOR = vec4(col * aq, aq);
 	}
 }

@@ -61,6 +61,14 @@ var zoom: float = 1.0
 ## where the pulsar stood when it was set up: its web is cut there, and carried
 ## wherever it goes since
 var web_anchor := Vector2.ZERO
+## THE WEATHER (`SkyWeather`), on beats its sound already plays:
+##   `giant_n`, a GIANT PULSE on beat n (two beats building to it, then the
+##   flash doubled and the beams reaching further); -999999 for none;
+##   `mag_t0`, a MAGNETAR's flare on the beat at that time (beat time), its
+##   beats ringing down for twenty seconds after; `mag_k` 0 for none.
+var giant_n := -999999
+var mag_t0 := -1.0e9
+var mag_k := 0.0
 
 var _box: ColorRect
 var _mat: ShaderMaterial
@@ -147,7 +155,16 @@ func set_zoom(k: float) -> void:
 	# each side: the map draws it in 2x2 blocks, and now that it grows with
 	# every frame of a zoom, a side an odd pixel long would set every block of
 	# it half a block over on alternate frames
-	_half = Vector2i(ceili(BOX.x * 0.25 * zoom - 1e-4) * 2, ceili(BOX.y * 0.25 * zoom - 1e-4) * 2)
+	var need := Vector2i(ceili(BOX.x * 0.25 * zoom - 1e-4) * 2, ceili(BOX.y * 0.25 * zoom - 1e-4) * 2)
+	# HELD, GROWN IN STEPS OF 32 PX WITH ROOM TO SPARE (SIMPLIFIED's flicker pass):
+	# every time the box changed size the pulsar was drawn a frame off its own
+	# grid, the cloud round the beams flashing for one frame (7% of the map's
+	# pixels at once, twice in a slow 10% zoom). Only a few more pixels are drawn
+	# for it; the picture is the same, its pixels where they were.
+	if need.x > _half.x or need.x < _half.x - 72:
+		_half.x = ceili((need.x + 8) / 32.0) * 32
+	if need.y > _half.y or need.y < _half.y - 72:
+		_half.y = ceili((need.y + 8) / 32.0) * 32
 	_box.size = Vector2(_half * 2)
 	_place()
 	_mat.set_shader_parameter("zoom", zoom)
@@ -176,7 +193,42 @@ func step(t: float) -> void:
 	m.set_shader_parameter("s_axis", G.s)
 	m.set_shader_parameter("e1", G.e1)
 	m.set_shader_parameter("e2", G.e2)
-	m.set_shader_parameter("flash", G.flash)
+	var fl: float = G.flash
+	var bi := 1.5
+	var bl := 200.0
+	var sf: float = 0.16 * fl if spec.sky and fl > 0.02 else 0.0
+	if giant_n > -999999 or mag_k > 0.0:
+		var tb := t - PEAK_S - OFF_S
+		var nb := roundi(tb)
+		# eased about the beat itself, so the beams are brighter while they are seen
+		var wb := exp(-pow((tb - float(nb)) / 0.3, 2.0))
+		var k := nb - giant_n
+		if k == -2:
+			bi = 1.5 * (1.0 + 0.15 * wb)
+		elif k == -1:
+			bi = 1.5 * (1.0 + 0.3 * wb)
+		elif k == 0:
+			# (twice the beam and twice the flash, as first built, clipped a
+			# band of the beam's glow to flat white, ~1,300 blocks, every
+			# minute or so; half again keeps the beat landing harder)
+			bi = 1.5 * (1.0 + 0.55 * wb)
+			bl = 200.0 + 80.0 * wb
+			sf = maxf(sf, 0.08 * fl)
+			fl *= 1.0 + 0.6 * wb
+		if mag_k > 0.0:
+			var ma := t - mag_t0
+			m.set_shader_parameter("mag_age", ma)
+			m.set_shader_parameter("mag_k", mag_k if ma >= 0.0 else 0.0)
+			if ma >= 0.0:
+				# the flush, capped, for an instant; then each beat's flash ringing down
+				var ring := 1.0 + 1.5 * exp(-ma / 8.0) * mag_k
+				if ma > 0.5:
+					fl *= ring
+					sf *= ring
+				sf = maxf(sf, 0.28 * exp(-ma / 0.3) * mag_k)
+	m.set_shader_parameter("flash", fl)
+	m.set_shader_parameter("beam_i", bi)
+	m.set_shader_parameter("beam_len", bl)
 	m.set_shader_parameter("glitch_k", G.glitch_k)
 	m.set_shader_parameter("beat_age", beat_age(t))
 	m.set_shader_parameter("loop_at", loop_at(t))
@@ -193,7 +245,7 @@ func step(t: float) -> void:
 		m.set_shader_parameter("spray", sp)
 		m.set_shader_parameter("n_spray", n)
 	beam_angle = atan2(mv.y, mv.x) if Vector2(mv.x, mv.y).length() > 0.05 else NAN
-	sky_flash = 0.16 * G.flash if spec.sky and G.flash > 0.02 else 0.0
+	sky_flash = minf(sf, 0.28)
 	var w := _web_mat
 	w.set_shader_parameter("turn", fmod(t * 0.012, TAU))
 	w.set_shader_parameter("shimmer_t", fmod(t * 0.9, TAU))

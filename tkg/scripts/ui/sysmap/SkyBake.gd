@@ -89,6 +89,102 @@ var gas: ImageTexture
 ## Stars that twinkle each frame instead of being baked: [x, y, strength, colour, phase].
 var twinkle: Array = []
 
+## THE CLOUD SEEN FROM INSIDE, BAKED (SIMPLIFIED, direction C: `field`): its
+## density, its billows and far gas, and their gradients, one texel a 2x2 block
+## of the sky with FIELD_MB blocks of margin for the slide and the flow, for
+## `sky_nebula.gdshader` to light and stream every frame.
+const FIELD := preload("res://shaders/sky_field.gdshader")
+const FIELD_MB := 48
+const FIELD_W := W / 2 + 2 * FIELD_MB
+const FIELD_H := H / 2 + 2 * FIELD_MB
+var field0: ImageTexture
+var field1: ImageTexture
+var field2: ImageTexture
+## the same, read back, for anything on the CPU that wants the cloud's shape
+var field_img0: Image
+var field_img1: Image
+
+
+## THE PILLARS of an emission (or reflection) cloud, rising toward its sun
+## (C: dark columns with shoulders and knotted heads, their star-facing rims
+## lit): four to six, most from the dust bank below the star, each [base, tip,
+## width at the base, width at the head, its own seed], in sky pixels. Worked
+## out here and handed to the bake, so the weather knows where the tips are
+## (a jet leaves one) without guessing from the picture.
+static func em_pillars(sd: float, cc: Vector2) -> Array:
+	var s := int(sd * 1000.0)
+	var out: Array = []
+	var n := 4 + int(hash2(s, 71) * 2.99)
+	for k in n:
+		var h := hash2(s + k * 31, 73)
+		var a: float
+		if k < (n + 1) / 2:
+			# from the bank below the star, leaning in
+			a = PI * 0.5 + (h - 0.5) * 2.0 + (float(k) - float(n) * 0.25) * 0.55
+		else:
+			a = hash2(s + k * 17, 74) * TAU
+		var dir := Vector2(cos(a), sin(a))
+		# the ones from the bank reach in close; the others stop further out
+		var tip_r := (95.0 + 55.0 * hash2(s + k * 13, 75)) if k < (n + 1) / 2 else (130.0 + 70.0 * hash2(s + k * 13, 75))
+		var ln := 260.0 + 160.0 * hash2(s + k * 7, 76)
+		var tip := cc + dir * tip_r
+		# a little off the radial line, so they do not all point at the sun's centre
+		var base := cc + dir.rotated((hash2(s + k * 5, 77) - 0.5) * 0.5) * (tip_r + ln)
+		var w1 := 12.0 + 10.0 * hash2(s + k * 3, 78)
+		out.append([base, tip, w1 * (2.2 + 0.8 * hash2(s + k * 11, 79)), w1, float(k) * 1.37 + sd])
+	return out
+
+
+## Bake the cloud of `kind` (`NebulaField.Kind`), `shape`, seed `sd` (the
+## nebula shader's own), its emission cluster at sky pixel `cc`; `parent` hosts
+## the one-shot viewport. Six frames on the GPU, once a system.
+## `legacy`: LEGACY's noises instead, for `sky_nebula_legacy.gdshader` to stream.
+func field(parent: Node, kind: int, shape: int, sd: float, cc: Vector2, legacy: bool = false) -> void:
+	var vp := SubViewport.new()
+	vp.size = Vector2i(FIELD_W, FIELD_H)
+	vp.transparent_bg = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	var rect := ColorRect.new()
+	rect.size = Vector2(FIELD_W, FIELD_H)
+	var m := ShaderMaterial.new()
+	m.shader = FIELD
+	m.set_shader_parameter("kind", kind)
+	m.set_shader_parameter("shape", shape)
+	m.set_shader_parameter("sd", sd)
+	m.set_shader_parameter("tex", Vector2(FIELD_W, FIELD_H))
+	m.set_shader_parameter("mb", float(FIELD_MB))
+	m.set_shader_parameter("cc", cc)
+	m.set_shader_parameter("legacy", legacy)
+	var pa := PackedVector4Array()
+	var pb := PackedVector4Array()
+	for p: Array in em_pillars(sd, cc):
+		pa.append(Vector4(p[0].x, p[0].y, p[1].x, p[1].y))
+		pb.append(Vector4(p[2], p[3], p[4], 0.0))
+	m.set_shader_parameter("n_pil", pa.size())
+	pa.resize(8)
+	pb.resize(8)
+	m.set_shader_parameter("pil_a", pa)
+	m.set_shader_parameter("pil_b", pb)
+	rect.material = m
+	vp.add_child(rect)
+	parent.add_child(vp)
+	var imgs: Array[Image] = []
+	for mode in 3:
+		m.set_shader_parameter("mode", mode)
+		if mode == 2:
+			m.set_shader_parameter("src", ImageTexture.create_from_image(imgs[0]))
+		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		imgs.append(vp.get_texture().get_image())
+	vp.queue_free()
+	field_img0 = imgs[0]
+	field_img1 = imgs[1]
+	field0 = ImageTexture.create_from_image(imgs[0])
+	field1 = ImageTexture.create_from_image(imgs[1])
+	field2 = ImageTexture.create_from_image(imgs[2])
+
 
 # ---------------------------------------------------------------- the mockup's 2D noise
 static func hash2(x: int, y: int) -> float:
@@ -197,6 +293,19 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 		# view are weird"): a spiked star is a distant supernova now, and comes and
 		# goes (`SystemView._Nova`). Nothing here drew from R, so every other star
 		# is where it was.
+	# THE GALAXY'S BAND IN A CLEAR SKY (SIMPLIFIED): a crowd of faint stars along
+	# it, thickest on its line, instead of a glow (drawn after every other star,
+	# so those are where they were)
+	if float(look.get("band", 0.0)) > 0.0 and float(look.get("band_glow", 0.06)) <= 0.0:
+		var ang := sd * 2.7
+		var along := Vector2(cos(ang), sin(ang))
+		var nrm := Vector2(-sin(ang), cos(ang))
+		for k in roundi(1100 * MORE):
+			var tt := (R.next() - 0.5) * 2200.0
+			var g := (R.next() + R.next() + R.next() - 1.5) * 120.0
+			var p := Vector2(480, 270) + along * tt + nrm * g
+			var I := 0.04 + pow(R.next(), 3.0) * 0.22
+			add.call(p.x, p.y, I, temp.call())
 	# eight bits a channel, a 64th of a unit a step: the brightest star is under four
 	var bytes := PackedByteArray()
 	bytes.resize(BW * BH * 4)
@@ -227,7 +336,14 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 	m.set_shader_parameter("pal1", pal[1])
 	m.set_shader_parameter("thick", float(look.get("thick", 1.6 if in_nebula else 1.0)))
 	m.set_shader_parameter("band", float(look.get("band", 0.0)))
+	m.set_shader_parameter("band_glow", float(look.get("band_glow", 0.06)))
+	m.set_shader_parameter("band_w", float(look.get("band_w", 150.0)))
+	m.set_shader_parameter("band_wob", float(look.get("band_wob", 160.0)))
+	m.set_shader_parameter("band_lump", float(look.get("band_lump", 0.0)))
 	m.set_shader_parameter("pulsar", kind == "PULSAR")
+	# SIMPLIFIED: round a pulsar, the remnant's shell as fields for the sky to
+	# colour (LEGACY keeps the old shell: its look's `c_remnant` false)
+	m.set_shader_parameter("c_remnant", kind == "PULSAR" and bool(look.get("c_remnant", true)))
 	m.set_shader_parameter("edge", edge)
 	m.set_shader_parameter("tilt", tilt)
 	m.set_shader_parameter("x0", -1.0e6)

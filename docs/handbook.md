@@ -18,7 +18,8 @@ Two switches decide how much of the game is visible. Both are deliberate and bot
 will mislead you about the state of the project if you do not know they are there.
 
 **`DevMode.enabled` — a `[ ] DEVELOPER MODE` checkbox in the corner of the title
-screen**, persisted to `user://settings.cfg` under `[dev]`, **defaulting ON**. It is
+screen**, persisted to `user://settings.cfg` under `[dev]`, **defaulting ON in the
+editor and absent from exported builds** (see below). It is
 the god-mode switch: it unlocks every manufacturer, shows the HUD's CARDS tab, and
 shows the star chart's view-mode buttons. Turn it off to see the game a player sees.
 
@@ -31,9 +32,15 @@ shows the star chart's view-mode buttons. Turn it off to see the game a player s
   built per visit (the chart, the chassis select) just reads the flag.
 - **Flipping it must not restart anything.** It used to call `Router.show_launcher()`,
   which rerolled the title screen's galaxy; the checkbox now repaints in place.
-- **It is ON by default, which is right for exactly one audience** and it is the two
-  people currently playing this. `DevMode.gd` has a note to flip it before anyone else
-  does.
+- **It exists only in the editor.** `DevMode.available` is `OS.has_feature("editor")`,
+  so an exported game (debug or release template) builds no switch on the title screen,
+  and `enabled` stays off whatever `settings.cfg` says; `toggle()` and `save()` do
+  nothing there and never write a `[dev]` key. In the editor it is ON by default, which
+  is right for the people running the editor. `godot --path . -- asrelease` plays
+  without developer mode from the editor, but on your own profile (settings, suspend
+  save, flight record) and with loose `res://` files an export leaves out, so it is not
+  the build a friend gets: for that, launch the export from a clean profile. `-- devtest`
+  (in the merge gate) checks both sides.
 
 **`DB.ACTIVE_MANUFACTURERS = [&"korvan"]` — only Korvan parts DROP.** `STARTABLE` is
 still all seven, so run start still offers seven manufacturers and their attribute signatures

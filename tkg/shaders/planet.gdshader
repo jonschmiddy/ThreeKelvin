@@ -82,6 +82,31 @@ uniform vec3 aur_e2[2];
 uniform vec2 star_at = vec2(-9999.0);
 uniform float star_r = 0.0;
 uniform vec2 centre = vec2(0.0);
+// LIT BY ITS OWN STAR (SIMPLIFIED, direction C, on the system map): the lit side in
+// the star's colour (linear, brightest channel 1), the night side filled by the
+// sky round it (linear light, 0 for none), and a sun's flare at its height
+// (0..1: the lit side 10% brighter, auroras flickering). The defaults change nothing.
+uniform vec3 star_tint = vec3(1.0);
+uniform vec3 night_fill = vec3(0.0);
+uniform float flare = 0.0;
+// PAINTED (direction B, `SectorPainted`): cel-shaded in four bands on the
+// world's own ramp -- the lit side and a small highlight, the terminator a 1-block
+// 50% checker, the night side hue-shifted toward the sky's ambient (`p_amb`) --
+// with an outline on the night side (`p_out`), the sky's light on the night limb
+// (`p_bounce`), a lit rim on the day limb, and water's glint as a 1-2 block
+// sparkle; its own light (air, cities, fire) in flat steps, never dithered.
+uniform bool painted = false;
+// RADIANT (direction A): the air's forward scattering when the world is backlit
+uniform bool radiant = false;
+// its moons: each one's place about this world (screen px: x right, y down, z
+// toward you) and its drawn radius, for the eclipse they cast on its face
+uniform vec4 moon_sh[4];
+uniform int n_moon_sh = 0;
+// how far the lit side's middle tones are carried up (every style but LEGACY: 1)
+uniform float lift = 0.0;
+uniform vec3 p_amb = vec3(0.07, 0.10, 0.19);
+uniform vec3 p_out = vec3(0.02, 0.03, 0.05);
+uniform vec3 p_bounce = vec3(0.07, 0.10, 0.19);
 
 // ---------------------------------------------------------------- the ramps and worlds, by number
 const int R_ROCK = 0; const int R_MOON = 1; const int R_DESERT = 2; const int R_IRON = 3; const int R_ICE = 4;
@@ -142,6 +167,40 @@ float bayer2(float x, float y) {
 }
 vec3 ramp_at(int ramp, float v, float x, float y) {
 	return rampc(ramp, int(floor(v * 6.0 + (bayer2(x, y) - 1.5) * 0.22)));
+}
+
+// ---------------------------------------------------------------- the painted world (B)
+vec3 p_lin(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
+vec3 p_srgb(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+vec3 p_lab(vec3 c) {
+	vec3 l3 = p_lin(c);
+	float l = pow(max(0.4122214708 * l3.r + 0.5363325363 * l3.g + 0.0514459929 * l3.b, 0.0), 1.0 / 3.0);
+	float m = pow(max(0.2119034982 * l3.r + 0.6806995451 * l3.g + 0.1073969566 * l3.b, 0.0), 1.0 / 3.0);
+	float s = pow(max(0.0883024619 * l3.r + 0.2817188376 * l3.g + 0.6299787005 * l3.b, 0.0), 1.0 / 3.0);
+	return vec3(0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s);
+}
+vec3 p_unlab(vec3 L) {
+	float l = L.x + 0.3963377774 * L.y + 0.2158037573 * L.z;
+	float m = L.x - 0.1055613458 * L.y - 0.0638541728 * L.z;
+	float s = L.x - 0.0894841775 * L.y - 1.2914855480 * L.z;
+	l = l * l * l; m = m * m * m; s = s * s * s;
+	return p_srgb(vec3(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960771 * l - 0.7034186147 * m + 1.7076147010 * s));
+}
+// two colours mixed in OKLab (B's `mixOk`): a night side leaning to the sky
+vec3 p_mix(vec3 a, vec3 b, float t) { return p_unlab(mix(p_lab(a), p_lab(b), t)); }
+// the block's checker, riding the world itself
+bool p_chk(float x, float y) {
+	int cl = max(cell, 1);
+	return ((((int(x) + 1000 * cl) / cl) + ((int(y) + 1000 * cl) / cl)) & 1) == 1;
+}
+// B's extended ramp for a world: 0 outline, 1 night, 2 dusk (both leaning to the
+// sky), 3..6 its own steps 1..4, 7 its brightest warmed by its star
+vec3 p_ext(int ramp, int c) {
+	if (c <= 0) return p_out;
+	if (c == 1) return p_mix(rampc(ramp, 0), p_amb, 0.5);
+	if (c == 2) return p_mix(rampc(ramp, 1), p_amb, 0.34);
+	if (c >= 7) return p_mix(rampc(ramp, 5), p_srgb(star_tint) * 0.9 + 0.1, 0.3);
+	return rampc(ramp, c - 2);
 }
 
 // ---------------------------------------------------------------- the surface
@@ -384,6 +443,8 @@ vec3 aurora(vec3 pb, float hgt, float wash) {
 		float inner = (colat < th && colat > th - 0.14) ? (1.0 - (th - colat) / 0.14) * 0.45 : 0.0;
 		float fade = exp(-hgt / 0.05), hi = clamp(hgt / 0.108, 0.0, 1.0);
 		float K = (unlit ? 3.4 : 1.3) * (i == 0 ? 1.0 : 0.8) * wash;
+		// a sun's flare at its height sets them flickering (eased: two slow beats, never a strobe)
+		K *= 1.0 + flare * (0.35 + 0.35 * sin(time * 9.0 + pole * 1.7) * sin(time * 3.7));
 		acc += (band * ray * fade) * K * vec3(0.25 + hi * 0.55, 1.0 - hi * 0.7, 0.45 + hi * 0.5);
 		if (hgt <= 0.0) acc += inner * (0.4 + 0.6 * ray) * K * 0.5 * vec3(0.2, 1.0, 0.5);
 	}
@@ -469,7 +530,28 @@ void fragment() {
 			}
 			rs = 1.0 - ring_cast * cov * 0.25;
 		}
-		float shade = 0.1 + 0.9 * lam * rs * k_light;
+		// A MOON'S SHADOW ON THE FACE (Jon: "shouldn't moons cast eclipses on their
+		// planets?"): where the light toward the star from this point passes the
+		// moon, a small dark spot -- the umbra the moon's own size, a soft penumbra
+		// widening with its distance (PAINTED: crisp, two tones)
+		for (int k = 0; k < 4; k++) {
+			if (k >= n_moon_sh) break;
+			vec4 M = moon_sh[k];
+			vec3 d3 = M.xyz - vec3(x, y, nz * r);
+			float tm = dot(d3, L);
+			if (tm <= 0.0) continue;
+			float perp = length(d3 - tm * L);
+			// (a little wider than the moon is drawn: the moons are glyphs a pixel or two
+			// across, and a spot that small fell inside a single block)
+			float um = max(M.w, 1.2) * 1.6;
+			float pen = um * 0.9 + tm * 0.02;
+			float lit = painted ? (perp < um ? 0.0 : (perp < um + pen * 0.6 ? 0.5 : 1.0)) : smoothstep(um * 0.7, um + pen, perp);
+			rs *= mix(0.12, 1.0, lit);
+		}
+		float shade = 0.1 + 0.9 * lam * rs * k_light * (1.0 + 0.1 * flare);
+		// (the showcase's lit side: its middle tones carried up, so a world reads lit
+		// across its face and not as a thin crescent on a dark ball)
+		if (lift > 0.0) shade = mix(shade, 0.1 + 0.95 * pow(clamp(lam * rs * k_light * (1.0 + 0.1 * flare), 0.0, 1.0), 0.62), lift);
 		if (rich > 0.0) {
 			shade = mix(shade, smoothstep(0.06, 0.62, shade), rich);
 			float limb = pow(1.0 - nz, 2.5) * max(0.0, dot(normalize(vec2(nx, ny) + vec2(1e-5)), normalize(L.xy + vec2(1e-5))));
@@ -514,10 +596,60 @@ void fragment() {
 		float sh = unlit ? 0.38 : shade;
 		float vr = rich > 0.0 ? clamp(0.5 + (v - 0.5) * (1.0 + 0.7 * rich), 0.0, 1.0) : v;
 		vec3 col = (has_emit && !cloud) ? emit : ramp_at(ramp, min(0.999, max(0.0, vr * sh)), x, y);
+		// the star's colour on the lit side, the sky's light on the night side,
+		// strongest at the limb where it wraps round (in a few dithered steps, and
+		// less on a small world, so it keeps its silhouette)
+		if (!unlit && !(has_emit && !cloud) && (night_fill.r + night_fill.g + night_fill.b > 0.0 || star_tint != vec3(1.0))) {
+			vec3 cl = pow(col, vec3(2.2));
+			cl *= mix(vec3(1.0), star_tint, 0.35 * min(1.0, lam * rs * 1.5));
+			float small = clamp((18.0 - r) / 10.0, 0.0, 1.0);
+			float fk = (1.0 - min(1.0, lam * 2.0)) * (0.14 + 0.9 * pow(1.0 - nz, 2.0)) * mix(1.0, 0.35, small);
+			fk = floor(fk * 4.0 + (bayer2(x, y) + 0.5) / 4.0) / 4.0;
+			cl += night_fill * fk;
+			col = pow(cl, vec3(1.0 / 2.2));
+		}
+		if (painted && !unlit && !(has_emit && !cloud)) {
+			// THE CEL BANDS (B): the light carries the ball, the ground lifts or drops
+			// its step by one; small worlds bold and simple, a crescent that reads
+			float s = v > 0.62 ? 1.0 : (v < 0.38 ? -1.0 : 0.0);
+			if (r < 4.5) s = 0.0;
+			float lamS = dot(nv, L) * rs * k_light * (1.0 + 0.1 * flare) - (1.0 - rs) * 0.35;
+			float lamF = dot(nv, normalize(L + vec3(0.0, 0.0, 0.6))) * rs * k_light;
+			float tw = 0.8 * float(max(cell, 1)) / max(r, 1.0);
+			float c;
+			if (lamS > 0.1 + tw && lamF > 0.66) c = 6.0 + min(s, 1.0);
+			else if (lamS > 0.1 + tw) c = 4.0 + s;
+			else if (lamS > 0.1 - tw && r > 4.5) c = p_chk(x, y) ? 4.0 + min(s, 0.0) : 2.0;
+			else if (lamS > 0.1) c = 4.0 + min(s, 0.0);
+			else c = (s > 0.0 && lamS > -0.25) ? 2.0 : 1.0;
+			c = clamp(c, 1.0, 7.0);
+			// the edge: an outline on the night side, the sky's light just inside it,
+			// a lit rim on the day side
+			float pr = float(max(cell, 1)) / r;
+			vec2 o = vec2(nx, ny);
+			vec2 L2 = normalize(L.xy + vec2(1e-4, 0.0));
+			bool outN = false, outD = false, out2 = false;
+			for (int k = 0; k < 4; k++) {
+				vec2 dd = k == 0 ? vec2(1.0, 0.0) : (k == 1 ? vec2(-1.0, 0.0) : (k == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0)));
+				vec2 on = o + dd * pr;
+				if (dot(on, on) >= 1.0) {
+					if (dot(dd, L2) < 0.15) outN = true; else outD = true;
+				}
+				vec2 o2 = o + dd * pr * 2.0;
+				if (dot(o2, o2) >= 1.0 && dot(dd, L2) < -0.3) out2 = true;
+			}
+			int ci = int(c);
+			if (outN && lamS < 0.55 && r > 3.5) col = p_out;
+			else if (outD && lamS > 0.35 && r > 6.0) col = p_ext(ramp, 7);
+			else if (out2 && lamS < 0.0 && r > 9.0) col = p_bounce;
+			else col = p_ext(ramp, ci);
+		}
 		base = vec4(col, 1.0);
 
 		// the air seen edge-on round the rim of the disc, lit where the sun is
 		if (has_atm) { float rim = pow(1.0 - nz, 2.2), ls = max(0.0, (dot(nv, L) + 0.3) / 1.3); if (rim * ls > 0.02) acc += rim * ls * (thick ? 0.9 : 0.55) * atm; }
+		// RADIANT: lit from behind, its air glows all round its limb (forward scattering)
+		if (radiant && has_atm && L.z < 0.0) { float rim = pow(1.0 - nz, 3.0); acc += rim * (-L.z) * 1.3 * atm; }
 		// the jungle's veins of light
 		if (gv > 0.03) acc += gv * 2.4 * vec3(0.25, 1.0, 0.85);
 		// a diamond's glint: a small cross of light, gathered from its neighbours
@@ -542,7 +674,14 @@ void fragment() {
 		// the sun's glint on open water, sliding over it as the world turns
 		float wet = ramp == R_SEA ? 1.0 : (ramp == R_SWAMPW ? 0.7 : (ramp == R_ICE ? 0.35 : (ramp == R_TAR ? 1.3 : 0.0)));
 		if (world == W_BIOLUM) wet *= 0.15;
-		if (wet > 0.0 && !cloud && lam > 0.0) { float g = pow(max(0.0, dot(nv, HV)), 60.0) * wet * rs; if (g > 0.01) acc += g * 1.4 * vec3(1.0, 0.94, 0.8); }
+		if (wet > 0.0 && !cloud && lam > 0.0) {
+			float g = pow(max(0.0, dot(nv, HV)), 60.0) * wet * rs;
+			if (painted) {
+				// (B: a 1-2 block glint, a sparkle's colours)
+				if (g > 0.5) base.rgb = vec3(1.0, 0.965, 0.886);
+				else if (g > 0.22) base.rgb = vec3(1.0, 0.847, 0.627);
+			} else if (g > 0.01) acc += g * 1.4 * vec3(1.0, 0.94, 0.8);
+		}
 		// CITY LIGHTS on the night side: towns clustered on the land, a bright
 		// heart to the big ones; a planet-city lit along its streets
 		if ((flags & F_CITY) != 0) {
@@ -601,7 +740,7 @@ void fragment() {
 	// a world behind the star hides where the star's disc is
 	vec2 at = centre + vec2(x, y);
 	// the light, added in a few dithered steps
-	float dth = (bayer2(x, y) + 0.5) / 4.0;
+	float dth = painted ? 0.5 : (bayer2(x, y) + 0.5) / 4.0;
 	vec3 q = max(vec3(0.0), floor((1.0 - exp(-1.6 * acc)) * 6.0 + dth - 0.5)) / 6.0;
 	if (distance(at, star_at) < star_r) COLOR = vec4(0.0);
 	else if (base.a > 0.0) COLOR = vec4(min(vec3(1.0), base.rgb + q), 1.0);

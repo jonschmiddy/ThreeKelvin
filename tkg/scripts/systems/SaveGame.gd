@@ -23,6 +23,12 @@ extends RefCounted
 ## intent loops, drones and charge timers for a case reached only by force-quit.
 
 const PATH := "user://run.save"
+## WHERE THE SAVE GOES: the player's file, or, when the game was started by a
+## harness or test (anything after `--` that a player would not type), a scratch
+## file beside it. Tests used to overwrite Jon's run.save on every gate run and
+## every render (2026-10-05: a chart render replaced his run). Tests that need
+## the real path set this themselves.
+static var path: String = "user://harness_run.save" if TestRun.active() else PATH
 ## Bumped whenever the shape below changes. An old file is discarded rather than
 ## guessed at — a half-understood save produces a run that is subtly wrong,
 ## which is worse than no save at all.
@@ -227,7 +233,7 @@ const HULL_FIELDS: Array[String] = ["weight", "tier", "reactor", "hand_size",
 # --------------------------------------------------------------------- queries
 
 static func has_save() -> bool:
-	return FileAccess.file_exists(PATH)
+	return FileAccess.file_exists(path)
 
 ## What the launcher prints on the CONTINUE button. Reads the file WITHOUT
 ## consuming it — only load_into_run() is allowed to do that.
@@ -257,10 +263,10 @@ static func summary() -> Dictionary:
 static func save() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won:
 		return
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_warning("SaveGame: could not open %s for writing (%d)" % [
-			PATH, FileAccess.get_open_error()])
+			path, FileAccess.get_open_error()])
 		return
 	# full_precision, not the default. Without it JSON rounds floats hard enough
 	# to move systems on the chart by a visible fraction of a pixel.
@@ -288,15 +294,15 @@ static func mark_fight(fight: Dictionary) -> void:
 	if d.is_empty() or fight.is_empty():
 		return
 	d["fight"] = fight
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return
 	f.store_string(JSON.stringify(d, "", true, true))
 	f.close()
 
 static func clear() -> void:
-	if FileAccess.file_exists(PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 static func _snapshot() -> Dictionary:
 	var installed: Array = []
@@ -372,9 +378,9 @@ static func _snapshot() -> Dictionary:
 # ----------------------------------------------------------------------- read
 
 static func _read() -> Dictionary:
-	if not FileAccess.file_exists(PATH):
+	if not FileAccess.file_exists(path):
 		return {}
-	var f := FileAccess.open(PATH, FileAccess.READ)
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		return {}
 	var raw := f.get_as_text()

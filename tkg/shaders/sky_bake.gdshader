@@ -28,6 +28,20 @@ uniform float rays_k = 1.0;
 uniform float dust_k = 1.0;
 // CLEAR SKY, outside a nebula: a faint band of the galaxy across it (0 none)
 uniform float band = 0.0;
+// how bright its glow is (SIMPLIFIED: none -- the band is told by its crowd of faint
+// stars, since a glow this faint lands on the palette's first step as grey blobs)
+uniform float band_glow = 0.06;
+// how wide the band is and how far it wanders (PAINTED: slim and straighter)
+uniform float band_w = 150.0;
+uniform float band_wob = 160.0;
+// how much the band breaks into lumpy masses (PAINTED: B's band, tones of navy in
+// soft masses, never a flat slab)
+uniform float band_lump = 0.0;
+// SIMPLIFIED round a pulsar (C): the gas picture holds the remnant's shell as
+// fields, not colour -- r its filaments, g the oxygen skin just inside its
+// front, b how far inside the shell (0 the limb .. 1 deep), a how much gas
+// for the beam -- and `sky.gdshader` colours them every frame, glimmering
+uniform bool c_remnant = false;
 // THE BAKE IS BIGGER THAN THE MAP by this much on every side, so the sky has
 // somewhere to slide when the map pans; map coordinates are pixel - margin.
 uniform vec2 bake_size = vec2(960.0, 540.0);
@@ -54,6 +68,34 @@ float fbm2(vec2 p, int o) {
 }
 float smooth_k(float a, float b, float x) { float u = clamp((x - a) / (b - a), 0.0, 1.0); return u * u * (3.0 - 2.0 * u); }
 float dust_at(vec2 p) { return smooth_k(0.56, 0.7, fbm2(vec2(p.x * 0.005 + 20.0 + sd, p.y * 0.008 + 3.0), 5)); }
+
+float ridge_v(vec2 p, int o) { return 1.0 - abs(2.0 * fbm2(p, o) - 1.0); }
+vec2 warp_v(vec2 p, float amt) { return p + amt * vec2(fbm2(p, 3) - 0.5, fbm2(p + vec2(5.2, 1.3), 3) - 0.5) * 2.0; }
+
+// THE BLAST SHELL of the star that made the pulsar, seen from inside (C's
+// `remnantShell`): a ragged front of filaments, big lobes where it ran into
+// thin gas and flat dents where it met thick, broken in long stretches so it
+// reads as arcs and wisps, fainter filaments across its face
+vec4 remnant(vec2 P) {
+	vec2 r = (P - star_at) / vec2(1.0, 0.66);
+	float rho = length(r);
+	vec2 dir = r / max(rho, 1e-3);
+	// (as big as the showcase drew it: the system sits well inside its shell)
+	float R = 330.0 * (1.0 + 0.30 * (fbm2(dir * 1.5 + 3.0 + sd, 4) - 0.5) + 0.12 * (fbm2(dir * 4.6 + 1.0, 3) - 0.5));
+	float x = (rho - R) / R;
+	float fil = ridge_v(warp_v(P / 48.0 + 3.0 + sd, 0.6), 5);
+	float fil2 = ridge_v(warp_v(P / 28.0 + 9.0, 0.5), 4);
+	float wl = 0.030 + 0.035 * smooth_k(0.3, 0.7, fbm2(dir * 3.1 + 5.0, 3));
+	float limb = exp(-pow((x + 0.02) / wl, 2.0));
+	float shellB = smooth_k(-0.30, -0.03, x) * (1.0 - smooth_k(-0.01, 0.04, x));
+	float broken = smooth_k(0.38, 0.62, fbm2(dir * 2.2 + 7.0 + sd, 3) + 0.06);
+	float inner = clamp(-x / 0.25, 0.0, 1.0);
+	float s = limb * (0.10 + 1.25 * pow(fil, 6.0)) * broken
+		+ shellB * pow(fil2, 8.0) * 0.7 * (0.3 + 0.7 * broken)
+		+ smooth_k(-0.95, -0.25, x) * (1.0 - smooth_k(-0.25, -0.02, x)) * pow(fil, 12.0) * 0.30;
+	float skin = pow(ridge_v(warp_v(P / 70.0 + 21.0, 0.8), 4), 3.2) * (0.25 + 0.75 * broken);
+	return vec4(clamp(s, 0.0, 1.0), clamp(skin, 0.0, 1.0), inner, clamp(s * 0.25 + skin * 0.04, 0.0, 1.0));
+}
 
 void fragment() {
 	vec2 tex_px = floor(UV * bake_size);
@@ -103,9 +145,10 @@ void fragment() {
 		if (band > 0.0) {
 			float ang = sd * 2.7;
 			vec2 nrm = vec2(-sin(ang), cos(ang));
-			float off = dot(b - vec2(480.0, 270.0), nrm) + (fbm2(vec2(b.x * 0.003 + sd, b.y * 0.003), 3) - 0.5) * 160.0;
-			float glow = exp(-pow(off / 150.0, 2.0)) * (0.55 + 0.45 * fbm2(vec2(b.x * 0.012 + 3.0 + sd, b.y * 0.012), 4));
-			Lb += band * 0.06 * glow * vec3(0.62, 0.62, 0.78);
+			float off = dot(b - vec2(480.0, 270.0), nrm) + (fbm2(vec2(b.x * 0.003 + sd, b.y * 0.003), 3) - 0.5) * band_wob;
+			float glow = exp(-pow(off / band_w, 2.0)) * (0.55 + 0.45 * fbm2(vec2(b.x * 0.012 + 3.0 + sd, b.y * 0.012), 4));
+			glow *= mix(1.0, 0.25 + 1.1 * smooth_k(0.32, 0.68, fbm2(vec2(b.x * 0.0045 + 7.0 + sd, b.y * 0.0045), 3)), band_lump);
+			Lb += band * band_glow * glow * vec3(0.62, 0.62, 0.78);
 		}
 		// THE STAR'S OWN LIGHT ROUND IT is not baked: it rides the star as the map
 		// zooms and pans (`sky.gdshader`), and reads the dust from this bake's alpha.
@@ -114,7 +157,8 @@ void fragment() {
 		Lb *= k;
 		Gb *= k;
 		vec3 base = (Lb.r + Lb.g + Lb.b) < 0.004 ? VOID : min(vec3(1.0), VOID + (1.0 - exp(-1.5 * Lb)));
-		if (mode == 0) COLOR = vec4(base, dk);
+		if (mode == 1 && pulsar && c_remnant) COLOR = remnant(b);
+		else if (mode == 0) COLOR = vec4(base, dk);
 		else COLOR = vec4((1.0 - exp(-1.5 * (Lb + Gb))) - (1.0 - exp(-1.5 * Lb)), pulsar ? clamp(I / 4.0, 0.0, 1.0) : 0.0);
 	}
 }

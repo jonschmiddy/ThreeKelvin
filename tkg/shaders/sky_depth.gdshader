@@ -36,6 +36,24 @@ uniform vec3 star_col = vec3(1.0, 0.86, 0.62);
 // inside (`sky_nebula`) the cloud round it glows through, and a black core over
 // that sky set into hard black blots in the palette
 uniform vec3 core_lift = vec3(0.0);
+// THE BOWSHOCK (`SkyWeather`, on every warp-in): a soft ring pushed into the
+// fluff round the ship -- (x, y on screen, its radius, its strength) and its
+// colour. It shows only where there is dust.
+uniform vec4 ev = vec4(-9999.0, -9999.0, 0.0, 0.0);
+uniform vec3 ev_col = vec3(0.55, 0.62, 0.8);
+// SIMPLIFIED (direction C, "Alive"): the sheets made richer -- their dense cores a
+// dark brown-violet in the cloud's own shade (never black, never the cloud's
+// mid colour laid over everything), their sides toward the sun lit, and only
+// near it: the sun's light falls off with distance (gathered, in the cloud's
+// light px), from `lit_far` to `lit_near` as it nears; the wisps in the
+// cloud's own glow, faint far out
+uniform bool simplified = false;
+uniform vec3 dark_col = vec3(0.10, 0.05, 0.08);
+uniform vec3 lit_far = vec3(0.45, 0.30, 0.34);
+uniform vec3 lit_near = vec3(0.34, 0.50, 0.47);
+uniform vec3 wisp_col = vec3(0.25, 0.10, 0.14);
+uniform float home_zoom = 1.0;
+uniform float lscale = 0.94;
 
 float hash2(vec2 p) {
 	ivec2 qq = ivec2(floor(p));
@@ -60,7 +78,7 @@ float smooth_k(float a, float b, float x) { float u = clamp((x - a) / (b - a), 0
 float dens(vec2 w) {
 	// a gentle warp only: more and the masses pull out into worms
 	vec2 warp = vec2(fbm(w * 0.5 + vec2(seed, 3.0), 2), fbm(w * 0.5 + vec2(7.0, seed), 2)) - 0.5;
-	float d = fbm(w + warp * 0.45 + vec2(seed * 1.7, -seed), 5);
+	float d = fbm(w + warp * 0.45 + vec2(seed * 1.7, -seed), simplified ? 4 : 5);
 	// billows: the big shape, rounded off by its own smaller lumps
 	return smooth_k(cover - 0.06, cover + 0.2, d);
 }
@@ -75,11 +93,16 @@ void fragment() {
 	// the slant: the sheets are seen edge-on like the plane, so squashed alike
 	w.y /= 0.62;
 	vec2 u = w / size;
+	// the sun's light here (SIMPLIFIED), as the cloud works it out
+	vec2 dsun = b - star_at;
+	float dL = length(dsun * vec2(1.0, 1.15)) / (pow(max(zoom, 1e-3) / max(home_zoom, 1e-3), 0.42) * lscale);
+	float Js = 1.0 / (1.0 + pow(dL / 155.0, 2.0));
 	if (look == 0) {
 		float d = dens(u);
 		float strand = 1.0 - abs(2.0 * fbm(u * 3.1 + vec2(-seed, seed * 0.5), 3) - 1.0);
 		float I = d * (0.35 + 0.65 * strand * strand) * strength * alpha;
 		vec3 c = mix(pal0, pal1, fbm(u * 0.45 + vec2(seed * 0.3, 1.0), 2)) * I;
+		if (simplified) c = wisp_col * I * (0.4 + Js) * 2.0;
 		COLOR = vec4(c, 0.0);
 	} else {
 		float d = dens(u);
@@ -102,8 +125,18 @@ void fragment() {
 			vec3 dark = gasc * 0.10 + vec3(0.012, 0.016, 0.03) + core_lift;
 			vec3 glow = mix(gasc, star_col, 0.35) * (0.25 + 0.75 * lit);
 			vec3 c = mix(glow * (0.55 + 0.9 * rim), dark, core * (1.0 - 0.6 * lit));
+			if (simplified) {
+				// dark, lit only on the side toward the sun and only near it
+				vec3 lc = mix(lit_far, lit_near, clamp(Js * 1.3, 0.0, 1.0));
+				float lk = clamp((d - d2) * 3.0, 0.0, 1.0) * (0.15 + 0.85 * Js) + rim * 0.25 * Js;
+				c = mix(dark_col, lc, clamp(lk, 0.0, 1.0));
+			}
 			float a = clamp(d * strength * alpha, 0.0, 1.0);
-			COLOR = vec4(c * a, a);
+			vec3 bow = vec3(0.0);
+			if (ev.w > 0.0) {
+				bow = ev_col * ev.w * exp(-pow((length(b - ev.xy) - ev.z) / 5.0, 2.0)) * d * 0.55 * alpha;
+			}
+			COLOR = vec4(c * a + bow, a);
 		}
 	}
 }

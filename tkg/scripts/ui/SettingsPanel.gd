@@ -189,6 +189,29 @@ func _page_screen() -> void:
 func _page_look() -> void:
 	_body.add_child(Section.new(&"look", "THE LOOK"))
 
+	# THE RENDERING STYLE, only once there is more than one to pick: a row with a
+	# single chip is a control that does nothing (only pressable things look
+	# pressable). Built styles only, in DisplaySettings.STYLES' order.
+	var styles := DisplaySettings.built_styles()
+	if styles.size() > 1:
+		_body.add_child(_line("STYLE", DisplaySettings.style_name(DisplaySettings.render_style)))
+		var strow := _chips()
+		for st in styles:
+			var sb := DrawerPlate.chip_for(DisplaySettings.style_name(st),
+				DisplaySettings.render_style == st,
+				func() -> void:
+					DisplaySettings.set_render_style(st)
+					_refresh())
+			sb.tooltip_text = Widgets.tip({
+				&"legacy": "The look from before: the star chart and sector map as they were, with the new black hole and animations.",
+				&"simplified": "The star chart and the sector map, clean and alive: gas streaming along the arms, knots breathing, weather in the nebulae.",
+				&"painted": "Every pixel placed by hand: banded light, hue-shifted shadows, dithered gas.",
+				&"radiant": "Light through gas: the galaxy and its nebulae as lit volumes. Heavy on the graphics card: made for screenshots. Falls back to SIMPLIFIED if the machine can't keep up.",
+			}.get(st, ""))
+			strow.add_child(sb)
+		_body.add_child(strow)
+		_body.add_child(_gap(2))
+
 	_body.add_child(_line("COLORBLINDNESS", DisplaySettings.colour_help_name(DisplaySettings.colour_help)))
 	var crow := _chips()
 	for i in 4:

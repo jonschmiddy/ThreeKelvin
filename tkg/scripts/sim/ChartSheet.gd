@@ -51,6 +51,7 @@ func _run() -> void:
 	# Nothing the real pointer does may reach it: a hover would draw a tooltip
 	# and the reticle into the picture.
 	_chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	await _baked(_chart)
 	await _shot("c00_default")
 
 	# ZOOM, minimum to maximum, on the core.
@@ -182,6 +183,7 @@ func _run() -> void:
 	for c in ls.get_children():
 		if c != ls._sky and c is CanvasItem:
 			(c as CanvasItem).visible = false
+	await _baked(ls._sky)
 	_chart = null
 	for r: float in [0.0, 0.7, 2.4]:
 		ls._sky.set_sky_rotation(r)
@@ -189,6 +191,18 @@ func _run() -> void:
 
 	print("CHARTSHEET wrote %s" % ProjectSettings.globalize_path(out))
 	get_tree().quit()
+
+
+## Until a chart's sky is baked, palette and all (a new galaxy's first open
+## shows the void for a few hundred milliseconds).
+func _baked(c: Control) -> void:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 20000:
+		var sky: ChartSky = c.get("_sky")
+		if sky != null and sky.ready_to_draw():
+			break
+		await RenderingServer.frame_post_draw
+	await _frames(4)
 
 
 func _frames(n: int) -> void:

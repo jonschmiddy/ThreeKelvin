@@ -72,6 +72,13 @@ uniform bool glow_on = true;
 // the zoom, and the picture's size at it (330 x 210 at zoom 1)
 uniform float kz = 1.0;
 uniform vec2 size = vec2(330.0, 210.0);
+// THE WEATHER (`SkyWeather`): a HOTSPOT, a clump riding the disc just outside
+// the shadow (its radius in trace pixels, its disc angle, its strength), its
+// lensed image over the top coming free from the trace; and a RING FLASH, the
+// photon ring lighting where a clump plunged and racing round both ways
+// (screen angle, age; a negative age is none)
+uniform vec4 hs = vec4(0.0);
+uniform vec2 rf = vec2(0.0, -1.0);
 
 const float R_MAX = 140.0;
 const float DOP = 0.45;
@@ -117,6 +124,9 @@ float streak(float r, float a) {
 	return fbm(vec2(cos(A) * R * 0.11 + 40.0, sin(A) * R * 0.11 + 40.0));
 }
 
+float adiff(float a, float b) { return abs(mod(a - b + PI, TAU) - PI); }
+float sm(float a, float b, float x) { float u = clamp((x - a) / (b - a), 0.0, 1.0); return u * u * (3.0 - 2.0 * u); }
+
 float disc(float r, float a) {
 	if (r > rout || r < rin * 0.55) return 0.0;
 	float plunge = r < rin ? pow((r - rin * 0.55) / (rin * 0.45), 1.6) : 1.0;
@@ -125,7 +135,14 @@ float disc(float r, float a) {
 	float d = 1.0 + DOP * cos(a + 0.4);
 	float a2 = a - 1.1 * pow(r / rin, -1.5) * time;
 	float s = 0.55 + 0.8 * streak(r, a2);
-	return base * d * s * breath * plunge;
+	float value = base * d * s * breath * plunge;
+	// the hotspot: Doppler-bright on the side swinging toward you
+	if (hs.z > 0.0) {
+		float spt = exp(-pow((r - hs.x) / (2.5 * kz), 2.0) - pow(adiff(a, hs.y) / 0.28, 2.0));
+		float D = 1.0 + 0.5 * cos(a + 0.4);
+		value += 1.4 * spt * D * D * D * hs.z * plunge;
+	}
+	return value;
 }
 
 float u16(vec4 c) {
@@ -167,6 +184,11 @@ void fragment() {
 		// white is the streaks' peaks, not the band)
 		float vr = 0.62 * disc(rin * 1.04, ar) * (0.75 + 0.55 * max(0.0, up));
 		vr *= 1.0 - 0.55 * smoothstep(rh, rh + rw + 0.5 * kz, d);
+		// the ring flash: lit where the clump went over the edge, racing round both ways
+		if (rf.y >= 0.0) {
+			vr *= 1.0 + 1.5 * exp(-pow((adiff(ar, rf.x) - 5.2 * rf.y) / 0.3, 2.0)) * (1.0 - sm(0.5, 0.7, rf.y))
+				+ 0.6 * sm(0.4, 0.7, rf.y) * exp(-max(rf.y - 0.7, 0.0) / 1.5);
+		}
 		float th = (BAYER[((p.y / max(cell, 1)) & 3) * 4 + ((p.x / max(cell, 1)) & 3)] / 16.0 - 0.5) * 0.9;
 		int kq = int(floor(vr * 7.0 + th));
 		// white only where the disc is hottest

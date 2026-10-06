@@ -99,6 +99,28 @@ uniform vec4 cme_b = vec4(0.0);
 uniform float cme_fade = 0.0;
 // the ribbons' wave over the face: (x, y, radius, strength)
 uniform vec4 wave = vec4(0.0);
+// THE GREAT DIMMING (`SkyWeather` `starmood`, a red giant): dust gathering off
+// one side over its face -- (strength, the side's angle, how far it has spread
+// across, its noise's seed). Only darkens; 0 for none.
+uniform vec4 dim = vec4(0.0);
+// ALIVE (SIMPLIFIED, direction C, set by `SystemView`): the corona breathes -- its
+// glow's reach 1 +- 0.06 and its light with it -- and now and then (a slot of 40 s,
+// hashed) a prominence erupts off the limb: (its angle on the limb, its height in
+// radii, its envelope 0..1, its span in radians), drawn as gathered light, an
+// orange core in a red sheath. 1 and 0: none of it.
+uniform float c_breath = 1.0;
+uniform vec4 c_prom = vec4(0.0);
+// how dim a halo colour (r + g + b, bytes) is dropped as empty space: 36 as
+// the mockup did; SIMPLIFIED drops more of the faint outer halo, which at a zoom
+// set into a grey-brown dithered plate round the sun
+uniform float halo_cut = 36.0;
+// PAINTED (direction B, `SectorPainted`): the face in its own colours as four
+// concentric limb bands, its granulation a pattern in the top two; round the limb
+// flame tongues in three tones that move in whole blocks (the clock arrives held
+// in poses); whatever else burns bright off the face in flat steps of its
+// colours, never dithered; a four-point sparkle on top. Its light on the sky is
+// the sky's own banded rings (the paint pass), so nothing faint is drawn here.
+uniform bool painted = false;
 
 const float BW = 420.0;
 const float BH = 300.0;
@@ -240,7 +262,11 @@ float group_shade(vec3 p) {
 
 vec3 face_colour(float dx, float dy, float Rr, float t) {
 	float nx = dx / Rr, ny = dy / Rr, nz = sqrt(max(0.0, 1.0 - nx * nx - ny * ny));
-	float sp = t * spin, cs = cos(sp), sn = sin(sp);
+	// the face turns in whole-pixel steps (its spots and cells one pixel of the
+	// equator at a time), so nothing on it slides by part of a pixel
+	// (the step held to the zoom's octave, so zooming alone never turns the face)
+	float Rq = max(R * exp2(round(log2(max(zoom, 0.05)))), 1.0);
+	float sp = floor(t * spin * Rq) / Rq, cs = cos(sp), sn = sin(sp);
 	float px = nx * cs + nz * sn, pz = -nx * sn + nz * cs, py = ny;
 	// limb darkening: the edge is cooler and dimmer
 	float I = 1.0 - limb * (1.0 - nz);
@@ -259,14 +285,19 @@ vec3 face_colour(float dx, float dy, float Rr, float t) {
 	}
 	if (n_groups > 0) I *= group_shade(vec3(px, py, pz));
 	I *= flick * (breath > 0.0 ? 1.0 - breath * 2.0 * sin(t * 0.8) : 1.0);
+	if (dim.x > 0.0) {
+		vec2 dv = vec2(cos(dim.y), sin(dim.y));
+		float mask = smo(1.0 - 1.6 * dim.z, 1.0 - 1.05 * dim.z, dot(vec2(nx, ny), dv) + 0.5 * (noise(nx * 3.0 + dim.w, ny * 3.0) - 0.5) + 0.2 * (noise(nx * 7.0 + 3.0, ny * 7.0 + dim.w) - 0.5));
+		I *= 1.0 - 0.55 * dim.x * mask;
+	}
 	return ramp(I);
 }
 
 // ---------------------------------------------------------------- what lies round it
 vec3 glow(float x, float y, float d, float t) {
-	float Rg = R * glow_r;
+	float Rg = R * glow_r * c_breath;
 	if (d < R * 0.8 || d > Rg) return vec3(0.0);
-	float v = glow_i * exp(-(d - R) / (R * glow_w)) * (1.0 - d / Rg) * flick;
+	float v = glow_i * exp(-(d - R) / (R * glow_w * c_breath)) * (1.0 - d / Rg) * flick * (1.0 + (c_breath - 1.0) * 1.33);
 	if (shimmer > 0.0) { float ang = ang_of(y - CYB, x - CXB); v *= 1.0 - shimmer + shimmer * 2.0 * noise(cos(ang) * 3.0 + t * 0.4, sin(ang) * 3.0 + d * 0.05 - t * 0.7); }
 	return v > 0.004 ? glow_c * v : vec3(0.0);
 }
@@ -518,6 +549,59 @@ int pick(vec3 c) {
 	return k;
 }
 
+// THE PAINTED STAR (B): see `painted`
+vec4 sun_painted(vec3 L, bool face, float d, float Rr, float dx, float dy, float t, vec2 pz) {
+	int cl = max(cell, 1);
+	bool chk = ((((int(pz.x) + 4096) / cl) + ((int(pz.y) + 4096) / cl)) & 1) == 1;
+	vec3 tone = 1.0 - exp(-L * 1.35);
+	// A FOUR-POINT SPARKLE on the star (B): its arms a block thick, reaching past
+	// the limb, cream near the middle and warm toward their tips
+	vec2 q = (pz - box_h) / float(cl);
+	float Rb = R * zoom / float(cl);
+	if (Rb > 3.0) {
+		vec2 dq = abs(floor(q + 0.5));
+		// (B's reach well out past the limb, near three radii on a small sun: at one
+		// and a half the cross hid inside a clear sky's first halo ring)
+		float reach = floor(Rb * 1.55 + 6.0);
+		if ((dq.x < 0.5 && dq.y <= reach) || (dq.y < 0.5 && dq.x <= reach)) {
+			float along = max(dq.x, dq.y) / max(reach, 1.0);
+			if (along > 0.62) return vec4(1.0, 0.847, 0.627, 1.0);
+			if (along > 0.3 && !face) return vec4(1.0, 0.965, 0.886, 1.0);
+		}
+	}
+	if (face) {
+		// LIMB DARKENING IN FOUR BANDS, each one colour: the face's own at that
+		// band's radius (its ramp, white-hot to deep orange), the granulation a
+		// pattern of the next band down in the top two. (The cells picked one by one
+		// came out a speckle of every colour the face has; the middle darkened, a
+		// pale grey disc.)
+		float rr = d / max(Rr, 1e-3);
+		int band = rr < 0.55 ? 0 : (rr < 0.78 ? 1 : (rr < 0.92 ? 2 : 3));
+		float rb = band == 0 ? 0.3 : (band == 1 ? 0.68 : (band == 2 ? 0.86 : 0.96));
+		vec3 base = ramp((1.0 - limb * (1.0 - sqrt(max(0.0, 1.0 - rb * rb)))) * flick);
+		if (band <= 1 && chk && gran > 0.0 && dot(tone, vec3(0.299, 0.587, 0.114)) < dot(base, vec3(0.299, 0.587, 0.114)) * 0.9) {
+			float rb2 = band == 0 ? 0.68 : 0.86;
+			base = ramp((1.0 - limb * (1.0 - sqrt(max(0.0, 1.0 - rb2 * rb2)))) * flick);
+		}
+		return vec4(PAL[pick(base)] / 255.0, 1.0);
+	}
+	// FLAME TONGUES round the limb, three tones, their reach stepping slowly
+	float a = ang_of(dy, dx);
+	float tg = 0.5 + 0.5 * sin(a * 7.0 + noise(a * 2.0 + 9.0, floor(t * 0.5) * 0.7) * 6.0);
+	tg *= 0.6 + 0.8 * noise(cos(a) * 3.0 + 4.0, sin(a) * 3.0 + floor(t * 0.75) * 0.31);
+	float reach = Rr * (0.10 + 0.16 * tg) * c_breath;
+	float e = (d - Rr) / max(reach, 1.0);
+	vec3 gc = glow_c / max(max(glow_c.r, glow_c.g), max(glow_c.b, 1e-3));
+	if (e < 1.0) {
+		float lv = e < 0.34 ? 1.0 : (e < 0.67 ? 0.62 : 0.36);
+		return vec4(PAL[pick(1.0 - exp(-gc * lv * 2.2))] / 255.0, 1.0);
+	}
+	// anything else bright off the face (loops, spikes, flares) in flat steps
+	float lum = dot(tone, vec3(0.299, 0.587, 0.114));
+	if (lum > 0.42) return vec4(PAL[pick(tone)] / 255.0, 1.0);
+	return vec4(0.0);
+}
+
 vec4 sun(float x, float y, vec2 pz) {
 	float t = time, dx = x - CXB, dy = y - CYB, d = length(vec2(dx, dy));
 	vec3 L = SPACE;
@@ -530,6 +614,12 @@ vec4 sun(float x, float y, vec2 pz) {
 	if (n_blobs > 0) L += blobs(x, y, true);
 	if ((layers & WIND) != 0) L += wind(dx, dy, d, t);
 	L += glow(x, y, d, t);
+	if (dim.x > 0.0 && d > R && d < R * 1.3 + 4.0) {
+		vec2 dv = vec2(cos(dim.y), sin(dim.y));
+		float side = smo(0.2, 0.7, dot(vec2(dx, dy) / d, dv) + 0.25 * (noise(dx / R * 2.0 + dim.w, dy / R * 2.0 + 3.0) - 0.5));
+		float puff = side * (1.0 - smo(R * 1.1, R * 1.3, d)) * dim.x;
+		L = L * (1.0 - 0.7 * puff) + glow_c * 0.15 * puff * exp(-(d - R) / (R * 0.08));
+	}
 	if ((layers & PLUMES) != 0) L += plumes(x, y, dx, dy, t);
 	// the face replaces all of that
 	bool face = false;
@@ -538,12 +628,26 @@ vec4 sun(float x, float y, vec2 pz) {
 	// and what lies in front of it
 	if ((layers & BEDISC) != 0) L += bedisc(dx, dy, t, true);
 	if (n_proms > 0) L += proms(pz, t);
+	if (c_prom.z > 0.0) {
+		float best = 1e9;
+		for (int k = 0; k <= 14; k++) {
+			float s = float(k) / 14.0;
+			float aa = c_prom.x + (s - 0.5) * c_prom.w;
+			float hh = 1.0 + c_prom.y * sin(s * 3.14159) * (0.85 + 0.15 * sin(s * 9.0 + t * 0.3));
+			best = min(best, length(vec2(dx, dy) - vec2(cos(aa), sin(aa)) * hh * R));
+		}
+		// a thin loop with a hollow middle: an orange core in a narrow red sheath
+		// (a wide sheath filled the loop in, and it read as a flame licking off)
+		float w = max(1.2 / max(zoom, 0.5), R * 0.07);
+		if (d > R * 0.96) L += c_prom.z * (vec3(1.0, 0.50, 0.20) * 1.4 * exp(-pow(best / w, 2.0)) + vec3(1.0, 0.20, 0.07) * 0.35 * exp(-best / (w * 1.3)));
+	}
 	if (n_points > 0) L += points(x, y, pz);
 	if (n_blobs > 0) L += blobs(x, y, false);
 	if (cme_a.w > 0.5) L += cme(x, y);
 	if (wave.w > 0.0 && d <= R * 0.98) { float k = exp(-sq((length(vec2(x - wave.x, y - wave.y)) - wave.z) / 2.0)) * wave.w * 0.6; if (k > 0.02) L += HOT * k; }
 	if (spikes > 0.0) L += spike_light(pz);
 	if (rays > 0.0) L += ray_light(dx, dy, d, t);
+	if (painted) return sun_painted(L, face, d, Rr, dx, dy, t, pz);
 	// tone mapped, dithered, and put to the palette; no light is empty space
 	if (L.r + L.g + L.b < 0.09) return vec4(0.0);
 	int cl = max(cell, 1);
@@ -554,8 +658,8 @@ vec4 sun(float x, float y, vec2 pz) {
 	if (face) return vec4(c / 255.0, 1.0);
 	// near-black is only the dither of empty space: leaving it off keeps the box from showing
 	float s = c.r + c.g + c.b;
-	if (s < 36.0) return vec4(0.0);
-	float kk = s < 110.0 ? (s - 36.0) / 74.0 : 1.0;
+	if (s < halo_cut) return vec4(0.0);
+	float kk = s < 110.0 ? (s - halo_cut) / (110.0 - halo_cut) : 1.0;
 	return vec4(floor(c * kk + 1e-4) / 255.0, 0.0);
 }
 
