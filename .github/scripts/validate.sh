@@ -298,6 +298,22 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 fi
 
+step "Every encounter's subject is real art and fits LOCAL"
+# An option's `subject` names pieces of art and how they are staged
+# (`LocalSubject`). A misspelt piece draws nothing and says nothing, and a
+# staging one tank too wide runs under the event's band or onto your ship; this
+# resolves every piece against art/subjects/index.json and fits every staging to
+# LOCAL's own view. It ends on the real LOCAL, so it ends with the same exit-time
+# teardown reports as stowtest, allowed the same way.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 		run_godot subjecttest 180 --headless --path "$PROJECT" -- subjecttest; then
+	if grep -qE '^subjecttest: PASS' "$LOG_DIR/subjecttest.log"; then
+		ok "the subjects"
+	else
+		bad "an encounter's subject names art that is not there, or does not fit"
+		grep -E '^  FAIL|^subjecttest' "$LOG_DIR/subjecttest.log" | head -n 20 | sed 's/^/        /'
+	fi
+fi
+
 step "Every material is a thing the hold can actually hold"
 # `MaterialTable` authored 64 rows a day before anything could carry one, so its
 # shapes had never met the grid that has to accept them. A row whose `cells`

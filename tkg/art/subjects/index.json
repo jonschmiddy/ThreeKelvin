@@ -1,0 +1,660 @@
+{
+ "pieces": {
+  "paint_moon_europa": {
+   "cx": 80,
+   "cy": 80,
+   "h": 160,
+   "kind": "painter",
+   "lobes": [],
+   "r": 70,
+   "seed": 5,
+   "w": 160,
+   "world": "europa"
+  },
+  "paint_moon_ice": {
+   "cx": 80,
+   "cy": 80,
+   "h": 160,
+   "kind": "painter",
+   "lobes": [],
+   "r": 70,
+   "seed": 3,
+   "w": 160,
+   "world": "ice"
+  },
+  "paint_rock_a1": {
+   "amp": 0.34,
+   "cx": 90,
+   "cy": 80,
+   "h": 160,
+   "kind": "painter",
+   "lo": 0.7,
+   "lobes": [
+    [
+     90,
+     80,
+     82,
+     1.3
+    ]
+   ],
+   "r": 76,
+   "seed": 13,
+   "w": 180,
+   "world": "rock"
+  },
+  "paint_rock_a2": {
+   "amp": 0.34,
+   "cx": 90,
+   "cy": 80,
+   "h": 160,
+   "kind": "painter",
+   "lo": 0.7,
+   "lobes": [
+    [
+     90,
+     80,
+     82,
+     4.7
+    ]
+   ],
+   "r": 76,
+   "seed": 17,
+   "w": 180,
+   "world": "cracked"
+  },
+  "paint_rock_b3": {
+   "amp": 0.3,
+   "cx": 120,
+   "cy": 70,
+   "h": 140,
+   "kind": "painter",
+   "lo": 0.74,
+   "lobes": [
+    [
+     82,
+     72,
+     54,
+     2.4
+    ],
+    [
+     160,
+     66,
+     44,
+     6.1
+    ]
+   ],
+   "r": 104,
+   "seed": 41,
+   "w": 240,
+   "waist": [
+    82,
+    72,
+    160,
+    66,
+    26
+   ],
+   "world": "rock"
+  },
+  "paint_rock_b4": {
+   "amp": 0.3,
+   "cx": 120,
+   "cy": 70,
+   "h": 140,
+   "kind": "painter",
+   "lo": 0.74,
+   "lobes": [
+    [
+     150,
+     68,
+     52,
+     3.7
+    ],
+    [
+     76,
+     74,
+     42,
+     8.8
+    ]
+   ],
+   "r": 104,
+   "seed": 43,
+   "w": 240,
+   "waist": [
+    150,
+    68,
+    76,
+    74,
+    24
+   ],
+   "world": "moon"
+  },
+  "pool_bell": {
+   "file": "res://art/subjects/pool_bell.png",
+   "h": 106,
+   "kind": "creature",
+   "w": 139
+  },
+  "pool_calf_wound": {
+   "file": "res://art/subjects/pool_calf_wound.png",
+   "h": 81,
+   "kind": "creature",
+   "w": 222
+  },
+  "pool_discs": {
+   "file": "res://art/subjects/pool_discs.png",
+   "h": 95,
+   "kind": "creature",
+   "w": 227
+  },
+  "pool_fan": {
+   "file": "res://art/subjects/pool_fan.png",
+   "h": 97,
+   "kind": "creature",
+   "w": 219
+  },
+  "pool_lev_seg": {
+   "file": "res://art/subjects/pool_lev_seg.png",
+   "h": 101,
+   "kind": "creature",
+   "w": 226
+  },
+  "pool_lev_spine": {
+   "file": "res://art/subjects/pool_lev_spine.png",
+   "h": 99,
+   "kind": "creature",
+   "w": 220
+  },
+  "pool_lev_throat": {
+   "file": "res://art/subjects/pool_lev_throat.png",
+   "h": 104,
+   "kind": "creature",
+   "w": 221
+  },
+  "r2_braid_the_braid_idea2": {
+   "file": "res://art/subjects/r2_braid_the_braid_idea2.png",
+   "h": 46,
+   "kind": "creature",
+   "w": 283
+  },
+  "r2_braid_the_braid_idea3": {
+   "file": "res://art/subjects/r2_braid_the_braid_idea3.png",
+   "h": 52,
+   "kind": "creature",
+   "w": 305
+  },
+  "r2_cache_sealed_canister_1": {
+   "file": "res://art/subjects/r2_cache_sealed_canister_1.png",
+   "h": 43,
+   "kind": "sprite",
+   "w": 43
+  },
+  "r2_cache_sealed_canister_2": {
+   "file": "res://art/subjects/r2_cache_sealed_canister_2.png",
+   "h": 48,
+   "kind": "sprite",
+   "w": 46
+  },
+  "r2_container_freight_box_1": {
+   "file": "res://art/subjects/r2_container_freight_box_1.png",
+   "h": 37,
+   "kind": "sprite",
+   "w": 77
+  },
+  "r2_container_freight_box_2": {
+   "file": "res://art/subjects/r2_container_freight_box_2.png",
+   "h": 38,
+   "kind": "sprite",
+   "w": 60
+  },
+  "r2_drone_delivery_drone_1": {
+   "file": "res://art/subjects/r2_drone_delivery_drone_1.png",
+   "h": 35,
+   "kind": "sprite",
+   "w": 63
+  },
+  "r2_drone_delivery_drone_2": {
+   "file": "res://art/subjects/r2_drone_delivery_drone_2.png",
+   "h": 31,
+   "kind": "sprite",
+   "w": 63
+  },
+  "r2_fuelcache_marked_fuel_tank_1": {
+   "file": "res://art/subjects/r2_fuelcache_marked_fuel_tank_1.png",
+   "h": 34,
+   "kind": "sprite",
+   "w": 92
+  },
+  "r2_fuelcache_marked_fuel_tank_2": {
+   "file": "res://art/subjects/r2_fuelcache_marked_fuel_tank_2.png",
+   "h": 36,
+   "kind": "sprite",
+   "w": 94
+  },
+  "r2_holding_old_container_1": {
+   "file": "res://art/subjects/r2_holding_old_container_1.png",
+   "h": 45,
+   "kind": "sprite",
+   "w": 59
+  },
+  "r2_holding_old_container_2": {
+   "file": "res://art/subjects/r2_holding_old_container_2.png",
+   "h": 49,
+   "kind": "sprite",
+   "w": 48
+  },
+  "r2_lifepod_lifepod_1": {
+   "file": "res://art/subjects/r2_lifepod_lifepod_1.png",
+   "h": 48,
+   "kind": "sprite",
+   "w": 44
+  },
+  "r2_minedrift_broken_strut_1": {
+   "file": "res://art/subjects/r2_minedrift_broken_strut_1.png",
+   "h": 20,
+   "kind": "sprite",
+   "w": 82
+  },
+  "r2_minedrift_broken_strut_2": {
+   "file": "res://art/subjects/r2_minedrift_broken_strut_2.png",
+   "h": 19,
+   "kind": "sprite",
+   "w": 85
+  },
+  "r2_minedrift_cable_coil_1": {
+   "file": "res://art/subjects/r2_minedrift_cable_coil_1.png",
+   "h": 42,
+   "kind": "sprite",
+   "w": 52
+  },
+  "r2_minedrift_limpet_mine_1": {
+   "file": "res://art/subjects/r2_minedrift_limpet_mine_1.png",
+   "h": 32,
+   "kind": "sprite",
+   "w": 56
+  },
+  "r2_minedrift_limpet_mine_2": {
+   "file": "res://art/subjects/r2_minedrift_limpet_mine_2.png",
+   "h": 28,
+   "kind": "sprite",
+   "w": 53
+  },
+  "r2_minedrift_prong_mine_2": {
+   "file": "res://art/subjects/r2_minedrift_prong_mine_2.png",
+   "h": 45,
+   "kind": "sprite",
+   "w": 41
+  },
+  "r2_pod_cargo_pod_1": {
+   "file": "res://art/subjects/r2_pod_cargo_pod_1.png",
+   "h": 38,
+   "kind": "sprite",
+   "w": 82
+  },
+  "r2_scatter_drive_nozzle_2": {
+   "file": "res://art/subjects/r2_scatter_drive_nozzle_2.png",
+   "h": 41,
+   "kind": "sprite",
+   "w": 45
+  },
+  "r2_sixty_long_box_sun_bleached_1": {
+   "file": "res://art/subjects/r2_sixty_long_box_sun_bleached_1.png",
+   "h": 30,
+   "kind": "sprite",
+   "w": 86
+  },
+  "r2_sixty_long_box_sun_bleached_2": {
+   "file": "res://art/subjects/r2_sixty_long_box_sun_bleached_2.png",
+   "h": 35,
+   "kind": "sprite",
+   "w": 55
+  },
+  "r2_sixty_short_box_sun_bleached_1": {
+   "file": "res://art/subjects/r2_sixty_short_box_sun_bleached_1.png",
+   "h": 35,
+   "kind": "sprite",
+   "w": 44
+  },
+  "r2_sixty_short_box_sun_bleached_2": {
+   "file": "res://art/subjects/r2_sixty_short_box_sun_bleached_2.png",
+   "h": 41,
+   "kind": "sprite",
+   "w": 33
+  },
+  "r2_thrower_canister_on_sled_1": {
+   "file": "res://art/subjects/r2_thrower_canister_on_sled_1.png",
+   "h": 25,
+   "kind": "sprite",
+   "w": 54
+  },
+  "r2_thrower_canister_on_sled_2": {
+   "file": "res://art/subjects/r2_thrower_canister_on_sled_2.png",
+   "h": 24,
+   "kind": "sprite",
+   "w": 47
+  },
+  "r2_turning_the_turning_herd_idea3": {
+   "file": "res://art/subjects/r2_turning_the_turning_herd_idea3.png",
+   "h": 48,
+   "kind": "creature",
+   "w": 138
+  },
+  "r3_carcass_whale_fall_1": {
+   "file": "res://art/subjects/r3_carcass_whale_fall_1.png",
+   "h": 112,
+   "kind": "creature",
+   "w": 338
+  },
+  "r3_carcass_whale_fall_2": {
+   "file": "res://art/subjects/r3_carcass_whale_fall_2.png",
+   "h": 118,
+   "kind": "creature",
+   "w": 297
+  },
+  "r3_crossing_old_one_1": {
+   "file": "res://art/subjects/r3_crossing_old_one_1.png",
+   "h": 96,
+   "kind": "creature",
+   "w": 225
+  },
+  "r3_crossing_old_one_2": {
+   "file": "res://art/subjects/r3_crossing_old_one_2.png",
+   "h": 97,
+   "kind": "creature",
+   "w": 230
+  },
+  "r3_depot_fuel_depot_1": {
+   "file": "res://art/subjects/r3_depot_fuel_depot_1.png",
+   "h": 175,
+   "kind": "sprite",
+   "w": 140
+  },
+  "r3_frame_gutted_frame_1": {
+   "file": "res://art/subjects/r3_frame_gutted_frame_1.png",
+   "h": 78,
+   "kind": "sprite",
+   "w": 380
+  },
+  "r3_frame_gutted_frame_2": {
+   "file": "res://art/subjects/r3_frame_gutted_frame_2.png",
+   "h": 86,
+   "kind": "sprite",
+   "w": 316
+  },
+  "r3_grazing_feeder_2": {
+   "file": "res://art/subjects/r3_grazing_feeder_2.png",
+   "h": 41,
+   "kind": "creature",
+   "w": 168
+  },
+  "r4_cache_tether_anchor_1": {
+   "file": "res://art/subjects/r4_cache_tether_anchor_1.png",
+   "h": 35,
+   "kind": "sprite",
+   "w": 85
+  },
+  "r4_crossing_young_one_1": {
+   "file": "res://art/subjects/r4_crossing_young_one_1.png",
+   "h": 51,
+   "kind": "creature",
+   "w": 113
+  },
+  "r4_drill_drill_rig_1": {
+   "file": "res://art/subjects/r4_drill_drill_rig_1.png",
+   "h": 130,
+   "kind": "sprite",
+   "w": 56
+  },
+  "r4_drill_drill_rig_2": {
+   "file": "res://art/subjects/r4_drill_drill_rig_2.png",
+   "h": 135,
+   "kind": "sprite",
+   "w": 60
+  },
+  "r4_dustcounter_dust_counter_2": {
+   "file": "res://art/subjects/r4_dustcounter_dust_counter_2.png",
+   "h": 82,
+   "kind": "sprite",
+   "w": 84
+  },
+  "r4_holding_cold_welded_clamp_1": {
+   "file": "res://art/subjects/r4_holding_cold_welded_clamp_1.png",
+   "h": 29,
+   "kind": "sprite",
+   "w": 54
+  },
+  "r4_lightmast_false_light_1": {
+   "file": "res://art/subjects/r4_lightmast_false_light_1.png",
+   "h": 131,
+   "kind": "sprite",
+   "w": 37
+  },
+  "r4_minedrift_buckled_plate_1": {
+   "file": "res://art/subjects/r4_minedrift_buckled_plate_1.png",
+   "h": 44,
+   "kind": "sprite",
+   "w": 56
+  },
+  "r4_minedrift_buckled_plate_2": {
+   "file": "res://art/subjects/r4_minedrift_buckled_plate_2.png",
+   "h": 39,
+   "kind": "sprite",
+   "w": 50
+  },
+  "r4_minedrift_cable_coil_1": {
+   "file": "res://art/subjects/r4_minedrift_cable_coil_1.png",
+   "h": 38,
+   "kind": "sprite",
+   "w": 51
+  },
+  "r4_minedrift_cable_coil_2": {
+   "file": "res://art/subjects/r4_minedrift_cable_coil_2.png",
+   "h": 39,
+   "kind": "sprite",
+   "w": 50
+  },
+  "r4_minedrift_prong_mine_1": {
+   "file": "res://art/subjects/r4_minedrift_prong_mine_1.png",
+   "h": 41,
+   "kind": "sprite",
+   "w": 47
+  },
+  "r4_minedrift_prong_mine_2": {
+   "file": "res://art/subjects/r4_minedrift_prong_mine_2.png",
+   "h": 45,
+   "kind": "sprite",
+   "w": 42
+  },
+  "r4_plate_welded_plate_1": {
+   "file": "res://art/subjects/r4_plate_welded_plate_1.png",
+   "h": 65,
+   "kind": "sprite",
+   "w": 107
+  },
+  "r4_plate_welded_plate_2": {
+   "file": "res://art/subjects/r4_plate_welded_plate_2.png",
+   "h": 54,
+   "kind": "sprite",
+   "w": 90
+  },
+  "r4_pod_cargo_pod_1": {
+   "file": "res://art/subjects/r4_pod_cargo_pod_1.png",
+   "h": 45,
+   "kind": "sprite",
+   "w": 82
+  },
+  "r4_pod_cargo_pod_2": {
+   "file": "res://art/subjects/r4_pod_cargo_pod_2.png",
+   "h": 42,
+   "kind": "sprite",
+   "w": 92
+  },
+  "r4_pumprack_pump_on_a_rack_1": {
+   "file": "res://art/subjects/r4_pumprack_pump_on_a_rack_1.png",
+   "h": 62,
+   "kind": "sprite",
+   "w": 86
+  },
+  "r4_pumprack_pump_on_a_rack_2": {
+   "file": "res://art/subjects/r4_pumprack_pump_on_a_rack_2.png",
+   "h": 60,
+   "kind": "sprite",
+   "w": 86
+  },
+  "r4_scatter_cabin_section_1": {
+   "file": "res://art/subjects/r4_scatter_cabin_section_1.png",
+   "h": 49,
+   "kind": "sprite",
+   "w": 82
+  },
+  "r4_scatter_cabin_section_2": {
+   "file": "res://art/subjects/r4_scatter_cabin_section_2.png",
+   "h": 48,
+   "kind": "sprite",
+   "w": 81
+  },
+  "r4_scatter_drive_nozzle_1": {
+   "file": "res://art/subjects/r4_scatter_drive_nozzle_1.png",
+   "h": 43,
+   "kind": "sprite",
+   "w": 57
+  },
+  "r4_scatter_drive_nozzle_2": {
+   "file": "res://art/subjects/r4_scatter_drive_nozzle_2.png",
+   "h": 48,
+   "kind": "sprite",
+   "w": 53
+  },
+  "r4_scatter_tank_half_1": {
+   "file": "res://art/subjects/r4_scatter_tank_half_1.png",
+   "h": 39,
+   "kind": "sprite",
+   "w": 66
+  },
+  "r4_scatter_tank_half_2": {
+   "file": "res://art/subjects/r4_scatter_tank_half_2.png",
+   "h": 36,
+   "kind": "sprite",
+   "w": 69
+  },
+  "r4_scatter_torn_plate_1": {
+   "file": "res://art/subjects/r4_scatter_torn_plate_1.png",
+   "h": 55,
+   "kind": "sprite",
+   "w": 82
+  },
+  "r4_scatter_torn_plate_2": {
+   "file": "res://art/subjects/r4_scatter_torn_plate_2.png",
+   "h": 61,
+   "kind": "sprite",
+   "w": 81
+  },
+  "r4_shade_foil_shade_idea2": {
+   "file": "res://art/subjects/r4_shade_foil_shade_idea2.png",
+   "h": 175,
+   "kind": "sprite",
+   "w": 291
+  },
+  "r4_tank_pressure_tank_2": {
+   "file": "res://art/subjects/r4_tank_pressure_tank_2.png",
+   "h": 30,
+   "kind": "sprite",
+   "w": 102
+  },
+  "r4_turning_the_turning_herd_1": {
+   "file": "res://art/subjects/r4_turning_the_turning_herd_1.png",
+   "h": 62,
+   "kind": "creature",
+   "w": 152
+  },
+  "r4_turning_the_turning_herd_2": {
+   "file": "res://art/subjects/r4_turning_the_turning_herd_2.png",
+   "h": 45,
+   "kind": "creature",
+   "w": 132
+  },
+  "r5_grazing_shed_plate_1": {
+   "file": "res://art/subjects/r5_grazing_shed_plate_1.png",
+   "h": 32,
+   "kind": "creature",
+   "w": 54
+  },
+  "r5_scatter_spar_1": {
+   "file": "res://art/subjects/r5_scatter_spar_1.png",
+   "h": 16,
+   "kind": "sprite",
+   "w": 108
+  },
+  "r5_scatter_spar_2": {
+   "file": "res://art/subjects/r5_scatter_spar_2.png",
+   "h": 22,
+   "kind": "sprite",
+   "w": 126
+  },
+  "r5_sixty_box_burst_open_1": {
+   "file": "res://art/subjects/r5_sixty_box_burst_open_1.png",
+   "h": 43,
+   "kind": "sprite",
+   "w": 95
+  },
+  "r5_split_derelict_1": {
+   "file": "res://art/subjects/r5_split_derelict_1.png",
+   "h": 86,
+   "kind": "sprite",
+   "w": 357
+  },
+  "r5_tank_pressure_tank_1": {
+   "file": "res://art/subjects/r5_tank_pressure_tank_1.png",
+   "h": 23,
+   "kind": "sprite",
+   "w": 102
+  },
+  "r5_tank_pressure_tank_2": {
+   "file": "res://art/subjects/r5_tank_pressure_tank_2.png",
+   "h": 23,
+   "kind": "sprite",
+   "w": 106
+  },
+  "r6_cradle_repair_frame_hull_clamped_2": {
+   "file": "res://art/subjects/r6_cradle_repair_frame_hull_clamped_2.png",
+   "h": 118,
+   "kind": "sprite",
+   "w": 162
+  },
+  "r6_gantry_snapped_truss_drifting_2_p1": {
+   "file": "res://art/subjects/r6_gantry_snapped_truss_drifting_2_p1.png",
+   "h": 36,
+   "kind": "sprite",
+   "w": 78
+  },
+  "r6_gantry_snapped_truss_drifting_2_p2": {
+   "file": "res://art/subjects/r6_gantry_snapped_truss_drifting_2_p2.png",
+   "h": 29,
+   "kind": "sprite",
+   "w": 76
+  },
+  "r6_gantry_snapped_truss_drifting_2_p3": {
+   "file": "res://art/subjects/r6_gantry_snapped_truss_drifting_2_p3.png",
+   "h": 26,
+   "kind": "sprite",
+   "w": 90
+  },
+  "r6_gantry_snapped_truss_drifting_2_p4": {
+   "file": "res://art/subjects/r6_gantry_snapped_truss_drifting_2_p4.png",
+   "h": 19,
+   "kind": "sprite",
+   "w": 56
+  },
+  "r6_oredock_ore_dock_pushed_3": {
+   "file": "res://art/subjects/r6_oredock_ore_dock_pushed_3.png",
+   "h": 95,
+   "kind": "sprite",
+   "w": 333
+  },
+  "r6_oredock_ore_dock_pushed_4": {
+   "file": "res://art/subjects/r6_oredock_ore_dock_pushed_4.png",
+   "h": 97,
+   "kind": "sprite",
+   "w": 336
+  }
+ }
+}

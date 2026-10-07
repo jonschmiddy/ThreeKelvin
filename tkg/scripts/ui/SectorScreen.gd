@@ -1729,6 +1729,9 @@ func _refresh() -> void:
 	var n: MapGen.MapNode = Run.node_at()
 	var at_war := fighting()
 	_view.set_place(n)
+	# WHAT THE EVENT IS ABOUT, in the scene while it is open or you are parked at
+	# it (`LocalSubject`, the option's `subject`)
+	LocalSubject.sync(_view, n, at_war)
 
 	_hand_wrap.visible = at_war
 	# THE HOLDER, not the panel. The panel stays visible and keeps driving the
@@ -2326,7 +2329,7 @@ func open_cutaway() -> CutawayView:
 	# ships (yours, the wrecks, a partner's), the dust and the shots with your
 	# ship, 2x; the sky layer by layer by its own depth
 	var near: Array[Control] = []
-	for c: Control in [_view._row, _view.dust, _view.fx]:
+	for c: Control in [LocalSubject.of(_view), _view._row, _view.dust, _view.fx]:
 		if c != null and is_instance_valid(c):
 			near.append(c)
 	_cutaway.scenes = near

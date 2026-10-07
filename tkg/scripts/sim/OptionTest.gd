@@ -252,6 +252,9 @@ func _gates_are_real() -> void:
 		&"min_development": true, &"max_development": true,
 		&"regions": true, &"needs_fauna": true, &"needs_berth": true,
 		&"berth": true,
+		# WHAT LOCAL SHOWS while the event is open (`LocalSubject`): not a gate,
+		# and `-- subjecttest` checks its pieces and its fit
+		&"subject": true,
 		# PLACED: this option is never rolled, only put on a system by another
 		# option's outcome. `OptionTable.admits` refuses it and `place` is the
 		# only door in. Declared here because this list is what stops a gate

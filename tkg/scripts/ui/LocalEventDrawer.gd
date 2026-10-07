@@ -52,7 +52,8 @@ const FADE_S := 0.22
 ## The choices' column width, in the column layout.
 const COL_W := 300.0
 
-static var layout: StringName = &"row"
+## Jon picked the column ("Yeah, I like the column").
+static var layout: StringName = &"column"
 ## `-- localeventtest`: the screens a fight or a death would swap in are not
 ## opened; `fought` and `died` say they would have been.
 static var quiet := false

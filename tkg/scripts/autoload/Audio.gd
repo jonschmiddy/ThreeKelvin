@@ -875,6 +875,7 @@ func play(name: StringName, pitch_var: float = 0.06, limit_ms: int = 0,
 	# said `thruster_arrive`, and a hush naming either has to land.
 	p.set_meta(&"cue", pick)
 	p.set_meta(&"asked", name)
+	p.set_meta(&"t0", Time.get_ticks_msec())
 	if taping:
 		tape.append([pick, Time.get_ticks_msec(), db, p.pitch_scale])
 	p.play()
@@ -919,6 +920,33 @@ func hush(names: Array[StringName], fade_ms: int = 120) -> void:
 		t.tween_property(p, "volume_db", p.volume_db - 40.0, fade_ms / 1000.0)
 		t.tween_callback(p.stop)
 		_fade[i] = t
+
+## AT MOST `cap` OF ONE SOUND IN THE AIR. The event text's blip (`SignalText`)
+## lands on every third letter, about eleven a second at 40 cps, and each rings
+## for 0.3 s, so left alone four would stack. The Lead's rule is never more than
+## two at once. Before a new one starts, the oldest still playing at the cap is
+## faded out over `steal_ms`. It fades rather than stops, for the reason `hush`
+## gives. The new one still plays, so the rhythm Jon picked on the audition page
+## is kept; only the tails get shorter. A voice already fading does not count.
+func play_capped(name: StringName, pitch_var: float, cap: int, db: float = 0.0,
+		steal_ms: int = 25) -> void:
+	if not _enabled:
+		return
+	var live: Array[int] = []
+	for i in _sfx.size():
+		var p := _sfx[i]
+		if p.playing and p.get_meta(&"asked", &"") == name 				and not (_fade[i] != null and _fade[i].is_valid()):
+			live.append(i)
+	live.sort_custom(func(a: int, b: int) -> bool:
+		return int(_sfx[a].get_meta(&"t0", 0)) < int(_sfx[b].get_meta(&"t0", 0)))
+	while live.size() >= maxi(cap, 1):
+		var i: int = live.pop_front()
+		var p := _sfx[i]
+		var t := create_tween()
+		t.tween_property(p, "volume_db", p.volume_db - 40.0, steal_ms / 1000.0)
+		t.tween_callback(p.stop)
+		_fade[i] = t
+	play(name, pitch_var, 0, db)
 
 func click() -> void:   play(&"ui_click", 0.05)
 func hover() -> void:   play(&"ui_hover", 0.09, 40)

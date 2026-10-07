@@ -90,12 +90,57 @@ func run(tree: SceneTree) -> void:
 					n = _system()
 	print("  %d openings, %d resolutions: %s" % [opened, resolved, kinds])
 	_ok("every option opened and every choice resolved in all three layouts", _fails == 0)
+	_reveal_sound(holder)
 	_end(tree)
+
+
+## THE LETTERS' SOUND, counted (`SignalText.blips`; `Audio` is off headless, so
+## what is checked is what the text asks for). A whole reveal asks for one blip
+## per three letters, spaces not counted. A reveal skipped part way asks for no
+## more after the skip. Reduced motion has no reveal and so no blips.
+func _reveal_sound(holder: Control) -> void:
+	var body := "A cargo lighter is moored to the loading mast outside the station. Its load has moved. Forty tonnes of something has come off its tethers."
+	var letters := body.replace(" ", "").length()
+	var want := int(ceil(letters / float(SignalText.BLIP_EVERY)))
+	var was_anim: bool = Router.animate_in_harness
+	var was_rm := DisplaySettings.reduced_motion
+	Router.animate_in_harness = true
+	DisplaySettings.reduced_motion = false
+	var t := SignalText.new()
+	t.custom_minimum_size.x = 600
+	holder.add_child(t)
+	t.text = body
+	t.set_process(false)
+	t.play()
+	var steps := 0
+	while not t.done and steps < 6000:
+		t._process(1.0 / 60.0)
+		steps += 1
+	_ok("a whole reveal asks for a blip every %d letters (%d for %d letters, got %d)" % [
+		SignalText.BLIP_EVERY, want, letters, t.blips], t.done and t.blips == want)
+	t.play()
+	while t.shown < 40.0 and steps < 12000:
+		t._process(1.0 / 60.0)
+		steps += 1
+	var before := t.blips
+	t.skip()
+	for k in 30:
+		t._process(1.0 / 60.0)
+	_ok("a skipped reveal asks for nothing after the skip (%d before, %d after)" % [before, t.blips],
+		before > 0 and t.blips == before)
+	DisplaySettings.reduced_motion = true
+	t.play()
+	for k in 30:
+		t._process(1.0 / 60.0)
+	_ok("reduced motion shows the text whole with no blips (got %d)" % t.blips, t.done and t.blips == 0)
+	DisplaySettings.reduced_motion = was_rm
+	Router.animate_in_harness = was_anim
+	t.queue_free()
 
 
 func _end(tree: SceneTree) -> void:
 	LocalEventDrawer.quiet = false
-	LocalEventDrawer.layout = &"row"
+	LocalEventDrawer.layout = &"column"
 	print("")
 	verdict("localeventtest")
 	tree.quit(1 if _fails > 0 else 0)

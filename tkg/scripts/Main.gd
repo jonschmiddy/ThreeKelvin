@@ -760,6 +760,13 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# Every encounter's subject resolves to art and its staging fits LOCAL:
+	#   godot --headless --path . -- subjecttest
+	if "subjecttest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/SubjectTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	if "stowtest" in OS.get_cmdline_user_args():
 		_stow_test = load("res://scripts/sim/StowTest.gd").new()
 		_stow_test.run(get_tree())

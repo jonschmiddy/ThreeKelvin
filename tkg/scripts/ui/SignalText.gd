@@ -5,9 +5,7 @@ extends Control
 ## letter ... like a signal transmission? IDK something stylized"). Each
 ## character comes in as one or two scrambled glyphs from the pixel font before
 ## it settles on the true letter, with a block cursor at the leading edge and,
-## now and then, a short dropout. Fast: `CPS` a second, punctuation holding a
-## beat: a medium event (the table's median body, about 450 characters) in about
-## six seconds, the longest (580) in about eight.
+## now and then, a short dropout. At `cps` a second, punctuation holding a beat.
 ##
 ## THE LAYOUT NEVER MOVES: the whole text is broken into lines and measured
 ## before a character shows, so the control is its full height from the start
@@ -15,14 +13,23 @@ extends Control
 ## (`UITheme.pixel_font`), one character at a time.
 ##
 ## `skip()` finishes it at once; reduced motion (`Router.animating`) shows it
-## whole. No sound: `char_settled` and `line_settled` are the hooks for one.
+## whole.
+##
+## THE SOUND is Jon's pick from the audition page: "cps 40 · A blip_5 every 3,
+## ±100c, 0 dB · B off · C off". Every third settled letter plays `text_blip`
+## (spaces do not count), pitch spread ±100 cents, at its levelled gain, with at
+## most two in the air (`Audio.play_capped`). Only a settling letter makes a
+## blip. So `skip()` finishes silently and also fades any tail still ringing,
+## and reduced motion, which has no reveal, has no blips.
 
 signal char_settled(index: int, ch: String)
 signal line_settled(line: int)
 signal finished
 
-## Characters a second, and the beat a punctuation mark holds, s.
-const CPS := 90.0
+## Characters a second -- THE ONE DIAL for the reveal's speed (Jon: "have the
+## letters arrive more slowly"; he set 40 by ear on the audition page) -- and
+## the beat a punctuation mark holds, s.
+static var cps := 40.0
 const PAUSE := {".": 0.09, "!": 0.09, "?": 0.09, ",": 0.03, ";": 0.05, ":": 0.05}
 ## How many characters past the settled edge show as noise, and how often
 ## their glyph changes, s.
@@ -34,6 +41,18 @@ const NOISE := "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789#%&*+=/<>"
 const DROP_P := 0.012
 const DROP_S := 0.06
 const LINE_GAP := 3
+## The blip: which sound, every how many letters, its pitch spread as a
+## pitch_scale (2^(1/12) - 1, so +100 cents up and -106 down), and how many may
+## ring at once. `sound` off keeps a reveal silent.
+const BLIP := &"text_blip"
+const BLIP_EVERY := 3
+const BLIP_PITCH := 0.0595
+const BLIP_VOICES := 2
+var sound := true
+var _letters := 0
+## Blips this reveal has asked for (`localeventtest` counts them headless,
+## where `Audio` is off).
+var blips := 0
 
 var text := "":
 	set(v):
@@ -68,6 +87,8 @@ func play() -> void:
 	done = false
 	_hold = 0.0
 	_last_line = -1
+	_letters = 0
+	blips = 0
 	if not Router.animating():
 		skip()
 	queue_redraw()
@@ -77,9 +98,12 @@ func play() -> void:
 func skip() -> void:
 	if done and shown >= text.length():
 		return
+	var cut := not done
 	shown = float(text.length())
 	done = true
 	_noise.clear()
+	if cut and sound:
+		Audio.hush([BLIP] as Array[StringName], 60)
 	queue_redraw()
 	finished.emit()
 
@@ -144,10 +168,15 @@ func _process(delta: float) -> void:
 		_hold -= delta
 	else:
 		var before := int(shown)
-		shown = minf(shown + CPS * delta, float(n))
+		shown = minf(shown + cps * delta, float(n))
 		for k in range(before, int(shown)):
 			var ch := text.substr(k, 1)
 			char_settled.emit(k, ch)
+			if sound and ch != " ":
+				_letters += 1
+				if (_letters - 1) % BLIP_EVERY == 0:
+					blips += 1
+					Audio.play_capped(BLIP, BLIP_PITCH, BLIP_VOICES)
 			var li := _line_of(k)
 			if li != _last_line and _last_line >= 0:
 				line_settled.emit(_last_line)

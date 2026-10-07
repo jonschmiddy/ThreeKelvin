@@ -3,6 +3,7 @@ extends Node
 ## EVENTS RESOLVED ON LOCAL, photographed (`LocalEventDrawer`):
 ##   godot --path . --windowed --position 3840,0 -- sheet=EventShot keepwindow
 ##       out=<dir> [seed=1] [node=11] [layout=row|column|card] [flow] [compare] [reveal]
+##       [revealav=<dir>]
 ##
 ## `flow`     the map's list, an event's page (one sentence and GO), GO -- the
 ##            flight and the zoom down, filmed into `flow/` -- the band up, the
@@ -16,6 +17,14 @@ extends Node
 ## `reveal`   the medium event's text arriving (`SignalText`), one layout,
 ##            stepped on a fixed 30 fps clock so the frames play at true speed,
 ##            into `reveal_<layout>/`.
+## `revealav` the same reveal SEEN AND HEARD on the real clock. The text runs
+##            itself and the SFX bus is drained from an AudioEffectCapture every
+##            frame (as FlightClip's tape) into `<dir>/audio.wav`; Music and
+##            Ambient are muted. About 30 frames a second are saved with their
+##            times (`frames.txt`, "index seconds") so ffmpeg can lay them to the
+##            sound. Prints the blips played (`Audio.tape`) against the letters,
+##            and the most `text_blip` voices ever sounding at once, with and
+##            without the ones fading out.
 ## Needs a window.
 
 const FPS := 30.0
@@ -63,7 +72,7 @@ func _run() -> void:
 	await tree.process_frame
 	Rng.forced = int(_arg("seed", "1"))
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
-	LocalEventDrawer.layout = StringName(_arg("layout", "row"))
+	LocalEventDrawer.layout = StringName(_arg("layout", "column"))
 	var idx := int(_arg("node", "11"))
 	var n: MapGen.MapNode = Run.map[idx]
 	Run.at = idx
@@ -77,6 +86,8 @@ func _run() -> void:
 		await _compare(n)
 	if "reveal" in _args:
 		await _reveal(n)
+	if _arg("revealav") != "":
+		await _reveal_av(n, _arg("revealav"))
 	tree.quit()
 
 
@@ -222,7 +233,7 @@ func _compare(n: MapGen.MapNode) -> void:
 			print("[eventshot] empty %s %s %d %d %.3f h%d" % [layout, s[0], e[0], e[1], float(e[0]) / maxf(1.0, float(e[1])), int(r.size.y)])
 			d._drop()
 			await _secs(0.5)
-	LocalEventDrawer.layout = &"row"
+	LocalEventDrawer.layout = &"column"
 
 
 ## [bare panel pixels, all pixels] inside r: bare is the panel's own colour,
@@ -265,3 +276,121 @@ func _reveal(n: MapGen.MapNode) -> void:
 			if tail > 20:
 				break
 	print("  eventshot: reveal %d frames (%.1f s at %d fps)" % [k, k / FPS, int(FPS)])
+
+
+func _reveal_av(n: MapGen.MapNode, dir: String) -> void:
+	Router.show_local()
+	await _secs(1.0)
+	var lo := Router.current as SectorScreen
+	var d: LocalEventDrawer = lo.get("_events")
+	var i := _plant(n, StringName(_sizes()[1][1]))
+	DirAccess.make_dir_recursive_absolute(dir)
+	for bn in [&"Music", &"Ambient"]:
+		var bi := AudioServer.get_bus_index(bn)
+		if bi >= 0:
+			AudioServer.set_bus_mute(bi, true)
+	var sfx := AudioServer.get_bus_index(&"SFX")
+	var cap := AudioEffectCapture.new()
+	cap.buffer_length = 2.0
+	AudioServer.add_bus_effect(sfx, cap)
+	Audio.tape.clear()
+	Audio.taping = true
+	await RenderingServer.frame_post_draw
+	cap.clear_buffer()
+	var pcm := PackedVector2Array()
+	var t0 := Time.get_ticks_usec()
+	d.open(i)
+	var times := PackedStringArray()
+	var k := 0
+	var next := 0.0
+	var most := 0
+	var most_full := 0
+	var started := false
+	var done_at := -1.0
+	while true:
+		await RenderingServer.frame_post_draw
+		pcm.append_array(cap.get_buffer(cap.get_frames_available()))
+		var t := float(Time.get_ticks_usec() - t0) / 1e6
+		var live := 0
+		var full := 0
+		for vi in Audio._sfx.size():
+			var p: AudioStreamPlayer = Audio._sfx[vi]
+			if p.playing and p.get_meta(&"asked", &"") == SignalText.BLIP:
+				live += 1
+				var f: Tween = Audio._fade[vi]
+				if f == null or not f.is_valid():
+					full += 1
+		most = maxi(most, live)
+		most_full = maxi(most_full, full)
+		if t >= next:
+			_img().save_png("%s/f_%04d.png" % [dir, k])
+			times.append("%d %.4f" % [k, t])
+			k += 1
+			next += 1.0 / FPS
+		if d.text != null and not d.text.done:
+			started = true
+		if started and done_at < 0.0 and d.text.done:
+			done_at = t
+		if (done_at >= 0.0 and t - done_at > 1.5) or t > 40.0:
+			break
+	pcm.append_array(cap.get_buffer(cap.get_frames_available()))
+	AudioServer.remove_bus_effect(sfx, AudioServer.get_bus_effect_count(sfx) - 1)
+	Audio.taping = false
+	var tf := FileAccess.open(dir + "/frames.txt", FileAccess.WRITE)
+	tf.store_string("
+".join(times) + "
+")
+	tf.close()
+	_write_wav(dir + "/audio.wav", pcm)
+	var blips := 0
+	for e in Audio.tape:
+		if StringName(e[0]) == SignalText.BLIP:
+			blips += 1
+	var letters := String(OptionTable.by_id(n.options[i]).get("body", "")).replace(" ", "").length()
+	print("  eventshot: revealav %d frames, %.2f s, text done at %.2f s, %d blips for %d letters (cps %.0f), most %d blips sounding (%d at full level, the rest fading out)" % [
+		k, float(k) / FPS, done_at, blips, letters, SignalText.cps, most, most_full])
+
+
+## The SFX capture as a 16-bit wav at the mix rate. On a surround output the
+## capture hands over one 512-frame block per speaker pair in turn; the front
+## pair is the phase with the energy (as FlightClip's tape).
+func _write_wav(path: String, pcm: PackedVector2Array) -> void:
+	var pairs := int(AudioServer.get_speaker_mode()) + 1
+	if pairs > 1:
+		var best := PackedVector2Array()
+		var best_e := -1.0
+		for ph in pairs:
+			var front := PackedVector2Array()
+			var at := ph * 512
+			while at < pcm.size():
+				front.append_array(pcm.slice(at, mini(at + 512, pcm.size())))
+				at += 512 * pairs
+			var e := 0.0
+			for q in front:
+				e += q.length_squared()
+			if e > best_e:
+				best_e = e
+				best = front
+		pcm = best
+	var rate := int(AudioServer.get_mix_rate())
+	var data := PackedByteArray()
+	data.resize(pcm.size() * 4)
+	for k in pcm.size():
+		data.encode_s16(k * 4, int(clampf(pcm[k].x, -1.0, 1.0) * 32767.0))
+		data.encode_s16(k * 4 + 2, int(clampf(pcm[k].y, -1.0, 1.0) * 32767.0))
+	var w := FileAccess.open(path, FileAccess.WRITE)
+	w.store_buffer("RIFF".to_ascii_buffer())
+	w.store_32(36 + data.size())
+	w.store_buffer("WAVEfmt ".to_ascii_buffer())
+	w.store_32(16)
+	w.store_16(1)
+	w.store_16(2)
+	w.store_32(rate)
+	w.store_32(rate * 4)
+	w.store_16(4)
+	w.store_16(16)
+	w.store_buffer("data".to_ascii_buffer())
+	w.store_32(data.size())
+	w.store_buffer(data)
+	w.close()
+	print("  eventshot: audio %.2f s at %d Hz, %d speaker pairs, to %s" % [float(pcm.size()) / float(rate), rate, pairs, path])
