@@ -31,7 +31,10 @@ extends Control
 ## A `subject` is one stage, or `{layers = [stage, ...]}` drawn back to front.
 ## A stage:
 ##   stage   single | row | tether | field | herd | line | around | on_rock | strewn
-##   pieces  piece ids from the index, cycled
+##           | ring | group
+##   pieces  piece ids from the index, cycled; or `role:<name>` (a kept pool
+##           ship of that role, the same one for this encounter every time:
+##           `resolve`), or `foe` (the ship the event's fight would bring)
 ##   count   how many (row, tether, field, herd, line, around, on_rock)
 ##   at      offset of this stage from the subject's centre, px
 ##   r       a painter piece's radius, px (else the recipe's own)
@@ -47,6 +50,19 @@ extends Control
 ##           shimmer; it only drifts
 ##   gap     strewn: the air between neighbours, px
 ##   far     strewn: the whole stage far (half size, dimmed toward the sky)
+##   ships   group: [{piece, at, far?, turn?} + any of the ship states below],
+##           each placed where it says
+##   rx, ry  ring: the ellipse the ships hold, px; the back half far
+## A SHIP'S STATE, on a stage (every piece in it) or on one ship of a group:
+##   dark    0..1, cold: no heat, no lights, lit only by the star
+##   lights  &"run" (running lights) | &"battery" (a few dim ones, breathing) |
+##           &"patrol" (red and blue, turn about)
+##   drive   its drive lit at the stern
+##   flood   a floodlight from its bow, on you
+##   tow     a slack tow line off its bow, px long
+## And on a stage: `strobe` (a light run along the line of its ships).
+## Lights, drives, floods and strobes are drawn in code over the art, as light
+## (gathered, stepped and dithered, eased), never painted on the pictures.
 
 const INDEX_PATH := "res://art/subjects/index.json"
 const SHADER := preload("res://shaders/local_subject.gdshader")
@@ -60,11 +76,25 @@ const WRECK_GAP := 8.0
 static var _index: Dictionary = {}
 ## Pieces turned at load (`turned`), by "id:degrees".
 static var _turned: Dictionary = {}
+## Which kept pool ships each role may be (`index.json` "roles").
+static var _roles: Dictionary = {}
+## The fight's ships, as `EnemyArt` draws them: {"foe:<id>": {tex, w, h, anchors}}
+static var _foes: Dictionary = {}
+## Glows for the lights, by "radius:colour".
+static var _glows: Dictionary = {}
+## For a test: the fight's ship to stage instead of the one the fight would bring.
+static var foe_override: StringName = &""
 
 ## Which option this draws, at which system (so a refresh only rebuilds when it
 ## changes).
 var key := ""
 var subject: Variant = null
+## The encounter it is (its ships are picked by it) and the system's danger
+## (which fight it would bring).
+var oid: StringName = &""
+var danger := 1
+## What it drew, piece by piece, once resolved (the fight's ship as `foe:<id>`).
+var cast: Array[StringName] = []
 var sky: LocalSky = null
 ## The placed pieces: [{node, base pos, scale, far, drift, spin, phase, sprite?,
 ## planet?}]
@@ -78,6 +108,11 @@ var _pal_set := false
 ## The size the staging is drawn at (`fit`): 1x, or half when it has to keep
 ## clear of the wrecks a fight left and only fits small.
 var _scale := 1.0
+## The pieces each `strobe` stage runs its light along, by stage.
+var _strobes: Dictionary = {}
+## Where the lights are drawn (additive, over the pieces).
+var _over: Node2D = null
+var _t := 0.0
 ## LOCAL's drawn place, held hidden while this is up (see `_process`)
 var _area: Control = null
 
@@ -96,16 +131,32 @@ static func index() -> Dictionary:
 			var d: Variant = JSON.parse_string(f.get_as_text())
 			if d is Dictionary:
 				_index = (d as Dictionary).get("pieces", {})
+				_roles = (d as Dictionary).get("roles", {})
 	return _index
 
 
+## The kept pool ships a role may be, by piece id.
+static func role_ships(role: String) -> Array:
+	index()
+	return _roles.get(role, [])
+
+
+## A piece's record: the index's, or for the fight's own ship (`foe:<id>`) one
+## made from `EnemyArt`'s drawing of it.
+static func piece_info(id: StringName) -> Dictionary:
+	var k := String(id)
+	if k.begins_with("foe:"):
+		return _foe(StringName(k.substr(4)))
+	return index().get(k, {})
+
+
 static func has_piece(id: StringName) -> bool:
-	return index().has(String(id))
+	return not piece_info(id).is_empty()
 
 
 ## A piece's size on screen at scale 1, px (a painter piece's from its radius).
 static func piece_size(id: StringName, r: float = 0.0) -> Vector2:
-	var p: Dictionary = index().get(String(id), {})
+	var p: Dictionary = piece_info(id)
 	if p.is_empty():
 		return Vector2.ZERO
 	if String(p.get("kind", "")) == "painter":
@@ -137,9 +188,9 @@ static func box_for(view_size: Vector2) -> Rect2:
 ## THE STAGING, worked out without drawing anything: every piece as
 ## {id, at (centre, px from the subject's centre), scale, far, r, flip, kind}.
 ## Deterministic, so a test can check it fits without a screen.
-static func plan(s: Variant) -> Array:
+static func plan(s: Variant, oid: StringName = &"", danger: int = 1) -> Array:
 	var out: Array = []
-	for st: Dictionary in stages_of(s):
+	for st: Dictionary in stages_of(resolve(s, oid, danger)):
 		var at: Vector2 = st.get("at", Vector2.ZERO)
 		var made: Array = []
 		match StringName(st.get("stage", &"single")):
@@ -161,8 +212,17 @@ static func plan(s: Variant) -> Array:
 				made = _stage_on_rock(st)
 			&"strewn":
 				made = _stage_strewn(st)
+			&"ring":
+				made = _stage_ring(st)
+			&"group":
+				made = _stage_group(st)
 		for m: Dictionary in made:
 			m.at = (m.at as Vector2) + at
+			# a stage's ship states fall to every piece in it that has not its own
+			for k: String in SHIP_STATES:
+				if st.has(k) and not m.has(k):
+					m[k] = st[k]
+			m.strobe_of = st.get("strobe_id", -1)
 			out.append(m)
 	# far first, near last
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -206,10 +266,15 @@ static func _m(id: StringName, at: Vector2, sc: float = 1.0, far: float = 0.0, e
 
 
 static func _stage_single(st: Dictionary) -> Array:
-	return [_m(_piece(st, 0), Vector2.ZERO, 1.0, 0.0, {r = float(st.get("r", 0.0)), tumble = float(st.get("tumble", 0.0))})]
+	var far := bool(st.get("far", false))
+	return [_m(_piece(st, 0), Vector2.ZERO, 0.5 if far else 1.0, 0.55 if far else 0.0,
+		{r = float(st.get("r", 0.0)), tumble = float(st.get("tumble", 0.0)), turn = float(st.get("turn", 0.0))})]
 
 
 ## A line receding: the nearest at 1x in front, the rest far, along `dir`.
+## `recede`: a queue going back into the dark, nose to tail -- the first `near`
+## at 1x, the next `mid` at half, the rest at a quarter, each spaced by its own
+## length (`overlap` of it tucked behind the one in front).
 static func _stage_row(st: Dictionary) -> Array:
 	var out: Array = []
 	var n := int(st.get("count", 3))
@@ -217,6 +282,26 @@ static func _stage_row(st: Dictionary) -> Array:
 	var span := float(st.get("span", 300.0))
 	var dir: Vector2 = st.get("dir", Vector2(1.0, -0.3))
 	dir = dir.normalized()
+	if bool(st.get("recede", false)):
+		var mid := int(st.get("mid", 3))
+		var overlap := float(st.get("overlap", 0.2))
+		var scs: Array[float] = []
+		var ws: Array[float] = []
+		for i in n:
+			var sc := 1.0 if i < near else (0.5 if i < near + mid else 0.25)
+			scs.append(sc)
+			ws.append(piece_size(_piece(st, i)).x * sc)
+		var xs: Array[float] = [0.0]
+		for i in range(1, n):
+			xs.append(xs[i - 1] + (ws[i - 1] + ws[i]) * 0.5 * (1.0 - overlap))
+		# (a queue can run off to the left as well: `dir` with x below 0)
+		var c := xs[n - 1] * 0.5
+		var sx := -1.0 if dir.x < 0.0 else 1.0
+		for i in n:
+			var x := (xs[i] - c) * sx
+			var far := 0.0 if scs[i] >= 1.0 else (0.4 if scs[i] >= 0.5 else 0.6)
+			out.append(_m(_piece(st, i), Vector2(x, x * dir.y / maxf(absf(dir.x), 0.05) * sx).round(), scs[i], far, {z = -i}))
+		return out
 	for i in n:
 		var t := (float(i) / maxf(float(n - 1), 1.0)) - 0.5
 		var far := i >= near
@@ -322,7 +407,7 @@ static func _stage_herd(st: Dictionary) -> Array:
 			y = hgt * 0.5 - sz.y * 0.5 - R.randf_range(0.0, hgt * 0.2)
 		x = clampf(x, -span * 0.5 + sz.x * 0.5, span * 0.5 - sz.x * 0.5)
 		y = clampf(y, -hgt * 0.5 + sz.y * 0.5, hgt * 0.5 - sz.y * 0.5)
-		out.append(_m(id, Vector2(x, y), sc, 0.55 if far else 0.0, {swim = true, flip = bool(st.get("flip", false)), z = i}))
+		out.append(_m(id, Vector2(x, y), sc, 0.55 if far else 0.0, {swim = bool(st.get("swim", true)), flip = bool(st.get("flip", false)), z = i}))
 	return out
 
 
@@ -338,7 +423,7 @@ static func _stage_line(st: Dictionary) -> Array:
 		var far := i >= near
 		var id := _piece(st, i)
 		var t := float(i) / maxf(float(n - 1), 1.0)
-		out.append(_m(id, Vector2(lerpf(-span * 0.5, span * 0.5, t), lerpf(rise * -0.5, rise * 0.5, t)), 0.5 if far else 1.0, 0.55 if far else 0.0, {swim = true, flip = bool(st.get("flip", false)), z = -i}))
+		out.append(_m(id, Vector2(lerpf(-span * 0.5, span * 0.5, t), lerpf(rise * -0.5, rise * 0.5, t)), 0.5 if far else 1.0, 0.55 if far else 0.0, {swim = bool(st.get("swim", true)), flip = bool(st.get("flip", false)), z = -i}))
 	return out
 
 
@@ -378,6 +463,206 @@ static func _stage_on_rock(st: Dictionary) -> Array:
 			out.append(_m(_piece(st, y * cols + x), p, 1.0, 0.0, {z = 1 + y * cols + x}))
 			if clamp_id != &"" and x < cols - 1:
 				out.append(_m(clamp_id, p + Vector2(gap.x * 0.5, 0.0), 1.0, 0.0, {z = 100 + y * cols + x}))
+	return out
+
+
+## The ship states a stage hands down to its pieces.
+const SHIP_STATES := ["dark", "lights", "drive", "flood", "tow"]
+
+
+## THE SAME SHIPS FOR THE SAME ENCOUNTER. Every `role:<name>` in a subject
+## becomes a kept pool ship of that role: the encounter's id picks where in the
+## role's list it starts, and each further ship of that role in it takes the
+## next one along. So one encounter shows the same ships every time, the ships
+## inside it differ, and two encounters land on different ones. `foe` becomes
+## the ship the event's fight would bring (`fight_foe`), so the scene before a
+## fight hands over to the fight's own ship. A stage with a `count` and roles in
+## its pieces gets one pick per ship, not one per entry.
+static func resolve(s: Variant, oid: StringName, danger: int = 1) -> Variant:
+	var used := {}
+	var out: Array = []
+	var i := 0
+	for st: Dictionary in stages_of(s):
+		var st2: Dictionary = st.duplicate(true)
+		st2.strobe_id = i if bool(st.get("strobe", false)) else -1
+		i += 1
+		var ps: Array = st2.get("pieces", [])
+		var dynamic := false
+		for pid in ps:
+			if _is_cast(StringName(pid)):
+				dynamic = true
+		if dynamic and st2.has("count") and int(st2.count) > ps.size() and not ps.is_empty():
+			var grown: Array = []
+			for k in int(st2.count):
+				grown.append(ps[k % ps.size()])
+			ps = grown
+		var res: Array = []
+		for pid in ps:
+			res.append(_resolve_one(StringName(pid), oid, used, danger))
+		if st2.has("pieces"):
+			st2.pieces = res
+		if st2.has("base"):
+			st2.base = _resolve_one(StringName(st2.base), oid, used, danger)
+		var ships: Array = st2.get("ships", [])
+		for sh: Dictionary in ships:
+			sh.piece = _resolve_one(StringName(sh.get("piece", &"")), oid, used, danger)
+		out.append(st2)
+	if s is Dictionary and (s as Dictionary).has("layers"):
+		return {layers = out}
+	return out[0] if not out.is_empty() else s
+
+
+static func _is_cast(id: StringName) -> bool:
+	return String(id).begins_with("role:") or id == &"foe"
+
+
+static func _resolve_one(id: StringName, oid: StringName, used: Dictionary, danger: int) -> StringName:
+	var k := String(id)
+	if id == &"foe":
+		return StringName("foe:%s" % fight_foe(danger))
+	if not k.begins_with("role:"):
+		return id
+	var role := k.substr(5)
+	var ships := role_ships(role)
+	if ships.is_empty():
+		return id
+	var start := absi(("%s:%s" % [role, oid]).hash()) % ships.size()
+	var n := int(used.get(role, 0))
+	used[role] = n + 1
+	return StringName(ships[(start + n) % ships.size()])
+
+
+## THE SHIP THE EVENT'S FIGHT WOULD BRING: an event's fight is
+## `Router.start_ambush`, one pick from this danger's pool off `Rng.foe`. Read
+## from a copy of that stream, so looking does not move it, and the scene before
+## the fight shows the ship the fight then draws.
+static func fight_foe(danger: int) -> StringName:
+	if foe_override != &"":
+		return foe_override
+	var pool := DB.fight_pool(danger, false)
+	if pool.is_empty():
+		return &"cutter"
+	var r := RandomNumberGenerator.new()
+	r.seed = Rng.foe.seed
+	r.state = Rng.foe.state
+	return StringName(Rng.pick(r, pool))
+
+
+## The fight's ship as `EnemyArt` draws it in the fight (whole, unhurt), cut to
+## the hull, with the canvas's own faint stars taken out.
+static func _foe(id: StringName) -> Dictionary:
+	var k := "foe:%s" % id
+	if _foes.has(k):
+		return _foes[k]
+	if not DB.enemies.has(id):
+		return {}
+	var t: EnemyTemplate = DB.enemies[id]
+	var art := EnemyArt.new()
+	var e := Combat.EnemyState.new()
+	e.template = t
+	e.max_hp = t.max_hull
+	e.hp = t.max_hull
+	art.set_enemy(e, false)
+	var u := art.used_rect()
+	var img: Image = art._img.get_region(u)
+	art.free()
+	var star := Color("#141c26")
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.0 and absf(c.r - star.r) < 0.004 and absf(c.g - star.g) < 0.004 and absf(c.b - star.b) < 0.004:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	var d := {kind = "foe", tex = ImageTexture.create_from_image(img), w = img.get_width(), h = img.get_height()}
+	d.merge(anchors_of(img))
+	_foes[k] = d
+	return d
+
+
+## Bow (leftmost), stern (rightmost), top and belly of a picture's opaque
+## pixels -- where its lights and its drive go.
+static func anchors_of(img: Image) -> Dictionary:
+	var w := img.get_width()
+	var h := img.get_height()
+	var x0 := w
+	var x1 := -1
+	var y0 := h
+	var y1 := -1
+	for y in h:
+		for x in w:
+			if img.get_pixel(x, y).a > 0.5:
+				x0 = mini(x0, x)
+				x1 = maxi(x1, x)
+				y0 = mini(y0, y)
+				y1 = maxi(y1, y)
+	if x1 < 0:
+		return {bow = [0, h / 2], stern = [w - 1, h / 2], top = [w / 2, 0], belly = [w / 2, h - 1]}
+	var mid_y := func(xa: int, xb: int) -> int:
+		var sum := 0
+		var n := 0
+		for x in range(xa, xb + 1):
+			for y in h:
+				if img.get_pixel(x, y).a > 0.5:
+					sum += y
+					n += 1
+		return int(roundf(float(sum) / float(maxi(n, 1))))
+	var mid_x := func(ya: int, yb: int) -> int:
+		var sum := 0
+		var n := 0
+		for y in range(ya, yb + 1):
+			for x in w:
+				if img.get_pixel(x, y).a > 0.5:
+					sum += x
+					n += 1
+		return int(roundf(float(sum) / float(maxi(n, 1))))
+	# three lamps on the hull's own top line, a third, a half and two thirds along
+	var lamps: Array = []
+	for f: float in [0.3, 0.5, 0.7]:
+		var x := roundi(lerpf(float(x0), float(x1), f))
+		var ly := (y0 + y1) / 2
+		for y in h:
+			if img.get_pixel(x, y).a > 0.5:
+				ly = y + 2
+				break
+		lamps.append([x, ly])
+	return {bow = [x0, mid_y.call(x0, x0 + 2)], stern = [x1, mid_y.call(x1 - 2, x1)],
+		top = [mid_x.call(y0, y0 + 1), y0], belly = [mid_x.call(y1 - 1, y1), y1], lamps = lamps}
+
+
+## A RING OF SHIPS HOLDING: round an ellipse, all facing the one way they hold
+## (their own), the back half far, the front `near` of them at 1x.
+static func _stage_ring(st: Dictionary) -> Array:
+	var out: Array = []
+	var n := int(st.get("count", 6))
+	var rx := float(st.get("rx", 150.0))
+	var ry := float(st.get("ry", 60.0))
+	var near := int(st.get("near", 0))
+	var made_near := 0
+	for i in n:
+		var a := TAU * float(i) / float(n) + float(st.get("spin", 0.4))
+		var front := sin(a) > 0.0
+		var big := front and made_near < near
+		if big:
+			made_near += 1
+		out.append(_m(_piece(st, i), Vector2(cos(a) * rx, sin(a) * ry).round(), 1.0 if big else 0.5,
+			0.0 if big else (0.35 if front else 0.6), {z = 10 + i if front else -10 - i}))
+	return out
+
+
+## A GROUP: each ship placed where the subject says, with its own depth, turn and
+## state -- a seized hull between a cutter and its escorts, a cutter anchored on
+## a hull.
+static func _stage_group(st: Dictionary) -> Array:
+	var out: Array = []
+	var i := 0
+	for sh: Dictionary in st.get("ships", []):
+		var far := bool(sh.get("far", false))
+		var m := _m(StringName(sh.get("piece", &"")), sh.get("at", Vector2.ZERO), 0.5 if far else 1.0, 0.55 if far else 0.0,
+			{turn = float(sh.get("turn", 0.0)), z = int(sh.get("z", i))})
+		for k: String in SHIP_STATES:
+			if sh.has(k):
+				m[k] = sh[k]
+		out.append(m)
+		i += 1
 	return out
 
 
@@ -538,6 +823,8 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	cur = LocalSubject.new()
 	cur.key = want
 	cur.subject = s
+	cur.oid = n.options[opt]
+	cur.danger = n.danger
 	cur.sky = view.get("backdrop") as LocalSky
 	var area: Variant = view.get("_area")
 	cur._area = area as Control if area is Control else null
@@ -564,12 +851,15 @@ func _build() -> void:
 	_placed.clear()
 	_tethers.clear()
 	_pal_set = false
-	var planned := plan(subject)
+	_strobes.clear()
+	var planned := plan(subject, oid, danger)
 	_bounds = bounds_of(planned)
 	var painted := LocalSky.style_now() == &"painted"
+	cast.clear()
 	for m: Dictionary in planned:
 		var id := StringName(m.id)
-		var p: Dictionary = index().get(String(id), {})
+		cast.append(id)
+		var p: Dictionary = piece_info(id)
 		if p.is_empty():
 			continue
 		var holder := Node2D.new()
@@ -581,23 +871,65 @@ func _build() -> void:
 		var mat := ShaderMaterial.new()
 		mat.shader = SHADER
 		mat.set_shader_parameter("far", float(m.far))
+		mat.set_shader_parameter("dark", float(m.get("dark", 0.0)))
 		mat.set_shader_parameter("stepped", painted)
 		spr.material = mat
 		holder.add_child(spr)
 		var turn := float(m.get("turn", 0.0))
 		var rec := {node = holder, sprite = spr, mat = mat, at = m.at, scale = float(m.scale), far = float(m.far),
 			swim = bool(m.get("swim", false)), tumble = float(m.get("tumble", 0.0)), tether = bool(m.get("tether", false)),
-			phase = float(_placed.size()) * 1.731, planet = null, turn = deg_to_rad(turn)}
-		if String(p.get("kind", "")) == "painter":
+			phase = float(_placed.size()) * 1.731, planet = null, turn = deg_to_rad(turn), info = p,
+			lights = StringName(m.get("lights", &"")), drive = bool(m.get("drive", false)),
+			flood = bool(m.get("flood", false)), tow = float(m.get("tow", 0.0)), dark = float(m.get("dark", 0.0)),
+			full = null, half = null, quarter = null, tex_k = 1.0}
+		var kind := String(p.get("kind", ""))
+		if kind == "painter":
 			_painter(rec, p, float(m.get("r", 0.0)))
+		elif kind == "foe":
+			spr.texture = turned(id, p.tex, turn) if not is_zero_approx(turn) else p.tex
 		else:
 			var tex := load(String(p.file)) as Texture2D
-			spr.texture = turned(id, tex, turn) if not is_zero_approx(turn) and tex != null else tex
-		spr.scale = Vector2.ONE * float(m.scale)
+			rec.full = turned(id, tex, turn) if not is_zero_approx(turn) and tex != null else tex
+			for size: String in ["half", "quarter"]:
+				if p.has(size) and ResourceLoader.exists(String(p[size])):
+					var hx := load(String(p[size])) as Texture2D
+					rec[size] = turned(StringName("%s_%s" % [id, size]), hx, turn) if not is_zero_approx(turn) and hx != null else hx
+			spr.texture = rec.full
 		_placed.append(rec)
+		_apply_scale(rec)
 		if rec.tether:
 			_tethers.append(rec)
+		if int(m.get("strobe_of", -1)) >= 0:
+			var k := int(m.strobe_of)
+			if not _strobes.has(k):
+				_strobes[k] = []
+			(_strobes[k] as Array).append(rec)
+	# THE LIGHTS go over everything else here, added to what is behind them
+	_over = Node2D.new()
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	_over.material = add
+	_over.draw.connect(_draw_over)
+	add_child(_over)
 	_layout()
+
+
+## A piece at its size on screen: its own scale times the subject's (`fit`), on
+## the half- or quarter-size picture made for it when it is drawn that small
+## (pixel art at its size, not every other pixel of the near one).
+func _apply_scale(rec: Dictionary) -> void:
+	var spr: Sprite2D = rec.sprite
+	var eff := float(rec.scale) * _scale
+	if rec.quarter != null and eff <= 0.25 + 0.001:
+		spr.texture = rec.quarter
+		rec.tex_k = 0.25
+	elif rec.half != null and eff <= 0.5 + 0.001:
+		spr.texture = rec.half
+		rec.tex_k = 0.5
+	elif rec.full != null:
+		spr.texture = rec.full
+		rec.tex_k = 1.0
+	spr.scale = Vector2.ONE * eff / float(rec.tex_k)
 
 
 ## A ROCK OR A MOON FROM THE PLANET PAINTER: a PlanetView in a viewport of its
@@ -744,7 +1076,7 @@ func _process(_d: float) -> void:
 	if not is_equal_approx(float(f.scale), _scale):
 		_scale = float(f.scale)
 		for rec: Dictionary in _placed:
-			(rec.sprite as Sprite2D).scale = Vector2.ONE * float(rec.scale) * _scale
+			_apply_scale(rec)
 			# made small to keep clear, so seen as further off
 			(rec.mat as ShaderMaterial).set_shader_parameter("far", maxf(float(rec.far), 0.45) if _scale < 1.0 else float(rec.far))
 	var star := Vector2(-1e6, -1e6)
@@ -790,11 +1122,196 @@ func _process(_d: float) -> void:
 		if rec.planet != null:
 			var pv: PlanetView = rec.planet
 			pv.step(t, Vector3(ts.x, ts.y, 0.47), 1.0)
+	_t = t
 	queue_redraw()
+	if _over != null:
+		_over.queue_redraw()
+
+
+## A point of a piece's own 1x picture, where it is on screen now (its turn, its
+## tumble and its size taken in).
+func _at(rec: Dictionary, a: Variant) -> Vector2:
+	var p: Dictionary = rec.info
+	var v := Vector2(float(a[0]) + 0.5, float(a[1]) + 0.5) - Vector2(float(p.w), float(p.h)) * 0.5
+	var node: Node2D = rec.node
+	return node.position + v.rotated(float(rec.turn) + node.rotation) * float(rec.scale) * _scale
+
+
+## How big a light is drawn on this piece: smaller on far ones.
+func _lk(rec: Dictionary) -> float:
+	return float(rec.scale) * _scale
+
+
+## THE LIGHTS, as light: each a glow gathered round a bright core, falling off in
+## steps with a dithered edge (`_glow_tex`), added to what is under it, and eased
+## on and off, never snapped (a hard blink reads as a fault).
+func _draw_over() -> void:
+	var t := _t
+	for rec: Dictionary in _placed:
+		var p: Dictionary = rec.info
+		if not p.has("bow"):
+			continue
+		var k := _lk(rec)
+		var dim := 1.0 - 0.6 * float(rec.far)
+		if bool(rec.drive):
+			# a drive at the stern, breathing a little
+			var fl := 0.85 + 0.1 * sin(t * 5.1 + float(rec.phase)) + 0.05 * sin(t * 13.7 + float(rec.phase) * 2.0)
+			var at := _at(rec, p.stern) + Vector2(2.0 * k, 0.0)
+			_glow(at, roundi(12.0 * k) + 1, Color(1.0, 0.6, 0.28), 0.95 * fl * dim)
+			_glow(at, roundi(4.0 * k) + 1, Color(1.0, 0.9, 0.75), fl * dim)
+		if bool(rec.flood):
+			_flood(rec, k, dim)
+		match StringName(rec.lights):
+			&"run":
+				# red at the bow, green at the stern, a white strobe up top
+				_glow(_at(rec, p.bow), roundi(5.0 * k) + 1, Color(1.0, 0.25, 0.2), 0.85 * dim)
+				_glow(_at(rec, p.stern), roundi(5.0 * k) + 1, Color(0.3, 1.0, 0.45), 0.8 * dim)
+				_glow(_at(rec, p.top), roundi(7.0 * k) + 1, Color(1.0, 1.0, 0.95), _blink(t + float(rec.phase), 2.2, 0.45) * dim)
+			&"battery":
+				# a few dim lights along the hull's top, slowly breathing
+				var lamps: Array = p.get("lamps", [p.top])
+				for j in lamps.size():
+					var b := 0.55 + 0.2 * sin(t * TAU / 4.5 + float(j) * 1.9 + float(rec.phase))
+					_glow(_at(rec, lamps[j]), roundi(4.0 * k) + 1, Color(1.0, 0.7, 0.35), b * dim)
+			&"patrol":
+				# red and blue, turn about
+				var top2: Array = p.top
+				var e1 := _blink(t + float(rec.phase), 1.6, 0.5)
+				var e2 := _blink(t + float(rec.phase) + 0.8, 1.6, 0.5)
+				_glow(_at(rec, [float(top2[0]) - 4.0, float(top2[1])]), roundi(8.0 * k) + 1, Color(1.0, 0.2, 0.2), e1 * dim)
+				_glow(_at(rec, [float(top2[0]) + 4.0, float(top2[1])]), roundi(8.0 * k) + 1, Color(0.25, 0.45, 1.0), e2 * dim)
+	# A STROBE run along a line of ships: a thin light from one to the next,
+	# brightening and fading slowly
+	for k2 in _strobes:
+		var line: Array = _strobes[k2]
+		if line.size() < 2:
+			continue
+		var pts: Array[Vector2] = []
+		for rec: Dictionary in line:
+			pts.append((rec.node as Node2D).position)
+		pts.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+		var e := 0.35 + 0.65 * _blink(t, 2.6, 0.9)
+		for i in pts.size() - 1:
+			_beam(pts[i], pts[i + 1], Color(1.0, 0.55, 0.25), e)
+
+
+## 0..1, on for `on` of every `period` seconds, eased in and out.
+static func _blink(t: float, period: float, on: float) -> float:
+	var ph := fposmod(t, period) / period
+	var w := on / period
+	if ph > w:
+		return 0.0
+	return sin(ph / w * PI)
+
+
+## One light: the halo (`_glow_tex`) tinted, then a hot core over it -- a pixel,
+## two square on a big one -- near white in the light's own colour.
+func _glow(at: Vector2, r: int, col: Color, a: float) -> void:
+	if a <= 0.01 or _over == null:
+		return
+	var tex := _glow_tex(maxi(r, 1))
+	var sz := tex.get_size()
+	_over.draw_texture(tex, (at - sz * 0.5).round(), Color(col.r * a, col.g * a, col.b * a, 1.0))
+	var hot := col.lerp(Color.WHITE, 0.55)
+	var cs := 2.0 if r >= 6 else 1.0
+	_over.draw_rect(Rect2((at - Vector2(cs, cs) * 0.5).round(), Vector2(cs, cs)), Color(hot.r * a, hot.g * a, hot.b * a, 1.0))
+
+
+## A glow `r` px round: a bright core, then three steps of falloff, the outer two
+## dithered on a 2x2 pattern. White: the caller tints it.
+static func _glow_tex(r: int) -> Texture2D:
+	var k := "%d" % r
+	if _glows.has(k):
+		return _glows[k]
+	var n := r * 2 + 1
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var d := Vector2(x - r, y - r).length() / float(maxi(r, 1))
+			if d > 1.0:
+				continue
+			var v := pow(1.0 - d, 2.0)
+			var step := floorf(v * 4.0 + 0.5) / 4.0
+			if d > 0.5 and (x + y) % 2 == 1:
+				step *= 0.5
+			if r <= 1:
+				step = 1.0 if d < 0.5 else 0.5
+			img.set_pixel(x, y, Color(step, step, step, 1.0))
+	var tex := ImageTexture.create_from_image(img)
+	_glows[k] = tex
+	return tex
+
+
+## A floodlight off the bow toward you (`_cone_tex`), added over the scene, a hot
+## lamp where it starts.
+func _flood(rec: Dictionary, k: float, dim: float) -> void:
+	var p: Dictionary = rec.info
+	var from := _at(rec, p.bow)
+	var tex := _cone_tex(roundi(120.0 * k))
+	var sz := tex.get_size()
+	var col := Color(1.0, 0.92, 0.75)
+	var a := 0.55 * dim
+	# the cone's apex is its right edge, a third of the way down (it falls away
+	# toward you, below)
+	_over.draw_texture(tex, (from - Vector2(sz.x, sz.y * 0.3)).round(), Color(col.r * a, col.g * a, col.b * a, 1.0))
+	_glow(from, roundi(4.0 * k) + 1, col, 0.9 * dim)
+
+
+## A cone of light `len` px long pointing left and a little down: brightest at
+## its apex, falling off along it and across it in four steps, the outer two
+## dithered on a 2x2 pattern -- light as pixel art lights a thing, not a smooth
+## wash. White: the caller tints it.
+static func _cone_tex(len: int) -> Texture2D:
+	var key := "cone:%d" % len
+	if _glows.has(key):
+		return _glows[key]
+	len = maxi(len, 8)
+	var w := len
+	var h := int(float(len) * 0.62)
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var apex_y := float(h) * 0.3
+	for y in h:
+		for x in w:
+			var u := float(w - 1 - x) / float(w)
+			var cy := apex_y + u * float(len) * 0.22
+			var hw := 1.0 + u * float(len) * 0.2
+			var d := absf(float(y) - cy) / hw
+			if d > 1.0:
+				continue
+			var v := pow(1.0 - u, 1.4) * (1.0 - d * d)
+			var step := floorf(v * 4.0 + 0.5) / 4.0
+			if step <= 0.0:
+				continue
+			if step <= 0.5 and (x + y) % 2 == 1:
+				continue
+			img.set_pixel(x, y, Color(step, step, step, 1.0))
+	var tex := ImageTexture.create_from_image(img)
+	_glows[key] = tex
+	return tex
+
+
+func _beam(a: Vector2, b: Vector2, col: Color, e: float) -> void:
+	_over.draw_line(a.round(), b.round(), Color(col.r * e * 0.25, col.g * e * 0.25, col.b * e * 0.25, 1.0), 3.0)
+	_over.draw_line(a.round(), b.round(), Color(col.r * e, col.g * e, col.b * e, 1.0), 1.0)
 
 
 ## THE TETHER: a dark line through the hung pieces, one pixel, from end to end.
+## And a TOW LINE off a ship's bow: slack, sagging, a clamp at its end.
 func _draw() -> void:
+	for rec: Dictionary in _placed:
+		if float(rec.tow) <= 0.0 or not (rec.info as Dictionary).has("bow"):
+			continue
+		var k := _lk(rec)
+		var a := _at(rec, (rec.info as Dictionary).bow)
+		var len := float(rec.tow) * k
+		var b := a + Vector2(-len, 14.0 * k + sin(_t * TAU / 19.0 + float(rec.phase)) * 2.0)
+		var prev := a
+		for i in range(1, 13):
+			var u := float(i) / 12.0
+			var q := a.lerp(b, u) + Vector2(0.0, sin(u * PI) * 12.0 * k)
+			draw_line(prev.round(), q.round(), Color(0.46, 0.48, 0.52, 0.95), 1.0)
+			prev = q
+		draw_rect(Rect2((b - Vector2(2.0, 2.0)).round(), Vector2(4, 4)), Color(0.55, 0.52, 0.45))
 	if _tethers.size() < 2:
 		return
 	var pts := PackedVector2Array()
@@ -814,7 +1331,7 @@ func drawn_rects() -> Array[Rect2]:
 		var spr: Sprite2D = rec.sprite
 		if spr.texture == null:
 			continue
-		var sz := spr.texture.get_size() * float(rec.scale) * _scale
+		var sz := spr.texture.get_size() * spr.scale
 		var c := (rec.node as Node2D).get_global_transform().origin
 		out.append(Rect2(c - sz * 0.5, sz))
 	return out

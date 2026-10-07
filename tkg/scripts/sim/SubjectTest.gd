@@ -17,8 +17,16 @@ extends Harness
 ## leaves there (one, two, three of them, measured where the view puts them):
 ## the subject keeps clear of every one, there and then, and every other
 ## subject would too (`LocalSubject.fit`).
+##
+## THE SHIPS (`role:<name>`, `foe`): every role names kept pool ships; an
+## encounter resolves to the same ships every time; the ships vary between the
+## encounters that share a role; and a staging with the fight's own ship fits
+## whichever ship that fight could bring (every one in the pools, drawn by
+## `EnemyArt`).
 
-const STAGES := [&"single", &"row", &"tether", &"field", &"herd", &"line", &"around", &"on_rock", &"strewn"]
+const STAGES := [&"single", &"row", &"tether", &"field", &"herd", &"line", &"around", &"on_rock", &"strewn", &"ring", &"group"]
+## Every ship an event's fight can bring (`DB.fight_pool`, every danger).
+const FOES := [&"cutter", &"lancer", &"hulk", &"marauder", &"sentinel"]
 
 var _tree: SceneTree
 
@@ -46,6 +54,8 @@ func run(tree: SceneTree) -> void:
 	print("  ..   LOCAL's view %dx%d, the subject's box %s, your ship %s" % [view_size.x, view_size.y, box, ship])
 
 	var with_subject := 0
+	## role -> {encounter: a ship it drew}
+	var roles_used := {}
 	var bad_stage: Array[String] = []
 	var bad_piece: Array[String] = []
 	var bad_fit: Array[String] = []
@@ -55,7 +65,10 @@ func run(tree: SceneTree) -> void:
 			continue
 		with_subject += 1
 		var id := String(o.id)
-		for st: Dictionary in LocalSubject.stages_of(o.subject):
+		var resolved: Variant = LocalSubject.resolve(o.subject, o.id, 5)
+		if str(resolved) != str(LocalSubject.resolve(o.subject, o.id, 5)):
+			bad_stage.append("%s: its ships change from one look to the next" % id)
+		for st: Dictionary in LocalSubject.stages_of(resolved):
 			var kind := StringName(st.get("stage", &""))
 			if not kind in STAGES:
 				bad_stage.append("%s: %s" % [id, kind])
@@ -67,26 +80,63 @@ func run(tree: SceneTree) -> void:
 				ids.append(st.base)
 			if st.has("clamp"):
 				ids.append(st.clamp)
+			for sh: Dictionary in st.get("ships", []):
+				ids.append(sh.get("piece", &""))
+			for pid in ids:
+				var ps := String(pid)
+				if ps.begins_with("ship_"):
+					for r: String in _role_of(ps):
+						if not roles_used.has(r):
+							roles_used[r] = {}
+						# the encounter's own set of ships in that role
+						var mine: Array = (roles_used[r] as Dictionary).get(id, [])
+						if not ps in mine:
+							mine.append(ps)
+							mine.sort()
+						(roles_used[r] as Dictionary)[id] = mine
 			if ids.is_empty():
 				bad_stage.append("%s: no pieces" % id)
 			for pid in ids:
 				var why := _piece_wrong(StringName(pid))
 				if why != "":
 					bad_piece.append("%s: %s (%s)" % [id, pid, why])
-		var planned := LocalSubject.plan(o.subject)
-		var b := LocalSubject.bounds_of(planned)
-		var placed := Rect2(b.position + (box.get_center() - b.get_center()).round(), b.size)
-		# a few px of drift either way, as it moves
-		if not box.encloses(placed.grow(-1.0)):
-			bad_fit.append("%s (%dx%d at %d,%d)" % [id, placed.size.x, placed.size.y, placed.position.x, placed.position.y])
-		if placed.grow(6.0).intersects(ship):
-			on_ship.append(id)
+		# with each ship its fight could bring, when it stages the fight's own
+		var foes: Array = FOES if "\"foe\"" in str(o.subject) else [&""]
+		for foe: StringName in foes:
+			LocalSubject.foe_override = foe
+			var planned := LocalSubject.plan(o.subject, o.id, 5)
+			var b := LocalSubject.bounds_of(planned)
+			var placed := Rect2(b.position + (box.get_center() - b.get_center()).round(), b.size)
+			var tag := id if foe == &"" else "%s with a %s" % [id, foe]
+			# a few px of drift either way, as it moves
+			if not box.encloses(placed.grow(-1.0)):
+				bad_fit.append("%s (%dx%d at %d,%d)" % [tag, placed.size.x, placed.size.y, placed.position.x, placed.position.y])
+			if placed.grow(6.0).intersects(ship):
+				on_ship.append(tag)
+		LocalSubject.foe_override = &""
 	print("  ..   %d encounters carry a subject" % with_subject)
 	_ok("some encounters carry a subject (%d)" % with_subject, with_subject > 0)
 	_ok("every stage is one LocalSubject stages (%s)" % (", ".join(bad_stage) if not bad_stage.is_empty() else "all"), bad_stage.is_empty())
 	_ok("every piece resolves to art (%s)" % (", ".join(bad_piece) if not bad_piece.is_empty() else "all"), bad_piece.is_empty())
 	_ok("every staging fits the subject's box, above the event's band (%s)" % (", ".join(bad_fit) if not bad_fit.is_empty() else "all"), bad_fit.is_empty())
 	_ok("and none reaches your ship (%s)" % (", ".join(on_ship) if not on_ship.is_empty() else "none"), on_ship.is_empty())
+	# THE SHIPS VARY: every role two or more encounters draw on shows more than
+	# one ship among them
+	var empty_roles: Array[String] = []
+	for r: String in ["hauler", "barge", "small", "survey", "mining", "passenger", "family", "tender", "armed"]:
+		if LocalSubject.role_ships(r).is_empty():
+			empty_roles.append(r)
+	_ok("every role names kept ships (%s)" % (", ".join(empty_roles) if not empty_roles.is_empty() else "all"), empty_roles.is_empty())
+	var same: Array[String] = []
+	for r: String in roles_used:
+		var by: Dictionary = roles_used[r]
+		var distinct := {}
+		for e: String in by:
+			distinct[str(by[e])] = true
+		print("  ..   role %s: %d encounters, %d different casts" % [r, by.size(), distinct.size()])
+		if by.size() >= 2 and distinct.size() < 2:
+			same.append(r)
+	_ok("the ships vary between encounters (%s)" % (", ".join(same) if not same.is_empty() else "every role"), same.is_empty())
 
 	# ONCE ON THE REAL LOCAL: the six tanks on their tether, opened there
 	await _live(&"the_fuel_cache")
@@ -99,7 +149,7 @@ func run(tree: SceneTree) -> void:
 	for o: Dictionary in OptionTable.all():
 		if not o.has("subject"):
 			continue
-		var planned := LocalSubject.plan(o.subject)
+		var planned := LocalSubject.plan(o.subject, o.id, 5)
 		var b := LocalSubject.bounds_of(planned)
 		for k in sets.size():
 			var avoid: Array[Rect2] = sets[k]
@@ -117,6 +167,9 @@ func run(tree: SceneTree) -> void:
 	print("  ..   with wrecks there: %d of %d placements drawn at half size to keep clear" % [halves, with_subject * sets.size()])
 	_ok("with 1-3 wrecks there, every subject keeps clear of them (%s)" % (", ".join(crossed) if not crossed.is_empty() else "all"), crossed.is_empty() and not sets.is_empty())
 	_ok("and still inside its box (%s)" % (", ".join(outside) if not outside.is_empty() else "all"), outside.is_empty())
+	# THE FIGHT'S OWN SHIP: the scene before it shows the ship the fight brings,
+	# and hands over (the subject goes; the fight draws its own)
+	await _handover(&"hostile_contact")
 	_finish()
 
 
@@ -124,7 +177,9 @@ func run(tree: SceneTree) -> void:
 func _piece_wrong(pid: StringName) -> String:
 	if not LocalSubject.has_piece(pid):
 		return "not in the index"
-	var p: Dictionary = LocalSubject.index()[String(pid)]
+	var p: Dictionary = LocalSubject.piece_info(pid)
+	if String(p.get("kind", "")) == "foe":
+		return "" if p.get("tex") != null else "EnemyArt drew nothing"
 	if String(p.get("kind", "")) == "painter":
 		return "" if Worlds.WORLD.has(StringName(p.get("world", ""))) else "the painter has no world %s" % p.get("world", "")
 	var f := String(p.get("file", ""))
@@ -214,6 +269,61 @@ func _live_wrecks(oid: StringName) -> Array:
 		_ok("  and none of its pieces on a wreck (%d), drawn at %sx" % [hits, sub._scale], hits == 0)
 	LocalEventDrawer.quiet = false
 	return sets
+
+
+## An armed encounter opened on LOCAL, then its fight started as the event
+## starts it (`Router.start_ambush`): the ship the scene showed is the ship the
+## fight brought, and the scene's own is gone once the fight is up.
+func _handover(oid: StringName) -> void:
+	Rng.reseed(4242, 0)
+	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# a deep system, where the fight's pool holds more than one ship, so the
+	# match is not luck
+	var idx := _a_system()
+	for m: MapGen.MapNode in Run.map:
+		if m.type == MapGen.NodeType.SYSTEM and DB.fight_pool(m.danger, false).size() >= 3:
+			idx = m.index
+			break
+	Run.at = idx
+	var n: MapGen.MapNode = Run.node_at()
+	n.visited = true
+	n.options.clear()
+	n.options.append(oid)
+	print("  ..   danger %d, the fight's pool %s" % [n.danger, DB.fight_pool(n.danger, false)])
+	SectorScreen._approached_at = idx
+	SystemMapScreen._parked.erase(idx)
+	LocalEventDrawer.quiet = true
+	LocalEventDrawer.request(idx, 0)
+	Router.show_local()
+	for i in 30:
+		await _tree.process_frame
+	var sc := Router.current as SectorScreen
+	var sub := LocalSubject.of(sc._view) if sc != null else null
+	var shown := &""
+	if sub != null:
+		for c in sub.cast:
+			if String(c).begins_with("foe:"):
+				shown = StringName(String(c).substr(4))
+	_ok("%s shows the fight's ship before it (%s)" % [oid, shown], shown != &"")
+	Router.start_ambush()
+	for i in 30:
+		await _tree.process_frame
+	var brought := &""
+	if Router.combat != null and not Router.combat.enemies.is_empty():
+		brought = Router.combat.enemies[0].template.id
+	_ok("  and the fight brings that ship (%s)" % brought, brought != &"" and brought == shown)
+	var sc2 := Router.current as SectorScreen
+	_ok("  and the scene's own is gone in the fight", sc2 != null and LocalSubject.of(sc2._view) == null)
+	LocalEventDrawer.quiet = false
+
+
+## The roles a pool ship is in.
+func _role_of(ship: String) -> Array[String]:
+	var out: Array[String] = []
+	for r: String in ["hauler", "barge", "small", "survey", "mining", "passenger", "family", "tender", "armed"]:
+		if ship in LocalSubject.role_ships(r):
+			out.append(r)
+	return out
 
 
 func _a_system() -> int:

@@ -390,6 +390,21 @@ if run_godot maptest 180 --headless --path "$PROJECT" -- maptest; then
 	fi
 fi
 
+step "Each first-run hint shows once, where it belongs"
+# Hints watch the screens for their moment; each must fire once, sit clear of
+# what it points at, never come back, and come back after SHOW HINTS AGAIN.
+# Same exit-time leak allowance as stowtest.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot hinttest 300 --headless --path "$PROJECT" -- hinttest; then
+	if grep -qE '^hinttest: PASS' "$LOG_DIR/hinttest.log"; then
+		ok "hints show once, in place"
+	else
+		bad "a first-run hint misbehaved"
+		grep -E 'FAIL|^hinttest' "$LOG_DIR/hinttest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "hinttest did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.

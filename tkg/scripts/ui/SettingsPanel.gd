@@ -85,6 +85,8 @@ func _refresh() -> void:
 	_body.add_child(_gap(8))
 	_page_playtest()
 	_body.add_child(_gap(8))
+	_page_hints()
+	_body.add_child(_gap(8))
 	_page_keys()
 
 ## PLAYTEST: SAVE MY LOGS (`PlaytestLogs`). One zip of this game's logs,
@@ -108,6 +110,21 @@ func _page_playtest() -> void:
 			srow.add_child(DrawerPlate.chip_for("SHOW IN FOLDER", false,
 				func() -> void: PlaytestLogs.show_in_folder(String(_last_logs.path))))
 			_body.add_child(srow)
+
+## HINTS: SHOW HINTS AGAIN (`Hints.reset`). Every first-run hint, and the
+## opening tour, shows again at its moment; then a line saying so.
+var _hints_reset := false
+func _page_hints() -> void:
+	_body.add_child(Section.new(&"hint", "HINTS"))
+	_body.add_child(DrawerPlate.plate(&"hint", "SHOW HINTS AGAIN", "AND THE OPENING TOUR",
+		func() -> void:
+			Hints.reset()
+			_hints_reset = true
+			_refresh()))
+	if _hints_reset:
+		var l := UITheme.body("Done. Each hint shows again when it comes up.", UITheme.CHILL, UITheme.FS_SMALL)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_body.add_child(l)
 
 ## CONTROLS: every key a player can move. The rows are their own widget
 ## (KeyBindings) because a key changing rebuilds only them.

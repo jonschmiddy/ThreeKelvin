@@ -779,6 +779,13 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# First-run hints: each fires once at its trigger, never again, and SHOW
+	# HINTS AGAIN brings them back:  godot --headless --path . -- hinttest
+	if "hinttest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/HintTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	# Key bindings, rebound through Settings and pressed on real screens, in a
 	# settings file of its own:  godot --headless --path . -- bindtest
 	if "bindtest" in OS.get_cmdline_user_args():

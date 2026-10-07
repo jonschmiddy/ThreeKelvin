@@ -2,7 +2,7 @@ extends Node
 
 ## AN ENCOUNTER'S SUBJECT ON LOCAL, photographed (`LocalSubject`):
 ##   godot --path . --windowed --position 3840,0 -- sheet=SubjectShot keepwindow
-##       subject=<id>|all out=<dir> [style=...] [seed=N] [wait=90] [noband] [wrecks=N]
+##       subject=<id>[,<id>...]|all out=<dir> [style=...] [seed=N] [wait=90] [noband] [wrecks=N]
 ## For each encounter asked for (`all`: every one that carries a `subject`), a run
 ## at a system holding just that option, LOCAL opened with the event up as the map
 ## sends you there, and the game's picture saved as `<dir>/<id>.png` once the
@@ -35,7 +35,7 @@ func _run() -> void:
 	var want := _arg("subject", "all")
 	var ids: Array[StringName] = []
 	for o: Dictionary in OptionTable.all():
-		if o.has("subject") and (want == "all" or String(o.id) == want):
+		if o.has("subject") and (want == "all" or String(o.id) in want.split(",")):
 			ids.append(o.id)
 	if ids.is_empty():
 		print("subjectshot: no encounter %s carries a subject" % want)

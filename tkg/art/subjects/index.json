@@ -128,6 +128,158 @@
    ],
    "world": "moon"
   },
+  "place_derelict": {
+   "belly": [
+    57,
+    67
+   ],
+   "bow": [
+    0,
+    35
+   ],
+   "file": "res://art/subjects/ships/place_derelict.png",
+   "h": 68,
+   "half": "res://art/subjects/ships/place_derelict_half.png",
+   "kind": "place",
+   "lamps": [
+    [
+     67,
+     19
+    ],
+    [
+     111,
+     13
+    ],
+    [
+     155,
+     14
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/place_derelict_quarter.png",
+   "stern": [
+    222,
+    34
+   ],
+   "top": [
+    175,
+    0
+   ],
+   "w": 223
+  },
+  "place_derelict_station": {
+   "belly": [
+    111,
+    122
+   ],
+   "bow": [
+    0,
+    66
+   ],
+   "file": "res://art/subjects/ships/place_derelict_station.png",
+   "h": 123,
+   "half": "res://art/subjects/ships/place_derelict_station_half.png",
+   "kind": "place",
+   "lamps": [
+    [
+     51,
+     45
+    ],
+    [
+     85,
+     15
+    ],
+    [
+     119,
+     5
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/place_derelict_station_quarter.png",
+   "stern": [
+    170,
+    61
+   ],
+   "top": [
+    111,
+    0
+   ],
+   "w": 171
+  },
+  "place_station_stack": {
+   "belly": [
+    62,
+    162
+   ],
+   "bow": [
+    0,
+    127
+   ],
+   "file": "res://art/subjects/ships/place_station_stack.png",
+   "h": 163,
+   "half": "res://art/subjects/ships/place_station_stack_half.png",
+   "kind": "place",
+   "lamps": [
+    [
+     37,
+     108
+    ],
+    [
+     61,
+     2
+    ],
+    [
+     85,
+     108
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/place_station_stack_quarter.png",
+   "stern": [
+    122,
+    128
+   ],
+   "top": [
+    63,
+    0
+   ],
+   "w": 123
+  },
+  "place_station_wheel": {
+   "belly": [
+    150,
+    130
+   ],
+   "bow": [
+    0,
+    30
+   ],
+   "file": "res://art/subjects/ships/place_station_wheel.png",
+   "h": 131,
+   "half": "res://art/subjects/ships/place_station_wheel_half.png",
+   "kind": "place",
+   "lamps": [
+    [
+     56,
+     7
+    ],
+    [
+     93,
+     21
+    ],
+    [
+     130,
+     17
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/place_station_wheel_quarter.png",
+   "stern": [
+    186,
+    103
+   ],
+   "top": [
+    29,
+    0
+   ],
+   "w": 187
+  },
   "pool_bell": {
    "file": "res://art/subjects/pool_bell.png",
    "h": 106,
@@ -655,6 +807,1359 @@
    "h": 97,
    "kind": "sprite",
    "w": 336
+  },
+  "ship_armedtrader": {
+   "belly": [
+    126,
+    83
+   ],
+   "bow": [
+    0,
+    48
+   ],
+   "file": "res://art/subjects/ships/ship_armedtrader.png",
+   "h": 84,
+   "half": "res://art/subjects/ships/ship_armedtrader_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     56,
+     31
+    ],
+    [
+     93,
+     26
+    ],
+    [
+     130,
+     3
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_armedtrader_quarter.png",
+   "stern": [
+    186,
+    48
+   ],
+   "top": [
+    132,
+    0
+   ],
+   "w": 187
+  },
+  "ship_asteroidtow": {
+   "belly": [
+    176,
+    73
+   ],
+   "bow": [
+    0,
+    50
+   ],
+   "file": "res://art/subjects/ships/ship_asteroidtow.png",
+   "h": 74,
+   "half": "res://art/subjects/ships/ship_asteroidtow_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     66,
+     46
+    ],
+    [
+     110,
+     36
+    ],
+    [
+     154,
+     22
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_asteroidtow_quarter.png",
+   "stern": [
+    220,
+    29
+   ],
+   "top": [
+    204,
+    0
+   ],
+   "w": 221
+  },
+  "ship_barnook": {
+   "belly": [
+    100,
+    61
+   ],
+   "bow": [
+    0,
+    31
+   ],
+   "file": "res://art/subjects/ships/ship_barnook.png",
+   "h": 62,
+   "half": "res://art/subjects/ships/ship_barnook_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     58,
+     12
+    ],
+    [
+     96,
+     12
+    ],
+    [
+     134,
+     4
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_barnook_quarter.png",
+   "stern": [
+    192,
+    42
+   ],
+   "top": [
+    121,
+    0
+   ],
+   "w": 193
+  },
+  "ship_bigdish": {
+   "belly": [
+    28,
+    92
+   ],
+   "bow": [
+    0,
+    72
+   ],
+   "file": "res://art/subjects/ships/ship_bigdish.png",
+   "h": 93,
+   "half": "res://art/subjects/ships/ship_bigdish_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     57,
+     68
+    ],
+    [
+     96,
+     43
+    ],
+    [
+     134,
+     9
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_bigdish_quarter.png",
+   "stern": [
+    191,
+    58
+   ],
+   "top": [
+    164,
+    0
+   ],
+   "w": 192
+  },
+  "ship_bored": {
+   "belly": [
+    128,
+    52
+   ],
+   "bow": [
+    0,
+    27
+   ],
+   "file": "res://art/subjects/ships/ship_bored.png",
+   "h": 53,
+   "half": "res://art/subjects/ships/ship_bored_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     63,
+     6
+    ],
+    [
+     104,
+     5
+    ],
+    [
+     146,
+     5
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_bored_quarter.png",
+   "stern": [
+    209,
+    27
+   ],
+   "top": [
+    128,
+    0
+   ],
+   "w": 210
+  },
+  "ship_catamaran": {
+   "belly": [
+    130,
+    35
+   ],
+   "bow": [
+    0,
+    16
+   ],
+   "file": "res://art/subjects/ships/ship_catamaran.png",
+   "h": 36,
+   "half": "res://art/subjects/ships/ship_catamaran_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     61,
+     8
+    ],
+    [
+     101,
+     8
+    ],
+    [
+     141,
+     2
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_catamaran_quarter.png",
+   "stern": [
+    202,
+    16
+   ],
+   "top": [
+    148,
+    0
+   ],
+   "w": 203
+  },
+  "ship_cl_drums": {
+   "belly": [
+    114,
+    64
+   ],
+   "bow": [
+    0,
+    31
+   ],
+   "file": "res://art/subjects/ships/ship_cl_drums.png",
+   "h": 65,
+   "half": "res://art/subjects/ships/ship_cl_drums_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     66,
+     11
+    ],
+    [
+     110,
+     10
+    ],
+    [
+     153,
+     8
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_cl_drums_quarter.png",
+   "stern": [
+    219,
+    33
+   ],
+   "top": [
+    114,
+    0
+   ],
+   "w": 220
+  },
+  "ship_cl_stack": {
+   "belly": [
+    180,
+    88
+   ],
+   "bow": [
+    0,
+    30
+   ],
+   "file": "res://art/subjects/ships/ship_cl_stack.png",
+   "h": 89,
+   "half": "res://art/subjects/ships/ship_cl_stack_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     64,
+     19
+    ],
+    [
+     107,
+     18
+    ],
+    [
+     150,
+     6
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_cl_stack_quarter.png",
+   "stern": [
+    214,
+    45
+   ],
+   "top": [
+    181,
+    0
+   ],
+   "w": 215
+  },
+  "ship_cl_tree": {
+   "belly": [
+    123,
+    64
+   ],
+   "bow": [
+    0,
+    33
+   ],
+   "file": "res://art/subjects/ships/ship_cl_tree.png",
+   "h": 65,
+   "half": "res://art/subjects/ships/ship_cl_tree_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     58,
+     23
+    ],
+    [
+     96,
+     20
+    ],
+    [
+     134,
+     13
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_cl_tree_quarter.png",
+   "stern": [
+    192,
+    11
+   ],
+   "top": [
+    175,
+    0
+   ],
+   "w": 193
+  },
+  "ship_courier2": {
+   "belly": [
+    72,
+    42
+   ],
+   "bow": [
+    0,
+    32
+   ],
+   "file": "res://art/subjects/ships/ship_courier2.png",
+   "h": 43,
+   "half": "res://art/subjects/ships/ship_courier2_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     53,
+     24
+    ],
+    [
+     88,
+     14
+    ],
+    [
+     124,
+     8
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_courier2_quarter.png",
+   "stern": [
+    177,
+    1
+   ],
+   "top": [
+    171,
+    0
+   ],
+   "w": 178
+  },
+  "ship_dropship": {
+   "belly": [
+    130,
+    56
+   ],
+   "bow": [
+    0,
+    37
+   ],
+   "file": "res://art/subjects/ships/ship_dropship.png",
+   "h": 57,
+   "half": "res://art/subjects/ships/ship_dropship_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     56,
+     8
+    ],
+    [
+     92,
+     12
+    ],
+    [
+     130,
+     3
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_dropship_quarter.png",
+   "stern": [
+    185,
+    24
+   ],
+   "top": [
+    97,
+    0
+   ],
+   "w": 186
+  },
+  "ship_fm_domes": {
+   "belly": [
+    150,
+    69
+   ],
+   "bow": [
+    0,
+    38
+   ],
+   "file": "res://art/subjects/ships/ship_fm_domes.png",
+   "h": 70,
+   "half": "res://art/subjects/ships/ship_fm_domes_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     64,
+     3
+    ],
+    [
+     107,
+     18
+    ],
+    [
+     150,
+     17
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_fm_domes_quarter.png",
+   "stern": [
+    214,
+    40
+   ],
+   "top": [
+    73,
+    0
+   ],
+   "w": 215
+  },
+  "ship_forked": {
+   "belly": [
+    109,
+    55
+   ],
+   "bow": [
+    0,
+    33
+   ],
+   "file": "res://art/subjects/ships/ship_forked.png",
+   "h": 56,
+   "half": "res://art/subjects/ships/ship_forked_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     52,
+     24
+    ],
+    [
+     86,
+     15
+    ],
+    [
+     121,
+     2
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_forked_quarter.png",
+   "stern": [
+    173,
+    30
+   ],
+   "top": [
+    120,
+    0
+   ],
+   "w": 174
+  },
+  "ship_gunboat": {
+   "belly": [
+    85,
+    40
+   ],
+   "bow": [
+    0,
+    22
+   ],
+   "file": "res://art/subjects/ships/ship_gunboat.png",
+   "h": 41,
+   "half": "res://art/subjects/ships/ship_gunboat_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     47,
+     13
+    ],
+    [
+     78,
+     6
+    ],
+    [
+     110,
+     3
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_gunboat_quarter.png",
+   "stern": [
+    157,
+    20
+   ],
+   "top": [
+    106,
+    0
+   ],
+   "w": 158
+  },
+  "ship_hp_pods": {
+   "belly": [
+    62,
+    47
+   ],
+   "bow": [
+    0,
+    28
+   ],
+   "file": "res://art/subjects/ships/ship_hp_pods.png",
+   "h": 48,
+   "half": "res://art/subjects/ships/ship_hp_pods_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     63,
+     10
+    ],
+    [
+     106,
+     14
+    ],
+    [
+     148,
+     13
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_hp_pods_quarter.png",
+   "stern": [
+    211,
+    26
+   ],
+   "top": [
+    38,
+    0
+   ],
+   "w": 212
+  },
+  "ship_hp_wards": {
+   "belly": [
+    186,
+    54
+   ],
+   "bow": [
+    0,
+    23
+   ],
+   "file": "res://art/subjects/ships/ship_hp_wards.png",
+   "h": 55,
+   "half": "res://art/subjects/ships/ship_hp_wards_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     67,
+     13
+    ],
+    [
+     111,
+     7
+    ],
+    [
+     155,
+     8
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_hp_wards_quarter.png",
+   "stern": [
+    222,
+    23
+   ],
+   "top": [
+    122,
+    0
+   ],
+   "w": 223
+  },
+  "ship_lattice": {
+   "belly": [
+    120,
+    26
+   ],
+   "bow": [
+    0,
+    13
+   ],
+   "file": "res://art/subjects/ships/ship_lattice.png",
+   "h": 27,
+   "half": "res://art/subjects/ships/ship_lattice_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     68,
+     4
+    ],
+    [
+     114,
+     4
+    ],
+    [
+     159,
+     4
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_lattice_quarter.png",
+   "stern": [
+    227,
+    13
+   ],
+   "top": [
+    120,
+    0
+   ],
+   "w": 228
+  },
+  "ship_lightfreighter": {
+   "belly": [
+    120,
+    78
+   ],
+   "bow": [
+    0,
+    42
+   ],
+   "file": "res://art/subjects/ships/ship_lightfreighter.png",
+   "h": 79,
+   "half": "res://art/subjects/ships/ship_lightfreighter_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     59,
+     23
+    ],
+    [
+     98,
+     22
+    ],
+    [
+     137,
+     4
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_lightfreighter_quarter.png",
+   "stern": [
+    196,
+    42
+   ],
+   "top": [
+    142,
+    0
+   ],
+   "w": 197
+  },
+  "ship_liner": {
+   "belly": [
+    137,
+    62
+   ],
+   "bow": [
+    0,
+    37
+   ],
+   "file": "res://art/subjects/ships/ship_liner.png",
+   "h": 63,
+   "half": "res://art/subjects/ships/ship_liner_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     72,
+     27
+    ],
+    [
+     120,
+     25
+    ],
+    [
+     167,
+     25
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_liner_quarter.png",
+   "stern": [
+    239,
+    42
+   ],
+   "top": [
+    198,
+    0
+   ],
+   "w": 240
+  },
+  "ship_lrshuttle": {
+   "belly": [
+    64,
+    45
+   ],
+   "bow": [
+    0,
+    27
+   ],
+   "file": "res://art/subjects/ships/ship_lrshuttle.png",
+   "h": 46,
+   "half": "res://art/subjects/ships/ship_lrshuttle_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     58,
+     3
+    ],
+    [
+     96,
+     4
+    ],
+    [
+     134,
+     4
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_lrshuttle_quarter.png",
+   "stern": [
+    192,
+    22
+   ],
+   "top": [
+    44,
+    0
+   ],
+   "w": 193
+  },
+  "ship_mk_arcade": {
+   "belly": [
+    136,
+    82
+   ],
+   "bow": [
+    0,
+    51
+   ],
+   "file": "res://art/subjects/ships/ship_mk_arcade.png",
+   "h": 83,
+   "half": "res://art/subjects/ships/ship_mk_arcade_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     59,
+     21
+    ],
+    [
+     99,
+     20
+    ],
+    [
+     139,
+     6
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_mk_arcade_quarter.png",
+   "stern": [
+    198,
+    43
+   ],
+   "top": [
+    154,
+    0
+   ],
+   "w": 199
+  },
+  "ship_mk_awning": {
+   "belly": [
+    136,
+    68
+   ],
+   "bow": [
+    0,
+    31
+   ],
+   "file": "res://art/subjects/ships/ship_mk_awning.png",
+   "h": 69,
+   "half": "res://art/subjects/ships/ship_mk_awning_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     64,
+     14
+    ],
+    [
+     106,
+     7
+    ],
+    [
+     149,
+     2
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_mk_awning_quarter.png",
+   "stern": [
+    213,
+    25
+   ],
+   "top": [
+    143,
+    0
+   ],
+   "w": 214
+  },
+  "ship_mkt_dome": {
+   "belly": [
+    58,
+    83
+   ],
+   "bow": [
+    0,
+    43
+   ],
+   "file": "res://art/subjects/ships/ship_mkt_dome.png",
+   "h": 84,
+   "half": "res://art/subjects/ships/ship_mkt_dome_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     54,
+     6
+    ],
+    [
+     90,
+     12
+    ],
+    [
+     126,
+     16
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_mkt_dome_quarter.png",
+   "stern": [
+    180,
+    47
+   ],
+   "top": [
+    64,
+    0
+   ],
+   "w": 181
+  },
+  "ship_mkt_slung": {
+   "belly": [
+    161,
+    59
+   ],
+   "bow": [
+    0,
+    29
+   ],
+   "file": "res://art/subjects/ships/ship_mkt_slung.png",
+   "h": 60,
+   "half": "res://art/subjects/ships/ship_mkt_slung_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     62,
+     11
+    ],
+    [
+     103,
+     11
+    ],
+    [
+     144,
+     10
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_mkt_slung_quarter.png",
+   "stern": [
+    206,
+    30
+   ],
+   "top": [
+    161,
+    0
+   ],
+   "w": 207
+  },
+  "ship_modulepush": {
+   "belly": [
+    124,
+    65
+   ],
+   "bow": [
+    0,
+    30
+   ],
+   "file": "res://art/subjects/ships/ship_modulepush.png",
+   "h": 66,
+   "half": "res://art/subjects/ships/ship_modulepush_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     61,
+     14
+    ],
+    [
+     102,
+     13
+    ],
+    [
+     143,
+     10
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_modulepush_quarter.png",
+   "stern": [
+    204,
+    32
+   ],
+   "top": [
+    85,
+    0
+   ],
+   "w": 205
+  },
+  "ship_orbitarms": {
+   "belly": [
+    144,
+    48
+   ],
+   "bow": [
+    0,
+    25
+   ],
+   "file": "res://art/subjects/ships/ship_orbitarms.png",
+   "h": 49,
+   "half": "res://art/subjects/ships/ship_orbitarms_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     54,
+     4
+    ],
+    [
+     90,
+     11
+    ],
+    [
+     126,
+     8
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_orbitarms_quarter.png",
+   "stern": [
+    180,
+    24
+   ],
+   "top": [
+    122,
+    0
+   ],
+   "w": 181
+  },
+  "ship_pr_drum": {
+   "belly": [
+    165,
+    71
+   ],
+   "bow": [
+    0,
+    46
+   ],
+   "file": "res://art/subjects/ships/ship_pr_drum.png",
+   "h": 72,
+   "half": "res://art/subjects/ships/ship_pr_drum_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     58,
+     23
+    ],
+    [
+     96,
+     8
+    ],
+    [
+     135,
+     10
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_pr_drum_quarter.png",
+   "stern": [
+    193,
+    46
+   ],
+   "top": [
+    115,
+    0
+   ],
+   "w": 194
+  },
+  "ship_rf_pipes": {
+   "belly": [
+    150,
+    69
+   ],
+   "bow": [
+    0,
+    41
+   ],
+   "file": "res://art/subjects/ships/ship_rf_pipes.png",
+   "h": 70,
+   "half": "res://art/subjects/ships/ship_rf_pipes_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     61,
+     26
+    ],
+    [
+     102,
+     30
+    ],
+    [
+     143,
+     14
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_rf_pipes_quarter.png",
+   "stern": [
+    204,
+    41
+   ],
+   "top": [
+    140,
+    0
+   ],
+   "w": 205
+  },
+  "ship_ringdrive": {
+   "belly": [
+    91,
+    82
+   ],
+   "bow": [
+    0,
+    41
+   ],
+   "file": "res://art/subjects/ships/ship_ringdrive.png",
+   "h": 83,
+   "half": "res://art/subjects/ships/ship_ringdrive_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     58,
+     23
+    ],
+    [
+     98,
+     3
+    ],
+    [
+     136,
+     30
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_ringdrive_quarter.png",
+   "stern": [
+    195,
+    42
+   ],
+   "top": [
+    91,
+    0
+   ],
+   "w": 196
+  },
+  "ship_ringspine": {
+   "belly": [
+    144,
+    78
+   ],
+   "bow": [
+    0,
+    41
+   ],
+   "file": "res://art/subjects/ships/ship_ringspine.png",
+   "h": 79,
+   "half": "res://art/subjects/ships/ship_ringspine_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     67,
+     22
+    ],
+    [
+     112,
+     10
+    ],
+    [
+     157,
+     10
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_ringspine_quarter.png",
+   "stern": [
+    224,
+    40
+   ],
+   "top": [
+    137,
+    0
+   ],
+   "w": 225
+  },
+  "ship_rl_double": {
+   "belly": [
+    155,
+    43
+   ],
+   "bow": [
+    0,
+    25
+   ],
+   "file": "res://art/subjects/ships/ship_rl_double.png",
+   "h": 44,
+   "half": "res://art/subjects/ships/ship_rl_double_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     65,
+     9
+    ],
+    [
+     108,
+     16
+    ],
+    [
+     151,
+     9
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_rl_double_quarter.png",
+   "stern": [
+    216,
+    24
+   ],
+   "top": [
+    190,
+    0
+   ],
+   "w": 217
+  },
+  "ship_rly_dishes": {
+   "belly": [
+    106,
+    74
+   ],
+   "bow": [
+    0,
+    39
+   ],
+   "file": "res://art/subjects/ships/ship_rly_dishes.png",
+   "h": 75,
+   "half": "res://art/subjects/ships/ship_rly_dishes_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     61,
+     2
+    ],
+    [
+     102,
+     16
+    ],
+    [
+     142,
+     3
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_rly_dishes_quarter.png",
+   "stern": [
+    203,
+    38
+   ],
+   "top": [
+    119,
+    0
+   ],
+   "w": 204
+  },
+  "ship_science": {
+   "belly": [
+    95,
+    47
+   ],
+   "bow": [
+    0,
+    25
+   ],
+   "file": "res://art/subjects/ships/ship_science.png",
+   "h": 48,
+   "half": "res://art/subjects/ships/ship_science_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     55,
+     12
+    ],
+    [
+     92,
+     12
+    ],
+    [
+     128,
+     5
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_science_quarter.png",
+   "stern": [
+    183,
+    24
+   ],
+   "top": [
+    116,
+    0
+   ],
+   "w": 184
+  },
+  "ship_scoop": {
+   "belly": [
+    143,
+    58
+   ],
+   "bow": [
+    0,
+    29
+   ],
+   "file": "res://art/subjects/ships/ship_scoop.png",
+   "h": 59,
+   "half": "res://art/subjects/ships/ship_scoop_half.png",
+   "kind": "ship",
+   "lamps": [
+    [
+     63,
+     15
+    ],
+    [
+     105,
+     11
+    ],
+    [
+     147,
+     7
+    ]
+   ],
+   "quarter": "res://art/subjects/ships/ship_scoop_quarter.png",
+   "stern": [
+    210,
+    3
+   ],
+   "top": [
+    184,
+    0
+   ],
+   "w": 211
   }
+ },
+ "roles": {
+  "armed": [
+   "ship_gunboat",
+   "ship_armedtrader",
+   "ship_dropship"
+  ],
+  "barge": [
+   "ship_rf_pipes",
+   "ship_pr_drum",
+   "ship_cl_stack",
+   "ship_cl_drums"
+  ],
+  "family": [
+   "ship_fm_domes",
+   "ship_mk_awning",
+   "ship_mkt_dome",
+   "ship_barnook"
+  ],
+  "hauler": [
+   "ship_cl_drums",
+   "ship_cl_stack",
+   "ship_cl_tree",
+   "ship_pr_drum",
+   "ship_lightfreighter",
+   "ship_ringspine",
+   "ship_rl_double",
+   "ship_lattice",
+   "ship_bored"
+  ],
+  "mining": [
+   "ship_scoop",
+   "ship_asteroidtow"
+  ],
+  "passenger": [
+   "ship_barnook",
+   "ship_hp_pods",
+   "ship_liner",
+   "ship_mkt_slung",
+   "ship_fm_domes",
+   "ship_mk_arcade",
+   "ship_mk_awning",
+   "ship_mkt_dome",
+   "ship_hp_wards"
+  ],
+  "small": [
+   "ship_courier2",
+   "ship_catamaran",
+   "ship_forked",
+   "ship_lrshuttle"
+  ],
+  "survey": [
+   "ship_bigdish",
+   "ship_rly_dishes",
+   "ship_science"
+  ],
+  "tender": [
+   "ship_orbitarms",
+   "ship_ringdrive",
+   "ship_modulepush"
+  ]
  }
 }

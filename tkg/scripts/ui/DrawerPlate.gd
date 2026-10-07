@@ -40,6 +40,8 @@ const ICONS := {
 	&"motion": ["#.#.###", "#.#.###", "#.#.###", ".......", "#.#.###", "#.#.###", "#.#.###"],
 	# Controls: a keyboard -- a row of keys, a staggered row, a space bar.
 	&"keys": ["#######", "#.#.#.#", "#######", "##.#.##", "#######", "#.....#", "#######"],
+	# Hints: a question mark.
+	&"hint": [".####..", "#....#.", ".....#.", "...##..", "...#...", ".......", "...#..."],
 }
 
 ## One icon at `at`, every pixel 2x2, for anything that wants the set's marks.

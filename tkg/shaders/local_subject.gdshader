@@ -17,6 +17,9 @@ uniform vec3 star_col = vec3(1.0);
 uniform float lit = 0.32;
 uniform float shade = 0.5;
 uniform float far = 0.0;
+// a cold hull (no heat, no lights): its colours drained and darkened toward the
+// sky before the star lights it, so a lit window goes out with the rest
+uniform float dark = 0.0;
 uniform vec3 sky_col = vec3(0.035, 0.045, 0.075);
 uniform bool use_mask = false;
 uniform sampler2D mask : filter_nearest;
@@ -36,6 +39,11 @@ void fragment() {
 	}
 	if (c.a < 0.02) {
 		discard;
+	}
+	if (dark > 0.0) {
+		float l = dot(c.rgb, vec3(0.3, 0.5, 0.2));
+		vec3 cold = mix(vec3(l), c.rgb, 0.3) * 0.5 + sky_col * 0.4;
+		c.rgb = mix(c.rgb, cold, clamp(dark, 0.0, 1.0));
 	}
 	vec2 px = TEXTURE_PIXEL_SIZE;
 	vec2 sz = 1.0 / px;
