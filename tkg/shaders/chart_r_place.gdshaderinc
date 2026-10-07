@@ -955,7 +955,9 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 	vec4 hw = nz(vec3(hv * 0.32, 0.53));
 	float wisp = max(0.25 + 0.8 * hw.r + 0.45 * nz(vec3(hv * 1.3 + hw.ag * 0.3, 0.21)).r, 0.0);
 	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7);
-	C += T * (sky(v) + vec3(0.0021, 0.0030, 0.0062));
+	// the sky behind shows only where the galaxy in front is fainter than it
+	// (`bgSeen`), and through what the dust lets by
+	C += T * (sky(v) * bgSeen(C, u_exp) + vec3(0.0021, 0.0030, 0.0062));
 	return C;
 }
 

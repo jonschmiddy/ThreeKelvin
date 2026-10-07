@@ -462,7 +462,7 @@ func _drop_scratch() -> void:
 ## holding a live Control tree reports leaks the gate reads as errors.
 func _finish() -> void:
 	_drop_scratch()
-	Keys.path = DisplaySettings.PATH
+	Keys.path = DisplaySettings.path
 	if Router.current != null:
 		var last := Router.current
 		Router.current = null

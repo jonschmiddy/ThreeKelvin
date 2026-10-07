@@ -5,7 +5,7 @@
 // its own depth (`u_skyPan`, the chart's `sky_pan`: screen px of panning, never
 // of zooming), nearer layers more:
 //   * far nebulae (0.02 of the pan): broad faint clouds of colour, mostly unseen
-//     but for a tint in the dark;
+//     but for a tint in the dark (not in PAINTED, whose prototype had none);
 //   * far galaxies (0.05): small spirals seen at all angles, a warm core and two
 //     blue arms, and small warm ellipticals, a few blocks across;
 //   * three depths of stars (0.04, 0.10 and 0.20), dim and many to fewer and
@@ -16,6 +16,9 @@
 
 uniform vec2 u_skyPan = vec2(0.0);
 uniform float u_skySeed = 0.0;
+// a harness's `bgoff`: the far sky's light switched off, to measure what it does
+// to the galaxy in front (`ChartSky._feed_sky`)
+uniform float u_bgOn = 1.0;
 
 const float BG_F_NEB = 0.02;
 const float BG_F_GAL = 0.05;
@@ -91,10 +94,26 @@ vec2 bgNebula(vec2 sp) {
 	return vec2(m, hue);
 }
 
+// THE SKY BEHIND IS BEHIND: how much of it shows through `front`, the light of
+// the galaxy in front of it (linear, before the composite's exposure `expo`).
+// The galaxy's gas glows without stopping much light, so its transmittance
+// alone let the far nebulae add their light to the disc's faint outskirts and
+// halo; toned, lifted and cut to the palette, that moved the front gas's colour
+// steps as the far layer slid under it (Jon, panning RADIANT: the far
+// galaxies' "cloud layers" interacting with the front galaxy's). So the far sky
+// shows only where the galaxy is fainter than the far sky itself, as PAINTED
+// draws it, and where the galaxy is brighter the picture is the galaxy's alone.
+float bgSeen(vec3 front, float expo) {
+	return 1.0 - smoothstep(0.0006, 0.0025, dot(front, vec3(0.2126, 0.7152, 0.0722)) * expo);
+}
+
 // all of it as linear light (the simplified and radiant charts' sky), for a
 // block at screen offset sp
 vec3 bgLight(vec2 sp, float starsSeen) {
 	vec3 c = vec3(0.0);
+	if (u_bgOn < 0.5) {
+		return c;
+	}
 	vec2 nb = bgNebula(sp);
 	c += mix(vec3(0.004, 0.0012, 0.004), vec3(0.0008, 0.0026, 0.0045), nb.y) * nb.x;
 	vec4 g = bgGalaxy(sp);

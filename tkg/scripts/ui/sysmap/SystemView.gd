@@ -256,7 +256,16 @@ var _rq := {}
 ## block of radius and shift a block now and then. Once the zoom has been still for
 ## SETTLE_S, everything eases (SETTLE_EASE) back to the crisp held size on the grid.
 ## Per world: [radius, centre].
+##
+## THE EASE IS FOR THE SETTLE ALONE (Jon: "When moving the view left to right in
+## the sector view, the planets seem to lag behind"): it eased the centre toward
+## its place every frame, so a pan, which moves the place, left the picture
+## trailing its ring, label and beacons by ~2.4 frames of the pan. Now the live
+## centre is carried by however far its place on the grid moved (`_at_last`) --
+## the camera's pan and the world's own orbit -- and only what is left, the
+## settle onto the held size and the grid, is eased.
 var _live := {}
+var _at_last := {}
 var _klive := -1.0
 var _zlast := -1.0
 var _zstill := 1.0
@@ -321,6 +330,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_rq.clear()
 	_kq = -1.0
 	_live.clear()
+	_at_last.clear()
 	_klive = -1.0
 	_zlast = -1.0
 	_sky_z = -1.0
@@ -846,6 +856,17 @@ func world_c(i: int) -> Vector2:
 	return at[i] + Vector2.ONE * float(Worlds.half_size(b.world, draw_r(b)) % 2)
 
 
+## How far world i's picture is from its place on the grid -- where its orbit
+## ring, its label and its beacons are drawn (`at`) -- this frame, screen px. 0
+## at rest; the zoom's settle eases it back to 0. For the harnesses (`panclip`).
+func world_lag(i: int) -> Vector2:
+	if not _live.has(i):
+		return Vector2.ZERO
+	var b := layout.bodies[i]
+	var held: float = _rq.get(i, draw_r(b))
+	return (_live[i][1] as Vector2) - (at[i] + Vector2.ONE * float(Worlds.half_size(b.world, held) % 2))
+
+
 ## A PULSAR GROWS EXACTLY AS THE MAP DOES (Jon: "Pulsars still act REALLY weird
 ## when zooming"): its cloud, beams, jets, spray, glow and web, all drawn by
 ## `PulsarView` at one scale, are that scale times the map's zoom over the
@@ -1351,6 +1372,12 @@ func step() -> void:
 		var tr := raw if zooming() else held
 		var tc := screen(pos[i].x, pos[i].y) if zooming() else cbox
 		var lv: Array = _live.get(i, [])
+		# (carried with its place: a pan or its orbit moves the picture with the
+		# ring the same frame; the zoom's own moves are left to the branches below)
+		var al: Vector2 = _at_last.get(i, at[i])
+		_at_last[i] = at[i]
+		if not lv.is_empty() and not zooming():
+			lv = [lv[0], (lv[1] as Vector2) + (at[i] - al)]
 		if lv.is_empty():
 			lv = [tr, tc]
 		elif zooming():

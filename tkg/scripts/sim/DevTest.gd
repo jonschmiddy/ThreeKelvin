@@ -48,6 +48,11 @@ func run(tree: SceneTree) -> void:
 
 	print("boot")
 	_boot()
+	# EVERY HARNESS KEEPS OFF THE PLAYER'S SETTINGS: the boot's own save (and
+	# Audio's and Keys') goes to the scratch file. A `sheet=` shot once rewrote
+	# the player's settings.cfg on every boot that did not pass `keepwindow`.
+	_ok("a harness's display, audio and key settings live in a scratch file, never the player's settings.cfg",
+		TestRun.active() and DisplaySettings.path != DisplaySettings.PATH and Keys.path != DisplaySettings.PATH)
 
 	DevMode.path = SCRATCH
 	RunHistory.path = HISTORY

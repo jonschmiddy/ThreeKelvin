@@ -61,7 +61,6 @@ var _lit: ModuleData = null
 ## refit screen's installed list can point at the hull without pretending to
 ## carry anything.
 var _focus: ModuleData = null
-var _last_bob: int = -999
 var _passive: bool = false
 
 ## THE SHIP THIS IS DRAWING MOUNTS FOR, when it is not the one you are flying.
@@ -153,11 +152,18 @@ func passive() -> void:
 
 ## Recompute where every mount is. Cheap, and called whenever the ship changes.
 func refresh() -> void:
+	_place()
+	queue_redraw()
+
+
+## Where every mount is, from where the hull is drawn NOW (`_placed_at`).
+func _place() -> void:
 	_spots.clear()
 	var h: HullData = ship if ship != null else Run.hull
 	if _view == null or h == null:
-		queue_redraw()
 		return
+	_placed_at = _view.canvas_to_local(Vector2.ZERO)
+	_placed_scale = _view.art_scale()
 	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM,
 			ModuleData.Slot.UTILITY]:
 		# THE HULL'S OWN COUNT IN FOREIGN MODE. `Run.slots_for` adds whatever
@@ -172,7 +178,40 @@ func refresh() -> void:
 				at = _view.canvas_to_local(pts[i]),
 				held = _held(slot, i),
 			})
-	queue_redraw()
+
+
+## FITTED PARTS DRAWN OFF THE HULL, for the tests: with nothing exploded, each
+## fitted part's drawn rect must cover some of the hull's own opaque pixels where
+## the hull is drawn NOW -- a part left where the hull used to be (the view laid
+## out again, the hull recentred in it, these mounts not told) is a part floating
+## in space beside the ship. The names of any that are not.
+func strays() -> Array[String]:
+	var out: Array[String] = []
+	if _view == null or explode > 0.0:
+		return out
+	var img := _view.canvas()
+	if img == null:
+		return out
+	var c0 := _view.canvas_to_local(Vector2.ZERO)
+	var px := float(_view._k)
+	var k := _mag()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if m == null:
+			continue
+		var r := part_rect(m, s.slot, _part_at(s), k)
+		var cr := Rect2((r.position - c0) / px, r.size / px)
+		var hit := false
+		for y in range(maxi(0, int(floor(cr.position.y))), mini(img.get_height(), int(ceil(cr.end.y)))):
+			for x in range(maxi(0, int(floor(cr.position.x))), mini(img.get_width(), int(ceil(cr.end.x)))):
+				if img.get_pixel(x, y).a > 0.1:
+					hit = true
+					break
+			if hit:
+				break
+		if not hit:
+			out.append(m.name)
+	return out
 
 
 ## Whatever is on hardpoint `i` of `slot`, on whichever ship this is drawing.
@@ -185,16 +224,39 @@ func _held(slot: ModuleData.Slot, i: int) -> ModuleData:
 			return m
 	return null
 
+## Where the hull's canvas corner was, and its scale, when the mounts were
+## last placed (`_place`).
+var _placed_at := Vector2.INF
+var _placed_scale := 0.0
+
+
+## Whether the hull has moved, or changed scale, since the mounts were placed.
+func _stale() -> bool:
+	return _view != null and (_view.canvas_to_local(Vector2.ZERO) != _placed_at 		or not is_equal_approx(_view.art_scale(), _placed_scale))
+
+
 func _process(delta: float) -> void:
 	if _view == null:
 		return
-	# The mounts ride the hull, so they move with the idle bob. Recomputed only
-	# when the bob has actually stepped — it moves in whole pixels a few times a
-	# second, and repainting on every frame regardless would be the same picture
-	# drawn sixty times.
-	var b := _view.bob_offset()
-	if b != _last_bob:
-		_last_bob = b
+	# The mounts ride the hull, so they move with it: with the idle bob, and
+	# with the hull's place in its view. Recomputed only when the hull has
+	# actually moved -- the bob steps in whole pixels a few times a second, and
+	# repainting every frame regardless would be the same picture drawn sixty
+	# times.
+	#
+	# THE HULL'S PLACE, NOT ONLY THE BOB (Jon: "why are the modules off the
+	# ship?"). The hull is drawn centred in its view, so when the view is laid
+	# out again -- LOCAL's event band folding away, the ship's slot growing --
+	# the hull moves and nothing about the ship changed. Watching the bob alone
+	# left every part where the hull had been until the next bob step, and for
+	# good on a hull that does not bob.
+	#
+	# Measured against where the mounts were PLACED, not where the hull was last
+	# frame: LOCAL's ship slot is laid out twice in some frames (the hull's view
+	# at its minimum width, 324, then the row's 642 at the end of the frame), and
+	# a placing done in between is wrong by the difference, 158 px of the hull's
+	# own length. `_draw` checks again, after the layout has settled.
+	if _stale():
 		refresh()
 	# THE PHASE ADVANCES FOR EITHER ANIMATION, and it used to advance for only
 	# one. `_lit` was the sole condition here for as long as the tractor ping
@@ -233,6 +295,10 @@ func _mag() -> float:
 	return _view.art_scale() if _view != null else 1.0
 
 func _draw() -> void:
+	# (the layout has settled by the time anything is drawn: placed against a
+	# passing size in `_process`, the mounts are placed again here)
+	if _stale():
+		_place()
 	drawn = 0
 	pinged = 0
 	hinted = 0
@@ -250,8 +316,12 @@ func _draw() -> void:
 		var m: ModuleData = spot.held
 		if m != null and explode > 0.0 and at != (spot.at as Vector2):
 			_leader(spot.at, at, m, spot.slot as ModuleData.Slot, k)
-		if m == null and tags and explode > 0.5 and _lit == null:
-			_empty_ring(spot, k)
+		# IN THE CUTAWAY AN EMPTY MOUNT SHOWS ONLY WHILE A PART THAT FITS IT IS
+		# CARRIED (Jon: "Why is there a circle for a missing module? Shouldn't
+		# that only be when I have a module in my hand?"): its words then, beside
+		# the ping below. At rest the left panel's MOUNTS x OF y says it.
+		if m == null and _shows_empty(spot):
+			_empty_words(spot, k)
 		# WHAT IS THERE, FIRST AND ALWAYS. This used to draw the highlight
 		# INSTEAD of the part and skip to the next mount, so picking up any
 		# weapon blanked every other weapon on the ship for as long as you
@@ -319,7 +389,8 @@ func _draw() -> void:
 		#
 		# The two can never appear together: `over` requires empty hands and
 		# the ping requires a part in one.
-		if over:
+		# (not in the cutaway: there an empty mount waits for a part in hand)
+		if over and not tags:
 			hinted += 1
 			# CHILL FOR THE TRAVELLING RINGS, ICE FOR THE ONE THAT STAYS.
 			#
@@ -497,7 +568,7 @@ func drawn_rects() -> Array[Dictionary]:
 				var txt := m.name.to_upper()
 				var w := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL).x
 				out.append({kind = "tag", rect = tag_box(r, String(tag_side.get(spot_key(int(s.slot), int(s.index)), "R")), w), text = txt})
-		elif tags and explode > 0.85:
+		elif explode > 0.85 and _shows_empty(s):
 			var off: Variant = tag_side.get("empty:" + spot_key(int(s.slot), int(s.index)))
 			if off is Vector2:
 				var txt := empty_text(int(s.slot))
@@ -514,11 +585,16 @@ func hit_drawn(p: Vector2) -> bool:
 	for d in drawn_rects():
 		if (d.rect as Rect2).grow(2.0).has_point(p):
 			return true
-	if tags:
-		for s in _spots:
-			if s.held == null and (s.at as Vector2).distance_to(p) <= (R + 3.0) * _mag():
-				return true
+	for s in _spots:
+		if s.held == null and _shows_empty(s) and (s.at as Vector2).distance_to(p) <= (R + 3.0) * _mag():
+			return true
 	return false
+
+
+## Whether the cutaway shows this empty mount now: only while a part that fits
+## it is carried.
+func _shows_empty(s: Dictionary) -> bool:
+	return tags and explode > 0.5 and _lit != null and not _passive and _lit.slot == (s.slot as ModuleData.Slot)
 
 
 ## THE CUTAWAY LIFTS PARTS OUT PAST THIS WIDGET'S OWN RECT (it is the hull's
@@ -529,10 +605,10 @@ func _has_point(p: Vector2) -> bool:
 	return Rect2(Vector2.ZERO, size).has_point(p) or hit_drawn(p)
 
 
-## An EMPTY mount in the cutaway: a ring, and what it takes.
-func _empty_ring(s: Dictionary, k: float) -> void:
+## An EMPTY mount in the cutaway, while a part that fits it is carried: what it
+## takes, in words beside its ring (the ring is the ping, drawn in `_draw`).
+func _empty_words(s: Dictionary, k: float) -> void:
 	var a := clampf((explode - 0.5) / 0.5, 0.0, 1.0)
-	_ring(s.at, (R + 0.5) * k, Color(UITheme.ICE, 0.9 * a))
 	if explode < 0.85:
 		return
 	# where the cutaway found room for the words (art px off the ring's

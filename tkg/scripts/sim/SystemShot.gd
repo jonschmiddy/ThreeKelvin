@@ -23,6 +23,7 @@ extends Node
 ##   `wprobe`         a mark at every point the weather's ported noise finds
 
 const ScreenS := preload("res://scripts/ui/sysmap/SystemMapScreen.gd")
+const SectorPaintedS := preload("res://scripts/ui/sysmap/SectorPainted.gd")
 
 
 func _ready() -> void:
@@ -223,7 +224,7 @@ func _ready() -> void:
 		if (a0 as String).begins_with("wclip=") or (a0 as String).begins_with("wrun="):
 			scr.view.hclock = 1000.0
 		# a slow zoom or pan measures the camera alone: the gas held on its clock too
-		if (a0 as String).begins_with("zoomclip=") or (a0 as String).begins_with("panclip="):
+		if (a0 as String).begins_with("zoomclip=") or (a0 as String).begins_with("panclip=") or (a0 as String).begins_with("zoompan="):
 			scr.view.hclock = 1000.0
 	await scr.show_system(n, at)
 	# `fielddump=<dir>`: the cloud's bake (SIMPLIFIED's `SkyBake.field`), its two
@@ -658,16 +659,121 @@ func _ready() -> void:
 			if scr.view._nova != null:
 				scr.view._nova.auto = false
 		var origin13: Vector2 = scr._box.get_global_transform_with_canvas().origin
+		# THE PLANETS AGAINST THEIR RINGS (Jon: "the planets seem to lag behind"):
+		# each world's picture against its place on the grid, where its ring, label
+		# and beacons are drawn, every frame (`SystemView.world_lag`), and the frame
+		# time; the worst printed, every frame in `pan.json`
+		var rows13: Array = []
+		var worst13 := 0.0
+		var t13 := Time.get_ticks_usec()
+		var slow13 := 0.0
 		for k13 in pn + 1:
 			var u13 := float(k13) / float(pn)
 			scr._zoom_to = pz
 			scr.view.zoom = pz
 			scr.view.pan = Vector2(lerpf(pd, -pd, u13), lerpf(pd * 0.25, -pd * 0.25, u13))
 			await RenderingServer.frame_post_draw
+			var now13 := Time.get_ticks_usec()
+			var ms13 := float(now13 - t13) / 1000.0
+			t13 = now13
+			var lags13: Array = []
+			for i13: int in scr.view._views:
+				var lg: Vector2 = scr.view.world_lag(i13)
+				lags13.append([i13, snappedf(lg.x, 0.01), snappedf(lg.y, 0.01)])
+				if k13 > 2:
+					worst13 = maxf(worst13, lg.length())
+			if k13 > 2:
+				slow13 = maxf(slow13, ms13)
+			rows13.append({"k": k13, "pan": [scr.view.pan.x, scr.view.pan.y], "ms": snappedf(ms13, 0.01), "lag": lags13})
 			var img13 := get_viewport().get_texture().get_image()
 			var w13: Rect2 = scr.view.window
 			img13.get_region(Rect2i(Vector2i(origin13 + w13.position), Vector2i(w13.size))).save_png("%s/f_%04d.png" % [pdir, k13])
-		print("  systemshot: panclip %d frames at zoom %.2f" % [pn + 1, pz])
+		var fp13 := FileAccess.open(pdir + "/pan.json", FileAccess.WRITE)
+		fp13.store_string(JSON.stringify(rows13))
+		fp13.close()
+		print("  systemshot: panclip %d frames at zoom %.2f, %.1f px a frame: worst world lag %.2f px, slowest frame %.1f ms" % [
+			pn + 1, pz, 2.0 * pd / float(pn), worst13, slow13])
+	# `zoompan=<dir>` (`zpz=Z`, `zpv=PX`): THE MAGNIFICATION CHANGED, THEN A PAN
+	# (Jon: "If I change the magnification on painted and then pan left or right I
+	# get some lag in the nebula"): the wheel's target set to Z and eased by the
+	# screen as play eases it, 40 frames, then at once a pan of PX a frame for 90,
+	# on a stopped clock. Every frame saved, with its time, the zoom, the pan and
+	# the cloud's slide (`SystemView.neb_off`) in `zoompan.json`. `zpback`: no
+	# pan, the zoom sent back out at frame 65 instead (in, still, out, still).
+	for a17 in OS.get_cmdline_user_args():
+		if not (a17 as String).begins_with("zoompan="):
+			continue
+		var zdir17 := (a17 as String).substr(8)
+		DirAccess.make_dir_recursive_absolute(zdir17)
+		var zt17 := 2.5
+		var pv17 := 6.0
+		for a18 in OS.get_cmdline_user_args():
+			var s18 := a18 as String
+			if s18.begins_with("zpz="):
+				zt17 = float(s18.substr(4))
+			elif s18.begins_with("zpv="):
+				pv17 = float(s18.substr(4))
+		scr.frozen = true
+		scr._location_on = false
+		Audio.room(&"", 0.01)
+		if scr.view._weather != null:
+			scr.view._weather.auto = false
+		if scr.view._nova != null:
+			scr.view._nova.auto = false
+		# `nebonly`: the far sky alone -- the sky and the cloud (and the palette or
+		# the painted passes that finish them) -- every star field, veil, sheet,
+		# world, belt, the fabric and the overlay hidden, so a frame differs from the last by
+		# the cloud's own slide and nothing else
+		if "nebonly" in OS.get_cmdline_user_args():
+			var keep17: Array = [scr.view._sky, scr.view._palette]
+			if not scr.view._pt.is_empty():
+				keep17 += [scr.view._pt.tvp, scr.view._pt.rect]
+			var hold17: Array = [scr.view._scene]
+			if not scr.view._pt.is_empty():
+				hold17.append(scr.view._pt.svp)
+			for par17: Node in hold17:
+				for ch17 in par17.get_children():
+					var ci17 := ch17 as CanvasItem
+					if ci17 == null or keep17.has(ci17):
+						continue
+					if scr.view._neb_mat != null and ci17.material == scr.view._neb_mat:
+						continue
+					ci17.visible = false
+			scr.overlay.visible = false
+			if scr.view._fabric != null:
+				scr.view._fabric.visible = false
+		# `bhold=N`: PAINTED's band memory held N frames at most (0: no memory), to
+		# see what the memory itself does to a moving picture
+		for a19 in OS.get_cmdline_user_args():
+			if (a19 as String).begins_with("bhold=") and not scr.view._pt.is_empty():
+				(scr.view._pt.state as ShaderMaterial).set_shader_parameter("hold", float((a19 as String).substr(6)))
+				scr.view._pt["hold_fixed"] = true
+		print("  systemshot: zoompan sky %s" % SectorPaintedS.sky_key(scr.view) if scr.view._neb_mat != null else "  systemshot: zoompan sky calm")
+		var origin17: Vector2 = scr._box.get_global_transform_with_canvas().origin
+		var rows17: Array = []
+		var t17 := Time.get_ticks_usec()
+		scr._zoom_to = zt17
+		# `zpback`: no pan; the wheel sent back out to the opening zoom at frame 65
+		var back17 := "zpback" in OS.get_cmdline_user_args()
+		for k17 in 130:
+			if back17:
+				if k17 == 65:
+					scr._zoom_to = scr.zoom_min
+			elif k17 >= 40:
+				scr.view.pan += Vector2(-pv17, 0.0)
+			await RenderingServer.frame_post_draw
+			var now17 := Time.get_ticks_usec()
+			var no: Vector2 = scr.view.neb_off()
+			rows17.append({"k": k17, "ms": snappedf(float(now17 - t17) / 1000.0, 0.01), "zoom": snappedf(scr.view.zoom, 0.0001),
+				"pan": [snappedf(scr.view.pan.x, 0.01), snappedf(scr.view.pan.y, 0.01)], "neb": [no.x, no.y]})
+			t17 = now17
+			var img17 := get_viewport().get_texture().get_image()
+			var w17: Rect2 = scr.view.window
+			img17.get_region(Rect2i(Vector2i(origin17 + w17.position), Vector2i(w17.size))).save_png("%s/f_%04d.png" % [zdir17, k17])
+		var fj17 := FileAccess.open(zdir17 + "/zoompan.json", FileAccess.WRITE)
+		fj17.store_string(JSON.stringify(rows17))
+		fj17.close()
+		print("  systemshot: zoompan 130 frames, zoom to %.2f then %.1f px a frame" % [zt17, pv17])
 	# `camclip=<dir>` (`cam=loc|unloc|focus|home`, `cframes=N`): THE CAMERA'S
 	# MOVE as the game makes it -- LOCATION pressed, pressed again, a right-click
 	# on the selected world, a right-click out -- the window saved each frame with

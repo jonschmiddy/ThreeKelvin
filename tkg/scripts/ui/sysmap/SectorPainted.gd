@@ -285,6 +285,16 @@ static func build(v) -> SubViewport:
 	return svp
 
 
+## The band memory's longest hold, in frames (`sector_b_state`), and how far a
+## held band edge may trail the light that moved it, in blocks. A frame's light
+## motion of `TRAIL_BLK / n` blocks allows a hold of n frames.
+const HOLD := 40.0
+const TRAIL_BLK := 1.0
+## how far out the cloud's lit bands lie, light px (between `PUFF_LIGHT`'s hot
+## zone and its soft radius): a zoom moves their edges by this times its step
+const LIGHT_R := 120.0
+
+
 ## Every frame: where the star is, the clock, the far picture's slide.
 static func push(v) -> void:
 	var pt: Dictionary = v._pt
@@ -297,6 +307,27 @@ static func push(v) -> void:
 	pt.frames = int(pt.frames) + 1
 	ms.set_shader_parameter("reset", int(pt.frames) < 3)
 	ms.set_shader_parameter("sky_blk", blk)
+	# THE MEMORY RIDES WITH THE CLOUD (`sector_b_state`): where each block's piece
+	# of the sky was last frame
+	var blk0: Vector2 = pt.get("blk", blk)
+	pt["blk"] = blk
+	ms.set_shader_parameter("slide", blk - blk0)
+	# AND IT HOLDS NO BAND BEHIND A MOVING LIGHT (the sector map; LOCAL's sky,
+	# which shares this, keeps the full hold): how far the sun's light moved this
+	# frame, in blocks -- the sun's own slide, and on a zoom its light opening out
+	# (`sky_nebula`'s light px go as zoom^0.42; its lit bands' edges lie some
+	# LIGHT_R light px out) -- and the hold cut so a band edge trails it by about
+	# a block (TRAIL_BLK), the full HOLD once it is still
+	if "home_zoom" in v and not bool(pt.get("hold_fixed", false)):
+		var o: Vector2 = v.origin()
+		var o0: Vector2 = pt.get("o", o)
+		var lz := pow(maxf(float(v.zoom), 1e-3) / maxf(float(v.home_zoom), 1e-3), 0.42)
+		var lz0: float = pt.get("lz", lz)
+		pt["o"] = o
+		pt["lz"] = lz
+		var lscale := clampf(float(v.window.size.x) / 700.0, 0.5, 1.4)
+		var moved := (o - o0).length() / 2.0 + absf(log(lz / lz0)) * LIGHT_R * lz * lscale / 2.0
+		ms.set_shader_parameter("hold", HOLD if moved < 1e-4 else clampf(TRAIL_BLK / moved, 0.0, HOLD))
 	ms.set_shader_parameter("low", low)
 	ms.set_shader_parameter("star_px", v.origin())
 	ms.set_shader_parameter("sun_r", float(v.layout.star_r) * float(v.star_k()))

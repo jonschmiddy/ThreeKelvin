@@ -89,8 +89,9 @@ const ACTIONS := [
 const FIXED := [KEY_ESCAPE, KEY_BACKSPACE, KEY_DELETE]
 
 ## Where the bindings are kept. A var so `-- bindtest` can point it at a file
-## of its own and never touch the player's settings.
-var path: String = DisplaySettings.PATH
+## of its own and never touch the player's settings; under any harness the
+## harness's scratch file (`DisplaySettings.path`).
+var path: String = DisplaySettings.path
 
 ## action -> [primary, secondary] keycodes, 0 for an empty slot.
 var _bound: Dictionary = {}

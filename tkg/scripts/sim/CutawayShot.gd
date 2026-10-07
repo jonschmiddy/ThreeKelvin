@@ -181,13 +181,24 @@ func _run() -> void:
 	await _frames(12)
 	_still("04_hover_hold")
 	cut._show(null)
-	# 5. a part from the hold carried: its rings pulse, no card
+	# 5. a part carried: the empty mounts of its kind ring and pulse (and only
+	# then: at rest an empty mount is not drawn), no card. A part of a slot with
+	# an empty mount, so there is a ring to see
 	var carried: ModuleData = in_hold
-	if carried != null:
-		cut._mounts.light(carried)
+	var shown: ModuleData = carried
+	for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+		if Run.slots_used(slot) < Run.slots_for(slot):
+			for mid in DB.modules:
+				if (DB.modules[mid] as ModuleData).slot == slot:
+					shown = DB.modules[mid]
+					break
+			break
+	if shown != null:
+		cut._mounts.light(shown)
 		await _frames(24)
 		_still("05_carrying")
 		cut._mounts.light(null)
+	if carried != null:
 		# 6. dropped onto a mount of its kind: an empty one if there is one
 		var at := 0
 		for i in Run.slots_for(carried.slot):

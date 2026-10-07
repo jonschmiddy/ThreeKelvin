@@ -34,7 +34,8 @@ extends Control
 ##           | ring | group
 ##   pieces  piece ids from the index, cycled; or `role:<name>` (a kept pool
 ##           ship of that role, the same one for this encounter every time:
-##           `resolve`), or `foe` (the ship the event's fight would bring)
+##           `resolve`). Never the fight's own coded ship (`EnemyArt`): Jon
+##           picked kept pool ships on LOCAL, and the fight draws its own
 ##   count   how many (row, tether, field, herd, line, around, on_rock)
 ##   at      offset of this stage from the subject's centre, px
 ##   r       a painter piece's radius, px (else the recipe's own)
@@ -60,7 +61,17 @@ extends Control
 ##   drive   its drive lit at the stern
 ##   flood   a floodlight from its bow, on you
 ##   tow     a slack tow line off its bow, px long
+##   dock    group: {to = <index of another ship in the group>}: this one is ON
+##           that one -- set down on its top edge, touching it and not crossing
+##           it, clamped there (two clamps drawn over the seam), moving with it
 ## And on a stage: `strobe` (a light run along the line of its ships).
+##
+## NOTHING IS DRAWN ACROSS ANYTHING ELSE (Jon: "why are they stacked on top of
+## each other"; "it has to make sense where it stands"). No two pieces' opaque
+## pixels come within the drift each can travel of one another (`mask_of`,
+## `drift_of`, `clear_of`), except a piece on its own rock or round its own body,
+## and a declared `dock`, which touches along an edge. `-- subjecttest` holds
+## every subject to it.
 ## Lights, drives, floods and strobes are drawn in code over the art, as light
 ## (gathered, stepped and dithered, eased), never painted on the pictures.
 
@@ -78,22 +89,21 @@ static var _index: Dictionary = {}
 static var _turned: Dictionary = {}
 ## Which kept pool ships each role may be (`index.json` "roles").
 static var _roles: Dictionary = {}
-## The fight's ships, as `EnemyArt` draws them: {"foe:<id>": {tex, w, h, anchors}}
-static var _foes: Dictionary = {}
 ## Glows for the lights, by "radius:colour".
 static var _glows: Dictionary = {}
-## For a test: the fight's ship to stage instead of the one the fight would bring.
-static var foe_override: StringName = &""
+## Opaque-pixel masks of pieces as drawn (`mask_of`), and dilated ones.
+static var _masks: Dictionary = {}
+## The stagings the last `plan` drew fewer of than asked, to keep them clear.
+static var short: Array[String] = []
 
 ## Which option this draws, at which system (so a refresh only rebuilds when it
 ## changes).
 var key := ""
 var subject: Variant = null
-## The encounter it is (its ships are picked by it) and the system's danger
-## (which fight it would bring).
+## The encounter it is (its ships are picked by it) and the system's danger.
 var oid: StringName = &""
 var danger := 1
-## What it drew, piece by piece, once resolved (the fight's ship as `foe:<id>`).
+## What it drew, piece by piece, once resolved.
 var cast: Array[StringName] = []
 var sky: LocalSky = null
 ## The placed pieces: [{node, base pos, scale, far, drift, spin, phase, sprite?,
@@ -112,6 +122,8 @@ var _scale := 1.0
 var _strobes: Dictionary = {}
 ## Where the lights are drawn (additive, over the pieces).
 var _over: Node2D = null
+## Where a docked piece's clamps are drawn (over the pieces, plain).
+var _links: Node2D = null
 var _t := 0.0
 ## LOCAL's drawn place, held hidden while this is up (see `_process`)
 var _area: Control = null
@@ -141,13 +153,9 @@ static func role_ships(role: String) -> Array:
 	return _roles.get(role, [])
 
 
-## A piece's record: the index's, or for the fight's own ship (`foe:<id>`) one
-## made from `EnemyArt`'s drawing of it.
+## A piece's record, from the index.
 static func piece_info(id: StringName) -> Dictionary:
-	var k := String(id)
-	if k.begins_with("foe:"):
-		return _foe(StringName(k.substr(4)))
-	return index().get(k, {})
+	return index().get(String(id), {})
 
 
 static func has_piece(id: StringName) -> bool:
@@ -190,8 +198,19 @@ static func box_for(view_size: Vector2) -> Rect2:
 ## Deterministic, so a test can check it fits without a screen.
 static func plan(s: Variant, oid: StringName = &"", danger: int = 1) -> Array:
 	var out: Array = []
+	var stage_i := -1
+	short.clear()
 	for st: Dictionary in stages_of(resolve(s, oid, danger)):
+		stage_i += 1
 		var at: Vector2 = st.get("at", Vector2.ZERO)
+		# what earlier stages placed, in this stage's own frame, to keep clear of
+		var prior: Array = []
+		for o: Dictionary in out:
+			var c: Dictionary = o.duplicate()
+			c.at = (o.at as Vector2) - at
+			prior.append(c)
+		st = st.duplicate()
+		st._prior = prior
 		var made: Array = []
 		match StringName(st.get("stage", &"single")):
 			&"single":
@@ -216,18 +235,313 @@ static func plan(s: Variant, oid: StringName = &"", danger: int = 1) -> Array:
 				made = _stage_ring(st)
 			&"group":
 				made = _stage_group(st)
+		# a staging that could not stand every piece clear shows fewer: say so
+		var wanted := int(st.get("count", made.size()))
+		var real := 0
+		for m: Dictionary in made:
+			if not bool(m.get("base_of", false)) and not bool(m.get("welds", false)) and not bool(m.get("tether", false) and (st.get("ends", []) as Array).has(m.id)):
+				real += 1
+		if st.has("count") and real < wanted:
+			short.append("%s %d of %d" % [st.get("stage", &""), real, wanted])
+		var first := out.size()
 		for m: Dictionary in made:
 			m.at = (m.at as Vector2) + at
+			m.st_i = stage_i
+			if m.has("dock_to"):
+				m.dock_to = int(m.dock_to) + first
 			# a stage's ship states fall to every piece in it that has not its own
 			for k: String in SHIP_STATES:
 				if st.has(k) and not m.has(k):
 					m[k] = st[k]
 			m.strobe_of = st.get("strobe_id", -1)
 			out.append(m)
-	# far first, near last
+	# A SHIP ON ANOTHER is set down on its top edge: lowered until one more pixel
+	# would cross it, so the two touch and neither is drawn over the other
+	for m: Dictionary in out:
+		if m.has("dock_to"):
+			_dock(m, out[int(m.dock_to)])
+	# far first, near last (a docked one keeps its host's index through the sort)
+	for i in out.size():
+		out[i].idx = i
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return float(a.far) > float(b.far) if not is_equal_approx(float(a.far), float(b.far)) else int(a.get("z", 0)) < int(b.get("z", 0)))
+	var where := {}
+	for i in out.size():
+		where[int(out[i].idx)] = i
+	for m: Dictionary in out:
+		if m.has("dock_to"):
+			m.dock_to = where[int(m.dock_to)]
 	return out
+
+
+## Set `m` down on top of `host`: from well clear above, lowered a pixel at a
+## time until it touches (its mask one pixel from the host's), never crossing.
+## The two clamps go where it touches, a quarter of its length in from each end.
+static func _dock(m: Dictionary, host: Dictionary) -> void:
+	var a := mask_of(m)
+	var b := mask_of(host)
+	if a.is_empty() or b.is_empty():
+		return
+	var hp := _corner(host, b)
+	var at: Vector2 = m.at
+	var y := (host.at as Vector2).y - float(int(b.h) + int(a.h)) * 0.5 - 4.0
+	var best := y
+	for step in 200:
+		m.at = Vector2(at.x, y)
+		if touches(a, _corner(m, a), b, hp, 0, 0):
+			break
+		best = y
+		y += 1.0
+	m.at = Vector2(at.x, best)
+	# the clamps: where its underside meets the host, a quarter in from each end
+	var mp := _corner(m, a)
+	var links: Array = []
+	for f: float in [0.25, 0.75]:
+		var x := int(round(float(int(a.w)) * f))
+		var bits: PackedByteArray = a.bits
+		var low := -1
+		for yy in range(int(a.h) - 1, -1, -1):
+			if bits[yy * int(a.w) + x] != 0:
+				low = yy
+				break
+		if low >= 0:
+			links.append(Vector2(mp.x + x, mp.y + low + 1) - (m.at as Vector2))
+	m.links = links
+
+
+## The opaque pixels of a planned piece as it is drawn: its picture (the half or
+## quarter one where it is drawn that small, as `_apply_scale` does), turned as it
+## is turned, at its size; a painter rock as its lumpy mask, a moon as its disc.
+## {w, h, bits (1 per opaque pixel, row by row)}.
+static func mask_of(m: Dictionary) -> Dictionary:
+	var id := StringName(m.id)
+	var sc := float(m.scale)
+	var turn := float(m.get("turn", 0.0))
+	var r := float(m.get("r", 0.0))
+	var flip := bool(m.get("flip", false))
+	var key := "%s|%s|%s|%s|%s" % [id, sc, turn, r, flip]
+	if _masks.has(key):
+		return _masks[key]
+	var p := piece_info(id)
+	if p.is_empty():
+		return {}
+	var img: Image = null
+	var base := 1.0
+	match String(p.get("kind", "")):
+		"painter":
+			var r0 := float(p.r)
+			var k := (r / r0) if r > 0.0 else 1.0
+			var w := int(roundf(float(p.w) * k))
+			var h := int(roundf(float(p.h) * k))
+			if not (p.get("lobes", []) as Array).is_empty():
+				img = lumpy_mask(w, h, k, p)
+			else:
+				img = Image.create(w, h, false, Image.FORMAT_RGBA8)
+				var c := Vector2(float(p.cx), float(p.cy)) * k
+				for yy in h:
+					for xx in w:
+						if Vector2(float(xx) + 0.5, float(yy) + 0.5).distance_to(c) <= r0 * k:
+							img.set_pixel(xx, yy, Color(1, 0, 0, 1))
+		_:
+			var path := String(p.file)
+			if sc <= 0.25 + 0.001 and p.has("quarter"):
+				path = String(p.quarter)
+				base = 0.25
+			elif sc <= 0.5 + 0.001 and p.has("half"):
+				path = String(p.half)
+				base = 0.5
+			img = _image_of(path)
+	if img == null:
+		return {}
+	if img.is_compressed():
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	if not is_zero_approx(turn):
+		img = turned_image(img, turn)
+	if flip:
+		img.flip_x()
+	var f := sc / base
+	if not is_equal_approx(f, 1.0):
+		img.resize(maxi(1, int(roundf(float(img.get_width()) * f))), maxi(1, int(roundf(float(img.get_height()) * f))), Image.INTERPOLATE_NEAREST)
+	var w2 := img.get_width()
+	var h2 := img.get_height()
+	var bits := PackedByteArray()
+	bits.resize(w2 * h2)
+	var painter := String(p.get("kind", "")) == "painter"
+	for yy in h2:
+		for xx in w2:
+			var c2 := img.get_pixel(xx, yy)
+			bits[yy * w2 + xx] = 1 if (c2.r > 0.5 if painter else c2.a > 0.5) else 0
+	var d := {w = w2, h = h2, bits = bits, key = key}
+	_masks[key] = d
+	return d
+
+
+## A picture's pixels: from the imported texture (what an export carries), or
+## from the file itself where there is no renderer to ask (a headless test).
+static func _image_of(path: String) -> Image:
+	var tex := load(path) as Texture2D
+	var img: Image = tex.get_image() if tex != null else null
+	if img == null or img.is_empty():
+		img = Image.load_from_file(path)
+	return img
+
+
+## Where a planned piece's picture starts, its top-left pixel.
+static func _corner(m: Dictionary, mk: Dictionary) -> Vector2i:
+	# floor, not round: a half pixel rounds away from zero, so a piece moved by a
+	# whole pixel across the middle would land a pixel off from its neighbours
+	return Vector2i(((m.at as Vector2) - Vector2(float(mk.w), float(mk.h)) * 0.5).floor())
+
+
+## Whether any opaque pixel of `a` (at `pa`) comes within `mx`, `my` px of an
+## opaque pixel of `b` (at `pb`). 0, 0: whether they share a pixel.
+static func touches(a: Dictionary, pa: Vector2i, b: Dictionary, pb: Vector2i, mx: int, my: int) -> bool:
+	var ra := Rect2i(pa, Vector2i(int(a.w), int(a.h)))
+	var rb := Rect2i(pb - Vector2i(mx, my), Vector2i(int(b.w) + mx * 2, int(b.h) + my * 2))
+	var inter := ra.intersection(rb)
+	if inter.size.x <= 0 or inter.size.y <= 0:
+		return false
+	var bd := _dilated(b, mx, my)
+	var ab: PackedByteArray = a.bits
+	var bb: PackedByteArray = bd.bits
+	var aw := int(a.w)
+	var bw := int(bd.w)
+	var o := pb - Vector2i(mx, my)
+	for y in range(inter.position.y, inter.end.y):
+		for x in range(inter.position.x, inter.end.x):
+			if ab[(y - pa.y) * aw + (x - pa.x)] != 0 and bb[(y - o.y) * bw + (x - o.x)] != 0:
+				return true
+	return false
+
+
+## A mask grown by `mx`, `my` px each way.
+static func _dilated(b: Dictionary, mx: int, my: int) -> Dictionary:
+	if mx == 0 and my == 0:
+		return b
+	var key := "dil|%s|%d|%d" % [b.get("key", ""), mx, my]
+	if _masks.has(key):
+		return _masks[key]
+	var w := int(b.w)
+	var h := int(b.h)
+	var W := w + mx * 2
+	var H := h + my * 2
+	var src: PackedByteArray = b.bits
+	var row := PackedByteArray()
+	row.resize(W * h)
+	for y in h:
+		for x in w:
+			if src[y * w + x] != 0:
+				for dx in range(0, mx * 2 + 1):
+					row[y * W + x + dx] = 1
+	var out := PackedByteArray()
+	out.resize(W * H)
+	for y in h:
+		for x in W:
+			if row[y * W + x] != 0:
+				for dy in range(0, my * 2 + 1):
+					out[(y + dy) * W + x] = 1
+	var d := {w = W, h = H, bits = out}
+	_masks[key] = d
+	return d
+
+
+## Whether planned piece `m` stands clear of every one of `others` by the drift
+## the two can travel apart (`clear_of`'s rule, for placing one at a time).
+static func _clear(m: Dictionary, others: Array) -> bool:
+	var a := mask_of(m)
+	if a.is_empty():
+		return true
+	var pa := _corner(m, a)
+	var da := drift_of(m)
+	for o: Dictionary in others:
+		var b := mask_of(o)
+		if b.is_empty():
+			continue
+		var d := da + drift_of(o)
+		if touches(a, pa, b, _corner(o, b), int(ceilf(d.x)), int(ceilf(d.y))):
+			return false
+	return true
+
+
+## How far a planned piece can travel from where it stands: its drift (as
+## `_process` moves it) and the reach of its tumble at its ends.
+static func drift_of(m: Dictionary) -> Vector2:
+	var amp := 3.0 if float(m.far) > 0.0 else 5.0
+	var d := Vector2(amp * 0.5, amp * 0.4)
+	if bool(m.get("swim", false)):
+		d = Vector2(amp * 1.6, 2.0)
+	if bool(m.get("tether", false)):
+		d = Vector2(0.0, 1.5)
+	var tb := float(m.get("tumble", 0.0))
+	if tb > 0.0:
+		var sz := piece_size(StringName(m.id), float(m.get("r", 0.0))) * float(m.scale)
+		d += Vector2(sz.y * 0.5, sz.x * 0.5) * sin(deg_to_rad(tb))
+	if float(m.get("roll", 0.0)) != 0.0:
+		# turning right over, its corners reach past its box
+		var sz2 := piece_size(StringName(m.id)) * float(m.scale)
+		var reach := (sz2.length() - minf(sz2.x, sz2.y)) * 0.5
+		d += Vector2(reach, reach)
+	return d
+
+
+## WHICH PIECES ARE TOO CLOSE: every pair whose opaque pixels come within the
+## drift the two can travel apart of each other -- except a piece on its own
+## rock or round its own body, a clamp welding two neighbours, and a docked pair,
+## which must instead touch and not cross. ["a ~ b", ...]
+static func clear_of(planned: Array) -> Array[String]:
+	var bad: Array[String] = []
+	var ms: Array = []
+	for m: Dictionary in planned:
+		ms.append(mask_of(m))
+	for i in planned.size():
+		for j in range(i + 1, planned.size()):
+			var a: Dictionary = planned[i]
+			var b: Dictionary = planned[j]
+			if ms[i].is_empty() or ms[j].is_empty():
+				continue
+			var same := int(a.get("st_i", -1)) == int(b.get("st_i", -2))
+			if same and ((bool(a.get("on_base", false)) and bool(b.get("base_of", false))) \
+					or (bool(b.get("on_base", false)) and bool(a.get("base_of", false))) \
+					or bool(a.get("welds", false)) or bool(b.get("welds", false))):
+				continue
+			var pa := _corner(a, ms[i])
+			var pb := _corner(b, ms[j])
+			var docked := int(a.get("dock_to", -1)) == j or int(b.get("dock_to", -1)) == i
+			if docked:
+				if touches(ms[i], pa, ms[j], pb, 0, 0) or not touches(ms[i], pa, ms[j], pb, 1, 1):
+					bad.append("%s docked on %s (not touching along an edge)" % [a.id, b.id])
+				continue
+			var d := drift_of(a) + drift_of(b)
+			if touches(ms[i], pa, ms[j], pb, int(ceilf(d.x)), int(ceilf(d.y))):
+				bad.append("%s ~ %s" % [a.id, b.id])
+	return bad
+
+
+## `turned`'s pixels, for an Image.
+static func turned_image(src: Image, deg: float) -> Image:
+	var sw := src.get_width()
+	var sh := src.get_height()
+	var out_sz := turned_size(Vector2(sw, sh), deg)
+	var ow := int(out_sz.x)
+	var oh := int(out_sz.y)
+	var img := Image.create(ow, oh, false, Image.FORMAT_RGBA8)
+	var a := deg_to_rad(deg)
+	var c := cos(a)
+	var sn := sin(a)
+	var ocx := float(ow) * 0.5
+	var ocy := float(oh) * 0.5
+	var scx := float(sw) * 0.5
+	var scy := float(sh) * 0.5
+	for y in oh:
+		for x in ow:
+			var dx := float(x) + 0.5 - ocx
+			var dy := float(y) + 0.5 - ocy
+			var sx := floori(dx * c + dy * sn + scx)
+			var sy := floori(-dx * sn + dy * c + scy)
+			if sx >= 0 and sy >= 0 and sx < sw and sy < sh:
+				img.set_pixel(x, y, src.get_pixel(sx, sy))
+	return img
 
 
 ## The rect a planned piece covers, px from the subject's centre.
@@ -268,78 +582,135 @@ static func _m(id: StringName, at: Vector2, sc: float = 1.0, far: float = 0.0, e
 static func _stage_single(st: Dictionary) -> Array:
 	var far := bool(st.get("far", false))
 	return [_m(_piece(st, 0), Vector2.ZERO, 0.5 if far else 1.0, 0.55 if far else 0.0,
-		{r = float(st.get("r", 0.0)), tumble = float(st.get("tumble", 0.0)), turn = float(st.get("turn", 0.0))})]
+		{r = float(st.get("r", 0.0)), tumble = float(st.get("tumble", 0.0)), turn = float(st.get("turn", 0.0)), flip = bool(st.get("flip", false))})]
 
 
-## A line receding: the nearest at 1x in front, the rest far, along `dir`.
-## `recede`: a queue going back into the dark, nose to tail -- the first `near`
-## at 1x, the next `mid` at half, the rest at a quarter, each spaced by its own
-## length (`overlap` of it tucked behind the one in front).
+## A ROW: a line of them nose to tail along `dir` (`_nose_to_tail`), the first
+## `near` at 1x, then `mid` at half, the rest at half -- or, `recede`, the rest at
+## a quarter: a queue going back into the dark.
 static func _stage_row(st: Dictionary) -> Array:
-	var out: Array = []
 	var n := int(st.get("count", 3))
 	var near := int(st.get("near", n))
-	var span := float(st.get("span", 300.0))
-	var dir: Vector2 = st.get("dir", Vector2(1.0, -0.3))
-	dir = dir.normalized()
-	if bool(st.get("recede", false)):
-		var mid := int(st.get("mid", 3))
-		var overlap := float(st.get("overlap", 0.2))
-		var scs: Array[float] = []
-		var ws: Array[float] = []
-		for i in n:
-			var sc := 1.0 if i < near else (0.5 if i < near + mid else 0.25)
-			scs.append(sc)
-			ws.append(piece_size(_piece(st, i)).x * sc)
-		var xs: Array[float] = [0.0]
-		for i in range(1, n):
-			xs.append(xs[i - 1] + (ws[i - 1] + ws[i]) * 0.5 * (1.0 - overlap))
-		# (a queue can run off to the left as well: `dir` with x below 0)
-		var c := xs[n - 1] * 0.5
-		var sx := -1.0 if dir.x < 0.0 else 1.0
-		for i in n:
-			var x := (xs[i] - c) * sx
-			var far := 0.0 if scs[i] >= 1.0 else (0.4 if scs[i] >= 0.5 else 0.6)
-			out.append(_m(_piece(st, i), Vector2(x, x * dir.y / maxf(absf(dir.x), 0.05) * sx).round(), scs[i], far, {z = -i}))
-		return out
+	var recede := bool(st.get("recede", false))
+	var mid := int(st.get("mid", 3 if recede else n))
+	var made: Array = []
 	for i in n:
-		var t := (float(i) / maxf(float(n - 1), 1.0)) - 0.5
-		var far := i >= near
-		out.append(_m(_piece(st, i), dir * span * t, 0.5 if far else 1.0, 0.6 if far else 0.0, {z = -i}))
-	return out
+		var sc := 1.0 if i < near else (0.5 if i < near + mid else 0.25)
+		made.append(_m(_piece(st, i), Vector2.ZERO, sc, _far_of(sc), {z = -i, flip = bool(st.get("flip", false))}))
+	return _nose_to_tail(made, st, float(st.get("span", 300.0)))
+
+
+## How far off a piece drawn at `sc` is seen: dimmed toward the sky the smaller it is.
+static func _far_of(sc: float) -> float:
+	return 0.0 if sc >= 1.0 else (0.45 if sc >= 0.5 else 0.6)
+
+
+## The steepest a line of things runs (rise over run).
+const MAX_SLOPE := 0.3
+
+
+## A LINE OF THEM, NOSE TO TAIL (Jon on the queues, convoys and strings of cargo:
+## "why are they so weirdly stacked"). Each next one goes on along the line only
+## once it is clear of the one before it SIDEWAYS -- `gap` px of air between the
+## one's tail and the next one's nose -- never set above or below it, so the line
+## reads as things one behind another and never piles into a column or a
+## staircase. The line runs nearly level, at most `MAX_SLOPE` up or down (`dir`
+## gives which way it goes and its lean): the far end a little higher, as far
+## things sit nearer the horizon. Its gaps close up as its pieces get smaller
+## (further off, closer together). Only as many as `span` holds either side of
+## the middle; the rest are past the edge of what you see. `jitter` lifts or drops
+## each one a few px off the line and `turns` turns each a few degrees (a drifting
+## string, not a parade), from `seed`. Centred, and any that would cross what the
+## scene already holds left out.
+static func _nose_to_tail(made: Array, st: Dictionary, span: float) -> Array:
+	var dir: Vector2 = st.get("dir", Vector2(1.0, -0.2))
+	var sx := -1.0 if dir.x < 0.0 else 1.0
+	var slope := clampf(dir.y / maxf(absf(dir.x), 0.001), -MAX_SLOPE, MAX_SLOPE)
+	var gap := float(st.get("gap", 10.0))
+	var jit := float(st.get("jitter", 0.0))
+	var turns := float(st.get("turns", 0.0))
+	var R := RandomNumberGenerator.new()
+	R.seed = int(st.get("seed", 5))
+	var out: Array = []
+	var run := 0.0
+	var prev_w := 0.0
+	var prev_sc := 1.0
+	for m: Dictionary in made:
+		var sc := float(m.scale)
+		if turns > 0.0:
+			m.turn = roundf(R.randf_range(-turns, turns))
+		var lift := R.randf_range(-jit, jit) * sc if jit > 0.0 else 0.0
+		var w := turned_size(piece_size(StringName(m.id)), float(m.get("turn", 0.0))).x * sc
+		if not out.is_empty():
+			run += (prev_w + w) * 0.5 + maxf(gap * minf(sc, prev_sc), 3.0)
+		var placed := false
+		while run <= span:
+			m.at = Vector2(sx * run, slope * run + lift).round()
+			if _clear(m, out):
+				placed = true
+				break
+			run += 2.0
+		if not placed:
+			break
+		out.append(m)
+		prev_w = w
+		prev_sc = sc
+	if out.is_empty():
+		return out
+	# only what fits in `span`, measured from the line's own middle
+	while out.size() > 1:
+		var a: Rect2 = rect_of(out[0])
+		var b: Rect2 = rect_of(out[out.size() - 1])
+		if a.merge(b).size.x <= span:
+			break
+		out.pop_back()
+	# (a whole-pixel shift, so the spacing found is the spacing drawn)
+	var c := (((out[0].at as Vector2) + (out[out.size() - 1].at as Vector2)) * 0.5).round()
+	var kept: Array = []
+	var prior: Array = st.get("_prior", [])
+	for m: Dictionary in out:
+		m.at = ((m.at as Vector2) - c).round()
+		if _clear(m, prior):
+			kept.append(m)
+	return kept
 
 
 ## A tether: pieces hung at even steps on a line that sags a little, between two
-## ends (painter rocks, or bare).
+## ends (painter rocks, or bare). ONE LINE AT ONE DEPTH (Jon: "why are they so
+## weirdly stacked"): its ends and everything on it the one size -- 1x, or half
+## and dimmed when `far` -- never big ones and small ones on the same string, which
+## no distance makes. The line keeps nearly level (`tilt`, at most `MAX_SLOPE`).
 static func _stage_tether(st: Dictionary) -> Array:
 	var out: Array = []
 	var n := int(st.get("count", 6))
+	var far := bool(st.get("far", false))
+	var sc := 0.5 if far else 1.0
+	var fv := _far_of(sc)
 	var span := float(st.get("span", 320.0))
-	var sag := float(st.get("sag", 18.0))
-	var tilt := float(st.get("tilt", -0.12))
+	var sag := float(st.get("sag", 18.0)) * sc
+	var tilt := clampf(float(st.get("tilt", -0.12)), -MAX_SLOPE, MAX_SLOPE)
 	var ends: Array = st.get("ends", [])
 	var er := float(st.get("r", 34.0))
 	for k in ends.size():
 		var x := (-0.5 if k == 0 else 0.5) * span
-		out.append(_m(StringName(ends[k]), Vector2(x, x * tilt), 1.0, 0.0, {r = er, z = -1, tether = true}))
-	var inner := span - (er * 2.4 if not ends.is_empty() else 0.0)
-	# (the first `near` at 1x, the rest half size and dimmed, receding along it:
-	# six tanks a hundred pixels long do not hang in a line four hundred wide)
-	var near := int(st.get("near", n))
+		out.append(_m(StringName(ends[k]), Vector2(x, x * tilt).round(), sc, fv, {r = er, z = -1, tether = true}))
+	# what is left between the ends, past each end's own half-width and some air
+	var inner := span
+	for e in ends:
+		inner -= (piece_size(StringName(e), er).x * 0.5 + 12.0) * sc
 	var ws: Array[float] = []
 	var total := 0.0
 	for i in n:
-		var w := piece_size(_piece(st, i)).x * (1.0 if i < near else 0.5)
+		var w := piece_size(_piece(st, i)).x * sc
 		ws.append(w)
 		total += w
-	var gap := maxf((inner - total) / maxf(float(n - 1), 1.0), 4.0)
+	var gap := maxf((inner - total) / maxf(float(n - 1), 1.0), 4.0 * sc)
 	var x := -(total + gap * float(n - 1)) * 0.5
 	for i in n:
 		x += ws[i] * 0.5
 		var t := x / maxf(inner, 1.0)
 		var y := x * tilt + sag * (1.0 - 4.0 * t * t)
-		var far := i >= near
-		out.append(_m(_piece(st, i), Vector2(x, y), 0.5 if far else 1.0, 0.55 if far else 0.0, {tether = true, z = i}))
+		out.append(_m(_piece(st, i), Vector2(x, y).round(), sc, fv, {tether = true, z = i}))
 		x += ws[i] * 0.5 + gap
 	return out
 
@@ -354,31 +725,49 @@ static func _stage_field(st: Dictionary) -> Array:
 	var hgt := float(st.get("height", 150.0))
 	var R := RandomNumberGenerator.new()
 	R.seed = int(st.get("seed", 7))
-	var taken: Array[Rect2] = []
+	var prior: Array = st.get("_prior", [])
+	# NOT COPIES PASTED IN (Jon on the mine drift and the scatter: "super busy?
+	# idk they look just copy and pasted in"), when a field asks: `turns`, each
+	# piece turned its own way up to that many degrees (once, pixel for pixel);
+	# `deep`, the last that many a quarter size, further off still, so the field
+	# has three distances and not two; `band`, the field a stream leaning that
+	# many degrees, things drifting through along a line, not a round cloud.
+	var turns := float(st.get("turns", 0.0))
+	var deep := int(st.get("deep", 0))
+	var band := deg_to_rad(float(st.get("band", 0.0)))
+	# A LOOSE GROUP, NOT A LINE (Jon on every evenly spaced row: "why are they so
+	# weirdly stacked"): ships waiting off a dock, a convoy, a knot of tanks --
+	# `flip` faces them all one way (ships, a herd) instead of each at random,
+	# and `lift` sets the further ones that much higher at a quarter size (half
+	# that at half size), as far things sit nearer the horizon
+	var lift := float(st.get("lift", 0.0))
 	for i in n:
 		var far := i >= near
 		var id := _piece(st, i)
 		var sc := 0.5 if far else 1.0
-		var sz := piece_size(id) * sc
-		var at := Vector2.ZERO
-		for tries in 40:
+		if i >= n - deep and far:
+			sc = 0.25
+		var turn := roundf(R.randf_range(-turns, turns)) if turns > 0.0 else 0.0
+		var sz := turned_size(piece_size(id), turn) * sc
+		var flip := R.randf() < 0.5
+		if st.has("flip"):
+			flip = bool(st.flip)
+		for tries in 60:
 			var a := R.randf() * TAU
 			var rr := sqrt(R.randf())
-			at = Vector2(cos(a) * span * 0.5 * rr, sin(a) * hgt * 0.5 * rr)
-			# clear of what is already placed at the same depth
-			var r := Rect2(at - sz * 0.5, sz).grow(3.0)
-			var clash := false
-			for q in taken:
-				if q.intersects(r):
-					clash = true
-					break
-			if not clash or tries == 39:
-				# kept inside the field's own ellipse box
-				at.x = clampf(at.x, -span * 0.5 + sz.x * 0.5, span * 0.5 - sz.x * 0.5)
-				at.y = clampf(at.y, -hgt * 0.5 + sz.y * 0.5, hgt * 0.5 - sz.y * 0.5)
-				taken.append(Rect2(at - sz * 0.5, sz))
+			var at := Vector2(cos(a) * span * 0.5 * rr, sin(a) * hgt * 0.5 * rr)
+			if band != 0.0:
+				at = at.rotated(band)
+			at.y -= lift * (1.0 - sc) / 0.75
+			# kept inside the field's own box
+			at.x = clampf(at.x, -span * 0.5 + sz.x * 0.5, span * 0.5 - sz.x * 0.5)
+			at.y = clampf(at.y, -hgt * 0.5 + sz.y * 0.5, hgt * 0.5 - sz.y * 0.5)
+			var m := _m(id, at.round(), sc, _far_of(sc) if turns > 0.0 or deep > 0 else (0.55 if far else 0.0),
+				{flip = flip, tumble = float(st.get("tumble", 4.0)), z = i, turn = turn})
+			# CLEAR of every piece already placed, this field's and the scene's
+			if _clear(m, out + prior):
+				out.append(m)
 				break
-		out.append(_m(id, at, sc, 0.55 if far else 0.0, {flip = R.randf() < 0.5, tumble = float(st.get("tumble", 4.0)), z = i}))
 	return out
 
 
@@ -405,26 +794,52 @@ static func _stage_herd(st: Dictionary) -> Array:
 		else:
 			x = lerpf(-span * 0.5 + sz.x * 0.5, span * 0.5 - sz.x * 0.5, (float(i) + 0.5) / maxf(float(near), 1.0))
 			y = hgt * 0.5 - sz.y * 0.5 - R.randf_range(0.0, hgt * 0.2)
-		x = clampf(x, -span * 0.5 + sz.x * 0.5, span * 0.5 - sz.x * 0.5)
-		y = clampf(y, -hgt * 0.5 + sz.y * 0.5, hgt * 0.5 - sz.y * 0.5)
-		out.append(_m(id, Vector2(x, y), sc, 0.55 if far else 0.0, {swim = bool(st.get("swim", true)), flip = bool(st.get("flip", false)), z = i}))
+		var m := _nearest_clear(_m(id, Vector2(x, y).round(), sc, 0.55 if far else 0.0,
+			{swim = bool(st.get("swim", true)), flip = bool(st.get("flip", false)), z = i}),
+			out + (st.get("_prior", []) as Array), Rect2(-span * 0.5, -hgt * 0.5, span, hgt), R)
+		if not m.is_empty():
+			out.append(m)
 	return out
 
 
-## A line of them crossing, receding: one near, the rest far along a shallow
-## diagonal.
+## `m` where it stands if that is clear of `others`, else the nearest clear place
+## round it inside `room` (rings of tries, growing); {} if there is none -- then
+## the piece is left out, rather than drawn across another.
+static func _nearest_clear(m: Dictionary, others: Array, room: Rect2, R: RandomNumberGenerator) -> Dictionary:
+	var home: Vector2 = m.at
+	var sz := piece_size(StringName(m.id), float(m.get("r", 0.0))) * float(m.scale)
+	for ring in 16:
+		var tries := 1 if ring == 0 else 10
+		for k in tries:
+			var at := home
+			if ring > 0:
+				var a := R.randf() * TAU
+				at = home + Vector2(cos(a), sin(a) * 0.6) * float(ring) * 10.0
+			at.x = clampf(at.x, room.position.x + sz.x * 0.5, room.end.x - sz.x * 0.5)
+			at.y = clampf(at.y, room.position.y + sz.y * 0.5, room.end.y - sz.y * 0.5)
+			m.at = at.round()
+			if _clear(m, others):
+				return m
+	return {}
+
+
+## A line of them crossing (creatures swimming, ships under way): nose to tail
+## (`_nose_to_tail`), the first `near` at 1x, the next `mid` at half, the rest at
+## a quarter, the line leaning `rise` over `span`.
 static func _stage_line(st: Dictionary) -> Array:
-	var out: Array = []
 	var n := int(st.get("count", 9))
 	var near := int(st.get("near", 1))
+	var mid := int(st.get("mid", n))
 	var span := float(st.get("span", 380.0))
-	var rise := float(st.get("rise", -90.0))
+	var made: Array = []
 	for i in n:
-		var far := i >= near
-		var id := _piece(st, i)
-		var t := float(i) / maxf(float(n - 1), 1.0)
-		out.append(_m(id, Vector2(lerpf(-span * 0.5, span * 0.5, t), lerpf(rise * -0.5, rise * 0.5, t)), 0.5 if far else 1.0, 0.55 if far else 0.0, {swim = bool(st.get("swim", true)), flip = bool(st.get("flip", false)), z = -i}))
-	return out
+		var sc := 1.0 if i < near else (0.5 if i < near + mid else 0.25)
+		made.append(_m(_piece(st, i), Vector2.ZERO, sc, _far_of(sc),
+			{swim = bool(st.get("swim", true)), flip = bool(st.get("flip", false)), z = -i}))
+	var st2 := st.duplicate()
+	if not st2.has("dir"):
+		st2.dir = Vector2(span, float(st.get("rise", -60.0)))
+	return _nose_to_tail(made, st2, span)
 
 
 ## Round a body: the body in the middle; the creatures behind it far, the ones
@@ -433,16 +848,66 @@ static func _stage_around(st: Dictionary) -> Array:
 	var out: Array = []
 	var base := StringName(st.get("base", &""))
 	var r := float(st.get("r", 56.0))
-	out.append(_m(base, Vector2.ZERO, 1.0, 0.0, {r = r, z = 0}))
+	var bx := {r = r, z = 0, base_of = true, turn = float(st.get("base_turn", 0.0)), flip = bool(st.get("base_flip", false))}
+	if st.has("base_dark"):
+		bx.dark = float(st.base_dark)
+	out.append(_m(base, Vector2.ZERO, 1.0, 0.0, bx))
+	if bool(st.get("loose", false)):
+		out.append_array(_loose_round(st, out[0]))
+		return out
 	var n := int(st.get("count", 5))
 	var rx := float(st.get("rx", r + 70.0))
 	var ry := float(st.get("ry", r * 0.55))
+	var round: Array = []
+	var prior: Array = st.get("_prior", [])
 	for i in n:
-		var a := TAU * float(i) / float(n) + 0.6
-		var front := sin(a) > 0.0
 		var id := _piece(st, i)
-		out.append(_m(id, Vector2(cos(a) * rx, sin(a) * ry), 1.0 if front else 0.5, 0.0 if front else 0.55,
-			{swim = true, flip = cos(a) > 0.0, z = 10 + i if front else -10 - i}))
+		for k in 24:
+			var a := TAU * float(i) / float(n) + 0.6 + float(k) * 0.045 * (1.0 if k % 2 == 0 else -1.0) * float((k + 1) / 2)
+			var front := sin(a) > 0.0
+			var m := _m(id, Vector2(cos(a) * rx, sin(a) * ry).round(), 1.0 if front else 0.5, 0.0 if front else 0.55,
+				{swim = true, flip = cos(a) > 0.0, z = 10 + i if front else -10 - i, on_base = true})
+			if _clear(m, round + prior):
+				round.append(m)
+				break
+	out.append_array(round)
+	return out
+
+
+## A LOOSE HERD ROUND A BODY (Jon on the ring of feeders: "????????"; then
+## "why are they touching the moon"): each somewhere near it at its own distance
+## from it -- more in front of it than behind -- at its own size (`size` at
+## most, down to a quarter of it behind), turned up to `tilt` degrees and facing
+## either way, from `seed`. Each keeps clear of the others, and `apart` px of
+## sky clear of the body itself; one that cannot is left out.
+static func _loose_round(st: Dictionary, body: Dictionary) -> Array:
+	var out: Array = []
+	var n := int(st.get("count", 6))
+	var rx := float(st.get("rx", 120.0))
+	var ry := float(st.get("ry", 70.0))
+	var size := float(st.get("size", 0.5))
+	var tilt := float(st.get("tilt", 14.0))
+	var apart := int(st.get("apart", 8))
+	var R := RandomNumberGenerator.new()
+	R.seed = int(st.get("seed", 5))
+	var prior: Array = st.get("_prior", [])
+	var bm := mask_of(body)
+	for i in n:
+		var id := _piece(st, i)
+		for tries in 60:
+			var a := R.randf() * TAU
+			var front := sin(a) > -0.25
+			var sc := (size if R.randf() < 0.85 else size * 0.5) if front else (size * 0.5 if R.randf() < 0.5 else size * 0.25)
+			var rr := R.randf_range(1.0, 1.5)
+			var m := _m(id, Vector2(cos(a) * rx * rr, sin(a) * ry * rr).round(), sc, _far_of(sc / maxf(size, 0.01)),
+				{turn = roundf(R.randf_range(-tilt, tilt)), flip = R.randf() < 0.5, z = 10 + i if front else -10 - i, on_base = true})
+			var mm := mask_of(m)
+			var d := drift_of(m) + drift_of(body)
+			if not bm.is_empty() and touches(mm, _corner(m, mm), bm, _corner(body, bm), apart + int(ceilf(d.x)), apart + int(ceilf(d.y))):
+				continue
+			if _clear(m, out + prior):
+				out.append(m)
+				break
 	return out
 
 
@@ -451,19 +916,94 @@ static func _stage_on_rock(st: Dictionary) -> Array:
 	var out: Array = []
 	var base := StringName(st.get("base", &""))
 	var r := float(st.get("r", 80.0))
-	out.append(_m(base, Vector2.ZERO, 1.0, 0.0, {r = r, z = 0}))
+	# `planet`: the rock as the planet painter drew it before rocks had form (Jon
+	# kept the welded plate on that rock, and the plate on the new one read
+	# "pasted on a blotchy rock")
+	out.append(_m(base, Vector2.ZERO, 1.0, 0.0, {r = r, z = 0, base_of = true, planet = bool(st.get("planet", false))}))
 	var rows := int(st.get("rows", 1))
 	var cols := int(st.get("count", 1))
 	var gap: Vector2 = st.get("gap", Vector2(56.0, 46.0))
 	var clamp_id := StringName(st.get("clamp", &""))
 	var face: Vector2 = st.get("face", Vector2.ZERO)
+	if bool(st.get("loose", false)):
+		out.append_array(_loose_on(st, clamp_id, face, out[0]))
+		return out
 	for y in rows:
 		for x in cols:
 			var p := face + Vector2((float(x) - float(cols - 1) * 0.5) * gap.x, (float(y) - float(rows - 1) * 0.5) * gap.y)
-			out.append(_m(_piece(st, y * cols + x), p, 1.0, 0.0, {z = 1 + y * cols + x}))
+			out.append(_m(_piece(st, y * cols + x), p, 1.0, 0.0, {z = 1 + y * cols + x, on_base = true}))
 			if clamp_id != &"" and x < cols - 1:
-				out.append(_m(clamp_id, p + Vector2(gap.x * 0.5, 0.0), 1.0, 0.0, {z = 100 + y * cols + x}))
+				# a clamp welds two neighbours together: it is on both
+				out.append(_m(clamp_id, p + Vector2(gap.x * 0.5, 0.0), 1.0, 0.0, {z = 100 + y * cols + x, on_base = true, welds = true}))
 	return out
+
+
+## CLAMPED WHERE THEY WERE DROPPED, NOT IN ROWS (Jon on the welded rows: "why
+## are they so weirdly stacked"): `count` pieces in one patch of the rock's face
+## (`spread`, round `face`), each turned up to `turns` degrees, each held by its
+## own clamp at its foot, each clear of the others and every corner of it on the
+## rock (none hanging past its edge), from `seed`. Side by side, never one above
+## another (Jon: "literally a stack"): no two share any width. `size` draws them
+## smaller against the rock (half: their own picture's every other pixel, not
+## dimmed -- they are on the rock, as near as it is).
+static func _loose_on(st: Dictionary, clamp_id: StringName, face: Vector2, rock: Dictionary) -> Array:
+	var out: Array = []
+	var n := int(st.get("count", 5))
+	var spread: Vector2 = st.get("spread", Vector2(180.0, 120.0))
+	var turns := float(st.get("turns", 10.0))
+	var sc := float(st.get("size", 1.0))
+	var R := RandomNumberGenerator.new()
+	R.seed = int(st.get("seed", 4))
+	var boxes: Array = []
+	for i in n:
+		var id := _piece(st, i)
+		for tries in 50:
+			var at := face + Vector2(R.randf_range(-0.5, 0.5) * spread.x, R.randf_range(-0.5, 0.5) * spread.y)
+			var deg := roundf(R.randf_range(-turns, turns))
+			var m := _m(id, at.round(), sc, 0.0, {z = 2 + i * 2, on_base = true, turn = deg})
+			var foot := Vector2(0.0, (piece_size(id).y * 0.5 - 3.0) * sc).rotated(deg_to_rad(deg))
+			var held := _m(clamp_id, (at + foot).round(), sc, 0.0, {z = 1 + i * 2, on_base = true, welds = true, turn = deg}) if clamp_id != &"" else {}
+			var beside := true
+			for o: Dictionary in boxes:
+				var ra := rect_of(m)
+				var rb := rect_of(o)
+				if ra.position.x < rb.end.x + 4.0 and rb.position.x < ra.end.x + 4.0:
+					beside = false
+			if not beside:
+				continue
+			if not _on_rock(m, rock) or (not held.is_empty() and not _on_rock(held, rock)):
+				continue
+			if _clear(m, boxes):
+				boxes.append(m)
+				out.append(m)
+				if not held.is_empty():
+					out.append(held)
+				break
+	return out
+
+
+## Whether every opaque pixel of planned piece `m` lies on `rock`'s own, a few
+## px in from its edge.
+static func _on_rock(m: Dictionary, rock: Dictionary) -> bool:
+	var a := mask_of(m)
+	var b := mask_of(rock)
+	if a.is_empty() or b.is_empty():
+		return true
+	var pa := _corner(m, a)
+	var pb := _corner(rock, b)
+	var ab: PackedByteArray = a.bits
+	var bb: PackedByteArray = b.bits
+	var inset := 3
+	for y in int(a.h):
+		for x in int(a.w):
+			if ab[y * int(a.w) + x] == 0:
+				continue
+			for o: Vector2i in [Vector2i(0, 0), Vector2i(-inset, 0), Vector2i(inset, 0), Vector2i(0, -inset), Vector2i(0, inset)]:
+				var bx := pa.x + x + o.x - pb.x
+				var by := pa.y + y + o.y - pb.y
+				if bx < 0 or by < 0 or bx >= int(b.w) or by >= int(b.h) or bb[by * int(b.w) + bx] == 0:
+					return false
+	return true
 
 
 ## The ship states a stage hands down to its pieces.
@@ -474,10 +1014,8 @@ const SHIP_STATES := ["dark", "lights", "drive", "flood", "tow"]
 ## becomes a kept pool ship of that role: the encounter's id picks where in the
 ## role's list it starts, and each further ship of that role in it takes the
 ## next one along. So one encounter shows the same ships every time, the ships
-## inside it differ, and two encounters land on different ones. `foe` becomes
-## the ship the event's fight would bring (`fight_foe`), so the scene before a
-## fight hands over to the fight's own ship. A stage with a `count` and roles in
-## its pieces gets one pick per ship, not one per entry.
+## inside it differ, and two encounters land on different ones. A stage with a
+## `count` and roles in its pieces gets one pick per ship, not one per entry.
 static func resolve(s: Variant, oid: StringName, danger: int = 1) -> Variant:
 	var used := {}
 	var out: Array = []
@@ -513,13 +1051,11 @@ static func resolve(s: Variant, oid: StringName, danger: int = 1) -> Variant:
 
 
 static func _is_cast(id: StringName) -> bool:
-	return String(id).begins_with("role:") or id == &"foe"
+	return String(id).begins_with("role:")
 
 
-static func _resolve_one(id: StringName, oid: StringName, used: Dictionary, danger: int) -> StringName:
+static func _resolve_one(id: StringName, oid: StringName, used: Dictionary, _danger: int) -> StringName:
 	var k := String(id)
-	if id == &"foe":
-		return StringName("foe:%s" % fight_foe(danger))
 	if not k.begins_with("role:"):
 		return id
 	var role := k.substr(5)
@@ -528,104 +1064,20 @@ static func _resolve_one(id: StringName, oid: StringName, used: Dictionary, dang
 		return id
 	var start := absi(("%s:%s" % [role, oid]).hash()) % ships.size()
 	var n := int(used.get(role, 0))
+	# the next one along not already in this encounter (two roles can share a
+	# ship); the same one again only when the role has run out
+	var drawn: Dictionary = used.get("_drawn", {})
+	var pick := StringName(ships[(start + n) % ships.size()])
+	for j in ships.size():
+		var cand := StringName(ships[(start + n + j) % ships.size()])
+		if not drawn.has(cand):
+			pick = cand
+			n += j
+			break
 	used[role] = n + 1
-	return StringName(ships[(start + n) % ships.size()])
-
-
-## THE SHIP THE EVENT'S FIGHT WOULD BRING: an event's fight is
-## `Router.start_ambush`, one pick from this danger's pool off `Rng.foe`. Read
-## from a copy of that stream, so looking does not move it, and the scene before
-## the fight shows the ship the fight then draws.
-static func fight_foe(danger: int) -> StringName:
-	if foe_override != &"":
-		return foe_override
-	var pool := DB.fight_pool(danger, false)
-	if pool.is_empty():
-		return &"cutter"
-	var r := RandomNumberGenerator.new()
-	r.seed = Rng.foe.seed
-	r.state = Rng.foe.state
-	return StringName(Rng.pick(r, pool))
-
-
-## The fight's ship as `EnemyArt` draws it in the fight (whole, unhurt), cut to
-## the hull, with the canvas's own faint stars taken out.
-static func _foe(id: StringName) -> Dictionary:
-	var k := "foe:%s" % id
-	if _foes.has(k):
-		return _foes[k]
-	if not DB.enemies.has(id):
-		return {}
-	var t: EnemyTemplate = DB.enemies[id]
-	var art := EnemyArt.new()
-	var e := Combat.EnemyState.new()
-	e.template = t
-	e.max_hp = t.max_hull
-	e.hp = t.max_hull
-	art.set_enemy(e, false)
-	var u := art.used_rect()
-	var img: Image = art._img.get_region(u)
-	art.free()
-	var star := Color("#141c26")
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			if c.a > 0.0 and absf(c.r - star.r) < 0.004 and absf(c.g - star.g) < 0.004 and absf(c.b - star.b) < 0.004:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
-	var d := {kind = "foe", tex = ImageTexture.create_from_image(img), w = img.get_width(), h = img.get_height()}
-	d.merge(anchors_of(img))
-	_foes[k] = d
-	return d
-
-
-## Bow (leftmost), stern (rightmost), top and belly of a picture's opaque
-## pixels -- where its lights and its drive go.
-static func anchors_of(img: Image) -> Dictionary:
-	var w := img.get_width()
-	var h := img.get_height()
-	var x0 := w
-	var x1 := -1
-	var y0 := h
-	var y1 := -1
-	for y in h:
-		for x in w:
-			if img.get_pixel(x, y).a > 0.5:
-				x0 = mini(x0, x)
-				x1 = maxi(x1, x)
-				y0 = mini(y0, y)
-				y1 = maxi(y1, y)
-	if x1 < 0:
-		return {bow = [0, h / 2], stern = [w - 1, h / 2], top = [w / 2, 0], belly = [w / 2, h - 1]}
-	var mid_y := func(xa: int, xb: int) -> int:
-		var sum := 0
-		var n := 0
-		for x in range(xa, xb + 1):
-			for y in h:
-				if img.get_pixel(x, y).a > 0.5:
-					sum += y
-					n += 1
-		return int(roundf(float(sum) / float(maxi(n, 1))))
-	var mid_x := func(ya: int, yb: int) -> int:
-		var sum := 0
-		var n := 0
-		for y in range(ya, yb + 1):
-			for x in w:
-				if img.get_pixel(x, y).a > 0.5:
-					sum += x
-					n += 1
-		return int(roundf(float(sum) / float(maxi(n, 1))))
-	# three lamps on the hull's own top line, a third, a half and two thirds along
-	var lamps: Array = []
-	for f: float in [0.3, 0.5, 0.7]:
-		var x := roundi(lerpf(float(x0), float(x1), f))
-		var ly := (y0 + y1) / 2
-		for y in h:
-			if img.get_pixel(x, y).a > 0.5:
-				ly = y + 2
-				break
-		lamps.append([x, ly])
-	return {bow = [x0, mid_y.call(x0, x0 + 2)], stern = [x1, mid_y.call(x1 - 2, x1)],
-		top = [mid_x.call(y0, y0 + 1), y0], belly = [mid_x.call(y1 - 1, y1), y1], lamps = lamps}
+	drawn[pick] = true
+	used["_drawn"] = drawn
+	return pick
 
 
 ## A RING OF SHIPS HOLDING: round an ellipse, all facing the one way they hold
@@ -637,14 +1089,22 @@ static func _stage_ring(st: Dictionary) -> Array:
 	var ry := float(st.get("ry", 60.0))
 	var near := int(st.get("near", 0))
 	var made_near := 0
+	var prior: Array = st.get("_prior", [])
 	for i in n:
 		var a := TAU * float(i) / float(n) + float(st.get("spin", 0.4))
 		var front := sin(a) > 0.0
 		var big := front and made_near < near
-		if big:
-			made_near += 1
-		out.append(_m(_piece(st, i), Vector2(cos(a) * rx, sin(a) * ry).round(), 1.0 if big else 0.5,
-			0.0 if big else (0.35 if front else 0.6), {z = 10 + i if front else -10 - i}))
+		var m := _m(_piece(st, i), Vector2(cos(a) * rx, sin(a) * ry).round(), 1.0 if big else 0.5,
+			0.0 if big else (0.35 if front else 0.6), {z = 10 + i if front else -10 - i, flip = bool(st.get("flip", false))})
+		# `roll`: each turning over slowly (degrees a second, give or take, every
+		# other one the other way), a picture at a time (`_roll`)
+		if st.has("roll"):
+			m.roll = float(st.roll) * (0.6 + fmod(float(i) * 0.37, 0.8)) * (1.0 if i % 2 == 0 else -1.0)
+			m.roll_step = float(st.get("roll_step", 15.0))
+		if _clear(m, out + prior):
+			out.append(m)
+			if big:
+				made_near += 1
 	return out
 
 
@@ -656,11 +1116,16 @@ static func _stage_group(st: Dictionary) -> Array:
 	var i := 0
 	for sh: Dictionary in st.get("ships", []):
 		var far := bool(sh.get("far", false))
-		var m := _m(StringName(sh.get("piece", &"")), sh.get("at", Vector2.ZERO), 0.5 if far else 1.0, 0.55 if far else 0.0,
-			{turn = float(sh.get("turn", 0.0)), z = int(sh.get("z", i))})
+		# `size`: a smaller ship at the same distance (its own half picture, not
+		# dimmed) -- a small ship docked on a big hull, or sitting by it
+		var sc := 0.5 if far else float(sh.get("size", 1.0))
+		var m := _m(StringName(sh.get("piece", &"")), sh.get("at", Vector2.ZERO), sc, 0.55 if far else 0.0,
+			{turn = float(sh.get("turn", 0.0)), z = int(sh.get("z", i)), flip = bool(sh.get("flip", st.get("flip", false)))})
 		for k: String in SHIP_STATES:
 			if sh.has(k):
 				m[k] = sh[k]
+		if sh.has("dock"):
+			m.dock_to = int((sh.dock as Dictionary).get("to", 0))
 		out.append(m)
 		i += 1
 	return out
@@ -877,16 +1342,17 @@ func _build() -> void:
 		holder.add_child(spr)
 		var turn := float(m.get("turn", 0.0))
 		var rec := {node = holder, sprite = spr, mat = mat, at = m.at, scale = float(m.scale), far = float(m.far),
+			dock_to = int(m.get("dock_to", -1)), links = m.get("links", []), off = Vector2.ZERO,
 			swim = bool(m.get("swim", false)), tumble = float(m.get("tumble", 0.0)), tether = bool(m.get("tether", false)),
 			phase = float(_placed.size()) * 1.731, planet = null, turn = deg_to_rad(turn), info = p,
 			lights = StringName(m.get("lights", &"")), drive = bool(m.get("drive", false)),
 			flood = bool(m.get("flood", false)), tow = float(m.get("tow", 0.0)), dark = float(m.get("dark", 0.0)),
-			full = null, half = null, quarter = null, tex_k = 1.0}
+			full = null, half = null, quarter = null, tex_k = 1.0,
+			roll = float(m.get("roll", 0.0)) if not p.has("half") else 0.0, roll_step = float(m.get("roll_step", 15.0)),
+			turn_deg = turn, rolled = 1e9, src = null}
 		var kind := String(p.get("kind", ""))
 		if kind == "painter":
-			_painter(rec, p, float(m.get("r", 0.0)))
-		elif kind == "foe":
-			spr.texture = turned(id, p.tex, turn) if not is_zero_approx(turn) else p.tex
+			_painter(rec, p, float(m.get("r", 0.0)), bool(m.get("planet", false)))
 		else:
 			var tex := load(String(p.file)) as Texture2D
 			rec.full = turned(id, tex, turn) if not is_zero_approx(turn) and tex != null else tex
@@ -904,6 +1370,12 @@ func _build() -> void:
 			if not _strobes.has(k):
 				_strobes[k] = []
 			(_strobes[k] as Array).append(rec)
+	# a docked piece rides its host
+	_link_hosts(planned)
+	# THE CLAMPS of a docked piece, over the seam, in plain paint
+	_links = Node2D.new()
+	_links.draw.connect(_draw_links)
+	add_child(_links)
 	# THE LIGHTS go over everything else here, added to what is behind them
 	_over = Node2D.new()
 	var add := CanvasItemMaterial.new()
@@ -914,10 +1386,43 @@ func _build() -> void:
 	_layout()
 
 
+## Each docked record's host record (the plan's `dock_to`, by plan index).
+func _link_hosts(planned: Array) -> void:
+	var rec_of := {}
+	var j := 0
+	for i in planned.size():
+		if piece_info(StringName(planned[i].id)).is_empty():
+			continue
+		rec_of[i] = _placed[j]
+		j += 1
+	for i in rec_of:
+		var rec: Dictionary = rec_of[i]
+		rec.host = rec_of.get(int(rec.dock_to), null) if int(rec.dock_to) >= 0 else null
+
+
+## TWO CLAMPS where a docked piece meets its host: a short steel bar standing
+## across the seam, lit on its top, dark round its edge.
+func _draw_links() -> void:
+	for rec: Dictionary in _placed:
+		if rec.get("host") == null:
+			continue
+		var node: Node2D = rec.node
+		var k := float(rec.scale) * _scale
+		for l: Vector2 in rec.links:
+			var c := (node.position + l * _scale).round()
+			var w := maxf(3.0, roundf(4.0 * k))
+			var h := maxf(5.0, roundf(9.0 * k))
+			var r := Rect2(c - Vector2(roundf(w * 0.5), roundf(h * 0.5)), Vector2(w, h))
+			_links.draw_rect(r.grow(1.0), Color(0.06, 0.07, 0.09))
+			_links.draw_rect(r, Color(0.42, 0.45, 0.5))
+			_links.draw_rect(Rect2(r.position, Vector2(w, 1.0)), Color(0.72, 0.75, 0.8))
+
+
 ## A piece at its size on screen: its own scale times the subject's (`fit`), on
 ## the half- or quarter-size picture made for it when it is drawn that small
 ## (pixel art at its size, not every other pixel of the near one).
 func _apply_scale(rec: Dictionary) -> void:
+	rec.rolled = 1e9
 	var spr: Sprite2D = rec.sprite
 	var eff := float(rec.scale) * _scale
 	if rec.quarter != null and eff <= 0.25 + 0.001:
@@ -932,14 +1437,41 @@ func _apply_scale(rec: Dictionary) -> void:
 	spr.scale = Vector2.ONE * eff / float(rec.tex_k)
 
 
+## A PIECE TURNING OVER (`roll`), as pixel art turns: never rotated on screen
+## (a sprite turned live on nearest filtering ripples), but shown a picture at
+## a time, each turned once, pixel for pixel (`turned`), `roll_step` degrees
+## apart -- so it steps round like a sprite's frames, a step every second or two.
+func _roll(rec: Dictionary, t: float) -> void:
+	var step := float(rec.roll_step)
+	var ang := fposmod(t * float(rec.roll) + float(rec.phase) * 57.0, 360.0)
+	var at := fposmod(roundf(ang / step) * step, 360.0)
+	if is_equal_approx(at, float(rec.rolled)):
+		return
+	rec.rolled = at
+	if rec.src == null:
+		rec.src = load(String((rec.info as Dictionary).file)) as Texture2D
+	if rec.src == null:
+		return
+	var deg := float(rec.turn_deg) + at
+	var spr: Sprite2D = rec.sprite
+	spr.texture = turned(StringName("%s" % (rec.info as Dictionary).file), rec.src, deg) if not is_zero_approx(fposmod(deg, 360.0)) else rec.src
+	rec.tex_k = 1.0
+	spr.scale = Vector2.ONE * float(rec.scale) * _scale
+	rec.turn = deg_to_rad(deg)
+
+
 ## A ROCK OR A MOON FROM THE PLANET PAINTER: a PlanetView in a viewport of its
 ## own, lit each frame from the star, shown through a mask cut to the recipe's
-## lumpy lobes with the cut darkened (a moon is the whole disc).
-func _painter(rec: Dictionary, p: Dictionary, r: float) -> void:
+## lumpy lobes with the cut darkened (a moon is the whole disc). A lumpy rock is
+## not, unless the stage asks for the `planet` look: see `_rock`.
+func _painter(rec: Dictionary, p: Dictionary, r: float, planet: bool = false) -> void:
 	var r0 := float(p.r)
 	var k := (r / r0) if r > 0.0 else 1.0
 	var w := int(roundf(float(p.w) * k))
 	var h := int(roundf(float(p.h) * k))
+	if not planet and ROCK_RAMP.has(StringName(p.get("world", ""))) and not (p.get("lobes", []) as Array).is_empty():
+		_rock(rec, p, k, w, h)
+		return
 	var vp := SubViewport.new()
 	vp.size = Vector2i(w, h)
 	vp.transparent_bg = true
@@ -961,6 +1493,157 @@ func _painter(rec: Dictionary, p: Dictionary, r: float) -> void:
 		mat.set_shader_parameter("use_mask", true)
 		mat.set_shader_parameter("mask", ImageTexture.create_from_image(lumpy_mask(w, h, k, p)))
 	rec.planet = pv
+
+
+## Each painter world's rock colours, darkest first (`Worlds.RAMP`).
+const ROCK_RAMP := {&"rock": &"rock", &"moon": &"moon", &"cracked": &"ash"}
+## Rock forms built (`rock_form`), by recipe and size.
+static var _forms: Dictionary = {}
+
+
+## A LUMPY ROCK WITH FORM (Jon: "kinda flat rock", "rock sucks kinda boring").
+## The planet painter lit a round world and cut a lumpy outline out of it, so its
+## light never followed the rock's own shape. Here the rock's own outline makes
+## its shape (`rock_form`: a dome that follows the outline, waist and all), and
+## the shader lights that from the star every frame (`local_subject.gdshader`,
+## `rock`): a lit face in the world's own rock colours stepping down through a
+## dithered terminator to a dark side, ridges and lumps from noise, craters with
+## a bright lip toward the star and a shadowed bowl, and a rim caught in the
+## star's colour -- then the scene's palette over it like every other piece.
+func _rock(rec: Dictionary, p: Dictionary, k: float, w: int, h: int) -> void:
+	var f := rock_form(p, k, w, h)
+	var spr: Sprite2D = rec.sprite
+	spr.texture = f.tex
+	var mat: ShaderMaterial = rec.mat
+	mat.set_shader_parameter("rock", true)
+	var ramp := PackedVector3Array()
+	for hex: String in Worlds.RAMP[ROCK_RAMP[StringName(p.world)]]:
+		var c := Color(hex)
+		ramp.append(Vector3(c.r, c.g, c.b))
+	mat.set_shader_parameter("ramp", ramp)
+	mat.set_shader_parameter("rock_seed", float(int(p.get("seed", 1)) % 97) * 7.31)
+	mat.set_shader_parameter("craters", f.craters)
+	mat.set_shader_parameter("n_craters", (f.craters as PackedVector4Array).size())
+	mat.set_shader_parameter("grain", clampf(14.0 * k, 8.0, 22.0))
+
+
+## The rock's shape as a normal map, built once per recipe and size: its lumpy
+## outline (`lumpy_mask`), the distance in from that outline at every pixel
+## eased into a rounded profile (so a two-lobed rock is two domes and a saddle,
+## not one ball), smoothed, and its slope packed as RG (x, y; 0.5 is flat), B the
+## depth in from the edge, A inside. And a few craters on it, where there is room:
+## [x, y, radius, depth] in its own pixels. {tex, craters}
+static func rock_form(p: Dictionary, k: float, w: int, h: int) -> Dictionary:
+	var key := "%s|%s|%d|%d" % [p.get("seed", 0), p.get("world", ""), w, h]
+	if _forms.has(key):
+		return _forms[key]
+	var mask := lumpy_mask(w, h, k, p)
+	var n := w * h
+	var inside := PackedByteArray()
+	inside.resize(n)
+	var d := PackedFloat32Array()
+	d.resize(n)
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			var a := mask.get_pixel(x, y).a > 0.5
+			inside[i] = 1 if a else 0
+			d[i] = 1e6 if a else 0.0
+	# the distance in from the outline (chamfer, two passes)
+	var D := 1.0
+	var D2 := 1.4142
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			if inside[i] == 0:
+				continue
+			var v := d[i]
+			v = minf(v, (d[i - 1] if x > 0 else 0.0) + D)
+			v = minf(v, (d[i - w] if y > 0 else 0.0) + D)
+			v = minf(v, (d[i - w - 1] if x > 0 and y > 0 else 0.0) + D2)
+			v = minf(v, (d[i - w + 1] if x < w - 1 and y > 0 else 0.0) + D2)
+			d[i] = v
+	var deepest := 1.0
+	for y in range(h - 1, -1, -1):
+		for x in range(w - 1, -1, -1):
+			var i := y * w + x
+			if inside[i] == 0:
+				continue
+			var v := d[i]
+			v = minf(v, (d[i + 1] if x < w - 1 else 0.0) + D)
+			v = minf(v, (d[i + w] if y < h - 1 else 0.0) + D)
+			v = minf(v, (d[i + w + 1] if x < w - 1 and y < h - 1 else 0.0) + D2)
+			v = minf(v, (d[i + w - 1] if x > 0 and y < h - 1 else 0.0) + D2)
+			d[i] = v
+			deepest = maxf(deepest, v)
+	# a rounded profile: steep at the edge, flattening over the top
+	var R := deepest
+	var ht := PackedFloat32Array()
+	ht.resize(n)
+	for i in n:
+		if inside[i] == 0:
+			continue
+		var u := 1.0 - minf(d[i] / R, 1.0)
+		ht[i] = sqrt(maxf(0.0, 1.0 - u * u)) * R * 0.9
+	# smoothed (three box passes each way, a sixth of its depth wide), so the
+	# crease the distance leaves down a lobe's middle rounds off into a dome
+	var soft := maxi(2, int(R / 6.0))
+	for blur in 3:
+		ht = _blur(ht, w, h, soft, true)
+		ht = _blur(ht, w, h, soft, false)
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			if inside[i] == 0:
+				continue
+			var hl := ht[i - 1] if x > 0 else 0.0
+			var hr := ht[i + 1] if x < w - 1 else 0.0
+			var hu := ht[i - w] if y > 0 else 0.0
+			var hd := ht[i + w] if y < h - 1 else 0.0
+			var nrm := Vector3((hl - hr) * 0.5, (hu - hd) * 0.5, 1.0).normalized()
+			img.set_pixel(x, y, Color(nrm.x * 0.5 + 0.5, nrm.y * 0.5 + 0.5, minf(d[i] / R, 1.0), 1.0))
+	# CRATERS where there is room for one: well inside the outline, apart
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(p.get("seed", 1)) * 977 + w
+	var cr := PackedVector4Array()
+	var want := clampi(int(float(w * h) / 5200.0), 3, 7)
+	for tries in 200:
+		if cr.size() >= want:
+			break
+		var x := rng.randi_range(0, w - 1)
+		var y := rng.randi_range(0, h - 1)
+		var rad := roundf(rng.randf_range(3.5, 11.0) * clampf(k * 1.1, 0.7, 1.4))
+		if inside[y * w + x] == 0 or d[y * w + x] < rad * 1.6:
+			continue
+		var ok := true
+		for c4: Vector4 in cr:
+			if Vector2(c4.x, c4.y).distance_to(Vector2(x, y)) < (c4.z + rad) * 1.25:
+				ok = false
+				break
+		if ok:
+			cr.append(Vector4(x, y, rad, rng.randf_range(0.6, 1.0)))
+	var f := {tex = ImageTexture.create_from_image(img), craters = cr}
+	_forms[key] = f
+	return f
+
+
+## A box blur `rad` px each side along rows (`across`) or columns, a running sum.
+static func _blur(src: PackedFloat32Array, w: int, h: int, rad: int, across: bool) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(w * h)
+	var lines := h if across else w
+	var length := w if across else h
+	var step := 1 if across else w
+	for l in lines:
+		var base := l * w if across else l
+		var s := 0.0
+		for i in range(-rad, rad + 1):
+			s += src[base + clampi(i, 0, length - 1) * step]
+		for i in length:
+			out[base + i * step] = s / float(rad * 2 + 1)
+			s += src[base + clampi(i + rad + 1, 0, length - 1) * step] - src[base + clampi(i - rad, 0, length - 1) * step]
+	return out
 
 
 ## The recipe's lumpy outline as a mask: R inside, G the cut's dark rim -- the
@@ -1093,7 +1776,15 @@ func _process(_d: float) -> void:
 					(rec.mat as ShaderMaterial).set_shader_parameter("pal", pal)
 					(rec.mat as ShaderMaterial).set_shader_parameter("pal_n", pn)
 	var star_col := Vector3(0.55, 0.55, 0.55) + tint * 0.45
+	# hosts before the pieces docked on them, which ride along
+	var order: Array = []
 	for rec: Dictionary in _placed:
+		if rec.get("host") == null:
+			order.append(rec)
+	for rec: Dictionary in _placed:
+		if rec.get("host") != null:
+			order.append(rec)
+	for rec: Dictionary in order:
 		var ph: float = rec.phase
 		var off := Vector2.ZERO
 		var rot := 0.0
@@ -1104,8 +1795,13 @@ func _process(_d: float) -> void:
 			off = Vector2(sin(t * TAU / 31.0 + ph) * amp * 0.5, sin(t * TAU / 23.0 + ph * 0.7) * amp * 0.4)
 		if float(rec.tumble) > 0.0:
 			rot = deg_to_rad(sin(t * TAU / 37.0 + ph) * float(rec.tumble))
+		if float(rec.roll) != 0.0:
+			_roll(rec, t)
 		if bool(rec.tether):
 			off = Vector2(0.0, sin(t * TAU / 29.0 + ph * 0.3) * 1.5)
+		if rec.get("host") != null:
+			off = (rec.host as Dictionary).off
+		rec.off = off
 		var node: Node2D = rec.node
 		node.position = (centre + (rec.at as Vector2) * _scale + off).round()
 		node.rotation = rot
@@ -1126,6 +1822,8 @@ func _process(_d: float) -> void:
 	queue_redraw()
 	if _over != null:
 		_over.queue_redraw()
+	if _links != null:
+		_links.queue_redraw()
 
 
 ## A point of a piece's own 1x picture, where it is on screen now (its turn, its
@@ -1134,7 +1832,11 @@ func _at(rec: Dictionary, a: Variant) -> Vector2:
 	var p: Dictionary = rec.info
 	var v := Vector2(float(a[0]) + 0.5, float(a[1]) + 0.5) - Vector2(float(p.w), float(p.h)) * 0.5
 	var node: Node2D = rec.node
-	return node.position + v.rotated(float(rec.turn) + node.rotation) * float(rec.scale) * _scale
+	v = v.rotated(float(rec.turn))
+	# a ship turned to face the other way: its bow is on its right
+	if (rec.sprite as Sprite2D).flip_h:
+		v.x = -v.x
+	return node.position + v.rotated(node.rotation) * float(rec.scale) * _scale
 
 
 ## How big a light is drawn on this piece: smaller on far ones.
@@ -1156,7 +1858,7 @@ func _draw_over() -> void:
 		if bool(rec.drive):
 			# a drive at the stern, breathing a little
 			var fl := 0.85 + 0.1 * sin(t * 5.1 + float(rec.phase)) + 0.05 * sin(t * 13.7 + float(rec.phase) * 2.0)
-			var at := _at(rec, p.stern) + Vector2(2.0 * k, 0.0)
+			var at := _at(rec, p.stern) + Vector2(-2.0 * k if (rec.sprite as Sprite2D).flip_h else 2.0 * k, 0.0)
 			_glow(at, roundi(12.0 * k) + 1, Color(1.0, 0.6, 0.28), 0.95 * fl * dim)
 			_glow(at, roundi(4.0 * k) + 1, Color(1.0, 0.9, 0.75), fl * dim)
 		if bool(rec.flood):

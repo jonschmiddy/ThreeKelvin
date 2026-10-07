@@ -405,6 +405,20 @@ else
 	bad "hinttest did not finish"
 fi
 
+step "The sector map's worlds keep up with a pan"
+# Each world's picture sits on its place (its ring, label and beacons) on every
+# frame of a pan; an ease that chased the place left it trailing by frames.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' 	run_godot maplagtest 180 --headless --path "$PROJECT" -- maplagtest; then
+	if grep -qE '^maplagtest: PASS' "$LOG_DIR/maplagtest.log"; then
+		ok "worlds keep up with the camera"
+	else
+		bad "a world's picture trails the camera"
+		grep -E 'FAIL|^maplagtest' "$LOG_DIR/maplagtest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "maplagtest did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.

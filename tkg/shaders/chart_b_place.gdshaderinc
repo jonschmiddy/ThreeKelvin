@@ -696,17 +696,22 @@ bool darkAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 }
 
 // ------------------------------------------------------------------ the sky
-// the sky behind, at infinity (`chart_bg.gdshaderinc`), painted: far nebulae as
-// a dithered tint of the halo's navy and plum, far galaxies as little sprites
-// (a warm core, blue arms), three depths of stars sliding by depth as you pan
+// the sky behind, at infinity (`chart_bg.gdshaderinc`), painted: far galaxies as
+// little sprites (a warm core, blue arms), three depths of stars sliding by
+// depth as you pan. NO FAR NEBULAE, as the showcase's prototype had none: drawn
+// as a dithered navy tint with navy-and-plum wisps they read close in as dark
+// hooks and blobs with no light, and Jon did not "understand these nebula
+// shapes". Shown three ways on Oct 6 (the clouds as glowing gas, as dust lit
+// from behind, and the prototype's sky with no far nebulae), he chose the
+// prototype's: "C is the best."
 // THE FAR SKY, PAINTED FULL BUT QUIET (Jon: the galaxies "kinda too simple and
 // space looks empty"). Little galaxies at two depths, each a 2-4 tone sprite of
 // one of four kinds -- a spiral's warm core and blue arms, a barred spiral, an
 // edge-on disc with its bulge, a round or oval elliptical in banded peach --
-// with a sparkle at its heart; faint wisps of far nebula in navy and plum; and
-// the stars in tiers, the near bright ones a plus and the rarest a four-point
-// sparkle. All of it slides by its depth as you pan (`chart_bg`'s `bgAt`) and is
-// marked (sid 251) so the paint pass's cleanups leave its single blocks alone.
+// with a sparkle at its heart; and the stars in tiers, the near bright ones a
+// plus and the rarest a four-point sparkle. All of it slides by its depth as
+// you pan (`chart_bg`'s `bgAt`) and is marked (sid 251) so the paint pass's
+// cleanups leave its single blocks alone.
 const int SID_FAR = 251;
 
 // a little galaxy of a tier at sp, or none (found: c.m != M_SKY)
@@ -799,22 +804,6 @@ Cand skyAt(Px P, float Ehalo) {
 	vec2 sp = u_vp_origin + (vec2(P.blk) + 0.5) * 2.0 - 0.5 * u_res;
 	float hl = Ehalo;
 	Cand c = cand(M_SKY, hl < 0.0019 ? 0.0 : (hl < 0.0042 ? 0.45 : 0.8), 0, 0.0);
-	if (hl < 0.0042) {
-		vec2 nb = bgNebula(sp);
-		// (a quarter-to-half pattern of the next navy step: a tint, never a plate)
-		if (nb.x > 0.2 && pat(P, min(nb.x, 0.6) * 0.75)) {
-			c = cand(M_SKY, 0.45, 0, 0.0);
-		}
-		// FAINT FAR WISPS: soft strands drawn through the far nebulae as a painter
-		// would brush them in, a navy step of the sky with a plum core
-		vec2 qw = bgAt(sp, BG_F_NEB) / 190.0;
-		float wv = 1.0 - abs(kitFbm2(vec2(qw.x * 0.7 + qw.y * 0.3, qw.y * 1.6) + vec2(5.3, 1.7), 2));
-		// (broken into lengths by a second noise, so they are wisps, not ribbons)
-		float gate = kitFbm2(qw * 2.3 + vec2(9.1, 4.4), 2);
-		if (nb.x > 0.08 && wv > 0.86 + 0.08 * smoothstep(0.1, -0.3, gate) && gate > -0.3) {
-			c = (wv > 0.975 && gate > 0.05) ? cand(M_HALO, 0.7, SID_FAR, 0.0) : cand(M_SKY, 0.8, 0, 0.0);
-		}
-	}
 	// the little galaxies, near over far
 	Cand gn = farGalaxy(sp, 0.07, 150.0, 0.55, vec2(6.0, 15.0), 3);
 	if (gn.m != M_SKY) {

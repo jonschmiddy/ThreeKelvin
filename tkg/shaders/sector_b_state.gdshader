@@ -10,8 +10,24 @@ render_mode unshaded, blend_disabled;
 // nearest, and gives it up after `hold` frames anyway (the lock must let go, or
 // a slow gradient freezes), so a band edge never flickers as the light moves.
 // The memory is last frame's picture of this same viewport (never cleared).
-// The far picture only ever slides in whole pairs of blocks, so a block's
-// memory is its neighbour's only for the frame of a slide.
+//
+// IT RIDES WITH THE CLOUD, AND IT NEVER HOLDS A BAND BEHIND A MOVING LIGHT
+// (Jon: "If I change the magnification on painted and then pan left or right
+// I get some lag in the nebula"; "when zooming in and out of painted, it seems
+// like the clouds change quite frequently"). The memory was pinned to the
+// screen and held every band edge it could for 40 frames whatever moved. The
+// sun's light moves with the plane -- a pan carries it across the gas at the
+// pan's own speed, a zoom opens it out -- so the lit bands' edges were held
+// where the light had been, a crescent of the hot zone trailing the sun (56 px
+// wide at the median of a 6 px-a-frame pan at zoom 2.5, 108 at worst; 4 and 18
+// now); and every block caught on the same frame was let go
+// on the same frame 40 later, so after a zoom whole stretches of the cloud
+// changed at once. Now a block reads its memory from where its piece of the
+// cloud stood last frame (`slide`, the cloud's slide in blocks); `hold` is
+// cut by the caller to what the light moved this frame (a band edge may trail
+// it by about a block, `SectorPainted.push`), and each block's own hold is
+// `hold` times 0.55 to 1.45 by a hash of its place on the sky, so no stretch
+// of an edge is let go on one frame.
 //
 // Also marked here, for the paint: which blocks are stars, and how grand a
 // sparkle each one gets (bible 4.1: tier 1 a block, 2 a plus, 3 a four-point
@@ -29,6 +45,9 @@ uniform int u_star_n = 0;
 uniform float hys = 0.03;
 uniform float hold = 40.0;
 uniform bool reset = false;
+// how far the far picture slid since the last frame, in blocks: last frame's
+// memory of this block's piece of the sky is at b + slide
+uniform vec2 slide = vec2(0.0);
 // the far picture's slide in blocks: the sparkles' rarity hash rides the sky
 uniform vec2 sky_blk = vec2(0.0);
 uniform bool low = false;
@@ -162,12 +181,14 @@ void fragment() {
 			ring = true;
 		}
 	}
-	vec4 p = texelFetch(prev_state, b, 0);
+	ivec2 pb = b + ivec2(round(slide));
+	// (a block that slid in from off the edge has no memory)
+	vec4 p = (pb.x < 0 || pb.y < 0 || pb.x >= 480 || pb.y >= 270) ? vec4(0.0) : texelFetch(prev_state, pb, 0);
 	int pe = int(p.r * 255.0 + 0.5);
 	float cnt = floor(p.g * 255.0 + 0.5);
 	int e = best;
 	float c2 = 0.0;
-	if (!reset && tier == 0 && !ring && p.a > 0.5 && pe != best && pe < u_n && cnt < hold) {
+	if (!reset && tier == 0 && !ring && p.a > 0.5 && pe != best && pe < u_n && cnt < hold * (0.55 + 0.9 * hsh(vec2(b) + sky_blk + vec2(311.0, 173.0)))) {
 		if (sqrt(dist2(L, u_lab[pe])) < sqrt(bd) + hys) {
 			e = pe;
 			c2 = cnt + 1.0;

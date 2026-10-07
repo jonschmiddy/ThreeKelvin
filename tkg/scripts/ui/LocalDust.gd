@@ -89,7 +89,9 @@ func _process(delta: float) -> void:
 	var mv := PackedVector4Array()
 	var ex := PackedVector4Array()
 	boxes.clear()
-	var star_x: float = sky.origin().x - get_global_rect().position.x
+	# (the star where it is drawn, in this layer's own px: under the cutaway's
+	# zoom the dust is scaled with the ship and the star all but holds)
+	var star_x: float = (get_global_transform().affine_inverse() * (sky.get_global_transform() * sky.origin())).x
 	var step := 0.0
 	for m: Dictionary in _motes:
 		var p := _at(m)

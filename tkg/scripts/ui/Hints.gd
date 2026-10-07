@@ -14,9 +14,11 @@ extends Node
 ##   ship     click your ship (LOCAL or the shipyard) to open it up
 ##
 ## ONE AT A TIME, a `HintCard` beside its subject. Its subject has to hold still
-## for SETTLE_S first, so nothing shows mid-transition. Any click dismisses it,
-## and the click still does its own job. A hint dismissed by a click, or one on
-## screen for READ_S before its subject went away, is seen for good. Seen is per
+## for SETTLE_S first, so nothing shows mid-transition. It stays until a click:
+## any click dismisses it, the click still does its own job, and only that click
+## makes it seen for good (Jon: "having them automatically advance doesn't work.
+## let's have them advance with a click"). Nothing times out. If its subject goes
+## first, it hides unspent and shows again the next time. Seen is per
 ## hint in settings.cfg `[hints] <id>`, beside the intro's `[hints] intro`, in the
 ## same file the intro uses (`FirstRunIntro.store_path`). Under a harness that is
 ## the harness settings file, never the player's. Settings' SHOW HINTS AGAIN
@@ -35,8 +37,6 @@ const SECTION := "hints"
 const ORDER: Array[StringName] = [&"hand", &"drawer", &"go", &"cutaway", &"wreck", &"loot", &"ship"]
 ## How long a subject must hold before its hint shows, s.
 const SETTLE_S := 0.6
-## On screen this long, a hint counts as read even if no click came, s.
-const READ_S := 2.5
 ## Quiet after one hint before the next may show, s.
 const GAP_S := 1.2
 ## A hint shown less than this long is not dismissed by a click (the click that
@@ -158,7 +158,7 @@ func poll(delta: float) -> void:
 			if p.is_empty():
 				_gone_t += delta
 				if _gone_t > 0.25:
-					_close(_up_t >= READ_S)
+					_close(false)
 			else:
 				_gone_t = 0.0
 				card.visible = true

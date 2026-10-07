@@ -17,9 +17,16 @@ enum Mode { WINDOWED, BORDERLESS, FULLSCREEN }
 
 const BASE := Vector2i(960, 540)
 const PATH := "user://settings.cfg"
-## Where these settings are read and written. A harness points this at a
-## scratch file, so a test never touches the player's own (see DevMode.path).
-static var path: String = PATH
+## Where these settings are read and written: under any harness
+## (`TestRun.active()`), a scratch file, so a test never touches the player's
+## own. It used to be the player's file for every harness but the few that
+## pointed it elsewhere, and the boot writes it: `load_and_apply` ends in
+## `apply`, which ends in `save` -- so every `sheet=` shot run without
+## `keepwindow` rewrote the player's settings.cfg, and RADIANT's safety
+## (`set_render_style`) could save SIMPLIFIED over the player's style. Audio and
+## Keys keep their sections in the same file, so they follow this path too.
+const HARNESS_PATH := "user://harness_settings.cfg"
+static var path: String = HARNESS_PATH if TestRun.active() else PATH
 ## Room left for the title bar and taskbar when sizing a windowed window.
 const CHROME_ALLOWANCE := 96
 

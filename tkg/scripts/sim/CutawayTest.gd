@@ -355,11 +355,65 @@ func _check_layouts() -> void:
 		_ok("%s: the ship is right of the left panel and inside the view (%s)" % [wname,
 			", ".join(outside) if not outside.is_empty() else "clear"], outside.is_empty())
 
+		# NO RINGS AT REST (Jon: "Why is there a circle for a missing module?
+		# Shouldn't that only be when I have a module in my hand?"): nothing marks an
+		# empty mount until a part that fits it is carried; then its mounts ping,
+		# with their words, and no other slot's do -- and the words still clear
+		# everything else drawn
+		mp.queue_redraw()
+		await _tree.process_frame
+		var rest_words := 0
+		for d in mp.drawn_rects():
+			if d.kind == "label":
+				rest_words += 1
+		_ok("%s: at rest no empty mount is drawn (%d words, %d rings, %d hints)" % [wname, rest_words, mp.pinged, mp.hinted],
+			rest_words == 0 and mp.pinged == 0 and mp.hinted == 0)
+		for slot in [ModuleData.Slot.WEAPON, ModuleData.Slot.SYSTEM, ModuleData.Slot.UTILITY]:
+			var empties := 0
+			for sp in mp.spots():
+				if sp.held == null and (sp.slot as ModuleData.Slot) == slot:
+					empties += 1
+			if empties == 0:
+				continue
+			var carried: ModuleData = null
+			for mid in DB.modules:
+				if (DB.modules[mid] as ModuleData).slot == slot:
+					carried = DB.modules[mid]
+					break
+			mp.light(carried)
+			mp.queue_redraw()
+			await _tree.process_frame
+			var lr := mp.drawn_rects()
+			var wrong := 0
+			var shown := 0
+			var crossed := 0
+			for i in lr.size():
+				if lr[i].kind == "label":
+					shown += 1
+					if lr[i].text != MountPoints.empty_text(int(slot)):
+						wrong += 1
+				for j in range(i + 1, lr.size()):
+					if (lr[i].rect as Rect2).intersects(lr[j].rect):
+						crossed += 1
+			_ok("%s: carrying a %s part, its %d empty mount(s) ring (%d) and no other slot's (%d words, %d wrong, %d crossing)" % [
+				wname, ModuleData.Slot.keys()[slot].to_lower(), empties, mp.pinged, shown, wrong, crossed],
+				mp.pinged == empties and wrong == 0 and crossed == 0)
+			mp._unlight()
+		mp.queue_redraw()
+		await _tree.process_frame
+
 		# THE LEFT PANEL: full height, every hold cell and button on it, on screen
 		_ok("%s: the left panel is the content area's full height (%d of %d)" % [wname, left.size.y, view.size.y],
 			is_equal_approx(left.size.y, view.size.y) and is_equal_approx(left.position.y, view.position.y))
 		_ok("%s: the left panel's contents fit it (%d of %d tall)" % [wname, cut._hold_panel.get_combined_minimum_size().y, left.size.y],
 			cut._hold_panel.get_combined_minimum_size().y <= left.size.y + 0.5)
+		# AIR BETWEEN THE BLOCKS (Jon: "increase the vertical space between the
+		# hold, the attributes, and the perks"): hold to attributes, cards to perks
+		var air_a := cut._attrs.get_global_rect().position.y - cut._hold.get_global_rect().end.y
+		var air_b := cut._perks.get_global_rect().position.y - cut._mount_line.get_global_rect().end.y
+		_ok("%s: the hold, the attributes and the perks have air between them (%d, %d px; at least %d)" % [
+			wname, air_a, air_b, CutawayView.GAP_MIN + 2], air_a >= CutawayView.GAP_MIN + 2 and air_b >= CutawayView.GAP_MIN + 2)
+		_ok("%s: DONE is on the panel, nothing over it" % wname, left.encloses(cut._done.get_global_rect()))
 		var g2 := Run.hold_grid()
 		var hold_rect := cut._hold.get_global_rect()
 		var bad_cells := 0
@@ -605,6 +659,7 @@ func _check_local() -> void:
 	var made: Array = sc._view._made
 	if not _ok("the wreck is drawn on LOCAL", not made.is_empty()):
 		return
+	await _parts_on_hull(sc, "LOCAL, fresh")
 	var row_was := sc._view._row.get_global_rect()
 	var ship_was := sc._view.ship_view().get_global_rect()
 	# (animated, as in play: the push-in and the ease back out)
@@ -665,6 +720,7 @@ func _check_local() -> void:
 	_ok("shut, the scene is back at its own size and place (row %s -> %s, ship %s -> %s)" % [row_was, sc._view._row.get_global_rect(), ship_was, sc._view.ship_view().get_global_rect()],
 		is_equal_approx(slot.get_global_transform().get_scale().x, 1.0) and sc._view._row.get_global_rect().is_equal_approx(row_was)
 		and sc._view.ship_view().get_global_rect().is_equal_approx(ship_was))
+	await _parts_on_hull(sc, "LOCAL, after the cutaway opened and shut")
 	wreck_at = _wreck_point(slot, null)
 	await _click(wreck_at, sc)
 	_ok("with it shut, a click on the wreck opens its own screen (TransferView)", sc._transfer != null)
@@ -677,6 +733,7 @@ func _check_local() -> void:
 	var fs := Router.current as SectorScreen
 	if not _ok("a fight is up", fs != null and fs.fighting()):
 		return
+	await _parts_on_hull(fs, "in a fight")
 	var art := fs._view.ship_view()
 	var ink := Rect2(art.ink_rect())
 	var on := Vector2.INF
@@ -690,6 +747,44 @@ func _check_local() -> void:
 	_ok("in a fight, a click on your ship opens nothing and asks for the dead-button thud (%d)" % (fs.denied_clicks - was),
 		fs._cutaway == null and fs.denied_clicks == was + 1)
 	_ok("and it wears no outline", not fs._ship_outline.visible)
+
+
+## YOUR SHIP'S PARTS ON ITS HULL (Jon: "why are the modules off the ship?"):
+## with the cutaway shut, every fitted part is drawn over the hull's own pixels
+## at its mount -- as it stands, and again after the hull has moved in its view
+## with the bob stopped (the view laid out again: LOCAL's band folding away),
+## which is when the parts used to stay behind where the hull had been.
+func _parts_on_hull(sc: SectorScreen, where: String) -> void:
+	var art := sc._view.ship_view()
+	var mp: MountPoints = null
+	for c in art.get_children():
+		if c is MountPoints:
+			mp = c
+	if not _ok("%s: your ship carries its parts' layer" % where, mp != null):
+		return
+	var off := mp.strays()
+	_ok("%s: every fitted part is on the hull (%s)" % [where, ", ".join(off) if not off.is_empty() else "%d on" % Run.installed.size()], off.is_empty())
+	var amp := art._bob_amp
+	var bob := art._bob_off
+	art._bob_amp = 0
+	art._bob_off = 0
+	# (the bob stopped and settled FIRST, so the move below is the only thing
+	# that changes: a stopped bob step must not be what puts the parts back)
+	for i in 3:
+		await _tree.process_frame
+	var was := art.size
+	# (moved by a whole hull's width and depth, so a part left behind cannot
+	# still touch some other piece of plating and pass)
+	art.size = was + Vector2(float(art._w), float(art._h)) * float(art._k) * 2.0
+	for i in 3:
+		await _tree.process_frame
+	var moved := mp.strays()
+	_ok("%s: and still on it when the hull moves in its view, unbobbing (%s)" % [where, ", ".join(moved) if not moved.is_empty() else "on"], moved.is_empty())
+	art.size = was
+	art._bob_amp = amp
+	art._bob_off = bob
+	for i in 3:
+		await _tree.process_frame
 
 
 func _opaque_in(img: Image, r: Rect2) -> bool:

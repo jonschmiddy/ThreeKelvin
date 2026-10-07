@@ -298,6 +298,10 @@ func _fit_zoom() -> float:
 func _keep_ship() -> void:
 	if flight == null or view.node == null:
 		return
+	# (a map put away after a new run began -- a restart from its menu -- keeps
+	# nothing: its system is the last run's)
+	if view.node.index >= Run.map.size() or Run.map[view.node.index] != view.node:
+		return
 	var at: int = flight.reached()
 	_parked[view.node.index] = {"at": at, "p": flight.f.p, "v": flight.f.v, "head": flight.f.head, "mode": flight.mode}
 
@@ -321,6 +325,19 @@ func _restore_ship(d: Dictionary) -> void:
 func _enter_tree() -> void:
 	if not Sig.render_style_changed.is_connected(_on_style):
 		Sig.render_style_changed.connect(_on_style)
+
+
+## WRITTEN AS THE MAP IS PUT AWAY, not only as it leaves the tree (Jon: "when
+## transitioning from one planet to another I have to go to the local and then
+## the system and then the local again for the local to update"). `Router._swap`
+## hides the outgoing screen, then builds the next one at once, and only frees
+## this one at the end of the frame: LOCAL composed its sky (`LocalSky._situate`)
+## and its event bar (`LocalEventDrawer.here_now`) from the record the last visit
+## left, the world the ship had just flown away from. Every door off the map --
+## the HUD's tab, a fight, the dock, Tab, GO -- goes through that hide.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and not visible:
+		_keep_ship()
 
 
 func _exit_tree() -> void:
@@ -936,8 +953,8 @@ func _zoom_down(i: int) -> void:
 		_taking = false
 		if not is_inside_tree():
 			return
-	# (where the ship is, before LOCAL is built from it: the map otherwise writes
-	# it on its way out, after the new screen has already composed its sky)
+	# (where the ship is, before LOCAL is built from it: the Router's hide writes
+	# it too, but a harness's map that is not `Router.current` is never hidden)
 	_keep_ship()
 	Router.show_local()
 

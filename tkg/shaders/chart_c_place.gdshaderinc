@@ -164,12 +164,15 @@ float fineDetail(vec2 pa, vec2 pb, float w) {
 
 // ------------------------------------------------------------------ the sky behind
 // the sky behind, at infinity: far nebulae, far galaxies, three depths of stars
-// sliding by depth as you pan (`chart_bg.gdshaderinc`)
-vec3 sky(vec2 v, float la) {
+// sliding by depth as you pan (`chart_bg.gdshaderinc`). Laid in last, under
+// what the galaxy's dust lets by and only where the galaxy is fainter than it
+// (`bgSeen`): laid in first, it added its light to the disc's faint outskirts
+// and slid their colour steps about as you panned
+vec3 farSky(vec2 v, float la) {
 	vec2 sp = (v - gpan()) * u_zoom;                  // screen px from the frame centre
 	// (where the lens squeezes the sky into a few blocks its point stars only
 	// flicker as the zoom moves: they thin away there)
-	return VOIDC / u_exp + bgLight(sp, la < 0.8 ? 1.0 : 0.0);
+	return bgLight(sp, la < 0.8 ? 1.0 : 0.0);
 }
 
 // ------------------------------------------------------------------ galaxy parts
@@ -888,7 +891,7 @@ vec3 starAt(ivec2 sb) {
 // the lens, where a wide patch of the disc is squeezed into a few blocks and the
 // bakes read at the screen's own scale alias into flicker as the zoom moves
 vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) {
-	vec3 C = sky(v, la);
+	vec3 C = VOIDC / u_exp;
 	vec3 star = starAt(sb);
 	dustOut = 0.0;
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
@@ -943,6 +946,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
+	C += farSky(v, la) * T * cloudT * bgSeen(max(C - VOIDC / u_exp, vec3(0.0)), u_exp);
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 

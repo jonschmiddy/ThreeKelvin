@@ -786,6 +786,13 @@ func _ready() -> void:
 		_stow_test.run(get_tree())
 		return
 
+	# The sector map's worlds keep up with a pan (no picture trailing its own
+	# ring):  godot --headless --path . -- maplagtest
+	if "maplagtest" in OS.get_cmdline_user_args():
+		_stow_test = load("res://scripts/sim/MapLagTest.gd").new()
+		_stow_test.run(get_tree())
+		return
+
 	# Key bindings, rebound through Settings and pressed on real screens, in a
 	# settings file of its own:  godot --headless --path . -- bindtest
 	if "bindtest" in OS.get_cmdline_user_args():

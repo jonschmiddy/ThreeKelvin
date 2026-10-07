@@ -395,6 +395,12 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 	sky._lut_on = true
 
 
+## The band memory's longest hold, frames (`chart_b_state`), and while a zoom
+## moves the frame's edge n blocks a frame, ZOOM_HOLD / n at most.
+const HOLD := 40.0
+const ZOOM_HOLD := 10.0
+
+
 ## Every frame: the view (worked out by ChartSky._push, shared with the simplified
 ## chart: the same anchoring and zoom hold), the clock and the events' poses.
 static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, ccon: Vector2, res: Vector2,
@@ -428,12 +434,41 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	# a resized memory holds nothing of the old picture: start it afresh
 	mt.set_shader_parameter("reset", resized)
 	# THE MEMORY TURNS WITH THE GALAXY: the frame's turn, and the view to undo it in
+	# (last frame's turn, kept per frame like the view below: pushed twice in a
+	# frame, the second push read the first's turn as last frame's and undid none)
+	var fr := Engine.get_process_frames()
+	if int(g.get("_view_fr", -1)) != fr:
+		g["_view_fr"] = fr
+		g["_phi_prev"] = g.get("_phi_cur", phi)
+		g["_view_prev"] = g.get("_view_cur", [z, ccon, origin, b0])
+	g["_phi_cur"] = phi
 	var pd := wrapf(phi - float(g.get("_phi_prev", phi)), -PI, PI)
-	g["_phi_prev"] = phi
 	mt.set_shader_parameter("phi_d", pd if absf(pd) < 0.2 else 0.0)
 	mt.set_shader_parameter("origin", origin)
 	mt.set_shader_parameter("cpix", ccon)
 	mt.set_shader_parameter("zoom", z)
+	# AND ZOOMS WITH IT: last frame's view, to find where each block's piece of
+	# the galaxy was drawn (`chart_b_state`) -- the view the memory was last
+	# DRAWN with, kept per frame: the chart can be pushed more than once a frame
+	# (a glide's late push), and a second push would take the first's view for
+	# last frame's and undo nothing
+	g["_view_cur"] = [z, ccon, origin, b0]
+	var pv: Array = g["_view_prev"]
+	mt.set_shader_parameter("zoom0", float(pv[0]))
+	mt.set_shader_parameter("cpix0", pv[1])
+	mt.set_shader_parameter("origin0", pv[2])
+	mt.set_shader_parameter("block00", pv[3])
+	# AND WHAT A ZOOM CHANGES IS NOT HELD PAST IT: a zoom redraws the gas at a new
+	# scale (its finest octaves fade in and out), so some bands truly change;
+	# held through the zoom, they were let go in the second and a half after it
+	# stopped, the cloud changing with nothing moving. The hold is cut by how far
+	# the zoom moved the frame's edge this frame (blocks): a slow zoom -- the
+	# flicker the memory is for, a third of a block a frame -- keeps about 30
+	# frames of it, a turn of the wheel almost none, so what it changes changes
+	# while it moves.
+	var zmove := absf(log(maxf(z, 1e-4) / maxf(float(pv[0]), 1e-4))) * vs.length() * 0.5
+	if not bool(g.get("_hold_fixed", false)):
+		mt.set_shader_parameter("hold", HOLD if zmove < 1e-4 else minf(HOLD, ZOOM_HOLD / zmove))
 	var mc := sky._m_comp
 	mc.set_shader_parameter("vp_size", vs)
 	mc.set_shader_parameter("block0", b0)

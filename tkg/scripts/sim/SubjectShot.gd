@@ -76,6 +76,11 @@ func _run() -> void:
 				await RenderingServer.frame_post_draw
 		var sub := LocalSubject.of(sc._view)
 		tree.root.get_texture().get_image().save_png("%s/%s.png" % [dir, oid])
+		# YOUR SHIP'S PARTS ON ITS HULL, not floating where the hull used to be
+		for c in sc._view.ship_view().get_children():
+			if c is MountPoints:
+				var off := (c as MountPoints).strays()
+				print("subjectshot: %s: your ship's parts %s" % [oid, "on the hull" if off.is_empty() else "OFF THE HULL: " + ", ".join(off)])
 		var rs: Array[Rect2] = sub.drawn_rects() if sub != null else []
 		print("subjectshot: %s: %d pieces drawn%s" % [oid, rs.size(), "" if sub != null else " (NO SUBJECT)"])
 		if sc._view._slots.visible and sc._view._slots_mode == &"wrecks":

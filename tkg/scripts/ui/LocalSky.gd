@@ -222,6 +222,7 @@ var _near_rect: ColorRect = null
 var zoom := 1.0
 var _zoom_fixed := Vector2.ZERO
 var _zoom_to := Vector2.ZERO
+var _glow_r := 70.0
 const Z_STAR := 0.04
 const Z_BAND := 0.15
 const Z_NEAR := 1.0
@@ -412,7 +413,8 @@ func _build() -> void:
 	_far_mat.set_shader_parameter("old_tint", Vector3(st.r, st.g, st.b))
 	var clear: bool = not bool(_sky_look.get("nebula", true)) and layout.star < SystemLayout.StarKind.PULSAR
 	_far_mat.set_shader_parameter("glow_k", 1.0 if clear else 0.0)
-	_far_mat.set_shader_parameter("glow_r", 70.0 * (1.5 if layout.star == SystemLayout.StarKind.RED else 1.0))
+	_glow_r = 70.0 * (1.5 if layout.star == SystemLayout.StarKind.RED else 1.0)
+	_far_mat.set_shader_parameter("glow_r", _glow_r)
 	var ba := float(node.index) * 0.731 * 2.7
 	_far_mat.set_shader_parameter("band_n", Vector2(-sin(ba), cos(ba)))
 	_far_mat.set_shader_parameter("band_off", (SkyBakeS.hash2(node.index, 403) - 0.5) * 300.0)
@@ -708,8 +710,20 @@ func star_light() -> Vector3:
 	return l / maxf(l.x, maxf(l.y, l.z))
 
 
-## the star on screen this frame, on the block grid (its own, near-still layer)
+## THE STAR ON SCREEN this frame, on the block grid (its own, near-still layer),
+## and under the cutaway's zoom where its depth (Z_STAR) carries it. Everything
+## that belongs to the star asks this one point: its disc, the far sky's glow,
+## its light on the cloud (and PAINTED's), the worlds' shafts and shadows, the
+## near world's light, the dust (`LocalDust`) and the subjects (`LocalSubject`).
+## Jon: "When zooming into the ship, the light of the star moves?" -- the disc
+## sat inside the band's layer and took its zoom on top of its own, while the
+## glow held still, so the two came apart.
 func origin() -> Vector2:
+	return _zp(rest_origin(), Z_STAR)
+
+
+## The star with no zoom: what the layout and the palette are laid out from.
+func rest_origin() -> Vector2:
 	return _block_round(_sun - cam * F_STAR)
 
 
@@ -798,20 +812,22 @@ func _step(delta: float) -> void:
 	# still of itself: see `_build_palette`)
 	if _cam_rest:
 		cam = Vector2.ZERO
-	var o := origin()
+	var o := rest_origin()
+	var so := origin()
 	var vr := get_global_rect()
 	_far_mat.set_shader_parameter("wash", Vector2(vr.position.x, vr.size.x))
 	# (`chart_bg` slides a layer with its pan: the sky's pan is the world's
 	# travel on screen, against the camera's)
 	_far_mat.set_shader_parameter("u_skyPan", -cam * SKY_K)
-	_far_mat.set_shader_parameter("star_at", o)
+	_far_mat.set_shader_parameter("star_at", so)
+	_far_mat.set_shader_parameter("glow_r", _glow_r * _zl(Z_STAR))
 	_far_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
 	if _neb_mat != null:
 		_neb_mat.set_shader_parameter("off", neb_off())
 		_neb_mat.set_shader_parameter("time", 0.0 if still else pose(t, 4.0))
 		_neb_mat.set_shader_parameter("low", gfx_low())
 		if not legacy:
-			_neb_mat.set_shader_parameter("star_at", Vector2(o))
+			_neb_mat.set_shader_parameter("star_at", Vector2(so))
 			# (the star's light reaches as far into the gas as it is near: the map's
 			# zoom, which opens the light out, stands in for nearness)
 			var lz := clampf(pow(_dk, 0.8), 0.45, 2.4)
@@ -820,7 +836,7 @@ func _step(delta: float) -> void:
 			_neb_mat.set_shader_parameter("home_zoom", 1.0)
 			_neb_mat.set_shader_parameter("lscale", 1.35)
 			_neb_mat.set_shader_parameter("breath", SystemViewS.breath(pose(t, 4.0)))
-			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k())
+			_neb_mat.set_shader_parameter("hole_r", 116.0 * star_k() * _zl(Z_STAR))
 	if painted:
 		SectorPaintedS.push(self)
 	_step_star(o)
@@ -836,8 +852,18 @@ func _step(delta: float) -> void:
 func _step_star(o: Vector2) -> void:
 	if star == null:
 		return
-	star.position = _zp(o, Z_STAR)
-	star.scale = Vector2.ONE * _zl(Z_STAR)
+	# AT ITS OWN DEPTH, wherever it hangs: the pulsar on the far sky, which does
+	# not zoom; the sun and the core inside the band's layer (for the worlds that
+	# pass in front of it), which zooms at Z_BAND, so the band's zoom is taken
+	# back out of it
+	var at := _zp(o, Z_STAR)
+	var k := _zl(Z_STAR)
+	if star.get_parent() == _worlds:
+		var wk := _zl(Z_BAND)
+		at = (at - _zp(Vector2.ZERO, Z_BAND)) / wk
+		k /= wk
+	star.position = at
+	star.scale = Vector2.ONE * k
 	_flare = 0.0
 	match layout.star:
 		SystemLayout.StarKind.PULSAR:
@@ -885,8 +911,11 @@ func _step_worlds(o: Vector2) -> void:
 		var kl := 0.95 + 0.35 * SystemViewS.light_at(p.x, p.y)
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			kl = 0.75
-		var sr := float(layout.star_r) * star_k()
-		v.call("step", t, light, kl, o if behind else Vector2(-9999, -9999), sr if behind else 0.0)
+		# (the star's disc as this layer sees it: where `_step_star` put it, at
+		# its own depth, in the band's coordinates)
+		var sr := float(layout.star_r) * star_k() * (star.scale.x if star != null else 1.0)
+		var so: Vector2 = star.position if star != null else o
+		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
 		if vm != null:
 			if not legacy:
@@ -894,8 +923,12 @@ func _step_worlds(o: Vector2) -> void:
 				vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 			vm.set_shader_parameter("flare", _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
+		# (the shafts are cast on the cloud, which does not zoom: each world where
+		# the band's zoom shows it, at the size it is drawn)
 		if bp.size() < 24:
-			bp.append(Vector4(v.position.x, v.position.y, _world_r(b), _world_r(b)))
+			var wp := _zp(v.position, Z_BAND)
+			var wr := _world_r(b) * _zl(Z_BAND)
+			bp.append(Vector4(wp.x, wp.y, wr, wr))
 	if not star_placed:
 		_worlds.move_child(star, -1)
 	if radiant and _neb_mat != null:
@@ -977,7 +1010,7 @@ func _build_palette() -> void:
 		deep /= maxf(deep.x, maxf(deep.y, deep.z))
 		for kq: float in [0.07, 0.11, 0.17, 0.26, 0.38]:
 			extra.append(deep * kq)
-	var pal: PackedVector3Array = SystemPaletteS.build(img, 0, Vector2(origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
+	var pal: PackedVector3Array = SystemPaletteS.build(img, 0, Vector2(rest_origin()) / 2.0, float(layout.star_r) * star_k() / 2.0, kind, 0,
 		SystemPaletteS.K_NEBULA + PAL_MORE if cloud else SystemPaletteS.K, extra, legacy or not cloud,
 		not legacy and cloud and int(_sky_look.neb) <= NebulaField.Kind.REFLECTION, SystemPaletteS.MERGE, not legacy)
 	var arr := PackedVector3Array(pal)
@@ -1294,8 +1327,10 @@ func _step_near(o: Vector2) -> void:
 			var pv := n as PlanetView
 			var hs := Worlds.half_size(StringName(pv.spec.get("world", &"rock")), float(e[3]))
 			n.position = at + Vector2.ONE * float(hs % 2)
-			# lit from the star, across the view
-			var L := Vector3(o.x - at.x, o.y - at.y, 140.0).normalized()
+			# lit from the star, across the view: from where the star is on screen
+			# to where this world is, under the zoom, in this layer's own px
+			var d := (origin() - _zp(at, Z_NEAR)) / _zl(Z_NEAR)
+			var L := Vector3(d.x, d.y, 140.0).normalized()
 			pv.step(t, L, 1.0)
 			var vm: ShaderMaterial = n.get("_mat")
 			if vm != null:

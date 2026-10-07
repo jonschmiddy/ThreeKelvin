@@ -1102,19 +1102,20 @@ func _apply_volumes() -> void:
 		AudioServer.set_bus_mute(idx, v <= 0.001)
 		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(v, 0.001)))
 
-## Shares user://settings.cfg with DisplaySettings, in its own section.
+## Shares user://settings.cfg with DisplaySettings, in its own section (the
+## harness's scratch file under a harness: `DisplaySettings.path`).
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
-	cfg.load(DisplaySettings.PATH)            ## keep the display section
+	cfg.load(DisplaySettings.path)            ## keep the display section
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "ambient", ambient_volume)
-	cfg.save(DisplaySettings.PATH)
+	cfg.save(DisplaySettings.path)
 
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(DisplaySettings.PATH) == OK:
+	if cfg.load(DisplaySettings.path) == OK:
 		master_volume = float(cfg.get_value("audio", "master", master_volume))
 		music_volume = float(cfg.get_value("audio", "music", music_volume))
 		sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))

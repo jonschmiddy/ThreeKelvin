@@ -121,6 +121,9 @@ var _rename: Control = null
 var _perks: PerkBox
 var _dross: Label
 var _keys: Label
+## The two gaps between the left panel's blocks (`Rule`, `_fit_gaps`).
+var _gap_a: Rule = null
+var _gap_b: Rule = null
 var _say_until := 0
 ## What the push-in's scale was chosen from, for the harnesses.
 var fit_note := ""
@@ -750,10 +753,15 @@ func _build_left() -> void:
 	hc.add_theme_constant_override("separation", 1)
 	_hold_panel.add_child(hc)
 	# (Jon: "can we have the hold on top and the attributes on the bottom?")
-	# THE NAME AND ITS PENCIL, which opens the refit screen's own prompt
+	# THE NAME AND ITS PENCIL, which opens the refit screen's own prompt; the
+	# name, the manufacturer and the hold's count set close together (the room
+	# goes to the gaps between the blocks below)
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 0)
+	hc.add_child(head)
 	var name_row := HBoxContainer.new()
 	name_row.add_theme_constant_override("separation", 2)
-	hc.add_child(name_row)
+	head.add_child(name_row)
 	_name = UITheme.body("", UITheme.ICE, UITheme.FS_BODY)
 	name_row.add_child(_name)
 	var pencil := ShipScreen.NameEdit.new()
@@ -762,18 +770,25 @@ func _build_left() -> void:
 	pencil.pressed.connect(open_rename)
 	name_row.add_child(pencil)
 	_class = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	hc.add_child(_class)
+	head.add_child(_class)
 	_hold_label = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	hc.add_child(_hold_label)
+	head.add_child(_hold_label)
 	_hold = HoldGrid.new()
 	_hold.dropped.connect(_on_hold_drop)
 	hc.add_child(_hold)
-	hc.add_child(UITheme.hsep())
+	# THREE BLOCKS WITH AIR BETWEEN (Jon: "increase the vertical space between
+	# the hold, the attributes, and the perks"): the hold; the attributes, the
+	# mounts and the cards; the perks and the malfunctions -- a rule across each
+	# gap, the gaps as tall as the panel has room for (`_fit_gaps`)
+	_gap_a = Rule.new()
+	hc.add_child(_gap_a)
 	_attrs = AttrBlock.new()
 	_attrs.custom_minimum_size.x = 196
 	hc.add_child(_attrs)
 	_mount_line = UITheme.body("", UITheme.CHILL, UITheme.FS_SMALL)
 	hc.add_child(_mount_line)
+	_gap_b = Rule.new()
+	hc.add_child(_gap_b)
 	# THE HULL'S PERKS AND THE LIVE SET BONUSES, as the refit screen shows them
 	# (the same builder, `ShipScreen.fill_perks`)
 	_perks = PerkBox.new()
@@ -787,15 +802,66 @@ func _build_left() -> void:
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hc.add_child(sp)
-	# (the toast takes the key hint's line while it shows: one line, not two)
+	# THE KEYS BESIDE DONE, on its row: a line of the panel given back to the
+	# gaps. (The toast takes the key hint's place while it shows, cut short
+	# rather than wrapped: one line, never two.)
+	var foot := HBoxContainer.new()
+	foot.add_theme_constant_override("separation", 6)
+	hc.add_child(foot)
+	var said := VBoxContainer.new()
+	said.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	said.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	said.alignment = BoxContainer.ALIGNMENT_CENTER
+	foot.add_child(said)
 	_say = UITheme.body("", UITheme.TRACTOR, UITheme.FS_SMALL)
 	_say.visible = false
-	hc.add_child(_say)
+	_say.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_say.custom_minimum_size.x = 1
+	said.add_child(_say)
 	_keys = UITheme.body("", UITheme.COLD, UITheme.FS_SMALL)
-	hc.add_child(_keys)
+	_keys.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_keys.custom_minimum_size.x = 1
+	said.add_child(_keys)
 	_done = Widgets.button("DONE · ESC", close)
 	_done.custom_minimum_size = Vector2(0, 22)
-	hc.add_child(_done)
+	foot.add_child(_done)
+
+
+## A GAP BETWEEN TWO BLOCKS OF THE LEFT PANEL: `gap` px tall, a one-pixel rule
+## across its middle.
+class Rule extends Control:
+	var gap := 12:
+		set(v):
+			gap = v
+			custom_minimum_size = Vector2(0, v)
+			queue_redraw()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(0, gap)
+
+	func _draw() -> void:
+		var y := floorf(size.y * 0.5)
+		draw_rect(Rect2(0, y, size.x, 1), UITheme.LINE)
+
+
+## THE GAPS AS TALL AS THE PANEL ALLOWS: whatever height the panel has over
+## its contents, shared between the two gaps, up to `GAP_MAX` each (the light
+## and the medium); a heavy with malfunctions, the fullest panel, gets what is
+## left, which is never less than `GAP_MIN` (measured by `-- cutawaytest`).
+const GAP_MAX := 14
+const GAP_MIN := 8
+
+
+func _fit_gaps() -> void:
+	if _gap_a == null or size.y <= 0.0:
+		return
+	_gap_a.gap = 0
+	_gap_b.gap = 0
+	var spare := int(size.y - _hold_panel.get_combined_minimum_size().y)
+	var g := clampi(spare / 2, 0, GAP_MAX)
+	_gap_a.gap = g
+	_gap_b.gap = g
 
 
 # --------------------------------------------------------------- the popup
@@ -953,6 +1019,7 @@ func _refresh() -> void:
 	_dross.text = "MALFUNCTIONS · %d IN YOUR DECK" % Run.dross_count()
 	_dross.visible = Run.dross_count() > 0
 	_keys.text = "%s TURNS · %s FLIPS" % [Keys.describe(&"hold_turn"), Keys.describe(&"part_flip")]
+	_fit_gaps()
 	_fill_popup()
 	_layout(k, _room)
 	_mounts.refresh()

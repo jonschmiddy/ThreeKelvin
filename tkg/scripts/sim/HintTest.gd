@@ -25,7 +25,7 @@ func run(tree: SceneTree) -> void:
 	Rng.forced = 4242
 	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
 	_ok("the flags go to the harness settings file (%s), not the player's" % Hints.store_path(),
-		Hints.store_path() != DisplaySettings.path)
+		Hints.store_path() != DisplaySettings.PATH)
 	# the used state
 	Hints.mark_seen(&"ship")
 	Hints.mark_seen(&"wreck")
@@ -98,17 +98,33 @@ func run(tree: SceneTree) -> void:
 		Hints.mark_seen(&"go", false)
 		await _expect(&"go")
 
-	# a hint whose subject leaves before it is read is not spent
+	# NO CLICK, NO ADVANCE: a hint left alone stays, however long; its subject
+	# leaving hides it unspent
 	Hints.reset()
 	sc = await _local()
 	if sc != null:
 		await _step_until(&"ship")
 		var card_was: HintCard = Hints.card
+		var n_log := Hints.shown_log.size()
+		for i in 120:
+			Hints.poll(0.5)
+		_ok("a minute with no click: the same hint is still up, still unspent, and none came after it",
+			card_was != null and Hints.card == card_was and is_instance_valid(card_was) and not Hints.seen(&"ship")
+			and Hints.shown_log.size() == n_log)
 		Router.show_system()
 		await _frames(20)
 		Hints.poll(0.5)
-		_ok("a hint whose subject went before it was read closes, unspent",
-			Hints.card == null and card_was != null and not Hints.seen(&"ship"))
+		_ok("its subject gone after a long while: it hides, unspent",
+			Hints.card == null and not Hints.seen(&"ship"))
+		sc = await _local()
+		var again: bool = await _step_until(&"ship")
+		_ok("back on LOCAL, the unspent hint shows again", again)
+		Hints.poll(0.3)
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = true
+		Hints.click(ev)
+		_ok("only the click spends it", Hints.seen(&"ship") and Hints.card == null)
 
 	# SHOW HINTS AGAIN
 	Hints.mark_seen(&"ship")

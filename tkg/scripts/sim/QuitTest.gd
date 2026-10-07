@@ -33,9 +33,13 @@ func run(tree: SceneTree) -> void:
 	# test: it passed seven runs in a row and failed the eighth on the same
 	# build. A bounded wait on the thing actually being looked for is the same
 	# check without the race.
+	# Wait for the starchart itself: until the swap lands, Router.current can
+	# still be the launcher, whose backdrop is a MapChart with show_icons off.
 	var chart: StarchartScreen.MapChart = null
 	for i in 60:
-		chart = first(Router.current, _is_chart) as StarchartScreen.MapChart
+		chart = null
+		if Router.current is StarchartScreen:
+			chart = first(Router.current, _is_chart) as StarchartScreen.MapChart
 		if chart != null:
 			break
 		await tree.process_frame

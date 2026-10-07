@@ -716,7 +716,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"mine_drift",
 			title = "Mine drift",
-			subject = {stage = &"field", pieces = [&"r2_minedrift_limpet_mine_1", &"r4_minedrift_prong_mine_1", &"r2_minedrift_broken_strut_1", &"r4_minedrift_cable_coil_1", &"r2_minedrift_limpet_mine_2", &"r4_minedrift_buckled_plate_1", &"r2_minedrift_prong_mine_2", &"r2_minedrift_broken_strut_2", &"r4_minedrift_prong_mine_2", &"r4_minedrift_cable_coil_2", &"r4_minedrift_buckled_plate_2", &"r2_minedrift_cable_coil_1"], count = 12, near = 6, span = 420.0, height = 200.0, seed = 3, tumble = 5.0},
+			subject = {layers = [{stage = &"single", pieces = [&"role:hauler"], far = true, dark = 0.75, at = Vector2(0.0, -6.0)}, {stage = &"ring", pieces = [&"r2_minedrift_limpet_mine_1", &"r4_minedrift_prong_mine_1", &"r2_minedrift_limpet_mine_2", &"r2_minedrift_prong_mine_2", &"r4_minedrift_prong_mine_2", &"r2_minedrift_limpet_mine_1", &"r4_minedrift_prong_mine_1"], count = 7, near = 0, rx = 150.0, ry = 62.0, spin = 0.3, roll = 8.0, roll_step = 15.0, at = Vector2(0.0, -6.0)}, {stage = &"field", pieces = [&"r4_minedrift_buckled_plate_1", &"r2_minedrift_broken_strut_2"], count = 2, near = 2, span = 430.0, height = 240.0, seed = 21, tumble = 4.0, turns = 30.0}]},
 			body = "Old mines glint across the debris belt ahead. There are dozens of them. They still keep perfect station around the ship they were set to guard. Whoever seeded them stopped answering a long time ago. Nobody came back for any of it. That ship is whole, hull unbreached, holds shut. Another hull lies further in, opened along one flank by something that was not the belt. A module is still racked in the open where the grapple could lift it. Some of the mines are too old to fire. From out here you cannot tell which ones.",
 			tags = [&"hazard", &"salvage"],
 			group = &"",
@@ -942,7 +942,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"customs_cordon",
 			title = "Customs cordon",
-			subject = {stage = &"group", ships = [{piece = &"role:armed", far = true, dark = 0.6, at = Vector2(-150.0, -55.0), z = -2}, {piece = &"role:armed", far = true, dark = 0.6, at = Vector2(160.0, -50.0), z = -1}, {piece = &"role:hauler", dark = 0.7, at = Vector2(15.0, 45.0), z = 0}, {piece = &"foe", lights = &"patrol", at = Vector2(-10.0, -42.0), z = 1}]},
+			subject = {stage = &"group", ships = [{piece = &"role:hauler", dark = 0.7, at = Vector2(10.0, 50.0), z = 0}, {piece = &"ship_catamaran", lights = &"patrol", at = Vector2(-5.0, -45.0), z = 1}, {piece = &"role:armed", size = 0.5, dark = 0.6, at = Vector2(-168.0, -40.0), z = 1}, {piece = &"role:armed", size = 0.5, dark = 0.6, at = Vector2(165.0, -48.0), z = 1}]},
 			body = "A revenue cutter holds station over a seized hull, with two cold escorts off its flanks. Its crew seized that hull nine days ago. The impound paperwork is still grinding through. Until the paperwork clears, the manifest is public, and it lists what is still aboard. The cutter lets traffic through. It is here to guard the cargo.",
 			tags = [&"signal", &"fight"],
 			group = &"",
@@ -972,7 +972,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_braid",
 			title = "The braid",
-			subject = {stage = &"line", pieces = [&"r2_braid_the_braid_idea3", &"r2_braid_the_braid_idea2"], count = 9, near = 1, span = 140.0, rise = -150.0},
+			subject = {layers = [{stage = &"field", flip = true, pieces = [&"r2_braid_the_braid_idea2", &"r2_braid_the_braid_idea3", &"r2_braid_the_braid_idea2"], count = 3, near = 0, deep = 1, span = 440.0, height = 120.0, seed = 3, tumble = 0.0, at = Vector2(0.0, -64.0)}, {stage = &"single", flip = true, pieces = [&"r2_braid_the_braid_idea3"], at = Vector2(40.0, 62.0)}]},
 			body = "Nine of them cross the dish in a line. They are big enough that the dish reads them as terrain. They are megafauna, running a lane older than anyone who could have named it. The wake behind them would carry you most of the way to the next ring. They are not hostile. They are also not paying attention. The smallest one is longer than your ship.",
 			tags = [&"signal"],
 			group = &"herd",
@@ -1067,7 +1067,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"tug_work",
 			title = "Tug work",
-			subject = {layers = [{stage = &"row", recede = true, pieces = [&"role:hauler"], count = 8, near = 0, mid = 2, overlap = 0.45, dir = Vector2(1.0, -0.45), at = Vector2(80.0, -40.0), lights = &"run"}, {stage = &"single", pieces = [&"role:barge"], turn = -7.0, at = Vector2(-75.0, 35.0), lights = &"battery"}]},
+			subject = {layers = [{stage = &"single", pieces = [&"ship_pr_drum"], turn = -7.0, at = Vector2(-118.0, 40.0), lights = &"battery"}, {stage = &"field", pieces = [&"role:hauler", &"role:passenger", &"role:small", &"role:hauler", &"role:barge"], count = 5, near = 0, deep = 3, lift = 12.0, span = 216.0, height = 160.0, seed = 7, tumble = 0.0, at = Vector2(104.0, -36.0), lights = &"run"}]},
 			body = "A bulk hauler hangs crooked at the head of the dock queue. Its thrusters are dead and nine ships are stacked behind it. The dock has tugs of its own. All of them are booked for the next eleven hours. Every hour it sits there the dockmaster gets keener to know whose fault it is. Its pilot needs four minutes of somebody else's engine. It has to come from a ship willing to put its nose on a hull forty times its mass.",
 			tags = [&"contract"],
 			group = &"",
@@ -1129,7 +1129,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_queue",
 			title = "The queue",
-			subject = {layers = [{stage = &"row", recede = true, pieces = [&"role:hauler", &"role:passenger", &"role:barge", &"role:small"], count = 9, near = 0, mid = 1, overlap = 0.45, dir = Vector2(-1.0, -0.35), at = Vector2(-55.0, -10.0), lights = &"run"}, {stage = &"single", pieces = [&"place_station_stack"], at = Vector2(150.0, 0.0), lights = &"run"}]},
+			subject = {layers = [{stage = &"single", pieces = [&"place_station_stack"], at = Vector2(150.0, 0.0), lights = &"run"}, {stage = &"field", flip = true, pieces = [&"role:hauler", &"role:passenger", &"role:barge", &"role:small"], count = 5, near = 0, deep = 3, lift = 12.0, span = 290.0, height = 220.0, seed = 21, tumble = 0.0, at = Vector2(-76.0, 4.0), lights = &"run"}]},
 			body = "The dock queue is nine ships long and the dockmaster is honest about it: the queue is the queue. But the fourth ship has been fourth for two days. The pilot's charter fell through, and she is holding a slot she cannot use and cannot sell back. She can sell it sideways. The dockmaster does not mind who docks, as long as somebody does.",
 			tags = [&"contract"],
 			group = &"berth",
@@ -1152,7 +1152,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"cold_labour",
 			title = "Cold labour",
-			subject = {layers = [{stage = &"field", pieces = [&"r4_scatter_torn_plate_1", &"r4_scatter_tank_half_1", &"r4_scatter_torn_plate_2", &"r4_scatter_cabin_section_1", &"r4_scatter_tank_half_2"], count = 5, near = 0, span = 400.0, height = 220.0, seed = 12, tumble = 2.0}, {stage = &"single", pieces = [&"r6_cradle_repair_frame_hull_clamped_2"]}]},
+			subject = {layers = [{stage = &"single", pieces = [&"r6_cradle_repair_frame_hull_clamped_2"]}, {stage = &"field", pieces = [&"r4_scatter_torn_plate_1", &"r4_scatter_tank_half_1", &"r4_scatter_torn_plate_2", &"r4_scatter_cabin_section_1", &"r4_scatter_tank_half_2"], count = 5, near = 0, span = 420.0, height = 205.0, seed = 12, tumble = 2.0}]},
 			body = "A breaker's yard in Redline colours. The crew there is waving you in. They have a new cutting head and no faith in it at all. They would rather learn what it does wrong on somebody else's plating than on the hull they take apart next week. They will pay you to hold your flank against the head for an hour. They are very clear that they do not know what it will do.",
 			tags = [&"contract"],
 			group = &"",
@@ -1186,7 +1186,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"quarantine_flag",
 			title = "Quarantine flag",
-			subject = {layers = [{stage = &"single", pieces = [&"place_station_wheel"], dark = 0.8, at = Vector2(70.0, -5.0)}, {stage = &"group", lights = &"run", ships = [{piece = &"role:hauler", far = true, at = Vector2(-140.0, 60.0)}, {piece = &"role:passenger", far = true, at = Vector2(-130.0, -70.0)}]}]},
+			subject = {layers = [{stage = &"single", pieces = [&"place_station_wheel"], dark = 0.8, at = Vector2(70.0, -5.0)}, {stage = &"group", lights = &"run", flip = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-140.0, 60.0)}, {piece = &"role:passenger", far = true, at = Vector2(-130.0, -70.0)}]}]},
 			body = "A station sits dark with a Calyx quarantine flag on every channel it owns. It has been eight days. Nothing has gone in or out. Nothing has come to it either. No drones, no decontamination lighters, no Calyx hull anywhere on the dish. The flag is all there is. Two other ships hold off the exclusion line with you, reading the same nothing. Inside is a full station's worth of stock. Every hour the flag holds, that stock gets cheaper.",
 			tags = [&"signal"],
 			group = &"",
@@ -1275,7 +1275,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"escort",
 			title = "Escort",
-			subject = {stage = &"group", lights = &"run", ships = [{piece = &"role:hauler", far = true, at = Vector2(40.0, -62.0)}, {piece = &"role:hauler", far = true, at = Vector2(165.0, -32.0)}, {piece = &"role:hauler", at = Vector2(-85.0, 18.0)}, {piece = &"role:small", at = Vector2(120.0, 62.0)}]},
+			subject = {stage = &"field", flip = true, lights = &"run", pieces = [&"role:hauler", &"role:small", &"role:hauler", &"role:hauler"], count = 4, near = 1, deep = 1, lift = 30.0, span = 440.0, height = 240.0, seed = 13, tumble = 0.0},
 			body = "Three haulers and a courier hold station off your bow. None of them is armed. They are all headed the way you are, and none of them is happy about it. The only armed ship in the system quoted them a price worth most of the run. They would rather pay you. All they want is for you to fly alongside them, visible, with weapons.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -1424,7 +1424,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_long_tow",
 			title = "The long tow",
-			subject = {stage = &"single", pieces = [&"role:hauler"], dark = 0.55, lights = &"battery", tow = 80.0, at = Vector2(40.0, 0.0)},
+			subject = {stage = &"single", pieces = [&"role:hauler"], dark = 0.55, lights = &"battery", at = Vector2(40.0, 0.0)},
 			body = "A ship hangs dead off your bow with its hull lights running on battery. Its crew answers the hail at once. The reactor is scrap and all six of them are fine. That is the wrong way around for how these usually go. The dock on the far side of this system will take the ship. It has to get there first. A tow is four hours of your engine at a load it was not built for. There is a hull on your stern the whole way, and it does not steer.",
 			tags = [&"contract"],
 			group = &"",
@@ -1492,7 +1492,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_manifest",
 			title = "The manifest",
-			subject = {stage = &"single", pieces = [&"role:barge"], lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_rf_pipes"], lights = &"run"},
 			body = "A heat barge sits across the lane inward, running lights on, drives cold. The woman flying it is hailing for a witness. The rules want a second signature on the last leg. It has to come from somebody with nothing to gain by it. Out here that is a short list. She has held station a day and a half, waiting for a ship that neither pays her nor competes with her. The seal on the load reads nine hundred units. It was signed off at the last station that still had the power to sign off anything. Your mass reading puts the barge four points heavy for nine hundred units of anything.",
 			tags = [&"contract"],
 			group = &"threshold",
@@ -1592,7 +1592,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"holding_pattern",
 			title = "Holding pattern",
-			subject = {stage = &"ring", pieces = [&"role:hauler", &"role:passenger", &"role:barge", &"role:small", &"role:tender", &"role:hauler"], count = 6, near = 1, rx = 140.0, ry = 62.0, dark = 0.35},
+			subject = {stage = &"ring", pieces = [&"role:hauler", &"role:passenger", &"role:barge", &"role:small", &"role:tender", &"role:hauler"], count = 6, near = 0, rx = 165.0, ry = 92.0, spin = 0.0, dark = 0.35},
 			body = "Six ships hold a loose ring ahead of you. Their drives are cold and their transponders are on. The hulls are weathered unevenly, so they arrived years apart. Not one of them has moved since your dish first resolved them. They are not a convoy and they are not a blockade. Every one of them points the same way, and that way is inward. You hail the ring, and the only answer that comes back is a receipt code.",
 			tags = [&"signal"],
 			group = &"",
@@ -1751,7 +1751,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"inspection_sweep",
 			title = "Inspection sweep",
-			subject = {stage = &"group", ships = [{piece = &"role:hauler", far = true, dark = 0.7, turn = 5.0, at = Vector2(130.0, -75.0), z = -3}, {piece = &"role:hauler", far = true, lights = &"run", at = Vector2(150.0, 15.0), z = -2}, {piece = &"role:passenger", far = true, lights = &"run", at = Vector2(110.0, 70.0), z = -1}, {piece = &"foe", lights = &"patrol", at = Vector2(-95.0, 5.0), z = 1}]},
+			subject = {stage = &"group", ships = [{piece = &"role:hauler", far = true, dark = 0.7, turn = 5.0, at = Vector2(130.0, -75.0), z = -3}, {piece = &"role:hauler", far = true, lights = &"run", at = Vector2(150.0, 15.0), z = -2}, {piece = &"role:passenger", far = true, lights = &"run", at = Vector2(110.0, 70.0), z = -1}, {piece = &"ship_dropship", lights = &"patrol", at = Vector2(-95.0, 5.0), z = 1}]},
 			body = "A patrol is stopping everything through this lane. The reason is parked behind them. A hauler was pulled over two days ago and its crew left it there. Its load sits in the impound under a seizure notice. Nobody has come to act on the notice. The queue moves slowly. Whatever is still in the impound at the end of the week goes to the breakers.",
 			tags = [&"contract"],
 			group = &"",
@@ -1814,7 +1814,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"hostile_contact",
 			title = "Hostile contact",
-			subject = {stage = &"single", pieces = [&"foe"], dark = 0.85},
+			subject = {stage = &"single", pieces = [&"ship_gunboat"], dark = 0.85},
 			body = "A hull sits dead ahead of you where the chart shows nothing. Its engines are cold and its running lights are off. It already has your registry. The query came in before your dish had finished resolving its shape. No hail follows, and no demand. It turns, slowly, until its bow is pointed at you. Then it holds there and waits to see what you do about that.",
 			tags = [&"fight"],
 			group = &"",
@@ -1868,7 +1868,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"cordon",
 			title = "The cordon",
-			subject = {stage = &"group", strobe = true, lights = &"run", ships = [{piece = &"role:armed", far = true, at = Vector2(-160.0, -10.0)}, {piece = &"foe", at = Vector2(0.0, 0.0), z = 1}, {piece = &"role:armed", far = true, at = Vector2(160.0, -10.0)}]},
+			subject = {stage = &"group", strobe = true, lights = &"run", ships = [{piece = &"ship_gunboat", far = true, at = Vector2(-160.0, -10.0)}, {piece = &"ship_armedtrader", at = Vector2(0.0, 0.0), z = 1}, {piece = &"ship_dropship", far = true, at = Vector2(160.0, -10.0)}]},
 			body = "Three ships hold a line across the lane with their weapons live. A strobe runs the width of it. It is a toll. The hail is polite and has a rate card attached. One rate for every hull, payable now. Out here there is nobody to complain to. The ships on the line know exactly how far off the nearest somebody is, to the hour.",
 			tags = [&"fight", &"signal"],
 			group = &"",
@@ -1959,7 +1959,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"collapsed_lane",
 			title = "Collapsed lane",
-			subject = {stage = &"row", pieces = [&"r3_frame_gutted_frame_2", &"r3_frame_gutted_frame_1"], count = 4, near = 1, span = 158.0, dir = Vector2(0.4, -1.0)},
+			subject = {layers = [{stage = &"row", pieces = [&"r3_frame_gutted_frame_1", &"r3_frame_gutted_frame_2"], count = 2, near = 0, mid = 2, gap = 3.0, span = 440.0, dir = Vector2(1.0, -0.06), at = Vector2(0.0, -62.0)}, {stage = &"single", pieces = [&"r3_frame_gutted_frame_2"], at = Vector2(-30.0, 62.0)}]},
 			body = "The short way on runs through a shipbreaker's yard. It is a lane of dead hulls packed so close the dish reads it as one long wreck. Spars cross the gap at every height. The breakers left them where they lay when the money stopped. Going around costs a day you do not have. Going through costs nothing at all if nothing touches you. The fuel you save is real.",
 			tags = [&"hazard"],
 			group = &"",
@@ -2044,7 +2044,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_water_stop",
 			title = "The water stop",
-			subject = {stage = &"row", pieces = [&"r5_tank_pressure_tank_1", &"r5_tank_pressure_tank_2", &"r4_tank_pressure_tank_2"], count = 4, near = 4, span = 150.0, dir = Vector2(0.35, -1.0)},
+			subject = {stage = &"field", pieces = [&"r5_tank_pressure_tank_1", &"r4_tank_pressure_tank_2", &"r5_tank_pressure_tank_2", &"r5_tank_pressure_tank_1"], count = 4, near = 2, turns = 14.0, span = 400.0, height = 170.0, seed = 15, tumble = 2.0},
 			body = "Two people run a water stop sunward of here. They hold tanks of ice out in the light and let the star do the work. They sell the water to anything passing. They have done it for eleven years. The plant was parked in a stable orbit and never needed an engine. The orbit has stopped being stable. It is going the one way that matters, and it is going slowly. They are on the open channel asking for a tow. They are asking everyone. There is not much traffic, and they have been asking a while.",
 			tags = [&"contract"],
 			group = &"",
@@ -2209,7 +2209,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"sixty_containers",
 			title = "Sixty containers",
-			subject = {stage = &"row", pieces = [&"r2_sixty_long_box_sun_bleached_1", &"r2_sixty_short_box_sun_bleached_1", &"r5_sixty_box_burst_open_1", &"r2_sixty_long_box_sun_bleached_2", &"r2_sixty_short_box_sun_bleached_2"], count = 9, near = 3, span = 400.0, dir = Vector2(1.0, -0.42)},
+			subject = {stage = &"field", pieces = [&"r2_sixty_long_box_sun_bleached_1", &"r2_sixty_short_box_sun_bleached_1", &"r5_sixty_box_burst_open_1", &"r2_sixty_long_box_sun_bleached_2", &"r2_sixty_short_box_sun_bleached_2"], count = 7, near = 2, deep = 2, turns = 25.0, band = -8.0, lift = 30.0, span = 440.0, height = 220.0, seed = 6, tumble = 3.0},
 			body = "A hauler broke up here a while ago. Its cargo is spread across the approach in a long line. Sixty containers or more, all sitting in the light. The light has burned every label off them. The seals are cooked. Some of what is inside does not mind the light at all. Some of it has been ruined. From outside there is no telling which is which. Metal, ore and tools are fine. Medicine, film and anything with a circuit in it are not.",
 			tags = [&"salvage"],
 			group = &"",
@@ -2381,7 +2381,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"clean_hull",
 			title = "Clean hull",
-			subject = {stage = &"single", pieces = [&"role:hauler"], far = true, lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_lrshuttle"], lights = &"run"},
 			body = "A ship is holding a long way out from the star. The pilot wants to be closer to the light. He wants his ship towed in until every marking on it burns off. The registry, the yard numbers, the name, down to bare metal. Then towed back out again. His own drive is out, or he says it is. A ship with no drive drifts in the light. He says a day will do it. He does not say why, and out here nobody asks. He is paying for the tow both ways, and he is paying well.",
 			tags = [&"contract"],
 			group = &"",
@@ -2484,7 +2484,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_cache",
 			title = "The cache",
-			subject = {stage = &"tether", pieces = [&"r2_cache_sealed_canister_1", &"r2_cache_sealed_canister_2"], count = 8, span = 340.0, sag = 14.0, tilt = -0.1, ends = [&"paint_rock_b3", &"paint_rock_b4"], r = 40.0},
+			subject = {layers = [{stage = &"single", pieces = [&"paint_rock_b3"], r = 60.0, at = Vector2(-145.0, 22.0)}, {stage = &"field", pieces = [&"r2_cache_sealed_canister_1", &"r2_cache_sealed_canister_2"], count = 8, near = 2, deep = 3, turns = 20.0, lift = 20.0, span = 230.0, height = 160.0, seed = 11, tumble = 3.0, at = Vector2(45.0, -6.0)}]},
 			body = "Half a kilometre off the lane, deep in the cloud, there is a string of sealed containers. They hang on a tether between two rocks. You would never have seen them without the lights. Eight of them, all alike. Each one has the same code and nothing else. Out in the open, any dish would find them within an hour. In here, nobody looks. Somebody put them here on purpose. Somebody is coming back for them.",
 			tags = [&"salvage"],
 			group = &"",
@@ -2881,7 +2881,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_crossing",
 			title = "The crossing",
-			subject = {stage = &"herd", pieces = [&"r3_crossing_old_one_1", &"r4_crossing_young_one_1", &"r3_crossing_old_one_2", &"r4_crossing_young_one_1"], count = 8, near = 2, span = 420.0, height = 200.0, seed = 4},
+			subject = {stage = &"herd", flip = true, pieces = [&"r3_crossing_old_one_1", &"r4_crossing_young_one_1", &"r3_crossing_old_one_2", &"r4_crossing_young_one_1"], count = 8, near = 2, span = 420.0, height = 200.0, seed = 4},
 			body = "A herd is crossing the lane. There are hundreds of them, slow and packed close. The small ones are in the middle. The old ones are on the outside. The whole mass of them is barely moving, and it covers the one stretch of sky you need. They are not hostile. They will not move for you, and they will not notice you. The smallest of them is the size of a hauler. Going around costs a day. Going through costs an hour, if nothing turns.",
 			tags = [&"hazard"],
 			group = &"",
@@ -2981,7 +2981,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"turning_the_herd",
 			title = "Turning the herd",
-			subject = {stage = &"herd", pieces = [&"r4_turning_the_turning_herd_1", &"r2_turning_the_turning_herd_idea3", &"r4_turning_the_turning_herd_2"], count = 9, near = 3, span = 420.0, height = 190.0, seed = 8},
+			subject = {stage = &"herd", flip = true, pieces = [&"r4_turning_the_turning_herd_1", &"r2_turning_the_turning_herd_idea3", &"r4_turning_the_turning_herd_2"], count = 9, near = 3, span = 420.0, height = 190.0, seed = 8},
 			body = "A herd is moving toward the station's approach lane. There are two hundred of them, slow and not paying attention. A small ship is trying to turn them. One person is aboard it. She is running every light she has along the near flank. It is not enough. If the herd reaches the lane, everything inbound for a week goes around it or through it. She is asking anyone on the channel to take the far flank. Lights on, drive loud, and turn with her. The station will pay her, she says, and she will pay you.",
 			tags = [&"contract"],
 			group = &"",
@@ -3017,7 +3017,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_grazing",
 			title = "The grazing",
-			subject = {layers = [{stage = &"around", base = &"paint_moon_ice", r = 56.0, pieces = [&"r3_grazing_feeder_2"], count = 6, rx = 150.0, ry = 62.0}, {stage = &"field", pieces = [&"r5_grazing_shed_plate_1"], count = 4, near = 1, span = 380.0, height = 200.0, seed = 6, tumble = 6.0}]},
+			subject = {layers = [{stage = &"around", base = &"paint_moon_ice", r = 70.0, loose = true, apart = 8, pieces = [&"r3_grazing_feeder_2"], count = 7, size = 0.5, rx = 112.0, ry = 62.0, tilt = 14.0, seed = 7}, {stage = &"field", pieces = [&"r5_grazing_shed_plate_1"], count = 3, near = 0, deep = 1, turns = 70.0, span = 430.0, height = 176.0, seed = 6, tumble = 6.0}]},
 			body = "The herd has stopped to feed. Forty of them hang around a body of dirty ice the size of a small moon. They are close together, mouths to the surface, and they will be there for days. Feeding, they shed. What comes off is old hide, plates off their leading edges, and things that come loose when something that size holds still. It drifts, and it is worth money. They are not hostile and they are not paying attention. A startled herd moves all at once, in every direction.",
 			tags = [&"hazard", &"salvage"],
 			group = &"",
@@ -3147,7 +3147,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_fuel_cache",
 			title = "The fuel cache",
-			subject = {stage = &"tether", pieces = [&"r2_fuelcache_marked_fuel_tank_1", &"r2_fuelcache_marked_fuel_tank_2"], count = 6, near = 3, span = 420.0, sag = 22.0, tilt = -0.3},
+			subject = {stage = &"field", pieces = [&"r2_fuelcache_marked_fuel_tank_1", &"r2_fuelcache_marked_fuel_tank_2"], count = 6, near = 2, deep = 2, turns = 18.0, lift = 20.0, span = 340.0, height = 180.0, seed = 8, tumble = 3.0},
 			body = "Six fuel tanks hang on a tether. They are marked with a ship's name and a date eleven months old. They sit where anybody coming out from the core would pass them. Somebody left their way home here. They went inward with a lighter ship and a plan to come back for this. They have not come back yet. Eleven months is a long time this deep. People have come back from longer. The tanks are full. The valves have been in the cold for eleven months. Nothing stops you except the name painted on them.",
 			tags = [&"hazard"],
 			group = &"",
@@ -3406,7 +3406,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_wrong_writ",
 			title = "The wrong writ",
-			subject = {stage = &"single", pieces = [&"foe"], lights = &"patrol", drive = true},
+			subject = {stage = &"single", pieces = [&"ship_courier2"], lights = &"patrol"},
 			body = "A patrol boat comes up on your quarter with its lights going. It puts a stop order across the channel. The writ carries a registry prefix that matches yours. The hull number on it does not, and it is off by one digit. An office four rings inward issued it, and that office stopped answering queries in the spring. The pilot reads the order out twice. She is young and she means to do this properly. The ship the writ wants came through this ring an hour ahead of you.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3437,7 +3437,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_far_side",
 			title = "The far side",
-			subject = {stage = &"group", ships = [{piece = &"role:passenger", dark = 0.55, lights = &"battery", at = Vector2(40.0, 20.0), z = 0}, {piece = &"foe", at = Vector2(30.0, -16.0), z = 1}, {piece = &"role:small", far = true, lights = &"run", at = Vector2(-160.0, 70.0), z = 2}, {piece = &"role:small", far = true, lights = &"run", at = Vector2(-150.0, -70.0), z = 2}]},
+			subject = {stage = &"group", ships = [{piece = &"role:passenger", dark = 0.55, lights = &"battery", at = Vector2(85.0, 20.0), z = 0}, {piece = &"ship_gunboat", size = 0.5, dock = {to = 0}, at = Vector2(75.0, 0.0), z = 1}, {piece = &"role:small", turn = 6.0, lights = &"run", at = Vector2(-118.0, 82.0), z = 2}, {piece = &"role:small", far = true, turn = -5.0, lights = &"run", at = Vector2(-150.0, -68.0), z = -1}]},
 			body = "A scavenger crew has a cutter ship anchored amidships on a passenger hull. Floods run the length of it and half the racks are already out. They watched you come in. Nobody hails and nobody stops working. Their two smallest ships have drifted out to sit between you and the wreck. Neither one quite points at you. The stern of the hull is dark, and nothing at all has come off it yet. They will get to it in a day or two.",
 			tags = [&"fight", &"salvage"],
 			group = &"",
@@ -3499,7 +3499,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"nothing_taken",
 			title = "Nothing taken",
-			subject = {stage = &"group", flood = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-120.0, -60.0)}, {piece = &"role:hauler", far = true, at = Vector2(140.0, -55.0)}, {piece = &"foe", at = Vector2(10.0, 35.0), z = 1}]},
+			subject = {stage = &"group", flood = true, ships = [{piece = &"role:hauler", far = true, at = Vector2(-120.0, -60.0)}, {piece = &"role:hauler", far = true, at = Vector2(140.0, -55.0)}, {piece = &"ship_armedtrader", at = Vector2(10.0, 35.0), z = 1}]},
 			body = "Three haulers come out of the ring together and put their lights on you. Somebody took eleven containers off the second of them four days ago. The ship that did it was the same class as yours and ran the same drive signature. They have stopped every ship of that class since. The woman speaking for them is tired and polite. She is also certain about what she is looking at. They are not going to shoot first. They are not going to stand aside either.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3591,7 +3591,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_hunting_ship",
 			title = "The hunting ship",
-			subject = {stage = &"single", pieces = [&"foe"], drive = true, lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_scoop"], lights = &"run"},
 			body = "A ship rigged for a hunt is coming across the system at you. It has wide holds and a frame on the bow for taking something aboard whole. There is nothing in any of it. The people flying it have been out five months. What they came for has not been where the charts put it since spring. They have said so on the open channel to nobody in particular. They read your mass at a hundred thousand kilometres and turn toward it. The hail is friendly and it asks twice what you are carrying.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3623,7 +3623,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_long_crew",
 			title = "The long crew",
-			subject = {stage = &"single", pieces = [&"foe"], lights = &"battery"},
+			subject = {stage = &"single", pieces = [&"ship_ringdrive"], lights = &"battery"},
 			body = "A ship hails you. It stopped being a business a long time ago. They have been out here nineteen years. The registry ran out twelve years back, and the manufacturer that built the ship is gone too. The same people have been aboard the whole time. They do not call it a raid. They read you a list of what they need, in order, and they stay armed while they read it. There are forty items on the list. The first one is fuel.",
 			tags = [&"fight"],
 			group = &"",
@@ -3654,7 +3654,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"six_years_waiting",
 			title = "Six years waiting",
-			subject = {stage = &"single", pieces = [&"foe"], dark = 0.3, lights = &"run"},
+			subject = {stage = &"single", pieces = [&"ship_forked"], dark = 0.3, lights = &"run"},
 			body = "A ship has been holding this crossing for six years. What it is waiting for is a registry. It sends that registry out on a loop, one line, over and over. The number is two digits off yours. The voice under the loop is not angry about anything. She asks you to hold still and let her instruments read your drive. A drive signature is the one thing on a ship that cannot be repainted. She has been almost sure for six years.",
 			tags = [&"fight", &"contract"],
 			group = &"",
@@ -3817,7 +3817,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_scatter",
 			title = "The scatter",
-			subject = {stage = &"field", pieces = [&"r4_scatter_cabin_section_1", &"r4_scatter_drive_nozzle_1", &"r4_scatter_torn_plate_1", &"r4_scatter_tank_half_1", &"r5_scatter_spar_1", &"r4_scatter_cabin_section_2", &"r2_scatter_drive_nozzle_2", &"r4_scatter_torn_plate_2", &"r5_scatter_spar_2", &"r4_scatter_tank_half_2", &"r4_scatter_drive_nozzle_2"], count = 11, near = 6, span = 420.0, height = 190.0, seed = 9, tumble = 6.0},
+			subject = {stage = &"field", pieces = [&"r4_scatter_torn_plate_1", &"r4_scatter_cabin_section_1", &"r4_scatter_drive_nozzle_1", &"r5_scatter_spar_2", &"r4_scatter_tank_half_2", &"r4_scatter_torn_plate_2"], count = 6, near = 2, deep = 2, turns = 35.0, band = -14.0, span = 430.0, height = 200.0, seed = 9, tumble = 6.0},
 			body = "Two ships touched in the approach lanes six days ago. The pieces are still coming through. A traffic office on the station calls the crossings. It calls one every twenty minutes on the open channel. It gives the bearing, the spread, and how wide the gap is. Most of the scatter is too small for the hull to notice. Some of it is plate a metre across and turning. The dish loses a piece like that against the station's own returns. The gap the office is calling now is eleven minutes wide.",
 			tags = [&"hazard", &"salvage"],
 			group = &"",
@@ -4192,7 +4192,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_welded_plate",
 			title = "The welded plate",
-			subject = {stage = &"on_rock", base = &"paint_rock_a1", r = 84.0, pieces = [&"r4_plate_welded_plate_1"], rows = 1, count = 1, face = Vector2(-6.0, 4.0)},
+			subject = {stage = &"on_rock", planet = true, base = &"paint_rock_a1", r = 84.0, pieces = [&"r4_plate_welded_plate_1"], rows = 1, count = 1, face = Vector2(-6.0, 4.0)},
 			body = "A rock the size of a station turns slowly off your beam. Somebody welded a hull plate to it. The letters are cut into the steel, not painted: eleven registries and one date. Under the plate is the ship those registries flew, bolted flat so the spin cannot take it. Your dish reads nothing running aboard it. Other ships have been here and taken what a grapple could lift. The tanks are still on it, and they are still full.",
 			tags = [&"salvage"],
 			group = &"",
@@ -4496,7 +4496,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_bonded_load",
 			title = "The bonded load",
-			subject = {stage = &"single", pieces = [&"role:barge"], lights = &"battery"},
+			subject = {stage = &"single", pieces = [&"ship_lightfreighter"], lights = &"battery"},
 			body = "A depot ship sits off the approach with one woman aboard. A sealed load waits in its racks. The order was placed nineteen years ago, by a manufacturer that has since stopped existing. Nobody ever came for it, and her orders say hold until they do. She may close an order that nobody can collect. First somebody has to read its seals against a current registry. Her own reader is older than the load. She has been waiting for a ship with a better one. She says so on the first hail.",
 			tags = [&"contract"],
 			group = &"",
@@ -4621,7 +4621,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_outbound_five",
 			title = "The five going out",
-			subject = {stage = &"line", swim = false, pieces = [&"role:barge", &"role:hauler", &"role:small", &"role:hauler", &"role:tender"], count = 5, near = 1, span = 270.0, rise = -150.0, drive = true},
+			subject = {stage = &"field", pieces = [&"role:barge", &"role:hauler", &"role:small", &"role:hauler", &"role:tender"], count = 5, near = 1, deep = 2, lift = 40.0, span = 440.0, height = 240.0, seed = 5, tumble = 0.0, drive = true},
 			body = "Five ships that went in are coming out, in a line, slowly. They pooled their fuel two months ago, and it is still not enough. The heavy one is an ore carrier. Its drive will hold a course and will not build speed. The other four cannot spare the burn to push it. The pilot flying the lead hails to ask what a push is worth. She names a figure before you answer. It is most of what the five of them have left between them.",
 			tags = [&"contract"],
 			group = &"",
@@ -4654,7 +4654,7 @@ static func _authored() -> Array[Dictionary]:
 		{
 			id = &"the_holding_stack",
 			title = "The holding stack",
-			subject = {stage = &"on_rock", base = &"paint_rock_a1", r = 92.0, pieces = [&"r2_holding_old_container_1", &"r2_holding_old_container_2"], rows = 2, count = 3, gap = Vector2(62.0, 50.0), clamp = &"r4_holding_cold_welded_clamp_1", face = Vector2(0.0, 6.0)},
+			subject = {stage = &"on_rock", loose = true, base = &"paint_rock_a1", r = 104.0, pieces = [&"r2_holding_old_container_1", &"r2_holding_old_container_2", &"r2_holding_old_container_1"], count = 3, size = 0.5, spread = Vector2(124.0, 96.0), turns = 12.0, seed = 5, clamp = &"r4_holding_cold_welded_clamp_1", face = Vector2(-34.0, -6.0)},
 			body = "Containers are clamped to a rock in rows, forty or fifty of them. They were dropped here for a carrier that stopped coming. The oldest labels carry a date twenty-two years old. They also carry a consignor whose name is on nothing else out here. The clamps were shut warm and have sat at three kelvin ever since. They have cold-welded to the rails. Getting one off means running the cutter until a clamp softens. The heat that takes comes back down the grapple.",
 			tags = [&"salvage"],
 			group = &"",

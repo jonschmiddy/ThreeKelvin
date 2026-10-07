@@ -305,6 +305,10 @@ func _on_run_started() -> void:
 	if combat != null:
 		combat.release()
 	combat = null
+	# WHERE THE SHIP WAS LEFT is this run's: kept by system index, so a new run
+	# (or a load) would otherwise open LOCAL in orbit of whatever world the last
+	# run parked at in the system of the same number
+	SystemMapScreen._parked.clear()
 
 ## A run starts by choosing a chassis, then opens on the sector rather than the
 ## chart: your ship in open space, not a graph of places you have not been yet.

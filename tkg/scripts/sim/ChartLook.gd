@@ -5,6 +5,7 @@ extends Node
 ## judging):
 ##   godot --path . -- sheet=ChartLook out=<dir> [kind=N] [views=name:Z:X:Y,...] [clock=T]
 ##     [nebkind=F:T] [allsys] [calm] [style=legacy] [graphics=low] [runseed=N] [corekeep=0]
+##     [at=N|darkF] (YOU at system N, or beside the first dark cloud, F of its radius out)
 ##     [boltclock] (the clock on the first emission cloud's next held lightning bolt)
 ## A view is a zoom and a pan in VIEW PX at zoom 1 (the showcase's units, 622.25
 ## a galaxy unit, the chart's own projection), the frame's centre: `core:1.5:0:0`.
@@ -62,6 +63,34 @@ func _run() -> void:
 		Run.trail = PackedInt32Array([0])
 		Run._range_cache.clear()
 		Run.chart_from(Run.node_at())
+	# `at=N` puts YOU at system N; `at=dark` / `at=darkF` at the system nearest
+	# the first dark cloud, F of its radius out from its middle toward the rim
+	# (a system with a nebula beside it, its jump lines drawn, for `ship` views)
+	var at_s := _arg("at")
+	if at_s != "":
+		var want_i := -1
+		if at_s.begins_with("dark"):
+			var frac := float(at_s.substr(4)) if at_s.length() > 4 else 0.0
+			for raw in NebulaField.clouds():
+				var dc: NebulaField.Cloud = raw
+				if dc.kind != NebulaField.Kind.DARK:
+					continue
+				var aim := dc.pos + dc.pos.normalized() * dc.radius * frac
+				var best_d := INF
+				for ni in Run.map.size():
+					var dd := ((Run.map[ni] as MapGen.MapNode).gal - aim).length()
+					if dd < best_d:
+						best_d = dd
+						want_i = ni
+				print("  chartlook: YOU at system %d, beside %s" % [want_i, dc.name])
+				break
+		else:
+			want_i = int(at_s)
+		if want_i >= 0 and want_i < Run.map.size():
+			Run.at = want_i
+			Run.trail = PackedInt32Array([want_i])
+			Run._range_cache.clear()
+			Run.chart_from(Run.node_at())
 	if "allsys" in OS.get_cmdline_user_args():
 		StarchartScreen._show_all = true
 	if "calm" in OS.get_cmdline_user_args():
@@ -235,8 +264,26 @@ func _clip() -> void:
 	elif _arg("zoomclip") != "":
 		var n := int(_arg("clipframes", "61"))
 		var f := float(_arg("clipzoom", "1.1"))
+		# `bhold=N`: PAINTED's band memory held N frames at most (0: none), to see
+		# what the memory itself does to a zoom
+		if _arg("bhold") != "" and (_chart._sky as ChartSky)._m_state != null:
+			(_chart._sky as ChartSky)._m_state.set_shader_parameter("hold", float(_arg("bhold")))
+			(_chart._sky as ChartSky)._g_for()["_hold_fixed"] = true
+		# `clipback`: in over the frames, held still half as long (`clipstill=N`
+		# frames), back out, held again -- what a zoom leaves behind once it stops
+		var path: Array[float] = []
 		for i in n:
-			_view(z0 * pow(f, float(i) / float(n - 1)), at)
+			path.append(float(i) / float(n - 1))
+		if "clipback" in OS.get_cmdline_user_args():
+			var hold_n := int(_arg("clipstill", str(n / 2)))
+			for i in hold_n:
+				path.append(1.0)
+			for i in n:
+				path.append(1.0 - float(i) / float(n - 1))
+			for i in hold_n:
+				path.append(0.0)
+		for i in path.size():
+			_view(z0 * pow(f, path[i]), at)
 			await _frame_shot(dir, i)
 	else:
 		var ct := _arg("cliptime", "600:610:96").split(":")

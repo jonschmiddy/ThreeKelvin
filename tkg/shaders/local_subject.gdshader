@@ -29,37 +29,126 @@ uniform int pal_n = 0;
 // how far toward its palette colour a pixel is pulled (all the way flattens
 // a sprite's own shading into the sky's few colours)
 uniform float pal_k = 0.55;
+// A LUMPY ROCK (`LocalSubject._rock`): TEXTURE is its form -- RG its slope, B the
+// depth in from its edge, A inside -- and this lights it from the star in its
+// world's six rock colours (`ramp`, darkest first): lumps and ridges from noise
+// (`grain` px across), craters [x, y, radius, depth] in its own pixels, a
+// dithered terminator, a rim caught in the star's colour.
+uniform bool rock = false;
+uniform vec3 ramp[6];
+uniform float rock_seed = 0.0;
+uniform float grain = 14.0;
+uniform vec4 craters[8];
+uniform int n_craters = 0;
+
+float rh(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float rnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	vec2 u = f * f * (3.0 - 2.0 * f);
+	return mix(mix(rh(i), rh(i + vec2(1.0, 0.0)), u.x), mix(rh(i + vec2(0.0, 1.0)), rh(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+// the surface's own relief, px of height: lumps on two scales and sharp ridges,
+// and each crater's bowl with its raised lip
+float relief(vec2 p) {
+	vec2 q = p / grain + vec2(rock_seed, rock_seed * 1.7);
+	float h = rnoise(q) * 2.2 + rnoise(q * 2.1 + 3.1) * 1.1;
+	float rd = 1.0 - abs(rnoise(q * 0.8 + 7.7) * 2.0 - 1.0);
+	h += rd * rd * 2.0;
+	for (int i = 0; i < 8; i++) {
+		if (i >= n_craters) {
+			break;
+		}
+		vec4 cr = craters[i];
+		float d = distance(p, cr.xy) / cr.z;
+		if (d < 1.0) {
+			h -= (1.0 - d * d) * cr.z * 0.55 * cr.w;
+		} else if (d < 1.45) {
+			float t = (d - 1.0) / 0.45;
+			h += (1.0 - t) * (1.0 - t) * cr.z * 0.22 * cr.w;
+		}
+	}
+	return h;
+}
+
+// `t` its form at this pixel, `out_a` the form one pixel and a half toward the
+// star (sampled by the caller: a sampler handed to a function upsets the GL
+// compatibility compiler)
+vec3 rock_lit(vec4 t, float out_a, vec2 uv, vec2 sz) {
+	vec2 p = floor(uv * sz) + 0.5;
+	vec3 n = vec3(t.r * 2.0 - 1.0, t.g * 2.0 - 1.0, 0.0);
+	n.z = sqrt(max(0.05, 1.0 - dot(n.xy, n.xy)));
+	// the relief's slope, fading out toward the rim so the outline stays clean
+	float e = 1.0;
+	vec2 g = vec2(relief(p + vec2(e, 0.0)) - relief(p - vec2(e, 0.0)), relief(p + vec2(0.0, e)) - relief(p - vec2(0.0, e))) / (2.0 * e);
+	float inner = smoothstep(0.02, 0.18, t.b);
+	n = normalize(vec3(n.xy / n.z - g * 1.0 * inner, 1.0));
+	// the star low across it, so the light falls off over the rock and a
+	// terminator crosses it: its far side in the dark
+	vec3 L = normalize(vec3(to_star, 0.38));
+	float dl = dot(n, L);
+	// a dithered step down the ramp: lit face, terminator, dark side
+	float v = clamp(dl * 0.78 + 0.18, 0.0, 1.0) * 5.0;
+	vec2 cell = mod(floor(uv * sz), 2.0);
+	float dith = (cell.x == cell.y ? 0.25 : -0.25);
+	int idx = int(clamp(floor(v + 0.5 + dith), 0.0, 5.0));
+	vec3 col = ramp[idx];
+	// the dark side keeps a little of the sky's light, never black
+	col = max(col, sky_col * 1.4);
+	// the rim toward the star: the next pixel that way is outside the rock
+	float rim = out_a < 0.5 ? 1.0 : 0.0;
+	if (rim > 0.0 && dl > -0.1) {
+		col = mix(ramp[min(idx + 2, 5)], ramp[5] * star_col * 1.15, 0.5);
+	}
+	// lit pixels take the star's colour
+	col *= mix(vec3(1.0), star_col, clamp(dl, 0.0, 1.0) * 0.5);
+	return col;
+}
 
 void fragment() {
 	vec4 c = texture(TEXTURE, UV);
-	if (use_mask) {
-		vec4 m = texture(mask, UV);
-		c.a *= m.r;
-		c.rgb *= mix(1.0, 0.45, m.g);
+	vec3 col = vec3(0.0);
+	if (rock) {
+		float out_a = texture(TEXTURE, UV + to_star * TEXTURE_PIXEL_SIZE * 1.5).a;
+		col = rock_lit(c, out_a, UV, 1.0 / TEXTURE_PIXEL_SIZE);
+		if (c.a < 0.5) {
+			discard;
+		}
+		c.a = 1.0;
+	} else {
+		if (use_mask) {
+			vec4 m = texture(mask, UV);
+			c.a *= m.r;
+			c.rgb *= mix(1.0, 0.45, m.g);
+		}
+		if (c.a < 0.02) {
+			discard;
+		}
+		if (dark > 0.0) {
+			float l = dot(c.rgb, vec3(0.3, 0.5, 0.2));
+			vec3 cold = mix(vec3(l), c.rgb, 0.3) * 0.5 + sky_col * 0.4;
+			c.rgb = mix(c.rgb, cold, clamp(dark, 0.0, 1.0));
+		}
+		vec2 px = TEXTURE_PIXEL_SIZE;
+		vec2 sz = 1.0 / px;
+		vec2 p = (floor(UV * sz) + 0.5) - sz * 0.5;
+		float span = max(length(sz) * 0.5, 1.0);
+		float s = clamp(dot(p, to_star) / span, -1.0, 1.0);
+		float k = s > 0.0 ? s * lit : s * shade;
+		// the edge facing the star: the next pixel toward it is clear
+		float rim = texture(TEXTURE, UV + to_star * px * 1.5).a < 0.3 ? 1.0 : 0.0;
+		if (use_mask) {
+			rim = 0.0;
+		}
+		k += rim * lit * 0.9;
+		float steps = stepped ? 3.0 : 4.0;
+		k = floor(k * steps + 0.5) / steps;
+		col = c.rgb * (1.0 + min(k, 0.0)) + c.rgb * star_col * max(k, 0.0);
 	}
-	if (c.a < 0.02) {
-		discard;
-	}
-	if (dark > 0.0) {
-		float l = dot(c.rgb, vec3(0.3, 0.5, 0.2));
-		vec3 cold = mix(vec3(l), c.rgb, 0.3) * 0.5 + sky_col * 0.4;
-		c.rgb = mix(c.rgb, cold, clamp(dark, 0.0, 1.0));
-	}
-	vec2 px = TEXTURE_PIXEL_SIZE;
-	vec2 sz = 1.0 / px;
-	vec2 p = (floor(UV * sz) + 0.5) - sz * 0.5;
-	float span = max(length(sz) * 0.5, 1.0);
-	float s = clamp(dot(p, to_star) / span, -1.0, 1.0);
-	float k = s > 0.0 ? s * lit : s * shade;
-	// the edge facing the star: the next pixel toward it is clear
-	float rim = texture(TEXTURE, UV + to_star * px * 1.5).a < 0.3 ? 1.0 : 0.0;
-	if (use_mask) {
-		rim = 0.0;
-	}
-	k += rim * lit * 0.9;
-	float steps = stepped ? 3.0 : 4.0;
-	k = floor(k * steps + 0.5) / steps;
-	vec3 col = c.rgb * (1.0 + min(k, 0.0)) + c.rgb * star_col * max(k, 0.0);
 	col = mix(col, sky_col, clamp(far, 0.0, 1.0) * 0.6);
 	if (pal_n > 0) {
 		vec3 q = col * 255.0;

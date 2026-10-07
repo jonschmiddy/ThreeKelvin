@@ -19,6 +19,19 @@ render_mode unshaded, blend_disabled;
 // to; and how long a block may hold is its own (`hold` times 0.55 to 1.45 by a
 // hash of its place), so no stretch of an edge is let go on one frame.
 //
+// AND IT ZOOMS WITH IT (Jon: "when zooming in and out of painted, it seems
+// like the clouds change quite frequently"). A zoom holds the block grid to
+// the screen, so every block read the memory of the screen block it sat on
+// while the gas grew out from under it: about 5% of the picture kept bands
+// from where the gas had been, and once the zoom stopped they were let go over
+// the next second and a half -- the cloud changing on its own after every turn
+// of the wheel. Each block now reads the memory of where its piece of the
+// galaxy was drawn last frame, through last frame's view (`zoom0`, `cpix0`,
+// `origin0`, `block00`): the same mapping as the turn's, and the identity when
+// nothing moved. And what the zoom truly changed (the gas redrawn at a new
+// scale, its finest octaves fading in or out) is let go while the zoom moves:
+// `hold` is cut by how far the zoom moved the frame (`ChartPainted.push`).
+//
 // BANDS AS A PAINTER DRAWS THEM (Jon: "still has harsh seams"): a block's light
 // is first averaged with its neighbours of the same material (3x3, the middle
 // weighted), so a band's edge follows the light's own smooth contour instead
@@ -46,6 +59,11 @@ uniform float phi_d = 0.0;
 uniform vec2 origin = vec2(-2.0);
 uniform vec2 cpix = vec2(327.0, 214.0);
 uniform float zoom = 1.0;
+// last frame's view: its zoom, galaxy centre pixel, frame origin and block anchor
+uniform float zoom0 = 1.0;
+uniform vec2 cpix0 = vec2(327.0, 214.0);
+uniform vec2 origin0 = vec2(-2.0);
+uniform vec2 block00 = vec2(0.0);
 const float TILT = 0.38;
 // the ordered offset of a band step, in bands (see BANDS AS A PAINTER DRAWS THEM)
 const float JIT = 0.16;
@@ -82,13 +100,13 @@ void fragment() {
 	// back), and that block's memory
 	ivec2 from = slot;
 	float ftag = tag;
-	if (phi_d != 0.0) {
+	if (phi_d != 0.0 || zoom0 != zoom || cpix0 != cpix || origin0 != origin || block00 != block0) {
 		vec2 v = (origin + (vec2(local) + 0.5) * 2.0 - cpix) / zoom;
 		vec2 q = vec2(v.x, v.y / TILT);
 		float c = cos(phi_d), sn = sin(phi_d);
 		vec2 r = vec2(c * q.x + sn * q.y, -sn * q.x + c * q.y);
-		vec2 s2 = cpix + vec2(r.x, r.y * TILT) * zoom;
-		ivec2 abs2 = ivec2(floor((s2 - origin) * 0.5)) + b0;
+		vec2 s2 = cpix0 + vec2(r.x, r.y * TILT) * zoom0;
+		ivec2 abs2 = ivec2(floor((s2 - origin0) * 0.5)) + ivec2(block00);
 		from = pmod(abs2, size);
 		ivec2 w2 = ivec2(floor(vec2(abs2) / vp_size)) & ivec2(15);
 		ftag = float(w2.x * 16 + w2.y);
