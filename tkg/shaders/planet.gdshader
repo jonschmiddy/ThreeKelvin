@@ -20,9 +20,14 @@ render_mode unshaded, blend_premul_alpha;
 // opaque, and light outside it has no alpha, so it ADDS to what is behind --
 // the sky round a world glows instead of being painted over.
 //
-// What the mockup had and this has not: its per-pixel memory, which eased each
-// pixel's value over a few frames and held a shade until the surface had
-// clearly moved. A shader keeps nothing between frames.
+// THE MOCKUP'S PER-PIXEL MEMORY (`PixelTurn` BLENDED; off unless asked, and
+// then nothing below changes): each pixel's value eased 0.35 a frame, and its
+// shade held until its value has moved 0.085 past where it last changed, let go
+// after 40 frames held -- what kept the mockup's worlds turning smoothly with
+// no shimmer. A shader keeps nothing between frames, so `PlanetView` runs this
+// shader twice: once into a picture of its own, a pixel a block, that is the
+// memory (`mem_mode` 1, reading itself last frame from `mem_prev`), and once on
+// screen, drawn from it (`mem_mode` 2, `mem_now`).
 
 // ---------------------------------------------------------------- uniforms
 uniform sampler2D ramps : filter_nearest, repeat_disable;
@@ -125,6 +130,23 @@ uniform float lift = 0.0;
 uniform vec3 p_amb = vec3(0.07, 0.10, 0.19);
 uniform vec3 p_out = vec3(0.02, 0.03, 0.05);
 uniform vec3 p_bounce = vec3(0.07, 0.10, 0.19);
+// THE MEMORY (see the top): 0 none; 1 this pass works it out; 2 drawn from it.
+// A block a pixel, `mem_n` a side, the world's middle `mem_half` in. Each
+// pixel: R its eased value, G its lit value when its shade was last set (both
+// (v + 0.5) / 2), B the shade it shows -- its ramp (low 5 bits) and the step of
+// that ramp (above) -- and A frames held + 1 (0 for nothing there). The SHADE
+// is held, not the value: a value held while the light across a drifting world
+// moved under it came out a step off for a frame.
+uniform int mem_mode = 0;
+uniform sampler2D mem_prev : filter_nearest, repeat_disable;
+uniform sampler2D mem_now : filter_nearest, repeat_disable;
+uniform int mem_n = 1;
+uniform int mem_half = 0;
+// nothing held: a new world, a new size (the zoom), its first frames
+uniform bool mem_fresh = true;
+uniform float mem_ease = 0.35;
+uniform float mem_hyst = 0.085;
+uniform int mem_release = 40;
 
 // ---------------------------------------------------------------- the ramps and worlds, by number
 const int R_ROCK = 0; const int R_MOON = 1; const int R_DESERT = 2; const int R_IRON = 3; const int R_ICE = 4;
@@ -178,9 +200,15 @@ float worley3(vec3 p) {
 
 // ---------------------------------------------------------------- ramps
 vec3 rampc(int ramp, int k) { return texelFetch(ramps, ivec2(clamp(k, 0, 5), ramp), 0).rgb; }
+// the grid's own pixel under (x, y): x + ctr_off is a whole (or half) pixel, but
+// with a centre drifting by fractions (the memory's drift, `mem_mode`) it comes
+// back a hair either side, and int() then took the pixel beside it now and
+// then -- a lone dither pixel flipping for a frame. Nudged away from zero only
+// with the memory on, so nothing else changes.
+int grid_i(float v) { return int(v + (mem_mode != 0 ? (v < 0.0 ? -0.001 : 0.001) : 0.0)); }
 float bayer2(float x, float y) {
 	int cl = max(cell, 1);
-	int ix = ((int(x + ctr_off.x) + 1000 * cl) / cl) & 1, iy = ((int(y + ctr_off.y) + 1000 * cl) / cl) & 1;
+	int ix = ((grid_i(x + ctr_off.x) + 1000 * cl) / cl) & 1, iy = ((grid_i(y + ctr_off.y) + 1000 * cl) / cl) & 1;
 	return iy == 0 ? (ix == 0 ? 0.0 : 2.0) : (ix == 0 ? 3.0 : 1.0);
 }
 vec3 ramp_at(int ramp, float v, float x, float y) {
@@ -209,7 +237,7 @@ vec3 p_mix(vec3 a, vec3 b, float t) { return p_unlab(mix(p_lab(a), p_lab(b), t))
 // the block's checker, riding the world itself
 bool p_chk(float x, float y) {
 	int cl = max(cell, 1);
-	return ((((int(x + ctr_off.x) + 1000 * cl) / cl) + ((int(y + ctr_off.y) + 1000 * cl) / cl)) & 1) == 1;
+	return ((((grid_i(x + ctr_off.x) + 1000 * cl) / cl) + ((grid_i(y + ctr_off.y) + 1000 * cl) / cl)) & 1) == 1;
 }
 // B's extended ramp for a world: 0 outline, 1 night, 2 dusk (both leaning to the
 // sky), 3..6 its own steps 1..4, 7 its brightest warmed by its star
@@ -434,6 +462,39 @@ Surf surf(vec3 sv, float x, float y, float lam, vec3 HV) {
 	return S;
 }
 
+// ---------------------------------------------------------------- the memory
+float mem_vr(float v) { return rich > 0.0 ? clamp(0.5 + (v - 0.5) * (1.0 + 0.7 * rich), 0.0, 1.0) : v; }
+// the step of its ramp a value lands on here, as `ramp_at` picks it
+int mem_lev(float v, float sh, float x, float y) {
+	return clamp(int(floor(min(0.999, max(0.0, mem_vr(v) * sh)) * 6.0 + (bayer2(x, y) - 1.5) * 0.22)), 0, 5);
+}
+// what is remembered of this block this frame, from what it reads now (its
+// commonest ground and that ground's value) and what was remembered last frame
+// (as the mockup's `mem`: e, ramp, c, v, h)
+vec4 mem_state(int ramp, float v, float sh, bool burns, float x, float y, ivec2 mb) {
+	float e = v;
+	int held = 0;
+	vec4 P = texture(mem_prev, (vec2(mb) + 0.5) / float(mem_n));
+	bool had = !mem_fresh && P.a > 0.0;
+	int B = int(round(P.b * 255.0)), pc = int(round(P.a * 255.0)) - 1;
+	int psr = B & 31, plv = B >> 5;
+	// eased, while it is the same ground
+	if (had && psr == ramp) e = (P.r * 2.0 - 0.5) + (v - (P.r * 2.0 - 0.5)) * mem_ease;
+	float lit = mem_vr(e) * sh;
+	int sr = ramp, lv = mem_lev(e, sh, x, y);
+	float vref = lit;
+	// held: it would change shade, but its lit value has not moved clearly past
+	// where its shade was last set, and it has not been held too long
+	if (had && !burns && !(psr == sr && plv == lv) && abs(lit - (P.g * 2.0 - 0.5)) < mem_hyst && pc + 1 < mem_release) {
+		sr = psr;
+		lv = plv;
+		vref = P.g * 2.0 - 0.5;
+		held = pc + 1;
+	}
+	return vec4(clamp((e + 0.5) * 0.5, 0.0, 1.0), clamp((vref + 0.5) * 0.5, 0.0, 1.0),
+		float(sr | (lv << 5)) / 255.0, float(held + 1) / 255.0);
+}
+
 // one sample, only to ask whether a neighbouring pixel burns or glints
 Surf surf_at(float x, float y, vec3 HV) {
 	float q2 = (x * x + y * y) / (r * r);
@@ -476,9 +537,18 @@ vec3 to_body(vec3 sv) {
 	return vec3(tx * ca + sv.z * sa, ty, -tx * sa + sv.z * ca);
 }
 
-void fragment() {
+// (a function, so the memory's pass can stop early: a fragment may not return)
+vec4 paint(vec2 uv) {
 	float S2 = float(2 * half_size + 1);
-	vec2 pix = floor(UV * S2) - vec2(float(half_size));
+	vec2 pix = floor(uv * S2) - vec2(float(half_size));
+	// (the block's place in the memory, `mem_mode`)
+	ivec2 mb = ivec2((cell > 1 ? floor(pix / float(cell)) : pix) + float(mem_half));
+	if (mem_mode == 1) {
+		// working out the memory: this pixel is a block of the world
+		vec2 mt = floor(uv * float(mem_n));
+		mb = ivec2(mt);
+		pix = (mt - float(mem_half)) * float(max(cell, 1));
+	}
 	// each block sampled at its MIDDLE: at its corner the disc sat half a block
 	// up and left, and a small world came out lopsided
 	if (cell > 1) pix = floor(pix / float(cell)) * float(cell) + 0.5 * float(cell - 1);
@@ -489,6 +559,9 @@ void fragment() {
 	vec3 acc = vec3(0.0);
 	vec4 base = vec4(0.0);
 	float d2 = (x * x + y * y) / (r * r);
+	if (mem_mode == 1 && d2 > 1.0) {
+		return vec4(0.0);
+	}
 
 	// EVAPORATING: its air blown off the night side in a plume that thins and ripples away
 	if ((flags & F_TAIL) != 0 && d2 > 1.0) {
@@ -623,8 +696,37 @@ void fragment() {
 		bool cloud = ramp == cloud_ramp || ramp == R_CLOUD;
 		if (emits * 2 < ns) has_emit = false;
 		float sh = unlit ? 0.38 : shade;
+		if (mem_mode == 1) {
+			// THE GROUND HELD TOO: two kinds of ground half and half across a pixel
+			// tie, and which wins flipped back and forth as the points slid -- the
+			// one it showed keeps it while it still covers half the pixel
+			vec4 P0 = texture(mem_prev, (vec2(mb) + 0.5) / float(mem_n));
+			if (!mem_fresh && P0.a > 0.0) {
+				int psr = int(round(P0.b * 255.0)) & 31;
+				if (psr != ramp) {
+					float pv = 0.0;
+					int pn = 0;
+					for (int i = 0; i < ns; i++) if (a_ramp[i] == psr) { pv += a_v[i]; pn++; }
+					if (pn * 2 >= ns) { ramp = psr; v = pv / float(pn); cloud = ramp == cloud_ramp || ramp == R_CLOUD; }
+				}
+			}
+			return mem_state(ramp, v, sh, has_emit && !cloud, x, y, mb);
+		}
+		// the shade it shows: the remembered ground and its step (the styles that
+		// do not pick a step of the ramp take the eased value)
+		int mlv = -1;
+		if (mem_mode == 2) {
+			vec4 P = texture(mem_now, (vec2(mb) + 0.5) / float(mem_n));
+			if (P.a > 0.0 && !(has_emit && !cloud)) {
+				int B = int(round(P.b * 255.0));
+				ramp = B & 31;
+				mlv = B >> 5;
+				v = P.r * 2.0 - 0.5;
+				cloud = ramp == cloud_ramp || ramp == R_CLOUD;
+			}
+		}
 		float vr = rich > 0.0 ? clamp(0.5 + (v - 0.5) * (1.0 + 0.7 * rich), 0.0, 1.0) : v;
-		vec3 col = (has_emit && !cloud) ? emit : ramp_at(ramp, min(0.999, max(0.0, vr * sh)), x, y);
+		vec3 col = (has_emit && !cloud) ? emit : (mlv >= 0 ? rampc(ramp, mlv) : ramp_at(ramp, min(0.999, max(0.0, vr * sh)), x, y));
 		// the star's colour on the lit side, the sky's light on the night side,
 		// strongest at the limb where it wraps round (in a few dithered steps, and
 		// less on a small world, so it keeps its silhouette)
@@ -795,7 +897,11 @@ void fragment() {
 	// the light, added in a few dithered steps
 	float dth = painted ? 0.5 : (bayer2(x, y) + 0.5) / 4.0;
 	vec3 q = max(vec3(0.0), floor((1.0 - exp(-1.6 * acc)) * 6.0 + dth - 0.5)) / 6.0;
-	if (distance(at, star_at) < star_r) COLOR = vec4(0.0);
-	else if (base.a > 0.0) COLOR = vec4(min(vec3(1.0), base.rgb + q), 1.0);
-	else COLOR = vec4(q, 0.0);
+	if (distance(at, star_at) < star_r) return vec4(0.0);
+	if (base.a > 0.0) return vec4(min(vec3(1.0), base.rgb + q), 1.0);
+	return vec4(q, 0.0);
+}
+
+void fragment() {
+	COLOR = paint(UV);
 }

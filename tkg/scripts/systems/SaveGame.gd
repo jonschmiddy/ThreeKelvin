@@ -221,7 +221,22 @@ static var path: String = "user://harness_run.save" if TestRun.active() else PAT
 ## gives: JSON keys are strings. A 28 save would load with every walk-away
 ## forgotten and every card's line gone, quietly; a 28 build handed this save
 ## would drop them the same way. Refusing the mismatch is the migration.
-const VERSION := 29
+## 30: WHERE THE SHIP WAS LEFT, by system (`parked`: `SystemMapScreen._parked`,
+## the orbit or the open-space spot the map last had you at). It lived only in
+## memory, so a reload dropped you at the system's edge and LOCAL drew the
+## warp-in instead of the world you were orbiting. Written as a list of rows
+## with the system's index in each, for the reason 23 gives.
+##
+## THE FIRST BUMP THAT STILL READS THE ONE BEFORE IT (`OLDEST_READ`). A 29 save
+## differs from this shape only by not having `parked`, and missing, it means
+## exactly what a 29 build did with it: every system's ship at its edge. So
+## there is nothing to half-understand, and refusing it would cost a player a
+## run for a field whose absence is a correct answer. A 29 build handed a 30
+## save still refuses it, which is the direction the number exists for.
+const VERSION := 30
+## The oldest file this build reads. Everything from here to VERSION must load
+## as what it meant; see 30.
+const OLDEST_READ := 29
 
 ## Every rolled scalar on a hull. The frame supplies the art and the anchors; a
 ## saved hull is a frame plus the numbers LootGen rolled onto it.
@@ -263,6 +278,12 @@ static func summary() -> Dictionary:
 static func save() -> void:
 	if Run.hull == null or Run.map.is_empty() or Run.dead or Run.won:
 		return
+	# THE MAP STILL UP writes where its ship is first. It records that only as
+	# it is put away (`_keep_ship`), and SAVE & EXIT from the map saves while
+	# it is still showing -- so without this the file would carry wherever the
+	# ship was the last time the map closed, not where you just flew it.
+	if Router.current is SystemMapScreen:
+		(Router.current as SystemMapScreen)._keep_ship()
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_warning("SaveGame: could not open %s for writing (%d)" % [
@@ -364,6 +385,8 @@ static func _snapshot() -> Dictionary:
 
 		map = nodes,
 		at = Run.at,
+		# Where the ship was left in each system you have been in (VERSION 30).
+		parked = _parked_to(),
 		trail = Array(Run.trail),
 		jumps = Run.jumps,
 		kills = Run.kills,
@@ -389,7 +412,8 @@ static func _read() -> Dictionary:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {}
 	var d: Dictionary = parsed
-	if int(d.get("version", -1)) != VERSION:
+	var v := int(d.get("version", -1))
+	if v < OLDEST_READ or v > VERSION:
 		return {}
 	return d
 
@@ -559,6 +583,11 @@ static func load_into_run() -> bool:
 
 	clear()
 	Sig.run_started.emit()
+	# AFTER run_started, not before: the Router's listener clears the record (a
+	# new run, or a load, must not inherit the last run's orbits), so anything
+	# put there first would be wiped by the signal that announces it. A 29 save
+	# has no `parked` and loads with none: every ship at its system's edge.
+	SystemMapScreen._parked = _parked_from(d.get("parked", []), map.size())
 	Sig.resources_changed.emit()
 	Sig.ship_changed.emit()
 	Run.log_line("Reactor warm. Resuming from %s." % MapGen.star_name(Run.node_at()), &"big")
@@ -806,6 +835,39 @@ static func _standing_to() -> Dictionary:
 	var out: Dictionary = {}
 	for k in Run.standing:
 		out[String(k)] = int(Run.standing[k])
+	return out
+
+
+## WHERE THE SHIP WAS LEFT (`SystemMapScreen._parked`), one row per system.
+## Rows, not a dictionary keyed by system: JSON keys are strings (see 23).
+## `at` is the body the ship orbits (-1 the star, -9 none), and `p`, `head` and
+## `mode` say where it was flying in open space when it orbits nothing.
+static func _parked_to() -> Array:
+	var out: Array = []
+	for k in SystemMapScreen._parked:
+		var e: Dictionary = SystemMapScreen._parked[k]
+		var p: Vector2 = e.get("p", Vector2.ZERO)
+		var v: Vector2 = e.get("v", Vector2.ZERO)
+		out.append({index = int(k), at = int(e.get("at", -9)), p = [p.x, p.y], v = [v.x, v.y],
+			head = float(e.get("head", 0.0)), mode = String(e.get("mode", &""))})
+	return out
+
+
+## The rows back into the record the map reads, in its own types. A row for a
+## system outside this map is dropped rather than kept against the wrong place.
+static func _parked_from(raw: Variant, systems: int) -> Dictionary:
+	var out := {}
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for e in raw:
+		if typeof(e) != TYPE_DICTIONARY:
+			continue
+		var r: Dictionary = e
+		var idx := int(r.get("index", -1))
+		if idx < 0 or idx >= systems:
+			continue
+		out[idx] = {"at": int(r.get("at", -9)), "p": _vec(r.get("p")), "v": _vec(r.get("v")),
+			"head": float(r.get("head", 0.0)), "mode": StringName(str(r.get("mode", "")))}
 	return out
 
 

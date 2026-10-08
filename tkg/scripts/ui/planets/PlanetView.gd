@@ -29,6 +29,20 @@ static var no_rich := false
 ## were the other two; DOTS is the ring as it was, half a ring of dots. Set
 ## before a world is drawn (`set_world`); the harnesses take `ring=A|B|C|DOTS`.
 static var ring_style := Rings.Look.ICY
+## THE SURFACE'S MEMORY (`PixelTurn.world_mode` BLENDED, the default): the
+## shader run a second time into a picture a pixel a block (`mem_mode` 1), which
+## remembers each block's eased value and the shade it shows, reading itself
+## last frame from a copy (`_mem_copy`, inside it, so it renders first); the
+## world on screen drawn from it (`mem_mode` 2). Twice the shader's cost.
+var _mem_vp: SubViewport
+var _mem_copy: SubViewport
+var _mem_mat: ShaderMaterial
+var _mem_fresh := 0
+var _mem_r := -1.0
+var _mem_off := Vector2.INF
+## what the memory's pass must see each frame as the world on screen sees it
+## (the light, the clock, the zoom; the rest is copied once, `_mem_setup`)
+const MEM_LIVE := ["time", "light", "k_light", "lift", "flare", "moon_sh", "n_moon_sh", "r", "ctr_off", "rich", "cell", "unlit"]
 
 
 ## Half a ring of dust, drawn point by point as the mockup drew it: four bands,
@@ -108,6 +122,7 @@ func set_cell(c: int) -> void:
 	_ring_back.block = c
 	_ring_front.block = c
 	_set_rings()
+	_mem_setup()
 
 
 func set_world(world: StringName, seed: int, r: float, spec_override: Dictionary = {}) -> void:
@@ -170,6 +185,7 @@ func set_world(world: StringName, seed: int, r: float, spec_override: Dictionary
 	_ring_front.queue_redraw()
 	_set_rich()
 	_set_rings()
+	_mem_setup()
 
 
 ## THE PAINTED RINGS, when a look other than the dots is picked: the world's
@@ -227,10 +243,22 @@ func set_live(r: float, off: Vector2) -> void:
 			m.set_shader_parameter("ctr_off", off)
 
 
+## A WORLD DRIFTING INSIDE ITS BOX by any fraction of a pixel (`LocalSubject`'s
+## moons, BLENDED): drawn `off` px from its node, its surface's memory holding
+## through the drift as it holds through the turn.
+func set_drift(off: Vector2) -> void:
+	_mat.set_shader_parameter("ctr_off", off)
+
+
 ## Where the light comes from (screen x, y down, z toward you), what time it
 ## is, how strongly the star's light reaches it, and where the star's disc is
 ## (to hide a world behind it), in this node's parent's pixels.
 func step(t: float, light: Vector3, k_light: float = 1.0, star_at: Vector2 = Vector2(-9999, -9999), star_r: float = 0.0) -> void:
+	# STEPPED (`PixelTurn`, only to compare against): the clock held, and moved on
+	# when the equator has turned a whole block
+	if PixelTurn.world_mode == PixelTurn.Mode.STEPPED and not spec.is_empty() and absf(float(spec.spin)) > 1e-4:
+		var q := float(_cell) / (float(spec.r) * absf(float(spec.spin)))
+		t = floorf(t / q) * q
 	_light = light.normalized()
 	_mat.set_shader_parameter("time", t)
 	_mat.set_shader_parameter("light", _light)
@@ -272,3 +300,107 @@ func _set_rich() -> void:
 	var blocks: float = float(spec.r) / float(_cell)
 	var k := 0.0 if (_cell <= 1 or no_rich) else clampf((9.0 - blocks) / 5.0, 0.0, 1.0)
 	_mat.set_shader_parameter("rich", k)
+
+
+## THE MEMORY built or rebuilt for the world and the size it now has (BLENDED,
+## the default): a picture a pixel a block, the shader working it out, a copy of it
+## from last frame inside it; the world on screen told to draw from it.
+func _mem_setup() -> void:
+	if PixelTurn.world_mode != PixelTurn.Mode.BLENDED or spec.is_empty():
+		return
+	var cl := maxi(_cell, 1)
+	var hs := int(_mat.get_shader_parameter("half_size"))
+	var half := ceili(float(hs) / float(cl))
+	var n := 2 * half + 1
+	if _mem_vp == null:
+		_mem_vp = SubViewport.new()
+		_mem_vp.transparent_bg = true
+		_mem_vp.disable_3d = true
+		_mem_vp.render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+		var rect := ColorRect.new()
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_mem_mat = ShaderMaterial.new()
+		_mem_mat.shader = SHADER
+		rect.material = _mem_mat
+		_mem_vp.add_child(rect)
+		# last frame's memory, copied exactly (its alpha is a count, not a coverage)
+		_mem_copy = SubViewport.new()
+		_mem_copy.transparent_bg = true
+		_mem_copy.disable_3d = true
+		_mem_copy.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		var last := TextureRect.new()
+		last.texture = _mem_vp.get_texture()
+		last.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		# (sized by hand, pixel for pixel: left to itself it keeps the size the
+		# picture had when it was first made, and a world sized again by `set_cell`
+		# was copied stretched)
+		last.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		last.stretch_mode = TextureRect.STRETCH_SCALE
+		var cm := CanvasItemMaterial.new()
+		cm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+		last.material = cm
+		_mem_copy.add_child(last)
+		_mem_vp.add_child(_mem_copy)
+		add_child(_mem_vp)
+		RenderingServer.frame_pre_draw.connect(_mem_sync)
+		PixelTurn.timed(_mem_vp)
+		PixelTurn.timed(_mem_copy)
+	_mem_vp.size = Vector2i(n, n)
+	_mem_copy.size = Vector2i(n, n)
+	(_mem_vp.get_child(0) as ColorRect).size = Vector2(n, n)
+	(_mem_copy.get_child(0) as TextureRect).size = Vector2(n, n)
+	# everything the world on screen was given, then the memory's own
+	for u: Dictionary in _mat.shader.get_shader_uniform_list():
+		var nm := String(u.name)
+		if not nm.begins_with("mem_"):
+			_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))
+	for m: ShaderMaterial in [_mat, _mem_mat]:
+		m.set_shader_parameter("mem_n", n)
+		m.set_shader_parameter("mem_half", half)
+		m.set_shader_parameter("mem_ease", PixelTurn.EASE)
+		m.set_shader_parameter("mem_hyst", PixelTurn.HYST)
+		m.set_shader_parameter("mem_release", PixelTurn.RELEASE)
+	_mem_mat.set_shader_parameter("mem_mode", 1)
+	_mem_mat.set_shader_parameter("mem_prev", _mem_copy.get_texture())
+	_mat.set_shader_parameter("mem_mode", 2)
+	_mat.set_shader_parameter("mem_now", _mem_vp.get_texture())
+	_mem_fresh = 2
+
+
+## Each frame before anything is drawn: the memory's pass handed what changed
+## this frame; nothing held on a new size or centre (the map's smooth zoom).
+func _mem_sync() -> void:
+	if _mem_mat == null or not is_inside_tree():
+		return
+	var t0 := Time.get_ticks_usec() if PixelTurn.cost_on else 0
+	var r := float(_mat.get_shader_parameter("r"))
+	var ov: Variant = _mat.get_shader_parameter("ctr_off")
+	var off: Vector2 = ov if ov is Vector2 else Vector2.ZERO
+	# (a drift of the centre is held through; a new size, or a jump, starts afresh)
+	if r != _mem_r or off.distance_to(_mem_off) > float(maxi(_cell, 1)):
+		_mem_fresh = maxi(_mem_fresh, 1)
+	_mem_r = r
+	_mem_off = off
+	for nm: String in MEM_LIVE:
+		_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))
+	_mem_mat.set_shader_parameter("mem_fresh", _mem_fresh > 0)
+	if _mem_fresh > 0:
+		_mem_fresh -= 1
+	if PixelTurn.cost_on:
+		PixelTurn.cpu_us += Time.get_ticks_usec() - t0
+
+
+func _exit_tree() -> void:
+	if RenderingServer.frame_pre_draw.is_connected(_mem_sync):
+		RenderingServer.frame_pre_draw.disconnect(_mem_sync)
+
+
+## Moved from one picture to another with its memory kept (the zoom ladder hands
+## the map's world to LOCAL: `LocalSky.adopt_near`): not started afresh.
+var keep_mem := false
+
+
+func _enter_tree() -> void:
+	if _mem_mat != null and not RenderingServer.frame_pre_draw.is_connected(_mem_sync):
+		RenderingServer.frame_pre_draw.connect(_mem_sync)
+		_mem_fresh = 0 if keep_mem else 2

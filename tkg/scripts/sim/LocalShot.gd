@@ -7,7 +7,7 @@ extends Node
 ##       [style=simplified|legacy|painted|radiant] [graphics=low] [seed=N]
 ##       [sky=emission|reflection|planetary|remnant|dark|calm|pulsar|core] [node=I]
 ##       [combat [fire]] [approach] [wait=F] [out=<png>] [skyout=<png>]
-##       [clip=<dir> clipframes=61 clipms=33] [stats=<json>] [bare=<png>] [reduced]
+##       [clip=<dir> clipframes=61 clipms=33 cliph=297] [stats=<json>] [bare=<png>] [reduced]
 ##       [orbit=giant|world|star|edge|belt|derelict] [dustcheck] [nodust] [clipfull] [dustonly]
 ##
 ## `out=` is the whole screen, `skyout=` the backdrop alone (its own picture,
@@ -176,7 +176,7 @@ func _run() -> void:
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var vr := view.get_global_rect()
-		var arena := Rect2i(int(vr.position.x), int(vr.position.y), int(vr.size.x), 297)
+		var arena := Rect2i(int(vr.position.x), int(vr.position.y), int(vr.size.x), mini(int(_arg("cliph", "297")), int(vr.size.y)))
 		var gv := GameShell.input_target(tree)
 		if barep != "":
 			gv.get_texture().get_image().save_png(barep)

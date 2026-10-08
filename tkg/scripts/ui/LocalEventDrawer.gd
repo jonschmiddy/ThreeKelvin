@@ -97,12 +97,18 @@ static func request(index: int, i: int) -> void:
 
 ## Which body holds option i (-1 the star, -2 none).
 static func body_of(n: MapGen.MapNode, i: int) -> int:
-	var L := SystemLayout.of(n)
-	for bi in L.bodies.size():
-		for bc in L.bodies[bi].beacons:
-			if bc.opt == i:
-				return bi
-	return -2
+	return SystemLayout.of(n).place_of(i)
+
+
+## The event about to open on LOCAL here or open there now (`pending` first,
+## so LOCAL's sky can compose for it before the band is up), or -1.
+static func open_here(n: MapGen.MapNode) -> int:
+	if n == null:
+		return -1
+	if pending.size() >= 2 and int(pending[0]) == n.index:
+		var p := int(pending[1])
+		return p if p >= 0 and p < n.options.size() and here_now(n, p) else -1
+	return bar_option(n)
 
 
 ## Whether the ship is parked where option i stands (the map leaves it there).

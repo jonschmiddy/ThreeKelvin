@@ -350,6 +350,22 @@ func _page_motion() -> void:
 		func(i: int) -> void:
 			DisplaySettings.set_frame_cap(caps[i])
 			_refresh()))
+	# THE ZOOM LADDER (`ZoomLadder`), for the developer: C's one camera or today's
+	# flow, and which design each seam's move takes. Jon picks from these in play.
+	if DevMode.enabled:
+		_body.add_child(_row_chips("ONE CAMERA", ["ON", "OFF"],
+			0 if ZoomLadder.chosen() else 1,
+			func(i: int) -> void:
+				ZoomLadder.save_setting("ladder", i == 0)
+				_refresh()))
+		var seams := {1: "CHART - MAP", 2: "MAP - LOCAL", 3: "LOCAL - STATION"}
+		for sm: int in seams:
+			var ds: Array = ZoomLadder.DESIGNS[sm]
+			_body.add_child(_row_chips(String(seams[sm]), ds,
+				maxi(ds.find(ZoomLadder.design_for(sm)), 0),
+				func(i: int) -> void:
+					ZoomLadder.save_setting("seam%d" % sm, ds[i])
+					_refresh()))
 
 func _page_sound() -> void:
 	_body.add_child(Section.new(&"audio", "AUDIO"))

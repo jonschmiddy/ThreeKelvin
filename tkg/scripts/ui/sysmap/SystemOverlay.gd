@@ -170,7 +170,14 @@ func _place_labels() -> void:
 	_lq.clear()
 
 
+## THE WORDS HELD BACK while the zoom ladder is far from rest (`ZoomLadder`):
+## a label magnified with the picture is a smear of letter-sized blocks.
+var hush_labels := false
+
+
 func _text(at: Vector2, s: String, c: Color) -> void:
+	if hush_labels:
+		return
 	draw_string(_font(), at.round(), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, c)
 
 
@@ -337,6 +344,41 @@ func _draw() -> void:
 					groups[g] = []
 				groups[g].append([at, bc])
 			beacons_at.append([at, i, bc])
+	# THE STAR'S OWN EVENTS (an option sited on a red or blue star): over the
+	# star's disc, side by side, open only from a close orbit of it
+	var ns := L.star_beacons.size()
+	for k in ns:
+		var bc = L.star_beacons[k]
+		var so: Vector2 = view.origin()
+		var sr := maxf(L.star_r * view.star_k(), 3.0)
+		var sx := Vector2(so.x + roundf((float(k) - float(ns - 1) * 0.5) * 14.0), so.y)
+		var by := sx.y - sr - 14.0
+		var at := Vector2(sx.x, by)
+		var look := beacon_look(bc)
+		var col: Color = look[1]
+		var spent := not spent_word(bc).is_empty()
+		var o := option_of(bc)
+		var rival: bool = hover_group != "" and String(o.get("group", "")) == hover_group and hv.beacon != bc and not spent
+		var open_here: bool = flight == null or flight.reached() == -1
+		if not open_here and not spent:
+			col = Color(col, 0.42)
+		if not spent and open_here:
+			var ph := fmod(t * 0.6 + k * 0.5, 1.0)
+			var pr := 6.0 + ph * 13.0
+			for a2 in range(0, 24, 2):
+				var an := float(a2) / 24.0 * TAU
+				_px(at + Vector2(cos(an) * pr, sin(an) * pr * 0.7), Color(col, 0.6 * (1.0 - ph)))
+		var y := by + 7.0
+		while y < sx.y - sr - 1.0:
+			_px(Vector2(sx.x, y), Color(col, 0.25 if spent else 0.5))
+			y += 2.0
+		glyph(at, look[0], SPENT if spent else (Color(col, 0.35) if rival else col))
+		if o.get("group", "") != "":
+			var g := String(o.group)
+			if not groups.has(g):
+				groups[g] = []
+			groups[g].append([at, bc])
+		beacons_at.append([at, -1, bc])
 	# a pulsar's own beacon: harvest the beam
 	if L.star == SystemLayout.StarKind.PULSAR:
 		var hat: Vector2 = view.origin() + Vector2(14, -16)
@@ -1121,6 +1163,10 @@ func _draw_tip() -> void:
 	if h.kind == &"star":
 		lines.append([view.star_name(), UITheme.ICE])
 		lines.append([view.star_class(), UITheme.COLD])
+		var ns := L.star_beacons.size()
+		if ns > 0:
+			var here_s: bool = flight != null and flight.reached() == -1
+			lines.append(["%d %s · %s" % [ns, "EVENT" if ns == 1 else "EVENTS", "OPEN" if here_s else "OPEN IN A CLOSE ORBIT"], UITheme.EMBER])
 		lines.append(_click_line(-1))
 	elif h.kind == &"body" or h.kind == &"belt":
 		var b := L.bodies[h.body]
@@ -1135,6 +1181,9 @@ func _draw_tip() -> void:
 			var b := L.bodies[h.body]
 			lines.append([b.name, UITheme.ICE])
 			lines.append([view.body_kind(b), UITheme.COLD])
+		elif h.body == -1 and h.beacon != null:
+			lines.append([view.star_name(), UITheme.ICE])
+			lines.append([view.star_class(), UITheme.COLD])
 		var bc = h.beacon
 		if bc == null:
 			lines.append([view.star_name(), UITheme.ICE])

@@ -122,6 +122,10 @@ func fingerprint() -> Dictionary:
 		cards.append("%d:%s" % [n.index, ";".join(bits)])
 	return {
 		cards = cards,
+		# WHERE THE SHIP WAS LEFT, by system (VERSION 30): the world it orbits,
+		# or the spot in open space it was flying at. Fixtured below, because
+		# an empty record round-trips to empty whatever the save does.
+		parked = _parked(),
 		# THE GRADE'S PERKS ARE IN THE FINGERPRINT, and they have to be. The
 		# loader does not call `at_tier`, so nothing regrants them on the way
 		# back in — an S-tier ship that lost all three would come back with
@@ -168,6 +172,19 @@ func fingerprint() -> Dictionary:
 		derived = ["%.9f" % Run.jump_range(), Run.max_hp(), Run.heat_cap(),
 			Run.reactor(), Run.hand_size(), Run.dissipation()],
 	}
+
+## `SystemMapScreen._parked` as a stable string, sorted by system.
+func _parked() -> String:
+	var keys: Array = SystemMapScreen._parked.keys()
+	keys.sort()
+	var parts: PackedStringArray = []
+	for k in keys:
+		var e: Dictionary = SystemMapScreen._parked[k]
+		var p: Vector2 = e.get("p", Vector2.ZERO)
+		var v: Vector2 = e.get("v", Vector2.ZERO)
+		parts.append("%d:at=%d p=%.6f,%.6f v=%.6f,%.6f head=%.6f mode=%s" % [int(k), int(e.get("at", -9)),
+			p.x, p.y, v.x, v.y, float(e.get("head", 0.0)), String(e.get("mode", &""))])
+	return " ".join(parts)
 
 ## What you are carrying, as a stable string. Off the HOLD, because that is the
 ## only store now -- see `RunState.material`. Counted per catalogue id rather
@@ -380,6 +397,13 @@ func run() -> void:
 	if card_node < 0:
 		print("  FAIL: no system to hold the card fixture"); fails += 1
 
+	# PARKED IN TWO SYSTEMS, two ways: in orbit of a world (the map's rail),
+	# and stopped in open space where it was flown by hand. Written the way the
+	# map writes them (`SystemMapScreen._keep_ship`).
+	SystemMapScreen._parked.clear()
+	SystemMapScreen._parked[Run.at] = {"at": 1, "p": Vector2(212.5, -40.25), "v": Vector2(0.75, -1.5), "head": 2.25, "mode": &"rail"}
+	SystemMapScreen._parked[card_node if card_node >= 0 else 0] = {"at": -9, "p": Vector2(-318.125, 96.5), "v": Vector2.ZERO, "head": -0.625, "mode": &"free"}
+
 	var before := fingerprint()
 	var jumps_before := Run.jumps
 
@@ -424,6 +448,7 @@ func run() -> void:
 	Run.galaxy_name = ""
 	Run.galaxy_title = ""
 	Run._range_cache.clear()
+	SystemMapScreen._parked = {3: {"at": 0, "p": Vector2.ONE, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}}
 
 	if not SaveGame.load_into_run():
 		print("  FAIL: load_into_run() returned false"); fails += 1; return
@@ -497,13 +522,33 @@ func run_version_test() -> void:
 	check("and an ordinary save brings no fight with it", true, Router.fight_on_resume.is_empty())
 	Router.fight_on_resume = {}
 
-	# A save one version behind must not load, whatever is inside it.
-	var stale := {"version": SaveGame.VERSION - 1, "hp": 99}
+	# THE ONE BEFORE STILL READS (VERSION 30): a 29 save is this shape without
+	# `parked`, and loads with every ship at its system's edge, as it did.
+	Run.start_new_run(&"korvan", 1)
+	SystemMapScreen._parked[Run.at] = {"at": 0, "p": Vector2.ZERO, "v": Vector2.ZERO, "head": 0.0, "mode": &"rail"}
+	SaveGame.save()
+	var fr := FileAccess.open(SaveGame.path, FileAccess.READ)
+	var old_save: Dictionary = JSON.parse_string(fr.get_as_text()) if fr != null else {}
+	if fr != null:
+		fr.close()
+	old_save["version"] = SaveGame.OLDEST_READ
+	old_save.erase("parked")
+	var fo := FileAccess.open(SaveGame.path, FileAccess.WRITE)
+	if fo != null:
+		fo.store_string(JSON.stringify(old_save, "", true, true))
+		fo.close()
+	check("a save of version %d (no parked spot) still loads" % SaveGame.OLDEST_READ, true, SaveGame.load_into_run())
+	check("and with no parked spot: every ship at its edge", 0, SystemMapScreen._parked.size())
+
+	# A save older than that must not load, whatever is inside it -- the same
+	# whole file, so it is the number that refuses it and not a missing map.
+	var stale := old_save.duplicate(true)
+	stale["version"] = SaveGame.OLDEST_READ - 1
 	var f := FileAccess.open(SaveGame.path, FileAccess.WRITE)
 	if f != null:
 		f.store_string(JSON.stringify(stale))
 		f.close()
-	check("a save one version behind is refused", false, SaveGame.load_into_run())
+	check("a save older than version %d is refused" % SaveGame.OLDEST_READ, false, SaveGame.load_into_run())
 
 	# And a flight record written before the rename still unlocks.
 	RunHistory.path = HISTORY

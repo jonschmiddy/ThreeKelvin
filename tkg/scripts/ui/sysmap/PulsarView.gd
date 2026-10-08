@@ -70,6 +70,13 @@ var giant_n := -999999
 var mag_t0 := -1.0e9
 var mag_k := 0.0
 
+## WHERE ITS CENTRE TRULY IS against this node's whole-pixel position, a pixel or
+## less (the map's `_pulsar_at`): the box stays on the pixel grid and everything
+## in it, and the web, is drawn about the true centre, so a zoom carrying the
+## pulsar across the screen moves it with the map instead of a block at a time.
+## 0 at rest and wherever nothing sets it.
+var sub := Vector2.ZERO
+
 var _box: ColorRect
 var _mat: ShaderMaterial
 var _web_mat: ShaderMaterial
@@ -178,6 +185,10 @@ func _place() -> void:
 	var c := position.round()
 	_box.position = Vector2(-_half) + (c - position)
 	_web_mat.set_shader_parameter("centre", c)
+	_mat.set_shader_parameter("sub", sub)
+	# (its half is whole multiples of 32: the corner sits on the grid where its centre does)
+	_mat.set_shader_parameter("grid_at", Vector2(posmod(int(c.x), 8), posmod(int(c.y), 8)))
+	_web_mat.set_shader_parameter("sub", sub)
 
 
 ## This moment, `t` the beat time in seconds.
@@ -239,7 +250,7 @@ func step(t: float) -> void:
 		m.set_shader_parameter("jet_ph1", fmod(t * 1.6, TAU))
 		m.set_shader_parameter("jet_ph2", fmod(t * 3.2, TAU))
 	if spec.spark:
-		var sp := spray(G, t, zoom, _half)
+		var sp := spray(G, t, zoom, _half, sub)
 		var n := sp.size()
 		sp.resize(SPRAY_N * 2)
 		m.set_shader_parameter("spray", sp)
@@ -348,8 +359,9 @@ static func frame(s: Dictionary, t: float) -> Dictionary:
 ## THE SPRINKLER: particles thrown out along each beam as it turns, a lawn
 ## sprinkler's spiral. Each is (x, y) in the box's pixels, its light, and 1 for
 ## white (the newest fifty) or 0 for ice. Sorted by row, for the shader to search.
-## At zoom `k` the paths are k times as long, in a box `half` x 2 (BOX x k).
-static func spray(G: Dictionary, t: float, k: float = 1.0, half: Vector2i = BOX / 2) -> PackedVector4Array:
+## At zoom `k` the paths are k times as long, in a box `half` x 2 (BOX x k),
+## thrown from `off` away from the box's centre (the true centre, `sub`).
+static func spray(G: Dictionary, t: float, k: float = 1.0, half: Vector2i = BOX / 2, off := Vector2.ZERO) -> PackedVector4Array:
 	var pts: Array[Vector4] = []
 	var V := 34.0
 	var I := 1.6
@@ -359,8 +371,8 @@ static func spray(G: Dictionary, t: float, k: float = 1.0, half: Vector2i = BOX 
 			var age := j * SPRAY_DT + ph
 			var me := _mag_at(G.bs, G.b1, G.b2, G.al, G.phi - TAU * age)
 			var r := age * V + 2.0
-			var x := floorf(half.x + sg * me.x * r * k + 0.5)
-			var y := floorf(half.y + sg * me.y * r * k + 0.5)
+			var x := floorf(half.x + off.x + sg * me.x * r * k + 0.5)
+			var y := floorf(half.y + off.y + sg * me.y * r * k + 0.5)
 			if x < 0 or y < 0 or x >= half.x * 2 or y >= half.y * 2:
 				continue
 			pts.append(Vector4(x, y, I * (1.0 - float(j) / SPRAY_N) * (1.0 if sg * me.z > 0.0 else 0.6), 1.0 if j < 50 else 0.0))

@@ -65,6 +65,10 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	# that listens to it.
 	if current == null or is_front_door(current) or is_front_door(screen):
 		Audio.suppress(&"ui_tab", 100)
+	# ONE CAMERA, FOUR DISTANCES (`ZoomLadder`): the picture being left is held
+	# here, before it goes, and carried into the one arriving
+	if current != null:
+		ZoomLadder.capture(current, screen)
 	if current != null:
 		current.hide()
 		current.queue_free()
@@ -112,7 +116,7 @@ const FADE_S := 0.13
 ## above the HUD to cover it and below the cursor to not, and the ordering
 ## problem is not worth a fade.
 func _fade_in(screen: Control) -> void:
-	if screen == null or not animating():
+	if screen == null or not animating() or ZoomLadder.takes(screen):
 		return
 	screen.modulate.a = 0.0
 	var tw := screen.create_tween()
@@ -439,7 +443,15 @@ func _show_starchart() -> void:
 	if Run.dead:
 		show_game_over()
 		return
+	# the screen being left moves toward the chart first (`ZoomLadder`)
+	if ZoomLadder.preroll(ZoomLadder.CHART, _show_starchart):
+		return
 	Audio.music_state(&"chart")
+	# (built ahead while the screen being left moved: shown as it is)
+	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.CHART)
+	if pre != null:
+		_swap(pre)
+		return
 	var s := StarchartScreen.new()
 	_swap(s)
 	s.setup()
@@ -452,6 +464,11 @@ func show_sector() -> void:
 	# A HELLBENDER AT ANCHOR is the one thing this system offers until it is
 	# dealt with; the map would let you walk round it.
 	var held := Run.hellbender_alive() and Run.hellbender_at == Run.at
+	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
+	# beside the station, where DOCK takes you back in and the map is a scroll away
+	if docked and current is StationScreen and ZoomLadder.chosen():
+		show_local()
+		return
 	if in_combat() or _post_depart >= 0 or held:
 		show_local()
 	else:
@@ -470,11 +487,19 @@ func show_system() -> void:
 	if in_combat() or (Run.hellbender_alive() and Run.hellbender_at == Run.at):
 		show_local()
 		return
+	if ZoomLadder.preroll(ZoomLadder.MAP, show_system):
+		return
 	# The map plays its own arrival, so the side-on approach is spent here.
 	var arrived: bool = take_arrival()[0]
 	if arrived:
 		SectorScreen._approached_at = Run.at
+		ZoomLadder.drop_prebuilt()
 	Audio.music_state(&"sector")
+	# (built ahead while the screen being left moved: shown as it is)
+	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.MAP) if not arrived else null
+	if pre != null:
+		_swap(pre)
+		return
 	var s := SystemMapScreen.new()
 	_swap(s)
 	s.show_system(Run.node_at(), 0.0, arrived)
@@ -497,6 +522,8 @@ func _undock() -> void:
 ## "are we in combat" check would swallow the very transition that ends it — the
 ## HUD disables the SECTOR tab during a fight, which is where that belongs.
 func show_local() -> void:
+	if ZoomLadder.preroll(ZoomLadder.LOCAL, show_local):
+		return
 	# Before the swap, not after: `_swap` emits screen_changed, and the HUD reads
 	# this flag inside the refresh that signal triggers.
 	# UNDOCKING IS NOT A PAGE CHANGE either: leaving the berth is the ship
@@ -891,6 +918,15 @@ func show_station() -> void:
 	# does once; walking back to the station from the chart or the ship screen
 	# is a page change. Only the first plays the clamps, and only the first
 	# swallows the page sound -- the rest are ordinary tabs (Jon).
+	# THE MAP'S DOCK, ON THE LADDER (3B, 3D): down to LOCAL first, beside the
+	# station's side, and on into its hangar from there (`ZoomLadder.chain`)
+	if current is SystemMapScreen and ZoomLadder.enabled() and ZoomLadder.design_for(3) in ["B", "D"] \
+			and Run.node_at() != null and Run.node_at().type == MapGen.NodeType.STATION:
+		ZoomLadder.chain = &"station"
+		show_local()
+		return
+	if not (dock != null and is_instance_valid(dock)) and ZoomLadder.preroll(ZoomLadder.STATION, show_station):
+		return
 	var arriving := not docked
 	docked = true
 	Audio.music_state(&"station")

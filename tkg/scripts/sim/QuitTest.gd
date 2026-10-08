@@ -35,8 +35,11 @@ func run(tree: SceneTree) -> void:
 	# check without the race.
 	# Wait for the starchart itself: until the swap lands, Router.current can
 	# still be the launcher, whose backdrop is a MapChart with show_icons off.
+	# The swap is timed in seconds and headless frames run fast, so the wait is
+	# timed too (60 frames could end before a 0.13 s fade did, under load).
 	var chart: StarchartScreen.MapChart = null
-	for i in 60:
+	var until := Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < until:
 		chart = null
 		if Router.current is StarchartScreen:
 			chart = first(Router.current, _is_chart) as StarchartScreen.MapChart

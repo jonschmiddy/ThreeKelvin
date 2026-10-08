@@ -265,6 +265,10 @@ func _gates_are_real() -> void:
 		# `needs_fauna` is. See `OptionTable.admits`.
 		&"needs_star": true, &"needs_giant": true, &"needs_pulsar": true,
 		&"needs_nebula": true,
+		# WHERE IT SITS on the system (`SystemLayout`: `site = &"giant"` or
+		# `&"star"` puts it on the giant or the star when the system has one),
+		# and how LOCAL draws the giant while it is open (`LocalSky`, `near`)
+		&"site": true, &"near": true,
 	}
 	var bad: Array[String] = []
 	for o in OptionTable.all():

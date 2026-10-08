@@ -333,7 +333,11 @@ static func cloud_uniforms(clouds: Array) -> Dictionary:
 		# the showcase's A emission, reflection, planetary, remnant, dark
 		var kind: int = [0, 1, 3, 2, 4][int(c.kind)]
 		var lobes: Array = c.lobes
+		# (the main lobe is the biggest, as the showcase's A took it)
 		var main: Vector3 = lobes[0]
+		for l: Vector3 in lobes:
+			if l.z > main.z:
+				main = l
 		var rb := 0.0
 		for l: Vector3 in lobes:
 			rb = maxf(rb, Vector2(l.x, l.y * FLAT).length() + l.z * 1.15)
@@ -351,10 +355,11 @@ static func cloud_uniforms(clouds: Array) -> Dictionary:
 		var xy: Vector2 = c.xy
 		A.append(Vector4(xy.x, xy.y, rb, float(kind)))
 		B.append(Vector4(cz, shell, float(c.hollow), fmod(float(c.seed), 10.0)))
-		# (an emission cloud's cluster where SIMPLIFIED puts it, 0.6 of the way to its
-		# biggest lobe: at the lobe itself it sat at the cloud's thin edge and its teal
-		# heart barely showed on the Starburst Spiral)
-		var cl0 := Vector2(main.x, main.y * FLAT) * (0.6 if kind == 0 else 1.0)
+		# (an emission cloud's cluster at its biggest lobe, as the showcase's A had it.
+		# It was moved 0.6 of the way in when the teal heart barely showed on the
+		# Starburst Spiral, but the cause was the lobes: `feed_events` puts this
+		# style's own back, which SIMPLIFIED's had been overwriting)
+		var cl0 := Vector2(main.x, main.y * FLAT)
 		C.append(Vector4(cl0.x, cl0.y, float(c.shape), shell if (kind == 2 or kind == 3) else float(c.radius)))
 		for j in 3:
 			var l: Vector3 = lobes[j] if j < lobes.size() else Vector3.ZERO
@@ -403,6 +408,17 @@ static func feed_events(m: ShaderMaterial, g: Dictionary, t: float, calm: bool, 
 		n += 1
 	lt.resize(8)
 	m.set_shader_parameter("u_lt", lt)
+	# THE CLOUDS' OWN LOBES AGAIN. `ChartSky._feed_events` runs first, every frame
+	# and for every palette probe, and sets the same `u_lobe` to SIMPLIFIED's: its
+	# clouds sorted by where they sit on screen and their lobes turned into each
+	# cloud's round frame. Read here, cloud k took another cloud's lobes, turned
+	# -- so an emission cloud's gas lay off its own cluster and its teal heart
+	# (the cavity round the cluster) sat at the thin edge of the wrong gas, or
+	# outside it (the Starburst's ESO 101 shown as emission: a flat rose band
+	# with a sliver of teal, where the showcase's A has a teal heart).
+	if not g.has("r_lobe"):
+		g["r_lobe"] = cloud_uniforms(g.clouds).u_lobe
+	m.set_shader_parameter("u_lobe", g.r_lobe)
 
 
 ## Distant lightning in an emission or dark cloud (SIMPLIFIED's schedule): a

@@ -120,6 +120,10 @@ var star: StarKind = StarKind.ORDINARY
 var star_r: float = 16.0
 var star_mass: float = 46.0
 var bodies: Array[Body] = []
+## The events on the star itself (an option whose `site` is the star, at a red
+## or blue star): open from a close orbit of it, body -1 everywhere a place is
+## asked for.
+var star_beacons: Array[Beacon] = []
 ## How far out the outermost orbit reaches, plus a margin.
 var edge: float = HI + 30.0
 
@@ -149,7 +153,24 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 
 	# what each option wants to sit on
 	var want: Array = []
+	# WHERE THE TEXT SAYS IT IS (an option's `site`, `OptionTable`): an event
+	# whose text has the giant filling the sky sits on the giant, one in a red
+	# or blue star's glare on the star itself -- not on a belt LOCAL draws as
+	# rocks. Only where the system has that giant or that star; otherwise it
+	# takes its place by its tags, as every other option does.
+	var on_giant: Array[int] = []
+	var giant_here := n.gas_giant and L.star != StarKind.PULSAR
+	var hot_star := L.star == StarKind.RED or L.star == StarKind.BLUE
 	for i in n.options.size():
+		var site := StringName(OptionTable.by_id(n.options[i]).get("site", &""))
+		if site == &"giant" and giant_here:
+			on_giant.append(i)
+			continue
+		if site == &"star" and hot_star:
+			var sb := Beacon.new()
+			sb.opt = i
+			L.star_beacons.append(sb)
+			continue
 		var tags: Array = OptionTable.by_id(n.options[i]).get("tags", [])
 		var k := &"planet"
 		if tags.has(&"fight") and not tags.has(&"salvage"):
@@ -183,7 +204,7 @@ static func of(n: MapGen.MapNode) -> SystemLayout:
 	if not order.any(func(o): return o.kind == &"planet"):
 		order.insert(0, {"kind": &"planet"})
 	if n.gas_giant and L.star != StarKind.PULSAR:
-		order.insert(mini(order.size(), 2 + int(R.randf() * 2.0)), {"kind": &"giant"})
+		order.insert(mini(order.size(), 2 + int(R.randf() * 2.0)), {"kind": &"giant", "also": on_giant})
 	var has_belt := order.any(func(o): return o.kind == &"belt")
 	if not has_belt:
 		var roll := R.randf()
@@ -374,10 +395,31 @@ func sink(x: float, z: float, pos: Array[Vector2]) -> float:
 	return d
 
 
-## The body an option sits on, or null.
+## The body an option sits on, or null (also for one on the star: `place_of`).
 func body_of_option(i: int) -> Body:
 	for b in bodies:
 		for bc in b.beacons:
 			if bc.opt == i:
 				return b
 	return null
+
+
+## Where option i sits: a body's index, -1 the star, -2 nowhere.
+func place_of(i: int) -> int:
+	for bi in bodies.size():
+		for bc in bodies[bi].beacons:
+			if bc.opt == i:
+				return bi
+	for bc in star_beacons:
+		if bc.opt == i:
+			return -1
+	return -2
+
+
+## The beacons at place `body` (-1 the star's own events).
+func beacons_at(body: int) -> Array[Beacon]:
+	if body == -1:
+		return star_beacons
+	if body < 0 or body >= bodies.size():
+		return []
+	return bodies[body].beacons

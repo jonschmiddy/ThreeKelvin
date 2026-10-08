@@ -94,6 +94,13 @@ uniform vec2 g_ship = vec2(-9999.0);
 // BOX x zoom, so its beams are never cut short at any zoom)
 uniform float zoom = 1.0;
 uniform vec2 box_half = vec2(240.0, 160.0);
+// where the pulsar's centre truly is against the box's, a pixel or less: the
+// box stays on the pixel grid and everything is drawn about the true centre
+// (`PulsarView.sub`), so a zoom carrying it across the map moves it smoothly
+uniform vec2 sub = vec2(0.0);
+// where the box's corner falls on the screen's own dither grid (mod 8 px): the
+// dither is the screen's, so it stays put as the box steps with the pulsar
+uniform vec2 grid_at = vec2(0.0);
 
 const vec3 WHITE = vec3(1.0, 1.0, 1.0);
 const vec3 ICE = vec3(0.72, 0.94, 1.0);
@@ -165,10 +172,15 @@ float cloud_at(float r, float a) {
 }
 
 void fragment() {
-	vec2 pix = floor(UV * box_half * 2.0);
+	// (a quarter pixel in: drawn in the map's 2x2 blocks a pixel's middle falls
+	// exactly on a whole number, which the interpolated UV puts a hair either
+	// side of -- which side changing with the box's size, so each time the box
+	// grew in a zoom some columns and rows of the pulsar moved a pixel; at full
+	// size the middle is a half and this changes nothing)
+	vec2 pix = floor(UV * box_half * 2.0 + 0.25);
 	float x = pix.x, y = pix.y;
 	// this game pixel in the pulsar's own units (game pixels at zoom 1)
-	float px = (x - box_half.x) / zoom, py = (y - box_half.y) / zoom;
+	float px = (x - box_half.x - sub.x) / zoom, py = (y - box_half.y - sub.y) / zoom;
 	vec3 L = SPACE;
 	vec3 pl = plane_at(px, py);
 	float gk = sm(30.0, 90.0, length(vec2(x, y) - g_ship));
@@ -319,7 +331,7 @@ void fragment() {
 	// nearest of its colours (read at five bits a channel, as its lookup table was)
 	COLOR = vec4(0.0);
 	if (L.r + L.g + L.b >= 0.09) {
-		int bx = (int(x) / max(cell, 1)) & 3, by = (int(y) / max(cell, 1)) & 3;
+		int bx = ((int(x) + int(grid_at.x)) / max(cell, 1)) & 3, by = ((int(y) + int(grid_at.y)) / max(cell, 1)) & 3;
 		int bay = (by == 0 ? (bx == 0 ? 0 : bx == 1 ? 8 : bx == 2 ? 2 : 10)
 			: by == 1 ? (bx == 0 ? 12 : bx == 1 ? 4 : bx == 2 ? 14 : 6)
 			: by == 2 ? (bx == 0 ? 3 : bx == 1 ? 11 : bx == 2 ? 1 : 9)

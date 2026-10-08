@@ -65,8 +65,9 @@ const KEY := [[&"fight", "FIGHT"], [&"hazard", "HAZARD"], [&"salvage", "SALVAGE"
 
 ## WHERE THE SHIP WAS LEFT, by system: coming back from a fight, a dock or the
 ## ship screen puts it back -- in orbit where it was, or where it was flying.
-## Not saved -- a reload puts it at the edge, which is where a ship that has
-## just arrived would be.
+## Saved with the run (`SaveGame`, VERSION 30), so a reload puts you back in
+## orbit where you were, LOCAL included. Per player and local: it is not on the
+## wire, as nobody else's map draws your ship in a system.
 static var _parked := {}
 ## LOCATION is held for the session, across screens and systems, like the
 ## chart's LOCAL REGION: on, every arrival zooms onto your ship.
@@ -237,6 +238,16 @@ static func key_colour(tag: StringName) -> Color:
 ## whatever size the frame is.
 func _place_map() -> void:
 	var at: Vector2 = (_frame.size / 2.0 - Vector2(view.CX, view.CY)).round()
+	# ON THE GAME'S GRID: the map's 2x2 blocks on the same pixels as LOCAL's
+	# (whose sky is drawn from the picture's corner), so a world handed from one to
+	# the other (`ZoomLadder`, 2C) is the same pixels -- a block off by one pixel
+	# was every pixel of it different
+	# -- and on the same 8-pixel step, so the dithers drawn in its blocks (4 x 4,
+	# a block a step) fall on the same pixels too
+	var g := _frame.global_position + at
+	var sx := posmod(roundi(g.x), 8)
+	var sy := posmod(roundi(g.y), 8)
+	at -= Vector2(sx if sx < 4 else sx - 8, sy if sy < 4 else sy - 8)
 	_box.position = at
 	view.window = Rect2(-at, _frame.size)
 
@@ -310,7 +321,9 @@ func _restore_ship(d: Dictionary) -> void:
 	if d.is_empty():
 		flight.place_at(-3, view.t)
 		return
-	if int(d.at) >= -1:
+	# (a body the layout no longer has -- a save from before a change to how
+	# systems are laid out -- is the edge, not an index error)
+	if int(d.at) >= -1 and int(d.at) < view.layout.bodies.size():
 		flight.place_at(int(d.at), view.t)
 	elif StringName(d.mode) == &"free":
 		flight.mode = &"free"
@@ -551,6 +564,10 @@ func _zoom_level() -> int:
 func _step_camera(delta: float) -> void:
 	if view.layout == null:
 		return
+	# THE ZOOM LADDER HAS THE CAMERA for the length of a move (`ZoomLadder`)
+	if cam_held:
+		_tick_zoom()
+		return
 	if _step_glide():
 		_tick_zoom()
 		return
@@ -623,6 +640,14 @@ func _clamp_pan() -> void:
 
 func _zoom_by(f: float, at: Vector2) -> void:
 	last_zoom_t = Time.get_ticks_msec() / 1000.0
+	# THE WHEEL PAST EITHER END IS THE NEXT DISTANCE (`ZoomLadder`): in past the
+	# closest zoom is LOCAL, out past the whole sector is the star chart
+	if f > 1.0 and _zoom_to >= view.ZOOM_MAX - 0.001 and ZoomLadder.overscroll(1):
+		Router.show_local()
+		return
+	if f < 1.0 and _zoom_to <= zoom_min + 0.001 and ZoomLadder.overscroll(-1):
+		Router.show_starchart()
+		return
 	# a glide under way ends where it is, the wheel taking over
 	if not _glide.is_empty():
 		_glide = {}
@@ -896,6 +921,11 @@ func open_option(k: int) -> void:
 			if bc.opt == k:
 				open_beacon(bi, bc)
 				return
+	# (an event sited on the star itself)
+	for bc in view.layout.star_beacons:
+		if bc.opt == k:
+			open_beacon(-1, bc)
+			return
 
 
 ## A card pointed at in the panel lights its beacon on the map, as pointing at
@@ -946,6 +976,11 @@ func go_event(i: int) -> void:
 const ZOOM_DOWN_S := 0.7
 func _zoom_down(i: int) -> void:
 	LocalEventDrawer.request(view.node.index, i)
+	# THE ZOOM LADDER makes this move itself, all the way into LOCAL
+	if ZoomLadder.enabled():
+		_keep_ship()
+		Router.show_local()
+		return
 	if Router.animating():
 		_taking = true
 		_glide_to("loc", -9, ZOOM_LOCATION * 2.0, ZOOM_DOWN_S)
@@ -1026,6 +1061,324 @@ func _close_transfer() -> void:
 		return
 	_transfer.queue_free()
 	_transfer = null
+
+
+# ------------------------------------------------------------ the zoom ladder
+## THE MAP AS ONE DISTANCE OF FOUR (`ZoomLadder`): its camera, moved by the
+## ladder for the length of a move; where your ship (your star, the world you
+## orbit) is on screen; the picture's frame. k is 0 at rest and 1 at the
+## distance toward the other screen: onto your ship at the closest zoom for
+## LOCAL and the station, back out past the whole sector for the chart.
+var cam_held := false
+var _lad := {}
+
+
+func ladder_ready() -> bool:
+	return flight != null and view.layout != null
+
+
+func ladder_picture() -> Rect2:
+	return _frame.get_global_rect()
+
+
+func ladder_scale() -> float:
+	return view.zoom
+
+
+## The star on screen, in the game's picture.
+func _ladder_origin() -> Vector2:
+	return _frame.global_position + _box.position + Vector2(view.CX, view.CY) + view.pan
+
+
+## The world the ship is in orbit of, or -9.
+func _ladder_body() -> int:
+	if flight == null or flight.mode != &"rail":
+		return -9
+	var b := int(flight.rail.body)
+	return b if b >= 0 and b < view.layout.bodies.size() else -9
+
+
+func _ladder_focus(other: int, seam: int, design: String) -> Vector2:
+	if other == ZoomLadder.CHART:
+		return Vector2.ZERO
+	var b := _ladder_body()
+	if seam == 2 and design == "C" and b >= 0:
+		return overlay.place_rel(b)
+	return overlay.ship_rel()
+
+
+func ladder_anchor(other: int, seam: int, design: String) -> Vector2:
+	if not ladder_ready():
+		return _frame.get_global_rect().get_center()
+	if seam == 2 and design == "C" and not _world_peek.is_empty():
+		return _world_peek.screen
+	return _ladder_origin() + _ladder_focus(other, seam, design)
+
+
+## How far the map moves before it hands over (a share of k), 0 for none.
+func ladder_pre(target: int, seam: int, design: String) -> float:
+	if not ladder_ready():
+		return 0.0
+	if seam == 2 and design == "B":
+		return 0.45
+	return 1.0
+
+
+var _lad_meet := Vector2.INF
+
+
+## The held picture's anchor: at the far end of a move the map's own anchor is
+## put there, so the two pictures move as one.
+func ladder_meet(at: Vector2, _world: Dictionary) -> void:
+	_lad_meet = at
+
+
+func ladder_cam_begin(other: int, seam: int, design: String) -> void:
+	if not ladder_ready():
+		return
+	# (placed again for where it stands now: a map built ahead was laid out
+	# somewhere else, and its frame's place decides where its picture sits)
+	_place_map()
+	cam_held = true
+	_glide = {}
+	_homing = false
+	_anchor = Vector2(-1, -1)
+	var z0: float = view.zoom
+	var f0 := _look_at()
+	if _location_on and other != ZoomLadder.CHART:
+		z0 = ZOOM_LOCATION
+		f0 = _glide_target("loc", -9)
+	var z1: float = view.ZOOM_MAX if other > ZoomLadder.MAP else zoom_min * 0.55
+	if seam == 2 and design == "B":
+		z1 = minf(view.ZOOM_MAX, z0 * 2.2)
+	# 1A: out until the sun is no bigger than the chart draws your star (its floor),
+	# the worlds drawn as small as they truly are on the way (`min_r`)
+	if seam == 1 and design == "A":
+		z1 = zoom_min * 0.12
+		_lad_min_r = SystemViewS.min_r
+	# 2C: the world you orbit grown on the map itself, live, to most of the size
+	# LOCAL draws it at, and carried toward where LOCAL draws it -- so the held
+	# picture has little left to do, and both halves keep one speed
+	var aim := {}
+	var b := _ladder_body()
+	if seam == 2 and design == "C" and b >= 0 and other > ZoomLadder.MAP:
+		var body: SystemLayout.Body = view.layout.bodies[b]
+		var rest := ZoomLadder.rest_world(view.node.index, body)
+		# (as drawn: the disc's own radius, not its place's)
+		var wn := ladder_world()
+		var r_now: float = maxf(float(wn.get("r", view.draw_r(body))), 1.0)
+		var r_end := float(rest.r) * 0.62
+		z1 = clampf(z0 * r_end / r_now, view.ZOOM_MAX, 9.0)
+		var p0: Vector2 = _ladder_origin() + overlay.place_rel(b)
+		aim = {"p0": p0, "rest": rest.c, "r0": r_now, "r_end": maxf(float(body.r) * z1, view.min_r), "R": float(rest.r)}
+	_lad = {"z0": z0, "z1": z1, "f0": f0, "other": other, "seam": seam, "design": design,
+		"side": panel.get_parent().position.x, "aim": aim, "body": b}
+	_lad["off"] = Vector2.ZERO if _lad_meet == Vector2.INF else _lad_meet - _frame.get_global_rect().get_center()
+	_lad_meet = Vector2.INF
+
+
+## The map's worlds' smallest size before 1A shrank them, to put back.
+var _lad_min_r := -1.0
+
+
+## The sun on screen (1A): where and how big it is drawn this frame.
+func ladder_sun() -> Dictionary:
+	if not ladder_ready():
+		return {}
+	return {"c": _ladder_origin(), "r": float(view.layout.star_r) * float(view.star_k())}
+
+
+func ladder_cam(k: float) -> void:
+	if _lad.is_empty() or not ladder_ready():
+		return
+	if _lad_min_r > 0.0:
+		SystemViewS.min_r = lerpf(_lad_min_r, 1.0, clampf(k * 1.5, 0.0, 1.0))
+	var z0: float = _lad.z0
+	var z: float = z0 * pow(float(_lad.z1) / z0, k)
+	view.zoom = z
+	var f1 := _ladder_focus(int(_lad.other), int(_lad.seam), String(_lad.design)) / maxf(z, 0.0001)
+	view.pan = -(_lad.f0 as Vector2).lerp(f1, k) * z + (_lad.off as Vector2) * k
+	# 1A, OUT: the sun carried on a straight line toward where the chart (built
+	# ahead) has your star's mark, as far along as this half goes
+	if int(_lad.other) == ZoomLadder.CHART and _lad.has("split"):
+		var ch: Control = ZoomLadder.prebuilt
+		if ch is StarchartScreen and ch.call(&"ladder_ready"):
+			if not _lad.has("sun0"):
+				_lad["sun0"] = _ladder_origin()
+			var goal: Vector2 = ch.call(&"ladder_anchor", 0, 1, "A")
+			var want: Vector2 = (_lad.sun0 as Vector2).lerp(goal, k * float(_lad.split))
+			view.pan = want - (_frame.global_position + _box.position + Vector2(view.CX, view.CY))
+	var aim: Dictionary = _lad.get("aim", {})
+	if not aim.is_empty() and _lad_split > 0.0:
+		# the world on a straight line from where it was toward where LOCAL will
+		# have it, as far along as this half of the move goes (`_lad_split`)
+		var fr := _frame.get_global_rect().grow(-float(aim.r_end) * 0.4)
+		var want: Vector2 = (aim.p0 as Vector2).lerp(aim.rest, _lad_split * k)
+		want = want.clamp(fr.position, fr.end)
+		view.pan = want - (_frame.global_position + _box.position + Vector2(view.CX, view.CY)) \
+			- overlay.place_rel(int(_lad.body))
+	_zoom_to = z
+	overlay.hush_labels = k > 0.3
+	if not (_lad.get("aim", {}) as Dictionary).is_empty():
+		overlay.visible = k < 0.75
+		# and the faint fabric of space and the orbits, drawn over the worlds in
+		# the map's own pixels, thinned away as the world comes close: LOCAL has
+		# neither, and the world handed over is the world without them
+		var fa := clampf((0.8 - k) / 0.3, 0.0, 1.0)
+		for c: CanvasItem in [view._fabric, view._lines]:
+			if c != null:
+				c.modulate.a = fa
+	ZoomLadder.slide(panel.get_parent(), float(_lad.side), k)
+
+
+## How far each half of a move travels, log scale: this screen's own zoom, and
+## then the held picture's growth into the next screen (2C: the world's size on
+## the map at the end of its zoom to its size on LOCAL).
+func ladder_spans() -> Vector2:
+	if _lad.is_empty():
+		return Vector2.ZERO
+	var aim: Dictionary = _lad.get("aim", {})
+	if aim.is_empty():
+		return Vector2(absf(log(float(_lad.z1) / maxf(float(_lad.z0), 0.0001))), 0.0)
+	var a := log(float(aim.r_end) / maxf(float(aim.r0), 0.5))
+	var c := log(float(aim.R) / maxf(float(aim.r_end), 0.5))
+	_lad_split = a / maxf(a + c, 0.001)
+	return Vector2(a, c)
+
+
+## How far across (0 to 1) the map carries its sun toward the chart's mark (1A,
+## out); the chart carries it the rest of the way.
+func ladder_split(f: float) -> void:
+	if not _lad.is_empty():
+		_lad["split"] = clampf(f, 0.0, 1.0)
+
+
+## The share of the whole move this screen's half travels (set with the spans).
+var _lad_split := 0.0
+
+
+func ladder_cam_end() -> void:
+	_world_peek = {}
+	for c: CanvasItem in [view._fabric, view._lines]:
+		if c != null:
+			c.modulate.a = 1.0
+	if _lad_min_r > 0.0:
+		SystemViewS.min_r = _lad_min_r
+		_lad_min_r = -1.0
+	_lad_split = 0.0
+	overlay.visible = true
+	cam_held = false
+	overlay.hush_labels = false
+	if not _lad.is_empty():
+		ZoomLadder.slide(panel.get_parent(), float(_lad.side), 0.0)
+	_lad = {}
+	_zoom_to = view.zoom
+	_locked = false
+
+
+## THE WORLD YOU ORBIT, GIVEN AWAY (2C): the map's own picture of it -- the node,
+## its surface's memory and every value its shader was last given -- taken out of
+## the map as it goes, for LOCAL to draw on (`LocalSky.adopt_near`). {} when the
+## ship orbits nothing the map draws as a turning world.
+## THE WORLD AS THIS FRAME WILL DRAW IT, taken by the ladder after its own
+## camera step each frame of the way in: the map steps its worlds at the top of
+## a frame from the camera the frame before, so what is on screen is always a
+## frame behind what the map holds now -- and the picture held at the swap is the
+## last one drawn. What is handed over is that, not the map's next frame.
+var _world_peek := {}
+
+
+## Where LOCAL will have the world you orbit (2C), as the aim of this zoom took
+## it, or INF.
+func ladder_rest() -> Vector2:
+	var aim: Dictionary = _lad.get("aim", {})
+	return aim.rest if not aim.is_empty() else Vector2.INF
+
+
+func ladder_peek() -> void:
+	_world_peek = _world_now()
+
+
+func _world_now() -> Dictionary:
+	var b := _ladder_body()
+	if b < 0 or not view._views.has(b):
+		return {}
+	var v: Node2D = view._views[b]
+	if not (v is PlanetView):
+		return {}
+	var m: ShaderMaterial = v.get("_mat")
+	var params := {}
+	if m != null:
+		for u: Dictionary in m.shader.get_shader_uniform_list():
+			params[StringName(u.name)] = m.get_shader_parameter(StringName(u.name))
+	var off: Variant = params.get(&"ctr_off", Vector2.ZERO)
+	var centre: Vector2 = v.position + (off if off is Vector2 else Vector2.ZERO)
+	return {"pos": v.position, "screen": _frame.global_position + _box.position + centre, "params": params,
+		"t": view.t, "light": v.get("_light"), "r": float(params.get(&"r", 10.0)),
+		"spec_r": float((v as PlanetView).spec.get("r", params.get(&"r", 10.0)))}
+
+
+func ladder_give_world() -> Dictionary:
+	var b := _ladder_body()
+	if b < 0 or not view._views.has(b):
+		return {}
+	var v: Node2D = view._views[b]
+	if not (v is PlanetView):
+		return {}
+	var m: ShaderMaterial = v.get("_mat")
+	var params := {}
+	if m != null:
+		for u: Dictionary in m.shader.get_shader_uniform_list():
+			params[StringName(u.name)] = m.get_shader_parameter(StringName(u.name))
+	var body: SystemLayout.Body = view.layout.bodies[b]
+	var centre := v.position + (params.get(&"ctr_off", Vector2.ZERO) as Vector2)
+	var out := {"view": v, "screen": _frame.global_position + _box.position + centre, "params": params,
+		"t": view.t, "world": body.world, "seed": body.seed, "body": b,
+		"spec_r": float((v as PlanetView).spec.get("r", params.get(&"r", 10.0))), "light": v.get("_light")}
+	# (as last drawn: see `ladder_peek`)
+	if not _world_peek.is_empty():
+		for k in ["screen", "params", "t", "light", "spec_r"]:
+			out[k] = _world_peek[k]
+	# ITS SURFACE'S MEMORY, as last drawn: a picture taken out of the tree loses
+	# what its viewports held, and a world that had to start its memory afresh
+	# came back a shade off in most of its pixels
+	var mvp: Variant = v.get("_mem_vp")
+	if mvp is SubViewport and (mvp as SubViewport).get_texture() != null and DisplayServer.get_name() != "headless":
+		var img := (mvp as SubViewport).get_texture().get_image()
+		if img != null and not img.is_empty():
+			out["mem_img"] = img
+	view._views.erase(b)
+	view._live.erase(b)
+	view._rq.erase(b)
+	v.get_parent().remove_child(v)
+	return out
+
+
+## The plane as the map draws it: the star on screen, plane px to screen px, and
+## the slant (for laying the map down into LOCAL's plane).
+func ladder_plane() -> Dictionary:
+	if not ladder_ready():
+		return {}
+	return {"o": _ladder_origin(), "s": view.zoom, "tilt": view.TILT}
+
+
+## The world the ship orbits: its centre on screen and its drawn radius.
+func ladder_world() -> Dictionary:
+	var b := _ladder_body()
+	if b < 0:
+		return {}
+	if not _world_peek.is_empty():
+		return {"c": _world_peek.screen, "r": float(_world_peek.r)}
+	# AS DRAWN: the disc's own centre and radius this frame (while the zoom moves
+	# it is drawn round its true centre, a little off its place on the grid)
+	if view._views.has(b):
+		var v: Node2D = view._views[b]
+		var m: ShaderMaterial = v.get("_mat")
+		if m != null and m.get_shader_parameter(&"r") != null:
+			var off: Variant = m.get_shader_parameter(&"ctr_off")
+			return {"c": _frame.global_position + _box.position + v.position + (off if off is Vector2 else Vector2.ZERO),
+				"r": float(m.get_shader_parameter(&"r"))}
+	return {"c": _ladder_origin() + overlay.place_rel(b), "r": view.draw_r(view.layout.bodies[b])}
 
 
 ## THE SCALE BAR, the chart's (`MapChart._draw_scale`) in the bottom-right corner

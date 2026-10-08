@@ -33,6 +33,11 @@ uniform vec2 centre = vec2(622.0, 262.0);
 // and the map's zoom
 uniform vec2 anchor = vec2(622.0, 262.0);
 uniform float zoom = 1.0;
+// where the pulsar's centre truly is against `centre`, a pixel or less
+// (`PulsarView.sub`): the threads are turned about it and read from the web at
+// their offsets from it, the gas carried with it, so they move with the map
+// while a zoom carries the pulsar across it; 0 is `centre` itself
+uniform vec2 sub = vec2(0.0);
 // the left edge of the map: the page baked no thread left of its panel
 uniform float panel_x = 264.0;
 uniform vec2 map_size = vec2(960.0, 540.0);
@@ -89,14 +94,17 @@ void fragment() {
 		// (read a quarter pixel up and left: the page rounded each thread to a half
 		// pixel of its doubled canvas, and a game pixel shows the top-left of that
 		// 2x2 block, so a thread moves on a pixel once it has gone a quarter of one)
-		float ux = P.x - 0.25 - centre.x, uy = (P.y - 0.25 - centre.y) / 0.62;
+		vec2 cs = centre + sub;
+		float ux = P.x - 0.25 - cs.x, uy = (P.y - 0.25 - cs.y) / 0.62;
 		float ct = cos(turn), st = sin(turn);
 		float rx = ux * ct + uy * st, ry = -ux * st + uy * ct;
 		// the game pixel it lands on unturned, from the centre (whole game pixels),
 		// then that place in the web as baked: whole map pixels at zoom 1
-		float gx = floor(centre.x + rx + 0.5) - centre.x, gy = floor(centre.y + ry * 0.62 + 0.5) - centre.y;
+		// (its dither keyed to the whole pixel it lands on, from the grid's centre)
+		vec2 gp = floor(cs + vec2(rx, ry * 0.62) + 0.5);
+		float gx = gp.x - cs.x, gy = gp.y - cs.y;
 		float x = anchor.x + gx / zoom, y = anchor.y + gy / zoom;
-		ivec2 dth = ivec2(int(anchor.x + gx), int(anchor.y + gy));
+		ivec2 dth = ivec2(int(anchor.x + gp.x - centre.x), int(anchor.y + gp.y - centre.y));
 		if (x >= panel_x && x < map_size.x && y >= 0.0 && y < map_size.y) {
 			float dx = x - anchor.x, dy = (y - anchor.y) / 0.62, r = sqrt(dx * dx + dy * dy);
 			// a broad, broken ring of fine threads, gaps where the shell has thinned
@@ -136,7 +144,7 @@ void fragment() {
 	if (has_gas && has_beam) {
 		// the gas as baked, carried and zoomed with the pulsar: read between its
 		// pixels when zoomed, so it is not blocks (at zoom 1 it lands on them)
-		vec2 G = anchor + (P - centre) / zoom;
+		vec2 G = anchor + (P - centre - sub) / zoom;
 		ivec2 gmax = textureSize(gas_tex, 0) - ivec2(1);
 		vec2 g0 = floor(G), gf = G - g0;
 		ivec2 i0 = clamp(ivec2(g0), ivec2(0), gmax), i1 = clamp(ivec2(g0) + ivec2(1), ivec2(0), gmax);
@@ -144,7 +152,7 @@ void fragment() {
 			mix(texelFetch(gas_tex, ivec2(i0.x, i1.y), 0).r, texelFetch(gas_tex, i1, 0).r, gf.x), gf.y);
 		if (G.x < 0.0 || G.y < 0.0 || G.x > float(gmax.x) || G.y > float(gmax.y)) I = 0.0;
 		if (I > 0.03) {
-			float sa = atan(P.y - centre.y, P.x - centre.x);
+			float sa = atan(P.y - centre.y - sub.y, P.x - centre.x - sub.x);
 			float d = abs(mod(sa - beam_angle + PI * 0.5, PI) - PI * 0.5);
 			if (d < 0.42) {
 				d = floor(d / 0.42 * 256.0) / 256.0 * 0.42;

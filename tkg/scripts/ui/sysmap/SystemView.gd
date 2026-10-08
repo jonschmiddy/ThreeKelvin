@@ -273,7 +273,14 @@ const SETTLE_S := 0.18
 const LIVE_Q := 0.5
 static var _nosmooth := "nosmooth" in OS.get_cmdline_user_args()
 const SETTLE_EASE := 0.08
+## THE PULSAR'S CENTRE, as a world's (`_live`): where the map truly puts it while
+## the zoom moves, carried with its block and settled back onto it after (see
+## `_pulsar_at`); and its block last frame
+var _plive := Vector2.INF
+var _plast := Vector2.ZERO
 var _beat_off := 0.0
+## how long the pulsar's beat takes to follow the sound's clock (`beat_follow`)
+const BEAT_FOLLOW_S := 0.5
 var _palette: ColorRect
 var _palette_mat: ShaderMaterial
 var _lines: _Lines
@@ -333,6 +340,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_at_last.clear()
 	_klive = -1.0
 	_zlast = -1.0
+	_plive = Vector2.INF
 	_sky_z = -1.0
 	_rprobe = {}
 	_fields.clear()
@@ -591,6 +599,27 @@ func show_system(n: MapGen.MapNode) -> void:
 	_palette_mat.set_shader_parameter("pal_n", 0)
 	# its dither cell is one pixel of the half-size picture: a 2x2 block
 	_palette_mat.set_shader_parameter("cell", 1)
+	# ROUND A PULSAR the colour is read whole and held (`map_palette`'s `fine` and
+	# `hold_k`): its remnant shell grows with the map on every frame of a zoom, and
+	# the one-level wobbles of the shell and the dust sheets over it flipped dither
+	# pixels back and forth through every zoom (a slow zoom: 0.0042-0.0059 of the
+	# map flipping back a frame against the 0.0035 budget; now 0.0008-0.0014).
+	# The picture last frame, for the hold, is the place's own, copied each frame.
+	# (a harness's `palhold=0`: neither, the pulsar's palette as it was, to measure against)
+	var hold := layout.star == SystemLayout.StarKind.PULSAR and not ("palhold=0" in OS.get_cmdline_user_args())
+	_palette_mat.set_shader_parameter("fine", hold)
+	if hold and not painted:
+		var mem := SubViewport.new()
+		mem.size = SCENE
+		mem.transparent_bg = false
+		mem.disable_3d = true
+		mem.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		var last := TextureRect.new()
+		last.texture = _scene.get_texture()
+		mem.add_child(last)
+		_scene.add_child(mem)
+		_palette_mat.set_shader_parameter("prev", mem.get_texture())
+		_palette_mat.set_shader_parameter("hold_k", 1.0)
 	_palette.material = _palette_mat
 	_palette.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_scene.add_child(_palette)
@@ -890,6 +919,25 @@ func _star_k_raw() -> float:
 	return maxf(zoom, minf(1.0, MIN_SCREEN_STAR / sr))
 
 
+## WHERE THE PULSAR IS DRAWN: on the block grid with its orbits at rest, and
+## while the zoom moves where the map truly puts it, as a world's picture is
+## (`_live`). Rounded to the grid as a wheel zoom carried it across the screen it
+## stood still and then hopped a whole block, x and y at different frames, ~8
+## times a second on a slow zoom, every layer of it -- core, beams, cloud, its
+## light and shell -- ahead of or behind the map by up to a pixel and back. The
+## block stays the box's place; the drawing is shifted within it (`sub`). Once
+## the zoom is still it is carried with its block and eased onto it.
+func _pulsar_at(o: Vector2, ez: float) -> Vector2:
+	var tc: Vector2 = Vector2(CX, CY) + pan if zooming() and not _nosmooth else o
+	if _plive.x == INF or zooming() or _nosmooth:
+		_plive = tc
+	else:
+		_plive += o - _plast
+		_plive = tc if _plive.distance_to(tc) < 0.02 else _plive.lerp(tc, ez)
+	_plast = o
+	return _plive
+
+
 ## How near the viewer a point on the plane is: what draws in front.
 static func depth(p: Vector2) -> float:
 	return p.y
@@ -1187,7 +1235,7 @@ func _step_star() -> void:
 		var heard := Audio.room_clock(&"amb_pulsar") if hclock < 0.0 else -1.0
 		if heard >= 0.0:
 			var loop: float = PulsarViewS.LOOP_S
-			_beat_off = wrapf(heard - fposmod(t, loop), -loop / 2.0, loop / 2.0)
+			_beat_off = beat_follow(_beat_off, wrapf(heard - fposmod(t, loop), -loop / 2.0, loop / 2.0), get_process_delta_time())
 		star.call("step", pose(t + _beat_off))
 		var ang: float = star.get("beam_angle")
 		_sky_mat.set_shader_parameter("beam_on", not is_nan(ang))
@@ -1195,6 +1243,23 @@ func _step_star() -> void:
 		var f: float = star.get("sky_flash")
 		_flash.visible = f > 0.0
 		_flash.color = Color(PulsarViewS.SKY_FLASH_COLOR.r * f, PulsarViewS.SKY_FLASH_COLOR.g * f, PulsarViewS.SKY_FLASH_COLOR.b * f, 1.0)
+
+
+## THE BEAT FOLLOWS THE SOUND, SMOOTHLY (Jon: "the pulsar still slightly jitters
+## around when you zoom in"): the sound's clock as read each frame (the playback
+## position plus the time since the last mix) is right on average but wobbles by
+## a few ms from one frame to the next -- 3.4 ms sd, up to 13 ms, reversing 34
+## times a second, measured on this machine -- and set from it every frame the
+## beams, which turn once a second, lurched by up to 5 degrees a frame, a tip
+## 270 px out shaking by 20 px, more the further in you zoom. Followed over half
+## a second the beat still sits on what is heard (the wobble averages out; the
+## two clocks run at one rate) and turns as evenly as the frames. A jump -- the
+## sound starting, a loop, the system changing -- is taken at once.
+func beat_follow(off: float, want: float, dt: float) -> float:
+	var d := wrapf(want - off, -PulsarViewS.LOOP_S / 2.0, PulsarViewS.LOOP_S / 2.0)
+	if absf(d) > 0.1:
+		return want
+	return off + d * (1.0 - exp(-clampf(dt, 0.0, 0.1) / BEAT_FOLLOW_S))
 
 
 static func headless() -> bool:
@@ -1398,7 +1463,9 @@ func step() -> void:
 		_live.clear()
 		_klive = -1.0
 	_sky_mat.set_shader_parameter("time", pose(t, 4.0))
-	_sky_mat.set_shader_parameter("star_at", o)
+	# (a pulsar's light and shell, and its whole drawing below, about its own centre)
+	var pc := _pulsar_at(o, ez) if layout.star == SystemLayout.StarKind.PULSAR else o
+	_sky_mat.set_shader_parameter("star_at", pc)
 	# THE STAR'S LIGHT ON THE SKY held too, stepped 3% at a time: its rays and
 	# glow, redrawn at every fraction of a zoom, flickered through the palette
 	if _sky_z < 0.0 or absf(zoom / _sky_z - 1.0) > 0.03:
@@ -1414,6 +1481,8 @@ func step() -> void:
 	_sky_mat.set_shader_parameter("sky_off", sky_off())
 	if star != null:
 		star.position = o
+		if layout.star == SystemLayout.StarKind.PULSAR:
+			star.set("sub", pc - o)
 		if star.has_method("set_zoom"):
 			star.call("set_zoom", star_k())
 		if layout.star == SystemLayout.StarKind.CORE and not legacy:

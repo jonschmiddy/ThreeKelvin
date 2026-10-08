@@ -203,6 +203,10 @@ func _play() -> void:
 	if not await _wait(HOLD[0]):
 		return
 	_unsay()
+	# ONE CAMERA (`ZoomLadder`): the tour is the ladder's own moves, no cuts
+	if ZoomLadder.enabled():
+		await _ladder_tour()
+		return
 	# 2. SECTOR: pulled back into the ship's place on the map, then out to the system
 	if not await _cut(true):
 		return
@@ -250,6 +254,45 @@ func _play() -> void:
 	_finish()
 
 
+## Steps 2 to 4 on the zoom ladder: LOCAL pulls back into the map, the map
+## out into the chart, each the ladder's own move.
+func _ladder_tour() -> void:
+	Router.show_system()
+	var map := await _settled_map()
+	if _done:
+		return
+	await _ladder_idle()
+	_say(1)
+	if not await _wait(HOLD[1]):
+		return
+	_unsay()
+	Router.show_starchart()
+	var chart := await _settled_chart()
+	if _done:
+		return
+	if chart != null:
+		_hold_primer(true)
+	await _ladder_idle()
+	if chart != null and is_instance_valid(chart):
+		chart.call("glide_to", StarchartScreen.MapChart.ZOOM_MIN, Vector2.ZERO, CHART_OUT_S)
+	_say(2)
+	if not await _wait(HOLD[2]):
+		return
+	_say(3)
+	if not await _wait(HOLD[3]):
+		return
+	_finish()
+	if map == null:
+		return
+
+
+func _ladder_idle() -> void:
+	for i in 180:
+		if not ZoomLadder.busy() or _done:
+			return
+		await get_tree().process_frame
+
+
 ## The map, once it has laid itself out (its sector built and framed).
 func _settled_map() -> Control:
 	for i in 120:
@@ -293,9 +336,14 @@ func _skip() -> void:
 		return
 	_skipped = true
 	_done = true
-	# straight to the end state: on the chart, framed on the galaxy
+	# straight to the end state: on the chart, framed on the galaxy (and no
+	# zoom ladder move on the way: a skip is a cut)
+	if ZoomLadder.busy():
+		ZoomLadder.active.finish_now()
 	if not (Router.current is StarchartScreen) and not Run.dead:
+		ZoomLadder.hold_off = true
 		Router.show_starchart()
+		ZoomLadder.hold_off = false
 		for i in 3:
 			await get_tree().process_frame
 	else:

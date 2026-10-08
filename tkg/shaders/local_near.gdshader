@@ -11,6 +11,9 @@ render_mode unshaded;
 
 uniform sampler2D tex : filter_nearest;
 uniform vec2 ramp = vec2(70.0, 140.0);
+// how much of the press is on: 1 always, but 0 while the zoom ladder hands the
+// map's own world over (it is drawn unpressed on the map), eased in after
+uniform float tone_k = 1.0;
 #include "res://shaders/local_tone.gdshaderinc"
 
 void fragment() {
@@ -20,6 +23,10 @@ void fragment() {
 	}
 	vec2 bq = floor(UV * vec2(480.0, 270.0));
 	float y = (bq.y + 0.5) * 2.0;
-	float w = smoothstep(ramp.x, ramp.y, y);
-	COLOR = vec4(play_tone(s.rgb, w), 1.0);
+	float w = smoothstep(ramp.x, ramp.y, y) * tone_k;
+	// (handed over from the map, untoned: the picture exactly as the map draws
+	// it, its rim of air laid over the sky as the map lays it)
+	// (the near picture is drawn over a clear ground, so what it holds is the
+	// colour already weighted by its cover: taken back out, laid over once)
+	COLOR = tone_k <= 0.0 ? vec4(s.rgb / max(s.a, 0.0001), s.a) : vec4(play_tone(s.rgb, w), mix(s.a, 1.0, clamp(tone_k, 0.0, 1.0)));
 }

@@ -9,8 +9,9 @@ extends Harness
 ## (or sits in two places for two players), and an orbit run through a body is a
 ## planet drawn on top of another. The five promises:
 ##
-## **Every option is on exactly one body**, a station has its DOCK and the core
-## its custodian.
+## **Every option is on exactly one body** (or on the star itself, an event
+## sited there at a red or blue star), a station has its DOCK and the core its
+## custodian.
 ## **Stable**: the same node lays out the same way twice in one run, and the same
 ## seed lays out the same way in a fresh run.
 ## **A gas giant if and only if the node has one** (never round a pulsar).
@@ -29,6 +30,10 @@ func _print_of(L: SystemLayout) -> String:
 		for bc in b.beacons:
 			opts.append("%d%s%s" % [bc.opt, "d" if bc.dock else "", "c" if bc.core else ""])
 		parts.append("%s:%s:%.3f:%.3f:%.3f:%s:%.3f[%s]" % [b.kind, b.world, b.orbit, b.period, b.phase, b.name, b.r, ",".join(opts)])
+	var on_star: Array[String] = []
+	for bc in L.star_beacons:
+		on_star.append("%d" % bc.opt)
+	parts.append("star[%s]" % ",".join(on_star))
 	return "|".join(parts)
 
 
@@ -60,6 +65,11 @@ func run() -> void:
 				for bc in b.beacons:
 					if bc.opt >= 0:
 						seen[bc.opt] = int(seen.get(bc.opt, 0)) + 1
+			# (or on the star itself: an event sited there, `OptionTable` `site`)
+			for bc in L.star_beacons:
+				seen[bc.opt] = int(seen.get(bc.opt, 0)) + 1
+				if L.star != SystemLayout.StarKind.RED and L.star != SystemLayout.StarKind.BLUE:
+					_fail("system %d: option %d on a star that is not red or blue" % [n.index, bc.opt])
 			for i in n.options.size():
 				if int(seen.get(i, 0)) != 1:
 					_fail("system %d: option %d is on %d bodies" % [n.index, i, int(seen.get(i, 0))])

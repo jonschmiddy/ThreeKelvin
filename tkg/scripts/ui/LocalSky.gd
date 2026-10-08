@@ -112,6 +112,7 @@ const NEAR_GIANT_R := 175.0
 const NEAR_WORLD_R := 125.0
 const F_NEAR := 0.3
 const NEAR := preload("res://shaders/local_near.gdshader")
+const HAND := preload("res://shaders/ladder_world.gdshader")
 ## THE CAMERA: how much of the ship's travel it follows, and how far each layer
 ## slides for a pixel of the camera's (the far sky's own depths are in
 ## `chart_bg`: stars 0.04, 0.10, 0.20, galaxies 0.05)
@@ -212,6 +213,11 @@ var _near_mat: ShaderMaterial = null
 var _near: Array = []
 ## the picture the near layer is drawn onto (for the cutaway's zoom)
 var _near_rect: ColorRect = null
+## the world you orbit, as drawn (`near_info`); a great storm an event holds on
+## its face (`_hold_storm`); how far the gas has closed in (`set_closed`)
+var _near_world: Node2D = null
+var near_storm: Dictionary = {}
+var closed := 0.0
 
 ## THE CUTAWAY'S ZOOM (`CutawayView`, Jon: "LOCAL should zoom the real scene
 ## too"): the camera pushed in `zoom` times on the point `_zoom_fixed` (this
@@ -548,6 +554,7 @@ func _build() -> void:
 		if radiant:
 			_set_deep(v, "radiant", true)
 	_build_near()
+	_apply_closed()
 	_wx_setup()
 	_place_box()
 	_step(0.0)
@@ -843,7 +850,13 @@ func _step(delta: float) -> void:
 	_step_worlds(o)
 	_step_near(o)
 	_zlayer(_worlds, Z_BAND)
-	_zlayer(_near_rect, Z_NEAR)
+	# (the map's own world, handed over, is placed and sized live in its own
+	# pixels, not scaled as a picture: `adopt_near`)
+	if _hand.is_empty() or bool(_hand.get("self", false)):
+		_zlayer(_near_rect, Z_NEAR)
+	elif _near_rect != null:
+		_near_rect.position = Vector2.ZERO
+		_near_rect.scale = Vector2.ONE
 	_wx_step(delta)
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
@@ -1224,6 +1237,8 @@ func _situate() -> void:
 func _build_near() -> void:
 	_near.clear()
 	_near_vp = null
+	_near_world = null
+	near_storm = {}
 	if orbit_target < 0:
 		return
 	var tgt: SystemLayout.Body = layout.bodies[orbit_target]
@@ -1239,13 +1254,25 @@ func _build_near() -> void:
 	var h := SkyBakeS.hash2(node.index, 811 + orbit_target)
 	# opposite the star, across the view from it
 	var side := 1.0 if _sun.x < 480.0 else -1.0
+	# AN EVENT ON THIS WORLD (`site`, `OptionTable`: the giant fills the sky):
+	# drawn on the event's side, right of your ship, where its subject stands --
+	# and with what the event's text gives it (`near`: rings, a great storm)
+	var wants := _near_wants()
+	if not wants.is_empty():
+		side = 1.0
+	near_storm = wants.get("storm", {})
 	if tgt.world != &"":
 		var giant := tgt.kind == &"giant"
 		var R := roundf((NEAR_GIANT_R if giant else NEAR_WORLD_R) * clampf(tgt.r / (22.0 if giant else 12.0), 0.8, 1.25) / 2.0) * 2.0
 		var at := _block_round(Vector2(480.0 + side * (190.0 + 60.0 * h), 339.0 + 0.2 * R))
+		var over := {}
+		if bool(wants.get("ring", false)):
+			over.ring = true
 		var spec := Worlds.spec(tgt.world, tgt.seed, R)
+		spec.merge(over, true)
 		var v: Node2D = Worlds.view_for(tgt.world)
-		v.call("set_world", tgt.world, tgt.seed, R)
+		v.call("set_world", tgt.world, tgt.seed, R, over)
+		_near_world = v
 		v.call("set_cell", 2)
 		_near_vp.add_child(v)
 		_dress(v)
@@ -1306,6 +1333,119 @@ func _build_near() -> void:
 	_scene.add_child(rect)
 
 
+## WHAT AN EVENT ON THE WORLD YOU ORBIT ASKS OF IT: only an event sited there by
+## its text (`site`, `OptionTable`: "the giant fills the sky"), open here or
+## about to open (`LocalEventDrawer.open_here`) -- its `near` (rings, a storm),
+## and the world drawn on its side. {} for anything else: every other world is
+## drawn as it always was.
+func _near_wants() -> Dictionary:
+	if node == null or orbit_target < 0:
+		return {}
+	var i := LocalEventDrawer.open_here(node)
+	if i < 0 or i >= node.options.size():
+		return {}
+	var o := OptionTable.by_id(node.options[i])
+	if StringName(o.get("site", &"")) != &"giant" or layout.place_of(i) != orbit_target:
+		return {}
+	var w: Dictionary = (o.get("near", {}) as Dictionary).duplicate()
+	w.right = true
+	return w
+
+
+## THE WORLD YOU ORBIT, where it is drawn now: {at (global px), r (px), ring_in,
+## ring_out (in its radii; 0 with no rings), open (the rings' squash), view}, or
+## {} when there is none (`LocalSubject` stands things on it and in its rings).
+func near_info() -> Dictionary:
+	if _near_world == null or not is_instance_valid(_near_world) or _near.is_empty() or _box == null:
+		return {}
+	var e: Array = _near[0]
+	var p: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
+	var at := _box.get_global_transform() * (_zp(p, Z_NEAR) * 0.5)
+	var r := float(e[3]) * _zl(Z_NEAR) * _box.get_global_transform().get_scale().x * 0.5
+	var d := {at = at, r = r, ring_in = 0.0, ring_out = 0.0, open = 0.28, view = _near_world}
+	var spec: Dictionary = _near_world.get("spec")
+	if spec != null and bool(spec.get("ring", false)):
+		var mat := _near_world.get("_mat") as ShaderMaterial
+		if mat != null:
+			d.ring_in = float(mat.get_shader_parameter("ring_in"))
+			d.ring_out = float(mat.get_shader_parameter("ring_out"))
+		if d.ring_out <= 0.0:
+			d.ring_in = 1.5
+			d.ring_out = 2.2
+	return d
+
+
+## The star's centre on screen now, global px (its disc as drawn, zoom and all).
+func star_global() -> Vector2:
+	if _box == null:
+		return get_global_transform() * origin()
+	return _box.get_global_transform() * (origin() * 0.5)
+
+
+## A point of the sky's own 960x540 frame on screen now, global px.
+func scene_to_global(p: Vector2) -> Vector2:
+	if _box == null:
+		return get_global_transform() * p
+	return _box.get_global_transform() * (p * 0.5)
+
+
+## The star's drawn radius on screen now, px.
+func star_px() -> float:
+	if layout == null:
+		return 0.0
+	return float(layout.star_r) * star_k() * _zl(Z_STAR)
+
+
+## THE GAS CLOSED IN (`no_stars`: "The gas has closed in. ... No stars"): the
+## far stars and galaxies faded out and the cloud thickened, by `k` (0 as it
+## always is). Kept, so a sky built after it is asked is built closed in.
+func set_closed(k: float) -> void:
+	closed = clampf(k, 0.0, 1.0)
+	_apply_closed()
+
+
+func _apply_closed() -> void:
+	if _far_mat != null:
+		_far_mat.set_shader_parameter("stars_seen", 1.0 - closed)
+	if _neb_mat != null:
+		_neb_mat.set_shader_parameter("strength", 1.0 + 0.9 * closed)
+
+
+## A GREAT STORM HELD ON THE FACE OF THE WORLD YOU ORBIT (`near_storm`: `sv`, the
+## point of its face it stands on -- x, y in its radii from its centre, y down --
+## and its size, `z` across and `w` tall in radians): the planet painter's own
+## first great storm, put back there every frame against the world's turn and its
+## winds, so it stays where the event's ship is while the bands stream past it.
+func _hold_storm(pv: Node2D, t_now: float) -> void:
+	var spec: Dictionary = pv.get("spec")
+	var mat := pv.get("_mat") as ShaderMaterial
+	if spec == null or mat == null or not (spec.get("storms", []) as Array).size() >= 2:
+		return
+	var sv2: Vector2 = near_storm.get("sv", Vector2(-0.45, -0.5))
+	var sz := sqrt(maxf(0.0, 1.0 - sv2.length_squared()))
+	var ang := float(spec.seed) + t_now * float(spec.spin)
+	var ca := cos(ang)
+	var sa := sin(ang)
+	var tl := float(spec.tilt)
+	var tx := sv2.x * cos(tl) - sv2.y * sin(tl)
+	var ty := sv2.x * sin(tl) + sv2.y * cos(tl)
+	var px3 := tx * ca + sz * sa
+	var pz3 := -tx * sa + sz * ca
+	var amp := 0.07 if StringName(spec.world) == &"icegiant" else 0.11
+	var ja := t_now * amp * sin(ty * float(spec.bands) * 0.5 + float(spec.seed))
+	var qx := px3 * cos(ja) - pz3 * sin(ja)
+	var qz := px3 * sin(ja) + pz3 * cos(ja)
+	var lon := atan2(qz, qx)
+	var st: Array = spec.storms
+	var first := Vector4(lon - t_now * 0.012, ty, float(near_storm.get("z", 0.55)), float(near_storm.get("w", 0.17)))
+	var sp := PackedVector4Array([first, st[1]])
+	mat.set_shader_parameter("storms", sp)
+	# (the world is drawn from its surface's memory, worked out by its own pass)
+	var mm: Variant = pv.get("_mem_mat")
+	if mm is ShaderMaterial:
+		(mm as ShaderMaterial).set_shader_parameter("storms", sp)
+
+
 ## A near world dressed for the style, as the band's are -- but in RADIANT
 ## with next to none of the gas's wash over it (`NEAR_HAZE`): a band world
 ## sits deep in the glowing cloud, whose light veils it, most at its limb; the
@@ -1319,19 +1459,282 @@ func _dress(v: Node) -> void:
 		_set_deep(v, "r_haze", NEAR_HAZE)
 
 
+# ------------------------------------------------------------ the zoom ladder
+## THE MAP'S OWN WORLD, HANDED OVER (`ZoomLadder`, 2C; Jon: "it's SO CLOSE, but i
+## want it pixel perfect"). The sector map's picture of the world you orbit -- the
+## very node, its surface's memory and all -- is taken into this sky's near
+## picture in place of the one this sky built, at the map's size, place, light,
+## time and tone, and eased from there to this sky's own; at the end it IS the
+## near world. So the world never changes identity: the frame the map drew is the
+## frame drawn here. {view, own, from (the map's shader values), light, world,
+## seed, held, at (this sky's px), r, mix (0 the map's look, 1 this sky's)}.
+var _hand := {}
+## The near world's clock, behind or ahead of the sky's by this much: the map's,
+## kept for the world it handed over.
+var near_t_off := 0.0
+
+
+func adopt_near(v: Node2D, at: Vector2, g: Dictionary) -> bool:
+	if _near_vp == null or _near_world == null or _near.is_empty() or orbit_target != int(g.get("body", -9)) \
+			or not (v is PlanetView) or not (_near_world is PlanetView):
+		return false
+	if v.get_parent() != null:
+		v.get_parent().remove_child(v)
+	# A PICTURE OF ITS OWN WHILE IT MOVES (`ladder_world.gdshader`): the near
+	# layer's size and grid, laid over the sky at any fraction of a pixel, so the
+	# world slides; into the near picture itself once it has come to rest
+	var hvp := SubViewport.new()
+	hvp.size = Vector2i(480, 270)
+	hvp.size_2d_override = Vector2i(960, 540)
+	hvp.size_2d_override_stretch = true
+	hvp.transparent_bg = true
+	hvp.disable_3d = true
+	hvp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	hvp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(hvp)
+	var hrect := _rect()
+	var hmat := ShaderMaterial.new()
+	hmat.shader = HAND
+	hmat.set_shader_parameter("tex", hvp.get_texture())
+	hmat.set_shader_parameter("ramp", PLAY)
+	if _near_mat != null:
+		for u in ["keep_lo", "keep_hi", "mid", "cap", "soft"]:
+			var val: Variant = _near_mat.get_shader_parameter(u)
+			if val != null:
+				hmat.set_shader_parameter(u, val)
+	hrect.material = hmat
+	add_child(hrect)
+	# (laid where the sky's own picture is: the window this view shows of it)
+	hrect.position = _box.position
+	hrect.size = Vector2(960, 540)
+	(v as PlanetView).keep_mem = true
+	hvp.add_child(v)
+	(v as PlanetView).keep_mem = false
+	# its memory as the map last drew it, handed in by hand: drawn from it this
+	# frame, and the memory's next step taken from it (`_step_hand` lets go)
+	var mem_left := 0
+	if g.has("mem_img") and v.get("_mem_mat") != null:
+		var tm := ImageTexture.create_from_image(g.mem_img)
+		(v.get("_mat") as ShaderMaterial).set_shader_parameter("mem_now", tm)
+		(v.get("_mem_mat") as ShaderMaterial).set_shader_parameter("mem_prev", tm)
+		mem_left = 2
+	# (its own world, carried out: the rest of the near layer stays, zoomed as
+	# a picture round it -- `hand_own`)
+	var own_world := v == _near_world
+	if not own_world:
+		_near_world.visible = false
+		for i in range(1, _near.size()):
+			(_near[i][0] as CanvasItem).visible = false
+	# the world's own clock as the map last set it (the map steps its worlds on a
+	# clock of its own, not its view's), carried on from here
+	var pm: Dictionary = g.get("params", {})
+	var wt := float(pm.get(&"time", g.get("t", t)))
+	near_t_off = wt - t
+	_hand = {"view": v, "own": _near_world, "from": g.get("params", {}), "light": g.get("light", Vector3(-0.83, -0.31, 0.47)),
+		"world": g.get("world", &"rock"), "seed": int(g.get("seed", 0)), "held": float(g.get("spec_r", 10.0)),
+		"at": at, "r": float((g.get("params", {}) as Dictionary).get("r", g.get("spec_r", 10.0))), "mix": float(g.get("mix", 0.0)),
+		"freeze_t": wt if bool(g.get("freeze", false)) else -1.0, "mem_left": mem_left,
+		"vp": hvp, "rect": hrect, "mat": hmat, "start": at, "grid": _block_round(at), "self": own_world, "ov": g.get("ov", {})}
+	# (a measurement holds the surface's memory too, so the frame is the map's
+	# last one exactly: the memory eases a step each frame on its own)
+	var mv: Variant = v.get("_mem_vp")
+	if bool(g.get("freeze", false)) and mv is SubViewport:
+		(mv as SubViewport).render_target_update_mode = SubViewport.UPDATE_DISABLED
+	_step_hand()
+	return true
+
+
+## THE WORLD YOU ORBIT, CARRIED OUT IN ITS OWN PICTURE (2C, LOCAL to the map;
+## Jon: "a small jitter of the planet"): the near world itself moved as
+## `adopt_near` moves the map's in -- drawn again at every size, its picture
+## slid by fractions of a pixel -- instead of shrunk as a picture on the 2 px
+## grid, which wobbled it a pixel back and forth. `near_hand` drives it the
+## same way, played the other way round; `end_hand` puts it back.
+func hand_own(at: Vector2) -> bool:
+	if _near.is_empty() or not (_near_world is PlanetView) or not _hand.is_empty() \
+			or float(_near[0][3]) <= 0.0:
+		return false
+	var v := _near_world as PlanetView
+	var d := origin() - at
+	var g := {"body": orbit_target, "world": v.spec.get("world", &"rock"), "seed": int(v.get("_seed")),
+		"spec_r": float(_near[0][3]), "t": t + near_t_off, "light": Vector3(d.x, d.y, 140.0).normalized(),
+		"params": {"lift": 0.0 if legacy else 1.0, "r": float(_near[0][3])}, "ov": {}, "mix": 1.0}
+	for k in ["ring", "storm", "right"]:
+		if v.spec.has(k):
+			g.ov[k] = v.spec[k]
+	return adopt_near(v, at, g)
+
+
+## Where the handed-over world is this frame (this sky's px), how big, and how
+## far it has come toward this sky's look.
+func near_hand(at: Vector2, r: float, mix: float, end: Vector2 = Vector2.INF) -> void:
+	if _hand.is_empty():
+		return
+	_hand.at = at
+	if end != Vector2.INF:
+		_hand.end = end
+	_hand.drawn = _hand_target(at, clampf(mix, 0.0, 1.0))
+	_hand.r = r
+	_hand.mix = clampf(mix, 0.0, 1.0)
+	if mix > 0.0 and float(_hand.freeze_t) >= 0.0:
+		_hand.freeze_t = -1.0
+		var mv: Variant = (_hand.view as Node).get("_mem_vp")
+		if mv is SubViewport:
+			(mv as SubViewport).render_target_update_mode = SubViewport.UPDATE_WHEN_PARENT_VISIBLE
+
+
+## The move is over: the handed-over world becomes the near world for good.
+func end_hand() -> void:
+	if _hand.is_empty():
+		return
+	var v: PlanetView = _hand.view
+	var own: Node2D = _hand.own
+	var R := float(_near[0][3])
+	var ov := {}
+	if own is PlanetView:
+		var os: Dictionary = (own as PlanetView).spec
+		for k in ["ring", "storm", "right"]:
+			if os.has(k):
+				ov[k] = os[k]
+	if v.get_parent() != null:
+		v.get_parent().remove_child(v)
+	v.keep_mem = true
+	_near_vp.add_child(v)
+	v.keep_mem = false
+	for k in ["rect", "vp"]:
+		var nd: Variant = _hand.get(k)
+		if nd is Node and is_instance_valid(nd):
+			(nd as Node).queue_free()
+	_near[0][0] = v
+	_near_world = v
+	if is_instance_valid(own) and own != v:
+		own.queue_free()
+	v.set_world(StringName(_hand.world), int(_hand.seed), R, ov)
+	v.call("set_cell", 2)
+	v.set_live(R, Vector2.ZERO)
+	# (where `_step_near` will stand it, now: not one frame wherever it was
+	# standing in its own picture)
+	var rest := _near_rest()
+	var hsr := Worlds.half_size(StringName(_hand.world), R)
+	if rest != Vector2.INF:
+		v.position = rest - Vector2.ONE * float(Worlds.half_size(StringName(_hand.world), float(_near[0][3])) % 2) + Vector2.ONE * float(hsr % 2)
+	_dress(v)
+	for i in range(1, _near.size()):
+		(_near[i][0] as CanvasItem).visible = true
+	if _near_mat != null:
+		_near_mat.set_shader_parameter("tone_k", 1.0)
+	_hand = {}
+
+
+func _step_hand() -> void:
+	var v: PlanetView = _hand.view
+	if not is_instance_valid(v):
+		_hand = {}
+		return
+	# the memory handed in by hand, let go of once its own has stepped from it
+	if int(_hand.get("mem_left", 0)) > 0 and float(_hand.freeze_t) < 0.0:
+		_hand.mem_left = int(_hand.mem_left) - 1
+		if int(_hand.mem_left) == 0:
+			var mvp: Variant = v.get("_mem_vp")
+			var mcp: Variant = v.get("_mem_copy")
+			if mvp is SubViewport and mcp is SubViewport:
+				(v.get("_mat") as ShaderMaterial).set_shader_parameter("mem_now", (mvp as SubViewport).get_texture())
+				(v.get("_mem_mat") as ShaderMaterial).set_shader_parameter("mem_prev", (mcp as SubViewport).get_texture())
+	var m := float(_hand.mix)
+	var r := float(_hand.r)
+	var at: Vector2 = _hand.at
+	# grown the way the map grows a world: drawn again at a new size once it has
+	# moved two pixels of radius on, and live (any fraction) between
+	if absf(r - float(_hand.held)) > 2.0:
+		_hand.held = roundf(r)
+		v.set_world(StringName(_hand.world), int(_hand.seed), float(_hand.held), _hand.get("ov", {}))
+		v.call("set_cell", 2)
+	var hs := Worlds.half_size(StringName(_hand.world), float(_hand.held))
+	# IN ITS OWN PICTURE IT HOLDS STILL: its middle where the map left it, eased
+	# over the last stretch onto its own grid as LOCAL will draw it (the snap,
+	# eased); THE PICTURE is what moves, by any fraction of a pixel
+	var e := clampf((m - 0.8) / 0.2, 0.0, 1.0)
+	var snap := e * e * (3.0 - 2.0 * e)
+	var grid: Vector2 = _hand.grid
+	var rest := _near_rest()
+	var c_vp: Vector2 = (_hand.start as Vector2).lerp(grid + Vector2.ONE * float(hs % 2), snap)
+	v.position = grid + Vector2.ONE * float(hs % 2)
+	v.set_live(r, c_vp - v.position)
+	var target := _hand_target(at, m)
+	_hand.drawn = target
+	var hm: ShaderMaterial = _hand.get("mat")
+	if hm != null:
+		hm.set_shader_parameter("shift", target - c_vp)
+		hm.set_shader_parameter("tone_k", m)
+	# its light: the map's, eased to this sky's (from where the star is here)
+	var d := origin() - at
+	var L_here := Vector3(d.x, d.y, 140.0).normalized()
+	var L := (_hand.light as Vector3).normalized().lerp(L_here, m).normalized()
+	var f: Dictionary = _hand.from
+	var tt := t + near_t_off
+	if float(_hand.freeze_t) >= 0.0:
+		tt = float(_hand.freeze_t)
+	v.step(tt, L, lerpf(float(f.get("k_light", 1.0)), 1.0, m))
+	var vm: ShaderMaterial = v.get("_mat")
+	if vm != null:
+		var nf_here := Vector3(0.02, 0.02, 0.03)
+		if not legacy:
+			vm.set_shader_parameter("star_tint", (f.get("star_tint", _tint) as Vector3).lerp(_tint, m))
+			vm.set_shader_parameter("night_fill", (f.get("night_fill", nf_here) as Vector3).lerp(nf_here, m))
+		vm.set_shader_parameter("flare", lerpf(float(f.get("flare", _flare)), _flare, m))
+		vm.set_shader_parameter("lift", lerpf(float(f.get("lift", 1.0)), 0.0 if legacy else 1.0, m))
+		# the map's moons' shadows on its face, until it is this sky's
+		for nm in f:
+			if String(nm).begins_with("moon") and m < 0.5:
+				vm.set_shader_parameter(nm, f[nm])
+	if _near_mat != null:
+		_near_mat.set_shader_parameter("tone_k", m)
+
+
+## Where the world is drawn: where the move has it, with what is left between
+## the move's end and where LOCAL truly draws it at rest taken up over the last
+## stretch (so the settle onto LOCAL's own grid is eased, never a snap).
+func _hand_target(at: Vector2, m: float) -> Vector2:
+	var rest := _near_rest()
+	var endp: Vector2 = _hand.get("end", Vector2.INF)
+	if rest == Vector2.INF or endp == Vector2.INF:
+		return at
+	var e := clampf((m - 0.6) / 0.4, 0.0, 1.0)
+	var snap := e * e * (3.0 - 2.0 * e)
+	return at + (rest - endp) * snap
+
+
+## Where the near world stands at rest, as `_step_near` draws it (its middle).
+func _near_rest() -> Vector2:
+	if _near.is_empty():
+		return Vector2.INF
+	var e0: Array = _near[0]
+	var at := _block_round(Vector2(e0[1]) - cam * float(e0[2]))
+	var hs := Worlds.half_size(StringName(_hand.get("world", &"rock")), float(e0[3]))
+	return at + Vector2.ONE * float(hs % 2)
+
+
 func _step_near(o: Vector2) -> void:
+	if not _hand.is_empty():
+		_step_hand()
 	for e: Array in _near:
+		if not _hand.is_empty() and (e[0] == _hand.own or not (e[0] as CanvasItem).visible):
+			continue
 		var n: Node2D = e[0]
 		var at: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
-		if n is PlanetView:
-			var pv := n as PlanetView
-			var hs := Worlds.half_size(StringName(pv.spec.get("world", &"rock")), float(e[3]))
+		# (a broken world too: left out, the shattered world you orbit stood still,
+		# lit from the default side, its rubble frozen)
+		if n is PlanetView or n is ShatteredView:
+			var spec: Dictionary = n.get("spec")
+			var hs := Worlds.half_size(StringName(spec.get("world", &"rock")), float(e[3]))
 			n.position = at + Vector2.ONE * float(hs % 2)
 			# lit from the star, across the view: from where the star is on screen
 			# to where this world is, under the zoom, in this layer's own px
 			var d := (origin() - _zp(at, Z_NEAR)) / _zl(Z_NEAR)
 			var L := Vector3(d.x, d.y, 140.0).normalized()
-			pv.step(t, L, 1.0)
+			n.call("step", t + (near_t_off if n == _near_world else 0.0), L, 1.0)
+			if n == _near_world and not near_storm.is_empty():
+				_hold_storm(n, t)
 			var vm: ShaderMaterial = n.get("_mat")
 			if vm != null:
 				if not legacy:

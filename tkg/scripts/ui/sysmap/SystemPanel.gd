@@ -221,6 +221,9 @@ func _events() -> Array:
 	for bi in L.bodies.size():
 		for bc in L.bodies[bi].beacons:
 			out.append([bi, bc])
+	# the star's own events (an option sited on it), from a close orbit of it
+	for bc in L.star_beacons:
+		out.append([-1, bc])
 	if screen.view.node.type == MapGen.NodeType.PULSAR:
 		out.append([-1, null])
 	return out
@@ -246,12 +249,9 @@ func _key(bc) -> Variant:
 
 
 func _body_of_opt(i: int) -> int:
-	var L: SystemLayout = screen.view.layout
-	for bi in L.bodies.size():
-		for bc in L.bodies[bi].beacons:
-			if bc.opt == i:
-				return bi
-	return -1
+	# (-1 the star, for an event sited on it; and where nothing holds it)
+	var at: int = screen.view.layout.place_of(i)
+	return at if at >= 0 else -1
 
 
 func _place_name(body: int) -> String:

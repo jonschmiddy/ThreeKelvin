@@ -112,8 +112,10 @@ run_godot import 420 --headless --path "$PROJECT" --import
 
 step "Project boots and builds its UI"
 # Not the simulator: this path constructs the theme, the HUD and a real screen,
-# so it compiles the UI classes the simulator never touches.
-run_godot boot 240 --headless --path "$PROJECT" --quit-after 240
+# so it compiles the UI classes the simulator never touches. `gateboot` is no
+# harness Main knows (it boots as normal) but marks the run as a test, so it
+# reads and writes the harness settings, never the player's settings.cfg.
+run_godot boot 240 --headless --path "$PROJECT" --quit-after 240 -- gateboot
 
 step "Market invariant holds and prices round-trip"
 # Two checks the gate had no equivalent of, added with the economy they guard.
@@ -417,6 +419,21 @@ if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were l
 	fi
 else
 	bad "maplagtest did not finish"
+fi
+
+step "One camera: every move between chart, map, LOCAL and station lands"
+# Each seam's designs both ways, input mid-move, scroll past a zoom's end, a
+# fight from the map, DOCK/UNDOCK, and the switch off giving a plain swap.
+if ALLOW_EXTRA='resources still in use at exit|RID allocations of type .* were leaked at exit' \
+	run_godot laddertest 300 --headless --path "$PROJECT" -- sheet=LadderTest; then
+	if grep -qE '^laddertest: PASS' "$LOG_DIR/laddertest.log"; then
+		ok "every move lands where it should"
+	else
+		bad "a move between distances failed"
+		grep -E 'FAIL|^laddertest' "$LOG_DIR/laddertest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "laddertest did not finish"
 fi
 
 step "Every event opens and resolves on LOCAL"

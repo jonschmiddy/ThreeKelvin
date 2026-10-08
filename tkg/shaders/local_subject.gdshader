@@ -40,6 +40,29 @@ uniform float rock_seed = 0.0;
 uniform float grain = 14.0;
 uniform vec4 craters[8];
 uniform int n_craters = 0;
+// A PIECE TURNED BY `pixel_turn.gdshader` (`PixelTurn`, off unless asked): its
+// picture's alpha carries a count, so it is snapped at a half; the picture is
+// a box round the turned piece, so the light's reach across it is the piece's
+// own (`span_px`, screen px; 0: the picture's).
+uniform bool snap_alpha = false;
+uniform float span_px = 0.0;
+// (SOFT, a trial: the turned picture's colour is premultiplied by its coverage)
+uniform bool unpremul = false;
+// STILL (a trial, `PixelTurn`): a glint rolling across the hull as it would
+// tumble -- a band across the light's direction, `glint_at` px along it from
+// the middle, `glint_w` px wide with a dithered edge, `glint` strong
+uniform float glint = 0.0;
+uniform float glint_at = 0.0;
+uniform float glint_w = 2.0;
+// WHAT THE PLACE HAS DONE TO IT (`LocalSubject`, a stage's `bake` / `dust` /
+// `silhouette` / `dirt`): its star-facing side baked hot amber where the light
+// cooked the plating; its star-facing side dusted over; seen only as a dark
+// shape against a glare, its edge toward the star caught; a body of ice dirtied.
+uniform float bake = 0.0;
+uniform float dust = 0.0;
+uniform vec3 dust_col = vec3(0.52, 0.36, 0.26);
+uniform float silhouette = 0.0;
+uniform float dirt = 0.0;
 
 float rh(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -111,6 +134,12 @@ vec3 rock_lit(vec4 t, float out_a, vec2 uv, vec2 sz) {
 
 void fragment() {
 	vec4 c = texture(TEXTURE, UV);
+	if (unpremul && c.a > 0.0) {
+		c.rgb /= c.a;
+	}
+	if (snap_alpha) {
+		c.a = c.a >= 0.5 ? 1.0 : 0.0;
+	}
 	vec3 col = vec3(0.0);
 	if (rock) {
 		float out_a = texture(TEXTURE, UV + to_star * TEXTURE_PIXEL_SIZE * 1.5).a;
@@ -136,18 +165,46 @@ void fragment() {
 		vec2 px = TEXTURE_PIXEL_SIZE;
 		vec2 sz = 1.0 / px;
 		vec2 p = (floor(UV * sz) + 0.5) - sz * 0.5;
-		float span = max(length(sz) * 0.5, 1.0);
+		float span = span_px > 0.0 ? span_px : max(length(sz) * 0.5, 1.0);
 		float s = clamp(dot(p, to_star) / span, -1.0, 1.0);
 		float k = s > 0.0 ? s * lit : s * shade;
 		// the edge facing the star: the next pixel toward it is clear
-		float rim = texture(TEXTURE, UV + to_star * px * 1.5).a < 0.3 ? 1.0 : 0.0;
+		float na = texture(TEXTURE, UV + to_star * px * 1.5).a;
+		float rim = (snap_alpha ? na < 0.5 : na < 0.3) ? 1.0 : 0.0;
 		if (use_mask) {
 			rim = 0.0;
 		}
 		k += rim * lit * 0.9;
+		if (glint > 0.0 && s > -0.25) {
+			float gd = abs(dot(p, to_star) - glint_at);
+			ivec2 ip = ivec2(floor(UV * sz));
+			bool chk = ((ip.x + ip.y) & 1) == 0;
+			if (gd < glint_w || (gd < glint_w + 1.5 && chk)) {
+				k += glint;
+			}
+		}
 		float steps = stepped ? 3.0 : 4.0;
 		k = floor(k * steps + 0.5) / steps;
 		col = c.rgb * (1.0 + min(k, 0.0)) + c.rgb * star_col * max(k, 0.0);
+		// (stepped across the hull, as the light is: the half toward the star)
+		float side = clamp(floor((s + 0.15) * 3.0 + 0.5) / 3.0, 0.0, 1.0);
+		if (bake > 0.0) {
+			float l = dot(c.rgb, vec3(0.3, 0.5, 0.2));
+			vec3 hot = mix(vec3(0.32, 0.12, 0.04), vec3(1.0, 0.66, 0.3), clamp(l * 1.6, 0.0, 1.0));
+			col = mix(col, hot * (0.8 + 0.4 * rim), bake * side);
+		}
+		if (dust > 0.0) {
+			float l = dot(col, vec3(0.3, 0.5, 0.2));
+			col = mix(col, dust_col * (0.6 + 0.8 * l), dust * (0.35 + 0.65 * side));
+		}
+		if (silhouette > 0.0) {
+			vec3 shape = sky_col * 0.7 + c.rgb * 0.06;
+			col = mix(col, shape + star_col * rim * 0.45, silhouette);
+		}
+	}
+	if (dirt > 0.0) {
+		float l = dot(col, vec3(0.3, 0.5, 0.2));
+		col = mix(col, vec3(0.5, 0.42, 0.34) * l * 1.1, dirt);
 	}
 	col = mix(col, sky_col, clamp(far, 0.0, 1.0) * 0.6);
 	if (pal_n > 0) {

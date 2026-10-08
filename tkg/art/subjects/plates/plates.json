@@ -1,0 +1,1319 @@
+{
+ "st_dock_face_1": {
+  "anchor": 250,
+  "anchors": {
+   "cargo": [
+    148,
+    160
+   ],
+   "collar": [
+    156,
+    240
+   ],
+   "head": [
+    14,
+    26
+   ],
+   "lug0": [
+    34,
+    41
+   ],
+   "lug1": [
+    58,
+    41
+   ],
+   "lug2": [
+    16,
+    52
+   ]
+  },
+  "file": "res://art/subjects/plates/st_dock_face_1.png",
+  "h": 530,
+  "jaw": "res://art/subjects/plates/st_dock_face_1_jaw.png",
+  "kind": "structure",
+  "lattice": "res://art/subjects/plates/st_dock_face_1_lattice.png",
+  "lights": [
+   {
+    "at": [
+     111,
+     71
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 1.3,
+    "r": 13
+   },
+   {
+    "at": [
+     138,
+     71
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 2.6,
+    "r": 13
+   },
+   {
+    "at": [
+     165,
+     71
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 3.9000000000000004,
+    "r": 13
+   },
+   {
+    "at": [
+     279,
+     212
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 5.2,
+    "r": 14
+   },
+   {
+    "at": [
+     14,
+     26
+    ],
+    "col": "#ffb347",
+    "k": 1.6,
+    "kind": "blink",
+    "on": 0.8,
+    "period": 2.4,
+    "r": 7
+   }
+  ],
+  "over": 1,
+  "w": 400
+ },
+ "st_dock_face_2": {
+  "anchor": 250,
+  "anchors": {
+   "cargo": [
+    193,
+    122
+   ],
+   "collar": [
+    158,
+    245
+   ],
+   "head": [
+    18,
+    34
+   ],
+   "lug0": [
+    34,
+    44
+   ],
+   "lug1": [
+    60,
+    44
+   ],
+   "lug2": [
+    17,
+    46
+   ]
+  },
+  "file": "res://art/subjects/plates/st_dock_face_2.png",
+  "h": 530,
+  "jaw": "res://art/subjects/plates/st_dock_face_2_jaw.png",
+  "kind": "structure",
+  "lattice": "res://art/subjects/plates/st_dock_face_2_lattice.png",
+  "lights": [
+   {
+    "at": [
+     97,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 1.3,
+    "r": 10
+   },
+   {
+    "at": [
+     106,
+     66
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 2.6,
+    "r": 6
+   },
+   {
+    "at": [
+     114,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 3.9000000000000004,
+    "r": 10
+   },
+   {
+    "at": [
+     129,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 5.2,
+    "r": 10
+   },
+   {
+    "at": [
+     138,
+     66
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 6.5,
+    "r": 6
+   },
+   {
+    "at": [
+     146,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 7.800000000000001,
+    "r": 10
+   },
+   {
+    "at": [
+     161,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 9.1,
+    "r": 10
+   },
+   {
+    "at": [
+     170,
+     66
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 10.4,
+    "r": 6
+   },
+   {
+    "at": [
+     178,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 11.700000000000001,
+    "r": 10
+   },
+   {
+    "at": [
+     138,
+     75
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 13.0,
+    "r": 8
+   },
+   {
+    "at": [
+     171,
+     76
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 14.3,
+    "r": 8
+   },
+   {
+    "at": [
+     107,
+     76
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 15.600000000000001,
+    "r": 7
+   },
+   {
+    "at": [
+     291,
+     153
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 9.1,
+    "r": 5
+   },
+   {
+    "at": [
+     284,
+     155
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.0,
+    "phase": 9.799999999999999,
+    "r": 5
+   },
+   {
+    "at": [
+     162,
+     154
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 4.0,
+    "phase": 10.5,
+    "r": 5
+   },
+   {
+    "at": [
+     155,
+     159
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 11.2,
+    "r": 5
+   },
+   {
+    "at": [
+     163,
+     159
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.0,
+    "phase": 11.899999999999999,
+    "r": 5
+   },
+   {
+    "at": [
+     162,
+     163
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 4.0,
+    "phase": 12.6,
+    "r": 5
+   },
+   {
+    "at": [
+     158,
+     166
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 13.299999999999999,
+    "r": 5
+   },
+   {
+    "at": [
+     191,
+     199
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.0,
+    "phase": 14.0,
+    "r": 5
+   },
+   {
+    "at": [
+     18,
+     34
+    ],
+    "col": "#ffb347",
+    "k": 1.6,
+    "kind": "blink",
+    "on": 0.8,
+    "period": 2.4,
+    "r": 7
+   }
+  ],
+  "over": 1,
+  "w": 400
+ },
+ "st_dock_face_3": {
+  "anchor": 250,
+  "anchors": {
+   "cargo": [
+    190,
+    137
+   ],
+   "collar": [
+    155,
+    245
+   ],
+   "head": [
+    13,
+    26
+   ],
+   "lug0": [
+    32,
+    44
+   ],
+   "lug1": [
+    58,
+    44
+   ],
+   "lug2": [
+    14,
+    44
+   ]
+  },
+  "file": "res://art/subjects/plates/st_dock_face_3.png",
+  "h": 530,
+  "jaw": "res://art/subjects/plates/st_dock_face_3_jaw.png",
+  "kind": "structure",
+  "lattice": "res://art/subjects/plates/st_dock_face_3_lattice.png",
+  "lights": [
+   {
+    "at": [
+     109,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 1.3,
+    "r": 11
+   },
+   {
+    "at": [
+     139,
+     73
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 2.6,
+    "r": 14
+   },
+   {
+    "at": [
+     169,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 3.9000000000000004,
+    "r": 14
+   },
+   {
+    "at": [
+     177,
+     77
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 5.2,
+    "r": 9
+   },
+   {
+    "at": [
+     116,
+     79
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 6.5,
+    "r": 5
+   },
+   {
+    "at": [
+     147,
+     79
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 7.800000000000001,
+    "r": 6
+   },
+   {
+    "at": [
+     152,
+     114
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 4.8999999999999995,
+    "r": 5
+   },
+   {
+    "at": [
+     158,
+     109
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.0,
+    "phase": 5.6,
+    "r": 5
+   },
+   {
+    "at": [
+     161,
+     113
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 4.0,
+    "phase": 6.3,
+    "r": 5
+   },
+   {
+    "at": [
+     152,
+     161
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 7.0,
+    "r": 5
+   },
+   {
+    "at": [
+     160,
+     160
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.0,
+    "phase": 7.699999999999999,
+    "r": 5
+   },
+   {
+    "at": [
+     13,
+     26
+    ],
+    "col": "#ffb347",
+    "k": 1.6,
+    "kind": "blink",
+    "on": 0.8,
+    "period": 2.4,
+    "r": 7
+   }
+  ],
+  "over": 1,
+  "w": 400
+ },
+ "st_dock_face_4": {
+  "anchor": 250,
+  "anchors": {
+   "cargo": [
+    193,
+    137
+   ],
+   "collar": [
+    158,
+    245
+   ],
+   "head": [
+    22,
+    66
+   ],
+   "lug0": [
+    40,
+    43
+   ],
+   "lug1": [
+    64,
+    43
+   ],
+   "lug2": [
+    30,
+    45
+   ]
+  },
+  "file": "res://art/subjects/plates/st_dock_face_4.png",
+  "h": 530,
+  "jaw": "res://art/subjects/plates/st_dock_face_4_jaw.png",
+  "kind": "structure",
+  "lattice": "res://art/subjects/plates/st_dock_face_4_lattice.png",
+  "lights": [
+   {
+    "at": [
+     20,
+     73
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 1.3,
+    "r": 14
+   },
+   {
+    "at": [
+     99,
+     67
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 2.6,
+    "r": 5
+   },
+   {
+    "at": [
+     104,
+     70
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 3.9000000000000004,
+    "r": 7
+   },
+   {
+    "at": [
+     108,
+     68
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 5.2,
+    "r": 7
+   },
+   {
+    "at": [
+     114,
+     71
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 6.5,
+    "r": 10
+   },
+   {
+    "at": [
+     137,
+     67
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 7.800000000000001,
+    "r": 6
+   },
+   {
+    "at": [
+     144,
+     67
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 9.1,
+    "r": 6
+   },
+   {
+    "at": [
+     162,
+     72
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 10.4,
+    "r": 10
+   },
+   {
+    "at": [
+     170,
+     73
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 11.700000000000001,
+    "r": 10
+   },
+   {
+    "at": [
+     178,
+     69
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 13.0,
+    "r": 5
+   },
+   {
+    "at": [
+     131,
+     75
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 14.3,
+    "r": 9
+   },
+   {
+    "at": [
+     147,
+     76
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 15.600000000000001,
+    "r": 8
+   },
+   {
+    "at": [
+     100,
+     76
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.9,
+    "phase": 16.900000000000002,
+    "r": 7
+   },
+   {
+    "at": [
+     179,
+     76
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.8,
+    "phase": 18.2,
+    "r": 5
+   },
+   {
+    "at": [
+     104,
+     76
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 7.7,
+    "phase": 19.5,
+    "r": 4
+   },
+   {
+    "at": [
+     140,
+     77
+    ],
+    "col": "#ffd08a",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 5.0,
+    "phase": 20.8,
+    "r": 5
+   },
+   {
+    "at": [
+     155,
+     113
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 6.0,
+    "phase": 11.899999999999999,
+    "r": 5
+   },
+   {
+    "at": [
+     155,
+     161
+    ],
+    "col": "#ffb050",
+    "k": 1.3,
+    "kind": "breathe",
+    "period": 4.0,
+    "phase": 12.6,
+    "r": 5
+   },
+   {
+    "at": [
+     22,
+     66
+    ],
+    "col": "#ffb347",
+    "k": 1.6,
+    "kind": "blink",
+    "on": 0.8,
+    "period": 2.4,
+    "r": 7
+   }
+  ],
+  "over": 1,
+  "w": 400
+ },
+ "st_the_automatic_dock": {
+  "anchor": 230,
+  "caps": "res://art/subjects/plates/st_the_automatic_dock_caps.png",
+  "cycle": {
+   "move": 3.5,
+   "open": 18.0,
+   "period": 40.0,
+   "shut": 15.0
+  },
+  "file": "res://art/subjects/plates/st_the_automatic_dock.png",
+  "h": 530,
+  "kind": "structure",
+  "lights": [
+   {
+    "at": [
+     18,
+     257
+    ],
+    "col": "#8cffb0",
+    "k": 1.4,
+    "kind": "breathe",
+    "part": 0,
+    "period": 3.0,
+    "r": 4
+   },
+   {
+    "at": [
+     129,
+     195
+    ],
+    "col": "#ffb347",
+    "k": 1.6,
+    "kind": "cycle",
+    "r": 5
+   },
+   {
+    "at": [
+     206,
+     243
+    ],
+    "col": "#ffa040",
+    "k": 1.1,
+    "kind": "breathe",
+    "period": 5.0,
+    "r": 5
+   }
+  ],
+  "over": 1,
+  "parts": [
+   {
+    "anim": "cycle",
+    "deg": -122.0,
+    "file": "res://art/subjects/plates/st_the_automatic_dock_arm.png",
+    "pivot": [
+     129,
+     208
+    ]
+   }
+  ],
+  "w": 400
+ },
+ "st_the_glass_ring_1": {
+  "anchor": 250,
+  "file": "res://art/subjects/plates/st_the_glass_ring_1.png",
+  "h": 530,
+  "kind": "structure",
+  "lights": [
+   {
+    "at": [
+     168,
+     43
+    ],
+    "col": "#c8f7ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 5.0,
+    "phase": 0.0,
+    "r": 11
+   },
+   {
+    "at": [
+     238,
+     85
+    ],
+    "col": "#ffc8f0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.7,
+    "phase": 2.3,
+    "r": 8
+   },
+   {
+    "at": [
+     209,
+     128
+    ],
+    "col": "#fff0b0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 8.4,
+    "phase": 4.6,
+    "r": 8
+   },
+   {
+    "at": [
+     156,
+     173
+    ],
+    "col": "#b8ffd8",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.1,
+    "phase": 6.8999999999999995,
+    "r": 11
+   },
+   {
+    "at": [
+     152,
+     220
+    ],
+    "col": "#d8c8ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 7.8,
+    "phase": 9.2,
+    "r": 8
+   },
+   {
+    "at": [
+     199,
+     265
+    ],
+    "col": "#c8f7ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 5.5,
+    "phase": 11.5,
+    "r": 8
+   },
+   {
+    "at": [
+     219,
+     308
+    ],
+    "col": "#ffc8f0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 7.199999999999999,
+    "phase": 13.799999999999999,
+    "r": 11
+   },
+   {
+    "at": [
+     223,
+     348
+    ],
+    "col": "#fff0b0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 8.9,
+    "phase": 16.099999999999998,
+    "r": 8
+   },
+   {
+    "at": [
+     254,
+     393
+    ],
+    "col": "#b8ffd8",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.6,
+    "phase": 18.4,
+    "r": 8
+   },
+   {
+    "at": [
+     216,
+     438
+    ],
+    "col": "#d8c8ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 8.299999999999999,
+    "phase": 20.7,
+    "r": 11
+   },
+   {
+    "at": [
+     240,
+     483
+    ],
+    "col": "#c8f7ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.0,
+    "phase": 23.0,
+    "r": 8
+   }
+  ],
+  "over": 1,
+  "w": 400
+ },
+ "st_the_glass_ring_2": {
+  "anchor": 250,
+  "file": "res://art/subjects/plates/st_the_glass_ring_2.png",
+  "h": 530,
+  "kind": "structure",
+  "lights": [
+   {
+    "at": [
+     233,
+     40
+    ],
+    "col": "#c8f7ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 5.0,
+    "phase": 0.0,
+    "r": 11
+   },
+   {
+    "at": [
+     172,
+     84
+    ],
+    "col": "#ffc8f0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.7,
+    "phase": 2.3,
+    "r": 8
+   },
+   {
+    "at": [
+     208,
+     127
+    ],
+    "col": "#fff0b0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 8.4,
+    "phase": 4.6,
+    "r": 8
+   },
+   {
+    "at": [
+     172,
+     173
+    ],
+    "col": "#b8ffd8",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.1,
+    "phase": 6.8999999999999995,
+    "r": 11
+   },
+   {
+    "at": [
+     118,
+     219
+    ],
+    "col": "#d8c8ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 7.8,
+    "phase": 9.2,
+    "r": 8
+   },
+   {
+    "at": [
+     122,
+     262
+    ],
+    "col": "#c8f7ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 5.5,
+    "phase": 11.5,
+    "r": 8
+   },
+   {
+    "at": [
+     207,
+     305
+    ],
+    "col": "#ffc8f0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 7.199999999999999,
+    "phase": 13.799999999999999,
+    "r": 11
+   },
+   {
+    "at": [
+     154,
+     350
+    ],
+    "col": "#fff0b0",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 8.9,
+    "phase": 16.099999999999998,
+    "r": 8
+   },
+   {
+    "at": [
+     185,
+     393
+    ],
+    "col": "#b8ffd8",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.6,
+    "phase": 18.4,
+    "r": 8
+   },
+   {
+    "at": [
+     217,
+     438
+    ],
+    "col": "#d8c8ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 8.299999999999999,
+    "phase": 20.7,
+    "r": 11
+   },
+   {
+    "at": [
+     317,
+     483
+    ],
+    "col": "#c8f7ff",
+    "k": 1.8,
+    "kind": "glint",
+    "period": 6.0,
+    "phase": 23.0,
+    "r": 8
+   }
+  ],
+  "over": 1,
+  "w": 400
+ },
+ "st_the_thrower": {
+  "anchor": 250,
+  "file": "res://art/subjects/plates/st_the_thrower.png",
+  "h": 530,
+  "kind": "structure",
+  "lights": [
+   {
+    "at": [
+     230,
+     164
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.0,
+    "r": 10
+   },
+   {
+    "at": [
+     201,
+     145
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.11,
+    "r": 10
+   },
+   {
+    "at": [
+     172,
+     126
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.22,
+    "r": 10
+   },
+   {
+    "at": [
+     145,
+     108
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.33,
+    "r": 10
+   },
+   {
+    "at": [
+     116,
+     90
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.44,
+    "r": 10
+   },
+   {
+    "at": [
+     88,
+     70
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.55,
+    "r": 10
+   },
+   {
+    "at": [
+     59,
+     52
+    ],
+    "col": "#ffc078",
+    "k": 1.8,
+    "kind": "blink",
+    "on": 0.6,
+    "period": 14.0,
+    "phase": -0.66,
+    "r": 10
+   },
+   {
+    "at": [
+     48,
+     45
+    ],
+    "col": "#ffb347",
+    "k": 2.0,
+    "kind": "blink",
+    "on": 1.0,
+    "period": 14.0,
+    "phase": -0.8200000000000001,
+    "r": 16
+   },
+   {
+    "at": [
+     45,
+     42
+    ],
+    "col": "#ffb347",
+    "k": 1.0,
+    "kind": "breathe",
+    "period": 3.5,
+    "r": 4
+   },
+   {
+    "at": [
+     298,
+     189
+    ],
+    "col": "#ff9a40",
+    "k": 1.1,
+    "kind": "breathe",
+    "period": 5.0,
+    "r": 5
+   }
+  ],
+  "over": 1,
+  "w": 400
+ }
+}

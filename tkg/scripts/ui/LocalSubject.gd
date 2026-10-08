@@ -31,7 +31,7 @@ extends Control
 ## A `subject` is one stage, or `{layers = [stage, ...]}` drawn back to front.
 ## A stage:
 ##   stage   single | row | tether | field | herd | line | around | on_rock | strewn
-##           | ring | group
+##           | ring | group | structure
 ##   pieces  piece ids from the index, cycled; or `role:<name>` (a kept pool
 ##           ship of that role, the same one for this encounter every time:
 ##           `resolve`). Never the fight's own coded ship (`EnemyArt`): Jon
@@ -44,7 +44,18 @@ extends Control
 ##   near    how many of a row/herd/line/field are near (1x); the rest are far
 ##           (half scale, dimmed toward the sky)
 ##   seed    the scatter's seed
+##   pick    the stage's pieces are KEPT TAKES OF ONE THING (Jon kept more than
+##           one): one of them is drawn, picked per system the way the sky's
+##           looks are (`pick_of`: the system's index with the run's galaxy) --
+##           the same take at the same system every visit in a run, another
+##           take at another system, so every kept take gets seen
 ##   tumble  a slow tumble, degrees (single)
+##   roll    single: turning right over, degrees a second, through the soft
+##           turner -- never stepped
+##   spin    single: a ring of modules spinning about its own axis, seconds a
+##           turn (its index record's `spin`: the ring unwrapped into a strip;
+##           `ring_spin.gdshader`), its modules travelling round it, the light
+##           staying with the star, its own lights riding round with them
 ##   lift    strewn: each piece's offset down (+) or up (-) from the line, px
 ##   turn    strewn: each piece's turn, degrees -- turned once when it is built,
 ##           pixel for pixel (`turned`), never turned on screen, so it does not
@@ -66,6 +77,56 @@ extends Control
 ##           it, clamped there (two clamps drawn over the seam), moving with it
 ## And on a stage: `strobe` (a light run along the line of its ships).
 ##
+## A BIG STRUCTURE YOU ARE PULLING UP TO (`structure`; Jon's "Pulling up to it"
+## page: a breaking frame, a repair yard, a clamp tower, a dead yard's cradle, a
+## carcass). One picture (`kind` "structure" in the index, 400 x 530 at the
+## ships' own pixel size) PINNED to the view's right edge -- its right edge `over`
+## px past it, its row `anchor` level with your ship's middle -- so it runs off
+## the top, the right and the bottom (under the band), from about x 540, and its
+## nearest part is at your height. It never moves for a fight's wrecks: it stays
+## BEHIND them (the hulls' row draws after this, and this takes no clicks), dimmed
+## the way far pieces are while they are there. It zooms and blurs with the scene
+## in the cutaway (`SectorScreen.open_cutaway` hands this control over whole).
+## Lit by the star like any piece (`local_subject.gdshader`), but by its edges
+## only: a light falling across 530 px would cross it in stepped bands.
+##   pieces   [the structure's id]
+##   with     [{piece, at (its centre, in the structure's own pixels), scale?,
+##            far?, swim?, tumble?, flip?, turn?}]: kept pieces that belong to
+##            it, pinned with it, drifting on their own clocks
+##   cluster  {pieces, count, rect (Rect2, the structure's own pixels), size
+##            [smallest, largest], turns, seed}: a loose knot of small things
+##            on it (Jon on the whale's feeders: "more small and ... facing in
+##            different directions"), each its own size, facing either way and
+##            turned its own way, scattered through `rect` (not round a point),
+##            clear of one another, swimming and turning a little through the
+##            soft turner
+##   add_lights  more `lights` this encounter adds (a berth lit where he waits),
+##            each may carry a `cone` (a spill of light that long, leftward, at
+##            `cone_k` of the lamp, default a half)
+##   with ... and on each `with` entry any ship state (`lights`, `dark`, ...)
+##   lines    [{from (the structure's own pixels), to (an index into `with`),
+##            to_at (that piece's own 1x pixels)}]: mooring lines, slack
+##   (any point on the structure -- a `with`'s `at`, a light's `at`, a line's
+##   `from`, the grip's `at` -- may instead NAME one of its `anchors`, plus an
+##   `off`: so kept takes of one structure, `pick`ed per system, each put these
+##   on their own parts)
+##   parted   {from, len, lean?}: a line parted at its far end, hanging and
+##            drifting, trailing `lean` px aside at its end (default 8 leftward)
+##   grip     {from_x | at}: one clamp's arm run out from the structure (from
+##            its first metal on the arm's row near x `from_x`, or the named
+##            part), level, all the way to your hull's bow, its jaws
+##            on your bow (touching, never across it), a red fault lamp on them
+##            -- the one thing that may touch your ship, as a clamp does. Its
+##            lattice and jaw are the structure's own (`lattice`, `jaw`)
+## Its life is in the index record, in its own pixels, all code and all light:
+## `lights` (steady | breathe | blink | flicker | cycle | glint; a light with a
+## `part` rides that moving part), `windows` (panes lit
+## as their own glow), `glows` (light baked onto its surfaces, breathing),
+## `sparks` (a cutting head that runs now and then), `parts` (pictures turned
+## live about a pivot by the soft turner and eased: a boom's `sway` or `slide`, a
+## cradle's arms on their `cycle`), `caps` (a layer over the parts), `swarm` (specks
+## crawling its ribs).
+##
 ## NOTHING IS DRAWN ACROSS ANYTHING ELSE (Jon: "why are they stacked on top of
 ## each other"; "it has to make sense where it stands"). No two pieces' opaque
 ## pixels come within the drift each can travel of one another (`mask_of`,
@@ -73,7 +134,9 @@ extends Control
 ## and a declared `dock`, which touches along an edge. `-- subjecttest` holds
 ## every subject to it.
 ## Lights, drives, floods and strobes are drawn in code over the art, as light
-## (gathered, stepped and dithered, eased), never painted on the pictures.
+## (gathered, stepped and dithered, eased), never painted on the pictures. A
+## piece's own lights are in its index record (`own_lights`, the structure's
+## light kinds, at its own 1x pixels): they come round with it as it turns.
 
 const INDEX_PATH := "res://art/subjects/index.json"
 const SHADER := preload("res://shaders/local_subject.gdshader")
@@ -95,6 +158,8 @@ static var _glows: Dictionary = {}
 static var _masks: Dictionary = {}
 ## The stagings the last `plan` drew fewer of than asked, to keep them clear.
 static var short: Array[String] = []
+## A harness's override of `pick` (which kept take is drawn), or -1.
+static var force_pick := -1
 
 ## Which option this draws, at which system (so a refresh only rebuilds when it
 ## changes).
@@ -103,6 +168,8 @@ var subject: Variant = null
 ## The encounter it is (its ships are picked by it) and the system's danger.
 var oid: StringName = &""
 var danger := 1
+## the system it is drawn at (`LocalFx` finds the pulsar from it)
+var node_index := -1
 ## What it drew, piece by piece, once resolved.
 var cast: Array[StringName] = []
 var sky: LocalSky = null
@@ -127,6 +194,16 @@ var _links: Node2D = null
 var _t := 0.0
 ## LOCAL's drawn place, held hidden while this is up (see `_process`)
 var _area: Control = null
+## A BIG STRUCTURE's record when the staging is one (pinned to the right edge,
+## never moved for wrecks), else {}; your ship's middle row it was pinned to
+## last; whether it is dimmed behind a fight's wrecks now; where its crawling
+## specks are drawn (plain paint, over the pieces, under the lights).
+var _st: Dictionary = {}
+var _ship_y := -1.0
+var _dimmed := false
+var _life: Node2D = null
+## The structure's screen rect, this frame (this control's own space).
+var st_rect := Rect2()
 
 
 func _init() -> void:
@@ -156,6 +233,24 @@ static func role_ships(role: String) -> Array:
 ## A piece's record, from the index.
 static func piece_info(id: StringName) -> Dictionary:
 	return index().get(String(id), {})
+
+
+## A planned piece's record as it is drawn: the index's, with a painter moon cut
+## to a lumpy outline when its stage asks (`lumpy`, the outline's seed: the
+## rocks' own recipe, `lumpy_mask`, round the moon's disc -- a comet's nucleus,
+## a body of dirty ice, from the kept moon recipes).
+static func rec_for(m: Dictionary) -> Dictionary:
+	var p := piece_info(StringName(m.id))
+	# (`world`: the moon recipe painted as another world -- a moon in pieces)
+	if m.has("world") and String(p.get("kind", "")) == "painter":
+		p = p.duplicate()
+		p.world = String(m.world)
+	if m.has("lumpy") and String(p.get("kind", "")) == "painter" and (p.get("lobes", []) as Array).is_empty():
+		p = p.duplicate()
+		p.lobes = [[float(p.cx), float(p.cy), float(p.r) * 1.17, float(m.lumpy)]]
+		p.lo = 0.7
+		p.amp = 0.34
+	return p
 
 
 static func has_piece(id: StringName) -> bool:
@@ -195,12 +290,13 @@ static func box_for(view_size: Vector2) -> Rect2:
 
 ## THE STAGING, worked out without drawing anything: every piece as
 ## {id, at (centre, px from the subject's centre), scale, far, r, flip, kind}.
-## Deterministic, so a test can check it fits without a screen.
-static func plan(s: Variant, oid: StringName = &"", danger: int = 1) -> Array:
+## Deterministic, so a test can check it fits without a screen. `sys`: the
+## system it is drawn at (its `pick`s are made by it), or -1.
+static func plan(s: Variant, oid: StringName = &"", danger: int = 1, sys: int = -1) -> Array:
 	var out: Array = []
 	var stage_i := -1
 	short.clear()
-	for st: Dictionary in stages_of(resolve(s, oid, danger)):
+	for st: Dictionary in stages_of(resolve(s, oid, danger, sys)):
 		stage_i += 1
 		var at: Vector2 = st.get("at", Vector2.ZERO)
 		# what earlier stages placed, in this stage's own frame, to keep clear of
@@ -235,6 +331,31 @@ static func plan(s: Variant, oid: StringName = &"", danger: int = 1) -> Array:
 				made = _stage_ring(st)
 			&"group":
 				made = _stage_group(st)
+			&"structure":
+				made = _stage_structure(st)
+			&"ring_arc":
+				made = _stage_ring_arc(st)
+			&"none", &"fx":
+				# (nothing to place: `none` only takes the stand-in's place; an
+				# effect is drawn in code by `LocalFx`)
+				made = []
+		# A STAGE STOOD ON SOMETHING IN THE SKY (`anchor`): its pieces placed from
+		# that, not from the subject's box -- the world you orbit's face (`near`,
+		# `on` the point of it in its radii), its rings (`ring_arc`), or a line
+		# out from the star (`star`, `d` px along it)
+		var anchor := StringName(st.get("anchor", &"ring" if StringName(st.get("stage", &"")) == &"ring_arc" else &""))
+		if anchor != &"":
+			for m: Dictionary in made:
+				m.anchor = anchor
+				m.anchor_on = st.get("on", Vector2.ZERO)
+				m.anchor_d = float(st.get("d", 0.0))
+				m.anchor_at = at
+		# a piece's own look, from its stage: a painter piece cut lumpy (`lumpy`,
+		# its outline's seed) or dirtied (`dirt`); and the effects that ride on it
+		for m: Dictionary in made:
+			for k2: String in ["lumpy", "world", "dirt", "bake", "silhouette", "dust", "glint", "window", "tail"]:
+				if st.has(k2) and not m.has(k2):
+					m[k2] = st[k2]
 		# a staging that could not stand every piece clear shows fewer: say so
 		var wanted := int(st.get("count", made.size()))
 		var real := 0
@@ -263,7 +384,10 @@ static func plan(s: Variant, oid: StringName = &"", danger: int = 1) -> Array:
 	# far first, near last (a docked one keeps its host's index through the sort)
 	for i in out.size():
 		out[i].idx = i
+	# (a structure first of all: what belongs to it is in front of it, far or not)
 	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if bool(a.get("structure", false)) != bool(b.get("structure", false)):
+			return bool(a.get("structure", false))
 		return float(a.far) > float(b.far) if not is_equal_approx(float(a.far), float(b.far)) else int(a.get("z", 0)) < int(b.get("z", 0)))
 	var where := {}
 	for i in out.size():
@@ -319,10 +443,10 @@ static func mask_of(m: Dictionary) -> Dictionary:
 	var turn := float(m.get("turn", 0.0))
 	var r := float(m.get("r", 0.0))
 	var flip := bool(m.get("flip", false))
-	var key := "%s|%s|%s|%s|%s" % [id, sc, turn, r, flip]
+	var key := "%s|%s|%s|%s|%s|%s" % [id, sc, turn, r, flip, m.get("lumpy", "")]
 	if _masks.has(key):
 		return _masks[key]
-	var p := piece_info(id)
+	var p := rec_for(m)
 	if p.is_empty():
 		return {}
 	var img: Image = null
@@ -351,6 +475,14 @@ static func mask_of(m: Dictionary) -> Dictionary:
 				path = String(p.half)
 				base = 0.5
 			img = _image_of(path)
+			# (a kept piece with no small picture of its own: one made the flyby's
+			# way, `small_image`)
+			if base == 1.0 and sc <= 0.5 + 0.001 and img != null:
+				var kk := 4 if sc <= 0.25 + 0.001 else 2
+				var sm := small_image(path, kk)
+				if sm != null:
+					img = sm.duplicate()
+					base = 1.0 / float(kk)
 	if img == null:
 		return {}
 	if img.is_compressed():
@@ -385,6 +517,75 @@ static func _image_of(path: String) -> Image:
 	if img == null or img.is_empty():
 		img = Image.load_from_file(path)
 	return img
+
+
+## Small pictures made here, by "path:k".
+static var _smalls: Dictionary = {}
+
+
+## A KEPT PICTURE AT 1/k, MADE THE FLYBY'S WAY (`tools/flyby_ships.py` `reduce`,
+## which made the pool ships' own half and quarter pictures): each k x k block
+## averaged by its cover, kept where it is at least half covered, and snapped to
+## the picture's own commonest colours -- pixel art at its size, never every
+## k-th pixel of the big one. For kept pieces drawn small that have no small
+## picture of their own (a gutted frame in a ring, glazed hulls far off).
+static func small_image(path: String, k: int) -> Image:
+	var key := "%s:%d" % [path, k]
+	if _smalls.has(key):
+		return _smalls[key]
+	var src := _image_of(path)
+	if src == null:
+		return null
+	src = src.duplicate()
+	if src.is_compressed():
+		src.decompress()
+	src.convert(Image.FORMAT_RGBA8)
+	var w := src.get_width()
+	var h := src.get_height()
+	# its own colours, the commonest 24 opaque ones
+	var counts := {}
+	for y in h:
+		for x in w:
+			var c := src.get_pixel(x, y)
+			if c.a > 0.5:
+				var hx := c.to_rgba32()
+				counts[hx] = int(counts.get(hx, 0)) + 1
+	var keys := counts.keys()
+	keys.sort_custom(func(a: int, b: int) -> bool: return int(counts[a]) > int(counts[b]))
+	var pal: Array[Color] = []
+	for i in mini(24, keys.size()):
+		var cc := Color.hex(int(keys[i]))
+		pal.append(cc)
+	var W := (w + k - 1) / k
+	var H := (h + k - 1) / k
+	var out := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	for by in H:
+		for bx in W:
+			var cov := 0.0
+			var acc := Vector3.ZERO
+			for yy in k:
+				for xx in k:
+					var x := bx * k + xx
+					var y := by * k + yy
+					if x >= w or y >= h:
+						continue
+					var c := src.get_pixel(x, y)
+					cov += c.a
+					acc += Vector3(c.r, c.g, c.b) * c.a
+			if cov / float(k * k) < 0.5:
+				continue
+			var avg := acc / maxf(cov, 1e-6)
+			var best := Color(avg.x, avg.y, avg.z)
+			var bd := 1e9
+			for pc in pal:
+				var d := Vector3(pc.r - avg.x, pc.g - avg.y, pc.b - avg.z).length_squared()
+				if d < bd:
+					bd = d
+					best = pc
+			best.a = 1.0
+			out.set_pixel(bx, by, best)
+	_smalls[key] = out
+	return out
 
 
 ## Where a planned piece's picture starts, its top-left pixel.
@@ -467,6 +668,8 @@ static func _clear(m: Dictionary, others: Array) -> bool:
 ## How far a planned piece can travel from where it stands: its drift (as
 ## `_process` moves it) and the reach of its tumble at its ends.
 static func drift_of(m: Dictionary) -> Vector2:
+	if bool(m.get("structure", false)):
+		return Vector2.ZERO
 	var amp := 3.0 if float(m.far) > 0.0 else 5.0
 	var d := Vector2(amp * 0.5, amp * 0.4)
 	if bool(m.get("swim", false)):
@@ -547,6 +750,9 @@ static func turned_image(src: Image, deg: float) -> Image:
 ## The rect a planned piece covers, px from the subject's centre.
 static func rect_of(m: Dictionary) -> Rect2:
 	var sz := turned_size(piece_size(StringName(m.id), float(m.get("r", 0.0))), float(m.get("turn", 0.0))) * float(m.scale)
+	# (turning right over, it sweeps the square of its diagonal)
+	if float(m.get("roll", 0.0)) != 0.0:
+		sz = Vector2.ONE * ceilf(sz.length())
 	return Rect2((m.at as Vector2) - sz * 0.5, sz)
 
 
@@ -581,8 +787,18 @@ static func _m(id: StringName, at: Vector2, sc: float = 1.0, far: float = 0.0, e
 
 static func _stage_single(st: Dictionary) -> Array:
 	var far := bool(st.get("far", false))
-	return [_m(_piece(st, 0), Vector2.ZERO, 0.5 if far else 1.0, 0.55 if far else 0.0,
-		{r = float(st.get("r", 0.0)), tumble = float(st.get("tumble", 0.0)), turn = float(st.get("turn", 0.0)), flip = bool(st.get("flip", false))})]
+	# `size`: drawn that much smaller (its own half or quarter picture), dimmed
+	# toward the sky by `far_k` (none unless asked: small, not far)
+	var sc := float(st.get("size", 0.5 if far else 1.0))
+	var m := _m(_piece(st, 0), Vector2.ZERO, sc, float(st.get("far_k", 0.55 if far else 0.0)),
+		{r = float(st.get("r", 0.0)), tumble = float(st.get("tumble", 0.0)), turn = float(st.get("turn", 0.0)), flip = bool(st.get("flip", false))})
+	# `roll`: turning right over (the soft turner; `_process`)
+	if st.has("roll"):
+		m.roll = float(st.roll)
+	# `spin`: a ring spinning about its own axis (`_spin_setup`)
+	if st.has("spin"):
+		m.spin = float(st.spin)
+	return [m]
 
 
 ## A ROW: a line of them nose to tail along `dir` (`_nose_to_tail`), the first
@@ -741,6 +957,9 @@ static func _stage_field(st: Dictionary) -> Array:
 	# and `lift` sets the further ones that much higher at a quarter size (half
 	# that at half size), as far things sit nearer the horizon
 	var lift := float(st.get("lift", 0.0))
+	# `r`: [smallest, largest] radius for its painter pieces (rocks and ice in a
+	# stream), each its own size from `seed`
+	var rr_range: Array = st.get("r", [])
 	for i in n:
 		var far := i >= near
 		var id := _piece(st, i)
@@ -748,7 +967,10 @@ static func _stage_field(st: Dictionary) -> Array:
 		if i >= n - deep and far:
 			sc = 0.25
 		var turn := roundf(R.randf_range(-turns, turns)) if turns > 0.0 else 0.0
-		var sz := turned_size(piece_size(id), turn) * sc
+		var pr := 0.0
+		if rr_range.size() == 2 and String(piece_info(id).get("kind", "")) == "painter":
+			pr = roundf(lerpf(float(rr_range[0]), float(rr_range[1]), R.randf()))
+		var sz := turned_size(piece_size(id, pr), turn) * sc
 		var flip := R.randf() < 0.5
 		if st.has("flip"):
 			flip = bool(st.flip)
@@ -763,7 +985,7 @@ static func _stage_field(st: Dictionary) -> Array:
 			at.x = clampf(at.x, -span * 0.5 + sz.x * 0.5, span * 0.5 - sz.x * 0.5)
 			at.y = clampf(at.y, -hgt * 0.5 + sz.y * 0.5, hgt * 0.5 - sz.y * 0.5)
 			var m := _m(id, at.round(), sc, _far_of(sc) if turns > 0.0 or deep > 0 else (0.55 if far else 0.0),
-				{flip = flip, tumble = float(st.get("tumble", 4.0)), z = i, turn = turn})
+				{flip = flip, tumble = float(st.get("tumble", 4.0)) if pr <= 0.0 else 0.0, z = i, turn = turn, r = pr})
 			# CLEAR of every piece already placed, this field's and the scene's
 			if _clear(m, out + prior):
 				out.append(m)
@@ -1016,7 +1238,8 @@ const SHIP_STATES := ["dark", "lights", "drive", "flood", "tow"]
 ## next one along. So one encounter shows the same ships every time, the ships
 ## inside it differ, and two encounters land on different ones. A stage with a
 ## `count` and roles in its pieces gets one pick per ship, not one per entry.
-static func resolve(s: Variant, oid: StringName, danger: int = 1) -> Variant:
+## A stage of kept takes (`pick`) keeps the one take this system draws.
+static func resolve(s: Variant, oid: StringName, danger: int = 1, sys: int = -1) -> Variant:
 	var used := {}
 	var out: Array = []
 	var i := 0
@@ -1024,6 +1247,9 @@ static func resolve(s: Variant, oid: StringName, danger: int = 1) -> Variant:
 		var st2: Dictionary = st.duplicate(true)
 		st2.strobe_id = i if bool(st.get("strobe", false)) else -1
 		i += 1
+		if bool(st2.get("pick", false)) and (st2.get("pieces", []) as Array).size() > 1:
+			var takes: Array = st2.pieces
+			st2.pieces = [takes[pick_of(takes.size(), oid, sys)]]
 		var ps: Array = st2.get("pieces", [])
 		var dynamic := false
 		for pid in ps:
@@ -1048,6 +1274,23 @@ static func resolve(s: Variant, oid: StringName, danger: int = 1) -> Variant:
 	if s is Dictionary and (s as Dictionary).has("layers"):
 		return {layers = out}
 	return out[0] if not out.is_empty() else s
+
+
+## WHICH KEPT TAKE A SYSTEM DRAWS, of `n` (a stage's `pick`): seeded from the
+## system as its sky's looks are (`SkyBake.hash2` on its index, here with the
+## run's galaxy too, so another run deals them again) and the encounter, so the
+## same system shows the same take every visit, and the systems an encounter
+## turns up at between them show all of them. `sys` -1 (no system): the first.
+static func pick_of(n: int, oid: StringName, sys: int) -> int:
+	if n <= 1:
+		return 0
+	if force_pick >= 0:
+		return force_pick % n
+	if sys < 0:
+		return 0
+	var salt := absi(String(oid).hash()) % 100003
+	var g := absi(Run.galaxy_seed) % 100003
+	return mini(n - 1, int(LocalSky.SkyBakeS.hash2(sys * 7919 + g, salt) * float(n)))
 
 
 static func _is_cast(id: StringName) -> bool:
@@ -1161,6 +1404,166 @@ static func _stage_strewn(st: Dictionary) -> Array:
 	return out
 
 
+## A BIG STRUCTURE (see the header): the structure itself, at the middle of its
+## own picture, and the kept pieces that go with it, each where its `at` puts it
+## in the structure's own pixels -- all of them pinned with it.
+static func _stage_structure(st: Dictionary) -> Array:
+	var id := _piece(st, 0)
+	var p := piece_info(id)
+	var out: Array = [_m(id, Vector2.ZERO, 1.0, 0.0, {z = -100, structure = true, pinned = true, base_of = true})]
+	# what this encounter adds to it: lamps, mooring lines, a parted line, a
+	# clamp's arm -- their points on THIS structure's own parts (`_anchor_pt`:
+	# a name of its `anchors`, so each kept take puts them on its own berth)
+	for k: String in ["add_lights", "lines", "parted", "grip"]:
+		if not st.has(k):
+			continue
+		var v: Variant = st[k]
+		if v is Array:
+			var arr: Array = []
+			for e: Dictionary in v:
+				var e2 := e.duplicate()
+				for key: String in ["at", "from"]:
+					if e2.has(key):
+						var q := _anchor_pt(p, e2[key], e2.get("off", null))
+						e2[key] = [q.x, q.y]
+				arr.append(e2)
+			v = arr
+		elif v is Dictionary:
+			var d2 := (v as Dictionary).duplicate()
+			if d2.has("from"):
+				var q2 := _anchor_pt(p, d2.from, d2.get("off", null))
+				d2.from = [q2.x, q2.y]
+			if d2.has("at"):
+				# (a clamp's arm leaves the structure from that part's own left edge)
+				var q3 := _anchor_pt(p, d2.at, d2.get("off", null))
+				d2.from_x = q3.x
+				d2.from_y = q3.y
+			v = d2
+		out[0]["st_" + k] = v
+	var c := Vector2(float(p.get("w", 0)), float(p.get("h", 0))) * 0.5
+	var i := 0
+	for w: Dictionary in st.get("with", []):
+		var sc := float(w.get("scale", 1.0))
+		var wm := _m(StringName(w.get("piece", &"")), (_anchor_pt(p, w.get("at", c), w.get("off", null)) - c).round(), sc,
+			float(w.get("far", _far_of(sc))), {z = int(w.get("z", i)), pinned = true, on_base = true,
+			swim = bool(w.get("swim", false)), tumble = float(w.get("tumble", 0.0)),
+			flip = bool(w.get("flip", false)), turn = float(w.get("turn", 0.0)), with_i = i})
+		for k: String in SHIP_STATES:
+			if w.has(k):
+				wm[k] = w[k]
+		out.append(wm)
+		i += 1
+	# A LOOSE KNOT OF SMALL THINGS ON IT (`cluster`, see the header): each tried
+	# up to 60 places in `rect`, kept where it is clear of all placed so far
+	var cl: Dictionary = st.get("cluster", {})
+	if not cl.is_empty():
+		var R := RandomNumberGenerator.new()
+		R.seed = int(cl.get("seed", 3))
+		var rect: Rect2 = cl.get("rect", Rect2(Vector2.ZERO, c * 2.0))
+		var sizes: Array = cl.get("size", [0.25, 0.4])
+		var turns := float(cl.get("turns", 30.0))
+		var ps: Array = cl.get("pieces", [])
+		var placed: Array = []
+		for k in int(cl.get("count", 6)):
+			if ps.is_empty():
+				break
+			var pid := StringName(ps[k % ps.size()])
+			for tries in 60:
+				var sc := snappedf(R.randf_range(float(sizes[0]), float(sizes[1])), 0.05)
+				var at := rect.position + Vector2(R.randf() * rect.size.x, R.randf() * rect.size.y)
+				var m := _m(pid, (at - c).round(), sc, 0.0, {z = i + k, pinned = true, on_base = true,
+					swim = true, tumble = float(cl.get("tumble", 3.0)), flip = R.randf() < 0.5,
+					turn = roundf(R.randf_range(-turns, turns))})
+				if _clear(m, placed + out.slice(1)):
+					placed.append(m)
+					break
+		out.append_array(placed)
+	return out
+
+
+## A POINT OF A STRUCTURE, as an encounter names it: its own pixels ([x, y] or
+## a Vector2), or the name of one of its `anchors` (its index record's own parts:
+## a dock face's cargo berth, its collar, the lugs under its mast), plus `off`.
+static func _anchor_pt(p: Dictionary, v: Variant, off: Variant = null) -> Vector2:
+	var q := Vector2.ZERO
+	if v is String or v is StringName:
+		var a: Array = (p.get("anchors", {}) as Dictionary).get(String(v), [0, 0])
+		q = Vector2(float(a[0]), float(a[1]))
+	elif v is Vector2:
+		q = v
+	elif v is Array and (v as Array).size() >= 2:
+		q = Vector2(float(v[0]), float(v[1]))
+	if off is Vector2:
+		q += off
+	elif off is Array and (off as Array).size() >= 2:
+		q += Vector2(float(off[0]), float(off[1]))
+	return q
+
+
+## The radius LOCAL draws a giant you orbit at, near enough (`LocalSky`
+## NEAR_GIANT_R), to plan a stage stood on it before it is drawn.
+const NEAR_R := 150.0
+
+
+## IN THE RINGS OF THE WORLD YOU ORBIT (`ring_arc`): each piece on the ring's
+## far arc, where it shows past the world's limb above the event's band, at
+## `u` across it (-1 its left end, 1 its right; past the limb is |u| over about
+## a half) and `lift` px off the ring's middle line, at `size` (a quarter: far
+## off, as big as hulls in a ring a hundred thousand kilometres across look).
+## Planned with the giant at its usual size; drawn where the giant is
+## (`_ring_point`).
+static func _stage_ring_arc(st: Dictionary) -> Array:
+	var out: Array = []
+	var us: Array = st.get("u", [-0.6, 0.6])
+	var lifts: Array = st.get("lift", [0.0])
+	var sc := float(st.get("size", 0.25))
+	for i in us.size():
+		var u := float(us[i])
+		var lift := float(lifts[i % lifts.size()])
+		var m := _m(_piece(st, i), ring_point(u, lift, NEAR_R, 1.5, 2.2, 0.28).round(), sc, float(st.get("far", 0.3)),
+			{z = i, flip = u > 0.0 if not st.has("flip") else bool(st.flip), ring_u = u, ring_lift = lift})
+		out.append(m)
+	return out
+
+
+## A point on a ring's far arc, from the world's centre: `u` across it, `lift`
+## px off its middle line, round a world of radius `r` whose ring runs from
+## `rin` to `rout` of it, squashed to `open`.
+static func ring_point(u: float, lift: float, r: float, rin: float, rout: float, open: float) -> Vector2:
+	var rho := (rin + rout) * 0.5 * r
+	return Vector2(u * rho, -open * rho * sqrt(maxf(0.0, 1.0 - u * u)) + lift)
+
+
+## The structure of a planned staging, or {}.
+static func structure_in(planned: Array) -> Dictionary:
+	for m: Dictionary in planned:
+		if bool(m.get("structure", false)):
+			return m
+	return {}
+
+
+## Whether a subject is staged round a big structure.
+static func has_structure(s: Variant) -> bool:
+	for st: Dictionary in stages_of(s):
+		if StringName(st.get("stage", &"")) == &"structure":
+			return true
+	return false
+
+
+## WHERE A STRUCTURE IS DRAWN in a view `view_size` with your ship's middle at
+## `ship_y` (the view's own space): its picture's rect, the right edge `over` px
+## past the view's, its `anchor` row level with your ship.
+static func structure_rect(id: StringName, view_size: Vector2, ship_y: float) -> Rect2:
+	return _structure_rect_of(piece_info(id), view_size, ship_y)
+
+
+static func _structure_rect_of(p: Dictionary, view_size: Vector2, ship_y: float) -> Rect2:
+	var w := float(p.get("w", 0))
+	var h := float(p.get("h", 0))
+	var at := Vector2(view_size.x + float(p.get("over", 1)) - w, ship_y - float(p.get("anchor", h * 0.5)))
+	return Rect2(at.round(), Vector2(w, h))
+
+
 ## A PICTURE TURNED PIXEL FOR PIXEL: every pixel of the turned box takes the
 ## nearest pixel of the original, so the turn is made once, cleanly, and nothing
 ## on screen ever rotates (a sprite turned live on nearest filtering ripples:
@@ -1207,7 +1610,8 @@ static func turned(id: StringName, tex: Texture2D, deg: float) -> Texture2D:
 ## fight left here, which keep their places because each is a door -- click it
 ## and its hold opens). Then it takes the biggest stretch of the box left clear
 ## above, left or right of them (below them are their names, then the band), at
-## 1x if it fits there and at half size, dimmed as far off, if only that does.
+## 1x if it fits there and at half size, dimmed as far off, if only that does
+## (a quarter if not even half does).
 ## {centre (where the staging's own origin goes), scale, clear (the stretch)}.
 static func fit(box: Rect2, bounds: Rect2, avoid: Array[Rect2]) -> Dictionary:
 	var u := Rect2()
@@ -1226,7 +1630,9 @@ static func fit(box: Rect2, bounds: Rect2, avoid: Array[Rect2]) -> Dictionary:
 			Rect2(u.end.x, box.position.y, box.end.x - u.end.x, box.size.y)]:
 		if r.size.x > 0.0 and r.size.y > 0.0:
 			spaces.append(r)
-	for sc: float in [1.0, 0.5]:
+	# (a quarter only when not even half fits: a ring turning right over sweeps
+	# the square of its diagonal)
+	for sc: float in [1.0, 0.5, 0.25]:
 		var best := Rect2()
 		for r in spaces:
 			if bounds.size.x * sc <= r.size.x and bounds.size.y * sc <= r.size.y and r.get_area() > best.get_area():
@@ -1290,6 +1696,7 @@ static func sync(view: Control, n: MapGen.MapNode, fighting: bool) -> LocalSubje
 	cur.subject = s
 	cur.oid = n.options[opt]
 	cur.danger = n.danger
+	cur.node_index = n.index
 	cur.sky = view.get("backdrop") as LocalSky
 	var area: Variant = view.get("_area")
 	cur._area = area as Control if area is Control else null
@@ -1314,17 +1721,22 @@ func _build() -> void:
 	for c in get_children():
 		c.queue_free()
 	_placed.clear()
+	_grip_image = null
 	_tethers.clear()
 	_pal_set = false
 	_strobes.clear()
-	var planned := plan(subject, oid, danger)
-	_bounds = bounds_of(planned)
+	_st = {}
+	_dimmed = false
+	_life = null
+	_ship_y = -1.0
+	var planned := plan(subject, oid, danger, node_index)
+	_bounds = box_bounds(planned)
 	var painted := LocalSky.style_now() == &"painted"
 	cast.clear()
 	for m: Dictionary in planned:
 		var id := StringName(m.id)
 		cast.append(id)
-		var p: Dictionary = piece_info(id)
+		var p: Dictionary = rec_for(m)
 		if p.is_empty():
 			continue
 		var holder := Node2D.new()
@@ -1349,18 +1761,55 @@ func _build() -> void:
 			flood = bool(m.get("flood", false)), tow = float(m.get("tow", 0.0)), dark = float(m.get("dark", 0.0)),
 			full = null, half = null, quarter = null, tex_k = 1.0,
 			roll = float(m.get("roll", 0.0)) if not p.has("half") else 0.0, roll_step = float(m.get("roll_step", 15.0)),
-			turn_deg = turn, rolled = 1e9, src = null}
+			turn_deg = turn, rolled = 1e9, src = null,
+			# (`PixelTurn`, off unless asked: the pictures unturned, each turned with
+			# its tumble in one go by `pixel_turn.gdshader`; its turner; its flip; the
+			# turn it shows beyond its own, for its lights)
+			orig = {}, turner = null, flip = bool(m.flip), vrot = 0.0, vshift = Vector2.ZERO,
+			# (stood on something in the sky, `anchor`; its light on the beam's
+			# pass or its glaze, `glint`; a lit window; a comet's tails from it)
+			anchor = StringName(m.get("anchor", &"")), anchor_on = m.get("anchor_on", Vector2.ZERO),
+			anchor_d = float(m.get("anchor_d", 0.0)), ring_u = float(m.get("ring_u", 0.0)), ring_lift = float(m.get("ring_lift", 0.0)),
+			glint = StringName(m.get("glint", &"")), window = m.get("window", []), tail = bool(m.get("tail", false)),
+			pts = [], blink_at = -99.0, st_i = int(m.get("st_i", 0)), id = id,
+			# (its own lamps, from the index; which of a structure's `with` it is)
+			own_lights = p.get("own_lights", []), with_i = int(m.get("with_i", -1))}
+		for k4: String in ["st_add_lights", "st_lines", "st_parted", "st_grip"]:
+			if m.has(k4):
+				rec[k4] = m[k4]
+		for k3: String in ["bake", "silhouette", "dust", "dirt"]:
+			if m.has(k3):
+				mat.set_shader_parameter(k3, float(m[k3]))
 		var kind := String(p.get("kind", ""))
 		if kind == "painter":
 			_painter(rec, p, float(m.get("r", 0.0)), bool(m.get("planet", false)))
 		else:
 			var tex := load(String(p.file)) as Texture2D
+			rec.orig[1.0] = tex
 			rec.full = turned(id, tex, turn) if not is_zero_approx(turn) and tex != null else tex
 			for size: String in ["half", "quarter"]:
 				if p.has(size) and ResourceLoader.exists(String(p[size])):
 					var hx := load(String(p[size])) as Texture2D
+					rec.orig[0.5 if size == "half" else 0.25] = hx
 					rec[size] = turned(StringName("%s_%s" % [id, size]), hx, turn) if not is_zero_approx(turn) and hx != null else hx
+			# (drawn small with no small picture of its own: one made here)
+			for kk: int in [2, 4]:
+				var nm := "half" if kk == 2 else "quarter"
+				if rec[nm] == null and float(m.scale) <= 1.0 / float(kk) + 0.001 and p.has("file"):
+					var sm := small_image(String(p.file), kk)
+					if sm != null:
+						var stx := ImageTexture.create_from_image(sm)
+						rec.orig[1.0 / float(kk)] = stx
+						rec[nm] = turned(StringName("%s_%s_made" % [id, nm]), stx, turn) if not is_zero_approx(turn) else stx
 			spr.texture = rec.full
+			# A RING SPINNING ABOUT ITS OWN AXIS (`spin`, its stage's seconds a
+			# turn; the index record's unwrapped strip): drawn by
+			# `ring_spin.gdshader` into a picture of its own each frame
+			if p.has("spin") and float(m.get("spin", 0.0)) > 0.0:
+				_spin_setup(rec, p, float(m.spin))
+		rec.pinned = bool(m.get("pinned", false))
+		if kind == "structure":
+			_structure_parts(rec, p)
 		_placed.append(rec)
 		_apply_scale(rec)
 		if rec.tether:
@@ -1374,8 +1823,16 @@ func _build() -> void:
 	_link_hosts(planned)
 	# THE CLAMPS of a docked piece, over the seam, in plain paint
 	_links = Node2D.new()
+	# (a clamp's arm repeats its lattice along itself: `_draw_grip`)
+	_links.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	_links.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_links.draw.connect(_draw_links)
 	add_child(_links)
+	# A STRUCTURE'S CRAWLING SPECKS, over it and what goes with it, in paint
+	if not _st.is_empty():
+		_life = Node2D.new()
+		_life.draw.connect(_draw_life)
+		add_child(_life)
 	# THE LIGHTS go over everything else here, added to what is behind them
 	_over = Node2D.new()
 	var add := CanvasItemMaterial.new()
@@ -1383,7 +1840,155 @@ func _build() -> void:
 	_over.material = add
 	_over.draw.connect(_draw_over)
 	add_child(_over)
+	# THE EFFECTS DRAWN IN CODE (`LocalFx`: a beam, a glare, a bank of dust, a
+	# front, a comet's tails), behind the pieces; what they paint on a piece
+	# (marks on a rock) over it
+	if fx != null and is_instance_valid(fx):
+		fx.leave()
+	fx = null
+	var fxs: Array = []
+	for st: Dictionary in stages_of(subject):
+		if StringName(st.get("stage", &"")) == &"fx":
+			fxs.append(st)
+	var tails := planned.any(func(m: Dictionary) -> bool: return bool(m.get("tail", false)))
+	if not fxs.is_empty() or tails:
+		fx = LocalFx.new()
+		fx.sub = self
+		add_child(fx)
+		move_child(fx, 0)
+		fx.build(fxs)
 	_layout()
+
+
+## THE SPIN (`_build`): a viewport the picture's size and `SPIN_PAD` px round
+## it, a rect running `ring_spin.gdshader` over the index record's strip, and
+## the piece shown through it -- still lit and paletted by its own material,
+## its edge soft as the soft turner's.
+const SPIN_PAD := 8
+const SPIN_SHADER := preload("res://shaders/ring_spin.gdshader")
+
+
+func _spin_setup(rec: Dictionary, p: Dictionary, secs: float) -> void:
+	var sp: Dictionary = p.spin
+	var strip := load(String(sp.strip)) as Texture2D
+	var env := load(String(sp.env)) as Texture2D
+	var geo := load(String(sp.geo)) as Texture2D
+	if strip == null or env == null or geo == null:
+		return
+	var size := Vector2i(int(p.w) + 2 * SPIN_PAD, int(p.h) + 2 * SPIN_PAD)
+	var vp := SubViewport.new()
+	vp.size = size
+	vp.transparent_bg = true
+	vp.disable_3d = true
+	vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var r := ColorRect.new()
+	r.size = Vector2(size)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = SPIN_SHADER
+	for k: String in ["n", "m", "r0", "r1", "tilt"]:
+		mat.set_shader_parameter(k, float(sp[k]))
+	mat.set_shader_parameter("strip", strip)
+	mat.set_shader_parameter("env", env)
+	mat.set_shader_parameter("geo", geo)
+	mat.set_shader_parameter("out_size", Vector2(size))
+	mat.set_shader_parameter("pad", float(SPIN_PAD))
+	mat.set_shader_parameter("centre", Vector2(float(sp.cx), float(sp.cy)))
+	mat.set_shader_parameter("radii", Vector2(float(sp.ra), float(sp.rb)))
+	r.material = mat
+	vp.add_child(r)
+	add_child(vp)
+	rec.spin_mat = mat
+	rec.spin_secs = secs
+	rec.full = vp.get_texture()
+	(rec.sprite as Sprite2D).texture = rec.full
+	var smat: ShaderMaterial = rec.mat
+	smat.set_shader_parameter("unpremul", true)
+	smat.set_shader_parameter("snap_alpha", false)
+
+
+## How far round a spinning ring has turned at `t`, radians.
+static func spin_phi(rec: Dictionary, t: float) -> float:
+	return t * TAU / maxf(float(rec.get("spin_secs", 75.0)), 1.0) + float(rec.get("phase", 0.0))
+
+
+## Where a spinning ring's `i`th own light is now, in its picture's own pixels:
+## its place on the strip (`spin.lamps`: angle, fraction across the band) taken
+## round by the turn and back onto the ellipse, the band as thick as it is drawn
+## there.
+static func spin_at(p: Dictionary, i: int, phi: float) -> Array:
+	var sp: Dictionary = p.spin
+	var la: Array = (sp.lamps as Array)[i]
+	var n := int(sp.n)
+	var th := float(la[0]) + phi
+	var j := int(floor(fposmod((th + PI) / TAU * float(n), float(n)))) % n
+	var inner: Array = sp.inner
+	var outer: Array = sp.outer
+	var rr := float(inner[j]) + float(la[1]) * (float(outer[j]) - float(inner[j]))
+	var rho := float(sp.r0) + rr / float(sp.m) * (float(sp.r1) - float(sp.r0))
+	var e := Vector2(cos(th) * float(sp.ra), sin(th) * float(sp.rb)) * rho
+	var q := Vector2(float(sp.cx), float(sp.cy)) + e.rotated(float(sp.tilt))
+	return [q.x - 0.5, q.y - 0.5]
+
+
+## The edge-only light a structure takes: the star's reach across it so long
+## that no step of it falls inside the picture, so only the edges facing the star
+## catch it (`span_px`; see the header).
+const STRUCT_SPAN := 4000.0
+
+
+## A STRUCTURE'S MOVING PARTS GLIDE (Jon, round two: "can the motion be more
+## smooth?"; stepped poses and whole-pixel sways were the first round). Each
+## part is a picture with its pivot at its middle (a boom's joint, an arm's
+## shoulder), turned live about it by the soft turner (`PixelTurn.Turner`: 16
+## points a pixel averaged, its edge partly clear -- the turn Jon picked for
+## sprites), eased on its clock (`_structure_clock`), never rotated on screen
+## and never stepped. Its own material, lit as the structure is. Then `caps`, a
+## layer the structure's own size over them (the arms' shoulder discs).
+func _structure_parts(rec: Dictionary, p: Dictionary) -> void:
+	_st = rec
+	rec.structure = true
+	var mat: ShaderMaterial = rec.mat
+	mat.set_shader_parameter("span_px", STRUCT_SPAN)
+	var holder: Node2D = rec.node
+	var parts: Array = []
+	var mats: Array = []
+	var half := Vector2(float(p.get("w", 0)), float(p.get("h", 0))) * 0.5
+	for d: Dictionary in p.get("parts", []):
+		var tex := load(String(d.file)) as Texture2D
+		if tex == null:
+			continue
+		var m2 := mat.duplicate() as ShaderMaterial
+		var soft := PixelTurn.soft_edge()
+		m2.set_shader_parameter("unpremul", soft)
+		m2.set_shader_parameter("snap_alpha", not soft)
+		var tr := PixelTurn.Turner.new(self, tex, 1.0, false, int(d.get("pad", 0)))
+		var s := Sprite2D.new()
+		s.texture = tr.texture()
+		s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		s.centered = true
+		s.material = m2
+		var pv: Array = d.get("pivot", [half.x, half.y])
+		s.position = Vector2(float(pv[0]), float(pv[1])) - half
+		holder.add_child(s)
+		tr.turn(0.0)
+		parts.append({sprite = s, def = d, turner = tr, shift = Vector2.ZERO, angle = 0.0})
+		mats.append(m2)
+	rec.parts = parts
+	rec.extra_mats = mats
+	if p.has("caps"):
+		_layer(holder, String(p.caps), mat)
+
+
+func _layer(holder: Node2D, file: String, mat: ShaderMaterial) -> Sprite2D:
+	var s := Sprite2D.new()
+	s.texture = load(file) as Texture2D
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	s.centered = true
+	s.material = mat
+	holder.add_child(s)
+	return s
 
 
 ## Each docked record's host record (the plan's `dock_to`, by plan index).
@@ -1398,11 +2003,14 @@ func _link_hosts(planned: Array) -> void:
 	for i in rec_of:
 		var rec: Dictionary = rec_of[i]
 		rec.host = rec_of.get(int(rec.dock_to), null) if int(rec.dock_to) >= 0 else null
+		if rec.host != null:
+			(rec.host as Dictionary).hosting = true
 
 
 ## TWO CLAMPS where a docked piece meets its host: a short steel bar standing
 ## across the seam, lit on its top, dark round its edge.
 func _draw_links() -> void:
+	_draw_grip()
 	for rec: Dictionary in _placed:
 		if rec.get("host") == null:
 			continue
@@ -1435,6 +2043,46 @@ func _apply_scale(rec: Dictionary) -> void:
 		spr.texture = rec.full
 		rec.tex_k = 1.0
 	spr.scale = Vector2.ONE * eff / float(rec.tex_k)
+
+
+## Room round a turned piece's picture for its drift (`_turn`, BLENDED), px a side.
+const DRIFT_PAD := 10
+
+
+## A PIECE TURNED IN A PICTURE OF ITS OWN (`PixelTurn`, STEPPED or BLENDED; off
+## unless asked): its own turn and this frame's tumble or roll (`rot`), turned
+## in one go from the unturned picture its size draws, by `pixel_turn.gdshader`,
+## and shown unrotated at 1:1. A mirrored piece turns the other way about its
+## own turn (`Sprite2D` mirrors the turned picture). Its light is worked out in
+## the screen's frame, as before (`to_star`, the caller).
+func _turn(rec: Dictionary, rot: float, shift: Vector2) -> void:
+	var t0 := Time.get_ticks_usec() if PixelTurn.cost_on else 0
+	var k := float(rec.tex_k)
+	var src: Texture2D = rec.orig.get(k, rec.orig.get(1.0))
+	if src == null:
+		return
+	var px := float(rec.scale) * _scale / k
+	var flip := bool(rec.flip)
+	var tr: PixelTurn.Turner = rec.turner
+	if tr == null or not tr.fits(src, px, flip):
+		if tr != null:
+			tr.free_all()
+		tr = PixelTurn.Turner.new(self, src, px, flip, DRIFT_PAD)
+		rec.turner = tr
+	var own := float(rec.turn) * (-1.0 if flip else 1.0)
+	tr.turn(own + rot, shift)
+	var spr: Sprite2D = rec.sprite
+	spr.texture = tr.texture()
+	spr.scale = Vector2.ONE
+	spr.flip_h = false
+	var mat: ShaderMaterial = rec.mat
+	var soft := PixelTurn.soft_edge()
+	mat.set_shader_parameter("snap_alpha", not soft)
+	mat.set_shader_parameter("unpremul", soft)
+	# (as far across as the light reached on the turned picture it would have shown)
+	mat.set_shader_parameter("span_px", maxf(turned_size(Vector2(src.get_size()), float(rec.turn_deg)).length() * 0.5 * px, 1.0))
+	if PixelTurn.cost_on:
+		PixelTurn.cpu_us += Time.get_ticks_usec() - t0
 
 
 ## A PIECE TURNING OVER (`roll`), as pixel art turns: never rotated on screen
@@ -1472,17 +2120,30 @@ func _painter(rec: Dictionary, p: Dictionary, r: float, planet: bool = false) ->
 	if not planet and ROCK_RAMP.has(StringName(p.get("world", ""))) and not (p.get("lobes", []) as Array).is_empty():
 		_rock(rec, p, k, w, h)
 		return
+	# BLENDED (`PixelTurn`): a whole moon drifts inside its picture, a fraction of
+	# a pixel at a time, so its surface's memory sees the drift as it sees the
+	# turn (`_process`); room for it on every side
+	var shards := StringName(p.world) == &"shattered"
+	var pad := DRIFT_PAD if PixelTurn.world_mode == PixelTurn.Mode.BLENDED and (p.get("lobes", []) as Array).is_empty() and not shards else 0
+	rec.drift_pv = pad > 0
+	if shards:
+		# A MOON IN PIECES (`ShatteredView`): its rubble reaches past the disc, so
+		# its picture is as big as the painter says it reaches
+		var hs := Worlds.half_size(&"shattered", r0 * k)
+		pad = maxi(0, hs - mini(w, h) / 2 + 1)
 	var vp := SubViewport.new()
-	vp.size = Vector2i(w, h)
+	vp.size = Vector2i(w + 2 * pad, h + 2 * pad)
 	vp.transparent_bg = true
 	vp.disable_3d = true
 	vp.canvas_item_default_texture_filter = Viewport.DEFAULT_CANVAS_ITEM_TEXTURE_FILTER_NEAREST
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(vp)
-	var pv := PlanetView.new()
-	pv.position = Vector2(roundf(float(p.cx) * k), roundf(float(p.cy) * k))
+	var pv: Node2D = Worlds.view_for(StringName(p.world))
+	pv.position = Vector2(roundf(float(p.cx) * k) + pad, roundf(float(p.cy) * k) + pad)
 	vp.add_child(pv)
-	pv.set_world(StringName(p.world), int(p.seed), r0 * k)
+	pv.call("set_world", StringName(p.world), int(p.seed), r0 * k)
+	if shards:
+		pv.call("set_cell", 1)
 	var spr: Sprite2D = rec.sprite
 	spr.texture = vp.get_texture()
 	var mat: ShaderMaterial = rec.mat
@@ -1728,6 +2389,10 @@ static func _h2(x: int, y: int) -> float:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		_layout()
+	elif what == NOTIFICATION_PREDELETE:
+		# (what an effect asked of the sky -- the gas closed in -- goes with it)
+		if fx != null and is_instance_valid(fx):
+			fx.leave()
 
 
 ## Where the subject's centre is: the middle of its box, nudged so its whole
@@ -1751,17 +2416,29 @@ func _process(_d: float) -> void:
 	if _area != null and is_instance_valid(_area) and _area.visible:
 		_area.visible = false
 	if _placed.is_empty():
+		# (an effect alone, drawn in code: the sky's weather, a beam)
+		if fx != null:
+			_t = 0.0 if DisplaySettings.reduced_motion else _clock()
+			_frame_ctx()
+			fx.step(_t)
 		return
 	var t := 0.0 if DisplaySettings.reduced_motion else _clock()
-	# out of the way of any wreck a fight left here (`fit`)
-	var f := fit(_box, _bounds, _wrecks())
-	var centre: Vector2 = f.centre
-	if not is_equal_approx(float(f.scale), _scale):
-		_scale = float(f.scale)
-		for rec: Dictionary in _placed:
-			_apply_scale(rec)
-			# made small to keep clear, so seen as further off
-			(rec.mat as ShaderMaterial).set_shader_parameter("far", maxf(float(rec.far), 0.45) if _scale < 1.0 else float(rec.far))
+	var centre := Vector2.ZERO
+	if not _st.is_empty():
+		# A BIG STRUCTURE: pinned to the right edge at your ship's height, never
+		# moved for the wrecks -- behind them, dimmed while they are there
+		_pin()
+		centre = st_rect.get_center()
+	else:
+		# out of the way of any wreck a fight left here (`fit`)
+		var f := fit(_box, _bounds, _wrecks())
+		centre = f.centre
+		if not is_equal_approx(float(f.scale), _scale):
+			_scale = float(f.scale)
+			for rec: Dictionary in _placed:
+				_apply_scale(rec)
+				# made small to keep clear, so seen as further off
+				(rec.mat as ShaderMaterial).set_shader_parameter("far", maxf(float(rec.far), 0.45) if _scale < 1.0 else float(rec.far))
 	var star := Vector2(-1e6, -1e6)
 	var tint := Vector3.ONE
 	if sky != null and is_instance_valid(sky):
@@ -1773,9 +2450,13 @@ func _process(_d: float) -> void:
 				_pal_set = true
 				var pal: Variant = sky._palette_mat.get_shader_parameter("pal")
 				for rec: Dictionary in _placed:
-					(rec.mat as ShaderMaterial).set_shader_parameter("pal", pal)
-					(rec.mat as ShaderMaterial).set_shader_parameter("pal_n", pn)
+					for m: ShaderMaterial in [rec.mat] + (rec.get("extra_mats", []) as Array):
+						m.set_shader_parameter("pal", pal)
+						m.set_shader_parameter("pal_n", pn)
 	var star_col := Vector3(0.55, 0.55, 0.55) + tint * 0.45
+	# WHAT THE SKY HOLDS THIS FRAME, in this control's own px: the star, the world
+	# you orbit (what `anchor`ed stages stand on), your ship, the band's top
+	_frame_ctx()
 	# hosts before the pieces docked on them, which ride along
 	var order: Array = []
 	for rec: Dictionary in _placed:
@@ -1794,36 +2475,427 @@ func _process(_d: float) -> void:
 		else:
 			off = Vector2(sin(t * TAU / 31.0 + ph) * amp * 0.5, sin(t * TAU / 23.0 + ph * 0.7) * amp * 0.4)
 		if float(rec.tumble) > 0.0:
-			rot = deg_to_rad(sin(t * TAU / 37.0 + ph) * float(rec.tumble))
+			rot = deg_to_rad(sin(t * TAU / 37.0 + ph) * float(rec.tumble) * PixelTurn.TUMBLE_K)
+		# TURNED IN A PICTURE OF ITS OWN (`PixelTurn` STEPPED, BLENDED or a trial,
+		# off unless asked): never rotated on screen; its tumble and its roll turned
+		# with its own turn by `pixel_turn.gdshader` (`_turn`)
+		var turning: bool = PixelTurn.turner() and rec.planet == null and not rec.orig.is_empty() \
+				and (float(rec.tumble) > 0.0 or float(rec.roll) != 0.0)
+		# STILL (a trial): never turned; the turn it would have shown goes to its light
+		var still: bool = PixelTurn.mode == PixelTurn.Mode.STILL and rec.planet == null and not rec.orig.is_empty() \
+				and not bool(rec.get("structure", false))
 		if float(rec.roll) != 0.0:
-			_roll(rec, t)
+			if turning or PixelTurn.roll_live or still:
+				rot += deg_to_rad(fposmod(t * float(rec.roll) * PixelTurn.TUMBLE_K + float(rec.phase) * 57.0, 360.0))
+			else:
+				_roll(rec, t)
 		if bool(rec.tether):
 			off = Vector2(0.0, sin(t * TAU / 29.0 + ph * 0.3) * 1.5)
 		if rec.get("host") != null:
 			off = (rec.host as Dictionary).off
+		if bool(rec.get("structure", false)):
+			# (a structure stands where it is pinned; its parts move instead)
+			off = Vector2.ZERO
+			rot = 0.0
+			_structure_clock(rec, t)
 		rec.off = off
 		var node: Node2D = rec.node
-		node.position = (centre + (rec.at as Vector2) * _scale + off).round()
+		var base := _base_of(rec, centre)
+		node.position = (base + off).round()
+		rec.vrot = 0.0
+		rec.vshift = Vector2.ZERO
+		if turning:
+			# BLENDED: its drift turned in with it, a fraction of a pixel at a time and
+			# held as the turn is, about where it rests -- unless it is docked or has
+			# something docked on it, which keep to whole pixels together
+			if PixelTurn.mode != PixelTurn.Mode.STEPPED and rec.get("host") == null and not bool(rec.get("hosting", false)):
+				node.position = base.round()
+				rec.vshift = base + off - node.position
+			_turn(rec, rot, rec.vshift)
+			rec.vrot = rot
+			rot = 0.0
+		elif bool(rec.get("drift_pv", false)) and rot == 0.0 and rec.get("host") == null and not bool(rec.get("hosting", false)):
+			node.position = base.round()
+			rec.vshift = base + off - node.position
+			(rec.planet as PlanetView).set_drift(rec.vshift / (float(rec.scale) * _scale))
+		var light_rot := 0.0
+		if still:
+			light_rot = rot * PixelTurn.LIGHT_K
+			rot = 0.0
 		node.rotation = rot
 		var g := node.get_global_transform()
 		var dirv := star - g.origin
 		var ts := dirv.normalized() if dirv.length() > 1.0 else Vector2(-1.0, -0.4).normalized()
 		var spr: Sprite2D = rec.sprite
-		var local := ts.rotated(-rot - float(rec.turn))
+		var local := ts.rotated(-rot - light_rot - float(rec.turn))
 		if spr.flip_h:
 			local.x = -local.x
 		var mat: ShaderMaterial = rec.mat
 		mat.set_shader_parameter("to_star", local)
+		if still:
+			# the glint: where the hull would catch the star, rolling across it as it
+			# tumbles (end to end over a full swing of the tumble, or round with the roll)
+			var tx := spr.texture
+			var half := 0.5 * Vector2(tx.get_size()).length() if tx != null else 8.0
+			var swing := deg_to_rad(maxf(float(rec.tumble) * PixelTurn.TUMBLE_K, 1.0)) * PixelTurn.LIGHT_K
+			var u := sin(light_rot / swing * PI * 0.5) if float(rec.roll) == 0.0 else sin(light_rot)
+			mat.set_shader_parameter("glint", 0.22 * (1.0 - absf(u) * 0.5))
+			mat.set_shader_parameter("glint_at", u * half * 0.8)
+			mat.set_shader_parameter("glint_w", maxf(1.0, half * 0.08))
 		mat.set_shader_parameter("star_col", star_col)
+		for m2: ShaderMaterial in rec.get("extra_mats", []):
+			m2.set_shader_parameter("to_star", local)
+			m2.set_shader_parameter("star_col", star_col)
 		if rec.planet != null:
-			var pv: PlanetView = rec.planet
-			pv.step(t, Vector3(ts.x, ts.y, 0.47), 1.0)
+			(rec.planet as Node2D).call("step", t, Vector3(ts.x, ts.y, 0.47), 1.0)
+		if rec.get("spin_mat") != null:
+			(rec.spin_mat as ShaderMaterial).set_shader_parameter("phi", spin_phi(rec, t))
 	_t = t
+	if fx != null:
+		fx.step(t)
 	queue_redraw()
 	if _over != null:
 		_over.queue_redraw()
 	if _links != null:
 		_links.queue_redraw()
+	if _life != null:
+		_life.queue_redraw()
+
+
+## This frame's sky, in this control's own px (`_frame_ctx`): the star's centre
+## and drawn radius, the world you orbit ({at, r, ring_in, ring_out, open}, or {}),
+## your ship's rect, the event band's top.
+var star_l := Vector2(480.0, -40.0)
+var star_r := 20.0
+var near_l: Dictionary = {}
+var ship_l := Rect2(-999.0, -999.0, 0.0, 0.0)
+var band_y := 9999.0
+## The effects drawn in code (`LocalFx`), or null.
+var fx: LocalFx = null
+
+
+func _frame_ctx() -> void:
+	var inv := get_global_transform().affine_inverse()
+	near_l = {}
+	if sky != null and is_instance_valid(sky):
+		star_l = inv * sky.star_global()
+		star_r = sky.star_px() * inv.get_scale().x
+		var ni := sky.near_info()
+		if not ni.is_empty():
+			near_l = ni.duplicate()
+			near_l.at = inv * (ni.at as Vector2)
+			near_l.r = float(ni.r) * inv.get_scale().x
+	else:
+		star_l = Vector2(size.x * 0.5, -40.0)
+	var view := get_parent()
+	ship_l = Rect2(-999.0, -999.0, 0.0, 0.0)
+	if view != null and view.has_method(&"ship_view"):
+		var sv := view.call(&"ship_view") as Control
+		if sv != null and is_instance_valid(sv) and sv.is_inside_tree() and sv.has_method(&"ship_rect"):
+			var r: Rect2 = sv.call(&"ship_rect")
+			var g := sv.get_global_transform()
+			ship_l = Rect2(inv * (g * r.position), (inv.get_scale() * g.get_scale()) * r.size)
+	band_y = size.y - BAND
+
+
+## Where a placed piece rests this frame, before its drift: in the subject's box,
+## or stood on what its stage is anchored to.
+func _base_of(rec: Dictionary, centre: Vector2) -> Vector2:
+	var at: Vector2 = rec.at
+	match StringName(rec.anchor):
+		&"near":
+			if not near_l.is_empty():
+				return (near_l.at as Vector2) + (rec.anchor_on as Vector2) * float(near_l.r) + at * _scale
+		&"ring":
+			if not near_l.is_empty() and float(near_l.ring_out) > 0.0:
+				return (near_l.at as Vector2) + ring_point(float(rec.ring_u), float(rec.ring_lift), float(near_l.r),
+					float(near_l.ring_in), float(near_l.ring_out), float(near_l.open))
+		&"star":
+			# a line out from the star, through the subject's box
+			var dirv := (centre - star_l)
+			var d := dirv.normalized() if dirv.length() > 1.0 else Vector2(0.8, 0.6)
+			return star_l + d * float(rec.anchor_d) + at.rotated(d.angle())
+	return centre + at * _scale
+
+
+## The box's own pieces' bounds (a stage stood on the sky is placed from that).
+static func box_bounds(planned: Array) -> Rect2:
+	var b := Rect2()
+	var first := true
+	for m: Dictionary in planned:
+		if StringName(m.get("anchor", &"")) != &"":
+			continue
+		var r := rect_of(m)
+		b = r if first else b.merge(r)
+		first = false
+	return b
+
+
+## WHERE THE STRUCTURE IS THIS FRAME (`st_rect`): pinned to the right edge at
+## your ship's middle row -- held unless your ship's row moves by more than a
+## pixel and a half, so nothing shivers -- and dimmed behind a fight's wrecks.
+func _pin() -> void:
+	# (not while the cutaway has this zoomed: its rounding moves the ship's row
+	# by fractions, and the structure holds still in the scene)
+	if _ship_y < 0.0 or scale.is_equal_approx(Vector2.ONE):
+		var y := _ship_mid()
+		if _ship_y < 0.0 or absf(y - _ship_y) > 1.5:
+			_ship_y = roundf(y)
+	st_rect = _structure_rect_of(_st.info, size, _ship_y)
+	var dim := not _wrecks().is_empty()
+	if dim != _dimmed:
+		_dimmed = dim
+		for rec: Dictionary in _placed:
+			for m: ShaderMaterial in [rec.mat] + (rec.get("extra_mats", []) as Array):
+				m.set_shader_parameter("far", maxf(float(rec.far), WRECK_DIM) if dim else float(rec.far))
+
+
+## How far toward the sky a structure is dimmed behind a fight's wrecks.
+const WRECK_DIM := 0.35
+
+
+## Your ship's middle row on LOCAL, in this control's own space (its slot's
+## middle: the hull is drawn centred in it, and the slot does not bob). In the
+## cutaway this control and the hulls' row are zoomed together, so it holds.
+func _ship_mid() -> float:
+	var view := get_parent()
+	if view != null and view.has_method(&"ship_view"):
+		var sv := view.call(&"ship_view") as Control
+		if sv != null and is_instance_valid(sv) and sv.is_inside_tree() and sv.size.y > 0.0:
+			return (get_global_transform().affine_inverse() * sv.get_global_rect().get_center()).y
+	return size.y * 0.5
+
+
+## A point of the structure's own picture, on screen now.
+func _sp(a: Variant) -> Vector2:
+	return st_rect.position + Vector2(float(a[0]) + 0.5, float(a[1]) + 0.5)
+
+
+## THE STRUCTURE'S MOVING PARTS ON THEIR CLOCKS, turned or moved live and eased,
+## never stepped: a boom swaying about its joint (`sway`: `deg` either way over
+## `period` s, a sine); a boom sliding to and fro along its girder (`slide`:
+## between `dx[0]` and `dx[1]` px, eased, by any fraction of a pixel -- the soft
+## turner's shift, in its `pad`); a cradle's arms gliding shut and open again
+## (`cycle`: `deg` at shut, eased by `cycle_close`).
+func _structure_clock(rec: Dictionary, t: float) -> void:
+	var cyc: Dictionary = (rec.info as Dictionary).get("cycle", {})
+	for pt: Dictionary in rec.get("parts", []):
+		var d: Dictionary = pt.def
+		var a := 0.0
+		var sh := Vector2.ZERO
+		match String(d.get("anim", "")):
+			"slide":
+				var dx: Array = d.get("dx", [0, 0])
+				sh.x = lerpf(float(dx[0]), float(dx[1]), 0.5 - 0.5 * cos(t * TAU / float(d.get("period", 9.0))))
+			"sway":
+				a = deg_to_rad(float(d.get("deg", 2.0))) * sin(t * TAU / float(d.get("period", 7.0)))
+			"cycle":
+				a = deg_to_rad(float(d.get("deg", 14.0))) * cycle_close(cyc, t)
+		pt.shift = sh
+		pt.angle = a
+		(pt.turner as PixelTurn.Turner).turn(a, sh)
+
+
+## How far shut a cradle's arms are at `t`, 0 open to 1 shut: open, held for
+## `open` s; gliding shut over `move` s, eased in and out; shut on nothing for
+## `shut` s; gliding open again; open for the rest of the `period`.
+static func cycle_close(cyc: Dictionary, t: float) -> float:
+	var period := float(cyc.get("period", 12.0))
+	var open := float(cyc.get("open", 5.0))
+	var move := maxf(float(cyc.get("move", 1.6)), 0.01)
+	var shut := float(cyc.get("shut", 2.8))
+	var u := fposmod(t, period)
+	if u < open:
+		return 0.0
+	u -= open
+	if u < move:
+		return smoothstep(0.0, 1.0, u / move)
+	u -= move
+	if u < shut:
+		return 1.0
+	u -= shut
+	if u < move:
+		return 1.0 - smoothstep(0.0, 1.0, u / move)
+	return 0.0
+
+
+## How lit a cradle's cycle lamp is at `t`: dark while the arms rest open, then
+## eased blinks from just before they move until just after they are open again.
+static func cycle_lamp(cyc: Dictionary, t: float) -> float:
+	var period := float(cyc.get("period", 12.0))
+	var open := float(cyc.get("open", 5.0))
+	var busy := float(cyc.get("move", 1.6)) * 2.0 + float(cyc.get("shut", 2.8))
+	var u := fposmod(t, period) - (open - 0.6)
+	if u < 0.0 or u > busy + 1.2:
+		return 0.0
+	return _blink(u, 1.0, 0.6)
+
+
+## A light's weight at `t` (its `kind`; a `cycle` light follows the cradle).
+func _light_k(l: Dictionary, t: float) -> float:
+	var k := float(l.get("k", 1.0))
+	var ph := float(l.get("phase", 0.0))
+	match String(l.get("kind", "steady")):
+		"breathe":
+			return k * (0.78 + 0.22 * sin((t + ph) * TAU / float(l.get("period", 4.0))))
+		"blink":
+			return k * _blink(t + ph, float(l.get("period", 2.0)), float(l.get("on", 0.6)))
+		"flicker":
+			# steady, but once a `period` a quick eased dip, as a tired lamp does
+			var per := float(l.get("period", 3.0))
+			var u := fposmod(t + ph, per)
+			return k * (1.0 - 0.55 * _blink(u - per * 0.7, per, 0.3))
+		"cycle":
+			return k * cycle_lamp((_st.info as Dictionary).get("cycle", {}), t) if not _st.is_empty() else 0.0
+		"glint":
+			# a glaze catching the light: a slow rise and fall over the first half
+			# of its clock, then dark
+			var per2 := float(l.get("period", 6.0))
+			var u2 := fposmod(t + ph, per2) / per2
+			var w := sin(clampf(u2 * 2.0, 0.0, 1.0) * PI)
+			return k * w * w
+	return k
+
+
+## THE STRUCTURE'S LIGHTS, as light (added over it, under the hulls): its glows
+## breathing on its surfaces, its windows (each pane its own even glow, never
+## stepped across), its lamps, a cutting head's sparks.
+func _draw_structure_light(t: float) -> void:
+	var p: Dictionary = _st.info
+	var dim := 1.0 - 0.5 * (WRECK_DIM if _dimmed else 0.0)
+	for g: Dictionary in p.get("glows", []):
+		var tex := _tex(String(g.file))
+		if tex == null:
+			continue
+		var lo := float(g.get("lo", 0.6))
+		var hi := float(g.get("hi", 1.0))
+		var w := lerpf(lo, hi, 0.5 + 0.5 * sin(t * TAU / float(g.get("period", 5.0)))) * dim
+		_over.draw_texture(tex, st_rect.position, Color(w, w, w, 1.0))
+	var wc := Color(String(p.get("window_col", "#ffd9a0")))
+	var wk := float(p.get("window_k", 0.6)) * dim
+	for r: Array in p.get("windows", []):
+		var rr := Rect2(st_rect.position + Vector2(float(r[0]), float(r[1])), Vector2(float(r[2]), float(r[3])))
+		_over.draw_rect(rr, Color(wc.r * wk, wc.g * wk, wc.b * wk, 1.0))
+		_glow(rr.get_center(), maxi(int(maxf(rr.size.x, rr.size.y)) + 2, 3), wc, wk * 0.35)
+	for px: Array in p.get("window_px", []):
+		_over.draw_rect(Rect2(st_rect.position + Vector2(float(px[0]), float(px[1])), Vector2.ONE), Color(wc.r * wk, wc.g * wk, wc.b * wk, 1.0))
+	for l: Dictionary in (p.get("lights", []) as Array) + (_st.get("st_add_lights", []) as Array):
+		var at := _sp(l.at)
+		# (riding a moving part: turned with it about its pivot, and slid with it)
+		var parts: Array = _st.get("parts", [])
+		if l.has("part") and int(l.part) < parts.size():
+			var pt: Dictionary = parts[int(l.part)]
+			var pv: Array = (pt.def as Dictionary).get("pivot", [0, 0])
+			var c := st_rect.position + Vector2(float(pv[0]), float(pv[1]))
+			at = c + (at - c).rotated(float(pt.angle)) + (pt.shift as Vector2)
+		var col := Color(String(l.get("col", "#ffffff")))
+		var e := _light_k(l, t) * dim
+		if l.has("cone") and e > 0.01:
+			# a spill of light out of it, leftward, falling off in dithered steps
+			var tex := _cone_tex(int(l.cone))
+			var sz := tex.get_size()
+			var a2 := float(l.get("cone_k", 0.5)) * e
+			_over.draw_texture(tex, (at - Vector2(sz.x, sz.y * 0.3)).round(), Color(col.r * a2, col.g * a2, col.b * a2, 1.0))
+		_glow(at, int(l.get("r", 4)), col, e)
+	var sp: Dictionary = p.get("sparks", {})
+	if not sp.is_empty():
+		_sparks(sp, t, dim)
+
+
+## A CUTTING HEAD AT WORK (`sparks`; Jon: "Can we have the arm that makes the
+## sparks actually interacting with the ship?"): every `period` s it runs for
+## `run` s from `start`, eased in and out, where its rim meets the plating (`at`,
+## riding the part that carries it, `part`) -- its nozzles burning blue-white, a
+## hot spot on the plating, and sparks thrown off along the surface in cones
+## (`degs`, each +- `spread`), each flying straight, fading over its own short
+## life.
+func _sparks(sp: Dictionary, t: float, dim: float) -> void:
+	var period := float(sp.get("period", 12.0))
+	var run := float(sp.get("run", 4.0))
+	var u := fposmod(t, period) - float(sp.get("start", 4.0))
+	if u < 0.0 or u > run:
+		return
+	var e := clampf(minf(u, run - u) / 0.35, 0.0, 1.0)
+	var at := _sp(sp.at)
+	# (riding the part that carries the head, as it moves)
+	var parts: Array = _st.get("parts", [])
+	if sp.has("part") and int(sp.part) < parts.size():
+		at += (parts[int(sp.part)] as Dictionary).shift
+	# the hot spot it makes on the plating it is cutting
+	_glow(at, 16, Color(1.0, 0.55, 0.22), 0.5 * e * dim)
+	var fl := 0.8 + 0.2 * sin(t * 37.0) * sin(t * 23.0)
+	_glow(at, 10, Color(0.7, 0.88, 1.0), 0.85 * e * fl * dim)
+	_glow(at, 3, Color(0.95, 0.98, 1.0), e * dim)
+	var n := int(sp.get("count", 24))
+	var degs: Array = sp.get("degs", [sp.get("deg", 90.0)])
+	var spread := deg_to_rad(float(sp.get("spread", 45.0)))
+	for i in n:
+		var h1 := fposmod(sin(float(i) * 12.9898) * 43758.5453, 1.0)
+		var h2 := fposmod(sin(float(i) * 78.233) * 12543.1234, 1.0)
+		var life := 0.45 + 0.6 * h1
+		var age := fposmod(u + h2 * life, life)
+		var gen := floorf((u + h2 * life) / life)
+		# each new spark of this one flies its own way
+		var h3 := fposmod(sin((float(i) + gen * 17.0) * 3.7) * 9631.77, 1.0)
+		var base := deg_to_rad(float(degs[i % degs.size()]))
+		var dir := Vector2.from_angle(base + (h3 * 2.0 - 1.0) * spread)
+		var v := 28.0 + 50.0 * fposmod(h3 * 7.31, 1.0)
+		var q := (at + dir * v * age).round()
+		var a := (1.0 - age / life) * e * dim
+		if a <= 0.02:
+			continue
+		var hot := Color(1.0, 0.85, 0.45).lerp(Color(1.0, 0.45, 0.15), age / life)
+		_over.draw_rect(Rect2(q, Vector2.ONE), Color(hot.r * a, hot.g * a, hot.b * a, 1.0))
+		if age < life * 0.4:
+			_glow(q, 2, hot, a * 0.5)
+
+
+## A STRUCTURE'S SWARM: specks crawling its ribs (`swarm.lines`, each a rib's
+## centre [x, y, width] from top to bottom), each on its own rib, edge and pace,
+## going up and down it a little and on along it slowly -- never still. A dark
+## body a pixel or two, its back caught pale. Whole pixels, in paint.
+func _draw_life() -> void:
+	if _st.is_empty():
+		return
+	var sw: Dictionary = (_st.info as Dictionary).get("swarm", {})
+	var lines: Array = sw.get("lines", [])
+	if lines.is_empty():
+		return
+	var t := _t
+	var n := int(sw.get("count", 30))
+	var body := Color(0.11, 0.08, 0.09)
+	var back := Color(0.62, 0.55, 0.52)
+	if _dimmed:
+		body = body.lerp(Color(0.035, 0.045, 0.075), WRECK_DIM)
+		back = back.lerp(Color(0.035, 0.045, 0.075), WRECK_DIM)
+	for i in n:
+		var line: Array = lines[i % lines.size()]
+		var h1 := fposmod(sin(float(i) * 91.7) * 4375.85, 1.0)
+		var h2 := fposmod(sin(float(i) * 17.3) * 9137.11, 1.0)
+		var m := float(line.size() - 1)
+		# along the rib: a slow creep one way, a wander back and forth on top
+		var s := fposmod(h1 * m + t * (0.05 + 0.12 * h2) * (1.0 if i % 2 == 0 else -1.0) + sin(t * (0.4 + h2) + h1 * 6.0) * 0.6, m)
+		var k := int(s)
+		var f := s - float(k)
+		var a: Array = line[k]
+		var b: Array = line[mini(k + 1, line.size() - 1)]
+		var c := Vector2(lerpf(float(a[0]), float(b[0]), f), lerpf(float(a[1]), float(b[1]), f))
+		var half := lerpf(float(a[2]), float(b[2]), f) * 0.5
+		var side := -1.0 if h2 < 0.5 else 1.0
+		var q := (st_rect.position + c + Vector2(side * (half + 0.5), 0.0)).round()
+		var big := h1 > 0.45
+		_life.draw_rect(Rect2(q, Vector2(2.0 if big else 1.0, 2.0 if big else 1.0)), body)
+		_life.draw_rect(Rect2(q + Vector2(0.0 if side < 0.0 else (1.0 if big else 0.0), -1.0), Vector2.ONE), back)
+
+
+## Pictures a structure's lights draw, loaded once.
+static var _texs: Dictionary = {}
+
+
+static func _tex(path: String) -> Texture2D:
+	if not _texs.has(path):
+		_texs[path] = load(path) as Texture2D
+	return _texs[path]
 
 
 ## A point of a piece's own 1x picture, where it is on screen now (its turn, its
@@ -1834,9 +2906,9 @@ func _at(rec: Dictionary, a: Variant) -> Vector2:
 	var node: Node2D = rec.node
 	v = v.rotated(float(rec.turn))
 	# a ship turned to face the other way: its bow is on its right
-	if (rec.sprite as Sprite2D).flip_h:
+	if bool(rec.flip):
 		v.x = -v.x
-	return node.position + v.rotated(node.rotation) * float(rec.scale) * _scale
+	return node.position + (rec.vshift as Vector2) + v.rotated(node.rotation + float(rec.vrot)) * float(rec.scale) * _scale
 
 
 ## How big a light is drawn on this piece: smaller on far ones.
@@ -1849,6 +2921,9 @@ func _lk(rec: Dictionary) -> float:
 ## on and off, never snapped (a hard blink reads as a fault).
 func _draw_over() -> void:
 	var t := _t
+	if not _st.is_empty():
+		_draw_structure_light(t)
+	_draw_piece_light(t)
 	for rec: Dictionary in _placed:
 		var p: Dictionary = rec.info
 		if not p.has("bow"):
@@ -1858,7 +2933,7 @@ func _draw_over() -> void:
 		if bool(rec.drive):
 			# a drive at the stern, breathing a little
 			var fl := 0.85 + 0.1 * sin(t * 5.1 + float(rec.phase)) + 0.05 * sin(t * 13.7 + float(rec.phase) * 2.0)
-			var at := _at(rec, p.stern) + Vector2(-2.0 * k if (rec.sprite as Sprite2D).flip_h else 2.0 * k, 0.0)
+			var at := _at(rec, p.stern) + Vector2(-2.0 * k if bool(rec.flip) else 2.0 * k, 0.0)
 			_glow(at, roundi(12.0 * k) + 1, Color(1.0, 0.6, 0.28), 0.95 * fl * dim)
 			_glow(at, roundi(4.0 * k) + 1, Color(1.0, 0.9, 0.75), fl * dim)
 		if bool(rec.flood):
@@ -1895,6 +2970,118 @@ func _draw_over() -> void:
 		var e := 0.35 + 0.65 * _blink(t, 2.6, 0.9)
 		for i in pts.size() - 1:
 			_beam(pts[i], pts[i + 1], Color(1.0, 0.55, 0.25), e)
+
+
+## LIGHT ON A PIECE THAT IS NOT ITS OWN LAMPS, as light (eased, never snapped):
+##   glint &"beam"   its high edge catching a pulsar's beam as it crosses
+##                   (`LocalFx.beam_hit`): an instrument rack, a field's metal
+##   glint &"glaze"  a thick glaze catching the light here and there, each
+##                   point brightening and fading on its own slow clock
+##   lights &"shaded" a cooked machine's last lights, on its shaded side only,
+##                   each blinking once just after a flare of the star
+##   window [x, y]   one lit window (someone listening), warm, breathing a
+##                   little
+func _draw_piece_light(t: float) -> void:
+	for rec: Dictionary in _placed:
+		var g := StringName(rec.glint)
+		var dim := 1.0 - 0.6 * float(rec.far)
+		var k := _lk(rec)
+		if g != &"" and (rec.pts as Array).is_empty():
+			rec.pts = _light_points(rec, &"top" if g == &"beam" else &"any", 4 if g == &"beam" else 3)
+		if g == &"beam" and fx != null:
+			var hit: float = fx.beam_hit((rec.node as Node2D).position)
+			if hit > 0.01:
+				for q: Array in rec.pts:
+					_glow(_at(rec, q), roundi(5.0 * k) + 2, Color(0.75, 0.88, 1.0), 0.9 * hit * dim)
+		elif g == &"glaze":
+			var pts: Array = rec.pts
+			for j in pts.size():
+				var per := 4.0 + fposmod(float(j) * 1.37 + float(rec.phase), 3.0)
+				var u := fposmod(t + float(j) * 2.11 + float(rec.phase) * 3.0, per) / per
+				# a slow rise and fall over the first half of its clock, then dark
+				var w := sin(clampf(u * 2.0, 0.0, 1.0) * PI)
+				var hue := Color(0.7, 0.95, 0.9).lerp(Color(1.0, 0.8, 0.95), fposmod(float(j) * 0.37 + float(rec.phase), 1.0))
+				_glow(_at(rec, pts[j]), roundi(4.0 * k) + 2, hue, 0.75 * w * w * dim)
+		if StringName(rec.lights) == &"shaded":
+			if (rec.pts as Array).is_empty():
+				rec.pts = _light_points(rec, &"shaded", 3)
+			# just after a flare of the star (`LocalSky`'s prominence), a blink
+			var fl := float(sky._flare) if sky != null and is_instance_valid(sky) else 0.0
+			if fl > 0.35 and t - float(rec.blink_at) > 4.0:
+				rec.blink_at = t + 0.8
+			var b := 0.0
+			var since := t - float(rec.blink_at)
+			if since >= 0.0 and since < 0.7:
+				b = sin(since / 0.7 * PI)
+			for q: Array in rec.pts:
+				_glow(_at(rec, q), roundi(3.0 * k) + 1, Color(0.55, 0.95, 0.85), (0.45 + 0.5 * b) * dim)
+		var wv: Array = rec.window
+		if wv.size() == 2:
+			var br := 0.72 + 0.08 * sin(t * TAU / 6.0 + float(rec.phase))
+			_glow(_at(rec, wv), roundi(5.0 * k) + 2, Color(1.0, 0.72, 0.38), br * dim)
+		# ITS OWN LIGHTS (the index's `own_lights`, at its own 1x pixels): they come
+		# round with it as it turns (`_at` takes its turn, its tumble and its roll in)
+		var lights: Array = rec.get("own_lights", [])
+		for li in lights.size():
+			var l: Dictionary = lights[li]
+			# (on a spinning ring a pane rides round with its module)
+			var at: Variant = l.at
+			if rec.get("spin_mat") != null and li < ((rec.info as Dictionary).spin.lamps as Array).size():
+				at = spin_at(rec.info, li, spin_phi(rec, t))
+			_glow(_at(rec, at), maxi(1, roundi(float(l.get("r", 3)) * k)), Color(String(l.get("col", "#ffffff"))), _light_k(l, t) * dim)
+	# A CLAMP'S ARM ON YOUR BOW: its fault lamp, red, blinking on the jaws
+	var gp := grip_rect()
+	if gp.size.x > 0.0:
+		var gd: Dictionary = _st.get("st_grip", {})
+		_glow(Vector2(gp.position.x + 6.0, gp.position.y + 3.0), 5, Color(String(gd.get("lamp", "#ff3b2f"))),
+			(0.25 + 0.75 * _blink(t, 1.6, 0.7)) * (1.0 - 0.5 * (WRECK_DIM if _dimmed else 0.0)))
+
+
+## Points of a piece's own 1x picture for light to land on, from its pixels:
+## `top`, its high edge (a pixel with sky above it), spread along it; `shaded`,
+## its edge on the side away from the star; `any`, its own metal, spread out.
+func _light_points(rec: Dictionary, which: StringName, n: int) -> Array:
+	var p: Dictionary = rec.info
+	if not p.has("file"):
+		return []
+	var img := _image_of(String(p.file))
+	if img == null:
+		return []
+	if img.is_compressed():
+		img.decompress()
+	var w := img.get_width()
+	var h := img.get_height()
+	# (headless keeps no shader settings: then from below the star's side)
+	var ts: Variant = (rec.mat as ShaderMaterial).get_shader_parameter("to_star")
+	var away := -(ts as Vector2) if ts is Vector2 else Vector2.ZERO
+	if away.length() < 0.1:
+		away = Vector2(0.6, 0.8)
+	# (`to_star` is already in the picture's own frame, mirror and all)
+	away = away.normalized()
+	var cand: Array = []
+	for y in range(1, h - 1, 1):
+		for x in range(1, w - 1, 2):
+			if img.get_pixel(x, y).a < 0.5:
+				continue
+			match which:
+				&"top":
+					if img.get_pixel(x, y - 1).a < 0.5:
+						cand.append([x, y])
+				&"shaded":
+					var o := Vector2i((Vector2(x, y) + away * 2.0).round())
+					if o.x < 0 or o.y < 0 or o.x >= w or o.y >= h or img.get_pixel(o.x, o.y).a < 0.5:
+						cand.append([x, y])
+				_:
+					if (x * 7 + y * 13) % 5 == 0:
+						cand.append([x, y])
+	if cand.is_empty():
+		return []
+	cand.sort_custom(func(a: Array, b: Array) -> bool: return int(a[0]) < int(b[0]))
+	var out: Array = []
+	for i in n:
+		var q: Array = cand[clampi(int((float(i) + 0.5) / float(n) * float(cand.size())), 0, cand.size() - 1)]
+		out.append(q)
+	return out
 
 
 ## 0..1, on for `on` of every `period` seconds, eased in and out.
@@ -1997,9 +3184,107 @@ func _beam(a: Vector2, b: Vector2, col: Color, e: float) -> void:
 	_over.draw_line(a.round(), b.round(), Color(col.r * e, col.g * e, col.b * e, 1.0), 1.0)
 
 
+## YOUR HULL'S BOW on LOCAL, in this control's own space: the point just past
+## the furthest-right opaque pixel of the middle half of your ship's rows (its
+## nose), riding the ship's bob. INF when there is no ship to find. The scan is
+## made once per picture (`_bow`); the bob is added each frame.
+var _bow := {}
+
+
+func bow_point() -> Vector2:
+	var view := get_parent()
+	if view == null or not view.has_method(&"ship_view"):
+		return Vector2.INF
+	var sv := view.call(&"ship_view") as ShipView
+	if sv == null or not is_instance_valid(sv) or not sv.is_inside_tree():
+		return Vector2.INF
+	var img: Image = sv.canvas()
+	if img == null or img.get_width() <= 0 or img.get_height() <= 0:
+		return Vector2.INF
+	var key := "%s|%s" % [img.get_size(), sv.ship_rect()]
+	if String(_bow.get("key", "")) != key:
+		var used := img.get_used_rect()
+		var best := Vector2i(-1, -1)
+		for y in range(used.position.y + int(used.size.y * 0.25), used.end.y - int(used.size.y * 0.25)):
+			for x in range(used.end.x - 1, used.position.x - 1, -1):
+				if img.get_pixel(x, y).a > 0.5:
+					if x > best.x:
+						best = Vector2i(x, y)
+					break
+		_bow = {key = key, x = best.x, y = best.y - sv.bob_offset()}
+	if int(_bow.x) < 0:
+		return Vector2.INF
+	var kx := sv.canvas_width() / float(img.get_width())
+	var origin := (sv.size - Vector2(sv.canvas_width(), sv.canvas_height())) * 0.5
+	var p := origin + Vector2(float(_bow.x) + 1.0, float(int(_bow.y) + sv.bob_offset()) + 0.5) * kx
+	return get_global_transform().affine_inverse() * (sv.get_global_transform() * p)
+
+
+## A CLAMP'S ARM this frame (`grip`, see the header): from its jaws on your bow
+## to where it leaves the structure, level with your bow; Rect2() when there is
+## none.
+func grip_rect() -> Rect2:
+	if _st.is_empty() or not _st.has("st_grip"):
+		return Rect2()
+	var b := bow_point()
+	if not b.is_finite():
+		return Rect2()
+	var lat := _tex(String((_st.info as Dictionary).get("lattice", "")))
+	var h := float(lat.get_height()) if lat != null else 20.0
+	var x0 := roundf(b.x)
+	var gd: Dictionary = _st.st_grip
+	var fx := float(gd.get("from_x", 156))
+	# (from the structure's own metal on the arm's row: the first opaque pixel of
+	# its picture there, near the named part -- so it never leaves from the air)
+	var img := _grip_img()
+	if img != null:
+		var row := int(roundf(b.y - st_rect.position.y))
+		if row >= 0 and row < img.get_height():
+			for x in range(maxi(0, int(fx) - 24), mini(img.get_width(), int(fx) + 80)):
+				if img.get_pixel(x, row).a > 0.5:
+					fx = float(x)
+					break
+	var x1 := st_rect.position.x + fx
+	if x1 <= x0:
+		return Rect2()
+	return Rect2(x0, roundf(b.y - h * 0.5), x1 - x0, h)
+
+
+var _grip_image: Image = null
+
+
+func _grip_img() -> Image:
+	if _grip_image == null and not _st.is_empty():
+		_grip_image = _image_of(String((_st.info as Dictionary).file))
+		if _grip_image != null and _grip_image.is_compressed():
+			_grip_image.decompress()
+	return _grip_image
+
+
+## The arm drawn (`_draw_links`): the structure's own jaw block pressed to your
+## bow, then its own lattice repeated back to the structure, level, whole pixels.
+func _draw_grip() -> void:
+	var r := grip_rect()
+	if r.size.x <= 0.0:
+		return
+	var info: Dictionary = _st.info
+	var lat := _tex(String(info.get("lattice", "")))
+	var jaw := _tex(String(info.get("jaw", "")))
+	var mod := Color.WHITE.lerp(Color(0.035, 0.045, 0.075), WRECK_DIM) if _dimmed else Color.WHITE
+	var jw := float(jaw.get_width()) if jaw != null else 0.0
+	if lat != null:
+		_links.draw_texture_rect(lat, Rect2(r.position.x + jw - 2.0, r.position.y, r.size.x - jw + 2.0, r.size.y), true, mod)
+	if jaw != null:
+		_links.draw_texture(jaw, Vector2(r.position.x, r.position.y + roundf((r.size.y - float(jaw.get_height())) * 0.5)), mod)
+
+
 ## THE TETHER: a dark line through the hung pieces, one pixel, from end to end.
 ## And a TOW LINE off a ship's bow: slack, sagging, a clamp at its end.
+## And a structure's MOORING LINES (`lines`, to a piece that goes with it) and a
+## PARTED LINE (`parted`), hanging from it and drifting slowly.
 func _draw() -> void:
+	if not _st.is_empty():
+		_draw_moorings()
 	for rec: Dictionary in _placed:
 		if float(rec.tow) <= 0.0 or not (rec.info as Dictionary).has("bow"):
 			continue
@@ -2024,6 +3309,42 @@ func _draw() -> void:
 		sorted.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
 		for i in sorted.size() - 1:
 			draw_line(sorted[i], sorted[i + 1], Color(0.09, 0.1, 0.12, 0.9), 1.0)
+
+
+func _draw_moorings() -> void:
+	var col := Color(0.34, 0.36, 0.4)
+	if _dimmed:
+		col = col.lerp(Color(0.035, 0.045, 0.075), WRECK_DIM)
+	for ln: Dictionary in _st.get("st_lines", []):
+		var to: Dictionary = {}
+		for rec: Dictionary in _placed:
+			if int(rec.get("with_i", -1)) == int(ln.get("to", 0)):
+				to = rec
+		if to.is_empty():
+			continue
+		var a := _sp(ln.from)
+		var b := _at(to, ln.get("to_at", [0, 0]))
+		var prev := a
+		for i in range(1, 17):
+			var u := float(i) / 16.0
+			var q := a.lerp(b, u) + Vector2(0.0, sin(u * PI) * float(ln.get("sag", 3.0)))
+			draw_line(prev.round(), q.round(), col, 1.0)
+			prev = q
+	var pl: Dictionary = _st.get("st_parted", {})
+	if not pl.is_empty():
+		# hanging from its lug, its free end swinging slowly, more the further down,
+		# and trailing outward (`lean`, px at its end; leftward unless positive)
+		var a := _sp(pl.from)
+		var n := 24
+		var len := float(pl.get("len", 40.0))
+		var lean := float(pl.get("lean", -8.0))
+		var prev := a
+		for i in range(1, n + 1):
+			var u := float(i) / float(n)
+			var q := a + Vector2(sin(u * 2.4 + _t * TAU / 13.0) * 5.0 * u + u * lean, u * len)
+			draw_line(prev.round(), q.round(), col, 1.0)
+			prev = q
+		draw_rect(Rect2((prev - Vector2(1.0, 0.0)).round(), Vector2(3, 2)), col.darkened(0.3))
 
 
 ## Every placed piece's rect on screen, for the harnesses.

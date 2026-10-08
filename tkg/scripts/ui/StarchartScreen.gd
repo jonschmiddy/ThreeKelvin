@@ -302,7 +302,8 @@ func _build() -> void:
 	_jump.custom_minimum_size = Vector2(0, 24)
 	right.add_child(_jump)
 
-	mid.add_child(Widgets.panel_with(right))
+	_ladder_side = Widgets.panel_with(right)
+	mid.add_child(_ladder_side)
 
 	# --- key: icons are only better than labels if you can learn them
 	var key := HBoxContainer.new()
@@ -1256,6 +1257,75 @@ func _on_toggle_links() -> void:
 func _on_chart_cleared() -> void:
 	_selected = -1
 	_refresh()
+
+
+# ------------------------------------------------------------ the zoom ladder
+## THE CHART AS THE FARTHEST OF FOUR DISTANCES (`ZoomLadder`): k 0 is the view at
+## rest, 1 is your star at the closest zoom, where the sector map takes over.
+var _ladder_side: Control = null
+var _side_x := NAN
+
+
+func ladder_ready() -> bool:
+	return _chart != null and _chart.size.x > 10.0
+
+
+func ladder_picture() -> Rect2:
+	return _chart.get_global_rect() if _chart != null else get_global_rect()
+
+
+func ladder_scale() -> float:
+	return _chart.zoom if _chart != null else 1.0
+
+
+func ladder_anchor(_other: int, _seam: int, _design: String) -> Vector2:
+	if not ladder_ready() or Run.map.is_empty():
+		return get_global_rect().get_center()
+	return _chart.global_position + _chart._screen_pos(Run.node_at())
+
+
+func ladder_pre(_target: int, _seam: int, _design: String) -> float:
+	return 1.0 if ladder_ready() and not Run.map.is_empty() else 0.0
+
+
+var _lad_meet := Vector2.INF
+
+
+func ladder_meet(at: Vector2, _world: Dictionary) -> void:
+	_lad_meet = at
+
+
+func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
+	if ladder_ready():
+		# 1A, TONED DOWN: a short step in toward your star, not the closest zoom
+		var reach := 2.2 if seam == 1 and design == "A" else 0.0
+		_chart.ladder_begin(Vector2.ZERO if _lad_meet == Vector2.INF else _lad_meet - _chart.get_global_rect().get_center(), reach)
+		_lad_meet = Vector2.INF
+		_side_x = _ladder_side.position.x if _ladder_side != null else NAN
+
+
+func ladder_cam(k: float) -> void:
+	if _chart != null:
+		_chart.ladder_at(k)
+	ZoomLadder.slide(_ladder_side, _side_x, k)
+
+
+func ladder_spans() -> Vector2:
+	return _chart.ladder_spans() if _chart != null else Vector2.ZERO
+
+
+## How far across (0 to 1) the chart carries your star toward its middle; the
+## map that takes over carries it the rest of the way.
+func ladder_split(f: float) -> void:
+	if _chart != null and not _chart._lad.is_empty():
+		_chart._lad["split"] = clampf(f, 0.0, 1.0)
+
+
+func ladder_cam_end() -> void:
+	if _chart != null:
+		_chart.ladder_end()
+	ZoomLadder.slide(_ladder_side, _side_x, 0.0)
+	_side_x = NAN
 
 func _on_jump() -> void:
 	if _selected >= 0:
@@ -2241,7 +2311,9 @@ class MapChart extends Control:
 		# the wheel, by a drag, by `glide_to`'s animation and by both framing
 		# helpers; hooking all of them would leave one out. Reading the result
 		# once a frame cannot.
-		if remembers_view and size.x > 0.0:
+		# (not while the zoom ladder holds the view: what is remembered is where
+		# the chart rests, not the dive into your star on the way out)
+		if remembers_view and size.x > 0.0 and _lad.is_empty():
 			StarchartScreen._view_zoom = zoom
 			StarchartScreen._view_pan = pan
 			StarchartScreen._view_map = Run.map.size()
@@ -2619,6 +2691,10 @@ class MapChart extends Control:
 			match mb.button_index:
 				MOUSE_BUTTON_WHEEL_UP:
 					if mb.pressed:
+						# IN PAST THE CLOSEST ZOOM IS YOUR SYSTEM (`ZoomLadder`)
+						if zoom >= ZOOM_MAX - 0.001 and ZoomLadder.overscroll(1):
+							Router.show_system()
+							return
 						_zoom_at(mb.position, ZOOM_STEP)
 				MOUSE_BUTTON_WHEEL_DOWN:
 					if mb.pressed:
@@ -2699,6 +2775,56 @@ class MapChart extends Control:
 	## How strongly the sky answers a zoom, as an exponent on the zoom factor.
 	## 1.0 would move it exactly with the galaxy; 0.0 pins it to the frame.
 	const SKY_ZOOM_POWER := 0.25
+
+	## THE ZOOM LADDER's hold on the view: from where it rests to your star at
+	## the closest zoom, the sky solved at every step as `glide_to` solves it.
+	var _lad := {}
+	var ladder_hush := false
+
+	func ladder_begin(off: Vector2 = Vector2.ZERO, reach: float = 0.0) -> void:
+		if _glide != null and _glide.is_valid():
+			_glide.kill()
+		var here: MapGen.MapNode = Run.node_at() if not Run.map.is_empty() else null
+		_lad = {"z0": zoom, "p0": pan, "s0": sky_pan, "off": off,
+			"z1": minf(ZOOM_MAX, zoom * reach) if reach > 0.0 else ZOOM_MAX,
+			"f1": _proj_unit(here.gal) if here != null else Vector2.ZERO}
+
+	func ladder_at(k: float) -> void:
+		if _lad.is_empty():
+			return
+		var z0: float = _lad.z0
+		var z: float = z0 * pow(float(_lad.z1) / maxf(z0, 0.0001), k)
+		var f0: Vector2 = -(_lad.p0 as Vector2) / maxf(z0, 0.0001)
+		zoom = z
+		# YOUR STAR ON A STRAIGHT LINE across the picture, as far along it as this
+		# half of the move goes (`split`): from where it stood toward the middle
+		# (or, arriving, toward where the map left its sun), whatever the zoom does
+		var unit: Vector2 = _lad.f1
+		var rel0 := (_lad.p0 as Vector2) + unit * z0
+		var goal: Vector2 = _lad.off if (_lad.off as Vector2) != Vector2.ZERO else Vector2.ZERO
+		var rel := rel0.lerp(goal, k * float(_lad.get("split", 1.0)))
+		pan = rel - unit * z
+		if f0 == Vector2.INF:
+			pan = -f0 * z
+		var c0 := size * 0.5
+		sky_pan = c0 - (c0 - (_lad.s0 as Vector2)) * pow(z / maxf(z0, 0.0001), SKY_ZOOM_POWER) + (pan - (_lad.p0 as Vector2))
+		var hush := k > 0.25
+		if hush != ladder_hush:
+			ladder_hush = hush
+			queue_redraw()
+		_repaint_galaxy()
+
+	## How far the chart's own step travels (log scale), and the map's after it.
+	func ladder_spans() -> Vector2:
+		if _lad.is_empty():
+			return Vector2.ZERO
+		return Vector2(absf(log(float(_lad.z1) / maxf(float(_lad.z0), 0.0001))), log(1.0 / 0.12))
+
+	func ladder_end() -> void:
+		_lad = {}
+		if ladder_hush:
+			ladder_hush = false
+			queue_redraw()
 
 	func _zoom_at(at: Vector2, factor: float) -> void:
 		var c0 := size * 0.5
@@ -3704,6 +3830,10 @@ class MapChart extends Control:
 	## The glyph's are kept because they are drawn WITH the node and scale with
 	## it; this one is a label and does the job the glyph cannot.
 	func _draw_you(p: Vector2, tiny: bool) -> void:
+		# (not while the zoom ladder closes on your star: a label grown with the
+		# picture is a smear of letter-sized blocks)
+		if ladder_hush:
+			return
 		# AND ITS BRACKETS ONLY WHERE THE GLYPH IS NOT DRAWING ANY. Zoomed out,
 		# a system is a two-pixel rect and `Glyph.draw_glyph` never runs -- so
 		# removing these outright to kill the double box took the ship's marker

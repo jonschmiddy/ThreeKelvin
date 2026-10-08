@@ -518,6 +518,32 @@ func _ready() -> void:
 					scr.overlay.hover = scr.overlay.hit(sp5)
 					print("  systemshot: hoverbelt %s" % [scr.overlay.hover.get("kind", "")])
 					break
+	# `beatlog=<file>` (`blframes=N`): THE PULSAR'S BEAT CLOCK, live -- the map's
+	# clock running and its sound playing (`--audio-driver Dummy` to hear none of
+	# it) -- each frame's wall time, map clock, beat offset, the sound's clock
+	# and the beam's angle, to see whether the beat time the pulsar is drawn at
+	# runs as smoothly as the frames
+	for a27 in OS.get_cmdline_user_args():
+		if not (a27 as String).begins_with("beatlog="):
+			continue
+		var bn27 := 300
+		for a28 in OS.get_cmdline_user_args():
+			if (a28 as String).begins_with("blframes="):
+				bn27 = int((a28 as String).substr(9))
+		# (the output muted: the device's own clock runs, nothing is heard)
+		if "blmute" in OS.get_cmdline_user_args():
+			AudioServer.set_bus_mute(0, true)
+		Audio.room(&"amb_pulsar", 0.01)
+		scr.frozen = false
+		var rows27: Array = []
+		for k27 in bn27:
+			await RenderingServer.frame_post_draw
+			rows27.append([Time.get_ticks_usec(), scr.view.t, scr.view._beat_off, Audio.room_clock(&"amb_pulsar"), float(scr.view.star.get("beam_angle"))])
+		scr.frozen = true
+		var f27 := FileAccess.open((a27 as String).substr(8), FileAccess.WRITE)
+		f27.store_string(JSON.stringify(rows27))
+		f27.close()
+		print("  systemshot: beatlog %d frames" % bn27)
 	# `zoomclip=<dir>` (`zfrom=` `zto=` `zframes=` `zworld`): A SLOW ZOOM, filmed
 	# frame by frame on a stopped clock (so only the zoom changes anything), the
 	# map window saved each frame with where the star and each world are drawn
@@ -585,6 +611,24 @@ func _ready() -> void:
 					var node10: CanvasItem = scr.overlay if nm10 == "overlay" else (scr.view.star if nm10 == "star" else scr.view.get("_" + nm10))
 					if node10 != null:
 						node10.visible = false
+		# `zat=DX,DY`: A WHEEL ZOOM, pivoted on the point DX,DY from the map's middle
+		# as the wheel pivots on the cursor (the pan moved as `_step_camera` moves
+		# it), so the star travels across the screen as it grows; `zease`: the zoom
+		# eased toward `zto` at the game's own rate (14/s at 60 fps), as a wheel
+		# notch eases, instead of evenly
+		var piv9 := Vector2.INF
+		for a26 in OS.get_cmdline_user_args():
+			if (a26 as String).begins_with("zat="):
+				var pp9 := (a26 as String).substr(4).split(",")
+				piv9 = Vector2(float(pp9[0]), float(pp9[1]))
+		var ease9 := "zease" in OS.get_cmdline_user_args()
+		var zl9 := z0
+		var feed9: Array = []
+		var beats9: Array = []
+		for a29 in OS.get_cmdline_user_args():
+			if (a29 as String).begins_with("beatfeed="):
+				feed9 = JSON.parse_string(FileAccess.get_file_as_string((a29 as String).substr(9)))
+		var follow9: bool = scr.view.has_method("beat_follow") and not ("beatraw" in OS.get_cmdline_user_args())
 		var rows9: Array = []
 		var origin9: Vector2 = scr._box.get_global_transform_with_canvas().origin
 		for k9 in (nz * 2 + 1 if zback else nz + 1):
@@ -592,11 +636,33 @@ func _ready() -> void:
 			if u9 > 1.0:
 				u9 = 2.0 - u9
 			var z: float = z0 * pow(z1 / z0, u9)
+			if ease9:
+				z = z0 if k9 == 0 else lerpf(zl9, z1, 1.0 - exp(-14.0 / 60.0))
+				zl9 = z
 			scr._zoom_to = z
 			scr.view.zoom = z
 			scr.view.pan = -scr.overlay.place_rel(wi) if wi >= 0 else Vector2.ZERO
+			if piv9 != Vector2.INF:
+				scr.view.pan = piv9 * (1.0 - z / z0)
 			if tstep > 0.0:
 				scr.view.t = t_open + tstep * float(k9)
+			# `beatfeed=<beatlog.json>`: the clock run as a live session ran it, frame
+			# by frame, and the pulsar's beat set from the sound's clock as that session
+			# read it (`beatlog`), so a clip shows the beat as play draws it -- followed
+			# as the map follows it (`SystemView.beat_follow`), or taken raw each frame
+			# where there is no such thing (the code before it) or with `beatraw`
+			if not feed9.is_empty():
+				var fr9: Array = feed9[mini(k9 + 30, feed9.size() - 1)]
+				var f09: Array = feed9[30]
+				scr.view.t = t_open + float(fr9[1]) - float(f09[1])
+				var lp9: float = load("res://scripts/ui/sysmap/PulsarView.gd").LOOP_S
+				var want9 := wrapf(float(fr9[3]) - fposmod(scr.view.t, lp9), -lp9 / 2.0, lp9 / 2.0)
+				if k9 == 0 or not follow9:
+					scr.view._beat_off = want9
+				else:
+					var fp9: Array = feed9[mini(k9 + 29, feed9.size() - 1)]
+					scr.view._beat_off = scr.view.call("beat_follow", scr.view._beat_off, want9, float(fr9[1]) - float(fp9[1]))
+				beats9.append(scr.view.t + scr.view._beat_off)
 			await RenderingServer.frame_post_draw
 			var img := get_viewport().get_texture().get_image()
 			var w9: Rect2 = scr.view.window
@@ -625,7 +691,10 @@ func _ready() -> void:
 			var mo9: Array = []
 			for mm9: Dictionary in scr.view._moons.positions(0.0):
 				mo9.append([int(mm9.i), (mm9.c as Vector2).x - w9.position.x, (mm9.c as Vector2).y - w9.position.y, float(mm9.z), float(mm9.ecl)])
-			rows9.append({"zoom": z, "star": [o9.x, o9.y, scr.view.layout.star_r * scr.view.star_k()], "bodies": bods, "par": par9, "layers": lay9, "moons": mo9})
+			# (and where the star truly is, unrounded: the place the map's zoom and pan put it)
+			var te9: Vector2 = Vector2(scr.view.CX, scr.view.CY) + scr.view.pan - w9.position
+			rows9.append({"zoom": z, "star": [o9.x, o9.y, scr.view.layout.star_r * scr.view.star_k()], "true_at": [te9.x, te9.y],
+				"pan": [scr.view.pan.x, scr.view.pan.y], "beat": beats9.back() if not beats9.is_empty() else -1.0, "bodies": bods, "par": par9, "layers": lay9, "moons": mo9})
 		var fz := FileAccess.open(zdir + "/frames.json", FileAccess.WRITE)
 		fz.store_string(JSON.stringify(rows9))
 		fz.close()

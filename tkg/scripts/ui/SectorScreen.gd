@@ -258,6 +258,7 @@ func setup(c: Combat = null) -> void:
 	_events = LocalEventDrawer.attach(self, fighting())
 	_events.changed.connect(_refresh)
 	_refresh()
+	_attach_station_face()
 
 	# Fly in. Arriving somewhere should look like arriving somewhere — the ship
 	# comes in under power from the left, cuts its engines short of station and
@@ -616,6 +617,9 @@ func _build() -> void:
 	# changes whenever the band does — a bookend's drawer, a fight's hand, a
 	# cinematic's parked one. Asked again every time the view is re-laid out.
 	_view.resized.connect(_sync_bleed)
+	# THE WHEEL OUT PAST LOCAL IS THE SECTOR MAP, IN AT A STATION THE STATION
+	# (`ZoomLadder`)
+	_view.gui_input.connect(_on_view_wheel)
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
 	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
@@ -1092,6 +1096,14 @@ func _drawer_here(n: MapGen.MapNode) -> void:
 		lb.custom_minimum_size = EncounterDrawer.BTN
 		lb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(lb)
+	# DOCK, ONE DISTANCE IN (`ZoomLadder`): the station is right there, so the way
+	# into it is here as well as on the map
+	if n.type == MapGen.NodeType.STATION and ZoomLadder.chosen():
+		var dk := Widgets.button("DOCK", func() -> void: Router.show_station())
+		dk.name = "Dock"
+		dk.custom_minimum_size = EncounterDrawer.BTN
+		dk.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(dk)
 	# NO CLICK: the page turn is this button's sound. See `_plot_next_jump`.
 	var b := Widgets.button(EncounterDrawer.TO_SECTOR, _plot_next_jump, false)
 	b.custom_minimum_size = EncounterDrawer.BTN
@@ -2317,6 +2329,331 @@ func _on_own_ship_input(e: InputEvent) -> void:
 	if on and mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 		slot.accept_event()
 		open_cutaway()
+
+
+# ------------------------------------------------------------ the zoom ladder
+## LOCAL AS ONE DISTANCE OF FOUR (`ZoomLadder`). Its camera is the cutaway's: the
+## scene itself scaled round a point (the ships, the subject, the dust and the
+## shots) and the sky by depth (`LocalSky.set_zoom`), so a move in or out has
+## real parallax -- the far stars hold, the world you orbit moves most. k is 0 at
+## rest and 1 at the distance toward the other screen: pulled back to a speck of
+## your ship for the map and the chart, pushed in on the station's ring for the
+## station.
+var _lad := {}
+var _lad_zs := 1.0
+
+
+func _on_view_wheel(e: InputEvent) -> void:
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed or fighting() or _phase != Phase.NONE or _cutaway != null 			or _transfer != null:
+		return
+	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and ZoomLadder.overscroll(-1):
+		_view.accept_event()
+		_plot_next_jump()
+	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and Run.node_at() != null 			and Run.node_at().type == MapGen.NodeType.STATION and ZoomLadder.overscroll(1):
+		_view.accept_event()
+		Router.show_station()
+
+
+func ladder_ready() -> bool:
+	return _view != null and _view.size.x > 10.0
+
+
+func ladder_picture() -> Rect2:
+	return _view.get_global_rect()
+
+
+func ladder_scale() -> float:
+	return _lad_zs
+
+
+func _ladder_ship() -> Vector2:
+	var art := _view.ship_view() if _view != null else null
+	if art == null:
+		return _view.get_global_rect().get_center()
+	var ink := Rect2(art.ink_rect())
+	return art.get_global_transform() * art.canvas_to_local(ink.get_center())
+
+
+## THE STATION'S SIDE (`StationFace`), with the one camera on: the hull and its
+## hangar behind your ship, the mouth's frame in front of it.
+var _face: StationFace = null
+var _face_front: StationFace = null
+
+
+func _attach_station_face() -> void:
+	var n: MapGen.MapNode = Run.node_at()
+	if n == null or n.type != MapGen.NodeType.STATION or not ZoomLadder.chosen() or _view == null:
+		return
+	var pair := StationFace.make_pair(n, _view)
+	_face = pair[0]
+	_face_front = pair[1]
+	_view.add_child(_face)
+	_view.move_child(_face, _view._row.get_index())
+	_view.add_child(_face_front)
+	_view.move_child(_face_front, _view._row.get_index() + 1)
+	# (the ring stands down: the station is its side now)
+	_view._area.modulate.a = 0.0
+	_view.resized.connect(_place_face)
+	_place_face.call_deferred()
+
+
+func _place_face() -> void:
+	if _face == null or not is_instance_valid(_face):
+		return
+	var sky: LocalSky = _view.backdrop
+	var tint := Color(1, 1, 1)
+	if sky != null:
+		tint = Color(sky._tint.x, sky._tint.y, sky._tint.z)
+	for f: StationFace in [_face, _face_front]:
+		f.ship_y = (f.get_global_transform().affine_inverse() * _ladder_ship()).y
+		f.tint = tint
+		f.queue_redraw()
+
+
+func _ladder_ring() -> Vector2:
+	if _face != null and is_instance_valid(_face):
+		return _face.mouth_g()
+	var a: Control = _view._area if _view != null else null
+	if a != null and a.is_visible_in_tree() and a.size.x > 1.0:
+		return a.get_global_rect().get_center()
+	return _ladder_ship()
+
+
+## The world the ship is in orbit of, drawn close behind the fight: its centre on
+## screen and its radius, under the camera as it is now.
+func ladder_world() -> Dictionary:
+	var sky: LocalSky = _view.backdrop if _view != null else null
+	if sky == null or sky.orbit_target < 0 or sky._near.is_empty() or float(sky._near[0][3]) <= 0.0:
+		return {}
+	# (the map's world, handed over and still being moved: where it is drawn)
+	if not sky._hand.is_empty() and sky._box != null:
+		return {"c": sky._box.get_global_transform() * ((sky._hand.get("drawn", sky._hand.at) as Vector2) * 0.5), "r": float(sky._hand.r)}
+	if sky.has_method(&"near_info"):
+		var ni: Dictionary = sky.near_info()
+		if not ni.is_empty():
+			return {"c": ni.at, "r": float(ni.r)}
+	var at: Vector2 = sky._near[0][1]
+	return {"c": sky.get_global_transform() * sky._zp(at, LocalSky.Z_NEAR), "r": float(sky._near[0][3]) * sky._zl(LocalSky.Z_NEAR)}
+
+
+## The plane as LOCAL draws it: its star on screen, plane px to screen px, and
+## its slant.
+func ladder_plane() -> Dictionary:
+	var sky: LocalSky = _view.backdrop if _view != null else null
+	if sky == null or sky.layout == null:
+		return {}
+	return {"o": sky.get_global_transform() * sky._zp(sky.band_origin(), LocalSky.Z_STAR), "s": sky._s * sky._zl(LocalSky.Z_BAND), "tilt": LocalSky.TILT}
+
+
+func ladder_anchor(other: int, seam: int, design: String) -> Vector2:
+	if other == ZoomLadder.STATION:
+		return _ladder_ring()
+	if seam == 2 and design == "C":
+		var w := ladder_world()
+		if not w.is_empty():
+			return w.c
+	return _ladder_ship()
+
+
+func ladder_pre(target: int, seam: int, design: String) -> float:
+	if not ladder_ready():
+		return 0.0
+	if seam == 3 and design == "D":
+		return 1.0
+	if seam == 3 and design == "B":
+		# the hull flies all the way into the ring before the hangar takes over
+		return 1.0
+	if seam == 2 and design == "B":
+		return 0.5
+	return 1.0
+
+
+## Where the held picture's anchor is (and its world, for the world handoff):
+## this camera's far end is placed on it. Taken by the next `ladder_cam_begin`.
+var _lad_meet := {}
+
+
+func ladder_meet(at: Vector2, world: Dictionary) -> void:
+	_lad_meet = {"at": at, "world": world}
+
+
+func ladder_cam_begin(other: int, seam: int, design: String) -> void:
+	if not ladder_ready():
+		return
+	ladder_cam_end()
+	var meet := _lad_meet
+	_lad_meet = {}
+	var fixed := ladder_anchor(other, seam, design)
+	var zs1 := 0.22
+	var to1 := fixed
+	var hull_flies := seam == 3 and (design == "B" or design == "D") and other == ZoomLadder.STATION
+	if other == ZoomLadder.STATION:
+		zs1 = 2.4
+		if hull_flies:
+			# into the mouth: the bulkhead hides the rest (B); straight through it
+			# until the hangar fills the picture (D)
+			zs1 = 2.0 if design == "B" else 4.2
+		to1 = _view.get_global_rect().get_center()
+	elif seam == 2 and design == "C":
+		zs1 = 0.3
+	elif seam == 2 and design == "B":
+		zs1 = 0.55
+	if not meet.is_empty() and not hull_flies:
+		to1 = meet.at
+		# the world you orbit, drawn at the held world's size
+		var w := ladder_world()
+		var wo: Dictionary = meet.world
+		if seam == 2 and design == "C" and not w.is_empty() and not wo.is_empty():
+			zs1 = clampf(float(wo.r) / maxf(float(w.r), 1.0), 0.1, 0.8)
+	var scenes: Array = []
+	for c: Control in [LocalSubject.of(_view), _face, _view._row, _face_front, _view.dust, _view.fx]:
+		if c != null and is_instance_valid(c):
+			scenes.append([c, c.scale, c.offset_left, c.offset_top, c.offset_right, c.offset_bottom, c.size,
+				c.get_global_transform().affine_inverse() * fixed])
+	var sky: LocalSky = _view.backdrop
+	# 2C moves by fractions of a pixel (Jon prefers smooth to stepped)
+	var smooth := seam == 2 and design == "C"
+	# 3B: YOUR SHIP FLIES INTO THE RING (and back out of it, undocking): the hull
+	# itself, carried from where it sits to the ring's middle, getting smaller
+	var ship := {}
+	var art := _view.ship_view()
+	if hull_flies and art != null:
+		var ink := Rect2(art.ink_rect())
+		ship = {"art": art, "pos": art.position, "scale": art.scale, "pivot": art.pivot_offset,
+			"mid": art.canvas_to_local(ink.get_center())}
+		art.pivot_offset = ship.mid
+	_lad = {"fixed": fixed, "to1": to1, "zs1": zs1, "scenes": scenes, "smooth": smooth, "ship": ship,
+		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,
+		"bar": _quiet_holder.modulate.a if _quiet_holder != null else 1.0}
+	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
+	# the world you orbit carried in its own picture, as the map's is carried in
+	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
+			and sky.hand_own(_sky_pt(sky, fixed)):
+		_lad["hand_R"] = float(sky._near[0][3])
+
+
+## A point on screen in the sky's own frame (the 960x540 picture its layers are
+## placed in, which its window shows offset): what `LocalSky.set_zoom` takes, and
+## the frame `LocalSky.near_info` reads back from, so the two agree.
+func _sky_pt(sky: LocalSky, g: Vector2) -> Vector2:
+	if sky._box != null and is_instance_valid(sky._box):
+		return (sky._box.get_global_transform().affine_inverse() * g) * 2.0
+	return sky.get_global_transform().affine_inverse() * g
+
+
+func ladder_cam(k: float) -> void:
+	if _lad.is_empty():
+		return
+	var zs := pow(float(_lad.zs1), k)
+	_lad_zs = zs
+	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, k)
+	for w: Array in _lad.scenes:
+		var sc: Control = w[0]
+		if not is_instance_valid(sc):
+			continue
+		sc.scale = (w[1] as Vector2) * zs
+		var to := (sc.get_parent() as CanvasItem).get_global_transform().affine_inverse() * to_g
+		sc.position = to - (w[7] as Vector2) * sc.scale
+		if not bool(_lad.smooth):
+			sc.position = sc.position.round()
+		sc.size = w[6]
+	var sky: LocalSky = _view.backdrop
+	if sky != null and is_instance_valid(sky):
+		sky.set_zoom(zs, _lad.sky_fixed, _sky_pt(sky, to_g))
+		# the handed-over world: where the world's middle goes, at its size
+		if _lad.has("hand_R"):
+			sky.near_hand(_sky_pt(sky, to_g), float(_lad.hand_R) * zs, 1.0 - k, _sky_pt(sky, _lad.fixed))
+	var ship: Dictionary = _lad.ship
+	if not ship.is_empty() and is_instance_valid(ship.art):
+		var art: ShipView = ship.art
+		var q := clampf(k, 0.0, 1.0)
+		var eq := q * q * (3.0 - 2.0 * q)
+		var slot := art.get_parent() as Control
+		var ring := slot.get_global_transform().affine_inverse() * _ladder_ring()
+		# (with the station's side up, into its mouth and on into the hangar,
+		# a little smaller with the depth; into the ring and gone without it)
+		var deep := _face != null and is_instance_valid(_face)
+		var fly := eq if not deep else clampf(q * 1.25, 0.0, 1.0)
+		fly = fly * fly * (3.0 - 2.0 * fly)
+		art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
+		art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
+		art.visible = deep or eq < 0.9
+	# the bar along the bottom is the screen's, not the scene's: it comes and goes
+	if _quiet_holder != null:
+		_quiet_holder.modulate.a = float(_lad.bar) * clampf(1.0 - k * 1.6, 0.0, 1.0)
+
+
+func ladder_cam_end() -> void:
+	if _lad.is_empty():
+		return
+	for w: Array in _lad.scenes:
+		var sc: Control = w[0]
+		if not is_instance_valid(sc):
+			continue
+		sc.scale = w[1]
+		sc.offset_left = w[2]
+		sc.offset_top = w[3]
+		sc.offset_right = w[4]
+		sc.offset_bottom = w[5]
+	var sky: LocalSky = _view.backdrop
+	if sky != null and is_instance_valid(sky):
+		sky.end_hand()
+		sky.set_zoom(1.0, Vector2.ZERO, Vector2.ZERO)
+	if _quiet_holder != null:
+		_quiet_holder.modulate.a = float(_lad.bar)
+	var ship: Dictionary = _lad.ship
+	if not ship.is_empty() and is_instance_valid(ship.art):
+		var art: ShipView = ship.art
+		art.position = ship.pos
+		art.scale = ship.scale
+		art.pivot_offset = ship.pivot
+		art.visible = true
+	_lad = {}
+	# where the world you orbit sits at rest, for the next move in (`ZoomLadder`)
+	var w := ladder_world()
+	var sk: LocalSky = _view.backdrop if _view != null else null
+	if not w.is_empty() and sk != null and sk.node != null and sk.orbit_target >= 0:
+		ZoomLadder.world_rest["%d:%d" % [sk.node.index, sk.orbit_target]] = w
+	_lad_zs = 1.0
+	ladder_hide_hull(false)
+
+
+## THE MAP'S WORLD, TAKEN (2C): into the sky's near picture in place of its own,
+## at the map's size and place; moved and eased by `ladder_cam` from here on.
+func ladder_take_world(g: Dictionary) -> bool:
+	var sky: LocalSky = _view.backdrop if _view != null else null
+	if sky == null or _lad.is_empty():
+		return false
+	var ok := sky.adopt_near(g.view, _sky_pt(sky, g.screen), g)
+	if ok:
+		_lad["hand_R"] = float(sky._near[0][3])
+	return ok
+
+
+## Your hull as it is drawn: its canvas on screen, and the art (3B carries it).
+func ladder_hull() -> Rect2:
+	var art := _view.ship_view() if _view != null else null
+	if art == null or art._tex == null:
+		return Rect2()
+	var g := art.get_global_transform()
+	return Rect2(g * art.canvas_to_local(Vector2.ZERO), Vector2(art._w, art._h) * float(art._k) * g.get_scale())
+
+
+func ladder_hull_texture() -> Texture2D:
+	var art := _view.ship_view() if _view != null else null
+	return art._tex if art != null else null
+
+
+var _lad_hid := false
+
+
+func ladder_hide_hull(on: bool) -> void:
+	var art := _view.ship_view() if _view != null else null
+	if art == null or _cutaway != null or on == _lad_hid:
+		return
+	_lad_hid = on
+	art.visible = not on
 
 
 ## Open your ship up. Public for the harnesses (`sheet=CutawayShot`).

@@ -2557,6 +2557,148 @@ func _on_mine_input(e: InputEvent) -> void:
 	open_cutaway()
 
 
+# ------------------------------------------------------------ the zoom ladder
+## THE STATION AS THE CLOSEST OF FOUR DISTANCES (`ZoomLadder`): the camera is
+## already inside, so it does not move; what the ladder asks of it is where its
+## picture is and where your ship stands in it.
+func ladder_ready() -> bool:
+	return _tab != &"services" or (_mine_view != null and is_instance_valid(_mine_view))
+
+
+func ladder_picture() -> Rect2:
+	if _scene != null and is_instance_valid(_scene) and _scene.is_visible_in_tree():
+		return _scene.get_global_rect()
+	return get_global_rect()
+
+
+func ladder_scale() -> float:
+	return 1.0
+
+
+func ladder_anchor(_other: int, seam: int, design: String) -> Vector2:
+	var h := ladder_hull()
+	if (seam == 0 or (seam == 3 and (design == "B" or design == "D"))) and h.size.x > 1.0:
+		return h.get_center()
+	return ladder_picture().get_center()
+
+
+## 3B undocking moves the yard first: the elevator out, then your ship off its
+## stands and out to the left.
+func ladder_pre(_target: int, seam: int, design: String) -> float:
+	_lad_going = seam == 3 and (design == "B" or design == "D") and _mine_view != null and is_instance_valid(_mine_view)
+	return 1.0 if _lad_going else 0.0
+
+
+var _lad_going := false
+
+
+## THE YARD'S OWN HULL FLIES IN (3B, Jon: "can we have the ship enter the
+## shipyard from the left.... without the elevator... and then the elevator slides
+## in?"). k is 1 with the hull off the left edge and the elevator gone, 0 with the
+## hull on its stands; the elevator slides back in once the hull has settled
+## (`ladder_cam_end`), as it does when the cutaway shuts. Undocking runs it
+## backwards (`ladder_pre`): the elevator out first, then the hull lifts and goes.
+var _lad := {}
+var _lad_tw: Tween = null
+
+
+func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
+	_lad = {}
+	var going := _lad_going
+	_lad_going = false
+	if not (seam == 3 and (design == "B" or design == "D")) or _mine_view == null or not is_instance_valid(_mine_view):
+		return
+	if _lad_tw != null and _lad_tw.is_valid():
+		_lad_tw.kill()
+	var rail_x := NAN
+	if _rail != null and is_instance_valid(_rail):
+		rail_x = _rail.position.x
+	_lad = {"pos": _mine_view.position, "rail_x": rail_x, "out": going,
+		"off": _mine_view.position.x + float(_mine_view.size.x) + 24.0}
+	if _scene != null:
+		_scene.hide_mine = true
+		_scene.queue_redraw()
+
+
+func ladder_cam(k: float) -> void:
+	if _lad.is_empty() or not is_instance_valid(_mine_view):
+		return
+	if bool(_lad.out):
+		ladder_pre_cam(k)
+		return
+	# the hull: in from the left over the last 70% of the way, slowing onto its
+	# stands; the last stretch a settle down onto them (seated on its underside,
+	# as the yard stood it)
+	var q := clampf((1.0 - k) / 0.7 - (0.3 / 0.7), 0.0, 1.0) if k < 1.0 else 0.0
+	var fly := 1.0 - pow(1.0 - q, 3.0)
+	var settle := clampf((q - 0.7) / 0.3, 0.0, 1.0)
+	var lift := 8.0 * (1.0 - settle * settle * (3.0 - 2.0 * settle)) if q < 1.0 else 0.0
+	var p0: Vector2 = _lad.pos
+	_mine_view.position = Vector2(p0.x - float(_lad.off) * (1.0 - fly), p0.y - lift)
+	# the elevator stays out of the picture until the hull is down
+	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
+		_rail.position.x = float(_lad.rail_x) - (_rail.size.x + 16.0) * (1.0 if k > 0.0 else 0.0)
+
+
+func ladder_cam_end() -> void:
+	ladder_hide_hull(false)
+	if _lad.is_empty():
+		return
+	if is_instance_valid(_mine_view):
+		_mine_view.position = _lad.pos
+	if _scene != null and is_instance_valid(_scene):
+		_scene.hide_mine = false
+		_scene.queue_redraw()
+	var rx := float(_lad.rail_x)
+	_lad = {}
+	if _rail == null or not is_instance_valid(_rail) or is_nan(rx):
+		return
+	# AND THEN THE ELEVATOR SLIDES IN
+	if Router.animating():
+		_rail.position.x = rx - (_rail.size.x + 16.0)
+		_lad_tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_lad_tw.tween_property(_rail, "position:x", rx, 0.35)
+	else:
+		_rail.position.x = rx
+
+
+## Undocking (3B): k 0 to 1 is the elevator out (the first 30%), then the hull
+## lifting off its stands and flying out to the left.
+func ladder_pre_cam(k: float) -> void:
+	if _lad.is_empty() or not is_instance_valid(_mine_view):
+		return
+	var a := clampf(k / 0.3, 0.0, 1.0)
+	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
+		_rail.position.x = float(_lad.rail_x) - (_rail.size.x + 16.0) * (a * a * (3.0 - 2.0 * a))
+	var b := clampf((k - 0.3) / 0.7, 0.0, 1.0)
+	var up := clampf(b / 0.25, 0.0, 1.0)
+	var go := clampf((b - 0.15) / 0.85, 0.0, 1.0)
+	var p0: Vector2 = _lad.pos
+	_mine_view.position = Vector2(p0.x - float(_lad.off) * go * go * go, p0.y - 8.0 * (up * up * (3.0 - 2.0 * up)))
+
+
+func ladder_hull() -> Rect2:
+	if _mine_view == null or not is_instance_valid(_mine_view) or _mine_view._tex == null 			or not _mine_view.is_visible_in_tree() and not _lad_hid:
+		return Rect2()
+	var g := _mine_view.get_global_transform()
+	return Rect2(g * _mine_view.canvas_to_local(Vector2.ZERO),
+		Vector2(_mine_view._w, _mine_view._h) * float(_mine_view._k) * g.get_scale())
+
+
+func ladder_hull_texture() -> Texture2D:
+	return _mine_view._tex if _mine_view != null and is_instance_valid(_mine_view) else null
+
+
+var _lad_hid := false
+
+
+func ladder_hide_hull(on: bool) -> void:
+	if _mine_view == null or not is_instance_valid(_mine_view) or on == _lad_hid:
+		return
+	_lad_hid = on
+	_mine_view.visible = not on
+
+
 ## Open your ship up in the yard. Public for the harnesses.
 func open_cutaway() -> CutawayView:
 	if not cutaway_ready():
