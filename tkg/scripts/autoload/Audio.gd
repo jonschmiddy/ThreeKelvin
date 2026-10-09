@@ -498,6 +498,19 @@ func play_cue(cue: StringName) -> void:
 ## "that was a file". Both directions run through the same tween, which is
 ## killed first — tabbing between the station and the ship screen fast enough
 ## would otherwise leave two fades fighting over one volume.
+## A room's tone loaded ahead, off the main thread, so `room` finds it ready (the
+## yard built ahead for 3B's dock: loading the tone at the swap was 26 ms of the
+## move's one frame).
+func warm_room(name: StringName) -> void:
+	if not _enabled or name == &"" or name == _room_now:
+		return
+	var path := ROOM_WAV % name
+	if not ResourceLoader.exists(path):
+		path = ROOM_PATH % name
+	if ResourceLoader.exists(path) and ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+		ResourceLoader.load_threaded_request(path)
+
+
 func room(name: StringName, fade_s: float = ROOM_FADE) -> void:
 	if not _enabled or name == _room_now:
 		return

@@ -2510,7 +2510,7 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 	for c: Control in [LocalSubject.of(_view), _face, _view._row, _face_front, _view.dust, _view.fx]:
 		if c != null and is_instance_valid(c):
 			scenes.append([c, c.scale, c.offset_left, c.offset_top, c.offset_right, c.offset_bottom, c.size,
-				c.get_global_transform().affine_inverse() * fixed])
+				c.get_global_transform().affine_inverse() * fixed, c.get_global_transform().affine_inverse()])
 	var sky: LocalSky = _view.backdrop
 	# 2C moves by fractions of a pixel (Jon prefers smooth to stepped)
 	var smooth := seam == 2 and design == "C"
@@ -2525,7 +2525,28 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		art.pivot_offset = ship.mid
 	_lad = {"fixed": fixed, "to1": to1, "zs1": zs1, "scenes": scenes, "smooth": smooth, "ship": ship,
 		"sky_fixed": _sky_pt(sky, fixed) if sky != null else Vector2.ZERO,
-		"bar": _quiet_holder.modulate.a if _quiet_holder != null else 1.0}
+		"bar": _quiet_holder.modulate.a if _quiet_holder != null else 1.0, "x0": position.x}
+	# THE HALLWAY (the Drum, `StationFace`): the camera follows your ship down it
+	# -- its anchor travels along the hallway's middle row (plate x A0 -> A1) as it
+	# zooms and is carried to the view's middle, held back so the station's right
+	# edge never comes inside the view -- and your ship flies in to its berth in
+	# the bay: its nose short of the inner door, all of it in behind the lips
+	if hull_flies and _face != null and is_instance_valid(_face):
+		var art2 := _view.ship_view()
+		var s_end := StationFace.SHIP_END_SCALE
+		var len_end := 236.0 * s_end
+		if art2 != null:
+			var ink2 := Rect2(art2.ink_rect())
+			var dim := ink2.size * art2.scale
+			if dim.x > 1.0 and dim.y > 1.0:
+				s_end = minf(s_end, minf(StationFace.SHIP_END_LEN / dim.x, StationFace.SHIP_END_H / dim.y))
+				len_end = dim.x * s_end
+		var xf0 := _face.get_global_transform()
+		var start := xf0.affine_inverse() * _ladder_ship() - _face.origin()
+		var berth := Vector2(StationFace.TAIL_IN + len_end * 0.5, StationFace.ROW)
+		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
+			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
+			"berth": berth, "start": start, "path": absf(berth.x - start.x)}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2545,22 +2566,51 @@ func _sky_pt(sky: LocalSky, g: Vector2) -> Vector2:
 func ladder_cam(k: float) -> void:
 	if _lad.is_empty():
 		return
-	var zs := pow(float(_lad.zs1), k)
+	var hall: Dictionary = _lad.get("hall", {})
+	# (the hallway: k is the approach's own clock, linear; the camera sets off
+	# after your ship does and settles as it does)
+	var kc := k
+	if not hall.is_empty():
+		kc = clampf((k - HALL_CAM_FROM) / (1.0 - HALL_CAM_FROM), 0.0, 1.0)
+		kc = kc * kc * (3.0 - 2.0 * kc)
+	# (ONE SMOOTH MOTION, Jon: your ship from where it sits to inside the hull on
+	# one curve, k squared -- from rest, gathering speed the whole way, still at
+	# speed as it goes in -- and the camera coming to follow it, so at the end
+	# camera and ship move as one, at the speed the pan carries on with)
+	var hk := clampf(k, 0.0, 1.0)
+	var hall_fly := hk * hk
+	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
-	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, k)
+	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
+	var fixed_g: Vector2 = _lad.fixed
+	var shift := Vector2(position.x - float(_lad.get("x0", position.x)), 0.0)
+	if not hall.is_empty():
+		var a := _hall_anchor(hall, kc, hk, hall_fly)
+		fixed_g = a
+		to_g = a.lerp(hall.vc, kc)
 	for w: Array in _lad.scenes:
 		var sc: Control = w[0]
 		if not is_instance_valid(sc):
 			continue
 		sc.scale = (w[1] as Vector2) * zs
-		var to := (sc.get_parent() as CanvasItem).get_global_transform().affine_inverse() * to_g
-		sc.position = to - (w[7] as Vector2) * sc.scale
+		# (the screen itself may be carried sideways -- 3B's pan -- and the scene
+		# with it)
+		var to := (sc.get_parent() as CanvasItem).get_global_transform().affine_inverse() * (to_g + shift)
+		var at_rest: Vector2 = w[7] if hall.is_empty() else (w[8] as Transform2D) * fixed_g
+		sc.position = to - at_rest * sc.scale
 		if not bool(_lad.smooth):
 			sc.position = sc.position.round()
 		sc.size = w[6]
+	if not hall.is_empty():
+		# THE STATION'S LIGHTS COME ON TO MEET YOU over the first stretch of the
+		# approach (and go off the same way as you leave)
+		for f: StationFace in [_face, _face_front]:
+			if f != null and is_instance_valid(f):
+				f.dock_k = clampf(k, 0.0, 1.0)
+				f.power = clampf(k / HALL_POWER_BY, 0.0, 1.0)
 	var sky: LocalSky = _view.backdrop
 	if sky != null and is_instance_valid(sky):
-		sky.set_zoom(zs, _lad.sky_fixed, _sky_pt(sky, to_g))
+		sky.set_zoom(zs, _lad.sky_fixed if hall.is_empty() else _sky_pt(sky, fixed_g + shift), _sky_pt(sky, to_g + shift))
 		# the handed-over world: where the world's middle goes, at its size
 		if _lad.has("hand_R"):
 			sky.near_hand(_sky_pt(sky, to_g), float(_lad.hand_R) * zs, 1.0 - k, _sky_pt(sky, _lad.fixed))
@@ -2576,12 +2626,60 @@ func ladder_cam(k: float) -> void:
 		var deep := _face != null and is_instance_valid(_face)
 		var fly := eq if not deep else clampf(q * 1.25, 0.0, 1.0)
 		fly = fly * fly * (3.0 - 2.0 * fly)
-		art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
-		art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
+		if deep and not hall.is_empty():
+			# FROM WHERE IT SITS, slowly at first, down the hallway and on into the
+			# hull, still at speed as it goes in (`hall_fly`, one curve)
+			fly = hall_fly
+			var berth := slot.get_global_transform().affine_inverse() * _face.plate_g(hall.berth)
+			art.position = (ship.pos as Vector2).lerp(berth - (ship.mid as Vector2), fly)
+			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
+		else:
+			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
+			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
 		art.visible = deep or eq < 0.9
 	# the bar along the bottom is the screen's, not the scene's: it comes and goes
 	if _quiet_holder != null:
 		_quiet_holder.modulate.a = float(_lad.bar) * clampf(1.0 - k * 1.6, 0.0, 1.0)
+
+
+## THE HALLWAY'S TIMING, as fractions of the approach (`ZoomLadder.DOCK_APPROACH_S`):
+## the camera sets off at `HALL_CAM_FROM`, the lights are all on by
+## `HALL_POWER_BY` (before your ship reaches the lips), and from `HALL_FOLLOW`
+## the camera comes round to follow your ship
+const HALL_CAM_FROM := 0.12
+const HALL_POWER_BY := 0.55
+const HALL_FOLLOW := 0.5
+
+
+## Your ship's speed along the hallway at its end (k 1), in screen px a second,
+## for an approach of `dur` s: the speed the camera has as it follows it in,
+## and the pan carries on with (`ZoomLadder`'s one motion).
+func ladder_track_speed(dur: float) -> float:
+	var hall: Dictionary = _lad.get("hall", {})
+	if hall.is_empty():
+		return 0.0
+	return 2.0 * float(hall.path) * float(_lad.zs1) / maxf(dur, 0.001)
+
+
+## Where the drum's panels tile on screen now (the plate's seam at `HULL_X0`)
+## and its row `ROW`: the pan's hull carries on from them.
+func ladder_hull_at() -> Vector2:
+	if _face == null or not is_instance_valid(_face):
+		return Vector2.INF
+	return Vector2(_face.plate_g(Vector2(StationFace.HULL_X0, 0)).x, _face.plate_g(Vector2(0, StationFace.ROW)).y)
+
+
+## The hallway camera's anchor on screen at rest: the plate's row 250, at x
+## A0 -> A1 with the zoom, then coming round (from `HALL_FOLLOW`) to your ship's
+## own middle, so it ends following it at its speed.
+func _hall_anchor(hall: Dictionary, kc: float, k: float, fly: float) -> Vector2:
+	var xf: Transform2D = hall.xf
+	var o: Vector2 = hall.o
+	var frame := lerpf(StationFace.A0, StationFace.A1, kc)
+	var ship_x := lerpf((hall.start as Vector2).x, (hall.berth as Vector2).x, fly)
+	var w := clampf((k - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
+	w = w * w * (3.0 - 2.0 * w)
+	return xf * (o + Vector2(lerpf(frame, ship_x, w), StationFace.ROW))
 
 
 func ladder_cam_end() -> void:
@@ -2602,6 +2700,10 @@ func ladder_cam_end() -> void:
 		sky.set_zoom(1.0, Vector2.ZERO, Vector2.ZERO)
 	if _quiet_holder != null:
 		_quiet_holder.modulate.a = float(_lad.bar)
+	for f: StationFace in [_face, _face_front]:
+		if f != null and is_instance_valid(f):
+			f.dock_k = 0.0
+			f.power = 0.0
 	var ship: Dictionary = _lad.ship
 	if not ship.is_empty() and is_instance_valid(ship.art):
 		var art: ShipView = ship.art

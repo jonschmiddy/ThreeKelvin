@@ -690,6 +690,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_fabric = _Fabric.new()
 	_fabric.view = self
 	add_child(_fabric)
+	_Fabric.warm(layout.edge)
 	_lines = _Lines.new()
 	_lines.view = self
 	add_child(_lines)
@@ -1657,6 +1658,7 @@ func step() -> void:
 	_moons.queue_redraw()
 	_lines.queue_redraw()
 	var t_fab := Time.get_ticks_usec()
+	_Fabric.collect()
 	_fabric.update()
 	tick("fabric", t_fab)
 	tick("step (all)", t_step)
@@ -2169,21 +2171,38 @@ class _Lines extends Node2D:
 ## fades every point each frame, so moving the camera costs the CPU nothing.
 class _Fabric extends Node2D:
 	var view
-	var _meshes := {}
 	var _level := -1
 	var _mat: ShaderMaterial
+	## THE GRIDS, KEPT FOR EVERY MAP, laid out off the main thread (Jon on 2C:
+	## "still has a small delay/hitch"). The finest grid is a quarter of a
+	## million short lines; laid out on the spot, the frame the zoom first
+	## crossed into it took 78 ms -- the map's first deep frame on the way out
+	## of LOCAL every time (each map is new), and once mid-dive on the way in.
+	## A grid depends only on its spacing and how far out it reaches, so it is
+	## kept for the session, by level and reach (rounded up: past the edge the
+	## shader fades it to nothing, so a larger one draws the same), and every
+	## level of a new map's reach is started on worker threads the moment the
+	## map is laid out (`warm`), long before the camera gets there.
+	static var _meshes := {}
+	static var _jobs := {}
+	const REACH_STEP := 64.0
+	const MESHES_MAX := 15
 
 	func _init() -> void:
 		_mat = ShaderMaterial.new()
 		_mat.shader = FABRIC
 		material = _mat
 
-	## The grid at spacing 30 / 2^level, out to where it has faded.
-	func _mesh(level: int) -> ArrayMesh:
-		if _meshes.has(level):
-			return _meshes[level]
-		var L: SystemLayout = view.layout
-		var E: float = L.edge + 20.0
+	static func _key(level: int, reach: float) -> String:
+		return "%d:%d" % [level, int(reach)]
+
+	## How far a grid reaches for a map whose edge is `edge` (rounded up).
+	static func reach_for(edge: float) -> float:
+		return ceilf((edge + 20.0) / REACH_STEP) * REACH_STEP
+
+	## The grid's points at spacing 30 / 2^level, out to `E`: pure arithmetic,
+	## safe on a worker thread, written into `out[0]`.
+	static func _points(level: int, E: float, out: Array) -> void:
 		var gap := 30.0 / pow(2.0, float(level))
 		var stp := gap / 6.0
 		var kk := sqrt(0.5)
@@ -2205,13 +2224,67 @@ class _Fabric extends Node2D:
 						pts.append(p1)
 					b += stp
 				a += gap
+		out[0] = pts
+
+	## Every level of a map's grid that is not kept yet, started on worker threads.
+	static func warm(edge: float) -> void:
+		var E := reach_for(edge)
+		# (only the levels it draws: zoomed out past 1x it draws none)
+		for level in range(0, 3):
+			var k := _key(level, E)
+			if _meshes.has(k) or _jobs.has(k):
+				continue
+			var out: Array = [null]
+			var id := WorkerThreadPool.add_task(_points.bind(level, E, out), false, "map fabric grid")
+			_jobs[k] = {"id": id, "out": out}
+
+	## The grid at spacing 30 / 2^level, out to where it has faded: kept, or
+	## finished from its worker (waited for if it is still going), or laid out
+	## here if nothing started it.
+	func _mesh(level: int) -> ArrayMesh:
+		var L: SystemLayout = view.layout
+		var E := reach_for(L.edge)
+		var k := _key(level, E)
+		if _meshes.has(k):
+			return _meshes[k]
+		var pts: PackedVector2Array
+		if _jobs.has(k):
+			var job: Dictionary = _jobs[k]
+			_jobs.erase(k)
+			WorkerThreadPool.wait_for_task_completion(int(job.id))
+			pts = (job.out as Array)[0]
+		else:
+			var out: Array = [null]
+			_points(level, E, out)
+			pts = out[0]
 		var arrays := []
 		arrays.resize(Mesh.ARRAY_MAX)
 		arrays[Mesh.ARRAY_VERTEX] = pts
 		var m := ArrayMesh.new()
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
-		_meshes[level] = m
+		if _meshes.size() >= MESHES_MAX:
+			_meshes.erase(_meshes.keys()[0])
+		_meshes[k] = m
 		return m
+
+	## The grids finished on their workers since last frame, made into meshes
+	## while nothing is waiting on them (one a frame).
+	static func collect() -> void:
+		for k: String in _jobs.keys():
+			var job: Dictionary = _jobs[k]
+			if not WorkerThreadPool.is_task_completed(int(job.id)):
+				continue
+			_jobs.erase(k)
+			WorkerThreadPool.wait_for_task_completion(int(job.id))
+			var arrays := []
+			arrays.resize(Mesh.ARRAY_MAX)
+			arrays[Mesh.ARRAY_VERTEX] = (job.out as Array)[0]
+			var m := ArrayMesh.new()
+			m.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
+			if _meshes.size() >= MESHES_MAX:
+				_meshes.erase(_meshes.keys()[0])
+			_meshes[k] = m
+			return
 
 	func _draw() -> void:
 		if _level >= 0:

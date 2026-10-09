@@ -57,6 +57,60 @@ const PRE_S := 0.38
 const MOVE_S := 0.72
 ## how long an arriving screen may take to be ready before the move goes anyway
 const WAIT_MAX_S := 1.2
+## 3B AT THE DRUM, in seconds (Jon: "it's an arrival, let it breathe"):
+## LOCAL, your ship from where it sits into the hallway's bay as the station's
+## lights come on to meet it (`SectorScreen.HALL_*` split this up)
+const DOCK_APPROACH_S := 3.6
+## the camera's pan sideways through the station's hull into the yard
+const DOCK_PAN_S := 1.4
+## the yard: your ship in from the left onto its stands (and then the elevator,
+## `StationScreen.ELEVATOR_S`)
+const DOCK_YARD_S := 1.8
+## undocking: the elevator out, your ship off its stands and away to the left
+const UNDOCK_YARD_S := 1.6
+## and LOCAL: your ship backing out of the hallway to where it sat, the lights
+## going down behind it (after the same pan the other way)
+const UNDOCK_LOCAL_S := 3.0
+## how much of the station's hull the pan passes through (game px)
+const PAN_HULL_W := 520.0
+## THE HAND-OFF INTO THE YARD (3B). "F", Jon's pick and the default: a dip to
+## black once your ship is out of sight in the hull; the EMPTY yard comes up
+## from black slowly (Jon: "let's have the yard show up without our ship
+## first" -- "and the black should slowly fade out"), holds a beat, and your
+## ship -- travelling all along, off the picture -- comes in from the left and
+## lands; then the elevator. Undocking: the elevator out, your ship off its
+## stands and away to the left, a beat of the empty yard, the yard slowly down
+## to black, and up on LOCAL with your ship coming out of the hull. "P", kept
+## as the alternative: the pan through the hull. `[flow] seam3_fade=`.
+const FADES := ["F", "P"]
+static var force_fade := ""
+## F: the dip to black at the approach's end (s); the empty yard up from black,
+## and its beat before your ship comes in; LOCAL up from black undocking
+const FADE_DOWN := 0.4
+const YARD_FADE_S := 1.0
+const YARD_BEAT_S := 0.4
+const LOCAL_FADE_S := 0.5
+
+
+static func seam3_fade() -> String:
+	if force_fade in FADES:
+		return force_fade
+	var a := _arg("seam3_fade").to_upper()
+	if a in FADES:
+		return a
+	_read_cfg()
+	var v := String(_cfg.get("seam3_fade", "F")).to_upper()
+	return v if v in FADES else "F"
+
+
+## A Hermite curve from 0 to 1 over u 0..1, leaving at slope `m0` and arriving at
+## slope `m1` (in units of its whole length over its whole time): ONE SMOOTH
+## MOTION's pieces, each starting at the speed the last one ended on.
+static func herm(u: float, m0: float, m1: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	var u2 := u * u
+	var u3 := u2 * u
+	return (u3 - 2.0 * u2 + u) * m0 + (-2.0 * u3 + 3.0 * u2) + (u3 - u2) * m1
 ## the wheel past a screen's end: this many notches, this close together
 const OVERSCROLL_N := 2
 const OVERSCROLL_S := 0.7
@@ -67,6 +121,19 @@ static var active: ZoomLadder = null
 ## A harness steps the move by this many seconds a frame (frames filmed at 30
 ## fps then play at true speed however slowly the window drew); <= 0: real time.
 static var fixed_dt := -1.0
+## A harness's real-time trace: microseconds spent this frame, by what (`probe_add`;
+## the harness reads and clears it each frame). Off unless a harness turns it on.
+static var probe_on := false
+static var probe := {}
+## A screen swap in the middle of a move leaves the autosave to the move's end
+## (`Router._swap`): writing the run is ~15 ms of one frame, and mid-move that
+## frame shows.
+static var save_after := false
+
+
+static func probe_add(k: String, us: int) -> void:
+	if probe_on:
+		probe[k] = int(probe.get(k, 0)) + us
 ## A harness's override of the switch: 1 on, 0 off, -1 the setting.
 static var force := -1
 ## And of a seam's design: seam -> letter.
@@ -321,6 +388,7 @@ static func preroll(target: int, then: Callable) -> bool:
 	# (drawn, but not seen: its pictures have to be drawn to finish -- the map's
 	# palette is cut from its own first frames -- so it stands in the tree at no
 	# opacity, under nothing it could take a click from for long)
+	var _pt_pre := Time.get_ticks_usec()
 	if (target == MAP or target == CHART) and not Run.map.is_empty() and Router.content != null:
 		var pm: Control = SystemMapScreen.new() if target == MAP else StarchartScreen.new()
 		pm.modulate.a = 0.0
@@ -336,6 +404,52 @@ static func preroll(target: int, then: Callable) -> bool:
 		else:
 			(pm as StarchartScreen).setup()
 		prebuilt = pm
+		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
+	# LOCAL TOO, ON 2C (Jon: "2C still has a small delay/hitch"): built here, at
+	# the click, before anything has moved, instead of at the swap in the middle
+	# of the dive, where building it took 60-90 ms of one frame. Not when LOCAL
+	# would play something as it is built -- an event opening, a fight, a jump's
+	# arrival or departure, undocking -- which would play out unseen
+	elif target == LOCAL and lad.seam == 2 and lad.design == "C" and _local_quiet() and Router.content != null:
+		var ps := SectorScreen.new()
+		ps.modulate.a = 0.0
+		ps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lad._fit()
+		lad.add_child(ps)
+		lad.move_child(ps, 0)
+		ps.setup(null)
+		prebuilt = ps
+		ZoomLadder.probe_add("prebuild", Time.get_ticks_usec() - _pt_pre)
+	# 3B TOO, BOTH WAYS (one smooth motion: the screen arriving was built at the
+	# swap, a quarter of a second stood still in the middle of the move): the
+	# yard built at DOCK, before anything moves, and held still (not ticking, so
+	# none of its sound starts) until it is shown; LOCAL built at UNDOCK
+	elif target == STATION and lad.seam == 3 and lad.design == "B" and Router.content != null and not Router.in_combat():
+		var ss := StationScreen.new()
+		ss.modulate.a = 0.0
+		ss.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lad._fit()
+		lad.add_child(ss)
+		lad.move_child(ss, 0)
+		ss.setup()
+		ss.process_mode = Node.PROCESS_MODE_DISABLED
+		ss.set_meta(&"ladder_at", Run.at)
+		prebuilt = ss
+		# (and its room's tone, loaded while LOCAL moves)
+		var rn: Variant = Router._room_for(ss)
+		if rn != null:
+			Audio.warm_room(StringName(rn))
+	elif target == LOCAL and lad.seam == 3 and lad.design == "B" and Router.content != null and _local_quiet(true):
+		# (leaving a berth is arriving at the system it is in: `Router.show_local`)
+		SectorScreen._approached_at = Run.at
+		var pl := SectorScreen.new()
+		pl.modulate.a = 0.0
+		pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		lad._fit()
+		lad.add_child(pl)
+		lad.move_child(pl, 0)
+		pl.setup(null)
+		prebuilt = pl
 	# the motion's split, from how far each half travels (log scale), so the
 	# speed is the same on both sides of the handoff
 	if bool(lad._style.get("curve", false)) and cur.has_method(&"ladder_spans"):
@@ -382,7 +496,9 @@ static func capture(o: Control, n: Control) -> void:
 		lad._pre_s = 0.0
 		lad._T = lad._move_s
 		lad._F = 0.0
+	var th := Time.get_ticks_usec()
 	lad._hold()
+	probe_add("hold", Time.get_ticks_usec() - th)
 	# A SCREEN BUILT AHEAD is up already: the move goes on this very frame, so
 	# the frame of the swap is not a frame the picture stands still
 	# (deferred to the end of this frame: the Router has not put it in its place
@@ -437,7 +553,14 @@ func _fit() -> void:
 ## (a long frame -- a screen being built -- holds the move for that frame rather
 ## than jumping it on: no step is ever more than a 30th of a second)
 func _dt(delta: float) -> float:
-	return fixed_dt if fixed_dt > 0.0 else minf(delta, 1.0 / 30.0)
+	if fixed_dt > 0.0:
+		return fixed_dt
+	# (2C: a frame far longer than its neighbours -- something built, a cache
+	# filled -- counts as one ordinary frame, so the move waits it out and goes
+	# on from where it was instead of jumping a stretch of it)
+	if bool(_style.get("wait_long", false)) and delta > 1.0 / 24.0:
+		return 1.0 / 60.0
+	return minf(delta, 1.0 / 30.0)
 
 
 static func _ease(u: float) -> float:
@@ -480,8 +603,16 @@ func _process(delta: float) -> void:
 			# eased IN: the move that follows starts at speed, so the two halves
 			# are one motion with no stop at the handoff
 			var ui := clampf(_u, 0.0, 1.0)
-			old.call(&"ladder_cam", _pre_k * ui * ui)
+			old.call(&"ladder_cam", _pre_k * (ui if bool(_style.get("pan", false)) else ui * ui))
+			if String(_style.get("fade", "")) == "F":
+				# (F: down to black over the pre-roll's last stretch -- docking, your
+				# ship already out of sight in the hull; undocking, the empty yard,
+				# slowly)
+				var fd := FADE_DOWN if old is SectorScreen else YARD_FADE_S
+				_black_at(_ease(clampf((_u * _pre_s - (_pre_s - fd)) / fd, 0.0, 1.0)))
 			if _u >= 1.0:
+				# (the move goes on from where the clock is, not a frame later)
+				_pan_t0 = (_u - 1.0) * _pre_s
 				_fire()
 		Phase.WAIT:
 			_waited += dt
@@ -505,6 +636,12 @@ func _process(delta: float) -> void:
 		Phase.MOVE:
 			if not is_instance_valid(new):
 				_end()
+				return
+			if bool(_style.get("pan", false)):
+				_u += dt
+				_step_pan(_u)
+				if _u >= _move_s:
+					_end()
 				return
 			if curve:
 				if measure_hold and _held_frames < 1:
@@ -536,7 +673,9 @@ func _fire() -> void:
 	var cb := _then
 	_then = Callable()
 	_going = true
+	var t0 := Time.get_ticks_usec()
 	cb.call()
+	probe_add("door", Time.get_ticks_usec() - t0)
 	_going = false
 	# the call did not swap (refused on its own terms): the old screen stays, at rest
 	if phase == Phase.PRE_DONE:
@@ -564,14 +703,14 @@ func finish_now() -> void:
 			if phase == Phase.WAIT:
 				_start_move()
 			if phase == Phase.MOVE:
-				_step(1.0)
+				_step_last()
 				_end()
 		Phase.WAIT:
 			_start_move()
-			_step(1.0)
+			_step_last()
 			_end()
 		Phase.MOVE:
-			_step(1.0)
+			_step_last()
 			_end()
 		_:
 			_end()
@@ -589,6 +728,12 @@ func _hold() -> void:
 		img = Image.create(960, 540, false, Image.FORMAT_RGBA8)
 	_tex = ImageTexture.create_from_image(img)
 	_a_old = old.call(&"ladder_anchor", r_new, seam, design)
+	# (3B's one motion: the speed the screen being left hands on, and where its
+	# hull tiled)
+	if old.has_method(&"ladder_track_speed"):
+		_v_old = float(old.call(&"ladder_track_speed", UNDOCK_YARD_S * 0.7 if old is StationScreen else _pre_s))
+	if old.has_method(&"ladder_hull_at"):
+		_hull_at_old = old.call(&"ladder_hull_at")
 	_pic = old.call(&"ladder_picture")
 	if old.has_method(&"ladder_hull"):
 		_hull_from = old.call(&"ladder_hull")
@@ -694,6 +839,7 @@ func _style_for() -> Dictionary:
 			s.move_s = 0.45
 			s.t_from = 0.05
 			s.t_to = 0.95
+			s.wait_long = true
 		"3A":
 			if inward:
 				s.mode = 1
@@ -707,11 +853,10 @@ func _style_for() -> Dictionary:
 		"3B", "3D":
 			# INTO THE HANGAR (Jon: "the station becomes something on the far right
 			# of the screen that the ship flies into .... and THAT becomes the
-			# shipyard"): LOCAL draws the station's side with its hangar mouth at
-			# your height (`StationFace`); your ship flies into the mouth and the
-			# camera after it. 3B: a bulkhead of the station's, passing close to the
-			# camera, sweeps across and the yard is behind it (Jon: "even if we
-			# needed to do a black bar transition (like in the movies...)"). 3D: on
+			# shipyard"): LOCAL draws the station's side with its hallway at your
+			# height (`StationFace`); your ship flies into it and the camera after
+			# it. 3B: once your ship is all inside, the camera pans sideways through
+			# the station's own hull into the yard (`_step_pan`). 3D: on
 			# into the mouth until the hangar fills the picture, and across into the
 			# yard by a soft edge. In the yard your ship flies in from the left onto
 			# its stands, and then the elevator slides in (`StationScreen`).
@@ -723,13 +868,20 @@ func _style_for() -> Dictionary:
 			s.edge = 0.0
 			s.pin = true
 			if design == "B":
-				s.bar = true
-				s.curve = true
-				s.pre_s = 0.75 if inward else 0.85
-				s.move_s = 1.35 if inward else 0.7
-				# (the held picture goes under the bulkhead, at once)
-				s.t_from = 0.0
-				s.t_to = 0.02
+				# THE ARRIVAL (Jon: "let it breathe"): the approach on LOCAL is the
+				# pre-roll docking, linear (LOCAL eases its own phases); then the
+				# camera pans sideways through the station's hull (`_step_pan`) into
+				# the yard, where your ship flies in onto its stands. Undocking runs
+				# it the other way. A long frame waits.
+				s.pan = true
+				s.wait_long = true
+				s.fade = seam3_fade()
+				var f := String(s.fade) == "F"
+				s.pre_s = DOCK_APPROACH_S if inward else UNDOCK_YARD_S + (YARD_BEAT_S + YARD_FADE_S if f else 0.0)
+				if f:
+					s.move_s = YARD_FADE_S + YARD_BEAT_S + DOCK_YARD_S if inward else UNDOCK_LOCAL_S
+				else:
+					s.move_s = DOCK_PAN_S + (DOCK_YARD_S if inward else UNDOCK_LOCAL_S)
 			else:
 				s.pre_s = 0.75 if inward else 0.85
 				s.move_s = 1.4 if inward else 0.8
@@ -790,8 +942,176 @@ class Bulkhead extends Control:
 var _bar: Bulkhead = null
 
 
+# ------------------------------------------------------------------ the pan (3B)
+
+## THE PAN THROUGH THE STATION (3B, Jon: "When the LAST part of the ship (its
+## tail) has gone in behind the lip, the screen PANS"): the camera slides
+## sideways -- the held picture out to the left, the station's own hull close
+## past the camera (`StationFace.draw_hull`), and the screen arriving in from the
+## right behind it -- and stops on the yard, the hull gone past (Jon: no
+## station in the yard), the yard's own hall running on where the elevator will
+## slide in (`StationScreen`'s yard edge). Undocking pans the other way.
+var _pan_view: _PanView = null
+var _pan_x0 := 0.0
+var _pan_vr := 0.0
+var _hull_at_old := Vector2.INF
+
+
+class _PanView extends Control:
+	var tex: Texture2D
+	var src := Rect2()
+	var held_x := 0.0
+	var slab_x := 0.0
+	var slab_w := 520.0
+	var row_y := 270.0
+	## where the hull's panels tile (this view's px), as LOCAL's drum tiles them
+	var tile_x0 := 0.0
+	var show_held := true
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		clip_contents = true
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+
+	func _draw() -> void:
+		if tex != null and show_held:
+			draw_texture_rect_region(tex, Rect2(Vector2(roundf(held_x), 0), src.size), src)
+		StationFace.draw_hull(self, Rect2(roundf(slab_x), 0, slab_w, size.y), roundf(tile_x0), row_y)
+
+
+## the move's own clock where the pre-roll left it (s), and the speeds the two
+## screens hand on at the seam (screen px a second)
+var _pan_t0 := 0.0
+var _v_old := 0.0
+var _v_new := 0.0
+var _hull_x0 := 0.0
+var _black: ColorRect = null
+
+
+## The dip to black (F) or the pan's shadow (PF): `a` of black over the screens.
+func _black_at(a: float) -> void:
+	if _black == null:
+		if a <= 0.0:
+			return
+		_fit()
+		_black = ColorRect.new()
+		_black.color = Color(0, 0, 0, 0)
+		_black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_black)
+	# (side to side the whole window: the yard's hall run on into the elevator's
+	# column reaches past this box's left edge, into the margin)
+	var vw := get_viewport_rect().size.x
+	var gx := get_global_rect().position.x
+	_black.position = Vector2(-gx, 0.0)
+	_black.size = Vector2(maxf(vw, gx + size.x), size.y)
+	_black.color.a = clampf(a, 0.0, 1.0)
+	move_child(_black, -1)
+
+
+func _start_pan() -> void:
+	new.call(&"ladder_cam_begin", r_old, seam, design)
+	new.call(&"ladder_cam", 1.0)
+	_fit()
+	_rect.visible = false
+	_pan_x0 = new.position.x
+	var inward := r_new > r_old
+	# (the hull starts at LOCAL's picture's right edge, over the strip beside it)
+	var pic: Rect2 = _pic if inward else new.call(&"ladder_picture")
+	_pan_vr = clampf(pic.end.x - position.x, 0.0, size.x)
+	# the speeds at the seam: what LOCAL's approach (or the yard's flight out)
+	# ended on, and what the yard's flight in (or LOCAL's flight out) starts on
+	var rest_s := DOCK_YARD_S if inward else UNDOCK_LOCAL_S
+	if new.has_method(&"ladder_track_speed"):
+		_v_new = float(new.call(&"ladder_track_speed", rest_s))
+	# the hull's tiling, carried on from LOCAL's drum
+	var at: Vector2 = Vector2.INF
+	var local: Control = new if not inward else null
+	if local != null and local.has_method(&"ladder_hull_at"):
+		at = local.call(&"ladder_hull_at")
+	elif inward:
+		at = _hull_at_old
+	_pan_view = _PanView.new()
+	_pan_view.tex = _tex
+	_pan_view.src = Rect2(position, size)
+	_pan_view.size = size
+	_pan_view.slab_w = PAN_HULL_W
+	_pan_view.row_y = roundf(size.y * 0.5) if at == Vector2.INF else roundf(at.y - position.y)
+	_hull_x0 = (_pan_vr if at == Vector2.INF else at.x - position.x)
+	add_child(_pan_view)
+	phase = Phase.MOVE
+	# (on from where the pre-roll's clock left off: no frame stands still)
+	_u = maxf(_pan_t0, 0.0) + _dt(get_process_delta_time())
+	_step_pan(_u)
+	# (and again once the screen just put in place has laid itself out -- a
+	# container sorting its children puts the elevator back in its place)
+	_step_pan.call_deferred(_u)
+
+
+## THE ONE MOTION AFTER THE SEAM (3B): F's way up from black, or P's pan, then
+## the yard's flight in (docking) or LOCAL's flight out (undocking).
+func _step_pan(t: float) -> void:
+	if not is_instance_valid(new) or _pan_view == null:
+		return
+	var inward := r_new > r_old
+	if String(_style.get("fade", "")) == "F":
+		# F: no pan. Docking: the empty yard up from black slowly, a beat of it
+		# empty, then your ship in from the left -- off the picture till then --
+		# slowing once onto its stands. Undocking: up on LOCAL, your ship already
+		# coming out of the hull.
+		_pan_view.visible = false
+		new.position.x = _pan_x0
+		if inward:
+			_black_at(1.0 - _ease(clampf(t / YARD_FADE_S, 0.0, 1.0)))
+			# (coming in at the speed LOCAL's approach ended on, within reason)
+			var lad: Variant = new.get("_lad")
+			var off := maxf(float((lad as Dictionary).get("off", 1.0)) if lad is Dictionary else 1.0, 1.0)
+			var m0 := clampf(_v_old * DOCK_YARD_S / off, 1.5, 3.0)
+			var rest := clampf((t - YARD_FADE_S - YARD_BEAT_S) / DOCK_YARD_S, 0.0, 1.0)
+			new.call(&"ladder_cam", 1.0 - herm(rest, m0, 0.0))
+		else:
+			_black_at(1.0 - _ease(clampf(t / LOCAL_FADE_S, 0.0, 1.0)))
+			new.call(&"ladder_cam", 1.0 - clampf(t / UNDOCK_LOCAL_S, 0.0, 1.0))
+		return
+	var P := DOCK_PAN_S
+	var W := _pan_vr if _pan_vr > 0.0 else size.x
+	var S := PAN_HULL_W
+	var D := W + S
+	# P: the pan, from the speed handed on to the speed handed over
+	var hu := herm(t / P, _v_old * P / D, _v_new * P / D)
+	var X := D * (hu if inward else 1.0 - hu)
+	var held := -X if inward else W + S - X
+	var live := W + S - X if inward else -X
+	new.position.x = _pan_x0 + roundf(live)
+	_pan_view.held_x = held
+	_pan_view.slab_x = W - X
+	_pan_view.tile_x0 = _hull_x0 - X
+	_pan_view.visible = t < P
+	_pan_view.queue_redraw()
+	if t >= P:
+		new.position.x = _pan_x0
+	var rest2 := clampf((t - P) / maxf(_move_s - P, 0.001), 0.0, 1.0)
+	if inward:
+		new.call(&"ladder_cam", 1.0 - herm(rest2, YARD_M_IN, 0.0))
+	else:
+		new.call(&"ladder_cam", 1.0 - rest2)
+
+
+const YARD_M_IN := 2.0
+
+
+## The move's last frame, whichever kind of move it is.
+func _step_last() -> void:
+	if bool(_style.get("pan", false)):
+		_step_pan(_move_s)
+	else:
+		_step(1.0)
+
+
 func _start_move() -> void:
 	if phase != Phase.WAIT:
+		return
+	if bool(_style.get("pan", false)):
+		_start_pan()
 		return
 	# THE ARRIVING CAMERA STARTS WHERE THE HELD PICTURE IS: its anchor (your ship,
 	# your star, the world you orbit) placed on the held one's, so the two move
@@ -959,6 +1279,16 @@ static func take_prebuilt(kind: int) -> Control:
 	if pm == null or not is_instance_valid(pm) or rank_of(pm) != kind:
 		return null
 	prebuilt = null
+	# (LOCAL: only if nothing has happened since that it would have played)
+	if pm is SectorScreen and (not _local_quiet() or (pm as SectorScreen)._events == null
+			or (pm as SectorScreen)._events.node != Run.node_at()):
+		pm.queue_free()
+		return null
+	if pm is StationScreen and int(pm.get_meta(&"ladder_at", -1)) != Run.at:
+		pm.queue_free()
+		return null
+	if pm is StationScreen:
+		pm.process_mode = Node.PROCESS_MODE_INHERIT
 	if pm is SystemMapScreen and ((pm as SystemMapScreen).view == null or (pm as SystemMapScreen).view.node != Run.node_at()
 			or not (pm as SystemMapScreen).ladder_ready()):
 		pm.queue_free()
@@ -967,6 +1297,15 @@ static func take_prebuilt(kind: int) -> Control:
 		pm.get_parent().remove_child(pm)
 	pm.modulate.a = 1.0
 	return pm
+
+
+## Whether LOCAL built now would play nothing as it is built (`preroll`).
+## (`undocking`: leaving a berth, where `Router.docked` is still set and the
+## arrival latch is about to be)
+static func _local_quiet(undocking: bool = false) -> bool:
+	return (undocking or not Router.docked) and not Router.in_combat() and Router._post_depart < 0 \
+		and not Router._post_arrive and LocalEventDrawer.pending.is_empty() \
+		and (undocking or SectorScreen._approached_at == Run.at)
 
 
 static func drop_prebuilt() -> void:
@@ -998,8 +1337,14 @@ func _end() -> void:
 		new.call(&"ladder_cam_end")
 		if _hull != null and new.has_method(&"ladder_hide_hull"):
 			new.call(&"ladder_hide_hull", false)
+	if _pan_view != null and is_instance_valid(new):
+		new.position.x = _pan_x0
 	if active == self:
 		active = null
 	phase = Phase.PRE_DONE
 	_rect.visible = false
 	queue_free()
+	# (the run written now the move has landed: `Router._swap` held it back)
+	if save_after:
+		save_after = false
+		Router._autosave()

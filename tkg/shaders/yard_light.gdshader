@@ -75,6 +75,13 @@ uniform bool refl = true;
 uniform float reflk = 0.4;
 // Unlit, as painted: the harness's view of the picture Jon passed.
 uniform bool fullbright = false;
+// THE HALL CONTINUED (`StationScreen`'s yard edge, where the elevator stands): a
+// copy of the hall drawn this many hall pixels to the left of where it is, lit
+// as the columns it copies (so the yard runs on past its left edge)
+uniform float shift_x = 0.0;
+// or the hall's left edge mirrored (the floor's continuation: seamless by
+// construction), drawn flipped, lit as the columns it mirrors
+uniform bool mirror_x = false;
 
 varying vec2 sp;
 varying vec4 vc;
@@ -229,12 +236,21 @@ void fragment() {
 	if (t.a < 0.5) {
 		discard;
 	}
-	ivec2 p = ivec2(floor(sp));
+	ivec2 p = ivec2(floor(sp + vec2(shift_x, 0.0)));
+	if (mirror_x) {
+		p.x = -1 - int(floor(sp.x));
+	}
 	if (mode == 3 && (p.y < polish || vc.a < 0.002)) {
 		discard;
 	}
 	vec3 base = t.rgb * vc.rgb;
-	if (fullbright || p.x < 0 || p.y < 0 || p.x > 765 || p.y > 481) {
+	// (a SHIP left of the hall -- flying in over the hall continued, `shift_x` --
+	// is lit as the hall's first column is)
+	bool outside = p.y < 0 || p.x > 765 || p.y > 481 || (p.x < 0 && mode != 2);
+	if (mode == 2 && p.x < 0) {
+		p.x = 0;
+	}
+	if (fullbright || outside) {
 		COLOR = vec4(base, mode == 3 ? vc.a : 1.0);
 	} else {
 		vec3 drgb;

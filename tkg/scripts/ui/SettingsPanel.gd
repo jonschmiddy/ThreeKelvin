@@ -366,6 +366,12 @@ func _page_motion() -> void:
 				func(i: int) -> void:
 					ZoomLadder.save_setting("seam%d" % sm, ds[i])
 					_refresh()))
+		# (3B's hand-off into the yard: a dip to black, Jon's pick, or the pan)
+		_body.add_child(_row_chips("3B INTO THE YARD", ZoomLadder.FADES,
+			maxi(ZoomLadder.FADES.find(ZoomLadder.seam3_fade()), 0),
+			func(i: int) -> void:
+				ZoomLadder.save_setting("seam3_fade", ZoomLadder.FADES[i])
+				_refresh()))
 
 func _page_sound() -> void:
 	_body.add_child(Section.new(&"audio", "AUDIO"))

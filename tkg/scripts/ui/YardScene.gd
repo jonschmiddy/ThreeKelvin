@@ -82,6 +82,58 @@ var dial: Dictionary = {}
 
 var _mats: Dictionary = {}
 var _hall_rect: TextureRect
+## THE HALL CONTINUED past its left edge (`set_edge`), under everything else
+var _edge: Control = null
+const EDGE_W := 180.0
+## no hall picture runs on past its left edge, so the hall continued is the
+## hall's own: its WALL (above `EDGE_WALLROW`) the hall's columns from one bay
+## further in, [T - EDGE_W, T), T where they meet the hall's left edge best;
+## its FLOOR the hall's own edge mirrored, so stains, markings and light pools
+## run on across the join with no step (`StationScreen`'s yard edge)
+const EDGE_WALLROW := 207
+const EDGE_FLOOR_MIRROR := true
+const EDGE_FROM := {"unclaimed": [203, 523], "outpost": [319, 394], "settlement": [736, 345],
+	"city": [180, 336], "capital": [753, 753]}
+
+
+## The hall run on to the left of its edge, `EDGE_W` px, lit as the hall is
+## (`yard_light.gdshader`'s `shift_x`) -- where the elevator stands, while it is
+## away (Jon: "can we get rid of the space station on the left side right
+## before the elevator comes in").
+func set_edge(on: bool) -> void:
+	if _edge == null or light == null or light.hall == null:
+		return
+	if on and _edge.get_child_count() == 0:
+		var from: Array = EDGE_FROM.get(level, [EDGE_W, EDGE_W])
+		for band in 2:
+			var y0 := 0.0 if band == 0 else float(EDGE_WALLROW)
+			var y1 := float(EDGE_WALLROW) if band == 0 else float(H)
+			var clip := Control.new()
+			clip.clip_contents = true
+			clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			clip.position = Vector2(-EDGE_W, y0)
+			clip.size = Vector2(EDGE_W, y1 - y0)
+			var t := float(from[band])
+			var tr := TextureRect.new()
+			tr.texture = light.hall
+			tr.stretch_mode = TextureRect.STRETCH_KEEP
+			tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tr.size = Vector2(W, H)
+			var m := light.material(0)
+			if band == 1 and EDGE_FLOOR_MIRROR:
+				# the floor: its own edge mirrored, so its stains and light pools
+				# run on across the join with no step
+				tr.flip_h = true
+				tr.position = Vector2(EDGE_W - W, -y0)
+				m.set_shader_parameter(&"mirror_x", true)
+			else:
+				tr.position = Vector2(EDGE_W - t, -y0)
+				m.set_shader_parameter(&"shift_x", t)
+			tr.material = m
+			clip.add_child(tr)
+			_edge.add_child(clip)
+	_edge.visible = on
 var _wall: Control
 var _back: Control
 var _shipl: Control
@@ -190,6 +242,10 @@ func setup() -> void:
 	_hall_rect.material = _mats[YardPaint.HALL]
 	_hall_rect.size = Vector2(W, H)
 	add_child(_hall_rect)
+	_edge = Control.new()
+	_edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_edge.visible = false
+	add_child(_edge)
 	_wall = _layer("Wall")
 	_back = _layer("Back")
 	_shipl = _layer("ShipBack")

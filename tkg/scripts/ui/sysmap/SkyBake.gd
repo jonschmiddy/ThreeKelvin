@@ -31,6 +31,14 @@ const BH := H + 2 * M
 const MORE := float(BW * BH) / (704.0 * 540.0)
 ## Harness switches (SystemShot `off=`): the sun's rays and the dust, off.
 static var no_rays := false
+## THE STARS LAID OUT ONCE A SYSTEM (Jon on 2C: "still has a small delay/hitch"):
+## the few thousand stars are placed by noise worked out a star at a time, about
+## a tenth of a second of one frame, and a map is built new every visit -- the
+## way back out of LOCAL built it again for the system it had just shown. The
+## same system always places the same stars, so they are kept for the session
+## (key -> [stars texture, twinkle list]), the last few systems.
+static var _stars_kept := {}
+const STARS_KEPT_MAX := 6
 static var no_dust := false
 
 ## Star colours by temperature, and how common each is.
@@ -231,6 +239,22 @@ static func smooth_k(a: float, b: float, x: float) -> float:
 func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, cx: float, cy: float, tilt: float, look: Dictionary = {}) -> void:
 	var R := Worlds.XRng.new(float(index) * 7919.0 + 17.0)
 	var sd := float(index) * 0.731
+	var skey := "%d|%s|%s|%s|%s" % [index, kind, in_nebula, look.get("band", 0.0), look.get("band_glow", 0.06)]
+	var stars_tex: ImageTexture = null
+	if _stars_kept.has(skey):
+		stars_tex = _stars_kept[skey][0]
+		twinkle = (_stars_kept[skey][1] as Array).duplicate(true)
+	else:
+		stars_tex = _lay_stars(R, sd, look)
+		if _stars_kept.size() >= STARS_KEPT_MAX:
+			_stars_kept.erase(_stars_kept.keys()[0])
+		_stars_kept[skey] = [stars_tex, twinkle.duplicate(true)]
+	await _bake_rest(parent, index, kind, in_nebula, edge, cx, cy, tilt, look, sd, stars_tex)
+
+
+## The stars' light (and the twinkling few, into `twinkle`), from the system's own
+## random stream: the slow part of `make`, kept per system.
+func _lay_stars(R: Worlds.XRng, sd: float, look: Dictionary) -> ImageTexture:
 	var temp := func() -> Vector3:
 		var u := R.next()
 		var i := 0
@@ -315,7 +339,11 @@ func make(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, 
 		bytes[i * 4 + 2] = mini(255, int(lb[i * 3 + 2] * 64.0))
 		bytes[i * 4 + 3] = 255
 	var stars := Image.create_from_data(BW, BH, false, Image.FORMAT_RGBA8, bytes)
-	var stars_tex := ImageTexture.create_from_image(stars)
+	return ImageTexture.create_from_image(stars)
+
+
+func _bake_rest(parent: Node, index: int, kind: String, in_nebula: bool, edge: float, cx: float, cy: float, tilt: float,
+		look: Dictionary, sd: float, stars_tex: ImageTexture) -> void:
 
 	# the rest is per pixel, on the GPU, once
 	var pal: Array = look.get("pal", PULSAR_PAL if kind == "PULSAR" else PALS[index % 4])

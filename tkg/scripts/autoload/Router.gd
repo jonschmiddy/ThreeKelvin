@@ -84,7 +84,11 @@ func _swap(screen: Control, chrome: bool = true) -> void:
 	_refresh_sky()
 	_fade_in(screen)
 	Sig.screen_changed.emit()
-	_autosave()
+	# (in the middle of a move, written when it lands: `ZoomLadder.save_after`)
+	if ZoomLadder.busy():
+		ZoomLadder.save_after = true
+	else:
+		_autosave()
 
 
 ## The screens before a run is under way: the title, the party lobby, and the
@@ -545,6 +549,11 @@ func show_local() -> void:
 		SectorScreen._approached_at = Run.at
 	docked = false
 	Audio.music_state(&"sector")
+	# (built ahead, at the click, while the map moved: shown as it is)
+	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.LOCAL)
+	if pre != null:
+		_swap(pre)
+		return
 	var s := SectorScreen.new()
 	_swap(s)
 	# Hand the live fight back if there is one. A SectorScreen built with no
@@ -782,6 +791,9 @@ func resolve_current_node() -> void:
 	# Something followed you in. This is a fight on the way to the door rather
 	# than instead of it: the system still holds whatever it held, so the node
 	# is NOT consumed by winning here — see start_combat's `clears_node`.
+	# (never at a station: a save from before the rule may still carry the flag)
+	if n.ambush_pending and no_fights_at(n):
+		n.ambush_pending = false
 	if n.ambush_pending:
 		Run.log_line("Contact. Your heat bloom lit you up on the approach.", &"heat")
 		# Asked for HERE rather than stored at arrival. Positional, so it is the
@@ -874,7 +886,7 @@ func _roll_here(n: MapGen.MapNode) -> void:
 ## interrupt and the option is still sitting there when it is over. Only the core
 ## is excluded, because it is a hand-authored boss.
 func _roll_ambush(n: MapGen.MapNode) -> void:
-	if n.ambush_rolled or n.type == MapGen.NodeType.CORE:
+	if n.ambush_rolled or n.type == MapGen.NodeType.CORE or no_fights_at(n):
 		return
 	n.ambush_rolled = true
 	# The ambush roll itself is a stream draw, not a positional one, and that is
@@ -933,6 +945,11 @@ func show_station() -> void:
 	if arriving:
 		Audio.suppress(&"ui_tab", 200)
 		play_dock()
+	# (built ahead, at DOCK, while LOCAL moved: shown as it is)
+	var pre: Control = ZoomLadder.take_prebuilt(ZoomLadder.STATION)
+	if pre != null:
+		_swap(pre)
+		return
 	var s := StationScreen.new()
 	_swap(s)
 	s.setup()
@@ -1119,8 +1136,21 @@ func _resolve_derelict(n: MapGen.MapNode) -> void:
 ## at one system do not all get jumped. Two players' ambushes at the same node
 ## are two different events that happen to share an address, and joining one to
 ## the other would be joining a fight that is not there.
+## NO FIGHTS AT A STATION (Jon: "Why would there be a fight at a station? There
+## should never be fights at stations."). A station is a harbour: nothing is
+## rolled to jump you there (`_roll_ambush`), the Hellbender never stops at one
+## (`RunState._spawn_hellbender`, `_hellbender_step`), it holds no options to
+## take a fight from (`OptionTable.ensure`), and `start_combat` refuses one there
+## whoever asks -- an event's bait, a partner's shared fight, a save left
+## mid-fight, a debug key -- so no wreck is ever left at one either.
+static func no_fights_at(n: MapGen.MapNode) -> bool:
+	return n != null and n.type == MapGen.NodeType.STATION
+
+
 func start_combat(template: EnemyTemplate, extras: Array = [],
 		clears_node: bool = true, share: bool = true) -> void:
+	if no_fights_at(Run.node_at()):
+		return
 	# Bosses are hand-tuned set pieces, so they get the dread cue rather than
 	# the theme at full intensity. DREAD_NOTES §5, "boss reveal". The hellbender is
 	# one of those in everything but what winning pays, so it gets the cue too.
@@ -1200,7 +1230,7 @@ func engage_here() -> void:
 	if Run.hellbender_alive() and Run.hellbender_at == n.index:
 		engage_hellbender()
 		return
-	if n.cleared or in_combat():
+	if n.cleared or in_combat() or no_fights_at(n):
 		return
 	if n.type == MapGen.NodeType.CORE:
 		start_combat(DB.enemies[&"custodian"])

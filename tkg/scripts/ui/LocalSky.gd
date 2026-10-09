@@ -610,6 +610,7 @@ func _prime() -> void:
 	# (whatever happened, never leave the sky clear)
 	_box.modulate.a = 1.0
 	print_verbose("LocalSky primed %s in %d draws, %.0f ms" % [_key, draws, (Time.get_ticks_usec() - t0) / 1000.0])
+	ZoomLadder.probe_add("sky_prime(%d draws)" % draws, Time.get_ticks_usec() - t0)
 
 
 func _rect() -> ColorRect:

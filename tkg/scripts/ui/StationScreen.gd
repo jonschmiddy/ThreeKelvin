@@ -186,6 +186,14 @@ const HEAD_BOT := 10
 const ROW_H := 22
 
 func _build() -> void:
+	# THE YARD'S LEFT EDGE WHILE THE ELEVATOR IS AWAY (Jon: "There is also a blank
+	# box right where the elevator panel comes in"; and then, of the station's
+	# hull put there, "can we get rid of the space station on the left side"):
+	# the yard's own hall runs on into the elevator's column, lit as the hall is,
+	# shown only while the elevator is away (`_YardEdge`)
+	_edge = _YardEdge.new()
+	_edge.screen = self
+	add_child(_edge)
 	# Margin on the outside, once. Without it the header panel runs to x=0 and
 	# x=960 and UNDOCK is sliced in half by the window — every panel on this
 	# screen sits inside this one box.
@@ -2557,6 +2565,86 @@ func _on_mine_input(e: InputEvent) -> void:
 	open_cutaway()
 
 
+var _edge: _YardEdge = null
+## undocking: how long the elevator takes to go, before your ship lifts off (s)
+const UNDOCK_ELEV_S := 0.48
+## the yard's flight's speed at its far end, in units of its length over its
+## duration (`ZoomLadder.herm`): 2 is one smooth fall to rest (or rise from it).
+## 2.4: undocking, your ship leaves the yard at about the speed it comes out of
+## the hull on LOCAL (about 1130 px a second), the black between
+const YARD_M := 2.4
+
+
+## Your ship's speed at the yard's left edge, for a flight of `dur` s (screen px
+## a second): what the pan hands it, or takes from it.
+func ladder_track_speed(dur: float) -> float:
+	if _lad.is_empty():
+		return 0.0
+	return YARD_M * float(_lad.off) / maxf(dur, 0.001)
+## how long the elevator takes to slide back in once your hull is down (s)
+const ELEVATOR_S := 0.5
+class _YardEdge extends Node:
+	var screen: StationScreen
+
+	## Whether the ladder is panning this screen in or out right now.
+	func _panning() -> bool:
+		return ZoomLadder.busy() and ZoomLadder.active._pan_view != null \
+			and is_instance_valid(ZoomLadder.active._pan_view) and ZoomLadder.active._pan_view.visible
+	var _rest_x := NAN
+	var _on := false
+	var _clipped: Array = []
+
+	func _process(_d: float) -> void:
+		var r := screen._rail if screen != null else null
+		var sc: YardScene = screen._scene if screen != null else null
+		if r == null or not is_instance_valid(r) or sc == null or not is_instance_valid(sc):
+			return
+		# (the elevator's own place: the ladder's note of it, or learned while it
+		# stands in it)
+		if not screen._lad.is_empty() and not is_nan(float(screen._lad.get("rail_x", NAN))):
+			_rest_x = float(screen._lad.rail_x)
+		elif (screen._lad_tw == null or not screen._lad_tw.is_valid()) \
+				and (screen._cutaway == null or not is_instance_valid(screen._cutaway)):
+			_rest_x = r.position.x
+		# (not while the cutaway has the yard zoomed: the hall is not where it was)
+		var away := not is_nan(_rest_x) and r.position.x < _rest_x - 0.5 \
+			and (screen._cutaway == null or not is_instance_valid(screen._cutaway))
+		# THE ELEVATOR, ALL THE WAY OUT, IS NOT THERE (Jon: "the elevator is
+		# weirdly glitched into the side of the space station"): drawn over the
+		# yard only while it slides, hidden once it is fully away -- so it is
+		# never seen through the pan or the flight in, wherever the pan has the
+		# screen -- and never lifted over the pan's hull (`ZoomLadder`'s pan)
+		var gone := away and r.position.x <= _rest_x - r.size.x + 0.5
+		# (and through the whole flight in, wherever its row puts it back for a
+		# frame while the screen is laid out)
+		if not screen._lad.is_empty() and not bool(screen._lad.get("out", false)):
+			gone = true
+		# (by its alpha, not `visible`: hidden, the row it stands in would close up)
+		r.modulate.a = 0.0 if gone else 1.0
+		r.z_index = 1 if away and not gone and not _panning() else 0
+		if away == _on:
+			return
+		_on = away
+		# THE YARD RUNS ON INTO THE ELEVATOR'S COLUMN: the hall continued, under
+		# the yard's ships (which fly in over it), the yard's box not clipping it,
+		# and the elevator drawn over it as it slides back in
+		sc.set_edge(away)
+		# (every box between the yard and this screen that would clip it)
+		if away:
+			_clipped = []
+			var c: Node = sc
+			while c != null and c != screen:
+				if c is Control and (c as Control).clip_contents:
+					_clipped.append(c)
+					(c as Control).clip_contents = false
+				c = c.get_parent()
+		else:
+			for c in _clipped:
+				if is_instance_valid(c):
+					(c as Control).clip_contents = true
+			_clipped = []
+
+
 # ------------------------------------------------------------ the zoom ladder
 ## THE STATION AS THE CLOSEST OF FOUR DISTANCES (`ZoomLadder`): the camera is
 ## already inside, so it does not move; what the ladder asks of it is where its
@@ -2613,8 +2701,14 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 	var rail_x := NAN
 	if _rail != null and is_instance_valid(_rail):
 		rail_x = _rail.position.x
+	# (3B: from off the picture -- past the yard's own hall run on to the left --
+	# so the yard is seen empty first, and your ship comes in)
+	var past := YardScene.EDGE_W + 8.0 if design == "B" else 0.0
 	_lad = {"pos": _mine_view.position, "rail_x": rail_x, "out": going,
-		"off": _mine_view.position.x + float(_mine_view.size.x) + 24.0}
+		"off": _mine_view.position.x + float(_mine_view.size.x) + 24.0 + past, "design": design}
+	# (docking: the elevator unseen from the first frame -- `_YardEdge` keeps it so)
+	if not going and _rail != null and is_instance_valid(_rail):
+		_rail.modulate.a = 0.0
 	if _scene != null:
 		_scene.hide_mine = true
 		_scene.queue_redraw()
@@ -2630,7 +2724,13 @@ func ladder_cam(k: float) -> void:
 	# stands; the last stretch a settle down onto them (seated on its underside,
 	# as the yard stood it)
 	var q := clampf((1.0 - k) / 0.7 - (0.3 / 0.7), 0.0, 1.0) if k < 1.0 else 0.0
-	var fly := 1.0 - pow(1.0 - q, 3.0)
+	# (3B: the ladder gives the yard its own stretch after the pan, all of it
+	# the flight in)
+	if String(_lad.get("design", "")) == "B":
+		q = clampf(1.0 - k, 0.0, 1.0)
+	var b_motion := String(_lad.get("design", "")) == "B"
+	# (3B: the ladder shapes the one motion -- `q` is already where it is)
+	var fly := q if b_motion else 1.0 - pow(1.0 - q, 3.0)
 	var settle := clampf((q - 0.7) / 0.3, 0.0, 1.0)
 	var lift := 8.0 * (1.0 - settle * settle * (3.0 - 2.0 * settle)) if q < 1.0 else 0.0
 	var p0: Vector2 = _lad.pos
@@ -2638,6 +2738,10 @@ func ladder_cam(k: float) -> void:
 	# the elevator stays out of the picture until the hull is down
 	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
 		_rail.position.x = float(_lad.rail_x) - (_rail.size.x + 16.0) * (1.0 if k > 0.0 else 0.0)
+	# (the yard's hall run on into the elevator's column from the first frame the
+	# yard is up -- not a frame later, when this screen starts processing)
+	if _edge != null and is_instance_valid(_edge):
+		_edge._process(0.0)
 
 
 func ladder_cam_end() -> void:
@@ -2657,7 +2761,7 @@ func ladder_cam_end() -> void:
 	if Router.animating():
 		_rail.position.x = rx - (_rail.size.x + 16.0)
 		_lad_tw = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		_lad_tw.tween_property(_rail, "position:x", rx, 0.35)
+		_lad_tw.tween_property(_rail, "position:x", rx, ELEVATOR_S)
 	else:
 		_rail.position.x = rx
 
@@ -2667,14 +2771,20 @@ func ladder_cam_end() -> void:
 func ladder_pre_cam(k: float) -> void:
 	if _lad.is_empty() or not is_instance_valid(_mine_view):
 		return
-	var a := clampf(k / 0.3, 0.0, 1.0)
+	# (in seconds of the pre-roll: the elevator out, your ship off its stands and
+	# away, then -- F -- a beat of the empty yard and its slow fade to black)
+	var f := ZoomLadder.seam3_fade() == "F"
+	var tt := k * (ZoomLadder.UNDOCK_YARD_S + (ZoomLadder.YARD_BEAT_S + ZoomLadder.YARD_FADE_S if f else 0.0))
+	var a := clampf(tt / UNDOCK_ELEV_S, 0.0, 1.0)
 	if _rail != null and is_instance_valid(_rail) and not is_nan(float(_lad.rail_x)):
 		_rail.position.x = float(_lad.rail_x) - (_rail.size.x + 16.0) * (a * a * (3.0 - 2.0 * a))
-	var b := clampf((k - 0.3) / 0.7, 0.0, 1.0)
+	var b := clampf((tt - UNDOCK_ELEV_S) / (ZoomLadder.UNDOCK_YARD_S - UNDOCK_ELEV_S), 0.0, 1.0)
 	var up := clampf(b / 0.25, 0.0, 1.0)
-	var go := clampf((b - 0.15) / 0.85, 0.0, 1.0)
+	# (ONE SMOOTH MOTION: off its stands from rest, gathering speed, and away at
+	# the speed the pan takes on -- `ladder_track_speed`)
+	var go := 1.0 - ZoomLadder.herm(1.0 - b, YARD_M, 0.0)
 	var p0: Vector2 = _lad.pos
-	_mine_view.position = Vector2(p0.x - float(_lad.off) * go * go * go, p0.y - 8.0 * (up * up * (3.0 - 2.0 * up)))
+	_mine_view.position = Vector2(p0.x - float(_lad.off) * go, p0.y - 8.0 * (up * up * (3.0 - 2.0 * up)))
 
 
 func ladder_hull() -> Rect2:

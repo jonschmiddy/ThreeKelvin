@@ -3144,7 +3144,8 @@ func _spawn_hellbender() -> void:
 	var candidates: Array = []
 	for n in map:
 		var node: MapGen.MapNode = n
-		if node.layer >= 3 and node.layer <= MapGen.LAYERS - 3:
+		# (never a station: there are no fights at stations, `Router.no_fights_at`)
+		if node.layer >= 3 and node.layer <= MapGen.LAYERS - 3 and node.type != MapGen.NodeType.STATION:
 			candidates.append(node.index)
 	if candidates.is_empty():
 		return
@@ -3196,6 +3197,9 @@ func _hellbender_step(feeding: bool) -> void:
 		# Not the rim's first system and not the core: one is the front door,
 		# and the other already has a custodian in it.
 		if n.type == MapGen.NodeType.START or n.type == MapGen.NodeType.CORE:
+			continue
+		# nor a station: there are no fights at stations (`Router.no_fights_at`)
+		if n.type == MapGen.NodeType.STATION:
 			continue
 		options.append(i)
 		# WHAT IS ACTUALLY HERE, not what the node was labelled. A wreck is a
