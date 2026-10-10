@@ -67,6 +67,7 @@ uniform float lscale = 0.94;
 // one of these is off: the sheet is as Jon approved it.
 uniform float dist = 0.0;
 // PAINTED: its paint pass bands the sheets itself; none of the close-in work
+// (nor in LEGACY, the sheets as they were: only with `simplified`)
 uniform bool painted = false;
 
 float hash2(vec2 p) {
@@ -137,8 +138,9 @@ void fragment() {
 	// that buys: octaves, scattered light, crisp rims, dither (all 0 at mag 1)
 	float mag = dist > 0.0 ? s * (1.0 / max(home_zoom, 1e-3) + dist) : 1.0;
 	float ob = clamp(log2(max(mag, 1.0)) * 1.4, 0.0, 3.0);
-	float mk = painted ? 0.0 : smooth_k(1.15, 2.4, mag);
-	if (painted) ob = 0.0;
+	bool close_work = simplified && !painted;
+	float mk = close_work ? smooth_k(1.15, 2.4, mag) : 0.0;
+	if (!close_work) ob = 0.0;
 	vec2 dsun = b - star_at;
 	float dL = length(dsun * vec2(1.0, 1.15)) / (pow(max(zoom, 1e-3) / max(home_zoom, 1e-3), 0.42) * lscale);
 	float Js = 1.0 / (1.0 + pow(dL / 155.0, 2.0));
