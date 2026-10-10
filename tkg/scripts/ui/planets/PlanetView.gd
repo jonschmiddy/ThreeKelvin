@@ -376,10 +376,18 @@ func _mem_sync() -> void:
 	var r := float(_mat.get_shader_parameter("r"))
 	var ov: Variant = _mat.get_shader_parameter("ctr_off")
 	var off: Vector2 = ov if ov is Vector2 else Vector2.ZERO
-	# (a drift of the centre is held through; a new size, or a jump, starts afresh)
-	if r != _mem_r or off.distance_to(_mem_off) > float(maxi(_cell, 1)):
+	# (a drift of the centre is held through; a jump starts afresh, and so does a
+	# new size -- but not every sliver of one: the map's smooth zoom changes a
+	# world's radius every frame, so its memory started afresh every frame and the
+	# whole surface re-rasterised unheld, its fine features crawling and its
+	# lights scattering as the wheel eased. Its blocks are counted from the
+	# world's centre, so within a block of radius each still holds nearly the same
+	# ground; the memory is kept until the size has moved a block from where it
+	# started, and the hysteresis lets through any shade that really changed.)
+	var cl := float(maxi(_cell, 1))
+	if _mem_r < 0.0 or absf(r - _mem_r) >= cl or off.distance_to(_mem_off) > cl:
 		_mem_fresh = maxi(_mem_fresh, 1)
-	_mem_r = r
+		_mem_r = r
 	_mem_off = off
 	for nm: String in MEM_LIVE:
 		_mem_mat.set_shader_parameter(nm, _mat.get_shader_parameter(nm))

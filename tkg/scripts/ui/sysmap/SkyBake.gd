@@ -94,6 +94,9 @@ const STARCOL := {"ORDINARY": Vector3(1.0, 0.86, 0.62), "RED": Vector3(1.0, 0.5,
 
 var base: ImageTexture
 var gas: ImageTexture
+## the seed the gas was baked with, for the sky to work the pulsar's remnant out
+## again close in (`sky.gdshader` `remnant_at`)
+var bake_sd := 0.0
 ## Stars that twinkle each frame instead of being baked: [x, y, strength, colour, phase].
 var twinkle: Array = []
 
@@ -346,6 +349,7 @@ func _bake_rest(parent: Node, index: int, kind: String, in_nebula: bool, edge: f
 		look: Dictionary, sd: float, stars_tex: ImageTexture) -> void:
 
 	# the rest is per pixel, on the GPU, once
+	bake_sd = sd
 	var pal: Array = look.get("pal", PULSAR_PAL if kind == "PULSAR" else PALS[index % 4])
 	var vp := SubViewport.new()
 	vp.size = Vector2i(BW, BH)
