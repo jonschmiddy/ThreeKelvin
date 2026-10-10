@@ -8,8 +8,8 @@ extends Node
 ## half-built behind it (no ladder in the tree, the map's camera handed back,
 ## LOCAL's scene and sky at their own size, the bar back, the hull shown); a key
 ## pressed mid-move ends it at once and the screen takes input after; the wheel
-## past either end of the map, the chart's closest zoom and LOCAL steps a
-## distance; LOCAL's DOCK at a station docks, UNDOCK lands on LOCAL; the
+## past either end of the map, the chart's closest zoom and LOCAL stays put (Tab
+## and the tabs are the way between distances, never the wheel); LOCAL's DOCK at a station docks, UNDOCK lands on LOCAL; the
 ## defaults are Jon's picks (1A, 2C, 3B), and 3B's dock flies the yard's hull in
 ## from the left with the elevator out of the picture until it has settled, its
 ## undock the elevator out first and the hull away to the left; a fight
@@ -36,9 +36,9 @@ func _frames(n: int) -> void:
 		await _tree.process_frame
 
 
-## Until no move is under way (or 240 frames).
+## Until no move is under way (or 600 frames: the dock is eight seconds).
 func _idle() -> int:
-	for i in 240:
+	for i in 600:
 		if not ZoomLadder.busy():
 			await _tree.process_frame
 			return i
@@ -220,7 +220,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the yard's hall runs on where the elevator will come in (%d frames without it)" % edge_off, edge_off == 0)
 	_ok("3B: the hull ends on its stands", xs.is_empty() or absf(xs[-1] - berth) < 1.0)
 	var rx := st._rail.position.x if st._rail != null else 0.0
-	await _frames(int(StationScreen.ELEVATOR_S * 30.0) + 6)
+	await _frames(int(ZoomLadder.ELEVATOR_S * 30.0) + 6)
 	_ok("3B: then the elevator slides in (%.0f -> %.0f)" % [rx, st._rail.position.x if st._rail != null else 0.0],
 		st._rail == null or st._rail.position.x > rx + 20.0)
 	_clean("3B dock")
@@ -582,15 +582,27 @@ func _run() -> void:
 		m.view.zoom = m.zoom_min
 		await _frames(2)
 
-	# 3. the wheel past the ends
+	# 3. THE WHEEL STOPS AT EACH SCREEN'S END (Jon, Oct 10: the wheel between
+	# distances "isn't intuitive ... and is kinda disruptive"): notch after notch
+	# past either end of the map, the chart's closest zoom and LOCAL, and the
+	# screen stays where it is; Tab and the tabs are the way between them
 	if m != null:
 		m._zoom_to = m.zoom_min
-		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		_ok("one notch out past the sector is not yet the chart", Router.current == m)
-		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		await _idle()
-		_ok("the second is (the chart)", Router.current is StarchartScreen)
-		_clean("wheel out")
+		for i in 4:
+			m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
+		await _frames(3)
+		_ok("the wheel out past the whole sector stays on the map", Router.current == m and not ZoomLadder.busy())
+		_ok("and the map's zoom stops at its fit", absf(m._zoom_to - m.zoom_min) < 0.001)
+		m._zoom_to = m.view.ZOOM_MAX
+		for i in 4:
+			m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
+		await _frames(3)
+		_ok("the wheel in past the map's closest zoom stays on the map", Router.current == m and not ZoomLadder.busy())
+		_ok("and the map's zoom stops at its closest", absf(m._zoom_to - m.view.ZOOM_MAX) < 0.001)
+		m._zoom_to = m.zoom_min
+		m.view.zoom = m.zoom_min
+		await _frames(2)
+	await _go("the chart (for the wheel)", Router.show_starchart, StarchartScreen)
 	var ch := Router.current as StarchartScreen
 	if ch != null:
 		ch._chart.zoom = StarchartScreen.MapChart.ZOOM_MAX
@@ -598,29 +610,63 @@ func _run() -> void:
 		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 		wheel.pressed = true
 		wheel.position = ch._chart.size * 0.5
-		ch._chart._gui_input(wheel)
-		ch._chart._gui_input(wheel)
-		await _idle()
-		_ok("the wheel in past the chart's closest zoom is the map", Router.current is SystemMapScreen)
-		_clean("wheel in (chart)")
-	m = Router.current as SystemMapScreen
-	if m != null:
-		m._zoom_to = m.view.ZOOM_MAX
-		m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		await _idle()
-		_ok("the wheel in past the map's closest zoom is LOCAL", Router.current is SectorScreen)
-		_clean("wheel in (map)")
+		for i in 4:
+			ch._chart._gui_input(wheel)
+		await _frames(3)
+		_ok("the wheel in past the chart's closest zoom stays on the chart", Router.current == ch and not ZoomLadder.busy())
+	await _go("LOCAL (for the wheel)", Router.show_local, SectorScreen)
 	var loc := Router.current as SectorScreen
 	if loc != null:
-		var down := InputEventMouseButton.new()
-		down.button_index = MOUSE_BUTTON_WHEEL_DOWN
-		down.pressed = true
-		loc._on_view_wheel(down)
-		loc._on_view_wheel(down)
-		await _idle()
-		_ok("the wheel out on LOCAL is the map", Router.current is SystemMapScreen)
-		_clean("wheel out (LOCAL)")
+		for b in [MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_UP]:
+			var ev := InputEventMouseButton.new()
+			ev.button_index = b
+			ev.pressed = true
+			ev.position = loc._view.size * 0.5
+			for i in 4:
+				loc._view.gui_input.emit(ev)
+		await _frames(3)
+		_ok("the wheel on LOCAL stays on LOCAL", Router.current == loc and not ZoomLadder.busy())
+	await _go("back to the map", Router.show_system, SystemMapScreen)
+
+	# 3b. THREE BEATS, NEVER OVERLAPPING (Jon, Oct 10: "fast and rushed and
+	# chaotic"): the map's UI leaves with its camera still, the camera moves with
+	# no UI on either screen, and the chart's UI comes up once it has landed
+	var mm := Router.current as SystemMapScreen
+	if mm != null:
+		var z0: float = mm.view.zoom
+		Router.show_starchart()
+		var saw_out := false
+		var saw_in := false
+		var cam_in_ui := 0
+		var ui_in_move := 0
+		for i in 600:
+			await _tree.process_frame
+			if not ZoomLadder.busy():
+				break
+			var L := ZoomLadder.active
+			if L.phase == ZoomLadder.Phase.UI_OUT:
+				saw_out = true
+				if is_instance_valid(mm) and absf(mm.view.zoom - z0) > 0.0001:
+					cam_in_ui += 1
+			if L.phase == ZoomLadder.Phase.MOVE and L.new is StarchartScreen:
+				var c2 := L.new as StarchartScreen
+				if (c2._ladder_side != null and c2._ladder_side.modulate.a > 0.01) or c2._chart.ui_a > 0.01:
+					ui_in_move += 1
+			if L.phase == ZoomLadder.Phase.UI_IN:
+				saw_in = true
+		_ok("the map's UI leaves before its camera moves (%s, %d frames moved early)" % [saw_out, cam_in_ui], saw_out and cam_in_ui == 0)
+		_ok("no UI on the chart while the camera moves (%d frames with it)" % ui_in_move, ui_in_move == 0)
+		var c3 := Router.current as StarchartScreen
+		_ok("and the chart's UI comes up after it lands, all of it", saw_in and c3 != null
+			and c3._ladder_side.modulate.a > 0.99 and c3._chart.ui_a > 0.99 and c3._key_row.modulate.a > 0.99)
+		_clean("UI beats")
+		await _go("back to the map (UI beats)", Router.show_system, SystemMapScreen)
+		var m4 := Router.current as SystemMapScreen
+		_ok("and the map's panel, strip and key are back whole", m4 != null and m4.panel.get_parent().modulate.a > 0.99
+			and m4._strip.modulate.a > 0.99 and m4._key_row.modulate.a > 0.99 and m4.overlay.label_a > 0.99)
+	# (the dials: every length a move is made of is one)
+	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S],
+		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 12)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()

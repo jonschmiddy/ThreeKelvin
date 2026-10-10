@@ -1010,7 +1010,7 @@ func _draw_ships() -> void:
 		var at := _fitted_origin(S)
 		var x := float(at.x + ink.position.x)
 		var bottom := float(at.y + ink.position.y + ink.size.y - 1)
-		P.mirror(t, Rect2(ink.position, ink.size), x, 2.0 * fl - bottom, 0.22 * 0.7, tint, false)
+		P.mirror(t, Rect2(ink.position, ink.size), x, 2.0 * fl - bottom, 0.22 * 0.7 * (mine_a if i == 0 else 1.0), tint, false)
 
 	P.use(YardPaint.SHIP)
 	for S: Dictionary in placed:
@@ -1031,6 +1031,9 @@ func _draw_ships() -> void:
 ## hull, and the reflection -- a photograph of the ship -- showed through the
 ## blur as a second, ghostly ship under the real one.
 var hide_mine := false
+## And brought back gently once your ship has landed (`StationScreen.ladder_chrome`):
+## its name and its reflection come up with the yard's UI, not in one frame.
+var mine_a := 1.0
 
 
 func _names(P: YardPaint) -> void:
@@ -1041,18 +1044,23 @@ func _names(P: YardPaint) -> void:
 		var x := floorf(float(S["x0"]) + 3.0 + 0.5)
 		var y := floorf(float(S["top"]) + 0.5)
 		var nm := _mine_name if i == 0 else _sale_name
-		_outlined(P, nm, Vector2(x, y - 11.0), 16, NAME_MINE if i == 0 else NAME_SALE)
-		_outlined(P, "YOURS" if i == 0 else "FOR SALE", Vector2(x, y - 2.0), 8, NAME_SUB)
+		var a := mine_a if i == 0 else 1.0
+		if a <= 0.01:
+			continue
+		_outlined(P, nm, Vector2(x, y - 11.0), 16, NAME_MINE if i == 0 else NAME_SALE, a)
+		_outlined(P, "YOURS" if i == 0 else "FOR SALE", Vector2(x, y - 2.0), 8, NAME_SUB, a)
 
 
 const _OUTLINE := [Vector2(-1, -1), Vector2(0, -1), Vector2(1, -1), Vector2(-1, 0), Vector2(1, 0),
 	Vector2(-1, 1), Vector2(0, 1), Vector2(1, 1), Vector2(2, 2), Vector2(1, 2), Vector2(2, 1)]
 
 
-func _outlined(P: YardPaint, s: String, at: Vector2, size: int, c: Color) -> void:
+func _outlined(P: YardPaint, s: String, at: Vector2, size: int, c: Color, a: float = 1.0) -> void:
+	var o := Color(NAME_OUT, NAME_OUT.a * a)
 	for d: Vector2 in _OUTLINE:
-		P.text(_font, at + d, s, size, NAME_OUT)
-	P.text(_font, at, s, size, c)
+		P.text(_font, at + d, s, size, o)
+	P.text(_font, at, s, size, Color(c, c.a * a))
+
 
 
 # ------------------------------------------------------------------ the services and the deal

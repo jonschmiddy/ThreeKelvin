@@ -617,9 +617,6 @@ func _build() -> void:
 	# changes whenever the band does — a bookend's drawer, a fight's hand, a
 	# cinematic's parked one. Asked again every time the view is re-laid out.
 	_view.resized.connect(_sync_bleed)
-	# THE WHEEL OUT PAST LOCAL IS THE SECTOR MAP, IN AT A STATION THE STATION
-	# (`ZoomLadder`)
-	_view.gui_input.connect(_on_view_wheel)
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
 	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
@@ -2343,18 +2340,6 @@ var _lad := {}
 var _lad_zs := 1.0
 
 
-func _on_view_wheel(e: InputEvent) -> void:
-	var mb := e as InputEventMouseButton
-	if mb == null or not mb.pressed or fighting() or _phase != Phase.NONE or _cutaway != null 			or _transfer != null:
-		return
-	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and ZoomLadder.overscroll(-1):
-		_view.accept_event()
-		_plot_next_jump()
-	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and Run.node_at() != null 			and Run.node_at().type == MapGen.NodeType.STATION and ZoomLadder.overscroll(1):
-		_view.accept_event()
-		Router.show_station()
-
-
 func ladder_ready() -> bool:
 	return _view != null and _view.size.x > 10.0
 
@@ -2469,7 +2454,25 @@ func ladder_pre(target: int, seam: int, design: String) -> float:
 	return 1.0
 
 
+## LOCAL'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
+## moves and comes back after it lands, never during): the bar along the bottom,
+## and the event's band if it is up as the move starts (one that opens on
+## arrival lifts on its own once the move has landed, `LocalEventDrawer.attach`).
+var _chrome_band := false
+
+
+func ladder_chrome(k: float) -> void:
+	if k > 0.0 and _quiet_holder != null and not _quiet_holder.has_meta(&"lad_a0"):
+		_chrome_band = _events != null and is_instance_valid(_events) and _events.visible
+	ZoomLadder.fade_chrome(_quiet_holder, k)
+	if _chrome_band:
+		ZoomLadder.fade_chrome(_events, k)
+	if k <= 0.0:
+		_chrome_band = false
+
+
 ## Where the held picture's anchor is (and its world, for the world handoff):
+
 ## this camera's far end is placed on it. Taken by the next `ladder_cam_begin`.
 var _lad_meet := {}
 
@@ -2637,9 +2640,8 @@ func ladder_cam(k: float) -> void:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
 		art.visible = deep or eq < 0.9
-	# the bar along the bottom is the screen's, not the scene's: it comes and goes
-	if _quiet_holder != null:
-		_quiet_holder.modulate.a = float(_lad.bar) * clampf(1.0 - k * 1.6, 0.0, 1.0)
+	# (the bar along the bottom is the screen's, not the scene's: it leaves before
+	# the camera moves and comes back after it lands, `ladder_chrome`)
 
 
 ## THE HALLWAY'S TIMING, as fractions of the approach (`ZoomLadder.DOCK_APPROACH_S`):
@@ -2698,8 +2700,6 @@ func ladder_cam_end() -> void:
 	if sky != null and is_instance_valid(sky):
 		sky.end_hand()
 		sky.set_zoom(1.0, Vector2.ZERO, Vector2.ZERO)
-	if _quiet_holder != null:
-		_quiet_holder.modulate.a = float(_lad.bar)
 	for f: StationFace in [_face, _face_front]:
 		if f != null and is_instance_valid(f):
 			f.dock_k = 0.0

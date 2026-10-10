@@ -9,7 +9,8 @@ extends Control
 ##      star system."
 ##   3. out to the star chart, the system shrinking to its star as the galaxy
 ##      eases in: "STARCHART. Reach the core at its heart."
-##   4. "Scroll or press Tab to zoom. Pick a star in range, then jump." -- and
+##   4. "Press Tab to zoom. Pick a star in range, then jump." (the key as bound,
+##      `next_screen`; the wheel no longer changes distance) -- and
 ##      control is handed back on the chart, where the FIRST SURVEY card follows,
 ##      as it follows the first chart today.
 ##
@@ -24,7 +25,7 @@ const LINES := [
 	["LOCAL.", "This is your ship."],
 	["SECTOR.", "This is your star system."],
 	["STARCHART.", "Reach the core at its heart."],
-	["", "Scroll or press Tab to zoom. Pick a star in range, then jump."],
+	["", "Press %s to zoom. Pick a star in range, then jump."],
 ]
 ## How long each line is read for, s
 const HOLD := [2.8, 2.8, 3.0, 3.8]
@@ -150,19 +151,26 @@ func _moving() -> bool:
 	return not DisplaySettings.reduced_motion
 
 
+## (on the game's clock, not the wall's: the same in play, and a film made a
+## frame at a time -- `sheet=IntroShot` at --fixed-fps -- holds each line as
+## long as a player reads it)
 func _wait(s: float) -> bool:
-	var end := Time.get_ticks_msec() + int(s * 1000.0)
-	while Time.get_ticks_msec() < end:
+	var t := 0.0
+	while t < s:
 		if _done or not is_inside_tree():
 			return false
 		await get_tree().process_frame
+		t += get_process_delta_time()
 	return not _done and is_inside_tree()
+
 
 
 func _say(i: int) -> void:
 	_head.text = String(LINES[i][0])
 	_head.visible = _head.text != ""
 	_line.text = String(LINES[i][1])
+	if "%s" in _line.text:
+		_line.text = _line.text % Keys.describe(&"next_screen").capitalize()
 	if _moving():
 		var tw := create_tween()
 		tw.tween_property(_caption, "modulate:a", 1.0, 0.25).from(0.0)
@@ -328,6 +336,10 @@ func _hold_primer(hold: bool) -> void:
 	if s is StarchartScreen:
 		var p: Control = s.get("_primer")
 		if p != null and is_instance_valid(p):
+			# (and in, not on: it came up whole in one frame as the tour ended)
+			if not hold and not p.visible and _moving():
+				p.modulate.a = 0.0
+				p.create_tween().tween_property(p, "modulate:a", 1.0, 0.35) 					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 			p.visible = not hold
 
 
