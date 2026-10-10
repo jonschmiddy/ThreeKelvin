@@ -1996,8 +1996,13 @@ class _Belts extends Node2D:
 			var spin: float = view.t / b.period * TAU
 			var pulsar: bool = L.star == SystemLayout.StarKind.PULSAR
 			var o: Vector2 = view.origin()
-			# more rocks the closer you look, the first 300 always the same
-			for i in int(300.0 * maxf(view.zoom, 0.8)):
+			# more rocks the closer you look, the first 300 always the same; the
+			# newest ones COME IN FAINT (each new rock popped in at full strength, a
+			# few more of them every frame of a zoom): the last 60 are faded by how
+			# near the zoom is to adding them
+			var n_rocks := 300.0 * maxf(view.zoom, 0.8)
+			for i in ceili(n_rocks):
+				var fade_in := clampf((n_rocks - float(i)) / 60.0, 0.0, 1.0) if i >= 300 else 1.0
 				var a := R.next() * TAU + spin * (0.9 + R.next() * 0.2)
 				var rr := b.orbit + (R.next() - 0.5) * 33.0 * (0.5 + R.next())
 				var big := R.next()
@@ -2007,6 +2012,9 @@ class _Belts extends Node2D:
 				var z := sin(a) * rr
 				var s: Vector2 = view.block(view.screen(x, z, lift))
 				var litv: Vector3 = view.tone(x, z, Vector3(0.66, 0.68, 0.72) if shade < 0.5 else Vector3(0.52, 0.54, 0.58))
+				if view.painted and fade_in < 0.5:
+					# (PAINTED: a new rock is there or not, from half way in)
+					continue
 				if view.painted:
 					# PAINTED (B): each rock lit on its star side, in the rock's own ramp
 					# (its night and dusk leaning to the sky), brightest where we see its
@@ -2041,6 +2049,8 @@ class _Belts extends Node2D:
 					if b.index == view.belt_lit and view.belt_t > 0.0:
 						lt = lt.lerp(Color.WHITE, 0.45 * view.belt_t)
 						dk = dk.lerp(lt, 0.6 * view.belt_t)
+					lt.a = fade_in
+					dk.a = fade_in
 					var sxl := -1 if x > 0.0 else 1
 					if big < 0.86:
 						draw_rect(Rect2(s, Vector2(2, 2)), lt if shade < 0.35 else dk)
@@ -2072,6 +2082,8 @@ class _Belts extends Node2D:
 				if b.index == view.belt_lit and view.belt_t > 0.0:
 					lit = lit.lerp(Color.WHITE, 0.45 * view.belt_t)
 					dark = dark.lerp(lit, 0.6 * view.belt_t)
+				lit.a = fade_in
+				dark.a = fade_in
 				var sx := -1 if x > 0.0 else 1
 				# in blocks of 2x2, as the whole place is
 				if big < 0.86:
