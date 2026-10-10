@@ -119,7 +119,10 @@ func _run() -> void:
 							im.save_png("%s/%s_%s.png" % [dir, cname, u])
 							print("localaudit:     %s %s %s" % [u, im.get_size(), im.get_format()])
 			# THE BARE SKY AND THE DUST, filmed
-			var hid := _hide(view)
+			# (`clipfull`: the whole view, ships and all, as a player sees it)
+			var hid: Array[CanvasItem] = []
+			if not "clipfull" in _args:
+				hid = _hide(view)
 			await _frames(2)
 			var cd := "%s/%s_clip" % [dir, cname]
 			DirAccess.make_dir_recursive_absolute(cd)
