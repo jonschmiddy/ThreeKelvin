@@ -60,9 +60,15 @@ float bayer2(vec2 p) {
 }
 
 void fragment() {
-	// in 2x2 blocks, as the sky is drawn
-	vec2 b = floor(local / 2.0);
-	vec2 p = b * 2.0 + 1.0;
+	// in 2x2 blocks of the GAME's pixels, as the sky is drawn -- whatever this
+	// rect's own scale: under the cutaway's push-in the bank is drawn again at the
+	// zoom's size in 2 px blocks (more blocks, finer grains), never its 2x2
+	// blocks scaled up to 4x4. `inv`: this rect's px per game px.
+	vec2 sp = SCREEN_UV / SCREEN_PIXEL_SIZE;
+	float inv = abs(dFdx(local.x));
+	inv = inv > 0.0 ? inv : 1.0;
+	vec2 p = local + (floor(sp / 2.0) * 2.0 + 1.0 - sp) * inv;
+	vec2 b = floor(p / (2.0 * inv));
 	vec2 q = p - centre;
 	float c = cos(-tilt);
 	float s = sin(-tilt);

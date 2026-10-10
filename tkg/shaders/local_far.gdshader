@@ -49,8 +49,14 @@ void fragment() {
 		// middle, plain grey stars and the near ones in the star's colour
 		vec3 c = vec3(0.027, 0.039, 0.063);
 		float fx = (g.x - wash.x) / max(wash.y, 1.0);
+		// (its five steps dithered from one to the next in an ordered pattern, a
+		// block at a time: hard-edged, the palette cut them to one step at 0.45 of
+		// the view, and with the play's tone evening out everything below the top
+		// band it stood as a dark rectangle in the top left corner)
+		float th = kitBayer4(ivec2(floor(SCREEN_UV * vec2(480.0, 270.0))));
+		float steps = clamp(floor((fx - 0.40) / 0.24 * 5.0 + th), 0.0, 5.0);
 		for (int i = 0; i < 5; i++) {
-			if (fx >= 0.45 + 0.14 * float(i) / 5.0) {
+			if (float(i) < steps) {
 				c = mix(c, wash_tint, 0.10);
 			}
 		}
@@ -78,13 +84,26 @@ void fragment() {
 			}
 			c += vec3(0.0016, 0.0016, 0.0024) * w * lump;
 		}
+		float gf = 0.0;
 		if (glow_k > 0.0) {
 			// (gone to nothing at its edge: a long faint tail was set by the palette
 			// into flat plates of the star's darkest step)
 			float r = length(g - star_at) / (glow_r * breath);
 			float f = max(1.0 - r, 0.0);
 			c += star_light * glow_k * f * f * 0.05;
+			gf = glow_k * smoothstep(0.0, 0.2, f);
 		}
-		COLOR = vec4(kitToSrgb(kitTone(c * 1.0, 3.0)), 1.0);
+		vec3 o = kitToSrgb(kitTone(c * 1.0, 3.0));
+		if (gf > 0.0) {
+			// THE GLOW'S STEPS DITHERED: the palette cut after this keeps its dark
+			// steps flat, so the star's glow came out as three hard-edged plates
+			// round it (a red star's most of all, read as a flat red disc). A step's
+			// worth of ordered dither across it, in the star's own colour, lets the
+			// palette fall from one plate to the next in a pattern (only in the glow:
+			// the void round it stays clean)
+			float th = kitBayer4(ivec2(floor(SCREEN_UV * vec2(480.0, 270.0))));
+			o += (th - 0.5) * 0.045 * gf * (star_light / max(star_light.r, max(star_light.g, star_light.b)));
+		}
+		COLOR = vec4(o, 1.0);
 	}
 }

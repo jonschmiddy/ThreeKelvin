@@ -30,6 +30,20 @@ void fragment() {
 	// (PAINTED's ease, as a pixel artist steps it: four steps, each block on
 	// one, dithered between them in an ordered pattern)
 	float w = smoothstep(ramp.x, ramp.y, y);
+	// THE DARK SKY'S EASE, dithered whole (the core's void, a clear sky): the
+	// palette cut after this keeps two near blacks flat, undithered, so a smooth
+	// lift of the void crossed from one to the other on one row -- a hard line
+	// right across the view (the core: 93% of the row changing at game y 112).
+	// Here each block of a dark pixel is lifted all or not at all, as many of
+	// them as the ease asks for, in an ordered pattern: the palette sees two
+	// clean colours and the ease reads as a dithered fall, not a seam. (Only the
+	// dark: where the palette dithers itself, two dithers beat into strokes.)
+	bool dark = max(src.r, max(src.g, src.b)) < 0.16;
+	if (dark && !stepped && w > 0.0 && w < 1.0) {
+		const float BD[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+		ivec2 qd = ivec2(floor(SCREEN_UV * vec2(480.0, 270.0))) & ivec2(3);
+		w = w > (BD[qd.y * 4 + qd.x] + 0.5) / 16.0 ? 1.0 : 0.0;
+	}
 	if (stepped) {
 		const float B[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 		ivec2 q = ivec2(floor(SCREEN_UV * vec2(480.0, 270.0))) & ivec2(3);

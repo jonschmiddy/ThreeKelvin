@@ -626,9 +626,21 @@ func _bake_cloud(gen: int) -> void:
 	var f: Array = _baked.get(key, [])
 	if f.is_empty():
 		var bake := SkyBakeS.new()
-		await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC, legacy)
-		if gen != _gen or not is_inside_tree():
-			return
+		# BAKED UNTIL IT HOLDS GAS (PAINTED's LOCAL showed bare stars on every
+		# arrival: built PAINTED, the bake ran inside the sky's priming draws and
+		# read its three pictures back empty -- no cloud, and no sheets for its
+		# masses). An empty bake is done again on the next real frames.
+		for attempt in 4:
+			await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC, legacy)
+			if gen != _gen or not is_inside_tree():
+				return
+			if not _blank(bake.field_img0):
+				break
+			print_verbose("LocalSky: the cloud baked empty, again (%d)" % attempt)
+			await get_tree().process_frame
+			await get_tree().process_frame
+			if gen != _gen or not is_inside_tree():
+				return
 		f = [bake.field0, bake.field1, bake.field2]
 		if _baked.size() >= BAKED_MAX:
 			_baked.erase(_baked.keys()[0])
@@ -646,14 +658,39 @@ func _bake_cloud(gen: int) -> void:
 			_neb_mat.set_shader_parameter("p_sheets", f[3])
 			_neb_mat.set_shader_parameter("p_sheets_on", true)
 		else:
-			await SectorPaintedS.bake_puffs(self, f[0])
-			if gen != _gen or not is_inside_tree():
-				return
+			# (THE SHEETS CAME OUT EMPTY on LOCAL, every time: baked inside the sky's
+			# priming draws, the bake's picture was read back blank, and PAINTED's
+			# LOCAL had no cloud at all -- emission, reflection and the core showed
+			# bare stars. Baked again on the next real frames until it holds gas.)
+			for attempt in 4:
+				await SectorPaintedS.bake_puffs(self, f[0])
+				if gen != _gen or not is_inside_tree():
+					return
+				var pt: Variant = _neb_mat.get_shader_parameter("p_sheets")
+				if not (pt is Texture2D) or not (pt as Texture2D).get_image().is_invisible():
+					break
+				print_verbose("LocalSky: PAINTED's sheets baked empty, again (%d)" % attempt)
+				await get_tree().process_frame
+				await get_tree().process_frame
 			var ps = _neb_mat.get_shader_parameter("p_sheets")
-			if ps != null:
+			if ps != null and not (ps as Texture2D).get_image().is_invisible():
 				f.append(ps)
 	_neb.visible = true
 	_ready_sky = true
+
+
+## Nothing in a baked picture: no pixel of a grid across it has any channel lit.
+static func _blank(img: Image) -> bool:
+	if img == null or img.is_empty():
+		return true
+	var w := img.get_width()
+	var h := img.get_height()
+	for j in 24:
+		for i in 32:
+			var c := img.get_pixel(int((i + 0.5) * w / 32.0), int((j + 0.5) * h / 24.0))
+			if c.r + c.g + c.b + c.a > 0.004:
+				return false
+	return true
 
 
 ## The emission bubble's radius (`SystemView._bubble_r`), in this frame's px:
@@ -689,6 +726,28 @@ func _world_r(b: SystemLayout.Body) -> float:
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		r *= SystemViewS.PULSAR_WORLD_K
 	return maxf(roundf(r), MIN_WORLD_R)
+
+
+## A WORLD DRAWN AT RADIUS `r` (its own `base_r` at rest), grown the way the
+## map grows one under its zoom: drawn again at a new size once it has moved two
+## pixels of radius on, and live (any fraction) between, its surface on the
+## block grid. Returns the radius it is held at (its box's, `half_size`).
+func _grow(v: Node2D, world: StringName, seed: int, base_r: float, r: float, over: Dictionary) -> float:
+	if not (v is PlanetView or v is ShatteredView):
+		return base_r
+	var held := float(v.get_meta(&"held_r", base_r))
+	var at_rest := absf(r - base_r) < 0.001
+	if (at_rest and held != base_r) or (not at_rest and absf(r - held) > 2.0):
+		held = base_r if at_rest else roundf(r)
+		v.call("set_world", world, seed, held, over)
+		v.set_meta(&"held_r", held)
+	if not at_rest or v.has_meta(&"live"):
+		v.call("set_live", r, Vector2.ZERO)
+		if at_rest:
+			v.remove_meta(&"live")
+		else:
+			v.set_meta(&"live", true)
+	return held
 
 
 static func _set_deep(n: Node, key: String, value: Variant) -> void:
@@ -850,12 +909,15 @@ func _step(delta: float) -> void:
 	_step_star(o)
 	_step_worlds(o)
 	_step_near(o)
-	_zlayer(_worlds, Z_BAND)
-	# (the map's own world, handed over, is placed and sized live in its own
-	# pixels, not scaled as a picture: `adopt_near`)
-	if _hand.is_empty() or bool(_hand.get("self", false)):
-		_zlayer(_near_rect, Z_NEAR)
-	elif _near_rect != null:
+	# UNDER THE ZOOM NOTHING HERE IS A PICTURE SCALED UP (Jon: "zooming in causes
+	# artifacts like pixels missing, lines being drawn weird"): the band's worlds,
+	# the star and the near things are each drawn again where the zoom puts them
+	# and at the size it gives them, on the sky's own 2 px grid -- so a push-in
+	# only ever adds detail. (Their layers were scaled as pictures: the band's by
+	# 1.15 drew every seventh block twice, the near world's by 2 drew it in 4 px
+	# blocks, and the zoom ladder's pull back to 0.3 dropped most of its pixels.)
+	_zlayer(_worlds, 0.0)
+	if _near_rect != null:
 		_near_rect.position = Vector2.ZERO
 		_near_rect.scale = Vector2.ONE
 	_wx_step(delta)
@@ -866,18 +928,18 @@ func _step(delta: float) -> void:
 func _step_star(o: Vector2) -> void:
 	if star == null:
 		return
-	# AT ITS OWN DEPTH, wherever it hangs: the pulsar on the far sky, which does
-	# not zoom; the sun and the core inside the band's layer (for the worlds that
-	# pass in front of it), which zooms at Z_BAND, so the band's zoom is taken
-	# back out of it
-	var at := _zp(o, Z_STAR)
+	# AT ITS OWN DEPTH, wherever it hangs (the pulsar on the far sky, the sun and
+	# the core in the band's layer, for the worlds that pass in front of it):
+	# placed where the zoom puts it and drawn at the size it gives it by its own
+	# painter's zoom, never scaled as a picture (a 1.04 scale of the disc drew a
+	# row of its blocks twice)
 	var k := _zl(Z_STAR)
-	if star.get_parent() == _worlds:
-		var wk := _zl(Z_BAND)
-		at = (at - _zp(Vector2.ZERO, Z_BAND)) / wk
-		k /= wk
-	star.position = at
-	star.scale = Vector2.ONE * k
+	star.position = _zp(o, Z_STAR)
+	star.scale = Vector2.ONE
+	if layout.star == SystemLayout.StarKind.CORE:
+		star.set("hole_k", star_k() * k)
+	else:
+		star.call("set_zoom", star_k() * k)
 	_flare = 0.0
 	match layout.star:
 		SystemLayout.StarKind.PULSAR:
@@ -914,8 +976,9 @@ func _step_worlds(o: Vector2) -> void:
 			star_placed = true
 		_worlds.move_child(v, -1)
 		var b := layout.bodies[i]
-		var at := _block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s)
-		var hs := Worlds.half_size(b.world, _world_r(b))
+		var at := _zp(_block_round(band_origin() + Vector2(p.x, p.y * TILT) * _s), Z_BAND)
+		var held := _grow(v, b.world, b.seed, _world_r(b), _world_r(b) * _zl(Z_BAND), {})
+		var hs := Worlds.half_size(b.world, held)
 		v.position = at + Vector2.ONE * float(hs % 2)
 		var behind := p.y < 0.0 and layout.star != SystemLayout.StarKind.CORE and star != null
 		var len := maxf(p.length(), 1.0)
@@ -927,7 +990,7 @@ func _step_worlds(o: Vector2) -> void:
 			kl = 0.75
 		# (the star's disc as this layer sees it: where `_step_star` put it, at
 		# its own depth, in the band's coordinates)
-		var sr := float(layout.star_r) * star_k() * (star.scale.x if star != null else 1.0)
+		var sr := float(layout.star_r) * star_k() * _zl(Z_STAR)
 		var so: Vector2 = star.position if star != null else o
 		v.call("step", t, light, kl, so if behind else Vector2(-9999, -9999), sr if behind else 0.0)
 		var vm: ShaderMaterial = v.get("_mat")
@@ -940,9 +1003,8 @@ func _step_worlds(o: Vector2) -> void:
 		# (the shafts are cast on the cloud, which does not zoom: each world where
 		# the band's zoom shows it, at the size it is drawn)
 		if bp.size() < 24:
-			var wp := _zp(v.position, Z_BAND)
 			var wr := _world_r(b) * _zl(Z_BAND)
-			bp.append(Vector4(wp.x, wp.y, wr, wr))
+			bp.append(Vector4(v.position.x, v.position.y, wr, wr))
 	if not star_placed:
 		_worlds.move_child(star, -1)
 	if radiant and _neb_mat != null:
@@ -1277,7 +1339,7 @@ func _build_near() -> void:
 		v.call("set_cell", 2)
 		_near_vp.add_child(v)
 		_dress(v)
-		_near.append([v, at, F_NEAR, R])
+		_near.append([v, at, F_NEAR, R, tgt.world, tgt.seed, over])
 		# ITS MOONS, small above it
 		var nm := mini(int(spec.get("moons", 0)), 3)
 		for k in nm:
@@ -1290,7 +1352,7 @@ func _build_near() -> void:
 			mv.set_cell(2)
 			_near_vp.add_child(mv)
 			_dress(mv)
-			_near.append([mv, mp, F_NEAR * 1.1, mr])
+			_near.append([mv, mp, F_NEAR * 1.1, mr, &"moon", tgt.seed + 17 * (k + 1), {}])
 	elif tgt.kind == &"belt":
 		# A BELT'S ROCKS, close by: a drifting band of them behind the fight, the
 		# nearer bigger
@@ -1305,7 +1367,7 @@ func _build_near() -> void:
 			rv.set_cell(2)
 			_near_vp.add_child(rv)
 			_dress(rv)
-			_near.append([rv, rp, 0.25 + 0.3 * hz, rr])
+			_near.append([rv, rp, 0.25 + 0.3 * hz, rr, &"rock" if hz < 0.6 else &"iron", node.index * 13 + k, {}])
 	elif tgt.kind == &"derelict":
 		# A WRECK: the hulk close by, broken, its shards round it
 		var w := _Wreck.new()
@@ -1314,7 +1376,7 @@ func _build_near() -> void:
 		_near_vp.add_child(w)
 		# (high, over the fight's band, toward the side away from the star: the
 		# shots fly through the middle at the ships' height)
-		_near.append([w, _block_round(Vector2(480.0 + side * 150.0, 118.0)), F_NEAR, 0.0])
+		_near.append([w, _block_round(Vector2(480.0 + side * 150.0, 118.0)), F_NEAR, 0.0, &"", 0, {}])
 	if _near.is_empty():
 		_near_vp.queue_free()
 		_near_vp = null
@@ -1722,16 +1784,24 @@ func _step_near(o: Vector2) -> void:
 		if not _hand.is_empty() and (e[0] == _hand.own or not (e[0] as CanvasItem).visible):
 			continue
 		var n: Node2D = e[0]
-		var at: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
+		var at0: Vector2 = _block_round(Vector2(e[1]) - cam * float(e[2]))
+		# where the zoom puts it (the near layer zooms with the ship), drawn there
+		# at the size the zoom gives it
+		var at := _zp(at0, Z_NEAR)
+		var zl := _zl(Z_NEAR)
 		# (a broken world too: left out, the shattered world you orbit stood still,
 		# lit from the default side, its rubble frozen)
 		if n is PlanetView or n is ShatteredView:
 			var spec: Dictionary = n.get("spec")
-			var hs := Worlds.half_size(StringName(spec.get("world", &"rock")), float(e[3]))
+			var wn := StringName(e[4]) if e.size() > 4 else StringName(spec.get("world", &"rock"))
+			var held := float(e[3])
+			if e.size() > 6:
+				held = _grow(n, wn, int(e[5]), float(e[3]), float(e[3]) * zl, e[6])
+			var hs := Worlds.half_size(wn, held)
 			n.position = at + Vector2.ONE * float(hs % 2)
 			# lit from the star, across the view: from where the star is on screen
 			# to where this world is, under the zoom, in this layer's own px
-			var d := (origin() - _zp(at, Z_NEAR)) / _zl(Z_NEAR)
+			var d := (origin() - at) / zl
 			var L := Vector3(d.x, d.y, 140.0).normalized()
 			n.call("step", t + (near_t_off if n == _near_world else 0.0), L, 1.0)
 			if n == _near_world and not near_storm.is_empty():
@@ -1743,8 +1813,10 @@ func _step_near(o: Vector2) -> void:
 					vm.set_shader_parameter("night_fill", Vector3(0.02, 0.02, 0.03))
 				vm.set_shader_parameter("flare", _flare)
 				vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
-		elif n.position != at:
+		elif n.position != at or (n is _Wreck and absf((n as _Wreck).zoom - zl) > 0.001):
 			n.position = at
+			if n is _Wreck:
+				(n as _Wreck).zoom = zl
 			n.queue_redraw()
 
 
@@ -1754,6 +1826,9 @@ func _step_near(o: Vector2) -> void:
 class _Wreck extends Node2D:
 	var seed := 0
 	var light_from := Vector2(-1.0, -0.6)
+	## drawn this many times its size (the cutaway's push-in: drawn again bigger,
+	## its blocks still 2 px, never scaled as a picture)
+	var zoom := 1.0
 	const RAMP := [Color("#0c1219"), Color("#16202b"), Color("#22303f"), Color("#33455a"), Color("#465b73")]
 
 	func _h(k: int) -> float:
@@ -1761,8 +1836,9 @@ class _Wreck extends Node2D:
 
 	func _draw() -> void:
 		var L := light_from.normalized()
-		var len := 210.0 + 60.0 * _h(1)
-		var thick := 30.0 + 10.0 * _h(2)
+		var z := zoom
+		var len := (210.0 + 60.0 * _h(1)) * z
+		var thick := (30.0 + 10.0 * _h(2)) * z
 		var tilt := (_h(3) - 0.5) * 0.3
 		var gap := (0.35 + 0.3 * _h(4)) * len - len * 0.5
 		var x := -len * 0.5
@@ -1771,15 +1847,15 @@ class _Wreck extends Node2D:
 			while y < thick * 0.5:
 				var nx := x / (len * 0.5)
 				var taper := 1.0 - 0.35 * absf(nx) * absf(nx)
-				var inside := absf(y) < thick * 0.5 * taper and absf(x - gap) > 6.0 + 4.0 * sin(y * 0.4)
+				var inside := absf(y) < thick * 0.5 * taper and absf(x - gap) > (6.0 + 4.0 * sin(y / z * 0.4)) * z
 				# decks: a notch every so often along the top edge
-				if inside and y < -thick * 0.5 * taper + 4.0 and fmod(absf(x) + 1000.0, 28.0) < 6.0:
+				if inside and y < -thick * 0.5 * taper + 4.0 * z and fmod(absf(x) / z + 1000.0, 28.0) < 6.0:
 					inside = false
 				if inside:
-					var edge := absf(y) > thick * 0.5 * taper - 4.0
+					var edge := absf(y) > thick * 0.5 * taper - 4.0 * z
 					var lit := (y < 0.0) == (L.y < 0.0)
 					var shade := 2 + (1 if lit else -1) + (1 if edge and lit else 0)
-					if fmod(absf(x * 0.7 + y) + 1000.0, 22.0) < 2.0:
+					if fmod(absf(x * 0.7 + y) / z + 1000.0, 22.0) < 2.0:
 						shade -= 1
 					var p := Vector2(x, y + x * tilt)
 					draw_rect(Rect2((p / 2.0).floor() * 2.0, Vector2(2, 2)), RAMP[clampi(shade, 0, 4)])
@@ -1790,7 +1866,7 @@ class _Wreck extends Node2D:
 			var a := _h(20 + k) * TAU
 			var dd := len * (0.35 + 0.3 * _h(30 + k))
 			var c := Vector2(cos(a) * dd, sin(a) * dd * 0.45)
-			var sz := 3.0 + 7.0 * _h(40 + k)
+			var sz := (3.0 + 7.0 * _h(40 + k)) * z
 			var yy := -sz
 			while yy < sz:
 				var xx := -sz * 1.6
