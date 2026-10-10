@@ -173,6 +173,14 @@ var _last_zoom := -1.0
 var _since_zoom := 999
 var _hold_d := Vector2.ZERO
 var _hold_c := Vector2.ZERO
+## the view's pan last frame: the zoom's hold lets go when it moves (`_push`)
+var _last_pan := Vector2(INF, INF)
+## THE COLOUR HELD, as SIMPLIFIED's composite holds it (`chart_c_comp`): the
+## picture last frame, copied (`_hvp`), which the palette pass reads; where the
+## blocks were anchored then; the zoom then (a jump of the view holds nothing).
+var _hvp: SubViewport = null
+var _hold_b0 := Vector2(INF, INF)
+var _hold_z := -1.0
 ## Palettes being worked out on other threads: bucket -> task.
 var _tasks: Dictionary = {}
 ## Lookups being made on the GPU: bucket -> [viewport, frame, palette image].
@@ -1241,6 +1249,21 @@ func _runtime() -> void:
 		_m_pal.shader = PAL_SH
 		_pal = _rect(_m_pal)
 		_vp.add_child(_pal)
+		# the last frame's picture, for the palette pass's colour hold: a copy of
+		# the picture, made once a frame, so what the palette reads is always the
+		# frame before
+		_hvp = SubViewport.new()
+		_hvp.transparent_bg = false
+		_hvp.disable_3d = true
+		_hvp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(_hvp)
+		var copy := TextureRect.new()
+		copy.texture = _vp.get_texture()
+		copy.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_hvp.add_child(copy)
+		_m_pal.set_shader_parameter("prev_tex", _hvp.get_texture())
+		_hold_b0 = Vector2(INF, INF)
 	_feed_points(_m_stars)
 	_stars.mesh = StarchartScreen.MapChart._quads(int(_pts.n_star) + int(_pts.n_core))
 	_stars.queue_redraw()
@@ -1362,7 +1385,18 @@ func _push() -> void:
 	var zooming := _last_zoom > 0.0 and absf(log(chart.zoom / _last_zoom)) > 1e-7
 	_last_zoom = chart.zoom
 	var was_held := _since_zoom < 61
-	_since_zoom = 0 if zooming else mini(_since_zoom + 1, 999)
+	# THE HOLD LETS GO ON A PAN, NOT ON A CLOCK (SIMPLIFIED's rule, `ChartSky._push`;
+	# Oct 10 polish): let go a second after a zoom stopped, the block grid went
+	# over from the screen's anchor to the galaxy centre's, and where the two
+	# differed by a pixel the whole picture jumped a pixel with nothing moving --
+	# a pop a second after every zoom. Held until the view is dragged, the jump
+	# lands inside a move.
+	var panned := chart.pan != _last_pan
+	_last_pan = chart.pan
+	if zooming:
+		_since_zoom = 0
+	elif panned or _since_zoom < 59:
+		_since_zoom = mini(_since_zoom + 1, 999)
 	var zw := 1.0 if _since_zoom < 60 else maxf(0.0, 1.0 - float(_since_zoom - 59) * 0.5)
 	var ccon := cpix + (exact - cpix) * zw
 	if zw > 0.0 and not was_held:
@@ -1377,8 +1411,12 @@ func _push() -> void:
 	# The same size whichever way the blocks fall: a viewport resized on every
 	# odd pixel of a drag reallocates its picture every other frame.
 	var vsz := Vector2i(ceili(vis.size.x / 2.0) + 3, ceili(vis.size.y / 2.0) + 3)
-	if _vp.size != vsz:
+	var resized := _vp.size != vsz
+	if resized:
 		_vp.size = vsz
+		if _hvp != null:
+			_hvp.size = vsz
+			(_hvp.get_child(0) as Control).size = Vector2(vsz)
 		for r: ColorRect in [_field, _hole, _pal]:
 			r.size = Vector2(vsz)
 	var vs := Vector2(vsz)
@@ -1439,6 +1477,15 @@ func _push() -> void:
 	var mp := _m_pal
 	mp.set_shader_parameter("vp_size", vs)
 	mp.set_shader_parameter("block0", b0)
+	# where each block was last frame (the blocks are anchored to the galaxy, so a
+	# pan carries them through the viewport); nothing held across a resize, a jump
+	# of the view or before the first frame
+	var jump := _hold_z > 0.0 and absf(log(z / _hold_z)) > 0.03
+	_hold_z = z
+	var valid := _hold_b0.x != INF and not resized and not jump and (b0 - _hold_b0).length() < 8.0
+	mp.set_shader_parameter("prev_shift", (b0 - _hold_b0) if valid else Vector2.ZERO)
+	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
+	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
 	# the two levels either side of this zoom, and how far between them: the
 	# change from one's palette to the next is a dissolve over the middle of

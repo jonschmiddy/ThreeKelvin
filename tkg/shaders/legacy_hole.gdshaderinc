@@ -273,7 +273,12 @@ vec3 lh_sample(vec2 S, float t, float clumps, vec3 hot) {
 		// the image that went round fades out at the photon ring (no line round
 		// the shadow) and is a cooler arc, two bands down: a hint of the lensing,
 		// not a second disc. Opaque, so it never blends to in-between colours.
-		float a = hd.y * (k == 1 ? 0.9 * smoothstep(1.06, 1.38, b / LH_SHADOW) : 1.0);
+		// ...and it is the arc BELOW the hole only: round the sides the image that
+		// went round thins to a sliver one block wide, which stood up out of the
+		// near band as two bright spikes in the black either side of the shadow
+		// (Oct 10 polish, "lines drawn weird"; plain from zoom 3 in). The arc's ends
+		// sit near sin(angle) -0.8; it is faded out by -0.5, where the slivers start.
+		float a = hd.y * (k == 1 ? 0.9 * smoothstep(1.06, 1.38, b / LH_SHADOW) * smoothstep(-0.48, -0.68, sa) : 1.0);
 		float hh = hd.x - (k == 1 ? 0.30 : 0.0);
 		H = H * (1.0 - a) + hh * a;
 		A = A * (1.0 - a) + a;

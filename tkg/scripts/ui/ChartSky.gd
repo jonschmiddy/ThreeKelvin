@@ -1147,6 +1147,14 @@ class PaletteJob extends RefCounted:
 			var c := Color8(roundi(clampf(ChartSky._l2s(lin.x), 0.0, 1.0) * 255.0),
 				roundi(clampf(ChartSky._l2s(lin.y), 0.0, 1.0) * 255.0), roundi(clampf(ChartSky._l2s(lin.z), 0.0, 1.0) * 255.0))
 			var L2 := ChartSky._oklab(c)
+			# NOTHING BELOW THE VOID (the radiant cut, which weighs every colour
+			# alike): it found the shadow's pure black and kept it beside the void's
+			# navy-black, and the hole's middle -- light 0, exactly between the two
+			# once toned -- flipped from one to the other and back as the zoom moved
+			# (a third of the hole's blocks, Oct 10 polish). The void is the darkest
+			# colour, as in every other style.
+			if even and L2.x < ChartSky._oklab(fixed[0]).x:
+				continue
 			# in the dark, where nothing is dithered, a near colour only swaps
 			# with its neighbour block by block as the view moves: keep them apart
 			if not _near(keep, L2, merge * (1.5 if L2.x < 0.36 else 1.0)):
