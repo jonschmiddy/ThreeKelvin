@@ -22,6 +22,9 @@ extends Node
 ##   `orbit/`        in orbit of that world at zoom 3.2, the clock (and the
 ##                   gas's) running a 30th of a second a frame
 ##   `pan/`          a slow pan at zoom 2.5, the clock stopped
+##   `slow<k>/`      a tenth more zoom over 60 frames at the whole system, 1, 2
+##                   and 3.6 about the star (0-3) and 2.5 about the world (4):
+##                   the project's flicker measure (flip-back under 0.0035)
 ## Each clip folder has `f_NNNN.png` (the map window, game pixels) and
 ## `meta.json`; `times.json` holds each still's frame time (ms, real clock).
 ## The weather and the far supernovae are held off and the room's sound is
@@ -64,7 +67,7 @@ func _ready() -> void:
 				want.red = n
 			elif n.star == MapGen.Star.BLUE and want.blue == null:
 				want.blue = n
-			elif n.star == MapGen.Star.ORDINARY and want.ordinary == null and n.options.size() >= 2:
+			elif n.star == MapGen.Star.ORDINARY and want.ordinary == null and _busy(n):
 				want.ordinary = n
 	if sweep != "":
 		await _sweep(want, sweep, t)
@@ -149,7 +152,7 @@ func _sweep(want: Dictionary, dir: String, t: float) -> void:
 	var zf := int(_arg("zframes", "120"))
 	var of := int(_arg("oframes", "90"))
 	var pf := int(_arg("pframes", "60"))
-	var only := _arg("only", "stills,zoom,zoomw,orbit,pan").split(",")
+	var only := _arg("only", "stills,zoom,zoomw,slow,orbit,pan").split(",")
 	get_viewport().gui_disable_input = true
 	# where Main puts the map, in Main's theme (as SystemShot does)
 	var content := Control.new()
@@ -189,6 +192,7 @@ func _sweep(want: Dictionary, dir: String, t: float) -> void:
 		while not scr.view._palette_built:
 			await get_tree().process_frame
 		await _settle(4)
+		_hide(scr)
 		var zmin: float = scr.zoom_min
 		var zmax: float = scr.view.ZOOM_MAX
 		# the biggest world: a giant if there is one
@@ -247,6 +251,23 @@ func _sweep(want: Dictionary, dir: String, t: float) -> void:
 				rows.append({"zoom": z, "pan": [scr.view.pan.x, scr.view.pan.y], "ms": snappedf(float(now - tc) / 1000.0, 0.01)})
 				tc = now
 			_write(cd.path_join("meta.json"), rows)
+		# THE SLOW ZOOMS (the project's flicker measure: a tenth more zoom over 60
+		# frames, frames.py's flip-back under 0.0035): at four depths about the star,
+		# and about the biggest world close in
+		if "slow" in only:
+			var bases := [[zmin, -9], [1.0, -9], [2.0, -9], [3.6, -9], [2.5, wi]]
+			for si in bases.size():
+				var zb: float = bases[si][0]
+				var sw: int = bases[si][1]
+				if sw == -9 and si == 4:
+					continue
+				var sd := kd.path_join("slow%d" % si)
+				DirAccess.make_dir_recursive_absolute(sd)
+				_aim(scr, zb, sw)
+				await _settle(14)
+				for k in 61:
+					_aim(scr, zb * pow(1.1, float(k) / 60.0), sw)
+					(await _grab(scr)).save_png(sd.path_join("f_%04d.png" % k))
 		if "orbit" in only and wi >= 0:
 			var od := kd.path_join("orbit")
 			DirAccess.make_dir_recursive_absolute(od)
@@ -293,3 +314,45 @@ func _write(path: String, data: Variant) -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(data, " "))
 	f.close()
+
+
+## A system with at least two events (its options rolled first: a fresh run has
+## not rolled them, and an ordinary sun was never found).
+func _busy(n: MapGen.MapNode) -> bool:
+	OptionTable.ensure(n)
+	return n.options.size() >= 2
+
+
+## `hide=a,b,...`: layers switched off, to find which one draws a fault -- depth
+## (the dust sheets), neb (the cloud), sky, veil, fields, twinkle, galaxies,
+## belts, belt_dust, shadows, star, worlds, fabric, lines, moons, palette, overlay.
+func _hide(scr: Control) -> void:
+	var names := _arg("hide", "")
+	if names == "":
+		return
+	var v = scr.view
+	for nm in names.split(","):
+		var hit: Array = []
+		match nm:
+			"depth":
+				for e: Array in v._depth:
+					for c in v._scene.get_children():
+						if c is CanvasItem and (c as CanvasItem).material == e[0]:
+							hit.append(c)
+			"neb":
+				for c in v._scene.get_children():
+					if c is CanvasItem and v._neb_mat != null and (c as CanvasItem).material == v._neb_mat:
+						hit.append(c)
+			"fields":
+				hit = v._fields
+			"overlay":
+				hit = [scr.overlay]
+			"star":
+				hit = [v.star]
+			_:
+				var n = v.get("_" + nm)
+				if n is CanvasItem:
+					hit = [n]
+		for c in hit:
+			(c as CanvasItem).visible = false
+		print("  systemsheet: hid %s (%d)" % [nm, hit.size()])

@@ -713,6 +713,9 @@ func show_system(n: MapGen.MapNode) -> void:
 	_sky_mat.set_shader_parameter("star_col", SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
 	_sky_mat.set_shader_parameter("margin", float(SkyBakeS.M))
 	_sky_mat.set_shader_parameter("simplified", not legacy)
+	# the remnant worked out again close in, from the bake's own recipe
+	_sky_mat.set_shader_parameter("rem_sd", _bake.bake_sd)
+	_sky_mat.set_shader_parameter("rem_on", kind == "PULSAR" and bool(_sky_look.get("c_remnant", true)))
 	if _neb_mat != null and legacy:
 		# THE OLD CLOUD'S NOISES, baked once (LEGACY), for it to stream on the current
 		await _bake.field(self, int(_sky_look.neb), int(_sky_look.shape), float(n.index % 97) * 0.731 + 3.0, Vector2(CX, CY), true)
@@ -1293,6 +1296,7 @@ func _depth_sheet(fd: Array, slot: int, pal: Array, sd: int) -> ColorRect:
 	# SIMPLIFIED: dark cores in the sky's own shade, sides toward the sun lit
 	var dl: Array = _depth_look()
 	m.set_shader_parameter("simplified", not legacy)
+	m.set_shader_parameter("painted", painted)
 	m.set_shader_parameter("dark_col", dl[0])
 	m.set_shader_parameter("lit_far", dl[1])
 	m.set_shader_parameter("lit_near", dl[2])
@@ -1357,6 +1361,7 @@ func _step_depth(o: Vector2) -> void:
 			a = smoothstep(x_in, x_in * 2.2, x) * (1.0 - smoothstep(0.5, 0.9, x))
 			m.set_shader_parameter("seed", float(e[4]) * 1.37 + float(k) * 7.31)
 		m.set_shader_parameter("q", q)
+		m.set_shader_parameter("dist", float(e[1]) if int(e[2]) < 0 else 0.0)
 		m.set_shader_parameter("zoom", zoom)
 		m.set_shader_parameter("home_zoom", home_zoom)
 		m.set_shader_parameter("lscale", clampf(window.size.x / 700.0, 0.5, 1.4))
@@ -1472,6 +1477,7 @@ func step() -> void:
 	if _sky_z < 0.0 or absf(zoom / _sky_z - 1.0) > 0.03:
 		_sky_z = zoom
 	_sky_mat.set_shader_parameter("zoom", _sky_z)
+	_sky_mat.set_shader_parameter("zk", _sky_z / maxf(home_zoom, 0.01))
 	if layout.star == SystemLayout.StarKind.PULSAR:
 		_sky_mat.set_shader_parameter("shell_k", zoom / maxf(home_zoom, 0.01))
 		# the shell glimmers on each beat (C), still with reduced motion
@@ -2131,6 +2137,18 @@ class _Lines extends Node2D:
 			var n := clampi(int(per / 1.2), 64, 3000)
 			var own: bool = view._views.has(bi)
 			var own_r: float = view.draw_r(view.layout.bodies[bi]) + 1.5
+			# A RINGED WORLD'S RINGS TOO (its orbit was drawn across the face of its
+			# own rings, a grey line laid over the near band): stopped at their outer
+			# edge as at the disc, an ellipse at the rings' squash
+			var ring_ab := Vector2.ZERO
+			if own:
+				var vw: Node2D = view._views[bi]
+				var vm: ShaderMaterial = vw.get("_mat")
+				var rmode: Variant = vm.get_shader_parameter("ring_mode") if vm != null else null
+				var rout: Variant = vm.get_shader_parameter("ring_out") if vm != null else null
+				if rmode != null and rout != null and int(rmode) == 1 and bool((vw.get("spec") as Dictionary).get("ring", false)):
+					var ra: float = float(rout) * (own_r - 1.5) + 2.0
+					ring_ab = Vector2(ra, ra * 0.28 + 1.5)
 			var a0: float = b.phase + (view.t / b.period) * TAU
 			var pts := PackedVector2Array()
 			var cols := PackedColorArray()
@@ -2140,6 +2158,9 @@ class _Lines extends Node2D:
 				var sp: Vector2 = view.screen(op.x, op.z)
 				# off the frame, in the star, or on its own world (the only one on its ring)
 				var off_world := own and sp.distance_squared_to(view.at[bi]) < own_r * own_r
+				if ring_ab.x > 0.0 and not off_world:
+					var rq: Vector2 = (sp - view.world_c(bi)) / ring_ab
+					off_world = rq.length_squared() < 1.0
 				if not win.has_point(sp) or pow((sp.x - o.x) / hole.x, 2.0) + pow((sp.y - o.y) / hole.y, 2.0) < 1.0 or off_world:
 					if pts.size() > 1:
 						draw_polyline_colors(pts, cols, 1.0)
@@ -2207,10 +2228,24 @@ class _Fabric extends Node2D:
 		var stp := gap / 6.0
 		var kk := sqrt(0.5)
 		var lim := E * 1.42
-		var pts := PackedVector2Array()
+		# EACH SHORT LINE A THIN QUAD, its coverage worked out across it (Jon:
+		# "lines being drawn weird"): drawn as one-pixel lines, a slow zoom slid
+		# every segment by a sliver and its pixels hopped to the next row and back
+		# -- the grid crawled, most where it is packed tight. Now each segment is
+		# two pixels wide with a tent of coverage across it: on a pixel's middle it
+		# is that one crisp pixel, between two it is half of each, and as it slides
+		# the pixels fade over instead of hopping. Each corner carries its own
+		# point (VERTEX), its partner's (UV), which side it is on, whether its line
+		# is an odd one of its grid (the coarser level has only the even ones; the
+		# odd fade in toward the next level) and whether it is the segment's start.
+		var verts := PackedVector2Array()
+		var partner := PackedVector2Array()
+		var cols := PackedColorArray()
+		var idx := PackedInt32Array()
 		for dir in 2:
 			var a := ceilf(-lim / gap) * gap
 			while a <= lim:
+				var oddk := 1.0 if posmod(roundi(a / gap), 2) == 1 else 0.0
 				var b := -lim
 				while b < lim:
 					var u0 := a if dir == 1 else b
@@ -2220,17 +2255,41 @@ class _Fabric extends Node2D:
 					var p0 := Vector2((u0 - v0) * kk, (u0 + v0) * kk)
 					var p1 := Vector2((u1 - v1) * kk, (u1 + v1) * kk)
 					if p0.length() < E or p1.length() < E:
-						pts.append(p0)
-						pts.append(p1)
+						var n := verts.size()
+						verts.append(p0)
+						verts.append(p0)
+						verts.append(p1)
+						verts.append(p1)
+						partner.append(p1)
+						partner.append(p1)
+						partner.append(p0)
+						partner.append(p0)
+						cols.append(Color(0.0, oddk, 1.0))
+						cols.append(Color(1.0, oddk, 1.0))
+						cols.append(Color(0.0, oddk, 0.0))
+						cols.append(Color(1.0, oddk, 0.0))
+						idx.append_array([n, n + 1, n + 2, n + 1, n + 3, n + 2])
 					b += stp
 				a += gap
-		out[0] = pts
+		out[0] = [verts, partner, cols, idx]
+
+	## The arrays `_points` laid out, as a mesh of quads.
+	static func _make_mesh(res: Array) -> ArrayMesh:
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = res[0]
+		arrays[Mesh.ARRAY_TEX_UV] = res[1]
+		arrays[Mesh.ARRAY_COLOR] = res[2]
+		arrays[Mesh.ARRAY_INDEX] = res[3]
+		var m := ArrayMesh.new()
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		return m
 
 	## Every level of a map's grid that is not kept yet, started on worker threads.
 	static func warm(edge: float) -> void:
 		var E := reach_for(edge)
-		# (only the levels it draws: zoomed out past 1x it draws none)
-		for level in range(0, 3):
+		# (the levels it draws: the finer of the two the zoom is between, -1 to 2)
+		for level in range(-1, 3):
 			var k := _key(level, E)
 			if _meshes.has(k) or _jobs.has(k):
 				continue
@@ -2247,21 +2306,16 @@ class _Fabric extends Node2D:
 		var k := _key(level, E)
 		if _meshes.has(k):
 			return _meshes[k]
-		var pts: PackedVector2Array
+		var res: Array
 		if _jobs.has(k):
 			var job: Dictionary = _jobs[k]
 			_jobs.erase(k)
 			WorkerThreadPool.wait_for_task_completion(int(job.id))
-			pts = (job.out as Array)[0]
+			res = job.out
 		else:
-			var out: Array = [null]
-			_points(level, E, out)
-			pts = out[0]
-		var arrays := []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = pts
-		var m := ArrayMesh.new()
-		m.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
+			res = [null]
+			_points(level, E, res)
+		var m := _make_mesh(res[0])
 		if _meshes.size() >= MESHES_MAX:
 			_meshes.erase(_meshes.keys()[0])
 		_meshes[k] = m
@@ -2276,11 +2330,7 @@ class _Fabric extends Node2D:
 				continue
 			_jobs.erase(k)
 			WorkerThreadPool.wait_for_task_completion(int(job.id))
-			var arrays := []
-			arrays.resize(Mesh.ARRAY_MAX)
-			arrays[Mesh.ARRAY_VERTEX] = (job.out as Array)[0]
-			var m := ArrayMesh.new()
-			m.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
+			var m := _make_mesh((job.out as Array)[0])
 			if _meshes.size() >= MESHES_MAX:
 				_meshes.erase(_meshes.keys()[0])
 			_meshes[k] = m
@@ -2295,7 +2345,17 @@ class _Fabric extends Node2D:
 	func update() -> void:
 		var L: SystemLayout = view.layout
 		var z: float = view.zoom
-		var level := clampi(int(floor(log(z) / log(2.0))), -2, 2)
+		# THE FINER GRID FADES IN, never pops (the grid's spacing halved at each
+		# doubling of the zoom, and half its lines appeared on one frame): the grid
+		# drawn is the finer of the two levels the zoom is between, its own new lines
+		# (the odd ones) faded in over the doubling; at a whole level they are out,
+		# which is the coarser grid exactly as it was drawn
+		var lz := log(maxf(z, 0.01)) / log(2.0)
+		var base := floori(lz)
+		var level := clampi(base + 1, -1, 2)
+		var fine := clampf(lz - float(base), 0.0, 1.0) if base + 1 == level else (1.0 if base + 1 > level else 0.0)
+		_mat.set_shader_parameter("fine_k", fine * fine * (3.0 - 2.0 * fine))
+		_mat.set_shader_parameter("gap", 30.0 / pow(2.0, float(level)))
 		if level != _level:
 			_level = level
 			queue_redraw()

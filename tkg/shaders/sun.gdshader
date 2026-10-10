@@ -588,6 +588,24 @@ vec4 sun_painted(vec3 L, bool face, float d, float Rr, float dx, float dy, float
 			float rb2 = band == 0 ? 0.68 : 0.86;
 			base = ramp((1.0 - limb * (1.0 - sqrt(max(0.0, 1.0 - rb2 * rb2)))) * flick);
 		}
+		// CLOSE IN, THE FACE MOTTLES (Jon: detail should only grow as you zoom):
+		// zoomed onto a big star its four bands were flat plates of one colour each,
+		// a hundred blocks across. Once the face is big enough to hold them, broad
+		// granules painted in the next band down come in -- solid in the middle,
+		// checkered at their edge, B's own two-tone step -- more of them the bigger
+		// the star is drawn; fixed on the face, so they grow with it. At the
+		// opening zoom the face is as it was.
+		float gk = smoothstep(16.0, 44.0, Rb);
+		if (gk > 0.0 && band <= 2) {
+			vec2 sq = vec2(dx, dy) / max(R, 1.0) * 7.0;
+			float gn = 0.65 * noise(sq.x + 31.0, sq.y - 7.0) + 0.35 * noise(sq.x * 2.3 - 5.0, sq.y * 2.3 + 13.0);
+			float thr = mix(0.95, 0.6, gk);
+			if (gn > thr || (gn > thr - 0.045 && chk)) {
+				int b2 = band + 1;
+				float rb3 = b2 == 1 ? 0.68 : (b2 == 2 ? 0.86 : 0.96);
+				base = ramp((1.0 - limb * (1.0 - sqrt(max(0.0, 1.0 - rb3 * rb3)))) * flick);
+			}
+		}
 		return vec4(PAL[pick(base)] / 255.0, 1.0);
 	}
 	// FLAME TONGUES round the limb, three tones, their reach stepping slowly

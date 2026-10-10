@@ -75,8 +75,22 @@ uniform float e_rmax = 1.0;
 uniform float e_seed = 0.0;
 // THE SHIP, on screen: an event's light fades out round it
 uniform vec4 g_ship = vec4(-9999.0, -9999.0, 30.0, 90.0);
+// THE ZOOM AGAINST THE OPENING ZOOM (the sky's held zoom over `home_zoom`). Zoomed
+// in on a clear sky's sun, its faint outer glow reached across the whole frame
+// (four times its opening reach at the closest zoom) and the palette set it as
+// one flat dark plate over half the picture, its edge a hard staircase. So the
+// faint glow opens out in light px, as the clouds' light does (SIMPLIFIED), and
+// past the opening zoom the glow's steps are dithered in the place's 2x2 blocks,
+// more the closer you are, so a broad falloff reads as light, not as plates
+// (SIMPLIFIED and RADIANT; LEGACY keeps its plates, the look as it was). At the
+// opening zoom both are as they were.
+uniform float zk = 1.0;
+// the pulsar's remnant as fields (SIMPLIFIED, RADIANT), and the seed it was baked with
+uniform bool rem_on = false;
+uniform float rem_sd = 0.0;
 
 const vec3 VOID = vec3(7.0, 10.0, 18.0) / 255.0;
+const float BAYER4[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
 float hash2(vec2 p) {
 	ivec2 q = ivec2(floor(p));
@@ -96,6 +110,58 @@ float fbm2(vec2 p, int o) {
 	return s / n;
 }
 float smooth_k(float a, float b, float x) { float u = clamp((x - a) / (b - a), 0.0, 1.0); return u * u * (3.0 - 2.0 * u); }
+
+// THE BAKE'S REMNANT RECIPE (`sky_bake.gdshader` `remnant`, the same noise and
+// numbers), with `ob` octaves more of its filaments' fine detail, the last one
+// faded in by its fraction
+float fbm2f(vec2 p, float o) {
+	float a = 0.5, s = 0.0, n = 0.0;
+	for (int i = 0; i < 9; i++) {
+		float w = clamp(o - float(i), 0.0, 1.0);
+		if (w <= 0.0) break;
+		s += a * w * noise2(p); n += a * w; p *= 2.03; a *= 0.5;
+	}
+	return s / max(n, 1e-5);
+}
+float ridge_f(vec2 p, float o) { return 1.0 - abs(2.0 * fbm2f(p, o) - 1.0); }
+vec2 warp_f(vec2 p, float amt) { return p + amt * vec2(fbm2(p, 3) - 0.5, fbm2(p + vec2(5.2, 1.3), 3) - 0.5) * 2.0; }
+vec4 remnant_at(vec2 P, float ob) {
+	float sd = rem_sd;
+	vec2 r = (P - bake_star) / vec2(1.0, 0.66);
+	float rho = length(r);
+	vec2 dir = r / max(rho, 1e-3);
+	float R = 330.0 * (1.0 + 0.30 * (fbm2(dir * 1.5 + 3.0 + sd, 4) - 0.5) + 0.12 * (fbm2(dir * 4.6 + 1.0, 3) - 0.5));
+	float x = (rho - R) / R;
+	float fil = ridge_f(warp_f(P / 48.0 + 3.0 + sd, 0.6), 5.0 + ob);
+	float fil2 = ridge_f(warp_f(P / 28.0 + 9.0, 0.5), 4.0 + ob);
+	float wl = 0.030 + 0.035 * smooth_k(0.3, 0.7, fbm2(dir * 3.1 + 5.0, 3));
+	float limb = exp(-pow((x + 0.02) / wl, 2.0));
+	float shellB = smooth_k(-0.30, -0.03, x) * (1.0 - smooth_k(-0.01, 0.04, x));
+	float broken = smooth_k(0.38, 0.62, fbm2(dir * 2.2 + 7.0 + sd, 3) + 0.06);
+	float inner = clamp(-x / 0.25, 0.0, 1.0);
+	float s = limb * (0.10 + 1.25 * pow(fil, 6.0)) * broken
+		+ shellB * pow(fil2, 8.0) * 0.7 * (0.3 + 0.7 * broken)
+		+ smooth_k(-0.95, -0.25, x) * (1.0 - smooth_k(-0.25, -0.02, x)) * pow(fil, 12.0) * 0.30;
+	float skin = pow(ridge_f(warp_f(P / 70.0 + 21.0, 0.8), 4.0 + ob), 3.2) * (0.25 + 0.75 * broken);
+	// FINE THREADS through the gas that is already there, which only exist once the
+	// zoom has room for them (ob: an octave per doubling), so the cloud gains
+	// structure as you come in, never new cloud
+	if (ob > 0.6) {
+		float th = pow(ridge_f(warp_f(P / 9.0 + 41.0 + sd, 0.9), 3.0), 9.0) * smooth_k(0.6, 2.2, ob);
+		float host = smooth_k(0.04, 0.35, skin + s);
+		skin += th * host * 0.3;
+		s += th * host * 0.12;
+	}
+	return vec4(clamp(s, 0.0, 1.0), clamp(skin, 0.0, 1.0), inner, clamp(s * 0.25 + skin * 0.04, 0.0, 1.0));
+}
+
+// A BLOCK'S PLACE IN A 4x4 ORDERED DITHER, -0.5 to 0.5: light nudged by it before
+// the palette pass sets it, so where the palette steps the step is a dither
+// (the pass itself never dithers two dark colours, to keep the void clean)
+float bay_jit(vec2 b) {
+	ivec2 bq = ivec2(b / 2.0) & ivec2(3);
+	return (BAYER4[bq.y * 4 + bq.x] + 0.5) / 16.0 - 0.5;
+}
 
 float lit_by_beam(float d) {
 	if (d >= 0.42) return 0.0;
@@ -120,6 +186,19 @@ void fragment() {
 		vec4 a1 = mix(texelFetch(gas, ivec2(q0.x, q1.y), 0), texelFetch(gas, q1, 0), qf.x);
 		g = mix(a0, a1, qf.y);
 		if (q.x < 0.0 || q.y < 0.0 || q.x > float(gs.x - 1) || q.y > float(gs.y - 1)) g = vec4(0.0);
+		// CLOSE IN, THE SHELL WORKED OUT AGAIN (Jon: "dust looking flat and not
+		// visually interesting"): read from its bake and blown up -- eleven times at
+		// the closest zoom -- it was soft blobs the palette set as flat plates. Its
+		// recipe is the bake's own (`sky_bake` `remnant`), so worked out here at the
+		// exact point it is the same shell, and finer filaments resolve as you come
+		// in: an octave more for each doubling of the zoom. At the opening zoom the
+		// bake is read as before.
+		// (PAINTED keeps its own bands of the bake: its paint pass reads them)
+		if (rem_on && !painted && shell_k > 1.02) {
+			vec2 P = bake_star + (px + 0.5 - star_at) / shell_k;
+			vec4 gp = remnant_at(P, clamp(log2(shell_k), 0.0, 3.0));
+			g = mix(g, gp, smooth_k(1.02, 1.4, shell_k));
+		}
 	}
 	// FOG: a knot of thicker gas in the shell, for the beam to light on the beat
 	if (e_k > 0.0 && e_ev == 3 && pulsar) {
@@ -153,6 +232,9 @@ void fragment() {
 		vec3 H = sc * shell * (0.36 + glim * 0.7) * (1.0 + 0.5 * smooth_k(0.2, 0.7, inner));
 		H += O3 * 0.30 * pow(skin_t, 0.8) * smooth_k(0.03, 0.20, inner) * (1.0 - smooth_k(0.36, 0.80, inner));
 		H += vec3(0.010, 0.011, 0.023) * inner * 0.25;
+		// (close in, its light dithered across the palette's steps, so a broad soft
+		// field reads as gas and not as flat plates with stepped edges)
+		if (!painted) H *= 1.0 + bay_jit(b) * 0.3 * smooth_k(1.4, 4.0, shell_k);
 		c = min(vec3(1.0), c + pow(vec3(1.0) - exp(-H * 1.2), vec3(1.0 / 2.2)));
 	} else {
 		c = min(vec3(1.0), c + g.rgb * m);
@@ -184,7 +266,7 @@ void fragment() {
 	vec2 sv = (b + 0.5 - star_at) / zoom;
 	float dd = length(vec2(sv.x, sv.y * 1.25));
 	float I2 = (0.36 * exp(-dd / 42.0) + 0.06 * exp(-dd / 160.0)) * (pulsar ? 0.35 : 1.0);
-	if (simplified && !pulsar) I2 = 0.30 * exp(-dd / 28.0) + 0.022 * exp(-dd / 110.0);
+	if (simplified && !pulsar) I2 = 0.30 * exp(-dd / 28.0) + 0.022 * exp(-dd * pow(max(zk, 1.0), 0.58) / 110.0);
 	// (PAINTED: a clear sky's rings are set by the band memory, `sector_b_state`)
 	if (painted && !pulsar) I2 = 0.05 * step(dd, 34.0) + 0.028 * step(dd, 58.0);
 	if (!pulsar) {
@@ -208,6 +290,11 @@ void fragment() {
 		// fading away along it)
 		float ax = abs(sv.x);
 		I2 += 0.07 * exp(-ax / 300.0) * exp(-abs(sv.y) / ((7.0 + 0.07 * ax) * max(tilt, 0.05) / 0.38)) * smooth_k(10.0, 34.0, dd);
+	}
+	if (!pulsar && !painted && simplified && zk > 1.25) {
+		// (dithered as light: each block's share of the glow nudged up or down by its
+		// place in a 4x4 pattern, so where the palette steps the step is a dither)
+		I2 *= 1.0 + bay_jit(b) * 0.5 * smooth_k(1.25, 3.0, zk);
 	}
 	vec3 P = I2 * light_k * (1.0 - dk * 0.5) * (1.0 - dk * 0.85) * star_col;
 	// (the haze in the dust's own warm brown, whatever the star's tint: in its
