@@ -92,6 +92,15 @@ uniform vec4 blob_box = vec4(0.0);
 // how many times bigger the star is drawn, and half the drawn box in game
 // pixels (the star's centre is that far in from its top-left corner)
 uniform float zoom = 1.0;
+// THE LIMB ON WHOLE BLOCKS, THE REST SMOOTH (Jon, on the sector map: "draw the
+// corona at the true zoom and keep only the limb on whole blocks"). `zoom` is the
+// true zoom while the map's zoom moves, so the corona, the glow, the plumes, the
+// prominences and the face's own cells and spots grow every frame; only the
+// face's outline is drawn at `limb_k` times that -- the disc's own size, held in
+// whole blocks of radius as it always was -- so the edge never sits between
+// blocks (the limb flicker the stepping was chosen for). 1 everywhere else (at
+// rest, on LOCAL, in the panel).
+uniform float limb_k = 1.0;
 uniform vec2 box_h = vec2(210.0, 150.0);
 // a mass ejection's bubble: (x, y, radius, on), (cos, sin, g, u), its fade
 uniform vec4 cme_a = vec4(0.0);
@@ -562,7 +571,7 @@ vec4 sun_painted(vec3 L, bool face, float d, float Rr, float dx, float dy, float
 	// A FOUR-POINT SPARKLE on the star (B): its arms a block thick, reaching past
 	// the limb, cream near the middle and warm toward their tips
 	vec2 q = (pz - box_h) / float(cl);
-	float Rb = R * zoom / float(cl);
+	float Rb = R * limb_k * zoom / float(cl);
 	if (Rb > 3.0) {
 		vec2 dq = abs(floor(q + 0.5));
 		// (B's reach well out past the limb, near three radii on a small sun: at one
@@ -646,8 +655,10 @@ vec4 sun(float x, float y, vec2 pz) {
 	if ((layers & PLUMES) != 0) L += plumes(x, y, dx, dy, t);
 	// the face replaces all of that
 	bool face = false;
-	float Rr = radius_at(t, ang_of(dy, dx));
-	if (d <= Rr) { face = true; L = inv(face_colour(dx, dy, Rr, t)); }
+	float Rr = radius_at(t, ang_of(dy, dx)) * limb_k;
+	// (its edge at the disc's size, its surface at the true one: the cells and
+	// spots grow with the zoom too, and only the outline waits for a whole block)
+	if (d <= Rr) { face = true; L = inv(face_colour(dx, dy, Rr / limb_k, t)); }
 	// and what lies in front of it
 	if ((layers & BEDISC) != 0) L += bedisc(dx, dy, t, true);
 	if (n_proms > 0) L += proms(pz, t);

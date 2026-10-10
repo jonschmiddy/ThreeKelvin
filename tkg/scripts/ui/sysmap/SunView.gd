@@ -58,8 +58,10 @@ var _np := 0
 var _nb := 0
 var _box := Vector4(1e9, 1e9, -1e9, -1e9)
 var _bbox := Vector4(1e9, 1e9, -1e9, -1e9)
-## how many times bigger than the mockup the star is drawn (`set_zoom`)
+## how many times bigger than the mockup the star is drawn (`set_zoom`), and its
+## disc (the same, but on the sector map while its zoom moves)
 var _k := 1.0
+var _kd := 1.0
 ## A spray flare's droplets, carried on from frame to frame (see `_spray`).
 var _spray_g := -1
 var _spray_u := 0.0
@@ -132,11 +134,18 @@ func setup(kind: String, system_index: int, star_r: float) -> void:
 ## 1 since the system grew three times wider and opens zoomed out to show it all
 ## (`SystemView.star_k` keeps it a few pixels of disc at the least).
 ## Cheap enough to call every frame while the zoom eases.
-func set_zoom(k: float) -> void:
+##
+## `k_disc` (the sector map, while its zoom moves): the disc's own size, held in
+## whole blocks of radius, while `k` is the true zoom the corona, the glow and
+## the prominences are drawn at (`sun.gdshader` `limb_k`). Left out, both are k.
+func set_zoom(k: float, k_disc: float = -1.0) -> void:
 	k = clampf(k, 0.1, 4.0)
-	if k == _k:
+	var kd := k if k_disc <= 0.0 else clampf(k_disc, 0.1, 4.0)
+	if k == _k and kd == _kd:
 		return
 	_k = k
+	_kd = kd
+	_mat.set_shader_parameter("limb_k", kd / k)
 	_zoom_box()
 
 

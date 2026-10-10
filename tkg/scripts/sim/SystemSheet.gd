@@ -268,6 +268,43 @@ func _sweep(want: Dictionary, dir: String, t: float) -> void:
 				for k in 61:
 					_aim(scr, zb * pow(1.1, float(k) / 60.0), sw)
 					(await _grab(scr)).save_png(sd.path_join("f_%04d.png" % k))
+		# THE WHEEL, AS PLAY TURNS IT (`wheel`): a notch (x1.12, the screen's
+		# ZOOM_STEP) every `notch` frames, eased toward as the screen eases it (14
+		# a second), on a 30-a-second clock, from the whole system to the closest
+		# and then held while it settles; each frame saved with the zoom and the
+		# star's drawn radius, at true speed when encoded at 30 fps
+		if "wheel" in only:
+			var wd := kd.path_join("wheel")
+			DirAccess.make_dir_recursive_absolute(wd)
+			var notch := int(_arg("notch", "4"))
+			_aim(scr, zmin, -9)
+			await _settle(20)
+			var zt := zmin
+			var zc := zmin
+			var rows4: Array = []
+			var k4 := 0
+			while k4 < 400:
+				if k4 % notch == 0 and zt < zmax:
+					zt = minf(zt * 1.12, zmax)
+				zc = lerpf(zc, zt, 1.0 - exp(-14.0 / 30.0))
+				if absf(zc - zt) < 0.002:
+					zc = zt
+				scr._zoom_to = zc
+				scr.view.zoom = zc
+				scr.view.pan = Vector2.ZERO
+				(await _grab(scr)).save_png(wd.path_join("f_%04d.png" % k4))
+				var sk: float = scr.view.star_k()
+				rows4.append({"zoom": zc, "star_k": sk, "star_px": scr.view.layout.star_r * sk})
+				k4 += 1
+				if zc >= zmax and rows4.size() > 1 and float(rows4[rows4.size() - 2].zoom) >= zmax:
+					# held at the closest for a second while it settles
+					for _h in 30:
+						(await _grab(scr)).save_png(wd.path_join("f_%04d.png" % k4))
+						sk = scr.view.star_k()
+						rows4.append({"zoom": zc, "star_k": sk, "star_px": scr.view.layout.star_r * sk})
+						k4 += 1
+					break
+			_write(wd.path_join("meta.json"), rows4)
 		if "orbit" in only and wi >= 0:
 			var od := kd.path_join("orbit")
 			DirAccess.make_dir_recursive_absolute(od)

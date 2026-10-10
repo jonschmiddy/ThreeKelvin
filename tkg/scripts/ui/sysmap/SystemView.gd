@@ -267,6 +267,10 @@ var _rq := {}
 var _live := {}
 var _at_last := {}
 var _klive := -1.0
+## THE CORONA'S ZOOM (Jon's 4B): the star's true size while the zoom moves, so
+## everything round the disc grows every frame; eased back onto the disc's own
+## (`star_k`) once it is still, so at rest the sun is drawn as it always was
+var _kcor := -1.0
 var _zlast := -1.0
 var _zstill := 1.0
 const SETTLE_S := 0.18
@@ -339,6 +343,7 @@ func show_system(n: MapGen.MapNode) -> void:
 	_live.clear()
 	_at_last.clear()
 	_klive = -1.0
+	_kcor = -1.0
 	_zlast = -1.0
 	_plive = Vector2.INF
 	_sky_z = -1.0
@@ -1434,6 +1439,16 @@ func step() -> void:
 			_klive = kt
 		else:
 			_klive = lerpf(_klive, kt, ez)
+		# the corona at the star's true size while the zoom moves; once it is still,
+		# eased onto the disc's as the disc eases onto its held size (not while the
+		# system opens: the map's first move to the opening zoom is under the
+		# picture the palette is cut from, which stays the one it always was)
+		var smooth := zooming() and not _nosmooth and _palette_built
+		var kc := _star_k_raw() if smooth else star_k()
+		if _kcor < 0.0 or smooth or _nosmooth or not _palette_built or absf(_kcor - kc) < 0.002 * kc:
+			_kcor = kc
+		else:
+			_kcor = lerpf(_kcor, kc, ez)
 	# and each world's radius and centre
 	for i: int in _views:
 		var bw := layout.bodies[i]
@@ -1490,7 +1505,10 @@ func step() -> void:
 		star.position = o
 		if layout.star == SystemLayout.StarKind.PULSAR:
 			star.set("sub", pc - o)
-		if star.has_method("set_zoom"):
+		if star is SunViewS and _kcor > 0.0:
+			# (a sun: everything round its disc at the corona's zoom, the disc at its own)
+			star.call("set_zoom", _kcor, star_k())
+		elif star.has_method("set_zoom"):
 			star.call("set_zoom", star_k())
 		if layout.star == SystemLayout.StarKind.CORE and not legacy:
 			# THE HOLE AT THE SHOWCASE'S SIZE (the fidelity pass): small at the
