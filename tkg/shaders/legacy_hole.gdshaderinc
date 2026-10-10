@@ -75,6 +75,10 @@ uniform sampler2D lh_lens : filter_linear, repeat_disable;
 uniform vec3 lh_dims = vec3(24.0, 8.168141, 1.6);
 uniform vec3 lh_pal[8];
 uniform float lh_tilt = 0.38;
+// a palette probe (`ChartSky._queue_probes`): the hole as it was drawn when the
+// approved palettes were cut, so the cut stays exactly those colours (the two
+// Oct 10 fixes below -- the arc's slivers and its streaks -- are left out of it)
+uniform bool lh_probe = false;
 
 const float LH_PI = 3.14159265;
 const float LH_TAU = 6.2831853;
@@ -273,7 +277,7 @@ vec3 lh_sample(vec2 S, float t, float clumps, vec3 hot) {
 		// the rings' streaks, at full strength, were finer than a block there and
 		// flickered as the zoom moved, the brightest flicker in every style's core;
 		// the arc keeps a third of them)
-		vec2 hd = lh_disc_shade(P, r, t, clumps, hot, k == 1 ? 0.35 : 1.0);
+		vec2 hd = lh_disc_shade(P, r, t, clumps, hot, (k == 1 && !lh_probe) ? 0.35 : 1.0);
 		// the image that went round fades out at the photon ring (no line round
 		// the shadow) and is a cooler arc, two bands down: a hint of the lensing,
 		// not a second disc. Opaque, so it never blends to in-between colours.
@@ -282,7 +286,7 @@ vec3 lh_sample(vec2 S, float t, float clumps, vec3 hot) {
 		// near band as two bright spikes in the black either side of the shadow
 		// (Oct 10 polish, "lines drawn weird"; plain from zoom 3 in). The arc's ends
 		// sit near sin(angle) -0.8; it is faded out by -0.5, where the slivers start.
-		float a = hd.y * (k == 1 ? 0.9 * smoothstep(1.06, 1.38, b / LH_SHADOW) * smoothstep(-0.48, -0.68, sa) : 1.0);
+		float a = hd.y * (k == 1 ? 0.9 * smoothstep(1.06, 1.38, b / LH_SHADOW) * (lh_probe ? 1.0 : smoothstep(-0.48, -0.68, sa)) : 1.0);
 		float hh = hd.x - (k == 1 ? 0.30 : 0.0);
 		H = H * (1.0 - a) + hh * a;
 		A = A * (1.0 - a) + a;

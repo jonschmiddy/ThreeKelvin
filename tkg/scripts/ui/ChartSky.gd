@@ -613,6 +613,8 @@ func _queue_probes(g: Dictionary) -> void:
 			ChartRadiant.feed_events(m, g, 600.0, false, false)
 		m.set_shader_parameter("u_stars_on", false)
 		m.set_shader_parameter("u_tone_out", true)
+		# the hole as the approved palettes saw it (`legacy_hole`'s lh_probe)
+		m.set_shader_parameter("lh_probe", true)
 		probes.append(_pass_vp(_job.holder, PROBE, _rect(m), false))
 	_job.probes = probes
 	_job.stage = 2
