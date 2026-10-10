@@ -1,115 +1,81 @@
 shader_type canvas_item;
 render_mode unshaded, blend_premul_alpha;
 
-// LOCAL'S FOREGROUND DUST (`LocalDust`), drawn per game pixel: finer and softer
-// than the far sky, never a square. Each mote is gathered light -- a small
-// bright core and a 1 px falloff in an ordered dither -- or, a few of them, a
-// very faint out-of-focus disc with a dithered rim; the wisps are 1 px strands,
-// half there. Every pattern is anchored to its own mote, so a mote that moves a
-// pixel moves whole, the same pixels lit; and a mote's visibility (`vis`, eased
-// on the CPU) thins or fills its pattern a step at a time, never on or off.
+// LOCAL'S FOREGROUND DUST (`LocalDust`), one quad a mote (a MultiMesh), drawn
+// per GAME PIXEL whatever the dust's own scale: under the cutaway's push-in
+// and the zoom ladder the dust is not a picture scaled up -- each mote is drawn
+// again at its zoomed size, so zooming in only ever adds detail (a speck grows
+// a falloff, a mote a soft rim) and never turns a pixel into a block.
+//
+// Every pattern is anchored to its own mote (its dither, its grains), so a mote
+// that moves a pixel moves whole, the same pixels lit; a mote's visibility
+// (`vis`, eased on the CPU) thins or fills it a step at a time, never on or off.
+// LIGHT, NOT PAINT: a mote adds its light to what is behind it (premultiplied,
+// no cover), so it reads as gathered light over dark sky and bright gas alike.
 // Nothing is drawn inside a ship's picture, a label or a gauge (`keep`).
-// LIGHT, NOT PAINT: a mote adds its light to what is behind it (`glow`,
-// premultiplied with no cover), so it reads as gathered light over dark sky and
-// bright gas alike, faint and never a dark blot. Each ring adds one fixed step,
-// so over PAINTED's flat tones a mote is flat tones too; PAINTED also holds a
-// brighter highlight at its middle pixel. (Solid painted motes read as dark
-// dirt over the bright gas.)
+//
+// THE KINDS (`INSTANCE_CUSTOM.y`):
+//   0 MOTE      gathered light: a core, its light falling off in dithered steps,
+//               brighter on the side toward the star; now and then it turns and
+//               GLINTS -- its core flares and a short cross of light grows from it
+//   1 BOKEH     a near mote far out of focus: a faint smooth disc, its rim lit on
+//               the star's side, its edge dithered out
+//   2 SPECK     a far mote: a pixel, a faint cross round it when it is bright
+//   3 FILAMENT  a thread of dust: fine grains along a slow curve, a faint body
+//               between them, thickest in its middle, lit toward the star
+//   4 CLUMP     a drifting knot of grains round a faint glow
+// Per instance: CUSTOM (R: radius, or a filament's half length; kind; seed; the
+// angle toward the star), COLOR (its light; its glint, or a filament's half
+// height; its visibility; the quad's half size in px).
 
-const int N = 96;
-const int K = 40;
-// per mote: x, y (this control's px, whole), radius (px), kind (0 mote, 1 disc,
-// 2 wisp); and its visibility 0..1, a seed, the wisp's length, its lit side
-uniform vec4 motes[N];
-uniform vec4 extra[N];
-uniform int n_motes = 0;
-uniform vec4 keep[K];
-uniform int n_keep = 0;
-uniform bool painted = false;
-// the light a mote adds (linear-ish, added): at its core, its first ring, the rest
+#include "res://shaders/local_dust_kit.gdshaderinc"
+
+uniform int style = 0; // 0 simplified, 1 painted, 2 radiant, 3 legacy
+// the light a mote gathers: its body's colour, and its core's (the star's)
 uniform vec3 glow = vec3(0.3, 0.27, 0.24);
-uniform vec3 glow_k = vec3(0.34, 0.17, 0.08);
-uniform vec2 view_size = vec2(944.0, 491.0);
+uniform vec3 core_col = vec3(0.42, 0.40, 0.36);
+// what it must keep clear of, in game px (the game's own frame)
+uniform vec4 keep[40];
+uniform int n_keep = 0;
+uniform vec2 view_px = vec2(960.0, 540.0);
 
-float bayer4(ivec2 b) {
-	const float B[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
-	ivec2 q = b & ivec2(3);
-	return (B[q.y * 4 + q.x] + 0.5) / 16.0;
+varying vec4 v_cus;
+varying vec4 v_col;
+
+void vertex() {
+	v_cus = INSTANCE_CUSTOM;
+	v_col = COLOR;
 }
 
 void fragment() {
-	vec2 p = floor(UV * view_size) + 0.5;
-	for (int k = 0; k < K; k++) {
+	vec2 g = SCREEN_UV * view_px;
+	for (int k = 0; k < 40; k++) {
 		if (k >= n_keep) {
 			break;
 		}
 		vec4 r = keep[k];
-		if (p.x >= r.x && p.y >= r.y && p.x < r.x + r.z && p.y < r.y + r.w) {
+		if (g.x >= r.x && g.y >= r.y && g.x < r.x + r.z && g.y < r.y + r.w) {
 			discard;
 		}
 	}
-	float lift = 0.0;
-	bool hit = false;
-	for (int i = 0; i < N; i++) {
-		if (i >= n_motes || hit) {
-			break;
-		}
-		vec4 m = motes[i];
-		vec4 e = extra[i];
-		float vis = e.x;
-		if (vis <= 0.0) {
-			continue;
-		}
-		vec2 c = m.xy + 0.5;
-		vec2 d = p - c;
-		ivec2 rel = ivec2(floor(d)) + ivec2(int(e.y * 4.0), int(e.y * 16.0));
-		float th = bayer4(rel);
-		int kind = int(m.w + 0.5);
-		if (kind == 2) {
-			// a wisp: a 1 px strand along a slow wave, half there, tapering
-			float L = e.z;
-			if (abs(d.x) > L * 0.5 || abs(d.y) > 6.0) {
-				continue;
-			}
-			float yl = round(sin(d.x * 0.06 + e.y * 6.28) * 3.0);
-			float tap = 1.0 - abs(d.x) / (L * 0.5);
-			if (abs(floor(d.y) - yl) < 0.5 && th < 0.5 * vis * tap) {
-				lift = glow_k.z;
-				hit = true;
-			}
-			continue;
-		}
-		float R = m.z;
-		float dist = length(d);
-		if (dist > R + 0.75) {
-			continue;
-		}
-		if (kind == 1) {
-			// an out-of-focus disc: a very faint fill and a dithered rim
-			float rim = 1.0 - smoothstep(0.0, 1.0, abs(dist - R));
-			float dens = (0.16 + 0.3 * rim) * vis;
-			if (th < dens) {
-				lift = glow_k.z * (0.6 + 0.6 * rim);
-				hit = true;
-			}
-			continue;
-		}
-		// a mote: its core, and its light falling off a pixel at a time
-		float core = R < 2.0 ? 0.75 : 1.25;
-		float dens = dist <= core ? 1.0 : pow(clamp(1.0 - (dist - core) / max(R - core, 0.5), 0.0, 1.0), 1.4) * 0.85;
-		if (th < dens * vis) {
-			bool lit = dot(d, vec2(e.w, -0.5)) > 0.0;
-			lift = dist <= core ? glow_k.x : (dist <= core + 1.0 ? glow_k.y * (lit ? 1.2 : 0.8) : glow_k.z);
-			// (PAINTED: the mote's middle pixel a held highlight, one flat step
-			// brighter: it is the same pixel of the mote wherever the mote is)
-			if (painted && dist < 0.25) {
-				lift = glow_k.x * 1.6;
-			}
-			hit = true;
-		}
-	}
-	if (!hit) {
+	int kind = int(v_cus.y + 0.5);
+	float R = v_cus.x;
+	float seed = v_cus.z;
+	vec2 to_star = vec2(cos(v_cus.w), sin(v_cus.w));
+	float inten = v_col.x;
+	float vis = v_col.z;
+	float h = v_col.w;
+	// (the quad's half size, as `LocalDust._ext` made it)
+	vec2 ext = kind == 3 ? vec2(ceil(R) + 2.0, ceil(v_col.y) + 2.0) : vec2(h);
+	// this pixel's whole offset from the mote's middle
+	vec2 d = floor(UV * (2.0 * ext + 1.0)) - ext;
+	ivec2 rel = ivec2(d) + ivec2(int(seed * 37.0), int(seed * 91.0));
+	float th = dust_bayer4(rel);
+	vec2 res = dust_pixel(kind, d, R, seed, to_star, inten, v_col.y, vis, th, style);
+	if (res.x <= 0.0) {
 		discard;
 	}
-	COLOR = vec4(glow * lift, 0.0);
+	// its body's colour, its brightest steps toward the star's light
+	vec3 c = mix(glow, core_col, clamp(res.y, 0.0, 1.0));
+	COLOR = vec4(c * res.x, 0.0);
 }

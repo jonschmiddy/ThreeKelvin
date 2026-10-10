@@ -49,8 +49,14 @@ void fragment() {
 		// middle, plain grey stars and the near ones in the star's colour
 		vec3 c = vec3(0.027, 0.039, 0.063);
 		float fx = (g.x - wash.x) / max(wash.y, 1.0);
+		// (its five steps dithered from one to the next in an ordered pattern, a
+		// block at a time: hard-edged, the palette cut them to one step at 0.45 of
+		// the view, and with the play's tone evening out everything below the top
+		// band it stood as a dark rectangle in the top left corner)
+		float th = kitBayer4(ivec2(floor(SCREEN_UV * vec2(480.0, 270.0))));
+		float steps = clamp(floor((fx - 0.40) / 0.24 * 5.0 + th), 0.0, 5.0);
 		for (int i = 0; i < 5; i++) {
-			if (fx >= 0.45 + 0.14 * float(i) / 5.0) {
+			if (float(i) < steps) {
 				c = mix(c, wash_tint, 0.10);
 			}
 		}

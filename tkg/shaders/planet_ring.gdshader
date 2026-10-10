@@ -82,8 +82,12 @@ void fragment() {
 	const int NS = 4;
 	for (int j = 0; j < NS; j++) for (int i = 0; i < NS; i++) {
 		vec2 s = pix + (vec2(float(i), float(j)) + 0.5) / float(NS) * float(cell) - 0.5 * float(cell);
-		// the near half is the half below the world's centre
-		if ((s.y >= 0.0) != near) continue;
+		// the near half is the half below the world's centre -- decided by the
+		// pixel's (the block's) own middle, not by each sample: split sample by
+		// sample, the row through the centre was drawn half by each half, at half
+		// cover twice, and read as a dotted dark line across the whole ring
+		// (LOCAL's giants, 2026-10-10)
+		if ((pix.y >= 0.0) != near) continue;
 		float u = s.x / r, w = s.y / (open * r);
 		float rho = length(vec2(u, w));
 		if (rho < rin || rho > rout) continue;

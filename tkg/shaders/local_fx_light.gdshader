@@ -88,7 +88,15 @@ float wrap_pi(float a) {
 }
 
 void fragment() {
-	vec2 p = floor(local) + 0.5;
+	// each GAME pixel worked out where it is in this rect's own px: under the
+	// cutaway's push-in (this rect scaled) the light is drawn again at the zoom's
+	// size, its dithered edge still a game pixel fine, never scaled up as a picture
+	vec2 sp = SCREEN_UV / SCREEN_PIXEL_SIZE;
+	float inv = abs(dFdx(local.x));
+	inv = inv > 0.0 ? inv : 1.0;
+	vec2 p = local + (floor(sp) + 0.5 - sp) * inv;
+	// (its dither anchored to the rect, a game pixel a step)
+	vec2 dq = floor(p / inv) + 0.5;
 	float a = allowed(p);
 	vec3 outc = vec3(0.0);
 	if (a > 0.0) {
@@ -100,7 +108,7 @@ void fragment() {
 			// the edge is a few pixels wide however far out)
 			float m = 1.0 - clamp((da - core) / max(soft - core, 1e-3), 0.0, 1.0);
 			float px_edge = (da - soft) * r;
-			float e = edge(clamp(1.0 - px_edge / 4.0, 0.0, 1.0), p) * (da < soft + 4.0 / max(r, 1.0) ? 1.0 : 0.0);
+			float e = edge(clamp(1.0 - px_edge / 4.0, 0.0, 1.0), dq) * (da < soft + 4.0 / max(r, 1.0) ? 1.0 : 0.0);
 			float along = 1.0 / (1.0 + r / reach) * clamp(r / 30.0, 0.0, 1.0);
 			float I = (da <= soft ? (0.35 + 0.65 * m * m) : 0.35) * e * along;
 			float fl = clamp((floor_y + 40.0 - p.y) / 40.0, 0.0, 1.0);
@@ -114,7 +122,7 @@ void fragment() {
 			float toward = 0.5 + 0.5 * dot(u, normalize(dir));
 			float R1 = mix(r1 * (1.0 - lean), r1, toward * toward);
 			float m = clamp((R1 - r) / max(R1 - r0, 1.0), 0.0, 1.0);
-			float e = edge(clamp((R1 - r) / 5.0, 0.0, 1.0), p);
+			float e = edge(clamp((R1 - r) / 5.0, 0.0, 1.0), dq);
 			float I = (0.25 + 0.75 * m * m) * e;
 			outc = mix(col2, col, m) * I;
 		} else if (mode == 2) {
@@ -124,7 +132,7 @@ void fragment() {
 			if (into > -2.0 && into < r1) {
 				float lead = 1.0 - clamp(into / 5.0, 0.0, 1.0);
 				float body = 1.0 - clamp(into / r1, 0.0, 1.0);
-				float e = edge(clamp((into + 2.0) / 3.0, 0.0, 1.0), p) * edge(clamp((r1 - into) / 6.0, 0.0, 1.0), p);
+				float e = edge(clamp((into + 2.0) / 3.0, 0.0, 1.0), dq) * edge(clamp((r1 - into) / 6.0, 0.0, 1.0), dq);
 				float I = (0.22 * body + 0.65 * lead * lead) * e;
 				// grit: a speck here and there, each brightening and fading slowly
 				vec2 cell = floor(p / 3.0);
@@ -148,22 +156,22 @@ void fragment() {
 				float wi = 1.5 + 4.0 * f;
 				float mi = 1.0 - clamp((abs(v) - wi) / 3.0, 0.0, 1.0);
 				float stri = 0.8 + 0.2 * sin(u * 0.09 - time * 0.6);
-				float Ii = edge(mi, p) * fall * 0.9 * stri;
+				float Ii = edge(mi, dq) * fall * 0.9 * stri;
 				// the dust tail: bending back along the orbit, broad, warm
 				float vb = v - dot(tail_bend, nx) * f * f * r1 * 0.35;
 				float wd = 3.0 + 26.0 * f;
 				float md = 1.0 - clamp((abs(vb) - wd) / 4.0, 0.0, 1.0);
 				float cd = 1.0 - clamp(abs(vb) / wd, 0.0, 1.0);
-				float Id = edge(md, p) * fall * (0.25 + 0.55 * cd);
+				float Id = edge(md, dq) * fall * (0.25 + 0.55 * cd);
 				// the coma round the head
 				float rc = length(d);
 				float mc = 1.0 - clamp((rc - 7.0) / 4.0, 0.0, 1.0);
-				float Ic = edge(mc, p) * 0.5;
+				float Ic = edge(mc, dq) * 0.5;
 				outc = col * Ii + col2 * Id + mix(col, col2, 0.5) * Ic;
 			} else {
 				float rc = length(d);
 				float mc = 1.0 - clamp((rc - 7.0) / 4.0, 0.0, 1.0);
-				outc = mix(col, col2, 0.5) * edge(mc, p) * 0.5;
+				outc = mix(col, col2, 0.5) * edge(mc, dq) * 0.5;
 			}
 		}
 	}
