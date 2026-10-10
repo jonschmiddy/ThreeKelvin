@@ -89,7 +89,9 @@ void fragment() {
 			ci = (dv > 0.0 && fq > 0.0) ? sx : a;
 		}
 		vec3 outc = (second ? texelFetch(pal2, ivec2(ci, 0), 0) : texelFetch(pal, ivec2(ci, 0), 0)).rgb;
-		if (hyst > 0.0 && s.a > 0.6) {
+		// (and not in the dark, as the dither is not: the dark's faint steps lie close,
+		// and held there its grain set into smooth smears behind a zoom)
+		if (hyst > 0.0 && s.a > 0.6 && lc > 48.0) {
 			vec2 q = (prev_c + (cur_o + (floor(UV * vp_size) + 0.5) * 2.0 - cur_c) * prev_k - prev_o) * 0.5;
 			ivec2 pb = ivec2(floor(q));
 			if (length(q - floor(UV * vp_size) - 0.5) < MOVE_MAX && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
