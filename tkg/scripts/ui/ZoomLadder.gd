@@ -88,6 +88,11 @@ static var UNDOCK_YARD_S := 2.0
 static var UNDOCK_LOCAL_S := 3.4
 ## the elevator sliding back in once your ship is down (and out, undocking)
 static var ELEVATOR_S := 0.8
+## THE CHART TO LOCAL OR THE BERTH, AND BACK (Jon, Oct 10: "Chart straight to
+## local is ehhhh kinda hard to do... just do a fade. No transition"): down to
+## black, the new screen built in the black, and up from it. No camera.
+static var FADE_OUT_S := 0.3
+static var FADE_IN_S := 0.45
 
 ## The dials as Settings lists them: [key in `[flow]`, its name, the static var
 ## it sets, least, most]. The default is the var's own value at load.
@@ -104,6 +109,8 @@ const DIALS := [
 	["elevator_s", "DOCK: ELEVATOR", "ELEVATOR_S", 0.2, 2.0],
 	["undock_yard_s", "UNDOCK: SHIP LEAVES", "UNDOCK_YARD_S", 0.8, 5.0],
 	["undock_local_s", "UNDOCK: OUT OF THE HULL", "UNDOCK_LOCAL_S", 1.0, 8.0],
+	["fade_out_s", "CHART - LOCAL: TO BLACK", "FADE_OUT_S", 0.05, 2.0],
+	["fade_in_s", "CHART - LOCAL: UP FROM BLACK", "FADE_IN_S", 0.05, 2.0],
 ]
 ## the defaults as the code has them (taken the first time the dials are read)
 static var _dial_defaults := {}
@@ -156,6 +163,8 @@ static func _dial_get(var_name: String) -> float:
 		"YARD_BEAT_S": return YARD_BEAT_S
 		"DOCK_YARD_S": return DOCK_YARD_S
 		"ELEVATOR_S": return ELEVATOR_S
+		"FADE_OUT_S": return FADE_OUT_S
+		"FADE_IN_S": return FADE_IN_S
 		"UNDOCK_YARD_S": return UNDOCK_YARD_S
 		"UNDOCK_LOCAL_S": return UNDOCK_LOCAL_S
 	return 0.0
@@ -173,6 +182,8 @@ static func _dial_set(var_name: String, v: float) -> void:
 		"YARD_BEAT_S": YARD_BEAT_S = v
 		"DOCK_YARD_S": DOCK_YARD_S = v
 		"ELEVATOR_S": ELEVATOR_S = v
+		"FADE_OUT_S": FADE_OUT_S = v
+		"FADE_IN_S": FADE_IN_S = v
 		"UNDOCK_YARD_S": UNDOCK_YARD_S = v
 		"UNDOCK_LOCAL_S": UNDOCK_LOCAL_S = v
 
@@ -264,7 +275,9 @@ static var _cfg := {}
 ## UI_OUT: the screen being left takes its UI away, its camera still; UI_IN:
 ## the camera has landed and the arriving screen's UI comes up. (Appended, so
 ## the old phases keep their numbers for the harnesses that log them.)
-enum Phase { PRE, PRE_DONE, WAIT, MOVE, UI_OUT, UI_IN }
+enum Phase { PRE, PRE_DONE, WAIT, MOVE, UI_OUT, UI_IN, FADE_OUT, FADE_HOLD, FADE_IN }
+## the move is a plain fade through black (`is_fade`)
+var _fade := false
 var phase: Phase = Phase.PRE
 var old: Control = null
 var new: Control = null
@@ -529,6 +542,13 @@ static func preroll(target: int, then: Callable) -> bool:
 	lad.seam = seam_between(r, target)
 	lad.design = design_for(lad.seam) if lad.seam > 0 else "A"
 	lad._then = then
+	# THE CHART AND LOCAL (or the berth) ARE A FADE, NOT A MOVE: nothing built
+	# ahead (it is built in the black), no camera, no UI beats of their own
+	if lad.seam == 0 and is_fade(r, target):
+		lad._fade = true
+		lad.phase = Phase.FADE_OUT
+		_hud_refresh()
+		return true
 	lad._pre_k = float(cur.call(&"ladder_pre", target, lad.seam, lad.design))
 	# THE UI LEAVES FIRST, the camera still, on every move -- even one whose
 	# screen has no camera of its own to move first (the station's berth)
@@ -554,7 +574,10 @@ static func preroll(target: int, then: Callable) -> bool:
 	var _pt_pre := Time.get_ticks_usec()
 	if (target == MAP or target == CHART) and not Run.map.is_empty() and Router.content != null:
 		var pm: Control = SystemMapScreen.new() if target == MAP else StarchartScreen.new()
-		pm.modulate.a = PREBUILT_A
+		# (the chart at a trace of opacity so it is drawn, `PREBUILT_A`; the map at
+		# none: its panel's sun is a shader that does not take its node's opacity,
+		# and showed whole over the chart)
+		pm.modulate.a = PREBUILT_A if target == CHART else 0.0
 		pm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		# (laid out where the screens are, with nothing beside it: under this
 		# ladder, which stands exactly over the screens' place)
@@ -649,6 +672,15 @@ static func capture(o: Control, n: Control) -> void:
 	var lad: ZoomLadder = null
 	if busy() and active.phase == Phase.PRE_DONE and active.old == o:
 		lad = active
+		# (a fade: the screen arriving is under the black; it comes up once it
+		# has drawn a few frames there, so nothing it builds is seen stalling)
+		if lad._fade:
+			lad.new = n
+			lad.r_new = rn
+			lad.phase = Phase.FADE_HOLD
+			lad._held_frames = 0
+			lad._waited = 0.0
+			return
 	elif busy():
 		active.finish_now()
 	if ro < 0 or rn < 0 or ro == rn or Router._post_arrive:
@@ -681,7 +713,14 @@ static func capture(o: Control, n: Control) -> void:
 		lad._start_move.call_deferred()
 
 
+## Whether a move between ranks `a` and `b` is a plain fade: the chart and LOCAL,
+## or the chart and the berth, either way.
+static func is_fade(a: int, b: int) -> bool:
+	return (a == CHART and (b == LOCAL or b == STATION)) or (b == CHART and (a == LOCAL or a == STATION))
+
+
 ## Whether the Router should leave this screen's arrival to the ladder (no fade).
+
 static func takes(s: Control) -> bool:
 	return busy() and active.new == s
 
@@ -767,6 +806,39 @@ func _process(delta: float) -> void:
 	elif phase == Phase.PRE and _ui_u > 0.0:
 		_chrome(old, 1.0)
 	match phase:
+		Phase.FADE_OUT:
+			if not is_instance_valid(old) or Router.current != old:
+				_end()
+				return
+			_ui_u += dt
+			_black_at(_ease(_ui_u / maxf(FADE_OUT_S, 0.001)))
+			if _ui_u >= FADE_OUT_S:
+				_black_at(1.0)
+				phase = Phase.PRE
+				_fire()
+			return
+		Phase.FADE_HOLD:
+			_black_at(1.0)
+			_held_frames += 1
+			_waited += dt
+			if not is_instance_valid(new):
+				_end()
+				return
+			var ready := not new.has_method(&"ladder_ready") or bool(new.call(&"ladder_ready"))
+			if (ready and _held_frames >= 3) or _waited >= WAIT_MAX_S:
+				phase = Phase.FADE_IN
+				_ui_u = 0.0
+				_run_landed()
+			return
+		Phase.FADE_IN:
+			if not is_instance_valid(new) or Router.current != new:
+				_end()
+				return
+			_ui_u += dt
+			_black_at(1.0 - _ease(_ui_u / maxf(FADE_IN_S, 0.001)))
+			if _ui_u >= FADE_IN_S:
+				_end()
+			return
 		Phase.UI_OUT:
 			if not is_instance_valid(old) or Router.current != old:
 				_end()
@@ -968,7 +1040,11 @@ func finish_now() -> void:
 			_chrome(old, 1.0)
 			phase = Phase.PRE
 			finish_now()
-		Phase.UI_IN:
+		Phase.UI_IN, Phase.FADE_HOLD, Phase.FADE_IN:
+			_end()
+		Phase.FADE_OUT:
+			phase = Phase.PRE
+			_fire()
 			_end()
 		Phase.PRE:
 			_fire()
@@ -1449,6 +1525,17 @@ func _start_move() -> void:
 	_mat.set_shader_parameter(&"soft", 1.0 if bool(_style.get("soft", false)) else 0.0)
 	_mat.set_shader_parameter(&"sharp", 1.0 if bool(_style.get("sharp", false)) else 0.0)
 	_mat.set_shader_parameter(&"feather", float(_style.get("feather", 0.0)))
+	# (the soft handoff's standing copy of the old picture leaves out the thing
+	# the move carries: the world you orbit, or your star)
+	var fh := Vector3.ZERO
+	if not _old_world.is_empty():
+		fh = Vector3((_old_world.c as Vector2).x, (_old_world.c as Vector2).y, float(_old_world.r) * 1.35 + 3.0)
+	elif not _old_sun.is_empty():
+		fh = Vector3((_old_sun.c as Vector2).x, (_old_sun.c as Vector2).y, float(_old_sun.r) * 1.35 + 3.0)
+	elif r_old == CHART:
+		# (the chart's mark for your star)
+		fh = Vector3(_a_old.x, _a_old.y, 14.0)
+	_mat.set_shader_parameter(&"focus_hole", fh)
 
 	if bool(_style.hull) and new.has_method(&"ladder_hull"):
 		_hull_to = new.call(&"ladder_hull")

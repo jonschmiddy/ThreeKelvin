@@ -265,7 +265,9 @@ func _run() -> void:
 	# the frame after the swap held still, to diff it against the frame before
 	ZoomLadder.measure_hold = "measure" in _args
 	Rng.forced = int(_arg("seed", "1"))
-	Run.start_new_run(&"korvan", int(HullData.Weight.MEDIUM))
+	# (`weight=light|medium|heavy`: the hull flown)
+	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
+	Run.start_new_run(&"korvan", int(wt.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)))
 	# (the chart's FIRST SURVEY card is the first chart's, not the ladder's)
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var seams := _arg("seams", "1,2,3").split(",")
@@ -376,6 +378,9 @@ func _run() -> void:
 		ZoomLadder.force = 1
 		await _film("dive_chart_local", Router.show_local)
 		await _frames(60)
+		# (and back: LOCAL to the chart, the HUD's STARCHART tab)
+		await _film("dive_local_chart", Router.show_starchart)
+		await _frames(60)
 	if "3" in seams:
 		var st := -1
 		for raw in Run.map:
@@ -421,11 +426,52 @@ func _run() -> void:
 				ZoomLadder.force = 1
 				await _film("dive_chart_station", Router.show_station)
 				await _frames(90)
+				await _film("dive_station_chart", Router.show_starchart)
+				await _frames(60)
 				ZoomLadder.force = 0
 				Router.show_sector()
 				await _frames(90)
 				ZoomLadder.force = 1
+			# (`seatcheck`: the dock's last frame beside the yard as it stands your
+			# ship when docked with no move at all -- `seat_dock.png`, `seat_yard.png`
+			# -- and both hulls' rects printed against the yard's own seat)
+			if "seatcheck" in _args:
+				ZoomLadder.force_design = {}
+				ZoomLadder.force = 0
+				if not Router.current is SectorScreen:
+					Router.show_sector()
+					await _frames(90)
+				Router.show_local()
+				await _frames(60)
+				ZoomLadder.force = 1
+				Router.show_station()
+				for i in 900:
+					await _tree.process_frame
+					if not ZoomLadder.busy():
+						break
+				await _frames(60)
+				await _shown()
+				_img().save_png("%s/seat_dock.png" % _out)
+				var s1 := Router.current as StationScreen
+				var r1 := s1._mine_view.get_rect() if s1 != null and s1._mine_view != null else Rect2()
+				ZoomLadder.force = 0
+				Router.show_sector()
+				await _frames(60)
+				Router.show_station()
+				await _frames(180)
+				await _shown()
+				_img().save_png("%s/seat_yard.png" % _out)
+				var s2 := Router.current as StationScreen
+				var r2 := s2._mine_view.get_rect() if s2 != null and s2._mine_view != null else Rect2()
+				var P: Dictionary = s2._scene.placed[0] if s2 != null and s2._scene != null else {}
+				var seat := Rect2()
+				if not P.is_empty():
+					var ink: Rect2i = P["ink"]
+					seat = Rect2(Vector2(float(P["x0"]) - ink.position.x, float(P["top"]) - ink.position.y), Vector2((P["img"] as Image).get_size()))
+				print("  [ladder] seat %s: docked %s, docked with no move %s, the yard's seat %s" % [_arg("weight", "medium"), r1, r2, seat])
+				ZoomLadder.force = 1
 			# (`wrecks`: LOCAL at the station with a fight's wrecks in it, and your
+
 			# ship's cutaway opened there: stills, to see the station's side with them)
 			if "wrecks" in _args:
 				if not Router.current is SectorScreen:
