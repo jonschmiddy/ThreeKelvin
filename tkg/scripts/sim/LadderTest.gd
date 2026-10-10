@@ -219,6 +219,15 @@ func _hull_flies_in(dock_b: Button) -> void:
 	_ok("3B: the yard stands where it always does while the elevator is away (at x %.0f)" % yard_at, not yard_x.is_empty() and not yard_moved)
 	_ok("3B: the yard's hall runs on where the elevator will come in (%d frames without it)" % edge_off, edge_off == 0)
 	_ok("3B: the hull ends on its stands", xs.is_empty() or absf(xs[-1] - berth) < 1.0)
+	# SEATED WHERE THE YARD SEATS IT (Jon: "DOCKING IS PERFECT!!!! But the ship
+	# sits too high on the stands"): the landed hull exactly where the yard's own
+	# stand-up (`YardScene._stand`) puts it -- its picture's rect and its ink's
+	# underside on the stand tops -- not where it stood before it was seated
+	await _frames(4)
+	var seat := _yard_seat(st)
+	var landed := st._mine_view.get_rect() if st._mine_view != null else Rect2()
+	_ok("3B: the landed hull's rect is the yard's own seat (%s, the yard %s)" % [landed, seat],
+		seat.size.x > 1.0 and landed.position.is_equal_approx(seat.position) and landed.size.is_equal_approx(seat.size))
 	var rx := st._rail.position.x if st._rail != null else 0.0
 	await _frames(int(ZoomLadder.ELEVATOR_S * 30.0) + 6)
 	_ok("3B: then the elevator slides in (%.0f -> %.0f)" % [rx, st._rail.position.x if st._rail != null else 0.0],
@@ -439,6 +448,19 @@ const ONE_MOTION_FLOOR := 0.4
 
 
 ## The ladder's black over the screens now (F's dip), 0 when there is none.
+## Where the yard seats your hull: the rect `YardScene._stand` gives its view
+## (the picture's corner from the ink's place, the stands' top), Rect2() if none.
+func _yard_seat(st: StationScreen) -> Rect2:
+	if st == null or st._scene == null or st._scene.placed.is_empty():
+		return Rect2()
+	var P: Dictionary = st._scene.placed[0]
+	if P.is_empty():
+		return Rect2()
+	var ink: Rect2i = P["ink"]
+	var img: Image = P["img"]
+	return Rect2(Vector2(float(P["x0"]) - ink.position.x, float(P["top"]) - ink.position.y), Vector2(img.get_size()))
+
+
 func _black_a() -> float:
 	if not ZoomLadder.busy() or ZoomLadder.active._black == null or not is_instance_valid(ZoomLadder.active._black):
 		return 0.0
@@ -664,9 +686,37 @@ func _run() -> void:
 		var m4 := Router.current as SystemMapScreen
 		_ok("and the map's panel, strip and key are back whole", m4 != null and m4.panel.get_parent().modulate.a > 0.99
 			and m4._strip.modulate.a > 0.99 and m4._key_row.modulate.a > 0.99 and m4.overlay.label_a > 0.99)
+	# 3c. THE CHART AND LOCAL ARE A FADE (Jon, Oct 10: "just do a fade. No
+	# transition"): through black both ways, no camera move on either screen,
+	# LOCAL built in the black
+	await _go("the chart (for the fade)", Router.show_starchart, StarchartScreen)
+	for way in [[Router.show_local, SectorScreen, "chart to LOCAL"], [Router.show_starchart, StarchartScreen, "LOCAL to chart"]]:
+		(way[0] as Callable).call()
+		var black := 0.0
+		var moved := 0
+		var faded := false
+		for i in 600:
+			await _tree.process_frame
+			if not ZoomLadder.busy():
+				break
+			var L := ZoomLadder.active
+			faded = faded or L._fade
+			if L.phase == ZoomLadder.Phase.MOVE or L.phase == ZoomLadder.Phase.WAIT or L.phase == ZoomLadder.Phase.UI_OUT:
+				moved += 1
+			if L._black != null and is_instance_valid(L._black):
+				black = maxf(black, L._black.color.a)
+			var cur := Router.current
+			if cur is SectorScreen and not (cur as SectorScreen)._lad.is_empty():
+				moved += 1
+			if cur is StarchartScreen and (cur as StarchartScreen)._chart != null and not (cur as StarchartScreen)._chart._lad.is_empty():
+				moved += 1
+		_ok("%s is a fade through black (to %.2f), no camera (%d frames moved)" % [way[2], black, moved], faded and black > 0.99 and moved == 0)
+		_ok("%s lands" % way[2], Router.current != null and Router.current.get_script() == way[1])
+		_clean(String(way[2]))
+	await _go("back to the map (after the fade)", Router.show_system, SystemMapScreen)
 	# (the dials: every length a move is made of is one)
 	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S],
-		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 12)
+		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 14)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()

@@ -1281,6 +1281,12 @@ func ladder_chrome(k: float) -> void:
 		ZoomLadder.fade_chrome(c, k)
 	if panel != null and is_instance_valid(panel):
 		ZoomLadder.fade_chrome(panel.get_parent(), k, 24.0)
+		# (the panel's portrait of a star or world is drawn by a shader that
+		# writes its own alpha, so the panel's fade never reached it: it popped up
+		# whole over the empty panel. It goes and comes with the panel's middle.)
+		var pt: Variant = panel.get("_portrait")
+		if pt is CanvasItem and is_instance_valid(pt):
+			(pt as CanvasItem).visible = k < 0.4
 	if overlay != null:
 		overlay.label_a = 1.0 - k
 		overlay.hush_labels = k >= 0.999

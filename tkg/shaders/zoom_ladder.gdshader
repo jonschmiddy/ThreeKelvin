@@ -48,6 +48,9 @@ uniform float soft = 0.0;
 uniform float sharp = 0.0;
 // SOFT's narrowest feather, px on screen (0: from nothing, as `t` grows)
 uniform float feather = 0.0;
+// SOFT: where the held picture's focus object stood (screen px: centre, radius;
+// 0 for none), kept out of its standing copy
+uniform vec3 focus_hole = vec3(0.0);
 // a hole in the held picture (its own px: centre, radius; 0 for none) where
 // the live screen draws the same thing -- the world handed over in 2C
 uniform vec3 hole = vec3(0.0);
@@ -118,6 +121,13 @@ void fragment() {
 		if (in_hole) {
 			picture = false;
 		}
+		// SOFT (1A, 2C): the whole held picture, its frame and what stood round
+		// it carried as one, its design's keep measured everywhere in it
+		// (the screens' own area only: the HUD above them is never carried)
+		bool in_img = in_rect(q, vec4(rect_pos, rect_size));
+		if (soft > 0.5 && in_img && !in_hole) {
+			picture = true;
+		}
 		if (picture) {
 			if (mode == 0) {
 				// measured in the held picture's own pixels, so its far edges go
@@ -147,19 +157,46 @@ void fragment() {
 			float e = min(min(lo.x, lo.y), min(hi.x, hi.y)) / (0.5 * min(pic.z, pic.w));
 			keep = min(keep, clamp((e - t * edge) * 6.0, 0.0, 1.0));
 		}
-		if (picture && soft > 0.5) {
-			// and its own edge feathered, wider as it goes, so a held picture
-			// made smaller never shows as a card laid on the other
-			vec2 lo = q - pic.xy;
-			vec2 hi = pic.xy + pic.zw - q;
-			float ep = min(min(lo.x, lo.y), min(hi.x, hi.y)) * scl.x;
-			// (never narrower than `feather`: a picture made smaller must not
-			// show a hard edge on its first frames either)
-			float fw = max(140.0 * t, feather * min(t / 0.12, 1.0));
-			if (fw > 0.0) {
-				keep *= clamp(ep / fw, 0.0, 1.0);
+		if (soft > 0.5) {
+			// NEVER A BOX (Jon: "The square is kinda weird and harsh"). Two
+			// layers, neither with an edge of its own on screen:
+			//  A, THE MOVING PICTURE, kept only inside a soft disc round the
+			//    focus (your star, the world you orbit) no bigger than the
+			//    largest circle that fits inside the picture's own frame where
+			//    it is now -- so its frame, the panel's place beside it and the
+			//    HUD are never carried into view;
+			//  B, THE PICTURE AS IT WAS, standing exactly where it stood and
+			//    fading out over the first stretch of the move -- so the swap's
+			//    frame is the last one drawn, whole, and the corners go by fading,
+			//    not by a straight edge sweeping across.
+			vec2 lo = to_pt + (pic.xy - from_pt) * scl;
+			vec2 hi = to_pt + (pic.xy + pic.zw - from_pt) * scl;
+			float rfit = max(min(min(to_pt.x - lo.x, to_pt.y - lo.y), min(hi.x - to_pt.x, hi.y - to_pt.y)), 24.0);
+			float aA = 0.0;
+			if (picture) {
+				float focus = 1.0 - smoothstep(rfit * 0.5, rfit, length(p - to_pt));
+				aA = smoothstep(0.0, 1.0, keep) * focus;
 			}
-			COLOR = vec4(old_pic(q).rgb, smoothstep(0.0, 1.0, keep));
+			bool hole_b = hole.z > 0.0 && length(p - hole.xy) < hole.z;
+			float aB = hole_b ? 0.0 : 1.0 - smoothstep(0.0, 0.2, t);
+			vec3 cA = old_pic(q).rgb;
+			vec3 cB = old_at(p).rgb;
+			// (and never the thing the move is about -- the world you orbit, your
+			// star -- where it stood: A carries it, and a second one left behind
+			// read as two worlds. Its place in the standing copy is filled with
+			// the sky round it, the average of a ring just outside it, so neither
+			// it nor the screen arriving shows through there)
+			if (focus_hole.z > 0.0 && length(p - focus_hole.xy) < focus_hole.z + 3.0) {
+				vec3 ring = vec3(0.0);
+				for (int i = 0; i < 12; i++) {
+					float an = float(i) * 0.5236;
+					ring += old_at(focus_hole.xy + vec2(cos(an), sin(an)) * (focus_hole.z + 6.0)).rgb;
+				}
+				float m = smoothstep(focus_hole.z + 3.0, focus_hole.z - 1.0, length(p - focus_hole.xy));
+				cB = mix(cB, ring / 12.0, m);
+			}
+			float a = aA + aB * (1.0 - aA);
+			COLOR = a > 0.0 ? vec4((cA * aA + cB * aB * (1.0 - aA)) / a, a) : vec4(0.0);
 		} else if (picture && keep > thr) {
 			COLOR = vec4(old_pic(q).rgb, 1.0);
 		} else if (!in_hole && !in_rect(p, pic) && !picture && soft > 0.5) {
