@@ -106,7 +106,9 @@ void fragment() {
 	}
 	vec3 raw = s;
 	s = quantGated(s, b + ivec2(block0), allow * dith);
-	if (hyst > 0.0 && quant) {
+	// (nothing held in the deep dark, as nothing is dithered there: its steps lie close
+	// and held they set the faint grain into smears behind a zoom)
+	if (hyst > 0.0 && quant && max(raw.r, max(raw.g, raw.b)) > 0.14) {
 		vec2 q = (prev_c + (cur_o + (vec2(b) + 0.5) * 2.0 - cur_c) * prev_k - prev_o) * 0.5;
 		ivec2 pb = ivec2(floor(q));
 		if (length(q - vec2(b) - 0.5) < MOVE_MAX && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
