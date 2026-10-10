@@ -626,9 +626,21 @@ func _bake_cloud(gen: int) -> void:
 	var f: Array = _baked.get(key, [])
 	if f.is_empty():
 		var bake := SkyBakeS.new()
-		await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC, legacy)
-		if gen != _gen or not is_inside_tree():
-			return
+		# BAKED UNTIL IT HOLDS GAS (PAINTED's LOCAL showed bare stars on every
+		# arrival: built PAINTED, the bake ran inside the sky's priming draws and
+		# read its three pictures back empty -- no cloud, and no sheets for its
+		# masses). An empty bake is done again on the next real frames.
+		for attempt in 4:
+			await bake.field(self, int(_sky_look.neb), int(_sky_look.shape), _sd, CC, legacy)
+			if gen != _gen or not is_inside_tree():
+				return
+			if not _blank(bake.field_img0):
+				break
+			print_verbose("LocalSky: the cloud baked empty, again (%d)" % attempt)
+			await get_tree().process_frame
+			await get_tree().process_frame
+			if gen != _gen or not is_inside_tree():
+				return
 		f = [bake.field0, bake.field1, bake.field2]
 		if _baked.size() >= BAKED_MAX:
 			_baked.erase(_baked.keys()[0])
@@ -646,14 +658,39 @@ func _bake_cloud(gen: int) -> void:
 			_neb_mat.set_shader_parameter("p_sheets", f[3])
 			_neb_mat.set_shader_parameter("p_sheets_on", true)
 		else:
-			await SectorPaintedS.bake_puffs(self, f[0])
-			if gen != _gen or not is_inside_tree():
-				return
+			# (THE SHEETS CAME OUT EMPTY on LOCAL, every time: baked inside the sky's
+			# priming draws, the bake's picture was read back blank, and PAINTED's
+			# LOCAL had no cloud at all -- emission, reflection and the core showed
+			# bare stars. Baked again on the next real frames until it holds gas.)
+			for attempt in 4:
+				await SectorPaintedS.bake_puffs(self, f[0])
+				if gen != _gen or not is_inside_tree():
+					return
+				var pt: Variant = _neb_mat.get_shader_parameter("p_sheets")
+				if not (pt is Texture2D) or not (pt as Texture2D).get_image().is_invisible():
+					break
+				print_verbose("LocalSky: PAINTED's sheets baked empty, again (%d)" % attempt)
+				await get_tree().process_frame
+				await get_tree().process_frame
 			var ps = _neb_mat.get_shader_parameter("p_sheets")
-			if ps != null:
+			if ps != null and not (ps as Texture2D).get_image().is_invisible():
 				f.append(ps)
 	_neb.visible = true
 	_ready_sky = true
+
+
+## Nothing in a baked picture: no pixel of a grid across it has any channel lit.
+static func _blank(img: Image) -> bool:
+	if img == null or img.is_empty():
+		return true
+	var w := img.get_width()
+	var h := img.get_height()
+	for j in 24:
+		for i in 32:
+			var c := img.get_pixel(int((i + 0.5) * w / 32.0), int((j + 0.5) * h / 24.0))
+			if c.r + c.g + c.b + c.a > 0.004:
+				return false
+	return true
 
 
 ## The emission bubble's radius (`SystemView._bubble_r`), in this frame's px:

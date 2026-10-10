@@ -99,6 +99,25 @@ func _run() -> void:
 				await RenderingServer.frame_post_draw
 				g += sky.gpu_ms()
 			print("localaudit: %s %s node %d: sky gpu %.3f ms" % [st, cname, sky.node.index, g / 20.0])
+			# (`pdump`: PAINTED's own pictures -- what went into its far picture, and
+			# its band memory -- and the sky's)
+			if "pdump" in _args:
+				sky.picture().save_png("%s/%s_sky.png" % [dir, cname])
+				if not sky._pt.is_empty():
+					(sky._pt.svp as SubViewport).get_texture().get_image().save_png("%s/%s_svp.png" % [dir, cname])
+					(sky._pt.tvp as SubViewport).get_texture().get_image().save_png("%s/%s_tvp.png" % [dir, cname])
+				print("localaudit:   neb %s visible %s ready %s" % [sky._neb_mat != null, sky._neb != null and sky._neb.visible, sky._ready_sky])
+				if sky._neb_mat != null:
+					var nm := sky._neb_mat
+					for u in ["painted", "p_puffs", "p_ne", "p_sheets_on", "strength", "exposure", "kind", "t0", "off", "p_sky", "p_gm"]:
+						print("localaudit:     %s = %s" % [u, nm.get_shader_parameter(u)])
+					print("localaudit:     neb parent %s, in tree %s, pos %s size %s" % [sky._neb.get_parent(), sky._neb.is_inside_tree(), sky._neb.position, sky._neb.size])
+					for u in ["t0", "t1", "t2", "p_sheets"]:
+						var tx: Variant = nm.get_shader_parameter(u)
+						if tx is Texture2D:
+							var im := (tx as Texture2D).get_image()
+							im.save_png("%s/%s_%s.png" % [dir, cname, u])
+							print("localaudit:     %s %s %s" % [u, im.get_size(), im.get_format()])
 			# THE BARE SKY AND THE DUST, filmed
 			var hid := _hide(view)
 			await _frames(2)
