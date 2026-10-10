@@ -52,6 +52,11 @@ func _run() -> void:
 	# and the reticle into the picture.
 	_chart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	await _baked(_chart)
+	if "sweep" in OS.get_cmdline_user_args():
+		await _sweep()
+		print("CHARTSHEET wrote %s" % ProjectSettings.globalize_path(out))
+		get_tree().quit()
+		return
 	await _shot("c00_default")
 
 	# ZOOM, minimum to maximum, on the core.
@@ -191,6 +196,37 @@ func _run() -> void:
 
 	print("CHARTSHEET wrote %s" % ProjectSettings.globalize_path(out))
 	get_tree().quit()
+
+
+## THE ZOOM SWEEP (`sweep`): every zoom the player can reach, not just the
+## wheel's notches, at five places -- the core, YOU, the first cloud that is not
+## dark, a point out in the arms and the rim -- `sweepn=` steps (default 25)
+## evenly spaced in log zoom from ZOOM_MIN to ZOOM_MAX, so the in-between values a
+## glide passes through are in it too. `s_<place>_<i>_<zoom>.png`, for finding
+## what goes wrong as you zoom: holes, seams, dust that thins or flattens.
+func _sweep() -> void:
+	var MC = StarchartScreen.MapChart
+	var n := 25
+	for a in OS.get_cmdline_user_args():
+		if (a as String).begins_with("sweepn="):
+			n = maxi(2, int((a as String).substr(7)))
+	var places: Array = [["core", Vector2.ZERO], ["ship", Run.node_at().gal]]
+	for raw in NebulaField.clouds():
+		var cl: NebulaField.Cloud = raw
+		if cl.kind != NebulaField.Kind.DARK:
+			places.append(["cloud", cl.pos])
+			break
+	places.append(["arm", Vector2(0.42, 0.18)])
+	places.append(["rim", Vector2(0.86, -0.1)])
+	# the sky alone: the marks are the chart's own drawing, not what is audited
+	if not "sweepmarks" in OS.get_cmdline_user_args():
+		_chart.show_icons = false
+		_chart.queue_redraw()
+	for pl: Array in places:
+		for i in n:
+			var z: float = MC.ZOOM_MIN * pow(MC.ZOOM_MAX / MC.ZOOM_MIN, float(i) / float(n - 1))
+			_chart._go_to(z, -_chart._proj_unit(pl[1]) * z, false)
+			await _shot("s_%s_%02d_%05.2f" % [pl[0], i, z])
 
 
 ## Until a chart's sky is baked, palette and all (a new galaxy's first open
