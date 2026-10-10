@@ -400,12 +400,16 @@ func refresh() -> void:
 		here_hint = "The fight you are in."
 	elif Router.docked:
 		here_hint = "The station you are docked at."
+	# THE TAB YOU ASKED FOR LIGHTS AT THE CLICK (`ZoomLadder.lit_rank`): on the
+	# one camera the screen changes hands in the middle of the move, and the
+	# tab flipping there was one more thing changing while the camera moved
+	var lit := ZoomLadder.lit_rank()
 	_state(_tab_sector,
-		Router.current is SectorScreen or Router.current is StationScreen or fighting,
+		lit == ZoomLadder.LOCAL or lit == ZoomLadder.STATION or fighting,
 		choose_lock, here_hint)
-	_state(_tab_system, Router.current is SystemMapScreen, lock,
+	_state(_tab_system, lit == ZoomLadder.MAP, lock,
 		"The star, what goes round it, and everything out here that wants you.")
-	_state(_tab_chart, Router.current is StarchartScreen, lock, "Where to go next.")
+	_state(_tab_chart, lit == ZoomLadder.CHART, lock, "Where to go next.")
 	_state(_tab_parts, Router.current is ModuleGalleryScreen, choose_lock,
 		"Every part in the game. Dev only.")
 	_state(_tab_cards, Router.current is CardGalleryScreen, choose_lock,

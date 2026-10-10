@@ -163,6 +163,7 @@ func _build() -> void:
 			regen.tooltip_text = "Not in a co-op session: the galaxy belongs to the whole party."
 		strip.add_child(regen)
 	root.add_child(strip)
+	_strip_row = strip
 
 	# --- chart | destination
 	var mid := HBoxContainer.new()
@@ -319,6 +320,7 @@ func _build() -> void:
 	for item in _legend_items():
 		key.add_child(item)
 	root.add_child(key)
+	_key_row = key
 
 	# THE VIEW THE PLAYER LEFT IT IN. The toggles above are static, so this is
 	# where a freshly built screen catches up with them -- painting the labels,
@@ -1298,7 +1300,9 @@ func ladder_meet(at: Vector2, _world: Dictionary) -> void:
 func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 	if ladder_ready():
 		# 1A, TONED DOWN: a short step in toward your star, not the closest zoom
-		var reach := 2.2 if seam == 1 and design == "A" else 0.0
+		# (and on a dive -- Tab to LOCAL -- a step of 3x, not the closest zoom,
+		# where the galaxy is a smear of blocks)
+		var reach := 2.2 if seam == 1 and design == "A" else (3.0 if seam == 0 else 0.0)
 		_chart.ladder_begin(Vector2.ZERO if _lad_meet == Vector2.INF else _lad_meet - _chart.get_global_rect().get_center(), reach)
 		_lad_meet = Vector2.INF
 		_side_x = _ladder_side.position.x if _ladder_side != null else NAN
@@ -1307,7 +1311,23 @@ func ladder_cam_begin(_other: int, seam: int, design: String) -> void:
 func ladder_cam(k: float) -> void:
 	if _chart != null:
 		_chart.ladder_at(k)
-	ZoomLadder.slide(_ladder_side, _side_x, k)
+
+
+## THE CHART'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
+## moves and comes back after it lands): the depth strip, the destination panel
+## (drifting a few pixels toward its edge), the key, the corner toggles, and
+## YOU and the scale bar drawn over the galaxy.
+var _strip_row: Control = null
+var _key_row: Control = null
+
+
+func ladder_chrome(k: float) -> void:
+	for c: CanvasItem in [_strip_row, _key_row, _region_btn, _reach_btn, _sight_btn]:
+		ZoomLadder.fade_chrome(c, k)
+	ZoomLadder.fade_chrome(_ladder_side, k, 24.0)
+	if _chart != null:
+		_chart.ui_a = 1.0 - k
+		_chart.queue_redraw()
 
 
 func ladder_spans() -> Vector2:
@@ -1324,8 +1344,8 @@ func ladder_split(f: float) -> void:
 func ladder_cam_end() -> void:
 	if _chart != null:
 		_chart.ladder_end()
-	ZoomLadder.slide(_ladder_side, _side_x, 0.0)
 	_side_x = NAN
+
 
 func _on_jump() -> void:
 	if _selected >= 0:
@@ -2776,6 +2796,9 @@ class MapChart extends Control:
 	## the closest zoom, the sky solved at every step as `glide_to` solves it.
 	var _lad := {}
 	var ladder_hush := false
+	## the chart's own words and instruments drawn over the galaxy (YOU, the
+	## scale bar), faded with the screen's UI (`StarchartScreen.ladder_chrome`)
+	var ui_a := 1.0
 
 	func ladder_begin(off: Vector2 = Vector2.ZERO, reach: float = 0.0) -> void:
 		if _glide != null and _glide.is_valid():
@@ -2804,10 +2827,6 @@ class MapChart extends Control:
 			pan = -f0 * z
 		var c0 := size * 0.5
 		sky_pan = c0 - (c0 - (_lad.s0 as Vector2)) * pow(z / maxf(z0, 0.0001), SKY_ZOOM_POWER) + (pan - (_lad.p0 as Vector2))
-		var hush := k > 0.25
-		if hush != ladder_hush:
-			ladder_hush = hush
-			queue_redraw()
 		_repaint_galaxy()
 
 	## How far the chart's own step travels (log scale), and the map's after it.
@@ -3146,7 +3165,9 @@ class MapChart extends Control:
 		# of question -- where am I, how big is this -- so they read as one
 		# instrument in the corner rather than two ornaments at opposite ends.
 		var x := size.x - BAR_PAD - w
-		var ink := UITheme.COLD
+		var ink := Color(UITheme.COLD, UITheme.COLD.a * ui_a)
+		if ui_a <= 0.01:
+			return
 		# A bar with end ticks, not a bare line: the ticks are what say where
 		# it starts and stops on a field of stars.
 		draw_line(Vector2(x, y), Vector2(x + w, y), ink, 1.0)
@@ -3828,8 +3849,10 @@ class MapChart extends Control:
 	func _draw_you(p: Vector2, tiny: bool) -> void:
 		# (not while the zoom ladder closes on your star: a label grown with the
 		# picture is a smear of letter-sized blocks)
-		if ladder_hush:
+		if ladder_hush or ui_a <= 0.01:
 			return
+		var flare := Color(UITheme.FLARE, UITheme.FLARE.a * ui_a)
+		var under := Color(_UNDER, _UNDER.a * ui_a)
 		# AND ITS BRACKETS ONLY WHERE THE GLYPH IS NOT DRAWING ANY. Zoomed out,
 		# a system is a two-pixel rect and `Glyph.draw_glyph` never runs -- so
 		# removing these outright to kill the double box took the ship's marker
@@ -3847,16 +3870,16 @@ class MapChart extends Control:
 				var dd: Vector2 = corner[1]
 				var h := Rect2(k + Vector2(0, -1 if dd.y < 0 else 0), Vector2(b * dd.x, 1)).abs()
 				var v := Rect2(k + Vector2(-1 if dd.x < 0 else 0, 0), Vector2(1, b * dd.y)).abs()
-				draw_rect(h.grow(1.0), _UNDER, true)
-				draw_rect(v.grow(1.0), _UNDER, true)
-				draw_rect(h, UITheme.FLARE, true)
-				draw_rect(v, UITheme.FLARE, true)
+				draw_rect(h.grow(1.0), under, true)
+				draw_rect(v.grow(1.0), under, true)
+				draw_rect(h, flare, true)
+				draw_rect(v, flare, true)
 		# the label on a rim of the void, so it reads over the bulge too
 		for off: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
 			draw_string(UITheme.pixel_font(), p + Vector2(-14, 30) + off, "YOU",
-				HORIZONTAL_ALIGNMENT_CENTER, 40, 8, _UNDER)
+				HORIZONTAL_ALIGNMENT_CENTER, 40, 8, under)
 		draw_string(UITheme.pixel_font(), p + Vector2(-14, 30), "YOU",
-			HORIZONTAL_ALIGNMENT_CENTER, 40, 8, UITheme.FLARE)
+			HORIZONTAL_ALIGNMENT_CENTER, 40, 8, flare)
 
 	## Build the galaxy once: arms, the wash between them, the tidal stream and
 	## the burning core, all as positions in galaxy space with their colours.

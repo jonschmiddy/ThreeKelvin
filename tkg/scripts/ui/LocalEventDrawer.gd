@@ -165,9 +165,28 @@ static func attach(on: Control, fighting: bool) -> LocalEventDrawer:
 		var want: Array = pending
 		pending = []
 		if not fighting and d.node != null and int(want[0]) == d.node.index:
-			d._fade_in()
-			d.open(int(want[1]))
+			# ON THE ONE CAMERA THE BAND IS UI: it lifts once the move down to
+			# LOCAL has landed, never while the camera is still moving (and with
+			# no dip to black: the move itself was the arrival)
+			d.deferred = want.duplicate()
+			# (what LOCAL composes its scene for -- the event's subject, its sky -- is
+			# this event from the first frame, as it was when the band opened at once)
+			last = [d.node.index, int(want[1])]
+			var go := func() -> void:
+				if is_instance_valid(d) and d.is_inside_tree() and not d.deferred.is_empty():
+					d.deferred = []
+					d.open(int(want[1]))
+			if not ZoomLadder.when_landed(go):
+				d.deferred = []
+				d._fade_in()
+				d.open(int(want[1]))
 	return d
+
+
+## An event asked for here, waiting for the move to land (`attach`): handed
+## back to `pending` if this LOCAL is thrown away unshown.
+var deferred: Array = []
+
 
 
 func _init() -> void:

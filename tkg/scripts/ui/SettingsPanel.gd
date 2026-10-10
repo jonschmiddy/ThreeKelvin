@@ -372,6 +372,18 @@ func _page_motion() -> void:
 			func(i: int) -> void:
 				ZoomLadder.save_setting("seam3_fade", ZoomLadder.FADES[i])
 				_refresh()))
+		# THE MOVES' TIMINGS, by feel (Jon, Oct 10: "fast and rushed"): every
+		# length a move is made of, a twentieth or a tenth of a second a press,
+		# and the code's own defaults back with one
+		_body.add_child(_gap(2))
+		_body.add_child(_line("MOVE TIMINGS", "SECONDS"))
+		for d: Array in ZoomLadder.DIALS:
+			_body.add_child(_row_dial(String(d[1]), String(d[0])))
+		_body.add_child(_row_chips("TIMINGS", ["DEFAULTS"], -1,
+			func(_i: int) -> void:
+				for d: Array in ZoomLadder.DIALS:
+					ZoomLadder.set_dial(String(d[0]), 0.0, true)
+				_refresh()))
 
 func _page_sound() -> void:
 	_body.add_child(Section.new(&"audio", "AUDIO"))
@@ -386,8 +398,37 @@ func _page_sound() -> void:
 		_body.add_child(gauge)
 		_body.add_child(_gap(3))
 
+## A dial (`ZoomLadder.DIALS`): its name, then - its value + on the right; the
+## value in ice when it is the code's own default and hot when it has been set.
+func _row_dial(label: String, key: String) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	var k := UITheme.body(label, UITheme.COLD, UITheme.FS_SMALL)
+	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	k.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(k)
+	var v := ZoomLadder.dial(key)
+	var step := 0.05 if key.begins_with("ui_") else 0.1
+	var row := _chips()
+	row.size_flags_horizontal = Control.SIZE_SHRINK_END
+	row.add_child(DrawerPlate.chip_for("-", false, func() -> void:
+		ZoomLadder.set_dial(key, ZoomLadder.dial(key) - step)
+		_refresh()))
+	var same := absf(v - ZoomLadder.dial_default(key)) < 0.001
+	var val := UITheme.body("%.2f" % v, UITheme.ICE if same else UITheme.HOT, UITheme.FS_SMALL)
+	val.custom_minimum_size = Vector2(34, 0)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	val.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(val)
+	row.add_child(DrawerPlate.chip_for("+", false, func() -> void:
+		ZoomLadder.set_dial(key, ZoomLadder.dial(key) + step)
+		_refresh()))
+	h.add_child(row)
+	return h
+
 ## A name on the left and its choices on the right, for the settings whose
 ## options are short enough to sit beside their label.
+
 
 func _row_chips(key: String, names: Array, picked: int, on_pick: Callable) -> Control:
 	var h := HBoxContainer.new()

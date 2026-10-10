@@ -12,6 +12,15 @@ extends Node
 ## `--fixed-fps 30` so does the game's, so the frames play at true speed at
 ## 30 fps however slowly the window drew. Prints, per clip, the frame the screens
 ## changed hands on (`swap`). Needs a window.
+##
+## `designs=picks` films each seam's default (Jon's picks: 1A, 2C, 3B) instead of
+## every letter. `post=N` keeps filming N frames after the move ends (default 8),
+## so the UI that arrives after it is on the film. `go` films GO on an event from
+## the map (`2C_go`, the ship already in orbit where it stands). `dive` films the
+## moves two distances long that Tab makes: the chart to LOCAL (`dive_chart_local`),
+## and docked, the berth to the map (`dive_station_map`) and the chart back to the
+## berth (`dive_chart_station`). `timing` writes no pictures: it logs every real
+## frame's length (run it WITHOUT --fixed-fps).
 
 const SVP := preload("res://scripts/ui/sysmap/SystemView.gd")
 var _tree: SceneTree
@@ -79,7 +88,9 @@ func _shown() -> void:
 
 ## Film `call` into <out>/<name>: `pre` frames before it, until the ladder is idle,
 ## then `post` more.
-func _film(name: String, call: Callable, pre: int = 6, post: int = 8) -> void:
+func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
+	if post < 0:
+		post = int(_arg("post", "8"))
 	var d := "%s/%s" % [_out, name]
 	DirAccess.make_dir_recursive_absolute(d)
 	var k := 0
@@ -100,7 +111,7 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = 8) -> void:
 	var worst := 0.0
 	var worst_at := -1
 	# (real time runs at hundreds of frames a second: room for the whole move)
-	for i in (3000 if timing else 420):
+	for i in (6000 if timing else 600):
 		await _shown()
 		var wn := _world_now(k)
 		if timing:
@@ -201,10 +212,10 @@ func _world_now(k: int) -> Dictionary:
 	if ZoomLadder.busy():
 		var L := ZoomLadder.active
 		out["phase"] = int(L.phase)
-		if L.phase >= ZoomLadder.Phase.WAIT:
+		if (L.phase == ZoomLadder.Phase.WAIT or L.phase == ZoomLadder.Phase.MOVE):
 			var tp: Vector2 = L._mat.get_shader_parameter(&"to_pt")
 			out["held_at"] = [tp.x, tp.y]
-		if L.phase >= ZoomLadder.Phase.WAIT and not L._old_world.is_empty():
+		if (L.phase == ZoomLadder.Phase.WAIT or L.phase == ZoomLadder.Phase.MOVE) and not L._old_world.is_empty():
 			var m: ShaderMaterial = L._mat
 			var fr: Vector2 = m.get_shader_parameter(&"from_pt")
 			var to: Vector2 = m.get_shader_parameter(&"to_pt")
@@ -275,7 +286,8 @@ func _run() -> void:
 	for s in ["1", "2"]:
 		if not s in seams:
 			continue
-		for d in designs:
+		for d0 in designs:
+			var d := String(ZoomLadder.DEFAULTS[int(s)]) if d0 == "picks" else d0
 			ZoomLadder.force_design = {int(s): d}
 			if s == "1":
 				if not Router.current is SystemMapScreen:
@@ -308,6 +320,62 @@ func _run() -> void:
 					await _frames(50)
 					await _film("2%s_out%s" % [d, sfx], Router.show_system)
 					await _frames(40)
+	# GO ON AN EVENT (the map's GO): the ship in orbit where the event stands,
+	# so the move is the zoom down alone, and the event's band after it
+	if "go" in _args:
+		ZoomLadder.force_design = {}
+		var pick := -1
+		var pb := -9
+		var gsys := -1
+		# (the first system, from here on, with an event on a world)
+		for j in Run.map.size():
+			var n0: MapGen.MapNode = Run.map[(sys + j) % Run.map.size()]
+			if n0.type == MapGen.NodeType.STATION:
+				continue
+			OptionTable.ensure(n0)
+			var lay0 := SystemLayout.of(n0)
+			for i in n0.options.size():
+				if n0.taken.has(i):
+					continue
+				var b := LocalEventDrawer.body_of(n0, i)
+				if b >= 0 and b < lay0.bodies.size() and lay0.bodies[b].world != &"" and lay0.bodies[b].kind != &"belt":
+					pick = i
+					pb = b
+					gsys = n0.index
+					break
+			if pick >= 0:
+				break
+		if pick >= 0:
+			ZoomLadder.force = 0
+			if Router.current is SystemMapScreen:
+				Router.show_local()
+				await _frames(60)
+			Run.at = gsys
+			Run.map[gsys].visited = true
+			SectorScreen._approached_at = gsys
+			SystemMapScreen._parked[gsys] = {"at": pb, "mode": &"rail"}
+			Router.show_system()
+			await _frames(120)
+			ZoomLadder.force = 1
+			var mp := Router.current as SystemMapScreen
+			if mp != null:
+				await _film("2C_go", func() -> void: mp.go_event(pick))
+				await _frames(60)
+				LocalEventDrawer.pending.clear()
+		else:
+			print("  [ladder] go: no event on a world here")
+	# THE CHART TO LOCAL (Tab from the chart): two distances, one dive
+	if "dive" in _args:
+		ZoomLadder.force_design = {}
+		ZoomLadder.force = 0
+		if not Router.current is SystemMapScreen:
+			Router.show_system()
+			await _frames(60)
+		Router.show_starchart()
+		await _frames(90)
+		ZoomLadder.force = 1
+		await _film("dive_chart_local", Router.show_local)
+		await _frames(60)
 	if "3" in seams:
 		var st := -1
 		for raw in Run.map:
@@ -325,7 +393,8 @@ func _run() -> void:
 			await _frames(120)
 			# (`fades=P,F,PF`: 3B's hand-off into the yard, each; named 3B_F_in etc.)
 			var fades := _arg("fades", "").split(",", false)
-			for d in designs:
+			for d0 in designs:
+				var d := String(ZoomLadder.DEFAULTS[3]) if d0 == "picks" else d0
 				ZoomLadder.force_design = {3: d}
 				for f in (fades if d == "B" and not fades.is_empty() else PackedStringArray([""])):
 					ZoomLadder.force_fade = f
@@ -335,6 +404,27 @@ func _run() -> void:
 					await _film("3%s%s_out" % [d, tag], func() -> void: Router.show_sector())
 					await _frames(60)
 				ZoomLadder.force_fade = ""
+			# (`dive`: docked, Tab from the berth to the map, and from the chart
+			# back to the berth -- two and three distances in one go)
+			if "dive" in _args:
+				ZoomLadder.force_design = {}
+				ZoomLadder.force = 0
+				if not Router.current is StationScreen:
+					Router.show_station()
+					await _frames(150)
+				ZoomLadder.force = 1
+				await _film("dive_station_map", Router.show_system)
+				await _frames(60)
+				ZoomLadder.force = 0
+				Router.show_starchart()
+				await _frames(90)
+				ZoomLadder.force = 1
+				await _film("dive_chart_station", Router.show_station)
+				await _frames(90)
+				ZoomLadder.force = 0
+				Router.show_sector()
+				await _frames(90)
+				ZoomLadder.force = 1
 			# (`wrecks`: LOCAL at the station with a fight's wrecks in it, and your
 			# ship's cutaway opened there: stills, to see the station's side with them)
 			if "wrecks" in _args:

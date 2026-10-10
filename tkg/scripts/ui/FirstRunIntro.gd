@@ -151,13 +151,18 @@ func _moving() -> bool:
 	return not DisplaySettings.reduced_motion
 
 
+## (on the game's clock, not the wall's: the same in play, and a film made a
+## frame at a time -- `sheet=IntroShot` at --fixed-fps -- holds each line as
+## long as a player reads it)
 func _wait(s: float) -> bool:
-	var end := Time.get_ticks_msec() + int(s * 1000.0)
-	while Time.get_ticks_msec() < end:
+	var t := 0.0
+	while t < s:
 		if _done or not is_inside_tree():
 			return false
 		await get_tree().process_frame
+		t += get_process_delta_time()
 	return not _done and is_inside_tree()
+
 
 
 func _say(i: int) -> void:
@@ -331,6 +336,10 @@ func _hold_primer(hold: bool) -> void:
 	if s is StarchartScreen:
 		var p: Control = s.get("_primer")
 		if p != null and is_instance_valid(p):
+			# (and in, not on: it came up whole in one frame as the tour ended)
+			if not hold and not p.visible and _moving():
+				p.modulate.a = 0.0
+				p.create_tween().tween_property(p, "modulate:a", 1.0, 0.35) 					.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 			p.visible = not hold
 
 

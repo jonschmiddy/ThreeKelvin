@@ -173,12 +173,15 @@ func _place_labels() -> void:
 ## THE WORDS HELD BACK while the zoom ladder is far from rest (`ZoomLadder`):
 ## a label magnified with the picture is a smear of letter-sized blocks.
 var hush_labels := false
+## and faded on their way out and back in (`SystemMapScreen.ladder_chrome`)
+var label_a := 1.0
 
 
 func _text(at: Vector2, s: String, c: Color) -> void:
-	if hush_labels:
+	if hush_labels or label_a <= 0.01:
 		return
-	draw_string(_font(), at.round(), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, c)
+	draw_string(_font(), at.round(), s, HORIZONTAL_ALIGNMENT_LEFT, -1, UITheme.FS_SMALL, Color(c, c.a * label_a))
+
 
 
 func _px(p: Vector2, c: Color) -> void:

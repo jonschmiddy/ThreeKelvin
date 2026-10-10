@@ -192,6 +192,7 @@ func _init() -> void:
 	bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_frame.add_child(bar)
+	_scale_bar = bar
 	_loc_btn = Widgets.button("", _on_location)
 	_loc_btn.add_theme_font_size_override("font_size", UITheme.FS_SMALL)
 	_loc_btn.add_theme_color_override("font_hover_color", UITheme.ICE)
@@ -225,6 +226,7 @@ func _init() -> void:
 		item.add_child(UITheme.body(k[1], UITheme.COLD, UITheme.FS_SMALL))
 		key.add_child(item)
 	root.add_child(key)
+	_key_row = key
 
 
 ## A beacon kind's colour: the drawer's tag colours, and the dock in ice.
@@ -1212,7 +1214,6 @@ func ladder_cam(k: float) -> void:
 		view.pan = want - (_frame.global_position + _box.position + Vector2(view.CX, view.CY)) \
 			- overlay.place_rel(int(_lad.body))
 	_zoom_to = z
-	overlay.hush_labels = k > 0.3
 	if not (_lad.get("aim", {}) as Dictionary).is_empty():
 		overlay.visible = k < 0.75
 		# and the faint fabric of space and the orbits, drawn over the worlds in
@@ -1222,7 +1223,6 @@ func ladder_cam(k: float) -> void:
 		for c: CanvasItem in [view._fabric, view._lines]:
 			if c != null:
 				c.modulate.a = fa
-	ZoomLadder.slide(panel.get_parent(), float(_lad.side), k)
 
 
 ## How far each half of a move travels, log scale: this screen's own zoom, and
@@ -1262,15 +1262,33 @@ func ladder_cam_end() -> void:
 	_lad_split = 0.0
 	overlay.visible = true
 	cam_held = false
-	overlay.hush_labels = false
-	if not _lad.is_empty():
-		ZoomLadder.slide(panel.get_parent(), float(_lad.side), 0.0)
 	_lad = {}
 	_zoom_to = view.zoom
 	_locked = false
 
 
+## THE MAP'S UI, k of the way gone (`ZoomLadder`: it leaves before the camera
+## moves and comes back after it lands, never during): the danger strip, the
+## panel (a few pixels out to the right as it goes), the key, the scale bar and
+## LOCATION, and the words over the worlds (a label magnified with the picture
+## is a smear of letter-sized blocks).
+var _key_row: Control = null
+var _scale_bar: Control = null
+
+
+func ladder_chrome(k: float) -> void:
+	for c: CanvasItem in [_strip, _key_row, _scale_bar, _loc_btn]:
+		ZoomLadder.fade_chrome(c, k)
+	if panel != null and is_instance_valid(panel):
+		ZoomLadder.fade_chrome(panel.get_parent(), k, 24.0)
+	if overlay != null:
+		overlay.label_a = 1.0 - k
+		overlay.hush_labels = k >= 0.999
+		overlay.queue_redraw()
+
+
 ## THE WORLD YOU ORBIT, GIVEN AWAY (2C): the map's own picture of it -- the node,
+
 ## its surface's memory and every value its shader was last given -- taken out of
 ## the map as it goes, for LOCAL to draw on (`LocalSky.adopt_near`). {} when the
 ## ship orbits nothing the map draws as a turning world.

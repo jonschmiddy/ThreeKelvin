@@ -46,6 +46,8 @@ uniform float edge = 0.0;
 // dither -- what Jon asked of the smoother moves -- instead of by the threshold
 uniform float soft = 0.0;
 uniform float sharp = 0.0;
+// SOFT's narrowest feather, px on screen (0: from nothing, as `t` grows)
+uniform float feather = 0.0;
 // a hole in the held picture (its own px: centre, radius; 0 for none) where
 // the live screen draws the same thing -- the world handed over in 2C
 uniform vec3 hole = vec3(0.0);
@@ -151,12 +153,19 @@ void fragment() {
 			vec2 lo = q - pic.xy;
 			vec2 hi = pic.xy + pic.zw - q;
 			float ep = min(min(lo.x, lo.y), min(hi.x, hi.y)) * scl.x;
-			if (t > 0.0) {
-				keep *= clamp(ep / (140.0 * t), 0.0, 1.0);
+			// (never narrower than `feather`: a picture made smaller must not
+			// show a hard edge on its first frames either)
+			float fw = max(140.0 * t, feather * min(t / 0.12, 1.0));
+			if (fw > 0.0) {
+				keep *= clamp(ep / fw, 0.0, 1.0);
 			}
 			COLOR = vec4(old_pic(q).rgb, smoothstep(0.0, 1.0, keep));
 		} else if (picture && keep > thr) {
 			COLOR = vec4(old_pic(q).rgb, 1.0);
+		} else if (!in_hole && !in_rect(p, pic) && !picture && soft > 0.5) {
+			// (round the picture, where the old screen's UI stood -- gone before
+			// the move, `ZoomLadder.ladder_chrome` -- an even fade, not a checker)
+			COLOR = vec4(old_at(p).rgb, 1.0 - smoothstep(0.0, 1.0, chrome_t));
 		} else if (!in_hole && !in_rect(p, pic) && !picture && (1.0 - chrome_t) > thr) {
 			COLOR = vec4(old_at(p).rgb, 1.0);
 		} else {
