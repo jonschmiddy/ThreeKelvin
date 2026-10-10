@@ -13,8 +13,8 @@
 //     no star pops and none ever goes: a coarser grid's stars stay where they
 //     were. The caller says how many (its own light there) and how bright.
 //   * crDetail: the gas's structure past the bake's resolution, octave by
-//     octave. An octave comes in once its wavelength spans 4 to 8 blocks and
-//     stays (nothing finer than four blocks, so the zoom never makes it
+//     octave. An octave comes in once its wavelength spans 5 to 10 blocks and
+//     stays (nothing finer than five blocks, so the zoom never makes it
 //     shimmer), and octaves only ever ADD: the value is never renormalised, so
 //     the broad shapes keep their contrast as the fine ones arrive.
 // Needs `chart_kit.gdshaderinc`.
@@ -70,7 +70,7 @@ float crDetail(vec2 p, float pxGu, float lam0, float seed) {
 	float s = 0.0, a = 0.5;
 	for (int i = 0; i < 5; i++) {
 		float lam = lam0 / exp2(float(i));
-		float w = smoothstep(4.0, 8.0, lam / pxGu);
+		float w = smoothstep(5.0, 10.0, lam / pxGu);
 		if (w <= 0.0) {
 			break;
 		}

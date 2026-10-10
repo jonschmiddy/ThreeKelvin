@@ -150,7 +150,7 @@ vec4 flowNoise(vec2 p, float la, out vec2 pa, out vec2 pb, out float w) {
 }
 // fine detail past the bake's resolution, fading in with zoom, streamed the same
 // way: from four of the noise bake's texels down (where its own detail runs
-// out, about zoom 1.4) to four blocks, octaves that only add (`crDetail`), so the
+// out, about zoom 1.7) to five blocks, octaves that only add (`crDetail`), so the
 // arms' gas keeps resolving into finer clumps and filaments as you zoom instead
 // of a magnified bake the palette cut into flat plates. `pxGu`: a block, gu.
 float fineDetail(vec2 pa, vec2 pb, float w, float pxGu) {
@@ -158,7 +158,7 @@ float fineDetail(vec2 pa, vec2 pb, float w, float pxGu) {
 	return 0.0;
 #else
 	const float LAM0 = 4.0 * 2.0 * 1.2 / 1024.0;
-	if (LAM0 / pxGu < 4.0) {
+	if (LAM0 / pxGu < 5.0) {
 		return 0.0;
 	}
 	float a = crDetail(pa, pxGu, LAM0, 3.7), b = crDetail(pb, pxGu, LAM0, 9.1);
@@ -190,16 +190,15 @@ float blockGu(float la) { return 2.0 / (u_zoom * u_k) * exp2(la); }
 // half a block in view px at zoom 1
 float hbOf(float la) { return 1.0 / u_zoom; }
 // THE DISC RESOLVES INTO ITS STARS as you zoom (`crStars`): as many as its own
-// light there `Em`, as bright, blue-white in the young arms and warm round the
+// smooth light there `L`, as bright, blue-white in the young arms and warm round the
 // bulge; the caller adds them where they sit, so dust in front dims them. Not
 // through the lens: a star read through it hops blocks as the zoom moves.
-vec3 resolvedStars(vec2 p, vec2 v, float hb, float la, vec3 Em, float r, int seed) {
+vec3 resolvedStars(vec2 p, vec2 v, float hb, float la, float L, float r, int seed) {
 	// (not in the palette's probes, which leave the stars out: the cut stays the gas's)
 	float sq = 1.0 - smoothstep(0.2, 0.8, la);
 	if (sq <= 0.0 || !u_stars_on) {
 		return vec3(0.0);
 	}
-	float L = kitLum(Em);
 	vec4 s = crStars(p, v, hb, u_phi, u_k, u_zoom, 0.016, clamp(L * 40.0, 0.0, 0.55), 211 + seed);
 	if (s.x < 0.5) {
 		return vec3(0.0);
@@ -458,7 +457,11 @@ void discAt(vec2 p, vec2 v, float hb, vec3 star, float la, out vec3 Em, out vec3
 	// the star-forming front just inside the ridge: hot pink, mottled
 	float pinkM = S.a * smoothstep(0.58, 0.84, N.a + mix(0.15, 0.25, RZ) * det) * smoothstep(0.08, 0.2, r) * clamp(u_gasAmt, 0.0, 1.0);
 	Em += Ia * pinkM * vec3(1.0, 0.24, 0.50) * 0.8;
-	Em += resolvedStars(p, v, hb, la, Em, r, 0);
+	// (how many and how bright from the disc's SMOOTH light -- its populations and
+	// the arm's glow, not the fine clumps: read with them, a star's light changed
+	// block by block as the zoom slid it along, and it twinkled on a glide)
+	float Ls = kitLum(Iw * warmsoft(vec3(1.0, 0.64, 0.32)) + Ib * discC) + Ia * (0.42 * pow(A, 1.3) + 0.45 * A * A) * 0.55;
+	Em += resolvedStars(p, v, hb, la, Ls, r, 0);
 	Em += star;
 	// the bulge's light falling on the inner disc's gas
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
@@ -990,7 +993,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		// close in, the bulge resolves into its own stars, so its diffuse light thins
 		// (and those stars are drawn: the light it loses comes back as them, warm,
 		// so the core does not go to a flat dim plate as you near the hole)
-		vec3 bStars = resolvedStars(p, v, hbOf(la), la, B * 0.6, 0.0, 1);
+		vec3 bStars = resolvedStars(p, v, hbOf(la), la, kitLum(B) * 0.6, 0.0, 1);
 		B *= mix(1.0, 0.10, smoothstep(2.4, 6.0, u_zoom));
 		float bm = 0.5 + 0.5 * fbm2F(p * 9.0 + vec2(2.7, 8.1), max(4.0 - la, 1.0));
 		// (and the mottle keeps resolving past its fourth octave as you near the core)
