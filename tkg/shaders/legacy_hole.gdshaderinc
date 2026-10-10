@@ -204,7 +204,7 @@ vec3 lh_hot(float t, float on) {
 // ------------------------------------------------------------------ the disc
 // heat (0..1.3) and density of the disc at its own plane point P (rs; x right,
 // y toward the viewer)
-vec2 lh_disc_shade(vec2 P, float r, float t, float clumps, vec3 hot) {
+vec2 lh_disc_shade(vec2 P, float r, float t, float clumps, vec3 hot, float detail) {
 	float tc = sqrt(max(1.0 - lh_tilt * lh_tilt, 0.0));
 	float psi = atan(P.y, P.x);
 	float dens = smoothstep(3.0, 3.5, r) * (1.0 - smoothstep(LH_OUT - 2.0, LH_OUT, r));
@@ -217,7 +217,7 @@ vec2 lh_disc_shade(vec2 P, float r, float t, float clumps, vec3 hot) {
 	float ang = psi + om * t;
 	float tex = lh_snoise3(vec3(cos(ang) * (1.2 + 0.3 * rc), sin(ang) * (1.2 + 0.3 * rc), ring * 1.73));
 	float fine = lh_snoise2(vec2(r * 9.0, ang * 3.0 + ring));
-	heat += 0.09 * tex + 0.05 * fine;
+	heat += (0.09 * tex + 0.05 * fine) * detail;
 	// Doppler: the side coming toward us burns hotter
 	float beta = sqrt(0.5 / max(r - 1.0, 0.05));
 	heat += 0.40 * beta * (-cos(psi)) * tc;
@@ -269,7 +269,11 @@ vec3 lh_sample(vec2 S, float t, float clumps, vec3 hot) {
 		float r = 1.0 / uu;
 		float sp = sin(ph), cp = cos(ph);
 		vec2 P = r * vec2(sp * ca, -lh_tilt * sp * sa + tc * cp);
-		vec2 hd = lh_disc_shade(P, r, t, clumps, hot);
+		// (the arc that went round is squeezed several times over across its width:
+		// the rings' streaks, at full strength, were finer than a block there and
+		// flickered as the zoom moved, the brightest flicker in every style's core;
+		// the arc keeps a third of them)
+		vec2 hd = lh_disc_shade(P, r, t, clumps, hot, k == 1 ? 0.35 : 1.0);
 		// the image that went round fades out at the photon ring (no line round
 		// the shadow) and is a cooler arc, two bands down: a hint of the lensing,
 		// not a second disc. Opaque, so it never blends to in-between colours.
