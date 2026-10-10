@@ -185,6 +185,8 @@ var _hold_frame := -1
 var _hold_ref := Vector2(INF, INF)
 var _hold_ref_z := -1.0
 var _hold_bad := false
+var _frame_pan := false
+var _frame_zoom := false
 ## Palettes being worked out on other threads: bucket -> task.
 var _tasks: Dictionary = {}
 ## Lookups being made on the GPU: bucket -> [viewport, frame, palette image].
@@ -1497,10 +1499,19 @@ func _push() -> void:
 		_hold_ref = _hold_b0
 		_hold_ref_z = _hold_z
 		_hold_bad = false
+		_frame_pan = false
+		_frame_zoom = false
 	_hold_bad = _hold_bad or resized
+	_frame_pan = _frame_pan or panned
+	_frame_zoom = _frame_zoom or zooming
+	# NOTHING HELD WHILE THE VIEW IS ONLY DRAGGED: a drag moves the galaxy rigidly,
+	# so there is no flicker to hold, and the far sky behind slides at its own
+	# depth -- held to the galaxy's shift its dim colours were dragged along with the
+	# galaxy and drew streaks across the halo the length of the drag
+	var dragging := _frame_pan and not _frame_zoom
 	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
-	var valid := _hold_ref.x != INF and not _hold_bad and not jump and (b0 - _hold_ref).length() < 8.0
+	var valid := _hold_ref.x != INF and not _hold_bad and not jump and not dragging and (b0 - _hold_ref).length() < 8.0
 	mp.set_shader_parameter("prev_shift", (b0 - _hold_ref) if valid else Vector2.ZERO)
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_hold_b0 = b0
