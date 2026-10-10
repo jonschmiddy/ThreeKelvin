@@ -181,6 +181,10 @@ var _last_pan := Vector2(INF, INF)
 var _hvp: SubViewport = null
 var _hold_b0 := Vector2(INF, INF)
 var _hold_z := -1.0
+var _hold_frame := -1
+var _hold_ref := Vector2(INF, INF)
+var _hold_ref_z := -1.0
+var _hold_bad := false
 ## Palettes being worked out on other threads: bucket -> task.
 var _tasks: Dictionary = {}
 ## Lookups being made on the GPU: bucket -> [viewport, frame, palette image].
@@ -1264,6 +1268,7 @@ func _runtime() -> void:
 		_hvp.add_child(copy)
 		_m_pal.set_shader_parameter("prev_tex", _hvp.get_texture())
 		_hold_b0 = Vector2(INF, INF)
+		_hold_frame = -1
 	_feed_points(_m_stars)
 	_stars.mesh = StarchartScreen.MapChart._quads(int(_pts.n_star) + int(_pts.n_core))
 	_stars.queue_redraw()
@@ -1390,13 +1395,17 @@ func _push() -> void:
 	# over from the screen's anchor to the galaxy centre's, and where the two
 	# differed by a pixel the whole picture jumped a pixel with nothing moving --
 	# a pop a second after every zoom. Held until the view is dragged, the jump
-	# lands inside a move.
+	# lands inside a move -- on its first frame (held while dragged, the grid stays
+	# on the screen and the galaxy slides under it, every block worked out afresh:
+	# the first second of every pan after a zoom shimmered).
 	var panned := chart.pan != _last_pan
 	_last_pan = chart.pan
 	if zooming:
 		_since_zoom = 0
-	elif panned or _since_zoom < 59:
-		_since_zoom = mini(_since_zoom + 1, 999)
+	elif panned:
+		_since_zoom = mini(maxi(_since_zoom, 59) + 1, 999)
+	elif _since_zoom < 59:
+		_since_zoom += 1
 	var zw := 1.0 if _since_zoom < 60 else maxf(0.0, 1.0 - float(_since_zoom - 59) * 0.5)
 	var ccon := cpix + (exact - cpix) * zw
 	if zw > 0.0 and not was_held:
@@ -1480,10 +1489,19 @@ func _push() -> void:
 	# where each block was last frame (the blocks are anchored to the galaxy, so a
 	# pan carries them through the viewport); nothing held across a resize, a jump
 	# of the view or before the first frame
-	var jump := _hold_z > 0.0 and absf(log(z / _hold_z)) > 0.03
+	# (against the last frame DRAWN: a moving view pushes twice a frame, and the
+	# second push would measure no shift at all -- see `ChartSky._push`)
+	var fd := Engine.get_process_frames()
+	if fd != _hold_frame:
+		_hold_frame = fd
+		_hold_ref = _hold_b0
+		_hold_ref_z = _hold_z
+		_hold_bad = false
+	_hold_bad = _hold_bad or resized
+	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
-	var valid := _hold_b0.x != INF and not resized and not jump and (b0 - _hold_b0).length() < 8.0
-	mp.set_shader_parameter("prev_shift", (b0 - _hold_b0) if valid else Vector2.ZERO)
+	var valid := _hold_ref.x != INF and not _hold_bad and not jump and (b0 - _hold_ref).length() < 8.0
+	mp.set_shader_parameter("prev_shift", (b0 - _hold_ref) if valid else Vector2.ZERO)
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))

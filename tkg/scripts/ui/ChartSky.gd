@@ -159,6 +159,11 @@ var _radiant_probe: Dictionary = {}
 ## The colour held (`chart_c_comp`'s `hyst`): where the blocks were anchored last frame.
 var _hold_b0 := Vector2(INF, INF)
 var _hold_z := -1.0
+## the same as they stood at the last frame drawn (see `_push`)
+var _hold_frame := -1
+var _hold_ref := Vector2(INF, INF)
+var _hold_ref_z := -1.0
+var _hold_bad := false
 ## the view's pan last frame: the zoom hold lets go when it moves
 var _last_pan := Vector2(INF, INF)
 ## How near (sRGB, 0-1) a block's light may stay to its last colour and keep it.
@@ -1232,6 +1237,8 @@ func _runtime() -> void:
 	# never cleared: the composite holds a block's colour from the frame before
 	_vp.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
 	_hold_b0 = Vector2(INF, INF)
+	_hold_ref = Vector2(INF, INF)
+	_hold_frame = -1
 	_m_comp = ShaderMaterial.new()
 	_m_comp.shader = COMP_SH
 	_m_comp.set_shader_parameter("place", _pvp.get_texture())
@@ -1587,8 +1594,15 @@ func _push() -> void:
 	_last_pan = chart.pan
 	if zooming:
 		_since_zoom = 0
-	elif panned or _since_zoom < 59:
-		_since_zoom = mini(_since_zoom + 1, 999)
+	elif panned:
+		# (let go on the FIRST frame of a drag, not after a second of dragging:
+		# held, the grid stays on the screen while the galaxy slides under it and
+		# every block is worked out afresh, and for the first second of every pan
+		# after a zoom the whole picture shimmered -- 9 to 19% of its pixels a
+		# frame that a rigid move would not change; Oct 10 polish)
+		_since_zoom = mini(maxi(_since_zoom, 59) + 1, 999)
+	elif _since_zoom < 59:
+		_since_zoom += 1
 	var zw := 1.0 if _since_zoom < 60 else maxf(0.0, 1.0 - float(_since_zoom - 59) * 0.5)
 	var ccon := cpix + (exact - cpix) * zw
 	if zw > 0.0 and not was_held:
@@ -1673,10 +1687,22 @@ func _push() -> void:
 	# the blocks' anchor moved by whole blocks on a pan: where each was last frame
 	# (not across a jump of the view: a block's colour from another place is no
 	# colour to hold)
-	var jump := _hold_z > 0.0 and absf(log(z / _hold_z)) > 0.03
+	# AGAINST THE LAST FRAME DRAWN, not the last push: a moving view pushes twice
+	# a frame (`_process`, then the chart's `queue_push`), and measured against the
+	# first push of the same frame the shift came out 0 -- each block was held to
+	# the colour of whatever stood there on the screen a frame before, so a pan
+	# dragged the colours with the screen instead of the galaxy (Oct 10 polish)
+	var fd := Engine.get_process_frames()
+	if fd != _hold_frame:
+		_hold_frame = fd
+		_hold_ref = _hold_b0
+		_hold_ref_z = _hold_z
+		_hold_bad = false
+	_hold_bad = _hold_bad or resized
+	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
-	var valid := _hold_b0.x != INF and not resized and _lut_on and not jump 		and (b0 - _hold_b0).length() < 8.0
-	mc.set_shader_parameter("prev_shift", (b0 - _hold_b0) if valid else Vector2.ZERO)
+	var valid := _hold_ref.x != INF and not _hold_bad and _lut_on and not jump 		and (b0 - _hold_ref).length() < 8.0
+	mc.set_shader_parameter("prev_shift", (b0 - _hold_ref) if valid else Vector2.ZERO)
 	mc.set_shader_parameter("hyst", hyst if valid else 0.0)
 	_hold_b0 = b0
 	mc.set_shader_parameter("dith", dith)
