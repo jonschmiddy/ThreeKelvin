@@ -184,6 +184,10 @@ var _hold_z := -1.0
 var _hold_frame := -1
 var _hold_ref := Vector2(INF, INF)
 var _hold_ref_z := -1.0
+var _hold_ref_c := Vector2.ZERO
+var _hold_ref_o := Vector2.ZERO
+var _hold_c_now := Vector2.ZERO
+var _hold_o_now := Vector2.ZERO
 var _hold_bad := false
 var _frame_pan := false
 var _frame_zoom := false
@@ -1497,6 +1501,8 @@ func _push() -> void:
 	if fd != _hold_frame:
 		_hold_frame = fd
 		_hold_ref = _hold_b0
+		_hold_ref_c = _hold_c_now
+		_hold_ref_o = _hold_o_now
 		_hold_ref_z = _hold_z
 		_hold_bad = false
 		_frame_pan = false
@@ -1511,8 +1517,15 @@ func _push() -> void:
 	var dragging := _frame_pan and not _frame_zoom
 	var jump := _hold_ref_z > 0.0 and absf(log(z / _hold_ref_z)) > 0.03
 	_hold_z = z
+	_hold_c_now = ccon
+	_hold_o_now = _vp_origin
 	var valid := _hold_ref.x != INF and not _hold_bad and not jump and not dragging and (b0 - _hold_ref).length() < 8.0
-	mp.set_shader_parameter("prev_shift", (b0 - _hold_ref) if valid else Vector2.ZERO)
+	# last frame's view, to find where each block's piece of the galaxy was drawn
+	mp.set_shader_parameter("cur_c", ccon)
+	mp.set_shader_parameter("cur_o", _vp_origin)
+	mp.set_shader_parameter("prev_c", _hold_ref_c)
+	mp.set_shader_parameter("prev_o", _hold_ref_o)
+	mp.set_shader_parameter("prev_k", (_hold_ref_z / z) if valid else 1.0)
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
