@@ -469,7 +469,7 @@ func show_sector() -> void:
 	# dealt with; the map would let you walk round it.
 	var held := Run.hellbender_alive() and Run.hellbender_at == Run.at
 	# UNDOCKING IS ONE DISTANCE OUT (`ZoomLadder`): the station's berth to LOCAL,
-	# beside the station, where DOCK takes you back in and the map is a scroll away
+	# beside the station, where DOCK takes you back in and the map is a Tab away
 	if docked and current is StationScreen and ZoomLadder.chosen():
 		show_local()
 		return

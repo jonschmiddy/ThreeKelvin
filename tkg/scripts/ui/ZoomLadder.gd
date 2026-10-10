@@ -111,9 +111,6 @@ static func herm(u: float, m0: float, m1: float) -> float:
 	var u2 := u * u
 	var u3 := u2 * u
 	return (u3 - 2.0 * u2 + u) * m0 + (-2.0 * u3 + 3.0 * u2) + (u3 - u2) * m1
-## the wheel past a screen's end: this many notches, this close together
-const OVERSCROLL_N := 2
-const OVERSCROLL_S := 0.7
 const SHADER := preload("res://shaders/zoom_ladder.gdshader")
 
 ## The move under way, if any.
@@ -142,9 +139,6 @@ static var force_design := {}
 static var _going := false
 static var _cfg_read := false
 static var _cfg := {}
-static var _over_n := 0
-static var _over_dir := 0
-static var _over_t := 0
 
 enum Phase { PRE, PRE_DONE, WAIT, MOVE }
 var phase: Phase = Phase.PRE
@@ -317,21 +311,11 @@ static func busy() -> bool:
 	return active != null and is_instance_valid(active)
 
 
-## THE WHEEL PAST THE END OF A SCREEN'S ZOOM: true on the notch that should take
-## the next distance. `dir` +1 in, -1 out.
-static func overscroll(dir: int) -> bool:
-	if not enabled() or busy():
-		return false
-	var now := Time.get_ticks_msec()
-	if dir != _over_dir or now - _over_t > int(OVERSCROLL_S * 1000.0):
-		_over_n = 0
-	_over_dir = dir
-	_over_t = now
-	_over_n += 1
-	if _over_n >= OVERSCROLL_N:
-		_over_n = 0
-		return true
-	return false
+## NO WHEEL BETWEEN DISTANCES (Jon, Oct 10: "having the scroll function to go
+## between them isn't intuitive for users and is kinda disruptive. Tab and
+## clicking the actual buttons works just fine"). The wheel zooms within the
+## chart and the map and stops at the end of each; Tab (`next_screen`) and the
+## HUD's tabs are the way from one distance to the next.
 
 
 ## A SIDE PANEL off the edge of the screen by k (0 where it stands, 1 gone right),

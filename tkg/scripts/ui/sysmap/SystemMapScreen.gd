@@ -640,14 +640,8 @@ func _clamp_pan() -> void:
 
 func _zoom_by(f: float, at: Vector2) -> void:
 	last_zoom_t = Time.get_ticks_msec() / 1000.0
-	# THE WHEEL PAST EITHER END IS THE NEXT DISTANCE (`ZoomLadder`): in past the
-	# closest zoom is LOCAL, out past the whole sector is the star chart
-	if f > 1.0 and _zoom_to >= view.ZOOM_MAX - 0.001 and ZoomLadder.overscroll(1):
-		Router.show_local()
-		return
-	if f < 1.0 and _zoom_to <= zoom_min + 0.001 and ZoomLadder.overscroll(-1):
-		Router.show_starchart()
-		return
+	# (the wheel stops at either end: LOCAL and the chart are Tab and the tabs,
+	# never the wheel -- `ZoomLadder`)
 	# a glide under way ends where it is, the wheel taking over
 	if not _glide.is_empty():
 		_glide = {}

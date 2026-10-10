@@ -617,9 +617,6 @@ func _build() -> void:
 	# changes whenever the band does — a bookend's drawer, a fight's hand, a
 	# cinematic's parked one. Asked again every time the view is re-laid out.
 	_view.resized.connect(_sync_bleed)
-	# THE WHEEL OUT PAST LOCAL IS THE SECTOR MAP, IN AT A STATION THE STATION
-	# (`ZoomLadder`)
-	_view.gui_input.connect(_on_view_wheel)
 	_build_self_plate()
 	_view.fx.landed.connect(_on_shot_landed)
 	# THE CUTAWAY: point at your own ship, out of a fight, and it is outlined in
@@ -2341,18 +2338,6 @@ func _on_own_ship_input(e: InputEvent) -> void:
 ## station.
 var _lad := {}
 var _lad_zs := 1.0
-
-
-func _on_view_wheel(e: InputEvent) -> void:
-	var mb := e as InputEventMouseButton
-	if mb == null or not mb.pressed or fighting() or _phase != Phase.NONE or _cutaway != null 			or _transfer != null:
-		return
-	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and ZoomLadder.overscroll(-1):
-		_view.accept_event()
-		_plot_next_jump()
-	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and Run.node_at() != null 			and Run.node_at().type == MapGen.NodeType.STATION and ZoomLadder.overscroll(1):
-		_view.accept_event()
-		Router.show_station()
 
 
 func ladder_ready() -> bool:

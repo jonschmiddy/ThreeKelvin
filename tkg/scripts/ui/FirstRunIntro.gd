@@ -9,7 +9,8 @@ extends Control
 ##      star system."
 ##   3. out to the star chart, the system shrinking to its star as the galaxy
 ##      eases in: "STARCHART. Reach the core at its heart."
-##   4. "Scroll or press Tab to zoom. Pick a star in range, then jump." -- and
+##   4. "Press Tab to zoom. Pick a star in range, then jump." (the key as bound,
+##      `next_screen`; the wheel no longer changes distance) -- and
 ##      control is handed back on the chart, where the FIRST SURVEY card follows,
 ##      as it follows the first chart today.
 ##
@@ -24,7 +25,7 @@ const LINES := [
 	["LOCAL.", "This is your ship."],
 	["SECTOR.", "This is your star system."],
 	["STARCHART.", "Reach the core at its heart."],
-	["", "Scroll or press Tab to zoom. Pick a star in range, then jump."],
+	["", "Press %s to zoom. Pick a star in range, then jump."],
 ]
 ## How long each line is read for, s
 const HOLD := [2.8, 2.8, 3.0, 3.8]
@@ -163,6 +164,8 @@ func _say(i: int) -> void:
 	_head.text = String(LINES[i][0])
 	_head.visible = _head.text != ""
 	_line.text = String(LINES[i][1])
+	if "%s" in _line.text:
+		_line.text = _line.text % Keys.describe(&"next_screen").capitalize()
 	if _moving():
 		var tw := create_tween()
 		tw.tween_property(_caption, "modulate:a", 1.0, 0.25).from(0.0)

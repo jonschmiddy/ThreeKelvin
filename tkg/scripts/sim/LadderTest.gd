@@ -8,8 +8,8 @@ extends Node
 ## half-built behind it (no ladder in the tree, the map's camera handed back,
 ## LOCAL's scene and sky at their own size, the bar back, the hull shown); a key
 ## pressed mid-move ends it at once and the screen takes input after; the wheel
-## past either end of the map, the chart's closest zoom and LOCAL steps a
-## distance; LOCAL's DOCK at a station docks, UNDOCK lands on LOCAL; the
+## past either end of the map, the chart's closest zoom and LOCAL stays put (Tab
+## and the tabs are the way between distances, never the wheel); LOCAL's DOCK at a station docks, UNDOCK lands on LOCAL; the
 ## defaults are Jon's picks (1A, 2C, 3B), and 3B's dock flies the yard's hull in
 ## from the left with the elevator out of the picture until it has settled, its
 ## undock the elevator out first and the hull away to the left; a fight
@@ -582,15 +582,27 @@ func _run() -> void:
 		m.view.zoom = m.zoom_min
 		await _frames(2)
 
-	# 3. the wheel past the ends
+	# 3. THE WHEEL STOPS AT EACH SCREEN'S END (Jon, Oct 10: the wheel between
+	# distances "isn't intuitive ... and is kinda disruptive"): notch after notch
+	# past either end of the map, the chart's closest zoom and LOCAL, and the
+	# screen stays where it is; Tab and the tabs are the way between them
 	if m != null:
 		m._zoom_to = m.zoom_min
-		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		_ok("one notch out past the sector is not yet the chart", Router.current == m)
-		m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		await _idle()
-		_ok("the second is (the chart)", Router.current is StarchartScreen)
-		_clean("wheel out")
+		for i in 4:
+			m._zoom_by(1.0 / SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
+		await _frames(3)
+		_ok("the wheel out past the whole sector stays on the map", Router.current == m and not ZoomLadder.busy())
+		_ok("and the map's zoom stops at its fit", absf(m._zoom_to - m.zoom_min) < 0.001)
+		m._zoom_to = m.view.ZOOM_MAX
+		for i in 4:
+			m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
+		await _frames(3)
+		_ok("the wheel in past the map's closest zoom stays on the map", Router.current == m and not ZoomLadder.busy())
+		_ok("and the map's zoom stops at its closest", absf(m._zoom_to - m.view.ZOOM_MAX) < 0.001)
+		m._zoom_to = m.zoom_min
+		m.view.zoom = m.zoom_min
+		await _frames(2)
+	await _go("the chart (for the wheel)", Router.show_starchart, StarchartScreen)
 	var ch := Router.current as StarchartScreen
 	if ch != null:
 		ch._chart.zoom = StarchartScreen.MapChart.ZOOM_MAX
@@ -598,29 +610,23 @@ func _run() -> void:
 		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 		wheel.pressed = true
 		wheel.position = ch._chart.size * 0.5
-		ch._chart._gui_input(wheel)
-		ch._chart._gui_input(wheel)
-		await _idle()
-		_ok("the wheel in past the chart's closest zoom is the map", Router.current is SystemMapScreen)
-		_clean("wheel in (chart)")
-	m = Router.current as SystemMapScreen
-	if m != null:
-		m._zoom_to = m.view.ZOOM_MAX
-		m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		m._zoom_by(SystemMapScreen.ZOOM_STEP, Vector2(480, 270))
-		await _idle()
-		_ok("the wheel in past the map's closest zoom is LOCAL", Router.current is SectorScreen)
-		_clean("wheel in (map)")
+		for i in 4:
+			ch._chart._gui_input(wheel)
+		await _frames(3)
+		_ok("the wheel in past the chart's closest zoom stays on the chart", Router.current == ch and not ZoomLadder.busy())
+	await _go("LOCAL (for the wheel)", Router.show_local, SectorScreen)
 	var loc := Router.current as SectorScreen
 	if loc != null:
-		var down := InputEventMouseButton.new()
-		down.button_index = MOUSE_BUTTON_WHEEL_DOWN
-		down.pressed = true
-		loc._on_view_wheel(down)
-		loc._on_view_wheel(down)
-		await _idle()
-		_ok("the wheel out on LOCAL is the map", Router.current is SystemMapScreen)
-		_clean("wheel out (LOCAL)")
+		for b in [MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_UP]:
+			var ev := InputEventMouseButton.new()
+			ev.button_index = b
+			ev.pressed = true
+			ev.position = loc._view.size * 0.5
+			for i in 4:
+				loc._view.gui_input.emit(ev)
+		await _frames(3)
+		_ok("the wheel on LOCAL stays on LOCAL", Router.current == loc and not ZoomLadder.busy())
+	await _go("back to the map", Router.show_system, SystemMapScreen)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()

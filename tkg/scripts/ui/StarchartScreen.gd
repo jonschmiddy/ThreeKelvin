@@ -2691,10 +2691,6 @@ class MapChart extends Control:
 			match mb.button_index:
 				MOUSE_BUTTON_WHEEL_UP:
 					if mb.pressed:
-						# IN PAST THE CLOSEST ZOOM IS YOUR SYSTEM (`ZoomLadder`)
-						if zoom >= ZOOM_MAX - 0.001 and ZoomLadder.overscroll(1):
-							Router.show_system()
-							return
 						_zoom_at(mb.position, ZOOM_STEP)
 				MOUSE_BUTTON_WHEEL_DOWN:
 					if mb.pressed:
