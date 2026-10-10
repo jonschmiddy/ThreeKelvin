@@ -19,6 +19,7 @@
 // the same picture at the same scale on screen.
 
 #include "res://shaders/chart_kit.gdshaderinc"
+#include "res://shaders/chart_resolve.gdshaderinc"
 #include "res://shaders/legacy_hole.gdshaderinc"
 #include "res://shaders/chart_bg.gdshaderinc"
 
@@ -147,8 +148,31 @@ vec4 flowNoise(vec2 p, float la, out vec2 pa, out vec2 pb, out float w) {
 	return clamp(NMID + ((a - NMID) * (1.0 - w) + (b - NMID) * w) * nrm, 0.0, 1.0);
 #endif
 }
-// fine detail past the bake's resolution, fading in with zoom, streamed the same way
-float fineDetail(vec2 pa, vec2 pb, float w) {
+// fine detail past the bake's resolution, fading in with zoom, streamed the same
+// way: from four of the noise bake's texels down (where its own detail runs
+// out, about zoom 1.7) to five blocks, octaves that only add (`crDetail`), so the
+// arms' gas keeps resolving into finer clumps and filaments as you zoom instead
+// of a magnified bake the palette cut into flat plates. `pxGu`: a block, gu.
+float fineDetail(vec2 pa, vec2 pb, float w, float pxGu) {
+#if LOW
+	return 0.0;
+#else
+	const float LAM0 = 4.0 * 2.0 * 1.2 / 1024.0;
+	if (LAM0 / pxGu < 5.0) {
+		return 0.0;
+	}
+	float a = crDetail(pa, pxGu, LAM0, 3.7), b = crDetail(pb, pxGu, LAM0, 9.1);
+	float nrm = inversesqrt((1.0 - w) * (1.0 - w) + w * w);
+	return (a * (1.0 - w) + b * w) * nrm;
+#endif
+}
+// THE PALETTE'S PROBES SEE THE CHART AS IT WAS: they are rendered with the stars
+// off (`ChartSky._queue_probes`), and so is all of the resolving detail, and the
+// palette cut from them is the one Jon approved. The detail only lands on its
+// colours. 1 in a frame, 0 in a probe.
+float resolveOn() { return u_stars_on ? 1.0 : 0.0; }
+// the fine detail as the probes always had it (fbm octaves of 1/220 gu from zoom 2.8)
+float fineDetailProbe(vec2 pa, vec2 pb, float w) {
 #if LOW
 	return 0.0;
 #else
@@ -160,6 +184,29 @@ float fineDetail(vec2 pa, vec2 pb, float w) {
 	float nrm = inversesqrt((1.0 - w) * (1.0 - w) + w * w);
 	return (a * (1.0 - w) + b * w) * nrm * clamp(o, 0.0, 1.0);
 #endif
+}
+// a block, in gu, read `la` mip levels coarser through the lens
+float blockGu(float la) { return 2.0 / (u_zoom * u_k) * exp2(la); }
+// half a block in view px at zoom 1
+float hbOf(float la) { return 1.0 / u_zoom; }
+// THE DISC RESOLVES INTO ITS STARS as you zoom (`crStars`): as many as its own
+// smooth light there `L`, as bright, blue-white in the young arms and warm round the
+// bulge; the caller adds them where they sit, so dust in front dims them. Not
+// through the lens: a star read through it hops blocks as the zoom moves.
+vec3 resolvedStars(vec2 p, vec2 v, float hb, float la, float L, float r, int seed) {
+	// (not in the palette's probes, which leave the stars out: the cut stays the gas's)
+	float sq = 1.0 - smoothstep(0.2, 0.8, la);
+	if (sq <= 0.0 || !u_stars_on) {
+		return vec3(0.0);
+	}
+	vec4 s = crStars(p, v, hb, u_phi, u_k, u_zoom, 0.016, clamp(L * 40.0, 0.0, 0.55), 211 + seed);
+	if (s.x < 0.5) {
+		return vec3(0.0);
+	}
+	float warm = max(1.0 - smoothstep(0.10, 0.35, r), 1.0 - u_young);
+	vec3 tint = mix(kitStarTint(0.55 + 0.45 * s.z), kitStarTint(0.15 + 0.45 * s.z), warm);
+	// (all of it scaled by the grid's fade, which is in s.y: a star comes up from nothing)
+	return tint * s.y * (L * (3.0 + 14.0 * s.y * s.y) + 0.02 * s.y) * sq;
 }
 
 // ------------------------------------------------------------------ the sky behind
@@ -354,6 +401,12 @@ vec3 tailLight(vec2 p) {
 // dust, the gas there (for clouds to light) and the arm ridge A; `dust` and
 // `nest` are the nuclear dust's density and the dust nest round the hole.
 float nestZ() { return smoothstep(1.2, 3.6, u_zoom); }
+// THE NUCLEUS'S LANES AND ITS INNER BILLOWS AS YOU NEAR THE HOLE: they used to go
+// altogether between zoom 3 and 5, and the gas round the hole went to one flat
+// brown plate as you zoomed in (Jon: "dust disappearing"). Now they thin only
+// a little, late, so the hole still reads; the palette's probes keep the old
+// fade (`resolveOn`), so the cut colours are the approved ones.
+float nucFade() { return mix(1.0 - smoothstep(3.0, 5.0, u_zoom), 1.0 - 0.55 * smoothstep(4.0, 6.0, u_zoom), resolveOn()); }
 float nucLanes(vec2 p, float r, float n) {
 	float arms = u_armModel.x;
 	if (arms < 0.5) {
@@ -367,18 +420,19 @@ float nucLanes(vec2 p, float r, float n) {
 	lane *= 0.35 + 0.9 * smoothstep(0.30, 0.70, n);
 	return lane;
 }
-void discAt(vec2 p, vec3 star, float la, out vec3 Em, out vec3 T, out float gas, out float A, out float dust, out float nest) {
+void discAt(vec2 p, vec2 v, float hb, vec3 star, float la, out vec3 Em, out vec3 T, out float gas, out float A, out float dust, out float nest) {
 	float r = length(p);
 	vec4 S = structAtL(p, la);
 	vec2 pa, pb;
 	float w;
 	vec4 N = flowNoise(p, la, pa, pb, w);
 	// (past a squeeze of two the fine octaves only alias)
-	float det = fineDetail(pa, pb, w) * (1.0 - smoothstep(0.5, 1.5, la));
+	float RZ = resolveOn();
+	float det = (RZ > 0.5 ? fineDetail(pa, pb, w, blockGu(la)) : fineDetailProbe(pa, pb, w)) * (1.0 - smoothstep(0.5, 1.5, la));
 	A = S.r;
 	float taper = 1.0 - smoothstep(0.58, 1.3, r);
 	float seg = 0.32 + 1.15 * smoothstep(0.15, 0.85, kitVnoise2(p * 2.4 + 5.0));
-	float clump = clamp(N.r + 0.12 * det, 0.0, 1.0);
+	float clump = clamp(N.r + mix(0.12, 0.45, RZ) * det, 0.0, 1.0);
 	float cl = smoothstep(0.24, 0.84, clump);
 	// two populations: old warm stars round the bulge, and the disc, which starts
 	// where the warm light has faded; a gas-poor disc is old all the way out
@@ -390,7 +444,8 @@ void discAt(vec2 p, vec3 star, float la, out vec3 Em, out vec3 T, out float gas,
 	// the arms: a smooth glow, and star clouds that bunch into distinct blobs
 	float Ia = 1.15 * exp(-r / 0.34) * taper * u_armGain * seg;
 	float blobs = smoothstep(0.52, 0.76, clump);
-	float glow = pow(A, 1.3) * 0.42;
+	// (the glow takes the fine detail too: up close the arm's light is mottled, not a smooth sheet)
+	float glow = pow(A, 1.3) * 0.42 * max(1.0 + 0.9 * RZ * det, 0.15);
 	float clouds = A * A * (0.20 * cl + 1.3 * blobs);
 	vec3 cA = mix(vec3(0.28, 0.52, 1.0), vec3(0.70, 0.86, 1.0), smoothstep(0.5, 1.3, clouds));
 	vec3 warm = vec3(1.0, 0.70, 0.40);
@@ -400,8 +455,13 @@ void discAt(vec2 p, vec3 star, float la, out vec3 Em, out vec3 T, out float gas,
 	// feathers between the arms, only near them
 	Em += Ia * 0.05 * (1.0 - A) * smoothstep(0.1, 0.5, A) * cl * mix(warm * 0.6, vec3(0.26, 0.42, 1.0), u_young);
 	// the star-forming front just inside the ridge: hot pink, mottled
-	float pinkM = S.a * smoothstep(0.58, 0.84, N.a + 0.15 * det) * smoothstep(0.08, 0.2, r) * clamp(u_gasAmt, 0.0, 1.0);
+	float pinkM = S.a * smoothstep(0.58, 0.84, N.a + mix(0.15, 0.25, RZ) * det) * smoothstep(0.08, 0.2, r) * clamp(u_gasAmt, 0.0, 1.0);
 	Em += Ia * pinkM * vec3(1.0, 0.24, 0.50) * 0.8;
+	// (how many and how bright from the disc's SMOOTH light -- its populations and
+	// the arm's glow, not the fine clumps: read with them, a star's light changed
+	// block by block as the zoom slid it along, and it twinkled on a glide)
+	float Ls = kitLum(Iw * warmsoft(vec3(1.0, 0.64, 0.32)) + Ib * discC) + Ia * (0.42 * pow(A, 1.3) + 0.45 * A * A) * 0.55;
+	Em += resolvedStars(p, v, hb, la, Ls, r, 0);
 	Em += star;
 	// the bulge's light falling on the inner disc's gas
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
@@ -409,7 +469,7 @@ void discAt(vec2 p, vec3 star, float la, out vec3 Em, out vec3 T, out float gas,
 	Em += irr * gas * LITDUST * 0.025;
 	// dust: lanes on the arms' inner edges, broken by filaments; spurs across the
 	// gaps; in the nucleus a dense flocculent nest. Thin in the disc: never murk.
-	float fil = clamp(N.g + 0.45 * det * smoothstep(0.06, 0.12, r), 0.0, 1.0);
+	float fil = clamp(N.g + mix(0.45, 0.7, RZ) * det * smoothstep(0.06, 0.12, r), 0.0, 1.0);
 	float wn = 1.0 - smoothstep(0.08, 0.13, r);
 	float tauArm = S.g * u_laneStr * (0.15 + 1.9 * smoothstep(0.22, 0.62, fil)) * (0.6 + 0.6 * seg) * 1.6;
 	float nucK = clamp(u_laneStr, 0.0, 1.0);
@@ -418,7 +478,7 @@ void discAt(vec2 p, vec3 star, float la, out vec3 Em, out vec3 T, out float gas,
 	dust = clamp(tau / 3.0, 0.0, 1.0) * wn;
 	nest = (1.0 - smoothstep(0.016, 0.07, r)) * (0.55 + 0.45 * smoothstep(0.35, 0.85, S.g)) * nestZ() * nucK;
 	tau += (1.0 - A) * smoothstep(0.55, 0.9, fil) * 0.6 * smoothstep(0.1, 0.3, r) * taper * clamp(u_laneStr, 0.0, 1.0);
-	tau += 3.6 * nucLanes(p, r, N.g) * (1.0 - smoothstep(3.0, 5.0, u_zoom)) * nucK;
+	tau += 3.6 * nucLanes(p, r, N.g) * nucFade() * nucK;
 	tau = min(tau, 7.0);
 	T = exp(-tau * mix(vec3(0.55, 0.80, 1.0), vec3(0.62, 0.84, 1.0), wn));
 	Em *= mix(vec3(1.0), T, 0.92) * exp(-1.8 * nest);
@@ -695,7 +755,7 @@ float colTop(vec2 p, float Hmax, out float pink) {
 	vec4 S = structAt(p);
 	float base = S.r * smoothstep(0.06, 0.2, r) * (1.0 - smoothstep(0.72, 1.05, r));
 	float innerB = smoothstep(0.075, 0.115, r) * (1.0 - smoothstep(0.18, 0.28, r)) * u_armModel.x / max(u_armModel.x, 1.0)
-		* (1.0 - smoothstep(3.0, 5.0, u_zoom));
+		* nucFade();
 	base = max(base, innerB * (0.75 + 0.45 * S.r));
 	float om = flowOm(r);
 	float tt = u_time * u_drift + 20.0 * kitVnoise2(p * 2.5 + 3.3);
@@ -790,6 +850,12 @@ void billowLayer(vec2 v, ivec2 dq, inout vec3 C) {
 			+ pk * Ia * vec3(1.0, 0.26, 0.52) * 0.5 * clamp(u_gasAmt, 0.0, 1.0) * (1.0 - warmW);
 		// (no star-forming pink in the gold-lit billows round the bulge: mixed
 		// into the gold it quantised to a pale rose plate beside the hole)
+		// up close the lit slopes break into finer swells and shadows (on the light,
+		// not on the height: detail in the height field, sampled a step at a time
+		// down the ray, drew stripes along it)
+		if (u_stars_on) {
+			col *= max(1.0 + 0.45 * crDetail(p, blockGu(0.0), 0.012, 21.0), 0.3);
+		}
 		float a = 1.0 - exp(-rho * 42.0 * dh * KIT_RAY_LEN);
 		acc += Tr * a * col;
 		Tr *= 1.0 - a;
@@ -816,7 +882,8 @@ void wispLayer(vec2 v, float la, inout vec3 C) {
 	// in read as detail lost, Jon)
 	float fade = mix(1.0, 0.75, smoothstep(3.0, 6.0, u_zoom));
 	vec2 pw = kitRot(0.9 + u_time * 0.00012 * u_drift) * p * 0.85;
-	float f = noiseRawLA(pw, la).g;
+	// (and they resolve into finer strands as you near them)
+	float f = noiseRawLA(pw, la).g + (u_stars_on ? 0.14 * crDetail(pw, blockGu(la) * 0.85, 0.02, 7.0) : 0.0);
 	float m = smoothstep(0.45, 0.85, f) * (1.0 - smoothstep(0.45, 0.95, r)) * smoothstep(0.14, 0.32, r) * min(u_gasAmt, 1.5);
 	if (m < 0.003) {
 		return;
@@ -914,7 +981,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		underSheet(v, la, C);
 		vec3 Em;
 		float A, dust;
-		discAt(p, star, la, Em, T, gas, A, dust, nest);
+		discAt(p, v, hbOf(la), star, la, Em, T, gas, A, dust, nest);
 		dustOut = dust;
 		float Ib;
 		B = bulgeLight(v, front, Ib);
@@ -924,9 +991,14 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		float nv = (1.0 - smoothstep(0.010, 0.075, sv)) * nestZ() * clamp(u_laneStr, 0.0, 1.0);
 		B *= exp(-4.2 * nv * (0.5 + 0.5 * clamp(nest * 1.6, 0.0, 1.0)) * vec3(0.85, 0.95, 1.0));
 		// close in, the bulge resolves into its own stars, so its diffuse light thins
+		// (and those stars are drawn: the light it loses comes back as them, warm,
+		// so the core does not go to a flat dim plate as you near the hole)
+		vec3 bStars = resolvedStars(p, v, hbOf(la), la, kitLum(B) * 0.6, 0.0, 1);
 		B *= mix(1.0, 0.10, smoothstep(2.4, 6.0, u_zoom));
 		float bm = 0.5 + 0.5 * fbm2F(p * 9.0 + vec2(2.7, 8.1), max(4.0 - la, 1.0));
-		B *= mix(1.0, 0.62 + 0.76 * bm, smoothstep(0.03, 0.10, sv));
+		// (and the mottle keeps resolving past its fourth octave as you near the core)
+		bm += u_stars_on ? 0.4 * crDetail(p, blockGu(la), 0.012, 13.0) : 0.0;
+		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
 		Em += knots(p);
 		// the supernova's light echo: a ring sweeping out through the gas and dust
@@ -937,6 +1009,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 			Em += FLARE * u_echo.w * ring * (0.15 + 0.8 * gas + 2.6 * dd) * 0.5;
 		}
 		C = C * T + Em;
+		C += bStars * mix(T, vec3(1.0), front);
 	}
 	vec3 cloudT = vec3(1.0);
 	cloudLayer(v, irr, gas, C, cloudT);

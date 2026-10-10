@@ -252,7 +252,11 @@ func _clip() -> void:
 	if _arg("turn") == "title":
 		_chart.turn_speed = LauncherScreen.TITLE_TURN
 	if _arg("panclip") != "":
-		# a slow pan: 12 view px over the frames (`panpx=`), as a drag would move it
+		# a slow pan: 12 view px over the frames (`panpx=`), as a drag would move it,
+		# at the clip view's zoom (it used to pan at whatever zoom the chart opened on)
+		_view(z0, at)
+		for _i in 6:
+			await RenderingServer.frame_post_draw
 		var pp := float(_arg("panpx", "12"))
 		var n3 := int(_arg("clipframes", "61"))
 		for i in n3:

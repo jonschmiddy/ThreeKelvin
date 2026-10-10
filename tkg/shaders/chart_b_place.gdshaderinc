@@ -247,13 +247,24 @@ void billows(vec2 g0, vec2 dg, float tt, out Puff p1) {
 		}
 	}
 }
-float massTab(vec2 g) {
-	ivec2 c = ivec2(floor((g - u_puffP.zw) / u_puffP.y));
-	int N = int(u_puffP.x);
+// the billows' mass round g, eased between the table's cells: read one cell at a
+// time it was a step at every cell edge, and the shade it sets drew straight
+// lines and square corners across the arms up close (a cell is 0.02 gu, a
+// third of the screen at zoom 6)
+float massCell(ivec2 c, int N) {
 	if (c.x < 0 || c.y < 0 || c.x >= N || c.y >= N) {
 		return 0.0;
 	}
 	return texelFetch(u_puffB, c, 0).y;
+}
+float massTab(vec2 g) {
+	vec2 f = (g - u_puffP.zw) / u_puffP.y - 0.5;
+	ivec2 c = ivec2(floor(f));
+	vec2 t = f - vec2(c);
+	t = t * t * (3.0 - 2.0 * t);
+	int N = int(u_puffP.x);
+	return mix(mix(massCell(c, N), massCell(c + ivec2(1, 0), N), t.x),
+		mix(massCell(c + ivec2(0, 1), N), massCell(c + ivec2(1, 1), N), t.x), t.y);
 }
 Cand shadePuff(Puff p, vec2 dg, out float alpha) {
 	vec2 toCore = -normalize(p.P.xy);
@@ -916,7 +927,9 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		float lc = (0.86 + 0.2 * kitSnoise2(vec2(al * 0.5, 7.0))) * wp + 0.3 * lw;
 		float brk = smoothstep(0.3, 0.46, kitVnoise2(vec2(al * 1.4, 11.0)));
 		float dd = abs(dp - lc) / lw;
-		float fe = flowFbm(g, 60.0, vec2(0.0), blk, 3);
+		// (octaves past the third come in only as the zoom resolves them: up close the
+		// lanes' edges and the arms' clumps keep breaking up instead of flattening)
+		float fe = flowFbm(g, 60.0, vec2(0.0), blk, low ? 3 : 5);
 		float win = brk * u_g1.z * smoothstep(0.03, 0.065, r) * smoothstep(0.72, 0.5, r);
 		// no lanes inside a bar: there every ridge is the bar's straight line, and the
 		// lane rule would lay the whole bar zone down as one dust plate
@@ -931,8 +944,8 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	if (!ellip) {
 		float env = 0.42 * exp(-r / 0.28) + 0.022 * exp(-r / 0.75);
 		float taper = smoothstep(1.2, 0.78, r + 0.10 * fbmL(g * 4.0, blk * 4.0, low ? 2 : 5) - 0.12 * prof);
-		float clump = flowFbm(g, 11.0, vec2(5.0), blk, low ? 2 : 4);
-		float fine = low ? 0.0 : flowFbm(g, 46.0, vec2(9.0), blk, 3);
+		float clump = flowFbm(g, 11.0, vec2(5.0), blk, low ? 2 : 6);
+		float fine = low ? 0.0 : flowFbm(g, 46.0, vec2(9.0), blk, 5);
 		float inner = 0.25 + 0.75 * smoothstep(0.04, 0.24, r);
 		float Sx = prof * smoothstep(0.26, 0.07, r) * smoothstep(0.0, 0.025, r);
 		float clumpS = fbmL(g * 11.0 + 5.0, blk * 11.0, 2);
@@ -1178,6 +1191,19 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 			Cand st = cand(M_STAR, 0.1 + 0.45 * ds.w * ds.w, 0, 0.0);
 			if (st.y > sc.y + 0.03) {
 				sc = st;
+			}
+		}
+		// and a finer field deeper in, so the arm keeps resolving into stars to the
+		// closest zoom (the one above spreads to a star every 30 px by then);
+		// faint ones, a step or two over the gas, coming in with the zoom
+		float zf2 = smoothstep(3.2, 5.6, u_zoom);
+		if (zf2 > 0.0) {
+			vec4 ds2 = planeStar(g, v, 0.003, clamp(EdS * 4.0, 0.0, 0.5) * zf2 * KIT_TILT, 34);
+			if (ds2.x > 0.5) {
+				Cand st = cand(M_STAR, 0.08 + 0.3 * ds2.w * ds2.w, 0, 0.0);
+				if (st.y > sc.y + 0.03) {
+					sc = st;
+				}
 			}
 		}
 	}

@@ -232,7 +232,7 @@ float billowDens(in Ray R, vec3 pg, vec4 dB, float detail) {
 		n /= sqrt((1.0 - w) * (1.0 - w) + w * w) * 0.6 + 0.4;
 	}
 	if (detail > 0.5 && R.WHI2 > 0.0) {
-		n += R.WHI2 * 0.3 * nz(np * 4.07 + vec3(0.5, 0.2, 0.7)).g;
+		n += R.WHI2 * 0.3 * nz(np * (u_stars_on ? 2.03 : 4.07) + vec3(0.5, 0.2, 0.7)).g;
 	}
 #endif
 	float top = 1.0 - ah / max(Hc, 1e-3);
@@ -558,8 +558,19 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 		dA.gba *= vec3(rc);
 	}
 	float cav = smoothstep(1.2, 4.0, rP / max(u_holeR, 1e-4));
-	float dz = smoothstep(0.0005, 0.00028, R.FP);
-	float det = dz > 0.0 ? nz(vec3(pP * 34.0, 0.37)).g * dz : 0.0;
+	// the disc's fine structure as you zoom (Oct 10 polish): it came in only once a
+	// block was under 0.0005 gu, past the closest zoom (6 is 0.00054), so up close
+	// the disc was its bake magnified and the palette cut it into flat plates. Two
+	// octaves now, each once its features span three blocks or more: the first
+	// from zoom 2, the second from 3.5 (at 34 a gu, the old frequency, a feature
+	// was under two blocks at zoom 6 and would only have shimmered)
+	float dz = smoothstep(0.0017, 0.0010, R.FP), dz2 = smoothstep(0.00095, 0.00056, R.FP);
+	float det = dz > 0.0 ? (nz(vec3(pP * 8.5, 0.37)).g * dz + (dz2 > 0.0 ? 0.7 * nz(vec3(pP * 17.0, 0.61)).g * dz2 : 0.0)) : 0.0;
+	if (!u_stars_on) {
+		// a palette probe sees the disc as the approved palette was cut from it
+		float dzp = smoothstep(0.0005, 0.00028, R.FP);
+		det = dzp > 0.0 ? nz(vec3(pP * 34.0, 0.37)).g * dzp : 0.0;
+	}
 	vec3 oldC = mix(u_oldIn, u_oldOut, smoothstep(0.08, 0.36, rP));
 	float tail = 0.05 * exp(-rP / 0.6) * smoothstep(0.85, 1.15, rP) * (1.0 - smoothstep(1.15, 1.85, rP));
 	vec3 Ed = u_discK.x * (dA.r * R.KB + tail) * oldC * cav + u_discK.y * dA.g * u_youngCol * (1.0 + 0.6 * det) + u_discK.z * dA.b * HA * (1.0 + 0.8 * det);
@@ -632,6 +643,17 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 			float yng = dA.g / max(dA.g + dA.r * 0.35, 1e-4);
 			st += mix(kitStarTint(0.2 + 0.4 * rs.z), kitStarTint(0.72 + 0.28 * rs.z), yng) * (0.015 + 0.8 * pow(rs.y, 3.0)) * rzf;
 		}
+		// and a finer field from zoom 3.5, so the arms keep resolving to the closest
+		// zoom (the field above spreads to a star every 14 px by then): faint, coming
+		// up from nothing as the zoom brings them in
+		float rzf2 = u_stars_on ? smoothstep(3.5, 5.8, u_zoom) : 0.0;
+		if (rzf2 > 0.0) {
+			vec4 rs2 = kitStar(qv, blkv, 1.2, prob, 193);
+			if (rs2.x > 0.5) {
+				float yng = dA.g / max(dA.g + dA.r * 0.35, 1e-4);
+				st += mix(kitStarTint(0.2 + 0.4 * rs2.z), kitStarTint(0.72 + 0.28 * rs2.z), yng) * (0.012 + 0.5 * pow(rs2.y, 3.0)) * rzf * rzf2;
+			}
+		}
 	}
 	// (thinned where the hole's lens packs the sky: a star read through the lens
 	// jumps from block to block as the zoom moves, most of the hole's flicker)
@@ -649,7 +671,9 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 	// (each fine octave only once its cells span three blocks or more: the
 	// showcase's let them in at about one, and as the zoom moved they flickered)
 	R.WHI = smoothstep(0.0016, 0.0009, R.FP);
-	R.WHI2 = smoothstep(0.0004, 0.00022, R.FP);
+	// (the second came in only past the closest zoom, so never: at half its old
+	// frequency, from zoom 2.9 to 5.4, its features still three blocks or more)
+	R.WHI2 = u_stars_on ? smoothstep(0.0011, 0.0006, R.FP) : smoothstep(0.0004, 0.00022, R.FP);
 	R.TM = u_time * 0.0016 * u_drift;
 	R.DXY = R.RG * vec2(0.0, KIT_RAY_DY);
 	R.LA = la;

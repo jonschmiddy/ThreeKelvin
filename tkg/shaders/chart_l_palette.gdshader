@@ -30,6 +30,16 @@ uniform vec2 block0 = vec2(0.0);
 // how strict the dither's gates are (`ChartLegacy`): none at the opening view,
 // where a zoom moves the picture little; in full from zoom 0.7
 uniform float aa_k = 1.0;
+// THE COLOUR HELD (Oct 10 polish; SIMPLIFIED's composite, `chart_c_comp`): the
+// picture last frame (`ChartLegacy._hvp`). A block of the field keeps the colour
+// it had while its light is still nearly as close to that colour as to the one
+// it would now take (`hyst`, sRGB), so a gradient or a grain sliding under the
+// blocks as the zoom moves no longer flips a block between two neighbouring
+// colours and back -- this chart flickered most of the four on a slow zoom.
+// `prev_shift`: where this block was last frame; `hyst` 0 holds nothing.
+uniform sampler2D prev_tex : filter_nearest;
+uniform vec2 prev_shift = vec2(0.0);
+uniform float hyst = 0.0;
 
 void fragment() {
 	vec4 s = texture(screen_tex, SCREEN_UV);
@@ -62,6 +72,21 @@ void fragment() {
 			float dv = fq > 0.0 ? fq - (g_bayer(b) + 0.5) / 16.0 : rawf - 0.5;
 			ci = (dv > 0.0 && fq > 0.0) ? sx : a;
 		}
-		COLOR = vec4((second ? texelFetch(pal2, ivec2(ci, 0), 0) : texelFetch(pal, ivec2(ci, 0), 0)).rgb, 1.0);
+		vec3 outc = (second ? texelFetch(pal2, ivec2(ci, 0), 0) : texelFetch(pal, ivec2(ci, 0), 0)).rgb;
+		if (hyst > 0.0 && s.a > 0.6) {
+			ivec2 pb = ivec2(floor(UV * vp_size)) + ivec2(prev_shift);
+			if (pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
+				vec3 was = texelFetch(prev_tex, pb, 0).rgb;
+				// held only if it is a colour this light could take (its nearest or its
+				// partner), never another palette's or a star's
+				vec3 cA = (second ? texelFetch(pal2, ivec2(a, 0), 0) : texelFetch(pal, ivec2(a, 0), 0)).rgb;
+				vec3 cB = (second ? texelFetch(pal2, ivec2(sx, 0), 0) : texelFetch(pal, ivec2(sx, 0), 0)).rgb;
+				bool ok = length(was - cA) < 0.004 || length(was - cB) < 0.004;
+				if (ok && length(was - outc) > 1e-3 && length(s.rgb - was) < length(s.rgb - outc) + hyst) {
+					outc = was;
+				}
+			}
+		}
+		COLOR = vec4(outc, 1.0);
 	}
 }
