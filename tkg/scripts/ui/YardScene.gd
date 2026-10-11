@@ -481,66 +481,197 @@ func _stand(v: ShipView, cx: float) -> Dictionary:
 	var si := _stand_image(st)
 	var supports: Array = []
 	var top := floor_y - ih
+	var mass := hull_mass_x(img, ink)
+	var seat_rows := int(st.get("seat", 0))
+	var pair := {}
 	if si != null:
-		# THE STANDS ARE PICKED AS A PAIR. Each still wants a flat stretch near a
-		# quarter of the hull (the page's rule), but the page picked them one at
-		# a time, and a part bolted under one quarter -- a fin, a pod, a gun --
-		# let one column down onto it and left the other reaching up to the
-		# belly. Jon: "Why are the stands two different heights." So the two are
-		# chosen together, over a wider stretch, and a pair that meets the hull
-		# at the same row wins over a flatter pair that does not -- but never
-		# closer than 40% of the hull apart, and each moves off its quarter only
-		# when that buys a real match (a row of height is worth 25 px of travel).
-		var hw := int(floorf(float(si.get_width()) * 0.4 + 0.5))
-		var spots: Array = [[], []]
-		for k in 2:
-			var f: float = [0.26, 0.74][k]
-			for px in range(int(floorf(float(iw) * (f - 0.16) + 0.5)), int(floorf(float(iw) * (f + 0.16) + 0.5)) + 1):
-				var lo := 1000000000
-				var hi := -1
-				var ok := true
-				for x in range(px - hw, px + hw + 1):
-					if x < 0 or x >= iw or under[x] < 0:
-						ok = false
-						break
-					lo = mini(lo, under[x])
-					hi = maxi(hi, under[x])
-				if ok:
-					spots[k].append({"px": px, "c": hi, "score": float(hi - lo) + 0.12 * absf(float(px) - float(iw) * f)})
-		var picks: Array = []
-		var best := 1e9
-		for A: Dictionary in spots[0]:
-			for B: Dictionary in spots[1]:
-				if float(B["px"]) - float(A["px"]) < float(iw) * 0.4:
-					continue
-				var sc := float(A["score"]) + float(B["score"]) + 3.0 * absf(float(A["c"]) - float(B["c"]))
-				if sc < best:
-					best = sc
-					picks = [A, B]
-		if picks.is_empty():
-			for k2 in 2:
-				var f2: float = [0.26, 0.74][k2]
-				var one: Dictionary = {"px": int(floorf(float(iw) * f2 + 0.5)), "c": belly}
-				for C: Dictionary in spots[k2]:
-					if float(C["score"]) < float(one.get("score", 1e9)):
-						one = C
-				picks.append(one)
-		var cmax := maxi(int(picks[0]["c"]), int(picks[1]["c"]))
-		var cmin := mini(int(picks[0]["c"]), int(picks[1]["c"]))
+		pair = seat_pair(under, iw, mass, stand_cap(si, seat_rows), seat_rows, _hanging(v, img, ink, under))
+		var cmax := maxi(int(pair["c"][0]), int(pair["c"][1]))
+		var cmin := mini(int(pair["c"][0]), int(pair["c"][1]))
 		var base := int(dial.get("columns", 60))
-		top = floor_y - base - cmax - 1 + int(st.get("seat", 0))
-		# BOTH THE SAME HEIGHT, ALWAYS. Where no level pair exists -- a fin hangs
-		# under one quarter of a light and nowhere is flat -- both stands reach
-		# the higher meeting point, and the one by the lower part stands up
-		# behind it to the belly: its saddle hidden, never short of the hull.
-		for p: Dictionary in picks:
+		# (sunk further only where a step in the belly over a cap would show
+		# floor between the two: `sink`, 0 for most hulls)
+		top = floor_y - base - cmax - 1 + seat_rows + int(pair["sink"])
+		# BOTH THE SAME HEIGHT, ALWAYS. Where the hull is not level over the two
+		# caps -- a fin, a pod, the slope toward a nose -- the hull rests on the
+		# higher meeting point, and the stand under the lower part stands up
+		# behind it: its saddle hidden, never short of the hull (Jon: "Why are
+		# the stands two different heights").
+		for L: int in pair["at"]:
 			var J := _sized(si, st, base + cmax - cmin)
 			supports.append({"img": J, "tex": ImageTexture.create_from_image(J),
-				"x": x0 + int(p["px"]) - int(floorf(float(J.get_width()) / 2.0 + 0.5)), "y": floor_y - J.get_height()})
+				"x": x0 + L, "y": floor_y - J.get_height()})
 	v.position = Vector2(x0 - ink.position.x, top - ink.position.y)
 	v.size = Vector2(img.get_width(), img.get_height())
 	return {"x": cx, "x0": x0, "top": top, "w": iw, "h": ih, "bottom": top + belly + 1, "ink": ink,
-		"img": img, "supports": supports, "floor": floor_y, "under": under}
+		"img": img, "supports": supports, "floor": floor_y, "under": under, "mass": mass, "seat": seat_rows,
+		"pair": pair}
+
+
+## The ink columns where a fitted part hangs below the hull's own underside
+## (`MountPoints.part_rects_canvas`): a stand is kept from under them.
+func _hanging(v: ShipView, img: Image, ink: Rect2i, under: PackedInt32Array) -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(ink.size.x)
+	var mounts: MountPoints = null
+	for c in v.get_children():
+		if c is MountPoints:
+			mounts = c
+	if mounts == null:
+		return out
+	# (the view sized to its canvas, as it stands, so the parts are placed on it)
+	v.size = Vector2(img.get_width(), img.get_height())
+	for r: Rect2 in mounts.part_rects_canvas():
+		var bottom := int(ceilf(r.end.y)) - 1 - ink.position.y
+		for x in range(maxi(0, int(floorf(r.position.x)) - ink.position.x), mini(ink.size.x, int(ceilf(r.end.x)) - ink.position.x)):
+			if under[x] < 0 or bottom > under[x]:
+				out[x] = 1
+	return out
+
+
+## THE HULL'S MIDDLE, in ink columns from the ink's left edge: where its opaque
+## pixels balance, column by column. Not the ink box's middle: a hull's box runs
+## out to a tapered nose or a fin hung off one end, and a heavy's long nose put
+## the box's middle 27 px ahead of where the ship's bulk is. The stands carry
+## the bulk, so they stand either side of this (Jon: "centered on them").
+static func hull_mass_x(img: Image, ink: Rect2i) -> float:
+	var sum := 0.0
+	var n := 0.0
+	for x in ink.size.x:
+		var k := 0
+		for y in ink.size.y:
+			if img.get_pixel(ink.position.x + x, ink.position.y + y).a8 >= 128:
+				k += 1
+		sum += (float(x) + 0.5) * float(k)
+		n += float(k)
+	return sum / n if n > 0.0 else float(ink.size.x) * 0.5
+
+
+## WHERE A STAND MEETS A HULL, measured off its picture: the first opaque row
+## of every column (`top`), the columns that reach the seat row -- the cap a
+## hull's belly lies on (`span`, first and last) -- and the cap's middle (`mid`,
+## in the picture's columns). The seat (`yard.json`, set per level at 8x, Jon's
+## "lower ship a bit to fit on ship stand") is how many rows of the saddle's top
+## face the hull lies on: its lowest pixel there sits on row `seat - 1`.
+var _cap_cache: Dictionary = {}
+
+
+func stand_cap(si: Image, seat_rows: int) -> Dictionary:
+	var key := "%d:%d" % [si.get_instance_id(), seat_rows]
+	if _cap_cache.has(key):
+		return _cap_cache[key]
+	var w := si.get_width()
+	var tops := PackedInt32Array()
+	tops.resize(w)
+	var least := 1 << 30
+	for x in w:
+		tops[x] = 1 << 30
+		for y in si.get_height():
+			if si.get_pixel(x, y).a8 >= 128:
+				tops[x] = y
+				break
+		least = mini(least, tops[x])
+	var a := -1
+	var b := -1
+	for x in w:
+		if tops[x] <= maxi(seat_rows - 1, least):
+			if a < 0:
+				a = x
+			b = x
+	var cap := {"top": tops, "a": a, "b": b, "mid": float(a + b + 1) * 0.5}
+	_cap_cache[key] = cap
+	return cap
+
+
+## THE PAIR OF STANDS under a hull: their left edges in ink columns (`at`) and
+## the hull's lowest row over each one's cap (`c`).
+##
+## EITHER SIDE OF THE HULL'S MIDDLE. They used to be picked at a flat stretch
+## near each quarter, each free to wander 16% of the hull, and the medium Korvan's
+## aft stand walked forward off its quarter to the end of its range: the pair's
+## middle stood 31 px ahead of the hull's (Jon: "too high and to the left").
+## Now the two caps' middles always add up to twice the hull's mass middle (to
+## the half pixel), and only how far apart they stand is chosen.
+##
+## ON THE BELLY OVER THE CAP, NOT NEAR IT. Each stand used to be measured over a
+## window 37 px wide against a cap 23 to 35 wide, and seated on the lowest pixel
+## in the window: a bump just past the cap's edge held the hull up, and the belly
+## over the cap floated rows above it -- 2 on the medium Korvan, 12 on the light.
+## Now only the columns the cap is under count, and a spread is chosen where
+## (in order) no floor shows between belly and cap, the two meet the hull at the
+## same row, no fitted part hangs over a cap (`hang`, `_hanging`: a gun under the
+## belly reads as standing on the stand), each cap's belly is level, and they
+## stand about 48% of the hull
+## apart (36% to 80%). Where some floor would still show -- a step in the belly
+## over one corner of a cap -- the hull is let down that many rows more (`sink`).
+static func seat_pair(under: PackedInt32Array, iw: int, mass: float, cap: Dictionary, seat_rows: int,
+		hang: PackedByteArray = PackedByteArray()) -> Dictionary:
+	var a := int(cap["a"])
+	var b := int(cap["b"])
+	var tops: PackedInt32Array = cap["top"]
+	var total := int(floorf(2.0 * (mass - float(cap["mid"])) + 0.5))
+	var best := 1e18
+	var out := {}
+	for LA in range(-a, iw):
+		var LB := total - LA
+		var sep := LB - LA
+		if float(sep) < 0.36 * float(iw) or float(sep) > 0.8 * float(iw):
+			continue
+		var cs: Array[int] = [0, 0]
+		var spread := 0
+		var under_part := 0
+		var ok := true
+		for k in 2:
+			var L := LA if k == 0 else LB
+			if L + a < 0 or L + b >= iw:
+				ok = false
+				break
+			var lo := 1 << 30
+			var hi := -1
+			for j in range(a, b + 1):
+				var u := under[L + j]
+				if u < 0:
+					ok = false
+					break
+				lo = mini(lo, u)
+				hi = maxi(hi, u)
+				if L + j < hang.size() and hang[L + j] != 0:
+					under_part += 1
+			if not ok:
+				break
+			cs[k] = hi
+			spread += hi - lo
+		if not ok:
+			continue
+		var cmin := mini(cs[0], cs[1])
+		var gap := 0
+		var sink := 0
+		for k in 2:
+			var L2 := LA if k == 0 else LB
+			for j in range(a, b + 1):
+				# the belly's row on the stand's own rows, the hull resting on cmin
+				var hb := under[L2 + j] - cmin + seat_rows - 1
+				gap += maxi(0, tops[j] - 1 - hb)
+				sink = maxi(sink, tops[j] - 1 - hb)
+		var sc := 40.0 * float(gap) + 25.0 * float(under_part) + 12.0 * float(sink) \
+			+ 6.0 * float(absi(cs[0] - cs[1])) + 2.0 * float(spread) \
+			+ 0.25 * absf(float(sep) - 0.48 * float(iw))
+		if sc < best:
+			best = sc
+			out = {"at": [LA, LB], "c": cs, "gap": gap, "spread": spread, "sink": sink, "under_part": under_part}
+	if out.is_empty():
+		# a hull too short for a pair under it: the quarters either side of its
+		# middle, on its lowest pixel there
+		var LA2 := int(floorf(mass - 0.24 * float(iw) - float(cap["mid"]) + 0.5))
+		var LB2 := total - LA2
+		var cs2: Array[int] = [0, 0]
+		for k in 2:
+			var L3 := LA2 if k == 0 else LB2
+			for j in range(a, b + 1):
+				if L3 + j >= 0 and L3 + j < iw:
+					cs2[k] = maxi(cs2[k], under[L3 + j])
+		out = {"at": [LA2, LB2], "c": cs2, "gap": -1, "spread": -1, "sink": 0}
+	return out
 
 
 ## The opaque box of a picture, by the page's measure (alpha from 128).
