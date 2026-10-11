@@ -975,14 +975,26 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float hR = u_g3.z;
 	float rp = length(vec2(v.x, v.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
-	float adapt = 120.0 * clearZ * sqrt(clearZ);
+	// ZOOMING ONLY MAGNIFIES (Jon, Oct 11: "why do the clouds change at all when you
+	// zoom in?"). From zoom 1.5 an exposure for the bulge (`adapt`, up to 120) used
+	// to divide the light of everything near it -- the gold and the arms' gas
+	// beside it alike -- so the core went to dark red and brown and the gas round it
+	// to navy and near sky as you zoomed (the navy band; the dark space deep in), and
+	// the warm side swapped its clumpy light for the smooth one. Now a patch keeps
+	// the light it has at the opening zoom, and zooming in only adds what the zoom
+	// resolves (the stars here, the finer octaves, the swirl's streaks below, which
+	// brighten and darken about the light they cross and never shift it). The one
+	// thing still turned down is the core's own glare: `adaptW`, on the gold alone
+	// (the warm side's own level), so it does not wash out round the hole.
+	float adapt = 0.0;
+	float adaptW = 120.0 * clearZ * sqrt(clearZ);
 	float clearK = clearZ * exp(-sq(rho / (1.6 * u_g4.x)));
 	float holeL = 1.0 / (1.0 + sq(rp / (0.9 * hR)));
 	float sw = 0.5 + 0.5 * sin(2.0 * atan(g.y, g.x) + 6.0 * log(max(r, 1e-3)) + tt * TAU_B / 120.0 + 0.55 * fbmL(g * 40.0, blk * 40.0, 2));
 	float ff = 0.5 - 0.5 * clamp(q0.y / (0.9 * R), -1.0, 1.0);
 	float T = 1.0 - 0.8 * lane;
 	float Ew = Ib * (ff + (1.0 - ff) * T) + Ed * warmD * T;
-	float streams = clearK * holeL * (0.003 + 0.075 * sw * sw * sw);
+	float streams = clearK * holeL * 0.075 * (sw * sw * sw - 0.3125);   // (mean 0: sw^3 averages 5/16)
 	float Ec = Ed * (1.0 - warmD) * T;
 	float TS = 1.0 - 0.8 * laneS;
 	float EwS = Ib * (ff + (1.0 - ff) * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS;
@@ -1016,7 +1028,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	Ew += streams;
 	float Et = Ew + Ec + Ep;
 	bool galaxy = Et > 0.0062;
-	float EwA = mix(Ew, EwS, clearZ);
+	float EwA = Ew;
 	float EL = Et / (1.0 + EwA * adapt) + streams;
 	bool warmSide = false;
 	if (!galaxy) {
@@ -1034,31 +1046,20 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 			// a dim warm fringe goes over to the cool side: the bulge's bottom band
 			// never lies as a flat maroon plate with a hard rim (a barred kind's
 			// whole bar zone is warm and dim)
-			float ELw0 = (mix(Ew, EwS, clearZ) + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams;
+			float ELw0 = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams, 1e-5);   // (the border keeps its place: no glare control in where it falls)
 			float lv0 = clamp(1.0 + log2(ELw0) / 7.0, 0.0, 0.999);
 			warmSide = wf > 0.5 + 0.38 * smoothstep(0.42, 0.2, lv0);
 		}
 		if (warmSide) {
 			int m = (ellip && Et < 0.06) ? M_BALL : M_BULGE;
-			float ELw = (mix(Ew, EwS, clearZ) + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams;
+			float ELw = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adaptW) + streams, 1e-5);
 			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
 			if (ellip) {
 				lvb = clamp(lvb + ballForm(v, k, bs, blk), 0.0, m == M_BALL ? 0.83 : 0.999);
 			}
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
 		} else {
-			// THE COOL SIDE KEEPS ITS OWN LIGHT AGAINST THE GOLD (Jon, Oct 11, picking A
-			// on the navy band). The zoom's exposure for the bulge (`adapt`, from zoom
-			// 1.5) divided ALL of the cool side's light by the warm light there, so the
-			// arms' gas fell to their darkest steps exactly where it met the gold: a dark
-			// navy band 4 to 8 blocks wide round the top of the bulge, that further out,
-			// or zoomed out, was never there. The cool side now keeps its own light
-			// (the arms', the clouds', the knots'), and the bulge's light spilling onto
-			// it is no longer divided away but capped as the zoom comes in, at about the
-			// arms' own middle step: the gas next to the gold is the gas further out,
-			// neither a dark band nor a pale scar. (Deep in, from zoom 3, this also
-			// leaves gas round the gold where the drop had darkened it to near sky.)
-			float ELc = Ec + Ep + min(0.35 * Ew, mix(1e3, 0.10, smoothstep(0.0, 0.25, clearZ)));
+			float ELc = Ec + Ep + 0.35 * Ew;
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
 			bool pink = Ep > 0.7 * Ec;
 			sc = cand(pink ? M_KNOT : M_ARM, pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
@@ -1070,7 +1071,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		// bulge's own light is fading (a broad-armed kind evens warm and cool over
 		// the whole bar zone, and it would lie there as one plate), its edges dithered
 		if (!ellip && wf > 0.5 - u_g6.x && wf < 0.5 + u_g6.y && Ep < 0.5 * Ec + 0.01 && warmD < 0.36) {
-			float ELd = (Ew + Ec) / (1.0 + EwA * adapt) + streams;
+			float ELd = max((Ew + Ec) / (1.0 + EwA * adapt) + streams, 1e-5);
 			float ld = u_g6.z + log2(ELd) / 6.0 - 0.1 * shade;
 			if (ld > 0.34 && pat(P, smoothstep(0.34, 0.42, ld) * smoothstep(0.36, 0.2, warmD))) {
 				sc = cand(M_BILLOW, ld, 0, 0.0);

@@ -93,6 +93,10 @@ uniform float zoom_dim = 0.0;
 uniform float resolved = 1.0;
 uniform float dz = 0.0;
 uniform float res2 = 1.0;
+// the bulge's glow alone, turned down deep in (glare): `resolved` and `dz` as they
+// were before Oct 11, which now leave the gas and the stars alone (1 and 0)
+uniform float core_res = 1.0;
+uniform float core_dz = 0.0;
 uniform float te_b = 1.0;
 // the named clouds, a lobe each: centre (bake pixels, the galaxy's frame),
 // radius (where the chart's outline is), kind; colour and how flat it lies;
@@ -1204,7 +1208,9 @@ void fragment() {
 	float dsm = sqrt(dball * dball + te_b * te_b);
 	float dco = sqrt(dball * dball + bul * bul * 0.03 / (zf * zf) + te_b * te_b);
 	float nuc = 3.2 * exp(-2.4 * sqrt(dsm / (bul * 0.4))) * g_sm(1.3, 4.0, zf);
-	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bul * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * resolved) + nuc) * (1.0 - dz * 0.125);
+	// (the bulge's glow keeps its own glare control deep in, `core_res` / `core_dz`:
+	// the one thing the zoom still turns down, and it touches nothing but the glow)
+	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bul * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * core_res) + nuc) * (1.0 - core_dz * 0.125);
 	float rout = rh * disc_k;
 	float hd = length(vec2(lxs, lys / TILT));
 	// the light dims a little round the hole, so the hole and its ring sit in
@@ -1229,7 +1235,9 @@ void fragment() {
 	vec3 sgh = vec3(0.0) * bhl;
 
 	vec3 qv = front + (1.0 - front) * (1.0 - f_kd * vec3(0.72, 0.8, 0.88));
-	vec3 o = (f_dd * behind + (f_bs + sci) * qv) * hdim * 0.72;
+	// (the bulge, its glow and its own stars, is the core's light: deep in it is turned
+	// down as the whole picture used to be, `1 - 0.42 dz`, and nothing else is)
+	vec3 o = (f_dd * behind + (f_bs + sci) * qv * (1.0 - 0.42 * core_dz)) * hdim * 0.72;
 	// THE BULGE'S EXPOSURE ("the center of the galaxy is SO WASHED out", Jon).
 	// Its light sat high on the tone curve all across it, one flat cream
 	// plate. Brought down over the bulge and less so toward the nucleus, it

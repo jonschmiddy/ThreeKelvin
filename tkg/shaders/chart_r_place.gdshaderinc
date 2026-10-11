@@ -573,7 +573,7 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 	}
 	vec3 oldC = mix(u_oldIn, u_oldOut, smoothstep(0.08, 0.36, rP));
 	float tail = 0.05 * exp(-rP / 0.6) * smoothstep(0.85, 1.15, rP) * (1.0 - smoothstep(1.15, 1.85, rP));
-	vec3 Ed = u_discK.x * (dA.r * R.KB + tail) * oldC * cav + u_discK.y * dA.g * u_youngCol * (1.0 + 0.6 * det) + u_discK.z * dA.b * HA * (1.0 + 0.8 * det);
+	vec3 Ed = u_discK.x * (dA.r * (u_stars_on ? 1.0 : R.KB) + tail) * oldC * cav + u_discK.y * dA.g * u_youngCol * (1.0 + 0.6 * det) + u_discK.z * dA.b * HA * (1.0 + 0.8 * det);
 	// the knots: pink gathered light on the arms' fronts, each breathing, now and then blooming
 	float px = 1.0 / (u_zoom * u_k);
 	int ki = u_nkn > 0 && max(abs(pP.x), abs(pP.y)) < u_ext * 0.995 ? int(texture(u_knotMap, kitMapUV(pP, u_ext)).r * 255.0 + 0.5) - 1 : -1;
@@ -782,7 +782,9 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 		vec3 co = mix(u_bInner, u_bOuter, smoothstep(0.03, 0.2, rr));
 		bF = ci * in1.x + co * out2.x;
 		bB = ci * in1.y + co * out2.y;
-		// deep in, the eye adapts: the nucleus's glow eases back round the hole
+		// deep in, the eye adapts: the nucleus's glow eases back round the hole (the
+		// core's own glare, the one thing the zoom still turns down; Oct 11 it stopped
+		// touching the disc's old stars round it, which kept their light: `planeEvent`)
 		R.KB = 1.0 - u_kb * smoothstep(1.8, 5.5, u_zoom) * (1.0 - smoothstep(0.1, 0.5, rr));
 		bF *= R.KB;
 		bB *= R.KB;
@@ -879,7 +881,7 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 		if (vol && r < 1.32) {
 			vec4 dB = discB(pg.xy);
 			float d3 = length(pg);
-			float hz = u_gasK.y * exp(-abs(pg.z) / 0.05) * smoothstep(0.85, 0.12, r) * smoothstep(0.03, 0.09, d3) * (1.0 - 0.8 * smoothstep(1.6, 3.5, u_zoom));
+			float hz = u_gasK.y * exp(-abs(pg.z) / 0.05) * smoothstep(0.85, 0.12, r) * smoothstep(0.03, 0.09, d3) * (1.0 - 0.8 * smoothstep(1.6, 3.5, u_zoom) * (u_stars_on ? 0.0 : 1.0));   // (the haze no longer thins as you zoom; probes as before)
 			float rb = billows ? billowDens(R, pg, dB, 1.0) : 0.0;
 			if (rb > 0.002) {
 				rb *= remClear(R, pg);

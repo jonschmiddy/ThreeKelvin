@@ -1300,7 +1300,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	m.set_shader_parameter("bake_size", Vector2(BAKE))
 	m.set_shader_parameter("bake_origin", BAKE_O)
 	m.set_shader_parameter("z", z)
-	m.set_shader_parameter("zf", zf)
+	m.set_shader_parameter("zf", 1.0)
 	for k in ["eff", "bsq", "bul", "sd", "gas", "pal0", "pal1", "rin_p", "rb", "rb_ring"]:
 		m.set_shader_parameter(k, p[k])
 	m.set_shader_parameter("dk_g", p.dk)
@@ -1313,7 +1313,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	var gas: float = p.gas
 	var nuc := 0.0
 	if gas >= 0.35 and float(p.dk) > 0.5:
-		nuc = minf(1.0, gas) * 1.1 * (0.45 + 0.55 * _sm(1.5, 5.0, zf))
+		nuc = minf(1.0, gas) * 1.1 * 0.45
 	m.set_shader_parameter("nuc_amt", nuc)
 	var rh := hole_r(p, z)
 	m.set_shader_parameter("rh", rh)
@@ -1335,13 +1335,24 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 		m.set_shader_parameter("you_r", 90.0)
 	else:
 		m.set_shader_parameter("you_r", 0.0)
+	# ZOOMING ONLY MAGNIFIES (Oct 11): what changed the field's light with the zoom
+	# -- its stars' light "resolving" away (to a third by zoom 6), the gas thinning
+	# (`res2`), the light dimmed and its contrast pushed deep in (`dz`), the ring of
+	# dimming round the hole (`zoom_dim`), the nucleus's own glow coming up from
+	# zoom 1.3 and the bulge's profile sharpening (`zf`), its exposure easing back
+	# deep in, the nuclear dust thickening -- is held at the opening zoom's values.
+	# Only detail is added as you zoom: the finer octaves (`oct`) and the grain
+	# (`det_k`). The palette is the opening view's too (`_push`).
 	var extra := maxf(0.0, log(zf) / log(2.0))
 	m.set_shader_parameter("oct", minf(extra, 4.0))
 	m.set_shader_parameter("det_k", minf(1.0, extra / 2.0))
-	m.set_shader_parameter("zoom_dim", _sm(1.4, 4.0, zf))
-	m.set_shader_parameter("resolved", 1.0 / (1.0 + 0.4 * (zf - 1.0)))
-	m.set_shader_parameter("dz", _sm(1.8, 8.0, zf))
-	m.set_shader_parameter("res2", 1.0 / (1.0 + 0.15 * (zf - 1.0)))
+	m.set_shader_parameter("zoom_dim", 0.0)
+	m.set_shader_parameter("resolved", 1.0)
+	m.set_shader_parameter("dz", 0.0)
+	m.set_shader_parameter("res2", 1.0)
+	# the core's own glare, the one thing the zoom still turns down: the bulge's glow
+	m.set_shader_parameter("core_res", 1.0 / (1.0 + 0.4 * (zf - 1.0)))
+	m.set_shader_parameter("core_dz", _sm(1.8, 8.0, zf))
 	m.set_shader_parameter("te_b", 2.7756 * rh / z * 1.6)
 	# (the old hole's swirl of gas round it goes: SIMPLIFIED's disc is the hole)
 	m.set_shader_parameter("swirl_amp", 0.0)
@@ -1529,17 +1540,14 @@ func _push() -> void:
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
-	# the two levels either side of this zoom, and how far between them: the
-	# change from one's palette to the next is a dissolve over the middle of
-	# the stretch between them (`chart_l_palette`)
+	# ONE PALETTE AT EVERY ZOOM, the opening view's (Oct 11, Jon: "why do the
+	# clouds change at all when you zoom in?"). Each zoom level had a palette cut
+	# from its own view and the picture dissolved from one to the next, so a patch
+	# of gas changed its colours as you zoomed though nothing in it had; now the
+	# field keeps its light at every zoom (`_feed_field`) and so keeps its colours.
 	var lo := 0
-	for i in LEVELS.size() - 1:
-		if z >= LEVELS[i + 1] / LEVELS[0]:
-			lo = i + 1
-	var hi := mini(lo + 1, LEVELS.size() - 1)
+	var hi := 0
 	var fr := 0.0
-	if hi > lo:
-		fr = clampf(log(z / (LEVELS[lo] / LEVELS[0])) / log(LEVELS[hi] / LEVELS[lo]), 0.0, 1.0)
 	var use := _palette_for(lo)
 	var use2 := _palette_for(hi)
 	if use * 100 + use2 != _shown_li:
