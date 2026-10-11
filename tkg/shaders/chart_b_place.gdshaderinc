@@ -51,9 +51,14 @@ float debtAt(vec2 p, float z) {
 	float i1 = min(i0 + 1.0, u_debtP.z - 1.0);
 	float N = float(textureSize(u_debt, 0).y);
 	vec2 uv = clamp(p / u_debtP.w * 0.5 + 0.5, vec2(0.5 / N), vec2(1.0 - 0.5 / N));
+	// (nothing past the table's edge: read clamped there, a star in an edge texel
+	// was smeared out to infinity along the clamped axis, and drew a slanted beam
+	// of faint light down from the top of the view into the galaxy, Jon, Oct 11)
+	vec2 q = abs(p / u_debtP.w);
+	float inside = 1.0 - smoothstep(0.88, 0.98, max(q.x, q.y));
 	float s0 = texture(u_debt, vec2((i0 + uv.x) / u_debtP.z, uv.y)).r;
 	float s1 = texture(u_debt, vec2((i1 + uv.x) / u_debtP.z, uv.y)).r;
-	return mix(s0, s1, f - i0) / (z * z);
+	return mix(s0, s1, f - i0) / (z * z) * inside;
 }
 float starDebtB(vec2 p) {
 	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
