@@ -1645,7 +1645,7 @@ void fragment() {
 			vec2 spb = vp_origin + vp * 2.0 + 1.0 - view_c;
 			// (the far nebulae thin away well before the galaxy's faintest light: its
 			// rim meets dark sky, never a far cloud -- `bgNebSeen`)
-			vec3 bl = bgLightChart(spb, 1.0, 1.0 - smoothstep(13.0, 21.0, g_lum(d255)));
+			vec3 bl = bgLightChart(spb, 1.0, 1.0 - smoothstep(13.0, 21.0, g_lum(d255)), 20.0);
 			vec3 bs = g_tone(bl * 1.2) * 255.0;
 			if (g_lum(bs) > g_lum(d255) + 2.0) {
 				d255 = bs;

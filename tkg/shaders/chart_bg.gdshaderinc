@@ -160,10 +160,13 @@ vec3 bgLight(vec2 sp, float starsSeen) {
 }
 
 // the star chart's (SIMPLIFIED, RADIANT, LEGACY): its far nebulae its own, by
-// `nebSeen` (`bgNebSeen`) of the galaxy in front
-vec3 bgLightChart(vec2 sp, float starsSeen, float nebSeen) {
+// `nebSeen` (`bgNebSeen`) of the galaxy in front, `strength` times as bright as
+// `bgNebChart` (each style's own: Jon, of the first faint haze, "make it a bit
+// stronger", Oct 11 -- RADIANT's brighter exposure clips its dark end, so it
+// takes more to show the same)
+vec3 bgLightChart(vec2 sp, float starsSeen, float nebSeen, float strength) {
 	if (u_bgOn < 0.5) {
 		return vec3(0.0);
 	}
-	return bgNebChart(sp) * nebSeen + bgLightRest(sp, starsSeen);
+	return bgNebChart(sp) * nebSeen * strength + bgLightRest(sp, starsSeen);
 }

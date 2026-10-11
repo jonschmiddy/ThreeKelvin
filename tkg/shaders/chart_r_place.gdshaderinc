@@ -577,7 +577,7 @@ void shellHits(in Ray R, inout Evs EV, int k, vec3 P0, vec3 Dv) {
 // the sky behind, at infinity (`chart_bg.gdshaderinc`): far nebulae, far
 // galaxies, three depths of stars sliding by depth as you pan
 vec3 sky(vec2 v, float nebSeen) {
-	return bgLightChart((v - gpan()) * u_zoom, 1.0, nebSeen);
+	return bgLightChart((v - gpan()) * u_zoom, 1.0, nebSeen, 14.0);
 }
 
 // ------------------------------------------------------------------ the disc plane (h = 0)

@@ -259,7 +259,7 @@ vec3 farSky(vec2 v, float la, float nebSeen) {
 	vec2 sp = (v - gpan()) * u_zoom;                  // screen px from the frame centre
 	// (where the lens squeezes the sky into a few blocks its point stars only
 	// flicker as the zoom moves: they thin away there)
-	return bgLightChart(sp, la < 0.8 ? 1.0 : 0.0, nebSeen);
+	return bgLightChart(sp, la < 0.8 ? 1.0 : 0.0, nebSeen, 2.0);
 }
 
 // ------------------------------------------------------------------ galaxy parts
