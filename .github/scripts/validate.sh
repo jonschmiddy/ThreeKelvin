@@ -436,6 +436,22 @@ else
 	bad "laddertest did not finish"
 fi
 
+step "Every hull sits on its yard stands, centred"
+# Jon: "The ship needs to sit lower. Like actually be on the stands and centered
+# on them." Every hull frame at every grade on every level's stands, measured
+# off the pictures: no floor between belly and cap, resting on the cap's seat
+# row, the stands' middle within 1 px of the hull's mass middle, one height.
+if run_godot yardseattest 120 --headless --path "$PROJECT" -- sheet=YardSeatTest; then
+	if grep -qE '^yardseattest: PASS' "$LOG_DIR/yardseattest.log"; then
+		ok "every hull on its stands"
+	else
+		bad "a hull floats over, or stands off the middle of, its yard stands"
+		grep -E 'FAIL|^yardseattest' "$LOG_DIR/yardseattest.log" | head -n 12 | sed 's/^/        /'
+	fi
+else
+	bad "yardseattest did not finish"
+fi
+
 step "Every event opens and resolves on LOCAL"
 # The one place a choice is taken now: LOCAL's event band. Every authored
 # option is opened and every choice resolved through it, in all three layouts.

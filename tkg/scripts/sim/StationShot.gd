@@ -151,6 +151,18 @@ func run(tree: SceneTree) -> void:
 		print("  %d %s parts fitted · set count %d" % [fitted,
 			DB.short_name(DB.manufacturer_name(berth)), Run.manufacturer_count(berth)])
 
+	# `yardmine=light:1[:solari]`: your ship refitted to that frame, weight and
+	# grade, with the frame's own starter kit (`Run.fit_chassis`) -- a ship as a
+	# run starts it, for the yard's stands under every hull.
+	for a10 in OS.get_cmdline_user_args():
+		if (a10 as String).begins_with("yardmine="):
+			var ym := (a10 as String).substr(9).split(":")
+			var weights10 := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
+			Run.fit_chassis(StringName(ym[2]) if ym.size() > 2 else &"korvan", weights10.get(ym[0], HullData.Weight.MEDIUM),
+				int(ym[1]) if ym.size() > 1 else 0)
+			print("  yardmine: %s, %d parts" % [Run.hull.name, Run.installed.size()])
+			break
+
 	# `fit=full`: every hardpoint the hull has, filled with its own manufacturer's
 	# parts, to see how a fitted hull reads -- `manufacturer=korvan` for the
 	# manufacturer whose parts are all drawn. `fit=full:heavy:3` refits the
@@ -226,7 +238,9 @@ func run(tree: SceneTree) -> void:
 			if (ah as String).begins_with("yardhull="):
 				var wt := (ah as String).substr(9).split(":")
 				var weights := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
-				here.shop_hull = DB.at_tier(DB.hull_for(&"korvan", weights.get(wt[0], HullData.Weight.MEDIUM)), int(wt[1]) if wt.size() > 1 else 2)
+				# (`yardhull=medium:2:solari`: another manufacturer's frame)
+				here.shop_hull = DB.at_tier(DB.hull_for(StringName(wt[2]) if wt.size() > 2 else &"korvan",
+					weights.get(wt[0], HullData.Weight.MEDIUM)), int(wt[1]) if wt.size() > 1 else 2)
 		print("  full: hold %d · shelf %d · hull on the blocks"
 			% [Run.cargo.size(), here.shop.size()])
 	# `stock=N` cuts the shelf to N parts. `full` stocks five, which is a
