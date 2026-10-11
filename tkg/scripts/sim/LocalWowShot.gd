@@ -97,6 +97,8 @@ func _run() -> void:
 			slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if sc._ship_outline != null:
 			sc._ship_outline.visible = false
+			# (and draws nothing if anything shows it again)
+			sc._ship_outline.view = null
 		var n := sky.node
 		print("wow: %s node %d %s dev %d orbit %d kind %s" % [cname, n.index, MapGen.star_name(n), int(n.development), sky.orbit_target, sky.kind])
 		if "debug" in _args:
