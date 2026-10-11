@@ -36,12 +36,32 @@ uniform float vib = 0.0;
 // still nearly as close to that colour as to the one it would now take
 // (`hyst`, sRGB), so a gradient or a grain sliding under the blocks as the zoom
 // moves no longer flips a block between two neighbouring colours and back.
-// `prev_shift`: where this block was last frame (the blocks are anchored to the
-// galaxy, so a pan moves them through the viewport). `hyst` 0: nothing held
-// (the first frame, after a resize or a new palette).
+// `hyst` 0: nothing held (the first frame, after a resize or a new palette).
+// WHAT IS HELD MOVES WITH THE PICTURE (Oct 10 polish; Jon: "ghosting pixels
+// still dragging behind as the zoom happens"). A block is compared with the
+// block that drew ITS piece of the galaxy last frame, found through last frame's
+// view (`prev_c`, `prev_o`, `prev_k`: the galaxy centre and the viewport's
+// corner then, in chart px, and last frame's zoom over this one's). Compared
+// with the block at the same place on the screen, as it was, a colour stayed
+// where the zoom had carried its galaxy away and drew streaks out from the
+// zoom's centre (5.7% of the pixels a frame trailing on the 8 s zoom into the
+// arms, against a picture with nothing held). Two limits keep a hold from lagging
+// at all: `MOVE_MAX` and `LAG_MAX` below.
 uniform sampler2D prev : hint_screen_texture, filter_nearest;
-uniform vec2 prev_shift = vec2(0.0);
+uniform vec2 cur_c = vec2(0.0);
+uniform vec2 cur_o = vec2(0.0);
+uniform vec2 prev_c = vec2(0.0);
+uniform vec2 prev_o = vec2(0.0);
+uniform float prev_k = 1.0;
 uniform float hyst = 0.0;
+// how far (blocks) a piece of the galaxy may have moved since last frame and keep
+// its colour: faster than that the zoom is changing it anyway, and a held colour
+// only lags
+const float MOVE_MAX = 1.0;
+// and how far behind its light a held colour may lag, as a share of the local
+// slope (a block's worth of change): on a shallow gradient a fixed band let a
+// colour boundary trail many blocks behind the light that drew it
+const float LAG_MAX = 0.5;
 
 vec3 toneAt(ivec2 b) {
 	b = clamp(b, ivec2(0), ivec2(vp_size) - 1);
@@ -86,9 +106,12 @@ void fragment() {
 	}
 	vec3 raw = s;
 	s = quantGated(s, b + ivec2(block0), allow * dith);
-	if (hyst > 0.0 && quant) {
-		ivec2 pb = b + ivec2(prev_shift);
-		if (pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
+	// (nothing held in the deep dark, as nothing is dithered there: its steps lie close
+	// and held they set the faint grain into smears behind a zoom)
+	if (hyst > 0.0 && quant && max(raw.r, max(raw.g, raw.b)) > 0.14) {
+		vec2 q = (prev_c + (cur_o + (vec2(b) + 0.5) * 2.0 - cur_c) * prev_k - prev_o) * 0.5;
+		ivec2 pb = ivec2(floor(q));
+		if (length(q - vec2(b) - 0.5) < MOVE_MAX && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
 			vec3 was = texelFetch(prev, pb, 0).rgb;
 			// held only if it is a palette colour this light could take (its nearest
 			// or its partner): never the picture drawn before the palette came in
@@ -98,7 +121,7 @@ void fragment() {
 			vec3 A = texelFetch(pal, ivec2(int(e.r * 255.0 + 0.5), 0), 0).rgb;
 			vec3 B = texelFetch(pal, ivec2(int(e.g * 255.0 + 0.5), 0), 0).rgb;
 			bool ok = length(was - A) < 0.004 || length(was - B) < 0.004;
-			if (ok && length(was - s) > 1e-3 && length(raw - was) < length(raw - s) + hyst) {
+			if (ok && length(was - s) > 1e-3 && length(raw - was) < length(raw - s) + min(hyst, LAG_MAX * g)) {
 				s = was;
 			}
 		}

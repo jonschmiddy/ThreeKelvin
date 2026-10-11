@@ -36,10 +36,26 @@ uniform float aa_k = 1.0;
 // it would now take (`hyst`, sRGB), so a gradient or a grain sliding under the
 // blocks as the zoom moves no longer flips a block between two neighbouring
 // colours and back -- this chart flickered most of the four on a slow zoom.
-// `prev_shift`: where this block was last frame; `hyst` 0 holds nothing.
+// `hyst` 0 holds nothing. What is held moves with the picture: a block is
+// compared with the block that drew its piece of the galaxy last frame, through
+// last frame's view (`prev_c`, `prev_o`, `prev_k`), within the two limits below --
+// see `chart_c_comp` (held to the same place on the screen, colours trailed
+// behind a zoom: 8.4% of the pixels a frame on the 8 s zoom into the arms).
 uniform sampler2D prev_tex : filter_nearest;
-uniform vec2 prev_shift = vec2(0.0);
+uniform vec2 cur_c = vec2(0.0);
+uniform vec2 cur_o = vec2(0.0);
+uniform vec2 prev_c = vec2(0.0);
+uniform vec2 prev_o = vec2(0.0);
+uniform float prev_k = 1.0;
 uniform float hyst = 0.0;
+// how far (blocks) a piece of the galaxy may have moved since last frame and keep
+// its colour: faster than that the zoom is changing it anyway, and a held colour
+// only lags
+const float MOVE_MAX = 1.0;
+// and how far behind its light a held colour may lag, as a share of the local
+// slope (a block's worth of change): on a shallow gradient a fixed band let a
+// colour boundary trail many blocks behind the light that drew it
+const float LAG_MAX = 0.5;
 
 void fragment() {
 	vec4 s = texture(screen_tex, SCREEN_UV);
@@ -73,16 +89,19 @@ void fragment() {
 			ci = (dv > 0.0 && fq > 0.0) ? sx : a;
 		}
 		vec3 outc = (second ? texelFetch(pal2, ivec2(ci, 0), 0) : texelFetch(pal, ivec2(ci, 0), 0)).rgb;
-		if (hyst > 0.0 && s.a > 0.6) {
-			ivec2 pb = ivec2(floor(UV * vp_size)) + ivec2(prev_shift);
-			if (pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
+		// (and not in the dark, as the dither is not: the dark's faint steps lie close,
+		// and held there its grain set into smooth smears behind a zoom)
+		if (hyst > 0.0 && s.a > 0.6 && lc > 48.0) {
+			vec2 q = (prev_c + (cur_o + (floor(UV * vp_size) + 0.5) * 2.0 - cur_c) * prev_k - prev_o) * 0.5;
+			ivec2 pb = ivec2(floor(q));
+			if (length(q - floor(UV * vp_size) - 0.5) < MOVE_MAX && pb.x >= 0 && pb.y >= 0 && pb.x < int(vp_size.x) && pb.y < int(vp_size.y)) {
 				vec3 was = texelFetch(prev_tex, pb, 0).rgb;
 				// held only if it is a colour this light could take (its nearest or its
 				// partner), never another palette's or a star's
 				vec3 cA = (second ? texelFetch(pal2, ivec2(a, 0), 0) : texelFetch(pal, ivec2(a, 0), 0)).rgb;
 				vec3 cB = (second ? texelFetch(pal2, ivec2(sx, 0), 0) : texelFetch(pal, ivec2(sx, 0), 0)).rgb;
 				bool ok = length(was - cA) < 0.004 || length(was - cB) < 0.004;
-				if (ok && length(was - outc) > 1e-3 && length(s.rgb - was) < length(s.rgb - outc) + hyst) {
+				if (ok && length(was - outc) > 1e-3 && length(s.rgb - was) < length(s.rgb - outc) + min(hyst, LAG_MAX * tex / 255.0)) {
 					outc = was;
 				}
 			}

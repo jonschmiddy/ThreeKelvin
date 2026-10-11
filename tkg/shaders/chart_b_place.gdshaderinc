@@ -43,6 +43,7 @@ uniform vec4 u_lt[12];             // lightning per cloud: pose (0 none, 1 bolt,
 uniform float u_glim = 0.0;        // the glimmers' stepped angle
 uniform float u_shaft = 0.0;       // the shafts' stepped angle
 uniform float u_flow = 0.0;        // the currents' clock (halved under reduced motion)
+uniform float u_laneThin = 0.0;    // the dust lane thinned inside the bulge (`ChartPainted.lane_thin`)
 
 #define M_SKY 0
 #define M_ARM 1
@@ -924,6 +925,8 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float lane = 0.0, laneS = 0.0, lip = 0.0;
 	if (!ellip && u_g1.z > 0.0 && u_g1.y > 0.0) {
 		float lw = (0.0075 + 0.008 * r) * (0.7 + 0.6 * kitVnoise2(vec2(al * 0.9, 3.0)));
+		// (option B: thinned inside the bulge, where it crosses the gold as an arc)
+		lw *= 1.0 - 0.75 * u_laneThin * (1.0 - smoothstep(0.10, 0.30, r));
 		float lc = (0.86 + 0.2 * kitSnoise2(vec2(al * 0.5, 7.0))) * wp + 0.3 * lw;
 		float brk = smoothstep(0.3, 0.46, kitVnoise2(vec2(al * 1.4, 11.0)));
 		float dd = abs(dp - lc) / lw;
