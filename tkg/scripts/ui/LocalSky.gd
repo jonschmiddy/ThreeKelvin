@@ -1897,6 +1897,83 @@ func _wow_step(_delta: float) -> void:
 func wow_sync() -> void:
 	_wow_hull()
 	_wow_night()
+	_wow_moons()
+
+
+## THE MOONS GO ROUND (`LocalWow` "moons"): the moons of the world you orbit,
+## which hung still above it, each on its own orbit round it -- seen from just
+## above their plane, so the near half of the orbit passes in front of the
+## world's face and the far half behind it -- the inner ones faster. In front,
+## a moon's shadow crosses the face with it (the painter's own `moon_sh`, the
+## map's eclipses); behind, a moon that slips into the world's shadow goes
+## dark. Each moon drawn on the 2 px blocks and slid between them by its
+## surface's own drift (`PlanetView.set_drift`), so it glides, it does not hop.
+func _wow_moons() -> void:
+	if _near.size() < 2 or not (_near_world is PlanetView) or not _hand.is_empty() or not LocalWow.asked(&"moons"):
+		return
+	var pv := _near_world as PlanetView
+	var on := LocalWow.on(&"moons")
+	var parent := pv.get_parent()
+	var e0: Array = _near[0]
+	var zl := _zl(Z_NEAR)
+	var R := float(e0[3]) * zl
+	var wc := pv.position
+	var wm := pv.get("_mat") as ShaderMaterial
+	var Lw := wm.get_shader_parameter("light") as Vector3
+	var msh := PackedVector4Array()
+	var k := 0
+	for i in range(1, _near.size()):
+		var e: Array = _near[i]
+		if StringName(e[4]) != &"moon":
+			continue
+		var mv := e[0] as PlanetView
+		var hs := Worlds.half_size(&"moon", float(e[3]))
+		var mr := float(e[3]) * zl
+		var pos: Vector2
+		var drift := Vector2.ZERO
+		var front := true
+		var kl := 1.0
+		if not on:
+			# where it hangs still (`_step_near`'s own place for it)
+			pos = _zp(_block_round(Vector2(e[1]) - cam * float(e[2])), Z_NEAR) + Vector2.ONE * float(hs % 2)
+		else:
+			var hk := SkyBakeS.hash2(int(e[5]), 71)
+			var a := R * (1.45 + 0.42 * float(k) + 0.12 * hk)
+			var incl := 0.3 + 0.12 * hk
+			var roll := (hk - 0.5) * 0.22
+			# (inner faster, outer slower: a Kepler-ish period, compressed)
+			var period := 70.0 * pow(a / (R * 1.45), 1.5)
+			var th := (0.2 + 0.31 * float(k) + 0.17 * hk) * TAU + t * TAU / period
+			var ox := -cos(th) * a
+			var oz := sin(th) * a
+			var p := Vector2(ox, oz * sin(incl)).rotated(roll)
+			var z := oz * cos(incl)
+			front = z >= 0.0
+			var mp := wc + p
+			pos = _block_round(mp) + Vector2.ONE * float(hs % 2)
+			drift = mp + Vector2.ONE * float(hs % 2) - pos
+			# in the world's shadow: behind it from the star, inside its radius
+			var M3 := Vector3(p.x, p.y, z)
+			var along := M3.dot(Lw)
+			if along < 0.0:
+				var perp := (M3 - Lw * along).length()
+				kl = lerpf(0.1, 1.0, smoothstep(R * 0.9, R * 1.08, perp))
+			if front and msh.size() < 4:
+				msh.append(Vector4(p.x, p.y, z, mr))
+		mv.position = pos
+		mv.set_drift(drift)
+		var d := (origin() - pos) / zl
+		mv.step(t, Vector3(d.x, d.y, 140.0).normalized(), kl)
+		# in front of the world or behind it
+		if front and mv.get_index() < pv.get_index():
+			parent.move_child(mv, -1)
+		elif not front and mv.get_index() > pv.get_index():
+			parent.move_child(mv, 0)
+		k += 1
+	var n := msh.size()
+	msh.resize(4)
+	wm.set_shader_parameter("moon_sh", msh)
+	wm.set_shader_parameter("n_moon_sh", n)
 
 
 ## THE NIGHT SIDE OF A SETTLED WORLD (`LocalWow` "night"): the world you orbit,
