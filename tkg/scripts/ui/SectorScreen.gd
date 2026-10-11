@@ -2547,15 +2547,11 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		var xf0 := _face.get_global_transform()
 		var start := xf0.affine_inverse() * _ladder_ship() - _face.origin()
 		var berth := Vector2(StationFace.TAIL_IN + len_end * 0.5, StationFace.ROW)
-		var dim3 := Vector2(236, 87)
-		if art2 != null:
-			dim3 = Rect2(art2.ink_rect()).size * art2.scale
 		# (docking: LOCAL is the screen being left; undocking it is the one coming)
 		var inward := ZoomLadder.active == null or ZoomLadder.active.old == self
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
-			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward,
-			"f_wait": _fly_at_nose(start.x, berth.x, dim3, s_end, StationFace.LIP_X - WAIT_GAP), "beat": &""}
+			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward, "beat": &""}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2591,40 +2587,34 @@ func ladder_cam(k: float) -> void:
 	var bob := 0.0
 	var beat := &""
 	if not hall.is_empty() and bool(hall.get("inward", true)):
-		# DOCKING, IN THREE BEATS (`ZoomLadder.dock_beats`): k is the whole
-		# approach's clock, linear
+		# DOCKING, IN TWO BEATS (`ZoomLadder.dock_beats`; Jon: "Let's have the
+		# station turn on BEFORE the ship moves in"): k is the whole approach's
+		# clock, linear
 		var b := ZoomLadder.dock_beats()
-		var t := hk * (b.x + b.y + b.z)
-		var ua := clampf(t / maxf(b.x, 0.001), 0.0, 1.0)
-		var uw := clampf((t - b.x) / maxf(b.y, 0.001), 0.0, 1.0)
-		var ue := clampf((t - b.x - b.y) / maxf(b.z, 0.001), 0.0, 1.0)
-		var fw := float(hall.f_wait)
+		var t := hk * (b.x + b.y)
+		var uw := clampf(t / maxf(b.x, 0.001), 0.0, 1.0)
+		var ue := clampf((t - b.x) / maxf(b.y, 0.001), 0.0, 1.0)
 		if t < b.x:
-			# ARRIVE: from where it sits up to just outside the mouth, from rest
-			# to rest, the camera coming in to the mouth with it
-			beat = &"arrive"
-			hall_fly = fw * _smoother(ua)
-			kc = CAM_WAIT * _smoother(ua)
-			follow = 0.0
-		elif t < b.x + b.y:
-			# THE STATION WAKES: your ship waits at the mouth, a gentle bob, the
-			# camera still
+			# THE STATION WAKES: your ship where it was parked, a gentle bob, the
+			# camera still, while the station powers up to meet it
 			beat = &"wake"
-			hall_fly = fw
-			kc = CAM_WAIT
+			hall_fly = 0.0
+			kc = 0.0
 			follow = 0.0
-			bob = roundf(sin(TAU * 0.45 * (t - b.x)) * sin(PI * uw))
+			bob = roundf(sin(TAU * 0.45 * t) * sin(PI * uw))
 		else:
-			# ENTER: slowly at first, gathering speed down the hallway and on into
-			# the hull, still at speed as it goes in; the camera coming round to
-			# follow it
+			# THEN IN, ONE MOVE (the dock Jon approved): from where it sits, slowly
+			# at first, gathering speed up to the mouth and down the hallway and on
+			# into the hull, still at speed as it goes in; the camera setting off
+			# after it and coming round to follow it
 			beat = &"enter"
-			hall_fly = fw + (1.0 - fw) * ue * ue
-			kc = CAM_WAIT + (1.0 - CAM_WAIT) * (ue * ue * (3.0 - 2.0 * ue))
-			follow = clampf(ue / 0.7, 0.0, 1.0)
+			hall_fly = ue * ue
+			kc = clampf((ue - HALL_CAM_FROM) / (1.0 - HALL_CAM_FROM), 0.0, 1.0)
+			kc = kc * kc * (3.0 - 2.0 * kc)
+			follow = clampf((ue - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
 			follow = follow * follow * (3.0 - 2.0 * follow)
 		hall["beat"] = beat
-		hall["u_wake"] = uw if t >= b.x else 0.0
+		hall["u_wake"] = uw
 		hall["u_enter"] = ue
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
@@ -2710,36 +2700,15 @@ func ladder_cam(k: float) -> void:
 ## the camera comes round to follow your ship
 const HALL_CAM_FROM := 0.12
 const HALL_FOLLOW := 0.5
-## THE DOCK'S BEATS (`ZoomLadder.dock_beats`): your ship waits with its nose
-## `WAIT_GAP` px (plate) short of the lips; the camera has come `CAM_WAIT` of
-## its way in by then; the lights are all on by `WAKE_POWER_BY` of the wake, and
-## the warning lights go green at `WARN_CLEAR` of it. Undocking, the station
-## stays lit until your ship is `UNDOCK_LIT_TO` of its way back out.
-const WAIT_GAP := 14.0
-const CAM_WAIT := 0.55
+## THE DOCK'S BEATS (`ZoomLadder.dock_beats`): the lights are all on by
+## `WAKE_POWER_BY` of the wake, and the warning lights go green at `WARN_CLEAR`
+## of it. Undocking, the station stays lit until your ship is `UNDOCK_LIT_TO` of
+## its way back out.
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86
 const UNDOCK_LIT_TO := 0.35
 
 
-## Smoothly from rest to rest (an ease in and out with no jolt at either end).
-static func _smoother(u: float) -> float:
-	u = clampf(u, 0.0, 1.0)
-	return u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
-
-
-## Where (as `fly`, along the approved path: its middle from `sx` to `bx`, its
-## size from its own to `s_end`) your ship's nose reaches plate x `nose_x`.
-static func _fly_at_nose(sx: float, bx: float, dim: Vector2, s_end: float, nose_x: float) -> float:
-	var lo := 0.0
-	var hi := 1.0
-	for i in 40:
-		var f := (lo + hi) * 0.5
-		if lerpf(sx, bx, f) + dim.x * lerpf(1.0, s_end, f) * 0.5 < nose_x:
-			lo = f
-		else:
-			hi = f
-	return (lo + hi) * 0.5
 
 
 ## Your ship's speed along the hallway at its end (k 1), in screen px a second,
@@ -2750,9 +2719,8 @@ func ladder_track_speed(dur: float) -> float:
 	if hall.is_empty():
 		return 0.0
 	if bool(hall.get("inward", true)):
-		# (docking: the end of the enter beat, fly = f_wait + (1 - f_wait) u^2)
-		var fw := float(hall.get("f_wait", 0.0))
-		return 2.0 * (1.0 - fw) * float(hall.path) * float(_lad.zs1) / maxf(ZoomLadder.dock_beats().z, 0.001)
+		# (docking: the end of the move in, fly = u^2)
+		return 2.0 * float(hall.path) * float(_lad.zs1) / maxf(ZoomLadder.dock_beats().y, 0.001)
 	return 2.0 * float(hall.path) * float(_lad.zs1) / maxf(dur, 0.001)
 
 

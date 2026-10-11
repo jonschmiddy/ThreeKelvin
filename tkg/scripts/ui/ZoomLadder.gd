@@ -72,17 +72,16 @@ static var UI_IN_S := 0.4
 static var SEAM1_S := 1.7
 static var SEAM2_S := 1.8
 static var DIVE_S := 1.9
-## 3B AT A STATION, in seconds, in three beats (Jon: "can we have a few seconds
-## beat between the ship arriving at the space station dock... The lights turn
-## on ... flickering .. warning lights etc like an entry way ... and the ship
-## slowly entering the dock?"): ARRIVE, your ship from where it sits up to just
-## outside the mouth, coming to rest there; THE STATION WAKES, your ship waiting,
-## the power-on and the warning lights at the mouth; ENTER, your ship slowly
-## into the hallway and on into the hull (`SectorScreen.ladder_cam`). LOCAL's
-## whole pre-roll is the three (`dock_approach_s`).
-static var DOCK_ARRIVE_S := 2.4
+## 3B AT A STATION, in seconds, in two beats (Jon: "The lights turn on ...
+## flickering .. warning lights etc like an entry way ... and the ship slowly
+## entering the dock", then "Let's have the station turn on BEFORE the ship moves
+## in"): THE STATION WAKES, your ship still where it was parked, the power-on and
+## the warning lights at the mouth; then IN, your ship from where it sits up to
+## the mouth and on into the hull in one slow move, as approved
+## (`SectorScreen.ladder_cam`). LOCAL's whole pre-roll is the two
+## (`dock_approach_s`).
 static var DOCK_WAKE_S := 3.0
-static var DOCK_ENTER_S := 3.0
+static var DOCK_ENTER_S := 4.0
 ## how fast the warning lights at the mouth flash while your ship waits (a second)
 static var DOCK_WARN_HZ := 1.6
 ## the dip to black at the end of the dock, your ship already out of sight (s)
@@ -122,7 +121,6 @@ const DIALS := [
 	["seam1_s", "CHART - MAP", "SEAM1_S", 0.4, 4.0],
 	["seam2_s", "MAP - LOCAL", "SEAM2_S", 0.4, 4.0],
 	["dive_s", "TWO AT ONCE", "DIVE_S", 0.4, 4.0],
-	["dock_arrive_s", "DOCK: ARRIVE AT THE MOUTH", "DOCK_ARRIVE_S", 0.8, 6.0],
 	["dock_wake_s", "DOCK: THE STATION WAKES", "DOCK_WAKE_S", 0.6, 8.0],
 	["dock_enter_s", "DOCK: INTO THE HULL", "DOCK_ENTER_S", 1.0, 8.0],
 	["dock_warn_hz", "DOCK: WARNING FLASHES /S", "DOCK_WARN_HZ", 0.3, 4.0],
@@ -184,7 +182,6 @@ static func _dial_get(var_name: String) -> float:
 		"SEAM1_S": return SEAM1_S
 		"SEAM2_S": return SEAM2_S
 		"DIVE_S": return DIVE_S
-		"DOCK_ARRIVE_S": return DOCK_ARRIVE_S
 		"DOCK_WAKE_S": return DOCK_WAKE_S
 		"DOCK_ENTER_S": return DOCK_ENTER_S
 		"DOCK_WARN_HZ": return DOCK_WARN_HZ
@@ -209,7 +206,6 @@ static func _dial_set(var_name: String, v: float) -> void:
 		"SEAM1_S": SEAM1_S = v
 		"SEAM2_S": SEAM2_S = v
 		"DIVE_S": DIVE_S = v
-		"DOCK_ARRIVE_S": DOCK_ARRIVE_S = v
 		"DOCK_WAKE_S": DOCK_WAKE_S = v
 		"DOCK_ENTER_S": DOCK_ENTER_S = v
 		"DOCK_WARN_HZ": DOCK_WARN_HZ = v
@@ -273,19 +269,19 @@ static func seam3_fade() -> String:
 	return v if v in FADES else "F"
 
 
-## The dock's three beats, s: (arrive, the station wakes, enter). Reduced
-## motion (if a dock is ever animated under it) waits a moment, not the wake.
-static func dock_beats() -> Vector3:
+## The dock's two beats, s: (the station wakes, your ship in). Reduced motion
+## (if a dock is ever animated under it) waits a moment, not the wake.
+static func dock_beats() -> Vector2:
 	_read_cfg()
 	var w := DOCK_WAKE_S
 	if DisplaySettings.reduced_motion:
 		w = minf(w, 0.8)
-	return Vector3(DOCK_ARRIVE_S, w, DOCK_ENTER_S)
+	return Vector2(w, DOCK_ENTER_S)
 
 
 static func dock_approach_s() -> float:
 	var b := dock_beats()
-	return b.x + b.y + b.z
+	return b.x + b.y
 
 
 ## A Hermite curve from 0 to 1 over u 0..1, leaving at slope `m0` and arriving at
