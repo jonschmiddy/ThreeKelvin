@@ -57,12 +57,6 @@ const OUTLINE := {1: "#0f1230", 6: "#2e0a22", 8: "#0d1638"}
 const NOTRANS := [13, 14, 15, 16, 18]
 
 static var _tables: Dictionary = {}
-## THE DUST LANE ROUND THE BULGE, a choice for Jon (Oct 10): an arm's inner dust
-## lane runs on into the bulge and is drawn there, with its lit lip, as a dark arc
-## a block or two wide across the gold (zoom 1 to 3). false: as it is; true: the
-## lane thinned to a quarter of its width inside the bulge, so it reads as a hairline
-## rather than a drawn line. `-- sheet=ChartLook lanethin` photographs it.
-static var lane_thin := false
 
 
 ## The palette and its lookups, built once: the palette texture, the ramp entry
@@ -423,7 +417,6 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_block0", b0)
 	mp.set_shader_parameter("u_wxOn", 0.0 if calm else 1.0)
 	mp.set_shader_parameter("u_flow", t * (0.5 if calm else 1.0))
-	mp.set_shader_parameter("u_laneThin", 1.0 if lane_thin else 0.0)
 	var gu4: Vector4 = g.gu.u_g4
 	gu4.z = 1.0 if calm else 0.0
 	mp.set_shader_parameter("u_g4", gu4)

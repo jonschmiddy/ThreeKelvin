@@ -122,8 +122,6 @@ func _run() -> void:
 				print("  chartlook: bolt in %s at clock %.2f" % [bc.name, bt])
 				break
 			bi += 1
-	if "lanethin" in OS.get_cmdline_user_args():
-		ChartPainted.lane_thin = true
 	if _arg("hyst") != "":
 		ChartSky.hyst = float(_arg("hyst"))
 	if _arg("palmerge") != "":
