@@ -921,6 +921,7 @@ func _step(delta: float) -> void:
 		_near_rect.position = Vector2.ZERO
 		_near_rect.scale = Vector2.ONE
 	_wx_step(delta)
+	_wow_step(delta)
 	if _ready_sky and not _palette_built and _frame > 8 and _palette_mat != null:
 		_build_palette()
 
@@ -1876,6 +1877,19 @@ class _Wreck extends Node2D:
 						draw_rect(Rect2(((c + Vector2(xx, yy)) / 2.0).floor() * 2.0, Vector2(2, 2)), RAMP[3 if lit2 else 1])
 					xx += 2.0
 				yy += 2.0
+
+
+# ------------------------------------------------------------------ the wow prototypes
+
+## `LocalWow`'s ideas, worked out every frame they are asked for; `wow_sync`
+## draws them or not as `LocalWow.shown` says, without moving any clock (a
+## harness films the same frame both ways).
+func _wow_step(_delta: float) -> void:
+	wow_sync()
+
+
+func wow_sync() -> void:
+	pass
 
 
 # ------------------------------------------------------------------ harness
