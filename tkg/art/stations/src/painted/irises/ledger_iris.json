@@ -1,0 +1,71 @@
+{
+ "spent": 6.0,
+ "takes": [
+  {
+   "tag": "iris_90_0__s90_71000",
+   "iris": "iris_90_0",
+   "seed": 71000,
+   "strength": 90,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 26.8
+  },
+  {
+   "tag": "iris_90_1__s90_71100",
+   "iris": "iris_90_1",
+   "seed": 71100,
+   "strength": 90,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 39.4
+  },
+  {
+   "tag": "iris_220_1__s220_71200",
+   "iris": "iris_220_1",
+   "seed": 71200,
+   "strength": 220,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 24.1
+  },
+  {
+   "tag": "iris_90_0__s250_71010",
+   "iris": "iris_90_0",
+   "seed": 71010,
+   "strength": 250,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 28.3
+  },
+  {
+   "tag": "iris_90_1__s250_71110",
+   "iris": "iris_90_1",
+   "seed": 71110,
+   "strength": 250,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 17.6
+  },
+  {
+   "tag": "iris_90_1__s330_71120",
+   "iris": "iris_90_1",
+   "seed": 71120,
+   "strength": 330,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 24.1
+  }
+ ]
+}

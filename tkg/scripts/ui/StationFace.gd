@@ -101,9 +101,22 @@ const STRIP := Rect2(223, 200, 14, 138)
 const DOOR_SLICES := 6
 
 ## a lamp standing by (before you dock): this much of its light
-const STANDBY := 0.18
+## (dead in its housing: Jon, "MUCH more dramatic between turned off and turned
+## on" -- only the always-on strobes and red beacon show while it sleeps)
+const STANDBY := 0.0
+## the hull's plating seen by starlight alone while the station sleeps, of how it
+## is seen once its own lights are on
+const HULL_SLEEP := 0.8
+## a lamp's light spills this much further round it than it used to
+const SPILL := 1.5
+## THE WARNING LIGHTS AT THE MOUTH (plate px): on the tip of each lip, flashing
+## amber and red in turn while your ship waits (`ZoomLadder.DOCK_WARN_HZ`),
+## green once it is cleared to come in (`warn`)
+const WARN_AT := [Vector2(86, 198), Vector2(86, 338)]
+const AMBER := Color("#ffb030")
+const GREEN := Color("#5ae678")
 ## the bay's light standing by, of its lit picture over its dark one
-const BAY_REST := 0.4
+const BAY_REST := 0.0
 ## THE POWER-ON, along the approach (`power` 0 -> 1): when each group starts
 ## coming on, and how long one lamp's flicker takes
 const ON_DOOR := 0.0
@@ -136,8 +149,11 @@ var tint := Color(1, 1, 1)
 ## how far into the dock the camera is (0 at rest, 1 in the bay): the guide
 ## lights run in faster as it goes
 var dock_k := 0.0
-## the station's lights coming on to meet you, 0 (standing by) to 1 (all on)
+## the station's lights coming on to meet you, 0 (asleep) to 1 (all on)
 var power := 0.0
+## the warning lights at the mouth: 0 off, 1 flashing (your ship waiting), 2
+## green (cleared to come in), on to 3 (gone)
+var warn := 0.0
 ## the side drawn, and its interior's two pictures ([] for the side's own bay)
 var side: StationSides.SideArt = null
 var interior: Array = []
@@ -344,10 +360,10 @@ func _draw_interior(m: Color, o: Vector2) -> void:
 	if interior.is_empty():
 		return
 	var at := o + StationSides.INTERIOR_AT
-	draw_texture(interior[0], at, m)
+	draw_texture(interior[0], at, _lv(m, _off_k()))
 	var k := bay_lit()
 	if k > 0.01:
-		draw_texture(interior[1], at, Color(m.r, m.g, m.b, k))
+		draw_texture(interior[1], at, _lv(m, ZoomLadder.LIGHT_ON, k))
 
 
 ## Behind your ship its bay (or interior), lit from the door; over it the
@@ -355,10 +371,10 @@ func _draw_interior(m: Color, o: Vector2) -> void:
 func _draw_side(m: Color, o: Vector2) -> void:
 	var s := side
 	if not front:
-		draw_texture(s.bay_dark, o + s.bay_at, m)
+		draw_texture(s.bay_dark, o + s.bay_at, _lv(m, _off_k()))
 		var k := bay_lit()
 		if k > 0.01:
-			draw_texture(s.bay_lit, o + s.bay_at, Color(m.r, m.g, m.b, k))
+			draw_texture(s.bay_lit, o + s.bay_at, _lv(m, ZoomLadder.LIGHT_ON, k))
 		_draw_interior(m, o)
 		return
 	# (where the camera is as this frame is drawn)
@@ -366,6 +382,9 @@ func _draw_side(m: Color, o: Vector2) -> void:
 	# the plate up to where its hull window starts, then the window tiled on
 	var cut := s.hull_x0
 	var h := float(s.solid.get_height())
+	var mh := _lv(m, lerpf(HULL_SLEEP, 1.0, _ease(power)))
+	var m0 := m
+	m = mh
 	draw_texture_rect_region(s.solid, Rect2(o, Vector2(cut, h)), Rect2(0, 0, cut, h), m)
 	for l: Array in s.layers:
 		var dx := float(par.get(l[1], 0))
@@ -381,14 +400,59 @@ func _draw_side(m: Color, o: Vector2) -> void:
 		var k := _lamp(_extra_at(i))
 		if l.kind == &"beacon_lamp":
 			k = 0.55 + 0.45 * _pulse(2.4, 0.0)
-		_lit(s.lamps, r, k, m)
+		_lit(s.lamps, r, k, m0)
+	_warn_cores(o)
+
+
+## The warning lights' cores, a 3 x 3 lamp on each lip's tip (their light is
+## drawn as light, `_warn_lights`).
+func _warn_cores(o: Vector2) -> void:
+	for i in WARN_AT.size():
+		var c := _warn_color(i)
+		if c.a <= 0.01:
+			continue
+		var p: Vector2 = o + WARN_AT[i] - Vector2(1, 1)
+		draw_rect(Rect2(p, Vector2(3, 3)), Color(c.r, c.g, c.b, c.a))
+
+
+## One warning light's colour and how lit it is now (alpha): off asleep; while
+## your ship waits, amber and red in turn, each holding half the beat (no
+## flicker between); green and steady once it is cleared, fading as it goes in.
+## Reduced motion: steady amber.
+func _warn_color(i: int) -> Color:
+	if warn <= 0.0 or warn >= 3.0:
+		return Color(0, 0, 0, 0)
+	if warn < 2.0:
+		if DisplaySettings.reduced_motion:
+			return Color(AMBER.r, AMBER.g, AMBER.b, 1.0)
+		var ph := fposmod(_clock * ZoomLadder.DOCK_WARN_HZ + 0.5 * float(i), 1.0)
+		var on := ph < 0.5
+		var c: Color = AMBER if (int(floorf(_clock * ZoomLadder.DOCK_WARN_HZ)) + i) % 2 == 0 else RED
+		return Color(c.r, c.g, c.b, 1.0 if on else 0.0)
+	return Color(GREEN.r, GREEN.g, GREEN.b, clampf(3.0 - warn, 0.0, 1.0))
+
+
+## `m` brightened or darkened by `k` (and `a` as its alpha).
+static func _lv(m: Color, k: float, a: float = 1.0) -> Color:
+	return Color(m.r * k, m.g * k, m.b * k, a)
+
+
+## The bay's dark picture is its art at 0.45: this much of it shows asleep.
+func _off_k() -> float:
+	return ZoomLadder.LIGHT_OFF / 0.45
+
+
+static func _ease(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return u * u * (3.0 - 2.0 * u)
 
 
 ## Part of the lamps layer over the unlit plate, at `k` of its light.
 func _lit(lamps: Texture2D, r: Rect2, k: float, m: Color) -> void:
 	if k <= 0.01:
 		return
-	draw_texture_rect_region(lamps, Rect2(origin() + r.position, r.size), r, Color(m.r, m.g, m.b, clampf(k, 0.0, 1.0)))
+	var b := ZoomLadder.LIGHT_ON
+	draw_texture_rect_region(lamps, Rect2(origin() + r.position, r.size), r, Color(m.r * b, m.g * b, m.b * b, clampf(k, 0.0, 1.0)))
 
 
 # ------------------------------------------------------------------ the light
@@ -421,8 +485,10 @@ static func _glow_tex(r: int) -> Texture2D:
 
 
 func _light(c: CanvasItem, p: Vector2, r: int, col: Color, k: float) -> void:
+	k *= ZoomLadder.LIGHT_GLOW
 	if k <= 0.01:
 		return
+	r = int(roundf(float(r) * SPILL))
 	var o := origin() + p - Vector2(r, r)
 	c.draw_texture(_glow_tex(r), o.round(), Color(col.r, col.g, col.b, clampf(k, 0.0, 1.0)))
 
@@ -460,6 +526,7 @@ func _strip_lights(c: CanvasItem, flick: float) -> void:
 ## bay's light is its lit panels.
 func _side_lights(c: CanvasItem) -> void:
 	if not front:
+		_bay_lights(c)
 		return
 	var sk := Color(1, 1, 1).lerp(tint, 0.2)
 	var flick := 0.92 + 0.08 * sin(_clock * 9.0) * sin(_clock * 3.7)
@@ -467,6 +534,7 @@ func _side_lights(c: CanvasItem) -> void:
 	_door_lights(c, flick)
 	_strip_lights(c, flick)
 	_guides(c, 204.0, GUIDE_TOP.size(), 0.3)
+	_warn_lights(c)
 	var s := side
 	for i in s.extra.size():
 		var l: Dictionary = s.extra[i]
@@ -499,6 +567,36 @@ func _side_lights(c: CanvasItem) -> void:
 			_light(c, cl.at, int(cl.radius), cl.color, 0.75 * _strobe(float(cl.period), float(cl.offset)))
 		else:
 			_light(c, cl.at, int(cl.radius), cl.color, 0.12 + 0.3 * _pulse(float(cl.period), float(cl.offset)))
+
+
+## THE BAY'S OWN LIGHT, behind your ship: asleep, a faint red emergency glow at
+## the inner door's corners; awake, the door's light falling across the floor and
+## up the walls from it, in warm pools that fall off away from the door.
+func _bay_lights(c: CanvasItem) -> void:
+	var d := door_on()
+	var e := (1.0 - d) * 0.06
+	if e > 0.004:
+		for p in [Vector2(125, 214), Vector2(178, 214), Vector2(125, 326), Vector2(178, 326)]:
+			_light(c, p, 3, RED, e)
+	if d <= 0.01:
+		return
+	var flick := 0.95 + 0.05 * sin(_clock * 7.0) * sin(_clock * 2.3)
+	# (along the floor, outward from the door)
+	for j in 6:
+		var x := 152.0 - float(j) * 13.0
+		_light(c, Vector2(x, 324), 9, HEAT[3], (0.16 - 0.022 * float(j)) * d * flick)
+	# (round the door, on the walls either side)
+	for p in [Vector2(118, 240), Vector2(185, 240), Vector2(118, 296), Vector2(185, 296)]:
+		_light(c, p, 8, HEAT[2], 0.09 * d * flick)
+
+
+## The warning lights' light, as light.
+func _warn_lights(c: CanvasItem) -> void:
+	for i in WARN_AT.size():
+		var col := _warn_color(i)
+		if col.a <= 0.01:
+			continue
+		_light(c, WARN_AT[i], 6, Color(col.r, col.g, col.b), 0.42 * col.a)
 
 
 ## The guide lights' light along one lip as each comes on; once all are on, a

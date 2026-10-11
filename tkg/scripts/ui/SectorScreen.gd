@@ -2547,9 +2547,15 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		var xf0 := _face.get_global_transform()
 		var start := xf0.affine_inverse() * _ladder_ship() - _face.origin()
 		var berth := Vector2(StationFace.TAIL_IN + len_end * 0.5, StationFace.ROW)
+		var dim3 := Vector2(236, 87)
+		if art2 != null:
+			dim3 = Rect2(art2.ink_rect()).size * art2.scale
+		# (docking: LOCAL is the screen being left; undocking it is the one coming)
+		var inward := ZoomLadder.active == null or ZoomLadder.active.old == self
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
-			"berth": berth, "start": start, "path": absf(berth.x - start.x)}
+			"berth": berth, "start": start, "path": absf(berth.x - start.x), "inward": inward,
+			"f_wait": _fly_at_nose(start.x, berth.x, dim3, s_end, StationFace.LIP_X - WAIT_GAP), "beat": &""}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2576,19 +2582,57 @@ func ladder_cam(k: float) -> void:
 	if not hall.is_empty():
 		kc = clampf((k - HALL_CAM_FROM) / (1.0 - HALL_CAM_FROM), 0.0, 1.0)
 		kc = kc * kc * (3.0 - 2.0 * kc)
-	# (ONE SMOOTH MOTION, Jon: your ship from where it sits to inside the hull on
-	# one curve, k squared -- from rest, gathering speed the whole way, still at
-	# speed as it goes in -- and the camera coming to follow it, so at the end
-	# camera and ship move as one, at the speed the pan carries on with)
+	# (UNDOCKING, ONE SMOOTH MOTION, Jon: your ship from inside the hull back out
+	# to where it sat on one curve, k squared, the camera following it out)
 	var hk := clampf(k, 0.0, 1.0)
 	var hall_fly := hk * hk
+	var follow := clampf((hk - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
+	follow = follow * follow * (3.0 - 2.0 * follow)
+	var bob := 0.0
+	var beat := &""
+	if not hall.is_empty() and bool(hall.get("inward", true)):
+		# DOCKING, IN THREE BEATS (`ZoomLadder.dock_beats`): k is the whole
+		# approach's clock, linear
+		var b := ZoomLadder.dock_beats()
+		var t := hk * (b.x + b.y + b.z)
+		var ua := clampf(t / maxf(b.x, 0.001), 0.0, 1.0)
+		var uw := clampf((t - b.x) / maxf(b.y, 0.001), 0.0, 1.0)
+		var ue := clampf((t - b.x - b.y) / maxf(b.z, 0.001), 0.0, 1.0)
+		var fw := float(hall.f_wait)
+		if t < b.x:
+			# ARRIVE: from where it sits up to just outside the mouth, from rest
+			# to rest, the camera coming in to the mouth with it
+			beat = &"arrive"
+			hall_fly = fw * _smoother(ua)
+			kc = CAM_WAIT * _smoother(ua)
+			follow = 0.0
+		elif t < b.x + b.y:
+			# THE STATION WAKES: your ship waits at the mouth, a gentle bob, the
+			# camera still
+			beat = &"wake"
+			hall_fly = fw
+			kc = CAM_WAIT
+			follow = 0.0
+			bob = roundf(sin(TAU * 0.45 * (t - b.x)) * sin(PI * uw))
+		else:
+			# ENTER: slowly at first, gathering speed down the hallway and on into
+			# the hull, still at speed as it goes in; the camera coming round to
+			# follow it
+			beat = &"enter"
+			hall_fly = fw + (1.0 - fw) * ue * ue
+			kc = CAM_WAIT + (1.0 - CAM_WAIT) * (ue * ue * (3.0 - 2.0 * ue))
+			follow = clampf(ue / 0.7, 0.0, 1.0)
+			follow = follow * follow * (3.0 - 2.0 * follow)
+		hall["beat"] = beat
+		hall["u_wake"] = uw if t >= b.x else 0.0
+		hall["u_enter"] = ue
 	var zs := pow(float(_lad.zs1), kc)
 	_lad_zs = zs
 	var to_g: Vector2 = (_lad.fixed as Vector2).lerp(_lad.to1, kc)
 	var fixed_g: Vector2 = _lad.fixed
 	var shift := Vector2(position.x - float(_lad.get("x0", position.x)), 0.0)
 	if not hall.is_empty():
-		var a := _hall_anchor(hall, kc, hk, hall_fly)
+		var a := _hall_anchor(hall, kc, follow, hall_fly)
 		fixed_g = a
 		to_g = a.lerp(hall.vc, kc)
 	for w: Array in _lad.scenes:
@@ -2605,12 +2649,26 @@ func ladder_cam(k: float) -> void:
 			sc.position = sc.position.round()
 		sc.size = w[6]
 	if not hall.is_empty():
-		# THE STATION'S LIGHTS COME ON TO MEET YOU over the first stretch of the
-		# approach (and go off the same way as you leave)
+		# THE STATION WAKES while your ship waits at its mouth (docking): the
+		# power-on over the wake, the warning lights flashing while it waits and
+		# going green as it is cleared to come in; UNDOCKING, the station stays
+		# lit as your ship backs out and goes to sleep once it is clear
+		var pw := 0.0
+		var warn := 0.0
+		if bool(hall.get("inward", true)):
+			var uw := float(hall.get("u_wake", 0.0))
+			pw = clampf(uw / WAKE_POWER_BY, 0.0, 1.0)
+			if beat == &"wake":
+				warn = 1.0 if uw < WARN_CLEAR else 2.0
+			elif beat == &"enter":
+				warn = 2.0 + clampf(float(hall.get("u_enter", 0.0)) / 0.6, 0.0, 1.0)
+		else:
+			pw = clampf(k / UNDOCK_LIT_TO, 0.0, 1.0)
 		for f: StationFace in [_face, _face_front]:
 			if f != null and is_instance_valid(f):
 				f.dock_k = clampf(k, 0.0, 1.0)
-				f.power = clampf(k / HALL_POWER_BY, 0.0, 1.0)
+				f.power = pw
+				f.warn = warn
 	var sky: LocalSky = _view.backdrop
 	if sky != null and is_instance_valid(sky):
 		sky.set_zoom(zs, _lad.sky_fixed if hall.is_empty() else _sky_pt(sky, fixed_g + shift), _sky_pt(sky, to_g + shift))
@@ -2635,6 +2693,8 @@ func ladder_cam(k: float) -> void:
 			fly = hall_fly
 			var berth := slot.get_global_transform().affine_inverse() * _face.plate_g(hall.berth)
 			art.position = (ship.pos as Vector2).lerp(berth - (ship.mid as Vector2), fly)
+			# (the bob a whole pixel on screen, up and down)
+			art.position.y += bob / maxf(slot.get_global_transform().get_scale().y, 0.001)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
@@ -2646,11 +2706,40 @@ func ladder_cam(k: float) -> void:
 
 ## THE HALLWAY'S TIMING, as fractions of the approach (`ZoomLadder.DOCK_APPROACH_S`):
 ## the camera sets off at `HALL_CAM_FROM`, the lights are all on by
-## `HALL_POWER_BY` (before your ship reaches the lips), and from `HALL_FOLLOW`
+## (docking: see the beats below), and from `HALL_FOLLOW`
 ## the camera comes round to follow your ship
 const HALL_CAM_FROM := 0.12
-const HALL_POWER_BY := 0.55
 const HALL_FOLLOW := 0.5
+## THE DOCK'S BEATS (`ZoomLadder.dock_beats`): your ship waits with its nose
+## `WAIT_GAP` px (plate) short of the lips; the camera has come `CAM_WAIT` of
+## its way in by then; the lights are all on by `WAKE_POWER_BY` of the wake, and
+## the warning lights go green at `WARN_CLEAR` of it. Undocking, the station
+## stays lit until your ship is `UNDOCK_LIT_TO` of its way back out.
+const WAIT_GAP := 14.0
+const CAM_WAIT := 0.55
+const WAKE_POWER_BY := 0.85
+const WARN_CLEAR := 0.86
+const UNDOCK_LIT_TO := 0.35
+
+
+## Smoothly from rest to rest (an ease in and out with no jolt at either end).
+static func _smoother(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
+
+
+## Where (as `fly`, along the approved path: its middle from `sx` to `bx`, its
+## size from its own to `s_end`) your ship's nose reaches plate x `nose_x`.
+static func _fly_at_nose(sx: float, bx: float, dim: Vector2, s_end: float, nose_x: float) -> float:
+	var lo := 0.0
+	var hi := 1.0
+	for i in 40:
+		var f := (lo + hi) * 0.5
+		if lerpf(sx, bx, f) + dim.x * lerpf(1.0, s_end, f) * 0.5 < nose_x:
+			lo = f
+		else:
+			hi = f
+	return (lo + hi) * 0.5
 
 
 ## Your ship's speed along the hallway at its end (k 1), in screen px a second,
@@ -2660,6 +2749,10 @@ func ladder_track_speed(dur: float) -> float:
 	var hall: Dictionary = _lad.get("hall", {})
 	if hall.is_empty():
 		return 0.0
+	if bool(hall.get("inward", true)):
+		# (docking: the end of the enter beat, fly = f_wait + (1 - f_wait) u^2)
+		var fw := float(hall.get("f_wait", 0.0))
+		return 2.0 * (1.0 - fw) * float(hall.path) * float(_lad.zs1) / maxf(ZoomLadder.dock_beats().z, 0.001)
 	return 2.0 * float(hall.path) * float(_lad.zs1) / maxf(dur, 0.001)
 
 
@@ -2679,16 +2772,14 @@ func ladder_hull_side() -> Array:
 	return [_face_front.side, _face_front.par.duplicate()]
 
 
-## The hallway camera's anchor on screen at rest: the plate's row 250, at x
-## A0 -> A1 with the zoom, then coming round (from `HALL_FOLLOW`) to your ship's
-## own middle, so it ends following it at its speed.
-func _hall_anchor(hall: Dictionary, kc: float, k: float, fly: float) -> Vector2:
+## The hallway camera's anchor on screen at rest: the plate's row `ROW`, at x
+## A0 -> A1 with the zoom, then coming round (`w` 0 -> 1) to your ship's own
+## middle, so it ends following it at its speed.
+func _hall_anchor(hall: Dictionary, kc: float, w: float, fly: float) -> Vector2:
 	var xf: Transform2D = hall.xf
 	var o: Vector2 = hall.o
 	var frame := lerpf(StationFace.A0, StationFace.A1, kc)
 	var ship_x := lerpf((hall.start as Vector2).x, (hall.berth as Vector2).x, fly)
-	var w := clampf((k - HALL_FOLLOW) / (1.0 - HALL_FOLLOW), 0.0, 1.0)
-	w = w * w * (3.0 - 2.0 * w)
 	return xf * (o + Vector2(lerpf(frame, ship_x, w), StationFace.ROW))
 
 
@@ -2712,6 +2803,7 @@ func ladder_cam_end() -> void:
 		if f != null and is_instance_valid(f):
 			f.dock_k = 0.0
 			f.power = 0.0
+			f.warn = 0.0
 	var ship: Dictionary = _lad.ship
 	if not ship.is_empty() and is_instance_valid(ship.art):
 		var art: ShipView = ship.art

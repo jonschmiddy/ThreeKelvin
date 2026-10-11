@@ -378,7 +378,15 @@ func _page_motion() -> void:
 		_body.add_child(_gap(2))
 		_body.add_child(_line("MOVE TIMINGS", "SECONDS"))
 		for d: Array in ZoomLadder.DIALS:
-			_body.add_child(_row_dial(String(d[1]), String(d[0])))
+			if d.size() < 6:
+				_body.add_child(_row_dial(String(d[1]), String(d[0])))
+		# (the station's lights, by feel: Jon, "MUCH more dramatic between turned
+		# off and turned on")
+		_body.add_child(_gap(2))
+		_body.add_child(_line("STATION LIGHTS", "LEVEL"))
+		for d: Array in ZoomLadder.DIALS:
+			if d.size() >= 6:
+				_body.add_child(_row_dial(String(d[1]), String(d[0])))
 		_body.add_child(_row_chips("TIMINGS", ["DEFAULTS"], -1,
 			func(_i: int) -> void:
 				for d: Array in ZoomLadder.DIALS:

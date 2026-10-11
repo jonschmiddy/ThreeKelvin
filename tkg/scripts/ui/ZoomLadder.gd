@@ -72,10 +72,30 @@ static var UI_IN_S := 0.4
 static var SEAM1_S := 1.7
 static var SEAM2_S := 1.8
 static var DIVE_S := 1.9
-## 3B AT THE DRUM, in seconds (Jon: "it's an arrival, let it breathe"):
-## LOCAL, your ship from where it sits into the hallway's bay as the station's
-## lights come on to meet it (`SectorScreen.HALL_*` split this up)
-static var DOCK_APPROACH_S := 4.0
+## 3B AT A STATION, in seconds, in three beats (Jon: "can we have a few seconds
+## beat between the ship arriving at the space station dock... The lights turn
+## on ... flickering .. warning lights etc like an entry way ... and the ship
+## slowly entering the dock?"): ARRIVE, your ship from where it sits up to just
+## outside the mouth, coming to rest there; THE STATION WAKES, your ship waiting,
+## the power-on and the warning lights at the mouth; ENTER, your ship slowly
+## into the hallway and on into the hull (`SectorScreen.ladder_cam`). LOCAL's
+## whole pre-roll is the three (`dock_approach_s`).
+static var DOCK_ARRIVE_S := 2.4
+static var DOCK_WAKE_S := 3.0
+static var DOCK_ENTER_S := 3.0
+## how fast the warning lights at the mouth flash while your ship waits (a second)
+static var DOCK_WARN_HZ := 1.6
+## the dip to black at the end of the dock, your ship already out of sight (s)
+const DOCK_DIP_S := 0.4
+## THE STATION'S LIGHTS (Jon: "i think the lighting can be MUCH more dramatic
+## between turned off and turned on"): OFF, how much of the bay's own dark
+## picture shows while the station sleeps (and the hull's plating in starlight
+## only); ON, how bright the bay and every lamp are once it wakes (over 1 is
+## brighter than painted); GLOW, how strongly each lamp's light spills onto the
+## plating round it (`StationFace`)
+static var LIGHT_OFF := 0.22
+static var LIGHT_ON := 1.35
+static var LIGHT_GLOW := 1.8
 ## the camera's pan sideways through the station's hull into the yard
 const DOCK_PAN_S := 1.4
 ## the yard: your ship in from the left onto its stands (and then the elevator,
@@ -108,7 +128,10 @@ const DIALS := [
 	["seam1_s", "CHART - MAP", "SEAM1_S", 0.4, 4.0],
 	["seam2_s", "MAP - LOCAL", "SEAM2_S", 0.4, 4.0],
 	["dive_s", "TWO AT ONCE", "DIVE_S", 0.4, 4.0],
-	["dock_approach_s", "DOCK: INTO THE HULL", "DOCK_APPROACH_S", 1.0, 8.0],
+	["dock_arrive_s", "DOCK: ARRIVE AT THE MOUTH", "DOCK_ARRIVE_S", 0.8, 6.0],
+	["dock_wake_s", "DOCK: THE STATION WAKES", "DOCK_WAKE_S", 0.6, 8.0],
+	["dock_enter_s", "DOCK: INTO THE HULL", "DOCK_ENTER_S", 1.0, 8.0],
+	["dock_warn_hz", "DOCK: WARNING FLASHES /S", "DOCK_WARN_HZ", 0.3, 4.0],
 	["yard_fade_s", "DOCK: YARD FADES UP", "YARD_FADE_S", 0.2, 3.0],
 	["yard_beat_s", "DOCK: EMPTY YARD", "YARD_BEAT_S", 0.0, 2.0],
 	["dock_yard_s", "DOCK: SHIP LANDS", "DOCK_YARD_S", 0.6, 5.0],
@@ -118,6 +141,9 @@ const DIALS := [
 	["fade_out_s", "CHART - LOCAL: TO BLACK", "FADE_OUT_S", 0.05, 2.0],
 	["fade_in_s", "CHART - LOCAL: UP FROM BLACK", "FADE_IN_S", 0.05, 2.0],
 	["handoff_disc_px", "HANDOFF DISC SIZE (PX)", "DISC_PX", 0.0, 400.0],
+	["light_off", "STATION OFF", "LIGHT_OFF", 0.0, 1.0, "lights"],
+	["light_on", "STATION ON", "LIGHT_ON", 0.6, 2.0, "lights"],
+	["light_glow", "LAMP GLOW", "LIGHT_GLOW", 0.0, 4.0, "lights"],
 ]
 ## the defaults as the code has them (taken the first time the dials are read)
 static var _dial_defaults := {}
@@ -165,7 +191,13 @@ static func _dial_get(var_name: String) -> float:
 		"SEAM1_S": return SEAM1_S
 		"SEAM2_S": return SEAM2_S
 		"DIVE_S": return DIVE_S
-		"DOCK_APPROACH_S": return DOCK_APPROACH_S
+		"DOCK_ARRIVE_S": return DOCK_ARRIVE_S
+		"DOCK_WAKE_S": return DOCK_WAKE_S
+		"DOCK_ENTER_S": return DOCK_ENTER_S
+		"DOCK_WARN_HZ": return DOCK_WARN_HZ
+		"LIGHT_OFF": return LIGHT_OFF
+		"LIGHT_ON": return LIGHT_ON
+		"LIGHT_GLOW": return LIGHT_GLOW
 		"YARD_FADE_S": return YARD_FADE_S
 		"YARD_BEAT_S": return YARD_BEAT_S
 		"DOCK_YARD_S": return DOCK_YARD_S
@@ -185,7 +217,13 @@ static func _dial_set(var_name: String, v: float) -> void:
 		"SEAM1_S": SEAM1_S = v
 		"SEAM2_S": SEAM2_S = v
 		"DIVE_S": DIVE_S = v
-		"DOCK_APPROACH_S": DOCK_APPROACH_S = v
+		"DOCK_ARRIVE_S": DOCK_ARRIVE_S = v
+		"DOCK_WAKE_S": DOCK_WAKE_S = v
+		"DOCK_ENTER_S": DOCK_ENTER_S = v
+		"DOCK_WARN_HZ": DOCK_WARN_HZ = v
+		"LIGHT_OFF": LIGHT_OFF = v
+		"LIGHT_ON": LIGHT_ON = v
+		"LIGHT_GLOW": LIGHT_GLOW = v
 		"YARD_FADE_S": YARD_FADE_S = v
 		"YARD_BEAT_S": YARD_BEAT_S = v
 		"DOCK_YARD_S": DOCK_YARD_S = v
@@ -242,6 +280,21 @@ static func seam3_fade() -> String:
 	_read_cfg()
 	var v := String(_cfg.get("seam3_fade", "F")).to_upper()
 	return v if v in FADES else "F"
+
+
+## The dock's three beats, s: (arrive, the station wakes, enter). Reduced
+## motion (if a dock is ever animated under it) waits a moment, not the wake.
+static func dock_beats() -> Vector3:
+	_read_cfg()
+	var w := DOCK_WAKE_S
+	if DisplaySettings.reduced_motion:
+		w = minf(w, 0.8)
+	return Vector3(DOCK_ARRIVE_S, w, DOCK_ENTER_S)
+
+
+static func dock_approach_s() -> float:
+	var b := dock_beats()
+	return b.x + b.y + b.z
 
 
 ## A Hermite curve from 0 to 1 over u 0..1, leaving at slope `m0` and arriving at
@@ -901,7 +954,7 @@ func _process(delta: float) -> void:
 				# ship already out of sight in the hull; undocking, the empty yard,
 				# slowly)
 				# (docking: the last tenth of the approach, your ship in behind the lips)
-				var fd := _pre_s * FADE_DOWN if old is SectorScreen else YARD_FADE_S
+				var fd := minf(DOCK_DIP_S, _pre_s * FADE_DOWN) if old is SectorScreen else YARD_FADE_S
 				_black_at(_ease(clampf((_u * _pre_s - (_pre_s - fd)) / fd, 0.0, 1.0)))
 			if _u >= 1.0:
 				# (the move goes on from where the clock is, not a frame later)
@@ -1247,7 +1300,7 @@ func _style_for() -> Dictionary:
 				s.wait_long = true
 				s.fade = seam3_fade()
 				var f := String(s.fade) == "F"
-				s.pre_s = DOCK_APPROACH_S if inward else UNDOCK_YARD_S + (YARD_BEAT_S + YARD_FADE_S if f else 0.0)
+				s.pre_s = dock_approach_s() if inward else UNDOCK_YARD_S + (YARD_BEAT_S + YARD_FADE_S if f else 0.0)
 				if f:
 					s.move_s = YARD_FADE_S + YARD_BEAT_S + DOCK_YARD_S if inward else UNDOCK_LOCAL_S
 				else:
