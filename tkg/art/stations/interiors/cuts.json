@@ -45,9 +45,12 @@
   "mismatch": 0.62
  },
  "cargo_90_0": {
-  "cut": 11,
+  "cut": [
+   28,
+   64
+  ],
   "period": 2,
-  "mismatch": 0.22
+  "wall_only": true
  },
  "cargo_130_0": {
   "cut": 18,
