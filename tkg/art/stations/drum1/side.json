@@ -1,0 +1,521 @@
+{
+ "kind": "drum",
+ "size": [
+  470,
+  530
+ ],
+ "bay": [
+  76,
+  206,
+  212,
+  284
+ ],
+ "layers": [
+  {
+   "file": "near.png",
+   "parallax": 1.0
+  }
+ ],
+ "lamps": [
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    49,
+    4,
+    3
+   ],
+   "color": "#f5a943",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    265,
+    63,
+    7,
+    1
+   ],
+   "color": "#ffe6b4",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    69,
+    4,
+    4
+   ],
+   "color": "#eab155",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    94,
+    4,
+    4
+   ],
+   "color": "#ddb25e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    205,
+    101,
+    4,
+    4
+   ],
+   "color": "#e6ca94",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    205,
+    106,
+    5,
+    5
+   ],
+   "color": "#d7ba82",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    120,
+    4,
+    4
+   ],
+   "color": "#edb253",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    264,
+    137,
+    8,
+    1
+   ],
+   "color": "#c79f4c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    144,
+    4,
+    4
+   ],
+   "color": "#f1b55b",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    168,
+    4,
+    4
+   ],
+   "color": "#e5b056",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    274,
+    188,
+    4,
+    4
+   ],
+   "color": "#ecb45c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    319,
+    192,
+    1,
+    5
+   ],
+   "color": "#edc46a",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    372,
+    192,
+    1,
+    5
+   ],
+   "color": "#f1c975",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    374,
+    192,
+    2,
+    5
+   ],
+   "color": "#e3be64",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    426,
+    192,
+    1,
+    5
+   ],
+   "color": "#f4d08e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    291,
+    193,
+    4,
+    4
+   ],
+   "color": "#e9bd6d",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    314,
+    193,
+    4,
+    4
+   ],
+   "color": "#e5b258",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    333,
+    193,
+    3,
+    4
+   ],
+   "color": "#f8c375",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    357,
+    193,
+    5,
+    4
+   ],
+   "color": "#f3cb82",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    386,
+    193,
+    4,
+    4
+   ],
+   "color": "#ebbd6d",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    409,
+    193,
+    4,
+    4
+   ],
+   "color": "#efbc68",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    428,
+    193,
+    2,
+    4
+   ],
+   "color": "#e9c67e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    447,
+    193,
+    4,
+    4
+   ],
+   "color": "#d9b35f",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    467,
+    193,
+    3,
+    4
+   ],
+   "color": "#e4b565",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    334,
+    310,
+    2,
+    2
+   ],
+   "color": "#bc9a5c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    410,
+    310,
+    2,
+    2
+   ],
+   "color": "#bc9a5c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    426,
+    310,
+    1,
+    4
+   ],
+   "color": "#c29d53",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    428,
+    310,
+    2,
+    2
+   ],
+   "color": "#c09c56",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    448,
+    310,
+    2,
+    2
+   ],
+   "color": "#bc9a5c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    266,
+    362,
+    5,
+    1
+   ],
+   "color": "#bc9a5c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "beacon_lamp",
+   "rect": [
+    207,
+    102,
+    3,
+    1
+   ],
+   "color": "#d64a3a",
+   "glow_radius": 6,
+   "group": "always"
+  },
+  {
+   "kind": "beacon_lamp",
+   "rect": [
+    202,
+    106,
+    3,
+    3
+   ],
+   "color": "#d64a3a",
+   "glow_radius": 6,
+   "group": "always"
+  },
+  {
+   "kind": "beacon_lamp",
+   "rect": [
+    208,
+    106,
+    2,
+    4
+   ],
+   "color": "#d64a3a",
+   "glow_radius": 6,
+   "group": "always"
+  },
+  {
+   "kind": "beacon_lamp",
+   "rect": [
+    203,
+    109,
+    2,
+    2
+   ],
+   "color": "#d64a3a",
+   "glow_radius": 6,
+   "group": "always"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    205,
+    393,
+    2,
+    3
+   ],
+   "color": "#634e29",
+   "glow_radius": 5,
+   "group": "always"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    205,
+    397,
+    2,
+    5
+   ],
+   "color": "#634f29",
+   "glow_radius": 5,
+   "group": "always"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    205,
+    403,
+    2,
+    5
+   ],
+   "color": "#70582b",
+   "glow_radius": 5,
+   "group": "always"
+  }
+ ],
+ "code_lights": [
+  {
+   "kind": "strobe",
+   "at": [
+    90,
+    43
+   ],
+   "radius": 8,
+   "color": "#b8e2f4",
+   "period": 1.6,
+   "offset": 0.0
+  },
+  {
+   "kind": "strobe",
+   "at": [
+    90,
+    457
+   ],
+   "radius": 8,
+   "color": "#b8e2f4",
+   "period": 2.1,
+   "offset": 0.9
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    85,
+    170
+   ],
+   "radius": 5,
+   "color": "#ff4a36",
+   "period": 2.4,
+   "offset": 0.0
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    85,
+    320
+   ],
+   "radius": 5,
+   "color": "#5ae678",
+   "period": 2.4,
+   "offset": 1.2
+  }
+ ],
+ "hull": {
+  "src": [
+   318,
+   0,
+   109,
+   530
+  ],
+  "x0": 427,
+  "err": 0.0
+ }
+}

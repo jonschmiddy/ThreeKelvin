@@ -359,8 +359,11 @@ func _no_fights_at_stations(st: int) -> void:
 ## (no A, B, A), back to none at rest.
 func _every_side() -> void:
 	var ints := [StationSides.NONE, &"iris_90_0", &"hallway_170_1", &"cargo_170_0", &"iris_220_1", &"hallway_90_1", &"cargo_130_1"]
-	for i in StationSides.IDS.size():
-		var id: StringName = StationSides.IDS[i]
+	# (and Drum take 1 as approved, unlit, kept to compare: its dock still whole)
+	var ids: Array = StationSides.IDS.duplicate()
+	ids.append(StationSides.FLAT)
+	for i in ids.size():
+		var id: StringName = ids[i]
 		StationSides.force_side = id
 		StationSides.force_interior = ints[i % ints.size()]
 		print("  -- side %s, interior %s" % [id, StationSides.force_interior])

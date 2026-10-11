@@ -21,7 +21,8 @@ extends Control
 ## side carries the Drum's entrance at the same rows, so everything below about
 ## the hallway, the recess, the mask and the camera holds for all of them.
 ##
-## THE DRUM, TAKE 1 (Jon: "literally perfect"): one painted plate, `art/stations/
+## THE DRUM, TAKE 1, AS APPROVED (now `StationSides.FLAT`, kept to compare: Jon's
+## 2B lit Drum 1 like the other six, its dock unchanged): one painted plate, `art/stations/
 ## drum_plate.png` (470 x 530, the ships' pixel), and its front layer,
 ## `drum_front.png` -- the hallway's two lips and the inner door's near jamb,
 ## the plate's own pixels -- so your ship flies INTO the slot, between them. Its
@@ -32,7 +33,7 @@ extends Control
 ## beacon are always on; the rest stand by, dim, until you dock. Drawn as it
 ## always was, pixel for pixel (`StationFaceShot` diffs it).
 ##
-## THE OTHER SIX (`art/stations/sides.py`, Jon's 1A for lights and depth): the
+## EVERY KEPT SIDE (`art/stations/sides.py`, Jon's 1A for lights and depth): the
 ## hull in layers, far first, the star's rim and shaded undersides baked in, each
 ## layer moved by whole pixels as the camera comes in (`par`: the far ones less,
 ## so the near boxes slide over the far); a dark crevice under them all, so a gap
@@ -319,6 +320,9 @@ func _seam_at(i: int) -> float:
 ## hallway, as the Drum's seam.
 func _extra_at(i: int) -> float:
 	var l: Dictionary = side.extra[i]
+	# (Drum 1's beacon and lit window: always on, as they always were)
+	if l.group == &"always":
+		return -1.0
 	var d := (l.rect as Rect2).get_center().distance_to(ON_FROM) / 300.0
 	return ON_SEAM + ON_SPREAD * clampf(d, 0.0, 1.0) + 0.02 * float(i % 3)
 
@@ -431,7 +435,10 @@ func _draw_side(m: Color, o: Vector2) -> void:
 		var r: Rect2 = l.rect
 		if r.position.x >= cut:
 			continue
-		_lit(s.lamps, r, _lamp(_extra_at(i)), m)
+		var k := _lamp(_extra_at(i))
+		if l.kind == &"beacon_lamp":
+			k = 0.55 + 0.45 * _pulse(2.4, 0.0)
+		_lit(s.lamps, r, k, m)
 
 
 ## Part of the lamps layer over the unlit plate, at `k` of its light.
@@ -565,6 +572,8 @@ func _side_lights(c: CanvasItem) -> void:
 				_light(c, at, int(l.radius), HEAT[3] * sk, on * (0.14 + 0.2 * w))
 			&"window":
 				_light(c, at, int(l.radius), HEAT[3], on * 0.22 * flick)
+			&"beacon_lamp":
+				_light(c, at, int(l.radius), RED, 0.12 + 0.3 * _pulse(2.4, 0.0))
 			&"string":
 				# each bulb on its own slow clock
 				var tw := 0.5 + 0.5 * sin(_clock * (1.1 + 0.37 * float(i % 5)) + float(i) * 1.7)
