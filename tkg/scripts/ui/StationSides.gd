@@ -8,13 +8,18 @@ extends RefCounted
 ## Shanty take 3 and the Terraces (s115_1). Every one carries the Drum's
 ## entrance at the same rows, so the hallway, the recess, the inner door, the
 ## lips and the camera's numbers are the Drum's for all of them (`StationFace`'s
-## SLOT, RECESS, DOOR_X, LIP_X, EDGE_X). Drum take 1 is the one Jon approved in
-## the game ("literally perfect"; the dock "PERFECT"): it is drawn as it always
-## was (`legacy`, `art/stations/drum_*`). The other six are lit and split by
+## SLOT, RECESS, DOOR_X, LIP_X, EDGE_X). All seven are lit and split by
 ## `art/stations/sides.py` (Jon's 1A for lights and depth, "all of it"): the star's
 ## rim, shaded undersides, near-over-far layers (the piles' boxes) that move
 ## by whole pixels as the camera comes in, the bay lit from its inner door, and
-## the lamps drawn as light.
+## the lamps drawn as light. Drum take 1 too (Jon's 2B), its dock as approved
+## ("PERFECT"): the same mask, hull window and camera; only its look changed. Its
+## old unlit drawing stays as `drum1_flat` (`legacy`, `art/stations/drum_*`,
+## pixel for pixel what was approved), out of the pool, to compare against.
+## The five sides recovered from LOCAL frames (Drum 3, the Piles, the Shanty)
+## had their right ends painted by PixelLab (Jon's 1B, `art/stations/src/
+## painted/`), so the camera following your ship in sees the side's own hull,
+## not a repeat.
 ##
 ## THE INTERIORS (Jon: "For the entrance I wanted this part changed"): the
 ## recess only, plate x 84..211, rows 206..283, drawn over the bay; the lips, the
@@ -45,7 +50,7 @@ static var force_interior := &""
 ## One side, loaded.
 class SideArt:
 	var id: StringName
-	## Drum take 1, drawn as it always was (`StationFace`'s own constants)
+	## Drum take 1 as approved, unlit (`FLAT`, `StationFace`'s own constants)
 	var legacy := false
 	## its layers, far first: [texture, parallax], parallax 1 the nearest
 	var layers: Array = []
@@ -69,14 +74,18 @@ static var _sides := {}
 static var _interiors := {}
 
 
+## Drum take 1 as it was approved, unlit: for comparing, never picked.
+const FLAT := &"drum1_flat"
+
+
 static func side(id: StringName) -> SideArt:
-	if not IDS.has(id):
+	if not IDS.has(id) and id != FLAT:
 		id = &"drum1"
 	if _sides.has(id):
 		return _sides[id]
 	var s := SideArt.new()
 	s.id = id
-	if id == &"drum1":
+	if id == FLAT:
 		s.legacy = true
 		# (StationFace's HULL_SRC and HULL_X0: two of the drum's panels)
 		s.hull_src = Rect2(318, 38, 109, 425)

@@ -51,13 +51,20 @@ RECESS = (84, 206, 212, 284)        # the bay's dark interior (the panels the do
 BAYBOX = (76, 206, 212, 284)
 DOOR = (124, 213, 179, 279)         # the inner door's outer frame
 HULL_K = 0.82
-# the recovered plates (all but the Terraces) were seen to plate x 398; past it the edge block repeats
+# the recovered plates (all but the Terraces) were seen to plate x 398; past it, to x 629, their right ends were
+# painted by PixelLab (src/painted/: one pixflux take each, joined at x 399, the seen pixels untouched; the plates
+# as recovered are in src/recovered/)
 SEEN_W = 399
 
 # side: (kind, source)
+# the hull the camera tiles past the plate, where a side keeps its own: Drum take 1's two panels seam to seam
+# (StationFace.HULL_SRC / HULL_X0), as its dock was approved
+HULLS = {"drum1": (318, 109, 427)}
 # side: (kind, source, its sky clean-up: "none", "dark" (near-black blobs joined to the open sky), "brown" (and the
 # brown of the LOCAL frame the plate was recovered from), and boxes where a dark gap is the pile's own crevice)
 SIDES = {
+    # Drum take 1 (Jon's 2B: lit like the other six; src/drum1.png is art/stations/drum_plate.png, as approved)
+    "drum1": ("drum", "drum1.png", "none", []),
     "drum3": ("drum", "drum3.png", "none", []),
     "pile1": ("pile", "pile1.png", "dark", []),
     "pile3": ("pile", "pile3.png", "dark", [(280, 300, 345, 345)]),
@@ -153,16 +160,24 @@ def find_lamps(rgb, al, kind):
         seam = (r > 170) & (r - b > 60) & (L > 140) & al & ~ent
         ls, m = comps(seam, rgb, "seam", 4, "seam", min_px=3)
         lamps += ls; mask |= m
+        # Drum take 1's red beacon box above the hallway and its lit window below (lamps.py's own rules and
+        # boxes); always on, the beacon slowly pulsing
+        red = (((r > 150) & (g < 120) & (b < 110)) | ((r > 200) & (L > 150))) & al & box(al.shape, 200, 99, 212, 113)
+        ls, m = comps(red & ~mask, rgb, "beacon_lamp", 6, "always", min_px=3)
+        lamps += ls; mask |= m
+        win = (r - b > 25) & (r > 70) & al & box(al.shape, 200, 392, 213, 410)
+        ls, m = comps(win & ~mask, rgb, "window", 5, "always", min_px=3)
+        lamps += ls; mask |= m
     if kind == "shanty":
         mx, mn = rgb.max(-1), rgb.min(-1)
         sat = (mx - mn) / np.maximum(mx, 1)
         # the capsule's lit portholes (its row of five, and the round ones toward its end)
-        port = (L > 150) & (r - b > 60) & al & box(al.shape, 240, 70, 470, 125)
+        port = (L > 150) & (r - b > 60) & al & box(al.shape, 240, 70, W, 125)
         ls, m = comps(port, rgb, "window", 4, "windows", min_px=3)
         lamps += ls; mask |= m
         # the string lights: small saturated bulbs strung over the top (above the body and the capsule)
         # (each bulb a little block of about 4 x 4 in its own colour with one lit pixel)
-        bulbs = (mx > 130) & (sat > 0.45) & al & box(al.shape, 0, 0, W, 125) & ~box(al.shape, 240, 70, 470, 125)
+        bulbs = (mx > 130) & (sat > 0.45) & al & box(al.shape, 0, 0, W, 125) & ~box(al.shape, 240, 70, W, 125)
         lab, n = ndimage.label(bulbs, structure=np.ones((3, 3)))
         if n:
             sz = ndimage.sum(np.ones_like(lab), lab, index=np.arange(1, n + 1))
@@ -303,17 +318,18 @@ def static_terms(rgb, al, kind, lampmask, seed=7):
     return S, rim, te, depth
 
 
-def hull_window(rgb, al, lo=96, hi=200):
-    """the window of the plate's own seen columns [a, a + w) the camera tiles past the plate: the one whose next
+def hull_window(rgb, al, lo=96, hi=200, a0=240, end=(0, SEEN_W)):
+    """the window of the plate's own columns [a, a + w) the camera tiles past the plate: the one whose next
     column (a + w) is most like its first (a), on the rows the hull is seen in, so the tiles join where the plate's
-    own pixels would have gone on; silhouettes must match"""
+    own pixels would have gone on; silhouettes must match. `end`: where the window may end (a + w), within the
+    columns that are the plate's own (seen, or painted)"""
     rows = slice(110, 400)
     A = al[rows].astype(float)
     C = np.concatenate([rgb[rows], A[..., None] * 255], -1)
     best = None
     for w in range(lo, hi + 1):
-        for a in range(240, SEEN_W - w):
-            if a + w >= SEEN_W:
+        for a in range(a0, end[1] - w):
+            if a + w >= end[1] or a + w < end[0]:
                 continue
             e = np.abs(C[:, a] - C[:, a + w]).mean() + 4.0 * np.abs(A[:, a] - A[:, a + w]).mean() * 255
             # prefer wide windows a little (fewer repeats seen)
@@ -323,7 +339,7 @@ def hull_window(rgb, al, lo=96, hi=200):
     return best
 
 
-def build(plate, kind, rule="dark", keep=()):
+def build(plate, kind, rule="dark", keep=(), hull=None):
     rgb = plate[..., :3].astype(float)
     al, removed = clean_mask(plate[..., 3] > 0, rgb, rule, keep)
     H, W = al.shape
@@ -381,9 +397,17 @@ def build(plate, kind, rule="dark", keep=()):
         xs = np.nonzero(al[yy, :240])[0]
         if len(xs):
             code.append(dict(kind="beacon", at=[int(xs.min()) + 3, yy], radius=5, color=col, period=2.4, offset=off))
-    hw = hull_window(rgb, al)
+    if hull is not None:
+        hw = (0.0, hull[0], hull[1])
+    elif W > 470:
+        # A PLATE MADE WHOLE (Jon's 1B): its right end painted by PixelLab to x 629, past everything the camera
+        # sees before the dock's dip to black; the tiles start at its painted end
+        hw = hull_window(rgb, al, a0=SEEN_W + 20, end=(W - 40, W - 1))
+    else:
+        hw = hull_window(rgb, al)
     data = dict(kind=kind, size=[W, H], bay=list(BAYBOX), layers=layers, lamps=lamps, code_lights=code,
-                hull=dict(src=[int(hw[1]), 0, int(hw[2]), H], x0=int(hw[1] + hw[2]), err=round(float(hw[0]), 2)))
+                hull=dict(src=[int(hw[1]), 0, int(hw[2]), H], x0=int(hull[2] if hull is not None else hw[1] + hw[2]),
+                          err=round(float(hw[0]), 2)))
     return out, data, dict(al=al, removed=removed, lampmask=lampmask, rim=rim, te=te, depth=depth, base=base)
 
 
@@ -423,7 +447,7 @@ def main():
     prev = sys.argv[sys.argv.index("--check") + 1] if "--check" in sys.argv else None
     for name, (kind, src, rule, keep) in SIDES.items():
         plate = np.asarray(Image.open(os.path.join(SRC, src)).convert("RGBA"))
-        out, data, dbg = build(plate, kind, rule, keep)
+        out, data, dbg = build(plate, kind, rule, keep, HULLS.get(name))
         d = os.path.join(HERE, name)
         os.makedirs(d, exist_ok=True)
         for k, v in out.items():

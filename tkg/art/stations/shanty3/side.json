@@ -1,7 +1,7 @@
 {
  "kind": "shanty",
  "size": [
-  470,
+  630,
   530
  ],
  "bay": [
@@ -20,19 +20,55 @@
   {
    "kind": "window",
    "rect": [
-    397,
-    84,
-    2,
+    471,
+    80,
+    5,
     2
    ],
-   "color": "#ffe8b8",
+   "color": "#e7c066",
    "glow_radius": 4,
    "group": "windows"
   },
   {
    "kind": "window",
    "rect": [
-    445,
+    502,
+    80,
+    2,
+    3
+   ],
+   "color": "#d3ad5a",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    505,
+    80,
+    5,
+    2
+   ],
+   "color": "#e9bf69",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    477,
+    81,
+    2,
+    2
+   ],
+   "color": "#e5b860",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    397,
     84,
     2,
     2
@@ -48,6 +84,18 @@
     87,
     1,
     4
+   ],
+   "color": "#ffe8b8",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    539,
+    87,
+    4,
+    1
    ],
    "color": "#ffe8b8",
    "glow_radius": 4,
@@ -80,10 +128,10 @@
   {
    "kind": "window",
    "rect": [
-    429,
-    89,
-    2,
-    2
+    624,
+    90,
+    1,
+    3
    ],
    "color": "#ffe8b8",
    "glow_radius": 4,
@@ -93,18 +141,6 @@
    "kind": "window",
    "rect": [
     389,
-    92,
-    5,
-    7
-   ],
-   "color": "#ffe7b6",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    437,
     92,
     5,
     7
@@ -152,54 +188,6 @@
   {
    "kind": "window",
    "rect": [
-    405,
-    94,
-    7,
-    6
-   ],
-   "color": "#fada9a",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    415,
-    94,
-    3,
-    2
-   ],
-   "color": "#ffe8b8",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    453,
-    94,
-    7,
-    6
-   ],
-   "color": "#fada9a",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    463,
-    94,
-    3,
-    2
-   ],
-   "color": "#ffe8b8",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
     351,
     95,
     1,
@@ -214,22 +202,10 @@
    "rect": [
     393,
     95,
-    7,
-    7
+    6,
+    5
    ],
-   "color": "#ffe6b5",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    441,
-    95,
-    7,
-    7
-   ],
-   "color": "#ffe6b5",
+   "color": "#ffe6b4",
    "glow_radius": 4,
    "group": "windows"
   },
@@ -296,54 +272,6 @@
   {
    "kind": "window",
    "rect": [
-    424,
-    96,
-    2,
-    3
-   ],
-   "color": "#ffe8b8",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    426,
-    96,
-    2,
-    8
-   ],
-   "color": "#ffe8b8",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    430,
-    96,
-    2,
-    2
-   ],
-   "color": "#ffe8b8",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    436,
-    96,
-    1,
-    3
-   ],
-   "color": "#dba245",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
     265,
     97,
     7,
@@ -369,30 +297,6 @@
    "kind": "window",
    "rect": [
     370,
-    98,
-    3,
-    13
-   ],
-   "color": "#f6c36d",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    418,
-    98,
-    3,
-    13
-   ],
-   "color": "#f6c36d",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    466,
     98,
     3,
     13
@@ -440,19 +344,19 @@
   {
    "kind": "window",
    "rect": [
-    388,
-    102,
-    4,
-    4
+    400,
+    101,
+    3,
+    1
    ],
-   "color": "#f2c980",
+   "color": "#ffe8b8",
    "glow_radius": 4,
    "group": "windows"
   },
   {
    "kind": "window",
    "rect": [
-    436,
+    388,
     102,
     4,
     4
@@ -512,12 +416,108 @@
   {
    "kind": "window",
    "rect": [
+    446,
+    105,
+    8,
+    8
+   ],
+   "color": "#edb157",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    461,
+    105,
+    8,
+    8
+   ],
+   "color": "#e7b05b",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    476,
+    105,
+    8,
+    8
+   ],
+   "color": "#ebb25e",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    496,
+    105,
+    8,
+    8
+   ],
+   "color": "#edb057",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    511,
+    105,
+    8,
+    8
+   ],
+   "color": "#ebb159",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    526,
+    105,
+    8,
+    8
+   ],
+   "color": "#f0b057",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    628,
+    105,
+    2,
+    3
+   ],
+   "color": "#e7b65a",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
     335,
     106,
     2,
     6
    ],
    "color": "#f5a943",
+   "glow_radius": 4,
+   "group": "windows"
+  },
+  {
+   "kind": "window",
+   "rect": [
+    628,
+    109,
+    2,
+    4
+   ],
+   "color": "#edc882",
    "glow_radius": 4,
    "group": "windows"
   },
@@ -548,36 +548,12 @@
   {
    "kind": "window",
    "rect": [
-    404,
-    110,
-    10,
-    4
+    488,
+    120,
+    3,
+    1
    ],
-   "color": "#f9d38c",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    436,
-    110,
-    1,
-    3
-   ],
-   "color": "#c9a04a",
-   "glow_radius": 4,
-   "group": "windows"
-  },
-  {
-   "kind": "window",
-   "rect": [
-    452,
-    110,
-    10,
-    4
-   ],
-   "color": "#f9d38c",
+   "color": "#ffe8b8",
    "glow_radius": 4,
    "group": "windows"
   },
@@ -632,6 +608,42 @@
   {
    "kind": "string",
    "rect": [
+    489,
+    34,
+    5,
+    4
+   ],
+   "color": "#c3732b",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    537,
+    34,
+    5,
+    4
+   ],
+   "color": "#c3732b",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    585,
+    34,
+    5,
+    4
+   ],
+   "color": "#c3732b",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
     372,
     36,
     4,
@@ -658,10 +670,46 @@
    "rect": [
     468,
     36,
-    2,
+    4,
     5
    ],
-   "color": "#947536",
+   "color": "#877e46",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    516,
+    36,
+    4,
+    5
+   ],
+   "color": "#877e46",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    564,
+    36,
+    4,
+    5
+   ],
+   "color": "#877e46",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    612,
+    36,
+    4,
+    5
+   ],
+   "color": "#877e46",
    "glow_radius": 3,
    "group": "strings"
   },
@@ -693,6 +741,42 @@
    "kind": "string",
    "rect": [
     458,
+    40,
+    4,
+    4
+   ],
+   "color": "#4aaba1",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    506,
+    40,
+    4,
+    4
+   ],
+   "color": "#4aaba1",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    554,
+    40,
+    4,
+    4
+   ],
+   "color": "#4aaba1",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    602,
     40,
     4,
     4
@@ -731,9 +815,9 @@
     399,
     44,
     4,
-    8
+    6
    ],
-   "color": "#3e7b91",
+   "color": "#3f8093",
    "glow_radius": 3,
    "group": "strings"
   },
@@ -743,9 +827,45 @@
     447,
     44,
     4,
-    8
+    6
    ],
-   "color": "#3e7b91",
+   "color": "#3f8093",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    495,
+    44,
+    4,
+    6
+   ],
+   "color": "#3f8093",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    543,
+    44,
+    4,
+    6
+   ],
+   "color": "#3f8093",
+   "glow_radius": 3,
+   "group": "strings"
+  },
+  {
+   "kind": "string",
+   "rect": [
+    591,
+    44,
+    4,
+    6
+   ],
+   "color": "#3f8093",
    "glow_radius": 3,
    "group": "strings"
   },
@@ -753,30 +873,6 @@
    "kind": "string",
    "rect": [
     362,
-    52,
-    4,
-    4
-   ],
-   "color": "#4aaba1",
-   "glow_radius": 3,
-   "group": "strings"
-  },
-  {
-   "kind": "string",
-   "rect": [
-    410,
-    52,
-    4,
-    4
-   ],
-   "color": "#4aaba1",
-   "glow_radius": 3,
-   "group": "strings"
-  },
-  {
-   "kind": "string",
-   "rect": [
-    458,
     52,
     4,
     4
@@ -800,30 +896,6 @@
   {
    "kind": "string",
    "rect": [
-    420,
-    55,
-    4,
-    5
-   ],
-   "color": "#877e46",
-   "glow_radius": 3,
-   "group": "strings"
-  },
-  {
-   "kind": "string",
-   "rect": [
-    468,
-    55,
-    2,
-    5
-   ],
-   "color": "#947536",
-   "glow_radius": 3,
-   "group": "strings"
-  },
-  {
-   "kind": "string",
-   "rect": [
     336,
     58,
     3,
@@ -837,18 +909,6 @@
    "kind": "string",
    "rect": [
     393,
-    58,
-    5,
-    4
-   ],
-   "color": "#c3732b",
-   "glow_radius": 3,
-   "group": "strings"
-  },
-  {
-   "kind": "string",
-   "rect": [
-    441,
     58,
     5,
     4
@@ -1027,12 +1087,12 @@
  ],
  "hull": {
   "src": [
-   301,
+   440,
    0,
-   97,
+   182,
    530
   ],
-  "x0": 398,
-  "err": 39.95
+  "x0": 622,
+  "err": 14.34
  }
 }

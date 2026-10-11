@@ -1,0 +1,82 @@
+{
+ "spent": 7.0,
+ "takes": [
+  {
+   "tag": "pile1__s300_61101",
+   "plate": "pile1",
+   "seed": 61101,
+   "strength": 300,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 40.1
+  },
+  {
+   "tag": "pile1__s220_61101",
+   "plate": "pile1",
+   "seed": 61101,
+   "strength": 220,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 41.8
+  },
+  {
+   "tag": "pile3__s220_61201",
+   "plate": "pile3",
+   "seed": 61201,
+   "strength": 220,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 40.9
+  },
+  {
+   "tag": "pile4__s220_61301",
+   "plate": "pile4",
+   "seed": 61301,
+   "strength": 220,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 58.0
+  },
+  {
+   "tag": "drum3__s220_61001",
+   "plate": "drum3",
+   "seed": 61001,
+   "strength": 220,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 73.9
+  },
+  {
+   "tag": "shanty3__s160_61401",
+   "plate": "shanty3",
+   "seed": 61401,
+   "strength": 160,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 36.3
+  },
+  {
+   "tag": "shanty3__s160_61417",
+   "plate": "shanty3",
+   "seed": 61417,
+   "strength": 160,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 53.3
+  }
+ ]
+}
