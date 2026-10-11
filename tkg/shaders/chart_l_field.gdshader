@@ -1034,7 +1034,9 @@ void fragment() {
 				// slides past faster than the squeeze alone says, and a grain the
 				// slide carries across a block in a frame or two is a flicker)
 				lsq = clamp(max(abs(g2 - g1) / 0.02, lh_behind(S)), 1.0, 64.0);
-				lsq = old_grain ? 1.0 : 1.0 + (lsq - 1.0) * 5.0 + 2.5 * smoothstep(12.0, 4.0, length(S));
+				// (the five comes in only past the opening view, which keeps its three)
+				float lzk = smoothstep(1.0, 2.5, z);
+				lsq = old_grain ? 1.0 : 1.0 + (lsq - 1.0) * mix(3.0, 5.0, lzk) + mix(1.5, 2.5, lzk) * smoothstep(12.0, 4.0, length(S));
 				rel *= lh_behind(S);
 			}
 		}

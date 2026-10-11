@@ -1052,8 +1052,9 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	ivec2 sb = lens ? blockOf(scr(vbg)) : blk;
 	// (read twice as coarse through the lens as it squeezes: the gas round the hole now
 	// keeps its light and structure deep in, Oct 11, and squeezed into a few blocks
-	// it shimmered as the zoom moved; the palette's probes read it as before)
-	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn()) : 0.0;
+	// it shimmered as the zoom moved; the palette's probes read it as before, and so
+	// does the opening view, which is left exactly as it was)
+	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn() * smoothstep(0.5, 1.5, u_zoom)) : 0.0;
 	float dust;
 	vec3 C = galaxy(vbg, sb, blk, dq, la, dust);
 	if (!lens) {
