@@ -111,6 +111,12 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var power := 0.0
 	var shown := 0.0
 	var layer_bad := 0
+	# THROUGH THE LIPS (Jon: "how do large ships look going into the station?"):
+	# while any of your ship is between the mouth and the recess's end, its ink
+	# stays between the lips' outer rows (203..286), never cut off by them
+	var lip_over := -INF
+	var lip_at := Rect2()
+	var shrink := -1.0
 	var hall := loc0 != null and loc0._face != null and is_instance_valid(loc0._face)
 	var pan_x: Array[float] = []
 	var edge_off := 0
@@ -146,6 +152,13 @@ func _hull_flies_in(dock_b: Button) -> void:
 				shown = loc0._view.get_global_rect().end.x - loc0._face.plate_g(Vector2(StationFace.EDGE_X, StationFace.ROW)).x
 			if last.size.x > 0.0:
 				tails.append(last.position.x)
+				if loc0._lad.has("hall"):
+					shrink = float((loc0._lad.hall as Dictionary).get("shrink", 1.0))
+				if last.end.x > StationFace.LIP_X and last.position.x < StationFace.RECESS.end.x:
+					var ov := maxf(StationFace.SLOT.position.y - last.position.y, last.end.y - (StationFace.SLOT.end.y + 2.0))
+					if ov > lip_over:
+						lip_over = ov
+						lip_at = last
 			power = loc0._face.power
 		if Router.current is StationScreen and ZoomLadder.busy() and ZoomLadder.active.phase == ZoomLadder.Phase.MOVE:
 			st = Router.current as StationScreen
@@ -190,6 +203,13 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: on every frame of the approach your ship is drawn between the station's plate and its front, both placed alike (%d frames out)" % layer_bad,
 			layer_bad == 0)
 		_ok("3B: the station takes %.0f px of LOCAL's width (at most %.0f)" % [shown, StationFace.SHOWN + 1.0], shown <= StationFace.SHOWN + 1.0 and shown > 150.0)
+		_ok("3B: %s goes in between the lips, never cut off by them (closest %.1f px from their outer rows; at %s)" % [
+			Run.hull.name, -lip_over, lip_at], lip_over <= 0.0)
+		# (the light and the medium dock exactly as approved; only a taller hull
+		# shrinks sooner -- `StationFace.SHIP_LIP_H`)
+		_ok("3B: %s shrinks on its way in with q %.3f%s" % [Run.hull.name, shrink,
+			" (as approved)" if is_equal_approx(shrink, 1.0) else " (sooner: taller than the lips allow)"],
+			shrink > 0.0 and (Run.hull.weight == HullData.Weight.HEAVY or is_equal_approx(shrink, 1.0)))
 	if fmode:
 		_ok("3B F: the screen goes all the way to black at the hand-off (%.2f)" % black_top, black_top >= 0.99)
 		_ok("3B F: the yard comes up from black empty, and stays empty with the black gone for %d frames (at least 9, 0.3 s)" % empty_up,
@@ -358,6 +378,39 @@ func _no_fights_at_stations(st: int) -> void:
 ## layers' parallax in whole pixels that only ever grow as the camera comes in
 ## (no A, B, A), back to none at rest.
 func _every_side() -> void:
+	# EVERY WEIGHT (Jon: "how do large ships look going into the station?"): the
+	# light, the medium and the heavy, every mount filled (turrets and pods on,
+	# the tallest each can be), at every side
+	for w in [HullData.Weight.MEDIUM, HullData.Weight.LIGHT, HullData.Weight.HEAVY]:
+		Run.fit_chassis(&"korvan", w)
+		_fit_full()
+		print("  -- weight: %s" % Run.hull.name)
+		await _every_side_once()
+	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM)
+
+
+## Every mount filled with the hull's own manufacturer's parts (`StationShot`'s
+## `fit=full` rule): couplings first, then the smallest draw, different parts
+## before repeats, only what the reactor runs.
+func _fit_full() -> void:
+	var own: Array[ModuleData] = []
+	for mid in DB.modules:
+		var m: ModuleData = DB.modules[mid]
+		if m.manufacturer == Run.hull.manufacturer:
+			own.append(m)
+	own.sort_custom(func(x: ModuleData, y: ModuleData) -> bool:
+		if x.reactor != y.reactor:
+			return x.reactor > y.reactor
+		return x.cells() < y.cells())
+	for p in 2:
+		for m: ModuleData in own:
+			if p == 0 and Run.installed.any(func(on: ModuleData) -> bool: return on.id == m.id):
+				continue
+			if Run.slots_used(m.slot) < Run.slots_for(m.slot) and Run.can_power(m):
+				Run.install_module(m.duplicate(true) as ModuleData)
+
+
+func _every_side_once() -> void:
 	var ints := [StationSides.NONE, &"iris_90_0", &"hallway_170_1", &"cargo_170_0", &"iris_220_1", &"hallway_90_1", &"cargo_130_1"]
 	# (and Drum take 1 as approved, unlit, kept to compare: its dock still whole)
 	var ids: Array = StationSides.IDS.duplicate()

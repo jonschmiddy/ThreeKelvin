@@ -3,7 +3,7 @@ extends Node
 ## THE ZOOM LADDER'S MOVES, filmed (`ZoomLadder`):
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LadderShot
 ##       keepwindow flow=c out=<dir> [seed=N] [seams=1,2,3] [designs=A,B,C] [style=...]
-##       [side=<StationSides id>] [interior=<id>|none]
+##       [side=<StationSides id>] [interior=<id>|none] [weight=light|medium|heavy] [fit=full]
 ## For each design of each seam asked for, the move both ways through the
 ## Router's own doors -- chart <-> map, map <-> LOCAL (in orbit of a world, so the
 ## world handoff has its world), LOCAL <-> station (DOCK on LOCAL's bar, UNDOCK)
@@ -115,6 +115,19 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 	for i in (6000 if timing else 600):
 		await _shown()
 		var wn := _world_now(k)
+		# (at a station: your ship's ink on the station's plate, plate px, and its
+		# scale -- the dock's fit to the hallway, read off every frame)
+		var lc := Router.current as SectorScreen
+		if lc != null and lc._face != null and is_instance_valid(lc._face) and lc._view != null:
+			var art := lc._view.ship_view()
+			if art != null and art.visible:
+				var ink := Rect2(art.ink_rect())
+				var to_plate := lc._face.get_global_transform().affine_inverse()
+				var a := to_plate * (art.get_global_transform() * art.canvas_to_local(ink.position)) - lc._face.origin()
+				var b := to_plate * (art.get_global_transform() * art.canvas_to_local(ink.end)) - lc._face.origin()
+				var r := Rect2(a, b - a).abs()
+				wn["plate"] = [r.position.x, r.position.y, r.size.x, r.size.y]
+				wn["scale"] = art.scale.x
 		if timing:
 			var now := Time.get_ticks_usec()
 			var ms := (now - t_last) / 1000.0
@@ -169,6 +182,25 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 		print("  [ladder] %s: longest real frame %.1f ms at frame %d (swap %d)" % [name, worst, worst_at, swap])
 	print("  [ladder] %s: %d frames, swap at %d, on %s" % [name, k, swap,
 		Router.current.get_script().get_global_name() if Router.current != null else "-"])
+
+
+func _fit_full() -> void:
+	var own: Array[ModuleData] = []
+	for mid in DB.modules:
+		var m: ModuleData = DB.modules[mid]
+		if m.manufacturer == Run.hull.manufacturer:
+			own.append(m)
+	own.sort_custom(func(x: ModuleData, y: ModuleData) -> bool:
+		if x.reactor != y.reactor:
+			return x.reactor > y.reactor
+		return x.cells() < y.cells())
+	for p in 2:
+		for m: ModuleData in own:
+			if p == 0 and Run.installed.any(func(on: ModuleData) -> bool: return on.id == m.id):
+				continue
+			if Run.slots_used(m.slot) < Run.slots_for(m.slot) and Run.can_power(m):
+				Run.install_module(m.duplicate(true) as ModuleData)
+	print("  [ladder] fit=full: %s, %d parts fitted" % [Run.hull.name, Run.installed.size()])
 
 
 ## THE WORLD YOU ORBIT, where it is on screen this frame: the live screen's own
@@ -269,6 +301,11 @@ func _run() -> void:
 	# (`weight=light|medium|heavy`: the hull flown)
 	var wt := {"light": HullData.Weight.LIGHT, "medium": HullData.Weight.MEDIUM, "heavy": HullData.Weight.HEAVY}
 	Run.start_new_run(&"korvan", int(wt.get(_arg("weight", "medium"), HullData.Weight.MEDIUM)))
+	# (`fit=full`: every mount the hull has filled with its own manufacturer's
+	# parts, turrets and pods on -- `StationShot`'s rule: couplings first, then the
+	# smallest draw, different parts before repeats, only what the reactor runs)
+	if "fit=full" in _args:
+		_fit_full()
 	# (the chart's FIRST SURVEY card is the first chart's, not the ladder's)
 	StarchartScreen._primed_for = Run.galaxy_seed
 	var seams := _arg("seams", "1,2,3").split(",")

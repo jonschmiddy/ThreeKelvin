@@ -80,6 +80,15 @@ const TAIL_IN := 380.0
 const SHIP_END_SCALE := 0.62
 const SHIP_END_LEN := 125.0
 const SHIP_END_H := 56.0
+## THROUGH THE LIPS, EVERY WEIGHT ALIKE (Jon: "how do large ships look going
+## into the station?"): as its nose reaches the lips your ship is at most this
+## tall (plate px) -- the medium's own height there, as Jon approved its dock
+## (66.9 measured on film; a pixel of room for its bob) -- so the
+## heavy, half as tall again, no
+## longer has its turrets and fins cut off by the lips like a ship sliding behind
+## the station: it shrinks sooner on its way in (`SectorScreen._hall_shrink`),
+## the light and the medium exactly as before
+const SHIP_LIP_H := 68.0
 ## the camera's anchor along row `ROW` as it follows you in, k 0 -> 1
 const A0 := 110.0
 const A1 := 175.0
