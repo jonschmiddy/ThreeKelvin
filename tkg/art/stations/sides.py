@@ -474,6 +474,13 @@ def build(plate, kind, rule="dark", keep=(), hull=None):
     return out, data, dict(al=al, removed=removed, lampmask=lampmask, rim=rim, te=te, depth=depth, base=base)
 
 
+# interiors made taller through their back wall only, column by column (`mouth.extend_around_objects`), with the
+# wall's own repeat: cargo 90_0's two clamps hang free, so its wall grows between their jaws and the floor. (Cargo
+# 130_0's crate hangs on its chain over the floor crates and 130_1's clamp grips its crate: no wall runs between them,
+# so those keep the one cut Jon passed.)
+WALL_ONLY = {"cargo_90_0": 2}
+
+
 def interiors():
     """each kept interior made TALL rows taller (the new recess) at its own cleanest cut: a block of rows that
     genuinely repeats (`mouth.extend_picture`, found on the lit picture, the same cut made in the flat one)"""
@@ -481,9 +488,17 @@ def interiors():
     for k in INTERIORS:
         flat0 = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_flat.png")).convert("RGB"))
         lit0 = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_lit.png")).convert("RGB"))
-        lit, (c, pp, e) = mouth.extend_picture(lit0)
-        flat = np.concatenate([flat0[:c]] + [flat0[c - pp:c]] * (mouth.TALL // pp) + [flat0[c:]], 0).astype(float)
-        report[k] = dict(cut=int(c), period=int(pp), mismatch=round(float(e), 2))
+        if k in WALL_ONLY:
+            # (its clamps hang free of anything below them: the rows go into its back wall, between the jaws and
+            # the floor, column by column, never into the clamp arms -- Jon: "the clamps hang on long thin poles")
+            pp = WALL_ONLY[k]
+            lit, cuts, _ = mouth.extend_around_objects(lit0, pp)
+            flat = mouth.cut_columns(flat0, cuts, pp).astype(float)
+            report[k] = dict(cut=[int(cuts.min()), int(cuts.max())], period=int(pp), wall_only=True)
+        else:
+            lit, (c, pp, e) = mouth.extend_picture(lit0)
+            flat = np.concatenate([flat0[:c]] + [flat0[c - pp:c]] * (mouth.TALL // pp) + [flat0[c:]], 0).astype(float)
+            report[k] = dict(cut=int(c), period=int(pp), mismatch=round(float(e), 2))
         d = os.path.join(HERE, "interiors", k)
         os.makedirs(d, exist_ok=True)
         a = np.full(flat.shape[:2] + (1,), 255, np.uint8)

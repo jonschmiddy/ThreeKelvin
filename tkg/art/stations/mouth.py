@@ -116,3 +116,68 @@ def extend_picture(img, lo=None, hi=None):
     c, p, e = best
     out = np.concatenate([img[:c]] + [img[c - p:c]] * (TALL // p) + [img[c:]], 0)
     return out, best
+
+
+def cut_columns(img, cuts, period, tall=TALL):
+    """`img` made `tall` rows taller, each column at its own cut row, its `period`-row block above the cut copied in"""
+    H, W = img.shape[:2]
+    out = np.zeros((H + tall,) + img.shape[1:], img.dtype)
+    for x in range(W):
+        c = int(cuts[x])
+        col = img[:, x]
+        out[:c, x] = col[:c]
+        out[c:c + tall, x] = np.concatenate([col[c - period:c]] * (tall // period), 0)
+        out[c + tall:, x] = col[c:]
+    return out
+
+
+def extend_around_objects(img, period, tall=TALL, lo=None, hi=None, step=1.0):
+    """an interior made `tall` rows taller through its BACK WALL only: each column cut at a row of its own where the
+    wall (the dark, unsaturated ribs or bricks) runs `period` rows above and below with nothing in front of it, the
+    wall's own `period`-row block copied in -- so clamps keep their arms, crates their height, and the wall grows
+    between the clamp jaws and the floor. Neighbouring columns may cut at different rows: the wall repeats every
+    `period` rows and `tall` is a multiple of it, so the bricks carry on across. Returns (picture, cuts)."""
+    a = img.astype(float)
+    H, W = a.shape[:2]
+    # (the wall runs across in rows -- ribs or courses of brick -- so a thing in front of it is a pixel far from its
+    # own row's commonest colour; the bricks' mortar is matched by the row's own spread)
+    med = np.median(a, 1, keepdims=True)
+    dev = np.abs(a - med).sum(-1)
+    spread = np.median(dev, 1, keepdims=True)
+    obj = dev > (spread * 2.5 + 24)
+    # (grow the things a little, so a cut never grazes an outline)
+    o2 = obj.copy()
+    for dy in (-2, -1, 1, 2):
+        o2 |= np.roll(obj, dy, 0)
+    for dx in (-1, 1):
+        o2 |= np.roll(obj, dx, 1)
+    lo = lo if lo is not None else period + 6
+    hi = hi if hi is not None else H - period - 6
+    rows = list(range(lo, hi))
+    n = len(rows)
+    cost = np.zeros((W, n))
+    for x in range(W):
+        free = []
+        for i, c in enumerate(rows):
+            e = float(np.abs(a[c - period:c, x] - a[c:c + period, x]).mean())
+            blocked = bool(o2[c - period:c + period, x].any())
+            cost[x, i] = e + (1000.0 if blocked else 0.0)
+            free.append(not blocked)
+        if not any(free):
+            # (a column that is all frame or all object: cut where it repeats best)
+            cost[x] = np.where(cost[x] >= 1000.0, cost[x] - 1000.0, cost[x])
+    acc = cost[0].copy()
+    back = np.zeros((W, n), int)
+    idx = np.arange(n)
+    for x in range(1, W):
+        tr = acc[None, :] + step * np.abs(idx[:, None] - idx[None, :])
+        back[x] = tr.argmin(1)
+        acc = cost[x] + tr.min(1)
+    sel = np.zeros(W, int)
+    sel[-1] = int(acc.argmin())
+    for x in range(W - 1, 0, -1):
+        sel[x - 1] = back[x, sel[x]]
+    cuts = np.array([rows[i] for i in sel])
+    out = cut_columns(img, cuts, period, tall)
+    blocked = int(sum(cost[x, sel[x]] >= 1000.0 for x in range(W)))
+    return out, cuts, blocked
