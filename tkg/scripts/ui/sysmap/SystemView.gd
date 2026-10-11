@@ -201,6 +201,10 @@ const SKY := preload("res://shaders/sky.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
 const SHADOWS := preload("res://shaders/map_shadows.gdshader")
 const BELT_DUST := preload("res://shaders/map_belt.gdshader")
+const FRONT_SHADER := preload("res://shaders/map_front.gdshader")
+## WOW `flarefront` (`SectorWow`): a flare's light running out through the plane's dust
+var _front: ColorRect
+var _front_mat: ShaderMaterial
 var _belt_dust: ColorRect
 var _belt_mat: ShaderMaterial
 const SunViewS := preload("res://scripts/ui/sysmap/SunView.gd")
@@ -522,6 +526,17 @@ func show_system(n: MapGen.MapNode) -> void:
 			var am := CanvasItemMaterial.new()
 			am.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 			_fields[fi].material = am
+	# WOW `flarefront`: a flare's light in the dust of the plane, under
+	# the belts and the worlds' shadows (which cut through it), under the palette
+	_front = ColorRect.new()
+	_front.size = Vector2(960, 540)
+	_front.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_front_mat = ShaderMaterial.new()
+	_front_mat.shader = FRONT_SHADER
+	_front_mat.set_shader_parameter("star_col", SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY))
+	_front.material = _front_mat
+	_front.visible = false
+	_scene.add_child(_front)
 	# THE BELTS' DUST (C): a faint lit band under the rocks, so a belt reads as
 	# a band from afar
 	_belt_dust = ColorRect.new()
@@ -1109,6 +1124,54 @@ static func prominence(time: float) -> Vector4:
 	return best
 
 
+## WOW `flarefront`: THE FLARE'S LIGHT TRAVELS. A prominence's eruption sends
+## its light out across the plane at a speed you can watch -- FRONT_C plane units
+## a second, the whole system in about six -- as a ring catching the dust in the
+## plane (`map_front.gdshader`), the belt's rubble flashing as it passes
+## (`_Belts`), and each world's flare (its lit side brighter, its auroras
+## flickering) starting only when the ring reaches it, with a short kick of light
+## as it arrives. Without the switch every world flares at once, as before.
+const FRONT_C := 60.0
+## how long the ring's light lasts after it leaves the star, s
+const FRONT_FADE := 9.0
+
+
+## Seconds since the latest prominence began to erupt, while its light can still
+## be on the way out (-1: none). The same slots and moments as `prominence`.
+static func eruption_age(time: float) -> float:
+	if DisplaySettings.reduced_motion:
+		return -1.0
+	var n := floori(time / 40.0)
+	for k in [n, n - 1]:
+		if k < 0:
+			continue
+		var u: float = time - (40.0 * k + 6.0 + SkyBakeS.hash2(k, 11) * 14.0)
+		if u >= 0.0 and u <= 26.0:
+			return u
+	return -1.0
+
+
+## The flare a world `d` plane units from the star sees at eruption age `u`: the
+## prominence's envelope delayed by the light's travel, and a kick as it arrives.
+static func flare_at(u: float, d: float) -> float:
+	var ui := u - d / FRONT_C
+	if ui <= 0.0 or u < 0.0:
+		return 0.0
+	var e := smoothstep(0.0, 4.0, ui) if ui < 4.0 else (1.0 if ui < 7.0 else 1.0 - smoothstep(7.0, 19.0, ui))
+	var kick := smoothstep(0.0, 0.35, ui) * exp(-maxf(ui - 0.35, 0.0) / 1.4)
+	return e + 3.0 * kick
+
+
+## The band's radius on the plane and its strength now (strength 0: none).
+func front_now() -> Vector2:
+	var u := eruption_age(pose(t, 6.0))
+	if u < 0.0 or layout == null or layout.star == SystemLayout.StarKind.PULSAR or layout.star == SystemLayout.StarKind.CORE:
+		return Vector2(-1.0, 0.0)
+	var r := u * FRONT_C
+	var k := smoothstep(0.0, 0.6, u) * (1.0 - smoothstep(FRONT_FADE * 0.5, FRONT_FADE, u)) / (1.0 + pow(r / 300.0, 2.0))
+	return Vector2(r, k)
+
+
 ## HOW MUCH OF A PULSAR'S BEAM falls on a thing at screen offset `d` from the
 ## pulsar (C: the worlds and the belt it sweeps catch its light): 1 on the beam,
 ## either end of it, falling off over 0.18 rad; caught fast, let go over a third
@@ -1556,6 +1619,15 @@ func step() -> void:
 	_step_depth(o)
 	_twinkle.queue_redraw()
 	_belts.queue_redraw()
+	if _front != null:
+		var front: Vector2 = front_now() if SectorWowS.has(&"flarefront", self) else Vector2(-1.0, 0.0)
+		_front.visible = front.y > 0.0
+		if _front.visible:
+			_front_mat.set_shader_parameter("origin", Vector2(CX, CY) + pan)
+			_front_mat.set_shader_parameter("zoom", zoom)
+			_front_mat.set_shader_parameter("tilt", TILT)
+			_front_mat.set_shader_parameter("edge", layout.edge)
+			_front_mat.set_shader_parameter("front", Vector2(front.x, front.y * 0.4))
 	if _belt_dust != null and _belt_dust.visible:
 		var bv := PackedVector4Array()
 		for bb in layout.bodies:
@@ -1663,7 +1735,10 @@ func step() -> void:
 			if not legacy:
 				vm.set_shader_parameter("star_tint", _tint)
 				vm.set_shader_parameter("night_fill", night_fill(p))
-			vm.set_shader_parameter("flare", _flare)
+			if SectorWowS.has(&"flarefront", self) and layout.star != SystemLayout.StarKind.PULSAR and layout.star != SystemLayout.StarKind.CORE:
+				vm.set_shader_parameter("flare", flare_at(eruption_age(pose(t, 6.0)), p.length()))
+			else:
+				vm.set_shader_parameter("flare", _flare)
 			vm.set_shader_parameter("lift", 0.0 if legacy else 1.0)
 			# ITS MOONS' SHADOWS ON ITS FACE (Jon: "shouldn't moons cast eclipses on
 			# their planets?"): each moon's place about the world (screen px, x
@@ -2008,6 +2083,7 @@ class _Belts extends Node2D:
 
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
+		var front: Vector2 = view.front_now() if SectorWowS.has(&"flarefront", view) else Vector2(-1.0, 0.0)
 		for b in L.bodies:
 			if b.kind != &"belt":
 				continue
@@ -2101,6 +2177,12 @@ class _Belts extends Node2D:
 				if b.index == view.belt_lit and view.belt_t > 0.0:
 					lit = lit.lerp(Color.WHITE, 0.45 * view.belt_t)
 					dark = dark.lerp(lit, 0.6 * view.belt_t)
+				if front.y > 0.0:
+					# WOW `flarefront`: the flare's light catching the rubble as it passes
+					var fd := (rr - front.x) / 18.0
+					var fk := clampf(front.y * 1.6 * exp(-fd * fd), 0.0, 1.0)
+					lit = lit.lerp(Color(1.0, 0.97, 0.9), 0.75 * fk)
+					dark = dark.lerp(lit, 0.6 * fk)
 				lit.a = fade_in
 				dark.a = fade_in
 				var sx := -1 if x > 0.0 else 1
