@@ -1896,6 +1896,179 @@ func _wow_step(_delta: float) -> void:
 
 func wow_sync() -> void:
 	_wow_hull()
+	_wow_night()
+
+
+## THE NIGHT SIDE OF A SETTLED WORLD (`LocalWow` "night"): the world you orbit,
+## when it has dry ground and the system is settled, lit by its towns where the
+## star's light has left it -- each town a cluster of points of light, a bright
+## heart to the big ones, more towns the more the system is developed. Points,
+## not the painter's city wash: on a world this close its towns are places, and
+## the map's lights (made for a world a few blocks across) came out as flat
+## orange blots. Drawn over the world in its own picture (`_NightLights`),
+## turning with it.
+const _NIGHT_GROUND := [&"rock", &"desert", &"iron", &"ice", &"toxic", &"eyeball", &"cracked", &"crystal",
+	&"haze", &"volcanic", &"swamp", &"moon"]
+const _NIGHT_TOWNS := {MapGen.Development.SETTLEMENT: 22, MapGen.Development.CITY: 40, MapGen.Development.CAPITAL: 64}
+var _night: _NightLights = null
+
+
+func _wow_night() -> void:
+	if not LocalWow.asked(&"night") or not (_near_world is PlanetView) or node == null or _near_vp == null:
+		if _night != null and is_instance_valid(_night):
+			_night.visible = false
+		return
+	var pv := _near_world as PlanetView
+	var wn := StringName(pv.spec.get("world", &""))
+	if not wn in _NIGHT_GROUND or not _NIGHT_TOWNS.has(node.development):
+		return
+	if _night == null or not is_instance_valid(_night) or _night.pv != pv:
+		if _night != null and is_instance_valid(_night):
+			_night.queue_free()
+		_night = _NightLights.new()
+		_night.build(pv, int(_NIGHT_TOWNS[node.development]), node.development == MapGen.Development.CAPITAL)
+		# (over the near picture, not in it: the play tone presses the near things'
+		# light down to a mid-tone, and a town's lights pressed so came out as tan
+		# smudges on a grey ground -- a light is exempt, as the lab's glowing
+		# pixels are; the near picture is the same 960x540 frame, so the world's
+		# place there is its place here)
+		_scene.add_child(_night)
+	if _near_rect != null and _night.get_index() != _near_rect.get_index() + 1:
+		_scene.move_child(_night, _near_rect.get_index() + 1)
+	_night.visible = LocalWow.on(&"night")
+	var m := pv.get("_mat") as ShaderMaterial
+	_night.step(pv.position, float(m.get_shader_parameter("r")), float(m.get_shader_parameter("time")),
+		m.get_shader_parameter("light") as Vector3)
+
+
+## The towns' lights on the world you orbit: points on its sphere (body space),
+## turned with it each frame (`planet.gdshader`'s `to_body`, run backwards), on
+## its own 2 px blocks, where the light toward the star has left the ground.
+## Gathered light: a point adds to the block it lands on, crowded blocks
+## brighter, a big town's heart with a glow round it; stepped, and a point moves
+## to its next block only once it is most of a block past the one it shows (no
+## A, B, A as the world turns).
+class _NightLights extends Node2D:
+	var pv: PlanetView
+	## [body pos (unit), strength]
+	var pts: Array = []
+	## each point's block as last drawn, and its night level
+	var shown: PackedVector2Array = PackedVector2Array()
+	var lvl: PackedFloat32Array = PackedFloat32Array()
+	var _blocks := {}
+	const CORE := Color(1.0, 0.72, 0.34)
+	const HEART := Color(1.0, 0.93, 0.78)
+
+	func build(view: PlanetView, towns: int, capital: bool) -> void:
+		pv = view
+		var mat := CanvasItemMaterial.new()
+		mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		material = mat
+		var R := Worlds.XRng.new(float(view.spec.get("seed", 1.0)) * 131.0 + 9.0)
+		for i in towns:
+			var c := Worlds.sphere_rand(R)
+			# (towns keep off the poles' ice)
+			if absf(c.y) > 0.8:
+				c.y *= 0.7
+				c = c.normalized()
+			var big := pow(R.next(), 2.2) * (1.25 if capital else 1.0)
+			var n := 4 + int(big * 30.0)
+			var spread := 0.03 + 0.08 * big
+			var e1 := c.cross(Vector3.UP if absf(c.y) < 0.9 else Vector3.RIGHT).normalized()
+			var e2 := c.cross(e1)
+			for k in n:
+				var a := R.next() * TAU
+				var rr := spread * sqrt(R.next())
+				var p := (c + e1 * cos(a) * rr + e2 * sin(a) * rr).normalized()
+				# the middle of a big town brighter
+				var s := 0.45 + 0.55 * R.next() + (0.8 * big if rr < spread * 0.35 else 0.0)
+				pts.append([p, s])
+		# and between the towns, lone lights: roads, farms, a mine
+		for i in towns * 2:
+			var p := Worlds.sphere_rand(R)
+			if absf(p.y) < 0.85:
+				pts.append([p, 0.3 + 0.3 * R.next()])
+		shown.resize(pts.size())
+		lvl.resize(pts.size())
+		for i in pts.size():
+			shown[i] = Vector2(INF, INF)
+
+	func step(ctr: Vector2, r: float, time: float, L: Vector3) -> void:
+		position = ctr
+		var sp := pv.spec
+		var ang := float(sp.get("seed", 0.0)) + time * float(sp.get("spin", 0.0))
+		var ca := cos(ang)
+		var sa := sin(ang)
+		var tl := float(sp.get("tilt", 0.0))
+		var ct := cos(tl)
+		var st := sin(tl)
+		var Ln := L.normalized()
+		_blocks.clear()
+		for i in pts.size():
+			var b: Vector3 = pts[i][0]
+			# body -> the view: the spin undone, then the tilt
+			var tx := b.x * ca - b.z * sa
+			var sz := b.x * sa + b.z * ca
+			var ty := b.y
+			var sv := Vector3(tx * ct + ty * st, -tx * st + ty * ct, sz)
+			if sv.z <= 0.05 or _behind_ring(sv):
+				shown[i] = Vector2(INF, INF)
+				continue
+			# night: the planet's own `night_of`, eased over the terminator, and the
+			# lights thin out toward the limb, where they are seen edge on
+			var d := sv.dot(Ln)
+			var kn := 0.0 if d > 0.12 else (1.0 if d < -0.12 else (0.12 - d) / 0.24)
+			kn *= clampf(sv.z * 2.5, 0.0, 1.0)
+			# a level held until it moves a step past (no flicker at the terminator)
+			var ks := kn * 3.0
+			if absf(ks - (lvl[i] * 3.0 + 0.5)) > 0.7:
+				lvl[i] = clampf(floorf(ks), 0.0, 3.0) / 3.0
+			if lvl[i] <= 0.0:
+				continue
+			var p := Vector2(sv.x, sv.y) * r
+			var s: Vector2 = shown[i]
+			if s.x == INF or p.distance_to(s + Vector2.ONE) > 1.6:
+				s = (p / 2.0).floor() * 2.0
+				shown[i] = s
+			var key := s
+			# (the brighter of two lights on one block, not their sum: two lights
+			# drifting through each other's block would brighten and dim it, A, B, A)
+			_blocks[key] = maxf(float(_blocks.get(key, 0.0)), float(pts[i][1]) * lvl[i])
+		queue_redraw()
+
+	## Under the front of the world's rings (seen through them toward you): the
+	## ring plane as the painter has it (`planet.gdshader`, RN), in its radii.
+	func _behind_ring(sv: Vector3) -> bool:
+		if not bool(pv.spec.get("ring", false)):
+			return false
+		var m := pv.get("_mat") as ShaderMaterial
+		var rin := float(m.get_shader_parameter("ring_in"))
+		var rout := float(m.get_shader_parameter("ring_out"))
+		if rout <= 0.0:
+			rin = 1.5
+			rout = 2.2
+		var RN := Vector3(0.0, 0.96, -0.28)
+		var s := sv.dot(RN) / 0.28
+		if s <= 0.0:
+			return false
+		var rho := (sv + Vector3(0.0, 0.0, s)).length()
+		return rho > rin and rho < rout
+
+	func _draw() -> void:
+		# glow first: a soft cross round the bright blocks, then the cores
+		for key: Vector2 in _blocks:
+			var v: float = _blocks[key]
+			if v > 1.15:
+				var g := Color(CORE.r, CORE.g * 0.8, CORE.b * 0.6, 1.0) * clampf(0.1 + (v - 0.9) * 0.1, 0.0, 0.26)
+				for o: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
+					if not _blocks.has(key + o):
+						draw_rect(Rect2(key + o, Vector2(2, 2)), g)
+		for key: Vector2 in _blocks:
+			var v: float = _blocks[key]
+			# stepped: dim, lit, bright, a heart
+			var k := 0.5 if v < 0.6 else (0.72 if v < 1.1 else (0.9 if v < 1.8 else 1.0))
+			var c := CORE if k < 1.0 else HEART
+			draw_rect(Rect2(key, Vector2(2, 2)), Color(c.r * k, c.g * k, c.b * k, 1.0))
 
 
 ## THE STAR'S LIGHT ON YOUR HULL (`LocalWow` "hull"): its sun-facing edge lit in
