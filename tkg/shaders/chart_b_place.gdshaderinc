@@ -43,7 +43,6 @@ uniform vec4 u_lt[12];             // lightning per cloud: pose (0 none, 1 bolt,
 uniform float u_glim = 0.0;        // the glimmers' stepped angle
 uniform float u_shaft = 0.0;       // the shafts' stepped angle
 uniform float u_flow = 0.0;        // the currents' clock (halved under reduced motion)
-uniform float u_laneThin = 0.0;    // the dust lane thinned inside the bulge (`ChartPainted.lane_thin`)
 
 #define M_SKY 0
 #define M_ARM 1
@@ -922,27 +921,13 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		float rc = armB ? u_g7.y : u_g7.x;
 		seg *= 1.0 - u_g7.w + u_g7.w * 1.6 * exp(-sq((ar - rc) / u_g7.z));
 	}
+	// NO DUST LANE (Jon, Oct 10: "Can't the line go away entirely? It's weird and
+	// doesn't make sense that a clear line in the dust exists"). The arms' inner
+	// lanes were drawn as a band a block or two wide -- dark dust (or the halo's
+	// shade) with a lit lip beside it -- that ran round the bulge's gold as a hard
+	// arc and on across the arms. They are gone: no band, no lip, and the light they
+	// dimmed (`T`, `TS`) left as it is, so nothing marks where they were.
 	float lane = 0.0, laneS = 0.0, lip = 0.0;
-	if (!ellip && u_g1.z > 0.0 && u_g1.y > 0.0) {
-		float lw = (0.0075 + 0.008 * r) * (0.7 + 0.6 * kitVnoise2(vec2(al * 0.9, 3.0)));
-		// (option B: thinned inside the bulge, where it crosses the gold as an arc)
-		lw *= 1.0 - 0.75 * u_laneThin * (1.0 - smoothstep(0.10, 0.30, r));
-		float lc = (0.86 + 0.2 * kitSnoise2(vec2(al * 0.5, 7.0))) * wp + 0.3 * lw;
-		float brk = smoothstep(0.3, 0.46, kitVnoise2(vec2(al * 1.4, 11.0)));
-		float dd = abs(dp - lc) / lw;
-		// (octaves past the third come in only as the zoom resolves them: up close the
-		// lanes' edges and the arms' clumps keep breaking up instead of flattening)
-		float fe = flowFbm(g, 60.0, vec2(0.0), blk, low ? 3 : 5);
-		float win = brk * u_g1.z * smoothstep(0.03, 0.065, r) * smoothstep(0.72, 0.5, r);
-		// no lanes inside a bar: there every ridge is the bar's straight line, and the
-		// lane rule would lay the whole bar zone down as one dust plate
-		if (u_g0.z > 0.0) {
-			win *= smoothstep(u_g0.z * 0.95, u_g0.z * 1.15, r);
-		}
-		lane = (1.0 - smoothstep(0.75, 1.15, dd - 0.22 * fe * step(dp, lc))) * win;
-		laneS = (1.0 - smoothstep(0.75, 1.15, dd)) * win;
-		lip = step(lc, dp) * smoothstep(1.0, 1.25, dd) * smoothstep(2.4, 1.8, dd) * win;
-	}
 	float Ed, EdS, warmD;
 	if (!ellip) {
 		float env = 0.42 * exp(-r / 0.28) + 0.022 * exp(-r / 0.75);
