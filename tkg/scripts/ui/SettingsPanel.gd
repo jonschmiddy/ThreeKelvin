@@ -372,13 +372,6 @@ func _page_motion() -> void:
 			func(i: int) -> void:
 				ZoomLadder.save_setting("seam3_fade", ZoomLadder.FADES[i])
 				_refresh()))
-		# (3B, a hull too tall for the mouth: shrink to it, shrink its body to
-		# it, or the lips open for it)
-		_body.add_child(_row_chips("3B BIG HULLS", ZoomLadder.BIG_HULLS,
-			maxi(ZoomLadder.BIG_HULLS.find(ZoomLadder.big_hull()), 0),
-			func(i: int) -> void:
-				ZoomLadder.save_setting("big_hull", ZoomLadder.BIG_HULLS[i])
-				_refresh()))
 		# THE MOVES' TIMINGS, by feel (Jon, Oct 10: "fast and rushed"): every
 		# length a move is made of, a twentieth or a tenth of a second a press,
 		# and the code's own defaults back with one

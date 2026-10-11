@@ -111,13 +111,14 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var power := 0.0
 	var shown := 0.0
 	var layer_bad := 0
-	# THROUGH THE LIPS (Jon: "how do large ships look going into the station?"):
-	# while any of your ship is between the mouth and the recess's end, its ink
-	# stays between the lips' outer rows (203..286), never cut off by them
-	var lip_over := -INF
+	# THROUGH THE LIPS, ONE MOUTH FOR EVERY SHIP (Jon: "We need to have the ship
+	# door opening always be the same size, no matter what ship you are in"):
+	# while any of your ship is between the mouth and the recess's end, all of
+	# it -- its hull and every part bolted on -- is inside the recess, `LIP_ROOM`
+	# px or more from both lips
+	var lip_room := INF
 	var lip_at := Rect2()
-	var shrink := -1.0
-	var open_most := 0
+	var whole := Rect2()
 	var hall := loc0 != null and loc0._face != null and is_instance_valid(loc0._face)
 	var pan_x: Array[float] = []
 	var edge_off := 0
@@ -136,9 +137,10 @@ func _hull_flies_in(dock_b: Button) -> void:
 		black_top = maxf(black_top, blk)
 		if hall and Router.current == loc0 and is_instance_valid(loc0):
 			last = _ship_on_plate(loc0)
+			whole = _fitted_on_plate(loc0)
 			if fmode and not dip_seen and blk > 0.02:
 				dip_seen = true
-				dip_at = last
+				dip_at = whole
 			if ZoomLadder.busy() and last.size.x > 0.0:
 				track.append(["L", last.get_center().x, loc0._lad_zs])
 			# (behind the front, over the plate, the two in one place)
@@ -153,25 +155,11 @@ func _hull_flies_in(dock_b: Button) -> void:
 				shown = loc0._view.get_global_rect().end.x - loc0._face.plate_g(Vector2(StationFace.EDGE_X, StationFace.ROW)).x
 			if last.size.x > 0.0:
 				tails.append(last.position.x)
-				if loc0._lad.has("hall"):
-					shrink = float((loc0._lad.hall as Dictionary).get("shrink", 1.0))
-				open_most = maxi(open_most, maxi(loc0._face.open_top, loc0._face.open_bot))
-				if last.end.x > StationFace.LIP_X and last.position.x < StationFace.RECESS.end.x:
-					# (between the lips' outer rows, wherever they are: OPEN slides
-					# them apart; BODY asks it of the hull's body only)
-					var band := Vector2(StationFace.SLOT.position.y - float(loc0._face.open_top),
-						StationFace.SLOT.end.y + 2.0 + float(loc0._face.open_bot))
-					var top := last.position.y
-					var bot := last.end.y
-					var fit: Dictionary = StationFace.last_fit
-					if String(fit.get("mode", "")) == "BODY" and fit.has("body"):
-						var cy := last.get_center().y
-						top = cy + float(fit.body[0]) * last.size.y
-						bot = cy + float(fit.body[1]) * last.size.y
-					var ov := maxf(band.x - top, bot - band.y)
-					if ov > lip_over:
-						lip_over = ov
-						lip_at = last
+				if whole.end.x > StationFace.LIP_X and whole.position.x < StationFace.RECESS.end.x:
+					var room := minf(whole.position.y - StationFace.RECESS.position.y, StationFace.RECESS.end.y - whole.end.y)
+					if room < lip_room:
+						lip_room = room
+						lip_at = whole
 			power = loc0._face.power
 		if Router.current is StationScreen and ZoomLadder.busy() and ZoomLadder.active.phase == ZoomLadder.Phase.MOVE:
 			st = Router.current as StationScreen
@@ -205,40 +193,20 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: on LOCAL your ship sets off from where it sat (tail at plate x %.0f) and only moves right" % first.position.x,
 			tails.size() > 20 and first.end.x < StationFace.EDGE_X and right)
 		_ok("3B: the station's lights are all on before the pan (power %.2f)" % power, power >= 0.999)
-		# (seen only in the recess: wholly past its end, inside the hull's rows,
-		# your ship is 0 pixels seen -- `_front_is_plate_less_recess`)
-		# (the hull past the recess, from the upper lip's outer edge to the lower
-		# lip's: solid on every side -- `_front_is_plate_less_recess` -- so a
-		# bigger hull at its berth, as BODY and OPEN leave the heavy, is out of
-		# sight in it too)
-		var hull := Rect2(StationFace.RECESS.end.x, StationFace.LIP_TOP_BAND.position.y, 2000.0,
-			StationFace.LIP_BOT_BAND.end.y - StationFace.LIP_TOP_BAND.position.y)
-		_ok("3B: your ship is all the way into the hull, none of it seen, before the hand-off (on the plate %s; hull past the recess from x %.0f)" % [last, hull.position.x],
-			last.size.x > 1.0 and hull.encloses(last))
+		# (seen only in the recess: wholly past its end, inside the hull's rows --
+		# the lips' outer rows, solid on every side, `_front_is_plate_less_recess`
+		# -- all of it, parts and all, is 0 pixels seen)
+		var hull := HULL_ROWS
+		_ok("3B: your ship is all the way into the hull, none of it seen, before the hand-off (on the plate %s; hull past the recess from x %.0f)" % [whole, hull.position.x],
+			whole.size.x > 1.0 and hull.encloses(whole))
 		if fmode:
 			_ok("3B F: your ship is out of sight in the hull before the screen starts to dip to black (on the plate %s)" % dip_at,
 				dip_seen and dip_at.size.x > 1.0 and hull.encloses(dip_at))
 		_ok("3B: on every frame of the approach your ship is drawn between the station's plate and its front, both placed alike (%d frames out)" % layer_bad,
 			layer_bad == 0)
 		_ok("3B: the station takes %.0f px of LOCAL's width (at most %.0f)" % [shown, StationFace.SHOWN + 1.0], shown <= StationFace.SHOWN + 1.0 and shown > 150.0)
-		var big := ZoomLadder.big_hull()
-		# (as the dock decided it: Drum 1 as approved, unlit, draws no moving lips,
-		# so OPEN is SHRINK there)
-		big = String(StationFace.last_fit.get("mode", big))
-		_ok("3B %s: %s goes in between the lips, never cut off by them%s (closest %.1f px from their outer rows; at %s)" % [
-			big, Run.hull.name, " (its body)" if big == "BODY" else "", -lip_over, lip_at], lip_over <= 0.0)
-		# (the light and the medium dock exactly as approved, in every mode; only a
-		# taller hull shrinks sooner -- `StationFace.SHIP_LIP_H` -- or has the
-		# mouth opened for it)
-		var light_or_medium := Run.hull.weight != HullData.Weight.HEAVY
-		_ok("3B %s: %s shrinks on its way in with q %.3f%s, the mouth opened %d px%s" % [big, Run.hull.name, shrink,
-			" (as approved)" if is_equal_approx(shrink, 1.0) else " (sooner)", open_most,
-			"" if open_most > 0 else " (never)"],
-			shrink > 0.0 and (not light_or_medium or (is_equal_approx(shrink, 1.0) and open_most == 0))
-			and (big != "OPEN" or is_equal_approx(shrink, 1.0)) and (big == "OPEN" or open_most == 0))
-		_ok("3B %s: the mouth is shut again at rest (%d, %d)" % [big, loc0._face.open_top if is_instance_valid(loc0) else 0,
-			loc0._face.open_bot if is_instance_valid(loc0) else 0],
-			not is_instance_valid(loc0) or (loc0._face.open_top == 0 and loc0._face.open_bot == 0))
+		_ok("3B: %s goes in between the lips at its own size, %.1f px from them at the closest (at least %.0f; at %s)" % [
+			Run.hull.name, lip_room, LIP_ROOM, lip_at], lip_room >= LIP_ROOM and lip_room < INF)
 	if fmode:
 		_ok("3B F: the screen goes all the way to black at the hand-off (%.2f)" % black_top, black_top >= 0.99)
 		_ok("3B F: the yard comes up from black empty, and stays empty with the black gone for %d frames (at least 9, 0.3 s)" % empty_up,
@@ -402,7 +370,7 @@ func _no_fights_at_stations(st: int) -> void:
 
 
 ## EVERY SIDE JON KEPT (`StationSides`), docked into and undocked from, each
-## with an interior (and Drum take 1 with none, as approved): the hallway, the
+## with an interior (Drum take 1 with its own bay): the hallway, the
 ## mask, the seat and the elevator checks above for every one, and the far
 ## layers' parallax in whole pixels that only ever grow as the camera comes in
 ## (no A, B, A), back to none at rest.
@@ -410,18 +378,11 @@ func _every_side() -> void:
 	# EVERY WEIGHT (Jon: "how do large ships look going into the station?"): the
 	# light, the medium and the heavy, every mount filled (turrets and pods on,
 	# the tallest each can be), at every side
-	# ... in each way a big hull may pass the lips (`ZoomLadder.big_hull`): the
-	# default every weight at every side; the other two the heavy at every side,
-	# and the light and the medium at the Drum, untouched
-	for mode in ZoomLadder.BIG_HULLS:
-		ZoomLadder.force_big = mode
-		for w in [HullData.Weight.MEDIUM, HullData.Weight.LIGHT, HullData.Weight.HEAVY]:
-			Run.fit_chassis(&"korvan", w)
-			_fit_full()
-			print("  -- %s, weight: %s" % [mode, Run.hull.name])
-			var all_sides: bool = mode == "SHRINK" or w == HullData.Weight.HEAVY
-			await _every_side_once(all_sides)
-	ZoomLadder.force_big = ""
+	for w in [HullData.Weight.MEDIUM, HullData.Weight.LIGHT, HullData.Weight.HEAVY]:
+		Run.fit_chassis(&"korvan", w)
+		_fit_full()
+		print("  -- weight: %s" % Run.hull.name)
+		await _every_side_once()
 	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM)
 
 
@@ -446,13 +407,10 @@ func _fit_full() -> void:
 				Run.install_module(m.duplicate(true) as ModuleData)
 
 
-func _every_side_once(all_sides: bool = true) -> void:
-	var ints := [StationSides.NONE, &"iris_90_0", &"hallway_170_1", &"cargo_170_0", &"iris_220_1", &"hallway_90_1", &"cargo_130_1"]
+func _every_side_once() -> void:
+	var ints := [StationSides.NONE, &"hallway_130_0", &"hallway_170_1", &"cargo_170_0", &"cargo_90_0", &"hallway_90_1", &"cargo_130_1"]
 	# (and Drum take 1 as approved, unlit, kept to compare: its dock still whole)
 	var ids: Array = StationSides.IDS.duplicate()
-	ids.append(StationSides.FLAT)
-	if not all_sides:
-		ids = [&"drum1"]
 	for i in ids.size():
 		var id: StringName = ids[i]
 		StationSides.force_side = id
@@ -556,7 +514,7 @@ func _station_picks() -> void:
 	var loads := true
 	for id in StationSides.IDS:
 		var s := StationSides.side(id)
-		if s == null or (not s.legacy and (s.solid == null or s.lamps == null or s.bay_lit == null or s.layers.is_empty())):
+		if s == null or s.solid == null or s.lamps == null or s.bay_lit == null or s.layers.is_empty():
 			loads = false
 	for id in StationSides.INTERIORS:
 		if StationSides.interior(id).size() != 2:
@@ -564,20 +522,15 @@ func _station_picks() -> void:
 	_ok("stations: all %d sides and %d interiors load" % [StationSides.IDS.size(), StationSides.INTERIORS.size()], loads)
 
 
-## THE STATION'S FRONT IS ITS PLATE LESS THE RECESS, pixel for pixel: every
-## pixel of the plate that is hull (outside the bay's recess) is solid in the
-## front layer, so no ship pixel is ever drawn over hull; and nothing of the
-## front is inside the recess, where your ship is seen.
-## The other sides: the crevice layer under them is solid wherever any layer is
+## THE STATION'S FRONT IS ITS PLATE LESS THE RECESS: on every side the crevice
+## layer under the front is solid wherever any layer is
 ## drawn, nothing of the front (layers, lamps) is in the recess, and the
-## hallway's rows are solid hull from the recess's end to the plate's cut and
+## lips' rows (`HULL_ROWS`) are solid hull from the recess's end to the plate's cut and
 ## across the window tiled past it -- so your ship, flying on into the hull, is
 ## never seen through it.
 func _front_is_plate_less_recess() -> void:
 	for id in StationSides.IDS:
 		var s := StationSides.side(id)
-		if s.legacy:
-			continue
 		var solid := s.solid.get_image()
 		var open := 0
 		var inside := 0
@@ -595,7 +548,7 @@ func _front_is_plate_less_recess() -> void:
 					elif t != s.lamps and solid.get_pixel(x, y).a < 0.99:
 						open += 1
 		var holes := 0
-		for y in range(int(StationFace.LIP_TOP_BAND.position.y), int(StationFace.LIP_BOT_BAND.end.y)):
+		for y in range(int(HULL_ROWS.position.y), int(HULL_ROWS.end.y)):
 			for x in range(int(StationFace.RECESS.end.x), int(s.hull_x0)):
 				if solid.get_pixel(x, y).a < 0.99:
 					holes += 1
@@ -604,24 +557,28 @@ func _front_is_plate_less_recess() -> void:
 					holes += 1
 		_ok("station %s: the crevice under every layer (%d open), nothing in the recess (%d), the hallway's rows solid past it (%d holes)" % [
 			id, open, inside, holes], open == 0 and inside == 0 and holes == 0)
-	var plate := (StationFace.PLATE_UNLIT as Texture2D).get_image()
-	var front := (StationFace.FRONT_UNLIT as Texture2D).get_image()
-	if plate == null or front == null:
-		_ok("station art readable", false)
-		return
-	var hull_open := 0
-	var recess_drawn := 0
-	for y in plate.get_height():
-		for x in plate.get_width():
-			var inside := StationFace.RECESS.has_point(Vector2(x, y))
-			var pa := plate.get_pixel(x, y).a
-			var fa := front.get_pixel(x, y).a
-			if inside and fa > 0.0:
-				recess_drawn += 1
-			elif not inside and pa > 0.5 and fa < 0.99:
-				hull_open += 1
-	_ok("station: the front covers every pixel of hull (%d open) and nothing of the recess (%d drawn)" % [hull_open, recess_drawn],
-		hull_open == 0 and recess_drawn == 0)
+
+
+## THE HULL PAST THE RECESS that hides your ship once it is in: from the upper
+## lip's outer edge to the lower lip's (rows 196..341), from the recess's end on;
+## solid on every side (`_front_is_plate_less_recess`).
+const HULL_ROWS := Rect2(212, 196, 2000, 146)
+## ONE MOUTH FOR EVERY SHIP: how close, at the least, any ship (hull and parts)
+## may come to the lips as it passes them (px).
+const LIP_ROOM := 2.0
+
+
+## Your ship whole on the station's plate -- its hull's ink and every part bolted
+## on (`ShipView.fitted_rect_global`), plate px, as LOCAL draws it now.
+func _fitted_on_plate(lc: SectorScreen) -> Rect2:
+	var art := lc._view.ship_view() if lc._view != null else null
+	if art == null or lc._face == null:
+		return Rect2()
+	var g := art.fitted_rect_global()
+	var to_plate := lc._face.get_global_transform().affine_inverse()
+	var a := to_plate * g.position - lc._face.origin()
+	var b := to_plate * g.end - lc._face.origin()
+	return Rect2(a, b - a).abs()
 
 
 ## ONE SMOOTH MOTION (Jon: "can we make the movement one smooth motion"): what

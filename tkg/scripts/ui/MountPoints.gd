@@ -553,6 +553,21 @@ static func empty_text(slot: int) -> String:
 ## EVERY WORD THE CUTAWAY HAS PUT ON SCREEN, and every part it lifted, as this
 ## widget draws them: [{kind = "tag"|"label"|"part", rect, text}]. For
 ## `-- cutawaytest`, which checks none of them sits on another or on the hull.
+## Every part bolted on, where it is drawn at rest (this control's px): their
+## footprints' union, Rect2() with none. With `ShipView.fitted_rect_global`,
+## how big a fitted ship is -- what the station's mouth is sized for.
+func parts_rect() -> Rect2:
+	var out := Rect2()
+	var k := _mag()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if m == null:
+			continue
+		var r := part_rect(m, s.slot, s.at, k)
+		out = r if out.size.x <= 0.0 else out.merge(r)
+	return out
+
+
 func drawn_rects() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if explode <= 0.0:

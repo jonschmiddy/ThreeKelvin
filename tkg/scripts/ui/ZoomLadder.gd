@@ -235,30 +235,6 @@ static func seam3_fade() -> String:
 	return v if v in FADES else "F"
 
 
-## A HULL TOO TALL FOR THE STATION'S MOUTH (3B; Jon: "how do large ships look
-## going into the station?"): how a hull taller than the medium (the heavy)
-## passes the lips. "SHRINK", the default for now: it shrinks sooner on its way
-## in, to the medium's height at the lips (Jon: "it shrinks too much"). "BODY":
-## only enough for its solid body to pass the lips with the medium's margin,
-## thin masts, barrels and fins tucking behind them. "OPEN": the station makes
-## room -- the lips slide apart for it and close behind it -- and it shrinks as
-## the medium does. The light and the medium dock as approved in all three.
-## `[flow] big_hull=`, or `big_hull=` on a harness's command line.
-const BIG_HULLS := ["SHRINK", "BODY", "OPEN"]
-static var force_big := ""
-
-
-static func big_hull() -> String:
-	if force_big in BIG_HULLS:
-		return force_big
-	var a := _arg("big_hull").to_upper()
-	if a in BIG_HULLS:
-		return a
-	_read_cfg()
-	var v := String(_cfg.get("big_hull", "SHRINK")).to_upper()
-	return v if v in BIG_HULLS else "SHRINK"
-
-
 ## A Hermite curve from 0 to 1 over u 0..1, leaving at slope `m0` and arriving at
 ## slope `m1` (in units of its whole length over its whole time): ONE SMOOTH
 ## MOTION's pieces, each starting at the speed the last one ended on.

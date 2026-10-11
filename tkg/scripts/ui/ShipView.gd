@@ -566,6 +566,21 @@ func ink_rect() -> Rect2i:
 	return r
 
 
+## THE SHIP AS DRAWN WHOLE, in global px: its hull's ink and every part bolted
+## to it (`MountPoints.parts_rect`) -- turrets and pods stand off the hull.
+func fitted_rect_global() -> Rect2:
+	var ink := Rect2(ink_rect())
+	var xf := get_global_transform()
+	var r := Rect2(xf * canvas_to_local(ink.position), Vector2.ZERO).expand(xf * canvas_to_local(ink.end))
+	for c in get_children():
+		if c is MountPoints:
+			var pr: Rect2 = (c as MountPoints).parts_rect()
+			if pr.size.x > 0.0:
+				var g := (c as Control).get_global_transform()
+				r = r.merge(Rect2(g * pr.position, Vector2.ZERO).expand(g * pr.end))
+	return r
+
+
 ## Measured off the opaque pixels, so it follows whatever art is loaded and
 ## whatever is bolted to it, and the bob is taken back out so a box drawn here
 ## does not twitch several times a second.

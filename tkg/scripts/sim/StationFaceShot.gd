@@ -7,8 +7,7 @@ extends Node
 ## hallway at row 270, the star's light white, every clock stopped at `clock`
 ## seconds: one PNG per power, `<dir>/face_<side>_<interior>_p<power>.png`. The
 ## same frozen frame on two builds is the same picture, pixel for pixel, so a
-## diff of two runs says whether a change moved anything (Drum take 1, through
-## the loader, against the drawing before it). Needs a window.
+## diff of two runs says whether a change moved anything. Needs a window.
 
 var _tree: SceneTree
 var _args: PackedStringArray
