@@ -1,0 +1,82 @@
+{
+ "spent": 7.0,
+ "takes": [
+  {
+   "tag": "iris_90_0__s200_81000",
+   "id": "iris_90_0",
+   "seed": 81000,
+   "strength": 200,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 23.9
+  },
+  {
+   "tag": "iris_90_1__s200_81100",
+   "id": "iris_90_1",
+   "seed": 81100,
+   "strength": 200,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 48.4
+  },
+  {
+   "tag": "iris_220_1__s200_81200",
+   "id": "iris_220_1",
+   "seed": 81200,
+   "strength": 200,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 27.1
+  },
+  {
+   "tag": "cargo_130_0__s300_82000",
+   "id": "cargo_130_0",
+   "seed": 82000,
+   "strength": 300,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 30.0
+  },
+  {
+   "tag": "cargo_130_1__s300_82100",
+   "id": "cargo_130_1",
+   "seed": 82100,
+   "strength": 300,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 34.6
+  },
+  {
+   "tag": "cargo_130_0__s300_82017",
+   "id": "cargo_130_0",
+   "seed": 82017,
+   "strength": 300,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 26.8
+  },
+  {
+   "tag": "iris_220_1__s200_81217",
+   "id": "iris_220_1",
+   "seed": 81217,
+   "strength": 200,
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 27.4
+  }
+ ]
+}

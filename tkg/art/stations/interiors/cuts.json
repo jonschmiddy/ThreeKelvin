@@ -47,14 +47,10 @@
   "wall_only": true
  },
  "cargo_130_0": {
-  "cut": 18,
-  "period": 8,
-  "mismatch": 0.96
+  "painted": true
  },
  "cargo_130_1": {
-  "cut": 9,
-  "period": 1,
-  "mismatch": 0.37
+  "painted": true
  },
  "cargo_170_0": {
   "cut": 10,

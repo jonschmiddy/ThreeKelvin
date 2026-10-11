@@ -487,7 +487,8 @@ def interiors():
     for k in INTERIORS:
         tall = os.path.join(SRC, "interiors", "tall", k + "_flat.png")
         if os.path.exists(tall):
-            # (painted at the new height: the irises, Jon's "Irises: A" -- src/painted/irises/)
+            # (painted at the new height: the irises remade big and cargo 130_0 / 130_1 at natural proportions,
+            # src/painted/remake/)
             flat = np.asarray(Image.open(tall).convert("RGB")).astype(float)
             lit = np.asarray(Image.open(tall.replace("_flat.png", "_lit.png")).convert("RGB"))
             report[k] = dict(painted=True)
