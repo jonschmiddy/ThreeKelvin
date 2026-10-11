@@ -1047,7 +1047,18 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 			}
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
 		} else {
-			float ELc = (Ec + Ep + 0.35 * Ew) / (1.0 + EwA * adapt);
+			// THE COOL SIDE KEEPS ITS OWN LIGHT AGAINST THE GOLD (Jon, Oct 11, picking A
+			// on the navy band). The zoom's exposure for the bulge (`adapt`, from zoom
+			// 1.5) divided ALL of the cool side's light by the warm light there, so the
+			// arms' gas fell to their darkest steps exactly where it met the gold: a dark
+			// navy band 4 to 8 blocks wide round the top of the bulge, that further out,
+			// or zoomed out, was never there. The cool side now keeps its own light
+			// (the arms', the clouds', the knots'), and the bulge's light spilling onto
+			// it is no longer divided away but capped as the zoom comes in, at about the
+			// arms' own middle step: the gas next to the gold is the gas further out,
+			// neither a dark band nor a pale scar. (Deep in, from zoom 3, this also
+			// leaves gas round the gold where the drop had darkened it to near sky.)
+			float ELc = Ec + Ep + min(0.35 * Ew, mix(1e3, 0.10, smoothstep(0.0, 0.25, clearZ)));
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
 			bool pink = Ep > 0.7 * Ec;
 			sc = cand(pink ? M_KNOT : M_ARM, pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
