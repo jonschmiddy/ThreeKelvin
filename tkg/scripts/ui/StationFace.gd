@@ -16,7 +16,7 @@ extends Control
 ## station's own hull into the yard (`ZoomLadder`'s pan, `draw_hull`).
 ## Undocking is all of it the other way round.
 ##
-## WHICH SIDE (`StationSides`): seven kept sides, each with one of thirteen kept
+## WHICH SIDE (`StationSides`): seven kept sides, each with one of twelve kept
 ## interiors in its recess, picked per station from the station alone. Every
 ## side carries the Drum's entrance at the same rows, so everything below about
 ## the hallway, the recess, the mask and the camera holds for all of them.

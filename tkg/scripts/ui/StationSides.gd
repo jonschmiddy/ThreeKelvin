@@ -1,7 +1,7 @@
 class_name StationSides
 extends RefCounted
 
-## THE STATION SIDES JON KEPT (Oct 10-11): seven sides and thirteen interiors,
+## THE STATION SIDES JON KEPT (Oct 10-11): seven sides and twelve interiors,
 ## the pool every station on LOCAL is drawn from (`StationFace`).
 ##
 ## THE SIDES: the Drum takes 1 and 3, the Container Pile takes 1, 3 and 4, the
@@ -24,7 +24,8 @@ extends RefCounted
 ## gold frame and the lamp strip are the side's own. Each was made 48 rows taller
 ## from its own art (`sides.py`'s `interiors`: rows that repeat, copied) -- the
 ## six hallways and four cargo bays; the three irises, whose rings would have
-## stretched to pills, repainted at the new height (Jon's "Irises: A").
+## stretched to pills, repainted at the new height (Jon's "Irises: A"); iris
+## 90_1 was then cut ("this is the only one that looks bad. you can just cut it").
 ##
 ## WHICH ONE A STATION GETS: decided by the station alone -- this galaxy's seed
 ## and the station's place among the map's stations -- so it is the same on
@@ -35,7 +36,7 @@ extends RefCounted
 ## stride.
 
 const IDS: Array[StringName] = [&"drum1", &"drum3", &"pile1", &"pile3", &"pile4", &"shanty3", &"terraces"]
-const INTERIORS: Array[StringName] = [&"iris_90_0", &"iris_90_1", &"iris_220_1", &"hallway_90_1", &"hallway_130_0",
+const INTERIORS: Array[StringName] = [&"iris_90_0", &"iris_220_1", &"hallway_90_1", &"hallway_130_0",
 	&"hallway_130_1", &"hallway_170_0", &"hallway_170_1", &"hallway_220_0", &"cargo_90_0", &"cargo_130_0",
 	&"cargo_130_1", &"cargo_170_0"]
 const NONE := &"none"
@@ -141,7 +142,8 @@ static func pick(n: MapGen.MapNode) -> Dictionary:
 				k += 1
 		var g := Run.galaxy_seed & 0x7fffffff
 		out.side = IDS[(_mix(g + 7919) + rank) % IDS.size()]
-		# (the interiors on a stride of 5 through the 13: neighbours far apart)
+		# (the interiors on a stride of 5 through the 12: neighbours far apart; 5 and
+		# 12 share no factor, so every interior comes round)
 		out.interior = INTERIORS[(_mix(g + 104729) + rank * 5) % INTERIORS.size()]
 	if force_side != &"":
 		out.side = force_side

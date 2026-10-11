@@ -79,7 +79,7 @@ SIDES = {
     "terraces": ("wall", "terraces.png", "dark", []),
 }
 # (the irises' rings cannot be made taller cleanly: they were repainted at the new height, src/interiors/tall/)
-INTERIORS = ["iris_90_0", "iris_90_1", "iris_220_1", "hallway_90_1", "hallway_130_0", "hallway_130_1", "hallway_170_0",
+INTERIORS = ["iris_90_0", "iris_220_1", "hallway_90_1", "hallway_130_0", "hallway_130_1", "hallway_170_0",
              "hallway_170_1", "hallway_220_0", "cargo_90_0", "cargo_130_0", "cargo_130_1", "cargo_170_0"]
 
 
