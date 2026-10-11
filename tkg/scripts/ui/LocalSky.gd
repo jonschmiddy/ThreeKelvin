@@ -1898,6 +1898,53 @@ func wow_sync() -> void:
 	_wow_hull()
 	_wow_night()
 	_wow_moons()
+	_wow_air()
+
+
+## THE AIR OF THE WORLD YOU ORBIT, LIT (`LocalWow` "air"): a thin bright shell
+## of atmosphere on its sunward limb, as a world seen from orbit has
+## (`local_air.gdshader`), in the air's own colour; for a world with air.
+const AIR := preload("res://shaders/local_air.gdshader")
+var _air: ColorRect = null
+var _air_mat: ShaderMaterial = null
+
+
+func _wow_air() -> void:
+	if not LocalWow.asked(&"air") or not (_near_world is PlanetView) or _near_rect == null:
+		if _air != null and is_instance_valid(_air):
+			_air.visible = false
+		return
+	var pv := _near_world as PlanetView
+	var wn := StringName(pv.spec.get("world", &""))
+	var atm: Variant = Worlds.WORLD.get(wn, {}).get("atm", null)
+	if atm == null:
+		return
+	if _air == null or not is_instance_valid(_air):
+		_air = _rect()
+		_air_mat = ShaderMaterial.new()
+		_air_mat.shader = AIR
+		_air.material = _air_mat
+		_scene.add_child(_air)
+	if _air.get_index() < _near_rect.get_index():
+		_scene.move_child(_air, -1)
+	_air.visible = LocalWow.on(&"air") and _hand.is_empty()
+	var m := pv.get("_mat") as ShaderMaterial
+	var r := float(m.get_shader_parameter("r"))
+	var c := Color(String(atm))
+	var thick := bool(Worlds.WORLD[wn].get("thick", false))
+	var giant := bool(Worlds.WORLD[wn].get("giant", false))
+	_air_mat.set_shader_parameter("ctr", pv.position)
+	_air_mat.set_shader_parameter("r", r)
+	_air_mat.set_shader_parameter("L", m.get_shader_parameter("light"))
+	_air_mat.set_shader_parameter("col", Vector3(c.r, c.g, c.b))
+	_air_mat.set_shader_parameter("k", 0.7 if giant else 0.85)
+	_air_mat.set_shader_parameter("w", (4.0 + 0.03 * r) * (1.6 if thick else 1.0))
+	var ring := Vector2.ZERO
+	if bool(pv.spec.get("ring", false)):
+		ring = Vector2(float(m.get_shader_parameter("ring_in")), float(m.get_shader_parameter("ring_out")))
+		if ring.y <= 0.0:
+			ring = Vector2(1.5, 2.2)
+	_air_mat.set_shader_parameter("ring", ring)
 
 
 ## THE MOONS GO ROUND (`LocalWow` "moons"): the moons of the world you orbit,

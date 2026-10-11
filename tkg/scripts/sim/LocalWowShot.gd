@@ -155,6 +155,24 @@ func _bench(sky: LocalSky, cname: String) -> void:
 			for tr in rects:
 				tr.material = mat if on else null)
 		what = "hull"
+	if LocalWow.asked(&"air") and sky._air != null and is_instance_valid(sky._air):
+		# the air's pass, COPIES times over a picture the sky's size (480x270 of
+		# 2x2 blocks), with it and without
+		vp.size = Vector2i(480, 270)
+		vp.size_2d_override = Vector2i(960, 540)
+		vp.size_2d_override_stretch = true
+		var amat := sky._air_mat
+		var rs: Array[ColorRect] = []
+		for i in COPIES:
+			var cr := ColorRect.new()
+			cr.size = Vector2(960, 540)
+			cr.color = Color(0, 0, 0, 0)
+			vp.add_child(cr)
+			rs.append(cr)
+		toggles.append(func(on: bool) -> void:
+			for cr in rs:
+				cr.material = amat if on else null)
+		what = "air"
 	if toggles.is_empty():
 		vp.queue_free()
 		return

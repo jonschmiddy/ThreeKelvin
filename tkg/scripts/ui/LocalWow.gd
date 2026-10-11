@@ -15,12 +15,14 @@ extends RefCounted
 ##   traffic  far ships crossing along the system's plane in settled systems
 ##   moons    the moons of the world you orbit going round it, in front and
 ##            behind, their shadows crossing its face
+##   air      a thin bright shell of air on the sunward limb of the world you
+##            orbit (`local_air`)
 ##
 ## `shown` is what a harness flips to film the same frame with an idea off and
 ## on (`LocalWowShot`): an idea is WORKED OUT every frame when asked for, and
 ## DRAWN only while shown -- so the before and the after differ by that alone.
 
-const NAMES: Array[StringName] = [&"hull", &"night", &"traffic", &"moons"]
+const NAMES: Array[StringName] = [&"hull", &"night", &"traffic", &"moons", &"air"]
 
 static var _asked := {}
 static var _read := false
