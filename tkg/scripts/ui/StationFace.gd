@@ -16,7 +16,12 @@ extends Control
 ## station's own hull into the yard (`ZoomLadder`'s pan, `draw_hull`).
 ## Undocking is all of it the other way round.
 ##
-## THE DRUM (Jon: "literally perfect"): one painted plate, `art/stations/
+## WHICH SIDE (`StationSides`): seven kept sides, each with one of thirteen kept
+## interiors in its recess, picked per station from the station alone. Every
+## side carries the Drum's entrance at the same rows, so everything below about
+## the hallway, the recess, the mask and the camera holds for all of them.
+##
+## THE DRUM, TAKE 1 (Jon: "literally perfect"): one painted plate, `art/stations/
 ## drum_plate.png` (470 x 530, the ships' pixel), and its front layer,
 ## `drum_front.png` -- the hallway's two lips and the inner door's near jamb,
 ## the plate's own pixels -- so your ship flies INTO the slot, between them. Its
@@ -24,7 +29,16 @@ extends Control
 ## the plate with every lamp dark in its housing, `_lamps` the lamps alone, lit,
 ## drawn over it at each lamp's own power; and round each lit lamp its light is
 ## drawn as light (gathered, added). The end ring's two strobes and the red
-## beacon are always on; the rest stand by, dim, until you dock.
+## beacon are always on; the rest stand by, dim, until you dock. Drawn as it
+## always was, pixel for pixel (`StationFaceShot` diffs it).
+##
+## THE OTHER SIX (`art/stations/sides.py`, Jon's 1A for lights and depth): the
+## hull in layers, far first, the star's rim and shaded undersides baked in, each
+## layer moved by whole pixels as the camera comes in (`par`: the far ones less,
+## so the near boxes slide over the far); a dark crevice under them all, so a gap
+## opened by the parallax is the hull's own shadow and never a window onto your
+## ship behind it; the bay lit from its inner door at the door's power; the
+## lamps over it at their own power, and their light drawn as light.
 ##
 ## Two of these are made: the plate behind your ship (`front` false) and the
 ## front layer over it (`front` true).
@@ -69,7 +83,8 @@ const SHIP_END_H := 56.0
 const A0 := 110.0
 const A1 := 175.0
 ## THE HULL THE CAMERA PANS THROUGH (`draw_hull`): two of the plate's panels,
-## seam to seam, which tile; drawn at this scale
+## seam to seam, which tile; drawn at this scale (the Drum's; every side has its
+## own window, `StationSides.SideArt.hull_src`)
 const HULL_SRC := Rect2(318, 38, 109, 425)
 const HULL_K := 2.0
 ## the plate's width, where its own panels' tiling starts (`HULL_X0`, a seam,
@@ -99,12 +114,17 @@ const SEAM_LAMPS := [Vector2(268, 51), Vector2(268, 71), Vector2(268, 96), Vecto
 ## the inner door's lit edge, in slices that come on bottom to top
 const DOOR_LIGHT := Rect2(225, 202, 9, 84)
 const DOOR_SLICES := 6
+## (the other sides' lamp strip, a pixel either way of the Drum's: its slices
+## are taken this wide)
+const STRIP := Rect2(223, 200, 14, 90)
 const BEACON := Rect2(200, 99, 12, 14)
 const WINDOW := Rect2(200, 392, 13, 18)
 const STROBES := [Vector2(90, 43), Vector2(90, 457)]
 
 ## a lamp standing by (before you dock): this much of its light
 const STANDBY := 0.18
+## the bay's light standing by, of its lit picture over its dark one
+const BAY_REST := 0.4
 ## THE POWER-ON, along the approach (`power` 0 -> 1): when each group starts
 ## coming on, and how long one lamp's flicker takes
 const ON_DOOR := 0.0
@@ -112,6 +132,17 @@ const ON_SEAM := 0.18
 const ON_GUIDE := 0.42
 const ON_SPREAD := 0.3
 const FLICKER := 0.09
+## where the other sides' lamps come on outward from (plate px): the hallway
+const ON_FROM := Vector2(160, 245)
+
+## THE PARALLAX (the other sides): a layer of parallax p is moved (1 - p) x
+## `PAR_GAIN` of the camera's travel across the plate (its view's middle, in
+## plate px, since it was at rest), in whole pixels, holding each step until the
+## travel is `PAR_HOLD` px past it (no A, B, A at a step's edge). Over the dock
+## the camera crosses about 600 px of plate: the farthest boxes (0.8) end 7 px
+## behind the near ones.
+const PAR_GAIN := 0.06
+const PAR_HOLD := 0.6
 
 const HEAT := [Color("#5c280c"), Color("#964214"), Color("#cc641c"), Color("#ffa63c"), Color("#ffdca0"), Color("#fff6e2")]
 const STROBE := Color("#b8e2f4")
@@ -128,20 +159,44 @@ var tint := Color(1, 1, 1)
 var dock_k := 0.0
 ## the station's lights coming on to meet you, 0 (standing by) to 1 (all on)
 var power := 0.0
+## the side drawn, and its interior's two pictures ([] for the side's own bay)
+var side: StationSides.SideArt = null
+var interior: Array = []
+## each layer's parallax step now (parallax -> whole plate px)
+var par := {}
 var _clock := 0.0
 var _since := 0.0
 var _chase := 0.0
 var _glow: Control = null
 
 
-static func make_pair(_n: MapGen.MapNode, _view: Control) -> Array:
+static func make_pair(n: MapGen.MapNode, _view: Control) -> Array:
 	var back := StationFace.new()
 	var fr := StationFace.new()
 	fr.front = true
+	var pk := StationSides.pick(n)
 	for f: StationFace in [back, fr]:
 		f.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		f.use_side(pk.side, pk.interior)
 	return [back, fr]
+
+
+## Draw this side, with this interior (`StationSides.NONE`: the side's own bay).
+func use_side(id: StringName, interior_id: StringName = StationSides.NONE) -> void:
+	if id == &"":
+		id = &"drum1"
+	side = StationSides.side(id)
+	interior = StationSides.interior(interior_id)
+	par = {}
+	# (the parallax follows the camera this frame: processed after the ladder
+	# that moves it; Drum take 1 keeps its place in the order)
+	process_priority = 0 if side.legacy else 100
+	queue_redraw()
+
+
+func _init() -> void:
+	side = StationSides.side(&"drum1")
 
 
 func _ready() -> void:
@@ -162,12 +217,42 @@ func _process(delta: float) -> void:
 	# (the chase's own clock, once the guide lights are on: faster the further in)
 	if power >= ON_GUIDE + ON_SPREAD:
 		_chase += delta * lerpf(40.0, 150.0, clampf(dock_k * 1.6, 0.0, 1.0))
+	if front and not side.legacy:
+		_parallax()
 	_since += delta
 	if _since >= 1.0 / 30.0:
 		_since = 0.0
 		queue_redraw()
 		if _glow != null:
 			_glow.queue_redraw()
+
+
+## The camera's look across the plate: the middle of the view this face is
+## in, in plate px.
+func _look() -> Vector2:
+	var p := get_parent() as Control
+	if p == null:
+		return Vector2.ZERO
+	return get_global_transform().affine_inverse() * p.get_global_rect().get_center() - origin()
+
+
+func _parallax() -> void:
+	if dock_k <= 0.0:
+		# at rest (and in any zoom that is not the dock's): every layer where
+		# the art has it
+		par = {}
+		return
+	# (at rest this face fills its view: the view's middle is its own)
+	var travel := _look().x - (size.x * 0.5 - origin().x)
+	for l: Array in side.layers:
+		var p: float = l[1]
+		if p >= 1.0:
+			continue
+		var want := (1.0 - p) * PAR_GAIN * travel
+		var now := float(par.get(p, 0))
+		if absf(want - now) > PAR_HOLD:
+			par[p] = int(roundf(want))
+			queue_redraw()
 
 
 ## The plate's top-left corner (this control's px).
@@ -187,6 +272,11 @@ func plate_g(p: Vector2) -> Vector2:
 ## The hull's left edge (this control's px).
 func hull_x() -> float:
 	return origin().x + EDGE_X
+
+
+## Where this side's hull tiles start past the plate (plate px, a seam).
+func hull_x0() -> float:
+	return side.hull_x0
 
 
 ## The hallway, in this control's px.
@@ -225,6 +315,14 @@ func _seam_at(i: int) -> float:
 	return ON_SEAM + ON_SPREAD * clampf(d, 0.0, 1.0) + 0.02 * float(i % 3)
 
 
+## The other sides' own lamps (seam, windows, strings): outward from the
+## hallway, as the Drum's seam.
+func _extra_at(i: int) -> float:
+	var l: Dictionary = side.extra[i]
+	var d := (l.rect as Rect2).get_center().distance_to(ON_FROM) / 300.0
+	return ON_SEAM + ON_SPREAD * clampf(d, 0.0, 1.0) + 0.02 * float(i % 3)
+
+
 func _guide_at(i: int, n: int) -> float:
 	# from the hallway's mouth in toward the door, leading you in
 	return ON_GUIDE + ON_SPREAD * float(i) / float(maxi(n - 1, 1))
@@ -234,13 +332,36 @@ func _door_at(j: int) -> float:
 	return ON_DOOR + 0.025 * float(DOOR_SLICES - 1 - j)
 
 
+## How much of the door's light is on (0..1): the bay is lit by it.
+func door_on() -> float:
+	var on := 0.0
+	for j in DOOR_SLICES:
+		on += lamp_on(power, _door_at(j)) / float(DOOR_SLICES)
+	return on
+
+
+## How lit the bay (or its interior) is: some of the door's light standing by
+## (a dark bay at rest read as a hole), all of it once the door is on.
+func bay_lit() -> float:
+	return lerpf(BAY_REST, 1.0, door_on())
+
+
 func _draw() -> void:
 	# GROUNDED IN THE STAR'S LIGHT: the plate seen in this sky's star
 	var m := Color(1, 1, 1).lerp(tint, 0.2)
 	var o := origin()
+	if side.legacy:
+		_draw_drum(m, o)
+	else:
+		_draw_side(m, o)
+
+
+## Drum take 1, as it was approved.
+func _draw_drum(m: Color, o: Vector2) -> void:
 	draw_texture(FRONT_UNLIT if front else PLATE_UNLIT, o, m)
 	# (the back: only its recess is ever seen, and it holds no lamp)
 	if not front:
+		_draw_interior(m, o)
 		return
 	# past the plate's right end the drum runs on, its own panels tiled -- the
 	# camera follows your ship in, and your ship flies on deep into the hull,
@@ -248,20 +369,69 @@ func _draw() -> void:
 	draw_hull(self, Rect2(o.x + PLATE_W, o.y + HULL_SRC.position.y, HULL_RUN, HULL_SRC.size.y), o.x + HULL_X0,
 		o.y + ROW, m, 1.0)
 	var lamps: Texture2D = FRONT_LAMPS
+	_draw_entrance_lamps(lamps, m, DOOR_LIGHT)
+	# always on: the beacon, the lit window
+	_lit(lamps, BEACON, 0.55 + 0.45 * _pulse(2.4, 0.0), m)
+	_lit(lamps, WINDOW, 1.0, m)
+
+
+## The entrance's lamps (every side has the Drum's): both lips' guide lights and
+## the strip beside the door, from `lamps`, each at its own power.
+func _draw_entrance_lamps(lamps: Texture2D, m: Color, strip: Rect2) -> void:
 	for i in GUIDE_TOP.size():
 		_lit(lamps, GUIDE_TOP[i], _lamp(_guide_at(i, GUIDE_TOP.size())), m)
 	for i in GUIDE_LOW_N:
 		_lit(lamps, Rect2(GUIDE_LOW_X0 + 4.0 * float(i), GUIDE_LOW_Y, 4, 3), _lamp(_guide_at(i, GUIDE_LOW_N)), m)
-	for i in SEAM_LAMPS.size():
-		var p: Vector2 = SEAM_LAMPS[i]
-		_lit(lamps, Rect2(p - Vector2(4, 4), Vector2(9, 9)), _lamp(_seam_at(i)), m)
-	var sl := DOOR_LIGHT.size.y / float(DOOR_SLICES)
+	if lamps == FRONT_LAMPS:
+		for i in SEAM_LAMPS.size():
+			var p: Vector2 = SEAM_LAMPS[i]
+			_lit(lamps, Rect2(p - Vector2(4, 4), Vector2(9, 9)), _lamp(_seam_at(i)), m)
+	var sl := strip.size.y / float(DOOR_SLICES)
 	for j in DOOR_SLICES:
-		var r := Rect2(DOOR_LIGHT.position.x, DOOR_LIGHT.position.y + sl * float(j), DOOR_LIGHT.size.x, ceilf(sl))
+		var r := Rect2(strip.position.x, strip.position.y + sl * float(j), strip.size.x, ceilf(sl))
 		_lit(lamps, r, _lamp(_door_at(j)), m)
-	# always on: the beacon, the lit window
-	_lit(lamps, BEACON, 0.55 + 0.45 * _pulse(2.4, 0.0), m)
-	_lit(lamps, WINDOW, 1.0, m)
+
+
+## The interior in the recess, over the bay: dark, and lit at the door's power.
+func _draw_interior(m: Color, o: Vector2) -> void:
+	if interior.is_empty():
+		return
+	var at := o + StationSides.INTERIOR_AT
+	draw_texture(interior[0], at, m)
+	var k := bay_lit()
+	if k > 0.01:
+		draw_texture(interior[1], at, Color(m.r, m.g, m.b, k))
+
+
+## Any other side: behind your ship its bay (or interior), lit from the door;
+## over it the hull's layers, its lamps.
+func _draw_side(m: Color, o: Vector2) -> void:
+	var s := side
+	if not front:
+		draw_texture(s.bay_dark, o + s.bay_at, m)
+		var k := bay_lit()
+		if k > 0.01:
+			draw_texture(s.bay_lit, o + s.bay_at, Color(m.r, m.g, m.b, k))
+		_draw_interior(m, o)
+		return
+	# (where the camera is as this frame is drawn)
+	_parallax()
+	# the plate up to where its hull window starts, then the window tiled on
+	var cut := s.hull_x0
+	var h := float(s.solid.get_height())
+	draw_texture_rect_region(s.solid, Rect2(o, Vector2(cut, h)), Rect2(0, 0, cut, h), m)
+	for l: Array in s.layers:
+		var dx := float(par.get(l[1], 0))
+		draw_texture_rect_region(l[0], Rect2(o + Vector2(dx, 0), Vector2(cut, h)), Rect2(0, 0, cut, h), m)
+	var lk := lerpf(STANDBY, 1.0, power)
+	draw_hull(self, Rect2(o.x + cut, o.y, HULL_RUN, h), o.x + cut, o.y + ROW, m, 1.0, s, par, lk, false)
+	_draw_entrance_lamps(s.lamps, m, STRIP)
+	for i in s.extra.size():
+		var l: Dictionary = s.extra[i]
+		var r: Rect2 = l.rect
+		if r.position.x >= cut:
+			continue
+		_lit(s.lamps, r, _lamp(_extra_at(i)), m)
 
 
 ## Part of the lamps layer over the unlit plate, at `k` of its light.
@@ -319,6 +489,9 @@ func _strobe(period: float, offset: float) -> float:
 
 ## The light round each lamp, at its own power (only what is lit throws light).
 func draw_lights(c: CanvasItem) -> void:
+	if not side.legacy:
+		_side_lights(c)
+		return
 	var sk := Color(1, 1, 1).lerp(tint, 0.2)
 	var flick := 0.92 + 0.08 * sin(_clock * 9.0) * sin(_clock * 3.7)
 	var door_on := 0.0
@@ -330,9 +503,7 @@ func draw_lights(c: CanvasItem) -> void:
 			_light(c, Vector2(RECESS.end.x - 10.0 - float(j) * 18.0, SLOT.end.y - 6.0), 10, HEAT[2], (0.16 - 0.035 * float(j)) * flick * door_on)
 		return
 	_guides(c, GUIDE_LOW_Y + 1.0, GUIDE_LOW_N, 0.35)
-	for i in 5:
-		var on := lamp_on(power, _door_at(i))
-		_light(c, Vector2(234, 212 + i * 16), 3, HEAT[2], (0.18 + 0.05 * _pulse(1.7, float(i) * 0.3)) * on)
+	_door_lights(c, flick)
 	# THE AMBER SEAM: each lamp's light as it comes on, then breathing in a slow
 	# wave round the bend (the breathing only scales a lamp that is on)
 	for i in SEAM_LAMPS.size():
@@ -341,9 +512,7 @@ func draw_lights(c: CanvasItem) -> void:
 		var lo := i >= 17
 		_light(c, SEAM_LAMPS[i], 3 if lo else 4, (HEAT[2] if lo else HEAT[3] * sk), on * ((0.06 + 0.1 * w) if lo else (0.16 + 0.22 * w)))
 	# THE LIT STRIP BESIDE THE BAY'S END, warm
-	for j in 6:
-		var on := lamp_on(power, _door_at(clampi(DOOR_SLICES - 1 - j, 0, DOOR_SLICES - 1)))
-		_light(c, Vector2(DOOR_LIGHT.position.x + 4.0, DOOR_LIGHT.position.y + 7.0 + float(j) * 14.0), 9, HEAT[3], 0.2 * flick * on)
+	_strip_lights(c, flick)
 	# the upper lip's guide lights
 	_guides(c, 204.0, GUIDE_TOP.size(), 0.3)
 	# a red beacon above the slot, slow; a lit window below, steady
@@ -352,6 +521,63 @@ func draw_lights(c: CanvasItem) -> void:
 	# THE END RING'S STROBES, cold, out of step
 	_light(c, STROBES[0], 8, STROBE, 0.75 * _strobe(1.6, 0.0))
 	_light(c, STROBES[1], 8, STROBE, 0.75 * _strobe(2.1, 0.9))
+
+
+## The inner door's light on its jamb, slice by slice.
+func _door_lights(c: CanvasItem, _flick: float) -> void:
+	for i in 5:
+		var on := lamp_on(power, _door_at(i))
+		_light(c, Vector2(234, 212 + i * 16), 3, HEAT[2], (0.18 + 0.05 * _pulse(1.7, float(i) * 0.3)) * on)
+
+
+func _strip_lights(c: CanvasItem, flick: float) -> void:
+	for j in 6:
+		var on := lamp_on(power, _door_at(clampi(DOOR_SLICES - 1 - j, 0, DOOR_SLICES - 1)))
+		_light(c, Vector2(DOOR_LIGHT.position.x + 4.0, DOOR_LIGHT.position.y + 7.0 + float(j) * 14.0), 9, HEAT[3], 0.2 * flick * on)
+
+
+## The other sides' light: the entrance's (as the Drum's), each own lamp's as
+## it comes on, and the strobes and beacons on the hull's edge. Behind your
+## ship there is none: the bay's light is its lit panels.
+func _side_lights(c: CanvasItem) -> void:
+	if not front:
+		return
+	var sk := Color(1, 1, 1).lerp(tint, 0.2)
+	var flick := 0.92 + 0.08 * sin(_clock * 9.0) * sin(_clock * 3.7)
+	_guides(c, GUIDE_LOW_Y + 1.0, GUIDE_LOW_N, 0.35)
+	_door_lights(c, flick)
+	_strip_lights(c, flick)
+	_guides(c, 204.0, GUIDE_TOP.size(), 0.3)
+	var s := side
+	for i in s.extra.size():
+		var l: Dictionary = s.extra[i]
+		var r: Rect2 = l.rect
+		if r.position.x >= s.hull_x0:
+			continue
+		var on := lamp_on(power, _extra_at(i))
+		if on <= 0.0:
+			continue
+		var at := r.get_center()
+		match l.kind:
+			&"seam":
+				# breathing in a slow wave along the seam, as the Drum's
+				var w := 0.5 + 0.5 * sin(_clock * 1.6 - at.x * 0.03 - at.y * 0.02)
+				_light(c, at, int(l.radius), HEAT[3] * sk, on * (0.14 + 0.2 * w))
+			&"window":
+				_light(c, at, int(l.radius), HEAT[3], on * 0.22 * flick)
+			&"string":
+				# each bulb on its own slow clock
+				var tw := 0.5 + 0.5 * sin(_clock * (1.1 + 0.37 * float(i % 5)) + float(i) * 1.7)
+				_light(c, at, int(l.radius), l.color, on * (0.25 + 0.3 * tw))
+			_:
+				_light(c, at, int(l.radius), l.color, on * 0.2)
+	for cl: Dictionary in s.code:
+		if (cl.at as Vector2).x >= s.hull_x0:
+			continue
+		if cl.kind == &"strobe":
+			_light(c, cl.at, int(cl.radius), cl.color, 0.75 * _strobe(float(cl.period), float(cl.offset)))
+		else:
+			_light(c, cl.at, int(cl.radius), cl.color, 0.12 + 0.3 * _pulse(float(cl.period), float(cl.offset)))
 
 
 ## The guide lights' light along one lip as each comes on; once all are on, a
@@ -377,8 +603,15 @@ func _guides(c: CanvasItem, row: float, n: int, base: float) -> void:
 ## (in `c`'s px) at `HULL_K`, the tiles starting at `x0`, the plate's row `ROW`
 ## level with `row_y`; what is above and below the drum, its dark. The camera
 ## pans through it into the yard (`ZoomLadder`).
-static func draw_hull(c: CanvasItem, r: Rect2, x0: float, row_y: float, mod: Color = Color(1, 1, 1), k: float = HULL_K) -> void:
+## Any side but the Drum: its own window (`Side.hull_src`) of every layer --
+## the crevice, the layers at their parallax `pars`, the lamps at `lamp_k` --
+## with `ink` the dark behind it all (the pan's), or space (LOCAL's own).
+static func draw_hull(c: CanvasItem, r: Rect2, x0: float, row_y: float, mod: Color = Color(1, 1, 1), k: float = HULL_K,
+		s: StationSides.SideArt = null, pars: Dictionary = {}, lamp_k: float = 1.0, ink: bool = true) -> void:
 	if r.size.x <= 0.0 or r.size.y <= 0.0:
+		return
+	if s != null and not s.legacy:
+		_draw_side_hull(c, r, x0, row_y, mod, k, s, pars, lamp_k, ink)
 		return
 	c.draw_rect(r, INK, true)
 	var tw := HULL_SRC.size.x * k
@@ -396,6 +629,39 @@ static func draw_hull(c: CanvasItem, r: Rect2, x0: float, row_y: float, mod: Col
 			var src := Rect2(HULL_SRC.position + (tile.position - Vector2(tx, top)) / k, tile.size / k)
 			c.draw_texture_rect_region(PLATE, tile, src, mod)
 		i += 1
+
+
+static func _draw_side_hull(c: CanvasItem, r: Rect2, x0: float, row_y: float, mod: Color, k: float,
+		s: StationSides.SideArt, pars: Dictionary, lamp_k: float, ink: bool) -> void:
+	if ink:
+		c.draw_rect(r, INK, true)
+	var src0 := s.hull_src
+	var tw := src0.size.x * k
+	var top := roundf(row_y - (ROW - src0.position.y) * k)
+	var full := Rect2(r.position.x, top, r.size.x, src0.size.y * k).intersection(r)
+	if full.size.x <= 0.0 or full.size.y <= 0.0:
+		return
+	# every pass: [texture, its shift in plate px, its modulate]
+	var passes: Array = [[s.solid, 0.0, mod]]
+	for l: Array in s.layers:
+		passes.append([l[0], float(pars.get(l[1], 0)), mod])
+	if lamp_k > 0.01:
+		passes.append([s.lamps, 0.0, Color(mod.r, mod.g, mod.b, clampf(lamp_k, 0.0, 1.0))])
+	for p: Array in passes:
+		var dx := roundf(float(p[1]) * k)
+		var area := Rect2(full.position.x + dx, full.position.y, full.size.x, full.size.y).intersection(r)
+		if area.size.x <= 0.0:
+			continue
+		var i := floori((area.position.x - x0 - dx) / tw)
+		while true:
+			var tx := roundf(x0 + dx + float(i) * tw)
+			if tx >= area.end.x:
+				break
+			var tile := Rect2(tx, top, tw, src0.size.y * k).intersection(area)
+			if tile.size.x > 0.0:
+				var src := Rect2(src0.position + (tile.position - Vector2(tx, top)) / k, tile.size / k)
+				c.draw_texture_rect_region(p[0], tile, src, p[2])
+			i += 1
 
 
 class _Glow extends Control:

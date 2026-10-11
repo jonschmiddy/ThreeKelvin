@@ -2668,7 +2668,15 @@ func ladder_track_speed(dur: float) -> float:
 func ladder_hull_at() -> Vector2:
 	if _face == null or not is_instance_valid(_face):
 		return Vector2.INF
-	return Vector2(_face.plate_g(Vector2(StationFace.HULL_X0, 0)).x, _face.plate_g(Vector2(0, StationFace.ROW)).y)
+	return Vector2(_face.plate_g(Vector2(_face.hull_x0(), 0)).x, _face.plate_g(Vector2(0, StationFace.ROW)).y)
+
+
+## The side the pan's hull is (`StationSides`), and its layers' parallax as the
+## approach left them, so the pan carries on the hull LOCAL drew.
+func ladder_hull_side() -> Array:
+	if _face_front == null or not is_instance_valid(_face_front):
+		return []
+	return [_face_front.side, _face_front.par.duplicate()]
 
 
 ## The hallway camera's anchor on screen at rest: the plate's row 250, at x

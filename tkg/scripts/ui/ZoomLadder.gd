@@ -1092,6 +1092,8 @@ func _hold() -> void:
 		_v_old = float(old.call(&"ladder_track_speed", UNDOCK_YARD_S * 0.7 if old is StationScreen else _pre_s))
 	if old.has_method(&"ladder_hull_at"):
 		_hull_at_old = old.call(&"ladder_hull_at")
+	if old.has_method(&"ladder_hull_side"):
+		_hull_side = old.call(&"ladder_hull_side")
 	_pic = old.call(&"ladder_picture")
 	if old.has_method(&"ladder_hull"):
 		_hull_from = old.call(&"ladder_hull")
@@ -1341,6 +1343,8 @@ var _pan_view: _PanView = null
 var _pan_x0 := 0.0
 var _pan_vr := 0.0
 var _hull_at_old := Vector2.INF
+## the station's side the hull is ([side, its parallax]), from LOCAL
+var _hull_side: Array = []
 
 
 class _PanView extends Control:
@@ -1353,6 +1357,8 @@ class _PanView extends Control:
 	## where the hull's panels tile (this view's px), as LOCAL's drum tiles them
 	var tile_x0 := 0.0
 	var show_held := true
+	## the station's side ([] the Drum's) and its layers' parallax
+	var side: Array = []
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1362,7 +1368,11 @@ class _PanView extends Control:
 	func _draw() -> void:
 		if tex != null and show_held:
 			draw_texture_rect_region(tex, Rect2(Vector2(roundf(held_x), 0), src.size), src)
-		StationFace.draw_hull(self, Rect2(roundf(slab_x), 0, slab_w, size.y), roundf(tile_x0), row_y)
+		if side.is_empty():
+			StationFace.draw_hull(self, Rect2(roundf(slab_x), 0, slab_w, size.y), roundf(tile_x0), row_y)
+		else:
+			StationFace.draw_hull(self, Rect2(roundf(slab_x), 0, slab_w, size.y), roundf(tile_x0), row_y,
+				Color(1, 1, 1), StationFace.HULL_K, side[0], side[1])
 
 
 ## the move's own clock where the pre-roll left it (s), and the speeds the two
@@ -1412,8 +1422,11 @@ func _start_pan() -> void:
 	# the hull's tiling, carried on from LOCAL's drum
 	var at: Vector2 = Vector2.INF
 	var local: Control = new if not inward else null
+	var hs: Array = _hull_side
 	if local != null and local.has_method(&"ladder_hull_at"):
 		at = local.call(&"ladder_hull_at")
+		if local.has_method(&"ladder_hull_side"):
+			hs = local.call(&"ladder_hull_side")
 	elif inward:
 		at = _hull_at_old
 	_pan_view = _PanView.new()
@@ -1421,6 +1434,7 @@ func _start_pan() -> void:
 	_pan_view.src = Rect2(position, size)
 	_pan_view.size = size
 	_pan_view.slab_w = PAN_HULL_W
+	_pan_view.side = hs
 	_pan_view.row_y = roundf(size.y * 0.5) if at == Vector2.INF else roundf(at.y - position.y)
 	_hull_x0 = (_pan_vr if at == Vector2.INF else at.x - position.x)
 	add_child(_pan_view)
