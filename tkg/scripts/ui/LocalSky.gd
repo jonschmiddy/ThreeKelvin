@@ -2059,8 +2059,9 @@ func _wow_air() -> void:
 ## world's face and the far half behind it -- the inner ones faster. In front,
 ## a moon's shadow crosses the face with it (the painter's own `moon_sh`, the
 ## map's eclipses); behind, a moon that slips into the world's shadow goes
-## dark. Each moon drawn on the 2 px blocks and slid between them by its
-## surface's own drift (`PlanetView.set_drift`), so it glides, it does not hop.
+## dark. Each moon moved a whole 2 px block at a time, slowly (a block every
+## half second or so): sliding it between blocks by its surface's drift
+## restarted its surface memory at every block, a flicker each time.
 func _wow_moons() -> void:
 	if _near.size() < 2 or not (_near_world is PlanetView) or not _hand.is_empty() or not LocalWow.asked(&"moons"):
 		return
@@ -2095,7 +2096,7 @@ func _wow_moons() -> void:
 			var incl := 0.3 + 0.12 * hk
 			var roll := (hk - 0.5) * 0.22
 			# (inner faster, outer slower: a Kepler-ish period, compressed)
-			var period := 70.0 * pow(a / (R * 1.45), 1.5)
+			var period := 180.0 * pow(a / (R * 1.45), 1.5)
 			var th := (0.2 + 0.31 * float(k) + 0.17 * hk) * TAU + t * TAU / period
 			var ox := -cos(th) * a
 			var oz := sin(th) * a
@@ -2104,7 +2105,8 @@ func _wow_moons() -> void:
 			front = z >= 0.0
 			var mp := wc + p
 			pos = _block_round(mp) + Vector2.ONE * float(hs % 2)
-			drift = mp + Vector2.ONE * float(hs % 2) - pos
+			# (whole blocks, no drift between them: a drift re-centred on each
+			# new block started the moon's surface memory afresh, a flash a block)
 			# in the world's shadow: behind it from the star, inside its radius
 			var M3 := Vector3(p.x, p.y, z)
 			var along := M3.dot(Lw)
