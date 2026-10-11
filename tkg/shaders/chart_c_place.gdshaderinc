@@ -1050,7 +1050,10 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	// (the stars behind are read where the lens shows them; holding them on a
 	// coarser grid while the zoom moves drew them as dashes, so they are not)
 	ivec2 sb = lens ? blockOf(scr(vbg)) : blk;
-	float la = lens ? log2(max(lensSqueeze(S), 1.0)) : 0.0;
+	// (read twice as coarse through the lens as it squeezes: the gas round the hole now
+	// keeps its light and structure deep in, Oct 11, and squeezed into a few blocks
+	// it shimmered as the zoom moved; the palette's probes read it as before)
+	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn()) : 0.0;
 	float dust;
 	vec3 C = galaxy(vbg, sb, blk, dq, la, dust);
 	if (!lens) {

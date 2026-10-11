@@ -1342,7 +1342,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	# zoom 1.3 and the bulge's profile sharpening (`zf`), its exposure easing back
 	# deep in, the nuclear dust thickening -- is held at the opening zoom's values.
 	# Only detail is added as you zoom: the finer octaves (`oct`) and the grain
-	# (`det_k`). The palette is the opening view's too (`_push`).
+	# (`det_k`).
 	var extra := maxf(0.0, log(zf) / log(2.0))
 	m.set_shader_parameter("oct", minf(extra, 4.0))
 	m.set_shader_parameter("det_k", minf(1.0, extra / 2.0))
@@ -1540,14 +1540,22 @@ func _push() -> void:
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
-	# ONE PALETTE AT EVERY ZOOM, the opening view's (Oct 11, Jon: "why do the
-	# clouds change at all when you zoom in?"). Each zoom level had a palette cut
-	# from its own view and the picture dissolved from one to the next, so a patch
-	# of gas changed its colours as you zoomed though nothing in it had; now the
-	# field keeps its light at every zoom (`_feed_field`) and so keeps its colours.
+	# the two levels either side of this zoom, and how far between them: the
+	# change from one's palette to the next is a dissolve over the middle of
+	# the stretch between them (`chart_l_palette`). (Each level's palette is cut
+	# from the field at that level's zoom; since Oct 11 that field keeps its light
+	# at every zoom, so the levels' palettes hold the same colours, cut finer where
+	# the view is close, and a patch keeps its colour across them: measured, the
+	# gas beside the bulge shifts 2.1 OKLab x100 from zoom 1 to 4.5 with them and
+	# 2.2 with the opening's palette alone, which flickered more on a slow zoom.)
 	var lo := 0
-	var hi := 0
+	for i in LEVELS.size() - 1:
+		if z >= LEVELS[i + 1] / LEVELS[0]:
+			lo = i + 1
+	var hi := mini(lo + 1, LEVELS.size() - 1)
 	var fr := 0.0
+	if hi > lo:
+		fr = clampf(log(z / (LEVELS[lo] / LEVELS[0])) / log(LEVELS[hi] / LEVELS[lo]), 0.0, 1.0)
 	var use := _palette_for(lo)
 	var use2 := _palette_for(hi)
 	if use * 100 + use2 != _shown_li:

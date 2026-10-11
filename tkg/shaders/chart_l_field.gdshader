@@ -1029,11 +1029,12 @@ void fragment() {
 				float b = max(length(S), 1e-3);
 				float g1 = lh_behind(S) * b;
 				float g2 = lh_behind(S * ((b + 0.02) / b)) * (b + 0.02);
-				// (three times over: as the zoom moves, what the lens shows here
+				// (five times over -- three until Oct 11, when the gas round the hole
+				// stopped dimming deep in and its grain showed: as the zoom moves, what the lens shows here
 				// slides past faster than the squeeze alone says, and a grain the
 				// slide carries across a block in a frame or two is a flicker)
 				lsq = clamp(max(abs(g2 - g1) / 0.02, lh_behind(S)), 1.0, 64.0);
-				lsq = old_grain ? 1.0 : 1.0 + (lsq - 1.0) * 3.0 + 1.5 * smoothstep(12.0, 4.0, length(S));
+				lsq = old_grain ? 1.0 : 1.0 + (lsq - 1.0) * 5.0 + 2.5 * smoothstep(12.0, 4.0, length(S));
 				rel *= lh_behind(S);
 			}
 		}
