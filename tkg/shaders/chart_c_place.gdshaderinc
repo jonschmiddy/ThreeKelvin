@@ -255,11 +255,11 @@ vec3 resolvedStars(vec2 p, vec2 v, float hb, float la, float L, float r, int see
 // what the galaxy's dust lets by and only where the galaxy is fainter than it
 // (`bgSeen`): laid in first, it added its light to the disc's faint outskirts
 // and slid their colour steps about as you panned
-vec3 farSky(vec2 v, float la) {
+vec3 farSky(vec2 v, float la, float nebSeen) {
 	vec2 sp = (v - gpan()) * u_zoom;                  // screen px from the frame centre
 	// (where the lens squeezes the sky into a few blocks its point stars only
 	// flicker as the zoom moves: they thin away there)
-	return bgLight(sp, la < 0.8 ? 1.0 : 0.0);
+	return bgLightChart(sp, la < 0.8 ? 1.0 : 0.0, nebSeen);
 }
 
 // ------------------------------------------------------------------ galaxy parts
@@ -1102,7 +1102,8 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		billowLayer(v, dq, C);
 		wispLayer(v, la, C);
 	}
-	C += farSky(v, la) * T * cloudT * bgSeen(max(C - VOIDC / u_exp, vec3(0.0)), u_exp);
+	vec3 frontL = max(C - VOIDC / u_exp, vec3(0.0));
+	C += farSky(v, la, bgNebSeen(frontL, u_exp)) * T * cloudT * bgSeen(frontL, u_exp);
 	return grade(max(mix(vec3(kitLum(C)), C, SAT), 0.0)) + supernova(v, blk);
 }
 

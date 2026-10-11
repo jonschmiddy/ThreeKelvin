@@ -107,15 +107,34 @@ float bgSeen(vec3 front, float expo) {
 	return 1.0 - smoothstep(0.0006, 0.0025, dot(front, vec3(0.2126, 0.7152, 0.0722)) * expo);
 }
 
-// all of it as linear light (the simplified and radiant charts' sky), for a
-// block at screen offset sp
-vec3 bgLight(vec2 sp, float starsSeen) {
-	vec3 c = vec3(0.0);
-	if (u_bgOn < 0.5) {
-		return c;
-	}
+// THE FAR NEBULAE READ AS FAR, ON THE STAR CHART (Oct 11; Jon, panning: "the
+// dust in the background 'melds' with the galaxy's dust", a far cloud sliding up
+// under the galaxy's rim and reading as a tail hanging off it). Three things
+// set them apart, the chart's own (`bgLightChart`; LOCAL keeps `bgLight`):
+//   * their own colours, violet to a dusky rose -- never the blue and slate of
+//     a galaxy's outer gas, which the palette had been cutting them to;
+//   * a grain fixed in the far layer, two pixels a speck, so a far cloud is a
+//     haze of specks rather than a flat plate of gas like the galaxy's own;
+//   * a gap round the galaxy: they thin away well before the galaxy's faintest
+//     light (`bgNebSeen`), so its rim always meets dark sky, never a far cloud,
+//     and as a pan slides them behind it they go under it, not into it.
+float bgNebSeen(vec3 front, float expo) {
+	return 1.0 - smoothstep(0.00012, 0.00045, dot(front, vec3(0.2126, 0.7152, 0.0722)) * expo);
+}
+vec3 bgNebChart(vec2 sp) {
 	vec2 nb = bgNebula(sp);
-	c += mix(vec3(0.004, 0.0012, 0.004), vec3(0.0008, 0.0026, 0.0045), nb.y) * nb.x;
+	if (nb.x <= 0.0) {
+		return vec3(0.0);
+	}
+	vec2 q = bgAt(sp, BG_F_NEB);
+	float grain = kitHash1(ivec2(floor(q * 0.5)) + ivec2(4271, 1733));
+	float amt = nb.x * (0.35 + 1.3 * grain * grain);
+	return mix(vec3(0.0056, 0.0013, 0.0074), vec3(0.0068, 0.0019, 0.0030), nb.y) * amt;
+}
+
+// the far galaxies and the three depths of stars, as linear light
+vec3 bgLightRest(vec2 sp, float starsSeen) {
+	vec3 c = vec3(0.0);
 	vec4 g = bgGalaxy(sp);
 	if (g.x + g.y > 0.003) {
 		vec3 warm = vec3(1.0, 0.78, 0.52), blue = vec3(0.55, 0.68, 1.0);
@@ -129,4 +148,22 @@ vec3 bgLight(vec2 sp, float starsSeen) {
 		}
 	}
 	return c;
+}
+
+// all of it as linear light, for a block at screen offset sp (LOCAL's far sky)
+vec3 bgLight(vec2 sp, float starsSeen) {
+	if (u_bgOn < 0.5) {
+		return vec3(0.0);
+	}
+	vec2 nb = bgNebula(sp);
+	return mix(vec3(0.004, 0.0012, 0.004), vec3(0.0008, 0.0026, 0.0045), nb.y) * nb.x + bgLightRest(sp, starsSeen);
+}
+
+// the star chart's (SIMPLIFIED, RADIANT, LEGACY): its far nebulae its own, by
+// `nebSeen` (`bgNebSeen`) of the galaxy in front
+vec3 bgLightChart(vec2 sp, float starsSeen, float nebSeen) {
+	if (u_bgOn < 0.5) {
+		return vec3(0.0);
+	}
+	return bgNebChart(sp) * nebSeen + bgLightRest(sp, starsSeen);
 }

@@ -576,8 +576,8 @@ void shellHits(in Ray R, inout Evs EV, int k, vec3 P0, vec3 Dv) {
 // ------------------------------------------------------------------ the sky behind
 // the sky behind, at infinity (`chart_bg.gdshaderinc`): far nebulae, far
 // galaxies, three depths of stars sliding by depth as you pan
-vec3 sky(vec2 v) {
-	return bgLight((v - gpan()) * u_zoom, 1.0);
+vec3 sky(vec2 v, float nebSeen) {
+	return bgLightChart((v - gpan()) * u_zoom, 1.0, nebSeen);
 }
 
 // ------------------------------------------------------------------ the disc plane (h = 0)
@@ -1046,7 +1046,7 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 	C += mix(vec3(0.42, 0.52, 0.9), vec3(0.95, 0.7, 0.48), u_halo.w) * u_halo.x * wisp / pow(1.0 + hr2, 1.7);
 	// the sky behind shows only where the galaxy in front is fainter than it
 	// (`bgSeen`), and through what the dust lets by
-	C += T * (sky(v) * bgSeen(C, u_exp) + vec3(0.0021, 0.0030, 0.0062));
+	C += T * (sky(v, bgNebSeen(C, u_exp)) * bgSeen(C, u_exp) + vec3(0.0021, 0.0030, 0.0062));
 	return C;
 }
 
