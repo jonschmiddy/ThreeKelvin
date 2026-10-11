@@ -985,9 +985,12 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	// resolves (the stars here, the finer octaves, the swirl's streaks below, which
 	// brighten and darken about the light they cross and never shift it). The one
 	// thing still turned down is the core's own glare: `adaptW`, on the gold alone
-	// (the warm side's own level), so it does not wash out round the hole.
+	// (the warm side's own level), so it does not wash out round the hole: gently,
+	// so the gold stays gold. At 120 it took the whole bulge to dark maroon by zoom
+	// 4 (every bright level squashed to the bottom step); at 8 the brightest gold
+	// tops out about two-thirds up the ramp and the dim edge keeps its zoom 1 level.
 	float adapt = 0.0;
-	float adaptW = 120.0 * clearZ * sqrt(clearZ);
+	float adaptW = 8.0 * clearZ * sqrt(clearZ);
 	float clearK = clearZ * exp(-sq(rho / (1.6 * u_g4.x)));
 	float holeL = 1.0 / (1.0 + sq(rp / (0.9 * hR)));
 	float sw = 0.5 + 0.5 * sin(2.0 * atan(g.y, g.x) + 6.0 * log(max(r, 1e-3)) + tt * TAU_B / 120.0 + 0.55 * fbmL(g * 40.0, blk * 40.0, 2));
