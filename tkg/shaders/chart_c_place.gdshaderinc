@@ -33,6 +33,10 @@ uniform vec2 u_cpix = vec2(327.0, 214.0);      // the galaxy's centre, chart px
 uniform vec2 u_res = vec2(655.0, 429.0);       // the chart; its middle is the frame centre
 uniform vec2 u_block0 = vec2(0.0);             // the dither's anchor: this viewport's first block, counted from it
 uniform float u_zoom = 0.42;
+// (tuning, `ChartSky.diag`: 1 no glare control, 2 no stars, 4 no added detail)
+uniform int u_diag = 0;
+float zDet() { return (u_diag & 4) != 0 ? min(u_zoom, 1.0) : u_zoom; }
+float glareOn() { return (u_diag & 1) != 0 ? 0.0 : 1.0; }
 uniform float u_k = 622.25;
 uniform float u_time = 0.0;
 uniform float u_phi = 0.0;
@@ -89,9 +93,9 @@ ivec2 blockOf(vec2 s) { return ivec2(floor((s - u_vp_origin) * 0.5)); }
 
 float octFor(float F) {
 #if LOW
-	return clamp(log2(u_zoom * u_k / (4.0 * F)), 1.0, 3.0);
+	return clamp(log2(zDet() * u_k / (4.0 * F)), 1.0, 3.0);
 #else
-	return clamp(log2(u_zoom * u_k / (4.0 * F)), 1.0, 6.0);
+	return clamp(log2(zDet() * u_k / (4.0 * F)), 1.0, 6.0);
 #endif
 }
 float wrapA(float a) { return mod(a + KIT_PI, KIT_TAU) - KIT_PI; }
@@ -158,7 +162,7 @@ float fineDetail(vec2 pa, vec2 pb, float w, float pxGu) {
 	return 0.0;
 #else
 	const float LAM0 = 4.0 * 2.0 * 1.2 / 1024.0;
-	if (LAM0 / pxGu < 5.0) {
+	if (LAM0 / pxGu < 5.0 || (u_diag & 4) != 0) {
 		return 0.0;
 	}
 	float a = crDetail(pa, pxGu, LAM0, 3.7), b = crDetail(pb, pxGu, LAM0, 9.1);
@@ -204,20 +208,45 @@ float hbOf(float la) { return 1.0 / u_zoom; }
 // smooth light there `L`, as bright, blue-white in the young arms and warm round the
 // bulge; the caller adds them where they sit, so dust in front dims them. Not
 // through the lens: a star read through it hops blocks as the zoom moves.
+// THEIR LIGHT WAS ALREADY THERE (Oct 11): a star takes its light from the smooth
+// field round it, so a patch's light is the same with them as without. What
+// comes back is the star less the light the stars bring to a block on average
+// (`crStarsMean`): over the patch it adds nothing, it only gathers the light
+// into points. (They used to add theirs on top, and a patch brightened as you
+// zoomed and they came in.)
+vec3 crStarsMean(float L, float hb, float warm) {
+	float prob = clamp(L * 40.0, 0.0, 0.55);
+	float t = min(prob / 0.1, 1.0);
+	float eg = 0.1 * (t * t * t - 0.5 * t * t * t * t) + max(prob - 0.1, 0.0);
+	float e = 0.0;
+	for (int l = 0; l < 6; l++) {
+		float c = 0.016 / exp2(float(l));
+		float w = smoothstep(8.0, 16.0, c * u_zoom * u_k);
+		if (w <= 0.0) {
+			break;
+		}
+		// the chance a cell's star lands in this block, and its light on average
+		float pb = eg * (4.0 * hb * hb) / (c * c * u_k * u_k * KIT_TILT);
+		e += min(pb, 1.0) * (L * (1.5 * w + 3.5 * w * w * w) + 0.0067 * w * w);
+	}
+	vec3 tint = mix(kitStarTint(0.775), kitStarTint(0.375), warm);
+	return tint * e;
+}
 vec3 resolvedStars(vec2 p, vec2 v, float hb, float la, float L, float r, int seed) {
 	// (not in the palette's probes, which leave the stars out: the cut stays the gas's)
 	float sq = 1.0 - smoothstep(0.2, 0.8, la);
-	if (sq <= 0.0 || !u_stars_on) {
-		return vec3(0.0);
-	}
-	vec4 s = crStars(p, v, hb, u_phi, u_k, u_zoom, 0.016, clamp(L * 40.0, 0.0, 0.55), 211 + seed);
-	if (s.x < 0.5) {
+	if (sq <= 0.0 || !u_stars_on || (u_diag & 34) != 0) {
 		return vec3(0.0);
 	}
 	float warm = max(1.0 - smoothstep(0.10, 0.35, r), 1.0 - u_young);
+	vec3 mean = (u_diag & 256) != 0 ? vec3(0.0) : crStarsMean(L, hb, warm) * sq;
+	vec4 s = crStars(p, v, hb, u_phi, u_k, u_zoom, 0.016, clamp(L * 40.0, 0.0, 0.55), 211 + seed);
+	if (s.x < 0.5) {
+		return -mean;
+	}
 	vec3 tint = mix(kitStarTint(0.55 + 0.45 * s.z), kitStarTint(0.15 + 0.45 * s.z), warm);
 	// (all of it scaled by the grid's fade, which is in s.y: a star comes up from nothing)
-	return tint * s.y * (L * (3.0 + 14.0 * s.y * s.y) + 0.02 * s.y) * sq;
+	return tint * s.y * (L * (3.0 + 14.0 * s.y * s.y) + 0.02 * s.y) * sq - mean;
 }
 
 // ------------------------------------------------------------------ the sky behind
@@ -472,7 +501,7 @@ void discAt(vec2 p, vec2 v, float hb, vec3 star, float la, out vec3 Em, out vec3
 	// the arm's glow, not the fine clumps: read with them, a star's light changed
 	// block by block as the zoom slid it along, and it twinkled on a glide)
 	float Ls = kitLum(Iw * warmsoft(vec3(1.0, 0.64, 0.32)) + Ib * discC) + Ia * (0.42 * pow(A, 1.3) + 0.45 * A * A) * 0.55;
-	Em += resolvedStars(p, v, hb, la, Ls, r, 0);
+	Em = max(Em + resolvedStars(p, v, hb, la, Ls, r, 0), vec3(0.0));
 	Em += star;
 	// the bulge's light falling on the inner disc's gas
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
@@ -865,7 +894,7 @@ void billowLayer(vec2 v, ivec2 dq, inout vec3 C) {
 		// not on the height: detail in the height field, sampled a step at a time
 		// down the ray, drew stripes along it)
 		if (u_stars_on) {
-			col *= max(1.0 + 0.45 * crDetail(p, blockGu(0.0), 0.012, 21.0), 0.3);
+			col *= max(1.0 + 0.45 * ((u_diag & 4) != 0 ? 0.0 : crDetail(p, blockGu(0.0), 0.012, 21.0)), 0.3);
 		}
 		float a = 1.0 - exp(-rho * 42.0 * dh * KIT_RAY_LEN);
 		acc += Tr * a * col;
@@ -894,7 +923,7 @@ void wispLayer(vec2 v, float la, inout vec3 C) {
 	float fade = mix(1.0, 0.75, smoothstep(3.0, 6.0, u_zoom) * zoomChanges());
 	vec2 pw = kitRot(0.9 + u_time * 0.00012 * u_drift) * p * 0.85;
 	// (and they resolve into finer strands as you near them)
-	float f = noiseRawLA(pw, la).g + (u_stars_on ? 0.14 * crDetail(pw, blockGu(la) * 0.85, 0.02, 7.0) : 0.0);
+	float f = noiseRawLA(pw, la).g + (u_stars_on ? 0.14 * ((u_diag & 4) != 0 ? 0.0 : crDetail(pw, blockGu(la) * 0.85, 0.02, 7.0)) : 0.0);
 	float m = smoothstep(0.45, 0.85, f) * (1.0 - smoothstep(0.45, 0.95, r)) * smoothstep(0.14, 0.32, r) * min(u_gasAmt, 1.5);
 	if (m < 0.003) {
 		return;
@@ -957,6 +986,33 @@ float lensSqueeze(vec2 S) {
 	float g2 = lh_behind(S * (b2 / b)) * b2;
 	return max(abs(g2 - g1) / e, lh_behind(S));
 }
+// THE STARS' LIGHT KEPT AS YOU ZOOM (`ChartSky._star_debt`): what the chart's
+// stars bring a plane area at a zoom, from the bake's run of zooms; the light
+// they brought at the opening less what they bring now goes back into the
+// patch as diffuse starlight, so a patch is as bright as at the opening.
+uniform sampler2D u_debt : filter_linear, repeat_disable;
+uniform vec4 u_debtP = vec4(0.0, 1.0, 1.0, 1.25);   // ln first zoom, steps per ln, zooms, plane half-width
+uniform bool u_debtOn = false;
+uniform float u_zopen = 0.42;
+vec3 debtAt(vec2 p, float z) {
+	float f = clamp((log(z) - u_debtP.x) * u_debtP.y, 0.0, u_debtP.z - 1.0);
+	float i0 = floor(f);
+	float i1 = min(i0 + 1.0, u_debtP.z - 1.0);
+	float N = float(textureSize(u_debt, 0).y);
+	vec2 uv = clamp(p / u_debtP.w * 0.5 + 0.5, vec2(0.5 / N), vec2(1.0 - 0.5 / N));
+	vec3 s0 = texture(u_debt, vec2((i0 + uv.x) / u_debtP.z, uv.y)).rgb;
+	vec3 s1 = texture(u_debt, vec2((i1 + uv.x) / u_debtP.z, uv.y)).rgb;
+	return mix(s0, s1, f - i0) / (z * z);
+}
+vec3 starDebt(vec2 p) {
+	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
+		return vec3(0.0);
+	}
+	// (out in the disc, not in the bulge: there the light is the core's, which the
+	// glare control already holds -- and the bulge's own stars come in from zoom 2 --
+	// and laid over the gold round the hole it flickered on a slow zoom)
+	return max(debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom), vec3(0.0)) * smoothstep(0.10, 0.22, length(p));
+}
 vec3 starAt(ivec2 sb) {
 	if (!u_stars_on || sb.x < 0 || sb.y < 0 || sb.x >= int(u_vp_size.x) || sb.y >= int(u_vp_size.y)) {
 		return vec3(0.0);
@@ -970,9 +1026,9 @@ vec3 starAt(ivec2 sb) {
 // bakes read at the screen's own scale alias into flicker as the zoom moves
 vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) {
 	vec3 C = VOIDC / u_exp;
-	vec3 star = starAt(sb);
 	dustOut = 0.0;
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
+	vec3 star = starAt(sb) + starDebt(p);
 	float r = length(p);
 	float irr = 1.0 / (1.0 + pow(r / 0.10, 2.0));
 	bool ball = u_form == 1;
@@ -984,7 +1040,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		vec3 Bb = ellBall(v, gas);
 		// close in, the ball resolves into its stars and its diffuse light thins
 		// (the core's glare only: the ball's heart, never its outskirts)
-		Bb *= mix(1.0, 0.3, smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
+		Bb *= mix(1.0, 0.3, glareOn() * smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
 		// (no blue halo under a ball: over its red outskirts it read mauve; the
 		// ball's own envelope is its halo)
 		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p);
@@ -1008,11 +1064,18 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		vec3 bStars = resolvedStars(p, v, hbOf(la), la, kitLum(B) * 0.6, 0.0, 1);
 		// (THE ONE THING THE ZOOM STILL TURNS DOWN: the core's own glare, so the gold
 		// does not wash out round the hole. It touches the bulge's light alone, never
-		// the gas, dust or stars round it.)
-		B *= mix(1.0, 0.10, smoothstep(2.4, 6.0, u_zoom));
+		// the gas, dust or stars round it -- and only where that light is the gold
+		// itself (`Ib` over 0.003, in full from 0.07): turned down everywhere, the
+		// bulge's faint outer halo over the arms went with it, and the gas just
+		// outside the bulge darkened 0.6 as you zoomed, Oct 11. The step is spread
+		// over a factor of 23 in the light so the turned-down gold never dips
+		// below the halo beside it. The palette's probes turn it down as before, so the
+		// cut, and the opening it colours, are the approved ones.)
+		float goldM = mix(1.0, smoothstep(-5.81, -2.66, log(max(Ib, 1e-6))), resolveOn());
+		B *= mix(1.0, 0.10, glareOn() * smoothstep(2.4, 6.0, u_zoom) * goldM);
 		float bm = 0.5 + 0.5 * fbm2F(p * 9.0 + vec2(2.7, 8.1), max(4.0 - la, 1.0));
 		// (and the mottle keeps resolving past its fourth octave as you near the core)
-		bm += u_stars_on ? 0.4 * crDetail(p, blockGu(la), 0.012, 13.0) : 0.0;
+		bm += u_stars_on ? 0.4 * ((u_diag & 4) != 0 ? 0.0 : crDetail(p, blockGu(la), 0.012, 13.0)) : 0.0;
 		B *= mix(1.0, max(0.62 + 0.76 * bm, 0.25), smoothstep(0.03, 0.10, sv));
 		C += B * (1.0 - front);
 		Em += knots(p);
@@ -1024,7 +1087,7 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 			Em += FLARE * u_echo.w * ring * (0.15 + 0.8 * gas + 2.6 * dd) * 0.5;
 		}
 		C = C * T + Em;
-		C += bStars * mix(T, vec3(1.0), front);
+		C = max(C + bStars * mix(T, vec3(1.0), front), vec3(0.0));
 	}
 	vec3 cloudT = vec3(1.0);
 	cloudLayer(v, irr, gas, C, cloudT);
@@ -1060,11 +1123,11 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	if (!lens) {
 		return C;
 	}
-	C *= lh_cool(S, smoothstep(3.0, 6.0, u_zoom)) * lh_squeeze(S);
+	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0 || !u_stars_on) * lh_squeeze(S);
 	// the disc lights the gas round it, hardest on the dense dust
 	C += u_bCore * vec3(1.0, 0.55, 0.32) * (0.05 + 0.12 * dust) * lh_glow(S);
 	float cap;
-	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom), u_time, smoothstep(2.6, 4.0, u_zoom), lh_hot(u_time, u_wxOn), cap);
+	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom), u_time, smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), lh_hot(u_time, u_wxOn), cap);
 	C *= 1.0 - cap;                                      // the shadow: round, black, no rim line
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;

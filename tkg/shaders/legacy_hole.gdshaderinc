@@ -336,6 +336,21 @@ vec3 lh_cool(vec2 S, float amount) {
 	float c = smoothstep(1.6, 4.0, b / LH_SHADOW) * (1.0 - smoothstep(15.0, 22.5, b)) * amount;
 	return mix(vec3(1.0), vec3(0.62, 0.62, 1.15), c);
 }
+// THE STAR CHART'S COOLING STAYS UNDER THE DISC (Oct 11, "why do the clouds
+// change at all when you zoom in?"): the chart cools the squeezed ring as you near
+// the hole out to the disc's rim (7.8 rs), gone by 10.4. Out to 22.5 rs (`lh_cool`,
+// as the system map still draws it, at a zoom of its own) the gas round the hole,
+// the bulge's own outside the disc, turned blue-grey from zoom 3 to 6: half of what
+// still moved there. The disc and the shadow are drawn over it and do not change.
+// `wide` (tuning): as far out as before.
+vec3 lh_cool_chart(vec2 S, float amount, bool wide) {
+	if (wide) {
+		return lh_cool(S, amount);
+	}
+	float b = length(S);
+	float c = smoothstep(1.6, 4.0, b / LH_SHADOW) * (1.0 - smoothstep(7.8, 10.4, b)) * amount;
+	return mix(vec3(1.0), vec3(0.62, 0.62, 1.15), c);
+}
 
 float lh_glow(vec2 S) {
 	float b = length(S);

@@ -24,6 +24,7 @@ uniform int n_star = 0;
 uniform vec2 vp_origin = vec2(-2.0);
 uniform vec2 cpix = vec2(327.0, 214.0);
 uniform float zoom = 0.42;
+uniform int diag = 0;   // (tuning: 2 draws no stars, `ChartSky.diag`)
 uniform float k = 622.25;
 uniform float phi = 0.0;
 uniform float t = 0.0;
@@ -101,7 +102,7 @@ void vertex() {
 			tier = 3.0;
 			sprite = on ? 3.0 : 1.0;
 		}
-		if (lv > 0.05) {
+		if (lv > 0.05 && (diag & 18) == 0) {
 			blk = floor((scr - vp_origin) * 0.5);
 			s = vec4(lv, cls / 4.0, tier / 3.0, sprite);
 		}
