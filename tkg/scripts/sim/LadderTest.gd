@@ -119,6 +119,16 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var lip_room := INF
 	var lip_at := Rect2()
 	var whole := Rect2()
+	# THE DOCK IN THREE BEATS (Jon: "a few seconds beat between the ship arriving
+	# at the space station dock... The lights turn on ... warning lights ... and
+	# the ship slowly entering"): the beats as they came, your ship on the plate
+	# through the wake, the lights through each beat
+	var beats: Array[StringName] = []
+	var wake_x: Array[float] = []
+	var wake_y: Array[float] = []
+	var power_arrive := 0.0
+	var power_end_wake := 0.0
+	var warn_seen := {}
 	var hall := loc0 != null and loc0._face != null and is_instance_valid(loc0._face)
 	var pan_x: Array[float] = []
 	var edge_off := 0
@@ -141,8 +151,22 @@ func _hull_flies_in(dock_b: Button) -> void:
 			if fmode and not dip_seen and blk > 0.02:
 				dip_seen = true
 				dip_at = whole
+			var beat: StringName = (loc0._lad.get("hall", {}) as Dictionary).get("beat", &"")
+			if beat != &"" and (beats.is_empty() or beats[-1] != beat):
+				beats.append(beat)
+			if beat == &"arrive":
+				power_arrive = maxf(power_arrive, loc0._face.power)
+			elif beat == &"wake":
+				wake_x.append(last.get_center().x)
+				wake_y.append(last.get_center().y)
+				power_end_wake = loc0._face.power
+			if beat != &"":
+				warn_seen[int(floorf(loc0._face.warn))] = true
 			if ZoomLadder.busy() and last.size.x > 0.0:
-				track.append(["L", last.get_center().x, loc0._lad_zs])
+				# (the arrival, the wait and the way in: three pieces, the wait
+				# no motion at all)
+				var tag := "A" if beat == &"arrive" else ("H" if beat == &"wake" else "L")
+				track.append([tag, last.get_center().x, loc0._lad_zs])
 			# (behind the front, over the plate, the two in one place)
 			var v := loc0._view
 			if not (loc0._face.get_index() < v._row.get_index() and v._row.get_index() < loc0._face_front.get_index()) \
@@ -193,6 +217,18 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: on LOCAL your ship sets off from where it sat (tail at plate x %.0f) and only moves right" % first.position.x,
 			tails.size() > 20 and first.end.x < StationFace.EDGE_X and right)
 		_ok("3B: the station's lights are all on before the pan (power %.2f)" % power, power >= 0.999)
+		_ok("3B: the dock comes in three beats, in order: %s" % [beats], beats == [&"arrive", &"wake", &"enter"])
+		var wx := 0.0
+		var wy := 0.0
+		if not wake_x.is_empty():
+			wx = wake_x.max() - wake_x.min()
+			wy = wake_y.max() - wake_y.min()
+		_ok("3B: your ship waits at the mouth while the station wakes, still but for its bob (%d frames; it moved %.2f px along, %.2f up and down)" % [
+			wake_x.size(), wx, wy], wake_x.size() >= int(ZoomLadder.dock_beats().y * 30.0 * 0.9) and wx < 0.5 and wy <= 2.5)
+		_ok("3B: the station sleeps while your ship arrives (power %.2f) and is all on by the end of the wake (%.2f)" % [power_arrive, power_end_wake],
+			power_arrive <= 0.0 and power_end_wake >= 0.999)
+		_ok("3B: the warning lights flash while your ship waits and go green before it goes in (%s)" % [warn_seen.keys()],
+			warn_seen.has(1) and warn_seen.has(2))
 		# (seen only in the recess: wholly past its end, inside the hull's rows --
 		# the lips' outer rows, solid on every side, `_front_is_plate_less_recess`
 		# -- all of it, parts and all, is 0 pixels seen)
@@ -920,7 +956,7 @@ func _run() -> void:
 	await _go("back to the map (after the fade)", Router.show_system, SystemMapScreen)
 	# (the dials: every length a move is made of is one)
 	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S],
-		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 14)
+		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 20)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()
@@ -986,7 +1022,7 @@ func _run() -> void:
 			# and on into the hangar, one call
 			Router.show_station()
 			var saw_local := false
-			for i in 400:
+			for i in 900:
 				await _tree.process_frame
 				if Router.current is SectorScreen:
 					saw_local = true
