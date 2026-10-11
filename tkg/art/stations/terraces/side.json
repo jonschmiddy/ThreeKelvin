@@ -1,0 +1,65 @@
+{
+ "kind": "wall",
+ "size": [
+  470,
+  530
+ ],
+ "bay": [
+  76,
+  206,
+  212,
+  284
+ ],
+ "layers": [
+  {
+   "file": "near.png",
+   "parallax": 1.0
+  }
+ ],
+ "lamps": [],
+ "code_lights": [
+  {
+   "kind": "strobe",
+   "at": [
+    267,
+    33
+   ],
+   "radius": 8,
+   "color": "#b8e2f4",
+   "period": 1.6,
+   "offset": 0.0
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    121,
+    170
+   ],
+   "radius": 5,
+   "color": "#ff4a36",
+   "period": 2.4,
+   "offset": 0.0
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    91,
+    320
+   ],
+   "radius": 5,
+   "color": "#5ae678",
+   "period": 2.4,
+   "offset": 1.2
+  }
+ ],
+ "hull": {
+  "src": [
+   245,
+   0,
+   148,
+   530
+  ],
+  "x0": 393,
+  "err": -0.05
+ }
+}

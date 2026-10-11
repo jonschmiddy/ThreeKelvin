@@ -1,0 +1,62 @@
+{
+ "kind": "pile",
+ "size": [
+  470,
+  530
+ ],
+ "bay": [
+  76,
+  206,
+  212,
+  284
+ ],
+ "layers": [
+  {
+   "file": "far3.png",
+   "parallax": 0.8
+  },
+  {
+   "file": "far2.png",
+   "parallax": 0.9
+  },
+  {
+   "file": "near.png",
+   "parallax": 1.0
+  }
+ ],
+ "lamps": [],
+ "code_lights": [
+  {
+   "kind": "beacon",
+   "at": [
+    86,
+    170
+   ],
+   "radius": 5,
+   "color": "#ff4a36",
+   "period": 2.4,
+   "offset": 0.0
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    85,
+    320
+   ],
+   "radius": 5,
+   "color": "#5ae678",
+   "period": 2.4,
+   "offset": 1.2
+  }
+ ],
+ "hull": {
+  "src": [
+   292,
+   0,
+   100,
+   530
+  ],
+  "x0": 392,
+  "err": 15.09
+ }
+}

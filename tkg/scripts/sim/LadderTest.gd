@@ -352,11 +352,164 @@ func _no_fights_at_stations(st: int) -> void:
 	Run.at = was
 
 
+## EVERY SIDE JON KEPT (`StationSides`), docked into and undocked from, each
+## with an interior (and Drum take 1 with none, as approved): the hallway, the
+## mask, the seat and the elevator checks above for every one, and the far
+## layers' parallax in whole pixels that only ever grow as the camera comes in
+## (no A, B, A), back to none at rest.
+func _every_side() -> void:
+	var ints := [StationSides.NONE, &"iris_90_0", &"hallway_170_1", &"cargo_170_0", &"iris_220_1", &"hallway_90_1", &"cargo_130_1"]
+	for i in StationSides.IDS.size():
+		var id: StringName = StationSides.IDS[i]
+		StationSides.force_side = id
+		StationSides.force_interior = ints[i % ints.size()]
+		print("  -- side %s, interior %s" % [id, StationSides.force_interior])
+		# (LOCAL built again, so its face is this side)
+		await _go("%s: to the map" % id, Router.show_system, SystemMapScreen)
+		await _go("%s: to LOCAL at the station" % id, Router.show_local, SectorScreen)
+		var loc := Router.current as SectorScreen
+		if not _ok("%s: LOCAL draws it" % id, loc != null and loc._face != null and loc._face.side.id == id
+				and loc._face_front.side == loc._face.side):
+			continue
+		var dock_b: Button = loc.find_child("Dock", true, false) as Button
+		if dock_b == null:
+			_ok("%s: DOCK on the bar" % id, false)
+			continue
+		var steps: Array = []
+		var watch := func() -> void:
+			var c := Router.current as SectorScreen
+			if c != null and c._face_front != null and is_instance_valid(c._face_front) and c._face_front.dock_k > 0.0:
+				steps.append([c._face_front.get_instance_id(), c._face_front.par.duplicate()])
+		_tree.process_frame.connect(watch)
+		await _hull_flies_in(dock_b)
+		await _hull_flies_out()
+		_tree.process_frame.disconnect(watch)
+		var side := StationSides.side(id)
+		var far: Array = []
+		for l: Array in side.layers:
+			if float(l[1]) < 1.0:
+				far.append(float(l[1]))
+		if far.is_empty():
+			continue
+		var flips := 0
+		var top := 0
+		var whole := true
+		# (each face on its own, over its moving frames: the dock's, then the
+		# undock's; at rest it is none, checked below)
+		for p in far:
+			var last := 0
+			var dir := 0
+			var who := -1
+			for e: Array in steps:
+				var v: Variant = (e[1] as Dictionary).get(p, 0)
+				if e[0] != who:
+					who = e[0]
+					dir = 0
+					last = int(v)
+				if typeof(v) != TYPE_INT:
+					whole = false
+				var x := int(v)
+				top = maxi(top, absi(x))
+				if x != last:
+					var d := signi(x - last)
+					if dir != 0 and d != dir:
+						flips += 1
+					dir = d
+					last = x
+		if flips > 0:
+			var seq := ""
+			for e: Array in steps:
+				seq += "%d:%d " % [int(e[0]) % 1000, int((e[1] as Dictionary).get(far[0], 0))]
+			print("    parallax steps (%s): %s" % [far[0], seq])
+		var lc := Router.current as SectorScreen
+		_ok("%s: its far layers move in whole pixels, at most %d (no more than 8), never turning back mid-move (%d times)" % [id, top, flips],
+			whole and top > 0 and top <= 8 and flips == 0)
+		_ok("%s: and none at rest" % id, lc != null and lc._face_front != null and lc._face_front.par.is_empty())
+	StationSides.force_side = &""
+	StationSides.force_interior = &""
+	await _go("back to the map (every side)", Router.show_system, SystemMapScreen)
+	await _go("back to LOCAL (every side)", Router.show_local, SectorScreen)
+
+
+## WHICH SIDE A STATION GETS: from the station alone. Asked twice it answers the
+## same; it rolls nothing (the run's random streams where they were); every
+## station gets a kept side and interior; and the map's stations do not all
+## look alike.
+func _station_picks() -> void:
+	var stations: Array = []
+	for raw in Run.map:
+		var n: MapGen.MapNode = raw
+		if n.type == MapGen.NodeType.STATION:
+			stations.append(n)
+	var rng0 := var_to_str(Rng.state())
+	var same := true
+	var valid := true
+	var sides := {}
+	for n: MapGen.MapNode in stations:
+		var a := StationSides.pick(n)
+		var b := StationSides.pick(n)
+		if a != b:
+			same = false
+		if not StationSides.IDS.has(a.side) or not StationSides.INTERIORS.has(a.interior):
+			valid = false
+		sides[a.side] = true
+	_ok("stations: the same side and interior every time asked (%d stations)" % stations.size(), same)
+	_ok("stations: every one a kept side with a kept interior", valid)
+	_ok("stations: %d different sides among %d stations" % [sides.size(), stations.size()],
+		sides.size() >= mini(stations.size(), StationSides.IDS.size()))
+	_ok("stations: picking rolls nothing", rng0 == var_to_str(Rng.state()))
+	# (drawn from its own pictures: every side and interior loads)
+	var loads := true
+	for id in StationSides.IDS:
+		var s := StationSides.side(id)
+		if s == null or (not s.legacy and (s.solid == null or s.lamps == null or s.bay_lit == null or s.layers.is_empty())):
+			loads = false
+	for id in StationSides.INTERIORS:
+		if StationSides.interior(id).size() != 2:
+			loads = false
+	_ok("stations: all %d sides and %d interiors load" % [StationSides.IDS.size(), StationSides.INTERIORS.size()], loads)
+
+
 ## THE STATION'S FRONT IS ITS PLATE LESS THE RECESS, pixel for pixel: every
 ## pixel of the plate that is hull (outside the bay's recess) is solid in the
 ## front layer, so no ship pixel is ever drawn over hull; and nothing of the
 ## front is inside the recess, where your ship is seen.
+## The other sides: the crevice layer under them is solid wherever any layer is
+## drawn, nothing of the front (layers, lamps) is in the recess, and the
+## hallway's rows are solid hull from the recess's end to the plate's cut and
+## across the window tiled past it -- so your ship, flying on into the hull, is
+## never seen through it.
 func _front_is_plate_less_recess() -> void:
+	for id in StationSides.IDS:
+		var s := StationSides.side(id)
+		if s.legacy:
+			continue
+		var solid := s.solid.get_image()
+		var open := 0
+		var inside := 0
+		var texs: Array = [s.lamps]
+		for l: Array in s.layers:
+			texs.append(l[0])
+		for t: Texture2D in texs:
+			var img := t.get_image()
+			for y in img.get_height():
+				for x in img.get_width():
+					if img.get_pixel(x, y).a <= 0.0:
+						continue
+					if StationFace.RECESS.has_point(Vector2(x, y)):
+						inside += 1
+					elif t != s.lamps and solid.get_pixel(x, y).a < 0.99:
+						open += 1
+		var holes := 0
+		for y in range(int(StationFace.RECESS.position.y), int(StationFace.RECESS.end.y)):
+			for x in range(int(StationFace.RECESS.end.x), int(s.hull_x0)):
+				if solid.get_pixel(x, y).a < 0.99:
+					holes += 1
+			for x in range(int(s.hull_src.position.x), int(s.hull_src.end.x)):
+				if solid.get_pixel(x, y).a < 0.99:
+					holes += 1
+		_ok("station %s: the crevice under every layer (%d open), nothing in the recess (%d), the hallway's rows solid past it (%d holes)" % [
+			id, open, inside, holes], open == 0 and inside == 0 and holes == 0)
 	var plate := (StationFace.PLATE_UNLIT as Texture2D).get_image()
 	var front := (StationFace.FRONT_UNLIT as Texture2D).get_image()
 	if plate == null or front == null:
@@ -748,11 +901,15 @@ func _run() -> void:
 			and ZoomLadder.design_for(3) == "B")
 		_no_fights_at_stations(st)
 		_front_is_plate_less_recess()
+		_station_picks()
 		if dock_b != null:
 			await _hull_flies_in(dock_b)
 			await _hull_flies_out()
 			loc = Router.current as SectorScreen
 			dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
+		await _every_side()
+		loc = Router.current as SectorScreen
+		dock_b = loc.find_child("Dock", true, false) as Button if loc != null else null
 		if _ok("LOCAL's bar offers DOCK at a station", dock_b != null):
 			for d in ["A", "B", "C", "D"]:
 				ZoomLadder.force_design = {3: d}

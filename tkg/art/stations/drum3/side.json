@@ -1,0 +1,437 @@
+{
+ "kind": "drum",
+ "size": [
+  470,
+  530
+ ],
+ "bay": [
+  76,
+  206,
+  212,
+  284
+ ],
+ "layers": [
+  {
+   "file": "near.png",
+   "parallax": 1.0
+  }
+ ],
+ "lamps": [
+  {
+   "kind": "seam",
+   "rect": [
+    141,
+    191,
+    4,
+    2
+   ],
+   "color": "#dfbb6b",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    90,
+    192,
+    2,
+    2
+   ],
+   "color": "#ffe2ac",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    273,
+    192,
+    3,
+    1
+   ],
+   "color": "#dab665",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    277,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    289,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    293,
+    192,
+    3,
+    1
+   ],
+   "color": "#f0cc7c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    297,
+    192,
+    3,
+    1
+   ],
+   "color": "#f0cc7c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    313,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    317,
+    192,
+    3,
+    1
+   ],
+   "color": "#e9c46a",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    337,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    353,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    361,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    365,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    373,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    377,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    385,
+    192,
+    3,
+    1
+   ],
+   "color": "#f0cc7c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    393,
+    192,
+    3,
+    1
+   ],
+   "color": "#e9c46a",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    401,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    409,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    413,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    421,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    425,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    433,
+    192,
+    3,
+    1
+   ],
+   "color": "#f0cc7c",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    441,
+    192,
+    3,
+    1
+   ],
+   "color": "#e9c46a",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    449,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    457,
+    192,
+    3,
+    1
+   ],
+   "color": "#ffdca0",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    461,
+    192,
+    3,
+    1
+   ],
+   "color": "#f7d48e",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    90,
+    296,
+    4,
+    3
+   ],
+   "color": "#f1a43f",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    141,
+    297,
+    3,
+    1
+   ],
+   "color": "#d2b072",
+   "glow_radius": 4,
+   "group": "seam"
+  },
+  {
+   "kind": "seam",
+   "rect": [
+    137,
+    299,
+    3,
+    3
+   ],
+   "color": "#ffa63c",
+   "glow_radius": 4,
+   "group": "seam"
+  }
+ ],
+ "code_lights": [
+  {
+   "kind": "strobe",
+   "at": [
+    90,
+    43
+   ],
+   "radius": 8,
+   "color": "#b8e2f4",
+   "period": 1.6,
+   "offset": 0.0
+  },
+  {
+   "kind": "strobe",
+   "at": [
+    90,
+    457
+   ],
+   "radius": 8,
+   "color": "#b8e2f4",
+   "period": 2.1,
+   "offset": 0.9
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    85,
+    170
+   ],
+   "radius": 5,
+   "color": "#ff4a36",
+   "period": 2.4,
+   "offset": 0.0
+  },
+  {
+   "kind": "beacon",
+   "at": [
+    85,
+    320
+   ],
+   "radius": 5,
+   "color": "#5ae678",
+   "period": 2.4,
+   "offset": 1.2
+  }
+ ],
+ "hull": {
+  "src": [
+   278,
+   0,
+   120,
+   530
+  ],
+  "x0": 398,
+  "err": -1.55
+ }
+}
