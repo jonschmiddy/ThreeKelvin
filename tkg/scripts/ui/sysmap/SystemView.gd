@@ -195,6 +195,7 @@ const FABRIC := preload("res://shaders/map_fabric.gdshader")
 const SCENE := Vector2i(480, 270)
 const ZOOM_MAX := 4.0
 const SkyBakeS := preload("res://scripts/ui/sysmap/SkyBake.gd")
+const SectorWowS := preload("res://scripts/ui/sysmap/SectorWow.gd")
 const SystemPaletteS := preload("res://scripts/ui/sysmap/SystemPalette.gd")
 const SKY := preload("res://shaders/sky.gdshader")
 const PALETTE := preload("res://shaders/map_palette.gdshader")
