@@ -96,8 +96,9 @@ static var FADE_IN_S := 0.45
 ## THE HANDOFF DISC (1A, 2C, GO): the radius, screen px at the swap, of the soft
 ## disc round the focus -- your star, the world you orbit -- that carries the
 ## screen being left into the one arriving. Jon: "the circle is better.... but
-## it's still WAYYY too big". 0 is the focus object and a thin halo round it.
-static var DISC_PX := 42.0
+## it's still WAYYY too big". 0 is the focus object and a thin halo round it,
+## which is Jon's pick of three sizes filmed (Oct 11, "Circle: C").
+static var DISC_PX := 0.0
 
 ## The dials as Settings lists them: [key in `[flow]`, its name, the static var
 ## it sets, least, most]. The default is the var's own value at load.
