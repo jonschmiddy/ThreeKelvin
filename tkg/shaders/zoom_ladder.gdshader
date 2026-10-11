@@ -51,6 +51,16 @@ uniform float feather = 0.0;
 // SOFT: where the held picture's focus object stood (screen px: centre, radius;
 // 0 for none), kept out of its standing copy
 uniform vec3 focus_hole = vec3(0.0);
+// SOFT: the disc that carries the moving picture (Jon: "the circle is better....
+// but it's still WAYYY too big"), screen px at the swap -- shrinking with a
+// picture made smaller, never growing with one made bigger -- and the focus
+// object's own radius in the held picture's px; the disc is never smaller than
+// the object with a little rim, nor bigger than fits inside the frame
+uniform float disc_r0 = 42.0;
+uniform float focus_r = 0.0;
+// SOFT: where the arriving screen draws the same thing the disc carries
+// (screen px: centre, radius; 0 for none), covered by the held picture too
+uniform vec3 cover = vec3(0.0);
 // a hole in the held picture (its own px: centre, radius; 0 for none) where
 // the live screen draws the same thing -- the world handed over in 2C
 uniform vec3 hole = vec3(0.0);
@@ -174,7 +184,14 @@ void fragment() {
 			float rfit = max(min(min(to_pt.x - lo.x, to_pt.y - lo.y), min(hi.x - to_pt.x, hi.y - to_pt.y)), 24.0);
 			float aA = 0.0;
 			if (picture) {
-				float focus = 1.0 - smoothstep(rfit * 0.5, rfit, length(p - to_pt));
+				float fobj = focus_r * scl.x;
+				float R = min(max(disc_r0 * min(scl.x, 1.0), fobj * 1.2 + 4.0), rfit);
+				// (solid over the object itself, the soft edge outside it)
+				float inner = max(R * 0.5, min(fobj + 1.0, R - 3.0));
+				float focus = 1.0 - smoothstep(inner, R, length(p - to_pt));
+				if (cover.z > 0.0) {
+					focus = max(focus, 1.0 - smoothstep(cover.z, cover.z + 3.0, length(p - cover.xy)));
+				}
 				aA = smoothstep(0.0, 1.0, keep) * focus;
 			}
 			bool hole_b = hole.z > 0.0 && length(p - hole.xy) < hole.z;
