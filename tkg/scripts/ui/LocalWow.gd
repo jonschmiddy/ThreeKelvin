@@ -26,6 +26,8 @@ static var _asked := {}
 static var _read := false
 ## a harness's veto: false draws nothing of any idea (the before)
 static var shown := true
+## the ideas' own CPU time, microseconds, since a harness last zeroed it
+static var cpu_us := 0
 
 
 static func _read_args() -> void:

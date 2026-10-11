@@ -1884,12 +1884,78 @@ class _Wreck extends Node2D:
 ## `LocalWow`'s ideas, worked out every frame they are asked for; `wow_sync`
 ## draws them or not as `LocalWow.shown` says, without moving any clock (a
 ## harness films the same frame both ways).
+const HULL_LIGHT := preload("res://shaders/local_hull_light.gdshader")
+var _hull_mat: ShaderMaterial = null
+
+
 func _wow_step(_delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
 	wow_sync()
+	LocalWow.cpu_us += Time.get_ticks_usec() - t0
 
 
 func wow_sync() -> void:
-	pass
+	_wow_hull()
+
+
+## THE STAR'S LIGHT ON YOUR HULL (`LocalWow` "hull"): its sun-facing edge lit in
+## the star's colour, as strong as the star is near; orbiting a world, the edge
+## facing it lit a little in that world's colour.
+func _wow_hull() -> void:
+	var sv := cam_ship as ShipView
+	if sv == null or not is_instance_valid(sv):
+		return
+	if not LocalWow.asked(&"hull"):
+		if _hull_mat != null and sv.material == _hull_mat:
+			sv.material = null
+			for c in sv.get_children():
+				if c is MountPoints:
+					(c as CanvasItem).use_parent_material = false
+		return
+	if _hull_mat == null:
+		_hull_mat = ShaderMaterial.new()
+		_hull_mat.shader = HULL_LIGHT
+	# (the drive's interlace owns the material while it runs; the parts bolted on
+	# are lit with the hull, the hover outline is not)
+	if sv.material == null:
+		sv.material = _hull_mat
+		for c in sv.get_children():
+			if c is MountPoints:
+				(c as CanvasItem).use_parent_material = true
+	if sv.material != _hull_mat:
+		return
+	var on := LocalWow.on(&"hull")
+	var b := sv.hull_body()
+	var shipc := sv.get_global_transform() * (b.position + b.size * 0.5)
+	var to_star := star_global() - shipc
+	var L := to_star.normalized() if to_star.length() > 1.0 else Vector2(0.0, -1.0)
+	var col: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
+	# as bright as the star is near: a small far point lights it faintly
+	var k := clampf(0.35 + 0.45 * pow(_dk, 0.6), 0.45, 1.25)
+	if layout.star == SystemLayout.StarKind.PULSAR:
+		k *= 0.7
+	elif layout.star == SystemLayout.StarKind.CORE:
+		k *= 0.8
+	_hull_mat.set_shader_parameter("l_dir", L)
+	_hull_mat.set_shader_parameter("l_col", col)
+	_hull_mat.set_shader_parameter("l_k", k if on else 0.0)
+	var ni := near_info()
+	var bk := 0.0
+	if not ni.is_empty() and _near_world is PlanetView:
+		var to_w: Vector2 = Vector2(ni.at) - shipc
+		_hull_mat.set_shader_parameter("b_dir", to_w.normalized())
+		var wn := StringName((_near_world as PlanetView).spec.get("world", &"rock"))
+		var rp: Array = Worlds.RAMP.get(wn, Worlds.RAMP.get(_WOW_RAMP_OF.get(wn, &"rock"), Worlds.RAMP[&"rock"]))
+		var wc := Color(String(rp[4]))
+		_hull_mat.set_shader_parameter("b_col", Vector3(wc.r, wc.g, wc.b))
+		bk = 0.75
+	_hull_mat.set_shader_parameter("b_k", bk if on else 0.0)
+
+
+## a world's main ground, where its name is not a ramp's
+const _WOW_RAMP_OF := {&"verdant": &"land", &"ocean": &"sea", &"hurricane": &"sea", &"aurora": &"sea",
+	&"hotjup": &"storm", &"eyeball": &"ice", &"cracked": &"lineae", &"volcanic": &"crust",
+	&"lightning": &"storm2", &"comet": &"ice", &"biolum": &"alien", &"megacity": &"city"}
 
 
 # ------------------------------------------------------------------ harness
