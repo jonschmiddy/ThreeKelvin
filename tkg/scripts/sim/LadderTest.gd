@@ -233,7 +233,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 			wx = wake_x.max() - wake_x.min()
 			wy = wake_y.max() - wake_y.min()
 		_ok("3B: your ship waits where it was parked while the station wakes, still but for its bob, a pixel either way on screen (%d frames; it moved %.2f plate px along, %.2f screen px up and down)" % [
-			wake_x.size(), wx, wy], wake_x.size() >= int(ZoomLadder.dock_beats().x * 30.0 * 0.9) and wx < 0.5 and wy <= 2.01)
+			wake_x.size(), wx, wy], wake_x.size() >= int(ZoomLadder.dock_beats().x * 30.0 * 0.9) and wx < 0.5 and wy <= 2.0 * SectorScreen.WAIT_BOB_PX + 0.01)
 		_ok("3B: the station is all awake (power %.2f at the wake's end, %.2f on your ship's first moving frame) and has cleared it in (warning %.1f) before your ship moves" % [
 			power_end_wake, power_first_move, warn_end_wake], power_end_wake >= 0.999 and power_first_move >= 0.999 and warn_end_wake >= 2.0)
 		_ok("3B: the warning lights flash while your ship waits and go green before it goes in (%s)" % [warn_seen.keys()],
@@ -965,7 +965,7 @@ func _run() -> void:
 	await _go("back to the map (after the fade)", Router.show_system, SystemMapScreen)
 	# (the dials: every length a move is made of is one)
 	_ok("the move lengths are dials (seam 1 %.2f s, UI out %.2f s)" % [ZoomLadder.SEAM1_S, ZoomLadder.UI_OUT_S],
-		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 19)
+		ZoomLadder.SEAM1_S > 0.4 and ZoomLadder.UI_OUT_S >= 0.0 and ZoomLadder.DIALS.size() == 20)
 
 	# 4. a fight opened from the map arrives on LOCAL, and its end goes back
 	Router.start_ambush()

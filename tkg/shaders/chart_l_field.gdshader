@@ -93,6 +93,15 @@ uniform float zoom_dim = 0.0;
 uniform float resolved = 1.0;
 uniform float dz = 0.0;
 uniform float res2 = 1.0;
+// the bulge's glow alone, turned down deep in (glare): `resolved` and `dz` as they
+// were before Oct 11, which now leave the gas and the stars alone (1 and 0)
+uniform float core_res = 1.0;
+uniform float core_dz = 0.0;
+// (tuning: the dust sheets drawn nearer as you zoom, as they were before Oct 11)
+uniform bool diag_sheets = false;
+uniform float sheet_z = 1.0;
+// (the title screen's galaxy, which never zooms: its glare control as it was)
+uniform bool core_wide = false;
 uniform float te_b = 1.0;
 // the named clouds, a lobe each: centre (bake pixels, the galaxy's frame),
 // radius (where the chart's outline is), kind; colour and how flat it lies;
@@ -1025,11 +1034,14 @@ void fragment() {
 				float b = max(length(S), 1e-3);
 				float g1 = lh_behind(S) * b;
 				float g2 = lh_behind(S * ((b + 0.02) / b)) * (b + 0.02);
-				// (three times over: as the zoom moves, what the lens shows here
+				// (five times over -- three until Oct 11, when the gas round the hole
+				// stopped dimming deep in and its grain showed: as the zoom moves, what the lens shows here
 				// slides past faster than the squeeze alone says, and a grain the
 				// slide carries across a block in a frame or two is a flicker)
 				lsq = clamp(max(abs(g2 - g1) / 0.02, lh_behind(S)), 1.0, 64.0);
-				lsq = old_grain ? 1.0 : 1.0 + (lsq - 1.0) * 3.0 + 1.5 * smoothstep(12.0, 4.0, length(S));
+				// (the five comes in only past the opening view, which keeps its three)
+				float lzk = smoothstep(1.0, 2.5, z);
+				lsq = old_grain ? 1.0 : 1.0 + (lsq - 1.0) * mix(3.0, 5.0, lzk) + mix(1.5, 2.5, lzk) * smoothstep(12.0, 4.0, length(S));
 				rel *= lh_behind(S);
 			}
 		}
@@ -1204,7 +1216,13 @@ void fragment() {
 	float dsm = sqrt(dball * dball + te_b * te_b);
 	float dco = sqrt(dball * dball + bul * bul * 0.03 / (zf * zf) + te_b * te_b);
 	float nuc = 3.2 * exp(-2.4 * sqrt(dsm / (bul * 0.4))) * g_sm(1.3, 4.0, zf);
-	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bul * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * resolved) + nuc) * (1.0 - dz * 0.125);
+	// (the bulge's glow keeps its own glare control deep in, `core_res` / `core_dz`:
+	// the one thing the zoom still turns down, and it touches nothing but the glow)
+	// (and only on the bulge itself, `cm`: across the whole field it dimmed the
+	// bulge's light over the gas outside it too, which darkened 2 as you zoomed)
+	float cm = core_wide ? 1.0 : exp(-pow(dball / (bul * 1.3), 2.0));
+	float c_res = mix(1.0, core_res, cm), c_dz = core_dz * cm;
+	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bul * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * c_res) + nuc) * (1.0 - c_dz * 0.125);
 	float rout = rh * disc_k;
 	float hd = length(vec2(lxs, lys / TILT));
 	// the light dims a little round the hole, so the hole and its ring sit in
@@ -1229,7 +1247,9 @@ void fragment() {
 	vec3 sgh = vec3(0.0) * bhl;
 
 	vec3 qv = front + (1.0 - front) * (1.0 - f_kd * vec3(0.72, 0.8, 0.88));
-	vec3 o = (f_dd * behind + (f_bs + sci) * qv) * hdim * 0.72;
+	// (the bulge, its glow and its own stars, is the core's light: deep in it is turned
+	// down as the whole picture used to be, `1 - 0.42 dz`, and nothing else is)
+	vec3 o = (f_dd * behind + (f_bs + sci) * qv * (1.0 - 0.42 * c_dz)) * hdim * 0.72;
 	// THE BULGE'S EXPOSURE ("the center of the galaxy is SO WASHED out", Jon).
 	// Its light sat high on the tone curve all across it, one flat cream
 	// plate. Brought down over the bulge and less so toward the nucleus, it
@@ -1283,9 +1303,14 @@ void fragment() {
 		float dk = 0.0, lg = 0.0;
 		for (int k = 0; k < 4; k++) {
 			// how near you the sheet is: it would reach you at a zoom of
-			// 20, 40, 80, 160 times the opening one
+			// 20, 40, 80, 160 times the opening one. (ZOOMING ONLY MAGNIFIES,
+			// Oct 11: held at the opening's nearness, so a sheet grows with the
+			// galaxy and no longer flies past you or thins as you zoom -- the
+			// nearest thinned from zoom 3.8 and the gas under it brightened 0.7
+			// and darkened 4 round the bulge. It still slides a little faster
+			// than the galaxy as you pan.)
 			float qk = 0.05 / pow(2.0, float(k));
-			float near_k = min(qk * z, 0.95);
+			float near_k = min(qk * (diag_sheets ? z : sheet_z), 0.95);
 			float mk = 1.0 / (1.0 - near_k);
 			float ak = 1.0 - g_sm(0.45, 0.85, near_k);
 			vec2 gp = (sp - view_c) / (mk * z) + cam;

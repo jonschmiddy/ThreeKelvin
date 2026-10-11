@@ -25,6 +25,7 @@ uniform float t = 0.0;
 // squeezed ring's cooling (its zoom 3 to 6), the hot spot on or off
 uniform float clumps = 0.0;
 uniform float cool_amt = 0.0;
+uniform bool cool_wide = false;   // (tuning: the cooling as far out as before Oct 11)
 uniform float hot_on = 1.0;
 
 vec3 s2l(vec3 c) {
@@ -51,7 +52,7 @@ void fragment() {
 		// lens shows it (`chart_l_field`'s `lens_shadow`)
 		vec4 c = own;
 		vec3 lin = s2l(c.rgb);
-		lin *= lh_cool(S, cool_amt) * lh_squeeze(S);
+		lin *= lh_cool_chart(S, cool_amt, cool_wide) * lh_squeeze(S);
 		// the old bulge's bright nucleus, bent round the shadow, drew a broad
 		// cream crescent under it: dimmed through the lensed ring, as
 		// SIMPLIFIED's nest of dust hides its own

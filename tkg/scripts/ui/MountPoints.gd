@@ -214,6 +214,27 @@ func strays() -> Array[String]:
 	return out
 
 
+## EVERY FITTED PART'S DRAWN RECT IN THE HULL'S OWN CANVAS PIXELS, placed from
+## where the hull is drawn now: for the yard's stands (`YardScene._stand`), which
+## keep out from under a part hung below the belly -- a gun drawn across a
+## stand's cap reads as the gun standing on it.
+func part_rects_canvas() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	if _view == null:
+		return out
+	_place()
+	var c0 := _view.canvas_to_local(Vector2.ZERO)
+	var px := float(_view._k)
+	var k := _mag()
+	for s in _spots:
+		var m: ModuleData = s.held
+		if m == null:
+			continue
+		var r := part_rect(m, s.slot, s.at, k)
+		out.append(Rect2((r.position - c0) / px, r.size / px))
+	return out
+
+
 ## Whatever is on hardpoint `i` of `slot`, on whichever ship this is drawing.
 func _held(slot: ModuleData.Slot, i: int) -> ModuleData:
 	if ship == null:

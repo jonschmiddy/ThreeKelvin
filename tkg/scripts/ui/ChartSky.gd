@@ -103,6 +103,16 @@ static var pal_free := 12
 static var dith := 1.0
 ## The palette pass on (false shows the place before it; tuning).
 static var quant := true
+## WHAT A ZOOM CHANGES, switched off one cause at a time (tuning, `diag=N` in
+## ChartLook; 0 as made): 1 the core's glare control, 2 every star (the chart's
+## and those the disc resolves into), 4 the detail the zoom adds (octaves, fine
+## grain, the bakes' mip held at zoom 1's), 8 LEGACY's palette a zoom level as
+## before Oct 11, 16 the chart's own stars only, 32 the resolved stars only, 64
+## LEGACY's dust sheets drawn nearer as you zoom as before, 128 the hole's own
+## zoom terms (the squeezed ring's cooling, the disc's clumps), 256 the resolved
+## stars adding their light on top as before, 512 no stars' light laid back
+## (`_star_debt`), 1024 the hole's cooling as far out as before.
+static var diag := 0
 static var dith_gs := 0.006
 static var dith_coh := 0.5
 
@@ -864,6 +874,123 @@ func _add_knot_stars(g: Dictionary) -> void:
 	g["tex_a"] = _data_tex(a, n)
 	g["tex_b"] = _data_tex(b, n)
 	g["tex_c"] = _data_tex(c, n)
+	var t0 := Time.get_ticks_usec()
+	g["debt"] = _star_debt(g)
+	g.times["debt"] = (Time.get_ticks_usec() - t0) / 1000
+
+
+## THE STARS' LIGHT IS KEPT AS YOU ZOOM (Oct 11; Jon: the zoom "still changes a
+## little"). A star is one block, whatever the zoom, so the galaxy it covers
+## shrinks as you zoom in and its share of a patch's light with it: a patch of
+## the arms darkened 0.7 from zoom 1 to 4.5 as its stars went from blocks to
+## points. What the chart's stars no longer bring a patch, against what they
+## brought it at the opening, is laid back into the patch as the diffuse light of
+## stars too faint to see one by one (`chart_c_place`'s `starDebt`). This is the
+## stars' light a plane area at each of a run of zooms (each `chart_c_stars`
+## shows as that shader shows it, times the plane area of a block at that zoom,
+## less the 1 / zoom^2 the shader puts back), in a grid over the plane, the
+## zooms side by side.
+const DEBT_N := 48
+const DEBT_E := 1.25
+const DEBT_Z: Array[float] = [0.3, 0.42, 0.6, 0.85, 1.2, 1.7, 2.4, 3.4, 4.8, 6.8, 9.6]
+
+
+func _star_debt(g: Dictionary) -> ImageTexture:
+	var a: PackedFloat32Array = g.st_a
+	var b: PackedFloat32Array = g.st_b
+	var c: PackedFloat32Array = g.st_c
+	var n: int = g.n_star
+	var nz := DEBT_Z.size()
+	var N := DEBT_N
+	var br: float = g.p.bulge_r
+	var Ls := PackedFloat32Array()
+	var keeps := PackedFloat32Array()
+	var cz2 := PackedFloat32Array()
+	var kgs := PackedFloat32Array()
+	var ggs := PackedFloat32Array()
+	for z in DEBT_Z:
+		var lz := log(z)
+		Ls.append(150.0 if z <= 0.6 else (60.0 if z >= 3.0 else 150.0 + (60.0 - 150.0) * (lz - log(0.6)) / (log(3.0) - log(0.6))))
+		keeps.append(0.4 if z <= 0.6 else (1.0 if z >= 2.0 else 0.4 + 0.6 * (lz - log(0.6)) / (log(2.0) - log(0.6))))
+		cz2.append(_smooth(2.2, 4.0, z) * (0.55 + 0.9 * _smooth(3.0, 6.0, z)))
+		kgs.append(_smooth(0.9, 1.8, z))
+		ggs.append(1.0 - _smooth(1.6, 2.2, z))
+	var acc := PackedFloat32Array()
+	acc.resize(nz * N * N * 3)
+	acc.fill(0.0)
+	var plane := N * N * 3
+	for i in n:
+		var px := a[i * 4]
+		var py := a[i * 4 + 1]
+		var tx := int((px / DEBT_E * 0.5 + 0.5) * N)
+		var ty := int((py / DEBT_E * 0.5 + 0.5) * N)
+		if tx < 0 or ty < 0 or tx >= N or ty >= N:
+			continue
+		var at := (ty * N + tx) * 3
+		var lum := a[i * 4 + 2]
+		var kind := int(a[i * 4 + 3] + 0.5)
+		if kind <= 2:
+			var lumk := pow(lum / 255.0, 2.0) * 0.9 * 2.2
+			var hs := b[i * 4 + 3]
+			var inner := Vector2(px, py).length() < br
+			var core_k := 0.0
+			if kind == 1 and c[i * 4] >= 0.25:
+				core_k = pow(lum / 255.0, 1.2) * (0.5 + c[i * 4 + 1])
+			for zi in nz:
+				var z: float = DEBT_Z[zi]
+				var it := 0.0
+				var L := Ls[zi]
+				if lum >= L and not (kind == 1 and z < 2.0 and inner) and not (kind == 2 and z < 2.0):
+					var kk := keeps[zi] * (0.25 if kind == 1 else 1.0)
+					if hs < kk:
+						it = minf(1.0, (lum - L) / 30.0 + 0.15) * minf(1.0, (kk - hs) / 0.08 + 0.15) * lumk
+						if it > 1.5:
+							it *= 1.72
+				it += cz2[zi] * core_k
+				if it > 0.0:
+					var o := zi * plane + at
+					acc[o] += b[i * 4] * it
+					acc[o + 1] += b[i * 4 + 1] * it
+					acc[o + 2] += b[i * 4 + 2] * it
+		elif kind == 3:
+			var q := b[i * 4] * 0.9
+			for zi in nz:
+				if kgs[zi] > 0.0:
+					var o := zi * plane + at
+					acc[o] += 0.8 * q * kgs[zi]
+					acc[o + 1] += 0.9 * q * kgs[zi]
+					acc[o + 2] += 1.15 * q * kgs[zi]
+		else:
+			for zi in nz:
+				var amt := 0.5 * ggs[zi] * minf(1.3, lum / 60.0)
+				if amt <= 0.0:
+					continue
+				var q := amt
+				if b[i * 4 + 3] >= 0.0:
+					var d := (2.0 + 3.0 * sqrt(b[i * 4 + 1])) * DEBT_Z[zi] * 0.5
+					q = amt * (0.10 + 0.14 * b[i * 4 + 2]) * minf(1.0, d / 1.2)
+				var o := zi * plane + at
+				acc[o] += q
+				acc[o + 1] += q * (0.88 if b[i * 4 + 3] < 0.0 else 0.9)
+				acc[o + 2] += q * (0.72 if b[i * 4 + 3] < 0.0 else 0.76)
+	# a block's plane area times zoom^2, over a texel's; softened as the stars are;
+	# laid out as an image, the zooms side by side (read bilinear: smooth enough)
+	var k := 4.0 / (K0 * K0 * TILT) / pow(2.0 * DEBT_E / N, 2.0)
+	var out := PackedFloat32Array()
+	out.resize(nz * N * N * 3)
+	for zi in nz:
+		for y in N:
+			for x in N:
+				var o := zi * plane + (y * N + x) * 3
+				var r := acc[o] * k
+				var gg := acc[o + 1] * k
+				var bb := acc[o + 2] * k
+				var l := 0.2126 * r + 0.7152 * gg + 0.0722 * bb
+				var w := (y * N * nz + zi * N + x) * 3
+				out[w] = l + (r - l) / 1.5
+				out[w + 1] = l + (gg - l) / 1.5
+				out[w + 2] = l + (bb - l) / 1.5
+	return ImageTexture.create_from_image(Image.create_from_data(N * nz, N, false, Image.FORMAT_RGBF, out.to_byte_array()))
 
 
 static func _data_tex(f: PackedFloat32Array, n: int) -> ImageTexture:
@@ -1238,6 +1365,11 @@ func _runtime() -> void:
 		_m_place.shader = PLACE_LOW_SH if _low_now else PLACE_SH
 		_feed_static(_m_place, g)
 	_m_place.set_shader_parameter("u_stars", _svp.get_texture())
+	if g.has("debt"):
+		_m_place.set_shader_parameter("u_debt", g.debt)
+		_m_place.set_shader_parameter("u_debtP", Vector4(log(DEBT_Z[0]), float(DEBT_Z.size() - 1) / (log(DEBT_Z[-1]) - log(DEBT_Z[0])),
+			float(DEBT_Z.size()), DEBT_E))
+		_m_place.set_shader_parameter("u_debtOn", not (diag & 512))
 	_place = _rect(_m_place)
 	_pvp.add_child(_place)
 	# never cleared: the composite holds a block's colour from the frame before
@@ -1292,7 +1424,8 @@ func _feed_view(m: ShaderMaterial, _g: Dictionary, vsz: Vector2, origin: Vector2
 	m.set_shader_parameter("u_zoom", z)
 	m.set_shader_parameter("u_time", t)
 	m.set_shader_parameter("u_phi", phi)
-	var block_gu := 2.0 / (z * K0)
+	m.set_shader_parameter("u_diag", diag)
+	var block_gu := 2.0 / ((minf(z, 1.0) if diag & 4 else z) * K0)
 	m.set_shader_parameter("u_lod", Vector2(maxf(0.0, log(block_gu / (2.0 * EXT / NOISE_N)) / log(2.0) + LODB),
 		maxf(0.0, log(block_gu / (2.0 * EXT / STRUCT_N)) / log(2.0) + LODB)))
 
@@ -1665,6 +1798,8 @@ func _push() -> void:
 		return
 	var m := _m_place
 	_feed_view(m, g, vs, _vp_origin, ccon, res, z, t, phi)
+	# (the title screen's galaxy, which never zooms, is its own opening)
+	m.set_shader_parameter("u_zopen", StarchartScreen.MapChart.ZOOM_MIN * k / K0 if _use_map else z)
 	_feed_sky(m)
 	m.set_shader_parameter("u_block0", b0)
 	_feed_events(m, g, t, phi, z, true)
@@ -1676,6 +1811,7 @@ func _push() -> void:
 	ms.set_shader_parameter("cpix", ccon)
 	ms.set_shader_parameter("res", res)
 	ms.set_shader_parameter("zoom", z)
+	ms.set_shader_parameter("diag", diag)
 	ms.set_shader_parameter("phi", phi)
 	ms.set_shader_parameter("kn_amp", g._amps)
 	var ex: Array = _cloud_stars(g, t, phi, ccon, z, _vp_origin)

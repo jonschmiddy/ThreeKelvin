@@ -38,6 +38,7 @@ uniform vec2 vp_origin = vec2(-2.0);
 uniform vec2 cpix = vec2(327.0, 214.0);
 uniform vec2 res = vec2(655.0, 429.0);
 uniform float zoom = 0.42;     // effective, in the showcase's units
+uniform int diag = 0;          // (tuning: 2 or 16 draw no stars, `ChartSky.diag`)
 uniform float k = 622.25;
 uniform float phi = 0.0;
 uniform float bulge_r = 0.128;
@@ -150,7 +151,7 @@ void vertex() {
 		col = extra_col[e].rgb;
 		plus = extra_pos[e].z;
 	}
-	col = soften(col);
+	col = (diag & 18) != 0 ? vec3(0.0) : soften(col);
 	v_col = col;
 	v_plus = plus;
 	// a plus covers the 3x3 round its block; a plain star its own block

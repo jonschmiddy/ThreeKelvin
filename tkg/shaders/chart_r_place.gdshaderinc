@@ -39,6 +39,41 @@ uniform vec2 u_cpix = vec2(327.0, 214.0);
 uniform vec2 u_res = vec2(655.0, 429.0);
 uniform vec2 u_block0 = vec2(0.0);
 uniform float u_zoom = 0.42;
+// (tuning, `ChartSky.diag`: 1 no glare control, 2 no stars, 4 no added detail)
+uniform int u_diag = 0;
+// THE STARS' LIGHT KEPT AS YOU ZOOM (`ChartSky._star_debt`): what the chart's
+// stars bring a plane area at a zoom, from the bake's run of zooms; the light
+// they brought at the opening less what they bring now goes back into the
+// patch as diffuse starlight, so a patch is as bright as at the opening.
+uniform sampler2D u_debt : filter_linear, repeat_disable;
+uniform vec4 u_debtP = vec4(0.0, 1.0, 1.0, 1.25);   // ln first zoom, steps per ln, zooms, plane half-width
+uniform bool u_debtOn = false;
+uniform float u_zopen = 0.42;
+vec3 debtAt(vec2 p, float z) {
+	float f = clamp((log(z) - u_debtP.x) * u_debtP.y, 0.0, u_debtP.z - 1.0);
+	float i0 = floor(f);
+	float i1 = min(i0 + 1.0, u_debtP.z - 1.0);
+	float N = float(textureSize(u_debt, 0).y);
+	vec2 uv = clamp(p / u_debtP.w * 0.5 + 0.5, vec2(0.5 / N), vec2(1.0 - 0.5 / N));
+	// (nothing past the table's edge: read clamped there, a star in an edge texel
+	// was smeared out to infinity along the clamped axis, and drew a slanted beam
+	// of faint light down from the top of the view into the galaxy, Jon, Oct 11)
+	vec2 q = abs(p / u_debtP.w);
+	float inside = 1.0 - smoothstep(0.88, 0.98, max(q.x, q.y));
+	vec3 s0 = texture(u_debt, vec2((i0 + uv.x) / u_debtP.z, uv.y)).rgb;
+	vec3 s1 = texture(u_debt, vec2((i1 + uv.x) / u_debtP.z, uv.y)).rgb;
+	return mix(s0, s1, f - i0) / (z * z) * inside;
+}
+vec3 starDebt(vec2 p) {
+	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
+		return vec3(0.0);
+	}
+	// (less here than SIMPLIFIED's: RADIANT's brighter exposure clips a star's
+	// block, so a star was worth less to its patch than its light says; measured,
+	// the whole of it brightened a patch of the arms 0.5 past where it started)
+	return max(debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom), vec3(0.0)) * 0.6 * smoothstep(0.10, 0.22, length(p));
+}
+
 uniform float u_k = 622.25;
 uniform float u_time = 0.0;
 uniform float u_phi = 0.0;
@@ -571,9 +606,12 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 		float dzp = smoothstep(0.0005, 0.00028, R.FP);
 		det = dzp > 0.0 ? nz(vec3(pP * 34.0, 0.37)).g * dzp : 0.0;
 	}
+	if ((u_diag & 4) != 0) {
+		det = 0.0;
+	}
 	vec3 oldC = mix(u_oldIn, u_oldOut, smoothstep(0.08, 0.36, rP));
 	float tail = 0.05 * exp(-rP / 0.6) * smoothstep(0.85, 1.15, rP) * (1.0 - smoothstep(1.15, 1.85, rP));
-	vec3 Ed = u_discK.x * (dA.r * R.KB + tail) * oldC * cav + u_discK.y * dA.g * u_youngCol * (1.0 + 0.6 * det) + u_discK.z * dA.b * HA * (1.0 + 0.8 * det);
+	vec3 Ed = u_discK.x * (dA.r * (u_stars_on ? 1.0 : R.KB) + tail) * oldC * cav + u_discK.y * dA.g * u_youngCol * (1.0 + 0.6 * det) + u_discK.z * dA.b * HA * (1.0 + 0.8 * det);
 	// the knots: pink gathered light on the arms' fronts, each breathing, now and then blooming
 	float px = 1.0 / (u_zoom * u_k);
 	int ki = u_nkn > 0 && max(abs(pP.x), abs(pP.y)) < u_ext * 0.995 ? int(texture(u_knotMap, kitMapUV(pP, u_ext)).r * 255.0 + 0.5) - 1 : -1;
@@ -622,20 +660,22 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 	if (u_stars_on && sb.x >= 0 && sb.y >= 0 && sb.x < int(u_vp_size.x) && sb.y < int(u_vp_size.y)) {
 		st += texelFetch(u_stars, sb, 0).rgb;
 	}
+	st += starDebt(pP);
 	// deep in, the nucleus resolves into stars, and the arms into their own stars
 	// as you zoom (the showcase's A): fixed in the plane, as many as the arm's own
 	// light, each keeping its place so nothing pops
 	vec2 qs = kitRot(u_phi) * pP;
 	vec2 qv = vec2(qs.x, qs.y * KIT_TILT) * u_k;
 	float blkv = 2.0 / u_zoom;
-	float nzf = smoothstep(2.2, 4.5, u_zoom) * (1.0 - smoothstep(0.07, 0.18, rP));
+	float rsOn = (u_diag & 32) != 0 ? 0.0 : 1.0;
+	float nzf = rsOn * smoothstep(2.2, 4.5, u_zoom) * (1.0 - smoothstep(0.07, 0.18, rP));
 	if (nzf > 0.0) {
 		vec4 ns = kitStar(qv, blkv, 3.2, 0.42, 77);
 		if (ns.x > 0.5) {
 			st += kitStarTint(0.25 + 0.5 * ns.z) * (0.2 + 1.5 * pow(ns.y, 3.0)) * nzf;
 		}
 	}
-	float rzf = smoothstep(1.5, 3.0, u_zoom) * smoothstep(0.07, 0.16, rP);
+	float rzf = rsOn * smoothstep(1.5, 3.0, u_zoom) * smoothstep(0.07, 0.16, rP);
 	if (rzf > 0.0) {
 		float prob = clamp(dA.g * 0.9 + dA.r * 0.2, 0.0, 0.32);
 		vec4 rs = kitStar(qv, blkv, 2.4, prob, 191);
@@ -655,9 +695,24 @@ void planeEvent(in Ray R, vec2 pP, ivec2 sb, vec3 bF, vec3 bB, inout vec3 C, ino
 			}
 		}
 	}
+	// THEIR LIGHT WAS ALREADY THERE (Oct 11): the stars the zoom resolves take their
+	// light from the field round them -- less what they bring a block on average,
+	// so a patch is as bright with them as without, its light only gathered into
+	// points (they used to add theirs on top, and a patch brightened as you zoomed)
+	if (u_stars_on && (u_diag & 256) == 0) {
+		float b1 = blkv / 3.2, b2 = blkv / 2.4, b3 = blkv / 1.2;
+		vec3 em = kitStarTint(0.5) * (0.42 * min(b1 * b1, 1.0) * 0.575) * nzf;
+		if (rzf > 0.0) {
+			float prob = clamp(dA.g * 0.9 + dA.r * 0.2, 0.0, 0.32);
+			float yng = dA.g / max(dA.g + dA.r * 0.35, 1e-4);
+			vec3 ta = mix(kitStarTint(0.4), kitStarTint(0.86), yng);
+			em += ta * prob * (min(b2 * b2, 1.0) * 0.215 + min(b3 * b3, 1.0) * 0.137 * smoothstep(3.5, 5.8, u_zoom)) * rzf;
+		}
+		st -= em;
+	}
 	// (thinned where the hole's lens packs the sky: a star read through the lens
 	// jumps from block to block as the zoom moves, most of the hole's flicker)
-	C += T * st * sqrt(att) * (1.0 - smoothstep(0.15, 0.8, R.LA));
+	C = max(C + T * st * sqrt(att) * (1.0 - smoothstep(0.15, 0.8, R.LA)) * ((u_diag & 2) != 0 ? 0.0 : 1.0), vec3(0.0));
 	T *= att;
 	C += T * bB;
 }
@@ -674,6 +729,10 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 	// (the second came in only past the closest zoom, so never: at half its old
 	// frequency, from zoom 2.9 to 5.4, its features still three blocks or more)
 	R.WHI2 = u_stars_on ? smoothstep(0.0011, 0.0006, R.FP) : smoothstep(0.0004, 0.00022, R.FP);
+	if ((u_diag & 4) != 0) {
+		R.WHI = 0.0;
+		R.WHI2 = 0.0;
+	}
 	R.TM = u_time * 0.0016 * u_drift;
 	R.DXY = R.RG * vec2(0.0, KIT_RAY_DY);
 	R.LA = la;
@@ -782,8 +841,14 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 		vec3 co = mix(u_bInner, u_bOuter, smoothstep(0.03, 0.2, rr));
 		bF = ci * in1.x + co * out2.x;
 		bB = ci * in1.y + co * out2.y;
-		// deep in, the eye adapts: the nucleus's glow eases back round the hole
-		R.KB = 1.0 - u_kb * smoothstep(1.8, 5.5, u_zoom) * (1.0 - smoothstep(0.1, 0.5, rr));
+		// deep in, the eye adapts: the nucleus's glow eases back round the hole (the
+		// core's own glare, the one thing the zoom still turns down; Oct 11 it stopped
+		// touching the disc's old stars round it, which kept their light: `planeEvent`)
+		// (only on the gold itself, inside 0.18: out to 0.5 it dimmed the bulge's
+		// faint light over the gas just outside it, which darkened 0.7 as you zoomed;
+		// the palette's probes as before, so the cut is the approved one)
+		float kbM = u_stars_on ? 1.0 - smoothstep(0.04, 0.18, rr) : 1.0 - smoothstep(0.1, 0.5, rr);
+		R.KB = 1.0 - u_kb * ((u_diag & 1) != 0 ? 0.0 : 1.0) * smoothstep(1.8, 5.5, u_zoom) * kbM;
 		bF *= R.KB;
 		bB *= R.KB;
 	}
@@ -879,7 +944,7 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 		if (vol && r < 1.32) {
 			vec4 dB = discB(pg.xy);
 			float d3 = length(pg);
-			float hz = u_gasK.y * exp(-abs(pg.z) / 0.05) * smoothstep(0.85, 0.12, r) * smoothstep(0.03, 0.09, d3) * (1.0 - 0.8 * smoothstep(1.6, 3.5, u_zoom));
+			float hz = u_gasK.y * exp(-abs(pg.z) / 0.05) * smoothstep(0.85, 0.12, r) * smoothstep(0.03, 0.09, d3) * (1.0 - 0.8 * smoothstep(1.6, 3.5, u_zoom) * (u_stars_on ? 0.0 : 1.0));   // (the haze no longer thins as you zoom; probes as before)
 			float rb = billows ? billowDens(R, pg, dB, 1.0) : 0.0;
 			if (rb > 0.002) {
 				rb *= remClear(R, pg);
@@ -1031,14 +1096,14 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	}
 	// SIMPLIFIED's hole: what lies behind squeezed dark and cooler near the shadow,
 	// the disc's light on what is round it, the shadow cut, the disc laid over
-	C *= lh_cool(S, smoothstep(3.0, 6.0, u_zoom)) * lh_squeeze(S);
+	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0 || !u_stars_on) * lh_squeeze(S);
 	// light through gas: what the lens packs into a thin ring is seen through
 	// more of the hole's dim surroundings, so it is dimmed as it is squeezed
 	// (unlit, the bulge's bands repeated under the hole as bright rings)
 	C /= 1.0 + 0.6 * max(lensSqueeze(S) - 1.0, 0.0);
 	C += u_holeLight * 0.4 * lh_glow(S);
 	float cap;
-	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom), u_time, smoothstep(2.6, 4.0, u_zoom), lh_hot(u_time, u_wxOn), cap);
+	vec4 d = lh_disc(S, lh_px_rs(shadow * u_zoom), u_time, smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), lh_hot(u_time, u_wxOn), cap);
 	C *= 1.0 - cap;
 	if (d.a > 0.004) {
 		C = C * (1.0 - d.a) + lh_exact_hdr(d.rgb, u_exp) * d.a;

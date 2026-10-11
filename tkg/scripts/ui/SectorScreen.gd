@@ -2601,7 +2601,7 @@ func ladder_cam(k: float) -> void:
 			hall_fly = 0.0
 			kc = 0.0
 			follow = 0.0
-			bob = roundf(sin(TAU * 0.45 * t) * sin(PI * uw))
+			bob = roundf(sin(TAU * 0.45 * t) * sin(PI * uw)) * WAIT_BOB_PX
 		else:
 			# THEN IN, ONE MOVE (the dock Jon approved): from where it sits, slowly
 			# at first, gathering speed up to the mouth and down the hallway and on
@@ -2704,6 +2704,8 @@ const HALL_FOLLOW := 0.5
 ## `WAKE_POWER_BY` of the wake, and the warning lights go green at `WARN_CLEAR`
 ## of it. Undocking, the station stays lit until your ship is `UNDOCK_LIT_TO` of
 ## its way back out.
+## your ship's bob while it waits, screen px either way (whole pixels)
+const WAIT_BOB_PX := 1.0
 const WAKE_POWER_BY := 0.85
 const WARN_CLEAR := 0.86
 const UNDOCK_LIT_TO := 0.35

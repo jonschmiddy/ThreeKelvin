@@ -416,14 +416,15 @@ func _row_dial(label: String, key: String) -> Control:
 	k.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(k)
 	var v := ZoomLadder.dial(key)
-	var step := 0.05 if key.begins_with("ui_") else 0.1
+	var px := key.ends_with("_px")
+	var step := 6.0 if px else (0.05 if key.begins_with("ui_") else 0.1)
 	var row := _chips()
 	row.size_flags_horizontal = Control.SIZE_SHRINK_END
 	row.add_child(DrawerPlate.chip_for("-", false, func() -> void:
 		ZoomLadder.set_dial(key, ZoomLadder.dial(key) - step)
 		_refresh()))
 	var same := absf(v - ZoomLadder.dial_default(key)) < 0.001
-	var val := UITheme.body("%.2f" % v, UITheme.ICE if same else UITheme.HOT, UITheme.FS_SMALL)
+	var val := UITheme.body(("%d" % roundi(v)) if px else ("%.2f" % v), UITheme.ICE if same else UITheme.HOT, UITheme.FS_SMALL)
 	val.custom_minimum_size = Vector2(34, 0)
 	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	val.size_flags_vertical = Control.SIZE_SHRINK_CENTER

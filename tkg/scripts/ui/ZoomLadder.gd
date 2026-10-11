@@ -112,6 +112,12 @@ static var ELEVATOR_S := 0.8
 ## black, the new screen built in the black, and up from it. No camera.
 static var FADE_OUT_S := 0.3
 static var FADE_IN_S := 0.45
+## THE HANDOFF DISC (1A, 2C, GO): the radius, screen px at the swap, of the soft
+## disc round the focus -- your star, the world you orbit -- that carries the
+## screen being left into the one arriving. Jon: "the circle is better.... but
+## it's still WAYYY too big". 0 is the focus object and a thin halo round it,
+## which is Jon's pick of three sizes filmed (Oct 11, "Circle: C").
+static var DISC_PX := 0.0
 
 ## The dials as Settings lists them: [key in `[flow]`, its name, the static var
 ## it sets, least, most]. The default is the var's own value at load.
@@ -132,6 +138,7 @@ const DIALS := [
 	["undock_local_s", "UNDOCK: OUT OF THE HULL", "UNDOCK_LOCAL_S", 1.0, 8.0],
 	["fade_out_s", "CHART - LOCAL: TO BLACK", "FADE_OUT_S", 0.05, 2.0],
 	["fade_in_s", "CHART - LOCAL: UP FROM BLACK", "FADE_IN_S", 0.05, 2.0],
+	["handoff_disc_px", "HANDOFF DISC SIZE (PX)", "DISC_PX", 0.0, 400.0],
 	["light_off", "STATION OFF", "LIGHT_OFF", 0.0, 1.0, "lights"],
 	["light_on", "STATION ON", "LIGHT_ON", 0.6, 2.0, "lights"],
 	["light_glow", "LAMP GLOW", "LIGHT_GLOW", 0.0, 4.0, "lights"],
@@ -194,6 +201,7 @@ static func _dial_get(var_name: String) -> float:
 		"ELEVATOR_S": return ELEVATOR_S
 		"FADE_OUT_S": return FADE_OUT_S
 		"FADE_IN_S": return FADE_IN_S
+		"DISC_PX": return DISC_PX
 		"UNDOCK_YARD_S": return UNDOCK_YARD_S
 		"UNDOCK_LOCAL_S": return UNDOCK_LOCAL_S
 	return 0.0
@@ -218,6 +226,7 @@ static func _dial_set(var_name: String, v: float) -> void:
 		"ELEVATOR_S": ELEVATOR_S = v
 		"FADE_OUT_S": FADE_OUT_S = v
 		"FADE_IN_S": FADE_IN_S = v
+		"DISC_PX": DISC_PX = v
 		"UNDOCK_YARD_S": UNDOCK_YARD_S = v
 		"UNDOCK_LOCAL_S": UNDOCK_LOCAL_S = v
 
@@ -1599,6 +1608,8 @@ func _start_move() -> void:
 		# (the chart's mark for your star)
 		fh = Vector3(_a_old.x, _a_old.y, 14.0)
 	_mat.set_shader_parameter(&"focus_hole", fh)
+	_mat.set_shader_parameter(&"disc_r0", DISC_PX)
+	_mat.set_shader_parameter(&"focus_r", maxf((fh.z - 3.0) / 1.35, 0.0) if fh.z > 0.0 else 0.0)
 
 	if bool(_style.hull) and new.has_method(&"ladder_hull"):
 		_hull_to = new.call(&"ladder_hull")
@@ -1683,6 +1694,13 @@ func _step(u: float) -> void:
 	_mat.set_shader_parameter(&"from_pt", from)
 	_mat.set_shader_parameter(&"to_pt", to)
 	_mat.set_shader_parameter(&"scl", scl)
+	# 2C OUT: THE MAP'S OWN WORLD KEPT UNDER THE HELD PICTURE until the move
+	# lands. With a small handoff disc it showed beside LOCAL's carried world
+	# -- two worlds -- for most of the move.
+	if bool(_style.get("world", false)) and r_new < r_old and new.has_method(&"ladder_world"):
+		var wn: Dictionary = new.call(&"ladder_world")
+		if not wn.is_empty():
+			_mat.set_shader_parameter(&"cover", Vector3((wn.c as Vector2).x, (wn.c as Vector2).y, float(wn.r) * 1.4 + 6.0))
 	if not bool(_style.plane):
 		_mat.set_shader_parameter(&"c", to)
 	# the held picture goes on a slightly faster curve than the camera, so the

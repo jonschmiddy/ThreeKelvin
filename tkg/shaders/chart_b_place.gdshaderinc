@@ -34,6 +34,38 @@ uniform vec2 u_cpix = vec2(327.0, 214.0);
 uniform vec2 u_res = vec2(655.0, 429.0);
 uniform vec2 u_block0 = vec2(0.0);
 uniform float u_zoom = 0.42;
+// (tuning, `ChartSky.diag`: 1 no glare control, 2 no stars, 4 no added detail)
+uniform int u_diag = 0;
+float zDet() { return (u_diag & 4) != 0 ? min(u_zoom, 1.0) : u_zoom; }
+// THE SPARKLES' LIGHT KEPT AS YOU ZOOM (`ChartPainted._star_debt`): a sparkle is a
+// sprite of a few blocks at every zoom, so the galaxy it lights shrinks as you
+// zoom in; what the sparkles no longer bring a patch against the opening goes
+// back into its gas as light, so the patch keeps its light.
+uniform sampler2D u_debt : filter_linear, repeat_disable;
+uniform vec4 u_debtP = vec4(0.0, 1.0, 1.0, 1.25);
+uniform bool u_debtOn = false;
+uniform float u_zopen = 0.42;
+float debtAt(vec2 p, float z) {
+	float f = clamp((log(z) - u_debtP.x) * u_debtP.y, 0.0, u_debtP.z - 1.0);
+	float i0 = floor(f);
+	float i1 = min(i0 + 1.0, u_debtP.z - 1.0);
+	float N = float(textureSize(u_debt, 0).y);
+	vec2 uv = clamp(p / u_debtP.w * 0.5 + 0.5, vec2(0.5 / N), vec2(1.0 - 0.5 / N));
+	// (nothing past the table's edge: read clamped there, a star in an edge texel
+	// was smeared out to infinity along the clamped axis, and drew a slanted beam
+	// of faint light down from the top of the view into the galaxy, Jon, Oct 11)
+	vec2 q = abs(p / u_debtP.w);
+	float inside = 1.0 - smoothstep(0.88, 0.98, max(q.x, q.y));
+	float s0 = texture(u_debt, vec2((i0 + uv.x) / u_debtP.z, uv.y)).r;
+	float s1 = texture(u_debt, vec2((i1 + uv.x) / u_debtP.z, uv.y)).r;
+	return mix(s0, s1, f - i0) / (z * z) * inside;
+}
+float starDebtB(vec2 p) {
+	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
+		return 0.0;
+	}
+	return max(debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom), 0.0);
+}
 uniform float u_time = 0.0;
 uniform float u_wxOn = 1.0;
 // events, as held poses (ChartSky._feed_b_events)
@@ -43,7 +75,6 @@ uniform vec4 u_lt[12];             // lightning per cloud: pose (0 none, 1 bolt,
 uniform float u_glim = 0.0;        // the glimmers' stepped angle
 uniform float u_shaft = 0.0;       // the shafts' stepped angle
 uniform float u_flow = 0.0;        // the currents' clock (halved under reduced motion)
-uniform float u_laneThin = 0.0;    // the dust lane thinned inside the bulge (`ChartPainted.lane_thin`)
 
 #define M_SKY 0
 #define M_ARM 1
@@ -76,7 +107,7 @@ struct Px { ivec2 blk; ivec2 dq; };
 vec2 gpan() { return (u_res * 0.5 - u_cpix) / u_zoom; }
 vec2 scr(vec2 v) { return u_cpix + v * u_zoom; }
 ivec2 blockOf(vec2 s) { return ivec2(floor((s - u_vp_origin) * 0.5)); }
-float blockView() { return 2.0 / u_zoom; }
+float blockView() { return 2.0 / zDet(); }
 
 struct Cand { int m; float lv; int sid; float aux; float y; };
 float rampY(int m, float lv) {
@@ -113,7 +144,10 @@ vec2 dirTo(vec2 from, vec2 to) {
 // a star field anchored in the plane; each star lands in exactly one block
 vec4 planeStar(vec2 g, vec2 v, float cell, float prob, int seed) {
 	vec4 r = vec4(0.0);
-	float bv = blockView();
+	float bv = 2.0 / u_zoom;
+	if ((u_diag & 34) != 0) {
+		return r;
+	}
 	ivec2 c0 = ivec2(floor(g / cell));
 	for (int j = -1; j <= 1; j++) {
 		for (int i = -1; i <= 1; i++) {
@@ -161,7 +195,7 @@ int holeAt(vec2 v, out Cand hc, out float cov, out bool shad) {
 		return 0;
 	}
 	float pxr = lh_px_rs(shadow * u_zoom);
-	float clumps = smoothstep(2.6, 4.0, u_zoom);
+	float clumps = smoothstep(2.6, 4.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0);
 	vec3 hot = lh_hot(u_time, u_wxOn);
 	vec3 acc = vec3(0.0);
 	for (int j = 0; j < 4; j++) {
@@ -282,7 +316,7 @@ Cand shadePuff(Puff p, vec2 dg, out float alpha) {
 	vec2 Ls = normalize(vec2(lv2.x, lv2.y * KIT_TILT - L.z * KIT_TILT_COS));
 	vec3 V = normalize(vec3(dg, 1.0));
 	bool edge = abs(dot(p.n, V)) < 0.45;
-	float big = p.R * u_k * u_zoom / 2.0;
+	float big = p.R * u_k * zDet() / 2.0;
 	int sid = big >= 3.5 ? int(p.id * 255.0 + 0.5) : 0;
 	Cand c = cand(warm ? M_BILLOW : M_ARM, lv, sid, auxOf(Ls, edge));
 	float a = mix(0.25, 1.0, smoothstep(0.12, 0.5, p.h / max(p.top, 1e-3)));
@@ -529,6 +563,15 @@ bool reflectionAt(Px P, vec2 v, int i, float blk, float bubble, Cand under, out 
 	return true;
 }
 
+// A SHELL KEEPS ITS PROPORTIONS AS YOU ZOOM (Oct 11): its bands were a fixed
+// number of pixels, two at least, so the small shell the opening shows was all
+// band -- a filled teal disc -- and zoomed in the same bands were a thin wire round
+// an empty middle, the patch round it a different colour. Now each band's least
+// width grows with the zoom past zoom 1 (`kzO`), so a shell deep in is the one
+// zoom 1 draws, magnified, and only past that do its bands follow its own size.
+// (Out from zoom 1 to the opening a shell is a few pixels across, its bands the
+// least that can be drawn, as before.)
+float kzO() { return max(1.0, u_zoom); }
 float shellPx(float reach, vec2 cs2) {
 	vec2 e = kitRot(u_phi) * cs2;
 	return reach * u_k * u_zoom * length(vec2(e.x, 0.46341 * e.y));
@@ -553,7 +596,7 @@ bool remnantAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 	for (int j = 0; j < 3; j++) {
 		float fj = float(j);
 		float rj = Rth + (fj - 1.6) * 0.055 + 0.022 * sin(an * (3.0 + 2.0 * fj) + seed + fj * 2.1 + 2.0 * kitSnoise2(cs2 * 1.6 + vec2(fj * 3.3, seed)));
-		float th = max(1.0, 0.014 * pxs) * (0.8 + 0.4 * (0.5 + 0.5 * kitSnoise2(cs2 * 2.6 + vec2(fj * 5.1, seed))));
+		float th = max(kzO(), 0.014 * pxs) * (0.8 + 0.4 * (0.5 + 0.5 * kitSnoise2(cs2 * 2.6 + vec2(fj * 5.1, seed))));
 		float gap = kitSnoise2(cs2 * 2.0 + vec2(fj * 5.3 - seed, fj * 2.1));
 		if (gap < -0.4) {
 			continue;
@@ -583,7 +626,7 @@ bool remnantAt(vec2 v, int i, float blk, Cand under, out Cand c) {
 	float dg = (rr - Rth) * pxs;
 	float open = kitSnoise2(cs2 * 2.0 + vec2(-seed, 0.0));
 	// the shell thins to a point where it opens, never a cut-off end
-	float gw = max(2.0, 0.075 * pxs) * smoothstep(-0.55, -0.25, open);
+	float gw = max(2.0 * kzO(), 0.075 * pxs) * smoothstep(-0.55, -0.25, open);
 	float gl2 = kitSnoise2(cs2 * 5.0 + vec2(rr * 6.0, seed * 0.7));
 	if (gw > 0.5 && dg < gw * 0.7 && dg > -gw * 2.2) {
 		if (dg > -gw * 0.45) {
@@ -621,7 +664,7 @@ bool planetaryAt(Px P, vec2 v, int i, float blk, out Cand c) {
 	}
 	// the bands keep B's 2-2-2 block widths on a small shell and grow with a
 	// near one (zoomed in, a 4-px ring round an empty middle reads as a wire)
-	float wb = max(2.0, 0.035 * pxs);
+	float wb = max(2.0 * kzO(), 0.035 * pxs);
 	if (dpx > 1.0 && dpx <= 1.0 + wb) {
 		c = cand(M_HA, 0.72, 203, 0.0);
 		return true;
@@ -630,7 +673,7 @@ bool planetaryAt(Px P, vec2 v, int i, float blk, out Cand c) {
 		c = cand(M_O3, dpx > 1.0 - wb ? 0.92 : 0.66, 203, 0.0);
 		return true;
 	}
-	float wf = max(2.0, 0.06 * pxs) + max(0.0, 0.22 * pxs - 20.0);
+	float wf = max(2.0 * kzO(), 0.06 * pxs) + max(0.0, 0.22 * pxs - 20.0 * kzO());
 	if (dpx > 1.0 - 2.0 * wb - wf && dpx <= 1.0 - 2.0 * wb) {
 		// the shell's inner glow, dithered thinner toward the middle
 		float u = (1.0 - 2.0 * wb - dpx) / wf;
@@ -922,27 +965,13 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		float rc = armB ? u_g7.y : u_g7.x;
 		seg *= 1.0 - u_g7.w + u_g7.w * 1.6 * exp(-sq((ar - rc) / u_g7.z));
 	}
+	// NO DUST LANE (Jon, Oct 10: "Can't the line go away entirely? It's weird and
+	// doesn't make sense that a clear line in the dust exists"). The arms' inner
+	// lanes were drawn as a band a block or two wide -- dark dust (or the halo's
+	// shade) with a lit lip beside it -- that ran round the bulge's gold as a hard
+	// arc and on across the arms. They are gone: no band, no lip, and the light they
+	// dimmed (`T`, `TS`) left as it is, so nothing marks where they were.
 	float lane = 0.0, laneS = 0.0, lip = 0.0;
-	if (!ellip && u_g1.z > 0.0 && u_g1.y > 0.0) {
-		float lw = (0.0075 + 0.008 * r) * (0.7 + 0.6 * kitVnoise2(vec2(al * 0.9, 3.0)));
-		// (option B: thinned inside the bulge, where it crosses the gold as an arc)
-		lw *= 1.0 - 0.75 * u_laneThin * (1.0 - smoothstep(0.10, 0.30, r));
-		float lc = (0.86 + 0.2 * kitSnoise2(vec2(al * 0.5, 7.0))) * wp + 0.3 * lw;
-		float brk = smoothstep(0.3, 0.46, kitVnoise2(vec2(al * 1.4, 11.0)));
-		float dd = abs(dp - lc) / lw;
-		// (octaves past the third come in only as the zoom resolves them: up close the
-		// lanes' edges and the arms' clumps keep breaking up instead of flattening)
-		float fe = flowFbm(g, 60.0, vec2(0.0), blk, low ? 3 : 5);
-		float win = brk * u_g1.z * smoothstep(0.03, 0.065, r) * smoothstep(0.72, 0.5, r);
-		// no lanes inside a bar: there every ridge is the bar's straight line, and the
-		// lane rule would lay the whole bar zone down as one dust plate
-		if (u_g0.z > 0.0) {
-			win *= smoothstep(u_g0.z * 0.95, u_g0.z * 1.15, r);
-		}
-		lane = (1.0 - smoothstep(0.75, 1.15, dd - 0.22 * fe * step(dp, lc))) * win;
-		laneS = (1.0 - smoothstep(0.75, 1.15, dd)) * win;
-		lip = step(lc, dp) * smoothstep(1.0, 1.25, dd) * smoothstep(2.4, 1.8, dd) * win;
-	}
 	float Ed, EdS, warmD;
 	if (!ellip) {
 		float env = 0.42 * exp(-r / 0.28) + 0.022 * exp(-r / 0.75);
@@ -990,14 +1019,29 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	float hR = u_g3.z;
 	float rp = length(vec2(v.x, v.y / 0.5)) / k;
 	float clearZ = smoothstep(1.5, 5.0, u_zoom);
-	float adapt = 120.0 * clearZ * sqrt(clearZ);
+	// ZOOMING ONLY MAGNIFIES (Jon, Oct 11: "why do the clouds change at all when you
+	// zoom in?"). From zoom 1.5 an exposure for the bulge (`adapt`, up to 120) used
+	// to divide the light of everything near it -- the gold and the arms' gas
+	// beside it alike -- so the core went to dark red and brown and the gas round it
+	// to navy and near sky as you zoomed (the navy band; the dark space deep in), and
+	// the warm side swapped its clumpy light for the smooth one. Now a patch keeps
+	// the light it has at the opening zoom, and zooming in only adds what the zoom
+	// resolves (the stars here, the finer octaves, the swirl's streaks below, which
+	// brighten and darken about the light they cross and never shift it). The one
+	// thing still turned down is the core's own glare: `adaptW`, on the gold alone
+	// (the warm side's own level), so it does not wash out round the hole: gently,
+	// so the gold stays gold. At 120 it took the whole bulge to dark maroon by zoom
+	// 4 (every bright level squashed to the bottom step); at 8 the brightest gold
+	// tops out about two-thirds up the ramp and the dim edge keeps its zoom 1 level.
+	float adapt = 0.0;
+	float adaptW = (u_diag & 1) != 0 ? 0.0 : 8.0 * clearZ * sqrt(clearZ);
 	float clearK = clearZ * exp(-sq(rho / (1.6 * u_g4.x)));
 	float holeL = 1.0 / (1.0 + sq(rp / (0.9 * hR)));
 	float sw = 0.5 + 0.5 * sin(2.0 * atan(g.y, g.x) + 6.0 * log(max(r, 1e-3)) + tt * TAU_B / 120.0 + 0.55 * fbmL(g * 40.0, blk * 40.0, 2));
 	float ff = 0.5 - 0.5 * clamp(q0.y / (0.9 * R), -1.0, 1.0);
 	float T = 1.0 - 0.8 * lane;
 	float Ew = Ib * (ff + (1.0 - ff) * T) + Ed * warmD * T;
-	float streams = clearK * holeL * (0.003 + 0.075 * sw * sw * sw);
+	float streams = clearK * holeL * 0.075 * (sw * sw * sw - 0.3125);   // (mean 0: sw^3 averages 5/16)
 	float Ec = Ed * (1.0 - warmD) * T;
 	float TS = 1.0 - 0.8 * laneS;
 	float EwS = Ib * (ff + (1.0 - ff) * TS) + EdS * warmD * TS, EcS = EdS * (1.0 - warmD) * TS;
@@ -1031,8 +1075,9 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 	Ew += streams;
 	float Et = Ew + Ec + Ep;
 	bool galaxy = Et > 0.0062;
-	float EwA = mix(Ew, EwS, clearZ);
+	float EwA = Ew;
 	float EL = Et / (1.0 + EwA * adapt) + streams;
+	float dbt = galaxy ? starDebtB(g) : 0.0;
 	bool warmSide = false;
 	if (!galaxy) {
 		sc = skyAt(P, Ehalo + Et * 0.5);
@@ -1049,20 +1094,20 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 			// a dim warm fringe goes over to the cool side: the bulge's bottom band
 			// never lies as a flat maroon plate with a hard rim (a barred kind's
 			// whole bar zone is warm and dim)
-			float ELw0 = (mix(Ew, EwS, clearZ) + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams;
+			float ELw0 = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams, 1e-5);   // (the border keeps its place: no glare control in where it falls)
 			float lv0 = clamp(1.0 + log2(ELw0) / 7.0, 0.0, 0.999);
 			warmSide = wf > 0.5 + 0.38 * smoothstep(0.42, 0.2, lv0);
 		}
 		if (warmSide) {
 			int m = (ellip && Et < 0.06) ? M_BALL : M_BULGE;
-			float ELw = (mix(Ew, EwS, clearZ) + 0.35 * (Ec + Ep)) / (1.0 + EwA * adapt) + streams;
+			float ELw = max((Ew + 0.35 * (Ec + Ep)) / (1.0 + EwA * adaptW) + streams + dbt, 1e-5);
 			float lvb = (m == M_BALL) ? clamp((log2(ELw) + 7.4) / 3.6, 0.0, 0.83) : clamp(1.0 + log2(ELw) / 7.0, 0.0, 0.999);
 			if (ellip) {
 				lvb = clamp(lvb + ballForm(v, k, bs, blk), 0.0, m == M_BALL ? 0.83 : 0.999);
 			}
 			sc = cand(m, lvb - 0.1 * shade, 0, 0.0);
 		} else {
-			float ELc = (Ec + Ep + 0.35 * Ew) / (1.0 + EwA * adapt);
+			float ELc = Ec + Ep + 0.35 * Ew + dbt;
 			float la = 1.08 + log2(ELc) / 6.2 - 0.12 * shade - 0.34 * bub;
 			bool pink = Ep > 0.7 * Ec;
 			sc = cand(pink ? M_KNOT : M_ARM, pink ? 0.96 + log2(ELc) / 5.0 - 0.12 * shade : la, 0, 0.0);
@@ -1074,7 +1119,7 @@ Cand scene(Px P, vec2 v, ivec2 sblk, bool lensed) {
 		// bulge's own light is fading (a broad-armed kind evens warm and cool over
 		// the whole bar zone, and it would lie there as one plate), its edges dithered
 		if (!ellip && wf > 0.5 - u_g6.x && wf < 0.5 + u_g6.y && Ep < 0.5 * Ec + 0.01 && warmD < 0.36) {
-			float ELd = (Ew + Ec) / (1.0 + EwA * adapt) + streams;
+			float ELd = max((Ew + Ec) / (1.0 + EwA * adapt) + streams, 1e-5);
 			float ld = u_g6.z + log2(ELd) / 6.0 - 0.1 * shade;
 			if (ld > 0.34 && pat(P, smoothstep(0.34, 0.42, ld) * smoothstep(0.36, 0.2, warmD))) {
 				sc = cand(M_BILLOW, ld, 0, 0.0);

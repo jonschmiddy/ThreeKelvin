@@ -57,12 +57,6 @@ const OUTLINE := {1: "#0f1230", 6: "#2e0a22", 8: "#0d1638"}
 const NOTRANS := [13, 14, 15, 16, 18]
 
 static var _tables: Dictionary = {}
-## THE DUST LANE ROUND THE BULGE, a choice for Jon (Oct 10): an arm's inner dust
-## lane runs on into the bulge and is drawn there, with its lit lip, as a dark arc
-## a block or two wide across the gold (zoom 1 to 3). false: as it is; true: the
-## lane thinned to a quarter of its width inside the bulge, so it reads as a hairline
-## rather than a drawn line. `-- sheet=ChartLook lanethin` photographs it.
-static var lane_thin := false
 
 
 ## The palette and its lookups, built once: the palette texture, the ramp entry
@@ -269,10 +263,82 @@ static func star_data(sky: ChartSky, g: Dictionary, p: Dictionary) -> void:
 		b.append_array([float(row[4]), float(row[5]), row[6], row[7]])
 		c3.append_array([row[8], row[9], row[10], 0.0])
 	g["b_n"] = rows.size()
+	var t0 := Time.get_ticks_usec()
+	g["b_debt"] = _star_debt(rows, float(p.bulge_r))
+	g.times["debt"] = (Time.get_ticks_usec() - t0) / 1000
 	g["b_sn"] = cand
 	g["b_a"] = ChartSky._data_tex(a, rows.size())
 	g["b_b"] = ChartSky._data_tex(b, rows.size())
 	g["b_c"] = ChartSky._data_tex(c3, rows.size())
+
+
+## THE STARS' LIGHT KEPT AS YOU ZOOM (`ChartSky._star_debt`, the sparkles'):
+## each sparkle's light at each of a run of zooms as `chart_b_stars` draws it --
+## its level read as the gas's light (`1 + log2(light) / 7`), times its sprite's
+## blocks -- in a grid over the plane. What the sparkles no longer bring a patch
+## against the opening goes back into its gas as light (`chart_b_place`).
+static func _star_debt(rows: Array, bulge_r: float) -> ImageTexture:
+	var zs := ChartSky.DEBT_Z
+	var nz := zs.size()
+	var N := ChartSky.DEBT_N
+	var E := ChartSky.DEBT_E
+	var acc := PackedFloat32Array()
+	acc.resize(nz * N * N)
+	acc.fill(0.0)
+	var Ls := PackedFloat32Array()
+	var keeps := PackedFloat32Array()
+	for z in zs:
+		var lz := log(z)
+		Ls.append(150.0 if z <= 0.6 else (60.0 if z >= 3.0 else 150.0 + (60.0 - 150.0) * (lz - log(0.6)) / (log(3.0) - log(0.6))))
+		keeps.append(0.4 if z <= 0.6 else (1.0 if z >= 2.0 else 0.4 + 0.6 * (lz - log(0.6)) / (log(2.0) - log(0.6))))
+	for row: Array in rows:
+		var px: float = row[1]
+		var py: float = row[2]
+		var tx := int((px / E * 0.5 + 0.5) * N)
+		var ty := int((py / E * 0.5 + 0.5) * N)
+		if tx < 0 or ty < 0 or tx >= N or ty >= N:
+			continue
+		var lum: float = row[0]
+		var kind: int = row[3]
+		var tier: int = row[5]
+		var hs: float = row[6]
+		var inner := Vector2(px, py).length() < bulge_r
+		for zi in nz:
+			var z: float = zs[zi]
+			var lv := 0.0
+			var sprite := 0
+			if kind <= 2:
+				var f := 1.0
+				if kind == 1 and inner:
+					f *= ChartSky._smooth(1.55, 2.3, z)
+				if kind == 2:
+					f *= ChartSky._smooth(1.6, 2.4, z)
+				var kk := keeps[zi] * (0.25 if kind == 1 else 1.0)
+				if lum >= Ls[zi] and hs < kk and f > 0.02:
+					var fade := minf(1.0, (lum - Ls[zi]) / 30.0 + 0.15) * minf(1.0, (kk - hs) / 0.08 + 0.15) * f
+					lv = minf(0.999, fade * pow(maxf(0.0, lum - 40.0) / 215.0, 0.7))
+					if tier >= 3 and lv > 0.45:
+						sprite = 2
+					elif tier >= 2 and lv > 0.3 and (tier >= 3 or z >= 0.75 or float(row[8]) < 0.035):
+						sprite = 1
+			elif kind == 4:
+				var gk := 1.0 - ChartSky._smooth(1.6, 2.4, z)
+				if gk > 0.02:
+					lv = minf(0.999, gk * (0.34 + minf(0.2, float(row[10]) / 500.0)))
+					sprite = 1
+			else:
+				lv = 0.6
+				sprite = 1
+			if lv > 0.05:
+				acc[zi * N * N + ty * N + tx] += pow(2.0, 7.0 * (lv - 1.0)) * [1.0, 1.8, 2.2][sprite]
+	var k := 4.0 / (ChartSky.K0 * ChartSky.K0 * ChartSky.TILT) / pow(2.0 * E / N, 2.0)
+	var out := PackedFloat32Array()
+	out.resize(nz * N * N)
+	for zi in nz:
+		for y in N:
+			for x in N:
+				out[y * N * nz + zi * N + x] = acc[zi * N * N + y * N + x] * k
+	return ImageTexture.create_from_image(Image.create_from_data(N * nz, N, false, Image.FORMAT_RF, out.to_byte_array()))
 
 
 ## The puff table's two bake passes, queued.
@@ -374,6 +440,11 @@ static func runtime(sky: ChartSky, g: Dictionary) -> void:
 	mp.set_shader_parameter("u_mstart", T.mstart)
 	mp.set_shader_parameter("u_mlen", T.mlen)
 	mp.set_shader_parameter("u_stars", sky._svp.get_texture())
+	if g.has("b_debt"):
+		mp.set_shader_parameter("u_debt", g.b_debt)
+		mp.set_shader_parameter("u_debtP", Vector4(log(ChartSky.DEBT_Z[0]), float(ChartSky.DEBT_Z.size() - 1)
+			/ (log(ChartSky.DEBT_Z[-1]) - log(ChartSky.DEBT_Z[0])), float(ChartSky.DEBT_Z.size()), ChartSky.DEBT_E))
+		mp.set_shader_parameter("u_debtOn", not (ChartSky.diag & 512))
 	sky._m_place = mp
 	sky._place = ChartSky._rect(mp)
 	sky._pvp.add_child(sky._place)
@@ -418,12 +489,13 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_cpix", ccon)
 	mp.set_shader_parameter("u_res", res)
 	mp.set_shader_parameter("u_zoom", z)
+	mp.set_shader_parameter("u_diag", ChartSky.diag)
+	mp.set_shader_parameter("u_zopen", z * StarchartScreen.MapChart.ZOOM_MIN / maxf(sky.chart.zoom, 1e-4) if sky._use_map else z)
 	mp.set_shader_parameter("u_time", t)
 	mp.set_shader_parameter("u_phi", phi)
 	mp.set_shader_parameter("u_block0", b0)
 	mp.set_shader_parameter("u_wxOn", 0.0 if calm else 1.0)
 	mp.set_shader_parameter("u_flow", t * (0.5 if calm else 1.0))
-	mp.set_shader_parameter("u_laneThin", 1.0 if lane_thin else 0.0)
 	var gu4: Vector4 = g.gu.u_g4
 	gu4.z = 1.0 if calm else 0.0
 	mp.set_shader_parameter("u_g4", gu4)
@@ -432,6 +504,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	ms.set_shader_parameter("vp_origin", origin)
 	ms.set_shader_parameter("cpix", ccon)
 	ms.set_shader_parameter("zoom", z)
+	ms.set_shader_parameter("diag", ChartSky.diag)
 	ms.set_shader_parameter("phi", phi)
 	ms.set_shader_parameter("t", t)
 	ms.set_shader_parameter("calm", 1.0 if calm else 0.0)
