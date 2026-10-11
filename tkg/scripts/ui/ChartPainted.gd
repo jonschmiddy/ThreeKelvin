@@ -490,7 +490,7 @@ static func push(sky: ChartSky, g: Dictionary, vs: Vector2, origin: Vector2, cco
 	mp.set_shader_parameter("u_res", res)
 	mp.set_shader_parameter("u_zoom", z)
 	mp.set_shader_parameter("u_diag", ChartSky.diag)
-	mp.set_shader_parameter("u_zopen", z * StarchartScreen.MapChart.ZOOM_MIN / maxf(sky.chart.zoom, 1e-4))
+	mp.set_shader_parameter("u_zopen", z * StarchartScreen.MapChart.ZOOM_MIN / maxf(sky.chart.zoom, 1e-4) if sky._use_map else z)
 	mp.set_shader_parameter("u_time", t)
 	mp.set_shader_parameter("u_phi", phi)
 	mp.set_shader_parameter("u_block0", b0)

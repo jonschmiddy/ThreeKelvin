@@ -59,7 +59,7 @@ float starDebtB(vec2 p) {
 	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
 		return 0.0;
 	}
-	return max(debtAt(p, u_zopen) - debtAt(p, u_zoom), 0.0);
+	return max(debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom), 0.0);
 }
 uniform float u_time = 0.0;
 uniform float u_wxOn = 1.0;

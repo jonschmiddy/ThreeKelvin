@@ -1798,7 +1798,8 @@ func _push() -> void:
 		return
 	var m := _m_place
 	_feed_view(m, g, vs, _vp_origin, ccon, res, z, t, phi)
-	m.set_shader_parameter("u_zopen", StarchartScreen.MapChart.ZOOM_MIN * k / K0)
+	# (the title screen's galaxy, which never zooms, is its own opening)
+	m.set_shader_parameter("u_zopen", StarchartScreen.MapChart.ZOOM_MIN * k / K0 if _use_map else z)
 	_feed_sky(m)
 	m.set_shader_parameter("u_block0", b0)
 	_feed_events(m, g, t, phi, z, true)

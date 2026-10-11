@@ -1323,6 +1323,7 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	# (the dust sheets held at the opening's nearness: the chart's opening zoom, or
 	# the title screen's own, which never zooms)
 	m.set_shader_parameter("sheet_z", 1.0 if _use_map else z)
+	m.set_shader_parameter("core_wide", not _use_map)
 	m.set_shader_parameter("sl_tex", g.sl)
 	m.set_shader_parameter("aux_tex", g.aux)
 	m.set_shader_parameter("gc_tex", g.gc)

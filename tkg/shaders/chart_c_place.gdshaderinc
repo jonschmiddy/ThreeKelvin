@@ -1008,7 +1008,7 @@ vec3 starDebt(vec2 p) {
 	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
 		return vec3(0.0);
 	}
-	return debtAt(p, u_zopen) - debtAt(p, u_zoom);
+	return debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom);
 }
 vec3 starAt(ivec2 sb) {
 	if (!u_stars_on || sb.x < 0 || sb.y < 0 || sb.x >= int(u_vp_size.x) || sb.y >= int(u_vp_size.y)) {
@@ -1066,8 +1066,9 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		// bulge's faint outer halo over the arms went with it, and the gas just
 		// outside the bulge darkened 0.6 as you zoomed, Oct 11. The step is spread
 		// over a factor of 23 in the light so the turned-down gold never dips
-		// below the halo beside it.)
-		float goldM = smoothstep(-5.81, -2.66, log(max(Ib, 1e-6)));
+		// below the halo beside it. The palette's probes turn it down as before, so the
+		// cut, and the opening it colours, are the approved ones.)
+		float goldM = mix(1.0, smoothstep(-5.81, -2.66, log(max(Ib, 1e-6))), resolveOn());
 		B *= mix(1.0, 0.10, glareOn() * smoothstep(2.4, 6.0, u_zoom) * goldM);
 		float bm = 0.5 + 0.5 * fbm2F(p * 9.0 + vec2(2.7, 8.1), max(4.0 - la, 1.0));
 		// (and the mottle keeps resolving past its fourth octave as you near the core)
@@ -1119,7 +1120,7 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	if (!lens) {
 		return C;
 	}
-	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0) * lh_squeeze(S);
+	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0 || !u_stars_on) * lh_squeeze(S);
 	// the disc lights the gas round it, hardest on the dense dust
 	C += u_bCore * vec3(1.0, 0.55, 0.32) * (0.05 + 0.12 * dust) * lh_glow(S);
 	float cap;

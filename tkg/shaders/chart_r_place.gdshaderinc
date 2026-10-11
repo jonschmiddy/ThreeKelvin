@@ -66,7 +66,7 @@ vec3 starDebt(vec2 p) {
 	// (less here than SIMPLIFIED's: RADIANT's brighter exposure clips a star's
 	// block, so a star was worth less to its patch than its light says; measured,
 	// the whole of it brightened a patch of the arms 0.5 past where it started)
-	return (debtAt(p, u_zopen) - debtAt(p, u_zoom)) * 0.6;
+	return (debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom)) * 0.6;
 }
 
 uniform float u_k = 622.25;
@@ -840,8 +840,10 @@ vec3 radiance(vec2 v, ivec2 sb, ivec2 dq, float la) {
 		// core's own glare, the one thing the zoom still turns down; Oct 11 it stopped
 		// touching the disc's old stars round it, which kept their light: `planeEvent`)
 		// (only on the gold itself, inside 0.18: out to 0.5 it dimmed the bulge's
-		// faint light over the gas just outside it, which darkened 0.7 as you zoomed)
-		R.KB = 1.0 - u_kb * ((u_diag & 1) != 0 ? 0.0 : 1.0) * smoothstep(1.8, 5.5, u_zoom) * (1.0 - smoothstep(0.04, 0.18, rr));
+		// faint light over the gas just outside it, which darkened 0.7 as you zoomed;
+		// the palette's probes as before, so the cut is the approved one)
+		float kbM = u_stars_on ? 1.0 - smoothstep(0.04, 0.18, rr) : 1.0 - smoothstep(0.1, 0.5, rr);
+		R.KB = 1.0 - u_kb * ((u_diag & 1) != 0 ? 0.0 : 1.0) * smoothstep(1.8, 5.5, u_zoom) * kbM;
 		bF *= R.KB;
 		bB *= R.KB;
 	}
@@ -1089,7 +1091,7 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	}
 	// SIMPLIFIED's hole: what lies behind squeezed dark and cooler near the shadow,
 	// the disc's light on what is round it, the shadow cut, the disc laid over
-	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0) * lh_squeeze(S);
+	C *= lh_cool_chart(S, smoothstep(3.0, 6.0, u_zoom) * ((u_diag & 128) != 0 ? 0.0 : 1.0), (u_diag & 1024) != 0 || !u_stars_on) * lh_squeeze(S);
 	// light through gas: what the lens packs into a thin ring is seen through
 	// more of the hole's dim surroundings, so it is dimmed as it is squeezed
 	// (unlit, the bulge's bands repeated under the hole as bright rings)

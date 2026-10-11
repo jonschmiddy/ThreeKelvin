@@ -100,6 +100,8 @@ uniform float core_dz = 0.0;
 // (tuning: the dust sheets drawn nearer as you zoom, as they were before Oct 11)
 uniform bool diag_sheets = false;
 uniform float sheet_z = 1.0;
+// (the title screen's galaxy, which never zooms: its glare control as it was)
+uniform bool core_wide = false;
 uniform float te_b = 1.0;
 // the named clouds, a lobe each: centre (bake pixels, the galaxy's frame),
 // radius (where the chart's outline is), kind; colour and how flat it lies;
@@ -1218,7 +1220,7 @@ void fragment() {
 	// the one thing the zoom still turns down, and it touches nothing but the glow)
 	// (and only on the bulge itself, `cm`: across the whole field it dimmed the
 	// bulge's light over the gas outside it too, which darkened 2 as you zoomed)
-	float cm = exp(-pow(dball / (bul * 1.3), 2.0));
+	float cm = core_wide ? 1.0 : exp(-pow(dball / (bul * 1.3), 2.0));
 	float c_res = mix(1.0, core_res, cm), c_dz = core_dz * cm;
 	float ci = (3.0 * exp(-3.0 * sqrt(dco / (bul * (1.8 - 0.5 * arm_k)))) * (0.6 + 0.4 * c_res) + nuc) * (1.0 - c_dz * 0.125);
 	float rout = rh * disc_k;
