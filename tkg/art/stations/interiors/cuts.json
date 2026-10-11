@@ -1,18 +1,12 @@
 {
  "iris_90_0": {
-  "cut": 42,
-  "period": 2,
-  "mismatch": 3.03
+  "painted": true
  },
  "iris_90_1": {
-  "cut": 37,
-  "period": 4,
-  "mismatch": 1.94
+  "painted": true
  },
  "iris_220_1": {
-  "cut": 48,
-  "period": 2,
-  "mismatch": 3.39
+  "painted": true
  },
  "hallway_90_1": {
   "cut": 33,

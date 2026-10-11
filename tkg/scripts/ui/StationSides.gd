@@ -22,10 +22,9 @@ extends RefCounted
 ## THE INTERIORS (Jon: "For the entrance I wanted this part changed"): the
 ## recess only, plate x 84..211, rows 206..331, drawn over the bay; the lips, the
 ## gold frame and the lamp strip are the side's own. Each was made 48 rows taller
-## from its own art (`sides.py`'s `interiors`: rows that repeat, copied). Hallway
-## 6 and cargo 4 in the pool; the three irises are out of it (`IRISES`): their
-## rings run nearly top to bottom, and no rows of them repeat but through the ring,
-## which would stretch it to a pill -- they wait to be painted at the new height.
+## from its own art (`sides.py`'s `interiors`: rows that repeat, copied) -- the
+## six hallways and four cargo bays; the three irises, whose rings would have
+## stretched to pills, repainted at the new height (Jon's "Irises: A").
 ##
 ## WHICH ONE A STATION GETS: decided by the station alone -- this galaxy's seed
 ## and the station's place among the map's stations -- so it is the same on
@@ -36,9 +35,9 @@ extends RefCounted
 ## stride.
 
 const IDS: Array[StringName] = [&"drum1", &"drum3", &"pile1", &"pile3", &"pile4", &"shanty3", &"terraces"]
-const INTERIORS: Array[StringName] = [&"hallway_90_1", &"hallway_130_0", &"hallway_130_1", &"hallway_170_0",
-	&"hallway_170_1", &"hallway_220_0", &"cargo_90_0", &"cargo_130_0", &"cargo_130_1", &"cargo_170_0"]
-const IRISES: Array[StringName] = [&"iris_90_0", &"iris_90_1", &"iris_220_1"]
+const INTERIORS: Array[StringName] = [&"iris_90_0", &"iris_90_1", &"iris_220_1", &"hallway_90_1", &"hallway_130_0",
+	&"hallway_130_1", &"hallway_170_0", &"hallway_170_1", &"hallway_220_0", &"cargo_90_0", &"cargo_130_0",
+	&"cargo_130_1", &"cargo_170_0"]
 const NONE := &"none"
 ## where an interior is drawn (plate px): the recess the door lights
 const INTERIOR_AT := Vector2(84, 206)

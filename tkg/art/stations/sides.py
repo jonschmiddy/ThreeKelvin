@@ -78,8 +78,7 @@ SIDES = {
     "shanty3": ("shanty", "shanty3.png", "brown", []),
     "terraces": ("wall", "terraces.png", "dark", []),
 }
-# (all thirteen are made; the irises' rings cannot be made taller cleanly, and `StationSides` leaves them out of the
-# pool until they are painted at the new height)
+# (the irises' rings cannot be made taller cleanly: they were repainted at the new height, src/interiors/tall/)
 INTERIORS = ["iris_90_0", "iris_90_1", "iris_220_1", "hallway_90_1", "hallway_130_0", "hallway_130_1", "hallway_170_0",
              "hallway_170_1", "hallway_220_0", "cargo_90_0", "cargo_130_0", "cargo_130_1", "cargo_170_0"]
 
@@ -486,6 +485,18 @@ def interiors():
     genuinely repeats (`mouth.extend_picture`, found on the lit picture, the same cut made in the flat one)"""
     report = {}
     for k in INTERIORS:
+        tall = os.path.join(SRC, "interiors", "tall", k + "_flat.png")
+        if os.path.exists(tall):
+            # (painted at the new height: the irises, Jon's "Irises: A" -- src/painted/irises/)
+            flat = np.asarray(Image.open(tall).convert("RGB")).astype(float)
+            lit = np.asarray(Image.open(tall.replace("_flat.png", "_lit.png")).convert("RGB"))
+            report[k] = dict(painted=True)
+            d = os.path.join(HERE, "interiors", k)
+            os.makedirs(d, exist_ok=True)
+            a = np.full(flat.shape[:2] + (1,), 255, np.uint8)
+            Image.fromarray(np.concatenate([np.round(flat * 0.45).astype(np.uint8), a], -1)).save(os.path.join(d, "dark.png"), optimize=True)
+            Image.fromarray(np.concatenate([lit, a], -1)).save(os.path.join(d, "lit.png"), optimize=True)
+            continue
         flat0 = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_flat.png")).convert("RGB"))
         lit0 = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_lit.png")).convert("RGB"))
         if k in WALL_ONLY:
