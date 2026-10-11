@@ -25,6 +25,7 @@ uniform sampler2D core_col : filter_nearest;
 uniform int tex_w = 2048;
 uniform int n_star = 0;
 uniform int n_core = 0;
+uniform int diag = 0;   // (tuning: 2 draws no stars, `ChartSky.diag`)
 uniform float to_base = 1.0;
 uniform float sq = 0.62;
 uniform float eff = 0.38;
@@ -159,7 +160,7 @@ void vertex() {
 
 void fragment() {
 	vec4 under = texture(screen_tex, SCREEN_UV);
-	if (v_near < 0.5 && v_col.a < g_lum(under.rgb * 255.0) * 1.12 + 6.0) {
+	if ((diag & 2) != 0 || v_near < 0.5 && v_col.a < g_lum(under.rgb * 255.0) * 1.12 + 6.0) {
 		discard;
 	}
 	bool keep = abs(under.a - 0.75) < 0.1 || abs(under.a - 0.25) < 0.1;

@@ -871,7 +871,7 @@ static func _pct(a: PackedFloat32Array, q: float, fallback: float) -> float:
 ## Stage three: the fields read back and kept; probes for the palettes.
 func _stage_textures() -> void:
 	var outs: Array = _job.outs
-	var g := {"p": _job.p, "pals": {}}
+	var g := {"p": _job.p, "pals": {}, "held": _held_level(), "one": _use_map}
 	# SIMPLIFIED's knots, supernovae and pulsars, placed as it places them
 	g["knots"] = ChartSky._make_knots(ChartSky.params(_use_map))
 	g["sn_cand"] = _pts.get("sn_cand", PackedVector2Array())
@@ -895,16 +895,29 @@ func _stage_textures() -> void:
 	_job.frame = Engine.get_frames_drawn()
 
 
-## Stage four: the palettes. The one this view needs now is worked out here,
-## so the chart never opens on the wrong colours; the rest on other threads.
+## Stage four: the palette. The one the chart holds at every zoom is worked out
+## here, so the chart never opens on the wrong colours, and with it the same
+## palette with its near twins merged (`HELD_MERGED`, for the zooms in, where a
+## colour a few steps from its neighbour flickers as the zoom moves). The title
+## screen's galaxy, which never zooms, and tuning (`diag` 8) keep the old palette
+## a zoom level, the others' worked out on other threads.
+const HELD_MERGED := 100
+
+
 func _stage_palettes() -> void:
 	var probes: Array = _job.probes
 	var stars := _star_hist()
 	var now := _level_now()
+	var each := not _use_map or diag & 8
 	for li in probes.size():
+		if li != now and not each:
+			continue
 		var img := (probes[li] as SubViewport).get_texture().get_image()
 		if li == now:
-			_bake_lut(li, _make_palette(img, stars, _bulge_box(li), _cloud_hues(), _merge_of(li)))
+			var pal := _make_palette(img, stars, _bulge_box(li), _cloud_hues(), _merge_of(li))
+			_bake_lut(li, pal)
+			if _use_map:
+				_bake_lut(HELD_MERGED, _merge_near(pal, pal_merge * 1.3))
 		else:
 			var job := PaletteJob.new()
 			job.probe = img
@@ -920,7 +933,18 @@ func _stage_palettes() -> void:
 
 
 func _level_now() -> int:
-	return _level0
+	return _held_level()
+
+
+## THE ONE PALETTE (Oct 11, Jon: the zoom "still changes a little"): the chart
+## holds the opening view's palette at every zoom. A palette a zoom level used to
+## be cut from that level's window round the centre, so deep in the arms took the
+## nearest of the core's colours and leaned purple and teal. The opening's is cut
+## from the whole galaxy, and the field keeps its light at every zoom, so its
+## colours are the ones every patch already has. (The title screen's galaxy, seen
+## at a zoom of its own, holds the palette of that zoom.)
+func _held_level() -> int:
+	return 0 if _use_map else _level0
 
 
 ## Screen pixels a bake pixel, at the chart's zoom.
@@ -1136,6 +1160,8 @@ static var pal_merge := 26.0
 ## full palette dithered everywhere -- which flickered (0.0146 on a slow zoom at
 ## the core, 0.0172 at the hole). One line.
 const KEEP_OLD_GRAIN := false
+## What a zoom changes, one cause at a time switched off (tuning; `ChartSky.diag`).
+static var diag := 0
 
 
 static func _merge_of(li: int) -> float:
@@ -1293,6 +1319,10 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	var p: Dictionary = g.p
 	var zf := maxf(z, 1.0)
 	m.set_shader_parameter("old_grain", KEEP_OLD_GRAIN)
+	m.set_shader_parameter("diag_sheets", bool(diag & 64))
+	# (the dust sheets held at the opening's nearness: the chart's opening zoom, or
+	# the title screen's own, which never zooms)
+	m.set_shader_parameter("sheet_z", 1.0 if _use_map else z)
 	m.set_shader_parameter("sl_tex", g.sl)
 	m.set_shader_parameter("aux_tex", g.aux)
 	m.set_shader_parameter("gc_tex", g.gc)
@@ -1343,7 +1373,8 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	# deep in, the nuclear dust thickening -- is held at the opening zoom's values.
 	# Only detail is added as you zoom: the finer octaves (`oct`) and the grain
 	# (`det_k`).
-	var extra := maxf(0.0, log(zf) / log(2.0))
+	var zfd := minf(zf, 1.0 / LEVELS[0]) if diag & 4 else zf
+	var extra := maxf(0.0, log(zfd) / log(2.0))
 	m.set_shader_parameter("oct", minf(extra, 4.0))
 	m.set_shader_parameter("det_k", minf(1.0, extra / 2.0))
 	m.set_shader_parameter("zoom_dim", 0.0)
@@ -1351,8 +1382,8 @@ func _feed_field(m: ShaderMaterial, g: Dictionary, z: float) -> void:
 	m.set_shader_parameter("dz", 0.0)
 	m.set_shader_parameter("res2", 1.0)
 	# the core's own glare, the one thing the zoom still turns down: the bulge's glow
-	m.set_shader_parameter("core_res", 1.0 / (1.0 + 0.4 * (zf - 1.0)))
-	m.set_shader_parameter("core_dz", _sm(1.8, 8.0, zf))
+	m.set_shader_parameter("core_res", 1.0 if diag & 1 else 1.0 / (1.0 + 0.4 * (zf - 1.0)))
+	m.set_shader_parameter("core_dz", 0.0 if diag & 1 else _sm(1.8, 8.0, zf))
 	m.set_shader_parameter("te_b", 2.7756 * rh / z * 1.6)
 	# (the old hole's swirl of gas round it goes: SIMPLIFIED's disc is the hole)
 	m.set_shader_parameter("swirl_amp", 0.0)
@@ -1471,7 +1502,7 @@ func _push() -> void:
 	m.set_shader_parameter("neb_style", nebula_look)
 	# the extra stars deep in: the scale of the mockup's density (the shader
 	# works out each of its fixed grids' share, `chart_l_field`)
-	m.set_shader_parameter("filler_k", float(p.eff) * 0.25 * [1.0, 1.0, 0.5, 0.25, 0.125][clampi(star_level, 1, 4)])
+	m.set_shader_parameter("filler_k", (0.0 if diag & 2 else 1.0) * float(p.eff) * 0.25 * [1.0, 1.0, 0.5, 0.25, 0.125][clampi(star_level, 1, 4)])
 	m.set_shader_parameter("star_level", star_level)
 	_feed_events(m, g, t, phi, z)
 
@@ -1479,6 +1510,7 @@ func _push() -> void:
 	ms.set_shader_parameter("vp_origin", _vp_origin)
 	ms.set_shader_parameter("cpix", ccon)
 	ms.set_shader_parameter("z", z)
+	ms.set_shader_parameter("diag", diag)
 	ms.set_shader_parameter("phi", phi)
 	ms.set_shader_parameter("t", t)
 	ms.set_shader_parameter("rin_p", p.rin_p)
@@ -1496,8 +1528,9 @@ func _push() -> void:
 	mh.set_shader_parameter("cpix", ccon)
 	mh.set_shader_parameter("shadow", hole_r(p, z))
 	mh.set_shader_parameter("t", t)
-	mh.set_shader_parameter("clumps", _sm(2.6, 4.0, zc))
-	mh.set_shader_parameter("cool_amt", _sm(3.0, 6.0, zc))
+	mh.set_shader_parameter("clumps", 0.0 if diag & 128 else _sm(2.6, 4.0, zc))
+	mh.set_shader_parameter("cool_amt", 0.0 if diag & 128 else _sm(3.0, 6.0, zc))
+	mh.set_shader_parameter("cool_wide", diag & 1024 != 0)
 	mh.set_shader_parameter("hot_on", 0.0 if DisplaySettings.reduced_motion else 1.0)
 
 	var mp := _m_pal
@@ -1540,22 +1573,23 @@ func _push() -> void:
 	mp.set_shader_parameter("hyst", ChartSky.hyst if valid else 0.0)
 	_hold_b0 = b0
 	mp.set_shader_parameter("aa_k", _aa_of(z * float(p.big_r) / ChartSky.K0))
-	# the two levels either side of this zoom, and how far between them: the
-	# change from one's palette to the next is a dissolve over the middle of
-	# the stretch between them (`chart_l_palette`). (Each level's palette is cut
-	# from the field at that level's zoom; since Oct 11 that field keeps its light
-	# at every zoom, so the levels' palettes hold the same colours, cut finer where
-	# the view is close, and a patch keeps its colour across them: measured, the
-	# gas beside the bulge shifts 2.1 OKLab x100 from zoom 1 to 4.5 with them and
-	# 2.2 with the opening's palette alone, which flickered more on a slow zoom.)
-	var lo := 0
-	for i in LEVELS.size() - 1:
-		if z >= LEVELS[i + 1] / LEVELS[0]:
-			lo = i + 1
-	var hi := mini(lo + 1, LEVELS.size() - 1)
-	var fr := 0.0
-	if hi > lo:
-		fr = clampf(log(z / (LEVELS[lo] / LEVELS[0])) / log(LEVELS[hi] / LEVELS[lo]), 0.0, 1.0)
+	# one palette at every zoom (`_held_level`): the opening's, going over to the
+	# same palette with its near twins merged as the flicker's guards come in (by
+	# zoom 0.7, `aa_k`), a block at a time. (The title screen's galaxy, and tuning
+	# only, `diag` 8: the old palette a level, the two levels either side of this
+	# zoom dissolved between.)
+	var lo := int(g.get("held", 0))
+	var hi := HELD_MERGED
+	var fr := _aa_of(z * float(p.big_r) / ChartSky.K0)
+	if diag & 8 or not g.get("one", true):
+		lo = 0
+		for i in LEVELS.size() - 1:
+			if z >= LEVELS[i + 1] / LEVELS[0]:
+				lo = i + 1
+		hi = mini(lo + 1, LEVELS.size() - 1)
+		fr = 0.0
+		if hi > lo:
+			fr = clampf(log(z / (LEVELS[lo] / LEVELS[0])) / log(LEVELS[hi] / LEVELS[lo]), 0.0, 1.0)
 	var use := _palette_for(lo)
 	var use2 := _palette_for(hi)
 	if use * 100 + use2 != _shown_li:
@@ -1679,6 +1713,8 @@ func _palette_for(li: int) -> int:
 	var pals: Dictionary = _baked[_key].pals
 	if pals.has(li):
 		return li
+	if li == HELD_MERGED:
+		return _palette_for(int(_baked[_key].get("held", 0)))
 	for d in range(1, LEVELS.size()):
 		if pals.has(li - d):
 			return li - d

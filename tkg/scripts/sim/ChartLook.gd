@@ -130,6 +130,9 @@ func _run() -> void:
 		ChartSky.dith_gs = float(_arg("dithgs"))
 	if _arg("dithcoh") != "":
 		ChartSky.dith_coh = float(_arg("dithcoh"))
+	if _arg("diag") != "":
+		ChartSky.diag = int(_arg("diag"))
+		ChartLegacy.diag = int(_arg("diag"))
 	if _arg("quant") == "0":
 		ChartSky.quant = false
 	if _arg("dith") != "":
