@@ -89,6 +89,15 @@ const SHIP_END_H := 56.0
 ## the station: it shrinks sooner on its way in (`SectorScreen._hall_shrink`),
 ## the light and the medium exactly as before
 const SHIP_LIP_H := 68.0
+## THE LIPS AS PIECES (for the mouth opening, "OPEN"): the upper lip's band of
+## the front layer (its gold lamp row and outer frame) and the lower lip's, which
+## slide apart; the frame's right side (x 212..224), carried on into the gaps;
+## and the bay's ceiling and floor slabs (6 rows each), which go with the lips,
+## the bay's own wall rows carried on between
+const LIP_TOP_BAND := Rect2(76, 196, 148, 10)
+const LIP_BOT_BAND := Rect2(76, 284, 148, 10)
+const FRAME_SIDE_X := Vector2(212, 224)
+const BAY_SLAB := 6
 ## the camera's anchor along row `ROW` as it follows you in, k 0 -> 1
 const A0 := 110.0
 const A1 := 175.0
@@ -174,6 +183,14 @@ var side: StationSides.SideArt = null
 var interior: Array = []
 ## each layer's parallax step now (parallax -> whole plate px)
 var par := {}
+## THE MOUTH OPENED FOR A BIG HULL (`ZoomLadder.big_hull` "OPEN"): how far the
+## upper lip is slid up and the lower lip down now, whole plate px (0: shut, as
+## always; the light and the medium never open it)
+var open_top := 0
+var open_bot := 0
+## (what the dock decided for the hull now docking: mode, q, its scale at the
+## lips, its body, the mouth's opening -- for harnesses)
+static var last_fit := {}
 var _clock := 0.0
 var _since := 0.0
 var _chase := 0.0
@@ -391,10 +408,13 @@ func _draw_drum(m: Color, o: Vector2) -> void:
 ## The entrance's lamps (every side has the Drum's): both lips' guide lights and
 ## the strip beside the door, from `lamps`, each at its own power.
 func _draw_entrance_lamps(lamps: Texture2D, m: Color, strip: Rect2) -> void:
+	# (the guide lights ride their lips when the mouth opens)
+	var up := Vector2(0, -open_top)
+	var down := Vector2(0, open_bot)
 	for i in GUIDE_TOP.size():
-		_lit(lamps, GUIDE_TOP[i], _lamp(_guide_at(i, GUIDE_TOP.size())), m)
+		_lit(lamps, GUIDE_TOP[i], _lamp(_guide_at(i, GUIDE_TOP.size())), m, up)
 	for i in GUIDE_LOW_N:
-		_lit(lamps, Rect2(GUIDE_LOW_X0 + 4.0 * float(i), GUIDE_LOW_Y, 4, 3), _lamp(_guide_at(i, GUIDE_LOW_N)), m)
+		_lit(lamps, Rect2(GUIDE_LOW_X0 + 4.0 * float(i), GUIDE_LOW_Y, 4, 3), _lamp(_guide_at(i, GUIDE_LOW_N)), m, down)
 	if lamps == FRONT_LAMPS:
 		for i in SEAM_LAMPS.size():
 			var p: Vector2 = SEAM_LAMPS[i]
@@ -410,10 +430,174 @@ func _draw_interior(m: Color, o: Vector2) -> void:
 	if interior.is_empty():
 		return
 	var at := o + StationSides.INTERIOR_AT
-	draw_texture(interior[0], at, m)
+	# (the hallway's wall above and below it when the mouth opens: the side's own
+	# bay, dark and lit as the interior is)
+	var bd: Texture2D = side.bay_dark if not side.legacy else null
+	var bl: Texture2D = side.bay_lit if not side.legacy else null
+	_bay_open(interior[0], at, m, bd, o + side.bay_at)
 	var k := bay_lit()
 	if k > 0.01:
-		draw_texture(interior[1], at, Color(m.r, m.g, m.b, k))
+		_bay_open(interior[1], at, Color(m.r, m.g, m.b, k), bl, o + side.bay_at)
+
+
+## A picture of the bay (the recess's rows 206..283) with the mouth opened by
+## `open_top` / `open_bot`: its ceiling slab goes up with the upper lip and its
+## floor slab down with the lower, and the gaps between are the hallway's own
+## wall carried on -- the rows of the side's bay picture `wall` (its plain
+## panels, which run top to bottom) just inside the ceiling and the floor. An
+## interior keeps everything between its ceiling and floor where it is (its
+## iris, its door, its clamps and crates are never cut or doubled); the
+## hallway's wall shows above and below it. Shut, the picture as it is.
+func _bay_open(t: Texture2D, at: Vector2, mod: Color, wall: Texture2D = null, wall_at := Vector2.ZERO) -> void:
+	if open_top <= 0 and open_bot <= 0:
+		draw_texture(t, at, mod)
+		return
+	if wall == null:
+		wall = t
+		wall_at = at
+	wall = _plain_wall(wall)
+	var w := float(t.get_width())
+	var h := float(t.get_height())
+	var a := float(BAY_SLAB)
+	var dt := float(open_top)
+	var db := float(open_bot)
+	# the walls, where they always are
+	draw_texture_rect_region(t, Rect2(at + Vector2(0, a), Vector2(w, h - 2.0 * a)), Rect2(0, a, w, h - 2.0 * a), mod)
+	# the hallway's own wall carried on up under the raised ceiling and down over
+	# the lowered floor (the bay picture's columns under this picture's)
+	var ox := at.x - wall_at.x
+	var wh := float(wall.get_height())
+	if dt > 0.0:
+		draw_texture_rect_region(wall, Rect2(at + Vector2(0, a - dt), Vector2(w, dt)), Rect2(ox, a, w, dt), mod)
+	if db > 0.0:
+		draw_texture_rect_region(wall, Rect2(at + Vector2(0, h - a), Vector2(w, db)), Rect2(ox, wh - a - db, w, db), mod)
+	# the ceiling and the floor, with the lips
+	draw_texture_rect_region(t, Rect2(at + Vector2(0, -dt), Vector2(w, a)), Rect2(0, 0, w, a), mod)
+	draw_texture_rect_region(t, Rect2(at + Vector2(0, h - a + db), Vector2(w, a)), Rect2(0, h - a, w, a), mod)
+
+
+## THE HALLWAY'S PLAIN WALL, for the gaps an opened mouth shows: a bay picture
+## with the inner door's columns (bay x 44..105, the door and its frame) given
+## the wall panels' own columns from left of it, tiled -- so a gap shows panels
+## running on, never a piece of the door. Made once per picture.
+static var _walls := {}
+
+
+static func _plain_wall(t: Texture2D) -> Texture2D:
+	var key := t.get_rid()
+	if _walls.has(key):
+		return _walls[key]
+	var img := t.get_image()
+	if img.is_compressed():
+		img.decompress()
+	img = img.duplicate()
+	var x0 := 44
+	var x1 := mini(106, img.get_width())
+	var src0 := 8
+	var src1 := 44
+	var n := src1 - src0
+	for x in range(x0, x1):
+		var sx := src0 + (x - x0) % n
+		for y in img.get_height():
+			img.set_pixel(x, y, img.get_pixel(sx, y))
+	var out := ImageTexture.create_from_image(img)
+	_walls[key] = out
+	return out
+
+
+## A front layer (to the plate's cut) with the mouth opened: everything where it
+## is but the two lip bands, which are drawn slid apart, and the frame's right
+## side carried on into the gaps beside them. Shut, the layer as it is.
+func _front_open(t: Texture2D, o: Vector2, mod: Color, cut: float, dx: float) -> void:
+	var h := float(t.get_height())
+	if (open_top <= 0 and open_bot <= 0) or dx != 0.0:
+		draw_texture_rect_region(t, Rect2(o + Vector2(dx, 0), Vector2(cut, h)), Rect2(0, 0, cut, h), mod)
+		return
+	var dt := float(open_top)
+	var db := float(open_bot)
+	var tb := LIP_TOP_BAND
+	var bb := LIP_BOT_BAND
+	var x0 := tb.position.x
+	var x1 := tb.end.x
+	var parts: Array[Rect2] = [Rect2(0, 0, cut, tb.position.y), Rect2(0, tb.position.y, x0, tb.size.y),
+		Rect2(x1, tb.position.y, cut - x1, tb.size.y), Rect2(0, tb.end.y, cut, bb.position.y - tb.end.y),
+		Rect2(0, bb.position.y, x0, bb.size.y), Rect2(x1, bb.position.y, cut - x1, bb.size.y),
+		Rect2(0, bb.end.y, cut, h - bb.end.y)]
+	for r in parts:
+		if r.size.x > 0.0 and r.size.y > 0.0:
+			draw_texture_rect_region(t, Rect2(o + r.position, r.size), r, mod)
+	# the frame's right side, carried on up and down into the gaps
+	var fx := FRAME_SIDE_X.x
+	var fw := FRAME_SIDE_X.y - FRAME_SIDE_X.x
+	if dt > 0.0:
+		draw_texture_rect_region(t, Rect2(o + Vector2(fx, tb.end.y - dt), Vector2(fw, dt)), Rect2(fx, tb.end.y, fw, dt), mod)
+	if db > 0.0:
+		draw_texture_rect_region(t, Rect2(o + Vector2(fx, bb.position.y), Vector2(fw, db)), Rect2(fx, bb.position.y - db, fw, db), mod)
+	# the lips, slid apart
+	draw_texture_rect_region(t, Rect2(o + tb.position - Vector2(0, dt), tb.size), tb, mod)
+	draw_texture_rect_region(t, Rect2(o + bb.position + Vector2(0, db), bb.size), bb, mod)
+
+
+## THE BODY OF A HULL, measured off its picture (`ZoomLadder.big_hull` "BODY"):
+## its opaque pixels opened by 3 x 3 (anything thinner than 3 px -- masts,
+## antennae, barrels, fins -- gone), and the rows from the first to the last
+## where what is left is at least 30% of its widest row: its main body, the
+## length of the hull (a tower or a keel narrower than that is not body: with it
+## counted, the heavy's body is its whole height and this is SHRINK again).
+## Image rows, [top, bottom).
+static func body_rows(img: Image) -> Vector2i:
+	if img == null:
+		return Vector2i(-1, -1)
+	var w := img.get_width()
+	var h := img.get_height()
+	var a := PackedByteArray()
+	a.resize(w * h)
+	for y in h:
+		for x in w:
+			a[y * w + x] = 1 if img.get_pixel(x, y).a > 0.5 else 0
+	# erode then dilate, each a 3-wide pass across then down
+	a = _pass(_pass(a, w, h, true, true), w, h, false, true)
+	a = _pass(_pass(a, w, h, true, false), w, h, false, false)
+	var counts := PackedInt32Array()
+	counts.resize(h)
+	var top := 0
+	for y in h:
+		var n := 0
+		for x in w:
+			n += a[y * w + x]
+		counts[y] = n
+		top = maxi(top, n)
+	if top <= 0:
+		return Vector2i(-1, -1)
+	var y0 := -1
+	var y1 := -1
+	for y in h:
+		if counts[y] >= int(0.3 * float(top)):
+			if y0 < 0:
+				y0 = y
+			y1 = y + 1
+	return Vector2i(y0, y1)
+
+
+static func _pass(a: PackedByteArray, w: int, h: int, across: bool, erode: bool) -> PackedByteArray:
+	var o := PackedByteArray()
+	o.resize(w * h)
+	for y in h:
+		for x in w:
+			var i := y * w + x
+			var p: int
+			var q: int
+			if across:
+				p = a[i - 1] if x > 0 else 0
+				q = a[i + 1] if x < w - 1 else 0
+			else:
+				p = a[i - w] if y > 0 else 0
+				q = a[i + w] if y < h - 1 else 0
+			if erode:
+				o[i] = 1 if a[i] == 1 and p == 1 and q == 1 else 0
+			else:
+				o[i] = 1 if a[i] == 1 or p == 1 or q == 1 else 0
+	return o
 
 
 ## Any other side: behind your ship its bay (or interior), lit from the door;
@@ -421,10 +605,10 @@ func _draw_interior(m: Color, o: Vector2) -> void:
 func _draw_side(m: Color, o: Vector2) -> void:
 	var s := side
 	if not front:
-		draw_texture(s.bay_dark, o + s.bay_at, m)
+		_bay_open(s.bay_dark, o + s.bay_at, m)
 		var k := bay_lit()
 		if k > 0.01:
-			draw_texture(s.bay_lit, o + s.bay_at, Color(m.r, m.g, m.b, k))
+			_bay_open(s.bay_lit, o + s.bay_at, Color(m.r, m.g, m.b, k))
 		_draw_interior(m, o)
 		return
 	# (where the camera is as this frame is drawn)
@@ -432,10 +616,10 @@ func _draw_side(m: Color, o: Vector2) -> void:
 	# the plate up to where its hull window starts, then the window tiled on
 	var cut := s.hull_x0
 	var h := float(s.solid.get_height())
-	draw_texture_rect_region(s.solid, Rect2(o, Vector2(cut, h)), Rect2(0, 0, cut, h), m)
+	_front_open(s.solid, o, m, cut, 0.0)
 	for l: Array in s.layers:
 		var dx := float(par.get(l[1], 0))
-		draw_texture_rect_region(l[0], Rect2(o + Vector2(dx, 0), Vector2(cut, h)), Rect2(0, 0, cut, h), m)
+		_front_open(l[0], o, m, cut, dx)
 	var lk := lerpf(STANDBY, 1.0, power)
 	draw_hull(self, Rect2(o.x + cut, o.y, HULL_RUN, h), o.x + cut, o.y + ROW, m, 1.0, s, par, lk, false)
 	_draw_entrance_lamps(s.lamps, m, STRIP)
@@ -451,10 +635,10 @@ func _draw_side(m: Color, o: Vector2) -> void:
 
 
 ## Part of the lamps layer over the unlit plate, at `k` of its light.
-func _lit(lamps: Texture2D, r: Rect2, k: float, m: Color) -> void:
+func _lit(lamps: Texture2D, r: Rect2, k: float, m: Color, off: Vector2 = Vector2.ZERO) -> void:
 	if k <= 0.01:
 		return
-	draw_texture_rect_region(lamps, Rect2(origin() + r.position, r.size), r, Color(m.r, m.g, m.b, clampf(k, 0.0, 1.0)))
+	draw_texture_rect_region(lamps, Rect2(origin() + r.position + off, r.size), r, Color(m.r, m.g, m.b, clampf(k, 0.0, 1.0)))
 
 
 # ------------------------------------------------------------------ the light
@@ -560,10 +744,10 @@ func _side_lights(c: CanvasItem) -> void:
 		return
 	var sk := Color(1, 1, 1).lerp(tint, 0.2)
 	var flick := 0.92 + 0.08 * sin(_clock * 9.0) * sin(_clock * 3.7)
-	_guides(c, GUIDE_LOW_Y + 1.0, GUIDE_LOW_N, 0.35)
+	_guides(c, GUIDE_LOW_Y + 1.0 + float(open_bot), GUIDE_LOW_N, 0.35)
 	_door_lights(c, flick)
 	_strip_lights(c, flick)
-	_guides(c, 204.0, GUIDE_TOP.size(), 0.3)
+	_guides(c, 204.0 - float(open_top), GUIDE_TOP.size(), 0.3)
 	var s := side
 	for i in s.extra.size():
 		var l: Dictionary = s.extra[i]

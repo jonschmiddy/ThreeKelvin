@@ -117,6 +117,7 @@ func _hull_flies_in(dock_b: Button) -> void:
 	var lip_over := -INF
 	var lip_at := Rect2()
 	var shrink := -1.0
+	var open_most := 0
 	var hall := loc0 != null and loc0._face != null and is_instance_valid(loc0._face)
 	var pan_x: Array[float] = []
 	var edge_off := 0
@@ -154,8 +155,20 @@ func _hull_flies_in(dock_b: Button) -> void:
 				tails.append(last.position.x)
 				if loc0._lad.has("hall"):
 					shrink = float((loc0._lad.hall as Dictionary).get("shrink", 1.0))
+				open_most = maxi(open_most, maxi(loc0._face.open_top, loc0._face.open_bot))
 				if last.end.x > StationFace.LIP_X and last.position.x < StationFace.RECESS.end.x:
-					var ov := maxf(StationFace.SLOT.position.y - last.position.y, last.end.y - (StationFace.SLOT.end.y + 2.0))
+					# (between the lips' outer rows, wherever they are: OPEN slides
+					# them apart; BODY asks it of the hull's body only)
+					var band := Vector2(StationFace.SLOT.position.y - float(loc0._face.open_top),
+						StationFace.SLOT.end.y + 2.0 + float(loc0._face.open_bot))
+					var top := last.position.y
+					var bot := last.end.y
+					var fit: Dictionary = StationFace.last_fit
+					if String(fit.get("mode", "")) == "BODY" and fit.has("body"):
+						var cy := last.get_center().y
+						top = cy + float(fit.body[0]) * last.size.y
+						bot = cy + float(fit.body[1]) * last.size.y
+					var ov := maxf(band.x - top, bot - band.y)
 					if ov > lip_over:
 						lip_over = ov
 						lip_at = last
@@ -194,7 +207,12 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: the station's lights are all on before the pan (power %.2f)" % power, power >= 0.999)
 		# (seen only in the recess: wholly past its end, inside the hull's rows,
 		# your ship is 0 pixels seen -- `_front_is_plate_less_recess`)
-		var hull := Rect2(StationFace.RECESS.end.x, StationFace.RECESS.position.y, 2000.0, StationFace.RECESS.size.y)
+		# (the hull past the recess, from the upper lip's outer edge to the lower
+		# lip's: solid on every side -- `_front_is_plate_less_recess` -- so a
+		# bigger hull at its berth, as BODY and OPEN leave the heavy, is out of
+		# sight in it too)
+		var hull := Rect2(StationFace.RECESS.end.x, StationFace.LIP_TOP_BAND.position.y, 2000.0,
+			StationFace.LIP_BOT_BAND.end.y - StationFace.LIP_TOP_BAND.position.y)
 		_ok("3B: your ship is all the way into the hull, none of it seen, before the hand-off (on the plate %s; hull past the recess from x %.0f)" % [last, hull.position.x],
 			last.size.x > 1.0 and hull.encloses(last))
 		if fmode:
@@ -203,13 +221,24 @@ func _hull_flies_in(dock_b: Button) -> void:
 		_ok("3B: on every frame of the approach your ship is drawn between the station's plate and its front, both placed alike (%d frames out)" % layer_bad,
 			layer_bad == 0)
 		_ok("3B: the station takes %.0f px of LOCAL's width (at most %.0f)" % [shown, StationFace.SHOWN + 1.0], shown <= StationFace.SHOWN + 1.0 and shown > 150.0)
-		_ok("3B: %s goes in between the lips, never cut off by them (closest %.1f px from their outer rows; at %s)" % [
-			Run.hull.name, -lip_over, lip_at], lip_over <= 0.0)
-		# (the light and the medium dock exactly as approved; only a taller hull
-		# shrinks sooner -- `StationFace.SHIP_LIP_H`)
-		_ok("3B: %s shrinks on its way in with q %.3f%s" % [Run.hull.name, shrink,
-			" (as approved)" if is_equal_approx(shrink, 1.0) else " (sooner: taller than the lips allow)"],
-			shrink > 0.0 and (Run.hull.weight == HullData.Weight.HEAVY or is_equal_approx(shrink, 1.0)))
+		var big := ZoomLadder.big_hull()
+		# (as the dock decided it: Drum 1 as approved, unlit, draws no moving lips,
+		# so OPEN is SHRINK there)
+		big = String(StationFace.last_fit.get("mode", big))
+		_ok("3B %s: %s goes in between the lips, never cut off by them%s (closest %.1f px from their outer rows; at %s)" % [
+			big, Run.hull.name, " (its body)" if big == "BODY" else "", -lip_over, lip_at], lip_over <= 0.0)
+		# (the light and the medium dock exactly as approved, in every mode; only a
+		# taller hull shrinks sooner -- `StationFace.SHIP_LIP_H` -- or has the
+		# mouth opened for it)
+		var light_or_medium := Run.hull.weight != HullData.Weight.HEAVY
+		_ok("3B %s: %s shrinks on its way in with q %.3f%s, the mouth opened %d px%s" % [big, Run.hull.name, shrink,
+			" (as approved)" if is_equal_approx(shrink, 1.0) else " (sooner)", open_most,
+			"" if open_most > 0 else " (never)"],
+			shrink > 0.0 and (not light_or_medium or (is_equal_approx(shrink, 1.0) and open_most == 0))
+			and (big != "OPEN" or is_equal_approx(shrink, 1.0)) and (big == "OPEN" or open_most == 0))
+		_ok("3B %s: the mouth is shut again at rest (%d, %d)" % [big, loc0._face.open_top if is_instance_valid(loc0) else 0,
+			loc0._face.open_bot if is_instance_valid(loc0) else 0],
+			not is_instance_valid(loc0) or (loc0._face.open_top == 0 and loc0._face.open_bot == 0))
 	if fmode:
 		_ok("3B F: the screen goes all the way to black at the hand-off (%.2f)" % black_top, black_top >= 0.99)
 		_ok("3B F: the yard comes up from black empty, and stays empty with the black gone for %d frames (at least 9, 0.3 s)" % empty_up,
@@ -381,11 +410,18 @@ func _every_side() -> void:
 	# EVERY WEIGHT (Jon: "how do large ships look going into the station?"): the
 	# light, the medium and the heavy, every mount filled (turrets and pods on,
 	# the tallest each can be), at every side
-	for w in [HullData.Weight.MEDIUM, HullData.Weight.LIGHT, HullData.Weight.HEAVY]:
-		Run.fit_chassis(&"korvan", w)
-		_fit_full()
-		print("  -- weight: %s" % Run.hull.name)
-		await _every_side_once()
+	# ... in each way a big hull may pass the lips (`ZoomLadder.big_hull`): the
+	# default every weight at every side; the other two the heavy at every side,
+	# and the light and the medium at the Drum, untouched
+	for mode in ZoomLadder.BIG_HULLS:
+		ZoomLadder.force_big = mode
+		for w in [HullData.Weight.MEDIUM, HullData.Weight.LIGHT, HullData.Weight.HEAVY]:
+			Run.fit_chassis(&"korvan", w)
+			_fit_full()
+			print("  -- %s, weight: %s" % [mode, Run.hull.name])
+			var all_sides: bool = mode == "SHRINK" or w == HullData.Weight.HEAVY
+			await _every_side_once(all_sides)
+	ZoomLadder.force_big = ""
 	Run.fit_chassis(&"korvan", HullData.Weight.MEDIUM)
 
 
@@ -410,11 +446,13 @@ func _fit_full() -> void:
 				Run.install_module(m.duplicate(true) as ModuleData)
 
 
-func _every_side_once() -> void:
+func _every_side_once(all_sides: bool = true) -> void:
 	var ints := [StationSides.NONE, &"iris_90_0", &"hallway_170_1", &"cargo_170_0", &"iris_220_1", &"hallway_90_1", &"cargo_130_1"]
 	# (and Drum take 1 as approved, unlit, kept to compare: its dock still whole)
 	var ids: Array = StationSides.IDS.duplicate()
 	ids.append(StationSides.FLAT)
+	if not all_sides:
+		ids = [&"drum1"]
 	for i in ids.size():
 		var id: StringName = ids[i]
 		StationSides.force_side = id
@@ -557,7 +595,7 @@ func _front_is_plate_less_recess() -> void:
 					elif t != s.lamps and solid.get_pixel(x, y).a < 0.99:
 						open += 1
 		var holes := 0
-		for y in range(int(StationFace.RECESS.position.y), int(StationFace.RECESS.end.y)):
+		for y in range(int(StationFace.LIP_TOP_BAND.position.y), int(StationFace.LIP_BOT_BAND.end.y)):
 			for x in range(int(StationFace.RECESS.end.x), int(s.hull_x0)):
 				if solid.get_pixel(x, y).a < 0.99:
 					holes += 1

@@ -4,6 +4,7 @@ extends Node
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LadderShot
 ##       keepwindow flow=c out=<dir> [seed=N] [seams=1,2,3] [designs=A,B,C] [style=...]
 ##       [side=<StationSides id>] [interior=<id>|none] [weight=light|medium|heavy] [fit=full]
+##       [big_hull=SHRINK|BODY|OPEN]
 ## For each design of each seam asked for, the move both ways through the
 ## Router's own doors -- chart <-> map, map <-> LOCAL (in orbit of a world, so the
 ## world handoff has its world), LOCAL <-> station (DOCK on LOCAL's bar, UNDOCK)
@@ -180,6 +181,11 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 	mf.close()
 	if timing:
 		print("  [ladder] %s: longest real frame %.1f ms at frame %d (swap %d)" % [name, worst, worst_at, swap])
+	if not StationFace.last_fit.is_empty():
+		print("  [ladder] %s: the hull's fit to the mouth %s" % [name, StationFace.last_fit])
+		mf = FileAccess.open("%s/fit.json" % d, FileAccess.WRITE)
+		mf.store_string(JSON.stringify(StationFace.last_fit))
+		mf.close()
 	print("  [ladder] %s: %d frames, swap at %d, on %s" % [name, k, swap,
 		Router.current.get_script().get_global_name() if Router.current != null else "-"])
 
