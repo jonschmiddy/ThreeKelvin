@@ -1008,7 +1008,10 @@ vec3 starDebt(vec2 p) {
 	if (!u_stars_on || !u_debtOn || (u_diag & 18) != 0) {
 		return vec3(0.0);
 	}
-	return debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom);
+	// (out in the disc, not in the bulge: there the light is the core's, which the
+	// glare control already holds -- and the bulge's own stars come in from zoom 2 --
+	// and laid over the gold round the hole it flickered on a slow zoom)
+	return max(debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom), vec3(0.0)) * smoothstep(0.10, 0.22, length(p));
 }
 vec3 starAt(ivec2 sb) {
 	if (!u_stars_on || sb.x < 0 || sb.y < 0 || sb.x >= int(u_vp_size.x) || sb.y >= int(u_vp_size.y)) {

@@ -66,7 +66,7 @@ vec3 starDebt(vec2 p) {
 	// (less here than SIMPLIFIED's: RADIANT's brighter exposure clips a star's
 	// block, so a star was worth less to its patch than its light says; measured,
 	// the whole of it brightened a patch of the arms 0.5 past where it started)
-	return (debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom)) * 0.6;
+	return max(debtAt(p, min(u_zopen, u_zoom)) - debtAt(p, u_zoom), vec3(0.0)) * 0.6 * smoothstep(0.10, 0.22, length(p));
 }
 
 uniform float u_k = 622.25;
