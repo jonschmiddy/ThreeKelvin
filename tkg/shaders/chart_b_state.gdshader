@@ -68,9 +68,17 @@ const float TILT = 0.38;
 // the ordered offset of a band step, in bands (see BANDS AS A PAINTER DRAWS THEM)
 const float JIT = 0.16;
 
-// a modulo that wraps negative numbers (GLSL leaves % of a negative undefined)
+// a modulo that wraps negative numbers (GLSL leaves % of a negative undefined).
+// HALF A BLOCK IN (Oct 11, Jon: "weird horizontal lines on painted"): a GPU
+// divides by multiplying by the reciprocal, so at an exact multiple of the size
+// a / s came out a hair under the whole number, its floor one short, and the
+// slot landed on `s` itself -- one past the band memory's last row or column.
+// Read there, the memory was nothing (material 0, band 0): a whole row of the
+// sky drawn in its darkest band, straight across the view, wherever the pan
+// put a wrap of the memory on the screen. Measured from the middle of the
+// block, the floor is never in doubt.
 ivec2 pmod(ivec2 a, ivec2 s) {
-	return a - s * ivec2(floor(vec2(a) / vec2(s)));
+	return a - s * ivec2(floor((vec2(a) + 0.5) / vec2(s)));
 }
 
 // the materials whose bands are smoothed: the masses of light (not the sky's
@@ -94,7 +102,7 @@ void fragment() {
 	ivec2 b0 = ivec2(block0);
 	ivec2 local = pmod(slot - b0, size);
 	ivec2 absb = local + b0;
-	ivec2 wrap = ivec2(floor(vec2(absb) / vp_size)) & ivec2(15);
+	ivec2 wrap = ivec2(floor((vec2(absb) + 0.5) / vp_size)) & ivec2(15);
 	float tag = float(wrap.x * 16 + wrap.y);
 	// where this block's piece of the galaxy stood last frame (the plane turned
 	// back), and that block's memory
@@ -108,7 +116,7 @@ void fragment() {
 		vec2 s2 = cpix0 + vec2(r.x, r.y * TILT) * zoom0;
 		ivec2 abs2 = ivec2(floor((s2 - origin0) * 0.5)) + ivec2(block00);
 		from = pmod(abs2, size);
-		ivec2 w2 = ivec2(floor(vec2(abs2) / vp_size)) & ivec2(15);
+		ivec2 w2 = ivec2(floor((vec2(abs2) + 0.5) / vp_size)) & ivec2(15);
 		ftag = float(w2.x * 16 + w2.y);
 	}
 	vec4 g = texelFetch(gbuf, local, 0);

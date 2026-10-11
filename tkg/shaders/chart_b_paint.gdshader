@@ -29,9 +29,17 @@ uniform vec2 block0 = vec2(0.0);
 
 struct GB { int m; int band; int sid; int ang; bool edge; int into; };
 
-// a modulo that wraps negative numbers (GLSL leaves % of a negative undefined)
+// a modulo that wraps negative numbers (GLSL leaves % of a negative undefined).
+// HALF A BLOCK IN (Oct 11, Jon: "weird horizontal lines on painted"): a GPU
+// divides by multiplying by the reciprocal, so at an exact multiple of the size
+// a / s came out a hair under the whole number, its floor one short, and the
+// slot landed on `s` itself -- one past the band memory's last row or column.
+// Read there, the memory was nothing (material 0, band 0): a whole row of the
+// sky drawn in its darkest band, straight across the view, wherever the pan
+// put a wrap of the memory on the screen. Measured from the middle of the
+// block, the floor is never in doubt.
 ivec2 pmod(ivec2 a, ivec2 s) {
-	return a - s * ivec2(floor(vec2(a) / vec2(s)));
+	return a - s * ivec2(floor((vec2(a) + 0.5) / vec2(s)));
 }
 
 GB fetchG(ivec2 b) {

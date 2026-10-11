@@ -166,7 +166,7 @@ func _run() -> void:
 		kinds.append(NebulaField.Kind.keys()[(raw as NebulaField.Cloud).kind])
 	print("  chartlook: clouds %s" % [kinds])
 
-	if _arg("zoomclip") != "" or _arg("liveclip") != "" or _arg("panclip") != "":
+	if _arg("zoomclip") != "" or _arg("liveclip") != "" or _arg("panclip") != "" or _arg("wheelclip") != "" or _arg("glideclip") != "" or _arg("playclip") != "":
 		await _clip()
 		get_tree().quit()
 		return
@@ -244,7 +244,7 @@ func _view(z: float, at: Vector2) -> void:
 
 
 func _clip() -> void:
-	var dir := _arg("zoomclip", _arg("liveclip", _arg("panclip")))
+	var dir := _arg("zoomclip", _arg("liveclip", _arg("panclip", _arg("wheelclip", _arg("glideclip", _arg("playclip"))))))
 	DirAccess.make_dir_recursive_absolute(dir)
 	var cv := _arg("clipview", "1.5:0:0").split(":")
 	var z0 := float(cv[0])
@@ -268,6 +268,90 @@ func _clip() -> void:
 			_chart.sky_pan += _chart.pan - before
 			_chart._repaint_galaxy()
 			await _frame_shot(dir, i)
+	elif _arg("playclip") != "":
+		# `playclip=<dir>`: a hand playing: wheel notches at wandering cursors and
+		# drags, for `clipframes` frames, the clock running (`playseed=N`)
+		_view(z0, at)
+		for _i in 6:
+			await RenderingServer.frame_post_draw
+		if _arg("bhold") != "" and (_chart._sky as ChartSky)._m_state != null:
+			(_chart._sky as ChartSky)._m_state.set_shader_parameter("hold", float(_arg("bhold")))
+			(_chart._sky as ChartSky)._g_for()["_hold_fixed"] = true
+		var rng := RandomNumberGenerator.new()
+		rng.seed = int(_arg("playseed", "7"))
+		var t := StarchartScreen.MapChart.clock_override
+		var drag := Vector2.ZERO
+		var drag_n := 0
+		for fi in int(_arg("clipframes", "300")):
+			t += 1.0 / 60.0
+			StarchartScreen.MapChart.clock_override = t
+			var r := rng.randf()
+			if drag_n > 0:
+				var before: Vector2 = _chart.pan
+				_chart.pan += drag
+				_chart.sky_pan += _chart.pan - before
+				_chart._clamp_pan()
+				_chart._repaint_galaxy()
+				drag_n -= 1
+			elif r < 0.12:
+				var cur := _chart.size * Vector2(rng.randf_range(0.15, 0.85), rng.randf_range(0.15, 0.85))
+				var f := StarchartScreen.MapChart.ZOOM_STEP if (rng.randf() < 0.55 or _chart.zoom < 2.0) and _chart.zoom < 5.5 else 1.0 / StarchartScreen.MapChart.ZOOM_STEP
+				_chart._zoom_at(cur, f)
+			elif r < 0.16:
+				drag = Vector2(rng.randf_range(-6.0, 6.0), rng.randf_range(-4.0, 4.0))
+				drag_n = rng.randi_range(5, 30)
+			_chart._repaint_sky()
+			await _frame_shot(dir, fi)
+			if "playlog" in OS.get_cmdline_user_args():
+				var sk := _chart._sky as ChartSky
+				print("  play %d zoom %.6f pan %.4f %.4f sky %.4f %.4f t %.4f origin %s size %s since %d" % [fi, _chart.zoom, _chart.pan.x, _chart.pan.y, _chart.sky_pan.x, _chart.sky_pan.y, t, sk._vp_origin, sk._vp.size, sk._since_zoom])
+	elif _arg("glideclip") != "":
+		# `glideclip=<dir>`: glides as a press makes them (`glide_to`), from the clip
+		# view in to `glideto=Z:X:Y` and back, every frame drawn as the game draws it
+		_view(z0, at)
+		for _i in 6:
+			await RenderingServer.frame_post_draw
+		var gt := _arg("glideto", "5:0:0").split(":")
+		var z1 := float(gt[0])
+		var at1 := _pan_of(gt[1], gt[2] if gt.size() > 2 else "0", z1)
+		var k: float = _chart._radius() * StarchartScreen.MapChart.DISC
+		var fi := 0
+		for leg in 2:
+			var zz := z1 if leg == 0 else z0
+			var aa := at1 if leg == 0 else at
+			var zoom: float = zz * ChartSky.K0 / k
+			_chart.glide_to(zoom, -aa * zz, 0.55)
+			for _j in 50:
+				await _frame_shot(dir, fi)
+				fi += 1
+	elif _arg("wheelclip") != "":
+		# `wheelclip=<dir>`: as a hand plays it -- turns of the wheel at a cursor
+		# (`wheelat=fx:fy`, shares of the chart), in to the closest zoom and back out,
+		# a notch every `wheelgap=N` frames, with drags between; the clock runs at the
+		# game's rate and the galaxy turns (`turn=title` for the title's speed)
+		_view(z0, at)
+		for _i in 6:
+			await RenderingServer.frame_post_draw
+		var wa := _arg("wheelat", "0.45:0.4").split(":")
+		var cur := _chart.size * Vector2(float(wa[0]), float(wa[1]))
+		var gap := int(_arg("wheelgap", "4"))
+		var steps := int(_arg("wheelsteps", "24"))
+		var t := StarchartScreen.MapChart.clock_override
+		var fi := 0
+		for dirn in [1, -1]:
+			for st in steps:
+				_chart._zoom_at(cur, StarchartScreen.MapChart.ZOOM_STEP if dirn > 0 else 1.0 / StarchartScreen.MapChart.ZOOM_STEP)
+				for _j in gap:
+					t += 1.0 / 60.0
+					StarchartScreen.MapChart.clock_override = t
+					if st % 6 == 5 and _j < 2:
+						var before: Vector2 = _chart.pan
+						_chart.pan += Vector2(3.0, 1.0)
+						_chart.sky_pan += _chart.pan - before
+						_chart._repaint_galaxy()
+					_chart._repaint_sky()
+					await _frame_shot(dir, fi)
+					fi += 1
 	elif _arg("zoomclip") != "":
 		var n := int(_arg("clipframes", "61"))
 		var f := float(_arg("clipzoom", "1.1"))
