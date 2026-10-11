@@ -171,6 +171,17 @@ float fineDetail(vec2 pa, vec2 pb, float w, float pxGu) {
 // palette cut from them is the one Jon approved. The detail only lands on its
 // colours. 1 in a frame, 0 in a probe.
 float resolveOn() { return u_stars_on ? 1.0 : 0.0; }
+// ZOOMING ONLY MAGNIFIES (Jon, Oct 11: "why do the clouds change at all when you
+// zoom in?"). A patch of the galaxy keeps its shape, colour and brightness at
+// every zoom; zooming in may only ADD detail inside it (finer gas, its stars).
+// What used to change with the zoom -- the nest of dust round the hole growing in
+// from zoom 1.2, the nuclear lanes and the inner billows going from zoom 3 (later
+// 4), the halo round the core thinning from 2.4, the wisps thinning from 3 --
+// now stays as it is at the opening zoom, everywhere. The one exception is the core's
+// own glare (the bulge's light, an elliptical's heart), still turned down deep in
+// so the gold does not wash out round the hole. The palette's probes keep the old
+// behaviour (`resolveOn`), so the cut is the approved palette. 1 in a probe.
+float zoomChanges() { return 1.0 - resolveOn(); }
 // the fine detail as the probes always had it (fbm octaves of 1/220 gu from zoom 2.8)
 float fineDetailProbe(vec2 pa, vec2 pb, float w) {
 #if LOW
@@ -237,7 +248,8 @@ vec3 halo(vec2 v) {
 	vec2 p = kitViewToPlane(v, u_phi, u_k);
 	float m = mottle(p * 0.8);
 	I *= mix(1.0, 0.35 + 1.3 * m * m, smoothstep(0.35, 0.9, s));
-	I *= 1.0 - 0.88 * smoothstep(2.4, 6.0, u_zoom) * (1.0 - smoothstep(0.08, 0.3, s));
+	// (it used to thin round the core from zoom 2.4; ZOOM ONLY MAGNIFIES, see `zoomChanges`)
+	I *= 1.0 - 0.88 * smoothstep(2.4, 6.0, u_zoom) * (1.0 - smoothstep(0.08, 0.3, s)) * zoomChanges();
 	return mix(vec3(1.0, 0.70, 0.42), vec3(0.30, 0.40, 1.0), smoothstep(0.08, 0.7, s)) * I;
 }
 // The grade: a hue-keeping chroma lift on muted mid tones (slate to indigo,
@@ -400,13 +412,12 @@ vec3 tailLight(vec2 p) {
 // The disc at plane point p (h = 0): its light Em and the transmittance T of its
 // dust, the gas there (for clouds to light) and the arm ridge A; `dust` and
 // `nest` are the nuclear dust's density and the dust nest round the hole.
-float nestZ() { return smoothstep(1.2, 3.6, u_zoom); }
+float nestZ() { return smoothstep(1.2, 3.6, u_zoom) * zoomChanges(); }
 // THE NUCLEUS'S LANES AND ITS INNER BILLOWS AS YOU NEAR THE HOLE: they used to go
 // altogether between zoom 3 and 5, and the gas round the hole went to one flat
-// brown plate as you zoomed in (Jon: "dust disappearing"). Now they thin only
-// a little, late, so the hole still reads; the palette's probes keep the old
-// fade (`resolveOn`), so the cut colours are the approved ones.
-float nucFade() { return mix(1.0 - smoothstep(3.0, 5.0, u_zoom), 1.0 - 0.55 * smoothstep(4.0, 6.0, u_zoom), resolveOn()); }
+// brown plate as you zoomed in (Jon: "dust disappearing"). Now they stay
+// (`zoomChanges`); the palette's probes keep the old fade.
+float nucFade() { return mix(1.0 - smoothstep(3.0, 5.0, u_zoom), 1.0, resolveOn()); }
 float nucLanes(vec2 p, float r, float n) {
 	float arms = u_armModel.x;
 	if (arms < 0.5) {
@@ -880,7 +891,7 @@ void wispLayer(vec2 v, float la, inout vec3 C) {
 	}
 	// (they thin only a little as you near them: gas that vanished as you zoomed
 	// in read as detail lost, Jon)
-	float fade = mix(1.0, 0.75, smoothstep(3.0, 6.0, u_zoom));
+	float fade = mix(1.0, 0.75, smoothstep(3.0, 6.0, u_zoom) * zoomChanges());
 	vec2 pw = kitRot(0.9 + u_time * 0.00012 * u_drift) * p * 0.85;
 	// (and they resolve into finer strands as you near them)
 	float f = noiseRawLA(pw, la).g + (u_stars_on ? 0.14 * crDetail(pw, blockGu(la) * 0.85, 0.02, 7.0) : 0.0);
@@ -972,7 +983,8 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 	if (ball) {
 		vec3 Bb = ellBall(v, gas);
 		// close in, the ball resolves into its stars and its diffuse light thins
-		Bb *= mix(1.0, 0.3, smoothstep(2.4, 6.0, u_zoom));
+		// (the core's glare only: the ball's heart, never its outskirts)
+		Bb *= mix(1.0, 0.3, smoothstep(2.4, 6.0, u_zoom) * mix(1.0 - smoothstep(0.05, 0.30, r), 1.0, zoomChanges()));
 		// (no blue halo under a ball: over its red outskirts it read mauve; the
 		// ball's own envelope is its halo)
 		C = C * exp(-kitLum(Bb) * 120.0) + Bb + star + tailLight(p) + knots(p);
@@ -994,6 +1006,9 @@ vec3 galaxy(vec2 v, ivec2 sb, ivec2 blk, ivec2 dq, float la, out float dustOut) 
 		// (and those stars are drawn: the light it loses comes back as them, warm,
 		// so the core does not go to a flat dim plate as you near the hole)
 		vec3 bStars = resolvedStars(p, v, hbOf(la), la, kitLum(B) * 0.6, 0.0, 1);
+		// (THE ONE THING THE ZOOM STILL TURNS DOWN: the core's own glare, so the gold
+		// does not wash out round the hole. It touches the bulge's light alone, never
+		// the gas, dust or stars round it.)
 		B *= mix(1.0, 0.10, smoothstep(2.4, 6.0, u_zoom));
 		float bm = 0.5 + 0.5 * fbm2F(p * 9.0 + vec2(2.7, 8.1), max(4.0 - la, 1.0));
 		// (and the mottle keeps resolving past its fourth octave as you near the core)
@@ -1035,7 +1050,11 @@ vec3 place(vec2 v, ivec2 blk, ivec2 dq) {
 	// (the stars behind are read where the lens shows them; holding them on a
 	// coarser grid while the zoom moves drew them as dashes, so they are not)
 	ivec2 sb = lens ? blockOf(scr(vbg)) : blk;
-	float la = lens ? log2(max(lensSqueeze(S), 1.0)) : 0.0;
+	// (read twice as coarse through the lens as it squeezes: the gas round the hole now
+	// keeps its light and structure deep in, Oct 11, and squeezed into a few blocks
+	// it shimmered as the zoom moved; the palette's probes read it as before, and so
+	// does the opening view, which is left exactly as it was)
+	float la = lens ? log2(max(lensSqueeze(S), 1.0)) * (1.0 + resolveOn() * smoothstep(0.5, 1.5, u_zoom)) : 0.0;
 	float dust;
 	vec3 C = galaxy(vbg, sb, blk, dq, la, dust);
 	if (!lens) {
