@@ -1,5 +1,5 @@
 {
- "spent": 7.0,
+ "spent": 9.0,
  "takes": [
   {
    "tag": "pile1__s300_61101",
@@ -77,6 +77,26 @@
     "generations": 1.0
    },
    "seconds": 53.3
+  },
+  {
+   "tag": "shanty3__seam_300_115",
+   "plate": "shanty3",
+   "tool": "inpaint (HTTP API v1)",
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 95.1
+  },
+  {
+   "tag": "shanty3__seam_300_250",
+   "plate": "shanty3",
+   "tool": "inpaint (HTTP API v1)",
+   "usage": {
+    "type": "generations",
+    "generations": 1.0
+   },
+   "seconds": 17.7
   }
  ]
 }
