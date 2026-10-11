@@ -2276,6 +2276,7 @@ class _Lines extends Node2D:
 		var win: Rect2 = view.window.grow(4.0)
 		var o: Vector2 = view.origin()
 		var hole := _star_hole()
+		var odepth: bool = SectorWowS.has(&"orbitdepth", view)
 		for bi in L.bodies.size():
 			var b := L.bodies[bi]
 			if b.kind == &"belt":
@@ -2328,7 +2329,13 @@ class _Lines extends Node2D:
 				if pts.size() > 0 and pts[pts.size() - 1] == q:
 					continue
 				pts.append(q)
-				cols.append(Color(c.x, c.y, c.z, 0.14 + tr * 0.38))
+				# WOW `orbitdepth`: the near half of the ring (toward you, below the
+				# star) a little bolder, the far half fainter, so the plane reads as
+				# a plane lying back -- by where on the ring, never by the zoom
+				var dk := 1.0
+				if odepth:
+					dk = lerpf(0.6, 1.45, smoothstep(-1.0, 1.0, op.z / maxf(b.orbit, 1.0)))
+				cols.append(Color(c.x, c.y, c.z, (0.14 + tr * 0.38) * dk))
 			if pts.size() > 1:
 				draw_polyline_colors(pts, cols, 1.0)
 		view.tick("lines draw", t1)
