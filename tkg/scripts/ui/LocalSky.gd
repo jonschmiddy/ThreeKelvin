@@ -1899,6 +1899,112 @@ func wow_sync() -> void:
 	_wow_night()
 	_wow_moons()
 	_wow_air()
+	_wow_traffic()
+
+
+## TRAFFIC (`LocalWow` "traffic"): in a settled system, far ships crossing along
+## its plane, behind the near world and in front of the band's -- a dark sliver
+## of hull lit along its top by the star, its drive a point of light with a
+## short fading wake -- the more developed the system, the busier (a capital's
+## lanes always have somebody on them; an outpost now and then; nobody where
+## nobody lives). Drawn a game pixel at a time over the sky (`_Traffic`), at the
+## band's depth for the camera; worked out from the sky's clock alone, so the
+## same moment always shows the same ships.
+## (a ship crosses in one to four minutes; these are spaced so a capital has
+## five or six in view, a city three or four, a settlement one or two, an
+## outpost one now and then)
+const _TRAFFIC_EVERY := {MapGen.Development.OUTPOST: 110.0, MapGen.Development.SETTLEMENT: 55.0,
+	MapGen.Development.CITY: 30.0, MapGen.Development.CAPITAL: 18.0}
+var _traffic: _Traffic = null
+
+
+func _wow_traffic() -> void:
+	if not LocalWow.asked(&"traffic") or node == null or _box == null:
+		if _traffic != null and is_instance_valid(_traffic):
+			_traffic.visible = false
+		return
+	var dev := node.development
+	if node.type == MapGen.NodeType.STATION:
+		dev = maxi(dev, MapGen.Development.CITY) as MapGen.Development
+	if not _TRAFFIC_EVERY.has(dev):
+		return
+	if _traffic == null or not is_instance_valid(_traffic):
+		_traffic = _Traffic.new()
+		_traffic.seed = node.index
+		_traffic.every = float(_TRAFFIC_EVERY[dev])
+		_traffic.hull = Color("#141a24")
+		var sc: Vector3 = SkyBakeS.STARCOL.get(kind, SkyBakeS.STARCOL.ORDINARY)
+		_traffic.lit = Color(sc.x, sc.y, sc.z).lerp(Color("#8a96a8"), 0.45)
+		add_child(_traffic)
+	_traffic.visible = LocalWow.on(&"traffic")
+	_traffic.position = _box.position
+	_traffic.t = t
+	_traffic.shift = -cam.x * F_BAND
+	_traffic.hide_c = Vector2(-9999, -9999)
+	_traffic.hide_r = 0.0
+	if _near_world is PlanetView:
+		_traffic.hide_c = _near_world.position
+		_traffic.hide_r = float((_near_world.get("_mat") as ShaderMaterial).get_shader_parameter("r")) + 4.0
+	_traffic.queue_redraw()
+
+
+class _Traffic extends Node2D:
+	var seed := 0
+	var every := 5.0
+	var t := 0.0
+	var shift := 0.0
+	var hull := Color.BLACK
+	var lit := Color.WHITE
+	var hide_c := Vector2(-9999, -9999)
+	var hide_r := 0.0
+	const DRIVES := [Color(1.0, 0.72, 0.36), Color(0.62, 0.82, 1.0), Color(1.0, 0.9, 0.7)]
+
+	func _h(j: int, k: int) -> float:
+		return SkyBakeS.hash2(seed * 131 + j, 900 + k)
+
+	func _px(x: float, y: float, c: Color) -> void:
+		if Vector2(x, y).distance_to(hide_c) < hide_r:
+			return
+		draw_rect(Rect2(x, y, 1, 1), c)
+
+	func _draw() -> void:
+		var j1 := floori(t / every)
+		var j0 := j1 - int(ceil(260.0 / every))
+		for j in range(j0, j1 + 1):
+			var far := _h(j, 1) < 0.55
+			var v := (4.0 + 3.0 * _h(j, 2)) if far else (8.0 + 6.0 * _h(j, 2))
+			var tj := (float(j) + 0.8 * _h(j, 3)) * every
+			var age := t - tj
+			if age < 0.0:
+				continue
+			var dir := 1.0 if _h(j, 4) < 0.5 else -1.0
+			var x := (-24.0 + v * age) if dir > 0.0 else (984.0 - v * age)
+			if x < -30.0 or x > 990.0:
+				continue
+			x = roundf(x + shift)
+			var y := roundf((58.0 + 30.0 * _h(j, 5)) if far else (92.0 + 34.0 * _h(j, 5)))
+			var n := (2 + int(2.0 * _h(j, 6))) if far else (7 + int(5.0 * _h(j, 6)))
+			var drive: Color = DRIVES[int(_h(j, 7) * 3.0) % 3]
+			var a := 0.7 if far else 1.0
+			# the wake: behind the drive, fading, every other pixel at its far end
+			var wl := (3 if far else 6) + int(4.0 * _h(j, 8))
+			for i in wl:
+				var f := 1.0 - float(i) / float(wl)
+				if f < 0.4 and i % 2 == 1:
+					continue
+				_px(x - dir * float(n + 1 + i), y, Color(drive, 0.45 * f * a))
+			# the hull, nose first; its top row lit by the star (a near one only)
+			for i in n:
+				_px(x - dir * float(i), y, Color(hull, a))
+				if not far and i > 0 and i < n - 1:
+					_px(x - dir * float(i), y - 1.0, Color(lit, 0.8 * a))
+				if not far and i > 1 and i < n - 2:
+					_px(x - dir * float(i), y + 1.0, Color(hull.darkened(0.3), a))
+			# the drive: a point of light and its glow
+			var dx := x - dir * float(n)
+			_px(dx, y, Color(drive, a))
+			for o: Vector2 in [Vector2(0, -1), Vector2(0, 1), Vector2(-dir, 0)]:
+				_px(dx + o.x, y + o.y, Color(drive, 0.3 * a))
 
 
 ## THE AIR OF THE WORLD YOU ORBIT, LIT (`LocalWow` "air"): a thin bright shell
