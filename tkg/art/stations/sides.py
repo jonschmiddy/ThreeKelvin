@@ -260,12 +260,67 @@ def static_terms(rgb, al, kind, lampmask, seed=7):
         sizes = ndimage.sum(np.ones_like(lab), lab, index=np.arange(1, n + 1)) if n else []
         rng = np.random.default_rng(seed)
         for i in range(1, n + 1):
-            if sizes[i - 1] >= 250:
-                depth[lab == i] = int(rng.choice([1, 1, 2, 3]))
+            # (ONE DEPTH PER WHOLE BOX: only a box its dark lines leave whole, 1500 px or more, may go back; a
+            # box its own texture cuts into scraps stays near, or its scraps would part at different depths)
+            r_ = int(rng.choice([1, 1, 2, 3]))
+            if sizes[i - 1] >= 1500:
+                # (and only a box-shaped piece: one that fills most of its bounding box; a piece running through
+                # several boxes is ragged and stays near)
+                sl_ = ndimage.find_objects((lab == i).astype(int))[0]
+                area = (sl_[0].stop - sl_[0].start) * (sl_[1].stop - sl_[1].start)
+                if sizes[i - 1] >= 0.8 * area:
+                    depth[lab == i] = r_
+        # (what frames the entrance stays with it: anything within 24 px of the kept entrance is near, or the
+        # frame round the hallway would slide off its lamps)
+        near_ent = box(al.shape, EBOX[0] - 24, EBOX[1] - 24, EBOX[2] + 24, EBOX[3] + 24)
+        for i in np.unique(lab[near_ent & (lab > 0)]):
+            depth[lab == i] = 1
+        # (a whole box's scraps -- the pieces its own texture cut off -- go where the box goes: a small piece
+        # ringed mostly by one far box takes its depth)
+        objs = ndimage.find_objects(lab)
+        # (every piece round it votes, the scraps of near boxes too)
+        bigd = np.where(lab > 0, depth, 0)
+        for i, sl in enumerate(objs, 1):
+            if sl is None or sizes[i - 1] >= 1500:
+                continue
+            y0_, y1_ = max(0, sl[0].start - 4), min(H, sl[0].stop + 4)
+            x0_, x1_ = max(0, sl[1].start - 4), min(W, sl[1].stop + 4)
+            m = lab[y0_:y1_, x0_:x1_] == i
+            ring = ndimage.binary_dilation(m, iterations=3) & ~m
+            v = bigd[y0_:y1_, x0_:x1_][ring]
+            v = v[v > 0]
+            if len(v) < 6:
+                continue
+            vals, cnt = np.unique(v, return_counts=True)
+            k = int(cnt.argmax())
+            if vals[k] > 1 and cnt[k] >= 0.6 * len(v):
+                depth[y0_:y1_, x0_:x1_][m] = int(vals[k])
         d2 = depth.copy()
         for dy, dx in ((0, 1), (1, 0), (0, -1), (-1, 0)):
             d2 = np.minimum(d2, np.roll(np.roll(depth, dy, 0), dx, 1))
         depth = np.where(outline, np.minimum(d2, 3), depth)
+        # NO COMBS: a box's dark texture (a grid, ribs) splits it into pieces that can land at different depths,
+        # and the parallax then slides thin strips of it over the crevice (pile 3's teal box). A far layer is
+        # only its thick parts (a 5 x 5 opening) in pieces of at least 150 px; the rest comes back to the near
+        for dd in (2, 3):
+            m = depth == dd
+            thick = ndimage.binary_opening(m, structure=np.ones((5, 5)))
+            lab2, n2 = ndimage.label(thick)
+            if n2:
+                sz2 = ndimage.sum(np.ones_like(lab2), lab2, index=np.arange(1, n2 + 1))
+                thick = np.isin(lab2, 1 + np.nonzero(sz2 >= 150)[0])
+            # (a piece's own outline stays with it: the thick part grown by 2 px, within what was at this depth)
+            keep = ndimage.binary_dilation(thick, iterations=2) & m
+            depth[m & ~keep] = 1
+            # (and what is left must look like boxes: a far region that fills under 85% of its bounding box is
+            # ragged -- a box's scraps strewn through its neighbours' -- and comes back near whole)
+            lab3, n3 = ndimage.label(depth == dd)
+            for j, sl in enumerate(ndimage.find_objects(lab3), 1):
+                if sl is None:
+                    continue
+                mm = lab3[sl] == j
+                if mm.sum() < 0.85 * mm.size or mm.shape[0] < 16 or mm.shape[1] < 16:
+                    depth[sl][mm] = 1
     depth[ent] = 0
     for dd, f in ((2, 0.9), (3, 0.8)):
         S[(depth == dd) & ~lampmask] *= f
