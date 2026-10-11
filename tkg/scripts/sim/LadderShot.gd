@@ -3,6 +3,7 @@ extends Node
 ## THE ZOOM LADDER'S MOVES, filmed (`ZoomLadder`):
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LadderShot
 ##       keepwindow flow=c out=<dir> [seed=N] [seams=1,2,3] [designs=A,B,C] [style=...]
+##       [side=<StationSides id>] [interior=<id>|none]
 ## For each design of each seam asked for, the move both ways through the
 ## Router's own doors -- chart <-> map, map <-> LOCAL (in orbit of a world, so the
 ## world handoff has its world), LOCAL <-> station (DOCK on LOCAL's bar, UNDOCK)
@@ -392,6 +393,10 @@ func _run() -> void:
 			Run.at = st
 			Run.map[st].visited = true
 			SectorScreen._approached_at = st
+			# (`side=<id>` / `interior=<id>`: the station's side and its bay's
+			# interior, instead of the station's own pick -- `StationSides`)
+			StationSides.force_side = StringName(_arg("side", ""))
+			StationSides.force_interior = StringName(_arg("interior", ""))
 			# (on the ladder, so LOCAL draws the station's side, but not filmed)
 			ZoomLadder.force = 1
 			Router.show_local()
