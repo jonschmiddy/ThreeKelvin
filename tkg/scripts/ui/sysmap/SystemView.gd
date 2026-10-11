@@ -2083,6 +2083,7 @@ class _Belts extends Node2D:
 
 	func _rocks() -> void:
 		var L: SystemLayout = view.layout
+		var glints: bool = SectorWowS.has(&"glints", view)
 		var front: Vector2 = view.front_now() if SectorWowS.has(&"flarefront", view) else Vector2(-1.0, 0.0)
 		for b in L.bodies:
 			if b.kind != &"belt":
@@ -2197,6 +2198,43 @@ class _Belts extends Node2D:
 					draw_rect(Rect2(s - Vector2(2, 2), Vector2(6, 4)), dark)
 					draw_rect(Rect2(s + Vector2(sx * 2 * (1 - tw), -2), Vector2(2, 2)), lit.lightened(0.15))
 					draw_rect(Rect2(s + Vector2(-sx * 2, 0), Vector2(2, 2)), dark.darkened(0.3))
+				if glints and i < 300 and not pulsar:
+					_glint(s, i, b.index, phase, sc3)
+
+	## WOW `glints`: SUNLIGHT CATCHING A TUMBLING ROCK. Each of the belt's first
+	## 300 rocks (the ones always there, so a closer look only magnifies how many
+	## glint in a patch) flashes now and then as a flat face turns to the sun:
+	## up over a fifth of a second, gone over most of a second, a cross of light
+	## round it at its height -- gathered light in 2x2 blocks, eased, the palette
+	## pass setting its steps. Brighter where the belt is seen lit full (`phase`).
+	## About one rock in thirty is glinting at any moment.
+	const GLINT_UP := 0.2
+	const GLINT_S := 1.0
+
+	func _glint(s: Vector2, i: int, belt: int, phase: float, sc3: Vector3) -> void:
+		var h1 := SkyBakeS.hash2(i, belt * 7 + 3)
+		var h2 := SkyBakeS.hash2(i, belt * 7 + 4)
+		# (each rock's own turn: 20 to 44 s between its glints)
+		var period := 20.0 + 24.0 * h1
+		var u := fposmod(view.t + h2 * period, period)
+		if u >= GLINT_S:
+			return
+		var e := smoothstep(0.0, GLINT_UP, u) * (1.0 - smoothstep(GLINT_UP, GLINT_S, u))
+		e *= 0.55 + 0.45 * clampf((phase - 0.62) / 0.38, 0.0, 1.0)
+		if e < 0.04:
+			return
+		var c := Vector3(1.0, 1.0, 1.0).lerp(sc3, 0.25)
+		var core := Color(c.x, c.y, c.z, minf(1.0, e * 1.35))
+		draw_rect(Rect2(s, Vector2(2, 2)), core)
+		# (along the row only, never a cross: the sky's stars are crosses, and a
+		# glint drawn as one read as one more star)
+		var arm := Color(c.x, c.y, c.z, minf(1.0, e * 0.7))
+		for d: Vector2 in [Vector2(2, 0), Vector2(-2, 0)]:
+			draw_rect(Rect2(s + d, Vector2(2, 2)), arm)
+		if e > 0.45:
+			var tip := Color(c.x, c.y, c.z, (e - 0.45) * 0.6)
+			for d: Vector2 in [Vector2(4, 0), Vector2(-4, 0)]:
+				draw_rect(Rect2(s + d, Vector2(2, 2)), tip)
 
 
 # ---------------------------------------------------------------- the fabric and the orbits
