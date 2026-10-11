@@ -2547,9 +2547,13 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		var xf0 := _face.get_global_transform()
 		var start := xf0.affine_inverse() * _ladder_ship() - _face.origin()
 		var berth := Vector2(StationFace.TAIL_IN + len_end * 0.5, StationFace.ROW)
+		var shrink := 1.0
+		if art2 != null:
+			var dim2 := Rect2(art2.ink_rect()).size * art2.scale
+			shrink = _hall_shrink(start.x, berth.x, dim2, s_end)
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
-			"berth": berth, "start": start, "path": absf(berth.x - start.x)}
+			"berth": berth, "start": start, "path": absf(berth.x - start.x), "shrink": shrink}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2635,7 +2639,7 @@ func ladder_cam(k: float) -> void:
 			fly = hall_fly
 			var berth := slot.get_global_transform().affine_inverse() * _face.plate_g(hall.berth)
 			art.position = (ship.pos as Vector2).lerp(berth - (ship.mid as Vector2), fly)
-			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
+			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), hall_shrink_at(fly, float(hall.get("shrink", 1.0))))
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
@@ -2651,6 +2655,48 @@ func ladder_cam(k: float) -> void:
 const HALL_CAM_FROM := 0.12
 const HALL_POWER_BY := 0.55
 const HALL_FOLLOW := 0.5
+
+
+## HOW SOON YOUR SHIP SHRINKS ON ITS WAY IN (`StationFace.SHIP_LIP_H`): its
+## size runs from its own to `s_end` along `1 - (1 - fly) ^ q`. q is 1 -- the
+## size simply following `fly`, the dock Jon approved -- unless the ship would be
+## taller than `SHIP_LIP_H` as its nose reaches the lips; then the q that makes
+## it exactly that tall there, so it shrinks sooner, smoothly from rest (its
+## rate at the start is q times the approved one, never a jump), and passes the
+## lips as the medium does. Its path is the same.
+## (`sx`, `bx`: its middle at rest and at its berth, plate px; `dim` its size.)
+static func hall_shrink_at(fly: float, q: float) -> float:
+	if q == 1.0:
+		return fly
+	return 1.0 - pow(1.0 - clampf(fly, 0.0, 1.0), q)
+
+
+static func _hall_shrink(sx: float, bx: float, dim: Vector2, s_end: float) -> float:
+	if dim.x <= 1.0 or dim.y <= 1.0:
+		return 1.0
+	var lip_h := func(q: float) -> float:
+		# where its nose reaches the lips (its middle moves on, its length shrinks)
+		var lo := 0.0
+		var hi := 1.0
+		for i in 40:
+			var f := (lo + hi) * 0.5
+			var nose := lerpf(sx, bx, f) + dim.x * lerpf(1.0, s_end, hall_shrink_at(f, q)) * 0.5
+			if nose < StationFace.LIP_X:
+				lo = f
+			else:
+				hi = f
+		return dim.y * lerpf(1.0, s_end, hall_shrink_at((lo + hi) * 0.5, q))
+	if float(lip_h.call(1.0)) <= StationFace.SHIP_LIP_H:
+		return 1.0
+	var a := 1.0
+	var b := 40.0
+	for i in 40:
+		var m := (a + b) * 0.5
+		if float(lip_h.call(m)) > StationFace.SHIP_LIP_H:
+			a = m
+		else:
+			b = m
+	return b
 
 
 ## Your ship's speed along the hallway at its end (k 1), in screen px a second,
