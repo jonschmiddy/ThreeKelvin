@@ -27,9 +27,9 @@ const LEVELS := {"unclaimed": MapGen.Development.UNCLAIMED, "outpost": MapGen.De
 	"capital": MapGen.Development.CAPITAL}
 
 ## The most rows a hull may be let down past its seat to close a step in its
-## belly over a cap: the light B on the unclaimed slab takes 4, its lowest pixel
-## then on the slab's row 6, still on the 9-row top face.
-const SINK_MAX := 4
+## belly over a cap: the heavy B on the unclaimed slab takes 5, its lowest
+## pixel then 5 rows down the slab's front face, below its front edge (row 7).
+const SINK_MAX := 5
 
 var _fails := 0
 

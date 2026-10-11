@@ -550,9 +550,11 @@ static func hull_mass_x(img: Image, ink: Rect2i) -> float:
 ## WHERE A STAND MEETS A HULL, measured off its picture: the first opaque row
 ## of every column (`top`), the columns that reach the seat row -- the cap a
 ## hull's belly lies on (`span`, first and last) -- and the cap's middle (`mid`,
-## in the picture's columns). The seat (`yard.json`, set per level at 8x, Jon's
-## "lower ship a bit to fit on ship stand") is how many rows of the saddle's top
-## face the hull lies on: its lowest pixel there sits on row `seat - 1`.
+## in the picture's columns). The seat (`yard.json`, measured per stand picture)
+## is the row of the saddle's top face's front edge -- its lip, crease or rim --
+## and the hull's lowest pixel lies on the row above it, so none of the top face
+## shows under the belly (Jon, picking B: "sink every level to the front edge of
+## the saddle's top face"); each stand's `_seat` says which rows are which.
 var _cap_cache: Dictionary = {}
 
 
