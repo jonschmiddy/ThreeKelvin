@@ -2547,41 +2547,9 @@ func ladder_cam_begin(other: int, seam: int, design: String) -> void:
 		var xf0 := _face.get_global_transform()
 		var start := xf0.affine_inverse() * _ladder_ship() - _face.origin()
 		var berth := Vector2(StationFace.TAIL_IN + len_end * 0.5, StationFace.ROW)
-		var shrink := 1.0
-		var opening := {}
-		var body_lift := 0.0
-		if art2 != null:
-			var dim2 := Rect2(art2.ink_rect()).size * art2.scale
-			# A HULL TOO TALL FOR THE MOUTH (`ZoomLadder.big_hull`): shrink it to
-			# the medium's height at the lips, shrink its body to the lips, or open
-			# the lips for it; the light and the medium as approved in all three
-			var mode := ZoomLadder.big_hull()
-			# (Drum 1 as approved, unlit, kept to compare, draws no moving lips)
-			if mode == "OPEN" and _face.side.legacy:
-				mode = "SHRINK"
-			var fit := {"mode": mode, "hull": Run.hull.name if Run.hull != null else ""}
-			if mode == "BODY":
-				var rel := _body_rel(art2)
-				shrink = _hall_shrink_body(start, berth, dim2, s_end, rel)
-				fit["body"] = [rel.x, rel.y]
-				body_lift = (rel.x + rel.y) * 0.5
-			elif mode == "OPEN":
-				opening = _hall_opening(start, berth, dim2, s_end)
-			else:
-				shrink = _hall_shrink(start.x, berth.x, dim2, s_end)
-			var fm := _nose_at_lips(start.x, berth.x, dim2, s_end, shrink)
-			var sc := lerpf(1.0, s_end, hall_shrink_at(fm, shrink))
-			var yc := lerpf(start.y, berth.y, fm) - body_lift * dim2.y * sc
-			fit["q"] = shrink
-			fit["lip_scale"] = sc
-			fit["lip_rows"] = [yc - dim2.y * sc * 0.5, yc + dim2.y * sc * 0.5]
-			fit["open"] = [int(opening.get("top", 0)), int(opening.get("bot", 0))]
-			StationFace.last_fit = fit
 		_lad["hall"] = {"xf": xf0, "o": _face.origin(),
 			"right": _view.get_global_rect().end.x, "vc": _view.get_global_rect().get_center(), "s_end": s_end,
-			"berth": berth, "start": start, "path": absf(berth.x - start.x), "shrink": shrink, "opening": opening,
-			"lift": body_lift, "dim": Rect2(art2.ink_rect()).size * art2.scale if art2 != null else Vector2.ZERO,
-			"f_lips": _nose_at_lips(start.x, berth.x, Rect2(art2.ink_rect()).size * art2.scale if art2 != null else Vector2.ONE, s_end, shrink)}
+			"berth": berth, "start": start, "path": absf(berth.x - start.x)}
 	# 2C, LEAVING for the map (no meeting point: this is the screen being left):
 	# the world you orbit carried in its own picture, as the map's is carried in
 	if smooth and meet.is_empty() and other == ZoomLadder.MAP and sky != null and is_instance_valid(sky) \
@@ -2667,30 +2635,7 @@ func ladder_cam(k: float) -> void:
 			fly = hall_fly
 			var berth := slot.get_global_transform().affine_inverse() * _face.plate_g(hall.berth)
 			art.position = (ship.pos as Vector2).lerp(berth - (ship.mid as Vector2), fly)
-			# ("BODY": a hull whose body sits off its middle -- the heavy's keel low,
-			# its tower high -- is raised or lowered, by the time its nose reaches
-			# the lips, to put its body in the middle of the mouth)
-			var lift := float(hall.get("lift", 0.0))
-			if lift != 0.0:
-				var ramp := clampf(fly / maxf(float(hall.f_lips), 0.001), 0.0, 1.0)
-				ramp = ramp * ramp * (3.0 - 2.0 * ramp)
-				var scn := lerpf(1.0, float(hall.s_end), hall_shrink_at(fly, float(hall.get("shrink", 1.0))))
-				art.position.y -= lift * (hall.dim as Vector2).y * scn * ramp / maxf(slot.get_global_transform().get_scale().y / _face.get_global_transform().get_scale().y, 0.001)
-			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), hall_shrink_at(fly, float(hall.get("shrink", 1.0))))
-			# (the mouth opened for a big hull, "OPEN": the lips apart as it nears
-			# them and shut again once it is past the recess)
-			var op: Dictionary = hall.get("opening", {})
-			var ot := 0
-			var ob := 0
-			if not op.is_empty():
-				var u := opening_at(fly, op)
-				ot = int(roundf(float(op.top) * u))
-				ob = int(roundf(float(op.bot) * u))
-			for f: StationFace in [_face, _face_front]:
-				if f != null and is_instance_valid(f) and (f.open_top != ot or f.open_bot != ob):
-					f.open_top = ot
-					f.open_bot = ob
-					f.queue_redraw()
+			art.scale = (ship.scale as Vector2) * lerpf(1.0, float(hall.s_end), fly)
 		else:
 			art.position = (ship.pos as Vector2).lerp(ring - (ship.mid as Vector2) + (Vector2(24, 0) if deep else Vector2.ZERO), fly)
 			art.scale = (ship.scale as Vector2) * lerpf(1.0, 0.62 if deep else 0.2, fly)
@@ -2706,164 +2651,6 @@ func ladder_cam(k: float) -> void:
 const HALL_CAM_FROM := 0.12
 const HALL_POWER_BY := 0.55
 const HALL_FOLLOW := 0.5
-
-
-## HOW SOON YOUR SHIP SHRINKS ON ITS WAY IN (`StationFace.SHIP_LIP_H`): its
-## size runs from its own to `s_end` along `1 - (1 - fly) ^ q`. q is 1 -- the
-## size simply following `fly`, the dock Jon approved -- unless the ship would be
-## taller than `SHIP_LIP_H` as its nose reaches the lips; then the q that makes
-## it exactly that tall there, so it shrinks sooner, smoothly from rest (its
-## rate at the start is q times the approved one, never a jump), and passes the
-## lips as the medium does. Its path is the same.
-## (`sx`, `bx`: its middle at rest and at its berth, plate px; `dim` its size.)
-static func hall_shrink_at(fly: float, q: float) -> float:
-	if q == 1.0:
-		return fly
-	return 1.0 - pow(1.0 - clampf(fly, 0.0, 1.0), q)
-
-
-static func _hall_shrink(sx: float, bx: float, dim: Vector2, s_end: float) -> float:
-	if dim.x <= 1.0 or dim.y <= 1.0:
-		return 1.0
-	var lip_h := func(q: float) -> float:
-		# where its nose reaches the lips (its middle moves on, its length shrinks)
-		var lo := 0.0
-		var hi := 1.0
-		for i in 40:
-			var f := (lo + hi) * 0.5
-			var nose := lerpf(sx, bx, f) + dim.x * lerpf(1.0, s_end, hall_shrink_at(f, q)) * 0.5
-			if nose < StationFace.LIP_X:
-				lo = f
-			else:
-				hi = f
-		return dim.y * lerpf(1.0, s_end, hall_shrink_at((lo + hi) * 0.5, q))
-	if float(lip_h.call(1.0)) <= StationFace.SHIP_LIP_H:
-		return 1.0
-	var a := 1.0
-	var b := 40.0
-	for i in 40:
-		var m := (a + b) * 0.5
-		if float(lip_h.call(m)) > StationFace.SHIP_LIP_H:
-			a = m
-		else:
-			b = m
-	return b
-
-
-## Where (as `fly`) your ship's nose reaches the lips, for a shrink `q`.
-static func _nose_at_lips(sx: float, bx: float, dim: Vector2, s_end: float, q: float) -> float:
-	var lo := 0.0
-	var hi := 1.0
-	for i in 40:
-		var f := (lo + hi) * 0.5
-		var nose := lerpf(sx, bx, f) + dim.x * lerpf(1.0, s_end, hall_shrink_at(f, q)) * 0.5
-		if nose < StationFace.LIP_X:
-			lo = f
-		else:
-			hi = f
-	return (lo + hi) * 0.5
-
-
-## Where (as `fly`) your ship's tail passes the recess's end.
-static func _tail_past_recess(sx: float, bx: float, dim: Vector2, s_end: float, q: float) -> float:
-	var lo := 0.0
-	var hi := 1.0
-	for i in 40:
-		var f := (lo + hi) * 0.5
-		var tail := lerpf(sx, bx, f) - dim.x * lerpf(1.0, s_end, hall_shrink_at(f, q)) * 0.5
-		if tail < StationFace.RECESS.end.x:
-			lo = f
-		else:
-			hi = f
-	return (lo + hi) * 0.5
-
-
-## THE BODY OF YOUR SHIP (`StationFace.body_rows`), above and below its ink's
-## middle, as fractions of its ink's height: (top, bottom).
-func _body_rel(art: ShipView) -> Vector2:
-	var img: Image = art._img
-	if img == null:
-		return Vector2(-0.5, 0.5)
-	var ink := img.get_used_rect()
-	var b := StationFace.body_rows(img)
-	if ink.size.y <= 0 or b.x < 0:
-		return Vector2(-0.5, 0.5)
-	var cy := float(ink.position.y) + float(ink.size.y) * 0.5
-	return Vector2((float(b.x) - cy) / float(ink.size.y), (float(b.y) - cy) / float(ink.size.y))
-
-
-## BODY ("BODY"): the q (1 if the approved curve already passes) that brings your
-## ship's body -- not its masts, barrels and fins -- between the lips as its nose
-## reaches them: from the recess's top row (206) to the lower lip's middle (286),
-## the room the medium's own hull uses (its keel on that lip).
-const BODY_ROWS := Vector2(206.0, 286.0)
-
-
-static func _hall_shrink_body(start: Vector2, berth: Vector2, dim: Vector2, s_end: float, rel: Vector2) -> float:
-	if dim.x <= 1.0 or dim.y <= 1.0:
-		return 1.0
-	# (its body brought, by the lips, to where its middle would be: the lift)
-	var half := (rel.y - rel.x) * 0.5
-	var fits := func(q: float) -> bool:
-		var f := _nose_at_lips(start.x, berth.x, dim, s_end, q)
-		var sc := lerpf(1.0, s_end, hall_shrink_at(f, q))
-		var yc := lerpf(start.y, berth.y, f)
-		var bc := yc
-		return bc - half * dim.y * sc >= BODY_ROWS.x and bc + half * dim.y * sc <= BODY_ROWS.y
-	if fits.call(1.0) or dim.y <= StationFace.SHIP_LIP_H:
-		return 1.0
-	var a := 1.0
-	var b := 40.0
-	for i in 40:
-		var m := (a + b) * 0.5
-		if fits.call(m):
-			b = m
-		else:
-			a = m
-	return b
-
-
-## OPEN ("OPEN"): how far the lips open for your ship (whole plate px, top and
-## bottom) and when: by just enough that, as its nose reaches them on the
-## approved curve, it has the medium's room (its top 11 px under the recess's
-## top row, its keel on the lower lip); opening over the last 120 px before its
-## nose reaches them, shut again once its tail is past the recess. {} for a hull
-## no taller than the medium.
-static func _hall_opening(start: Vector2, berth: Vector2, dim: Vector2, s_end: float) -> Dictionary:
-	if dim.x <= 1.0 or dim.y <= 1.0:
-		return {}
-	var fm := _nose_at_lips(start.x, berth.x, dim, s_end, 1.0)
-	var sc := lerpf(1.0, s_end, fm)
-	if dim.y * sc <= StationFace.SHIP_LIP_H:
-		return {}
-	var yc := lerpf(start.y, berth.y, fm)
-	var top := int(ceilf(maxf(0.0, (StationFace.RECESS.position.y + 11.0) - (yc - dim.y * sc * 0.5))))
-	var bot := int(ceilf(maxf(0.0, (yc + dim.y * sc * 0.5) - (StationFace.RECESS.end.y + 1.0))))
-	if top <= 0 and bot <= 0:
-		return {}
-	# (the fly its middle has 120 px further back, for the start of the opening)
-	var f0 := clampf(fm - 120.0 / maxf(absf(berth.x - start.x), 1.0), 0.0, fm)
-	var ft := _tail_past_recess(start.x, berth.x, dim, s_end, 1.0)
-	return {"top": top, "bot": bot, "f0": f0, "f1": fm, "f2": ft, "f3": minf(ft + 0.05, 0.995)}
-
-
-## How open the mouth is (0..1) at `fly`, for an `_hall_opening`.
-static func opening_at(fly: float, op: Dictionary) -> float:
-	var f0 := float(op.f0)
-	var f1 := float(op.f1)
-	var f2 := float(op.f2)
-	var f3 := float(op.f3)
-	var u := 0.0
-	if fly <= f0:
-		u = 0.0
-	elif fly < f1:
-		u = (fly - f0) / maxf(f1 - f0, 0.0001)
-	elif fly <= f2:
-		u = 1.0
-	elif fly < f3:
-		u = 1.0 - (fly - f2) / maxf(f3 - f2, 0.0001)
-	u = clampf(u, 0.0, 1.0)
-	return u * u * (3.0 - 2.0 * u)
 
 
 ## Your ship's speed along the hallway at its end (k 1), in screen px a second,
@@ -2925,8 +2712,6 @@ func ladder_cam_end() -> void:
 		if f != null and is_instance_valid(f):
 			f.dock_k = 0.0
 			f.power = 0.0
-			f.open_top = 0
-			f.open_bot = 0
 	var ship: Dictionary = _lad.ship
 	if not ship.is_empty() and is_instance_valid(ship.art):
 		var art: ShipView = ship.art

@@ -1,0 +1,67 @@
+{
+ "iris_90_0": {
+  "cut": 42,
+  "period": 2,
+  "mismatch": 3.03
+ },
+ "iris_90_1": {
+  "cut": 37,
+  "period": 4,
+  "mismatch": 1.94
+ },
+ "iris_220_1": {
+  "cut": 48,
+  "period": 2,
+  "mismatch": 3.39
+ },
+ "hallway_90_1": {
+  "cut": 33,
+  "period": 2,
+  "mismatch": 1.63
+ },
+ "hallway_130_0": {
+  "cut": 62,
+  "period": 4,
+  "mismatch": 0.55
+ },
+ "hallway_130_1": {
+  "cut": 52,
+  "period": 2,
+  "mismatch": 1.74
+ },
+ "hallway_170_0": {
+  "cut": 60,
+  "period": 4,
+  "mismatch": 0.6
+ },
+ "hallway_170_1": {
+  "cut": 61,
+  "period": 4,
+  "mismatch": 0.43
+ },
+ "hallway_220_0": {
+  "cut": 60,
+  "period": 4,
+  "mismatch": 0.62
+ },
+ "cargo_90_0": {
+  "cut": 11,
+  "period": 2,
+  "mismatch": 0.22
+ },
+ "cargo_130_0": {
+  "cut": 18,
+  "period": 8,
+  "mismatch": 0.96
+ },
+ "cargo_130_1": {
+  "cut": 9,
+  "period": 1,
+  "mismatch": 0.37
+ },
+ "cargo_170_0": {
+  "cut": 10,
+  "period": 4,
+  "mismatch": 0.3
+ }
+}

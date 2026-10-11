@@ -4,7 +4,6 @@ extends Node
 ##   godot --path . --windowed --position 3840,0 --fixed-fps 30 -- sheet=LadderShot
 ##       keepwindow flow=c out=<dir> [seed=N] [seams=1,2,3] [designs=A,B,C] [style=...]
 ##       [side=<StationSides id>] [interior=<id>|none] [weight=light|medium|heavy] [fit=full]
-##       [big_hull=SHRINK|BODY|OPEN]
 ## For each design of each seam asked for, the move both ways through the
 ## Router's own doors -- chart <-> map, map <-> LOCAL (in orbit of a world, so the
 ## world handoff has its world), LOCAL <-> station (DOCK on LOCAL's bar, UNDOCK)
@@ -128,6 +127,11 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 				var b := to_plate * (art.get_global_transform() * art.canvas_to_local(ink.end)) - lc._face.origin()
 				var r := Rect2(a, b - a).abs()
 				wn["plate"] = [r.position.x, r.position.y, r.size.x, r.size.y]
+				# (and all of it, every part bolted on)
+				var fg := art.fitted_rect_global()
+				var fa := to_plate * fg.position - lc._face.origin()
+				var fb := to_plate * fg.end - lc._face.origin()
+				wn["fitted"] = [fa.x, fa.y, fb.x - fa.x, fb.y - fa.y]
 				wn["scale"] = art.scale.x
 		if timing:
 			var now := Time.get_ticks_usec()
@@ -181,11 +185,6 @@ func _film(name: String, call: Callable, pre: int = 6, post: int = -1) -> void:
 	mf.close()
 	if timing:
 		print("  [ladder] %s: longest real frame %.1f ms at frame %d (swap %d)" % [name, worst, worst_at, swap])
-	if not StationFace.last_fit.is_empty():
-		print("  [ladder] %s: the hull's fit to the mouth %s" % [name, StationFace.last_fit])
-		mf = FileAccess.open("%s/fit.json" % d, FileAccess.WRITE)
-		mf.store_string(JSON.stringify(StationFace.last_fit))
-		mf.close()
 	print("  [ladder] %s: %d frames, swap at %d, on %s" % [name, k, swap,
 		Router.current.get_script().get_global_name() if Router.current != null else "-"])
 

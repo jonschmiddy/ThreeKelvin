@@ -37,19 +37,25 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mouth  # noqa: E402
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "src")
 BAYER = np.array([[0.0, 0.5], [0.75, 0.25]])
 HEAT = [(0x5c, 0x28, 0x0c), (0x96, 0x42, 0x14), (0xcc, 0x64, 0x1c), (0xff, 0xa6, 0x3c), (0xff, 0xdc, 0xa0), (0xff, 0xf6, 0xe2)]
 STAR = np.array([255, 240, 214], float)
 CREVICE = (8, 10, 14)
-EBOX = (78, 200, 238, 290)          # the kept entrance, plate px x0, y0, x1, y1 (its lamp strip to x 236)
-RECESS = (84, 206, 212, 284)        # the bay's dark interior (the panels the door lights)
+# THE PLATES ARE MADE TALLER FIRST (`mouth.py`: one mouth for every ship, 48 rows taller through the hallway), and
+# every number below is on the taller plate: the entrance, the recess, the inner door 48 rows taller than they were
+# (the rows above the cut where they were, those below it 48 lower)
+EBOX = (78, 200, 238, 338)          # the kept entrance, plate px x0, y0, x1, y1 (its lamp strip to x 236)
+RECESS = (84, 206, 212, 332)        # the bay's dark interior (the panels the door lights)
 # what is behind your ship: StationFace.RECESS, every row of the bay from the plate's left edge to the recess's end
 # (the mouth's few columns left of x 84 included, so the ship's nose is never behind them going in); the bay
 # pictures are this box, x 76..211
-BAYBOX = (76, 206, 212, 284)
-DOOR = (124, 213, 179, 279)         # the inner door's outer frame
+BAYBOX = (76, 206, 212, 332)
+DOOR = (124, 213, 179, 327)         # the inner door's outer frame
 HULL_K = 0.82
 # the recovered plates (all but the Terraces) were seen to plate x 398; past it, to x 629, their right ends were
 # painted by PixelLab (src/painted/: one pixflux take each, joined at x 399, the seen pixels untouched; the plates
@@ -67,11 +73,13 @@ SIDES = {
     "drum1": ("drum", "drum1.png", "none", []),
     "drum3": ("drum", "drum3.png", "none", []),
     "pile1": ("pile", "pile1.png", "dark", []),
-    "pile3": ("pile", "pile3.png", "dark", [(280, 300, 345, 345)]),
-    "pile4": ("pile", "pile4.png", "dark", [(280, 300, 345, 345)]),
+    "pile3": ("pile", "pile3.png", "dark", [(280, 348, 345, 393)]),
+    "pile4": ("pile", "pile4.png", "dark", [(280, 348, 345, 393)]),
     "shanty3": ("shanty", "shanty3.png", "brown", []),
     "terraces": ("wall", "terraces.png", "dark", []),
 }
+# (all thirteen are made; the irises' rings cannot be made taller cleanly, and `StationSides` leaves them out of the
+# pool until they are painted at the new height)
 INTERIORS = ["iris_90_0", "iris_90_1", "iris_220_1", "hallway_90_1", "hallway_130_0", "hallway_130_1", "hallway_170_0",
              "hallway_170_1", "hallway_220_0", "cargo_90_0", "cargo_130_0", "cargo_130_1", "cargo_170_0"]
 
@@ -152,8 +160,8 @@ def find_lamps(rgb, al, kind):
     mask = np.zeros_like(al)
     # the entrance: guide rows and the strip beside the door (StationFace draws these by its own rects)
     warm = (r - b > 40) & (r > 80) & al
-    mask |= warm & (box(al.shape, 84, 203, 222, 206) | box(al.shape, 84, 284, 222, 287))
-    mask |= (r - b > 40) & (r > 120) & al & box(al.shape, 224, 200, 238, 290)
+    mask |= warm & (box(al.shape, 84, 203, 222, 206) | box(al.shape, 84, 332, 222, 335))
+    mask |= (r - b > 40) & (r > 120) & al & box(al.shape, 224, 200, 238, 338)
     lamps = []
     ent = box(al.shape, EBOX[0], EBOX[1] - 4, EBOX[2] + 4, EBOX[3] + 4)
     if kind == "drum":
@@ -165,7 +173,7 @@ def find_lamps(rgb, al, kind):
         red = (((r > 150) & (g < 120) & (b < 110)) | ((r > 200) & (L > 150))) & al & box(al.shape, 200, 99, 212, 113)
         ls, m = comps(red & ~mask, rgb, "beacon_lamp", 6, "always", min_px=3)
         lamps += ls; mask |= m
-        win = (r - b > 25) & (r > 70) & al & box(al.shape, 200, 392, 213, 410)
+        win = (r - b > 25) & (r > 70) & al & box(al.shape, 200, 440, 213, 458)
         ls, m = comps(win & ~mask, rgb, "window", 5, "always", min_px=3)
         lamps += ls; mask |= m
     if kind == "shanty":
@@ -378,7 +386,7 @@ def hull_window(rgb, al, lo=96, hi=200, a0=240, end=(0, SEEN_W)):
     column (a + w) is most like its first (a), on the rows the hull is seen in, so the tiles join where the plate's
     own pixels would have gone on; silhouettes must match. `end`: where the window may end (a + w), within the
     columns that are the plate's own (seen, or painted)"""
-    rows = slice(110, 400)
+    rows = slice(110, 448)
     A = al[rows].astype(float)
     C = np.concatenate([rgb[rows], A[..., None] * 255], -1)
     best = None
@@ -442,7 +450,7 @@ def build(plate, kind, rule="dark", keep=(), hull=None):
     code = []
     if kind == "drum":
         code += [dict(kind="strobe", at=[90, 43], radius=8, color="#b8e2f4", period=1.6, offset=0.0),
-                 dict(kind="strobe", at=[90, 457], radius=8, color="#b8e2f4", period=2.1, offset=0.9)]
+                 dict(kind="strobe", at=[90, 505], radius=8, color="#b8e2f4", period=2.1, offset=0.9)]
     else:
         top = int(np.nonzero(al.any(1))[0].min())
         topx = int(np.nonzero(al[top])[0].min())
@@ -467,14 +475,21 @@ def build(plate, kind, rule="dark", keep=(), hull=None):
 
 
 def interiors():
+    """each kept interior made TALL rows taller (the new recess) at its own cleanest cut: a block of rows that
+    genuinely repeats (`mouth.extend_picture`, found on the lit picture, the same cut made in the flat one)"""
+    report = {}
     for k in INTERIORS:
-        flat = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_flat.png")).convert("RGB")).astype(float)
-        lit = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_lit.png")).convert("RGB"))
+        flat0 = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_flat.png")).convert("RGB"))
+        lit0 = np.asarray(Image.open(os.path.join(SRC, "interiors", k + "_lit.png")).convert("RGB"))
+        lit, (c, pp, e) = mouth.extend_picture(lit0)
+        flat = np.concatenate([flat0[:c]] + [flat0[c - pp:c]] * (mouth.TALL // pp) + [flat0[c:]], 0).astype(float)
+        report[k] = dict(cut=int(c), period=int(pp), mismatch=round(float(e), 2))
         d = os.path.join(HERE, "interiors", k)
         os.makedirs(d, exist_ok=True)
         a = np.full(flat.shape[:2] + (1,), 255, np.uint8)
         Image.fromarray(np.concatenate([np.round(flat * 0.45).astype(np.uint8), a], -1)).save(os.path.join(d, "dark.png"), optimize=True)
         Image.fromarray(np.concatenate([lit, a], -1)).save(os.path.join(d, "lit.png"), optimize=True)
+    json.dump(report, open(os.path.join(HERE, "interiors", "cuts.json"), "w"), indent=1)
 
 
 def check(name, plate, out, data, dbg, prev):
@@ -501,8 +516,11 @@ def check(name, plate, out, data, dbg, prev):
 def main():
     prev = sys.argv[sys.argv.index("--check") + 1] if "--check" in sys.argv else None
     for name, (kind, src, rule, keep) in SIDES.items():
-        plate = np.asarray(Image.open(os.path.join(SRC, src)).convert("RGBA"))
+        plate0 = np.asarray(Image.open(os.path.join(SRC, src)).convert("RGBA"))
+        plate, cuts, pers, errs = mouth.taller(plate0)
         out, data, dbg = build(plate, kind, rule, keep, HULLS.get(name))
+        data["mouth"] = dict(tall=mouth.TALL, cut_rows=[int(cuts.min()), int(cuts.max())],
+                             periods=sorted(set(int(v) for v in pers)), worst=round(float(errs.max()), 2))
         d = os.path.join(HERE, name)
         os.makedirs(d, exist_ok=True)
         for k, v in out.items():
